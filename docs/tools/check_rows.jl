@@ -20,7 +20,7 @@
 #      reported, not errors. After an approved change to the covered set, run
 #      with --rebaseline to regenerate the file.
 #
-# Usage:  julia docs/notes/design/tools/check_rows.jl [--rebaseline]
+# Usage:  julia docs/tools/check_rows.jl [--rebaseline]
 # Exits nonzero if a citation dangles or the spec's coverage shrank.
 
 const DESIGN = normpath(joinpath(@__DIR__, ".."))

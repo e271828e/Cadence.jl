@@ -5425,11 +5425,11 @@ existing shadowing check cannot reach it, there being no parent-module binding
 to compare against — the shadow is a local binding that vanishes with its
 block. Mitigation adopted at the other end: an inert component is unwritable on
 purpose, which costs a line and catches the misspelled-declaration family too.
-Found the hard way in `prototypes/kernel/check.jl`, where fixture components
-defined inside their own testset made the probe's own rejection tests pass
-vacuously; diagnosed first as a world-age effect and disproved by direct test
-(a method defined in a function body *is* visible to that body's later calls —
-the shadowing is what bites).
+Found the hard way in the kernel prototype's early `check.jl`, since retired
+into `test/`, where fixture components defined inside their own testset made
+the probe's own rejection tests pass vacuously; diagnosed first as a world-age
+effect and disproved by direct test (a method defined in a function body *is*
+visible to that body's later calls — the shadowing is what bites).
 
 **Rejected.**
 - *Documenting the caveat only:* the failure is silent and its symptom — an

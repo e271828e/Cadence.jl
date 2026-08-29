@@ -1,18 +1,20 @@
 # Kernel prototype
 
-The walking skeleton for the framework in `docs/notes/design/framework_spec.md`,
+The walking skeleton for the framework in `framework_spec.md`,
 built to keepable standards and grown one increment at a time — increments 2–23
-so far (increment 1, the cell-store bench, is frozen in `../cellstore_bench`;
+so far (increment 1, the cell-store bench, is frozen in `prototypes/cellstore_bench`;
 D-162 cites its numbers). This file is the orientation; read it first and
 alone. On demand:
 
-- `MAP.md` — what each source file implements, piece by piece, with spec
+- `kernel_map.md` — what each source file implements, piece by piece, with spec
   citations: the long form of the table below, the long absence list, and the
   long form of the authoring trap.
-- `NOTES.md` — the per-increment narrative, the property-by-property record of
+- `kernel_notes.md` — the per-increment narrative, the property-by-property record of
   what the tests pin down, and the stand-in retirement history. Read it when
   modifying an existing test or wondering why one asserts what it does; new
   increments add their paragraph and property bullets there.
+
+Run the suite from the repository root:
 
     julia --project=. test/runtests.jl
 
@@ -46,7 +48,7 @@ against the indexed grid time because that is the claim.
 
 ## What is deliberately absent
 
-The long form, with reasons, is in `MAP.md`. In brief:
+The long form, with reasons, is in `kernel_map.md`. In brief:
 
 - **The Appendix C kinds whose mechanism is absent** — an absence gets no
   struct, so no `ThreadBudget`, `DeadStage`, `BundleFieldError`,
@@ -103,7 +105,7 @@ The long form, with reasons, is in `MAP.md`. In brief:
 for the design's is in exactly one of three places: the table above, the
 absence list, or a row here naming the spec shape it replaces. Transactional:
 the commit introducing a stand-in adds its row, the one retiring it deletes
-it. No tooling enforces this (`prototypes/` is outside the design tools'
+it. No tooling enforces this (`src/` and `test/` are outside the design tools'
 rosters); the diff review is the enforcement.
 
 | spec shape | stand-in here | retirement |
@@ -117,7 +119,7 @@ a function body or a `@testset`, `h_x(::MyComp, (; x)) = …` binds a *new local
 function*, not a method of the global `h_x`, so the build sees a component
 that declares nothing. Test fixtures — components, devices, bindings, traits —
 live at top level for this reason (long form, and its D-164 ratification, in
-`MAP.md`).
+`kernel_map.md`).
 
 Traps hit more than once while building, for whoever builds next:
 

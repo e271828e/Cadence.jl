@@ -6,7 +6,7 @@
 #
 #Self-contained, no framework, no packages:
 #
-#   julia docs/notes/design/condition_demo.jl
+#   julia docs/condition_demo.jl
 #
 #The node structs and the resolution pass are miniature but semantically
 #faithful implementations of §14.2/§14.3/§14.6; the one stand-in is root-input

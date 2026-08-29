@@ -29,14 +29,14 @@
 # legitimately add a citation and may never legitimately drop one. An entry
 # that disappears between snapshots is a loss of the whole entry.
 #
-# Usage:  julia docs/notes/design/tools/audit_fragments.jl [rev]
+# Usage:  julia docs/tools/audit_fragments.jl [rev]
 # Compares the working-tree file against `rev` (default HEAD), so the natural
 # call before a rewrite batch names the commit the batch started from.
 # Exits nonzero if anything was lost.
 
 const DESIGN = normpath(joinpath(@__DIR__, ".."))
 const DECISIONS = "framework_decisions.md"
-const RELPATH = "docs/notes/design/" * DECISIONS
+const RELPATH = "docs/" * DECISIONS
 
 const CLASSES = ["code" => r"`[^`]+`",
                  "math" => r"\$[^\$\n]+\$",

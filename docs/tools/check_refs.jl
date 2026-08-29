@@ -34,7 +34,7 @@
 # and 3 cover them with no special case. check_rows.jl remains the guard on
 # citation *existence* for both the `D-nnn` and the retired `row N` spellings.
 #
-# Usage:  julia docs/notes/design/tools/check_refs.jl
+# Usage:  julia docs/tools/check_refs.jl
 # Exits nonzero if anything dangles.
 
 include(joinpath(@__DIR__, "slugs.jl"))

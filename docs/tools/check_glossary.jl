@@ -17,7 +17,7 @@
 #     whitelisted below (strict-flip adjudication, 2026-08-13). A whitelisted
 #     anchor that *acquires* a body link is reported as a stale whitelist entry.
 #
-# Usage:  julia docs/notes/design/tools/check_glossary.jl [--strict]
+# Usage:  julia docs/tools/check_glossary.jl [--strict]
 
 const DESIGN = normpath(joinpath(@__DIR__, ".."))
 const SPEC = joinpath(DESIGN, "framework_spec.md")

@@ -26,7 +26,7 @@
 # Fenced code blocks are skipped. As of the sweep there are no citations inside
 # them, nor inside code spans; the skip keeps that true for later runs.
 #
-# Usage:  julia docs/notes/design/tools/sweep_rows.jl [--apply]
+# Usage:  julia docs/tools/sweep_rows.jl [--apply]
 # Dry run by default: prints per-file counts and every distinct rewrite.
 # Exits nonzero if any guard trips.
 

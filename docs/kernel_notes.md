@@ -1,11 +1,11 @@
 # Kernel prototype — increment history and test-property notes
 
-The optional companion to `README.md`: the per-increment build narrative and
+The optional companion to `kernel_guide.md`: the per-increment build narrative and
 the property-by-property record of what the tests pin down. Read it when
 modifying an existing test or wondering why one asserts what it does; nothing
-here is needed to orient a coding session — that is the README's job. The
+here is needed to orient a coding session — that is the kernel guide's job. The
 accretion convention follows the content: an increment adds its narrative
-paragraph and its property bullets *here*, keeping the README constant-size.
+paragraph and its property bullets *here*, keeping the kernel guide constant-size.
 
 ## The increments
 
@@ -457,7 +457,7 @@ name the offender; everything else is left where it already lives — a
 passed through meets §6.1's one-producer rule with both claimants named, and an
 `except`ed face the assembly then fails to wire is an ordinary unconnected
 input. The tests pin exactly that division. `declaration_error`'s two shapes in
-the spec sketch are §13.2's structured carrier, which the README records as
+the spec sketch are §13.2's structured carrier, which the kernel guide records as
 absent: these throw a plain `BuildError`, the house framing. One default was
 amended after the increment closed (the §8.8 doc ruling in the same commit as
 this paragraph's): `prefix` defaults to `child_path` with its slash folded into
@@ -714,7 +714,7 @@ per reason, which is what lets `d.reason === :inverted_box` be a test's whole
 assertion. `dataplane.jl`'s eight runtime kinds are re-parented under
 `Diagnostic` so `severity` covers them too. A `BuildError(::String)` constructor
 wrapping a `LegacyMessage` kind rode through stages 2–3 so the suite never went
-red, with its own README stand-in row; stage 4 deleted both.
+red, with its own stand-in row in the kernel guide; stage 4 deleted both.
 
 Stages 2–4 convert the sites: the build side (`assembly.jl`, `build.jl`), the
 services and periphery (`sim.jl`, `roster.jl`, `bindings.jl`, `devices.jl`,
@@ -1843,7 +1843,7 @@ Each of these is a spec claim rather than a programming convenience:
 Every stand-in introduced through increment 5 was retired on 2026-08-20;
 increment 6's one row — localized guards detecting at boundary resolution —
 was retired by increment 7, and increment 9's publication row by increment 11,
-both on 2026-08-25. The `set_slot!` row in the README's table entered with
+both on 2026-08-25. The `set_slot!` row in the kernel guide's table entered with
 increment 9; increment 10's device-staging row was retired by increment 12 on
 2026-08-26, `attach!` returning the handle, and the two §11.8 presentation
 rows entered with increment 13. Increment 14 retired both presentation rows

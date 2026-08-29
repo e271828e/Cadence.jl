@@ -44,7 +44,7 @@
 # exclusion was a property of its retired table form. Its `## Index` rows are
 # skipped by job 1 only because job 4 owns them outright.
 #
-# Run from anywhere:  julia docs/notes/design/tools/linkify.jl
+# Run from anywhere:  julia docs/tools/linkify.jl
 
 include(joinpath(@__DIR__, "slugs.jl"))
 

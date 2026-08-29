@@ -5,7 +5,7 @@
 # its parameter and one cursor per distinct leaf eltype as an `NTuple` *field*,
 # so instances of one component type share one compiled body; `K` is a pure
 # function of `P` (bench-confirmed 2026-08-20: the C2M point in
-# `../cellstore_bench` keeps D-162's flat curve), and the homogeneous cell is
+# `prototypes/cellstore_bench` keeps D-162's flat curve), and the homogeneous cell is
 # the `K = 1` case of the same representation.
 
 struct CellAddr{P,K}

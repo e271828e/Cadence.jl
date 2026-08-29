@@ -1,1 +1,9 @@
-results/
+Manifest.toml
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+*.ji
+.DS_Store
+.vscode/
+.zed/
+docs/*.pdf
