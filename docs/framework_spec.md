@@ -1538,11 +1538,10 @@ The **computer/integrator split** remains fully expressible without any framewor
 support: a stateless component computes derivatives as outputs, wired into a trivial
 state-holding component. It is the idiom of choice when the factoring earns reuse —
 for example, one Newton–Euler solver shared across vehicle variants, or swappable
-kinematic descriptors against a common integrator shape. See `sketch_decoder.jl`
-for the worked example. Against a split-form spelling of the same model (four
-components, thirteen connections), the merged form has half the components and
-wiring; everything derivable from pose alone migrates to stage 1, shortening the
-stage-2 chain.
+kinematic descriptors against a common integrator shape. Against a split-form
+spelling of the same model (four components, thirteen connections), the merged
+form has half the components and wiring; everything derivable from pose alone
+migrates to stage 1, shortening the stage-2 chain.
 
 ### 7.5 Allocation policy: a scoped invariant
 
@@ -1614,8 +1613,7 @@ How an author spells a [component](#g-component): where the structural facts liv
 takes as authoritative, and what is checked against what. [§8.1][s8-1]–[§8.4][s8-4] cover the
 component side; [§8.5][s8-5]–[§8.8][s8-8] the [assembly](#g-assembly) side; the build pipeline is [§9][s9] and the
 stopped-sim service spellings are [§14][s14]. Concrete syntax below is near-final in shape
-but still illustrative in spelling. The sketches (`sketch_decoder.jl`,
-`sketch_io.jl`) are written against this layer and the services spellings.
+but still illustrative in spelling.
 
 ### 8.1 Position: a declarative trait layer — plain Julia, no macros
 
@@ -8894,12 +8892,11 @@ continuous-reset contract too.
 ### 15.3 Torture test for the §11 staging shapes: filter, joystick and GUI
 
 This case study is the exercise that selected per-[device](#g-device) [cells](#g-staging-cell)
-([§11.4][s11-4]) and produced the [§11.7][s11-7] staging contracts. Setup (the
-`sketch_io.jl` listing): a first-order filter with root inputs `u_cmd` and `τ`;
-a fictitious 100 Hz single-axis joystick streaming a slow ramp onto `u_cmd`
-(complete writer); a 60 Hz GUI with sliders for both [root inputs](#g-root-input) (sparse
-writer); 50 Hz [boundaries](#g-boundary); pace 1. The interference on `u_cmd` is
-the point.
+([§11.4][s11-4]) and produced the [§11.7][s11-7] staging contracts. Setup: a
+first-order filter with root inputs `u_cmd` and `τ`; a fictitious 100 Hz
+single-axis joystick streaming a slow ramp onto `u_cmd` (complete writer); a 60
+Hz GUI with sliders for both [root inputs](#g-root-input) (sparse writer); 50 Hz
+[boundaries](#g-boundary); pace 1. The interference on `u_cmd` is the point.
 
 Three candidate staging shapes were on the table: **per-input cells**, a shared
 **[batch](#g-batch) stack**, and **per-device cells**. The user-level listing
