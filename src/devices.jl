@@ -4,7 +4,7 @@
 # loop body, the pre-spawn init bracket and the tail. The control surface here
 # is §12.1's stop word, §12.3's counter-plus-condition wait and §12.6's
 # lifecycle with §13.5's termination record beside it: pause, pacing and the
-# operator interrupt are absent (README). A device
+# operator interrupt are absent (kernel guide). A device
 # failure reports as `DeviceCrash` into the device's own diagnostic cell
 # (§11.8, §12.4); what the tail alone produces — the join timeout, and
 # whatever landed past the final frame top — is folded into the termination
@@ -25,9 +25,9 @@ configured bound lives with the policy. `ModelRequestedStop` carries the
 first named `stop_on` face observed holding, in declaration order.
 `ControlRequestedStop` carries its issuer — `:code` from `stop!(sim)`, or the
 requesting device's name from `stop!(handle)`; the spec's `:interrupt` arm is
-absent with the interrupt's machinery (README). `LoopError` is §13.6's
+absent with the interrupt's machinery (kernel guide). `LoopError` is §13.6's
 abnormal entry, `exception` the retained cause (raw: §13.4's `StepError` wrap
-and its cursor are absent, README).
+and its cursor are absent, kernel guide).
 """
 abstract type TerminationSource end
 
@@ -141,7 +141,7 @@ the attachment's binding, read back by `binding(handle)`: the loop's own
 `map_input`/`map_output` calls take it from the handle instead of the device
 carrying its configuration (§11.6). `last_seen` is the §12.3 waiter's private
 register, refreshed at spawn so a run's first wait observes that run's
-boundaries. One unguarded edge (README): staging through a handle whose
+boundaries. One unguarded edge (kernel guide): staging through a handle whose
 device was detached lands in an orphaned cell and is silently lost — handles
 are run-scoped task equipment, and guarding would put a roster scan back
 into `stage!`.
@@ -400,7 +400,7 @@ end
 # loop last published; the sticky status flips only after it, and the notify
 # under the lock wakes every §12.3 waiter, whose predicate routes it out.
 # Idempotent, and run even when the loop leaves by a throw — the §13.6 catch
-# path is absent (README), but device tasks must never be left parked.
+# path is absent (kernel guide), but device tasks must never be left parked.
 function _finish!(sim)
     ctl = sim.control
     @atomic ctl.stopped = true

@@ -1,7 +1,7 @@
 # --- the binding's runtime half (§11.6, §11.4; increment 13) --------------------
 # The shipped TableBinding with its generic map_input — the shared pure
 # conditioning helper, with an owner — and the handle's `binding` capability.
-# The devices below live at top level for the README's local-scope reason.
+# The devices below live at top level for the kernel guide's local-scope reason.
 
 # A fed plant exporting its output: the root face set the output side reads —
 # one root input (`u`), one exported output face (`y`).
@@ -23,7 +23,7 @@ function loop(d::Telemetry, h)
     nothing
 end
 
-# The output side's conformance customers (§11.6), at top level (README).
+# The output side's conformance customers (§11.6), at top level (kernel guide).
 struct NoReads <: AbstractBinding end            # declared side, no enumeration
 is_output(::NoReads) = true
 struct ReadsUndeclared <: AbstractBinding end    # enumeration written, trait false

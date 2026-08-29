@@ -1,6 +1,6 @@
 # --- the device contract and its tasks (§11.6, §11.1, §12.4; increment 12) ------
 # The handle, the wrapper, the pre-spawn bracket and the tail. Every device
-# below lives at top level for the README's local-scope reason, and every
+# below lives at top level for the kernel guide's local-scope reason, and every
 # timing-sensitive assertion is a property check with generous slack, never a
 # tight wall-clock equality: single-threaded schedulers must pass.
 

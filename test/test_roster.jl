@@ -2,9 +2,9 @@
 # Increment 10: attach/detach admission, both claim sources, per-device staging
 # cells, and the harness register as the derived remainder.
 #
-# The malformed bindings live at top level for the README's local-scope reason:
-# a trait method defined inside a @testset binds a new local function, and the
-# conformance check would see a binding declaring nothing at all.
+# The malformed bindings live at top level for the kernel guide's local-scope
+# reason: a trait method defined inside a @testset binds a new local function,
+# and the conformance check would see a binding declaring nothing at all.
 
 struct NoSides <: AbstractBinding end                # neither side declared
 
