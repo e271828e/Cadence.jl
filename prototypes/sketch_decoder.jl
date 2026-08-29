@@ -4,7 +4,7 @@
 #assemblies (§13.5-§13.8). Illustrative, non-committed syntax; not runnable.
 #
 #UNCHECKED against the current spec: this sketch was never remapped after the
-#framework_spec.md renumberings, so every § below is presumed stale — cited
+#spec.md renumberings, so every § below is presumed stale — cited
 #section numbers are the v0.19-era design doc's, and the declaration names are
 #that era's too (`connections`/`exports`, retired by D-170). Only the
 #vocabulary was swept forward, at D-206; nothing here was re-verified, and

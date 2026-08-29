@@ -790,7 +790,7 @@ function _run_body!(sim::Simulation, pol::RunPolicy, upto::Int, target::Int)
         # §13.6's abnormal entry: the failed boundary is discarded by
         # construction — publication is a boundary's last act, so it published
         # nothing and the previous snapshot is already final. The source
-        # retains the cause raw (§13.4's wrap is absent, kernel guide),
+        # retains the cause raw (§13.4's wrap is absent, `status.md`),
         # unwrapped from the spawned loop's task failure where the topology
         # moved it; the record itself is assembled below, after the sweep
         # (D-203).

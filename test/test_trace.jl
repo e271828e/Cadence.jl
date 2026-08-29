@@ -1,7 +1,7 @@
 # --- the input trace (§11.5, increment 23) --------------------------------------
 # The header captured at `init!` and one sparse record per drained batch behind
 # it: what replay (§12.7) consumes, and the primary record the log is derived
-# from (D-038). The fixtures live at top level for the kernel guide's
+# from (D-038). The fixtures live at top level for `status.md`'s
 # local-scope reason.
 
 # Three root inputs, so a record's *position* against the writer's schema is a

@@ -6,7 +6,7 @@
 # `D-106–D-107`, `rows 44, 104 and 106` → `D-044, D-104 and D-106` — dropping
 # the now-redundant `row`/`rows` word, as Pass A did inside the log.
 #
-# framework_decisions.md is not swept: Pass A already converted it (708 D-refs,
+# decisions.md is not swept: Pass A already converted it (708 D-refs,
 # no row form left). It is scanned anyway, so a regression there would show up.
 #
 # Only the citation form changes. Every other character on a rewritten line is
@@ -17,7 +17,7 @@
 # carried over verbatim, so the canonical forms line up group for group.
 #
 # Two further guards, both fatal:
-#   * every number swept must name an entry that exists in framework_decisions.md
+#   * every number swept must name an entry that exists in decisions.md
 #     (so a `row 5` that meant something else would stop the run, not be mangled);
 #   * the exotic forms the runbook warned about (`row-79`, `rows ≤145`) are not
 #     silently passed through — they abort, because their target spelling is a
@@ -26,21 +26,21 @@
 # Fenced code blocks are skipped. As of the sweep there are no citations inside
 # them, nor inside code spans; the skip keeps that true for later runs.
 #
-# Usage:  julia docs/tools/sweep_rows.jl [--apply]
+# Usage:  julia docs/design/tools/sweep_rows.jl [--apply]
 # Dry run by default: prints per-file counts and every distinct rewrite.
 # Exits nonzero if any guard trips.
 
 const DESIGN = normpath(joinpath(@__DIR__, ".."))
-const DECISIONS = "framework_decisions.md"
+const DECISIONS = "decisions.md"
 
-const FILES = ["framework_spec.md",
-               "framework_extensions.md",
-               "sample_time_proposal.md",
-               "event_visibility_walkthrough.md",
-               "inbound_periphery_walkthrough.md",
-               "trim_environment_walkthrough.md",
-               "frozen_discrete_walkthrough.md",
-               "localization_validation_walkthrough.md",
+const FILES = ["spec.md",
+               "extensions.md",
+               "companions/sample_time_proposal.md",
+               "companions/event_visibility_walkthrough.md",
+               "companions/inbound_periphery_walkthrough.md",
+               "companions/trim_environment_walkthrough.md",
+               "companions/frozen_discrete_walkthrough.md",
+               "companions/localization_validation_walkthrough.md",
                DECISIONS]
 
 # A citation group in either spelling. The body is numbers joined by range

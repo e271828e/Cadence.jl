@@ -66,3 +66,16 @@ end
 
 "Headings whose slug needed a `-N` suffix (empty is the good case)."
 collisions(hs) = [(h.text, h.slug) for h in hs if h.slug != slugify(h.text)]
+
+# The corpus spans two directories — the design root and `companions/` — so a
+# link's target is relative to the citing file, not the owner's bare name. Both
+# names below are paths relative to the design root, and the pair round-trips:
+# `resolve(linktarget(owner, file), file) == owner`.
+
+"The link target naming `owner` from inside `file`; empty for a self-link."
+linktarget(owner, file) =
+    owner == file ? "" : relpath(owner, dirname(file) == "" ? "." : dirname(file))
+
+"The file a link target found in `file` names, or `file` itself when empty."
+resolve(dest, file) =
+    dest == "" ? file : normpath(joinpath(dirname(file), dest))

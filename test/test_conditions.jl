@@ -1,7 +1,7 @@
 # --- the condition algebra and `init!` (§14.1–§14.6; increment 18) ---------------
 # The inert lazy tree, its resolution against a build, root-input totality, and
 # the service that puts all three together. The fixtures live at top level for
-# the kernel guide's local-scope reason.
+# `status.md`'s local-scope reason.
 
 # Every store a condition can address, and two root inputs in declaration order:
 # a continuous `x` (the plant's `q`), a discrete `s` (the integrator's `acc`), a
@@ -344,7 +344,7 @@ end
 # --- the specialized application register (§14.3, §14.4, D-066) -----------------
 # The other register over the same checks: a plan compiled from a tree's shape,
 # applied to every later tree of that shape. The fixtures stay at top level for
-# the kernel guide's local-scope reason.
+# `status.md`'s local-scope reason.
 
 # A discrete component with two `s` fields. The composite store merge needs one
 # store whose fields two layers can author separately, and no coverage component

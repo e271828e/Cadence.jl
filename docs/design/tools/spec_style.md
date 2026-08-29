@@ -1,6 +1,6 @@
 # Spec style guide
 
-The rules `framework_spec.md` is written to. Consulted before editing the spec
+The rules `spec.md` is written to. Consulted before editing the spec
 so its register stays consistent across sessions: **rigorous but pedagogical,
 economical but not terse**. Growth in word count is acceptable; a norm buried
 in pedagogy is not.
@@ -71,7 +71,7 @@ would destroy the signal. *Why* holds constructive rationale only.
 - **Constructive rationale stays** (why the rule is shaped as it is — what
   makes it believable and memorable). It lives under *Why*.
 - **Adversarial rationale goes** (why alternative X loses). It lives in
-  `framework_decisions.md`, cited as "(D-nnn)". Before deleting an inline
+  `decisions.md`, cited as "(D-nnn)". Before deleting an inline
   argument, verify the entry carries it; enrich the entry first if the inline
   version is richer.
 - **Case-study measurements are exempt** (ch. 15, the grounding charter): a

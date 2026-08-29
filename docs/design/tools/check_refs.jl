@@ -2,14 +2,14 @@
 #
 # Cross-reference checker for the framework spec and its companion files.
 #
-# Two checks, both over framework_spec.md and the companions:
+# Two checks, both over spec.md and the companions:
 #
 #   1. Citations — every `§N` / `§N.M` / `§X.N` / `Appendix X` names a heading
-#      that exists in framework_spec.md. Citations inside fenced code blocks,
-#      code spans and headings count too: the phase-2/3 sweeps rewrote them, and
-#      framework_decisions.md keeps all of its citations plain by design.
-#   2. Anchors — every markdown link target (`#slug` in-file,
-#      `framework_spec.md#slug` or `framework_decisions.md#slug` cross-file)
+#      that exists in spec.md. Citations inside fenced code blocks, code spans
+#      and headings count too: the phase-2/3 sweeps rewrote them, and
+#      decisions.md keeps all of its citations plain by design.
+#   2. Anchors — every markdown link target (`#slug` in-file, `spec.md#slug` or
+#      `decisions.md#slug` cross-file, `../` prefixed from a companion)
 #      resolves to a real heading anchor. In-file anchors are checked against the
 #      file's own headings, which is what keeps the companions' self-references
 #      (a walkthrough citing its own `§N`) honest.
@@ -26,35 +26,38 @@
 # the walkthrough itself has a section `N`. Often legitimate (the spec is usually
 # what is meant), but it is the shape a mis-resolved self-reference takes, so the
 # set is printed and any growth in it deserves a look. Current known set, all
-# hand-verified as correct spec citations: event_visibility_walkthrough.md l.20
+# hand-verified as correct spec citations: companions/event_visibility_walkthrough.md l.20
 # (§7). Anything beyond that line is new and needs the same hand check.
 #
 # Decision citations are ordinary links after the Pass B sweep — `D-037` is a
-# `[D-037][d-037]` reference resolving into framework_decisions.md — so checks 2
+# `[D-037][d-037]` reference resolving into decisions.md — so checks 2
 # and 3 cover them with no special case. check_rows.jl remains the guard on
 # citation *existence* for both the `D-nnn` and the retired `row N` spellings.
 #
-# Usage:  julia docs/tools/check_refs.jl
+# Usage:  julia docs/design/tools/check_refs.jl
 # Exits nonzero if anything dangles.
 
 include(joinpath(@__DIR__, "slugs.jl"))
 
 const DESIGN = normpath(joinpath(@__DIR__, ".."))
-const SPEC = "framework_spec.md"
-const DECISIONS = "framework_decisions.md"
+# Every file name below is relative to DESIGN, `companions/` included, so a
+# link target is resolved against the citing file's own directory before it is
+# compared (`resolve` in slugs.jl).
+const SPEC = "spec.md"
+const DECISIONS = "decisions.md"
 
-const COMPANIONS = ["framework_decisions.md",
-                    "framework_extensions.md",
-                    "event_visibility_walkthrough.md",
-                    "inbound_periphery_walkthrough.md",
-                    "trim_environment_walkthrough.md",
-                    "frozen_discrete_walkthrough.md",
-                    "localization_validation_walkthrough.md",
-                    "sample_time_proposal.md"]
+const COMPANIONS = ["decisions.md",
+                    "extensions.md",
+                    "companions/event_visibility_walkthrough.md",
+                    "companions/inbound_periphery_walkthrough.md",
+                    "companions/trim_environment_walkthrough.md",
+                    "companions/frozen_discrete_walkthrough.md",
+                    "companions/localization_validation_walkthrough.md",
+                    "companions/sample_time_proposal.md"]
 
 # The companions that cite their own numbered sections (see the advisory above).
-const SELF_CITING = ["event_visibility_walkthrough.md",
-                     "inbound_periphery_walkthrough.md"]
+const SELF_CITING = ["companions/event_visibility_walkthrough.md",
+                     "companions/inbound_periphery_walkthrough.md"]
 
 const CITATION = r"§([A-D]|\d+)(?:\.(\d+))?|Appendix ([A-D])(?![\w–—-])"
 const ANCHOR = r"\]\(([^)#]*)#([^)]+)\)"
@@ -76,9 +79,13 @@ function main()
     dup = collisions(hs)
 
     "Anchors a link destination may name, or `nothing` if it names no known file."
-    anchors(dest, own) = dest == "" ? own :
-                         dest == SPEC ? slugs :
-                         dest == DECISIONS ? logslugs : nothing
+    function anchors(dest, file, own)
+        dest == "" && return own
+        target = resolve(dest, file)
+        target == file ? own :
+        target == SPEC ? slugs :
+        target == DECISIONS ? logslugs : nothing
+    end
 
     println("outline of $SPEC: ", length(numbers), " citable headings (",
             count(h -> startswith(h.text, "Part "), hs), " parts, ",
@@ -116,7 +123,7 @@ function main()
             for m in eachmatch(ANCHOR, line)
                 na += 1
                 dest, slug = m[1], m[2]
-                pool = anchors(dest, own)
+                pool = anchors(dest, file, own)
                 if pool === nothing
                     push!(bad, (file, lineno, m.match, "unknown link destination"))
                 elseif !(slug in pool)
@@ -124,7 +131,7 @@ function main()
                 end
             end
             for m in eachmatch(LABELLED, line)
-                (m[2] === nothing || m[2] == SPEC) && m[1] in ownnums &&
+                (m[2] === nothing || resolve(m[2], file) == SPEC) && m[1] in ownnums &&
                     push!(ambiguous, (file, lineno, "§$(m[1])"))
             end
             infence && continue                          # ref links: prose only
@@ -142,7 +149,7 @@ function main()
         for (l, (lineno, dest, slug)) in defs
             haskey(uses, l) ||
                 push!(bad, (file, lineno, "[$l]", "unused definition — re-run linkify.jl"))
-            pool = anchors(dest, own)
+            pool = anchors(dest, file, own)
             if pool === nothing
                 push!(bad, (file, lineno, "[$l]: $dest#$slug", "unknown link destination"))
             elseif !(slug in pool)

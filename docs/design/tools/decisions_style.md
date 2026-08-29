@@ -1,6 +1,6 @@
 # Decision log style guide
 
-The rules `framework_decisions.md` adheres to. Distilled from the brief that
+The rules `decisions.md` adheres to. Distilled from the brief that
 converted the log's retired table form into entries; consulted whenever an
 entry is added, amended or rewritten. The counterpart of `spec_style.md`, which
 governs the spec.
@@ -88,7 +88,7 @@ external tool's behavior (Simulink/MATLAB/Modelica does X; we do Y; because Z).
    against new.
 3. **Citations are written bare, then linked mechanically.** Write `§5.2`,
    `Appendix B`, `D-037`, ranges as `D-166–D-168`; run
-   `julia docs/tools/linkify.jl` and it converts them to reference
+   `julia docs/design/tools/linkify.jl` and it converts them to reference
    links and regenerates the definitions block. Never hand-write anchors.
 4. **The `## Index` is generated.** `linkify.jl` rebuilds it from the entry
    headings and their `**Status.**` lines, so it cannot drift. Do not hand-edit

@@ -207,7 +207,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | term | anchor | n | class | gloss |
 |---|---|---|---|---|
 | blessed | g-blessed | 5 | A | the spec's marker for a practice it explicitly sanctions |
-| decision entry / `D-nnn` | g-row | 0 | — | a numbered entry of `framework_decisions.md` |
+| decision entry / `D-nnn` | g-row | 0 | — | a numbered entry of `decisions.md` |
 | the freeze | g-the-freeze | 2 | A | the roster freeze: `attach!`/`detach!` are stopped-sim operations |
 | guarded addition | g-guarded-addition | 8 | A | a capability the design admits but does not build |
 | normative / index, not a second home | g-normative | 1 | B | the spec norms; its appendices are indices |

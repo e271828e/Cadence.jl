@@ -1,18 +1,17 @@
-# Kernel prototype
+# Implementation status
 
-The walking skeleton for the framework in `framework_spec.md`,
+The walking skeleton for the framework in `design/spec.md`,
 built to keepable standards and grown one increment at a time — increments 2–23
 so far (increment 1, the cell-store bench, is frozen in `prototypes/cellstore_bench`;
 D-162 cites its numbers). This file is the orientation; read it first and
 alone. On demand:
 
-- `kernel_map.md` — what each source file implements, piece by piece, with spec
+- `map.md` — what each source file implements, piece by piece, with spec
   citations: the long form of the table below, the long absence list, and the
   long form of the authoring trap.
-- `kernel_notes.md` — the per-increment narrative, the property-by-property record of
-  what the tests pin down, and the stand-in retirement history. Read it when
-  modifying an existing test or wondering why one asserts what it does; new
-  increments add their paragraph and property bullets there.
+- `tests.md` — the property-by-property record of what the tests pin down. Read
+  it when modifying an existing test or wondering why one asserts what it does;
+  new increments add their property bullets there.
 
 Run the suite from the repository root:
 
@@ -48,7 +47,7 @@ against the indexed grid time because that is the claim.
 
 ## What is deliberately absent
 
-The long form, with reasons, is in `kernel_map.md`. In brief:
+The long form, with reasons, is in `map.md`. In brief:
 
 - **The Appendix C kinds whose mechanism is absent** — an absence gets no
   struct, so no `ThreadBudget`, `DeadStage`, `BundleFieldError`,
@@ -119,7 +118,7 @@ a function body or a `@testset`, `h_x(::MyComp, (; x)) = …` binds a *new local
 function*, not a method of the global `h_x`, so the build sees a component
 that declares nothing. Test fixtures — components, devices, bindings, traits —
 live at top level for this reason (long form, and its D-164 ratification, in
-`kernel_map.md`).
+`map.md`).
 
 Traps hit more than once while building, for whoever builds next:
 

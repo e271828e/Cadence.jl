@@ -2,9 +2,10 @@
 
 > **Historical record.** Written before the 2026-08-29 spin-off, so the paths
 > below are the old layout: the worktree `~/.julia/dev/Flight.jl-core-redesign-2`
-> is now this repository, `prototypes/kernel/` is its root, `README.md`, `MAP.md`
-> and `NOTES.md` are `docs/kernel_guide.md`, `docs/kernel_map.md` and
-> `docs/kernel_notes.md`, and the design documents live in `docs/`.
+> is now this repository, `prototypes/kernel/` is its root, `README.md` and
+> `MAP.md` are `docs/implementation/status.md` and `docs/implementation/map.md`,
+> `NOTES.md` survives as `docs/implementation/tests.md` minus its increment
+> history, and the design documents live in `docs/design/`.
 
 Worktree `~/.julia/dev/Flight.jl-core-redesign-2`, branch `core-redesign-2`,
 tip at launch `0cb491e0`. Prototype in `prototypes/kernel/`; read its

@@ -1,10 +1,10 @@
-# Kernel prototype — the long-form map
+# The long-form map
 
-On-demand companion to `kernel_guide.md`, which is the index. Each row here is the
+On-demand companion to `status.md`, which is the index. Each row here is the
 full account of what a source file implements, piece by piece, with its spec
 citations — the register a reviewer or a diff-verifier wants, not the one a
-reader needs to get oriented. Rows are maintained transactionally like the
-kernel guide's table: an increment that changes a file's surface amends its row.
+reader needs to get oriented. Rows are maintained transactionally like
+`status.md`'s table: an increment that changes a file's surface amends its row.
 
 ## What is real, piece by piece
 
@@ -92,7 +92,7 @@ policy reads `collected`: `resolve_source`/`resolve_dest`/`resolve_terminal`/
 component in `build.jl` — so `UnknownPort`, `PathResolution`,
 `FaceDirectionConflict`, `ClassUnreadable`, `StoreWithoutUpdate` and
 `TierUnreadable` report the first violation a run hits, one at a time, where
-the column's `collected` policy promises the whole pass (`kernel_notes.md` names the
+the column's `collected` policy promises the whole pass (`tests.md` names the
 same gap for interleaved Stratum A resolution, §13.1); retiring it needs a
 resolution pass built with a sentinel return, which the wiring API does not
 have today — its own increment. Second, several kinds

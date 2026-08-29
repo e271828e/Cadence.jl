@@ -1,8 +1,8 @@
 # --- run lifecycle and termination (§12.6, §13.5, §13.6; increment 16) ----------
 # The five-state machine behind `lifecycle(sim)`, `run!`'s keyword policy with
 # the constructor defaults, partial advance, the §13.5 termination record and
-# §13.6's abnormal entry. The devices below live at top level for the kernel
-# guide's local-scope reason.
+# §13.6's abnormal entry. The devices below live at top level for `status.md`'s
+# local-scope reason.
 
 # A monitored ramp: `hit` goes true at the first boundary whose sweep sees the
 # ramp at the trigger's level — the boundary-detected stop face.

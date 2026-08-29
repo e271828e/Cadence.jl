@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 #
-# Glossary coverage checker for framework_spec.md (rewrite plan P0.3).
+# Glossary coverage checker for spec.md (rewrite plan P0.3).
 #
 # Extracts Appendix D's bold entry terms and, in the default report mode,
 # prints the advisories that are expected to be nonempty before Phase 1 lands:
@@ -17,10 +17,10 @@
 #     whitelisted below (strict-flip adjudication, 2026-08-13). A whitelisted
 #     anchor that *acquires* a body link is reported as a stale whitelist entry.
 #
-# Usage:  julia docs/tools/check_glossary.jl [--strict]
+# Usage:  julia docs/design/tools/check_glossary.jl [--strict]
 
 const DESIGN = normpath(joinpath(@__DIR__, ".."))
-const SPEC = joinpath(DESIGN, "framework_spec.md")
+const SPEC = joinpath(DESIGN, "spec.md")
 
 # Anchors adjudicated as deliberately unlinked (strict skips them):
 const WHITELIST = Dict(

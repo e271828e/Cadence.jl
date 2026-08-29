@@ -9,34 +9,34 @@
 #   1. Validity — every `D-nnn` / `D-nnn–D-mmm` entry citation, and every
 #      citation still in the retired `row N` / `rows N–M` / `rows N and M`
 #      spelling, in every scanned file, names an entry that exists in
-#      framework_decisions.md (`### D-nnn` headings; D-nnn preserves the
+#      decisions.md (`### D-nnn` headings; D-nnn preserves the
 #      retired table's row N). Pass B swept the corpus to the `D-nnn` form, so
 #      a surviving `row N` is a regression and fails the run — the retired
 #      spelling stays parsed only so the report can name it.
-#   2. Coverage (spec only) — the set of rows framework_spec.md cites must be a
+#   2. Coverage (spec only) — the set of rows spec.md cites must be a
 #      superset of the committed baseline tools/row_baseline.txt. Phase 2 may
 #      consolidate duplicate citations of a row, but a row dropping out of the
 #      spec entirely means an argument lost its pointer. Rows newly cited are
 #      reported, not errors. After an approved change to the covered set, run
 #      with --rebaseline to regenerate the file.
 #
-# Usage:  julia docs/tools/check_rows.jl [--rebaseline]
+# Usage:  julia docs/design/tools/check_rows.jl [--rebaseline]
 # Exits nonzero if a citation dangles or the spec's coverage shrank.
 
 const DESIGN = normpath(joinpath(@__DIR__, ".."))
-const SPEC = "framework_spec.md"
-const DECISIONS = "framework_decisions.md"
+const SPEC = "spec.md"
+const DECISIONS = "decisions.md"
 const BASELINE = joinpath(@__DIR__, "row_baseline.txt")
 
 const FILES = [SPEC,
                DECISIONS,   # rows cite each other; those pointers dangle too
-               "framework_extensions.md",
-               "sample_time_proposal.md",
-               "event_visibility_walkthrough.md",
-               "inbound_periphery_walkthrough.md",
-               "trim_environment_walkthrough.md",
-               "frozen_discrete_walkthrough.md",
-               "localization_validation_walkthrough.md"]
+               "extensions.md",
+               "companions/sample_time_proposal.md",
+               "companions/event_visibility_walkthrough.md",
+               "companions/inbound_periphery_walkthrough.md",
+               "companions/trim_environment_walkthrough.md",
+               "companions/frozen_discrete_walkthrough.md",
+               "companions/localization_validation_walkthrough.md"]
 
 # One citation group: "row 80", "rows 185–187", "rows 7 and 37", "rows 33, 34
 # and 55". The inner token is a number or an (en- or hyphen-dashed) range.

@@ -2,7 +2,7 @@
 # The problem value, the collected setup diagnostic, the two-half scratch world
 # of D-213, the in-house Levenberg–Marquardt behind the backend seam, the
 # service's own convergence verdict, and the commit that is literally an
-# `init!`. The fixtures live at top level for the kernel guide's local-scope
+# `init!`. The fixtures live at top level for `status.md`'s local-scope
 # reason.
 
 const PEND_G_L = 9.81      # the pendulum's g/l and damping throughout, so the

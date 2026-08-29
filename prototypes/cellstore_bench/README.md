@@ -1,6 +1,6 @@
 # Cell-store representation bench
 
-Increment 1 of the kernel prototype. Settles the one representation question
+Increment 1 of the prototype. Settles the one representation question
 the spec deliberately left open: **how the signal table's cells are stored and
 addressed** by the compiled executor (§9.7). Everything else on the path is
 already decided and is held fixed here — flat state backing with compile-time
@@ -83,7 +83,7 @@ Recorded as D-162; §9.7 amended.
 
 ## The mixed-cell point: C2M (2026-08-20)
 
-Added when the kernel retired its mixed-leaf-cells stand-in; the rows above
+Added when the prototype retired its mixed-leaf-cells stand-in; the rows above
 stay frozen. `C2M` (`src/c2m_mixed.jl`) is C2's representation generalized to
 mixed-leaf cells: per-eltype buffers as before, but a cell may span several,
 its address carrying one cursor per distinct leaf eltype of the port type as

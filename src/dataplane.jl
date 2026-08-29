@@ -5,7 +5,7 @@
 # owners — the roster's device entries and the harness register beside them —
 # live in roster.jl, the device tasks that stage into them in devices.jl,
 # the trace the drain feeds in trace.jl; what stands further out in the spec —
-# the pacer diagnostics — is deliberately absent (kernel guide).
+# the pacer diagnostics — is deliberately absent (`status.md`).
 #
 # This file holds the types and the pure mechanics; the `Simulation`-facing
 # surface — `stage!`, `drain!`, `publish!`, `latest` — lives in sim.jl, beside
@@ -34,7 +34,7 @@ plain data — paths and names as strings and symbols, never component
 instances; the declared/observed *port* types are the payload exception, and
 they are small. These are the kinds whose sources the prototype has built;
 the three whose features are absent — `DebtReanchor`, `ThreadBudget`,
-`UnboundedRun` — are absent with them (kernel guide).
+`UnboundedRun` — are absent with them (`status.md`).
 Writer attribution is never a payload field: the channel is per-writer, so
 the cell supplies it (§11.8, §12.4: no call passes a device id).
 `DeviceJoinTimeout`'s `who` is not that attribution — it is the payload's

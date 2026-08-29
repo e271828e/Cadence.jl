@@ -6,7 +6,7 @@
 # leaf eltypes — so the address-token type domain is still keyed by `P` alone,
 # and two instances of one component type share one `Entry` type and one
 # compiled body. The homogeneous cell is the `K = 1` case; C2M uses this
-# address for *every* cell, because that is what the kernel would do globally.
+# address for *every* cell, because that is what the prototype would do globally.
 #
 # The risk this point measures is D-162's, restated for the new shape: the
 # `NTuple` offsets must survive as runtime data behind `invoke_sweep`'s
