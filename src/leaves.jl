@@ -5,8 +5,6 @@
 # (§7.1), so *some* flatten/reconstruct machinery is needed either way. C2 then
 # reuses it for cells; C1 uses it only for state.
 
-using StaticArrays
-
 """
     nleaves(P)
 

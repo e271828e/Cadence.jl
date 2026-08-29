@@ -2,8 +2,6 @@
 # that between them they exercise every continuous-tier shape the executor has
 # to handle — and no more.
 
-using StaticArrays
-
 """
 Damped second-order plant. Carries state, publishes a **stage-1** port (`y`,
 state-derived, no feedthrough — the port that lets a feedback loop close
