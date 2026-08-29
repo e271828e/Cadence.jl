@@ -1,5 +1,11 @@
 # Increment 21 brief — trim (§14.7–§14.8), with the executor extraction, the read-selector family, the specialized `apply!` register and `capture`
 
+> **Historical record.** Written before the 2026-08-29 spin-off, so the paths
+> below are the old layout: the worktree `~/.julia/dev/Flight.jl-core-redesign-2`
+> is now this repository, `prototypes/kernel/` is its root, `README.md`, `MAP.md`
+> and `NOTES.md` are `docs/kernel_guide.md`, `docs/kernel_map.md` and
+> `docs/kernel_notes.md`, and the design documents live in `docs/`.
+
 You are implementing increment 21 of the kernel prototype in
 `/Users/miguel/.julia/dev/Flight.jl-core-redesign-2/prototypes/kernel` (a git
 worktree, branch `core-redesign-2`; never `cd` elsewhere — `cd` is aliased to

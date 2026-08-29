@@ -1,5 +1,11 @@
 # Increment 23 — the input trace (§11.5) and replay (§12.7)
 
+> **Historical record.** Written before the 2026-08-29 spin-off, so the paths
+> below are the old layout: the worktree `~/.julia/dev/Flight.jl-core-redesign-2`
+> is now this repository, `prototypes/kernel/` is its root, `README.md`, `MAP.md`
+> and `NOTES.md` are `docs/kernel_guide.md`, `docs/kernel_map.md` and
+> `docs/kernel_notes.md`, and the design documents live in `docs/`.
+
 Worktree `~/.julia/dev/Flight.jl-core-redesign-2`, branch `core-redesign-2`,
 tip at launch `0cb491e0`. Prototype in `prototypes/kernel/`; read its
 `README.md` first, then `MAP.md`/`NOTES.md` on demand. Spec sections to read
