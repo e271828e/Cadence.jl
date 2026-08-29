@@ -19,6 +19,8 @@ branch on 2026-08-29, carrying that branch's history.
   you read on demand.
 - `docs/briefs/` holds the increment briefs.
 - `prototypes/cellstore_bench/` is the frozen cell-store bench behind D-162.
+- `prototypes/sketch_decoder.jl` is a pre-design syntax sketch. It is not
+  runnable and its section numbers are stale; its header says so.
 
 ## Status
 

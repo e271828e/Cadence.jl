@@ -101,9 +101,9 @@ flag it for discussion instead of guessing.
 - **A new companion registers in both check tools' rosters** — `COMPANIONS` in
   `check_refs.jl`, `FILES` in `check_rows.jl` — or its citations are silently
   unchecked.
-- **The design dir's `.jl` sketches sit outside the rosters.** Every `§` in
-  them is hand-verified prose that rots silently at each renumbering. A sketch
-  carries its verification state in its own header; a renumbering that
+- **The `.jl` sketches under `prototypes/` sit outside the rosters.** Every `§`
+  in them is hand-verified prose that rots silently at each renumbering. A
+  sketch carries its verification state in its own header; a renumbering that
   re-verifies or strands one updates that header, not this file.
 
 ## Document structure — settled, not open
