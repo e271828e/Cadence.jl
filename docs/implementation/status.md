@@ -17,10 +17,14 @@ Run the suite from the repository root:
 
     julia --project=. test/runtests.jl
 
+`src/` is the `Cadence` package, so the first run after an `src/` edit pays a
+precompile of about 15 s on top of the suite's own time.
+
 ## What is real here
 
 | file | implements | spec |
 | --- | --- | --- |
+| `src/Cadence.jl` | the package module: the dependencies and the include order the other files load in | — |
 | `src/leaves.jl` | the leaf walk: flatten / reconstruct / the activation retype | §7.1, §7.2 |
 | `src/diagnostics.jl` | the diagnostic kinds, `severity`/`path`/`message`, the `BuildError` carrier and its compiler-style rendering, `logline`, `InternalInvariant` | §13.1, §13.2, Appendix C, D-214, D-215 |
 | `src/declare.jl` | the declaration layer: both tiers' name families and arities, the bundle law, `probe_value`, the connection declarations beside `transparent_container`, the rate registers with `sample_times`, the event surface | §5.2, §8.2, §8.5–§8.7, §9.3, D-211 |
@@ -122,9 +126,11 @@ live at top level for this reason (long form, and its D-164 ratification, in
 
 Traps hit more than once while building, for whoever builds next:
 
-- every `src/` and `test/` file is included into `Main`, so a test fixture
-  named like a framework type silently clobbers it — `rg "struct <Name>"
-  test/` before naming one;
+- the suite reaches the framework through `runtests.jl`'s `import Cadence:`
+  list, so a test that calls or extends a name not on it fails with an
+  `UndefVarError` — add the name there. A fixture reusing a framework name
+  now collides loudly, where the old `Main` arrangement let it clobber
+  silently;
 - `===` has no curried form (`all(===(x), v)` fails — use a lambda); a
   `where`-clause method's `.sig` is a `UnionAll` (`Base.unwrap_unionall`
   before `.parameters`);

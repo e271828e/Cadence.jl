@@ -28,9 +28,10 @@ covers the walking skeleton in `src/` and `test/`.
 
 ## Status
 
-`src/` is a flat include set, not yet a package module. Converting it into one
-top-level `module Cadence` with flat includes and a UUID in `Project.toml` is
-pending.
+`src/` is the `Cadence` package: one top-level module over flat includes.
+It exports nothing yet. The test suite reaches the framework through an
+explicit `import` list in `test/runtests.jl`, and which names are public API
+is a spec-driven question still open.
 
 ## Commands
 
