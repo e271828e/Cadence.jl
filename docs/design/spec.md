@@ -6535,6 +6535,12 @@ A `Simulation` moves through five states: **built**, **initialized**,
 completed [boundary zero](#g-boundary-zero), the initialization boundary run as
 the ordinary macro-sequence with an empty integrate ([§14.5][s14-5]).
 
+Beside the state, a simulation carries an **[input mode](#g-input-mode)**:
+`:live` or `:replay`, read as `mode(sim)`. The mode names where the next
+frame's [drain](#g-drain) takes its batches from, the staging cells or an
+attached recording ([§12.7][s12-7]). State and mode are orthogonal — the state says
+whether the simulation may advance, the mode says what it will advance on.
+
 **Rule.** `init!` is mandatory.
 
 `run!` or `step!` on a simulation whose [boundary](#g-boundary) zero has not
@@ -6606,7 +6612,10 @@ boundary zero from its condition, the warm restart being `capture` → tweak →
 `init!` ([§14.1][s14-1]). It clears the [trace](#g-trace), the log, the [termination record](#g-termination-record)
 ([§13.5][s13-5]), *and* any batches still in [staging cells](#g-staging-cell). The [recorders](#g-recorders)
 restart with the run they record, and no stale batch survives to clobber the
-boundary zero it predates.
+boundary zero it predates. `init!` also returns the input mode to `:live`, and
+a fresh `replay!` sets the mode exactly as it sets the trajectory. A terminal
+state makes the mode moot: nothing advances until one of those two doors is
+taken ([D-218][d-218]).
 
 **Device attachments persist across re-initialization**, attachment being
 orthogonal to the run lifecycle ([§11.3][s11-3]). Persistence means *roster*
@@ -6660,8 +6669,8 @@ replay!(sim2, trc; to_boundary = k)   # partial: the §13.4 replay-pointer regis
 ```
 
 `replay!` is **the ordinary loop with exactly two substitutions**, not a
-separate execution mode. That is what keeps every property proved of the loop
-true of [replay](#g-replay):
+second loop. That is what keeps every property proved of the loop true of
+[replay](#g-replay):
 
 - **[Boundary zero](#g-boundary-zero) from the header** — the initialization
   boundary, the ordinary macro-sequence with an empty integrate. `replay!`
@@ -6683,10 +6692,25 @@ true of [replay](#g-replay):
   ([§11.3][s11-3]) ran at recording time, and [claims](#g-claim) are a live-roster
   fact of the recorded session that replay does not reconstruct.
 
+**Rule.** A simulation is in one of two [input modes](#g-input-mode), `:live`
+or `:replay`, and the mode decides which source that one drain branch reads:
+the [staging cells](#g-staging-cell) under `:live`, the attached recording
+under `:replay`. `replay!` attaches the recording and enters `:replay`. `step!`
+and `run!` consume it from there, frame by frame, exactly as the bullet above
+describes. There is still one loop and one drain ([D-218][d-218]).
+
+**Why.** A mode that outlives the call makes a partial replay a resumable
+position rather than the end of an operation. Whatever advances the simulation
+next reads the same register and finds the same records. That is what lets
+[§13.4][s13-4]'s reproduction workflow — halt at the frame top the error names, then
+`step!` the failing frame on its recorded inputs — run through the ordinary
+entry points, with no replay-only spelling of `step!`.
+
 Everything else is the loop as already specified:
 
-- **Termination and partial replay.** Replay ends at the recording's final
-  frame, or earlier at `to_boundary = k` — the consumer of the replay pointer
+- **Termination and partial replay.** In `:replay` the recording is the
+  bound: every advance's frame budget is capped at the recording's last frame,
+  and `to_boundary = k` caps it earlier — the consumer of the replay pointer
   ([§13.4][s13-4]). That spelling is defined as running **through the frame
   whose execution published boundary `k`**, so replay always halts at a frame
   top. For a grid boundary the halt is exactly at `k`, the frame that publishes
@@ -6699,6 +6723,14 @@ Everything else is the loop as already specified:
   overrides bind for this replay exactly as at `run!` ([§12.6][s12-6]). A
   termination the recorded session hit through `stop_on` reproduces itself
   anyway, deterministically.
+- **The halt flips the mode only at the recording's end.** A frame budget that
+  runs out halts the loop at a frame top, leaving the simulation `initialized`
+  ([§12.6][s12-6]). The mode becomes `:live` exactly when that halt lands at the
+  recording's last frame, the records exhausted. It stays `:replay` otherwise,
+  and the next `step!` or `run!` goes on consuming the recording. So no advance
+  ever flips mid-run: a `run!` whose `t_end` lies past the recording halts at
+  the last recorded frame, now `:live`, and the *next* call is the live
+  continuation ([D-218][d-218]).
 - **Replay ends `initialized`, never `stopped`** — boundary-consistent and
   ready to advance, the same state `step!` leaves ([§12.6][s12-6]). This is what
   makes three promised workflows real. State-trajectory inspection asks "what
@@ -6706,7 +6738,10 @@ Everything else is the loop as already specified:
   reading the live stores ([§11.2][s11-2]). Error reproduction replays to
   `k − 1`, then `step!`s the failing frame under instrumentation
   ([§13.4][s13-4]). Continuation is `run!` after `replay!`, a live session from
-  the replayed boundary.
+  the replayed boundary. After a full replay that is the next call, the records
+  exhausted at the halt. After a partial one the remainder of the recording is
+  consumed first, across as many `step!` and `run!` calls as the caller makes,
+  and the session goes live at the recording's end.
 - **Replay re-records.** The trace register runs normally: the new trace
   inherits the old header and accumulates the re-drained batches, a
   bit-identical prefix. A replayed-then-continued session therefore leaves
@@ -6720,8 +6755,9 @@ Everything else is the loop as already specified:
 - **[Devices](#g-device) are readers.** Rostered devices init and spawn normally
   ([§11.1][s11-1]) and consume [snapshots](#g-snapshot) ([§11.2][s11-2],
   [§12.3][s12-3]) — the visualizer case. But no live staging [cell](#g-staging-cell) is
-  drained while the trace feeds the loop: a batch found staged is discarded with
-  a rate-limited warning (`ReplayDiscardedStaging`, [Appendix C][sC]). Mixing
+  drained while the simulation is in `:replay`: a batch found staged is
+  discarded with a rate-limited warning (`ReplayDiscardedStaging`,
+  [Appendix C][sC]). Mixing
   live writes into a replay would destroy the property replay exists to provide.
   A session that wants live input is a continuation (`run!` after replay), not a
   replay.
@@ -6781,7 +6817,8 @@ The dispositions, by header content:
 
 Rejected shapes, for the record ([D-101][d-101]): a `run!(sim; replay = trc)` flag, a
 synthetic playback device staging the recorded batches, and replay ending
-`stopped`.
+`stopped`. The mode register clarifies that decision's second substitution
+rather than replacing it, and carries its own rejected shapes ([D-218][d-218]).
 
 ---
 
@@ -7106,11 +7143,14 @@ Reproducibility holds by construction. Staged inputs are drained and recorded to
 the [trace](#g-trace) at the frame top, *before* the boundary executes. So the failing
 boundary's inputs are already in the trace when it fails. The error names the
 frame-entry boundary `k` to replay to; `replay!(sim2, trc; to_boundary = k)`
-halts exactly at that frame top. `step!` then re-executes the failing frame
-under instrumentation, [localized](#g-localized) boundaries included ([§12.7][s12-7]).
+halts exactly at that frame top. It halts in `:replay`, the input mode that
+keeps the recording attached, so the failing frame's record is still ahead of
+the simulation ([§12.7][s12-7]). `step!` then applies that record and
+re-executes the failing frame under instrumentation, [localized](#g-localized)
+boundaries included.
 
 ```julia
-replay!(sim2, trc; to_boundary = k)   # halt at the frame top the error names
+replay!(sim2, trc; to_boundary = k)   # halt at the frame top; still :replay
 step!(sim2; frames = 1)               # re-execute the failing frame, instrumented
 ```
 
@@ -10826,6 +10866,12 @@ trajectory-determining ([§11.2][s11-2]).
 for frame *k* at frame *k*, exact because the frame sequence is itself
 deterministic under replay ([§12.7][s12-7], [§11.1][s11-1]).
 
+<a id="g-input-mode"></a>**input mode** — the `Simulation` register naming where the
+[drain](#g-drain) takes its batches from: `:live` from the staging cells,
+`:replay` from a recording `replay!` attached. A replaying advance is bounded
+by the recording, and the mode returns to `:live` only when the recording's
+last frame is consumed ([§12.6][s12-6], [§12.7][s12-7]).
+
 <a id="g-log"></a>**log** — the retained sequence of published snapshots (the same objects, no
 copies), with a plain kill switch and `log_every` decimation; derived data,
 recomputable from the trace by replay ([§11.2][s11-2]).
@@ -11198,6 +11244,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-212]: decisions.md#d-212--refuse-the-transparent-bare-key-that-shadows-a-sibling-container-field
 [d-213]: decisions.md#d-213--establish-a-services-frozen-cells-from-the-authored-discrete-state
 [d-217]: decisions.md#d-217--conform-the-trace-and-replay-sections-to-the-prototypes-record
+[d-218]: decisions.md#d-218--make-the-replaylive-distinction-an-explicit-input-mode
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
