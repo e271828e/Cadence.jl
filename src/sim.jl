@@ -732,16 +732,19 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     if to_time !== nothing
         # D-219's time spelling of the same pointer, floored onto the last frame
         # top at or before it: the *header's* `t₀` as the origin and the
-        # deployment step as the stride, the two agreeing with the recording's
-        # because the entry pass below refuses a target where they do not. The
-        # slack is `step!`'s `t_plus` guard run the other way — an on-grid time
-        # is a product of binary floats, `0.3/0.1` being `2.9999999999999996`,
-        # and the plain floor would halt one boundary short of the one named.
+        # *header's* `h` as the stride — the recording's own grid, so
+        # `k ≤ trc.frames` names a boundary of the recording, and a target
+        # bound at a different `h` falls through to the entry pass below,
+        # which refuses it honestly (`ReplayHeaderMismatch`, never a false
+        # word about a time the recording covers). The slack is `step!`'s
+        # `t_plus` guard run the other way — an on-grid time is a product of
+        # binary floats, `0.3/0.1` being `2.9999999999999996`, and the plain
+        # floor would halt one boundary short of the one named.
         t₀ = trc.header.deployment.t₀
         to_time isa Real && isfinite(to_time) && to_time ≥ t₀ || throw(BuildError(
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
                             value = to_time)))
-        to_boundary = floor(Int, (Float64(to_time) - t₀) / sim.h + 1e-9)
+        to_boundary = floor(Int, (Float64(to_time) - t₀) / trc.header.deployment.h + 1e-9)
         to_boundary ≤ trc.frames || throw(BuildError(     # a time the recording never reached
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
                             value = to_time)))

@@ -530,6 +530,15 @@ end
     raw = Simulation(replay_model(); h = 1//10)
     @test failure(() -> replay!(raw, trc; to_time = 99.0)) isa BuildError
     @test lifecycle(raw) === :built
+
+    # A target bound at a different `h`: the conversion runs on the recording's
+    # own grid, so a covered time is never refused as out of range — the
+    # mismatch falls through to the entry pass, which names it honestly.
+    coarse = Simulation(replay_model(); h = 1//20)
+    init!(coarse, fragment(inputs = (ref = 0.0, rate = 0.0)))
+    e = failure(() -> replay!(coarse, trc; to_time = 0.5))
+    @test e isa BuildError && all(d isa ReplayHeaderMismatch for d in e.diagnostics)
+    @test any(d.what === :deployment && d.name === :h for d in e.diagnostics)
 end
 
 @testset "the recording bounds a replaying advance, and the end flips the mode (§12.7, D-218)" begin
