@@ -453,6 +453,8 @@ using InteractiveUtils: subtypes    # the coverage check below
                              faces = [:a, :b]),
         ReplayUnknownFace(face = 7, frame = 1, writer = "harness", faces = [:a, :b]),
         ReplayUnknownFace(face = :z, frame = 1, writer = "device 1 (Pad)", faces = [:a, :b]),
+        # §13.4's runtime species, the one kind a `StepError` carries as its cause
+        NonfiniteState(path = "a/b", leaf = "v[2]", value = NaN, t = 0.14, boundary = 6),
         # the runtime stream's nine, re-parented (§11.8)
         MalformedDatum(ArgumentError("bad")),
         OutOfClaimEntry(:a, 1.0, [:b], "device 1 (Pad)"),

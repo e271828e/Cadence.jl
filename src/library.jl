@@ -541,6 +541,61 @@ output_types(::Interrupter, ::Type{T}) where {T <: Real} = (q = T,)
 h_x(::Interrupter, (; x)) = (q = x.q,)
 f(::Interrupter, (; x, u)) = u.arm ? throw(InterruptException()) : (q = one(x.q),)
 
+"""
+Diverger: `q̇ = 1` until armed, then `q̇ = NaN` — the model that blows up. Its
+`project` refuses a nonfinite `q`, so a sweep running later than the integrate
+would be beaten by the projection; the declared default `q = 0` passes it, which
+is what the build probe needs.
+"""
+struct Diverger <: AbstractComponent end
+
+init_x(::Diverger) = (q = 0.0,)
+input_types(::Diverger, ::Type{T}) where {T <: Real} = (arm = Bool,)
+output_types(::Diverger, ::Type{T}) where {T <: Real} = (q = T,)
+
+h_x(::Diverger, (; x)) = (q = x.q,)
+f(::Diverger, (; u)) = (q = u.arm ? NaN : 1.0,)
+project(::Diverger, x) = isfinite(x.q) ? x : throw(DomainError(x.q, "diverged"))
+
+"""
+Consumer: the innocent component downstream of a `Diverger`. Its stage-2 port
+computes `sqrt` of its input, the lookup a diverged upstream would surface a
+`DomainError` from — the error-locality inversion §13.4's sweep placement
+exists to prevent. Its own state never diverges, so the sweep has one owner to
+name.
+"""
+struct Consumer <: AbstractComponent end
+
+init_x(::Consumer) = (p = 0.0,)
+input_types(::Consumer, ::Type{T}) where {T <: Real} = (in = T,)
+output_types(::Consumer, ::Type{T}) where {T <: Real} = (r = T,)
+
+h_xu(::Consumer, (; u)) = (r = sqrt(u.in),)
+f(::Consumer, (; x)) = (p = zero(x.p),)
+
+"""
+LateDiverger: a `Bouncer` that diverges only *after* its own reset. The
+sign-form guard localizes the crossing, the handler latches `blown`, and the
+remainder segment from `t*` to the frame top integrates `q̇ = NaN` — the
+nonfinite state a sweep placed at the frame loop rather than at the seam would
+miss.
+"""
+struct LateDiverger <: AbstractComponent
+    rate::Float64
+    level::Float64
+end
+
+init_x(::LateDiverger) = (q = 0.0,)
+init_m(::LateDiverger) = (blown = false,)
+output_types(::LateDiverger, ::Type{T}) where {T <: Real} = (q = T,)
+
+h_x(::LateDiverger, (; x)) = (q = x.q,)
+f(c::LateDiverger, (; m)) = (q = m.blown ? NaN : c.rate,)
+
+late_diverger_guard(c::LateDiverger, (; x)) = x.q - c.level
+late_diverger_handler(::LateDiverger, (; m)) = (m = (blown = true,),)
+events(::LateDiverger) = (blow = Event(late_diverger_guard, late_diverger_handler),)
+
 # --- the anonymous assembly (§8.5) --------------------------------------------
 
 """

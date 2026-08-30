@@ -162,6 +162,28 @@ function Base.showerror(io::IO, e::StepError)
 end
 
 """
+A nonfinite continuous-state leaf found by the boundary's first act (§13.4,
+D-157): the sweep over `x` immediately after integrate returns, before
+`project` and before the boundary sweep, so the component whose own block
+diverged is the one named — not the innocent downstream one the NaN would
+reach next. Thrown as a `BuildError` holding it alone, and the frame loop's
+catch site makes it a `StepError` species.
+"""
+Base.@kwdef struct NonfiniteState <: Diagnostic
+    path::String
+    leaf::String     # the leaf's dotted spelling within the state, `"q"` or `"v[2]"`
+    value::Any       # the offending value: NaN, Inf or -Inf
+    t::Float64       # the frame-top time the integrate landed on
+    boundary::Int    # the frame-entry boundary index, as the carrier's
+end
+
+path(d::NonfiniteState) = d.path
+message(d::NonfiniteState) = string(
+    _at_path(d.path), ": state leaf `", d.leaf, "` is ", d.value, " at the frame top t = ",
+    d.t, " (from boundary ", d.boundary, ") — the model diverged; replay to ",
+    d.boundary, " and step! to inspect the frame")
+
+"""
 An internal invariant firing (D-215): not a diagnostic and not a kind, because
 it names no failure the user can fix. Its own exception type so the assertions
 stay outside the acceptance-test contract.

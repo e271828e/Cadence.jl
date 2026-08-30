@@ -860,10 +860,14 @@ Each of these is a spec claim rather than a programming convenience:
   devices or mappings present" (§12.7). Claims are a live-roster fact of the
   recorded session, and the replay drain re-derives none of it.
 - **Partial replay halts at a frame top, and the next frame reproduces.**
-  `to_boundary = k` leaves the clock at `k · n` and the lifecycle
-  `initialized`, with the log a prefix of the recording's; `step!` then
-  advances the frame the recording's own frame `k · n + 1` advanced, bitwise —
-  §13.4's error-reproduction workflow minus the error.
+  `to_boundary = k` leaves the clock at `k` and the lifecycle `initialized`,
+  with the log a prefix of the recording's; `step!` then advances the frame the
+  recording's own frame `k + 1` advanced, bitwise — §13.4's error-reproduction
+  workflow minus the error. Increment 23 spelled the pointer in base ticks
+  (`k · n`, the clock left at `k · n`), which coincides with the boundary count
+  only at `n = 1`; increment 24 re-expressed it in grid boundaries, since every
+  frame top is one (§10.4) and the boundary is the reporting index §13.4's
+  pointer names.
 - **A continuation is a live session from the replayed boundary.** `run!`
   after a full `replay!` proceeds from frame 8 rather than from zero, and the
   session leaves behind a complete, valid trace of *itself*: the recording's
@@ -923,6 +927,8 @@ Each of these is a spec claim rather than a programming convenience:
   rendering states the frame and then the reproduction — the path, the
   function, the phase spelled per case, `to_boundary = k` and `step!` — which
   is the one property asserted on message text (§13.2 otherwise forbids it).
+  A `Diagnostic` cause renders as its `logline`, so the nonfinite species' line
+  carries the kind name and the leaf the sweep named.
 - **An `InterruptException` is a stop, never a failure.** Model code raising
   one inside the guarded sequence ends the run `stopped` with
   `ControlRequestedStop(:interrupt)`, the graceful tail run in full (a probe
@@ -933,7 +939,38 @@ Each of these is a spec claim rather than a programming convenience:
   masking absent, a `stopped` simulation here is still inspectable by every
   stopped-sim service, and the masking is what would close that gap.
 
-Two places this increment runs ahead of or beside the spec's letter, flagged
+- **The sweep names the block that diverged, not the one it reached next.**
+  `Diverger → Consumer` under a group, armed by a stage: the `StepError`'s
+  cause is a `NonfiniteState` naming `div`, leaf `q`, a NaN value, the
+  frame-entry boundary and the frame top's `t` — never a `DomainError` from
+  `con`'s lookup, and never `div`'s own `project`, which refuses a nonfinite
+  `q` and is placed one step later in the sequence. The frame reads
+  `fn === :none`, `phase === :integrate`: the sweep is the framework's own act
+  inside the integrate, not a user-code dispatch.
+- **The sweep is the seam's act, so remainder segments are covered.** A
+  localized `LateDiverger` whose handler latches at `t*` and whose remainder
+  segment integrates a NaN derivative still fails as `NonfiniteState`, with `t`
+  the frame top rather than `t*`. Placing the check in `step!(sim, h)` rather
+  than in the frame loop is what buys this, and the property is what would
+  break if it moved.
+- **The pointer the error names reproduces the failure.** A staged session that
+  fails in frame `k + 1`, its `StepError` read off `termination(sim).source`;
+  a fresh twin replayed with `to_boundary = e.boundary` halts `initialized` at
+  `clock.step == e.boundary`, and one `step!` throws a `StepError` with the
+  same frame, `t`, `boundary` and cause type, ending `errored` at the same
+  published `t`. Run for an ordinary cause (`Tripwire`) and for the nonfinite
+  species. **The failing frame's own drain must be empty** for this to hold:
+  the replay applies records 1…`k` and `_run_body!` clears the feed on exit, so
+  a batch staged *into* the failing frame is recorded at ordinal `k + 1` and
+  the live `step!` after the replay never sees it. Both fixtures arm at an
+  earlier frame — the diverging one through a `Follower` latch — which is why
+  the reproduction is exact.
+- **`to_boundary` counts grid boundaries.** At `n = 2`, `to_boundary = 3` halts
+  at `clock.step == 3`, an off-tick frame top, with the log a prefix of the
+  recording's, and `trc.frames + 1` refuses as `ArgumentInvalid`. The base-tick
+  spelling would have refused `3` here and halted at `6` where it did not.
+
+Three places this increment runs ahead of or beside the spec's letter, flagged
 for the spec pass:
 
 - **The species rule** is the prototype's spelling, not the spec's. §13.4 says
@@ -950,3 +987,13 @@ for the spec pass:
   a reading that wraps it too is available; the conservative choice here is
   that a service's own refusal path is not a frame, and there is no
   frame-entry pointer for the frame that has not begun.
+- **The reproduction is exact only where the failing frame stages nothing.**
+  §13.4 argues reproducibility from the drain's placement: the failing frame's
+  inputs "are already in the trace when it fails", so replaying to `k` and
+  stepping re-executes it. The batch is indeed recorded — at frame ordinal
+  `k + 1` — but the replay's budget stops at `k`, and `_run_body!` clears the
+  feed on every exit, so the `step!` after the replay is a live frame whose
+  drain finds nothing. A failure caused by the failing frame's *own* drained
+  input therefore does not reproduce here. Closing it means letting the feed
+  outlive the replay by one frame (a `step!`-after-`replay!` that keeps
+  reading the trace), which is a §12.7 decision, not a §13.4 one.

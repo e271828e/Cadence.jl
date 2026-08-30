@@ -36,6 +36,32 @@ buffer per entry). `K = length(leaf_eltypes(P))` is a pure function of `P`.
 """
 leaf_eltypes(::Type{P}) where {P} = unique(leaf_types(P))
 
+"""
+    leaf_names(P)
+
+The dotted spelling of each leaf a value of type `P` occupies, in flat order:
+`"q"`, `"v[2]"`, `"pose.x"`. The naming counterpart of `leaf_types`, walking
+the same fields and static-array lengths. Cold path only — §13.4's nonfinite
+sweep calls it once, at throw time, to name the offending state leaf.
+"""
+leaf_names(::Type{P}) where {P} = _leaf_names!(String[], P, "")
+
+_leaf_names!(out, ::Type{P}, pre) where {P<:Real} = (push!(out, pre); out)
+
+function _leaf_names!(out, ::Type{P}, pre) where {P<:StaticArray}
+    for i in 1:length(P)
+        _leaf_names!(out, eltype(P), string(pre, "[", i, "]"))
+    end
+    out
+end
+
+function _leaf_names!(out, ::Type{P}, pre) where {P}
+    for (n, FT) in zip(fieldnames(P), fieldtypes(P))
+        _leaf_names!(out, FT, isempty(pre) ? string(n) : string(pre, ".", n))
+    end
+    out
+end
+
 # --- expression builders (compile time) --------------------------------------
 
 # Returns (expr, next_base): `expr` reconstructs a `P` from `buf` starting at

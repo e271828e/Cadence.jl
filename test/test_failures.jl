@@ -1,14 +1,30 @@
 # --- runtime failures (§13.4; increment 24) -------------------------------------
 # The execution cursor written per dispatch and per phase transition, the one
 # catch site wrapping into `StepError` against it, and the `InterruptException`
-# carve-out to the stop path. The fixtures are library components (`Tripwire`,
-# `Mine`, `Landmine`, `Sapper`, `Primer`, `Interrupter`); the models below live
-# at top level for `status.md`'s local-scope reason.
+# carve-out to the stop path, then the `isfinite` sweep over `x` as the
+# boundary's first act and the replay pointer it names. The fixtures are library
+# components (`Tripwire`, `Mine`, `Landmine`, `Sapper`, `Primer`, `Interrupter`,
+# `Diverger`, `Consumer`, `LateDiverger`); the models below live at top level for
+# `status.md`'s local-scope reason.
 
 # The interrupter armed by its own ramp: `q = t` crosses the trigger's level at
 # boundary 2, so frame 3's integrate is the first that raises the interrupt.
 interrupted() = Group((c = Interrupter(), trig = Trigger(0.15));
                       wires = ("c/q" => "trig/sig", "trig/on" => "c/arm"))
+
+# The diverger and the innocent component downstream of it: `con` reads `div`'s
+# state through the ordinary signal path, so a sweep running later than the
+# integrate would blame the lookup rather than the block that blew up.
+diverging() = Group((div = Diverger(), con = Consumer());
+                    wires = ("div/q" => "con/in",), inputs = ("in" => "div/arm",))
+
+# The same, armed through a latch: the staged edge fires `fol` at a boundary, so
+# the divergence lands in the frame *after* the one whose drain carried it —
+# which is what makes the failing frame's own drain empty, and the failure
+# reproducible from a replay that halts at its frame-entry boundary.
+armed_diverging() = Group((fol = Follower(), div = Diverger(), con = Consumer());
+                          wires = ("fol/on" => "div/arm", "div/q" => "con/in"),
+                          inputs = ("in" => "fol/go",))
 
 @testset "the cursor names where execution was after a quiet frame (§13.4)" begin
     sim = Simulation(feedback_model(); h = 1//50, t_end = 1.0)
@@ -117,4 +133,108 @@ end
     s = sprint(showerror, e)
     @test occursin("`c`", s) && occursin("f", s) && occursin("stage 2", s)
     @test occursin("to_boundary = 0", s) && occursin("step!", s)
+
+    # A `Diagnostic` cause renders as its logline: the kind name leads, and the
+    # leaf the sweep named is in the line.
+    dv = Simulation(diverging(); h = 1//10, t_end = 5.0)
+    init!(dv, fragment(inputs = (in = true,)))
+    sn = sprint(showerror, failure(() -> step!(dv)))
+    @test occursin("NonfiniteState", sn) && occursin("`q`", sn)
+end
+
+@testset "the sweep names the diverging block, never its downstream (§13.4, D-157)" begin
+    sim = Simulation(diverging(); h = 1//10, t_end = 5.0)
+    init!(sim, fragment(inputs = (in = false,)))
+    @test step!(sim) == 1
+    stage!(sim, "in" => true)                       # frame 2's drain arms the RHS
+    e = failure(() -> step!(sim))
+    @test e isa StepError && e.cause isa NonfiniteState
+    d = e.cause
+    @test d.path == "div" && d.leaf == "q" && isnan(d.value)
+    @test d.boundary == 1 && d.t ≈ 0.2
+    @test e.boundary == 1 && e.t ≈ 0.2              # the frame from boundary 1, at its top
+    # The sweep is the boundary's first act: the cursor is still the integrate's,
+    # named at the block's owner and at no function, and neither `div`'s own
+    # `project` nor `con`'s lookup has run on the NaN.
+    @test e.frame.path == "div" && e.frame.fn === :none && e.frame.phase === :integrate
+    @test !(e.cause isa DomainError) && d.path != "con"
+    @test lifecycle(sim) === :errored
+end
+
+@testset "the sweep covers a localized frame's remainder segment (§13.4, D-157)" begin
+    # `q` crosses 0.15 inside frame 2; the handler latches, and the remainder
+    # segment from t* to the frame top is the integrate that diverges.
+    sim = Simulation(single(LateDiverger(1.0, 0.15)); h = 1//10, t_end = 5.0)
+    init!(sim)
+    e = failure(() -> run!(sim))
+    @test e isa StepError && e.cause isa NonfiniteState
+    @test e.cause.path == "c" && e.cause.leaf == "q" && isnan(e.cause.value)
+    @test e.frame.phase === :integrate && e.frame.path == "c"
+    @test e.boundary == 1 && e.t ≈ 0.2              # the frame top, past the t* at 0.15
+    @test e.cause.t ≈ 0.2 && e.cause.boundary == 1
+end
+
+# §13.4's reproduction, end to end: a staged session that fails, the pointer its
+# error names, and the same failure on a fresh twin one `step!` past the halt.
+# The stage that sets the failure up is drained in an *earlier* frame, so the
+# failing frame's own drain is empty — the replay carries every input it needs.
+function reproduction(model, quiet::Int)
+    sim = Simulation(model; h = 1//10, t_end = 5.0)
+    init!(sim, fragment(inputs = (in = false,)))
+    step!(sim)
+    stage!(sim, "in" => true)                       # drained at the top of frame 2
+    step!(sim; frames = quiet)                      # the frames the arming does not fail in
+    failure(() -> step!(sim))
+    e = termination(sim).source.exception
+    sim2 = Simulation(model; h = 1//10, t_end = 5.0)
+    init!(sim2, fragment(inputs = (in = false,)))
+    replay!(sim2, trace(sim); to_boundary = e.boundary)
+    @test lifecycle(sim2) === :initialized          # the pointer is always a legal halt
+    @test sim2.exec.clock.step == e.boundary
+    e2 = failure(() -> step!(sim2))
+    @test e2 isa StepError
+    @test e2.frame == e.frame && e2.t == e.t && e2.boundary == e.boundary
+    @test typeof(e2.cause) === typeof(e.cause)
+    @test lifecycle(sim2) === :errored
+    @test latest(sim2).t == latest(sim).t
+    e
+end
+
+@testset "the error's pointer reproduces the failure on a fresh twin (§13.4, §12.7)" begin
+    # An ordinary cause: the RHS throws at frame 4's half step, armed at frame 2.
+    e = reproduction(fed(Tripwire(0.35), "arm"), 2)
+    @test e.cause isa Tripped && e.boundary == 3
+    @test e.frame == CursorFrame("c", :f, :integrate, 2)
+
+    # And the nonfinite species, which the sweep raises rather than model code.
+    en = reproduction(armed_diverging(), 1)
+    @test en.cause isa NonfiniteState && en.cause.path == "div"
+    @test en.boundary == 2                          # the latch fired at boundary 2
+end
+
+@testset "`to_boundary` counts grid boundaries, not base ticks (§12.7, §13.4)" begin
+    grid() = Simulation(feedback_model(); h = 1//10, n = 2, t_end = 5.0)
+    sim = grid()
+    init!(sim, fragment(inputs = (ref = 1.0,)))
+    stage!(sim, "ref" => 2.0)
+    @test step!(sim; frames = 6) == 6
+    trc = trace(sim)
+    @test trc.frames == 6
+
+    sim2 = grid()
+    init!(sim2, fragment(inputs = (ref = 0.0,)))
+    replay!(sim2, trc; to_boundary = 3)
+    @test lifecycle(sim2) === :initialized
+    @test sim2.exec.clock.step == 3                 # the halt is at `k`, never at `k · n`
+    @test sim2.exec.clock.step % sim2.n == 1        # and 3 is an off-tick frame top here
+    @test same_trajectory(logged(sim2), [s for s in logged(sim) if s.frame ≤ 3])
+
+    # The range is the recording's frame count, so one past it refuses.
+    bad = trc.frames + 1
+    sim3 = grid()
+    init!(sim3, fragment(inputs = (ref = 0.0,)))
+    d = only(failure(() -> replay!(sim3, trc; to_boundary = bad)).diagnostics)
+    @test d isa ArgumentInvalid && d.call === :replay! && d.reason === :range
+    @test d.argument === :to_boundary && d.value == bad
+    @test lifecycle(sim3) === :initialized           # a rejected replay wrote nothing
 end

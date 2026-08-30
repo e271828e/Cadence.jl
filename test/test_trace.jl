@@ -451,7 +451,7 @@ end
     sim2 = replay_twin()
     replay!(sim2, trc; to_boundary = 5)
     @test lifecycle(sim2) === :initialized      # the pointer's register: ready to advance
-    @test sim2.exec.clock.step == 5 * sim2.n
+    @test sim2.exec.clock.step == 5      # the halt is at `k` itself (§12.7, §13.4)
     @test trace(sim2).frames == 5
     @test same_trajectory(logged(sim2), [s for s in logged(sim) if s.frame ≤ 5])
 

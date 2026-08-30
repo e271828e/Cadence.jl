@@ -463,7 +463,40 @@ would do at N = 0.
 @inline function step!(sim::Simulation, h)
     _phase!(sim.exec.cursor, :integrate)     # §13.4: `evaluate!` counts the stages from here
     isempty(sim.exec.xbuf) ? (sim.exec.clock.t += h) : step!(sim.stepper, sim, h)
+    _check_finite!(sim)
     nothing
+end
+
+# The boundary's first act (D-157, §13.4): one pass over the flat state buffer,
+# immediately after the backend returns and before anything reads the state —
+# `frame!`'s bare path and every segment of a localized frame alike, which is
+# why the site is the seam's framework side and not the frame loop. `ẋ` does
+# not participate: a nonfinite derivative contaminates its own block's step
+# result within that very step, so this is the same detection with the same
+# attribution, and `ẋ` is integrator scratch besides.
+@inline function _check_finite!(sim::Simulation)
+    x = sim.exec.xbuf
+    @inbounds for i in eachindex(x)
+        isfinite(x[i]) || _nonfinite(sim, i)      # the throw is the cold path
+    end
+    nothing
+end
+
+# The owner of flat index `i` and its leaf within that component's block, both
+# read off `xblocks`. Thrown as a lone-diagnostic `BuildError`, which the catch
+# site's species rule unwraps into the `StepError`'s `cause`.
+@noinline function _nonfinite(sim::Simulation, i::Int)
+    ex = sim.exec
+    owner = findfirst(b -> i in b, ex.xblocks)::Int
+    cur = ex.cursor                   # the phase is still `:integrate`, on the stage count
+    cur.comp = owner; cur.fn = :none
+    names = leaf_names(typeof(ex.act.decls[owner].x))
+    throw(BuildError(NonfiniteState(
+        path = sim.build.flat.paths[owner],
+        leaf = names[i - first(ex.xblocks[owner]) + 1],
+        value = ex.xbuf[i],
+        t = Float64(ex.clock.t),
+        boundary = ex.clock.step - 1)))   # the frame-entry index: this frame's own top
 end
 
 # The trajectory's opening, shared by the two entries that own one (§12.6):
@@ -617,13 +650,14 @@ every property proved of the loop true of a replay:
    is exact because the frame sequence is itself deterministic.
 
 Everything else is the loop as specified. The frame budget is the recording's
-length, or `to_boundary = k`'s frame `k · n` — §13.4's replay pointer, defined
-as running *through* the frame that publishes boundary `k`, so a replay always
-halts at a frame top; a `t*` boundary inside a frame is reproduced but is not
-stoppable-at (§10.4 keeps the two indices apart). `t_end` and `stop_on` bind
-for this replay exactly as at `run!`, the constructor's standing where they are
-not given — but unlike `run!` no clock bound is owed from any site, the
-recording being the bound. Budget exhausted, the replay ends
+length, or `to_boundary = k` frames — §13.4's replay pointer, defined as
+running *through* the frame that publishes boundary `k`, and every frame top is
+a grid boundary (§10.4), so the halt is exactly at `clock.step == k` and a
+replay always halts at a frame top; a `t*` boundary inside a frame is
+reproduced but is not stoppable-at (§10.4 keeps the two indices apart). `t_end`
+and `stop_on` bind for this replay exactly as at `run!`, the constructor's
+standing where they are not given — but unlike `run!` no clock bound is owed
+from any site, the recording being the bound. Budget exhausted, the replay ends
 **`initialized`**, never `stopped` (§12.7): boundary-consistent and ready to
 advance, which is what makes replay-to-inspect, replay-to-`k−1`-then-`step!`
 and `run!`-continuation real. A §13.5 source firing first ends it `stopped`
@@ -647,10 +681,10 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     lc = @atomic ctl.lifecycle
     lc === :running && throw(BuildError(ServiceLifecycle(op = :replay!, status = :running)))
     lc === :errored && throw(BuildError(ServiceLifecycle(op = :replay!, status = :errored)))
-    # §13.4's pointer, in boundaries: whole and non-negative, and no further than
-    # the recording reaches — `k · n` frames of it must have been recorded
+    # §13.4's pointer, in grid boundaries: whole and non-negative, and no further
+    # than the recording reaches — every frame top is one, so it counts frames
     to_boundary === nothing || (to_boundary isa Integer && to_boundary ≥ 0 &&
-        to_boundary * sim.n ≤ trc.frames) || throw(BuildError(
+        to_boundary ≤ trc.frames) || throw(BuildError(
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_boundary,
                             value = to_boundary)))
     te = t_end === nothing ? sim.t_end : _t_bound(t_end)   # validated as `run!` does;
@@ -688,7 +722,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     reg.feed = feed
     pol = sim.policy
     pol.faces, pol.addrs, pol.hit = faces, addrs, nothing
-    upto = to_boundary === nothing ? trc.frames : Int(to_boundary) * sim.n
+    upto = to_boundary === nothing ? trc.frames : Int(to_boundary)
     _run_body!(sim, pol, upto, te === nothing ? typemax(Int) : round(Int, te / sim.h))
     nothing
 end
