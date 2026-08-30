@@ -20,6 +20,12 @@ Run the suite from the repository root:
 `src/` is the `Cadence` package, so the first run after an `src/` edit pays a
 precompile of about 15 s on top of the suite's own time.
 
+Run it with `--startup-file=no` before trusting a green suite. A package
+loaded by the developer's `startup.jl` lands in `Main` ahead of the tests and
+masks a missing dependency: `BenchmarkTools`, which the 40 `@ballocated`
+assertions need, was dropped from `Project.toml` and the suite stayed green
+on the machine whose `startup.jl` loads it.
+
 ## What is real here
 
 | file | implements | spec |
