@@ -847,6 +847,9 @@ struct Executor{T,S,B,CL,EV}
     clock::CL
     bodies::B              # the phase bodies, closed over the buffers above
     events::EV             # the compiled event set, likewise (nominal only)
+    cursor::ExecutionCursor          # §13.4: where execution is, written per dispatch
+    # the flat-buffer range each component's `x` occupies, empty where it owns none
+    xblocks::Vector{UnitRange{Int}}
 end
 
 """
@@ -887,14 +890,18 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
         tuple((CellStore(zeros(L, n)) for (L, n) in layout.sizes)...)))
 
     x_offs, nx = Int[], 0
+    xblocks = UnitRange{Int}[]
     for (d, t) in zip(decls, tiers)
         push!(x_offs, nx)
-        t === CONTINUOUS && (nx += nleaves(typeof(d.x)))
+        n = t === CONTINUOUS ? nleaves(typeof(d.x)) : 0
+        push!(xblocks, (nx+1):(nx+n))     # §13.4's owner lookup, one range per component
+        nx += n
     end
     xbuf = zeros(T, nx)
     establish_defaults!(xbuf, sstores, mstores, flat.comps, decls, tiers)
     ẋbuf = zeros(T, nx)
     clock = Clock(zero(T))
+    cursor = ExecutionCursor()     # closed over by every entry, exactly as `clock` is (§13.4)
 
     addr_group(path, names) =
         NamedTuple{tuple(names...)}(tuple((layout.addr[(path, n)] for n in names)...))
@@ -928,7 +935,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
         bn = bundle_names(h1, c, tiers[ci], ())
         push!(stage1_entries, StageEntry{typeof(d.x),bn}(
             h1, c, NamedTuple(), NamedTuple(), addr_group(flat.paths[ci], keys(s1)),
-            x_offs[ci], clock, sstores[ci], mstores[ci], wss[ci], Δt_c[ci]))
+            x_offs[ci], clock, sstores[ci], mstores[ci], wss[ci], Δt_c[ci], ci, cursor))
         push!(stage1_gates, gate(ci))
     end
 
@@ -940,7 +947,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
         push!(stage2_entries, StageEntry{typeof(d.x),bn}(
             h2, c, in_group(ci, d), addr_group(path, keys(s1)),
             addr_group(path, y2keys(ci)), x_offs[ci], clock,
-            sstores[ci], mstores[ci], wss[ci], Δt_c[ci]))
+            sstores[ci], mstores[ci], wss[ci], Δt_c[ci], ci, cursor))
         push!(stage2_gates, gate(ci))
     end
 
@@ -954,11 +961,11 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
         y_g, in_g = addr_group(path, keys(d.outs)), in_group(ci, d)
         if t === CONTINUOUS
             push!(rhs_entries, RHSEntry{typeof(d.x),bn}(
-                c, in_g, y_g, x_offs[ci], clock, mstores[ci], wss[ci]))
+                c, in_g, y_g, x_offs[ci], clock, mstores[ci], wss[ci], ci, cursor))
             push!(rhs_gates, nothing)
         else
             push!(tick_entries, UpdateEntry{bn}(
-                c, in_g, y_g, clock, sstores[ci], wss[ci], Δt_c[ci]))
+                c, in_g, y_g, clock, sstores[ci], wss[ci], Δt_c[ci], ci, cursor))
             push!(tick_gates, gate(ci))
         end
     end
@@ -984,7 +991,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
                 push!(ev_entries, EventEntry{typeof(d.x),bn}(
                     evs[name].guard, evs[name].handler, pj, c, length(ev_entries) + 1,
                     in_group(ci, d), addr_group(flat.paths[ci], keys(d.outs)),
-                    x_offs[ci], clock, mstores[ci], wss[ci]))
+                    x_offs[ci], clock, mstores[ci], wss[ci], ci, cursor))
                 push!(ev_owner, ci)
                 push!(ev_names, (flat.paths[ci], name))
                 push!(ev_localized, b.policies[ci][name] === :localized)
@@ -995,7 +1002,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
     # Projection runs at every activation — it is continuous machinery, inside
     # every executable set — between the integrate's state write and its decode
     # (§5.3).
-    proj_entries = Any[ProjectEntry{typeof(decls[ci].x)}(c, x_offs[ci])
+    proj_entries = Any[ProjectEntry{typeof(decls[ci].x)}(c, x_offs[ci], ci, cursor)
                        for (ci, c) in enumerate(flat.comps)
                        if tiers[ci] === CONTINUOUS && has_stage(project, c)]
 
@@ -1007,7 +1014,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
 
     evset = EventSet(ev_entries, proj_entries, store, xbuf, ev_owner, ev_names,
                      ev_localized, length(flat.comps))
-    Executor(act, store, xbuf, ẋbuf, sstores, mstores, clock, bodies, evset)
+    Executor(act, store, xbuf, ẋbuf, sstores, mstores, clock, bodies, evset, cursor, xblocks)
 end
 
 # A probed input value: the producer's product, or the synthesized value of the

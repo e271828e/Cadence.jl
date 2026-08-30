@@ -3,6 +3,30 @@
 # statically-typed tuples behind non-inlined barriers, traversed by a
 # compile-time-unrolled walk.
 
+# --- the execution cursor (§13.4, D-059) ---------------------------------------
+
+"""
+Where in the compiled schedule execution is (§13.4): one plain mutable struct
+the executor owns, overwritten by one cheap store per user-code dispatch and
+one per phase transition, read only at the catch site (`_wrap_step`, sim.jl).
+No allocation and no exception frames — framing information does not need to
+be caught into existence.
+"""
+mutable struct ExecutionCursor
+    comp::Int        # the component's index in the flat, 0 = none
+    fn::Symbol       # :h_x | :h_xu | :h_s | :h_su | :f | :g | :guard | :handler | :project | :none
+    phase::Symbol    # :drain | :integrate | :arrival | :validation | :trial | :project | :round | :ticks
+    index::Int       # the RK stage, the event round, the trial ordinal; 0 where none applies
+end
+ExecutionCursor() = ExecutionCursor(0, :none, :drain, 0)
+
+"A phase transition: written by the loop, never per dispatch (§13.4)."
+@inline function _phase!(c::ExecutionCursor, phase::Symbol, index::Int = 0)
+    c.phase = phase
+    c.index = index
+    nothing
+end
+
 # --- entries ------------------------------------------------------------------
 # Three kinds, by where the product goes: a stage entry writes cells (both
 # tiers — one entry type carries either tier's stage function, whose names are
@@ -26,6 +50,9 @@ struct StageEntry{F,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,OA<:NamedTuple,CL,S
     mstore::MS      # mode store, or nothing
     ws::WS          # workspace, or nothing
     Δt::Float64     # sample period; unused on the continuous tier
+    ci::Int         # the schedule index, for the cursor's store (§13.4)
+    fname::Symbol   # `nameof(fn)`, computed once in `compile`: a field read, never a call
+    cursor::ExecutionCursor
 end
 
 struct RHSEntry{Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
@@ -36,6 +63,8 @@ struct RHSEntry{Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
     clock::CL
     mstore::MS
     ws::WS
+    ci::Int
+    cursor::ExecutionCursor
 end
 
 struct UpdateEntry{Comp,BN,IA<:NamedTuple,YA<:NamedTuple,CL,SS,WS}
@@ -46,21 +75,25 @@ struct UpdateEntry{Comp,BN,IA<:NamedTuple,YA<:NamedTuple,CL,SS,WS}
     sstore::SS      # written by this entry, and by nothing else
     ws::WS
     Δt::Float64
+    ci::Int
+    cursor::ExecutionCursor
 end
 
 # Outer constructors: only `XT`/`BN` cannot be inferred from the arguments.
-StageEntry{XT,BN}(fn, comp, inputs, y1, outs, x_off, clock, sstore, mstore, ws, Δt) where {XT,BN} =
+StageEntry{XT,BN}(fn, comp, inputs, y1, outs, x_off, clock, sstore, mstore, ws, Δt,
+                  ci, cursor) where {XT,BN} =
     StageEntry{typeof(fn),typeof(comp),XT,BN,typeof(inputs),typeof(y1),typeof(outs),
                typeof(clock),typeof(sstore),typeof(mstore),typeof(ws)}(
-        fn, comp, inputs, y1, outs, x_off, clock, sstore, mstore, ws, Δt)
+        fn, comp, inputs, y1, outs, x_off, clock, sstore, mstore, ws, Δt,
+        ci, nameof(fn), cursor)
 
-RHSEntry{XT,BN}(comp, inputs, y, x_off, clock, mstore, ws) where {XT,BN} =
+RHSEntry{XT,BN}(comp, inputs, y, x_off, clock, mstore, ws, ci, cursor) where {XT,BN} =
     RHSEntry{typeof(comp),XT,BN,typeof(inputs),typeof(y),typeof(clock),
-             typeof(mstore),typeof(ws)}(comp, inputs, y, x_off, clock, mstore, ws)
+             typeof(mstore),typeof(ws)}(comp, inputs, y, x_off, clock, mstore, ws, ci, cursor)
 
-UpdateEntry{BN}(comp, inputs, y, clock, sstore, ws, Δt) where {BN} =
+UpdateEntry{BN}(comp, inputs, y, clock, sstore, ws, Δt, ci, cursor) where {BN} =
     UpdateEntry{typeof(comp),BN,typeof(inputs),typeof(y),typeof(clock),
-                typeof(sstore),typeof(ws)}(comp, inputs, y, clock, sstore, ws, Δt)
+                typeof(sstore),typeof(ws)}(comp, inputs, y, clock, sstore, ws, Δt, ci, cursor)
 
 # One bundle-expression builder, three @generated entry points. Absent names are
 # absent, never `nothing`-filled: a body destructuring what it does not own
@@ -108,11 +141,13 @@ end
 end
 
 @inline function run!(e::StageEntry, store, xbuf, ẋbuf)
+    e.cursor.comp = e.ci; e.cursor.fn = e.fname     # the dispatch store (§13.4)
     y = e.fn(e.comp, make_bundle(e, store, xbuf))
     scatter_group!(store, e.outs, y)
 end
 
 @inline function run!(e::RHSEntry, store, xbuf, ẋbuf)
+    e.cursor.comp = e.ci; e.cursor.fn = :f
     ẋ = f(e.comp, make_bundle(e, store, xbuf))
     flatten!(ẋbuf, e.x_off, ẋ)      # shape conformance established at probe time
     nothing
@@ -121,6 +156,7 @@ end
 # The jump map: `g` reads the fresh table and writes only its own store, which
 # is what makes the update block order-free with disjoint writes (§9.7).
 @inline function run!(e::UpdateEntry, store, xbuf, ẋbuf)
+    e.cursor.comp = e.ci; e.cursor.fn = :g
     e.sstore[] = g(e.comp, make_bundle(e, store, xbuf))
     nothing
 end
@@ -147,13 +183,15 @@ struct EventEntry{G,H,P,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
     clock::CL
     mstore::MS
     ws::WS
+    ci::Int
+    cursor::ExecutionCursor
 end
 
 EventEntry{XT,BN}(guard, handler, proj, comp, idx, inputs, y, x_off, clock,
-                  mstore, ws) where {XT,BN} =
+                  mstore, ws, ci, cursor) where {XT,BN} =
     EventEntry{typeof(guard),typeof(handler),typeof(proj),typeof(comp),XT,BN,
                typeof(inputs),typeof(y),typeof(clock),typeof(mstore),typeof(ws)}(
-        guard, handler, proj, comp, idx, inputs, y, x_off, clock, mstore, ws)
+        guard, handler, proj, comp, idx, inputs, y, x_off, clock, mstore, ws, ci, cursor)
 
 @generated function make_bundle(e::EventEntry{G,H,P,Comp,XT,BN}, store,
                                 xbuf) where {G,H,P,Comp,XT,BN}
@@ -171,10 +209,14 @@ wholesale write safe by construction.
 struct ProjectEntry{Comp,XT}
     comp::Comp
     x_off::Int
+    ci::Int
+    cursor::ExecutionCursor
 end
-ProjectEntry{XT}(comp, x_off) where {XT} = ProjectEntry{typeof(comp),XT}(comp, x_off)
+ProjectEntry{XT}(comp, x_off, ci, cursor) where {XT} =
+    ProjectEntry{typeof(comp),XT}(comp, x_off, ci, cursor)
 
 @inline function run_project!(e::ProjectEntry{Comp,XT}, xbuf) where {Comp,XT}
+    e.cursor.comp = e.ci; e.cursor.fn = :project
     flatten!(xbuf, e.x_off, project(e.comp, reconstruct(XT, xbuf, e.x_off)))
     nothing
 end
@@ -244,6 +286,7 @@ end
 @inline _guard_walk(::Tuple{}, store, xbuf, now, σs) = nothing
 @inline function _guard_walk(t::Tuple, store, xbuf, now, σs)
     e = t[1]
+    e.cursor.comp = e.ci; e.cursor.fn = :guard
     σ = e.guard(e.comp, make_bundle(e, store, xbuf))
     now[e.idx] = _holding(σ)
     # The numeric sample, for the localization brackets (§10.4). The guard's
@@ -258,6 +301,7 @@ end
 @inline function _fire_walk(t::Tuple, store, xbuf, fire)
     e = t[1]
     if fire[e.idx]
+        e.cursor.comp = e.ci; e.cursor.fn = :handler
         _latch!(e, e.handler(e.comp, make_bundle(e, store, xbuf)), xbuf)
         _fire_project!(e, xbuf)
     end
@@ -272,6 +316,7 @@ end
 
 @inline function _fire_project!(e::EventEntry{G,H,P,Comp,XT}, xbuf) where {G,H,P,Comp,XT}
     P === Nothing && return nothing
+    e.cursor.fn = :project          # the component is the handler's own
     flatten!(xbuf, e.x_off, e.proj(e.comp, reconstruct(XT, xbuf, e.x_off)))
     nothing
 end

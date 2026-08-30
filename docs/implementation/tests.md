@@ -898,3 +898,55 @@ Each of these is a spec claim rather than a programming convenience:
   is what the bit-identity tests do. Under `trace = false` a replay still runs
   — the feed is compiled from the `Trace` in hand, never from the target's own
   register — and records nothing.
+- **The cursor names where execution was, on a quiet frame as on a failing
+  one.** After an ordinary `step!` the cursor reads the sequence's last block —
+  `:ticks`, empty on a continuous model — with the component and function of
+  the last dispatch the sweep walked. Maintaining it costs nothing measurable:
+  the suite's forty `@ballocated` assertions are unmoved, a store of an `Int`
+  or a `Symbol` into a mutable struct allocating nothing.
+- **One catch site frames every user-code surface uniformly.** A throw from
+  `f` at RK4's half step is `StepError` with the frame `("c", :f, :integrate,
+  2)`; from a handler, `(:handler, :round, 1)`; from a sign-form guard, `(:guard,
+  :trial, j ≥ 1)` at a time strictly inside the frame, reachable by a
+  localization trial alone; from `g`, `(:g, :ticks)`; from `project`,
+  `(:project, :project)`. The catch is per `_advance!` call, not per stage and
+  not per component, and it names each of those without a `try` anywhere near
+  the dispatch.
+- **The pointer is the frame-entry boundary the failing frame began at.** Not a
+  constant and not the clock's own step: a failure in frame 1 reports `0`, one
+  in frame 4 reports `3`, and the record's `t` is the last *published*
+  boundary's — the failed frame published nothing, so §13.6's discard-and-
+  promote and §13.4's pointer agree by construction.
+- **The cause is retained, and the record wraps the wrap.** `termination(sim)`
+  holds `LoopError` whose `exception` is the very `StepError` the entry
+  rethrew, whose `cause` is the model's own exception one level down. The
+  rendering states the frame and then the reproduction — the path, the
+  function, the phase spelled per case, `to_boundary = k` and `step!` — which
+  is the one property asserted on message text (§13.2 otherwise forbids it).
+- **An `InterruptException` is a stop, never a failure.** Model code raising
+  one inside the guarded sequence ends the run `stopped` with
+  `ControlRequestedStop(:interrupt)`, the graceful tail run in full (a probe
+  device sees `[:init, :shutdown]`) and the last published boundary final. The
+  frame it interrupted is not counted: the deviceless `step!(sim; frames = 5)`
+  returns the completed frames alone, which is what pins the `adv` increment's
+  placement past the publication. The stores may be mid-boundary — with §12.4's
+  masking absent, a `stopped` simulation here is still inspectable by every
+  stopped-sim service, and the masking is what would close that gap.
+
+Two places this increment runs ahead of or beside the spec's letter, flagged
+for the spec pass:
+
+- **The species rule** is the prototype's spelling, not the spec's. §13.4 says
+  a conformance failure "is thrown as its typed diagnostic at the table-write
+  point, and it arrives at the same catch site. There it is a species of
+  `StepError`", without saying how the catch site recognizes one. Here a
+  `BuildError` carrying **exactly one** diagnostic, thrown inside the sequence,
+  arrives unwrapped as that diagnostic — which keeps the catch site the only
+  `StepError` constructor while letting a runtime check be a plain thrower of
+  its kind. A multi-diagnostic carrier stays raw, having no single species.
+- **Boundary zero is outside the catch.** `init!` and `replay!` run it as
+  stopped-sim services and propagate raw. The spec calls boundary zero "the
+  ordinary macro-sequence with an empty integrate" and a legal replay halt, so
+  a reading that wraps it too is available; the conservative choice here is
+  that a service's own refusal path is not a frame, and there is no
+  frame-entry pointer for the frame that has not begun.

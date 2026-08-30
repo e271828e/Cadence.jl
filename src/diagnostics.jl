@@ -103,6 +103,64 @@ over both would be two unrelated meanings sharing a name.
 """
 logline(d::Diagnostic) = string(nameof(typeof(d)), ": ", message(d))
 
+# --- the runtime carrier (§13.4, D-059) ---------------------------------------
+
+"""
+An immutable copy of the execution cursor at the catch (§13.4): the frame a
+`StepError` carries. `path` is the component's, `""` where the cursor named
+none.
+"""
+struct CursorFrame
+    path::String
+    fn::Symbol
+    phase::Symbol
+    index::Int
+end
+
+# A payload value, compared as one: the default for an immutable holding a
+# `String` is egality, which two equal frames built apart would fail.
+Base.:(==)(a::CursorFrame, b::CursorFrame) =
+    a.path == b.path && a.fn === b.fn && a.phase === b.phase && a.index == b.index
+
+"""
+§13.4's runtime carrier, `BuildError`'s counterpart: the cursor's frame, the
+clock at the failure, the frame-entry boundary index — the replay pointer — and
+the original exception as `cause`. A *species* is a `StepError` whose `cause` is
+a typed diagnostic, which is what lets a runtime check throw its kind and reach
+the one catch site as a plain thrower.
+"""
+struct StepError <: Exception
+    frame::CursorFrame
+    t::Float64       # Float64(clock.t) at the catch: the boundary time in a boundary
+                     # phase, the stage or trial time mid-integration
+    boundary::Int    # the frame-entry boundary index: replay!(…; to_boundary = boundary)
+    cause::Any
+end
+
+# The phase, spelled per case (§13.4). The index rides only where one applies.
+_phase_text(fr::CursorFrame) =
+    fr.phase === :integrate  ? "integration stage $(fr.index)" :
+    fr.phase === :arrival    ? "arrival sweep" :
+    fr.phase === :validation ? "θ = 0 validation" :
+    fr.phase === :trial      ? "localization trial $(fr.index)" :
+    fr.phase === :project    ? "projection" :
+    fr.phase === :round      ? "event round $(fr.index)" :
+    fr.phase === :ticks      ? "tick updates" : "drain"
+
+# §13.2's doctrine: the didactic frame first, the raw throw second. The frame
+# line names the path, the function, the phase, the time and the pointer, and
+# states the reproduction; a `Diagnostic` cause renders as its logline.
+function Base.showerror(io::IO, e::StepError)
+    fr = e.frame
+    print(io, "StepError: in ", _at_path(fr.path))
+    fr.fn === :none || print(io, " ", fr.fn)
+    print(io, ", ", _phase_text(fr), " of the frame from boundary ", e.boundary,
+          " (t = ", e.t, "):\n  replay!(sim2, trc; to_boundary = ", e.boundary,
+          ") then step!(sim2) reproduces it\n  cause: ")
+    e.cause isa Diagnostic ? print(io, logline(e.cause)) : showerror(io, e.cause)
+    nothing
+end
+
 """
 An internal invariant firing (D-215): not a diagnostic and not a kind, because
 it names no failure the user can fix. Its own exception type so the assertions

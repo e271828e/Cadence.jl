@@ -32,14 +32,14 @@ on the machine whose `startup.jl` loads it.
 | --- | --- | --- |
 | `src/Cadence.jl` | the package module: the dependencies and the include order the other files load in | — |
 | `src/leaves.jl` | the leaf walk: flatten / reconstruct / the activation retype | §7.1, §7.2 |
-| `src/diagnostics.jl` | the diagnostic kinds, `severity`/`path`/`message`, the `BuildError` carrier and its compiler-style rendering, `logline`, `InternalInvariant` | §13.1, §13.2, Appendix C, D-214, D-215 |
+| `src/diagnostics.jl` | the diagnostic kinds, `severity`/`path`/`message`, the `BuildError` carrier and its compiler-style rendering, `logline`, `InternalInvariant`, and §13.4's runtime pair — `CursorFrame` and the `StepError` carrier with its compact rendering | §13.1, §13.2, §13.4, Appendix C, D-214, D-215 |
 | `src/declare.jl` | the declaration layer: both tiers' name families and arities, the bundle law, `probe_value`, the connection declarations beside `transparent_container`, the rate registers with `sample_times`, the event surface | §5.2, §8.2, §8.5–§8.7, §9.3, D-211 |
 | `src/assembly.jl` | class by declaration shape; children and containers (bare-key transparency and its three-arm collision family); paths, §6.1's one-level rule, endpoint and face resolution, the root's face invariants; the flatten pass with its two-sided face graph and the sample-time fold; §13.3's `resolve`/`resolve_terminal`/face-list primitives and §8.8's `input_passthrough`/`output_passthrough` | §6.1, §8.5–§8.8, §9.1, §9.2, §13.3, D-207–D-212 |
 | `src/store.jl` | per-eltype cell stores, the `StoreBundle`, gather/scatter, `_cell_key`, the `Clock` | §9.7, D-162 |
-| `src/executor.jl` | entries, the chunked unrolled walk, the interior/boundary split, the `(idx − Φ) % D` gate and boundary zero's `ESTABLISH` beside it, the event set with its registers and the guard/fire/project walks | §9.7, §10.4–§10.6, §14.5, D-205 |
+| `src/executor.jl` | entries, the chunked unrolled walk, the interior/boundary split, the `(idx − Φ) % D` gate and boundary zero's `ESTABLISH` beside it, the event set with its registers and the guard/fire/project walks, and the execution cursor every entry stores into | §9.7, §10.4–§10.6, §13.4, §14.5, D-059, D-205 |
 | `src/build.jl` | tier classification, the probe, the feedthrough graph, the layout, embed-accept, the `Build` and its activations, deployment binding, and `compile` → `Executor{T}` — one activation's buffer set with the bodies closed over it, one owner per set, `evaluate!`/`_round!`/`apply!` on it | §8.2, §9.1–§9.4, §9.7, §10.4, D-166, D-208, D-210 |
 | `src/readers.jl` | the closed read-selector family, `reads`, the internal `_compile_reads` → `Reader{T}`, `gather` as `apply!`'s twin over an executor; activation identity on readers and plans as an internal invariant | §14.4, §14.7, §14.10 |
-| `src/sim.jl` | `Simulation` (owning its `exec`), the deployment keywords, the boundary macro-sequence and event phase, `init!`, `run!`/`step!`, `replay!` over the one shared run body, `attach!`/`detach!`, staging/drain/publication and the drain's replay substitution, the lifecycle and termination record, the accessors | §10.2–§10.6, §11.1–§11.4, §11.8, §12.1–§12.7, §13.5, §13.6, §14.5, §14.6, D-101, D-203 |
+| `src/sim.jl` | `Simulation` (owning its `exec`), the deployment keywords, the boundary macro-sequence and event phase, `init!`, `run!`/`step!`, `replay!` over the one shared run body, `attach!`/`detach!`, staging/drain/publication and the drain's replay substitution, the lifecycle and termination record, the frame loop's one catch site with the species rule and the interrupt carve-out, the accessors | §10.2–§10.6, §11.1–§11.4, §11.8, §12.1–§12.7, §13.4–§13.6, §14.5, §14.6, D-059, D-101, D-203 |
 | `src/stepper.jl` | the seam's backend side: RK4 and Heun, the retained `startpoint`, dense output | §10.2, D-017 |
 | `src/localize.jl` | the frame loop: arrival sweep, θ = 0 validation, ITP bracketing, `t*` boundaries, the localization budget | §10.4, D-018, D-133 |
 | `src/dataplane.jl` | the compiled writer and staging cells, the drain, snapshots and the log with re-decimation, the typed diagnostic kinds and cells, the framework status | §11.1–§11.4, §11.8, §12.6, D-137 |
@@ -103,9 +103,10 @@ The long form, with reasons, is in `map.md`. In brief:
 - **§11.7's GUI write path**, §10.7 pacing and its
   diagnostics, the §11.8 remainder (`DebtReanchor`, `ThreadBudget`,
   `UnboundedRun`, the maxlog renderer).
-- **§12 beyond its built slices**: pause and the control plane's surface, the
-  operator interrupt; §13.4's `StepError` wrap, cursor and nonfinite sweep.
-  `run!` requires a finite `t_end`; every non-running state admits
+- **§12 beyond its built slices**: pause and the control plane's surface; the
+  operator interrupt — §13.4's carve-out exists, the masking and the entry do
+  not, so a stopped run can hold mid-boundary stores here; §13.4's nonfinite
+  sweep. `run!` requires a finite `t_end`; every non-running state admits
   `attach!`/`detach!`.
 
 ## Stand-ins: where the prototype's shape is not the spec's

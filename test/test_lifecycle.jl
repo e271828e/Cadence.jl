@@ -224,11 +224,13 @@ end
     attach!(sim, probe, NoClaim())
     init!(sim, fragment(inputs = (in = 0.0,)))
     stage!(sim, "in" => true)                        # armed: frame 1's drain applies it,
-    @test_throws Exploded run!(sim)                  # frame 1's integration throws (§13.4's
+    @test_throws StepError run!(sim)                 # frame 1's integration throws (§13.4's
                                                      # synchronous rethrow, after the tail)
     @test lifecycle(sim) === :errored
     t = termination(sim)
-    @test t.source isa LoopError && t.source.exception isa Exploded
+    # the loop's one catch site wrapped it, and the cause is one level down
+    @test t.source isa LoopError && t.source.exception isa StepError
+    @test t.source.exception.cause isa Exploded
     # The failed boundary published nothing: boundary zero is the promoted
     # final snapshot, and the published record ends at it.
     @test t.t == 0.0 && latest(sim).t == 0.0

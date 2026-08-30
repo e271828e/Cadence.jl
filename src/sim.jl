@@ -303,7 +303,8 @@ interior variant of each sweep block, then the `f` block against the complete
 fresh table. Leaves `ẋbuf` holding the derivative of whatever `xbuf` holds.
 """
 @inline function evaluate!(ex::Executor)
-    ex.bodies.sweep_1()
+    ex.cursor.index += 1          # §13.4: the stage ordinal counts RHS evaluations,
+    ex.bodies.sweep_1()           # so the backends stay untouched
     ex.bodies.sweep_2()
     ex.bodies.rhs()
     nothing
@@ -326,8 +327,11 @@ produces `s[k+1]` — the sampled-data recursion, ordered by construction rather
 than by convention.
 """
 @inline function boundary!(sim::Simulation, tick::Int)
+    cur = sim.exec.cursor
+    _phase!(cur, :project)
     _projects!(sim.exec.events)
     event_phase!(sim, tick)
+    _phase!(cur, :ticks)
     sim.exec.bodies.ticks(tick)
     nothing
 end
@@ -342,6 +346,7 @@ projection and the event phase run in full — every step boundary is a boundary
 (§10.4).
 """
 @inline function offtick_boundary!(sim::Simulation)
+    _phase!(sim.exec.cursor, :project)
     _projects!(sim.exec.events)
     event_phase!(sim, nothing)
     nothing
@@ -363,8 +368,11 @@ entries here at all (§9.4's executable set), so its pinned cells keep the
 carried nominal products — at boundary zero as everywhere.
 """
 @inline function boundary_zero!(sim::Simulation)
+    cur = sim.exec.cursor
+    _phase!(cur, :project)
     _projects!(sim.exec.events)
     event_phase!(sim, ESTABLISH)
+    _phase!(cur, :ticks)
     sim.exec.bodies.ticks(0)
     nothing
 end
@@ -399,8 +407,9 @@ is updated unconditionally from the final samples — every prior an honest
 observation of a settled boundary.
 """
 function event_phase!(sim::Simulation, tick)
-    es = sim.exec.events
-    _round!(sim, tick)
+    es, cur = sim.exec.events, sim.exec.cursor
+    _phase!(cur, :round, 1)       # §13.4: the boundary sweep is round 1, and the guard
+    _round!(sim, tick)            # walk and the fire walk of a round carry its index
     n = length(es.prior)
     n == 0 && return nothing
     copyto!(es.last, es.prior)
@@ -433,6 +442,7 @@ function event_phase!(sim::Simulation, tick)
         end
         any_fired || break
         _fire!(es)
+        cur.index += 1
         _round!(sim, tick)
     end
     copyto!(es.prior, es.last)
@@ -451,6 +461,7 @@ the backend is simply not called, and no backend contract has to say what it
 would do at N = 0.
 """
 @inline function step!(sim::Simulation, h)
+    _phase!(sim.exec.cursor, :integrate)     # §13.4: `evaluate!` counts the stages from here
     isempty(sim.exec.xbuf) ? (sim.exec.clock.t += h) : step!(sim.stepper, sim, h)
     nothing
 end
@@ -790,10 +801,10 @@ function _run_body!(sim::Simulation, pol::RunPolicy, upto::Int, target::Int)
         # §13.6's abnormal entry: the failed boundary is discarded by
         # construction — publication is a boundary's last act, so it published
         # nothing and the previous snapshot is already final. The source
-        # retains the cause raw (§13.4's wrap is absent, `status.md`),
-        # unwrapped from the spawned loop's task failure where the topology
-        # moved it; the record itself is assembled below, after the sweep
-        # (D-203).
+        # retains the cause as the frame loop wrapped it — a `StepError`
+        # against the execution cursor (§13.4) — unwrapped from the spawned
+        # loop's task failure where the topology moved it; the record itself is
+        # assembled below, after the sweep (D-203).
         err_src = LoopError(err isa TaskFailedException ? err.task.exception : err)
         rethrow()
     finally
@@ -849,26 +860,60 @@ function _advance!(sim::Simulation, pol::RunPolicy, upto::Int, t_end_frame::Int)
     adv = 0
     face = _stop_hit(sim, pol)
     face === nothing || return (ModelRequestedStop(face), adv)
-    while true
-        issuer = @atomic ctl.stop_issuer
-        issuer === nothing || return (ControlRequestedStop(issuer), adv)
-        sim.exec.clock.step < t_end_frame || return (EndTimeReached(), adv)
-        sim.exec.clock.step < upto || return (nothing, adv)
-        isempty(plane.roster) || yield()
-        drain!(sim)
-        k = (sim.exec.clock.step += 1)
-        adv += 1
-        frame!(sim, k)
-        if pol.hit === nothing
-            k % sim.n == 0 ? boundary!(sim, k ÷ sim.n) : offtick_boundary!(sim)
-            publish!(sim)
-            face = _stop_hit(sim, pol)
-        else
-            face = pol.hit        # a t* publication hit (§13.5): that snapshot is final
+    entry = 0                     # the frame-entry boundary index, read at the frame top
+    try                           # before the drain, so the catch has it wherever the
+        while true                # throw came from (§13.4)
+            issuer = @atomic ctl.stop_issuer
+            issuer === nothing || return (ControlRequestedStop(issuer), adv)
+            sim.exec.clock.step < t_end_frame || return (EndTimeReached(), adv)
+            sim.exec.clock.step < upto || return (nothing, adv)
+            isempty(plane.roster) || yield()
+            entry = sim.exec.clock.step
+            drain!(sim)
+            k = (sim.exec.clock.step += 1)
+            frame!(sim, k)
+            if pol.hit === nothing
+                k % sim.n == 0 ? boundary!(sim, k ÷ sim.n) : offtick_boundary!(sim)
+                publish!(sim)
+                face = _stop_hit(sim, pol)
+            else
+                face = pol.hit    # a t* publication hit (§13.5): that snapshot is final
+            end
+            # only a completed frame counts — which the carve-out below is what
+            # makes observable, a throw carrying no return value out
+            adv += 1
+            face === nothing || return (ModelRequestedStop(face), adv)
         end
-        face === nothing || return (ModelRequestedStop(face), adv)
+    catch err
+        # §13.4's one exception never wrapped: the operator's stop command, not
+        # model code failing, so it routes to the stop path (§12.4). The frame is
+        # abandoned unpublished and the stores may be mid-boundary — this is the
+        # masked guarantee without the masking, the defensive branch §13.4 keeps.
+        err isa InterruptException && return (ControlRequestedStop(:interrupt), adv)
+        rethrow(_wrap_step(sim, entry, err))
     end
 end
+
+# The one `StepError` constructor (§13.4, D-059): the frame from the cursor, the
+# clock at the failure, the frame-entry boundary as the replay pointer, and the
+# cause under the species rule below. Nothing inside the sequence throws a
+# `StepError`, so one arriving here is an invariant firing, not a re-wrap.
+function _wrap_step(sim::Simulation, entry::Int, err)
+    err isa StepError && throw(InternalInvariant(
+        "a StepError reached the catch site (§13.4), which is its only constructor — " *
+        "something inside the boundary sequence wrapped one"))
+    cur = sim.exec.cursor
+    frame = CursorFrame(cur.comp == 0 ? "" : sim.build.flat.paths[cur.comp],
+                        cur.fn, cur.phase, cur.index)
+    StepError(frame, Float64(sim.exec.clock.t), entry, _species(err))
+end
+
+# The species rule: a `BuildError` carrying exactly one diagnostic, thrown
+# inside the sequence, arrives as that diagnostic unwrapped — which is what lets
+# a runtime check (§9.5's conformance failure, the nonfinite sweep) be a plain
+# thrower of its kind while the catch site stays the only wrap.
+_species(err) = err
+_species(err::BuildError) = length(err.diagnostics) == 1 ? only(err.diagnostics) : err
 
 """
     step!(sim; frames = 1)
@@ -1101,6 +1146,9 @@ untouched, which is what "the ordinary loop" means (§12.7).
 """
 function drain!(sim::Simulation)
     plane, reg = sim.plane, sim.trace
+    cur = sim.exec.cursor         # the one store per frame that keeps a stale frame from
+    cur.comp = 0; cur.fn = :none  # being reported for a drain-side throw (§13.4)
+    _phase!(cur, :drain)
     # the ordinal this frame's records take (§11.5): the drain runs before the
     # clock's step increments, so a batch taken at the top of frame `k` is
     # recorded — and replayed — at `k`

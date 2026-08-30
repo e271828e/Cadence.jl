@@ -39,7 +39,7 @@ end
 # are already structurally bounded (at most one per declared event), while the
 # segment count is the quantity chattering inflates without bound.
 function _localized_frame!(sim::Simulation{T}, t_to) where {T}
-    es = sim.exec.events
+    es, cur = sim.exec.events, sim.exec.cursor
     n = length(es.prior)
     (x₀, _) = startpoint(sim.stepper)         # the seam's retained pair (§10.2):
     count = 0                                 # x₀ = x(t_seg) after each step!
@@ -52,6 +52,7 @@ function _localized_frame!(sim::Simulation{T}, t_to) where {T}
         # The arrival sweep at the segment's end — interior, on the raw
         # unprojected state, before any discrete cell refreshes (§10.4): the
         # sweep that closes the integration step is what raises the trigger.
+        _phase!(cur, :arrival)
         sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
         _guards!(es)
         copyto!(es.σ1, es.σ)
@@ -90,6 +91,7 @@ function _localized_frame!(sim::Simulation{T}, t_to) where {T}
         # exists — not localizing is the action, and it consumes no budget.
         copyto!(sim.exec.xbuf, x₀)
         sim.exec.clock.t = t_seg
+        _phase!(cur, :validation)
         sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
         _guards!(es)
         copyto!(es.σ0, es.σ)
@@ -107,6 +109,7 @@ function _localized_frame!(sim::Simulation{T}, t_to) where {T}
         # RHS block at the arrival state completes the interpolant's data.
         copyto!(sim.exec.xbuf, sim.xnext)
         sim.exec.clock.t = t_seg + h′
+        _phase!(cur, :arrival)        # never a stage: `evaluate!` counts within the phase
         evaluate!(sim)
         copyto!(sim.ẋnext, sim.exec.ẋbuf)
 
@@ -199,6 +202,7 @@ function _crossing(sim::Simulation, i::Int, σ₀::Float64, σ₁::Float64, t_se
         r = max(ε * exp2(nmax - j) - 0.5 * (hi - lo), 0.0)
         θ = abs(xt - xh) ≤ r ? xt : xh - s * r        # project into the minmax radius
         (lo < θ < hi) || (θ = xh)
+        _phase!(sim.exec.cursor, :trial, j + 1)   # the trial ordinal, from 1 (§13.4)
         _trial!(sim, θ, t_seg, h′)
         σθ = es.σ[i]
         σθ ≥ 0 ? (hi = θ; σhi = σθ) : (lo = θ; σlo = σθ)

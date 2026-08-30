@@ -428,6 +428,119 @@ output_types(::Exploder, ::Type{T}) where {T <: Real} = (q = T,)
 h_x(::Exploder, (; x)) = (q = x.q,)
 f(::Exploder, (; x, u)) = u.arm ? throw(Exploded()) : (q = one(x.q),)
 
+# --- the runtime-failure coverage set (§13.4) ----------------------------------
+# One component per user-code surface the execution cursor names, each failing
+# only when armed so the build probe — which runs every stage, guard, handler,
+# update and projection once — passes.
+
+"Tripwire's exception, so the tests assert the retained cause's identity."
+struct Tripped <: Exception end
+
+"The exception the mine family throws, likewise."
+struct Detonated <: Exception end
+
+"""
+Tripwire: `q̇ = 1` until `t` reaches `t_trip` with `arm` true, when the RHS
+throws `Tripped`. With `t_trip` at a half-step time the throw lands at RK4's
+second stage evaluation, which is what makes the cursor's stage ordinal
+observable.
+"""
+struct Tripwire <: AbstractComponent
+    t_trip::Float64
+end
+
+init_x(::Tripwire) = (q = 0.0,)
+input_types(::Tripwire, ::Type{T}) where {T <: Real} = (arm = Bool,)
+output_types(::Tripwire, ::Type{T}) where {T <: Real} = (q = T,)
+
+h_x(::Tripwire, (; x)) = (q = x.q,)
+f(c::Tripwire, (; x, u, t)) = (u.arm && t ≥ c.t_trip) ? throw(Tripped()) : (q = one(x.q),)
+
+"""
+Mine: a `Bool` input and a predicate-form event whose handler throws
+`Detonated` — the failure inside an event round, at boundary resolution.
+"""
+struct Mine <: AbstractComponent end
+
+init_m(::Mine) = (blown = false,)
+input_types(::Mine, ::Type{T}) where {T <: Real} = (sig = Bool,)
+output_types(::Mine, ::Type{T}) where {T <: Real} = (blown = Bool,)
+
+h_x(::Mine, (; m)) = (blown = m.blown,)
+
+mine_guard(::Mine, (; u)) = u.sig
+mine_handler(::Mine, (; u, m)) = u.sig ? throw(Detonated()) : (m = (blown = true,),)
+events(::Mine) = (blow = Event(mine_guard, mine_handler),)
+
+"""
+Landmine: a `Bouncer` whose sign-form guard throws `Detonated` when `t` is off
+the grid. Arrival, validation and the boundary rounds all sit on the grid before
+any `t*` has occurred, so the only evaluation that reaches the throw is a
+localization trial.
+"""
+struct Landmine <: AbstractComponent
+    rate::Float64
+    level::Float64
+    h::Float64          # the deployment's step, so the guard can tell the grid
+end
+
+init_x(::Landmine) = (q = 0.0,)
+init_m(::Landmine) = (count = 0,)
+output_types(::Landmine, ::Type{T}) where {T <: Real} = (q = T,)
+
+h_x(::Landmine, (; x)) = (q = x.q,)
+f(c::Landmine, (; x)) = (q = c.rate,)
+
+function landmine_guard(c::Landmine, (; x, t))
+    abs(t - round(t / c.h) * c.h) > 1e-9 && throw(Detonated())
+    x.q - c.level
+end
+landmine_handler(::Landmine, (; x, m)) = (x = (q = 0.0,), m = (count = m.count + 1,))
+events(::Landmine) = (blow = Event(landmine_guard, landmine_handler),)
+
+"""
+Sapper: the discrete-tier mine — `g` throws `Detonated` when its input is set,
+so the failure lands in the tick updates, the boundary sequence's last block.
+"""
+struct Sapper <: AbstractComponent end
+
+init_s(::Sapper) = (n = 0,)
+input_types(::Sapper) = (sig = Bool,)
+output_types(::Sapper) = (n = Int,)
+
+h_s(::Sapper, (; s)) = (n = s.n,)
+g(::Sapper, (; s, u)) = u.sig ? throw(Detonated()) : (n = s.n + 1,)
+
+"""
+Primer: `q̇ = 1` with a `project` that throws `Detonated` once `q` reaches
+`level` — the failure at the boundary's projection, between the integrate's
+state write and its decode.
+"""
+struct Primer <: AbstractComponent
+    level::Float64
+end
+
+init_x(::Primer) = (q = 0.0,)
+output_types(::Primer, ::Type{T}) where {T <: Real} = (q = T,)
+
+h_x(::Primer, (; x)) = (q = x.q,)
+f(::Primer, (; x)) = (q = one(x.q),)
+project(c::Primer, x) = x.q ≥ c.level ? throw(Detonated()) : (q = x.q,)
+
+"""
+Interrupter: `q̇ = 1` whose RHS raises an `InterruptException` when armed — the
+operator's stop reaching §13.4's catch site, which is the only way to exercise
+the carve-out with §12.4's masking absent.
+"""
+struct Interrupter <: AbstractComponent end
+
+init_x(::Interrupter) = (q = 0.0,)
+input_types(::Interrupter, ::Type{T}) where {T <: Real} = (arm = Bool,)
+output_types(::Interrupter, ::Type{T}) where {T <: Real} = (q = T,)
+
+h_x(::Interrupter, (; x)) = (q = x.q,)
+f(::Interrupter, (; x, u)) = u.arm ? throw(InterruptException()) : (q = one(x.q),)
+
 # --- the anonymous assembly (§8.5) --------------------------------------------
 
 """

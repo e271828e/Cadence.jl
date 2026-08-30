@@ -602,7 +602,7 @@ end
     init!(crashed, fragment(inputs = (in = 0.0,)))
     own = trace(crashed)
     stage!(crashed, "in" => true)
-    @test_throws Exploded run!(crashed)
+    @test_throws StepError run!(crashed)        # §13.4's wrap, the cause one level down
     d = only(failure(() -> replay!(crashed, own)).diagnostics)
     @test d isa ServiceLifecycle && d.op === :replay! && d.status === :errored
     # (`replay!` from `:running` is the same gate one line above it, and reaching
