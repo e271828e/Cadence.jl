@@ -956,21 +956,53 @@ Each of these is a spec claim rather than a programming convenience:
 - **The pointer the error names reproduces the failure.** A staged session that
   fails in frame `k + 1`, its `StepError` read off `termination(sim).source`;
   a fresh twin replayed with `to_boundary = e.boundary` halts `initialized` at
-  `clock.step == e.boundary`, and one `step!` throws a `StepError` with the
-  same frame, `t`, `boundary` and cause type, ending `errored` at the same
-  published `t`. Run for an ordinary cause (`Tripwire`) and for the nonfinite
-  species. **The failing frame's own drain must be empty** for this to hold:
-  the replay applies records 1…`k` and `_run_body!` clears the feed on exit, so
-  a batch staged *into* the failing frame is recorded at ordinal `k + 1` and
-  the live `step!` after the replay never sees it. Both fixtures arm at an
-  earlier frame — the diverging one through a `Follower` latch — which is why
-  the reproduction is exact.
+  `clock.step == e.boundary` **and `:replay`**, and one `step!` throws a
+  `StepError` with the same frame, `t`, `boundary` and cause type, ending
+  `errored` at the same published `t`. Run for an ordinary cause (`Tripwire`)
+  and for the nonfinite species. Both fixtures arm the failing frame *itself* —
+  the batch drained at that frame's own top and recorded at its ordinal — which
+  is §13.4's literal workflow and the case D-218 exists for: the halt keeps the
+  recording attached, so the record past the pointer still has a consumer. The
+  earlier prototype cleared the feed at the halt, so the reproduction was exact
+  only where the failing frame staged nothing, and the two fixtures armed a
+  frame early to stay inside that gap.
 - **`to_boundary` counts grid boundaries.** At `n = 2`, `to_boundary = 3` halts
   at `clock.step == 3`, an off-tick frame top, with the log a prefix of the
   recording's, and `trc.frames + 1` refuses as `ArgumentInvalid`. The base-tick
   spelling would have refused `3` here and halted at `6` where it did not.
 
-Three places this increment runs ahead of or beside the spec's letter, flagged
+§12.6's **input mode** (D-218) — the register that says where the next frame's
+drain reads from, `mode(sim)` beside `lifecycle(sim)` — with the bound and the
+flip that keep it honest across a halt, pinned over the eight-frame recording
+the replay tests share:
+
+- **A full replay ends `:live`, and the continuation is live.** The halt lands
+  at the recording's last frame, so the records are exhausted, the recording
+  detaches and the mode returns to `:live` — and a batch staged before the
+  following `run!` is *applied*, not discarded, which is the operational
+  spelling of "the next call is the live continuation".
+- **A partial replay ends `:replay`, and stays there across the halt.** After
+  `to_boundary = 5` the mode reads `:replay`, and a `step!` past it consumes
+  the recording's frame 6 and leaves the mode `:replay` still — the resumable
+  position §13.4's workflow needs, rather than the end of an operation.
+- **The recording bounds a replaying advance.** A `run!` whose `t_end` lies far
+  past the recording does not run past the records and go on live: the frame
+  budget is capped at the recording's last frame, the halt lands there
+  `initialized`, the trajectory is still the recording's bit for bit, and only
+  then does the mode flip to `:live`. A batch staged into that run is met by a
+  replaying frame and discarded, one `ReplayDiscardedStaging` on the stager's
+  own cell naming the face and the frame; the *next* `run!` applies the batch
+  staged before it. So no advance ever changes its input source mid-call.
+- **The bound is the frame budget, so `step!` reports the truncation.**
+  `step!(sim; frames = 10)` three frames from the recording's end returns `3`,
+  the same way a §13.5 stop's truncation is read — and the call after it is
+  live again.
+- **`init!` resets the mode with the trajectory.** After a partial replay,
+  `init!` returns the mode to `:live` and detaches the recording, and the next
+  `step!` drains the staging cells normally. The two doors, `init!` and a fresh
+  `replay!`, are the resets; a terminal state makes the mode moot.
+
+Two places this increment runs ahead of or beside the spec's letter, flagged
 for the spec pass:
 
 - **The species rule** is the prototype's spelling, not the spec's. §13.4 says
@@ -987,13 +1019,3 @@ for the spec pass:
   a reading that wraps it too is available; the conservative choice here is
   that a service's own refusal path is not a frame, and there is no
   frame-entry pointer for the frame that has not begun.
-- **The reproduction is exact only where the failing frame stages nothing.**
-  §13.4 argues reproducibility from the drain's placement: the failing frame's
-  inputs "are already in the trace when it fails", so replaying to `k` and
-  stepping re-executes it. The batch is indeed recorded — at frame ordinal
-  `k + 1` — but the replay's budget stops at `k`, and `_run_body!` clears the
-  feed on every exit, so the `step!` after the replay is a live frame whose
-  drain finds nothing. A failure caused by the failing frame's *own* drained
-  input therefore does not reproduce here. Closing it means letting the feed
-  outlive the replay by one frame (a `step!`-after-`replay!` that keeps
-  reading the trace), which is a §12.7 decision, not a §13.4 one.

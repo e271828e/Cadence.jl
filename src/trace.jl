@@ -100,12 +100,15 @@ by the recording's writer index — with a cursor into it.
 The conversion is paid here, once, off the loop: the replay drain applies
 compiled scatters exactly as the live drain does, and no face name is resolved
 per frame under replay either (D-101). `next` is the first record not yet
-applied. The frame budget is not carried here: it is `trc.frames` or
-`to_boundary · n`, and `replay!` computes it from the `Trace` in hand.
+applied. `frames` is the recording's own length — the bound every advance in
+`:replay` is capped at (D-218), carried here so `step!` and `run!` can cap
+without holding the `Trace`; `to_boundary` caps `replay!`'s own advance
+earlier, and `replay!` computes that one from the `Trace` in hand.
 """
 mutable struct ReplayFeed
     records::Vector{ReplayRecord}
     next::Int
+    frames::Int
 end
 
 """
@@ -123,6 +126,10 @@ every roster change *appends* the current set (the roster in attachment
 order, then the harness: the drain's own order) and recompiles the drain
 thunks against the new indices. Earlier entries stay, referenced by earlier
 batches, and a run's `schemas` may therefore carry superseded ones.
+
+The register also holds §12.6's **input mode** (D-218), `:live` or `:replay`,
+the one thing that selects the drain's source, and the attached recording
+behind it — non-`nothing` for exactly as long as the mode is `:replay`.
 """
 mutable struct TraceRegister
     enabled::Bool
@@ -131,24 +138,39 @@ mutable struct TraceRegister
     frames::Int
     frame::Int                        # the ordinal this frame's records take
     live_writers::UnitRange{Int}      # the current set's entries in header.schemas
-    feed::Union{Nothing,ReplayFeed}   # non-`nothing` while a replay drives the loop (§12.7)
+    feed::Union{Nothing,ReplayFeed}   # the attached recording: the mode's source (§12.7)
+    mode::Symbol                      # :live | :replay — §12.6's input mode (D-218)
 end
 
 # The empty roster leaves the harness register sole writer, so the fresh
 # register's provisional set is `1:1`; `_install_writers!` re-fixes it at every
 # capture and every roster change.
-TraceRegister(enabled::Bool) = TraceRegister(enabled, nothing, TraceBatch[], 0, 0, 1:1, nothing)
+TraceRegister(enabled::Bool) =
+    TraceRegister(enabled, nothing, TraceBatch[], 0, 0, 1:1, nothing, :live)
 
 # §11.5's clearing at `init!`: the header and every record it stood in front of
 # go together, the recording's length with them. `live_writers` is left where it
 # is — the drain thunks hold those indices, and the capture below re-fixes both
-# at once.
+# at once. The mode goes back to `:live` with the trajectory (§12.6, D-218), and
+# the recording detaches with it: this runs at both doors, `replay!` re-entering
+# `:replay` immediately after.
 function _reset!(reg::TraceRegister)
     reg.header = nothing
     empty!(reg.batches)
     reg.frames = 0
     reg.frame = 0
+    reg.feed = nothing
+    reg.mode = :live
     nothing
+end
+
+# The recording the mode implies (D-218): in `:replay` it is always attached, so
+# its absence is an invariant firing rather than a case the loop handles.
+function _feed(reg::TraceRegister)
+    f = reg.feed
+    f === nothing && throw(InternalInvariant(
+        "the input mode is :replay with no recording attached (§12.7, D-218)"))
+    f
 end
 
 # The conversion at the drain (§11.5, D-176), inside the drain thunk so nothing

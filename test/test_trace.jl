@@ -396,6 +396,9 @@ end
     # §12.7: the replay ends `initialized`, never `stopped` — boundary-consistent
     # and ready to advance, which is what makes inspect/step/continue real.
     @test lifecycle(sim2) === :initialized && termination(sim2) === nothing
+    # …and `:live`, the halt having landed at the recording's last frame: the
+    # records are exhausted, so whatever advances next is a live frame (D-218).
+    @test mode(sim2) === :live && sim2.trace.feed === nothing
     @test sim2.exec.clock.step == trc.frames
     @test same_trajectory(logged(sim2), logged(sim))
     # …including the localized boundaries the recording never stored: `t*` is
@@ -455,18 +458,83 @@ end
     @test trace(sim2).frames == 5
     @test same_trajectory(logged(sim2), [s for s in logged(sim) if s.frame ≤ 5])
 
+    # §12.6's register, read beside the lifecycle: the halt is short of the
+    # recording's end, so the recording is still attached and still the source
+    # of the next frame's inputs (D-218).
+    @test mode(sim2) === :replay
+
     # §13.4's workflow minus the error: step the next frame under whatever
     # instrumentation is wanted, and it is the recording's frame 6 bitwise.
     @test step!(sim2) == 1
     @test snap_cells(latest(sim2)) == snap_cells(at_frame(logged(sim), 6))
     @test latest(sim2).t == at_frame(logged(sim), 6).t
+    @test mode(sim2) === :replay                # two frames of the recording left
+end
+
+@testset "the recording bounds a replaying advance, and the end flips the mode (§12.7, D-218)" begin
+    (sim, trc) = recorded_run()
+    sim2 = replay_twin()
+    replay!(sim2, trc; to_boundary = 5)
+    @test mode(sim2) === :replay
+
+    # A `run!` whose `t_end` lies far past the recording does not run past it:
+    # the frame budget is capped at the last recorded frame, the halt lands
+    # there `initialized`, and only *then* does the mode go `:live`.
+    stage!(sim2, "ref" => 99.0)                 # a live batch met by a replaying frame
+    run!(sim2; t_end = 5.0)
+    @test lifecycle(sim2) === :initialized && termination(sim2) === nothing
+    @test sim2.exec.clock.step == trc.frames
+    @test mode(sim2) === :live && sim2.trace.feed === nothing
+    @test same_trajectory(logged(sim2), logged(sim))    # the recording's own trajectory
+    @test port(sim2, "", :ref) == 2.0                   # never the 99.0 staged into it
+    seen = [d for s in logged(sim2) for w in s.status.writers if w.who == "harness"
+              for d in w.recent if d isa ReplayDiscardedStaging]
+    @test length(seen) == 1 && only(seen).faces == [:ref] && only(seen).frame == 6
+
+    # The next call is the live continuation: the same staging surface, applied.
+    stage!(sim2, "ref" => 7.0)
+    run!(sim2; t_end = 1.0)
+    @test lifecycle(sim2) === :stopped && mode(sim2) === :live
+    @test port(sim2, "", :ref) == 7.0
+end
+
+@testset "a `step!` past the recording's end advances only to it (§12.7, D-218)" begin
+    (_, trc) = recorded_run()
+    sim2 = replay_twin()
+    replay!(sim2, trc; to_boundary = 5)
+    # The return value is the truncation, as under a §13.5 stop: three frames of
+    # recording left, ten asked for.
+    @test step!(sim2; frames = 10) == 3
+    @test sim2.exec.clock.step == trc.frames
+    @test lifecycle(sim2) === :initialized && mode(sim2) === :live
+    @test step!(sim2; frames = 2) == 2           # and the next call is live again
+    @test sim2.exec.clock.step == trc.frames + 2
+end
+
+@testset "`init!` after a partial replay returns the mode to `:live` (§12.6, D-218)" begin
+    (_, trc) = recorded_run()
+    sim2 = replay_twin()
+    replay!(sim2, trc; to_boundary = 5)
+    @test mode(sim2) === :replay
+
+    # `init!` opens a fresh trajectory, and the mode returns with it: the
+    # recording detaches, and the next frame's drain is the staging cells'.
+    init!(sim2, fragment(inputs = (ref = 0.0, rate = 0.0)))
+    @test mode(sim2) === :live && sim2.trace.feed === nothing
+    @test sim2.exec.clock.step == 0
+    stage!(sim2, "ref" => 3.0)
+    @test step!(sim2) == 1
+    @test port(sim2, "", :ref) == 3.0
 end
 
 @testset "a continuation is a live session from the replayed boundary (§12.7)" begin
     (sim, trc) = recorded_run()
     sim2 = replay_twin()
     replay!(sim2, trc)
+    @test mode(sim2) === :live                  # a full replay exhausts the records
+    stage!(sim2, "rate" => 4.0)                 # so this batch is applied, not discarded
     run!(sim2; t_end = 1.4)                     # `run!` after `replay!`
+    @test mode(sim2) === :live && port(sim2, "", :rate) == 4.0
     @test lifecycle(sim2) === :stopped && termination(sim2).source === EndTimeReached()
     @test sim2.exec.clock.step == 14            # it proceeded from frame 8, not from zero
     # The session leaves behind a complete, valid trace of *itself*, with the

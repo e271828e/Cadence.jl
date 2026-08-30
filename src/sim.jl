@@ -236,6 +236,23 @@ states, `:stopped` and `:errored` (§13.6). Readable from any task.
 lifecycle(sim::Simulation) = @atomic :acquire sim.control.lifecycle
 
 """
+    mode(sim)
+
+§12.6's input mode, read beside the lifecycle state: `:live` — the next frame's
+drain takes its batches from the staging cells — or `:replay` — it takes them
+from the recording `replay!` attached (§12.7, D-218). State and mode are
+orthogonal: the state says whether the simulation may advance, the mode says
+what it will advance on.
+
+While the mode is `:replay` the recording is the bound: every advance's frame
+budget is capped at the recording's last frame, and the mode returns to `:live`
+exactly when a halt lands there, the records exhausted. `init!` and a fresh
+`replay!` reset it with the trajectory, and a terminal state makes it moot —
+nothing advances until one of those two doors is taken.
+"""
+mode(sim::Simulation) = sim.trace.mode
+
+"""
     termination(sim)
 
 §13.5's termination record (devices.jl, D-203) — the run's outcome, `nothing`
@@ -570,10 +587,11 @@ zero has not completed. `replay!` (§12.7) is the one alternative — it stands
 in the same lifecycle position with the trace header in the condition's place
 (D-101), and the trajectory-opening tail below is literally shared with it. It
 opens the fresh trajectory wholesale — the stop word, the §13.5 termination
-record *and every staged batch still in a staging cell* clear with the
-registers (§12.6: no stale batch survives to clobber the boundary zero it
-predates — the pre-run register is `init!` → `stage!` → `run!`, the batch
-then waiting for the first frame top as §11.4 says). The diagnostic cells are
+record, the input mode's return to `:live` (§12.6, D-218) *and every staged
+batch still in a staging cell* clear with the registers (§12.6: no stale batch
+survives to clobber the boundary zero it predates — the pre-run register is
+`init!` → `stage!` → `run!`, the batch then waiting for the first frame top as
+§11.4 says). The diagnostic cells are
 deliberately not cleared: a rejection recorded while stopped is a fact about
 what happened, not a stale input, and it surfaces in the next run's first
 status (§11.8). `init!` is itself a stopped-sim operation: refused while
@@ -624,7 +642,7 @@ function _compile_feed(sim::Simulation{T}, trc::Trace{T}) where {T}
     isempty(diags) || throw(BuildError(diags))     # the header before the entries
     records = _compile_records!(diags, sim, trc, faces)
     isempty(diags) || throw(BuildError(diags))
-    ReplayFeed(records, 1)
+    ReplayFeed(records, 1, trc.frames)
 end
 
 _compile_feed(sim::Simulation{Ts}, trc::Trace{Tt}) where {Ts,Tt} =
@@ -662,6 +680,15 @@ from any site, the recording being the bound. Budget exhausted, the replay ends
 advance, which is what makes replay-to-inspect, replay-to-`k−1`-then-`step!`
 and `run!`-continuation real. A §13.5 source firing first ends it `stopped`
 like any run, and a loop-side throw `errored`.
+
+The recording and the **input mode** it enters outlive the call (§12.6, D-218):
+a partial replay is a resumable position, not the end of an operation, and the
+`step!` or `run!` that follows goes on consuming the records from the halt —
+which is what makes §13.4's reproduction workflow run through the ordinary
+entry points. The mode returns to `:live`, the recording detaching with it,
+exactly when a halt lands at the recording's last frame; every advance in
+`:replay` is capped there, so none ever runs past the records and goes on
+live.
 
 Replay re-records: the trace register runs normally and **the new trace
 inherits the old header** (§12.7), this simulation's writers appended under
@@ -717,9 +744,11 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     end
     boundary_zero!(sim)
     publish!(sim)                               # the boundary-zero snapshot (§11.2, §14.5)
-    # substitution (2): the feed, live for exactly the loop below (`_run_body!`
-    # clears it in its own `finally`, on every exit path)
+    # substitution (2): the recording attached and the input mode entered, both
+    # outliving this call — the halt below detaches them only where it lands at
+    # the recording's last frame (§12.6, §12.7, D-218)
     reg.feed = feed
+    reg.mode = :replay
     pol = sim.policy
     pol.faces, pol.addrs, pol.hit = faces, addrs, nothing
     upto = to_boundary === nothing ? trc.frames : Int(to_boundary)
@@ -779,8 +808,32 @@ function run!(sim::Simulation; t_end = nothing, stop_on = nothing)
     pol = sim.policy
     pol.faces, pol.addrs, pol.hit = faces, addrs, nothing
     # a live run owes its end to a §13.5 source alone, so its frame budget is
-    # unbounded; `replay!` is the one caller that binds `upto` finitely (§12.7)
+    # unbounded here; in `:replay` the recording binds it (`_run_body!`, D-218)
     _run_body!(sim, pol, typemax(Int), round(Int, te / sim.h))
+    nothing
+end
+
+# §12.7's bound (D-218): while the mode is `:replay` the recording caps every
+# advance's frame budget, `to_boundary` capping it earlier — so no advance ever
+# runs past the records and goes on live, and every frame of a session is either
+# record-driven or live before it runs.
+_replay_bound(sim::Simulation, upto::Int) =
+    sim.trace.mode === :replay ? min(upto, _feed(sim.trace).frames) : upto
+
+# §12.7's flip (D-218), at the one place the terminal disposition already lives:
+# the mode becomes `:live` exactly when the halt consumed the recording's last
+# frame, the records exhausted and the recording detached with them; short of
+# that it stays `:replay`, and the next `step!` or `run!` goes on consuming the
+# recording. An `errored` exit leaves both as they stand: the frame was
+# abandoned mid-execution, nothing advances from a terminal state, and `init!`
+# and `replay!` are the resets.
+function _settle_mode!(sim::Simulation)
+    reg = sim.trace
+    reg.mode === :replay || return nothing
+    if sim.exec.clock.step ≥ _feed(reg).frames
+        reg.feed = nothing
+        reg.mode = :live
+    end
     nothing
 end
 
@@ -790,11 +843,14 @@ end
 # replay *is* this loop. `upto` is the frame budget, `target` the `t_end` frame.
 #
 # The terminal mapping is `step!`'s. `term === nothing` means the budget ran out
-# rather than a source firing, which only a replay can reach — its budget is
-# finite — and it lands `initialized` at a frame top, §12.7's promise. A §13.5
-# source is `stopped` with the record, a throw `errored` with the cause retained.
+# rather than a source firing, which only a bounded advance can reach — a
+# `replay!`, or any run in `:replay`, where the recording is the bound (D-218) —
+# and it lands `initialized` at a frame top, §12.7's promise. A §13.5 source is
+# `stopped` with the record, a throw `errored` with the cause retained. The mode
+# settles here too, on every exit but the errored one.
 function _run_body!(sim::Simulation, pol::RunPolicy, upto::Int, target::Int)
     plane, ctl = sim.plane, sim.control
+    upto = _replay_bound(sim, upto)             # §12.7: the recording bounds a replaying run
     @atomic :release ctl.lifecycle = :running   # the §11.3 freeze: the roster is fixed for the run
     term, err_src = nothing, nothing
     try
@@ -845,15 +901,17 @@ function _run_body!(sim::Simulation, pol::RunPolicy, upto::Int, target::Int)
         @atomic ctl.stopped = true
         residue = _sweep_tail!(sim)           # the run's last take (§11.8): what landed past
         empty!(plane.run_tasks)               # the final frame top — recorded and presented,
-        sim.trace.feed = nothing              # never published (D-201, D-203); tasks and the
-        if err_src !== nothing                # feed alike are run-scoped equipment (§12.7)
+        if err_src !== nothing                # never published (D-201, D-203)
             ctl.termination = _record(sim, err_src, residue)
             @atomic :release ctl.lifecycle = :errored
-        elseif term === nothing               # the frame budget ran out: a replay ended at a
-            @atomic :release ctl.lifecycle = :initialized      # frame top (§12.7)
-        elseif (@atomic ctl.lifecycle) === :running
-            ctl.termination = _record(sim, term, residue)
-            @atomic :release ctl.lifecycle = :stopped
+        else
+            _settle_mode!(sim)                # §12.7's flip, at the halt (D-218)
+            if term === nothing               # the frame budget ran out: a replay ended at a
+                @atomic :release ctl.lifecycle = :initialized  # frame top (§12.7)
+            elseif (@atomic ctl.lifecycle) === :running
+                ctl.termination = _record(sim, term, residue)
+                @atomic :release ctl.lifecycle = :stopped
+            end
         end
     end
     nothing
@@ -975,6 +1033,11 @@ leaves the simulation terminally `stopped` with the §13.5 record set, and
 returns the frames advanced before the stop — fewer than requested, which is
 how a harness detects the truncation without inspecting the clock. A
 loop-side failure ends it `errored` exactly as under `run!` (§13.6).
+
+In `:replay` the frames come from the recording rather than the cells and the
+recording is the bound (§12.7, D-218): a `step!` past its end advances only to
+the last recorded frame and returns the truncation the same way, the mode
+turning `:live` there.
 """
 function step!(sim::Simulation; frames = nothing, t_plus = nothing)
     ctl = sim.control
@@ -997,7 +1060,11 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing)
     @atomic :release ctl.lifecycle = :running   # the freeze holds within the call
     term, adv, err_src = nothing, 0, nothing
     try
-        (term, adv) = _advance!(sim, pol, sim.exec.clock.step + nf, t_end_frame)
+        # §12.7: in `:replay` the recording is the bound, so a `step!` past its
+        # end advances only to the last recorded frame and returns fewer frames
+        # than asked — the truncation the caller reads (D-218)
+        upto = _replay_bound(sim, sim.exec.clock.step + nf)
+        (term, adv) = _advance!(sim, pol, upto, t_end_frame)
     catch err
         err_src = LoopError(err)              # the record is assembled below,
         rethrow()                             # after the sweep (D-203)
@@ -1006,12 +1073,15 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing)
             _finish!(sim)                     # deviceless — waits woken, accounts swept
             ctl.termination = _record(sim, err_src, _sweep_tail!(sim))
             @atomic :release ctl.lifecycle = :errored
-        elseif term === nothing
-            @atomic :release ctl.lifecycle = :initialized
-        else                                  # a §13.5 source fired inside the call:
-            _finish!(sim)                     # the deviceless §12.4 tail, then terminal
-            ctl.termination = _record(sim, term, _sweep_tail!(sim))
-            @atomic :release ctl.lifecycle = :stopped
+        else
+            _settle_mode!(sim)                # §12.7's flip, at the halt (D-218)
+            if term === nothing
+                @atomic :release ctl.lifecycle = :initialized
+            else                              # a §13.5 source fired inside the call:
+                _finish!(sim)                 # the deviceless §12.4 tail, then terminal
+                ctl.termination = _record(sim, term, _sweep_tail!(sim))
+                @atomic :release ctl.lifecycle = :stopped
+            end
         end
     end
     adv
@@ -1173,10 +1243,11 @@ its writer's schema on the way through — inside the thunk, where the writer's
 index is closed over — and the frame's ordinal is stamped here, once, before
 any thunk runs.
 
-And it is the site of D-101's second substitution: with a feed installed the
-drain reads the *trace* instead of the cells (`_replay_drain!` below). The
-branch is the whole of the substitution — the live path underneath is
-untouched, which is what "the ordinary loop" means (§12.7).
+And it is the site of D-101's second substitution: in `:replay` the drain reads
+the *trace* instead of the cells (`_replay_drain!` below). The branch is the
+whole of the substitution — the live path underneath is untouched, which is
+what "the ordinary loop" means (§12.7) — and what selects it is the input mode
+the caller can read, not the incidental presence of a recording (§12.6, D-218).
 """
 function drain!(sim::Simulation)
     plane, reg = sim.plane, sim.trace
@@ -1187,7 +1258,7 @@ function drain!(sim::Simulation)
     # clock's step increments, so a batch taken at the top of frame `k` is
     # recorded — and replayed — at `k`
     reg.enabled && (reg.frame = sim.exec.clock.step + 1)
-    reg.feed === nothing || return _replay_drain!(sim, reg, reg.feed)
+    reg.mode === :replay && return _replay_drain!(sim, reg, _feed(reg))
     for e in plane.roster
         e.drain()
         _fold!(e.acct, e.diag)    # the diagnostic cells drain at the same point (§11.8):

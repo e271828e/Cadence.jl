@@ -18,14 +18,6 @@ interrupted() = Group((c = Interrupter(), trig = Trigger(0.15));
 diverging() = Group((div = Diverger(), con = Consumer());
                     wires = ("div/q" => "con/in",), inputs = ("in" => "div/arm",))
 
-# The same, armed through a latch: the staged edge fires `fol` at a boundary, so
-# the divergence lands in the frame *after* the one whose drain carried it —
-# which is what makes the failing frame's own drain empty, and the failure
-# reproducible from a replay that halts at its frame-entry boundary.
-armed_diverging() = Group((fol = Follower(), div = Diverger(), con = Consumer());
-                          wires = ("fol/on" => "div/arm", "div/q" => "con/in"),
-                          inputs = ("in" => "fol/go",))
-
 @testset "the cursor names where execution was after a quiet frame (§13.4)" begin
     sim = Simulation(feedback_model(); h = 1//50, t_end = 1.0)
     init!(sim, fragment(inputs = (ref = 0.0,)))
@@ -176,20 +168,22 @@ end
 
 # §13.4's reproduction, end to end: a staged session that fails, the pointer its
 # error names, and the same failure on a fresh twin one `step!` past the halt.
-# The stage that sets the failure up is drained in an *earlier* frame, so the
-# failing frame's own drain is empty — the replay carries every input it needs.
+# The stage arms the failing frame *itself* — the batch is drained at that
+# frame's own top and recorded at its ordinal, so the record the reproduction
+# needs is the one past the halt, which is what the `:replay` mode keeps a
+# consumer for (§12.7, D-218).
 function reproduction(model, quiet::Int)
     sim = Simulation(model; h = 1//10, t_end = 5.0)
     init!(sim, fragment(inputs = (in = false,)))
-    step!(sim)
-    stage!(sim, "in" => true)                       # drained at the top of frame 2
-    step!(sim; frames = quiet)                      # the frames the arming does not fail in
+    step!(sim; frames = quiet)                      # the quiet frames before it
+    stage!(sim, "in" => true)                       # drained at the failing frame's top
     failure(() -> step!(sim))
     e = termination(sim).source.exception
     sim2 = Simulation(model; h = 1//10, t_end = 5.0)
     init!(sim2, fragment(inputs = (in = false,)))
     replay!(sim2, trace(sim); to_boundary = e.boundary)
     @test lifecycle(sim2) === :initialized          # the pointer is always a legal halt
+    @test mode(sim2) === :replay                    # …with the recording still ahead of it
     @test sim2.exec.clock.step == e.boundary
     e2 = failure(() -> step!(sim2))
     @test e2 isa StepError
@@ -201,15 +195,16 @@ function reproduction(model, quiet::Int)
 end
 
 @testset "the error's pointer reproduces the failure on a fresh twin (§13.4, §12.7)" begin
-    # An ordinary cause: the RHS throws at frame 4's half step, armed at frame 2.
-    e = reproduction(fed(Tripwire(0.35), "arm"), 2)
+    # An ordinary cause: the RHS throws at frame 4's half step, armed by that
+    # frame's own drain.
+    e = reproduction(fed(Tripwire(0.35), "arm"), 3)
     @test e.cause isa Tripped && e.boundary == 3
     @test e.frame == CursorFrame("c", :f, :integrate, 2)
 
     # And the nonfinite species, which the sweep raises rather than model code.
-    en = reproduction(armed_diverging(), 1)
+    en = reproduction(diverging(), 1)
     @test en.cause isa NonfiniteState && en.cause.path == "div"
-    @test en.boundary == 2                          # the latch fired at boundary 2
+    @test en.boundary == 1                          # frame 2's own drain armed it
 end
 
 @testset "`to_boundary` counts grid boundaries, not base ticks (§12.7, §13.4)" begin
