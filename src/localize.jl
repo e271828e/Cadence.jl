@@ -75,7 +75,7 @@ function _localized_frame!(sim::Simulation{T}, t_to) where {T}
                 es.loc_warned[i] = true   # at most one report per event per frame
                 (path, name) = es.names[i]
                 _report!(sim.loop_diag,   # the loop's own cell (§11.8): folded at the next frame top
-                         ChatteringBudget(path, name, Float64(t_to),
+                         ChatteringBudget(path, name, _seconds(t_to),
                                           sim.localization_budget, count))
             end
             return nothing

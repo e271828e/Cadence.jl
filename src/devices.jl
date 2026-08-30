@@ -446,7 +446,7 @@ function _tail!(sim, entries::Vector{RosterEntry}, tasks::Vector{Task})
         if !joined
             s = latest(sim)                  # after init!, never nothing (§14.5)
             _report!(sim.loop_diag, DeviceJoinTimeout(_who(e), sim.join_timeout,
-                                                      Float64(s.t), s.boundary))
+                                                      _seconds(s.t), s.boundary))
         end
     end
     nothing

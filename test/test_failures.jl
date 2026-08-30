@@ -72,6 +72,20 @@ end
     @test e.boundary == 3 && 0.3 < e.t < 0.4        # strictly inside the frame
 end
 
+@testset "a throw in the arrival sweep names that phase (§13.4)" begin
+    # The same guard, told a grid it is not deployed on: every frame top is now
+    # "off the grid", so the first evaluation of the frame — the arrival sweep at
+    # the segment's end — is the one that throws. The ordinal is deliberately not
+    # asserted: `evaluate!` counts RHS evaluations within the phase, so the sweep
+    # reads 0 and the ẋₙ₊₁ evaluation beside it 1 (`tests.md`).
+    sim = Simulation(single(Landmine(1.0, 0.35, 0.03)); h = 1//10, t_end = 5.0)
+    init!(sim)
+    e = failure(() -> run!(sim))
+    @test e isa StepError && e.cause isa Detonated
+    @test e.frame.path == "c" && e.frame.fn === :guard && e.frame.phase === :arrival
+    @test e.boundary == 0 && e.t == 0.1             # the frame top the integrate landed on
+end
+
 @testset "a throw in `g` or in `project` names its own block (§13.4)" begin
     sim = Simulation(fed(Sapper(), "sig"); h = 1//10, t_end = 5.0)
     init!(sim, fragment(inputs = (in = false,)))
@@ -132,6 +146,42 @@ end
     init!(dv, fragment(inputs = (in = true,)))
     sn = sprint(showerror, failure(() -> step!(dv)))
     @test occursin("NonfiniteState", sn) && occursin("`q`", sn)
+    # …and the sweep is no stage: the integrate phase renders bare at index 0.
+    @test occursin("integration of the frame", sn) && !occursin("stage 0", sn)
+
+    # A frame whose cursor named no component drops the clause entirely: `""` is
+    # a bare-leaf build's *own* root component, and "the root component" would
+    # name a component where the cursor named none.
+    none = StepError(CursorFrame(nothing, :none, :drain, 0), 0.3, 3, Tripped())
+    sn0 = sprint(showerror, none)
+    @test occursin("StepError: drain of the frame from boundary 3", sn0)
+    @test !occursin("root component", sn0) && !occursin(" in ", sn0)
+
+    # An unrecognized phase renders as itself, never as another phase's spelling.
+    odd = StepError(CursorFrame("c", :f, :nowhere, 0), 0.3, 3, Tripped())
+    @test occursin("nowhere of the frame", sprint(showerror, odd))
+end
+
+@testset "the `Dual` activations reach the same carrier and cause (§13.4, §9.4)" begin
+    # Appendix C's payloads are `Float64` and the clock under a `D8` activation
+    # is a `Dual`, which `Float64` has no method for: the framing is what would
+    # throw a `MethodError` over the model's own failure, losing the cause.
+    sim = Simulation(fed(Tripwire(0.05), "arm"), D8; h = 1//10, t_end = 5.0)
+    init!(sim, fragment(inputs = (in = true,)))
+    e = failure(() -> run!(sim))
+    @test e isa StepError && e.cause isa Tripped
+    @test e.frame == CursorFrame("c", :f, :integrate, 2)
+    @test e.t == 0.05 && e.boundary == 0
+    @test lifecycle(sim) === :errored
+
+    # The sweep's own species too: `isfinite` is defined on a `Dual`, the value
+    # rides as the `Dual` it is, and the payload times are seconds either way.
+    dv = Simulation(diverging(), D8; h = 1//10, t_end = 5.0)
+    init!(dv, fragment(inputs = (in = true,)))
+    en = failure(() -> step!(dv))
+    @test en isa StepError && en.cause isa NonfiniteState
+    @test en.cause.path == "div" && en.cause.leaf == "q" && isnan(en.cause.value)
+    @test en.t == 0.1 && en.cause.t == 0.1 && en.cause.boundary == 0
 end
 
 @testset "the sweep names the diverging block, never its downstream (§13.4, D-157)" begin
@@ -149,6 +199,7 @@ end
     # named at the block's owner and at no function, and neither `div`'s own
     # `project` nor `con`'s lookup has run on the NaN.
     @test e.frame.path == "div" && e.frame.fn === :none && e.frame.phase === :integrate
+    @test e.frame.index == 0                        # the sweep is no stage, so no ordinal
     @test !(e.cause isa DomainError) && d.path != "con"
     @test lifecycle(sim) === :errored
 end

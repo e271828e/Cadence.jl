@@ -444,7 +444,8 @@ function event_phase!(sim::Simulation, tick)
                 es.warned[i] = true       # at most one report per event per boundary
                 (path, name) = es.names[i]
                 _report!(sim.loop_diag,   # the loop's own cell (§11.8): folded at the next frame top
-                         FiringBudget(path, name, Float64(sim.exec.clock.t), budget, es.count[i]))
+                         FiringBudget(path, name, _seconds(sim.exec.clock.t), budget,
+                                      es.count[i]))
             end
             firing = eligible && !es.comp_fired[es.owner[i]]
             es.fire[i] = firing
@@ -505,14 +506,15 @@ end
 @noinline function _nonfinite(sim::Simulation, i::Int)
     ex = sim.exec
     owner = findfirst(b -> i in b, ex.xblocks)::Int
-    cur = ex.cursor                   # the phase is still `:integrate`, on the stage count
-    cur.comp = owner; cur.fn = :none
+    cur = ex.cursor                   # the phase stays `:integrate`, but the sweep is the
+    cur.comp = owner; cur.fn = :none  # framework's own act between the stages and the
+    cur.index = 0                     # boundary — no stage of its own, so no ordinal
     names = leaf_names(typeof(ex.act.decls[owner].x))
     throw(BuildError(NonfiniteState(
         path = sim.build.flat.paths[owner],
         leaf = names[i - first(ex.xblocks[owner]) + 1],
         value = ex.xbuf[i],
-        t = Float64(ex.clock.t),
+        t = _seconds(ex.clock.t),
         boundary = ex.clock.step - 1)))   # the frame-entry index: this frame's own top
 end
 
@@ -971,8 +973,9 @@ function _advance!(sim::Simulation, pol::RunPolicy, upto::Int, t_end_frame::Int)
             else
                 face = pol.hit    # a t* publication hit (§13.5): that snapshot is final
             end
-            # only a completed frame counts — which the carve-out below is what
-            # makes observable, a throw carrying no return value out
+            # a frame counts once it has published a boundary — which a `t*` stop
+            # hit has done, its remainder abandoned; the carve-out below is what
+            # makes the count observable, a throw carrying no return value out
             adv += 1
             face === nothing || return (ModelRequestedStop(face), adv)
         end
@@ -995,9 +998,9 @@ function _wrap_step(sim::Simulation, entry::Int, err)
         "a StepError reached the catch site (§13.4), which is its only constructor — " *
         "something inside the boundary sequence wrapped one"))
     cur = sim.exec.cursor
-    frame = CursorFrame(cur.comp == 0 ? "" : sim.build.flat.paths[cur.comp],
+    frame = CursorFrame(cur.comp == 0 ? nothing : sim.build.flat.paths[cur.comp],
                         cur.fn, cur.phase, cur.index)
-    StepError(frame, Float64(sim.exec.clock.t), entry, _species(err))
+    StepError(frame, _seconds(sim.exec.clock.t), entry, _species(err))
 end
 
 # The species rule: a `BuildError` carrying exactly one diagnostic, thrown

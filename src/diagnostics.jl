@@ -105,13 +105,22 @@ logline(d::Diagnostic) = string(nameof(typeof(d)), ": ", message(d))
 
 # --- the runtime carrier (§13.4, D-059) ---------------------------------------
 
+# Appendix C's time payloads are plain `Float64` (D-214): a diagnostic is
+# reportage, never a value the model differentiates through. Under a `Dual`
+# activation the clock and the snapshot's stamp are `Dual`s, which `Float64` has
+# no method for, so the seconds are read off the value — recursively, so a
+# nested activation's `Dual{…,Dual}` unwraps too.
+_seconds(t::Real) = Float64(t)
+_seconds(t::ForwardDiff.Dual) = _seconds(ForwardDiff.value(t))
+
 """
 An immutable copy of the execution cursor at the catch (§13.4): the frame a
-`StepError` carries. `path` is the component's, `""` where the cursor named
-none.
+`StepError` carries. `path` is the component's — `""` for a bare-leaf build's
+own root component — and `nothing` where the cursor named none, which the
+rendering drops rather than spelling as the root.
 """
 struct CursorFrame
-    path::String
+    path::Union{Nothing,String}
     fn::Symbol
     phase::Symbol
     index::Int
@@ -131,30 +140,42 @@ the one catch site as a plain thrower.
 """
 struct StepError <: Exception
     frame::CursorFrame
-    t::Float64       # Float64(clock.t) at the catch: the boundary time in a boundary
+    t::Float64       # `_seconds(clock.t)` at the catch: the boundary time in a boundary
                      # phase, the stage or trial time mid-integration
     boundary::Int    # the frame-entry boundary index: replay!(…; to_boundary = boundary)
     cause::Any
 end
 
-# The phase, spelled per case (§13.4). The index rides only where one applies.
+# The phase, spelled per case (§13.4). The index rides only where one applies:
+# an `:integrate` frame at index 0 is the framework's own act inside the
+# integrate — the nonfinite sweep — and not a stage. A phase this list does not
+# know renders as its own symbol, never as another phase's spelling.
 _phase_text(fr::CursorFrame) =
-    fr.phase === :integrate  ? "integration stage $(fr.index)" :
+    fr.phase === :integrate  ? (fr.index == 0 ? "integration" :
+                                                "integration stage $(fr.index)") :
     fr.phase === :arrival    ? "arrival sweep" :
     fr.phase === :validation ? "θ = 0 validation" :
     fr.phase === :trial      ? "localization trial $(fr.index)" :
     fr.phase === :project    ? "projection" :
     fr.phase === :round      ? "event round $(fr.index)" :
-    fr.phase === :ticks      ? "tick updates" : "drain"
+    fr.phase === :ticks      ? "tick updates" :
+    fr.phase === :drain      ? "drain" : string(fr.phase)
 
 # §13.2's doctrine: the didactic frame first, the raw throw second. The frame
 # line names the path, the function, the phase, the time and the pointer, and
-# states the reproduction; a `Diagnostic` cause renders as its logline.
+# states the reproduction; a `Diagnostic` cause renders as its logline. A frame
+# whose cursor named no component drops the "in …" clause entirely: `_at_path`
+# spells the empty path as "the root component", which is a *component* of a
+# bare-leaf build and not "nowhere".
 function Base.showerror(io::IO, e::StepError)
     fr = e.frame
-    print(io, "StepError: in ", _at_path(fr.path))
-    fr.fn === :none || print(io, " ", fr.fn)
-    print(io, ", ", _phase_text(fr), " of the frame from boundary ", e.boundary,
+    print(io, "StepError: ")
+    if fr.path !== nothing
+        print(io, "in ", _at_path(fr.path))
+        fr.fn === :none || print(io, " ", fr.fn)
+        print(io, ", ")
+    end
+    print(io, _phase_text(fr), " of the frame from boundary ", e.boundary,
           " (t = ", e.t, "):\n  replay!(sim2, trc; to_boundary = ", e.boundary,
           ") then step!(sim2) reproduces it\n  cause: ")
     e.cause isa Diagnostic ? print(io, logline(e.cause)) : showerror(io, e.cause)

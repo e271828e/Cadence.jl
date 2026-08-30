@@ -916,6 +916,23 @@ Each of these is a spec claim rather than a programming convenience:
   `(:project, :project)`. The catch is per `_advance!` call, not per stage and
   not per component, and it names each of those without a `try` anywhere near
   the dispatch.
+- **The three evaluations of one guard are told apart.** The same sign-form
+  guard, given a grid it is not deployed on, throws at the *first* evaluation
+  of the frame — the arrival sweep at the segment's end — and the frame reads
+  `(:guard, :arrival)`. Only the phase is asserted: the ordinal is a wobble,
+  not a claim. `evaluate!` counts RHS evaluations *within* the phase, so the
+  segment-end sweep reads index 0 while the ẋₙ₊₁ evaluation beside it reads 1,
+  and a fixture reaching one rather than the other is timing, not attribution.
+  The phases the ordinal does carry — `:integrate`, `:trial`, `:round` — are
+  pinned exactly, above.
+- **The `Dual` activations reach the same carrier.** A `D8` simulation whose
+  model throws yields the same `StepError`, the same frame and the retained
+  cause, and its nonfinite sweep the same `NonfiniteState` with the offending
+  `Dual` as its value. The property is the framing's, not the model's: the
+  clock under a `Dual` activation is a dual number and Appendix C's time
+  payloads are `Float64`, so a `Float64(clock.t)` at any of the five reporting
+  sites would raise a `MethodError` *over* the model's own failure and lose the
+  cause. `_seconds` is the one spelling that unwraps it.
 - **The pointer is the frame-entry boundary the failing frame began at.** Not a
   constant and not the clock's own step: a failure in frame 1 reports `0`, one
   in frame 4 reports `3`, and the record's `t` is the last *published*
@@ -928,14 +945,22 @@ Each of these is a spec claim rather than a programming convenience:
   function, the phase spelled per case, `to_boundary = k` and `step!` — which
   is the one property asserted on message text (§13.2 otherwise forbids it).
   A `Diagnostic` cause renders as its `logline`, so the nonfinite species' line
-  carries the kind name and the leaf the sweep named.
+  carries the kind name and the leaf the sweep named. Two arms of the frame
+  line are pinned on constructed frames, the cursor states no fixture reaches
+  cheaply: a frame whose cursor named **no** component drops the "in …" clause
+  entirely rather than spelling the empty path as "the root component", which
+  is a bare-leaf build's own component and not "nowhere"; and a phase the
+  spelling table does not know renders as its own symbol, never as another
+  phase's words. The sweep's `:integrate` frame renders bare — "integration",
+  no stage number — its index being 0 because the sweep is no stage.
 - **An `InterruptException` is a stop, never a failure.** Model code raising
   one inside the guarded sequence ends the run `stopped` with
   `ControlRequestedStop(:interrupt)`, the graceful tail run in full (a probe
   device sees `[:init, :shutdown]`) and the last published boundary final. The
   frame it interrupted is not counted: the deviceless `step!(sim; frames = 5)`
-  returns the completed frames alone, which is what pins the `adv` increment's
-  placement past the publication. The stores may be mid-boundary — with §12.4's
+  returns the frames that published a boundary alone, which is what pins the
+  `adv` increment's placement past the publication — a `t*` stop hit abandons
+  its frame's remainder and still counts, having published. The stores may be mid-boundary — with §12.4's
   masking absent, a `stopped` simulation here is still inspectable by every
   stopped-sim service, and the masking is what would close that gap.
 
