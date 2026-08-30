@@ -45,7 +45,7 @@ import Cadence: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent, Abstract
     feedback_model, fragment, frame!, g, gather, get_deriv, get_face, get_input,
     get_output, get_state, h_s, h_su, h_x, h_xu, index_of, init!, init_m,
     init_s, init_x, input_connections, input_faces, input_passthrough,
-    input_types, is_greedy, is_input, is_output, kinds, latest, lifecycle,
+    input_types, is_greedy, is_input, is_output, kinds, latest, lifecycle, live!,
     logged, logline, loop, map_input, map_output, message, mode, modes,
     needs_calling_task, offtick_boundary!, output_connections, output_faces,
     output_passthrough, output_types, override, path, period, phase_bodies,

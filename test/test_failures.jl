@@ -275,6 +275,13 @@ end
     @test sim2.exec.clock.step % sim2.n == 1        # and 3 is an off-tick frame top here
     @test same_trajectory(logged(sim2), [s for s in logged(sim) if s.frame ≤ 3])
 
+    # `to_time` counts the same boundaries: 0.3 is boundary 3's own time here,
+    # off-tick and three grid steps in, not the base tick three ticks in (D-219).
+    sim4 = grid()
+    init!(sim4, fragment(inputs = (ref = 0.0,)))
+    replay!(sim4, trc; to_time = 0.3)
+    @test sim4.exec.clock.step == 3
+
     # The range is the recording's frame count, so one past it refuses.
     bad = trc.frames + 1
     sim3 = grid()

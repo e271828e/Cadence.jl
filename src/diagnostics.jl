@@ -1227,9 +1227,9 @@ message(d::ConditionShapeDrift) =
     "evaluated at — a branch that authors a different field set, a different nesting or a " *
     "different leaf type is a different shape, and needs its own plan (§14.4, §9.5, D-066)"
 
-"§8.7, §11.6, §12.6, §14.7, D-215: an argument outside its constraint — `DeploymentInvalid`'s twin off the deployment surface."
+"§8.7, §11.6, §12.6, §12.7, §14.7, D-215: an argument outside its constraint — `DeploymentInvalid`'s twin off the deployment surface."
 Base.@kwdef struct ArgumentInvalid <: Diagnostic
-    call::Symbol                             # :Period|:Hz|:Absolute|:step!|:run!|:trim!|:trace|:TableBinding|:selector
+    call::Symbol                             # :Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:trim!|:trace|:TableBinding|:selector
     reason::Symbol
     argument::Union{Nothing,Symbol} = nothing
     value::Any = nothing
@@ -1251,8 +1251,15 @@ function message(d::ArgumentInvalid)
         return "`Absolute` takes a quantity value: `Period(1//50)` or `Hz(50)` — got " *
                "$(repr(d.value)) (§10.5)"
     d.reason === :both_given &&
-        return "step! takes `frames` or `t_plus`, not both — the count and the duration are " *
+        return d.call === :replay! ?
+               "replay! takes `to_boundary` or `to_time`, not both — the boundary index and " *
+               "the time are two spellings of one halt (§12.7, D-219)" :
+               "step! takes `frames` or `t_plus`, not both — the count and the duration are " *
                "two spellings of one advance (§12.6)"
+    d.reason === :not_replaying &&
+        return "live! on a simulation whose input mode is already `:live` — there is no " *
+               "recording to drop, and a silent no-op would let a caller believe one was " *
+               "attached (§12.7, D-219)"
     d.reason === :no_clock_bound &&
         return "run! has no clock bound: `t_end` was given neither at the constructor nor " *
                "here — the constructor value is the default and the run! keyword the " *
@@ -1293,6 +1300,12 @@ function message(d::ArgumentInvalid)
                "$(d.value) (§11.6)"
     d.argument === :frames ?
         "frames must be an integer ≥ 1, got $(d.value) (§12.6)" :
+        d.argument === :to_boundary ?
+        "to_boundary must be a whole grid boundary the recording covers — 0 through its " *
+        "own length — got $(repr(d.value)) (§12.7, §13.4)" :
+        d.argument === :to_time ?
+        "to_time must be a finite real at or after the recording's `t₀`, naming a time the " *
+        "recording covers — got $(repr(d.value)) (§12.7, D-219)" :
         "t_plus must be a finite real > 0 — the duration spelling — got $(d.value) (§12.6)"
 end
 

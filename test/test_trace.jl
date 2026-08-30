@@ -471,6 +471,67 @@ end
     @test mode(sim2) === :replay                # two frames of the recording left
 end
 
+@testset "`to_time` addresses the same halt by time (§12.7, D-219)" begin
+    (sim, trc) = recorded_run()
+    prefix(k) = [s for s in logged(sim) if s.frame ≤ k]
+
+    # On grid: the time of boundary 5 halts *at* 5, never at the one below it.
+    on = replay_twin()
+    replay!(on, trc; to_time = 0.5)
+    @test lifecycle(on) === :initialized && on.exec.clock.step == 5
+    @test mode(on) === :replay                  # short of the end, so still attached
+    @test same_trajectory(logged(on), prefix(5))
+
+    # …and on grid means on the grid the caller *names*, not the one binary
+    # floats compute: `0.3 / 0.1` is `2.9999999999999996`, so the plain floor
+    # would halt at 2. The guard is `step!`'s `t_plus` slack, in the other
+    # direction.
+    fuzz = replay_twin()
+    replay!(fuzz, trc; to_time = 0.3)
+    @test fuzz.exec.clock.step == 3
+
+    # Between two frame tops the halt floors onto the earlier one — D-219's
+    # deliberate opposite of `t_end`'s reach-or-exceed rule, because the point
+    # of halting is to stand *before* the anomaly.
+    between = replay_twin()
+    replay!(between, trc; to_time = 0.55)
+    @test between.exec.clock.step == 5
+    @test same_trajectory(logged(between), prefix(5))
+
+    # `t₀` itself is the empty halt: boundary zero and no frame.
+    zero = replay_twin()
+    replay!(zero, trc; to_time = trc.header.deployment.t₀)
+    @test zero.exec.clock.step == 0 && lifecycle(zero) === :initialized
+    @test trace(zero).frames == 0
+end
+
+@testset "`to_time`'s refusals precede every write (§12.7, D-219)" begin
+    (_, trc) = recorded_run()
+
+    # The two spellings are of one halt, so both together is a refusal, not a
+    # precedence rule the reader would have to know.
+    tgt = replay_twin()
+    d = only(failure(() -> replay!(tgt, trc; to_boundary = 5, to_time = 0.5)).diagnostics)
+    @test d isa ArgumentInvalid && d.call === :replay! && d.reason === :both_given
+    @test lifecycle(tgt) === :initialized && tgt.exec.clock.step == 0 && mode(tgt) === :live
+
+    # Before `t₀`, past the recording's own reach, and the two non-finites: each
+    # names the argument and the value, and each precedes every write.
+    for bad in (-0.1, 0.9, NaN, Inf)
+        tgt = replay_twin()
+        d = only(failure(() -> replay!(tgt, trc; to_time = bad)).diagnostics)
+        @test d isa ArgumentInvalid && d.call === :replay! && d.reason === :range
+        @test d.argument === :to_time && d.value === bad
+        @test lifecycle(tgt) === :initialized && mode(tgt) === :live
+    end
+
+    # …including on a target that has never been through `init!`: a rejected
+    # replay leaves it `built`, the door untaken.
+    raw = Simulation(replay_model(); h = 1//10)
+    @test failure(() -> replay!(raw, trc; to_time = 99.0)) isa BuildError
+    @test lifecycle(raw) === :built
+end
+
 @testset "the recording bounds a replaying advance, and the end flips the mode (§12.7, D-218)" begin
     (sim, trc) = recorded_run()
     sim2 = replay_twin()
@@ -546,6 +607,84 @@ end
     # the recording's schema entries stand, this session's appended behind them
     @test cont.header.schemas[1:length(trc.header.schemas)] == trc.header.schemas
     @test sim2.trace.live_writers == (length(trc.header.schemas) + 1):length(cont.header.schemas)
+end
+
+@testset "`live!` takes a replayed halt live, and the session records itself (§12.7, D-219)" begin
+    (sim, trc) = recorded_run()
+    sim2 = replay_twin()
+    replay!(sim2, trc; to_time = 0.5)
+    @test mode(sim2) === :replay && sim2.exec.clock.step == 5
+
+    # The door moves the mode and nothing else: the trajectory stands at the
+    # halt, and so does the trace register with the header it inherited and the
+    # batches it has re-recorded.
+    live!(sim2)
+    @test mode(sim2) === :live && sim2.trace.feed === nothing
+    @test lifecycle(sim2) === :initialized && sim2.exec.clock.step == 5
+    at_halt = trace(sim2)
+    @test at_halt.frames == 5 && at_halt.batches == trc.batches
+    @test at_halt.header.root_inputs == trc.header.root_inputs
+
+    # The remainder is *dropped*, not consumed: a batch staged now is applied
+    # rather than discarded, and the continuation leaves the recording's tail.
+    stage!(sim2, "rate" => 9.0)
+    run!(sim2; t_end = 0.8)
+    @test lifecycle(sim2) === :stopped && mode(sim2) === :live
+    @test termination(sim2).source === EndTimeReached()
+    @test port(sim2, "", :rate) == 9.0
+    @test sim2.exec.clock.step == trc.frames
+    @test snap_cells(at_frame(logged(sim2), 8)) != snap_cells(at_frame(logged(sim), 8))
+    @test same_trajectory([s for s in logged(sim2) if s.frame ≤ 5],
+                          [s for s in logged(sim) if s.frame ≤ 5])
+
+    # …and the trace left behind is one seamless recording of the session: the
+    # replayed prefix bit for bit, then the frames flown live after it.
+    cont = trace(sim2)
+    @test cont.frames == 8
+    @test cont.batches[1:length(trc.batches)] == trc.batches
+    @test length(cont.batches) == length(trc.batches) + 1
+    @test last(cont.batches).frame == 6
+end
+
+@testset "`live!`'s refusals are loud, never a no-op (§12.7, §12.6, D-219)" begin
+    (_, trc) = recorded_run()
+
+    # Already `:live`, having never replayed at all…
+    fresh = replay_twin()
+    d = only(failure(() -> live!(fresh)).diagnostics)
+    @test d isa ArgumentInvalid && d.call === :live! && d.reason === :not_replaying
+    @test mode(fresh) === :live && lifecycle(fresh) === :initialized
+
+    # …and already `:live` because the replay ran to the recording's end, where
+    # D-218's automatic flip already did the work.
+    done = replay_twin()
+    replay!(done, trc)
+    @test mode(done) === :live
+    d = only(failure(() -> live!(done)).diagnostics)
+    @test d isa ArgumentInvalid && d.call === :live! && d.reason === :not_replaying
+
+    # `live!` is not a door into `initialized`: it moves the mode of a simulation
+    # that already has a trajectory, so `built` refuses as an advance entry does.
+    raw = Simulation(replay_model(); h = 1//10)
+    d = only(failure(() -> live!(raw)).diagnostics)
+    @test d isa MissingInit && d.op === :live! && d.status === :built
+
+    # Both terminal states refuse under the ordinary lifecycle gate.
+    stopped = replay_twin()
+    run!(stopped; t_end = 0.2)
+    @test lifecycle(stopped) === :stopped
+    d = only(failure(() -> live!(stopped)).diagnostics)
+    @test d isa ServiceLifecycle && d.op === :live! && d.status === :stopped
+
+    crashed = Simulation(fed(Exploder(), "arm"); h = 1//10, t_end = 5.0)
+    init!(crashed, fragment(inputs = (in = 0.0,)))
+    stage!(crashed, "in" => true)
+    @test_throws StepError run!(crashed)
+    d = only(failure(() -> live!(crashed)).diagnostics)
+    @test d isa ServiceLifecycle && d.op === :live! && d.status === :errored
+    # (`live!` from `:running` is the same gate the two advance entries share,
+    # and reaching it needs `test_lifecycle.jl`'s spawned-run register; it is
+    # asserted there, for those two entries, and not here.)
 end
 
 # Every discard this writer's account carried, rendered: off a published

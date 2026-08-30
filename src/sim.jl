@@ -247,8 +247,9 @@ what it will advance on.
 While the mode is `:replay` the recording is the bound: every advance's frame
 budget is capped at the recording's last frame, and the mode returns to `:live`
 exactly when a halt lands there, the records exhausted. `init!` and a fresh
-`replay!` reset it with the trajectory, and a terminal state makes it moot —
-nothing advances until one of those two doors is taken.
+`replay!` reset it with the trajectory, `live!` moves it alone (D-219), and a
+terminal state makes it moot — nothing advances until one of those three doors
+is taken.
 """
 mode(sim::Simulation) = sim.trace.mode
 
@@ -289,8 +290,10 @@ function _stop_hit(sim::Simulation, pol::RunPolicy)
     nothing
 end
 
-# The shared entry gate of the two advance entries (§12.6): only `:initialized`
-# admits an advance, and each refusal names its own way out.
+# The shared entry gate of the two advance entries (§12.6), and of `live!`
+# beside them (D-219): only `:initialized` admits one, and each refusal names
+# its own way out — the `:running` sentence discriminating on the op, since
+# `live!` meets a running loop as a stopped-sim operation.
 function _assert_advanceable(sim::Simulation, op::Symbol)
     lc = @atomic sim.control.lifecycle
     lc === :initialized && return nothing
@@ -652,6 +655,7 @@ _compile_feed(sim::Simulation{Ts}, trc::Trace{Tt}) where {Ts,Tt} =
 
 """
     replay!(sim, trc; to_boundary = nothing, t_end = nothing, stop_on = nothing)
+    replay!(sim, trc; to_time)
 
 Re-drive a recorded session (§12.7) — **the ordinary loop with exactly two
 substitutions** (D-101), not a separate execution mode, which is what keeps
@@ -674,7 +678,14 @@ length, or `to_boundary = k` frames — §13.4's replay pointer, defined as
 running *through* the frame that publishes boundary `k`, and every frame top is
 a grid boundary (§10.4), so the halt is exactly at `clock.step == k` and a
 replay always halts at a frame top; a `t*` boundary inside a frame is
-reproduced but is not stoppable-at (§10.4 keeps the two indices apart). `t_end`
+reproduced but is not stoppable-at (§10.4 keeps the two indices apart).
+`to_time` is that same halt addressed by time (D-219), mutually exclusive with
+`to_boundary`: it halts at the **last frame top at or before** the time given,
+`k = ⌊(to_time − t₀)/h⌋` against the header's `t₀`, so a time between two frame
+tops floors onto the earlier one. The rounding is the deliberate opposite of
+`t_end`'s reach-or-exceed rule (§12.4) — `t_end` bounds a run, `to_time`
+positions an inspection, and the point of halting is to stand *before* the
+anomaly. `t_end`
 and `stop_on` bind for this replay exactly as at `run!`, the constructor's
 standing where they are not given — but unlike `run!` no clock bound is owed
 from any site, the recording being the bound. Budget exhausted, the replay ends
@@ -701,21 +712,40 @@ normally (§11.1): they are readers here, and a session that wants live input is
 a continuation, not a replay.
 
 Refused while `running` and on an `errored` simulation, as `init!` is. Every
-refusal — the lifecycle gate, `to_boundary`'s range, the keyword validation and
-the whole entry pass — precedes every write.
+refusal — the lifecycle gate, `to_boundary`'s range, `to_time`'s, the keyword
+validation and the whole entry pass — precedes every write.
 """
 function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
-                 t_end = nothing, stop_on = nothing) where {T}
+                 to_time = nothing, t_end = nothing, stop_on = nothing) where {T}
     ex, ctl = sim.exec, sim.control
     lc = @atomic ctl.lifecycle
     lc === :running && throw(BuildError(ServiceLifecycle(op = :replay!, status = :running)))
     lc === :errored && throw(BuildError(ServiceLifecycle(op = :replay!, status = :errored)))
+    to_boundary === nothing || to_time === nothing ||     # two spellings of one halt (D-219)
+        throw(BuildError(ArgumentInvalid(call = :replay!, reason = :both_given)))
     # §13.4's pointer, in grid boundaries: whole and non-negative, and no further
     # than the recording reaches — every frame top is one, so it counts frames
     to_boundary === nothing || (to_boundary isa Integer && to_boundary ≥ 0 &&
         to_boundary ≤ trc.frames) || throw(BuildError(
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_boundary,
                             value = to_boundary)))
+    if to_time !== nothing
+        # D-219's time spelling of the same pointer, floored onto the last frame
+        # top at or before it: the *header's* `t₀` as the origin and the
+        # deployment step as the stride, the two agreeing with the recording's
+        # because the entry pass below refuses a target where they do not. The
+        # slack is `step!`'s `t_plus` guard run the other way — an on-grid time
+        # is a product of binary floats, `0.3/0.1` being `2.9999999999999996`,
+        # and the plain floor would halt one boundary short of the one named.
+        t₀ = trc.header.deployment.t₀
+        to_time isa Real && isfinite(to_time) && to_time ≥ t₀ || throw(BuildError(
+            ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
+                            value = to_time)))
+        to_boundary = floor(Int, (Float64(to_time) - t₀) / sim.h + 1e-9)
+        to_boundary ≤ trc.frames || throw(BuildError(     # a time the recording never reached
+            ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
+                            value = to_time)))
+    end
     te = t_end === nothing ? sim.t_end : _t_bound(t_end)   # validated as `run!` does;
     (faces, addrs) = stop_on === nothing ? (sim.stop_on, sim.stop_addrs) :   # absent is legal
                                            _stop_faces(ex.act.layout, stop_on)
@@ -755,6 +785,42 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     pol.faces, pol.addrs, pol.hit = faces, addrs, nothing
     upto = to_boundary === nothing ? trc.frames : Int(to_boundary)
     _run_body!(sim, pol, upto, te === nothing ? typemax(Int) : round(Int, te / sim.h))
+    nothing
+end
+
+"""
+    live!(sim)
+
+§12.6's third door, and the only one that moves the input mode alone (§12.7,
+D-219): take a replaying simulation live where it stands. The mode becomes
+`:live` and the recording's remainder detaches, and **nothing else is
+touched** — not the trajectory, which stands at the halt, and not the trace
+register, which keeps the header it inherited and the batches it has
+re-recorded. The next `run!` or `step!` is therefore the live continuation from
+the replayed boundary, and its drains append to the replayed prefix, so the
+session leaves behind one seamless recording of itself.
+
+The automatic flip is D-218's, and it fires only at the recording's end: right
+for an unattended reproduction, wrong for the rewrite workflow, where the
+caller wants the remainder abandoned rather than consumed — interrupt at
+t = 110, `replay!(sim2, trc; to_time = 100.0)`, inspect, `live!`, fly the last
+ten seconds again.
+
+A stopped-sim operation, legal only on an `initialized` simulation in
+`:replay`. The lifecycle gate is the advance entries' (§12.6): `:built` refuses
+for want of a door into `initialized`, `:running` because the loop owns the
+stores, and both terminal states because nothing advances from them. A
+simulation already `:live` refuses too — the call would have nothing to do, and
+a silent no-op would let the caller believe a recording was dropped that was
+never attached.
+"""
+function live!(sim::Simulation)
+    _assert_advanceable(sim, :live!)
+    reg = sim.trace
+    reg.mode === :replay || throw(BuildError(
+        ArgumentInvalid(call = :live!, reason = :not_replaying)))
+    reg.feed = nothing
+    reg.mode = :live
     nothing
 end
 

@@ -995,11 +995,26 @@ Each of these is a spec claim rather than a programming convenience:
   at `clock.step == 3`, an off-tick frame top, with the log a prefix of the
   recording's, and `trc.frames + 1` refuses as `ArgumentInvalid`. The base-tick
   spelling would have refused `3` here and halted at `6` where it did not.
+  `to_time = 0.3` on the same fixtures halts at `3` too: the time spelling
+  counts the same boundaries.
+- **`to_time` halts at the last frame top at or before it.** Boundary 5's own
+  time halts at 5; a time strictly between boundaries 5 and 6 halts at 5 as
+  well, D-219's deliberate opposite of `t_end`'s reach-or-exceed rule; and `t₀`
+  itself is the empty halt, boundary zero and no frame. `to_time = 0.3` against
+  `h = 0.1` is the float-fuzz witness — the quotient is `2.9999999999999996`,
+  so the plain floor would halt one boundary short of the one the caller named,
+  and the guard is `step!`'s `t_plus` slack run the other way.
+- **`to_time`'s refusals precede every write.** Both keywords together, a time
+  before `t₀`, a time past the recording, and the two non-finites: each an
+  `ArgumentInvalid` naming `:replay!` and the argument, the exclusion under
+  `step!`'s own `:both_given` reason. The target is untouched in every arm —
+  `initialized` and `:live` where it had been through `init!`, `built` where it
+  had not.
 
-§12.6's **input mode** (D-218) — the register that says where the next frame's
-drain reads from, `mode(sim)` beside `lifecycle(sim)` — with the bound and the
-flip that keep it honest across a halt, pinned over the eight-frame recording
-the replay tests share:
+§12.6's **input mode** (D-218, D-219) — the register that says where the next
+frame's drain reads from, `mode(sim)` beside `lifecycle(sim)` — with the bound,
+the automatic flip and `live!`'s manual door that keep it honest across a halt,
+pinned over the eight-frame recording the replay tests share:
 
 - **A full replay ends `:live`, and the continuation is live.** The halt lands
   at the recording's last frame, so the records are exhausted, the recording
@@ -1026,6 +1041,23 @@ the replay tests share:
   `init!` returns the mode to `:live` and detaches the recording, and the next
   `step!` drains the staging cells normally. The two doors, `init!` and a fresh
   `replay!`, are the resets; a terminal state makes the mode moot.
+- **`live!` is the third door, and it moves the mode alone (D-219).** The
+  rewrite workflow end to end: `replay!(…; to_time = 0.5)` halts at boundary 5
+  `:replay`, `live!` leaves the simulation `initialized` and `:live` with the
+  clock, the inherited header and the five re-recorded frames exactly where the
+  halt left them, and the `run!` after it applies a freshly staged batch rather
+  than discarding it — so the continuation leaves the recording's tail, while
+  the prefix through boundary 5 is still the recording's bit for bit. The trace
+  it leaves behind is one seamless recording of itself: the replayed batches
+  unchanged, the live one appended behind them.
+- **`live!`'s refusals are loud, never a no-op.** An `initialized` simulation
+  already `:live` refuses as `ArgumentInvalid(call = :live!, reason =
+  :not_replaying)` — both the one that never replayed and the one whose replay
+  ran to the recording's end, where D-218's automatic flip already did the
+  work. `built` refuses as `MissingInit`, since `live!` is not a door into
+  `initialized`, and both terminal states as `ServiceLifecycle`. (`:running` is
+  the gate the advance entries share, asserted for them in
+  `test_lifecycle.jl`'s spawned-run register.)
 
 Two places this increment runs ahead of or beside the spec's letter, flagged
 for the spec pass:
