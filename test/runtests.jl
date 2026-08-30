@@ -1,4 +1,4 @@
-using Test, StaticArrays, LinearAlgebra, ForwardDiff
+using Test, StaticArrays, LinearAlgebra, ForwardDiff, BenchmarkTools
 using Cadence
 
 # The framework names the suite calls or extends. `import` rather than `using`
