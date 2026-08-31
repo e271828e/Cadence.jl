@@ -2,7 +2,7 @@
 #
 # Cross-reference checker for the framework spec and its companion files.
 #
-# Two checks, both over spec.md and the companions:
+# Two checks, both over spec.md and every file in `ROSTER` below:
 #
 #   1. Citations — every `§N` / `§N.M` / `§X.N` / `Appendix X` names a heading
 #      that exists in spec.md. Citations inside fenced code blocks, code spans
@@ -46,18 +46,24 @@ const DESIGN = normpath(joinpath(@__DIR__, ".."))
 const SPEC = "spec.md"
 const DECISIONS = "decisions.md"
 
-const COMPANIONS = ["decisions.md",
-                    "extensions.md",
-                    # The prototype's register. Checked here and in
-                    # check_rows.jl, but deliberately out of linkify.jl's
-                    # roster: its citations stay plain, as decisions.md's do.
-                    "implementation.md",
-                    "companions/event_visibility_walkthrough.md",
-                    "companions/inbound_periphery_walkthrough.md",
-                    "companions/trim_environment_walkthrough.md",
-                    "companions/frozen_discrete_walkthrough.md",
-                    "companions/localization_validation_walkthrough.md",
-                    "companions/sample_time_proposal.md"]
+# Every file scanned besides `spec.md`, which the loop below splices on. This
+# is the checked-file roster, not the `companions/` taxonomy: `decisions.md`,
+# `extensions.md` and `implementation.md` are members because their own
+# citations can dangle, and dropping one silently unchecks that whole file.
+# `decisions.md` is also `DECISIONS` above, in the other role — the anchor pool
+# a link *into* the log resolves against.
+const ROSTER = ["decisions.md",
+                "extensions.md",
+                # The prototype's register. Checked here and in check_rows.jl,
+                # but deliberately out of linkify.jl's roster: its citations
+                # stay plain, as decisions.md's do.
+                "implementation.md",
+                "companions/event_visibility_walkthrough.md",
+                "companions/inbound_periphery_walkthrough.md",
+                "companions/trim_environment_walkthrough.md",
+                "companions/frozen_discrete_walkthrough.md",
+                "companions/localization_validation_walkthrough.md",
+                "companions/sample_time_proposal.md"]
 
 # The companions that cite their own numbered sections (see the advisory above).
 const SELF_CITING = ["companions/event_visibility_walkthrough.md",
@@ -100,7 +106,7 @@ function main()
     bad = Tuple{String,Int,String,String}[]
     ambiguous = Tuple{String,Int,String}[]
     tc = ta = tr = 0
-    for file in [SPEC; COMPANIONS]
+    for file in [SPEC; ROSTER]
         path = joinpath(DESIGN, file)
         if !isfile(path)
             println("  skipped (absent): ", file)

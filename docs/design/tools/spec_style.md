@@ -98,9 +98,13 @@ flag it for discussion instead of guessing.
 - **`§` is reserved for spec citations.** Companions cite their own sections
   as "section N.N", which is what keeps every `§` in the corpus checkable
   against the spec's outline.
-- **A new companion registers in both check tools' rosters** — `COMPANIONS` in
+- **A new file registers in both check tools' rosters** — `ROSTER` in
   `check_refs.jl`, `FILES` in `check_rows.jl` — or its citations are silently
-  unchecked.
+  unchecked. Membership is about being checked, never about living in
+  `companions/`: `decisions.md`, `extensions.md` and `implementation.md` are
+  all members. `linkify.jl` keeps a third roster, also `ROSTER`, naming the
+  files it rewrites; a file checked but not linkified keeps plain citations,
+  as `decisions.md` and `implementation.md` do.
 - **The `.jl` sketches under `prototypes/` sit outside the rosters.** Every `§`
   in them is hand-verified prose that rots silently at each renumbering. A
   sketch carries its verification state in its own header; a renumbering that

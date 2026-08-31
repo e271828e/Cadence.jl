@@ -55,14 +55,19 @@ const DESIGN = normpath(joinpath(@__DIR__, ".."))
 const SPEC = "spec.md"
 const DECISIONS = "decisions.md"
 
-const COMPANIONS = ["decisions.md",
-                    "extensions.md",
-                    "companions/event_visibility_walkthrough.md",
-                    "companions/inbound_periphery_walkthrough.md",
-                    "companions/trim_environment_walkthrough.md",
-                    "companions/frozen_discrete_walkthrough.md",
-                    "companions/localization_validation_walkthrough.md",
-                    "companions/sample_time_proposal.md"]
+# Every file rewritten besides `spec.md`. The rewritten-file roster, not the
+# `companions/` taxonomy — `decisions.md` and `extensions.md` are members.
+# `implementation.md` is deliberately absent: it is checked by check_refs.jl
+# and check_rows.jl, but its citations stay plain rather than becoming
+# reference links.
+const ROSTER = ["decisions.md",
+                "extensions.md",
+                "companions/event_visibility_walkthrough.md",
+                "companions/inbound_periphery_walkthrough.md",
+                "companions/trim_environment_walkthrough.md",
+                "companions/frozen_discrete_walkthrough.md",
+                "companions/localization_validation_walkthrough.md",
+                "companions/sample_time_proposal.md"]
 
 # Companions that cite their own numbered sections (the walkthroughs). Only
 # here is a bare `§N` ambiguous between the file and the spec.
@@ -304,7 +309,7 @@ println("citable: ", count(l -> startswith(l, "s"), keys(reg)), " sections, ",
 println("relink")
 println("  ", rpad("index of $DECISIONS", 42), lpad(reindex!(), 5), " entries")
 println("  ", rpad(SPEC, 42), lpad(first(relink!(SPEC, reg)), 5), " links")
-for f in COMPANIONS
+for f in ROSTER
     n, ambiguous = relink!(f, reg;
                            own = f in SELF_CITING ? ownsections(f) : Set{String}())
     println("  ", rpad(f, 42), lpad(n, 5), " links")
