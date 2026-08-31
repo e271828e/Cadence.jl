@@ -229,6 +229,12 @@ Each of these is a spec claim rather than a programming convenience:
   reshaped through the new schema — the newly claimed face discarded with the
   incumbent and the site named, the rest surviving to the drain — so the run
   always starts with cells matching the run's schemas.
+- **A writer's name is its device type's bare name.** `"device 1 (Pad)"` is
+  what the status, the claim diagnostics and the trace header all carry, and it
+  reads the same whatever module the device type is defined in. The suite
+  compares those names as literals, so the property is pinned by every device
+  test; it is real because a type's printed form is qualified relative to the
+  printing module, and a trace header's writer names are matched on replay.
 - **The roster is frozen per run, and the drain stays free.** `attach!` and
   `detach!` against a running loop are `ServiceLifecycle`, from any task, and
   the freeze lifts with the run; device ids are monotonic per `Simulation`,

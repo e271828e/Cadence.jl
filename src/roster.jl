@@ -48,7 +48,7 @@ one meaning and the `is_greedy` trait carries the other, so the maximal
 surface stays reachable only through an explicit declaration.
 """
 claims(b::AbstractBinding) = throw(BuildError(
-    BindingContractMismatch(binding = string(typeof(b)), reason = :claims_missing)))
+    BindingContractMismatch(binding = _typename(b), reason = :claims_missing)))
 
 """
 The output side's enumeration (§11.6, §14.4): an output-side binding's
@@ -59,7 +59,7 @@ whose method was never written fails loudly at the attach point rather than
 degrading into silence.
 """
 reads(b::AbstractBinding) = throw(BuildError(
-    BindingContractMismatch(binding = string(typeof(b)), reason = :reads_missing)))
+    BindingContractMismatch(binding = _typename(b), reason = :reads_missing)))
 
 """
 §11.6's bidirectional conformance check over each (trait, method) pair, run
@@ -102,7 +102,7 @@ function check_device(dev::AbstractDevice)
     # against the handle type the wrapper calls with: a `loop(::T, ::DeviceHandle)`
     # is a method, and `Tuple{T,Any}` would not see it
     which(loop, Tuple{T,DeviceHandle}) === which(loop, Tuple{AbstractDevice,DeviceHandle}) &&
-        throw(BuildError(DeviceContractMismatch(device = string(T), reason = :no_loop)))
+        throw(BuildError(DeviceContractMismatch(device = _typename(T), reason = :no_loop)))
     nothing
 end
 
@@ -129,7 +129,7 @@ struct RosterEntry
     handle::Any                     # the DeviceHandle; `Any` for include order only, read off the frame path
 end
 
-_who(e::RosterEntry) = "device $(e.id) ($(typeof(e.dev)))"
+_who(e::RosterEntry) = "device $(e.id) ($(_typename(e.dev)))"
 
 # The stopped-sim compile of one writer's drain (§11.4): a zero-argument thunk
 # capturing the store and the writer *concretely* — this dynamic dispatch is
@@ -203,7 +203,7 @@ function _claim(plane::DataPlane, layout::Layout, b::AbstractBinding)
     for f in claims(b)
         s = Symbol(f)
         s in faceset || throw(BuildError(
-            AttachUnknownFace(binding = string(typeof(b)), face = s, candidates = faceset)))
+            AttachUnknownFace(binding = _typename(b), face = s, candidates = faceset)))
         s in claim || push!(claim, s)
     end
     claim

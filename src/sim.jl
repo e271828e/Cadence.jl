@@ -1216,18 +1216,18 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
     check_device(dev)
     for e in plane.roster                          # identity, before claims (§11.3)
         e.dev === dev && throw(BuildError(AlreadyAttached(
-            device = string(typeof(dev)), incumbent = _who(e), binding = string(typeof(e.binding)))))
+            device = _typename(dev), incumbent = _who(e), binding = _typename(e.binding))))
     end
     if needs_calling_task(dev)                     # affinity: a single-slot resource
         i = findfirst(e -> needs_calling_task(e.dev), plane.roster)
         i === nothing || throw(BuildError(CallerTaskConflict(
-            device = string(typeof(dev)), incumbent = _who(plane.roster[i]))))
+            device = _typename(dev), incumbent = _who(plane.roster[i]))))
     end
     claim = is_input(b) ? _claim(plane, sim.exec.act.layout, b) : Symbol[]
     claim_diags = Diagnostic[]
     for f in claim                                 # claims: face exclusivity
         haskey(plane.claimedby, f) && push!(claim_diags, ClaimConflict(
-            face = f, device = string(typeof(dev)), incumbent = plane.claimedby[f]))
+            face = f, device = _typename(dev), incumbent = plane.claimedby[f]))
     end
     isempty(claim_diags) || throw(BuildError(claim_diags))
     # The output side: reads → one gather, resolved before admission commits.
@@ -1236,7 +1236,7 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
     plane.next_id += 1                             # rejected attach consumes no id
     w = Writer(sim.exec.act.layout, claim)
     diag = DiagCell(EMPTY_DIAG)                    # the device's diagnostic cell (§11.8)
-    h = DeviceHandle(id, "device $id ($(typeof(dev)))", b, w, plane, sim.control,
+    h = DeviceHandle(id, "device $id ($(_typename(dev)))", b, w, plane, sim.control,
                      sim.published, diag, rg, sim.control.counter)
     push!(plane.roster, RosterEntry(dev, b, id, w,
                                     _drain_thunk(sim.exec.store, w, sim.trace, 0),
@@ -1245,7 +1245,7 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
     # set to the trace's schema list and recompiles every thunk against it (§11.5)
     reclaim!(plane, sim.exec.act.layout, sim.trace)
     is_greedy(b) && isempty(claim) &&
-        @warn logline(EmptyGreedyClaim(device = "device $id ($(typeof(dev)))", binding = string(typeof(b))))
+        @warn logline(EmptyGreedyClaim(device = "device $id ($(_typename(dev)))", binding = _typename(b)))
     h
 end
 
@@ -1263,7 +1263,7 @@ function detach!(sim::Simulation, dev::AbstractDevice)
     assert_stopped(sim.control, :detach!)
     i = findfirst(e -> e.dev === dev, plane.roster)
     i === nothing && throw(BuildError(NotAttached(
-        device = string(typeof(dev)), roster = [_who(e) for e in plane.roster])))
+        device = _typename(dev), roster = [_who(e) for e in plane.roster])))
     deleteat!(plane.roster, i)
     reclaim!(plane, sim.exec.act.layout, sim.trace)
     nothing

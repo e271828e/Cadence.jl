@@ -41,7 +41,7 @@ environment is the real guard; `--startup-file=no` is the cheap one.
 | --- | --- | --- |
 | `src/Cadence.jl` | the package module: the dependencies and the include order the other files load in | — |
 | `src/leaves.jl` | the leaf walk: flatten / reconstruct / the activation retype, and `leaf_names`' dotted spelling of a flat position | §7.1, §7.2, §13.4 |
-| `src/diagnostics.jl` | the diagnostic kinds, `severity`/`path`/`message`, the `BuildError` carrier and its compiler-style rendering, `logline`, `InternalInvariant`, and §13.4's runtime trio — `CursorFrame`, the `StepError` carrier with its compact rendering, and `NonfiniteState`, the species the sweep raises | §13.1, §13.2, §13.4, Appendix C, D-214, D-215 |
+| `src/diagnostics.jl` | the diagnostic kinds, `severity`/`path`/`message`, `_typename` (a user type's name for a payload field or a label), the `BuildError` carrier and its compiler-style rendering, `logline`, `InternalInvariant`, and §13.4's runtime trio — `CursorFrame`, the `StepError` carrier with its compact rendering, and `NonfiniteState`, the species the sweep raises | §13.1, §13.2, §13.4, Appendix C, D-214, D-215 |
 | `src/declare.jl` | the declaration layer: both tiers' name families and arities, the bundle law, `probe_value`, the connection declarations beside `transparent_container`, the rate registers with `sample_times`, the event surface | §5.2, §8.2, §8.5–§8.7, §9.3, D-211 |
 | `src/assembly.jl` | class by declaration shape; children and containers (bare-key transparency and its three-arm collision family); `Group`, the anonymous assembly whose `children` field is name-transparent (D-211); paths, §6.1's one-level rule, endpoint and face resolution, the root's face invariants; the flatten pass with its two-sided face graph and the sample-time fold; §13.3's `resolve`/`resolve_terminal`/face-list primitives and §8.8's `input_passthrough`/`output_passthrough` | §6.1, §8.5–§8.8, §9.1, §9.2, §13.3, D-207–D-212 |
 | `src/store.jl` | per-eltype cell stores, the `StoreBundle`, gather/scatter, `_cell_key`, the `Clock` | §9.7, D-162 |
@@ -152,8 +152,14 @@ Traps hit more than once while building, for whoever builds next:
 - a local named `events` inside `compile` shadows the `events(c)` accessor;
 - assert a store's type on the `Ref` — `(v[ci]::Base.RefValue{S})[]` — never
   after `[]`, which boxes 16 bytes;
-- `Symbol(::Type)` printing depends on the printing module; key buffers with
-  `_cell_key`;
+- **a type's printed form depends on the printing module**, so never
+  interpolate one into a name a test or a trace compares: `string(typeof(x))`
+  reads `Pad` from `Main` and `Main.MyTests.Pad` from a test module. Every
+  payload field and writer label naming a *user* type goes through `_typename`
+  (`diagnostics.jl`), which is `nameof` and so module-independent; the two
+  `string(typeof(...))` left in `trim.jl` name a *framework* type on purpose,
+  parameters and all. `Symbol(::Type)` has the same dependence — key buffers
+  with `_cell_key`;
 - the init-service keyword is `t0` (the spec's signatures, D-110) while the
   *concept* and `Clock`'s field stay `t₀` — `clock.t₀ = t0` inside `init!`
   is that split, not a typo; don't unify them.

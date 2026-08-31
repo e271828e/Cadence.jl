@@ -22,6 +22,14 @@ struct under it, with three methods: `severity(d)`, `path(d)` and `message(d)`.
 """
 abstract type Diagnostic end
 
+# A user type's name, for a payload field or a writer label: `nameof`, never the
+# type itself. Interpolating a type qualifies it with the module it is defined
+# in unless that module is the printing context, so one component would be named
+# differently from `Main` and from a package or test module — and some of these
+# names are recorded in a trace header (§11.5) and matched on replay.
+_typename(x) = string(nameof(typeof(x)))
+_typename(T::Type) = string(nameof(T))
+
 """
 The kind's severity (§13.2, D-214): `:error` — an occurrence throws, alone or
 within a collection — or `:warning`, which never throws and joins no throw. The

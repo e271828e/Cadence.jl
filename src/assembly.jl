@@ -165,7 +165,7 @@ function _check_transparent(path::String, c, tf, viol::Vector{Diagnostic})
     tf === nothing && return nothing
     ok = tf in fieldnames(typeof(c)) && _is_container(getfield(c, tf))
     ok || push!(viol, TransparentContainerUnknown(path = path, field = tf,
-                                                  component = string(typeof(c))))
+                                                  component = _typename(c)))
     nothing
 end
 
