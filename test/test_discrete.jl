@@ -60,33 +60,6 @@ function discrete_tier()
         @test port(sim, "plant", :y) != y₀
     end
 
-    @testset "discrete state and modes live outside the buffer (§7.3)" begin
-        sim = Simulation(Group((; counter = TickCounter(), moded = ModedSource()));
-                         h = 1//10)
-        # The flat buffer is continuous state only; the counter's `Int` is in its
-        # own store, and no store mirrors another.
-        @test isempty(sim.exec.xbuf)
-        @test state(sim, "counter") === (n = 0,)
-        @test modes(sim, "moded") === (phase = :idle,)
-
-        # `Int` and `Bool` cells force their own buffers — the plural in
-        # "per-eltype stores", first exercised here. The field names are the
-        # eltypes' fully-qualified spellings (`_cell_key`), which is the one
-        # spelling a `@generated` gather and a plain `compile` agree on.
-        @test Set(keys(sim.exec.store.stores)) ==
-              Set([_cell_key(Int), _cell_key(Bool), _cell_key(Float64)])
-
-        init!(sim)
-        @test state(sim, "counter") === (n = 1,)   # boundary zero is a tick
-        @test port(sim, "counter", :n) === 0       # the cell holds what it published
-        @test port(sim, "counter", :even) === true
-        run!(sim; t_end = 0.5)
-        # Six boundaries: zero, then one per step. The store leads the cell by one,
-        # the update having run after the output stage at each of them.
-        @test state(sim, "counter") === (n = 6,)
-        @test port(sim, "counter", :n) === 5
-    end
-
     @testset "the workspace is scratch, on both tiers (§7.3)" begin
         sim = Simulation(Group((; sm = Smoother(0.5), src = ModedSource(), wg = WorkGain(2.0));
                                wires = ("src/out" => "sm/a",
@@ -110,21 +83,7 @@ function discrete_tier()
     end
 end
 
-# A `g` that widens its own store: the discrete world is pinned, so this is an
-# error rather than a silent conversion at the store assignment.
-struct WidenedUpdate <: AbstractComponent end
-init_s(::WidenedUpdate) = (n = 0,)
-output_types(::WidenedUpdate) = (n = Int,)
-h_s(::WidenedUpdate, (; s)) = (n = s.n,)
-g(::WidenedUpdate, (; s)) = (n = s.n + 0.5,)
-
-function discrete_successor_type()
-    @testset "a discrete successor is the store's own type (§7.3)" begin
-        d = only(failure(() -> build(single(WidenedUpdate()))).diagnostics)
-        @test d isa ConformanceFailure && d.what == "g" && d.reason === :field_set &&
-              d.shape === :init_s && d.observed === @NamedTuple{n::Float64}
-    end
-
+function discrete_frozen_activation()
     @testset "the discrete tier is frozen at a non-nominal activation (§7.2)" begin
         # The plant's input is declared `T` and wired to a discrete `Float64` cell:
         # a lawful arrival, embedded as a zero-partial. `ctl`'s stages are outside
@@ -146,5 +105,5 @@ end
 
 function test_discrete()
     discrete_tier()
-    discrete_successor_type()
+    discrete_frozen_activation()
 end

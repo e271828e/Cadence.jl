@@ -56,7 +56,7 @@ include("utils.jl")
 
 include("test_assembly.jl")
 include("test_build.jl")
-include("test_hierarchy.jl")
+include("test_store.jl")
 
 include("test_continuous.jl")
 include("test_discrete.jl")
@@ -90,7 +90,7 @@ function runall()
         @testset verbose = true "assembly and build" begin
             @testset "assembly"     begin test_assembly()     end
             @testset "build"        begin test_build()        end
-            @testset "hierarchy"    begin test_hierarchy()    end
+            @testset "store"        begin test_store()        end
         end
         @testset verbose = true "execution" begin
             @testset "continuous"   begin test_continuous()   end

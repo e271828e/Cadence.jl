@@ -103,29 +103,6 @@ function continuous_skeleton()
         @test ForwardDiff.value(port(sim, "plant", :y)) != 0.0
     end
 
-    @testset "instances of one component type share one compiled body (D-162)" begin
-        # Two independent loops, each a sub-assembly of one root: eight components,
-        # still one entry type per stage per component type — the store's addressing
-        # keeps offsets in fields. The root's one face fans out to both.
-        two = Group((; a = feedback_model(), b = feedback_model(k = 3.0));
-                    inputs = ("ref" => ("a/ref", "b/ref"),))
-        sim = Simulation(two; h = 1//100)
-        types(body) = unique(typeof(e) for e in walked(body))
-        @test length(types(sim.exec.bodies.sweep_1)) == 1     # two Plants, one h_x body
-        @test length(types(sim.exec.bodies.sweep_2)) == 3    # Plant, Gain, Sum
-        @test length(types(sim.exec.bodies.rhs)) == 1
-
-        # The discrete tier keeps the property: a state store is a `Ref` whose
-        # *type* every instance of a component type shares, so the store lives in a
-        # field and two counters still compile to one `g` body.
-        counters = Simulation(Group((; c1 = TickCounter(), c2 = TickCounter()));
-                              h = 1//10)
-        @test length(walked(counters.exec.bodies.ticks)) == 2
-        @test length(types(counters.exec.bodies.ticks)) == 1
-        @test length(types(counters.exec.bodies.sweep_1)) == 1
-        # And one bundle type per model, whatever the eltype count (D-162).
-        @test counters.exec.store isa StoreBundle
-    end
 end
 
 function test_continuous()
