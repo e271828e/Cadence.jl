@@ -106,227 +106,229 @@ mutable struct Loopless <: AbstractDevice end
 mutable struct NarrowLoop <: AbstractDevice end   # `loop` on the handle type itself
 loop(::NarrowLoop, ::DeviceHandle) = nothing
 
-@testset "a device stages through its handle from its own task, and departure consults should_abort (§11.6, §12.4)" begin
-    sim = Simulation(two_root_inputs(); h = 1//10)
-    dev = OneShot(0.7)
-    h = attach!(sim, dev, Enumerated("a"); should_abort = true)
-    init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-    run!(sim; t_end = 1000.0)                        # ends by the device's stop, not t_end
-    @test sim.exec.clock.step < 10000             # the stop truncated the run
-    @test dev.log[1:3] == [:init, :loop, :shutdown]
-    @test !running(h)                        # the sticky status, read off the handle
-    # The record names the channel and its issuer (§13.5, D-203): the stop
-    # rode the departing device's should_abort, so the device is the issuer.
-    @test termination(sim).source === ControlRequestedStop("device 1 (OneShot)")
-    # The staged batch was applied by a drain the stop did not beat, or still
-    # pends in the cell — exactly one of the two, timing's choice — and init!
-    # clears whatever pends with the trajectory it predates (§12.6).
-    @test (port(sim, "", :a) === 0.7) ⊻ ((@atomic h.writer.cell.pending) !== nothing)
-    init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-    @test (@atomic h.writer.cell.pending) === nothing
-end
+function test_devices()
+    @testset "a device stages through its handle from its own task, and departure consults should_abort (§11.6, §12.4)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        dev = OneShot(0.7)
+        h = attach!(sim, dev, Enumerated("a"); should_abort = true)
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        run!(sim; t_end = 1000.0)                        # ends by the device's stop, not t_end
+        @test sim.exec.clock.step < 10000             # the stop truncated the run
+        @test dev.log[1:3] == [:init, :loop, :shutdown]
+        @test !running(h)                        # the sticky status, read off the handle
+        # The record names the channel and its issuer (§13.5, D-203): the stop
+        # rode the departing device's should_abort, so the device is the issuer.
+        @test termination(sim).source === ControlRequestedStop("device 1 (OneShot)")
+        # The staged batch was applied by a drain the stop did not beat, or still
+        # pends in the cell — exactly one of the two, timing's choice — and init!
+        # clears whatever pends with the trajectory it predates (§12.6).
+        @test (port(sim, "", :a) === 0.7) ⊻ ((@atomic h.writer.cell.pending) !== nothing)
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        @test (@atomic h.writer.cell.pending) === nothing
+    end
 
-@testset "wait_next_snapshot observes ordered boundaries and wakes on the stop (§12.3, §12.4)" begin
-    sim = Simulation(two_root_inputs(); h = 1//10)
-    dev = Collector()
-    attach!(sim, dev, Enumerated())          # the may-write-nothing degenerate: a pure reader
-    init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-    run!(sim; t_end = 1.0)
-    @test dev.log == [:returned]             # exited through the woken wait, before the join
-    @test !isempty(dev.seen)                 # at least one boundary observed in ten frames
-    @test issorted([b for (_, b) in dev.seen])       # never a stale wake: newest-wins only
-    @test issorted([t for (t, _) in dev.seen])
-    # While stopped the wait returns at once instead of parking (§12.3's
-    # predicate routes on the sticky status): re-read through the handle.
-    snap = wait_next_snapshot(sim.plane.roster[1].handle)
-    @test snap === latest(sim)
-end
+    @testset "wait_next_snapshot observes ordered boundaries and wakes on the stop (§12.3, §12.4)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        dev = Collector()
+        attach!(sim, dev, Enumerated())          # the may-write-nothing degenerate: a pure reader
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        run!(sim; t_end = 1.0)
+        @test dev.log == [:returned]             # exited through the woken wait, before the join
+        @test !isempty(dev.seen)                 # at least one boundary observed in ten frames
+        @test issorted([b for (_, b) in dev.seen])       # never a stale wake: newest-wins only
+        @test issorted([t for (t, _) in dev.seen])
+        # While stopped the wait returns at once instead of parking (§12.3's
+        # predicate routes on the sticky status): re-read through the handle.
+        snap = wait_next_snapshot(sim.plane.roster[1].handle)
+        @test snap === latest(sim)
+    end
 
-@testset "the boundary ordinal rides in the snapshot (§12.3)" begin
-    sim = Simulation(two_root_inputs(); h = 1//10)
-    init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))  # boundary zero: ordinal 0
-    run!(sim; t_end = 0.5)
-    @test latest(sim).boundary == 5
-    @test latest(sim).t ≈ 0.5
-    @test logged(sim)[1].boundary == 0
-end
-
-@testset "stop! from any task ends the run at a frame top (§12.1, §12.4)" begin
-    sim = Simulation(two_root_inputs(); h = 1//10)
-    attach!(sim, Pad("p"), Enumerated("a"))  # a rostered device keeps the loop yielding (§12.2)
-    init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-    stopper = Threads.@spawn (sleep(0.05); stop!(sim))
-    run!(sim; t_end = 1.0e6)
-    wait(stopper)
-    @test sim.exec.clock.step < 10^7              # truncated, and stopped is sticky:
-    @test !running(sim.plane.roster[1].handle)
-    # One channel, and the record names who spoke (§13.5, D-203): stop!(sim)
-    # is calling code from any task, issuer :code.
-    @test termination(sim).source === ControlRequestedStop(:code)
-    # A fresh trajectory owes nothing to this stop: init! clears the word.
-    init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-    @test step!(sim; frames = 3) == 3
-    @test sim.exec.clock.step == 3
-end
-
-@testset "a crash is caught, shutdown! runs, the run continues, claims persist (§12.4(6))" begin
-    sim = Simulation(two_root_inputs(); h = 1//10)
-    dev = Crasher()
-    attach!(sim, dev, Enumerated("a"))
-    init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-    logs, _ = Test.collect_test_logs() do
+    @testset "the boundary ordinal rides in the snapshot (§12.3)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))  # boundary zero: ordinal 0
         run!(sim; t_end = 0.5)
+        @test latest(sim).boundary == 5
+        @test latest(sim).t ≈ 0.5
+        @test logged(sim)[1].boundary == 0
     end
-    @test sim.exec.clock.step == 5                # the run reached t_end regardless
-    @test dev.log == [:loop, :shutdown]      # the bracket held on the crash path
-    @test crash_accounted(sim, logs, "device 1 (Crasher)")
-    # Death is not detach: the claim stands, and the harness cannot take the face.
-    stage!(sim, "a" => 9.0)
-    cfe = only((@atomic sim.plane.harness_diag.batch).ring)
-    @test cfe isa ClaimedFaceEntry && cfe.incumbent == "device 1 (Crasher)"
-end
 
-@testset "a crash under should_abort requests the stop (§12.4(6))" begin
-    sim = Simulation(two_root_inputs(); h = 1//10)
-    attach!(sim, Crasher(), Enumerated("a"); should_abort = true)
-    init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-    logs, _ = Test.collect_test_logs() do
-        run!(sim; t_end = 1000.0)
+    @testset "stop! from any task ends the run at a frame top (§12.1, §12.4)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        attach!(sim, Pad("p"), Enumerated("a"))  # a rostered device keeps the loop yielding (§12.2)
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        stopper = Threads.@spawn (sleep(0.05); stop!(sim))
+        run!(sim; t_end = 1.0e6)
+        wait(stopper)
+        @test sim.exec.clock.step < 10^7              # truncated, and stopped is sticky:
+        @test !running(sim.plane.roster[1].handle)
+        # One channel, and the record names who spoke (§13.5, D-203): stop!(sim)
+        # is calling code from any task, issuer :code.
+        @test termination(sim).source === ControlRequestedStop(:code)
+        # A fresh trajectory owes nothing to this stop: init! clears the word.
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        @test step!(sim; frames = 3) == 3
+        @test sim.exec.clock.step == 3
     end
-    @test sim.exec.clock.step < 10000             # ended by the crash's stop, not t_end
-    @test crash_accounted(sim, logs, "device 1 (Crasher)")
-end
 
-@testset "a failed init! is bracketed: shutdown!, no task, claims persist (§12.4)" begin
-    sim = Simulation(two_root_inputs(); h = 1//10)
-    dev = BadInit()
-    attach!(sim, dev, Enumerated("a"))
-    init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-    run!(sim; t_end = 0.5)
-    @test dev.log == [:init, :shutdown]      # loop never ran: no task was spawned
-    @test sim.exec.clock.step == 5                # flag clear: the run proceeds without it
-    # The report was written pre-spawn, addressed by the entry (§12.4), so it
-    # deterministically makes the first frame top's fold: the first frame's
-    # snapshot carries the delta, the terminal status the totals.
-    bw = writer_status(latest(sim), "device 1 (BadInit)")
-    @test bw.totals.crash == 1
-    dc = only(writer_status(logged(sim)[2], "device 1 (BadInit)").recent)
-    @test dc isa DeviceCrash && dc.cause isa ErrorException && dc.abort === false
-    # Dead from boundary zero, with no marking machinery (§12.4): the cell was
-    # never heartbeated — stale against any clock — and no task ever existed.
-    @test stale(bw) && bw.task_state === :none
-    stage!(sim, "a" => 9.0)                  # claims persist: death is not detach
-    @test only((@atomic sim.plane.harness_diag.batch).ring) isa ClaimedFaceEntry
-    # With should_abort set the stop is already pending at the loop's start:
-    # the run advances zero frames and ends through the same tail — no frame
-    # top ever folds the report, so only the run's-end sweep can present it.
-    sim2 = Simulation(two_root_inputs(); h = 1//10)
-    attach!(sim2, BadInit(), Enumerated("a"); should_abort = true)
-    init!(sim2, fragment(inputs = (a = 0.0, b = 0.0)))
-    logs, _ = Test.collect_test_logs() do
-        run!(sim2; t_end = 0.5)
+    @testset "a crash is caught, shutdown! runs, the run continues, claims persist (§12.4(6))" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        dev = Crasher()
+        attach!(sim, dev, Enumerated("a"))
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        logs, _ = Test.collect_test_logs() do
+            run!(sim; t_end = 0.5)
+        end
+        @test sim.exec.clock.step == 5                # the run reached t_end regardless
+        @test dev.log == [:loop, :shutdown]      # the bracket held on the crash path
+        @test crash_accounted(sim, logs, "device 1 (Crasher)")
+        # Death is not detach: the claim stands, and the harness cannot take the face.
+        stage!(sim, "a" => 9.0)
+        cfe = only((@atomic sim.plane.harness_diag.batch).ring)
+        @test cfe isa ClaimedFaceEntry && cfe.incumbent == "device 1 (Crasher)"
     end
-    @test sim2.exec.clock.step == 0
-    @test any(occursin("DeviceCrash from device 1 (BadInit), past the final", string(l.message))
-              for l in logs)
-    # The same crash is recorded, not just presented (D-203): the residue
-    # carries the device's record, and the abort's stop names it as issuer.
-    t = termination(sim2)
-    @test t.source === ControlRequestedStop("device 1 (BadInit)")
-    rr = only(r for r in t.residue if r.writer == "device 1 (BadInit)")
-    @test only(rr.recent) isa DeviceCrash
-end
 
-@testset "a body ignoring the predicate is abandoned under join_timeout, by name (§12.4(5))" begin
-    sim = Simulation(two_root_inputs(); h = 1//10, join_timeout = 0.2)
-    dev = Stubborn()
-    attach!(sim, dev, Enumerated())
-    init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-    t0 = time()
-    # The abandonment is written to the loop's own cell and presented by the
-    # run's-end sweep, the record's renderer (§12.4(5), D-203).
-    @test_logs (:warn, r"DeviceJoinTimeout from loop, past the final snapshot's account:.*Stubborn") #=
-        =# match_mode=:any run!(sim; t_end = 0.3)
-    @test time() - t0 < 0.6                  # abandoned at ~0.2 s, not the sleep's 0.8 s
-    @test :woke ∉ dev.log                    # the straggler had not returned when run! did
-    # Recorded, not just loud (D-203): the termination record's residue holds
-    # the structured kind, by name, with the cap and the final boundary.
-    rr = only(r for r in termination(sim).residue if r.writer == "loop")
-    jt = only(d for d in rr.recent if d isa DeviceJoinTimeout)
-    @test jt.who == "device 1 (Stubborn)" && jt.timeout == 0.2
-    @test jt.t == termination(sim).t ≈ 0.3 && jt.boundary == latest(sim).boundary
-    # Abandonment is not a kill: let the straggler expire inside this testset —
-    # its wrapper still runs shutdown! — rather than leave it parked in the
-    # timer wheel across process teardown.
-    sleep(1.0)
-    @test dev.log == [:woke, :shutdown]
-end
-
-@testset "unblock! makes the blocking call return: a clean exit, no timeout (§12.4(3))" begin
-    sim = Simulation(two_root_inputs(); h = 1//10, join_timeout = 2.0)
-    dev = Blocked()
-    attach!(sim, dev, Enumerated())
-    init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-    t0 = time()
-    logs, _ = Test.collect_test_logs() do
-        run!(sim; t_end = 0.3)
+    @testset "a crash under should_abort requests the stop (§12.4(6))" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        attach!(sim, Crasher(), Enumerated("a"); should_abort = true)
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        logs, _ = Test.collect_test_logs() do
+            run!(sim; t_end = 1000.0)
+        end
+        @test sim.exec.clock.step < 10000             # ended by the crash's stop, not t_end
+        @test crash_accounted(sim, logs, "device 1 (Crasher)")
     end
-    @test time() - t0 < 1.5                  # joined promptly, well inside the cap
-    @test !any(occursin("DeviceJoinTimeout", string(l.message)) for l in logs)
-    @test isempty(termination(sim).residue)  # nothing landed past the account (D-203)
-    @test dev.log == [:shutdown]
-end
 
-@testset "a calling-task device runs inline and the loop moves, trajectory untouched (§11.1)" begin
-    sim = Simulation(two_root_inputs(); h = 1//10)
-    dev = Inline()
-    attach!(sim, dev, Enumerated())
-    init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-    caller = current_task()
-    run!(sim; t_end = 0.5)
-    @test dev.task === caller                # the pinning: the body ran on run!'s task
-    @test dev.log == [:returned]             # and left through the ordinary predicate
-    @test sim.exec.clock.step == 5
-    ref = Simulation(two_root_inputs(); h = 1//10) # the movable loop moved nothing else
-    init!(ref, fragment(inputs = (a = 0.0, b = 0.0)))
-    run!(ref; t_end = 0.5)
-    @test port(sim, "s", :e) === port(ref, "s", :e)
-end
-
-@testset "a device with no loop method is refused at attach!, by kind (§11.6)" begin
-    sim = Simulation(two_root_inputs(); h = 1//10)
-    err = failure(() -> attach!(sim, Loopless(), Enumerated()))
-    diag = only(err.diagnostics)
-    @test err isa BuildError && diag isa DeviceContractMismatch &&
-          diag.reason === :no_loop && diag.device == string(Loopless)
-    @test isempty(sim.plane.roster)               # the rejection consumed no id
-    # a `loop` declared on `DeviceHandle` itself is the method the wrapper calls
-    @test attach!(sim, NarrowLoop(), Enumerated()) isa DeviceHandle
-end
-
-@testset "gather without an output side is a contract misuse, by kind (§11.6)" begin
-    sim = Simulation(two_root_inputs(); h = 1//10)
-    h = attach!(sim, Pad("p"), Enumerated("a"))
-    init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-    err = failure(() -> gather(h, latest(sim)))
-    diag = only(err.diagnostics)
-    @test err isa BuildError && diag isa DeviceContractMismatch &&
-          diag.reason === :no_output_side && diag.device == "device 1 (Pad)"
-end
-
-@testset "join_timeout is validated and never trajectory-determining (§12.4, D-198)" begin
-    err = failure(() -> Simulation(two_root_inputs(); h = 1//10, join_timeout = 0))
-    diag = only(err.diagnostics)
-    @test err isa BuildError && diag isa DeploymentInvalid && diag.parameter === :join_timeout
-    err = failure(() -> Simulation(two_root_inputs(); h = 1//10, join_timeout = "5"))
-    diag = only(err.diagnostics)
-    @test err isa BuildError && diag isa DeploymentInvalid && diag.parameter === :join_timeout
-    trajectories = map((5.0, 0.01)) do cap
-        sim = Simulation(two_root_inputs(); h = 1//10, join_timeout = cap)
-        attach!(sim, Pad("p"), Enumerated("a"))
+    @testset "a failed init! is bracketed: shutdown!, no task, claims persist (§12.4)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        dev = BadInit()
+        attach!(sim, dev, Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         run!(sim; t_end = 0.5)
-        port(sim, "s", :e)
+        @test dev.log == [:init, :shutdown]      # loop never ran: no task was spawned
+        @test sim.exec.clock.step == 5                # flag clear: the run proceeds without it
+        # The report was written pre-spawn, addressed by the entry (§12.4), so it
+        # deterministically makes the first frame top's fold: the first frame's
+        # snapshot carries the delta, the terminal status the totals.
+        bw = writer_status(latest(sim), "device 1 (BadInit)")
+        @test bw.totals.crash == 1
+        dc = only(writer_status(logged(sim)[2], "device 1 (BadInit)").recent)
+        @test dc isa DeviceCrash && dc.cause isa ErrorException && dc.abort === false
+        # Dead from boundary zero, with no marking machinery (§12.4): the cell was
+        # never heartbeated — stale against any clock — and no task ever existed.
+        @test stale(bw) && bw.task_state === :none
+        stage!(sim, "a" => 9.0)                  # claims persist: death is not detach
+        @test only((@atomic sim.plane.harness_diag.batch).ring) isa ClaimedFaceEntry
+        # With should_abort set the stop is already pending at the loop's start:
+        # the run advances zero frames and ends through the same tail — no frame
+        # top ever folds the report, so only the run's-end sweep can present it.
+        sim2 = Simulation(two_root_inputs(); h = 1//10)
+        attach!(sim2, BadInit(), Enumerated("a"); should_abort = true)
+        init!(sim2, fragment(inputs = (a = 0.0, b = 0.0)))
+        logs, _ = Test.collect_test_logs() do
+            run!(sim2; t_end = 0.5)
+        end
+        @test sim2.exec.clock.step == 0
+        @test any(occursin("DeviceCrash from device 1 (BadInit), past the final", string(l.message))
+                  for l in logs)
+        # The same crash is recorded, not just presented (D-203): the residue
+        # carries the device's record, and the abort's stop names it as issuer.
+        t = termination(sim2)
+        @test t.source === ControlRequestedStop("device 1 (BadInit)")
+        rr = only(r for r in t.residue if r.writer == "device 1 (BadInit)")
+        @test only(rr.recent) isa DeviceCrash
     end
-    @test trajectories[1] === trajectories[2]
+
+    @testset "a body ignoring the predicate is abandoned under join_timeout, by name (§12.4(5))" begin
+        sim = Simulation(two_root_inputs(); h = 1//10, join_timeout = 0.2)
+        dev = Stubborn()
+        attach!(sim, dev, Enumerated())
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        t0 = time()
+        # The abandonment is written to the loop's own cell and presented by the
+        # run's-end sweep, the record's renderer (§12.4(5), D-203).
+        @test_logs (:warn, r"DeviceJoinTimeout from loop, past the final snapshot's account:.*Stubborn") #=
+            =# match_mode=:any run!(sim; t_end = 0.3)
+        @test time() - t0 < 0.6                  # abandoned at ~0.2 s, not the sleep's 0.8 s
+        @test :woke ∉ dev.log                    # the straggler had not returned when run! did
+        # Recorded, not just loud (D-203): the termination record's residue holds
+        # the structured kind, by name, with the cap and the final boundary.
+        rr = only(r for r in termination(sim).residue if r.writer == "loop")
+        jt = only(d for d in rr.recent if d isa DeviceJoinTimeout)
+        @test jt.who == "device 1 (Stubborn)" && jt.timeout == 0.2
+        @test jt.t == termination(sim).t ≈ 0.3 && jt.boundary == latest(sim).boundary
+        # Abandonment is not a kill: let the straggler expire inside this testset —
+        # its wrapper still runs shutdown! — rather than leave it parked in the
+        # timer wheel across process teardown.
+        sleep(1.0)
+        @test dev.log == [:woke, :shutdown]
+    end
+
+    @testset "unblock! makes the blocking call return: a clean exit, no timeout (§12.4(3))" begin
+        sim = Simulation(two_root_inputs(); h = 1//10, join_timeout = 2.0)
+        dev = Blocked()
+        attach!(sim, dev, Enumerated())
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        t0 = time()
+        logs, _ = Test.collect_test_logs() do
+            run!(sim; t_end = 0.3)
+        end
+        @test time() - t0 < 1.5                  # joined promptly, well inside the cap
+        @test !any(occursin("DeviceJoinTimeout", string(l.message)) for l in logs)
+        @test isempty(termination(sim).residue)  # nothing landed past the account (D-203)
+        @test dev.log == [:shutdown]
+    end
+
+    @testset "a calling-task device runs inline and the loop moves, trajectory untouched (§11.1)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        dev = Inline()
+        attach!(sim, dev, Enumerated())
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        caller = current_task()
+        run!(sim; t_end = 0.5)
+        @test dev.task === caller                # the pinning: the body ran on run!'s task
+        @test dev.log == [:returned]             # and left through the ordinary predicate
+        @test sim.exec.clock.step == 5
+        ref = Simulation(two_root_inputs(); h = 1//10) # the movable loop moved nothing else
+        init!(ref, fragment(inputs = (a = 0.0, b = 0.0)))
+        run!(ref; t_end = 0.5)
+        @test port(sim, "s", :e) === port(ref, "s", :e)
+    end
+
+    @testset "a device with no loop method is refused at attach!, by kind (§11.6)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        err = failure(() -> attach!(sim, Loopless(), Enumerated()))
+        diag = only(err.diagnostics)
+        @test err isa BuildError && diag isa DeviceContractMismatch &&
+              diag.reason === :no_loop && diag.device == "Loopless"
+        @test isempty(sim.plane.roster)               # the rejection consumed no id
+        # a `loop` declared on `DeviceHandle` itself is the method the wrapper calls
+        @test attach!(sim, NarrowLoop(), Enumerated()) isa DeviceHandle
+    end
+
+    @testset "gather without an output side is a contract misuse, by kind (§11.6)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        h = attach!(sim, Pad("p"), Enumerated("a"))
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        err = failure(() -> gather(h, latest(sim)))
+        diag = only(err.diagnostics)
+        @test err isa BuildError && diag isa DeviceContractMismatch &&
+              diag.reason === :no_output_side && diag.device == "device 1 (Pad)"
+    end
+
+    @testset "join_timeout is validated and never trajectory-determining (§12.4, D-198)" begin
+        err = failure(() -> Simulation(two_root_inputs(); h = 1//10, join_timeout = 0))
+        diag = only(err.diagnostics)
+        @test err isa BuildError && diag isa DeploymentInvalid && diag.parameter === :join_timeout
+        err = failure(() -> Simulation(two_root_inputs(); h = 1//10, join_timeout = "5"))
+        diag = only(err.diagnostics)
+        @test err isa BuildError && diag isa DeploymentInvalid && diag.parameter === :join_timeout
+        trajectories = map((5.0, 0.01)) do cap
+            sim = Simulation(two_root_inputs(); h = 1//10, join_timeout = cap)
+            attach!(sim, Pad("p"), Enumerated("a"))
+            init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+            run!(sim; t_end = 0.5)
+            port(sim, "s", :e)
+        end
+        @test trajectories[1] === trajectories[2]
+    end
 end

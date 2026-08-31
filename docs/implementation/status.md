@@ -25,6 +25,12 @@ there, the two projects share one precompile cache, and a fresh clone
 instantiates once from either. `Pkg.test()` works too. No `Manifest.toml` is
 committed.
 
+The suite is the `CadenceTests` module in `test/CadenceTests.jl`: the includes,
+the `import Cadence:` list and `runall()`, which groups the files into the five
+testsets the summary tree shows. Each file's tests are one function, so one
+file's worth re-runs on its own — `CadenceTests.test_trace()` — and re-runs in
+milliseconds once compiled.
+
 `src/` is the `Cadence` package, so the first run after an `src/` edit pays a
 precompile of about 15 s on top of the suite's own time.
 
@@ -141,11 +147,10 @@ live at top level for this reason (long form, and its D-164 ratification, in
 
 Traps hit more than once while building, for whoever builds next:
 
-- the suite reaches the framework through `runtests.jl`'s `import Cadence:`
+- the suite reaches the framework through `CadenceTests.jl`'s `import Cadence:`
   list, so a test that calls or extends a name not on it fails with an
   `UndefVarError` — add the name there. A fixture reusing a framework name
-  now collides loudly, where the old `Main` arrangement let it clobber
-  silently;
+  collides loudly, where the old `Main` arrangement let it clobber silently;
 - `===` has no curried form (`all(===(x), v)` fails — use a lambda); a
   `where`-clause method's `.sig` is a `UnionAll` (`Base.unwrap_unionall`
   before `.parameters`);
@@ -154,12 +159,12 @@ Traps hit more than once while building, for whoever builds next:
   after `[]`, which boxes 16 bytes;
 - **a type's printed form depends on the printing module**, so never
   interpolate one into a name a test or a trace compares: `string(typeof(x))`
-  reads `Pad` from `Main` and `Main.MyTests.Pad` from a test module. Every
-  payload field and writer label naming a *user* type goes through `_typename`
-  (`diagnostics.jl`), which is `nameof` and so module-independent; the two
-  `string(typeof(...))` left in `trim.jl` name a *framework* type on purpose,
-  parameters and all. `Symbol(::Type)` has the same dependence — key buffers
-  with `_cell_key`;
+  reads `Pad` from `Main` and `Main.CadenceTests.Pad` from the test module.
+  Every payload field and writer label naming a *user* type goes through
+  `_typename` (`diagnostics.jl`), which is `nameof` and so module-independent;
+  the two `string(typeof(...))` left in `trim.jl` name a *framework* type on
+  purpose, parameters and all. `Symbol(::Type)` has the same dependence — key
+  buffers with `_cell_key`;
 - the init-service keyword is `t0` (the spec's signatures, D-110) while the
   *concept* and `Clock`'s field stay `t₀` — `clock.t₀ = t0` inside `init!`
   is that split, not a typo; don't unify them.
