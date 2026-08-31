@@ -193,8 +193,8 @@ The output side's convention name (§11.6), declared here for the loop idiom —
 `send(dev.socket, map_output(gather(handle, snap), binding(handle)))` — and
 never called by the framework: it receives exactly the compiled gather's
 labeled NamedTuple, and what it puts on the wire is the peer's business. An
-output binding defines its own method; the library's `Readout` returns the
-NamedTuple itself.
+output binding defines its own method; the identity one returns the NamedTuple
+itself.
 """
 function map_output end
 

@@ -207,7 +207,7 @@ _holding(σ) = σ ≥ 0
 
 # --- what an author defines (the §5.2 signatures) -----------------------------
 # Every stage takes the component and exactly one NamedTuple bundle of views,
-# destructured by name: `h_xu(c::Plant, (; x, u)) = ...`. The framework's call
+# destructured by name: `h_xu(c::MyComp, (; x, u)) = ...`. The framework's call
 # is one fixed shape; the bundle law (below) decides what the tuple carries.
 #
 # The two output stages come in one pair per tier and the pairs are disjoint

@@ -20,6 +20,5 @@ include("sim.jl")
 include("conditions.jl")
 include("trim.jl")
 include("localize.jl")
-include("library.jl")
 
 end # module Cadence

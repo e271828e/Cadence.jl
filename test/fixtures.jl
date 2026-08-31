@@ -1,6 +1,11 @@
-# The coverage-driven component set for increment 2. Three types, chosen so
-# that between them they exercise every continuous-tier shape the executor has
-# to handle — and no more.
+# The suite's fixture set: the components, assemblies, devices and bindings the
+# tests build models from. Coverage-driven — between them they exercise every
+# shape the framework has to handle, and no more. None of it is framework
+# material: no name here is known to `src/`.
+#
+# Everything lives at top level because a declaration written in a local scope
+# binds a new local function rather than extending Cadence's generic (D-164,
+# status.md's authoring caveat).
 
 """
 Damped second-order plant. Carries state, publishes a **stage-1** port (`y`,
@@ -595,53 +600,6 @@ f(c::LateDiverger, (; m)) = (q = m.blown ? NaN : c.rate,)
 late_diverger_guard(c::LateDiverger, (; x)) = x.q - c.level
 late_diverger_handler(::LateDiverger, (; m)) = (m = (blown = true,),)
 events(::LateDiverger) = (blow = Event(late_diverger_guard, late_diverger_handler),)
-
-# --- the anonymous assembly (§8.5) --------------------------------------------
-
-"""
-`Group`: the on-the-fly assembly, one library type whose *values* are the ad-hoc
-topologies. It needs no new rule — the container-children rule makes the
-`children` field's elements children of the `Group` itself, and the four
-declarations are ordinary functions of the instance, free to read its fields.
-
-The one declaration it adds is `transparent_container` (D-211): `children` is
-name-transparent, so its elements go by **bare key** everywhere a child name
-appears — `"ctl/out" => "plant/u"` for a wire, `(ctl = Relative(2),)` for a rate,
-`at("ctl", …)` for a condition prefix, `"plant/y"` for a read path. A `Group`'s
-declarations are then textually identical to a named assembly's; the rate
-declaration's field-name sugar, keying on the field rather than on a path
-segment, keeps working as `(children = Relative(2),)` for the uniform case.
-
-The type parameters carry the children's concrete types, so specialization is
-unchanged; what is given up against a named type is dispatch, which exploratory
-composition does not want.
-"""
-struct Group{C <: NamedTuple, W, I, O, R <: NamedTuple} <: AbstractComponent
-    children::C      # component-typed elements → children by the container rule
-    wires::W         # inert parameter data
-    inputs::I
-    outputs::O
-    rates::R         # the ad-hoc rate scope, keyed by bare element name (§8.7)
-end
-
-"""
-    Group(children; wires = (), inputs = (), outputs = (), rates = (;))
-
-The convenience form. A bare `Pair` passed for `wires`, `inputs` or `outputs` is
-the one-entry tuple — the declarations are ordered collections of pairs, and a
-single wire should not have to be written `("a/x" => "b/y",)`.
-"""
-Group(children; wires = (), inputs = (), outputs = (), rates = (;)) =
-    Group(children, _entries(wires), _entries(inputs), _entries(outputs), rates)
-
-_entries(p::Pair) = (p,)
-_entries(t) = t
-
-child_connections(g::Group) = g.wires
-input_connections(g::Group) = g.inputs
-output_connections(g::Group) = g.outputs
-sample_times(g::Group) = g.rates
-transparent_container(::Group) = :children
 
 # --- the reference models -----------------------------------------------------
 
