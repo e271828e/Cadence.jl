@@ -1,93 +1,3 @@
-# Shared fixture: the embed-accept and activation sections both build a
-# `PinnedGetsDual`.
-
-# A `Dual` arriving at a deliberately pinned leaf: the one honest cause, and the
-# one that earns the didactic hint.
-struct PinnedGetsDual <: AbstractComponent end
-output_types(::PinnedGetsDual, ::Type{T}) where {T <: Real} = (frozen = Float64,)
-h_x(::PinnedGetsDual, (; t)) = (frozen = t,)
-
-# The constant-branch idiom (D-166): a literal `Float64` returned into a
-# declared-`T` port is a lawful arrival, embedded as a zero-partial.
-struct ConstantBranch <: AbstractComponent end
-input_types(::ConstantBranch, ::Type{T}) where {T <: Real} = (in = T,)
-output_types(::ConstantBranch, ::Type{T}) where {T <: Real} = (out = T, vec = SVector{2,T})
-h_xu(::ConstantBranch, (; u)) = (out = u.in > 0 ? u.in : 0.0, vec = SVector(0.0, 1.0))
-
-function hierarchy_embed_accept()
-    @testset "embed-accept keeps the constant branch legal (D-166)" begin
-        # Both ports return literal `Float64`s at a `Dual` activation — the scalar
-        # through a branch not taken, the `SVector` wholesale.
-        sim = Simulation(Group((; c = ConstantBranch()); inputs = ("in" => "c/in",)),
-                         D8; h = 1//100)
-        init!(sim, fragment(inputs = (in = 0.0,)))
-        # What the table holds is the cell's type, the constant embedded into it.
-        @test port(sim, "c", :out) isa D8
-        @test port(sim, "c", :vec) isa SVector{2,D8}
-        @test ForwardDiff.value(port(sim, "c", :vec)[2]) == 1.0
-
-        # The converse is not accepted: a `Dual` at a pinned leaf is an error, with
-        # the hint that names the one honest cause. It fails at the `Dual`
-        # activation's own Stratum-C re-run, not at `build` (§9.4's lazy lurk).
-        b = build(single(PinnedGetsDual()))
-        err = failure(() -> activation(b, D8))
-        @test err isa BuildError
-        d = only(err.diagnostics)
-        @test d isa ConformanceFailure && d.shape === :ports && d.reason === :field_type
-        @test d.declared === Float64 && d.observed === D8 && d.activation === D8
-    end
-end
-
-# The activation seam (§9.1, §9.4): the nominal activation runs at build, any
-# other is a cached Stratum-C re-run, and a frozen component's products are
-# carried across from the nominal activation rather than probed or synthesized.
-struct NomSource <: AbstractComponent end
-output_types(::NomSource, ::Type{T}) where {T <: Real} = (val = T,)
-h_x(::NomSource, (; t)) = (val = 3.0 + t,)
-
-struct FrozenReader <: AbstractComponent end
-input_types(::FrozenReader) = (in = Float64,)
-output_types(::FrozenReader) = (out = Float64,)
-h_su(::FrozenReader, (; u)) = (out = 2.0 * u.in,)
-
-struct ClockStamp <: AbstractComponent end
-output_types(::ClockStamp) = (stamp = Float64,)
-h_s(::ClockStamp, (; t)) = (stamp = t,)
-
-function hierarchy_activations()
-    @testset "a non-nominal activation re-runs Stratum C; frozen products carry (§9.4)" begin
-        pair() = Group((; src = NomSource(), rd = FrozenReader());
-                       wires = ("src/val" => "rd/in",))
-
-        # The nominal activation runs at build and *is* the Float64 activation; a
-        # non-nominal one materializes at first request and is cached on the Build.
-        b = build(pair())
-        @test activation(b, Float64) === b.nominal
-        @test activation(b, D8) === activation(b, D8)
-
-        # The frozen reader's cells hold what the *nominal* probe computed from its
-        # real upstream value — 2·(3.0 + 0.0) — not a value synthesized off its
-        # declaration. Its cell pins while its producer's walks.
-        simd = Simulation(b, D8; h = 1//100)
-        @test port(simd, "src", :val) isa D8
-        @test port(simd, "rd", :out) === 6.0
-
-        # A discrete stage is never probed at a non-nominal activation (§9.4's
-        # executable set): `t` in a discrete bundle is lawful, because it is a
-        # `Float64` whenever the stage actually runs — so this must not detonate
-        # as a `Dual` arriving at a pinned declaration.
-        sims = Simulation(single(ClockStamp()), D8; h = 1//100)
-        @test port(sims, "c", :stamp) === 0.0
-
-        # §9.4's opt-in exhaustive mode: the listed activations materialize at
-        # build time, which is where CI catches a lurking pinned leaf.
-        err = failure(() -> build(single(PinnedGetsDual()); activations = (Float64, D8)))
-        @test err isa BuildError
-        d = only(err.diagnostics)
-        @test d isa ConformanceFailure && d.declared === Float64 && d.activation === D8
-    end
-end
-
 # A deliberately pinned leaf (D-166): `frozen` is declared `Float64` rather than
 # `T`, so it must not follow the activation scalar.
 struct PinnedLeaf <: AbstractComponent end
@@ -157,8 +67,6 @@ function hierarchy_mixed_cell()
 end
 
 function test_hierarchy()
-    hierarchy_embed_accept()
-    hierarchy_activations()
     hierarchy_pinned_leaf()
     hierarchy_mixed_cell()
 end

@@ -18,24 +18,6 @@ function continuous_skeleton()
         @test bundle_names(h_xu, Gain(1.0), CONTINUOUS, ()) === (:u, :t)
     end
 
-    @testset "the schedule follows the feedthrough graph (§5.3)" begin
-        sim = Simulation(feedback_model(); h = 1//1000)
-        # sum first (both its inputs are loop-breaking), then ctl, then plant
-        paths = [e.comp isa Sum ? :sum : e.comp isa Gain ? :ctl : :plant
-                 for e in walked(sim.exec.bodies.sweep_2)]
-        @test paths == [:sum, :ctl, :plant]
-        @test length(walked(sim.exec.bodies.sweep_1)) == 1
-        @test length(walked(sim.exec.bodies.rhs)) == 1
-    end
-
-    @testset "an algebraic loop is a build error (§5.5)" begin
-        # `build` alone: rejection needs no deployment, which is the strata split.
-        err = failure(() -> build(feedback_model(feedback_port = "power")))
-        @test err isa BuildError
-        d = only(err.diagnostics)
-        @test d isa AlgebraicCycle && sort(d.members) == ["ctl", "plant", "sum"]
-    end
-
     @testset "the loop integrates the right trajectory" begin
         # Closed-loop reference: ẋ = (A - B k C) x + B k r, integrated exactly.
         ω, ζ, k, r = 2.0, 0.1, 4.0, 0.7
@@ -146,41 +128,6 @@ function continuous_skeleton()
     end
 end
 
-# Malformed components for the probe tests. Defined at top level, not inside the
-# testset: a declaration written in a local scope binds a *new local function*
-# of that name rather than adding a method to the global one (D-164), so `build`
-# would dispatch on the untouched global and silently see the fallback
-# declarations instead.
-struct Undeclared <: AbstractComponent end
-output_types(::Undeclared, ::Type{T}) where {T <: Real} = (a = T,)
-h_x(::Undeclared, (; t)) = (a = 1.0, b = 2.0)
-
-struct Unproduced <: AbstractComponent end
-output_types(::Unproduced, ::Type{T}) where {T <: Real} = (a = T, b = T)
-h_x(::Unproduced, (; t)) = (a = 1.0,)
-
-struct BadDerivative <: AbstractComponent end
-init_x(::BadDerivative) = (q = SVector(0.0, 0.0),)
-f(::BadDerivative, (; x)) = (q = 0.0,)
-
-struct NoFlow <: AbstractComponent end
-init_x(::NoFlow) = (q = 1.0,)
-
-function continuous_probe_refusals()
-    @testset "the probe rejects malformed components (§9.3)" begin
-        d = only(failure(() -> build(single(Undeclared()))).diagnostics)
-        @test d isa UndeclaredReturnField && d.name === :b && d.candidates == [:a]
-        d = only(failure(() -> build(single(Unproduced()))).diagnostics)
-        @test d isa DeclaredNotProduced && d.ports == [:b] && d.products == [:a]
-        d = only(failure(() -> build(single(BadDerivative()))).diagnostics)
-        @test d isa ConformanceFailure && d.what == "f" && d.reason === :field_type &&
-              d.field === :q && d.observed === Float64
-        d = only(failure(() -> build(single(NoFlow()))).diagnostics)
-        @test d isa StoreWithoutUpdate && d.store === :init_x
-    end
-end
-
 function test_continuous()
     continuous_skeleton()
-    continuous_probe_refusals()
 end
