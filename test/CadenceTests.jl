@@ -3,10 +3,6 @@ module CadenceTests
 using Test, StaticArrays, LinearAlgebra, ForwardDiff, BenchmarkTools
 using Cadence
 
-# The framework names the suite calls or extends. `import` rather than `using`
-# because a fixture declaring `h_x(::MyComp, …)` is extending Cadence's generic,
-# and only an imported binding can be extended. Generated from the names
-# Cadence defines that the test files mention; nothing else is in scope.
 import Cadence: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
     AbstractDevice, AlgebraicCycle, AlreadyAttached, ArgumentInvalid,
     AttachUnknownFace, Authored, BindingContractMismatch, Build, BuildError,
@@ -51,7 +47,7 @@ import Cadence: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
     resolve_terminal, retype, retype_value, run!, running, sample_times,
     scatter!, severity, shutdown!, solve, stage!, stale, state, step!, stop!,
     termination, trace, transparent_container, trim!, unblock!,
-    wait_next_snapshot, workspace, zero_value
+    wait_next_snapshot, workspace
 
 include("fixtures.jl")
 include("utils.jl")

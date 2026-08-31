@@ -163,22 +163,6 @@ function leaves_mixed()
     end
 end
 
-function leaves_zero()
-    @testset "a zeroed value of a declared shape (§7.1)" begin
-        # `P`-shaped at `T`, every leaf zero.
-        @test zero_value(Body, Float64) ===
-              Body(Pose(0.0, 0.0), zeros(SVector{3}), zeros(SMatrix{2,2}))
-        @test zero_value(retype(D8, SVector{2,Float64}), D8) === zeros(SVector{2,D8})
-
-        # A pinned leaf keeps its own type: the `Int` is zeroed as an `Int`
-        # rather than carried to the activation scalar.
-        z = zero_value(Tagged{D8}, D8)
-        @test z isa Tagged{D8}
-        @test z.n === 0
-        @test z.v === zeros(SVector{2,D8})
-    end
-end
-
 function leaves_retype()
     @testset "the activation walk (§7.2)" begin
         @test retype(D8, Float64) === D8
@@ -194,6 +178,5 @@ function test_leaves()
     leaves_names()
     leaves_roundtrip()
     leaves_mixed()
-    leaves_zero()
     leaves_retype()
 end

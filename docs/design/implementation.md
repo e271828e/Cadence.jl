@@ -30,7 +30,7 @@ it, so twenty import preambles would have bought only namespace subdivision, at
 twenty new chances to hit the shadowing trap under *Authoring caveats*.
 
 To check a refactor for test loss, compare the suite's own assertion total —
-2033 today. `grep -c '@test '` counts source lines (1396) and misses the loops
+2028 today. `grep -c '@test '` counts source lines (1391) and misses the loops
 that multiply them.
 
 The full run costs about 5 min. A cold process spends about 30 s before the
@@ -254,6 +254,10 @@ Traps hit more than once while building, for whoever builds next:
   list, so a test that calls or extends a name not on it fails with an
   `UndefVarError` — add the name there. A fixture reusing a framework name
   collides loudly, where the old `Main` arrangement let it clobber silently;
+- a function `Core.eval`'d into the module inside a running call cannot be
+  called from that same world age — reach it through `Base.invokelatest`, or
+  build it at top level. `test_leaves.jl` compiles the mixed-cell expression
+  builders that way;
 - `===` has no curried form (`all(===(x), v)` fails — use a lambda); a
   `where`-clause method's `.sig` is a `UnionAll` (`Base.unwrap_unionall`
   before `.parameters`);

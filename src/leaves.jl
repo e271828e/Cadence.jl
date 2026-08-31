@@ -171,9 +171,6 @@ Materialize a `P` from `nleaves(P)` consecutive entries of `buf` starting at
     end
 end
 
-"""Zero-valued `P` at scalar `T`. Build time only (cell initialization)."""
-zero_value(::Type{P}, ::Type{T}) where {P,T} = reconstruct(P, zeros(T, nleaves(P)), 0)
-
 # --- the activation walk (§7.2) ----------------------------------------------
 # Declarations are written at concrete `Float64`; cell and view types per
 # activation come from this walk over them, never from inference through user
