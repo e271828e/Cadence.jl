@@ -78,7 +78,7 @@ function failures_runtime()
         # "off the grid", so the first evaluation of the frame — the arrival sweep at
         # the segment's end — is the one that throws. The ordinal is deliberately not
         # asserted: `evaluate!` counts RHS evaluations within the phase, so the sweep
-        # reads 0 and the ẋₙ₊₁ evaluation beside it 1 (`tests.md`).
+        # reads 0 and the ẋₙ₊₁ evaluation beside it 1.
         sim = Simulation(single(Landmine(1.0, 0.35, 0.03)); h = 1//10, t_end = 5.0)
         init!(sim)
         e = failure(() -> run!(sim))

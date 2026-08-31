@@ -4,10 +4,9 @@ The walking skeleton for the framework in `design/spec.md`,
 built to keepable standards and grown one increment at a time — increments 2–24
 so far (increment 1, the cell-store bench, is frozen in `prototypes/cellstore_bench`;
 D-162 cites its numbers). This file is the prototype's one register. Read it
-first, and alone. Beside it, on demand, `tests.md` holds the
-property-by-property record of what the tests pin down — read that when
-modifying an existing test or wondering why one asserts what it does, and add
-a property bullet there with each new increment.
+first, and alone. Why a given test asserts what it does is carried by the
+suite itself: every testset name states its property and cites the section it
+answers to, and the comments carry the reasoning.
 
 ## Running the suite
 
@@ -155,6 +154,30 @@ rosters); the diff review is the enforcement.
 | spec shape | stand-in here | retirement |
 | --- | --- | --- |
 | the per-writer status rides inline in the snapshot's one per-boundary allocation — zero additional heap allocation on a quiet frame (§11.8) | a `Vector` of per-writer records built at each publication, the small extra allocation the simple shape costs | an allocation-tightening pass (an `NTuple` status type fixed per run) |
+
+Two readings run ahead of the spec's letter, flagged for the spec pass:
+
+- **The species rule is the prototype's spelling.** §13.4 says a conformance
+  failure "is thrown as its typed diagnostic at the table-write point, and it
+  arrives at the same catch site. There it is a species of `StepError`",
+  without saying how the catch site recognizes one. Here a `BuildError`
+  carrying exactly one diagnostic, thrown inside the sequence, arrives
+  unwrapped as that diagnostic — which keeps the catch site the only
+  `StepError` constructor while letting a runtime check throw its own kind. A
+  multi-diagnostic carrier stays raw, having no single species.
+- **Boundary zero sits outside the catch.** `init!` and `replay!` run it as
+  stopped-sim services and propagate raw. The spec calls boundary zero "the
+  ordinary macro-sequence with an empty integrate" and a legal replay halt, so
+  a reading that wraps it too is available. The conservative choice here is
+  that a service's own refusal path is not a frame, there being no frame-entry
+  pointer for a frame that has not begun.
+
+Also short of the spec's word, and needing a test before it can be called a
+stand-in: §14.2 reads "rebuilding the tree per trim iteration is stack-only
+construction", which does not hold for a tree carrying `at` prefixes — an `at`
+node holds a `String` and is not isbits, so construction allocates. The
+register's own write is free and asserted so (`test_conditions.jl`); the
+construction cost is noted in that file's comments and guarded by nothing.
 
 ## Authoring caveats
 
