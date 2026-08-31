@@ -1,2 +1,2 @@
 include("CadenceTests.jl")
-CadenceTests.runall()
+isempty(ARGS) ? CadenceTests.runall() : CadenceTests.runonly(ARGS...)

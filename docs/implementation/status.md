@@ -25,16 +25,31 @@ there, the two projects share one precompile cache, and a fresh clone
 instantiates once from either. No `Manifest.toml` is committed.
 
 The suite is the `CadenceTests` module in `test/CadenceTests.jl`: the includes,
-the `import Cadence:` list and `runall()`, which groups the files into the five
-testsets the summary tree shows. Each file's tests are one function, so one
-file's worth re-runs on its own — `CadenceTests.test_trace()` — and re-runs in
-milliseconds once compiled.
+the `import Cadence:` list, `runall()` — the grouped tree the summary shows —
+and `runonly(names...)`. Each file's tests are one function, so the loop
+between commits runs a subset:
+
+    julia --project=test test/runtests.jl roster devices trace
+
+Five files cost 51 s against 287 s for all of them. A cold process spends about
+30 s before the first file's tests run and little per file after, so name a
+generous set rather than a minimal one; going finer than a file buys nothing
+against that floor. A file's time in the summary tree is amortized and
+understates a solo run — `roster` reads 3.1 s there and takes 13.8 s alone. In
+a live session the function re-runs in its own runtime alone,
+`CadenceTests.test_trace()` in 1.2 s, which is the tightest loop there is.
+
+Which files a change can reach: `assembly.jl`/`declare.jl`/`build.jl` →
+structure, hierarchy; `executor.jl`/`stepper.jl`/`localize.jl` → the execution
+files; `dataplane.jl`/`roster.jl`/`bindings.jl`/`devices.jl`/`trace.jl` → the
+data-plane files; `readers.jl`/`conditions.jl`/`trim.jl` → analysis. `sim.jl`,
+`store.jl` and `diagnostics.jl` are cross-cutting and mean all of it. That
+mapping is a guess; the gate below is what makes a wrong one harmless.
 
 `src/` is the `Cadence` package, so the first run after an `src/` edit pays a
 precompile of about 15 s on top of the suite's own time.
 
-**The command above is the iteration loop, not the gate. Before trusting a
-green suite, run**
+**None of the above is the gate. Before trusting a green suite, run**
 
     julia --project=. -e 'using Pkg; Pkg.test()'
 

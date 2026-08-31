@@ -119,4 +119,25 @@ function runall()
     end
 end
 
+"""
+    runonly("trace", "devices")
+
+Run only the named files' tests — the loop between commits, where the whole
+suite is too slow to run per edit. `runall` names them all. A cold process
+costs about 30 s before the first file's tests run and little per file after
+that, so name a generous set rather than the minimal one.
+"""
+function runonly(names::AbstractString...)
+    fs = map(names) do n                       # resolve first: a typo costs no run
+        s = Symbol("test_", n)
+        isdefined(@__MODULE__, s) || error("no tests named `$n` (`runall` names them)")
+        getfield(@__MODULE__, s)
+    end
+    @testset verbose = true "selected" begin
+        for (n, f) in zip(names, fs)
+            @testset "$n" begin f() end
+        end
+    end
+end
+
 end # module CadenceTests
