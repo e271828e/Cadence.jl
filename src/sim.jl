@@ -7,7 +7,7 @@ The active advance's effective stop policy (§13.5), bound at each `run!` or
 `step!` entry from the constructor defaults and the per-run overrides: the
 named stop faces in declaration order, their compiled root-cell addresses, and
 `hit` — the seam through which a `t*` boundary's stop observation reaches the
-loop (localize.jl publishes mid-frame, so the frame reports the holding face
+loop (localization.jl publishes mid-frame, so the frame reports the holding face
 here and abandons its remainder: the `t*` snapshot is the final one).
 """
 mutable struct RunPolicy
