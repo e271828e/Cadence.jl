@@ -23,6 +23,15 @@ member (`[workspace] projects = ["test"]`, Julia 1.12), so one root
 `Manifest.toml` resolves both and `Cadence` needs no `develop`. No
 `Manifest.toml` is committed.
 
+One module, not one per file. Per-file submodules were weighed and dropped:
+`Main` pollution was the friction, and the single `CadenceTests` module ends
+it, so twenty import preambles would have bought only namespace subdivision, at
+twenty new chances to hit the shadowing trap under *Authoring caveats*.
+
+To check a refactor for test loss, compare the suite's own assertion total —
+1987 today. `grep -c '@test '` counts source lines (1362) and misses the loops
+that multiply them.
+
 The full run costs about 5 min. A cold process spends about 30 s before the
 first file's tests run and little per file after, so name a generous set
 rather than a minimal one; going finer than a file buys nothing against that
@@ -58,7 +67,7 @@ to. For more than a line, read the file itself and the sections it cites.
 | `src/leaves.jl` | the leaf walk: flatten / reconstruct / the activation retype, and `leaf_names`' dotted spelling of a flat position | §7.1, §7.2, §13.4 |
 | `src/diagnostics.jl` | the diagnostic kinds with `severity`/`path`/`message`, `_typename` (a user type's name for a payload field or a label), the `BuildError` carrier and its compiler-style rendering, `logline`, `InternalInvariant`, §13.4's runtime trio — `CursorFrame`, `StepError` and `NonfiniteState` — and §12.7's replay trio, `ReplayHeaderMismatch`/`ReplaySchemaMismatch`/`ReplayUnknownFace`, whose `face` carries a bare position where no schema resolves it and the name where one does | §13.1, §13.2, §13.4, Appendix C, D-058, D-059, D-157, D-214, D-215 |
 | `src/declare.jl` | the declaration layer: both tiers' name families and arities, the bundle law, `probe_value`, the connection declarations beside `transparent_container`, the rate registers with `sample_times`, the event surface | §2.1, §5.2, §8.2, §8.5–§8.7, §9.3, D-179, D-185, D-195, D-211 |
-| `src/assembly.jl` | class by declaration shape; children and containers with their collision family; `Group`, the anonymous assembly; paths and §6.1's one-level rule; endpoint and face resolution with the root's face invariants; the flatten pass, its two-sided face graph and the sample-time fold; §13.3's `resolve`/`resolve_terminal`/face-list primitives and §8.8's `input_passthrough`/`output_passthrough` | §6.1, §8.5–§8.8, §9.1, §9.2, §13.3, D-171, D-207–D-212 |
+| `src/assembly.jl` | class by declaration shape; children and containers with their collision family; `Group`, the anonymous assembly, kernel material by decision where the rest of the old `library.jl` became fixtures; paths and §6.1's one-level rule; endpoint and face resolution with the root's face invariants; the flatten pass, its two-sided face graph and the sample-time fold; §13.3's `resolve`/`resolve_terminal`/face-list primitives and §8.8's `input_passthrough`/`output_passthrough` | §6.1, §8.5–§8.8, §9.1, §9.2, §13.3, D-171, D-207–D-212 |
 | `src/store.jl` | per-eltype cell stores, the `StoreBundle`, gather/scatter, `_cell_key`, the `Clock` | §9.7, D-162 |
 | `src/executor.jl` | entries, the chunked unrolled walk, the interior/boundary split, the `(idx − Φ) % D` gate and boundary zero's `ESTABLISH` beside it, the event set with its registers and the guard/fire/project walks, and the execution cursor every entry stores into | §5.3, §9.7, §10.4–§10.6, §13.4, §14.5, D-059, D-205 |
 | `src/build.jl` | tier classification, the probe and the event probe, the feedthrough graph, the layout, embed-accept, the `Build` and its activations, deployment binding, and `compile` → `Executor{T}` — one activation's buffer set with the bodies closed over it, one owner per set, `evaluate!`/`_round!`/`apply!` on it | §5.3, §8.2, §9.1–§9.4, §9.7, §10.4, D-166, D-179, D-208, D-210 |
@@ -78,6 +87,30 @@ to. For more than a line, read the file itself and the sections it cites.
 Correctness is checked against analytically integrated references with a
 tolerance, never `==` (D-163) — except the frame-top stamps, asserted bitwise
 against the indexed grid time because that is the claim.
+
+## Why `test/` does not mirror `src/`
+
+23 test files against 18 testable source files, 17 of them paired by name. The
+remainder is deliberate; do not "finish" it.
+
+`sim.jl` has no `test_sim.jl` and should not get one. It is 1550 lines
+answering to some twenty spec sections, and a 1:1 rule would collapse `log`,
+`lifecycle`, `failures`, `localization` and the loop halves of `discrete`,
+`multirate` and `events` into one 1500-line file. Those seven files assert
+*emergent* properties instead: that the sampled loop matches the exact ZOH
+discretization is a claim about declare, assembly, build, executor and sim
+cooperating, owned by no source file. `src/` is cut by layering, `test/` by
+property.
+
+`test_leaves.jl` is thin for the opposite reason. It was kept rather than
+folded into `test_store.jl` so that how little of `leaves.jl` is covered
+directly stays visible in the file listing; the rest of that file is exercised
+only through its consumers.
+
+The cheap index, if navigability is ever wanted: a "tests" column in the table
+above, plus extending `check_refs.jl` to `test/` so the §N citations in testset
+names are checked. Nothing checks them today — `src/` and `test/` sit outside
+every roster.
 
 ## What is deliberately absent
 
@@ -198,6 +231,19 @@ reason. D-164 ratified the check that would name the trap — a component
 declaring nothing and defining no stage is a build error — but `DeadStage` is
 not built; increment 4 catches the case one stratum earlier, a component with
 no declarations having no *class* to read either (§8.5).
+
+**Extending a declaration without importing it is silent on 1.12.** `using
+Cadence` followed by a bare `h_x(::MyComp, …)` definition creates a local
+generic — no error, no warning, and whether or not the name is exported. Julia
+≤1.11 raised "must be explicitly imported to be extended"; 1.12's binding
+partitions removed that, measured on 1.12.7. Only `using Cadence: h_x` errors.
+The build then sees the same declares-nothing component as above. No export
+list can prevent this: `f` and `g` in particular must never be exported, since
+they would silently shadow a user's own, so the declaration family needs an
+explicit `import` whatever else is settled about exports. The lever left is a
+diagnostic — checking `parentmodule(typeof(c))` for bindings named like the
+declaration family that are not Cadence's, and naming them in
+`ClassUnreadable`/`TierUnreadable` — proposed and not yet designed.
 
 Traps hit more than once while building, for whoever builds next:
 
