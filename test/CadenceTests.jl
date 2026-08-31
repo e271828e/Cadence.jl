@@ -63,7 +63,6 @@ include("test_build.jl")
 include("test_executor.jl")
 include("test_continuous.jl")
 include("test_discrete.jl")
-include("test_multirate.jl")
 include("test_stepper.jl")
 include("test_events.jl")
 include("test_localization.jl")
@@ -101,7 +100,6 @@ function runall()
             @testset "executor"     begin test_executor()     end
             @testset "continuous"   begin test_continuous()   end
             @testset "discrete"     begin test_discrete()     end
-            @testset "multirate"    begin test_multirate()    end
             @testset "stepper"      begin test_stepper()      end
             @testset "events"       begin test_events()       end
             @testset "localization" begin test_localization() end

@@ -4,7 +4,8 @@
 # and what an address into them costs. Two routes make a cell span several: a
 # leaf whose eltype is not the activation scalar, and a leaf deliberately pinned
 # off it. The offsets live in the address's fields, which is what lets instances
-# of one component type share one compiled body.
+# of one component type share one compiled body. §7.3's third register is here
+# too, by contrast: the workspace is the one that is deliberately *not* a store.
 
 # A deliberately pinned leaf (D-166): `frozen` is declared `Float64` rather than
 # `T`, so it must not follow the activation scalar.
@@ -105,6 +106,32 @@ function store_discrete_cells()
     end
 end
 
+# --- the workspace, the register that is not a store (§7.3) -------------------
+
+function store_workspace()
+    @testset "the workspace is scratch, on both tiers (§7.3)" begin
+        sim = Simulation(Group((; sm = Smoother(0.5), src = ModedSource(), wg = WorkGain(2.0));
+                               wires = ("src/out" => "sm/a",
+                                        "src/out" => "sm/b",
+                                        "src/out" => "wg/in"));
+                         h = 1//10)
+        init!(sim)
+        @test port(sim, "wg", :out) == 0.0      # 2 × the idle-phase constant
+        run!(sim; t_end = 0.3)
+        @test state(sim, "sm").v isa SVector{2,Float64}
+
+        # Allocation is what the idiom is for: in-place math on scratch, an isbits
+        # snapshot into the store, and nothing on the measured path.
+        b = phase_bodies(sim)
+        for name in keys(b)
+            body = b[name]
+            body(); body(1)
+            @test @ballocated($body()) == 0
+            @test @ballocated($body(1)) == 0
+        end
+    end
+end
+
 # --- one compiled body per component type (D-162) -----------------------------
 
 function store_shared_bodies()
@@ -153,6 +180,7 @@ function test_store()
     store_pinned_leaf()
     store_mixed_cell()
     store_discrete_cells()
+    store_workspace()
     store_shared_bodies()
     store_successor_type()
 end
