@@ -30,7 +30,7 @@ it, so twenty import preambles would have bought only namespace subdivision, at
 twenty new chances to hit the shadowing trap under *Authoring caveats*.
 
 To check a refactor for test loss, compare the suite's own assertion total —
-1987 today. `grep -c '@test '` counts source lines (1362) and misses the loops
+2033 today. `grep -c '@test '` counts source lines (1396) and misses the loops
 that multiply them.
 
 The full run costs about 5 min. A cold process spends about 30 s before the
@@ -103,10 +103,12 @@ discretization is a claim about declare, assembly, build, executor and sim
 cooperating, owned by no source file. `src/` is cut by layering, `test/` by
 property.
 
-`test_leaves.jl` is thin for the opposite reason. It was kept rather than
-folded into `test_store.jl` so that how little of `leaves.jl` is covered
-directly stays visible in the file listing; the rest of that file is exercised
-only through its consumers.
+`test_leaves.jl` is the opposite case: a file kept for a source file rather
+than for a property. The leaf walk is used by `store.jl`, `build.jl`,
+`conditions.jl` and `sim.jl` alike, so no consumer's file owns it. Its own
+file asserts it directly — the flat round trip, the dotted names, the
+mixed-eltype expression builders behind `store.jl`'s generated gather and
+scatter, and the activation retype.
 
 The cheap index, if navigability is ever wanted: a "tests" column in the table
 above, plus extending `check_refs.jl` to `test/` so the §N citations in testset
