@@ -35,7 +35,8 @@
 # citation *existence* for both the `D-nnn` and the retired `row N` spellings.
 #
 # Usage:  julia docs/design/tools/check_refs.jl
-# Exits nonzero if anything dangles.
+# Exits nonzero if anything dangles, or if the roster names a file that is not
+# on disk — an absent file is an unchecked one, never a pass.
 
 include(joinpath(@__DIR__, "slugs.jl"))
 
@@ -52,7 +53,7 @@ const DECISIONS = "decisions.md"
 # citations can dangle, and dropping one silently unchecks that whole file.
 # `decisions.md` is also `DECISIONS` above, in the other role — the anchor pool
 # a link *into* the log resolves against.
-const ROSTER = ["decisions.md",
+const ROSTER = [DECISIONS,
                 "extensions.md",
                 # The prototype's register. Checked here and in check_rows.jl,
                 # but deliberately out of linkify.jl's roster: its citations
@@ -105,10 +106,16 @@ function main()
 
     bad = Tuple{String,Int,String,String}[]
     ambiguous = Tuple{String,Int,String}[]
+    absent = String[]
     tc = ta = tr = 0
     for file in [SPEC; ROSTER]
         path = joinpath(DESIGN, file)
         if !isfile(path)
+            # Not fatal to the rest of the run — a reorganisation may leave the
+            # roster one commit ahead of the tree — but never silent: an absent
+            # file is an unchecked file, and a typo here would otherwise report
+            # OK forever.
+            push!(absent, file)
             println("  skipped (absent): ", file)
             continue
         end
@@ -181,13 +188,23 @@ function main()
         end
     end
 
-    if isempty(bad)
+    if !isempty(absent)
+        println("\nABSENT (", length(absent),
+                ") — named by the roster, not on disk, so wholly unchecked:")
+        for file in absent
+            println("  ", file)
+        end
+    end
+
+    if isempty(bad) && isempty(absent)
         println("OK — every citation and every anchor resolves.")
         return 0
     end
-    println("\nDANGLING (", length(bad), "):")
-    for (file, lineno, tok, why) in bad
-        println("  $file:$lineno: $tok — $why")
+    if !isempty(bad)
+        println("\nDANGLING (", length(bad), "):")
+        for (file, lineno, tok, why) in bad
+            println("  $file:$lineno: $tok — $why")
+        end
     end
     return 1
 end
