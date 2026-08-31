@@ -7,52 +7,6 @@ struct PinnedGetsDual <: AbstractComponent end
 output_types(::PinnedGetsDual, ::Type{T}) where {T <: Real} = (frozen = Float64,)
 h_x(::PinnedGetsDual, (; t)) = (frozen = t,)
 
-# --- hierarchy end to end (§8.5, §8.6) ----------------------------------------
-
-function hierarchy_two_level()
-    @testset "a two-level assembly runs the sampled loop through its faces" begin
-        kI, ω, ζ, Δt, r, k, N = 3.0, 2.0, 0.1, 0.02, 0.7, 2.0, 50
-        A = SMatrix{2,2}(0.0, -ω^2, 1.0, -2ζ * ω)
-        B = SVector(0.0, 1.0)
-        Ad = exp(A * Δt)
-        Bd = A \ ((Ad - I) * B)
-
-        # The vehicle's gain scales the reference before the loop sees it.
-        q, s = SVector(0.0, 0.0), 0.0
-        for _ in 1:N
-            q, s = Ad * q + Bd * s, s + kI * Δt * (k * r - q[1])
-        end
-
-        sim = Simulation(Vehicle(; k, kI, ω, ζ); h = 1//50)
-        @test sim.build.flat.paths == ["loop/plant", "loop/ctl", "loop/sum", "trim"]
-        init!(sim, fragment(inputs = (ref = r,)))
-        run!(sim; t_end = N * Δt)
-        @test state(sim, "loop/plant").q ≈ q rtol = 1e-6
-        @test port(sim, "loop", :cmd) ≈ s rtol = 1e-6
-    end
-
-    @testset "a face's type and tier are its internal endpoint's (§8.6)" begin
-        sim = Simulation(Vehicle(); h = 1//50)
-        init!(sim, fragment(inputs = (ref = 1.0,)))
-        run!(sim; t_end = 0.1)
-        # A face is its endpoint: no cell of its own, at any level of re-export.
-        @test port(sim, "loop", :y) === port(sim, "loop/plant", :y)
-        @test port(sim, "", :y) === port(sim, "loop/plant", :y)
-        @test port(sim, "", :cmd) === port(sim, "loop/ctl", :u)
-        # And a two-level chain aliases the one cell all the way down: the vehicle's
-        # `power` re-exports the loop's own `power` face, which re-exports the
-        # plant's port — one alias per level, no cell of its own at either (D-207).
-        @test port(sim, "", :power) === port(sim, "loop", :power) ===
-              port(sim, "loop/plant", :power)
-
-        # Tier-neutral, and the tiers are *derived*: at a non-nominal activation the
-        # continuous-sourced face walks while the discrete-sourced one stays pinned.
-        simd = Simulation(Vehicle(), D8; h = 1//50)
-        @test port(simd, "", :y) isa D8
-        @test port(simd, "", :cmd) isa Float64
-    end
-end
-
 # The constant-branch idiom (D-166): a literal `Float64` returned into a
 # declared-`T` port is a lawful arrival, embedded as a zero-partial.
 struct ConstantBranch <: AbstractComponent end
@@ -203,7 +157,6 @@ function hierarchy_mixed_cell()
 end
 
 function test_hierarchy()
-    hierarchy_two_level()
     hierarchy_embed_accept()
     hierarchy_activations()
     hierarchy_pinned_leaf()

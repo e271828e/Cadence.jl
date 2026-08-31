@@ -54,7 +54,7 @@ import Cadence: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
 include("fixtures.jl")
 include("utils.jl")
 
-include("test_structure.jl")
+include("test_assembly.jl")
 include("test_hierarchy.jl")
 
 include("test_continuous.jl")
@@ -87,7 +87,7 @@ its leaves. One file's tests are callable on their own: `test_trace()`.
 function runall()
     @testset verbose = true "Cadence" begin
         @testset verbose = true "assembly and build" begin
-            @testset "structure"    begin test_structure()    end
+            @testset "assembly"     begin test_assembly()     end
             @testset "hierarchy"    begin test_hierarchy()    end
         end
         @testset verbose = true "execution" begin

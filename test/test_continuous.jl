@@ -166,8 +166,6 @@ f(::BadDerivative, (; x)) = (q = 0.0,)
 struct NoFlow <: AbstractComponent end
 init_x(::NoFlow) = (q = 1.0,)
 
-struct Inert <: AbstractComponent end
-
 function continuous_probe_refusals()
     @testset "the probe rejects malformed components (§9.3)" begin
         d = only(failure(() -> build(single(Undeclared()))).diagnostics)

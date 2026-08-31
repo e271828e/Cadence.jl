@@ -12,6 +12,8 @@ output_connections(::TupleRoster) = ("units/2/out" => "y",)
 # Class is read off *which* well-known declarations a type defines:
 # `child_connections` the assembly marker, any leaf declaration a primitive's.
 
+struct Inert <: AbstractComponent end            # neither family: no class to read at all
+
 struct HoldsComponents <: AbstractComponent      # components, but no class to read
     inner::Gain
 end
@@ -23,7 +25,7 @@ child_connections(::BothFamilies) = ()
 output_types(::BothFamilies, ::Type{T}) where {T <: Real} = (a = T,)
 h_x(::BothFamilies, (; t)) = (a = 1.0,)
 
-function structure_class()
+function assembly_class()
     @testset "class is read off the declaration shape (§8.5)" begin
         @test classify("c", Gain(1.0)) === PRIMITIVE
         @test classify("c", feedback_model()) === ASSEMBLY
@@ -97,7 +99,7 @@ struct EmptyRoster <: AbstractComponent          # parametric code needs no spec
 end
 child_connections(::EmptyRoster) = ()
 
-function structure_container_children()
+function assembly_container_children()
     @testset "container children are path-named `field/key` and `field/1` (§8.5)" begin
         # A container's elements are children *of the parent*, in declaration order.
         # `Group` names them bare, its `children` being transparent (D-211); the
@@ -189,7 +191,7 @@ end
 child_connections(::AbsentDeclared) = ()
 transparent_container(::AbsentDeclared) = :nope
 
-function structure_transparent_containers()
+function assembly_transparent_containers()
     @testset "a name-transparent container contributes bare keys (§8.5, D-211)" begin
         # Naming is the only thing the declaration changes: the same two children in
         # the same declaration order, addressed without the field segment — wiring
@@ -319,7 +321,7 @@ child_connections(::PastGenericReach) = ()
 input_connections(::PastGenericReach) = ("ref" => "inner/sum/a",)
 output_connections(::PastGenericReach) = ("inner/y" => "y",)
 
-function structure_paths()
+function assembly_paths()
     @testset "a wiring endpoint names one child and one of its faces (§6.1, D-207)" begin
         # Routed through the sub-assembly's own face: legal, the routed input is fed
         # exactly once, and the re-exported face aliases the port behind it.
@@ -393,7 +395,7 @@ child_connections(::CollidingFaces) = ("a/out" => "b/e",)
 input_connections(::CollidingFaces) = ("y" => "b/e",)
 output_connections(::CollidingFaces) = ("b/out" => "y",)
 
-function structure_connections()
+function assembly_connections()
     @testset "direction is declared by the method, endpoints cross-check it (§8.6)" begin
         err = failure(() -> build(BackwardsWire(ModedSource(), Gain(1.0))))
         @test err isa BuildError
@@ -465,6 +467,54 @@ function structure_connections()
     end
 end
 
+# --- hierarchy end to end (§8.5, §8.6) ----------------------------------------
+# The declarations above are refused or resolved at build; these run values
+# through a two-level tree and read them back off its faces.
+
+function assembly_two_level()
+    @testset "a two-level assembly runs the sampled loop through its faces" begin
+        kI, ω, ζ, Δt, r, k, N = 3.0, 2.0, 0.1, 0.02, 0.7, 2.0, 50
+        A = SMatrix{2,2}(0.0, -ω^2, 1.0, -2ζ * ω)
+        B = SVector(0.0, 1.0)
+        Ad = exp(A * Δt)
+        Bd = A \ ((Ad - I) * B)
+
+        # The vehicle's gain scales the reference before the loop sees it.
+        q, s = SVector(0.0, 0.0), 0.0
+        for _ in 1:N
+            q, s = Ad * q + Bd * s, s + kI * Δt * (k * r - q[1])
+        end
+
+        sim = Simulation(Vehicle(; k, kI, ω, ζ); h = 1//50)
+        @test sim.build.flat.paths == ["loop/plant", "loop/ctl", "loop/sum", "trim"]
+        init!(sim, fragment(inputs = (ref = r,)))
+        run!(sim; t_end = N * Δt)
+        @test state(sim, "loop/plant").q ≈ q rtol = 1e-6
+        @test port(sim, "loop", :cmd) ≈ s rtol = 1e-6
+    end
+
+    @testset "a face's type and tier are its internal endpoint's (§8.6)" begin
+        sim = Simulation(Vehicle(); h = 1//50)
+        init!(sim, fragment(inputs = (ref = 1.0,)))
+        run!(sim; t_end = 0.1)
+        # A face is its endpoint: no cell of its own, at any level of re-export.
+        @test port(sim, "loop", :y) === port(sim, "loop/plant", :y)
+        @test port(sim, "", :y) === port(sim, "loop/plant", :y)
+        @test port(sim, "", :cmd) === port(sim, "loop/ctl", :u)
+        # And a two-level chain aliases the one cell all the way down: the vehicle's
+        # `power` re-exports the loop's own `power` face, which re-exports the
+        # plant's port — one alias per level, no cell of its own at either (D-207).
+        @test port(sim, "", :power) === port(sim, "loop", :power) ===
+              port(sim, "loop/plant", :power)
+
+        # Tier-neutral, and the tiers are *derived*: at a non-nominal activation the
+        # continuous-sourced face walks while the discrete-sourced one stays pinned.
+        simd = Simulation(Vehicle(), D8; h = 1//50)
+        @test port(simd, "", :y) isa D8
+        @test port(simd, "", :cmd) isa Float64
+    end
+end
+
 # --- the whole-tree obligation model (§6.1) -----------------------------------
 
 struct Starved <: AbstractComponent              # an obligation chain that never ends
@@ -493,7 +543,7 @@ struct DoubleFedSibling <: AbstractComponent     # an ancestor's route onto a wi
 end
 child_connections(::DoubleFedSibling) = ("src/out" => "loop/in",)
 
-function structure_obligations()
+function assembly_obligations()
     @testset "every input is fed exactly once, across levels (§6.1)" begin
         err = failure(() -> build(Starved(Gain(1.0))))
         @test err isa BuildError
@@ -552,7 +602,7 @@ h_xu(::PinnedEntry, (; u)) = (y = u.u,)
 _fanned_root(a, b) = Group((a = a, b = b);
                            inputs = ("in" => ("a/u", "b/u"),), outputs = ("a/y" => "y",))
 
-function structure_root_input_type()
+function assembly_root_input_type()
     @testset "two consumers of one root input declare one concrete type (§8.2, D-168)" begin
         err = failure(() -> build(_fanned_root(RealEntry(), BoolEntry())))
         @test err isa BuildError
@@ -625,7 +675,7 @@ output_types(::BothArities, ::Type{T}) where {T <: Real} = (a = T,)
 output_types(::BothArities) = (a = Float64,)
 h_x(::BothArities, (; t)) = (a = 1.0,)
 
-function structure_tier()
+function assembly_tier()
     @testset "tier is read off the declaration shape (§8.2)" begin
         # The two deciders: the update law for a stateful leaf, the contract arity
         # for a stateless one.
@@ -741,7 +791,7 @@ input_connections(p::PassedGroup) = (input_passthrough(p, "inner"; except = ("a"
                                      "e" => "trim/e")
 output_connections(p::PassedGroup) = output_passthrough(p, "inner"; only = ("scaled",))
 
-function structure_primitives()
+function assembly_primitives()
     @testset "the §13.3 primitives resolve one level and list faces in order" begin
         m = feedback_model()
         @test resolve(m, "sum") === m.children.sum
@@ -865,14 +915,15 @@ function structure_primitives()
     end
 end
 
-function test_structure()
-    structure_class()
-    structure_container_children()
-    structure_transparent_containers()
-    structure_paths()
-    structure_connections()
-    structure_obligations()
-    structure_root_input_type()
-    structure_tier()
-    structure_primitives()
+function test_assembly()
+    assembly_class()
+    assembly_container_children()
+    assembly_transparent_containers()
+    assembly_paths()
+    assembly_connections()
+    assembly_two_level()
+    assembly_obligations()
+    assembly_root_input_type()
+    assembly_tier()
+    assembly_primitives()
 end
