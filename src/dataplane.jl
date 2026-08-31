@@ -28,11 +28,11 @@ end
 # --- the diagnostic channel (§11.8, §13.2, Appendix C) -------------------------
 
 """
-The prototype's closed kind set for the runtime warning stream (§13.2,
+The closed kind set for the runtime warning stream (§13.2,
 Appendix C): each kind is a Julia type, its identity, and its payload is
 plain data — paths and names as strings and symbols, never component
 instances; the declared/observed *port* types are the payload exception, and
-they are small. These are the kinds whose sources the prototype has built;
+they are small. These are the kinds whose sources are built here;
 the three whose features are absent — `DebtReanchor`, `ThreadBudget`,
 `UnboundedRun` — are absent with them (`implementation.md`).
 Writer attribution is never a payload field: the channel is per-writer, so

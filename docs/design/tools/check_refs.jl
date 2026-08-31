@@ -55,7 +55,8 @@ const DECISIONS = "decisions.md"
 # a link *into* the log resolves against.
 const ROSTER = [DECISIONS,
                 "extensions.md",
-                # The prototype's register. Checked here and in check_rows.jl,
+                # The implementation's register. Checked here and in
+                # check_rows.jl,
                 # but deliberately out of linkify.jl's roster: its citations
                 # stay plain, as decisions.md's do.
                 "implementation.md",

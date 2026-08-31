@@ -33,7 +33,7 @@ code.
 
 The family splits by **source**, not by client (§14.4's source rule). The
 store selectors `get_state`/`get_deriv` resolve only against live stores, which
-here means an `Executor` — the one live-store holder this prototype has; the
+here means an `Executor` — the only live-store holder there is; the
 table selectors `get_output`/`get_input`/`get_face` resolve against a table
 source, an executor's own signal table or a published snapshot. A
 snapshot-bound reader naming a store selector is therefore refused at attach

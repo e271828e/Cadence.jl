@@ -487,7 +487,7 @@ function diagnostics_kind_set()
             @test m isa String && !isempty(m)
         end
 
-        # Every kind of the prototype's set has an occurrence above: the coverage
+        # Every kind of the closed set has an occurrence above: the coverage
         # check is over `Diagnostic`'s own subtypes, so adding a kind without an
         # occurrence fails here rather than going unrendered.
         @test Set(typeof.(occurrences)) == Set(subtypes(Diagnostic))

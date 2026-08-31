@@ -4,13 +4,14 @@ Cadence is a framework for simulating hierarchical models that mix continuous
 dynamics, multi-rate periodic discrete dynamics and discrete events. It is
 being built to replace `FlightCore` as the substrate for `FlightPhysics` and
 `FlightApps` in Flight.jl, and it is not yet usable as a dependency: the
-package exports nothing, and the implementation is a walking skeleton growing
-one increment at a time behind a settled design.
+package exports nothing, and it grows one increment at a time behind a settled
+design.
 
 The design is written down before it is built. `docs/design/spec.md` is
 normative and defines the framework; `docs/design/decisions.md` records every
-ruling and the alternatives it rejected. The code in `src/` implements that
-document and feeds corrections back into it.
+ruling and the alternatives it rejected. Design and code are peers: `src/`
+implements the specification, and what the code learns amends it. Neither is
+subservient to the other, and neither is finished until they agree.
 
 ## What it simulates
 
@@ -153,7 +154,7 @@ event.
 All design axes are settled, with a few items in §16 still open. The decision
 log runs to 217 entries.
 
-The prototype implements the formalism, the declaration layer, the build
+The package implements the formalism, the declaration layer, the build
 pipeline, execution with multi-rate scheduling and event localization, the
 runtime data plane with its trace and replay, error discipline, and the
 stopped-sim services including trimming. It runs 1803 tests green. Not built
@@ -166,12 +167,12 @@ spec-driven question, still open.
 
 ## Repository layout
 
-- `docs/design/` holds the design and the prototype's register. `spec.md` is
-  normative, `decisions.md` is the log, `implementation.md` covers what `src/`
-  and `test/` actually build, `companions/` holds worked explainers, and
-  `tools/` holds the consistency checkers and the two style guides. Read the
-  matching style guide before editing the spec or the log, and
-  `implementation.md` before touching `src/`.
+- `docs/design/` holds the design and the implementation's register.
+  `spec.md` is normative, `decisions.md` is the log, `implementation.md`
+  covers what `src/` and `test/` actually build, `companions/` holds worked
+  explainers, and `tools/` holds the consistency checkers and the two style
+  guides. Read the matching style guide before editing the spec or the log,
+  and `implementation.md` before touching `src/`.
 - `src/` is the `Cadence` package, `test/` its suite.
 - `prototypes/` holds the frozen cell-store benchmark behind D-162 and a
   pre-design syntax sketch that no longer runs.

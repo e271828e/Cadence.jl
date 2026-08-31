@@ -1,12 +1,13 @@
 # Implementation status
 
-The walking skeleton for the framework in `spec.md`,
-built to keepable standards and grown one increment at a time — increments 2–24
-so far (increment 1, the cell-store bench, is frozen in `prototypes/cellstore_bench`;
-D-162 cites its numbers). This file is the prototype's one register. Read it
-first, and alone. Why a given test asserts what it does is carried by the
-suite itself: every testset name states its property and cites the section it
-answers to, and the comments carry the reasoning.
+The implementation of the framework in `spec.md`, grown one increment at a
+time — increments 2–24 so far (increment 1, the cell-store bench, is frozen in
+`prototypes/cellstore_bench`; D-162 cites its numbers). Spec and code are
+peers: neither is subservient, and both are kept in agreement. This file is the
+implementation's one register. Read it first, and alone. Why a given test
+asserts what it does is carried by the suite itself: every testset name states
+its property and cites the section it answers to, and the comments carry the
+reasoning.
 
 ## Running the suite
 
@@ -140,8 +141,8 @@ cited decision carries it:
   `TierUnreadable`; retiring them needs a sentinel-returning resolution pass,
   its own increment.
 - **Kinds carrying less than their Appendix C payload column.** D-216 rules
-  that the column is the design and the prototype's gaps stay visible as
-  such, and it leaves the enumeration here: `AlgebraicCycle` no wires and no
+  that the column is the design and the implementation's gaps stay visible
+  as such, and it leaves the enumeration here: `AlgebraicCycle` no wires and no
   §5.6 real/artificial classification, `FaceNameCollision` no per-entry
   provenance, `ContainerMixed` no element keys or indices, `UnconnectedInput`
   no declared entry type and no obligation-chain level,
@@ -176,7 +177,7 @@ cited decision carries it:
   not, so a stopped run can hold mid-boundary stores here. `run!` requires a
   finite `t_end`; every non-running state admits `attach!`/`detach!`.
 
-## Stand-ins: where the prototype's shape is not the spec's
+## Stand-ins: where the implementation's shape is not the spec's
 
 **Rule: nothing deviates silently.** Every construct a reader could mistake
 for the design's is in exactly one of three places: the table above, the
@@ -193,12 +194,12 @@ outside every roster, so the diff review is what holds it.
 
 Two readings run ahead of the spec's letter, flagged for the spec pass:
 
-- **The species rule is the prototype's spelling.** §13.4 says a conformance
-  failure "is thrown as its typed diagnostic at the table-write point, and it
-  arrives at the same catch site. There it is a species of `StepError`",
-  without saying how the catch site recognizes one. Here a `BuildError`
-  carrying exactly one diagnostic, thrown inside the sequence, arrives
-  unwrapped as that diagnostic — which keeps the catch site the only
+- **The species rule is the implementation's spelling.** §13.4 says a
+  conformance failure "is thrown as its typed diagnostic at the table-write
+  point, and it arrives at the same catch site. There it is a species of
+  `StepError`", without saying how the catch site recognizes one. Here a
+  `BuildError` carrying exactly one diagnostic, thrown inside the sequence,
+  arrives unwrapped as that diagnostic — which keeps the catch site the only
   `StepError` constructor while letting a runtime check throw its own kind. A
   multi-diagnostic carrier stays raw, having no single species.
 - **Boundary zero sits outside the catch.** `init!` and `replay!` run it as

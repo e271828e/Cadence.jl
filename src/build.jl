@@ -427,7 +427,7 @@ The activation at `T`: the nominal one directly, any other from the cache or by
 a Stratum-C re-run at first request (§9.4). An activation is a pure function of
 the build and the concrete scalar type, so caching is invisible; the spec's
 torn-state guarantee is normative for concurrent first requests, which this
-single-threaded prototype meets by having none.
+single-threaded implementation meets by having none.
 """
 function activation(b::Build, ::Type{T}) where {T}
     T === Float64 && return b.nominal

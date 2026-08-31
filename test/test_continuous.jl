@@ -1,4 +1,4 @@
-# --- the continuous walking skeleton (increment 2) ------------------------------
+# --- the continuous skeleton fixture (increment 2) ----------------------------
 
 function continuous_skeleton()
     @testset "the loop integrates the right trajectory" begin
