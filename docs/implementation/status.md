@@ -15,7 +15,15 @@ alone. On demand:
 
 Run the suite from the repository root:
 
-    julia --project=. test/runtests.jl
+    julia --project=test test/runtests.jl
+
+The suite has its own environment. `test/Project.toml` holds what only the
+tests need — `Test` and `BenchmarkTools` — and the package's own
+`[workspace] projects = ["test"]` makes it a workspace member (Julia 1.12), so
+one `Manifest.toml` at the root resolves both. `Cadence` needs no `develop`
+there, the two projects share one precompile cache, and a fresh clone
+instantiates once from either. `Pkg.test()` works too. No `Manifest.toml` is
+committed.
 
 `src/` is the `Cadence` package, so the first run after an `src/` edit pays a
 precompile of about 15 s on top of the suite's own time.
@@ -23,8 +31,9 @@ precompile of about 15 s on top of the suite's own time.
 Run it with `--startup-file=no` before trusting a green suite. A package
 loaded by the developer's `startup.jl` lands in `Main` ahead of the tests and
 masks a missing dependency: `BenchmarkTools`, which the 40 `@ballocated`
-assertions need, was dropped from `Project.toml` and the suite stayed green
-on the machine whose `startup.jl` loads it.
+assertions need, was once dropped from `Project.toml` and the suite stayed
+green on the machine whose `startup.jl` loads it. The declared test
+environment is the real guard; `--startup-file=no` is the cheap one.
 
 ## What is real here
 
