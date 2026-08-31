@@ -253,7 +253,7 @@ end
 # The component a path-addressed selector names. The treatment is
 # `_component`'s, one register over: the offender named plainly, an assembly
 # discriminated from a path that is nothing at all (candidate lists are absent
-# here, `status.md`).
+# here, `implementation.md`).
 function _read_component(s, label::Symbol, flat::Flat, viol::Vector{Diagnostic})
     i = findfirst(==(s.path), flat.paths)
     i === nothing || return i

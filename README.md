@@ -158,7 +158,7 @@ pipeline, execution with multi-rate scheduling and event localization, the
 runtime data plane with its trace and replay, error discipline, and the
 stopped-sim services including trimming. It runs 1803 tests green. Not built
 yet: the GUI write path, real-time pacing, linearization and mounting, and the
-control plane's pause surface. `docs/implementation/status.md` keeps the full
+control plane's pause surface. `docs/design/implementation.md` keeps the full
 list of what is absent and why.
 
 The package exports nothing so far. Which names are public API is a
@@ -166,12 +166,12 @@ spec-driven question, still open.
 
 ## Repository layout
 
-- `docs/design/` is the design. `spec.md` is normative, `decisions.md` is the
-  log, `companions/` holds worked explainers, and `tools/` holds the
-  consistency checkers and the two style guides. Read the matching style guide
-  before editing the spec or the log.
-- `docs/implementation/` covers the prototype. `status.md` orients a coding
-  session; read it before touching `src/`.
+- `docs/design/` holds the design and the prototype's register. `spec.md` is
+  normative, `decisions.md` is the log, `implementation.md` covers what `src/`
+  and `test/` actually build, `companions/` holds worked explainers, and
+  `tools/` holds the consistency checkers and the two style guides. Read the
+  matching style guide before editing the spec or the log, and
+  `implementation.md` before touching `src/`.
 - `src/` is the `Cadence` package, `test/` its suite.
 - `prototypes/` holds the frozen cell-store benchmark behind D-162 and a
   pre-design syntax sketch that no longer runs.

@@ -1,6 +1,6 @@
 # Implementation status
 
-The walking skeleton for the framework in `design/spec.md`,
+The walking skeleton for the framework in `spec.md`,
 built to keepable standards and grown one increment at a time — increments 2–24
 so far (increment 1, the cell-store bench, is frozen in `prototypes/cellstore_bench`;
 D-162 cites its numbers). This file is the prototype's one register. Read it

@@ -4,7 +4,7 @@
 # loop body, the pre-spawn init bracket and the tail. The control surface here
 # is §12.1's stop word, §12.3's counter-plus-condition wait and §12.6's
 # lifecycle with §13.5's termination record beside it: pause, pacing and the
-# operator interrupt are absent (`status.md`). A device
+# operator interrupt are absent (`implementation.md`). A device
 # failure reports as `DeviceCrash` into the device's own diagnostic cell
 # (§11.8, §12.4); what the tail alone produces — the join timeout, and
 # whatever landed past the final frame top — is folded into the termination
@@ -27,7 +27,7 @@ first named `stop_on` face observed holding, in declaration order.
 requesting device's name from `stop!(handle)`, or `:interrupt`, written by
 §13.4's carve-out when an `InterruptException` reaches the catch site (§12.4's
 masking and the operator-interrupt entry itself are still absent,
-`status.md`). `LoopError` is §13.6's abnormal entry, `exception` the retained
+`implementation.md`). `LoopError` is §13.6's abnormal entry, `exception` the retained
 cause — a `StepError` from the frame loop's one catch site (§13.4), which
 carries the raw cause in turn.
 """
@@ -143,7 +143,7 @@ the attachment's binding, read back by `binding(handle)`: the loop's own
 `map_input`/`map_output` calls take it from the handle instead of the device
 carrying its configuration (§11.6). `last_seen` is the §12.3 waiter's private
 register, refreshed at spawn so a run's first wait observes that run's
-boundaries. One unguarded edge (`status.md`): staging through a handle whose
+boundaries. One unguarded edge (`implementation.md`): staging through a handle whose
 device was detached lands in an orphaned cell and is silently lost — handles
 are run-scoped task equipment, and guarding would put a roster scan back
 into `stage!`.
@@ -402,7 +402,7 @@ end
 # loop last published; the sticky status flips only after it, and the notify
 # under the lock wakes every §12.3 waiter, whose predicate routes it out.
 # Idempotent, and run even when the loop leaves by a throw — the §13.6 catch
-# path is absent (`status.md`), but device tasks must never be left parked.
+# path is absent (`implementation.md`), but device tasks must never be left parked.
 function _finish!(sim)
     ctl = sim.control
     @atomic ctl.stopped = true

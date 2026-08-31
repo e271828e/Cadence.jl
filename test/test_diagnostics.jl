@@ -2,7 +2,7 @@
 # report! from the author's loop body, the per-writer single-writer cells with
 # their ring-plus-counts bound, the frame-top fold beside the staging drain,
 # the published status — delta plus totals, heartbeat and task_state — and the
-# run's-end sweep. The devices below live at top level for `status.md`'s
+# run's-end sweep. The devices below live at top level for `implementation.md`'s
 # local-scope reason.
 
 # A datum-stream parser: the §11.6 tolerance idiom verbatim — catch its own
@@ -521,7 +521,7 @@ function diagnostics_kind_set()
         @test sprint(showerror, BuildError(UnconnectedInput(path = "a", face = :v))) ==
               "BuildError: UnconnectedInput: " * message(UnconnectedInput(path = "a", face = :v))
 
-        # The did-you-mean list is carried, not ranked (`status.md`): the
+        # The did-you-mean list is carried, not ranked (`implementation.md`): the
         # candidates the site had in hand are printed, and no edit distance orders
         # them.
         m = message(UnknownPort(entry = "wires", end_ = :destination, path = "a/b",

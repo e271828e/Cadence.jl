@@ -5,7 +5,7 @@
 # boundary's first act and the replay pointer it names. The fixtures are library
 # components (`Tripwire`, `Mine`, `Landmine`, `Sapper`, `Primer`, `Interrupter`,
 # `Diverger`, `Consumer`, `LateDiverger`); the models below live at top level for
-# `status.md`'s local-scope reason.
+# `implementation.md`'s local-scope reason.
 
 # The interrupter armed by its own ramp: `q = t` crosses the trigger's level at
 # boundary 2, so frame 3's integrate is the first that raises the interrupt.

@@ -3,7 +3,7 @@
 # The five deferred reads, their resolution against a build in §13.1's
 # collecting register, the gather twin of `apply!` over an executor, and the
 # service that reads the committed world back as a condition. The fixtures live
-# at top level for `status.md`'s local-scope reason.
+# at top level for `implementation.md`'s local-scope reason.
 
 # Every home a read can come from, and nothing that fires: a continuous `x`
 # (the plant's `q`) with its derivative, a discrete `s` (the integrator's
