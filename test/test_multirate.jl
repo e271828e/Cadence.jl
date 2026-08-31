@@ -1,28 +1,8 @@
-# --- multi-rate: the two registers (§8.7, §10.5, D-185) -------------------------
+# --- multi-rate: the fold and the schedule it binds (§8.7, §9.1, §10.5) --------
+# The rate wrappers themselves are declaration-layer data (`test_declare.jl`);
+# what is here is everything positional they feed.
 
 function multirate_registers()
-    @testset "the wrappers are plain data over exact rationals (D-185)" begin
-        # `Period` and `Hz` are one quantity, two spellings, normalized at
-        # construction; floats are refused with the exact spelling named.
-        @test period(Hz(50)) === 1//50
-        @test period(Period(1//50)) === 1//50
-        @test period(Hz(1//2)) === 2//1
-        d1 = only(failure(() -> Period(0.02)).diagnostics)
-        @test d1 isa ArgumentInvalid && d1.call === :Period && d1.reason === :inexact
-        d2 = only(failure(() -> Hz(0.5)).diagnostics)
-        @test d2 isa ArgumentInvalid && d2.call === :Hz && d2.reason === :inexact
-        d3 = only(failure(() -> Absolute(Hz(50), 0.001)).diagnostics)
-        @test d3 isa ArgumentInvalid && d3.call === :Absolute && d3.reason === :inexact
-        d4 = only(failure(() -> Absolute(1//50)).diagnostics)
-        @test d4 isa ArgumentInvalid && d4.call === :Absolute && d4.reason === :not_a_quantity
-
-        # Plain data carriers: no range checks of their own — those are Stratum A's,
-        # with path attribution, at the fold.
-        @test Relative(5) === Relative(5, 0)
-        @test Relative(0).K == 0
-        @test Absolute(Period(0)).T == 0
-    end
-
     @testset "the fold validates with path attribution (§8.7, §9.1)" begin
         rated(rates) = Group((; c = TickCounter()); rates = rates)
 
