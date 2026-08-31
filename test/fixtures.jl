@@ -96,6 +96,29 @@ h_s(::TickCounter, (; s)) = (n = s.n, even = iseven(s.n))
 g(::TickCounter, (; s)) = (n = s.n + 1,)
 
 """
+Stateful discrete leaf whose update law is what decides its tier: `g` present, a
+two-argument contract. The classifier's positive case, and the discrete half of
+the bundle law.
+"""
+struct DiscreteCounter <: AbstractComponent end
+
+init_s(::DiscreteCounter) = (n = 0,)
+output_types(::DiscreteCounter) = (n = Int,)
+
+h_s(::DiscreteCounter, (; s)) = (n = s.n,)
+g(::DiscreteCounter, (; s)) = (n = s.n + 1,)
+
+"""
+Stateless discrete leaf: no store, so the contract arity alone decides the tier.
+"""
+struct DiscreteMap <: AbstractComponent end
+
+input_types(::DiscreteMap) = (a = Int,)
+output_types(::DiscreteMap) = (b = Int,)
+
+h_su(::DiscreteMap, (; u)) = (b = 2u.a,)
+
+"""
 Two-channel exponential smoother, written in §7.3's blessed idiom: the in-place
 math runs on the workspace, and what reaches the store is an isbits snapshot.
 Nothing carries between calls — the scratch is garbage until written.

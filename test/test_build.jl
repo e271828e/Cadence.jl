@@ -107,21 +107,10 @@ function build_root_input_type()
 end
 
 # --- tier classification (§8.2) -----------------------------------------------
-# Tier is read off the declaration shape. These components are the shapes the
-# classifier has to separate, plus the four ways a declaration set can disagree.
-
-struct DiscreteCounter <: AbstractComponent   # stateful discrete: `g` decides
-end
-init_s(::DiscreteCounter) = (n = 0,)
-output_types(::DiscreteCounter) = (n = Int,)
-h_s(::DiscreteCounter, (; s)) = (n = s.n,)
-g(::DiscreteCounter, (; s)) = (n = s.n + 1,)
-
-struct DiscreteMap <: AbstractComponent       # stateless discrete: the arity decides
-end
-input_types(::DiscreteMap) = (a = Int,)
-output_types(::DiscreteMap) = (b = Int,)
-h_su(::DiscreteMap, (; u)) = (b = 2u.a,)
+# Tier is read off the declaration shape. `DiscreteCounter` and `DiscreteMap` are
+# the two shapes the classifier has to separate (`fixtures.jl`, shared with the
+# bundle law in `test_declare.jl`); these are the four ways a declaration set can
+# disagree.
 
 struct BothUpdates <: AbstractComponent       # `f` and `g` on one component
 end
@@ -167,14 +156,6 @@ function build_tier()
         @test classify_tier("c", Gain(1.0)) === CONTINUOUS
         @test classify_tier("c", DiscreteCounter()) === DISCRETE
         @test classify_tier("c", DiscreteMap()) === DISCRETE
-
-        # The discrete bundle sets: `Δt` is a discrete-tier fact, `m` a continuous
-        # one, and the state letters are the tiers' own — `s`/`y_s` here against
-        # `x`/`y_x` above, disjoint by construction (D-195).
-        @test bundle_names(h_s, DiscreteCounter(), DISCRETE, ()) === (:s, :t, :Δt)
-        @test bundle_names(g, DiscreteCounter(), DISCRETE, (:n,)) === (:s, :y, :t, :Δt)
-        @test bundle_names(h_su, DiscreteMap(), DISCRETE, ()) === (:u, :t, :Δt)
-        @test bundle_names(h_su, DiscreteCounter(), DISCRETE, (:n,)) === (:s, :y_s, :t, :Δt)
 
         # Disagreement names the offending declaration and the tier the rest
         # announce — including the wrong-letter case the split families restore, a
