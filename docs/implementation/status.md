@@ -3,15 +3,11 @@
 The walking skeleton for the framework in `design/spec.md`,
 built to keepable standards and grown one increment at a time — increments 2–24
 so far (increment 1, the cell-store bench, is frozen in `prototypes/cellstore_bench`;
-D-162 cites its numbers). This file is the orientation; read it first and
-alone. On demand:
-
-- `map.md` — what each source file implements, piece by piece, with spec
-  citations: the long form of the table below, the long absence list, and the
-  long form of the authoring trap.
-- `tests.md` — the property-by-property record of what the tests pin down. Read
-  it when modifying an existing test or wondering why one asserts what it does;
-  new increments add their property bullets there.
+D-162 cites its numbers). This file is the prototype's one register. Read it
+first, and alone. Beside it, on demand, `tests.md` holds the
+property-by-property record of what the tests pin down — read that when
+modifying an existing test or wondering why one asserts what it does, and add
+a property bullet there with each new increment.
 
 ## Running the suite
 
@@ -54,7 +50,7 @@ else.
 ## What is real here
 
 One line per file: which constructs live where, and the sections they answer
-to. `map.md` is the same table in full.
+to. For more than a line, read the file itself and the sections it cites.
 
 | file | implements | spec |
 | --- | --- | --- |
@@ -85,7 +81,8 @@ against the indexed grid time because that is the claim.
 
 ## What is deliberately absent
 
-The long form, with reasons, is in `map.md`. In brief:
+Absent by decision, not by oversight. Where the reason is not given here, the
+cited decision carries it:
 
 - **The Appendix C kinds whose mechanism is absent** — an absence gets no
   struct (`ThreadBudget`, `DeadStage`, `BundleFieldError`, `UserCodeFraming`,
