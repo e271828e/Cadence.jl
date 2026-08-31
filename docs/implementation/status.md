@@ -18,12 +18,11 @@ Run the suite from the repository root:
     julia --project=test test/runtests.jl
 
 The suite has its own environment. `test/Project.toml` holds what only the
-tests need — `Test` and `BenchmarkTools` — and the package's own
-`[workspace] projects = ["test"]` makes it a workspace member (Julia 1.12), so
-one `Manifest.toml` at the root resolves both. `Cadence` needs no `develop`
+tests need — `Test`, `BenchmarkTools`, `InteractiveUtils` — and the package's
+own `[workspace] projects = ["test"]` makes it a workspace member (Julia 1.12),
+so one `Manifest.toml` at the root resolves both. `Cadence` needs no `develop`
 there, the two projects share one precompile cache, and a fresh clone
-instantiates once from either. `Pkg.test()` works too. No `Manifest.toml` is
-committed.
+instantiates once from either. No `Manifest.toml` is committed.
 
 The suite is the `CadenceTests` module in `test/CadenceTests.jl`: the includes,
 the `import Cadence:` list and `runall()`, which groups the files into the five
@@ -34,12 +33,22 @@ milliseconds once compiled.
 `src/` is the `Cadence` package, so the first run after an `src/` edit pays a
 precompile of about 15 s on top of the suite's own time.
 
-Run it with `--startup-file=no` before trusting a green suite. A package
-loaded by the developer's `startup.jl` lands in `Main` ahead of the tests and
-masks a missing dependency: `BenchmarkTools`, which the 40 `@ballocated`
-assertions need, was once dropped from `Project.toml` and the suite stayed
-green on the machine whose `startup.jl` loads it. The declared test
-environment is the real guard; `--startup-file=no` is the cheap one.
+**The command above is the iteration loop, not the gate. Before trusting a
+green suite, run**
+
+    julia --project=. -e 'using Pkg; Pkg.test()'
+
+which is stricter, and slower for it. Three ambient sources can satisfy a
+dependency the suite never declared, and each has masked one: a package the
+developer's `startup.jl` loads into `Main` ahead of the tests (`BenchmarkTools`
+was once dropped from `Project.toml` and the suite stayed green on that
+machine); the developer's own default environment, and the stdlib directory,
+both of which `--project=test` leaves on the load path (`InteractiveUtils`,
+which `test_diagnostics.jl` reaches for `subtypes`, went undeclared and only
+`Pkg.test()` said so). `Pkg.test()` runs in a sandbox holding the declared
+dependencies alone, with `--startup-file=no` and `--check-bounds=yes`; the
+suite is green under bounds checking, so that costs a separate precompile of
+the tree and nothing else.
 
 ## What is real here
 
