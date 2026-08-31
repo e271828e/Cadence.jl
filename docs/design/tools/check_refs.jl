@@ -48,6 +48,10 @@ const DECISIONS = "decisions.md"
 
 const COMPANIONS = ["decisions.md",
                     "extensions.md",
+                    # The prototype's register. Checked here and in
+                    # check_rows.jl, but deliberately out of linkify.jl's
+                    # roster: its citations stay plain, as decisions.md's do.
+                    "implementation.md",
                     "companions/event_visibility_walkthrough.md",
                     "companions/inbound_periphery_walkthrough.md",
                     "companions/trim_environment_walkthrough.md",

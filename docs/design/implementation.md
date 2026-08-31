@@ -148,8 +148,10 @@ cited decision carries it:
 for the design's is in exactly one of three places: the table above, the
 absence list, or a row here naming the spec shape it replaces. Transactional:
 the commit introducing a stand-in adds its row, the one retiring it deletes
-it. No tooling enforces this (`src/` and `test/` are outside the design tools'
-rosters); the diff review is the enforcement.
+it. `check_refs.jl` and `check_rows.jl` read this file, so every `§N` and
+`D-nnn` below resolves or the tools go red. The rule itself is unenforceable —
+no tool can see a deviation nobody wrote down — and `src/` and `test/` sit
+outside every roster, so the diff review is what holds it.
 
 | spec shape | stand-in here | retirement |
 | --- | --- | --- |
