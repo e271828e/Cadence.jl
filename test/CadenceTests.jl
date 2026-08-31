@@ -83,45 +83,46 @@ include("test_failures.jl")
 include("test_lifecycle.jl")
 
 """
-Run the whole suite, grouped. `verbose = true` on the root and the groups
-prints one row per file on a green run; add it to a file's own testset to see
-its leaves. One file's tests are callable on their own: `test_trace()`.
+Run one file's tests in a testset named `name` and print its summary as soon as
+it completes. A nested testset stays silent until the root prints the whole
+tree, so the summary is printed here by hand. The results still reach the
+parent, so the final hierarchy is unchanged.
+"""
+function live(name, f)
+    ts = @testset "$name" begin f() end
+    Test.print_test_results(ts)
+end
+
+"""
+Run the whole suite. Each file's summary prints as the file completes. The root
+prints the total at the end, and expands only where something failed. One
+file's tests are callable on their own: `test_trace()`.
 """
 function runall()
-    @testset verbose = true "Cadence" begin
-        @testset verbose = true "assembly and build" begin
-            @testset "leaves"       begin test_leaves()       end
-            @testset "declare"      begin test_declare()      end
-            @testset "assembly"     begin test_assembly()     end
-            @testset "store"        begin test_store()        end
-            @testset "build"        begin test_build()        end
-        end
-        @testset verbose = true "execution" begin
-            @testset "executor"     begin test_executor()     end
-            @testset "continuous"   begin test_continuous()   end
-            @testset "discrete"     begin test_discrete()     end
-            @testset "stepper"      begin test_stepper()      end
-            @testset "events"       begin test_events()       end
-            @testset "localization" begin test_localization() end
-        end
-        @testset verbose = true "data plane" begin
-            @testset "dataplane"    begin test_dataplane()    end
-            @testset "roster"       begin test_roster()       end
-            @testset "bindings"     begin test_bindings()     end
-            @testset "devices"      begin test_devices()      end
-            @testset "log"          begin test_log()          end
-            @testset "trace"        begin test_trace()        end
-            @testset "readers"      begin test_readers()      end
-        end
-        @testset verbose = true "analysis" begin
-            @testset "conditions"   begin test_conditions()   end
-            @testset "trim"         begin test_trim()         end
-        end
-        @testset verbose = true "errors and lifecycle" begin
-            @testset "diagnostics"  begin test_diagnostics()  end
-            @testset "failures"     begin test_failures()     end
-            @testset "lifecycle"    begin test_lifecycle()    end
-        end
+    @testset "Cadence" begin
+        live("leaves",       test_leaves)
+        live("declare",      test_declare)
+        live("assembly",     test_assembly)
+        live("store",        test_store)
+        live("build",        test_build)
+        live("executor",     test_executor)
+        live("continuous",   test_continuous)
+        live("discrete",     test_discrete)
+        live("stepper",      test_stepper)
+        live("events",       test_events)
+        live("localization", test_localization)
+        live("dataplane",    test_dataplane)
+        live("roster",       test_roster)
+        live("bindings",     test_bindings)
+        live("devices",      test_devices)
+        live("log",          test_log)
+        live("trace",        test_trace)
+        live("readers",      test_readers)
+        live("conditions",   test_conditions)
+        live("trim",         test_trim)
+        live("diagnostics",  test_diagnostics)
+        live("failures",     test_failures)
+        live("lifecycle",    test_lifecycle)
     end
 end
 
@@ -139,9 +140,9 @@ function runonly(names::AbstractString...)
         isdefined(@__MODULE__, s) || error("no tests named `$n` (`runall` names them)")
         getfield(@__MODULE__, s)
     end
-    @testset verbose = true "selected" begin
+    @testset "selected" begin
         for (n, f) in zip(names, fs)
-            @testset "$n" begin f() end
+            live(n, f)
         end
     end
 end

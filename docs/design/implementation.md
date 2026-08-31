@@ -16,11 +16,12 @@ From the repository root:
     julia --project=test test/runtests.jl roster devices trace   # named files
 
 The suite is the `CadenceTests` module in `test/CadenceTests.jl`: the includes,
-the `import Cadence:` list, `runall()` — the grouped tree the summary shows —
-and `runonly(names...)`. Each file's tests are one function, which is what the
-second form runs. The tests are their own workspace member (`[workspace]
-projects = ["test"]`, Julia 1.12), so one root `Manifest.toml` resolves both
-and `Cadence` needs no `develop`. No `Manifest.toml` is committed.
+the `import Cadence:` list, `runall()` — every file in order, each printing its
+summary as it completes — and `runonly(names...)`. Each file's tests are one
+function, which is what the second form runs. The tests are their own workspace
+member (`[workspace] projects = ["test"]`, Julia 1.12), so one root
+`Manifest.toml` resolves both and `Cadence` needs no `develop`. No
+`Manifest.toml` is committed.
 
 The full run costs about 5 min. A cold process spends about 30 s before the
 first file's tests run and little per file after, so name a generous set
