@@ -109,7 +109,7 @@ end
 # curated, meaning-stable under substitution (§11.2). `get_input` reads a root
 # input back, the source cell it is. What this register does not take is depth
 # *inside* a cell: a binding read is a whole cell, as every reader of the
-# published table is (`implementation.md`).
+# published table is (`pending.md`).
 
 """
 The compiled gather (§11.2, §14.4): one attachment's `reads`, resolved and
@@ -133,7 +133,7 @@ binding that drifted from its model fails there, not with silent garbage on
 the wire. The shape is fixed: `reads` returns a NamedTuple of labeled
 selectors, `(; label = get_output(...), ...)`, and the labels are the
 NamedTuple `map_output` receives. Every failure names the selector at fault;
-the did-you-mean candidate lists are absent (`implementation.md`).
+the did-you-mean candidate lists are absent (`pending.md`).
 """
 function _compile_gather(layout::Layout, nt, T::Type)
     nt isa NamedTuple || throw(BuildError(

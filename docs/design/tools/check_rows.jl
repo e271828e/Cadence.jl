@@ -31,7 +31,8 @@ const BASELINE = joinpath(@__DIR__, "row_baseline.txt")
 const FILES = [SPEC,
                DECISIONS,   # rows cite each other; those pointers dangle too
                "extensions.md",
-               "implementation.md",   # the implementation's register
+               "implementation.md",   # the implementation's register,
+               "pending.md",          # both halves
                "companions/sample_time_proposal.md",
                "companions/event_visibility_walkthrough.md",
                "companions/inbound_periphery_walkthrough.md",

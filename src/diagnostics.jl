@@ -956,7 +956,7 @@ function message(d::ReadBindingUnresolved)
                "declare the field public and read the port published from it"
     d.reason === :indexed &&
         return "$(d.binding) reads $(d.selector) — a binding read is a whole cell, and " *
-               "sub-cell index addressing is absent in this register (§14.4, docs/design/implementation.md)"
+               "sub-cell index addressing is absent in this register (§14.4, docs/design/pending.md)"
     d.reason === :unknown_cell &&
         return "$(d.binding) reads $(d.selector), which names no cell — only declared " *
                "outputs, assembly faces and root inputs are addressable (§14.4)"

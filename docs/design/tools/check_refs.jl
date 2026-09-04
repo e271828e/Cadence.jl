@@ -49,17 +49,18 @@ const DECISIONS = "decisions.md"
 
 # Every file scanned besides `spec.md`, which the loop below splices on. This
 # is the checked-file roster, not the `companions/` taxonomy: `decisions.md`,
-# `extensions.md` and `implementation.md` are members because their own
-# citations can dangle, and dropping one silently unchecks that whole file.
+# `extensions.md`, `implementation.md` and `pending.md` are members because
+# their own citations can dangle, and dropping one silently unchecks that
+# whole file.
 # `decisions.md` is also `DECISIONS` above, in the other role — the anchor pool
 # a link *into* the log resolves against.
 const ROSTER = [DECISIONS,
                 "extensions.md",
-                # The implementation's register. Checked here and in
-                # check_rows.jl,
-                # but deliberately out of linkify.jl's roster: its citations
-                # stay plain, as decisions.md's do.
+                # The implementation's register, both halves. Checked here
+                # and in check_rows.jl, but deliberately out of linkify.jl's
+                # roster: their citations stay plain, as decisions.md's do.
                 "implementation.md",
+                "pending.md",
                 "companions/event_visibility_walkthrough.md",
                 "companions/inbound_periphery_walkthrough.md",
                 "companions/trim_environment_walkthrough.md",

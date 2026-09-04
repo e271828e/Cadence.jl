@@ -521,7 +521,7 @@ function diagnostics_kind_set()
         @test sprint(showerror, BuildError(UnconnectedInput(path = "a", face = :v))) ==
               "BuildError: UnconnectedInput: " * message(UnconnectedInput(path = "a", face = :v))
 
-        # The did-you-mean list is carried, not ranked (`implementation.md`): the
+        # The did-you-mean list is carried, not ranked (`pending.md`): the
         # candidates the site had in hand are printed, and no edit distance orders
         # them.
         m = message(UnknownPort(entry = "wires", end_ = :destination, path = "a/b",
