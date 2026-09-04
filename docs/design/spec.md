@@ -8926,7 +8926,7 @@ each of those features under the decoder interfaces.
   core's stage-1 [ports](#g-port).)
 - `output_direct` runs the lookup chain and the mode branch once.
   `state_derivative` is a three-field
-  copy (`ω̇`, `ẋ_idle`, `ẋ_frc`). Under the orthodox split, `state_derivative` would reproduce
+  copy (`ω̇`, `ẋ_idle`, `ẋ_frc`). Under the orthodox split, `f(x, u, t)` would reproduce
   essentially the whole `f_ode!` body — four lookups and the mode branch — ×4
   RK stages per step ([D-015][d-015]).
 - `f_step!`'s transitions become [boundary-detected](#g-boundary-detected) events with mixed [predicate](#g-predicate)/threshold [guards](#g-guard)
@@ -10393,7 +10393,7 @@ words the API spells them as ([D-220][d-220]): `f` the continuous flow
 bundle letters are API in their own right: `x` the continuous
 state and `m` the continuous-only mode store, `s` the discrete state ([D-195][d-195]),
 `u` wired inputs, `y` own published signals, `ws` the
-workspace. Bare `h` means the integration step size only ([§5.3][s5-3], [§10][s10]);
+workspace. Bare `h` means the integration step size only ([§10][s10]);
 bare `z` means only the shift operator `z⁻¹` — retired as a state letter by
 [D-173][d-173] and never reclaimed, the discrete state having its own.
 

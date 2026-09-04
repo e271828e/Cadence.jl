@@ -337,7 +337,7 @@ end
 The boundary macro-sequence at a base tick, final form (§5.3, §10.6):
 
 > integrate → project → [sweep → guards → handlers] iterated to quiescence
-> (under the firing budget) → all due `state_update` updates
+> (under the firing budget) → all due `state_update` calls
 
 Integration has just written the state, so projection runs first — between the
 write and its decode; the event phase then iterates with the due set fixed for
@@ -381,7 +381,7 @@ walk — so the `t₀` snapshot carries the authored world fully evaluated and n
 published cell holds the probe's synthesized values (§14.6's barrier extended
 from the root inputs to the whole table).
 
-The `state_update` updates keep the ordinary gate at index 0, which under the
+The `state_update` calls keep the ordinary gate at index 0, which under the
 canonical residue admits exactly `Φ = 0` (§10.5): that evaluation is
 establishment, not a scheduled sample, and an offset component's first
 *consumed* sample stays its `Φ·Δt_base` tick's. A component frozen at a
@@ -572,7 +572,7 @@ component (§14.5).
 
 Boundary zero is an ordinary boundary with an empty integrate (§10.5, §14.5),
 run with the sweep's one amendment: every discrete output stage publishes,
-due or not (D-205, `boundary_zero!`), while the `state_update` updates keep
+due or not (D-205, `boundary_zero!`), while the `state_update` calls keep
 the gate at index 0 — which admits exactly the components with `Φ = 0`,
 implemented by nothing.
 

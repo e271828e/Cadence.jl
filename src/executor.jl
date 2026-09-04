@@ -30,10 +30,10 @@ end
 
 # --- entries ------------------------------------------------------------------
 # Three kinds, by where the product goes: a stage entry writes cells (both
-# tiers — one entry type carries either tier's stage function, whose names are
-# disjoint, D-195), an RHS entry writes the flat `ẋ` buffer, an update entry
-# writes its own discrete state store. All build their §5.2 bundle the same way,
-# from `BN` — the bundle name set the law fixed at build time.
+# tiers — one entry type carries either tier's output stage, one shared pair of
+# names over both tiers (D-220), an RHS entry writes the flat `ẋ` buffer, an
+# update entry writes its own discrete state store. All build their §5.2 bundle
+# the same way, from `BN` — the bundle name set the law fixed at build time.
 #
 # What selects code sits in type parameters, what varies per instance in fields
 # (§9.7): the state store is a `Ref` whose *type* is shared by every instance of

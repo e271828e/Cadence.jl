@@ -362,9 +362,8 @@ end
 path(d::EventHalfMissing) = d.path
 message(d::EventHalfMissing) =
     d.reason === :not_an_event ?
-    "`$(d.path)`: `state_events` entry `$(d.event)` is $(d.found) — the entry is not a " *
-    "`StateEvent`, which is `StateEvent(guard, handler)`, with no detection keyword " *
-    "(§8.2)" :
+    "`$(d.path)`: `state_events` entry `$(d.event)` is $(d.found) — an entry is " *
+    "`StateEvent(guard, handler)`, with no detection keyword (§8.2)" :
     "`$(d.path)`: event `$(d.event)`'s $(d.reason) has no method for $(d.found) — an " *
     "event needs both halves (§8.2)"
 

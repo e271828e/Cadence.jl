@@ -7772,14 +7772,13 @@ mathematical symbols.
   continuous, `(::C)` discrete.
 - Anything naming a Julia method takes the new word; a symbol in an equation or
   a name for a mathematical object keeps its letter.
-
-**What stays.** Every bundle field (`x, s, m, u, y, y_x, y_s, t, Δt, ws`); the
-`guard`/`handler` halves and the word "event" in prose; `init_x`, `init_s`,
-`init_m`, `input_types`, `output_types`, `sample_times` and the connection
-declarations; the stage-numbered sweep names of [D-196][d-196]; the executor's phase
-symbol `:project`; the diagnostic kind names, `EventHalfMissing` included. No
-aliases and no deprecation shims: there are no external users, and a
-half-renamed surface is the ambiguity this entry removes.
+- What stays: every bundle field (`x, s, m, u, y, y_x, y_s, t, Δt, ws`); the
+  `guard`/`handler` halves and the word "event" in prose; `init_x`, `init_s`,
+  `init_m`, `input_types`, `output_types`, `sample_times` and the connection
+  declarations; the stage-numbered sweep names of [D-196][d-196]; the executor's
+  phase symbol `:project`; the diagnostic kind names, `EventHalfMissing`
+  included. No aliases and no deprecation shims: there are no external users,
+  and a half-renamed surface is the ambiguity this entry removes.
 
 **Spec.** [§2.1][s2-1], [§3.2][s3-2], [§4.3][s4-3], [§4.4][s4-4], [§5.2][s5-2], [§5.3][s5-3], [§5.4][s5-4], [§6.2][s6-2], [§7.1][s7-1], [§7.3][s7-3], [§7.4][s7-4],
 [§7.5][s7-5], [§8.1][s8-1], [§8.2][s8-2], [§8.5][s8-5], [§9.3][s9-3], [§9.4][s9-4], [§9.5][s9-5], [§9.7][s9-7], [§10.4][s10-4], [§10.5][s10-5], [§10.6][s10-6], [§12.5][s12-5],
@@ -7822,7 +7821,11 @@ already means *establish* — the device contract's `init!` — rather than
 *initial value*, and `init_x`'s own value is a default that conditions overlay.
 [D-077][d-077]'s position, declaration by allocation called per activation and per
 scratch-store set, stands unchanged. Both entries keep `ratified`: the log has
-no partial status, and neither position is replaced.
+no partial status, and neither position is replaced. [D-144][d-144]'s naming
+register is amended rather than retired: its register 1 reads *noun phrases*
+from here, the stage and update-law names no longer being bare nouns, and the
+`workspace` item it flagged for the [§16][s16] audit is settled by this entry.
+[D-144][d-144] keeps `ratified` for the same reason.
 
 `state_events` also names the distinction [§2.1][s2-1] now teaches. The discrete
 tier's ticks, declared by `sample_times`, are *time events*, scheduled because

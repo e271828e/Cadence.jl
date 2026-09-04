@@ -30,7 +30,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | periodic discrete component | g-periodic-discrete-component | 0 | — | a leaf updating at a declared rate, holding between ticks |
 | rate scope | g-rate-scope | 4 | A | an assembly's `sample_times` declaration against the enclosing scope |
 | schema authority | g-schema-authority | 2 | A | declarations define structure; evaluation only checks conformance |
-| stage function / two-stage outputs | g-stage-function | 5 | A | `h_x` or `h_xu`, the two output stages every component provides |
+| stage function / two-stage outputs | g-stage-function | 5 | A | `output_state` or `output_direct`, the two output stages every component provides |
 | workspace | g-workspace | 6 | A | component-declared mutable scratch arriving as the `ws` bundle field |
 
 ## D.2 Signals and data homes
@@ -61,9 +61,9 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | term | anchor | n | class | gloss |
 |---|---|---|---|---|
 | algebraic loop | g-algebraic-loop | 2 | B | a genuine cycle in the instantaneous dependency graph |
-| flow / RHS | g-flow | 11 | B | `f`, the continuous derivative function |
+| flow / RHS | g-flow | 11 | B | `state_derivative`, the continuous derivative function, `f` in the formulas |
 | frame | g-frame | 7 | A | one iteration of the loop: drain, integrate, boundary, publication |
-| projection | g-projection | 10 | B | the optional per-component hook `x ← project(x)` |
+| projection | g-projection | 10 | B | the optional per-component hook `x ← state_projection(x)` |
 | schedule | g-schedule | 17 | B | the static evaluation order computed once at build time |
 | sweep | g-sweep | 41 | B | one execution of the schedule against the current state |
 
@@ -91,9 +91,11 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | prior | g-prior | 6 | A | the event's stored predicate sample from the previous boundary |
 | quiescence | g-quiescence | 5 | A | the fixed point where a round of handlers fires nothing |
 | remainder step | g-remainder-step | 1 | A | the integration from `t*` to the original grid target |
+| state event | g-state-event | 1 | B | an event whose instant is unknown in advance and must be detected |
 | `t*` | g-t | 0 | — | the localized event time, structurally strictly later than `tₙ` |
 | tick | g-tick | 28 | B | an instant at which a discrete component's stages run |
 | tier | g-tier | 28 | B | the continuous or discrete side of the hybrid formalism |
+| time event | g-time-event | 1 | B | an event whose instant is known in advance and scheduled: the discrete tier's ticks |
 
 ## D.5 Build pipeline
 

@@ -25,8 +25,9 @@ A model is a tree of components over one hybrid formalism:
   and costs one evaluation per event per step. A sign-valued guard has its
   crossing instant located by root-finding, for the events where timing
   matters.
-- **Manifold projection**: an optional `x ← project(x)` after each accepted
-  step, for quaternion renormalization and anything else manifold-valued.
+- **Manifold projection**: an optional `x ← state_projection(x)` after each
+  accepted step, for quaternion renormalization and anything else
+  manifold-valued.
 - **External inputs**, injected asynchronously by the runtime from devices,
   the network or a GUI.
 
@@ -40,7 +41,8 @@ declared by methods on a small set of framework generic functions, defined
 beside the stage functions that compute with them:
 
 ```julia
-import Cadence: AbstractComponent, init_x, input_types, output_types, h_x, h_xu, f
+import Cadence: AbstractComponent, init_x, input_types, output_types,
+    output_state, output_direct, state_derivative
 
 struct Oscillator <: AbstractComponent
     ω::Float64
@@ -51,10 +53,10 @@ init_x(::Oscillator) = (q = SVector(0.0, 0.0),)
 input_types(::Oscillator, ::Type{T}) where {T <: Real} = (u = T,)
 output_types(::Oscillator, ::Type{T}) where {T <: Real} = (y = T, power = T)
 
-h_x(::Oscillator, (; x)) = (y = x.q[1],)               # stage 1: state only
-h_xu(::Oscillator, (; x, u)) = (power = u.u * x.q[2],) # stage 2: feeds through
+output_state(::Oscillator, (; x)) = (y = x.q[1],)              # stage 1: state only
+output_direct(::Oscillator, (; x, u)) = (power = u.u * x.q[2],) # stage 2: feeds through
 
-f(c::Oscillator, (; x, u)) =
+state_derivative(c::Oscillator, (; x, u)) =
     (q = SVector(x.q[2], -c.ω^2 * x.q[1] - 2c.ζ * c.ω * x.q[2] + u.u),)
 ```
 
@@ -63,20 +65,20 @@ Three things in that listing carry weight.
 The `import` line is authoring surface, not boilerplate. A component author
 *extends* the framework's generics rather than calling them, and Julia admits
 that only through an explicit per-name import. A bare `using` would leave
-`f(::Oscillator, …)` defining a new unrelated function, silently, so the list
-is written wherever a component is. Everything used further down — `Group`,
-`Simulation`, `run!` — is imported the same way, the package exporting nothing
-so far.
+`state_derivative(::Oscillator, …)` defining a new unrelated function,
+silently, so the list is written wherever a component is. Everything used
+further down — `Group`, `Simulation`, `run!` — is imported the same way, the
+package exporting nothing so far.
 
 The declarations are the schema. `output_types` defines what the component
 publishes; the build probes the stage functions with real values and checks
 what they return against it. Types by declaration, values by execution,
 conformance by comparison, never the reverse.
 
-Outputs come in two stages. `h_x` sees state and time but no inputs, so
-nothing consuming it acquires a dependence on this component's inputs. `h_xu`
-sees inputs and feeds through. That distinction is what the next section is
-about.
+Outputs come in two stages. `output_state` sees state and time but no inputs,
+so nothing consuming it acquires a dependence on this component's inputs.
+`output_direct` sees inputs and feeds through. That distinction is what the
+next section is about.
 
 ## Composition, and what the build makes of it
 
@@ -103,8 +105,8 @@ Route the feedback through the stage-2 port instead, and the model is refused:
 ```julia
 julia> build(loop("power"))
 ERROR: BuildError: AlgebraicCycle: algebraic loop through stage-2 ports:
-plant → ctl → sum — break it with a stage-1 (`h_x`/`h_s`) port, which carries
-no input dependence (§5.4/§5.5)
+plant → ctl → sum — break it with a stage-1 (`output_state`) port, which
+carries no input dependence (§5.4/§5.5)
 ```
 
 Refusals are like that throughout. A diagnostic is a value with a kind and a

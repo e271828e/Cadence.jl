@@ -63,9 +63,10 @@ output_types(::Sum, ::Type{T}) where {T <: Real} = (e = T,)
 output_direct(c::Sum, (; u)) = (e = c.sa * u.a + c.sb * u.b,)
 
 # --- the discrete tier --------------------------------------------------------
-# The tier's own name family (D-195) — `init_s`, `output_state`/`output_direct`, `state_update` — beside the
-# plain declaration arities (D-166/D-167): these components declare the pinned
-# world, and nothing about them walks with the activation.
+# The tier's own store and update law (D-195) — `init_s`, `state_update` — with
+# the shared output stages (D-220), beside the plain declaration arities
+# (D-166/D-167): these components declare the pinned world, and nothing about
+# them walks with the activation.
 
 """
 Discrete integrator: publishes its state from **stage 1** — the loop-breaking
