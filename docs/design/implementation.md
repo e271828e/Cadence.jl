@@ -1,61 +1,12 @@
 # Implementation status
 
 The implementation of the framework in `spec.md`, grown one increment at a
-time — increments 2–24 so far (increment 1, the cell-store bench, is frozen in
+time (increment 1, the cell-store bench, is frozen in
 `prototypes/cellstore_bench`; D-162 cites its numbers). Spec and code are
-peers: neither is subservient, and both are kept in agreement. This file and
-`pending.md` are the implementation's register. Read this one first, and
-alone. Why a given test asserts what it does is carried by the suite itself:
-every testset name states its property and cites the section it answers to,
-and the comments carry the reasoning.
-
-## Running the suite
-
-From the repository root:
-
-    julia --project=test test/runtests.jl                        # all of it
-    julia --project=test test/runtests.jl roster devices trace   # named files
-
-The suite is the `CadenceTests` module in `test/CadenceTests.jl`: the includes,
-the `import Cadence:` list, `runall()` — every file in order, each printing its
-summary as it completes — and `runonly(names...)`. Each file's tests are one
-function, which is what the second form runs. The tests are their own workspace
-member (`[workspace] projects = ["test"]`, Julia 1.12), so one root
-`Manifest.toml` resolves both and `Cadence` needs no `develop`. No
-`Manifest.toml` is committed.
-
-One module, not one per file. Per-file submodules were weighed and dropped:
-`Main` pollution was the friction, and the single `CadenceTests` module ends
-it, so twenty import preambles would have bought only namespace subdivision, at
-twenty new chances to hit the shadowing trap under *Authoring caveats*.
-
-To check a refactor for test loss, compare the suite's own assertion total —
-2025 today. `grep -c '@test '` counts source lines (1391) and misses the loops
-that multiply them.
-
-The full run costs about 5 min. A cold process spends about 30 s before the
-first file's tests run and little per file after, so name a generous set
-rather than a minimal one; going finer than a file buys nothing against that
-floor. In a live session re-running one file's function
-(`CadenceTests.test_trace()`) is the tightest loop there is. An `src/` edit
-adds a precompile of about 15 s to the first run after it.
-
-Which test files a change can reach is a guess off the table below; the gate
-is what makes a wrong one harmless. `sim.jl`, `store.jl` and `diagnostics.jl`
-are cross-cutting and mean all of it.
-
-**None of the above is the gate. Before trusting a green suite, run**
-
-    julia --project=. -e 'using Pkg; Pkg.test()'
-
-which is stricter, and slower for it. `--project=test` leaves three ambient
-sources on the load path that can satisfy a dependency the suite never
-declared — packages the developer's `startup.jl` loads into `Main`, the
-default environment, and the stdlib directory — and each has already masked
-one. `Pkg.test()` runs in a sandbox holding the declared dependencies alone,
-with `--startup-file=no` and `--check-bounds=yes`; the suite is green under
-bounds checking, so that costs a separate precompile of the tree and nothing
-else.
+peers: neither is subservient, and both are kept in agreement. This file is
+the map and the traps; `pending.md` is what the code still owes the spec. Why
+a given test asserts what it does is carried by the suite itself: every
+testset name states its property and cites the section it answers to.
 
 ## What is real here
 
@@ -96,31 +47,13 @@ shape it replaces. The rule itself is unenforceable — no tool can see a
 deviation nobody wrote down — and `src/` and `test/` sit outside every
 roster, so the diff review is what holds it.
 
-## Why `test/` does not mirror `src/`
-
-23 test files against 18 testable source files, 17 of them paired by name. The
-remainder is deliberate; do not "finish" it.
-
-`sim.jl` has no `test_sim.jl` and should not get one. It is 1550 lines
-answering to some twenty spec sections, and a 1:1 rule would collapse `log`,
-`lifecycle`, `failures`, `localization` and the loop halves of `discrete`,
-`multirate` and `events` into one 1500-line file. Those seven files assert
-*emergent* properties instead: that the sampled loop matches the exact ZOH
-discretization is a claim about declare, assembly, build, executor and sim
-cooperating, owned by no source file. `src/` is cut by layering, `test/` by
-property.
-
-`test_leaves.jl` is the opposite case: a file kept for a source file rather
-than for a property. The leaf walk is used by `store.jl`, `build.jl`,
-`conditions.jl` and `sim.jl` alike, so no consumer's file owns it. Its own
-file asserts it directly — the flat round trip, the dotted names, the
-mixed-eltype expression builders behind `store.jl`'s generated gather and
-scatter, and the activation retype.
-
-The cheap index, if navigability is ever wanted: a "tests" column in the table
-above, plus extending `check_refs.jl` to `test/` so the §N citations in testset
-names are checked. Nothing checks them today — `src/` and `test/` sit outside
-every roster.
+`test/` does not mirror `src/`, and the remainder is not to be "finished":
+`src/` is cut by layering, `test/` by property. `sim.jl` gets no
+`test_sim.jl`; `log`, `lifecycle`, `failures`, `localization` and the loop
+halves of `discrete`, `multirate` and `events` assert emergent properties of
+the layers cooperating, which no source file owns. `test_leaves.jl` is the one
+file kept for a source file rather than a property: the leaf walk has no
+single consumer to own it.
 
 ## Authoring caveats
 
@@ -128,17 +61,15 @@ every roster.
 a function body or a `@testset`, `output_state(::MyComp, (; x)) = …` binds a
 *new local function*, not a method of the global `output_state`, so the build
 sees a component that declares nothing. The periphery's declarations hit it
-identically: the
-traits (`is_input`, `is_output`, `is_greedy`, `claims`, `reads`,
-`needs_calling_task`), the device contract's four functions (`init!`, `loop`,
-`shutdown!`, `unblock!`) and the mapping conventions (`map_input`,
-`map_output`) — a trait bound inside a `@testset` is a local function the
-conformance check never sees, and a local `loop` leaves the global fallback in
-place, crashing the device by name. Test fixtures live at top level for this
-reason. D-164 ratified the check that would name the trap — a component
-declaring nothing and defining no stage is a build error — but `DeadStage` is
-not built; increment 4 catches the case one stratum earlier, a component with
-no declarations having no *class* to read either (§8.5).
+identically: the traits (`is_input`, `is_output`, `is_greedy`, `claims`,
+`reads`, `needs_calling_task`), the device contract's four functions
+(`init!`, `loop`, `shutdown!`, `unblock!`) and the mapping conventions
+(`map_input`, `map_output`). A trait bound inside a `@testset` is a local
+function the conformance check never sees, and a local `loop` leaves the
+global fallback in place, crashing the device by name. Test fixtures live at
+top level for this reason. Nothing names the trap: the build refuses the
+component as having no class to read (§8.5), and `DeadStage` is not built
+(`pending.md`).
 
 **Extending a declaration without importing it is silent on 1.12.** `using
 Cadence` followed by a bare `output_state(::MyComp, …)` definition creates a
@@ -183,3 +114,37 @@ Traps hit more than once while building, for whoever builds next:
 - the init-service keyword is `t0` (the spec's signatures, D-110) while the
   *concept* and `Clock`'s field stay `t₀` — `clock.t₀ = t0` inside `init!`
   is that split, not a typo; don't unify them.
+
+## Running the suite
+
+From the repository root:
+
+    julia --project=test test/runtests.jl                        # all of it
+    julia --project=test test/runtests.jl roster devices trace   # named files
+
+The suite is the one `CadenceTests` module in `test/CadenceTests.jl`: the
+includes, the `import Cadence:` list, `runall()` and `runonly(names...)`. Each
+file's tests are one function (`CadenceTests.test_trace()`), which is what the
+second form runs and the tightest loop in a live session. The tests are their
+own workspace member (`[workspace] projects = ["test"]`, Julia 1.12), so one
+root `Manifest.toml` resolves both and `Cadence` needs no `develop`; no
+`Manifest.toml` is committed.
+
+The full run costs about 5 min. A cold process spends about 30 s before the
+first file and little per file after, so name a generous set rather than a
+minimal one. An `src/` edit adds about 15 s of precompile to the first run
+after it. Which files a change reaches is a guess off the table above;
+`sim.jl`, `store.jl` and `diagnostics.jl` are cross-cutting and mean all of
+it. To check a refactor for test loss, compare the suite's own assertion
+total; `grep -c '@test '` misses the loops that multiply them.
+
+**None of the above is the gate. Before trusting a green suite, run**
+
+    julia --project=. -e 'using Pkg; Pkg.test()'
+
+`--project=test` leaves three ambient sources on the load path that can
+satisfy a dependency the suite never declared — what the developer's
+`startup.jl` loads into `Main`, the default environment, and the stdlib
+directory — and each has already masked one. `Pkg.test()` runs in a sandbox
+holding the declared dependencies alone, with `--startup-file=no` and
+`--check-bounds=yes`, at the cost of a separate precompile.
