@@ -10,7 +10,7 @@
 """
 Damped second-order plant. Carries state, publishes a **stage-1** port (`y`,
 state-derived, no feedthrough — the port that lets a feedback loop close
-legally) and a **stage-2** port (`power`, input-dependent), and defines `f`.
+legally) and a **stage-2** port (`power`, input-dependent), and defines `state_derivative`.
 """
 struct Plant <: AbstractComponent
     ω::Float64
@@ -24,17 +24,17 @@ init_x(c::Plant) = (q = c.q₀,)
 input_types(::Plant, ::Type{T}) where {T <: Real} = (u = T,)
 output_types(::Plant, ::Type{T}) where {T <: Real} = (y = T, power = T)
 
-h_x(::Plant, (; x)) = (y = x.q[1],)
-h_xu(::Plant, (; x, u)) = (power = u.u * x.q[2],)
+output_state(::Plant, (; x)) = (y = x.q[1],)
+output_direct(::Plant, (; x, u)) = (power = u.u * x.q[2],)
 
-function f(c::Plant, (; x, u))
+function state_derivative(c::Plant, (; x, u))
     q, ω, ζ = x.q, c.ω, c.ζ
     (q = SVector(q[2], -ω^2 * q[1] - 2ζ * ω * q[2] + u.u),)
 end
 
 """
 Proportional gain: **stateless**, stage 2 only. The three-level funnel of §5.2
-in its smallest instance — a component that legitimately writes `h_xu` while
+in its smallest instance — a component that legitimately writes `output_direct` while
 owning no state at all, so its bundle carries `u` and `t` and nothing else.
 """
 struct Gain <: AbstractComponent
@@ -44,7 +44,7 @@ end
 input_types(::Gain, ::Type{T}) where {T <: Real} = (e = T,)
 output_types(::Gain, ::Type{T}) where {T <: Real} = (out = T,)
 
-h_xu(c::Gain, (; u)) = (out = c.k * u.e,)
+output_direct(c::Gain, (; u)) = (out = c.k * u.e,)
 
 """
 Two-input summing junction (§6.2): aggregation is an explicit, ordered entry in
@@ -60,16 +60,16 @@ Sum(; sa = 1.0, sb = -1.0) = Sum(sa, sb)
 input_types(::Sum, ::Type{T}) where {T <: Real} = (a = T, b = T)
 output_types(::Sum, ::Type{T}) where {T <: Real} = (e = T,)
 
-h_xu(c::Sum, (; u)) = (e = c.sa * u.a + c.sb * u.b,)
+output_direct(c::Sum, (; u)) = (e = c.sa * u.a + c.sb * u.b,)
 
 # --- the discrete tier --------------------------------------------------------
-# The tier's own name family (D-195) — `init_s`, `h_s`/`h_su`, `g` — beside the
+# The tier's own name family (D-195) — `init_s`, `output_state`/`output_direct`, `state_update` — beside the
 # plain declaration arities (D-166/D-167): these components declare the pinned
 # world, and nothing about them walks with the activation.
 
 """
 Discrete integrator: publishes its state from **stage 1** — the loop-breaking
-port, exactly as on the continuous tier — and accumulates in `g`, which is
+port, exactly as on the continuous tier — and accumulates in `state_update`, which is
 where `Δt` earns its place in the bundle.
 """
 struct DiscreteIntegrator <: AbstractComponent
@@ -80,8 +80,8 @@ init_s(::DiscreteIntegrator) = (acc = 0.0,)
 input_types(::DiscreteIntegrator) = (e = Float64,)
 output_types(::DiscreteIntegrator) = (u = Float64,)
 
-h_s(::DiscreteIntegrator, (; s)) = (u = s.acc,)
-g(c::DiscreteIntegrator, (; s, u, Δt)) = (acc = s.acc + c.k * Δt * u.e,)
+output_state(::DiscreteIntegrator, (; s)) = (u = s.acc,)
+state_update(c::DiscreteIntegrator, (; s, u, Δt)) = (acc = s.acc + c.k * Δt * u.e,)
 
 """
 Tick counter: `Int` state, `Int` and `Bool` ports. The second and third store
@@ -92,11 +92,11 @@ struct TickCounter <: AbstractComponent end
 init_s(::TickCounter) = (n = 0,)
 output_types(::TickCounter) = (n = Int, even = Bool)
 
-h_s(::TickCounter, (; s)) = (n = s.n, even = iseven(s.n))
-g(::TickCounter, (; s)) = (n = s.n + 1,)
+output_state(::TickCounter, (; s)) = (n = s.n, even = iseven(s.n))
+state_update(::TickCounter, (; s)) = (n = s.n + 1,)
 
 """
-Stateful discrete leaf whose update law is what decides its tier: `g` present, a
+Stateful discrete leaf whose update law is what decides its tier: `state_update` present, a
 two-argument contract. The classifier's positive case, and the discrete half of
 the bundle law.
 """
@@ -105,8 +105,8 @@ struct DiscreteCounter <: AbstractComponent end
 init_s(::DiscreteCounter) = (n = 0,)
 output_types(::DiscreteCounter) = (n = Int,)
 
-h_s(::DiscreteCounter, (; s)) = (n = s.n,)
-g(::DiscreteCounter, (; s)) = (n = s.n + 1,)
+output_state(::DiscreteCounter, (; s)) = (n = s.n,)
+state_update(::DiscreteCounter, (; s)) = (n = s.n + 1,)
 
 """
 Stateless discrete leaf: no store, so the contract arity alone decides the tier.
@@ -116,7 +116,7 @@ struct DiscreteMap <: AbstractComponent end
 input_types(::DiscreteMap) = (a = Int,)
 output_types(::DiscreteMap) = (b = Int,)
 
-h_su(::DiscreteMap, (; u)) = (b = 2u.a,)
+output_direct(::DiscreteMap, (; u)) = (b = 2u.a,)
 
 """
 Two-channel exponential smoother, written in §7.3's blessed idiom: the in-place
@@ -130,11 +130,11 @@ end
 init_s(::Smoother) = (v = SVector(0.0, 0.0),)
 input_types(::Smoother) = (a = Float64, b = Float64)
 output_types(::Smoother) = (v = SVector{2,Float64},)
-workspace(::Smoother) = (tmp = Vector{Float64}(undef, 2),)
+init_workspace(::Smoother) = (tmp = Vector{Float64}(undef, 2),)
 
-h_s(::Smoother, (; s)) = (v = s.v,)
+output_state(::Smoother, (; s)) = (v = s.v,)
 
-function g(c::Smoother, (; s, u, ws))
+function state_update(c::Smoother, (; s, u, ws))
     ws.tmp[1] = u.a
     ws.tmp[2] = u.b
     for i in 1:2
@@ -155,9 +155,9 @@ end
 
 input_types(::WorkGain, ::Type{T}) where {T <: Real} = (in = T,)
 output_types(::WorkGain, ::Type{T}) where {T <: Real} = (out = T,)
-workspace(::WorkGain, ::Type{T}) where {T <: Real} = (tmp = Vector{T}(undef, 1),)
+init_workspace(::WorkGain, ::Type{T}) where {T <: Real} = (tmp = Vector{T}(undef, 1),)
 
-function h_xu(c::WorkGain, (; u, ws))
+function output_direct(c::WorkGain, (; u, ws))
     ws.tmp[1] = c.k * u.in
     (out = ws.tmp[1],)
 end
@@ -173,10 +173,10 @@ struct ModedSource <: AbstractComponent end
 init_m(::ModedSource) = (phase = :idle,)
 output_types(::ModedSource, ::Type{T}) where {T <: Real} = (out = T,)
 
-h_x(::ModedSource, (; m)) = (out = m.phase === :idle ? 0.0 : 1.0,)
+output_state(::ModedSource, (; m)) = (out = m.phase === :idle ? 0.0 : 1.0,)
 
 # --- the event coverage set (§2.1, §10.6) -------------------------------------
-# Guards and handlers are ordinary named functions referenced by `events` —
+# Guards and handlers are ordinary named functions referenced by `state_events` —
 # nothing global-generic about them, which is why they carry component-prefixed
 # names here rather than adding methods to a framework surface.
 
@@ -194,11 +194,11 @@ init_m(::Trigger) = (state = :armed, count = 0)
 input_types(::Trigger, ::Type{T}) where {T <: Real} = (sig = T,)
 output_types(::Trigger, ::Type{T}) where {T <: Real} = (on = Bool,)
 
-h_x(::Trigger, (; m)) = (on = m.state === :fired,)
+output_state(::Trigger, (; m)) = (on = m.state === :fired,)
 
 trigger_guard(c::Trigger, (; u)) = u.sig ≥ c.level
 trigger_handler(::Trigger, (; m)) = (m = (state = :fired, count = m.count + 1),)
-events(::Trigger) = (fire = Event(trigger_guard, trigger_handler),)
+state_events(::Trigger) = (fire = StateEvent(trigger_guard, trigger_handler),)
 
 """
 Cascade follower: goes `:idle → :on` on the rising edge of its `Bool` input. A
@@ -211,11 +211,11 @@ init_m(::Follower) = (state = :idle,)
 input_types(::Follower, ::Type{T}) where {T <: Real} = (go = Bool,)
 output_types(::Follower, ::Type{T}) where {T <: Real} = (on = Bool,)
 
-h_x(::Follower, (; m)) = (on = m.state === :on,)
+output_state(::Follower, (; m)) = (on = m.state === :on,)
 
 follower_guard(::Follower, (; u)) = u.go
 follower_handler(::Follower, (; m)) = (m = (state = :on,),)
-events(::Follower) = (engage = Event(follower_guard, follower_handler),)
+state_events(::Follower) = (engage = StateEvent(follower_guard, follower_handler),)
 
 """
 Sawtooth: `q̇ = rate`, and a **sign-form** guard `q − 1` whose handler carries
@@ -232,15 +232,15 @@ end
 init_x(::Sawtooth) = (q = 0.0,)
 output_types(::Sawtooth, ::Type{T}) where {T <: Real} = (q = T,)
 
-h_x(::Sawtooth, (; x)) = (q = x.q,)
-f(c::Sawtooth, (; x)) = (q = c.rate,)
+output_state(::Sawtooth, (; x)) = (q = x.q,)
+state_derivative(c::Sawtooth, (; x)) = (q = c.rate,)
 
 sawtooth_guard(::Sawtooth, (; x)) = x.q - 1.0
 sawtooth_handler(::Sawtooth, (; x)) = (x = (q = x.q - 1.0,),)
-events(::Sawtooth) = (wrap = Event(sawtooth_guard, sawtooth_handler),)
+state_events(::Sawtooth) = (wrap = StateEvent(sawtooth_guard, sawtooth_handler),)
 
 """
-Unit-circle rotor: `ċ = -ω s, ṡ = ω c` under a renormalizing `project` — the
+Unit-circle rotor: `ċ = -ω s, ṡ = ω c` under a renormalizing `state_projection` — the
 state manifold in miniature. Boundary zero already projects (§14.5), so a
 deliberately off-manifold `init_x` lands on the circle before the first step.
 """
@@ -254,9 +254,9 @@ Rotor(; ω = 1.0, r₀ = SVector(1.0, 0.0)) = Rotor(ω, r₀)
 init_x(c::Rotor) = (r = c.r₀,)
 output_types(::Rotor, ::Type{T}) where {T <: Real} = (c = T,)
 
-h_x(::Rotor, (; x)) = (c = x.r[1],)
-f(c::Rotor, (; x)) = (r = SVector(-c.ω * x.r[2], c.ω * x.r[1]),)
-project(::Rotor, x) = (r = x.r / sqrt(x.r[1]^2 + x.r[2]^2),)
+output_state(::Rotor, (; x)) = (c = x.r[1],)
+state_derivative(c::Rotor, (; x)) = (r = SVector(-c.ω * x.r[2], c.ω * x.r[1]),)
+state_projection(::Rotor, x) = (r = x.r / sqrt(x.r[1]^2 + x.r[2]^2),)
 
 """
 Two events toggling one mode: each transition re-arms the other, so the pair
@@ -269,13 +269,13 @@ struct Chatterer <: AbstractComponent end
 init_m(::Chatterer) = (v = false, flips = 0)
 output_types(::Chatterer, ::Type{T}) where {T <: Real} = (v = Bool,)
 
-h_x(::Chatterer, (; m)) = (v = m.v,)
+output_state(::Chatterer, (; m)) = (v = m.v,)
 
 chatter_up(::Chatterer, (; m)) = !m.v
 chatter_down(::Chatterer, (; m)) = m.v
 chatter_flip(::Chatterer, (; m)) = (m = (v = !m.v, flips = m.flips + 1),)
-events(::Chatterer) = (up = Event(chatter_up, chatter_flip),
-                       down = Event(chatter_down, chatter_flip))
+state_events(::Chatterer) = (up = StateEvent(chatter_up, chatter_flip),
+                       down = StateEvent(chatter_down, chatter_flip))
 
 """
 Two events on one predicate: both edges rise in the same round, the first fires
@@ -288,13 +288,13 @@ init_m(::TwoShot) = (a = false, b = false)
 input_types(::TwoShot, ::Type{T}) where {T <: Real} = (sig = T,)
 output_types(::TwoShot, ::Type{T}) where {T <: Real} = (a = Bool,)
 
-h_x(::TwoShot, (; m)) = (a = m.a,)
+output_state(::TwoShot, (; m)) = (a = m.a,)
 
 twoshot_guard(::TwoShot, (; u)) = u.sig ≥ 1.0
 twoshot_a(::TwoShot, (; m)) = (m = (; a = true),)
 twoshot_b(::TwoShot, (; m)) = (m = (; b = true),)
-events(::TwoShot) = (first = Event(twoshot_guard, twoshot_a),
-                     second = Event(twoshot_guard, twoshot_b))
+state_events(::TwoShot) = (first = StateEvent(twoshot_guard, twoshot_a),
+                     second = StateEvent(twoshot_guard, twoshot_b))
 
 """
 The blocked-then-falsified variant: the second event's premise includes the
@@ -308,14 +308,14 @@ init_m(::Preempted) = (a = false, b = false)
 input_types(::Preempted, ::Type{T}) where {T <: Real} = (sig = T,)
 output_types(::Preempted, ::Type{T}) where {T <: Real} = (a = Bool,)
 
-h_x(::Preempted, (; m)) = (a = m.a,)
+output_state(::Preempted, (; m)) = (a = m.a,)
 
 preempted_guard_a(::Preempted, (; u)) = u.sig ≥ 1.0
 preempted_guard_b(::Preempted, (; u, m)) = u.sig ≥ 1.0 && !m.a
 preempted_a(::Preempted, (; m)) = (m = (; a = true),)
 preempted_b(::Preempted, (; m)) = (m = (; b = true),)
-events(::Preempted) = (first = Event(preempted_guard_a, preempted_a),
-                       second = Event(preempted_guard_b, preempted_b))
+state_events(::Preempted) = (first = StateEvent(preempted_guard_a, preempted_a),
+                       second = StateEvent(preempted_guard_b, preempted_b))
 
 # --- the localization coverage set (§10.4) --------------------------------------
 
@@ -335,11 +335,11 @@ init_m(::Stamper) = (t_fired = -1.0, count = 0)
 input_types(::Stamper, ::Type{T}) where {T <: Real} = (sig = T,)
 output_types(::Stamper, ::Type{T}) where {T <: Real} = (armed = Bool,)
 
-h_x(::Stamper, (; m)) = (armed = m.count == 0,)
+output_state(::Stamper, (; m)) = (armed = m.count == 0,)
 
 stamper_guard(c::Stamper, (; u)) = u.sig - c.level
 stamper_handler(::Stamper, (; m, t)) = (m = (t_fired = t, count = m.count + 1),)
-events(::Stamper) = (cross = Event(stamper_guard, stamper_handler),)
+state_events(::Stamper) = (cross = StateEvent(stamper_guard, stamper_handler),)
 
 """
 The gate idiom (§10.4): a mixed predicate in its blessed spelling,
@@ -357,14 +357,14 @@ init_m(::GatedStamper) = (t_fired = -1.0, count = 0)
 input_types(::GatedStamper, ::Type{T}) where {T <: Real} = (sig = T, gate = Bool)
 output_types(::GatedStamper, ::Type{T}) where {T <: Real} = (armed = Bool,)
 
-h_x(::GatedStamper, (; m)) = (armed = m.count == 0,)
+output_state(::GatedStamper, (; m)) = (armed = m.count == 0,)
 
 function gated_stamper_guard(c::GatedStamper, (; u))
     σ = u.sig - c.level
     u.gate ? σ : -one(σ)
 end
 gated_stamper_handler(::GatedStamper, (; m, t)) = (m = (t_fired = t, count = m.count + 1),)
-events(::GatedStamper) = (cross = Event(gated_stamper_guard, gated_stamper_handler),)
+state_events(::GatedStamper) = (cross = StateEvent(gated_stamper_guard, gated_stamper_handler),)
 
 """
 Resetting ramp: `q̇ = rate` against a sign guard at `level`, and a handler that
@@ -382,12 +382,12 @@ init_x(::Bouncer) = (q = 0.0,)
 init_m(::Bouncer) = (count = 0,)
 output_types(::Bouncer, ::Type{T}) where {T <: Real} = (q = T,)
 
-h_x(::Bouncer, (; x)) = (q = x.q,)
-f(c::Bouncer, (; x)) = (q = c.rate,)
+output_state(::Bouncer, (; x)) = (q = x.q,)
+state_derivative(c::Bouncer, (; x)) = (q = c.rate,)
 
 bouncer_guard(c::Bouncer, (; x)) = x.q - c.level
 bouncer_handler(::Bouncer, (; x, m)) = (x = (q = 0.0,), m = (count = m.count + 1,))
-events(::Bouncer) = (reset = Event(bouncer_guard, bouncer_handler),)
+state_events(::Bouncer) = (reset = StateEvent(bouncer_guard, bouncer_handler),)
 
 """
 Relaxation chatterer: `q̇ = rate` against a sign guard at `level`, re-armed by
@@ -406,13 +406,13 @@ init_x(::Relaxer) = (q = 0.0,)
 init_m(::Relaxer) = (count = 0,)
 output_types(::Relaxer, ::Type{T}) where {T <: Real} = (q = T,)
 
-h_x(::Relaxer, (; x)) = (q = x.q,)
-f(c::Relaxer, (; x)) = (q = c.rate,)
+output_state(::Relaxer, (; x)) = (q = x.q,)
+state_derivative(c::Relaxer, (; x)) = (q = c.rate,)
 
 relaxer_guard(c::Relaxer, (; x)) = x.q - c.level
 relaxer_handler(c::Relaxer, (; x, m)) =
     (x = (q = c.level - c.drop,), m = (count = m.count + 1,))
-events(::Relaxer) = (pop = Event(relaxer_guard, relaxer_handler),)
+state_events(::Relaxer) = (pop = StateEvent(relaxer_guard, relaxer_handler),)
 
 # --- the termination coverage set (§13.5, §13.6) -------------------------------
 
@@ -431,11 +431,11 @@ init_m(::Overload) = (tripped = false,)
 input_types(::Overload, ::Type{T}) where {T <: Real} = (sig = T,)
 output_types(::Overload, ::Type{T}) where {T <: Real} = (tripped = Bool,)
 
-h_x(::Overload, (; m)) = (tripped = m.tripped,)
+output_state(::Overload, (; m)) = (tripped = m.tripped,)
 
 overload_guard(c::Overload, (; u)) = u.sig - c.level
 overload_handler(::Overload, (; m)) = (m = (tripped = true,),)
-events(::Overload) = (trip = Event(overload_guard, overload_handler),)
+state_events(::Overload) = (trip = StateEvent(overload_guard, overload_handler),)
 
 """
 Exploder: the §13.6 specimen — `q̇ = 1` until its `arm` input goes true, then
@@ -453,8 +453,8 @@ init_x(::Exploder) = (q = 0.0,)
 input_types(::Exploder, ::Type{T}) where {T <: Real} = (arm = Bool,)
 output_types(::Exploder, ::Type{T}) where {T <: Real} = (q = T,)
 
-h_x(::Exploder, (; x)) = (q = x.q,)
-f(::Exploder, (; x, u)) = u.arm ? throw(Exploded()) : (q = one(x.q),)
+output_state(::Exploder, (; x)) = (q = x.q,)
+state_derivative(::Exploder, (; x, u)) = u.arm ? throw(Exploded()) : (q = one(x.q),)
 
 # --- the runtime-failure coverage set (§13.4) ----------------------------------
 # One component per user-code surface the execution cursor names, each failing
@@ -481,8 +481,8 @@ init_x(::Tripwire) = (q = 0.0,)
 input_types(::Tripwire, ::Type{T}) where {T <: Real} = (arm = Bool,)
 output_types(::Tripwire, ::Type{T}) where {T <: Real} = (q = T,)
 
-h_x(::Tripwire, (; x)) = (q = x.q,)
-f(c::Tripwire, (; x, u, t)) = (u.arm && t ≥ c.t_trip) ? throw(Tripped()) : (q = one(x.q),)
+output_state(::Tripwire, (; x)) = (q = x.q,)
+state_derivative(c::Tripwire, (; x, u, t)) = (u.arm && t ≥ c.t_trip) ? throw(Tripped()) : (q = one(x.q),)
 
 """
 Mine: a `Bool` input and a predicate-form event whose handler throws
@@ -494,11 +494,11 @@ init_m(::Mine) = (blown = false,)
 input_types(::Mine, ::Type{T}) where {T <: Real} = (sig = Bool,)
 output_types(::Mine, ::Type{T}) where {T <: Real} = (blown = Bool,)
 
-h_x(::Mine, (; m)) = (blown = m.blown,)
+output_state(::Mine, (; m)) = (blown = m.blown,)
 
 mine_guard(::Mine, (; u)) = u.sig
 mine_handler(::Mine, (; u, m)) = u.sig ? throw(Detonated()) : (m = (blown = true,),)
-events(::Mine) = (blow = Event(mine_guard, mine_handler),)
+state_events(::Mine) = (blow = StateEvent(mine_guard, mine_handler),)
 
 """
 Landmine: a `Bouncer` whose sign-form guard throws `Detonated` when `t` is off
@@ -516,18 +516,18 @@ init_x(::Landmine) = (q = 0.0,)
 init_m(::Landmine) = (count = 0,)
 output_types(::Landmine, ::Type{T}) where {T <: Real} = (q = T,)
 
-h_x(::Landmine, (; x)) = (q = x.q,)
-f(c::Landmine, (; x)) = (q = c.rate,)
+output_state(::Landmine, (; x)) = (q = x.q,)
+state_derivative(c::Landmine, (; x)) = (q = c.rate,)
 
 function landmine_guard(c::Landmine, (; x, t))
     abs(t - round(t / c.h) * c.h) > 1e-9 && throw(Detonated())
     x.q - c.level
 end
 landmine_handler(::Landmine, (; x, m)) = (x = (q = 0.0,), m = (count = m.count + 1,))
-events(::Landmine) = (blow = Event(landmine_guard, landmine_handler),)
+state_events(::Landmine) = (blow = StateEvent(landmine_guard, landmine_handler),)
 
 """
-Sapper: the discrete-tier mine — `g` throws `Detonated` when its input is set,
+Sapper: the discrete-tier mine — `state_update` throws `Detonated` when its input is set,
 so the failure lands in the tick updates, the boundary sequence's last block.
 """
 struct Sapper <: AbstractComponent end
@@ -536,11 +536,11 @@ init_s(::Sapper) = (n = 0,)
 input_types(::Sapper) = (sig = Bool,)
 output_types(::Sapper) = (n = Int,)
 
-h_s(::Sapper, (; s)) = (n = s.n,)
-g(::Sapper, (; s, u)) = u.sig ? throw(Detonated()) : (n = s.n + 1,)
+output_state(::Sapper, (; s)) = (n = s.n,)
+state_update(::Sapper, (; s, u)) = u.sig ? throw(Detonated()) : (n = s.n + 1,)
 
 """
-Primer: `q̇ = 1` with a `project` that throws `Detonated` once `q` reaches
+Primer: `q̇ = 1` with a `state_projection` that throws `Detonated` once `q` reaches
 `level` — the failure at the boundary's projection, between the integrate's
 state write and its decode.
 """
@@ -551,9 +551,9 @@ end
 init_x(::Primer) = (q = 0.0,)
 output_types(::Primer, ::Type{T}) where {T <: Real} = (q = T,)
 
-h_x(::Primer, (; x)) = (q = x.q,)
-f(::Primer, (; x)) = (q = one(x.q),)
-project(c::Primer, x) = x.q ≥ c.level ? throw(Detonated()) : (q = x.q,)
+output_state(::Primer, (; x)) = (q = x.q,)
+state_derivative(::Primer, (; x)) = (q = one(x.q),)
+state_projection(c::Primer, x) = x.q ≥ c.level ? throw(Detonated()) : (q = x.q,)
 
 """
 Interrupter: `q̇ = 1` whose RHS raises an `InterruptException` when armed — the
@@ -566,12 +566,12 @@ init_x(::Interrupter) = (q = 0.0,)
 input_types(::Interrupter, ::Type{T}) where {T <: Real} = (arm = Bool,)
 output_types(::Interrupter, ::Type{T}) where {T <: Real} = (q = T,)
 
-h_x(::Interrupter, (; x)) = (q = x.q,)
-f(::Interrupter, (; x, u)) = u.arm ? throw(InterruptException()) : (q = one(x.q),)
+output_state(::Interrupter, (; x)) = (q = x.q,)
+state_derivative(::Interrupter, (; x, u)) = u.arm ? throw(InterruptException()) : (q = one(x.q),)
 
 """
 Diverger: `q̇ = 1` until armed, then `q̇ = NaN` — the model that blows up. Its
-`project` refuses a nonfinite `q`, so a sweep running later than the integrate
+`state_projection` refuses a nonfinite `q`, so a sweep running later than the integrate
 would be beaten by the projection; the declared default `q = 0` passes it, which
 is what the build probe needs.
 """
@@ -581,9 +581,9 @@ init_x(::Diverger) = (q = 0.0,)
 input_types(::Diverger, ::Type{T}) where {T <: Real} = (arm = Bool,)
 output_types(::Diverger, ::Type{T}) where {T <: Real} = (q = T,)
 
-h_x(::Diverger, (; x)) = (q = x.q,)
-f(::Diverger, (; u)) = (q = u.arm ? NaN : 1.0,)
-project(::Diverger, x) = isfinite(x.q) ? x : throw(DomainError(x.q, "diverged"))
+output_state(::Diverger, (; x)) = (q = x.q,)
+state_derivative(::Diverger, (; u)) = (q = u.arm ? NaN : 1.0,)
+state_projection(::Diverger, x) = isfinite(x.q) ? x : throw(DomainError(x.q, "diverged"))
 
 """
 Consumer: the innocent component downstream of a `Diverger`. Its stage-2 port
@@ -598,8 +598,8 @@ init_x(::Consumer) = (p = 0.0,)
 input_types(::Consumer, ::Type{T}) where {T <: Real} = (in = T,)
 output_types(::Consumer, ::Type{T}) where {T <: Real} = (r = T,)
 
-h_xu(::Consumer, (; u)) = (r = sqrt(u.in),)
-f(::Consumer, (; x)) = (p = zero(x.p),)
+output_direct(::Consumer, (; u)) = (r = sqrt(u.in),)
+state_derivative(::Consumer, (; x)) = (p = zero(x.p),)
 
 """
 LateDiverger: a `Bouncer` that diverges only *after* its own reset. The
@@ -617,12 +617,12 @@ init_x(::LateDiverger) = (q = 0.0,)
 init_m(::LateDiverger) = (blown = false,)
 output_types(::LateDiverger, ::Type{T}) where {T <: Real} = (q = T,)
 
-h_x(::LateDiverger, (; x)) = (q = x.q,)
-f(c::LateDiverger, (; m)) = (q = m.blown ? NaN : c.rate,)
+output_state(::LateDiverger, (; x)) = (q = x.q,)
+state_derivative(c::LateDiverger, (; m)) = (q = m.blown ? NaN : c.rate,)
 
 late_diverger_guard(c::LateDiverger, (; x)) = x.q - c.level
 late_diverger_handler(::LateDiverger, (; m)) = (m = (blown = true,),)
-events(::LateDiverger) = (blow = Event(late_diverger_guard, late_diverger_handler),)
+state_events(::LateDiverger) = (blow = StateEvent(late_diverger_guard, late_diverger_handler),)
 
 # --- the reference models -----------------------------------------------------
 
@@ -777,7 +777,7 @@ struct ZOH <: AbstractComponent end
 
 input_types(::ZOH) = (in = Float64,)
 output_types(::ZOH) = (out = Float64,)
-h_su(::ZOH, (; u)) = (out = u.in,)
+output_direct(::ZOH, (; u)) = (out = u.in,)
 
 """Affine clock publisher: continuous, stateless, stage 1 — `out = c₀ + t`."""
 struct Ramp <: AbstractComponent
@@ -785,7 +785,7 @@ struct Ramp <: AbstractComponent
 end
 
 output_types(::Ramp, ::Type{T}) where {T <: Real} = (out = T,)
-h_x(c::Ramp, (; t)) = (out = c.c₀ + t,)
+output_state(c::Ramp, (; t)) = (out = c.c₀ + t,)
 
 """
 The rate scope of the spec's worked example (§9.2, §10.5): `inner` at the scope
@@ -921,8 +921,8 @@ init_x(::Pendulum) = (θ = 0.0, ω = 0.0)
 input_types(::Pendulum, ::Type{T}) where {T <: Real} = (u = T,)
 output_types(::Pendulum, ::Type{T}) where {T <: Real} = (θ = T, ω = T)
 
-h_x(::Pendulum, (; x)) = (θ = x.θ, ω = x.ω)
-f(c::Pendulum, (; x, u)) = (θ = x.ω, ω = -c.g_l * sin(x.θ) - c.c * x.ω + u.u)
+output_state(::Pendulum, (; x)) = (θ = x.θ, ω = x.ω)
+state_derivative(c::Pendulum, (; x, u)) = (θ = x.ω, ω = -c.g_l * sin(x.θ) - c.c * x.ω + u.u)
 
 """The pendulum's own vocabulary, in the fragment-function idiom (§14.2)."""
 condition(::Pendulum; θ = 0.0, ω = 0.0) = fragment(x = (θ = θ, ω = ω))

@@ -343,7 +343,8 @@ Setup applies `override(baseline, condition(guess))` to a *nominal* set by the
 dynamic walk, checks §14.6's root-input totality against the build's faces
 before any evaluation (`UninitializedInputs`, all-or-nothing), and runs one
 **establishment round** — boundary zero's sweep with every discrete output
-stage admitted, due or not (D-205), with no projection, no guards and no `g`.
+stage admitted, due or not (D-205), with no projection, no guards and no
+`state_update`.
 The seeded set is then written by the specialized register, and its **frozen
 cells are copied from the nominal set** as zero-partial constants: at the
 seeded activation the discrete tier never runs (§9.4), so nothing there can
@@ -351,8 +352,8 @@ derive a discrete output cell from the authored `s`, and without the copy those
 cells would hold the build probe's synthesized values — a fabricated zero being
 a fine probe input and a terrible flight condition (§14.6's barrier, reaching
 the scratch world). The iterations themselves are untouched: raw write → sweep
-→ read cycles at the seeded activation, the continuous chain and `f` alone, no
-boundaries and no events (§14.5).
+→ read cycles at the seeded activation, the continuous chain and
+`state_derivative` alone, no boundaries and no events (§14.5).
 
 **The verdict is the service's, uniformly.** After the backend returns, the
 service evaluates once more at the returned point and reads `converged` off the
@@ -364,7 +365,7 @@ commit means the simulation is bit-for-bit untouched, lifecycle included: a
 **The commit is literally an `init!`** — `init!(sim, override(baseline,
 condition(solution)); t0)`, the same composite over the same baseline, so its
 totality is setup's and the check is structurally unfailable through this path.
-Boundary zero's `project` and any guard already holding then move the committed
+Boundary zero's `state_projection` and any guard already holding then move the committed
 stores off the solved point; both movers are surfaced rather than left silent,
 as the report's fired-event list with `TrimCommitEvents` beside it, and as the
 committed-state residuals with `TrimCommitResiduals` when they leave the box.

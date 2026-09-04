@@ -72,11 +72,11 @@ end
 init_x(::Snapback) = (θ = 0.0, ω = 0.0)
 input_types(::Snapback, ::Type{T}) where {T <: Real} = (u = T,)
 output_types(::Snapback, ::Type{T}) where {T <: Real} = (θ = T, ω = T)
-h_x(::Snapback, (; x)) = (θ = x.θ, ω = x.ω)
-f(::Snapback, (; x, u)) = (θ = x.ω, ω = -PEND_G_L * sin(x.θ) - PEND_C * x.ω + u.u)
+output_state(::Snapback, (; x)) = (θ = x.θ, ω = x.ω)
+state_derivative(::Snapback, (; x, u)) = (θ = x.ω, ω = -PEND_G_L * sin(x.θ) - PEND_C * x.ω + u.u)
 snapback_guard(c::Snapback, (; x)) = x.θ > c.level
 snapback_handler(::Snapback, (; x)) = (x = (θ = 0.0, ω = x.ω),)
-events(::Snapback) = (snap = Event(snapback_guard, snapback_handler),)
+state_events(::Snapback) = (snap = StateEvent(snapback_guard, snapback_handler),)
 condition(::Snapback; θ = 0.0, ω = 0.0) = fragment(x = (θ = θ, ω = ω))
 
 snap_decide_u(d) = combine(at("c", condition(Snapback(0.3); θ = 0.5)),

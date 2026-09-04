@@ -35,16 +35,16 @@ function test_declare()
     @testset "the bundle law (§5.2)" begin
         # A name appears iff the store or fact exists: the stateless gain sees no
         # `x`, the no-feedthrough stage sees no `u`, `t` is always there.
-        @test bundle_names(h_x, Plant(), CONTINUOUS, ()) === (:x, :t)
-        @test bundle_names(h_xu, Plant(), CONTINUOUS, (:y,)) === (:x, :u, :y_x, :t)
-        @test bundle_names(f, Plant(), CONTINUOUS, (:y,)) === (:x, :u, :y, :t)
-        @test bundle_names(h_xu, Gain(1.0), CONTINUOUS, ()) === (:u, :t)
+        @test bundle_names(output_state, Plant(), CONTINUOUS, ()) === (:x, :t)
+        @test bundle_names(output_direct, Plant(), CONTINUOUS, (:y,)) === (:x, :u, :y_x, :t)
+        @test bundle_names(state_derivative, Plant(), CONTINUOUS, (:y,)) === (:x, :u, :y, :t)
+        @test bundle_names(output_direct, Gain(1.0), CONTINUOUS, ()) === (:u, :t)
 
         # The discrete sets against them: `Δt` is a discrete-tier fact, `m` a
         # continuous one, and each tier's state letters are its own (D-195).
-        @test bundle_names(h_s, DiscreteCounter(), DISCRETE, ()) === (:s, :t, :Δt)
-        @test bundle_names(g, DiscreteCounter(), DISCRETE, (:n,)) === (:s, :y, :t, :Δt)
-        @test bundle_names(h_su, DiscreteMap(), DISCRETE, ()) === (:u, :t, :Δt)
-        @test bundle_names(h_su, DiscreteCounter(), DISCRETE, (:n,)) === (:s, :y_s, :t, :Δt)
+        @test bundle_names(output_state, DiscreteCounter(), DISCRETE, ()) === (:s, :t, :Δt)
+        @test bundle_names(state_update, DiscreteCounter(), DISCRETE, (:n,)) === (:s, :y, :t, :Δt)
+        @test bundle_names(output_direct, DiscreteMap(), DISCRETE, ()) === (:u, :t, :Δt)
+        @test bundle_names(output_direct, DiscreteCounter(), DISCRETE, (:n,)) === (:s, :y_s, :t, :Δt)
     end
 end

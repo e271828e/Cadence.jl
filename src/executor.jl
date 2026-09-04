@@ -14,7 +14,8 @@ be caught into existence.
 """
 mutable struct ExecutionCursor
     comp::Int        # the component's index in the flat, 0 = none
-    fn::Symbol       # :h_x | :h_xu | :h_s | :h_su | :f | :g | :guard | :handler | :project | :none
+    fn::Symbol       # :output_state | :output_direct | :state_derivative | :state_update |
+                     # :guard | :handler | :state_projection | :none
     phase::Symbol    # :drain | :integrate | :arrival | :validation | :trial | :project | :round | :ticks
     index::Int       # the RK stage, the event round, the trial ordinal; 0 where none applies
 end
@@ -58,7 +59,7 @@ end
 struct RHSEntry{Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
     comp::Comp
     inputs::IA
-    y::YA           # every own port — `f` reads the complete fresh table (§5.3)
+    y::YA           # every own port — `state_derivative` reads the complete fresh table (§5.3)
     x_off::Int
     clock::CL
     mstore::MS
@@ -70,7 +71,7 @@ end
 struct UpdateEntry{Comp,BN,IA<:NamedTuple,YA<:NamedTuple,CL,SS,WS}
     comp::Comp
     inputs::IA
-    y::YA           # every own port — `g` reads the complete fresh table too
+    y::YA           # every own port — `state_update` reads the complete fresh table too
     clock::CL
     sstore::SS      # written by this entry, and by nothing else
     ws::WS
@@ -147,17 +148,18 @@ end
 end
 
 @inline function run!(e::RHSEntry, store, xbuf, ẋbuf)
-    e.cursor.comp = e.ci; e.cursor.fn = :f
-    ẋ = f(e.comp, make_bundle(e, store, xbuf))
+    e.cursor.comp = e.ci; e.cursor.fn = :state_derivative
+    ẋ = state_derivative(e.comp, make_bundle(e, store, xbuf))
     flatten!(ẋbuf, e.x_off, ẋ)      # shape conformance established at probe time
     nothing
 end
 
-# The jump map: `g` reads the fresh table and writes only its own store, which
-# is what makes the update block order-free with disjoint writes (§9.7).
+# The jump map: `state_update` reads the fresh table and writes only its own
+# store, which is what makes the update block order-free with disjoint writes
+# (§9.7).
 @inline function run!(e::UpdateEntry, store, xbuf, ẋbuf)
-    e.cursor.comp = e.ci; e.cursor.fn = :g
-    e.sstore[] = g(e.comp, make_bundle(e, store, xbuf))
+    e.cursor.comp = e.ci; e.cursor.fn = :state_update
+    e.sstore[] = state_update(e.comp, make_bundle(e, store, xbuf))
     nothing
 end
 
@@ -165,7 +167,7 @@ end
 # Not sweep entries: guards and handlers are driven by the boundary iteration in
 # `sim.jl`, against per-event registers, so their entries live in their own
 # compiled set. One entry per declared event, carrying both halves plus its
-# component's `project` (or `nothing`), and a global index into the register
+# component's `state_projection` (or `nothing`), and a global index into the register
 # vectors — global order is executor component order, then declaration order
 # within a component, which is what makes the §13.4-style dispatch order
 # deterministic. Bundles are built exactly like every other entry's, from the
@@ -174,7 +176,7 @@ end
 struct EventEntry{G,H,P,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
     guard::G
     handler::H
-    proj::P         # the component's `project`, or nothing
+    proj::P         # the component's `state_projection`, or nothing
     comp::Comp
     idx::Int        # global event index into the register vectors
     inputs::IA
@@ -216,8 +218,8 @@ ProjectEntry{XT}(comp, x_off, ci, cursor) where {XT} =
     ProjectEntry{typeof(comp),XT}(comp, x_off, ci, cursor)
 
 @inline function run_project!(e::ProjectEntry{Comp,XT}, xbuf) where {Comp,XT}
-    e.cursor.comp = e.ci; e.cursor.fn = :project
-    flatten!(xbuf, e.x_off, project(e.comp, reconstruct(XT, xbuf, e.x_off)))
+    e.cursor.comp = e.ci; e.cursor.fn = :state_projection
+    flatten!(xbuf, e.x_off, state_projection(e.comp, reconstruct(XT, xbuf, e.x_off)))
     nothing
 end
 
@@ -271,7 +273,7 @@ end
 
 # The three walks the iteration drives, each the compile-time-unrolled tuple
 # recursion of the phase bodies. Guard evaluation writes each predicate sample
-# into `now` by global index; the fire walk runs `handler → project` for
+# into `now` by global index; the fire walk runs `handler → state_projection` for
 # exactly the masked entries, latching the returned stores — `x` into the flat
 # buffer, `m` merged into the mode store, per the return law's iff shape (§5.2).
 
@@ -316,7 +318,7 @@ end
 
 @inline function _fire_project!(e::EventEntry{G,H,P,Comp,XT}, xbuf) where {G,H,P,Comp,XT}
     P === Nothing && return nothing
-    e.cursor.fn = :project          # the component is the handler's own
+    e.cursor.fn = :state_projection # the component is the handler's own
     flatten!(xbuf, e.x_off, e.proj(e.comp, reconstruct(XT, xbuf, e.x_off)))
     nothing
 end
@@ -342,9 +344,9 @@ published cell holds the probe's synthesized values.
 
 It is a *marker*, not an index, precisely so the measured path keeps its
 shape: `run_at!` against an `Int` is the method the frame loop compiles and
-nothing was added to it. The `g` updates are not walked this way — they take
-the ordinary index 0 and stay gated by `Φ`, an offset component's first
-consumed sample remaining its `Φ·Δt_base` tick's.
+nothing was added to it. The `state_update` updates are not walked this way —
+they take the ordinary index 0 and stay gated by `Φ`, an offset component's
+first consumed sample remaining its `Φ·Δt_base` tick's.
 """
 struct Establish end
 const ESTABLISH = Establish()
@@ -365,7 +367,7 @@ const ESTABLISH = Establish()
 end
 
 # Establishment admits every gated entry (§14.5, D-205). Dueness at boundary
-# zero governs the `g` updates alone.
+# zero governs the `state_update` updates alone.
 @inline run_at!(g::Gated, store, xbuf, ẋbuf, ::Establish) =
     (run!(g.e, store, xbuf, ẋbuf); nothing)
 

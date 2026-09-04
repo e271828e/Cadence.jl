@@ -14,9 +14,10 @@ readable() = Group((; plant = Plant(), ctl = DiscreteIntegrator(3.0), src = Mode
                    outputs = ("plant/y" => "y",))
 
 # The captured world, authored: every store off its declared default, and `e`
-# at zero so the integrator's `g` is stationary — boundary zero's outgoing
-# transition (§14.5) is a mover like any handler, and a bit-for-bit round trip
-# is a claim about the *establishment*, not about a `g` that would run again.
+# at zero so the integrator's `state_update` is stationary — boundary zero's
+# outgoing transition (§14.5) is a mover like any handler, and a bit-for-bit
+# round trip is a claim about the *establishment*, not about a `state_update`
+# that would run again.
 readable_condition(q = SVector(0.3, -0.2), acc = 4.0) =
     combine(at("plant", fragment(x = (q = q,))),
             at("ctl", fragment(s = (acc = acc,))),
@@ -49,7 +50,7 @@ function test_readers()
             @test v.q == SVector{2,T}(0.3, -0.2)     # the whole leaf, out of `xbuf`
             @test v.v === v.q[2]                     # `i` indexes the read value
             @test v.acc === 4.0                      # the discrete store, pinned Float64
-            @test v.q̇[1] === v.q[2]                  # `f`'s own output, out of `ẋbuf`
+            @test v.q̇[1] === v.q[2]                  # `state_derivative`'s own output, out of `ẋbuf`
             @test v.a === v.q̇[2]
             @test v.y === v.q[1]                     # the stage-1 port's cell
             @test v.u === T(1.5)                     # the root input cell

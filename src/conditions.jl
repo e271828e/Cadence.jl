@@ -454,7 +454,7 @@ function _undeclared(e::CEntry, c, tier::Tier, declared::NamedTuple, ::Type{T}) 
 end
 
 _declared_workspace(c, tier::Tier, ::Type{T}) where {T} =
-    tier === CONTINUOUS ? workspace(c, T) : workspace(c)
+    tier === CONTINUOUS ? init_workspace(c, T) : init_workspace(c)
 
 # The one refusal §14.3's converter table cannot bake around. Its second clause
 # is the non-nominal case: at a seeded activation the leaves a decision descends
@@ -806,7 +806,7 @@ refusals (§14, §11.3, §13.6); all four are one `ServiceLifecycle`.
 
 Re-applying reproduces the captured world bit for bit, with one caveat that is
 boundary zero's rather than capture's: the re-application runs the sequence
-(§14.5), so `project` and any guard already holding in the captured state fire
+(§14.5), so `state_projection` and any guard already holding in the captured state fire
 again there — which is exactly what makes a warm restart a *fresh run from
 these values* rather than a resumption.
 """

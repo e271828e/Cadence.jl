@@ -319,8 +319,9 @@ phase_bodies(sim::Simulation) = sim.exec.bodies
 
 """
 One RHS evaluation: *evaluating the RHS means running the sweep* (§5.3). The
-interior variant of each sweep block, then the `f` block against the complete
-fresh table. Leaves `ẋbuf` holding the derivative of whatever `xbuf` holds.
+interior variant of each sweep block, then the `state_derivative` block
+against the complete fresh table. Leaves `ẋbuf` holding the derivative of
+whatever `xbuf` holds.
 """
 @inline function evaluate!(ex::Executor)
     ex.cursor.index += 1          # §13.4: the stage ordinal counts RHS evaluations,
@@ -336,15 +337,15 @@ end
 The boundary macro-sequence at a base tick, final form (§5.3, §10.6):
 
 > integrate → project → [sweep → guards → handlers] iterated to quiescence
-> (under the firing budget) → all due `g` updates
+> (under the firing budget) → all due `state_update` updates
 
 Integration has just written the state, so projection runs first — between the
 write and its decode; the event phase then iterates with the due set fixed for
 the whole boundary, and the due updates run last, after quiescence, reading
 post-transition values off the settled table. Output stages before updates, so
-a discrete component's cells carry `y[k]` computed from `s[k]` while `g`
-produces `s[k+1]` — the sampled-data recursion, ordered by construction rather
-than by convention.
+a discrete component's cells carry `y[k]` computed from `s[k]` while
+`state_update` produces `s[k+1]` — the sampled-data recursion, ordered by
+construction rather than by convention.
 """
 @inline function boundary!(sim::Simulation, tick::Int)
     cur = sim.exec.cursor
@@ -380,12 +381,13 @@ walk — so the `t₀` snapshot carries the authored world fully evaluated and n
 published cell holds the probe's synthesized values (§14.6's barrier extended
 from the root inputs to the whole table).
 
-The `g` updates keep the ordinary gate at index 0, which under the canonical
-residue admits exactly `Φ = 0` (§10.5): that evaluation is establishment, not
-a scheduled sample, and an offset component's first *consumed* sample stays
-its `Φ·Δt_base` tick's. A component frozen at a non-nominal activation has no
-entries here at all (§9.4's executable set), so its pinned cells keep the
-carried nominal products — at boundary zero as everywhere.
+The `state_update` updates keep the ordinary gate at index 0, which under the
+canonical residue admits exactly `Φ = 0` (§10.5): that evaluation is
+establishment, not a scheduled sample, and an offset component's first
+*consumed* sample stays its `Φ·Δt_base` tick's. A component frozen at a
+non-nominal activation has no entries here at all (§9.4's executable set), so
+its pinned cells keep the carried nominal products — at boundary zero as
+everywhere.
 """
 @inline function boundary_zero!(sim::Simulation)
     cur = sim.exec.cursor
@@ -570,9 +572,9 @@ component (§14.5).
 
 Boundary zero is an ordinary boundary with an empty integrate (§10.5, §14.5),
 run with the sweep's one amendment: every discrete output stage publishes,
-due or not (D-205, `boundary_zero!`), while the `g` updates keep the gate at
-index 0 — which admits exactly the components with `Φ = 0`, implemented by
-nothing.
+due or not (D-205, `boundary_zero!`), while the `state_update` updates keep
+the gate at index 0 — which admits exactly the components with `Φ = 0`,
+implemented by nothing.
 
 Boundary zero also establishes every event prior as not-holding (§10.6), so a
 predicate already holding in the authored state fires at `t₀` — derived, not

@@ -11,15 +11,15 @@
 # declarations instead.
 struct Undeclared <: AbstractComponent end
 output_types(::Undeclared, ::Type{T}) where {T <: Real} = (a = T,)
-h_x(::Undeclared, (; t)) = (a = 1.0, b = 2.0)
+output_state(::Undeclared, (; t)) = (a = 1.0, b = 2.0)
 
 struct Unproduced <: AbstractComponent end
 output_types(::Unproduced, ::Type{T}) where {T <: Real} = (a = T, b = T)
-h_x(::Unproduced, (; t)) = (a = 1.0,)
+output_state(::Unproduced, (; t)) = (a = 1.0,)
 
 struct BadDerivative <: AbstractComponent end
 init_x(::BadDerivative) = (q = SVector(0.0, 0.0),)
-f(::BadDerivative, (; x)) = (q = 0.0,)
+state_derivative(::BadDerivative, (; x)) = (q = 0.0,)
 
 struct NoFlow <: AbstractComponent end
 init_x(::NoFlow) = (q = 1.0,)
@@ -31,7 +31,7 @@ function build_probe_refusals()
         d = only(failure(() -> build(single(Unproduced()))).diagnostics)
         @test d isa DeclaredNotProduced && d.ports == [:b] && d.products == [:a]
         d = only(failure(() -> build(single(BadDerivative()))).diagnostics)
-        @test d isa ConformanceFailure && d.what == "f" && d.reason === :field_type &&
+        @test d isa ConformanceFailure && d.what == "state_derivative" && d.reason === :field_type &&
               d.field === :q && d.observed === Float64
         d = only(failure(() -> build(single(NoFlow()))).diagnostics)
         @test d isa StoreWithoutUpdate && d.store === :init_x
@@ -69,19 +69,19 @@ struct RealEntry <: AbstractComponent            # a `T` entry: follows the acti
 end
 input_types(::RealEntry, ::Type{T}) where {T<:Real} = (u = T,)
 output_types(::RealEntry, ::Type{T}) where {T<:Real} = (y = T,)
-h_xu(::RealEntry, (; u)) = (y = u.u,)
+output_direct(::RealEntry, (; u)) = (y = u.u,)
 
 struct BoolEntry <: AbstractComponent            # ...against a `Bool` at the same face
 end
 input_types(::BoolEntry, ::Type{T}) where {T<:Real} = (u = Bool,)
 output_types(::BoolEntry, ::Type{T}) where {T<:Real} = (y = T,)
-h_xu(::BoolEntry, (; u)) = (y = u.u ? 1.0 : 0.0,)
+output_direct(::BoolEntry, (; u)) = (y = u.u ? 1.0 : 0.0,)
 
 struct PinnedEntry <: AbstractComponent          # ...against a pinned `Float64`
 end
 input_types(::PinnedEntry, ::Type{T}) where {T<:Real} = (u = Float64,)
 output_types(::PinnedEntry, ::Type{T}) where {T<:Real} = (y = T,)
-h_xu(::PinnedEntry, (; u)) = (y = u.u,)
+output_direct(::PinnedEntry, (; u)) = (y = u.u,)
 
 _fanned_root(a, b) = Group((a = a, b = b);
                            inputs = ("in" => ("a/u", "b/u"),), outputs = ("a/y" => "y",))
@@ -112,41 +112,34 @@ end
 # bundle law in `test_declare.jl`); these are the four ways a declaration set can
 # disagree.
 
-struct BothUpdates <: AbstractComponent       # `f` and `g` on one component
+struct BothUpdates <: AbstractComponent       # `state_derivative` and `state_update` on one component
 end
 init_x(::BothUpdates) = (q = 1.0,)
 output_types(::BothUpdates, ::Type{T}) where {T <: Real} = (a = T,)
-h_x(::BothUpdates, (; x)) = (a = x.q,)
-f(::BothUpdates, (; x)) = (q = 0.0,)
-g(::BothUpdates, (; x)) = (q = x.q,)
+output_state(::BothUpdates, (; x)) = (a = x.q,)
+state_derivative(::BothUpdates, (; x)) = (q = 0.0,)
+state_update(::BothUpdates, (; x)) = (q = x.q,)
 
-struct WrongArity <: AbstractComponent        # `g` beside a two-argument contract
+struct WrongArity <: AbstractComponent        # `state_update` beside a two-argument contract
 end
 init_s(::WrongArity) = (n = 0,)
 output_types(::WrongArity, ::Type{T}) where {T <: Real} = (a = T,)
-h_s(::WrongArity, (; s)) = (a = 1.0,)
-g(::WrongArity, (; s)) = (n = s.n,)
-
-struct WrongLetter <: AbstractComponent       # a continuous stage name on a `g` leaf
-end
-init_s(::WrongLetter) = (n = 0,)
-output_types(::WrongLetter) = (a = Int,)
-h_x(::WrongLetter, (; s)) = (a = s.n,)
-g(::WrongLetter, (; s)) = (n = s.n,)
+output_state(::WrongArity, (; s)) = (a = 1.0,)
+state_update(::WrongArity, (; s)) = (n = s.n,)
 
 struct ModesOnDiscrete <: AbstractComponent   # `init_m` is continuous-only
 end
 init_s(::ModesOnDiscrete) = (n = 0,)
 init_m(::ModesOnDiscrete) = (phase = :idle,)
 output_types(::ModesOnDiscrete) = (a = Int,)
-h_s(::ModesOnDiscrete, (; s)) = (a = s.n,)
-g(::ModesOnDiscrete, (; s)) = (n = s.n,)
+output_state(::ModesOnDiscrete, (; s)) = (a = s.n,)
+state_update(::ModesOnDiscrete, (; s)) = (n = s.n,)
 
 struct BothArities <: AbstractComponent       # a member of both contract families
 end
 output_types(::BothArities, ::Type{T}) where {T <: Real} = (a = T,)
 output_types(::BothArities) = (a = Float64,)
-h_x(::BothArities, (; t)) = (a = 1.0,)
+output_state(::BothArities, (; t)) = (a = 1.0,)
 
 function build_tier()
     @testset "tier is read off the declaration shape (§8.2)" begin
@@ -158,10 +151,8 @@ function build_tier()
         @test classify_tier("c", DiscreteMap()) === DISCRETE
 
         # Disagreement names the offending declaration and the tier the rest
-        # announce — including the wrong-letter case the split families restore, a
-        # continuous stage name on a leaf whose update law is `g` (D-195).
-        for (c, offender) in ((BothUpdates(), :g), (WrongArity(), :output_types),
-                              (WrongLetter(), :h_x),
+        # announce (§8.2).
+        for (c, offender) in ((BothUpdates(), :state_update), (WrongArity(), :output_types),
                               (ModesOnDiscrete(), :init_m), (BothArities(), :output_types))
             err = failure(() -> classify_tier("c", c))
             @test err isa BuildError
@@ -197,14 +188,14 @@ end
 # one that earns the didactic hint.
 struct PinnedGetsDual <: AbstractComponent end
 output_types(::PinnedGetsDual, ::Type{T}) where {T <: Real} = (frozen = Float64,)
-h_x(::PinnedGetsDual, (; t)) = (frozen = t,)
+output_state(::PinnedGetsDual, (; t)) = (frozen = t,)
 
 # The constant-branch idiom (D-166): a literal `Float64` returned into a
 # declared-`T` port is a lawful arrival, embedded as a zero-partial.
 struct ConstantBranch <: AbstractComponent end
 input_types(::ConstantBranch, ::Type{T}) where {T <: Real} = (in = T,)
 output_types(::ConstantBranch, ::Type{T}) where {T <: Real} = (out = T, vec = SVector{2,T})
-h_xu(::ConstantBranch, (; u)) = (out = u.in > 0 ? u.in : 0.0, vec = SVector(0.0, 1.0))
+output_direct(::ConstantBranch, (; u)) = (out = u.in > 0 ? u.in : 0.0, vec = SVector(0.0, 1.0))
 
 function build_embed_accept()
     @testset "embed-accept keeps the constant branch legal (D-166)" begin
@@ -235,16 +226,16 @@ end
 # carried across from the nominal activation rather than probed or synthesized.
 struct NomSource <: AbstractComponent end
 output_types(::NomSource, ::Type{T}) where {T <: Real} = (val = T,)
-h_x(::NomSource, (; t)) = (val = 3.0 + t,)
+output_state(::NomSource, (; t)) = (val = 3.0 + t,)
 
 struct FrozenReader <: AbstractComponent end
 input_types(::FrozenReader) = (in = Float64,)
 output_types(::FrozenReader) = (out = Float64,)
-h_su(::FrozenReader, (; u)) = (out = 2.0 * u.in,)
+output_direct(::FrozenReader, (; u)) = (out = 2.0 * u.in,)
 
 struct ClockStamp <: AbstractComponent end
 output_types(::ClockStamp) = (stamp = Float64,)
-h_s(::ClockStamp, (; t)) = (stamp = t,)
+output_state(::ClockStamp, (; t)) = (stamp = t,)
 
 function build_activations()
     @testset "a non-nominal activation re-runs Stratum C; frozen products carry (§9.4)" begin

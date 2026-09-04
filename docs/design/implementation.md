@@ -30,7 +30,7 @@ it, so twenty import preambles would have bought only namespace subdivision, at
 twenty new chances to hit the shadowing trap under *Authoring caveats*.
 
 To check a refactor for test loss, compare the suite's own assertion total —
-2028 today. `grep -c '@test '` counts source lines (1391) and misses the loops
+2025 today. `grep -c '@test '` counts source lines (1391) and misses the loops
 that multiply them.
 
 The full run costs about 5 min. A cold process spends about 30 s before the
@@ -221,9 +221,10 @@ construction cost is noted in that file's comments and guarded by nothing.
 ## Authoring caveats
 
 **Declarations in a local scope never reach the framework.** Inside a `let`,
-a function body or a `@testset`, `h_x(::MyComp, (; x)) = …` binds a *new local
-function*, not a method of the global `h_x`, so the build sees a component
-that declares nothing. The periphery's declarations hit it identically: the
+a function body or a `@testset`, `output_state(::MyComp, (; x)) = …` binds a
+*new local function*, not a method of the global `output_state`, so the build
+sees a component that declares nothing. The periphery's declarations hit it
+identically: the
 traits (`is_input`, `is_output`, `is_greedy`, `claims`, `reads`,
 `needs_calling_task`), the device contract's four functions (`init!`, `loop`,
 `shutdown!`, `unblock!`) and the mapping conventions (`map_input`,
@@ -236,17 +237,19 @@ not built; increment 4 catches the case one stratum earlier, a component with
 no declarations having no *class* to read either (§8.5).
 
 **Extending a declaration without importing it is silent on 1.12.** `using
-Cadence` followed by a bare `h_x(::MyComp, …)` definition creates a local
-generic — no error, no warning, and whether or not the name is exported. Julia
-≤1.11 raised "must be explicitly imported to be extended"; 1.12's binding
-partitions removed that, measured on 1.12.7. Only `using Cadence: h_x` errors.
-The build then sees the same declares-nothing component as above. No export
-list can prevent this: `f` and `g` in particular must never be exported, since
-they would silently shadow a user's own, so the declaration family needs an
-explicit `import` whatever else is settled about exports. The lever left is a
-diagnostic — checking `parentmodule(typeof(c))` for bindings named like the
-declaration family that are not Cadence's, and naming them in
-`ClassUnreadable`/`TierUnreadable` — proposed and not yet designed.
+Cadence` followed by a bare `output_state(::MyComp, …)` definition creates a
+local generic — no error, no warning, and whether or not the name is
+exported. Julia ≤1.11 raised "must be explicitly imported to be extended";
+1.12's binding partitions removed that, measured on 1.12.7. Only `using
+Cadence: output_state` errors. The build then sees the same declares-nothing
+component as above, and for an *optional* declaration — `state_events`,
+`state_projection`, `init_m`, `init_workspace`, `sample_times`, the connection
+declarations — the build succeeds with the feature silently absent. The
+family's names are distinctive by design (D-220), so a binding of one of them
+in the component's module that is not Cadence's is unambiguous evidence of a
+forgotten import; the lever is a diagnostic checking
+`parentmodule(typeof(c))` for such bindings and naming them — proposed and
+not yet designed.
 
 Traps hit more than once while building, for whoever builds next:
 
@@ -261,7 +264,8 @@ Traps hit more than once while building, for whoever builds next:
 - `===` has no curried form (`all(===(x), v)` fails — use a lambda); a
   `where`-clause method's `.sig` is a `UnionAll` (`Base.unwrap_unionall`
   before `.parameters`);
-- a local named `events` inside `compile` shadows the `events(c)` accessor;
+- a local named `state_events` inside `compile` shadows the `state_events(c)`
+  accessor;
 - assert a store's type on the `Ref` — `(v[ci]::Base.RefValue{S})[]` — never
   after `[]`, which boxes 16 bytes;
 - **a type's printed form depends on the printing module**, so never

@@ -25,16 +25,16 @@ function failures_runtime()
         step!(sim)
         cur = sim.exec.cursor
         @test cur.phase === :ticks                      # the sequence's last block, empty here
-        @test cur.fn === :h_xu                          # the last dispatch the sweep walked
+        @test cur.fn === :output_direct                 # the last dispatch the sweep walked
         @test cur.comp == index_of(sim.build.flat, "plant")
     end
 
-    @testset "a throw mid-integration names the component, `f` and the stage (§13.4)" begin
+    @testset "a throw mid-integration names the component, `state_derivative` and the stage (§13.4)" begin
         sim = Simulation(fed(Tripwire(0.05), "arm"); h = 1//10, t_end = 5.0)
         init!(sim, fragment(inputs = (in = true,)))
         e = failure(() -> run!(sim))
         @test e isa StepError
-        @test e.frame == CursorFrame("c", :f, :integrate, 2)   # RK4's half-step evaluation
+        @test e.frame == CursorFrame("c", :state_derivative, :integrate, 2)   # RK4's half-step evaluation
         @test e.boundary == 0 && e.t == 0.05
         @test e.cause isa Tripped
         @test lifecycle(sim) === :errored
@@ -87,19 +87,19 @@ function failures_runtime()
         @test e.boundary == 0 && e.t == 0.1             # the frame top the integrate landed on
     end
 
-    @testset "a throw in `g` or in `project` names its own block (§13.4)" begin
+    @testset "a throw in `state_update` or in `state_projection` names its own block (§13.4)" begin
         sim = Simulation(fed(Sapper(), "sig"); h = 1//10, t_end = 5.0)
         init!(sim, fragment(inputs = (in = false,)))
         stage!(sim, "in" => true)
         e = failure(() -> step!(sim))
         @test e isa StepError && e.cause isa Detonated
-        @test e.frame.path == "c" && e.frame.fn === :g && e.frame.phase === :ticks
+        @test e.frame.path == "c" && e.frame.fn === :state_update && e.frame.phase === :ticks
 
         simp = Simulation(single(Primer(0.15)); h = 1//10, t_end = 5.0)
         init!(simp)
         ep = failure(() -> run!(simp))
         @test ep isa StepError && ep.cause isa Detonated
-        @test ep.frame.path == "c" && ep.frame.fn === :project && ep.frame.phase === :project
+        @test ep.frame.path == "c" && ep.frame.fn === :state_projection && ep.frame.phase === :project
         @test ep.boundary == 1                          # `q` reaches the level in frame 2
     end
 
@@ -138,7 +138,7 @@ function failures_runtime()
         init!(sim, fragment(inputs = (in = true,)))
         e = failure(() -> run!(sim))
         s = sprint(showerror, e)
-        @test occursin("`c`", s) && occursin("f", s) && occursin("stage 2", s)
+        @test occursin("`c`", s) && occursin("state_derivative", s) && occursin("stage 2", s)
         @test occursin("to_boundary = 0", s) && occursin("step!", s)
 
         # A `Diagnostic` cause renders as its logline: the kind name leads, and the
@@ -159,7 +159,7 @@ function failures_runtime()
         @test !occursin("root component", sn0) && !occursin(" in ", sn0)
 
         # An unrecognized phase renders as itself, never as another phase's spelling.
-        odd = StepError(CursorFrame("c", :f, :nowhere, 0), 0.3, 3, Tripped())
+        odd = StepError(CursorFrame("c", :state_derivative, :nowhere, 0), 0.3, 3, Tripped())
         @test occursin("nowhere of the frame", sprint(showerror, odd))
     end
 
@@ -171,7 +171,7 @@ function failures_runtime()
         init!(sim, fragment(inputs = (in = true,)))
         e = failure(() -> run!(sim))
         @test e isa StepError && e.cause isa Tripped
-        @test e.frame == CursorFrame("c", :f, :integrate, 2)
+        @test e.frame == CursorFrame("c", :state_derivative, :integrate, 2)
         @test e.t == 0.05 && e.boundary == 0
         @test lifecycle(sim) === :errored
 
@@ -198,7 +198,7 @@ function failures_runtime()
         @test e.boundary == 1 && e.t ≈ 0.2              # the frame from boundary 1, at its top
         # The sweep is the boundary's first act: the cursor is still the integrate's,
         # named at the block's owner and at no function, and neither `div`'s own
-        # `project` nor `con`'s lookup has run on the NaN.
+        # `state_projection` nor `con`'s lookup has run on the NaN.
         @test e.frame.path == "div" && e.frame.fn === :none && e.frame.phase === :integrate
         @test e.frame.index == 0                        # the sweep is no stage, so no ordinal
         @test !(e.cause isa DomainError) && d.path != "con"
@@ -253,7 +253,7 @@ function failures_pointer_twin()
         # frame's own drain.
         e = reproduction(fed(Tripwire(0.35), "arm"), 3)
         @test e.cause isa Tripped && e.boundary == 3
-        @test e.frame == CursorFrame("c", :f, :integrate, 2)
+        @test e.frame == CursorFrame("c", :state_derivative, :integrate, 2)
 
         # And the nonfinite species, which the sweep raises rather than model code.
         en = reproduction(diverging(), 1)

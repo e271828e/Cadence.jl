@@ -193,7 +193,7 @@ end
 """
 A nonfinite continuous-state leaf found by the boundary's first act (§13.4,
 D-157): the sweep over `x` immediately after integrate returns, before
-`project` and before the boundary sweep, so the component whose own block
+`state_projection` and before the boundary sweep, so the component whose own block
 diverged is the one named — not the innocent downstream one the NaN would
 reach next. Thrown as a `BuildError` holding it alone, and the frame loop's
 catch site makes it a `StepError` species.
@@ -342,17 +342,17 @@ function message(d::PathResolution)
      "segment where the child is a container element, and nothing further (§6.1, §13.3)")
 end
 
-"§8.2: a declared store with no update — `init_x` without `f`, `init_s` without `g`."
+"§8.2: a declared store with no update — `init_x` without `state_derivative`, `init_s` without `state_update`."
 Base.@kwdef struct StoreWithoutUpdate <: Diagnostic
     path::String
     store::Symbol                            # :init_x | :init_s
 end
 path(d::StoreWithoutUpdate) = d.path
 message(d::StoreWithoutUpdate) =
-    "`$(d.path)` declares `$(d.store)` but defines neither `f` nor `g` — a store needs " *
-    "its update (§8.2)"
+    "`$(d.path)` declares `$(d.store)` but defines neither `state_derivative` nor " *
+    "`state_update` — a store needs its update (§8.2)"
 
-"§8.2: an event declared with one half, or an `events` entry that is not an `Event` (D-215)."
+"§8.2: an event declared with one half, or a `state_events` entry that is not a `StateEvent` (D-215)."
 Base.@kwdef struct EventHalfMissing <: Diagnostic
     path::String
     event::Symbol
@@ -362,8 +362,9 @@ end
 path(d::EventHalfMissing) = d.path
 message(d::EventHalfMissing) =
     d.reason === :not_an_event ?
-    "`$(d.path)`: events entry `$(d.event)` is $(d.found) — an entry is " *
-    "`Event(guard, handler)`, with no detection keyword (§8.2)" :
+    "`$(d.path)`: `state_events` entry `$(d.event)` is $(d.found) — the entry is not a " *
+    "`StateEvent`, which is `StateEvent(guard, handler)`, with no detection keyword " *
+    "(§8.2)" :
     "`$(d.path)`: event `$(d.event)`'s $(d.reason) has no method for $(d.found) — an " *
     "event needs both halves (§8.2)"
 
@@ -402,7 +403,7 @@ message(d::ContainerMixed) =
     "$(_at_path(d.path)): container field `$(d.field)` mixes components with " *
     "$(_plainlist(d.types)) — a container holds components only (§8.5)"
 
-"§5.2, §8.2, §8.5: a declaration written in the other tier's form, or `project` off the continuous tier."
+"§5.2, §8.2, §8.5: a declaration written in the other tier's form, or `state_projection` off the continuous tier."
 Base.@kwdef struct DeclarationOnWrongTier <: Diagnostic
     path::String
     declaration::Symbol                      # the offending declaration
@@ -584,7 +585,7 @@ end
 path(d::AlgebraicCycle) = isempty(d.members) ? "" : first(d.members)
 message(d::AlgebraicCycle) =
     "algebraic loop through stage-2 ports: $(join(d.members, " → ")) — break it with a " *
-    "stage-1 (`h_x`/`h_s`) port, which carries no input dependence (§5.4/§5.5)"
+    "stage-1 (`output_state`) port, which carries no input dependence (§5.4/§5.5)"
 
 "§4.3, §8.3: one port written by both stages."
 Base.@kwdef struct ProducedByTwoStages <: Diagnostic
@@ -1209,7 +1210,7 @@ severity(::TrimCommitResiduals) = :warning
 message(d::TrimCommitResiduals) =
     "this solve converged, and the residuals re-gathered after the commit leave the box: " *
     join(("`$k` = $v against $t" for (k, v, t) in d.residuals), ", ") * " — the mover is " *
-    "boundary zero's `project` or a commit-fired handler, and the verdict is not " *
+    "boundary zero's `state_projection` or a commit-fired handler, and the verdict is not " *
     "re-litigated: it gated the commit, at the solved point (§14.5, §14.8)"
 
 "§14.4: a condition tree whose shape differs from the one its plan was compiled from."

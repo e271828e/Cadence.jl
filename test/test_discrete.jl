@@ -291,7 +291,7 @@ function discrete_deployment()
         # `z` at Relative(2, 1) is not due at boundary zero: its first tick is at
         # Φ·Δt_base. Its output stage runs there all the same (D-205), publishing
         # from the t₀ table — the ramp *at t₀*, not the build probe's value; the
-        # dueness the gate reads at index 0 governs the `g` updates alone (§10.5).
+        # dueness the gate reads at index 0 governs the `state_update` updates alone (§10.5).
         late = Group((; src = Ramp(5.0), z = ZOH());
                      wires = ("src/out" => "z/in",),
                      outputs = ("z/out" => "y",),

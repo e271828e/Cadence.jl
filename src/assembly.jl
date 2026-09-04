@@ -10,9 +10,10 @@
 
 @enum Class PRIMITIVE ASSEMBLY
 
-const LEAF_FAMILY = "`init_x`, `init_s`, `init_m`, `workspace`, `input_types`, " *
-                    "`output_types`, `events` or a stage (`h_x`, `h_xu`, `h_s`, `h_su`, " *
-                    "`f`, `g`, `project`)"
+const LEAF_FAMILY = "`init_x`, `init_s`, `init_m`, `init_workspace`, `input_types`, " *
+                    "`output_types`, `state_events` or a stage (`output_state`, " *
+                    "`output_direct`, `state_derivative`, `state_update`, " *
+                    "`state_projection`)"
 
 """The leaf declarations `c` defines, in inventory order (§8.2, §8.5)."""
 function leaf_declarations(c)
@@ -22,13 +23,14 @@ function leaf_declarations(c)
     end
     # Either arity is a leaf declaration; which one is lawful is the tier's
     # question, settled by the classifier (§8.2), not this one.
-    for (name, fn) in ((:workspace, workspace), (:input_types, input_types),
+    for (name, fn) in ((:init_workspace, init_workspace), (:input_types, input_types),
                        (:output_types, output_types))
         (_declares(fn, c) || _declares(fn, c, Type{Float64})) && push!(found, name)
     end
-    _declares(events, c) && push!(found, :events)
-    for (name, fn) in ((:h_x, h_x), (:h_xu, h_xu), (:h_s, h_s), (:h_su, h_su),
-                       (:f, f), (:g, g), (:project, project))
+    _declares(state_events, c) && push!(found, :state_events)
+    for (name, fn) in ((:output_state, output_state), (:output_direct, output_direct),
+                       (:state_derivative, state_derivative), (:state_update, state_update),
+                       (:state_projection, state_projection))
         has_stage(fn, c) && push!(found, name)
     end
     found

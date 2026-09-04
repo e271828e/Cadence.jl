@@ -23,7 +23,7 @@ struct BothFamilies <: AbstractComponent         # assembly marker beside a cont
 end
 child_connections(::BothFamilies) = ()
 output_types(::BothFamilies, ::Type{T}) where {T <: Real} = (a = T,)
-h_x(::BothFamilies, (; t)) = (a = 1.0,)
+output_state(::BothFamilies, (; t)) = (a = 1.0,)
 
 function assembly_class()
     @testset "class is read off the declaration shape (§8.5)" begin
@@ -378,7 +378,7 @@ struct RootCollision <: AbstractComponent        # one key in both contracts
 end
 input_types(::RootCollision, ::Type{T}) where {T <: Real} = (u = T,)
 output_types(::RootCollision, ::Type{T}) where {T <: Real} = (u = T, v = T)
-h_xu(::RootCollision, (; u)) = (u = 2u.u, v = 1.0)
+output_direct(::RootCollision, (; u)) = (u = 2u.u, v = 1.0)
 
 struct DeadFace <: AbstractComponent             # a face routed to nothing at all
     g::Gain

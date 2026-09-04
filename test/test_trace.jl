@@ -24,7 +24,7 @@ three_root_inputs() = Group((; s = Sum(sa = 1.0, sb = 1.0), g = Gain(2.0));
 
 # A model whose boundary-zero sequence moves both discrete state homes (§14.5):
 # the trigger's guard holds in the authored state and fires at `t₀`, and the
-# integrator's due `g` runs there too. What the header must hold is what stood
+# integrator's due `state_update` runs there too. What the header must hold is what stood
 # *before* either did.
 boundary_movers() = Group((; t = Trigger(0.5), d = DiscreteIntegrator(1.0));
                           inputs = ("sig" => "t/sig", "e" => "d/e"))
@@ -79,7 +79,7 @@ function trace_recording()
         # `flat.paths` is ["t", "d"]: the trigger's modes and the integrator's state.
         @test h.m == Any[(state = :armed, count = 0), nothing]
         @test h.s == Any[nothing, (acc = 0.0,)]
-        # …while boundary zero has already fired the guard and run the due `g`.
+        # …while boundary zero has already fired the guard and run the due `state_update`.
         @test modes(sim, "t") == (state = :fired, count = 1)
         @test state(sim, "d") == (acc = 0.2,)
 

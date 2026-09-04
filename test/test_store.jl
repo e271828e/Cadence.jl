@@ -11,7 +11,7 @@
 # `T`, so it must not follow the activation scalar.
 struct PinnedLeaf <: AbstractComponent end
 output_types(::PinnedLeaf, ::Type{T}) where {T <: Real} = (a = T, frozen = Float64)
-h_x(::PinnedLeaf, (; t)) = (a = t, frozen = 2.0)
+output_state(::PinnedLeaf, (; t)) = (a = t, frozen = 2.0)
 
 function store_pinned_leaf()
     @testset "a pinned leaf lives in its own store (D-166, D-162)" begin
@@ -39,7 +39,7 @@ struct TaggedValue{T}
 end
 struct MixedCell <: AbstractComponent end
 output_types(::MixedCell, ::Type{T}) where {T <: Real} = (out = TaggedValue{T},)
-h_x(::MixedCell, (; t)) = (out = TaggedValue(t, 1),)
+output_state(::MixedCell, (; t)) = (out = TaggedValue(t, 1),)
 
 struct PinnedPair{T}
     a::T
@@ -47,7 +47,7 @@ struct PinnedPair{T}
 end
 struct PinnedInside <: AbstractComponent end
 output_types(::PinnedInside, ::Type{T}) where {T <: Real} = (out = PinnedPair{T},)
-h_x(::PinnedInside, (; t)) = (out = PinnedPair(t, 2.0),)
+output_state(::PinnedInside, (; t)) = (out = PinnedPair(t, 2.0),)
 
 function store_mixed_cell()
     @testset "a mixed-leaf cell lays out across its eltypes' buffers (§7.2, D-162)" begin
@@ -143,13 +143,13 @@ function store_shared_bodies()
                     inputs = ("ref" => ("a/ref", "b/ref"),))
         sim = Simulation(two; h = 1//100)
         types(body) = unique(typeof(e) for e in walked(body))
-        @test length(types(sim.exec.bodies.sweep_1)) == 1     # two Plants, one h_x body
+        @test length(types(sim.exec.bodies.sweep_1)) == 1     # two Plants, one output_state body
         @test length(types(sim.exec.bodies.sweep_2)) == 3    # Plant, Gain, Sum
         @test length(types(sim.exec.bodies.rhs)) == 1
 
         # The discrete tier keeps the property: a state store is a `Ref` whose
         # *type* every instance of a component type shares, so the store lives in a
-        # field and two counters still compile to one `g` body.
+        # field and two counters still compile to one `state_update` body.
         counters = Simulation(Group((; c1 = TickCounter(), c2 = TickCounter()));
                               h = 1//10)
         @test length(walked(counters.exec.bodies.ticks)) == 2
@@ -160,18 +160,18 @@ function store_shared_bodies()
     end
 end
 
-# A `g` that widens its own store: the discrete world is pinned, so this is an
-# error rather than a silent conversion at the store assignment.
+# A `state_update` that widens its own store: the discrete world is pinned, so
+# this is an error rather than a silent conversion at the store assignment.
 struct WidenedUpdate <: AbstractComponent end
 init_s(::WidenedUpdate) = (n = 0,)
 output_types(::WidenedUpdate) = (n = Int,)
-h_s(::WidenedUpdate, (; s)) = (n = s.n,)
-g(::WidenedUpdate, (; s)) = (n = s.n + 0.5,)
+output_state(::WidenedUpdate, (; s)) = (n = s.n,)
+state_update(::WidenedUpdate, (; s)) = (n = s.n + 0.5,)
 
 function store_successor_type()
     @testset "a discrete successor is the store's own type (§7.3)" begin
         d = only(failure(() -> build(single(WidenedUpdate()))).diagnostics)
-        @test d isa ConformanceFailure && d.what == "g" && d.reason === :field_set &&
+        @test d isa ConformanceFailure && d.what == "state_update" && d.reason === :field_set &&
               d.shape === :init_s && d.observed === @NamedTuple{n::Float64}
     end
 end

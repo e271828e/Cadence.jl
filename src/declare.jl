@@ -39,11 +39,11 @@ init_m(::Any) = NamedTuple()
 """
 Mutable scratch, instantiated by the framework and arriving as the bundle's
 `ws` field (§7.3). Declaration *is* allocation, and the arity splits the tiers:
-`workspace(::C, ::Type{T})` continuous — sizes from the instance, eltypes from
-the activation — against plain `workspace(::C)` on the discrete tier. No
-fallback: absence is how a component declares no scratch.
+`init_workspace(::C, ::Type{T})` continuous — sizes from the instance, eltypes
+from the activation — against plain `init_workspace(::C)` on the discrete
+tier. No fallback: absence is how a component declares no scratch.
 """
-function workspace end
+function init_workspace end
 
 """
 Input faces: name => type, **as a function of the activation scalar** (D-167)
@@ -170,27 +170,27 @@ constructor parameter and read off the instance here (§10.5).
 """
 sample_times(::Any) = (;)
 
-# --- events (§2.1, §8.2) ------------------------------------------------------
+# --- state events (§2.1, §8.2) -------------------------------------------------
 
 """
-One guard/handler pair, and nothing else: `Event(guard, handler)` carries no
-detection keyword. Detection policy is declared by the guard's *return type* —
-a `Bool` guard is boundary-detected, a sign-form guard is localized — read off
-the probe it already runs (§10.4, D-179), so the illegal form/policy pairing is
-unrepresentable rather than merely diagnosed.
+One guard/handler pair, and nothing else: `StateEvent(guard, handler)` carries
+no detection keyword. Detection policy is declared by the guard's *return
+type* — a `Bool` guard is boundary-detected, a sign-form guard is localized —
+read off the probe it already runs (§10.4, D-179), so the illegal form/policy
+pairing is unrepresentable rather than merely diagnosed.
 """
-struct Event{G,H}
+struct StateEvent{G,H}
     guard::G
     handler::H
 end
 
 """
-The ordered, named guard/handler collection (§8.2): `name = Event(guard,
+The ordered, named guard/handler collection (§8.2): `name = StateEvent(guard,
 handler)` entries. Order is semantics — declaration order is priority with
 re-decision at the boundary iteration (§10.6). Continuous-only, like `init_m`:
 the event system is continuous-side only (§5.2). Nothing here is inferrable.
 """
-events(::Any) = (;)
+state_events(::Any) = (;)
 
 """
 Manifold projection (§5.2): one store in, the same store out, which is why it
@@ -199,7 +199,7 @@ integration and after each handler firing (§5.3) — and its return is written
 back to the buffer wholesale, so the probe holds it complete against the state
 shape (§9.3).
 """
-function project end
+function state_projection end
 
 """The §2.1 predicate of a guard's return: the `Bool` form itself, or `σ ≥ 0`."""
 _holding(σ::Bool) = σ
@@ -207,25 +207,24 @@ _holding(σ) = σ ≥ 0
 
 # --- what an author defines (the §5.2 signatures) -----------------------------
 # Every stage takes the component and exactly one NamedTuple bundle of views,
-# destructured by name: `h_xu(c::MyComp, (; x, u)) = ...`. The framework's call
-# is one fixed shape; the bundle law (below) decides what the tuple carries.
+# destructured by name: `output_direct(c::MyComp, (; x, u)) = ...`. The
+# framework's call is one fixed shape; the bundle law (below) decides what the
+# tuple carries.
 #
-# The two output stages come in one pair per tier and the pairs are disjoint
-# (D-195): `h_x`/`h_xu` continuous, `h_s`/`h_su` discrete. "No `u` in the name"
-# is the no-feedthrough marker within either pair, and a stage name on its own
-# now carries the tier, which is what makes a wrong-letter declaration
-# diagnosable (§8.2).
+# The two output stages are one pair of names shared by both tiers (D-220):
+# `output_state`/`output_direct`, whose legal bundle set is tier-dependent —
+# `x, m, t [, ws]`/`x, m, u, y_x, t [, ws]` continuous, `s, t, Δt [, ws]`/
+# `s, u, y_s, t, Δt [, ws]` discrete. "No `direct` in the name" is the
+# no-feedthrough marker within either tier's pair.
 #
 # A component defines the stages it needs. `has_stage` is how the build asks,
 # and it is a question about method existence, not a declaration the author
 # repeats — the definition site is the single source of truth.
 
-function h_x end
-function h_xu end
-function h_s end
-function h_su end
-function f end
-function g end
+function output_state end
+function output_direct end
+function state_derivative end
+function state_update end
 
 has_stage(fn, c) = hasmethod(fn, Tuple{typeof(c),NamedTuple})
 
@@ -252,12 +251,11 @@ declared_at(fn, c, t::Tier) =
     t === CONTINUOUS ? (_declares(fn, c, Type{Float64}) ? fn(c, Float64) : NamedTuple()) :
                        (_declares(fn, c) ? fn(c) : NamedTuple())
 
-# The tier's own name family (D-195). Everything downstream asks for a stage or
-# an update law *through* the tier, so no code path ever holds a name that
-# serves both.
-stage1_of(t::Tier) = t === CONTINUOUS ? h_x : h_s
-stage2_of(t::Tier) = t === CONTINUOUS ? h_xu : h_su
-update_of(t::Tier) = t === CONTINUOUS ? f : g
+# The tier's own update law (D-195). Everything downstream asks for it
+# *through* the tier, so no code path ever holds a name that serves both; the
+# output stages are one pair of names shared by both tiers (D-220), so every
+# caller names them directly instead.
+update_of(t::Tier) = t === CONTINUOUS ? state_derivative : state_update
 
 # --- the bundle law (§5.2) ----------------------------------------------------
 # A name appears in a component's bundle iff the corresponding store or fact
@@ -278,7 +276,7 @@ The per-function, per-tier name sets are closed, and so are the state letters:
 (D-195).
 """
 function bundle_names(fn, c, t::Tier, stage1_ports::Tuple)
-    stage2, update = stage2_of(t), update_of(t)
+    update = update_of(t)
     names = Symbol[]
     if t === CONTINUOUS
         !isempty(init_x(c)) && push!(names, :x)
@@ -286,10 +284,10 @@ function bundle_names(fn, c, t::Tier, stage1_ports::Tuple)
     else
         !isempty(init_s(c)) && push!(names, :s)
     end
-    if fn === stage2 || fn === update
+    if fn === output_direct || fn === update
         !isempty(declared_at(input_types, c, t)) && push!(names, :u)
     end
-    if fn === stage2
+    if fn === output_direct
         !isempty(stage1_ports) && push!(names, t === CONTINUOUS ? :y_x : :y_s)
     elseif fn === update
         !isempty(declared_at(output_types, c, t)) && push!(names, :y)
@@ -301,7 +299,7 @@ function bundle_names(fn, c, t::Tier, stage1_ports::Tuple)
 end
 
 _declares_workspace(c, t::Tier) =
-    t === CONTINUOUS ? _declares(workspace, c, Type{Float64}) : _declares(workspace, c)
+    t === CONTINUOUS ? _declares(init_workspace, c, Type{Float64}) : _declares(init_workspace, c)
 
 """
 Bundle field names for a guard or handler (§5.2): the update law's view of the
