@@ -57,37 +57,27 @@ single consumer to own it.
 
 ## Authoring caveats
 
-**Declarations in a local scope never reach the framework.** Inside a `let`,
-a function body or a `@testset`, `output_state(::MyComp, (; x)) = …` binds a
-*new local function*, not a method of the global `output_state`, so the build
-sees a component that declares nothing. The periphery's declarations hit it
-identically: the traits (`is_input`, `is_output`, `is_greedy`, `claims`,
-`reads`, `needs_calling_task`), the device contract's four functions
-(`init!`, `loop`, `shutdown!`, `unblock!`) and the mapping conventions
-(`map_input`, `map_output`). A trait bound inside a `@testset` is a local
-function the conformance check never sees, and a local `loop` leaves the
-global fallback in place, crashing the device by name. Test fixtures live at
-top level for this reason. Nothing names the trap: the build refuses the
-component as having no class to read (§8.5), and `DeadStage` is not built
-(`pending.md`).
+Traps the code does not warn about, each hit more than once while building:
 
-**Extending a declaration without importing it is silent on 1.12.** `using
-Cadence` followed by a bare `output_state(::MyComp, …)` definition creates a
-local generic — no error, no warning, and whether or not the name is
-exported. Julia ≤1.11 raised "must be explicitly imported to be extended";
-1.12's binding partitions removed that, measured on 1.12.7. Only `using
-Cadence: output_state` errors. The build then sees the same declares-nothing
-component as above, and for an *optional* declaration — `state_events`,
-`state_projection`, `init_m`, `init_workspace`, `sample_times`, the connection
-declarations — the build succeeds with the feature silently absent. The
-family's names are distinctive by design (D-220), so a binding of one of them
-in the component's module that is not Cadence's is unambiguous evidence of a
-forgotten import; the lever is a diagnostic checking
-`parentmodule(typeof(c))` for such bindings and naming them — proposed and
-not yet designed.
-
-Traps hit more than once while building, for whoever builds next:
-
+- **declarations in a local scope never reach the framework.** Inside a
+  `let`, a function body or a `@testset`, `output_state(::MyComp, (; x)) = …`
+  binds a new local function, not a method of the global one, and the build
+  sees a component that declares nothing. The periphery's traits, the device
+  contract's four functions and the mapping conventions hit it identically; a
+  local `loop` leaves the global fallback in place and crashes the device by
+  name. Fixtures live at top level for this reason. Nothing names the trap:
+  the build refuses the component as having no class to read (§8.5), and
+  `DeadStage` is not built (`pending.md`);
+- **extending a declaration without importing it is silent on 1.12.** After
+  `using Cadence`, a bare `output_state(::MyComp, …)` creates a local generic
+  with no error or warning, exported or not; Julia ≤1.11 raised, 1.12's
+  binding partitions removed that (measured on 1.12.7), and only `using
+  Cadence: output_state` still errors. The build sees the same
+  declares-nothing component, and an optional declaration (`state_events`,
+  `state_projection`, `init_m`, `init_workspace`, `sample_times`, the
+  connection declarations) silently drops its feature. The diagnostic that
+  would catch it, a foreign binding of a D-220 name in the component's
+  module found via `parentmodule(typeof(c))`, is proposed and not designed;
 - the suite reaches the framework through `CadenceTests.jl`'s `import Cadence:`
   list, so a test that calls or extends a name not on it fails with an
   `UndefVarError` — add the name there. A fixture reusing a framework name
