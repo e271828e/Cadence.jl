@@ -88,8 +88,9 @@ increasing effort:
    steps exist.
 7. **Triggered (edge-driven) discrete updates** — the borderline item, *moderate*
    rather than limited. A triggered FSM is already covered (continuous component
-   with no `x`, events at boundary granularity). Running a discrete component's `g`
-   off a signal edge rather than a timer is closer than it first appears — the due
+   with no `x`, events at boundary granularity). Running a discrete component's
+   `state_update` off a signal edge rather than a timer is closer than it first
+   appears — the due
    set is already per-boundary runtime data ([§10.5][s10-5]), and the interior/boundary sweep
    split does not care *why* an entry is due — but the `Δt` story breaks: a
    triggered component has no period, and [§10.5][s10-5] makes `Δt` a schedule-derived bundle

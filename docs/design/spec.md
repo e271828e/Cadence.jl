@@ -187,7 +187,7 @@ The framework simulates **[hybrid causal systems](#g-hybrid-causal-system)**, co
 - **Multi-rate periodic discrete dynamics**: $s^{+} = g(s, u, t)$ at declared rates, with
   outputs held zero-order between [ticks](#g-tick).
 - **Zero-crossing events**: [guard](#g-guard) functions with handlers, under two detection policies (below).
-- **Post-step manifold [projection](#g-projection)**: an optional per-[component](#g-component) hook `x ← project(x)`
+- **Post-step manifold [projection](#g-projection)**: an optional per-[component](#g-component) hook `x ← state_projection(x)`
   applied after each accepted step (quaternion renormalization, DCM orthonormalization,
   any manifold-valued state). This is the cheap end of the projection-methods family
   from geometric integration.
@@ -208,6 +208,17 @@ differs:
   for events where timing precision genuinely matters (mechanics in [§10.4][s10-4]).
 
 Detection policy never depends on real-time [pacing](#g-pacing) ([§10.7][s10-7]).
+
+**Time events and state events.** The discrete [tier](#g-tier)'s
+[ticks](#g-tick), declared by `sample_times`, are
+[time events](#g-time-event): their instants
+are known in advance and scheduled ([§10.5][s10-5]). Everything declared through
+`StateEvent(guard, handler)` is a [state event](#g-state-event): its instant is
+unknown and must
+be detected, by boundary check or by localization. That is why the declaration
+is named `state_events` ([§8.2][s8-2]). The criterion is detection versus
+scheduling, not which fields a guard reads — a guard over an input is still a
+state event.
 
 This arrangement gives step-boundary logic *well-defined semantics*: the transition is
 defined by the crossing; detection resolution is an execution-policy detail.
@@ -320,8 +331,8 @@ the navigation/introspection hierarchy (GUI, logging, paths) and as declaration-
 [Ports](#g-port) exchange **immutable values** — typically isbits structs (floats, `SVector`s,
 enums, nested immutables). The framework owns a **[signal table](#g-signal-table)**: one
 concretely-typed **[cell](#g-cell)** per output port in the flattened model. A producer's
-output-[stage function](#g-stage-function) (`h_x`/`h_xu` on the continuous [tier](#g-tier),
-`h_s`/`h_su` on the discrete — the two output stages every component provides)
+output-[stage function](#g-stage-function) (`output_state`/`output_direct`, the
+two output stages every component provides, on either [tier](#g-tier))
 returns a named tuple of fresh values. The framework writes each of those
 values into its cell, and consumers read cells.
 
@@ -387,9 +398,9 @@ address, one GUI liveness verdict ([§11.7][s11-7]).
 #### Scatter and gather
 
 **Scatter/gather is the whole protocol.** A [stage function](#g-stage-function)
-(`h_x`/`h_xu` on the continuous [tier](#g-tier), `h_s`/`h_su` on the discrete)
+(`output_state`/`output_direct`, on either [tier](#g-tier))
 returns a named tuple. The framework scatters each field into that port's
-concretely-typed cell. Every reader — the next stage, `f`/`g`, [guards](#g-guard), wired consumers, [snapshot](#g-snapshot)
+concretely-typed cell. Every reader — the next stage, `state_derivative`/`state_update`, [guards](#g-guard), wired consumers, [snapshot](#g-snapshot)
 capture — gathers views from cells.
 
 **The aggregate `y` is a merge semantically and virtual physically.**
@@ -462,8 +473,8 @@ pose). They are therefore carried by ordinary [ports](#g-port) as **immutable qu
 
 - An environment [component](#g-component) emits a field value (`ISAField(T_sl, p_sl,
   wind)`, `TerrainField(…)`); consumers receive it through ordinary input ports.
-  Inside their own [stage functions](#g-stage-function) (`h_x`/`h_xu` on the
-  continuous [tier](#g-tier), `h_s`/`h_su` on the discrete) they call query
+  Inside their own [stage functions](#g-stage-function)
+  (`output_state`/`output_direct`) they call query
   functions on it: `airdata(field, pos, vel)`, `ray_intersect(field, p, u)`.
 - **Parametric models are isbits** (ISA, uniform wind, horizontal terrain). **Bulk-data
   models use the handle pattern**: an immutable struct combining isbits parameters with
@@ -504,7 +515,7 @@ call it:
 atmospheric_field(atm; T_sl, p_sl, wind) = ISAField(…)
 
 #the swept output stage: one line, nothing but the call
-h_xu(atm, args) = (; … = atmospheric_field(atm; T_sl = …, p_sl = …, wind = …))
+output_direct(atm, args) = (; … = atmospheric_field(atm; T_sl = …, p_sl = …, wind = …))
 ```
 
 Pre-sampling — a component consuming the field and a pose and emitting plain data
@@ -540,21 +551,21 @@ in the design:
 
 ```julia
 # continuous component — maximal legal view set of each bundle in comments
-y_x      = h_x(comp, args)          # x, m, t [, ws] — no-feedthrough stage
-y_xu     = h_xu(comp, args)         # x, m, u, y_x, t [, ws]
-ẋ        = f(comp, args)            # x, m, y, u, t [, ws]
+y_x  = output_state(comp, args)       # x, m, t [, ws] — no-feedthrough stage
+y_xu = output_direct(comp, args)      # x, m, u, y_x, t [, ws]
+ẋ    = state_derivative(comp, args)   # x, m, y, u, t [, ws]
 
-# discrete component — its own stage names over its own state letter
-y_s      = h_s(comp, args)          # s, t, Δt [, ws]
-y_su     = h_su(comp, args)         # s, u, y_s, t, Δt [, ws]
-s⁺       = g(comp, args)            # s, y, u, t, Δt [, ws]
+# discrete component — the same two stage names over its own state letter
+y_s  = output_state(comp, args)       # s, t, Δt [, ws]
+y_su = output_direct(comp, args)      # s, u, y_s, t, Δt [, ws]
+s⁺   = state_update(comp, args)       # s, y, u, t, Δt [, ws]
 
 # every output stage returns its port NamedTuple — the return law below
 
 # event system (continuous side only) — same fresh table, same state views:
 σ        = guard(comp, args)        # x, m, y, u, t [, ws] — Bool or scalar sign value (§2.1)
 (; x, m) = handler(comp, args)      # x, m, y, u, t [, ws] — keys by the return law below (§9.5)
-x⁺       = project(comp, x)         # manifold projection; positional (below)
+x⁺ = state_projection(comp, x)      # manifold projection; positional (below)
 ```
 
 The laws that govern that surface follow: how a function receives its
@@ -566,7 +577,8 @@ handler returns.
 **Rule.** Every function receives exactly two arguments: the component and one
 NamedTuple [bundle](#g-bundle) of zero-copy views. From that bundle the author
 **destructures by name** only what the body reads:
-`f(c::LowPassFilter, (; x, u)) = …`, `h_su(c::PID, (; s, u, Δt)) = …`.
+`state_derivative(c::LowPassFilter, (; x, u)) = …`,
+`output_direct(c::PID, (; s, u, Δt)) = …`.
 
 **Why.** The [executor](#g-executor) (the compiled execution form of the
 schedule) issues one fixed call shape, `fn(comp, args)`. Unread fields are
@@ -574,7 +586,7 @@ ignored by language semantics. Argument order cannot be confused, because there
 is no order.
 
 Positional, `kwarg_decl`-reflected and slurping-keyword spellings are all
-closed ([D-074][d-074]). `project` alone stays positional: one store in, the same store
+closed ([D-074][d-074]). `state_projection` alone stays positional: one store in, the same store
 out, nothing to select.
 
 #### The bundle law: which names a component receives
@@ -587,7 +599,7 @@ bundle **iff the corresponding store or fact exists for that component**.
 | `x` | the component declares `init_x` (continuous [tier](#g-tier)) |
 | `s` | the component declares `init_s` (discrete tier) |
 | `m` | the component declares `init_m` |
-| `ws` | the component declares `workspace` |
+| `ws` | the component declares `init_workspace` |
 | `u` | the [function family](#g-function-family) (which bundle fields a given function may legally receive) may see inputs **and** the component declares `input_types` |
 | `y` | the component produces any table [cell](#g-cell) at all (`output_types` ∪ auto-published) |
 | `y_x` / `y_s` | stage-1 [ports](#g-port) exist, under the tier's own spelling |
@@ -607,7 +619,7 @@ Undeclared stores are *absent*, never `nothing`-filled. Destructuring a field
 that is not a thing for you fails at the probe inside the [§13.2][s13-2]
 framing diagnostic, with [did-you-mean](#g-did-you-mean) (the offending name
 plus the list-in-hand it should have matched) against the legal field set:
-"`f` of `Foo` destructures `m`, but `Foo` declares no `init_m`". One law covers
+"`state_derivative` of `Foo` destructures `m`, but `Foo` declares no `init_m`". One law covers
 tier facts, stage legality and declarations alike.
 
 The mechanism is structured, not textual. Destructuring an absent field throws
@@ -623,15 +635,19 @@ The wrong-tier class covers the state letters too ([D-195][d-195]): `x` and `m`
 are continuous-only, `s` and `Δt` discrete-only, so destructuring any of the
 four on the wrong tier lands in that bucket.
 
-The per-function name sets are **closed**, one set per function — the two
-tiers' name families are disjoint by construction ([D-195][d-195]), so no set
-needs a tier qualifier. Adding a name is a decision-log entry, not a
-convenience. The comment in the signature block above
-states each function's maximal legal set; a given component's bundle narrows it
-to declared reality; the destructuring narrows further to actual reads. That
-three-level funnel (stage name ⊇ bundle ⊇ reads) is worth teaching once,
-because a stateless component legitimately writes `h_xu` while owning neither
-`x` nor `m`.
+The per-function name sets are **closed**, one set per function per
+[tier](#g-tier). The update laws carry their tier in the name, so
+`state_derivative` and `state_update` have one set each. The two output stages
+are shared machinery over both tiers ([D-220][d-220]), so `output_state` and
+`output_direct` have one set per tier — `x, m, t [, ws]` and
+`x, m, u, y_x, t [, ws]` on the continuous, `s, t, Δt [, ws]` and
+`s, u, y_s, t, Δt [, ws]` on the discrete. Adding a name to any of them is a
+decision-log entry, not a convenience. The comments in the signature block above
+state each function's maximal legal set at each tier; a given component's bundle
+narrows it to declared reality; the destructuring narrows further to actual
+reads. That three-level funnel (stage name at its tier ⊇ bundle ⊇ reads) is
+worth teaching once, because a stateless component legitimately writes
+`output_direct` while owning neither `x` nor `m`.
 
 #### The stage return law
 
@@ -690,33 +706,43 @@ the reading. A stage's role has two halves: what its name asserts, and what it m
 The rest of the section orders the stages into a schedule, then puts that schedule
 inside a step [boundary](#g-boundary).
 
-#### Stage roles: the letters
+#### Stage roles: the names
 
-**The letters**: `f` is the continuous [flow](#g-flow), `g` the discrete update, `h_*`
-the output stages. The scheme joins two traditions: `f` and `g` are the hybrid-systems
-flow/jump pair (Goebel–Sanfelice–Teel), and `h` is the control/estimation convention
-that the output map is `y = h(x, u)` — every navigation filter's measurement function.
-Bare `h` denotes the integration step size only ([§10][s10]).
+**Mathematical symbols and API names are two vocabularies, deliberately.** This
+document's formulas keep the symbols of the traditions they come from: `f` is
+the continuous [flow](#g-flow) and `g` the discrete update, the hybrid-systems
+flow/jump pair (Goebel–Sanfelice–Teel), and `h` is the control/estimation
+convention that the output map is `y = h(x, u)` — every navigation filter's
+measurement function. The API spells the same objects as words, so that a name
+bound in an author's own module is unambiguous evidence of a forgotten import
+([D-220][d-220]). The correspondence is one to one:
 
-**Rule.** A stage suffix names the **dependence class**, not the argument list.
-The tier's state letter alone versus that letter plus `u` is state-only versus
-state-plus-input — the `y = h(x)` / `y = h(x, u)` distinction spelled in the
-name, on the continuous tier as `h_x`/`h_xu` and on the discrete as
-`h_s`/`h_su` ([D-195][d-195]). So "no `u` in the name" *is* the
+| symbol | declaration |
+|---|---|
+| `f`, the flow | `state_derivative` |
+| `g`, the jump | `state_update` |
+| `y = h(x)` | `output_state` |
+| `y = h(x, u)` | `output_direct` |
+
+**Rule.** A stage's **name** states the **dependence class**, not the argument
+list. `output_state` is the `y = h(x)` case and `output_direct` the
+`y = h(x, u)` case. So "no `direct` in the name" *is* the
 no-[feedthrough](#g-feedthrough) property, visible at every definition site.
 
-The letters are deliberately non-exhaustive. Modes fold under the state letter: `m` is
-state, and the suffix names the [feedthrough](#g-feedthrough) split rather than an
+The names are deliberately non-exhaustive. Modes fold under the state: `m` is
+state, and the name states the [feedthrough](#g-feedthrough) split rather than an
 argument inventory ([D-075][d-075]). Ambient facts (`t`, `Δt`) and scratch (`ws`) ride unnamed.
 
-The stage names therefore carry the [tier](#g-tier) with them, and so does the
-update law, `f` versus `g`. A stateful leaf's declarations must agree on one
-tier throughout ([§8.2][s8-2]); a leaf mixing the families — `h_x` beside `g`,
-`h_s` beside `f` — is a build error, not a reading.
+The update law carries the [tier](#g-tier) in its name, `state_derivative`
+versus `state_update`. The two output stages do not: one pair of names serves
+both tiers, over each tier's own state letter ([D-220][d-220]). A stateful
+leaf's declarations must agree on one tier throughout ([§8.2][s8-2]); a leaf
+mixing the update laws, or declaring a store of one tier and the update law of
+the other, is a build error, not a reading.
 
 #### Stage roles: what each stage may see
 
-**`h_x`/`h_s` is the no-feedthrough stage**, defined entirely by what it cannot see. Its
+**`output_state` is the no-feedthrough stage**, defined entirely by what it cannot see. Its
 [bundle](#g-bundle) (the NamedTuple of zero-copy views a component function receives)
 carries no `u`, so "no feedthrough" cannot be violated by construction. That structural
 guarantee is what stage-1 [ports](#g-port) contribute to the [schedule](#g-schedule): they
@@ -733,15 +759,16 @@ stage-1 position ([§8.3][s8-3]). The match is against the declared stores —
 `init_x` plus `init_m` on the continuous tier, `init_s` on the discrete — and
 the publication position is stage 1 on either tier. Publication is driven by the public [contract](#g-contract) ([D-016][d-016]).
 
-**`h_xu`/`h_su` receives all wired inputs plus the stage-1 hand-down** — its own
+**`output_direct` receives all wired inputs plus the stage-1 hand-down** — its own
 stage-1 ports, auto-published names excluded ([D-169][d-169]). A shared
 intermediate is therefore computed once and read, not re-derived: stage 1 declares
 it as a port and stage 2 finds it in `y_x`, `y_s` on the discrete tier. It
 receives the [state views](#g-view) too. Conservatively, every stage-2 output is presumed dependent on every wired input.
 
-**`f` and `g` run after the sweep**, when the full [signal table](#g-signal-table) is
+**`state_derivative` and `state_update` run after the sweep**, when the full [signal table](#g-signal-table) is
 complete and fresh — the component's own stage-2 ports included. The fused idiom stands:
-compute each law once, in a stage; publish it; let `f`/`g` copy from `y`.
+compute each law once, in a stage; publish it; let `state_derivative`/`state_update`
+copy from `y`.
 
 **Why.** The interfaces *reward* single-source-of-truth rather than making duplication
 unwritable: nothing ever needs computing twice ([D-015][d-015], [D-035][d-035]).
@@ -752,10 +779,11 @@ anyway ([§7][s7]).
 #### The schedule
 
 **Rule.** The schedule runs all stage-1 functions in any order, then stage 2 in
-topological order, then all `f` against the now-consistent signal table.
+topological order, then all `state_derivative` calls against the now-consistent
+signal table.
 
 Note the systemic consequence: *evaluating the [RHS](#g-flow) means running the sweep*.
-There is no incremental `f`-only re-evaluation. Nothing is lost by that, because
+There is no incremental `state_derivative`-only re-evaluation. Nothing is lost by that, because
 implicit solvers, linearization and trim already work this way — seed `x`, run the
 composite. [§10.3][s10-3]/[§10.4][s10-4] restate that consequence as a property of the
 execution model. RHS evaluations and guard trial evaluations alike run the *interior*
@@ -771,14 +799,14 @@ state views are that state itself. Handlers construct their `x`/`m` returns from
 state naturally: a reset map is `(; x = (; x..., ω = 0.0))`, no reassembly from published
 fields.
 
-**`project` runs between a state write and its decode** — after integration, and after
+**`state_projection` runs between a state write and its decode** — after integration, and after
 any handler `x`-reset. Those are the only positions in the schedule where no fresh `y`
-of the new state can exist yet. `project` is not *unique* in receiving raw state (every
+of the new state can exist yet. `state_projection` is not *unique* in receiving raw state (every
 function gets state views), but it is unique in that schedule position.
 
 **The boundary sequence.** At each boundary: integrate → project → boundary sweep →
 evaluate **all guards once** against that sweep → fire the eligible events, each firing
-being `handler → project`. The sweep → guards → handlers phase then iterates to
+being `handler → state_projection`. The sweep → guards → handlers phase then iterates to
 [quiescence](#g-quiescence) (the fixed point where a round of handlers fires nothing),
 so newly-enabled guards fire within the *same* boundary:
 
@@ -821,7 +849,7 @@ FlightCore's fused `f_ode!` already embodied the same economics; this design kee
 while adding checked scheduling.
 
 **Shared expensive computations** are thereby solved uniformly: compute once in stage 2,
-publish, and let `f`/`g` consume the ports. External consumers read the same ports — an
+publish, and let `state_derivative`/`state_update` consume the ports. External consumers read the same ports — an
 accelerometer model reading `f_c_c`, for instance. The **computer/integrator split**
 remains fully expressible without framework support ([§7.4][s7-4] carries the full
 statement, including when the factoring earns its keep). Purity rules forbid the
@@ -891,7 +919,7 @@ absorbs the false wires. What is left for the split is cycles whose halves reall
 one component's own work.
 
 One consequence of stage-2 conservatism is worth recording. An input consumed only
-by `f`, never by `h_xu`, still creates a scheduling edge if the component has stage-2
+by `state_derivative`, never by `output_direct`, still creates a scheduling edge if the component has stage-2
 outputs. In practice such components are integrator-shaped and have no stage-2
 outputs, and the remedy, if ever needed, is the same ladder.
 
@@ -1129,7 +1157,7 @@ struct SumJunction{W, N} end        #type constructor, arity; library-provided
 input_types(::SumJunction{W, N}, ::Type{T}) where {W, N, T <: Real} =
     NamedTuple{ntuple(i -> Symbol(:in, i), N)}(ntuple(_ -> W{T}, N))
 output_types(::SumJunction{W, N}, ::Type{T}) where {W, N, T <: Real} = (; Σ = W{T})
-h_xu(::SumJunction, (; u)) = (; Σ = +(u...))
+output_direct(::SumJunction, (; u)) = (; Σ = +(u...))
 ```
 
 The parameter is the *unparametrized* type constructor — `SumJunction{Wrench, 3}`.
@@ -1280,7 +1308,7 @@ derivative is a `T`, and an `SArray` leaf's is the same `SArray` at `T`. This
 is the vocabulary rule paying rent: an invariant-carrying leaf like a unit
 quaternion has a derivative off its own type, and `Ẋ` would need a separate
 derivation; here the attitude leaf is an `SVector{4,T}` and so is its rate.
-The conformance predicate is structural: *each field of `f`'s return
+The conformance predicate is structural: *each field of `state_derivative`'s return
 scatters into its field's block at `T`* ([§9.5][s9-5] states the check). That makes
 derivative completeness a property of the layout rather than of author
 discipline. There is deliberately **no `derivative_type` hook** ([D-190][d-190]).
@@ -1317,7 +1345,7 @@ ordinary public construction is therefore bit-faithful automatically —
 the buffer's. Invariant-carrying leaves are closed ([D-094][d-094]). Domain semantics
 are instead an **explicit, invariant-free cast at the point of use**, the
 conversion today's `f_ode!` code performs on its raw views. Invariants live
-where the design already put them: in `project` at [boundaries](#g-boundary), and in
+where the design already put them: in `state_projection` at [boundaries](#g-boundary), and in
 writers. Handlers build their returned values through ordinary constructors,
 and the condition apply converts authored values through ordinary `convert`
 methods ([§14.3][s14-3]). Constructors run on the write paths, never on views.
@@ -1436,7 +1464,7 @@ A workspace serves heavy algorithms — an n≈20 Kalman filter, for example.
 instantiated by the framework. It arrives as the `ws` field of the
 [bundle](#g-bundle) — the NamedTuple of zero-copy views a component function
 receives — in every bundle-receiving function of the declaring component
-([§5.2][s5-2]). `project` is positional and receives none.
+([§5.2][s5-2]). `state_projection` is positional and receives none.
 
 **Rule.** A workspace is **excluded from state semantics**: not snapshotted,
 not replayed, never a condition target ([§14.1][s14-1]). It must carry no
@@ -1453,13 +1481,21 @@ be relied upon. No poisoning of scratch is attempted ([D-183][d-183]).
 **Declared by allocation.** The well-known method *is* the allocator:
 
 ```julia
-workspace(c::KF, ::Type{T}) where {T} =
+init_workspace(c::KF, ::Type{T}) where {T} =
     (P = Matrix{T}(undef, c.n, c.n), x̂ = Vector{T}(undef, c.n))
 ```
 
-That two-argument form is the continuous [tier](#g-tier); the discrete tier
-takes plain `workspace(::C)`, the same tier split the contract declarations
-follow. The allocator is called once per [activation](#g-activation) — a re-run
+**Rule.** `init_workspace` follows the [tier](#g-tier) split of the port
+contracts — `(::C, ::Type{T})` on the continuous tier, plain `(::C)` on the
+discrete — while `init_x`, `init_s` and `init_m` take the component alone on
+every tier.
+
+**Why.** State re-scalars through reconstruction ([§7.2][s7-2]), so `init_x`
+never needs `T`; scratch is part of the `T`-generic surface itself, and its
+eltypes can come from nowhere else. A one-argument `init_workspace` on a
+continuous leaf is therefore an ordinary tier disagreement ([§8.2][s8-2]).
+
+The allocator is called once per [activation](#g-activation) — a re-run
 of Stratum C at a given scalar type — and once per scratch-store set
 ([§14.8][s14-8]). Sizes come from the instance, eltypes from the activation.
 Nothing downstream derives from a workspace's type, and mistyped scratch
@@ -1468,7 +1504,9 @@ detonates loudly at the `Dual` [probe](#g-probe).
 The `undef` spelling is the recommended idiom and the sole visible marker that
 contents are meaningless. It puts that fact in the declaration, which is the
 register this store actually lives in: declaration by allocation, never by
-initial value ([D-077][d-077]).
+initial value ([D-077][d-077]). The `init_` prefix means *establish*, as the
+device contract's `init!` does ([§11.6][s11-6]), and carries no claim that the
+allocated contents are a value ([D-220][d-220]).
 
 **Available on both tiers.** Nothing in the workspace contract is tier-specific, and a
 continuous workspace simply joins the `T`-generic surface. Under a `Dual`
@@ -1510,7 +1548,7 @@ smaller:
 1. **N output groups → exactly two** ([D-006][d-006]), at the price of an occasional
    [component](#g-component) split ([§5.4][s5-4]).
 2. **Derivative binding → own-output access** ([D-015][d-015]). Passing the fresh
-   [signal table](#g-signal-table) to `f`/`g` subsumes the declaration feature, and the
+   [signal table](#g-signal-table) to `state_derivative`/`state_update` subsumes the declaration feature, and the
    "binding" becomes a one-line function body.
 3. **Separate state arguments → the state decoder** ([D-016][d-016], [D-035][d-035]) — the step
    later reversed by step 4.
@@ -1521,7 +1559,7 @@ smaller:
    replaced by a cell view. The fixed point is the argument rule ([§5.2][s5-2]):
    zero-copy views of the stores a function genuinely reads. What survives of
    step 3: the uniform shapes, the fused economics, and the stage-1
-   decoder itself (today's `h_x`/`h_s`). That decoder is no longer the sole state
+   decoder itself (today's `output_state`). That decoder is no longer the sole state
    gate; it is the no-[feedthrough](#g-feedthrough) stage.
 
 Prior art, for orientation: every causal framework meets the shared-computation
@@ -1530,7 +1568,7 @@ explicit blocks: derivatives are ordinary wires into `1/s`, and the computer/int
 split is their native idiom. **S-functions and FMUs** use sanctioned *mutable caches*
 — DWork vectors, FMI's lazy-evaluation caching — between their `mdlDerivatives`/
 `mdlOutputs`-style callback pairs. **Modelica/MTK** write `der(x) = expr` natively
-with symbolic CSE. The fused [sweep](#g-sweep) + signal-consuming `f`/`g` is the cache-free
+with symbolic CSE. The fused [sweep](#g-sweep) + signal-consuming `state_derivative`/`state_update` is the cache-free
 formulation that fits this design's purity rules. It is also what FlightCore's
 fused `f_ode!` did economically, minus the checked scheduling.
 
@@ -1555,7 +1593,7 @@ commit.
 
 - **Continuous hot path** — per-stage evaluation, plus everything else that
   runs unconditionally per frame or [boundary](#g-boundary). Those unconditional items are
-  [guards](#g-guard), evaluated every boundary whether they fire or not, and `project` at
+  [guards](#g-guard), evaluated every boundary whether they fire or not, and `state_projection` at
   both of its [§5.3][s5-3] [schedule](#g-schedule) positions. The budget is exactly zero,
   CI-enforced at the [§9.7][s9-7] phase-body [seam](#g-seam) (`phase_bodies`).
 - **Periodic [ticks](#g-tick) and event handlers** — episodic execution, a tick when
@@ -1618,9 +1656,9 @@ but still illustrative in spelling.
 ### 8.1 Position: a declarative trait layer — plain Julia, no macros
 
 A component is authored in ordinary Julia. Its
-[stage functions](#g-stage-function) — `h_x`/`h_xu` on the continuous
-[tier](#g-tier), `h_s`/`h_su` on the discrete, the two output stages
-every component provides — are ordinary multiple-dispatch methods, on the
+[stage functions](#g-stage-function) — `output_state` and `output_direct`, the
+two output stages every component provides on either
+[tier](#g-tier) — are ordinary multiple-dispatch methods, on the
 `GUI.draw!` precedent, and its structural facts are declared through a small set
 of well-known functions returning plain values, defined alongside those methods.
 Four questions about that layer are settled here: what it rules out and what it
@@ -1658,23 +1696,24 @@ lowers to them adds convenience and no semantics.
 authoring a component means adding methods to framework-owned generic functions.
 
 Julia admits that only through an explicit per-name `import`, or through a
-qualified `Flight.f(…) = …` definition — the `Base.show` idiom [§16][s16]
+qualified `Flight.state_derivative(…) = …` definition — the `Base.show` idiom [§16][s16]
 records for the extension-only periphery surface. A component
 module therefore opens with
 
 ```julia
-import Flight: init_x, init_s, init_m, workspace, input_types, output_types,
-    events, h_x, h_xu, h_s, h_su, f, g, project, child_connections,
-    input_connections, output_connections, sample_times, transparent_container
+import Flight: init_x, init_s, init_m, init_workspace, input_types,
+    output_types, state_events, output_state, output_direct, state_derivative,
+    state_update, state_projection, child_connections, input_connections,
+    output_connections, sample_times, transparent_container
 ```
 
 **Why the explicit list: `using Flight` alone is a silent trap.** After a bare
-`using`, `f(eng::Engine, …) = …` defines a new, unrelated `MyModule.f` — no
-error, no warning. The short names are deliberately unexported, precisely
-because `f`, `g`, `events` and `project` are the most collision-prone
-identifiers in numerical Julia, so there is no clash for the language to
-detect. The build then
-sees a component with no `f` method and reports a *modeling* diagnostic:
+`using`, `state_derivative(eng::Engine, …) = …` defines a new, unrelated
+`MyModule.state_derivative` — no error, no warning. The declarations are
+deliberately unexported ([D-117][d-117]), and a bare `using` therefore brings no
+name into scope for the definition to clash with, so there is nothing for the
+language to detect. The build then
+sees a component with no `state_derivative` method and reports a *modeling* diagnostic:
 `StoreWithoutUpdate`, or `ClassUnreadable` when the whole inventory was
 shadowed. A one-line namespace mistake is thereby reported away from the wrong
 line. That is the [§8.4][s8-4] inversion of [error locality](#g-error-locality)
@@ -1685,9 +1724,12 @@ Two mitigations, both normative. The first: the import list above is
 authoring surface, stated wherever a component file is first shown. The second:
 the two diagnostics run a **shadowing check**. If the component's parent module
 defines a same-named function distinct from the framework's, the message says so
-and names the missing import: "`MyEngine`'s module defines its own `f`, distinct
-from `Flight.f` — add `import Flight: f`". The check is a two-line
-`isdefined`/`!==` test on names the build already looks up.
+and names the missing import: "`MyEngine`'s module defines its own
+`state_derivative`, distinct from `Flight.state_derivative` — add
+`import Flight: state_derivative`". The check is a two-line
+`isdefined`/`!==` test on names the build already looks up. The family's names
+are distinctive by design ([D-220][d-220]), so a foreign binding of one of them
+in a component's module is evidence of the missing import, not a coincidence.
 
 A convenience macro expanding to the import list remains addable-a-posteriori
 sugar per this section's macro doctrine. A re-export submodule is not an
@@ -1695,18 +1737,18 @@ alternative: per-name `import` is the only *unqualified* extension register the
 language provides ([D-117][d-117]).
 
 **The same trap has a local-scope sibling** ([D-164][d-164]). Written inside a `let`, a
-function body or a `@testset`, `h_x(::MyComp, (; x)) = …` does not add a method
-to the global `h_x`; it binds a *new local function* of that name. Calls within
+function body or a `@testset`, `output_state(::MyComp, (; x)) = …` does not add a method
+to the global `output_state`; it binds a *new local function* of that name. Calls within
 the block resolve to it and look correct. The generic function the build
 dispatches on never learns of the component, which therefore reads as one
 declaring nothing at all.
 
 ```julia
 @testset "mycomp" begin
-    h_x(::MyComp, (; x)) = …   #a NEW local h_x, not a method of Flight.h_x
-    …                          #calls here resolve to it, and look correct
-end
-#outside: Flight.h_x still has no MyComp method
+    output_state(::MyComp, (; x)) = …   #a NEW local one, not a method of
+    …                                   #Flight.output_state; calls here
+end                                     #resolve to it, and look correct
+#outside: Flight.output_state still has no MyComp method
 ```
 
 The shadowing check above cannot reach this case: there is no parent-module
@@ -1743,7 +1785,7 @@ declaration, values by execution, conformance by comparison.
 #### Contracts are functions of the type, not of the instance
 
 **Rule.** A leaf's [contract](#g-contract) declarations — `input_types`,
-`output_types`, `events`, and the shapes of `init_x`/`init_s`/`init_m` — must be
+`output_types`, `state_events`, and the shapes of `init_x`/`init_s`/`init_m` — must be
 determined by the component's **type**, its type parameters included, and never
 by its field *values*.
 
@@ -1770,10 +1812,10 @@ The build reads each declaration once, against the concrete instance, so a
 value-dependent contract does not announce itself. This is a rule authors keep,
 not a check the build can run.
 
-**`workspace` is the one exception**, and explicitly so. It is the by-allocation
+**`init_workspace` is the one exception**, and explicitly so. It is the by-allocation
 [register](#g-register) ([D-077][d-077]): an allocator the framework *calls*, not a
 schema it *walks*. It legitimately takes sizes from the instance
-(`workspace(c::KF, ::Type{T})` reads `c.n`, [§7.3][s7-3]), because no entry type
+(`init_workspace(c::KF, ::Type{T})` reads `c.n`, [§7.3][s7-3]), because no entry type
 is derived from it.
 
 ### 8.2 The declaration inventory
@@ -1799,18 +1841,18 @@ output_types(::Engine, ::Type{T}) where {T <: Real} = (M_shaft = T, P = T, ω = 
 #ω names a state field no stage produces → auto-published at stage 1 (§5.3)
 
 #stage and update functions destructure their bundle by name (§5.2)
-function h_xu(eng::Engine, (; x, m, u))
+function output_direct(eng::Engine, (; x, m, u))
     M_shaft = m.phase === running ? torque_law(eng, u.throttle, x.ω) : zero(x.ω)
     return (; M_shaft, P = M_shaft * x.ω)
 end
 
-f(eng::Engine, (; x, y, u)) = (ω = (y.M_shaft - u.M_load) / eng.J,)
+state_derivative(eng::Engine, (; x, y, u)) = (ω = (y.M_shaft - u.M_load) / eng.J,)
 
 #events: ordered and named — order is load-bearing (§5.3, §10.6); detection policy by the guard's return type (§2.1)
-events(::Engine) = (
-    start    = Event(start_guard, start_handler),        # boundary-detected: Bool guard
-    ignition = Event(ignition_guard, ignition_handler),  # boundary-detected: Bool guard
-    flameout = Event(flameout_guard, flameout_handler))  # localized: sign-form guard
+state_events(::Engine) = (
+    start    = StateEvent(start_guard, start_handler),        # boundary-detected: Bool guard
+    ignition = StateEvent(ignition_guard, ignition_handler),  # boundary-detected: Bool guard
+    flameout = StateEvent(flameout_guard, flameout_handler))  # localized: sign-form guard
 start_guard(::Engine, (; m, u)) =                        #manual trigger: an input (§12.5)
     m.phase === off && u.starter
 start_handler(::Engine, _) = (; m = (; phase = starting))          #no `x` key: no reset
@@ -1833,10 +1875,11 @@ There is consequently no second artifact to drift and no separate type
 declaration to check. The [workspace](#g-workspace) (component-declared mutable
 scratch arriving as the `ws` bundle field) is the exception to that
 [register](#g-register): it is declared *by allocation*,
-`workspace(::C, ::Type{T})` on the continuous tier and `workspace(::C)` on the
-discrete one, the method itself being the allocator. A workspace earns the
+`init_workspace(::C, ::Type{T})` on the continuous tier and `init_workspace(::C)`
+on the discrete one, the method itself being the allocator. A workspace earns the
 exception because it is not memory and none of the by-value arguments below
-cover it ([§7.3][s7-3]).
+cover it ([§7.3][s7-3]). `init_workspace` alone declares by allocation, and
+nothing downstream derives from the type of what it returns.
 
 This is the boundary of legitimate derivation: deriving from
 another declaration is sound, deriving from evaluated user code is not.
@@ -1866,7 +1909,7 @@ type), so a `T` in the signature would record no choice its author could make.
 Partials enter through per-invocation seeding, never through initialization. A
 *by-type* declaration is a function of the activation scalar, which is why
 `input_types` and `output_types` both take it on the continuous tier. A
-*by-allocation* declaration takes the scalar too, `workspace(c, T)` being the
+*by-allocation* declaration takes the scalar too, `init_workspace(c, T)` being the
 standing precedent ([D-077][d-077]). The criterion, not uniformity, is the rule: a `T`
 in a signature means a choice was made there.
 
@@ -2091,10 +2134,10 @@ failure in the didactic register:
 - "`init_x` field `q_nb::RQuat` is not a state leaf — declare the `SVector{4}`
   backing and cast where rotation semantics are wanted ([§7.1][s7-1])".
 
-#### `events(::C)`
+#### `state_events(::C)`
 
-`events` declares an ordered, named collection of [guard](#g-guard)/handler
-pairs, spelled `Event(guard, handler)` with no detection keyword. Detection
+`state_events` declares an ordered, named collection of [guard](#g-guard)/handler
+pairs, spelled `StateEvent(guard, handler)` with no detection keyword. Detection
 policy is declared by the guard's return type instead: a `Bool` guard makes the
 event [boundary-detected](#g-boundary-detected), checked for edges at step
 boundaries only, with no root-finding. A guard returning the nominal scalar
@@ -2108,14 +2151,14 @@ inferrable.
 Which stage produces which [port](#g-port) stays invisible in the
 [contract](#g-contract), preserving [§4.2][s4-2]: moving a port between stages
 is non-breaking for consumers. Membership is *derived* instead, with no
-chicken-and-egg. Stage-1 functions (`h_x`, `h_s`) structurally receive no inputs, so
+chicken-and-egg. Stage-1 functions (`output_state`) structurally receive no inputs, so
 the build [probes](#g-probe) them first, observes their contract ports, assigns
 the remainder to stage 2, builds the graph, and probes the stage-2 chain in
 topological order with real upstream values. The "decoder takes no inputs"
-property is exactly what makes the derivation well-founded. Stage names do carry
-the [tier](#g-tier) ([D-195][d-195]), and that is a different fact: the tag this
-subsection refuses is the *stage* tag on a port, which stays invisible either
-way.
+property is exactly what makes the derivation well-founded. A leaf's declarations
+do carry its [tier](#g-tier) ([D-195][d-195], [D-220][d-220]), and that is a
+different fact: the tag this subsection refuses is the *stage* tag on a port,
+which stays invisible either way.
 
 #### Custom structs as port types
 
@@ -2135,8 +2178,9 @@ declaration layer with no extra machinery.
 Four rules the build checks in [Stratum](#g-stratum) A ([§9.1][s9-1]), stated
 here because they are properties of the declarations, not of the wiring.
 
-**A store needs its update.** `init_x` with no `f` method, or `init_s` with no
-`g` method, is a build error: continuous state with no [flow](#g-flow), or a
+**A store needs its update.** `init_x` with no `state_derivative` method, or
+`init_s` with no `state_update` method, is a build error: continuous state with
+no [flow](#g-flow), or a
 discrete store nothing updates. The framework will not silently supply `ẋ = 0`, which is a
 model, not a default; and an unupdated discrete store is a parameter in
 disguise, parameters being plain struct fields. The didactic register says
@@ -2144,27 +2188,30 @@ exactly that. `init_m` carries no such obligation: modes are written by
 handlers, and a [component](#g-component) may legitimately declare modes no
 event of its own transitions.
 
-**An event needs both halves.** An `events` entry whose [guard](#g-guard) or
+**An event needs both halves.** A `state_events` entry whose [guard](#g-guard) or
 handler has no method for the component type is a build error, caught by method
 lookup at declaration-reading time rather than as a `MethodError` at the first
 firing. An event that fires only in a corner of the envelope would otherwise
 hide the omission indefinitely.
 
-**[Tier](#g-tier) is declared by the whole name family.** For a **stateful**
-leaf, `init_x`/`h_x`/`h_xu`/`f` mark continuous and `init_s`/`h_s`/`h_su`/`g`
-mark discrete: the two families are disjoint, so every name such a leaf writes
-carries the tier ([D-195][d-195]). The remaining tier-implying
-declarations must agree. `init_m`, `events` and `project` are continuous-only —
+**[Tier](#g-tier) is declared by the store and the update law.** For a
+**stateful** leaf, `init_x` and `state_derivative` mark continuous, `init_s` and
+`state_update` mark discrete: those two pairs are disjoint, so such a leaf
+announces its tier in the store and in the update law alike ([D-195][d-195]).
+The two output stages are one pair of names shared by both tiers, so they
+announce nothing and cast no vote ([D-220][d-220]). The remaining tier-implying
+declarations must agree. `init_m`, `state_events` and `state_projection` are continuous-only —
 the event system is continuous-side only ([§5.2][s5-2], [§3.2][s3-2],
 [§14.1][s14-1]), and projection's one manifold is the continuous state's
-([§2.2][s2-2]). `workspace`'s arity splits the tiers (`(::C, ::Type{T})`
+([§2.2][s2-2]). `init_workspace`'s arity splits the tiers (`(::C, ::Type{T})`
 versus `(::C)`), and so do the arities of `output_types` and `input_types`
 ([D-166][d-166]–[D-167][d-167]). Disagreement is `DeclarationOnWrongTier` ([Appendix C][sC]),
 reported as the offending declaration with the tier the leaf's other
-declarations announce; it covers declaring both `f` and `g`, a `g` beside a
-two-argument `output_types`, and the wrong-letter cases the split state letters
-restore — an `h_x` or an `init_x` on a leaf whose update law is `g`, an `h_s`
-or an `init_s` on one whose update law is `f`.
+declarations announce; it covers declaring both `state_derivative` and
+`state_update`, a `state_update` beside a two-argument `output_types`, and the
+mixed-store cases the split state letters restore — an `init_x` on a leaf whose
+update law is `state_update`, an `init_s` on one whose update law is
+`state_derivative`.
 
 A **stateless** leaf declares no store and no update law, so its tier is
 decided by its [contract](#g-contract) arities: `output_types`, mandatory hence
@@ -2172,9 +2219,10 @@ always the decider, with `input_types` agreeing where declared. The arity is no
 mere marker — it *is* the tier's semantics ([D-166][d-166]–[D-167][d-167]): the two-argument
 forms declare [cells](#g-cell) and tolerances at the
 [activation](#g-activation) scalar, walking with it, where the plain forms
-declare the [pinned](#g-walked) discrete world. Its stage names follow that
-decision like any other leaf's — `h_xu` under the two-argument forms, `h_su`
-under the plain ones — and [§13.7][s13-7] records why one stateless continuous
+declare the [pinned](#g-walked) discrete world. Its stage bundles follow that
+decision like any other leaf's — `output_direct` reading the continuous tier's
+bundle under the two-argument forms and the discrete tier's under the plain
+ones — and [§13.7][s13-7] records why one stateless continuous
 leaf already serves consumers on both tiers. Members of both families,
 or of neither, are the [§8.5][s8-5] class errors.
 
@@ -2432,8 +2480,9 @@ And class is implementation detail behind the contract ([§8.3][s8-3]).
 instead by *which* well-known declarations a type defines. `child_connections`
 is the marker, mandatory even when empty (the `LowPassFilter` precedent), and
 defining it makes an **assembly**. Any leaf declaration makes a **primitive**:
-`init_x`/`init_s`/`init_m`, `workspace`, `input_types`/`output_types`,
-`events`, or any stage, `f`, `g` or `project` method.
+`init_x`/`init_s`/`init_m`, `init_workspace`, `input_types`/`output_types`,
+`state_events`, or any stage, `state_derivative`, `state_update` or
+`state_projection` method.
 
 The rule is total. A `<: AbstractComponent` type declaring neither family has
 no class to read, and is a build error naming both families rather than a
@@ -2831,7 +2880,7 @@ The stratum is a tree walk from the root instance, in this order:
 2. Each component's [class](#g-class) — its primitive-vs-assembly status — is
    read off declaration shape ([§8.5][s8-5]).
 3. Leaf contracts are collected: `input_types`, `output_types`, `init_*`
-   values, `events`.
+   values, `state_events`.
 4. Face derivation runs bottom-up, recording at every level the input and
    output [faces](#g-face) it declares and the chain each one routes through.
 5. Global wiring resolution then runs, resolving wires to absolute leaf
@@ -3106,10 +3155,11 @@ deliberately declared finer than its fastest member to buy stagger room
 ### 9.3 Probing and input synthesis
 
 **[Probe](#g-probe)-everything scope.** The nominal [activation](#g-activation) probes every user function —
-stages, `f`, `g`, [guards](#g-guard), handlers, `project` — once, at the initial state,
+stages, `state_derivative`, `state_update`, [guards](#g-guard), handlers,
+`state_projection` — once, at the initial state,
 with real values, checking shape/type conformance and discarding results (all
 are pure; the cost is one evaluation each). "Fails loudly at build time where
-possible" ([§8.1][s8-1]) decides this: a malformed `f` return must not wait for the
+possible" ([§8.1][s8-1]) decides this: a malformed `state_derivative` return must not wait for the
 first integrator step. Probes see only the initial state's branch — the
 marginal coverage is earliness, not completeness; the always-on check ([§9.5][s9-5])
 remains the completeness backstop.
@@ -3129,7 +3179,7 @@ no [ports](#g-port) at all, and is `DeadStage`, fail-fast.
 The [bundle law](#g-bundle)'s two remaining fields ([§5.2][s5-2]): `t` is
 probe-scoped `0.0` — deployment binds no clock and `t₀` post-dates even
 deployment ([§14.5][s14-5]), so like `Δt` below it is a fabricated, probe-scoped
-value; `ws` comes from invoking the component's `workspace` allocator at the
+value; `ws` comes from invoking the component's `init_workspace` allocator at the
 probing scalar, which reads only the instance and the scalar ([D-077][d-077]),
 deriving nothing from layouts, so it runs before the [Stratum](#g-stratum) B probes that
 need it. Exactly one kind of terminal has no producer: **root
@@ -3171,8 +3221,9 @@ complete-world application — `init!`, trim setup, trim commit
 
 **The author's side of that bargain.** Silly values are acceptable *because* the
 author is obliged to accept them: **stage code must be total over type-valid
-inputs** — every probed user function (stages, `f`, `g`, guards, handlers,
-`project`) evaluates without throwing on any input satisfying its declared
+inputs** — every probed user function (stages, `state_derivative`,
+`state_update`, guards, handlers,
+`state_projection`) evaluates without throwing on any input satisfying its declared
 types. The domain is type-validity, not the probe's particular synthesized
 values: the branch-shape rule already bans value-dependent return types, so
 types are the only domain the framework can speak of, and the probe is the
@@ -3227,8 +3278,8 @@ activation (linearization, gradient trim) evaluates the model at a frozen
 instant: discrete stages are gated off holding `Float64` values (the [§8.2][s8-2]
 frozen-constant semantics), [guards](#g-guard) and handlers never run (event localization
 is `Float64` [sweeps](#g-sweep) by design, [§10.4][s10-4]). Only the continuous output stages
-(`h_x`/`h_xu`) and `f`
-ever see a `Dual` — so only they are probed. Probing the discrete stages, `g`, or guards at `Dual`
+(`output_state`/`output_direct`) and `state_derivative`
+ever see a `Dual` — so only they are probed. Probing the discrete stages, `state_update`, or guards at `Dual`
 would check code against a number type it cannot receive. One rule, no
 special cases; the [§5.6][s5-6] tracer activation follows it identically. "Tracer
 activation" names the *global* set-tracer ([D-012][d-012]) — a whole-model run at the
@@ -3370,14 +3421,14 @@ stage, and the check above holds the freeze to its word at every activation.
 Stripping mid-expression at a leaf still declared `T` remains legal and remains
 unseen, as the sharp tool it is.
 
-**Uniform across all probed functions.** `f` checks against `X`'s own shape at
+**Uniform across all probed functions.** `state_derivative` checks against `X`'s own shape at
 the activation's `T` ([§7.1][s7-1]: a scalar leaf expects a `T`, an `SArray`
 leaf the same `SArray` at `T`). Its predicate is "every field scatters into its
 field's block at `T`", which is what makes derivative completeness structural
 rather than a matter of author discipline. [Guards](#g-guard) check against
-their probe-derived [predicate](#g-predicate) form (below); `g` against its
+their probe-derived [predicate](#g-predicate) form (below); `state_update` against its
 leaf's `s` shape; handlers against the [§5.2][s5-2] return law, key by key.
-`project` checks against `X`'s own shape at `T`, **complete**, since its result
+`state_projection` checks against `X`'s own shape at `T`, **complete**, since its result
 is written back to the [buffer](#g-buffer) wholesale at both of the
 [schedule](#g-schedule) positions ([§5.3][s5-3]) and a
 [projection](#g-projection) with a mode-dependent branch first executes its
@@ -3476,13 +3527,13 @@ instance and grows the store type with the model. The choice was measured
 rather than argued ([D-162][d-162], `prototypes/cellstore_bench`).
 
 **[Phase bodies](#g-measurement-seam) are the outer decomposition, and they are
-semantically forced.** The [boundary sweep](#g-sweep)'s stage-1 block — `h_x`
-and `h_s` entries alike — is order-free by definition (the
+semantically forced.** The [boundary sweep](#g-sweep)'s stage-1 block — both
+tiers' `output_state` entries alike — is order-free by definition (the
 no-[feedthrough](#g-feedthrough) stage reads no `u`). The
 stage-2 block gates in the [due](#g-due) discrete stages — those whose components
 this boundary admits by their compiled `(D, Φ)` pair. It is the only
-topologically ordered one. The `f` block — the [RHS](#g-flow) body the stepper
-calls per stage evaluation — and the `g` block are order-free with disjoint
+topologically ordered one. The `state_derivative` block — the [RHS](#g-flow) body the stepper
+calls per stage evaluation — and the `state_update` block are order-free with disjoint
 writes.
 [Guards](#g-guard) and handlers are their own small callables inside the
 [§10.6][s10-6] iteration.
@@ -3504,7 +3555,7 @@ discrete entries ([§10.5][s10-5]).
 These bodies communicate only through the stores and the table. No value
 crosses a [seam](#g-seam) — not between passes, not between the blocks of one
 pass, not between chunks — so the seams cost nothing, and the executor's
-decomposition stays free: fusing a step's sweep with its `f` block, or an
+decomposition stays free: fusing a step's sweep with its `state_derivative` block, or an
 event round's sweep with its guards and fired handlers ([§10.6][s10-6]), is an
 optimization it may take or decline ([D-194][d-194]). Two doors this
 structure opens for free, recorded not committed: deterministic parallel
@@ -3568,13 +3619,13 @@ tuple's type has exactly one consumer: the unrolled walk.
 `phase_bodies(sim)` returns the compiled bodies of the nominal activation as
 named callables bound over the simulation's own buffers. The four blocks:
 
-- `rhs` — the `f` block.
+- `rhs` — the `state_derivative` block.
 - `sweep_1` — in both arities.
 - `sweep_2` — in both arities.
 - `ticks` — takes the tick index its entries gate on.
 
 Returned with them are the per-event guards and handlers and the per-component
-`project` callables, keyed by the model's own roster.
+`state_projection` callables, keyed by the model's own roster.
 
 The four-body roster is fixed and total: the accessor returns all of it always,
 whatever the model happens to declare. A model with no discrete components, no
@@ -3776,7 +3827,7 @@ flag:
   over trial sweeps).
 
 The build reads the policy off the [probe](#g-probe) it already runs
-([§9.3][s9-3], nominal [activation](#g-activation)), so `Event(guard, handler)`
+([§9.3][s9-3], nominal [activation](#g-activation)), so `StateEvent(guard, handler)`
 carries no detection keyword ([D-179][d-179]).
 
 **Why.** Localization brackets a root, and only the sign form offers one. The
@@ -4095,7 +4146,7 @@ component's `(D, Φ)` comes from is the declaration surface below.
 
 #### Discrete stages run only at their own ticks
 
-**Rule.** A discrete component's `h_s`/`h_su` run only at its own ticks, and
+**Rule.** A discrete component's `output_state`/`output_direct` run only at its own ticks, and
 its [cells](#g-cell) hold in between — ZOH, stated in [sweep](#g-sweep) terms.
 
 **Why.** Re-running a discrete component's stages at every boundary would
@@ -4116,9 +4167,9 @@ static rather than a runtime test ([D-147][d-147]).
   the [§10.6][s10-6] macro-sequence runs. It is not one fixed list either:
   different boundaries run different subsets of the [schedule](#g-schedule).
 
-The split applies to **both sweep blocks**. The discrete [tier](#g-tier)'s `h_s`
-entries are absent from the interior stage-1 walk exactly as its `h_su` entries
-are absent from the interior stage-2 walk. The two sweep variants surface in
+The split applies to **both sweep blocks**. The discrete [tier](#g-tier)'s
+`output_state` entries are absent from the interior stage-1 walk exactly as its
+`output_direct` entries are absent from the interior stage-2 walk. The two sweep variants surface in
 the phase-body signatures: interior bodies take no arguments, boundary bodies
 take the tick index ([§9.7][s9-7]).
 
@@ -4143,7 +4194,7 @@ Three kinds of boundary, three due sets:
   `Φ = 0`**. At `idx = 0` the gate reads `(0 − Φ) % D == 0`, which under the
   canonical residue `0 ≤ Φ < D` holds if and only if `Φ = 0`. The rule is
   implemented by nothing: it falls out of the ordinary gate. Dueness at
-  boundary zero governs the `g` updates alone — output stages publish due or
+  boundary zero governs the `state_update` calls alone — output stages publish due or
   not ([D-205][d-205]), as [§14.5][s14-5] specifies.
 
 An offset component's first tick is at `Φ·Δt_base`. Until then its cells hold
@@ -4158,8 +4209,8 @@ so at boundary zero everything is due and the distinction is empty.
 
 Several components can be due at one boundary, and settled machinery already
 orders them. All due components run their output stages in topological order
-within the sweep. All due `g` updates run after it, in any order — each `g`
-reads the table and writes only its own `s` store. The FCS cascade's intra-tick
+within the sweep. All due `state_update` calls run after it, in any order — each
+one reads the table and writes only its own `s` store. The FCS cascade's intra-tick
 ordering is thereby a sweep property, not an update-order property.
 
 #### Coincidence and stagger are modeling choices with observable consequences
@@ -4337,13 +4388,14 @@ zero-copy views a component function receives).
 #### `Δt` has a single source of truth: the compiled schedule
 
 **Rule.** Each discrete component's effective period arrives read-only as the
-`Δt` field of every discrete-tier bundle ([§5.2][s5-2]) — `h_s`, `h_su` and `g`
-alike. The field is absent from continuous bundles, so touching it on the wrong
+`Δt` field of every discrete-tier bundle ([§5.2][s5-2]) — `output_state`,
+`output_direct` and `state_update` alike. The field is absent from continuous bundles, so touching it on the wrong
 tier is a missing-field error rather than a rule.
 
-**It must be readable in the *stages*, not just in `g`.** Per [§15.2][s15-2],
+**It must be readable in the *stages*, not just in `state_update`.** Per [§15.2][s15-2],
 the discretized laws that actually consume `Δt` — a PID's backward-difference
-coefficients, a LeadLag's Tustin transform — run in `h_su`; `g` is a copy.
+coefficients, a LeadLag's Tustin transform — run in `output_direct`;
+`state_update` is a copy.
 
 The value must arrive through the call, and the bundle field is where. A
 `comp.Δt` virtual property is impossible here, not merely inconvenient
@@ -4368,7 +4420,8 @@ This section settles what [§5.3][s5-3] leaves open: how far the event phase run
 at a [boundary](#g-boundary), and how often each event may fire while it does.
 The phase **iterates**. One round re-runs the [boundary sweep](#g-sweep),
 evaluates all [guards](#g-guard) against it, and fires the eligible events — at
-most one per [component](#g-component), each firing being `handler → project`.
+most one per [component](#g-component), each firing being
+`handler → state_projection`.
 Rounds continue to **[quiescence](#g-quiescence)** (the fixed point where a round
 of handlers fires nothing).
 
@@ -4412,7 +4465,7 @@ while the previous round fired something   # the first round always runs
     per event:      eligible ← last not-holding && now holding && count < firing_budget
     per component:  firing ← its first eligible event, in declaration order
     per event:      last ← now, unless eligible and not firing   # a blocked edge stays unconsumed
-    fire the firing events                 # handler → project, count += 1
+    fire the firing events                 # handler → state_projection, count += 1
 end                                        # the exit condition is quiescence
 per event:  prior ← last                   # the settled boundary's honest sample
 ```
@@ -4461,7 +4514,7 @@ an actual cascade.
 
 **Within-round visibility: the signal table has a single writer, and it is the
 sweep.** A handler writes nothing to the table. It returns transitions, the
-framework latches them into the component's state stores, and `project`
+framework latches them into the component's state stores, and `state_projection`
 normalizes them; auto-publication is a sweep act like any other stage-1 write
 ([§9.5][s9-5]). Nothing moves the table mid-round.
 
@@ -4546,10 +4599,10 @@ identically.
 couplings resolve asymmetrically:
 
 - *Events → ticks: handled by machinery already in place.* Due discrete
-  components' output stages (`h_s`/`h_su`) are gated *into* the boundary sweep
+  components' output stages (`output_state`/`output_direct`) are gated *into* the boundary sweep
   against a due set fixed for the whole iteration ([§10.5][s10-5]). Every iteration
-  round therefore refreshes them for free, against the same `s` — their `g` has
-  not run — and post-transition inputs. At quiescence, their published outputs
+  round therefore refreshes them for free, against the same `s` — their
+  `state_update` has not run — and post-transition inputs. At quiescence, their published outputs
   reflect the settled boundary instant, which is exactly what "sampling at t"
   should mean for a logically-instantaneous cascade. Earlier rounds' tentative
   values are internal scratch, like RK stage evaluations. [§10.3][s10-3] extends
@@ -4557,7 +4610,7 @@ couplings resolve asymmetrically:
   *completes*.
 - *Ticks → events: structurally impossible.* A tick's output stages contribute
   nothing guards have not already seen, since they run inside the sweep, from
-  current `s`. Its `g` update writes `s⁺` after the sweep, and `s⁺` is first
+  current `s`. Its `state_update` writes `s⁺` after the sweep, and `s⁺` is first
   decoded at the owner's *next* tick, so it is invisible to every reader within
   the boundary — the standard one-sample `z⁻¹` delay of sampled-data control,
   here enforced by construction. Nothing that happens after quiescence can flip a
@@ -4567,14 +4620,14 @@ The boundary macro-sequence, final form (boundary zero — initialization — is
 the same sequence with an empty integrate, [§14.5][s14-5]):
 
 > integrate → project → **[sweep → guards → handlers]** iterated to quiescence
-> (under the [firing budget](#g-firing-budget)) → all due `g` updates → logging / I/O staging.
+> (under the [firing budget](#g-firing-budget)) → all due `state_update` calls → logging / I/O staging.
 
 The sequence decides the mixed case: a
 [continuous component](#g-continuous-component)'s handler and its discrete
 observers' ticks landing on one boundary. Take an engine's `starting → running`
 transition under a 50 Hz FCS. The transition fires in the iteration segment, the
-re-sweep re-runs the FCS's stages against `running`-mode ports, and its `g` then
-updates from post-transition values.
+re-sweep re-runs the FCS's stages against `running`-mode ports, and its
+`state_update` then runs from post-transition values.
 
 ### 10.7 Real-time pacing
 
@@ -4750,7 +4803,7 @@ failed returns the loop to the calling task.
 
 **Spawn-inside-`run!` is the start gate.** A task exists only once the run it
 serves exists. Any first-boundary synchronization a device needs is the
-counter-plus-condition predicate wait ([§12.3][s12-3]), never an `Event` latch
+counter-plus-condition predicate wait ([§12.3][s12-3]), never a `Base.Event` latch
 ([D-093][d-093]).
 
 Two rules bind the implementation:
@@ -6146,7 +6199,7 @@ paces, frames skipped while transmitting, and shutdown, all with no per-frame
 reset. Shutdown works because [§12.4][s12-4] wakes all waiters and each
 predicate then routes its owner out.
 
-An `Event` latch is the wrong primitive here ([D-028][d-028]). Conditions carry no
+A `Base.Event` latch is the wrong primitive here ([D-028][d-028]). Conditions carry no
 facts, only "look again"; the facts that matter, the counter and `running`,
 live in state each waiter tests privately.
 
@@ -6492,7 +6545,7 @@ device, by contrast, is traced and replayed from the trace.
   callback ran post-step, one boundary staler.
 - The pure timetable script is a one-liner reading the clock out of its
   [bundle](#g-bundle) (the NamedTuple of zero-copy views a component function
-  receives). That one-liner is `h_su(c, (; t)) = (; offset = profile(t))`,
+  receives). That one-liner is `output_direct(c, (; t)) = (; offset = profile(t))`,
   exact at its own [ticks](#g-tick), with no latching.
 - In a scenario configuration the script drives the avionics' input
   [ports](#g-port). [§11.7][s11-7] therefore renders the corresponding GUI widgets
@@ -7153,8 +7206,9 @@ not need to be *caught* into existence. The [executor](#g-executor) (the compile
 form of the [schedule](#g-schedule)) maintains an **[execution cursor](#g-execution-cursor)**, a plain mutable
 field in the loop state recording where in the compiled schedule execution is.
 The cursor records three facts. The first is the component path, as a schedule
-index. The second is which function is running: `h_x`/`h_s`, `h_xu`/`h_su`, `f`, `g`, a
-[guard](#g-guard), a handler, or `project`. The third is the boundary phase:
+index. The second is which function is running: `output_state`, `output_direct`,
+`state_derivative`, `state_update`, a
+[guard](#g-guard), a handler, or `state_projection`. The third is the boundary phase:
 integration stage *k*, event round *r*, a localization evaluation at trial time, or
 tick. Maintaining it costs one cheap store per dispatch on a single-tasked
 executor: no allocation, no exception frames. And it covers every user-code
@@ -7222,7 +7276,7 @@ naming the offending component's state block and the boundary. It catches
 diverging models generally, not just post-terminal ones.
 
 *Placement is the whole value.* The sweep is the boundary's **first act** —
-immediately after integrate returns, before `project` and before the boundary
+immediately after integrate returns, before `state_projection` and before the boundary
 sweep. Run there, `NonfiniteState` names the component whose own block
 diverged. Run later, the NaN has already propagated: it reaches an innocent
 downstream component through the ordinary signal path and surfaces as that
@@ -7356,7 +7410,7 @@ reading the relevant signals and outputting one Bool — the same move
 Post-terminal dynamics are the model's job, and that is a feature. Today
 `robot2d` *throws* when it falls, because it has no other way to say "my
 dynamics are no longer meaningful". Here it declares the fall as an event,
-switches to a frozen mode — mode-dependent `f`, machinery it already has — and
+switches to a frozen mode — a mode-dependent `state_derivative`, machinery it already has — and
 exports `fallen`. Wired, the sim ends at the fall; unwired, it integrates a
 frozen robot — well-defined, unlike an uncaught throw. The discipline forces
 models to have well-defined terminal states, which is better modeling.
@@ -7389,7 +7443,7 @@ model-detected channel specified here meets it at [§12.4][s12-4] and nowhere el
 why a `StepError` cannot break [§12.4][s12-4]. [Sweeps](#g-sweep) write into
 table blocks, and integration intermediates live in
 framework-owned integrator buffers, never in a [component](#g-component)'s
-`workspace` as [§7.3][s7-3] defines it. The only externally visible act is
+[workspace](#g-workspace) as [§7.3][s7-3] defines it. The only externally visible act is
 [snapshot](#g-snapshot) publication at the very end of the sequence. A boundary
 that throws has published nothing. The last *published* snapshot — a complete,
 consistent boundary by construction — is still the newest thing any
@@ -7489,7 +7543,7 @@ programmatically — a derivation [§8.2][s8-2] blesses, and an early validation
 that the contract functions support parametric components.
 
 [Tier](#g-tier)-transparency falls out of settled semantics. A stateless
-continuous `h_xu` recomputes every [sweep](#g-sweep), so fed ZOH-held discrete
+continuous `output_direct` recomputes every [sweep](#g-sweep), so fed ZOH-held discrete
 signals its output changes only at [ticks](#g-tick). No tier-neutral class is
 needed.
 
@@ -7500,8 +7554,8 @@ needs no framework support.
 ```julia
 # UnitDelay{V} — a discrete leaf at K = 1; port face names elided
 init_s(::UnitDelay{V}) where {V} = (v = zero(V),)
-h_s(::UnitDelay, (; s)) = (; … = s.v)     # publishes the stored value
-g(::UnitDelay, (; u)) = (; v = …)         # stores the incoming one, from u
+output_state(::UnitDelay, (; s)) = (; … = s.v)   # publishes the stored value
+state_update(::UnitDelay, (; u)) = (; v = …)     # stores the incoming one, from u
 ```
 
 `UnitDelay`'s tier semantics are the point, and they must be stated wherever the
@@ -7517,7 +7571,7 @@ returning the value the instance holds.
 ```julia
 # Constant{V} — a stateless continuous leaf; its value is instance data
 output_types(::Constant{V}, ::Type{T}) where {V, T <: Real} = (out = V,)
-h_x(c::Constant, _) = (; out = …)         # the value the instance holds
+output_state(c::Constant, _) = (; out = …)   # the value the instance holds
 ```
 
 `Constant` is a stateless continuous leaf, so the tier-transparency argument
@@ -7969,7 +8023,7 @@ below runs* (the capture placement, [§11.5][s11-5]). A post-sequence capture wo
 hand [replay](#g-replay) already-transitioned state. The init service then
 completes the [§10.6][s10-6] macro-sequence with an empty integrate:
 project → [[sweep](#g-sweep) → [guards](#g-guard) → handlers]\* →
-[due](#g-due) `g` updates → first [snapshot](#g-snapshot). The parity with an
+[due](#g-due) `state_update` calls → first [snapshot](#g-snapshot). The parity with an
 ordinary boundary is exact, not approximate. Piece by piece:
 
 - **Project runs.** Authored `x` can sit off-manifold: a hand-assembled
@@ -7986,7 +8040,7 @@ ordinary boundary is exact, not approximate. Piece by piece:
   publishing from the authored `s` and the `t₀` table in the ordinary sorted
   walk. That evaluation is establishment, not a scheduled sample: the
   schedule owns every instant after `t₀`, and the first sample the
-  component's `g` consumes remains its `Φ·Δt_base` tick's. What the rule
+  component's `state_update` consumes remains its `Φ·Δt_base` tick's. What the rule
   buys is a `t₀` [snapshot](#g-snapshot) carrying the authored world fully
   evaluated: no published [cell](#g-cell) holds the [probe](#g-probe)'s
   synthesized values, the [§14.6][s14-6] barrier extended from the
@@ -8008,26 +8062,26 @@ ordinary boundary is exact, not approximate. Piece by piece:
   never recorded. (A `stop_on` [face](#g-face) already `true` is a different
   category: nothing *fires* — the face simply reads `true` in the published `t₀`
   snapshot and the loop reacts, [§13.5][s13-5].)
-- **Due `g` updates run.** This follows from an interval-alignment fact that
+- **Due `state_update` calls run.** This follows from an interval-alignment fact that
   is easy to mis-picture and is hereby a taught contract, sibling
-  to the boundary-sampling line ([§15.5][s15-5]): **a boundary's `g` is the
-  *outgoing* transition** — at tick `t_k` it consumes the completed boundary's
+  to the boundary-sampling line ([§15.5][s15-5]): **a boundary's `state_update`
+  is the *outgoing* transition** — at tick `t_k` it consumes the completed boundary's
   samples and produces `s_{k+1}`, the value the next tick reads. The transition
   that carried `s` *into* `t_k` ran at `t_{k-1}`. Boundary zero is missing its
   incoming transitions on *both* tiers, and both are replaced by authorship:
 
   | [tier](#g-tier) | `t₋₁` | `t₀` (boundary zero) | `t₁` |
   |---|---|---|---|
-  | discrete | the `g` that would have produced a discrete leaf's `s(0)` never ran; the condition authored `s(0)` | `g` consumes the `t₀` samples and produces `s(1)` | the gated stages read `s(1)` |
+  | discrete | the `state_update` that would have produced a discrete leaf's `s(0)` never ran; the condition authored `s(0)` | `state_update` consumes the `t₀` samples and produces `s(1)` | the gated stages read `s(1)` |
   | continuous | the integration over `[t_{-1}, t_0]` that would have produced a continuous leaf's `x(0)` never ran; the condition authored `x(0)` | the authored `x(0)` is the initial condition of the outgoing integrate, $t_0 \to t_0 + h$ | |
 
-  The outgoing work all runs, and `t₀`'s `g` has its only opportunity: `s(1)`
+  The outgoing work all runs, and `t₀`'s `state_update` has its only opportunity: `s(1)`
   must sit in the store before `t₁`'s gated stages read it. An accumulator
   $s_{k+1} = s_k + \Delta t \, e_k$ authored with $s_0 = 0$ under nonzero
   $e(t_0)$ would otherwise first integrate $e(t_1)$, putting the whole
   sampled-data lattice one period late ([D-067][d-067]). The authored `s(0)` needs no
   protection: it is published in the `t₀` snapshot regardless. The
-  continuous-tier analogue of `g`-at-`t₀` is not the empty incoming integrate but
+  continuous-tier analogue of `state_update`-at-`t₀` is not the empty incoming integrate but
   that first *outgoing* one, and both authored values are the published initial
   conditions of their outgoing transitions.
 - **`t₀` is an init-service argument** (default `0.0`), never a condition
@@ -8041,7 +8095,7 @@ ordinary boundary is exact, not approximate. Piece by piece:
   resume-at-time — the returned `t` passed back as `t0`.
 - **Trim is untouched by all of this.** Optimizer iterations are raw
   write → sweep → read cycles on the activation — no boundaries, no events,
-  no `g`. Only the committed solution executes boundary zero.
+  no `state_update`. Only the committed solution executes boundary zero.
 - **A guard firing at commit is a wanted failure signal.** Today's hand-written
   trim asserts (`!stall`, no weight-on-wheels, `ω > ω_idle`) become the model's
   own event logic, surfaced through the ordinary machinery instead of `@assert`.
@@ -8049,8 +8103,8 @@ ordinary boundary is exact, not approximate. Piece by piece:
   point, and saying nothing would be warn-but-assign relocated. The channel
   that says it is the trim report ([§14.8][s14-8]).
 - **A commit-fired handler is not the only mover, and the second one is
-  unconditional.** Boundary zero's *first* act is `project`, so the committed
-  `x` is `project(x*)`, not the solver's `x*` — an attitude quaternion
+  unconditional.** Boundary zero's *first* act is `state_projection`, so the committed
+  `x` is `state_projection(x*)`, not the solver's `x*` — an attitude quaternion
   renormalized by a few ulps is the canonical case. That move is legitimate,
   wanted, and usually invisible in the residuals; but the point the stores sit
   at is no longer the point the verdict was read at. Both movers take the same
@@ -8178,7 +8232,7 @@ against today's `c172.jl`:
   addressable at all ([§5.2][s5-2],
   [§14.4][s14-4]); a trim evaluation needing one is a signal the component should
   export it. A derivative wanted across a [contract](#g-contract) boundary takes the same
-  remedy: publish it as an ordinary output port computed in `h_xu` ([§7.4][s7-4] step
+  remedy: publish it as an ordinary output port computed in `output_direct` ([§7.4][s7-4] step
   2's one-line binding, made contract). That leaves `get_deriv` scoped to owned
   concrete subtrees. The compiled reader (the gather twin, [§14.4][s14-4]) fills a
   stack-only NamedTuple per evaluation.
@@ -8198,7 +8252,7 @@ against today's `c172.jl`:
   ([D-069][d-069]).
 - **Nonlinear least squares with exact AD Jacobians is the default.** The
   `Dual` [activation](#g-activation) seeds the decision variables through the
-  `T`-generic assignment, [sweep](#g-sweep) and `f`. The seeds survive the condition
+  `T`-generic assignment, [sweep](#g-sweep) and `state_derivative`. The seeds survive the condition
   write boundary because [§14.3][s14-3] selects the baked converter per leaf from the
   shape: a decision-descended leaf is `Dual`-typed there and takes the
   structural conversion, while the zero-partial embedding stays on the held
@@ -8222,7 +8276,7 @@ against today's `c172.jl`:
   deliberately left unimplemented, its seams named): closed-loop sampled-data
   trim and on-ground static equilibrium, each simply another problem value over
   the same service. Closed-loop trim appends $g(s) - s = 0$ residuals via a
-  nondestructive scratch evaluation of `g`, structurally impossible under
+  nondestructive scratch evaluation of `state_update`, structurally impossible under
   FlightCore's mutating `f_disc!`. On-ground static equilibrium is the other:
   strut compressions and attitude against gear forces.
 
@@ -8378,7 +8432,7 @@ activation can derive a discrete output cell from the authored `s`. Setup
 therefore instantiates the [scratch](#g-scratch) set in two halves. A [nominal](#g-nominal) set takes the
 composite first, by the dynamic walk ([§14.4][s14-4]), and runs one establishment round —
 boundary zero's sweep with every discrete output stage admitted, due or not
-([D-205][d-205]), with no [projection](#g-projection), no [guards](#g-guard) and no `g`. The seeded set is then
+([D-205][d-205]), with no [projection](#g-projection), no [guards](#g-guard) and no `state_update`. The seeded set is then
 written by the specialized register, and its frozen cells are copied from the
 nominal set as zero-partial constants (the embedding of [§14.3][s14-3]). Every cell the
 iterations read is thus derived from the authored world: a frozen cell holds
@@ -8386,7 +8440,7 @@ what the authored discrete state publishes, "held at the operating point" made
 literal, and no scratch cell holds the [probe](#g-probe)'s synthesized values — the [§14.6][s14-6]
 barrier reaching the scratch world as [D-205][d-205] made it reach the published one. The
 iterations are untouched: raw write → sweep → read cycles at the seeded
-activation, the continuous chain and `f` alone ([§14.5][s14-5]). The zero-decision
+activation, the continuous chain and `state_derivative` alone ([§14.5][s14-5]). The zero-decision
 problem (below) is the nominal half alone; its one evaluation is that
 establishment round. ([D-213][d-213])
 
@@ -8474,7 +8528,7 @@ post-handler point, not the reported solution, and a `capture`-defaulted
 The two residual sets are what make the moved point auditable. A converged
 solve whose *committed-state* residuals violate the box test raises
 `TrimCommitResiduals` ([Appendix C][sC]), naming the offending residuals with
-their committed values and tolerances. The move — `project`, or a commit-fired
+their committed values and tolerances. The move — `state_projection`, or a commit-fired
 handler ([§14.5][s14-5]) — is surfaced rather than left silent. The verdict
 itself is not re-litigated: it gated the commit, at the solved point, and the
 numbers ([D-150][d-150]) stand as reported.
@@ -8503,8 +8557,8 @@ free.
 #### The AD obligation, scoped
 
 The default formulation requires `Dual` genericity of exactly the continuous
-output-stage chains and `f`, plus the user's assignment and residual math. The
-discrete [tier](#g-tier)'s stages and `g`, and the event system's guards and
+output-stage chains and `state_derivative`, plus the user's assignment and residual math. The
+discrete [tier](#g-tier)'s stages and `state_update`, and the event system's guards and
 handlers, never see a `Dual`: they are frozen constants with zero partials,
 semantically exact ([§8.2][s8-2]).
 
@@ -8707,7 +8761,8 @@ label-indexed matrix slicing, with no model involvement. The `c172x_ctl` LQR
 pipeline consumes it with cosmetic changes. `LinearizedSS` the *component*
 survives separately, as an ordinary
 [continuous component](#g-continuous-component) in the migrated library:
-`init_x` = the state vector, labeled faces, the affine update in `h_xu`/`f`.
+`init_x` = the state vector, labeled faces, the affine update in
+`output_direct`/`state_derivative`.
 It has no privileges, and its schema is everyone else's.
 
 **Recorded guidance.** Linearization taps should select minimal-coordinate
@@ -8747,8 +8802,8 @@ evaluation of $\Phi$ integrates one period, then runs the [due](#g-due)
   continuous one ([§8.2][s8-2], [§8.5][s8-5]). Participation therefore
   stays authored per leaf on that tier too. The hinge is recorded here so the
   two forms stay compatible — graceful migration, no flag day.
-- **One new activation** ([§9.4][s9-4]): "continuous chain + `f` +
-  `h_s`/`h_su` + `g`".
+- **One new activation** ([§9.4][s9-4]): "continuous chain + `state_derivative`
+  + the discrete tier's output stages + `state_update`".
 - **Forward sensitivities** through the in-house RK steppers, for free — a
   payoff of owning the loop ([§10.1][s10-1]).
 - **A distinct `s`-tap register** beside the `x` list, labeling the step map's
@@ -8762,7 +8817,7 @@ trim points already are — [guards](#g-guard) at commit see to that
 ([§14.5][s14-5]). The scope comes with a loud diagnostic if an event fires
 inside a differentiated step. Two consumers wait. The first is the closed-loop
 trim door ([§14.7][s14-7]), whose $g(s) - s = 0$ residuals currently imply the
-derivative-free fallback, since frozen `g` has no Jacobian columns. The second
+derivative-free fallback, since a frozen `state_update` has no Jacobian columns. The second
 is exact discrete-time linearization of the full loop — digital design on the
 exact discretized plant instead of continuous linearization + Tustin.
 
@@ -8824,7 +8879,7 @@ specified here:
 | Hand-ordered `f_ode!` body (kinematics → airdata → systems → route five `dynamics.u` assignments → dynamics last) | Build-time topological sort; wrong wiring = build error naming the cycle or dangling [port](#g-port) |
 | Velocity state duplicated in `dynamics.x` and `kinematics.u`, kept in sync by hand | One state, one owner; consumers wire to `dyn.vel` |
 | `get_wr_b`/`get_mp_b`/`get_hr_b` generated tree-walk sums | [Summing junctions](#g-summing-junction) at ownership boundaries, one explicit wire per contributor, exported totals ([§6.2][s6-2]) |
-| `f_step!` quaternion renorm + engine-phase/stall-latch checks | `project` hook + [boundary-detected](#g-boundary-detected) events with defined semantics |
+| `f_step!` quaternion renorm + engine-phase/stall-latch checks | `state_projection` hook + [boundary-detected](#g-boundary-detected) events with defined semantics |
 | `Aircraft.f_ode!` runs avionics before the vehicle → continuous avionics reads one-stage-stale `vehicle.y` (implicit delay) | Avionics scheduled inside the [sweep](#g-sweep), after the stage-1 outputs avionics consumes — no delay. Or avionics declared periodic, sampling post-step by stated semantics |
 | `atmosphere`/`terrain` threaded as arguments through every signature | Field-handle signals through ordinary ports ([§4.4][s4-4]) |
 
@@ -8866,18 +8921,19 @@ each of those features under the decoder interfaces.
 
 - The compensator paths (`idle`, `frc`) are pure functions of the engine's own
   state `ω`. Their complete PI laws — outputs *and* state derivatives —
-  therefore evaluate in `h_x`. (The alternative factoring, compensators as
+  therefore evaluate in `output_state`. (The alternative factoring, compensators as
   child components of an engine [assembly](#g-assembly), also [schedules](#g-schedule) cleanly from the
   core's stage-1 [ports](#g-port).)
-- `h_xu` runs the lookup chain and the mode branch once. `f` is a three-field
-  copy (`ω̇`, `ẋ_idle`, `ẋ_frc`). Under the orthodox split, `f` would reproduce
+- `output_direct` runs the lookup chain and the mode branch once.
+  `state_derivative` is a three-field
+  copy (`ω̇`, `ẋ_idle`, `ẋ_frc`). Under the orthodox split, `state_derivative` would reproduce
   essentially the whole `f_ode!` body — four lookups and the mode branch — ×4
   RK stages per step ([D-015][d-015]).
 - `f_step!`'s transitions become [boundary-detected](#g-boundary-detected) events with mixed [predicate](#g-predicate)/threshold [guards](#g-guard)
   ([§2.1][s2-1]).
 - `fuel_available` becomes an ordinary port. It is state-derived at the fuel
   system, hence a stage-1 port — no loop.
-- Forced publications: none — everything `f` reads was already in `PistonEngineY`.
+- Forced publications: none — everything `state_derivative` reads was already in `PistonEngineY`.
 
 #### `PID` and the C172X FCS: the discrete side
 
@@ -8887,8 +8943,8 @@ representative.
 - The current update entangles outputs and next state by construction. The
   spelling is `y_i = s_i`: this [tick](#g-tick)'s integral-path output *is* the updated
   integrator state.
-- Under [§5.3][s5-3] the law runs once in `h_su`, publishing paths, saturation and the
-  updated states; `g` is a three-field copy.
+- Under [§5.3][s5-3] the law runs once in `output_direct`, publishing paths, saturation and the
+  updated states; `state_update` is a three-field copy.
 - Under the orthodox split, `g(s, u, t)` would reproduce the entire law per
   compensator per tick ([D-015][d-015]).
 
@@ -8944,12 +9000,12 @@ publishes `engage` and the latch value from its own feedthrough stage; the
 compensator, topologically after the supervisor, honors them **this tick**:
 
 ```julia
-h_su(c::PI, (; s, u)) = (; u_cmd = u.engage ? u.u_latch : c.k_p*u.e + s.s_i)
-g(c::PI, (; s, u, Δt)) = (; s_i = u.engage ? u.u_latch - c.k_p*u.e
-                                           : s.s_i + c.k_i*Δt*u.e)
+output_direct(c::PI, (; s, u)) = (; u_cmd = u.engage ? u.u_latch : c.k_p*u.e + s.s_i)
+state_update(c::PI, (; s, u, Δt)) = (; s_i = u.engage ? u.u_latch - c.k_p*u.e
+                                                      : s.s_i + c.k_i*Δt*u.e)
 ```
 
-Honoring the reset only in `g` is legal, and it means something else. The
+Honoring the reset only in `state_update` is legal, and it means something else. The
 state still lands correctly at the next tick. But the *output at the
 engagement tick* was already published from the stale state during the [sweep](#g-sweep),
 and under ZOH the plant integrates a full step under that stale command. That
@@ -9190,7 +9246,7 @@ mode-engage entry's write-order check.
 
 The strongest challenge mounted against the [§3][s3] class split, and its resolution.
 The general question first: why two leaf classes at all — why not one all-in-one
-primitive carrying continuous state, modes *and* discrete state, with `f`, events *and* `g`, purely
+primitive carrying continuous state, modes *and* discrete state, with `state_derivative`, events *and* `state_update`, purely
 continuous or discrete [components](#g-component) falling out by whichever facets an author
 declares? ([Class](#g-class) is already read off declaration shape, [§8.5][s8-5] — the question is
 whether the two declaration sets should be exclusive.)
@@ -9202,9 +9258,9 @@ classes — the continuous primitive is already hybrid (`m`, [guards](#g-guard),
 handlers, [§3.1][s3-1]); what separates the classes is [sweep](#g-sweep)-driven
 versus [tick](#g-tick)-driven execution. And the settled rules force a merged
 [component](#g-component)'s two halves to communicate exactly as two siblings
-do: [one home per datum](#g-one-home-per-datum) ([§5.2][s5-2]), `f` sees only
-the continuous state and `g` only the discrete one, and `s⁺` is decoded only at
-the owner's next tick (`g` runs last). That deferred decode is what makes
+do: [one home per datum](#g-one-home-per-datum) ([§5.2][s5-2]), `state_derivative` sees only
+the continuous state and `state_update` only the discrete one, and `s⁺` is decoded only at
+the owner's next tick (`state_update` runs last). That deferred decode is what makes
 ticks→events structurally impossible and what terminates the
 [boundary](#g-boundary) iteration ([§10.6][s10-6]). Cross-[tier](#g-tier)
 influence inside the merged class still routes through published table
@@ -9233,7 +9289,7 @@ start — exactly the forms the differencing bullets below recover from the
 cumulative stores, term by term. The reset is periodic, not
 condition-triggered, so events are the wrong [tier](#g-tier); and the reset is a
 discrete-tier write into continuous state, exactly the operation this design
-forbids (`g` writes only its own `s`; handlers are the sole resetters of
+forbids (`state_update` writes only its own `s`; handlers are the sole resetters of
 continuous state, and they are [guard](#g-guard)-driven).
 Integrate-and-dump falls squarely into the crack between the classes:
 tightly-coupled continuous and periodic dynamics in one physical instrument.
@@ -9287,7 +9343,7 @@ the factorization); and the equivalence survives discretization — quaternion
 kinematics is linear in `q`, every RK stage composes on the right, and left
 multiplication by the constant anchor commutes through, so the formulations agree
 to machine precision, not merely in the continuous-time limit. Numerics of never
-resetting: `q` stays unit under `project` (better conditioned than the sketch's
+resetting: `q` stays unit under `state_projection` (better conditioned than the sketch's
 `normalization = false` + reset); `Θ`/`Υ`/`V` grow linearly, so differencing
 loses relative precision — after an hour of flight, order $10^{-11}\ \mathrm{m/s}$ per sample
 against $10^{4}\ \mathrm{m/s}$ totals, six-plus orders below any error model worth simulating.
@@ -9306,12 +9362,12 @@ output_types(::IMUIntegrals, ::Type{T}) where {T <: Real} =
      Υ = SVector{3,T}, V = SVector{3,T},
      ω_ic_c = SVector{3,T}, f_c_c = SVector{3,T})               # instantaneous truth
 
-# h_xu: the sketch's f_ode! math verbatim (lever arm, gravity, Earth rate) → (; ω_ic_c, f_c_c)
-function f(imu::IMUIntegrals, (; x, y))
+# output_direct: the sketch's f_ode! math verbatim (lever arm, gravity, Earth rate) → (; ω_ic_c, f_c_c)
+function state_derivative(imu::IMUIntegrals, (; x, y))
     q = RQuat(x.q, normalization = false)              # §7.1's explicit cast
     (Θ = y.ω_ic_c, q = SVector{4}(Attitude.dt(q, y.ω_ic_c)), Υ = y.f_c_c, V = q(y.f_c_c))
 end
-project(imu::IMUIntegrals, x) = (; x..., q = normalize(x.q))   # SVector normalize
+state_projection(imu::IMUIntegrals, x) = (; x..., q = normalize(x.q))   # SVector normalize
 
 struct IMUSampler <: AbstractComponent end
 init_s(::IMUSampler) = (Θ = zeros(SVector{3}), q = SVector{4}(1.0, 0, 0, 0),
@@ -9320,7 +9376,7 @@ input_types(::IMUSampler)  = (Θ = SVector{3,Float64}, q = SVector{4,Float64},  
                          Υ = SVector{3,Float64}, V = SVector{3,Float64})       # form, bound check only
 output_types(::IMUSampler) = (sample = IMUSample,)   # discrete class: cells pin (frozen-exact)
 
-function h_su(smp::IMUSampler, (; s, u, Δt))
+function output_direct(smp::IMUSampler, (; s, u, Δt))
     q_s = RQuat(s.q, normalization = false);  q_u = RQuat(u.q, normalization = false)
     ϑ_c = u.Θ - s.Θ;  υ_c = u.Υ - s.Υ
     Δq  = q_s' ∘ q_u                                   # interval rotation, exact
@@ -9328,7 +9384,7 @@ function h_su(smp::IMUSampler, (; s, u, Δt))
     (; sample = IMUSample(; ω̄_ic_c = ϑ_c / Δt, f̄_c_c = υ_c / Δt,
                             ϑ_c, ϑ_c_cc = RVec(Δq)[:], υ_c, υ_c_sc))
 end
-g(smp::IMUSampler, (; u)) = (Θ = u.Θ, q = u.q, Υ = u.Υ, V = u.V)   # the latch
+state_update(smp::IMUSampler, (; u)) = (Θ = u.Θ, q = u.q, Υ = u.Υ, V = u.V)   # the latch
 ```
 
 The `IMU` [assembly](#g-assembly) wires the four integral [ports](#g-port) across, holds the error model as
@@ -9338,7 +9394,7 @@ own scope — the parent sets the IMU's rate ([§8.7][s8-7]). `Δt` in the stage
 single source of truth, put there for exactly this kind of discretized law.
 (Initialization consistency — the sampler's `s` must equal the initial
 integrals or the `t₀` sample is wrong — holds by default at zeros/identity, and
-[boundary zero](#g-boundary-zero) discharges the rest: its [due](#g-due) `g` latches `s ← integrals(t₀)` for
+[boundary zero](#g-boundary-zero) discharges the rest: its [due](#g-due) `state_update` latches `s ← integrals(t₀)` for
 every subsequent sample, so only the `t₀` sample itself depends on the authored
 `s` — a [condition](#g-condition)-authoring obligation under trim, [§14.5][s14-5].)
 
@@ -9347,15 +9403,16 @@ every subsequent sample, so only the `t₀` sample itself depends on the authore
 The sculling line is
 correct only because a due [tick](#g-tick) samples the *completed* [boundary](#g-boundary): if `u.V` still
 held the previous boundary's decode it would equal `s.V` exactly (that is the
-value `g` latched), and sculling would vanish without an error anywhere. The
+value `state_update` latched), and sculling would vanish without an error anywhere. The
 guarantee is the [§10.6][s10-6] macro-sequence, not a scheduling accident: integrate →
 project → [sweep](#g-sweep), with the due sampler's stages gated *into* that sweep ([§10.5][s10-5]) and
 the integrals arriving at stage-1 position (auto-published state, [§5.3][s5-3]) — before
 any stage-2 function runs, regardless of topological placement. The rest of the
-timeline closes consistently: the sampler's `h_su` decodes `s` (the `t_{k-1}` latch)
-*before* `g` runs — the `z⁻¹` semantics — and after event [quiescence](#g-quiescence) `g` latches
+timeline closes consistently: the sampler's `output_direct` decodes `s` (the `t_{k-1}` latch)
+*before* `state_update` runs — the `z⁻¹` semantics — and after event [quiescence](#g-quiescence)
+`state_update` latches
 the `t_k` values for the next tick; same-boundary events re-run the gated stages
-in their re-sweeps, so `g` and external readers see the settled boundary.
+in their re-sweeps, so `state_update` and external readers see the settled boundary.
 
 #### Author-knowledge note
 
@@ -9372,11 +9429,12 @@ integrals in the sampler, silently degrading the model.
 coupling is one-directional (integrals → sampler). If the [flow](#g-flow) itself needed the
 interval-relative value — integrator saturation within the sampling interval,
 say — the latch becomes a wire back: the sampler publishes the sample-instant
-values from its *[feedthrough](#g-feedthrough)* stage (`h_su` reads `u`, so the latch [port](#g-port) carries
-the current tick's values, ZOH until the next; an `h_s`-published latch would be
-one period stale), and the continuous `f` computes `x − u.latch`. Both cross-wires
+values from its *[feedthrough](#g-feedthrough)* stage (`output_direct` reads `u`, so the latch [port](#g-port) carries
+the current tick's values, ZOH until the next; an `output_state`-published latch would be
+one period stale), and the continuous `state_derivative` computes `x − u.latch`. Both cross-wires
 consume the other side's ports and the [schedule](#g-schedule) stays acyclic (integrals stage 1 →
-sampler `h_su`; sampler `h_su` → the integrals' `f`-edge, [§5.4][s5-4]). The "reset"
+sampler `output_direct`; sampler `output_direct` → the integrals'
+`state_derivative`-edge, [§5.4][s5-4]). The "reset"
 becomes a visible [tier](#g-tier)-crossing feedback loop — which is what it always was,
 physically.
 
@@ -9536,11 +9594,11 @@ disposition. Extension-only surface has three parts:
 
 The audit's criterion is the **four-register naming convention** ([D-144][d-144]):
 
-1. **Declarations**, which the author defines and the framework calls, are bare
-   nouns or `init_*`/`_types`: `child_connections`,
-   `input_connections`/`output_connections`, `events`, `input_types`,
-   `workspace`, the stage letters, and `claims(b)` from the binding interface
-   ([§11.6][s11-6]).
+1. **Declarations**, which the author defines and the framework calls, are noun
+   phrases or `init_*`/`_types`: `child_connections`,
+   `input_connections`/`output_connections`, `state_events`, `input_types`,
+   `init_workspace`, the stage and update-law names ([D-220][d-220]), and
+   `claims(b)` from the binding interface ([§11.6][s11-6]).
 2. **Value selectors**, called against `reads` and [snapshots](#g-snapshot),
    carry `get_` ([§14.4][s14-4]).
 3. **Lifecycle and mutating actions** are verbs, with `!` when they mutate.
@@ -9556,12 +9614,10 @@ declarations name the *consequence* a declaration has rather than its
 `*_connections` family names content deliberately, for authoring transparency;
 that is a recorded choice, not register drift.
 
-Five items are flagged for the sweep and deliberately not settled here:
+Four items are flagged for the sweep and deliberately not settled here:
 
 - `input_faces`/`output_faces` — noun accessors punning on the `_types`
   declarations, mitigated by being framework-facing.
-- `workspace` — a declaration whose bare noun reads as an accessor; every
-  candidate replacement is clunkier, so lean keep.
 - `loop` — the device contract ([§11.6][s11-6]): a mutating task body spelled as
   a bare noun among its verb-`!` siblings `init!`/`shutdown!`/`unblock!`. With
   `run!` taken and the "loop body" prose entrenched, it needs the audit's
@@ -9634,10 +9690,11 @@ one home per datum, applied to the document itself.
 
 For component authors:
 
-- **The stage funnel** ([§5.2][s5-2]). Stage name ⊇ bundle ⊇ destructured reads:
-  the stage name fixes the maximal legal view set, the component's
+- **The stage funnel** ([§5.2][s5-2]). Stage name at its tier ⊇ bundle ⊇
+  destructured reads: the stage name fixes the maximal legal view set at the
+  component's tier, the component's
   declarations narrow it to the bundle, and the signature's destructuring
-  narrows the bundle to actual reads — so "no `u` in the name" *is* the
+  narrows the bundle to actual reads — so "no `direct` in the name" *is* the
   no-feedthrough property. The teaching line: stage 1 publishes what you
   know from state alone; stage 2 adds what needs inputs; your dynamics
   read your own published results instead of recomputing them.
@@ -9655,15 +9712,16 @@ For component authors:
   due tick's gated stages run inside the boundary sweep and sample the
   *completed* boundary. Distrusting that guarantee — a defensive one-tick
   delay, a re-derivation inside the sampler — silently degrades the model.
-- **Interval alignment** ([§14.5][s14-5]). A boundary's `g` is the *outgoing*
-  transition: at tick `t_k` it consumes the completed boundary's samples
+- **Interval alignment** ([§14.5][s14-5]). A boundary's `state_update` is the
+  *outgoing* transition: at tick `t_k` it consumes the completed boundary's samples
   and produces `s_{k+1}` — the value the component's *next* tick decodes
-  (the sampled-data `z⁻¹` delay, by construction). Hence `g` runs at
+  (the sampled-data `z⁻¹` delay, by construction). Hence `state_update` runs at
   boundary zero: that run is the `t₀` sample's only chance.
 - **Same-tick reset consumption** ([§15.2][s15-2]) — *discrete tier*. A commanded reset
   of a discrete component's `s` is an input. For same-tick output semantics
   the *output stage* consumes that input — overriding the state-derived path —
-  and `g` stores the matching `s⁺`. A reset honored only in `g` reaches the
+  and `state_update` stores the matching `s⁺`. A reset honored only in
+  `state_update` reaches the
   outputs one tick late: the plant integrates a full step under the stale
   command. Both spellings are legal; they mean different things. The
   continuous tier has no such choice — next entry.
@@ -9759,14 +9817,16 @@ lifecycle:
 
 **Authoring** — what a component or assembly defines ([§8.2][s8-2], [§8.5][s8-5]–[§8.7][s8-7]):
 
-- Continuous leaf: `init_x`/`init_m` (by value), `workspace(::C, ::Type{T})`
+- Continuous leaf: `init_x`/`init_m` (by value), `init_workspace(::C, ::Type{T})`
   (by allocation), `input_types(::C, ::Type{T})` and
   `output_types(::C, ::Type{T})` (by type),
-  `events` — stages `h_x`, `h_xu`, `f`, guard/handler pairs
-  (`Event(guard, handler)`; detection policy comes from the guard's return
-  type, [§10.4][s10-4]), `project`.
-- Discrete leaf: `init_s`, `workspace(::C)`,
-  `input_types`/`output_types` — stages `h_s`, `h_su`, `g`.
+  `state_events` — stages `output_state`, `output_direct`, `state_derivative`,
+  guard/handler pairs
+  (`StateEvent(guard, handler)`; detection policy comes from the guard's return
+  type, [§10.4][s10-4]), `state_projection`.
+- Discrete leaf: `init_s`, `init_workspace(::C)`,
+  `input_types`/`output_types` — stages `output_state`, `output_direct`,
+  `state_update`.
 - Assembly: `child_connections` (mandatory — the class marker),
   `input_connections`, `output_connections`, `sample_times`,
   `transparent_container` (optional, default `nothing`).
@@ -9775,16 +9835,16 @@ lifecycle:
 Bundle contents by function family (the maximal legal sets, [§5.2][s5-2] — signatures
 destructure less at will):
 
-| function | bundle fields |
-|---|---|
-| `h_x` | `x, m, t [, ws]` |
-| `h_xu` | `x, m, u, y_x, t [, ws]` |
-| `f` | `x, m, y, u, t [, ws]` |
-| `h_s` | `s, t, Δt [, ws]` |
-| `h_su` | `s, u, y_s, t, Δt [, ws]` |
-| `g` | `s, y, u, t, Δt [, ws]` |
-| guard / handler | `x, m, y, u, t [, ws]` |
-| `project` | positional `(comp, x)` — no bundle |
+| function | tier | bundle fields |
+|---|---|---|
+| `output_state` | continuous | `x, m, t [, ws]` |
+| `output_direct` | continuous | `x, m, u, y_x, t [, ws]` |
+| `state_derivative` | continuous | `x, m, y, u, t [, ws]` |
+| `output_state` | discrete | `s, t, Δt [, ws]` |
+| `output_direct` | discrete | `s, u, y_s, t, Δt [, ws]` |
+| `state_update` | discrete | `s, y, u, t, Δt [, ws]` |
+| guard / handler | continuous | `x, m, y, u, t [, ws]` |
+| `state_projection` | continuous | positional `(comp, x)` — no bundle |
 
 Table footnotes, from the bundle law ([§5.2][s5-2]) — the sets above are maximal, and
 each field is present only if it exists for the component: `u` iff the function
@@ -9793,7 +9853,7 @@ component produces any table cell (`output_types` ∪
 auto-published); `x`/`s`/`m`/`ws` iff declared; `y_x`/`y_s` iff the stage-1
 *return* is non-empty (auto-published names excluded — [§5.2][s5-2], [D-169][d-169]);
 `Δt` on the discrete tier only. Returns: a stage returns a NamedTuple of
-port values ([§4.3][s4-3], [§5.2][s5-2]); `f` returns the layout image of `X` ([§7.1][s7-1]); a **handler
+port values ([§4.3][s4-3], [§5.2][s5-2]); `state_derivative` returns the layout image of `X` ([§7.1][s7-1]); a **handler
 returns `(; x, m)` with each key present iff that store exists and the handler
 updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` partial).
 
@@ -9954,7 +10014,8 @@ updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` pa
 **Stopped-sim services** ([§14][s14]).
 
 - `init!(sim, condition; t0 = 0.0)` — root-input totality checked pre-write
-  ([§14.6][s14-6]), then boundary zero: project → sweep → events → due `g` updates →
+  ([§14.6][s14-6]), then boundary zero: project → sweep → events → due
+  `state_update` calls →
   header + first snapshot ([§14.5][s14-5]).
 - `trim!(sim, problem; baseline, t0 = 0.0, backend) → TrimReport` —
   nonlinear least squares on the packed residuals with exact Dual
@@ -10033,7 +10094,7 @@ updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` pa
   nominal activation, bound over the simulation's own buffers: the four
   blocks (`rhs`, `sweep_1`, `sweep_2`, `ticks` — the sweeps in both
   arities, zero-arg interior and tick-indexed boundary; `ticks` takes the tick
-  index) plus per-event guards/handlers and per-component `project`, keyed
+  index) plus per-event guards/handlers and per-component `state_projection`, keyed
   by the model's roster. The [§7.5][s7-5] allocation seam: warm, then
   `@ballocated(body()) == 0` per body; diagnostic register, the one promise
   being identity with what the loop runs; isolated invocation leaves buffers
@@ -10137,12 +10198,12 @@ with the collection and never triggering its throw — is currently empty
 | `AbstractAtRoot` | face name, consuming leaf path, the abstract entry; remedy hint (wire a concrete producer — in a rig, a stub child, [§13.7][s13-7]) | [§8.2][s8-2] | error | build | collected |
 | `RootInputTypeConflict` | face name, the consuming paths, their conflicting concrete declarations at nominal (a tolerance difference is not a conflict — the meet, [§8.2][s8-2]) | [§8.2][s8-2] | error | build | collected |
 | `IllegalStateLeaf` | component path, `init_x` field name, leaf type, the closed vocabulary (scalar / `SArray` at the common eltype) | [§7.1][s7-1], [§8.2][s8-2] | error | build | collected |
-| `StoreWithoutUpdate` | component path, the `init_x` or `init_s` store, the missing update (no `f` for the one, no `g` for the other); shadowing note when the parent module defines its own `f`/`g` ([§8.1][s8-1]) | [§8.2][s8-2] | error | build | collected |
-| `EventHalfMissing` | component path, event name, reason (guard half missing / handler half missing / the entry is not an `Event`), the function that has no method or the entry's type | [§8.2][s8-2] | error | build | collected |
+| `StoreWithoutUpdate` | component path, the `init_x` or `init_s` store, the missing update (no `state_derivative` for the one, no `state_update` for the other); shadowing note when the parent module defines its own `state_derivative`/`state_update` ([§8.1][s8-1]) | [§8.2][s8-2] | error | build | collected |
+| `EventHalfMissing` | component path, event name, reason (guard half missing / handler half missing / the entry is not a `StateEvent`), the function that has no method or the entry's type | [§8.2][s8-2] | error | build | collected |
 | `ClassUnreadable` | component path, type, declarations found, both family lists; did-you-mean when the type holds component-typed fields; shadowing note when the parent module defines same-named declaration functions ([§8.1][s8-1]) | [§8.5][s8-5] | error | build | collected |
 | `ClassMixed` | component path, the `child_connections` declaration and the offending leaf declarations | [§8.5][s8-5] | error | build | collected |
 | `ContainerMixed` | container field path, offending element keys/indices, their types | [§8.5][s8-5] | error | build | collected |
-| `DeclarationOnWrongTier` | component path, the offending declaration (`f`/`g`, a state or stage name from the wrong family — `init_x`/`h_x`/`h_xu` against `init_s`/`h_s`/`h_su`, [D-195][d-195] — `events`, `init_m`, `project`, or a `workspace`/`output_types` arity), the tier the leaf's other declarations announce | [§5.2][s5-2], [§8.2][s8-2], [§8.5][s8-5] | error | build | collected |
+| `DeclarationOnWrongTier` | component path, the offending declaration (`state_derivative`/`state_update`, a store from the wrong family — `init_x` against `init_s`, [D-195][d-195] — `state_events`, `init_m`, `state_projection`, or an `init_workspace`/`output_types` arity), the tier the leaf's other declarations announce | [§5.2][s5-2], [§8.2][s8-2], [§8.5][s8-5] | error | build | collected |
 | `TierSignatureMismatch` | component path, the declaration at fault (`input_types` or `output_types`), the leaf's tier, the signature form found versus the form mandated (two-argument `(::C, ::Type{T})` on the continuous tier, plain `(::C)` on the discrete); stateful leaves only — on a stateless leaf `output_types`' arity *is* the tier ([§8.2][s8-2]), so there is nothing to mismatch | [§8.2][s8-2], [§8.5][s8-5] | error | build | collected |
 | `FaceNameIllegal` | assembly path, face name, the violated invariant (contains `/`) | [§8.6][s8-6] | error | build | collected |
 | `FaceNameCollision` | assembly path, face name, both entries' provenance (hand-written / computed) | [§8.6][s8-6] | error | build | collected |
@@ -10278,8 +10339,8 @@ name-transparent via `transparent_container`. Transparent grouping, not an
 assembly: no contract, no `child_connections`, no rate scope ([§8.5][s8-5]).
 
 <a id="g-continuous-component"></a>**continuous component** — the hybrid primitive: continuous state `x`, modes
-`m`, flow `f`, two output stages, events (guards + handlers) and optional
-`project`; any facet may be empty, so a state-free instance is an FSM ([§3.1][s3-1]).
+`m`, flow `state_derivative`, two output stages, events (guards + handlers) and optional
+`state_projection`; any facet may be empty, so a state-free instance is an FSM ([§3.1][s3-1]).
 
 <a id="g-contract"></a>**contract** — a component's declared interface: `input_types` (its
 requirements, read permissively — what each entry *allows* to arrive) and
@@ -10295,9 +10356,10 @@ staging contract ([§11.7][s11-7]), the step-boundary contract ([§10.6][s10-6])
 at its own anchor.
 
 <a id="g-declaration-inventory"></a>**declaration inventory** — the closed set of well-known functions a component
-or assembly defines — `init_x`/`init_s`/`init_m`, `workspace`,
-`input_types`/`output_types`, `events`, the stages, `f`/`g`/
-`project`, and `child_connections`/`input_connections`/`output_connections`/`sample_times`/`transparent_container` — each declared in a stated
+or assembly defines — `init_x`/`init_s`/`init_m`, `init_workspace`,
+`input_types`/`output_types`, `state_events`, the stages,
+`state_derivative`/`state_update`/
+`state_projection`, and `child_connections`/`input_connections`/`output_connections`/`sample_times`/`transparent_container` — each declared in a stated
 register of authority: by value, by type, by allocation ([§8.2][s8-2]).
 
 <a id="g-derived-contract"></a>**derived contract** — the checkable surface an assembly or the
@@ -10308,8 +10370,9 @@ holding the constraint the referencing wires and interface connections impose on
 whatever concrete child is plugged in ([§8.6][s8-6], [§8.8][s8-8], [§9.2][s9-2]).
 
 <a id="g-function-family"></a>**function family** — which bundle fields a given function may legally
-receive: `h_x`/`h_xu`/`h_s`/`h_su`/`f`/`g`/guard/handler/`project` (one closed
-set per name, the tiers' families being disjoint, [§5.2][s5-2]), with the
+receive: `output_state`/`output_direct`/`state_derivative`/`state_update`/guard/handler/`state_projection`
+(one closed set per name per tier, the shared output stages taking one set on
+each, [§5.2][s5-2], [D-220][d-220]), with the
 comment block ([§5.2][s5-2]) stating each family's maximal legal set and
 `BundleFieldError` classifying a read as illegal for the family ([§5.2][s5-2]).
 Not a diagnostic *kind* ([§D.9][sD-9]).
@@ -10323,15 +10386,18 @@ referencing those faces *are* the imposed derived contract, checked per instanti
 algebraic outputs, multi-rate periodic discrete dynamics, zero-crossing
 events, post-step manifold projection, and externally injected inputs ([§2][s2]).
 
-<a id="g-the-letters"></a>**the letters** — `f` the continuous flow, `g` the discrete update, `h_*` the
-output stages (suffix = dependence class, not argument list), `x` the continuous
+<a id="g-the-letters"></a>**the letters** — the mathematical symbols the spec's formulas keep, against the
+words the API spells them as ([D-220][d-220]): `f` the continuous flow
+(`state_derivative`), `g` the discrete update (`state_update`), `y = h(x)` and
+`y = h(x, u)` the two output stages (`output_state` and `output_direct`). The
+bundle letters are API in their own right: `x` the continuous
 state and `m` the continuous-only mode store, `s` the discrete state ([D-195][d-195]),
 `u` wired inputs, `y` own published signals, `ws` the
 workspace. Bare `h` means the integration step size only ([§5.3][s5-3], [§10][s10]);
 bare `z` means only the shift operator `z⁻¹` — retired as a state letter by
 [D-173][d-173] and never reclaimed, the discrete state having its own.
 
-<a id="g-periodic-discrete-component"></a>**periodic discrete component** — a leaf with state `s`, update `g`
+<a id="g-periodic-discrete-component"></a>**periodic discrete component** — a leaf with state `s`, update `state_update`
 at a declared rate, and two output stages whose cells hold zero-order between
 ticks; it has no `m` store, and its `s` reaches others only through signals
 ([§3.2][s3-2]).
@@ -10347,12 +10413,14 @@ evaluation only *checks* conformance against them, never the reverse; types by
 declaration, values by execution, conformance by comparison ([§8.1][s8-1]).
 
 <a id="g-stage-function"></a>**stage function / two-stage outputs** — every component provides exactly two
-output stages, `h_x`/`h_s` (no `u` in the bundle, hence structurally no
-feedthrough) and `h_xu`/`h_su`; feedthrough is thereby declared by signature,
-with no dependency annotations anywhere ([§5.2][s5-2]).
+output stages, `output_state` (no `u` in the bundle, hence structurally no
+feedthrough) and `output_direct`; one pair of names over both tiers, each
+name's legal bundle set being tier-dependent ([D-220][d-220]). Feedthrough is
+thereby declared by signature, with no dependency annotations anywhere
+([§5.2][s5-2]).
 
 <a id="g-workspace"></a>**workspace** — component-declared mutable scratch, declared *by allocation*
-(`workspace(::C, ::Type{T})` continuous, `workspace(::C)` discrete), arriving
+(`init_workspace(::C, ::Type{T})` continuous, `init_workspace(::C)` discrete), arriving
 as the `ws` bundle field; excluded from state semantics, never a condition
 target, and never inspected or mutated by the framework — contents at call
 entry are unspecified ([§7.3][s7-3]).
@@ -10468,23 +10536,24 @@ confused with an **artificial loop**, port-level acyclic but stage-level
 cyclic, whose remedy is a ladder — the two-stage split, contract re-factoring,
 and as residual a component split ([§5.4][s5-4]).
 
-<a id="g-flow"></a>**flow / RHS** — `f`, the continuous derivative function. Evaluating the RHS
-means running the whole sweep, since `f` reads the fresh table: there is no
-incremental `f`-only re-evaluation ([§3.1][s3-1], [§5.3][s5-3]).
+<a id="g-flow"></a>**flow / RHS** — `state_derivative`, the continuous derivative function, `f` in
+the spec's formulas ([D-220][d-220]). Evaluating the RHS
+means running the whole sweep, since `state_derivative` reads the fresh table: there is no
+incremental `state_derivative`-only re-evaluation ([§3.1][s3-1], [§5.3][s5-3]).
 
 <a id="g-frame"></a>**frame** — one iteration of the loop — drain, integrate, boundary sequence,
 publication — the unit `step!` counts and the trace's ordinal key ([§11.1][s11-1]).
 Distinct from a *boundary* ([§D.4][sD-4]), and from the kinematic reference frames of
 the aircraft domain, which always appear compounded ("the b frame").
 
-<a id="g-projection"></a>**projection** — the optional per-component hook `x ← project(x)`, run in the
+<a id="g-projection"></a>**projection** — the optional per-component hook `x ← state_projection(x)`, run in the
 only two schedule positions between a state write and its decode (after
 integration, after a handler's `x`-reset); the cheap end of geometric
 integration's projection methods ([§2][s2], [§5.3][s5-3]).
 
 <a id="g-schedule"></a>**schedule** — the static evaluation order computed once at build time from
 wiring edges plus intra-component feedthrough: all stage-1 functions in any
-order, stage 2 in topological order, then `f`. The hot loop runs a flat list of
+order, stage 2 in topological order, then `state_derivative`. The hot loop runs a flat list of
 `(component, stage)` entries, with zero runtime graph logic ([§5.1][s5-1]).
 
 <a id="g-sweep"></a>**sweep** — one execution of that schedule against the current state, in one of
@@ -10541,7 +10610,7 @@ integer multiple of it ([§10.5][s10-5], [§9.1][s9-1]).
 <a id="g-due"></a>**due** — a discrete component is due at a boundary when its compiled `(D, Φ)`
 pair admits that boundary's tick index (`(idx − Φ) % D == 0`); due components'
 output stages are gated into the *boundary* sweep (never the interior one) and
-their `g` updates run after quiescence. The due set is a property of the
+their `state_update` calls run after quiescence. The due set is a property of the
 boundary, fixed for its whole event iteration: the gate's image of the frame
 index at a frame top, empty at `t*`, the `Φ = 0` set at boundary zero
 ([§10.5][s10-5], [§10.6][s10-6]).
@@ -10561,7 +10630,7 @@ exhaustion drops its further edges there under a `FiringBudget` warning
 
 <a id="g-guard"></a>**guard** — the declared function defining an event's predicate, evaluated
 against the fresh boundary table and paired with a handler in an ordered,
-named `events` collection; its detection policy is declared by its return
+named `state_events` collection; its detection policy is declared by its return
 type — `Bool` boundary-detected, the nominal scalar localized ([§10.4][s10-4],
 [§8.2][s8-2]).
 
@@ -10620,11 +10689,17 @@ not-holding ([§10.6][s10-6]).
 
 <a id="g-quiescence"></a>**quiescence** — the fixed point of the boundary event phase: rounds of
 [sweep → guards → handlers] iterate until a round fires nothing, after which
-the priors are updated and due `g` updates run ([§10.6][s10-6]).
+the priors are updated and due `state_update` calls run ([§10.6][s10-6]).
 
 <a id="g-remainder-step"></a>**remainder step** — the integration from `t*` to the original grid target
 after a localized event, with `h′` derived at use; guards are re-checked on it
 under the localization budget ([§10.4][s10-4]).
+
+<a id="g-state-event"></a>**state event** — an event whose instant is unknown in advance and must be
+detected, declared as a `StateEvent(guard, handler)` pair under `state_events`;
+the criterion is detection versus scheduling, not which fields the guard reads,
+so a guard over an input is a state event too. Detected either
+boundary-detected or localized ([§2.1][s2-1], [§8.2][s8-2]).
 
 <a id="g-t"></a>**`t*`** — the localized event time: the holding endpoint of the root-finder's
 final bracket, structurally strictly later than `tₙ`. A full boundary runs
@@ -10639,6 +10714,11 @@ leaf's declaration shape (`DeclarationOnWrongTier` names a violation) ([§8.2][s
 [§8.5][s8-5]). Bare "tier" means only this: the genericity classes are *walked /
 pinned / exempt* ([§D.5][sD-5]) and the detection policies *boundary-detected /
 localized*.
+
+<a id="g-time-event"></a>**time event** — an event whose instant is known in advance and scheduled: the
+discrete tier's ticks, declared by `sample_times` and gated by the harmonic
+grid. The counterpart of a *state event*, which must instead be detected
+([§2.1][s2-1], [§10.5][s10-5]).
 
 ### D.5 Build pipeline
 
@@ -10668,7 +10748,7 @@ to linear in entry count ([§9.7][s9-7]).
 
 <a id="g-executable-set"></a>**executable set** — the function set an activation can actually run, hence
 exactly what it probes: a `Dual` activation sees only the continuous output
-stages and `f` — never the discrete stages, `g`, guards or handlers ([§9.4][s9-4]).
+stages and `state_derivative` — never the discrete stages, `state_update`, guards or handlers ([§9.4][s9-4]).
 
 <a id="g-executor"></a>**executor** — the compiled execution form of the schedule: a concretely-typed
 tuple of entries over statically typed cell storage, traversed by a
@@ -10693,7 +10773,7 @@ the authored value at apply time ([§14.3][s14-3]).
 bodies of the nominal activation bound over the simulation's own buffers
 (`rhs`, `sweep_1`, `sweep_2` — the sweeps in both arities, zero-arg interior
 and tick-indexed boundary — `ticks`, plus per-event guards and handlers
-and per-component `project`). Its one promise is identity with what the loop
+and per-component `state_projection`). Its one promise is identity with what the loop
 runs, which is what makes the allocation assertions ([§7.5][s7-5]) honest ([§9.7][s9-7]).
 
 <a id="g-nominal"></a>**nominal** — the `Float64` activation, and of a declaration its `Float64`
@@ -10981,8 +11061,8 @@ linearization tap sets ([§14.2][s14-2], [§14.9][s14-9]).
 confused with an event *prior* ([§D.4][sD-4]).
 
 <a id="g-boundary-zero"></a>**boundary zero** — the initialization boundary: the ordinary macro-sequence
-with an empty integrate — project → [sweep → guards → handlers]\* → due `g`
-updates → header and first snapshot — run at `t₀` once `apply!` has
+with an empty integrate — project → [sweep → guards → handlers]\* → due
+`state_update` calls → header and first snapshot — run at `t₀` once `apply!` has
 established the stores ([§14.5][s14-5]).
 
 <a id="g-capture"></a>**capture** — the service reading the current committed stores *and*
@@ -11303,6 +11383,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-217]: decisions.md#d-217--conform-the-trace-and-replay-sections-to-the-prototypes-record
 [d-218]: decisions.md#d-218--make-the-replaylive-distinction-an-explicit-input-mode
 [d-219]: decisions.md#d-219--add-a-time-addressed-replay-halt-and-a-manual-door-to-live
+[d-220]: decisions.md#d-220--rename-the-authoring-family-to-words-stage-update-projection-event-and-workspace-declarations
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

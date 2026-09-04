@@ -244,6 +244,7 @@ were derived.
 | [D-217][d-217] | Conform the trace and replay sections to the prototype's record | ratified |
 | [D-218][d-218] | Make the replay/live distinction an explicit input mode | ratified |
 | [D-219][d-219] | Add a time-addressed replay halt and a manual door to live | ratified |
+| [D-220][d-220] | Rename the authoring family to words: stage, update, projection, event and workspace declarations | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -7754,6 +7755,105 @@ its automatic flip stand exactly as ratified.
   `t_end`'s reach-or-exceed rule is the point of the keyword, not an
   inconsistency in it: `t_end` bounds a run, `to_time` positions an inspection.
 
+### D-220 — Rename the authoring family to words: stage, update, projection, event and workspace declarations
+
+**Status.** ratified
+
+**Position.** The component-authoring family drops its single letters and bare
+nouns for distinctive words; the spec's formulas keep `f`, `g` and `h` as
+mathematical symbols.
+
+- `f` → `state_derivative`, `g` → `state_update`.
+- `h_x` and `h_s` → `output_state`; `h_xu` and `h_su` → `output_direct`. One
+  pair of names serves both tiers, "direct" naming direct feedthrough.
+- `project` → `state_projection`, positional shape unchanged.
+- `events` → `state_events`, and the pair type `Event` → `StateEvent`.
+- `workspace` → `init_workspace`, arity unchanged: `(::C, ::Type{T})`
+  continuous, `(::C)` discrete.
+- Anything naming a Julia method takes the new word; a symbol in an equation or
+  a name for a mathematical object keeps its letter.
+
+**What stays.** Every bundle field (`x, s, m, u, y, y_x, y_s, t, Δt, ws`); the
+`guard`/`handler` halves and the word "event" in prose; `init_x`, `init_s`,
+`init_m`, `input_types`, `output_types`, `sample_times` and the connection
+declarations; the stage-numbered sweep names of [D-196][d-196]; the executor's phase
+symbol `:project`; the diagnostic kind names, `EventHalfMissing` included. No
+aliases and no deprecation shims: there are no external users, and a
+half-renamed surface is the ambiguity this entry removes.
+
+**Spec.** [§2.1][s2-1], [§3.2][s3-2], [§4.3][s4-3], [§4.4][s4-4], [§5.2][s5-2], [§5.3][s5-3], [§5.4][s5-4], [§6.2][s6-2], [§7.1][s7-1], [§7.3][s7-3], [§7.4][s7-4],
+[§7.5][s7-5], [§8.1][s8-1], [§8.2][s8-2], [§8.5][s8-5], [§9.3][s9-3], [§9.4][s9-4], [§9.5][s9-5], [§9.7][s9-7], [§10.4][s10-4], [§10.5][s10-5], [§10.6][s10-6], [§12.5][s12-5],
+[§13.4][s13-4], [§13.5][s13-5], [§13.6][s13-6], [§13.7][s13-7], [§14.5][s14-5], [§14.7][s14-7], [§14.8][s14-8], [§14.10][s14-10], [§15.1][s15-1], [§15.2][s15-2], [§15.5][s15-5],
+[§16][s16], [Appendix A][sA], [Appendix B][sB], [Appendix C][sC], [Appendix D][sD]
+
+**Rationale.** On Julia 1.12 a declaration written without `import Cadence: …`
+creates a fresh local generic, silently, whether or not the name is exported,
+and the build sees a component that declares nothing. When the author already
+owns a function of that name the definition adds a method to *theirs* instead,
+and no diagnostic can tell a forgotten import from a legitimate user function —
+`f` is the commonest throwaway name in any REPL, `g` is gravity in a flight
+package, and `update`, `project` and `events` are ordinary user verbs and
+nouns. The work queue's shadowed-declaration diagnostic would have had to hedge
+on every one of them. Distinctive names make the check decidable instead: a
+foreign binding of `state_derivative` or `init_workspace` in a component's
+module is unambiguous evidence of a forgotten import, so the diagnostic can
+name it.
+
+Two further gains ride along. The underscored suffixes read as subscripts and
+suggest partial derivatives, which the stage names never meant; the new names
+state the dependence class in words, `output_state` for `y = h(x)` and
+`output_direct` for `y = h(x, u)`. And the two output stages are machinery
+shared by both tiers, so one pair of names is the honest spelling of what the
+compiled sweep blocks already do ([D-196][d-196]).
+
+Two earlier rulings retire in part. [D-195][d-195]'s output-stage split (`h_x`/`h_xu`
+against `h_s`/`h_su`) goes, and with it the output-stage member of
+`DeclarationOnWrongTier` and the "no tier qualifier" reading of the closed
+bundle-name sets: `output_state` and `output_direct` take one legal set per
+tier again. The tier is still fully determined without them — `init_x` versus
+`init_s`, `state_derivative` versus `state_update`, and the `T`-form arity of
+`input_types`/`output_types`/`init_workspace` — so a leaf declaring
+`state_derivative` beside `init_s` is `StoreWithoutUpdate` or a tier
+disagreement exactly as before. [D-195][d-195]'s state-letter split itself stands
+untouched. [D-077][d-077]'s rejection of `init_workspace` also goes: it rested on a
+workspace not being memory that conditions overlay and on the poison
+overwriting it, and [D-183][d-183] removed the poisoning, while `init` in this API
+already means *establish* — the device contract's `init!` — rather than
+*initial value*, and `init_x`'s own value is a default that conditions overlay.
+[D-077][d-077]'s position, declaration by allocation called per activation and per
+scratch-store set, stands unchanged. Both entries keep `ratified`: the log has
+no partial status, and neither position is replaced.
+
+`state_events` also names the distinction [§2.1][s2-1] now teaches. The discrete
+tier's ticks, declared by `sample_times`, are *time events*, scheduled because
+their instants are known in advance; everything declared through
+`StateEvent(guard, handler)` is a *state event*, whose instant is unknown and
+must be detected. The criterion is detection versus scheduling, not which
+bundle fields a guard reads.
+
+**Rejected.**
+- *Keeping the letters and adding a shadowing diagnostic instead:* the
+  diagnostic cannot distinguish a user's own `f` from a forgotten import, which
+  is the whole reason the check was never designed.
+- *`derivative` and `update` unprefixed:* `derivative` is exported by
+  DifferentiationInterface, Polynomials and others; `update` is a common user
+  function. Both reintroduce the collision the rename exists to remove.
+- *`event_list`, `event_table`, `transitions` for the events declaration:* the
+  first two name a container rather than what it holds; "transition" is already
+  the spec's word for the crossing itself.
+- *`Transition` for the pair type:* same collision with the crossing.
+- *`Jump` for the pair type:* spent on the discrete update law's lineage ([§3.2][s3-2])
+  and reading as stochastic in the ecosystem.
+- *`Callback` for the pair type:* a hook rather than a modeled event, and
+  DiffEq's continuous/discrete callbacks use the tier words for what is here
+  the detection policy.
+- *Keeping `Event`:* `Base.Event` is exported from Base, so a forgotten import
+  gives a `MethodError` naming `Base.Event` — loud, but misleading.
+- *`alloc_workspace`:* a third prefix for one function, against an `init_*`
+  register the inventory already has.
+- *Per-tier output-stage words (a second pair over `s`):* re-creates the split
+  this entry retires, to state a tier the rest of the family already states.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -7974,6 +8074,7 @@ its automatic flip stand exactly as ratified.
 [d-217]: #d-217--conform-the-trace-and-replay-sections-to-the-prototypes-record
 [d-218]: #d-218--make-the-replaylive-distinction-an-explicit-input-mode
 [d-219]: #d-219--add-a-time-addressed-replay-halt-and-a-manual-door-to-live
+[d-220]: #d-220--rename-the-authoring-family-to-words-stage-update-projection-event-and-workspace-declarations
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

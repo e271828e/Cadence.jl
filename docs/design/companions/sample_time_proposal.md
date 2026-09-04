@@ -492,7 +492,7 @@ effect of a half-period stagger. Boundary by boundary:
 - **Even ms, not multiples of 20**: due set empty — the boundary exists for events
   and frame structure only. These 1 kHz boundaries in a model whose fastest task is
   500 Hz are the overhead the offset-refined grid charges.
-- **Multiples of 20 ms**: due = {ctrl}, whose `h_su` reads sensor cells written at
+- **Multiples of 20 ms**: due = {ctrl}, whose `output_direct` reads sensor cells written at
   the previous odd boundary — data exactly 1 ms old, every time, deterministically.
 
 **What the offset bought.** With offset 0, sensors and ctrl coincide at every 20 ms
