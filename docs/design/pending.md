@@ -229,7 +229,8 @@ of them chosen; the merge entry has the probe.
 
 Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
-retires or the code conforms. Two readings run ahead of the spec's letter:
+retires or the code conforms. Two readings run ahead of the spec's letter, and
+a sequel to the first rides with them:
 
 - **The species rule is the implementation's spelling.** §13.4 says a
   conformance failure "is thrown as its typed diagnostic at the table-write
@@ -245,6 +246,13 @@ retires or the code conforms. Two readings run ahead of the spec's letter:
   a reading that wraps it too is available. The conservative choice here is
   that a service's own refusal path is not a frame, there being no frame-entry
   pointer for a frame that has not begun.
+- **`StepError`'s cause in its type.** The carrier ruling puts the kind in the
+  type parameter, so `@test_throws DiagnosticError{Kind}` asserts policy and
+  kind at once. §13.4's `StepError` keeps `cause::Any`, so a species is
+  recognizable only by reading the field. The same parametrization,
+  `StepError{C}` with `C` the cause's type and `Any`-typed raw causes still
+  legal, is the natural sequel. Deferred so the carrier change lands alone;
+  ruling it moves §13.4 and the species tests together.
 
 The rest are the audit's (M-D and M-B26):
 
