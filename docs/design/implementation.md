@@ -42,7 +42,7 @@ against the indexed grid time because that is the claim.
 
 **Rule: nothing deviates silently.** Every construct a reader could mistake
 for the design's is in exactly one of three places: the table above, or
-`pending.md`'s absence list or stand-in table, the latter naming the spec
+`pending.md`'s absence list or deviation list, the latter naming the spec
 shape it replaces. The rule itself is unenforceable — no tool can see a
 deviation nobody wrote down — and `src/` and `test/` sit outside every
 roster, so the diff review is what holds it.
