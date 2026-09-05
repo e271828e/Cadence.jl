@@ -290,8 +290,8 @@ function failures_pointer_twin()
         bad = trc.frames + 1
         sim3 = grid()
         init!(sim3, fragment(inputs = (ref = 0.0,)))
-        d = diagnostic(failure(() -> replay!(sim3, trc; to_boundary = bad)))
-        @test d isa ArgumentInvalid && d.call === :replay! && d.reason === :range
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(sim3, trc; to_boundary = bad))
+        @test d.call === :replay! && d.reason === :range
         @test d.argument === :to_boundary && d.value == bad
         @test lifecycle(sim3) === :initialized           # a rejected replay wrote nothing
     end

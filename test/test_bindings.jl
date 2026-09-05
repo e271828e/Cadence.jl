@@ -176,40 +176,28 @@ function test_bindings()
 
     @testset "the output side completes the conformance check, both directions (§11.6)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
-        err = failure(() -> attach!(sim, Pad("p"), NoReads()))
-        diag = diagnostic(err)
-        @test err isa DiagnosticError && diag isa BindingContractMismatch && diag.reason === :reads_missing
-        err = failure(() -> attach!(sim, Pad("p"), ReadsUndeclared()))
-        diag = diagnostic(err)
-        @test err isa DiagnosticError && diag isa BindingContractMismatch &&
-              diag.reason === :reads_without_output
-        err = failure(() -> attach!(sim, Pad("p"), BadReadsShape()))
-        diag = diagnostic(err)
-        @test err isa DiagnosticError && diag isa BindingContractMismatch &&
-              diag.reason === :reads_not_namedtuple
-        err = failure(() -> attach!(sim, Pad("p"), BadReadsEntry()))
-        diag = diagnostic(err)
-        @test err isa DiagnosticError && diag isa BindingContractMismatch &&
-              diag.reason === :reads_not_selectors
+        diag = carried(@test_throws DiagnosticError{BindingContractMismatch} attach!(sim, Pad("p"), NoReads()))
+        @test diag.reason === :reads_missing
+        diag = carried(@test_throws DiagnosticError{BindingContractMismatch} attach!(sim, Pad("p"), ReadsUndeclared()))
+        @test diag.reason === :reads_without_output
+        diag = carried(@test_throws DiagnosticError{BindingContractMismatch} attach!(sim, Pad("p"), BadReadsShape()))
+        @test diag.reason === :reads_not_namedtuple
+        diag = carried(@test_throws DiagnosticError{BindingContractMismatch} attach!(sim, Pad("p"), BadReadsEntry()))
+        @test diag.reason === :reads_not_selectors
         @test isempty(sim.plane.roster)              # every rejection left the roster untouched
     end
 
     @testset "reads resolve at attach: binding drift fails there, never on the wire (§11.2, §14.4)" begin
         sim = Simulation(outfaced(); h = 1//10)
-        err = failure(() -> attach!(sim, Pad("t"), Readout(alt = get_output("q", "y"))))
-        diag = diagnostic(err)
-        @test err isa DiagnosticError && diag isa ReadBindingUnresolved && diag.reason === :unknown_cell &&
+        diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(alt = get_output("q", "y"))))
+        @test diag.reason === :unknown_cell &&
               diag.selector == "get_output(\"q\", :y)"
-        err = failure(() -> attach!(sim, Pad("t"), Readout(v = get_input("nope"))))
-        diag = diagnostic(err)
-        @test err isa DiagnosticError && diag isa ReadBindingUnresolved &&
-              diag.reason === :unknown_root_input && diag.candidates == [:u]  # the root-input list, in hand
-        err = failure(() -> attach!(sim, Pad("t"), Readout(v = get_face("u"))))
-        diag = diagnostic(err)
-        @test err isa DiagnosticError && diag isa ReadBindingUnresolved && diag.reason === :root_input_not_output
-        err = failure(() -> attach!(sim, Pad("t"), Readout(v = get_face("nope"))))
-        diag = diagnostic(err)
-        @test err isa DiagnosticError && diag isa ReadBindingUnresolved && diag.reason === :unknown_output_face
+        diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(v = get_input("nope"))))
+        @test diag.reason === :unknown_root_input && diag.candidates == [:u]  # the root-input list, in hand
+        diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(v = get_face("u"))))
+        @test diag.reason === :root_input_not_output
+        diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(v = get_face("nope"))))
+        @test diag.reason === :unknown_output_face
         # A rejected attach consumed no id, and the good one lands as device 1.
         h = attach!(sim, Pad("t"), Readout(alt = get_face("y")))
         @test sim.plane.roster[1].id == 1
@@ -244,10 +232,8 @@ function test_bindings()
         sim = Simulation(two_root_inputs(); h = 1//10)
         h = attach!(sim, Pad("p"), Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-        err = failure(() -> gather(h, latest(sim)))
-        diag = diagnostic(err)
-        @test err isa DiagnosticError && diag isa DeviceContractMismatch &&
-              diag.reason === :no_output_side
+        diag = carried(@test_throws DiagnosticError{DeviceContractMismatch} gather(h, latest(sim)))
+        @test diag.reason === :no_output_side
     end
 
     @testset "a bidirectional binding composes both halves (§11.6)" begin

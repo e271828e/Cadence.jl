@@ -43,22 +43,20 @@ function test_lifecycle()
         sim = Simulation(feedback_model(); h = 1//50, t_end = 1.0)
         @test lifecycle(sim) === :built
         @test termination(sim) === nothing
-        e = failure(() -> run!(sim))
-        diag = diagnostic(e)
-        @test e isa DiagnosticError && diag isa MissingInit && diag.op === :run! && diag.status === :built
-        diag2 = diagnostic(failure(() -> step!(sim)))
-        @test diag2 isa MissingInit && diag2.op === :step!
+        diag = carried(@test_throws DiagnosticError{MissingInit} run!(sim))
+        @test diag.op === :run! && diag.status === :built
+        diag2 = carried(@test_throws DiagnosticError{MissingInit} step!(sim))
+        @test diag2.op === :step!
 
         init!(sim, fragment(inputs = (ref = 0.0,)))
         @test lifecycle(sim) === :initialized
         init!(sim, fragment(inputs = (ref = 0.0,)))  # a warm restart from initialized is legal
         run!(sim)
         @test lifecycle(sim) === :stopped
-        e = failure(() -> run!(sim))
-        diag = diagnostic(e)
-        @test e isa DiagnosticError && diag isa ServiceLifecycle && diag.op === :run! && diag.status === :stopped
-        diag2 = diagnostic(failure(() -> step!(sim)))
-        @test diag2 isa ServiceLifecycle && diag2.op === :step! && diag2.status === :stopped
+        diag = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim))
+        @test diag.op === :run! && diag.status === :stopped
+        diag2 = carried(@test_throws DiagnosticError{ServiceLifecycle} step!(sim))
+        @test diag2.op === :step! && diag2.status === :stopped
         init!(sim, fragment(inputs = (ref = 0.0,)))  # the supported cycle reopens it
         @test lifecycle(sim) === :initialized
         @test termination(sim) === nothing               # the record cleared with the trajectory
@@ -78,14 +76,13 @@ function test_lifecycle()
         while lifecycle(sim) !== :running
             yield()
         end
-        err_i = failure(() -> init!(sim, total))
-        err_r = failure(() -> run!(sim; t_end = 2.0))
+        diag_i = carried(@test_throws DiagnosticError{ServiceLifecycle} init!(sim, total))
+        diag_r = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim; t_end = 2.0))
         stage!(sim, "in" => 1.0)                         # now, and only now, may the run end:
         wait(t)                                          # the next drain arms the trigger (§12.6)
-        diag_i, diag_r = diagnostic(err_i), diagnostic(err_r)
-        @test err_i isa DiagnosticError && diag_i isa ServiceLifecycle && diag_i.op === :init! &&
+        @test diag_i.op === :init! &&
               diag_i.status === :running
-        @test err_r isa DiagnosticError && diag_r isa ServiceLifecycle && diag_r.op === :run! &&
+        @test diag_r.op === :run! &&
               diag_r.status === :running
         @test lifecycle(sim) === :stopped
         @test termination(sim).source === ModelRequestedStop(:stop)
@@ -110,15 +107,14 @@ function test_lifecycle()
 
         unbound = Simulation(feedback_model(); h = 1//50)
         init!(unbound, fragment(inputs = (ref = 0.0,)))
-        e = failure(() -> run!(unbound))
-        diag = diagnostic(e)
-        @test e isa DiagnosticError && diag isa ArgumentInvalid && diag.call === :run! &&
+        diag = carried(@test_throws DiagnosticError{ArgumentInvalid} run!(unbound))
+        @test diag.call === :run! &&
               diag.reason === :no_clock_bound
         # The override is validated exactly as the constructor validates the default:
         # the same payload — parameter, reason and offending value — at both sites.
         dc = only(diagnostics(failure(() -> Simulation(feedback_model(); h = 1//50, t_end = -1.0))))
-        dr = diagnostic(failure(() -> run!(unbound; t_end = -1.0)))
-        @test dc isa DeploymentInvalid && dr isa DeploymentInvalid
+        dr = carried(@test_throws DiagnosticError{DeploymentInvalid} run!(unbound; t_end = -1.0))
+        @test dc isa DeploymentInvalid
         @test dc.parameter == dr.parameter == :t_end && dc.reason == dr.reason == :range
         @test dc.value == dr.value == -1.0
     end
@@ -201,12 +197,12 @@ function test_lifecycle()
 
         sim2 = Simulation(feedback_model(); h = 1//50)
         init!(sim2, fragment(inputs = (ref = 0.0,)))
-        d1 = diagnostic(failure(() -> step!(sim2; frames = 1, t_plus = 0.1)))
-        @test d1 isa ArgumentInvalid && d1.call === :step! && d1.reason === :both_given
-        d2 = diagnostic(failure(() -> step!(sim2; frames = 0)))
-        @test d2 isa ArgumentInvalid && d2.call === :step! && d2.argument === :frames && d2.value == 0
-        d3 = diagnostic(failure(() -> step!(sim2; t_plus = 0.0)))
-        @test d3 isa ArgumentInvalid && d3.call === :step! && d3.argument === :t_plus && d3.value == 0.0
+        d1 = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(sim2; frames = 1, t_plus = 0.1))
+        @test d1.call === :step! && d1.reason === :both_given
+        d2 = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(sim2; frames = 0))
+        @test d2.call === :step! && d2.argument === :frames && d2.value == 0
+        d3 = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(sim2; t_plus = 0.0))
+        @test d3.call === :step! && d3.argument === :t_plus && d3.value == 0.0
     end
 
     @testset "a stop face inside step! truncates it through the deviceless tail (§12.6, §13.5)" begin
@@ -242,8 +238,11 @@ function test_lifecycle()
         @test state(sim, "c").q isa Float64
 
         # Errored is terminal: never advanced, never re-initialized.
-        @test diagnostic(failure(() -> run!(sim))).status === :errored
-        @test diagnostic(failure(() -> step!(sim))).status === :errored
-        @test diagnostic(failure(() -> init!(sim))).status === :errored
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim))
+        @test d.status === :errored
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} step!(sim))
+        @test d.status === :errored
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} init!(sim))
+        @test d.status === :errored
     end
 end

@@ -99,9 +99,7 @@ function trace_recording()
     @testset "the kill switch, and the clearing at `init!` (§11.5, D-029)" begin
         off = Simulation(three_root_inputs(); h = 1//10, trace = false)
         init!(off, fragment(inputs = (a = 0.0, b = 0.0, c = 0.0)))
-        err = failure(() -> trace(off))
-        d = diagnostic(err)
-        @test err isa DiagnosticError && d isa ArgumentInvalid
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} trace(off))
         @test d.call === :trace && d.reason === :disabled
         stage!(off, "a" => 1.0)
         step!(off)
@@ -110,9 +108,7 @@ function trace_recording()
         # Before the first `init!` there is no header, so there is no recording, and
         # the refusal is the one an advance entry gives (§12.6).
         sim = Simulation(three_root_inputs(); h = 1//10)
-        err = failure(() -> trace(sim))
-        d = diagnostic(err)
-        @test err isa DiagnosticError && d isa MissingInit
+        d = carried(@test_throws DiagnosticError{MissingInit} trace(sim))
         @test d.op === :trace && d.status === :built
 
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0, c = 0.0)))
@@ -197,9 +193,7 @@ end
 function trace_entry_pass()
     @testset "the scalar is dispatch, not a comparison (§12.7)" begin
         trc = recorded_session()
-        err = failure(() -> _compile_feed(Simulation(three_root_inputs(), D8; h = 1//10), trc))
-        d = diagnostic(err)
-        @test err isa DiagnosticError && d isa ReplayHeaderMismatch
+        d = carried(@test_throws DiagnosticError{ReplayHeaderMismatch} _compile_feed(Simulation(three_root_inputs(), D8; h = 1//10), trc))
         @test d.what === :scalar && d.expected === Float64 && d.found === D8
         # …and the matching pair compiles, which is what makes the refusal dispatch
         # rather than a comparison anyone could forget to write.
@@ -519,16 +513,16 @@ function trace_replay_loop()
         # The two spellings are of one halt, so both together is a refusal, not a
         # precedence rule the reader would have to know.
         tgt = replay_twin()
-        d = diagnostic(failure(() -> replay!(tgt, trc; to_boundary = 5, to_time = 0.5)))
-        @test d isa ArgumentInvalid && d.call === :replay! && d.reason === :both_given
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(tgt, trc; to_boundary = 5, to_time = 0.5))
+        @test d.call === :replay! && d.reason === :both_given
         @test lifecycle(tgt) === :initialized && tgt.exec.clock.step == 0 && mode(tgt) === :live
 
         # Before `t₀`, past the recording's own reach, and the two non-finites: each
         # names the argument and the value, and each precedes every write.
         for bad in (-0.1, 0.9, NaN, Inf)
             tgt = replay_twin()
-            d = diagnostic(failure(() -> replay!(tgt, trc; to_time = bad)))
-            @test d isa ArgumentInvalid && d.call === :replay! && d.reason === :range
+            d = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(tgt, trc; to_time = bad))
+            @test d.call === :replay! && d.reason === :range
             @test d.argument === :to_time && d.value === bad
             @test lifecycle(tgt) === :initialized && mode(tgt) === :live
         end
@@ -668,8 +662,8 @@ function trace_replay_loop()
 
         # Already `:live`, having never replayed at all…
         fresh = replay_twin()
-        d = diagnostic(failure(() -> live!(fresh)))
-        @test d isa ArgumentInvalid && d.call === :live! && d.reason === :not_replaying
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} live!(fresh))
+        @test d.call === :live! && d.reason === :not_replaying
         @test mode(fresh) === :live && lifecycle(fresh) === :initialized
 
         # …and already `:live` because the replay ran to the recording's end, where
@@ -677,28 +671,28 @@ function trace_replay_loop()
         done = replay_twin()
         replay!(done, trc)
         @test mode(done) === :live
-        d = diagnostic(failure(() -> live!(done)))
-        @test d isa ArgumentInvalid && d.call === :live! && d.reason === :not_replaying
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} live!(done))
+        @test d.call === :live! && d.reason === :not_replaying
 
         # `live!` is not a door into `initialized`: it moves the mode of a simulation
         # that already has a trajectory, so `built` refuses as an advance entry does.
         raw = Simulation(replay_model(); h = 1//10)
-        d = diagnostic(failure(() -> live!(raw)))
-        @test d isa MissingInit && d.op === :live! && d.status === :built
+        d = carried(@test_throws DiagnosticError{MissingInit} live!(raw))
+        @test d.op === :live! && d.status === :built
 
         # Both terminal states refuse under the ordinary lifecycle gate.
         stopped = replay_twin()
         run!(stopped; t_end = 0.2)
         @test lifecycle(stopped) === :stopped
-        d = diagnostic(failure(() -> live!(stopped)))
-        @test d isa ServiceLifecycle && d.op === :live! && d.status === :stopped
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} live!(stopped))
+        @test d.op === :live! && d.status === :stopped
 
         crashed = Simulation(fed(Exploder(), "arm"); h = 1//10, t_end = 5.0)
         init!(crashed, fragment(inputs = (in = 0.0,)))
         stage!(crashed, "in" => true)
         @test_throws StepError run!(crashed)
-        d = diagnostic(failure(() -> live!(crashed)))
-        @test d isa ServiceLifecycle && d.op === :live! && d.status === :errored
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} live!(crashed))
+        @test d.op === :live! && d.status === :errored
         # (`live!` from `:running` is the same gate the two advance entries share,
         # and reaching it needs `test_lifecycle.jl`'s spawned-run register; it is
         # asserted there, for those two entries, and not here.)
@@ -817,8 +811,8 @@ function trace_discarded_harness()
         # `to_boundary` is a pointer into the recording: past its end there is
         # nothing to replay, and the refusal names the argument and its value.
         for bad in (9, -1, 2.5)
-            d = diagnostic(failure(() -> replay!(replay_twin(), trc; to_boundary = bad)))
-            @test d isa ArgumentInvalid && d.call === :replay! && d.reason === :range
+            d = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(replay_twin(), trc; to_boundary = bad))
+            @test d.call === :replay! && d.reason === :range
             @test d.argument === :to_boundary && d.value == bad
         end
         @test lifecycle(replay_twin()) === :initialized      # a rejected replay wrote nothing
@@ -831,8 +825,8 @@ function trace_discarded_harness()
         own = trace(crashed)
         stage!(crashed, "in" => true)
         @test_throws StepError run!(crashed)        # §13.4's wrap, the cause one level down
-        d = diagnostic(failure(() -> replay!(crashed, own)))
-        @test d isa ServiceLifecycle && d.op === :replay! && d.status === :errored
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} replay!(crashed, own))
+        @test d.op === :replay! && d.status === :errored
         # (`replay!` from `:running` is the same gate one line above it, and reaching
         # it needs the spawned-run register `test_lifecycle.jl` exercises for `init!`
         # and `run!`; it is asserted there, for those two entries, and not here.)
@@ -845,7 +839,8 @@ function trace_discarded_harness()
         @test lifecycle(off) === :initialized   # never from the target's own register
         @test same_trajectory(logged(off), logged(sim))
         @test off.trace.header === nothing && isempty(off.trace.batches) && off.trace.frames == 0
-        @test diagnostic(failure(() -> trace(off))).reason === :disabled
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} trace(off))
+        @test d.reason === :disabled
     end
 end
 

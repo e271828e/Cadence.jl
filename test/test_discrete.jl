@@ -270,10 +270,8 @@ function discrete_deployment()
     @testset "Δt_base derivation demands an all-anchored model (§9.1)" begin
         # Derivation with an unanchored component present is action at a distance:
         # refused constructively, naming the components whose periods would rescale.
-        err = failure(() -> Simulation(build(MultiRate()); h = 1//500, Δt_base = :derive))
-        @test err isa DiagnosticError
-        d = diagnostic(err)
-        @test d isa DeploymentInvalid && d.parameter === :Δt_base && d.reason === :unanchored
+        d = carried(@test_throws DiagnosticError{DeploymentInvalid} Simulation(build(MultiRate()); h = 1//500, Δt_base = :derive))
+        @test d.parameter === :Δt_base && d.reason === :unanchored
         @test "fcs/inner" in d.paths
 
         # All anchored: the pool is every period and every nonzero offset, and the

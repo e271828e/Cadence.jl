@@ -35,17 +35,14 @@ function test_roster()
                             (GreedyPlus(), :greedy_with_claims),
                             (Sourceless(), :greedy_without_input),
                             (Drifted(), :claims_without_input))
-            err = failure(() -> attach!(sim, d, b))
-            @test err isa DiagnosticError
-            diag = diagnostic(err)
-            @test diag isa BindingContractMismatch && diag.reason === reason
+            diag = carried(@test_throws DiagnosticError{BindingContractMismatch} attach!(sim, d, b))
+            @test diag.reason === reason
         end
         # The output side is an absence, not a conformance drift, and it is named
         # *after* the conformance clauses — which is why Drifted above reported its
         # drift rather than falling through to this.
-        err = failure(() -> attach!(sim, d, Unwritten()))
-        diag = diagnostic(err)
-        @test err isa DiagnosticError && diag isa BindingContractMismatch && diag.reason === :reads_missing
+        diag = carried(@test_throws DiagnosticError{BindingContractMismatch} attach!(sim, d, Unwritten()))
+        @test diag.reason === :reads_missing
         @test isempty(sim.plane.roster)                  # none of the six was rostered
     end
 
@@ -55,8 +52,7 @@ function test_roster()
         @test attach!(sim, d1, Enumerated("a")).id == 1
         # Identity before claims: the same instance re-attached — even under an
         # overlapping claim — is AlreadyAttached, never a self-ClaimConflict.
-        err = failure(() -> attach!(sim, d1, Enumerated("a")))
-        @test err isa DiagnosticError && diagnostic(err) isa AlreadyAttached
+        @test_throws DiagnosticError{AlreadyAttached} attach!(sim, d1, Enumerated("a"))
         # Claims: face exclusivity, always two *distinct* devices named.
         err = failure(() -> attach!(sim, Pad("d2"), Enumerated("b", "a")))
         diag = only(diagnostics(err))
@@ -64,14 +60,11 @@ function test_roster()
         @test occursin("device 1", diag.incumbent)
         # Affinity: the calling task is a single-slot resource.
         @test attach!(sim, Panel("p1"), Enumerated("b")).id == 2
-        err = failure(() -> attach!(sim, Panel("p2"), Enumerated()))
-        @test err isa DiagnosticError && diagnostic(err) isa CallerTaskConflict
+        @test_throws DiagnosticError{CallerTaskConflict} attach!(sim, Panel("p2"), Enumerated())
         # An enumeration drifted onto a nonexistent face is a diagnosable anomaly.
-        err = failure(() -> attach!(sim, Pad("d3"), Enumerated("flaps")))
-        @test err isa DiagnosticError && diagnostic(err) isa AttachUnknownFace
+        @test_throws DiagnosticError{AttachUnknownFace} attach!(sim, Pad("d3"), Enumerated("flaps"))
         # Detaching what was never rostered is an error, not a silent no-op.
-        err = failure(() -> detach!(sim, Pad("ghost")))
-        @test err isa DiagnosticError && diagnostic(err) isa NotAttached
+        @test_throws DiagnosticError{NotAttached} detach!(sim, Pad("ghost"))
     end
 
     @testset "a device writes inside its claim, every check at its own staging (§11.3, §11.4)" begin

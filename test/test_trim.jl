@@ -355,13 +355,11 @@ function test_trim()
         # evaluation, not merely before any write.
         sim = Simulation(fed(Pendulum(), :u); h = 1//10)
         before = world(sim)
-        e = failure(() -> trim!(sim, TrimProblem(
+        d = carried(@test_throws DiagnosticError{UninitializedInputs} trim!(sim, TrimProblem(
             guess = (θ = 0.1,), lower = (θ = -1.0,), upper = (θ = 1.0,),
             condition = d -> at("c", fragment(x = (θ = d.θ, ω = 0.0))),
             reads = torque_reads(), residuals = torque_only, tolerances = (torque = 1e-9,));
             baseline = fragment()))
-        d = diagnostic(e)
-        @test e isa DiagnosticError && d isa UninitializedInputs
         @test d.faces == [:in] && d.op === :trim!
         @test world(sim) == before && lifecycle(sim) === :built
     end
@@ -505,16 +503,14 @@ function test_trim()
         # world's — the seeded activation is the service's scratch, never the
         # deployment's.
         dual = Simulation(fed(Pendulum(), :u), D8; h = 1//10)
-        e = failure(() -> trim!(dual, u_problem(); baseline = pend_base()))
-        d = diagnostic(e)
-        @test e isa DiagnosticError && d isa ArgumentInvalid && d.call === :trim! &&
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} trim!(dual, u_problem(); baseline = pend_base()))
+        @test d.call === :trim! &&
               d.reason === :non_nominal && occursin("Dual", d.value)
 
         # And a value that is not a problem is a directive, not a `MethodError`.
         plain = Simulation(fed(Pendulum(), :u); h = 1//10)
-        e2 = failure(() -> trim!(plain, (guess = (u = 0.0,),); baseline = pend_base()))
-        d2 = diagnostic(e2)
-        @test e2 isa DiagnosticError && d2 isa ArgumentInvalid && d2.call === :trim! &&
+        d2 = carried(@test_throws DiagnosticError{ArgumentInvalid} trim!(plain, (guess = (u = 0.0,),); baseline = pend_base()))
+        @test d2.call === :trim! &&
               d2.reason === :not_a_problem && d2.argument === :problem &&
               occursin("NamedTuple", d2.value)
 
@@ -526,11 +522,10 @@ function test_trim()
         while lifecycle(live) !== :running
             yield()
         end
-        err = failure(() -> trim!(live, u_problem(); baseline = pend_base()))
+        d3 = carried(@test_throws DiagnosticError{ServiceLifecycle} trim!(live, u_problem(); baseline = pend_base()))
         stage!(live, "in" => 1.0)
         wait(task)
-        d3 = diagnostic(err)
-        @test err isa DiagnosticError && d3 isa ServiceLifecycle && d3.op === :trim!
+        @test d3.op === :trim!
         @test d3.status === :running
     end
 end

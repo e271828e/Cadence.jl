@@ -33,8 +33,8 @@ function build_probe_refusals()
         d = only(diagnostics(failure(() -> build(single(BadDerivative())))))
         @test d isa ConformanceFailure && d.what == "state_derivative" && d.reason === :field_type &&
               d.field === :q && d.observed === Float64
-        d = diagnostic(failure(() -> build(single(NoFlow()))))
-        @test d isa StoreWithoutUpdate && d.store === :init_x
+        d = carried(@test_throws DiagnosticError{StoreWithoutUpdate} build(single(NoFlow())))
+        @test d.store === :init_x
     end
 end
 
@@ -53,10 +53,8 @@ function build_schedule()
 
     @testset "an algebraic loop is a build error (§5.5)" begin
         # `build` alone: rejection needs no deployment, which is the strata split.
-        err = failure(() -> build(feedback_model(feedback_port = "power")))
-        @test err isa DiagnosticError
-        d = diagnostic(err)
-        @test d isa AlgebraicCycle && sort(d.members) == ["ctl", "plant", "sum"]
+        d = carried(@test_throws DiagnosticError{AlgebraicCycle} build(feedback_model(feedback_port = "power")))
+        @test sort(d.members) == ["ctl", "plant", "sum"]
     end
 end
 
@@ -171,10 +169,8 @@ function build_tier()
         # binds because `Δt`, `D` and `Φ` are entry-field data (§9.1, §9.7).
         b = build(single(DiscreteCounter()))
         @test b isa Build
-        err = failure(() -> Simulation(b))
-        @test err isa DiagnosticError
-        d = diagnostic(err)
-        @test d isa DeploymentInvalid && d.parameter === :h && d.reason === :missing
+        d = carried(@test_throws DiagnosticError{DeploymentInvalid} Simulation(b))
+        @test d.parameter === :h && d.reason === :missing
         @test Simulation(b; h = 1//10) isa Simulation
     end
 end

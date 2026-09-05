@@ -36,6 +36,12 @@ failure(f) =
         e
     end
 
+# The diagnostic a passed `@test_throws DiagnosticError{K}` carried: `Test.Pass`
+# keeps the throw in `value`. Defined on `Pass` alone, so a failed `@test_throws`
+# — already recorded by the testset — stops the body at a `MethodError` rather
+# than asserting fields of nothing.
+carried(p::Test.Pass) = diagnostic(p.value)
+
 # One writer's record in a snapshot's framework status (§11.8), by name: the
 # devices as "device 1 (Pad)", the harness register as "harness", the loop as
 # "loop".

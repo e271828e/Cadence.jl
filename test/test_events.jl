@@ -76,10 +76,8 @@ function test_events()
         @test d isa EventHalfMissing && d.event === :go && d.reason === :not_an_event &&
               d.found === Int
 
-        err = failure(() -> build(single(BadGuardForm())))
-        @test err isa DiagnosticError
-        d = diagnostic(err)
-        @test d isa GuardForm && d.event === :go && d.observed === String
+        d = carried(@test_throws DiagnosticError{GuardForm} build(single(BadGuardForm())))
+        @test d.event === :go && d.observed === String
 
         err = failure(() -> build(single(BadHandlerKey())))
         d = only(diagnostics(err))

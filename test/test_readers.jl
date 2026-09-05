@@ -104,22 +104,19 @@ function test_readers()
 
         # The read set is a type, not a NamedTuple: the bare spelling is refused
         # with a directive, not a `MethodError` (§14.2's rule, one register over).
-        e = failure(() -> _compile_reads((q = get_state("plant", :q),), b))
-        @test e isa DiagnosticError && diagnostic(e) isa ReadSetMisuse
-        @test diagnostic(e).reason === :not_a_read_set
-        d = diagnostic(failure(() -> reads(q = 2.0)))                    # nor is 2.0 a selector
-        @test d isa ReadSetMisuse && d.reason === :not_a_selector && d.label === :q
+        diag = carried(@test_throws DiagnosticError{ReadSetMisuse} _compile_reads((q = get_state("plant", :q),), b))
+        @test diag.reason === :not_a_read_set
+        d = carried(@test_throws DiagnosticError{ReadSetMisuse} reads(q = 2.0))                    # nor is 2.0 a selector
+        @test d.reason === :not_a_selector && d.label === :q
     end
 
     @testset "the source rule: a snapshot-bound reader may not name a store selector (§14.4)" begin
         sim = Simulation(readable(); h = 1//10)
-        e = failure(() -> attach!(sim, Pad("t"), Readout(q = get_state("plant", :q))))
-        diag = diagnostic(e)
-        @test e isa DiagnosticError && diag isa ReadBindingUnresolved && diag.reason === :store_selector &&
+        diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(q = get_state("plant", :q))))
+        @test diag.reason === :store_selector &&
               diag.selector == "get_state(\"plant\", :q)"
-        e = failure(() -> attach!(sim, Pad("t"), Readout(y = get_output("plant", :y, 1))))
-        diag = diagnostic(e)
-        @test e isa DiagnosticError && diag isa ReadBindingUnresolved && diag.reason === :indexed
+        diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(y = get_output("plant", :y, 1))))
+        @test diag.reason === :indexed
         @test isempty(sim.plane.roster)              # every rejection left the roster untouched
     end
 
@@ -182,9 +179,8 @@ function test_readers()
 
     @testset "`capture` is legal in `initialized` and `stopped`, and nowhere else (§14)" begin
         sim = Simulation(readable(); h = 1//10)
-        e = failure(() -> capture(sim))
-        d = diagnostic(e)
-        @test e isa DiagnosticError && d isa ServiceLifecycle && d.op === :capture
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} capture(sim))
+        @test d.op === :capture
         @test d.status === :built && d.legal == [:initialized, :stopped]  # no committed stores yet
         init!(sim, readable_condition())
         @test capture(sim) isa Tuple                         # `initialized`
@@ -199,11 +195,10 @@ function test_readers()
         while lifecycle(live) !== :running
             yield()
         end
-        err = failure(() -> capture(live))
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} capture(live))
         stage!(live, "in" => 1.0)
         wait(task)
-        d = diagnostic(err)
-        @test err isa DiagnosticError && d isa ServiceLifecycle && d.op === :capture
+        @test d.op === :capture
         @test d.status === :running
     end
 end

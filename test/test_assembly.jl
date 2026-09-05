@@ -34,23 +34,18 @@ function assembly_class()
         # A component that declares nothing and defines no stage cannot be
         # intentional (D-164) — and now says so as a missing class, naming both
         # families rather than failing later and elsewhere.
-        err = failure(() -> classify("c", Inert()))
-        @test err isa DiagnosticError
-        d = diagnostic(err)
-        @test d isa ClassUnreadable && d.path == "c" && !d.holds_components
+        d = carried(@test_throws DiagnosticError{ClassUnreadable} classify("c", Inert()))
+        @test d.path == "c" && !d.holds_components
         @test occursin("`output_types`", d.families)      # the leaf family, in hand
 
         # Sharpened when the type holds components: the likely omission, named.
-        err = failure(() -> classify("c", HoldsComponents(Gain(1.0))))
-        @test diagnostic(err) isa ClassUnreadable
-        @test diagnostic(err).holds_components
+        d = carried(@test_throws DiagnosticError{ClassUnreadable} classify("c", HoldsComponents(Gain(1.0))))
+        @test d.holds_components
 
         # Both families on one type: an assembly owns no state and no contract of
         # its own, so this is a build error too.
-        err = failure(() -> classify("c", BothFamilies(Gain(1.0))))
-        @test err isa DiagnosticError
-        d = diagnostic(err)
-        @test d isa ClassMixed && d.path == "c" && :output_types in d.declarations
+        d = carried(@test_throws DiagnosticError{ClassMixed} classify("c", BothFamilies(Gain(1.0))))
+        @test d.path == "c" && :output_types in d.declarations
 
         # Any component may be the root (D-208): a primitive one flattens to the
         # single leaf at the root path, its `input_types` keys the root inputs.
@@ -345,10 +340,8 @@ function assembly_paths()
         # One segment further — the grandchild's own port, bypassing `inner`'s face
         # — is the build error, whatever the field's declared type.
         for bad in (PastReach(SampledLoop()), PastGenericReach(SampledLoop()))
-            err = failure(() -> build(bad))
-            @test err isa DiagnosticError
-            d = diagnostic(err)
-            @test d isa PathResolution && d.reason === :reaches_past && d.level == "inner"
+            d = carried(@test_throws DiagnosticError{PathResolution} build(bad))
+            @test d.reason === :reaches_past && d.level == "inner"
         end
     end
 end
@@ -397,16 +390,12 @@ output_connections(::CollidingFaces) = ("b/out" => "y",)
 
 function assembly_connections()
     @testset "direction is declared by the method, endpoints cross-check it (§8.6)" begin
-        err = failure(() -> build(BackwardsWire(ModedSource(), Gain(1.0))))
-        @test err isa DiagnosticError
-        d = diagnostic(err)
-        @test d isa FaceDirectionConflict && d.wanted === :consumer && d.found === :output
+        d = carried(@test_throws DiagnosticError{FaceDirectionConflict} build(BackwardsWire(ModedSource(), Gain(1.0))))
+        @test d.wanted === :consumer && d.found === :output
         @test startswith(d.entry, "child_connections")
 
-        err = failure(() -> build(BackwardsFace(ModedSource(), Gain(1.0))))
-        @test err isa DiagnosticError
-        d = diagnostic(err)
-        @test d isa FaceDirectionConflict && d.wanted === :producer && d.found === :input
+        d = carried(@test_throws DiagnosticError{FaceDirectionConflict} build(BackwardsFace(ModedSource(), Gain(1.0))))
+        @test d.wanted === :producer && d.found === :input
         @test startswith(d.entry, "output_connections")
     end
 
@@ -660,12 +649,10 @@ function assembly_primitives()
         # One level, the same rule wiring resolution runs: a deeper path is a build
         # error naming the child it reaches past, and an unknown segment comes with
         # the sibling list in hand.
-        err = failure(() -> resolve(m, "sum/a"))
-        d = diagnostic(err)
-        @test d isa PathResolution && d.reason === :reaches_past && d.level == "sum"
-        err = failure(() -> resolve(m, "nope"))
-        d = diagnostic(err)
-        @test d isa PathResolution && d.reason === :unknown_child &&
+        d = carried(@test_throws DiagnosticError{PathResolution} resolve(m, "sum/a"))
+        @test d.reason === :reaches_past && d.level == "sum"
+        d = carried(@test_throws DiagnosticError{PathResolution} resolve(m, "nope"))
+        @test d.reason === :unknown_child &&
               d.candidates == ["plant", "ctl", "sum"]
     end
 
@@ -716,26 +703,21 @@ function assembly_primitives()
         @test input_passthrough(r, "units/1"; prefix = "u1") == ("u1.e" => "units/1/e",)
 
         # Exclusivity is enforced, not documented.
-        err = failure(() -> input_passthrough(m, "s"; except = ("a",), only = ("b",)))
-        @test err isa DiagnosticError
-        d = diagnostic(err)
-        @test d isa UnknownFaceSelection && d.reason === :both_given &&
+        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} input_passthrough(m, "s"; except = ("a",), only = ("b",)))
+        @test d.reason === :both_given &&
               d.who == "input_passthrough" && d.path == "s"
 
         # A filter naming a face the child does not have errors with the list in
         # hand, on either side.
-        err = failure(() -> input_passthrough(m, "s"; only = ("z",)))
-        d = diagnostic(err)
-        @test d isa UnknownFaceSelection && d.reason === :unknown_names &&
+        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} input_passthrough(m, "s"; only = ("z",)))
+        @test d.reason === :unknown_names &&
               d.names == ["z"] && d.candidates == ["a", "b"]
-        err = failure(() -> output_passthrough(m, "g"; except = ("z",)))
-        d = diagnostic(err)
-        @test d isa UnknownFaceSelection && d.candidates == ["out"]
+        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} output_passthrough(m, "g"; except = ("z",)))
+        @test d.candidates == ["out"]
 
         # A deeper `child_path` meets the one-level rejection like any endpoint.
-        err = failure(() -> input_passthrough(m, "s/a"))
-        d = diagnostic(err)
-        @test d isa PathResolution && d.reason === :reaches_past && d.level == "s"
+        d = carried(@test_throws DiagnosticError{PathResolution} input_passthrough(m, "s/a"))
+        @test d.reason === :reaches_past && d.level == "s"
     end
 
     @testset "every computed entry meets the build's own checks (§8.8)" begin

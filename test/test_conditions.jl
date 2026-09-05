@@ -122,13 +122,13 @@ function conditions_algebra()
             e = failure(f)
             @test e isa DiagnosticError && diagnostic(e) isa ConditionNodeMisuse
         end
-        d = diagnostic(failure(() -> combine(fragment(), (q = 1.0,))))
+        d = carried(@test_throws DiagnosticError{ConditionNodeMisuse} combine(fragment(), (q = 1.0,)))
         @test d.observed === NamedTuple{(:q,),Tuple{Float64}} && d.in_hand == [:Fragment]
-        @test diagnostic(failure(() -> fragment(x = 3.0))).reason === :fragment_payload
+        d = carried(@test_throws DiagnosticError{ConditionNodeMisuse} fragment(x = 3.0))
+        @test d.reason === :fragment_payload
         # And the service entry point itself: a bare NamedTuple where a condition
         # belongs gets the directive, never a `MethodError`.
-        e = failure(() -> init!(Simulation(tri(); h = 1//10), (u = 1.0, e = 2.0)))
-        @test e isa DiagnosticError && diagnostic(e) isa ConditionNodeMisuse
+        @test_throws DiagnosticError{ConditionNodeMisuse} init!(Simulation(tri(); h = 1//10), (u = 1.0, e = 2.0))
     end
 
     @testset "resolution collects every violation into one throw (§14.3, §13.1)" begin
@@ -228,11 +228,10 @@ function conditions_algebra()
         snap, q = latest(sim), state(sim, "plant").q
         acc, lc = state(sim, "ctl").acc, lifecycle(sim)
 
-        e = failure(() -> init!(sim, combine(at("plant",
+        d = carried(@test_throws DiagnosticError{UninitializedInputs} init!(sim, combine(at("plant",
                                                 fragment(x = (q = SVector(5.0, 5.0),))),
                                              fragment(inputs = (u = 3.0,)))))
-        d = diagnostic(e)
-        @test e isa DiagnosticError && d isa UninitializedInputs && d.op === :init!
+        @test d.op === :init!
         @test d.faces == [:e]                                     # only the uncovered face
         # All-or-nothing: the plan's x write and its root-input write both stayed home.
         @test state(sim, "plant").q === q
@@ -242,7 +241,8 @@ function conditions_algebra()
 
         # Every uncovered face, in declaration order (§14.6).
         fresh = Simulation(tri(); h = 1//10)
-        @test diagnostic(failure(() -> init!(fresh))).faces == [:u, :e]
+        d = carried(@test_throws DiagnosticError{UninitializedInputs} init!(fresh))
+        @test d.faces == [:u, :e]
         @test lifecycle(fresh) === :built
     end
 
@@ -435,9 +435,8 @@ function conditions_specialized_register()
 
         # A tree of another type never reaches a write: the shape is proven by
         # dispatch, and the fallback method names both types.
-        e = failure(() -> apply!(sim.exec, plan, at("plant", fragment(x = (q = SVector(1.0, 2.0),)))))
-        d = diagnostic(e)
-        @test e isa DiagnosticError && d isa ConditionShapeDrift && d.reason === :tree_type
+        d = carried(@test_throws DiagnosticError{ConditionShapeDrift} apply!(sim.exec, plan, at("plant", fragment(x = (q = SVector(1.0, 2.0),)))))
+        @test d.reason === :tree_type
         @test d.compiled === typeof(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0))
         @test d.observed <: Scoped                        # the observed tree's own type
         @test landed(sim) == before
@@ -448,9 +447,8 @@ function conditions_specialized_register()
                           at("plant", fragment(s = (acc = 7.0,))),   # was "ctl"
                           at("trig", fragment(m = (state = :armed,))),
                           fragment(inputs = (u = 6.0, e = 5.5)))
-        e2 = failure(() -> apply!(sim.exec, plan, drifted))
-        d2 = diagnostic(e2)
-        @test e2 isa DiagnosticError && d2 isa ConditionShapeDrift && d2.reason === :prefix
+        d2 = carried(@test_throws DiagnosticError{ConditionShapeDrift} apply!(sim.exec, plan, drifted))
+        @test d2.reason === :prefix
         @test d2.position == (:nodes, 2, :prefix)          # the position, as a tree-step tuple
         @test d2.compiled == "ctl" && d2.observed == "plant"
         @test landed(sim) == before
