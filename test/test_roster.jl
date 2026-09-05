@@ -36,16 +36,16 @@ function test_roster()
                             (Sourceless(), :greedy_without_input),
                             (Drifted(), :claims_without_input))
             err = failure(() -> attach!(sim, d, b))
-            @test err isa BuildError
-            diag = only(err.diagnostics)
+            @test err isa DiagnosticError
+            diag = diagnostic(err)
             @test diag isa BindingContractMismatch && diag.reason === reason
         end
         # The output side is an absence, not a conformance drift, and it is named
         # *after* the conformance clauses — which is why Drifted above reported its
         # drift rather than falling through to this.
         err = failure(() -> attach!(sim, d, Unwritten()))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa BindingContractMismatch && diag.reason === :reads_missing
+        diag = diagnostic(err)
+        @test err isa DiagnosticError && diag isa BindingContractMismatch && diag.reason === :reads_missing
         @test isempty(sim.plane.roster)                  # none of the six was rostered
     end
 
@@ -56,22 +56,22 @@ function test_roster()
         # Identity before claims: the same instance re-attached — even under an
         # overlapping claim — is AlreadyAttached, never a self-ClaimConflict.
         err = failure(() -> attach!(sim, d1, Enumerated("a")))
-        @test err isa BuildError && only(err.diagnostics) isa AlreadyAttached
+        @test err isa DiagnosticError && diagnostic(err) isa AlreadyAttached
         # Claims: face exclusivity, always two *distinct* devices named.
         err = failure(() -> attach!(sim, Pad("d2"), Enumerated("b", "a")))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa ClaimConflict
+        diag = only(diagnostics(err))
+        @test err isa DiagnosticError && diag isa ClaimConflict
         @test occursin("device 1", diag.incumbent)
         # Affinity: the calling task is a single-slot resource.
         @test attach!(sim, Panel("p1"), Enumerated("b")).id == 2
         err = failure(() -> attach!(sim, Panel("p2"), Enumerated()))
-        @test err isa BuildError && only(err.diagnostics) isa CallerTaskConflict
+        @test err isa DiagnosticError && diagnostic(err) isa CallerTaskConflict
         # An enumeration drifted onto a nonexistent face is a diagnosable anomaly.
         err = failure(() -> attach!(sim, Pad("d3"), Enumerated("flaps")))
-        @test err isa BuildError && only(err.diagnostics) isa AttachUnknownFace
+        @test err isa DiagnosticError && diagnostic(err) isa AttachUnknownFace
         # Detaching what was never rostered is an error, not a silent no-op.
         err = failure(() -> detach!(sim, Pad("ghost")))
-        @test err isa BuildError && only(err.diagnostics) isa NotAttached
+        @test err isa DiagnosticError && diagnostic(err) isa NotAttached
     end
 
     @testset "a device writes inside its claim, every check at its own staging (§11.3, §11.4)" begin
@@ -194,7 +194,7 @@ function test_roster()
         @test attach!(sim, Pad("d2"), Enumerated("b")).id == 2
         detach!(sim, d1)
         err = failure(() -> attach!(sim, Pad("dx"), Enumerated("b")))     # rejected: ClaimConflict
-        @test err isa BuildError
+        @test err isa DiagnosticError
         @test attach!(sim, Pad("d3"), Enumerated("a")).id == 3            # not 1, and no id burned
     end
 
@@ -213,8 +213,8 @@ function test_roster()
         err_a = try attach!(sim, d, Enumerated("u")) catch e; e end
         err_d = try detach!(sim, d) catch e; e end
         wait(t)
-        @test err_a isa BuildError && only(err_a.diagnostics) isa ServiceLifecycle
-        @test err_d isa BuildError && only(err_d.diagnostics) isa ServiceLifecycle
+        @test err_a isa DiagnosticError && diagnostic(err_a) isa ServiceLifecycle
+        @test err_d isa DiagnosticError && diagnostic(err_d) isa ServiceLifecycle
         # The freeze lifts with the run: the same operations are legal again.
         @test attach!(sim, d, Enumerated("u")).id == 2
         detach!(sim, d)

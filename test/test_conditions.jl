@@ -48,7 +48,7 @@ function conditions_algebra()
         @test isbits(fragment(x = (q = 1.0,), inputs = (u = 2.0,)))
         @test isbits(combine(fragment(), fragment()))
         # It fails at resolution, where the build is finally in hand.
-        @test failure(() -> resolve_condition(n, build(tri()))) isa BuildError
+        @test failure(() -> resolve_condition(n, build(tri()))) isa DiagnosticError
     end
 
     @testset "a `combine` collision names both provenance chains and the layering combinator (§14.2)" begin
@@ -56,8 +56,8 @@ function conditions_algebra()
         e = failure(() -> resolve_condition(combine(at("plant", condition(Plant(); y = 1.0)),
                                           at("plant",
                                              fragment(x = (q = SVector(2.0, 0.0),)))), b))
-        d = only(e.diagnostics)
-        @test e isa BuildError && d isa DuplicateConditionLeaf
+        d = only(diagnostics(e))
+        @test e isa DiagnosticError && d isa DuplicateConditionLeaf
         @test d.path == "plant" && d.store === :x && d.field === :q      # the leaf, by coordinates
         @test d.provenance == ["combine[1] → at(\"plant\") → fragment(x).q",
                                "combine[2] → at(\"plant\") → fragment(x).q"]
@@ -84,14 +84,14 @@ function conditions_algebra()
         # beside it — surfaced here through a violation on the overridden leaf.
         e = failure(() -> resolve_condition(override(fragment(inputs = (u = 1.0,)),
                                            fragment(inputs = (u = "high",))), b))
-        @test only(e.diagnostics).provenance ==
+        @test only(diagnostics(e)).provenance ==
               "override[patch 1] → fragment(inputs).u (overrode override[base] → fragment(inputs).u)"
 
         # A collision *within* one layer is still an error (§14.6).
         e = failure(() -> resolve_condition(override(combine(fragment(inputs = (u = 1.0,)),
                                                    fragment(inputs = (u = 2.0,))),
                                            fragment(inputs = (u = 3.0,))), b))
-        @test any(d -> d isa DuplicateConditionLeaf, e.diagnostics)
+        @test any(d -> d isa DuplicateConditionLeaf, diagnostics(e))
 
         # §14.6's central use case: a full-coverage baseline authored at the root,
         # under a patch a component's own `condition` method ships against its own
@@ -106,7 +106,7 @@ function conditions_algebra()
         e = failure(() -> resolve_condition(combine(fragment(inputs = (u = 1.0,)),
                                           at("plant",
                                              fragment(inputs = (u = 9.0,)))), b))
-        d = only(e.diagnostics)
+        d = only(diagnostics(e))
         @test d isa DuplicateConditionLeaf && d.face === :u   # the resolved root input is the leaf
     end
 
@@ -120,15 +120,15 @@ function conditions_algebra()
                   () -> override(fragment(), (q = 1.0,)),
                   () -> fragment(x = 3.0))                      # and a non-NamedTuple payload
             e = failure(f)
-            @test e isa BuildError && only(e.diagnostics) isa ConditionNodeMisuse
+            @test e isa DiagnosticError && diagnostic(e) isa ConditionNodeMisuse
         end
-        d = only(failure(() -> combine(fragment(), (q = 1.0,))).diagnostics)
+        d = diagnostic(failure(() -> combine(fragment(), (q = 1.0,))))
         @test d.observed === NamedTuple{(:q,),Tuple{Float64}} && d.in_hand == [:Fragment]
-        @test only(failure(() -> fragment(x = 3.0)).diagnostics).reason === :fragment_payload
+        @test diagnostic(failure(() -> fragment(x = 3.0))).reason === :fragment_payload
         # And the service entry point itself: a bare NamedTuple where a condition
         # belongs gets the directive, never a `MethodError`.
         e = failure(() -> init!(Simulation(tri(); h = 1//10), (u = 1.0, e = 2.0)))
-        @test e isa BuildError && only(e.diagnostics) isa ConditionNodeMisuse
+        @test e isa DiagnosticError && diagnostic(e) isa ConditionNodeMisuse
     end
 
     @testset "resolution collects every violation into one throw (§14.3, §13.1)" begin
@@ -140,32 +140,32 @@ function conditions_algebra()
                       fragment(inputs = (u = 1.0,)),
                       at("plant", fragment(inputs = (u = 2.0,))))   # one root input, twice
         e = failure(() -> resolve_condition(bad, b))
-        @test e isa BuildError
-        @test length(e.diagnostics) == 5                       # the full list, one throw
-        cr = [d for d in e.diagnostics if d isa ConditionResolution]
+        @test e isa DiagnosticError
+        @test length(diagnostics(e)) == 5                       # the full list, one throw
+        cr = [d for d in diagnostics(e) if d isa ConditionResolution]
         @test Set(d.reason for d in cr) == Set([:unknown_path, :undeclared_field,
                                                 :unconvertible, :internally_wired])
         u = only(d for d in cr if d.reason === :undeclared_field)
         @test u.path == "plant" && u.store === :x && u.field === :nope && u.candidates == [:q]
-        dup = only(d for d in e.diagnostics if d isa DuplicateConditionLeaf)
+        dup = only(d for d in diagnostics(e) if d isa DuplicateConditionLeaf)
         @test dup.face === :u
 
         # An assembly path owns no state, and saying so beats "no such path".
         e = failure(() -> resolve_condition(at("loop", fragment(x = (q = 1.0,))), build(Vehicle())))
-        @test only(e.diagnostics).reason === :assembly_path
+        @test only(diagnostics(e)).reason === :assembly_path
 
         # A tier's own state letter: `s` on a continuous component is not a typo
         # the resolver should guess at.
-        d = only(failure(() -> resolve_condition(at("plant", fragment(s = (q = 1.0,))), b)).diagnostics)
+        d = only(diagnostics(failure(() -> resolve_condition(at("plant", fragment(s = (q = 1.0,))), b))))
         @test d.reason === :no_store && d.store === :s && d.tier === :continuous
     end
 
     @testset "a condition names state, modes and root inputs — never outputs, never workspace (§14.1)" begin
-        d = only(failure(() -> resolve_condition(at("plant", fragment(x = (y = 1.0,))),
-                                                 build(tri()))).diagnostics)
+        d = only(diagnostics(failure(() -> resolve_condition(at("plant", fragment(x = (y = 1.0,))),
+                                                 build(tri())))))
         @test d.reason === :undeclared_field && d.field === :y && d.role === :output_port
-        d = only(failure(() -> resolve_condition(at("sm", fragment(s = (tmp = 1.0,))),
-                                                 build(scratchy()))).diagnostics)
+        d = only(diagnostics(failure(() -> resolve_condition(at("sm", fragment(s = (tmp = 1.0,))),
+                                                 build(scratchy())))))
         @test d.reason === :undeclared_field && d.field === :tmp && d.role === :workspace
     end
 
@@ -178,21 +178,21 @@ function conditions_algebra()
         @test Set(p.faces) == Set([:u, :e])
         # An internally wired input reaches no root input: writing it would be
         # meaningless, the first sweep overwriting it. Unexported stays unpokeable.
-        @test only(failure(() -> resolve_condition(at("trig",
-                           fragment(inputs = (sig = 1.0,))), b)).diagnostics).reason ===
+        @test only(diagnostics(failure(() -> resolve_condition(at("trig",
+                           fragment(inputs = (sig = 1.0,))), b)))).reason ===
               :internally_wired
-        @test only(failure(() -> resolve_condition(at("plant",
-                           fragment(inputs = (nope = 1.0,))), b)).diagnostics).reason ===
+        @test only(diagnostics(failure(() -> resolve_condition(at("plant",
+                           fragment(inputs = (nope = 1.0,))), b)))).reason ===
               :no_input_face
         # The discrimination an `inputs` payload makes on its own: a prefix naming no
         # level of this build reads "no component", not the face-typo message the
         # real component earns above — an empty face list alone cannot tell them
         # apart, assemblies leaving no row in the flat list (§14.3).
-        @test only(failure(() -> resolve_condition(at("nope",
-                           fragment(inputs = (dead = 1.0,))), b)).diagnostics).reason ===
+        @test only(diagnostics(failure(() -> resolve_condition(at("nope",
+                           fragment(inputs = (dead = 1.0,))), b)))).reason ===
               :unknown_path
-        @test only(failure(() -> resolve_condition(fragment(inputs = (nope = 1.0,)),
-                                                   b)).diagnostics).reason === :unexported_face
+        @test only(diagnostics(failure(() -> resolve_condition(fragment(inputs = (nope = 1.0,)),
+                                                   b)))).reason === :unexported_face
     end
 
     @testset "an `at` prefix stopping at an assembly resolves its faces (§14.2, D-207)" begin
@@ -207,18 +207,18 @@ function conditions_algebra()
 
         # A component-fed face is still unpokeable, at an assembly prefix as at a
         # primitive's: `Vehicle` feeds the loop's `ref` from its own `trim`.
-        @test only(failure(() -> resolve_condition(at("loop", fragment(inputs = (ref = 1.0,))),
-                           build(Vehicle()))).diagnostics).reason === :internally_wired
+        @test only(diagnostics(failure(() -> resolve_condition(at("loop", fragment(inputs = (ref = 1.0,))),
+                           build(Vehicle()))))).reason === :internally_wired
 
         # A face the level does not declare, with the level's face list in hand.
-        d = only(failure(() -> resolve_condition(at("loop",
-                           fragment(inputs = (nope = 1.0,))), b)).diagnostics)
+        d = only(diagnostics(failure(() -> resolve_condition(at("loop",
+                           fragment(inputs = (nope = 1.0,))), b))))
         @test d.reason === :no_input_face && d.field === :nope && d.candidates == [:ref]
 
         # State at an assembly prefix stays refused: assemblies own no state, and
         # only the `inputs` payload gained a level to resolve at.
-        d = only(failure(() -> resolve_condition(at("loop",
-                           fragment(x = (q = 1.0,))), b)).diagnostics)
+        d = only(diagnostics(failure(() -> resolve_condition(at("loop",
+                           fragment(x = (q = 1.0,))), b))))
         @test d.reason === :assembly_path && d.path == "loop"
     end
 
@@ -231,8 +231,8 @@ function conditions_algebra()
         e = failure(() -> init!(sim, combine(at("plant",
                                                 fragment(x = (q = SVector(5.0, 5.0),))),
                                              fragment(inputs = (u = 3.0,)))))
-        d = only(e.diagnostics)
-        @test e isa BuildError && d isa UninitializedInputs && d.op === :init!
+        d = diagnostic(e)
+        @test e isa DiagnosticError && d isa UninitializedInputs && d.op === :init!
         @test d.faces == [:e]                                     # only the uncovered face
         # All-or-nothing: the plan's x write and its root-input write both stayed home.
         @test state(sim, "plant").q === q
@@ -242,7 +242,7 @@ function conditions_algebra()
 
         # Every uncovered face, in declaration order (§14.6).
         fresh = Simulation(tri(); h = 1//10)
-        @test only(failure(() -> init!(fresh)).diagnostics).faces == [:u, :e]
+        @test diagnostic(failure(() -> init!(fresh))).faces == [:u, :e]
         @test lifecycle(fresh) === :built
     end
 
@@ -436,8 +436,8 @@ function conditions_specialized_register()
         # A tree of another type never reaches a write: the shape is proven by
         # dispatch, and the fallback method names both types.
         e = failure(() -> apply!(sim.exec, plan, at("plant", fragment(x = (q = SVector(1.0, 2.0),)))))
-        d = only(e.diagnostics)
-        @test e isa BuildError && d isa ConditionShapeDrift && d.reason === :tree_type
+        d = diagnostic(e)
+        @test e isa DiagnosticError && d isa ConditionShapeDrift && d.reason === :tree_type
         @test d.compiled === typeof(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0))
         @test d.observed <: Scoped                        # the observed tree's own type
         @test landed(sim) == before
@@ -449,8 +449,8 @@ function conditions_specialized_register()
                           at("trig", fragment(m = (state = :armed,))),
                           fragment(inputs = (u = 6.0, e = 5.5)))
         e2 = failure(() -> apply!(sim.exec, plan, drifted))
-        d2 = only(e2.diagnostics)
-        @test e2 isa BuildError && d2 isa ConditionShapeDrift && d2.reason === :prefix
+        d2 = diagnostic(e2)
+        @test e2 isa DiagnosticError && d2 isa ConditionShapeDrift && d2.reason === :prefix
         @test d2.position == (:nodes, 2, :prefix)          # the position, as a tree-step tuple
         @test d2.compiled == "ctl" && d2.observed == "plant"
         @test landed(sim) == before
@@ -504,13 +504,13 @@ function conditions_specialized_register()
         # non-nominal activation (§9.4), so a decision variable authored into it is
         # refused at resolution, with the clause that says why.
         e = failure(() -> compile_plan(at("ctl", fragment(s = (acc = d,))), b, D8))
-        r = only(e.diagnostics)
-        @test e isa BuildError && r isa ConditionResolution && r.reason === :unconvertible
+        r = only(diagnostics(e))
+        @test e isa DiagnosticError && r isa ConditionResolution && r.reason === :unconvertible
         @test r.path == "ctl" && r.store === :s && r.field === :acc && r.declared === Float64
         @test r.activation === D8      # the clause naming the seeded activation's own refusal
         # The nominal activation's own refusals are unchanged: no clause where the
         # value is simply the wrong kind of thing.
-        r0 = only(failure(() -> compile_plan(at("ctl", fragment(s = (acc = :nope,))), b)).diagnostics)
+        r0 = only(diagnostics(failure(() -> compile_plan(at("ctl", fragment(s = (acc = :nope,))), b))))
         @test r0.reason === :unconvertible && r0.activation === nothing
     end
 end

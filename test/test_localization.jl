@@ -175,11 +175,11 @@ function test_localization()
 
     @testset "the two deployment keywords are validated with their siblings (§10.4)" begin
         m = single(Bouncer(1.0, 0.315))
-        d1 = only(failure(() -> Simulation(m; h = 1//10, localization_tol = 0.0)).diagnostics)
+        d1 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, localization_tol = 0.0))))
         @test d1 isa DeploymentInvalid && d1.parameter === :localization_tol
-        d2 = only(failure(() -> Simulation(m; h = 1//10, localization_tol = -1e-3)).diagnostics)
+        d2 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, localization_tol = -1e-3))))
         @test d2 isa DeploymentInvalid && d2.parameter === :localization_tol
-        d3 = only(failure(() -> Simulation(m; h = 1//10, localization_budget = 0)).diagnostics)
+        d3 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, localization_budget = 0))))
         @test d3 isa DeploymentInvalid && d3.parameter === :localization_budget
     end
 

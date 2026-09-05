@@ -106,8 +106,8 @@ function discrete_rate_fold()
         rated(rates) = Group((; c = TickCounter()); rates = rates)
 
         err = failure(() -> build(rated((; c = 2))))
-        @test err isa BuildError
-        d = only(err.diagnostics)
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
         @test d isa RatesViolation && d.reason === :value_vocabulary && d.key === :c &&
               d.value == 2
 
@@ -116,8 +116,8 @@ function discrete_rate_fold()
                                 ((; c = Absolute(Period(0))),       :period),
                                 ((; c = Absolute(Hz(50), 1//40)),   :offset))
             err = failure(() -> build(rated(rates)))
-            @test err isa BuildError
-            d = only(err.diagnostics)
+            @test err isa DiagnosticError
+            d = only(diagnostics(err))
             @test d isa RatesViolation && d.reason === reason && d.key === :c
         end
 
@@ -125,8 +125,8 @@ function discrete_rate_fold()
         # key meet the same rule.
         for key in (:nav, Symbol("c/x"))
             err = failure(() -> build(rated(NamedTuple{(key,)}((Relative(2),)))))
-            @test err isa BuildError
-            d = only(err.diagnostics)
+            @test err isa DiagnosticError
+            d = only(diagnostics(err))
             @test d isa RatesViolation && d.reason === :unknown_child && d.key === key &&
                   d.candidates == ["c"]
         end
@@ -135,8 +135,8 @@ function discrete_rate_fold()
         # time: keys name discrete or scope children (§8.7).
         err = failure(() -> build(Group((; c = Gain(1.0)); inputs = ("in" => "c/e",),
                                         rates = (; c = Relative(2)))))
-        @test err isa BuildError
-        d = only(err.diagnostics)
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
         @test d isa RatesViolation && d.reason === :continuous_child && d.key === :c
 
         # A bare container field name applies one declaration to every element.
@@ -254,15 +254,15 @@ function discrete_deployment()
                                                                           :disagrees_with_n),
              (() -> Simulation(b; h = 1//300, Δt_base = 1//500),        :Δt_base, :not_harmonic),
              (() -> Simulation(b; h = 1//500, n = 0),                     :n, :range))
-            d = only(failure(f).diagnostics)
+            d = diagnostic(failure(f))
             @test d isa DeploymentInvalid && d.parameter === param && d.reason === reason
         end
 
         # A non-dividing anchor is refused with its declaring scope and key, and the
         # admissible set is named off the pool.
         err = failure(() -> Simulation(b; h = 1//500, Δt_base = 3//250))
-        @test err isa BuildError
-        d = only(err.diagnostics)
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
         @test d isa DeploymentInvalid && d.reason === :anchor_period
         @test occursin("key `gnss`", d.provenance) && d.admissible == 1//50
     end
@@ -271,8 +271,8 @@ function discrete_deployment()
         # Derivation with an unanchored component present is action at a distance:
         # refused constructively, naming the components whose periods would rescale.
         err = failure(() -> Simulation(build(MultiRate()); h = 1//500, Δt_base = :derive))
-        @test err isa BuildError
-        d = only(err.diagnostics)
+        @test err isa DiagnosticError
+        d = diagnostic(err)
         @test d isa DeploymentInvalid && d.parameter === :Δt_base && d.reason === :unanchored
         @test "fcs/inner" in d.paths
 

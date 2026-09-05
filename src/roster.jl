@@ -47,7 +47,7 @@ returns a sentinel meaning "compute it for me": the enumeration contract has
 one meaning and the `is_greedy` trait carries the other, so the maximal
 surface stays reachable only through an explicit declaration.
 """
-claims(b::AbstractBinding) = throw(BuildError(
+claims(b::AbstractBinding) = throw(DiagnosticError(
     BindingContractMismatch(binding = _typename(b), reason = :claims_missing)))
 
 """
@@ -58,7 +58,7 @@ fallback is error-throwing for the same reason `claims`'s is: a declared side
 whose method was never written fails loudly at the attach point rather than
 degrading into silence.
 """
-reads(b::AbstractBinding) = throw(BuildError(
+reads(b::AbstractBinding) = throw(DiagnosticError(
     BindingContractMismatch(binding = _typename(b), reason = :reads_missing)))
 
 """
@@ -76,15 +76,15 @@ function check_binding(b::AbstractBinding)
     isin, isout, greedy = is_input(b), is_output(b), is_greedy(b)
     drifted = which(claims, Tuple{T}) !== which(claims, Tuple{AbstractBinding})
     rdrifted = which(reads, Tuple{T}) !== which(reads, Tuple{AbstractBinding})
-    greedy && !isin && throw(BuildError(
+    greedy && !isin && throw(DiagnosticError(
         BindingContractMismatch(binding = string(T), reason = :greedy_without_input)))
-    isin || isout || throw(BuildError(
+    isin || isout || throw(DiagnosticError(
         BindingContractMismatch(binding = string(T), reason = :neither_side)))
-    isin && greedy && drifted && throw(BuildError(
+    isin && greedy && drifted && throw(DiagnosticError(
         BindingContractMismatch(binding = string(T), reason = :greedy_with_claims)))
-    isin || !drifted || throw(BuildError(
+    isin || !drifted || throw(DiagnosticError(
         BindingContractMismatch(binding = string(T), reason = :claims_without_input)))
-    isout || !rdrifted || throw(BuildError(
+    isout || !rdrifted || throw(DiagnosticError(
         BindingContractMismatch(binding = string(T), reason = :reads_without_output)))
     nothing
 end
@@ -102,7 +102,7 @@ function check_device(dev::AbstractDevice)
     # against the handle type the wrapper calls with: a `loop(::T, ::DeviceHandle)`
     # is a method, and `Tuple{T,Any}` would not see it
     which(loop, Tuple{T,DeviceHandle}) === which(loop, Tuple{AbstractDevice,DeviceHandle}) &&
-        throw(BuildError(DeviceContractMismatch(device = _typename(T), reason = :no_loop)))
+        throw(DiagnosticError(DeviceContractMismatch(device = _typename(T), reason = :no_loop)))
     nothing
 end
 
@@ -202,7 +202,7 @@ function _claim(plane::DataPlane, layout::Layout, b::AbstractBinding)
     claim = Symbol[]
     for f in claims(b)
         s = Symbol(f)
-        s in faceset || throw(BuildError(
+        s in faceset || throw(DiagnosticError(
             AttachUnknownFace(binding = _typename(b), face = s, candidates = faceset)))
         s in claim || push!(claim, s)
     end

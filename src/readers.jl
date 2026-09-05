@@ -81,7 +81,7 @@ const StoreSelector = Union{GetState,GetDeriv}
 
 _index_arg(::Nothing) = nothing
 _index_arg(i::Integer) = Int(i)
-_index_arg(i) = throw(BuildError(
+_index_arg(i) = throw(DiagnosticError(
     ArgumentInvalid(call = :selector, reason = :index_not_integer, value = i)))
 
 get_state(path::AbstractString, field::Union{Symbol,AbstractString}, i = nothing) =
@@ -126,7 +126,7 @@ reads(; sels...) = _reads(NamedTuple(sels))
 
 function _reads(nt::NamedTuple)
     for (label, s) in pairs(nt)
-        s isa ReadSelector || throw(BuildError(ReadSetMisuse(
+        s isa ReadSelector || throw(DiagnosticError(ReadSetMisuse(
             observed = typeof(s), reason = :not_a_selector, label = label,
             in_hand = Symbol[nameof(typeof(v)) for v in values(nt) if v isa ReadSelector])))
     end
@@ -208,7 +208,7 @@ gather(::Reader{T}, ::Executor{S}) where {T,S} = _activation_mismatch("reader", 
 
 Resolve a declared read set against a build and compile it, validating every
 selector in §13.1's collecting register — full list, violations collected, one
-`BuildError`. Schema is the authority on *may you read this, at what type*, and
+`DiagnosticError`. Schema is the authority on *may you read this, at what type*, and
 the activation's layout supplies the source: an `xbuf` offset for a continuous
 state field, the `ẋbuf` offset beside it for its derivative, a component index
 for a discrete `s`, a cell address for a port, a root input or a root-exported
@@ -224,13 +224,13 @@ collecting pass is factored apart from the throw. The violations are
 """
 function _compile_reads(rs::Reads, b::Build, ::Type{T} = Float64) where {T}
     reader, viol = _resolve_reads(rs, b, T)
-    isempty(viol) || throw(BuildError(viol))
+    isempty(viol) || throw(DiagnosticError(viol))
     reader
 end
 
 # A bare NamedTuple of selectors is the §14.2 misuse in the read register: the
 # same slip, the same directive, and not a `MethodError`.
-_compile_reads(other, ::Build, ::Type = Float64) = throw(BuildError(
+_compile_reads(other, ::Build, ::Type = Float64) = throw(DiagnosticError(
     ReadSetMisuse(observed = typeof(other), reason = :not_a_read_set)))
 
 """

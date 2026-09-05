@@ -80,22 +80,22 @@ function test_readers()
                                                b = get_output("plant", :thrust),
                                                c = get_deriv("ctl", :acc),
                                                d = get_face(:nope)), b))
-        @test e isa BuildError && length(e.diagnostics) == 4                  # the full list, one throw
-        @test all(d -> d isa TapResolution, e.diagnostics)
-        (a, b_, c, d) = e.diagnostics
+        @test e isa DiagnosticError && length(diagnostics(e)) == 4                  # the full list, one throw
+        @test all(d -> d isa TapResolution, diagnostics(e))
+        (a, b_, c, d) = diagnostics(e)
         @test a.reason === :unknown_path && a.path == "plnt" && a.tap === :x   # the offender, plainly
         @test b_.reason === :undeclared && b_.declares === :output_port &&
               b_.field === :thrust && b_.candidates == [:y, :power]            # the list in hand
         @test c.selector == "get_deriv(\"ctl\", :acc)" && c.reason === :discrete_deriv
         @test d.reason === :unknown_output_face && d.field === :nope && d.candidates == [:y]
-        @test [x.label for x in e.diagnostics] == [:a, :b, :c, :d]             # each read, by label
+        @test [x.label for x in diagnostics(e)] == [:a, :b, :c, :d]             # each read, by label
 
         # An assembly path, a root input read as a face, an index on a scalar leaf,
         # and a state field the component does not declare.
         e = failure(() -> _compile_reads(reads(a = get_output("", :y), b = get_face(:u),
                                                c = get_output("plant", :y, 1),
                                                d = get_state("plant", :ω)), b))
-        (a, b_, c, d) = e.diagnostics
+        (a, b_, c, d) = diagnostics(e)
         @test a.reason === :assembly_path && a.path == "" && a.tap === :y
         @test b_.reason === :root_input_not_face && b_.field === :u
         @test c.reason === :scalar_index && c.index == 1 && c.declared === Float64
@@ -105,21 +105,21 @@ function test_readers()
         # The read set is a type, not a NamedTuple: the bare spelling is refused
         # with a directive, not a `MethodError` (§14.2's rule, one register over).
         e = failure(() -> _compile_reads((q = get_state("plant", :q),), b))
-        @test e isa BuildError && only(e.diagnostics) isa ReadSetMisuse
-        @test only(e.diagnostics).reason === :not_a_read_set
-        d = only(failure(() -> reads(q = 2.0)).diagnostics)                    # nor is 2.0 a selector
+        @test e isa DiagnosticError && diagnostic(e) isa ReadSetMisuse
+        @test diagnostic(e).reason === :not_a_read_set
+        d = diagnostic(failure(() -> reads(q = 2.0)))                    # nor is 2.0 a selector
         @test d isa ReadSetMisuse && d.reason === :not_a_selector && d.label === :q
     end
 
     @testset "the source rule: a snapshot-bound reader may not name a store selector (§14.4)" begin
         sim = Simulation(readable(); h = 1//10)
         e = failure(() -> attach!(sim, Pad("t"), Readout(q = get_state("plant", :q))))
-        diag = only(e.diagnostics)
-        @test e isa BuildError && diag isa ReadBindingUnresolved && diag.reason === :store_selector &&
+        diag = diagnostic(e)
+        @test e isa DiagnosticError && diag isa ReadBindingUnresolved && diag.reason === :store_selector &&
               diag.selector == "get_state(\"plant\", :q)"
         e = failure(() -> attach!(sim, Pad("t"), Readout(y = get_output("plant", :y, 1))))
-        diag = only(e.diagnostics)
-        @test e isa BuildError && diag isa ReadBindingUnresolved && diag.reason === :indexed
+        diag = diagnostic(e)
+        @test e isa DiagnosticError && diag isa ReadBindingUnresolved && diag.reason === :indexed
         @test isempty(sim.plane.roster)              # every rejection left the roster untouched
     end
 
@@ -137,7 +137,7 @@ function test_readers()
         before = world(seeded)
 
         e = failure(() -> gather(_compile_reads(readable_reads(), nominal.build), seeded.exec))
-        @test e isa InternalInvariant           # not a diagnostic kind, and not a BuildError
+        @test e isa InternalInvariant           # not a diagnostic kind, and not a DiagnosticError
         @test occursin("compiled at Float64", e.msg) && occursin("Dual{Nothing, Float64, 8}", e.msg)
         # `InternalInvariant` carries a message and no payload by design (D-215),
         # so it is matched on text — it is no diagnostic kind.
@@ -183,8 +183,8 @@ function test_readers()
     @testset "`capture` is legal in `initialized` and `stopped`, and nowhere else (§14)" begin
         sim = Simulation(readable(); h = 1//10)
         e = failure(() -> capture(sim))
-        d = only(e.diagnostics)
-        @test e isa BuildError && d isa ServiceLifecycle && d.op === :capture
+        d = diagnostic(e)
+        @test e isa DiagnosticError && d isa ServiceLifecycle && d.op === :capture
         @test d.status === :built && d.legal == [:initialized, :stopped]  # no committed stores yet
         init!(sim, readable_condition())
         @test capture(sim) isa Tuple                         # `initialized`
@@ -202,8 +202,8 @@ function test_readers()
         err = failure(() -> capture(live))
         stage!(live, "in" => 1.0)
         wait(task)
-        d = only(err.diagnostics)
-        @test err isa BuildError && d isa ServiceLifecycle && d.op === :capture
+        d = diagnostic(err)
+        @test err isa DiagnosticError && d isa ServiceLifecycle && d.op === :capture
         @test d.status === :running
     end
 end

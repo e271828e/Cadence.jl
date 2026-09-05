@@ -170,7 +170,7 @@ state_update(::WidenedUpdate, (; s)) = (n = s.n + 0.5,)
 
 function store_successor_type()
     @testset "a discrete successor is the store's own type (§7.3)" begin
-        d = only(failure(() -> build(single(WidenedUpdate()))).diagnostics)
+        d = only(diagnostics(failure(() -> build(single(WidenedUpdate())))))
         @test d isa ConformanceFailure && d.what == "state_update" && d.reason === :field_set &&
               d.shape === :init_s && d.observed === @NamedTuple{n::Float64}
     end

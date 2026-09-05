@@ -26,14 +26,14 @@ init_x(::NoFlow) = (q = 1.0,)
 
 function build_probe_refusals()
     @testset "the probe rejects malformed components (§9.3)" begin
-        d = only(failure(() -> build(single(Undeclared()))).diagnostics)
+        d = only(diagnostics(failure(() -> build(single(Undeclared())))))
         @test d isa UndeclaredReturnField && d.name === :b && d.candidates == [:a]
-        d = only(failure(() -> build(single(Unproduced()))).diagnostics)
+        d = only(diagnostics(failure(() -> build(single(Unproduced())))))
         @test d isa DeclaredNotProduced && d.ports == [:b] && d.products == [:a]
-        d = only(failure(() -> build(single(BadDerivative()))).diagnostics)
+        d = only(diagnostics(failure(() -> build(single(BadDerivative())))))
         @test d isa ConformanceFailure && d.what == "state_derivative" && d.reason === :field_type &&
               d.field === :q && d.observed === Float64
-        d = only(failure(() -> build(single(NoFlow()))).diagnostics)
+        d = diagnostic(failure(() -> build(single(NoFlow()))))
         @test d isa StoreWithoutUpdate && d.store === :init_x
     end
 end
@@ -54,8 +54,8 @@ function build_schedule()
     @testset "an algebraic loop is a build error (§5.5)" begin
         # `build` alone: rejection needs no deployment, which is the strata split.
         err = failure(() -> build(feedback_model(feedback_port = "power")))
-        @test err isa BuildError
-        d = only(err.diagnostics)
+        @test err isa DiagnosticError
+        d = diagnostic(err)
         @test d isa AlgebraicCycle && sort(d.members) == ["ctl", "plant", "sum"]
     end
 end
@@ -89,8 +89,8 @@ _fanned_root(a, b) = Group((a = a, b = b);
 function build_root_input_type()
     @testset "two consumers of one root input declare one concrete type (§8.2, D-168)" begin
         err = failure(() -> build(_fanned_root(RealEntry(), BoolEntry())))
-        @test err isa BuildError
-        d = only(err.diagnostics)
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
         @test d isa RootInputTypeConflict && d.face === :in
         @test d.paths == ["a", "b"] && d.declared == [Float64, Bool]
         @test path(d) == ""                        # the face's own path is the root's
@@ -98,7 +98,7 @@ function build_root_input_type()
         # It is the layout barrier that catches it, ahead of stage-2 probing — so
         # the surfacing this replaces, the second consumer's probe reading the
         # first's cell, is gone: no `WireTypeMismatch` for this model.
-        @test !any(x -> x isa WireTypeMismatch, err.diagnostics)
+        @test !any(x -> x isa WireTypeMismatch, diagnostics(err))
 
         # A tolerance difference is no conflict (D-168's meet): `T` and a pinned
         # `Float64` are one type at nominal, and they disagree about partials alone.
@@ -155,17 +155,16 @@ function build_tier()
         for (c, offender) in ((BothUpdates(), :state_update), (WrongArity(), :output_types),
                               (ModesOnDiscrete(), :init_m), (BothArities(), :output_types))
             err = failure(() -> classify_tier("c", c))
-            @test err isa BuildError
+            @test err isa DiagnosticError
             # The vote loop collects: every declaration off the announced tier is
             # reported, and the one this case is written around is among them.
             @test all(d -> d isa DeclarationOnWrongTier && d.reason === :tier_form,
-                      err.diagnostics)
-            @test offender in [d.declaration for d in err.diagnostics]
+                      diagnostics(err))
+            @test offender in [d.declaration for d in diagnostics(err)]
         end
 
         # A store with no update law is §8.2's sibling of the classless component.
-        err = failure(() -> classify_tier("c", NoFlow()))
-        @test only(err.diagnostics) isa StoreWithoutUpdate
+        @test_throws DiagnosticError{StoreWithoutUpdate} classify_tier("c", NoFlow())
 
         # The base tick period is deployment's, not the build's: the same `Build`
         # deploys at any admissible grid, and the executor cannot exist before one
@@ -173,8 +172,8 @@ function build_tier()
         b = build(single(DiscreteCounter()))
         @test b isa Build
         err = failure(() -> Simulation(b))
-        @test err isa BuildError
-        d = only(err.diagnostics)
+        @test err isa DiagnosticError
+        d = diagnostic(err)
         @test d isa DeploymentInvalid && d.parameter === :h && d.reason === :missing
         @test Simulation(b; h = 1//10) isa Simulation
     end
@@ -214,8 +213,8 @@ function build_embed_accept()
         # activation's own Stratum-C re-run, not at `build` (§9.4's lazy lurk).
         b = build(single(PinnedGetsDual()))
         err = failure(() -> activation(b, D8))
-        @test err isa BuildError
-        d = only(err.diagnostics)
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
         @test d isa ConformanceFailure && d.shape === :ports && d.reason === :field_type
         @test d.declared === Float64 && d.observed === D8 && d.activation === D8
     end
@@ -265,8 +264,8 @@ function build_activations()
         # §9.4's opt-in exhaustive mode: the listed activations materialize at
         # build time, which is where CI catches a lurking pinned leaf.
         err = failure(() -> build(single(PinnedGetsDual()); activations = (Float64, D8)))
-        @test err isa BuildError
-        d = only(err.diagnostics)
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
         @test d isa ConformanceFailure && d.declared === Float64 && d.activation === D8
     end
 end

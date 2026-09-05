@@ -62,19 +62,27 @@ _symtuple(ns) = "(" * join((":$n" for n in ns), ", ") * (length(ns) == 1 ? ",)" 
 
 """
 The one carrier: a fail-fast site throws it holding a single diagnostic, a
-stratum barrier holding the whole collection its passes returned (§13.1). Its
-`showerror` renders compiler-style — grouped by kind, sorted by path within a
-group, the kind name leading each line.
+stratum barrier holding the whole collection its passes returned (§13.1). The
+type parameter is the policy (§13.2, D-222): the diagnostic's kind for a
+fail-fast throw, `Vector{Diagnostic}` for a collected one. Rendering, `kinds`
+and the catch site's species rule dispatch on it.
 """
-struct BuildError <: Exception
-    diagnostics::Vector{Diagnostic}
+struct DiagnosticError{P <: Union{Diagnostic, Vector{Diagnostic}}} <: Exception
+    carried::P
 end
 
-BuildError(d::Diagnostic) = BuildError(Diagnostic[d])
-BuildError(ds::AbstractVector{<:Diagnostic}) = BuildError(Vector{Diagnostic}(ds))
+DiagnosticError(d::Diagnostic) = DiagnosticError{typeof(d)}(d)
+DiagnosticError(ds::AbstractVector{<:Diagnostic}) =
+    DiagnosticError{Vector{Diagnostic}}(Vector{Diagnostic}(ds))
 
-"The kinds present in a carrier, in first-appearance order — what a test asks first."
-kinds(e::BuildError) = unique(typeof.(e.diagnostics))
+"The one diagnostic a fail-fast throw carries."
+diagnostic(e::DiagnosticError{<:Diagnostic}) = e.carried
+
+"The collection a barrier's throw carries."
+diagnostics(e::DiagnosticError{Vector{Diagnostic}}) = e.carried
+
+"The kinds present in a collection, in first-appearance order — what a test asks first."
+kinds(e::DiagnosticError{Vector{Diagnostic}}) = unique(typeof.(e.carried))
 
 # Groups in first-appearance order, each sorted by path; the sort is stable, so
 # two diagnostics at one path keep the order the pass produced them in.
@@ -87,14 +95,12 @@ function _groups(ds::Vector{Diagnostic})
     [sort(filter(d -> typeof(d) === T, ds); by = path, alg = MergeSort) for T in order]
 end
 
-function Base.showerror(io::IO, e::BuildError)
-    ds = e.diagnostics
-    if length(ds) == 1
-        d = only(ds)
-        print(io, "BuildError: ", nameof(typeof(d)), ": ", message(d))
-        return nothing
-    end
-    print(io, "BuildError: ", length(ds), " diagnostics")
+Base.showerror(io::IO, e::DiagnosticError{<:Diagnostic}) =
+    print(io, "DiagnosticError: ", nameof(typeof(e.carried)), ": ", message(e.carried))
+
+function Base.showerror(io::IO, e::DiagnosticError{Vector{Diagnostic}})
+    ds = e.carried
+    print(io, "DiagnosticError: ", length(ds), " diagnostics")
     for g in _groups(ds), d in g
         print(io, "\n  ", nameof(typeof(d)), ": ", message(d))
     end
@@ -140,7 +146,7 @@ Base.:(==)(a::CursorFrame, b::CursorFrame) =
     a.path == b.path && a.fn === b.fn && a.phase === b.phase && a.index == b.index
 
 """
-§13.4's runtime carrier, `BuildError`'s counterpart: the cursor's frame, the
+§13.4's runtime carrier, `DiagnosticError`'s counterpart: the cursor's frame, the
 clock at the failure, the frame-entry boundary index — the replay pointer — and
 the original exception as `cause`. A *species* is a `StepError` whose `cause` is
 a typed diagnostic, which is what lets a runtime check throw its kind and reach
@@ -195,7 +201,7 @@ A nonfinite continuous-state leaf found by the boundary's first act (§13.4,
 D-157): the sweep over `x` immediately after integrate returns, before
 `state_projection` and before the boundary sweep, so the component whose own block
 diverged is the one named — not the innocent downstream one the NaN would
-reach next. Thrown as a `BuildError` holding it alone, and the frame loop's
+reach next. Thrown as a fail-fast `DiagnosticError`, and the frame loop's
 catch site makes it a `StepError` species.
 """
 Base.@kwdef struct NonfiniteState <: Diagnostic

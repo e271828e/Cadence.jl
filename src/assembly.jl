@@ -36,16 +36,16 @@ function leaf_declarations(c)
     found
 end
 
-"""The class of `c` at `path`, or a `BuildError` naming what makes it unreadable."""
+"""The class of `c` at `path`, or a `DiagnosticError` naming what makes it unreadable."""
 function classify(path::String, c)
     leaves = leaf_declarations(c)
     if _declares(child_connections, c)
         isempty(leaves) ||
-            throw(BuildError(ClassMixed(path = path, declarations = leaves)))
+            throw(DiagnosticError(ClassMixed(path = path, declarations = leaves)))
         return ASSEMBLY
     end
     isempty(leaves) || return PRIMITIVE
-    throw(BuildError(ClassUnreadable(path = path, families = LEAF_FAMILY,
+    throw(DiagnosticError(ClassUnreadable(path = path, families = LEAF_FAMILY,
                                      holds_components = _holds_components(c))))
 end
 
@@ -153,7 +153,7 @@ function _children(path::String, c)
     end
     _check_transparent(path, c, tf, viol)
     _check_child_names(path, kids, prov, viol)
-    isempty(viol) || throw(BuildError(viol))
+    isempty(viol) || throw(DiagnosticError(viol))
     kids, fields
 end
 
@@ -258,7 +258,7 @@ function resolve_terminal(entry::String, base::String, asm, path::AbstractString
                           owner::String = _at(base))
     segs = String.(split(path, '/'))
     length(segs) > 1 ||
-        throw(BuildError(PathResolution(entry = entry, spelling = String(path),
+        throw(DiagnosticError(PathResolution(entry = entry, spelling = String(path),
                                         reason = :not_a_terminal, owner = owner)))
     kid, seg = _one_level(entry, base, asm, path, segs, 1; owner)
     kid, _join(base, seg), Symbol(segs[end])
@@ -277,13 +277,13 @@ function _one_level(entry::String, base::String, asm, path::AbstractString,
     j === nothing && length(segs) > 1 + tail &&
         (j = findfirst(kid -> first(kid) == segs[1] * "/" * segs[2], kids))
     j === nothing &&
-        throw(BuildError(PathResolution(entry = entry, spelling = String(path),
+        throw(DiagnosticError(PathResolution(entry = entry, spelling = String(path),
                                         reason = :unknown_child, owner = owner,
                                         segment = segs[1],
                                         candidates = String[first(k) for k in kids])))
     seg, kid = kids[j]
     count(==('/'), seg) + 1 + tail == length(segs) ||
-        throw(BuildError(PathResolution(entry = entry, spelling = String(path),
+        throw(DiagnosticError(PathResolution(entry = entry, spelling = String(path),
                                         reason = :reaches_past, owner = owner,
                                         segment = seg, level = _join(base, seg), tail = tail)))
     kid, seg
@@ -308,7 +308,7 @@ build error naming the child it reaches past.
 function resolve(asm, path::AbstractString)
     who = "`resolve` on `$(nameof(typeof(asm)))`"
     isempty(path) &&
-        throw(BuildError(PathResolution(entry = who, spelling = "", reason = :empty_path,
+        throw(DiagnosticError(PathResolution(entry = who, spelling = "", reason = :empty_path,
                                         owner = "the component in hand")))
     first(_one_level(who, "", asm, path, String.(split(path, '/')), 0;
                      owner = "the component in hand"))
@@ -418,11 +418,11 @@ _labelled(prefix, sep, n) = isempty(prefix) ? String(n) : string(prefix, sep, n)
 function _passthrough_faces(who::String, child_path::AbstractString,
                             names::Vector{String}, except::Tuple, only::Tuple)
     isempty(except) || isempty(only) ||
-        throw(BuildError(UnknownFaceSelection(who = who, path = String(child_path),
+        throw(DiagnosticError(UnknownFaceSelection(who = who, path = String(child_path),
                                               reason = :both_given)))
     unknown = [String(n) for n in (except..., only...) if !(String(n) in names)]
     isempty(unknown) ||
-        throw(BuildError(UnknownFaceSelection(who = who, path = String(child_path),
+        throw(DiagnosticError(UnknownFaceSelection(who = who, path = String(child_path),
                                               reason = :unknown_names, names = unknown,
                                               candidates = names)))
     isempty(only) ? setdiff(names, String[String(n) for n in except]) :
@@ -480,11 +480,11 @@ function _wrong_direction(entry, path, cpath, name, comp, wanted)
     ins, outs = input_faces(comp), output_faces(comp)
     found = String(name) in ins ? "an input" : String(name) in outs ? "an output" : nothing
     found === nothing &&
-        throw(BuildError(UnknownPort(entry = entry,
+        throw(DiagnosticError(UnknownPort(entry = entry,
                                      end_ = wanted == "producer" ? :source : :destination,
                                      path = cpath, spelling = String(path), port = name,
                                      candidates = Symbol.(vcat(ins, outs)))))
-    throw(BuildError(FaceDirectionConflict(entry = entry, path = cpath,
+    throw(DiagnosticError(FaceDirectionConflict(entry = entry, path = cpath,
                                            spelling = String(path),
                                            found = found == "an input" ? :input : :output,
                                            wanted = Symbol(wanted))))
@@ -655,7 +655,7 @@ function flatten(root)
     # unfed inputs leave together, in one throw, before anything derived from
     # the wiring is computed. No cascade suppression: a typo'd wire reports its
     # unknown port *and* the input it left unfed.
-    isempty(w.viol) || throw(BuildError(w.viol))
+    isempty(w.viol) || throw(DiagnosticError(w.viol))
 
     # §9.2's input side, derived once the obligation pass has proved every input
     # fed exactly once: an assembly's face and the leaf entries behind it are

@@ -11,9 +11,9 @@ function test_stepper()
         @test simh.stepper isa Heun{Float64}
         # validated with its siblings: a backend is named by stepper type, and
         # anything else is refused at binding, not deep in a MethodError
-        d1 = only(failure(() -> Simulation(feedback_model(); h = 1//100, method = 4)).diagnostics)
+        d1 = only(diagnostics(failure(() -> Simulation(feedback_model(); h = 1//100, method = 4))))
         @test d1 isa DeploymentInvalid && d1.parameter === :method
-        d2 = only(failure(() -> Simulation(feedback_model(); h = 1//100, method = Int)).diagnostics)
+        d2 = only(diagnostics(failure(() -> Simulation(feedback_model(); h = 1//100, method = Int))))
         @test d2 isa DeploymentInvalid && d2.parameter === :method
     end
 

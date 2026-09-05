@@ -64,7 +64,7 @@ function TableBinding(; entries...)
         ex === nothing || 0 <= ex <= 1 || push!(diags, ArgumentInvalid(
             call = :TableBinding, reason = :expo, entry = k, value = ex))
     end
-    isempty(diags) || throw(BuildError(diags))
+    isempty(diags) || throw(DiagnosticError(diags))
     TableBinding(table)
 end
 
@@ -136,11 +136,11 @@ NamedTuple `map_output` receives. Every failure names the selector at fault;
 the did-you-mean candidate lists are absent (`pending.md`).
 """
 function _compile_gather(layout::Layout, nt, T::Type)
-    nt isa NamedTuple || throw(BuildError(
+    nt isa NamedTuple || throw(DiagnosticError(
         BindingContractMismatch(binding = string(T), reason = :reads_not_namedtuple,
                                  observed = typeof(nt))))
     addrs = map(values(nt)) do s
-        s isa ReadSelector || throw(BuildError(
+        s isa ReadSelector || throw(DiagnosticError(
             BindingContractMismatch(binding = string(T), reason = :reads_not_selectors,
                                      observed = typeof(s))))
         _resolve_read(layout, s, T)
@@ -154,22 +154,22 @@ _root_input_names(layout::Layout) = Symbol[f for (f, _) in layout.root_inputs]
 # no state stores by construction (§11.2) and `ẋ` is integrator scratch, so a
 # snapshot-bound reader naming a store selector is a resolution error at
 # attach — in the didactic register, with the remedy named.
-_resolve_read(::Layout, s::StoreSelector, T::Type) = throw(BuildError(
+_resolve_read(::Layout, s::StoreSelector, T::Type) = throw(DiagnosticError(
     ReadBindingUnresolved(binding = string(T), selector = _spell(s), reason = :store_selector,
                            path = _selpath(s), field = _field(s))))
 
 function _resolve_read(layout::Layout, s::GetOutput, T::Type)
-    s.i === nothing || throw(BuildError(
+    s.i === nothing || throw(DiagnosticError(
         ReadBindingUnresolved(binding = string(T), selector = _spell(s), reason = :indexed,
                                path = s.path, field = s.name)))
-    haskey(layout.addr, (s.path, s.name)) || throw(BuildError(
+    haskey(layout.addr, (s.path, s.name)) || throw(DiagnosticError(
         ReadBindingUnresolved(binding = string(T), selector = _spell(s), reason = :unknown_cell,
                                path = s.path, field = s.name)))
     layout.addr[(s.path, s.name)]
 end
 
 function _resolve_read(layout::Layout, s::GetInput, T::Type)
-    s.face in _root_input_names(layout) || throw(BuildError(
+    s.face in _root_input_names(layout) || throw(DiagnosticError(
         ReadBindingUnresolved(binding = string(T), selector = _spell(s),
                                reason = :unknown_root_input, field = s.face,
                                candidates = _root_input_names(layout))))
@@ -177,10 +177,10 @@ function _resolve_read(layout::Layout, s::GetInput, T::Type)
 end
 
 function _resolve_read(layout::Layout, s::GetFace, T::Type)
-    s.name in _root_input_names(layout) && throw(BuildError(
+    s.name in _root_input_names(layout) && throw(DiagnosticError(
         ReadBindingUnresolved(binding = string(T), selector = _spell(s),
                                reason = :root_input_not_output, field = s.name)))
-    haskey(layout.addr, ("", s.name)) || throw(BuildError(
+    haskey(layout.addr, ("", s.name)) || throw(DiagnosticError(
         ReadBindingUnresolved(binding = string(T), selector = _spell(s),
                                reason = :unknown_output_face, field = s.name)))
     layout.addr[("", s.name)]

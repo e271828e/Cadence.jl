@@ -54,7 +54,7 @@ end
 # The classifier sees primitives only: a component that declares nothing at all
 # has no *class* to read, which §8.5 settles before this runs.
 
-"""The tier the primitive at `path` announces, or a `BuildError` naming what disagrees."""
+"""The tier the primitive at `path` announces, or a `DiagnosticError` naming what disagrees."""
 function classify_tier(path::String, c)
     votes = Tuple{Symbol,Tier}[]
     has_stage(state_derivative, c) && push!(votes, (:state_derivative, CONTINUOUS))
@@ -74,11 +74,11 @@ function classify_tier(path::String, c)
     if state !== nothing
         i = findfirst(v -> first(v) === :state_derivative || first(v) === :state_update, votes)
         i === nothing &&
-            throw(BuildError(StoreWithoutUpdate(path = path, store = state)))
+            throw(DiagnosticError(StoreWithoutUpdate(path = path, store = state)))
     else
         i = findfirst(v -> first(v) === :output_types, votes)
         i === nothing &&
-            throw(BuildError(TierUnreadable(path = path,
+            throw(DiagnosticError(TierUnreadable(path = path,
                                             declarations = Symbol[first(v) for v in votes])))
     end
 
@@ -93,7 +93,7 @@ function classify_tier(path::String, c)
                                                found = Symbol(tier_word(vt)),
                                                announced = Symbol(tier_word(t))))
     end
-    isempty(viol) || throw(BuildError(viol))
+    isempty(viol) || throw(DiagnosticError(viol))
     t
 end
 
@@ -122,7 +122,7 @@ function probe_stage1(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
         y = output_state(c, _bundle_values(bn, d, NamedTuple(), NamedTuple(), T;
                                  ws = wss[ci], m = mstores[ci], Δt = 1.0))
         y isa NamedTuple ||
-            throw(BuildError(ConformanceFailure(path = path, what = stage,
+            throw(DiagnosticError(ConformanceFailure(path = path, what = stage,
                                                 reason = :return_type, shape = :ports,
                                                 observed = typeof(y))))
         _check_ports(path, stage, y, d.outs, T)
@@ -163,7 +163,7 @@ function _check_ports(path, stage, y::NamedTuple, outs::NamedTuple, ::Type{T}) w
                                            observed = typeof(v), declared = outs[name],
                                            activation = T))
     end
-    isempty(viol) || throw(BuildError(viol))
+    isempty(viol) || throw(DiagnosticError(viol))
     nothing
 end
 
@@ -243,7 +243,7 @@ function schedule_stage2(flat::Flat, tiers::Vector{Tier}, stage1::Vector)
 
     if !isempty(remaining)
         cycle = sort!(collect(remaining))
-        throw(BuildError(AlgebraicCycle(members = String[flat.paths[ci] for ci in cycle])))
+        throw(DiagnosticError(AlgebraicCycle(members = String[flat.paths[ci] for ci in cycle])))
     end
     order
 end
@@ -295,7 +295,7 @@ function cell_layout(flat::Flat, decls::Vector{Decls}, ::Type{T}) where {T}
         place!("", :root_input, face, P) || continue
         push!(root_inputs, (face, probe_value(P)))
     end
-    isempty(viol) || throw(BuildError(viol))
+    isempty(viol) || throw(DiagnosticError(viol))
     for (alias, target) in flat.out_faces
         addr[alias] = addr[target]
     end
@@ -413,7 +413,7 @@ function _check_event_declarations(flat::Flat)
             end
         end
     end
-    isempty(viol) || throw(BuildError(viol))
+    isempty(viol) || throw(DiagnosticError(viol))
     nothing
 end
 
@@ -509,12 +509,12 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
         y2 = output_direct(c, _bundle_values(bn, d, u, s1, T; ws = wss[ci], m = mstores[ci],
                                   Δt = 1.0))
         y2 isa NamedTuple ||
-            throw(BuildError(ConformanceFailure(path = path, what = stage,
+            throw(DiagnosticError(ConformanceFailure(path = path, what = stage,
                                                 reason = :return_type, shape = :namedtuple,
                                                 observed = typeof(y2))))
         _check_ports(path, stage, y2, d.outs, T)
         isempty(intersect(keys(s1), keys(y2))) ||
-            throw(BuildError(ProducedByTwoStages(path = path,
+            throw(DiagnosticError(ProducedByTwoStages(path = path,
                                                  ports = collect(intersect(keys(s1),
                                                                            keys(y2))))))
         products[ci] = merge(s1, _embed_ports(y2, d.outs, T))
@@ -533,7 +533,7 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
                                             ports = collect(missing_ports),
                                             products = collect(keys(products[ci]))))
     end
-    isempty(viol) || throw(BuildError(viol))
+    isempty(viol) || throw(DiagnosticError(viol))
 
     # The update laws, probed against the now-complete table: `state_derivative`
     # for shape, `state_update` for the store's own type. A frozen component's
@@ -549,7 +549,7 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
         append!(viol, t === CONTINUOUS ? _check_derivative(path, state_derivative(c, vals), d.x) :
                                          _check_update(path, state_update(c, vals), d.s))
     end
-    isempty(viol) || throw(BuildError(viol))
+    isempty(viol) || throw(DiagnosticError(viol))
 
     # `state_projection`, probed at every activation it runs at — its result is
     # written back to the buffer wholesale at both schedule positions (§5.3), so
@@ -570,7 +570,7 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
         end
         append!(viol, _check_state_write(path, "state_projection", state_projection(c, d.x), d.x))
     end
-    isempty(viol) || throw(BuildError(viol))
+    isempty(viol) || throw(DiagnosticError(viol))
     products
 end
 
@@ -630,7 +630,7 @@ function probe_events(flat::Flat, tiers::Vector{Tier}, act::Activation{Float64})
             σ = evs[name].guard(c, vals)
             policy = σ isa Bool ? :boundary :
                      σ isa Float64 ? :localized :
-                     throw(BuildError(GuardForm(path = path, event = name,
+                     throw(DiagnosticError(GuardForm(path = path, event = name,
                                                 observed = typeof(σ))))
             _check_handler(path, name, evs[name].handler(c, vals), d, c)
             policy
@@ -649,7 +649,7 @@ end
 function _check_handler(path, name, ret, d::Decls, c)
     what = "event `$name`'s handler"
     ret isa NamedTuple ||
-        throw(BuildError(ConformanceFailure(path = path, what = what, reason = :return_type,
+        throw(DiagnosticError(ConformanceFailure(path = path, what = what, reason = :return_type,
                                             shape = :stores, observed = typeof(ret))))
     m₀ = init_m(c)
     stores = Symbol[]
@@ -686,7 +686,7 @@ function _check_handler(path, name, ret, d::Decls, c)
             end
         end
     end
-    isempty(viol) || throw(BuildError(viol))
+    isempty(viol) || throw(DiagnosticError(viol))
     nothing
 end
 
@@ -699,9 +699,9 @@ _exact(name::Symbol, v::Rational{Int}) = v
 _exact(name::Symbol, v::Integer) = Rational{Int}(v)
 _exact(name::Symbol, v::Period) = v.T
 _exact(name::Symbol, v::AbstractFloat) =
-    throw(BuildError(DeploymentInvalid(parameter = name, reason = :inexact, value = v)))
+    throw(DiagnosticError(DeploymentInvalid(parameter = name, reason = :inexact, value = v)))
 _exact(name::Symbol, v) =
-    throw(BuildError(DeploymentInvalid(parameter = name, reason = :not_a_quantity,
+    throw(DiagnosticError(DeploymentInvalid(parameter = name, reason = :not_a_quantity,
                                        value = typeof(v))))
 
 _as_int(r::Rational) = denominator(r) == 1 ? Int(numerator(r)) : nothing
@@ -717,12 +717,12 @@ schedule (§9.2's printable artifact, as plain data).
 """
 function bind_schedule(b::Build, h, n, Δt_base)
     h === nothing &&
-        throw(BuildError(DeploymentInvalid(parameter = :h, reason = :missing)))
+        throw(DiagnosticError(DeploymentInvalid(parameter = :h, reason = :missing)))
     h_r = _exact(:h, h)
     h_r > 0 ||
-        throw(BuildError(DeploymentInvalid(parameter = :h, reason = :range, value = h_r)))
+        throw(DiagnosticError(DeploymentInvalid(parameter = :h, reason = :range, value = h_r)))
     n === nothing || n ≥ 1 ||
-        throw(BuildError(DeploymentInvalid(parameter = :n, reason = :range, value = n)))
+        throw(DiagnosticError(DeploymentInvalid(parameter = :n, reason = :range, value = n)))
 
     anchors, prov, triples = b.flat.anchors, b.flat.aprov, b.flat.triples
     # The constraint pool: every anchor's period and every nonzero offset (§9.1).
@@ -732,10 +732,10 @@ function bind_schedule(b::Build, h, n, Δt_base)
         unanchored = [b.flat.paths[ci] for ci in eachindex(b.tiers)
                       if b.tiers[ci] === DISCRETE && triples[ci][1] == 0]
         isempty(unanchored) ||
-            throw(BuildError(DeploymentInvalid(parameter = :Δt_base, reason = :unanchored,
+            throw(DiagnosticError(DeploymentInvalid(parameter = :Δt_base, reason = :unanchored,
                                                paths = unanchored)))
         isempty(pool) &&
-            throw(BuildError(DeploymentInvalid(parameter = :Δt_base,
+            throw(DiagnosticError(DeploymentInvalid(parameter = :Δt_base,
                                                reason = :no_constraint)))
         Δt_r = reduce(gcd, pool)                     # the coarsest admissible value
     elseif Δt_base !== nothing
@@ -746,10 +746,10 @@ function bind_schedule(b::Build, h, n, Δt_base)
 
     n_i = _as_int(Δt_r / h_r)
     (n_i === nothing || n_i < 1) &&
-        throw(BuildError(DeploymentInvalid(parameter = :Δt_base, reason = :not_harmonic,
+        throw(DiagnosticError(DeploymentInvalid(parameter = :Δt_base, reason = :not_harmonic,
                                            value = Δt_r, related = h_r)))
     n === nothing || n == n_i ||
-        throw(BuildError(DeploymentInvalid(parameter = :Δt_base, reason = :disagrees_with_n,
+        throw(DiagnosticError(DeploymentInvalid(parameter = :Δt_base, reason = :disagrees_with_n,
                                            value = Δt_r, related = n, quotient = n_i)))
 
     # Per anchor, one exact division pair; anchor 0 is the base grid itself. The
@@ -771,7 +771,7 @@ function bind_schedule(b::Build, h, n, Δt_base)
                                           admissible = adm))
         push!(Dk, something(D, 1)); push!(Φk, something(Φ, 0))
     end
-    isempty(viol) || throw(BuildError(viol))
+    isempty(viol) || throw(DiagnosticError(viol))
 
     # Per component, one multiply-add; the canonical residue 0 ≤ Φ < D survives
     # composition (§10.5), which is what the gate's truncated rem relies on.
@@ -1030,7 +1030,7 @@ function _probe_input(flat::Flat, layout::Layout, products, ci, face, P, ::Type{
         products[index_of(flat, ppath)][pport]
     end
     _accepts(P, typeof(v), T) ||
-        throw(BuildError(WireTypeMismatch(path = path, face = face, declared = P,
+        throw(DiagnosticError(WireTypeMismatch(path = path, face = face, declared = P,
                                           producer_path = ppath, producer_port = pport,
                                           observed = typeof(v), activation = T)))
     v

@@ -156,7 +156,7 @@ function Simulation(b::Build, ::Type{T} = Float64; h = nothing, n = nothing,
         d = _t_bound_diag(t_end)
         d === nothing || push!(diags, d)
     end
-    isempty(diags) || throw(BuildError(diags))
+    isempty(diags) || throw(DiagnosticError(diags))
     act = activation(b, T)
     (stop_faces, stop_addrs) = _stop_faces(act.layout, stop_on)
     bound = bind_schedule(b, h, n, Δt_base)
@@ -187,7 +187,7 @@ _t_bound_diag(t) = (t isa Real && isfinite(t) && t ≥ 0) ? nothing :
     DeploymentInvalid(parameter = :t_end, reason = :range, value = t)
 function _t_bound(t)
     d = _t_bound_diag(t)
-    d === nothing ? Float64(t) : throw(BuildError(d))
+    d === nothing ? Float64(t) : throw(DiagnosticError(d))
 end
 
 # §13.5's stop-face validation and compilation, run identically at both binding
@@ -220,7 +220,7 @@ function _stop_faces(layout::Layout, stop_on)
         end
         s in faces || (push!(faces, s); push!(addrs, a))
     end
-    isempty(diags) || throw(BuildError(diags))
+    isempty(diags) || throw(DiagnosticError(diags))
     (faces, addrs)
 end
 
@@ -297,10 +297,10 @@ end
 function _assert_advanceable(sim::Simulation, op::Symbol)
     lc = @atomic sim.control.lifecycle
     lc === :initialized && return nothing
-    lc === :built && throw(BuildError(MissingInit(op = op, status = lc)))
-    lc === :running && throw(BuildError(ServiceLifecycle(op = op, status = :running)))
-    lc === :stopped && throw(BuildError(ServiceLifecycle(op = op, status = :stopped)))
-    throw(BuildError(ServiceLifecycle(op = op, status = :errored)))
+    lc === :built && throw(DiagnosticError(MissingInit(op = op, status = lc)))
+    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running)))
+    lc === :stopped && throw(DiagnosticError(ServiceLifecycle(op = op, status = :stopped)))
+    throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored)))
 end
 
 """
@@ -506,7 +506,7 @@ end
 end
 
 # The owner of flat index `i` and its leaf within that component's block, both
-# read off `xblocks`. Thrown as a lone-diagnostic `BuildError`, which the catch
+# read off `xblocks`. Thrown as a fail-fast `DiagnosticError`, which the catch
 # site's species rule unwraps into the `StepError`'s `cause`.
 @noinline function _nonfinite(sim::Simulation, i::Int)
     ex = sim.exec
@@ -515,7 +515,7 @@ end
     cur.comp = owner; cur.fn = :none  # framework's own act between the stages and the
     cur.index = 0                     # boundary — no stage of its own, so no ordinal
     names = leaf_names(typeof(ex.act.decls[owner].x))
-    throw(BuildError(NonfiniteState(
+    throw(DiagnosticError(NonfiniteState(
         path = sim.build.flat.paths[owner],
         leaf = names[i - first(ex.xblocks[owner]) + 1],
         value = ex.xbuf[i],
@@ -608,8 +608,8 @@ stopped (§13.6) — reproduction is trace replay, not resurrection.
 function init!(sim::Simulation{T}, condition = fragment(); t0::T = zero(T)) where {T}
     ctl = sim.control
     lc = @atomic ctl.lifecycle
-    lc === :running && throw(BuildError(ServiceLifecycle(op = :init!, status = :running)))
-    lc === :errored && throw(BuildError(ServiceLifecycle(op = :init!, status = :errored)))
+    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :running)))
+    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :errored)))
     plan = resolve_condition(condition, sim.build, T)      # both refusals precede every write
     assert_total(plan, sim.build.flat, :init!)   # (§14.6): all-or-nothing
     establish_defaults!(sim.exec.xbuf, sim.exec.sstores, sim.exec.mstores, sim.build.flat.comps,
@@ -646,14 +646,14 @@ function _compile_feed(sim::Simulation{T}, trc::Trace{T}) where {T}
     diags = Diagnostic[]
     _check_header!(diags, sim, trc.header)
     _check_schemas!(diags, faces, trc.header)
-    isempty(diags) || throw(BuildError(diags))     # the header before the entries
+    isempty(diags) || throw(DiagnosticError(diags))     # the header before the entries
     records = _compile_records!(diags, sim, trc, faces)
-    isempty(diags) || throw(BuildError(diags))
+    isempty(diags) || throw(DiagnosticError(diags))
     ReplayFeed(records, 1, trc.frames)
 end
 
 _compile_feed(sim::Simulation{Ts}, trc::Trace{Tt}) where {Ts,Tt} =
-    throw(BuildError(ReplayHeaderMismatch(what = :scalar, expected = Tt, found = Ts)))
+    throw(DiagnosticError(ReplayHeaderMismatch(what = :scalar, expected = Tt, found = Ts)))
 
 """
     replay!(sim, trc; to_boundary = nothing, t_end = nothing, stop_on = nothing)
@@ -721,14 +721,14 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
                  to_time = nothing, t_end = nothing, stop_on = nothing) where {T}
     ex, ctl = sim.exec, sim.control
     lc = @atomic ctl.lifecycle
-    lc === :running && throw(BuildError(ServiceLifecycle(op = :replay!, status = :running)))
-    lc === :errored && throw(BuildError(ServiceLifecycle(op = :replay!, status = :errored)))
+    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :running)))
+    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :errored)))
     to_boundary === nothing || to_time === nothing ||     # two spellings of one halt (D-219)
-        throw(BuildError(ArgumentInvalid(call = :replay!, reason = :both_given)))
+        throw(DiagnosticError(ArgumentInvalid(call = :replay!, reason = :both_given)))
     # §13.4's pointer, in grid boundaries: whole and non-negative, and no further
     # than the recording reaches — every frame top is one, so it counts frames
     to_boundary === nothing || (to_boundary isa Integer && to_boundary ≥ 0 &&
-        to_boundary ≤ trc.frames) || throw(BuildError(
+        to_boundary ≤ trc.frames) || throw(DiagnosticError(
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_boundary,
                             value = to_boundary)))
     if to_time !== nothing
@@ -743,11 +743,11 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
         # binary floats, `0.3/0.1` being `2.9999999999999996`, and the plain
         # floor would halt one boundary short of the one named.
         t₀ = trc.header.deployment.t₀
-        to_time isa Real && isfinite(to_time) && to_time ≥ t₀ || throw(BuildError(
+        to_time isa Real && isfinite(to_time) && to_time ≥ t₀ || throw(DiagnosticError(
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
                             value = to_time)))
         to_boundary = floor(Int, (Float64(to_time) - t₀) / trc.header.deployment.h + 1e-9)
-        to_boundary ≤ trc.frames || throw(BuildError(     # a time the recording never reached
+        to_boundary ≤ trc.frames || throw(DiagnosticError(     # a time the recording never reached
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
                             value = to_time)))
     end
@@ -822,7 +822,7 @@ never attached.
 function live!(sim::Simulation)
     _assert_advanceable(sim, :live!)
     reg = sim.trace
-    reg.mode === :replay || throw(BuildError(
+    reg.mode === :replay || throw(DiagnosticError(
         ArgumentInvalid(call = :live!, reason = :not_replaying)))
     reg.feed = nothing
     reg.mode = :live
@@ -875,7 +875,7 @@ so `t_end` is taken to the nearest frame top.
 function run!(sim::Simulation; t_end = nothing, stop_on = nothing)
     _assert_advanceable(sim, :run!)
     te = t_end === nothing ? sim.t_end : _t_bound(t_end)
-    te === nothing && throw(BuildError(ArgumentInvalid(call = :run!, reason = :no_clock_bound)))
+    te === nothing && throw(DiagnosticError(ArgumentInvalid(call = :run!, reason = :no_clock_bound)))
     (faces, addrs) = stop_on === nothing ? (sim.stop_on, sim.stop_addrs) :
                                            _stop_faces(sim.exec.act.layout, stop_on)
     pol = sim.policy
@@ -1074,12 +1074,13 @@ function _wrap_step(sim::Simulation, entry::Int, err)
     StepError(frame, _seconds(sim.exec.clock.t), entry, _species(err))
 end
 
-# The species rule: a `BuildError` carrying exactly one diagnostic, thrown
-# inside the sequence, arrives as that diagnostic unwrapped — which is what lets
-# a runtime check (§9.5's conformance failure, the nonfinite sweep) be a plain
-# thrower of its kind while the catch site stays the only wrap.
+# The species rule (§13.4, D-221): a fail-fast carrier thrown inside the
+# sequence arrives as its diagnostic unwrapped — which is what lets a runtime
+# check (§9.5's conformance failure, the nonfinite sweep) be a plain thrower
+# of its kind while the catch site stays the only wrap. A collected carrier has
+# no single kind and rides as the cause it is.
 _species(err) = err
-_species(err::BuildError) = length(err.diagnostics) == 1 ? only(err.diagnostics) : err
+_species(err::DiagnosticError{<:Diagnostic}) = err.carried
 
 """
     step!(sim; frames = 1)
@@ -1117,14 +1118,14 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing)
     ctl = sim.control
     _assert_advanceable(sim, :step!)
     frames === nothing || t_plus === nothing ||
-        throw(BuildError(ArgumentInvalid(call = :step!, reason = :both_given)))
+        throw(DiagnosticError(ArgumentInvalid(call = :step!, reason = :both_given)))
     if t_plus === nothing
         nf = frames === nothing ? 1 : frames
-        nf isa Integer && nf ≥ 1 || throw(BuildError(
+        nf isa Integer && nf ≥ 1 || throw(DiagnosticError(
             ArgumentInvalid(call = :step!, reason = :range, argument = :frames, value = nf)))
         nf = Int(nf)
     else
-        t_plus isa Real && isfinite(t_plus) && t_plus > 0 || throw(BuildError(
+        t_plus isa Real && isfinite(t_plus) && t_plus > 0 || throw(DiagnosticError(
             ArgumentInvalid(call = :step!, reason = :range, argument = :t_plus, value = t_plus)))
         nf = max(1, ceil(Int, Float64(t_plus) / sim.h - 1e-9))
     end
@@ -1217,12 +1218,12 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
     check_binding(b)
     check_device(dev)
     for e in plane.roster                          # identity, before claims (§11.3)
-        e.dev === dev && throw(BuildError(AlreadyAttached(
+        e.dev === dev && throw(DiagnosticError(AlreadyAttached(
             device = _typename(dev), incumbent = _who(e), binding = _typename(e.binding))))
     end
     if needs_calling_task(dev)                     # affinity: a single-slot resource
         i = findfirst(e -> needs_calling_task(e.dev), plane.roster)
-        i === nothing || throw(BuildError(CallerTaskConflict(
+        i === nothing || throw(DiagnosticError(CallerTaskConflict(
             device = _typename(dev), incumbent = _who(plane.roster[i]))))
     end
     claim = is_input(b) ? _claim(plane, sim.exec.act.layout, b) : Symbol[]
@@ -1231,7 +1232,7 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
         haskey(plane.claimedby, f) && push!(claim_diags, ClaimConflict(
             face = f, device = _typename(dev), incumbent = plane.claimedby[f]))
     end
-    isempty(claim_diags) || throw(BuildError(claim_diags))
+    isempty(claim_diags) || throw(DiagnosticError(claim_diags))
     # The output side: reads → one gather, resolved before admission commits.
     rg = is_output(b) ? _compile_gather(sim.exec.act.layout, reads(b), typeof(b)) : nothing
     id = plane.next_id                             # assigned on admission alone: a
@@ -1264,7 +1265,7 @@ function detach!(sim::Simulation, dev::AbstractDevice)
     plane = sim.plane
     assert_stopped(sim.control, :detach!)
     i = findfirst(e -> e.dev === dev, plane.roster)
-    i === nothing && throw(BuildError(NotAttached(
+    i === nothing && throw(DiagnosticError(NotAttached(
         device = _typename(dev), roster = [_who(e) for e in plane.roster])))
     deleteat!(plane.roster, i)
     reclaim!(plane, sim.exec.act.layout, sim.trace)
@@ -1517,9 +1518,9 @@ an advance entry's refusal does (§12.6).
 """
 function trace(sim::Simulation)
     reg = sim.trace
-    reg.enabled || throw(BuildError(ArgumentInvalid(call = :trace, reason = :disabled)))
+    reg.enabled || throw(DiagnosticError(ArgumentInvalid(call = :trace, reason = :disabled)))
     h = reg.header
-    h === nothing && throw(BuildError(MissingInit(op = :trace, status = lifecycle(sim))))
+    h === nothing && throw(DiagnosticError(MissingInit(op = :trace, status = lifecycle(sim))))
     Trace(h, copy(reg.batches), reg.frames)
 end
 

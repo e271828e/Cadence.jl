@@ -504,22 +504,35 @@ function diagnostics_kind_set()
     @testset "rendering: the carrier compiler-style, the register didactic (§13.1, §13.2)" begin
         # Two kinds × two paths: groups in first-appearance order, paths sorted
         # within a group, the kind name leading each line, the count line above.
-        e = BuildError(Diagnostic[UnconnectedInput(path = "b", face = :u),
+        e = DiagnosticError(Diagnostic[UnconnectedInput(path = "b", face = :u),
                                   FaceNameIllegal(path = "b", face = "p/q", invariant = :contains_slash),
                                   UnconnectedInput(path = "a", face = :v),
                                   FaceNameIllegal(path = "a", face = "r/s",
                                                   invariant = :contains_slash)])
         @test kinds(e) == [UnconnectedInput, FaceNameIllegal]
         lines = split(sprint(showerror, e), '\n')
-        @test lines[1] == "BuildError: 4 diagnostics"
+        @test lines[1] == "DiagnosticError: 4 diagnostics"
         @test startswith(lines[2], "  UnconnectedInput: `a`.v")
         @test startswith(lines[3], "  UnconnectedInput: `b`.u")
         @test startswith(lines[4], "  FaceNameIllegal: ") && occursin("`r/s`", lines[4])
         @test startswith(lines[5], "  FaceNameIllegal: ") && occursin("`p/q`", lines[5])
 
         # A fail-fast site's single diagnostic renders on one line, no count.
-        @test sprint(showerror, BuildError(UnconnectedInput(path = "a", face = :v))) ==
-              "BuildError: UnconnectedInput: " * message(UnconnectedInput(path = "a", face = :v))
+        @test sprint(showerror, DiagnosticError(UnconnectedInput(path = "a", face = :v))) ==
+              "DiagnosticError: UnconnectedInput: " * message(UnconnectedInput(path = "a", face = :v))
+
+        # The parameter is the policy, and the outer constructors choose it (D-222).
+        d = UnconnectedInput(path = "a", face = :v)
+        @test DiagnosticError(d) isa DiagnosticError{typeof(d)}
+        @test DiagnosticError([d]) isa DiagnosticError{Vector{Diagnostic}}
+        @test diagnostic(DiagnosticError(d)) === d
+        @test diagnostics(DiagnosticError([d])) == [d]
+        # Each accessor is defined on one policy: the other is a MethodError, which
+        # is how a test states which policy a throw has.
+        @test_throws MethodError diagnostics(DiagnosticError(d))
+        @test_throws MethodError diagnostic(DiagnosticError([d]))
+        # The parameter bound is closed; Julia refuses the substitution itself.
+        @test_throws TypeError DiagnosticError{Int}(1)
 
         # The did-you-mean list is carried, not ranked (`pending.md`): the
         # candidates the site had in hand are printed, and no edit distance orders

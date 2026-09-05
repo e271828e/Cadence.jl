@@ -181,6 +181,7 @@ function failures_runtime()
         init!(dv, fragment(inputs = (in = true,)))
         en = failure(() -> step!(dv))
         @test en isa StepError && en.cause isa NonfiniteState
+        @test !(en.cause isa DiagnosticError)   # the species rule unwrapped the carrier
         @test en.cause.path == "div" && en.cause.leaf == "q" && isnan(en.cause.value)
         @test en.t == 0.1 && en.cause.t == 0.1 && en.cause.boundary == 0
     end
@@ -289,7 +290,7 @@ function failures_pointer_twin()
         bad = trc.frames + 1
         sim3 = grid()
         init!(sim3, fragment(inputs = (ref = 0.0,)))
-        d = only(failure(() -> replay!(sim3, trc; to_boundary = bad)).diagnostics)
+        d = diagnostic(failure(() -> replay!(sim3, trc; to_boundary = bad)))
         @test d isa ArgumentInvalid && d.call === :replay! && d.reason === :range
         @test d.argument === :to_boundary && d.value == bad
         @test lifecycle(sim3) === :initialized           # a rejected replay wrote nothing

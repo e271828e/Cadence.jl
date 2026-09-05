@@ -130,7 +130,7 @@ inspection of a terminally stopped simulation is legitimate (§13.6).
 """
 assert_stopped(ctl::Control, op::Symbol) =
     (@atomic ctl.lifecycle) === :running ?
-    throw(BuildError(ServiceLifecycle(op = op, status = :running))) : nothing
+    throw(DiagnosticError(ServiceLifecycle(op = op, status = :running))) : nothing
 
 """
 The handle (§11.6): the one object every attached device receives, carrying
@@ -266,7 +266,7 @@ side the call is a contract misuse, and throws by name.
 """
 function gather(h::DeviceHandle, s::Snapshot)
     _beat!(h.diag)
-    h.gatherer === nothing && throw(BuildError(
+    h.gatherer === nothing && throw(DiagnosticError(
         DeviceContractMismatch(device = h.who, reason = :no_output_side)))
     _gather(h.gatherer, s)
 end

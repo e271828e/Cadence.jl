@@ -297,8 +297,8 @@ function test_devices()
     @testset "a device with no loop method is refused at attach!, by kind (§11.6)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         err = failure(() -> attach!(sim, Loopless(), Enumerated()))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa DeviceContractMismatch &&
+        diag = diagnostic(err)
+        @test err isa DiagnosticError && diag isa DeviceContractMismatch &&
               diag.reason === :no_loop && diag.device == "Loopless"
         @test isempty(sim.plane.roster)               # the rejection consumed no id
         # a `loop` declared on `DeviceHandle` itself is the method the wrapper calls
@@ -310,18 +310,18 @@ function test_devices()
         h = attach!(sim, Pad("p"), Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         err = failure(() -> gather(h, latest(sim)))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa DeviceContractMismatch &&
+        diag = diagnostic(err)
+        @test err isa DiagnosticError && diag isa DeviceContractMismatch &&
               diag.reason === :no_output_side && diag.device == "device 1 (Pad)"
     end
 
     @testset "join_timeout is validated and never trajectory-determining (§12.4, D-198)" begin
         err = failure(() -> Simulation(two_root_inputs(); h = 1//10, join_timeout = 0))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa DeploymentInvalid && diag.parameter === :join_timeout
+        diag = only(diagnostics(err))
+        @test err isa DiagnosticError && diag isa DeploymentInvalid && diag.parameter === :join_timeout
         err = failure(() -> Simulation(two_root_inputs(); h = 1//10, join_timeout = "5"))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa DeploymentInvalid && diag.parameter === :join_timeout
+        diag = only(diagnostics(err))
+        @test err isa DiagnosticError && diag isa DeploymentInvalid && diag.parameter === :join_timeout
         trajectories = map((5.0, 0.01)) do cap
             sim = Simulation(two_root_inputs(); h = 1//10, join_timeout = cap)
             attach!(sim, Pad("p"), Enumerated("a"))

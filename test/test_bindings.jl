@@ -67,24 +67,24 @@ end
 function test_bindings()
     @testset "TableBinding construction validates the table's shape (§11.6)" begin
         err = failure(() -> TableBinding(stick = (deadzone = 0.1,)))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa ArgumentInvalid &&
+        diag = only(diagnostics(err))
+        @test err isa DiagnosticError && diag isa ArgumentInvalid &&
               diag.call === :TableBinding && diag.reason === :no_face && diag.entry === :stick
         err = failure(() -> TableBinding(stick = "elevator"))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa ArgumentInvalid &&
+        diag = only(diagnostics(err))
+        @test err isa DiagnosticError && diag isa ArgumentInvalid &&
               diag.reason === :entry_shape && diag.entry === :stick
         err = failure(() -> TableBinding(stick = (face = "a", deadzon = 0.1)))
-        diag = only(err.diagnostics)     # the typo, by name
-        @test err isa BuildError && diag isa ArgumentInvalid &&
+        diag = only(diagnostics(err))     # the typo, by name
+        @test err isa DiagnosticError && diag isa ArgumentInvalid &&
               diag.reason === :vocabulary && diag.entry === :stick && diag.argument === :deadzon
         err = failure(() -> TableBinding(stick = (face = "a", deadzone = 1.0)))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa ArgumentInvalid &&
+        diag = only(diagnostics(err))
+        @test err isa DiagnosticError && diag isa ArgumentInvalid &&
               diag.reason === :deadzone && diag.entry === :stick && diag.value == 1.0
         err = failure(() -> TableBinding(stick = (face = "a", expo = 1.5)))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa ArgumentInvalid &&
+        diag = only(diagnostics(err))
+        @test err isa DiagnosticError && diag isa ArgumentInvalid &&
               diag.reason === :expo && diag.entry === :stick && diag.value == 1.5
     end
 
@@ -177,19 +177,19 @@ function test_bindings()
     @testset "the output side completes the conformance check, both directions (§11.6)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         err = failure(() -> attach!(sim, Pad("p"), NoReads()))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa BindingContractMismatch && diag.reason === :reads_missing
+        diag = diagnostic(err)
+        @test err isa DiagnosticError && diag isa BindingContractMismatch && diag.reason === :reads_missing
         err = failure(() -> attach!(sim, Pad("p"), ReadsUndeclared()))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa BindingContractMismatch &&
+        diag = diagnostic(err)
+        @test err isa DiagnosticError && diag isa BindingContractMismatch &&
               diag.reason === :reads_without_output
         err = failure(() -> attach!(sim, Pad("p"), BadReadsShape()))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa BindingContractMismatch &&
+        diag = diagnostic(err)
+        @test err isa DiagnosticError && diag isa BindingContractMismatch &&
               diag.reason === :reads_not_namedtuple
         err = failure(() -> attach!(sim, Pad("p"), BadReadsEntry()))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa BindingContractMismatch &&
+        diag = diagnostic(err)
+        @test err isa DiagnosticError && diag isa BindingContractMismatch &&
               diag.reason === :reads_not_selectors
         @test isempty(sim.plane.roster)              # every rejection left the roster untouched
     end
@@ -197,19 +197,19 @@ function test_bindings()
     @testset "reads resolve at attach: binding drift fails there, never on the wire (§11.2, §14.4)" begin
         sim = Simulation(outfaced(); h = 1//10)
         err = failure(() -> attach!(sim, Pad("t"), Readout(alt = get_output("q", "y"))))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa ReadBindingUnresolved && diag.reason === :unknown_cell &&
+        diag = diagnostic(err)
+        @test err isa DiagnosticError && diag isa ReadBindingUnresolved && diag.reason === :unknown_cell &&
               diag.selector == "get_output(\"q\", :y)"
         err = failure(() -> attach!(sim, Pad("t"), Readout(v = get_input("nope"))))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa ReadBindingUnresolved &&
+        diag = diagnostic(err)
+        @test err isa DiagnosticError && diag isa ReadBindingUnresolved &&
               diag.reason === :unknown_root_input && diag.candidates == [:u]  # the root-input list, in hand
         err = failure(() -> attach!(sim, Pad("t"), Readout(v = get_face("u"))))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa ReadBindingUnresolved && diag.reason === :root_input_not_output
+        diag = diagnostic(err)
+        @test err isa DiagnosticError && diag isa ReadBindingUnresolved && diag.reason === :root_input_not_output
         err = failure(() -> attach!(sim, Pad("t"), Readout(v = get_face("nope"))))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa ReadBindingUnresolved && diag.reason === :unknown_output_face
+        diag = diagnostic(err)
+        @test err isa DiagnosticError && diag isa ReadBindingUnresolved && diag.reason === :unknown_output_face
         # A rejected attach consumed no id, and the good one lands as device 1.
         h = attach!(sim, Pad("t"), Readout(alt = get_face("y")))
         @test sim.plane.roster[1].id == 1
@@ -245,8 +245,8 @@ function test_bindings()
         h = attach!(sim, Pad("p"), Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         err = failure(() -> gather(h, latest(sim)))
-        diag = only(err.diagnostics)
-        @test err isa BuildError && diag isa DeviceContractMismatch &&
+        diag = diagnostic(err)
+        @test err isa DiagnosticError && diag isa DeviceContractMismatch &&
               diag.reason === :no_output_side
     end
 

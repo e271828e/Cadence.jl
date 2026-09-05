@@ -230,7 +230,7 @@ end
 
 function _report_trim!(viol::Vector{Diagnostic})
     isempty(viol) && return nothing
-    throw(BuildError(viol))
+    throw(DiagnosticError(viol))
 end
 
 _tviol(field::Symbol, reason::Symbol; kw...) =
@@ -383,8 +383,8 @@ operating point an equilibrium?" probe, useful in its own right and free.
 function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
                t0::Real = 0.0, backend = LevenbergMarquardt())
     lc = lifecycle(sim)
-    lc === :running && throw(BuildError(ServiceLifecycle(op = :trim!, status = :running)))
-    lc === :errored && throw(BuildError(ServiceLifecycle(op = :trim!, status = :errored)))
+    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :running)))
+    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :errored)))
 
     b = sim.build
     viol = Diagnostic[]
@@ -484,10 +484,10 @@ end
 # through boundary zero on the simulation's own stores, and those are the
 # nominal world's. The seeded activation trim needs is the service's scratch,
 # never the deployment's.
-trim!(sim::Simulation, ::TrimProblem; kw...) = throw(BuildError(
+trim!(sim::Simulation, ::TrimProblem; kw...) = throw(DiagnosticError(
     ArgumentInvalid(call = :trim!, reason = :non_nominal, value = string(typeof(sim)))))
 
-trim!(::Simulation, other; kw...) = throw(BuildError(
+trim!(::Simulation, other; kw...) = throw(DiagnosticError(
     ArgumentInvalid(call = :trim!, argument = :problem, reason = :not_a_problem,
                     value = string(typeof(other)))))
 

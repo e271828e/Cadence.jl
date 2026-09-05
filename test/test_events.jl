@@ -70,37 +70,37 @@ state_projection(::BadProjectShape, x) = (v = x.q,)
 
 function test_events()
     @testset "the declaration layer and probe reject malformed events (§8.2, §9.3)" begin
-        d = only(failure(() -> build(single(HalfEvent()))).diagnostics)
+        d = only(diagnostics(failure(() -> build(single(HalfEvent())))))
         @test d isa EventHalfMissing && d.event === :go && d.reason === :handler
-        d = only(failure(() -> build(single(NotAnEvent()))).diagnostics)
+        d = only(diagnostics(failure(() -> build(single(NotAnEvent())))))
         @test d isa EventHalfMissing && d.event === :go && d.reason === :not_an_event &&
               d.found === Int
 
         err = failure(() -> build(single(BadGuardForm())))
-        @test err isa BuildError
-        d = only(err.diagnostics)
+        @test err isa DiagnosticError
+        d = diagnostic(err)
         @test d isa GuardForm && d.event === :go && d.observed === String
 
         err = failure(() -> build(single(BadHandlerKey())))
-        d = only(err.diagnostics)
+        d = only(diagnostics(err))
         @test d isa HandlerReturnKey && d.key === :x && d.stores == [:m]
 
-        d = only(failure(() -> build(single(PartialX()))).diagnostics)
+        d = only(diagnostics(failure(() -> build(single(PartialX())))))
         @test d isa ConformanceFailure && d.reason === :field_set && d.shape === :state &&
               d.observed_fields == [:a] && d.declared_fields == [:a, :b]
 
         # `state_events` is continuous-only, beside `init_m` in the tier-agreement check.
         err = failure(() -> classify_tier("c", EventsOnDiscrete()))
-        @test err isa BuildError
-        @test :state_events in [d.declaration for d in err.diagnostics]
-        @test all(d -> d isa DeclarationOnWrongTier, err.diagnostics)
+        @test err isa DiagnosticError
+        @test :state_events in [d.declaration for d in diagnostics(err)]
+        @test all(d -> d isa DeclarationOnWrongTier, diagnostics(err))
 
-        d = only(failure(() -> build(single(ProjectOnDiscrete()))).diagnostics)
+        d = only(diagnostics(failure(() -> build(single(ProjectOnDiscrete())))))
         @test d isa DeclarationOnWrongTier && d.declaration === :state_projection &&
               d.reason === :continuous_only
-        d = only(failure(() -> build(single(ProjectNoState()))).diagnostics)
+        d = only(diagnostics(failure(() -> build(single(ProjectNoState())))))
         @test d isa DeclarationOnWrongTier && d.reason === :no_manifold
-        d = only(failure(() -> build(single(BadProjectShape()))).diagnostics)
+        d = only(diagnostics(failure(() -> build(single(BadProjectShape())))))
         @test d isa ConformanceFailure && d.what == "state_projection" && d.reason === :field_set &&
               d.observed_fields == [:v] && d.declared_fields == [:q]
     end
@@ -240,7 +240,7 @@ function test_events()
         run!(sim2; t_end = 0.1)
         fb2 = only(writer_status(latest(sim2), "loop").recent)
         @test fb2 isa FiringBudget && fb2.budget == 2 && fb2.count == 2
-        d = only(failure(() -> Simulation(chatty(); h = 1//10, firing_budget = 0)).diagnostics)
+        d = only(diagnostics(failure(() -> Simulation(chatty(); h = 1//10, firing_budget = 0))))
         @test d isa DeploymentInvalid && d.parameter === :firing_budget
     end
 

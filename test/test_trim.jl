@@ -166,7 +166,7 @@ function test_trim()
         @test report.committed_residuals === nothing     # the absence of a commit, not a flag
         @test abs(report.residuals.torque) > report.tolerances.torque
         @test lifecycle(fresh) === :built
-        @test failure(() -> run!(fresh; t_end = 0.1)) isa BuildError
+        @test failure(() -> run!(fresh; t_end = 0.1)) isa DiagnosticError
 
         # On an initialized one: every buffer equals its pre-call copy.
         live = Simulation(fed(Pendulum(), :u); h = 1//10)
@@ -238,13 +238,13 @@ function test_trim()
             condition = decide_u, reads = reads(ω̇ = get_deriv("c", :ω),
                                                 nope = get_state("nope", :q)),
             residuals = torque_only, tolerances = (torque = 1e-9,)); baseline = pend_base()))
-        @test e isa BuildError && length(e.diagnostics) == 3
-        ks = only(d for d in e.diagnostics if d isa TrimProblemInvalid && d.reason === :key_set)
+        @test e isa DiagnosticError && length(diagnostics(e)) == 3
+        ks = only(d for d in diagnostics(e) if d isa TrimProblemInvalid && d.reason === :key_set)
         @test ks.field === :lower && ks.names == [:v] && ks.expected == [:u]
-        ft = only(d for d in e.diagnostics if d.reason === :field_types)
+        ft = only(d for d in diagnostics(e) if d.reason === :field_types)
         @test ft.field === :guess && ft.bad == Pair{Symbol,Any}[:u => Int64]
         # The read set keeps its own kind, spliced in beside the problem's fields.
-        tap = only(d for d in e.diagnostics if d isa TapResolution)
+        tap = only(d for d in diagnostics(e) if d isa TapResolution)
         @test tap.label === :nope && tap.selector == "get_state(\"nope\", :q)" &&
               tap.reason === :unknown_path
         @test world(sim) == before
@@ -256,8 +256,8 @@ function test_trim()
             condition = decide_u, reads = torque_reads(),
             residuals = (r, d) -> (wrong = r.ω̇, extra = 1), tolerances = (torque = 1e-9,));
             baseline = pend_base()))
-        d2 = only(e2.diagnostics)
-        @test e2 isa BuildError && d2 isa TrimProblemInvalid && d2.field === :residuals
+        d2 = only(diagnostics(e2))
+        @test e2 isa DiagnosticError && d2 isa TrimProblemInvalid && d2.field === :residuals
         @test d2.reason === :key_set && d2.names == [:wrong, :extra] && d2.expected == [:torque]
         @test world(sim) == before
 
@@ -266,10 +266,10 @@ function test_trim()
             guess = (u = 0.0,), lower = (u = -Inf,), upper = (u = Inf,),
             condition = decide_u, reads = (ω̇ = get_deriv("c", :ω),),
             residuals = torque_only, tolerances = (torque = 1,)); baseline = pend_base()))
-        @test all(d -> d isa TrimProblemInvalid, e3.diagnostics)
-        tol = only(d for d in e3.diagnostics if d.field === :tolerances)
+        @test all(d -> d isa TrimProblemInvalid, diagnostics(e3))
+        tol = only(d for d in diagnostics(e3) if d.field === :tolerances)
         @test tol.reason === :field_types && tol.bad == Pair{Symbol,Any}[:torque => Int64]
-        rd = only(d for d in e3.diagnostics if d.field === :reads)
+        rd = only(d for d in diagnostics(e3) if d.field === :reads)
         @test rd.reason === :not_a_read_set && rd.observed === NamedTuple{(:ω̇,),Tuple{GetDeriv}}
         @test world(sim) == before
 
@@ -281,8 +281,8 @@ function test_trim()
             upper = (θ = π/2, u = -1.0), condition = decide_both, reads = both_reads(),
             residuals = both_residuals, tolerances = (torque = 1e-9, hold = 1e-9));
             baseline = pend_base()))
-        d4 = only(e4.diagnostics)
-        @test e4 isa BuildError && d4 isa TrimProblemInvalid && d4.reason === :inverted_box
+        d4 = only(diagnostics(e4))
+        @test e4 isa DiagnosticError && d4 isa TrimProblemInvalid && d4.reason === :inverted_box
         @test d4.field === :lower && d4.key === :u && d4.value === 1.0 && d4.bound === -1.0
         @test world(sim) == before
 
@@ -295,10 +295,10 @@ function test_trim()
             upper = (θ = π/2, u = Inf), condition = decide_both, reads = both_reads(),
             residuals = both_residuals, tolerances = (torque = 0.0, hold = -1e-9));
             baseline = pend_base()))
-        @test e5 isa BuildError && length(e5.diagnostics) == 2
+        @test e5 isa DiagnosticError && length(diagnostics(e5)) == 2
         @test all(d -> d isa TrimProblemInvalid && d.field === :tolerances &&
-                       d.reason === :nonpositive_tolerance, e5.diagnostics)
-        @test [(d.key, d.value) for d in e5.diagnostics] == [(:torque, 0.0), (:hold, -1.0e-9)]
+                       d.reason === :nonpositive_tolerance, diagnostics(e5))
+        @test [(d.key, d.value) for d in diagnostics(e5)] == [(:torque, 0.0), (:hold, -1.0e-9)]
         @test world(sim) == before
     end
 
@@ -343,8 +343,8 @@ function test_trim()
             guess = (u = 0.0,), lower = (u = -Inf,), upper = (u = Inf,),
             condition = decide_u, reads = torque_reads(),
             residuals = eltype_split, tolerances = (torque = 1e-9,)); baseline = pend_base()))
-        d = only(e.diagnostics)
-        @test e isa BuildError && d isa TrimProblemInvalid && d.field === :residuals
+        d = only(diagnostics(e))
+        @test e isa DiagnosticError && d isa TrimProblemInvalid && d.field === :residuals
         @test d.reason === :key_set && d.names == [:wrong] && d.expected == [:torque]
         @test world(sim) == before && lifecycle(sim) === :built
     end
@@ -360,8 +360,8 @@ function test_trim()
             condition = d -> at("c", fragment(x = (θ = d.θ, ω = 0.0))),
             reads = torque_reads(), residuals = torque_only, tolerances = (torque = 1e-9,));
             baseline = fragment()))
-        d = only(e.diagnostics)
-        @test e isa BuildError && d isa UninitializedInputs
+        d = diagnostic(e)
+        @test e isa DiagnosticError && d isa UninitializedInputs
         @test d.faces == [:in] && d.op === :trim!
         @test world(sim) == before && lifecycle(sim) === :built
     end
@@ -398,8 +398,8 @@ function test_trim()
                                      at("ctl", fragment(s = (acc = d.acc,)))),
             reads = torque_reads(), residuals = torque_only, tolerances = (torque = 1e-9,));
             baseline = fragment(inputs = (in = 0.0,))))
-        d = only(e.diagnostics)
-        @test e isa BuildError && d isa ConditionResolution && d.reason === :unconvertible
+        d = only(diagnostics(e))
+        @test e isa DiagnosticError && d isa ConditionResolution && d.reason === :unconvertible
         @test d.path == "ctl" && d.store === :s && d.field === :acc
         @test d.activation <: ForwardDiff.Dual    # the seeded activation's own refusal
         @test lifecycle(refused) === :built               # nothing was written to the sim
@@ -506,15 +506,15 @@ function test_trim()
         # deployment's.
         dual = Simulation(fed(Pendulum(), :u), D8; h = 1//10)
         e = failure(() -> trim!(dual, u_problem(); baseline = pend_base()))
-        d = only(e.diagnostics)
-        @test e isa BuildError && d isa ArgumentInvalid && d.call === :trim! &&
+        d = diagnostic(e)
+        @test e isa DiagnosticError && d isa ArgumentInvalid && d.call === :trim! &&
               d.reason === :non_nominal && occursin("Dual", d.value)
 
         # And a value that is not a problem is a directive, not a `MethodError`.
         plain = Simulation(fed(Pendulum(), :u); h = 1//10)
         e2 = failure(() -> trim!(plain, (guess = (u = 0.0,),); baseline = pend_base()))
-        d2 = only(e2.diagnostics)
-        @test e2 isa BuildError && d2 isa ArgumentInvalid && d2.call === :trim! &&
+        d2 = diagnostic(e2)
+        @test e2 isa DiagnosticError && d2 isa ArgumentInvalid && d2.call === :trim! &&
               d2.reason === :not_a_problem && d2.argument === :problem &&
               occursin("NamedTuple", d2.value)
 
@@ -529,8 +529,8 @@ function test_trim()
         err = failure(() -> trim!(live, u_problem(); baseline = pend_base()))
         stage!(live, "in" => 1.0)
         wait(task)
-        d3 = only(err.diagnostics)
-        @test err isa BuildError && d3 isa ServiceLifecycle && d3.op === :trim!
+        d3 = diagnostic(err)
+        @test err isa DiagnosticError && d3 isa ServiceLifecycle && d3.op === :trim!
         @test d3.status === :running
     end
 end

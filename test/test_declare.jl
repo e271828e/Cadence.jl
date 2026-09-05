@@ -16,13 +16,13 @@ function test_declare()
         @test period(Hz(50)) === 1//50
         @test period(Period(1//50)) === 1//50
         @test period(Hz(1//2)) === 2//1
-        d1 = only(failure(() -> Period(0.02)).diagnostics)
+        d1 = diagnostic(failure(() -> Period(0.02)))
         @test d1 isa ArgumentInvalid && d1.call === :Period && d1.reason === :inexact
-        d2 = only(failure(() -> Hz(0.5)).diagnostics)
+        d2 = diagnostic(failure(() -> Hz(0.5)))
         @test d2 isa ArgumentInvalid && d2.call === :Hz && d2.reason === :inexact
-        d3 = only(failure(() -> Absolute(Hz(50), 0.001)).diagnostics)
+        d3 = diagnostic(failure(() -> Absolute(Hz(50), 0.001)))
         @test d3 isa ArgumentInvalid && d3.call === :Absolute && d3.reason === :inexact
-        d4 = only(failure(() -> Absolute(1//50)).diagnostics)
+        d4 = diagnostic(failure(() -> Absolute(1//50)))
         @test d4 isa ArgumentInvalid && d4.call === :Absolute && d4.reason === :not_a_quantity
 
         # Plain data carriers: no range checks of their own — those are Stratum A's,

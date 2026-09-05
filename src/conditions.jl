@@ -59,7 +59,7 @@ NamedTuples in the authoring level's own vocabulary; a condition speaks state
 """
 function fragment(; x = (;), s = (;), m = (;), inputs = (;))
     for (name, p) in ((:x, x), (:s, s), (:m, m), (:inputs, inputs))
-        p isa NamedTuple || throw(BuildError(ConditionNodeMisuse(
+        p isa NamedTuple || throw(DiagnosticError(ConditionNodeMisuse(
             observed = typeof(p), reason = :fragment_payload, payload = name)))
     end
     Fragment(x, s, m, inputs)
@@ -113,7 +113,7 @@ override(layers...) = _misuse_in(layers)
 _misuse_in(args::Tuple) = _node_misuse(args[findfirst(n -> !(n isa ConditionNode), args)],
                                        Tuple(nameof(typeof(n)) for n in args if n isa ConditionNode))
 
-_node_misuse(v, in_hand) = throw(BuildError(ConditionNodeMisuse(
+_node_misuse(v, in_hand) = throw(DiagnosticError(ConditionNodeMisuse(
     observed = typeof(v), in_hand = Symbol[in_hand...])))
 
 # --- flattening (§14.3) --------------------------------------------------------
@@ -243,7 +243,7 @@ end
     resolve_condition(node, b::Build, T = Float64) → ConditionPlan
 
 Flatten the condition tree, validate every entry against `b` in §13.1's
-collecting register — full list, violations collected, one `BuildError` — and
+collecting register — full list, violations collected, one `DiagnosticError` — and
 compile what survives to a plan.
 
 The checks are §14.3's: the path resolves to a component, the field is
@@ -472,7 +472,7 @@ _seeded_into_pinned(::Type{V}, ::Type{P}, ::Type{T}) where {V,P,T} =
 # §13.1's collecting register: the full list, every violation, one throw.
 function _report_violations(viol::Vector{Diagnostic})
     isempty(viol) && return nothing
-    throw(BuildError(viol))
+    throw(DiagnosticError(viol))
 end
 
 # --- root-input totality (§14.6) ------------------------------------------------
@@ -494,7 +494,7 @@ function assert_total(plan::ConditionPlan, flat::Flat, op::Symbol)
     covered = Set(plan.faces)
     uncovered = [f for f in flat.root_inputs if !(f in covered)]
     isempty(uncovered) && return nothing
-    throw(BuildError(UninitializedInputs(op = op, faces = uncovered)))
+    throw(DiagnosticError(UninitializedInputs(op = op, faces = uncovered)))
 end
 
 # --- the dynamic-walk application register (§14.4) ------------------------------
@@ -773,10 +773,10 @@ end
     nothing
 end
 
-@noinline _shape_drift(::Type{NT}, ::Type{O}) where {NT,O} = throw(BuildError(
+@noinline _shape_drift(::Type{NT}, ::Type{O}) where {NT,O} = throw(DiagnosticError(
     ConditionShapeDrift(reason = :tree_type, compiled = NT, observed = O)))
 
-@noinline _prefix_drift(P::Tuple, expected::String, observed::String) = throw(BuildError(
+@noinline _prefix_drift(P::Tuple, expected::String, observed::String) = throw(DiagnosticError(
     ConditionShapeDrift(reason = :prefix, compiled = expected, observed = observed,
                         position = P)))
 
@@ -812,7 +812,7 @@ these values* rather than a resumption.
 """
 function capture(sim::Simulation{T}) where {T}
     lc = lifecycle(sim)
-    lc in (:initialized, :stopped) || throw(BuildError(ServiceLifecycle(
+    lc in (:initialized, :stopped) || throw(DiagnosticError(ServiceLifecycle(
         op = :capture, status = lc, legal = [:initialized, :stopped])))
     ex, flat, tiers = sim.exec, sim.build.flat, sim.build.tiers
     act = activation(sim.build, T)

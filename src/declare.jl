@@ -126,12 +126,12 @@ struct Period
     T::Rational{Int}
     Period(T::Union{Integer,Rational{<:Integer}}) = new(Rational{Int}(T))
     Period(T::AbstractFloat) =
-        throw(BuildError(ArgumentInvalid(call = :Period, reason = :inexact, value = T)))
+        throw(DiagnosticError(ArgumentInvalid(call = :Period, reason = :inexact, value = T)))
 end
 
 Hz(f::Union{Integer,Rational{<:Integer}}) = Period(1 // f)
 Hz(f::AbstractFloat) =
-    throw(BuildError(ArgumentInvalid(call = :Hz, reason = :inexact, value = f)))
+    throw(DiagnosticError(ArgumentInvalid(call = :Hz, reason = :inexact, value = f)))
 
 period(q::Period) = q.T
 
@@ -156,9 +156,9 @@ struct Absolute
     τ::Rational{Int}
     Absolute(q::Period, τ::Union{Integer,Rational{<:Integer}} = 0) = new(q.T, Rational{Int}(τ))
     Absolute(::Period, τ::AbstractFloat) =
-        throw(BuildError(ArgumentInvalid(call = :Absolute, reason = :inexact, value = τ)))
+        throw(DiagnosticError(ArgumentInvalid(call = :Absolute, reason = :inexact, value = τ)))
     Absolute(q::Real, τ...) =
-        throw(BuildError(ArgumentInvalid(call = :Absolute, reason = :not_a_quantity, value = q)))
+        throw(DiagnosticError(ArgumentInvalid(call = :Absolute, reason = :not_a_quantity, value = q)))
 end
 
 """
