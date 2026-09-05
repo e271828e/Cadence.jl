@@ -245,6 +245,8 @@ were derived.
 | [D-218][d-218] | Make the replay/live distinction an explicit input mode | ratified |
 | [D-219][d-219] | Add a time-addressed replay halt and a manual door to live | ratified |
 | [D-220][d-220] | Rename the authoring family to words: stage, update, projection, event and workspace declarations | ratified |
+| [D-221][d-221] | Unwrap a single-diagnostic carrier at the runtime catch site into a `StepError` species | ratified |
+| [D-222][d-222] | Replace `BuildError` with the policy-parametric `DiagnosticError` carrier | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -7857,6 +7859,84 @@ bundle fields a guard reads.
 - *Per-tier output-stage words (a second pair over `s`):* re-creates the split
   this entry retires, to state a tier the rest of the family already states.
 
+### D-221 — Unwrap a single-diagnostic carrier at the runtime catch site into a `StepError` species
+
+**Status.** ratified
+
+**Position.** A fail-fast throw inside the boundary macro-sequence travels as
+the ordinary carrier holding one diagnostic. The catch site unwraps it, and the
+`StepError` it constructs carries that diagnostic as `cause`. A species of
+`StepError` is one whose `cause` is a diagnostic.
+
+- The catch site is the only `StepError` constructor; one arriving there is an
+  invariant failure, not a re-wrap.
+- A collected carrier has no single kind, so it rides as `cause` unchanged; no
+  runtime check throws one.
+- Deferred, registered in the pending list: parametrizing `StepError` on its
+  cause's type, so a species is assertable as `StepError{Kind}`.
+
+**Spec.** [§9.5][s9-5], [§13.2][s13-2], [§13.4][s13-4], [Appendix C][sC], [Appendix D][sD]
+
+**Rationale.** [§13.4][s13-4] said a conformance failure "is thrown as its typed
+diagnostic" and "is a species of `StepError`" without saying how the catch site
+recognizes one. The prototype's spelling is ratified as the rule. A diagnostic
+is a plain value and cannot be thrown on its own, so a runtime check throws the
+one carrier every fail-fast site throws. The catch site already knows it is the
+frame's catch, so the carrier need not encode the throw site. Unwrapping there
+puts the payload one field away, which is what "carrying the field-diff
+payload" promises a test. The same throw spelling serves the conformance check
+at the probe and at the table-write point.
+
+**Rejected.**
+- *Throw the diagnostic bare:* Julia permits throwing any value, but
+  `Diagnostic` is not an `Exception`, and making it one turns every kind into an
+  exception type, which [D-058][d-058] rejects.
+- *A runtime-only carrier:* encodes into a type what the catch site knows from
+  where it is; a third carrier against the glossary's two; one that escaped the
+  frame loop would render as nothing meaningful, where the ordinary carrier
+  renders fully.
+- *Leave the carrier as `cause`:* the payload sits two levels down, the render
+  reaches through both, and the species predicate becomes "a carrier with one
+  entry".
+
+### D-222 — Replace `BuildError` with the policy-parametric `DiagnosticError` carrier
+
+**Status.** ratified
+
+**Position.** The one carrier is `DiagnosticError{P}`, `P` bounded to
+`Union{Diagnostic, Vector{Diagnostic}}`: the diagnostic's kind for a fail-fast
+throw, `Vector{Diagnostic}` for a collected one. The field is `carried`;
+`diagnostic(e)` and `diagnostics(e)` are each defined on one parameter. No
+aliases and no deprecation shims, on [D-220][d-220]'s ground.
+
+- Rendering, the `kinds` helper and the catch site's unwrap dispatch on the
+  parameter; no branch reads a count.
+- The rename sweeps the spec, its companions, the code and the tests; the log
+  keeps its vocabulary.
+
+**Spec.** [§13.2][s13-2], [§13.4][s13-4], [§14.1][s14-1], [§14.8][s14-8], [Appendix C][sC], [Appendix D][sD]
+
+**Rationale.** The name claimed a tier while the job spanned three sites: the
+stratum barrier, a stopped-sim service's refusal, and a runtime check inside
+the frame. Two of the three are not build failures. The carrier also erased the
+reporting policy at the throw, so two functions re-derived it from cardinality:
+the catch site's unwrap and the carrier's `showerror`. [D-214][d-214] made policy a
+property of the occurrence, and the exception is the occurrence, so the type
+carries it. Putting the kind in the parameter gives tests `@test_throws
+DiagnosticError{Kind}`, a spelling of [§13.2][s13-2]'s kind-not-message doctrine in the
+type system, and keeps `isa DiagnosticError` as the catch-all for both
+policies.
+
+**Rejected.**
+- *Rename only, keeping the vector:* the cardinality branches stay.
+- *Two structs by policy, `DiagnosticError` for one diagnostic and `BuildError`
+  for the batch:* loses the catch-all and the kind in the type; "build" still
+  names the attach and replay collections.
+- *An abstract supertype with `FailFast{D}` and `Collected` subtypes:* the same
+  benefits at the price of three names, two of them policy words standing as
+  exception types.
+- *A singular and plural pair:* a reader trap.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -8078,6 +8158,8 @@ bundle fields a guard reads.
 [d-218]: #d-218--make-the-replaylive-distinction-an-explicit-input-mode
 [d-219]: #d-219--add-a-time-addressed-replay-halt-and-a-manual-door-to-live
 [d-220]: #d-220--rename-the-authoring-family-to-words-stage-update-projection-event-and-workspace-declarations
+[d-221]: #d-221--unwrap-a-single-diagnostic-carrier-at-the-runtime-catch-site-into-a-steperror-species
+[d-222]: #d-222--replace-builderror-with-the-policy-parametric-diagnosticerror-carrier
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

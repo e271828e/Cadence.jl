@@ -229,26 +229,18 @@ of them chosen; the merge entry has the probe.
 
 Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
-retires or the code conforms. Two readings run ahead of the spec's letter, and
-a sequel to the first rides with them:
+retires or the code conforms. One reading runs ahead of the spec's letter, and
+a sequel to D-221 rides with it:
 
-- **The species rule is the implementation's spelling.** §13.4 says a
-  conformance failure "is thrown as its typed diagnostic at the table-write
-  point, and it arrives at the same catch site. There it is a species of
-  `StepError`", without saying how the catch site recognizes one. Here a
-  `BuildError` carrying exactly one diagnostic, thrown inside the sequence,
-  arrives unwrapped as that diagnostic — which keeps the catch site the only
-  `StepError` constructor while letting a runtime check throw its own kind. A
-  multi-diagnostic carrier stays raw, having no single species.
 - **Boundary zero sits outside the catch.** `init!` and `replay!` run it as
   stopped-sim services and propagate raw. The spec calls boundary zero "the
   ordinary macro-sequence with an empty integrate" and a legal replay halt, so
   a reading that wraps it too is available. The conservative choice here is
   that a service's own refusal path is not a frame, there being no frame-entry
   pointer for a frame that has not begun.
-- **`StepError`'s cause in its type.** The carrier ruling puts the kind in the
-  type parameter, so `@test_throws DiagnosticError{Kind}` asserts policy and
-  kind at once. §13.4's `StepError` keeps `cause::Any`, so a species is
+- **`StepError`'s cause in its type.** The carrier ruling (D-222) puts the
+  kind in the type parameter, so `@test_throws DiagnosticError{Kind}` asserts
+  policy and kind at once. §13.4's `StepError` keeps `cause::Any`, so a species is
   recognizable only by reading the field. The same parametrization,
   `StepError{C}` with `C` the cause's type and `Any`-typed raw causes still
   legal, is the natural sequel. Deferred so the carrier change lands alone;

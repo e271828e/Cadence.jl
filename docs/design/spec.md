@@ -3461,7 +3461,7 @@ absent: the source branch (values carry no provenance; the diff identifies
 it). The always-on input [trace](#g-trace) makes every such failure **reproducible by
 [replay](#g-replay)** — the error names the [boundary](#g-boundary) to replay to
 (`to_boundary`, [§12.7][s12-7]). At run time the failure
-travels as a species of `StepError` through the single catch site ([§13.4][s13-4]),
+travels as a [species](#g-species) of `StepError` through the single catch site ([§13.4][s13-4]),
 which adds the loop-level nonfinite-state check as its divergence sibling.
 
 ### 9.6 Stopped-sim services as Stratum-C clients
@@ -7009,24 +7009,31 @@ column of [Appendix C][sC] derived from it. Where an
 occurrence surfaces (build, service or runtime) and how it is reported
 (collected, fail-fast, logged or rate-limited) are the *raised* and *policy*
 columns of [Appendix C][sC]. Those describe the occurrence, not the kind:
-`BundleFieldError` is raised at the probe and as a `StepError` species
-thereafter.
+`BundleFieldError` is raised at the probe and as a `StepError`
+[species](#g-species) thereafter.
 
 Checking passes return diagnostics; the [stratum](#g-stratum) barrier (a stratum
 is one of the build's three phases: structure, schedule, activation) throws a
-single `BuildError` wrapping the collection. `showerror` renders that
-`BuildError` compiler-style, grouped by kind and sorted by path.
+single `DiagnosticError` wrapping the collection. A fail-fast site throws the
+same carrier holding one diagnostic. **The carrier's type parameter spells the
+policy.** It is the diagnostic's kind for a fail-fast throw and
+`Vector{Diagnostic}` for a collected one, so a test asserts policy and kind at
+once with `@test_throws DiagnosticError{Kind}` ([D-222][d-222]). `showerror`
+renders a collection compiler-style, grouped by kind and sorted by path, and a
+single diagnostic as its own line.
 
 ```julia
 # a diagnostic value: its kind is its identity, its payload is plain data
-struct WireTypeMismatch      # one kind of the closed Appendix C set
-    …                        # payload fields per Appendix C: paths and names
-                             # as Strings, expected/observed port types as types
+abstract type Diagnostic end
+struct WireTypeMismatch <: Diagnostic   # one kind of the closed Appendix C set
+    …                                   # payload fields per Appendix C: paths and
+                                        # names as Strings, port types as types
 end
 
-# the carrier: one exception, thrown once at the stratum barrier
-struct BuildError <: Exception
-    …                        # the collection it wraps
+# the carrier: one exception, its parameter the policy — a kind for a
+# fail-fast throw, the collection type for a barrier's batch
+struct DiagnosticError{P <: Union{Diagnostic, Vector{Diagnostic}}} <: Exception
+    carried::P
 end
 ```
 
@@ -7225,7 +7232,7 @@ end
 ```
 
 **How handled.** The catch site wraps the original exception in `StepError`, the
-runtime counterpart of `BuildError`. A `StepError` carries four things: the
+runtime counterpart of the `DiagnosticError` carrier. A `StepError` carries four things: the
 cursor's frame, the boundary time, the **frame-entry boundary index**, and
 the original exception as `cause`. The frame-entry boundary index is the
 [replay](#g-replay) pointer: the frame-top boundary at which the failing frame began.
@@ -7234,9 +7241,17 @@ boundary: the ordinary macro-sequence with an empty integrate), and it is always
 a legal replay halt ([§12.7][s12-7]). A `StepError` is rendered with compact frames
 per the doctrine ([§13.2][s13-2]).
 
-Conformance failure ([§9.5][s9-5]) needs no separate path. It is thrown as its
-typed diagnostic at the table-write point, and it arrives at the same catch
-site. There it is a species of `StepError` carrying the field-diff [payload](#g-payload).
+Conformance failure ([§9.5][s9-5]) needs no separate path. At the table-write
+point it throws as every fail-fast site does, a `DiagnosticError` holding the
+one diagnostic, and it arrives at the same catch site. **The species rule.** The
+catch site unwraps a single-diagnostic `DiagnosticError` thrown inside the
+guarded sequence, and the `StepError`'s `cause` is that diagnostic. A
+[species](#g-species) of `StepError` is one whose `cause` is a diagnostic; the
+conformance failure's carries the field-diff [payload](#g-payload). The rule
+keeps the catch site the only `StepError` constructor, so a `StepError`
+arriving there is an invariant failure, while a runtime check stays a plain
+thrower of its kind ([D-221][d-221]). A collected carrier has no single kind and
+rides as `cause` unchanged; no runtime check throws one.
 
 Reproducibility holds by construction. Staged inputs are drained and recorded to
 the [trace](#g-trace) at the frame top, *before* the boundary executes. So the failing
@@ -7692,7 +7707,7 @@ are addressed by [§8.6][s8-6] slash path plus field name. It may also specify
 [root inputs](#g-root-input), addressed by [face](#g-face). Never outputs, which are derived data.
 Never [workspace](#g-workspace) (component-declared mutable scratch arriving as the `ws`
 bundle field). Entries are validated in the [§13.1][s13-1] collecting [register](#g-register): full
-list, violations collected, one `BuildError`.
+list, violations collected, one `DiagnosticError`.
 
 **The overlay base is always the declared defaults.** Every [store](#g-store) has a
 declared initial value (declaration-by-initial-value, [§8.2][s8-2]), so conditions
@@ -8536,7 +8551,7 @@ numbers ([D-150][d-150]) stand as reported.
 Non-convergence never throws: it is an expected *outcome* (envelope-sweep data:
 hitting the infeasible edge is information), per the
 exceptions-are-broken-machinery line ([§13][s13]). A malformed problem is a
-different case: a `BuildError`-class failure at setup, `TrimProblemInvalid`
+different case: a `DiagnosticError`-class failure at setup, `TrimProblemInvalid`
 ([Appendix C][sC]). The malformed cases: a guess/bounds key-set or
 field-type disagreement, an unknown `reads` [selector](#g-selector), a
 `tolerances`/residual key-set mismatch observed at the setup guess evaluation.
@@ -10149,7 +10164,7 @@ as `severity(d)` ([§13.2][s13-2]), and takes one of two values:
 
 **Raised** and **policy** describe the occurrence, not the kind — where it
 surfaces, and how it is reported. A kind raised at two stages lists both
-(`BundleFieldError`: at the probe, and as a `StepError` species thereafter);
+(`BundleFieldError`: at the probe, and as a `StepError` [species](#g-species) thereafter);
 the placement notes stay in the raised column beside the stage they qualify.
 The stages are the ones [§13][s13] fixes:
 
@@ -10162,7 +10177,7 @@ The stages are the ones [§13][s13] fixes:
 The policies:
 
 - **collected** — gathered with its siblings and thrown as one carrier: a
-  declarative pass's violations as the `BuildError` of the stratum barrier
+  declarative pass's violations as the `DiagnosticError` of the stratum barrier
   ([§13.1][s13-1]); a service's wherever the owning section says so (the register,
   [§14.1][s14-1]; the pre-write check, [§14.6][s14-6]);
 - **fail-fast** — the first occurrence throws on its own, nothing else being
@@ -11130,9 +11145,11 @@ residuals and committed as an `init!` of `override(baseline, solution)`
 
 ### D.9 Error discipline and diagnostics
 
-<a id="g-carrier-exception"></a>**carrier exception** — the single exception a set of diagnostics travels in:
-`BuildError` thrown at a stratum barrier, `StepError` at the runtime catch
-site. Diagnostics themselves are plain values ([§13.2][s13-2], [§13.4][s13-4]).
+<a id="g-carrier-exception"></a>**carrier exception** — the single exception diagnostics travel in when thrown:
+`DiagnosticError`, holding one diagnostic at a fail-fast site or the collection
+at a stratum barrier, its type parameter telling which; and `StepError` at the
+runtime catch site, which takes a single diagnostic over as its `cause`.
+Diagnostics themselves are plain values ([§13.2][s13-2], [§13.4][s13-4]).
 
 <a id="g-collect-the-checks-fail-the-evaluations-fast"></a>**collect the checks, fail the evaluations fast** — the reporting policy:
 declarative passes over collected structure return their full violation list,
@@ -11168,6 +11185,10 @@ and under which policy; tests match on kind plus payload, never on message text
 and names as strings (never instances or model types), expected/observed port
 types, the list-in-hand ([§13.2][s13-2], [Appendix C][sC]); severity is the kind's,
 not the payload's.
+
+<a id="g-species"></a>**species** — a `StepError` whose `cause` is a diagnostic: what the catch site
+makes of a single-diagnostic `DiagnosticError` thrown inside the frame, under
+the species rule ([§13.4][s13-4]).
 
 <a id="g-stop_on"></a>**`stop_on` / termination is a state** — graceful termination is model state,
 never an exception: detection is ordinary event machinery, publication an
@@ -11384,6 +11405,8 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-218]: decisions.md#d-218--make-the-replaylive-distinction-an-explicit-input-mode
 [d-219]: decisions.md#d-219--add-a-time-addressed-replay-halt-and-a-manual-door-to-live
 [d-220]: decisions.md#d-220--rename-the-authoring-family-to-words-stage-update-projection-event-and-workspace-declarations
+[d-221]: decisions.md#d-221--unwrap-a-single-diagnostic-carrier-at-the-runtime-catch-site-into-a-steperror-species
+[d-222]: decisions.md#d-222--replace-builderror-with-the-policy-parametric-diagnosticerror-carrier
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
