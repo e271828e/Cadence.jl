@@ -730,42 +730,50 @@ per anchor and one multiply-add per component. Returns the bound deployment:
 schedule (§9.2's printable artifact, as plain data).
 
 The pass records into the call's list and returns `nothing` when a premise
-fails; the caller owns the one throw per `Simulation` call (§9.1, D-229). `h`
-and `n` are checked independently, and every later check reads one or both.
+fails; the caller owns the one throw per `Simulation` call (§9.1, D-229). `h`,
+`n` and `Δt_base` are three independent premises, each checked and recorded on
+its own; the harmonic resolution and the anchor loop read all three, so they
+run only when all three are sound (D-229).
 """
 function bind_schedule(b::Build, h, n, Δt_base, diags::Vector{Diagnostic})
     k0 = length(diags)
     h === nothing && push!(diags, DeploymentInvalid(parameter = :h, reason = :missing))
     h_r = h === nothing ? nothing : _exact(:h, h, diags)
-    h_r === nothing || h_r > 0 ||
+    if h_r !== nothing && !(h_r > 0)
         push!(diags, DeploymentInvalid(parameter = :h, reason = :range, value = h_r))
-    n === nothing || n ≥ 1 ||
-        push!(diags, DeploymentInvalid(parameter = :n, reason = :range, value = n))
-    length(diags) == k0 || return nothing    # every later check reads h or n (D-229)
+        h_r = nothing
+    end
+    n_ok = n === nothing || (n isa Integer && n ≥ 1)
+    n_ok || push!(diags, DeploymentInvalid(parameter = :n, reason = :range, value = n))
 
     anchors, prov, triples = b.flat.anchors, b.flat.aprov, b.flat.triples
     # The constraint pool: every anchor's period and every nonzero offset (§9.1).
     pool = vcat([Tk for (Tk, _) in anchors], [τk for (_, τk) in anchors if τk != 0])
 
+    # The Δt_base branch is its own premise: derivation reads the tiers and the
+    # anchors, the explicit keyword reads only itself, and only the default path
+    # reads `h` and `n` — which is why it alone is skipped when either is unsound.
+    Δt_r = nothing
     if Δt_base === :derive
         unanchored = [b.flat.paths[ci] for ci in eachindex(b.tiers)
                       if b.tiers[ci] === DISCRETE && triples[ci][1] == 0]
         if !isempty(unanchored)
             push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :unanchored,
                                            paths = unanchored))
-            return nothing
-        end
-        if isempty(pool)
+        elseif isempty(pool)
             push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :no_constraint))
-            return nothing
+        else
+            Δt_r = reduce(gcd, pool)                 # the coarsest admissible value
         end
-        Δt_r = reduce(gcd, pool)                     # the coarsest admissible value
     elseif Δt_base !== nothing
         Δt_r = _exact(:Δt_base, Δt_base, diags)
-        Δt_r === nothing && return nothing
-    else
+    elseif h_r !== nothing && n_ok
         Δt_r = something(n, 1) * h_r                 # the default path (§15.4)
     end
+
+    # The harmonic checks and the anchor loop read `h`, `n` and `Δt_base` together,
+    # so they run only on a sound value of each (D-229).
+    (length(diags) == k0 && h_r !== nothing && Δt_r !== nothing) || return nothing
 
     n_i = _as_int(Δt_r / h_r)
     if n_i === nothing || n_i < 1

@@ -458,21 +458,22 @@ The primitive port a producing endpoint ultimately names, as `(path, port)`, or
 `nothing` with the refusal recorded in `diags` — the endpoint then claims nothing
 and the obligation pass reports what it left unfed (§13.1).
 """
-function resolve_source(entry::String, base::String, asm, path::AbstractString,
+function resolve_source(w, entry::String, base::String, asm, path::AbstractString,
                         diags::Vector{Diagnostic})
     r = resolve_terminal(entry, base, asm, path, diags)
     r === nothing && return nothing
     comp, cpath, name = r
     if classify(cpath, comp) === PRIMITIVE
         haskey(_contract(output_types, comp), name) && return (cpath, name)
-        _wrong_direction(entry, path, cpath, name, comp, "producer", diags)
     else
-        for (src, face) in output_connections(comp)
-            String(face) == String(name) &&
-                return resolve_source(entry, cpath, comp, src, diags)
-        end
-        _wrong_direction(entry, path, cpath, name, comp, "producer", diags)
+        # Children are walked before wires, so the child's faces are already
+        # resolved: an output face's producer is its recorded row, and a face
+        # whose source was refused was refused there, once (D-229).
+        i = findfirst(pr -> first(pr) == (cpath, name), w.flat.out_faces)
+        i === nothing || return last(w.flat.out_faces[i])
+        String(name) in output_faces(comp) && return nothing   # declared, refused at the child
     end
+    _wrong_direction(entry, path, cpath, name, comp, "producer", diags)   # the parent's own typo
 end
 
 """
@@ -480,7 +481,7 @@ The primitive inputs a consuming endpoint ultimately names, as `(path, face)`.
 Several, when the endpoint is a sub-assembly's input face fanning out through the
 boundary; none, when the endpoint failed to resolve and the refusal was recorded.
 """
-function resolve_dest(entry::String, base::String, asm, path::AbstractString,
+function resolve_dest(w, entry::String, base::String, asm, path::AbstractString,
                       diags::Vector{Diagnostic})
     r = resolve_terminal(entry, base, asm, path, diags)
     r === nothing && return Tuple{String,Symbol}[]
@@ -488,20 +489,24 @@ function resolve_dest(entry::String, base::String, asm, path::AbstractString,
     if classify(cpath, comp) === PRIMITIVE
         haskey(_contract(input_types, comp), name) && return [(cpath, name)]
     else
-        for (face, inner) in input_connections(comp)
-            String(face) == String(name) || continue
-            return _fanout(entry, cpath, comp, inner, diags)
-        end
+        # Children are walked before wires, so the child's faces are already
+        # resolved: a face's consumers are its recorded route, and a face whose
+        # route was refused was refused there, once (D-229).
+        i = findfirst(rt -> rt[1] == cpath && rt[2] === name, w.routes)
+        i === nothing || return copy(w.routes[i][3])
+        String(name) in input_faces(comp) && return Tuple{String,Symbol}[]   # refused at the child
     end
-    _wrong_direction(entry, path, cpath, name, comp, "consumer", diags)
+    _wrong_direction(entry, path, cpath, name, comp, "consumer", diags)   # the parent's own typo
     Tuple{String,Symbol}[]
 end
 
 _endpoints(p::AbstractString) = (p,)
 _endpoints(ps::Tuple) = ps
 
-_fanout(entry, base, comp, inner, diags) =
-    reduce(vcat, (resolve_dest(entry, base, comp, p, diags) for p in _endpoints(inner));
+# Called by the declaring level alone, on its own children's endpoints: a parent
+# reading the face reads the route this built.
+_fanout(w, entry, base, comp, inner, diags) =
+    reduce(vcat, (resolve_dest(w, entry, base, comp, p, diags) for p in _endpoints(inner));
            init = Tuple{String,Symbol}[])
 
 # Direction is declared by the method; the resolved endpoint only cross-checks it.
@@ -747,9 +752,9 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
 
     for pair in child_connections(comp)
         entry = _entry("child_connections", path, pair)
-        producer = resolve_source(entry, path, comp, first(pair), diags)
+        producer = resolve_source(w, entry, path, comp, first(pair), diags)
         producer === nothing && continue   # recorded; the destination stays unfed
-        for consumer in resolve_dest(entry, path, comp, last(pair), diags)
+        for consumer in resolve_dest(w, entry, path, comp, last(pair), diags)
             _claim!(w, consumer, producer, entry, diags)
         end
     end
@@ -759,7 +764,7 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
     # anything, there being no parent above them to claim the obligation.
     for (face, inner) in input_connections(comp)
         entry = _entry("input_connections", path, face => inner)
-        consumers = _fanout(entry, path, comp, inner, diags)
+        consumers = _fanout(w, entry, path, comp, inner, diags)
         # Every entry routes to at least one internal endpoint, at every level
         # (D-210): a face feeding nothing declares nothing, and the empty tuple
         # would otherwise reach no consumer, leave no row in §9.2's face graph,
@@ -781,7 +786,7 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
     end
     for (src, face) in output_connections(comp)
         entry = _entry("output_connections", path, src => face)
-        producer = resolve_source(entry, path, comp, src, diags)
+        producer = resolve_source(w, entry, path, comp, src, diags)
         producer === nothing && continue   # recorded; the face registers no row
         push!(w.flat.out_faces, (path, Symbol(face)) => producer)
     end

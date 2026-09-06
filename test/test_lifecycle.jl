@@ -139,6 +139,11 @@ function test_lifecycle()
             @test dc.face == dr.face && dc.reason == dr.reason &&
                   dc.declared == dr.declared            # identical at both binding sites
         end
+        # The constructor is one call, so a stop-face refusal joins the deployment's
+        # own list in the single throw (§9.1, D-229); `run!` is its own call.
+        err = failure(() -> Simulation(m; stop_on = ("nope",)))
+        @test kinds(err) == [DeploymentInvalid, StopFaceInvalid]
+
         @test lifecycle(sim) === :initialized            # a rejected run! bound nothing
     end
 

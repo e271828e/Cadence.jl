@@ -173,6 +173,7 @@ function build_tier()
         b = build(single(DiscreteCounter()))
         @test b isa Build
         d = only(diagnostics(failure(() -> Simulation(b))))
+        @test d isa DeploymentInvalid
         @test d.parameter === :h && d.reason === :missing
         @test Simulation(b; h = 1//10) isa Simulation
     end

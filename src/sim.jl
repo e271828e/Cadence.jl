@@ -156,9 +156,9 @@ function Simulation(b::Build, ::Type{T} = Float64; h = nothing, n = nothing,
     d_t = _t_bound_diag(t_end)
     d_t === nothing || push!(diags, d_t)
     bound = bind_schedule(b, h, n, Δt_base, diags)
-    isempty(diags) || throw(DiagnosticError(diags))    # one throw per call (§9.1, D-229)
     act = activation(b, T)
-    (stop_faces, stop_addrs) = _stop_faces(act.layout, stop_on)
+    (stop_faces, stop_addrs) = _stop_faces(act.layout, stop_on, diags)
+    isempty(diags) || throw(DiagnosticError(diags))    # one throw per call (§9.1, D-229)
     ex = compile(b, act, bound.D, bound.Φ, bound.Δt; chunk_size)
     stepper = algorithm(T, length(ex.xbuf))
     reg = TraceRegister(trace)     # the drain thunks close over it, so it precedes the plane
@@ -195,8 +195,10 @@ _t_end_frame(sim::Simulation, te::Float64) = isinf(te) ? typemax(Int) : round(In
 # §13.5's stop-face validation and compilation, run identically at both binding
 # sites — the constructor's default and `run!`'s override: each name must be a
 # root-exported Bool *output* face. Duplicates collapse; the order kept is the
-# declaration's, which is the order the first-holding face is reported in.
-function _stop_faces(layout::Layout, stop_on)
+# declaration's, which is the order the first-holding face is reported in. The
+# pass records into the list it is given and always returns the pair; the
+# constructor merges it into the deployment's one throw (§9.1, D-229).
+function _stop_faces(layout::Layout, stop_on, diags::Vector{Diagnostic})
     faces, addrs = Symbol[], Any[]
     root_input_names = Symbol[f for (f, _) in layout.root_inputs]
     # The root output-face list Appendix C asks a refusal to carry: every cell
@@ -204,7 +206,6 @@ function _stop_faces(layout::Layout, stop_on)
     # order is fixed here rather than left to hashing.
     out_faces = sort!(Symbol[f for ((p, f), _) in layout.addr
                              if isempty(p) && !(f in root_input_names)])
-    diags = Diagnostic[]
     for f in stop_on
         s = Symbol(f)
         if !haskey(layout.addr, ("", s))
@@ -222,8 +223,16 @@ function _stop_faces(layout::Layout, stop_on)
         end
         s in faces || (push!(faces, s); push!(addrs, a))
     end
-    isempty(diags) || throw(DiagnosticError(diags))
     (faces, addrs)
+end
+
+# `run!` and `replay!` each override the default in a call of their own, so a
+# fresh list thrown here is that call's one barrier (§13.1, D-229).
+function _stop_faces(layout::Layout, stop_on)
+    diags = Diagnostic[]
+    r = _stop_faces(layout, stop_on, diags)
+    isempty(diags) || throw(DiagnosticError(diags))
+    r
 end
 
 """

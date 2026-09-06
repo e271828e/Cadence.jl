@@ -585,6 +585,30 @@ function assembly_obligations()
         d = only(filter(x -> x isa UnconnectedInput, diagnostics(err)))
         @test d.path == "s" && d.face === :a
 
+        # A face is resolved once, where it is declared: three parent wires reading
+        # a child face whose route is broken report the child's refusal once, not
+        # once per wire, and each input the wires left unfed once beside it (D-229).
+        inner = Group((; a = Gain(1.0)); inputs = ("f" => "a/e",),
+                      outputs = ("a/outt" => "y",))
+        err = failure(() -> build(Group((; i = inner, g1 = Gain(1.0), g2 = Gain(2.0),
+                                          g3 = Gain(3.0));
+                                        wires = ("i/y" => "g1/e", "i/y" => "g2/e",
+                                                 "i/y" => "g3/e"))))
+        @test count(d -> d isa UnknownPort, diagnostics(err)) == 1
+        d = only(filter(x -> x isa UnknownPort, diagnostics(err)))
+        @test d.path == "i/a" && d.port === :outt
+        @test [(x.path, x.face) for x in diagnostics(err) if x isa UnconnectedInput] ==
+              [("i/a", :e), ("g1", :e), ("g2", :e), ("g3", :e)]
+
+        # The parent's own typo against a child face is still its own refusal, and
+        # the candidates are the child's face list.
+        good = Group((; a = Gain(1.0)); inputs = ("f" => "a/e",), outputs = ("a/out" => "y",))
+        err = failure(() -> build(Group((; src = Gain(1.0), inner = good);
+                                        wires = ("src/out" => "inner/g",),
+                                        inputs = ("u" => "src/e",))))
+        d = only(filter(x -> x isa UnknownPort, diagnostics(err)))
+        @test d.path == "inner" && d.port === :g && d.candidates == [:f, :y]
+
         # The one legitimate terminus: the root's own input faces are the root inputs,
         # authored by the init service's condition (§11.3, §14.6).
         sim = Simulation(Group((; c = Gain(2.0)); inputs = ("in" => "c/e",));

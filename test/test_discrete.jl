@@ -268,6 +268,21 @@ function discrete_deployment()
         err = failure(() -> Simulation(b; log_every = 0))
         @test Set(d.parameter for d in diagnostics(err)) == Set([:log_every, :h])
 
+        # `Δt_base` is a third independent premise: the explicit keyword reads only
+        # itself and derivation reads the tiers and the anchors, so neither is
+        # suppressed by an unsound `h` or `n`.
+        err = failure(() -> Simulation(b; h = 1e-3, Δt_base = 1e-3))
+        @test Set((d.parameter, d.reason) for d in diagnostics(err)) ==
+              Set([(:h, :inexact), (:Δt_base, :inexact)])
+        err = failure(() -> Simulation(b; h = 1//500, Δt_base = :derive, n = 0))
+        @test Set((d.parameter, d.reason) for d in diagnostics(err)) ==
+              Set([(:n, :range), (:Δt_base, :unanchored)])
+
+        # `n` is a count: a non-integer is refused as a range violation, not left
+        # to fail inside the exact arithmetic.
+        d = only(diagnostics(failure(() -> Simulation(b; h = 1//500, n = 2.5))))
+        @test d isa DeploymentInvalid && d.parameter === :n && d.reason === :range
+
         # A non-dividing anchor is refused with its declaring scope and key, and the
         # admissible set is named off the pool.
         err = failure(() -> Simulation(b; h = 1//500, Δt_base = 3//250))
@@ -281,6 +296,7 @@ function discrete_deployment()
         # Derivation with an unanchored component present is action at a distance:
         # refused constructively, naming the components whose periods would rescale.
         d = only(diagnostics(failure(() -> Simulation(build(MultiRate()); h = 1//500, Δt_base = :derive))))
+        @test d isa DeploymentInvalid
         @test d.parameter === :Δt_base && d.reason === :unanchored
         @test "fcs/inner" in d.paths
 
