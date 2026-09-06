@@ -7288,8 +7288,9 @@ captured header and, where that completes, frame one from the record. The
 rendered recipe therefore names the bare replay at zero and the
 halt-then-`step!` form elsewhere. The header is captured before boundary zero
 runs ([§14.5][s14-5]), so the trace already holds the reproduction. What differs
-is the disposition. Nothing was published and no run was open, so there is no tail to take and no snapshot to
-promote. The simulation returns to `built`: `run!` and `step!` refuse it naming
+is the disposition. Nothing was published and no run was open, so there is no
+tail to take and no snapshot to promote. The simulation returns to `built`:
+`run!` and `step!` refuse it naming
 `init!` ([§12.6][s12-6]), and `init!` and `replay!` remain legal. The remedy for a
 condition that fails at `t₀` is a corrected condition, and `init!`
 re-establishes every store before it applies one ([§14.1][s14-1]). No
