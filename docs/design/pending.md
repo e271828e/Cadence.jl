@@ -143,10 +143,6 @@ Transactional: the commit introducing a deviation adds its bullet, the one
 retiring it deletes it. All but the last two were found by the audit, none
 of them chosen; the merge entry has the probe.
 
-- **The stepper keyword is `method`** (M-B24). D-227 names it `algorithm`,
-  keeping the type-valued form; the keyword, its `DeploymentInvalid`
-  parameter, the trace header's deployment field and the replay comparison
-  all still spell `method`.
 - **`t_end` lands on the nearest frame, not the first at or past it**
   (M-B1). `run!`, `step!` and `replay!` take `round(Int, t_end/h)` where
   §12.4 and Appendix B say the first grid boundary reaching `t_end`, and the

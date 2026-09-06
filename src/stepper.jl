@@ -15,7 +15,7 @@
 # The seam is never entered empty (§10.2): the framework short-circuits an
 # empty state on its own side — `step!(sim, h)` in sim.jl — so no backend ever
 # faces N = 0. Both first-cut backends are fixed-step, zero-allocation and
-# generic in the scalar; the method is a deployment binding (`method = RK4`,
+# generic in the scalar; the backend is a deployment binding (`algorithm = RK4`,
 # the default), and nothing outside this file knows which one ran.
 
 abstract type AbstractStepper end

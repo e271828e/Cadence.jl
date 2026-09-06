@@ -50,7 +50,7 @@ end
 
 """
     Simulation(build::Build, T = Float64; h, n = 1, Δt_base = nothing,
-               method = RK4, firing_budget = 4, localization_tol = 1e-6,
+               algorithm = RK4, firing_budget = 4, localization_tol = 1e-6,
                localization_budget = 8, join_timeout = 5.0,
                t_end = nothing, stop_on = (), trace = true, log = true,
                log_every = 1, log_max = 65536, chunk_size = 16)
@@ -71,9 +71,9 @@ it: every buffer set has exactly one owner (§9.2), so a service invocation
 instantiates an executor of its own from the same cached layouts rather than
 writing through this one.
 
-`method` selects the integration backend across the stepper seam (§10.2): a
+`algorithm` selects the integration backend across the stepper seam (§10.2): a
 stepper type — `RK4`, the default, or `Heun` — materialized against the flat
-buffer at binding like every other deployment product. The method is
+buffer at binding like every other deployment product (D-227). The algorithm is
 trajectory-determining and grid-independent, exactly like the keywords below;
 nothing outside the backend's own struct knows which one ran.
 
@@ -128,14 +128,14 @@ two deployments differing only here produce bitwise-identical trajectories,
 retention being reference bookkeeping over what publication already built.
 """
 function Simulation(b::Build, ::Type{T} = Float64; h = nothing, n = nothing,
-                    Δt_base = nothing, method = RK4, firing_budget = 4,
+                    Δt_base = nothing, algorithm = RK4, firing_budget = 4,
                     localization_tol = 1e-6, localization_budget = 8,
                     join_timeout = 5.0, t_end = nothing, stop_on = (),
                     trace = true, log = true, log_every = 1,
                     log_max = 65536, chunk_size::Int = 16) where {T}
     diags = Diagnostic[]
-    method isa Type && method <: AbstractStepper ||
-        push!(diags, DeploymentInvalid(parameter = :method, reason = :range, value = method))
+    algorithm isa Type && algorithm <: AbstractStepper ||
+        push!(diags, DeploymentInvalid(parameter = :algorithm, reason = :range, value = algorithm))
     firing_budget isa Integer && firing_budget ≥ 1 ||
         push!(diags, DeploymentInvalid(parameter = :firing_budget, reason = :range, value = firing_budget))
     localization_tol isa Real && localization_tol > 0 ||
@@ -161,7 +161,7 @@ function Simulation(b::Build, ::Type{T} = Float64; h = nothing, n = nothing,
     (stop_faces, stop_addrs) = _stop_faces(act.layout, stop_on)
     bound = bind_schedule(b, h, n, Δt_base)
     ex = compile(b, act, bound.D, bound.Φ, bound.Δt; chunk_size)
-    stepper = method(T, length(ex.xbuf))
+    stepper = algorithm(T, length(ex.xbuf))
     reg = TraceRegister(trace)     # the drain thunks close over it, so it precedes the plane
     Simulation{T,typeof(ex),typeof(stepper)}(
         ex, b,

@@ -90,7 +90,7 @@ function trace_recording()
         # The deployment block, captured at the same instant as the stores (§11.5):
         # the effective termination pair is the one `init!` knows, the constructor's.
         d = h.deployment
-        @test d.t₀ === 0.0 && d.h === 0.1 && d.n == 1 && d.method === :RK4
+        @test d.t₀ === 0.0 && d.h === 0.1 && d.n == 1 && d.algorithm === :RK4
         @test d.firing_budget == 4 && d.localization_budget == 8
         @test d.t_end === nothing && isempty(d.stop_on)
         @test h.layout.paths == ["t", "d"] && h.layout.root_faces == [:sig, :e]

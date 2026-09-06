@@ -40,7 +40,7 @@ struct TraceHeader{T}
     m::Vector{Any}                                  # likewise for the mode stores
     root_inputs::Vector{Pair{Symbol,Any}}           # face => the resolved value in its cell
     schemas::Vector{Pair{String,Vector{Symbol}}}    # writer tag => face-name-by-position
-    deployment::@NamedTuple{t₀::T, Δt_base::Float64, h::Float64, n::Int, method::Symbol,
+    deployment::@NamedTuple{t₀::T, Δt_base::Float64, h::Float64, n::Int, algorithm::Symbol,
                             localization_tol::Float64, localization_budget::Int,
                             firing_budget::Int, t_end::Union{Nothing,Float64},
                             stop_on::Vector{Symbol}}
@@ -285,7 +285,7 @@ function _capture_header(sim)
     # the effective termination pair is the one `init!` knows: the constructor's,
     # `run!`'s per-run override post-dating the capture (§13.5)
     deployment = (t₀ = ex.clock.t₀, Δt_base = sim.Δt_base, h = sim.h, n = sim.n,
-                  method = nameof(typeof(sim.stepper)),
+                  algorithm = nameof(typeof(sim.stepper)),
                   localization_tol = sim.localization_tol,
                   localization_budget = sim.localization_budget,
                   firing_budget = sim.firing_budget, t_end = sim.t_end,
@@ -351,7 +351,7 @@ function _check_header!(diags::Vector{Diagnostic}, sim, h::TraceHeader)
     end
     d = h.deployment
     for (name, found) in ((:Δt_base, sim.Δt_base), (:h, sim.h), (:n, sim.n),
-                          (:method, nameof(typeof(sim.stepper))),
+                          (:algorithm, nameof(typeof(sim.stepper))),
                           (:localization_tol, sim.localization_tol),
                           (:localization_budget, sim.localization_budget),
                           (:firing_budget, sim.firing_budget))

@@ -794,7 +794,7 @@ Base.@kwdef struct DeploymentInvalid <: Diagnostic
 end
 
 _dep_constraint(p::Symbol) =
-    p === :method              ? "must be a stepper type — RK4 or Heun" :
+    p === :algorithm           ? "must be a stepper type — RK4 or Heun" :
     p === :firing_budget       ? "must be an integer ≥ 1" :
     p === :localization_tol    ? "must be a positive real" :
     p === :localization_budget ? "must be an integer ≥ 1" :
@@ -810,7 +810,7 @@ _dep_constraint(p::Symbol) =
     p === :n                   ? "must be an integer ≥ 1" :
                                  "is outside its constraint"
 _dep_section(p::Symbol) =
-    p === :method              ? " (§10.2)" :
+    p === :algorithm           ? " (§10.2)" :
     p === :firing_budget       ? " (§10.6)" :
     (p === :localization_tol || p === :localization_budget) ? " (§10.4)" :
     p === :join_timeout        ? " (§12.4)" :
