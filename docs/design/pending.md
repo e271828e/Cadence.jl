@@ -142,7 +142,7 @@ Where the reason is not given here, the cited decision carries it:
 ## Built in a shape the spec's is not
 
 Transactional: the commit introducing a deviation adds its bullet, the one
-retiring it deletes it. All but the last three were found by the audit, none
+retiring it deletes it. All but the last two were found by the audit, none
 of them chosen; the merge entry has the probe.
 
 - **`t_end` lands on the nearest frame, not the first at or past it**
@@ -224,11 +224,6 @@ of them chosen; the merge entry has the probe.
   free and asserted so (`test_conditions.jl`); the construction cost is noted
   in that file's comments and guarded by nothing. Needs a test before it can
   be called more than a note.
-- **`StepError` keeps `cause::Any`** (D-225). A species is recognizable only
-  by reading the field, and the suite's species sites spell
-  `e isa StepError && e.cause isa Kind` where the ruling's shape is
-  `@test_throws StepError{Kind}`. Retires with the conformance increment that
-  parametrizes the carrier and extends `diagnostic(e)` to the species.
 
 ## Awaiting a ruling
 

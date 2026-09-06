@@ -48,7 +48,7 @@ function failures_runtime()
         init!(sim, fragment(inputs = (in = false,)))
         stage!(sim, "in" => true)                       # frame 1's drain arms the guard
         e = failure(() -> step!(sim))
-        @test e isa StepError && e.cause isa Detonated
+        @test e isa StepError{Detonated}
         @test e.frame == CursorFrame("c", :handler, :round, 1)
         @test e.boundary == 0
 
@@ -58,7 +58,7 @@ function failures_runtime()
         @test step!(sim2; frames = 3) == 3
         stage!(sim2, "in" => true)
         e2 = failure(() -> step!(sim2))
-        @test e2 isa StepError && e2.boundary == 3 && e2.cause isa Detonated
+        @test e2 isa StepError{Detonated} && e2.boundary == 3
     end
 
     @testset "a throw inside boundary zero takes the catch with pointer 0 (§13.4, D-223)" begin
@@ -99,7 +99,7 @@ function failures_runtime()
         @test lifecycle(sim2) === :initialized && mode(sim2) === :replay
 
         e2 = failure(() -> replay!(sim2, trc))
-        @test e2 isa StepError && e2.cause isa Detonated
+        @test e2 isa StepError{Detonated}
         @test e2.frame == e.frame && e2.boundary == 0
         @test lifecycle(sim2) === :built
         @test mode(sim2) === :live                      # the reset precedes the boundary
@@ -116,7 +116,7 @@ function failures_runtime()
         sim = Simulation(single(Landmine(1.0, 0.35, 0.1)); h = 1//10, t_end = 5.0)
         init!(sim)
         e = failure(() -> run!(sim))
-        @test e isa StepError && e.cause isa Detonated
+        @test e isa StepError{Detonated}
         @test e.frame.path == "c" && e.frame.fn === :guard && e.frame.phase === :trial
         @test e.frame.index ≥ 1
         @test e.boundary == 3 && 0.3 < e.t < 0.4        # strictly inside the frame
@@ -131,7 +131,7 @@ function failures_runtime()
         sim = Simulation(single(Landmine(1.0, 0.35, 0.03)); h = 1//10, t_end = 5.0)
         init!(sim)
         e = failure(() -> run!(sim))
-        @test e isa StepError && e.cause isa Detonated
+        @test e isa StepError{Detonated}
         @test e.frame.path == "c" && e.frame.fn === :guard && e.frame.phase === :arrival
         @test e.boundary == 0 && e.t == 0.1             # the frame top the integrate landed on
     end
@@ -141,13 +141,13 @@ function failures_runtime()
         init!(sim, fragment(inputs = (in = false,)))
         stage!(sim, "in" => true)
         e = failure(() -> step!(sim))
-        @test e isa StepError && e.cause isa Detonated
+        @test e isa StepError{Detonated}
         @test e.frame.path == "c" && e.frame.fn === :state_update && e.frame.phase === :ticks
 
         simp = Simulation(single(Primer(0.15)); h = 1//10, t_end = 5.0)
         init!(simp)
         ep = failure(() -> run!(simp))
-        @test ep isa StepError && ep.cause isa Detonated
+        @test ep isa StepError{Detonated}
         @test ep.frame.path == "c" && ep.frame.fn === :state_projection && ep.frame.phase === :project
         @test ep.boundary == 1                          # `q` reaches the level in frame 2
     end
@@ -213,6 +213,9 @@ function failures_runtime()
         # An unrecognized phase renders as itself, never as another phase's spelling.
         odd = StepError(CursorFrame("c", :state_derivative, :nowhere, 0), 0.3, 3, Tripped())
         @test occursin("nowhere of the frame", sprint(showerror, odd))
+
+        # D-225's bound: a bare value is no cause the carrier admits.
+        @test_throws MethodError StepError(CursorFrame(nothing, :none, :drain, 0), 0.3, 3, "oops")
     end
 
     @testset "the `Dual` activations reach the same carrier and cause (§13.4, §9.4)" begin
@@ -222,7 +225,7 @@ function failures_runtime()
         sim = Simulation(fed(Tripwire(0.05), "arm"), D8; h = 1//10, t_end = 5.0)
         init!(sim, fragment(inputs = (in = true,)))
         e = failure(() -> run!(sim))
-        @test e isa StepError && e.cause isa Tripped
+        @test e isa StepError{Tripped}
         @test e.frame == CursorFrame("c", :state_derivative, :integrate, 2)
         @test e.t == 0.05 && e.boundary == 0
         @test lifecycle(sim) === :errored
@@ -232,10 +235,11 @@ function failures_runtime()
         dv = Simulation(diverging(), D8; h = 1//10, t_end = 5.0)
         init!(dv, fragment(inputs = (in = true,)))
         en = failure(() -> step!(dv))
-        @test en isa StepError && en.cause isa NonfiniteState
+        @test en isa StepError{NonfiniteState}
         @test !(en.cause isa DiagnosticError)   # the species rule unwrapped the carrier
         @test en.cause.path == "div" && en.cause.leaf == "q" && isnan(en.cause.value)
         @test en.t == 0.1 && en.cause.t == 0.1 && en.cause.boundary == 0
+        @test diagnostic(en) === en.cause
     end
 
     @testset "the sweep names the diverging block, never its downstream (§13.4, D-157)" begin
@@ -244,7 +248,7 @@ function failures_runtime()
         @test step!(sim) == 1
         stage!(sim, "in" => true)                       # frame 2's drain arms the RHS
         e = failure(() -> step!(sim))
-        @test e isa StepError && e.cause isa NonfiniteState
+        @test e isa StepError{NonfiniteState}
         d = e.cause
         @test d.path == "div" && d.leaf == "q" && isnan(d.value)
         @test d.boundary == 1 && d.t ≈ 0.2
@@ -264,7 +268,7 @@ function failures_runtime()
         sim = Simulation(single(LateDiverger(1.0, 0.15)); h = 1//10, t_end = 5.0)
         init!(sim)
         e = failure(() -> run!(sim))
-        @test e isa StepError && e.cause isa NonfiniteState
+        @test e isa StepError{NonfiniteState}
         @test e.cause.path == "c" && e.cause.leaf == "q" && isnan(e.cause.value)
         @test e.frame.phase === :integrate && e.frame.path == "c"
         @test e.boundary == 1 && e.t ≈ 0.2              # the frame top, past the t* at 0.15

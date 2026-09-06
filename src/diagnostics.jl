@@ -75,7 +75,7 @@ DiagnosticError(d::Diagnostic) = DiagnosticError{typeof(d)}(d)
 DiagnosticError(ds::AbstractVector{<:Diagnostic}) =
     DiagnosticError{Vector{Diagnostic}}(Vector{Diagnostic}(ds))
 
-"The one diagnostic a fail-fast throw carries."
+"The one diagnostic a fail-fast throw, or a `StepError` species, carries."
 diagnostic(e::DiagnosticError{<:Diagnostic}) = e.carried
 
 "The collection a barrier's throw carries."
@@ -148,17 +148,21 @@ Base.:(==)(a::CursorFrame, b::CursorFrame) =
 """
 §13.4's runtime carrier, `DiagnosticError`'s counterpart: the cursor's frame, the
 clock at the failure, the frame-entry boundary index — the replay pointer — and
-the original exception as `cause`. A *species* is a `StepError` whose `cause` is
-a typed diagnostic, which is what lets a runtime check throw its kind and reach
-the one catch site as a plain thrower.
+the cause. The parameter is the cause's type (D-225): a diagnostic's kind for a
+*species*, a `StepError` whose `cause` is a typed diagnostic, and the exception
+model code threw otherwise. The species is what lets a runtime check throw its
+kind and reach the one catch site as a plain thrower.
 """
-struct StepError <: Exception
+struct StepError{C <: Union{Diagnostic, Exception}} <: Exception
     frame::CursorFrame
     t::Float64       # `_seconds(clock.t)` at the catch: the boundary time in a boundary
                      # phase, the stage or trial time mid-integration
     boundary::Int    # the frame-entry boundary index: replay!(…; to_boundary = boundary)
-    cause::Any
+    cause::C
 end
+
+# The species' payload, read as a fail-fast `DiagnosticError`'s is (D-225).
+diagnostic(e::StepError{<:Diagnostic}) = e.cause
 
 # The phase, spelled per case (§13.4). The index rides only where one applies:
 # an `:integrate` frame at index 0 is the framework's own act inside the
