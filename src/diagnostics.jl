@@ -148,10 +148,10 @@ Base.:(==)(a::CursorFrame, b::CursorFrame) =
 """
 §13.4's runtime carrier, `DiagnosticError`'s counterpart: the cursor's frame, the
 clock at the failure, the frame-entry boundary index — the replay pointer — and
-the cause. The parameter is the cause's type (D-225): a diagnostic's kind for a
-*species*, a `StepError` whose `cause` is a typed diagnostic, and the exception
-model code threw otherwise. The species is what lets a runtime check throw its
-kind and reach the one catch site as a plain thrower.
+the cause. The parameter is the cause's type (D-225): the diagnostic's kind when
+the cause is one, the exception model code threw otherwise. A *species* is a
+`StepError` whose `cause` is a typed diagnostic, which is what lets a runtime
+check throw its kind and reach the one catch site as a plain thrower.
 """
 struct StepError{C <: Union{Diagnostic, Exception}} <: Exception
     frame::CursorFrame
