@@ -96,7 +96,7 @@ function _children(path::String, c)
     # The child-naming pass collects (§13.1): every field is walked, and the
     # whole violation list leaves through one throw at the end. A component with
     # three mixed containers reports three, not the first.
-    viol = Diagnostic[]
+    diags = Diagnostic[]
     # The sibling fields a bare key could shadow: those that currently contribute
     # children, because the grammar a key shadows is the one that currently
     # reaches something. An empty field reserves nothing, and it has to be that
@@ -121,7 +121,7 @@ function _children(path::String, c)
             n = count(e -> e isa AbstractComponent, v)
             n == 0 && continue                     # inert data; an empty container too
             if n != length(v)
-                push!(viol, ContainerMixed(path = path, field = name,
+                push!(diags, ContainerMixed(path = path, field = name,
                                            types = unique(Any[typeof(e) for e in v
                                                               if !(e isa AbstractComponent)])))
                 continue
@@ -134,13 +134,13 @@ function _children(path::String, c)
                 # `_check_child_names` below can see neither (§8.5, D-211, D-212).
                 hit = false
                 if bare && string(k) == string(name)
-                    push!(viol, ChildNameCollision(path = path, name = string(k),
+                    push!(diags, ChildNameCollision(path = path, name = string(k),
                                                    reason = :sample_times_sugar,
                                                    provenance = [p], field = name))
                     hit = true
                 end
                 if bare && string(k) in shadowable
-                    push!(viol, ChildNameCollision(path = path, name = string(k),
+                    push!(diags, ChildNameCollision(path = path, name = string(k),
                                                    reason = :sibling_field, provenance = [p]))
                     hit = true
                 end
@@ -151,9 +151,9 @@ function _children(path::String, c)
             end
         end
     end
-    _check_transparent(path, c, tf, viol)
-    _check_child_names(path, kids, prov, viol)
-    isempty(viol) || throw(DiagnosticError(viol))
+    _check_transparent(path, c, tf, diags)
+    _check_child_names(path, kids, prov, diags)
+    isempty(diags) || throw(DiagnosticError(diags))
     kids, fields
 end
 
@@ -163,10 +163,10 @@ _is_container(v) = (v isa NamedTuple || v isa Tuple) && all(e -> e isa AbstractC
 
 # The declaration is checked after the walk, so a mixed container reports as one
 # rather than as a bad transparency declaration.
-function _check_transparent(path::String, c, tf, viol::Vector{Diagnostic})
+function _check_transparent(path::String, c, tf, diags::Vector{Diagnostic})
     tf === nothing && return nothing
     ok = tf in fieldnames(typeof(c)) && _is_container(getfield(c, tf))
-    ok || push!(viol, TransparentContainerUnknown(path = path, field = tf,
+    ok || push!(diags, TransparentContainerUnknown(path = path, field = tf,
                                                   component = _typename(c)))
     nothing
 end
@@ -175,10 +175,10 @@ end
 # produced them, two children may not share a name. Bare keys make the case
 # reachable, but the rule is the older one — a child name is a path segment, and
 # a path segment addresses one component.
-function _check_child_names(path::String, kids, prov, viol::Vector{Diagnostic})
+function _check_child_names(path::String, kids, prov, diags::Vector{Diagnostic})
     for i in eachindex(kids), j in 1:(i - 1)
         first(kids[i]) == first(kids[j]) &&
-            push!(viol, ChildNameCollision(path = path, name = first(kids[i]),
+            push!(diags, ChildNameCollision(path = path, name = first(kids[i]),
                                            reason = :two_children,
                                            provenance = [prov[j], prov[i]]))
     end
@@ -519,7 +519,7 @@ function index_of(flat::Flat, path::String)
     i
 end
 
-struct _Walk
+struct Walk
     paths::Vector{String}
     comps::Vector{Any}
     feeds::Dict{Tuple{String,Symbol},Tuple{String,Symbol}}
@@ -530,7 +530,7 @@ struct _Walk
     triples::Vector{NTuple{3,Int}}
     anchors::Vector{NTuple{2,Rational{Int}}}
     aprov::Vector{String}
-    viol::Vector{Diagnostic}            # the walk's collected violations (§13.1)
+    diags::Vector{Diagnostic}            # the walk's collected violations (§13.1)
 end
 
 # --- the sample-time fold (§8.7, §9.1, §10.5) -----------------------------------
@@ -548,8 +548,8 @@ Validate a scope's `sample_times` against §10.5's constraints, with path
 attribution (§9.1, §13.1): wrapper-typed values only, `K ≥ 1`, `0 ≤ φ < K`,
 `T > 0`, `0 ≤ τ < T`, and every key naming an immediate child.
 """
-function _check_sample_times(path::String, st, kids, fields, viol::Vector{Diagnostic})
-    _rv(reason; kw...) = push!(viol, RatesViolation(; path = path, reason = reason, kw...))
+function _check_sample_times(path::String, st, kids, fields, diags::Vector{Diagnostic})
+    _rv(reason; kw...) = push!(diags, RatesViolation(; path = path, reason = reason, kw...))
     if !(st isa NamedTuple)
         _rv(:declaration_shape)                    # nothing further is iterable
         return nothing
@@ -597,7 +597,7 @@ The child's scope triple, and whether an explicit key declared it. The unlisted
 child continues at the enclosing triple — the `Relative(1)` default is the
 affine law at `(K, φ) = (1, 0)`, implemented by nothing.
 """
-function _child_scope(w::_Walk, path::String, st, seg::String, fld::Symbol,
+function _child_scope(w::Walk, path::String, st, seg::String, fld::Symbol,
                       scope::NTuple{3,Int})
     hit = _rate_entry(st, seg, fld)
     hit === nothing && return scope, false
@@ -628,7 +628,7 @@ the single leaf at the root path, its `input_types` keys the model's root
 inputs.
 """
 function flatten(root)
-    w = _Walk(String[], Any[], Dict{Tuple{String,Symbol},Tuple{String,Symbol}}(),
+    w = Walk(String[], Any[], Dict{Tuple{String,Symbol},Tuple{String,Symbol}}(),
               Dict{Tuple{String,Symbol},String}(), Symbol[],
               Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}[],
               Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
@@ -644,7 +644,7 @@ function flatten(root)
         cs = Pair{Symbol,Tuple{String,Symbol}}[]
         for face in keys(_contract(input_types, c))
             haskey(w.feeds, (path, face)) ||
-                (push!(w.viol, UnconnectedInput(path = path, face = face)); continue)
+                (push!(w.diags, UnconnectedInput(path = path, face = face)); continue)
             push!(cs, face => w.feeds[(path, face)])
         end
         push!(conns, cs)
@@ -655,7 +655,7 @@ function flatten(root)
     # unfed inputs leave together, in one throw, before anything derived from
     # the wiring is computed. No cascade suppression: a typo'd wire reports its
     # unknown port *and* the input it left unfed.
-    isempty(w.viol) || throw(DiagnosticError(w.viol))
+    isempty(w.diags) || throw(DiagnosticError(w.diags))
 
     # §9.2's input side, derived once the obligation pass has proved every input
     # fed exactly once: an assembly's face and the leaf entries behind it are
@@ -674,7 +674,7 @@ function flatten(root)
          w.triples, w.anchors, w.aprov)
 end
 
-function _walk!(w::_Walk, path::String, comp, scope::NTuple{3,Int})
+function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int})
     if classify(path, comp) === PRIMITIVE
         push!(w.paths, path)
         push!(w.comps, comp)
@@ -683,7 +683,7 @@ function _walk!(w::_Walk, path::String, comp, scope::NTuple{3,Int})
         # inputs, each face its own consuming entry (§8.6, §11.3, D-208), fed by
         # the same pseudo-producer an assembly root's faces get.
         if isempty(path)
-            _check_root_faces(comp, w.viol)
+            _check_root_faces(comp, w.diags)
             for face in keys(_contract(input_types, comp))
                 push!(w.root_inputs, face)
                 _claim!(w, (path, face), ("", face),
@@ -692,10 +692,10 @@ function _walk!(w::_Walk, path::String, comp, scope::NTuple{3,Int})
         end
         return nothing
     end
-    _check_face_names(path, comp, w.viol)
+    _check_face_names(path, comp, w.diags)
     st = sample_times(comp)
     kids, fields = _children(path, comp)
-    _check_sample_times(path, st, kids, fields, w.viol)
+    _check_sample_times(path, st, kids, fields, w.diags)
     for ((seg, kid), fld) in zip(kids, fields)
         kidpath = _join(path, seg)
         kscope, keyed = _child_scope(w, path, st, seg, fld, scope)
@@ -703,7 +703,7 @@ function _walk!(w::_Walk, path::String, comp, scope::NTuple{3,Int})
         # declaration time (§8.7): keys name discrete or scope children only.
         keyed && classify(kidpath, kid) === PRIMITIVE &&
             classify_tier(kidpath, kid) === CONTINUOUS &&
-            push!(w.viol, RatesViolation(path = path, reason = :continuous_child,
+            push!(w.diags, RatesViolation(path = path, reason = :continuous_child,
                                          key = Symbol(seg)))
         _walk!(w, kidpath, kid, kscope)
     end
@@ -727,7 +727,7 @@ function _walk!(w::_Walk, path::String, comp, scope::NTuple{3,Int})
         # would otherwise reach no consumer, leave no row in §9.2's face graph,
         # and let a condition addressing it misdiagnose as a bare typo.
         if isempty(consumers)
-            push!(w.viol, UnknownPort(entry = entry, end_ = :connection, path = path,
+            push!(w.diags, UnknownPort(entry = entry, end_ = :connection, path = path,
                                       port = Symbol(face)))
             continue                       # a route with no consumer registers nothing
         end
@@ -751,9 +751,9 @@ _entry(method::String, path::String, pair::Pair) =
 # Every input takes exactly one connection, and the rule spans levels (§6.1): an
 # input fed both by a sibling wire and by an ancestor's route — or handed up while
 # also wired — meets its second claim here.
-function _claim!(w::_Walk, consumer, producer, entry::String)
+function _claim!(w::Walk, consumer, producer, entry::String)
     if haskey(w.feeds, consumer)
-        push!(w.viol, TwoProducers(path = consumer[1], port = consumer[2],
+        push!(w.diags, TwoProducers(path = consumer[1], port = consumer[2],
                                    incumbent = w.claims[consumer], entry = entry))
         return nothing                     # the incumbent keeps the claim
     end
@@ -763,15 +763,15 @@ function _claim!(w::_Walk, consumer, producer, entry::String)
 end
 
 # §8.6's two face-name invariants. Every other naming choice is author convention.
-function _check_face_names(path::String, comp, viol::Vector{Diagnostic})
+function _check_face_names(path::String, comp, diags::Vector{Diagnostic})
     names = vcat(String[String(face) for (face, _) in input_connections(comp)],
                  String[String(face) for (_, face) in output_connections(comp)])
     for n in names
         occursin('/', n) &&
-            push!(viol, FaceNameIllegal(path = path, face = n, invariant = :contains_slash))
+            push!(diags, FaceNameIllegal(path = path, face = n, invariant = :contains_slash))
     end
     allunique(names) ||
-        push!(viol, FaceNameCollision(path = path, site = :assembly,
+        push!(diags, FaceNameCollision(path = path, site = :assembly,
                                       faces = unique(n for n in names
                                                      if count(==(n), names) > 1)))
     nothing
@@ -784,9 +784,9 @@ end
 # would silently overwrite the port's. Below the root nothing collides — a
 # primitive's input faces alias their producers' cells and place nothing — and
 # non-root leaves are left alone.
-function _check_root_faces(comp, viol::Vector{Diagnostic})
+function _check_root_faces(comp, diags::Vector{Diagnostic})
     outs = String.(keys(_contract(output_types, comp)))
     dup = [n for n in String.(keys(_contract(input_types, comp))) if n in outs]
-    isempty(dup) || push!(viol, FaceNameCollision(path = "", faces = dup, site = :root))
+    isempty(dup) || push!(diags, FaceNameCollision(path = "", faces = dup, site = :root))
     nothing
 end

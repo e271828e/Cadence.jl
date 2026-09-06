@@ -228,9 +228,9 @@ end
 # own kind and the *problem* is what the setup is refusing, which is what
 # `_resolve_reads` was factored apart for.
 
-function _report_trim!(viol::Vector{Diagnostic})
-    isempty(viol) && return nothing
-    throw(DiagnosticError(viol))
+function _report_trim!(diags::Vector{Diagnostic})
+    isempty(diags) && return nothing
+    throw(DiagnosticError(diags))
 end
 
 _tviol(field::Symbol, reason::Symbol; kw...) =
@@ -239,21 +239,21 @@ _tviol(field::Symbol, reason::Symbol; kw...) =
 # `guess`, `lower` and `upper`: NamedTuples, one key set between them, all
 # fields `Float64`. The key-set comparison is by *set*, order being no
 # mismatch — the canonicalization below pairs a permuted spelling by name.
-function _check_decisions!(viol::Vector{Diagnostic}, p::TrimProblem)
+function _check_decisions!(diags::Vector{Diagnostic}, p::TrimProblem)
     named = true
     for (name, v) in ((:guess, p.guess), (:lower, p.lower), (:upper, p.upper))
         v isa NamedTuple && continue
-        push!(viol, _tviol(name, :not_a_namedtuple; observed = typeof(v)))
+        push!(diags, _tviol(name, :not_a_namedtuple; observed = typeof(v)))
         named = false
     end
     named || return nothing
     for (name, v) in ((:lower, p.lower), (:upper, p.upper))
         Set(keys(v)) == Set(keys(p.guess)) ||
-            push!(viol, _tviol(name, :key_set; names = collect(keys(v)),
+            push!(diags, _tviol(name, :key_set; names = collect(keys(v)),
                                expected = collect(keys(p.guess))))
     end
     for (name, v) in ((:guess, p.guess), (:lower, p.lower), (:upper, p.upper))
-        _check_floats!(viol, name, v)
+        _check_floats!(diags, name, v)
     end
     # And the box has to admit a point at all. Checked per decision, over the
     # pairs that survived the two checks above, because an inverted pair is a
@@ -263,7 +263,7 @@ function _check_decisions!(viol::Vector{Diagnostic}, p::TrimProblem)
         (haskey(p.lower, k) && haskey(p.upper, k) &&
          p.lower[k] isa Float64 && p.upper[k] isa Float64) || continue
         p.lower[k] ≤ p.upper[k] ||
-            push!(viol, _tviol(:lower, :inverted_box; key = k, value = p.lower[k],
+            push!(diags, _tviol(:lower, :inverted_box; key = k, value = p.lower[k],
                                bound = p.upper[k]))
     end
     nothing
@@ -275,24 +275,24 @@ end
 # all — and the acceptance test measures `‖r ./ tol`‖ (§14.8), so a non-positive
 # one sends the descent test to `Inf`/`NaN`, rejects every trial step and
 # returns `:stalled` at the guess. That is a malformed problem, named here.
-function _check_tolerances!(viol::Vector{Diagnostic}, p::TrimProblem)
+function _check_tolerances!(diags::Vector{Diagnostic}, p::TrimProblem)
     if !(p.tolerances isa NamedTuple)
-        push!(viol, _tviol(:tolerances, :not_a_namedtuple; observed = typeof(p.tolerances)))
+        push!(diags, _tviol(:tolerances, :not_a_namedtuple; observed = typeof(p.tolerances)))
         return nothing
     end
-    _check_floats!(viol, :tolerances, p.tolerances)
+    _check_floats!(diags, :tolerances, p.tolerances)
     for k in keys(p.tolerances)
         v = p.tolerances[k]
         v isa Float64 || continue           # the type violation is already named above
         (isfinite(v) && v > 0) ||
-            push!(viol, _tviol(:tolerances, :nonpositive_tolerance; key = k, value = v))
+            push!(diags, _tviol(:tolerances, :nonpositive_tolerance; key = k, value = v))
     end
     nothing
 end
 
-function _check_floats!(viol::Vector{Diagnostic}, name::Symbol, v::NamedTuple)
+function _check_floats!(diags::Vector{Diagnostic}, name::Symbol, v::NamedTuple)
     bad = Pair{Symbol,Any}[k => typeof(v[k]) for k in keys(v) if !(v[k] isa Float64)]
-    isempty(bad) || push!(viol, _tviol(name, :field_types; bad = bad))
+    isempty(bad) || push!(diags, _tviol(name, :field_types; bad = bad))
     nothing
 end
 
@@ -301,13 +301,13 @@ end
 # as they are — the read is named as authored, with the list in hand — because
 # here the *problem* is what is malformed (§14.8) and one throw reports both
 # halves of it.
-function _check_reads!(viol::Vector{Diagnostic}, p::TrimProblem, b::Build)
+function _check_reads!(diags::Vector{Diagnostic}, p::TrimProblem, b::Build)
     if !(p.reads isa Reads)
-        push!(viol, _tviol(:reads, :not_a_read_set; observed = typeof(p.reads)))
+        push!(diags, _tviol(:reads, :not_a_read_set; observed = typeof(p.reads)))
         return nothing
     end
     (reader, rviol) = _resolve_reads(p.reads, b, Float64)
-    append!(viol, rviol)
+    append!(diags, rviol)
     reader
 end
 
@@ -316,17 +316,17 @@ end
 # packing — and every field is a real scalar, the residual system being named
 # *equations*.
 function _check_residuals(r, tolerances::NamedTuple)
-    viol = Diagnostic[]
+    diags = Diagnostic[]
     if !(r isa NamedTuple)
-        push!(viol, _tviol(:residuals, :not_a_namedtuple; observed = typeof(r)))
+        push!(diags, _tviol(:residuals, :not_a_namedtuple; observed = typeof(r)))
     else
         Set(keys(r)) == Set(keys(tolerances)) ||
-            push!(viol, _tviol(:residuals, :key_set; names = collect(keys(r)),
+            push!(diags, _tviol(:residuals, :key_set; names = collect(keys(r)),
                                expected = collect(keys(tolerances))))
         bad = Pair{Symbol,Any}[k => typeof(r[k]) for k in keys(r) if !(r[k] isa Real)]
-        isempty(bad) || push!(viol, _tviol(:residuals, :field_types; bad = bad))
+        isempty(bad) || push!(diags, _tviol(:residuals, :field_types; bad = bad))
     end
-    _report_trim!(viol)
+    _report_trim!(diags)
 end
 
 # --- the service (§14.8) ---------------------------------------------------------
@@ -387,11 +387,11 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :errored)))
 
     b = sim.build
-    viol = Diagnostic[]
-    _check_decisions!(viol, problem)
-    _check_tolerances!(viol, problem)
-    reader = _check_reads!(viol, problem, b)
-    _report_trim!(viol)                       # one collected throw, before any evaluation
+    diags = Diagnostic[]
+    _check_decisions!(diags, problem)
+    _check_tolerances!(diags, problem)
+    reader = _check_reads!(diags, problem, b)
+    _report_trim!(diags)                       # one collected throw, before any evaluation
 
     guess, tolerances = problem.guess, problem.tolerances
     K, RK = keys(guess), keys(tolerances)

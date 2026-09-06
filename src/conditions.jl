@@ -148,7 +148,7 @@ _key(e::CEntry) = e.face === nothing ? (e.path, e.store, e.field) : ("", :input,
 _step(prov::String, s::String) = isempty(prov) ? s : prov * " → " * s
 
 function _flat(n::Fragment, path::String, prov::String, pos::Tuple,
-               flat::Flat, viol::Vector{Diagnostic})
+               flat::Flat, diags::Vector{Diagnostic})
     out = CEntry[]
     for (store, name, payload) in ((:x, :x, n.x), (:s, :s, n.s),
                                    (:m, :m, n.m), (:input, :inputs, n.inputs))
@@ -157,7 +157,7 @@ function _flat(n::Fragment, path::String, prov::String, pos::Tuple,
                        nothing, (pos..., name, field))
             store === :input &&
                 (e = CEntry(e.path, e.store, e.field, e.value, e.prov,
-                            _root_input(flat, e, viol), e.pos))
+                            _root_input(flat, e, diags), e.pos))
             push!(out, e)
         end
     end
@@ -165,13 +165,13 @@ function _flat(n::Fragment, path::String, prov::String, pos::Tuple,
 end
 
 _flat(n::Scoped, path::String, prov::String, pos::Tuple,
-      flat::Flat, viol::Vector{Diagnostic}) =
+      flat::Flat, diags::Vector{Diagnostic}) =
     _flat(n.node, _join(path, n.prefix), _step(prov, "at(\"$(n.prefix)\")"),
-          (pos..., :node), flat, viol)
+          (pos..., :node), flat, diags)
 
 _flat(n::Combined, path::String, prov::String, pos::Tuple,
-      flat::Flat, viol::Vector{Diagnostic}) =
-    reduce(vcat, (_flat(k, path, _step(prov, "combine[$i]"), (pos..., :nodes, i), flat, viol)
+      flat::Flat, diags::Vector{Diagnostic}) =
+    reduce(vcat, (_flat(k, path, _step(prov, "combine[$i]"), (pos..., :nodes, i), flat, diags)
                   for (i, k) in enumerate(n.nodes)); init = CEntry[])
 
 # Layering (§14.6): each layer is flattened and checked on its own — a
@@ -179,12 +179,12 @@ _flat(n::Combined, path::String, prov::String, pos::Tuple,
 # accumulator, the patch replacing the leaf it overrode and inheriting its
 # provenance beside its own.
 function _flat(n::Override, path::String, prov::String, pos::Tuple,
-               flat::Flat, viol::Vector{Diagnostic})
+               flat::Flat, diags::Vector{Diagnostic})
     acc = CEntry[]
     for (i, layer) in enumerate(n.layers)
         label = i == 1 ? "override[base]" : "override[patch $(i - 1)]"
-        es = _flat(layer, path, _step(prov, label), (pos..., :layers, i), flat, viol)
-        _check_duplicates!(es, viol)
+        es = _flat(layer, path, _step(prov, label), (pos..., :layers, i), flat, diags)
+        _check_duplicates!(es, diags)
         for e in es
             j = findfirst(a -> _key(a) == _key(e), acc)
             j === nothing ? push!(acc, e) :
@@ -197,12 +197,12 @@ end
 
 # `combine`'s one collision rule, collected rather than thrown (§13.1): both
 # provenance chains and the directive naming the layering combinator.
-function _check_duplicates!(es::Vector{CEntry}, viol::Vector{Diagnostic})
+function _check_duplicates!(es::Vector{CEntry}, diags::Vector{Diagnostic})
     seen = Dict{Tuple{String,Symbol,Symbol},CEntry}()
     for e in es
         k = _key(e)
         if haskey(seen, k)
-            push!(viol, DuplicateConditionLeaf(path = e.path, store = e.store,
+            push!(diags, DuplicateConditionLeaf(path = e.path, store = e.store,
                                                field = e.field, face = e.face,
                                                provenance = [seen[k].prov, e.prov]))
         else
@@ -256,8 +256,8 @@ authority on *may you write this, at what type*; the activation's layout
 supplies the destination.
 """
 function resolve_condition(node::ConditionNode, b::Build, ::Type{T} = Float64) where {T}
-    resolved, viol, act = _resolve_entries(node, b, T)
-    _report_violations(viol)
+    resolved, diags, act = _resolve_entries(node, b, T)
+    _report_violations(diags)
 
     xs = Tuple{Int,Any}[]
     inputs = Tuple{Symbol,Any,Any}[]
@@ -311,9 +311,9 @@ function _resolve_entries(node::ConditionNode, b::Build, ::Type{T}) where {T}
     flat, tiers = b.flat, b.tiers
     act = activation(b, T)
     decls, layout = act.decls, act.layout
-    viol = Diagnostic[]
-    entries = _flat(node, "", "", (), flat, viol)
-    _check_duplicates!(entries, viol)
+    diags = Diagnostic[]
+    entries = _flat(node, "", "", (), flat, diags)
+    _check_duplicates!(entries, diags)
 
     x_offs = _x_offsets(decls, tiers)
     out = Resolved[]
@@ -323,27 +323,27 @@ function _resolve_entries(node::ConditionNode, b::Build, ::Type{T}) where {T}
             addr = layout.addr[("", e.face)]
             P = _port_type(addr)
             (ok, v) = _convert(P, e.value)
-            ok || (push!(viol, _unconvertible(e, e.value, P, T)); continue)
+            ok || (push!(diags, _unconvertible(e, e.value, P, T)); continue)
             push!(out, Resolved(e, addr, P, v))
             continue
         end
-        ci = _component(flat, e, viol)
+        ci = _component(flat, e, diags)
         ci === nothing && continue
         c, tier, d = flat.comps[ci], tiers[ci], decls[ci]
         declared = e.store === :x ? d.x : e.store === :s ? d.s : init_m(c)
         if isempty(declared)
-            push!(viol, _no_store(e, tier))
+            push!(diags, _no_store(e, tier))
             continue
         end
         haskey(declared, e.field) ||
-            (push!(viol, _undeclared(e, c, tier, declared, T)); continue)
+            (push!(diags, _undeclared(e, c, tier, declared, T)); continue)
         L = typeof(declared[e.field])
         (ok, v) = _convert(L, e.value)
-        ok || (push!(viol, _unconvertible(e, e.value, L, T)); continue)
+        ok || (push!(diags, _unconvertible(e, e.value, L, T)); continue)
         push!(out, Resolved(e, e.store === :x ? x_offs[ci] + _leaf_offset(d.x, e.field) : ci,
                             L, v))
     end
-    (out, viol, act)
+    (out, diags, act)
 end
 
 # The merge bases, in one order both registers walk: per component, the discrete
@@ -394,10 +394,10 @@ _cviol(e::CEntry, reason::Symbol; kw...) =
 # The component a non-input entry addresses. Assemblies are virtual for
 # execution (§10.5) and own no state, so an `at` prefix stopping at one has
 # nothing to write — and saying so beats "no such path".
-function _component(flat::Flat, e::CEntry, viol::Vector{Diagnostic})
+function _component(flat::Flat, e::CEntry, diags::Vector{Diagnostic})
     i = findfirst(==(e.path), flat.paths)
     i === nothing || return i
-    push!(viol, _cviol(e, any(startswith(p, e.path * "/") for p in flat.paths) ?
+    push!(diags, _cviol(e, any(startswith(p, e.path * "/") for p in flat.paths) ?
                           :assembly_path : :unknown_path))
     nothing
 end
@@ -409,23 +409,23 @@ end
 # producer is either a root input or an internal port, and a component-fed face
 # reaches none — writing it would be meaningless, because the first sweep
 # overwrites it.
-function _root_input(flat::Flat, e::CEntry, viol::Vector{Diagnostic})
+function _root_input(flat::Flat, e::CEntry, diags::Vector{Diagnostic})
     if isempty(e.path)
         e.field in flat.root_inputs && return e.field
-        push!(viol, _cviol(e, :unexported_face; candidates = flat.root_inputs))
+        push!(diags, _cviol(e, :unexported_face; candidates = flat.root_inputs))
         return nothing
     end
     k = findfirst(p -> first(p) === (e.path, e.field), flat.in_faces)
     if k === nothing
         here = [f for ((p, f), _) in flat.in_faces if p == e.path]
-        push!(viol, isempty(here) && !_addresses_level(flat, e.path) ?
+        push!(diags, isempty(here) && !_addresses_level(flat, e.path) ?
                     _cviol(e, :unknown_path) :
                     _cviol(e, :no_input_face; candidates = here))
         return nothing
     end
     (path, port) = last(flat.in_faces[k])
     isempty(path) && return port
-    push!(viol, _cviol(e, :internally_wired; producer = (path, port)))
+    push!(diags, _cviol(e, :internally_wired; producer = (path, port)))
     nothing
 end
 
@@ -470,9 +470,9 @@ _seeded_into_pinned(::Type{V}, ::Type{P}, ::Type{T}) where {V,P,T} =
     T !== Float64 && T in leaf_types(V) && !(T in leaf_types(P))
 
 # §13.1's collecting register: the full list, every violation, one throw.
-function _report_violations(viol::Vector{Diagnostic})
-    isempty(viol) && return nothing
-    throw(DiagnosticError(viol))
+function _report_violations(diags::Vector{Diagnostic})
+    isempty(diags) && return nothing
+    throw(DiagnosticError(diags))
 end
 
 # --- root-input totality (§14.6) ------------------------------------------------
@@ -671,8 +671,8 @@ paths, field names, tree positions, the destination leaf types at this
 activation.
 """
 function compile_plan(node::ConditionNode, b::Build, ::Type{T} = Float64) where {T}
-    resolved, viol, act = _resolve_entries(node, b, T)
-    _report_violations(viol)
+    resolved, diags, act = _resolve_entries(node, b, T)
+    _report_violations(diags)
 
     xs, inputs = Any[], Any[]
     overlays = Dict{Tuple{Symbol,Int},Vector{Resolved}}()

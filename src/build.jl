@@ -85,15 +85,15 @@ function classify_tier(path::String, c)
     # The vote loop collects (§13.1): a leaf written half in each tier's spelling
     # names every declaration that disagrees, not the first one found.
     t = last(votes[i])
-    viol = Diagnostic[]
+    diags = Diagnostic[]
     for (name, vt) in votes
         vt === t ||
-            push!(viol, DeclarationOnWrongTier(path = path, declaration = name,
+            push!(diags, DeclarationOnWrongTier(path = path, declaration = name,
                                                reason = :tier_form,
                                                found = Symbol(tier_word(vt)),
                                                announced = Symbol(tier_word(t))))
     end
-    isempty(viol) || throw(DiagnosticError(viol))
+    isempty(diags) || throw(DiagnosticError(diags))
     t
 end
 
@@ -150,20 +150,20 @@ end
 # The per-port loop collects (§13.1): a stage returning three wrong types names
 # all three.
 function _check_ports(path, stage, y::NamedTuple, outs::NamedTuple, ::Type{T}) where {T}
-    viol = Diagnostic[]
+    diags = Diagnostic[]
     for (name, v) in pairs(y)
         if !haskey(outs, name)
-            push!(viol, UndeclaredReturnField(path = path, stage = stage, name = name,
+            push!(diags, UndeclaredReturnField(path = path, stage = stage, name = name,
                                               candidates = collect(keys(outs))))
             continue                               # nothing declared to compare against
         end
         _accepts(outs[name], typeof(v), T) ||
-            push!(viol, ConformanceFailure(path = path, what = stage, reason = :field_type,
+            push!(diags, ConformanceFailure(path = path, what = stage, reason = :field_type,
                                            shape = :ports, field = name,
                                            observed = typeof(v), declared = outs[name],
                                            activation = T))
     end
-    isempty(viol) || throw(DiagnosticError(viol))
+    isempty(diags) || throw(DiagnosticError(diags))
     nothing
 end
 
@@ -271,11 +271,11 @@ function cell_layout(flat::Flat, decls::Vector{Decls}, ::Type{T}) where {T}
     # Placement collects (§13.1): every leafless declaration in the model is
     # named, and the barrier throws before the alias pass, which would otherwise
     # look up an address placement never made.
-    viol = Diagnostic[]
+    diags = Diagnostic[]
     function place!(path, site::Symbol, name, ::Type{P}) where {P}
         lts = leaf_types(P)
         if isempty(lts)
-            push!(viol, IllegalPortType(path = path, site = site, name = name, declared = P))
+            push!(diags, IllegalPortType(path = path, site = site, name = name, declared = P))
             return false
         end
         Ls = leaf_eltypes(P)
@@ -291,11 +291,11 @@ function cell_layout(flat::Flat, decls::Vector{Decls}, ::Type{T}) where {T}
         end
     end
     for face in flat.root_inputs
-        P = _root_input_type(flat, decls, face, viol, T === Float64)
+        P = _root_input_type(flat, decls, face, diags, T === Float64)
         place!("", :root_input, face, P) || continue
         push!(root_inputs, (face, probe_value(P)))
     end
-    isempty(viol) || throw(DiagnosticError(viol))
+    isempty(diags) || throw(DiagnosticError(diags))
     for (alias, target) in flat.out_faces
         addr[alias] = addr[target]
     end
@@ -316,7 +316,7 @@ end
 # seeded activation the same two entries evaluate to `Dual` and `Float64`, and
 # comparing them would refuse a lawful model.
 function _root_input_type(flat::Flat, decls::Vector{Decls}, face::Symbol,
-                          viol::Vector{Diagnostic}, check::Bool)
+                          diags::Vector{Diagnostic}, check::Bool)
     paths, declared = String[], Any[]
     for (ci, conns) in enumerate(flat.conns), (f, producer) in conns
         if producer === ("", face)
@@ -327,7 +327,7 @@ function _root_input_type(flat::Flat, decls::Vector{Decls}, face::Symbol,
     isempty(paths) && throw(InternalInvariant("root input face `$face` routes to no input"))
     P = first(declared)
     check && any(Q -> Q !== P, declared) &&
-        push!(viol, RootInputTypeConflict(face = face, paths = paths, declared = declared))
+        push!(diags, RootInputTypeConflict(face = face, paths = paths, declared = declared))
     P
 end
 
@@ -398,22 +398,22 @@ end
 function _check_event_declarations(flat::Flat)
     # One barrier for the whole pass (§13.1): every malformed entry in the model
     # is named, not the first one the walk reaches.
-    viol = Diagnostic[]
+    diags = Diagnostic[]
     for (path, c) in zip(flat.paths, flat.comps)
         for (name, ev) in pairs(state_events(c))
             if !(ev isa StateEvent)
-                push!(viol, EventHalfMissing(path = path, event = name,
+                push!(diags, EventHalfMissing(path = path, event = name,
                                              reason = :not_an_event, found = typeof(ev)))
                 continue                           # neither half exists to look up
             end
             for (half, fn) in ((:guard, ev.guard), (:handler, ev.handler))
                 hasmethod(fn, Tuple{typeof(c),NamedTuple}) ||
-                    push!(viol, EventHalfMissing(path = path, event = name, reason = half,
+                    push!(diags, EventHalfMissing(path = path, event = name, reason = half,
                                                  found = typeof(c)))
             end
         end
     end
-    isempty(viol) || throw(DiagnosticError(viol))
+    isempty(diags) || throw(DiagnosticError(diags))
     nothing
 end
 
@@ -525,20 +525,20 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
     # no stage ever writes, and read as a silent zero forever. The pass collects
     # (§13.1): every component with an unproduced port is named, and the barrier
     # throws once for the whole model — as the two below it do.
-    viol = Diagnostic[]
+    diags = Diagnostic[]
     for ci in eachindex(flat.comps)
         missing_ports = setdiff(keys(decls[ci].outs), keys(products[ci]))
         isempty(missing_ports) ||
-            push!(viol, DeclaredNotProduced(path = flat.paths[ci],
+            push!(diags, DeclaredNotProduced(path = flat.paths[ci],
                                             ports = collect(missing_ports),
                                             products = collect(keys(products[ci]))))
     end
-    isempty(viol) || throw(DiagnosticError(viol))
+    isempty(diags) || throw(DiagnosticError(diags))
 
     # The update laws, probed against the now-complete table: `state_derivative`
     # for shape, `state_update` for the store's own type. A frozen component's
     # `state_update` is outside the executable set like its output stages (§9.4).
-    empty!(viol)
+    empty!(diags)
     for (ci, c) in enumerate(flat.comps)
         path, d, t = flat.paths[ci], decls[ci], tiers[ci]
         (isempty(state_decls(d, t)) || _frozen(tiers, ci, T)) && continue
@@ -546,31 +546,31 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
         bn = bundle_names(update, c, t, tuple(keys(stage1[ci])...))
         vals = _bundle_values(bn, d, in_values(ci, d), stage1[ci], T; y = products[ci],
                               ws = wss[ci], m = mstores[ci], Δt = 1.0)
-        append!(viol, t === CONTINUOUS ? _check_derivative(path, state_derivative(c, vals), d.x) :
+        append!(diags, t === CONTINUOUS ? _check_derivative(path, state_derivative(c, vals), d.x) :
                                          _check_update(path, state_update(c, vals), d.s))
     end
-    isempty(viol) || throw(DiagnosticError(viol))
+    isempty(diags) || throw(DiagnosticError(diags))
 
     # `state_projection`, probed at every activation it runs at — its result is
     # written back to the buffer wholesale at both schedule positions (§5.3), so
     # the check holds it *complete* against `X`'s own shape at `T` (§9.3).
-    empty!(viol)
+    empty!(diags)
     for (ci, c) in enumerate(flat.comps)
         has_stage(state_projection, c) || continue
         path, d = flat.paths[ci], decls[ci]
         if tiers[ci] !== CONTINUOUS
-            push!(viol, DeclarationOnWrongTier(path = path, declaration = :state_projection,
+            push!(diags, DeclarationOnWrongTier(path = path, declaration = :state_projection,
                                                reason = :continuous_only))
             continue                               # no manifold to run it against
         end
         if isempty(d.x)
-            push!(viol, DeclarationOnWrongTier(path = path, declaration = :state_projection,
+            push!(diags, DeclarationOnWrongTier(path = path, declaration = :state_projection,
                                                reason = :no_manifold))
             continue
         end
-        append!(viol, _check_state_write(path, "state_projection", state_projection(c, d.x), d.x))
+        append!(diags, _check_state_write(path, "state_projection", state_projection(c, d.x), d.x))
     end
-    isempty(viol) || throw(DiagnosticError(viol))
+    isempty(diags) || throw(DiagnosticError(diags))
     products
 end
 
@@ -592,15 +592,15 @@ function _check_state_write(path, what, x⁺, x::NamedTuple)
                                              shape = :state,
                                              observed_fields = collect(keys(x⁺)),
                                              declared_fields = collect(keys(x)))]
-    viol = Diagnostic[]
+    diags = Diagnostic[]
     for k in keys(x)
         nleaves(typeof(x⁺[k])) == nleaves(typeof(x[k])) ||
-            push!(viol, ConformanceFailure(path = path, what = what, reason = :field_type,
+            push!(diags, ConformanceFailure(path = path, what = what, reason = :field_type,
                                            shape = :state, field = k,
                                            observed = typeof(x⁺[k]),
                                            declared = typeof(x[k])))
     end
-    viol
+    diags
 end
 
 """
@@ -655,30 +655,30 @@ function _check_handler(path, name, ret, d::Decls, c)
     stores = Symbol[]
     isempty(d.x) || push!(stores, :x)
     isempty(m₀) || push!(stores, :m)
-    viol = Diagnostic[]
+    diags = Diagnostic[]
     for k in keys(ret)
         k in stores ||
-            push!(viol, HandlerReturnKey(path = path, event = name, key = k, stores = stores))
+            push!(diags, HandlerReturnKey(path = path, event = name, key = k, stores = stores))
     end
     # Per key, but only for a store the component actually declares: the key set
     # is the outer fact, and holding a write to `x` against an empty state would
     # report the same omission twice in different words.
     haskey(ret, :x) && :x in stores &&
-        append!(viol, _check_state_write(path, "$what `x`", ret.x, d.x))
+        append!(diags, _check_state_write(path, "$what `x`", ret.x, d.x))
     if haskey(ret, :m) && :m in stores
         if !(ret.m isa NamedTuple)
-            push!(viol, ConformanceFailure(path = path, what = "$what `m`",
+            push!(diags, ConformanceFailure(path = path, what = "$what `m`",
                                            reason = :return_type, shape = :mode,
                                            observed = typeof(ret.m)))
         else
             for k in keys(ret.m)
                 if !haskey(m₀, k)
-                    push!(viol, ConformanceFailure(path = path, what = what,
+                    push!(diags, ConformanceFailure(path = path, what = what,
                                                    reason = :field_set, shape = :mode,
                                                    field = k,
                                                    declared_fields = collect(keys(m₀))))
                 elseif typeof(ret.m[k]) !== typeof(m₀[k])
-                    push!(viol, ConformanceFailure(path = path, what = what,
+                    push!(diags, ConformanceFailure(path = path, what = what,
                                                    reason = :field_type, shape = :mode,
                                                    field = k, observed = typeof(ret.m[k]),
                                                    declared = typeof(m₀[k])))
@@ -686,7 +686,7 @@ function _check_handler(path, name, ret, d::Decls, c)
             end
         end
     end
-    isempty(viol) || throw(DiagnosticError(viol))
+    isempty(diags) || throw(DiagnosticError(diags))
     nothing
 end
 
@@ -756,22 +756,22 @@ function bind_schedule(b::Build, h, n, Δt_base)
     # loop collects (§13.1): every anchor the chosen base grid cannot express is
     # named, so the coarsest admissible value is chosen against the whole list.
     adm = isempty(pool) ? nothing : reduce(gcd, pool)
-    viol = Diagnostic[]
+    diags = Diagnostic[]
     Dk, Φk = [1], [0]
     for (k, (Tk, τk)) in enumerate(anchors)
         D = _as_int(Tk / Δt_r)
         D === nothing &&
-            push!(viol, DeploymentInvalid(parameter = :Δt_base, reason = :anchor_period,
+            push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :anchor_period,
                                           value = Tk, related = Δt_r, provenance = prov[k],
                                           admissible = adm))
         Φ = _as_int(τk / Δt_r)
         Φ === nothing &&
-            push!(viol, DeploymentInvalid(parameter = :Δt_base, reason = :anchor_offset,
+            push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :anchor_offset,
                                           value = τk, related = Δt_r, provenance = prov[k],
                                           admissible = adm))
         push!(Dk, something(D, 1)); push!(Φk, something(Φ, 0))
     end
-    isempty(viol) || throw(DiagnosticError(viol))
+    isempty(diags) || throw(DiagnosticError(diags))
 
     # Per component, one multiply-add; the canonical residue 0 ≤ Φ < D survives
     # composition (§10.5), which is what the gate's truncated rem relies on.
@@ -1049,15 +1049,15 @@ function _check_derivative(path, ẋ, x::NamedTuple)
                                              shape = :init_x,
                                              observed_fields = collect(keys(ẋ)),
                                              declared_fields = collect(keys(x)))]
-    viol = Diagnostic[]
+    diags = Diagnostic[]
     for k in keys(x)
         nleaves(typeof(ẋ[k])) == nleaves(typeof(x[k])) ||
-            push!(viol, ConformanceFailure(path = path, what = "state_derivative",
+            push!(diags, ConformanceFailure(path = path, what = "state_derivative",
                                            reason = :field_type,
                                            shape = :init_x, field = k,
                                            observed = typeof(ẋ[k]), declared = typeof(x[k])))
     end
-    viol
+    diags
 end
 
 # §7.3: a discrete store is overwritten wholesale with what `state_update`

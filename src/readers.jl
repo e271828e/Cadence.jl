@@ -223,8 +223,8 @@ collecting pass is factored apart from the throw. The violations are
 *site* that decides where they surface (§13.2, Appendix C).
 """
 function _compile_reads(rs::Reads, b::Build, ::Type{T} = Float64) where {T}
-    reader, viol = _resolve_reads(rs, b, T)
-    isempty(viol) || throw(DiagnosticError(viol))
+    reader, diags = _resolve_reads(rs, b, T)
+    isempty(diags) || throw(DiagnosticError(diags))
     reader
 end
 
@@ -241,25 +241,25 @@ list, the reader being `nothing` when anything failed.
 function _resolve_reads(rs::Reads, b::Build, ::Type{T}) where {T}
     act = activation(b, T)
     offs = _x_offsets(act.decls, b.tiers)
-    viol = Diagnostic[]
+    diags = Diagnostic[]
     entries = Any[]
     for (label, s) in pairs(rs.sels)
-        e = _resolve_selector(s, label, b, act, offs, viol)
+        e = _resolve_selector(s, label, b, act, offs, diags)
         e === nothing || push!(entries, e)
     end
-    (isempty(viol) ? Reader{T,keys(rs.sels)}(Tuple(entries)) : nothing, viol)
+    (isempty(diags) ? Reader{T,keys(rs.sels)}(Tuple(entries)) : nothing, diags)
 end
 
 # The component a path-addressed selector names. The treatment is
 # `_component`'s, one register over: the offender named plainly, an assembly
 # discriminated from a path that is nothing at all (candidate lists are absent
 # here, `pending.md`).
-function _read_component(s, label::Symbol, flat::Flat, viol::Vector{Diagnostic})
+function _read_component(s, label::Symbol, flat::Flat, diags::Vector{Diagnostic})
     i = findfirst(==(s.path), flat.paths)
     i === nothing || return i
     # An empty path names the root, which is a level of every build — the
     # prefix test cannot see that, the root's segment being no segment at all.
-    push!(viol, _rviol(label, s, (isempty(s.path) || _addresses_level(flat, s.path)) ?
+    push!(diags, _rviol(label, s, (isempty(s.path) || _addresses_level(flat, s.path)) ?
                           :assembly_path : :unknown_path))
     nothing
 end
@@ -284,9 +284,9 @@ _selindex(::Union{GetInput,GetFace}) = nothing
 # respect: `getindex` has to mean something there. A scalar leaf is refused;
 # nothing further is checked, the index being the author's own coordinate
 # choice over a value whose length the schema does not fix everywhere.
-function _check_index(s, label::Symbol, ::Type{P}, viol::Vector{Diagnostic}) where {P}
+function _check_index(s, label::Symbol, ::Type{P}, diags::Vector{Diagnostic}) where {P}
     (s.i === nothing || !(P <: Real)) && return true
-    push!(viol, _rviol(label, s, :scalar_index; declared = P))
+    push!(diags, _rviol(label, s, :scalar_index; declared = P))
     false
 end
 
@@ -298,54 +298,54 @@ _field(s::Union{GetState,GetDeriv}) = s.field
 _field(s::GetOutput) = s.name
 
 function _resolve_selector(s::GetState, label::Symbol, b::Build, act::Activation,
-                       offs::Vector{Int}, viol::Vector{Diagnostic})
-    ci = _read_component(s, label, b.flat, viol)
+                       offs::Vector{Int}, diags::Vector{Diagnostic})
+    ci = _read_component(s, label, b.flat, diags)
     ci === nothing && return nothing
     d, t = act.decls[ci], b.tiers[ci]
     declared = state_decls(d, t)
     haskey(declared, s.field) ||
-        (push!(viol, _declares(label, s, :state_field, declared)); return nothing)
+        (push!(diags, _declares(label, s, :state_field, declared)); return nothing)
     P = typeof(declared[s.field])
-    _check_index(s, label, P, viol) || return nothing
+    _check_index(s, label, P, diags) || return nothing
     t === CONTINUOUS ?
         StateRead{P,typeof(s.i)}(offs[ci] + _leaf_offset(d.x, s.field), s.i) :
         StoreRead{typeof(d.s),s.field,typeof(s.i)}(ci, s.i)
 end
 
 function _resolve_selector(s::GetDeriv, label::Symbol, b::Build, act::Activation,
-                       offs::Vector{Int}, viol::Vector{Diagnostic})
-    ci = _read_component(s, label, b.flat, viol)
+                       offs::Vector{Int}, diags::Vector{Diagnostic})
+    ci = _read_component(s, label, b.flat, diags)
     ci === nothing && return nothing
     d, t = act.decls[ci], b.tiers[ci]
     if t !== CONTINUOUS
-        push!(viol, _rviol(label, s, :discrete_deriv; field = s.field))
+        push!(diags, _rviol(label, s, :discrete_deriv; field = s.field))
         return nothing
     end
     haskey(d.x, s.field) ||
-        (push!(viol, _declares(label, s, :state_field, d.x)); return nothing)
+        (push!(diags, _declares(label, s, :state_field, d.x)); return nothing)
     P = typeof(d.x[s.field])
-    _check_index(s, label, P, viol) || return nothing
+    _check_index(s, label, P, diags) || return nothing
     # `ẋ` has `x`'s shape at the activation scalar (§7.1), so the derivative of
     # a state field sits at the state field's own offset in the other buffer.
     DerivRead{P,typeof(s.i)}(offs[ci] + _leaf_offset(d.x, s.field), s.i)
 end
 
 function _resolve_selector(s::GetOutput, label::Symbol, b::Build, act::Activation,
-                       ::Vector{Int}, viol::Vector{Diagnostic})
-    ci = _read_component(s, label, b.flat, viol)
+                       ::Vector{Int}, diags::Vector{Diagnostic})
+    ci = _read_component(s, label, b.flat, diags)
     ci === nothing && return nothing
     d = act.decls[ci]
     haskey(d.outs, s.name) ||
-        (push!(viol, _declares(label, s, :output_port, d.outs)); return nothing)
-    _check_index(s, label, d.outs[s.name], viol) || return nothing
+        (push!(diags, _declares(label, s, :output_port, d.outs)); return nothing)
+    _check_index(s, label, d.outs[s.name], diags) || return nothing
     addr = act.layout.addr[(s.path, s.name)]
     CellRead{typeof(addr),typeof(s.i)}(addr, s.i)
 end
 
 function _resolve_selector(s::GetInput, label::Symbol, b::Build, act::Activation,
-                       ::Vector{Int}, viol::Vector{Diagnostic})
+                       ::Vector{Int}, diags::Vector{Diagnostic})
     if !(s.face in b.flat.root_inputs)
-        push!(viol, _rviol(label, s, :unknown_root_input; field = s.face,
+        push!(diags, _rviol(label, s, :unknown_root_input; field = s.face,
                            candidates = b.flat.root_inputs))
         return nothing
     end
@@ -354,10 +354,10 @@ function _resolve_selector(s::GetInput, label::Symbol, b::Build, act::Activation
 end
 
 function _resolve_selector(s::GetFace, label::Symbol, b::Build, act::Activation,
-                       ::Vector{Int}, viol::Vector{Diagnostic})
+                       ::Vector{Int}, diags::Vector{Diagnostic})
     exported = Symbol[f for ((p, f), _) in b.flat.out_faces if isempty(p)]
     if !(s.name in exported)
-        push!(viol, s.name in b.flat.root_inputs ?
+        push!(diags, s.name in b.flat.root_inputs ?
                     _rviol(label, s, :root_input_not_face; field = s.name) :
                     _rviol(label, s, :unknown_output_face; field = s.name,
                            candidates = exported))
