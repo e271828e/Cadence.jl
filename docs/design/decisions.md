@@ -8019,7 +8019,7 @@ executor is call-local and dies with the frame, so nothing leaks.
   the species rule hands it ([D-221][d-221]).
 - A collected carrier riding as `cause` falls under the `Exception` arm.
 - A bare value that is neither, thrown deliberately by model code, fails the
-  constructor with a `TypeError` inside the catch and leaves unframed.
+  constructor with a `MethodError` inside the catch and leaves unframed.
   Accepted, not handled.
 
 **Spec.** [§13.2][s13-2], [§13.4][s13-4], [Appendix C][sC], [Appendix D][sD]
