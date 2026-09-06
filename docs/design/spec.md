@@ -7022,7 +7022,9 @@ single `DiagnosticError` wrapping the collection. A fail-fast site throws the
 same carrier holding one diagnostic. **The carrier's type parameter spells the
 policy.** It is the diagnostic's kind for a fail-fast throw and
 `Vector{Diagnostic}` for a collected one, so a test asserts policy and kind at
-once with `@test_throws DiagnosticError{Kind}` ([D-222][d-222]). `showerror`
+once with `@test_throws DiagnosticError{Kind}` ([D-222][d-222]). The runtime
+carrier follows the same rule: `StepError{C}` carries the type of its `cause`,
+so a species is `StepError{Kind}` ([§13.4][s13-4], [D-225][d-225]). `showerror`
 renders a collection compiler-style, grouped by kind and sorted by path, and a
 single diagnostic as its own line.
 
@@ -7256,6 +7258,27 @@ keeps the catch site the only `StepError` constructor, so a `StepError`
 arriving there is an invariant failure, while a runtime check stays a plain
 thrower of its kind ([D-221][d-221]). A collected carrier has no single kind and
 rides as `cause` unchanged; no runtime check throws one.
+
+**The cause's type is the carrier's parameter.** `StepError{C}` takes the type
+of its `cause`, bounded to a diagnostic or an exception, so a species is
+`StepError{Kind}` and a raw throw is `StepError{ArgumentError}` and the like.
+`isa StepError` matches both ([D-225][d-225]). A test asserts a species as
+`@test_throws StepError{ConformanceFailure}`, the runtime spelling of the
+build carrier's idiom ([§13.2][s13-2]). A collected carrier riding as `cause` is an
+exception and falls under that arm. A bare value thrown deliberately by model
+code is neither, and the constructor refuses it unframed; the framework does
+not handle that throw ([D-225][d-225]).
+
+```julia
+# the runtime carrier: its parameter the cause's type — a diagnostic's kind
+# for a species, the exception model code threw otherwise
+struct StepError{C <: Union{Diagnostic, Exception}} <: Exception
+    frame          # the cursor's frame at the catch
+    t::Float64     # the boundary time
+    boundary::Int  # the frame-entry boundary index: the replay pointer
+    cause::C
+end
+```
 
 Reproducibility holds by construction. Staged inputs are drained and recorded to
 the [trace](#g-trace) at the frame top, *before* the boundary executes. So the failing
@@ -10319,7 +10342,7 @@ with the collection and never triggering its throw — is currently empty
 
 | kind | payload | owner | severity | raised | policy |
 |---|---|---|---|---|---|
-| `StepError` | the carrier: cursor frame (component path, function, boundary phase — RK stage, event round, localization trial evaluation, tick), boundary time, frame-entry boundary index (replay pointer), original exception as `cause` | [§13.4][s13-4] | error | runtime | fail-fast |
+| `StepError` | the carrier: cursor frame (component path, function, boundary phase — RK stage, event round, localization trial evaluation, tick), boundary time, frame-entry boundary index (replay pointer), the `cause` — a species' diagnostic or the original exception, its type the parameter | [§13.4][s13-4] | error | runtime | fail-fast |
 | `NonfiniteState` | component path, the offending state block, boundary time and index | [§13.4][s13-4] | error | runtime | fail-fast |
 | `ChatteringBudget` | component path, event name, boundary time, the exhausted `localization_budget` and the frame's localization count | [§10.4][s10-4] | warning | runtime | rate-limited |
 | `FiringBudget` | component path, event name, boundary time, the exhausted `firing_budget` and the boundary's firing count | [§10.6][s10-6] | warning | runtime | rate-limited |
@@ -11184,8 +11207,9 @@ residuals and committed as an `init!` of `override(baseline, solution)`
 <a id="g-carrier-exception"></a>**carrier exception** — the single exception diagnostics travel in when thrown:
 `DiagnosticError`, holding one diagnostic at a fail-fast site or the collection
 at a stratum barrier, its type parameter telling which; and `StepError` at the
-runtime catch site, which takes a single diagnostic over as its `cause`.
-Diagnostics themselves are plain values ([§13.2][s13-2], [§13.4][s13-4]).
+runtime catch site, which takes a single diagnostic over as its `cause` and
+carries the cause's type as its parameter. Diagnostics themselves are plain
+values ([§13.2][s13-2], [§13.4][s13-4]).
 
 <a id="g-collect-the-checks-fail-the-evaluations-fast"></a>**collect the checks, fail the evaluations fast** — the reporting policy:
 declarative passes over collected structure return their full violation list,
@@ -11222,9 +11246,9 @@ and names as strings (never instances or model types), expected/observed port
 types, the list-in-hand ([§13.2][s13-2], [Appendix C][sC]); severity is the kind's,
 not the payload's.
 
-<a id="g-species"></a>**species** — a `StepError` whose `cause` is a diagnostic: what the catch site
-makes of a single-diagnostic `DiagnosticError` thrown inside the frame, under
-the species rule ([§13.4][s13-4]).
+<a id="g-species"></a>**species** — a `StepError` whose `cause` is a diagnostic, `StepError{Kind}` by
+type: what the catch site makes of a single-diagnostic `DiagnosticError` thrown
+inside the frame, under the species rule ([§13.4][s13-4], [D-225][d-225]).
 
 <a id="g-stop_on"></a>**`stop_on` / termination is a state** — graceful termination is model state,
 never an exception: detection is ordinary event machinery, publication an
@@ -11445,6 +11469,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-222]: decisions.md#d-222--replace-builderror-with-the-policy-parametric-diagnosticerror-carrier
 [d-223]: decisions.md#d-223--host-the-runtime-catch-in-boundary-zero-under-the-services-disposition
 [d-224]: decisions.md#d-224--let-a-throw-inside-a-trim-commit-propagate-as-the-commits-steperror
+[d-225]: decisions.md#d-225--parametrize-steperror-on-its-causes-type
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

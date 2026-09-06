@@ -142,7 +142,7 @@ Where the reason is not given here, the cited decision carries it:
 ## Built in a shape the spec's is not
 
 Transactional: the commit introducing a deviation adds its bullet, the one
-retiring it deletes it. All but the last two were found by the audit, none
+retiring it deletes it. All but the last three were found by the audit, none
 of them chosen; the merge entry has the probe.
 
 - **`t_end` lands on the nearest frame, not the first at or past it**
@@ -224,22 +224,17 @@ of them chosen; the merge entry has the probe.
   free and asserted so (`test_conditions.jl`); the construction cost is noted
   in that file's comments and guarded by nothing. Needs a test before it can
   be called more than a note.
+- **`StepError` keeps `cause::Any`** (D-225). A species is recognizable only
+  by reading the field, and the suite's species sites spell
+  `e isa StepError && e.cause isa Kind` where the ruling's shape is
+  `@test_throws StepError{Kind}`. Retires with the conformance increment that
+  parametrizes the carrier and extends `diagnostic(e)` to the species.
 
 ## Awaiting a ruling
 
 Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
-retires or the code conforms. A sequel to D-221 comes first:
-
-- **`StepError`'s cause in its type.** The carrier ruling (D-222) puts the
-  kind in the type parameter, so `@test_throws DiagnosticError{Kind}` asserts
-  policy and kind at once. §13.4's `StepError` keeps `cause::Any`, so a species is
-  recognizable only by reading the field. The same parametrization,
-  `StepError{C}` with `C` the cause's type and `Any`-typed raw causes still
-  legal, is the natural sequel. Deferred so the carrier change lands alone;
-  ruling it moves §13.4 and the species tests together.
-
-The rest are the audit's (M-D and M-B26):
+retires or the code conforms. All are the audit's (M-D and M-B26):
 
 - **"Exported."** Nothing is, and the whole suite works by qualified import;
   the spec uses the word normatively in §4.4, §9.4 and Appendix B's title.
