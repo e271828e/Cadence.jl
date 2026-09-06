@@ -488,7 +488,7 @@ pose). They are therefore carried by ordinary [ports](#g-port) as **immutable qu
 
 **The [value-level constructor](#g-value-level-constructor).** Every field-emitting
 component must expose the map (component, input values) → handle as a plain,
-pure, exported function — `atmospheric_field(atm; T_sl, p_sl, wind)` for the
+pure, public function — `atmospheric_field(atm; T_sl, p_sl, wind)` for the
 `SimpleAtmosphere` successor. The field-emitting component's swept output stage
 must be a **one-line call to that function**, never the other way round. The
 other way round puts the query math in the output stage, where only a
@@ -511,7 +511,7 @@ condition authoring is design-time code.
 call it:
 
 ```julia
-#the map: plain, pure, exported — callable outside any sweep
+#the map: plain, pure, public — callable outside any sweep
 atmospheric_field(atm; T_sl, p_sl, wind) = ISAField(…)
 
 #the swept output stage: one line, nothing but the call
@@ -3306,7 +3306,7 @@ re-run per component. The same keyword is the recommended idiom for the
 parallel-sweep register ([§11.1][s11-1]): pre-materialize the activations the
 sweep will need and
 the shared `Build` is a fully immutable artifact, with no synchronization on any
-path. [`ProbeDual`](#g-probedual) is the framework's exported canonical probe
+path. [`ProbeDual`](#g-probedual) is the framework's public canonical probe
 scalar — `const ProbeDual = ForwardDiff.Dual{ProbeTag, Float64, 1}` — because
 an activation is keyed by a *concrete* scalar type and the bare `Dual`
 `UnionAll` cannot key one, be [walked](#g-walked) to, or answer `zero(T)`. Its width is
@@ -7791,7 +7791,7 @@ init.
 queries**. A condition needing one constructs the same handle the sweep will
 produce, and then calls the same query function the consuming component calls.
 One route to that handle is the [value-level constructor](#g-value-level-constructor) (the plain
-exported function building a field handle from the component and input values,
+public function building a field handle from the component and input values,
 [§4.4][s4-4]), applied to the same values the [`baseline`](#g-baseline) writes
 into the environment [component](#g-component)'s root inputs. The other applies in a
 rig where the handle itself is a root-input value: the condition simply holds
@@ -9642,7 +9642,9 @@ field becomes a plain scalar, its clamp respelled as dynamics or
 [projection](#g-projection), never as construction.
 
 **The exported-name surface.** This surface is to be decided deliberately
-rather than by accident. `condition`, `fragment`, `at`, `capture` and
+rather than by accident. Until the audit below runs, the module exports
+nothing, and a public name is reached by qualified name or per-name `import`
+([D-226][d-226]). `condition`, `fragment`, `at`, `capture` and
 `combine` ([§14.2][s14-2]) are generic names sharing a namespace with
 FlightPhysics domain code. The `Base.merge` piracy surface the combinator once
 presented is retired with its rename ([D-204][d-204]); the mixed-argument methods stay
@@ -9776,7 +9778,7 @@ For component authors:
   signals only, never transported ones: buffer for `x`, stores for
   `s` and for `m`, table for signals — no store mirrors another.
 - **The value-level constructor** ([§4.4][s4-4]). A field-emitting component ships
-  the map (component, input values) → handle as a plain exported function,
+  the map (component, input values) → handle as a plain public function,
   and its output stage merely calls it: the condition math ([§14.1][s14-1]) must
   be able to produce the sweep's exact handle outside any sweep, and only the
   component's author can write that function without re-creating the
@@ -9886,8 +9888,10 @@ For periphery authors and consumers:
 
 The user-facing surface on one page — same rule as [Appendix A][sA]: an index, not a
 second home, with each signature normative only where its owning section settles
-it. The author-side declaration surface first, then the operator surface by
-lifecycle:
+it. Every name here is public by being here, reached by qualified name or by
+per-name `import`; the module exports nothing until [§16][s16]'s audit fixes the
+exported-name list ([D-226][d-226]). The author-side declaration surface first, then
+the operator surface by lifecycle:
 
 **Authoring** — what a component or assembly defines ([§8.2][s8-2], [§8.5][s8-5]–[§8.7][s8-7]):
 
@@ -9936,7 +9940,7 @@ updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` pa
 - `build(world) → Build` — standalone; the inspectable derived-contract artifact:
   wire list, face table with provenance, schedule, root inputs ([§9.2][s9-2]).
   `build(world; activations = (Float64, ProbeDual))` additionally pins
-  activation invariants for CI (`ProbeDual` the exported canonical concrete
+  activation invariants for CI (`ProbeDual` the public canonical concrete
   probe scalar, [§9.4][s9-4]), and pre-materializes activations so a parallel
   sweep shares a fully immutable `Build` ([§11.1][s11-1], [§9.4][s9-4]).
 - `resolve(asm, path) → AbstractComponent` — the getfield walk along `/`
@@ -10591,7 +10595,7 @@ aggregation through explicit wires (`SumJunction{W, N}` or a named
 site-specific variant); there is no framework aggregation mechanism, and fold
 order is the junction's positional input order ([§6.2][s6-2]).
 
-<a id="g-value-level-constructor"></a>**value-level constructor** — the plain exported function (component, input
+<a id="g-value-level-constructor"></a>**value-level constructor** — the plain public function (component, input
 values) → field handle that every field-emitting component is obliged to
 provide, its own swept output stage being a one-line call to it; the device by
 which [§14.1][s14-1] condition math queries the environment before any sweep exists
@@ -10867,7 +10871,7 @@ overridable); from there they flow the probe chain as the probed stages' own
 returns ([§13.1][s13-1]). Strictly probe-scoped: never an initial root-input value,
 which [§14.6][s14-6] makes a structural barrier ([§9.3][s9-3]).
 
-<a id="g-probedual"></a>**`ProbeDual`** — the framework's exported canonical concrete probe scalar
+<a id="g-probedual"></a>**`ProbeDual`** — the framework's public canonical concrete probe scalar
 (`ForwardDiff.Dual{ProbeTag, Float64, 1}`), which keys the CI activation
 pinning walked-leaf genericity; its width is arbitrary, since what CI pins is
 genericity, not a particular Jacobian ([§9.4][s9-4]).
@@ -11470,6 +11474,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-223]: decisions.md#d-223--host-the-runtime-catch-in-boundary-zero-under-the-services-disposition
 [d-224]: decisions.md#d-224--let-a-throw-inside-a-trim-commit-propagate-as-the-commits-steperror
 [d-225]: decisions.md#d-225--parametrize-steperror-on-its-causes-type
+[d-226]: decisions.md#d-226--reach-the-public-surface-by-qualified-name-until-16s-export-audit
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

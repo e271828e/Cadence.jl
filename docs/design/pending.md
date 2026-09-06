@@ -119,11 +119,9 @@ Where the reason is not given here, the cited decision carries it:
 - **§8.1's shadowing check**, the forgotten-import diagnostic (M-B25). The
   mechanism is `implementation.md`'s second caveat; it needs a decision entry
   and an Appendix C payload column on `ClassUnreadable`/`TierUnreadable`.
-- **Nothing is exported**, and two surface names do not exist: there is no
-  `condition` generic (two model packages defining one would define two
-  functions, breaking §14.2's pull composition), and `ProbeDual`/`ProbeTag`
-  are not names (M-B23). Whether "exported" is normative is a spec-pass
-  question below.
+- **Two surface names do not exist**: there is no `condition` generic (two
+  model packages defining one would define two functions, breaking §14.2's
+  pull composition), and `ProbeDual`/`ProbeTag` are not names (M-B23).
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, the rig; §6.2's spellings) — a
   migration-phase deliverable by the spec's word, deferred with §16 (M-B22).
@@ -231,8 +229,6 @@ Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
 retires or the code conforms. All are the audit's (M-D and M-B26):
 
-- **"Exported."** Nothing is, and the whole suite works by qualified import;
-  the spec uses the word normatively in §4.4, §9.4 and Appendix B's title.
 - **`method = RK4` vs `algorithm = RK4()`** (M-B24). A type versus an
   instance, and a different name, already in the trace header's deployment
   block; Appendix B and six other sites spell the latter, no decision

@@ -109,7 +109,7 @@ who wants one.
 
 The last piece is the obligation that makes the split usable, and it is the
 one thing the spec had to gain: a field-emitting component must expose the map
-(component, input values) → handle as a **plain, pure, exported function**,
+(component, input values) → handle as a **plain, pure, public function**,
 with its own swept output stage a one-line call to it — never the reverse.
 `atmospheric_field(atm; T_sl, p_sl, wind)` is the `SimpleAtmosphere`
 successor's. This has to be a *shipped component's* obligation, not something
