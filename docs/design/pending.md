@@ -142,7 +142,7 @@ Where the reason is not given here, the cited decision carries it:
 ## Built in a shape the spec's is not
 
 Transactional: the commit introducing a deviation adds its bullet, the one
-retiring it deletes it. All but the last two were found by the audit, none
+retiring it deletes it. All but the last three were found by the audit, none
 of them chosen; the merge entry has the probe.
 
 - **`t_end` lands on the nearest frame, not the first at or past it**
@@ -224,20 +224,19 @@ of them chosen; the merge entry has the probe.
   free and asserted so (`test_conditions.jl`); the construction cost is noted
   in that file's comments and guarded by nothing. Needs a test before it can
   be called more than a note.
+- **Boundary zero sits outside the catch** (D-223). `init!` and `replay!` run
+  it raw, the cursor's frame discarded, and the lifecycle word moves only at
+  the service's end: a re-`init!` that throws leaves a warm simulation
+  `initialized` on half-transitioned stores, and `step!` advances on them.
+  Retires with the conformance increment that hosts the catch and returns the
+  simulation to `built`.
 
 ## Awaiting a ruling
 
 Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
-retires or the code conforms. One reading runs ahead of the spec's letter, and
-a sequel to D-221 rides with it:
+retires or the code conforms. A sequel to D-221 comes first:
 
-- **Boundary zero sits outside the catch.** `init!` and `replay!` run it as
-  stopped-sim services and propagate raw. The spec calls boundary zero "the
-  ordinary macro-sequence with an empty integrate" and a legal replay halt, so
-  a reading that wraps it too is available. The conservative choice here is
-  that a service's own refusal path is not a frame, there being no frame-entry
-  pointer for a frame that has not begun.
 - **`StepError`'s cause in its type.** The carrier ruling (D-222) puts the
   kind in the type parameter, so `@test_throws DiagnosticError{Kind}` asserts
   policy and kind at once. §13.4's `StepError` keeps `cause::Any`, so a species is

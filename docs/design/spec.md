@@ -6584,9 +6584,11 @@ policy at deployment. Never a callback, and never a thrown exception.
 
 A `Simulation` moves through five states: **built**, **initialized**,
 **running**, and terminally **stopped** or **errored** ([§13.4][s13-4]).
-**Built** is stores allocated, nothing authored. **Initialized** is `init!`
-completed [boundary zero](#g-boundary-zero), the initialization boundary run as
-the ordinary macro-sequence with an empty integrate ([§14.5][s14-5]).
+**Built** is stores allocated and [boundary zero](#g-boundary-zero) not
+completed: the cold state, and the state a throw inside boundary zero returns
+the simulation to ([§13.4][s13-4]). **Initialized** is `init!` completed boundary zero,
+the initialization boundary run as the ordinary macro-sequence with an empty
+integrate ([§14.5][s14-5]).
 
 Beside the state, a simulation carries an **[input mode](#g-input-mode)**:
 `:live` or `:replay`, read as `mode(sim)`. The mode names where the next
@@ -6600,7 +6602,9 @@ whether the simulation may advance, the mode says what it will advance on.
 completed is an error in the kind set ([§13.2][s13-2]) naming `init!`. That is
 distinct from `UninitializedInputs`, which fires *inside* `init!`
 ([§14.6][s14-6]). `replay!` is the one alternative entry: it runs boundary zero
-from a [trace header](#g-trace-header) ([§12.7][s12-7]).
+from a [trace header](#g-trace-header) ([§12.7][s12-7]). A throw inside
+boundary zero, under either entry, leaves the simulation `built` ([§13.4][s13-4]), so
+the next `run!` or `step!` meets the same refusal.
 
 **Where the loop runs.** The loop runs on the [calling task](#g-calling-task),
 the task that invoked `run!`, unless a calling-task [device](#g-device) is
@@ -7267,6 +7271,26 @@ boundaries included.
 replay!(sim2, trc; to_boundary = k)   # halt at the frame top; still :replay
 step!(sim2; frames = 1)               # re-execute the failing frame, instrumented
 ```
+
+**Boundary zero is caught too, under the service's disposition.** Boundary zero
+runs inside `init!` and `replay!`, stopped-sim services, not inside the loop.
+Its macro-sequence executes the same user-code surfaces the loop's does, with
+the cursor maintained through them, so the service hosts the same catch. A
+throw inside boundary zero arrives as a `StepError` from the one constructor:
+the frame from the cursor, the time `t₀`, the species rule applied. The pointer
+is `0`, and at zero it degenerates: the failing frame is boundary zero itself,
+so `replay!(sim2, trc)` from the captured header reproduces it with no `step!`
+after. The header is captured before boundary zero runs ([§14.5][s14-5]), so the trace
+already holds the reproduction. What differs is the disposition. Nothing was
+published and no run was open, so there is no tail to take and no snapshot to
+promote. The simulation returns to `built`: `run!` and `step!` refuse it naming
+`init!` ([§12.6][s12-6]), and `init!` and `replay!` remain legal. The remedy for a
+condition that fails at `t₀` is a corrected condition, and `init!`
+re-establishes every store before it applies one ([§14.1][s14-1]). No
+[termination record](#g-termination-record) is written. The stores may hold the
+half-transitioned `t₀` state, retained for inspection as an errored
+simulation's are ([§13.6][s13-6]), until the next `init!` resets them. `trim!`'s commit
+is an `init!` ([§14.8][s14-8]) and inherits the rule ([D-223][d-223]).
 
 **The one exception never wrapped.** An `InterruptException` is not model code
 failing; it is the operator's stop command ([§12.4][s12-4]). So the catch site
@@ -11407,6 +11431,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-220]: decisions.md#d-220--rename-the-authoring-family-to-words-stage-update-projection-event-and-workspace-declarations
 [d-221]: decisions.md#d-221--unwrap-a-single-diagnostic-carrier-at-the-runtime-catch-site-into-a-steperror-species
 [d-222]: decisions.md#d-222--replace-builderror-with-the-policy-parametric-diagnosticerror-carrier
+[d-223]: decisions.md#d-223--host-the-runtime-catch-in-boundary-zero-under-the-services-disposition
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
