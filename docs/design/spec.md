@@ -3743,8 +3743,10 @@ against the CI invariant of [§7.5][s7-5], and trivially `T`-generic. Genericity
 not even required of the stepper, since linearization and the tracer drive the
 *sweep*, never the integrator.
 
-Of the two, **`RK4` is the default method**. The step `h` has no default and is
-**required** of the caller — a domain rate is not a framework default.
+Of the two, **`RK4` is the default**. The `algorithm` keyword selects the backend
+by type, and deployment binding materializes it against the state buffer
+([Appendix B][sB], [D-227][d-227]). The step `h` has no default and is **required** of the
+caller — a domain rate is not a framework default.
 
 An `OrdinaryDiffEq`-backed stepper can exist later as a package extension, if an
 offline study genuinely demands adaptive or stiff methods. Per the
@@ -9242,7 +9244,7 @@ The demo line by line:
   handed one level down to avionics and systems and re-routed at each level below
   ([§6.1][s6-1]) — today's mapping writes flaps/brakes directly
   into `act`, bypassing avionics; that bypass becomes a declared route.
-- `Simulation(world; algorithm = RK4(), h = 0.02, n = 1, t_end = 1000)` — `n`
+- `Simulation(world; algorithm = RK4, h = 0.02, n = 1, t_end = 1000)` — `n`
   binds `Δt_base = n·h` ([§10.5][s10-5]; default 1: base [tick](#g-tick) every step). The entire
   build pipeline runs here: [class](#g-class) resolution, path validation, face derivation
   (computed interface connections expanded, printable), two-producers/unconnected checks,
@@ -9955,7 +9957,7 @@ updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` pa
 
 **Deployment.**
 
-- `Simulation(world; algorithm = RK4(), h, n = 1, Δt_base = nothing,
+- `Simulation(world; algorithm = RK4, h, n = 1, Δt_base = nothing,
   t_end = Inf,
   stop_on = (), localization_tol = 1e-6, localization_budget = 8,
   firing_budget = 4, join_timeout = 5.0,
@@ -9966,7 +9968,7 @@ updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` pa
 
   | keyword | default | meaning | owning section |
   |---|---|---|---|
-  | `algorithm` | `RK4()` | the stepper; `RK4` is the default | [§10.2][s10-2] |
+  | `algorithm` | `RK4` | the stepper, selected by type and materialized against the state buffer at binding ([D-227][d-227]) | [§10.2][s10-2] |
   | `h` | — | required: a domain rate is not a framework default | [§10.2][s10-2] |
   | `n` | `1` | absent the `Δt_base` keyword, the `n·h` product is the base tick period (the default path); given it, `n` is instead derived and validated an integer ≥ 1 | [§9.1][s9-1] |
   | `Δt_base` | `nothing` | the base tick period as a `Rational`, `Period` or `Hz` value, or `:derive` to request GCD derivation (all-anchored models only); one of three binding sources | [§9.1][s9-1] |
@@ -11475,6 +11477,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-224]: decisions.md#d-224--let-a-throw-inside-a-trim-commit-propagate-as-the-commits-steperror
 [d-225]: decisions.md#d-225--parametrize-steperror-on-its-causes-type
 [d-226]: decisions.md#d-226--reach-the-public-surface-by-qualified-name-until-16s-export-audit
+[d-227]: decisions.md#d-227--select-the-stepper-by-type-under-the-algorithm-keyword
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

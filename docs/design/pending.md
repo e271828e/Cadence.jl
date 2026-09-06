@@ -143,6 +143,10 @@ Transactional: the commit introducing a deviation adds its bullet, the one
 retiring it deletes it. All but the last two were found by the audit, none
 of them chosen; the merge entry has the probe.
 
+- **The stepper keyword is `method`** (M-B24). D-227 names it `algorithm`,
+  keeping the type-valued form; the keyword, its `DeploymentInvalid`
+  parameter, the trace header's deployment field and the replay comparison
+  all still spell `method`.
 - **`t_end` lands on the nearest frame, not the first at or past it**
   (M-B1). `run!`, `step!` and `replay!` take `round(Int, t_end/h)` where
   §12.4 and Appendix B say the first grid boundary reaching `t_end`, and the
@@ -229,10 +233,6 @@ Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
 retires or the code conforms. All are the audit's (M-D and M-B26):
 
-- **`method = RK4` vs `algorithm = RK4()`** (M-B24). A type versus an
-  instance, and a different name, already in the trace header's deployment
-  block; Appendix B and six other sites spell the latter, no decision
-  ratifies either.
 - **`t_end = Inf` as the interactive default.** The code refuses `Inf` and
   demands a bound; Appendix B's unbounded-run warning and `log_max` as the
   memory bound describe a mode the package refuses to enter. `run!` in
