@@ -150,6 +150,15 @@ function test_devices()
         @test latest(sim).boundary == 5
         @test latest(sim).t ≈ 0.5
         @test logged(sim)[1].boundary == 0
+
+        # A second trajectory restarts the ordinal at boundary zero (D-230); the
+        # §12.3 wait counter keeps counting across it, never re-armed.
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        @test latest(sim).boundary == 0
+        run!(sim; t_end = 0.5)
+        @test latest(sim).boundary == 5
+        @test logged(sim)[1].boundary == 0
+        @test sim.control.counter == 12
     end
 
     @testset "stop! from any task ends the run at a frame top (§12.1, §12.4)" begin

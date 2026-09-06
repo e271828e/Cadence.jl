@@ -544,6 +544,7 @@ function _open_trajectory!(sim::Simulation{T}, t₀::T) where {T}
     sim.exec.clock.t = t₀
     sim.exec.clock.t₀ = t₀
     sim.exec.clock.step = 0
+    sim.exec.clock.boundary = 0
     fill!(sim.exec.events.prior, false)
     _reset!(sim.log)
     _reset_accounts!(sim)         # a new trajectory opens a fresh account (§11.8)
@@ -1450,14 +1451,16 @@ handle (D-193), fresh at every publication. Behind the store the snapshot
 enters the log (§11.2) — logging dissolves into publication, retention being
 the only thing the log adds — and the §12.3 counter increments under its
 lock, *after* the release-store: the normative order, so a waiter observing
-the new count finds at least this boundary in `latest`. The counter is read
-unlocked to stamp the snapshot's ordinal, the loop task being its only
-writer.
+the new count finds at least this boundary in `latest`. The snapshot's
+ordinal is the trajectory's, off the clock (D-230); the counter is the wait
+predicate's alone.
 """
 function publish!(sim::Simulation)
     ctl = sim.control
-    snap = Snapshot(sim.exec.clock.t, sim.exec.clock.step, ctl.counter, capture(sim.exec.store),
+    clock = sim.exec.clock
+    snap = Snapshot(clock.t, clock.step, clock.boundary, capture(sim.exec.store),
                     sim.exec.act.layout, _status(sim))
+    clock.boundary += 1
     @atomic :release sim.published.latest = snap
     log!(sim.log, snap)
     lock(ctl.cond)
@@ -1570,7 +1573,7 @@ continuous tier, `s` in the component's own store on the discrete one (§7.3).
 function state(sim::Simulation{T}, path::String) where {T}
     ci = index_of(sim.build.flat, path)
     sim.exec.sstores[ci] === nothing || return sim.exec.sstores[ci][]
-    _tier(i) = classify_tier(sim.build.flat.paths[i], sim.build.flat.comps[i])
+    _tier(i) = sim.build.tiers[i]
     _decls(i) = declarations(sim.build.flat.comps[i], _tier(i), T)
     off = 0
     for i in 1:(ci-1)

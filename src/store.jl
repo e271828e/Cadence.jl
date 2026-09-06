@@ -100,6 +100,7 @@ accumulated, so a remainder step's float arithmetic cannot drift the grid
 mutable struct Clock{T}
     t::T
     step::Int
+    boundary::Int   # the trajectory's published-boundary ordinal (§12.3, D-230); boundary zero = 0
     t₀::T
 end
-Clock(t) = Clock(t, 0, t)
+Clock(t) = Clock(t, 0, 0, t)

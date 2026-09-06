@@ -564,7 +564,7 @@ stores (`x`, `s`, `m`) are deliberately not carried (§11.2). Read it with
 struct Snapshot{T,S<:StoreBundle}
     t::T
     frame::Int
-    boundary::Int     # the §12.3 published-boundary ordinal; boundary zero = 0
+    boundary::Int     # the trajectory's published-boundary ordinal (§12.3, D-230); boundary zero = 0
     store::S
     layout::Layout    # build-frozen addressing, shared, never copied
     status::FrameworkStatus
@@ -619,7 +619,6 @@ mutable struct SnapshotLog
     every::Int                      # log_every: the authored stride
     max::Int                        # log_max: what bounds `live`, never the endpoints
     stride::Int                     # the effective stride, every · 2^generation
-    nb::Int                         # published-boundary ordinal; boundary zero = 0
     first::Union{Nothing,Snapshot}  # the boundary-zero endpoint (§14.5)
     last::Union{Nothing,Snapshot}   # the terminal endpoint: the latest published boundary
     snaps::Vector{Union{Nothing,Snapshot}}   # the bounded middle; `nothing` = released
@@ -628,14 +627,13 @@ mutable struct SnapshotLog
 end
 
 SnapshotLog(enabled::Bool, every::Int, max::Int) =
-    SnapshotLog(enabled, every, max, every, 0, nothing, nothing,
+    SnapshotLog(enabled, every, max, every, nothing, nothing,
                 Union{Nothing,Snapshot}[], 0, 0)
 
 # A warm restart is a new trajectory (§10.6's register reset, carried through):
 # the log starts over, its boundary zero a fresh first endpoint.
 function _reset!(L::SnapshotLog)
     L.stride = L.every
-    L.nb = 0
     L.first = nothing
     L.last = nothing
     empty!(L.snaps)
@@ -653,13 +651,13 @@ nothing at all: retention is what it gates, publication being upstream of it.
 """
 function log!(L::SnapshotLog, snap::Snapshot)
     L.enabled || return nothing
-    if L.nb == 0
+    nb = snap.boundary                  # the trajectory's ordinal rides in the snapshot (D-230)
+    if nb == 0
         L.first = snap
-    elseif L.nb % L.stride == 0
-        _retain!(L, snap, L.nb)
+    elseif nb % L.stride == 0
+        _retain!(L, snap, nb)
     end
     L.last = snap
-    L.nb += 1
     nothing
 end
 
