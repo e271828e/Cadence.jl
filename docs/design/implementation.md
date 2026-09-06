@@ -35,6 +35,8 @@ to. For more than a line, read the file itself and the sections it cites.
 | `src/conditions.jl` | the condition algebra, one collecting pass behind both application registers — `resolve_condition` (values) and `compile_plan` (`Getter{P}` lenses, `SpecializedPlan`, `ConditionShapeDrift`) — root-input totality, `capture` | §9.5, §13.1, §14.1–§14.6, D-063–D-068, D-204, D-205, D-207 |
 | `src/trim.jl` | `TrimProblem`, the `solve` seam with `LevenbergMarquardt`, `trim!` over D-213's two-half scratch world, `TrimReport`, the `Trim*` kinds | §9.6, §13.1, §14.5–§14.8, D-070, D-158, D-213, D-224 |
 | `test/fixtures.jl` | the suite's fixtures: the coverage component set, the named assemblies, the devices and bindings, the `condition` fragment-function idiom, `Pendulum` — user material, and no name here is known to `src/` | — |
+| `test/imports.jl` | the suite's `import Cadence:` list, shared with `repl.jl` — the one place a framework name the tests call or extend is admitted | — |
+| `test/repl.jl` | the REPL bootstrap: `julia --project=test -L test/repl.jl` loads the list and the fixtures into `Main` | — |
 
 Correctness is checked against analytically integrated references with a
 tolerance, never `==` (D-163) — except the frame-top stamps, asserted bitwise
@@ -78,7 +80,7 @@ Traps the code does not warn about, each hit more than once while building:
   connection declarations) silently drops its feature. The diagnostic that
   would catch it, a foreign binding of a D-220 name in the component's
   module found via `parentmodule(typeof(c))`, is proposed and not designed;
-- the suite reaches the framework through `CadenceTests.jl`'s `import Cadence:`
+- the suite reaches the framework through `test/imports.jl`'s `import Cadence:`
   list, so a test that calls or extends a name not on it fails with an
   `UndefVarError` — add the name there. A fixture reusing a framework name
   collides loudly, where the old `Main` arrangement let it clobber silently;
@@ -113,7 +115,9 @@ From the repository root:
     julia --project=test test/runtests.jl roster devices trace   # named files
 
 The suite is the one `CadenceTests` module in `test/CadenceTests.jl`: the
-includes, the `import Cadence:` list, `runall()` and `runonly(names...)`. Each
+includes, the `import Cadence:` list (`imports.jl`), `runall()` and
+`runonly(names...)`. `julia --project=test -L test/repl.jl` opens a session
+with the same list and the fixtures in `Main`, nothing to import by hand. Each
 file's tests are one function (`CadenceTests.test_trace()`), which is what the
 second form runs and the tightest loop in a live session. The tests are their
 own workspace member (`[workspace] projects = ["test"]`, Julia 1.12), so one
