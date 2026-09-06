@@ -258,7 +258,7 @@ function test_lifecycle()
         @test lifecycle(sim) === :built
         d = carried(@test_throws DiagnosticError{MissingInit} step!(sim))
         @test d.op === :step! && d.status === :built
-        @test termination(sim) === nothing               # no run was open to record
+        @test termination(sim) === nothing
         @test latest(sim).t == 0.2                       # the last published snapshot stands
         @test trace(sim).frames == 0                     # the trace is the failed init!'s
 

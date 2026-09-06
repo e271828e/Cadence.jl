@@ -7277,11 +7277,14 @@ runs inside `init!` and `replay!`, stopped-sim services, not inside the loop.
 Its macro-sequence executes the same user-code surfaces the loop's does, with
 the cursor maintained through them, so the service hosts the same catch. A
 throw inside boundary zero arrives as a `StepError` from the one constructor:
-the frame from the cursor, the time `t₀`, the species rule applied. The pointer
-is `0`, and at zero it degenerates: the failing frame is boundary zero itself,
-so `replay!(sim2, trc)` from the captured header reproduces it with no `step!`
-after. The header is captured before boundary zero runs ([§14.5][s14-5]), so the trace
-already holds the reproduction. What differs is the disposition. Nothing was
+the frame from the cursor, the time `t₀`, the species rule applied. An
+`InterruptException` inside boundary zero is not model code failing and has no
+stop path to take in a service, so the host moves the lifecycle to `built` and
+lets it propagate raw. The pointer is `0`, and at zero it degenerates: the
+failing frame is boundary zero itself, so `replay!(sim2, trc)` from the captured
+header reproduces it with no `step!` after. The header is captured before
+boundary zero runs ([§14.5][s14-5]), so the trace already holds the reproduction. What
+differs is the disposition. Nothing was
 published and no run was open, so there is no tail to take and no snapshot to
 promote. The simulation returns to `built`: `run!` and `step!` refuse it naming
 `init!` ([§12.6][s12-6]), and `init!` and `replay!` remain legal. The remedy for a

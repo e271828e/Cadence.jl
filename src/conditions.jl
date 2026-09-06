@@ -800,9 +800,10 @@ it, because time is not a store of any component (§14.5), and it is passed back
 as the `t0` argument.
 
 Legal in `initialized` and `stopped`, the states whose stores are committed and
-boundary-consistent. A `built` simulation has no such stores yet — boundary
-zero has never run — and `running` and `errored` are the ordinary service
-refusals (§14, §11.3, §13.6); all four are one `ServiceLifecycle`.
+boundary-consistent. A `built` simulation's are not, boundary zero having not
+completed — cold, or half-transitioned by a throw inside it (§13.4, D-223) —
+and `running` and `errored` are the ordinary service refusals (§14, §11.3,
+§13.6); all four are one `ServiceLifecycle`.
 
 Re-applying reproduces the captured world bit for bit, with one caveat that is
 boundary zero's rather than capture's: the re-application runs the sequence

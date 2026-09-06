@@ -7952,6 +7952,8 @@ termination record, nothing published, `init!` and `replay!` legal again.
 - `built` reads "boundary zero not completed", cold or after a failure. The
   stores are retained for inspection until the next `init!` resets them.
 - `trim!`'s commit inherits the rule, being an `init!`.
+- An interrupt inside boundary zero moves the lifecycle to `built` and
+  propagates raw; a service has no stop path.
 
 **Spec.** [§12.6][s12-6], [§13.4][s13-4]
 

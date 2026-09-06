@@ -190,8 +190,15 @@ function Base.showerror(io::IO, e::StepError)
         print(io, ", ")
     end
     print(io, _phase_text(fr), " of the frame from boundary ", e.boundary,
-          " (t = ", e.t, "):\n  replay!(sim2, trc; to_boundary = ", e.boundary,
-          ") then step!(sim2) reproduces it\n  cause: ")
+          " (t = ", e.t, "):\n  ")
+    # The pointer degenerates at zero (§13.4, D-223): the failing frame is
+    # boundary zero itself, reproduced by the replay of the captured header
+    # alone, and the `step!` the general recipe names would be refused.
+    e.boundary == 0 ?
+        print(io, "replay!(sim2, trc) reproduces it") :
+        print(io, "replay!(sim2, trc; to_boundary = ", e.boundary,
+              ") then step!(sim2) reproduces it")
+    print(io, "\n  cause: ")
     e.cause isa Diagnostic ? print(io, logline(e.cause)) : showerror(io, e.cause)
     nothing
 end
@@ -714,7 +721,7 @@ message(d::HandlerReturnKey) =
 # Deployment, periphery and services (§9.1, §11, §12, §13.5, §14)
 # ==============================================================================
 
-"§12.6: an advance entry called before `init!` has run boundary zero."
+"§12.6: an advance entry called before boundary zero has completed."
 Base.@kwdef struct MissingInit <: Diagnostic
     op::Symbol                               # the entry point called
     status::Symbol                           # the simulation's status

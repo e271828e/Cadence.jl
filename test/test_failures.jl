@@ -85,12 +85,24 @@ function failures_runtime()
         # the trace already holds it — and at zero it needs no `step!` after.
         trc = trace(sim)
         @test trc.frames == 0
+        @test occursin("replay!(sim2, trc) reproduces it", sprint(showerror, e))
+        @test !occursin("step!", sprint(showerror, e))  # which a `step!` after would be refused
+
+        # The twin is put in `:replay` first, by a partial replay of a good
+        # recording, so the words below are ones the failed replay moved.
+        ok = Simulation(fed(Mine(), "sig"); h = 1//10, t_end = 5.0)
+        init!(ok, fragment(inputs = (in = false,)))
+        @test step!(ok; frames = 2) == 2
+        trc_ok = trace(ok)
         sim2 = Simulation(fed(Mine(), "sig"); h = 1//10, t_end = 5.0)
+        replay!(sim2, trc_ok; to_boundary = 1)
+        @test lifecycle(sim2) === :initialized && mode(sim2) === :replay
+
         e2 = failure(() -> replay!(sim2, trc))
         @test e2 isa StepError && e2.cause isa Detonated
         @test e2.frame == e.frame && e2.boundary == 0
         @test lifecycle(sim2) === :built
-        @test mode(sim2) === :live                      # the mode is entered after the boundary
+        @test mode(sim2) === :live                      # the reset precedes the boundary
 
         # The remedy is a corrected condition, and `init!` re-establishes first.
         init!(sim, fragment(inputs = (in = false,)))
@@ -176,7 +188,8 @@ function failures_runtime()
         e = failure(() -> run!(sim))
         s = sprint(showerror, e)
         @test occursin("`c`", s) && occursin("state_derivative", s) && occursin("stage 2", s)
-        @test occursin("to_boundary = 0", s) && occursin("step!", s)
+        # The pointer degenerates at zero (D-223): the replay alone reproduces it.
+        @test occursin("replay!(sim2, trc) reproduces it", s) && !occursin("step!", s)
 
         # A `Diagnostic` cause renders as its logline: the kind name leads, and the
         # leaf the sweep named is in the line.
@@ -193,6 +206,8 @@ function failures_runtime()
         none = StepError(CursorFrame(nothing, :none, :drain, 0), 0.3, 3, Tripped())
         sn0 = sprint(showerror, none)
         @test occursin("StepError: drain of the frame from boundary 3", sn0)
+        # …and away from zero the recipe is the general one, halt then step.
+        @test occursin("replay!(sim2, trc; to_boundary = 3) then step!(sim2)", sn0)
         @test !occursin("root component", sn0) && !occursin(" in ", sn0)
 
         # An unrecognized phase renders as itself, never as another phase's spelling.
