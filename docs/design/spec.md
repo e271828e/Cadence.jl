@@ -7280,12 +7280,15 @@ throw inside boundary zero arrives as a `StepError` from the one constructor:
 the frame from the cursor, the time `t₀`, the species rule applied. An
 `InterruptException` inside boundary zero is not model code failing and has no
 stop path to take in a service, so the host moves the lifecycle to `built` and
-lets it propagate raw. The pointer is `0`, and at zero it degenerates: the
-failing frame is boundary zero itself, so `replay!(sim2, trc)` from the captured
-header reproduces it with no `step!` after. The header is captured before
-boundary zero runs ([§14.5][s14-5]), so the trace already holds the reproduction. What
-differs is the disposition. Nothing was
-published and no run was open, so there is no tail to take and no snapshot to
+lets it propagate raw. The pointer is `0`, and at zero the recipe degenerates.
+Boundary zero is frame one's entry boundary too, so a pointer of `0` names
+either boundary zero itself or frame one as the failing frame, and
+`replay!(sim2, trc)` reproduces both: it re-runs boundary zero from the
+captured header and, where that completes, frame one from the record. The
+rendered recipe therefore names the bare replay at zero and the
+halt-then-`step!` form elsewhere. The header is captured before boundary zero
+runs ([§14.5][s14-5]), so the trace already holds the reproduction. What differs
+is the disposition. Nothing was published and no run was open, so there is no tail to take and no snapshot to
 promote. The simulation returns to `built`: `run!` and `step!` refuse it naming
 `init!` ([§12.6][s12-6]), and `init!` and `replay!` remain legal. The remedy for a
 condition that fails at `t₀` is a corrected condition, and `init!`
@@ -8585,6 +8588,11 @@ field-type disagreement, an unknown `reads` [selector](#g-selector), a
 The error carries the offending field with the names or types in hand,
 collected, mirroring linearization's `TapResolution`. A permuted spelling is
 none of these ([§14.7][s14-7]).
+
+A throw inside the commit's boundary zero is a third case and neither of
+those: model code failing. It propagates out of `trim!` as the commit's
+`StepError`, the simulation left `built` ([§13.4][s13-4], [D-223][d-223]) and no report
+returned for that solve ([D-224][d-224]).
 
 An *empty* problem is none of them either:
 [`TrimProblem`](#g-trimproblem)`(guess = (;), …)` is legal, not
@@ -11435,6 +11443,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-221]: decisions.md#d-221--unwrap-a-single-diagnostic-carrier-at-the-runtime-catch-site-into-a-steperror-species
 [d-222]: decisions.md#d-222--replace-builderror-with-the-policy-parametric-diagnosticerror-carrier
 [d-223]: decisions.md#d-223--host-the-runtime-catch-in-boundary-zero-under-the-services-disposition
+[d-224]: decisions.md#d-224--let-a-throw-inside-a-trim-commit-propagate-as-the-commits-steperror
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

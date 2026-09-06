@@ -191,9 +191,10 @@ function Base.showerror(io::IO, e::StepError)
     end
     print(io, _phase_text(fr), " of the frame from boundary ", e.boundary,
           " (t = ", e.t, "):\n  ")
-    # The pointer degenerates at zero (§13.4, D-223): the failing frame is
-    # boundary zero itself, reproduced by the replay of the captured header
-    # alone, and the `step!` the general recipe names would be refused.
+    # The pointer degenerates at zero (§13.4, D-223): boundary zero and frame
+    # one share it, and the replay of the captured header reproduces either —
+    # the `step!` the general recipe names is what a boundary-zero failure
+    # would refuse.
     e.boundary == 0 ?
         print(io, "replay!(sim2, trc) reproduces it") :
         print(io, "replay!(sim2, trc; to_boundary = ", e.boundary,

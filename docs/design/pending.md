@@ -273,4 +273,6 @@ The rest are the audit's (M-D and M-B26):
   "exhaustion emits a `FiringBudget` warning" admits a reading the code does
   not take; §10.4's "in declaration order within the iteration" needs §10.6's
   one-per-component rule to be true; §11.5's bound sentence is weaker than
-  the code's.
+  the code's; §13.5's "absent when no boundary ever ran" names a case no run
+  can reach, boundary zero preceding every record, so the field's `nothing`
+  arm is dead.
