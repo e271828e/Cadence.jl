@@ -6988,11 +6988,25 @@ policy that fits it.
 
 Strata are barriers. A stratum that produced any error-severity diagnostic, of
 either kind, throws before the next stratum begins; probing against unresolved
-wiring is meaningless. The only partial results ever carried past a failure are
-violation lists from pure checking passes. So none of the three strata
-([§9][s9]) needs the machinery for carrying partial internal results across a
-failure that it would otherwise need. That machinery is the cost that kept this
-decision open, and it never materializes.
+wiring is meaningless. **Rule: collection reaches the stratum barrier, under a
+dependency rule.** A declarative pass runs when the results it reads are
+clean. It records every violation it finds and returns a total result, and
+every pass that ran merges into the barrier's one throw ([D-229][d-229]).
+Whether a pass can run past a failure follows from what it reads. Stratum A's
+walk yields two results, the component list and the wiring. A wire that fails
+to resolve is recorded and claims nothing, so the obligation check reports its
+input unfed. Tier and event checking read only the component list, so they run
+and merge. A structural failure, an unreadable or mixed class or a malformed
+container, leaves the subtree behind it unknown; no pass can read past it, and
+it throws alone. In Stratum C the probe chain consumes each check's subject as
+it goes, so a check that reads a failed probe does not run, and the chain's
+fail-fast is the same rule. Outside the strata the unit is the call:
+deployment validation ([§9.1][s9-1]) runs every check whose premise holds and
+throws once. The only partial results ever carried past a failure are
+violation lists and a claim table with the failed wires absent, so none of the
+three strata needs machinery for carrying partial internal results across a
+failure. That machinery is the cost that kept this decision open, and it never
+materializes.
 
 **No cascade suppression within a stratum** — a deliberate simplification
 ([D-057][d-057]). A wire typo'd as `:throtle` produces both a
@@ -10249,8 +10263,9 @@ The stages are the ones [§13][s13] fixes:
 The policies:
 
 - **collected** — gathered with its siblings and thrown as one carrier: a
-  declarative pass's violations as the `DiagnosticError` of the stratum barrier
-  ([§13.1][s13-1]); a service's wherever the owning section says so (the register,
+  declarative pass's violations as the `DiagnosticError` of the stratum barrier,
+  every pass that ran under [§13.1][s13-1]'s dependency rule merging into the one
+  throw ([D-229][d-229]); a service's wherever the owning section says so (the register,
   [§14.1][s14-1]; the pre-write check, [§14.6][s14-6]);
 - **fail-fast** — the first occurrence throws on its own, nothing else being
   gathered: at build the first user-code failure aborts the phase ([§13.1][s13-1]); at
@@ -10283,7 +10298,7 @@ with the collection and never triggering its throw — is currently empty
 | `UnknownPort` | the wire end (`source`/`destination`, or `connection` for an interface-connection entry's internal side, [D-210][d-210]), that end's path, the unknown port name, that end's port list (did-you-mean) | [§6.1][s6-1], [§8.4][s8-4] w1 | error | build | collected |
 | `UnconnectedInput` | leaf path, input name, declared entry type, the obligation chain's last level | [§6.1][s6-1], [§8.4][s8-4] w2 | error | build | collected |
 | `TwoProducers` | destination terminal, both producer terminals with provenance (sibling wire / interface connection entry) | [§6.1][s6-1], [§8.8][s8-8] | error | build | collected |
-| `WireTypeMismatch` | both endpoint paths, both face names, declared entry type, producer face type | [§6.1][s6-1], [§8.2][s8-2], [§8.4][s8-4] w4 | error | build | collected |
+| `WireTypeMismatch` | both endpoint paths, both face names, declared entry type, producer face type | [§6.1][s6-1], [§8.2][s8-2], [§8.4][s8-4] w4 | error | build | fail-fast — with the probe chain ([D-229][d-229]) |
 | `WalkingFaceAtFrozenEntry` | consumer path and entry name, producer path and face name, the offending leaf, both declared leaf types; both remedies in the message ("declare the entry `T` if the consumer promotes; feed it from a non-walking source if the freeze is genuine") | [§6.1][s6-1], [§8.2][s8-2] | error | build | collected |
 | `PathResolution` | path, offending segment, sibling field list; for a wiring endpoint reaching past the immediate child, the level it stopped at; for a read-side traversal past a generically-held field, that field's declared type | [§6.1][s6-1], [§13.3][s13-3] | error | build | collected |
 | `AbstractAtRoot` | face name, consuming leaf path, the abstract entry; remedy hint (wire a concrete producer — in a rig, a stub child, [§13.7][s13-7]) | [§8.2][s8-2] | error | build | collected |
@@ -10291,19 +10306,19 @@ with the collection and never triggering its throw — is currently empty
 | `IllegalStateLeaf` | component path, `init_x` field name, leaf type, the closed vocabulary (scalar / `SArray` at the common eltype) | [§7.1][s7-1], [§8.2][s8-2] | error | build | collected |
 | `StoreWithoutUpdate` | component path, the `init_x` or `init_s` store, the missing update (no `state_derivative` for the one, no `state_update` for the other); shadowing note when the parent module defines its own `state_derivative`/`state_update` ([§8.1][s8-1]) | [§8.2][s8-2] | error | build | collected |
 | `EventHalfMissing` | component path, event name, reason (guard half missing / handler half missing / the entry is not a `StateEvent`), the function that has no method or the entry's type | [§8.2][s8-2] | error | build | collected |
-| `ClassUnreadable` | component path, type, declarations found, both family lists; did-you-mean when the type holds component-typed fields; shadowing note when the parent module defines same-named declaration functions ([§8.1][s8-1]) | [§8.5][s8-5] | error | build | collected |
-| `ClassMixed` | component path, the `child_connections` declaration and the offending leaf declarations | [§8.5][s8-5] | error | build | collected |
-| `ContainerMixed` | container field path, offending element keys/indices, their types | [§8.5][s8-5] | error | build | collected |
+| `ClassUnreadable` | component path, type, declarations found, both family lists; did-you-mean when the type holds component-typed fields; shadowing note when the parent module defines same-named declaration functions ([§8.1][s8-1]) | [§8.5][s8-5] | error | build | fail-fast |
+| `ClassMixed` | component path, the `child_connections` declaration and the offending leaf declarations | [§8.5][s8-5] | error | build | fail-fast |
+| `ContainerMixed` | container field path, offending element keys/indices, their types | [§8.5][s8-5] | error | build | fail-fast |
 | `DeclarationOnWrongTier` | component path, the offending declaration (`state_derivative`/`state_update`, a store from the wrong family — `init_x` against `init_s`, [D-195][d-195] — `state_events`, `init_m`, `state_projection`, or an `init_workspace`/`output_types` arity), the tier the leaf's other declarations announce | [§5.2][s5-2], [§8.2][s8-2], [§8.5][s8-5] | error | build | collected |
 | `TierSignatureMismatch` | component path, the declaration at fault (`input_types` or `output_types`), the leaf's tier, the signature form found versus the form mandated (two-argument `(::C, ::Type{T})` on the continuous tier, plain `(::C)` on the discrete); stateful leaves only — on a stateless leaf `output_types`' arity *is* the tier ([§8.2][s8-2]), so there is nothing to mismatch | [§8.2][s8-2], [§8.5][s8-5] | error | build | collected |
 | `FaceNameIllegal` | assembly path, face name, the violated invariant (contains `/`) | [§8.6][s8-6] | error | build | collected |
 | `FaceNameCollision` | assembly path, face name, both entries' provenance (hand-written / computed) | [§8.6][s8-6] | error | build | collected |
 | `FaceDirectionConflict` | assembly path, the declaring method, the offending entry, the resolved port's actual direction | [§8.6][s8-6] | error | build | collected |
-| `UnknownFaceSelection` | child path, reason (unknown names / both `except` and `only` given), the offending names, the child's face list | [§8.8][s8-8] | error | build | collected |
+| `UnknownFaceSelection` | child path, reason (unknown names / both `except` and `only` given), the offending names, the child's face list | [§8.8][s8-8] | error | build | fail-fast |
 | `RatesViolation` | assembly path, offending key, reason (deep key / unknown child / `K` on a continuous child) | [§10.5][s10-5], [§8.7][s8-7] | error | build | collected |
 | `MissingProbeValue` | face name, type | [§9.3][s9-3] | error | build | collected |
-| `ChildNameCollision` | assembly path, the colliding child name, reason (a bare container key against the `sample_times` sugar, [D-211][d-211] / against a sibling field, [D-212][d-212] / two children with one name), both provenances | [§8.5][s8-5] | error | build | collected |
-| `TransparentContainerUnknown` | assembly path, the field `transparent_container` names, the type's container fields (the list-in-hand) | [§8.5][s8-5], [D-211][d-211] | error | build | collected |
+| `ChildNameCollision` | assembly path, the colliding child name, reason (a bare container key against the `sample_times` sugar, [D-211][d-211] / against a sibling field, [D-212][d-212] / two children with one name), both provenances | [§8.5][s8-5] | error | build | fail-fast |
+| `TransparentContainerUnknown` | assembly path, the field `transparent_container` names, the type's container fields (the list-in-hand) | [§8.5][s8-5], [D-211][d-211] | error | build | fail-fast |
 | `TierUnreadable` | component path, type, the declarations found — no `output_types`, no state — and the tier-announcing family list; the tier twin of `ClassUnreadable` | [§5.2][s5-2], [§8.2][s8-2], [§8.5][s8-5] | error | build | collected |
 | `IllegalPortType` | component path, the declaration at fault (`input_types`/`output_types`, or a root input), port name, the offending type — one with no numeric leaves; the leaf vocabulary ([§7.1][s7-1]) | [§7.1][s7-1], [§8.2][s8-2] | error | build | collected |
 
@@ -10312,7 +10327,7 @@ with the collection and never triggering its throw — is currently empty
 | kind | payload | owner | severity | raised | policy |
 |---|---|---|---|---|---|
 | `AlgebraicCycle` | the SCC's member terminals in slash form, the wires among them, optional classification (`real`/`artificial`) with the member whose hop died | [§5.5][s5-5], [§5.6][s5-6] | error | build | collected |
-| `ProducedByTwoStages` | component path, port name, both stage names | [§4.3][s4-3], [§8.3][s8-3] | error | build | collected |
+| `ProducedByTwoStages` | component path, port name, both stage names | [§4.3][s4-3], [§8.3][s8-3] | error | build | fail-fast — with the probe chain ([D-229][d-229]) |
 | `DeclaredNotProduced` | component path, declared name, the stage-product list and the state-field list | [§8.3][s8-3] | error | build | collected |
 | `UndeclaredReturnField` | component path, stage, returned field name, candidates (`output_types`) | [§8.3][s8-3], [§8.4][s8-4] w5 | error | build | fail-fast |
 | `DeadStage` | component path, stage — a stage method returning bare `(;)`, producing no ports | [§5.2][s5-2], [§9.3][s9-3] | error | build, at probe | fail-fast |
@@ -11491,6 +11506,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-226]: decisions.md#d-226--reach-the-public-surface-by-qualified-name-until-16s-export-audit
 [d-227]: decisions.md#d-227--select-the-stepper-by-type-under-the-algorithm-keyword
 [d-228]: decisions.md#d-228--attribute-runtime-diagnostics-by-cell-never-by-payload
+[d-229]: decisions.md#d-229--collect-to-the-stratum-barrier-under-a-dependency-rule
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

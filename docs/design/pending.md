@@ -34,22 +34,20 @@ Where the reason is not given here, the cited decision carries it:
   (M-A2); and §11.8's maxlog renderer (count-only display past 25 cumulative
   occurrences per writer × kind).
 - **First-violation refusals where the kinds' policy reads `collected`**
-  (M-A1, M-B11, M-B17). Lone throws with nothing gathered:
-  `resolve_source`/`resolve_dest`/`resolve_terminal`/`_one_level`/
+  (M-A1, M-B11, M-B17; the scope is D-229's). Lone throws with nothing
+  gathered: `resolve_source`/`resolve_dest`/`resolve_terminal`/`_one_level`/
   `_wrong_direction` in `assembly.jl` (reaching `UnknownPort`,
-  `PathResolution`, `FaceDirectionConflict`), `classify_tier` per component in
-  `build.jl` (`ClassUnreadable`, `StoreWithoutUpdate`, `TierUnreadable`,
-  `DeclarationOnWrongTier`), `ClassMixed`, `UnknownFaceSelection`,
-  `WireTypeMismatch`, `ProducedByTwoStages`, and `DeploymentInvalid`, whose
-  `bind_schedule` throws on nine arms against §9.1's `collected` so deployment
-  validation runs under three barriers (keyword ranges, the first five
-  `bind_schedule` checks, the anchor loop). A weaker population collects
-  within one component and throws before the next:
-  `DeclarationOnWrongTier(:tier_form)`, `ContainerMixed`, `ChildNameCollision`,
-  `TransparentContainerUnknown`. `classify_tier` is also called from inside
-  the wiring walk, so an unreadable tier aborts the walk before Stratum A's
-  barrier. Retiring the family needs a sentinel-returning resolution pass,
-  its own increment, and a ruling on the scope of "collected" (below).
+  `PathResolution`, `FaceDirectionConflict`), `classify_tier` in `build.jl`
+  (`StoreWithoutUpdate`, `TierUnreadable`, and a per-component barrier on
+  `DeclarationOnWrongTier(:tier_form)`), and `DeploymentInvalid`, whose
+  `bind_schedule` throws on nine arms so deployment validation runs under
+  three barriers (keyword ranges, the first five `bind_schedule` checks, the
+  anchor loop). Stratum A's three passes each throw their own list rather
+  than merging at one barrier, and `classify_tier` is also called from inside
+  the wiring walk, so an unreadable tier aborts the walk. Retires with the
+  sentinel increment: the resolvers record and return nothing, `classify_tier`
+  records and returns a sentinel, `build` owns the list and throws once, and
+  `bind_schedule` guards each dependent arm on its premise.
 - **Kinds carrying less than their Appendix C payload column.** D-216 rules
   that the column is the design and the implementation's gaps stay visible
   as such, and it leaves the enumeration here: `AlgebraicCycle` no wires and no
@@ -229,10 +227,6 @@ Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
 retires or the code conforms. All are the audit's (M-D and M-B26):
 
-- **"Collected" has no stated scope.** §13.1's worked example (did-you-mean
-  plus both unconnected inputs from one typo'd wire) requires the stratum
-  scope, which D-057 backs; the code collects per component, per pass and
-  never per stratum.
 - **`Snapshot.boundary` is stamped from the control plane's counter**, which
   `init!` never resets, so a second trajectory opens at the first one's
   count; the field's comment says "boundary zero = 0".
