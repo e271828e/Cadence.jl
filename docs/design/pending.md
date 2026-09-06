@@ -227,9 +227,6 @@ Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
 retires or the code conforms. All are the audit's (M-D and M-B26):
 
-- **`Snapshot.boundary` is stamped from the control plane's counter**, which
-  `init!` never resets, so a second trajectory opens at the first one's
-  count; the field's comment says "boundary zero = 0".
 - **`init_s`'s vocabulary.** The docstring says isbits, §7.3 says any
   immutable under the frozen-reference rule and requires a mutable RNG state
   to live there; the code enforces neither.
