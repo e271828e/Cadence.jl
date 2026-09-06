@@ -15,6 +15,11 @@ that tip. The reports are frozen evidence; this file is the register.
 
 Where the reason is not given here, the cited decision carries it:
 
+- **`IllegalStoreField` (D-231).** Stratum A's isbits check on every
+  `init_s`/`init_m` field. With it retire the `deepcopy` hedges on store
+  capture and replay (`trace.jl`'s header, `sim.jl`'s `replay!` entry): plain
+  assignment suffices for an isbits value.
+
 - **The Appendix C kinds whose mechanism is absent** — an absence gets no
   struct (`ThreadBudget`, `DeadStage`, `BundleFieldError`, `UserCodeFraming`,
   `UnboundedRun`; likewise `IllegalStateLeaf`, `MissingProbeValue`,
@@ -191,9 +196,8 @@ of them chosen; the merge entry has the probe.
 - **Docstrings that state the spec's shape over code that does not produce
   it** (M-A3): `diagnostics.jl`'s `AlgebraicCycle.members` ("the SCC's member
   terminals"); `localization.jl`'s attribution of the segment-relative rule
-  to D-133; `sim.jl`'s `t_end` "taken to the nearest frame top"; `declare.jl`'s
-  `init_s` "any isbits type" where §7.3 says any immutable under the
-  frozen-reference rule; `build.jl`'s torn-state "by having none".
+  to D-133; `sim.jl`'s `t_end` "taken to the nearest frame top"; `build.jl`'s
+  torn-state "by having none".
 - **The per-writer status is a `Vector` of records built at each
   publication** (chosen). §11.8 has it ride inline in the snapshot's one
   per-boundary allocation, zero additional heap allocation on a quiet frame;
@@ -212,9 +216,6 @@ Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
 retires or the code conforms. All are the audit's (M-D and M-B26):
 
-- **`init_s`'s vocabulary.** The docstring says isbits, §7.3 says any
-  immutable under the frozen-reference rule and requires a mutable RNG state
-  to live there; the code enforces neither.
 - **`attach!` on an errored sim.** The docstring calls it deliberate
   (post-mortem); Appendix B lists three legal states without it.
 - **Prose that does not match the mechanism it describes, with the code

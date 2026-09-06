@@ -290,7 +290,7 @@ no overlap.
 
 ### 3.2 Periodic discrete component
 
-- **discrete state** `s`: any immutable value (see [§7][s7]),
+- **discrete state** `s`: any isbits value (see [§7][s7]),
 - **update** $s^{+} = g(s, u, t)$ at a declared rate,
 - **two output stages**, with [feedthrough](#g-feedthrough) applying at update instants: a
   proportional path is direct feedthrough; a state-only output is not.
@@ -1430,7 +1430,7 @@ path, because they force converts and hence `InexactError` (see `attitude.jl`
 
 Two homes sit outside the continuous [buffer](#g-buffer), and the rules they
 obey are opposites. Discrete state and modes are state in the full sense:
-immutable values that the framework owns and that a checkpoint copies
+isbits values that the framework owns and that a checkpoint copies
 wholesale. A [workspace](#g-workspace) is mutable scratch, deliberately not
 state at all, governed by contract rather than by checks.
 
@@ -1446,15 +1446,23 @@ the word *store* for these registers and never counts them as cells.
 Stores never touch the integrator buffer, and no arithmetic is ever done on
 them.
 
-**Type freedom.** A discrete leaf's `s` may be *any immutable value*: the
-frozen-reference rule governs, and isbits is not required. Enums, integers,
-nested structs and RNG state all qualify. RNG state — the four `UInt64`s of
-`Xoshiro` — is required to live in discrete state, for deterministic
-[replay](#g-replay).
+**Rule.** Every field of a store value is **isbits or a `Symbol`**. Isbits is
+an immutable value that holds no references, transitively: enums, integers,
+`Bool`s, `SArray`s and nested isbits structs all qualify. A `Symbol` is
+admitted as the idiomatic label: interned, immutable and never freed, it
+copies as a pointer to permanent data and serializes as its name. A `String`,
+an array, or a struct holding either does not qualify, and neither does a
+struct nesting a `Symbol`. Stratum A checks every `init_s` and `init_m` field
+and reports a violation as `IllegalStoreField` ([§9.1][s9-1], [Appendix C][sC],
+[D-231][d-231]).
 
-**Snapshots are free.** Copying a store copies a reference to
-immutable data, so checkpoint and replay of the entire discrete side is "copy
-the store values."
+**Why.** State is what changes between [ticks](#g-tick). Bulk data and labels
+do not, and their home is the component instance. The frozen-reference
+latitude signals enjoy ([§4.1][s4-1]) exists for field handles ([§4.4][s4-4]), and no store
+needs it. Isbits is what makes the rest of this section literal: copying a
+store copies bits, so checkpoint and [replay](#g-replay) of the entire
+discrete side is "copy the store values", and a stored value has one fixed
+layout per component.
 
 #### Workspace
 
@@ -1522,6 +1530,28 @@ no-information-between-calls contract *more* load-bearing there, not less.
 in-place math (`mul!`, `cholesky!`, BLAS) on the workspace. At the end, snapshot
 into an isbits container and return it:
 `s = KFState(SVector{20}(ws.x̂), SMatrix{20,20}(ws.P))`.
+
+**Blessed idiom — a PRNG in a discrete leaf.** A generator object such as
+`Xoshiro` is mutable, so it is scratch and lives in the workspace, allocated
+once. The values that determine its next draw are immutable, so they are state
+and live in `s`, which is what makes replay deterministic ([§2.2][s2-2]). The tick
+loads them into the generator at entry and snapshots them back at exit, the
+same shape as the Kalman idiom above:
+
+```julia
+init_s(::Noise)         = (rng = (0x9e3779b9, 0x243f6a88, 0xb7e15162, 0x6a09e667),)
+init_workspace(::Noise) = (rng = Xoshiro(0, 0, 0, 0),)
+
+function state_update(c::Noise, b)
+    r = b.ws.rng
+    r.s0, r.s1, r.s2, r.s3 = b.s.rng        # load the words at entry
+    z = randn(r)
+    (rng = (r.s0, r.s1, r.s2, r.s3),)       # snapshot them back
+end
+```
+
+Rematerializing the generator from its values each tick reads naturally and
+allocates: a sampler with an out-of-line tail lets the object escape ([D-231][d-231]).
 
 Construction and storage of large `SArray`s are cheap and compile fine. The
 StaticArrays "codegen catastrophe" lives in its *operations* — unrolled
@@ -2126,13 +2156,16 @@ defaults those conditions overlay.
 
 Walking `init_x` presupposes the closed leaf vocabulary
 [§7.1][s7-1] fixes: scalars and `SArray`s at the common eltype. On the discrete
-tier, `init_s` keeps the full type freedom [§7.3][s7-3] allows. Stratum A
-therefore checks the continuous vocabulary ([§9.1][s9-1]) and reports a
+tier, the stores answer to the isbits rule of [§7.3][s7-3], checked field by
+field. Stratum A checks both vocabularies ([§9.1][s9-1]) and reports a
 failure in the didactic register:
 - "`init_x` field `gear_count::Int` is not a continuous state — integers,
   `Bool`s and enums belong in `init_m`";
 - "`init_x` field `q_nb::RQuat` is not a state leaf — declare the `SVector{4}`
-  backing and cast where rotation semantics are wanted ([§7.1][s7-1])".
+  backing and cast where rotation semantics are wanted ([§7.1][s7-1])";
+- "`init_s` field `label::String` is not a store value — store fields are
+  isbits or `Symbol`s; text and bulk data belong on the component instance
+  ([§7.3][s7-3])".
 
 #### `state_events(::C)`
 
@@ -2894,7 +2927,8 @@ Resolution runs these checks:
 - the two wiring type clauses ([§6.1][s6-1], [§8.2][s8-2]), stated below;
 - the whole-tree obligation check;
 - the closed leaf vocabulary ([§7.1][s7-1]), checked on every `init_x` because
-  the walk in [§8.2][s8-2] rests on it (`init_s` is exempt, pinning wholesale).
+  the walk in [§8.2][s8-2] rests on it; `init_s` pins wholesale and answers to
+  the isbits rule of [§7.3][s7-3] instead, checked with `init_m` field by field.
 
 [Root inputs](#g-root-input) fall out here too, as the root component's input faces
 ([§8.2][s8-2]).
@@ -10330,6 +10364,7 @@ with the collection and never triggering its throw — is currently empty
 | `TransparentContainerUnknown` | assembly path, the field `transparent_container` names, the type's container fields (the list-in-hand) | [§8.5][s8-5], [D-211][d-211] | error | build | fail-fast |
 | `TierUnreadable` | component path, type, the declarations found — no `output_types`, no state — and the tier-announcing family list; the tier twin of `ClassUnreadable` | [§5.2][s5-2], [§8.2][s8-2], [§8.5][s8-5] | error | build | collected |
 | `IllegalPortType` | component path, the declaration at fault (`input_types`/`output_types`, or a root input), port name, the offending type — one with no numeric leaves; the leaf vocabulary ([§7.1][s7-1]) | [§7.1][s7-1], [§8.2][s8-2] | error | build | collected |
+| `IllegalStoreField` | component path, the store at fault (`init_s`/`init_m`), field name, the offending type — one neither isbits nor `Symbol`; the fix (text and bulk data belong on the component instance) | [§7.3][s7-3], [§8.2][s8-2], [§9.1][s9-1] | error | build | collected |
 
 **Schedule and contract conformance** (Strata B and C):
 
@@ -10623,7 +10658,7 @@ a step ([§4.1][s4-1], [§10.3][s10-3]).
 write batch waits between drains; mutated frame by frame, hence outside the
 table's publish-once discipline ([§11.4][s11-4]). Not a table cell ([§4.1][s4-1]).
 
-<a id="g-store"></a>**store** — the typed home of `m` and of a discrete leaf's `s`: overwritten by the framework when a
+<a id="g-store"></a>**store** — the typed home of `m` and of a discrete leaf's `s`: isbits or `Symbol` field by field, overwritten by the framework when a
 handler or update returns a new value, never arithmetic-touched, snapshot-free
 to copy. Never called a cell — root inputs, by contrast, *are* source cells of
 the table ([§7.3][s7-3], [§4.1][s4-1], [§11.2][s11-2]).
@@ -11518,6 +11553,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-228]: decisions.md#d-228--attribute-runtime-diagnostics-by-cell-never-by-payload
 [d-229]: decisions.md#d-229--collect-to-the-stratum-barrier-under-a-dependency-rule
 [d-230]: decisions.md#d-230--stamp-the-snapshot-with-the-trajectorys-boundary-ordinal-not-the-wait-counter
+[d-231]: decisions.md#d-231--require-isbits-store-values-checked-at-build
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
