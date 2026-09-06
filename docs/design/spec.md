@@ -3068,6 +3068,11 @@ is shared. The one mutable thing on the artifact is the lazily populated
 The `Build` is the
 inspectable derived contract of the instantiation [§8.8][s8-8] gestures at — wire list, face
 table, [schedule](#g-schedule), [root inputs](#g-root-input) as plain printable data.
+"Printable" names the representation: paths, names and rationals, inspectable
+as fields and printed by any REPL without a method of their own, the
+diagnostic form against [§9.7][s9-7]'s compiled one. The renderings the artifact
+owes are the named ones: the anchor and component tables and the hyperperiod
+chart below, and the face-provenance printer ([§13.7][s13-7]).
 **The face table is two-sided.** Beside each level's output faces and their
 provenance it retains that level's *input* faces, each resolved producer-ward
 to the one feed its consumers share: a root input, or a producer inside the
@@ -10451,8 +10456,9 @@ register of authority: by value, by type, by allocation ([§8.2][s8-2]).
 <a id="g-derived-contract"></a>**derived contract** — the checkable surface an assembly or the
 `Build` derives from its children's declarations and its own wiring instead of
 declaring itself: an assembly's effective face list, the `Build`'s wire list,
-face table, schedule and root inputs. Plain printable data, and on a generic
-holding the constraint the referencing wires and interface connections impose on
+face table, schedule and root inputs. Plain printable data — paths, names and
+rationals, inspectable as fields, no rendering implied beyond the ones [§9.2][s9-2]
+names — and on a generic holding the constraint the referencing wires and interface connections impose on
 whatever concrete child is plugged in ([§8.6][s8-6], [§8.8][s8-8], [§9.2][s9-2]).
 
 <a id="g-function-family"></a>**function family** — which bundle fields a given function may legally

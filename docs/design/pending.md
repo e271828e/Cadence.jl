@@ -229,8 +229,6 @@ Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
 retires or the code conforms. All are the audit's (M-D and M-B26):
 
-- **"Printable."** §9.2's "plain printable data" read as inspectable makes
-  the missing `show`s a non-gap; read as rendered it does not.
 - **"Collected" has no stated scope.** §13.1's worked example (did-you-mean
   plus both unconnected inputs from one typo'd wire) requires the stratum
   scope, which D-057 backs; the code collects per component, per pass and
