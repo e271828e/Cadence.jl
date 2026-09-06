@@ -88,10 +88,10 @@ function test_events()
               d.observed_fields == [:a] && d.declared_fields == [:a, :b]
 
         # `state_events` is continuous-only, beside `init_m` in the tier-agreement check.
-        err = failure(() -> classify_tier("c", EventsOnDiscrete()))
-        @test err isa DiagnosticError
-        @test :state_events in [d.declaration for d in diagnostics(err)]
-        @test all(d -> d isa DeclarationOnWrongTier, diagnostics(err))
+        diags = Diagnostic[]
+        @test classify_tier("c", EventsOnDiscrete(), diags) === nothing
+        @test :state_events in [d.declaration for d in diags]
+        @test all(d -> d isa DeclarationOnWrongTier, diags)
 
         d = only(diagnostics(failure(() -> build(single(ProjectOnDiscrete())))))
         @test d isa DeclarationOnWrongTier && d.declaration === :state_projection &&

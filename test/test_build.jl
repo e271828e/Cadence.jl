@@ -33,8 +33,8 @@ function build_probe_refusals()
         d = only(diagnostics(failure(() -> build(single(BadDerivative())))))
         @test d isa ConformanceFailure && d.what == "state_derivative" && d.reason === :field_type &&
               d.field === :q && d.observed === Float64
-        d = carried(@test_throws DiagnosticError{StoreWithoutUpdate} build(single(NoFlow())))
-        @test d.store === :init_x
+        d = only(diagnostics(failure(() -> build(single(NoFlow())))))
+        @test d isa StoreWithoutUpdate && d.store === :init_x
     end
 end
 
@@ -143,26 +143,29 @@ function build_tier()
     @testset "tier is read off the declaration shape (§8.2)" begin
         # The two deciders: the update law for a stateful leaf, the contract arity
         # for a stateless one.
-        @test classify_tier("c", Plant()) === CONTINUOUS
-        @test classify_tier("c", Gain(1.0)) === CONTINUOUS
-        @test classify_tier("c", DiscreteCounter()) === DISCRETE
-        @test classify_tier("c", DiscreteMap()) === DISCRETE
+        diags = Diagnostic[]
+        @test classify_tier("c", Plant(), diags) === CONTINUOUS
+        @test classify_tier("c", Gain(1.0), diags) === CONTINUOUS
+        @test classify_tier("c", DiscreteCounter(), diags) === DISCRETE
+        @test classify_tier("c", DiscreteMap(), diags) === DISCRETE
+        @test isempty(diags)
 
         # Disagreement names the offending declaration and the tier the rest
-        # announce (§8.2).
+        # announce (§8.2). The classifier records and returns no tier.
         for (c, offender) in ((BothUpdates(), :state_update), (WrongArity(), :output_types),
                               (ModesOnDiscrete(), :init_m), (BothArities(), :output_types))
-            err = failure(() -> classify_tier("c", c))
-            @test err isa DiagnosticError
+            diags = Diagnostic[]
+            @test classify_tier("c", c, diags) === nothing
             # The vote loop collects: every declaration off the announced tier is
             # reported, and the one this case is written around is among them.
-            @test all(d -> d isa DeclarationOnWrongTier && d.reason === :tier_form,
-                      diagnostics(err))
-            @test offender in [d.declaration for d in diagnostics(err)]
+            @test all(d -> d isa DeclarationOnWrongTier && d.reason === :tier_form, diags)
+            @test offender in [d.declaration for d in diags]
         end
 
         # A store with no update law is §8.2's sibling of the classless component.
-        @test_throws DiagnosticError{StoreWithoutUpdate} classify_tier("c", NoFlow())
+        diags = Diagnostic[]
+        @test classify_tier("c", NoFlow(), diags) === nothing
+        @test only(diags) isa StoreWithoutUpdate
 
         # The base tick period is deployment's, not the build's: the same `Build`
         # deploys at any admissible grid, and the executor cannot exist before one
@@ -172,6 +175,28 @@ function build_tier()
         d = carried(@test_throws DiagnosticError{DeploymentInvalid} Simulation(b))
         @test d.parameter === :h && d.reason === :missing
         @test Simulation(b; h = 1//10) isa Simulation
+    end
+end
+
+# --- Stratum A's one barrier (§13.1, D-229) -----------------------------------
+
+# One failure from each of the stratum's passes, in one model: a wire typo'd on
+# the producer's port, the input it leaves unfed, a store with no update law and
+# an event missing its handler. `HalfEvent` is `test_events.jl`'s, which this
+# file precedes, so the children are a `Group`'s values rather than a struct's
+# declared fields.
+merged_failures() = Group((; g = Gain(1.0), s = Sum(), n = NoFlow(), h = HalfEvent());
+                          wires = ("g/ot" => "s/a",),
+                          inputs = ("e" => "g/e", "b" => "s/b"))
+
+function build_stratum_a()
+    @testset "every Stratum A pass that ran merges into one throw (§13.1, D-229)" begin
+        # The wiring walk, the obligation check, tier classification and event
+        # declarations each read a result the others did not spoil, so all four
+        # run and the model is refused once.
+        err = failure(() -> build(merged_failures()))
+        @test Set(kinds(err)) ==
+              Set([UnknownPort, UnconnectedInput, StoreWithoutUpdate, EventHalfMissing])
     end
 end
 
@@ -271,6 +296,7 @@ function test_build()
     build_schedule()
     build_root_input_type()
     build_tier()
+    build_stratum_a()
     build_embed_accept()
     build_activations()
 end

@@ -54,8 +54,11 @@ end
 # The classifier sees primitives only: a component that declares nothing at all
 # has no *class* to read, which §8.5 settles before this runs.
 
-"""The tier the primitive at `path` announces, or a `DiagnosticError` naming what disagrees."""
-function classify_tier(path::String, c)
+"""
+The tier the primitive at `path` announces, or `nothing` with what disagrees
+recorded in `diags` (§13.1).
+"""
+function classify_tier(path::String, c, diags::Vector{Diagnostic})
     votes = Tuple{Symbol,Tier}[]
     has_stage(state_derivative, c) && push!(votes, (:state_derivative, CONTINUOUS))
     has_stage(state_update, c) && push!(votes, (:state_update, DISCRETE))
@@ -73,19 +76,24 @@ function classify_tier(path::String, c)
     state = !isempty(init_x(c)) ? :init_x : !isempty(init_s(c)) ? :init_s : nothing
     if state !== nothing
         i = findfirst(v -> first(v) === :state_derivative || first(v) === :state_update, votes)
-        i === nothing &&
-            throw(DiagnosticError(StoreWithoutUpdate(path = path, store = state)))
+        if i === nothing
+            push!(diags, StoreWithoutUpdate(path = path, store = state))
+            return nothing
+        end
     else
         i = findfirst(v -> first(v) === :output_types, votes)
-        i === nothing &&
-            throw(DiagnosticError(TierUnreadable(path = path,
-                                            declarations = Symbol[first(v) for v in votes])))
+        if i === nothing
+            push!(diags, TierUnreadable(path = path,
+                                       declarations = Symbol[first(v) for v in votes]))
+            return nothing
+        end
     end
 
     # The vote loop collects (§13.1): a leaf written half in each tier's spelling
-    # names every declaration that disagrees, not the first one found.
+    # names every declaration that disagrees, not the first one found. The tier
+    # is announced only if none does.
     t = last(votes[i])
-    diags = Diagnostic[]
+    k = length(diags)
     for (name, vt) in votes
         vt === t ||
             push!(diags, DeclarationOnWrongTier(path = path, declaration = name,
@@ -93,8 +101,7 @@ function classify_tier(path::String, c)
                                                found = Symbol(tier_word(vt)),
                                                announced = Symbol(tier_word(t))))
     end
-    isempty(diags) || throw(DiagnosticError(diags))
-    t
+    length(diags) == k ? t : nothing
 end
 
 # --- 2. probing ---------------------------------------------------------------
@@ -379,9 +386,17 @@ are `Simulation`'s. `activations` is §9.4's opt-in exhaustive mode: each listed
 scalar's activation is materialized eagerly instead of at first request.
 """
 function build(root::AbstractComponent; activations::Tuple = ())
-    flat = flatten(root)
-    tiers = [classify_tier(p, c) for (p, c) in zip(flat.paths, flat.comps)]
-    _check_event_declarations(flat)
+    diags = Diagnostic[]
+    w = Walk()
+    flatten!(w, root, diags)            # structure, tiers, claims, the obligation check
+    _check_event_declarations(w.flat, diags)
+    # Stratum A's barrier (§13.1, D-229): every pass that ran merges here, and
+    # nothing derived from the wiring is computed before it. No cascade
+    # suppression — a typo'd wire reports its unknown port *and* the input it
+    # left unfed.
+    isempty(diags) || throw(DiagnosticError(diags))
+    flat = wire!(w)                     # the derivation, on a clean walk
+    tiers = Vector{Tier}(w.tiers)
     nominal, order = _stratum_c(flat, tiers, nothing, nothing, Float64)
     policies = probe_events(flat, tiers, nominal)
     b = Build(flat, tiers, order, nominal, policies, Dict{DataType,Any}())
@@ -395,10 +410,9 @@ end
 # component type is caught by method lookup at declaration-reading time, rather
 # than as a `MethodError` at the first firing — an event firing only in a corner
 # of the envelope would otherwise hide the omission indefinitely.
-function _check_event_declarations(flat::Flat)
-    # One barrier for the whole pass (§13.1): every malformed entry in the model
-    # is named, not the first one the walk reaches.
-    diags = Diagnostic[]
+function _check_event_declarations(flat::Flat, diags::Vector{Diagnostic})
+    # The pass collects (§13.1): every malformed entry in the model is named, not
+    # the first one the walk reaches, and the list merges into the stratum's.
     for (path, c) in zip(flat.paths, flat.comps)
         for (name, ev) in pairs(state_events(c))
             if !(ev isa StateEvent)
@@ -413,7 +427,6 @@ function _check_event_declarations(flat::Flat)
             end
         end
     end
-    isempty(diags) || throw(DiagnosticError(diags))
     nothing
 end
 

@@ -242,7 +242,8 @@ transparent_container(::Group) = :children
 
 """
 Resolve terminal `path` against assembly `asm` at `base`, returning the component
-it names, that component's absolute path, and the final segment.
+it names, that component's absolute path, and the final segment — or recording
+the refusal in `diags` and returning `nothing` (§13.1).
 
 §6.1's one-level rule lives here (D-207): a connection endpoint names an
 **immediate child and one of its faces** — one child segment, plus the key
@@ -254,13 +255,17 @@ this register: an endpoint stops before any field it could traverse past
 several levels is declared level by level, each assembly speaking of its own
 children alone.
 """
-function resolve_terminal(entry::String, base::String, asm, path::AbstractString;
-                          owner::String = _at(base))
+function resolve_terminal(entry::String, base::String, asm, path::AbstractString,
+                          diags::Vector{Diagnostic}; owner::String = _at(base))
     segs = String.(split(path, '/'))
-    length(segs) > 1 ||
-        throw(DiagnosticError(PathResolution(entry = entry, spelling = String(path),
-                                        reason = :not_a_terminal, owner = owner)))
-    kid, seg = _one_level(entry, base, asm, path, segs, 1; owner)
+    if length(segs) ≤ 1
+        push!(diags, PathResolution(entry = entry, spelling = String(path),
+                                   reason = :not_a_terminal, owner = owner))
+        return nothing
+    end
+    r = _one_level(entry, base, asm, path, segs, 1, diags; owner)
+    r === nothing && return nothing
+    kid, seg = r
     kid, _join(base, seg), Symbol(segs[end])
 end
 
@@ -271,21 +276,26 @@ end
 # container's element spends two segments on the child, a transparent one's
 # spends one, and neither is "deeper".
 function _one_level(entry::String, base::String, asm, path::AbstractString,
-                    segs::Vector{String}, tail::Int; owner::String = _at(base))
+                    segs::Vector{String}, tail::Int, diags::Vector{Diagnostic};
+                    owner::String = _at(base))
     kids = children(base, asm)
     j = findfirst(kid -> first(kid) == segs[1], kids)
     j === nothing && length(segs) > 1 + tail &&
         (j = findfirst(kid -> first(kid) == segs[1] * "/" * segs[2], kids))
-    j === nothing &&
-        throw(DiagnosticError(PathResolution(entry = entry, spelling = String(path),
-                                        reason = :unknown_child, owner = owner,
-                                        segment = segs[1],
-                                        candidates = String[first(k) for k in kids])))
+    if j === nothing
+        push!(diags, PathResolution(entry = entry, spelling = String(path),
+                                   reason = :unknown_child, owner = owner,
+                                   segment = segs[1],
+                                   candidates = String[first(k) for k in kids]))
+        return nothing
+    end
     seg, kid = kids[j]
-    count(==('/'), seg) + 1 + tail == length(segs) ||
-        throw(DiagnosticError(PathResolution(entry = entry, spelling = String(path),
-                                        reason = :reaches_past, owner = owner,
-                                        segment = seg, level = _join(base, seg), tail = tail)))
+    if count(==('/'), seg) + 1 + tail != length(segs)
+        push!(diags, PathResolution(entry = entry, spelling = String(path),
+                                   reason = :reaches_past, owner = owner,
+                                   segment = seg, level = _join(base, seg), tail = tail))
+        return nothing
+    end
     kid, seg
 end
 
@@ -310,8 +320,13 @@ function resolve(asm, path::AbstractString)
     isempty(path) &&
         throw(DiagnosticError(PathResolution(entry = who, spelling = "", reason = :empty_path,
                                         owner = "the component in hand")))
-    first(_one_level(who, "", asm, path, String.(split(path, '/')), 0;
-                     owner = "the component in hand"))
+    # A declaration body is user code (§13.1), so the one recorded refusal throws
+    # alone here rather than reaching the stratum's list.
+    diags = Diagnostic[]
+    r = _one_level(who, "", asm, path, String.(split(path, '/')), 0, diags;
+                   owner = "the component in hand")
+    r === nothing && throw(DiagnosticError(only(diags)))
+    first(r)
 end
 
 """
@@ -322,8 +337,11 @@ resolves through `resolve`. The split is unambiguous because face names may
 contain dots, never slashes (§8.6).
 """
 function resolve_terminal(asm, path::AbstractString)
-    comp, _, name = resolve_terminal("`resolve_terminal` on `$(nameof(typeof(asm)))`",
-                                     "", asm, path; owner = "the component in hand")
+    diags = Diagnostic[]
+    r = resolve_terminal("`resolve_terminal` on `$(nameof(typeof(asm)))`",
+                         "", asm, path, diags; owner = "the component in hand")
+    r === nothing && throw(DiagnosticError(only(diags)))   # declaration code: fail-fast
+    comp, _, name = r
     comp, String(name)
 end
 
@@ -435,59 +453,74 @@ end
 # recursively to its own internal endpoint. A face's type and tier are therefore
 # derived — they are its ultimate internal endpoint's — never declared.
 
-"""The primitive port a producing endpoint ultimately names, as `(path, port)`."""
-function resolve_source(entry::String, base::String, asm, path::AbstractString)
-    comp, cpath, name = resolve_terminal(entry, base, asm, path)
+"""
+The primitive port a producing endpoint ultimately names, as `(path, port)`, or
+`nothing` with the refusal recorded in `diags` — the endpoint then claims nothing
+and the obligation pass reports what it left unfed (§13.1).
+"""
+function resolve_source(entry::String, base::String, asm, path::AbstractString,
+                        diags::Vector{Diagnostic})
+    r = resolve_terminal(entry, base, asm, path, diags)
+    r === nothing && return nothing
+    comp, cpath, name = r
     if classify(cpath, comp) === PRIMITIVE
         haskey(_contract(output_types, comp), name) && return (cpath, name)
-        _wrong_direction(entry, path, cpath, name, comp, "producer")
+        _wrong_direction(entry, path, cpath, name, comp, "producer", diags)
     else
         for (src, face) in output_connections(comp)
-            String(face) == String(name) && return resolve_source(entry, cpath, comp, src)
+            String(face) == String(name) &&
+                return resolve_source(entry, cpath, comp, src, diags)
         end
-        _wrong_direction(entry, path, cpath, name, comp, "producer")
+        _wrong_direction(entry, path, cpath, name, comp, "producer", diags)
     end
 end
 
 """
 The primitive inputs a consuming endpoint ultimately names, as `(path, face)`.
 Several, when the endpoint is a sub-assembly's input face fanning out through the
-boundary.
+boundary; none, when the endpoint failed to resolve and the refusal was recorded.
 """
-function resolve_dest(entry::String, base::String, asm, path::AbstractString)
-    comp, cpath, name = resolve_terminal(entry, base, asm, path)
+function resolve_dest(entry::String, base::String, asm, path::AbstractString,
+                      diags::Vector{Diagnostic})
+    r = resolve_terminal(entry, base, asm, path, diags)
+    r === nothing && return Tuple{String,Symbol}[]
+    comp, cpath, name = r
     if classify(cpath, comp) === PRIMITIVE
         haskey(_contract(input_types, comp), name) && return [(cpath, name)]
-        _wrong_direction(entry, path, cpath, name, comp, "consumer")
     else
         for (face, inner) in input_connections(comp)
             String(face) == String(name) || continue
-            return _fanout(entry, cpath, comp, inner)
+            return _fanout(entry, cpath, comp, inner, diags)
         end
-        _wrong_direction(entry, path, cpath, name, comp, "consumer")
     end
+    _wrong_direction(entry, path, cpath, name, comp, "consumer", diags)
+    Tuple{String,Symbol}[]
 end
 
 _endpoints(p::AbstractString) = (p,)
 _endpoints(ps::Tuple) = ps
 
-_fanout(entry, base, comp, inner) =
-    reduce(vcat, (resolve_dest(entry, base, comp, p) for p in _endpoints(inner));
+_fanout(entry, base, comp, inner, diags) =
+    reduce(vcat, (resolve_dest(entry, base, comp, p, diags) for p in _endpoints(inner));
            init = Tuple{String,Symbol}[])
 
 # Direction is declared by the method; the resolved endpoint only cross-checks it.
-function _wrong_direction(entry, path, cpath, name, comp, wanted)
+# The mismatch is recorded, never thrown: the wire simply resolves to nothing.
+function _wrong_direction(entry, path, cpath, name, comp, wanted, diags)
     ins, outs = input_faces(comp), output_faces(comp)
     found = String(name) in ins ? "an input" : String(name) in outs ? "an output" : nothing
-    found === nothing &&
-        throw(DiagnosticError(UnknownPort(entry = entry,
-                                     end_ = wanted == "producer" ? :source : :destination,
-                                     path = cpath, spelling = String(path), port = name,
-                                     candidates = Symbol.(vcat(ins, outs)))))
-    throw(DiagnosticError(FaceDirectionConflict(entry = entry, path = cpath,
-                                           spelling = String(path),
-                                           found = found == "an input" ? :input : :output,
-                                           wanted = Symbol(wanted))))
+    if found === nothing
+        push!(diags, UnknownPort(entry = entry,
+                                end_ = wanted == "producer" ? :source : :destination,
+                                path = cpath, spelling = String(path), port = name,
+                                candidates = Symbol.(vcat(ins, outs))))
+        return nothing
+    end
+    push!(diags, FaceDirectionConflict(entry = entry, path = cpath,
+                                      spelling = String(path),
+                                      found = found == "an input" ? :input : :output,
+                                      wanted = Symbol(wanted)))
+    nothing
 end
 
 # --- the flatten pass ---------------------------------------------------------
@@ -519,19 +552,26 @@ function index_of(flat::Flat, path::String)
     i
 end
 
+# The walk's state. It owns the `Flat` it is building and appends into it
+# directly; `conns` and `in_faces` stay empty until `wire!` derives them, past
+# the barrier. Violations are not held here — the stratum's list is an argument
+# of every helper that can add to it.
 struct Walk
-    paths::Vector{String}
-    comps::Vector{Any}
+    flat::Flat
+    tiers::Vector{Union{Nothing,Tier}}   # per primitive, beside `flat.paths`; `nothing` = recorded
     feeds::Dict{Tuple{String,Symbol},Tuple{String,Symbol}}
     claims::Dict{Tuple{String,Symbol},String}                  # who claimed it, for the message
-    root_inputs::Vector{Symbol}
     routes::Vector{Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}}   # (path, face, consumers)
-    out_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}
-    triples::Vector{NTuple{3,Int}}
-    anchors::Vector{NTuple{2,Rational{Int}}}
-    aprov::Vector{String}
-    diags::Vector{Diagnostic}            # the walk's collected violations (§13.1)
 end
+
+Walk() = Walk(Flat(String[], Any[], Vector{Pair{Symbol,Tuple{String,Symbol}}}[], Symbol[],
+                   Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
+                   Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
+                   NTuple{3,Int}[], NTuple{2,Rational{Int}}[], String[]),
+              Union{Nothing,Tier}[],
+              Dict{Tuple{String,Symbol},Tuple{String,Symbol}}(),
+              Dict{Tuple{String,Symbol},String}(),
+              Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}[])
 
 # --- the sample-time fold (§8.7, §9.1, §10.5) -----------------------------------
 # Nested rate declarations compile to one `(anchor, m, c)` triple per component,
@@ -611,108 +651,106 @@ function _child_scope(w::Walk, path::String, st, seg::String, fld::Symbol,
         (a, m, c) = scope
         (a, v.K * m, c + v.φ * m), true
     else
-        push!(w.anchors, (v.T, v.τ))
-        push!(w.aprov, "`sample_times` at $(_at(path)), key `$k`")
-        (length(w.anchors), 1, 0), true
+        push!(w.flat.anchors, (v.T, v.τ))
+        push!(w.flat.aprov, "`sample_times` at $(_at(path)), key `$k`")
+        (length(w.flat.anchors), 1, 0), true
     end
 end
 
 """
-    flatten(root)
+    flatten!(w, root, diags)
 
-The tree walk of Stratum A (§9.1): components collected by path, classes read,
-wiring resolved to absolute leaf terminals, sample times folded to `(anchor, m,
-c)` triples, the one-producer-per-input and whole-tree obligation rules
-enforced. Any component may be the root (D-208) — a primitive one flattens to
-the single leaf at the root path, its `input_types` keys the model's root
-inputs.
+The tree walk of Stratum A (§9.1): components collected by path, classes and
+tiers read, wiring resolved to absolute leaf terminals, sample times folded to
+`(anchor, m, c)` triples, the one-producer-per-input and whole-tree obligation
+rules checked. Violations are recorded in `diags` and the walk runs on; the
+throw is `build`'s, at the stratum barrier. Any component may be the root
+(D-208) — a primitive one flattens to the single leaf at the root path, its
+`input_types` keys the model's root inputs.
 """
-function flatten(root)
-    w = Walk(String[], Any[], Dict{Tuple{String,Symbol},Tuple{String,Symbol}}(),
-              Dict{Tuple{String,Symbol},String}(), Symbol[],
-              Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}[],
-              Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
-              NTuple{3,Int}[], NTuple{2,Rational{Int}}[], String[], Diagnostic[])
-    _walk!(w, "", root, (0, 1, 0))          # the root scope: anchor 0, the base grid itself
+function flatten!(w::Walk, root, diags::Vector{Diagnostic})
+    _walk!(w, "", root, (0, 1, 0), diags)   # the root scope: anchor 0, the base grid itself
 
     # The obligation model (§6.1): an input is fed by a wire in some ancestor's
     # `child_connections` or by an `input_connections` chain handing it up level
     # by level, and the chain that never terminates is the error. The one
-    # legitimate unfed terminus is the root's own input face.
-    conns = Vector{Pair{Symbol,Tuple{String,Symbol}}}[]
-    for (path, c) in zip(w.paths, w.comps)
-        cs = Pair{Symbol,Tuple{String,Symbol}}[]
+    # legitimate unfed terminus is the root's own input face. A wire that failed
+    # to resolve claimed nothing, so the input it should have fed is reported
+    # here beside the refusal itself.
+    for (path, c) in zip(w.flat.paths, w.flat.comps)
         for face in keys(_contract(input_types, c))
             haskey(w.feeds, (path, face)) ||
-                (push!(w.diags, UnconnectedInput(path = path, face = face)); continue)
-            push!(cs, face => w.feeds[(path, face)])
+                push!(diags, UnconnectedInput(path = path, face = face))
         end
-        push!(conns, cs)
     end
-
-    # Stratum A's barrier (§13.1): the walk's own refusals — face names, sample
-    # times, rate keys, empty routes, two-producer claims — and this pass's
-    # unfed inputs leave together, in one throw, before anything derived from
-    # the wiring is computed. No cascade suppression: a typo'd wire reports its
-    # unknown port *and* the input it left unfed.
-    isempty(w.diags) || throw(DiagnosticError(w.diags))
-
-    # §9.2's input side, derived once the obligation pass has proved every input
-    # fed exactly once: an assembly's face and the leaf entries behind it are
-    # claimed together by the one route above them, so the consumers of a face
-    # share a producer and `(path, face) => producer` is well defined. A
-    # primitive's own entries complete the record, so the graph carries every
-    # input face at every level, whatever the level's class.
-    in_faces = Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[]
-    for (path, face, consumers) in w.routes
-        push!(in_faces, (path, face) => w.feeds[first(consumers)])
-    end
-    for (path, cs) in zip(w.paths, conns), (face, producer) in cs
-        push!(in_faces, (path, face) => producer)
-    end
-    Flat(w.paths, w.comps, conns, w.root_inputs, in_faces, w.out_faces,
-         w.triples, w.anchors, w.aprov)
+    nothing
 end
 
-function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int})
+"""
+§9.2's input side, derived on a walk the barrier has already proved clean: every
+input is fed exactly once, so an assembly's face and the leaf entries behind it
+share the one producer above them and `(path, face) => producer` is well
+defined. A primitive's own entries complete the record, so the graph carries
+every input face at every level, whatever the level's class.
+"""
+function wire!(w::Walk)
+    for (path, c) in zip(w.flat.paths, w.flat.comps)
+        push!(w.flat.conns, [face => w.feeds[(path, face)]
+                             for face in keys(_contract(input_types, c))])
+    end
+    for (path, face, consumers) in w.routes
+        push!(w.flat.in_faces, (path, face) => w.feeds[first(consumers)])
+    end
+    for (path, cs) in zip(w.flat.paths, w.flat.conns), (face, producer) in cs
+        push!(w.flat.in_faces, (path, face) => producer)
+    end
+    w.flat
+end
+
+function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
+                diags::Vector{Diagnostic})
     if classify(path, comp) === PRIMITIVE
-        push!(w.paths, path)
-        push!(w.comps, comp)
-        push!(w.triples, scope)
+        push!(w.flat.paths, path)
+        push!(w.flat.comps, comp)
+        push!(w.flat.triples, scope)
+        # The one tier classification (§8.2): a failure is recorded and the walk
+        # carries `nothing` where the tier would be.
+        t = classify_tier(path, comp, diags)
+        push!(w.tiers, t)
         # A primitive at the root: its `input_types` keys are the model's root
         # inputs, each face its own consuming entry (§8.6, §11.3, D-208), fed by
         # the same pseudo-producer an assembly root's faces get.
         if isempty(path)
-            _check_root_faces(comp, w.diags)
+            _check_root_faces(comp, diags)
             for face in keys(_contract(input_types, comp))
-                push!(w.root_inputs, face)
+                push!(w.flat.root_inputs, face)
                 _claim!(w, (path, face), ("", face),
-                        "the root component's `input_types` entry `$face`")
+                        "the root component's `input_types` entry `$face`", diags)
             end
         end
-        return nothing
+        return t
     end
-    _check_face_names(path, comp, w.diags)
+    _check_face_names(path, comp, diags)
     st = sample_times(comp)
     kids, fields = _children(path, comp)
-    _check_sample_times(path, st, kids, fields, w.diags)
+    _check_sample_times(path, st, kids, fields, diags)
     for ((seg, kid), fld) in zip(kids, fields)
         kidpath = _join(path, seg)
         kscope, keyed = _child_scope(w, path, st, seg, fld, scope)
+        t = _walk!(w, kidpath, kid, kscope, diags)   # a primitive's tier, `nothing` for an assembly
         # A key on a continuous child is the Δt-on-continuous error at
         # declaration time (§8.7): keys name discrete or scope children only.
-        keyed && classify(kidpath, kid) === PRIMITIVE &&
-            classify_tier(kidpath, kid) === CONTINUOUS &&
-            push!(w.diags, RatesViolation(path = path, reason = :continuous_child,
-                                         key = Symbol(seg)))
-        _walk!(w, kidpath, kid, kscope)
+        keyed && t === CONTINUOUS &&
+            push!(diags, RatesViolation(path = path, reason = :continuous_child,
+                                       key = Symbol(seg)))
     end
 
     for pair in child_connections(comp)
         entry = _entry("child_connections", path, pair)
-        producer = resolve_source(entry, path, comp, first(pair))
-        for consumer in resolve_dest(entry, path, comp, last(pair))
-            _claim!(w, consumer, producer, entry)
+        producer = resolve_source(entry, path, comp, first(pair), diags)
+        producer === nothing && continue   # recorded; the destination stays unfed
+        for consumer in resolve_dest(entry, path, comp, last(pair), diags)
+            _claim!(w, consumer, producer, entry, diags)
         end
     end
 
@@ -721,26 +759,31 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int})
     # anything, there being no parent above them to claim the obligation.
     for (face, inner) in input_connections(comp)
         entry = _entry("input_connections", path, face => inner)
-        consumers = _fanout(entry, path, comp, inner)
+        consumers = _fanout(entry, path, comp, inner, diags)
         # Every entry routes to at least one internal endpoint, at every level
         # (D-210): a face feeding nothing declares nothing, and the empty tuple
         # would otherwise reach no consumer, leave no row in §9.2's face graph,
-        # and let a condition addressing it misdiagnose as a bare typo.
+        # and let a condition addressing it misdiagnose as a bare typo. Declared
+        # empty is the refusal; empty because every endpoint failed to resolve is
+        # already recorded, and registers nothing more.
         if isempty(consumers)
-            push!(w.diags, UnknownPort(entry = entry, end_ = :connection, path = path,
-                                      port = Symbol(face)))
+            isempty(_endpoints(inner)) &&
+                push!(diags, UnknownPort(entry = entry, end_ = :connection, path = path,
+                                        port = Symbol(face)))
             continue                       # a route with no consumer registers nothing
         end
         push!(w.routes, (path, Symbol(face), consumers))
         isempty(path) || continue
-        push!(w.root_inputs, Symbol(face))
+        push!(w.flat.root_inputs, Symbol(face))
         for consumer in consumers
-            _claim!(w, consumer, ("", Symbol(face)), entry)
+            _claim!(w, consumer, ("", Symbol(face)), entry, diags)
         end
     end
     for (src, face) in output_connections(comp)
         entry = _entry("output_connections", path, src => face)
-        push!(w.out_faces, (path, Symbol(face)) => resolve_source(entry, path, comp, src))
+        producer = resolve_source(entry, path, comp, src, diags)
+        producer === nothing && continue   # recorded; the face registers no row
+        push!(w.flat.out_faces, (path, Symbol(face)) => producer)
     end
     nothing
 end
@@ -751,10 +794,10 @@ _entry(method::String, path::String, pair::Pair) =
 # Every input takes exactly one connection, and the rule spans levels (§6.1): an
 # input fed both by a sibling wire and by an ancestor's route — or handed up while
 # also wired — meets its second claim here.
-function _claim!(w::Walk, consumer, producer, entry::String)
+function _claim!(w::Walk, consumer, producer, entry::String, diags::Vector{Diagnostic})
     if haskey(w.feeds, consumer)
-        push!(w.diags, TwoProducers(path = consumer[1], port = consumer[2],
-                                   incumbent = w.claims[consumer], entry = entry))
+        push!(diags, TwoProducers(path = consumer[1], port = consumer[2],
+                                 incumbent = w.claims[consumer], entry = entry))
         return nothing                     # the incumbent keeps the claim
     end
     w.feeds[consumer] = producer

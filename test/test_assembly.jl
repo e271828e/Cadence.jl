@@ -18,6 +18,14 @@ struct HoldsComponents <: AbstractComponent      # components, but no class to r
     inner::Gain
 end
 
+struct TypoWithInert <: AbstractComponent        # §13.1's worked example, behind a classless child
+    g::Gain
+    s::Sum
+    z::Inert
+end
+child_connections(::TypoWithInert)  = ("g/ot" => "s/a",)
+input_connections(::TypoWithInert)  = ("e" => "g/e", "b" => "s/b")
+
 struct BothFamilies <: AbstractComponent         # assembly marker beside a contract
     inner::Gain
 end
@@ -46,6 +54,10 @@ function assembly_class()
         # its own, so this is a build error too.
         d = carried(@test_throws DiagnosticError{ClassMixed} classify("c", BothFamilies(Gain(1.0))))
         @test d.path == "c" && :output_types in d.declarations
+
+        # D-229: a structural failure is fail-fast; nothing downstream of it can run.
+        @test_throws DiagnosticError{ClassUnreadable} build(TypoWithInert(Gain(1.0), Sum(),
+                                                                         Inert()))
 
         # Any component may be the root (D-208): a primitive one flattens to the
         # single leaf at the root path, its `input_types` keys the root inputs.
@@ -340,7 +352,8 @@ function assembly_paths()
         # One segment further — the grandchild's own port, bypassing `inner`'s face
         # — is the build error, whatever the field's declared type.
         for bad in (PastReach(SampledLoop()), PastGenericReach(SampledLoop()))
-            d = carried(@test_throws DiagnosticError{PathResolution} build(bad))
+            err = failure(() -> build(bad))
+            d = only(filter(x -> x isa PathResolution, diagnostics(err)))
             @test d.reason === :reaches_past && d.level == "inner"
         end
     end
@@ -390,11 +403,13 @@ output_connections(::CollidingFaces) = ("b/out" => "y",)
 
 function assembly_connections()
     @testset "direction is declared by the method, endpoints cross-check it (§8.6)" begin
-        d = carried(@test_throws DiagnosticError{FaceDirectionConflict} build(BackwardsWire(ModedSource(), Gain(1.0))))
+        err = failure(() -> build(BackwardsWire(ModedSource(), Gain(1.0))))
+        d = only(filter(x -> x isa FaceDirectionConflict, diagnostics(err)))
         @test d.wanted === :consumer && d.found === :output
         @test startswith(d.entry, "child_connections")
 
-        d = carried(@test_throws DiagnosticError{FaceDirectionConflict} build(BackwardsFace(ModedSource(), Gain(1.0))))
+        err = failure(() -> build(BackwardsFace(ModedSource(), Gain(1.0))))
+        d = only(filter(x -> x isa FaceDirectionConflict, diagnostics(err)))
         @test d.wanted === :producer && d.found === :input
         @test startswith(d.entry, "output_connections")
     end
@@ -532,6 +547,13 @@ struct DoubleFedSibling <: AbstractComponent     # an ancestor's route onto a wi
 end
 child_connections(::DoubleFedSibling) = ("src/out" => "loop/in",)
 
+struct WireTypo <: AbstractComponent             # §13.1's worked example: `out` misspelt
+    g::Gain
+    s::Sum
+end
+child_connections(::WireTypo) = ("g/ot" => "s/a",)
+input_connections(::WireTypo) = ("e" => "g/e", "b" => "s/b")
+
 function assembly_obligations()
     @testset "every input is fed exactly once, across levels (§6.1)" begin
         err = failure(() -> build(Starved(Gain(1.0))))
@@ -552,6 +574,16 @@ function assembly_obligations()
         d = only(diagnostics(err))
         @test d isa TwoProducers && startswith(d.incumbent, "child_connections at `loop`") &&
               startswith(d.entry, "child_connections at the root component")
+
+        # §13.1's worked example (D-229): the typo'd wire is recorded and claims
+        # nothing, so the same throw carries the unknown port *and* the input it
+        # left unfed — walk order first, the obligation pass after.
+        err = failure(() -> build(WireTypo(Gain(1.0), Sum())))
+        @test kinds(err) == [UnknownPort, UnconnectedInput]
+        d = only(filter(x -> x isa UnknownPort, diagnostics(err)))
+        @test d.port === :ot && :out in d.candidates
+        d = only(filter(x -> x isa UnconnectedInput, diagnostics(err)))
+        @test d.path == "s" && d.face === :a
 
         # The one legitimate terminus: the root's own input faces are the root inputs,
         # authored by the init service's condition (§11.3, §14.6).
