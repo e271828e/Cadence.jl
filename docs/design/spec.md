@@ -4053,8 +4053,9 @@ deadlines, and a `t*` snapshot publishes when computed, mid-frame. Where that
 lands in wall-clock time is below what pacing resolves, and the [§10.7][s10-7]
 invariant is about trajectories, which are identical either way.
 
-Replay pointers and error messages index boundaries by a monotonic counter with
-recorded `t`. The trace stays frame-indexed — `t*` boundaries consume no
+Replay pointers and error messages index boundaries by the frame-entry
+boundary index ([§13.4][s13-4]) with recorded `t`; snapshots carry the
+trajectory's published-boundary ordinal ([§12.3][s12-3]). The trace stays frame-indexed — `t*` boundaries consume no
 inputs.
 
 #### Projection's reach is the boundary, not the trial evaluation
@@ -6190,8 +6191,8 @@ per [boundary](#g-boundary). What they need from the framework is a way to learn
 that a boundary has happened without polling for it.
 
 **Rule.** Two artifacts provide it: a monotonic
-**[boundary counter](#g-boundary-counter)** published with the
-[snapshot](#g-snapshot), plus one `Threads.Condition`.
+**[boundary counter](#g-boundary-counter)**, the loop's own, plus one
+`Threads.Condition`.
 
 The counter counts *published boundaries* — grid, `t*`,
 [boundary zero](#g-boundary-zero) ([§10.4][s10-4]) — not frames. Consecutive wakes
@@ -6212,11 +6213,18 @@ A `Base.Event` latch is the wrong primitive here ([D-028][d-028]). Conditions ca
 facts, only "look again"; the facts that matter, the counter and `running`,
 live in state each waiter tests privately.
 
-**Counter home and publication order.** The boundary index is carried *in* the
-snapshot, with `t`. Any holder of one therefore indexes it without consulting
-the loop — the log, an error's [replay](#g-replay) pointer ([§13.4][s13-4]), a
-post-run inspector. The loop additionally mirrors the index in the state the
-wait predicate tests.
+**Two indices, and where each lives.** The [snapshot](#g-snapshot) carries the
+trajectory's *published-boundary ordinal* with `t`: boundary zero is 0, and
+every publication after it, grid or `t*`, counts one. Any holder of a snapshot
+therefore indexes it without consulting the loop — the log, a post-run
+inspector. A new trajectory restarts the ordinal at zero, with everything
+else `init!` resets. The boundary counter is a different number: the loop's
+monotone count of every publication it has ever made, never reset across
+trajectories, its absolute value nowhere normative. It exists for the wait
+predicate alone, and it is never reset because a waiter's `last_seen` must
+never run ahead of it ([D-230][d-230]). An error's [replay](#g-replay) pointer is a third
+index, the frame-entry boundary index of [§13.4][s13-4], a frame count that
+names no `t*` boundary.
 
 **Rule.** The order of the two publications is normative: the release-store of
 `latest` ([§11.2][s11-2]) happens **before** the counter increment under the lock.
@@ -6384,7 +6392,8 @@ an everything-claim staked for one run never surviving into the next.
 **The next run re-acquires everything.** The next `run!` re-runs device `init!`,
 resource acquisition being per-run; FlightCore's
 create-a-new-socket-each-`init!` in network.jl is the precedent. It also spawns
-fresh tasks against the re-armed [§12.3][s12-3] counter. While stopped there are
+fresh tasks against the [§12.3][s12-3] counter, which is never re-armed: each
+task reads its `last_seen` off the counter at spawn. While stopped there are
 no device tasks at all, so voluntary exit and the [§12.2][s12-2] liveness
 heartbeat are run-scoped observables. A device unplugged while stopped surfaces
 as the next run's `init!` failure, disposed of by the initialization bracket
@@ -10946,10 +10955,11 @@ are loop-idiom conventions the framework never calls. Every input-side binding
 stakes a claim; `TableBinding` is the shipped
 data-driven one ([§11.6][s11-6], [§11.4][s11-4]).
 
-<a id="g-boundary-counter"></a>**boundary counter** — the monotonic count of *published boundaries* carried
-in the snapshot and mirrored in the loop state the wait predicate tests;
+<a id="g-boundary-counter"></a>**boundary counter** — the loop's monotonic count of *published boundaries*,
+the fact the wait predicate tests, never reset across trajectories;
 incremented after the `latest` release-store, so a waking waiter can never see
-a stale snapshot ([§12.3][s12-3]).
+a stale snapshot ([§12.3][s12-3]). Distinct from the per-trajectory ordinal a
+snapshot carries.
 
 <a id="g-calling-task"></a>**calling task** — the task that invoked `run!`. It runs the loop itself (the
 unattended register) unless a `needs_calling_task` device is rostered, in
@@ -11507,6 +11517,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-227]: decisions.md#d-227--select-the-stepper-by-type-under-the-algorithm-keyword
 [d-228]: decisions.md#d-228--attribute-runtime-diagnostics-by-cell-never-by-payload
 [d-229]: decisions.md#d-229--collect-to-the-stratum-barrier-under-a-dependency-rule
+[d-230]: decisions.md#d-230--stamp-the-snapshot-with-the-trajectorys-boundary-ordinal-not-the-wait-counter
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
