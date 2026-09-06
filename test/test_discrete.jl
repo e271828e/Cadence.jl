@@ -254,9 +254,19 @@ function discrete_deployment()
                                                                           :disagrees_with_n),
              (() -> Simulation(b; h = 1//300, Δt_base = 1//500),        :Δt_base, :not_harmonic),
              (() -> Simulation(b; h = 1//500, n = 0),                     :n, :range))
-            d = diagnostic(failure(f))
+            d = only(diagnostics(failure(f)))
             @test d isa DeploymentInvalid && d.parameter === param && d.reason === reason
         end
+
+        # The call is the barrier (§9.1, D-229): `h` and `n` are independent
+        # premises, so both refusals arrive in one throw.
+        err = failure(() -> Simulation(b; h = 1e-3, n = 0))
+        @test Set((d.parameter, d.reason) for d in diagnostics(err)) ==
+              Set([(:h, :inexact), (:n, :range)])
+
+        # The keyword pass and the schedule merge into that same throw.
+        err = failure(() -> Simulation(b; log_every = 0))
+        @test Set(d.parameter for d in diagnostics(err)) == Set([:log_every, :h])
 
         # A non-dividing anchor is refused with its declaring scope and key, and the
         # admissible set is named off the pool.
@@ -270,7 +280,7 @@ function discrete_deployment()
     @testset "Δt_base derivation demands an all-anchored model (§9.1)" begin
         # Derivation with an unanchored component present is action at a distance:
         # refused constructively, naming the components whose periods would rescale.
-        d = carried(@test_throws DiagnosticError{DeploymentInvalid} Simulation(build(MultiRate()); h = 1//500, Δt_base = :derive))
+        d = only(diagnostics(failure(() -> Simulation(build(MultiRate()); h = 1//500, Δt_base = :derive))))
         @test d.parameter === :Δt_base && d.reason === :unanchored
         @test "fcs/inner" in d.paths
 

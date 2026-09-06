@@ -172,7 +172,7 @@ function build_tier()
         # binds because `Δt`, `D` and `Φ` are entry-field data (§9.1, §9.7).
         b = build(single(DiscreteCounter()))
         @test b isa Build
-        d = carried(@test_throws DiagnosticError{DeploymentInvalid} Simulation(b))
+        d = only(diagnostics(failure(() -> Simulation(b))))
         @test d.parameter === :h && d.reason === :missing
         @test Simulation(b; h = 1//10) isa Simulation
     end

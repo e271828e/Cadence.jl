@@ -155,10 +155,10 @@ function Simulation(b::Build, ::Type{T} = Float64; h = nothing, n = nothing,
         push!(diags, DeploymentInvalid(parameter = :log_max, reason = :range, value = log_max))
     d_t = _t_bound_diag(t_end)
     d_t === nothing || push!(diags, d_t)
-    isempty(diags) || throw(DiagnosticError(diags))
+    bound = bind_schedule(b, h, n, Δt_base, diags)
+    isempty(diags) || throw(DiagnosticError(diags))    # one throw per call (§9.1, D-229)
     act = activation(b, T)
     (stop_faces, stop_addrs) = _stop_faces(act.layout, stop_on)
-    bound = bind_schedule(b, h, n, Δt_base)
     ex = compile(b, act, bound.D, bound.Φ, bound.Δt; chunk_size)
     stepper = algorithm(T, length(ex.xbuf))
     reg = TraceRegister(trace)     # the drain thunks close over it, so it precedes the plane

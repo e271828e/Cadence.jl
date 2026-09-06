@@ -708,14 +708,15 @@ end
 # `Build`. Grid arithmetic is exact — GCD over `Rational{Int}` — and floats are
 # refused at the door.
 
-_exact(name::Symbol, v::Rational{Int}) = v
-_exact(name::Symbol, v::Integer) = Rational{Int}(v)
-_exact(name::Symbol, v::Period) = v.T
-_exact(name::Symbol, v::AbstractFloat) =
-    throw(DiagnosticError(DeploymentInvalid(parameter = name, reason = :inexact, value = v)))
-_exact(name::Symbol, v) =
-    throw(DiagnosticError(DeploymentInvalid(parameter = name, reason = :not_a_quantity,
-                                       value = typeof(v))))
+# Records and returns `nothing` on its two refusing arms; the call's list carries it.
+_exact(name::Symbol, v::Rational{Int}, diags::Vector{Diagnostic}) = v
+_exact(name::Symbol, v::Integer, diags::Vector{Diagnostic}) = Rational{Int}(v)
+_exact(name::Symbol, v::Period, diags::Vector{Diagnostic}) = v.T
+_exact(name::Symbol, v::AbstractFloat, diags::Vector{Diagnostic}) =
+    (push!(diags, DeploymentInvalid(parameter = name, reason = :inexact, value = v)); nothing)
+_exact(name::Symbol, v, diags::Vector{Diagnostic}) =
+    (push!(diags, DeploymentInvalid(parameter = name, reason = :not_a_quantity,
+                                    value = typeof(v))); nothing)
 
 _as_int(r::Rational) = denominator(r) == 1 ? Int(numerator(r)) : nothing
 
@@ -727,15 +728,20 @@ with every discrete component anchored. Resolution is one exact division pair
 per anchor and one multiply-add per component. Returns the bound deployment:
 `h`, `n`, `Δt_base`, the per-component `(D, Φ, Δt)` columns, and the bound
 schedule (§9.2's printable artifact, as plain data).
+
+The pass records into the call's list and returns `nothing` when a premise
+fails; the caller owns the one throw per `Simulation` call (§9.1, D-229). `h`
+and `n` are checked independently, and every later check reads one or both.
 """
-function bind_schedule(b::Build, h, n, Δt_base)
-    h === nothing &&
-        throw(DiagnosticError(DeploymentInvalid(parameter = :h, reason = :missing)))
-    h_r = _exact(:h, h)
-    h_r > 0 ||
-        throw(DiagnosticError(DeploymentInvalid(parameter = :h, reason = :range, value = h_r)))
+function bind_schedule(b::Build, h, n, Δt_base, diags::Vector{Diagnostic})
+    k0 = length(diags)
+    h === nothing && push!(diags, DeploymentInvalid(parameter = :h, reason = :missing))
+    h_r = h === nothing ? nothing : _exact(:h, h, diags)
+    h_r === nothing || h_r > 0 ||
+        push!(diags, DeploymentInvalid(parameter = :h, reason = :range, value = h_r))
     n === nothing || n ≥ 1 ||
-        throw(DiagnosticError(DeploymentInvalid(parameter = :n, reason = :range, value = n)))
+        push!(diags, DeploymentInvalid(parameter = :n, reason = :range, value = n))
+    length(diags) == k0 || return nothing    # every later check reads h or n (D-229)
 
     anchors, prov, triples = b.flat.anchors, b.flat.aprov, b.flat.triples
     # The constraint pool: every anchor's period and every nonzero offset (§9.1).
@@ -744,32 +750,40 @@ function bind_schedule(b::Build, h, n, Δt_base)
     if Δt_base === :derive
         unanchored = [b.flat.paths[ci] for ci in eachindex(b.tiers)
                       if b.tiers[ci] === DISCRETE && triples[ci][1] == 0]
-        isempty(unanchored) ||
-            throw(DiagnosticError(DeploymentInvalid(parameter = :Δt_base, reason = :unanchored,
-                                               paths = unanchored)))
-        isempty(pool) &&
-            throw(DiagnosticError(DeploymentInvalid(parameter = :Δt_base,
-                                               reason = :no_constraint)))
+        if !isempty(unanchored)
+            push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :unanchored,
+                                           paths = unanchored))
+            return nothing
+        end
+        if isempty(pool)
+            push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :no_constraint))
+            return nothing
+        end
         Δt_r = reduce(gcd, pool)                     # the coarsest admissible value
     elseif Δt_base !== nothing
-        Δt_r = _exact(:Δt_base, Δt_base)
+        Δt_r = _exact(:Δt_base, Δt_base, diags)
+        Δt_r === nothing && return nothing
     else
         Δt_r = something(n, 1) * h_r                 # the default path (§15.4)
     end
 
     n_i = _as_int(Δt_r / h_r)
-    (n_i === nothing || n_i < 1) &&
-        throw(DiagnosticError(DeploymentInvalid(parameter = :Δt_base, reason = :not_harmonic,
-                                           value = Δt_r, related = h_r)))
-    n === nothing || n == n_i ||
-        throw(DiagnosticError(DeploymentInvalid(parameter = :Δt_base, reason = :disagrees_with_n,
-                                           value = Δt_r, related = n, quotient = n_i)))
+    if n_i === nothing || n_i < 1
+        push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :not_harmonic,
+                                       value = Δt_r, related = h_r))
+        return nothing
+    end
+    if !(n === nothing || n == n_i)
+        push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :disagrees_with_n,
+                                       value = Δt_r, related = n, quotient = n_i))
+        return nothing
+    end
 
     # Per anchor, one exact division pair; anchor 0 is the base grid itself. The
-    # loop collects (§13.1): every anchor the chosen base grid cannot express is
-    # named, so the coarsest admissible value is chosen against the whole list.
+    # loop collects into the call's list (§13.1): every anchor the chosen base
+    # grid cannot express is named, so the coarsest admissible value is chosen
+    # against the whole list.
     adm = isempty(pool) ? nothing : reduce(gcd, pool)
-    diags = Diagnostic[]
     Dk, Φk = [1], [0]
     for (k, (Tk, τk)) in enumerate(anchors)
         D = _as_int(Tk / Δt_r)
@@ -784,7 +798,7 @@ function bind_schedule(b::Build, h, n, Δt_base)
                                           admissible = adm))
         push!(Dk, something(D, 1)); push!(Φk, something(Φ, 0))
     end
-    isempty(diags) || throw(DiagnosticError(diags))
+    length(diags) == k0 || return nothing
 
     # Per component, one multiply-add; the canonical residue 0 ≤ Φ < D survives
     # composition (§10.5), which is what the gate's truncated rem relies on.
