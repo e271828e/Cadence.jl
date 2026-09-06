@@ -6017,7 +6017,9 @@ the per-writer records ride the pacer diagnostics ([§10.7][s10-7]). Delta
 plus total is what makes the status legible at any reading cadence: a GUI
 panel refreshing at 60 Hz sees each occurrence once in `recent`, while a
 consumer that samples occasionally still reads a complete account from
-`totals` — nothing is lost by not looking.
+`totals` — nothing is lost by not looking. The record's `who` is the only
+attribution a value has, so a renderer presents each value under its record's
+writer ([D-228][d-228]).
 
 **Presentation is where `maxlog` lives.** A status renderer prints a
 given writer × kind up to **25** cumulative occurrences and then switches to
@@ -10260,6 +10262,10 @@ The policies:
   sixteen retained values, the excess becoming per-kind suppressed counts).
   The per-row qualifiers record where that bound is load-bearing — a source
   that can repeat within a frame — and where the source itself fires once.
+  A kind carried this way names its subjects in the payload, never its
+  writer: the cell attributes the writer, and the status record's `who` and
+  the tail residue carry that attribution ([D-228][d-228]). `DeviceJoinTimeout`'s
+  device id is a subject, the abandoned device, written by the loop.
 
 The build warning set — warning-severity kinds raised at build, rendering
 with the collection and never triggering its throw — is currently empty
@@ -10354,13 +10360,13 @@ with the collection and never triggering its throw — is currently empty
 | `FiringBudget` | component path, event name, boundary time, the exhausted `firing_budget` and the boundary's firing count | [§10.6][s10-6] | warning | runtime | rate-limited |
 | `DebtReanchor` | forgiven debt, the new schedule anchor, boundary time | [§10.7][s10-7] | warning | runtime | rate-limited |
 | `ClaimedFaceEntry` | face name, the incumbent (claiming) device id, the discarded value; the site (staging, or a stopped-sim attach's renormalization). Harness-register only — a device's out-of-surface entry is `OutOfClaimEntry` | [§11.3][s11-3], [§11.4][s11-4] | warning | runtime | rate-limited |
-| `OutOfClaimEntry` | device id, face name, the discarded value, the device's claim set; the incumbent's device id when the face is claimed elsewhere | [§11.3][s11-3] | warning | runtime | rate-limited |
+| `OutOfClaimEntry` | face name, the discarded value, the device's claim set; the incumbent's device id when the face is claimed elsewhere | [§11.3][s11-3] | warning | runtime | rate-limited |
 | `ThreadBudget` | thread count, device-task count | [§12.2][s12-2] | warning | runtime, at `run!` | rate-limited |
 | `DeviceJoinTimeout` | device id, the join timeout, boundary time and index at shutdown | [§12.4][s12-4] | warning | runtime, at the shutdown tail — written to the loop's cell, collected by the run's-end sweep into the termination record and presented through the logging backend, past the terminal snapshot ([D-201][d-201], [D-203][d-203]) | rate-limited |
-| `DeviceCrash` | device id, the original exception as `cause`, whether `should_abort` was set; also the init-time failure, reported pre-spawn from the initialization bracket after its `shutdown!` | [§12.4][s12-4], [§11.6][s11-6], [§13.4][s13-4] | warning | runtime | rate-limited |
-| `ReplayDiscardedStaging` | device id, the discarded batch's face names, frame ordinal | [§12.7][s12-7] | warning | runtime | rate-limited; repeating source ([§11.8][s11-8]) |
-| `MalformedDatum` | device id, the cause exception; emitted by the author's loop body via `report!(handle, …)` | [§11.6][s11-6], [§13.4][s13-4] | warning | runtime | rate-limited; repeating source ([§11.8][s11-8]) |
-| `EntryTypeMismatch` | writer id, face name, the offending value's type, the root input's declared type, the discarded value | [§11.4][s11-4] | warning | runtime | rate-limited |
+| `DeviceCrash` | the original exception as `cause`, whether `should_abort` was set; also the init-time failure, reported pre-spawn from the initialization bracket after its `shutdown!` | [§12.4][s12-4], [§11.6][s11-6], [§13.4][s13-4] | warning | runtime | rate-limited |
+| `ReplayDiscardedStaging` | the discarded batch's face names, frame ordinal | [§12.7][s12-7] | warning | runtime | rate-limited; repeating source ([§11.8][s11-8]) |
+| `MalformedDatum` | the cause exception; emitted by the author's loop body via `report!(handle, …)` | [§11.6][s11-6], [§13.4][s13-4] | warning | runtime | rate-limited; repeating source ([§11.8][s11-8]) |
+| `EntryTypeMismatch` | face name, the offending value's type, the root input's declared type, the discarded value | [§11.4][s11-4] | warning | runtime | rate-limited |
 | `UnboundedRun` | the effective `t_end`, `stop_on` set and `pace`; the remedy names both, and — interactively — the operator interrupt as the sanctioned escape from the configuration warned about ([§12.4][s12-4]) | [Appendix B][sB], [§13.5][s13-5] | warning | runtime, at run start | rate-limited |
 
 ---
@@ -11478,6 +11484,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-225]: decisions.md#d-225--parametrize-steperror-on-its-causes-type
 [d-226]: decisions.md#d-226--reach-the-public-surface-by-qualified-name-until-16s-export-audit
 [d-227]: decisions.md#d-227--select-the-stepper-by-type-under-the-algorithm-keyword
+[d-228]: decisions.md#d-228--attribute-runtime-diagnostics-by-cell-never-by-payload
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
