@@ -105,11 +105,19 @@ function test_lifecycle()
         run!(sim)                                        # nothing was mutated: the default again
         @test termination(sim).t == 1.0
 
+        # `Inf` is the default and a value (Appendix B): an unbounded run ends by
+        # its stop face, and the per-run `Inf` lifts a finite constructor default.
+        unbound = Simulation(monitored(); h = 1//10, stop_on = ("hit",))
+        @test unbound.t_end === Inf
+        init!(unbound)
+        run!(unbound)
+        @test termination(unbound).source === ModelRequestedStop(:hit)
+        lifted = Simulation(monitored(); h = 1//10, t_end = 0.2, stop_on = ("hit",))
+        init!(lifted)
+        run!(lifted; t_end = Inf)
+        @test termination(lifted).t == 4 * lifted.h
         unbound = Simulation(feedback_model(); h = 1//50)
         init!(unbound, fragment(inputs = (ref = 0.0,)))
-        diag = carried(@test_throws DiagnosticError{ArgumentInvalid} run!(unbound))
-        @test diag.call === :run! &&
-              diag.reason === :no_clock_bound
         # The override is validated exactly as the constructor validates the default:
         # the same payload — parameter, reason and offending value — at both sites.
         dc = only(diagnostics(failure(() -> Simulation(feedback_model(); h = 1//50, t_end = -1.0))))

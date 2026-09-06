@@ -431,7 +431,6 @@ function diagnostics_kind_set()
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_boundary, value = 9),
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time, value = 9.0),
             ArgumentInvalid(call = :live!, reason = :not_replaying),
-            ArgumentInvalid(call = :run!, reason = :no_clock_bound),
             ArgumentInvalid(call = :trim!, reason = :non_nominal, value = "Simulation{Dual}"),
             ArgumentInvalid(call = :trim!, argument = :problem, reason = :not_a_problem,
                             value = "NamedTuple"),

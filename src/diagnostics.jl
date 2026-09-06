@@ -804,8 +804,8 @@ _dep_constraint(p::Symbol) =
     p === :log                 ? "must be true or false — the retention switch" :
     p === :log_every           ? "must be an integer ≥ 1" :
     p === :log_max             ? "must be an integer ≥ 1, or Inf as the explicit opt-out" :
-    p === :t_end               ? "must be a finite real ≥ 0 — the run's clock bound, " *
-                                 "taken to the nearest frame top" :
+    p === :t_end               ? "must be a real ≥ 0 — the run's clock bound, taken to " *
+                                 "the nearest frame top, Inf the unbounded default" :
     p === :h                   ? "must be positive" :
     p === :n                   ? "must be an integer ≥ 1" :
                                  "is outside its constraint"
@@ -1286,10 +1286,6 @@ function message(d::ArgumentInvalid)
         return "live! on a simulation whose input mode is already `:live` — there is no " *
                "recording to drop, and a silent no-op would let a caller believe one was " *
                "attached (§12.7, D-219)"
-    d.reason === :no_clock_bound &&
-        return "run! has no clock bound: `t_end` was given neither at the constructor nor " *
-               "here — the constructor value is the default and the run! keyword the " *
-               "per-run override (§13.5)"
     d.reason === :non_nominal &&
         return "`trim!` needs a nominal `Simulation{Float64}` and this one is $(d.value) — " *
                "trim commits through the nominal world, and the seeded activation it " *

@@ -42,7 +42,7 @@ struct TraceHeader{T}
     schemas::Vector{Pair{String,Vector{Symbol}}}    # writer tag => face-name-by-position
     deployment::@NamedTuple{t₀::T, Δt_base::Float64, h::Float64, n::Int, algorithm::Symbol,
                             localization_tol::Float64, localization_budget::Int,
-                            firing_budget::Int, t_end::Union{Nothing,Float64},
+                            firing_budget::Int, t_end::Float64,
                             stop_on::Vector{Symbol}}
     layout::@NamedTuple{sizes::Vector{Pair{DataType,Int}}, root_faces::Vector{Symbol},
                         paths::Vector{String}, stypes::Vector{Any}, mtypes::Vector{Any}}
@@ -290,9 +290,6 @@ function _capture_header(sim)
                   localization_budget = sim.localization_budget,
                   firing_budget = sim.firing_budget, t_end = sim.t_end,
                   stop_on = copy(sim.stop_on))
-    # parameterized explicitly: the `t_end = nothing` run has a `Nothing` in hand
-    # where the field is `Union{Nothing,Float64}`, and only the inner
-    # constructor's `convert` bridges a NamedTuple's field types
     TraceHeader{T}(copy(ex.xbuf), s, m, roots, Pair{String,Vector{Symbol}}[],
                    deployment, _fingerprint(sim))
 end

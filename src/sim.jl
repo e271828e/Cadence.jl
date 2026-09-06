@@ -26,7 +26,7 @@ struct Simulation{T,E,M}
     localization_tol::Float64     # relative bracket-width stop (§10.4)
     localization_budget::Int      # t* boundaries permitted per frame (§10.4)
     join_timeout::Float64         # the shutdown tail's join cap, seconds of wall clock (§12.4)
-    t_end::Union{Nothing,Float64} # the run's default clock bound (§13.5), run!-overridable
+    t_end::Float64                # the run's default clock bound (§13.5), run!-overridable; Inf = none
     stop_on::Vector{Symbol}       # the default stop faces (§13.5), run!-overridable
     stop_addrs::Vector{Any}       # their compiled root-cell addresses, validated at binding
     policy::RunPolicy             # the active advance's effective policy, bound per entry
@@ -52,7 +52,7 @@ end
     Simulation(build::Build, T = Float64; h, n = 1, Δt_base = nothing,
                algorithm = RK4, firing_budget = 4, localization_tol = 1e-6,
                localization_budget = 8, join_timeout = 5.0,
-               t_end = nothing, stop_on = (), trace = true, log = true,
+               t_end = Inf, stop_on = (), trace = true, log = true,
                log_every = 1, log_max = 65536, chunk_size = 16)
     Simulation(root, T = Float64; …)
 
@@ -102,10 +102,11 @@ tail's wall-clock patience, nothing more.
 
 `t_end` and `stop_on` are §13.5's termination policy, the `Simulation`'s
 defaults with `run!`'s keywords as the per-run overrides: the clock bound — a
-finite real ≥ 0, taken to the nearest frame top, with no constructor default
-of its own (a run needs one from *some* binding site) — and the model-declared
-sibling beside it, a collection naming root-exported `Bool` **output** faces,
-OR-combined, sampled at every published boundary. Validation runs here exactly
+real ≥ 0, taken to the nearest frame top, `Inf` the default and the honest
+interactive one (Appendix B): open-ended in time, bounded in memory by
+`log_max` — and the model-declared sibling beside it, a collection naming
+root-exported `Bool` **output** faces, OR-combined, sampled at every published
+boundary. Validation runs here exactly
 as at `run!`: an unknown face, a root input, or a non-`Bool` face is
 refused at whichever site names it. The default `()` is no stop faces — a run
 to `t_end`.
@@ -130,7 +131,7 @@ retention being reference bookkeeping over what publication already built.
 function Simulation(b::Build, ::Type{T} = Float64; h = nothing, n = nothing,
                     Δt_base = nothing, algorithm = RK4, firing_budget = 4,
                     localization_tol = 1e-6, localization_budget = 8,
-                    join_timeout = 5.0, t_end = nothing, stop_on = (),
+                    join_timeout = 5.0, t_end = Inf, stop_on = (),
                     trace = true, log = true, log_every = 1,
                     log_max = 65536, chunk_size::Int = 16) where {T}
     diags = Diagnostic[]
@@ -152,10 +153,8 @@ function Simulation(b::Build, ::Type{T} = Float64; h = nothing, n = nothing,
         push!(diags, DeploymentInvalid(parameter = :log_every, reason = :range, value = log_every))
     (log_max isa Integer && log_max ≥ 1) || log_max === Inf ||
         push!(diags, DeploymentInvalid(parameter = :log_max, reason = :range, value = log_max))
-    if t_end !== nothing
-        d = _t_bound_diag(t_end)
-        d === nothing || push!(diags, d)
-    end
+    d_t = _t_bound_diag(t_end)
+    d_t === nothing || push!(diags, d_t)
     isempty(diags) || throw(DiagnosticError(diags))
     act = activation(b, T)
     (stop_faces, stop_addrs) = _stop_faces(act.layout, stop_on)
@@ -167,7 +166,7 @@ function Simulation(b::Build, ::Type{T} = Float64; h = nothing, n = nothing,
         ex, b,
         bound.h, bound.n, bound.Δt_base, Int(firing_budget), Float64(localization_tol),
         Int(localization_budget), Float64(join_timeout),
-        t_end === nothing ? nothing : Float64(t_end), stop_faces, stop_addrs,
+        Float64(t_end), stop_faces, stop_addrs,
         RunPolicy(Symbol[], Any[], nothing), any(ex.events.localized), bound.sched,
         bound.D, bound.Φ, bound.Δt, chunk_size,
         stepper, zeros(T, length(ex.xbuf)), zeros(T, length(ex.xbuf)),
@@ -182,13 +181,16 @@ Simulation(root::AbstractComponent, ::Type{T} = Float64; kw...) where {T} =
 # §13.5's clock bound, validated identically at both binding sites. The
 # `_diag` half never throws, so the constructor's collecting block can push
 # it beside the other keyword violations; `_t_bound` is the fail-fast form
-# `run!`'s override site calls directly.
-_t_bound_diag(t) = (t isa Real && isfinite(t) && t ≥ 0) ? nothing :
+# `run!`'s override site calls directly. `Inf` is a value, not an absence: it
+# lifts a finite constructor default for one run (D-091), and `_t_end_frame`
+# maps it onto the frame loop's unbounded budget.
+_t_bound_diag(t) = (t isa Real && t ≥ 0) ? nothing :
     DeploymentInvalid(parameter = :t_end, reason = :range, value = t)
 function _t_bound(t)
     d = _t_bound_diag(t)
     d === nothing ? Float64(t) : throw(DiagnosticError(d))
 end
+_t_end_frame(sim::Simulation, te::Float64) = isinf(te) ? typemax(Int) : round(Int, te / sim.h)
 
 # §13.5's stop-face validation and compilation, run identically at both binding
 # sites — the constructor's default and `run!`'s override: each name must be a
@@ -696,8 +698,8 @@ tops floors onto the earlier one. The rounding is the deliberate opposite of
 positions an inspection, and the point of halting is to stand *before* the
 anomaly. `t_end`
 and `stop_on` bind for this replay exactly as at `run!`, the constructor's
-standing where they are not given — but unlike `run!` no clock bound is owed
-from any site, the recording being the bound. Budget exhausted, the replay ends
+standing where they are not given, the recording bounding an unbounded pair.
+Budget exhausted, the replay ends
 **`initialized`**, never `stopped` (§12.7): boundary-consistent and ready to
 advance, which is what makes replay-to-inspect, replay-to-`k−1`-then-`step!`
 and `run!`-continuation real. A §13.5 source firing first ends it `stopped`
@@ -798,7 +800,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     pol = sim.policy
     pol.faces, pol.addrs, pol.hit = faces, addrs, nothing
     upto = to_boundary === nothing ? trc.frames : Int(to_boundary)
-    _run_body!(sim, pol, upto, te === nothing ? typemax(Int) : round(Int, te / sim.h))
+    _run_body!(sim, pol, upto, _t_end_frame(sim, te))
     nothing
 end
 
@@ -848,7 +850,8 @@ frame reached, a named `stop_on` face observed holding in a published
 snapshot, or a control-plane stop observed at frame top. Both keywords bind
 for **this run only**, the constructor's values standing where they are not
 given (§13.5) — the override validated exactly as the constructor validates
-its default — and a run needs a clock bound from one of the two sites. Only
+its default. A run with `t_end = Inf` and no stop face ends only by a
+control-plane stop, Ctrl-C included (§12.4). Only
 an `initialized` simulation runs (`init!` is mandatory, §12.6), and the run
 leaves it terminally `stopped` — the §13.5 record readable through
 `termination(sim)` — or `errored` on a loop-side failure (§13.6): the failed
@@ -884,14 +887,13 @@ so `t_end` is taken to the nearest frame top.
 function run!(sim::Simulation; t_end = nothing, stop_on = nothing)
     _assert_advanceable(sim, :run!)
     te = t_end === nothing ? sim.t_end : _t_bound(t_end)
-    te === nothing && throw(DiagnosticError(ArgumentInvalid(call = :run!, reason = :no_clock_bound)))
     (faces, addrs) = stop_on === nothing ? (sim.stop_on, sim.stop_addrs) :
                                            _stop_faces(sim.exec.act.layout, stop_on)
     pol = sim.policy
     pol.faces, pol.addrs, pol.hit = faces, addrs, nothing
     # a live run owes its end to a §13.5 source alone, so its frame budget is
     # unbounded here; in `:replay` the recording binds it (`_run_body!`, D-218)
-    _run_body!(sim, pol, typemax(Int), round(Int, te / sim.h))
+    _run_body!(sim, pol, typemax(Int), _t_end_frame(sim, te))
     nothing
 end
 
@@ -1159,7 +1161,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing)
     end
     pol = sim.policy
     pol.faces, pol.addrs, pol.hit = sim.stop_on, sim.stop_addrs, nothing
-    t_end_frame = sim.t_end === nothing ? typemax(Int) : round(Int, sim.t_end / sim.h)
+    t_end_frame = _t_end_frame(sim, sim.t_end)
     @atomic :release ctl.lifecycle = :running   # the freeze holds within the call
     term, adv, err_src = nothing, 0, nothing
     try
