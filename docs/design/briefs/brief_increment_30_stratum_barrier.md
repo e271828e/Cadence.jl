@@ -406,3 +406,88 @@ Under 300 words per stage: the commit hash; the sites converted, by file;
 every list whose contents differed from what this brief expected, with the
 actual kinds; any site left and why, with file:line; the assertion totals
 before and after; friction with this brief.
+
+---
+
+## Review fixes (Opus) — one commit, `Fix increment 30's review findings`
+
+Tip `fddab2b`. The cold reviewer's five findings, adjudicated; build exactly
+these. Iterate with `julia --project=test test/runtests.jl assembly build
+discrete lifecycle events`; gate on the full suite, then `Pkg.test()`.
+
+**F1. `bind_schedule`'s gate suppresses three checks that read neither `h`
+nor `n`** (`build.jl:731–770`). `_exact(:Δt_base, …)`, `:unanchored` and
+`:no_constraint` read only `Δt_base`, the tiers and the anchors. Restructure:
+check `h` and `n` and record; run the `Δt_base` branch and record its own
+refusals regardless (it needs `h_r` and `n` only on the default path,
+`something(n, 1) * h_r`, which is skipped when either is missing or refused);
+then gate the harmonic checks, `:not_harmonic`, `:disagrees_with_n` and the
+anchor loop, on `h_r`, `n` (when given) and `Δt_r` all being sound. Return
+`nothing` whenever the call recorded anything. Rewrite the docstring sentence
+"`h` and `n` are checked independently, and every later check reads one or
+both" and the gate comment at 744 to say what the gate actually reads. Probes
+that must now report both: `Simulation(b; h = 1e-3, Δt_base = 1e-3)` →
+`{(:h,:inexact), (:Δt_base,:inexact)}`; `Simulation(build(MultiRate()); h =
+1//500, Δt_base = :derive, n = 0)` → `{(:n,:range), (:Δt_base,:unanchored)}`.
+Add both as tests beside the two co-occurrence cases in `test_discrete.jl`.
+Also in the `n` check (`build.jl:742`): require `n isa Integer`, so `n = 2.5`
+is `DeploymentInvalid(:n, :range)` rather than a `MethodError` from `_as_int`;
+one assertion for it in the same testset.
+
+**F2. A parent wire reads the child's recorded route instead of re-resolving
+it** (`assembly.jl:452–500`). Today `resolve_dest` on a sub-assembly face
+calls `_fanout` on the child's inner endpoints and `resolve_source` recurses
+through `output_connections`, so every parent wire through a face repeats the
+child's resolution and re-records its refusals. Children are walked before
+wires (`_walk!`, 710–790), so the child's faces are already resolved when a
+parent names them. Thread `w::Walk` into `resolve_source` and `resolve_dest`
+(the walk-internal forms only; the public §13.3 forms are untouched) and
+replace the assembly arm of each with a three-way split:
+
+```julia
+    else
+        # Children are walked before wires, so the child's faces are already
+        # resolved: a face's consumers are its recorded route, and a face whose
+        # route was refused was refused there, once (D-229).
+        i = findfirst(rt -> rt[1] == cpath && rt[2] === name, w.routes)
+        i !== nothing && return copy(w.routes[i][3])
+        String(name) in input_faces(comp) && return Tuple{String,Symbol}[]   # declared, refused at the child
+    end
+    _wrong_direction(entry, path, cpath, name, comp, "consumer", diags)     # the parent's own typo
+```
+
+and for the source side the lookup is over `w.flat.out_faces` (`first(p) ==
+(cpath, name)`, returning `last(p)`), the declared-but-refused arm tests
+`output_faces(comp)` and returns `nothing`. `_fanout` stays as it is and is
+now called only by the declaring level on its own children's endpoints. Pin
+the order dependency with the comment above; do not reorder `_walk!`.
+Acceptance: the reviewer's probe — `inner = Group((; a = Gain(1.0)); inputs =
+("f" => "a/e",), outputs = ("a/outt" => "y",))` read by three parent wires —
+reports exactly one `UnknownPort` (at `inner`, port `outt`) and the unfed
+inputs the wires left, each once. Add it as a test in `test_assembly.jl`
+beside the worked example, asserting `count(d -> d isa UnknownPort,
+diagnostics(err)) == 1`. Also confirm and assert the parent's *own* typo
+against a child face (`"inner/g" => …` where `inner` declares `f`) still
+reports an `UnknownPort` whose candidates are the child's face list.
+
+**F3. `_stop_faces` joins the `Simulation` call's one throw** (`sim.jl:158–161`,
+`199–225`). `_stop_faces(layout, stop_on, diags)` records into the list it is
+given and returns the pair; `Simulation` computes `act = activation(b, T)`
+and calls it *above* the deployment throw, passing its own `diags`. The two
+other callers, `run!` (768) and `replay!` (892), are their own calls: each
+passes a fresh vector and throws it if non-empty, exactly one barrier each,
+as today. Probe: `Simulation(b; stop_on = ("nope",))` with `h` omitted →
+`kinds == [DeploymentInvalid, StopFaceInvalid]` in one throw; add it as a
+test in `test_lifecycle.jl` beside the existing `StopFaceInvalid` case.
+
+**F4.** `test/test_build.jl:175–176` and `test/test_discrete.jl:283–284`:
+add `@test d isa DeploymentInvalid` before the field reads.
+
+**F5.** `docs/design/implementation.md`, the `src/build.jl` row: "(recording,
+the tier pass merging into `build`'s one Stratum A throw)" becomes
+"(recording, the tier read in the walk beside the class, `build` owning
+Stratum A's one throw)". Run `check_refs.jl` and `check_rows.jl` after.
+Leave the `TypoWithInert` test as it is.
+
+Report under 300 words: commit hash, each finding's outcome with file:line,
+every probe's actual output, assertion totals, friction.
