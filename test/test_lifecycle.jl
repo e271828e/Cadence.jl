@@ -245,4 +245,25 @@ function test_lifecycle()
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} init!(sim))
         @test d.status === :errored
     end
+
+    @testset "a throw inside boundary zero returns a warm simulation to `built` (§12.6, D-223)" begin
+        sim = Simulation(fed(Mine(), "sig"); h = 1//10, t_end = 5.0)
+        init!(sim, fragment(inputs = (in = false,)))
+        @test step!(sim; frames = 2) == 2
+        @test latest(sim).t == 0.2
+
+        # The re-`init!` throws at boundary zero: the word moves before the throw
+        # leaves, so no advance runs on the half-transitioned stores.
+        @test failure(() -> init!(sim, fragment(inputs = (in = true,)))) isa StepError
+        @test lifecycle(sim) === :built
+        d = carried(@test_throws DiagnosticError{MissingInit} step!(sim))
+        @test d.op === :step! && d.status === :built
+        @test termination(sim) === nothing               # no run was open to record
+        @test latest(sim).t == 0.2                       # the last published snapshot stands
+        @test trace(sim).frames == 0                     # the trace is the failed init!'s
+
+        init!(sim, fragment(inputs = (in = false,)))     # `built` is re-initializable
+        @test lifecycle(sim) === :initialized
+        @test step!(sim) == 1
+    end
 end

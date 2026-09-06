@@ -227,11 +227,13 @@ end
 """
     lifecycle(sim)
 
-§12.6's five-state lifecycle: `:built` — stores allocated, boundary zero never
-run; `:initialized` — boundary-consistent and ready to advance, the state
-`init!` establishes and a completed `step!` returns to; `:running` — `run!` or
-`step!` holds the loop, and the §11.3 freeze with it; and the two terminal
-states, `:stopped` and `:errored` (§13.6). Readable from any task.
+§12.6's five-state lifecycle: `:built` — stores allocated, boundary zero not
+completed — the cold state, and where a throw inside boundary zero returns the
+simulation to (§13.4, D-223); `:initialized` — boundary-consistent and ready to
+advance, the state `init!` establishes and a completed `step!` returns to;
+`:running` — `run!` or `step!` holds the loop, and the §11.3 freeze with it; and
+the two terminal states, `:stopped` and `:errored` (§13.6). Readable from any
+task.
 """
 lifecycle(sim::Simulation) = @atomic :acquire sim.control.lifecycle
 
@@ -388,6 +390,9 @@ establishment, not a scheduled sample, and an offset component's first
 non-nominal activation has no entries here at all (§9.4's executable set), so
 its pinned cells keep the carried nominal products — at boundary zero as
 everywhere.
+
+Never called bare: `_host_boundary_zero!` below hosts it for both services,
+wrapping a throw as §13.4's catch does (D-223).
 """
 @inline function boundary_zero!(sim::Simulation)
     cur = sim.exec.cursor
@@ -603,7 +608,9 @@ deliberately not cleared: a rejection recorded while stopped is a fact about
 what happened, not a stale input, and it surfaces in the next run's first
 status (§11.8). `init!` is itself a stopped-sim operation: refused while
 `running`, and refused on an `errored` simulation, which is terminally
-stopped (§13.6) — reproduction is trace replay, not resurrection.
+stopped (§13.6) — reproduction is trace replay, not resurrection. A throw
+inside boundary zero arrives as a `StepError` with pointer 0 and leaves the
+simulation `built`, `init!` and `replay!` legal again (§13.4, D-223).
 """
 function init!(sim::Simulation{T}, condition = fragment(); t0::T = zero(T)) where {T}
     ctl = sim.control
@@ -618,7 +625,7 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::T = zero(T)) wher
     _open_trajectory!(sim, t0)
     _reset!(sim.trace)            # §11.5: the trace is cleared at init!, header and all
     _capture!(sim)                # and re-captured here, at §14.5's placement
-    boundary_zero!(sim)
+    _host_boundary_zero!(sim)
     publish!(sim)                 # the boundary-zero snapshot (§11.2, §14.5)
     @atomic :release ctl.lifecycle = :initialized
     nothing
@@ -715,7 +722,9 @@ a continuation, not a replay.
 
 Refused while `running` and on an `errored` simulation, as `init!` is. Every
 refusal — the lifecycle gate, `to_boundary`'s range, `to_time`'s, the keyword
-validation and the whole entry pass — precedes every write.
+validation and the whole entry pass — precedes every write. A throw inside
+boundary zero arrives as a `StepError` with pointer 0 and leaves the simulation
+`built`, `init!` and `replay!` legal again (§13.4, D-223).
 """
 function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
                  to_time = nothing, t_end = nothing, stop_on = nothing) where {T}
@@ -779,7 +788,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
         reg.header = _detach(h)
         _install_writers!(reg, sim.plane)       # …with this session's writers appended
     end
-    boundary_zero!(sim)
+    _host_boundary_zero!(sim)
     publish!(sim)                               # the boundary-zero snapshot (§11.2, §14.5)
     # substitution (2): the recording attached and the input mode entered, both
     # outliving this call — the halt below detaches them only where it lands at
@@ -1063,7 +1072,9 @@ end
 # The one `StepError` constructor (§13.4, D-059): the frame from the cursor, the
 # clock at the failure, the frame-entry boundary as the replay pointer, and the
 # cause under the species rule below. Nothing inside the sequence throws a
-# `StepError`, so one arriving here is an invariant firing, not a re-wrap.
+# `StepError`, so one arriving here is an invariant firing, not a re-wrap. Two
+# callers reach it — the frame loop above and the boundary-zero host below
+# (D-223) — and it stays the only constructor.
 function _wrap_step(sim::Simulation, entry::Int, err)
     err isa StepError && throw(InternalInvariant(
         "a StepError reached the catch site (§13.4), which is its only constructor — " *
@@ -1081,6 +1092,23 @@ end
 # no single kind and rides as the cause it is.
 _species(err) = err
 _species(err::DiagnosticError{<:Diagnostic}) = err.carried
+
+# The second host of §13.4's catch (D-223): boundary zero runs the loop's
+# user-code surfaces with the cursor maintained through them, so a throw inside
+# it takes the one `StepError` constructor — frame from the cursor, `t₀`,
+# pointer 0, the species rule — under the service's disposition: the simulation
+# returns to `built`, nothing published, no record written. An interrupt is not
+# model code failing and has no stop path to route to here, so it moves the
+# lifecycle and propagates raw.
+function _host_boundary_zero!(sim::Simulation)
+    try
+        boundary_zero!(sim)
+    catch err
+        @atomic :release sim.control.lifecycle = :built
+        err isa InterruptException && rethrow()
+        rethrow(_wrap_step(sim, 0, err))
+    end
+end
 
 """
     step!(sim; frames = 1)

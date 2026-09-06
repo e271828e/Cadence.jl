@@ -720,7 +720,7 @@ Base.@kwdef struct MissingInit <: Diagnostic
     status::Symbol                           # the simulation's status
 end
 message(d::MissingInit) =
-    "`$(d.op)` before `init!`: boundary zero has not run and this simulation is " *
+    "`$(d.op)` before `init!`: boundary zero has not completed and this simulation is " *
     "`$(d.status)` — `init!` is mandatory (§12.6)"
 
 "§11.3, §14: a service call against a lifecycle status that does not admit it."

@@ -61,6 +61,43 @@ function failures_runtime()
         @test e2 isa StepError && e2.boundary == 3 && e2.cause isa Detonated
     end
 
+    @testset "a throw inside boundary zero takes the catch with pointer 0 (§13.4, D-223)" begin
+        # The same mine, armed by the *authored* condition: the guard holds against
+        # the not-holding prior boundary zero establishes, so the handler fires
+        # inside `init!` rather than inside the loop.
+        sim = Simulation(fed(Mine(), "sig"); h = 1//10, t_end = 5.0)
+        e = failure(() -> init!(sim, fragment(inputs = (in = true,))))
+        @test e isa StepError
+        @test e.frame == CursorFrame("c", :handler, :round, 1)
+        @test e.boundary == 0 && e.t == 0.0             # the pointer degenerates at zero
+        @test e.cause isa Detonated
+
+        # The service's disposition: back to `built`, no termination record, and
+        # the advance entries meet §12.6's ordinary refusal.
+        @test lifecycle(sim) === :built
+        @test termination(sim) === nothing
+        ds = carried(@test_throws DiagnosticError{MissingInit} step!(sim))
+        @test ds.op === :step! && ds.status === :built
+        dr = carried(@test_throws DiagnosticError{MissingInit} run!(sim))
+        @test dr.op === :run! && dr.status === :built
+
+        # The reproduction: the header is captured before boundary zero runs, so
+        # the trace already holds it — and at zero it needs no `step!` after.
+        trc = trace(sim)
+        @test trc.frames == 0
+        sim2 = Simulation(fed(Mine(), "sig"); h = 1//10, t_end = 5.0)
+        e2 = failure(() -> replay!(sim2, trc))
+        @test e2 isa StepError && e2.cause isa Detonated
+        @test e2.frame == e.frame && e2.boundary == 0
+        @test lifecycle(sim2) === :built
+        @test mode(sim2) === :live                      # the mode is entered after the boundary
+
+        # The remedy is a corrected condition, and `init!` re-establishes first.
+        init!(sim, fragment(inputs = (in = false,)))
+        @test lifecycle(sim) === :initialized
+        @test step!(sim) == 1
+    end
+
     @testset "a throw in a guard trial names the localization trial (§13.4)" begin
         # Arrival, validation and the boundary rounds all sit on the grid before any
         # t* has occurred, so the off-grid guard is reachable by a trial alone.

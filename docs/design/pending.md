@@ -142,7 +142,7 @@ Where the reason is not given here, the cited decision carries it:
 ## Built in a shape the spec's is not
 
 Transactional: the commit introducing a deviation adds its bullet, the one
-retiring it deletes it. All but the last three were found by the audit, none
+retiring it deletes it. All but the last two were found by the audit, none
 of them chosen; the merge entry has the probe.
 
 - **`t_end` lands on the nearest frame, not the first at or past it**
@@ -224,12 +224,6 @@ of them chosen; the merge entry has the probe.
   free and asserted so (`test_conditions.jl`); the construction cost is noted
   in that file's comments and guarded by nothing. Needs a test before it can
   be called more than a note.
-- **Boundary zero sits outside the catch** (D-223). `init!` and `replay!` run
-  it raw, the cursor's frame discarded, and the lifecycle word moves only at
-  the service's end: a re-`init!` that throws leaves a warm simulation
-  `initialized` on half-transitioned stores, and `step!` advances on them.
-  Retires with the conformance increment that hosts the catch and returns the
-  simulation to `built`.
 
 ## Awaiting a ruling
 
