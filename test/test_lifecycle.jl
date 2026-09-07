@@ -257,6 +257,12 @@ function test_lifecycle()
         @test d.status === :errored
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} init!(sim))
         @test d.status === :errored
+        # The roster operations refuse it too (D-232): they configure the next
+        # run, and there is none. The post-mortem read above stays admitted.
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} attach!(sim, TailProbe(), NoClaim()))
+        @test d.op === :attach! && d.status === :errored
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} detach!(sim, probe))
+        @test d.op === :detach! && d.status === :errored
     end
 
     @testset "a throw inside boundary zero returns a warm simulation to `built` (§12.6, D-223)" begin

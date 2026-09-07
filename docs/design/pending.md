@@ -211,8 +211,6 @@ Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
 retires or the code conforms. All are the audit's (M-D and M-B26):
 
-- **`attach!` on an errored sim.** The docstring calls it deliberate
-  (post-mortem); Appendix B lists three legal states without it.
 - **Prose that does not match the mechanism it describes, with the code
   right**: §10.5's "the gate's image of the frame index" is wrong for
   `n > 1`; D-133 calls `localization_budget` `event_budget`; §10.6's

@@ -1221,8 +1221,9 @@ stop!(sim::Simulation) = _request_stop!(sim.control, :code)
             should_abort = false) -> DeviceHandle
 
 Roster a device under a binding — a stopped-sim configuration operation
-(`ServiceLifecycle` while running: the roster is frozen per run, pause
-included). The binding's conformance check runs first (§11.6), then the
+(`ServiceLifecycle` while running, the roster being frozen per run, pause
+included, and on an errored simulation, which no run follows — D-232). The
+binding's conformance check runs first (§11.6), then the
 three-part admission in spec order (§11.3): identity — this instance already
 rostered is `AlreadyAttached`, rebinding being spelled `detach!` then
 `attach!` — affinity (`CallerTaskConflict`: at most one `needs_calling_task`
@@ -1254,7 +1255,7 @@ same object the wrapper passes to `loop(dev, handle)` on the device's task.
 function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
                  should_abort::Bool = false)
     plane = sim.plane
-    assert_stopped(sim.control, :attach!)
+    assert_configurable(sim.control, :attach!)
     check_binding(b)
     check_device(dev)
     for e in plane.roster                          # identity, before claims (§11.3)
@@ -1303,7 +1304,7 @@ last-drained values. The device id retires with the entry, never reused.
 """
 function detach!(sim::Simulation, dev::AbstractDevice)
     plane = sim.plane
-    assert_stopped(sim.control, :detach!)
+    assert_configurable(sim.control, :detach!)
     i = findfirst(e -> e.dev === dev, plane.roster)
     i === nothing && throw(DiagnosticError(NotAttached(
         device = _typename(dev), roster = [_who(e) for e in plane.roster])))

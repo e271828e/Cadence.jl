@@ -122,15 +122,24 @@ _request_stop!(ctl::Control, issuer::Union{Symbol,String}) =
     (@atomicreplace ctl.stop_issuer nothing => issuer; nothing)
 
 """
-The §11.3 freeze, keyed on the lifecycle (§12.6): `attach!`, `detach!` and the
-stopped-sim readers are refused exactly while `run!` or `step!` holds the
+The §11.3 freeze, keyed on the lifecycle (§12.6), as two gates. The readers'
+gate, `assert_stopped`, refuses exactly while `run!` or `step!` holds the
 simulation `:running` — which spans the tail, so a roster change cannot race
-the joins. Every other state admits them, `:errored` included: post-mortem
-inspection of a terminally stopped simulation is legitimate (§13.6).
+the joins — and admits every other state, `:errored` included: post-mortem
+inspection of a terminally stopped simulation is reading (§13.6). The roster's
+gate, `assert_configurable`, adds `:errored` to the refusals (D-232): a
+roster change configures the next run, and an errored simulation has none.
 """
 assert_stopped(ctl::Control, op::Symbol) =
     (@atomic ctl.lifecycle) === :running ?
     throw(DiagnosticError(ServiceLifecycle(op = op, status = :running))) : nothing
+
+function assert_configurable(ctl::Control, op::Symbol)
+    lc = @atomic ctl.lifecycle
+    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running)))
+    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored)))
+    nothing
+end
 
 """
 The handle (§11.6): the one object every attached device receives, carrying
