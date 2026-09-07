@@ -66,6 +66,7 @@ const ROSTER = [DECISIONS,
                 "companions/trim_environment_walkthrough.md",
                 "companions/frozen_discrete_walkthrough.md",
                 "companions/localization_validation_walkthrough.md",
+                "companions/frame_walkthrough.md",
                 "companions/sample_time_proposal.md"]
 
 # The companions that cite their own numbered sections (see the advisory above).
