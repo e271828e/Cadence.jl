@@ -5184,7 +5184,10 @@ complete-world application — `init!`, trim setup, trim commit
 operations.** `attach!`/`detach!` are legal in the `built`, `initialized`
 and `stopped` states ([§12.6][s12-6]) and an error while `running`. That error is
 `ServiceLifecycle` ([Appendix C][sC]), the same kind that gates the [§14][s14]
-services. The prohibition includes pause: pause is a control-plane state
+services. The list is exhaustive. An `errored` simulation refuses both with
+the same kind: a roster change configures the next run, and an errored
+simulation has none ([§13.6][s13-6], [D-232][d-232]).
+The prohibition includes pause: pause is a control-plane state
 *inside* a run ([§12.1][s12-1]), and a surface that could move while paused would
 move mid-run. The roster — entries, claims, attachment order — is therefore a
 plain immutable value the loop reads once at `run!`. The partition of the root
@@ -7622,7 +7625,9 @@ errored `Simulation` for post-mortem inspection, but an errored sim is
 terminally stopped, not resumable. The reproduction tool is [trace](#g-trace)
 [replay](#g-replay), not resurrection, and the stopped-sim services enforce that
 non-resumability by refusing an errored simulation outright
-(`ServiceLifecycle`, [§14][s14]). The published record (snapshot chain, log,
+(`ServiceLifecycle`, [§14][s14]). The roster operations refuse it with them
+([§11.3][s11-3], [D-232][d-232]): inspection is reading, and `attach!` configures a run that
+cannot follow. The published record (snapshot chain, log,
 trace) ends at the last consistent boundary. Nothing downstream of the sim ever
 sees half a boundary.
 
@@ -10117,8 +10122,9 @@ updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` pa
   binding, the standard GUI binding the shipped greedy one ([§11.6][s11-6]).
 
   `attach!` is a stopped-sim operation — legal in `built`, `initialized` and
-  `stopped`, an error while `running` (`ServiceLifecycle`; the roster freeze,
-  [§11.3][s11-3]). Admission checks identity (`AlreadyAttached` — one roster
+  `stopped`, an error while `running` and on an `errored` simulation
+  (`ServiceLifecycle`; the roster freeze, [§11.3][s11-3], and the terminal
+  state, [§13.6][s13-6]). Admission checks identity (`AlreadyAttached` — one roster
   entry per instance, rebinding = `detach!` + `attach!`), calling-task affinity
   (`CallerTaskConflict` — at most one holder) and claims (`ClaimConflict`),
   [§11.3][s11-3]. It registers only: the task appears at the next `run!`.
@@ -11554,6 +11560,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-229]: decisions.md#d-229--collect-to-the-stratum-barrier-under-a-dependency-rule
 [d-230]: decisions.md#d-230--stamp-the-snapshot-with-the-trajectorys-boundary-ordinal-not-the-wait-counter
 [d-231]: decisions.md#d-231--require-isbits-store-values-checked-at-build
+[d-232]: decisions.md#d-232--refuse-the-roster-operations-on-an-errored-simulation
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
