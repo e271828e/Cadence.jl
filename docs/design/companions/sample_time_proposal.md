@@ -300,7 +300,7 @@ is one multiply-add per component, not a second composition walk.
 
 ### 5.3 Deployment binding: the pool, the rule, the resolution
 
-At `Simulation` construction, where `Δt_base`, `h`, `n` already bind and validate
+At `Simulation` construction, where `Δt_base`, `h`, `N_base` already bind and validate
 ([§9.1][s9-1]), three new steps slot in.
 
 **The pool.** Collect every anchor's period and every nonzero offset — the
@@ -458,7 +458,7 @@ engine may set `Δt_base` itself, printing the derivation (section 8).
 `Δt_base = 1//1000`. Note that neither period alone needs a 1 kHz grid —
 `gcd(1//500, 1//50) = 1//500` — it is the offset, half the sensor period, that
 refines it (leave-one-out factor 2, in section 8's terms). Deployment then needs
-`h ≤ 1 ms`; take `h = 1 ms`, `n = 1`.
+`h ≤ 1 ms`; take `h = 1 ms`, `N_base = 1`.
 
 **Compiled pairs.** The `sensors` anchor resolves to `(D = 2, Φ = 1)`; `ctrl` to
 `(D = 20, Φ = 0)`. Cascading into the scope with the composition law — the scope
@@ -581,7 +581,7 @@ gcd  = 1//500                        # lcm(500, 10) = 500; lcm(500, 100) = 500
 
 The offset `1//100` happened to be grid-friendly (`5 × 1//500`) — it joined the pool
 but did not refine the grid. Say the user declares `Δt_base = 1//500`, `h = 1//500`
-(`n = 1`). Anchor resolution: `A1 → (D = 1, Φ = 0)`; `A2 → (D = 50, Φ = 5)`. (Had
+(`N_base = 1`). Anchor resolution: `A1 → (D = 1, Φ = 0)`; `A2 → (D = 50, Φ = 5)`. (Had
 the user declared `Δt_base = 1//300`: `(1//500)/(1//300) = 3//5`, not an integer →
 `DeploymentInvalid` naming `A1`, *declared at `Avionics` for `sensors`*.) Then the
 bound schedule:
@@ -601,7 +601,7 @@ refuses to pick the value itself and only suggests.
 
 ### 7.3 The grid, drawn
 
-With `n = 1`, every base tick is a frame top. Base index `k`, `t = 2k` ms;
+With `N_base = 1`, every base tick is a frame top. Base index `k`, `t = 2k` ms;
 hyperperiod `lcm(2, 2, 50) = 50` base ticks = 100 ms:
 
 ```
@@ -637,7 +637,7 @@ gcd(1//500, 1//150) = 1 // lcm(500, 150) = 1//1500      # 500 = 2²·5³, 150 = 
 ```
 
 Coarsest admissible `Δt_base = 1//1500 s ≈ 0.667 ms` — a 3× refinement. Binding at
-the suggestion (`h = 1//1500`, `n = 1`): `A1 → (3, 0)`, `A2 → (150, 10)`, and:
+the suggestion (`h = 1//1500`, `N_base = 1`): `A1 → (3, 0)`, `A2 → (150, 10)`, and:
 
 ```
 component            D    Φ    Δt        rate     first tick

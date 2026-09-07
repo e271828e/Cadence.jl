@@ -934,7 +934,7 @@ idiom), insert an explicit unit delay (`UnitDelay`, [§13.7][s13-7]), or restruc
 The α-filter idiom is already standard practice in the domain and in the current C172
 model. The unit delay carries a caveat: it changes the model's [tier](#g-tier)
 structure. The broken signal becomes discrete, sampled at [`Δt_base`](#g-dt_base) (the
-base tick period, an integer multiple `n·h`). That is a modeling decision, not a
+base tick period, an integer multiple `N_base·h`). That is a modeling decision, not a
 transparent wire. Implicit delays and per-step numerical loop solving are both closed
 ([D-005][d-005]).
 
@@ -2710,7 +2710,7 @@ type's design from outside, and the composition rule guarantees you never need
 to. Container elements ([§8.5][s8-5]) are immediate children, so `"aircraft/red"` is a
 legal key; the bare field name applies one declaration to every element. A
 `sample_times` key on a continuous child is a build error (the Δt-on-continuous
-error at declaration time, [§10.5][s10-5]). `Δt_base`, `h` and `n` appear in no
+error at declaration time, [§10.5][s10-5]). `Δt_base`, `h` and `N_base` appear in no
 declaration — they are deployment decisions fixed at `Simulation` construction
 (the three sources for `Δt_base`, [§9.1][s9-1]). The declaration belongs to the
 [assembly](#g-assembly) type, not to the child instance: a sample time is a design ratio
@@ -3016,18 +3016,18 @@ this stratum* ([§9.4][s9-4]).
 #### Deployment binding
 
 Deployment binding sits after all three strata, at `Simulation` construction.
-It binds `Δt_base`, `h`, `n`, `t_end`, the algorithm, `localization_tol`,
+It binds `Δt_base`, `h`, `N_base`, `t_end`, the algorithm, `localization_tol`,
 `localization_budget` and `firing_budget`, runs harmonic-grid validation, and
 instantiates the tick schedule. Nothing in A–C depends on it.
 
 `Δt_base` has exactly one of three sources, cross-validated:
 
-- the explicit keyword, a `Rational`, `Period` or `Hz` value, from which `n` is
+- the explicit keyword, a `Rational`, `Period` or `Hz` value, from which `N_base` is
   derived as `Δt_base/h` and validated an integer ≥ 1;
-- the `n·h` product when only `n` is given, today's rule, with the default
-  `n = 1`;
+- the `N_base·h` product when only `N_base` is given, today's rule, with the
+  default `N_base = 1`;
 - **derivation**, requested explicitly as `Δt_base = :derive` — never entered
-  by default, so the `n·h` path stays what silence means — and permitted only
+  by default, so the `N_base·h` path stays what silence means — and permitted only
   when every discrete component is anchored, that is, with anchor 0
   unpopulated.
 
@@ -3063,10 +3063,10 @@ Deployment validation is collected like its declarative siblings
 ([Appendix C][sC] — parameter, value, the violated constraint):
 
 - a nonpositive `h`;
-- an `n < 1`;
+- an `N_base < 1`;
 - a harmonic-grid violation;
 - a non-dividing anchor period or offset;
-- a declared `Δt_base` disagreeing with a declared `n`;
+- a declared `Δt_base` disagreeing with a declared `N_base`;
 - an algorithm the [stepper seam](#g-seam) does not know;
 - a nonpositive `localization_tol`;
 - a `localization_budget` or a `firing_budget` that is not an integer ≥ 1.
@@ -4139,7 +4139,7 @@ firings, which is precisely what bounds the iteration.
 #### Both constants are deployment, not implementation
 
 `localization_tol` and `localization_budget` are `Simulation` keywords standing
-beside `h`, `n` and the algorithm ([§9.1][s9-1], [Appendix B][sB]). They are
+beside `h`, `N_base` and the algorithm ([§9.1][s9-1], [Appendix B][sB]). They are
 validated with their siblings — a positive tolerance, an integer budget ≥ 1 —
 and collected into `DeploymentInvalid` ([Appendix C][sC]). The `firing_budget`
 ([§10.6][s10-6]) stands beside them in every one of these lists: same validation,
@@ -4169,14 +4169,14 @@ This section fixes all three, in that order.
 
 **Rule.** Every discrete [component](#g-component)'s period is an integer
 multiple of a base [tick](#g-tick) period `Δt_base`, and `Δt_base` is itself an
-integer multiple of the continuous step ($\Delta t_{\mathrm{base}} = n \cdot h$,
-$n \ge 1$). That is the **[harmonic grid](#g-harmonic-grid)**. Ticks therefore
-land on step boundaries — the only place anything discrete ever happens
-([D-019][d-019]).
+integer multiple of the continuous step, `N_base` steps per base tick
+($\Delta t_{\mathrm{base}} = N_{\mathrm{base}} \cdot h$, $N_{\mathrm{base}} \ge 1$).
+That is the **[harmonic grid](#g-harmonic-grid)**. Ticks therefore land on step
+boundaries — the only place anything discrete ever happens ([D-019][d-019]).
 
 **Two indices.** Frames are counted by the **frame index** `k`, and the frame
-top at `t = k·h` is a base tick exactly when `k` is a multiple of `n`. Its
-**[tick index](#g-tick-index)** is then `tick = k ÷ n`. A frame top that is no
+top at `t = k·h` is a base tick exactly when `k` is a multiple of `N_base`. Its
+**[tick index](#g-tick-index)** is then `tick = k ÷ N_base`. A frame top that is no
 base tick, and a `t*` boundary, have no tick index at all.
 
 **One pair per component.** However an author declares a rate, and however
@@ -4233,10 +4233,10 @@ one round of it.
 
 Three kinds of boundary, three due sets:
 
-- At a **tick frame top**, every n-th frame top, the due set is every
+- At a **tick frame top**, every `N_base`-th frame top, the due set is every
   discrete component whose gate admits the tick index: the `(D, Φ)` pairs with
   `(tick − Φ) % D == 0`.
-- At an **off-tick frame top**, a frame top with `n > 1` that is no base
+- At an **off-tick frame top**, a frame top with `N_base > 1` that is no base
   tick, it is **empty**. The tick counter has not advanced, so no component is
   at a tick instant.
 - At a **`t*` boundary**, it is **empty** for the same reason. A modulo test
@@ -5522,7 +5522,7 @@ naturally. The header carries two further things:
   capture and every roster change appends the current writer set, earlier
   records keep their index, and a record resolves only through its own schema
   entry;
-- **the run's deployment block**: `t₀`, `Δt_base`, `h`, `n`, the algorithm
+- **the run's deployment block**: `t₀`, `Δt_base`, `h`, `N_base`, the algorithm
   identifier, `localization_tol`, `localization_budget` ([§10.4][s10-4]),
   `firing_budget` ([§10.6][s10-6]) and the `t_end`/`stop_on` pair bound at
   construction, captured at the same instant as the stores. A `run!` override
@@ -6958,7 +6958,7 @@ Everything else is the loop as already specified:
 
   The header's deployment block ([§11.5][s11-5]) validates in the same pass, on
   the *structural* side of that line. The seven trajectory-determining
-  parameters are `Δt_base`, `h`, `n`, the algorithm, `localization_tol`,
+  parameters are `Δt_base`, `h`, `N_base`, the algorithm, `localization_tol`,
   `localization_budget` ([§10.4][s10-4]) and `firing_budget` ([§10.6][s10-6]). All
   seven are compared against the target `Simulation`'s own deployment binding.
   Mismatch is `ReplayHeaderMismatch` with a deployment-parameter discriminator,
@@ -6978,7 +6978,7 @@ The dispositions, by header content:
 | header content | disposition |
 |---|---|
 | store layout, root-input faces | compared against the `Build` |
-| the deployment block's seven trajectory-determining parameters: `Δt_base`, `h`, `n`, the algorithm, `localization_tol`, `localization_budget`, `firing_budget` | compared against the target `Simulation`'s own deployment binding |
+| the deployment block's seven trajectory-determining parameters: `Δt_base`, `h`, `N_base`, the algorithm, `localization_tol`, `localization_budget`, `firing_budget` | compared against the target `Simulation`'s own deployment binding |
 | each writer's face-name → position schema | validated against the target model's root-input faces: disagreement is a replay error |
 | resolved stores, root-input values | applied directly at boundary zero |
 | `t₀` | applied; `replay!` takes no `t0` argument |
@@ -9326,8 +9326,8 @@ The demo line by line:
   handed one level down to avionics and systems and re-routed at each level below
   ([§6.1][s6-1]) — today's mapping writes flaps/brakes directly
   into `act`, bypassing avionics; that bypass becomes a declared route.
-- `Simulation(world; algorithm = RK4, h = 0.02, n = 1, t_end = 1000)` — `n`
-  binds `Δt_base = n·h` ([§10.5][s10-5]; default 1: base [tick](#g-tick) every step). The entire
+- `Simulation(world; algorithm = RK4, h = 0.02, N_base = 1, t_end = 1000)` — `N_base`
+  binds `Δt_base = N_base·h` ([§10.5][s10-5]; default 1: base [tick](#g-tick) every step). The entire
   build pipeline runs here: [class](#g-class) resolution, path validation, face derivation
   (computed interface connections expanded, printable), two-producers/unconnected checks,
   topological sort, [probe](#g-probe) passes, rate compilation, flat layout, [root input](#g-root-input) table.
@@ -10039,7 +10039,7 @@ updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` pa
 
 **Deployment.**
 
-- `Simulation(world; algorithm = RK4, h, n = 1, Δt_base = nothing,
+- `Simulation(world; algorithm = RK4, h, N_base = 1, Δt_base = nothing,
   t_end = Inf,
   stop_on = (), localization_tol = 1e-6, localization_budget = 8,
   firing_budget = 4, join_timeout = 5.0,
@@ -10052,7 +10052,7 @@ updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` pa
   |---|---|---|---|
   | `algorithm` | `RK4` | the stepper, selected by type and materialized against the state buffer at binding ([D-227][d-227]) | [§10.2][s10-2] |
   | `h` | — | required: a domain rate is not a framework default | [§10.2][s10-2] |
-  | `n` | `1` | absent the `Δt_base` keyword, the `n·h` product is the base tick period (the default path); given it, `n` is instead derived and validated an integer ≥ 1 | [§9.1][s9-1] |
+  | `N_base` | `1` | steps per base tick: absent the `Δt_base` keyword, the `N_base·h` product is the base tick period (the default path); given it, `N_base` is instead derived and validated an integer ≥ 1 | [§9.1][s9-1] |
   | `Δt_base` | `nothing` | the base tick period as a `Rational`, `Period` or `Hz` value, or `:derive` to request GCD derivation (all-anchored models only); one of three binding sources | [§9.1][s9-1] |
   | `t_end` | `Inf` | the run's end time — a **default**, overridable per run at `run!` | [§13.5][s13-5], [§12.6][s12-6] |
   | `stop_on` | `()` | root-exported `Bool` output faces, OR-combined — a **default**, overridable per run at `run!` | [§13.5][s13-5], [§12.6][s12-6] |
@@ -10066,8 +10066,8 @@ updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` pa
   | `log_max` | `65536` | the maximum number of retained snapshots, finite by default with `Inf` the opt-out | [§11.2][s11-2] |
 
   `Δt_base` binds from exactly one of three sources ([§9.1][s9-1]): the
-  `Δt_base` keyword — a `Rational`, `Period` or `Hz` value, `n` then derived
-  and validated an integer ≥ 1 — the `n·h` product when the keyword is absent
+  `Δt_base` keyword — a `Rational`, `Period` or `Hz` value, `N_base` then derived
+  and validated an integer ≥ 1 — the `N_base·h` product when the keyword is absent
   (the default path), or, in a fully anchored model omitting both, derivation
   from the constraint pool at the coarsest admissible value, printed with its
   drivers ([§9.2][s9-2]).
@@ -10407,7 +10407,7 @@ with the collection and never triggering its throw — is currently empty
 | `MissingInit` | the simulation's status, the entry point called (`run!`/`step!`) | [§12.6][s12-6] | error | service | fail-fast |
 | `ServiceLifecycle` | the operation (`attach!`/`detach!`/`init!`/`trim!`/`capture`/`linearize`), the current status, the legal statuses | [§11.3][s11-3], [§14][s14] | error | service | fail-fast |
 | `StopFaceInvalid` | face name, reason (unknown / not root-exported / not `Bool`), the root output-face list; the binding site (constructor or `run!`) | [§13.5][s13-5] | error | service | collected, over the given faces |
-| `DeploymentInvalid` | the deployment parameter (`h`, `n`, `Δt_base`, algorithm, `localization_tol`, `localization_budget`, `firing_budget`, `join_timeout`, `log`, `log_every`, `log_max`, `t_end` ([§13.5][s13-5]), the harmonic-grid relation, a non-dividing anchor period or offset — the anchor named with its declaring scope and key), the value in hand, the violated constraint | [§9.1][s9-1] | error | service | collected |
+| `DeploymentInvalid` | the deployment parameter (`h`, `N_base`, `Δt_base`, algorithm, `localization_tol`, `localization_budget`, `firing_budget`, `join_timeout`, `log`, `log_every`, `log_max`, `t_end` ([§13.5][s13-5]), the harmonic-grid relation, a non-dividing anchor period or offset — the anchor named with its declaring scope and key), the value in hand, the violated constraint | [§9.1][s9-1] | error | service | collected |
 | `AttachUnknownFace` | the device (by type — its roster id is assigned only at admission), binding entry, face name, the root input-face list | [§11.3][s11-3] | error | service | fail-fast |
 | `AlreadyAttached` | the device id of the existing roster entry, its binding | [§11.3][s11-3] | error | service | fail-fast |
 | `CallerTaskConflict` | both device ids — the rostered `needs_calling_task` holder and the candidate | [§11.1][s11-1], [§11.3][s11-3] | error | service | fail-fast |
@@ -10426,7 +10426,7 @@ with the collection and never triggering its throw — is currently empty
 | `TrimCommitResiduals` | the offending residual names with committed-state values and tolerances — a converged solve whose committed-state residuals violate the box test | [§14.8][s14-8] | warning | service | logged |
 | `ConditionShapeDrift` | the compiled tree type and the observed one; for a prefix mismatch, the node position and both strings; the remedy — a condition function returns one shape for every decision | [§14.4][s14-4] | error | service | fail-fast |
 | `GridUtilization` | the derived `Δt_base`, its driver entries with provenance and refinement factors, and `min_i Dᵢ` — the grid rendered as "N× finer than the fastest declared work" | [§9.1][s9-1], [§9.2][s9-2] | warning | service, at deployment binding (derivation path only) | logged |
-| `ReplayHeaderMismatch` | the mismatch, discriminated: a store or root input (component path, store, expected vs. found layout/type) or a deployment parameter (`Δt_base`/`h`/`n`/algorithm/`localization_tol`/`localization_budget`/`firing_budget`, recorded vs. bound value) or a frame ordinal outside the recording's length (the writer, the ordinal, the legal range); the build's and the trace's provenance | [§11.5][s11-5], [§12.7][s12-7] | error | service | collected |
+| `ReplayHeaderMismatch` | the mismatch, discriminated: a store or root input (component path, store, expected vs. found layout/type) or a deployment parameter (`Δt_base`/`h`/`N_base`/algorithm/`localization_tol`/`localization_budget`/`firing_budget`, recorded vs. bound value) or a frame ordinal outside the recording's length (the writer, the ordinal, the legal range); the build's and the trace's provenance | [§11.5][s11-5], [§12.7][s12-7] | error | service | collected |
 | `ReplaySchemaMismatch` | the trace's device tag, its recorded face-name → position schema, the disagreeing face names, the target's root input-face list | [§11.5][s11-5], [§12.7][s12-7] | error | service | collected |
 | `ReplayUnknownFace` | face name, or the bare position where the writer's schema has no name for it; frame ordinal, the trace's device tag, the root input-face list | [§12.7][s12-7] | error | service | collected |
 | `ArgumentInvalid` | the call (`step!`, `trim!`, `TableBinding`, a period constructor), the argument, the value in hand, the violated constraint — the twin of `DeploymentInvalid` for arguments that are not deployment parameters | [§8.7][s8-7], [§11.6][s11-6], [§12.6][s12-6], [§14.7][s14-7] | error | service; build, in a `sample_times` declaration | fail-fast; collected over a `TableBinding`'s entry table |
@@ -10771,9 +10771,9 @@ to 8; exhaustion *degrades* rather than throws — localization stops for the
 rest of the frame and further crossings fire at the next boundary, under a
 `ChatteringBudget` warning naming the event ([§10.4][s10-4]).
 
-<a id="g-dt_base"></a>**`Δt_base`** — the base tick period, an integer multiple `n·h` of the
+<a id="g-dt_base"></a>**`Δt_base`** — the base tick period, an integer multiple `N_base·h` of the
 continuous step, bound at `Simulation` construction from one of three
-sources: explicit keyword, `n·h`, or — fully anchored models only —
+sources: explicit keyword, `N_base·h`, or — fully anchored models only —
 derivation from the constraint pool; every discrete component's period is an
 integer multiple of it ([§10.5][s10-5], [§9.1][s9-1]).
 
@@ -10879,8 +10879,8 @@ there, but no ticks are due and no staged inputs are drained ([§10.4][s10-4]).
 gated by counter modulo against the harmonic grid inside the boundary sweep;
 different boundaries therefore run different subsets of the schedule ([§10.5][s10-5]).
 
-<a id="g-tick-index"></a>**tick index** — the count of base ticks, `tick = k ÷ n` at the
-frame top of frame `k` when `k` is a multiple of `n`; the index the boundary
+<a id="g-tick-index"></a>**tick index** — the count of base ticks, `tick = k ÷ N_base` at the
+frame top of frame `k` when `k` is a multiple of `N_base`; the index the boundary
 gate reads. An off-tick frame top and a `t*` boundary have none ([§10.5][s10-5]).
 
 <a id="g-tier"></a>**tier** — the continuous or discrete side of the hybrid formalism, read off a
@@ -11198,7 +11198,7 @@ faces and deployment block — up front, applying the header's `t₀`
 ([§12.7][s12-7]).
 
 <a id="g-run-metadata"></a>**run metadata** — the trace header's deployment block: `t₀`, `Δt_base`,
-`h`, `n`, the algorithm identifier, `localization_tol`, `localization_budget`,
+`h`, `N_base`, the algorithm identifier, `localization_tol`, `localization_budget`,
 `firing_budget` and the
 `t_end`/`stop_on` pair bound at
 construction ([§11.5][s11-5], [§13.5][s13-5]).

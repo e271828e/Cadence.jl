@@ -15,7 +15,7 @@ seam, and `executor.jl` the compiled sweeps and the event registers. A reader
 who has both open can follow one frame here and know which rule each line
 serves.
 
-The running example is a deployment with `h = 0.01` and `n = 4`, so
+The running example is a deployment with `h = 0.01` and `N_base = 4`, so
 `Δt_base = 0.04` and only every fourth frame top is a base tick. The model
 holds a continuous plant with a localized sign-form guard, and a discrete
 controller with `(D, Φ) = (1, 0)`, which ticks at every base tick. The frame
@@ -34,7 +34,7 @@ drain!(sim)
 k = (sim.exec.clock.step += 1)
 frame!(sim, k)
 if pol.hit === nothing
-    k % sim.n == 0 ? boundary!(sim, k ÷ sim.n) : offtick_boundary!(sim)
+    k % sim.N_base == 0 ? boundary!(sim, k ÷ sim.N_base) : offtick_boundary!(sim)
     publish!(sim)
     face = _stop_hit(sim, pol)
 ```
@@ -42,7 +42,7 @@ if pol.hit === nothing
 Three things happen in order. `drain!` applies the device writes, `frame!`
 carries the continuous state across `[t₇, t₈]` and fires any localized event
 inside it, and one of two boundary entries runs at the frame top. For `k = 8`
-the selector picks `boundary!(sim, 2)`, the tick index being `k ÷ n`. For
+the selector picks `boundary!(sim, 2)`, the tick index being `k ÷ N_base`. For
 `k = 7` it picks `offtick_boundary!`. This selector is the whole of the
 frame/tick discrimination [§10.5][s10-5] describes: the gate reads a tick index, and an
 off-tick frame top has none.
@@ -270,7 +270,7 @@ proceeds to the next frame top, and the cursor's trail restarts: `:drain`,
 **Boundary count.** Frame 8 in this example published twice, at the `t*`
 boundary and at the tick boundary. Frame 7 without an event publishes once, at
 the off-tick boundary. The frame index advanced by one in both cases and the
-tick index only at frame 8, which is what the code's `k ÷ n` expresses.
+tick index only at frame 8, which is what the code's `k ÷ N_base` expresses.
 
 ## Section 4 — Boundary zero, for contrast
 
