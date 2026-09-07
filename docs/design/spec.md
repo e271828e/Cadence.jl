@@ -3549,7 +3549,7 @@ the fold-away conformance test ([§9.5][s9-5]) and the zero runtime graph logic 
 are reachable only under full specialization ([D-086][d-086]). An entry carries what
 selects code — [component](#g-component) type, stage — in type parameters, and what is plain
 data — [tick](#g-tick) divisor and [phase](#g-phase), the [bundle](#g-bundle)'s `Δt`, layout offsets — in fields;
-gating compiles to `(idx − Φ) % D == 0` inside the specialized *[boundary](#g-boundary)* body,
+gating compiles to `(tick − Φ) % D == 0` inside the specialized *[boundary](#g-boundary)* body,
 the interior bodies holding no discrete entries to test ([§10.5][s10-5]).
 
 **Cells are stored per element type, not per cell.** The [signal table](#g-signal-table) is one
@@ -3584,7 +3584,7 @@ only. That is what makes `@ballocated(sweep_2()) == 0` a well-defined
 measurement *of the interior path*, rather than of whichever tick phase the
 simulation happens to be sitting in. The `sweep_1(tick)`/`sweep_2(tick)`
 forms are the boundary variants, gating their discrete entries by
-`(idx − Φ) % D` against the passed index, symmetric with `ticks(tick)`. `rhs`
+`(tick − Φ) % D` against the passed tick index, symmetric with `ticks(tick)`. `rhs`
 takes no index ([D-147][d-147]). One gate serves all three tick-sensitive blocks —
 due-ness is per component, per boundary, never per stage — and `t*`'s empty
 due set is **arity selection, not an index trick** ([D-147][d-147], [D-185][d-185]), so the
@@ -4025,8 +4025,9 @@ remainder. The interpolant is invalidated because the handlers made it a lie for
 [localization budget](#g-chattering), with a chattering diagnostic.
 
 **Multiple events localizing in one step fire at the *earliest* `t*`.** Ties
-fire together at that boundary, in declaration order within the iteration
-([§10.6][s10-6]). Later crossings re-localize on the remainder.
+fire at that boundary inside the event iteration, one eligible event per
+component per round in declaration order ([§10.6][s10-6]). Later crossings
+re-localize on the remainder.
 
 **A shared blind spot, documented.** An even number of crossings within one step
 returns the predicate to not-holding at the boundary, so no edge is observed.
@@ -4173,6 +4174,11 @@ $n \ge 1$). That is the **[harmonic grid](#g-harmonic-grid)**. Ticks therefore
 land on step boundaries — the only place anything discrete ever happens
 ([D-019][d-019]).
 
+**Two indices.** Frames are counted by the **frame index** `k`, and the frame
+top at `t = k·h` is a base tick exactly when `k` is a multiple of `n`. Its
+**[tick index](#g-tick-index)** is then `tick = k ÷ n`. A frame top that is no
+base tick, and a `t*` boundary, have no tick index at all.
+
 **One pair per component.** However an author declares a rate, and however
 deeply the declaration is nested, the build compiles it to two integers per
 discrete component: a divisor `D`, the component's period in base ticks, and a
@@ -4181,7 +4187,7 @@ canonical residue `0 ≤ Φ < D`, so the component's ticks fall at base-tick
 indices `Φ`, `Φ + D`, `Φ + 2D`, and so on.
 
 **The gate.** A component is **[due](#g-due)** at a boundary when
-`(idx − Φ) % D == 0`, where `idx` is the boundary's tick index. That
+`(tick − Φ) % D == 0`, where `tick` is the boundary's tick index. That
 subtraction and remainder are the whole admission test: one subtraction more
 than a phase-free test would cost, over a lattice fixed at build time. Where a
 component's `(D, Φ)` comes from is the declaration surface below.
@@ -4205,7 +4211,7 @@ static rather than a runtime test ([D-147][d-147]).
   they are absent from the walk at compile time. The hot path carries no gating
   test at all.
 - The **[boundary sweep](#g-sweep)** walks the full list, with discrete entries
-  gated by `(idx − Φ) % D` against the boundary's tick index. It is the variant
+  gated by `(tick − Φ) % D` against the boundary's tick index. It is the variant
   the [§10.6][s10-6] macro-sequence runs. It is not one fixed list either:
   different boundaries run different subsets of the [schedule](#g-schedule).
 
@@ -4227,10 +4233,15 @@ one round of it.
 
 Three kinds of boundary, three due sets:
 
-- At a **frame top**, the due set is the gate's image of the frame index.
-- At a **`t*` boundary**, it is **empty**. The tick counter has not advanced
-  there, so no component is at a tick instant. A modulo test against the
-  unadvanced index would wrongly re-admit the previous frame's due set.
+- At a **tick frame top**, every n-th frame top, the due set is every
+  discrete component whose gate admits the tick index: the `(D, Φ)` pairs with
+  `(tick − Φ) % D == 0`.
+- At an **off-tick frame top**, a frame top with `n > 1` that is no base
+  tick, it is **empty**. The tick counter has not advanced, so no component is
+  at a tick instant.
+- At a **`t*` boundary**, it is **empty** for the same reason. A modulo test
+  against the unadvanced index would wrongly re-admit the previous tick's due
+  set.
 - At **[boundary zero](#g-boundary-zero)** (the initialization boundary: the
   ordinary macro-sequence with an empty integrate), it is **everything with
   `Φ = 0`**. At `idx = 0` the gate reads `(0 − Φ) % D == 0`, which under the
@@ -4325,7 +4336,7 @@ child declared `Relative(K, φ)` compiles to `D = K·D_s` and `Φ = Φ_s + φ·D
 Composition preserves the canonical residue `0 ≤ Φ < D`, for which
 `sample_time_proposal.md` carries the one-line induction. All scoping therefore
 compiles away at build to **one `(D, Φ)` pair per discrete component**, and the
-boundary sweep gates on that pair with the `(idx − Φ) % D == 0` test above. The
+boundary sweep gates on that pair with the `(tick − Φ) % D == 0` test above. The
 lattice stays static, and the interior sweep still holds no discrete entries to
 gate.
 
@@ -4626,8 +4637,9 @@ intra-boundary re-arms into a single later firing.
 **Budget exhaustion degrades; it does not throw.** When an event has fired
 `firing_budget` times at a boundary, its further edges there are **lost** for the
 remainder of that boundary: it is skipped by the eligibility test while every
-other event iterates normally. Exhaustion emits a `FiringBudget` warning
-([§13.2][s13-2], [Appendix C][sC]), at most once per event per boundary. The
+other event iterates normally. A lost edge emits a `FiringBudget` warning
+([§13.2][s13-2], [Appendix C][sC]), at most once per event per boundary; an event
+that fires its budget out and then quiesces lost nothing and warns nothing. The
 warning carries the component path, the event name, the boundary time and the
 exhausted budget beside the boundary's firing count.
 
@@ -5528,8 +5540,8 @@ initial state and the trace, the log is recomputable" requires. Header plus
 batches are the *primary* record; everything else, the state trajectory
 included, is derived ([§11.2][s11-2]). The trace also carries its length, the
 number of drains since the capture ([D-217][d-217]). A recording whose last
-frames drained nothing still ran them, and replay ends at that count
-([§12.7][s12-7]).
+frames drained nothing still ran them, and every advance in `:replay` is
+capped at that count ([§12.7][s12-7], [D-218][d-218]).
 
 **Trace recording is on by default.** The trace is cleared at `init!` and
 retrievable after the run, and a plain kill switch covers memory-constrained
@@ -7511,9 +7523,10 @@ one fact; the precedence rule above settles it.
 **The termination record names the source, as a typed value.** Where run
 metadata carries the effective *policy*, the run's
 [termination record](#g-termination-record) carries its *outcome*. The record
-holds three fields: the final boundary time — absent when no boundary ever
-ran, a [§13.6][s13-6] failure before boundary zero — the source, and the tail residue,
-the post-account diagnostics the run's-end sweep folds in ([§11.8][s11-8]). The source
+holds three fields: the final boundary time, the source, and the tail residue,
+the post-account diagnostics the run's-end sweep folds in ([§11.8][s11-8]). The time
+is always present: boundary zero precedes every record, and a throw inside
+boundary zero writes none ([§12.6][s12-6], [D-233][d-233]). The source
 follows the diagnostic convention — its kind is its identity, its payload is
 plain data ([§13.2][s13-2]) — with four kinds:
 
@@ -10765,12 +10778,12 @@ derivation from the constraint pool; every discrete component's period is an
 integer multiple of it ([§10.5][s10-5], [§9.1][s9-1]).
 
 <a id="g-due"></a>**due** — a discrete component is due at a boundary when its compiled `(D, Φ)`
-pair admits that boundary's tick index (`(idx − Φ) % D == 0`); due components'
+pair admits that boundary's tick index (`(tick − Φ) % D == 0`); due components'
 output stages are gated into the *boundary* sweep (never the interior one) and
 their `state_update` calls run after quiescence. The due set is a property of the
-boundary, fixed for its whole event iteration: the gate's image of the frame
-index at a frame top, empty at `t*`, the `Φ = 0` set at boundary zero
-([§10.5][s10-5], [§10.6][s10-6]).
+boundary, fixed for its whole event iteration: the components whose gate
+admits the tick index at a tick frame top, empty at an off-tick frame top and
+at `t*`, the `Φ = 0` set at boundary zero ([§10.5][s10-5], [§10.6][s10-6]).
 
 <a id="g-edge-semantics"></a>**edge semantics / holding** — an event fires on a not-holding → holding
 transition of its predicate, never on a bare sign change; the opposite
@@ -10827,7 +10840,7 @@ warning ([§10.7][s10-7]).
 <a id="g-phase"></a>**phase (`Φ`)** — a schedule's offset against its grid: in scope ticks for
 `Relative(K, Φ)`, in rational seconds for `Absolute(q, τ)`, compiled to base
 ticks with `0 ≤ Φ < D` by construction; the boundary gate is
-`(idx − Φ) % D == 0`, and a phase shifts firing instants, never the period
+`(tick − Φ) % D == 0`, and a phase shifts firing instants, never the period
 ([§10.5][s10-5]).
 
 <a id="g-predicate"></a>**predicate** — what a guard defines: a `Bool`-valued form, or the sign of a
@@ -10865,6 +10878,10 @@ there, but no ticks are due and no staged inputs are drained ([§10.4][s10-4]).
 <a id="g-tick"></a>**tick** — an instant at which a discrete component's stages and update run,
 gated by counter modulo against the harmonic grid inside the boundary sweep;
 different boundaries therefore run different subsets of the schedule ([§10.5][s10-5]).
+
+<a id="g-tick-index"></a>**tick index** — the count of base ticks, `tick = k ÷ n` at the
+frame top of frame `k` when `k` is a multiple of `n`; the index the boundary
+gate reads. An off-tick frame top and a `t*` boundary have none ([§10.5][s10-5]).
 
 <a id="g-tier"></a>**tier** — the continuous or discrete side of the hybrid formalism, read off a
 leaf's declaration shape (`DeclarationOnWrongTier` names a violation) ([§8.2][s8-2],
@@ -11561,6 +11578,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-230]: decisions.md#d-230--stamp-the-snapshot-with-the-trajectorys-boundary-ordinal-not-the-wait-counter
 [d-231]: decisions.md#d-231--require-isbits-store-values-checked-at-build
 [d-232]: decisions.md#d-232--refuse-the-roster-operations-on-an-errored-simulation
+[d-233]: decisions.md#d-233--retire-the-termination-records-absent-time-arm
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
