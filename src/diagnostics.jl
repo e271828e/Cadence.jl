@@ -591,6 +591,19 @@ message(d::IllegalPortType) =
     "$(_at_path(d.path)): $(d.site === :root_input ? "root input" : "port") `$(d.name)` " *
     "declares $(d.declared), which has no leaves"
 
+"§7.3, §8.2, D-231: a store field that is neither isbits nor a `Symbol`."
+Base.@kwdef struct IllegalStoreField <: Diagnostic
+    path::String
+    store::Symbol                            # :init_s | :init_m
+    name::Symbol
+    declared::Any                            # the offending field type
+end
+path(d::IllegalStoreField) = d.path
+message(d::IllegalStoreField) =
+    "$(_at_path(d.path)): `$(d.store)` field `$(d.name)::$(d.declared)` is not a store " *
+    "value — store fields are isbits or `Symbol`s; text and bulk data belong on the " *
+    "component instance (§7.3)"
+
 # ==============================================================================
 # Strata B and C — schedule and contract conformance (§5.5, §8.3, §9.3, §9.5)
 # ==============================================================================

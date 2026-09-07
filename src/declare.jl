@@ -22,17 +22,18 @@ no pinned state leaf, so there is no choice for a `T` to record.
 init_x(::Any) = NamedTuple()
 
 """
-Discrete state, **by value**, and the discrete tier's own letter (D-195): any
-isbits type, pinned wholesale — nothing here walks with the activation, which
-is why the declaration takes no `T`. Disjoint from `init_x` by construction, so
-a state declaration always carries its tier (§8.2).
+Discrete state, **by value**, and the discrete tier's own letter (D-195): every
+field isbits or a `Symbol` (D-231), pinned wholesale — nothing here walks with
+the activation, which is why the declaration takes no `T`. Disjoint from
+`init_x` by construction, so a state declaration always carries its tier (§8.2).
 """
 init_s(::Any) = NamedTuple()
 
 """
 Modes, **by value**, continuous-only: the event system is continuous-side only,
-so declaring `init_m` announces the continuous tier (§8.2). Mode stores are
-written by handlers; nothing else may.
+so declaring `init_m` announces the continuous tier (§8.2). Fields isbits or
+`Symbol`, as for `init_s` (D-231). Mode stores are written by handlers; nothing
+else may.
 """
 init_m(::Any) = NamedTuple()
 

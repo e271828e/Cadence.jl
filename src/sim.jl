@@ -782,10 +782,10 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     h = trc.header
     ex.xbuf .= h.x
     for ci in eachindex(h.s)
-        h.s[ci] === nothing || (ex.sstores[ci][] = deepcopy(h.s[ci]))
+        h.s[ci] === nothing || (ex.sstores[ci][] = h.s[ci])
     end
     for ci in eachindex(h.m)
-        h.m[ci] === nothing || (ex.mstores[ci][] = deepcopy(h.m[ci]))
+        h.m[ci] === nothing || (ex.mstores[ci][] = h.m[ci])
     end
     for (f, v) in h.root_inputs
         scatter!(ex.store, ex.act.layout.addr[("", f)], v)

@@ -190,6 +190,31 @@ merged_failures() = Group((; g = Gain(1.0), s = Sum(), n = NoFlow(), h = HalfEve
                           wires = ("g/ot" => "s/a",),
                           inputs = ("e" => "g/e", "b" => "s/b"))
 
+struct LabelInStore <: AbstractComponent end   # a `String` in `init_s` (D-231)
+init_s(::LabelInStore) = (n = 0, phase = :armed, label = "armed")
+output_types(::LabelInStore) = (a = Int,)
+output_state(::LabelInStore, (; s)) = (a = s.n,)
+state_update(::LabelInStore, (; s)) = (n = s.n, phase = s.phase, label = s.label)
+
+struct LabelInModes <: AbstractComponent end   # a `String` in `init_m`
+init_x(::LabelInModes) = (q = 1.0,)
+init_m(::LabelInModes) = (phase = :idle, label = "x")
+output_types(::LabelInModes, ::Type{T}) where {T <: Real} = (a = T,)
+output_state(::LabelInModes, (; x)) = (a = x.q,)
+state_derivative(::LabelInModes, (; x)) = (q = 0.0,)
+
+function build_store_values()
+    @testset "a store field is isbits or a Symbol, checked field by field (§7.3, D-231)" begin
+        # The `String` fields are refused, one throw for both stores; the `Symbol`
+        # modes beside them pass.
+        err = failure(() -> build(Group((; a = LabelInStore(), b = LabelInModes()))))
+        ds = diagnostics(err)
+        @test all(d -> d isa IllegalStoreField, ds)
+        @test Set((d.path, d.store, d.name, d.declared) for d in ds) ==
+              Set([("a", :init_s, :label, String), ("b", :init_m, :label, String)])
+    end
+end
+
 function build_stratum_a()
     @testset "every Stratum A pass that ran merges into one throw (§13.1, D-229)" begin
         # The wiring walk, the obligation check, tier classification and event
@@ -297,6 +322,7 @@ function test_build()
     build_schedule()
     build_root_input_type()
     build_tier()
+    build_store_values()
     build_stratum_a()
     build_embed_accept()
     build_activations()

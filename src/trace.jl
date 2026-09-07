@@ -209,12 +209,12 @@ _reschema(h::TraceHeader{T}, schemas) where {T} =
     TraceHeader{T}(h.x, h.s, h.m, h.root_inputs, schemas, h.deployment, h.layout)
 
 # The recording's header, detached, for the replay that *inherits* it (§12.7):
-# every mutable field copied — the stores deeply, they are user values — so the
-# trace the replay goes on to build is a value of its own and nothing the caller
-# still holds is reachable from it. `_reschema`'s sharing is the growth rule's,
-# within one register; this crosses between two.
+# every mutable field copied — the stores by value, being isbits (D-231) — so
+# the trace the replay goes on to build is a value of its own and nothing the
+# caller still holds is reachable from it. `_reschema`'s sharing is the growth
+# rule's, within one register; this crosses between two.
 _detach(h::TraceHeader{T}) where {T} =
-    TraceHeader{T}(copy(h.x), deepcopy(h.s), deepcopy(h.m), copy(h.root_inputs),
+    TraceHeader{T}(copy(h.x), copy(h.s), copy(h.m), copy(h.root_inputs),
                    copy(h.schemas), h.deployment, h.layout)
 
 """
@@ -278,8 +278,8 @@ function _capture_header(sim)
     ex = sim.exec
     layout = ex.act.layout
     T = eltype(ex.xbuf)      # the deployment's scalar, off the buffer that carries it
-    s = Any[st === nothing ? nothing : deepcopy(st[]) for st in ex.sstores]
-    m = Any[st === nothing ? nothing : deepcopy(st[]) for st in ex.mstores]
+    s = Any[st === nothing ? nothing : st[] for st in ex.sstores]
+    m = Any[st === nothing ? nothing : st[] for st in ex.mstores]
     roots = Pair{Symbol,Any}[f => gather(ex.store, layout.addr[("", f)])
                              for (f, _) in layout.root_inputs]
     # the effective termination pair is the one `init!` knows: the constructor's,

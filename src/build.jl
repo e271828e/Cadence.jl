@@ -54,6 +54,17 @@ end
 # The classifier sees primitives only: a component that declares nothing at all
 # has no *class* to read, which §8.5 settles before this runs.
 
+# §7.3, D-231: every store field is isbits or a `Symbol`, checked on both stores.
+function check_stores(path::String, c, diags::Vector{Diagnostic})
+    for (store, nt) in ((:init_s, init_s(c)), (:init_m, init_m(c)))
+        for (name, v) in pairs(nt)
+            isbits(v) || v isa Symbol ||
+                push!(diags, IllegalStoreField(path = path, store = store,
+                                               name = name, declared = typeof(v)))
+        end
+    end
+end
+
 """
 The tier the primitive at `path` announces, or `nothing` with what disagrees
 recorded in `diags` (§13.1).

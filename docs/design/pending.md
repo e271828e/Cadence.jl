@@ -15,11 +15,6 @@ that tip. The reports are frozen evidence; this file is the register.
 
 Where the reason is not given here, the cited decision carries it:
 
-- **`IllegalStoreField` (D-231).** Stratum A's isbits check on every
-  `init_s`/`init_m` field. With it retire the `deepcopy` hedges on store
-  capture and replay (`trace.jl`'s header, `sim.jl`'s `replay!` entry): plain
-  assignment suffices for an isbits value.
-
 - **The Appendix C kinds whose mechanism is absent** — an absence gets no
   struct (`ThreadBudget`, `DeadStage`, `BundleFieldError`, `UserCodeFraming`,
   `UnboundedRun`; likewise `IllegalStateLeaf`, `MissingProbeValue`,
