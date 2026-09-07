@@ -282,15 +282,11 @@ end
 
 # The record's assembly (§13.5, D-203), once per advance entry in its
 # outermost `finally`, after the sweep has the residue in hand. `t` is the
-# final snapshot's boundary time in the deployment's own scalar: after
-# `init!` a snapshot always exists, and the `nothing` arm — no boundary ever
-# ran — is the out-of-band spelling of absence (never an in-band NaN, D-202's
-# argument applied here by D-203).
-function _record(sim::Simulation{T}, src::TerminationSource,
-                 residue::Vector{ResidueRecord}) where {T}
-    s = latest(sim)
-    TerminationRecord{T}(s === nothing ? nothing : s.t, src, residue)
-end
+# final snapshot's boundary time in the deployment's own scalar: both entries
+# refuse a `built` simulation and boundary zero published, so the snapshot
+# exists (D-233).
+_record(sim::Simulation{T}, src::TerminationSource, residue::Vector{ResidueRecord}) where {T} =
+    TerminationRecord{T}(latest(sim).t, src, residue)
 
 # §13.5's sampling read, after every publication: the named faces off the
 # just-published snapshot, first holding face wins, in declaration order.

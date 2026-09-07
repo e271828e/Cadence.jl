@@ -64,13 +64,13 @@ end
 its policy — so a stopped simulation answers "why did it stop?", and "how did
 the stop go?", without its consumer reconstructing either from the clock or
 the log stream (D-203). `t` is the final snapshot's boundary time in the
-deployment's own scalar (§7.2), `nothing` when no boundary ever ran; `source`
-is the typed source above; `residue` is what the run's-end sweep collected —
+deployment's own scalar (§7.2), always present since boundary zero precedes
+every record (D-233); `source` is the typed source above; `residue` is what the run's-end sweep collected —
 recorded here and presented through the logging backend, never published
 (D-201, D-203). `init!` clears the record with the trajectory.
 """
 struct TerminationRecord{T}
-    t::Union{Nothing,T}
+    t::T
     source::TerminationSource
     residue::Vector{ResidueRecord}
 end

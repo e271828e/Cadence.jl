@@ -209,14 +209,6 @@ of them chosen; the merge entry has the probe.
 
 Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
-retires or the code conforms. All are the audit's (M-D and M-B26):
+retires or the code conforms. Empty since the 2026-09-07 rulings (D-232,
+D-233) retired the audit's list (M-D and M-B26).
 
-- **Prose that does not match the mechanism it describes, with the code
-  right**: §10.5's "the gate's image of the frame index" is wrong for
-  `n > 1`; D-133 calls `localization_budget` `event_budget`; §10.6's
-  "exhaustion emits a `FiringBudget` warning" admits a reading the code does
-  not take; §10.4's "in declaration order within the iteration" needs §10.6's
-  one-per-component rule to be true; §11.5's bound sentence is weaker than
-  the code's; §13.5's "absent when no boundary ever ran" names a case no run
-  can reach, boundary zero preceding every record, so the field's `nothing`
-  arm is dead.
