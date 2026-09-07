@@ -20,7 +20,7 @@ struct Simulation{T,E,M}
     exec::E                       # the nominal executor this simulation owns (§9.2, §9.7)
     build::Build                  # the schema authority a condition resolves against (§14.3)
     h::Float64                    # the continuous step, bound at deployment
-    n::Int                        # steps per base tick: Δt_base = n·h (§10.5)
+    N_base::Int                   # steps per base tick: Δt_base = N_base·h (§10.5)
     Δt_base::Float64
     firing_budget::Int            # per-event firings per boundary (§10.6)
     localization_tol::Float64     # relative bracket-width stop (§10.4)
@@ -49,7 +49,7 @@ struct Simulation{T,E,M}
 end
 
 """
-    Simulation(build::Build, T = Float64; h, n = 1, Δt_base = nothing,
+    Simulation(build::Build, T = Float64; h, N_base = 1, Δt_base = nothing,
                algorithm = RK4, firing_budget = 4, localization_tol = 1e-6,
                localization_budget = 8, join_timeout = 5.0,
                t_end = Inf, stop_on = (), trace = true, log = true,
@@ -58,7 +58,7 @@ end
 
 Deployment binding at construction (§9.1, §9.2): `Δt_base` from one of three
 cross-validated sources — explicit (a `Rational` or `Period`/`Hz` value), the
-`n·h` product (the default path), or GCD derivation over the anchors' constraint
+`N_base·h` product (the default path), or GCD derivation over the anchors' constraint
 pool, requested as `Δt_base = :derive` and permitted only with every discrete
 component anchored. The scalar picks the activation the entries compile over —
 the nominal one directly, any other via `activation(b, T)`'s cached Stratum-C
@@ -89,7 +89,7 @@ tighter buys nothing while every trial evaluation costs a full sweep), and how
 many localizations one frame admits (an integer ≥ 1 defaulting to 8 — a
 legitimate multi-event frame needs three or four, chattering needs tens). All
 three are trajectory-determining and grid-independent: they stand beside `h`
-and `n`, validated here with their siblings, and enter none of the grid
+and `N_base`, validated here with their siblings, and enter none of the grid
 arithmetic.
 
 `join_timeout` is §12.4's: the shutdown tail's join cap in seconds of wall
@@ -128,7 +128,7 @@ every keyword above they are **view policies, never trajectory-determining**:
 two deployments differing only here produce bitwise-identical trajectories,
 retention being reference bookkeeping over what publication already built.
 """
-function Simulation(b::Build, ::Type{T} = Float64; h = nothing, n = nothing,
+function Simulation(b::Build, ::Type{T} = Float64; h = nothing, N_base = nothing,
                     Δt_base = nothing, algorithm = RK4, firing_budget = 4,
                     localization_tol = 1e-6, localization_budget = 8,
                     join_timeout = 5.0, t_end = Inf, stop_on = (),
@@ -155,7 +155,7 @@ function Simulation(b::Build, ::Type{T} = Float64; h = nothing, n = nothing,
         push!(diags, DeploymentInvalid(parameter = :log_max, reason = :range, value = log_max))
     d_t = _t_bound_diag(t_end)
     d_t === nothing || push!(diags, d_t)
-    bound = bind_schedule(b, h, n, Δt_base, diags)
+    bound = bind_schedule(b, h, N_base, Δt_base, diags)
     act = activation(b, T)
     (stop_faces, stop_addrs) = _stop_faces(act.layout, stop_on, diags)
     isempty(diags) || throw(DiagnosticError(diags))    # one throw per call (§9.1, D-229)
@@ -164,7 +164,7 @@ function Simulation(b::Build, ::Type{T} = Float64; h = nothing, n = nothing,
     reg = TraceRegister(trace)     # the drain thunks close over it, so it precedes the plane
     Simulation{T,typeof(ex),typeof(stepper)}(
         ex, b,
-        bound.h, bound.n, bound.Δt_base, Int(firing_budget), Float64(localization_tol),
+        bound.h, bound.N_base, bound.Δt_base, Int(firing_budget), Float64(localization_tol),
         Int(localization_budget), Float64(join_timeout),
         Float64(t_end), stop_faces, stop_addrs,
         RunPolicy(Symbol[], Any[], nothing), any(ex.events.localized), bound.sched,
@@ -881,7 +881,7 @@ run doing (§11.1).
 
 Inside the loop, `frame!` carries each grid step `[tₖ₋₁, tₖ]` through the
 §10.4 localization loop, firing any `t*` boundaries it brackets on the way;
-the frame-top boundary (§10.3) is a base tick every `n` frames, where the
+the frame-top boundary (§10.3) is a base tick every `N_base` frames, where the
 gate reads the tick index, and the empty-due-set boundary in between. The
 drain runs at the frame top only, never at a `t*` boundary (§10.4), while
 publication follows *every* boundary sequence (§11.2) — the frame top's here,
@@ -1055,7 +1055,7 @@ function _advance!(sim::Simulation, pol::RunPolicy, upto::Int, t_end_frame::Int)
             k = (sim.exec.clock.step += 1)
             frame!(sim, k)
             if pol.hit === nothing
-                k % sim.n == 0 ? boundary!(sim, k ÷ sim.n) : offtick_boundary!(sim)
+                k % sim.N_base == 0 ? boundary!(sim, k ÷ sim.N_base) : offtick_boundary!(sim)
                 publish!(sim)
                 face = _stop_hit(sim, pol)
             else

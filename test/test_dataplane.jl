@@ -120,7 +120,7 @@ function dataplane_exchange()
         @test latest(sim).frame == 10
 
         # Every frame top publishes, the off-tick boundary included.
-        simo = Simulation(chain3(); h = 1//20, n = 2)
+        simo = Simulation(chain3(); h = 1//20, N_base = 2)
         init!(simo, fragment(inputs = (u = 0.0,)))
         run!(simo; t_end = 0.05)                         # one frame, not a base tick
         @test latest(simo).frame == 1

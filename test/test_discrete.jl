@@ -27,7 +27,7 @@ function discrete_one_rate()
         end
         s_next = s + kI * Δt * (r - q[1])   # the update boundary N itself performs
 
-        sim = Simulation(sampled_loop(; kI, ω, ζ); h = 1//50)   # h = Δt: one rate, n = 1
+        sim = Simulation(sampled_loop(; kI, ω, ζ); h = 1//50)   # h = Δt: one rate, N_base = 1
         init!(sim, fragment(inputs = (ref = r,)))
         run!(sim; t_end = N * Δt)
 
@@ -163,7 +163,7 @@ function discrete_rate_fold()
         # Three discrete components under two scopes, deployed at Δt_base = 2 ms:
         # inner (1, 0), outer (5, 2), gnss (10, 0) — §9.2's table, exactly.
         sim = Simulation(MultiRate(); h = 1//500)
-        @test sim.n == 1 && sim.Δt_base == 0.002
+        @test sim.N_base == 1 && sim.Δt_base == 0.002
         @test [(e.path, e.D, e.Φ) for e in sim.sched] ==
               [("fcs/inner", 1, 0), ("fcs/outer", 5, 2), ("gnss", 10, 0)]
         @test [e.Δt for e in sim.sched] ≈ [0.002, 0.01, 0.02]
@@ -228,16 +228,16 @@ function discrete_deployment()
     @testset "one Build backs many Simulations; Δt_base has three sources (§9.1)" begin
         b = build(MultiRate())
 
-        # The n·h product (the default path), an explicit n, the explicit keyword
+        # The N_base·h product (the default path), an explicit N_base, the explicit keyword
         # (Rational or quantity): the anchored divisor is deployment's, not the
         # build's — the same Build lands gnss at D = 10 or D = 5.
         s1 = Simulation(b; h = 1//500)
-        s2 = Simulation(b; h = 1//500, n = 2)
+        s2 = Simulation(b; h = 1//500, N_base = 2)
         s3 = Simulation(b; h = 1//500, Δt_base = 1//250)
         s4 = Simulation(b; h = 1//500, Δt_base = Period(1//250))
         @test [e.D for e in s1.sched] == [1, 5, 10]
         @test [e.D for e in s2.sched] == [1, 5, 5]
-        @test s3.n == 2 && s3.sched == s2.sched == s4.sched
+        @test s3.N_base == 2 && s3.sched == s2.sched == s4.sched
 
         # Nothing writable is shared: each Simulation materializes its own buffers.
         init!(s1); run!(s1; t_end = 0.02)
@@ -250,19 +250,19 @@ function discrete_deployment()
         for (f, param, reason) in
             ((() -> Simulation(b),                                        :h, :missing),
              (() -> Simulation(b; h = 1e-3),                              :h, :inexact),
-             (() -> Simulation(b; h = 1//500, Δt_base = 1//250, n = 3), :Δt_base,
+             (() -> Simulation(b; h = 1//500, Δt_base = 1//250, N_base = 3), :Δt_base,
                                                                           :disagrees_with_n),
              (() -> Simulation(b; h = 1//300, Δt_base = 1//500),        :Δt_base, :not_harmonic),
-             (() -> Simulation(b; h = 1//500, n = 0),                     :n, :range))
+             (() -> Simulation(b; h = 1//500, N_base = 0),                :N_base, :range))
             d = only(diagnostics(failure(f)))
             @test d isa DeploymentInvalid && d.parameter === param && d.reason === reason
         end
 
-        # The call is the barrier (§9.1, D-229): `h` and `n` are independent
+        # The call is the barrier (§9.1, D-229): `h` and `N_base` are independent
         # premises, so both refusals arrive in one throw.
-        err = failure(() -> Simulation(b; h = 1e-3, n = 0))
+        err = failure(() -> Simulation(b; h = 1e-3, N_base = 0))
         @test Set((d.parameter, d.reason) for d in diagnostics(err)) ==
-              Set([(:h, :inexact), (:n, :range)])
+              Set([(:h, :inexact), (:N_base, :range)])
 
         # The keyword pass and the schedule merge into that same throw.
         err = failure(() -> Simulation(b; log_every = 0))
@@ -270,18 +270,18 @@ function discrete_deployment()
 
         # `Δt_base` is a third independent premise: the explicit keyword reads only
         # itself and derivation reads the tiers and the anchors, so neither is
-        # suppressed by an unsound `h` or `n`.
+        # suppressed by an unsound `h` or `N_base`.
         err = failure(() -> Simulation(b; h = 1e-3, Δt_base = 1e-3))
         @test Set((d.parameter, d.reason) for d in diagnostics(err)) ==
               Set([(:h, :inexact), (:Δt_base, :inexact)])
-        err = failure(() -> Simulation(b; h = 1//500, Δt_base = :derive, n = 0))
+        err = failure(() -> Simulation(b; h = 1//500, Δt_base = :derive, N_base = 0))
         @test Set((d.parameter, d.reason) for d in diagnostics(err)) ==
-              Set([(:n, :range), (:Δt_base, :unanchored)])
+              Set([(:N_base, :range), (:Δt_base, :unanchored)])
 
-        # `n` is a count: a non-integer is refused as a range violation, not left
+        # `N_base` is a count: a non-integer is refused as a range violation, not left
         # to fail inside the exact arithmetic.
-        d = only(diagnostics(failure(() -> Simulation(b; h = 1//500, n = 2.5))))
-        @test d isa DeploymentInvalid && d.parameter === :n && d.reason === :range
+        d = only(diagnostics(failure(() -> Simulation(b; h = 1//500, N_base = 2.5))))
+        @test d isa DeploymentInvalid && d.parameter === :N_base && d.reason === :range
 
         # A non-dividing anchor is refused with its declaring scope and key, and the
         # admissible set is named off the pool.
@@ -305,7 +305,7 @@ function discrete_deployment()
         anchored = Group((; c = TickCounter());
                          rates = (; c = Absolute(Hz(50), 1//100)))
         sim = Simulation(anchored; h = 1//500, Δt_base = :derive)
-        @test sim.Δt_base == 0.01 && sim.n == 5
+        @test sim.Δt_base == 0.01 && sim.N_base == 5
         @test [(e.D, e.Φ) for e in sim.sched] == [(2, 1)]
     end
 
@@ -349,7 +349,7 @@ function discrete_deployment()
 
         # §10.5's exposed-multiplier idiom: the deployment preference arrives as a
         # constructor parameter, and the declaration stays the assembly's.
-        sim = Simulation(SampledLoop(; kI, ω, ζ, ctl_rate = Relative(2)); h = 1//200, n = 2)
+        sim = Simulation(SampledLoop(; kI, ω, ζ, ctl_rate = Relative(2)); h = 1//200, N_base = 2)
         @test [(e.path, e.D, e.Φ) for e in sim.sched] == [("ctl", 2, 0)]
         @test sim.sched[1].Δt ≈ Δt_ctl
         init!(sim, fragment(inputs = (ref = r,)))
@@ -368,7 +368,7 @@ function discrete_deployment()
             @test @ballocated($body()) == 0
             @test @ballocated($body(2)) == 0             # a boundary where gates split
         end
-        sim2 = Simulation(SampledLoop(; ctl_rate = Relative(2)); h = 1//200, n = 2)
+        sim2 = Simulation(SampledLoop(; ctl_rate = Relative(2)); h = 1//200, N_base = 2)
         init!(sim2, fragment(inputs = (ref = 0.0,)))
         @test @ballocated(step!($sim2, 0.005)) == 0
         @test @ballocated(offtick_boundary!($sim2)) == 0

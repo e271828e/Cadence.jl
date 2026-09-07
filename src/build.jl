@@ -392,7 +392,7 @@ end
     build(root; activations = ()) → Build
 
 Strata A and B plus the nominal activation (§9.1): flatten, classify, probe at
-`Float64`, schedule, lay out. Nothing here needs `Δt_base`, `h` or `n` — those
+`Float64`, schedule, lay out. Nothing here needs `Δt_base`, `h` or `N_base` — those
 are `Simulation`'s. `activations` is §9.4's opt-in exhaustive mode: each listed
 scalar's activation is materialized eagerly instead of at first request.
 """
@@ -733,20 +733,20 @@ _as_int(r::Rational) = denominator(r) == 1 ? Int(numerator(r)) : nothing
 
 """
 Deployment binding (§9.1): `Δt_base` from one of three cross-validated sources —
-the explicit keyword, the `n·h` product (default `n = 1`), or GCD derivation
+the explicit keyword, the `N_base·h` product (default `N_base = 1`), or GCD derivation
 over the constraint pool, requested as `Δt_base = :derive` and permitted only
 with every discrete component anchored. Resolution is one exact division pair
 per anchor and one multiply-add per component. Returns the bound deployment:
-`h`, `n`, `Δt_base`, the per-component `(D, Φ, Δt)` columns, and the bound
+`h`, `N_base`, `Δt_base`, the per-component `(D, Φ, Δt)` columns, and the bound
 schedule (§9.2's printable artifact, as plain data).
 
 The pass records into the call's list and returns `nothing` when a premise
 fails; the caller owns the one throw per `Simulation` call (§9.1, D-229). `h`,
-`n` and `Δt_base` are three independent premises, each checked and recorded on
+`N_base` and `Δt_base` are three independent premises, each checked and recorded on
 its own; the harmonic resolution and the anchor loop read all three, so they
 run only when all three are sound (D-229).
 """
-function bind_schedule(b::Build, h, n, Δt_base, diags::Vector{Diagnostic})
+function bind_schedule(b::Build, h, N_base, Δt_base, diags::Vector{Diagnostic})
     k0 = length(diags)
     h === nothing && push!(diags, DeploymentInvalid(parameter = :h, reason = :missing))
     h_r = h === nothing ? nothing : _exact(:h, h, diags)
@@ -754,8 +754,8 @@ function bind_schedule(b::Build, h, n, Δt_base, diags::Vector{Diagnostic})
         push!(diags, DeploymentInvalid(parameter = :h, reason = :range, value = h_r))
         h_r = nothing
     end
-    n_ok = n === nothing || (n isa Integer && n ≥ 1)
-    n_ok || push!(diags, DeploymentInvalid(parameter = :n, reason = :range, value = n))
+    n_ok = N_base === nothing || (N_base isa Integer && N_base ≥ 1)
+    n_ok || push!(diags, DeploymentInvalid(parameter = :N_base, reason = :range, value = N_base))
 
     anchors, prov, triples = b.flat.anchors, b.flat.aprov, b.flat.triples
     # The constraint pool: every anchor's period and every nonzero offset (§9.1).
@@ -763,7 +763,7 @@ function bind_schedule(b::Build, h, n, Δt_base, diags::Vector{Diagnostic})
 
     # The Δt_base branch is its own premise: derivation reads the tiers and the
     # anchors, the explicit keyword reads only itself, and only the default path
-    # reads `h` and `n` — which is why it alone is skipped when either is unsound.
+    # reads `h` and `N_base` — which is why it alone is skipped when either is unsound.
     Δt_r = nothing
     if Δt_base === :derive
         unanchored = [b.flat.paths[ci] for ci in eachindex(b.tiers)
@@ -779,10 +779,10 @@ function bind_schedule(b::Build, h, n, Δt_base, diags::Vector{Diagnostic})
     elseif Δt_base !== nothing
         Δt_r = _exact(:Δt_base, Δt_base, diags)
     elseif h_r !== nothing && n_ok
-        Δt_r = something(n, 1) * h_r                 # the default path (§15.4)
+        Δt_r = something(N_base, 1) * h_r                 # the default path (§15.4)
     end
 
-    # The harmonic checks and the anchor loop read `h`, `n` and `Δt_base` together,
+    # The harmonic checks and the anchor loop read `h`, `N_base` and `Δt_base` together,
     # so they run only on a sound value of each (D-229).
     (length(diags) == k0 && h_r !== nothing && Δt_r !== nothing) || return nothing
 
@@ -792,9 +792,9 @@ function bind_schedule(b::Build, h, n, Δt_base, diags::Vector{Diagnostic})
                                        value = Δt_r, related = h_r))
         return nothing
     end
-    if !(n === nothing || n == n_i)
+    if !(N_base === nothing || N_base == n_i)
         push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :disagrees_with_n,
-                                       value = Δt_r, related = n, quotient = n_i))
+                                       value = Δt_r, related = N_base, quotient = n_i))
         return nothing
     end
 
@@ -834,7 +834,7 @@ function bind_schedule(b::Build, h, n, Δt_base, diags::Vector{Diagnostic})
             push!(D_c, 1); push!(Φ_c, 0); push!(Δt_c, 0.0)
         end
     end
-    (h = Float64(h_r), n = n_i, Δt_base = Δtb, sched = sched, D = D_c, Φ = Φ_c, Δt = Δt_c)
+    (h = Float64(h_r), N_base = n_i, Δt_base = Δtb, sched = sched, D = D_c, Φ = Φ_c, Δt = Δt_c)
 end
 
 # --- 7. entry compilation, per deployment ---------------------------------------

@@ -319,7 +319,7 @@ function failures_pointer_twin()
     end
 
     @testset "`to_boundary` counts grid boundaries, not base ticks (§12.7, §13.4)" begin
-        grid() = Simulation(feedback_model(); h = 1//10, n = 2, t_end = 5.0)
+        grid() = Simulation(feedback_model(); h = 1//10, N_base = 2, t_end = 5.0)
         sim = grid()
         init!(sim, fragment(inputs = (ref = 1.0,)))
         stage!(sim, "ref" => 2.0)
@@ -332,7 +332,7 @@ function failures_pointer_twin()
         replay!(sim2, trc; to_boundary = 3)
         @test lifecycle(sim2) === :initialized
         @test sim2.exec.clock.step == 3                 # the halt is at `k`, never at `k · n`
-        @test sim2.exec.clock.step % sim2.n == 1        # and 3 is an off-tick frame top here
+        @test sim2.exec.clock.step % sim2.N_base == 1        # and 3 is an off-tick frame top here
         @test same_trajectory(logged(sim2), [s for s in logged(sim) if s.frame ≤ 3])
 
         # `to_time` counts the same boundaries: 0.3 is boundary 3's own time here,

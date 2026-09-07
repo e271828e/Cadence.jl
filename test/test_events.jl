@@ -167,11 +167,11 @@ function test_events()
         # The sawtooth's wrap now genuinely localizes, but its carrying handler
         # (`q ← q − 1`) makes the *boundary states* invariant to where the firing
         # lands, so the boundary recursion stays the exact reference — and the
-        # second wrap crosses inside an *off-tick* frame under n = 2, which must
+        # second wrap crosses inside an *off-tick* frame under N_base = 2, which must
         # fire it all the same.
         q_ref(N) = (q = 0.0; for _ in 1:N; q += 0.03; q ≥ 1 && (q -= 1); end; q)
         for n in (1, 2)
-            sim = Simulation(single(Sawtooth(0.3)); h = 1//10, n)
+            sim = Simulation(single(Sawtooth(0.3)); h = 1//10, N_base = n)
             init!(sim)
             step!(sim; t_plus = 6.7)                 # boundary 67: the off-tick wrap
             @test state(sim, "c").q ≈ q_ref(67) rtol = 1e-9

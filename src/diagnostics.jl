@@ -820,7 +820,7 @@ _dep_constraint(p::Symbol) =
     p === :t_end               ? "must be a real ≥ 0 — the run's clock bound, taken to " *
                                  "the nearest frame top, Inf the unbounded default" :
     p === :h                   ? "must be positive" :
-    p === :n                   ? "must be an integer ≥ 1" :
+    p === :N_base              ? "must be an integer ≥ 1" :
                                  "is outside its constraint"
 _dep_section(p::Symbol) =
     p === :algorithm           ? " (§10.2)" :
@@ -830,7 +830,7 @@ _dep_section(p::Symbol) =
     p === :trace               ? " (§11.5)" :
     (p === :log || p === :log_every || p === :log_max) ? " (§11.2)" :
     p === :t_end               ? " (§13.5)" :
-    p === :n                   ? " (§9.1)" : ""
+    p === :N_base              ? " (§9.1)" : ""
 _dep_admissible(d) = d.admissible === nothing ? "" :
                      " — an admissible Δt_base divides gcd(pool) = $(d.admissible)"
 
@@ -848,15 +848,15 @@ function message(d::DeploymentInvalid)
         return "Δt_base cannot be derived: `$(join(d.paths, "`, `"))` is/are unanchored, " *
                "with period `m·Δt_base` — an anchor edit anywhere in the tree would " *
                "silently rescale it. Declare the base tick period instead: `Δt_base = …`, " *
-               "or `n = …` (§9.1)"
+               "or `N_base = …` (§9.1)"
     d.reason === :no_constraint &&
         return "Δt_base cannot be derived: no anchor declares a constraint to derive it " *
                "from (§9.1)"
     d.reason === :not_harmonic &&
         return "harmonic grid: Δt_base = $(d.value) is not an integer multiple of " *
-               "h = $(d.related) (Δt_base = n·h, n ≥ 1, §10.5)"
+               "h = $(d.related) (Δt_base = N_base·h, N_base ≥ 1, §10.5)"
     d.reason === :disagrees_with_n &&
-        return "Δt_base = $(d.value) disagrees with n = $(d.related): Δt_base/h = " *
+        return "Δt_base = $(d.value) disagrees with N_base = $(d.related): Δt_base/h = " *
                "$(d.quotient) (§9.1)"
     d.reason === :anchor_period &&
         return "$(d.provenance): period $(d.value) is not an integer multiple of " *
