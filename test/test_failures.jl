@@ -27,6 +27,12 @@ struct LateInteger <: AbstractComponent end
 output_types(::LateInteger, ::Type{T}) where {T <: Real} = (q = T,)
 output_state(::LateInteger, (; t)) = (q = t < 0.05 ? 1.0 : 0,)
 
+# An array's mutability is a type parameter, not a leaf (D-238): the leafwise
+# relation converted this write silently.
+struct LateMutable <: AbstractComponent end
+output_types(::LateMutable, ::Type{T}) where {T <: Real} = (v = SVector{2,T},)
+output_state(::LateMutable, (; t)) = (v = t < 0.05 ? SVector(1.0, 2.0) : MVector(1.0, 2.0),)
+
 struct LateExtraPort <: AbstractComponent end
 output_types(::LateExtraPort, ::Type{T}) where {T <: Real} = (q = T,)
 output_state(::LateExtraPort, (; t)) = t < 0.05 ? (q = 1.0,) : (q = 1.0, extra = 2.0)
@@ -443,6 +449,19 @@ function failures_conformance()
         @test e.frame.fn === :output_state
         @test lifecycle(sim) === :errored
         @test occursin("zero(", message(e.cause))      # §9.5's didactic hint
+    end
+
+    @testset "a mutable static array on a late branch is refused at the write (§9.5, D-238)" begin
+        sim = Simulation(single(LateMutable()); h = 1//100, t_end = 0.2)
+        init!(sim)
+        e = failure(() -> run!(sim))
+        @test e isa StepError{ConformanceFailure}
+        @test e.cause.path == "c" && e.cause.what == "output_state"
+        @test e.cause.reason === :field_type && e.cause.shape === :ports
+        @test e.cause.field === :v
+        @test e.cause.observed === MVector{2,Float64}
+        @test e.cause.declared === SVector{2,Float64}
+        @test lifecycle(sim) === :errored
     end
 
     @testset "an extra and a missing port on a late branch are key-set failures (§9.5)" begin

@@ -227,6 +227,17 @@ output_direct(::FrameReader, (; u)) = (y = sum(u.f.p),)
 
 _fanned_v(a, b) = Group((a = a, b = b); inputs = ("in" => ("a/v", "b/v"),))
 
+# A bundle's field names are type parameters, not leaves (D-238): these two
+# declarations carry one `T` leaf each and name it differently.
+struct BundleB <: AbstractComponent end
+output_types(::BundleB, ::Type{T}) where {T<:Real} = (q = @NamedTuple{b::T},)
+output_state(::BundleB, (; t)) = (q = (b = 1.0 + t,),)
+
+struct BundleA <: AbstractComponent end
+input_types(::BundleA, ::Type{T}) where {T<:Real} = (q = @NamedTuple{a::T},)
+output_types(::BundleA, ::Type{T}) where {T<:Real} = (y = T,)
+output_direct(::BundleA, (; u)) = (y = u.q.a,)
+
 function build_wire_clauses()
     @testset "an abstract entry takes any concrete producer below it (§4.4, §8.2, D-236)" begin
         for (src, want) in ((FieldSourceA(), 2.0), (FieldSourceB(), 3.0))
@@ -350,6 +361,18 @@ function build_wire_clauses()
         err4 = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(), lone = RealEntry());
                                          wires = ("src/val" => "c/u",))))
         @test Set(kinds(err4)) == Set([UnconnectedInput])
+    end
+
+    @testset "a bundle's field names are part of the entry's type (§6.1, D-238)" begin
+        # Same leaf list, different face: the leafwise relation passed this wire
+        # the consumer's stage then failed on the missing field at the probe.
+        d = only(diagnostics(failure(() -> build(Group((; p = BundleB(), c = BundleA());
+                                                       wires = ("p/q" => "c/q",))))))
+        @test d isa WireTypeMismatch
+        @test d.path == "c" && d.face === :q
+        @test d.producer_path == "p" && d.producer_port === :q
+        @test d.declared === @NamedTuple{a::Float64}
+        @test d.observed === @NamedTuple{b::Float64}
     end
 end
 

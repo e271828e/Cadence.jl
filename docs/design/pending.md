@@ -125,9 +125,8 @@ Where the reason is not given here, the cited decision carries it:
 ## Built in a shape the spec's is not
 
 Transactional: the commit introducing a deviation adds its bullet, the one
-retiring it deletes it. All but the last three were found by the audit,
-none of them chosen; the merge entry has the probe. The third from last is
-increment 32's review's, the last two are chosen.
+retiring it deletes it. All but the last two were found by the audit, none of
+them chosen; the merge entry has the probe.
 
 - **`t_end` lands on the nearest frame, not the first at or past it**
   (M-B1). `run!`, `step!` and `replay!` take `round(Int, t_end/h)` where
@@ -176,16 +175,6 @@ increment 32's review's, the last two are chosen.
   terminals"); `localization.jl`'s attribution of the segment-relative rule
   to D-133; `sim.jl`'s `t_end` "taken to the nearest frame top"; `build.jl`'s
   torn-state "by having none".
-- **The concrete arm of the wire relation is looser than `<:`** (M-B3's
-  residue). `_accepts_wire` decides a concrete entry with `_accepts`, D-166's
-  leafwise relation, which compares a struct's name and field types and a
-  static array's size and eltype: it passes a `NamedTuple` whose field names
-  differ, a non-type parameter that differs (`Tagged{:b}` at a `Tagged{:a}`
-  entry) and an `MVector` at an `SVector` entry, all of which `<:` refuses.
-  Such a wire fails at the probe as a raw `FieldError` inside the consumer's
-  stage, or runs. Retires with an exact form of the relation, a parallel
-  walk lifting `V`'s `Float64` positions where `P` has `T` and comparing
-  `===`, which would serve the D-235 writes too.
 - **The per-writer status is a `Vector` of records built at each
   publication** (chosen). §11.8 has it ride inline in the snapshot's one
   per-boundary allocation, zero additional heap allocation on a quiet frame;

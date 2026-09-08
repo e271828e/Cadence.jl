@@ -43,6 +43,18 @@ struct HandleA <: Handle
     a::Float64
 end
 
+# D-238's parameters: the facts that distinguish two concrete types carrying the
+# same leaves. `Labeled`'s symbol tags the type without reaching a leaf, and
+# `Placement` is the parametric shape the non-parametric `Pose` above is not.
+struct Labeled{S}
+    v::Float64
+end
+
+struct Placement{T}
+    x::T
+    y::T
+end
+
 # One round trip at a nonzero offset into an oversized buffer: the value comes
 # back identical, and only the `nleaves` entries it owns were written.
 function roundtrip(v, off)
@@ -197,6 +209,16 @@ function leaves_wire_relation()
         @test !_accepts_wire(SVector{3,Float64}, SVector{3,D8}, D8)
         @test _accepts_wire(SVector{3,Float64}, SVector{3,Float64}, D8)
         @test _accepts_wire(SVector{3,D8}, SVector{3,Float64}, D8)
+
+        # exact on the type (D-238): the relation walks the two parameter lists,
+        # so a field name, a non-numeric parameter and an array's mutability are
+        # refused like any other mismatch, where the leafwise form passed them.
+        @test !_accepts(@NamedTuple{a::Float64}, @NamedTuple{b::Float64}, D8)
+        @test !_accepts(Labeled{:a}, Labeled{:b}, D8)
+        @test !_accepts(SVector{3,Float64}, MVector{3,Float64}, D8)
+        @test _accepts(@NamedTuple{a::D8, b::Int}, @NamedTuple{a::Float64, b::Int}, D8)
+        @test !_accepts(@NamedTuple{a::D8, b::Int}, @NamedTuple{b::Int, a::Float64}, D8)
+        @test _accepts(SVector{2,Placement{D8}}, SVector{2,Placement{Float64}}, D8)
 
         # An abstract entry has no leaves to walk, so it is decided on the whole
         # declaration: `V` as declared, or `V` with every pinned leaf lifted.

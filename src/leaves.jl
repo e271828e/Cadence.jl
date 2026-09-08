@@ -203,26 +203,31 @@ _leaf_values(v::Tuple) = Iterators.flatten(map(_leaf_values, v))
 _leaf_values(v) = Iterators.flatten(map(_leaf_values,
     ntuple(i -> getfield(v, i), fieldcount(typeof(v)))))
 
-# --- embed-accept (D-166) -----------------------------------------------------
-# A declared-`T` leaf accepts exactly two arrivals: the activation scalar, and a
-# `Float64` **embedded as a zero-partial** — which is what keeps the
+# --- embed-accept (D-166, decided on the type per D-238) ----------------------
+# The relation is decided on the type, not leaf by leaf: `V` is accepted at `P`
+# when lifting `V`'s `Float64` positions to `T` exactly where `P` has `T` yields
+# `P` itself, compared by identity. Deciding it walks the two parameter lists in
+# parallel and constructs no type, so a field name, a non-numeric parameter and
+# an array's mutability are refused like any other mismatch; a parameterless
+# type compares by identity. A `Float64` lifts to `T` where `P` has `T` and
+# nowhere else — **embedded as a zero-partial**, which is what keeps the
 # constant-branch idiom (`flow > 0 ? f(x) : 0.0`) legal as written at a `Dual`
-# activation. Every other leaf — a deliberately pinned `Float64`, an `Int`, a
-# `Bool` — is matched exactly, so an observed `Dual` at a pinned leaf is an
-# error with a hint rather than a silent narrowing.
+# activation. A deliberately pinned `Float64`, an `Int`, a `Bool` lift nowhere,
+# so an observed `Dual` at a pinned leaf is an error with a hint rather than a
+# silent narrowing.
 
-"""Is a value of type `V` a lawful arrival at a cell declared `P`, at activation `T`?"""
+"""
+Is a value of type `V` a lawful arrival at a cell declared `P`, at activation
+`T` (D-238)? Lift `V`'s `Float64` positions to `T` wherever `P` has `T`, and
+ask whether the result is `P` itself.
+"""
 function _accepts(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T}
     P === V && return true
-    if P <: Real
-        return V <: Real && P === T && (V === T || V === Float64)
-    elseif P <: StaticArray
-        return V <: StaticArray && size(P) === size(V) && _accepts(eltype(P), eltype(V), T)
-    else
-        P.name === V.name || return false
-        fieldcount(P) === fieldcount(V) || return false
-        return all(_accepts(FP, FV, T) for (FP, FV) in zip(fieldtypes(P), fieldtypes(V)))
-    end
+    V === Float64 && P === T && return true          # the one embedding
+    (P isa DataType && V isa DataType && P.name === V.name && !isempty(V.parameters) &&
+     length(P.parameters) == length(V.parameters)) || return false
+    all(p isa Type && v isa Type ? _accepts(p, v, T) : p === v
+        for (p, v) in zip(P.parameters, V.parameters))
 end
 
 # The one honest cause of a `Dual` at a leaf declared `Float64`, per D-166.

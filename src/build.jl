@@ -475,9 +475,10 @@ function _check_wires(flat::Flat, tiers::Vector{Tier}, diags::Vector{Diagnostic}
 end
 
 # The offending leaf, for the walk clause's message. For a concrete entry the
-# bound clause has established that the two leaf lists align, and a walk failure
-# is exactly a pinned entry leaf fed by a walking producer leaf. Throwing path
-# only.
+# bound clause at `Float64` is exact (`V_F === P_F`, D-238), so the two leaf
+# lists align position for position and a walk failure at the marker can only be
+# a `Marker` in `V_M` where `P_M` has `Float64` — a pinned entry leaf fed by a
+# walking producer leaf. Throwing path only.
 function _walking_leaf(::Type{P}, ::Type{V}) where {P,V}
     isconcretetype(P) || return nothing, P, V     # decided on the whole declaration
     lp, lv = leaf_types(P), leaf_types(V)
