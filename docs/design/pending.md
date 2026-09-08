@@ -17,9 +17,10 @@ Where the reason is not given here, the cited decision carries it:
 
 - **The Appendix C kinds whose mechanism is absent** — an absence gets no
   struct (`ThreadBudget`, `DeadStage`, `BundleFieldError`, `UserCodeFraming`,
-  `UnboundedRun`; likewise `IllegalStateLeaf`, `MissingProbeValue`,
-  `AbstractAtRoot`, `TierSignatureMismatch` and `WalkingFaceAtFrozenEntry`,
-  whose *checks* are absent; `TapResolution` comes from the read register
+  `UnboundedRun`; likewise `IllegalStateLeaf`, `MissingProbeValue` and
+  `TierSignatureMismatch`, whose *checks* are absent (a contract bounded
+  narrower than `Real` also reaches the marker evaluation, and any `Dual`
+  activation, as a raw `MethodError`); `TapResolution` comes from the read register
   alone, never §14.10's absent tap register). One periphery refusal is still
   a plain `error(...)` with no kind — a datum naming no channel of a
   `TableBinding` (`bindings.jl` ~93): it runs on the device task inside the
@@ -132,18 +133,6 @@ of them chosen; the merge entry has the probe.
   resets to 0, so it ignores `t0`: `init!(sim; t0 = 10.0)` then
   `run!(sim; t_end = 12.0)` runs to 22. Every suite `t_end` is grid-aligned
   from 0. Found by the previous pass at 2c02afb and lost.
-- **The D-168 fan-out meet is not implemented** (M-B2). `_root_input_type`
-  takes the first consumer's entry in flatten order, so a root input fanned
-  into a `T` entry and a `Float64` entry pins or walks by declaration order,
-  and the walking order delivers `Dual`s to the pinned entry — the join
-  D-168 rejects — blaming the pinned consumer.
-- **Nominal acceptance is equality modulo embedding, not `<:`** (M-B3).
-  `_accepts` has no subtype arm, so an entry declared abstract refuses its
-  lawful concrete producer with `WireTypeMismatch`; §4.4's substitutability
-  idiom and §8.2's abstract reference-typed entries have no code. At root, a
-  `Real` entry is refused blaming a synthesized `Int64`, and an abstract
-  struct entry throws a raw `ArgumentError` from `leaf_types` before any
-  diagnostic (`AbstractAtRoot`, above).
 - **`AlgebraicCycle` reports the raw stall residue** (M-B5), the shape D-012
   rejects: every component Kahn's algorithm could not place, downstream
   acyclic ones included, as component paths in flatten order, two disjoint

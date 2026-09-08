@@ -247,9 +247,13 @@ _declares(fn, c, extra...) =
 
 tier_word(t::Tier) = t === CONTINUOUS ? "continuous" : "discrete"
 
-"""The tier form of `fn`'s arity: two-argument continuous, plain discrete."""
-declared_at(fn, c, t::Tier) =
-    t === CONTINUOUS ? (_declares(fn, c, Type{Float64}) ? fn(c, Float64) : NamedTuple()) :
+"""
+The tier form of `fn`'s arity: two-argument continuous, plain discrete. The
+scalar `S` is the one a continuous declaration is evaluated at — `Float64` for
+every reader but Stratum A's wire pass, which also reads it at the marker.
+"""
+declared_at(fn, c, t::Tier, ::Type{S} = Float64) where {S} =
+    t === CONTINUOUS ? (_declares(fn, c, Type{Float64}) ? fn(c, S) : NamedTuple()) :
                        (_declares(fn, c) ? fn(c) : NamedTuple())
 
 # The tier's own update law (D-195). Everything downstream asks for it

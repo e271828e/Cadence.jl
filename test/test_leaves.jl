@@ -35,6 +35,14 @@ end
 # The shape §13.4 names an offending leaf of: a state declaration.
 const StateNT = @NamedTuple{q::Float64, v::SVector{3,Float64}}
 
+# The abstract arm of the wire relation (§4.4, §8.2, D-236): one stable face
+# with several concrete producer types below it.
+abstract type Handle end
+
+struct HandleA <: Handle
+    a::Float64
+end
+
 # One round trip at a nonzero offset into an oversized buffer: the value comes
 # back identical, and only the `nleaves` entries it owns were written.
 function roundtrip(v, off)
@@ -170,6 +178,59 @@ function leaves_retype()
         @test retype(D8, Int) === Int
         @test retype(Float64, SVector{2,Float64}) === SVector{2,Float64}
         @test retype_value(D8, (q = SVector(1.0, 2.0),)).q isa SVector{2,D8}
+
+        # The wire relation's lifted candidate retypes a declaration already
+        # evaluated at `T`, so the walk is idempotent and passes through anything
+        # with no `Float64` position to replace — a `Union` and a `UnionAll`
+        # included, which `.parameters` would have thrown on.
+        @test retype(D8, retype(D8, SVector{3,Float64})) === retype(D8, SVector{3,Float64})
+        @test retype(D8, Tagged{D8}) === Tagged{D8}
+        @test retype(D8, AbstractVector) === AbstractVector
+        @test retype(D8, Union{Float64,Int}) === Union{Float64,Int}
+    end
+end
+
+function leaves_wire_relation()
+    @testset "the wire relation with its abstract arm (§6.1, D-236)" begin
+        # A concrete entry is embed-accept leaf by leaf: a pinned entry refuses a
+        # walking producer and takes a frozen one, a `T` entry takes both.
+        @test !_accepts_wire(SVector{3,Float64}, SVector{3,D8}, D8)
+        @test _accepts_wire(SVector{3,Float64}, SVector{3,Float64}, D8)
+        @test _accepts_wire(SVector{3,D8}, SVector{3,Float64}, D8)
+
+        # An abstract entry has no leaves to walk, so it is decided on the whole
+        # declaration: `V` as declared, or `V` with every pinned leaf lifted.
+        @test _accepts_wire(AbstractVector{D8}, SVector{3,D8}, D8)
+        @test _accepts_wire(AbstractVector{D8}, SVector{3,Float64}, D8)   # the lifted candidate
+        @test !_accepts_wire(AbstractVector{Float64}, SVector{3,D8}, D8)
+        @test _accepts_wire(Real, D8, D8)
+        @test _accepts_wire(Real, Float64, D8)
+        @test _accepts_wire(Handle, HandleA, D8)      # §4.4's substitutability
+        @test !_accepts_wire(Handle, Float64, D8)
+
+        # At nominal every lift is the identity and the relation is §6.1's bound
+        # check: `<:`, degenerating to equality on a concrete entry.
+        @test _accepts_wire(Float64, Float64, Float64)
+        @test !_accepts_wire(Bool, Float64, Float64)
+        @test _accepts_wire(Real, Float64, Float64)
+        @test _accepts_wire(Handle, HandleA, Float64)
+
+        # At the marker the same relation is the walk clause: a `Marker` leaf
+        # walks, everything else is pinned, and a pinned leaf satisfies either
+        # entry.
+        @test !_accepts_wire(Float64, Marker, Marker)
+        @test _accepts_wire(Marker, Float64, Marker)
+        @test _accepts_wire(Marker, Marker, Marker)
+        @test _accepts_wire(Int, Int, Marker)
+        @test !_accepts_wire(AbstractVector{Float64}, SVector{3,Marker}, Marker)
+        @test _accepts_wire(AbstractVector{Marker}, SVector{3,Float64}, Marker)
+
+        # A declaration at the marker prints as its author wrote it, which is what
+        # a `WalkingFaceAtFrozenEntry` message shows; the payload keeps the type.
+        # (a parametric type's printed form carries its own module, so the
+        # containment rather than equality — implementation.md's caveat.)
+        @test string(Marker) == "T"
+        @test occursin("SVector{3, T}", string(SVector{3,Marker}))
     end
 end
 
@@ -179,4 +240,5 @@ function test_leaves()
     leaves_roundtrip()
     leaves_mixed()
     leaves_retype()
+    leaves_wire_relation()
 end

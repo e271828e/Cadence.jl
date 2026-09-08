@@ -110,14 +110,246 @@ function build_root_input_type()
         @test d.paths == ["a", "b"] && d.declared == [Float64, Bool]
         @test path(d) == ""                        # the face's own path is the root's
 
-        # It is the layout barrier that catches it, ahead of stage-2 probing — so
-        # the surfacing this replaces, the second consumer's probe reading the
+        # It is Stratum A's wire pass that catches it, ahead of stage-2 probing —
+        # so the surfacing this replaces, the second consumer's probe reading the
         # first's cell, is gone: no `WireTypeMismatch` for this model.
         @test !any(x -> x isa WireTypeMismatch, diagnostics(err))
 
         # A tolerance difference is no conflict (D-168's meet): `T` and a pinned
         # `Float64` are one type at nominal, and they disagree about partials alone.
         @test build(_fanned_root(RealEntry(), PinnedEntry())) isa Build
+
+        # The meet itself, at a seeded activation: one pinning consumer pins the
+        # whole root input, whichever order it is declared in, and the tolerant
+        # consumer still walks downstream of its own frozen read (D-168, D-236).
+        for m in (_fanned_root(RealEntry(), PinnedEntry()),
+                  _fanned_root(PinnedEntry(), RealEntry()))
+            sim = Simulation(build(m), D8; h = 1//100)
+            @test port(sim, "", :in) isa Float64
+            @test port(sim, "a", :y) isa D8
+        end
+
+        # With every consumer tolerant the root input follows the scalar.
+        simr = Simulation(build(_fanned_root(RealEntry(), RealEntry())), D8; h = 1//100)
+        @test port(simr, "", :in) isa D8
+    end
+end
+
+# --- the two wire clauses in Stratum A (§6.1, §9.1, D-236) --------------------
+# Both clauses are one relation, decided by reading declarations: the bound
+# clause at `Float64`, the walk clause at the marker scalar. Fixtures at top
+# level, each under the rule it exercises.
+
+# §4.4's substitutability: several concrete producer types behind one stable
+# abstract face. Both fields are isbits and made of `Float64`, so they lay out.
+abstract type AbstractField end
+
+struct FieldA <: AbstractField
+    a::Float64
+end
+
+struct FieldB <: AbstractField
+    b::SVector{2,Float64}
+end
+
+field_scalar(f::FieldA) = f.a
+field_scalar(f::FieldB) = sum(f.b)
+
+# Stage-1 sources naming the concrete type. The value is a constant: a `Dual`
+# `t` would not convert into the pinned field.
+struct FieldSourceA <: AbstractComponent end
+output_types(::FieldSourceA, ::Type{T}) where {T<:Real} = (fld = FieldA,)
+output_state(::FieldSourceA, (; t)) = (fld = FieldA(2.0),)
+
+struct FieldSourceB <: AbstractComponent end
+output_types(::FieldSourceB, ::Type{T}) where {T<:Real} = (fld = FieldB,)
+output_state(::FieldSourceB, (; t)) = (fld = FieldB(SVector(1.0, 2.0)),)
+
+struct FieldReader <: AbstractComponent end
+input_types(::FieldReader, ::Type{T}) where {T<:Real} = (f = AbstractField,)
+output_types(::FieldReader, ::Type{T}) where {T<:Real} = (out = T,)
+output_direct(::FieldReader, (; u)) = (out = field_scalar(u.f),)
+
+# An abstract *numeric* entry: `Real` admits the activation scalar and a frozen
+# `Float64` alike, and it has no leaves to enumerate.
+struct RealReader <: AbstractComponent end
+input_types(::RealReader, ::Type{T}) where {T<:Real} = (u = Real,)
+output_types(::RealReader, ::Type{T}) where {T<:Real} = (out = T,)
+output_direct(::RealReader, (; u)) = (out = 2 * u.u,)
+
+# An abstract container entry against a walking and a pinned producer.
+struct VecReader <: AbstractComponent end
+input_types(::VecReader, ::Type{T}) where {T<:Real} = (v = AbstractVector{T},)
+output_types(::VecReader, ::Type{T}) where {T<:Real} = (n = T,)
+output_direct(::VecReader, (; u)) = (n = sum(u.v),)
+
+struct VecSource <: AbstractComponent end
+output_types(::VecSource, ::Type{T}) where {T<:Real} = (v = SVector{3,T},)
+output_state(::VecSource, (; t)) = (v = SVector(1.0, 2.0, 3.0),)
+
+struct PinnedVecSource <: AbstractComponent end
+output_types(::PinnedVecSource, ::Type{T}) where {T<:Real} = (v = SVector{3,Float64},)
+output_state(::PinnedVecSource, (; t)) = (v = SVector(1.0, 2.0, 3.0),)
+
+# The concrete co-consumers the abstract container entry fans out beside.
+struct SVecEntry <: AbstractComponent end
+input_types(::SVecEntry, ::Type{T}) where {T<:Real} = (v = SVector{3,T},)
+output_types(::SVecEntry, ::Type{T}) where {T<:Real} = (y = T,)
+output_direct(::SVecEntry, (; u)) = (y = sum(u.v),)
+
+struct PinnedSVecEntry <: AbstractComponent end
+input_types(::PinnedSVecEntry, ::Type{T}) where {T<:Real} = (v = SVector{3,Float64},)
+output_types(::PinnedSVecEntry, ::Type{T}) where {T<:Real} = (y = T,)
+output_direct(::PinnedSVecEntry, (; u)) = (y = sum(u.v),)
+
+# The input-side forgotten `T`: a continuous consumer writing the habitual
+# `Float64` at an entry its producer walks (§6.1's failure asymmetry).
+struct FrozenEntry <: AbstractComponent end
+input_types(::FrozenEntry, ::Type{T}) where {T<:Real} = (u = Float64,)
+output_types(::FrozenEntry, ::Type{T}) where {T<:Real} = (y = T,)
+output_direct(::FrozenEntry, (; u)) = (y = u.u,)
+
+# The same one leaf deep. Only type parameters walk, so a walking struct leaf has
+# to be parametric; `Frame{Float64}` freezes what `Frame{T}` produces.
+struct Frame{T}
+    p::SVector{3,T}
+    n::Int
+end
+
+struct FrameSource <: AbstractComponent end
+output_types(::FrameSource, ::Type{T}) where {T<:Real} = (f = Frame{T},)
+output_state(::FrameSource, (; t)) = (f = Frame(SVector(1.0, 2.0, 3.0), 7),)
+
+struct FrameReader <: AbstractComponent end
+input_types(::FrameReader, ::Type{T}) where {T<:Real} = (f = Frame{Float64},)
+output_types(::FrameReader, ::Type{T}) where {T<:Real} = (y = T,)
+output_direct(::FrameReader, (; u)) = (y = sum(u.f.p),)
+
+_fanned_v(a, b) = Group((a = a, b = b); inputs = ("in" => ("a/v", "b/v"),))
+
+function build_wire_clauses()
+    @testset "an abstract entry takes any concrete producer below it (§4.4, §8.2, D-236)" begin
+        for (src, want) in ((FieldSourceA(), 2.0), (FieldSourceB(), 3.0))
+            m = Group((; s = src, r = FieldReader()); wires = ("s/fld" => "r/f",))
+            b = build(m)
+            @test b isa Build
+            for A in (Float64, D8)
+                sim = Simulation(b, A; h = 1//100)
+                init!(sim)
+                run!(sim; t_end = 0.02)
+                # the bundle field carried the concrete type, not the bound
+                @test port(sim, "r", :out) == want
+            end
+        end
+
+        # An abstract numeric entry: `Real` takes the activation scalar, and the
+        # consumer's own math promotes behind it.
+        b = build(Group((; src = NomSource(), r = RealReader()); wires = ("src/val" => "r/u",)))
+        @test b isa Build
+        @test port(Simulation(b, D8; h = 1//100), "r", :out) isa D8
+
+        # An abstract container entry: the walking producer matches as declared,
+        # the pinned one through the lifted candidate. Its `Float64` sum embeds at
+        # the write into a cell declared `T` (D-235).
+        for src in (VecSource(), PinnedVecSource())
+            m = Group((; s = src, r = VecReader()); wires = ("s/v" => "r/v",))
+            sim = Simulation(build(m), D8; h = 1//100)
+            @test port(sim, "r", :n) isa D8
+        end
+    end
+
+    @testset "a root input with no concrete entry is refused (§8.2, D-236)" begin
+        err = failure(() -> build(Group((; r = FieldReader()); inputs = ("f" => "r/f",))))
+        @test err isa DiagnosticError          # not the raw `ArgumentError` from `leaf_types`
+        d = only(diagnostics(err))
+        @test d isa AbstractAtRoot && d.face === :f
+        @test d.paths == ["r"] && d.declared == [AbstractField]
+        @test path(d) == ""                    # the face's own path is the root's
+
+        # Two such faces in one model report together: the pass collects (§13.1).
+        err2 = failure(() -> build(Group((; r = FieldReader(), q = RealReader());
+                                         inputs = ("f" => "r/f", "u" => "q/u"))))
+        ds = diagnostics(err2)
+        @test all(x -> x isa AbstractAtRoot, ds)
+        @test Set(x.face for x in ds) == Set([:f, :u])
+    end
+
+    @testset "an abstract co-consumer votes but does not type a root input (§8.2, D-236)" begin
+        # The concrete entry fixes the type; the abstract one is checked against
+        # it and takes part in the meet, so no `RootInputTypeConflict`.
+        b = build(_fanned_v(VecReader(), SVecEntry()))
+        @test b isa Build
+        @test port(Simulation(b, D8; h = 1//100), "", :in) isa SVector{3,D8}
+
+        # Beside a pinning co-consumer the whole root input pins (D-168's meet).
+        simp = Simulation(build(_fanned_v(VecReader(), PinnedSVecEntry())), D8; h = 1//100)
+        @test port(simp, "", :in) isa SVector{3,Float64}
+
+        # An abstract co-consumer whose bound fails is the bound clause's, named
+        # against the root input rather than a producing component.
+        err = failure(() -> build(Group((a = FieldReader(), b = RealEntry());
+                                        inputs = ("in" => ("a/f", "b/u"),))))
+        d = only(diagnostics(err))
+        @test d isa WireTypeMismatch && d.path == "a" && d.face === :f
+        @test d.producer_path == "" && d.producer_port === :in
+        @test d.declared === AbstractField && d.observed === Float64
+    end
+
+    @testset "the walk clause fails at the first nominal build (§6.1, §8.2, D-236)" begin
+        # The input-side forgotten `T`: at the tip this model built clean and
+        # detonated only at the first `Dual` activation.
+        err = failure(() -> build(Group((; src = NomSource(), c = FrozenEntry());
+                                        wires = ("src/val" => "c/u",))))
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
+        @test d isa WalkingFaceAtFrozenEntry && d.path == "c" && d.face === :u
+        @test d.producer_path == "src" && d.producer_port === :val
+        @test d.leaf == "" && d.declared === Float64 && d.observed === Marker
+        @test occursin("declare the entry `T`", message(d))
+
+        # One leaf deep the offending leaf is named by its dotted spelling.
+        err2 = failure(() -> build(Group((; s = FrameSource(), r = FrameReader());
+                                         wires = ("s/f" => "r/f",))))
+        d2 = only(diagnostics(err2))
+        @test d2 isa WalkingFaceAtFrozenEntry && d2.leaf == "p[1]"
+        @test d2.declared === Float64 && d2.observed === Marker
+
+        # D-167's tier scope: a discrete consumer takes the bound clause alone, so
+        # a continuous producer feeding a pinned discrete entry stays legal.
+        @test build(Group((; src = NomSource(), rd = FrozenReader());
+                          wires = ("src/val" => "rd/in",))) isa Build
+    end
+
+    @testset "the wire pass collects to Stratum A's barrier (§13.1, D-229, D-236)" begin
+        # The bound clause, both endpoints named.
+        err = failure(() -> build(Group((; src = NomSource(), c = BoolEntry());
+                                        wires = ("src/val" => "c/u",))))
+        d = only(diagnostics(err))
+        @test d isa WireTypeMismatch && d.path == "c" && d.face === :u
+        @test d.producer_path == "src" && d.producer_port === :val
+        @test d.declared === Bool && d.observed === Float64
+
+        # Two bad wires in one model are two diagnostics in one throw.
+        err2 = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(), e = BoolEntry());
+                                         wires = ("src/val" => "c/u", "src/val" => "e/u"))))
+        ds = diagnostics(err2)
+        @test length(ds) == 2 && all(x -> x isa WireTypeMismatch, ds)
+        @test Set(x.path for x in ds) == Set(["c", "e"])
+
+        # A bound failure, a walk failure and an abstract-at-root face merge.
+        err3 = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(),
+                                            z = FrozenEntry(), r = FieldReader());
+                                         wires = ("src/val" => "c/u", "src/val" => "z/u"),
+                                         inputs = ("f" => "r/f",))))
+        @test Set(kinds(err3)) ==
+              Set([WireTypeMismatch, WalkingFaceAtFrozenEntry, AbstractAtRoot])
+
+        # The dependency rule: the wire pass reads the wiring, which a dirty walk
+        # never produced, so an unfed input beside a bad wire reports the walk's
+        # kinds alone.
+        err4 = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(), lone = RealEntry());
+                                         wires = ("src/val" => "c/u",))))
+        @test Set(kinds(err4)) == Set([UnconnectedInput])
     end
 end
 
@@ -338,6 +570,7 @@ function test_build()
     build_probe_refusals()
     build_schedule()
     build_root_input_type()
+    build_wire_clauses()
     build_tier()
     build_store_values()
     build_stratum_a()

@@ -242,7 +242,9 @@ end
 # --- 4. cell layout -----------------------------------------------------------
 # Every declared port gets a cell; so does every root input face, the one
 # terminal legitimately fed by no component, its initial value synthesized by
-# `probe_value` (§6.1, §9.3, §11.3).
+# `probe_value` (§6.1, §9.3, §11.3). A root input's *type* is Stratum A's, fixed
+# once by the wire pass and carried on the `Flat`; the layout picks its cells per
+# activation from that type, by the meet below (D-168, D-236).
 #
 # An assembly's faces get no cells of their own. A face *is* its ultimate
 # internal endpoint (§8.6), so it is entered as an alias onto that endpoint's
@@ -281,8 +283,8 @@ function cell_layout(flat::Flat, decls::Vector{Decls}, ::Type{T}) where {T}
             place!(path, :port, port, P)
         end
     end
-    for face in flat.root_inputs
-        P = _root_input_type(flat, decls, face, diags, T === Float64)
+    for (i, face) in enumerate(flat.root_inputs)
+        P = _root_input_cell(flat, decls, i, face, T)
         place!("", :root_input, face, P) || continue
         push!(root_inputs, (face, probe_value(P)))
     end
@@ -294,32 +296,18 @@ function cell_layout(flat::Flat, decls::Vector{Decls}, ::Type{T}) where {T}
     Layout(addr, root_inputs, sizes)
 end
 
-# A root input's cell follows the same derivation an assembly face does: it is the
-# internal endpoint's — and under fan-out there are several. §8.2 makes the
-# concrete declaration unique across them, so the fold below compares the
-# consumers' entries and collects `RootInputTypeConflict` when two disagree; the
-# first consumer's declaration is still what the cell takes, so the layout can
-# finish and the barrier report every violation at once.
-#
-# `check` is set at the nominal activation alone, because that is where the rule
-# lives: a `T` entry and a pinned `Float64` entry are one type there, and their
-# tolerance difference — a conflict at no activation — is the D-168 meet. At a
-# seeded activation the same two entries evaluate to `Dual` and `Float64`, and
-# comparing them would refuse a lawful model.
-function _root_input_type(flat::Flat, decls::Vector{Decls}, face::Symbol,
-                          diags::Vector{Diagnostic}, check::Bool)
-    paths, declared = String[], Any[]
-    for (ci, conns) in enumerate(flat.conns), (f, producer) in conns
-        if producer === ("", face)
-            push!(paths, flat.paths[ci])
-            push!(declared, decls[ci].ins[f])
-        end
-    end
-    isempty(paths) && throw(InternalInvariant("root input face `$face` routes to no input"))
-    P = first(declared)
-    check && any(Q -> Q !== P, declared) &&
-        push!(diags, RootInputTypeConflict(face = face, paths = paths, declared = declared))
-    P
+# A root input's cells at an activation: D-168's meet, at the level of the whole
+# root input, with D-236's two candidates — the root-input type with every leaf
+# following `T` when every consumer's entry at `T` admits it, the root-input type
+# itself otherwise. Stratum A fixed the type and checked the entries, so nothing
+# is recorded here; at nominal the two candidates coincide.
+function _root_input_cell(flat::Flat, decls::Vector{Decls}, i::Int, face::Symbol,
+                          ::Type{T}) where {T}
+    P_F = flat.root_types[i]
+    walk = retype(T, P_F)
+    entries = (decls[ci].ins[f] for (ci, conns) in enumerate(flat.conns)
+               for (f, producer) in conns if producer === ("", face))
+    all(e -> _accepts_wire(e, walk, T), entries) ? walk : P_F
 end
 
 """Address of the cell feeding `face`: its resolved producer's port, or a root input."""
@@ -364,23 +352,28 @@ end
 """
     build(root; activations = ()) → Build
 
-Strata A and B plus the nominal activation (§9.1): flatten, classify, probe at
-`Float64`, schedule, lay out. Nothing here needs `Δt_base`, `h` or `N_base` — those
-are `Simulation`'s. `activations` is §9.4's opt-in exhaustive mode: each listed
-scalar's activation is materialized eagerly instead of at first request.
+Strata A and B plus the nominal activation (§9.1): flatten, classify, type-check
+the wires, probe at `Float64`, schedule, lay out. Nothing here needs `Δt_base`,
+`h` or `N_base` — those are `Simulation`'s. `activations` is §9.4's opt-in
+exhaustive mode: each listed scalar's activation is materialized eagerly instead
+of at first request.
 """
 function build(root::AbstractComponent; activations::Tuple = ())
     diags = Diagnostic[]
     w = Walk()
     flatten!(w, root, diags)            # structure, tiers, claims, the obligation check
     _check_event_declarations(w.flat, diags)
+    # The dependency rule (§13.1, D-229): the wire pass reads the wiring, which a
+    # dirty walk never produced, so it runs on a clean walk alone.
+    isempty(diags) || throw(DiagnosticError(diags))
+    flat = wire!(w)                     # the derivation, on a clean walk
+    tiers = Vector{Tier}(w.tiers)
+    _check_wires(flat, tiers, diags)
     # Stratum A's barrier (§13.1, D-229): every pass that ran merges here, and
     # nothing derived from the wiring is computed before it. No cascade
     # suppression — a typo'd wire reports its unknown port *and* the input it
     # left unfed.
     isempty(diags) || throw(DiagnosticError(diags))
-    flat = wire!(w)                     # the derivation, on a clean walk
-    tiers = Vector{Tier}(w.tiers)
     nominal, order = _stratum_c(flat, tiers, nothing, nothing, Float64)
     policies = probe_events(flat, tiers, nominal)
     b = Build(flat, tiers, order, nominal, policies, Dict{DataType,Any}())
@@ -412,6 +405,85 @@ function _check_event_declarations(flat::Flat, diags::Vector{Diagnostic})
         end
     end
     nothing
+end
+
+# --- Stratum A's wire pass (§6.1, §9.1, D-236) --------------------------------
+
+"""
+The marker scalar (§6.1, §9.1): the continuous contracts are evaluated at it to
+tell a walking leaf from a pinned one — a leaf typed `Marker` walks with the
+activation, anything else is pinned. It never enters arithmetic.
+"""
+struct Marker <: Real end
+Base.show(io::IO, ::Type{Marker}) = print(io, "T")   # a declaration at the marker prints as written
+
+# The two type clauses on every resolved wire, and the root-input type with its
+# two refusals. Pure declaration reading — the contracts are evaluated at
+# `Float64` for the bound clause and at the marker for the walk clause; no stage
+# runs. The pass collects (§13.1): every wire is checked, and the barrier throws
+# once.
+function _check_wires(flat::Flat, tiers::Vector{Tier}, diags::Vector{Diagnostic})
+    at(fn, S) = [declared_at(fn, c, t, S) for (c, t) in zip(flat.comps, tiers)]
+    ins_F, outs_F = at(input_types, Float64), at(output_types, Float64)
+    ins_M, outs_M = at(input_types, Marker), at(output_types, Marker)
+    for (ci, conns) in enumerate(flat.conns), (face, (ppath, pport)) in conns
+        isempty(ppath) && continue                  # a root input: typed below
+        pi = index_of(flat, ppath)
+        P_F, V_F = ins_F[ci][face], outs_F[pi][pport]
+        if !_accepts_wire(P_F, V_F, Float64)
+            push!(diags, WireTypeMismatch(path = flat.paths[ci], face = face, declared = P_F,
+                                          producer_path = ppath, producer_port = pport,
+                                          observed = V_F))
+            continue        # the walk clause reads a shape the bound clause has vouched for
+        end
+        tiers[ci] === CONTINUOUS || continue        # D-167's tier scope
+        P_M, V_M = ins_M[ci][face], outs_M[pi][pport]
+        _accepts_wire(P_M, V_M, Marker) && continue
+        leaf, declared, observed = _walking_leaf(P_M, V_M)
+        push!(diags, WalkingFaceAtFrozenEntry(path = flat.paths[ci], face = face,
+                                              producer_path = ppath, producer_port = pport,
+                                              leaf = leaf, declared = declared,
+                                              observed = observed))
+    end
+    for face in flat.root_inputs
+        paths, faces, entries = String[], Symbol[], Any[]
+        for (ci, conns) in enumerate(flat.conns), (f, producer) in conns
+            producer === ("", face) || continue
+            push!(paths, flat.paths[ci]); push!(faces, f); push!(entries, ins_F[ci][f])
+        end
+        isempty(paths) && throw(InternalInvariant("root input face `$face` routes to no input"))
+        conc = findall(isconcretetype, entries)
+        if isempty(conc)
+            push!(diags, AbstractAtRoot(face = face, paths = paths, declared = entries))
+            push!(flat.root_types, nothing)
+            continue
+        end
+        P_F = entries[first(conc)]
+        any(k -> entries[k] !== P_F, conc) &&
+            push!(diags, RootInputTypeConflict(face = face, paths = paths[conc],
+                                               declared = entries[conc]))
+        for k in eachindex(entries)                 # abstract co-consumers: the bound clause
+            k in conc && continue
+            _accepts_wire(entries[k], P_F, Float64) ||
+                push!(diags, WireTypeMismatch(path = paths[k], face = faces[k],
+                                              declared = entries[k], producer_path = "",
+                                              producer_port = face, observed = P_F))
+        end
+        push!(flat.root_types, P_F)
+    end
+    nothing
+end
+
+# The offending leaf, for the walk clause's message. For a concrete entry the
+# bound clause has established that the two leaf lists align, and a walk failure
+# is exactly a pinned entry leaf fed by a walking producer leaf. Throwing path
+# only.
+function _walking_leaf(::Type{P}, ::Type{V}) where {P,V}
+    isconcretetype(P) || return nothing, P, V     # decided on the whole declaration
+    lp, lv = leaf_types(P), leaf_types(V)
+    i = findfirst(k -> lp[k] === Float64 && lv[k] === Marker, eachindex(lp))
+    i === nothing && throw(InternalInvariant("walk clause failed at `$P` ← `$V` with no walking leaf"))
+    leaf_names(P)[i], lp[i], lv[i]
 end
 
 """
@@ -1045,6 +1117,12 @@ end
 # both lawful arrivals, a pinned `Float64` entry demands a frozen one. The value
 # passed on is the producer's, unembedded — the consumer gathers the producer's
 # cell at runtime, so the cell's type is what its bundle carries.
+#
+# Both wire clauses were decided in Stratum A (D-236). The products
+# `_embed_ports` hands down carry exactly the producer's declared type at `T`,
+# and a root input's cell is admitted by every entry by the meet, so a refusal
+# here is a framework bug rather than a model error — hence the fence, not a
+# diagnostic.
 function _probe_input(flat::Flat, layout::Layout, products, ci, face, P, ::Type{T}) where {T}
     path = flat.paths[ci]
     (ppath, pport) = last(flat.conns[ci][findfirst(p -> first(p) === face, flat.conns[ci])])
@@ -1053,10 +1131,9 @@ function _probe_input(flat::Flat, layout::Layout, products, ci, face, P, ::Type{
     else
         products[index_of(flat, ppath)][pport]
     end
-    _accepts(P, typeof(v), T) ||
-        throw(DiagnosticError(WireTypeMismatch(path = path, face = face, declared = P,
-                                          producer_path = ppath, producer_port = pport,
-                                          observed = typeof(v), activation = T)))
+    _accepts_wire(P, typeof(v), T) ||
+        throw(InternalInvariant("probe input `$path`.$face: $(typeof(v)) at an entry " *
+                                "declaring $P, which Stratum A admitted"))
     v
 end
 

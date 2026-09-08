@@ -285,7 +285,7 @@ message(d::TwoProducers) =
     "`$(d.path)`.$(d.port) is fed twice: by $(d.incumbent), and by $(d.entry) — every " *
     "input takes exactly one connection, across levels included (§6.1)"
 
-"§6.1, §8.2, §8.4 w4: a wire whose producer's value does not meet the consumer's declared entry type."
+"§6.1, §8.2, §8.4 w4: a wire whose producer's declaration at `Float64` is not `<:` the consumer's entry at `Float64`."
 Base.@kwdef struct WireTypeMismatch <: Diagnostic
     path::String                             # the consumer
     face::Symbol
@@ -293,20 +293,46 @@ Base.@kwdef struct WireTypeMismatch <: Diagnostic
     producer_path::String                    # "" for a root input
     producer_port::Symbol
     observed::Any                            # the producer face type
-    activation::Any = nothing                # the activation scalar, for the pin hint
 end
 path(d::WireTypeMismatch) = d.path
 message(d::WireTypeMismatch) =
     "`$(d.path)`.$(d.face) declared $(d.declared), fed from " *
     (isempty(d.producer_path) ? "root input `$(d.producer_port)`" :
      "`$(d.producer_path)`.$(d.producer_port)") *
-    "::$(d.observed)" * _pin(d)
+    "::$(d.observed)"
 
-# The embed-accept hint (leaves.jl's `_pin_hint`) is rendering over the two port
-# types and the activation scalar, so it is computed here rather than carried.
-# `ConformanceFailure` takes §9.5's integer hint ahead of it (below).
-_pin(d) = (d.declared isa Type && d.observed isa Type && d.activation isa Type) ?
-          _pin_hint(d.declared, d.observed, d.activation) : ""
+"§6.1, §8.2: a walking producer leaf feeding a pinned entry leaf of a continuous consumer."
+Base.@kwdef struct WalkingFaceAtFrozenEntry <: Diagnostic
+    path::String                             # the consumer
+    face::Symbol                             # its entry
+    producer_path::String
+    producer_port::Symbol
+    leaf::Union{Nothing,String}              # the offending leaf's dotted spelling; `nothing` when the entry is abstract
+    declared::Any                            # the entry's type there: a pinned leaf type, or the whole abstract entry
+    observed::Any                            # the producer's declaration there, at the marker
+end
+path(d::WalkingFaceAtFrozenEntry) = d.path
+message(d::WalkingFaceAtFrozenEntry) =
+    "`$(d.path)`.$(d.face)" *
+    (d.leaf === nothing || isempty(d.leaf) ? "" : " at leaf `$(d.leaf)`") *
+    " is declared $(d.declared), frozen, but `$(d.producer_path)`.$(d.producer_port) " *
+    "declares $(d.observed) there, which walks with the activation — declare the entry " *
+    "`T` if the consumer promotes; feed it from a non-walking source if the freeze is " *
+    "genuine (§6.1, §8.2)"
+
+"§8.2: a root input whose consumers all declare abstract entries, so no type determines it."
+Base.@kwdef struct AbstractAtRoot <: Diagnostic
+    face::Symbol
+    paths::Vector{String}                    # the consuming leaves
+    declared::Vector{Any}                    # their abstract entries
+end
+path(::AbstractAtRoot) = ""
+message(d::AbstractAtRoot) =
+    "root input `$(d.face)` is declared " *
+    join(("$(_at_path(p))::$(P)" for (p, P) in zip(d.paths, d.declared)), ", ") *
+    " — every entry is abstract, and a root input is typed by its consumers alone, so " *
+    "nothing determines its type; wire `$(d.face)` to a concrete producer — in a test " *
+    "rig, a stub child (§8.2, §13.7)"
 
 """
 §8.2: two consumers of one root input face declaring different entry types.
@@ -315,6 +341,9 @@ fan-out the concrete declaration has to be unique. The comparison is *at
 nominal*, which is what makes a tolerance difference no conflict: `SVector{3,T}`
 and `SVector{3,Float64}` both evaluate to `SVector{3,Float64}` there, and their
 disagreement about partials is the fan-out meet (D-168), a legitimate model.
+The comparison runs in Stratum A's wire pass over the *concrete* entries alone;
+an abstract co-consumer names no type to conflict with, and is checked against
+the one the concrete entries fixed by the bound clause (D-236).
 """
 Base.@kwdef struct RootInputTypeConflict <: Diagnostic
     face::Symbol                             # the root input face

@@ -544,6 +544,7 @@ struct Flat
     comps::Vector{Any}
     conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}}   # face => (producer path, port)
     root_inputs::Vector{Symbol}                                # root input faces, in order
+    root_types::Vector{Any}         # per root input: the type Stratum A's wire pass fixed (D-236)
     in_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}   # (path, face) => producer
     out_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}  # (path, face) => producer
     triples::Vector{NTuple{3,Int}}      # per component: (anchor, m, c), anchor 0 the base grid
@@ -570,6 +571,7 @@ struct Walk
 end
 
 Walk() = Walk(Flat(String[], Any[], Vector{Pair{Symbol,Tuple{String,Symbol}}}[], Symbol[],
+                   Any[],
                    Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
                    Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
                    NTuple{3,Int}[], NTuple{2,Rational{Int}}[], String[]),
