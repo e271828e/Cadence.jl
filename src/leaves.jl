@@ -224,7 +224,7 @@ ask whether the result is `P` itself.
 function _accepts(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T}
     P === V && return true
     V === Float64 && P === T && return true          # the one embedding
-    (P isa DataType && V isa DataType && P.name === V.name && !isempty(V.parameters) &&
+    (P isa DataType && V isa DataType && P.name === V.name &&
      length(P.parameters) == length(V.parameters)) || return false
     all(p isa Type && v isa Type ? _accepts(p, v, T) : p === v
         for (p, v) in zip(P.parameters, V.parameters))
@@ -239,11 +239,12 @@ _pin_hint(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T} =
     _accepts_wire(P, V, T)
 
 Is a producer declaring `V` a lawful feed for an entry declaring `P`, both
-evaluated at activation `T` (§6.1, D-236)? A concrete entry is `_accepts` leaf
-by leaf. An abstract entry has no leaves to walk, so it is decided on the whole
-declaration: `V` as declared, or `V` with every pinned leaf lifted to `T`, must
-be `<:` `P`. The two candidates are exact whenever `P`'s parameters are
-uniformly `T` or uniformly pinned; the mixed case is D-236's recorded limit.
+evaluated at activation `T` (§6.1, D-236)? A concrete entry is `_accepts`,
+decided on the type. An abstract entry has no leaves to walk, so it is decided
+on the whole declaration: `V` as declared, or `V` with every pinned leaf lifted
+to `T`, must be `<:` `P`. The two candidates are exact whenever `P`'s
+parameters are uniformly `T` or uniformly pinned; the mixed case is D-236's
+recorded limit.
 """
 _accepts_wire(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T} =
     isconcretetype(P) ? _accepts(P, V, T) : (V <: P || retype(T, V) <: P)

@@ -423,6 +423,10 @@ input_types(::NarrowInput, ::Type{T}) where {T <: AbstractFloat} = (u = T,)
 output_types(::NarrowInput, ::Type{T}) where {T <: Real} = (y = T,)
 output_direct(::NarrowInput, (; u)) = (y = u.u,)
 
+struct AnonBound <: AbstractComponent end
+output_types(::AnonBound, ::Type{<:AbstractFloat}) = (a = Float64,)
+output_state(::AnonBound, (; t)) = (a = 1.0,)
+
 function build_tier()
     @testset "tier is read off the declaration shape (§8.2)" begin
         # The two deciders: the update law for a stateful leaf, the contract arity
@@ -467,6 +471,11 @@ function build_tier()
         @test d isa TierSignatureMismatch
         @test path(d) == "c" && d.declaration === :output_types && d.tier === :continuous
         @test d.reason === :bound && d.found === AbstractFloat && d.mandated === Real
+
+        # The anonymous form `::Type{<:AbstractFloat}` names no `T`; its bound is read
+        # off the argument type.
+        da = only(diagnostics(failure(() -> build(single(AnonBound())))))
+        @test da isa TierSignatureMismatch && da.found === AbstractFloat
 
         # The wire it feeds is skipped, so the refusal is the whole report.
         d2 = only(diagnostics(failure(() -> build(Group((; p = NarrowOutput(), c = RealEntry());

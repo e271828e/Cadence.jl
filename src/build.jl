@@ -418,10 +418,13 @@ struct Marker <: Real end
 Base.show(io::IO, ::Type{Marker}) = print(io, "T")   # a declaration at the marker prints as written
 
 # The bound a two-argument contract puts on its `T`, read off the method matched
-# at `Float64` (§8.5). Throwing path only.
+# at `Float64` (§8.5): the type variable's upper bound, or the argument type
+# itself when the second argument is not `Type{…}`. Throwing path only.
 function _contract_bound(fn, c)
-    body = Base.unwrap_unionall(which(fn, Tuple{typeof(c),Type{Float64}}).sig)
-    tv = body.parameters[3].parameters[1]
+    a = Base.unwrap_unionall(which(fn, Tuple{typeof(c),Type{Float64}}).sig).parameters[3]
+    b = Base.unwrap_unionall(a)
+    (b isa DataType && b.name === Base.typename(Type)) || return a
+    tv = b.parameters[1]
     tv isa TypeVar ? tv.ub : tv
 end
 
@@ -478,7 +481,10 @@ function _check_wires(flat::Flat, tiers::Vector{Tier}, diags::Vector{Diagnostic}
             push!(paths, flat.paths[ci]); push!(faces, f); push!(entries, ins_F[ci][f])
         end
         routed || throw(InternalInvariant("root input face `$face` routes to no input"))
-        isempty(paths) && continue          # every consumer refused; the barrier throws
+        if isempty(paths)                   # every consumer refused; the barrier throws
+            push!(flat.root_types, nothing)
+            continue
+        end
         conc = findall(isconcretetype, entries)
         if isempty(conc)
             push!(diags, AbstractAtRoot(face = face, paths = paths, declared = entries))
