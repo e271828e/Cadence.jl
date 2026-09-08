@@ -357,6 +357,12 @@ _store_successor!(ref::Base.RefValue{S}, s⁺, path, what) where {S} =
     :(ref[] = merge(ref[], m); nothing)
 end
 
+# A non-NamedTuple `m` is the law's first clause failing, as the probe reports it.
+_merge_modes!(ref::Base.RefValue{M}, m, path, what) where {M} =
+    throw(DiagnosticError(ConformanceFailure(path = path, what = String(what),
+                                             reason = :return_type, shape = :mode,
+                                             observed = typeof(m))))
+
 @inline function _fire_project!(e::EventEntry{G,H,P,Comp,XT}, xbuf) where {G,H,P,Comp,XT}
     P === Nothing && return nothing
     e.cursor.fn = :state_projection # the component is the handler's own

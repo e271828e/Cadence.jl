@@ -82,6 +82,15 @@ late_mode_guard(::LateMode, (; m, t)) = t - 0.05 * (m.k + 1)
 late_mode_handler(::LateMode, (; m)) = m.k == 0 ? (m = (k = m.k + 1,),) : (m = (k = 1.5,),)
 state_events(::LateMode) = (fire = StateEvent(late_mode_guard, late_mode_handler),)
 
+# The probe sees the first firing; the second writes `m` as a scalar, not a NamedTuple.
+struct LateModeScalar <: AbstractComponent end
+init_m(::LateModeScalar) = (k = 0,)
+output_types(::LateModeScalar, ::Type{T}) where {T <: Real} = (k = Int,)
+output_state(::LateModeScalar, (; m)) = (k = m.k,)
+late_mode_guard(::LateModeScalar, (; m, t)) = t - 0.05 * (m.k + 1)
+late_mode_scalar_handler(::LateModeScalar, (; m)) = m.k == 0 ? (m = (k = m.k + 1,),) : (m = 5,)
+state_events(::LateModeScalar) = (fire = StateEvent(late_mode_guard, late_mode_scalar_handler),)
+
 function failures_runtime()
     @testset "the cursor names where execution was after a quiet frame (§13.4)" begin
         sim = Simulation(feedback_model(); h = 1//50, t_end = 1.0)
@@ -522,6 +531,18 @@ function failures_conformance()
         @test e.cause.what == "handler" && e.cause.shape === :mode
         @test e.cause.reason === :field_type && e.cause.field === :k
         @test e.cause.observed === Float64 && e.cause.declared === Int
+        @test e.frame.fn === :handler
+        @test lifecycle(sim) === :errored
+    end
+
+    @testset "a mode write that is not a NamedTuple on the second firing is refused (§5.2, §9.5)" begin
+        sim = Simulation(single(LateModeScalar()); h = 1//100, t_end = 0.2)
+        init!(sim)
+        e = failure(() -> run!(sim))
+        @test e isa StepError{ConformanceFailure}
+        @test e.cause.what == "handler" && e.cause.shape === :mode
+        @test e.cause.reason === :return_type && e.cause.observed === Int
+        @test occursin("NamedTuple", message(e.cause))
         @test e.frame.fn === :handler
         @test lifecycle(sim) === :errored
     end
