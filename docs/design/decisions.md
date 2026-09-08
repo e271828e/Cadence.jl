@@ -259,6 +259,9 @@ were derived.
 | [D-232][d-232] | Refuse the roster operations on an errored simulation | ratified |
 | [D-233][d-233] | Retire the termination record's absent-time arm | ratified |
 | [D-234][d-234] | Rename the deployment keyword `n` to `N_base` | ratified |
+| [D-235][d-235] | Realize the always-on check at the generated write, against the cell type | ratified |
+| [D-236][d-236] | Type-check a wire by one relation with embedding, in Stratum A | ratified |
+| [D-237][d-237] | Classify a non-isbits immutable port type as one opaque leaf | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -1441,6 +1444,9 @@ activations accept `{T, Float64}` with zero-partial embedding ([D-079][d-079]).
 **Spec.** [§2.1][s2-1], [§9.5][s9-5]
 
 **Rationale.** Recorded only through the rejections below.
+
+Annotation (2026-09-08): realized at the generated write, against the cell
+type, per [D-235][d-235].
 
 **Rejected.**
 - *Field-assignment `convert` semantics:* `Float64 → Dual` silently zeroes
@@ -5744,6 +5750,9 @@ tap around it — depends on knowing which leaf froze the slot.
 
 Closes the fan-out gap left open by [D-167][d-167].
 
+Annotation (2026-09-08): read at the level of the whole root input, with the
+two-candidate computation, per [D-236][d-236].
+
 **Rejected.**
 - *Requiring agreement at the marker scalar (mixed = build error):* turns a
   legitimate model into an error whose only remedies are a duplicated slot or a
@@ -8406,6 +8415,155 @@ unwritten practice.
 - *A word, `frames_per_tick`:* unambiguous, but every equation becomes prose.
 - *`N_tick`:* reads as a number of ticks.
 
+### D-235 — Realize the always-on check at the generated write, against the cell type
+
+**Status.** ratified
+
+**Position.** The always-on conformance check ([D-053][d-053]) is one relation, [D-166][d-166]'s
+embed-accept, applied at the probe and at every table write. At the write it
+holds the return to the type of the cells the stage writes, as the probe fixed
+them at this activation, and it is decided when the write's method is generated
+over the cell type and the return type.
+- Stage returns, `state_derivative`, and the wholesale state writes of
+  `state_projection` and a handler's `x` key all take it; the probe's state
+  checks apply the same relation.
+- A conformant return type generates the straight stores. A non-conformant one
+  generates a throw of `ConformanceFailure`, a `StepError` species at runtime
+  ([§13.4][s13-4]).
+
+**Spec.** [§7.1][s7-1], [§9.5][s9-5], [Appendix C][sC]
+
+**Rationale.** Two facts fix the shape. [D-166][d-166]'s embed-accept makes "types equal
+or refuse" impossible at the write: a `Float64` at a declared-`T` cell under a
+non-nominal activation is lawful, and storing it into the `T` buffer is the
+zero-partial embedding [§9.5][s9-5] describes. So the write cannot be a flat type test;
+it is the relation the probe applies, and the leaf store is the embedding. And
+the writes are already generated functions over the cell address, whose
+parameter is the cell type. Generating them over the return's type as well
+evaluates the key-set comparison and the per-leaf relation on types, before any
+instruction is emitted. Type-stable conformant code generates the stores it
+generates today. Branch-divergent code takes one specialization per return
+type, the union split the code already pays. This is [D-053][d-053]'s one baked type
+test resolved by dispatch: per-leaf reasoning at generation, no per-field
+instruction at runtime, so [D-053][d-053]'s rejection of per-field checks holds in the
+sense it was made, which is cost.
+
+The expected type is stated against the cell rather than against
+`output_types(c, T)` so the rule does not depend on how a cell's type is fixed.
+Today the two coincide, a cell's type being its producer's declaration
+evaluated at the activation; the phrasing survives any later widening of
+acceptance.
+
+**Rejected.**
+- *A runtime `isa` against the declaration's `NamedTuple` type:* refuses the
+  `Float64` embed-accept sanctions at a declared-`T` leaf, breaking the
+  constant-branch idiom [D-166][d-166] keeps legal.
+- *Leaf-count comparison at the probe and no check at the write (the built
+  shape):* an `Int64` leaf for a `Float64` state passes and converts, and a
+  return field set the probe never saw is dropped or raises a raw `FieldError`
+  inside a `StepError`, the shape [D-053][d-053] rejects.
+- *Refusing a `Float64` at a declared-`T` cell to force type stability:* a
+  `T`-declared output computed from a frozen discrete input is `Float64` at
+  every activation, lawfully and stably, so the refusal would require the
+  consumer to know its producer's tier, which [D-054][d-054] rules impossible by
+  construction. Type stability under `Dual` is an authoring rule ([§7.2][s7-2]), not a
+  conformance predicate.
+
+### D-236 — Type-check a wire by one relation with embedding, in Stratum A
+
+**Status.** ratified
+
+**Position.** A producer's declaration is accepted at an entry when some
+leafwise embedding of it, lifting any subset of its `Float64` leaves to the
+activation scalar, is `<:` the entry evaluated at that scalar. Both clauses of
+[§6.1][s6-1] are this relation, decided in Stratum A by evaluating the contract
+declarations at a marker scalar and collected under the stratum's barrier.
+- A concrete entry is checked leaf by leaf. An abstract entry is checked on the
+  whole declaration: the producer's declaration, or the same with every pinned
+  leaf lifted, must be `<:` the entry.
+- A root input's cells at an activation take the all-walking evaluation of the
+  root-input type when every consumer's entry admits it, and the root-input
+  type itself otherwise: [D-168][d-168]'s meet, at the level of the whole root input.
+- A root input whose entries are all abstract is `AbstractAtRoot`. Its concrete
+  entries must agree at `Float64` (`RootInputTypeConflict`); abstract
+  co-consumers are checked by the bound clause.
+
+**Spec.** [§6.1][s6-1], [§8.2][s8-2], [§9.1][s9-1], [Appendix C][sC]
+
+**Rationale.** At the nominal activation every lift is the identity and the
+relation is [§6.1][s6-1]'s bound check, `<:` with equality as the concrete case. Under
+a non-nominal activation the lifts express the walk-compatibility clause: a
+walking producer leaf must meet a `T` entry, and a pinned producer leaf meets
+either, because a frozen value embeds upward. So one relation is both clauses,
+and it is [D-166][d-166]'s embed-accept read from the input side. The abstract case
+cannot walk leaves. Its two candidates are exact whenever the entry's
+parameters are uniformly `T` or uniformly pinned; an abstract entry mixing the
+two against a producer pinning some of them is admitted by the definition but
+not by the check, a recorded limit with no known instance.
+
+The meet on a root input is stated for the whole root input rather than per
+leaf, which is [D-168][d-168]'s letter. The two candidates decide it without a leaf
+walk and let abstract co-consumers vote. A mixture of pins across leaves pins
+the whole root input, the conservative direction, which never delivers a `Dual`
+where an entry forbade one.
+
+Stratum A is where the check runs for two reasons. The contract declarations
+are functions of the scalar that construct types, so evaluating them at a
+marker runs no stage code. And the timing is the promise [D-167][d-167] makes: the
+input-side forgotten `T` fails at the first nominal build, at the wire. A check
+at the probe sees only what the current activation shows, so at nominal the
+walk clause is vacuous and the error waits for the first `Dual` activation.
+The marker pass evaluates `input_types` and `output_types` alone; `init_x` is
+by value and is walked, never evaluated.
+
+**Rejected.**
+- *Equality modulo embedding, with nominal identity on struct types (the built
+  shape):* refuses an abstract entry's lawful concrete producer, so [§4.4][s4-4]'s
+  substitutability and [§8.2][s8-2]'s abstract entries have no code.
+- *The check at the probe, on the probed value's type:* one stratum late,
+  fail-fast where [§13.1][s13-1] collects, and blind to the walk clause at nominal.
+- *A per-leaf meet on root inputs:* legal by the clause but yields a cell type
+  no consumer declared, needs a leaf walk abstract co-consumers cannot join,
+  and goes beyond [D-168][d-168]'s wording for a case with no known instance.
+
+### D-237 — Classify a non-isbits immutable port type as one opaque leaf
+
+**Status.** ratified
+
+**Position.** The leaf walk over a port type descends through `Real`s, static
+arrays and isbits structs, and stops at an immutable type that is not isbits,
+treating it as one opaque leaf: a cell of that type holds the value itself,
+reference fields included. A mutable type anywhere in a port value is refused
+(`IllegalPortType`), and so is a handle-typed face surfacing as a root input.
+
+**Spec.** [§4.3][s4-3], [§4.4][s4-4], [Appendix C][sC]
+
+**Rationale.** [§4.4][s4-4] already fixes the boundary: a bulk-data model is an
+immutable struct combining isbits parameters with references to data loaded at
+build time and frozen, never a `Ref`. The classification reads that
+description off the type, so an author declares nothing and the walk cannot
+drift from the prose. The store is the existing one: a handle type is its own
+leaf eltype with one homogeneous store, and Julia keeps an immutable struct
+with reference fields inline in an array, so the gather and the scatter are
+one load and one store, the allocation-free rebuild [§4.4][s4-4] promises. The handle's
+declaration contains no `T`, so its cell is the same type at every activation
+and no embedding applies. The wire relation ([D-236][d-236]) admits it at an abstract
+entry by the bound clause and needs no arm of its own.
+
+A root input of handle type has no synthesis (`probe_value`) and no producer.
+Refusing it keeps the field-emitting component, with its value-level
+constructor, as the one way bulk data enters a model; a caller-supplied root
+handle would be a second injection path, closed for the first cut ([D-008][d-008]).
+
+**Rejected.**
+- *An author-declared trait marking handle types:* a second place for the
+  boundary [§4.4][s4-4] already states, and one that can drift from it.
+- *Walking into the references (the built shape):* `leaf_types` descends into a
+  `Vector`'s fields, the build succeeds and the first gather dies in a raw
+  `MethodError`, neither supported nor refused.
+- *Supplying a handle-typed root input at build:* a second injection path
+  beside the value-level constructor, reopening what [D-008][d-008] closed.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -8641,6 +8799,9 @@ unwritten practice.
 [d-232]: #d-232--refuse-the-roster-operations-on-an-errored-simulation
 [d-233]: #d-233--retire-the-termination-records-absent-time-arm
 [d-234]: #d-234--rename-the-deployment-keyword-n-to-n_base
+[d-235]: #d-235--realize-the-always-on-check-at-the-generated-write-against-the-cell-type
+[d-236]: #d-236--type-check-a-wire-by-one-relation-with-embedding-in-stratum-a
+[d-237]: #d-237--classify-a-non-isbits-immutable-port-type-as-one-opaque-leaf
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

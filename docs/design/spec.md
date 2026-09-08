@@ -420,6 +420,13 @@ cell (`pose = KinPose{T}`). Nested fields get no cells of their own; GUI and log
 drill into them lazily (the view clause, [§4.2][s4-2]). Bare-struct returns are rejected
 ([D-036][d-036]).
 
+A port value's leaves are what the leaf walk reaches through `Real`s, static
+arrays and isbits structs. The walk stops at an immutable type that is not
+isbits and treats it as one opaque leaf (a leaf the table stores whole,
+references included): that is the [field handle](#g-field-handle) ([§4.4][s4-4]). A
+mutable type anywhere in a port value is refused, and so is a handle-typed face
+surfacing as a root input (`IllegalPortType`, [D-237][d-237]).
+
 #### Granularity, read side
 
 **Rule.** Wiring is port-granular: no sub-field connections. A consumer that
@@ -1097,6 +1104,11 @@ no user stage code runs ([§9.1][s9-1]). A violation is
 `WalkingFaceAtFrozenEntry`, naming both endpoints, the leaf and both declared
 leaf types. The message carries both remedies: declare the entry `T` if the
 consumer promotes, or feed it from a non-walking source if the freeze is genuine.
+
+For an abstract entry, whose leaves cannot be enumerated, the clause is decided
+on the whole declaration: the producer's declaration at the marker, or the same
+with every pinned leaf lifted to the marker, must be `<:` the entry at the
+marker ([D-236][d-236]).
 
 **The [tier](#g-tier) scope is load-bearing, not tidiness.** A discrete consumer
 takes the bound check alone, because its stages read exclusively at real
@@ -2044,7 +2056,11 @@ and a `Float64`-entry root input is *declaredly* unseedable ([§14.10][s14-10]).
 
 **Fan-out combines tolerance by a meet, not by agreement** ([D-168][d-168]): the root input
 pins at every activation if *any* consumer's entry pins, and follows the scalar
-only when every consumer tolerates. Two consumers of one root input may agree at
+only when every consumer tolerates. Concretely, the root-input cells at an
+activation are the root-input type with every leaf following the scalar when
+every consumer's entry admits that type, and the root-input type itself
+otherwise. A mixture of pins across leaves therefore pins the whole root input
+([D-236][d-236]). Two consumers of one root input may agree at
 nominal and still differ in tolerance. `SVector{3, T}` and
 `SVector{3, Float64}` both evaluate to `SVector{3, Float64}`, so the root input
 *type* is unambiguous while the entries disagree about partials. That mixture
@@ -3387,12 +3403,13 @@ schema-authority bargain's second clause ("at first execution otherwise",
 [§8.1][s8-1]) is discharged by leaving the probe's comparison permanently in place.
 At the point where the [executor](#g-executor) (the compiled execution form of
 the schedule) stores a stage return into the table, it holds the complete
-expected return type at this [activation](#g-activation). That type comprises
-the declared types of the names *this stage* produces, as fixed by
-[Stratum](#g-stratum) B's stage classification: one concrete `NamedTuple` type
-per ([component](#g-component), stage). It is drawn from `output_types(c, T)`
-on a continuous producer and from `output_types(c)` on a discrete one
-([§8.2][s8-2]). Auto-published names belong to no stage's expected type;
+expected return type at this [activation](#g-activation). That type is the
+type of the [cells](#g-cell) this stage writes, as the probe fixed them at this
+activation: one concrete `NamedTuple` type per ([component](#g-component),
+stage), the stage's declared names at the types their cells hold ([§8.2][s8-2]). The
+write is generated over that type and the return's type, so the test is
+decided when the write's method is specialized, and no per-field instruction
+reaches the conformant path ([D-235][d-235]). Auto-published names belong to no stage's expected type;
 the framework writes those [cells](#g-cell) itself. The executor canonicalizes the
 observed return to that type's field order by a type-level reorder
 (`NamedTuple{names(Expected)}(y2)`) and performs a single
@@ -10382,7 +10399,7 @@ with the collection and never triggering its throw — is currently empty
 | `ChildNameCollision` | assembly path, the colliding child name, reason (a bare container key against the `sample_times` sugar, [D-211][d-211] / against a sibling field, [D-212][d-212] / two children with one name), both provenances | [§8.5][s8-5] | error | build | fail-fast |
 | `TransparentContainerUnknown` | assembly path, the field `transparent_container` names, the type's container fields (the list-in-hand) | [§8.5][s8-5], [D-211][d-211] | error | build | fail-fast |
 | `TierUnreadable` | component path, type, the declarations found — no `output_types`, no state — and the tier-announcing family list; the tier twin of `ClassUnreadable` | [§5.2][s5-2], [§8.2][s8-2], [§8.5][s8-5] | error | build | collected |
-| `IllegalPortType` | component path, the declaration at fault (`input_types`/`output_types`, or a root input), port name, the offending type — one with no numeric leaves; the leaf vocabulary ([§7.1][s7-1]) | [§7.1][s7-1], [§8.2][s8-2] | error | build | collected |
+| `IllegalPortType` | component path, the declaration at fault (`input_types`/`output_types`, or a root input), port name, the offending type — one with no numeric leaves, a mutable one, or a handle at a root input; the leaf vocabulary ([§7.1][s7-1]) | [§7.1][s7-1], [§8.2][s8-2] | error | build | collected |
 | `IllegalStoreField` | component path, the store at fault (`init_s`/`init_m`), field name, the offending type — one neither isbits nor `Symbol`; the fix (text and bulk data belong on the component instance) | [§7.3][s7-3], [§8.2][s8-2], [§9.1][s9-1] | error | build | collected |
 
 **Schedule and contract conformance** (Strata B and C):
@@ -11579,6 +11596,9 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-231]: decisions.md#d-231--require-isbits-store-values-checked-at-build
 [d-232]: decisions.md#d-232--refuse-the-roster-operations-on-an-errored-simulation
 [d-233]: decisions.md#d-233--retire-the-termination-records-absent-time-arm
+[d-235]: decisions.md#d-235--realize-the-always-on-check-at-the-generated-write-against-the-cell-type
+[d-236]: decisions.md#d-236--type-check-a-wire-by-one-relation-with-embedding-in-stratum-a
+[d-237]: decisions.md#d-237--classify-a-non-isbits-immutable-port-type-as-one-opaque-leaf
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
