@@ -8229,6 +8229,10 @@ section already prescribes there. [D-057][d-057]'s rejection of dependent-check
 skipping is narrowed accordingly: the rule skips a pass whose input never
 came to exist, never a check inside a poisoned subtree.
 
+Annotation (2026-09-08): the wire bound check moved to Stratum A's wire pass
+with [D-236][d-236] and collects under that stratum's barrier; the chain's fail-fast
+keeps stage-2 conformance and two-stage production.
+
 **Rejected.**
 - *Per-pass scope:* a typo'd wire beside a malformed `state_events` entry
   costs two build cycles, and the merge that saves the second is ten lines.
