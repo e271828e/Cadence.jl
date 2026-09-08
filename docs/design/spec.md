@@ -3410,15 +3410,18 @@ stage), the stage's declared names at the types their cells hold ([§8.2][s8-2])
 write is generated over that type and the return's type, so the test is
 decided when the write's method is specialized, and no per-field instruction
 reaches the conformant path ([D-235][d-235]). Auto-published names belong to no stage's expected type;
-the framework writes those [cells](#g-cell) itself. The executor canonicalizes the
-observed return to that type's field order by a type-level reorder
-(`NamedTuple{names(Expected)}(y2)`) and performs a single
-type test against that type (conceptually `y2 isa Expected`). Type-stable conformant
-code: the compiler proves the return type, decides the test at compile time,
-and deletes it — zero instructions. Branch-divergent code: the test survives
-as a runtime check, nanoseconds on conformant branches, a loud located error
-on the divergent one at its first execution. (Type-unstable-but-conformant
-code pays nanoseconds on top of the dynamic dispatch it already bought.)
+the framework writes those [cells](#g-cell) itself. When the write's method
+is generated, the return's key set is compared with the expected type's, and
+each returned field is held to its cell's type under the relation below. A
+conformant return type generates the straight stores and nothing else. A
+non-conformant one generates a throw of the failure payload, raised the first
+time that branch executes. Type-stable conformant code: the compiler proves
+the return type, one method is generated, and no check instruction exists to
+delete. Branch-divergent code: each return type the stage can produce gets
+its own method, the union split the code already pays, and the check is
+absent from every conformant one; the divergent branch's method is the loud
+located error at its first execution. (Type-unstable-but-conformant code pays
+the dynamic dispatch it already bought, and nothing on top.)
 
 **The names are the pairing; field order carries no semantics.** `Expected`'s
 order is an internal fact — derived from `output_types`, stage-filtered,
@@ -3430,10 +3433,12 @@ every author↔framework `NamedTuple` [seam](#g-seam) ([§14.7][s14-7] states it
 for the trim problem's decisions and residuals). It is also what downstream
 consumption already assumes: the scatter writes each returned field into its
 own *named* cell ([§4.3][s4-3]). Order-sensitivity in the check would therefore
-be incidental strictness rather than protection. The canonicalizing reorder
-costs nothing: it is a compile-time permutation of an already-typed value,
-register shuffling SROA deletes. It folds exactly where the test folds, so the
-economics ([D-053][d-053]) hold — one whole-type test, never per-field checks. The
+be incidental strictness rather than protection. Pairing by name costs
+nothing: the generated write reads each returned field by name and stores it
+into its cell, so no permutation of the value exists at runtime. The
+per-field reasoning happens on types at generation and emits no per-field
+instruction, which is how the economics ([D-053][d-053]) hold: its one baked
+type test, resolved by dispatch rather than executed ([D-235][d-235]). The
 canary ([§7.5][s7-5]) verifies the fold empirically rather than by assertion.
 What is an error is a key-set mismatch or a per-field type mismatch, reported
 by the [payload](#g-payload) below. A permutation is not an error at all —
@@ -3441,14 +3446,14 @@ which is equally why that diff never has to express one.
 
 **Exact match at nominal; embed-accept at declared-`T` leaves.** At
 the nominal activation — the only one that ever runs in real time — the check
-is an exact type match, no convert-on-write, one baked `isa` that
-folds away ([D-053][d-053]). The error can afford to be
+is an exact type match, no convert-on-write, decided at generation and
+absent from the conformant path ([D-053][d-053], [D-235][d-235]). The error can afford to be
 didactic: "field `M_shaft`: expected `Float64`, got `Int64` — return
 `zero(x.ω)`, not `0`". Under a non-nominal activation (a re-run of Stratum C at
 a given scalar type) the two leaf kinds the declaration ([§8.2][s8-2]) distinguishes
 are checked differently. A **declared-`T` leaf** — the author wrote `T` there —
 accepts exactly two types: the activation scalar or `Float64`. The activation
-scalar is the fast path, the baked `isa`. A `Float64` the executor **embeds**
+scalar is the fast path, the straight store. A `Float64` the executor **embeds**
 as a zero-partial constant (`convert` through the leaf). Struct-valued
 [ports](#g-port) use the standard cross-eltype constructor, a missing one
 failing loudly with both types named. Nothing else is accepted. A
@@ -10411,7 +10416,7 @@ with the collection and never triggering its throw — is currently empty
 | `DeclaredNotProduced` | component path, declared name, the stage-product list and the state-field list | [§8.3][s8-3] | error | build | collected |
 | `UndeclaredReturnField` | component path, stage, returned field name, candidates (`output_types`) | [§8.3][s8-3], [§8.4][s8-4] w5 | error | build | fail-fast |
 | `DeadStage` | component path, stage — a stage method returning bare `(;)`, producing no ports | [§5.2][s5-2], [§9.3][s9-3] | error | build, at probe | fail-fast |
-| `ConformanceFailure` | component path, function, field-level diff (missing / unexpected / per-field expected-vs-observed — order-insensitive, the return having been canonicalized first), simulation time | [§9.5][s9-5] | error | build, at probe; runtime thereafter | fail-fast — a `StepError` species at runtime |
+| `ConformanceFailure` | component path, function, field-level diff (missing / unexpected / per-field expected-vs-observed — order-insensitive, fields pairing by name), simulation time | [§9.5][s9-5] | error | build, at probe; runtime thereafter | fail-fast — a `StepError` species at runtime |
 | `GuardForm` | component path, event name, observed probe return type, both admissible forms | [§9.5][s9-5] | error | build | fail-fast |
 | `BundleFieldError` | component path, function family, requested field, the legal field set, classification (undeclared store / wrong-tier fact / illegal for this function family) | [§5.2][s5-2], [§13.2][s13-2] | error | build, at probe; runtime thereafter | fail-fast — a `StepError` species at runtime |
 | `HandlerReturnKey` | component path, event name, offending key, the legal set `{x, m}` narrowed to the stores that exist | [§5.2][s5-2], [§9.5][s9-5] | error | build | fail-fast |
@@ -10921,11 +10926,11 @@ workspace allocators re-invoked, probe chain re-run. Structure and schedule are 
 non-nominal activations are lazy, with an opt-in exhaustive set for CI ([§9.4][s9-4]).
 
 <a id="g-always-on-conformance-check"></a>**always-on conformance check** — the probe's comparison left permanently in
-place: one type test of a stage return against the declaration-derived
-expected `NamedTuple` at the table-write point, preceded by a type-level
-reorder to that type's field order (the names pair; order carries no
-semantics), both folding to zero instructions
-when the return type is proven ([§9.5][s9-5]).
+place: the key-set and per-field comparison of a stage return against the
+type of the cells it writes, decided when the table write's method is
+generated over the two types (the names pair; order carries no semantics).
+A conformant return type generates the straight stores and no check
+instruction ([§9.5][s9-5], [D-235][d-235]).
 
 <a id="g-build"></a>**`Build`** — the artifact `build(world)` produces: wire list, face table with
 provenance, schedule and root inputs as plain printable data — the inspectable
