@@ -17,13 +17,9 @@ Where the reason is not given here, the cited decision carries it:
 
 - **The Appendix C kinds whose mechanism is absent** — an absence gets no
   struct (`ThreadBudget`, `DeadStage`, `BundleFieldError`, `UserCodeFraming`,
-  `UnboundedRun`; likewise `IllegalStateLeaf`, `MissingProbeValue` and
-  `TierSignatureMismatch`, whose *checks* are absent (a contract bounded
-  narrower than `Real` has no method at the marker scalar or at any `Dual`,
-  so the `::Any` fallback answers with an empty declaration and Stratum A's
-  wire pass raises a raw `FieldError` at the nominal build);
-  `TapResolution` comes from the read register alone, never §14.10's absent
-  tap register). One periphery refusal is still
+  `UnboundedRun`; likewise `IllegalStateLeaf` and `MissingProbeValue`, whose
+  *checks* are absent; `TapResolution` comes from the read register alone,
+  never §14.10's absent tap register). One periphery refusal is still
   a plain `error(...)` with no kind — a datum naming no channel of a
   `TableBinding` (`bindings.jl` ~93): it runs on the device task inside the
   author's own mapping and reaches the framework as a `DeviceCrash` `cause`,
@@ -56,8 +52,10 @@ Where the reason is not given here, the cited decision carries it:
   `ReadBindingUnresolved` the binding type where the column says device type,
   `ServiceLifecycle.legal` empty at `init!`, `trim!` and `replay!` (only
   `capture` fills it), `DeclarationOnWrongTier` naming the two tiers rather
-  than §8.5's two forms, `EventHalfMissing.found` a model type interpolated
-  into the message against §13.2 (`_typename` is one screen up). The writer
+  than §8.5's two forms, `TierSignatureMismatch` its bound arm alone, the
+  arity arms riding as `DeclarationOnWrongTier`'s `:tier_form`,
+  `EventHalfMissing.found` a model type interpolated into the message against
+  §13.2 (`_typename` is one screen up). The writer
   id missing from `OutOfClaimEntry`/`DeviceCrash`/`ReplayDiscardedStaging`/
   `MalformedDatum`/`EntryTypeMismatch` awaits the spec-pass ruling below.
 - **§8.3 visibility**; **auto-published ports** — not a quiet absence but a

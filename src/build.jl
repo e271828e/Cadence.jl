@@ -417,18 +417,42 @@ activation, anything else is pinned. It never enters arithmetic.
 struct Marker <: Real end
 Base.show(io::IO, ::Type{Marker}) = print(io, "T")   # a declaration at the marker prints as written
 
-# The two type clauses on every resolved wire, and the root-input type with its
-# two refusals. Pure declaration reading — the contracts are evaluated at
-# `Float64` for the bound clause and at the marker for the walk clause; no stage
-# runs. The pass collects (§13.1): every wire is checked, and the barrier throws
-# once.
+# The bound a two-argument contract puts on its `T`, read off the method matched
+# at `Float64` (§8.5). Throwing path only.
+function _contract_bound(fn, c)
+    body = Base.unwrap_unionall(which(fn, Tuple{typeof(c),Type{Float64}}).sig)
+    tv = body.parameters[3].parameters[1]
+    tv isa TypeVar ? tv.ub : tv
+end
+
+# The contract-bound check, the two type clauses on every resolved wire, and the
+# root-input type with its two refusals. Pure declaration reading — the
+# contracts are evaluated at `Float64` for the bound clause and at the marker for
+# the walk clause; no stage runs. The pass collects (§13.1): every wire is
+# checked, and the barrier throws once.
 function _check_wires(flat::Flat, tiers::Vector{Tier}, diags::Vector{Diagnostic})
+    # A continuous contract bounded narrower than `Real` (§8.5) has no method at
+    # the marker, so its marker declaration is the `::Any` fallback's empty
+    # `NamedTuple` — refuse the component and skip every wire and root entry that
+    # touches it, rather than index that emptiness by face.
+    refused = falses(length(flat.comps))
+    for (ci, (c, t)) in enumerate(zip(flat.comps, tiers))
+        t === CONTINUOUS || continue
+        for fn in (input_types, output_types)
+            (_declares(fn, c, Type{Float64}) && !_declares(fn, c, Type{Marker})) || continue
+            push!(diags, TierSignatureMismatch(path = flat.paths[ci], declaration = nameof(fn),
+                                               tier = :continuous, reason = :bound,
+                                               found = _contract_bound(fn, c)))
+            refused[ci] = true
+        end
+    end
     at(fn, S) = [declared_at(fn, c, t, S) for (c, t) in zip(flat.comps, tiers)]
     ins_F, outs_F = at(input_types, Float64), at(output_types, Float64)
     ins_M, outs_M = at(input_types, Marker), at(output_types, Marker)
     for (ci, conns) in enumerate(flat.conns), (face, (ppath, pport)) in conns
         isempty(ppath) && continue                  # a root input: typed below
         pi = index_of(flat, ppath)
+        (refused[ci] || refused[pi]) && continue
         P_F, V_F = ins_F[ci][face], outs_F[pi][pport]
         if !_accepts_wire(P_F, V_F, Float64)
             push!(diags, WireTypeMismatch(path = flat.paths[ci], face = face, declared = P_F,
@@ -446,12 +470,15 @@ function _check_wires(flat::Flat, tiers::Vector{Tier}, diags::Vector{Diagnostic}
                                               observed = observed))
     end
     for face in flat.root_inputs
-        paths, faces, entries = String[], Symbol[], Any[]
+        paths, faces, entries, routed = String[], Symbol[], Any[], false
         for (ci, conns) in enumerate(flat.conns), (f, producer) in conns
             producer === ("", face) || continue
+            routed = true
+            refused[ci] && continue
             push!(paths, flat.paths[ci]); push!(faces, f); push!(entries, ins_F[ci][f])
         end
-        isempty(paths) && throw(InternalInvariant("root input face `$face` routes to no input"))
+        routed || throw(InternalInvariant("root input face `$face` routes to no input"))
+        isempty(paths) && continue          # every consumer refused; the barrier throws
         conc = findall(isconcretetype, entries)
         if isempty(conc)
             push!(diags, AbstractAtRoot(face = face, paths = paths, declared = entries))

@@ -269,6 +269,8 @@ function diagnostics_kind_set()
             DeclarationOnWrongTier(path = "a/b", declaration = :state_projection, reason = :continuous_only,
                                    found = :discrete),
             DeclarationOnWrongTier(path = "a/b", declaration = :state_projection, reason = :no_manifold),
+            TierSignatureMismatch(path = "a/b", declaration = :output_types, tier = :continuous,
+                                  reason = :bound, found = AbstractFloat),
             FaceNameIllegal(path = "a", face = "u/v", invariant = :contains_slash),
             FaceNameCollision(path = "a", faces = ["u"], site = :assembly),
             FaceNameCollision(path = "", faces = ["u"], site = :root),

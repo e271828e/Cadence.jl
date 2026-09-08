@@ -411,6 +411,18 @@ output_types(::BothArities, ::Type{T}) where {T <: Real} = (a = T,)
 output_types(::BothArities) = (a = Float64,)
 output_state(::BothArities, (; t)) = (a = 1.0,)
 
+# §8.5's bound arm: a continuous contract whose `T` is narrower than `Real` has
+# no method at the marker, so the `::Any` fallback answers with an empty
+# declaration and the wire pass would index that emptiness by face.
+struct NarrowOutput <: AbstractComponent end
+output_types(::NarrowOutput, ::Type{T}) where {T <: AbstractFloat} = (a = T,)
+output_state(::NarrowOutput, (; t)) = (a = 1.0,)
+
+struct NarrowInput <: AbstractComponent end
+input_types(::NarrowInput, ::Type{T}) where {T <: AbstractFloat} = (u = T,)
+output_types(::NarrowInput, ::Type{T}) where {T <: Real} = (y = T,)
+output_direct(::NarrowInput, (; u)) = (y = u.u,)
+
 function build_tier()
     @testset "tier is read off the declaration shape (§8.2)" begin
         # The two deciders: the update law for a stateful leaf, the contract arity
@@ -448,6 +460,32 @@ function build_tier()
         @test d isa DeploymentInvalid
         @test d.parameter === :h && d.reason === :missing
         @test Simulation(b; h = 1//10) isa Simulation
+    end
+
+    @testset "a continuous contract bounded narrower than Real is refused (§8.5)" begin
+        d = only(diagnostics(failure(() -> build(single(NarrowOutput())))))
+        @test d isa TierSignatureMismatch
+        @test path(d) == "c" && d.declaration === :output_types && d.tier === :continuous
+        @test d.reason === :bound && d.found === AbstractFloat && d.mandated === Real
+
+        # The wire it feeds is skipped, so the refusal is the whole report.
+        d2 = only(diagnostics(failure(() -> build(Group((; p = NarrowOutput(), c = RealEntry());
+                                                        wires = ("p/a" => "c/u",))))))
+        @test d2 isa TierSignatureMismatch && d2.declaration === :output_types
+
+        d3 = only(diagnostics(failure(() -> build(Group((; src = NomSource(), c = NarrowInput());
+                                                        wires = ("src/val" => "c/u",))))))
+        @test d3 isa TierSignatureMismatch && path(d3) == "c" && d3.declaration === :input_types
+
+        # Both refusals and an unrelated walk failure merge into one throw.
+        err = failure(() -> build(Group((; p = NarrowOutput(), n = NarrowInput(),
+                                           src = NomSource(), z = FrozenEntry());
+                                        wires = ("src/val" => "n/u", "src/val" => "z/u"))))
+        ds = diagnostics(err)
+        @test err isa DiagnosticError && length(ds) == 3
+        @test Set(kinds(err)) == Set([TierSignatureMismatch, WalkingFaceAtFrozenEntry])
+        @test Set((d.path, d.declaration) for d in ds if d isa TierSignatureMismatch) ==
+              Set([("p", :output_types), ("n", :input_types)])
     end
 end
 

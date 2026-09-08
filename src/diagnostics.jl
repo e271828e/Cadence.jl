@@ -469,6 +469,21 @@ message(d::DeclarationOnWrongTier) =
     "`$(d.path)`: `$(d.declaration)` is declared in the $(d.found)-tier form, but this " *
     "component's other declarations announce the $(d.announced) tier (§8.2)"
 
+"§8.2, §8.5: a contract signature whose form is not the one its tier mandates — here the bound arm, a `T` narrower than `Real`."
+Base.@kwdef struct TierSignatureMismatch <: Diagnostic
+    path::String
+    declaration::Symbol                      # :input_types | :output_types
+    tier::Symbol                             # :continuous
+    reason::Symbol                           # :bound — the arity arms ride as `DeclarationOnWrongTier`'s `:tier_form`
+    found::Any                               # the bound the method puts on `T`
+    mandated::Any = Real
+end
+path(d::TierSignatureMismatch) = d.path
+message(d::TierSignatureMismatch) =
+    "$(_at_path(d.path)): `$(d.declaration)` bounds its `T` by $(d.found), but a " *
+    "continuous contract is a function of every activation scalar — declare it " *
+    "`where {T <: Real}` (§8.5)"
+
 "§8.6: a face name holding `/`, the separator reserved for structural paths."
 Base.@kwdef struct FaceNameIllegal <: Diagnostic
     path::String
