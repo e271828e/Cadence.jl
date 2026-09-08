@@ -2556,8 +2556,9 @@ take the two-argument form `input_types(::C, ::Type{T}) where {T <: Real}` and
 `output_types(::C, ::Type{T}) where {T <: Real}`; on a discrete leaf, both must
 take the plain one-argument form.
 
-Either violation — a continuous declaration missing the `T`-form, a discrete
-declaration carrying one — is `TierSignatureMismatch` ([Appendix C][sC]). The
+Any of three violations — a continuous declaration missing the `T`-form, a
+discrete declaration carrying one, a `T`-form bounded narrower than `Real` —
+is `TierSignatureMismatch` ([Appendix C][sC]). The
 diagnostic reports the component path, the declaration at fault, the tier its
 other declarations announce, and the form found versus the form mandated. The
 check is Stratum A and collected: declaration shape is read, nothing is
@@ -3456,7 +3457,11 @@ accepts exactly two types: the activation scalar or `Float64`. The activation
 scalar is the fast path, the straight store. A `Float64` the executor **embeds**
 as a zero-partial constant (`convert` through the leaf). Struct-valued
 [ports](#g-port) use the standard cross-eltype constructor, a missing one
-failing loudly with both types named. Nothing else is accepted. A
+failing loudly with both types named. Nothing else is accepted. The check is
+decided on the type, not leaf by leaf: the arrival with its `Float64`
+positions lifted to the scalar wherever the declaration has one must be the
+declaration itself, so a field name, a non-numeric type parameter or an
+array's mutability that differs is refused like any other mismatch ([D-238][d-238]). A
 **declared-[pinned](#g-walked) leaf** — the author wrote a concrete type,
 `Float64` at the head of the list — takes the nominal-style exact check at
 *every* activation, its declaration having said the leaf never carries
@@ -10394,7 +10399,7 @@ with the collection and never triggering its throw — is currently empty
 | `ClassMixed` | component path, the `child_connections` declaration and the offending leaf declarations | [§8.5][s8-5] | error | build | fail-fast |
 | `ContainerMixed` | container field path, offending element keys/indices, their types | [§8.5][s8-5] | error | build | fail-fast |
 | `DeclarationOnWrongTier` | component path, the offending declaration (`state_derivative`/`state_update`, a store from the wrong family — `init_x` against `init_s`, [D-195][d-195] — `state_events`, `init_m`, `state_projection`, or an `init_workspace`/`output_types` arity), the tier the leaf's other declarations announce | [§5.2][s5-2], [§8.2][s8-2], [§8.5][s8-5] | error | build | collected |
-| `TierSignatureMismatch` | component path, the declaration at fault (`input_types` or `output_types`), the leaf's tier, the signature form found versus the form mandated (two-argument `(::C, ::Type{T})` on the continuous tier, plain `(::C)` on the discrete); stateful leaves only — on a stateless leaf `output_types`' arity *is* the tier ([§8.2][s8-2]), so there is nothing to mismatch | [§8.2][s8-2], [§8.5][s8-5] | error | build | collected |
+| `TierSignatureMismatch` | component path, the declaration at fault (`input_types` or `output_types`), the leaf's tier, the signature form found versus the form mandated (two-argument `(::C, ::Type{T})` on the continuous tier, plain `(::C)` on the discrete); stateful leaves only — on a stateless leaf `output_types`' arity *is* the tier ([§8.2][s8-2]), so there is nothing to mismatch; a two-argument form whose `T` is bounded narrower than `Real` is the same violation on any continuous leaf, decided by method lookup at the marker scalar ([§6.1][s6-1]), the bound found versus the mandated `T <: Real` | [§6.1][s6-1], [§8.2][s8-2], [§8.5][s8-5] | error | build | collected |
 | `FaceNameIllegal` | assembly path, face name, the violated invariant (contains `/`) | [§8.6][s8-6] | error | build | collected |
 | `FaceNameCollision` | assembly path, face name, both entries' provenance (hand-written / computed) | [§8.6][s8-6] | error | build | collected |
 | `FaceDirectionConflict` | assembly path, the declaring method, the offending entry, the resolved port's actual direction | [§8.6][s8-6] | error | build | collected |
@@ -11604,6 +11609,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-235]: decisions.md#d-235--realize-the-always-on-check-at-the-generated-write-against-the-cell-type
 [d-236]: decisions.md#d-236--type-check-a-wire-by-one-relation-with-embedding-in-stratum-a
 [d-237]: decisions.md#d-237--classify-a-non-isbits-immutable-port-type-as-one-opaque-leaf
+[d-238]: decisions.md#d-238--decide-embed-accept-on-the-type-lift-the-arrival-compare-exactly
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
