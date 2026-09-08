@@ -8595,8 +8595,14 @@ running silently (increment 32's review). A parallel walk over the two types'
 parameters, lifting a `Float64` in `V` where `P` has `T` and leaving every
 other position as written, is [D-166][d-166]'s statement decided on the type: [§9.5][s9-5]'s
 exact match at nominal is the case where nothing lifts and the relation is
-`===`, and the embedding is the one asymmetry. A parameterless type compares
-by identity, so [D-237][d-237]'s opaque leaves need no arm of their own.
+`===`, and the embedding is the one asymmetry. The lift is positional on the
+type, so it also reaches a `T` that carries no scalar, such as a tag parameter
+(`Tag{T}` with no field of type `T`): the store holds leaves and rebuilds the
+declaration from them, so `Tag{Float64}` arriving at `Tag{D8}` is normalized
+to the declaration rather than converted, the pinned-into-walking direction
+[D-236][d-236] already admits, while `Tag{D8}` at `Tag{Float64}` stays refused. A
+parameterless type compares by identity, so [D-237][d-237]'s opaque leaves need no arm
+of their own.
 
 **Rejected.**
 - *Superseded position — the leafwise walk:* exact on leaves, blind to the
