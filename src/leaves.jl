@@ -1,9 +1,17 @@
 # Leaf walk over the closed value vocabulary (spec §7.1): real scalars, static
 # arrays, and isbits structs whose fields are drawn from the same vocabulary.
+# A port value admits a third leaf kind (§4.3, §4.4, D-237): a concrete
+# immutable type that is not isbits is one *opaque* leaf, stored whole with its
+# references — the field handle. The walk never looks inside one.
 #
 # Shared by both candidates: the continuous state buffer is flat by decision
 # (§7.1), so *some* flatten/reconstruct machinery is needed either way. C2 then
 # reuses it for cells; C1 uses it only for state.
+
+# D-237's opaque leaf: a concrete immutable type that is not isbits — a
+# handle, a `String`, a `Symbol` — stored whole. Abstract types are not
+# leaves and fall through to the struct walk as before.
+_opaque(::Type{P}) where {P} = isconcretetype(P) && !isbitstype(P) && !ismutabletype(P)
 
 """
     nleaves(P)
@@ -13,18 +21,21 @@ buffer. Layout-time only — never on an evaluation path.
 """
 nleaves(::Type{<:Real}) = 1
 nleaves(::Type{P}) where {P<:StaticArray} = length(P) * nleaves(eltype(P))
-nleaves(::Type{P}) where {P} = sum(nleaves, fieldtypes(P); init = 0)
+nleaves(::Type{P}) where {P} = _opaque(P) ? 1 : sum(nleaves, fieldtypes(P); init = 0)
 
 """
     leaf_types(P)
 
 The element type of each leaf a value of type `P` occupies, in flat order.
 Layout-time only — the shape counterpart of `nleaves`, used to check a declared
-cell against the store it has to live in.
+cell against the store it has to live in. An opaque leaf is its own eltype: the
+handle type itself, one entry (D-237).
 """
 leaf_types(::Type{P}) where {P<:Real} = Type[P]
 leaf_types(::Type{P}) where {P<:StaticArray} = repeat(leaf_types(eltype(P)), length(P))
-leaf_types(::Type{P}) where {P} = reduce(vcat, (leaf_types(FT) for FT in fieldtypes(P)); init = Type[])
+leaf_types(::Type{P}) where {P} =
+    _opaque(P) ? Type[P] :
+    reduce(vcat, (leaf_types(FT) for FT in fieldtypes(P)); init = Type[])
 
 """
     leaf_eltypes(P)
@@ -56,10 +67,31 @@ function _leaf_names!(out, ::Type{P}, pre) where {P<:StaticArray}
 end
 
 function _leaf_names!(out, ::Type{P}, pre) where {P}
+    _opaque(P) && return (push!(out, pre); out)
     for (n, FT) in zip(fieldnames(P), fieldtypes(P))
         _leaf_names!(out, FT, isempty(pre) ? string(n) : string(pre, ".", n))
     end
     out
+end
+
+"""
+    mutable_position(P)
+
+The dotted name and type of the first mutable type the leaf walk over `P`
+meets, or `nothing`. Layout-time only — `place!`'s refusal (D-237).
+"""
+mutable_position(::Type{P}) where {P} = _mutable_position(P, "")
+
+function _mutable_position(::Type{P}, pre) where {P}
+    P <: Real && return nothing                  # `BigFloat` is a mutable `Real`, and a leaf
+    ismutabletype(P) && return (pre, P)
+    P <: StaticArray && return _mutable_position(eltype(P), string(pre, "[1]"))
+    _opaque(P) && return nothing                 # the walk never looks inside a handle
+    for (n, FT) in zip(fieldnames(P), fieldtypes(P))
+        r = _mutable_position(FT, isempty(pre) ? string(n) : string(pre, ".", n))
+        r === nothing || return r
+    end
+    nothing
 end
 
 # --- expression builders (compile time) --------------------------------------
@@ -67,9 +99,7 @@ end
 # Returns (expr, next_base): `expr` reconstructs a `P` from `buf` starting at
 # `off + base + 1`, with all indices static relative to `off`.
 function _reconstruct_expr(::Type{P}, base::Int) where {P}
-    if P <: Real
-        return :(@inbounds buf[off + $(base + 1)]), base + 1
-    elseif P <: StaticArray
+    if P <: StaticArray
         args = Expr[]
         b = base
         for _ in 1:length(P)
@@ -77,6 +107,8 @@ function _reconstruct_expr(::Type{P}, base::Int) where {P}
             push!(args, e)
         end
         return Expr(:call, P, args...), b
+    elseif P <: Real || _opaque(P)
+        return :(@inbounds buf[off + $(base + 1)]), base + 1
     else
         args = Expr[]
         b = base
@@ -94,16 +126,16 @@ end
 # denoted by expression `v` into `buf` starting at `off + base + 1`.
 function _flatten_expr(::Type{P}, v, base::Int) where {P}
     stmts = Expr[]
-    if P <: Real
-        push!(stmts, :(@inbounds buf[off + $(base + 1)] = $v))
-        return Expr(:block, stmts...), base + 1
-    elseif P <: StaticArray
+    if P <: StaticArray
         b = base
         for i in 1:length(P)
             blk, b = _flatten_expr(eltype(P), :(@inbounds $v[$i]), b)
             push!(stmts, blk)
         end
         return Expr(:block, stmts...), b
+    elseif P <: Real || _opaque(P)
+        push!(stmts, :(@inbounds buf[off + $(base + 1)] = $v))
+        return Expr(:block, stmts...), base + 1
     else
         b = base
         for (i, FT) in enumerate(fieldtypes(P))
@@ -123,13 +155,13 @@ end
 # these emit exactly the single-base expressions above.
 
 function _mreconstruct_expr(::Type{P}, Ls::Vector, bases::Vector{Int}) where {P}
-    if P <: Real
+    if P <: StaticArray
+        args = [_mreconstruct_expr(eltype(P), Ls, bases) for _ in 1:length(P)]
+        return Expr(:call, P, args...)
+    elseif P <: Real || _opaque(P)
         k = findfirst(==(P), Ls)
         bases[k] += 1
         return :(@inbounds $(Symbol(:buf, k))[offs[$k] + $(bases[k])])
-    elseif P <: StaticArray
-        args = [_mreconstruct_expr(eltype(P), Ls, bases) for _ in 1:length(P)]
-        return Expr(:call, P, args...)
     else
         args = [_mreconstruct_expr(FT, Ls, bases) for FT in fieldtypes(P)]
         P <: NamedTuple && return Expr(:call, P, Expr(:tuple, args...))
@@ -139,14 +171,14 @@ end
 
 function _mflatten_expr(::Type{P}, v, Ls::Vector, bases::Vector{Int}) where {P}
     stmts = Expr[]
-    if P <: Real
-        k = findfirst(==(P), Ls)
-        bases[k] += 1
-        push!(stmts, :(@inbounds $(Symbol(:buf, k))[offs[$k] + $(bases[k])] = $v))
-    elseif P <: StaticArray
+    if P <: StaticArray
         for i in 1:length(P)
             push!(stmts, _mflatten_expr(eltype(P), :(@inbounds $v[$i]), Ls, bases))
         end
+    elseif P <: Real || _opaque(P)
+        k = findfirst(==(P), Ls)
+        bases[k] += 1
+        push!(stmts, :(@inbounds $(Symbol(:buf, k))[offs[$k] + $(bases[k])] = $v))
     else
         for (i, FT) in enumerate(fieldtypes(P))
             push!(stmts, _mflatten_expr(FT, :(getfield($v, $i)), Ls, bases))
@@ -200,8 +232,9 @@ _leaf_values(v::Real) = (v,)
 _leaf_values(v::StaticArray) = Iterators.flatten(map(_leaf_values, Tuple(v)))
 _leaf_values(v::NamedTuple) = Iterators.flatten(map(_leaf_values, values(v)))
 _leaf_values(v::Tuple) = Iterators.flatten(map(_leaf_values, v))
-_leaf_values(v) = Iterators.flatten(map(_leaf_values,
-    ntuple(i -> getfield(v, i), fieldcount(typeof(v)))))
+# An opaque leaf is one value, not a field walk (D-237).
+_leaf_values(v) = isbits(v) ? Iterators.flatten(map(_leaf_values,
+    ntuple(i -> getfield(v, i), fieldcount(typeof(v))))) : (v,)
 
 # --- embed-accept (D-166, decided on the type per D-238) ----------------------
 # The relation is decided on the type, not leaf by leaf: `V` is accepted at `P`

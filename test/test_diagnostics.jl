@@ -296,6 +296,12 @@ function diagnostics_kind_set()
             TransparentContainerUnknown(path = "a", field = :kids, component = "Group"),
             TierUnreadable(path = "a/b", declarations = [:init_m]),
             IllegalPortType(path = "a/b", site = :port, name = :y, declared = Nothing),
+            IllegalPortType(path = "a/b", site = :port, name = :y, declared = Vector{Float64},
+                            reason = :mutable, position = ""),
+            IllegalPortType(path = "a/b", site = :port, name = :y, declared = Float64,
+                            reason = :mutable, position = "p.z"),
+            IllegalPortType(path = "", site = :root_input, name = :terrain, declared = Nothing,
+                            reason = :handle_at_root),
             IllegalStoreField(path = "a/b", store = :init_s, name = :label, declared = String),
             # Strata B and C
             AlgebraicCycle(members = ["a/b", "a/c"]),

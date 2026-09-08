@@ -262,10 +262,17 @@ function cell_layout(flat::Flat, decls::Vector{Decls}, ::Type{T}) where {T}
     root_inputs = Tuple{Symbol,Any}[]
     offs = Dict{DataType,Int}()
     # Placement collects (§13.1): every leafless declaration in the model is
-    # named, and the barrier throws before the alias pass, which would otherwise
-    # look up an address placement never made.
+    # named, every mutable one and every handle surfacing as a root input
+    # (D-237), and the barrier throws before the alias pass, which would
+    # otherwise look up an address placement never made.
     diags = Diagnostic[]
     function place!(path, site::Symbol, name, ::Type{P}) where {P}
+        mp = mutable_position(P)
+        if mp !== nothing
+            push!(diags, IllegalPortType(path = path, site = site, name = name, declared = P,
+                                         reason = :mutable, position = first(mp)))
+            return false
+        end
         lts = leaf_types(P)
         if isempty(lts)
             push!(diags, IllegalPortType(path = path, site = site, name = name, declared = P))
@@ -285,6 +292,14 @@ function cell_layout(flat::Flat, decls::Vector{Decls}, ::Type{T}) where {T}
     end
     for (i, face) in enumerate(flat.root_inputs)
         P = _root_input_cell(flat, decls, i, face, T)
+        # A handle at a root input has no synthesis and no producer (D-237), so
+        # it is refused here, ahead of `probe_value`. A mutable `P` falls to
+        # `place!`'s own arm on the next line.
+        if any(L -> !(L <: Real), leaf_types(P))
+            push!(diags, IllegalPortType(path = "", site = :root_input, name = face,
+                                         declared = P, reason = :handle_at_root))
+            continue
+        end
         place!("", :root_input, face, P) || continue
         push!(root_inputs, (face, probe_value(P)))
     end
@@ -1011,7 +1026,8 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
     wss = _workspaces(flat, tiers, T)
 
     store = StoreBundle(NamedTuple{tuple((_cell_key(L) for (L, _) in layout.sizes)...)}(
-        tuple((CellStore(zeros(L, n)) for (L, n) in layout.sizes)...)))
+        tuple((CellStore(L <: Real ? zeros(L, n) : Vector{L}(undef, n))
+               for (L, n) in layout.sizes)...)))
 
     x_offs, nx = Int[], 0
     xblocks = UnitRange{Int}[]
@@ -1035,7 +1051,10 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
 
     # A cell holds what the build probe populated until a sweep first writes it
     # (§10.5): this is the table's pre-`init!` content, and a frozen
-    # component's pinned cells are this seed for the whole run (§9.4).
+    # component's pinned cells are this seed for the whole run (§9.4). It is
+    # also what leaves no handle cell unassigned: an opaque-leaf buffer starts
+    # `undef`, every handle port is a component product this seed writes, and a
+    # handle at a root input is refused at layout (D-237).
     for (ci, path) in enumerate(flat.paths)
         isempty(act.products[ci]) ||
             scatter_group!(store, addr_group(path, keys(act.products[ci])),

@@ -624,17 +624,28 @@ message(d::TierUnreadable) =
     "store with the update law that drives it. Its tier-announcing declarations are " *
     "$(_namelist(d.declarations)) (§8.2)"
 
-"§7.1, §8.2, D-215: the port twin of `IllegalStateLeaf` — a declared type with no numeric leaves."
+"§4.3, §7.1, §8.2, D-215, D-237: a port type the leaf walk cannot lay out — no leaves, a mutable type on the walk, or a handle at a root input."
 Base.@kwdef struct IllegalPortType <: Diagnostic
     path::String
     site::Symbol                             # :port | :root_input
     name::Symbol
     declared::Any                            # the offending type
+    reason::Symbol = :no_leaves              # :no_leaves | :mutable | :handle_at_root
+    position::Any = nothing                  # :mutable — the dotted position of the mutable type, "" for the port itself
 end
 path(d::IllegalPortType) = d.path
-message(d::IllegalPortType) =
-    "$(_at_path(d.path)): $(d.site === :root_input ? "root input" : "port") `$(d.name)` " *
-    "declares $(d.declared), which has no leaves"
+function message(d::IllegalPortType)
+    site = d.site === :root_input ? "root input" : "port"
+    d.reason === :mutable &&
+        return "$(_at_path(d.path)): $site `$(d.name)` declares $(d.declared), which is " *
+               "mutable$(d.position == "" ? "" : " at `$(d.position)`") — a port value is " *
+               "immutable, bulk data rides behind an immutable handle (§4.4)"
+    d.reason === :handle_at_root &&
+        return "$(_at_path(d.path)): root input `$(d.name)` declares $(d.declared), a field " *
+               "handle, which has no producer here — wire a field-emitting component, or a " *
+               "stub child in a rig (§4.4, D-237)"
+    "$(_at_path(d.path)): $site `$(d.name)` declares $(d.declared), which has no leaves"
+end
 
 "§7.3, §8.2, D-231: a store field that is neither isbits nor a `Symbol`."
 Base.@kwdef struct IllegalStoreField <: Diagnostic

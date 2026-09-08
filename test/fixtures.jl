@@ -828,6 +828,74 @@ output_connections(::MultiRate) =
     ("fcs/y_inner" => "inner", "fcs/y_outer" => "outer", "gnss/out" => "gnss")
 sample_times(::MultiRate) = (fcs = Relative(1), gnss = Absolute(Hz(50)))
 
+# --- the field-handle coverage set (§4.4, D-237) --------------------------------
+# The handle pattern: an immutable struct combining isbits parameters with a
+# reference to bulk data, frozen at build time. Not isbits, so the leaf walk
+# stops there and the table stores the handle whole, references included.
+
+"""One stable face over several concrete field types (§4.4, §8.2)."""
+abstract type AbstractTerrain end
+
+"""
+A terrain handle: a `2×2` heightmap behind an immutable struct, beside the
+isbits parameter that scales it. The one opaque leaf of D-237.
+"""
+struct HeightField <: AbstractTerrain
+    z::Matrix{Float64}
+    h0::Float64
+end
+
+"""
+The field-emitting component (§4.4). It owns its resource loading, so the
+heightmap is built once, at construction, and frozen on the instance; the swept
+output stage rebuilds only the immutable struct around that existing reference,
+which is what makes the rebuild allocation-free.
+"""
+struct Terrain <: AbstractComponent
+    z::Matrix{Float64}
+    h0::Float64
+end
+
+Terrain(; h0 = 1.0) = Terrain(fill(h0, 2, 2), h0)
+
+"""
+§4.4's value-level constructor: the map (component, input values) → handle,
+plain, pure and public, so condition math can build the same handle outside any
+sweep. `Terrain` takes no inputs, so the component is the whole domain.
+"""
+height_field(c::Terrain) = HeightField(c.z, c.h0)
+
+output_types(::Terrain) = (terrain = HeightField,)
+output_direct(c::Terrain, args) = (terrain = height_field(c),)
+
+"""The consumer: it evaluates the handle inside its own stage, at its own arguments."""
+struct Query <: AbstractComponent end
+
+input_types(::Query, ::Type{T}) where {T <: Real} = (terrain = HeightField,)
+output_types(::Query, ::Type{T}) where {T <: Real} = (h = T,)
+output_direct(::Query, (; u)) = (h = u.terrain.h0 + size(u.terrain.z, 1),)
+
+"""The same consumer behind an abstract entry: structural substitutability (§8.2)."""
+struct AbstractTerrainQuery <: AbstractComponent end
+
+input_types(::AbstractTerrainQuery, ::Type{T}) where {T <: Real} = (terrain = AbstractTerrain,)
+output_types(::AbstractTerrainQuery, ::Type{T}) where {T <: Real} = (h = T,)
+output_direct(::AbstractTerrainQuery, (; u)) = (h = u.terrain.h0 + size(u.terrain.z, 1),)
+
+"""A mutable cache where a handle belongs — the refusal D-237 owes (§4.4)."""
+mutable struct Cache
+    n::Float64
+end
+
+struct MutableSource <: AbstractComponent end
+
+output_types(::MutableSource) = (c = Cache,)
+output_direct(::MutableSource, args) = (c = Cache(0.0),)
+
+"""The reference handle model: one field emitter wired into one consumer."""
+handle_model() = Group((; src = Terrain(), q = Query());
+                       wires = ("src/terrain" => "q/terrain",))
+
 # --- the periphery's coverage set: devices and bindings (§11.3, §11.6) ----------
 
 """

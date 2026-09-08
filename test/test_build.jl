@@ -376,6 +376,40 @@ function build_wire_clauses()
     end
 end
 
+# --- the port type the walk cannot lay out (§4.3, §4.4, D-237) ----------------
+# `IllegalPortType`'s other two arms, both raised by `cell_layout`: a mutable
+# type anywhere the walk visits, and a handle-typed face surfacing as a root
+# input, which has no producer and no synthesis. The fixtures are in
+# `fixtures.jl`, shared with `test_store.jl`.
+
+function build_port_type_refusals()
+    @testset "a mutable port and a handle at root are refused (§4.4, D-237)" begin
+        d = only(diagnostics(failure(() -> build(Group((; c = MutableSource()))))))
+        @test d isa IllegalPortType
+        @test d.site === :port && d.reason === :mutable && d.name === :c
+        @test d.declared === Cache && d.position == ""      # the port type itself
+
+        # A handle at a root input is refused ahead of `probe_value`, so the
+        # surfacing this replaces — a raw `MethodError` from `HeightField()` —
+        # is gone.
+        err = failure(() -> build(Group((; q = Query()); inputs = ("terrain" => "q/terrain",))))
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
+        @test d isa IllegalPortType
+        @test d.site === :root_input && d.reason === :handle_at_root
+        @test d.name === :terrain && d.declared === HeightField
+        @test path(d) == ""                                 # the face's own path is the root's
+
+        # Placement collects, so one model reports both and throws once.
+        err2 = failure(() -> build(Group((; c = MutableSource(), q = Query());
+                                         inputs = ("terrain" => "q/terrain",))))
+        @test err2 isa DiagnosticError
+        ds = diagnostics(err2)
+        @test length(ds) == 2 && all(d -> d isa IllegalPortType, ds)
+        @test Set(d.reason for d in ds) == Set([:mutable, :handle_at_root])
+    end
+end
+
 # --- tier classification (§8.2) -----------------------------------------------
 # Tier is read off the declaration shape. `DiscreteCounter` and `DiscreteMap` are
 # the two shapes the classifier has to separate (`fixtures.jl`, shared with the
@@ -641,6 +675,7 @@ function test_build()
     build_schedule()
     build_root_input_type()
     build_wire_clauses()
+    build_port_type_refusals()
     build_tier()
     build_store_values()
     build_stratum_a()

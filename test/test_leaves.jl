@@ -55,11 +55,20 @@ struct Placement{T}
     y::T
 end
 
+# A struct nesting a handle (`HeightField`, `fixtures.jl`) beside a plain leaf.
+# It is itself concrete, immutable and not isbits, so D-237 stops the walk at
+# `Framed` rather than descending to find the handle inside it.
+struct Framed
+    f::HeightField
+    s::Float64
+end
+
 # One round trip at a nonzero offset into an oversized buffer: the value comes
-# back identical, and only the `nleaves` entries it owns were written.
-function roundtrip(v, off)
+# back identical, and only the `nleaves` entries it owns were written. `E` is
+# the buffer's eltype: a cell carrying an opaque leaf needs one that holds it.
+function roundtrip(v, off; E = Float64)
     n = nleaves(typeof(v))
-    buf = fill(NaN, off + n + 3)
+    buf = Vector{E}(fill(NaN, off + n + 3))
     flatten!(buf, off, v)
     @test reconstruct(typeof(v), buf, off) === v
     @test all(isnan, buf[1:off])
@@ -108,6 +117,26 @@ function leaves_shape()
         @test leaf_eltypes(Tagged{Float64}) == Type[Float64, Int]
         @test leaf_eltypes(Counted) == Type[Int, Float64]
         @test leaf_eltypes(Body) == Type[Float64]
+
+        # D-237's opaque leaf: a concrete immutable type that is not isbits is
+        # one leaf of its own type, and the walk never looks inside it.
+        @test nleaves(HeightField) == 1
+        @test leaf_types(HeightField) == Type[HeightField]
+        @test leaf_names(HeightField) == [""]
+        # The rule reads off the outermost type: a struct carrying a handle is
+        # itself non-isbits, so it is the opaque leaf and its `Float64` field is
+        # not a leaf of its own.
+        @test nleaves(Framed) == 1
+        @test leaf_types(Framed) == Type[Framed]
+        @test leaf_names(Framed) == [""]
+
+        # The refusal's walker: the first mutable position the walk meets, the
+        # port type itself spelled `""`. A handle is opaque, so its `Matrix`
+        # field is not a position the walk visits.
+        @test mutable_position(Matrix{Float64}) == ("", Matrix{Float64})
+        @test mutable_position(SVector{2,Matrix{Float64}}) == ("[1]", Matrix{Float64})
+        @test mutable_position(HeightField) === nothing
+        @test mutable_position(Float64) === nothing
     end
 end
 
@@ -142,6 +171,15 @@ function leaves_roundtrip()
         # A NamedTuple takes its fields as one tuple rather than positionally,
         # which is its own branch of the reconstruct builder.
         roundtrip((q = 1.0, v = SVector(2.0, 3.0, 4.0)), 3)
+
+        # An opaque leaf makes the round trip whole: `===` on the reconstructed
+        # `Framed` is `===` on the handle, which is `===` on the one `Matrix`
+        # (D-237). A buffer that holds it is not a `Float64` one.
+        fr = Framed(height_field(Terrain()), 5.0)
+        roundtrip(fr, 2; E = Any)
+        buf = Vector{Any}(undef, 4)
+        flatten!(buf, 1, fr)
+        @test reconstruct(Framed, buf, 1).f.z === fr.f.z
     end
 end
 

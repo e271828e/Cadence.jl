@@ -176,6 +176,60 @@ function store_successor_type()
     end
 end
 
+# D-237's opaque leaf in the table: a handle type is its own leaf eltype, so it
+# gets one homogeneous `CellStore` beside the numeric ones, and the gather and
+# the scatter are one load and one store of the whole struct.
+function store_opaque_leaf()
+    @testset "a handle type is its own cell store (§4.4, D-237)" begin
+        sim = Simulation(handle_model(); h = 1//10)
+        @test Set(keys(sim.exec.store.stores)) ==
+              Set([_cell_key(Float64), _cell_key(HeightField)])
+
+        init!(sim)
+        @test port(sim, "src", :terrain) isa HeightField
+        @test port(sim, "q", :h) == 3.0
+
+        # The cell hands out the one reference: the bulk data is shared, never
+        # rebuilt, which is what makes the handle a handle.
+        @test port(sim, "src", :terrain).z === port(sim, "src", :terrain).z
+
+        # The handle's declaration carries no `T`, so its cell is the same type
+        # at every activation while the numeric ports follow the scalar.
+        simd = Simulation(build(handle_model()), D8; h = 1//10)
+        init!(simd)
+        @test _cell_key(HeightField) in keys(simd.exec.store.stores)
+        @test port(simd, "src", :terrain) isa HeightField
+        @test port(simd, "q", :h) isa D8
+
+        # One load and one store: the sweep that gathers and scatters a handle
+        # allocates nothing (§9.7's canary, `test_executor.jl`).
+        b = phase_bodies(sim)
+        for name in keys(b)
+            body = b[name]
+            body(); body(0)
+            @test @ballocated($body()) == 0
+            @test @ballocated($body(1)) == 0
+        end
+
+        # The log and the trace: a snapshot copies the buffer whole, so the
+        # handle cell is one struct copy sharing the bulk reference (§4.4).
+        run!(sim; t_end = 0.5)
+        @test port(latest(sim), "src", :terrain) isa HeightField
+        trc = trace(sim)
+        twin = Simulation(handle_model(); h = 1//10)
+        init!(twin)
+        replay!(twin, trc)
+        @test port(twin, "q", :h) == 3.0
+
+        # The abstract entry admits the handle by the bound clause (D-236).
+        absm = Group((; src = Terrain(), q = AbstractTerrainQuery());
+                     wires = ("src/terrain" => "q/terrain",))
+        sima = Simulation(absm; h = 1//10)
+        init!(sima)
+        @test port(sima, "q", :h) == 3.0
+    end
+end
+
 function test_store()
     store_pinned_leaf()
     store_mixed_cell()
@@ -183,4 +237,5 @@ function test_store()
     store_workspace()
     store_shared_bodies()
     store_successor_type()
+    store_opaque_leaf()
 end

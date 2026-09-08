@@ -88,14 +88,11 @@ Where the reason is not given here, the cited decision carries it:
   interactive-session behaviour (log and surface the status rather than
   rethrow) has no discrimination in `run!`. `run!` requires a finite `t_end`;
   every non-running state admits `attach!`/`detach!`.
-- **Port-value coverage** (M-B7, M-B8, M-B10): enum-valued ports are refused
+- **Port-value coverage** (M-B7, M-B10): enum-valued ports are refused
   — `leaf_types` returns empty for an `Enum`, so `place!` raises
   `IllegalPortType`, and `probe_value` has no enum arm, against §4.1 and
-  §7.5's publish-a-mode remedy; a reference-carrying port type (§4.4's handle
-  pattern) is neither supported nor refused — `leaf_types` walks into the
-  `Vector`'s fields, the build succeeds and the first `gather` dies in a raw
-  `MethodError`; containers of containers take `_children`'s inert-data
-  branch and are silently dropped where §8.5 says rejected.
+  §7.5's publish-a-mode remedy; containers of containers take `_children`'s
+  inert-data branch and are silently dropped where §8.5 says rejected.
 - **The declaration side of the bundle law**: a non-bundle `init_x`/`init_s`
   refuses as a raw `MethodError` from `Decls`' field type (`build.jl` ~17);
   no Appendix C kind owns it, the return side has `ConformanceFailure`.
