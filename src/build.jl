@@ -185,33 +185,6 @@ function _check_ports(path, stage, y::NamedTuple, outs::NamedTuple, ::Type{T}) w
     nothing
 end
 
-# --- embed-accept (D-166) -----------------------------------------------------
-# A declared-`T` leaf accepts exactly two arrivals: the activation scalar, and a
-# `Float64` **embedded as a zero-partial** — which is what keeps the
-# constant-branch idiom (`flow > 0 ? f(x) : 0.0`) legal as written at a `Dual`
-# activation. Every other leaf — a deliberately pinned `Float64`, an `Int`, a
-# `Bool` — is matched exactly, so an observed `Dual` at a pinned leaf is an
-# error with a hint rather than a silent narrowing.
-
-"""Is a value of type `V` a lawful arrival at a cell declared `P`, at activation `T`?"""
-function _accepts(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T}
-    P === V && return true
-    if P <: Real
-        return V <: Real && P === T && (V === T || V === Float64)
-    elseif P <: StaticArray
-        return V <: StaticArray && size(P) === size(V) && _accepts(eltype(P), eltype(V), T)
-    else
-        P.name === V.name || return false
-        fieldcount(P) === fieldcount(V) || return false
-        return all(_accepts(FP, FV, T) for (FP, FV) in zip(fieldtypes(P), fieldtypes(V)))
-    end
-end
-
-# The one honest cause of a `Dual` at a leaf declared `Float64`, per D-166.
-_pin_hint(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T} =
-    T === Float64 || P === T ? "" :
-    " — if this leaf participates in differentiation, declare it `T`"
-
 """
 What the cell will hold: an accepted `Float64` arrival stored into the
 activation buffer *is* a zero-partial, so the probe hands downstream the
@@ -570,8 +543,9 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
         bn = bundle_names(update, c, t, tuple(keys(stage1[ci])...))
         vals = _bundle_values(bn, d, in_values(ci, d), stage1[ci], T; y = products[ci],
                               ws = wss[ci], m = mstores[ci], Δt = 1.0)
-        append!(diags, t === CONTINUOUS ? _check_derivative(path, state_derivative(c, vals), d.x) :
-                                         _check_update(path, state_update(c, vals), d.s))
+        append!(diags, t === CONTINUOUS ?
+            _check_derivative(path, state_derivative(c, vals), d.x, T) :
+            _check_update(path, state_update(c, vals), d.s))
     end
     isempty(diags) || throw(DiagnosticError(diags))
 
@@ -592,7 +566,8 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
                                                reason = :no_manifold))
             continue
         end
-        append!(diags, _check_state_write(path, "state_projection", state_projection(c, d.x), d.x))
+        append!(diags, _check_state_write(path, "state_projection",
+                                         state_projection(c, d.x), d.x, T))
     end
     isempty(diags) || throw(DiagnosticError(diags))
     products
@@ -606,23 +581,23 @@ end
 # `state_projection` pass and the handler check — can put it under their own
 # barrier (§13.1). The two shape checks are sequential: neither later one is
 # meaningful once an earlier one fails.
-function _check_state_write(path, what, x⁺, x::NamedTuple)
+function _check_state_write(path, what, x⁺, x::NamedTuple, ::Type{T}) where {T}
     x⁺ isa NamedTuple ||
         return Diagnostic[ConformanceFailure(path = path, what = what,
                                              reason = :return_type, shape = :state,
                                              observed = typeof(x⁺))]
-    keys(x⁺) === keys(x) ||
+    Set(keys(x⁺)) == Set(keys(x)) ||
         return Diagnostic[ConformanceFailure(path = path, what = what, reason = :field_set,
                                              shape = :state,
                                              observed_fields = collect(keys(x⁺)),
                                              declared_fields = collect(keys(x)))]
     diags = Diagnostic[]
     for k in keys(x)
-        nleaves(typeof(x⁺[k])) == nleaves(typeof(x[k])) ||
+        _accepts(typeof(x[k]), typeof(x⁺[k]), T) ||
             push!(diags, ConformanceFailure(path = path, what = what, reason = :field_type,
                                            shape = :state, field = k,
                                            observed = typeof(x⁺[k]),
-                                           declared = typeof(x[k])))
+                                           declared = typeof(x[k]), activation = T))
     end
     diags
 end
@@ -688,7 +663,7 @@ function _check_handler(path, name, ret, d::Decls, c)
     # is the outer fact, and holding a write to `x` against an empty state would
     # report the same omission twice in different words.
     haskey(ret, :x) && :x in stores &&
-        append!(diags, _check_state_write(path, "$what `x`", ret.x, d.x))
+        append!(diags, _check_state_write(path, "$what `x`", ret.x, d.x, Float64))
     if haskey(ret, :m) && :m in stores
         if !(ret.m isa NamedTuple)
             push!(diags, ConformanceFailure(path = path, what = "$what `m`",
@@ -957,7 +932,8 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
     # component's pinned cells are this seed for the whole run (§9.4).
     for (ci, path) in enumerate(flat.paths)
         isempty(act.products[ci]) ||
-            scatter_group!(store, addr_group(path, keys(act.products[ci])), act.products[ci])
+            scatter_group!(store, addr_group(path, keys(act.products[ci])),
+                           act.products[ci], T, path, :probe)
     end
     # Root inputs hold their synthesized values until a writer replaces them.
     for (face, v) in layout.root_inputs
@@ -977,7 +953,8 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
         bn = bundle_names(output_state, c, tiers[ci], ())
         push!(stage1_entries, StageEntry{typeof(d.x),bn}(
             output_state, c, NamedTuple(), NamedTuple(), addr_group(flat.paths[ci], keys(s1)),
-            x_offs[ci], clock, sstores[ci], mstores[ci], wss[ci], Δt_c[ci], ci, cursor))
+            x_offs[ci], clock, sstores[ci], mstores[ci], wss[ci], Δt_c[ci],
+            flat.paths[ci], ci, cursor))
         push!(stage1_gates, gate(ci))
     end
 
@@ -988,7 +965,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
         push!(stage2_entries, StageEntry{typeof(d.x),bn}(
             output_direct, c, in_group(ci, d), addr_group(path, keys(s1)),
             addr_group(path, y2keys(ci)), x_offs[ci], clock,
-            sstores[ci], mstores[ci], wss[ci], Δt_c[ci], ci, cursor))
+            sstores[ci], mstores[ci], wss[ci], Δt_c[ci], path, ci, cursor))
         push!(stage2_gates, gate(ci))
     end
 
@@ -1003,11 +980,11 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
         y_g, in_g = addr_group(path, keys(d.outs)), in_group(ci, d)
         if t === CONTINUOUS
             push!(rhs_entries, RHSEntry{typeof(d.x),bn}(
-                c, in_g, y_g, x_offs[ci], clock, mstores[ci], wss[ci], ci, cursor))
+                c, in_g, y_g, x_offs[ci], clock, mstores[ci], wss[ci], path, ci, cursor))
             push!(rhs_gates, nothing)
         else
             push!(tick_entries, UpdateEntry{bn}(
-                c, in_g, y_g, clock, sstores[ci], wss[ci], Δt_c[ci], ci, cursor))
+                c, in_g, y_g, clock, sstores[ci], wss[ci], Δt_c[ci], path, ci, cursor))
             push!(tick_gates, gate(ci))
         end
     end
@@ -1033,7 +1010,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
                 push!(ev_entries, EventEntry{typeof(d.x),bn}(
                     evs[name].guard, evs[name].handler, pj, c, length(ev_entries) + 1,
                     in_group(ci, d), addr_group(flat.paths[ci], keys(d.outs)),
-                    x_offs[ci], clock, mstores[ci], wss[ci], ci, cursor))
+                    x_offs[ci], clock, mstores[ci], wss[ci], flat.paths[ci], ci, cursor))
                 push!(ev_owner, ci)
                 push!(ev_names, (flat.paths[ci], name))
                 push!(ev_localized, b.policies[ci][name] === :localized)
@@ -1044,7 +1021,8 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
     # Projection runs at every activation — it is continuous machinery, inside
     # every executable set — between the integrate's state write and its decode
     # (§5.3).
-    proj_entries = Any[ProjectEntry{typeof(decls[ci].x)}(c, x_offs[ci], ci, cursor)
+    proj_entries = Any[ProjectEntry{typeof(decls[ci].x)}(c, x_offs[ci], clock,
+                                                        flat.paths[ci], ci, cursor)
                        for (ci, c) in enumerate(flat.comps)
                        if tiers[ci] === CONTINUOUS && has_stage(state_projection, c)]
 
@@ -1084,12 +1062,12 @@ end
 
 # §7.1: `Ẋ` has exactly `X`'s shape at the activation scalar. Checked
 # structurally here so the runtime `flatten!` into the derivative block is safe.
-function _check_derivative(path, ẋ, x::NamedTuple)
+function _check_derivative(path, ẋ, x::NamedTuple, ::Type{T}) where {T}
     ẋ isa NamedTuple ||
         return Diagnostic[ConformanceFailure(path = path, what = "state_derivative",
                                              reason = :return_type,
                                              shape = :init_x, observed = typeof(ẋ))]
-    keys(ẋ) === keys(x) ||
+    Set(keys(ẋ)) == Set(keys(x)) ||
         return Diagnostic[ConformanceFailure(path = path, what = "state_derivative",
                                              reason = :field_set,
                                              shape = :init_x,
@@ -1097,11 +1075,12 @@ function _check_derivative(path, ẋ, x::NamedTuple)
                                              declared_fields = collect(keys(x)))]
     diags = Diagnostic[]
     for k in keys(x)
-        nleaves(typeof(ẋ[k])) == nleaves(typeof(x[k])) ||
+        _accepts(typeof(x[k]), typeof(ẋ[k]), T) ||
             push!(diags, ConformanceFailure(path = path, what = "state_derivative",
                                            reason = :field_type,
                                            shape = :init_x, field = k,
-                                           observed = typeof(ẋ[k]), declared = typeof(x[k])))
+                                           observed = typeof(ẋ[k]), declared = typeof(x[k]),
+                                           activation = T))
     end
     diags
 end

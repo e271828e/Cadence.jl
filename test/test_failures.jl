@@ -18,6 +18,70 @@ interrupted() = Group((c = Interrupter(), trig = Trigger(0.15));
 diverging() = Group((div = Diverger(), con = Consumer());
                     wires = ("div/q" => "con/in",), inputs = ("in" => "div/arm",))
 
+# --- §9.5's always-on check at the write (D-235) --------------------------------
+# Every fixture below conforms on the branch the probe sees at `t = 0` and
+# diverges on the one a later frame takes — the case the probe cannot reach and
+# the generated write refuses.
+
+struct LateInteger <: AbstractComponent end
+output_types(::LateInteger, ::Type{T}) where {T <: Real} = (q = T,)
+output_state(::LateInteger, (; t)) = (q = t < 0.05 ? 1.0 : 0,)
+
+struct LateExtraPort <: AbstractComponent end
+output_types(::LateExtraPort, ::Type{T}) where {T <: Real} = (q = T,)
+output_state(::LateExtraPort, (; t)) = t < 0.05 ? (q = 1.0,) : (q = 1.0, extra = 2.0)
+
+struct LateMissingPort <: AbstractComponent end
+output_types(::LateMissingPort, ::Type{T}) where {T <: Real} = (a = T, b = T)
+output_state(::LateMissingPort, (; t)) = t < 0.05 ? (a = 1.0, b = 2.0) : (a = 1.0,)
+
+# The names are the pairing: the same return in another order, at both seams.
+struct ScrambledPorts <: AbstractComponent end
+output_types(::ScrambledPorts, ::Type{T}) where {T <: Real} = (a = T, b = T)
+output_state(::ScrambledPorts, (; t)) = (b = 2.0, a = 1.0)
+
+struct ScrambledRate <: AbstractComponent end
+init_x(::ScrambledRate) = (a = 1.0, b = 2.0)
+output_types(::ScrambledRate, ::Type{T}) where {T <: Real} = (pa = T, pb = T)
+output_state(::ScrambledRate, (; x)) = (pa = x.a, pb = x.b)
+state_derivative(::ScrambledRate, (; x)) = (b = 0.0, a = 1.0)
+
+struct LateIntegerRate <: AbstractComponent end
+init_x(::LateIntegerRate) = (a = 1.0,)
+output_types(::LateIntegerRate, ::Type{T}) where {T <: Real} = (q = T,)
+output_state(::LateIntegerRate, (; x)) = (q = x.a,)
+state_derivative(::LateIntegerRate, (; t)) = (a = t < 0.05 ? -1.0 : 0,)
+
+struct LateIntegerProjection <: AbstractComponent end
+init_x(::LateIntegerProjection) = (a = 1.0,)
+output_types(::LateIntegerProjection, ::Type{T}) where {T <: Real} = (q = T,)
+output_state(::LateIntegerProjection, (; x)) = (q = x.a,)
+state_derivative(::LateIntegerProjection, (; x)) = (a = -10.0 * x.a,)
+state_projection(::LateIntegerProjection, x) = x.a > 0.5 ? (a = x.a,) : (a = 0,)
+
+# The lawful late `Float64`: the constant branch under a `Dual` activation, which
+# the write embeds as a zero-partial rather than refusing (§9.5, D-166).
+struct DecayingBranch <: AbstractComponent end
+init_x(::DecayingBranch) = (a = 1.0,)
+output_types(::DecayingBranch, ::Type{T}) where {T <: Real} = (q = T,)
+output_state(::DecayingBranch, (; x)) = (q = x.a > 0.5 ? 2.0 * x.a : 0.0,)
+state_derivative(::DecayingBranch, (; x)) = (a = -10.0 * x.a,)
+
+struct LateSuccessor <: AbstractComponent end
+init_s(::LateSuccessor) = (n = 0.0,)
+output_types(::LateSuccessor) = (u = Float64,)
+output_state(::LateSuccessor, (; s)) = (u = s.n,)
+state_update(::LateSuccessor, (; s, t)) = (n = t < 0.05 ? s.n + 1.0 : 0,)
+
+# The probe sees the first firing; the second writes `k` at another type.
+struct LateMode <: AbstractComponent end
+init_m(::LateMode) = (k = 0,)
+output_types(::LateMode, ::Type{T}) where {T <: Real} = (k = Int,)
+output_state(::LateMode, (; m)) = (k = m.k,)
+late_mode_guard(::LateMode, (; m, t)) = t - 0.05 * (m.k + 1)
+late_mode_handler(::LateMode, (; m)) = m.k == 0 ? (m = (k = m.k + 1,),) : (m = (k = 1.5,),)
+state_events(::LateMode) = (fire = StateEvent(late_mode_guard, late_mode_handler),)
+
 function failures_runtime()
     @testset "the cursor names where execution was after a quiet frame (§13.4)" begin
         sim = Simulation(feedback_model(); h = 1//50, t_end = 1.0)
@@ -353,7 +417,118 @@ function failures_pointer_twin()
     end
 end
 
+# --- §9.5's always-on conformance check (D-235) ---------------------------------
+# The probe validates one branch; the write holds every frame's return to the
+# type of the cells it writes, decided when the write's method is generated.
+
+function failures_conformance()
+    @testset "an integer port on a late branch is refused at the write (§9.5)" begin
+        sim = Simulation(single(LateInteger()); h = 1//100, t_end = 0.2)
+        init!(sim)
+        e = failure(() -> run!(sim))
+        @test e isa StepError{ConformanceFailure}
+        @test e.cause.path == "c" && e.cause.what == "output_state"
+        @test e.cause.reason === :field_type && e.cause.shape === :ports
+        @test e.cause.field === :q
+        @test e.cause.observed === Int64 && e.cause.declared === Float64
+        @test e.frame.fn === :output_state
+        @test lifecycle(sim) === :errored
+        @test occursin("zero(", message(e.cause))      # §9.5's didactic hint
+    end
+
+    @testset "an extra and a missing port on a late branch are key-set failures (§9.5)" begin
+        sim = Simulation(single(LateExtraPort()); h = 1//100, t_end = 0.2)
+        init!(sim)
+        e = failure(() -> run!(sim))
+        @test e isa StepError{ConformanceFailure}
+        @test e.cause.reason === :field_set && e.cause.shape === :ports
+        @test Set(e.cause.observed_fields) == Set([:q, :extra])
+        @test e.cause.declared_fields == [:q]
+
+        sim2 = Simulation(single(LateMissingPort()); h = 1//100, t_end = 0.2)
+        init!(sim2)
+        e2 = failure(() -> run!(sim2))
+        @test e2 isa StepError{ConformanceFailure}
+        @test e2.cause.reason === :field_set && e2.cause.shape === :ports
+        @test e2.cause.observed_fields == [:a]
+        @test Set(e2.cause.declared_fields) == Set([:a, :b])
+    end
+
+    @testset "the names are the pairing, at the port write and the state write (§9.5)" begin
+        sim = Simulation(single(ScrambledPorts()); h = 1//100, t_end = 0.05)
+        init!(sim)
+        run!(sim)
+        @test port(sim, "c", :a) == 1.0
+        @test port(sim, "c", :b) == 2.0
+
+        simr = Simulation(single(ScrambledRate()); h = 1//100, t_end = 0.1)
+        init!(simr)
+        run!(simr)
+        @test port(simr, "c", :pa) ≈ 1.1        # ȧ = 1, over 0.1 s
+        @test port(simr, "c", :pb) == 2.0       # ḃ = 0, untouched
+    end
+
+    @testset "an integer derivative leaf on a late branch is refused (§7.1, §9.5)" begin
+        sim = Simulation(single(LateIntegerRate()); h = 1//100, t_end = 0.2)
+        init!(sim)
+        e = failure(() -> run!(sim))
+        @test e isa StepError{ConformanceFailure}
+        @test e.cause.what == "state_derivative" && e.cause.shape === :init_x
+        @test e.cause.reason === :field_type && e.cause.field === :a
+        @test e.cause.observed === Int64 && e.cause.declared === Float64
+        @test e.frame.fn === :state_derivative
+        @test lifecycle(sim) === :errored
+    end
+
+    @testset "an integer projection leaf on a late branch is refused (§9.3, §9.5)" begin
+        sim = Simulation(single(LateIntegerProjection()); h = 1//100, t_end = 0.2)
+        init!(sim)
+        e = failure(() -> run!(sim))
+        @test e isa StepError{ConformanceFailure}
+        @test e.cause.what == "state_projection" && e.cause.shape === :state
+        @test e.cause.reason === :field_type && e.cause.field === :a
+        @test e.cause.observed === Int64 && e.cause.declared === Float64
+        @test e.frame.fn === :state_projection
+        @test lifecycle(sim) === :errored
+    end
+
+    @testset "the constant branch embeds as a zero-partial at the write (§9.5, D-166)" begin
+        sim = Simulation(single(DecayingBranch()), D8; h = 1//100)
+        init!(sim)
+        run!(sim; t_end = 0.2)                  # `a` decays under 0.5 mid-run
+        q = port(sim, "c", :q)
+        @test q isa D8
+        @test ForwardDiff.value(q) == 0.0
+        @test iszero(ForwardDiff.partials(q))
+    end
+
+    @testset "a discrete successor of another type on a late tick is refused (§7.3)" begin
+        sim = Simulation(single(LateSuccessor()); h = 1//100, t_end = 0.2)
+        init!(sim)
+        e = failure(() -> run!(sim))
+        @test e isa StepError{ConformanceFailure}
+        @test e.cause.what == "state_update" && e.cause.shape === :init_s
+        @test e.cause.observed === typeof((n = 0,))
+        @test e.cause.declared === typeof((n = 0.0,))
+        @test e.frame.fn === :state_update
+        @test lifecycle(sim) === :errored
+    end
+
+    @testset "a mode write of another type on the second firing is refused (§5.2, §9.5)" begin
+        sim = Simulation(single(LateMode()); h = 1//100, t_end = 0.2)
+        init!(sim)
+        e = failure(() -> run!(sim))
+        @test e isa StepError{ConformanceFailure}
+        @test e.cause.what == "handler" && e.cause.shape === :mode
+        @test e.cause.reason === :field_type && e.cause.field === :k
+        @test e.cause.observed === Float64 && e.cause.declared === Int
+        @test e.frame.fn === :handler
+        @test lifecycle(sim) === :errored
+    end
+end
+
 function test_failures()
     failures_runtime()
+    failures_conformance()
     failures_pointer_twin()
 end

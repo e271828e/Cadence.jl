@@ -201,6 +201,33 @@ _leaf_values(v::Tuple) = Iterators.flatten(map(_leaf_values, v))
 _leaf_values(v) = Iterators.flatten(map(_leaf_values,
     ntuple(i -> getfield(v, i), fieldcount(typeof(v)))))
 
+# --- embed-accept (D-166) -----------------------------------------------------
+# A declared-`T` leaf accepts exactly two arrivals: the activation scalar, and a
+# `Float64` **embedded as a zero-partial** — which is what keeps the
+# constant-branch idiom (`flow > 0 ? f(x) : 0.0`) legal as written at a `Dual`
+# activation. Every other leaf — a deliberately pinned `Float64`, an `Int`, a
+# `Bool` — is matched exactly, so an observed `Dual` at a pinned leaf is an
+# error with a hint rather than a silent narrowing.
+
+"""Is a value of type `V` a lawful arrival at a cell declared `P`, at activation `T`?"""
+function _accepts(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T}
+    P === V && return true
+    if P <: Real
+        return V <: Real && P === T && (V === T || V === Float64)
+    elseif P <: StaticArray
+        return V <: StaticArray && size(P) === size(V) && _accepts(eltype(P), eltype(V), T)
+    else
+        P.name === V.name || return false
+        fieldcount(P) === fieldcount(V) || return false
+        return all(_accepts(FP, FV, T) for (FP, FV) in zip(fieldtypes(P), fieldtypes(V)))
+    end
+end
+
+# The one honest cause of a `Dual` at a leaf declared `Float64`, per D-166.
+_pin_hint(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T} =
+    T === Float64 || P === T ? "" :
+    " — if this leaf participates in differentiation, declare it `T`"
+
 """
     flatten!(buf, off, v)
 
@@ -214,3 +241,43 @@ Store the leaves of `v` into `buf` starting at `off + 1`. Returns `nothing`.
         nothing
     end
 end
+
+"""
+    flatten_state!(buf, off, v, XT, T, path, what, shape)
+
+The wholesale state write with §9.5's always-on check decided at generation
+(D-235): `v`'s key set must equal the state's, and each field must be a lawful
+arrival at the state's field type under embed-accept. Fields pair by name,
+never by position. `shape` is the diagnostic's shape: `:init_x` for a
+derivative, `:state` for a projection or a handler's `x` key.
+"""
+@generated function flatten_state!(buf::AbstractVector, off::Int, v::NamedTuple{Vs},
+                                   ::Type{XT}, ::Type{T}, path::String, what::Symbol,
+                                   shape::Symbol) where {Vs,XT<:NamedTuple,T}
+    Xs = fieldnames(XT)
+    Set(Vs) == Set(Xs) ||
+        return :(throw(DiagnosticError(ConformanceFailure(
+            path = path, what = String(what), reason = :field_set, shape = shape,
+            observed_fields = $(collect(Vs)), declared_fields = $(collect(Xs))))))
+    stmts, base = Expr[], 0
+    for k in Xs
+        P, V = fieldtype(XT, k), fieldtype(v, k)
+        _accepts(P, V, T) ||
+            return :(throw(DiagnosticError(ConformanceFailure(
+                path = path, what = String(what), reason = :field_type, shape = shape,
+                field = $(QuoteNode(k)), observed = $V, declared = $P, activation = $T))))
+        blk, base = _flatten_expr(P, :(getfield(v, $(QuoteNode(k)))), base)
+        push!(stmts, blk)
+    end
+    quote
+        $(Expr(:meta, :inline))
+        $(stmts...)
+        nothing
+    end
+end
+
+# A non-NamedTuple return is the law's first clause failing.
+flatten_state!(buf, off, v, ::Type{XT}, ::Type{T}, path, what, shape) where {XT,T} =
+    throw(DiagnosticError(ConformanceFailure(path = path, what = String(what),
+                                             reason = :return_type, shape = shape,
+                                             observed = typeof(v))))

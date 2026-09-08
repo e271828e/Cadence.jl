@@ -78,8 +78,27 @@ end
     end
 end
 
-@generated function scatter_group!(store, addrs::NamedTuple{Ns}, y::NamedTuple) where {Ns}
-    stmts = [:(scatter!(store, addrs[$i], getfield(y, $(QuoteNode(Ns[i]))))) for i in 1:length(Ns)]
+# §9.5's always-on check, decided at generation (D-235): the key sets must agree
+# as sets, and each returned field must be a lawful arrival at its cell under
+# the embed-accept relation. A conformant return type generates the straight
+# stores below; a non-conformant one generates a throw, which is how the check
+# costs nothing on the conformant path.
+@generated function scatter_group!(store, addrs::NamedTuple{Ns}, y::NamedTuple{Ys},
+                                   ::Type{T}, path::String, what::Symbol) where {Ns,Ys,T}
+    Set(Ys) == Set(Ns) ||
+        return :(throw(DiagnosticError(ConformanceFailure(
+            path = path, what = String(what), reason = :field_set, shape = :ports,
+            observed_fields = $(collect(Ys)), declared_fields = $(collect(Ns))))))
+    stmts = Expr[]
+    for (i, n) in enumerate(Ns)
+        P = fieldtype(addrs, i).parameters[1]        # the cell's type, CellAddr{P,K}
+        V = fieldtype(y, n)
+        _accepts(P, V, T) ||
+            return :(throw(DiagnosticError(ConformanceFailure(
+                path = path, what = String(what), reason = :field_type, shape = :ports,
+                field = $(QuoteNode(n)), observed = $V, declared = $P, activation = $T))))
+        push!(stmts, :(scatter!(store, addrs[$i], getfield(y, $(QuoteNode(n))))))
+    end
     quote
         $(Expr(:meta, :inline))
         $(stmts...)
@@ -104,3 +123,6 @@ mutable struct Clock{T}
     t₀::T
 end
 Clock(t) = Clock(t, 0, 0, t)
+
+"The activation scalar an executor runs at, read off its clock (§9.4)."
+activation_scalar(::Clock{T}) where {T} = T

@@ -21,6 +21,17 @@ struct BadDerivative <: AbstractComponent end
 init_x(::BadDerivative) = (q = SVector(0.0, 0.0),)
 state_derivative(::BadDerivative, (; x)) = (q = 0.0,)
 
+# The same law at the leaf: an `Int` rate for a `Float64` state, which the leaf
+# count the probe used to compare could not see (§9.5, D-235).
+struct IntegerRate <: AbstractComponent end
+init_x(::IntegerRate) = (q = 0.0,)
+state_derivative(::IntegerRate, (; x)) = (q = 0,)
+
+# And the permutation that is no error at all: names are the pairing (§9.5).
+struct ScrambledDerivative <: AbstractComponent end
+init_x(::ScrambledDerivative) = (a = 1.0, b = 2.0)
+state_derivative(::ScrambledDerivative, (; x)) = (b = 0.0, a = 1.0)
+
 struct NoFlow <: AbstractComponent end
 init_x(::NoFlow) = (q = 1.0,)
 
@@ -33,6 +44,12 @@ function build_probe_refusals()
         d = only(diagnostics(failure(() -> build(single(BadDerivative())))))
         @test d isa ConformanceFailure && d.what == "state_derivative" && d.reason === :field_type &&
               d.field === :q && d.observed === Float64
+        d = only(diagnostics(failure(() -> build(single(IntegerRate())))))
+        @test d isa ConformanceFailure && d.what == "state_derivative" &&
+              d.reason === :field_type && d.observed === Int64 && d.declared === Float64
+        @test failure(() -> build(single(ScrambledDerivative()))) === nothing
+        sim = Simulation(single(ScrambledDerivative()); h = 1//100, t_end = 0.05)
+        @test failure(() -> (init!(sim); run!(sim))) === nothing
         d = only(diagnostics(failure(() -> build(single(NoFlow())))))
         @test d isa StoreWithoutUpdate && d.store === :init_x
     end

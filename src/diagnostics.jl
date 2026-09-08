@@ -302,8 +302,9 @@ message(d::WireTypeMismatch) =
      "`$(d.producer_path)`.$(d.producer_port)") *
     "::$(d.observed)" * _pin(d)
 
-# The embed-accept hint (build.jl's `_pin_hint`) is rendering over the two port
+# The embed-accept hint (leaves.jl's `_pin_hint`) is rendering over the two port
 # types and the activation scalar, so it is computed here rather than carried.
+# `ConformanceFailure` takes §9.5's integer hint ahead of it (below).
 _pin(d) = (d.declared isa Type && d.observed isa Type && d.activation isa Type) ?
           _pin_hint(d.declared, d.observed, d.activation) : ""
 
@@ -679,6 +680,16 @@ _cf_expect(s::Symbol) =
                         "must return a NamedTuple"
 _cf_section(s::Symbol) = (s === :stores || s === :mode) ? " (§5.2)" : ""
 
+# §9.5's didactic hint: `0` where a real was declared names the fix outright.
+# Otherwise the D-166 pin hint, as `_pin` renders it everywhere else.
+_pin(d::ConformanceFailure) =
+    d.observed isa Type && d.declared isa Type &&
+        d.observed <: Integer && d.declared <: AbstractFloat ?
+    " — an integer literal where a real was declared: return `zero(…)` of a value at " *
+    "the activation, not `0`" :
+    d.declared isa Type && d.observed isa Type && d.activation isa Type ?
+    _pin_hint(d.declared, d.observed, d.activation) : ""
+
 function message(d::ConformanceFailure)
     d.reason === :return_type &&
         return "`$(d.path)`: $(d.what) $(_cf_expect(d.shape)), got $(d.observed)" *
@@ -706,8 +717,9 @@ function message(d::ConformanceFailure)
                "$(d.declared) (§5.2)"
     d.shape === :init_x &&
         return "`$(d.path)`: derivative field `$(d.field)` is $(d.observed), state field " *
-               "is $(d.declared)"
-    "`$(d.path)`: $(d.what) field `$(d.field)` is $(d.observed), state field is $(d.declared)"
+               "is $(d.declared)" * _pin(d)
+    "`$(d.path)`: $(d.what) field `$(d.field)` is $(d.observed), state field is " *
+    "$(d.declared)" * _pin(d)
 end
 
 "§9.5: a guard returning neither of the two admissible forms."

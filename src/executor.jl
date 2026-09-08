@@ -51,6 +51,7 @@ struct StageEntry{F,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,OA<:NamedTuple,CL,S
     mstore::MS      # mode store, or nothing
     ws::WS          # workspace, or nothing
     Δt::Float64     # sample period; unused on the continuous tier
+    path::String    # the component's path, for the write's diagnostic (§9.5)
     ci::Int         # the schedule index, for the cursor's store (§13.4)
     fname::Symbol   # `nameof(fn)`, computed once in `compile`: a field read, never a call
     cursor::ExecutionCursor
@@ -64,6 +65,7 @@ struct RHSEntry{Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
     clock::CL
     mstore::MS
     ws::WS
+    path::String
     ci::Int
     cursor::ExecutionCursor
 end
@@ -76,25 +78,28 @@ struct UpdateEntry{Comp,BN,IA<:NamedTuple,YA<:NamedTuple,CL,SS,WS}
     sstore::SS      # written by this entry, and by nothing else
     ws::WS
     Δt::Float64
+    path::String
     ci::Int
     cursor::ExecutionCursor
 end
 
 # Outer constructors: only `XT`/`BN` cannot be inferred from the arguments.
 StageEntry{XT,BN}(fn, comp, inputs, y1, outs, x_off, clock, sstore, mstore, ws, Δt,
-                  ci, cursor) where {XT,BN} =
+                  path, ci, cursor) where {XT,BN} =
     StageEntry{typeof(fn),typeof(comp),XT,BN,typeof(inputs),typeof(y1),typeof(outs),
                typeof(clock),typeof(sstore),typeof(mstore),typeof(ws)}(
         fn, comp, inputs, y1, outs, x_off, clock, sstore, mstore, ws, Δt,
-        ci, nameof(fn), cursor)
+        path, ci, nameof(fn), cursor)
 
-RHSEntry{XT,BN}(comp, inputs, y, x_off, clock, mstore, ws, ci, cursor) where {XT,BN} =
+RHSEntry{XT,BN}(comp, inputs, y, x_off, clock, mstore, ws, path, ci, cursor) where {XT,BN} =
     RHSEntry{typeof(comp),XT,BN,typeof(inputs),typeof(y),typeof(clock),
-             typeof(mstore),typeof(ws)}(comp, inputs, y, x_off, clock, mstore, ws, ci, cursor)
+             typeof(mstore),typeof(ws)}(comp, inputs, y, x_off, clock, mstore, ws,
+                                        path, ci, cursor)
 
-UpdateEntry{BN}(comp, inputs, y, clock, sstore, ws, Δt, ci, cursor) where {BN} =
+UpdateEntry{BN}(comp, inputs, y, clock, sstore, ws, Δt, path, ci, cursor) where {BN} =
     UpdateEntry{typeof(comp),BN,typeof(inputs),typeof(y),typeof(clock),
-                typeof(sstore),typeof(ws)}(comp, inputs, y, clock, sstore, ws, Δt, ci, cursor)
+                typeof(sstore),typeof(ws)}(comp, inputs, y, clock, sstore, ws, Δt,
+                                           path, ci, cursor)
 
 # One bundle-expression builder, three @generated entry points. Absent names are
 # absent, never `nothing`-filled: a body destructuring what it does not own
@@ -144,13 +149,14 @@ end
 @inline function run!(e::StageEntry, store, xbuf, ẋbuf)
     e.cursor.comp = e.ci; e.cursor.fn = e.fname     # the dispatch store (§13.4)
     y = e.fn(e.comp, make_bundle(e, store, xbuf))
-    scatter_group!(store, e.outs, y)
+    scatter_group!(store, e.outs, y, activation_scalar(e.clock), e.path, e.fname)
 end
 
-@inline function run!(e::RHSEntry, store, xbuf, ẋbuf)
+@inline function run!(e::RHSEntry{Comp,XT}, store, xbuf, ẋbuf) where {Comp,XT}
     e.cursor.comp = e.ci; e.cursor.fn = :state_derivative
     ẋ = state_derivative(e.comp, make_bundle(e, store, xbuf))
-    flatten!(ẋbuf, e.x_off, ẋ)      # shape conformance established at probe time
+    flatten_state!(ẋbuf, e.x_off, ẋ, XT, activation_scalar(e.clock), e.path,
+                   :state_derivative, :init_x)
     nothing
 end
 
@@ -159,7 +165,8 @@ end
 # (§9.7).
 @inline function run!(e::UpdateEntry, store, xbuf, ẋbuf)
     e.cursor.comp = e.ci; e.cursor.fn = :state_update
-    e.sstore[] = state_update(e.comp, make_bundle(e, store, xbuf))
+    _store_successor!(e.sstore, state_update(e.comp, make_bundle(e, store, xbuf)),
+                      e.path, :state_update)
     nothing
 end
 
@@ -185,15 +192,17 @@ struct EventEntry{G,H,P,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
     clock::CL
     mstore::MS
     ws::WS
+    path::String
     ci::Int
     cursor::ExecutionCursor
 end
 
 EventEntry{XT,BN}(guard, handler, proj, comp, idx, inputs, y, x_off, clock,
-                  mstore, ws, ci, cursor) where {XT,BN} =
+                  mstore, ws, path, ci, cursor) where {XT,BN} =
     EventEntry{typeof(guard),typeof(handler),typeof(proj),typeof(comp),XT,BN,
                typeof(inputs),typeof(y),typeof(clock),typeof(mstore),typeof(ws)}(
-        guard, handler, proj, comp, idx, inputs, y, x_off, clock, mstore, ws, ci, cursor)
+        guard, handler, proj, comp, idx, inputs, y, x_off, clock, mstore, ws,
+        path, ci, cursor)
 
 @generated function make_bundle(e::EventEntry{G,H,P,Comp,XT,BN}, store,
                                 xbuf) where {G,H,P,Comp,XT,BN}
@@ -205,21 +214,24 @@ end
 
 """
 Projection between a state write and its decode (§5.3): reconstruct, project,
-write back wholesale — the completeness the probe established is what makes the
-wholesale write safe by construction.
+write back wholesale — the write itself holding the return to §9.5's check
+against the state's shape at this activation (D-235).
 """
-struct ProjectEntry{Comp,XT}
+struct ProjectEntry{Comp,XT,CL}
     comp::Comp
     x_off::Int
+    clock::CL
+    path::String
     ci::Int
     cursor::ExecutionCursor
 end
-ProjectEntry{XT}(comp, x_off, ci, cursor) where {XT} =
-    ProjectEntry{typeof(comp),XT}(comp, x_off, ci, cursor)
+ProjectEntry{XT}(comp, x_off, clock, path, ci, cursor) where {XT} =
+    ProjectEntry{typeof(comp),XT,typeof(clock)}(comp, x_off, clock, path, ci, cursor)
 
 @inline function run_project!(e::ProjectEntry{Comp,XT}, xbuf) where {Comp,XT}
     e.cursor.comp = e.ci; e.cursor.fn = :state_projection
-    flatten!(xbuf, e.x_off, state_projection(e.comp, reconstruct(XT, xbuf, e.x_off)))
+    flatten_state!(xbuf, e.x_off, state_projection(e.comp, reconstruct(XT, xbuf, e.x_off)),
+                   XT, activation_scalar(e.clock), e.path, :state_projection, :state)
     nothing
 end
 
@@ -310,16 +322,46 @@ end
     _fire_walk(Base.tail(t), store, xbuf, fire)
 end
 
-@inline function _latch!(e::EventEntry, ret::NamedTuple, xbuf)
-    haskey(ret, :x) && flatten!(xbuf, e.x_off, ret.x)
-    haskey(ret, :m) && (e.mstore[] = merge(e.mstore[], ret.m))
+@inline function _latch!(e::EventEntry{G,H,P,Comp,XT}, ret::NamedTuple,
+                         xbuf) where {G,H,P,Comp,XT}
+    haskey(ret, :x) && flatten_state!(xbuf, e.x_off, ret.x, XT,
+                                      activation_scalar(e.clock), e.path, :handler, :state)
+    haskey(ret, :m) && _merge_modes!(e.mstore, ret.m, e.path, :handler)
     nothing
+end
+
+# §7.3: a discrete successor is the store's own type exactly — the assignment
+# that would convert is refused at generation instead (D-235).
+@inline _store_successor!(ref::Base.RefValue{S}, s⁺::S, path, what) where {S} = (ref[] = s⁺; nothing)
+_store_successor!(ref::Base.RefValue{S}, s⁺, path, what) where {S} =
+    throw(DiagnosticError(ConformanceFailure(path = path, what = String(what),
+                                             reason = s⁺ isa NamedTuple ? :field_set : :return_type,
+                                             shape = :init_s, observed = typeof(s⁺),
+                                             declared = S)))
+
+# §9.5's partial-`m` predicate at the write: every written mode exists and keeps
+# its type, decided at generation like the port write.
+@generated function _merge_modes!(ref::Base.RefValue{M}, m::NamedTuple{Ms},
+                                  path::String, what::Symbol) where {M,Ms}
+    for k in Ms
+        hasfield(M, k) ||
+            return :(throw(DiagnosticError(ConformanceFailure(
+                path = path, what = String(what), reason = :field_set, shape = :mode,
+                field = $(QuoteNode(k)), declared_fields = $(collect(fieldnames(M)))))))
+        fieldtype(M, k) === fieldtype(m, k) ||
+            return :(throw(DiagnosticError(ConformanceFailure(
+                path = path, what = String(what), reason = :field_type, shape = :mode,
+                field = $(QuoteNode(k)), observed = $(fieldtype(m, k)),
+                declared = $(fieldtype(M, k))))))
+    end
+    :(ref[] = merge(ref[], m); nothing)
 end
 
 @inline function _fire_project!(e::EventEntry{G,H,P,Comp,XT}, xbuf) where {G,H,P,Comp,XT}
     P === Nothing && return nothing
     e.cursor.fn = :state_projection # the component is the handler's own
-    flatten!(xbuf, e.x_off, e.proj(e.comp, reconstruct(XT, xbuf, e.x_off)))
+    flatten_state!(xbuf, e.x_off, e.proj(e.comp, reconstruct(XT, xbuf, e.x_off)), XT,
+                   activation_scalar(e.clock), e.path, :state_projection, :state)
     nothing
 end
 

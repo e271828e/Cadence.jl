@@ -44,7 +44,8 @@ Where the reason is not given here, the cited decision carries it:
   `DeclaredNotProduced` no state-field list, `ProducedByTwoStages` no stage
   names, `TransparentContainerUnknown` no container-field list,
   `StopFaceInvalid` no binding site (constructor vs. `run!`),
-  `ConformanceFailure` no simulation time on its runtime occurrences,
+  `ConformanceFailure` no simulation time on its runtime occurrences and no
+  event name on a handler's,
   `TapResolution` no candidates on the path-selector arms and none of
   §14.10's tap-set half; and from the audit (M-C, M-B14, M-B17, M-B19):
   `TwoProducers` producer terminals only inside provenance strings,
@@ -56,9 +57,7 @@ Where the reason is not given here, the cited decision carries it:
   into the message against §13.2 (`_typename` is one screen up). The writer
   id missing from `OutOfClaimEntry`/`DeviceCrash`/`ReplayDiscardedStaging`/
   `MalformedDatum`/`EntryTypeMismatch` awaits the spec-pass ruling below.
-- **§9.5's always-on conformance check** (the return laws are checked once,
-  at the probe; what stands in its place is a deviation, below); **§8.3
-  visibility**; **auto-published ports** — not a quiet absence but a
+- **§8.3 visibility**; **auto-published ports** — not a quiet absence but a
   `DeclaredNotProduced` refusal, so §8.2's own worked `Engine`, whose
   `output_types` names the state field `ω`, does not build, and the bundle
   law's `y` row, D-169's hand-down exclusion and §7.1's state-cell table are
@@ -145,14 +144,6 @@ of them chosen; the merge entry has the probe.
   `Real` entry is refused blaming a synthesized `Int64`, and an abstract
   struct entry throws a raw `ArgumentError` from `leaf_types` before any
   diagnostic (`AbstractAtRoot`, above).
-- **The runtime table write converts** (M-B4), the shape D-053 rejects.
-  `scatter_group!` fetches declared names by `getfield` and `scatter!` writes
-  `buf[i] = v`, so an `Int64` where `T` was declared becomes `1.0`, an extra
-  field is dropped, a missing one is a raw `FieldError` inside a `StepError`.
-- **Derivative and projection conformance is checked by leaf count**
-  (M-B6). `_check_derivative` and `_check_state_write` compare `nleaves` per
-  field where §7.1 and §9.5 state shape at `T`, so an `Int64` leaf for a
-  `Float64` state passes and converts.
 - **`AlgebraicCycle` reports the raw stall residue** (M-B5), the shape D-012
   rejects: every component Kahn's algorithm could not place, downstream
   acyclic ones included, as component paths in flatten order, two disjoint
