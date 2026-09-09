@@ -8542,12 +8542,11 @@ by value and is walked, never evaluated.
 arrays and isbits structs, and stops at an immutable type that is not isbits,
 treating it as one opaque leaf: a cell of that type holds the value itself,
 reference fields included. An opaque leaf is accepted by identity alone; the
-embedding lift ([D-238][d-238]) never enters it, since the cell holds the value whole
-and there is nothing to embed. A mutable type anywhere in a port value is
+embedding lift ([D-238][d-238]) never enters it. A mutable type anywhere in a port value is
 refused (`IllegalPortType`), and so is a handle-typed face surfacing as a
 root input.
 
-**Spec.** [§4.3][s4-3], [§4.4][s4-4], [Appendix C][sC]
+**Spec.** [§4.3][s4-3], [§4.4][s4-4], [§9.5][s9-5], [Appendix C][sC]
 
 **Rationale.** [§4.4][s4-4] already fixes the boundary: a bulk-data model is an
 immutable struct combining isbits parameters with references to data loaded at
