@@ -14,7 +14,7 @@ variables:
   margin:
     x: 2cm
     y: 2.2cm
-  fontsize: 11pt
+  fontsize: 12pt
   mainfont: Libertinus Serif
   codefont: JetBrainsMono NF
   linkcolor: '\#1F4E9E'
