@@ -32,7 +32,7 @@ Where the reason is not given here, the cited decision carries it:
   `_read_component` carry none, and a mistyped *path* gets none anywhere
   (M-A2); and §11.8's maxlog renderer (count-only display past 25 cumulative
   occurrences per writer × kind).
-- **Kinds carrying less than their Appendix C payload column.** D-216 rules
+- **Kinds carrying less than their Appendix C payload.** D-216 rules
   that the column is the design and the implementation's gaps stay visible
   as such, and it leaves the enumeration here: `AlgebraicCycle` no wires and no
   §5.6 real/artificial classification, `FaceNameCollision` no per-entry
@@ -98,7 +98,7 @@ Where the reason is not given here, the cited decision carries it:
   no Appendix C kind owns it, the return side has `ConformanceFailure`.
 - **§8.1's shadowing check**, the forgotten-import diagnostic (M-B25). The
   mechanism is `implementation.md`'s second caveat; it needs a decision entry
-  and an Appendix C payload column on `ClassUnreadable`/`TierUnreadable`.
+  and an Appendix C payload on `ClassUnreadable`/`TierUnreadable`.
 - **Two surface names do not exist**: there is no `condition` generic (two
   model packages defining one would define two functions, breaking §14.2's
   pull composition), and `ProbeDual`/`ProbeTag` are not names (M-B23).
