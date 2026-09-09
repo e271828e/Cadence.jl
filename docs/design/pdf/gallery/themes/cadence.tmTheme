@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Syntax colors for code blocks in the design PDFs. One rule per TextMate scope.
+     The scope-less first entry is required by the format; Typst ignores its foreground,
+     so unscoped code takes the fill set in style.typ. -->
+<plist version="1.0">
+<dict>
+  <key>name</key><string>cadence</string>
+  <key>settings</key>
+  <array>
+    <dict>
+      <key>settings</key>
+      <dict><key>foreground</key><string>#333A45</string></dict>
+    </dict>
+    <dict>
+      <key>scope</key><string>keyword.control, keyword.other, keyword.declaration</string>
+      <key>settings</key>
+      <dict><key>foreground</key><string>#7A1F5C</string></dict>
+    </dict>
+    <dict>
+      <key>scope</key><string>keyword.operator</string>
+      <key>settings</key>
+      <dict><key>foreground</key><string>#5A6472</string></dict>
+    </dict>
+    <dict>
+      <key>scope</key><string>comment</string>
+      <key>settings</key>
+      <dict><key>foreground</key><string>#5F7A8A</string><key>fontStyle</key><string>italic</string></dict>
+    </dict>
+    <dict>
+      <key>scope</key><string>string</string>
+      <key>settings</key>
+      <dict><key>foreground</key><string>#1F6E3D</string></dict>
+    </dict>
+    <dict>
+      <key>scope</key><string>constant</string>
+      <key>settings</key>
+      <dict><key>foreground</key><string>#B05A00</string></dict>
+    </dict>
+    <dict>
+      <key>scope</key><string>variable.function, entity.name.function, entity.name.type, entity.name.struct</string>
+      <key>settings</key>
+      <dict><key>foreground</key><string>#1F4E9E</string></dict>
+    </dict>
+    <dict>
+      <key>scope</key><string>variable.macro</string>
+      <key>settings</key>
+      <dict><key>foreground</key><string>#7A1F5C</string></dict>
+    </dict>
+    <dict>
+      <key>scope</key><string>variable.other</string>
+      <key>settings</key>
+      <dict><key>foreground</key><string>#876A50</string></dict>
+    </dict>
+    <dict>
+      <key>scope</key><string>meta.type, support.type</string>
+      <key>settings</key>
+      <dict><key>foreground</key><string>#0E6E6E</string></dict>
+    </dict>
+  </array>
+</dict>
+</plist>

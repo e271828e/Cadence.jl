@@ -1,0 +1,20 @@
+# Pandoc defaults for rendering the design documents to PDF.
+# Page geometry and fonts live here; other styling lives in style.typ.
+# Build through the Makefile, which supplies the theme path.
+from: gfm+tex_math_dollars
+pdf-engine: typst
+filters:
+  - pdflinks.lua
+  - tablewidths.lua
+  - inlinecode.lua
+include-in-header:
+  - style.typ
+variables:
+  papersize: a4
+  margin:
+    x: 2cm
+    y: 2.2cm
+  fontsize: 11pt
+  mainfont: Libertinus Serif
+  codefont: JetBrainsMono NF
+  linkcolor: '\#1F4E9E'
