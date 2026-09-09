@@ -8541,8 +8541,11 @@ by value and is walked, never evaluated.
 **Position.** The leaf walk over a port type descends through `Real`s, static
 arrays and isbits structs, and stops at an immutable type that is not isbits,
 treating it as one opaque leaf: a cell of that type holds the value itself,
-reference fields included. A mutable type anywhere in a port value is refused
-(`IllegalPortType`), and so is a handle-typed face surfacing as a root input.
+reference fields included. An opaque leaf is accepted by identity alone; the
+embedding lift ([D-238][d-238]) never enters it, since the cell holds the value whole
+and there is nothing to embed. A mutable type anywhere in a port value is
+refused (`IllegalPortType`), and so is a handle-typed face surfacing as a
+root input.
 
 **Spec.** [§4.3][s4-3], [§4.4][s4-4], [Appendix C][sC]
 
@@ -8553,9 +8556,16 @@ description off the type, so an author declares nothing and the walk cannot
 drift from the prose. The store is the existing one: a handle type is its own
 leaf eltype with one homogeneous store, and Julia keeps an immutable struct
 with reference fields inline in an array, so the gather and the scatter are
-one load and one store, the allocation-free rebuild [§4.4][s4-4] promises. The handle's
-declaration contains no `T`, so its cell is the same type at every activation
-and no embedding applies. The wire relation ([D-236][d-236]) admits it at an abstract
+one load and one store, the allocation-free rebuild [§4.4][s4-4] promises. A handle
+may carry `T` among its isbits parameters; its cell is then a different type
+per activation, produced at `T` by the emitter's stage, and nothing embeds
+into it. An opaque leaf has no scalar positions to lift, so the relation
+accepts it by identity, and a handle built from literals at a `Dual`
+activation is refused at the probe with both types named; the remedy is to
+build it at `T`, or to pin the parameter in the declaration. The rule reads
+off the outermost type: a struct carrying a handle beside numeric fields is
+itself the opaque leaf, and [§4.4][s4-4]'s isbits parameters live inside the handle,
+never beside it. The wire relation ([D-236][d-236]) admits a handle at an abstract
 entry by the bound clause and needs no arm of its own.
 
 A root input of handle type has no synthesis (`probe_value`) and no producer.

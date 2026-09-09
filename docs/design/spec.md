@@ -3457,7 +3457,8 @@ accepts exactly two types: the activation scalar or `Float64`. The activation
 scalar is the fast path, the straight store. A `Float64` the executor **embeds**
 as a zero-partial constant (`convert` through the leaf). Struct-valued
 [ports](#g-port) use the standard cross-eltype constructor, a missing one
-failing loudly with both types named. Nothing else is accepted. The check is
+failing loudly with both types named. An opaque leaf ([§4.3][s4-3], [D-237][d-237]) embeds
+nothing: it is accepted by identity alone. Nothing else is accepted. The check is
 decided on the type, not leaf by leaf: the arrival with its `Float64`
 positions lifted to the scalar wherever the declaration has one must be the
 declaration itself, so a field name, a non-numeric type parameter or an
