@@ -9504,8 +9504,8 @@ sampled-data latch, and the only new store (the memory the reset used to erase):
   difference of the running store:
 
   $$\int_{t_{k-1}}^{t_k} R^{c_{k-1}}_{c} f^{c} \, dt
-  = (R^{c_0}_{c_{k-1}})^{\mathsf{T}} \left( \int_{t_0}^{t_k} R^{c_0}_{c} f^{c} \, dt
-  - \int_{t_0}^{t_{k-1}} R^{c_0}_{c} f^{c} \, dt \right)
+  = (R^{c_0}_{c_{k-1}})^{\mathsf{T}} \left( \int_{t_0}^{t_k} R^{c_0}_{c} f^{c} \, dt -
+  \int_{t_0}^{t_{k-1}} R^{c_0}_{c} f^{c} \, dt \right)
   = q(t_{k-1})' \, \big( V(t_k) - V(t_{k-1}) \big)$$
 
   — in code, the sampler line
