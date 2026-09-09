@@ -903,6 +903,42 @@ output_direct(::MatrixEntry, (; u)) = (n = float(length(u.m)),)
 handle_model() = Group((; src = Terrain(), q = Query());
                        wires = ("src/terrain" => "q/terrain",))
 
+"""
+A handle carrying `T` among its isbits parameters (D-237): its cell is a
+different type per activation, and the emitter must build it at `T`.
+"""
+struct OffsetField{T}
+    h0::T
+    z::Matrix{Float64}
+end
+
+"""Builds the handle from the clock, so at `T` (D-237's lawful emitter)."""
+struct OffsetAtT <: AbstractComponent
+    z::Matrix{Float64}
+end
+OffsetAtT() = OffsetAtT(zeros(2, 2))
+
+output_types(::OffsetAtT, ::Type{T}) where {T <: Real} = (terrain = OffsetField{T},)
+output_direct(c::OffsetAtT, (; t)) = (terrain = OffsetField(t + 1.0, c.z),)
+
+"""Builds the handle from a literal: a `Float64` handle at every activation."""
+struct OffsetAtLiteral <: AbstractComponent
+    z::Matrix{Float64}
+end
+OffsetAtLiteral() = OffsetAtLiteral(zeros(2, 2))
+
+output_types(::OffsetAtLiteral, ::Type{T}) where {T <: Real} = (terrain = OffsetField{T},)
+output_direct(c::OffsetAtLiteral, (; t)) = (terrain = OffsetField(1.0, c.z),)
+
+struct OffsetQuery <: AbstractComponent end
+
+input_types(::OffsetQuery, ::Type{T}) where {T <: Real} = (terrain = OffsetField{T},)
+output_types(::OffsetQuery, ::Type{T}) where {T <: Real} = (h = T,)
+output_direct(::OffsetQuery, (; u)) = (h = 2 * u.terrain.h0,)
+
+offset_model(src) = Group((; src = src, q = OffsetQuery());
+                          wires = ("src/terrain" => "q/terrain",))
+
 # --- the periphery's coverage set: devices and bindings (§11.3, §11.6) ----------
 
 """

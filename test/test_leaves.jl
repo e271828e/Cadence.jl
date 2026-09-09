@@ -128,6 +128,10 @@ function leaves_shape()
         # not a leaf of its own.
         @test nleaves(Framed) == 1
         @test leaf_types(Framed) == Type[Framed]
+        # The relation on an opaque leaf is identity: no lift enters it.
+        @test _accepts(HeightField, HeightField, D8)
+        @test !_accepts(OffsetField{D8}, OffsetField{Float64}, D8)
+        @test !_accepts(HeightField, Framed, D8)
         # The value walk agrees with the type walk on the tuple arms too.
         @test length(collect(_leaf_values((1.0, HeightField(zeros(1, 1), 0.0))))) == 1
         @test length(collect(_leaf_values((a = 1.0, b = 2)))) == 2

@@ -415,6 +415,26 @@ function build_port_type_refusals()
         @test length(ds) == 2 && all(d -> d isa IllegalPortType, ds)
         @test Set(d.reason for d in ds) == Set([:mutable, :handle_at_root])
     end
+
+    @testset "an opaque leaf is accepted by identity alone (D-237)" begin
+        # Built at `T`, the handle's cell follows the activation and the query
+        # carries partials.
+        sim = Simulation(offset_model(OffsetAtT()), D8; h = 1//10)
+        init!(sim)
+        @test port(sim, "src", :terrain) isa OffsetField{D8}
+        @test port(sim, "q", :h) isa D8
+
+        # Built from a literal, the nominal build runs and the `Dual` activation
+        # is refused at the probe with both types named, where the tip before
+        # D-237's identity rule died in a raw `MethodError` from the embedding.
+        m = offset_model(OffsetAtLiteral())
+        sim = Simulation(m; h = 1//10)
+        init!(sim)
+        @test port(sim, "q", :h) == 2.0
+        d = only(diagnostics(failure(() -> Simulation(m, D8; h = 1//10))))
+        @test d isa ConformanceFailure && d.reason === :field_type && d.field === :terrain
+        @test d.observed === OffsetField{Float64} && d.declared === OffsetField{D8}
+    end
 end
 
 # --- tier classification (§8.2) -----------------------------------------------

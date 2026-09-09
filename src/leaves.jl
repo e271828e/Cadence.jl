@@ -248,7 +248,9 @@ _leaf_values(v) = isbits(v) ? Iterators.flatten(map(_leaf_values,
 # constant-branch idiom (`flow > 0 ? f(x) : 0.0`) legal as written at a `Dual`
 # activation. A deliberately pinned `Float64`, an `Int`, a `Bool` lift nowhere,
 # so an observed `Dual` at a pinned leaf is an error with a hint rather than a
-# silent narrowing.
+# silent narrowing. An opaque leaf (D-237) is accepted by identity alone: the
+# cell holds it whole, so the lift never enters it, and a handle built from
+# literals at a `Dual` activation is refused rather than converted.
 
 """
 Is a value of type `V` a lawful arrival at a cell declared `P`, at activation
@@ -258,6 +260,7 @@ ask whether the result is `P` itself.
 function _accepts(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T}
     P === V && return true
     V === Float64 && P === T && return true          # the one embedding
+    _opaque(P) && return false                       # an opaque leaf embeds nothing (D-237)
     (P isa DataType && V isa DataType && P.name === V.name &&
      length(P.parameters) == length(V.parameters)) || return false
     all(p isa Type && v isa Type ? _accepts(p, v, T) : p === v
