@@ -12,3 +12,6 @@
 // Pandoc's wrapper centers tables; cells read better left-aligned and ragged.
 #show table.cell: set align(left)
 #show table.cell: set par(justify: false)
+// A nested list is a block inside its parent item, and Typst puts paragraph
+// spacing above it; match the tight list leading instead.
+#show list.item: set block(above: 0.65em)
