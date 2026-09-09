@@ -293,9 +293,9 @@ function cell_layout(flat::Flat, decls::Vector{Decls}, ::Type{T}) where {T}
     for (i, face) in enumerate(flat.root_inputs)
         P = _root_input_cell(flat, decls, i, face, T)
         # A handle at a root input has no synthesis and no producer (D-237), so
-        # it is refused here, ahead of `probe_value`. A mutable `P` falls to
-        # `place!`'s own arm on the next line.
-        if any(L -> !(L <: Real), leaf_types(P))
+        # it is refused here, ahead of `probe_value`. A mutable `P` is left to
+        # `place!`'s own arm on the next line, whatever its leaves.
+        if mutable_position(P) === nothing && any(L -> !(L <: Real), leaf_types(P))
             push!(diags, IllegalPortType(path = "", site = :root_input, name = face,
                                          declared = P, reason = :handle_at_root))
             continue

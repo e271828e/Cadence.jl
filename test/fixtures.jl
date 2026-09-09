@@ -892,6 +892,13 @@ struct MutableSource <: AbstractComponent end
 output_types(::MutableSource) = (c = Cache,)
 output_direct(::MutableSource, args) = (c = Cache(0.0),)
 
+"""A mutable array declared as an entry, to surface as a root input."""
+struct MatrixEntry <: AbstractComponent end
+
+input_types(::MatrixEntry, ::Type{T}) where {T <: Real} = (m = Matrix{Float64},)
+output_types(::MatrixEntry, ::Type{T}) where {T <: Real} = (n = T,)
+output_direct(::MatrixEntry, (; u)) = (n = float(length(u.m)),)
+
 """The reference handle model: one field emitter wired into one consumer."""
 handle_model() = Group((; src = Terrain(), q = Query());
                        wires = ("src/terrain" => "q/terrain",))

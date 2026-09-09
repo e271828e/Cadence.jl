@@ -9,8 +9,9 @@
 # reuses it for cells; C1 uses it only for state.
 
 # D-237's opaque leaf: a concrete immutable type that is not isbits — a
-# handle, a `String`, a `Symbol` — stored whole. Abstract types are not
-# leaves and fall through to the struct walk as before.
+# handle, a struct holding a `Ref` — stored whole. Abstract types are not
+# leaves and fall through to the struct walk as before; `String` and `Symbol`
+# are mutable types to Julia and are refused as such.
 _opaque(::Type{P}) where {P} = isconcretetype(P) && !isbitstype(P) && !ismutabletype(P)
 
 """
@@ -230,9 +231,9 @@ end
 
 _leaf_values(v::Real) = (v,)
 _leaf_values(v::StaticArray) = Iterators.flatten(map(_leaf_values, Tuple(v)))
-_leaf_values(v::NamedTuple) = Iterators.flatten(map(_leaf_values, values(v)))
-_leaf_values(v::Tuple) = Iterators.flatten(map(_leaf_values, v))
-# An opaque leaf is one value, not a field walk (D-237).
+# An opaque leaf is one value, not a field walk (D-237); the tuple arms agree.
+_leaf_values(v::NamedTuple) = isbits(v) ? Iterators.flatten(map(_leaf_values, values(v))) : (v,)
+_leaf_values(v::Tuple) = isbits(v) ? Iterators.flatten(map(_leaf_values, v)) : (v,)
 _leaf_values(v) = isbits(v) ? Iterators.flatten(map(_leaf_values,
     ntuple(i -> getfield(v, i), fieldcount(typeof(v))))) : (v,)
 

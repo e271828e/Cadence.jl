@@ -400,6 +400,13 @@ function build_port_type_refusals()
         @test d.name === :terrain && d.declared === HeightField
         @test path(d) == ""                                 # the face's own path is the root's
 
+        # A mutable root type is a mutable type first, not a handle: its leaves
+        # are not all `Real`, and the reason must still be `:mutable`.
+        err = failure(() -> build(Group((; e = MatrixEntry()); inputs = ("m" => "e/m",))))
+        d = only(diagnostics(err))
+        @test d isa IllegalPortType && d.site === :root_input
+        @test d.reason === :mutable && d.position == "" && d.declared === Matrix{Float64}
+
         # Placement collects, so one model reports both and throws once.
         err2 = failure(() -> build(Group((; c = MutableSource(), q = Query());
                                          inputs = ("terrain" => "q/terrain",))))

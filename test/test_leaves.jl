@@ -128,6 +128,9 @@ function leaves_shape()
         # not a leaf of its own.
         @test nleaves(Framed) == 1
         @test leaf_types(Framed) == Type[Framed]
+        # The value walk agrees with the type walk on the tuple arms too.
+        @test length(collect(_leaf_values((1.0, HeightField(zeros(1, 1), 0.0))))) == 1
+        @test length(collect(_leaf_values((a = 1.0, b = 2)))) == 2
         @test leaf_names(Framed) == [""]
 
         # The refusal's walker: the first mutable position the walk meets, the
