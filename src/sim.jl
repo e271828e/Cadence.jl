@@ -182,7 +182,7 @@ Simulation(root::AbstractComponent, ::Type{T} = Float64; kw...) where {T} =
 # `_diag` half never throws, so the constructor's collecting block can push
 # it beside the other keyword violations; `_t_bound` is the fail-fast form
 # `run!`'s override site calls directly. `Inf` is a value, not an absence: it
-# lifts a finite constructor default for one run (D-091), and `_t_end_frame`
+# lifts a finite constructor default for one run (D-091), and `_frames_to`
 # maps it onto the frame loop's unbounded budget.
 _t_bound_diag(t) = (t isa Real && t ≥ 0) ? nothing :
     DeploymentInvalid(parameter = :t_end, reason = :range, value = t)
@@ -190,7 +190,23 @@ function _t_bound(t)
     d = _t_bound_diag(t)
     d === nothing ? Float64(t) : throw(DiagnosticError(d))
 end
-_t_end_frame(sim::Simulation, te::Float64) = isinf(te) ? typemax(Int) : round(Int, te / sim.h)
+
+# Whole frames from the origin `t₀` until the grid boundary `t₀ + k·h` first
+# reaches the bound `t` (§12.4, §12.6), and its floor sibling, the last
+# boundary at or before `t`. Both carry a slack of a few ulps of `t` in frame
+# units: the boundary is an absolute time computed at `t`'s magnitude, so
+# that magnitude, not the duration's, is the precision the comparison has —
+# `0.3/0.1` is `2.9999999999999996`, and at a large clock the subtraction
+# alone is off by more than a fixed frame fraction would absorb.
+# The scalars are the deployment's own `T` (a `Dual` included), the step the
+# bound `Float64`.
+_frame_slack(t::Real, h::Float64) = 4 * eps(t) / h
+function _frames_to(t::Real, t₀::Real, h::Float64)
+    isinf(t) && return typemax(Int)
+    max(0, ceil(Int, (t - t₀) / h - _frame_slack(t, h)))
+end
+_frame_at(t::Real, t₀::Real, h::Float64) = floor(Int, (t - t₀) / h + _frame_slack(t, h))
+_t_end_frame(sim::Simulation, te::Float64) = _frames_to(te, sim.exec.clock.t₀, sim.h)
 
 # §13.5's stop-face validation and compilation, run identically at both binding
 # sites — the constructor's default and `run!`'s override: each name must be a
@@ -755,15 +771,14 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
         # `k ≤ trc.frames` names a boundary of the recording, and a target
         # bound at a different `h` falls through to the entry pass below,
         # which refuses it honestly (`ReplayHeaderMismatch`, never a false
-        # word about a time the recording covers). The slack is `step!`'s
-        # `t_plus` guard run the other way — an on-grid time is a product of
-        # binary floats, `0.3/0.1` being `2.9999999999999996`, and the plain
-        # floor would halt one boundary short of the one named.
+        # word about a time the recording covers). `_frame_at` carries the
+        # slack: without it the plain floor would halt one boundary short of
+        # the one named.
         t₀ = trc.header.deployment.t₀
         to_time isa Real && isfinite(to_time) && to_time ≥ t₀ || throw(DiagnosticError(
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
                             value = to_time)))
-        to_boundary = floor(Int, (Float64(to_time) - t₀) / trc.header.deployment.h + 1e-9)
+        to_boundary = _frame_at(Float64(to_time), t₀, trc.header.deployment.h)
         to_boundary ≤ trc.frames || throw(DiagnosticError(     # a time the recording never reached
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
                             value = to_time)))
@@ -888,7 +903,8 @@ publication follows *every* boundary sequence (§11.2) — the frame top's here,
 a `t*` boundary's inside the frame loop, before integration resumes — and
 every publication is a stop-face sampling point (§13.5), a `t*` hit ending
 the run with the `t*` snapshot final. The grid is driven by the step counter,
-so `t_end` is taken to the nearest frame top.
+so the run ends at the first frame top reaching or exceeding `t_end`, whole
+frames from `t₀` (§12.4).
 """
 function run!(sim::Simulation; t_end = nothing, stop_on = nothing)
     _assert_advanceable(sim, :run!)
@@ -1163,7 +1179,8 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing)
     else
         t_plus isa Real && isfinite(t_plus) && t_plus > 0 || throw(DiagnosticError(
             ArgumentInvalid(call = :step!, reason = :range, argument = :t_plus, value = t_plus)))
-        nf = max(1, ceil(Int, Float64(t_plus) / sim.h - 1e-9))
+        t = sim.exec.clock.t                  # the frame top the duration counts from
+        nf = max(1, _frames_to(t + Float64(t_plus), t, sim.h))
     end
     pol = sim.policy
     pol.faces, pol.addrs, pol.hit = sim.stop_on, sim.stop_addrs, nothing

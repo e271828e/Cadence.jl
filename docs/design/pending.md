@@ -127,13 +127,6 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-- **`t_end` lands on the nearest frame, not the first at or past it**
-  (M-B1). `run!`, `step!` and `replay!` take `round(Int, t_end/h)` where
-  §12.4 and Appendix B say the first grid boundary reaching `t_end`, and the
-  target frame is compared against `clock.step`, which `_open_trajectory!`
-  resets to 0, so it ignores `t0`: `init!(sim; t0 = 10.0)` then
-  `run!(sim; t_end = 12.0)` runs to 22. Every suite `t_end` is grid-aligned
-  from 0. Found by the previous pass at 2c02afb and lost.
 - **State-leaf construction runs on every view** (M-B9). `reconstruct`
   emits `Expr(:call, P, …)`, so an invariant-carrying leaf's normalizing
   constructor runs on every materialization, the projection-on-read D-094
@@ -151,8 +144,7 @@ ruling; the second waits on the feature or the pass its bullet names.
 - **Docstrings that state the spec's shape over code that does not produce
   it** (M-A3): `diagnostics.jl`'s `AlgebraicCycle.members` ("the SCC's member
   terminals"); `localization.jl`'s attribution of the segment-relative rule
-  to D-133; `sim.jl`'s `t_end` "taken to the nearest frame top"; `build.jl`'s
-  torn-state "by having none".
+  to D-133; `build.jl`'s torn-state "by having none".
 
 ### Retire with a feature or a pass
 

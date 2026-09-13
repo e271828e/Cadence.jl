@@ -98,6 +98,27 @@ function test_lifecycle()
         @test isempty(t.residue)                         # a quiet tail contributes no record
         @test sim.exec.clock.step == 50
 
+        # §12.4: the run ends at the first frame top reaching or exceeding
+        # `t_end`, whole frames from `t₀` — an off-grid bound overshoots by
+        # less than `h`, an offset origin counts from itself, a bound at or
+        # before the origin advances nothing, and a large clock still lands a
+        # grid-aligned bound on its own frame (`_frames_to`'s slack scales
+        # with the time's magnitude; `step!`'s `t_plus` is the same rule)
+        init!(sim, fragment(inputs = (ref = 0.0,)))
+        run!(sim; t_end = 0.99)
+        @test termination(sim).t == 1.0 && sim.exec.clock.step == 50
+        init!(sim, fragment(inputs = (ref = 0.0,)); t0 = 10.0)
+        run!(sim; t_end = 12.0)
+        @test termination(sim).t == 12.0 && sim.exec.clock.step == 100
+        init!(sim, fragment(inputs = (ref = 0.0,)); t0 = 10.0)
+        run!(sim; t_end = 5.0)
+        @test termination(sim).source === EndTimeReached() && sim.exec.clock.step == 0
+        late = Simulation(feedback_model(); h = 1//50)   # `t_end = Inf`: the default `1.0` would precede `t0`
+        init!(late, fragment(inputs = (ref = 0.0,)); t0 = 86400.0)
+        @test step!(late; t_plus = 1.0) == 50
+        run!(late; t_end = 86402.0)
+        @test termination(late).t == 86402.0 && late.exec.clock.step == 100
+
         init!(sim, fragment(inputs = (ref = 0.0,)))
         run!(sim; t_end = 0.5)                           # this run only
         @test termination(sim).t == 0.5
