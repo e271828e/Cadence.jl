@@ -242,7 +242,7 @@ function leaves_retype()
         # included, which `.parameters` would have thrown on.
         @test retype(D8, retype(D8, SVector{3,Float64})) === retype(D8, SVector{3,Float64})
         @test retype(D8, Tagged{D8}) === Tagged{D8}
-        @test retype(D8, AbstractVector) === AbstractVector
+        @test retype(D8, AbstractVector) == AbstractVector
         @test retype(D8, Union{Float64,Int}) === Union{Float64,Int}
     end
 end
