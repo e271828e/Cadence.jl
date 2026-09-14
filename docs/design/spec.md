@@ -6093,11 +6093,12 @@ value.
 **The heartbeat rides in the same cell**, as an atomic timestamp field the
 device task stores on every loop pass from inside the handle primitives
 ([§11.6][s11-6]: the framework observes activity without owning the loop body) and
-the loop acquire-loads at the drain. There is no separate liveness channel
-and no second registry: a device that is alive is a device whose cell carries
-a recent timestamp, and the 2 s staleness threshold ([§12.2][s12-2]) is read against
-this field. The heartbeat is not a diagnostic kind — it is a field, always
-present, never enumerated in [Appendix C][sC].
+the loop acquire-loads at publication, when it assembles the status ([D-240][d-240]).
+There is no separate liveness channel and no second registry: a device that
+is alive is a device whose cell carries a recent timestamp, and the 2 s
+staleness threshold ([§12.2][s12-2]) is read against this field. The heartbeat is
+not a diagnostic kind — it is a field, always present, never enumerated in
+[Appendix C][sC].
 
 **The published framework status is a concrete frozen value.** Per writer it
 carries `recent` — the ring this boundary drained, at most sixteen entries;
@@ -11797,6 +11798,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-237]: decisions.md#d-237--classify-a-non-isbits-immutable-port-type-as-one-opaque-leaf
 [d-238]: decisions.md#d-238--decide-embed-accept-on-the-type-lift-the-arrival-compare-exactly
 [d-239]: decisions.md#d-239--report-a-typod-return-field-alone-without-the-unproduced-port
+[d-240]: decisions.md#d-240--read-the-heartbeat-at-publication-beside-the-task-state
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
