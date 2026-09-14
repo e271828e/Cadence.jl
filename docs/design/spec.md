@@ -8016,26 +8016,27 @@ library blocks, a standing ergonomics test of the declaration rules.
 
 ## 14. Stopped-sim services
 
-[§9.6][s9-6] previewed the services as [Stratum](#g-stratum)-C clients:
-initialization, trim, linearization and [capture](#g-capture) (reading the
-current stores and root inputs back as a condition). Everything they share reduces to
-one artifact: the **[condition](#g-condition) value**, the datum that says "set
-this build to this state."
-[§14.1][s14-1]–[§14.4][s14-4] settle its representation, composition and application;
-[§14.5][s14-5]–[§14.6][s14-6] the [boundary](#g-boundary)-zero sequence and [root-input totality](#g-root-input-totality)
-(the requirement that an application establishing a complete world cover every
-root input); [§14.7][s14-7]–[§14.9][s14-9] the trim service in full;
-[§14.10][s14-10] linearization and `capture`.
+[§9.6][s9-6] previewed the services as [Stratum](#g-stratum)-C clients. They
+are initialization, trim, linearization and [capture](#g-capture) (reading the
+current stores and root inputs back as a condition). Everything they share
+reduces to one artifact, the **[condition](#g-condition) value**. A condition
+is the datum that says "set this build to this state."
+[§14.1][s14-1]–[§14.4][s14-4] settle its representation, composition and
+application. [§14.5][s14-5]–[§14.6][s14-6] cover the [boundary](#g-boundary)-zero
+sequence and [root-input totality](#g-root-input-totality) (the requirement
+that an application establishing a complete world cover every root input).
+[§14.7][s14-7]–[§14.9][s14-9] cover the trim service in full.
+[§14.10][s14-10] covers linearization and `capture`.
 
-**Lifecycle preconditions.** Every service requires a non-running simulation:
-while a run exists the loop owns the [stores](#g-store) between [drains](#g-drain)
-(the frame-top swap that publishes staged device writes into the root inputs),
-and a service reading or writing them would race it. Pause is no exception, by
-the doctrine that freezes the [roster](#g-roster): pause is a control-plane state
-*inside* a run, so a prohibition that holds mid-run holds while paused
-([§11.3][s11-3], [§12.1][s12-1]).
+**Lifecycle preconditions.** Every service requires a non-running simulation.
+While a run exists the loop owns the [stores](#g-store) between
+[drains](#g-drain) (the frame-top swap that publishes staged device writes into
+the root inputs), and a service reading or writing them would race it. Pause
+is no exception, by the doctrine that freezes the [roster](#g-roster). Pause is
+a control-plane state *inside* a run, so a prohibition that holds mid-run holds
+while paused ([§11.3][s11-3], [§12.1][s12-1]).
 
-Within the stopped-sim states, legality follows each service's inputs:
+Within the stopped-sim states, legality follows each service's inputs.
 
 | service | `built` | `initialized` | `stopped` | its inputs |
 |---|---|---|---|---|
@@ -8045,83 +8046,91 @@ Within the stopped-sim states, legality follows each service's inputs:
 | `linearize`, operating point defaulted to `capture(sim)` | error | legal | legal | inherits `capture`'s precondition |
 | `linearize`, explicit `about` ([§14.10][s14-10]) | legal | legal | legal | inherits `init!`'s legality — legal wherever `init!` is |
 
-**`errored` is terminal for all four** ([D-059][d-059], [D-108][d-108]). Post-mortem inspection
-of an errored sim's stores, log and [trace](#g-trace) stays available as a
-diagnostic read; it may not become a condition value.
+**`errored` is terminal for all four** ([D-059][d-059], [D-108][d-108]).
+Post-mortem inspection of an errored sim's stores, log and [trace](#g-trace)
+stays available as a diagnostic read. It may not become a condition value.
 
-A violation is `ServiceLifecycle` ([Appendix C][sC] — the
-operation, the current status, the legal statuses), the same kind
-`attach!`/`detach!` raise while `running` ([§11.3][s11-3]): one [register](#g-register) for "this
-operation is illegal in the current lifecycle state," distinct from
-`MissingInit`, which names a missing prior step.
+A violation is `ServiceLifecycle` ([Appendix C][sC]). Its payload is the
+operation, the current status and the legal statuses. It is the same kind
+`attach!`/`detach!` raise while `running` ([§11.3][s11-3]), so there is one
+[register](#g-register) for "this operation is illegal in the current
+lifecycle state." `MissingInit` is distinct, and names a missing prior step.
 
 ### 14.1 Conditions are path-addressed overlays on the declared defaults
 
 A [condition](#g-condition) may specify state fields (`x` on the continuous
 [tier](#g-tier), `s` on the discrete) and modes (`m`,
-[continuous components](#g-continuous-component) only, [§3.2][s3-2]); all three
-are addressed by [§8.6][s8-6] slash path plus field name. It may also specify
-[root inputs](#g-root-input), addressed by [face](#g-face). Never outputs, which are derived data.
-Never [workspace](#g-workspace) (component-declared mutable scratch arriving as the `ws`
-bundle field). Entries are validated in the [§13.1][s13-1] collecting [register](#g-register): full
-list, violations collected, one `DiagnosticError`.
+[continuous components](#g-continuous-component) only, [§3.2][s3-2]). All
+three are addressed by a [§8.6][s8-6] slash path plus a field name. It may
+also specify [root inputs](#g-root-input), addressed by [face](#g-face). It
+never specifies outputs, which are derived data. It never specifies
+[workspace](#g-workspace) (component-declared mutable scratch arriving as the
+`ws` bundle field). Entries are validated in the [§13.1][s13-1] collecting
+[register](#g-register). The full list is checked, violations are collected,
+and one `DiagnosticError` is thrown.
 
-**The overlay base is always the declared defaults.** Every [store](#g-store) has a
-declared initial value (declaration-by-initial-value, [§8.2][s8-2]), so conditions
-are naturally sparse. Applying one means "fresh run from the `init_*` defaults,
-with these overrides" ([D-063][d-063]). Warm restart needs no second semantics. A
-`capture` service reads the current stores **and root inputs** back *as a
-condition value* (capture → tweak → apply). Root input coverage is what makes the
-captured condition total, hence re-applicable under [§14.6][s14-6]. That gather is
-the one the [trace header](#g-trace-header) already needs: one mechanism, two uses.
+**The overlay base is always the declared defaults.** Every [store](#g-store)
+has a declared initial value (declaration-by-initial-value, [§8.2][s8-2]), so
+conditions are naturally sparse. Applying one means "fresh run from the
+`init_*` defaults, with these overrides" ([D-063][d-063]). Warm restart needs
+no second semantics. A `capture` service reads the current stores **and root
+inputs** back *as a condition value*, so the cycle is capture, tweak, apply.
+Root input coverage is what makes the captured condition total, and hence
+re-applicable under [§14.6][s14-6]. That gather is the one the
+[trace header](#g-trace-header) already needs. It is one mechanism with two
+uses.
 
 **Doctrine.** Addressing conditions by path does not reopen the
-observation-by-path rejection ([§13.5][s13-5]). That was *runtime* coupling: a
-root-authored predicate reaching through generic [seams](#g-seam) the root does not
-own, breaking on substitution. A condition is a *design-time statement about a
-concrete build*, authored in the same register as `child_connections` (which
-also speaks paths, about children its author owns). The composition law
-([§14.2][s14-2]) makes the parallel exact.
+observation-by-path rejection ([§13.5][s13-5]). That rejection was about
+*runtime* coupling, where a root-authored predicate reaches through generic
+[seams](#g-seam) the root does not own and breaks on substitution. A condition
+is a *design-time statement about a concrete build*. It is authored in the
+same register as `child_connections`, which also speaks paths, about children
+its author owns. The composition law ([§14.2][s14-2]) makes the parallel
+exact.
 
 **Pre-[sweep](#g-sweep) doctrine.** Condition writes precede the first sweep by
 definition. A would-be init value that depends on swept outputs is therefore
-either analytically known to the caller or an equilibrium constraint. The first
-case is trim's `α_filt = α_a`: α is a *decision variable*, so the value is known
-above, not computable below. The second is a job for the trim service, not for
-init.
+either analytically known to the caller or an equilibrium constraint. The
+first case is trim's `α_filt = α_a`. There α is a *decision variable*, so the
+value is known above, not computable below. The second case is a job for the
+trim service, not for init.
 
 "Caller-computable" reaches past closed-form knowledge to **environment
 queries**. A condition needing one constructs the same handle the sweep will
 produce, and then calls the same query function the consuming component calls.
-One route to that handle is the [value-level constructor](#g-value-level-constructor) (the plain
-public function building a field handle from the component and input values,
+There are two routes to that handle. One is the
+[value-level constructor](#g-value-level-constructor) (the plain public
+function building a field handle from the component and input values,
 [§4.4][s4-4]), applied to the same values the [`baseline`](#g-baseline) writes
-into the environment [component](#g-component)'s root inputs. The other applies in a
-rig where the handle itself is a root-input value: the condition simply holds
-the value the `baseline` wrote there. One implementation of the field math, evaluated one level up: no
-pre-sweep, no new mechanism. Where closed-form enforcement of a target is not
-wanted at all, the second escape already covers the case: promote the eliminated
-state coordinates to decision variables and enforce the targets as residuals on
-swept outputs. That route needs no environment access at condition time
+into the environment [component](#g-component)'s root inputs. The other
+applies in a rig where the handle itself is a root-input value. There the
+condition simply holds the value the `baseline` wrote. Either way there is one
+implementation of the field math, evaluated one level up, with no pre-sweep
+and no new mechanism. Where closed-form enforcement of a target is not wanted
+at all, the second escape already covers the case. Promote the eliminated
+state coordinates to decision variables and enforce the targets as residuals
+on swept outputs. That route needs no environment access at condition time
 whatsoever.
 
 ### 14.2 Fragment composition: locality without schema
 
-Init knowledge is [component](#g-component)-local — the engine knows
+Init knowledge is [component](#g-component)-local. The engine knows
 `n_eng → ω = n_eng·ω_rated`, and nothing above it should have to. Making that
-locality a schema entry was rejected ([D-064][d-064]). That spelling would declare
-`initialize(::C, spec)` — today's `f_init!` reborn declaratively — and add an
-[assembly](#g-assembly)-level rule routing sub-specs to children.
+locality a schema entry was rejected ([D-064][d-064]). That spelling would
+declare `initialize(::C, spec)`, today's `f_init!` reborn declaratively, and
+add an [assembly](#g-assembly)-level rule routing sub-specs to children.
 
-What preserves the locality is an idiom, not schema: **[fragment](#g-fragment) functions**,
-ordinary functions shipped beside the component and dispatched on the component:
+What preserves the locality is an idiom, not schema. It is the
+**[fragment](#g-fragment) function**, an ordinary function shipped beside the
+component and dispatched on the component.
 
 ```julia
 condition(eng::PistonEngine; n_eng) =
     fragment(x = (ω = n_eng * eng.ω_rated,), m = (phase = Phase.running,))
 ```
 
-Fragments are composed by *pull* from the structure's owner:
+Fragments are composed by *pull* from the structure's owner.
 
 ```julia
 condition(sys::C172XSystems; n_eng, α_a, β_a) = combine(
@@ -8129,9 +8138,9 @@ condition(sys::C172XSystems; n_eng, α_a, β_a) = combine(
     at("aero",       fragment(x = (α_filt = α_a, β_filt = β_a))))
 ```
 
-Dispatch selects variant-specific methods, so the c172s/c172x actuation
-split costs no upstream edits. The three combinators are constructors of an
-**inert, lazy tree**: no path arithmetic happens at composition.
+Dispatch selects variant-specific methods, so the c172s/c172x actuation split
+costs no upstream edits. The three combinators are constructors of an
+**inert, lazy tree**. No path arithmetic happens at composition.
 
 ```julia
 struct Fragment{X,S,M,L}  x::X; s::S; m::M; inputs::L  end  #self-vocabulary payloads; no paths
@@ -8140,64 +8149,68 @@ struct Combined{T<:Tuple}  nodes::T  end                   #combine(ns...): coll
 ```
 
 Every node is isbits except the prefix strings, and a prefix is a reference to
-the author's own literal, so **rebuilding the tree per trim iteration
-allocates nothing** — no path arithmetic, no validation, no copy of the
-payloads. The zero-alloc property of today's `assign!` loop holds of the
+the author's own literal. So **rebuilding the tree per trim iteration
+allocates nothing**. There is no path arithmetic, no validation and no copy of
+the payloads. The zero-alloc property of today's `assign!` loop holds of the
 construction and of the [register](#g-register) that *applies* the tree
-([§14.4][s14-4]) alike, so an evaluation's cost is the sweep it feeds.
+([§14.4][s14-4]) alike. An evaluation's cost is therefore the sweep it feeds.
 
-`fragment`'s payloads speak only about the component at the authoring point;
-addressing children is exclusively `at`'s job (one way to say everything). An
-`inputs` payload names faces *of the authoring level's [contract](#g-contract)*.
-Resolution walks the export chain to the root input and errors if the face never
-surfaces. That walk always has a name to follow: one-level routing gives every
-level a declared face for every signal crossing its boundary, so the chain a
-sub-assembly's face routes through is in the `Build` ([§6.1][s6-1], [§9.2][s9-2]).
-An internally-wired input has no root input behind it, and writing it would be
-meaningless because the first sweep overwrites it. Unexported stays unpokeable
-for init exactly as it does for the GUI ([§11.7][s11-7], [§15.4][s15-4]).
+`fragment`'s payloads speak only about the component at the authoring point.
+Addressing children is exclusively `at`'s job, so there is one way to say
+everything. An `inputs` payload names faces *of the authoring level's
+[contract](#g-contract)*. Resolution walks the export chain to the root input
+and errors if the face never surfaces. That walk always has a name to follow.
+One-level routing gives every level a declared face for every signal crossing
+its boundary, so the chain a sub-assembly's face routes through is in the
+`Build` ([§6.1][s6-1], [§9.2][s9-2]). An internally-wired input has no root
+input behind it, and writing it would be meaningless because the first sweep
+overwrites it. Unexported stays unpokeable for init exactly as it does for the
+GUI ([§11.7][s11-7], [§15.4][s15-4]).
 
-**The locality law** here is the one [§6.1][s6-1] states for connections, now in
-its third instance — child connections, computed interface
-connections, conditions. Each level speaks its own fields, its declared
-children's names, and its own faces; delegation runs by dispatch at every
-genericity [seam](#g-seam); an `at` prefix may stop at *any* child's faces, owned
-or generically held, the face graph being total ([D-207][d-207]), while a deep `at`
-path into structure stays legitimate exactly where a deep [condition](#g-condition)
-path is, within an owned concrete subtree ([§13.3][s13-3]). Absolute paths exist only in
-the flattened entry list, a *compiled derivative* of the composition, as cell
-offsets are of `child_connections`. Substituting a component invalidates
-precisely the fragments its owner shipped, nothing else. The enforcement status
-carries over from [§6.1][s6-1] as well: the law is convention. Ownership is a
-fact about who maintains the code and the build cannot see it, so the law is
-available and idiomatic rather than machine-checked. `fragment`/`at`/`combine`
-are [§13.7][s13-7] standard-library material — ordinary artifacts, no privileges.
+**The locality law** here is the one [§6.1][s6-1] states for connections, now
+in its third instance. The three instances are child connections, computed
+interface connections and conditions. Each level speaks its own fields, its
+declared children's names, and its own faces. Delegation runs by dispatch at
+every genericity [seam](#g-seam). An `at` prefix may stop at *any* child's
+faces, owned or generically held, because the face graph is total
+([D-207][d-207]). A deep `at` path into structure stays legitimate exactly
+where a deep [condition](#g-condition) path is, within an owned concrete
+subtree ([§13.3][s13-3]). Absolute paths exist only in the flattened entry
+list, a *compiled derivative* of the composition, as cell offsets are of
+`child_connections`. Substituting a component invalidates precisely the
+fragments its owner shipped, nothing else. The enforcement status carries over
+from [§6.1][s6-1] as well. The law is convention. Ownership is a fact about
+who maintains the code, and the build cannot see it, so the law is available
+and idiomatic rather than machine-checked. `fragment`/`at`/`combine` are
+[§13.7][s13-7] standard-library material, ordinary artifacts with no
+privileges.
 
-A [combine](#g-combine) collision is two entries on one leaf. Collisions are errors
-at resolution, and the error reports *both* provenance chains. The message
-names the layering combinator: "`combine` is collision-intolerant by design —
-use `override(base, patch)` to layer." Last-writer-wins was rejected ([D-065][d-065]).
-That rejection is also why the combinator is not `Base.merge`, and no longer
-named after it ([D-204][d-204]): `Base.merge` is last-wins on NamedTuples — the exact
-semantics rejected here — and its own name should not promise them. Because
-`combine` is its own function, a bare NamedTuple blended into a node cannot
-fall through to any last-wins method. The blend is still closed explicitly. A
-`combine(::Fragment, ::NamedTuple)` — or any other blend of a condition node
-with a bare NamedTuple — is an **error method**, its message directive: wrap
-the NamedTuple in `fragment(…)` (or `at(prefix, fragment(…))`) and combine
-nodes with nodes. The rejection carries a [kind](#g-kind) like every other:
-`ConditionNodeMisuse` ([Appendix C][sC]), carrying the offending argument's type
-and the node kinds in hand. It is raised at composition time, before any
-resolution pass or provenance chain exists. That is why it is its own kind and
-not a `ConditionResolution` sub-kind ([§14.3][s14-3]). The explicit, *ordered*
-layering spelling — `override` — belongs with the use case [root-input totality](#g-root-input-totality)
-produces ([§14.6][s14-6]).
+A [combine](#g-combine) collision is two entries on one leaf. Collisions are
+errors at resolution, and the error reports *both* provenance chains. The
+message names the layering combinator: "`combine` is collision-intolerant by
+design — use `override(base, patch)` to layer." Last-writer-wins was rejected
+([D-065][d-065]). That rejection is also why the combinator is not
+`Base.merge`, and is no longer named after it ([D-204][d-204]). `Base.merge`
+is last-wins on NamedTuples, the exact semantics rejected here, and its own
+name should not promise them. Because `combine` is its own function, a bare
+NamedTuple blended into a node cannot fall through to any last-wins method.
+The blend is still closed explicitly. A `combine(::Fragment, ::NamedTuple)`,
+or any other blend of a condition node with a bare NamedTuple, is an **error
+method**. Its message is directive: wrap the NamedTuple in `fragment(…)` (or
+`at(prefix, fragment(…))`) and combine nodes with nodes. The rejection carries
+a [kind](#g-kind) like every other. It is `ConditionNodeMisuse`
+([Appendix C][sC]), carrying the offending argument's type and the node kinds
+in hand. It is raised at composition time, before any resolution pass or
+provenance chain exists. That is why it is its own kind and not a
+`ConditionResolution` sub-kind ([§14.3][s14-3]). The explicit, *ordered*
+layering spelling, `override`, belongs with the use case
+[root-input totality](#g-root-input-totality) produces ([§14.6][s14-6]).
 
 ### 14.3 Resolution: flatten, validate, compile once
 
 Resolution takes the root node plus a `Build`. Flattening is the only place
-path strings are ever concatenated: a trivial recursion with a path
-accumulator that also records each entry's **tree position**, its
+path strings are ever concatenated. It is a trivial recursion with a path
+accumulator, and it also records each entry's **tree position**, its
 `getfield`/`getindex` step tuple.
 
 The collecting pass then checks each flat entry:
@@ -8210,12 +8223,12 @@ The collecting pass then checks each flat entry:
 - no `(path, store, field)` is duplicated.
 
 The `Build` supplies two lookup families. **Schema** is the evaluated
-declarations — may you write this field, at what leaf type — and it is the
-authority. **Layout** is the destination: `x` backing ranges, store indices for
-`s` and for `m`, and root-input indices from the [activation](#g-activation) (a re-run
-of Stratum C at a given scalar type).
-Layout also carries the face chains from [Stratum](#g-stratum) A (one of the
-build's three phases: structure, schedule, activation).
+declarations, and it is the authority. It answers whether you may write this
+field, and at what leaf type. **Layout** is the destination. It holds the `x`
+backing ranges, the store indices for `s` and for `m`, and the root-input
+indices from the [activation](#g-activation) (a re-run of Stratum C at a given
+scalar type). Layout also carries the face chains from [Stratum](#g-stratum) A
+(one of the build's three phases: structure, schedule, activation).
 
 A valid list compiles to a plan. Per leaf, the plan holds a `Getter{P}`
 [lens](#g-lens) (the compiled navigation step of a condition entry), a
@@ -8229,141 +8242,143 @@ in the resolved shape.
 full nesting and every field name ([§14.4][s14-4]). Selection therefore
 consults no runtime fact and stays a resolution-time bake.
 
-There are two cases:
+There are two cases.
 
 | leaf in the resolved shape | converter baked |
 |---|---|
 | already at the activation's scalar type — decision-descended | the type's ordinary `convert`/constructor methods *at that eltype* |
 | a plain `Float64` leaf against a non-nominal activation's scratch — a held constant | the `Float64 → Dual` zero-partial embedding |
 
-**A leaf already at the activation's scalar type** is decision-descended: under
-a `Dual`-seeded evaluation of a type-stable `trim_condition(d)`, every
+**A leaf already at the activation's scalar type** is decision-descended.
+Under a `Dual`-seeded evaluation of a type-stable `trim_condition(d)`, every
 decision-dependent leaf is `Dual`-typed in the shape ([§14.7][s14-7]). Such a
-leaf takes the type's ordinary `convert`/constructor methods *at that eltype*:
-an authored `RQuat` of `Dual`s → the `SVector{4}` state leaf at `Dual`,
-partials flowing through untouched. That untouched flow of partials is what
-makes the seeded decisions reach the [sweep](#g-sweep) at all. At the nominal
-activation the same rule is the ordinary `Float64` conversion: an authored
-`RQuat` value → the `SVector{4}` state leaf it initializes.
+leaf takes the type's ordinary `convert`/constructor methods *at that eltype*.
+An authored `RQuat` of `Dual`s becomes the `SVector{4}` state leaf at `Dual`,
+with the partials flowing through untouched. That untouched flow of partials
+is what makes the seeded decisions reach the [sweep](#g-sweep) at all. At the
+nominal activation the same rule is the ordinary `Float64` conversion. An
+authored `RQuat` value becomes the `SVector{4}` state leaf it initializes.
 
 **A plain `Float64` leaf against a non-nominal activation's scratch** is a held
-constant, and takes the `Float64 → Dual` zero-partial embedding. That embedding
-is semantically exact in that case, and in no other: "held at the operating
-point" *is* zero partials. Zero partials are the whole of a linearization
-operating-point [condition](#g-condition), which is authored decision-free
-([§14.10][s14-10]).
+constant, and it takes the `Float64 → Dual` zero-partial embedding. That
+embedding is semantically exact in that case, and in no other. "Held at the
+operating point" *is* zero partials. Zero partials are the whole of a
+linearization operating-point [condition](#g-condition), which is authored
+decision-free ([§14.10][s14-10]).
 
-The selection is a one-time boundary decision, and it leaves the
-nominal exact-match doctrine for table [cells](#g-cell) ([§9.5][s9-5])
-untouched. Converters run here and in `capture`'s gather ([§14.10][s14-10]) —
-the write paths — never on state [views](#g-view) ([§7.1][s7-1]).
+The selection is a one-time boundary decision, and it leaves the nominal
+exact-match doctrine for table [cells](#g-cell) ([§9.5][s9-5]) untouched.
+Converters run here and in `capture`'s gather ([§14.10][s14-10]), which are
+the write paths. They never run on state [views](#g-view) ([§7.1][s7-1]).
 
-Overlay partiality for the `s` and `m` stores is baked the same way: the writer
-holds `merge(init_m_defaults, overlay)` with the base resolved at compile time
-(the fork, [§14.1][s14-1]).
+Overlay partiality for the `s` and `m` stores is baked the same way. The
+writer holds `merge(init_m_defaults, overlay)`, with the base resolved at
+compile time (the overlay-base rule, [§14.1][s14-1]).
 
 ### 14.4 Two application registers over one plan
 
-**The paradigm-change tax feared at execution does not materialize.** All string
-work, validation and addressing are functions of the *shape* of the
-[condition](#g-condition) (the path-addressed sparse overlay that sets a build's
-state), and every hot path holds the shape fixed while varying values. Execution
-is therefore resolve-once/execute-many, with two [registers](#g-register) over
-one plan:
+**The paradigm-change tax feared at execution does not materialize.** All
+string work, validation and addressing are functions of the *shape* of the
+[condition](#g-condition) (the path-addressed sparse overlay that sets a
+build's state). Every hot path holds the shape fixed while varying values.
+Execution is therefore resolve-once/execute-many, with two
+[registers](#g-register) over one plan.
 
-- **Specialized `apply!`** — for services that iterate: trim's per-evaluation
-  write, linearization's seeding. It unrolls stores through the baked lenses and
-  converters, the same machine operations as today's in-place writes: zero-alloc,
-  no strings, no dispatch. The per-iteration shape check is the mechanism
-  ([§9.5][s9-5]) transferred. The tree type is proven by dispatch, and it
-  carries the full nesting, every field name and leaf type. A `===`
-  sweep over the prefix strings closes the remainder: `===` on strings
-  compares content, so a prefix computed at run time pairs with the compiled
-  one exactly as a literal does, at the cost of one short comparison per `at`
-  node. Shape drift — a tree of another type, or a prefix that differs at a
-  position — is `ConditionShapeDrift` ([Appendix C][sC]), a structured error rather
-  than silent corruption. Cost: Julia codegen of ~10–50 ms *once per condition
-  shape*. That cost is noise against the model's own first-sweep warmup
-  (seconds), and against the 10³–10⁴ optimizer evaluations the codegen
-  amortizes over.
-- **Dynamic walk** — for one-shot init. It executes the same validated entry
-  list by runtime dispatch per write: microseconds total, allocation permitted,
-  since the stopped-sim path was never under the zero-alloc regime
-  ([§7.5][s7-5]). It needs no per-shape codegen: fifty structurally different
-  scripted conditions cost fifty walks, not fifty compiles.
+- **Specialized `apply!`** serves the services that iterate, namely trim's
+  per-evaluation write and linearization's seeding. It unrolls stores through
+  the baked lenses and converters. Those are the same machine operations as
+  today's in-place writes: zero-alloc, no strings, no dispatch. The
+  per-iteration shape check is the mechanism of [§9.5][s9-5] transferred. The
+  tree type is proven by dispatch, and it carries the full nesting, every
+  field name and leaf type. A `===` sweep over the prefix strings closes the
+  remainder. `===` on strings compares content, so a prefix computed at run
+  time pairs with the compiled one exactly as a literal does, at the cost of
+  one short comparison per `at` node. Shape drift (a tree of another type, or
+  a prefix that differs at a position) is `ConditionShapeDrift`
+  ([Appendix C][sC]), a structured error rather than silent corruption. The
+  cost is Julia codegen of ~10–50 ms *once per condition shape*. That cost is
+  noise against the model's own first-sweep warmup (seconds), and against the
+  10³–10⁴ optimizer evaluations the codegen amortizes over.
+- **The dynamic walk** serves one-shot init. It executes the same validated
+  entry list by runtime dispatch per write. That takes microseconds in total,
+  with allocation permitted, since the stopped-sim path was never under the
+  zero-alloc regime ([§7.5][s7-5]). It needs no per-shape codegen. Fifty
+  structurally different scripted conditions cost fifty walks, not fifty
+  compiles.
 
 **Rule.** Which register a service uses is internal, never user-facing API.
 
 A compiled plan or reader carries the [activation](#g-activation) it was
 compiled at and applies only to a store set of that activation. That pairing
-is a framework invariant the services uphold, not a user-facing check:
-neither plans nor readers are user values.
+is a framework invariant the services uphold, not a user-facing check. Neither
+plans nor readers are user values.
 
 #### The read-selector family
 
 **The read-[selector](#g-selector) family is closed.** Its members are
 `get_state(path, field[, i])`, `get_deriv(path, field[, i])`,
-`get_output(path, field[, i])`, `get_input(face)` and `get_face(name)` — one
-address space for every reader of the model.
+`get_output(path, field[, i])`, `get_input(face)` and `get_face(name)`. They
+form one address space for every reader of the model.
 
-The names carry a deliberate `get_` prefix. A selector is a *deferred read*: a
+The names carry a deliberate `get_` prefix. A selector is a *deferred read*, a
 value describing the read the compiled gather will perform. The prefix names
 that action, and it keeps five short common nouns out of the namespace user
 declarations share with domain code.
 
 There is no selector for a value a [component](#g-component) computes without
-declaring it, and there cannot be one: only [cells](#g-cell) are addressable
-([§5.2][s5-2]). So a reader that wants one is asking the producing component to
-declare it an output ([§8.3][s8-3]). `get_face`
-addresses a root-exported output [face](#g-face) — the *integration* register
+declaring it, and there cannot be one, because only [cells](#g-cell) are
+addressable ([§5.2][s5-2]). So a reader that wants one is asking the producing
+component to declare it an output ([§8.3][s8-3]). `get_face` addresses a
+root-exported output [face](#g-face), which is the *integration* register
 ([§11.2][s11-2]).
 
 **Rule.** A selector resolves against a source, before any client policy
 applies.
 
-The table selectors — `get_output`, `get_input`, `get_face` — resolve against a
-*table source*: a [boundary](#g-boundary) [snapshot](#g-snapshot), or the
-scratch tables a service evaluation instantiates ([§14.8][s14-8]). The store
-selectors — `get_state`, `get_deriv` — resolve only against live stores. The
-table/store axis separates table-borne values from store-borne ones, not
-snapshots from services.
+The table selectors (`get_output`, `get_input`, `get_face`) resolve against a
+*table source*. A table source is a [boundary](#g-boundary)
+[snapshot](#g-snapshot), or the scratch tables a service evaluation
+instantiates ([§14.8][s14-8]). The store selectors (`get_state`, `get_deriv`)
+resolve only against live stores. The table/store axis separates table-borne
+values from store-borne ones, not snapshots from services.
 
-Only stopped-sim service evaluations, `capture`, and post-run inspection of the
-live stores (the [replay](#g-replay)-to-inspect, [§11.2][s11-2]) ever hold live
-stores: the snapshot deliberately carries no state stores ([§11.2][s11-2]), and
-`ẋ` [buffers](#g-buffer) are integrator scratch, not boundary-consistent
-objects outside a service evaluation. A snapshot-bound reader naming a store
-selector is therefore a resolution error at attach (`ReadBindingUnresolved`),
-raised in the didactic register. The honest remedy ([§11.2][s11-2]) is to declare
-the field public and read the [auto-published
-port](#g-auto-published-port) (published by the framework from the state or
-mode store).
+Only stopped-sim service evaluations, `capture`, and post-run inspection of
+the live stores (the [replay](#g-replay)-to-inspect, [§11.2][s11-2]) ever hold
+live stores. The snapshot deliberately carries no state stores
+([§11.2][s11-2]), and `ẋ` [buffers](#g-buffer) are integrator scratch, not
+boundary-consistent objects outside a service evaluation. A snapshot-bound
+reader naming a store selector is therefore a resolution error at attach
+(`ReadBindingUnresolved`), raised in the didactic register. The honest remedy
+([§11.2][s11-2]) is to declare the field public and read the
+[auto-published port](#g-auto-published-port) (published by the framework
+from the state or mode store).
 
-Client policy rides on top — the registers ([D-083][d-083]) restated as a resolver
-property:
+Client policy rides on top. It is the registers of [D-083][d-083] restated as
+a resolver property.
 
 - **Load-bearing services speak the [contract](#g-contract).** Trim's `reads`
-  and linearization's [taps](#g-taps) (the three selector lists declaring what
-  linearization seeds and reports) name
-  `get_state`/`get_deriv`/`get_output`/`get_input`/`get_face`, within the scopes
-  the locality law ([§6.1][s6-1]) and [fragment](#g-fragment) scoping
-  ([§14.2][s14-2]) own. `get_face` is the set's [seam](#g-seam)-crossing member:
-  it resolves through export chains exactly as [mounting](#g-mounting)
-  (relocating a whole problem or tap set with `at(prefix, …)`) resolves
-  [root input](#g-root-input) faces ([§14.9][s14-9]), the read side mirroring the write
-  side. So an equilibrium equation reaching behind a generically-held child
-  binds the curated face register instead of a path the locality law forbids. A
-  service evaluation needing an undeclared intermediate has one remedy, and it is
-  the same at every register: the component exports it ([§14.7][s14-7]).
+  and linearization's [taps](#g-taps) (the three selector lists declaring
+  what linearization seeds and reports) name
+  `get_state`/`get_deriv`/`get_output`/`get_input`/`get_face`. They do so
+  within the scopes the locality law ([§6.1][s6-1]) and
+  [fragment](#g-fragment) scoping ([§14.2][s14-2]) own. `get_face` is the
+  set's [seam](#g-seam)-crossing member. It resolves through export chains
+  exactly as [mounting](#g-mounting) (relocating a whole problem or tap set
+  with `at(prefix, …)`) resolves [root input](#g-root-input) faces
+  ([§14.9][s14-9]), so the read side mirrors the write side. An equilibrium
+  equation reaching behind a generically-held child therefore binds the
+  curated face register instead of a path the locality law forbids. A service
+  evaluation needing an undeclared intermediate has one remedy, and it is the
+  same at every register. The component exports it ([§14.7][s14-7]).
 - **Diagnostic readers admit the whole family, within the source rule.**
   Output-[device](#g-device) bindings, GUI panels and log inspection take deep
   paths and `get_face` names alike. The store selectors reach only the
   diagnostic clients that actually hold stores (`capture`, post-run
-  inspection): a snapshot-bound reader is barred from them by source, not by
+  inspection). A snapshot-bound reader is barred from them by source, not by
   client.
 - **`stop_on` is not a family client.** It names root-exported `Bool` output
-  faces, period ([§13.5][s13-5], [D-060][d-060]): termination is run policy against the
-  root contract, and no path selector reaches `stop_on`.
+  faces, period ([§13.5][s13-5], [D-060][d-060]). Termination is run policy
+  against the root contract, and no path selector reaches `stop_on`.
 
 The five selectors, their sources, and their clients:
 
@@ -8377,184 +8392,190 @@ The five selectors, their sources, and their clients:
 
 **Compiled readers are the gather twin** over this family and the layout
 tables. Trim's cost read (`ẋ` and output fields), linearization's Jacobian
-gather, and `capture`'s full-store readback are one primitive run in reverse:
-one machinery, both directions, in the `Build`'s client kit.
+gather, and `capture`'s full-store readback are one primitive run in reverse.
+It is one machinery, in both directions, in the `Build`'s client kit.
 
-The per-iteration ledger for trim is user fragment math (the domain
-computations unchanged from today, plus the tree's few boxes, [§14.2][s14-2]) + leaf
-stores + folded shape check + sweep. The sweep dominates, exactly as `f_ode!`
-does today. `apply!` ends at established stores. Making the model *coherent*
-is [boundary zero](#g-boundary-zero) (the initialization boundary: the ordinary macro-sequence
-with an empty integrate), [§14.5][s14-5].
+The per-iteration ledger for trim has four terms. They are the user fragment
+math (the domain computations unchanged from today, plus the tree's few boxes,
+[§14.2][s14-2]), the leaf stores, the folded shape check, and the sweep. The
+sweep dominates, exactly as `f_ode!` does today. `apply!` ends at established
+stores. Making the model *coherent* is the job of
+[boundary zero](#g-boundary-zero) (the initialization boundary: the ordinary
+macro-sequence with an empty integrate), [§14.5][s14-5].
 
 ### 14.5 Boundary zero: an ordinary boundary with authored incoming transitions
 
 `apply!` establishes the stores at `t₀`. The [trace header](#g-trace-header)
-captures those stores, together with the [root input](#g-root-input) values, *before anything
-below runs* (the capture placement, [§11.5][s11-5]). A post-sequence capture would
-hand [replay](#g-replay) already-transitioned state. The init service then
-completes the [§10.6][s10-6] macro-sequence with an empty integrate:
-project → [[sweep](#g-sweep) → [guards](#g-guard) → handlers]\* →
-[due](#g-due) `state_update` calls → first [snapshot](#g-snapshot). The parity with an
-ordinary boundary is exact, not approximate. Piece by piece:
+captures those stores, together with the [root input](#g-root-input) values,
+*before anything below runs* (the capture placement, [§11.5][s11-5]). A
+post-sequence capture would hand [replay](#g-replay) already-transitioned
+state. The init service then completes the [§10.6][s10-6] macro-sequence with
+an empty integrate. The sequence is project → [[sweep](#g-sweep) →
+[guards](#g-guard) → handlers]\* → [due](#g-due) `state_update` calls → first
+[snapshot](#g-snapshot). The parity with an ordinary boundary is exact, not
+approximate. The pieces follow one by one.
 
-- **Project runs.** Authored `x` can sit off-manifold: a hand-assembled
-  quaternion ulps off unit norm, or a [condition](#g-condition) (the
-  path-addressed sparse overlay that sets a build's state) writing part of a
+- **Project runs.** Authored `x` can sit off-manifold. A hand-assembled
+  quaternion may be ulps off unit norm, or a [condition](#g-condition) (the
+  path-addressed sparse overlay that sets a build's state) may write part of a
   constrained block against fresh defaults. [Projection](#g-projection) after
-  condition writes is the same position it holds after any other `x` mutation.
-  And it costs nothing when the state is already clean.
-- **The sweep runs, and every discrete output stage publishes — due or not
-  ([D-205][d-205]).** `t₀` is a grid point of every phase-free divisor, so the `Φ = 0`
-  components are due in full. An offset [component](#g-component)
-  ([§10.5][s10-5]) is *not* due — its first [tick](#g-tick) is at
-  `Φ·Δt_base` — but its output stages run at boundary zero all the same,
-  publishing from the authored `s` and the `t₀` table in the ordinary sorted
-  walk. That evaluation is establishment, not a scheduled sample: the
-  schedule owns every instant after `t₀`, and the first sample the
-  component's `state_update` consumes remains its `Φ·Δt_base` tick's. What the rule
-  buys is a `t₀` [snapshot](#g-snapshot) carrying the authored world fully
-  evaluated: no published [cell](#g-cell) holds the [probe](#g-probe)'s
-  synthesized values, the [§14.6][s14-6] barrier extended from the
+  condition writes holds the same position it holds after any other `x`
+  mutation. And it costs nothing when the state is already clean.
+- **The sweep runs, and every discrete output stage publishes, due or not
+  ([D-205][d-205]).** `t₀` is a grid point of every phase-free divisor, so the
+  `Φ = 0` components are due in full. An offset [component](#g-component)
+  ([§10.5][s10-5]) is *not* due, because its first [tick](#g-tick) is at
+  `Φ·Δt_base`. Its output stages run at boundary zero all the same, publishing
+  from the authored `s` and the `t₀` table in the ordinary sorted walk. That
+  evaluation is establishment, not a scheduled sample. The schedule owns every
+  instant after `t₀`, and the first sample the component's `state_update`
+  consumes remains its `Φ·Δt_base` tick's. What the rule buys is a `t₀`
+  [snapshot](#g-snapshot) carrying the authored world fully evaluated. No
+  published [cell](#g-cell) holds the [probe](#g-probe)'s synthesized values.
+  That is the [§14.6][s14-6] barrier extended from the
   [root inputs](#g-root-input) to the whole table.
 - **Events run.** A condition can land a guard [predicate](#g-predicate) in
   [holding](#g-edge-semantics) territory (firing on not-holding → holding
-  transitions, never bare sign changes): an authored stall flag, a strut authored
-  into contact. The event then fires visibly at `t₀` rather than one step later.
-  The [prior](#g-prior) rule grounds that timing ([§10.6][s10-6]):
-  [boundary zero](#g-boundary-zero) establishes every guard prior — the event's
-  stored predicate sample from the previous boundary — as not-holding.
-  Suppressing those firings was rejected ([D-067][d-067]), on the
-  [stage-on-interaction](#g-stage-on-interaction) lesson of [§11.7][s11-7] (widgets
-  stage on edit or activation, never per render pass): insurance that masks
-  invariant violations is anti-diagnostic ([D-026][d-026]). The header records the *resolved
-  pre-sequence* stores and root inputs ([§11.5][s11-5]), so replay re-executes
-  [boundary](#g-boundary) zero from the same starting point and whatever fires at
-  `t₀` fires again identically ([§12.7][s12-7]). The firings are recomputed,
-  never recorded. (A `stop_on` [face](#g-face) already `true` is a different
-  category: nothing *fires* — the face simply reads `true` in the published `t₀`
-  snapshot and the loop reacts, [§13.5][s13-5].)
-- **Due `state_update` calls run.** This follows from an interval-alignment fact that
-  is easy to mis-picture and is hereby a taught contract, sibling
-  to the boundary-sampling line ([§15.5][s15-5]): **a boundary's `state_update`
-  is the *outgoing* transition** — at tick `t_k` it consumes the completed boundary's
-  samples and produces `s_{k+1}`, the value the next tick reads. The transition
-  that carried `s` *into* `t_k` ran at `t_{k-1}`. Boundary zero is missing its
-  incoming transitions on *both* tiers, and both are replaced by authorship:
+  transitions, never bare sign changes). An authored stall flag, or a strut
+  authored into contact, does exactly that. The event then fires visibly at
+  `t₀` rather than one step later. The [prior](#g-prior) rule grounds that
+  timing ([§10.6][s10-6]). [Boundary zero](#g-boundary-zero) establishes every
+  guard prior (the event's stored predicate sample from the previous boundary)
+  as not-holding. Suppressing those firings was rejected ([D-067][d-067]), on
+  the [stage-on-interaction](#g-stage-on-interaction) lesson of
+  [§11.7][s11-7] (widgets stage on edit or activation, never per render pass).
+  Insurance that masks invariant violations is anti-diagnostic
+  ([D-026][d-026]). The header records the *resolved pre-sequence* stores and
+  root inputs ([§11.5][s11-5]). Replay therefore re-executes
+  [boundary](#g-boundary) zero from the same starting point, and whatever
+  fires at `t₀` fires again identically ([§12.7][s12-7]). The firings are
+  recomputed, never recorded. A `stop_on` [face](#g-face) already `true` is a
+  different category. Nothing *fires*. The face simply reads `true` in the
+  published `t₀` snapshot and the loop reacts ([§13.5][s13-5]).
+- **Due `state_update` calls run.** This follows from an interval-alignment
+  fact that is easy to mis-picture. It is hereby a taught contract, sibling to
+  the boundary-sampling line ([§15.5][s15-5]). **A boundary's `state_update`
+  is the *outgoing* transition.** At tick `t_k` it consumes the completed
+  boundary's samples and produces `s_{k+1}`, the value the next tick reads.
+  The transition that carried `s` *into* `t_k` ran at `t_{k-1}`. Boundary
+  zero is missing its incoming transitions on *both* tiers, and authorship
+  replaces both.
 
   | [tier](#g-tier) | `t₋₁` | `t₀` (boundary zero) | `t₁` |
   |---|---|---|---|
   | discrete | the `state_update` that would have produced a discrete leaf's `s(0)` never ran; the condition authored `s(0)` | `state_update` consumes the `t₀` samples and produces `s(1)` | the gated stages read `s(1)` |
   | continuous | the integration over `[t_{-1}, t_0]` that would have produced a continuous leaf's `x(0)` never ran; the condition authored `x(0)` | the authored `x(0)` is the initial condition of the outgoing integrate, $t_0 \to t_0 + h$ | |
 
-  The outgoing work all runs, and `t₀`'s `state_update` has its only opportunity: `s(1)`
-  must sit in the store before `t₁`'s gated stages read it. An accumulator
-  $s_{k+1} = s_k + \Delta t \, e_k$ authored with $s_0 = 0$ under nonzero
-  $e(t_0)$ would otherwise first integrate $e(t_1)$, putting the whole
-  sampled-data lattice one period late ([D-067][d-067]). The authored `s(0)` needs no
-  protection: it is published in the `t₀` snapshot regardless. The
-  continuous-tier analogue of `state_update`-at-`t₀` is not the empty incoming integrate but
-  that first *outgoing* one, and both authored values are the published initial
-  conditions of their outgoing transitions.
+  The outgoing work all runs, and `t₀`'s `state_update` has its only
+  opportunity. `s(1)` must sit in the store before `t₁`'s gated stages read
+  it. An accumulator $s_{k+1} = s_k + \Delta t \, e_k$ authored with $s_0 = 0$
+  under nonzero $e(t_0)$ would otherwise first integrate $e(t_1)$, putting the
+  whole sampled-data lattice one period late ([D-067][d-067]). The authored
+  `s(0)` needs no protection, because it is published in the `t₀` snapshot
+  regardless. The continuous-tier analogue of `state_update`-at-`t₀` is not
+  the empty incoming integrate but that first *outgoing* one. Both authored
+  values are the published initial conditions of their outgoing transitions.
 - **`t₀` is an init-service argument** (default `0.0`), never a condition
-  entry: time is not a store of any component. The
-  [harmonic grid](#g-harmonic-grid) (every discrete period an integer multiple of
-  `Δt_base`) anchors at whatever `t₀` boundary zero runs at. Both init-service
-  entry points carry the argument, with the same default:
-  `init!(sim, condition; t0)` and `trim!`'s commit
-  (`trim!(sim, problem; baseline, t0, backend)`, [§14.8][s14-8]). Conditions are
-  time-free, and `capture` returns condition and time separately for
-  resume-at-time — the returned `t` passed back as `t0`.
+  entry, because time is not a store of any component. The
+  [harmonic grid](#g-harmonic-grid) (every discrete period an integer multiple
+  of `Δt_base`) anchors at whatever `t₀` boundary zero runs at. Both
+  init-service entry points carry the argument, with the same default. They
+  are `init!(sim, condition; t0)` and `trim!`'s commit
+  (`trim!(sim, problem; baseline, t0, backend)`, [§14.8][s14-8]). Conditions
+  are time-free. `capture` returns condition and time separately for
+  resume-at-time, and the returned `t` is passed back as `t0`.
 - **Trim is untouched by all of this.** Optimizer iterations are raw
-  write → sweep → read cycles on the activation — no boundaries, no events,
-  no `state_update`. Only the committed solution executes boundary zero.
-- **A guard firing at commit is a wanted failure signal.** Today's hand-written
-  trim asserts (`!stall`, no weight-on-wheels, `ω > ω_idle`) become the model's
-  own event logic, surfaced through the ordinary machinery instead of `@assert`.
-  A handler that fires at commit moves the committed stores off the solved
-  point, and saying nothing would be warn-but-assign relocated. The channel
-  that says it is the trim report ([§14.8][s14-8]).
+  write → sweep → read cycles on the activation, with no boundaries, no events
+  and no `state_update`. Only the committed solution executes boundary zero.
+- **A guard firing at commit is a wanted failure signal.** Today's
+  hand-written trim asserts (`!stall`, no weight-on-wheels, `ω > ω_idle`)
+  become the model's own event logic, surfaced through the ordinary machinery
+  instead of `@assert`. A handler that fires at commit moves the committed
+  stores off the solved point. Saying nothing would be warn-but-assign
+  relocated. The channel that says it is the trim report ([§14.8][s14-8]).
 - **A commit-fired handler is not the only mover, and the second one is
-  unconditional.** Boundary zero's *first* act is `state_projection`, so the committed
-  `x` is `state_projection(x*)`, not the solver's `x*` — an attitude quaternion
-  renormalized by a few ulps is the canonical case. That move is legitimate,
-  wanted, and usually invisible in the residuals; but the point the stores sit
-  at is no longer the point the verdict was read at. Both movers take the same
-  remedy, specified with the report in [§14.8][s14-8].
+  unconditional.** Boundary zero's *first* act is `state_projection`, so the
+  committed `x` is `state_projection(x*)`, not the solver's `x*`. An attitude
+  quaternion renormalized by a few ulps is the canonical case. That move is
+  legitimate, wanted, and usually invisible in the residuals. But the point
+  the stores sit at is no longer the point the verdict was read at. Both
+  movers take the same remedy, specified with the report in [§14.8][s14-8].
 
 ### 14.6 Root-input totality: the missing-value error and the `override` combinator
 
-[Root inputs](#g-root-input) are the one initialized datum without declared defaults — the
-bare-types decision ([§11.3][s11-3]), upheld here ([D-068][d-068]). So a
-root input's only source before [boundary zero](#g-boundary-zero) (the initialization boundary: the
-ordinary macro-sequence with an empty integrate) is the condition, and three
-consequences follow.
+[Root inputs](#g-root-input) are the one initialized datum without declared
+defaults. That is the bare-types decision ([§11.3][s11-3]), upheld here
+([D-068][d-068]). So a root input's only source before
+[boundary zero](#g-boundary-zero) (the initialization boundary: the ordinary
+macro-sequence with an empty integrate) is the condition. Three consequences
+follow.
 
 **Totality is a precondition of starting, checked by the service.** A
-condition value is legitimately partial ([fragments](#g-fragment) compose; trim iterations
-write subsets; capture-then-tweak patches leaves) — "every root input
-covered" is not a property of conditions but of *every application that
-establishes a complete world over virgin stores*. That principle, not an
-enumeration, names the sites: `init!`, trim's setup application to freshly
-allocated scratch stores, and trim's commit through [boundary](#g-boundary) zero
-([§14.8][s14-8]) — one class, one mechanism, one kind. Each compares the resolved
-plan's root-input coverage against the `Build`'s `input_faces` before writing
-anything; a shortfall is one collected, declaration-ordered diagnostic
-(`UninitializedInputs`, a [§13.2][s13-2] kind) naming every uncovered face.
-Coverage is a *plan-level fact* — both operands are resolution-time data —
-so the check is one comparison and runs before any evaluation, not merely
-before any write. Pre-write means all-or-nothing: a rejected init leaves
-the sim exactly as it was, the same posture as failed trim.
+condition value is legitimately partial. [Fragments](#g-fragment) compose,
+trim iterations write subsets, and capture-then-tweak patches leaves. So
+"every root input covered" is not a property of conditions. It is a property
+of *every application that establishes a complete world over virgin stores*.
+That principle, not an enumeration, names the sites. They are `init!`, trim's
+setup application to freshly allocated scratch stores, and trim's commit
+through [boundary](#g-boundary) zero ([§14.8][s14-8]). That is one class, one
+mechanism and one kind. Each compares the resolved plan's root-input coverage
+against the `Build`'s `input_faces` before writing anything. A shortfall is
+one collected, declaration-ordered diagnostic (`UninitializedInputs`, a
+[§13.2][s13-2] kind) naming every uncovered face. Coverage is a *plan-level
+fact*, because both operands are resolution-time data. The check is therefore
+one comparison, and it runs before any evaluation, not merely before any
+write. Pre-write means all-or-nothing. A rejected init leaves the sim exactly
+as it was, the same posture as failed trim.
 
 **The [probe](#g-probe-value)-value barrier is structural.** The `probe_value`
 synthesis ([§9.3][s9-3]; zero/false/first-enum/`T()`) exists so build-time
-probes can exercise code
-with fabricated inputs; a fabricated zero is a fine probe input and a
-terrible flight condition (a silently zeroed `mixture` kills the engine and
-sends the user debugging aerodynamics). The services path simply contains
-no call to it: a root input gets a condition value or the application errors —
-no third branch. [Replay](#g-replay) likewise never synthesizes: the [trace header](#g-trace-header)
-records every root-input value, and with totality enforced its root-input capture is
-complete by construction (the requirement discharged, [§11.3][s11-3]).
+probes can exercise code with fabricated inputs. A fabricated zero is a fine
+probe input and a terrible flight condition. A silently zeroed `mixture` kills
+the engine and sends the user debugging aerodynamics. The services path simply
+contains no call to it. A root input gets a condition value or the application
+errors, with no third branch. [Replay](#g-replay) likewise never synthesizes.
+The [trace header](#g-trace-header) records every root-input value, and with
+totality enforced its root-input capture is complete by construction (the
+requirement discharged, [§11.3][s11-3]).
 
-**[Baselines](#g-baseline) are aircraft-shipped [condition](#g-condition) functions, layered by
-`override`.** Nobody hand-writes ~20 root-input values per script; today
-`SystemsInitializer`'s `@kwdef` defaults carry that load, and their
-successor is ordinary user math in one authoritative home —
-`ready_for_taxi(ac)`, `cold_and_dark(ac)` — returning full-coverage
+**[Baselines](#g-baseline) are aircraft-shipped [condition](#g-condition)
+functions, layered by `override`.** Nobody hand-writes ~20 root-input values
+per script. Today `SystemsInitializer`'s `@kwdef` defaults carry that load.
+Their successor is ordinary user math in one authoritative home, such as
+`ready_for_taxi(ac)` or `cold_and_dark(ac)`, returning full-coverage
 conditions. But "baseline plus tweaks" collides with the duplicate-leaf error
-([§14.2][s14-2]) by design: the collision *is* the intent. Hence the
-fourth node kind, **`override(base, patch)`** — ordered and asymmetric
-where `combine` is symmetric and collision-intolerant. At resolution a leaf
-present in both takes the patch's value, with provenance recording both
-sources ("patch overrode base's `throttle`"); collisions *within* one
-layer remain errors; variadic layering
-(`override(campaign, aircraft, todays_case)`) composes. Trim uses it on
-day one: the committed condition is `override(baseline, solution)` — the
-solver's handful of values over full coverage ([D-068][d-068]).
+([§14.2][s14-2]) by design. The collision *is* the intent. Hence the fourth
+node kind, **`override(base, patch)`**. It is ordered and asymmetric, where
+`combine` is symmetric and collision-intolerant. At resolution a leaf present
+in both takes the patch's value, with provenance recording both sources
+("patch overrode base's `throttle`"). Collisions *within* one layer remain
+errors. Variadic layering (`override(campaign, aircraft, todays_case)`)
+composes. Trim uses it on day one. The committed condition is
+`override(baseline, solution)`, the solver's handful of values over full
+coverage ([D-068][d-068]).
 
 ### 14.7 The trim problem: NamedTuple decisions, declared reads, named residuals
 
-The aircraft author ships one value: what the solver may vary, what those
-decisions make of the model, what to read back after each evaluation, and which
-equations the readings must satisfy.
+The aircraft author ships one value. It says what the solver may vary, what
+those decisions make of the model, what to read back after each evaluation,
+and which equations the readings must satisfy.
 
 **Rule.** The field set is normative. The lift ([§14.9][s14-9]) is
-field-by-field, so this list is closed:
+field-by-field, so this list is closed.
 
-- `guess`, `lower`, `upper` — same-named all-`Float64` NamedTuples;
-- `condition` — the condition-valued function over decisions;
-- `reads` — the declared read set;
-- `residuals` — the residual function;
-- `tolerances` — an all-`Float64` NamedTuple, same-named as the residual
+- `guess`, `lower` and `upper` are same-named all-`Float64` NamedTuples.
+- `condition` is the condition-valued function over decisions.
+- `reads` is the declared read set.
+- `residuals` is the residual function.
+- `tolerances` is an all-`Float64` NamedTuple, same-named as the residual
   function's return.
 
 `tolerances` is carried *in the problem* because a relocated problem must carry
-its own convergence test; `at` passes it through untouched.
+its own convergence test. `at` passes it through untouched.
 
 [Worked](#g-worked), the C172 cruise case reduces to its three-equation core.
 The real problem is the same shape with the full 7-variable search, and the
-θ-constraint elimination survives inside `trim_condition`:
+θ-constraint elimination survives inside `trim_condition`.
 
 ```julia
 cruise = TrimProblem(
@@ -8571,86 +8592,94 @@ cruise = TrimProblem(
 ```
 
 The rest of the section takes what the author ships one piece at a time,
-against today's `c172.jl`:
+against today's `c172.jl`.
 
 - **Decision variables, initial guess and box bounds are plain, same-*named*,
   all-`Float64` NamedTuples.** The `AbstractTrimState{N}`/`FieldVector`
-  supertype dies; its only job was vectorization, and vectorization is the
-  service's. The service packs and unpacks by field order, that order being the
-  `guess` NamedTuple's own. [§9.5][s9-5] states the rule this
+  supertype dies. Its only job was vectorization, and vectorization is the
+  service's. The service packs and unpacks by field order, and that order is
+  the `guess` NamedTuple's own. [§9.5][s9-5] states the rule this
   [seam](#g-seam) runs on: **the names are the pairing, order carries no
   semantics**. `lower` and `upper` are checked at setup for key-set equality
-  with `guess` and `Float64` fields, then canonicalized to `guess`'s field
-  order by the same type-level reorder (`NamedTuple{keys(guess)}(lower)`). A
-  permuted bound spelling is therefore a non-event rather than `α`'s bound
-  silently applied to `throttle`; a key-set or field-type mismatch is
-  `TrimProblemInvalid`. Guess, bounds and the returned solution share one
-  spelling, and `Base.merge(guess, (throttle = 0.3,))` is free warm-start
-  tweaking. An author who wants a documented `@kwdef` struct keeps it privately
-  and converts.
-- **`TrimParameters` stays a plain user struct** the framework never sees;
-  the assignment is the pure `trim_condition(ac, params, d)` fragment-tree
-  function ([§14.2][s14-2]), applied per iteration by the compiled plan ([§14.4][s14-4]).
-- **The read side is declared, then compiled**: `reads(name = get_state(path,
-  field) | get_deriv(path, field) | get_output(path, field) | get_input([face](#g-face)) |
-  get_face(name), ...)` — the load-bearing set ([§14.4][s14-4]). `get_state` and
-  `get_deriv` address a declared state field and its derivative (validated
-  against `init_x`/`init_s`), `get_output` a declared output [port](#g-port) (validated against
-  `output_types`), `get_input` and `get_face` a root input and output face
-  (validated against the root face lists). The path [selectors](#g-selector) (the closed
-  family of deferred reads resolving against a source) reach only through the
-  locality scopes ([§6.1][s6-1]). An equilibrium equation crossing a generic seam reads
-  a face. A value a [component](#g-component) computes without declaring it is not
-  addressable at all ([§5.2][s5-2],
-  [§14.4][s14-4]); a trim evaluation needing one is a signal the component should
-  export it. A derivative wanted across a [contract](#g-contract) boundary takes the same
-  remedy: publish it as an ordinary output port computed in `output_direct` ([§7.4][s7-4] step
-  2's one-line binding, made contract). That leaves `get_deriv` scoped to owned
-  concrete subtrees. The compiled reader (the gather twin, [§14.4][s14-4]) fills a
-  stack-only NamedTuple per evaluation.
+  with `guess` and for `Float64` fields. They are then canonicalized to
+  `guess`'s field order by the same type-level reorder
+  (`NamedTuple{keys(guess)}(lower)`). A permuted bound spelling is therefore
+  a non-event, rather than `α`'s bound silently applied to `throttle`. A
+  key-set or field-type mismatch is `TrimProblemInvalid`. Guess, bounds and
+  the returned solution share one spelling, and
+  `Base.merge(guess, (throttle = 0.3,))` is free warm-start tweaking. An
+  author who wants a documented `@kwdef` struct keeps it privately and
+  converts.
+- **`TrimParameters` stays a plain user struct** the framework never sees. The
+  assignment is the pure `trim_condition(ac, params, d)` fragment-tree
+  function ([§14.2][s14-2]), applied per iteration by the compiled plan
+  ([§14.4][s14-4]).
+- **The read side is declared, then compiled.** The spelling is
+  `reads(name = get_state(path, field) | get_deriv(path, field) |
+  get_output(path, field) | get_input([face](#g-face)) | get_face(name),
+  ...)`, the load-bearing set ([§14.4][s14-4]). `get_state` and `get_deriv`
+  address a declared state field and its derivative (validated against
+  `init_x`/`init_s`). `get_output` addresses a declared output
+  [port](#g-port) (validated against `output_types`). `get_input` and
+  `get_face` address a root input and an output face (validated against the
+  root face lists). The path [selectors](#g-selector) (the closed family of
+  deferred reads resolving against a source) reach only through the locality
+  scopes ([§6.1][s6-1]). An equilibrium equation crossing a generic seam
+  reads a face. A value a [component](#g-component) computes without
+  declaring it is not addressable at all ([§5.2][s5-2], [§14.4][s14-4]). A
+  trim evaluation needing one is a signal that the component should export
+  it. A derivative wanted across a [contract](#g-contract) boundary takes the
+  same remedy. Publish it as an ordinary output port computed in
+  `output_direct` (the one-line binding of [§7.4][s7-4] step 2, made
+  contract). That leaves `get_deriv` scoped to owned concrete subtrees. The
+  compiled reader (the gather twin, [§14.4][s14-4]) fills a stack-only
+  NamedTuple per evaluation.
 - **The user supplies a residual *system*, not a scalar cost.** It is authored
-  as a NamedTuple of named equations and packed to the solver's vector by field
-  order — `tolerances`' field order here, the declared side again, with the
-  residual return canonicalized to it. The decisions rule holds symmetrically
-  on both ends of the seam: names pair, order never does.
+  as a NamedTuple of named equations and packed to the solver's vector by
+  field order. The order here is `tolerances`' field order, the declared side
+  again, and the residual return is canonicalized to it. The decisions rule
+  holds symmetrically on both ends of the seam. Names pair, and order never
+  does.
 - **The FlightCore formulation's core is correct and survives verbatim as user
   math.** That core is analytic elimination: `θ_constraint` substituting the
   pitch constraint, filter and actuator equilibria imposed by construction, and
   the minimal 7-variable search.
-- **What changes is the numerics.** Trim is a square root-find, and
-  FlightCore's derivative-free scalar minimization over $\|r\|^2$ against a
-  hand-scaled absolute `stopval` was the rational choice only because Jacobians
-  through the mutating `f_ode!` chain and the assignment math were out of reach
+- **What changes is the numerics.** Trim is a square root-find. FlightCore's
+  derivative-free scalar minimization over $\|r\|^2$ against a hand-scaled
+  absolute `stopval` was the rational choice only because Jacobians through
+  the mutating `f_ode!` chain and the assignment math were out of reach
   ([D-069][d-069]).
 - **Nonlinear least squares with exact AD Jacobians is the default.** The
   `Dual` [activation](#g-activation) seeds the decision variables through the
-  `T`-generic assignment, [sweep](#g-sweep) and `state_derivative`. The seeds survive the condition
-  write boundary because [§14.3][s14-3] selects the baked converter per leaf from the
-  shape: a decision-descended leaf is `Dual`-typed there and takes the
-  structural conversion, while the zero-partial embedding stays on the held
-  `Float64` leaves. The *default* is nonlinear least squares on $r(d)$ with
-  exact AD Jacobians, in the trust-region/Levenberg–Marquardt register
-  ([§9.6][s9-6]). Convergence is quadratic (~5–15
-  evaluations), the tolerances are per-residual and physical, and failure
-  reports name the unbalanced equations with magnitudes. The convergence
-  verdict itself is service-owned and backend-independent ([§14.8][s14-8]).
+  `T`-generic assignment, [sweep](#g-sweep) and `state_derivative`. The seeds
+  survive the condition write boundary because [§14.3][s14-3] selects the
+  baked converter per leaf from the shape. A decision-descended leaf is
+  `Dual`-typed there and takes the structural conversion, while the
+  zero-partial embedding stays on the held `Float64` leaves. The *default* is
+  nonlinear least squares on $r(d)$ with exact AD Jacobians, in the
+  trust-region/Levenberg–Marquardt register ([§9.6][s9-6]). Convergence is
+  quadratic (~5–15 evaluations), the tolerances are per-residual and
+  physical, and failure reports name the unbalanced equations with
+  magnitudes. The convergence verdict itself is service-owned and
+  backend-independent ([§14.8][s14-8]).
 - **Non-squareness degrades gracefully.** Redundant actuation becomes weighted
-  or minimum-norm least squares; infeasible demands converge to a nonzero
+  or minimum-norm least squares. Infeasible demands converge to a nonzero
   residual identifying the impossible balance. At the solution,
-  $\partial r / \partial d$ is free flight-physics data (control effectiveness)
-  cross-checking linearization.
+  $\partial r / \partial d$ is free flight-physics data (control
+  effectiveness) that cross-checks linearization.
 - **The derivative-free scalar path survives as the fallback.** The service
-  squares *and normalizes* the residuals against the tolerances —
+  squares *and normalizes* the residuals against the tolerances, minimizing
   $\sum (r_i/\mathit{tol}_i)^2$ at `stopval = 1` ([§14.8][s14-8]). That
-  normalization is where the hand-scaled absolute threshold is repaired,
-  leaving today's algorithm as the degenerate case.
-- **[Recorded, not built](#g-recorded-not-built)** (a worked-out extension
-  deliberately left unimplemented, its seams named): closed-loop sampled-data
-  trim and on-ground static equilibrium, each simply another problem value over
-  the same service. Closed-loop trim appends $g(s) - s = 0$ residuals via a
-  nondestructive scratch evaluation of `state_update`, structurally impossible under
-  FlightCore's mutating `f_disc!`. On-ground static equilibrium is the other:
-  strut compressions and attitude against gear forces.
+  normalization is where the hand-scaled absolute threshold is repaired. It
+  leaves today's algorithm as the degenerate case.
+- **Two problems are [recorded, not built](#g-recorded-not-built)** (a
+  worked-out extension deliberately left unimplemented, its seams named). They
+  are closed-loop sampled-data trim and on-ground static equilibrium, each
+  simply another problem value over the same service. Closed-loop trim appends
+  $g(s) - s = 0$ residuals via a nondestructive scratch evaluation of
+  `state_update`, which was structurally impossible under FlightCore's
+  mutating `f_disc!`. On-ground static equilibrium solves strut compressions
+  and attitude against gear forces.
 
 The residual signature:
 
@@ -8658,48 +8687,51 @@ The residual signature:
 residuals(reads::NamedTuple, d::NamedTuple) → NamedTuple
 ```
 
-**Rule.** What the solver varies is passed; what is fixed per problem is closed
-over.
+**Rule.** What the solver varies is passed. What is fixed per problem is
+closed over.
 
-The gathered reads and the decision NamedTuple arrive as arguments; `d` is the
+The gathered reads and the decision NamedTuple arrive as arguments. `d` is the
 one value that *cannot* be closed over. `TrimParameters` stays behind the
-closure, exactly as `condition` already holds it (the framework never sees it).
-Being user-shaped, that record is also where any environment handles the
-condition math needs conventionally ride (the [value-level constructor](#g-value-level-constructor),
-[§4.4][s4-4]; the pre-sweep doctrine, [§14.1][s14-1]). The problem *receives* the
-environment, and never writes it ([§14.9][s14-9]).
+closure, exactly as `condition` already holds it, and the framework never sees
+it. Being user-shaped, that record is also where any environment handles the
+condition math needs conventionally ride (the
+[value-level constructor](#g-value-level-constructor), [§4.4][s4-4]; the
+pre-sweep doctrine, [§14.1][s14-1]). The problem *receives* the environment,
+and never writes it ([§14.9][s14-9]).
 
 The returned NamedTuple's names are the equation names the report and the
 failure messages use. The service packs residuals and tolerances by field
-order: `tolerances`' order is canonical for the r-side, and each residual
+order. `tolerances`' order is canonical for the r-side, and each residual
 return is reordered to it (`NamedTuple{keys(tolerances)}(r)`) before packing.
-An equation list spelled in a different order inside the lambda therefore pairs
-correctly and costs nothing. Names and types are checked at setup: the guess
-evaluation the service performs anyway observes the residual key set. A
-`tolerances` key-set mismatch — or any field-type disagreement, on either side
-of the seam — is `TrimProblemInvalid` ([Appendix C][sC]), with the offending
-field and the names or types in hand. Order is never a mismatch.
+An equation list spelled in a different order inside the lambda therefore
+pairs correctly and costs nothing. Names and types are checked at setup,
+because the guess evaluation the service performs anyway observes the
+residual key set. A `tolerances` key-set mismatch, or any field-type
+disagreement on either side of the seam, is `TrimProblemInvalid`
+([Appendix C][sC]), with the offending field and the names or types in hand.
+Order is never a mismatch.
 
 ### 14.8 The trim service: solver seam, scratch stores, commit and report
 
 A `TrimProblem` is an inert value until a service runs it. `trim!` is that
-service: it drives a solver it holds behind one method, works on scratch stores
-of its own, commits a converged solution the way `init!` would, and returns a
-report.
+service. It drives a solver it holds behind one method, works on scratch
+stores of its own, commits a converged solution the way `init!` would, and
+returns a report.
 
 #### The backend seam
 
+The signature is
 `trim!(sim, problem; baseline, t0 = 0.0, backend = LevenbergMarquardt())`. The
-default is an in-house dense Levenberg–Marquardt. For decision dimensions ~10
-with exact Jacobians, the core is ~100 lines: a damping loop, a small linear
-solve, a convergence test. That is the [§10.2][s10-2] stepper precedent exactly
-(tiny needed core vs. heavy dependency). The per-residual physical tolerances
-sharpen the case ([§14.7][s14-7]): they are a convergence test no external
-package spells natively. That is precisely why the *service*, not the backend,
-applies it.
+default backend is an in-house dense Levenberg–Marquardt. For decision
+dimensions ~10 with exact Jacobians, the core is ~100 lines: a damping loop, a
+small linear solve, a convergence test. That is the [§10.2][s10-2] stepper
+precedent exactly, a tiny needed core against a heavy dependency. The
+per-residual physical tolerances sharpen the case ([§14.7][s14-7]). They are a
+convergence test no external package spells natively. That is precisely why
+the *service*, not the backend, applies it.
 
-The backend contract is a **pinned signature**, value-passed —
-one required method per backend. That one method is the [seam](#g-seam):
+The backend contract is a **pinned signature**, value-passed, with one
+required method per backend. That one method is the [seam](#g-seam).
 
 ```julia
 solve(backend, eval!, d0, lower, upper, tol) -> (; d, status, nevals, niters)
@@ -8718,40 +8750,40 @@ backend that ignores bounds therefore ignores two vectors, not a missing
 argument.
 
 `tol` is a `Vector{Float64}` in `tolerances`' field order. It is data the
-backend *may* stop on — that is the service's per-register translation,
-below — and decisive of nothing.
+backend *may* stop on, under the service's per-register translation below, and
+it is decisive of nothing.
 
-Returned: `d`, the solution; `status::Symbol`, from a deliberately **open**
-set; and `nevals`/`niters`, diagnostic counts. The status is recorded verbatim
-in the report because the verdict is the service's ([D-158][d-158]). The name `solve`
-is subject to the [§16][s16] naming audit like every other API spelling. The
-backend sees vectors and never names, so the solution it returns unpacks by the
-same order it was given.
+The return holds `d`, the solution, `status::Symbol` from a deliberately
+**open** set, and the diagnostic counts `nevals` and `niters`. The status is
+recorded verbatim in the report because the verdict is the service's
+([D-158][d-158]). The name `solve` is subject to the [§16][s16] naming audit
+like every other API spelling. The backend sees vectors and never names, so
+the solution it returns unpacks by the same order it was given.
 
 #### The convergence verdict is the service's, uniformly
 
-`converged` means `all(abs.(rᵢ) .≤ tolᵢ)`: the per-residual box test
+`converged` means `all(abs.(rᵢ) .≤ tolᵢ)`. That is the per-residual box test
 ([§14.7][s14-7]) in its own physical units, evaluated **by the service at the
-backend's returned point**. That is one residual evaluation, noise against the
+backend's returned point**. It is one residual evaluation, noise against the
 solve that produced it. That verdict, and nothing else, gates the commit and
 fills `TrimReport.converged`. The backend's returned `status` is recorded in
-the report as diagnostic data and is authoritative over nothing.
+the report as diagnostic data, and it is authoritative over nothing.
 
 #### The tolerance translation, per register
 
 The tolerance translation is the service's too, per register. In the
-least-squares register the tolerances *are* the stopping criterion: they feed
-the per-residual test directly, LM's damping loop testing exactly what the
+least-squares register the tolerances *are* the stopping criterion. They feed
+the per-residual test directly, so LM's damping loop tests exactly what the
 service will re-test.
 
 The derivative-free scalar fallback is `NLoptBackend(:LN_BOBYQA)` in a package
-extension: it passes `nothing` for the Jacobian, keeps today's algorithm one
+extension. It passes `nothing` for the Jacobian, keeps today's algorithm one
 keyword away, and leaves the framework core carrying zero optimizer
-dependencies. For that fallback the service squares *and normalizes*: the
-objective minimized is $\sum_i (r_i/\mathit{tol}_i)^2$ with `stopval = 1`. That
-objective is dimensionless where FlightCore's threshold was hand-scaled and
-absolute ([§14.7][s14-7]), and a well-scaled valley where a raw $\|r\|^2$ sums
-forces against moments.
+dependencies. For that fallback the service squares *and normalizes*. The
+objective minimized is $\sum_i (r_i/\mathit{tol}_i)^2$ with `stopval = 1`.
+That objective is dimensionless where FlightCore's threshold was hand-scaled
+and absolute ([§14.7][s14-7]). It is a well-scaled valley where a raw
+$\|r\|^2$ sums forces against moments.
 
 The two criteria cannot disagree in the dangerous direction:
 
@@ -8760,11 +8792,11 @@ $$\sum_i (r_i/\mathit{tol}_i)^2 \le 1
 
 so the `stopval` sphere is *inscribed* in the tolerance box, and a fallback
 stopping at `stopval` necessarily passes the service's box test. The converse
-disagreement — a backend stopping early and reporting an optimistic status —
-is caught by the re-check, which remains the single authority. What is *not*
-claimed is point identity: different backends may land on different solutions,
-an algorithmic difference and a legitimate one. What is eliminated is
-per-backend meanings of `converged`.
+disagreement, a backend stopping early and reporting an optimistic status, is
+caught by the re-check, which remains the single authority. What is *not*
+claimed is point identity. Different backends may land on different
+solutions, which is an algorithmic difference and a legitimate one. What is
+eliminated is per-backend meanings of `converged`.
 
 #### Box bounds and saturated decisions
 
@@ -8775,86 +8807,92 @@ mysterious residuals.
 
 #### Scratch stores, stated without type luck
 
-Every `trim!` invocation instantiates a fresh working store set:
-`x` backing, `s` and `m` stores, [root input](#g-root-input) and
-[signal tables](#g-signal-table), derivative [buffer](#g-buffer). The set is
-built from the [activation](#g-activation)'s *layout* (a re-run of Stratum C at
-a given scalar type). The layout is the reusable compiled artifact; the buffers
-are per-invocation and die with the call (stopped-sim allocation,
-[§7.5][s7-5]).
+Every `trim!` invocation instantiates a fresh working store set. It holds the
+`x` backing, the `s` and `m` stores, the [root input](#g-root-input) and
+[signal tables](#g-signal-table), and the derivative [buffer](#g-buffer). The
+set is built from the [activation](#g-activation)'s *layout* (a re-run of
+Stratum C at a given scalar type). The layout is the reusable compiled
+artifact. The buffers are per-invocation and die with the call (stopped-sim
+allocation, [§7.5][s7-5]).
 
 The `Dual` backend's buffers being un-aliasable by type is defense in depth,
-not the mechanism: a `Float64` backend (NLopt) gets equally fresh buffers. The
-invariant is backend-independent: **the simulation's authoritative stores have
+not the mechanism. A `Float64` backend (NLopt) gets equally fresh buffers. The
+invariant is backend-independent. **The simulation's authoritative stores have
 exactly one writer, the commit through [boundary zero](#g-boundary-zero)** (the
 initialization boundary: the ordinary macro-sequence with an empty integrate).
 
 Setup applies `override(baseline, condition(guess))` to the scratch set once,
-and that application's full coverage is *checked here* — the comparison of the
-resolved plan against the `Build`'s `input_faces` ([§14.6][s14-6]), one
-plan-level comparison before the first evaluation. [Sweeps](#g-sweep) therefore
-see a complete world. Raw instantiation is sound exactly because of that check:
-every root input is written before any read. An incomplete `baseline` is one
-declaration-ordered `UninitializedInputs` at setup rather than a whole solve
-against undefined [cells](#g-cell).
+and that application's full coverage is *checked here*. The check is the
+comparison of the resolved plan against the `Build`'s `input_faces`
+([§14.6][s14-6]), one plan-level comparison before the first evaluation.
+[Sweeps](#g-sweep) therefore see a complete world. Raw instantiation is sound
+exactly because of that check, since every root input is written before any
+read. An incomplete `baseline` is one declaration-ordered
+`UninitializedInputs` at setup rather than a whole solve against undefined
+[cells](#g-cell).
 
-**The frozen cells are established, not probe-seeded.** At the seeded activation the
-discrete [tier](#g-tier) is frozen ([§9.4][s9-4]): its stages never run there, so nothing at that
-activation can derive a discrete output cell from the authored `s`. Setup
-therefore instantiates the [scratch](#g-scratch) set in two halves. A [nominal](#g-nominal) set takes the
-composite first, by the dynamic walk ([§14.4][s14-4]), and runs one establishment round —
-boundary zero's sweep with every discrete output stage admitted, due or not
-([D-205][d-205]), with no [projection](#g-projection), no [guards](#g-guard) and no `state_update`. The seeded set is then
-written by the specialized register, and its frozen cells are copied from the
-nominal set as zero-partial constants (the embedding of [§14.3][s14-3]). Every cell the
-iterations read is thus derived from the authored world: a frozen cell holds
-what the authored discrete state publishes, "held at the operating point" made
-literal, and no scratch cell holds the [probe](#g-probe)'s synthesized values — the [§14.6][s14-6]
-barrier reaching the scratch world as [D-205][d-205] made it reach the published one. The
-iterations are untouched: raw write → sweep → read cycles at the seeded
-activation, the continuous chain and `state_derivative` alone ([§14.5][s14-5]). The zero-decision
-problem (below) is the nominal half alone; its one evaluation is that
-establishment round. ([D-213][d-213])
+**The frozen cells are established, not probe-seeded.** At the seeded
+activation the discrete [tier](#g-tier) is frozen ([§9.4][s9-4]). Its stages
+never run there, so nothing at that activation can derive a discrete output
+cell from the authored `s`. Setup therefore instantiates the
+[scratch](#g-scratch) set in two halves. A [nominal](#g-nominal) set takes the
+composite first, by the dynamic walk ([§14.4][s14-4]), and runs one
+establishment round. That round is boundary zero's sweep with every discrete
+output stage admitted, due or not ([D-205][d-205]), with no
+[projection](#g-projection), no [guards](#g-guard) and no `state_update`. The
+seeded set is then written by the specialized register, and its frozen cells
+are copied from the nominal set as zero-partial constants (the embedding of
+[§14.3][s14-3]). Every cell the iterations read is thus derived from the
+authored world. A frozen cell holds what the authored discrete state
+publishes, which makes "held at the operating point" literal. No scratch cell
+holds the [probe](#g-probe)'s synthesized values. That is the [§14.6][s14-6]
+barrier reaching the scratch world, as [D-205][d-205] made it reach the
+published one. The iterations are untouched. They are raw write → sweep → read
+cycles at the seeded activation, over the continuous chain and
+`state_derivative` alone ([§14.5][s14-5]). The zero-decision problem (below)
+is the nominal half alone, and its one evaluation is that establishment round
+([D-213][d-213]).
 
 The commit applies the same composite over the same `baseline`
 (`override(baseline, condition(d*))`, [§14.9][s14-9]), so its coverage is
 setup's. Commit's totality check is therefore structurally unfailable through
 the trim path, and it stands as the shared `init!`-[boundary](#g-boundary)
-defense. A converged solve is always committable, so `TrimReport` carries no
-committed flag and the no-throw doctrine needs no exception.
+defense. A converged solve is always committable. `TrimReport` therefore
+carries no committed flag, and the no-throw doctrine needs no exception.
 
-Iterations rewrite the composite's write-set —
-`override(baseline, condition(d))`, the same tree setup resolved — via the
-compiled plan, so a store both layers touch merges exactly as it did at setup;
-an LM evaluation is one Dual-seeded sweep yielding `r` (value parts) and `J`
-(partials) together. No convergence — the service's box test failing at the
-returned point, whatever status the backend attached to it — means no commit.
-No commit means the sim is bit-for-bit untouched, including "never
-initialized". Today's warn-but-assign is structurally impossible.
+Iterations rewrite the composite's write-set via the compiled plan. The
+write-set is `override(baseline, condition(d))`, the same tree setup resolved,
+so a store both layers touch merges exactly as it did at setup. An LM
+evaluation is one Dual-seeded sweep yielding `r` (value parts) and `J`
+(partials) together. No convergence means no commit. Non-convergence is the
+service's box test failing at the returned point, whatever status the backend
+attached to it. No commit means the sim is bit-for-bit untouched, including
+"never initialized". Today's warn-but-assign is structurally impossible.
 
 The same structure covers an interrupt. Ctrl-C during a long solve unwinds an
-ordinary Julia call operating on per-invocation scratch stores: no commit has
-happened, and the simulation is bit-for-bit untouched exactly as a
+ordinary Julia call operating on per-invocation scratch stores. No commit has
+happened, and the simulation is bit-for-bit untouched, exactly as a
 non-converged solve leaves it. The services need no counterpart to the loop's
 boundary masking ([§12.4][s12-4]).
 
 #### The commit, in full
 
-The committed solution is applied as an `init!` in every respect:
+The committed solution is applied as an `init!` in every respect. It is
 `override(baseline, solution)` through boundary zero, with the pre-write
-[root-input totality](#g-root-input-totality) check ([§14.6][s14-6]), the sequence
-([§14.5][s14-5]) and [guards](#g-guard) at commit.
+[root-input totality](#g-root-input-totality) check ([§14.6][s14-6]), the
+sequence ([§14.5][s14-5]) and [guards](#g-guard) at commit.
 
-The `t0` argument that anchors the grid, and its default, are the same for both
-init-service entry points ([§14.5][s14-5]). The [recorders](#g-recorders) are
-cleared exactly as [§12.6][s12-6] states for `init!`: the [trace](#g-trace), the
-log, and any [batches](#g-batch) still in [staging cells](#g-staging-cell)
-(where a device's pending write batch waits between drains).
+The `t0` argument that anchors the grid, and its default, are the same for
+both init-service entry points ([§14.5][s14-5]). The
+[recorders](#g-recorders) are cleared exactly as [§12.6][s12-6] states for
+`init!`. Those are the [trace](#g-trace), the log, and any
+[batches](#g-batch) still in [staging cells](#g-staging-cell) (where a
+device's pending write batch waits between drains).
 
 A fresh recording starting at its own anchor is the unattended register's
-natural shape. Fly-then-retrim keeps continuity explicitly: the resumed spelling
-is `trim!(sim, problem; baseline = c, t0 = t)`, with `(condition, t)` coming
-from a `capture` ([§14.1][s14-1]).
+natural shape. Fly-then-retrim keeps continuity explicitly. The resumed
+spelling is `trim!(sim, problem; baseline = c, t0 = t)`, with `(condition, t)`
+coming from a `capture` ([§14.1][s14-1]).
 
 #### The report, not an exception
 
@@ -8871,76 +8909,76 @@ end
 
 Field by field:
 
-- the `converged` flag — the service's own box test at the returned point,
-  never a backend's opinion;
-- the solution NamedTuple — guess-shaped, hence warm-startable;
-- the **solved-point residuals** with their tolerances — the very numbers the
-  verdict is read off, gathered at the backend's returned point;
-- the **committed-state residuals** — the same residuals re-gathered from the
-  boundary-zero world after the commit;
-- the backend's returned status together with its iteration/evaluation
-  counts — diagnostic throughout: informative about *how* the solve went,
-  decisive about nothing;
-- the saturated-bounds list;
-- the commit's fired events — component paths and event names, empty when
-  boundary zero ran quiet ([§14.5][s14-5]).
+- The `converged` flag is the service's own box test at the returned point,
+  never a backend's opinion.
+- The solution NamedTuple is guess-shaped, hence warm-startable.
+- The **solved-point residuals** come with their tolerances. They are the very
+  numbers the verdict is read off, gathered at the backend's returned point.
+- The **committed-state residuals** are the same residuals re-gathered from
+  the boundary-zero world after the commit.
+- The backend's returned status comes with its iteration and evaluation
+  counts. These are diagnostic throughout, informative about *how* the solve
+  went and decisive about nothing.
+- The saturated-bounds list.
+- The commit's fired events, as component paths and event names. The list is
+  empty when boundary zero ran quiet ([§14.5][s14-5]).
 
-The committed-state residuals are nearly free: that boundary's sweep has
+The committed-state residuals are nearly free. That boundary's sweep has
 already run, so the residuals' declared reads need only gather from it. There
-is no offset caveat to carry: every output stage publishes at boundary
-zero ([D-205][d-205], [§14.5][s14-5]), so a residual reading an offset
-[component](#g-component)'s [port](#g-port) reads a commit-refreshed cell
-like any other. Those committed-state residuals are the numbers
-describing the state the simulation is actually *in*, which is the point a
+is no offset caveat to carry. Every output stage publishes at boundary zero
+([D-205][d-205], [§14.5][s14-5]), so a residual reading an offset
+[component](#g-component)'s [port](#g-port) reads a commit-refreshed cell like
+any other. Those committed-state residuals are the numbers describing the
+state the simulation is actually *in*, which is the point a
 `capture`-defaulted `linearize` reads. A non-empty fired-event set also raises
-`TrimCommitEvents` ([Appendix C][sC]): the committed stores then sit at the
+`TrimCommitEvents` ([Appendix C][sC]). The committed stores then sit at the
 post-handler point, not the reported solution, and a `capture`-defaulted
 `linearize` ([§14.10][s14-10]) reads that point.
 
 The two residual sets are what make the moved point auditable. A converged
 solve whose *committed-state* residuals violate the box test raises
 `TrimCommitResiduals` ([Appendix C][sC]), naming the offending residuals with
-their committed values and tolerances. The move — `state_projection`, or a commit-fired
-handler ([§14.5][s14-5]) — is surfaced rather than left silent. The verdict
-itself is not re-litigated: it gated the commit, at the solved point, and the
-numbers ([D-150][d-150]) stand as reported.
+their committed values and tolerances. The move, whether `state_projection` or
+a commit-fired handler ([§14.5][s14-5]), is surfaced rather than left silent.
+The verdict itself is not re-litigated. It gated the commit, at the solved
+point, and the numbers ([D-150][d-150]) stand as reported.
 
-Non-convergence never throws: it is an expected *outcome* (envelope-sweep data:
-hitting the infeasible edge is information), per the
-exceptions-are-broken-machinery line ([§13][s13]). A malformed problem is a
-different case: a `DiagnosticError`-class failure at setup, `TrimProblemInvalid`
-([Appendix C][sC]). The malformed cases: a guess/bounds key-set or
-field-type disagreement, an unknown `reads` [selector](#g-selector), a
+Non-convergence never throws. It is an expected *outcome*, per the
+exceptions-are-broken-machinery line ([§13][s13]). In an envelope sweep,
+hitting the infeasible edge is information. A malformed problem is a different
+case. It is a `DiagnosticError`-class failure at setup, `TrimProblemInvalid`
+([Appendix C][sC]). The malformed cases are a guess/bounds key-set or
+field-type disagreement, an unknown `reads` [selector](#g-selector), and a
 `tolerances`/residual key-set mismatch observed at the setup guess evaluation.
 The error carries the offending field with the names or types in hand,
 collected, mirroring linearization's `TapResolution`. A permuted spelling is
 none of these ([§14.7][s14-7]).
 
-A throw inside the commit's boundary zero is a third case and neither of
-those: model code failing. It propagates out of `trim!` as the commit's
-`StepError`, the simulation left `built` ([§13.4][s13-4], [D-223][d-223]) and no report
-returned for that solve ([D-224][d-224]).
+A throw inside the commit's boundary zero is a third case, and neither of
+those. It is model code failing. It propagates out of `trim!` as the commit's
+`StepError`. The simulation is left `built` ([§13.4][s13-4], [D-223][d-223]),
+and no report is returned for that solve ([D-224][d-224]).
 
-An *empty* problem is none of them either:
+An *empty* problem is none of them either.
 [`TrimProblem`](#g-trimproblem)`(guess = (;), …)` is legal, not
 `TrimProblemInvalid`. With zero decision variables the solver is bypassed
-outright — nothing to pack, no seeded activation, no backend call. The service
-simply evaluates the residuals once at the [baseline](#g-baseline), the
-ordinary box test deciding `converged` and the commit running as usual. The
-degenerate problem is the "is this operating point an equilibrium?" probe:
-evaluate this condition's equations and report, useful in its own right and
-free.
+outright. There is nothing to pack, no seeded activation and no backend call.
+The service simply evaluates the residuals once at the
+[baseline](#g-baseline). The ordinary box test decides `converged`, and the
+commit runs as usual. The degenerate problem is the "is this operating point
+an equilibrium?" probe. It evaluates this condition's equations and reports,
+which is useful in its own right and free.
 
 #### The AD obligation, scoped
 
 The default formulation requires `Dual` genericity of exactly the continuous
-output-stage chains and `state_derivative`, plus the user's assignment and residual math. The
-discrete [tier](#g-tier)'s stages and `state_update`, and the event system's guards and
-handlers, never see a `Dual`: they are frozen constants with zero partials,
-semantically exact ([§8.2][s8-2]).
+output-stage chains and `state_derivative`, plus the user's assignment and
+residual math. The discrete [tier](#g-tier)'s stages and `state_update`, and
+the event system's guards and handlers, never see a `Dual`. They are frozen
+constants with zero partials, semantically exact ([§8.2][s8-2]).
 
 This is *not a new obligation*. It is the same activation linearization is
-defined on. AD-readiness is also a build-checked property: the Dual probe
+defined on. AD-readiness is also a build-checked property. The Dual probe
 detonates [pinned](#g-walked) intermediates with a culprit-naming
 `InexactError`, and `build(world; activations)` puts it in CI. The robustness
 comes from enforcement, not hope.
@@ -8948,33 +8986,34 @@ comes from enforcement, not hope.
 C172 migration audit (one afternoon):
 
 - `Interpolations.jl` tables (propeller coefficient maps, engine maps) must
-  accept generic scalars. They do; but prefer cubic knots over linear where
-  partials matter, since linear knots make Jacobian entries piecewise-constant.
+  accept generic scalars. They do. But prefer cubic knots over linear where
+  partials matter, since linear knots make Jacobian entries
+  piecewise-constant.
 - In-model saturations (actuator limits, idle/FRC clamps) zero Jacobian columns
-  when active. LM damping tolerates the rank deficiency and the report names
-  the saturated variable ([D-070][d-070]), and cruise trim leaves those saturations
-  inactive.
+  when active. LM damping tolerates the rank deficiency, and the report names
+  the saturated variable ([D-070][d-070]). Cruise trim leaves those
+  saturations inactive.
 - The landing gear is never evaluated off-zero airborne.
 - `norm`-at-zero guards are already in place (e5efb3a).
 
-Fallback per problem: one `backend =` keyword.
+The fallback is per problem, through one `backend =` keyword.
 
 ### 14.9 Mounting: problems as relocatable values
 
-**What a `TrimProblem` is.** Not a condition, but an **implicitly specified
-condition**: `condition` is a condition-*valued function* over the decision
-space, `reads`/`residuals` are the equations that pin the free variables
-down, `guess`/`bounds` say where to search. Solving makes the implicit
-condition explicit. The commit is then literally an init:
-`override(baseline, condition(d*))` through [boundary zero](#g-boundary-zero) (the initialization
-boundary: the ordinary macro-sequence with an empty integrate). The services
-unify as clients of one condition algebra: `init!` applies an explicit
-condition, `capture` produces one, `trim!` searches a family for the member
-satisfying its equations.
+**What a `TrimProblem` is.** It is not a condition but an **implicitly
+specified condition**. `condition` is a condition-*valued function* over the
+decision space. `reads`/`residuals` are the equations that pin the free
+variables down. `guess`/`bounds` say where to search. Solving makes the
+implicit condition explicit. The commit is then literally an init,
+`override(baseline, condition(d*))` through [boundary zero](#g-boundary-zero)
+(the initialization boundary: the ordinary macro-sequence with an empty
+integrate). The services unify as clients of one condition algebra. `init!`
+applies an explicit condition, `capture` produces one, and `trim!` searches a
+family for the member satisfying its equations.
 
-**`at` lifts to problems in five lines.** Every field of a problem is
-either condition-producing (path-relative) or path-free. The rule that residual
-math sees only the gathered NamedTuple ([§14.7][s14-7]) pays off here:
+**`at` lifts to problems in five lines.** Every field of a problem is either
+condition-producing (path-relative) or path-free. The rule that residual math
+sees only the gathered NamedTuple ([§14.7][s14-7]) pays off here.
 
 ```julia
 at(prefix::String, p::TrimProblem) = TrimProblem(
@@ -8987,70 +9026,75 @@ at(prefix::String, p::TrimProblem) = TrimProblem(
     tolerances = p.tolerances)
 ```
 
-Resolution then needs nothing new. The flattening accumulator of [§14.3][s14-3]
-enters the `Scoped` wrapper and prefixes every entry
-(`"vehicle/dynamics"` → `"wing/vehicle/dynamics"`). [Root input](#g-root-input) entries authored
-in the aircraft's [face](#g-face) vocabulary resolve through the export chain *from
-the mount point* (`throttle` at `"wing"` → root input `"wing.throttle"`).
-An unexported face fails resolution by name, and correctly so. An internally
-wired input (a [scenario component](#g-scenario-component) driving the wingman's throttle) is
+Resolution then needs nothing new. The flattening accumulator of
+[§14.3][s14-3] enters the `Scoped` wrapper and prefixes every entry
+(`"vehicle/dynamics"` → `"wing/vehicle/dynamics"`).
+[Root input](#g-root-input) entries authored in the aircraft's [face](#g-face)
+vocabulary resolve through the export chain *from the mount point* (`throttle`
+at `"wing"` → root input `"wing.throttle"`). An unexported face fails
+resolution by name, and correctly so. An internally wired input (a
+[scenario component](#g-scenario-component) driving the wingman's throttle) is
 untrimmable from outside, and the build says so. The service compiles the
-scoped condition and reads and runs the identical loop — it never knows
-where its paths are mounted.
+scoped condition and reads, and runs the identical loop. It never knows where
+its paths are mounted.
 
 **A problem never authors the environment.** The environment is the world's
-and the `baseline`'s business: a sibling [component](#g-component)'s root inputs in a full world,
-a handle-valued root input in a thin rig. The problem *receives* its handles
-through the user parameter record ([§14.7][s14-7]), and only queries them.
+and the `baseline`'s business. In a full world it is a sibling
+[component](#g-component)'s root inputs, and in a thin rig it is a
+handle-valued root input. The problem *receives* its handles through the user
+parameter record ([§14.7][s14-7]), and only queries them.
 
-**Why.** The reason is the resolution rule just stated: a condition entry
+**Why.** The reason is the resolution rule just stated. A condition entry
 naming a wired input fails by name, correctly. A problem writing an
 environment face would therefore be applicable only to those rigs where that
-face happens to be unconnected, and the relocatability this section exists to
+face happens to be unconnected. The relocatability this section exists to
 guarantee would be lost.
 
 **The world wrapper dissolves.** Today's `f_init!(::Model{<:SimpleWorld})`
 (initialize environment, then call the aircraft's trim) has no successor
-method: the environment, the other aircraft and all root inputs are covered by
-the `baseline` condition ([§14.6][s14-6]), applied once at setup. The commit is
-`override(baseline, at(mount, condition(d*)))`. Method nesting became value
+method. The environment, the other aircraft and all root inputs are covered by
+the `baseline` condition ([§14.6][s14-6]), applied once at setup. The commit
+is `override(baseline, at(mount, condition(d*)))`. Method nesting became value
 layering.
 
 **"Aircraft as root" is a thin world.** By default the aircraft is not
-literally the root: its environment inputs ([§4.4][s4-4] function-valued
+literally the root. Its environment inputs ([§4.4][s4-4] function-valued
 signals) are wired from provider components. Design tasks therefore use a
-shipped rig, `design_world(ac)` = aircraft + `SimpleAtmosphere(wind = NoWind())` +
-`HorizontalTerrain`. That rig is today's ad-hoc models inside `linearize`
-promoted to a named artifact. One register: the "root" case is the shallowest
-world, the trim problem mounts at `"aircraft"` like anywhere else. Leaving an
-environment face *unconnected* is legal by construction, though. The face
-becomes an ordinary root input holding the handle **value**, written by the
-`baseline` like any other root input. That is the test-rig register: the
-function-valued sibling of a [constant source](#g-constant-source) (a library component publishing
-a value its instance holds), zero ceremony for a frozen environment. For
-design tasks the shipped rig stays `design_world(ac)`. That keeps the
-environment's tunables in the root-input vocabulary that conditions, `capture`,
-linearization's input surface and the [trace header](#g-trace-header) already speak.
+shipped rig, `design_world(ac)` = aircraft +
+`SimpleAtmosphere(wind = NoWind())` + `HorizontalTerrain`. That rig is today's
+ad-hoc models inside `linearize` promoted to a named artifact. There is one
+register. The "root" case is the shallowest world, and the trim problem mounts
+at `"aircraft"` like anywhere else. Leaving an environment face *unconnected*
+is legal by construction, though. The face becomes an ordinary root input
+holding the handle **value**, written by the `baseline` like any other root
+input. That is the test-rig register. It is the function-valued sibling of a
+[constant source](#g-constant-source) (a library component publishing a value
+its instance holds), with zero ceremony for a frozen environment. For design
+tasks the shipped rig stays `design_world(ac)`. That keeps the environment's
+tunables in the root-input vocabulary that conditions, `capture`,
+linearization's input surface and the [trace header](#g-trace-header) already
+speak.
 
 **Swarm doctrine.** The service solves *one problem at a time*. Sequential
-independent trims (trim lead, commit, trim wing against the committed
-world) cover weak/one-way coupling. A joint trim is user-side value
-composition: concatenate decision NamedTuples under prefixed names, combine
-the scoped condition trees, stack the residuals. If joint trims become
-routine, a `product(p₁ => "lead", p₂ => "wing")` helper belongs in the
-[§13.7][s13-7] library. That helper is [recorded, not built](#g-recorded-not-built) (a worked-out
-extension deliberately left unimplemented, its seams named).
+independent trims (trim lead, commit, trim wing against the committed world)
+cover weak or one-way coupling. A joint trim is user-side value composition.
+Concatenate decision NamedTuples under prefixed names, combine the scoped
+condition trees, and stack the residuals. If joint trims become routine, a
+`product(p₁ => "lead", p₂ => "wing")` helper belongs in the [§13.7][s13-7]
+library. That helper is [recorded, not built](#g-recorded-not-built) (a
+worked-out extension deliberately left unimplemented, its seams named).
 
 ### 14.10 Linearization: tap selectors, one seeded pass, a pure query
 
-**The tap declaration.** Today's per-aircraft `XStateSpace`/`UStateSpace`/
-`YStateSpace` structs, plus the `get_*_ss`/`assign_*_ss!` shuttle methods, run
-to ~150 lines of bookkeeping per variant. All of it becomes three
-[selector](#g-selector) lists (the closed family of deferred reads resolving
-against a source). Three members of the read-selector family supply them:
-`get_state`, `get_input` and `get_output` ([§14.4][s14-4]). The lists carry the
-optional [component](#g-component) index, so a vector leaf yields *named
-scalars*. The NamedTuple key is the label control design slices by:
+**The tap declaration.** Today's per-aircraft
+`XStateSpace`/`UStateSpace`/`YStateSpace` structs, plus the
+`get_*_ss`/`assign_*_ss!` shuttle methods, run to ~150 lines of bookkeeping
+per variant. All of it becomes three [selector](#g-selector) lists (the closed
+family of deferred reads resolving against a source). Three members of the
+read-selector family supply them: `get_state`, `get_input` and `get_output`
+([§14.4][s14-4]). The lists carry the optional [component](#g-component)
+index, so a vector leaf yields *named scalars*. The NamedTuple key is the
+label control design slices by.
 
 ```julia
 x = (p = get_state("vehicle/dynamics", :ω_eb_b, 1),
@@ -9059,25 +9103,26 @@ u = (throttle_cmd = get_input("throttle"), …)
 y = (EAS = get_output("vehicle/airflow", :EAS), …)
 ```
 
-The three lists are validated at resolution — the `x` list against the
-continuous tier's `init_x` stores, the `u` list against [faces](#g-face), the
-`y` list against `output_types` — with [did-you-mean](#g-did-you-mean) errors
-(the offending name plus the list-in-hand it should have matched). An `x`
-entry naming a discrete store is rejected at resolution with the entry and its
-tier in hand, the no-silent-zeros rule again ([D-167][d-167], [D-197][d-197]): the frozen tier's
-only possible partials are zeros, and the rejection's next-move guidance points
-at the recorded step-map extension below. They compile to offsets once, and
-relocate whole via `at(prefix, taps)`. The shuttle layer's successor is that
-compiled writer/reader pair, and the promised `get_x_ss` deletion
+The three lists are validated at resolution, with
+[did-you-mean](#g-did-you-mean) errors (the offending name plus the
+list-in-hand it should have matched). The `x` list is validated against the
+continuous tier's `init_x` stores, the `u` list against [faces](#g-face), and
+the `y` list against `output_types`. An `x` entry naming a discrete store is
+rejected at resolution with the entry and its tier in hand. That is the
+no-silent-zeros rule again ([D-167][d-167], [D-197][d-197]). The frozen tier's
+only possible partials are zeros, and the rejection's next-move guidance
+points at the recorded step-map extension below. The lists compile to offsets
+once, and relocate whole via `at(prefix, taps)`. The shuttle layer's successor
+is that compiled writer/reader pair, and the promised `get_x_ss` deletion
 ([§7.1][s7-1]) is discharged.
 
-**The evaluation.** Each invocation instantiates its own scratch store set —
-the trim service's mechanism verbatim ([§14.8][s14-8]) — and applies the
+**The evaluation.** Each invocation instantiates its own scratch store set, the
+trim service's mechanism verbatim ([§14.8][s14-8]), and applies the
 operating-point condition. It then runs **one** Dual evaluation, seeded with
 one direction per `x`-tap and per `u`-tap entry (chunked internally). Value
-parts give `ẋ₀` and `y₀`; partials give `A` and `B` against the `x`- and
-`u`-seeds, `C` and `D` against the same seeds read at `y` — all four
-simultaneously, exact to machine precision:
+parts give `ẋ₀` and `y₀`. Partials give `A` and `B` against the `x`- and
+`u`-seeds, and `C` and `D` against the same seeds read at `y`. All four come
+out simultaneously, exact to machine precision.
 
 ```
   x-taps ─┐                                         ┌─ value parts → ẋ₀, y₀
@@ -9088,25 +9133,26 @@ simultaneously, exact to machine precision:
 That single pass replaces four `FiniteDiff` jacobians, their step-size
 heuristics and ~4n perturbed evaluations.
 
-**What the pass seeds, and what it holds frozen.** Unseeded states sit constant
-at the operating point, and so do unseeded [root inputs](#g-root-input): the condition
-apply embeds their `Float64` values as zero-partial constants. A root-input
-[cell](#g-cell) follows the [activation](#g-activation) scalar (a re-run of
-Stratum C at a given scalar type) by *evaluating* its consuming `input_types`
-entry at that scalar ([§8.2][s8-2]). The discrete [tier](#g-tier) is frozen
-with zero partials — precisely "linearize with the discrete state held"
-([§8.2][s8-2]). Differentiation participation is a per-invocation
-*seeding* fact for every root input the schema leaves seedable, one register for `x`
-and root inputs alike. One declared exception is visible in the schema: a root input whose
-entry is declared `Float64` is **declaredly unseedable**, its cell frozen at
-every activation. Selecting it as a `B`-matrix tap is therefore rejected at tap
-resolution with the offending entry in hand, rather than silently yielding a
-zero column ([D-167][d-167]). Under fan-out the rejection names the **pinning
-consumer**, not the face alone: a root input is unseedable whenever any one of its
-consumers demands frozen, which is the fan-out meet ([§8.2][s8-2]; [D-168][d-168]).
-The author's next move — promote that leaf to a tolerant entry, or route the
-tap around it — depends on knowing which leaf froze the root input. Seeded and
-frozen, side by side here:
+**What the pass seeds, and what it holds frozen.** Unseeded states sit
+constant at the operating point, and so do unseeded
+[root inputs](#g-root-input). The condition apply embeds their `Float64`
+values as zero-partial constants. A root-input [cell](#g-cell) follows the
+[activation](#g-activation) scalar (a re-run of Stratum C at a given scalar
+type) by *evaluating* its consuming `input_types` entry at that scalar
+([§8.2][s8-2]). The discrete [tier](#g-tier) is frozen with zero partials,
+which is precisely "linearize with the discrete state held" ([§8.2][s8-2]).
+Differentiation participation is a per-invocation *seeding* fact for every
+root input the schema leaves seedable, one register for `x` and root inputs
+alike. One declared exception is visible in the schema. A root input whose
+entry is declared `Float64` is **declaredly unseedable**, and its cell is
+frozen at every activation. Selecting it as a `B`-matrix tap is therefore
+rejected at tap resolution with the offending entry in hand, rather than
+silently yielding a zero column ([D-167][d-167]). Under fan-out the rejection
+names the **pinning consumer**, not the face alone. A root input is unseedable
+whenever any one of its consumers demands frozen, which is the fan-out meet
+([§8.2][s8-2]; [D-168][d-168]). The author's next move is to promote that leaf
+to a tolerant entry, or to route the tap around it. Either move depends on
+knowing which leaf froze the root input. Seeded and frozen, side by side:
 
 | leaf | in the one pass | what fixes it |
 |---|---|---|
@@ -9121,26 +9167,26 @@ frozen, side by side here:
 service with no commit and no [boundary zero](#g-boundary-zero) (the
 initialization boundary: the ordinary macro-sequence with an empty integrate).
 It works on scratch buffers only, and nothing it computes becomes
-authoritative. Today's restore-the-trim dance — re-`assign!` after
-`FiniteDiff` dirtied the model — has no successor. The default operating point
+authoritative. Today's restore-the-trim dance, the re-`assign!` after
+`FiniteDiff` dirtied the model, has no successor. The default operating point
 is the sim's current committed state, taken through
-`capture(sim) → (condition, t)`. That gather covers stores *and root inputs* in
-full, root-input totality ([§14.6][s14-6]) making root-input coverage mandatory for
-capture → apply. After a `trim!` commit, `linearize(sim, taps)` is about the
-trim point with nothing re-specified. An `about = <condition>` keyword
-linearizes anywhere else without touching the sim.
+`capture(sim) → (condition, t)`. That gather covers stores *and root inputs*
+in full. Root-input totality ([§14.6][s14-6]) makes root-input coverage
+mandatory for capture → apply. After a `trim!` commit, `linearize(sim, taps)`
+is about the trim point with nothing re-specified. An `about = <condition>`
+keyword linearizes anywhere else without touching the sim.
 
-**The returned object and `LinearizedSS`.** `linearize` returns labeled data:
+**The returned object and `LinearizedSS`.** `linearize` returns labeled data,
 `(ẋ₀, x₀, u₀, y₀, A, B, C, D)`, carrying the label sets of the
 [taps](#g-taps) (the three selector lists declaring what linearization seeds
 and reports). On that data, `subsystem`/`delete_vars` survive as pure
 label-indexed matrix slicing, with no model involvement. The `c172x_ctl` LQR
 pipeline consumes it with cosmetic changes. `LinearizedSS` the *component*
 survives separately, as an ordinary
-[continuous component](#g-continuous-component) in the migrated library:
-`init_x` = the state vector, labeled faces, the affine update in
-`output_direct`/`state_derivative`.
-It has no privileges, and its schema is everyone else's.
+[continuous component](#g-continuous-component) in the migrated library. Its
+`init_x` is the state vector, its faces are labeled, and the affine update
+lives in `output_direct`/`state_derivative`. It has no privileges, and its
+schema is everyone else's.
 
 **Recorded guidance.** Linearization taps should select minimal-coordinate
 mechanizations. Perturbing Euler-angle states is meaningful where seeding
@@ -9152,55 +9198,56 @@ the tap author, not the framework.
 **The sampled-data Dual activation is
 [recorded, not built](#g-recorded-not-built)** (a worked-out extension
 deliberately left unimplemented, its seams named). The frozen-exact doctrine is
-consumer-scoped, not a capability wall: today's services differentiate the
-continuous dynamics with the discrete state held, and for that a frozen
-discrete output — a ZOH constant with zero partials — is the exact answer. The
-type system enforces it ([§8.2][s8-2]). Stated once, because the question
-recurs: **the frozen discrete cell is not an AD limitation on the signal path;
-it is the true zero of an instantaneous dependence that the hybrid semantics
-never had**. The dataflow through a discrete component is temporal, not
-instantaneous, and AD follows actual dataflow
-(`frozen_discrete_walkthrough.md` works the three-component chain through).
+consumer-scoped, not a capability wall. Today's services differentiate the
+continuous dynamics with the discrete state held. For that, a frozen discrete
+output (a ZOH constant with zero partials) is the exact answer. The type
+system enforces it ([§8.2][s8-2]). This is stated once, because the question
+recurs. **The frozen discrete cell is not an AD limitation on the signal path.
+It is the true zero of an instantaneous dependence that the hybrid semantics
+never had.** The dataflow through a discrete component is temporal, not
+instantaneous, and AD follows actual dataflow.
+`frozen_discrete_walkthrough.md` works the three-component chain through.
 
-Differentiating "through" the discrete side means differentiating a *different
-object*: the sampled-data step map $\Phi : ((x_k, s_k), \mathrm{inputs}) \to
-(x_{k+1}, s_{k+1})$, taken over the model's *whole* state, both letters at
-once. One
-evaluation of $\Phi$ integrates one period, then runs the [due](#g-due)
-[ticks](#g-tick). The extension is additive along existing [seams](#g-seam):
+Differentiating "through" the discrete side means differentiating a
+*different object*. That object is the sampled-data step map
+$\Phi : ((x_k, s_k), \mathrm{inputs}) \to (x_{k+1}, s_{k+1})$, taken over the
+model's *whole* state, both letters at once. One evaluation of $\Phi$
+integrates one period, then runs the [due](#g-due) [ticks](#g-tick). The
+extension is additive along existing [seams](#g-seam).
 
 - **[Walked](#g-walked)-leaf parametrization** of the discrete tier's
-  real-scalar state leaves; counters and enums stay [pinned](#g-walked), like
+  real-scalar state leaves. Counters and enums stay [pinned](#g-walked), like
   `m`.
-- **Opt-in participation** on discrete components, frozen-exact staying the
-  default. A participating component opts in through an explicit trait, and
-  that trait **brings the two-argument `T`-form of `output_types` with it**: it
-  flips the leaf's mandated declaration shape from the plain form to the
-  continuous one ([§8.2][s8-2], [§8.5][s8-5]). Participation therefore
+- **Opt-in participation** on discrete components, with frozen-exact staying
+  the default. A participating component opts in through an explicit trait,
+  and that trait **brings the two-argument `T`-form of `output_types` with
+  it**. It flips the leaf's mandated declaration shape from the plain form to
+  the continuous one ([§8.2][s8-2], [§8.5][s8-5]). Participation therefore
   stays authored per leaf on that tier too. The hinge is recorded here so the
-  two forms stay compatible — graceful migration, no flag day.
+  two forms stay compatible, which gives graceful migration with no flag day.
 - **One new activation** ([§9.4][s9-4]): "continuous chain + `state_derivative`
   + the discrete tier's output stages + `state_update`".
-- **Forward sensitivities** through the in-house RK steppers, for free — a
-  payoff of owning the loop ([§10.1][s10-1]).
+- **Forward sensitivities** through the in-house RK steppers, for free. That
+  is a payoff of owning the loop ([§10.1][s10-1]).
 - **A distinct `s`-tap register** beside the `x` list, labeling the step map's
-  state blocks $\partial(x^+, s^+)/\partial(x, s)$ ([D-197][d-197]); the `x` list keeps
-  its continuous meaning unchanged.
+  state blocks $\partial(x^+, s^+)/\partial(x, s)$ ([D-197][d-197]). The `x`
+  list keeps its continuous meaning unchanged.
 
-The honest boundary: $\Phi$ is differentiable only where the
-event pattern is locally constant. Exactness across a firing needs saltation
+The honest boundary is that $\Phi$ is differentiable only where the event
+pattern is locally constant. Exactness across a firing needs saltation
 corrections. The scope is therefore event-quiescent operating points, which
-trim points already are — [guards](#g-guard) at commit see to that
+trim points already are, because [guards](#g-guard) at commit see to that
 ([§14.5][s14-5]). The scope comes with a loud diagnostic if an event fires
 inside a differentiated step. Two consumers wait. The first is the closed-loop
 trim door ([§14.7][s14-7]), whose $g(s) - s = 0$ residuals currently imply the
-derivative-free fallback, since a frozen `state_update` has no Jacobian columns. The second
-is exact discrete-time linearization of the full loop — digital design on the
-exact discretized plant instead of continuous linearization + Tustin.
+derivative-free fallback, since a frozen `state_update` has no Jacobian
+columns. The second is exact discrete-time linearization of the full loop,
+which is digital design on the exact discretized plant instead of continuous
+linearization plus Tustin.
 
 **Declarative non-participation: what the schema states, and what stays
-recorded.** **Both halves of this door have a spelling.** The output half
-([D-166][d-166]): a continuous producer's declaration is per-leaf, so "this
+recorded.** **Both halves of this door have a spelling.** The output half is
+[D-166][d-166]. A continuous producer's declaration is per-leaf, so "this
 [port](#g-port) is frozen under differentiation" has a spelling. Declare the
 leaf `Float64`, and strip with `ForwardDiff.value` inside the stage
 ([§8.2][s8-2], [§9.5][s9-5]). An opaque wrapper (an FMU, a C aerodynamic
@@ -9208,21 +9255,23 @@ table) and a deliberately severed coupling can therefore both say so in the
 schema, instead of showing up in Jacobians as unexplained zero rows. The
 conformance check holds them to it at every activation.
 
-The input half ([D-167][d-167]): a consumer's entries are per-leaf too, so a `Float64`
-entry declares "never hand me partials". That is the AD-incompatible
-component's own statement, enforced at the wire ([§6.1][s6-1]). At a root input,
-such an entry *is* the forbid-seeding marker itself. That marker carries
-semantics rather than mere protection: it types the root-input cell at every
-activation. An unseeded root input is therefore a *choice* where a `Float64`-entry
-root input is a *declaration*, and tap resolution rejects the latter with the
-offending entry in hand instead of returning a silent zero column.
+The input half is [D-167][d-167]. A consumer's entries are per-leaf too, so a
+`Float64` entry declares "never hand me partials". That is the AD-incompatible
+component's own statement, enforced at the wire ([§6.1][s6-1]). At a root
+input, such an entry *is* the forbid-seeding marker itself. That marker
+carries semantics rather than mere protection, because it types the
+root-input cell at every activation. An unseeded root input is therefore a
+*choice*, where a `Float64`-entry root input is a *declaration*. Tap
+resolution rejects the latter with the offending entry in hand instead of
+returning a silent zero column.
 
 What stays recorded is only the remaining **tooling** over that visibility.
-Pinned-face validation by the tap declaration: selecting a declared-frozen
-output = warning. A [feedthrough](#g-feedthrough)-graph lint: a frozen output
-fed by participating inputs names the severed coupling. Both are additive when
-a consumer shows up, no flag day; until then the declared pins and the visible
-zero rows suffice.
+One piece is pinned-face validation by the tap declaration, where selecting a
+declared-frozen output is a warning. The other is a
+[feedthrough](#g-feedthrough)-graph lint, where a frozen output fed by
+participating inputs names the severed coupling. Both are additive when a
+consumer shows up, with no flag day. Until then the declared pins and the
+visible zero rows suffice.
 
 ---
 
