@@ -17,15 +17,13 @@ Where the reason is not given here, the cited decision carries it:
 
 - **The Appendix C kinds whose mechanism is absent** — an absence gets no
   struct (`ThreadBudget`, `DeadStage`, `BundleFieldError`, `UserCodeFraming`,
-  `UnboundedRun`; likewise `MissingProbeValue`, whose *check* is absent; `TapResolution` comes from the read register alone,
-  never §14.10's absent tap register). One periphery refusal is still
-  a plain `error(...)` with no kind — a datum naming no channel of a
-  `TableBinding` (`bindings.jl` ~93): it runs on the device task inside the
-  author's own mapping and reaches the framework as a `DeviceCrash` `cause`,
-  so D-216 leaves it there. Its two former neighbours are
-  `DeviceContractMismatch` now — a device defining no `loop`, and `gather` on
-  a handle whose binding declares no output side. Absent with them:
-  did-you-mean **ranking** (no list is ever ordered), and the lists
+  `UnboundedRun`; likewise `MissingProbeValue`, whose *check* is absent;
+  `TapResolution` comes from the read register alone, never §14.10's absent
+  tap register). One periphery refusal is still a plain `error(...)` with no
+  kind — a datum naming no channel of a `TableBinding` (`bindings.jl` ~93):
+  it runs on the device task inside the author's own mapping and reaches the
+  framework as a `DeviceCrash` `cause`, so D-216 leaves it there. Absent with
+  them: did-you-mean **ranking** (no list is ever ordered), and the lists
   themselves on some arms — `ReadBindingUnresolved` fills `candidates` on the
   `get_input` miss only, `ConditionResolution`'s `:unknown_path` arm and
   `_read_component` carry none, and a mistyped *path* gets none anywhere
@@ -62,10 +60,9 @@ Where the reason is not given here, the cited decision carries it:
   `output_types` names the state field `ω`, does not build, and the bundle
   law's `y` row, D-169's hand-down exclusion and §7.1's state-cell table are
   correct but vacuous (M-B21); §13.3's generic-holding check in the
-  *load-bearing* register — increment 19 deleted `generically_held` when
-  one-level routing left the structural register nothing to police, and
-  nothing regrew it for the deep paths condition entries and trim `reads`
-  still write, so §14.2's locality law rides as convention here.
+  *load-bearing* register — the deep paths condition entries and trim `reads`
+  write are policed by nothing, so §14.2's locality law rides as convention
+  here.
 - **§8.8 beyond the helper pair** (the feed-list idiom, generic-holding sugar,
   required-faces declarations, D-209's predicate filter on the passthrough
   helpers); **D-187's grid diagnostics** (the bound schedule is plain data;
@@ -169,8 +166,7 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
-retires or the code conforms. Empty since the 2026-09-07 rulings (D-232,
-D-233) retired the audit's list (M-D and M-B26).
+retires or the code conforms. Currently empty.
 
 ## Pending on the spec itself
 
