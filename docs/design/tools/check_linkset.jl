@@ -25,7 +25,8 @@
 #
 # `<heading-prefix>` selects the section: the text a `###` heading line must
 # start with (e.g. `### 10.4`). The section runs from that heading to the next
-# `#`, `##` or `###` heading, exclusive.
+# `#`, `##` or `###` heading, exclusive. Lines inside fenced code blocks never
+# end a section: a `# comment` line in a sketch is not a heading.
 #
 # `--file <path>` overrides the file scanned (default: spec.md next to this
 # script) — e.g. to point at a pilot rewrite draft under docs/design/briefs/
@@ -63,8 +64,13 @@ function section_text(path, prefix)
     length(starts) > 1 &&
         error("heading prefix $(repr(prefix)) is ambiguous in $path: matches lines $starts")
     start = starts[1]
-    stop = findnext(l -> occursin(r"^#{1,3}\s", l), lines, start + 1)
-    stop = stop === nothing ? length(lines) + 1 : stop
+    stop = length(lines) + 1
+    fence = false
+    for i in start+1:length(lines)
+        startswith(lines[i], "```") && (fence = !fence; continue)
+        fence && continue
+        occursin(r"^#{1,3}\s", lines[i]) && (stop = i; break)
+    end
     return join(lines[start:stop-1], "\n")
 end
 
