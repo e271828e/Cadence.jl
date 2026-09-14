@@ -162,7 +162,7 @@ function Simulation(b::Build, ::Type{T} = Float64; h = nothing, N_base = nothing
     ex = compile(b, act, bound.D, bound.Φ, bound.Δt; chunk_size)
     stepper = algorithm(T, length(ex.xbuf))
     reg = TraceRegister(trace)     # the drain thunks close over it, so it precedes the plane
-    Simulation{T,typeof(ex),typeof(stepper)}(
+    sim = Simulation{T,typeof(ex),typeof(stepper)}(
         ex, b,
         bound.h, bound.N_base, bound.Δt_base, Int(firing_budget), Float64(localization_tol),
         Int(localization_budget), Float64(join_timeout),
@@ -170,9 +170,11 @@ function Simulation(b::Build, ::Type{T} = Float64; h = nothing, N_base = nothing
         RunPolicy(Symbol[], Any[], nothing), any(ex.events.localized), bound.sched,
         bound.D, bound.Φ, bound.Δt, chunk_size,
         stepper, zeros(T, length(ex.xbuf)), zeros(T, length(ex.xbuf)),
-        DataPlane(act.layout, ex.store, reg), Published(nothing), Control(),
+        DataPlane(act.layout, ex.store, reg), Published(nothing, Returns(nothing)), Control(),
         SnapshotLog(log, Int(log_every), log_max === Inf ? typemax(Int) : Int(log_max)),
         reg, DiagCell(EMPTY_DIAG), WriterAccount())
+    _bind_publisher!(sim)
+    sim
 end
 
 Simulation(root::AbstractComponent, ::Type{T} = Float64; kw...) where {T} =
@@ -1308,6 +1310,7 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
     # the writer index above is a placeholder: `reclaim!` appends the new writer
     # set to the trace's schema list and recompiles every thunk against it (§11.5)
     reclaim!(plane, sim.exec.act.layout, sim.trace)
+    _bind_publisher!(sim)
     is_greedy(b) && isempty(claim) &&
         @warn logline(EmptyGreedyClaim(device = "device $id ($(_typename(dev)))", binding = _typename(b)))
     h
@@ -1330,6 +1333,7 @@ function detach!(sim::Simulation, dev::AbstractDevice)
         device = _typename(dev), roster = [_who(e) for e in plane.roster])))
     deleteat!(plane.roster, i)
     reclaim!(plane, sim.exec.act.layout, sim.trace)
+    _bind_publisher!(sim)
     nothing
 end
 
@@ -1485,11 +1489,26 @@ the new count finds at least this boundary in `latest`. The snapshot's
 ordinal is the trajectory's, off the clock (D-230); the counter is the wait
 predicate's alone.
 """
-function publish!(sim::Simulation)
+publish!(sim::Simulation) = (sim.published.publisher(); nothing)
+
+# The publication is bound per roster size (§11.3: the roster changes only
+# stopped) as a zero-argument closure over `sim`, behind a barrier on the
+# writer count. The status tuple is built and frozen into the snapshot inside
+# one specialized frame, so it never crosses a dynamic boundary boxed — and
+# neither does `sim`, an immutable a dynamic call would copy to the heap. The
+# snapshot is then the publication's one allocation beside the capture's.
+function _bind_publisher!(sim::Simulation)
+    sim.published.publisher = _publisher(sim, Val(length(sim.plane.roster) + 2))
+    nothing
+end
+_publisher(sim::Simulation, ::Val{N}) where {N} = () -> _publish!(sim, Val(N))
+
+function _publish!(sim::Simulation, ::Val{N}) where {N}
     ctl = sim.control
     clock = sim.exec.clock
+    status = FrameworkStatus(ntuple(i -> _writer_status(sim, i, N), Val(N)))
     snap = Snapshot(clock.t, clock.step, clock.boundary, capture(sim.exec.store),
-                    sim.exec.act.layout, _status(sim))
+                    sim.exec.act.layout, status)
     clock.boundary += 1
     @atomic :release sim.published.latest = snap
     log!(sim.log, snap)
@@ -1514,19 +1533,16 @@ function _writer_status(who::String, a::WriterAccount, hb, ts)
     ws
 end
 
-# The status assembly (§11.8, §11.2), on the publishing task: per-writer
-# records in the drain's order — devices in attachment order, then the
-# harness register, then the loop itself.
-function _status(sim::Simulation)
+# Record `i` of `N` in the status (§11.8, §11.2), on the publishing task: the
+# drain's order — devices in attachment order, then the harness register, then
+# the loop itself.
+function _writer_status(sim::Simulation, i::Int, N::Int)
     plane = sim.plane
-    ws = Vector{WriterStatus}(undef, length(plane.roster) + 2)
-    for (i, e) in enumerate(plane.roster)
-        t = get(plane.run_tasks, e.id, nothing)
-        ws[i] = _writer_status(_who(e), e.acct, _heartbeat(e.diag), _task_state(t))
-    end
-    ws[end-1] = _writer_status("harness", plane.harness_acct, nothing, nothing)
-    ws[end] = _writer_status("loop", sim.loop_acct, nothing, nothing)
-    FrameworkStatus(ws)
+    i == N && return _writer_status("loop", sim.loop_acct, nothing, nothing)
+    i == N - 1 && return _writer_status("harness", plane.harness_acct, nothing, nothing)
+    e = plane.roster[i]
+    _writer_status(_who(e), e.acct, _heartbeat(e.diag),
+                   _task_state(get(plane.run_tasks, e.id, nothing)))
 end
 
 """

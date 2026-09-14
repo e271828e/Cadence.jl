@@ -100,6 +100,22 @@ function diagnostics_channel()
         @test mw.totals.malformed == 20
     end
 
+    @testset "the status rides inline in the snapshot's one allocation (§11.8)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10, log = false)
+        pad = Pad("p")
+        attach!(sim, pad, Enumerated("a"))
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        publish!(sim); capture(sim.exec.store)               # warm
+        # A quiet frame: the store capture's own allocations plus the snapshot
+        # they are frozen into — the three-writer status adds nothing.
+        @test @allocations(publish!(sim)) == @allocations(capture(sim.exec.store)) + 1
+        @test length(latest(sim).status.writers) == 3
+        # The publication follows the roster: sized to it at every change.
+        detach!(sim, pad)
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        @test length(latest(sim).status.writers) == 2
+    end
+
     @testset "the status: the delta rides one snapshot, totals ride every one (§11.8, §11.2)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         h = attach!(sim, Pad("p"), Enumerated("a"))

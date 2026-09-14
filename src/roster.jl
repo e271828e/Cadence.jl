@@ -129,7 +129,9 @@ struct RosterEntry
     handle::Any                     # the DeviceHandle; `Any` for include order only, read off the frame path
 end
 
-_who(e::RosterEntry) = "device $(e.id) ($(_typename(e.dev)))"
+# The handle's own name, read typed: a fresh string per publication would be
+# an allocation on the quiet frame (§11.8).
+_who(e::RosterEntry) = (e.handle::DeviceHandle).who
 
 # The stopped-sim compile of one writer's drain (§11.4): a zero-argument thunk
 # capturing the store and the writer *concretely* — this dynamic dispatch is

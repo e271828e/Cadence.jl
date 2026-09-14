@@ -123,9 +123,8 @@ Where the reason is not given here, the cited decision carries it:
 ## Built in a shape the spec's is not
 
 Transactional: the commit introducing a deviation adds its bullet, the one
-retiring it deletes it. All were found by the audit and none chosen, except
-the allocation note that closes the second list; the merge entry has the
-probe. The first list retires bullet by bullet, each a local fix owing no
+retiring it deletes it, and the merge entry has the probe where the audit
+found it. The first list retires bullet by bullet, each a local fix owing no
 ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
@@ -134,11 +133,7 @@ Currently empty.
 
 ### Retire with a feature or a pass
 
-- **The per-writer status is a `Vector` of records built at each
-  publication** (chosen). §11.8 has it ride inline in the snapshot's one
-  per-boundary allocation, zero additional heap allocation on a quiet frame;
-  the simple shape costs one small allocation. Retires with an
-  allocation-tightening pass, an `NTuple` status type fixed per run.
+Currently empty.
 
 ## Awaiting a ruling
 

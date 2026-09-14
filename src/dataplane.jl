@@ -363,10 +363,12 @@ a window onto live bookkeeping — per-writer records in the drain's own order,
 each rostered device in attachment order, then the harness register, then the
 loop itself. Built fresh in `publish!` and frozen into the snapshot; the
 binding rule holds because everything here is either immutable, a copy, or a
-vector the account has released.
+vector the account has released. The records ride as a tuple sized to the
+run's roster, so the status lives inline in the snapshot's own allocation
+(§11.8's zero-additional claim) rather than in a vector of its own.
 """
-struct FrameworkStatus
-    writers::Vector{WriterStatus}
+struct FrameworkStatus{N}
+    writers::NTuple{N,WriterStatus}
 end
 
 "§12.2's staleness threshold, in seconds of wall clock: advisory, a display rule, never a kill trigger."
@@ -561,13 +563,13 @@ written again, which is what makes the lock-free read sound. The state
 stores (`x`, `s`, `m`) are deliberately not carried (§11.2). Read it with
 `port(snap, path, name)`, addressed exactly as the live table.
 """
-struct Snapshot{T,S<:StoreBundle}
+struct Snapshot{T,S<:StoreBundle,ST<:FrameworkStatus}
     t::T
     frame::Int
     boundary::Int     # the trajectory's published-boundary ordinal (§12.3, D-230); boundary zero = 0
     store::S
     layout::Layout    # build-frozen addressing, shared, never copied
-    status::FrameworkStatus
+    status::ST        # sized to the run's roster, inline (§11.8)
 end
 
 port(s::Snapshot, path::String, name::Symbol) = gather(s.store, s.layout.addr[(path, name)])
@@ -581,10 +583,12 @@ capture(b::StoreBundle) = StoreBundle(map(cs -> CellStore(copy(cs.buf)), b.store
 `Simulation` itself stays immutable: release-store at publication,
 acquire-load at `latest(sim)`. The exchange is wait-free in both directions —
 a wedged reader cannot delay publication, and the loop cannot tear a reader's
-view.
+view. Beside it rides `publisher`, the publication bound to the roster's
+size at every roster change (`_bind_publisher!`, sim.jl).
 """
 mutable struct Published
     @atomic latest::Union{Nothing,Snapshot}
+    publisher::Function
 end
 
 # --- the log (§11.2) -----------------------------------------------------------
