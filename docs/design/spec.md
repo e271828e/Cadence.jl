@@ -1781,8 +1781,8 @@ unrelated `MyModule.state_derivative`, with no error and no warning. The
 declarations are deliberately unexported ([D-117][d-117]). A bare `using` therefore
 brings no name into scope for the definition to clash with, so there is nothing
 for the language to detect. The build then sees a component with no
-`state_derivative` method and reports a *modeling* diagnostic, either
-`StoreWithoutUpdate` or `ClassUnreadable` when the whole inventory was
+`state_derivative` method and reports a *modeling* diagnostic,
+`StoreWithoutUpdate`, or `ClassUnreadable` when the whole inventory was
 shadowed. A one-line namespace mistake is thereby reported far from the line
 that caused it. That is the [§8.4][s8-4] inversion of [error locality](#g-error-locality) (the
 property that a mistake fails at the site of the mistake), arriving through the
@@ -1927,9 +1927,6 @@ ignition_handler(::Engine, _) = (; m = (; phase = running))
 flameout_guard(eng::Engine, (; x)) = eng.ω_min - x.ω      #continuous form: localizable
 flameout_handler(::Engine, _) = (; m = (; phase = off))
 ```
-
-The blocks below take that inventory declaration by declaration, and record
-where each schema fact gets its authority.
 
 The blocks below take that inventory declaration by declaration, and record
 where each schema fact gets its authority.
@@ -2240,9 +2237,9 @@ way.
 #### Custom structs as port types
 
 A custom struct is a first-class port type, as in `contact = GearContact{T}`,
-under the scoping [§7.2][s7-2] establishes. It is parametric in its real-scalar
-leaves, its constructors infer the scalar, and it has no [pinned](#g-walked) fields on
-the continuous path. A participating struct leaf is declared with the scalar
+under the scoping [§7.2][s7-2] establishes. That scoping requires a struct
+parametric in its real-scalar leaves, with constructors inferring the scalar
+and no [pinned](#g-walked) fields on the continuous path. A participating struct leaf is declared with the scalar
 in its parameter position, `GearContact{T}`, recursively for nested
 parameters. A struct with a hardcoded `Float64` field offers no such position,
 so it can only be declared bare, a pinned leaf, honestly spelled. Any
@@ -2407,9 +2404,9 @@ Field names are path segments. Substitutability and variants use ordinary
 parametric fields, exactly today's `Cessna172X{K, A}` shape. Alongside the
 struct come the well-known declarations: `child_connections(::A)`, mandatory
 even when empty, plus `input_connections(::A)`, `output_connections(::A)` and
-`sample_times(::A)`. One more is optional. `transparent_container(::A)`,
-default `nothing`, names a container field whose segment is dropped from its
-children's names, the rule the next subsection states.
+`sample_times(::A)`. One more is optional, `transparent_container(::A)`,
+default `nothing`. Naming a container field there drops that field's segment
+from its children's names, the rule the next subsection states.
 
 #### Container children
 
@@ -2640,7 +2637,7 @@ both is the same build error a duplicate face name is. The root is where those
 two declarations first share an address space. A [root input](#g-root-input) places a [cell](#g-cell)
 the [periphery](#g-periphery) writes ([§11.3][s11-3]), so a collision would put two cells at one
 name. Below the root nothing collides, because a primitive's input faces alias
-their producers' cells and place nothing, and non-root leaves are left alone.
+their producers' cells and place nothing. Non-root leaves are left alone.
 
 The two-notation rule this rests on is directional. It separates structure
 from derived contract, not read from write. **Slash is structure**: endpoint
@@ -2894,8 +2891,8 @@ reviewed. An omission is legible in one authored artifact, not defined away
 as the complement of the wire list.
 
 **The line not to cross** is deriving `except` from `child_connections` itself,
-through a helper spelled `except = fed(sys, "aero")` that reads the assembly's
-own wire list. That is auto-bubbling under another name ([D-043][d-043], [D-145][d-145]).
+for instance a helper spelled `except = fed(sys, "aero")` that reads the
+assembly's own wire list. That is auto-bubbling under another name ([D-043][d-043], [D-145][d-145]).
 The single source must be **authored data, never inferred structure**.
 
 **[Generic holding](#g-generic-holding) is an imposed derived contract.** A parent holding a child
@@ -3133,8 +3130,8 @@ torn-state-free. The `Build` is the inspectable derived contract of the
 instantiation that [§8.8][s8-8] gestures at. It holds the wire list, face table,
 [schedule](#g-schedule) and [root inputs](#g-root-input) as plain printable data. "Printable" names the
 representation. Paths, names and rationals are inspectable as fields and
-printed by any REPL without a method of their own, the diagnostic form beside
-the compiled form ([§9.7][s9-7]). The renderings the artifact owes are the named
+printed by any REPL without a method of their own, the diagnostic form set
+against the compiled form ([§9.7][s9-7]). The renderings the artifact owes are the named
 ones: the anchor and component tables and the hyperperiod chart below, and
 the face-provenance printer ([§13.7][s13-7]).
 
@@ -3279,8 +3276,8 @@ root-input values, because that would smuggle in the default semantics
 rejected above. The same doctrine covers the clock. `Δt` in seconds does not
 exist until `Simulation` binds `Δt_base`, since deployment post-dates the
 build, so discrete-[tier](#g-tier) probes supply a placeholder period (`1.0`) in the
-bundle. It is a fabricated, probe-scoped value like any synthesized input,
-because the probe checks types, not physics. `Simulation` must not reach its
+bundle. It is a fabricated, probe-scoped value like any synthesized input.
+The probe checks types, not physics. `Simulation` must not reach its
 first [boundary](#g-boundary) with uninitialized root inputs. Enforcement is the pre-write
 `UninitializedInputs` check carried by every complete-world application,
 namely `init!`, trim setup and trim commit ([§14.6][s14-6]).
@@ -3297,7 +3294,7 @@ moment, not the reason ([D-142][d-142]). There are two consequence sites, with t
 same throw at both. At build it is a `UserCodeFraming`-wrapped build failure
 ([§13.1][s13-1]) whose diagnostic points at code that is "correct" on every
 trajectory it has ever seen. At runtime it is a `StepError` and the run ends
-`errored` ([§13.4][s13-4]), because exceptions from model code are always abnormal
+`errored` ([§13.4][s13-4]). Exceptions from model code are always abnormal
 ([§13.5][s13-5]). Three habits of shipped code have sanctioned spellings. A
 *plausibility* check meaning "stop the run", such as a strut throwing on a
 touchdown overload, is a published `Bool` output face plus `stop_on`
@@ -3485,8 +3482,8 @@ from honest code, because accidental `Float64`s from `Dual` operands are
 impossible (`MethodError` at the operation site). The residual is
 **deliberate stripping** (`ForwardDiff.value`), a stated intent to discard
 partials, producing a silent zero in the Jacobian. That is the stop-gradient
-idiom, occasionally legitimate for deliberately frozen couplings and opaque
-non-Julia wrappers. Applied mid-expression it is equally invisible to a
+idiom, occasionally legitimate, as with deliberately frozen couplings and
+opaque non-Julia wrappers. Applied mid-expression it is equally invisible to a
 strict exact-match rule, so the leniency costs nothing. What it need not be
 is invisible to the schema. **The declared-pinned leaf is the schema-visible
 freeze.** An author who means to strip declares the leaf `Float64` and strips
@@ -3544,8 +3541,8 @@ themselves are [§14][s14]. The C172 trim problem (`c172.jl`: `TrimState`,
 `TrimParameters`, `θ_constraint`, the `ẋ`-reading cost) transfers
 near-verbatim:
 
-- **Trim** is a write-condition, [sweep](#g-sweep), read loop on an [activation](#g-activation). By
-  default that is the `Dual` activation, with decision variables seeded for
+- **Trim** is a loop that writes a condition, runs a [sweep](#g-sweep) and reads the
+  result, on an [activation](#g-activation). By default that is the `Dual` activation, with decision variables seeded for
   exact residual Jacobians ([§14.7][s14-7]). The derivative-free fallback runs the
   same loop on the nominal `Float64` activation (a re-run of Stratum C at a
   given scalar type) with no new activation needed, and the always-on checks
@@ -3599,7 +3596,7 @@ walk, so the closed vocabulary earns its keep twice. This is the entry rule
 above paying rent. Two instances of one component type then differ only in
 field values, share an entry type, and compile to **one** body. A store
 enumerating every cell in its own type, addressed by index in the type
-domain, would compile one body per instance and grow the store type with the
+domain, compiles one body per instance and grows the store type with the
 model. The choice was measured rather than argued ([D-162][d-162],
 `prototypes/cellstore_bench`).
 
