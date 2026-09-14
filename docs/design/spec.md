@@ -3735,16 +3735,17 @@ to continue meaningfully re-runs `init!`.
 
 # Part III — Execution
 
-Part III specifies the running simulation. [§10][s10] owns time: the loop the framework
-writes rather than delegates, the stepper seam integration is delegated across,
-the localization machinery that finds crossing instants inside a step, the
-multi-rate tick lattice, the event iteration at each boundary, and real-time
-pacing. [§11][s11] is the data plane between the loop and everything outside it.
-Outbound it fixes snapshot publication; inbound it fixes root inputs,
-per-device staging and the drain; alongside both it fixes the device authoring
-contract and the input trace that makes a session replayable. [§12][s12] is the
-orchestration around them: the control plane, the wait primitives and thread
-budget, the shutdown protocol, the five run states, and replay.
+Part III specifies the running simulation. [§10][s10] owns time. It fixes
+the loop the framework writes rather than delegates, the stepper seam across
+which integration is delegated, the localization machinery that finds
+crossing instants inside a step, the multi-rate tick lattice, the event
+iteration at each boundary, and real-time pacing. [§11][s11] is the data
+plane between the loop and everything outside it. Outbound it fixes snapshot
+publication. Inbound it fixes root inputs, per-device staging and the drain.
+Alongside both it fixes the device authoring contract and the input trace
+that makes a session replayable. [§12][s12] is the orchestration around
+them: the control plane, the wait primitives and thread budget, the shutdown
+protocol, the five run states, and replay.
 
 Part III assumes the schedule rather than deriving it. The boundary sequence it
 dispatches is fixed in [§5.3][s5-3], the executor it dispatches through is built in
@@ -3759,7 +3760,7 @@ orchestration around machinery the earlier parts already settled.
 The simulation loop consists of six activities: the [§5.3][s5-3]
 [boundary](#g-boundary) sequence, [tick](#g-tick) dispatch, event handling,
 logging, input staging, and [pacing](#g-pacing) (waits inserted between
-completed frames, which never alter the boundary sequence).
+completed frames, never altering the boundary sequence).
 
 **Rule.** All six are **framework code, unconditionally**. The framework
 writes the loop itself. It does not assemble the loop out of callbacks
@@ -3850,8 +3851,8 @@ axis.
    uncertainty of a coefficient-table aircraft model.
 3. **Stiffness has a remedy ladder.** The fastest continuous dynamics in the
    current codebase sit inside RK4's stability region at `h = 0.02`. These are
-   actuator poles near 31 rad/s, gear damper decay and friction compensators,
-   and the crosswind-landing demo is the empirical proof. If a future model
+   actuator poles near 31 rad/s, gear damper decay and friction compensators.
+   The crosswind-landing demo is the empirical proof. If a future model
    exceeds that region, the ladder runs in order. First shrink `h`, since the
    RHS costs microseconds and 500 Hz real-time is unremarkable. Then subcycle
    the stepper against the tick grid. Only then reach for an implicit method
@@ -4295,8 +4296,8 @@ Each kind of boundary has its own due set:
 - At a **`t*` boundary**, the due set is **empty** for the same reason. A
   modulo test against the unadvanced index would wrongly re-admit the previous
   tick's due set.
-- At **[boundary zero](#g-boundary-zero)** (the initialization boundary, which
-  runs the ordinary macro-sequence with an empty integrate), the due set is
+- At **[boundary zero](#g-boundary-zero)** (the initialization boundary: the
+  ordinary macro-sequence with an empty integrate), the due set is
   **everything with `Φ = 0`**. At tick index 0 the gate reads
   `(0 − Φ) % D == 0`. Under the canonical residue `0 ≤ Φ < D` that holds if
   and only if `Φ = 0`. Nothing implements this rule. It falls out of the
@@ -4330,23 +4331,23 @@ structural expression of an acquisition pipeline's latency, obtained with no
 delay blocks.
 
 A stagger is also a load-shaping tool under real-time [pacing](#g-pacing)
-(waits inserted between completed frames, which never alter the boundary
+(waits inserted between completed frames, never altering the boundary
 sequence). Staggered stacks never share a [frame](#g-frame), so worst-case
 frame cost is a `max` rather than a sum ([§10.7][s10-7]).
 
 Both patterns are worked in `sample_time_proposal.md`, together with how
 silently an offset edit rewires a coincidence structure. The
 [bound schedule](#g-bound-schedule) (the printable per-component `(D, Φ, Δt)`
-artifact that deployment binding produces) and its hyperperiod chart
+artifact deployment binding produces) and its hyperperiod chart
 ([§9.2][s9-2]) are how a user audits which pattern a model actually has.
 
 #### Assemblies: virtual for execution, rate scopes for declaration
 
 An assembly is virtual for execution. Its children are scheduled individually,
-and the assembly itself never runs as a unit. For declaration, an assembly is
-a [rate scope](#g-rate-scope), its `sample_times` declaration against the
-enclosing scope. There are no atomic [assemblies](#g-assembly), and no opt-in
-variant ([D-019][d-019]).
+and the assembly itself never runs as a unit. For declaration, a
+[rate scope](#g-rate-scope) is an assembly's `sample_times` declaration
+against the enclosing scope. There are no atomic [assemblies](#g-assembly),
+and no opt-in variant ([D-019][d-019]).
 
 **Why no coarsening is needed.** The [signal table](#g-signal-table) makes
 interleaving semantically invisible. Consumers read cells whose freshness is
@@ -4402,8 +4403,9 @@ sweep still holds no discrete entries to gate.
 **Why relative is the default register.** In a layered control architecture
 the *ratios* are intrinsic to the design and travel with the assembly type.
 The inner loop runs at `Relative(1)` and the outer loops at `Relative(5)`,
-whatever the deployment. One convention keeps `K ≥ 1` livable: **a scope's
-base rate is its fastest relative member**, and that member gets `K = 1`.
+whatever the deployment. The convention that keeps `K ≥ 1` livable is this:
+**a scope's base rate is its fastest relative member**, and that member gets
+`K = 1`.
 
 **Two structural properties confine grid cost to the other register.** A
 relative phase selects among scope ticks that already exist, so it never
@@ -5399,9 +5401,9 @@ delivering its full write-set every poll is the type case. For such a writer
 merge and overwrite are provably the same operation, which makes overwrite a
 degenerate fast path rather than a second semantics. A **sparse** writer
 stages only what was touched. The GUI and a JSON peer are sparse writers, and
-under overwrite they lose writes silently. [§15.3][s15-3] works that hazard
-through: a pending `flaps` edit clobbered by an unrelated `gear` message,
-undrained and undiagnosable. A user-facing overwrite opt-in
+under overwrite they lose writes silently instead. [§15.3][s15-3] works that
+hazard through: a pending `flaps` edit clobbered by an unrelated `gear`
+message, undrained and undiagnosable. A user-facing overwrite opt-in
 (`complete(binding)`) is closed ([D-104][d-104]).
 
 **Rule.** The staged representation is fixed per attachment, compiled at
