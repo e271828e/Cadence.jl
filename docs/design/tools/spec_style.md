@@ -9,8 +9,11 @@ in pedagogy is not.
 
 - **One burden per sentence.** A sentence states a rule, *or* qualifies it,
   *or* explains it, *or* cites. Prefer two short sentences over one loaded one.
-- At most one parenthetical or dash-delimited clause per sentence; never
-  nested. Em-dashes mark genuine appositions, not a stack of pending clauses.
+- **Short sentences in the active voice.** Name who does what.
+- No em-dashes. At most one parenthetical per sentence, used for a gloss;
+  never nested. No colons as mid-sentence connectors.
+- Plain vocabulary where it suffices. Unwind nominalizations and metaphors
+  into the verb that states the fact.
 - **Topic sentences are findable claims, not aphorisms.** A returning reader
   skims bold lead-ins; each must state its paragraph's content.
   - Bad: "The absolute register anchors, and anchoring severs."
