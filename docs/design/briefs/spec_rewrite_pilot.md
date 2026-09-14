@@ -48,7 +48,7 @@ Most transitions in FlightPhysics mix input predicates with state thresholds, so
 
 This is the directional edge of [§2.1][s2-1], not a bare sign change. A holding → not-holding transition neither fires nor localizes.
 
-**The trigger check runs against the arrival [sweep](#g-sweep) at tₙ₊₁.** That is the sweep that closes the integration step. So the check runs before the due-gated [boundary sweep](#g-sweep) refreshes any discrete [cell](#g-cell). The ZOH clause below already forces this order, because trial evaluations must see the values the frame actually held. Stating it here fixes the sequencing up front. Every `t*` firing precedes tₙ₊₁'s whole boundary sequence.
+**The trigger check runs against the arrival [sweep](#g-sweep) at tₙ₊₁.** That is the sweep that closes the integration step. So the check runs before the due-gated [boundary sweep](#g-sweep) refreshes any discrete [cell](#g-cell). The rule that trial evaluations run the interior sweep (below) already forces this order, because trial evaluations must see the values the frame actually held. Stating it here fixes the sequencing up front. Every `t*` firing precedes tₙ₊₁'s whole boundary sequence.
 
 #### The localization loop
 

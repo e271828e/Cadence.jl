@@ -1,21 +1,23 @@
-# The spec rewrite — plain register, style only
+# The spec rewrite — plain register
 
 Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`. Drafted
 2026-09-14 after the pilot of §10.4 and §10.6 (`spec_rewrite_pilot.md`, this
-directory). Status: **draft, awaiting review**. Nothing here has started.
+directory). Status: **approved 2026-09-14** (§5 and §6 rulings folded in).
+Registered in `pending.md`. Not started.
 
 ## 1. Goal and non-goals
 
 **Goal.** Rewrite the prose of `docs/design/spec.md` into the register of
 `~/.claude/CLAUDE.md`'s Language section, so that a human reader can follow
-it. Every normative claim, citation, glossary link, code sketch and heading
-number survives unchanged. The pilot is the exemplar of the target register.
+it. Citations, glossary links, code sketches and heading numbers survive
+unchanged. Normative claims survive unchanged by default; §6 says what
+happens when the text is unclear. The pilot is the exemplar of the target
+register.
 
 **Non-goals.**
 
-- No normative change. Where a sentence resists rewriting because its meaning
-  is unclear, that is a finding to report, never something to guess at
-  (`tools/spec_style.md`, "Content preservation").
+- No design change. Clarifying an unclear or contradictory passage is in
+  scope (§6); deciding something the spec has not decided is not.
 - No renumbering, reordering or merging of sections. Heading *text* may
   change; heading *numbers* and their order may not.
 - No rewrite of `decisions.md` (67k words in the same voice), the companions,
@@ -89,12 +91,12 @@ session's.
 6. **Battery**: `check_refs.jl`, `check_rows.jl`, `check_glossary.jl
    --strict`, `linkify.jl` as a no-op.
 7. **Claim inventory, after.** Every claim from step 1 is found in the new
-   text with the same force. A claim that changed force, or a sentence whose
-   meaning was unclear, goes into the chapter's findings list.
+   text with the same force, or the change is deliberate under §6 and listed
+   in the chapter's findings.
 
 Per Part, once its chapters are committed: one independent **Opus cold
-reviewer** over the Part's diff, stance "meaning preserved?", probing with
-the saved claim inventories. I adjudicate, a fixer lands one commit, the
+reviewer** over the Part's diff, stance "meaning preserved, and every
+deliberate change listed?", probing with the saved claim inventories. I adjudicate, a fixer lands one commit, the
 user diff-reviews the Part, push. Same pipeline as an increment.
 
 ## 5. What can orphan, and what cannot
@@ -123,12 +125,12 @@ user diff-reviews the Part, push. Same pipeline as an increment.
 | where | line | quote | action |
 |---|---|---|---|
 | decisions.md | 3516 | "one authoring contract, no taxonomy" | §11.6 title; keep if the title stays |
-| decisions.md | 3799 | "the one initialized datum without declared defaults" | re-point on §14 |
-| decisions.md | 4091 | "rate-limited wherever its source can repeat" | re-point on §11 |
-| decisions.md | 4737 | "structure kept in two artifacts" | re-point on §9 |
-| decisions.md | 5592 | "if `F` participates in differentiation, declare it `T`" | re-point on §7.2 |
-| decisions.md | 7466 | "gated off holding `Float64` values" | re-point on §9 |
-| decisions.md | — | sentence "A name in the wrong register is a rename candidate on that ground alone." | re-point on §8 |
+| decisions.md | 3799 | "the one initialized datum without declared defaults" | leave |
+| decisions.md | 4091 | "rate-limited wherever its source can repeat" | leave |
+| decisions.md | 4737 | "structure kept in two artifacts" | leave |
+| decisions.md | 5592 | "if `F` participates in differentiation, declare it `T`" | leave |
+| decisions.md | 7466 | "gated off holding `Float64` values" | leave |
+| decisions.md | — | sentence "A name in the wrong register is a rename candidate on that ground alone." | leave |
 | companions/inbound_periphery_walkthrough.md | 106 | "claimed by `T16000M` — task dead" | re-point on §11.3 |
 | companions/sample_time_proposal.md | 409 | "at boundary zero everything is due" | re-point on §10.5 |
 | companions/sample_time_proposal.md | 732 | "grid is N× finer than the fastest declared work" | re-point on §10.5 |
@@ -137,32 +139,42 @@ user diff-reviews the Part, push. Same pipeline as an increment.
 | briefs/brief_increment_32b_exact_relation.md | 16 | "Contract signature shape follows the class" | frozen; leave |
 | briefs/brief_increment_23.md | 223, 277 | two phrases | frozen; leave |
 | tools/coinage_inventory.md | 18 | "stage function / two-stage outputs" | glossary term text; must stay verbatim |
-| src/assembly.jl | 15 | docstring fragment | cosmetic; re-point on §8.5 or leave |
-| src/diagnostics.jl | 320, 660 | two docstring fragments | cosmetic; re-point on §13 or leave |
-| src/trim.jl | 152 | "the tolerances *are* the stopping criterion" | cosmetic; re-point on §14.8 or leave |
+| src/assembly.jl | 15 | docstring fragment | cosmetic; leave |
+| src/diagnostics.jl | 320, 660 | two docstring fragments | cosmetic; leave |
+| src/trim.jl | 152 | "the tolerances *are* the stopping criterion" | cosmetic; leave |
 | src/sim.jl | 3 | "advance the continuous state from `t` by `h`" | cosmetic; leave |
-| src/build.jl | 954 | "fresh run from the `init_*` defaults, with these overrides" | cosmetic; re-point on §14 or leave |
+| src/build.jl | 954 | "fresh run from the `init_*` defaults, with these overrides" | cosmetic; leave |
 
-"Re-point" means: update the quote to the new wording in the same commit as
-the section, or, in the log, leave the historical quote and add nothing.
-The user decides which per the log's "log lags spec" doctrine; the default
-proposed here is **update companions, leave the log and the briefs**.
+**Ruling (user, 2026-09-14): update the companions, leave the log and the
+briefs.** "Re-point" means updating the quote to the new wording in the same
+commit as the section. The log keeps its historical quotes under the "log
+lags spec" doctrine; the briefs are frozen artifacts.
 
-## 6. Open questions from the pilot
+## 6. Unclear and contradictory passages
 
-Three places where the pilot changed more than style. Settle before the
-pilot lands:
+**Ruling (user, 2026-09-14).** Where a passage is unclear or contradicts
+another, infer the most reasonable interpretation from context and adopt it
+in the rewrite. Changing more than style is allowed on that ground. Ask for
+approval only where a truly substantial design decision is involved. This
+applies to the pilot and to the rewrite alike.
 
-1. §10.6 called the epoch rule "the whole of this section's content". The
-   pilot says "the core of this section". Keep the softer claim, or revert?
-2. §10.6 "Blocking is register-visible" became "Blocking is visible in the
-   registers". Confirm "register" means the three per-event registers.
-3. §10.4 "The ZOH clause below already forces that ordering" names no
-   clause. The pilot kept it. Proposed: name the paragraph, "Trial
-   evaluations run the interior sweep".
+Every such adoption is listed in the chapter's findings (§9), with the
+reading chosen and why, so the cold reviewer and the user's diff review can
+see it. A candidate design decision stops the section and goes to the user
+before its chapter is committed.
 
-Also noted, not changed: `[localization budget](#g-chattering)` links the
-budget to the chattering entry. Intentional?
+The pilot's three adoptions, now settled under this ruling:
+
+1. §10.6's epoch rule is "the core of this section", not "the whole of its
+   content"; the section also fixes the firing budget and tick ordering.
+2. §10.6 "register-visible" means visible in the three per-event registers,
+   and says so.
+3. §10.4's "ZOH clause below" is named: the paragraph "Trial evaluations run
+   the interior sweep". To apply to the pilot before it lands.
+
+Noted, not changed: `[localization budget](#g-chattering)` links the budget
+to the chattering entry. Left as is; the link resolves and the entry is the
+one that explains the budget's purpose.
 
 ## 7. Tooling proposed
 
