@@ -7175,120 +7175,127 @@ substitution rather than replacing it, and carries its own rejected shapes
 # Part IV — Failure and services
 
 Part IV covers what happens when things go wrong, and what a stopped simulation
-can be asked to do. [§13][s13] is the error discipline. It fixes which failures are
-collected and which fail fast, the diagnostic value both produce, the single
-runtime catch site and the execution cursor that locates a failure inside a
-frame, and why graceful termination is model state rather than an exception.
-[§14][s14] is the stopped-sim services. [§14.1][s14-1]–[§14.6][s14-6] build the condition — a
-path-addressed overlay on the declared defaults — and apply it through boundary
-zero. Applying one is the initialization service; [§14.7][s14-7]–[§14.10][s14-10] build trim and
+can be asked to do. [§13][s13] is the error discipline. It fixes which failures
+are collected and which fail fast, and the diagnostic value both produce. It
+fixes the single runtime catch site and the execution cursor that locates a
+failure inside a frame. And it explains why graceful termination is model state
+rather than an exception. [§14][s14] is the stopped-sim services.
+[§14.1][s14-1]–[§14.6][s14-6] build the condition (a path-addressed overlay on
+the declared defaults) and apply it through boundary zero. Applying a condition
+is the initialization service. [§14.7][s14-7]–[§14.10][s14-10] build trim and
 linearization on that same foundation.
 
-Part IV assumes both earlier parts. [§9.1][s9-1] already fixed when each check runs, so
-[§13][s13] fixes only how a failure is reported once it happens. [§8.6][s8-6] supplies the
-paths a condition addresses, [§9.4][s9-4] supplies the activations trim and
-linearization run on, and [§10.6][s10-6] supplies the macro-sequence boundary zero
-re-runs with an empty integrate.
+Part IV assumes both earlier parts. [§9.1][s9-1] already fixed when each check
+runs, so [§13][s13] fixes only how a failure is reported once it happens.
+[§8.6][s8-6] supplies the paths a condition addresses. [§9.4][s9-4] supplies the
+activations trim and linearization run on. [§10.6][s10-6] supplies the
+macro-sequence that boundary zero re-runs with an empty integrate.
 
 ## 13. Error discipline
 
-[§8.4][s8-4] fixed what must be caught and where; [§9][s9] fixed when each fact is checked.
-This section fixes how failures are *reported* — the reporting policy, the
-diagnostic representation, the runtime failure story, and the seam between "the
-model reached a terminal state" and "the run should end". Two of FlightCore's
-paid-for lessons ground it: the compact-backtrace discipline (parameterized
-model types make rendered output unreadable) and the `SimulationTermination`
-machinery, which [§13.5][s13-5] replaces.
+[§8.4][s8-4] fixed what must be caught and where. [§9][s9] fixed when each fact
+is checked. This section fixes how failures are *reported*. It covers the
+reporting policy, the diagnostic representation, the runtime failure story, and
+the seam between "the model reached a terminal state" and "the run should end".
+Two lessons FlightCore paid for ground it. The first is the compact-backtrace
+discipline, needed because parameterized model types make rendered output
+unreadable. The second is the `SimulationTermination` machinery, which
+[§13.5][s13-5] replaces.
 
 ### 13.1 Reporting policy: collect the checks, fail the evaluations fast
 
-The build's failure sites split into two populations, and that split settles the
-fail-fast vs. compiler-style question: each population takes the reporting
-policy that fits it.
+The build's failure sites split into two populations. That split settles the
+choice between fail-fast and compiler-style reporting. Each population takes
+the policy that fits it.
 
-- **Declarative checks over collected structure** — unconnected inputs,
-  two-producers, wire typos and type mismatches, [face](#g-face)-name uniqueness,
-  `output_types`/state-field consistency, `sample_times` validation. Each is a
-  pass over a list; the whole-tree obligation check literally computes *the
-  set of* inputs whose obligation chain never terminates. Reporting every
-  violation is the natural output of the pass; truncating to the first would be
-  extra work. These failures also cluster in practice: a freshly written
-  [assembly](#g-assembly) has five unwired inputs; a renamed [port](#g-port)
-  breaks three wires. **These passes collect:** each returns its full violation
-  list.
-- **User-code evaluation** — the interface-connection bodies, run
-  in [Stratum](#g-stratum) A (one of the build's three phases: structure,
-  schedule, activation); the stage-1 [probes](#g-probe) in B; the probe chain in
-  C. When user code throws there is no meaningful rest-of-collection. A failed
-  `input_connections` leaves the parent's face derivation undefined, and a
-  failed stage-2 probe starves every downstream probe of its wired inputs, since
-  [probe values](#g-probe-value) flow topologically ([§9.3][s9-3]).
-  **The first user-code exception aborts the phase** ([D-057][d-057]).
+- **Declarative checks over collected structure collect.** These are the
+  checks for unconnected inputs, two producers, wire typos and type mismatches,
+  [face](#g-face)-name uniqueness, `output_types`/state-field consistency and
+  `sample_times` validation. Each is a pass over a list. The whole-tree
+  obligation check literally computes *the set of* inputs whose obligation
+  chain never terminates. Reporting every violation is the natural output of
+  such a pass, and truncating to the first would be extra work. These failures
+  also cluster in practice. A freshly written [assembly](#g-assembly) has five
+  unwired inputs, and a renamed [port](#g-port) breaks three wires. Each of
+  these passes returns its full violation list.
+- **User-code evaluation fails fast.** User code runs in three places: the
+  interface-connection bodies in [Stratum](#g-stratum) A (one of the build's
+  three phases: structure, schedule, activation), the stage-1
+  [probes](#g-probe) in B, and the probe chain in C. When user code throws,
+  there is no meaningful rest of the collection to report. A failed
+  `input_connections` leaves the parent's face derivation undefined. A failed
+  stage-2 probe starves every downstream probe of its wired inputs, because
+  [probe values](#g-probe-value) flow topologically ([§9.3][s9-3]). The first
+  user-code exception aborts the phase ([D-057][d-057]).
 
 Strata are barriers. A stratum that produced any error-severity diagnostic, of
-either kind, throws before the next stratum begins; probing against unresolved
-wiring is meaningless. **Rule: collection reaches the stratum barrier, under a
-dependency rule.** A declarative pass runs when the results it reads are
-clean. It records every violation it finds and returns a total result, and
-every pass that ran merges into the barrier's one throw ([D-229][d-229]).
+either kind, throws before the next stratum begins. Probing against unresolved
+wiring would be meaningless.
+
+**Rule.** Collection reaches the stratum barrier, under a dependency rule. A
+declarative pass runs when the results it reads are clean. It records every
+violation it finds and returns a total result. Every pass that ran merges into
+the barrier's one throw ([D-229][d-229]).
+
 Whether a pass can run past a failure follows from what it reads. Stratum A's
 walk yields two results, the component list and the wiring. A wire that fails
 to resolve is recorded and claims nothing, so the obligation check reports its
-input unfed. Tier and event checking read only the component list, so they run
-and merge. A structural failure, an unreadable or mixed class or a malformed
-container, leaves the subtree behind it unknown; no pass can read past it, and
-it throws alone. In Stratum C the probe chain consumes each check's subject as
-it goes, so a check that reads a failed probe does not run, and the chain's
-fail-fast is the same rule. Outside the strata the unit is the call:
-deployment validation ([§9.1][s9-1]) runs every check whose premise holds and
-throws once. The only partial results ever carried past a failure are
-violation lists and a claim table with the failed wires absent, so none of the
-three strata needs machinery for carrying partial internal results across a
-failure. That machinery is the cost that kept this decision open, and it never
-materializes.
+input as unfed. Tier and event checking read only the component list, so they
+run and merge. A structural failure leaves the subtree behind it unknown. An
+unreadable or mixed class or a malformed container is such a failure. No pass
+can read past it, so it throws alone. In Stratum C the probe chain consumes
+each check's subject as it goes. A check that reads a failed probe does not
+run, so the chain's fail-fast follows from the same rule. Outside the strata
+the unit is the call. Deployment validation ([§9.1][s9-1]) runs every check
+whose premise holds and throws once. The only partial results ever carried past
+a failure are violation lists and a claim table with the failed wires absent.
+None of the three strata therefore needs machinery for carrying partial
+internal results across a failure. That machinery was the cost that kept this
+decision open, and it never materializes.
 
-**No cascade suppression within a stratum** — a deliberate simplification
-([D-057][d-057]). A wire typo'd as `:throtle` produces both a
-[did-you-mean](#g-did-you-mean) error (the offending name plus the list-in-hand
-it should have matched) and an unconnected-input error for the intended
-`throttle`; both are reported. They render adjacently (diagnostics sort by
-path), and the pairing is self-explanatory.
+**There is no cascade suppression within a stratum.** This is a deliberate
+simplification ([D-057][d-057]). A wire typo'd as `:throtle` produces two
+errors. One is a [did-you-mean](#g-did-you-mean) error (the offending name plus
+the list-in-hand it should have matched). The other is an unconnected-input
+error for the intended `throttle`. Both are reported. They render adjacently,
+because diagnostics sort by path, and the pairing explains itself.
 
 ### 13.2 Diagnostics: structured values, one carrier exception
 
 Both reporting policies move the same thing. What a collecting pass returns and
-what a fail-fast site produces is in either case a *diagnostic*, so the shape of
+what a fail-fast site produces is in either case a *diagnostic*. The shape of
 that value decides what an acceptance test can assert and what a user reads.
 
 **Rule.** A diagnostic is a plain value from a small closed set of
-[kinds](#g-kind) ([D-058][d-058]). **[Appendix C][sC]** enumerates that set normatively: kind
-name, [payload](#g-payload) fields, owning section, severity, where it is raised
-and under which policy. That index is the
-artifact the [§8.4][s8-4] acceptance tests and the error-message work are
-written against. Each kind carries its own structured payload: endpoint paths,
-[face](#g-face) names, expected/observed types, and the
-*list-in-hand* a [did-you-mean](#g-did-you-mean) needs (the offending name plus
-the list it should have matched). A kind *is* a Julia type, and severity —
-`error` or `warning`, whether an occurrence ever throws — is a property of the
-kind, read as `severity(d)` and never stored per occurrence, with the severity
-field of [Appendix C][sC] derived from it. Where an
+[kinds](#g-kind) ([D-058][d-058]). **[Appendix C][sC]** enumerates that set
+normatively. For each kind it records the kind name, the [payload](#g-payload)
+fields, the owning section, the severity, where the kind is raised and under
+which policy. That index is the artifact the [§8.4][s8-4] acceptance tests and
+the error-message work are written against. Each kind carries its own
+structured payload. The payload holds endpoint paths, [face](#g-face) names,
+expected and observed types, and the *list-in-hand* a
+[did-you-mean](#g-did-you-mean) needs (the offending name plus the list it
+should have matched). A kind *is* a Julia type. Severity is a property of the
+kind, not of the occurrence. It is `error` or `warning`, and it says whether an
+occurrence ever throws. It is read as `severity(d)` and never stored per
+occurrence. The severity field of [Appendix C][sC] is derived from it. Where an
 occurrence surfaces (build, service or runtime) and how it is reported
 (collected, fail-fast, logged or rate-limited) are the *raised* and *policy*
-fields of [Appendix C][sC]. Those describe the occurrence, not the kind:
-`BundleFieldError` is raised at the probe and as a `StepError`
-[species](#g-species) thereafter.
+fields of [Appendix C][sC]. Those two fields describe the occurrence, not the
+kind. `BundleFieldError`, for example, is raised at the probe and as a
+`StepError` [species](#g-species) thereafter.
 
-Checking passes return diagnostics; the [stratum](#g-stratum) barrier (a stratum
-is one of the build's three phases: structure, schedule, activation) throws a
-single `DiagnosticError` wrapping the collection. A fail-fast site throws the
-same carrier holding one diagnostic. **The carrier's type parameter spells the
-policy.** It is the diagnostic's kind for a fail-fast throw and
-`Vector{Diagnostic}` for a collected one, so a test asserts policy and kind at
-once with `@test_throws DiagnosticError{Kind}` ([D-222][d-222]). The runtime
-carrier follows the same rule: `StepError{C}` carries the type of its `cause`,
-so a species is `StepError{Kind}` ([§13.4][s13-4], [D-225][d-225]). `showerror`
-renders a collection compiler-style, grouped by kind and sorted by path, and a
-single diagnostic as its own line.
+Checking passes return diagnostics. The [stratum](#g-stratum) barrier (a
+stratum is one of the build's three phases: structure, schedule, activation)
+throws a single `DiagnosticError` wrapping the collection. A fail-fast site
+throws the same carrier holding one diagnostic. **The carrier's type parameter
+spells the policy.** It is the diagnostic's kind for a fail-fast throw and
+`Vector{Diagnostic}` for a collected one. A test therefore asserts policy and
+kind at once with `@test_throws DiagnosticError{Kind}` ([D-222][d-222]). The
+runtime carrier follows the same rule. `StepError{C}` carries the type of its
+`cause`, so a species is `StepError{Kind}` ([§13.4][s13-4], [D-225][d-225]).
+`showerror` renders a collection compiler-style, grouped by kind and sorted by
+path. It renders a single diagnostic as its own line.
 
 ```julia
 # a diagnostic value: its kind is its identity, its payload is plain data
@@ -7305,123 +7312,135 @@ struct DiagnosticError{P <: Union{Diagnostic, Vector{Diagnostic}}} <: Exception
 end
 ```
 
-A user-code exception is wrapped in a framing diagnostic — [component](#g-component)
-path, which function, the [probe](#g-probe) context including synthesized inputs
-— with the original exception as `cause`. The didactic frame therefore renders
-first and the raw throw second.
+A user-code exception is wrapped in a framing diagnostic, with the original
+exception as `cause`. The frame carries the [component](#g-component) path, the
+function that threw, and the [probe](#g-probe) context including the
+synthesized inputs. The didactic frame therefore renders first and the raw
+throw second.
 
-One class is recognized rather than merely framed. A `FieldError` carries its
-type and field as data. Matched against the [bundle](#g-bundle)'s own NamedTuple
-type — the NamedTuple of zero-copy views a component function receives — it
-becomes the bundle-law did-you-mean ([§5.2][s5-2]), carrying the legal set and
-the undeclared-store / wrong-[tier](#g-tier) / illegal-for-this-function
-classification. Nothing is recovered by reading message text.
+One class of exception is recognized rather than merely framed. A `FieldError`
+carries its type and field as data. The framework matches them against the
+[bundle](#g-bundle)'s own NamedTuple type (the NamedTuple of zero-copy views a
+component function receives). The result is the bundle-law did-you-mean
+([§5.2][s5-2]). It carries the legal field set and classifies the miss as an
+undeclared store, a wrong [tier](#g-tier), or a field illegal for this
+function. Nothing is recovered by reading message text.
 
-The [§8.4][s8-4] walkthroughs as acceptance tests target diagnostics: tests match on
-kind plus payload fields, never on message text. Messages become pure
-presentation.
+The [§8.4][s8-4] walkthroughs, run as acceptance tests, target diagnostics.
+Tests match on kind plus payload fields, never on message text. Messages are
+therefore pure presentation.
 
-Two rendering rules are doctrine, not style:
+Two rendering rules are doctrine, not style.
 
 - **Strings, never instances.** Diagnostics carry paths and names as strings,
-  never component instances and never model types — the `compact_backtrace`
-  lesson. Expected/observed *[port](#g-port)* types are the payload exception, and they
-  are small: `Float64` vs. `Bool`, a NamedTuple field diff.
-- **The didactic [register](#g-register) is policy.** Every diagnostic states the fix or the
-  lists-in-hand, not just the violation: "return `zero(x.ω)`, not `0`"; "no
-  input `throtle`; did you mean `throttle`?"; the child's face list alongside
-  the unknown `except` entry.
+  never component instances and never model types. This is the
+  `compact_backtrace` lesson. Expected and observed *[port](#g-port)* types are
+  the one payload exception, and they are small. `Float64` against `Bool`, or
+  a NamedTuple field diff, is the typical size.
+- **The didactic [register](#g-register) is policy.** Every diagnostic states
+  the fix or the lists-in-hand, not just the violation. Examples are "return
+  `zero(x.ω)`, not `0`" and "no input `throtle`; did you mean `throttle`?", or
+  the child's face list shown alongside the unknown `except` entry.
 
-**Two [warning streams](#g-warning-streams), scoped separately.** The *build* diagnostic stream is
-the one the build kinds ([Appendix C][sC]) ride: warnings there carry warning severity,
-render with the collection, and never trigger the throw. That stream's warning set
-is **currently empty**, the unconnected-output warning having been rejected as
-its sole candidate ([§6.1][s6-1], [D-084][d-084]). Better an empty, trusted stream than a
-noisy one; a warnings-as-errors CI switch is addable, not built.
+**There are two [warning streams](#g-warning-streams), scoped separately.** The
+*build* diagnostic stream is the one the build kinds ([Appendix C][sC]) ride.
+Warnings there carry warning severity, render with the collection, and never
+trigger the throw. That stream's warning set is **currently empty**. Its sole
+candidate, the unconnected-output warning, was rejected ([§6.1][s6-1],
+[D-084][d-084]). An empty, trusted stream is better than a noisy one. A
+warnings-as-errors CI switch could be added, but is not built.
 
 The *runtime* status/log stream is a different channel, and it is not empty. It
-is per-occurrence, carried by the per-writer [diagnostic cells](#g-diagnostic-cell) ([§11.8][s11-8]) — the
-single-writer cell each writer owns for diagnostics and heartbeat. The cells are
-where the rate limit lives, as a structural bound (a bounded ring plus per-kind
-suppressed counts, drained at frame top) rather than a policy layered over the
-stream. So "rate-limited wherever its source can repeat" holds of every kind
-below without any kind arranging it. The stream surfaces through the published
-[framework status](#g-framework-status) ([§11.2][s11-2]) alongside the [§10.7][s10-7] pacer diagnostics and the
-[§12.2][s12-2] liveness heartbeats, which ride in the same [cells](#g-diagnostic-cell). It is never
-collected, since there is no collection to join. Nothing in the argument
-([D-084][d-084]) applies to it: that decision is about what the *build* warns on.
+is per-occurrence. The per-writer [diagnostic cells](#g-diagnostic-cell) (the
+single-writer cell each writer owns for diagnostics and heartbeat) carry it
+([§11.8][s11-8]). The rate limit lives in the cells, as a structural bound
+rather than a policy layered over the stream. The bound is a bounded ring plus
+per-kind suppressed counts, drained at frame top. So "rate-limited wherever its
+source can repeat" holds of every kind below without any kind arranging it. The
+stream surfaces through the published [framework status](#g-framework-status)
+([§11.2][s11-2]). The [§10.7][s10-7] pacer diagnostics and the [§12.2][s12-2]
+liveness heartbeats ride in the same [cells](#g-diagnostic-cell) and surface
+beside it. The stream is never collected, since there is no collection to
+join. Nothing in the argument of [D-084][d-084] applies to it. That decision is
+about what the *build* warns on.
 
-A *service* warning (`TrimCommitEvents`, `TrimCommitResiduals` —
-[Appendix C][sC]) is neither stream. It is a synchronous per-call annotation,
-emitted once at a stopped-sim service call's return beside the value it returns,
-its payload duplicated as plain report fields. There is no carrier cell, no
-collection, no rate limit to arrange. The committed runtime warnings, in one
-place:
+A *service* warning (`TrimCommitEvents` and `TrimCommitResiduals`,
+[Appendix C][sC]) belongs to neither stream. It is a synchronous per-call
+annotation. A stopped-sim service call emits it once at return, beside the
+value it returns, with its payload duplicated as plain report fields. There is
+no carrier cell, no collection and no rate limit to arrange. The committed
+runtime warnings, in one place, are these.
 
-- **[chattering](#g-chattering) / localization-budget exhaustion** ([§10.4][s10-4]) — a [localized](#g-localized) event
-  whose bracketing budget runs out at a [boundary](#g-boundary);
-- **firing-budget exhaustion** ([§10.6][s10-6]) — an event that has spent its
-  `firing_budget` at a boundary, its further edges there dropped;
-- **forgiven-debt re-anchor** ([§10.7][s10-7]) — the pacer abandoning accumulated debt
-  and re-anchoring its schedule;
-- **the write-surface and entry violations** ([§11.3][s11-3]), all at staging — the
-  [drain](#g-drain) checks nothing: `OutOfClaimEntry` (an
-  enumerated surface's binding drift — no position in
-  the attach-compiled schema), `ClaimedFaceEntry` (a harness write to
-  a face claimed in the run's frozen partition, naming the incumbent; also
-  fired by the stopped-sim attach renormalizing a pending [batch](#g-batch)) and
-  `EntryTypeMismatch` (a value unconvertible to its
-  [root input](#g-root-input)'s declared type, rejected at staging for every writer);
-- **a tolerated [device](#g-device)-side datum failure** ([§11.6][s11-6], [§13.4][s13-4]):
-  `MalformedDatum` — emitted by the author's loop via `report!(handle, …)`
-  into the device's own cell ([§11.8][s11-8]), the `InputMappingError` successor;
-- **staging discarded during [replay](#g-replay)** ([§12.7][s12-7]): `ReplayDiscardedStaging` —
-  a live batch found staged while the [trace](#g-trace) feeds the drain;
-- **thread-budget tightness** ([§12.2][s12-2]) — once per `run!`, against the frozen
-  [roster](#g-roster);
-- **device join timeout** ([§12.4][s12-4]) — a device task exceeding the shutdown
-  join timeout, abandoned by name rather than hanging `run!`; it arises after
-  the terminal snapshot, so it is collected into the [termination record](#g-termination-record) and
-  presented through the logging backend, never carried into a status
-  ([D-201][d-201], [D-203][d-203]);
-- **device crash** ([§12.4][s12-4], [§13.4][s13-4]) — a device task's failure caught by the
-  framework wrapper, the sim continuing with the device absent;
-- **unbounded run** ([Appendix B][sB]) — no finite `t_end`, no `stop_on` faces,
-  `pace = Inf` at run start.
+- **[Chattering](#g-chattering), or localization-budget exhaustion**
+  ([§10.4][s10-4]). A [localized](#g-localized) event's bracketing budget runs
+  out at a [boundary](#g-boundary).
+- **Firing-budget exhaustion** ([§10.6][s10-6]). An event has spent its
+  `firing_budget` at a boundary, and its further edges there are dropped.
+- **Forgiven-debt re-anchor** ([§10.7][s10-7]). The pacer abandons its
+  accumulated debt and re-anchors its schedule.
+- **The write-surface and entry violations** ([§11.3][s11-3]), all raised at
+  staging. The [drain](#g-drain) checks nothing. `OutOfClaimEntry` is an
+  enumerated surface's binding drift, a name with no position in the
+  attach-compiled schema. `ClaimedFaceEntry` is a harness write to a face
+  claimed in the run's frozen partition, and it names the incumbent. The
+  stopped-sim attach also fires it when it renormalizes a pending
+  [batch](#g-batch). `EntryTypeMismatch` is a value unconvertible to its
+  [root input](#g-root-input)'s declared type, rejected at staging for every
+  writer.
+- **A tolerated [device](#g-device)-side datum failure** ([§11.6][s11-6],
+  [§13.4][s13-4]). `MalformedDatum` is emitted by the author's loop via
+  `report!(handle, …)` into the device's own cell ([§11.8][s11-8]). It succeeds
+  `InputMappingError`.
+- **Staging discarded during [replay](#g-replay)** ([§12.7][s12-7]).
+  `ReplayDiscardedStaging` reports a live batch found staged while the
+  [trace](#g-trace) feeds the drain.
+- **Thread-budget tightness** ([§12.2][s12-2]). Raised once per `run!`, against
+  the frozen [roster](#g-roster).
+- **Device join timeout** ([§12.4][s12-4]). A device task exceeds the shutdown
+  join timeout and is abandoned by name rather than hanging `run!`. It arises
+  after the terminal snapshot. It is therefore collected into the
+  [termination record](#g-termination-record) and presented through the
+  logging backend, never carried into a status ([D-201][d-201],
+  [D-203][d-203]).
+- **Device crash** ([§12.4][s12-4], [§13.4][s13-4]). The framework wrapper
+  catches a device task's failure, and the sim continues with the device
+  absent.
+- **Unbounded run** ([Appendix B][sB]). At run start there is no finite
+  `t_end`, no `stop_on` faces, and `pace = Inf`.
 
 ### 13.3 Build primitives: `resolve` and the face-list accessors
 
-The `input_passthrough` sketch ([§8.8][s8-8]) calls two of the primitives
-below without defining them. All three are normative in the forms given here:
+The `input_passthrough` sketch ([§8.8][s8-8]) calls two of the primitives below
+without defining them. All three are normative in the forms given here.
 
-- `resolve(asm, path::String) → AbstractComponent` — the getfield walk along
+- `resolve(asm, path::String) → AbstractComponent` is the getfield walk along
   `/`-segments.
-- `input_faces(c)` / `output_faces(c) → Vector{String}` — the stringified keys of
-  a leaf's `input_types` / `output_types` (the key set is `T`-independent); the
-  entries of `input_connections(c)` / `output_connections(c)` for an
-  [assembly](#g-assembly). Declaration order is preserved: deterministic
-  printouts, stable diagnostics.
-- `resolve_terminal(asm, path) → (component, name)` — splits a terminal path's
-  final segment and resolves the prefix through `resolve`. The split is
-  unambiguous because [face](#g-face) names may contain dots, never slashes
+- `input_faces(c)` / `output_faces(c) → Vector{String}` return the stringified
+  keys of a leaf's `input_types` / `output_types` (the key set is
+  `T`-independent). For an [assembly](#g-assembly) they return the entries of
+  `input_connections(c)` / `output_connections(c)`. Declaration order is
+  preserved, which gives deterministic printouts and stable diagnostics.
+- `resolve_terminal(asm, path) → (component, name)` splits off a terminal
+  path's final segment and resolves the prefix through `resolve`. The split is
+  unambiguous because [face](#g-face) names may contain dots but never slashes
   ([§8.6][s8-6]).
 
-**Two duties ride on the walk, and they belong to different clients.** The
-first is the one-level rule ([§6.1][s6-1]): a connection endpoint resolves to an
-immediate child and one of its [faces](#g-face), and a wiring path reaching further
-is a build error whatever the declared field types along it. The second is the
-generic-holding rule, which governs the deep paths the read side still writes:
-the walk follows *declared field types* alongside
-instances, and a segment that traverses **past** a generically-held field — one
-whose declared type is non-concrete — is a diagnostic even though the concrete
-instance in hand would resolve it. Resolving *to* a generic child is
-[port](#g-port)-level access and legal. An unknown segment errors with the
-sibling field list in hand.
+**The walk enforces two duties, and they belong to different clients.** The
+first is the one-level rule ([§6.1][s6-1]). A connection endpoint resolves to
+an immediate child and one of its [faces](#g-face). A wiring path reaching
+further is a build error, whatever the declared field types along it. The
+second is the generic-holding rule, which governs the deep paths the read side
+still writes. The walk follows *declared field types* alongside instances. A
+segment that traverses **past** a generically-held field (one whose declared
+type is non-concrete) is a diagnostic, even though the concrete instance in
+hand would resolve it. Resolving *to* a generic child is [port](#g-port)-level
+access and legal. An unknown segment errors with the sibling field list in
+hand.
 
-**The duty is [register](#g-register)-scoped.** The load-bearing/diagnostic line
-([D-083][d-083]) is carried into resolution. Client policy rides on one primitive, the
-same arrangement as the two application registers over one plan
-([§14.4][s14-4]).
+**The duty is [register](#g-register)-scoped.** The line between load-bearing
+and diagnostic clients ([D-083][d-083]) carries into resolution. Client policy
+rides on one primitive. The two application registers over one plan
+([§14.4][s14-4]) use the same arrangement.
 
 | register | who resolves under it | what the walk enforces |
 |---|---|---|
@@ -7430,66 +7449,67 @@ same arrangement as the two application registers over one plan
 | **diagnostic** | [device](#g-device) read [bindings](#g-binding), GUI panels, [snapshot](#g-snapshot) and log inspection ([§11.2][s11-2], [§11.7][s11-7]) | the instance walk |
 
 Each register's treatment has its own warrant. The structural register is the
-one the law ([§6.1][s6-1]) lives in, so it applies that law verbatim — and under
+one the law ([§6.1][s6-1]) lives in, so it applies that law verbatim. Under
 one-level routing the generic-holding question never arises there, because an
-endpoint stops before any field it could traverse past. The
-load-bearing register evaluates at the authoring or mount level for two
-reasons: the locality law is an authoring-level law, absolute paths being a
-compiled derivative ([§14.2][s14-2]); and a mount prefix is checked by the
-mount itself, where the problem's authored names resolve through the export
-chain from the mount point ([§14.9][s14-9]). So this register checks the
-authored path below that prefix. The diagnostic register walks instances
-instead. A generic [seam](#g-seam) is not an error for a client that never
-claimed substitutability: "what is in *this* build" is the inspection
-register's defining question. Drift still stays loud — an unknown path is an
-attach-time `ReadBindingUnresolved` with [did-you-mean](#g-did-you-mean) (the
-offending name plus the list-in-hand it should have matched).
+endpoint stops before any field it could traverse past. The load-bearing
+register evaluates at the authoring or mount level for two reasons. First, the
+locality law is an authoring-level law, and absolute paths are a compiled
+derivative ([§14.2][s14-2]). Second, the mount itself checks a mount prefix,
+where the problem's authored names resolve through the export chain from the
+mount point ([§14.9][s14-9]). So this register checks the authored path below
+that prefix. The diagnostic register walks instances instead. A generic
+[seam](#g-seam) is not an error for a client that never claimed
+substitutability. "What is in *this* build" is the inspection register's
+defining question. Drift still stays loud. An unknown path is an attach-time
+`ReadBindingUnresolved` with a [did-you-mean](#g-did-you-mean) (the offending
+name plus the list-in-hand it should have matched).
 
-**The scoping is one principle, not three concessions.** What varies across
-the registers is not how far a client is trusted; it is what a violation
-costs, and where the cost lands. A diagnostic client claims no
-substitutability: it addresses one build's instances, and a broken binding
-fails at attach, at its own site, harming only the observer. A wiring entry is
-carried by the declaring *type* and compiled into every instantiation, which is
-why its endpoints stop at the boundary: a wire reaching past one would fail at
-substitution time, at a
-different site, for whoever exercised the substitution the field advertised —
-the non-local failure class the error discipline exists to eliminate ([§8.4][s8-4]).
-The rule is strict exactly where a promise depends on it, and relaxed exactly
-where none is made ([D-083][d-083], [D-130][d-130]). Strictness forbids nothing outright
-in the load-bearing register: declaring the field's concrete type restores the
-deep read legally, with the hard-coding visible in the declaration itself. For
-wiring there is no deep route left to restore — the face chain is the route
-([§6.1][s6-1]).
+**The scoping is one principle, not three concessions.** What varies across the
+registers is not how far a client is trusted. It is what a violation costs, and
+where the cost lands. A diagnostic client claims no substitutability. It
+addresses one build's instances, and a broken binding fails at attach, at its
+own site, harming only the observer. A wiring entry is carried by the declaring
+*type* and compiled into every instantiation. That is why its endpoints stop at
+the boundary. A wire reaching past one would fail at substitution time, at a
+different site, for whoever exercised the substitution the field advertised.
+That is the non-local failure class the error discipline exists to eliminate
+([§8.4][s8-4]). The rule is strict exactly where a promise depends on it, and
+relaxed exactly where none is made ([D-083][d-083], [D-130][d-130]).
+Strictness forbids nothing outright in the load-bearing register. Declaring the
+field's concrete type restores the deep read legally, with the hard-coding
+visible in the declaration itself. For wiring there is no deep route left to
+restore, because the face chain is the route ([§6.1][s6-1]).
 
 Which register a client resolves under is internal framework fact, never
-user-facing API — the same status as the two `apply!` registers
-([§14.4][s14-4]).
+user-facing API. The two `apply!` registers ([§14.4][s14-4]) have the same
+status.
 
-`resolve_terminal` is first-class because five clients share it across the three
-registers: wiring resolution (structural); condition addressing
-([§14.3][s14-3]) and tap resolution ([§14.10][s14-10]) (load-bearing);
-device-binding validation ([§11.2][s11-2]) and snapshot inspection (diagnostic).
-The result is one splitter, one did-you-mean site.
+`resolve_terminal` is first-class because five clients share it across the
+three registers. Wiring resolution is structural. Condition addressing
+([§14.3][s14-3]) and tap resolution ([§14.10][s14-10]) are load-bearing.
+Device-binding validation ([§11.2][s11-2]) and snapshot inspection are
+diagnostic. The result is one splitter and one did-you-mean site.
 
 ### 13.4 Runtime failures: one catch site, an execution cursor
 
-**Where caught.** The loop wraps each execution of the [boundary](#g-boundary) macro-sequence
-(integrate → project → event iteration → [ticks](#g-tick) → publication) in a single
-`try`, never per stage or per [component](#g-component) ([D-059][d-059]). Framing information does
-not need to be *caught* into existence. The [executor](#g-executor) (the compiled execution
-form of the [schedule](#g-schedule)) maintains an **[execution cursor](#g-execution-cursor)**, a plain mutable
-field in the loop state recording where in the compiled schedule execution is.
-The cursor records three facts. The first is the component path, as a schedule
-index. The second is which function is running: `output_state`, `output_direct`,
-`state_derivative`, `state_update`, a
-[guard](#g-guard), a handler, or `state_projection`. The third is the boundary phase:
-integration stage *k*, event round *r*, a localization evaluation at trial time, or
-tick. Maintaining it costs one cheap store per dispatch on a single-tasked
-executor: no allocation, no exception frames. And it covers every user-code
-surface uniformly, including the forgettable ones: [RHS](#g-flow) evaluations at
-interior RK stage points, guard evaluations at ITP/Brent trial points,
-environment closures.
+**Where caught.** The loop wraps each execution of the [boundary](#g-boundary)
+macro-sequence (integrate → project → event iteration → [ticks](#g-tick) →
+publication) in a single `try`. It never wraps per stage or per
+[component](#g-component) ([D-059][d-059]). Framing information does not need
+to be *caught* into existence. The [executor](#g-executor) (the compiled
+execution form of the [schedule](#g-schedule)) maintains an
+**[execution cursor](#g-execution-cursor)**, a plain mutable field in the loop
+state recording where in the compiled schedule execution is. The cursor
+records three facts. The first is the component path, as a schedule index. The
+second is which function is running: `output_state`, `output_direct`,
+`state_derivative`, `state_update`, a [guard](#g-guard), a handler, or
+`state_projection`. The third is the boundary phase: integration stage *k*,
+event round *r*, a localization evaluation at trial time, or tick. Maintaining
+the cursor costs one cheap store per dispatch on a single-tasked executor, with
+no allocation and no exception frames. It covers every user-code surface
+uniformly, including the forgettable ones. Those are the [RHS](#g-flow)
+evaluations at interior RK stage points, the guard evaluations at ITP/Brent
+trial points, and the environment closures.
 
 ```julia
 # the cursor: one mutable field of the loop state, overwritten per dispatch
@@ -7499,36 +7519,38 @@ mutable struct ExecutionCursor
 end
 ```
 
-**How handled.** The catch site wraps the original exception in `StepError`, the
-runtime counterpart of the `DiagnosticError` carrier. A `StepError` carries four things: the
-cursor's frame, the boundary time, the **frame-entry boundary index**, and
-the original exception as `cause`. The frame-entry boundary index is the
-[replay](#g-replay) pointer: the frame-top boundary at which the failing frame began.
-That frame top is a grid boundary or [boundary zero](#g-boundary-zero) (the initialization
-boundary: the ordinary macro-sequence with an empty integrate), and it is always
-a legal replay halt ([§12.7][s12-7]). A `StepError` is rendered with compact frames
-per the doctrine ([§13.2][s13-2]).
+**How handled.** The catch site wraps the original exception in `StepError`,
+the runtime counterpart of the `DiagnosticError` carrier. A `StepError` carries
+four things: the cursor's frame, the boundary time, the **frame-entry boundary
+index**, and the original exception as `cause`. The frame-entry boundary index
+is the [replay](#g-replay) pointer. It names the frame-top boundary at which
+the failing frame began. That frame top is a grid boundary or
+[boundary zero](#g-boundary-zero) (the initialization boundary: the ordinary
+macro-sequence with an empty integrate), and it is always a legal replay halt
+([§12.7][s12-7]). A `StepError` is rendered with compact frames per the
+doctrine ([§13.2][s13-2]).
 
 Conformance failure ([§9.5][s9-5]) needs no separate path. At the table-write
 point it throws as every fail-fast site does, a `DiagnosticError` holding the
-one diagnostic, and it arrives at the same catch site. **The species rule.** The
-catch site unwraps a single-diagnostic `DiagnosticError` thrown inside the
+one diagnostic, and it arrives at the same catch site. **The species rule.**
+The catch site unwraps a single-diagnostic `DiagnosticError` thrown inside the
 guarded sequence, and the `StepError`'s `cause` is that diagnostic. A
-[species](#g-species) of `StepError` is one whose `cause` is a diagnostic; the
-conformance failure's carries the field-diff [payload](#g-payload). The rule
-keeps the catch site the only `StepError` constructor, so a `StepError`
-arriving there is an invariant failure, while a runtime check stays a plain
-thrower of its kind ([D-221][d-221]). A collected carrier has no single kind and
-rides as `cause` unchanged; no runtime check throws one.
+[species](#g-species) of `StepError` is one whose `cause` is a diagnostic. The
+conformance failure's species carries the field-diff [payload](#g-payload).
+The rule keeps the catch site the only `StepError` constructor. A `StepError`
+arriving at the catch site is therefore an invariant failure, while a runtime
+check stays a plain thrower of its kind ([D-221][d-221]). A collected carrier
+has no single kind and rides as `cause` unchanged. No runtime check throws
+one.
 
 **The cause's type is the carrier's parameter.** `StepError{C}` takes the type
-of its `cause`, bounded to a diagnostic or an exception, so a species is
-`StepError{Kind}` and a raw throw is `StepError{ArgumentError}` and the like.
+of its `cause`, bounded to a diagnostic or an exception. A species is therefore
+`StepError{Kind}`, and a raw throw is `StepError{ArgumentError}` and the like.
 `isa StepError` matches both ([D-225][d-225]). A test asserts a species as
-`@test_throws StepError{ConformanceFailure}`, the runtime spelling of the
-build carrier's idiom ([§13.2][s13-2]). A collected carrier riding as `cause` is an
+`@test_throws StepError{ConformanceFailure}`, the runtime spelling of the build
+carrier's idiom ([§13.2][s13-2]). A collected carrier riding as `cause` is an
 exception and falls under that arm. A bare value thrown deliberately by model
-code is neither, and the constructor refuses it unframed; the framework does
+code is neither, and the constructor refuses it unframed. The framework does
 not handle that throw ([D-225][d-225]).
 
 ```julia
@@ -7542,15 +7564,15 @@ struct StepError{C <: Union{Diagnostic, Exception}} <: Exception
 end
 ```
 
-Reproducibility holds by construction. Staged inputs are drained and recorded to
-the [trace](#g-trace) at the frame top, *before* the boundary executes. So the failing
-boundary's inputs are already in the trace when it fails. The error names the
-frame-entry boundary `k` to replay to; `replay!(sim2, trc; to_boundary = k)`
-halts exactly at that frame top. It halts in `:replay`, the input mode that
-keeps the recording attached, so the failing frame's record is still ahead of
-the simulation ([§12.7][s12-7]). `step!` then applies that record and
-re-executes the failing frame under instrumentation, [localized](#g-localized)
-boundaries included.
+Reproducibility holds by construction. Staged inputs are drained and recorded
+to the [trace](#g-trace) at the frame top, *before* the boundary executes. So
+the failing boundary's inputs are already in the trace when it fails. The error
+names the frame-entry boundary `k` to replay to.
+`replay!(sim2, trc; to_boundary = k)` halts exactly at that frame top. It halts
+in `:replay`, the input mode that keeps the recording attached, so the failing
+frame's record is still ahead of the simulation ([§12.7][s12-7]). `step!` then
+applies that record and re-executes the failing frame under instrumentation,
+[localized](#g-localized) boundaries included.
 
 ```julia
 replay!(sim2, trc; to_boundary = k)   # halt at the frame top; still :replay
@@ -7558,131 +7580,133 @@ step!(sim2; frames = 1)               # re-execute the failing frame, instrument
 ```
 
 **Boundary zero is caught too, under the service's disposition.** Boundary zero
-runs inside `init!` and `replay!`, stopped-sim services, not inside the loop.
-Its macro-sequence executes the same user-code surfaces the loop's does, with
-the cursor maintained through them, so the service hosts the same catch. A
-throw inside boundary zero arrives as a `StepError` from the one constructor:
-the frame from the cursor, the time `t₀`, the species rule applied. An
-`InterruptException` inside boundary zero is not model code failing and has no
-stop path to take in a service, so the host moves the lifecycle to `built` and
-lets it propagate raw. The pointer is `0`, and at zero the recipe degenerates.
-Boundary zero is frame one's entry boundary too, so a pointer of `0` names
-either boundary zero itself or frame one as the failing frame, and
-`replay!(sim2, trc)` reproduces both: it re-runs boundary zero from the
-captured header and, where that completes, frame one from the record. The
-rendered recipe therefore names the bare replay at zero and the
+runs inside `init!` and `replay!`, which are stopped-sim services, not inside
+the loop. Its macro-sequence executes the same user-code surfaces the loop's
+does, with the cursor maintained through them, so the service hosts the same
+catch. A throw inside boundary zero arrives as a `StepError` from the one
+constructor. Its frame comes from the cursor, its time is `t₀`, and the species
+rule applies. An `InterruptException` inside boundary zero is not model code
+failing, and it has no stop path to take in a service. The host therefore moves
+the lifecycle to `built` and lets it propagate raw. The pointer is `0`, and at
+zero the recipe degenerates. Boundary zero is frame one's entry boundary too. A
+pointer of `0` therefore names either boundary zero itself or frame one as the
+failing frame, and `replay!(sim2, trc)` reproduces both. It re-runs boundary
+zero from the captured header and, where that completes, frame one from the
+record. The rendered recipe therefore names the bare replay at zero and the
 halt-then-`step!` form elsewhere. The header is captured before boundary zero
-runs ([§14.5][s14-5]), so the trace already holds the reproduction. What differs
-is the disposition. Nothing was published and no run was open, so there is no
-tail to take and no snapshot to promote. The simulation returns to `built`:
-`run!` and `step!` refuse it naming
-`init!` ([§12.6][s12-6]), and `init!` and `replay!` remain legal. The remedy for a
-condition that fails at `t₀` is a corrected condition, and `init!`
-re-establishes every store before it applies one ([§14.1][s14-1]). No
-[termination record](#g-termination-record) is written. The stores may hold the
-half-transitioned `t₀` state, retained for inspection as an errored
-simulation's are ([§13.6][s13-6]), until the next `init!` resets them. `trim!`'s commit
-is an `init!` ([§14.8][s14-8]) and inherits the rule ([D-223][d-223]).
+runs ([§14.5][s14-5]), so the trace already holds the reproduction. What
+differs is the disposition. Nothing was published and no run was open, so there
+is no tail to take and no snapshot to promote. The simulation returns to
+`built`. `run!` and `step!` refuse it and name `init!` ([§12.6][s12-6]), while
+`init!` and `replay!` remain legal. The remedy for a condition that fails at
+`t₀` is a corrected condition, and `init!` re-establishes every store before it
+applies one ([§14.1][s14-1]). No [termination record](#g-termination-record)
+is written. The stores may hold the half-transitioned `t₀` state until the next
+`init!` resets them. They are retained for inspection, as an errored
+simulation's are ([§13.6][s13-6]). `trim!`'s commit is an `init!`
+([§14.8][s14-8]) and inherits the rule ([D-223][d-223]).
 
 **The one exception never wrapped.** An `InterruptException` is not model code
-failing; it is the operator's stop command ([§12.4][s12-4]). So the catch site
+failing. It is the operator's stop command ([§12.4][s12-4]). So the catch site
 discriminates it and routes it to the stop path. The run takes the ordinary
 graceful tail and ends `stopped`, never `errored` under a `StepError`. With the
-boundary masking in force ([§12.4][s12-4]) the branch is unreachable in practice: the
-interrupt is deferred to a frame-top or wait unmask point, and never raises
-inside the guarded sequence. It is kept defensively, because the cost of being
-wrong about that is a terminally errored session in place of a clean stop.
+boundary masking in force ([§12.4][s12-4]) the branch is unreachable in
+practice. The interrupt is deferred to a frame-top or wait unmask point, and
+never raises inside the guarded sequence. The branch is kept defensively,
+because the cost of being wrong about that is a terminally errored session in
+place of a clean stop.
 
 **Disposition.** The `Simulation` ends in a terminal status, `stopped` or
-`errored`, with the exception retrievable. A synchronous [unattended run](#g-unattended-run) (a run
-with empty staging and no snapshot readers) rethrows after the shutdown tail
-completes, so CI fails honestly. An interactive session logs the rendered error
-and surfaces the status through the control plane and GUI.
+`errored`, with the exception retrievable. A synchronous
+[unattended run](#g-unattended-run) (a run with empty staging and no snapshot
+readers) rethrows after the shutdown tail completes, so CI fails honestly. An
+interactive session logs the rendered error and surfaces the status through
+the control plane and GUI.
 
 **The nonfinite check.** Divergence is not termination. Dynamics that blow up
 (ground penetration, an unstable gain) produce NaNs that defeat guards. NaN
 comparisons are false, so no declared condition will catch them. A loop-level
-`isfinite` [sweep](#g-sweep) over `x` at boundaries fails fast as a `StepError` species,
-naming the offending component's state block and the boundary. It catches
-diverging models generally, not just post-terminal ones.
+`isfinite` [sweep](#g-sweep) over `x` at boundaries fails fast as a `StepError`
+species, naming the offending component's state block and the boundary. It
+catches diverging models generally, not just post-terminal ones.
 
-*Placement is the whole value.* The sweep is the boundary's **first act** —
-immediately after integrate returns, before `state_projection` and before the boundary
-sweep. Run there, `NonfiniteState` names the component whose own block
-diverged. Run later, the NaN has already propagated: it reaches an innocent
-downstream component through the ordinary signal path and surfaces as that
-component's lookup-table `DomainError`, or as an `InexactError` in its
-conversion. That is the error-locality inversion ([§8.4][s8-4]), designed out of the
-build tier and quietly reintroduced at runtime. One `isfinite` pass over a
-flat [buffer](#g-buffer) is cheap enough that placement, not cost, decides.
+*Placement is the whole value.* The sweep is the boundary's **first act**. It
+runs immediately after integrate returns, before `state_projection` and before
+the boundary sweep. Run there, `NonfiniteState` names the component whose own
+block diverged. Run later, the NaN has already propagated. It reaches an
+innocent downstream component through the ordinary signal path and surfaces as
+that component's lookup-table `DomainError`, or as an `InexactError` in its
+conversion. That is the error-locality inversion ([§8.4][s8-4]), designed out
+of the build tier and quietly reintroduced at runtime. One `isfinite` pass over
+a flat [buffer](#g-buffer) is cheap enough that placement, not cost, decides.
 
 *Scope: `ẋ` does not participate* ([D-157][d-157]). A nonfinite derivative
-contaminates its own state block's step result within that very step, so the
-`x` check at the next boundary is the same detection with identical component
-attribution. And `ẋ` buffers are integrator scratch: written per stage,
-meaningful only inside a step, and not boundary-consistent in the sense the
-check is stated over.
+contaminates its own state block's step result within that very step. The `x`
+check at the next boundary is therefore the same detection with identical
+component attribution. And `ẋ` buffers are integrator scratch. They are
+written per stage, meaningful only inside a step, and not boundary-consistent
+in the sense the check is stated over.
 
-**Domain separation.** [Device](#g-device)-side user code fails in the device's own
-domain: loop bodies and mappings run on the device task ([§11.4][s11-4], [§11.6][s11-6]). It
-fails in two classes. A genuine bug takes the per-device crash path (liveness
-heartbeat, `DeviceCrash`) while the sim keeps running. An unmappable datum is
-not a failure at all; the loop body tolerates and reports it (`MalformedDatum`,
-[§11.6][s11-6]). The two failure domains never mix — exactly what the
-no-shared-mutable-model decision bought.
+**Domain separation.** [Device](#g-device)-side user code fails in the device's
+own domain, because loop bodies and mappings run on the device task
+([§11.4][s11-4], [§11.6][s11-6]). It fails in two classes. A genuine bug takes
+the per-device crash path (liveness heartbeat, `DeviceCrash`) while the sim
+keeps running. An unmappable datum is not a failure at all. The loop body
+tolerates and reports it (`MalformedDatum`, [§11.6][s11-6]). The two failure
+domains never mix. That is exactly what the no-shared-mutable-model decision
+bought.
 
 ### 13.5 Termination is a state, not an exception
 
-FlightCore's `SimulationTermination` idiom — model code throws, the loop
-catches and logs it as informational — has **no counterpart here** ([D-060][d-060]).
-The discipline: **exceptions from model code are always abnormal**. Graceful
-termination is model *state*, reaching the loop through declared machinery:
+FlightCore's `SimulationTermination` idiom (model code throws, and the loop
+catches and logs it as informational) has **no counterpart here**
+([D-060][d-060]). The discipline is that **exceptions from model code are
+always abnormal**. Graceful termination is model *state*, and it reaches the
+loop through declared machinery.
 
-- **Detection** is ordinary [guard](#g-guard)/handler/mode machinery. Declare
-  the [predicate](#g-predicate) as a sign-form event — hence
-  [localized](#g-localized), the crossing instant bracketed by root-finding
-  over trial sweeps — if the stop should be localized. Touchdown overload is
-  precisely a zero-crossing: the boundary is localized to the crossing, the
+- **Detection** is ordinary [guard](#g-guard)/handler/mode machinery. If the
+  stop should be localized, declare the [predicate](#g-predicate) as a
+  sign-form event. Such an event is [localized](#g-localized) (the crossing
+  instant bracketed by root-finding over trial sweeps). Touchdown overload is
+  precisely a zero-crossing. The boundary is localized to the crossing, the
   handler sets `m.crashed`, and the [snapshot](#g-snapshot) at the crossing
   instant carries the touchdown state.
 - **Publication** is an ordinary `Bool` output [face](#g-face), exported to
   the root. The condition is gathered at its owning boundary in one visible
-  block: `Ldg`
-  ORs its three legs through a junction (the ownership idiom, [§6.2][s6-2];
-  the library, [§13.7][s13-7]) and exports one `damaged` face. Each
-  [assembly](#g-assembly) above it re-exports that single face, one
-  `output_connections` entry per level ([§6.1][s6-1]) and `output_passthrough`
-  where a level re-exports a child's surface wholesale ([§8.8][s8-8]). That hop is
-  the substitutability
-  [contract](#g-contract) doing its job, not plumbing (the imposed derived
-  contract, [§8.8][s8-8]).
-- **Policy** binds at deployment: `Simulation(world; …, stop_on = (…))`
-  names root-exported `Bool` output faces. They are OR-combined, validated
-  against the `Build`, and recorded in the [run metadata](#g-run-metadata) —
-  the [trace header](#g-trace-header)'s deployment block ([§11.5][s11-5]). After
-  *every* published boundary — grid, `t*` ([§10.4][s10-4]) and
-  [boundary zero](#g-boundary-zero) ([§14.5][s14-5]) alike — the loop reads the
-  named faces in the snapshot it just published. The first `true` initiates
-  [§12.4][s12-4] shutdown with *this* snapshot as the final one: the terminal
-  snapshot is the terminal state, no roll-back, nothing [§12.4][s12-4] doesn't
-  already do. That terminal snapshot's status carries the run's final cumulative
-  diagnostic counters ([§11.8][s11-8]). `run!` therefore checks the boundary-zero
-  snapshot before the first step: an authored [condition](#g-condition) (the
-  path-addressed sparse overlay that sets a build's state) already terminal
-  ends the run at `t₀` with that snapshot final, integrating nothing. The
-  default is no stop faces and a run to `t_end` — `stop_on` is `t_end`'s
-  model-declared sibling at the same declaration site.
+  block. `Ldg` ORs its three legs through a junction (the ownership idiom,
+  [§6.2][s6-2]; the library, [§13.7][s13-7]) and exports one `damaged` face.
+  Each [assembly](#g-assembly) above it re-exports that single face. That
+  takes one `output_connections` entry per level ([§6.1][s6-1]), or
+  `output_passthrough` where a level re-exports a child's surface wholesale
+  ([§8.8][s8-8]). That hop is the substitutability [contract](#g-contract)
+  doing its job, not plumbing (the imposed derived contract, [§8.8][s8-8]).
+- **Policy** binds at deployment. `Simulation(world; …, stop_on = (…))` names
+  root-exported `Bool` output faces. They are OR-combined, validated against
+  the `Build`, and recorded in the [run metadata](#g-run-metadata), which is
+  the [trace header](#g-trace-header)'s deployment block ([§11.5][s11-5]).
+  After *every* published boundary the loop reads the named faces in the
+  snapshot it just published. Grid boundaries, `t*` ([§10.4][s10-4]) and
+  [boundary zero](#g-boundary-zero) ([§14.5][s14-5]) all count. The first
+  `true` initiates [§12.4][s12-4] shutdown with *this* snapshot as the final
+  one. The terminal snapshot is the terminal state. There is no roll-back, and
+  nothing [§12.4][s12-4] does not already do. That terminal snapshot's status
+  carries the run's final cumulative diagnostic counters ([§11.8][s11-8]).
+  `run!` therefore checks the boundary-zero snapshot before the first step. An
+  authored [condition](#g-condition) (the path-addressed sparse overlay that
+  sets a build's state) that is already terminal ends the run at `t₀` with
+  that snapshot final, integrating nothing. The default is no stop faces and a
+  run to `t_end`. `stop_on` is `t_end`'s model-declared sibling at the same
+  declaration site.
 
 **Both are `run!`-time overridable, with the constructor value as the
 default.** `Simulation(world; t_end, stop_on)` sets the defaults for the
-simulation; `run!(sim; t_end = …, stop_on = …)` binds them for **that run
+simulation. `run!(sim; t_end = …, stop_on = …)` binds them for **that run
 only**. The `run!` argument wins where given, and the constructor's value
 stands where it is not. Nothing about the `Simulation` is mutated, so the next
-`run!` without arguments gets the constructor's policy again. The run
-metadata records the constructor's pair; a run's effective bound is reported
-by its termination record when it fires ([D-217][d-217]). `stop_on` face
-validation against
-the `Build` runs at **both** binding sites, identically: an unknown or
+`run!` without arguments gets the constructor's policy again. The run metadata
+records the constructor's pair. A run's effective bound is reported by its
+termination record when it fires ([D-217][d-217]). `stop_on` face validation
+against the `Build` runs at **both** binding sites, identically. An unknown or
 non-`Bool` face fails at `run!` exactly as it fails at construction.
 
 ```julia
@@ -7694,101 +7718,110 @@ init!(sim, cond); run!(sim; stop_on = ())  # this run only: no stop faces, t_end
 init!(sim, cond); run!(sim)                # the constructor's pair again: nothing was mutated
 ```
 
-This is not the root-declared stop policy rejected below: the `run!` argument
+This is not the root-declared stop policy rejected below. The `run!` argument
 moves binding one notch *later* along the same axis, more deployment-flavored
-rather than less ([D-060][d-060] and [D-091][d-091]). The `stopped → init! → run!` cycle and the
-`step!` register ([§12.6][s12-6]) are precisely where one `Simulation` wants
-different stopping policies on different runs. The honest cost is two homes for
-one fact; the precedence rule above settles it.
+rather than less ([D-060][d-060] and [D-091][d-091]). The
+`stopped → init! → run!` cycle and the `step!` register ([§12.6][s12-6]) are
+precisely where one `Simulation` wants different stopping policies on
+different runs. The honest cost is two homes for one fact. The precedence rule
+above settles it.
 
 **The termination record names the source, as a typed value.** Where run
 metadata carries the effective *policy*, the run's
 [termination record](#g-termination-record) carries its *outcome*. The record
-holds three fields: the final boundary time, the source, and the tail residue,
-the post-account diagnostics the run's-end sweep folds in ([§11.8][s11-8]). The time
-is always present: boundary zero precedes every record, and a throw inside
-boundary zero writes none ([§12.6][s12-6], [D-233][d-233]). The source
-follows the diagnostic convention — its kind is its identity, its payload is
-plain data ([§13.2][s13-2]) — with four kinds:
+holds three fields: the final boundary time, the source, and the tail residue.
+The tail residue is the post-account diagnostics the run's-end sweep folds in
+([§11.8][s11-8]). The time is always present, because boundary zero precedes
+every record and a throw inside boundary zero writes none ([§12.6][s12-6],
+[D-233][d-233]). The source follows the diagnostic convention, so its kind is
+its identity and its payload is plain data ([§13.2][s13-2]). It has four
+kinds.
 
-- `EndTimeReached` — `t_end`'s frame completed. No payload: the record's own
-  `t` is the fact, and the configured bound lives in the run metadata.
-- `ModelRequestedStop` — a named `stop_on` face read `true`. The payload is
-  the holding face.
-- `ControlRequestedStop` — a control-plane stop. The payload is its issuer
+- `EndTimeReached` means `t_end`'s frame completed. It has no payload. The
+  record's own `t` is the fact, and the configured bound lives in the run
+  metadata.
+- `ModelRequestedStop` means a named `stop_on` face read `true`. The payload
+  is the holding face.
+- `ControlRequestedStop` means a control-plane stop. The payload is its issuer
   ([§12.1][s12-1]): the requesting device, `:code`, or `:interrupt`.
-- `LoopError` — [§13.6][s13-6]'s abnormal entry, the payload the propagated cause. The
-  record covers the `errored` terminal state exactly as it covers `stopped`.
+- `LoopError` means the abnormal entry of [§13.6][s13-6]. The payload is the
+  propagated cause. The record covers the `errored` terminal state exactly as
+  it covers `stopped`.
 
 A `stopped` simulation therefore answers "why did it stop?" without its
-consumer reconstructing the answer from the clock, and answers "how did the
-stop go?" from the same value. The [operator interrupt](#g-operator-interrupt)
-is a tag on an ordinary stop, not a [kind](#g-kind) of its own
-([Appendix C][sC] gains nothing here): nothing failed.
+consumer reconstructing the answer from the clock. It answers "how did the
+stop go?" from the same value. The
+[operator interrupt](#g-operator-interrupt) is a tag on an ordinary stop, not
+a [kind](#g-kind) of its own, because nothing failed. [Appendix C][sC] gains
+nothing from it.
 
-**Rule.** The sources are consulted in a fixed order — a pending control stop
-at frame top, then `t_end`, then the stop faces at each publication. When two
-sources hold at one boundary, the recorded source is the first in that order
-([D-203][d-203]).
+**Rule.** The sources are consulted in a fixed order. A pending control stop
+is checked at frame top, then `t_end`, then the stop faces at each
+publication. When two sources hold at one boundary, the recorded source is the
+first in that order ([D-203][d-203]).
 
-Taught contract: **stop faces are sampled at completed boundaries; declare a
-sign-form event if you need the stop localized.** Both stop-flag shapes work
-without framework latching. A handler-set `m` flag is sticky by nature, and a
-transient stage-2 Bool is caught because the loop reacts to the first `true`.
-Compound stop logic composes in-model — a monitor [component](#g-component)
-reading the relevant signals and outputting one Bool — the same move
-[§12.5][s12-5] made for scripts.
+The taught contract is this. **Stop faces are sampled at completed boundaries;
+declare a sign-form event if you need the stop localized.** Both stop-flag
+shapes work without framework latching. A handler-set `m` flag is sticky by
+nature. A transient stage-2 Bool is caught because the loop reacts to the
+first `true`. Compound stop logic composes in-model, as a monitor
+[component](#g-component) reading the relevant signals and outputting one
+Bool. That is the same move [§12.5][s12-5] made for scripts.
 
 Post-terminal dynamics are the model's job, and that is a feature. Today
 `robot2d` *throws* when it falls, because it has no other way to say "my
 dynamics are no longer meaningful". Here it declares the fall as an event,
-switches to a frozen mode — a mode-dependent `state_derivative`, machinery it already has — and
-exports `fallen`. Wired, the sim ends at the fall; unwired, it integrates a
-frozen robot — well-defined, unlike an uncaught throw. The discipline forces
-models to have well-defined terminal states, which is better modeling.
+switches to a frozen mode, and exports `fallen`. The frozen mode is a
+mode-dependent `state_derivative`, machinery the model already has. Wired, the
+sim ends at the fall. Unwired, it integrates a frozen robot, which is
+well-defined, unlike an uncaught throw. The discipline forces models to have
+well-defined terminal states, which is better modeling.
 
-Rejected mechanisms — predicate closures (`stop_when = snap -> …`),
-root-type-declared stop policy, [blessed](#g-blessed) terminal types and
-`terminal` event flags, a [control-plane](#g-control-plane) capability for
-[components](#g-component), and observation-by-path (`stop_on` naming a deep path
-into any public output) — are litigated in [D-060][d-060]. A root-declared *default*,
-overridable at the constructor, is the one variant on record for reopening,
-should the constructor argument prove chronically forgotten ([§16][s16]).
+The rejected mechanisms are litigated in [D-060][d-060]. They are predicate
+closures (`stop_when = snap -> …`), root-type-declared stop policy,
+[blessed](#g-blessed) terminal types and `terminal` event flags, a
+[control-plane](#g-control-plane) capability for [components](#g-component),
+and observation-by-path (`stop_on` naming a deep path into any public output).
+A root-declared *default*, overridable at the constructor, is the one variant
+on record for reopening, should the constructor argument prove chronically
+forgotten ([§16][s16]).
 
 The observation-by-path line leaves doctrine behind it. **Diagnostic
-observation** — the log retaining the full table, GUI panels rendering a
-component's [ports](#g-port), [replay](#g-replay) inspection — is human-facing,
-has no effect on run semantics, and legitimately sees every public
-[cell](#g-cell). **Load-bearing observation** — a read that changes what the run
-*does* — must speak the [contract](#g-contract). `stop_on` is the one read that
-changes what the run does, which is why it alone names root-exported faces;
-output devices are the other half of the same doctrine, their reads being
-diagnostic snapshot-path bindings ([§11.2][s11-2], [§15.4][s15-4]).
+observation** is human-facing, has no effect on run semantics, and
+legitimately sees every public [cell](#g-cell). The log retaining the full
+table, GUI panels rendering a component's [ports](#g-port), and
+[replay](#g-replay) inspection are all diagnostic observation. **Load-bearing
+observation** is a read that changes what the run *does*, and it must speak
+the [contract](#g-contract). `stop_on` is the one read that changes what the
+run does, which is why it alone names root-exported faces. Output devices are
+the other half of the same doctrine. Their reads are diagnostic snapshot-path
+bindings ([§11.2][s11-2], [§15.4][s15-4]).
 
-The wall-clock channel — GUI stop button, device handle, code — is orthogonal
-and untouched: that is the [control plane](#g-control-plane)'s operator path. The sim-time,
-model-detected channel specified here meets it at [§12.4][s12-4] and nowhere else.
+The wall-clock channel (GUI stop button, device handle, code) is orthogonal
+and untouched. That is the [control plane](#g-control-plane)'s operator path.
+The sim-time, model-detected channel specified here meets it at
+[§12.4][s12-4] and nowhere else.
 
 ### 13.6 Abnormal shutdown: one tail, two entries
 
 **The [boundary](#g-boundary) is all-or-nothing outside the sim task.** That is
 why a `StepError` cannot break [§12.4][s12-4]. [Sweeps](#g-sweep) write into
-table blocks, and integration intermediates live in
-framework-owned integrator buffers, never in a [component](#g-component)'s
-[workspace](#g-workspace) as [§7.3][s7-3] defines it. The only externally visible act is
-[snapshot](#g-snapshot) publication at the very end of the sequence. A boundary
-that throws has published nothing. The last *published* snapshot — a complete,
-consistent boundary by construction — is still the newest thing any
-[device](#g-device), logger or waiter has seen.
+table blocks. Integration intermediates live in framework-owned integrator
+buffers, never in a [component](#g-component)'s [workspace](#g-workspace) as
+[§7.3][s7-3] defines it. The only externally visible act is
+[snapshot](#g-snapshot) publication at the very end of the sequence. A
+boundary that throws has published nothing. The last *published* snapshot is a
+complete, consistent boundary by construction, and it is still the newest
+thing any [device](#g-device), logger or waiter has seen.
 
-The abnormal path is therefore: **discard the failed boundary, promote the
-previous snapshot to final, and rejoin the ordinary tail.** The protocol becomes
-one tail with two entry points: graceful entry after a *completed* final
-boundary, abnormal entry after a *discarded* one. Everything downstream of
-"final snapshot" runs identically: sticky stopped, waiters woken through the
-boundary-counter + `Condition` path, `unblock!`/close hooks, named joins with
-timeout. Those waiters observe stopped rather than a new boundary, so no device
-task hangs.
+The abnormal path therefore **discards the failed boundary, promotes the
+previous snapshot to final, and rejoins the ordinary tail.** The protocol
+becomes one tail with two entry points. Graceful entry follows a *completed*
+final boundary, and abnormal entry follows a *discarded* one. Everything
+downstream of "final snapshot" runs identically: sticky stopped, waiters woken
+through the boundary-counter plus `Condition` path, `unblock!`/close hooks,
+and named joins with timeout. Those waiters observe stopped rather than a new
+boundary, so no device task hangs.
 
 ```
   graceful entry                      abnormal entry
@@ -7803,87 +7836,89 @@ task hangs.
                      → named joins with timeout
 ```
 
-This fills the seat [§12.4][s12-4] reserved for it: a loop-side failure runs
-the same protocol from the catch path. The [termination record](#g-termination-record) covers this
-entry too: its source is `LoopError`, the payload the propagated cause
-([§13.5][s13-5], [D-203][d-203]).
+This fills the seat [§12.4][s12-4] reserved for it. A loop-side failure runs
+the same protocol from the catch path. The
+[termination record](#g-termination-record) covers this entry too. Its source
+is `LoopError`, and the payload is the propagated cause ([§13.5][s13-5],
+[D-203][d-203]).
 
-Tail hygiene: the hooks are user code too, so each is individually
-caught-and-logged. Shutdown therefore runs to completion even if a device's hook
-misbehaves. The join timeout already bounds a hook that hangs rather than
+Tail hygiene follows from the hooks being user code too. Each is individually
+caught and logged. Shutdown therefore runs to completion even if a device's
+hook misbehaves. The join timeout already bounds a hook that hangs rather than
 throws.
 
-What is lost is quarantined: the state [stores](#g-store) may hold mid-boundary
-values (a half-written `m`, integration intermediates). They are retained on the
-errored `Simulation` for post-mortem inspection, but an errored sim is
-terminally stopped, not resumable. The reproduction tool is [trace](#g-trace)
-[replay](#g-replay), not resurrection, and the stopped-sim services enforce that
-non-resumability by refusing an errored simulation outright
-(`ServiceLifecycle`, [§14][s14]). The roster operations refuse it with them
-([§11.3][s11-3], [D-232][d-232]): inspection is reading, and `attach!` configures a run that
-cannot follow. The published record (snapshot chain, log,
-trace) ends at the last consistent boundary. Nothing downstream of the sim ever
-sees half a boundary.
+What is lost is quarantined. The state [stores](#g-store) may hold
+mid-boundary values (a half-written `m`, integration intermediates). They are
+retained on the errored `Simulation` for post-mortem inspection, but an
+errored sim is terminally stopped, not resumable. The reproduction tool is
+[trace](#g-trace) [replay](#g-replay), not resurrection. The stopped-sim
+services enforce that non-resumability by refusing an errored simulation
+outright (`ServiceLifecycle`, [§14][s14]). The roster operations refuse it
+with them ([§11.3][s11-3], [D-232][d-232]). Inspection is reading, but
+`attach!` configures a run that cannot follow. The published record (snapshot
+chain, log, trace) ends at the last consistent boundary. Nothing downstream of
+the sim ever sees half a boundary.
 
 ### 13.7 Tooling consequences: provenance and the component library
 
-Termination chains are the second structural customer of computed
-interface connections, after generic-holding
-[contracts](#g-contract). Computed connections are therefore prominent in this
-section, and two commitments follow: a library and an idiom.
+Termination chains are the second structural customer of computed interface
+connections, after generic-holding [contracts](#g-contract). Computed
+connections are therefore prominent in this section. Two commitments follow, a
+library and an idiom.
 
-**The passthrough helper pair grows deliberately.** Predicate-based
-selection — an `endswith`-style filter alongside `except`/`only`, on
-`input_passthrough` and `output_passthrough` alike ([D-209][d-209]) — is a natural
-extension: still explicit at the declaration site, still evaluated at build,
-still printable. That is the [blessed](#g-blessed) side of the auto-bubbling
-line, where the author writes down the *rule* and the build evaluates it into
-inspectable data.
+**The passthrough helper pair grows deliberately.** Predicate-based selection
+is a natural extension. It would add an `endswith`-style filter alongside
+`except`/`only`, on `input_passthrough` and `output_passthrough` alike
+([D-209][d-209]). It stays explicit at the declaration site, evaluated at
+build, and printable. That is the [blessed](#g-blessed) side of the
+auto-bubbling line, where the author writes down the *rule* and the build
+evaluates it into inspectable data.
 
 **The `Build` printer owes [face](#g-face) provenance.** For every root face,
 that means the resolved chain down to the producing terminal (`"crashed" →
 aircraft/monitor/out ← systems/ldg/{left,right,nose}/damaged`). Once faces are
 computed rather than hand-listed, "what does this face actually reach" is a
-question the artifact must answer, not the reader. The same rendering serves the
-wiring diagnostics, which already carry endpoint paths.
+question the artifact must answer, not the reader. The same rendering serves
+the wiring diagnostics, which already carry endpoint paths.
 
 #### The standard component library
 
 **A standard [component](#g-component) library makes good on the junction
 promise ([§6.2][s6-2]).** That promise rests on explicit junctions being
-*cheap*, and a junction hand-written per arity per type is not.
+*cheap*. A junction hand-written per arity per type is not cheap.
 
-The starting inventory comes strictly from demonstrated need: wrench/scalar
-summing junctions, the Bool gates the termination chains use, `UnitDelay` — the
-spelling the second loop-breaking remedy ([§5.5][s5-5]) needs — and
-`Constant{V}`, the source block. The library grows by migration demand only:
-Simulink's library is a language; this is a toolbox.
+The starting inventory comes strictly from demonstrated need. It holds wrench
+and scalar summing junctions, the Bool gates the termination chains use,
+`UnitDelay`, and `Constant{V}`. `UnitDelay` is the spelling the second
+loop-breaking remedy ([§5.5][s5-5]) needs. `Constant{V}` is the source block.
+The library grows by migration demand only. Simulink's library is a language,
+while this is a toolbox.
 
-One member is admitted by persona rather than migration demand: `Group`, the
-on-the-fly [assembly](#g-assembly), whose declaration-layer treatment lives in
-[§8.5][s8-5] ([D-184][d-184]). `Group` serves the model assembler, for whom topology
-is data rather than a named type, and it needs no rule the declaration layer
-does not already have.
+One member is admitted by persona rather than migration demand. `Group` is the
+on-the-fly [assembly](#g-assembly), and its declaration-layer treatment lives
+in [§8.5][s8-5] ([D-184][d-184]). `Group` serves the model assembler, for whom
+topology is data rather than a named type. It needs no rule the declaration
+layer does not already have.
 
-Doctrine: **library blocks are ordinary components** — no framework privileges,
-no special vocabulary. Ordinary status is what keeps [schema
-authority](#g-schema-authority) total (declarations define structure;
+The doctrine is that **library blocks are ordinary components**, with no
+framework privileges and no special vocabulary. Ordinary status is what keeps
+[schema authority](#g-schema-authority) total (declarations define structure;
 evaluation only checks conformance). That same status makes the library a
-permanent ergonomics [torture test](#g-torture-test): if a three-input OR gate
+permanent ergonomics [torture test](#g-torture-test). If a three-input OR gate
 is painful to write under the declaration rules, the rules are wrong.
 
-Arity comes from a type parameter: `Or{N}` builds `(in1 = Bool, …, inN = Bool)`
-programmatically — a derivation [§8.2][s8-2] blesses, and an early validation
-that the contract functions support parametric components.
+Arity comes from a type parameter. `Or{N}` builds `(in1 = Bool, …, inN = Bool)`
+programmatically. That is a derivation [§8.2][s8-2] blesses, and an early
+validation that the contract functions support parametric components.
 
 [Tier](#g-tier)-transparency falls out of settled semantics. A stateless
-continuous `output_direct` recomputes every [sweep](#g-sweep), so fed ZOH-held discrete
-signals its output changes only at [ticks](#g-tick). No tier-neutral class is
-needed.
+continuous `output_direct` recomputes every [sweep](#g-sweep). Fed ZOH-held
+discrete signals, its output therefore changes only at [ticks](#g-tick). No
+tier-neutral class is needed.
 
-`UnitDelay{V}` is a **discrete** leaf at `K = 1`: the tier's native `z⁻¹`
-([§10.6][s10-6]), the shape `sat_out_0` hand-writes in [§15.2][s15-2], and it
-needs no framework support.
+`UnitDelay{V}` is a **discrete** leaf at `K = 1`. It is the tier's native
+`z⁻¹` ([§10.6][s10-6]) and the shape `sat_out_0` hand-writes in
+[§15.2][s15-2]. It needs no framework support.
 
 ```julia
 # UnitDelay{V} — a discrete leaf at K = 1; port face names elided
@@ -7892,15 +7927,15 @@ output_state(::UnitDelay, (; s)) = (; … = s.v)   # publishes the stored value
 state_update(::UnitDelay, (; u)) = (; v = …)     # stores the incoming one, from u
 ```
 
-`UnitDelay`'s tier semantics are the point, and they must be stated wherever the
-remedy is recommended. Inserting a `UnitDelay` into a *continuous* loop moves
-that signal onto the discrete tier and inserts a `Δt_base`-scale ZOH into the
-model's mathematics. That is a modeling decision, the delayed signal being
-genuinely sampled rather than a transparent wire. The diagnostic
+`UnitDelay`'s tier semantics are the point, and they must be stated wherever
+the remedy is recommended. Inserting a `UnitDelay` into a *continuous* loop
+moves that signal onto the discrete tier and inserts a `Δt_base`-scale ZOH
+into the model's mathematics. That is a modeling decision, because the delayed
+signal is genuinely sampled rather than a transparent wire. The diagnostic
 ([§5.5][s5-5]) therefore says so rather than offering the remedy as free.
 
-`Constant{V}` is the **source block**: no inputs, no state, and a stage-1 body
-returning the value the instance holds.
+`Constant{V}` is the **source block**. It has no inputs, no state, and a
+stage-1 body returning the value the instance holds.
 
 ```julia
 # Constant{V} — a stateless continuous leaf; its value is instance data
@@ -7909,42 +7944,44 @@ output_state(c::Constant, _) = (; out = …)   # the value the instance holds
 ```
 
 `Constant` is a stateless continuous leaf, so the tier-transparency argument
-above already covers discrete consumers and no discrete variant is needed. The
-declaration takes the [activation](#g-activation) scalar (a re-run of Stratum C
-at a given scalar type) and ignores it. That is the point: the block's output
-*is* its stored value, so the leaf is **deliberately [pinned](#g-walked)** at
-that value's own type. A `Constant{Float64}` declares a `Float64` port and means
-it, and the embedding ([§8.2][s8-2]) turns it into the zero-partial constant
-it already was under any `Dual` activation. The honest pin is spelled rather
-than inferred.
+above already covers discrete consumers. No discrete variant is needed. The
+declaration takes the [activation](#g-activation) scalar (a re-run of Stratum
+C at a given scalar type) and ignores it. That is the point. The block's
+output *is* its stored value, so the leaf is **deliberately
+[pinned](#g-walked)** at that value's own type. A `Constant{Float64}` declares
+a `Float64` port and means it. The embedding ([§8.2][s8-2]) turns it into the
+zero-partial constant it already was under any `Dual` activation. The honest
+pin is spelled rather than inferred.
 
 Two demonstrated needs admit `Constant` under the inventory's demonstrated-need
-charter. The zero-contributor configurations ([§6.2][s6-2]) are one: a required
-aggregate input has no physical contributor, and the zero total must be spelled
-as a wire. The rig stub below is the other. The block's value is instance data,
-like junction arity, not an overridable default: a configuration wanting an
-externally settable source uses a [root input](#g-root-input) ([§11.3][s11-3]), which
-keeps the block from drifting into a back-door input default. The library is a
-migration-phase deliverable.
+charter. The zero-contributor configurations ([§6.2][s6-2]) are one. There, a
+required aggregate input has no physical contributor, and the zero total must
+be spelled as a wire. The rig stub below is the other. The block's value is
+instance data, like junction arity, not an overridable default. A
+configuration wanting an externally settable source uses a
+[root input](#g-root-input) ([§11.3][s11-3]). That keeps the block from
+drifting into a back-door input default. The library is a migration-phase
+deliverable.
 
 #### The component test rig
 
 **The [component test rig](#g-component-test-rig) is the library's companion
-idiom.** Exercising a leaf alone needs no rig of its own: any component may be
-the root of a build, its input [faces](#g-face) becoming the model's root inputs
-([§8.2][s8-2], [D-208][d-208]) — fed by ordinary conditions and [devices](#g-device),
-with every output observable in the [snapshot](#g-snapshot) table. The rig is a
-one-child assembly whose `input_connections` surface the
-child's entire input face set — `input_passthrough(rig, "child")` verbatim
-([§8.8][s8-8]) — and what it buys is a place to wire something *beside* the
-component under test.
+idiom.** Exercising a leaf alone needs no rig of its own. Any component may be
+the root of a build, and its input [faces](#g-face) then become the model's
+root inputs ([§8.2][s8-2], [D-208][d-208]). Ordinary conditions and
+[devices](#g-device) feed them, and every output is observable in the
+[snapshot](#g-snapshot) table. The rig is a one-child assembly whose
+`input_connections` surface the child's entire input face set, as
+`input_passthrough(rig, "child")` verbatim ([§8.8][s8-8]). What it buys is a
+place to wire something *beside* the component under test.
 
 The demonstrated need is the root-input rule ([§8.2][s8-2]). An *abstract*
-input entry (`terrain = AbstractTerrainField`, [§4.4][s4-4]) cannot surface as a
-root input, because abstract-at-root is a build error. The rig therefore
-satisfies that entry *inside* the rig: a concrete stub child (a
-`SampleTerrainField` provider) wired to the face, with the concrete remainder
-exposed via `input_passthrough(rig, "strut"; except = ("terrain",))`.
+input entry (`terrain = AbstractTerrainField`, [§4.4][s4-4]) cannot surface as
+a root input, because abstract-at-root is a build error. The rig therefore
+satisfies that entry *inside* the rig. A concrete stub child (a
+`SampleTerrainField` provider) is wired to the face, and the concrete
+remainder is exposed via
+`input_passthrough(rig, "strut"; except = ("terrain",))`.
 
 ```julia
 struct StrutRig <: AbstractComponent    # the rig: component under test + stub
@@ -7957,22 +7994,23 @@ input_connections(rig::StrutRig) =
     (input_passthrough(rig, "strut"; except = ("terrain",))...,)
 ```
 
-That stub child is typically just a `Constant` holding the test handle — the
-source block's first shipped instance. Bespoke stubs remain ordinary components
-wherever the double must compute something.
+That stub child is typically just a `Constant` holding the test handle, which
+makes it the source block's first shipped instance. Bespoke stubs remain
+ordinary components wherever the double must compute something.
 
-The rig adds zero new machinery: wiring and `except` already exist. It is the
-substitutability contract doing its job. An [abstract entry](#g-abstract-entry)
-(an `input_types` entry admitting any concrete producer face) declares that a
-substitute must be chosen, and the rig choosing its test double explicitly, as
-ordinary inspectable code, is precisely the isolation the rig exists to provide.
+The rig adds zero new machinery, because wiring and `except` already exist. It
+is the substitutability contract doing its job. An
+[abstract entry](#g-abstract-entry) (an `input_types` entry admitting any
+concrete producer face) declares that a substitute must be chosen. The rig
+chooses its test double explicitly, as ordinary inspectable code. That is
+precisely the isolation the rig exists to provide.
 
 The rig is [`design_world`](#g-design_world)'s little sibling
-([§14.9][s14-9]): where `design_world(ac)` mounts an aircraft in a minimal world
-for trim and linearization, the rig mounts one component behind a root contract
-for unit tests and open-loop probing. The machinery is deliberately ordinary end
-to end, with no framework support. That makes the rig, like the library blocks,
-a standing ergonomics test of the declaration rules.
+([§14.9][s14-9]). Where `design_world(ac)` mounts an aircraft in a minimal
+world for trim and linearization, the rig mounts one component behind a root
+contract for unit tests and open-loop probing. The machinery is deliberately
+ordinary end to end, with no framework support. That makes the rig, like the
+library blocks, a standing ergonomics test of the declaration rules.
 
 ---
 
