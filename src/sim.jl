@@ -336,7 +336,10 @@ buffers — **these are the bodies the loop runs**, not re-derivations, which is
 what makes the §7.5 measurement honest. The roster is fixed and total: a model
 with no discrete components still gets `ticks`, empty, compiling to a no-op
 whose `@ballocated` assertion passes vacuously, so consumers iterate uniformly
-with no per-model branching.
+with no per-model branching. Beside the four blocks ride `events`, the guard
+and handler per event keyed by `(path, name)`, and `projections`, the
+`state_projection` call per component keyed by path — each a zero-argument
+callable over the same buffers.
 """
 phase_bodies(sim::Simulation) = sim.exec.bodies
 

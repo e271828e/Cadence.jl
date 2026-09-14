@@ -137,9 +137,6 @@ ruling; the second waits on the feature or the pass its bullet names.
 - **The heartbeat is read at publication, not at the drain** (M-B18);
   `drain!` never touches `_heartbeat`, and a `t*` boundary publishes without
   a drain. Nothing observable breaks; the site is not the one §11.8 fixes.
-- **`phase_bodies` returns four bodies** (M-B20); guards, handlers and the
-  `state_projection` callables live on `Executor.events` alone, against §9.7
-  and Appendix B.
 - **The per-writer status is a `Vector` of records built at each
   publication** (chosen). §11.8 has it ride inline in the snapshot's one
   per-boundary allocation, zero additional heap allocation on a quiet frame;

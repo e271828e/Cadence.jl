@@ -371,6 +371,20 @@ _merge_modes!(ref::Base.RefValue{M}, m, path, what) where {M} =
     nothing
 end
 
+# The §7.5 seam's view of one event and one projection (§9.7): the guard and
+# the handler as the walks run them, closed over the entry and the buffers, so
+# `@ballocated(body()) == 0` measures the loop's own call. The entry arrives
+# typed through this barrier, never as the `Any` the build collects it in.
+function _event_bodies(e::EventEntry, store, xbuf)
+    guard() = (e.cursor.comp = e.ci; e.cursor.fn = :guard;
+               e.guard(e.comp, make_bundle(e, store, xbuf)))
+    handler() = (e.cursor.comp = e.ci; e.cursor.fn = :handler;
+                 _latch!(e, e.handler(e.comp, make_bundle(e, store, xbuf)), xbuf);
+                 _fire_project!(e, xbuf))
+    (guard = guard, handler = handler)
+end
+_project_body(e::ProjectEntry, xbuf) = () -> run_project!(e, xbuf)
+
 # --- the gate (§10.5, D-185, D-205) ---------------------------------------------
 # The boundary sweep walks the full list with *discrete* entries gated by
 # `(idx − Φ) % D == 0`. The gate is a wrapper only discrete entries wear, so a

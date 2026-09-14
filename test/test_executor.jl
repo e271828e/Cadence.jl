@@ -4,14 +4,17 @@
 # walk gets. The tier gating over those same entries is asserted where the rates
 # are (`test_multirate.jl`).
 
+const BLOCKS = (:sweep_1, :sweep_2, :rhs, :ticks)   # the four blocks, both arities
+
 function test_executor()
     @testset "the phase-body roster is fixed and total (§9.7)" begin
         sim = Simulation(feedback_model(); h = 1//100)
         b = phase_bodies(sim)
-        @test keys(b) === (:sweep_1, :sweep_2, :rhs, :ticks)
+        @test keys(b) === (:sweep_1, :sweep_2, :rhs, :ticks, :events, :projections)
         @test b.ticks() === nothing            # empty body: legal, a no-op
         @test b.ticks(3) === nothing           # and total in both arities
-        for name in keys(b)
+        @test isempty(b.events) && isempty(b.projections)
+        for name in BLOCKS
             body = b[name]
             body(); body(0)
             @test @ballocated($body()) == 0
@@ -28,11 +31,25 @@ function test_executor()
                     inputs = ("ref" => ntuple(i -> "m$(i)/ref", 6),))
         sim = Simulation(six; h = 1//100, chunk_size = 1)
         @test length(sim.exec.bodies.sweep_2.interior) > 16
-        for name in keys(phase_bodies(sim))
+        for name in BLOCKS
             body = phase_bodies(sim)[name]
             body(); body(0)
             @test @ballocated($body()) == 0
             @test @ballocated($body(1)) == 0
+        end
+    end
+
+    @testset "the event and projection callables ride with the four blocks (§9.7)" begin
+        sim = Simulation(Group((; rot = Rotor(), saw = Sawtooth(1.0))); h = 1//100)
+        init!(sim)
+        b = phase_bodies(sim)
+        @test collect(keys(b.events)) == [("saw", :wrap)]
+        @test collect(keys(b.projections)) == ["rot"]
+        ev = b.events[("saw", :wrap)]
+        @test ev.guard() isa Float64           # the sign-form guard over the live bundle
+        ev.handler(); b.projections["rot"]()
+        for f in (ev.guard, ev.handler, b.projections["rot"])
+            @test @ballocated($f()) == 0
         end
     end
 end

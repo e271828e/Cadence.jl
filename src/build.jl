@@ -1170,10 +1170,16 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
                        if tiers[ci] === CONTINUOUS && has_stage(state_projection, c)]
 
     body(es, gs) = chunked_body(es, gs, store, xbuf, ẋbuf, clock; chunk_size)
+    # Beside the four blocks ride the per-event and per-projection callables,
+    # keyed by the roster (§9.7): (path, event name) and path.
+    ev_bodies = Dict{Tuple{String,Symbol},NamedTuple}(
+        ev_names[i] => _event_bodies(ev_entries[i], store, xbuf) for i in eachindex(ev_entries))
+    proj_bodies = Dict{String,Function}(e.path => _project_body(e, xbuf) for e in proj_entries)
     bodies = (sweep_1 = body(stage1_entries, stage1_gates),
               sweep_2 = body(stage2_entries, stage2_gates),
               rhs = body(rhs_entries, rhs_gates),
-              ticks = body(tick_entries, tick_gates))
+              ticks = body(tick_entries, tick_gates),
+              events = ev_bodies, projections = proj_bodies)
 
     evset = EventSet(ev_entries, proj_entries, store, xbuf, ev_owner, ev_names,
                      ev_localized, length(flat.comps))

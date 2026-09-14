@@ -362,7 +362,7 @@ function discrete_deployment()
         sim = Simulation(MultiRate(); h = 1//500)
         init!(sim)
         bods = phase_bodies(sim)
-        for name in keys(bods)
+        for name in (:sweep_1, :sweep_2, :rhs, :ticks)
             body = bods[name]
             body(); body(1); body(2)
             @test @ballocated($body()) == 0

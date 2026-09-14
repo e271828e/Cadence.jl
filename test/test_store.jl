@@ -123,7 +123,7 @@ function store_workspace()
         # Allocation is what the idiom is for: in-place math on scratch, an isbits
         # snapshot into the store, and nothing on the measured path.
         b = phase_bodies(sim)
-        for name in keys(b)
+        for name in (:sweep_1, :sweep_2, :rhs, :ticks)
             body = b[name]
             body(); body(1)
             @test @ballocated($body()) == 0
@@ -204,7 +204,7 @@ function store_opaque_leaf()
         # One load and one store: the sweep that gathers and scatters a handle
         # allocates nothing (§9.7's canary, `test_executor.jl`).
         b = phase_bodies(sim)
-        for name in keys(b)
+        for name in (:sweep_1, :sweep_2, :rhs, :ticks)
             body = b[name]
             body(); body(0)
             @test @ballocated($body()) == 0
