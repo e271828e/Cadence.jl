@@ -9038,7 +9038,7 @@ an isbits record, and a noisy frame allocates only its rings.
 [s7-4]: spec.md#74-the-fused-evaluation-lineage-prior-art-and-how-we-got-here
 [s7-5]: spec.md#75-allocation-policy-a-scoped-invariant
 [s8]: spec.md#8-the-declaration-layer-components-and-assemblies
-[s8-1]: spec.md#81-position-a-declarative-trait-layer--plain-julia-no-macros
+[s8-1]: spec.md#81-position-a-declarative-trait-layer-in-plain-julia-no-macros
 [s8-2]: spec.md#82-the-declaration-inventory
 [s8-3]: spec.md#83-visibility-the-contract-is-the-interface
 [s8-4]: spec.md#84-failure-walkthroughs-the-error-locality-grounding
