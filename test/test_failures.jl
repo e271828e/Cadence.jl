@@ -12,6 +12,22 @@
 interrupted() = Group((c = Interrupter(), trig = Trigger(0.15));
                       wires = ("c/q" => "trig/sig", "trig/on" => "c/arm"))
 
+# The interrupter whose armed RHS runs a hook before raising: the window between
+# the frame top's stop-word read and the carve-out's catch, where another issuer
+# can land first.
+struct HookedInterrupter <: AbstractComponent
+    hook::Base.RefValue{Any}
+end
+HookedInterrupter() = HookedInterrupter(Ref{Any}(nothing))
+init_x(::HookedInterrupter) = (q = 0.0,)
+input_types(::HookedInterrupter, ::Type{T}) where {T <: Real} = (arm = Bool,)
+output_types(::HookedInterrupter, ::Type{T}) where {T <: Real} = (q = T,)
+output_state(::HookedInterrupter, (; x)) = (q = x.q,)
+state_derivative(c::HookedInterrupter, (; x, u)) =
+    u.arm ? (c.hook[](); throw(InterruptException())) : (q = one(x.q),)
+hooked_interrupted(c) = Group((c = c, trig = Trigger(0.15));
+                              wires = ("c/q" => "trig/sig", "trig/on" => "c/arm"))
+
 # The diverger and the innocent component downstream of it: `con` reads `div`'s
 # state through the ordinary signal path, so a sweep running later than the
 # integrate would blame the lookup rather than the block that blew up.
@@ -259,6 +275,16 @@ function failures_runtime()
         @test step!(sim2; frames = 5) == 2
         @test lifecycle(sim2) === :stopped
         @test termination(sim2).source === ControlRequestedStop(:interrupt)
+    end
+
+    @testset "an interrupt after another issuer keeps that issuer as the source (§12.1, §13.4)" begin
+        c = HookedInterrupter()
+        sim = Simulation(hooked_interrupted(c); h = 1//10, t_end = 5.0)
+        c.hook[] = () -> stop!(sim)     # lands between the frame top's read and the raise
+        init!(sim)
+        run!(sim)
+        @test lifecycle(sim) === :stopped
+        @test termination(sim).source === ControlRequestedStop(:code)
     end
 
     @testset "the rendering states the frame and the reproduction (§13.4, §13.2)" begin

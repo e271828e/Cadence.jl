@@ -24,10 +24,10 @@ joining Appendix C's diagnostic set, the record being outcome, not warning.
 configured bound lives with the policy. `ModelRequestedStop` carries the
 first named `stop_on` face observed holding, in declaration order.
 `ControlRequestedStop` carries its issuer — `:code` from `stop!(sim)`, the
-requesting device's name from `stop!(handle)`, or `:interrupt`, written by
-§13.4's carve-out when an `InterruptException` reaches the catch site (§12.4's
-masking and the operator-interrupt entry itself are still absent,
-`pending.md`). `LoopError` is §13.6's abnormal entry, `exception` the retained
+requesting device's name from `stop!(handle)`, or `:interrupt`, requested by
+§13.4's carve-out when an `InterruptException` reaches the catch site — through
+the same first-writer-wins word, so an earlier issuer keeps it (§12.4's masking
+and the operator-interrupt entry itself are still absent, `pending.md`). `LoopError` is §13.6's abnormal entry, `exception` the retained
 cause — a `StepError` from the frame loop's one catch site (§13.4), which
 carries the raw cause in turn.
 """

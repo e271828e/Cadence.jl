@@ -1088,7 +1088,11 @@ function _advance!(sim::Simulation, pol::RunPolicy, upto::Int, t_end_frame::Int)
         # model code failing, so it routes to the stop path (§12.4). The frame is
         # abandoned unpublished and the stores may be mid-boundary — this is the
         # masked guarantee without the masking, the defensive branch §13.4 keeps.
-        err isa InterruptException && return (ControlRequestedStop(:interrupt), adv)
+        if err isa InterruptException
+            _request_stop!(ctl, :interrupt)   # through the stop word, so an earlier issuer keeps it
+            issuer = @atomic ctl.stop_issuer
+            return (ControlRequestedStop(something(issuer)), adv)
+        end
         rethrow(_wrap_step(sim, entry, err))
     end
 end

@@ -140,10 +140,6 @@ ruling; the second waits on the feature or the pass its bullet names.
   `unblock!` closes its channel leaves a warning and a residue on every clean
   run; the suite's `Blocked` fixture does the discrimination itself. Retires
   with §12's interrupt work.
-- **The interrupt carve-out bypasses the stop word** (M-B13). `sim.jl`
-  returns `ControlRequestedStop(:interrupt)` without `_request_stop!`, so an
-  interrupt arriving after another issuer won the first-writer-wins CAS
-  reports `:interrupt` as the source. Retires with §12's interrupt work.
 - **The heartbeat is read at publication, not at the drain** (M-B18);
   `drain!` never touches `_heartbeat`, and a `t*` boundary publishes without
   a drain. Nothing observable breaks; the site is not the one §11.8 fixes.
