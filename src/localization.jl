@@ -175,15 +175,21 @@ end
 Bracketed, derivative-free root-finding over trial evaluations (§10.4, D-018):
 ITP (Oliveira & Takahashi 2020) on the θ ∈ [0, 1] bracket, entered only with
 σ₀ measured not-holding and σ₁ holding — the observed bracket *is* the
-convergence certificate. Stops once `hi - lo ≤ localization_tol` (relative: the
-bracket in θ against the segment, D-133) and returns the **holding endpoint of
-the final bracket** — every `hi` is an actual observation, so the returned
+convergence certificate. Stops once the bracket is narrower than
+`localization_tol · h` in time — `tol·h/h′` in θ, so a remainder segment
+stops sooner (§10.4, D-133) — and returns the **holding endpoint of the
+final bracket** — every `hi` is an actual observation, so the returned
 point is strictly later than the segment start and the guard observably holds
 there. A return of exactly 1.0 is the degenerate crossing-at-the-frame-top,
 discarded by the caller.
 """
 function _crossing(sim::Simulation, i::Int, σ₀::Float64, σ₁::Float64, t_seg, h′)
-    es, tol = sim.exec.events, sim.localization_tol
+    es = sim.exec.events
+    # The stop is a width in time, `localization_tol · h` (§10.4, D-133). In θ
+    # over a remainder segment shorter than the frame it widens by h/h′; past
+    # 1 the segment is already within tolerance, no trial runs, and the
+    # crossing folds into the segment's end.
+    tol = sim.localization_tol * sim.h / _seconds(h′)
     lo, hi = 0.0, 1.0
     σlo, σhi = σ₀, σ₁
     # ITP constants over the unit bracket: κ₁ = 0.2, κ₂ = 2, n₀ = 1; ε is the

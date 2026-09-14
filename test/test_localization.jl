@@ -113,6 +113,24 @@ function test_localization()
         @test lw.totals.chattering == 1
     end
 
+    @testset "the stop is tol·h in time, not tol·h′ over the remainder (§10.4, D-133)" begin
+        # s1 crosses at 0.399, s2 at 0.39995, tol·h = 1e-4. s1 localizes on the
+        # whole frame; the remainder s2 re-triggers on is ≈1 ms, and the bracket
+        # ITP's first two trials leave, (0.937, 1] of it, is already narrower
+        # than tol·h: the holding endpoint is the frame top, so the crossing
+        # folds into its ordinary iteration, 5e-5 late and within tolerance. A
+        # per-segment tol·h′ would have kept trying, to 0.39995.
+        m = Group((; src = Sawtooth(1.0), s1 = Stamper(0.399), s2 = Stamper(0.39995));
+                  wires = ("src/q" => "s1/sig", "src/q" => "s2/sig"))
+        sim = Simulation(m; h = 1//10, localization_tol = 1e-3)
+        init!(sim)
+        @test_logs run!(sim; t_end = 0.5)
+        @test modes(sim, "s1").t_fired ≈ 0.399 atol = 1e-4
+        @test modes(sim, "s1").t_fired < 4 * sim.h
+        @test modes(sim, "s2").t_fired == 4 * sim.h
+        @test modes(sim, "s1").count == 1 && modes(sim, "s2").count == 1
+    end
+
     @testset "budget exhaustion degrades to boundary granularity, reported (§10.4, §11.8)" begin
         # The relaxer re-arms 1 ms below its level, so each remainder re-crosses
         # within the frame: 8 localizations at 50..57 ms spend the default budget,

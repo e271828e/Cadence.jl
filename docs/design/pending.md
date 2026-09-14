@@ -139,12 +139,9 @@ ruling; the second waits on the feature or the pass its bullet names.
 - **Walkthrough 5 delivers one of its two diagnostics** (M-B16). A typo'd
   return field raises `UndeclaredReturnField` from `_check_ports` before the
   `DeclaredNotProduced` pass runs.
-- **Localization stops at `tol·h′` over the current segment** on remainder
-  segments, tighter than the `tol·h` §10.4 and D-133 state (M-B26).
 - **Docstrings that state the spec's shape over code that does not produce
   it** (M-A3): `diagnostics.jl`'s `AlgebraicCycle.members` ("the SCC's member
-  terminals"); `localization.jl`'s attribution of the segment-relative rule
-  to D-133; `build.jl`'s torn-state "by having none".
+  terminals"); `build.jl`'s torn-state "by having none".
 
 ### Retire with a feature or a pass
 
