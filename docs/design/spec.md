@@ -2912,39 +2912,39 @@ is impossible with a bundled face ([§4.3][s4-3] write-side rule).
 
 ## 9. The build pipeline
 
-The build consumes a root [component](#g-component) instance and produces the runnable artifact:
-resolved wires, typed [signal table](#g-signal-table), evaluation [schedule](#g-schedule), absolute rate divisors,
-flat state layout, [root inputs](#g-root-input). [§8][s8] states what is declared and what must hold;
-this section states *when* each fact is checked, against what, and with which
-failure. The [§8.4][s8-4] walkthroughs plus the error rules ([§6.1][s6-1]) are its acceptance tests.
-Error-*reporting* policy is settled in [§13.1][s13-1]: declarative checking passes
-collect, user-code evaluation fails fast, strata are barriers — the only partial
-results carried past failures are violation lists from pure checks.
+The build consumes a root [component](#g-component) instance and produces the runnable
+artifact: resolved wires, typed [signal table](#g-signal-table), evaluation [schedule](#g-schedule),
+absolute rate divisors, flat state layout, [root inputs](#g-root-input). [§8][s8] states what is
+declared and what must hold. This chapter states *when* each fact is checked,
+against what, and with which failure. The [§8.4][s8-4] walkthroughs plus the error
+rules ([§6.1][s6-1]) are its acceptance tests. Error-*reporting* policy is settled in
+[§13.1][s13-1]. Declarative checking passes collect, user-code evaluation fails fast,
+and strata are barriers, so the only partial results carried past failures
+are violation lists from pure checks.
 
 ### 9.1 Three strata
 
-Three ordering constraints are forced by settled decisions: [face](#g-face)
-derivation is **bottom-up** (an [assembly](#g-assembly)'s
-interface connections evaluate against child
-[contracts](#g-contract), [§8.8][s8-8]); the unconnected-input obligation
-check and cross-level two-producers detection are **global** — decidable only
-at the root, after every assembly's wires and faces are in hand ([§6.1][s6-1]);
-and stage membership is **derived by probing** the stage-1 functions
-([§8.2][s8-2]), so evaluation interleaves with graph construction at exactly
-one [blessed](#g-blessed) spot. The pipeline is therefore inherently
-heterogeneous, organized as three [strata](#g-stratum).
+Three ordering constraints are forced by settled decisions. [Face](#g-face) derivation
+is **bottom-up**, because an [assembly](#g-assembly)'s interface connections evaluate
+against child [contracts](#g-contract) ([§8.8][s8-8]). The unconnected-input obligation check
+and cross-level two-producers detection are **global**, decidable only at the
+root, after every assembly's wires and faces are in hand ([§6.1][s6-1]). And stage
+membership is **derived by probing** the stage-1 functions ([§8.2][s8-2]), so
+evaluation interleaves with graph construction at exactly one [blessed](#g-blessed) spot.
+The pipeline is therefore inherently heterogeneous, and it is organized as
+three [strata](#g-stratum).
 
-#### Stratum A — structure
+#### Stratum A: structure
 
-Stratum A is pure declaration reading: no user stage code executes in it. The
+Stratum A is pure declaration reading. No user stage code executes in it. The
 `input_connections`/`output_connections`/`input_passthrough` bodies are
 declaration code ([§8.8][s8-8]).
 
 The stratum is a tree walk from the root instance, in this order:
 
 1. [Components](#g-component) are collected by path.
-2. Each component's [class](#g-class) — its primitive-vs-assembly status — is
-   read off declaration shape ([§8.5][s8-5]).
+2. Each component's [class](#g-class) (its primitive-vs-assembly status) is read off
+   declaration shape ([§8.5][s8-5]).
 3. Leaf contracts are collected: `input_types`, `output_types`, `init_*`
    values, `state_events`.
 4. Face derivation runs bottom-up, recording at every level the input and
@@ -2955,41 +2955,40 @@ The stratum is a tree walk from the root instance, in this order:
 Resolution runs these checks:
 
 - one-writer-per-input;
-- the typo [did-you-mean](#g-did-you-mean) — the offending name plus the
-  list-in-hand it should have matched — against the destination's input list;
+- the typo [did-you-mean](#g-did-you-mean) (the offending name plus the list-in-hand it
+  should have matched) against the destination's input list;
 - the two wiring type clauses ([§6.1][s6-1], [§8.2][s8-2]), stated below;
 - the whole-tree obligation check;
 - the closed leaf vocabulary ([§7.1][s7-1]), checked on every `init_x` because
-  the walk in [§8.2][s8-2] rests on it; `init_s` pins wholesale and answers to
-  the isbits rule of [§7.3][s7-3] instead, checked with `init_m` field by field.
+  the walk in [§8.2][s8-2] rests on it. `init_s` pins wholesale and answers to the
+  isbits rule of [§7.3][s7-3] instead, checked with `init_m` field by field.
 
 [Root inputs](#g-root-input) fall out here too, as the root component's input faces
 ([§8.2][s8-2]).
 
-**The bound check** is the first type clause, and it applies at nominal faces:
-the producer's declaration at `Float64` must be `<:` the entry at `Float64`.
+**The bound check** is the first type clause, and it applies at nominal faces.
+The producer's declaration at `Float64` must be `<:` the entry at `Float64`.
 Equality is the concrete degenerate case. Abstract-at-root is detected here.
 
 **The walk-compatibility clause** is the second, and it applies to continuous
 consumers only. It is decided by evaluating both declarations at a marker
 scalar and comparing per leaf, and its diagnostic is
-`WalkingFaceAtFrozenEntry`. It stays inside this stratum's charter because both
-sides are declaration functions of `T`: declarations are evaluated, no user
-stage code runs.
+`WalkingFaceAtFrozenEntry`. It stays inside this stratum's charter because
+both sides are declaration functions of `T`. Declarations are evaluated, and
+no user stage code runs.
 
-Stratum A also checks the declaration-completeness rules ([§8.2][s8-2]): a
-store without its update, an event missing a [guard](#g-guard) or handler
-method, a leaf mixing [tier](#g-tier) families, and a contract signature whose form
-contradicts the leaf's tier ([§8.5][s8-5]).
+Stratum A also checks the declaration-completeness rules ([§8.2][s8-2]): a store
+without its update, an event missing a [guard](#g-guard) or handler method, a leaf
+mixing [tier](#g-tier) families, and a contract signature whose form contradicts the
+leaf's tier ([§8.5][s8-5]).
 
 `sample_times` validation is Stratum A's too, and it has two parts. The first
 is per-entry validity against the constraints of [§10.5][s10-5]: wrapper-typed
 values, `K ≥ 1`, `0 ≤ Φ < K`, `T > 0`, `0 ≤ τ < T`, and keys naming discrete or
 scope children. Those violations are collected with path attribution. The
 second is compilation into **`(anchor, m, c)` triples**. A triple carries a
-discrete component's divisor and [phase](#g-phase) in the [tick](#g-tick) units
-of its [anchor](#g-anchor) — the exact `(T, τ)` pair an `Absolute` entry
-establishes.
+discrete component's divisor and [phase](#g-phase) in the [tick](#g-tick) units of its
+[anchor](#g-anchor), the exact `(T, τ)` pair an `Absolute` entry establishes.
 
 The compilation is a fold down the tree, one rule per case:
 
@@ -3003,42 +3002,41 @@ Anchor 0 is symbolic until deployment. The `Relative` case is the affine law
 ([§10.5][s10-5]) in anchor-tick units. The canonical residue (`c < m`) holds
 within each anchor's subtree by the same induction.
 
-Everything except binding `Δt_base` — deployment's — happens in Stratum A.
-Final divisors for anchored entries genuinely cannot exist until `Δt_base`
-binds.
+Everything except binding `Δt_base`, which is deployment's, happens in
+Stratum A. Final divisors for anchored entries genuinely cannot exist until
+`Δt_base` binds.
 
-#### Stratum B — schedule
+#### Stratum B: schedule
 
 Stratum B is the single evaluation-feeds-structure step. It computes the
 [schedule](#g-schedule):
 
-- [Workspace](#g-workspace) — component-declared mutable scratch arriving as
-  the `ws` bundle field — is allocated at the probing scalar. That is sound
-  this early because the allocator reads only the instance and the scalar
-  ([D-077][d-077]), so there is no layout dependence.
+- [Workspace](#g-workspace) (component-declared mutable scratch arriving as the `ws` bundle
+  field) is allocated at the probing scalar. That is sound this early because
+  the allocator reads only the instance and the scalar ([D-077][d-077]), so there
+  is no layout dependence.
 - Stage-1 [probes](#g-probe) run at `Float64`, on `init_x`/`init_s`/`init_m` values.
-  They are well-founded, the no-[feedthrough](#g-feedthrough) stage taking no
+  They are well-founded, because the no-[feedthrough](#g-feedthrough) stage takes no
   inputs.
-- [Ports](#g-port) are classified over `output_types` alone: stage-1,
-  auto-published, and the stage-2 remainder ([§8.3][s8-3]).
+- [Ports](#g-port) are classified over `output_types` alone: stage-1, auto-published,
+  and the stage-2 remainder ([§8.3][s8-3]).
 - The feedthrough graph is built from the wires carrying stage-2 ports, and a
   topological order over it follows. [§5.5][s5-5] cycle rejection applies.
 
-The output is structural: names only, `T`-independent, branch-protected by the
-branch-shape rule plus the always-on check ([§9.5][s9-5]).
+The output is structural. It is names only, `T`-independent,
+branch-protected by the branch-shape rule plus the always-on check ([§9.5][s9-5]).
 
-#### Stratum C — activation, parametric in `T`
+#### Stratum C: activation, parametric in `T`
 
-An [activation](#g-activation) is a re-run of Stratum C at a given scalar type.
-The stratum holds everything type-shaped:
+An [activation](#g-activation) is a re-run of Stratum C at a given scalar type. The
+stratum holds everything type-shaped:
 
 - The producers' output declarations are **evaluated** at the activation's `T`
-  to type the [cells](#g-cell). That is the literal semantics
-  ([§8.2][s8-2]): a continuous producer's two-argument declaration is called
-  at `T`, and a discrete producer's plain one is read once and
-  [pinned](#g-walked).
-- The `init_x`-derived state type is [walked](#g-walked) by the leaf-walk rule
-  ([§8.2][s8-2]); the `init_s`- and `init_m`-derived store types pin.
+  to type the [cells](#g-cell). That is the literal semantics ([§8.2][s8-2]). A
+  continuous producer's two-argument declaration is called at `T`, and a
+  discrete producer's plain one is read once and [pinned](#g-walked).
+- The `init_x`-derived state type is [walked](#g-walked) by the leaf-walk rule ([§8.2][s8-2]),
+  and the `init_s`- and `init_m`-derived store types pin.
 - The probe chain runs in topological order ([§9.3][s9-3]), and observed is
   compared against declared.
 - The flat `x` [buffer](#g-buffer) and the table are laid out.
@@ -3055,22 +3053,22 @@ instantiates the tick schedule. Nothing in A–C depends on it.
 
 `Δt_base` has exactly one of three sources, cross-validated:
 
-- the explicit keyword, a `Rational`, `Period` or `Hz` value, from which `N_base` is
-  derived as `Δt_base/h` and validated an integer ≥ 1;
+- the explicit keyword, a `Rational`, `Period` or `Hz` value, from which
+  `N_base` is derived as `Δt_base/h` and validated an integer ≥ 1;
 - the `N_base·h` product when only `N_base` is given, today's rule, with the
   default `N_base = 1`;
-- **derivation**, requested explicitly as `Δt_base = :derive` — never entered
-  by default, so the `N_base·h` path stays what silence means — and permitted only
-  when every discrete component is anchored, that is, with anchor 0
-  unpopulated.
+- **derivation**, requested explicitly as `Δt_base = :derive`. It is never
+  entered by default, so the `N_base·h` path stays what silence means, and it
+  is permitted only when every discrete component is anchored, that is, with
+  anchor 0 unpopulated.
 
 **Why.** Under that restriction `Δt_base` is pure bookkeeping that no
 component's period depends on. An unanchored component's period is
-`m·Δt_base`, and deriving with one present would let an anchor edit anywhere in
-the tree silently rescale it — action at a distance.
+`m·Δt_base`, and deriving with one present would let an anchor edit anywhere
+in the tree silently rescale it, which is action at a distance.
 
 **Rule.** If any unanchored component exists, deployment must declare
-`Δt_base`. The refusal is constructive — the suggestion message
+`Δt_base`. The refusal is constructive, carrying the suggestion message
 ([§9.2][s9-2]).
 
 Admissibility is exact GCD arithmetic over the **constraint pool**:
@@ -3085,15 +3083,15 @@ Admissibility is exact GCD arithmetic over the **constraint pool**:
 | per component | `D = m·Dₖ`, `Φ = Φₖ + c·Dₖ`, `Δt = D·Δt_base` |
 
 Resolution is therefore one division pair per anchor and one multiply-add per
-component. `Dₖ` and `Φₖ` must both come out exact integers; otherwise a
-`DeploymentInvalid`, naming the anchor with its declaring scope and key from
-the provenance column. The per-component triples are the
-[bound schedule](#g-bound-schedule), the printable artifact deployment binding
-produces ([§9.2][s9-2]).
+component. `Dₖ` and `Φₖ` must both come out exact integers. Otherwise the
+result is a `DeploymentInvalid`, naming the anchor with its declaring scope
+and key from the provenance column. The per-component triples are the
+[bound schedule](#g-bound-schedule), the printable artifact deployment binding produces
+([§9.2][s9-2]).
 
-Deployment validation is collected like its declarative siblings
-([§13.1][s13-1]). Collected and reported as `DeploymentInvalid`
-([Appendix C][sC] — parameter, value, the violated constraint):
+Deployment validation is collected like its declarative siblings ([§13.1][s13-1]).
+Violations are collected and reported as `DeploymentInvalid` ([Appendix C][sC]),
+carrying parameter, value and the violated constraint:
 
 - a nonpositive `h`;
 - an `N_base < 1`;
@@ -3105,81 +3103,80 @@ Deployment validation is collected like its declarative siblings
 - a `localization_budget` or a `firing_budget` that is not an integer ≥ 1.
 
 The event parameters validate on their own terms only. They are
-grid-independent, so they take no part in the harmonic-grid check
-([§10.4][s10-4], [§10.6][s10-6]).
-
+grid-independent, so they take no part in the harmonic-grid check ([§10.4][s10-4],
+[§10.6][s10-6]).
 ### 9.2 The `Build` artifact
 
 `build(world) → Build` is a standalone entry point. `Simulation(world; …)`
 (the spelling, [§15.4][s15-4]) is the convenience that calls it and adds
 deployment binding, [buffers](#g-buffer) and the stopped-sim services.
 
-The constructor is two entry points, not one: `Simulation(build::Build; …)`
+The constructor is two entry points, not one. `Simulation(build::Build; …)`
 accepts the artifact directly, and `Simulation(world; …)` is *defined as*
-`Simulation(build(world); …)`. The build CI checked, the build an acceptance
-test targeted, the build a [face](#g-face)-provenance table was printed from:
-that artifact is the one deployed, never an assumed-equal reconstruction.
+`Simulation(build(world); …)`. The artifact deployed is the very build that CI
+checked, that an acceptance test targeted, and that a [face](#g-face)-provenance
+table was printed from, never an assumed-equal reconstruction.
 
-**Why.** Computed interface-connection bodies are ordinary user
-code re-evaluated on every build, so equality between two builds of the same
-world is an assumption the factorization removes.
+**Why.** Computed interface-connection bodies are ordinary user code
+re-evaluated on every build, so equality between two builds of the same world
+is an assumption the factorization removes.
 
 Deployment binding still happens only at `Simulation` construction, whichever
 entry point runs.
 
 **The `Build` is immutable and may back any number of `Simulation`s,
-concurrently** — true by construction once buffers are single-owner ([§9.4][s9-4]): each
-`Simulation` materializes its own from the shared layouts, so nothing writable
-is shared. The one mutable thing on the artifact is the lazily populated
-[activation](#g-activation) cache, whose insertion [§9.4][s9-4] makes torn-state-free.
-The `Build` is the
-inspectable derived contract of the instantiation [§8.8][s8-8] gestures at — wire list, face
-table, [schedule](#g-schedule), [root inputs](#g-root-input) as plain printable data.
-"Printable" names the representation: paths, names and rationals, inspectable
-as fields and printed by any REPL without a method of their own, the
-diagnostic form against [§9.7][s9-7]'s compiled one. The renderings the artifact
-owes are the named ones: the anchor and component tables and the hyperperiod
-chart below, and the face-provenance printer ([§13.7][s13-7]).
+concurrently.** That is true by construction once buffers are single-owner
+([§9.4][s9-4]). Each `Simulation` materializes its own from the shared layouts, so
+nothing writable is shared. The one mutable thing on the artifact is the
+lazily populated [activation](#g-activation) cache, whose insertion [§9.4][s9-4] makes
+torn-state-free. The `Build` is the inspectable derived contract of the
+instantiation that [§8.8][s8-8] gestures at. It holds the wire list, face table,
+[schedule](#g-schedule) and [root inputs](#g-root-input) as plain printable data. "Printable" names the
+representation. Paths, names and rationals are inspectable as fields and
+printed by any REPL without a method of their own, the diagnostic form beside
+the compiled form ([§9.7][s9-7]). The renderings the artifact owes are the named
+ones: the anchor and component tables and the hyperperiod chart below, and
+the face-provenance printer ([§13.7][s13-7]).
+
 **The face table is two-sided.** Beside each level's output faces and their
 provenance it retains that level's *input* faces, each resolved producer-ward
-to the one feed its consumers share: a root input, or a producer inside the
-model. The record is total, because one-level routing gives every signal a
-declared face at every boundary it crosses ([§6.1][s6-1], [D-207][d-207]).
-The input side is what a [fragment](#g-fragment)'s
-`inputs` payload resolves against from any authoring level ([§14.2][s14-2],
-[§14.3][s14-3]). CI checks a model by
-calling `build`; the acceptance tests target `build` errors directly;
-`attach!` validates [device](#g-device) [bindings](#g-binding) against it. Build living only inside the
-`Simulation` constructor was rejected ([D-049][d-049]).
+to the one feed its consumers share, either a root input or a producer inside
+the model. The record is total, because one-level routing gives every signal
+a declared face at every boundary it crosses ([§6.1][s6-1], [D-207][d-207]). The input
+side is what a [fragment](#g-fragment)'s `inputs` payload resolves against from any
+authoring level ([§14.2][s14-2], [§14.3][s14-3]). CI checks a model by calling `build`, the
+acceptance tests target `build` errors directly, and `attach!` validates
+[device](#g-device) [bindings](#g-binding) against it. Build living only inside the `Simulation`
+constructor was rejected ([D-049][d-049]).
 
-**The schedule the `Build` carries is anchor-relative; the `Simulation` binds
-it.** From [Stratum](#g-stratum) A the artifact gains two printable tables: the **[anchor](#g-anchor)
-table** — each anchor's exact `(T, τ)` rationals with the declaring scope's
-path and key — and the **[component](#g-component) table** of `(anchor, m, c)` triples with
-their declaration provenance, the `Relative`/`Absolute` chain down the tree.
-The base grid `A₀` takes an anchor-table row of its own, with a dash in the
-scope and key columns: no scope declares it. Its `(T, τ)` stays symbolic there
-until `Δt_base` binds.
-For a fully relative model the only anchor is `A₀` and the triples *are* the
-final base-[tick](#g-tick) `(D, Φ)` pairs; when anchors exist, final divisors cannot
-live here — they do not exist until `Δt_base` binds, and the same `Build`
-already backs many `Simulation`s with different deployment parameters.
-Binding ([§9.1][s9-1]) produces the **[bound schedule](#g-bound-schedule)**, a named printable artifact
-on the `Simulation`: per discrete component, `(D, Φ, Δt)` with the anchor and
-provenance columns carried through — the single source of truth for `Δt`
-([§10.5][s10-5]), the substrate of the grid diagnostics below, and the table that
-answers "when does what run, and what coincides with what".
-[Rate scopes](#g-rate-scope) — an assembly's `sample_times` declaration against
-the enclosing scope — appear in it beside the discrete components, each with its
-own `(Dₛ, Φₛ)`. The bound schedule's `show`-form
-is the **hyperperiod chart**: the pattern repeats with period `lcm(Dᵢ)` base
-ticks — the gate is pure modulo arithmetic, so one hyperperiod is the
-complete truth, not a sample — rendered as a tick chart over
+**The schedule the `Build` carries is anchor-relative, and the `Simulation`
+binds it.** From [Stratum](#g-stratum) A the artifact gains two printable tables. The
+**[anchor](#g-anchor) table** holds each anchor's exact `(T, τ)` rationals with the
+declaring scope's path and key. The **[component](#g-component) table** holds the
+`(anchor, m, c)` triples with their declaration provenance, the
+`Relative`/`Absolute` chain down the tree. The base grid `A₀` takes an
+anchor-table row of its own, with a dash in the scope and key columns,
+because no scope declares it. Its `(T, τ)` stays symbolic there until
+`Δt_base` binds. For a fully relative model the only anchor is `A₀` and the
+triples *are* the final base-[tick](#g-tick) `(D, Φ)` pairs. When anchors exist, final
+divisors cannot live here. They do not exist until `Δt_base` binds, and the
+same `Build` already backs many `Simulation`s with different deployment
+parameters. Binding ([§9.1][s9-1]) produces the **[bound schedule](#g-bound-schedule)**, a named
+printable artifact on the `Simulation`. It lists, per discrete component,
+`(D, Φ, Δt)` with the anchor and provenance columns carried through. It is
+the single source of truth for `Δt` ([§10.5][s10-5]), the substrate of the grid
+diagnostics below, and the table that answers "when does what run, and what
+coincides with what". [Rate scopes](#g-rate-scope) (an assembly's `sample_times` declaration
+against the enclosing scope) appear in it beside the discrete components,
+each with its own `(Dₛ, Φₛ)`. The bound schedule's `show`-form is the
+**hyperperiod chart**. The pattern repeats with period `lcm(Dᵢ)` base ticks,
+and the gate is pure modulo arithmetic, so one hyperperiod is the complete
+truth, not a sample. The chart renders it as a tick chart over
 `k = 0 … lcm(Dᵢ) − 1`, with a guard for absurd hyperperiods.
 
 **Example.** The model worked in [§10.5][s10-5] has three discrete components
-under two scopes: `sample_times` declares `fcs = Relative(1)` and
-`gnss = Absolute(Hz(50))` at the root, `inner = Relative(1)` and
+under two scopes. `sample_times` declares `fcs = Relative(1)` and
+`gnss = Absolute(Hz(50))` at the root, and `inner = Relative(1)` and
 `outer = Relative(5, 2)` under `fcs`. Deploy it at `Δt_base = 2 ms`. The
 `Absolute` entry seeds the anchor `A₁ = (1//50, 0)` and the rest of the tree
 stays on anchor 0, so the three components carry these values through binding:
@@ -3192,434 +3189,429 @@ stays on anchor 0, so the three components carry these values through binding:
 | bound `(D, Φ)` | `(1, 0)` | `(5, 2)` | `(10, 0)` |
 | bound `Δt` | 2 ms | 10 ms | 20 ms |
 
-`gnss` is the entry whose divisor could not exist before `Δt_base` bound:
-`D = m·D₁`, with `D₁ = T₁/Δt_base = (1//50)/(1//500) = 10`.
+`gnss` is the entry whose divisor could not exist before `Δt_base` bound. Its
+divisor is `D = m·D₁`, with `D₁ = T₁/Δt_base = (1//50)/(1//500) = 10`.
 
 **Grid diagnostics print from the pool, exactly.** The refusal path's
 suggestion message and the derivation path's info line share one substrate:
 the coarsest admissible `Δt_base` with the admissible set `gcd(pool)/k`, and
 per-entry attribution. Attribution has two forms.
 
-**Leave-one-out refinement factors** are the first form:
-`r_p = gcd(pool ∖ p)/gcd(pool)`, an integer ≥ 1 read as "how much coarser the
-grid would be without this entry". Every `r_p > 1` is listed rather than one
-culprit crowned, joint responsibility being the honest answer.
+**Leave-one-out refinement factors** are the first form.
+`r_p = gcd(pool ∖ p)/gcd(pool)` is an integer ≥ 1 read as "how much coarser
+the grid would be without this entry". Every `r_p > 1` is listed rather than
+one culprit crowned, because joint responsibility is the honest answer.
 
-**Prime attribution** is the second form: each prime power of `1/Δt_base` is
+**Prime attribution** is the second form. Each prime power of `1/Δt_base` is
 traced to the pool entries whose denominators supply it. That pinpoints what
 an edit changed.
 
 When an offset is a driver, the message adds the nearest non-refining
-alternatives — the admissible offsets on the grid the rest of the pool
+alternatives, the admissible offsets on the grid the rest of the pool
 supports. That turns the diagnostic into a repair.
 
 Blame is computed against the actual pool. A simple-fraction-of-its-period
 test stays authoring guidance and never becomes the engine's ([D-187][d-187]).
 
-The derivation path — the one place refinement happens silently — always prints
-the derived value with its drivers, and carries the one advisory:
-`GridUtilization` ([Appendix C][sC]), reporting `min_i Dᵢ` — base ticks between
-the fastest component's ticks — as "grid is N× finer than the fastest declared
-work" with the drivers named, information rather than scolding, since a scope
-deliberately declared finer than its fastest member to buy stagger room
-([§10.5][s10-5]) legitimately inflates the metric.
-
+The derivation path is the one place refinement happens silently. It always
+prints the derived value with its drivers, and it carries the one advisory,
+`GridUtilization` ([Appendix C][sC]). The advisory reports `min_i Dᵢ`, the base
+ticks between the fastest component's ticks, as "grid is N× finer than the
+fastest declared work" with the drivers named. It is information rather than
+scolding, since a scope deliberately declared finer than its fastest member to
+buy stagger room ([§10.5][s10-5]) legitimately inflates the metric.
 ### 9.3 Probing and input synthesis
 
-**[Probe](#g-probe)-everything scope.** The nominal [activation](#g-activation) probes every user function —
-stages, `state_derivative`, `state_update`, [guards](#g-guard), handlers,
-`state_projection` — once, at the initial state,
-with real values, checking shape/type conformance and discarding results (all
-are pure; the cost is one evaluation each). "Fails loudly at build time where
-possible" ([§8.1][s8-1]) decides this: a malformed `state_derivative` return must not wait for the
-first integrator step. Probes see only the initial state's branch — the
-marginal coverage is earliness, not completeness; the always-on check ([§9.5][s9-5])
-remains the completeness backstop.
+**[Probe](#g-probe)-everything scope.** The nominal [activation](#g-activation) probes every user
+function once, at the initial state, with real values. The set is the stages,
+`state_derivative`, `state_update`, [guards](#g-guard), handlers and
+`state_projection`. The probe checks shape and type conformance and discards
+the results. All are pure, and the cost is one evaluation each. "Fails loudly
+at build time where possible" ([§8.1][s8-1]) decides this. A malformed
+`state_derivative` return must not wait for the first integrator step. Probes
+see only the initial state's branch, so the marginal coverage is earliness,
+not completeness. The always-on check ([§9.5][s9-5]) remains the completeness
+backstop.
 
-**Probe argument sourcing.** `x`/`s`/`m` come from `init_*` declarations
-(declared by value); the stage-1 hand-down — `y_x`, `y_s` on the discrete
-[tier](#g-tier) — from the stage-1 probes' *returns* (an
-auto-published name is a framework write, never a probe product, so it is
-absent from the hand-down — [§5.2][s5-2]); wired inputs from
-upstream products, real values available because the stage-2 chain is probed in
-topological order, so every consumer is probed against the same value it will
-receive at run time.
-Two checks ride the same pass. The first is the return's shape: a stage
+**Probe argument sourcing.** `x`/`s`/`m` come from `init_*` declarations,
+which declare by value. The stage-1 hand-down, `y_x` and `y_s` on the
+discrete [tier](#g-tier), comes from the stage-1 probes' *returns*. An auto-published
+name is a framework write, never a probe product, so it is absent from the
+hand-down ([§5.2][s5-2]). Wired inputs come from upstream products. Real values
+are available because the stage-2 chain is probed in topological order, so
+every consumer is probed against the same value it will receive at run time.
+Two checks ride the same pass. The first is the return's shape. A stage
 returning something other than a `NamedTuple` fails here. The second is the
-dead-stage rule: a stage returning bare `(;)` produces
-no [ports](#g-port) at all, and is `DeadStage`, fail-fast.
-The [bundle law](#g-bundle)'s two remaining fields ([§5.2][s5-2]): `t` is
-probe-scoped `0.0` — deployment binds no clock and `t₀` post-dates even
-deployment ([§14.5][s14-5]), so like `Δt` below it is a fabricated, probe-scoped
-value; `ws` comes from invoking the component's `init_workspace` allocator at the
-probing scalar, which reads only the instance and the scalar ([D-077][d-077]),
-deriving nothing from layouts, so it runs before the [Stratum](#g-stratum) B probes that
-need it. Exactly one kind of terminal has no producer: **root
-inputs**. The build synthesizes their values via `probe_value(::Type)`:
-framework methods for `Real` (`zero(T)`), `Bool` (`false`), enums (first
-instance), ultimate fallback the zero-argument constructor `T()` — which is
-where well-behaved constrained types already put their valid default (`RQuat()`
-= identity; the `@kwdef` convention supplies it broadly). `probe_value` is
-**overridable**: a type whose valid default is not reachable that way declares
-its own method, which is also the [seam](#g-seam) a [walked](#g-walked) type uses to state a
-constrained default. No method → build error, in the didactic register: it
-names the [face](#g-face) and the type, and asks for one of the two fixes ("no
-`probe_value` for `Ranged{Float64, -1, 1}` at face `pilot.elevator_axis` —
-define `probe_value(::Type{Ranged{Float64, -1, 1}})` or a zero-argument
-constructor"). Synthesis never meets an abstract type:
-root inputs are concrete by the tight-bound rule ([§8.2][s8-2]; the root-input type
-is the consuming entry evaluated at `Float64`), and [abstract
-entries](#g-abstract-entry) only
-occur on component-fed inputs, which the probe sources from upstream products.
-Physically silly values are acceptable by
-construction: the probe checks types, and return types that depend on input
-*values* are type instabilities (banned by the branch-shape rule); the [§4.3][s4-3]
-write-side granularity rule keeps root inputs predominantly scalar, so the
-surface is small. Rejected ([D-051][d-051]): inputs declared by value à la `init_x`, NaN
-poison values, and init-service values.
+dead-stage rule. A stage returning bare `(;)` produces no [ports](#g-port) at all, and
+is `DeadStage`, fail-fast. The [bundle law](#g-bundle)'s two remaining fields ([§5.2][s5-2])
+are sourced as follows. `t` is probe-scoped `0.0`. Deployment binds no clock
+and `t₀` post-dates even deployment ([§14.5][s14-5]), so like `Δt` below it is a
+fabricated, probe-scoped value. `ws` comes from invoking the component's
+`init_workspace` allocator at the probing scalar. That allocator reads only
+the instance and the scalar ([D-077][d-077]) and derives nothing from layouts, so it
+runs before the [Stratum](#g-stratum) B probes that need it. Exactly one kind of
+terminal has no producer: **root inputs**. The build synthesizes their values
+via `probe_value(::Type)`. Framework methods cover `Real` (`zero(T)`), `Bool`
+(`false`) and enums (first instance), and the ultimate fallback is the
+zero-argument constructor `T()`. That is where well-behaved constrained types
+already put their valid default (`RQuat()` is the identity, and the `@kwdef`
+convention supplies it broadly). `probe_value` is **overridable**. A type
+whose valid default is not reachable that way declares its own method, which
+is also the [seam](#g-seam) a [walked](#g-walked) type uses to state a constrained default. No
+method is a build error, in the didactic register. It names the [face](#g-face) and the
+type, and asks for one of the two fixes ("no `probe_value` for
+`Ranged{Float64, -1, 1}` at face `pilot.elevator_axis` — define
+`probe_value(::Type{Ranged{Float64, -1, 1}})` or a zero-argument
+constructor"). Synthesis never meets an abstract type. Root inputs are
+concrete by the tight-bound rule ([§8.2][s8-2]; the root-input type is the
+consuming entry evaluated at `Float64`), and [abstract entries](#g-abstract-entry) only occur
+on component-fed inputs, which the probe sources from upstream products.
+Physically silly values are acceptable by construction. The probe checks
+types, and return types that depend on input *values* are type
+instabilities, banned by the branch-shape rule. The [§4.3][s4-3] write-side
+granularity rule keeps root inputs predominantly scalar, so the surface is
+small. Three alternatives were rejected ([D-051][d-051]): inputs declared by value
+à la `init_x`, NaN poison values, and init-service values.
 
 **Probe values are strictly probe-scoped.** Everything the probe writes is
-garbage once the build finishes; probe values never double as initial root-input
-values — that would smuggle in the default semantics rejected above. The
-same doctrine covers the clock: `Δt` in seconds does not exist until
-`Simulation` binds `Δt_base` (deployment post-dates the build), so
-discrete-[tier](#g-tier) probes supply a placeholder period (`1.0`) in the bundle —
-a fabricated, probe-scoped value like any synthesized input; the probe
-checks types, not physics.
-`Simulation` must not reach its first [boundary](#g-boundary) with uninitialized root inputs;
-enforcement is the pre-write `UninitializedInputs` check carried by every
-complete-world application — `init!`, trim setup, trim commit
-([§14.6][s14-6]).
+garbage once the build finishes. Probe values never double as initial
+root-input values, because that would smuggle in the default semantics
+rejected above. The same doctrine covers the clock. `Δt` in seconds does not
+exist until `Simulation` binds `Δt_base`, since deployment post-dates the
+build, so discrete-[tier](#g-tier) probes supply a placeholder period (`1.0`) in the
+bundle. It is a fabricated, probe-scoped value like any synthesized input,
+because the probe checks types, not physics. `Simulation` must not reach its
+first [boundary](#g-boundary) with uninitialized root inputs. Enforcement is the pre-write
+`UninitializedInputs` check carried by every complete-world application,
+namely `init!`, trim setup and trim commit ([§14.6][s14-6]).
 
-**The author's side of that bargain.** Silly values are acceptable *because* the
-author is obliged to accept them: **stage code must be total over type-valid
-inputs** — every probed user function (stages, `state_derivative`,
-`state_update`, guards, handlers,
-`state_projection`) evaluates without throwing on any input satisfying its declared
-types. The domain is type-validity, not the probe's particular synthesized
-values: the branch-shape rule already bans value-dependent return types, so
-types are the only domain the framework can speak of, and the probe is the
-enforcement moment, not the reason ([D-142][d-142]). Two consequence sites, the same throw at both: at
-build it is a `UserCodeFraming`-wrapped build failure ([§13.1][s13-1]) whose diagnostic
-points at code that is "correct" on every trajectory it has ever seen; at
-runtime it is a `StepError` and the run ends `errored` ([§13.4][s13-4]) — exceptions from
-model code are always abnormal ([§13.5][s13-5]). Three habits of shipped code have
-sanctioned spellings. A *plausibility* check meaning "stop the run" — a strut
-throwing on a touchdown overload — is a published `Bool` output face plus
-`stop_on` ([§13.5][s13-5]), machinery already there. A *self-consistency* assert — an
-author checking that their own contact algebra cancels a velocity component to a
-hard tolerance — is a regression test about that algebra, and its home is the
-test suite; it is also the most probe-fragile of the three, since a
+**The author's side of that bargain.** Silly values are acceptable *because*
+the author is obliged to accept them. **Stage code must be total over
+type-valid inputs.** Every probed user function (stages, `state_derivative`,
+`state_update`, guards, handlers, `state_projection`) evaluates without
+throwing on any input satisfying its declared types. The domain is
+type-validity, not the probe's particular synthesized values. The
+branch-shape rule already bans value-dependent return types, so types are the
+only domain the framework can speak of, and the probe is the enforcement
+moment, not the reason ([D-142][d-142]). There are two consequence sites, with the
+same throw at both. At build it is a `UserCodeFraming`-wrapped build failure
+([§13.1][s13-1]) whose diagnostic points at code that is "correct" on every
+trajectory it has ever seen. At runtime it is a `StepError` and the run ends
+`errored` ([§13.4][s13-4]), because exceptions from model code are always abnormal
+([§13.5][s13-5]). Three habits of shipped code have sanctioned spellings. A
+*plausibility* check meaning "stop the run", such as a strut throwing on a
+touchdown overload, is a published `Bool` output face plus `stop_on`
+([§13.5][s13-5]), machinery already there. A *self-consistency* assert, such as an
+author checking that their own contact algebra cancels a velocity component
+to a hard tolerance, is a regression test about that algebra, and its home is
+the test suite. It is also the most probe-fragile of the three, since a
 near-degenerate synthesized geometry can keep the cancellation algebraically
 exact while missing an absolute tolerance in floating point. And there is the
-*defensive exhaustiveness* branch: an `else error("unrecognized surface type")`
-over a closed enum, or a coefficient constructor asserting an ordering of its
-arguments when that constructor runs per step inside a stage. Such a branch is
-not banned validation but **mislocated** validation. Totality over a closed
-enum means handling every instance, and an `else error` is an admission that
-the function is partial. Parameter validation belongs where user-controlled
-data enters: the constructors of parameter and instance values, which run
-before the build, where asserts are perfectly legitimate. It never belongs
-inside a stage, on probe-fed data.
-
+*defensive exhaustiveness* branch, an `else error("unrecognized surface
+type")` over a closed enum, or a coefficient constructor asserting an ordering
+of its arguments when that constructor runs per step inside a stage. Such a
+branch is not banned validation but **mislocated** validation. Totality over
+a closed enum means handling every instance, and an `else error` is an
+admission that the function is partial. Parameter validation belongs where
+user-controlled data enters, in the constructors of parameter and instance
+values, which run before the build, where asserts are perfectly legitimate.
+It never belongs inside a stage, on probe-fed data.
 ### 9.4 Activations: executable sets, laziness, caching
 
-An **[activation](#g-activation) at `T`** re-runs [Stratum](#g-stratum) C with a
-different scalar:
+An **[activation](#g-activation) at `T`** re-runs [Stratum](#g-stratum) C with a different scalar:
 
-- producer-fed [cells](#g-cell) re-typed by *evaluating* the producing
-  [component](#g-component)'s output declaration at `T` ([§8.2][s8-2]) — a
-  continuous producer's two-argument declaration called at the scalar, a
-  discrete producer's plain declaration pinning;
-- [root-input](#g-root-input) cells re-typed by *evaluating* the consuming
-  `input_types` entry at `T`, which [§8.2][s8-2] reads permissively — a `T`
-  entry follows the activation, a `Float64` entry stays frozen;
-- the state type by the walk over `init_x`'s, with table and state
-  [buffers](#g-buffer) re-laid-out;
-- [workspace](#g-workspace) allocators re-invoked at `T`, not introduced — the
-  first invocation precedes the Stratum B [probes](#g-probe)
-  ([§9.1][s9-1]/[§9.3][s9-3]), and a
-  [continuous component](#g-continuous-component)'s scratch carries the
-  activation's scalar ([§7.3][s7-3]);
-- the probe chain re-run.
+- producer-fed [cells](#g-cell) are re-typed by *evaluating* the producing [component](#g-component)'s
+  output declaration at `T` ([§8.2][s8-2]). A continuous producer's two-argument
+  declaration is called at the scalar, and a discrete producer's plain
+  declaration pins;
+- [root-input](#g-root-input) cells are re-typed by *evaluating* the consuming `input_types`
+  entry at `T`, which [§8.2][s8-2] reads permissively. A `T` entry follows the
+  activation, and a `Float64` entry stays frozen;
+- the state type is re-derived by the walk over `init_x`'s, with table and
+  state [buffers](#g-buffer) re-laid-out;
+- [workspace](#g-workspace) allocators are re-invoked at `T`, not introduced. The first
+  invocation precedes the Stratum B [probes](#g-probe) ([§9.1][s9-1]/[§9.3][s9-3]), and a
+  [continuous component](#g-continuous-component)'s scratch carries the activation's scalar ([§7.3][s7-3]);
+- the probe chain is re-run.
 
 Structure and [schedule](#g-schedule) are `T`-independent by construction.
 
 **Each activation probes exactly the function set it can execute.** A `Dual`
 activation (linearization, gradient trim) evaluates the model at a frozen
-instant: discrete stages are gated off holding `Float64` values (the [§8.2][s8-2]
-frozen-constant semantics), [guards](#g-guard) and handlers never run (event localization
-is `Float64` [sweeps](#g-sweep) by design, [§10.4][s10-4]). Only the continuous output stages
-(`output_state`/`output_direct`) and `state_derivative`
-ever see a `Dual` — so only they are probed. Probing the discrete stages, `state_update`, or guards at `Dual`
-would check code against a number type it cannot receive. One rule, no
-special cases; the [§5.6][s5-6] tracer activation follows it identically. "Tracer
-activation" names the *global* set-tracer ([D-012][d-012]) — a whole-model run at the
-tracer scalar, an activation like any other. The cycle classifier ([§5.6][s5-6])
-is the other variant ([D-012][d-012]), the schedule-free per-member local
-trace, which runs in
-Stratum B's failure path and is not an activation at all.
+instant. Discrete stages are gated off holding `Float64` values (the [§8.2][s8-2]
+frozen-constant semantics), and [guards](#g-guard) and handlers never run, because
+event localization is `Float64` [sweeps](#g-sweep) by design ([§10.4][s10-4]). Only the
+continuous output stages (`output_state`/`output_direct`) and
+`state_derivative` ever see a `Dual`, so only they are probed. Probing the
+discrete stages, `state_update`, or guards at `Dual` would check code against
+a number type it cannot receive. It is one rule with no special cases, and
+the [§5.6][s5-6] tracer activation follows it identically. "Tracer activation"
+names the *global* set-tracer ([D-012][d-012]), a whole-model run at the tracer
+scalar, an activation like any other. The cycle classifier ([§5.6][s5-6]) is the
+other variant ([D-012][d-012]). It is the schedule-free per-member local trace,
+which runs in Stratum B's failure path and is not an activation at all.
 
 **Lazy, with an opt-in exhaustive mode.** Non-nominal activations run at first
-request, not at build: the dominant cost is compiling the continuous chain a
-second time at `Dual`, pure waste for interactive fly-around use. The price,
-stated openly: `build` succeeding does **not** certify the model linearizable —
-a [pinned](#g-walked) `Float64` ([§7.2][s7-2]), whether hidden in a constructor or written into an
-output declaration at a leaf that really participates (the per-leaf
-forgotten-`T`, [§8.2][s8-2]), lurks until the first `Dual` activation
-detonates it
-at the probe, naming the offending constructor or leaf. The repository's test suite
-pins the invariant instead, as policy rather than advice ([D-166][d-166]):
-**every component gets a `Dual` activation built in CI** —
-`build(world; activations = (Float64, ProbeDual))`
-(or a `check` entry) runs the exhaustive set, catching both genericity
-violations and forgotten-`T` leaves at PR time, at the cost of a Stratum-C
-re-run per component. The same keyword is the recommended idiom for the
-parallel-sweep register ([§11.1][s11-1]): pre-materialize the activations the
-sweep will need and
-the shared `Build` is a fully immutable artifact, with no synchronization on any
-path. [`ProbeDual`](#g-probedual) is the framework's public canonical probe
-scalar — `const ProbeDual = ForwardDiff.Dual{ProbeTag, Float64, 1}` — because
-an activation is keyed by a *concrete* scalar type and the bare `Dual`
+request, not at build. The dominant cost is compiling the continuous chain a
+second time at `Dual`, pure waste for interactive fly-around use. The price is
+stated openly. `build` succeeding does **not** certify the model
+linearizable. A [pinned](#g-walked) `Float64` ([§7.2][s7-2]), whether hidden in a constructor
+or written into an output declaration at a leaf that really participates (the
+per-leaf forgotten-`T`, [§8.2][s8-2]), lurks until the first `Dual` activation
+detonates it at the probe, naming the offending constructor or leaf. The
+repository's test suite pins the invariant instead, as policy rather than
+advice ([D-166][d-166]). **Every component gets a `Dual` activation built in CI.**
+`build(world; activations = (Float64, ProbeDual))` (or a `check` entry) runs
+the exhaustive set, catching both genericity violations and forgotten-`T`
+leaves at PR time, at the cost of a Stratum-C re-run per component. The same
+keyword is the recommended idiom for the parallel-sweep register ([§11.1][s11-1]).
+Pre-materialize the activations the sweep will need, and the shared `Build`
+is a fully immutable artifact, with no synchronization on any path.
+[`ProbeDual`](#g-probedual) is the framework's public canonical probe scalar,
+`const ProbeDual = ForwardDiff.Dual{ProbeTag, Float64, 1}`. It exists because
+an activation is keyed by a *concrete* scalar type, and the bare `Dual`
 `UnionAll` cannot key one, be [walked](#g-walked) to, or answer `zero(T)`. Its width is
-arbitrary: what CI pins is genericity, not any particular Jacobian, so one
-canonical width suffices even though [§14.10][s14-10] chunks at whatever widths it needs.
+arbitrary. What CI pins is genericity, not any particular Jacobian, so one
+canonical width suffices even though [§14.10][s14-10] chunks at whatever widths it
+needs.
 
 **Caching is implementation detail, not semantics.** An activation is a pure
-function of the build and the concrete scalar type — so the cache is the
-`Build`'s, and it holds (layouts, compiled plans, validated-flag) keyed by that
-type: immutable once constructed, hence freely shareable. **Buffers are never
-cached**, because every buffer set has exactly one owner. The `Simulation` owns
-its nominal activation's buffers — materialized from the cached layouts at
-construction, what the loop's zero-allocation stepping runs on — and every
-service invocation owns the scratch set it instantiates from those same layouts;
-[§14.8][s14-8] states this for `trim!`, and it is the general rule, not a trim-local one.
-Compiled code is cached by Julia itself, process-wide; what the framework cache
-saves is the expensive part — probe re-runs, layout construction, and Julia's
-compilation of the `Dual` chain — which is what actually amortizes in
-activation-reusing loops (the envelope-grid gain-schedule case: hundreds of
-trim-then-linearize points paying those costs once). What does not amortize is
-the per-point allocation of a working store set, O(model size) and trivial
-against the solve it feeds: the zero-allocation invariant ([§7.5][s7-5]) is
-scoped to the stepping loop, and the services were always allocation-tolerant.
-Nothing
-numerical is ever cached.
-Note `Dual{Tag,V,N}` carries the partial count: a different seeding width is a
+function of the build and the concrete scalar type, so the cache is the
+`Build`'s. It holds layouts, compiled plans and a validated flag keyed by
+that type, immutable once constructed and hence freely shareable. **Buffers
+are never cached**, because every buffer set has exactly one owner. The
+`Simulation` owns its nominal activation's buffers, materialized from the
+cached layouts at construction, which is what the loop's zero-allocation
+stepping runs on. Every service invocation owns the scratch set it
+instantiates from those same layouts. [§14.8][s14-8] states this for `trim!`, and
+it is the general rule, not a trim-local one. Compiled code is cached by
+Julia itself, process-wide. What the framework cache saves is the expensive
+part, namely probe re-runs, layout construction, and Julia's compilation of
+the `Dual` chain. That is what actually amortizes in activation-reusing
+loops, such as the envelope-grid gain-schedule case, where hundreds of
+trim-then-linearize points pay those costs once. What does not amortize is
+the per-point allocation of a working store set, which is O(model size) and
+trivial against the solve it feeds. The zero-allocation invariant ([§7.5][s7-5])
+is scoped to the stepping loop, and the services were always
+allocation-tolerant. Nothing numerical is ever cached. Note that
+`Dual{Tag,V,N}` carries the partial count, so a different seeding width is a
 different scalar type, hence a separate entry and a separate Julia compile.
-**Lazy materialization is torn-state-free**, normatively: concurrent first
+**Lazy materialization is torn-state-free**, normatively. Concurrent first
 requests for the same activation must never expose partially populated cache
-state. The mechanism is unspecified — a guard around insertion suffices, paid at
-service time and never on the hot path — and since an activation is a pure
-function of build and scalar, the worst benign race is duplicated work; torn
-state is excluded by contract, not by luck.
-
+state. The mechanism is unspecified, and a guard around insertion suffices,
+paid at service time and never on the hot path. Since an activation is a
+pure function of build and scalar, the worst benign race is duplicated work.
+Torn state is excluded by contract, not by luck.
 ### 9.5 The always-on conformance check
 
-The [probe](#g-probe) validates each function *once*, on the initial state's branch; the
-schema-authority bargain's second clause ("at first execution otherwise",
+The [probe](#g-probe) validates each function *once*, on the initial state's branch.
+The schema-authority bargain's second clause ("at first execution otherwise",
 [§8.1][s8-1]) is discharged by leaving the probe's comparison permanently in place.
-At the point where the [executor](#g-executor) (the compiled execution form of
-the schedule) stores a stage return into the table, it holds the complete
-expected return type at this [activation](#g-activation). That type is the
-type of the [cells](#g-cell) this stage writes, as the probe fixed them at this
-activation: one concrete `NamedTuple` type per ([component](#g-component),
-stage), the stage's declared names at the types their cells hold ([§8.2][s8-2]). The
-write is generated over that type and the return's type, so the test is
-decided when the write's method is specialized, and no per-field instruction
-reaches the conformant path ([D-235][d-235]). Auto-published names belong to no stage's expected type;
-the framework writes those [cells](#g-cell) itself. When the write's method
-is generated, the return's key set is compared with the expected type's, and
+At the point where the [executor](#g-executor) (the compiled execution form of the
+schedule) stores a stage return into the table, it holds the complete
+expected return type at this [activation](#g-activation). That type is the type of the
+[cells](#g-cell) this stage writes, as the probe fixed them at this activation. It is one
+concrete `NamedTuple` type per ([component](#g-component), stage), the stage's declared
+names at the types their cells hold ([§8.2][s8-2]). The write is generated over
+that type and the return's type, so the test is decided when the write's
+method is specialized, and no per-field instruction reaches the conformant
+path ([D-235][d-235]). Auto-published names belong to no stage's expected type,
+because the framework writes those [cells](#g-cell) itself. When the write's method is
+generated, the return's key set is compared with the expected type's, and
 each returned field is held to its cell's type under the relation below. A
 conformant return type generates the straight stores and nothing else. A
 non-conformant one generates a throw of the failure payload, raised the first
-time that branch executes. Type-stable conformant code: the compiler proves
-the return type, one method is generated, and no check instruction exists to
-delete. Branch-divergent code: each return type the stage can produce gets
-its own method, the union split the code already pays, and the check is
-absent from every conformant one; the divergent branch's method is the loud
-located error at its first execution. (Type-unstable-but-conformant code pays
-the dynamic dispatch it already bought, and nothing on top.)
+time that branch executes. For type-stable conformant code, the compiler
+proves the return type, one method is generated, and no check instruction
+exists to delete. For branch-divergent code, each return type the stage can
+produce gets its own method, the union split the code already pays, and the
+check is absent from every conformant one. The divergent branch's method is
+the loud located error at its first execution. Type-unstable-but-conformant
+code pays the dynamic dispatch it already bought, and nothing on top.
 
-**The names are the pairing; field order carries no semantics.** `Expected`'s
-order is an internal fact — derived from `output_types`, stage-filtered,
-auto-published names removed, an order no single declaration shows the author.
-The author never reproduces it: a return spelling the right names at the right
-types conforms in any order. `(; P = M*ω, M_shaft = M)` and
-`(; M_shaft = M, P = M*ω)` are the same return. This is the general rule at
-every author↔framework `NamedTuple` [seam](#g-seam) ([§14.7][s14-7] states it
-for the trim problem's decisions and residuals). It is also what downstream
-consumption already assumes: the scatter writes each returned field into its
-own *named* cell ([§4.3][s4-3]). Order-sensitivity in the check would therefore
-be incidental strictness rather than protection. Pairing by name costs
-nothing: the generated write reads each returned field by name and stores it
-into its cell, so no permutation of the value exists at runtime. The
-per-field reasoning happens on types at generation and emits no per-field
-instruction, which is how the economics ([D-053][d-053]) hold: its one baked
-type test, resolved by dispatch rather than executed ([D-235][d-235]). The
-canary ([§7.5][s7-5]) verifies the fold empirically rather than by assertion.
-What is an error is a key-set mismatch or a per-field type mismatch, reported
-by the [payload](#g-payload) below. A permutation is not an error at all —
-which is equally why that diff never has to express one.
+**The names are the pairing, and field order carries no semantics.**
+`Expected`'s order is an internal fact. It is derived from `output_types`,
+stage-filtered, with auto-published names removed, an order no single
+declaration shows the author. The author never reproduces it. A return
+spelling the right names at the right types conforms in any order.
+`(; P = M*ω, M_shaft = M)` and `(; M_shaft = M, P = M*ω)` are the same
+return. This is the general rule at every `NamedTuple` [seam](#g-seam) between author
+and framework ([§14.7][s14-7] states it for the trim problem's decisions and
+residuals). It is also what downstream consumption already assumes. The
+scatter writes each returned field into its own *named* cell ([§4.3][s4-3]).
+Order-sensitivity in the check would therefore be incidental strictness
+rather than protection. Pairing by name costs nothing. The generated write
+reads each returned field by name and stores it into its cell, so no
+permutation of the value exists at runtime. The per-field reasoning happens
+on types at generation and emits no per-field instruction, which is how the
+economics ([D-053][d-053]) hold. Its one baked type test is resolved by dispatch
+rather than executed ([D-235][d-235]). The canary ([§7.5][s7-5]) verifies the fold
+empirically rather than by assertion. What is an error is a key-set mismatch
+or a per-field type mismatch, reported by the [payload](#g-payload) below. A permutation
+is not an error at all, which is equally why that diff never has to express
+one.
 
-**Exact match at nominal; embed-accept at declared-`T` leaves.** At
-the nominal activation — the only one that ever runs in real time — the check
-is an exact type match, no convert-on-write, decided at generation and
-absent from the conformant path ([D-053][d-053], [D-235][d-235]). The error can afford to be
+**Exact match at nominal, embed-accept at declared-`T` leaves.** At the
+nominal activation, the only one that ever runs in real time, the check is an
+exact type match, with no convert-on-write, decided at generation and absent
+from the conformant path ([D-053][d-053], [D-235][d-235]). The error can afford to be
 didactic: "field `M_shaft`: expected `Float64`, got `Int64` — return
-`zero(x.ω)`, not `0`". Under a non-nominal activation (a re-run of Stratum C at
-a given scalar type) the two leaf kinds the declaration ([§8.2][s8-2]) distinguishes
-are checked differently. A **declared-`T` leaf** — the author wrote `T` there —
-accepts exactly two types: the activation scalar or `Float64`. The activation
-scalar is the fast path, the straight store. A `Float64` the executor **embeds**
-as a zero-partial constant (`convert` through the leaf). Struct-valued
-[ports](#g-port) use the standard cross-eltype constructor, a missing one
-failing loudly with both types named. An opaque leaf ([§4.3][s4-3], [D-237][d-237]) embeds
-nothing: it is accepted by identity alone. Nothing else is accepted. The check is
-decided on the type, not leaf by leaf: the arrival with its `Float64`
-positions lifted to the scalar wherever the declaration has one must be the
-declaration itself, so a field name, a non-numeric type parameter or an
-array's mutability that differs is refused like any other mismatch ([D-238][d-238]). A
-**declared-[pinned](#g-walked) leaf** — the author wrote a concrete type,
-`Float64` at the head of the list — takes the nominal-style exact check at
-*every* activation, its declaration having said the leaf never carries
-partials. An observed `Dual` there is the per-leaf forgotten-`T` error,
-that being the one honest cause. The didactic hint is attached: "if `F`
-participates in differentiation, declare it `T`". The embedding is exact, not
-lenient. Promotion is airtight and there is no lossy `Dual → Float64` cast, so
-a `Float64` observed at a declared-`T` leaf means no `Dual` entered its
-computation. Its true derivative along every seeded direction is zero, which
-is precisely what the embedded constant says. This scopes the blanket
-convert-on-write rejection to the nominal check ([D-053][d-053]). The bug that
-rejection guards against — silently zeroed partials — cannot arise from honest
-code, because accidental `Float64`s from `Dual` operands are impossible
-(`MethodError` at the operation site). The residual is **deliberate stripping**
-(`ForwardDiff.value`): a stated intent to discard partials, producing a silent
-zero in the Jacobian. That is the stop-gradient idiom, occasionally legitimate
-— deliberately frozen couplings, opaque non-Julia wrappers. Applied
-mid-expression it is equally invisible to a strict exact-match rule, so the
-leniency costs nothing. What it need not be is invisible to the schema:
-**the declared-pinned leaf is the schema-visible freeze** — an
-author who means to strip declares the leaf `Float64` and strips inside the
-stage, and the check above holds the freeze to its word at every activation.
-Stripping mid-expression at a leaf still declared `T` remains legal and remains
-unseen, as the sharp tool it is.
+`zero(x.ω)`, not `0`". Under a non-nominal activation (a re-run of Stratum C
+at a given scalar type) the two leaf kinds the declaration ([§8.2][s8-2])
+distinguishes are checked differently. A **declared-`T` leaf**, where the
+author wrote `T`, accepts exactly two types, the activation scalar or
+`Float64`. The activation scalar is the fast path, the straight store. A
+`Float64` the executor **embeds** as a zero-partial constant (`convert`
+through the leaf). Struct-valued [ports](#g-port) use the standard cross-eltype
+constructor, and a missing one fails loudly with both types named. An opaque
+leaf ([§4.3][s4-3], [D-237][d-237]) embeds nothing. It is accepted by identity alone.
+Nothing else is accepted. The check is decided on the type, not leaf by leaf.
+The arrival with its `Float64` positions lifted to the scalar wherever the
+declaration has one must be the declaration itself, so a field name, a
+non-numeric type parameter or an array's mutability that differs is refused
+like any other mismatch ([D-238][d-238]). A **declared-[pinned](#g-walked) leaf**, where the
+author wrote a concrete type, `Float64` at the head of the list, takes the
+nominal-style exact check at *every* activation, because its declaration said
+the leaf never carries partials. An observed `Dual` there is the per-leaf
+forgotten-`T` error, that being the one honest cause. The didactic hint is
+attached: "if `F` participates in differentiation, declare it `T`". The
+embedding is exact, not lenient. Promotion is airtight and there is no lossy
+`Dual → Float64` cast, so a `Float64` observed at a declared-`T` leaf means
+no `Dual` entered its computation. Its true derivative along every seeded
+direction is zero, which is precisely what the embedded constant says. This
+scopes the blanket convert-on-write rejection to the nominal check ([D-053][d-053]).
+The bug that rejection guards against, silently zeroed partials, cannot arise
+from honest code, because accidental `Float64`s from `Dual` operands are
+impossible (`MethodError` at the operation site). The residual is
+**deliberate stripping** (`ForwardDiff.value`), a stated intent to discard
+partials, producing a silent zero in the Jacobian. That is the stop-gradient
+idiom, occasionally legitimate for deliberately frozen couplings and opaque
+non-Julia wrappers. Applied mid-expression it is equally invisible to a
+strict exact-match rule, so the leniency costs nothing. What it need not be
+is invisible to the schema. **The declared-pinned leaf is the schema-visible
+freeze.** An author who means to strip declares the leaf `Float64` and strips
+inside the stage, and the check above holds the freeze to its word at every
+activation. Stripping mid-expression at a leaf still declared `T` remains
+legal and remains unseen, as the sharp tool it is.
 
-**Uniform across all probed functions.** `state_derivative` checks against `X`'s own shape at
-the activation's `T` ([§7.1][s7-1]: a scalar leaf expects a `T`, an `SArray`
-leaf the same `SArray` at `T`). Its predicate is "every field scatters into its
-field's block at `T`", which is what makes derivative completeness structural
-rather than a matter of author discipline. [Guards](#g-guard) check against
-their probe-derived [predicate](#g-predicate) form (below); `state_update` against its
-leaf's `s` shape; handlers against the [§5.2][s5-2] return law, key by key.
-`state_projection` checks against `X`'s own shape at `T`, **complete**, since its result
-is written back to the [buffer](#g-buffer) wholesale at both of the
-[schedule](#g-schedule) positions ([§5.3][s5-3]) and a
-[projection](#g-projection) with a mode-dependent branch first executes its
-second branch at run time. That is the same predicate as a handler's `x` key.
+**Uniform across all probed functions.** `state_derivative` checks against
+`X`'s own shape at the activation's `T` ([§7.1][s7-1]: a scalar leaf expects a
+`T`, an `SArray` leaf the same `SArray` at `T`). Its predicate is "every field
+scatters into its field's block at `T`", which is what makes derivative
+completeness structural rather than a matter of author discipline. [Guards](#g-guard)
+check against their probe-derived [predicate](#g-predicate) form (below), `state_update`
+against its leaf's `s` shape, and handlers against the [§5.2][s5-2] return law,
+key by key. `state_projection` checks against `X`'s own shape at `T`,
+**complete**, since its result is written back to the [buffer](#g-buffer) wholesale at
+both of the [schedule](#g-schedule) positions ([§5.3][s5-3]) and a [projection](#g-projection) with a
+mode-dependent branch first executes its second branch at run time. That is
+the same predicate as a handler's `x` key.
 
 **Handler returns, key by key.** The returned NamedTuple's key set is checked
-first: an unknown key, or a key naming a store the component does not declare,
-is a build error with [did-you-mean](#g-did-you-mean) against `{x, m}` narrowed to the stores that
-exist — the [bundle law](#g-bundle)'s classification running in the return direction. Then,
-per present key: `x` must be **complete** against the state field set (and
-conformant at `T` like any state value), while `m` may be **partial**, checked
-against a names-subset-with-matching-types predicate — still a type-level
-computation that folds when inferred. An absent key is not an error and not a
-no-op to diagnose: it is the handler saying it does not touch that store. The
-completeness asymmetry is storage-shaped: `x` must be complete because it lives
-in a flat buffer written back wholesale, while `m` may be partial because
-`m` lives in per-field stores where a partial merge is the natural write.
+first. An unknown key, or a key naming a store the component does not
+declare, is a build error with [did-you-mean](#g-did-you-mean) against `{x, m}` narrowed to
+the stores that exist. That is the [bundle law](#g-bundle)'s classification running in
+the return direction. Then, per present key, `x` must be **complete** against
+the state field set (and conformant at `T` like any state value), while `m`
+may be **partial**, checked against a names-subset-with-matching-types
+predicate, still a type-level computation that folds when inferred. An
+absent key is not an error and not a no-op to diagnose. It is the handler
+saying it does not touch that store. The completeness asymmetry is
+storage-shaped. `x` must be complete because it lives in a flat buffer
+written back wholesale, while `m` may be partial because `m` lives in
+per-field stores where a partial merge is the natural write.
 
 **Guards have two admissible forms** ([§2.1][s2-1]), so their check is form-aware
-rather than a flat `isa Bool`: a `Bool`-form guard's probed return is `Bool`, a
-sign-form guard's is the nominal scalar. Guards run only at the nominal
-activation ([D-052][d-052]), so no parametrized-leaf case arises here. Any other probed
-return type is a build error naming both admissible forms. There is nothing
-further to check: the probed form *is* the detection policy ([§10.4][s10-4], [D-179][d-179]),
-so no form/policy mismatch can be declared.
+rather than a flat `isa Bool`. A `Bool`-form guard's probed return is `Bool`,
+and a sign-form guard's is the nominal scalar. Guards run only at the nominal
+activation ([D-052][d-052]), so no parametrized-leaf case arises here. Any other
+probed return type is a build error naming both admissible forms. There is
+nothing further to check. The probed form *is* the detection policy ([§10.4][s10-4],
+[D-179][d-179]), so no form/policy mismatch can be declared.
 
-**Failure payload:** component path, function, field-level diff (missing /
-unexpected / per-field expected-vs-observed), simulation time. Deliberately
-absent: the source branch (values carry no provenance; the diff identifies
-it). The always-on input [trace](#g-trace) makes every such failure **reproducible by
-[replay](#g-replay)** — the error names the [boundary](#g-boundary) to replay to
-(`to_boundary`, [§12.7][s12-7]). At run time the failure
-travels as a [species](#g-species) of `StepError` through the single catch site ([§13.4][s13-4]),
-which adds the loop-level nonfinite-state check as its divergence sibling.
-
+**Failure payload.** The payload carries the component path, function,
+field-level diff (missing / unexpected / per-field expected-vs-observed) and
+simulation time. Deliberately absent is the source branch. Values carry no
+provenance, and the diff identifies it. The always-on input [trace](#g-trace) makes
+every such failure **reproducible by [replay](#g-replay)**. The error names the [boundary](#g-boundary)
+to replay to (`to_boundary`, [§12.7][s12-7]). At run time the failure travels as a
+[species](#g-species) of `StepError` through the single catch site ([§13.4][s13-4]), which adds
+the loop-level nonfinite-state check as its divergence sibling.
 ### 9.6 Stopped-sim services as Stratum-C clients
 
-Sketched here because it grounds the strata; the services themselves are [§14][s14].
-The C172 trim problem (`c172.jl`: `TrimState`, `TrimParameters`,
-`θ_constraint`, the `ẋ`-reading cost) transfers near-verbatim:
+This section is sketched here because it grounds the strata. The services
+themselves are [§14][s14]. The C172 trim problem (`c172.jl`: `TrimState`,
+`TrimParameters`, `θ_constraint`, the `ẋ`-reading cost) transfers
+near-verbatim:
 
-- **Trim** is a write-condition → [sweep](#g-sweep) → read loop on an [activation](#g-activation) — by
-  default the `Dual` activation, decision variables seeded for exact residual
-  Jacobians ([§14.7][s14-7]); the derivative-free fallback runs the same loop on the
-  nominal `Float64` activation (a re-run of Stratum C at a given scalar type)
-  with no new activation needed, and the always-on checks ride along either
-  way. Decision variables stay opaque to the framework (only the assignment's
-  *output* is framework vocabulary). `assign!` inverts from in-place mutation +
-  self-invoked `f_ode!` to a pure function returning a [condition](#g-condition) value (state
-  by path, modes, [root inputs](#g-root-input) by [face](#g-face)) that the service writes and evaluates. Domain
-  math — the pitch constraint, `Kinematics.Initializer`, per-residual scalings
-  and the equilibrium-subset choice — survives aircraft-side, with one
-  respelling: the initializer's `atmosphere::Model` argument becomes a
-  [field handle](#g-field-handle) ([§4.4][s4-4]), built at value level by the atmosphere's
-  [value-level constructor](#g-value-level-constructor) or held directly as a rig root-input value ([§14.1][s14-1], [§14.9][s14-9]).
-- **Linearization** is a `Dual` activation plus seeded sweeps: gather/scatter
-  over the canonical layout replaces the hand-written
-  `get_x_ss`/`assign_x_ss!` layer (the deletion discharged, [§7.1][s7-1]); root inputs are
-  the input surface; frozen discrete outputs are constants with zero partials,
-  which is exactly "linearize with the discrete state held" ([§8.2][s8-2]). Gradient-based trim —
-  decision variables seeded through the `T`-generic assignment math — is the
-  default ([§14.7][s14-7]).
+- **Trim** is a write-condition, [sweep](#g-sweep), read loop on an [activation](#g-activation). By
+  default that is the `Dual` activation, with decision variables seeded for
+  exact residual Jacobians ([§14.7][s14-7]). The derivative-free fallback runs the
+  same loop on the nominal `Float64` activation (a re-run of Stratum C at a
+  given scalar type) with no new activation needed, and the always-on checks
+  ride along either way. Decision variables stay opaque to the framework, and
+  only the assignment's *output* is framework vocabulary. `assign!` inverts
+  from in-place mutation plus self-invoked `f_ode!` to a pure function
+  returning a [condition](#g-condition) value (state by path, modes, [root inputs](#g-root-input) by [face](#g-face))
+  that the service writes and evaluates. Domain math survives aircraft-side,
+  namely the pitch constraint, `Kinematics.Initializer`, per-residual
+  scalings and the equilibrium-subset choice, with one respelling. The
+  initializer's `atmosphere::Model` argument becomes a [field handle](#g-field-handle)
+  ([§4.4][s4-4]), built at value level by the atmosphere's
+  [value-level constructor](#g-value-level-constructor) or held directly as a rig root-input value
+  ([§14.1][s14-1], [§14.9][s14-9]).
+- **Linearization** is a `Dual` activation plus seeded sweeps. Gather and
+  scatter over the canonical layout replace the hand-written
+  `get_x_ss`/`assign_x_ss!` layer (the deletion discharged, [§7.1][s7-1]). Root
+  inputs are the input surface. Frozen discrete outputs are constants with
+  zero partials, which is exactly "linearize with the discrete state held"
+  ([§8.2][s8-2]). Gradient-based trim, with decision variables seeded through the
+  `T`-generic assignment math, is the default ([§14.7][s14-7]).
 - The generic service loop (vectorization, optimizer setup, bounds packing,
   solved-condition write-back including root inputs and the [trace header](#g-trace-header)'s
-  root-input capture) replaces today's per-aircraft NLopt plumbing. A failed trim
-  leaves the simulation's stores untouched — an improvement over today's
+  root-input capture) replaces today's per-aircraft NLopt plumbing. A failed
+  trim leaves the simulation's stores untouched, an improvement over today's
   warn-but-assign `f_init!`.
 
 ### 9.7 The compiled executor
 
 The [schedule](#g-schedule) exists in two representations at two lifecycle stages. In the
-`Build` it is plain printable data ([§9.2][s9-2]) — paths, stage names, order — the
-authoring and diagnostic form. At `Simulation` construction, and per
-[activation](#g-activation) (a re-run of Stratum C at a given scalar type), that data is
-compiled into the execution form: **a concretely-typed tuple of entries over
-statically typed [cell](#g-cell) storage, traversed by a compile-time-unrolled walk**.
-This is a forced move, not a preference: the zero-allocation invariant ([§7.5][s7-5]),
-the fold-away conformance test ([§9.5][s9-5]) and the zero runtime graph logic ([§5.1][s5-1])
-are reachable only under full specialization ([D-086][d-086]). An entry carries what
-selects code — [component](#g-component) type, stage — in type parameters, and what is plain
-data — [tick](#g-tick) divisor and [phase](#g-phase), the [bundle](#g-bundle)'s `Δt`, layout offsets — in fields;
-gating compiles to `(tick − Φ) % D == 0` inside the specialized *[boundary](#g-boundary)* body,
-the interior bodies holding no discrete entries to test ([§10.5][s10-5]).
+`Build` it is plain printable data ([§9.2][s9-2]), paths, stage names and order,
+which is the authoring and diagnostic form. At `Simulation` construction, and
+per [activation](#g-activation) (a re-run of Stratum C at a given scalar type), that data
+is compiled into the execution form: **a concretely-typed tuple of entries
+over statically typed [cell](#g-cell) storage, traversed by a compile-time-unrolled
+walk**. This is a forced move, not a preference. The zero-allocation
+invariant ([§7.5][s7-5]), the fold-away conformance test ([§9.5][s9-5]) and the zero
+runtime graph logic ([§5.1][s5-1]) are reachable only under full specialization
+([D-086][d-086]). An entry carries what selects code in type parameters, namely
+[component](#g-component) type and stage. It carries what is plain data in fields, namely
+[tick](#g-tick) divisor and [phase](#g-phase), the [bundle](#g-bundle)'s `Δt`, and layout offsets. Gating
+compiles to `(tick − Φ) % D == 0` inside the specialized *[boundary](#g-boundary)* body,
+and the interior bodies hold no discrete entries to test ([§10.5][s10-5]).
 
 **Cells are stored per element type, not per cell.** The [signal table](#g-signal-table) is one
-contiguous block per element type — the construction pointed at
-signals rather than state ([§7.1][s7-1]) — and a cell address is a build-time
-offset into it, carried
-in an entry *field* with the [port](#g-port) type as the address's own parameter; gathers
-reconstruct and scatters flatten through the same leaf walk, so the closed
-vocabulary earns its keep twice. This is the entry rule above paying rent: two
-instances of one component type then differ only in field values, share an
-entry type, and compile to **one** body — where a store enumerating every cell
-in its own type, addressed by index in the type domain, compiles one body per
-instance and grows the store type with the model. The choice was measured
-rather than argued ([D-162][d-162], `prototypes/cellstore_bench`).
+contiguous block per element type, the construction pointed at signals
+rather than state ([§7.1][s7-1]). A cell address is a build-time offset into it,
+carried in an entry *field* with the [port](#g-port) type as the address's own
+parameter. Gathers reconstruct and scatters flatten through the same leaf
+walk, so the closed vocabulary earns its keep twice. This is the entry rule
+above paying rent. Two instances of one component type then differ only in
+field values, share an entry type, and compile to **one** body. A store
+enumerating every cell in its own type, addressed by index in the type
+domain, would compile one body per instance and grow the store type with the
+model. The choice was measured rather than argued ([D-162][d-162],
+`prototypes/cellstore_bench`).
 
-**[Phase bodies](#g-measurement-seam) are the outer decomposition, and they are
-semantically forced.** The [boundary sweep](#g-sweep)'s stage-1 block — both
-tiers' `output_state` entries alike — is order-free by definition (the
-no-[feedthrough](#g-feedthrough) stage reads no `u`). The
-stage-2 block gates in the [due](#g-due) discrete stages — those whose components
-this boundary admits by their compiled `(D, Φ)` pair. It is the only
-topologically ordered one. The `state_derivative` block — the [RHS](#g-flow) body the stepper
-calls per stage evaluation — and the `state_update` block are order-free with disjoint
-writes.
-[Guards](#g-guard) and handlers are their own small callables inside the
-[§10.6][s10-6] iteration.
+**[Phase bodies](#g-measurement-seam) are the outer decomposition, and they are semantically
+forced.** The [boundary sweep](#g-sweep)'s stage-1 block, both tiers' `output_state`
+entries alike, is order-free by definition, because the no-[feedthrough](#g-feedthrough)
+stage reads no `u`. The stage-2 block gates in the [due](#g-due) discrete stages,
+those whose components this boundary admits by their compiled `(D, Φ)` pair.
+It is the only topologically ordered one. The `state_derivative` block (the
+[RHS](#g-flow) body the stepper calls per stage evaluation) and the `state_update`
+block are order-free with disjoint writes. [Guards](#g-guard) and handlers are their
+own small callables inside the [§10.6][s10-6] iteration.
 
 **Each sweep block compiles in two arities off one entry list**, along the
 interior/boundary split that [§10.5][s10-5] fixes. The zero-arg
@@ -3628,39 +3620,40 @@ only. That is what makes `@ballocated(sweep_2()) == 0` a well-defined
 measurement *of the interior path*, rather than of whichever tick phase the
 simulation happens to be sitting in. The `sweep_1(tick)`/`sweep_2(tick)`
 forms are the boundary variants, gating their discrete entries by
-`(tick − Φ) % D` against the passed tick index, symmetric with `ticks(tick)`. `rhs`
-takes no index ([D-147][d-147]). One gate serves all three tick-sensitive blocks —
-due-ness is per component, per boundary, never per stage — and `t*`'s empty
-due set is **arity selection, not an index trick** ([D-147][d-147], [D-185][d-185]), so the
-`t*` iteration runs the zero-arg arities, whose compiled bodies contain no
-discrete entries ([§10.5][s10-5]).
+`(tick − Φ) % D` against the passed tick index, symmetric with `ticks(tick)`.
+`rhs` takes no index ([D-147][d-147]). One gate serves all three tick-sensitive
+blocks, because due-ness is per component, per boundary, never per stage.
+`t*`'s empty due set is **arity selection, not an index trick** ([D-147][d-147],
+[D-185][d-185]), so the `t*` iteration runs the zero-arg arities, whose compiled
+bodies contain no discrete entries ([§10.5][s10-5]).
 
 These bodies communicate only through the stores and the table. No value
-crosses a [seam](#g-seam) — not between passes, not between the blocks of one
-pass, not between chunks — so the seams cost nothing, and the executor's
-decomposition stays free: fusing a step's sweep with its `state_derivative` block, or an
-event round's sweep with its guards and fired handlers ([§10.6][s10-6]), is an
-optimization it may take or decline ([D-194][d-194]). Two doors this
-structure opens for free, recorded not committed: deterministic parallel
-evaluation of the order-free blocks (disjoint writes, and no floating-point
-reductions to reorder — [§6.2][s6-2] made every sum an ordered junction
-entry), and finer recompilation granularity (editing a discrete component
-invalidates the boundary body, not the RHS body — literal under the two-arity
-split, discrete entries existing only in the boundary variants).
+crosses a [seam](#g-seam), whether between passes, between the blocks of one pass, or
+between chunks. The seams therefore cost nothing, and the executor's
+decomposition stays free. Fusing a step's sweep with its `state_derivative`
+block, or an event round's sweep with its guards and fired handlers
+([§10.6][s10-6]), is an optimization it may take or decline ([D-194][d-194]). Two doors
+this structure opens for free are recorded, not committed. The first is
+deterministic parallel evaluation of the order-free blocks, which have
+disjoint writes and no floating-point reductions to reorder, because [§6.2][s6-2]
+made every sum an ordered junction entry. The second is finer recompilation
+granularity. Editing a discrete component invalidates the boundary body, not
+the RHS body, which is literal under the two-arity split, since discrete
+entries exist only in the boundary variants.
 
 **[Chunking](#g-chunking) bounds the compile cost.** Within a large block the tuple splits
 into chunks behind non-inlined but statically-typed function barriers.
-Inside a chunk everything the design relies on survives — static dispatch,
-inlining, view SROA, check folding, zero allocation; at the seams only
+Inside a chunk everything the design relies on survives: static dispatch,
+inlining, view SROA, check folding, zero allocation. At the seams only
 cross-entry fusion is lost, which a table-mediated dataflow barely had.
 Chunk size is the implementation's *only* representation freedom (fully
 fused and chunk-of-one are its endpoints), and it converts the compile cost
 from superlinear in the largest body to linear in entry count.
 
-Measured anchors, taken 2026-07 over synthetic ~15-op bodies on Apple Silicon,
-with the last two rows extrapolated to a C172X-scale model — roughly 200–400
-entries, larger bodies ([§15.4][s15-4]). Those two rows assume the chunked
-mode, the one whose cost is linear in entry count:
+Measured anchors, taken 2026-07 over synthetic ~15-op bodies on Apple
+Silicon, with the last two rows extrapolated to a C172X-scale model of
+roughly 200–400 entries with larger bodies ([§15.4][s15-4]). Those two rows
+assume the chunked mode, the one whose cost is linear in entry count:
 
 | case | activation | compile time |
 |---|---|---|
@@ -3671,73 +3664,74 @@ mode, the one whose cost is linear in entry count:
 | C172X-scale model, extrapolated | `Dual` | tens of seconds, before mitigation |
 
 The fused curve is visibly superlinear. An 8-partial `Dual` activation
-multiplies instruction count ~20×, and its chunked curve is linear —
+multiplies instruction count ~20×, and its chunked curve is linear,
 instruction-bound rather than structure-bound. Re-measurement on the real
 vehicle skeleton is a [§16][s16] migration item.
 
-**The mitigation ladder**, in order: activations are lazy ([§9.4][s9-4] — a session
-that never linearizes never compiles `Dual`); non-nominal activations may
-compile at reduced optimizer level (their sweeps run inside service loops
-where microseconds are irrelevant — a one-line per-module policy); and
-activations bake into package images via ordinary precompile workloads — an
-aircraft package exercising build-plus-one-sweep per activation turns TTFX
-from a session tax into a CI artifact.
+**The mitigation ladder**, in order. Activations are lazy ([§9.4][s9-4]), so a
+session that never linearizes never compiles `Dual`. Non-nominal activations
+may compile at reduced optimizer level, because their sweeps run inside
+service loops where microseconds are irrelevant, a one-line per-module
+policy. And activations bake into package images via ordinary precompile
+workloads. An aircraft package exercising build-plus-one-sweep per
+activation turns TTFX from a session tax into a CI artifact.
 
-**[Views](#g-view) are spelled rebuild-per-call.** Every entry constructs its bundle (the
-NamedTuple of zero-copy views a component function receives) at its own
-position; there is no framework-maintained hoisting and therefore no
-cache-invalidation obligation. Hoisting belongs to the code generator: CSE
-merges repeated loads exactly where no intervening store invalidates them —
-which is precisely the staleness rule — and the sweep-varying bundle fields
+**[Views](#g-view) are spelled rebuild-per-call.** Every entry constructs its bundle
+(the NamedTuple of zero-copy views a component function receives) at its own
+position. There is no framework-maintained hoisting and therefore no
+cache-invalidation obligation. Hoisting belongs to the code generator. CSE
+merges repeated loads exactly where no intervening store invalidates them,
+which is precisely the staleness rule, and the sweep-varying bundle fields
 (`u`, `y_x`/`y_s`) are per-call by topological necessity either way ([§7.1][s7-1]).
 
-**Construction is type-opaque; only the [executor](#g-executor) specializes.** Schedule
-tuples are built from untyped buffers and splatted once. Generic tuple
-utilities — range indexing, long `ntuple` closures, naive recursion — are
-inference traps at schedule length (a 400-entry heterogeneous tuple can send
-generic `getindex` inference into combinatorial collapse), so the compiled
-tuple's type has exactly one consumer: the unrolled walk.
+**Construction is type-opaque, and only the [executor](#g-executor) specializes.**
+Schedule tuples are built from untyped buffers and splatted once. Generic
+tuple utilities (range indexing, long `ntuple` closures, naive recursion) are
+inference traps at schedule length, since a 400-entry heterogeneous tuple
+can send generic `getindex` inference into combinatorial collapse. The
+compiled tuple's type therefore has exactly one consumer, the unrolled walk.
 
 **The phase bodies are the [§7.5][s7-5] [measurement seam](#g-measurement-seam).**
 `phase_bodies(sim)` returns the compiled bodies of the nominal activation as
 named callables bound over the simulation's own buffers. The four blocks:
 
-- `rhs` — the `state_derivative` block.
-- `sweep_1` — in both arities.
-- `sweep_2` — in both arities.
-- `ticks` — takes the tick index its entries gate on.
+- `rhs`, the `state_derivative` block.
+- `sweep_1`, in both arities.
+- `sweep_2`, in both arities.
+- `ticks`, which takes the tick index its entries gate on.
 
-Returned with them are the per-event guards and handlers and the per-component
-`state_projection` callables, keyed by the model's own roster.
+Returned with them are the per-event guards and handlers and the
+per-component `state_projection` callables, keyed by the model's own roster.
 
-The four-body roster is fixed and total: the accessor returns all of it always,
-whatever the model happens to declare. A model with no discrete components, no
-events or no continuous state at all still gets every body. The empty ones are
-legal, compile to no-ops, and their `@ballocated` assertion passes vacuously.
-That is the point, because consumers then iterate the roster uniformly, with no
-existence checks and no per-model branching in the measurement code.
+The four-body roster is fixed and total. The accessor returns all of it
+always, whatever the model happens to declare. A model with no discrete
+components, no events or no continuous state at all still gets every body.
+The empty ones are legal, compile to no-ops, and their `@ballocated`
+assertion passes vacuously. That is the point, because consumers then
+iterate the roster uniformly, with no existence checks and no per-model
+branching in the measurement code.
 
-One promise, in the diagnostic register ([§13.5][s13-5]): **these are the bodies
-the loop runs** — not re-derivations. That is what makes the measurement
+One promise, in the diagnostic register ([§13.5][s13-5]). **These are the bodies
+the loop runs**, not re-derivations. That is what makes the measurement
 honest, and why each callable carries the real in-loop argument types by
 construction. Those types are the thing a hand-built standalone test cannot
 reproduce, and [D-116][d-116] records why per-component tests cannot discharge the
 invariant.
 
-CI is warm-then-assert over the roster: one call compiles, then
+CI is warm-then-assert over the roster. One call compiles, then
 `@ballocated(body()) == 0`. It asserts at per-body granularity, each sweep
-arity in its own right — the interior call bare, the boundary call at a due
-index. So a documented [§7.5][s7-5] tolerance loosens exactly one assertion.
+arity in its own right, with the interior call bare and the boundary call at
+a due index. So a documented [§7.5][s7-5] tolerance loosens exactly one assertion.
 This is the successor of the migration suite's
-`@ballocated f_ode!`/`f_step!`/`f_periodic!` idiom and the seam the
-[§16][s16] FlightCore comparison measures through.
+`@ballocated f_ode!`/`f_step!`/`f_periodic!` idiom and the seam the [§16][s16]
+FlightCore comparison measures through.
 
-Publication is not a phase body — the carve-out ([§7.5][s7-5]) made structural:
-what the accessor exposes is exactly what the invariant claims is zero.
-Invoking bodies in isolation mutates the simulation's buffers outside any
-[frame](#g-frame) sequence (a tick entry advances discrete state with no clock
-advance), leaving them valid but off-trajectory. A session that wants to
-continue meaningfully re-runs `init!`.
+Publication is not a phase body. That is the carve-out ([§7.5][s7-5]) made
+structural. What the accessor exposes is exactly what the invariant claims
+is zero. Invoking bodies in isolation mutates the simulation's buffers
+outside any [frame](#g-frame) sequence (a tick entry advances discrete state with no
+clock advance), leaving them valid but off-trajectory. A session that wants
+to continue meaningfully re-runs `init!`.
 
 ---
 
