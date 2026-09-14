@@ -2365,12 +2365,16 @@ the traces.
    error naming both endpoints and both [faces](#g-face).
 5. **Typo'd return field** (`P_shft = …` for a declared `P_shaft`): a probe
    error with [did-you-mean](#g-did-you-mean) (the offending name plus the
-   list-in-hand it should have matched) against `output_types`, plus the
-   unproduced-`P_shaft` error with both the stage-product and state-field lists
-   in hand. Every returned field is a declared port, so this one
-   register is the whole case — an intermediate a later function reads is
-   declared like any other output and typo'd like any other output
-   ([§8.3][s8-3]).
+   list-in-hand it should have matched) against `output_types`. That one error
+   is the whole report: the probe chain stops at the port check
+   ([§13.1][s13-1], [D-239][d-239]), and an unproduced-`P_shaft` error would
+   only restate it from the other side, since renaming the field produces the
+   port. A declared port no stage returns, on a component whose returns are
+   all declared, is the completeness pass's error, with the stage-product and
+   state-field lists in hand ([§8.3][s8-3]). Every returned field is a declared
+   port, so this one register is the whole case — an intermediate a later
+   function reads is declared like any other output and typo'd like any other
+   output ([§8.3][s8-3]).
 
 ### 8.5 Assembly declaration: type-based, class by declaration shape
 
@@ -10484,10 +10488,14 @@ with the collection and never triggering its throw — is currently empty
   (`real`/`artificial`) with the member whose hop died.
 - **`ProducedByTwoStages`** ([§4.3][s4-3], [§8.3][s8-3]) — error · build · fail-fast —
   with the probe chain ([D-229][d-229]). Component path, port name, both stage names.
-- **`DeclaredNotProduced`** ([§8.3][s8-3]) — error · build · collected. Component path,
-  declared name, the stage-product list and the state-field list.
+- **`DeclaredNotProduced`** ([§8.3][s8-3]) — error · build · collected, by the
+  completeness pass over the complete products, which runs only once every port
+  check has passed ([D-239][d-239]). Component path, declared name, the
+  stage-product list and the state-field list.
 - **`UndeclaredReturnField`** ([§8.3][s8-3], [§8.4][s8-4] w5) — error · build ·
-  fail-fast. Component path, stage, returned field name, candidates (`output_types`).
+  fail-fast, alone: it stops the probe chain before the completeness pass
+  ([D-239][d-239]). Component path, stage, returned field name, candidates
+  (`output_types`).
 - **`DeadStage`** ([§5.2][s5-2], [§9.3][s9-3]) — error · build, at probe · fail-fast.
   Component path, stage — a stage method returning bare `(;)`, producing no ports.
 - **`ConformanceFailure`** ([§9.5][s9-5]) — error · build, at probe; runtime thereafter
@@ -11782,6 +11790,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-236]: decisions.md#d-236--type-check-a-wire-by-one-relation-with-embedding-in-stratum-a
 [d-237]: decisions.md#d-237--classify-a-non-isbits-immutable-port-type-as-one-opaque-leaf
 [d-238]: decisions.md#d-238--decide-embed-accept-on-the-type-lift-the-arrival-compare-exactly
+[d-239]: decisions.md#d-239--report-a-typod-return-field-alone-without-the-unproduced-port
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

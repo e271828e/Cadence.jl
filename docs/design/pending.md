@@ -132,9 +132,6 @@ ruling; the second waits on the feature or the pass its bullet names.
   constructor runs on every materialization, the projection-on-read D-094
   rejects; and an `Int` or `Bool` leaf in `init_x` builds and silently becomes
   `Float64` (`IllegalStateLeaf`, above).
-- **Walkthrough 5 delivers one of its two diagnostics** (M-B16). A typo'd
-  return field raises `UndeclaredReturnField` from `_check_ports` before the
-  `DeclaredNotProduced` pass runs.
 - **Docstrings that state the spec's shape over code that does not produce
   it** (M-A3): `diagnostics.jl`'s `AlgebraicCycle.members` ("the SCC's member
   terminals").
