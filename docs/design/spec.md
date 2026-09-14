@@ -2239,9 +2239,9 @@ way.
 A custom struct is a first-class port type, as in `contact = GearContact{T}`,
 under the scoping [§7.2][s7-2] establishes. That scoping requires a struct
 parametric in its real-scalar leaves, with constructors inferring the scalar
-and no [pinned](#g-walked) fields on the continuous path. A participating struct leaf is declared with the scalar
-in its parameter position, `GearContact{T}`, recursively for nested
-parameters. A struct with a hardcoded `Float64` field offers no such position,
+and no [pinned](#g-walked) fields on the continuous path. A participating struct leaf
+is declared with the scalar in its parameter position, `GearContact{T}`,
+recursively for nested parameters. A struct with a hardcoded `Float64` field offers no such position,
 so it can only be declared bare, a pinned leaf, honestly spelled. Any
 `Dual`-carrying construction then detonates inside the stage with an
 `InexactError` naming the offending constructor. That is the [§7.2][s7-2] CI
@@ -2892,8 +2892,9 @@ as the complement of the wire list.
 
 **The line not to cross** is deriving `except` from `child_connections` itself,
 for instance a helper spelled `except = fed(sys, "aero")` that reads the
-assembly's own wire list. That is auto-bubbling under another name ([D-043][d-043], [D-145][d-145]).
-The single source must be **authored data, never inferred structure**.
+assembly's own wire list. That is auto-bubbling under another name ([D-043][d-043],
+[D-145][d-145]). The single source must be **authored data, never inferred
+structure**.
 
 **[Generic holding](#g-generic-holding) is an imposed derived contract.** A parent holding a child
 generically constrains it exactly through the faces its wires and interface
@@ -3542,8 +3543,8 @@ themselves are [§14][s14]. The C172 trim problem (`c172.jl`: `TrimState`,
 near-verbatim:
 
 - **Trim** is a loop that writes a condition, runs a [sweep](#g-sweep) and reads the
-  result, on an [activation](#g-activation). By default that is the `Dual` activation, with decision variables seeded for
-  exact residual Jacobians ([§14.7][s14-7]). The derivative-free fallback runs the
+  result, on an [activation](#g-activation). By default that is the `Dual` activation, with
+  decision variables seeded for exact residual Jacobians ([§14.7][s14-7]). The derivative-free fallback runs the
   same loop on the nominal `Float64` activation (a re-run of Stratum C at a
   given scalar type) with no new activation needed, and the always-on checks
   ride along either way. Decision variables stay opaque to the framework, and
