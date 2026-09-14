@@ -117,7 +117,7 @@ Where the reason is not given here, the cited decision carries it:
 
 Transactional: the commit introducing a deviation adds its bullet, the one
 retiring it deletes it. All were found by the audit and none chosen, except
-the two allocation notes that close the second list; the merge entry has the
+the allocation note that closes the second list; the merge entry has the
 probe. The first list retires bullet by bullet, each a local fix owing no
 ruling; the second waits on the feature or the pass its bullet names.
 
@@ -155,12 +155,6 @@ ruling; the second waits on the feature or the pass its bullet names.
   per-boundary allocation, zero additional heap allocation on a quiet frame;
   the simple shape costs one small allocation. Retires with an
   allocation-tightening pass, an `NTuple` status type fixed per run.
-- **Trim's per-iteration tree rebuild allocates** where §14.2 reads
-  "rebuilding the tree per trim iteration is stack-only construction": an
-  `at` node holds a `String` and is not isbits. The register's own write is
-  free and asserted so (`test_conditions.jl`); the construction cost is noted
-  in that file's comments and guarded by nothing. Needs a test before it can
-  be called more than a note.
 
 ## Awaiting a ruling
 

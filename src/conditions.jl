@@ -58,12 +58,15 @@ NamedTuples in the authoring level's own vocabulary; a condition speaks state
 (§14.1).
 """
 function fragment(; x = (;), s = (;), m = (;), inputs = (;))
-    for (name, p) in ((:x, x), (:s, s), (:m, m), (:inputs, inputs))
-        p isa NamedTuple || throw(DiagnosticError(ConditionNodeMisuse(
-            observed = typeof(p), reason = :fragment_payload, payload = name)))
-    end
+    _payload(:x, x); _payload(:s, s); _payload(:m, m); _payload(:inputs, inputs)
     Fragment(x, s, m, inputs)
 end
+
+# One call per payload rather than a loop over the four: a loop over a
+# heterogeneous tuple is not unrolled and boxes its elements, which is what made
+# tree construction allocate (§14.2).
+_payload(name, p) = p isa NamedTuple || throw(DiagnosticError(ConditionNodeMisuse(
+    observed = typeof(p), reason = :fragment_payload, payload = name)))
 
 """
     at(prefix, node)

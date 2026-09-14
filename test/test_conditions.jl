@@ -43,10 +43,13 @@ function conditions_algebra()
         @test n.nodes[1].node isa Fragment
         @test n.nodes[2].node isa Combined                  # `at` stores, never applies
         @test n.nodes[2].node.nodes[1].prefix == "plant"    # unconcatenated with "children"
-        # Every node is isbits but for the prefix strings (§14.2): rebuilding the
-        # tree per iteration is stack-only construction.
+        # Every node is isbits but for the prefix strings (§14.2), and a prefix
+        # is a reference to the author's literal, so rebuilding the tree per
+        # trim iteration allocates nothing.
         @test isbits(fragment(x = (q = 1.0,), inputs = (u = 2.0,)))
         @test isbits(combine(fragment(), fragment()))
+        @test (@ballocated tri_tree(SVector(9.0, 8.0), 7.0, :armed, 6.0, 5.5)) == 0
+        @test (@ballocated ledger_tree(3.0, 4.0)) == 0
         # It fails at resolution, where the build is finally in hand.
         @test failure(() -> resolve_condition(n, build(tri()))) isa DiagnosticError
     end
@@ -411,8 +414,7 @@ function conditions_specialized_register()
         tree = tri_tree(SVector(9.0, 8.0), 7.0, :armed, 6.0, 5.5)
         # The whole path: the prefix sweep, the flat-buffer write, both stores as
         # whole values, and the two root-input scatters. The tree is handed in
-        # already built — an `at` node holds a `String` and is therefore not isbits,
-        # so its construction is the caller's cost, not the register's.
+        # already built; its construction is measured on its own above.
         @test (@ballocated apply!($(sim.exec), $plan, $tree)) == 0
     end
 

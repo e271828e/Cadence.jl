@@ -7958,12 +7958,12 @@ struct Scoped{N}  prefix::String; node::N  end             #at(prefix, node): st
 struct Combined{T<:Tuple}  nodes::T  end                   #combine(ns...): collects; order = diagnostics only
 ```
 
-Every node is isbits except the prefix strings, so **rebuilding the tree per
-trim iteration costs a few small boxes, one per `at` node, and nothing else**
-— no path arithmetic, no validation, no copy of the payloads. That is under a
-kilobyte per evaluation, invisible against the sweep it feeds. The zero-alloc
-property of today's `assign!` loop lives in the [register](#g-register) that *applies* the
-tree ([§14.4][s14-4]), not in its construction.
+Every node is isbits except the prefix strings, and a prefix is a reference to
+the author's own literal, so **rebuilding the tree per trim iteration
+allocates nothing** — no path arithmetic, no validation, no copy of the
+payloads. The zero-alloc property of today's `assign!` loop holds of the
+construction and of the [register](#g-register) that *applies* the tree
+([§14.4][s14-4]) alike, so an evaluation's cost is the sweep it feeds.
 
 `fragment`'s payloads speak only about the component at the authoring point;
 addressing children is exclusively `at`'s job (one way to say everything). An
@@ -11482,9 +11482,9 @@ inputs)` payloads speaking only about the component at the authoring point
 (**self-vocabulary**), with addressing left entirely to `at` ([§14.2][s14-2]).
 
 <a id="g-fragment-tree"></a>**fragment tree** — the inert, lazy composition of `Fragment`/`Scoped`/
-`Combined`/override nodes; isbits but for the prefix strings, so rebuilding
-it per trim iteration costs a few small boxes and no path work
-([§14.2][s14-2]).
+`Combined`/override nodes; isbits but for the prefix strings, which are
+references to the author's literals, so rebuilding it per trim iteration
+allocates nothing and does no path work ([§14.2][s14-2]).
 
 <a id="g-mounting"></a>**mounting** — relocating a whole problem or tap set with `at(prefix, …)`:
 every field is either condition-producing (path-relative, post-composed) or
