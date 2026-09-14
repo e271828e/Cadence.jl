@@ -126,57 +126,58 @@
 
 # Part I — Foundations
 
-Part I fixes what the framework *is*, before any of it is spelled. [§1][s1] states
-the purpose and the ground rules the rest of the document is answerable to. [§2][s2]
-gives the formalism: the class of systems in scope, the two event-detection
-policies, and the exclusions taken deliberately. [§3][s3] and [§4][s4] introduce the two
-objects every later part manipulates. [§3][s3] gives the component taxonomy, two leaf
-classes and the assembly that composes them; [§4][s4] gives the port, the addressable
-unit through which components exchange immutable values. [§5][s5] is the load-bearing
-chapter: two output stages per component, what each stage may see, and how those
-signatures alone yield a static evaluation schedule. [§6][s6] lifts composition from a
-single component to a hierarchy of them. [§7][s7] fixes where data lives, on both
-tiers and outside them both.
+Part I fixes what the framework *is*, before any of it is spelled in code. [§1][s1]
+states the purpose and the ground rules the rest of the document answers to. [§2][s2]
+gives the formalism. It fixes the class of systems in scope, the two
+event-detection policies, and the exclusions taken deliberately. [§3][s3] and [§4][s4]
+introduce the two objects every later part manipulates. [§3][s3] gives the component
+taxonomy, with two leaf classes and the assembly that composes them. [§4][s4] gives
+the port, the addressable unit through which components exchange immutable
+values. [§5][s5] is the load-bearing chapter. It fixes two output stages per
+component, what each stage may see, and how those signatures alone yield a
+static evaluation schedule. [§6][s6] lifts composition from a single component to a
+hierarchy of them. [§7][s7] fixes where data lives, on both tiers and outside them.
 
-Part I assumes nothing from later parts. It cites them for spellings only: how
-an author writes a declaration is [§8][s8], when each declared fact is checked is [§9][s9],
-and what runs at a step boundary is [§10][s10].
+Part I assumes nothing from later parts. It cites them for spellings only. [§8][s8]
+shows how an author writes a declaration, [§9][s9] fixes when each declared fact is
+checked, and [§10][s10] fixes what runs at a step boundary.
 
 ## 1. Purpose and method
 
-This document specifies a modeling and simulation framework intended to
-replace `FlightCore` as the substrate for `FlightPhysics` and `FlightApps`.
-It is the [normative statement](#g-normative) of the design: what the framework *is*, in
+This document specifies a modeling and simulation framework intended to replace
+`FlightCore` as the substrate for `FlightPhysics` and `FlightApps`. It is the
+[normative statement](#g-normative) of the design, and it states what the framework *is*, in the
 present tense. The new framework must match or surpass `FlightCore` in
-functionality, performance and flexibility, while being more rigorous and
-explicit — reducing the learning curve and the number of latent footguns for
-model authors.
+functionality, performance and flexibility. It must also be more rigorous and
+explicit, so that model authors face a shorter learning curve and fewer latent
+footguns.
 
-Ground rules adopted for this design:
+The design adopts three ground rules.
 
-- **Capability grounding, not interface grounding.** Requirements are derived from what
-  `FlightPhysics` and `FlightApps` demonstrably *do* (code, unit tests, demos). Every
-  `FlightCore` call site in the consumers is read as evidence of a capability the
-  substrate must provide, never as a prescription for how it should be spelled.
-- **No interface compatibility.** The new framework need not be source-compatible with
-  the current consumers. A non-trivial migration of `FlightPhysics` and `FlightApps` is
-  expected and accepted.
-- **[Guarded additions](#g-guarded-addition).** Whenever the design admits functionality beyond what the
-  consumers demonstrate, it must be weighed against the fundamental strengths of
-  Flight.jl: zero-allocation stepping, type stability, real-time interactive operation,
-  live introspection (GUI), and compositional flexibility.
+- **Capability grounding, not interface grounding.** Requirements derive from
+  what `FlightPhysics` and `FlightApps` demonstrably *do* in their code, unit
+  tests and demos. Every `FlightCore` call site in the consumers is read as
+  evidence of a capability the substrate must provide, never as a prescription
+  for how it should be spelled.
+- **No interface compatibility.** The new framework need not be
+  source-compatible with the current consumers. A non-trivial migration of
+  `FlightPhysics` and `FlightApps` is expected and accepted.
+- **[Guarded additions](#g-guarded-addition).** Wherever the design admits functionality beyond what
+  the consumers demonstrate, that functionality must be weighed against the
+  fundamental strengths of Flight.jl. Those strengths are zero-allocation
+  stepping, type stability, real-time interactive operation, live introspection
+  through the GUI, and compositional flexibility.
 
-All design axes are settled — the formalism, the [component](#g-component) taxonomy, the
+All design axes are settled. They are the formalism, the [component](#g-component) taxonomy, the
 signal and scheduling model, time and execution, the runtime [periphery](#g-periphery), the
 declaration layer, the build pipeline, error discipline and the stopped-sim
-services. Only the [§16][s16] items — the migration outline, the GUI panel authoring
-API and the log/[trace](#g-trace) persistence deferral — remain open.
+services. Only the [§16][s16] items remain open. Those are the migration outline, the
+GUI panel authoring API and the log/[trace](#g-trace) persistence deferral.
 
-Decision rationale, including the alternatives considered and the reasons
-they were rejected, lives in `decisions.md`, cited throughout as
-linked `D-nnn` entries: one entry per settled decision. Entry numbers are
+Decision rationale lives in `decisions.md`, including the alternatives
+considered and the reasons they were rejected. This document cites it throughout
+as linked `D-nnn` entries, one entry per settled decision. Entry numbers are
 stable and never reused, so a citation here always names the same entry there.
-
 ---
 
 ## 2. Formalism
