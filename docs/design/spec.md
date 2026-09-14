@@ -337,122 +337,126 @@ declaration-level [rate scopes](#g-rate-scope) ([§10.5][s10-5]).
 
 ### 4.1 Immutable value semantics
 
-[Ports](#g-port) exchange **immutable values** — typically isbits structs (floats, `SVector`s,
-enums, nested immutables). The framework owns a **[signal table](#g-signal-table)**: one
-concretely-typed **[cell](#g-cell)** per output port in the flattened model. A producer's
-output-[stage function](#g-stage-function) (`output_state`/`output_direct`, the
-two output stages every component provides, on either [tier](#g-tier))
-returns a named tuple of fresh values. The framework writes each of those
-values into its cell, and consumers read cells.
+[Ports](#g-port) exchange **immutable values**, typically isbits structs (floats,
+`SVector`s, enums, nested immutables). The framework owns a **[signal table](#g-signal-table)**,
+with one concretely typed **[cell](#g-cell)** per output port in the flattened model. A
+producer's output [stage function](#g-stage-function) (`output_state`/`output_direct`, the two output
+stages every component provides, on either [tier](#g-tier)) returns a named tuple of fresh
+values. The framework writes each of those values into its cell, and consumers
+read cells.
 
-**Vocabulary.** These names are binding throughout this document:
+**Vocabulary.** These names are binding throughout this document.
 
-- bare *cell* — the table entry, and only that;
-- *store* — the discrete-state and mode registers ([§7.3][s7-3]), which are not cells;
-- *[staging cell](#g-staging-cell)* — a distinct compound term, the per-[device](#g-device)
-  inbound register of [§11.4][s11-4]; unlike a table cell it is mutated frame by frame and
-  sits outside the table's publish-once discipline;
-- *[root input](#g-root-input)* — a source cell fed by the [periphery](#g-periphery)
-  rather than by a producer ([§11.3][s11-3]).
+- A bare *cell* is the table entry, and only that.
+- A *store* is one of the discrete-state and mode registers ([§7.3][s7-3]). Stores are
+  not cells.
+- A *[staging cell](#g-staging-cell)* is a distinct compound term. It is the per-[device](#g-device) inbound
+  register of [§11.4][s11-4]. Unlike a table cell it is mutated frame by frame, and it
+  sits outside the table's publish-once discipline.
+- A *[root input](#g-root-input)* is a source cell fed by the [periphery](#g-periphery) rather than by a producer
+  ([§11.3][s11-3]).
 
-The signal requirement, stated precisely, is **immutability plus frozen references**:
-signals may reference bulk data (see [§4.4][s4-4]) provided that data is read-only for the
-duration of the run. `isbits` is the common case, not the rule.
+Stated precisely, the signal requirement is **immutability plus frozen
+references**. Signals may reference bulk data ([§4.4][s4-4]) provided that data is
+read-only for the duration of the run. `isbits` is the common case, not the
+rule.
 
-Consequences:
+This requirement has four consequences.
 
-- no aliasing, ever — nothing can be mutated under a consumer's feet;
-- safe concurrent reads (GUI/logging threads) by construction;
-- zero allocation for isbits payloads (named tuples of isbits are isbits);
-- each cell has a definite freshness tied to its producer's position in the [schedule](#g-schedule)
-  ([D-004][d-004]).
+- There is no aliasing, ever. Nothing can be mutated under a consumer's feet.
+- Concurrent reads from the GUI and logging threads are safe by construction.
+- Isbits payloads allocate nothing, because named tuples of isbits are isbits.
+- Each cell has a definite freshness, tied to its producer's position in the
+  [schedule](#g-schedule) ([D-004][d-004]).
 
 ### 4.2 Consumers see ports, not stages
 
-The [port](#g-port) is the addressable unit. A [component](#g-component)'s outputs appear to consumers, GUI and
-logs as one flat namespace (`dyn.vel`, `dyn.f_c_c`), materializable lazily as a view.
-Which output stage computes which port is a scheduling annotation, invisible outside
-the component. Moving an output between stages is non-breaking *for consumers*: no
-wire, log or panel sees it. The scheduler does see it — the [feedthrough](#g-feedthrough) graph and
-stage membership change ([§9.1][s9-1]).
+The [port](#g-port) is the addressable unit. A [component](#g-component)'s outputs appear to consumers, the
+GUI and logs as one flat namespace (`dyn.vel`, `dyn.f_c_c`), which can be
+materialized lazily as a view. Which output stage computes which port is a
+scheduling annotation, invisible outside the component. Moving an output between
+stages is non-breaking *for consumers*. No wire, log or panel sees it. The
+scheduler does see it, because the [feedthrough](#g-feedthrough) graph and stage membership change
+([§9.1][s9-1]).
 
-**Visibility.** Which ports exist at all is a declaration-layer decision: the output
-[contract](#g-contract) *is* the public interface. There are no private
-intermediates: a value a later function needs is a declared port like any
-other, and a stage result outside the contract is a build error
-([§5.2][s5-2], [§8.3][s8-3]). A presentational
-*unlisted* flag — skipped in logs and GUI but still connectable — is closed ([D-016][d-016]).
+**Visibility.** Which ports exist at all is a declaration-layer decision. The
+output [contract](#g-contract) *is* the public interface. There are no private intermediates. A
+value a later function needs is a declared port like any other, and a stage
+result outside the contract is a build error ([§5.2][s5-2], [§8.3][s8-3]). A presentational
+*unlisted* flag, skipped in logs and GUI but still connectable, is closed
+([D-016][d-016]).
 
 ### 4.3 Table mechanics and port granularity
 
-[§4.2][s4-2] fixed the [port](#g-port) as the addressable unit. Four questions remain:
-what a port is on a [component](#g-component)'s boundary, how values travel into cells and
-out of them, what a port may hold, and how much a single port should carry. The
-last question has two answers, one owed to the parties that read a port and one
-to the parties that write it.
+[§4.2][s4-2] fixed the [port](#g-port) as the addressable unit. Four questions remain. What is a
+port on a [component](#g-component)'s boundary? How do values travel into cells and out of them?
+What may a port hold? And how much should a single port carry? The last question
+has two answers, one owed to the parties that read a port and one to the parties
+that write it.
 
 #### Ports and faces
 
-A component's **ports** are its signal endpoints — one [cell](#g-cell), one producer. Its
-**[faces](#g-face)** are the names those ports wear on the component's boundary. For a leaf
-the two coincide. For an [assembly](#g-assembly) every face aliases an interior port through
-its boundary declarations ([§8.6][s8-6]) and never creates an endpoint. The
-distinction is kind-blind — wiring and the [periphery](#g-periphery) address a child's faces
+A component's **ports** are its signal endpoints, one [cell](#g-cell) and one producer
+each. Its **[faces](#g-face)** are the names those ports wear on the component's boundary.
+For a leaf the two coincide. For an [assembly](#g-assembly) every face aliases an interior port
+through its boundary declarations ([§8.6][s8-6]) and never creates an endpoint. The
+distinction is kind-blind. Wiring and the [periphery](#g-periphery) address a child's faces
 without knowing whether it is primitive or composite.
 
-**Rule.** The port is the atomic unit of the entire periphery — one cell, one
-[root input](#g-root-input), one staged write, one [device](#g-device) [claim](#g-claim) ([§11.3][s11-3]), one [trace](#g-trace)
-address, one GUI liveness verdict ([§11.7][s11-7]).
+**Rule.** The port is the atomic unit of the entire periphery. It is one cell,
+one [root input](#g-root-input), one staged write, one [device](#g-device) [claim](#g-claim) ([§11.3][s11-3]), one [trace](#g-trace) address
+and one GUI liveness verdict ([§11.7][s11-7]).
 
 #### Scatter and gather
 
 **Scatter/gather is the whole protocol.** A [stage function](#g-stage-function)
-(`output_state`/`output_direct`, on either [tier](#g-tier))
-returns a named tuple. The framework scatters each field into that port's
-concretely-typed cell. Every reader — the next stage, `state_derivative`/`state_update`, [guards](#g-guard), wired consumers, [snapshot](#g-snapshot)
-capture — gathers views from cells.
+(`output_state`/`output_direct`, on either [tier](#g-tier)) returns a named tuple. The
+framework scatters each field into that port's concretely typed cell. Every
+reader gathers views from cells. The readers are the next stage,
+`state_derivative`/`state_update`, [guards](#g-guard), wired consumers and [snapshot](#g-snapshot) capture.
 
 **The aggregate `y` is a merge semantically and virtual physically.**
-Semantically, a component's `y` is the merge of its stage products
-(`merge(y_x, y_xu)` on the continuous [tier](#g-tier), `merge(y_s, y_su)` on
-the discrete). It carries declared ports only. Physically no such object exists: `y` is reconstructed per call from
-cells — field loads, register-level, zero cost for isbits — and never stored as
-an object.
+Semantically, a component's `y` is the merge of its stage products, `merge(y_x,
+y_xu)` on the continuous [tier](#g-tier) and `merge(y_s, y_su)` on the discrete. It carries
+declared ports only. Physically no such object exists. `y` is reconstructed per
+call from cells, as register-level field loads at zero cost for isbits, and is
+never stored as an object.
 
 Name collisions across a component's stages are a build error.
 
 #### What a port may hold
 
 **Stage returns are named tuples of port values, period.** A custom struct is a
-first-class port *value* — one field of the returned tuple, one declared port, one
-cell (`pose = KinPose{T}`). Nested fields get no cells of their own; GUI and logs
-drill into them lazily (the view clause, [§4.2][s4-2]). Bare-struct returns are rejected
-([D-036][d-036]).
+first-class port *value*. It is one field of the returned tuple, one declared
+port, one cell (`pose = KinPose{T}`). Nested fields get no cells of their own.
+GUI and logs drill into them lazily (the view clause, [§4.2][s4-2]). Bare-struct returns
+are rejected ([D-036][d-036]).
 
 A port value's leaves are what the leaf walk reaches through `Real`s, static
 arrays and isbits structs. The walk stops at an immutable type that is not
 isbits and treats it as one opaque leaf (a leaf the table stores whole,
-references included): that is the [field handle](#g-field-handle) ([§4.4][s4-4]). A
-mutable type anywhere in a port value is refused, and so is a handle-typed face
-surfacing as a root input (`IllegalPortType`, [D-237][d-237]).
+references included). That leaf is the [field handle](#g-field-handle) ([§4.4][s4-4]). A mutable type
+anywhere in a port value is refused, and so is a handle-typed face surfacing as
+a root input (`IllegalPortType`, [D-237][d-237]).
 
 #### Granularity, read side
 
-**Rule.** Wiring is port-granular: no sub-field connections. A consumer that
-wants less than a bundle asks the producer for a loose port, or takes the bundle
-and destructures. A field-projection connector is a [guarded addition](#g-guarded-addition) (a
-capability the design admits but does not build). Its shape is obvious, and it
-is not built.
+**Rule.** Wiring is port-granular. There are no sub-field connections. A
+consumer that wants less than a bundle asks the producer for a loose port, or
+takes the bundle and destructures. A field-projection connector is a [guarded
+addition](#g-guarded-addition) (a capability the design admits but does not
+build). Its shape is obvious, and it is not built.
 
-**Granularity guideline** for authors: bundle what *shares a stage* *and is
-consumed together*. The first criterion is trivially enforced, because each port
-has exactly one producing function. Bundling across dependency footprints is the
-`KinData` mistake ([§15.1][s15-1]). Pose is stage 1, velocity-derived quantities are
-stage 2 — it must split. Fan-out is free, so publishing both a bundle and a hot
-loose field (`pose` *and* `q_eb`) is legitimate — one extra isbits cell.
+**Granularity guideline.** Authors bundle what *shares a stage* *and is consumed
+together*. The first criterion is trivially enforced, because each port has
+exactly one producing function. Bundling across dependency footprints is the
+`KinData` mistake ([§15.1][s15-1]). Pose is stage 1 and velocity-derived quantities are
+stage 2, so that bundle must split. Fan-out is free, so publishing both a bundle
+and a hot loose field (`pose` *and* `q_eb`) is legitimate. It costs one extra
+isbits cell.
 
-**Example.** The bundle, the loose hot field and a face aliasing an interior
-port, in declaration form:
+**Example.** The sketch below shows the bundle, the loose hot field and a face
+aliasing an interior port, in declaration form.
 
 ```julia
 #a continuous leaf: one bundle port and the hot field published loose — two cells
@@ -465,66 +469,67 @@ output_connections(::Vehicle) = ("kin/pose" => "pose", "kin/q_eb" => "q_eb")
 
 #### Granularity, write side
 
-**Write-side rule** (from [§15.4][s15-4]): **bundle what is written together.**
+**Write-side rule.** Bundle what is written together ([§15.4][s15-4]).
 
 **Rule.** Data written by different external writers, or at different cadences,
 must not share a port.
 
-Pilot commands are the case in point: scalar faces under a namespace prefix,
-with the convenient bundle assembled *downstream*, inside the graph, by an
-ordinary component (single producer, consumed together — legal by the read-side
-guideline).
+Pilot commands are the case in point. They are scalar faces under a namespace
+prefix. The convenient bundle is assembled *downstream*, inside the graph, by an
+ordinary component. That is legal by the read-side guideline, since the bundle
+has a single producer and is consumed together.
 
-The guideline and the rule compose into one principle: a port's granularity is set by
-the finest-grained party owning either end — producers on the read side,
-external writers on the write side. Field-addressed staging (a lens into
+The guideline and the rule compose into one principle. A port's granularity is
+set by the finest-grained party owning either end, producers on the read side
+and external writers on the write side. Field-addressed staging (a lens into
 struct slots) stays a recorded guarded addition, unbuilt.
 
 ### 4.4 Function-valued signals: environment access
 
-Atmosphere and terrain are **query-shaped**: consumers evaluate them at arguments of
-their own choosing (each gear strut at its own contact point; airflow at the vehicle
-pose). They are therefore carried by ordinary [ports](#g-port) as **immutable query objects**
-("[field handles](#g-field-handle)"):
+Atmosphere and terrain are **query-shaped**. Consumers evaluate them at
+arguments of their own choosing, such as each gear strut at its own contact
+point, or airflow at the vehicle pose. Ordinary [ports](#g-port) therefore carry them as
+**immutable query objects**, called [field handles](#g-field-handle).
 
-- An environment [component](#g-component) emits a field value (`ISAField(T_sl, p_sl,
-  wind)`, `TerrainField(…)`); consumers receive it through ordinary input ports.
-  Inside their own [stage functions](#g-stage-function)
-  (`output_state`/`output_direct`) they call query
-  functions on it: `airdata(field, pos, vel)`, `ray_intersect(field, p, u)`.
-- **Parametric models are isbits** (ISA, uniform wind, horizontal terrain). **Bulk-data
-  models use the handle pattern**: an immutable struct combining isbits parameters with
-  references to bulk data (heightmaps, wind grids, the geoid undulation grid) loaded at
-  build time and frozen. Handles are rebuilt per evaluation allocation-free — immutable
-  structs with existing references. Never `Ref`s, whose mutable cell allocates.
-- **No mutable caches inside field objects** (memoizing interpolators, lazy loaders):
-  concurrent consumers and the GUI thread would race. Caches belong in the consumer's
-  state, or the interpolant is restructured to be pure.
-- Loggers treat field-handle signals specially (skip or summarize).
+- An environment [component](#g-component) emits a field value (`ISAField(T_sl, p_sl, wind)`,
+  `TerrainField(…)`), and consumers receive it through ordinary input ports.
+  Inside their own [stage functions](#g-stage-function) (`output_state`/`output_direct`) they call
+  query functions on it, such as `airdata(field, pos, vel)` and
+  `ray_intersect(field, p, u)`.
+- **Parametric models are isbits** (ISA, uniform wind, horizontal terrain).
+  **Bulk-data models use the handle pattern.** The handle is an immutable struct
+  combining isbits parameters with references to bulk data (heightmaps, wind
+  grids, the geoid undulation grid) loaded at build time and frozen. Handles are
+  rebuilt per evaluation without allocation, as immutable structs holding
+  existing references. They are never `Ref`s, whose mutable cell allocates.
+- **No mutable caches inside field objects**, such as memoizing interpolators or
+  lazy loaders. Concurrent consumers and the GUI thread would race on them.
+  Caches belong in the consumer's state, or the interpolant is restructured to
+  be pure.
+- Loggers treat field-handle signals specially. They skip or summarize them.
 
-**The [value-level constructor](#g-value-level-constructor).** Every field-emitting
-component must expose the map (component, input values) → handle as a plain,
-pure, public function — `atmospheric_field(atm; T_sl, p_sl, wind)` for the
-`SimpleAtmosphere` successor. The field-emitting component's swept output stage
-must be a **one-line call to that function**, never the other way round. The
-other way round puts the query math in the output stage, where only a
-[sweep](#g-sweep) can reach it.
+**The [value-level constructor](#g-value-level-constructor).** Every field-emitting component must expose the
+map (component, input values) → handle as a plain, pure, public function. For
+the `SimpleAtmosphere` successor that function is `atmospheric_field(atm; T_sl,
+p_sl, wind)`. The field-emitting component's swept output stage must be a
+**one-line call to that function**, never the other way round. The other way
+round puts the query math in the output stage, where only a [sweep](#g-sweep) can reach it.
 
-The reason is script-side: the condition math ([§14.1][s14-1]) must be able to
-construct, outside any sweep, bit-for-bit the same handle the sweep would
-produce from the same [root input](#g-root-input) values. One implementation, two call
-sites, no drift — and the drift avoided here is the silent-drift class that
-[§5.3][s5-3] exists to kill. This is a *shipped component's obligation*, not
-something a consumer can retrofit. The real component composes sub-models, and
-anyone else reconstructing the map has re-created the drift class.
+The reason is script-side. The condition math ([§14.1][s14-1]) must be able to construct,
+outside any sweep, bit-for-bit the same handle the sweep would produce from the
+same [root input](#g-root-input) values. One implementation serves two call sites, so there is no
+drift. The drift avoided here is the silent-drift class that [§5.3][s5-3] exists to
+kill. This is a *shipped component's obligation*, not something a consumer can
+retrofit. The real component composes sub-models, and anyone else reconstructing
+the map has re-created the drift class.
 
-For bulk-data components the obligation is only that the query math be
-reachable as a plain function. They own their resource loading, so building a
-handle outside a build may cost a load. That cost is acceptable, because
-condition authoring is design-time code.
+For bulk-data components the obligation is only that the query math be reachable
+as a plain function. They own their resource loading, so building a handle
+outside a build may cost a load. That cost is acceptable, because condition
+authoring is design-time code.
 
-**Example.** The map as a plain function, and the stage that does nothing but
-call it:
+**Example.** The sketch below shows the map as a plain function, and the stage
+that does nothing but call it.
 
 ```julia
 #the map: plain, pure, public — callable outside any sweep
@@ -534,18 +539,18 @@ atmospheric_field(atm; T_sl, p_sl, wind) = ISAField(…)
 output_direct(atm, args) = (; … = atmospheric_field(atm; T_sl = …, p_sl = …, wind = …))
 ```
 
-Pre-sampling — a component consuming the field and a pose and emitting plain data
-(`Airflow` emitting `AirData` for the whole vehicle) — is an **idiom built on top**,
-used where natural; not a separate mechanism. Resource injection (declare-and-resolve
-service registries) is closed for the first cut ([D-008][d-008]).
+Pre-sampling is an **idiom built on top**, used where natural, not a separate
+mechanism. In it, a component consumes the field and a pose and emits plain
+data, as `Airflow` emits `AirData` for the whole vehicle. Resource injection
+(declare-and-resolve service registries) is closed for the first cut ([D-008][d-008]).
 
-The field-handle mechanism replaces threading `atmosphere`/`terrain` as arguments
-through every update signature, and dovetails with the terrain ray-query direction
-of the landing-gear redesign. Substitutability behind a stable [face](#g-face) is
-declared with an abstract input entry — `terrain = AbstractTerrainField`, structural
-substitutability ([§8.2][s8-2]). The consumer wires to any concrete field type
-below the bound, preserving today's `AbstractTerrain` polymorphism at the
-declaration layer.
+The field-handle mechanism replaces threading `atmosphere`/`terrain` as
+arguments through every update signature. It dovetails with the terrain
+ray-query direction of the landing-gear redesign. Substitutability behind a
+stable [face](#g-face) is declared with an abstract input entry, `terrain =
+AbstractTerrainField`, which is structural substitutability ([§8.2][s8-2]). The consumer
+wires to any concrete field type below the bound. That preserves today's
+`AbstractTerrain` polymorphism at the declaration layer.
 
 ---
 
