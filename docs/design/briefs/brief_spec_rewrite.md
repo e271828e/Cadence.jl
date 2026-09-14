@@ -4,8 +4,10 @@ Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`. Drafted
 2026-09-14 after the pilot of §10.4 and §10.6 (`spec_rewrite_pilot.md`, this
 directory). Status: **approved 2026-09-14** (§5 and §6 rulings folded in).
 Registered in `pending.md`. Step 0, `check_linkset.jl` and the pilot landed
-2026-09-14; Parts I and II committed and cold-reviewed the same day,
-awaiting the user's diff review. Part III next.
+2026-09-14; Parts I, II and III committed and cold-reviewed the same day,
+awaiting the user's diff review. Part IV next. `check_linkset.jl` was made
+fence-aware during Part III (a `# comment` line in a sketch had been ending
+a section early); Parts I and II re-checked clean under the fixed tool.
 
 ## 1. Goal and non-goals
 
