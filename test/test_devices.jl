@@ -84,6 +84,22 @@ function loop(d::Blocked, h)
     nothing
 end
 
+# The same obligation met with no catch of its own: the raise unblock! provokes
+# leaves the body, and the wrapper files it as shutdown, not a crash (§12.4(3)).
+mutable struct Raising <: AbstractDevice
+    ch::Channel{Int}
+    log::Vector{Symbol}
+end
+Raising() = Raising(Channel{Int}(1), Symbol[])
+unblock!(d::Raising) = (close(d.ch); nothing)
+shutdown!(d::Raising) = (push!(d.log, :shutdown); nothing)
+function loop(d::Raising, h)
+    while running(h)
+        take!(d.ch)                           # blocks; unblock! closes → raises out of the body
+    end
+    nothing
+end
+
 # A calling-task device: records which task ran its body (§11.1's pinning),
 # polling between running checks and never blocking across them (§12.4).
 mutable struct Inline <: AbstractDevice
@@ -284,6 +300,20 @@ function test_devices()
         @test time() - t0 < 1.5                  # joined promptly, well inside the cap
         @test !any(occursin("DeviceJoinTimeout", string(l.message)) for l in logs)
         @test isempty(termination(sim).residue)  # nothing landed past the account (D-203)
+        @test dev.log == [:shutdown]
+    end
+
+    @testset "the raise unblock! provokes is shutdown, not a crash (§12.4(3))" begin
+        sim = Simulation(two_root_inputs(); h = 1//10, join_timeout = 2.0)
+        dev = Raising()
+        attach!(sim, dev, Enumerated())
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        logs, _ = Test.collect_test_logs() do
+            run!(sim; t_end = 0.3)
+        end
+        @test !any(occursin("DeviceCrash", string(l.message)) for l in logs)
+        @test isempty(termination(sim).residue)
+        @test writer_status(latest(sim), "device 1 (Raising)").totals.crash == 0
         @test dev.log == [:shutdown]
     end
 

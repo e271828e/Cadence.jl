@@ -354,11 +354,22 @@ difference (§11.1). Death is marked nowhere beyond the record: the task has
 ended, `task_state` says so at the next publication, and the heartbeat goes
 stale (§12.2).
 """
+# Does the device override `unblock!`? Read as `check_device` reads `loop`
+# (roster.jl): the default method is the comparison target.
+_unblocks(dev::AbstractDevice) =
+    which(unblock!, Tuple{typeof(dev)}) !== which(unblock!, Tuple{AbstractDevice})
+
 function _wrap(e::RosterEntry)
     try
         loop(e.dev, e.handle)
     catch err
-        _report!(e.diag, DeviceCrash(err, e.should_abort))
+        # A raise after the sticky stop, from a device overriding `unblock!`, is
+        # the one the override provoked — its blocking call returning by
+        # throwing — and is shutdown, not a crash (§12.4(3)). A device with no
+        # override has nothing to provoke it, so its raise is a crash whenever
+        # it lands. An `InterruptException` still lands here (`pending.md`).
+        unblocked = (@atomic e.handle.ctl.stopped) && _unblocks(e.dev)
+        unblocked || _report!(e.diag, DeviceCrash(err, e.should_abort))
     finally
         _shutdown!(e)
         e.should_abort && stop!(e.handle)

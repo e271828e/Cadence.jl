@@ -76,8 +76,8 @@ Where the reason is not given here, the cited decision carries it:
   remainder (`DebtReanchor`, `ThreadBudget`, `UnboundedRun`, the maxlog
   renderer). Two unguarded edges stay: staging through a handle whose device
   was detached lands in an orphaned cell and is lost, and an
-  `InterruptException` in a device loop reports as `DeviceCrash` — the same
-  uniform catch as M-B12 below.
+  `InterruptException` in a device loop reports as `DeviceCrash`, the
+  wrapper's catch not discriminating it.
 - **§12 beyond its built slices**: pause and the control plane's surface; the
   operator interrupt — §13.4's carve-out exists, the masking and the entry do
   not, so a stopped run can hold mid-boundary stores here; §13.4's
@@ -134,12 +134,6 @@ ruling; the second waits on the feature or the pass its bullet names.
   acyclic ones included, as component paths in flatten order, two disjoint
   cycles merged into one diagnostic. `test_build.jl` asserts the current
   shape. Retires with §5.6's tracer, not alone.
-- **The device wrapper files the `unblock!`-provoked raise as a
-  `DeviceCrash`** (M-B12). `_wrap` catches uniformly where §12.4 says the
-  wrapper treats that raise as shutdown, so a conforming device whose
-  `unblock!` closes its channel leaves a warning and a residue on every clean
-  run; the suite's `Blocked` fixture does the discrimination itself. Retires
-  with §12's interrupt work.
 - **The heartbeat is read at publication, not at the drain** (M-B18);
   `drain!` never touches `_heartbeat`, and a `t*` boundary publishes without
   a drain. Nothing observable breaks; the site is not the one §11.8 fixes.
