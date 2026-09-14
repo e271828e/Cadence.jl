@@ -1303,7 +1303,10 @@ vocabulary — plain real scalars and `SArray`s (static vectors and matrices) of
 a common eltype `T`** — and nothing else. `Int`s/enums/`Bool`s belong in modes,
 and domain wrapper types (`RQuat`, `Ranged`) are not state leaves: an attitude
 state is an `SVector{4,T}`, cast where rotation semantics are wanted (below).
-The framework:
+The declaration is flat: each field is one leaf, never a `NamedTuple` of
+leaves. The condition register and the readers address a field as one leaf
+([§14.3][s14-3], [§14.4][s14-4]), and structure comes from the component tree,
+not from the value ([D-094][d-094]). The framework:
 
 - computes a **flat layout** at build time (compile-time offsets over one contiguous
   `Vector{T}` [buffer](#g-buffer) it owns);
@@ -2179,6 +2182,9 @@ failure in the didactic register:
   `Bool`s and enums belong in `init_m`";
 - "`init_x` field `q_nb::RQuat` is not a state leaf — declare the `SVector{4}`
   backing and cast where rotation semantics are wanted ([§7.1][s7-1])";
+- "`init_x` field `pose::NamedTuple` is not a state leaf — a field is one
+  scalar or `SArray`; split it into fields, structure comes from the component
+  tree ([§7.1][s7-1])";
 - "`init_s` field `label::String` is not a store value — store fields are
   isbits or `Symbol`s; text and bulk data belong on the component instance
   ([§7.3][s7-3])".

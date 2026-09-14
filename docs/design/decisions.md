@@ -2624,6 +2624,12 @@ false)` — today's `f_ode!`-over-raw-views pattern made immutable); invariants
 live in `project` and on the write paths (condition apply's baked converts
 [§14.3][s14-3], `capture`'s gather, handlers' own constructors).
 
+Annotation (2026-09-14): the declaration is also flat. A `NamedTuple` field
+would materialize without invariants, but the condition register and the
+readers address an `init_x` field as one leaf ([§14.3][s14-3], [§14.4][s14-4]), and structure is
+the component tree's to express; the check that enforces the vocabulary
+refuses nesting with the rest.
+
 **Rejected.**
 - *Invariant-carrying leaves with constructors run on read:*
   `reconstruct(flatten(x)) ≠ x`: every consumer sees a silently projected value
