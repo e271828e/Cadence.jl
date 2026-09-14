@@ -7218,10 +7218,11 @@ the policy that fits it.
   also cluster in practice. A freshly written [assembly](#g-assembly) has five
   unwired inputs, and a renamed [port](#g-port) breaks three wires. Each of
   these passes returns its full violation list.
-- **User-code evaluation fails fast.** User code runs in three places: the
-  interface-connection bodies in [Stratum](#g-stratum) A (one of the build's
-  three phases: structure, schedule, activation), the stage-1
-  [probes](#g-probe) in B, and the probe chain in C. When user code throws,
+- **User-code evaluation fails fast.** User code runs in three places. The
+  first is the interface-connection bodies in [Stratum](#g-stratum) A (one of
+  the build's three phases: structure, schedule, activation). The other two
+  are the stage-1 [probes](#g-probe) in B and the probe chain in C. When user
+  code throws,
   there is no meaningful rest of the collection to report. A failed
   `input_connections` leaves the parent's face derivation undefined. A failed
   stage-2 probe starves every downstream probe of its wired inputs, because
@@ -7335,8 +7336,8 @@ Two rendering rules are doctrine, not style.
 - **Strings, never instances.** Diagnostics carry paths and names as strings,
   never component instances and never model types. This is the
   `compact_backtrace` lesson. Expected and observed *[port](#g-port)* types are
-  the one payload exception, and they are small. `Float64` against `Bool`, or
-  a NamedTuple field diff, is the typical size.
+  the one payload exception, and they are small. Examples are a `Float64`
+  against a `Bool`, and a NamedTuple field diff.
 - **The didactic [register](#g-register) is policy.** Every diagnostic states
   the fix or the lists-in-hand, not just the violation. Examples are "return
   `zero(x.ω)`, not `0`" and "no input `throtle`; did you mean `throttle`?", or
@@ -7755,8 +7756,8 @@ stop go?" from the same value. The
 a [kind](#g-kind) of its own, because nothing failed. [Appendix C][sC] gains
 nothing from it.
 
-**Rule.** The sources are consulted in a fixed order. A pending control stop
-is checked at frame top, then `t_end`, then the stop faces at each
+**Rule.** The sources are consulted in a fixed order. The loop checks a pending
+control stop at frame top, then `t_end`, then the stop faces at each
 publication. When two sources hold at one boundary, the recorded source is the
 first in that order ([D-203][d-203]).
 
