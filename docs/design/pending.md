@@ -31,10 +31,9 @@ Where the reason is not given here, the cited decision carries it:
   occurrences per writer × kind).
 - **Kinds carrying less than their Appendix C payload.** D-216 rules
   that the column is the design and the implementation's gaps stay visible
-  as such, and it leaves the enumeration here: `AlgebraicCycle` no wires and no
-  §5.6 real/artificial classification, `FaceNameCollision` no per-entry
-  provenance, `ContainerMixed` no element keys or indices, `UnconnectedInput`
-  no declared entry type and no obligation-chain level,
+  as such, and it leaves the enumeration here: `FaceNameCollision` no
+  per-entry provenance, `ContainerMixed` no element keys or indices,
+  `UnconnectedInput` no declared entry type and no obligation-chain level,
   `ClassUnreadable`/`StoreWithoutUpdate` no §8.1 shadowing note,
   `ClassUnreadable`/`TierUnreadable` no type and no declarations-found list,
   `DeclaredNotProduced` no state-field list, `ProducedByTwoStages` no stage
@@ -55,6 +54,14 @@ Where the reason is not given here, the cited decision carries it:
   §13.2 (`_typename` is one screen up). The writer
   id missing from `OutOfClaimEntry`/`DeviceCrash`/`ReplayDiscardedStaging`/
   `MalformedDatum`/`EntryTypeMismatch` awaits the spec-pass ruling below.
+- **§5.6's feedthrough tracer** (the global set-tracer and its sampled-state
+  fallback), and with it the `AlgebraicCycle` the spec promises: D-012's SCC
+  members as terminals in loop order, the wires between them and the
+  real/artificial classification. What stands in is Kahn's stall residue
+  (M-B5), the shape D-012 rejects: every component the schedule could not
+  place, downstream acyclic ones included, as component paths in flatten
+  order, two disjoint cycles merged into one diagnostic. `test_build.jl`
+  asserts that shape.
 - **§8.3 visibility**; **auto-published ports** — not a quiet absence but a
   `DeclaredNotProduced` refusal, so §8.2's own worked `Engine`, whose
   `output_types` names the state field `ω`, does not build, and the bundle
@@ -123,17 +130,10 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-- **Docstrings that state the spec's shape over code that does not produce
-  it** (M-A3): `diagnostics.jl`'s `AlgebraicCycle.members` ("the SCC's member
-  terminals").
+Currently empty.
 
 ### Retire with a feature or a pass
 
-- **`AlgebraicCycle` reports the raw stall residue** (M-B5), the shape D-012
-  rejects: every component Kahn's algorithm could not place, downstream
-  acyclic ones included, as component paths in flatten order, two disjoint
-  cycles merged into one diagnostic. `test_build.jl` asserts the current
-  shape. Retires with §5.6's tracer, not alone.
 - **The per-writer status is a `Vector` of records built at each
   publication** (chosen). §11.8 has it ride inline in the snapshot's one
   per-boundary allocation, zero additional heap allocation on a quiet frame;

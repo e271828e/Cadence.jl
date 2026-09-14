@@ -687,9 +687,9 @@ message(d::IllegalStoreField) =
 # Strata B and C — schedule and contract conformance (§5.5, §8.3, §9.3, §9.5)
 # ==============================================================================
 
-"§5.5, §5.6: a strongly connected component of the stage-2 port graph."
+"§5.5, §5.6: the components the schedule could not place, standing in for the SCC until the tracer lands (`pending.md`)."
 Base.@kwdef struct AlgebraicCycle <: Diagnostic
-    members::Vector{String}                  # the SCC's member terminals, in slash form
+    members::Vector{String}                  # Kahn's stall residue, as component paths in flatten order
 end
 path(d::AlgebraicCycle) = isempty(d.members) ? "" : first(d.members)
 message(d::AlgebraicCycle) =
