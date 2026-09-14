@@ -583,6 +583,43 @@ output_types(::LabelInModes, ::Type{T}) where {T <: Real} = (a = T,)
 output_state(::LabelInModes, (; x)) = (a = x.q,)
 state_derivative(::LabelInModes, (; x)) = (q = 0.0,)
 
+# `init_x` fields outside §7.1's closed vocabulary, one per arm. `UnitVec` is
+# D-094's rejected shape: a normalizing inner constructor that would run on
+# every view. The derivatives exist so the tier reads clean and the vocabulary
+# check is the only finding.
+struct UnitVec
+    v::SVector{2,Float64}
+    UnitVec(v) = new(v / norm(v))
+end
+
+struct ModeInState <: AbstractComponent end
+init_x(::ModeInState) = (gear_count = 3, armed = true, ω = 0.0)
+state_derivative(::ModeInState, (; x)) = (gear_count = 0, armed = false, ω = 0.0)
+
+struct NarrowState <: AbstractComponent end
+init_x(::NarrowState) = (q = 1.0f0, v = SVector{2,Int}(1, 2))
+state_derivative(::NarrowState, (; x)) = (q = 0.0f0, v = SVector{2,Int}(0, 0))
+
+struct ShapedState <: AbstractComponent end
+init_x(::ShapedState) = (pose = (x = 0.0, v = 0.0), u = UnitVec(SVector(3.0, 4.0)), ω = 0.0)
+state_derivative(::ShapedState, (; x)) = (pose = (x = 0.0, v = 0.0), u = x.u, ω = 0.0)
+
+function build_state_leaves()
+    @testset "an init_x field is a Float64 or an SArray of them, flat (§7.1, §8.2, D-094)" begin
+        # One throw for the whole model, every offending field named with the
+        # arm that says where the value belongs; the `Float64` leaves pass.
+        err = failure(() -> build(Group((; a = ModeInState(), b = NarrowState(),
+                                          c = ShapedState()))))
+        ds = diagnostics(err)
+        @test all(d -> d isa IllegalStateLeaf, ds)
+        @test Set((d.path, d.name, d.declared, d.reason) for d in ds) ==
+              Set([("a", :gear_count, Int, :mode_value), ("a", :armed, Bool, :mode_value),
+                   ("b", :q, Float32, :eltype), ("b", :v, SVector{2,Int}, :mode_value),
+                   ("c", :pose, typeof((x = 0.0, v = 0.0)), :nested),
+                   ("c", :u, UnitVec, :wrapper)])
+    end
+end
+
 function build_store_values()
     @testset "a store field is isbits or a Symbol, checked field by field (§7.3, D-231)" begin
         # The `String` fields are refused, one throw for both stores; the `Symbol`
@@ -718,6 +755,7 @@ function test_build()
     build_port_type_refusals()
     build_tier()
     build_store_values()
+    build_state_leaves()
     build_stratum_a()
     build_embed_accept()
     build_activations()

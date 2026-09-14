@@ -54,6 +54,20 @@ end
 # The classifier sees primitives only: a component that declares nothing at all
 # has no *class* to read, which §8.5 settles before this runs.
 
+# §7.1, §8.2, D-094: every `init_x` field is a `Float64` or an `SArray` of them,
+# and the declaration is flat. The arm names where the value belongs instead.
+function check_state_leaves(path::String, c, diags::Vector{Diagnostic})
+    for (name, v) in pairs(init_x(c))
+        L = v isa SArray ? eltype(v) : typeof(v)
+        L === Float64 && continue
+        reason = v isa NamedTuple ? :nested :
+                 L <: Union{Integer,Enum} ? :mode_value :
+                 L <: Real ? :eltype : :wrapper
+        push!(diags, IllegalStateLeaf(path = path, name = name, declared = typeof(v),
+                                      reason = reason))
+    end
+end
+
 # §7.3, D-231: every store field is isbits or a `Symbol`, checked on both stores.
 function check_stores(path::String, c, diags::Vector{Diagnostic})
     for (store, nt) in ((:init_s, init_s(c)), (:init_m, init_m(c)))

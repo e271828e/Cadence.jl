@@ -303,6 +303,10 @@ function diagnostics_kind_set()
             IllegalPortType(path = "", site = :root_input, name = :terrain, declared = Nothing,
                             reason = :handle_at_root),
             IllegalStoreField(path = "a/b", store = :init_s, name = :label, declared = String),
+            IllegalStateLeaf(path = "a/b", name = :gear_count, declared = Int, reason = :mode_value),
+            IllegalStateLeaf(path = "a/b", name = :q, declared = Float32, reason = :eltype),
+            IllegalStateLeaf(path = "a/b", name = :pose, declared = NamedTuple, reason = :nested),
+            IllegalStateLeaf(path = "a/b", name = :q_nb, declared = Symbol, reason = :wrapper),
             # Strata B and C
             AlgebraicCycle(members = ["a/b", "a/c"]),
             ProducedByTwoStages(path = "a/b", ports = [:y]),

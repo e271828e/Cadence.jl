@@ -17,8 +17,7 @@ Where the reason is not given here, the cited decision carries it:
 
 - **The Appendix C kinds whose mechanism is absent** — an absence gets no
   struct (`ThreadBudget`, `DeadStage`, `BundleFieldError`, `UserCodeFraming`,
-  `UnboundedRun`; likewise `IllegalStateLeaf` and `MissingProbeValue`, whose
-  *checks* are absent; `TapResolution` comes from the read register alone,
+  `UnboundedRun`; likewise `MissingProbeValue`, whose *check* is absent; `TapResolution` comes from the read register alone,
   never §14.10's absent tap register). One periphery refusal is still
   a plain `error(...)` with no kind — a datum naming no channel of a
   `TableBinding` (`bindings.jl` ~93): it runs on the device task inside the
@@ -127,11 +126,6 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-- **State-leaf construction runs on every view** (M-B9). `reconstruct`
-  emits `Expr(:call, P, …)`, so an invariant-carrying leaf's normalizing
-  constructor runs on every materialization, the projection-on-read D-094
-  rejects; and an `Int` or `Bool` leaf in `init_x` builds and silently becomes
-  `Float64` (`IllegalStateLeaf`, above).
 - **Docstrings that state the spec's shape over code that does not produce
   it** (M-A3): `diagnostics.jl`'s `AlgebraicCycle.members` ("the SCC's member
   terminals").

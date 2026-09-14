@@ -725,6 +725,7 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
         t = classify_tier(path, comp, diags)
         push!(w.tiers, t)
         check_stores(path, comp, diags)
+        check_state_leaves(path, comp, diags)
         # A primitive at the root: its `input_types` keys are the model's root
         # inputs, each face its own consuming entry (§8.6, §11.3, D-208), fed by
         # the same pseudo-producer an assembly root's faces get.

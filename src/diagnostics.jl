@@ -647,6 +647,29 @@ function message(d::IllegalPortType)
     "$(_at_path(d.path)): $site `$(d.name)` declares $(d.declared), which has no leaves"
 end
 
+"§7.1, §8.2, D-094: an `init_x` field outside the closed vocabulary — a mode value, a real off the common eltype, a nested `NamedTuple`, or a wrapper type."
+Base.@kwdef struct IllegalStateLeaf <: Diagnostic
+    path::String
+    name::Symbol
+    declared::Any                            # the offending field type
+    reason::Symbol                           # :mode_value | :eltype | :nested | :wrapper
+end
+path(d::IllegalStateLeaf) = d.path
+function message(d::IllegalStateLeaf)
+    head = "$(_at_path(d.path)): `init_x` field `$(d.name)::$(d.declared)`"
+    d.reason === :mode_value &&
+        return "$head is not a continuous state — integers, `Bool`s and enums belong in " *
+               "`init_m` (§7.1, §8.2)"
+    d.reason === :eltype &&
+        return "$head is not at the common eltype — state leaves are written at `Float64` " *
+               "and walked to the activation scalar (§7.1, §7.2)"
+    d.reason === :nested &&
+        return "$head is not a state leaf — a field is one scalar or `SArray`; split it " *
+               "into fields, structure comes from the component tree (§7.1)"
+    "$head is not a state leaf — declare the `SVector` backing and cast where the domain " *
+    "semantics are wanted (§7.1)"
+end
+
 "§7.3, §8.2, D-231: a store field that is neither isbits nor a `Symbol`."
 Base.@kwdef struct IllegalStoreField <: Diagnostic
     path::String
