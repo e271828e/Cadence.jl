@@ -362,6 +362,7 @@ struct Build
     nominal::Activation{Float64}
     policies::Vector{NamedTuple}   # per component: event name => :boundary | :localized (§10.4)
     cache::Dict{DataType,Any}      # non-nominal activations, lazily materialized
+    lock::ReentrantLock            # guards `cache` (§9.4's torn-state guarantee)
 end
 
 """
@@ -391,7 +392,7 @@ function build(root::AbstractComponent; activations::Tuple = ())
     isempty(diags) || throw(DiagnosticError(diags))
     nominal, order = _stratum_c(flat, tiers, nothing, nothing, Float64)
     policies = probe_events(flat, tiers, nominal)
-    b = Build(flat, tiers, order, nominal, policies, Dict{DataType,Any}())
+    b = Build(flat, tiers, order, nominal, policies, Dict{DataType,Any}(), ReentrantLock())
     for A in activations
         activation(b, A)
     end
@@ -540,15 +541,18 @@ end
 
 The activation at `T`: the nominal one directly, any other from the cache or by
 a Stratum-C re-run at first request (§9.4). An activation is a pure function of
-the build and the concrete scalar type, so caching is invisible; the spec's
-torn-state guarantee is normative for concurrent first requests, which this
-single-threaded implementation meets by having none.
+the build and the concrete scalar type, so caching is invisible. The lookup and
+the insertion each hold the build's lock and the re-run happens between them,
+so concurrent first requests never see a torn cache: the worst race is a
+duplicated re-run, and the first writer's activation is the one every caller
+gets.
 """
 function activation(b::Build, ::Type{T}) where {T}
     T === Float64 && return b.nominal
-    get!(b.cache, T) do
-        first(_stratum_c(b.flat, b.tiers, b.order, b.nominal, T))
-    end::Activation{T}
+    hit = @lock b.lock get(b.cache, T, nothing)
+    hit === nothing || return hit::Activation{T}
+    act = first(_stratum_c(b.flat, b.tiers, b.order, b.nominal, T))
+    (@lock b.lock get!(b.cache, T, act))::Activation{T}
 end
 
 # Stratum C at `T`, parametric in the scalar (§9.1): declarations evaluated,

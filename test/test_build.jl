@@ -695,6 +695,19 @@ function build_activations()
         d = only(diagnostics(err))
         @test d isa ConformanceFailure && d.declared === Float64 && d.activation === D8
     end
+
+    @testset "concurrent first requests share one activation (§9.4's torn-state guarantee)" begin
+        # Several tasks race for the same non-nominal activation on a fresh
+        # build: the cache is guarded, so every caller gets the one object the
+        # first writer stored and the cache holds a single entry. Under one
+        # thread the tasks serialize and the test pins the contract at no cost.
+        b = build(Group((; src = NomSource(), rd = FrozenReader());
+                        wires = ("src/val" => "rd/in",)))
+        acts = fetch.([Threads.@spawn activation(b, D8) for _ in 1:8])
+        @test all(a -> a === first(acts), acts)
+        @test first(acts) === activation(b, D8)
+        @test length(b.cache) == 1
+    end
 end
 
 function test_build()
