@@ -178,6 +178,7 @@ Decision rationale lives in `decisions.md`, including the alternatives
 considered and the reasons they were rejected. This document cites it throughout
 as linked `D-nnn` entries, one entry per settled decision. Entry numbers are
 stable and never reused, so a citation here always names the same entry there.
+
 ---
 
 ## 2. Formalism
@@ -277,8 +278,8 @@ A continuous component is a classical hybrid automaton. It has these facets.
   flags) that parametrize the [flow](#g-flow) and change *only* through event handlers.
 - **Flow** $\dot{x} = f(x, m, u, t)$.
 - **Two output stages** ([§5.2][s5-2]).
-- **Events**, each a [guard](#g-guard) plus a handler. A handler updates `m` and may reset
-  the component's own `x`. Both guard and handler read the fresh [boundary](#g-boundary)
+- **Events**, each a [guard](#g-guard) plus a handler. A handler may update `m` and may
+  reset the component's own `x`. Both guard and handler read the fresh [boundary](#g-boundary)
   [signal table](#g-signal-table) ([§5.3][s5-3]).
 - An optional **[projection](#g-projection)**.
 
@@ -447,9 +448,9 @@ takes the bundle and destructures. A field-projection connector is a [guarded
 addition](#g-guarded-addition) (a capability the design admits but does not
 build). Its shape is obvious, and it is not built.
 
-**Granularity guideline.** Authors bundle what *shares a stage* *and is consumed
-together*. The first criterion is trivially enforced, because each port has
-exactly one producing function. Bundling across dependency footprints is the
+**Granularity guideline.** Authors should bundle what *shares a stage* *and is
+consumed together*. The first criterion is trivially enforced, because each port
+has exactly one producing function. Bundling across dependency footprints is the
 `KinData` mistake ([§15.1][s15-1]). Pose is stage 1 and velocity-derived quantities are
 stage 2, so that bundle must split. Fan-out is free, so publishing both a bundle
 and a hot loose field (`pose` *and* `q_eb`) is legitimate. It costs one extra
@@ -469,7 +470,7 @@ output_connections(::Vehicle) = ("kin/pose" => "pose", "kin/q_eb" => "q_eb")
 
 #### Granularity, write side
 
-**Write-side rule.** Bundle what is written together ([§15.4][s15-4]).
+**Write-side rule.** **Bundle what is written together** ([§15.4][s15-4]).
 
 **Rule.** Data written by different external writers, or at different cadences,
 must not share a port.
@@ -860,7 +861,7 @@ composite map $x \mapsto \dot{x}$ is mathematically identical, so linearization,
 trim and AD are untouched. The heterodox element is only that derivatives may
 read outputs.
 
-The teaching line is this. *"Stage 1 publishes what you know from state alone;
+The teaching line is this. *"stage 1 publishes what you know from state alone;
 stage 2 adds what needs inputs; your dynamics read your own published results
 instead of recomputing them."*
 
@@ -1031,10 +1032,11 @@ There are two modes, and they degrade gracefully.
 parameters or time never interferes. Stage-2 functions also receive state views,
 but neither those nor the stage-1 hand-down are ever seeded. Stage-1 functions
 are never traced, since there is nothing to seed. Derivatives, [guards](#g-guard), handlers
-and [projections](#g-projection) are outside tracing's jurisdiction entirely. One tracer blind
-spot is documented. Value-severing operations pass dependence through a bare
-`Int` index, as a nearest-neighbor lookup does. Linear and cubic interpolation
-are immune, because dependence flows through the fractional weights.
+and [projections](#g-projection) are outside tracing's jurisdiction entirely. A known tracer
+blind spot is documented. Value-severing operations pass dependence through a
+bare `Int` index, as a nearest-neighbor lookup does. Linear and cubic
+interpolation are immune, because dependence flows through the fractional
+weights.
 
 Both modes ride the same `T <: Real` genericity as `Dual`. Dual-cleanliness in
 CI effectively guarantees traceability.
@@ -1044,8 +1046,8 @@ CI effectively guarantees traceability.
 ## 6. Composition: connections, aggregation and hierarchy
 
 [Components](#g-component) become a system through wiring. Connections route signals across the
-[assembly](#g-assembly) hierarchy, and ordinary junction components combine several signals
-into one wherever that is needed. [§6.1][s6-1] gives the connection and hierarchy rules.
+[assembly](#g-assembly) hierarchy, and ordinary junction components sit wherever several
+signals must combine into one. [§6.1][s6-1] gives the connection and hierarchy rules.
 [§6.2][s6-2] gives the aggregation idiom they force.
 
 ### 6.1 Connections and hierarchy
@@ -1369,8 +1371,8 @@ mirrors another. In particular there are no state [cells](#g-cell) in the table 
 [contract](#g-contract)-driven [auto-published ports](#g-auto-published-port) (published by the framework from the state
 or mode store), which are interface, not transport.
 
-**The vocabulary is closed so that views materialize without running anyone's
-invariants.** Scalars and `SArray`s have invariant-free constructors.
+**The vocabulary is closed because views must materialize without running
+anyone's invariants.** Scalars and `SArray`s have invariant-free constructors.
 `SVector`'s stores its tuple, `NamedTuple` construction runs no user code, and
 nothing normalizes or clamps. Building a view through ordinary public
 construction is therefore bit-faithful automatically. `reconstruct(flatten(x))
