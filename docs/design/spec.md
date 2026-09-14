@@ -6136,10 +6136,12 @@ the tail residue — per writer, the final ring and its suppressed counts
 ([§13.5][s13-5]) — and presented through the standard logging backend: loud *and*
 recorded, still never published ([D-201][d-201], [D-203][d-203]).
 
-**Allocation.** On a quiet frame there is **zero additional heap
-allocation**: the sentinel swap allocates nothing and the per-writer status
-rides inline in the one per-boundary snapshot allocation [§11.2][s11-2] already
-accepted. That requires the per-kind counters to be a **fixed-shape isbits
+**Allocation.** On a quiet frame **nothing allocated scales with
+diagnostic activity**: the sentinel swap allocates nothing, and the
+per-writer status costs one small vector of records per publication beside
+the per-boundary snapshot allocation [§11.2][s11-2] already accepts — the same
+GC-over-reuse trade, a roster-sized vector rather than a snapshot type per
+roster size ([D-241][d-241]). The per-kind counters are a **fixed-shape isbits
 record, never a `Dict`** — licensed by the closed kind set ([Appendix C][sC]), which
 makes the counter layout a type rather than a lookup. On a noisy frame the
 diagnostic values are allocated at emission, on the writer's own task; a
@@ -11799,6 +11801,7 @@ carried in the spec rather than left to the reader: the worked assembly of
 [d-238]: decisions.md#d-238--decide-embed-accept-on-the-type-lift-the-arrival-compare-exactly
 [d-239]: decisions.md#d-239--report-a-typod-return-field-alone-without-the-unproduced-port
 [d-240]: decisions.md#d-240--read-the-heartbeat-at-publication-beside-the-task-state
+[d-241]: decisions.md#d-241--keep-the-status-a-vector-of-records-one-small-allocation-per-publication
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
