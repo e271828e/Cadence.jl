@@ -9951,9 +9951,9 @@ persistence.
 
 What follows is an outline for FlightPhysics/FlightApps, not a specification.
 The table carries one row per item: the item, the disposition recorded for it,
-the section owning the machinery it touches, and the governing decision entry. A
-dash means the outline names the item and records nothing further. Items whose
-disposition exceeds a cell are expanded below the table.
+the section owning the machinery it touches, and the governing decision entry.
+A dash means the outline names the item and records nothing further. Items
+whose disposition exceeds a cell are expanded below the table.
 
 | item | disposition | section | decision |
 |---|---|---|---|
@@ -9975,62 +9975,66 @@ disposition exceeds a cell are expanded below the table.
 | *Residual*: the C172 AD audit for trim | Interpolations tables (prefer cubic knots), saturation rank-deficiency (LM-tolerated, reported), the gear identically zero airborne | [§14.8][s14-8] | [D-070][d-070] |
 
 **The parametrization pass.** `Ranged` survives at [ports](#g-port) and
-parameters, and there the rewrite targets the walk rule ([§8.2][s8-2]):
-constructor discipline admitting the walked scalar with the value parameters
-left alone, plus a `probe_value` method. State fields are not among those
-survival sites; the state-declaration conversion below turns each `Ranged`
-state field into a plain scalar.
+parameters, and there the rewrite targets the walk rule ([§8.2][s8-2]). The
+rewrite is constructor discipline that admits the walked scalar and leaves the
+value parameters alone, plus a `probe_value` method. State fields are not
+among those survival sites. The state-declaration conversion below turns each
+`Ranged` state field into a plain scalar.
 
 **Comparison criteria.** FlightCore's demonstrated strengths are three:
-zero-alloc stepping, flexibility, interactive operation. Zero-alloc stepping is
-measured through the `phase_bodies` [seam](#g-seam) ([§9.7][s9-7]),
+zero-alloc stepping, flexibility, interactive operation. Zero-alloc stepping
+is measured through the `phase_bodies` [seam](#g-seam) ([§9.7][s9-7]),
 apples-to-apples with today's `@ballocated f_ode!` suites.
 
 **The conventional exported aircraft surface.** Generic
 [periphery](#g-periphery) consumers read the integration
-[register](#g-register) ([§11.2][s11-2]). What that surface exports is pose and
-velocity [faces](#g-face) with wrapper types — `VelocityData`, field meaning
-defined at the type — the periphery-facing half of the `KinData` successor.
+[register](#g-register) ([§11.2][s11-2]). That surface exports pose and
+velocity [faces](#g-face) with wrapper types, such as `VelocityData`, whose
+field meaning is defined at the type. It is the periphery-facing half of the
+`KinData` successor.
 
 **The supervisor seam.** The supervisor sitting above the compensators
 ([§15.2][s15-2]) contributes three respellings. Compensator gains become input
-ports fed by scheduler components (~7 for the C172X). Every mode-transition
-latch is respelled as a same-[tick](#g-tick) reset. The gear's level-triggered
-reset becomes an edge event — and that last one lands on the *library* side.
+ports fed by scheduler components (about 7 for the C172X). Every
+mode-transition latch is respelled as a same-[tick](#g-tick) reset. The gear's
+level-triggered reset becomes an edge event, and that last one lands on the
+*library* side.
 
 On the library side, the reimplemented `PIVector` gains a **flag-gated reset
-face**. `PIVector(; reset = true)` adds a `Bool` input face plus the event; the
-default omits both. Declarations are ordinary functions of the instance
+face**. `PIVector(; reset = true)` adds a `Bool` input face plus the event.
+The default omits both. Declarations are ordinary functions of the instance
 ([§8.5][s8-5]), which is what makes this the honest version of Simulink's
 checkbox. One fixed policy governs the face: a rising edge resets to the
-declared `init_x` values. The implementation is internal — an ordinary
-[guard](#g-guard)/handler event, the continuous-reset contract in
-its [worked](#g-worked) instance ([Appendix A][sA]).
+declared `init_x` values. The implementation is internal, an ordinary
+[guard](#g-guard)/handler event. It is the continuous-reset contract in its
+[worked](#g-worked) instance ([Appendix A][sA]).
 
 Falling-edge consumers wire a NOT gate (the Bool gates, [§13.7][s13-7]).
 Level-pinning and reset-to-an-external-value, which is tracking, are different
 blocks rather than options on this one ([D-141][d-141]).
 
-The gear then wires `strut.wow → frc.reset`. That is the **touchdown** edge —
-the not-[holding](#g-edge-semantics) → holding semantics ([§2.1][s2-1]) — and it
-gives fresh regulator state per contact episode. The liftoff edge (`!wow`) was
-rejected ([D-141][d-141]). [Boundary-detected](#g-boundary-detected) policy (checked
-for edges at step boundaries only, no root-finding) suffices, because the
-regulator's input ramps from zero at touchdown, so localization buys nothing. A
-sim initialized on ground fires the reset at [boundary zero](#g-boundary-zero)
-(the initialization boundary: the ordinary macro-sequence with an empty
-integrate). It fires harmlessly there: declared inits are zero, and
+The gear then wires `strut.wow → frc.reset`. That is the **touchdown** edge,
+with the not-[holding](#g-edge-semantics) → holding semantics ([§2.1][s2-1]),
+and it gives fresh regulator state per contact episode. The liftoff edge
+(`!wow`) was rejected ([D-141][d-141]). The
+[boundary-detected](#g-boundary-detected) policy (checked for edges at step
+boundaries only, no root-finding) suffices, because the regulator's input
+ramps from zero at touchdown, so localization buys nothing. A sim initialized
+on ground fires the reset at [boundary zero](#g-boundary-zero) (the
+initialization boundary: the ordinary macro-sequence with an empty integrate).
+It fires harmlessly there. Declared inits are zero, and
 [boundary](#g-boundary)-zero [priors](#g-prior) are not-holding
 ([§14.5][s14-5]).
 
-The engine's two `PIVector` instances — `PistonEngine`'s `idle` and `frc` —
+The engine's two `PIVector` instances, `PistonEngine`'s `idle` and `frc`,
 migrate **unchanged, flag off**. They are verified reset-free in today's code,
-where windup across unused phases is already handled by the saturation bounds
-and `int_halted`. Their `f_init!` gain writes become construction-time
-parameters, as `Contact`'s do ([D-089][d-089]). The PI *law* is shared as plain pure
-functions called by the block's stages, the laws-as-plain-functions pattern
-([D-139][d-139]). `sat_ext` poses the same always-on-vs-flag-gated face question, to
-be decided at reimplementation time on the same axis.
+where the saturation bounds and `int_halted` already handle windup across
+unused phases. Their `f_init!` gain writes become construction-time
+parameters, as `Contact`'s do ([D-089][d-089]). The PI *law* is shared as
+plain pure functions called by the block's stages, which is the
+laws-as-plain-functions pattern ([D-139][d-139]). `sat_ext` poses the same
+always-on-vs-flag-gated face question, to be decided at reimplementation time
+on the same axis.
 
 **The steering contract re-factoring.** This is the middle rung
 ([§5.4][s5-4]), worked on the shipped instance. `AbstractSteering` moves from
@@ -10038,52 +10042,56 @@ be decided at reimplementation time on the same axis.
 `ψ_sw = engaged ? ψ_cmd : ψ_v` computed inside `Strut`. That move deletes the
 strut → steering → strut artificial loop that stage-2 conservatism would
 otherwise manufacture. The `VehicleDynamics` instance standing beside it
-([§15.1][s15-1]) needs no such move: it dissolves under the two-stage split
+([§15.1][s15-1]) needs no such move. It dissolves under the two-stage split
 alone.
 
-**Splitting `Strut`.** The residual remedy is to split `Strut`, its shared
-geometry crossing the new boundary as one `StrutGeometry` bundle
-port. It is recorded and not taken. The call is an aircraft-library one — a
-component's own contract — recorded here rather than in framework vocabulary.
+**Splitting `Strut`.** The residual remedy is to split `Strut`, with its
+shared geometry crossing the new boundary as one `StrutGeometry` bundle port.
+It is recorded and not taken. The call is an aircraft-library one, about a
+component's own contract, so it is recorded here rather than in framework
+vocabulary.
 
 **The state-declaration conversion.** State declarations move to the closed
 vocabulary ([§7.1][s7-1]). Each `RQuat` state field becomes its `SVector{4}`
-backing, with the explicit `normalization = false` cast at its use sites; the
-4-wide rate is already what today's `Attitude.dt` delivers. Each `Ranged` state
-field becomes a plain scalar, its clamp respelled as dynamics or
+backing, with the explicit `normalization = false` cast at its use sites. The
+4-wide rate is already what today's `Attitude.dt` delivers. Each `Ranged`
+state field becomes a plain scalar, with its clamp respelled as dynamics or
 [projection](#g-projection), never as construction.
 
 **The exported-name surface.** This surface is to be decided deliberately
 rather than by accident. Until the audit below runs, the module exports
 nothing, and a public name is reached by qualified name or per-name `import`
-([D-226][d-226]). `condition`, `fragment`, `at`, `capture` and
-`combine` ([§14.2][s14-2]) are generic names sharing a namespace with
-FlightPhysics domain code. The `Base.merge` piracy surface the combinator once
-presented is retired with its rename ([D-204][d-204]); the mixed-argument methods stay
-error methods. For the readers, the `get_` prefix of the [selector](#g-selector) family
-already settles the question ([§14.4][s14-4]). Whether the [condition](#g-condition) algebra ships
-behind a submodule is the packaging question.
+([D-226][d-226]). `condition`, `fragment`, `at`, `capture` and `combine`
+([§14.2][s14-2]) are generic names that share a namespace with FlightPhysics
+domain code. The `Base.merge` piracy surface the combinator once presented is
+retired with its rename ([D-204][d-204]), and the mixed-argument methods stay
+error methods. For the readers, the `get_` prefix of the
+[selector](#g-selector) family already settles the question ([§14.4][s14-4]).
+Whether the [condition](#g-condition) algebra ships behind a submodule is the
+packaging question.
 
-The audit is a full-surface sweep (per user, 2026-08-01). Every API
-method name is either specific enough to export, or gets renamed, or is left
-unexported — and for extension-only surface, *unexported* is the preferred
-disposition. Extension-only surface has three parts:
+The audit is a full-surface sweep (per user, 2026-08-01). Every API method
+name is either specific enough to export, or gets renamed, or is left
+unexported. For extension-only surface, *unexported* is the preferred
+disposition. Extension-only surface has three parts.
 
-- the declaration and stage family of the import list ([§8.1][s8-1]), the
-  larger half of the question: it sits on every component file's first line and
-  is settled there;
-- the [binding](#g-binding) interface `claims`/`reads` ([§11.6][s11-6]) and the
-  side traits `is_input`/`is_output`/`is_greedy`, with `map_input`/`map_output`
-  outside the question as loop-idiom conventions the framework never calls;
-- the [device](#g-device) contract
-  `init!`/`loop`/`shutdown!`/`unblock!`/`needs_calling_task`, which authors
-  extend by `import` or qualified name, `Base.show`-style, rather than call
-  every day.
+- The declaration and stage family of the import list ([§8.1][s8-1]) is the
+  larger half of the question. It sits on every component file's first line
+  and is settled there.
+- The [binding](#g-binding) interface `claims`/`reads` ([§11.6][s11-6]) and
+  the side traits `is_input`/`is_output`/`is_greedy` are the second part.
+  `map_input`/`map_output` sit outside the question, as loop-idiom conventions
+  the framework never calls.
+- The [device](#g-device) contract
+  `init!`/`loop`/`shutdown!`/`unblock!`/`needs_calling_task` is the third.
+  Authors extend it by `import` or qualified name, `Base.show`-style, rather
+  than call it every day.
 
-The audit's criterion is the **four-register naming convention** ([D-144][d-144]):
+The audit's criterion is the **four-register naming convention**
+([D-144][d-144]):
 
-1. **Declarations**, which the author defines and the framework calls, are noun
-   phrases or `init_*`/`_types`: `child_connections`,
+1. **Declarations**, which the author defines and the framework calls, are
+   noun phrases or `init_*`/`_types`: `child_connections`,
    `input_connections`/`output_connections`, `state_events`, `input_types`,
    `init_workspace`, the stage and update-law names ([D-220][d-220]), and
    `claims(b)` from the binding interface ([§11.6][s11-6]).
@@ -10096,60 +10104,61 @@ A name in the wrong register is a rename candidate on that ground alone.
 
 The convention also has a **semantic axis**: right register, wrong noun.
 `input_passthrough` ([§8.8][s8-8], [D-171][d-171]) and the binding methods
-`claims`/`reads` ([§11.6][s11-6], [D-146][d-146]) are what settle it — bare-noun
-declarations name the *consequence* a declaration has rather than its
-*content*. `exports` is that axis's retired exemplar ([D-170][d-170]). The
-`*_connections` family names content deliberately, for authoring transparency;
-that is a recorded choice, not register drift.
+`claims`/`reads` ([§11.6][s11-6], [D-146][d-146]) are what settle it. A
+bare-noun declaration names the *consequence* a declaration has rather than
+its *content*. `exports` is that axis's retired exemplar ([D-170][d-170]). The
+`*_connections` family names content deliberately, for authoring transparency.
+That is a recorded choice, not register drift.
 
-Four items are flagged for the sweep and deliberately not settled here:
+Four items are flagged for the sweep and deliberately not settled here.
 
-- `input_faces`/`output_faces` — noun accessors punning on the `_types`
+- `input_faces`/`output_faces` are noun accessors that pun on the `_types`
   declarations, mitigated by being framework-facing.
-- `loop` — the device contract ([§11.6][s11-6]): a mutating task body spelled as
-  a bare noun among its verb-`!` siblings `init!`/`shutdown!`/`unblock!`. With
-  `run!` taken and the "loop body" prose entrenched, it needs the audit's
-  whole-surface view.
-- The bare-noun accessor family `trace(sim)`, `latest(sim)`, `binding(handle)`,
-  `phase_bodies(sim)` — value selectors outside register (2)'s `get_` rule.
-  `trace` is the sharpest of them: the constructor kill-switch `trace = false`
-  and the post-run accessor `trace(sim)` are one name in two senses, the
-  overload pattern [D-122][d-122] and [D-144][d-144] retire.
+- `loop`, in the device contract ([§11.6][s11-6]), is a mutating task body
+  spelled as a bare noun among its verb-`!` siblings
+  `init!`/`shutdown!`/`unblock!`. With `run!` taken and the "loop body" prose
+  entrenched, it needs the audit's whole-surface view.
+- The bare-noun accessor family `trace(sim)`, `latest(sim)`,
+  `binding(handle)`, `phase_bodies(sim)` holds value selectors outside
+  register (2)'s `get_` rule. `trace` is the sharpest of them. The constructor
+  kill-switch `trace = false` and the post-run accessor `trace(sim)` are one
+  name in two senses, which is the overload pattern [D-122][d-122] and
+  [D-144][d-144] retire.
 - Whether register (1) needs an explicit exemption for predicate traits
   (`is_greedy`, `needs_calling_task`).
 
-All five are boundary cases the convention in [D-144][d-144] does not settle, and they
-are not defects of its list.
+All four are boundary cases the convention in [D-144][d-144] does not settle,
+and they are not defects of its list.
 
 #### GUI panel authoring API
 
 The semantics are settled ([§11.7][s11-7]): derived liveness, first-class
 read-only rendering, own-pending-else-snapshot [peek](#g-peek),
 [stage-on-interaction](#g-stage-on-interaction), orphan display. What is
-deferred to migration is the calling convention — context contents, port
-naming, child composition. That convention is to be co-designed against the GUI
-library under the four constraints ([§11.7][s11-7]).
+deferred to migration is the calling convention: context contents, port
+naming, child composition. That convention is to be co-designed against the
+GUI library under the four constraints ([§11.7][s11-7]).
 
 #### Log and trace persistence
 
-The in-memory artifacts are settled; nothing on-disk is. Three facts stand on
-the in-memory side:
+The in-memory artifacts are settled, and nothing on-disk is. Three facts stand
+on the in-memory side.
 
-- the log is the retained boundary snapshots ([§11.2][s11-2]);
-- the input trace is always on and device-tagged, carrying its header of
-  initial [stores](#g-store) and [root input](#g-root-input) values ([§11.5][s11-5],
-  [§14.5][s14-5], [§14.6][s14-6]);
-- the primary/derived rule holds: the log is recomputable from the trace, never
-  the reverse.
+- The log is the retained boundary snapshots ([§11.2][s11-2]).
+- The input trace is always on and device-tagged, and it carries its header
+  of initial [stores](#g-store) and [root input](#g-root-input) values
+  ([§11.5][s11-5], [§14.5][s14-5], [§14.6][s14-6]).
+- The primary/derived rule holds: the log is recomputable from the trace,
+  never the reverse.
 
 The on-disk questions are deferred to migration, where the consumers exist to
-ground the choices:
+ground the choices.
 
-- the HDF5 export scope — the whole snapshot log, or selected subtrees;
-- field-handle summarization over retained snapshots, the successor to the
+- The HDF5 export scope: the whole snapshot log, or selected subtrees.
+- Field-handle summarization over retained snapshots, the successor to the
   `getproperty` navigation of `TimeSeries`, which is today's post-processing
-  entry point;
-- the trace file format, which doubles as the reproducibility carrier: the
+  entry point.
+- The trace file format, which doubles as the reproducibility carrier. The
   [replay](#g-replay) pointers ([§13.4][s13-4]) name positions in it.
 
 ---
