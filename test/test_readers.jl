@@ -81,14 +81,18 @@ function test_readers()
                                                c = get_deriv("ctl", :acc),
                                                d = get_face(:nope)), b))
         @test e isa DiagnosticError && length(diagnostics(e)) == 4                  # the full list, one throw
-        @test all(d -> d isa TapResolution, diagnostics(e))
         (a, b_, c, d) = diagnostics(e)
-        @test a.reason === :unknown_path && a.path == "plnt" && a.tap === :x   # the offender, plainly
+        # The path itself is the walk's refusal, one register over, and the one
+        # path arm that now carries a list in hand (§13.3).
+        @test a isa PathResolution && a.reason === :unknown_child && a.segment == "plnt" &&
+              a.candidates == ["plant", "ctl", "src"]
+        @test startswith(a.entry, "the read labeled `a`")
+        @test all(x -> x isa TapResolution, (b_, c, d))
         @test b_.reason === :undeclared && b_.declares === :output_port &&
               b_.field === :thrust && b_.candidates == [:y, :power]            # the list in hand
         @test c.selector == "get_deriv(\"ctl\", :acc)" && c.reason === :discrete_deriv
         @test d.reason === :unknown_output_face && d.field === :nope && d.candidates == [:y]
-        @test [x.label for x in diagnostics(e)] == [:a, :b, :c, :d]             # each read, by label
+        @test [x.label for x in (b_, c, d)] == [:b, :c, :d]                     # each read, by label
 
         # An assembly path, a root input read as a face, an index on a scalar leaf,
         # and a state field the component does not declare.
@@ -108,6 +112,31 @@ function test_readers()
         @test diag.reason === :not_a_read_set
         d = carried(@test_throws DiagnosticError{ReadSetMisuse} reads(q = 2.0))                    # nor is 2.0 a selector
         @test d.reason === :not_a_selector && d.label === :q
+    end
+
+    @testset "a read selector's path stays within a concretely declared subtree (§13.3, §14.7, D-125)" begin
+        # No mounting exists, so every selector path is authored at the root and
+        # walked from it in full: the first segment may be generically held, a
+        # segment past one may not. `ConcreteHold`/`GenericHold` hold the same
+        # instance two ways (`test_assembly.jl`).
+        deep = reads(q = get_state("inner/plant", :q))
+        d = only(diagnostics(failure(() -> _compile_reads(deep,
+                                              build(GenericHold(SampledLoop()))))))
+        @test d isa PathResolution && d.reason === :past_generic && d.segment == "inner"
+
+        # Declaring the field's concrete type restores the deep read legally, with
+        # the hard-coding visible in the declaration itself (§13.3).
+        sim = Simulation(ConcreteHold(SampledLoop()); h = 1//50)
+        init!(sim, combine(at("inner/plant", fragment(x = (q = SVector(0.3, 0.1),))),
+                           fragment(inputs = (ref = 1.0,))))
+        evaluate!(sim.exec)
+        @test gather(_compile_reads(deep, sim.build), sim.exec).q == SVector(0.3, 0.1)
+
+        # D-125's own remedy, and the one that survives substitution: the seam
+        # publishes a face, and the face register is what the read binds.
+        for holder in (ConcreteHold(SampledLoop()), GenericHold(SampledLoop()))
+            @test _compile_reads(reads(y = get_face(:y)), build(holder)) isa Reader
+        end
     end
 
     @testset "the source rule: a snapshot-bound reader may not name a store selector (§14.4)" begin

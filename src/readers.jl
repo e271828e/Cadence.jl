@@ -250,17 +250,17 @@ function _resolve_reads(rs::Reads, b::Build, ::Type{T}) where {T}
     (isempty(diags) ? Reader{T,keys(rs.sels)}(Tuple(entries)) : nothing, diags)
 end
 
-# The component a path-addressed selector names. The treatment is
-# `_component`'s, one register over: the offender named plainly, an assembly
-# discriminated from a path that is nothing at all (candidate lists are absent
-# here, `pending.md`).
+# The component a path-addressed selector names. No mounting exists, so every
+# selector path is authored at the root and walked from it in full (§13.3): the
+# walk owns the unknown-segment refusal and its candidates, and the past-generic
+# one with them. What stays here is `_component`'s residue, one register over —
+# a level the walk admitted that owns no state of its own.
 function _read_component(s, label::Symbol, flat::Flat, diags::Vector{Diagnostic})
+    entry = "the read labeled `$label`, $(_spell(s))"
+    resolve_authored(entry, "", flat.root, s.path, diags) === nothing && return nothing
     i = findfirst(==(s.path), flat.paths)
     i === nothing || return i
-    # An empty path names the root, which is a level of every build — the
-    # prefix test cannot see that, the root's segment being no segment at all.
-    push!(diags, _rviol(label, s, (isempty(s.path) || _addresses_level(flat, s.path)) ?
-                          :assembly_path : :unknown_path))
+    push!(diags, _rviol(label, s, :assembly_path))
     nothing
 end
 

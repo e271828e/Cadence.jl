@@ -299,12 +299,68 @@ function _one_level(entry::String, base::String, asm, path::AbstractString,
     kid, seg
 end
 
+# A child's holding, read off the type's definition rather than the instance:
+# a field typed by a parameter is a `TypeVar` there, whatever the
+# instantiation filled in (§8.5, D-061). Container elements follow their
+# container's declared type.
+_declared_holding(c, field::Symbol) =
+    fieldtype(Base.unwrap_unionall(typeof(c).name.wrapper), field)
+_held_concretely(c, field::Symbol) =
+    (ft = _declared_holding(c, field); !(ft isa TypeVar) && isconcretetype(ft))
+
+"""
+The load-bearing register's walk (§13.3, D-130): `path`'s segments from
+`level`, the component at `base`, following the declared field types
+alongside the instances. Resolving *to* a generically held child is legal;
+traversing *past* one is the refusal, whatever the instance in hand — the
+authoring level speaks its own fields and its declared children's names
+(§14.2), and a deep path is legitimate exactly within an owned concrete
+subtree. Returns the component the path names, primitive or assembly, or
+`nothing` after recording the refusal against `entry`. The empty path names
+`level` itself.
+"""
+function resolve_authored(entry::String, base::String, level, path::AbstractString,
+                          diags::Vector{Diagnostic})
+    isempty(path) && return level
+    segs = String.(split(path, '/'))
+    here, at, i = level, base, 1
+    while i ≤ length(segs)
+        # `_children` re-runs the container collision checks and throws on its
+        # own when they fail; the build proved this tree clean, so here the call
+        # only hands the list back.
+        kids, fields = _children(at, here)
+        j = findfirst(kid -> first(kid) == segs[i], kids)
+        j === nothing && i < length(segs) &&
+            (j = findfirst(kid -> first(kid) == segs[i] * "/" * segs[i + 1], kids))
+        if j === nothing
+            push!(diags, PathResolution(entry = entry, spelling = String(path),
+                                       reason = :unknown_child, owner = _at(at),
+                                       segment = segs[i],
+                                       candidates = String[first(k) for k in kids]))
+            return nothing
+        end
+        seg, kid = kids[j]
+        i += count(==('/'), seg) + 1            # a matched pair consumes two segments
+        if i ≤ length(segs) && !_held_concretely(here, fields[j])
+            push!(diags, PathResolution(entry = entry, spelling = String(path),
+                                       reason = :past_generic, owner = _at(at),
+                                       segment = seg, level = _join(at, seg),
+                                       declared = _declared_holding(here, fields[j])))
+            return nothing
+        end
+        here, at = kid, _join(at, seg)
+    end
+    here
+end
+
 # --- §13.3's build primitives -------------------------------------------------
 # The four the declaration surface calls: `resolve` and `resolve_terminal` in
-# their public, entry-less forms, plus the two face-list accessors. This is the
+# their public, entry-less forms, plus the two face-list accessors. Those are the
 # *structural* register of §13.3's table — the one-level rule verbatim, the same
 # walk wiring resolution runs, entered from a declaration body with no wiring
-# entry to attribute the failure to.
+# entry to attribute the failure to. `resolve_authored` above is the
+# *load-bearing* register's own walk, entered by the services with an entry to
+# attribute the refusal to.
 
 """
     resolve(asm, path) → AbstractComponent
@@ -537,9 +593,12 @@ two-sided face table — the assembly faces the periphery may read, aliased onto
 the cells they derive from, and beside them every input face at every level with
 the producer it routes to. The input side is total: one-level routing gives
 every signal crossing a boundary a declared face there (D-207), so a fragment's
-`inputs` payload resolves from any authoring level (§14.2).
+`inputs` payload resolves from any authoring level (§14.2). The root itself is
+retained, because the load-bearing register's walk resolves against the tree the
+paths index rather than against the compiled list (§13.3).
 """
 struct Flat
+    root::Any                       # the tree the paths index (§13.3's load-bearing walk)
     paths::Vector{String}
     comps::Vector{Any}
     conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}}   # face => (producer path, port)
@@ -570,7 +629,8 @@ struct Walk
     routes::Vector{Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}}   # (path, face, consumers)
 end
 
-Walk() = Walk(Flat(String[], Any[], Vector{Pair{Symbol,Tuple{String,Symbol}}}[], Symbol[],
+Walk(root) = Walk(Flat(root, String[], Any[],
+                   Vector{Pair{Symbol,Tuple{String,Symbol}}}[], Symbol[],
                    Any[],
                    Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
                    Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],

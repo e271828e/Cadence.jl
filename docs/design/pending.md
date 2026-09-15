@@ -18,9 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **§13.3's generic-holding check in the *load-bearing* register** — the deep
-  paths condition entries and trim `reads` write are policed by nothing, so
-  §14.2's locality law rides as convention here.
 - **Port-value coverage** (M-B7, M-B10): enum-valued ports are refused
   — `leaf_types` returns empty for an `Enum`, so `place!` raises
   `IllegalPortType`, and `probe_value` has no enum arm, against §4.1 and
@@ -58,12 +55,10 @@ Where the reason is not given here, the cited decision carries it:
   kind — a datum naming no channel of a `TableBinding` (`bindings.jl` ~93):
   it runs on the device task inside the author's own mapping and reaches the
   framework as a `DeviceCrash` `cause`, so D-216 leaves it there. Absent with
-  them: did-you-mean **ranking** (no list is ever ordered), and the lists
-  themselves on some arms — `ReadBindingUnresolved` fills `candidates` on the
-  `get_input` miss only, `ConditionResolution`'s `:unknown_path` arm and
-  `_read_component` carry none, and a mistyped *path* gets none anywhere
-  (M-A2); and §11.8's maxlog renderer (count-only display past 25 cumulative
-  occurrences per writer × kind).
+  them: did-you-mean **ranking** (no list is ever ordered), and the list
+  itself on one arm — `ReadBindingUnresolved` fills `candidates` on the
+  `get_input` miss only; and §11.8's maxlog renderer (count-only display past
+  25 cumulative occurrences per writer × kind).
 - **Kinds carrying less than their Appendix C payload.** D-216 rules
   that the column is the design and the implementation's gaps stay visible
   as such, and it leaves the enumeration here: `FaceNameCollision` no
@@ -79,12 +74,12 @@ Where the reason is not given here, the cited decision carries it:
   `TapResolution` no candidates on the path-selector arms and none of
   §14.10's tap-set half; and from the audit (M-C, M-B14, M-B17, M-B19):
   `TwoProducers` producer terminals only inside provenance strings,
-  `PathResolution` no generic-holding arm, `AttachUnknownFace`/
-  `ReadBindingUnresolved` the binding type where the column says device type,
-  `ServiceLifecycle.legal` empty at `init!`, `trim!` and `replay!` (only
-  `capture` fills it), `DeclarationOnWrongTier` naming the two tiers rather
-  than §8.5's two forms, `TierSignatureMismatch` its bound arm alone, the
-  arity arms riding as `DeclarationOnWrongTier`'s `:tier_form`,
+  `AttachUnknownFace`/`ReadBindingUnresolved` the binding type where the
+  column says device type, `ServiceLifecycle.legal` empty at `init!`, `trim!`
+  and `replay!` (only `capture` fills it), `DeclarationOnWrongTier` naming
+  the two tiers rather than §8.5's two forms, `TierSignatureMismatch` its
+  bound arm alone, the arity arms riding as `DeclarationOnWrongTier`'s
+  `:tier_form`,
   `EventHalfMissing.found` a model type interpolated into the message against
   §13.2 (`_typename` is one screen up).
 - **§8.8 beyond the helper pair** (the feed-list idiom, generic-holding sugar,

@@ -29,6 +29,7 @@ abstract type Diagnostic end
 # names are recorded in a trace header (§11.5) and matched on replay.
 _typename(x) = string(nameof(typeof(x)))
 _typename(T::Type) = string(nameof(T))
+_typename(v::TypeVar) = string(v)      # a declared generic holding: `nameof` has no method
 
 """
 The kind's severity (§13.2, D-214): `:error` — an occurrence throws, alone or
@@ -361,12 +362,13 @@ message(d::RootInputTypeConflict) =
 Base.@kwdef struct PathResolution <: Diagnostic
     entry::String                            # the register or wiring entry: provenance
     spelling::String                         # the path as written
-    reason::Symbol                           # :not_a_terminal|:unknown_child|:reaches_past|:empty_path
+    reason::Symbol   # :not_a_terminal|:unknown_child|:reaches_past|:past_generic|:empty_path
     owner::String = ""                       # the component the path was resolved against
     segment::String = ""                     # the offending segment
     level::String = ""                       # the level it stopped at
     candidates::Vector{String} = String[]    # the sibling child names
     tail::Int = 0                            # 1 for a wiring endpoint, 0 for a bare child path
+    declared::Any = nothing                  # the offending field's declared type, where generic
 end
 path(d::PathResolution) = d.spelling
 function message(d::PathResolution)
@@ -380,6 +382,12 @@ function message(d::PathResolution)
         return "$(d.entry): `$(d.spelling)` names no child `$(d.segment)` of $(d.owner)" *
                (isempty(d.candidates) ? " — it has no children" :
                 " — its children are $(_plainlist(d.candidates))")
+    d.reason === :past_generic &&
+        return "$(d.entry): `$(d.spelling)` reaches past `$(d.level)`, which $(d.owner) " *
+               "holds through the non-concrete declared type `$(_typename(d.declared))` — a " *
+               "path in this register stops at a generically held child or stays within a " *
+               "concretely declared subtree: address the child at its own level, read a " *
+               "face it exports, or declare the field's concrete type (§13.3, §14.2)"
     "$(d.entry): `$(d.spelling)` reaches past `$(d.level)` — " *
     (d.tail == 1 ?
      "a connection endpoint names an immediate child and one of its faces, so an " *
@@ -1103,7 +1111,7 @@ Base.@kwdef struct ConditionResolution <: Diagnostic
     path::String = ""
     store::Symbol = :input                   # :x | :s | :m | :input
     field::Symbol
-    reason::Symbol   # :assembly_path|:unknown_path|:unexported_face|:no_input_face|
+    reason::Symbol   # :assembly_path|:unexported_face|:no_input_face|
                      # :internally_wired|:no_store|:undeclared_field|:unconvertible
     face::Union{Nothing,Symbol} = nothing    # the root input the chain lands on
     provenance::String = ""                  # the tree's chain to this value
@@ -1130,9 +1138,6 @@ function message(d::ConditionResolution)
         return "the condition addresses $(_at_path(d.path)), which is an assembly — " *
                "assemblies own no state, and a condition addresses components and root " *
                "inputs (§14.1, §8.5) [$(d.provenance)]"
-    d.reason === :unknown_path &&
-        return "the condition addresses $(_at_path(d.path)), which is no component of " *
-               "this build" * _ctail(d)
     d.reason === :unexported_face &&
         return "`$(d.field)` is no root input face — the root's inputs are " *
                "$(_namelist(d.candidates)) (§14.2) [$(d.provenance)]"
@@ -1212,7 +1217,7 @@ message(d::UninitializedInputs) =
 Base.@kwdef struct TapResolution <: Diagnostic
     label::Symbol                            # the read's label in the set
     selector::String                         # the selector as authored
-    reason::Symbol   # :assembly_path|:unknown_path|:scalar_index|:undeclared|:discrete_deriv|
+    reason::Symbol   # :assembly_path|:scalar_index|:undeclared|:discrete_deriv|
                      # :unknown_root_input|:root_input_not_face|:unknown_output_face
     tap::Union{Nothing,Symbol} = nothing     # :x | :u | :y
     path::String = ""
@@ -1240,8 +1245,6 @@ function message(d::TapResolution)
         return _tapviol(d, "$(_at_path(d.path)) is an assembly — a path selector addresses " *
                            "a component's own declarations, and a root-exported face is " *
                            "read with `get_face`")
-    d.reason === :unknown_path &&
-        return _tapviol(d, "$(_at_path(d.path)) is no component of this build")
     d.reason === :scalar_index &&
         return _tapviol(d, "the leaf it names is declared $(d.declared) — a scalar has no " *
                            "index, and `i` addresses a component of a vector leaf")

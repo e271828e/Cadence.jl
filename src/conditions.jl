@@ -150,7 +150,7 @@ end
 _key(e::CEntry) = e.face === nothing ? (e.path, e.store, e.field) : ("", :input, e.face)
 _step(prov::String, s::String) = isempty(prov) ? s : prov * " → " * s
 
-function _flat(n::Fragment, path::String, prov::String, pos::Tuple,
+function _flat(n::Fragment, path::String, level, prov::String, pos::Tuple,
                flat::Flat, diags::Vector{Diagnostic})
     out = CEntry[]
     for (store, name, payload) in ((:x, :x, n.x), (:s, :s, n.s),
@@ -167,26 +167,30 @@ function _flat(n::Fragment, path::String, prov::String, pos::Tuple,
     out
 end
 
-_flat(n::Scoped, path::String, prov::String, pos::Tuple,
-      flat::Flat, diags::Vector{Diagnostic}) =
-    _flat(n.node, _join(path, n.prefix), _step(prov, "at(\"$(n.prefix)\")"),
-          (pos..., :node), flat, diags)
+function _flat(n::Scoped, path::String, level, prov::String, pos::Tuple,
+               flat::Flat, diags::Vector{Diagnostic})
+    entry = _step(prov, "at(\"$(n.prefix)\")")
+    kid = resolve_authored(entry, path, level, n.prefix, diags)
+    kid === nothing && return CEntry[]        # the path is the offender, reported once
+    _flat(n.node, _join(path, n.prefix), kid, entry, (pos..., :node), flat, diags)
+end
 
-_flat(n::Combined, path::String, prov::String, pos::Tuple,
+_flat(n::Combined, path::String, level, prov::String, pos::Tuple,
       flat::Flat, diags::Vector{Diagnostic}) =
-    reduce(vcat, (_flat(k, path, _step(prov, "combine[$i]"), (pos..., :nodes, i), flat, diags)
+    reduce(vcat, (_flat(k, path, level, _step(prov, "combine[$i]"), (pos..., :nodes, i),
+                        flat, diags)
                   for (i, k) in enumerate(n.nodes)); init = CEntry[])
 
 # Layering (§14.6): each layer is flattened and checked on its own — a
 # within-layer collision is still an error — and then folded onto the
 # accumulator, the patch replacing the leaf it overrode and inheriting its
 # provenance beside its own.
-function _flat(n::Override, path::String, prov::String, pos::Tuple,
+function _flat(n::Override, path::String, level, prov::String, pos::Tuple,
                flat::Flat, diags::Vector{Diagnostic})
     acc = CEntry[]
     for (i, layer) in enumerate(n.layers)
         label = i == 1 ? "override[base]" : "override[patch $(i - 1)]"
-        es = _flat(layer, path, _step(prov, label), (pos..., :layers, i), flat, diags)
+        es = _flat(layer, path, level, _step(prov, label), (pos..., :layers, i), flat, diags)
         _check_duplicates!(es, diags)
         for e in es
             j = findfirst(a -> _key(a) == _key(e), acc)
@@ -315,7 +319,7 @@ function _resolve_entries(node::ConditionNode, b::Build, ::Type{T}) where {T}
     act = activation(b, T)
     decls, layout = act.decls, act.layout
     diags = Diagnostic[]
-    entries = _flat(node, "", "", (), flat, diags)
+    entries = _flat(node, "", flat.root, "", (), flat, diags)
     _check_duplicates!(entries, diags)
 
     x_offs = _x_offsets(decls, tiers)
@@ -394,14 +398,15 @@ _cviol(e::CEntry, reason::Symbol; kw...) =
     ConditionResolution(; path = e.path, store = e.store, field = e.field, face = e.face,
                         reason = reason, provenance = e.prov, kw...)
 
-# The component a non-input entry addresses. Assemblies are virtual for
+# The component a non-input entry addresses. Every `at` prefix was walked at its
+# own authoring level (§13.3), so the path names a level of this build: what is
+# left to say is that the level owns no state. Assemblies are virtual for
 # execution (§10.5) and own no state, so an `at` prefix stopping at one has
 # nothing to write — and saying so beats "no such path".
 function _component(flat::Flat, e::CEntry, diags::Vector{Diagnostic})
     i = findfirst(==(e.path), flat.paths)
     i === nothing || return i
-    push!(diags, _cviol(e, any(startswith(p, e.path * "/") for p in flat.paths) ?
-                          :assembly_path : :unknown_path))
+    push!(diags, _cviol(e, :assembly_path))
     nothing
 end
 
@@ -421,9 +426,7 @@ function _root_input(flat::Flat, e::CEntry, diags::Vector{Diagnostic})
     k = findfirst(p -> first(p) === (e.path, e.field), flat.in_faces)
     if k === nothing
         here = [f for ((p, f), _) in flat.in_faces if p == e.path]
-        push!(diags, isempty(here) && !_addresses_level(flat, e.path) ?
-                    _cviol(e, :unknown_path) :
-                    _cviol(e, :no_input_face; candidates = here))
+        push!(diags, _cviol(e, :no_input_face; candidates = here))
         return nothing
     end
     (path, port) = last(flat.in_faces[k])
@@ -431,13 +434,6 @@ function _root_input(flat::Flat, e::CEntry, diags::Vector{Diagnostic})
     push!(diags, _cviol(e, :internally_wired; producer = (path, port)))
     nothing
 end
-
-# Does the path name a level of this build at all — a component, or an assembly
-# some component sits under? Assemblies leave no row of their own in the flat
-# list, so an empty face list alone does not tell a bare typo from an assembly
-# that declares no input face.
-_addresses_level(flat::Flat, path::String) =
-    any(p == path || startswith(p, path * "/") for p in flat.paths)
 
 # The store a condition names has to exist on the component at all: `x` is the
 # continuous tier's state and `s` the discrete one's, disjoint by construction

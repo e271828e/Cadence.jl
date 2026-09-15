@@ -243,10 +243,11 @@ function test_trim()
         @test ks.field === :lower && ks.names == [:v] && ks.expected == [:u]
         ft = only(d for d in diagnostics(e) if d.reason === :field_types)
         @test ft.field === :guess && ft.bad == Pair{Symbol,Any}[:u => Int64]
-        # The read set keeps its own kind, spliced in beside the problem's fields.
-        tap = only(d for d in diagnostics(e) if d isa TapResolution)
-        @test tap.label === :nope && tap.selector == "get_state(\"nope\", :q)" &&
-              tap.reason === :unknown_path
+        # The read set's path refusal is the walk's, spliced in beside the problem's
+        # fields with the read it came from as its entry (§13.3).
+        tap = only(d for d in diagnostics(e) if d isa PathResolution)
+        @test tap.entry == "the read labeled `nope`, get_state(\"nope\", :q)" &&
+              tap.reason === :unknown_child && tap.segment == "nope"
         @test world(sim) == before
 
         # The residual key set is the one thing only the setup guess evaluation can

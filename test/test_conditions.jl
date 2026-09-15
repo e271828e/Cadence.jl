@@ -136,7 +136,7 @@ function conditions_algebra()
 
     @testset "resolution collects every violation into one throw (§14.3, §13.1)" begin
         b = build(tri())
-        bad = combine(at("nope", fragment(x = (q = 1.0,))),                  # unknown path
+        bad = combine(at("nope", fragment(x = (q = 1.0,))),         # unknown segment
                       at("plant", fragment(x = (nope = 1.0,))),     # undeclared field
                       at("ctl", fragment(s = (acc = "high",))),     # unconvertible
                       at("trig", fragment(inputs = (sig = 1.0,))),  # never a root input
@@ -145,9 +145,14 @@ function conditions_algebra()
         e = failure(() -> resolve_condition(bad, b))
         @test e isa DiagnosticError
         @test length(diagnostics(e)) == 5                       # the full list, one throw
+        # The path itself is the walk's refusal, one register over (§13.3), with
+        # the sibling list in hand; the entry's own kind keeps what lies beyond it.
+        pr = only(d for d in diagnostics(e) if d isa PathResolution)
+        @test pr.reason === :unknown_child && pr.segment == "nope" &&
+              pr.candidates == ["plant", "ctl", "trig"]
         cr = [d for d in diagnostics(e) if d isa ConditionResolution]
-        @test Set(d.reason for d in cr) == Set([:unknown_path, :undeclared_field,
-                                                :unconvertible, :internally_wired])
+        @test Set(d.reason for d in cr) == Set([:undeclared_field, :unconvertible,
+                                                :internally_wired])
         u = only(d for d in cr if d.reason === :undeclared_field)
         @test u.path == "plant" && u.store === :x && u.field === :nope && u.candidates == [:q]
         dup = only(d for d in diagnostics(e) if d isa DuplicateConditionLeaf)
@@ -187,13 +192,12 @@ function conditions_algebra()
         @test only(diagnostics(failure(() -> resolve_condition(at("plant",
                            fragment(inputs = (nope = 1.0,))), b)))).reason ===
               :no_input_face
-        # The discrimination an `inputs` payload makes on its own: a prefix naming no
-        # level of this build reads "no component", not the face-typo message the
-        # real component earns above — an empty face list alone cannot tell them
-        # apart, assemblies leaving no row in the flat list (§14.3).
-        @test only(diagnostics(failure(() -> resolve_condition(at("nope",
-                           fragment(inputs = (dead = 1.0,))), b)))).reason ===
-              :unknown_path
+        # A prefix naming no level of this build never reaches the face lookup: the
+        # `at` is walked at its authoring level first, so the refusal is the walk's
+        # and carries the sibling list the face-typo arm above has no use for (§13.3).
+        d = only(diagnostics(failure(() -> resolve_condition(at("nope",
+                           fragment(inputs = (dead = 1.0,))), b))))
+        @test d isa PathResolution && d.reason === :unknown_child && d.segment == "nope"
         @test only(diagnostics(failure(() -> resolve_condition(fragment(inputs = (nope = 1.0,)),
                                                    b)))).reason === :unexported_face
     end
@@ -343,6 +347,78 @@ function conditions_algebra()
         init!(sim, override(condition(veh; ref = 1.0), fragment(inputs = (ref = 5.0,))))
         @test port(sim, "", :ref) === 5.0
         @test state(sim, "loop/plant").q === SVector(0.0, 0.0)   # the baseline's own defaults
+    end
+end
+
+# --- the load-bearing register's walk (§13.3, §14.2, D-130) ---------------------
+# Every `at` prefix is resolved at the level its enclosing `at`s compiled, along
+# the *declared* field types rather than the instance: resolving to a
+# generically held child is port-level access and legal, traversing past one is
+# the refusal whatever the instance in hand. The holders live in
+# `test_assembly.jl`, which is included first.
+
+function conditions_load_bearing_walk()
+    @testset "a deep `at` path stays within a concretely declared subtree (§13.3, §14.2, D-130)" begin
+        q = SVector(0.3, 0.1)
+        deep = at("inner/plant", fragment(x = (q = q,)))
+
+        # Held in a concretely declared field: the walk admits the two-segment
+        # path, and the value lands at the leaf it addressed.
+        bc = build(ConcreteHold(SampledLoop()))
+        @test resolve_condition(deep, bc) isa ConditionPlan
+        csim = Simulation(ConcreteHold(SampledLoop()); h = 1//50)
+        init!(csim, combine(deep, fragment(inputs = (ref = 1.0,))))
+        @test state(csim, "inner/plant").q == q
+
+        # The identical instance held through a type parameter: the declaration
+        # promises substitutability below `inner`, and the path traverses past it.
+        # The refusal names the field's declared type as written, a `TypeVar`.
+        bg = build(GenericHold(SampledLoop()))
+        d = only(diagnostics(failure(() -> resolve_condition(deep, bg))))
+        @test d isa PathResolution && d.reason === :past_generic
+        @test d.segment == "inner" && d.level == "inner"
+        @test d.owner == "the root component" && d.declared isa TypeVar
+        @test d.entry == "at(\"inner/plant\")"
+
+        # The remedy the refusal names, and §14.2's pull-composition idiom: the
+        # nested spelling resolves `inner` *to* a child, then `plant` from that
+        # child's own instance, so the generic holder takes the same value.
+        nest = at("inner", at("plant", fragment(x = (q = q,))))
+        @test resolve_condition(nest, bg) isa ConditionPlan
+        gsim = Simulation(GenericHold(SampledLoop()); h = 1//50)
+        init!(gsim, combine(nest, fragment(inputs = (ref = 1.0,))))
+        @test state(gsim, "inner/plant").q === state(csim, "inner/plant").q
+
+        # One refusal per node, not per leaf: the offender is the path, and the
+        # subtree under it is dropped before any leaf reaches the duplicate check.
+        twice = at("inner/plant", combine(fragment(x = (q = q,)),
+                                          fragment(x = (q = SVector(1.0, 2.0),))))
+        @test length(diagnostics(failure(() -> resolve_condition(twice, bg)))) == 1
+
+        # An unknown segment mid-path is the walk's other refusal, attributed to
+        # the level that owns the siblings rather than to the authoring root.
+        d = only(diagnostics(failure(() -> resolve_condition(at("inner/plnt",
+                           fragment(x = (q = q,))), bc))))
+        @test d isa PathResolution && d.reason === :unknown_child && d.segment == "plnt"
+        @test d.owner == "`inner`" && d.candidates == ["plant", "ctl", "sum"]
+
+        # A `Group` holds its children through one type parameter, so *every*
+        # child of one is generically held and a two-segment path from a `Group`
+        # root refuses — with the same nested remedy.
+        b = build(nested())
+        d = only(diagnostics(failure(() -> resolve_condition(at("loop/plant",
+                           fragment(x = (q = q,))), b))))
+        @test d isa PathResolution && d.reason === :past_generic && d.segment == "loop"
+        @test resolve_condition(at("loop", at("plant", fragment(x = (q = q,)))), b) isa
+              ConditionPlan
+
+        # The provenance chain to the `at` is the refusal's entry, so a path
+        # authored under a combinator says where in the tree it was written.
+        d = only(diagnostics(failure(() -> resolve_condition(
+                    combine(at("x", fragment(x = (q = 1.0,))),
+                            at("ctl", fragment(s = (acc = 1.0,)))), build(tri())))))
+        @test d isa PathResolution && d.entry == "combine[1] → at(\"x\")"
+        @test d.reason === :unknown_child && d.candidates == ["plant", "ctl", "trig"]
     end
 end
 
@@ -517,5 +593,6 @@ end
 
 function test_conditions()
     conditions_algebra()
+    conditions_load_bearing_walk()
     conditions_specialized_register()
 end

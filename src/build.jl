@@ -469,7 +469,7 @@ of at first request.
 """
 function build(root::AbstractComponent; activations::Tuple = ())
     diags = Diagnostic[]
-    w = Walk()
+    w = Walk(root)
     flatten!(w, root, diags)            # structure, tiers, claims, the obligation check
     _check_event_declarations(w.flat, diags)
     # The dependency rule (§13.1, D-229): the wire pass reads the wiring, which a
