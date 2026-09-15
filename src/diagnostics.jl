@@ -703,19 +703,22 @@ Base.@kwdef struct ProducedByTwoStages <: Diagnostic
 end
 path(d::ProducedByTwoStages) = d.path
 message(d::ProducedByTwoStages) =
-    "`$(d.path)`: $(_plainlist(d.ports)) produced by two stages"
+    "`$(d.path)`: $(_plainlist(d.ports)) produced twice — by two stages, or by a stage " *
+    "and the framework's auto-publication (§5.3, §8.3)"
 
 "§8.3: a declared port no stage writes — a cell no one fills, reading as a silent zero."
 Base.@kwdef struct DeclaredNotProduced <: Diagnostic
     path::String
     ports::Vector{Symbol}
     products::Vector{Symbol} = Symbol[]      # the stage-product list
+    state_fields::Vector{Symbol} = Symbol[]  # the tier's store field names (§5.3)
 end
 path(d::DeclaredNotProduced) = d.path
 message(d::DeclaredNotProduced) =
-    "`$(d.path)`: declared port(s) $(_plainlist(d.ports)) produced by no stage — either a " *
-    "stage returns them or `output_types` drops them; the stages return " *
-    "$(_namelist(d.products))"
+    "`$(d.path)`: declared port(s) $(_plainlist(d.ports)) produced by no stage and not a " *
+    "state field of the declared type — a stage returns them, a store field of that name " *
+    "and type carries them (§5.3), or `output_types` drops them; the stages return " *
+    "$(_namelist(d.products)); the state fields are $(_namelist(d.state_fields))"
 
 "§8.3, §8.4 w5: a stage returning a field `output_types` does not declare."
 Base.@kwdef struct UndeclaredReturnField <: Diagnostic

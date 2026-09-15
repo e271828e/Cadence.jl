@@ -32,6 +32,109 @@ function state_derivative(c::Plant, (; x, u))
     (q = SVector(q[2], -ω^2 * q[1] - 2ζ * ω * q[2] + u.u),)
 end
 
+# --- §5.3's auto-published ports ----------------------------------------------
+# Components whose `output_types` names a state or mode field no stage returns,
+# so the framework publishes it from the store at stage-1 position (D-016,
+# D-169), plus the three refusals that bound the construct.
+
+"""
+§8.2's worked engine at the suite's size: `ω` is a state field and `running` a
+mode field, both declared and returned by no stage, so both are auto-published;
+`M_shaft` is the one stage-2 product. The boundary-detected `start` event flips
+`running` at `t = 0.1`, after which `M_shaft = 1` — with `M_load = 0` and
+`J = 1`, `ω(t) = max(t − 0.1, 0)` at every boundary.
+"""
+struct Motor <: AbstractComponent
+    J::Float64
+end
+
+init_x(::Motor) = (ω = 0.0,)
+init_m(::Motor) = (running = false,)
+input_types(::Motor, ::Type{T}) where {T <: Real} = (M_load = T,)
+output_types(::Motor, ::Type{T}) where {T <: Real} = (M_shaft = T, ω = T, running = Bool)
+
+output_direct(::Motor, (; x, m, u)) = (M_shaft = m.running ? one(x.ω) : zero(x.ω),)
+state_derivative(c::Motor, (; x, y, u)) = (ω = (y.M_shaft - u.M_load) / c.J,)
+
+motor_start_guard(::Motor, (; m, t)) = !m.running && t ≥ 0.1
+motor_start_handler(::Motor, (; m)) = (m = (running = true,),)
+state_events(::Motor) = (start = StateEvent(motor_start_guard, motor_start_handler),)
+
+"""
+`Plant` with its `output_state` removed: the whole state vector `q` is declared
+and published from the store instead, which is what lets `auto_feedback_model`
+close the same loop through it.
+"""
+struct AutoPlant <: AbstractComponent
+    ω::Float64
+    ζ::Float64
+    q₀::SVector{2,Float64}
+end
+
+AutoPlant(; ω = 2.0, ζ = 0.1, q₀ = SVector(0.0, 0.0)) = AutoPlant(ω, ζ, q₀)
+
+init_x(c::AutoPlant) = (q = c.q₀,)
+input_types(::AutoPlant, ::Type{T}) where {T <: Real} = (u = T,)
+output_types(::AutoPlant, ::Type{T}) where {T <: Real} = (q = SVector{2,T}, power = T)
+
+output_direct(::AutoPlant, (; x, u)) = (power = u.u * x.q[2],)
+
+function state_derivative(c::AutoPlant, (; x, u))
+    q, ω, ζ = x.q, c.ω, c.ζ
+    (q = SVector(q[2], -ω^2 * q[1] - 2ζ * ω * q[2] + u.u),)
+end
+
+"""Proportional state feedback on the published state vector: stage 2 only."""
+struct StateFeedback <: AbstractComponent
+    k::Float64
+end
+
+input_types(::StateFeedback, ::Type{T}) where {T <: Real} = (q = SVector{2,T},)
+output_types(::StateFeedback, ::Type{T}) where {T <: Real} = (u = T,)
+
+output_direct(c::StateFeedback, (; u)) = (u = -c.k * u.q[1],)
+
+"""`DiscreteCounter` without its `output_state`: `n` is published from `init_s`."""
+struct AutoCounter <: AbstractComponent end
+
+init_s(::AutoCounter) = (n = 0,)
+output_types(::AutoCounter) = (n = Int,)
+state_update(::AutoCounter, (; s)) = (n = s.n + 1,)
+
+"""
+A `Float64`-pinned declaration of a walking state field: published at the
+nominal activation, and a refusal at every other one — stripping the partials
+would be a stop-gradient the author never wrote (§5.3, D-166).
+"""
+struct PinnedState <: AbstractComponent end
+
+init_x(::PinnedState) = (q = 0.0,)
+output_types(::PinnedState, ::Type{T}) where {T <: Real} = (q = Float64,)
+state_derivative(::PinnedState, (; x)) = (q = 0.0,)
+
+"""The same name at a type no store holds: not published, and `DeclaredNotProduced`."""
+struct WrongTyped <: AbstractComponent end
+
+init_x(::WrongTyped) = (q = 0.0,)
+output_types(::WrongTyped, ::Type{T}) where {T <: Real} = (q = Int,)
+state_derivative(::WrongTyped, (; x)) = (q = 0.0,)
+
+"""A stage-2 return of a publishable name: two writers of one cell (§8.3)."""
+struct Twice <: AbstractComponent end
+
+init_x(::Twice) = (q = 0.0,)
+output_types(::Twice, ::Type{T}) where {T <: Real} = (q = T,)
+output_direct(::Twice, (; x)) = (q = x.q,)
+state_derivative(::Twice, (; x)) = (q = 0.0,)
+
+"""The same from stage 1, which is legal: the stage runs and nothing is published."""
+struct TwiceState <: AbstractComponent end
+
+init_x(::TwiceState) = (q = 0.0,)
+output_types(::TwiceState, ::Type{T}) where {T <: Real} = (q = T,)
+output_state(::TwiceState, (; x)) = (q = x.q,)
+state_derivative(::TwiceState, (; x)) = (q = 0.0,)
+
 """
 Proportional gain: **stateless**, stage 2 only. The three-level funnel of §5.2
 in its smallest instance — a component that legitimately writes `output_direct` while
@@ -653,6 +756,23 @@ function feedback_model(; k = 4.0, ω = 2.0, ζ = 0.1, q₀ = SVector(0.0, 0.0),
           inputs = "ref" => "sum/a",
           outputs = "plant/y" => "y")
 end
+
+"""
+    auto_feedback_model(; k)
+
+The same closed loop through an **auto-published** port: `AutoPlant` publishes
+its whole state vector from the store, `StateFeedback` reads it and feeds the
+plant back. No `output_state` runs anywhere in it, and the loop is still legal —
+an auto-published cell is written at stage-1 position, so it carries no input
+dependence and adds no edge (§5.3, D-169).
+
+With `ref = 0` this is `feedback_model(; k)`'s loop with `Sum` and `Gain` fused,
+so the two trajectories agree step for step.
+"""
+auto_feedback_model(; k = 4.0, ω = 2.0, ζ = 0.1, q₀ = SVector(0.0, 0.0)) =
+    Group((plant = AutoPlant(; ω, ζ, q₀), fb = StateFeedback(k));
+          wires = ("plant/q" => "fb/q", "fb/u" => "plant/u"),
+          outputs = ("plant/q" => "q",))
 
 """
     sampled_loop(; kI, ω, ζ)

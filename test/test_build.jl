@@ -40,7 +40,8 @@ function build_probe_refusals()
         d = only(diagnostics(failure(() -> build(single(Undeclared())))))
         @test d isa UndeclaredReturnField && d.name === :b && d.candidates == [:a]
         d = only(diagnostics(failure(() -> build(single(Unproduced())))))
-        @test d isa DeclaredNotProduced && d.ports == [:b] && d.products == [:a]
+        @test d isa DeclaredNotProduced && d.ports == [:b] && d.products == [:a] &&
+              d.state_fields == Symbol[]
         d = only(diagnostics(failure(() -> build(single(BadDerivative())))))
         @test d isa ConformanceFailure && d.what == "state_derivative" && d.reason === :field_type &&
               d.field === :q && d.observed === Float64
@@ -72,6 +73,73 @@ function build_schedule()
         # `build` alone: rejection needs no deployment, which is the strata split.
         d = carried(@test_throws DiagnosticError{AlgebraicCycle} build(feedback_model(feedback_port = "power")))
         @test sort(d.members) == ["ctl", "plant", "sum"]
+    end
+end
+
+# --- auto-published ports (§5.3, §8.3, D-016, D-169) --------------------------
+# The classification alone is here, being what the schedule is built from; the
+# runtime properties of the cells it opens belong to the tiers' own files.
+
+function build_auto_publication()
+    @testset "a declared state or mode field no stage produces is published (§5.3)" begin
+        # §8.2's own worked engine: `ω` from `init_x`, `running` from `init_m`,
+        # neither returned by any stage, `M_shaft` the one stage-2 product. The
+        # products' order is the invariant every downstream reader takes its
+        # stage-2 tail off — stage 1, then published, then stage 2.
+        b = build(fed(Motor(1.0), "M_load"))
+        i = index_of(b.flat, "c")
+        @test b.nominal.stage1[i] === NamedTuple()
+        @test keys(b.nominal.published[i]) === (:ω, :running)
+        @test keys(b.nominal.products[i]) === (:ω, :running, :M_shaft)
+        # D-169: the hand-down carries the stage-1 *return*, so a component
+        # whose only stage-1-position ports are published gets no `y_x` at all.
+        @test bundle_names(output_direct, Motor(1.0), CONTINUOUS, ()) === (:x, :m, :u, :t)
+    end
+
+    @testset "a loop closes through an auto-published port (§5.3, §5.5, D-169)" begin
+        # The cell is written at stage-1 position, so consuming it adds no edge.
+        @test failure(() -> build(auto_feedback_model())) === nothing
+        # The exemption is that port's alone: the same loop routed through
+        # `power`, a genuine stage-2 product, is still an algebraic cycle.
+        d = carried(@test_throws DiagnosticError{AlgebraicCycle} build(
+            Group((plant = AutoPlant(), fb = StateFeedback(1.0), g = Gain(1.0));
+                  wires = ("plant/q" => "fb/q", "plant/power" => "g/e",
+                           "g/out" => "plant/u"))))
+        @test sort(d.members) == ["g", "plant"]
+    end
+
+    @testset "the discrete tier publishes from `init_s` (§5.3)" begin
+        b = build(single(AutoCounter()))
+        @test b.nominal.published[index_of(b.flat, "c")] == (n = 0,)
+    end
+
+    @testset "publication is by name *and* type (§5.3, §8.3)" begin
+        # A store holding the name at another type publishes nothing, and the
+        # refusal now carries the state-field list that tells the two apart.
+        d = only(diagnostics(failure(() -> build(single(WrongTyped())))))
+        @test d isa DeclaredNotProduced && d.ports == [:q] && d.products == Symbol[] &&
+              d.state_fields == [:q]
+    end
+
+    @testset "stage-1 position is one writer's: a stage's or the framework's (§8.3)" begin
+        d = carried(@test_throws DiagnosticError{ProducedByTwoStages} build(single(Twice())))
+        @test d.ports == [:q]
+        # Returned from stage 1 instead, the same port is the stage's outright.
+        b = build(single(TwiceState()))
+        i = index_of(b.flat, "c")
+        @test b.nominal.stage1[i] == (q = 0.0,)
+        @test b.nominal.published[i] === NamedTuple()
+    end
+
+    @testset "a pinned declaration of a walking field is refused, not stripped (§5.3, D-166)" begin
+        # The set is fixed by the nominal activation, where the type test is
+        # exact; at the walking one the port no longer embeds, and publishing it
+        # stripped would be a stop-gradient the author never wrote.
+        b = build(single(PinnedState()))
+        d = only(diagnostics(failure(() -> activation(b, D8))))
+        @test d isa ConformanceFailure && d.what == "auto-publication" &&
+              d.reason === :field_type && d.field === :q &&
+              d.observed === D8 && d.declared === Float64
     end
 end
 
@@ -750,6 +818,7 @@ end
 function test_build()
     build_probe_refusals()
     build_schedule()
+    build_auto_publication()
     build_root_input_type()
     build_wire_clauses()
     build_port_type_refusals()
