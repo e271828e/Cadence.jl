@@ -10747,11 +10747,12 @@ with the collection and never trigger its throw, is currently empty
   offending leaf, both declared leaf types; both remedies in the message
   ("declare the entry `T` if the consumer promotes; feed it from a
   non-walking source if the freeze is genuine").
-- **`PathResolution`** ([§6.1][s6-1], [§13.3][s13-3]). Error · build ·
-  collected. Path, offending segment, sibling field list. For a wiring
-  endpoint reaching past the immediate child, the level it stopped at. For a
-  read-side traversal past a generically-held field, that field's declared
-  type.
+- **`PathResolution`** ([§6.1][s6-1], [§13.3][s13-3]). Error · build, or
+  service under the load-bearing register · collected. Path, offending
+  segment, sibling field list. For a wiring endpoint reaching past the
+  immediate child, the level it stopped at. For a load-bearing traversal past
+  a generically-held field, the level it reached past and that field's
+  declared type.
 - **`AbstractAtRoot`** ([§8.2][s8-2]). Error · build · collected. Face name,
   consuming leaf path, the abstract entry; a remedy hint (wire a concrete
   producer, or in a rig a stub child, [§13.7][s13-7]).
