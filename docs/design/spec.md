@@ -9317,7 +9317,7 @@ velocity state reaches into initialization, where `f_init!` carries the line
 `dynamics.x .= kinematics.u  #essential`.
 
 The same exercise surfaced a migration cost. Today's monolithic `KinData`
-splits in two, because its parts have different dependencies.
+splits in two, because its parts *genuinely* have different dependencies.
 
 - `pose`, at stage 1: `q_eb`, `r_eb_e`, `ϕ_λ_h`, ...
 - `kin_vel`, at stage 2: `v_eb_n`, `v_gnd`, `χ`, `γ`, ...
@@ -9381,8 +9381,9 @@ side.
 
 **The exercise discovered a latent delay.** The FCS chains anti-windup: outer
 compensators take `sat_ext` from the inner LQR's `sat_out`
-(c172x_ctl.jl:332,345,...). Wired naively, that chain is a genuine tick-domain
-[algebraic loop](#g-algebraic-loop), and the build correctly rejects it:
+(c172x_ctl.jl:332,345,...). Wired naively, that chain is a *genuine*
+tick-domain [algebraic loop](#g-algebraic-loop), and the build correctly
+rejects it:
 
 ```
 outer.output → inner.input → inner.sat_out → outer.sat_ext →
@@ -9586,7 +9587,7 @@ item's home.
 #### Architectures examined here and rejected
 
 This cast forced the [§11][s11] and [§12][s12] [periphery](#g-periphery)
-decisions. Three architectures were examined: [devices](#g-device) as
+decisions. The exercise examined three architectures: [devices](#g-device) as
 [components](#g-component) (a `T16000M` component wrapping SDL), a root-level
 `PilotInterface` cockpit component, and bundled command [faces](#g-face)
 (`pilot_inputs` as one struct [port](#g-port)). [D-045][d-045] litigates all
@@ -9629,9 +9630,10 @@ The demo, line by line:
   ([§14][s14]). Trim is its own service, `trim!(sim, problem; baseline, …)`,
   and its commit runs the same boundary. The services write `(x, s, m)`,
   **establish every root input's initial value**, and capture the
-  [trace header](#g-trace-header). Root-input initialization belongs here and
-  not in declarations, because the trim service writes root-input values it
-  *solved for* (throttle, elevator), not declaration constants.
+  [trace header](#g-trace-header). Root-input initialization *decisively*
+  belongs here and not in declarations, because the trim service writes
+  root-input values it *solved for* (throttle, elevator), not declaration
+  constants.
 - `attach!(sim, XPlane12Control(…), binding)` attaches an output
   [device](#g-device). It [claims](#g-claim) nothing, consumes
   [snapshots](#g-snapshot) via [§12.3][s12-3], and runs a pure `map_output` on
@@ -9644,10 +9646,10 @@ The demo, line by line:
   (`stick_y = (face = "aircraft.pilot.elevator_axis", expo = 1.0, deadzone =
   0.05)`, `button_3 = (face = "aircraft.pilot.flaps_up_count", as = :count)`).
   At attach, faces resolve against the root contract (a typo gets a
-  [did-you-mean](#g-did-you-mean)) and the claim set registers, so a second
-  joystick on the same faces errors here. The Gladiator variant is the same
-  table with different keys and zero shaping code. The duplication smell is
-  structurally gone.
+  [did-you-mean](#g-did-you-mean)) and `attach!` registers the claim set, so
+  a second joystick on the same faces errors here. The Gladiator variant is
+  the same table with different keys and zero shaping code. The duplication
+  smell is structurally gone.
 - `run!(sim; gui = true, pace = 1)` makes a [greedy claim](#g-greedy-claim)
   over every unclaimed face and settles liveness with zero configuration, both
   at run start against the [frozen roster](#g-roster) ([§11.3][s11-3]). Axis
@@ -9767,7 +9769,7 @@ tightly coupled continuous and periodic dynamics in one physical instrument.
 
 #### The idiom: integrate-and-difference
 
-Algebra eliminates the reset, with no approximation. Every interval-relative
+Algebra can eliminate the reset, with no approximation. Every interval-relative
 integral becomes a *cumulative* one. The sampler differences against the
 previous sample, held in its `s`. That is the textbook sampled-data latch, and
 it is the only new store, the memory the reset used to erase.
@@ -9898,10 +9900,10 @@ boundary.
 This is a user observation, recorded as a documentation obligation. The clean
 implementation leans on the author *knowing* that "sampling at `t_k`" means
 post-integration, post-[projection](#g-projection), stage-1-fresh state. That
-knowledge must be part of the framework's taught contract, with the
-[§10.5][s10-5] and [§10.6][s10-6] semantics stated in
+knowledge must be part of the framework's taught contract, not internal lore,
+with the [§10.5][s10-5] and [§10.6][s10-6] semantics stated in
 [component](#g-component)-author documentation and this IMU as the
-[worked](#g-worked) example. It must not stay internal lore. The failure mode
+[worked](#g-worked) example. The failure mode
 of not knowing it is instructive. An author who distrusts the
 [sweep](#g-sweep) order adds a defensive one-[tick](#g-tick) delay or
 re-derives the integrals in the sampler, silently degrading the model.
@@ -9989,9 +9991,9 @@ apples-to-apples with today's `@ballocated f_ode!` suites.
 **The conventional exported aircraft surface.** Generic
 [periphery](#g-periphery) consumers read the integration
 [register](#g-register) ([§11.2][s11-2]). That surface exports pose and
-velocity [faces](#g-face) with wrapper types, such as `VelocityData`, whose
-field meaning is defined at the type. It is the periphery-facing half of the
-`KinData` successor.
+velocity [faces](#g-face) with wrapper types (`VelocityData`, with field
+meaning defined at the type). It is the periphery-facing half of the `KinData`
+successor.
 
 **The supervisor seam.** The supervisor sitting above the compensators
 ([§15.2][s15-2]) contributes three respellings. Compensator gains become input
