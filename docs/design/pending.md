@@ -51,9 +51,7 @@ Where the reason is not given here, the cited decision carries it:
   than §8.5's two forms, `TierSignatureMismatch` its bound arm alone, the
   arity arms riding as `DeclarationOnWrongTier`'s `:tier_form`,
   `EventHalfMissing.found` a model type interpolated into the message against
-  §13.2 (`_typename` is one screen up). The writer
-  id missing from `OutOfClaimEntry`/`DeviceCrash`/`ReplayDiscardedStaging`/
-  `MalformedDatum`/`EntryTypeMismatch` awaits the spec-pass ruling below.
+  §13.2 (`_typename` is one screen up).
 - **§5.6's feedthrough tracer** (the global set-tracer and its sampled-state
   fallback), and with it the `AlgebraicCycle` the spec promises: D-012's SCC
   members as terminals in loop order, the wires between them and the
