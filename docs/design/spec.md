@@ -10232,10 +10232,11 @@ For component authors:
   *commanded* reset, where the condition arrives as an ordinary `Bool` input
   (weight-on-wheels is the shipped instance), is spelled as an event whose
   guard reads that input. The discrete tier's input spelling does not
-  transfer. The reason is semantic, not stylistic. The discrete tier's update
-  stage is already a jump map, so a reset there is just another value for
-  `s⁺`. A continuous state jump must be solver-visible and applied *between*
-  integration segments. Every hybrid tool converges on that flow/jump split.
+  transfer. The reason is semantic, not stylistic. Only the discrete tier's
+  update stage is already a jump map, so a reset there is just another value
+  for `s⁺`. A continuous state jump, by contrast, must be solver-visible and
+  applied *between* integration segments. Every hybrid tool converges on that
+  flow/jump split.
   Simulink applies its reset ports through zero-crossing events plus a solver
   restart, and Modelica's `reinit` is syntactically legal only inside a
   `when`. There is no stale-output hazard to manage either. [§10.6][s10-6]
@@ -10332,13 +10333,13 @@ lifecycle.
 **Authoring**, what a component or assembly defines ([§8.2][s8-2],
 [§8.5][s8-5]–[§8.7][s8-7]):
 
-- Continuous leaf. The stores `init_x`/`init_m` (by value) and
-  `init_workspace(::C, ::Type{T})` (by allocation), the contract
+- Continuous leaf. `init_x`/`init_m` (by value),
+  `init_workspace(::C, ::Type{T})` (by allocation),
   `input_types(::C, ::Type{T})` and `output_types(::C, ::Type{T})` (by type),
-  and `state_events`. Its stages are `output_state`, `output_direct` and
-  `state_derivative`, plus guard/handler pairs (`StateEvent(guard, handler)`;
-  the detection policy comes from the guard's return type, [§10.4][s10-4])
-  and `state_projection`.
+  and `state_events`. Its stage and event functions are `output_state`,
+  `output_direct` and `state_derivative`, guard/handler pairs
+  (`StateEvent(guard, handler)`; the detection policy comes from the guard's
+  return type, [§10.4][s10-4]) and `state_projection`.
 - Discrete leaf. `init_s`, `init_workspace(::C)` and
   `input_types`/`output_types`. Its stages are `output_state`,
   `output_direct` and `state_update`.
@@ -10626,8 +10627,8 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   body. It is a diagnostic register, and its one promise is identity with
   what the loop runs. An isolated invocation leaves buffers valid but
   off-trajectory. Re-run `init!` to continue ([§9.7][s9-7]).
-- Control plane. Pause/un-pause, pace and `margin` changes and stop live on
-  a separate atomic surface, never staged ([§12.1][s12-1]). Pacing sits
+- Control plane. Pause/un-pause, pace and `margin` changes, and stop all
+  sit on a separate atomic surface, never staged ([§12.1][s12-1]). Pacing sits
   outside the semantics, so pace and `margin` are both safe to change live.
 - Termination. Model state ends a run via `stop_on` faces read at every
   published boundary ([§13.5][s13-5]). Shutdown completes a boundary,
@@ -10715,7 +10716,7 @@ The policies:
   and bounded by them. Every kind reported this way is bounded per writer
   per boundary (a ring of sixteen retained values, the excess becoming
   per-kind suppressed counts). The per-entry qualifiers record where that
-  bound is load-bearing, a source that can repeat within a frame, and where
+  bound is load-bearing (a source that can repeat within a frame) and where
   the source itself fires once. A kind carried this way names its subjects
   in the payload, never its writer. The cell attributes the writer, and the
   status record's `who` and the tail residue carry that attribution
@@ -11039,13 +11040,13 @@ with the collection and never trigger its throw, is currently empty
 ## Appendix D. Glossary
 
 *Non-normative. Each entry compresses the meaning its owning section fixes
-and cites that section; where an entry and its owning section diverge, **the
-owning section wins** — the same precedence rule the companion walkthrough
-explainers carry. The glossary's job is to route a reader to the normative
-text and to make drift visible, never to be a second source of truth. Entries
-are grouped by subject and alphabetical within each group; a term appears
-once, in the group that owns it, with a "not to be confused with" clause
-wherever a neighboring term is genuinely close.*
+and cites that section. Where an entry and its owning section diverge, **the
+owning section wins**. That is the same precedence rule the companion
+walkthrough explainers carry. The glossary's job is to route a reader to the
+normative text and to make drift visible, never to be a second source of
+truth. Entries are grouped by subject and alphabetical within each group. A
+term appears once, in the group that owns it, with a "not to be confused
+with" clause wherever a neighboring term is genuinely close.*
 
 ### D.1 Component model and declaration layer
 
@@ -11797,7 +11798,7 @@ finite, `Inf` the opt-out). When the log fills, the effective stride
 doubles. That is *progressive re-decimation*, so coverage stays global at
 `log_every · 2^k` instead of collapsing to a rolling window. The
 boundary-zero and terminal snapshots are retained unconditionally and
-outside the bound. It is a view policy throughout, never
+outside the bound. Decimation is a view policy throughout, never
 trajectory-determining ([§11.2][s11-2]).
 
 <a id="g-frame-ordinal"></a>**frame ordinal** — the trace's key. Replay applies the recording's batches
