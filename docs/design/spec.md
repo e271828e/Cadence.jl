@@ -10924,8 +10924,9 @@ with the collection and never trigger its throw, is currently empty
   addresses), offending value type and declared leaf type, the leaf's tier
   and role where the refusal is tier-bound, the producer where a face is
   fed, candidates where a list is in hand, provenance chain. Its sub-kinds
-  are unknown path, undeclared field, unconvertible value and unexported
-  root-input face.
+  are assembly path, undeclared field, unconvertible value and unexported
+  root-input face. An unknown or past-generic path is `PathResolution`'s
+  ([§13.3][s13-3]).
 - **`DuplicateConditionLeaf`** ([§14.2][s14-2]). Error · service ·
   collected. The leaf `(path, store, field)`, both provenance chains, the
   `override` advice.
