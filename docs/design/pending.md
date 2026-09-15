@@ -18,18 +18,16 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **§8.3 visibility**; **auto-published ports** — not a quiet absence but a
-  `DeclaredNotProduced` refusal, so §8.2's own worked `Engine`, whose
-  `output_types` names the state field `ω`, does not build, and the bundle
-  law's `y` row, D-169's hand-down exclusion and §7.1's state-cell table are
-  correct but vacuous (M-B21); §13.3's generic-holding check in the
-  *load-bearing* register — the deep paths condition entries and trim `reads`
-  write are policed by nothing, so §14.2's locality law rides as convention
-  here.
+- **§13.3's generic-holding check in the *load-bearing* register** — the deep
+  paths condition entries and trim `reads` write are policed by nothing, so
+  §14.2's locality law rides as convention here (M-B21).
 - **Port-value coverage** (M-B7, M-B10): enum-valued ports are refused
   — `leaf_types` returns empty for an `Enum`, so `place!` raises
   `IllegalPortType`, and `probe_value` has no enum arm, against §4.1 and
-  §7.5's publish-a-mode remedy; containers of containers take `_children`'s
+  §7.5's publish-a-mode remedy; `Symbol`-valued ports are refused as mutable
+  (`ismutabletype(Symbol)` holds, so D-237's walk meets it), which with the
+  enum refusal closes both of §7.3's mode labels out of §5.3's
+  auto-publication until ruled; containers of containers take `_children`'s
   inert-data branch and are silently dropped where §8.5 says rejected.
 - **Two unguarded periphery edges**: staging through a handle whose device
   was detached lands in an orphaned cell and is lost, and an
@@ -73,8 +71,8 @@ Where the reason is not given here, the cited decision carries it:
   `UnconnectedInput` no declared entry type and no obligation-chain level,
   `ClassUnreadable`/`StoreWithoutUpdate` no §8.1 shadowing note,
   `ClassUnreadable`/`TierUnreadable` no type and no declarations-found list,
-  `DeclaredNotProduced` no state-field list, `ProducedByTwoStages` no stage
-  names, `TransparentContainerUnknown` no container-field list,
+  `ProducedByTwoStages` no stage names,
+  `TransparentContainerUnknown` no container-field list,
   `StopFaceInvalid` no binding site (constructor vs. `run!`),
   `ConformanceFailure` no simulation time on its runtime occurrences and no
   event name on a handler's,

@@ -542,6 +542,37 @@ overload_handler(::Overload, (; m)) = (m = (tripped = true,),)
 state_events(::Overload) = (trip = StateEvent(overload_guard, overload_handler),)
 
 """
+`Overload` with its `output_state` removed: `tripped` is a mode field the
+framework publishes from `m` instead (§5.3). The component runs no stage at
+all, so the only thing that can move its cell is the boundary sweep — which is
+exactly D-154's coherence, the handler's round being followed by a sweep before
+anything is published.
+"""
+struct AutoOverload <: AbstractComponent
+    level::Float64
+end
+
+init_m(::AutoOverload) = (tripped = false,)
+input_types(::AutoOverload, ::Type{T}) where {T <: Real} = (sig = T,)
+output_types(::AutoOverload, ::Type{T}) where {T <: Real} = (tripped = Bool,)
+
+auto_overload_guard(c::AutoOverload, (; u)) = u.sig - c.level
+auto_overload_handler(::AutoOverload, (; m)) = (m = (tripped = true,),)
+state_events(::AutoOverload) =
+    (trip = StateEvent(auto_overload_guard, auto_overload_handler),)
+
+"""
+    auto_overloaded()
+
+`overloaded()`'s wiring (`test_lifecycle.jl`) over the auto-publishing monitor:
+the sawtooth crosses the level mid-frame and the run stops at the crossing's
+`t*` boundary, with `tripped` reaching the face through publication alone.
+"""
+auto_overloaded() = Group((; src = Sawtooth(1.0), mon = AutoOverload(0.315));
+                          wires = ("src/q" => "mon/sig",),
+                          outputs = ("mon/tripped" => "tripped",))
+
+"""
 Exploder: the §13.6 specimen — `q̇ = 1` until its `arm` input goes true, then
 its RHS throws `Exploded`. The throw escapes mid-integration, so the failing
 frame has published nothing: what the abnormal tail leaves as final is the

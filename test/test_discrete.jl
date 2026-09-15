@@ -67,6 +67,28 @@ function discrete_one_rate()
         @test port(sim, "plant", :y) != y₀
     end
 
+    @testset "the discrete tier publishes `s` from the store (§5.3, §10.5)" begin
+        # `AutoCounter` declares `n` and runs no output stage, so the framework
+        # publishes it from `init_s`'s store at stage-1 position.
+        sim = Simulation(single(AutoCounter()); h = 1//10)
+        init!(sim)
+        @test port(sim, "c", :n) == 0            # boundary zero's ESTABLISH round
+        run!(sim; t_end = 0.3)
+        # The same sampled-data gap the ZOH test asserts above: the cell holds
+        # what the boundary's sweep published, the store what its update left.
+        @test port(sim, "c", :n) == 3
+        @test state(sim, "c").n == 4
+
+        # A discrete component is frozen at a walking activation (§9.4), so no
+        # entry of any kind is compiled for it — publication included — and the
+        # cell keeps the nominal probe's seed.
+        simd = Simulation(build(single(AutoCounter())), D8; h = 1//10)
+        @test !any(e -> e isa PublishEntry, walked(simd.exec.bodies.sweep_1))
+        init!(simd)
+        run!(simd; t_end = 0.3)
+        @test port(simd, "c", :n) == 0
+    end
+
 end
 
 function discrete_frozen_activation()
