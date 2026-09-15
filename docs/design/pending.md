@@ -13,8 +13,45 @@ that tip. The reports are frozen evidence; this file is the register.
 
 ## Not yet built
 
+The bullets stand in working order, the first one next: correctness before
+diagnostics, diagnostics before ergonomics, rulings early because they change
+the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
+- **§8.3 visibility**; **auto-published ports** — not a quiet absence but a
+  `DeclaredNotProduced` refusal, so §8.2's own worked `Engine`, whose
+  `output_types` names the state field `ω`, does not build, and the bundle
+  law's `y` row, D-169's hand-down exclusion and §7.1's state-cell table are
+  correct but vacuous (M-B21); §13.3's generic-holding check in the
+  *load-bearing* register — the deep paths condition entries and trim `reads`
+  write are policed by nothing, so §14.2's locality law rides as convention
+  here.
+- **Port-value coverage** (M-B7, M-B10): enum-valued ports are refused
+  — `leaf_types` returns empty for an `Enum`, so `place!` raises
+  `IllegalPortType`, and `probe_value` has no enum arm, against §4.1 and
+  §7.5's publish-a-mode remedy; containers of containers take `_children`'s
+  inert-data branch and are silently dropped where §8.5 says rejected.
+- **Two unguarded periphery edges**: staging through a handle whose device
+  was detached lands in an orphaned cell and is lost, and an
+  `InterruptException` in a device loop reports as `DeviceCrash`, the
+  wrapper's catch not discriminating it.
+- **§5.6's feedthrough tracer** (the global set-tracer and its sampled-state
+  fallback), and with it the `AlgebraicCycle` the spec promises: D-012's SCC
+  members as terminals in loop order, the wires between them and the
+  real/artificial classification. What stands in is Kahn's stall residue
+  (M-B5), the shape D-012 rejects: every component the schedule could not
+  place, downstream acyclic ones included, as component paths in flatten
+  order, two disjoint cycles merged into one diagnostic. `test_build.jl`
+  asserts that shape.
+- **§8.1's shadowing check**, the forgotten-import diagnostic (M-B25). The
+  mechanism is `implementation.md`'s second caveat; it needs a decision entry
+  and an Appendix C payload on `ClassUnreadable`/`TierUnreadable`.
+- **The declaration side of the bundle law**: a non-bundle `init_x`/`init_s`
+  refuses as a raw `MethodError` from `Decls`' field type (`build.jl` ~17);
+  no Appendix C kind owns it, the return side has `ConformanceFailure`.
+- **Two surface names do not exist**: there is no `condition` generic (two
+  model packages defining one would define two functions, breaking §14.2's
+  pull composition), and `ProbeDual`/`ProbeTag` are not names (M-B23).
 - **The Appendix C kinds whose mechanism is absent** — an absence gets no
   struct (`ThreadBudget`, `DeadStage`, `BundleFieldError`, `UserCodeFraming`,
   `UnboundedRun`; likewise `MissingProbeValue`, whose *check* is absent;
@@ -52,60 +89,24 @@ Where the reason is not given here, the cited decision carries it:
   arity arms riding as `DeclarationOnWrongTier`'s `:tier_form`,
   `EventHalfMissing.found` a model type interpolated into the message against
   §13.2 (`_typename` is one screen up).
-- **§5.6's feedthrough tracer** (the global set-tracer and its sampled-state
-  fallback), and with it the `AlgebraicCycle` the spec promises: D-012's SCC
-  members as terminals in loop order, the wires between them and the
-  real/artificial classification. What stands in is Kahn's stall residue
-  (M-B5), the shape D-012 rejects: every component the schedule could not
-  place, downstream acyclic ones included, as component paths in flatten
-  order, two disjoint cycles merged into one diagnostic. `test_build.jl`
-  asserts that shape.
-- **§8.3 visibility**; **auto-published ports** — not a quiet absence but a
-  `DeclaredNotProduced` refusal, so §8.2's own worked `Engine`, whose
-  `output_types` names the state field `ω`, does not build, and the bundle
-  law's `y` row, D-169's hand-down exclusion and §7.1's state-cell table are
-  correct but vacuous (M-B21); §13.3's generic-holding check in the
-  *load-bearing* register — the deep paths condition entries and trim `reads`
-  write are policed by nothing, so §14.2's locality law rides as convention
-  here.
 - **§8.8 beyond the helper pair** (the feed-list idiom, generic-holding sugar,
   required-faces declarations, D-209's predicate filter on the passthrough
   helpers); **D-187's grid diagnostics** (the bound schedule is plain data;
   refusals name the anchor and the pool's GCD); and **every `show`** — no
   `Build` or schedule artifact renders: no anchor table, no `A₀` row, no
   rate-scope rows, no hyperperiod chart, no derivation line (M-B26).
-- **§14**: `linearize` (§14.10), mounting (§14.9), the NLopt fallback and the
-  nominal-activation loop it would run on; sub-port-field addressing; index
-  addressing in the binding register; the `check` entry point (M-B23).
-- **§11.7's GUI write path**, §10.7 pacing and its diagnostics, the §11.8
-  remainder (`DebtReanchor`, `ThreadBudget`, `UnboundedRun`, the maxlog
-  renderer). Two unguarded edges stay: staging through a handle whose device
-  was detached lands in an orphaned cell and is lost, and an
-  `InterruptException` in a device loop reports as `DeviceCrash`, the
-  wrapper's catch not discriminating it.
 - **§12 beyond its built slices**: pause and the control plane's surface; the
   operator interrupt — §13.4's carve-out exists, the masking and the entry do
   not, so a stopped run can hold mid-boundary stores here; §13.4's
   interactive-session behaviour (log and surface the status rather than
   rethrow) has no discrimination in `run!`. `run!` requires a finite `t_end`;
   every non-running state admits `attach!`/`detach!`.
-- **Port-value coverage** (M-B7, M-B10): enum-valued ports are refused
-  — `leaf_types` returns empty for an `Enum`, so `place!` raises
-  `IllegalPortType`, and `probe_value` has no enum arm, against §4.1 and
-  §7.5's publish-a-mode remedy; containers of containers take `_children`'s
-  inert-data branch and are silently dropped where §8.5 says rejected.
-- **The declaration side of the bundle law**: a non-bundle `init_x`/`init_s`
-  refuses as a raw `MethodError` from `Decls`' field type (`build.jl` ~17);
-  no Appendix C kind owns it, the return side has `ConformanceFailure`.
-- **§8.1's shadowing check**, the forgotten-import diagnostic (M-B25). The
-  mechanism is `implementation.md`'s second caveat; it needs a decision entry
-  and an Appendix C payload on `ClassUnreadable`/`TierUnreadable`.
-- **Two surface names do not exist**: there is no `condition` generic (two
-  model packages defining one would define two functions, breaking §14.2's
-  pull composition), and `ProbeDual`/`ProbeTag` are not names (M-B23).
-- **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
-  `Or{N}`, `UnitDelay{V}`, `Constant{V}`, the rig; §6.2's spellings) — a
-  migration-phase deliverable by the spec's word, deferred with §16 (M-B22).
+- **§11.7's GUI write path**, §10.7 pacing and its diagnostics, the §11.8
+  remainder (`DebtReanchor`, `ThreadBudget`, `UnboundedRun`, the maxlog
+  renderer).
+- **§14**: `linearize` (§14.10), mounting (§14.9), the NLopt fallback and the
+  nominal-activation loop it would run on; sub-port-field addressing; index
+  addressing in the binding register; the `check` entry point (M-B23).
 - **Smaller** (M-B26): no `report!(entry, d)` addressed by roster entry, only
   the internal `_report!(cell, d)`; the face table keeps the resolved endpoint
   and discards §9.1's routing chain that §13.7's provenance would print;
@@ -117,6 +118,9 @@ Where the reason is not given here, the cited decision carries it:
   every-component `Dual` sweep, so D-166's CI policy is one fixture; the
   once-per-frame `ReplayDiscardedStaging` noise from a live device during
   replay is unpresented (§11.8).
+- **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
+  `Or{N}`, `UnitDelay{V}`, `Constant{V}`, the rig; §6.2's spellings) — a
+  migration-phase deliverable by the spec's word, deferred with §16 (M-B22).
 
 ## Built in a shape the spec's is not
 
