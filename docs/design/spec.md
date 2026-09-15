@@ -10321,32 +10321,35 @@ For periphery authors and consumers:
 
 ## Appendix B. API synopsis: the entry points
 
-The user-facing surface on one page — same rule as [Appendix A][sA]: an index, not a
-second home, with each signature normative only where its owning section settles
-it. Every name here is public by being here, reached by qualified name or by
-per-name `import`; the module exports nothing until [§16][s16]'s audit fixes the
-exported-name list ([D-226][d-226]). The author-side declaration surface first, then
-the operator surface by lifecycle:
+The user-facing surface on one page, under the same rule as [Appendix A][sA]:
+an index, not a second home. Each signature is normative only where its
+owning section settles it. Every name here is public by being here, reached
+by qualified name or by per-name `import`. The module exports nothing until
+[§16][s16]'s audit fixes the exported-name list ([D-226][d-226]). The
+author-side declaration surface comes first, then the operator surface by
+lifecycle.
 
-**Authoring** — what a component or assembly defines ([§8.2][s8-2], [§8.5][s8-5]–[§8.7][s8-7]):
+**Authoring**, what a component or assembly defines ([§8.2][s8-2],
+[§8.5][s8-5]–[§8.7][s8-7]):
 
-- Continuous leaf: `init_x`/`init_m` (by value), `init_workspace(::C, ::Type{T})`
-  (by allocation), `input_types(::C, ::Type{T})` and
-  `output_types(::C, ::Type{T})` (by type),
-  `state_events` — stages `output_state`, `output_direct`, `state_derivative`,
-  guard/handler pairs
-  (`StateEvent(guard, handler)`; detection policy comes from the guard's return
-  type, [§10.4][s10-4]), `state_projection`.
-- Discrete leaf: `init_s`, `init_workspace(::C)`,
-  `input_types`/`output_types` — stages `output_state`, `output_direct`,
-  `state_update`.
-- Assembly: `child_connections` (mandatory — the class marker),
-  `input_connections`, `output_connections`, `sample_times`,
+- Continuous leaf. The stores `init_x`/`init_m` (by value) and
+  `init_workspace(::C, ::Type{T})` (by allocation), the contract
+  `input_types(::C, ::Type{T})` and `output_types(::C, ::Type{T})` (by type),
+  and `state_events`. Its stages are `output_state`, `output_direct` and
+  `state_derivative`, plus guard/handler pairs (`StateEvent(guard, handler)`;
+  the detection policy comes from the guard's return type, [§10.4][s10-4])
+  and `state_projection`.
+- Discrete leaf. `init_s`, `init_workspace(::C)` and
+  `input_types`/`output_types`. Its stages are `output_state`,
+  `output_direct` and `state_update`.
+- Assembly. `child_connections` (mandatory, the class marker),
+  `input_connections`, `output_connections`, `sample_times` and
   `transparent_container` (optional, default `nothing`).
-- Shipped conditions: `condition(::C; kw)` fragment functions ([§14.2][s14-2]).
+- Shipped conditions. `condition(::C; kw)` fragment functions
+  ([§14.2][s14-2]).
 
-Bundle contents by function family (the maximal legal sets, [§5.2][s5-2] — signatures
-destructure less at will):
+Bundle contents by function family (the maximal legal sets, [§5.2][s5-2];
+signatures destructure less at will):
 
 | function | tier | bundle fields |
 |---|---|---|
@@ -10357,36 +10360,40 @@ destructure less at will):
 | `output_direct` | discrete | `s, u, y_s, t, Δt [, ws]` |
 | `state_update` | discrete | `s, y, u, t, Δt [, ws]` |
 | guard / handler | continuous | `x, m, y, u, t [, ws]` |
-| `state_projection` | continuous | positional `(comp, x)` — no bundle |
+| `state_projection` | continuous | positional `(comp, x)`, no bundle |
 
-Table footnotes, from the bundle law ([§5.2][s5-2]) — the sets above are maximal, and
-each field is present only if it exists for the component: `u` iff the function
-family may see inputs **and** the component declares `input_types`; `y` iff the
-component produces any table cell (`output_types` ∪
-auto-published); `x`/`s`/`m`/`ws` iff declared; `y_x`/`y_s` iff the stage-1
-*return* is non-empty (auto-published names excluded — [§5.2][s5-2], [D-169][d-169]);
-`Δt` on the discrete tier only. Returns: a stage returns a NamedTuple of
-port values ([§4.3][s4-3], [§5.2][s5-2]); `state_derivative` returns the layout image of `X` ([§7.1][s7-1]); a **handler
-returns `(; x, m)` with each key present iff that store exists and the handler
-updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` partial).
+Table footnotes, from the bundle law ([§5.2][s5-2]). The sets above are
+maximal, and each field is present only if it exists for the component. `u`
+is present iff the function family may see inputs **and** the component
+declares `input_types`. `y` is present iff the component produces any table
+cell (`output_types` ∪ auto-published). `x`/`s`/`m`/`ws` are present iff
+declared. `y_x`/`y_s` are present iff the stage-1 *return* is non-empty, with
+auto-published names excluded ([§5.2][s5-2], [D-169][d-169]). `Δt` is present
+on the discrete tier only. Returns follow three rules. A stage returns a
+NamedTuple of port values ([§4.3][s4-3], [§5.2][s5-2]). `state_derivative`
+returns the layout image of `X` ([§7.1][s7-1]). A **handler returns `(; x, m)`
+with each key present iff that store exists and the handler updates it** (the
+return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
+`m` may come back partial.
 
 **Build.**
 
-- `build(world) → Build` — standalone; the inspectable derived-contract artifact:
-  wire list, face table with provenance, schedule, root inputs ([§9.2][s9-2]).
-  `build(world; activations = (Float64, ProbeDual))` additionally pins
-  activation invariants for CI (`ProbeDual` the public canonical concrete
-  probe scalar, [§9.4][s9-4]), and pre-materializes activations so a parallel
-  sweep shares a fully immutable `Build` ([§11.1][s11-1], [§9.4][s9-4]).
-- `resolve(asm, path) → AbstractComponent` — the getfield walk along `/`
-  segments, enforcing the one-level rule for wiring ([§6.1][s6-1]) and the
+- `build(world) → Build`. Standalone. It yields the inspectable
+  derived-contract artifact: wire list, face table with provenance, schedule,
+  root inputs ([§9.2][s9-2]). `build(world; activations = (Float64, ProbeDual))`
+  additionally pins activation invariants for CI (`ProbeDual` is the public
+  canonical concrete probe scalar, [§9.4][s9-4]), and pre-materializes
+  activations so a parallel sweep shares a fully immutable `Build`
+  ([§11.1][s11-1], [§9.4][s9-4]).
+- `resolve(asm, path) → AbstractComponent`. The getfield walk along `/`
+  segments. It enforces the one-level rule for wiring ([§6.1][s6-1]) and the
   generic-holding rule for deep reads, at the primitive ([§13.3][s13-3]).
-- `input_faces(c)` / `output_faces(c) → Vector{String}` — declaration-ordered
+- `input_faces(c)` / `output_faces(c) → Vector{String}`. Declaration-ordered
   face names ([§13.3][s13-3]).
 - `input_passthrough(asm, path; prefix, sep, except, only)` /
-  `output_passthrough(asm, path; prefix, sep, except, only)` — the
-  declaration-site helpers for computed interface connections; `path` names an
-  immediate child ([§8.8][s8-8]).
+  `output_passthrough(asm, path; prefix, sep, except, only)`. The
+  declaration-site helpers for computed interface connections. `path` names
+  an immediate child ([§8.8][s8-8]).
 
 **Deployment.**
 
@@ -10394,19 +10401,19 @@ updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` pa
   t_end = Inf,
   stop_on = (), localization_tol = 1e-6, localization_budget = 8,
   firing_budget = 4, join_timeout = 5.0,
-  trace = true, log = true, log_every = 1, log_max = 65536)` —
-  wraps the build (`Simulation(world; …) = Simulation(build(world); …)`;
-  the `Build` overload takes the same deployment keywords and deploys an
-  inspected artifact directly, [§9.2][s9-2]).
+  trace = true, log = true, log_every = 1, log_max = 65536)`.
+  Wraps the build (`Simulation(world; …) = Simulation(build(world); …)`).
+  The `Build` overload takes the same deployment keywords and deploys an
+  inspected artifact directly ([§9.2][s9-2]).
 
   | keyword | default | meaning | owning section |
   |---|---|---|---|
   | `algorithm` | `RK4` | the stepper, selected by type and materialized against the state buffer at binding ([D-227][d-227]) | [§10.2][s10-2] |
-  | `h` | — | required: a domain rate is not a framework default | [§10.2][s10-2] |
-  | `N_base` | `1` | steps per base tick: absent the `Δt_base` keyword, the `N_base·h` product is the base tick period (the default path); given it, `N_base` is instead derived and validated an integer ≥ 1 | [§9.1][s9-1] |
+  | `h` | — | required. A domain rate is not a framework default | [§10.2][s10-2] |
+  | `N_base` | `1` | steps per base tick. Absent the `Δt_base` keyword, the `N_base·h` product is the base tick period (the default path). Given it, `N_base` is instead derived and validated an integer ≥ 1 | [§9.1][s9-1] |
   | `Δt_base` | `nothing` | the base tick period as a `Rational`, `Period` or `Hz` value, or `:derive` to request GCD derivation (all-anchored models only); one of three binding sources | [§9.1][s9-1] |
-  | `t_end` | `Inf` | the run's end time — a **default**, overridable per run at `run!` | [§13.5][s13-5], [§12.6][s12-6] |
-  | `stop_on` | `()` | root-exported `Bool` output faces, OR-combined — a **default**, overridable per run at `run!` | [§13.5][s13-5], [§12.6][s12-6] |
+  | `t_end` | `Inf` | the run's end time, a **default** overridable per run at `run!` | [§13.5][s13-5], [§12.6][s12-6] |
+  | `stop_on` | `()` | root-exported `Bool` output faces, OR-combined, a **default** overridable per run at `run!` | [§13.5][s13-5], [§12.6][s12-6] |
   | `localization_tol` | `1e-6` | the root-finder's relative bracket-width convergence test (`localization_tol · h`) | [§10.4][s10-4] |
   | `localization_budget` | `8` | the per-frame localization allowance | [§10.4][s10-4] |
   | `firing_budget` | `4` | the per-event, per-boundary firing allowance of the event iteration, an integer ≥ 1 | [§10.6][s10-6] |
@@ -10416,48 +10423,49 @@ updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` pa
   | `log_every` | `1` | the log's keep-every-kth decimation | [§11.2][s11-2] |
   | `log_max` | `65536` | the maximum number of retained snapshots, finite by default with `Inf` the opt-out | [§11.2][s11-2] |
 
-  `Δt_base` binds from exactly one of three sources ([§9.1][s9-1]): the
-  `Δt_base` keyword — a `Rational`, `Period` or `Hz` value, `N_base` then derived
-  and validated an integer ≥ 1 — the `N_base·h` product when the keyword is absent
-  (the default path), or, in a fully anchored model omitting both, derivation
-  from the constraint pool at the coarsest admissible value, printed with its
-  drivers ([§9.2][s9-2]).
+  `Δt_base` binds from exactly one of three sources ([§9.1][s9-1]). The first
+  is the `Δt_base` keyword, a `Rational`, `Period` or `Hz` value; `N_base` is
+  then derived and validated an integer ≥ 1. The second is the `N_base·h`
+  product when the keyword is absent (the default path). The third, in a
+  fully anchored model omitting both, is derivation from the constraint pool
+  at the coarsest admissible value, printed with its drivers ([§9.2][s9-2]).
 
-  `t_end = Inf` is the honest interactive default — open-ended in time but
-  bounded in memory, `log_max` being what keeps such a session from growing
+  `t_end = Inf` is the honest interactive default. It is open-ended in time
+  but bounded in memory, since `log_max` keeps such a session from growing
   without limit ([§11.2][s11-2]). A run with no finite `t_end`, no `stop_on`
-  faces and `pace = Inf` warns at start, an unbounded unattended run being
-  almost always an oversight. A run ends at the first grid boundary reaching
-  or exceeding `t_end`, whole frames only ([§12.4][s12-4]). The `stop_on` faces
-  are recorded in run metadata — the trace header's deployment block
-  ([§11.5][s11-5], [§13.5][s13-5]; walkthrough [§15.4][s15-4]).
+  faces and `pace = Inf` warns at start, because an unbounded unattended run
+  is almost always an oversight. A run ends at the first grid boundary
+  reaching or exceeding `t_end`, whole frames only ([§12.4][s12-4]). The
+  `stop_on` faces are recorded in run metadata, in the trace header's
+  deployment block ([§11.5][s11-5], [§13.5][s13-5]; walkthrough
+  [§15.4][s15-4]).
 
   An event that exhausts `firing_budget` at a boundary loses its further edges
   there, under a `FiringBudget` warning ([§10.6][s10-6]). `localization_tol`,
   `localization_budget` and `firing_budget` are all three
-  trajectory-determining like their siblings, hence validated with them
+  trajectory-determining like their siblings. So they are validated with them
   (`DeploymentInvalid`) and recorded in the deployment block, where replay
-  compares them ([§11.5][s11-5], [§12.7][s12-7]). `join_timeout`, the shutdown
-  tail's join cap, is the one operational keyword: it moves no trajectory, so
-  it stays outside the deployment block, and replay neither records nor
-  compares it ([§12.4][s12-4]).
+  compares them ([§11.5][s11-5], [§12.7][s12-7]). `join_timeout`, the
+  shutdown tail's join cap, is the one operational keyword. It moves no
+  trajectory, so it stays outside the deployment block, and replay neither
+  records nor compares it ([§12.4][s12-4]).
 
-  Recording: `log_every` is admissible on the derived artifact only, never on
-  the trace ([§11.2][s11-2], [§11.5][s11-5], [D-029][d-029]). When the log fills, the
-  retention stride doubles, so the whole run stays covered at coarsening
-  density, the boundary-zero and terminal snapshots being retained
+  Recording. `log_every` is admissible on the derived artifact only, never on
+  the trace ([§11.2][s11-2], [§11.5][s11-5], [D-029][d-029]). When the log
+  fills, the retention stride doubles, so the whole run stays covered at
+  coarsening density. The boundary-zero and terminal snapshots are retained
   unconditionally and outside the bound ([§11.2][s11-2]). All four recording
-  keywords — `trace`, `log`, `log_every` and `log_max` — are view policies, not
-  trajectory-determining: none enters the deployment block, and replay neither
-  records nor compares them.
-- `attach!(sim, dev::AbstractDevice, binding::AbstractBinding; should_abort = false)`
-  — the roots are mandatory and the signature is the gate.
+  keywords (`trace`, `log`, `log_every` and `log_max`) are view policies, not
+  trajectory-determining. None enters the deployment block, and replay
+  neither records nor compares them.
+- `attach!(sim, dev::AbstractDevice, binding::AbstractBinding; should_abort = false)`.
+  The roots are mandatory, and the signature is the gate.
 
   | argument | default | meaning | owning section |
   |---|---|---|---|
   | `dev::AbstractDevice` | — | the device instance; the root type is mandatory | [§11.6][s11-6] |
   | `binding::AbstractBinding` | — | the binding value; the root type is mandatory | [§11.6][s11-6] |
-  | `should_abort` | `false` | the per-attachment failure policy: set, the device's departure also requests a sim stop; clear, the run continues with the device absent and its claims held to run end | [§11.6][s11-6], [§12.4][s12-4] |
+  | `should_abort` | `false` | the per-attachment failure policy. Set, the device's departure also requests a sim stop. Clear, the run continues with the device absent and its claims held to run end | [§11.6][s11-6], [§12.4][s12-4] |
 
   A departure is the loop body returning, a crash, or a failed `init!`.
 
@@ -10469,174 +10477,180 @@ updates it** (the return law, [§5.2][s5-2] — no padding, `x` complete, `m` pa
   | `is_input(b)` | `false` on `AbstractBinding` | declares the input side | [§11.6][s11-6] |
   | `is_output(b)` | `false` on `AbstractBinding` | declares the output side | [§11.6][s11-6] |
   | `is_greedy(b)` | `false` on `AbstractBinding` | `true` switches the claim's *source* | [§11.3][s11-3], [§11.6][s11-6] |
-  | `claims(b)` / `map_input(datum, b)` | — | the input side: the enumerated face set *is* the claim — what the device may write, not what it will | [§11.4][s11-4] |
+  | `claims(b)` / `map_input(datum, b)` | — | the input side. The enumerated face set *is* the claim, what the device may write rather than what it will | [§11.4][s11-4] |
   | `reads(b)` / `map_output(nt, b)` | — | the output side | [§14.4][s14-4], [§11.2][s11-2] |
 
-  The conformance check runs at attach, pairing each trait against its method: error fallbacks
-  for a declared side whose `claims`/`reads` was never written,
-  `which`-against-the-fallback for a method defined under a false trait, both
-  `BindingContractMismatch` ([§11.6][s11-6]). A claim is registered with
-  exclusivity enforced, and the staged shape and normalization shim are
-  compiled ([§11.4][s11-4]); the `reads` selectors are validated and compiled to
-  one gather ([§14.4][s14-4], [§11.2][s11-2]). Under `is_greedy(b) = true` the
-  framework computes the unclaimed complement at attach instead of calling
-  `claims`, everything downstream being identical, an empty remainder legal and
-  reported (`EmptyGreedyClaim`), and `is_greedy` without `is_input` an error
-  ([§11.3][s11-3], [§11.6][s11-6]). `TableBinding` is the shipped data-driven
-  binding, the standard GUI binding the shipped greedy one ([§11.6][s11-6]).
+  The conformance check runs at attach, pairing each trait against its
+  method. A declared side whose `claims`/`reads` was never written reaches
+  the error fallback. A method defined under a false trait is detected by
+  `which` against the fallback. Both are `BindingContractMismatch`
+  ([§11.6][s11-6]). A claim is registered with exclusivity enforced, and the
+  staged shape and normalization shim are compiled ([§11.4][s11-4]). The
+  `reads` selectors are validated and compiled to one gather
+  ([§14.4][s14-4], [§11.2][s11-2]). Under `is_greedy(b) = true` the framework
+  computes the unclaimed complement at attach instead of calling `claims`.
+  Everything downstream is identical. An empty remainder is legal and
+  reported (`EmptyGreedyClaim`), and `is_greedy` without `is_input` is an
+  error ([§11.3][s11-3], [§11.6][s11-6]). `TableBinding` is the shipped
+  data-driven binding, and the standard GUI binding is the shipped greedy one
+  ([§11.6][s11-6]).
 
-  `attach!` is a stopped-sim operation — legal in `built`, `initialized` and
-  `stopped`, an error while `running` and on an `errored` simulation
-  (`ServiceLifecycle`; the roster freeze, [§11.3][s11-3], and the terminal
-  state, [§13.6][s13-6]). Admission checks identity (`AlreadyAttached` — one roster
-  entry per instance, rebinding = `detach!` + `attach!`), calling-task affinity
-  (`CallerTaskConflict` — at most one holder) and claims (`ClaimConflict`),
-  [§11.3][s11-3]. It registers only: the task appears at the next `run!`.
-- `detach!(sim, device)` — removes the roster entry and releases the
-  device's claims; stopped-sim only, like `attach!`. A loop body's
-  voluntary exit or crash mid-run does *not* detach: the task dies, the
-  claims persist to run end ([§11.3][s11-3], [§11.6][s11-6], [§12.4][s12-4]).
-- The device contract — `MyDevice <: AbstractDevice` plus `init!(dev)` /
-  `loop(dev, handle)` /
-  `shutdown!(dev)` / optional `unblock!(dev)` / optional trait
-  `needs_calling_task(dev) = false`, a trait the task topology admits at most
-  one of per roster and whose device runs its loop body inline on the calling
-  task ([§11.1][s11-1]). Around those functions: per-run `init!`
-  on the calling task — bracketed, so a throw there is `shutdown!` plus
-  `DeviceCrash` by name and the device is dead from boundary zero
-  ([§12.4][s12-4]) — the author-owned task body inside the framework's
-  try/catch/finally wrapper, voluntary exit = return ([§11.6][s11-6], [§12.4][s12-4]).
-- The device handle — one type, capabilities not taxonomy: `running`,
-  `latest`, `wait_next_snapshot` ([§12.3][s12-3]), `stage!`, `binding`, `gather`,
-  `report!` ([§11.6][s11-6]).
+  `attach!` is a stopped-sim operation. It is legal in `built`, `initialized`
+  and `stopped`. It is an error while `running` and on an `errored`
+  simulation (`ServiceLifecycle`; the roster freeze, [§11.3][s11-3], and the
+  terminal state, [§13.6][s13-6]). Admission checks identity, calling-task
+  affinity and claims ([§11.3][s11-3]). A second roster entry for one
+  instance is `AlreadyAttached`, and rebinding is `detach!` + `attach!`. A
+  second `needs_calling_task` holder is `CallerTaskConflict`. An overlapping
+  claim is `ClaimConflict`. `attach!` registers only. The task appears at the
+  next `run!`.
+- `detach!(sim, device)`. Removes the roster entry and releases the device's
+  claims. Stopped-sim only, like `attach!`. A loop body's voluntary exit or
+  crash mid-run does *not* detach. The task dies, and the claims persist to
+  run end ([§11.3][s11-3], [§11.6][s11-6], [§12.4][s12-4]).
+- The device contract. `MyDevice <: AbstractDevice` plus `init!(dev)` /
+  `loop(dev, handle)` / `shutdown!(dev)`, the optional `unblock!(dev)`, and
+  the optional trait `needs_calling_task(dev) = false`. The task topology
+  admits at most one holder of that trait per roster, and the holder runs
+  its loop body inline on the calling task ([§11.1][s11-1]). Around those
+  functions the framework runs a per-run `init!` on the calling task. That
+  call is bracketed, so a throw there is `shutdown!` plus `DeviceCrash` by
+  name, and the device is dead from boundary zero ([§12.4][s12-4]). The
+  author-owned task body runs inside the framework's try/catch/finally
+  wrapper, and voluntary exit is returning ([§11.6][s11-6], [§12.4][s12-4]).
+- The device handle. One type, with capabilities rather than a taxonomy:
+  `running`, `latest`, `wait_next_snapshot` ([§12.3][s12-3]), `stage!`,
+  `binding`, `gather`, `report!` ([§11.6][s11-6]).
 
 **Condition algebra** ([§14.1][s14-1]–[§14.6][s14-6]).
 
-- `fragment(; x, s, m, inputs)` — self-vocabulary payloads at the authoring
-  level; `inputs` names faces of that level's contract.
-- `at(prefix, node)` — scoping; stores, never applies. Also lifts whole
-  `TrimProblem`s and linearization tap sets ([§14.9][s14-9], [§14.10][s14-10]).
-- `combine(nodes...)` — symmetric collection; duplicate leaves error with dual
-  provenance; blending a node with a bare NamedTuple is a directive error
+- `fragment(; x, s, m, inputs)`. Self-vocabulary payloads at the authoring
+  level. `inputs` names faces of that level's contract.
+- `at(prefix, node)`. Scoping. It stores, never applies. It also lifts whole
+  `TrimProblem`s and linearization tap sets ([§14.9][s14-9],
+  [§14.10][s14-10]).
+- `combine(nodes...)`. Symmetric collection. Duplicate leaves error with dual
+  provenance. Blending a node with a bare NamedTuple is a directive error
   method ([§14.2][s14-2]).
-- `override(base, patches...)` — ordered layering; patch wins, provenance
-  keeps both ([§14.6][s14-6]).
-- `condition(comp; kw)` — the shipped fragment-function idiom; aircraft
+- `override(base, patches...)`. Ordered layering. The patch wins, and
+  provenance keeps both ([§14.6][s14-6]).
+- `condition(comp; kw)`. The shipped fragment-function idiom. Aircraft
   baselines (`ready_for_taxi(ac)`, `cold_and_dark(ac)`) are its
   full-coverage instances.
 
 **Stopped-sim services** ([§14][s14]).
 
-- `init!(sim, condition; t0 = 0.0)` — root-input totality checked pre-write
-  ([§14.6][s14-6]), then boundary zero: project → sweep → events → due
-  `state_update` calls →
-  header + first snapshot ([§14.5][s14-5]).
-- `trim!(sim, problem; baseline, t0 = 0.0, backend) → TrimReport` —
-  nonlinear least squares on the packed residuals with exact Dual
-  Jacobians, against the problem's own `tolerances`
-  (`residuals(reads, d) → NamedTuple`, packed in `tolerances`' field order as
-  decisions pack in `guess`'s — names pair, order is the declared side's,
-  within the problem [§14.7][s14-7] closes at seven fields); setup and commit
-  both carry the root-input-totality
-  check ([§14.6][s14-6]); commit = `init!` with `override(baseline, solution)` —
-  boundary zero anchored at `t0`, recordings cleared ([§12.6][s12-6]); resume-at-
-  time = `capture`'s returned `t` as `t0`; `converged` = the service's
-  per-residual box test at the backend's returned point, backend-independent
-  and the commit's gate, with the backend's status and counts recorded
-  diagnostically; the backend seam a pinned one-method signature,
-  `solve(backend, eval!, d0, lower, upper, tol) → (; d, status, nevals, niters)`
-  — in-place `eval!(r, J, d)` filling `J` only when it is not `nothing`,
-  packed vectors in the declared orders, `status` an open `Symbol` recorded
-  verbatim; non-convergence reports, never
-  throws ([§14.7][s14-7], [§14.8][s14-8]).
-- `capture(sim) → (condition, t)` — full-store gather including root inputs;
-  warm restart = capture → tweak → apply ([§14.1][s14-1], [§14.10][s14-10]).
-- `linearize(sim, taps) → labeled (ẋ₀, x₀, u₀, y₀, A, B, C, D)` — pure query, one
-  seeded Dual pass on scratch; operating point defaults to `capture(sim)`;
-  taps = `get_state`/`get_input`/`get_output` selector lists with control-design
-  labels ([§14.10][s14-10]).
+- `init!(sim, condition; t0 = 0.0)`. Root-input totality is checked
+  pre-write ([§14.6][s14-6]). Then boundary zero runs: project, sweep, events,
+  the due `state_update` calls, then the header and first snapshot
+  ([§14.5][s14-5]).
+- `trim!(sim, problem; baseline, t0 = 0.0, backend) → TrimReport`. Nonlinear
+  least squares on the packed residuals with exact Dual Jacobians, against
+  the problem's own `tolerances`. `residuals(reads, d) → NamedTuple` is
+  packed in `tolerances`' field order, as decisions pack in `guess`'s. Names
+  pair, and the order is the declared side's. The problem itself closes at
+  seven fields ([§14.7][s14-7]). Setup and commit both carry the
+  root-input-totality check ([§14.6][s14-6]). The commit is `init!` with
+  `override(baseline, solution)`, boundary zero anchored at `t0` and
+  recordings cleared ([§12.6][s12-6]). Resume-at-time passes `capture`'s
+  returned `t` as `t0`. `converged` is the service's per-residual box test at
+  the backend's returned point. It is backend-independent and the commit's
+  gate, and the backend's status and counts are recorded diagnostically. The
+  backend seam is a pinned one-method signature,
+  `solve(backend, eval!, d0, lower, upper, tol) → (; d, status, nevals, niters)`.
+  The in-place `eval!(r, J, d)` fills `J` only when it is not `nothing`, the
+  packed vectors are in the declared orders, and `status` is an open `Symbol`
+  recorded verbatim. Non-convergence reports, never throws ([§14.7][s14-7],
+  [§14.8][s14-8]).
+- `capture(sim) → (condition, t)`. A full-store gather including root inputs.
+  Warm restart is capture, tweak, apply ([§14.1][s14-1], [§14.10][s14-10]).
+- `linearize(sim, taps) → labeled (ẋ₀, x₀, u₀, y₀, A, B, C, D)`. A pure
+  query, one seeded Dual pass on scratch. The operating point defaults to
+  `capture(sim)`. The taps are `get_state`/`get_input`/`get_output` selector
+  lists with control-design labels ([§14.10][s14-10]).
 
 **Running.**
 
 - `run!(sim; gui = false, pace = 1, margin = 0.002, t_end = <ctor value>,
-  stop_on = <ctor value>)` — `run!` blocks until the run ends; deviceless it is
-  fully synchronous on the calling task; `init!` required first
+  stop_on = <ctor value>)`. `run!` blocks until the run ends. Deviceless, it
+  is fully synchronous on the calling task. `init!` is required first
   ([§12.6][s12-6]). Paced and unpaced runs are bit-identical ([§10.7][s10-7]).
 
   | keyword | default | meaning | owning section |
   |---|---|---|---|
-  | `gui` | `false` | **run-scoped attachment**: at run entry it attaches the standard GUI device under the standard greedy binding, with `should_abort = true`, **iff no GUI is already rostered** | [§12.4][s12-4], [§11.6][s11-6], [§11.7][s11-7] |
+  | `gui` | `false` | **run-scoped attachment**. At run entry it attaches the standard GUI device under the standard greedy binding, with `should_abort = true`, **iff no GUI is already rostered** | [§12.4][s12-4], [§11.6][s11-6], [§11.7][s11-7] |
   | `pace` | `1` | the run's pacing rate | [§10.7][s10-7] |
   | `margin` | `0.002` | the single pacing knob, in seconds | [§10.7][s10-7] |
   | `t_end` | the constructor's value | overrides that default **for this run only** | [§13.5][s13-5] |
   | `stop_on` | the constructor's value | overrides that default **for this run only**, validated against the `Build` here exactly as at construction | [§13.5][s13-5] |
 
   The GUI is an ordinary rostered device rendered on the calling task
-  ([§11.6][s11-6], [§11.7][s11-7]). Because the flag attaches only if no GUI is
-  already rostered, a hand-attached GUI makes it a no-op rather than an
-  admission error; and because the run's shutdown tail detaches that GUI again
-  ([§12.4][s12-4]), the error path included, nothing the flag
-  did survives the run; a persistent GUI session is spelled `attach!`/`detach!`
-  by hand. Placement follows the roster, not the flag: a rostered GUI moves the
-  loop to a spawned task for as long as it is rostered ([§11.1][s11-1],
-  [§12.6][s12-6]); sugar never activates by default.
+  ([§11.6][s11-6], [§11.7][s11-7]). The flag attaches only if no GUI is
+  already rostered, so a hand-attached GUI makes it a no-op rather than an
+  admission error. The run's shutdown tail detaches that GUI again
+  ([§12.4][s12-4]), on the error path included, so nothing the flag did
+  survives the run. A persistent GUI session is spelled `attach!`/`detach!`
+  by hand. Placement follows the roster, not the flag. A rostered GUI moves
+  the loop to a spawned task for as long as it is rostered ([§11.1][s11-1],
+  [§12.6][s12-6]). Sugar never activates by default.
 
   `margin` defaults to 2 ms, the sleep primitive's granularity plus its
-  measured overshoot, with `0` / 2 ms / `∞` spanning the design space
+  measured overshoot. The values `0`, 2 ms and `∞` span the design space
   ([§10.7][s10-7]). The constructor's `t_end`/`stop_on` pair is recorded in
-  the run metadata; the override is reported by the termination record when
-  it fires ([§13.5][s13-5]).
-- `step!(sim; frames = 1) → frames_advanced` — synchronous partial advance
+  the run metadata. The termination record reports the override when it
+  fires ([§13.5][s13-5]).
+- `step!(sim; frames = 1) → frames_advanced`. A synchronous partial advance
   through the ordinary frame sequence, bit-identical to the same frames under
-  `run!`; `t_plus = <duration>` is the mutually-exclusive duration spelling
-  (whole frames until the boundary time covers that duration); returns the
-  frames *actually* advanced, fewer than requested when
-  `t_end` or a `stop_on` face ended the run inside the call. Between calls the
-  simulation reports `initialized`; `run!` may follow and continues from the
-  current boundary; a stepping session is deviceless — write via `stage!`,
-  read via `latest` ([§12.6][s12-6]).
-- `stage!(sim, "face" => value, …)` — task-free staging from the calling
-  task into the harness register ([§11.3][s11-3]; surface = the
-  currently-unclaimed faces): traced, drained last at the next frame top,
-  surface-checked exactly
-  as the GUI's writes (the harness cell, [§12.6][s12-6]; legal under `run!` and
-  `step!` alike).
-- `latest(sim) → snapshot` — the current published snapshot, the same
-  immutable value device handles read ([§11.2][s11-2]); the assertion/inspection
-  accessor of the harness and REPL registers ([§12.6][s12-6]).
-- `phase_bodies(sim) → named callables` — the compiled phase bodies of the
-  nominal activation, bound over the simulation's own buffers: the four
-  blocks (`rhs`, `sweep_1`, `sweep_2`, `ticks` — the sweeps in both
-  arities, zero-arg interior and tick-indexed boundary; `ticks` takes the tick
-  index) plus per-event guards/handlers and per-component `state_projection`, keyed
-  by the model's roster. The [§7.5][s7-5] allocation seam: warm, then
-  `@ballocated(body()) == 0` per body; diagnostic register, the one promise
-  being identity with what the loop runs; isolated invocation leaves buffers
-  valid but off-trajectory — re-run `init!` to continue ([§9.7][s9-7]).
-- Control plane — pause/un-pause, pace and `margin` changes, stop on a
-  separate atomic surface, never staged ([§12.1][s12-1]; pacing sits outside the
-  semantics, so pace and `margin` are both safe to change live).
-- Termination — model state via `stop_on` faces read at every published
-  boundary ([§13.5][s13-5]); shutdown completes a boundary, publishes the final
-  snapshot, then joins ([§12.4][s12-4]).
-- Post-run — the log is retained snapshots; `trace(sim) → trc` retrieves the
-  always-on input trace, and `replay!(sim2, trc; to_boundary = k)` re-drives
-  a fresh `Simulation(world)` bit-identically through the ordinary loop
-  (boundary zero from the trace header, drain fed by frame ordinal), ending
-  `initialized`; `to_time = t` is the mutually-exclusive time spelling of the
-  halt, floored to the last frame top at or before `t` — inspect via
-  `latest`/live stores, advance via `step!`, continue via `run!`; the
-  state-trajectory inspector and the `StepError`
-  reproduction tool ([§11.2][s11-2], [§11.5][s11-5], [§12.7][s12-7]; on-disk persistence deferred,
-  [§16][s16]).
-- `mode(sim) → :live | :replay` — the input mode, read beside the lifecycle
-  state: where the next frame's drain takes its batches from, the staging cells
-  or a recording `replay!` attached ([§12.6][s12-6], [§12.7][s12-7]).
-- `live!(sim)` — detaches the remainder of an attached recording and sets the
-  mode to `:live`, touching neither trajectory nor trace register, so the next
-  `run!` or `step!` continues live from the replayed boundary and re-records
-  onto the replayed prefix; stopped-sim only, legal on an `initialized`
-  simulation in `:replay`, and an already live one refuses
+  `run!`. `t_plus = <duration>` is the mutually exclusive duration spelling
+  (whole frames until the boundary time covers that duration). It returns the
+  frames *actually* advanced, fewer than requested when `t_end` or a
+  `stop_on` face ended the run inside the call. Between calls the simulation
+  reports `initialized`. `run!` may follow, and it continues from the current
+  boundary. A stepping session is deviceless. Write via `stage!` and read via
+  `latest` ([§12.6][s12-6]).
+- `stage!(sim, "face" => value, …)`. Task-free staging from the calling task
+  into the harness register ([§11.3][s11-3]). Its surface is the currently
+  unclaimed faces. The batch is traced, drained last at the next frame top,
+  and surface-checked exactly as the GUI's writes (the harness cell,
+  [§12.6][s12-6]). It is legal under `run!` and `step!` alike.
+- `latest(sim) → snapshot`. The current published snapshot, the same
+  immutable value device handles read ([§11.2][s11-2]). It is the assertion
+  and inspection accessor of the harness and REPL registers ([§12.6][s12-6]).
+- `phase_bodies(sim) → named callables`. The compiled phase bodies of the
+  nominal activation, bound over the simulation's own buffers. They are the
+  four blocks (`rhs`, `sweep_1`, `sweep_2`, `ticks`), with the sweeps in both
+  arities, zero-arg interior and tick-indexed boundary, and `ticks` taking
+  the tick index. Per-event guards/handlers and per-component
+  `state_projection` come with them, keyed by the model's roster. This is the
+  [§7.5][s7-5] allocation seam. Warm, then `@ballocated(body()) == 0` per
+  body. It is a diagnostic register, and its one promise is identity with
+  what the loop runs. An isolated invocation leaves buffers valid but
+  off-trajectory. Re-run `init!` to continue ([§9.7][s9-7]).
+- Control plane. Pause/un-pause, pace and `margin` changes and stop live on
+  a separate atomic surface, never staged ([§12.1][s12-1]). Pacing sits
+  outside the semantics, so pace and `margin` are both safe to change live.
+- Termination. Model state ends a run via `stop_on` faces read at every
+  published boundary ([§13.5][s13-5]). Shutdown completes a boundary,
+  publishes the final snapshot, then joins ([§12.4][s12-4]).
+- Post-run. The log is the retained snapshots. `trace(sim) → trc` retrieves
+  the always-on input trace. `replay!(sim2, trc; to_boundary = k)` re-drives
+  a fresh `Simulation(world)` bit-identically through the ordinary loop, with
+  boundary zero from the trace header and the drain fed by frame ordinal, and
+  ends `initialized`. `to_time = t` is the mutually exclusive time spelling
+  of the halt, floored to the last frame top at or before `t`. Inspect via
+  `latest` or the live stores, advance via `step!`, continue via `run!`.
+  Replay is the state-trajectory inspector and the `StepError` reproduction
+  tool ([§11.2][s11-2], [§11.5][s11-5], [§12.7][s12-7]; on-disk persistence
+  is deferred, [§16][s16]).
+- `mode(sim) → :live | :replay`. The input mode, read beside the lifecycle
+  state. It says where the next frame's drain takes its batches from, the
+  staging cells or an attached `replay!` recording ([§12.6][s12-6],
+  [§12.7][s12-7]).
+- `live!(sim)`. Detaches the remainder of an attached recording and sets the
+  mode to `:live`, touching neither trajectory nor trace register. The next
+  `run!` or `step!` then continues live from the replayed boundary and
+  re-records onto the replayed prefix. Stopped-sim only. It is legal on an
+  `initialized` simulation in `:replay`, and an already live one refuses
   ([§12.6][s12-6], [§12.7][s12-7]).
 
 ---
