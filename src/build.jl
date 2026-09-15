@@ -243,34 +243,47 @@ needs it rather than carried alongside every value.
 A declared name a store holds at *another* type is not published: it falls
 through to `DeclaredNotProduced`, whose state-field list then names it.
 
-At the nominal activation the type test is exact. At a non-nominal `T` the set
-is already fixed by the nominal — the schedule is `T`-independent — so the test
-is the embed-accept relation, and a failure there is a refusal rather than a
-silent drop. That is what a `Float64`-pinned declaration of a walking state
-field meets at the `Dual` activation, `_accepts(Float64, Dual, Dual)` being
-false; publishing it stripped would be a stop-gradient the author never wrote.
-Failures are collected into `diags` for the caller's one barrier (§13.1).
+At the nominal activation, reached with `nominal === nothing`, the set is
+derived over every declared port and the type test is exact. At a non-nominal
+`T` the set is already fixed by the nominal — the classification is structural,
+names only, and the schedule is `T`-independent (§9.1 Stratum B) — so `nominal`
+arrives as that set and the test runs over its keys alone: the embed-accept
+relation, a failure being a refusal rather than a silent drop. Names outside the
+nominal set are not examined there, so a stage-2 product colliding with a store
+field at another type is never mistaken for a failed auto-publication. The
+refusal is what a `Float64`-pinned declaration of a walking state field meets at
+the `Dual` activation, `_accepts(Float64, Dual, Dual)` being false; publishing
+it stripped would be a stop-gradient the author never wrote. Failures are
+collected into `diags` for the caller's one barrier (§13.1).
 """
-function auto_published(d::Decls, t::Tier, m, s1::NamedTuple, path::String,
+function auto_published(d::Decls, t::Tier, m, s1::NamedTuple, nominal, path::String,
                         diags::Vector{Diagnostic}, ::Type{T}) where {T}
     homes = _homes(d, t, m)
-    names, vals = Symbol[], Any[]
-    for n in keys(d.outs)                       # declaration order (§9.5)
-        haskey(s1, n) && continue               # stage 1 returned it: the stage wins
-        h = _home_of(homes, n)
-        h === nothing && continue
-        v = homes[h][n]
-        if T === Float64 ? d.outs[n] === typeof(v) : _accepts(d.outs[n], typeof(v), T)
-            push!(names, n)
-            push!(vals, v)
-        elseif T !== Float64
+    if nominal === nothing
+        names, vals = Symbol[], Any[]
+        for n in keys(d.outs)                   # declaration order (§9.5)
+            haskey(s1, n) && continue           # stage 1 returned it: the stage wins
+            h = _home_of(homes, n)
+            h === nothing && continue
+            v = homes[h][n]
+            if d.outs[n] === typeof(v)
+                push!(names, n)
+                push!(vals, v)
+            end
+        end
+        return NamedTuple{tuple(names...)}(tuple(vals...))
+    end
+    vals = Any[]
+    for n in keys(nominal)
+        v = homes[_home_of(homes, n)][n]
+        _accepts(d.outs[n], typeof(v), T) ||
             push!(diags, ConformanceFailure(path = path, what = "auto-publication",
                                            reason = :field_type, shape = :ports, field = n,
                                            observed = typeof(v), declared = d.outs[n],
                                            activation = T))
-        end
+        push!(vals, v)
     end
-    NamedTuple{tuple(names...)}(tuple(vals...))
+    NamedTuple{keys(nominal)}(tuple(vals...))
 end
 
 # --- 3. the feedthrough graph and the stage-2 schedule -------------------------
@@ -658,10 +671,12 @@ function _stratum_c(flat::Flat, tiers::Vector{Tier}, order, carry, ::Type{T}) wh
     # before the schedule, because §9.1 classifies ports over `output_types`
     # alone and the stage-2 graph is built from the wires carrying stage-2
     # ports. A frozen component's set is carried, exactly as its stage-1
-    # product is (§9.4). One barrier for the activation (§13.1).
+    # product is (§9.4), and at a non-nominal activation every set is the
+    # nominal's, `carry` carrying it in. One barrier for the activation (§13.1).
     pubdiags = Diagnostic[]
     published = NamedTuple[_frozen(tiers, ci, T) ? carry.published[ci] :
                            auto_published(decls[ci], tiers[ci], mstores[ci], stage1[ci],
+                                          carry === nothing ? nothing : carry.published[ci],
                                           flat.paths[ci], pubdiags, T)
                            for ci in eachindex(flat.comps)]
     isempty(pubdiags) || throw(DiagnosticError(pubdiags))

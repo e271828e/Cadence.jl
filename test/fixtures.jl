@@ -136,6 +136,20 @@ output_state(::TwiceState, (; x)) = (q = x.q,)
 state_derivative(::TwiceState, (; x)) = (q = 0.0,)
 
 """
+A stage-2 product named after a mode field the store holds at *another* type,
+beside a publishable state field. The classification is structural and names
+only (§9.1 Stratum B), so the non-nominal set is the nominal's: `flag` is a
+stage-2 product at every activation, never a failed publication.
+"""
+struct ModeNamedProduct <: AbstractComponent end
+
+init_x(::ModeNamedProduct) = (q = 0.0,)
+init_m(::ModeNamedProduct) = (flag = 0,)
+output_types(::ModeNamedProduct, ::Type{T}) where {T <: Real} = (flag = T, q = T)
+output_direct(::ModeNamedProduct, (; x, m)) = (flag = m.flag * one(x.q),)
+state_derivative(::ModeNamedProduct, (; x)) = (q = 0.0,)
+
+"""
 Proportional gain: **stateless**, stage 2 only. The three-level funnel of §5.2
 in its smallest instance — a component that legitimately writes `output_direct` while
 owning no state at all, so its bundle carries `u` and `t` and nothing else.

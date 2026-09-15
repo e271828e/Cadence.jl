@@ -63,6 +63,15 @@ end
 
 function continuous_auto_publication()
     @testset "a published cell carries the store, not an integration (§5.3, D-163)" begin
+        # Non-default stores first, because the probe seed already wrote the
+        # declared initials into these cells: only a value the seed could not
+        # have left shows that boundary zero's `ESTABLISH` round published them.
+        seeded = Simulation(fed(Motor(1.0), "M_load"); h = 1//100)
+        init!(seeded, combine(at("c", fragment(x = (ω = 3.0,), m = (running = true,))),
+                              fragment(inputs = (in = 0.0,))))
+        @test port(seeded, "c", :ω) == 3.0
+        @test port(seeded, "c", :running) === true
+
         sim = Simulation(fed(Motor(1.0), "M_load"); h = 1//100)
         # A root input must be covered at `init!` (§14.6, `UninitializedInputs`),
         # and `M_load = 0` is what makes the closed form below exact.

@@ -93,7 +93,8 @@ function build_auto_publication()
         @test keys(b.nominal.products[i]) === (:ω, :running, :M_shaft)
         # D-169: the hand-down carries the stage-1 *return*, so a component
         # whose only stage-1-position ports are published gets no `y_x` at all.
-        @test bundle_names(output_direct, Motor(1.0), CONTINUOUS, ()) === (:x, :m, :u, :t)
+        @test bundle_names(output_direct, Motor(1.0), CONTINUOUS,
+                           tuple(keys(b.nominal.stage1[i])...)) === (:x, :m, :u, :t)
     end
 
     @testset "a loop closes through an auto-published port (§5.3, §5.5, D-169)" begin
@@ -129,6 +130,16 @@ function build_auto_publication()
         i = index_of(b.flat, "c")
         @test b.nominal.stage1[i] == (q = 0.0,)
         @test b.nominal.published[i] === NamedTuple()
+    end
+
+    @testset "the non-nominal set is the nominal's, by name (§9.1, §5.3)" begin
+        # `flag` names a mode field the store holds as an `Int` and is a genuine
+        # stage-2 product. Re-deriving membership at the walking activation would
+        # meet it there and report a publication that was never classified as one.
+        b = build(single(ModeNamedProduct()))
+        i = index_of(b.flat, "c")
+        @test keys(b.nominal.published[i]) === (:q,)
+        @test keys(activation(b, D8).published[i]) === (:q,)
     end
 
     @testset "a pinned declaration of a walking field is refused, not stripped (§5.3, D-166)" begin

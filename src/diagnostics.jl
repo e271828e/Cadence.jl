@@ -790,9 +790,13 @@ function message(d::ConformanceFailure)
                "state has $(_symtuple(d.declared_fields)) — a state write-back is complete " *
                "against the field set (§9.3, §9.5)"
     end
+    # A stage returns its ports; the framework's auto-publication publishes them
+    # (§5.3), so the verb follows `what` rather than naming a return that is not
+    # one.
     d.shape === :ports &&
-        return "`$(d.path)`: $(d.what) returns `$(d.field)`::$(d.observed), declared " *
-               "$(d.declared)" * _pin(d)
+        return "`$(d.path)`: $(d.what) " *
+               (d.what == "auto-publication" ? "publishes" : "returns") *
+               " `$(d.field)`::$(d.observed), declared $(d.declared)" * _pin(d)
     d.shape === :mode &&
         return "`$(d.path)`: $(d.what) mode `$(d.field)` is $(d.observed), declared " *
                "$(d.declared) (§5.2)"

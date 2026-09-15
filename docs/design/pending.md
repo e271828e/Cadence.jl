@@ -20,7 +20,7 @@ Where the reason is not given here, the cited decision carries it:
 
 - **§13.3's generic-holding check in the *load-bearing* register** — the deep
   paths condition entries and trim `reads` write are policed by nothing, so
-  §14.2's locality law rides as convention here (M-B21).
+  §14.2's locality law rides as convention here.
 - **Port-value coverage** (M-B7, M-B10): enum-valued ports are refused
   — `leaf_types` returns empty for an `Enum`, so `place!` raises
   `IllegalPortType`, and `probe_value` has no enum arm, against §4.1 and
