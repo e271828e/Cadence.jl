@@ -10167,143 +10167,155 @@ ground the choices.
 
 # Appendices
 
-The appendices are reference matter, not a sixth part. [Appendix A][sA] indexes the
-semantic contracts an author must know and no check can enforce; [Appendix B][sB] is
-the API synopsis. Neither is a second home: each entry is normative only where
-its owning section settles it. [Appendix C][sC] is the exception — its diagnostic
-kind set is made normative here, and acceptance tests match on it. [Appendix D][sD]
-is the glossary, non-normative, with the owning section winning wherever the
-two diverge.
+The appendices are reference matter, not a sixth part. [Appendix A][sA]
+indexes the semantic contracts an author must know and no check can enforce.
+[Appendix B][sB] is the API synopsis. Neither is a second home. Each entry is
+normative only where its owning section settles it. [Appendix C][sC] is the
+exception. Its diagnostic kind set is made normative here, and acceptance
+tests match on it. [Appendix D][sD] is the glossary. It is non-normative, and
+the owning section wins wherever the two diverge.
 
 ## Appendix A. Taught contracts: the author-facing index
 
-The build pipeline enforces structure — declarations, wiring, types,
-conformance. A residue of *semantic* facts is unenforceable by any check.
-Knowing them is what makes component and periphery code come out right.
-Not knowing them produces defensive delays, duplicated math or mistimed
-samples with no diagnostic firing anywhere; the author-knowledge note
-([§15.5][s15-5]) is the archetype.
-This appendix is an **index, not a second home**: one recall line per
-contract, with the normative statement staying in the owning section. That is
-one home per datum, applied to the document itself.
+The build pipeline enforces structure. It checks declarations, wiring, types
+and conformance. A residue of *semantic* facts remains that no check can
+enforce. An author who knows them writes component and periphery code that
+comes out right. An author who does not produces defensive delays, duplicated
+math or mistimed samples, and no diagnostic fires anywhere. The
+author-knowledge note ([§15.5][s15-5]) is the archetype. This appendix is an
+**index, not a second home**. Each contract gets one recall line here, and its
+normative statement stays in the owning section. That applies the
+one-home-per-datum rule to the document itself.
 
 For component authors:
 
-- **The stage funnel** ([§5.2][s5-2]). Stage name at its tier ⊇ bundle ⊇
-  destructured reads: the stage name fixes the maximal legal view set at the
-  component's tier, the component's
-  declarations narrow it to the bundle, and the signature's destructuring
-  narrows the bundle to actual reads — so "no `direct` in the name" *is* the
-  no-feedthrough property. The teaching line: stage 1 publishes what you
-  know from state alone; stage 2 adds what needs inputs; your dynamics
-  read your own published results instead of recomputing them.
-- **One home per datum** ([§5.2][s5-2], [§4.3][s4-3]). The signal table holds *produced*
-  signals only, never transported ones: buffer for `x`, stores for
-  `s` and for `m`, table for signals — no store mirrors another.
-- **The value-level constructor** ([§4.4][s4-4]). A field-emitting component ships
-  the map (component, input values) → handle as a plain public function,
-  and its output stage merely calls it: the condition math ([§14.1][s14-1]) must
-  be able to produce the sweep's exact handle outside any sweep, and only the
-  component's author can write that function without re-creating the
-  drift class.
-- **Boundary sampling** ([§10.5][s10-5]/[§10.6][s10-6]; worked example [§15.5][s15-5]). "Sampling at
-  `t_k`" means post-integration, post-projection, stage-1-fresh state: a
-  due tick's gated stages run inside the boundary sweep and sample the
-  *completed* boundary. Distrusting that guarantee — a defensive one-tick
-  delay, a re-derivation inside the sampler — silently degrades the model.
+- **The stage funnel** ([§5.2][s5-2]). The stage name at its tier fixes the
+  maximal legal view set. The component's declarations narrow that set to the
+  bundle. The signature's destructuring narrows the bundle to the actual
+  reads. In short, stage name at its tier ⊇ bundle ⊇ destructured reads. So
+  "no `direct` in the name" *is* the no-feedthrough property. The teaching
+  line runs as follows. Stage 1 publishes what you know from state alone.
+  Stage 2 adds what needs inputs. Your dynamics read your own published
+  results instead of recomputing them.
+- **One home per datum** ([§5.2][s5-2], [§4.3][s4-3]). The signal table holds
+  *produced* signals only, never transported ones. The buffer holds `x`, the
+  stores hold `s` and `m`, and the table holds signals. No store mirrors
+  another.
+- **The value-level constructor** ([§4.4][s4-4]). A field-emitting component
+  ships the map from (component, input values) to handle as a plain public
+  function, and its output stage merely calls it. The condition math
+  ([§14.1][s14-1]) must be able to produce the sweep's exact handle outside
+  any sweep. Only the component's author can write that function without
+  re-creating the drift class.
+- **Boundary sampling** ([§10.5][s10-5]/[§10.6][s10-6]; worked example
+  [§15.5][s15-5]). "Sampling at `t_k`" means sampling the post-integration,
+  post-projection, stage-1-fresh state. A due tick's gated stages run inside
+  the boundary sweep and sample the *completed* boundary. An author who
+  distrusts that guarantee, with a defensive one-tick delay or a re-derivation
+  inside the sampler, silently degrades the model.
 - **Interval alignment** ([§14.5][s14-5]). A boundary's `state_update` is the
-  *outgoing* transition: at tick `t_k` it consumes the completed boundary's samples
-  and produces `s_{k+1}` — the value the component's *next* tick decodes
-  (the sampled-data `z⁻¹` delay, by construction). Hence `state_update` runs at
-  boundary zero: that run is the `t₀` sample's only chance.
-- **Same-tick reset consumption** ([§15.2][s15-2]) — *discrete tier*. A commanded reset
-  of a discrete component's `s` is an input. For same-tick output semantics
-  the *output stage* consumes that input — overriding the state-derived path —
-  and `state_update` stores the matching `s⁺`. A reset honored only in
-  `state_update` reaches the
-  outputs one tick late: the plant integrates a full step under the stale
-  command. Both spellings are legal; they mean different things. The
-  continuous tier has no such choice — next entry.
-- **A continuous component's state reset is an event** ([§3.1][s3-1], [§10.6][s10-6], [§15.2][s15-2]).
-  Only handlers write `x`, so even a *commanded* reset — the condition
-  arriving as an ordinary `Bool` input, weight-on-wheels being the shipped
-  instance — is spelled as an event whose guard reads that input; the
-  discrete tier's input spelling does not transfer. The reason is semantic,
-  not stylistic: only the discrete tier's update stage is already a jump map,
-  so a reset there is just another value for `s⁺`, whereas a continuous state
-  jump must be solver-visible, applied *between* integration segments — the
-  flow/jump split every hybrid tool converges on (Simulink applies its reset
-  ports through zero-crossing events plus a solver restart; Modelica's
-  `reinit` is syntactically legal only inside a `when`). And there is no
-  stale-output hazard to manage: [§10.6][s10-6] re-sweeps outputs to quiescence after
-  handlers, so a continuous edge-reset is same-boundary by construction.
-- **Guard predicates, edges and priors** ([§2.1][s2-1], [§10.6][s10-6]). A guard defines
-  a predicate — a `Bool` form, or a sign value `σ` with
-  positive = holding — and the form chosen *is* the detection policy: `Bool`
-  boundary-detected, sign localized. Events fire on not-holding → holding *edges* against per-event
-  priors (the previous boundary's quiescent sample): a predicate that
-  keeps holding fires once, at the boundary where it first held. Boundary
-  zero sets every prior to not-holding, so a predicate already holding in
-  the authored state fires at `t₀`. The opposite crossing direction is a
-  second event with the negated guard.
-- **Handler-phase visibility** ([§5.3][s5-3], [§10.6][s10-6]). A handler executes
-  against exactly the world its guard fired on: own `y`, foreign `u` and own
-  `x`/`m` are all the firing round's sweep, and a component fires at most one
-  event per round — later own events are re-decided against the next round's
-  sweep, one round per causal link, within and across components alike. The
-  signal table is written only by sweeps.
-- **Stage totality** ([§9.3][s9-3]; [§13.4][s13-4], [§13.5][s13-5]). Stage code is total over
-  type-valid inputs: the probe evaluates every user function against values
-  chosen for their types alone, and a value-level throw is a build failure
-  there and a `StepError` at runtime. Physical plausibility is a published
-  `Bool` and `stop_on`; self-consistency asserts belong in tests; parameter
-  validation belongs at instance construction, not inside a stage.
-- **Stop-face sampling** ([§13.5][s13-5]). Stop faces are read in completed-boundary
-  snapshots; declare a sign-form (localized) event if the stop needs localizing.
+  *outgoing* transition. At tick `t_k` it consumes the completed boundary's
+  samples and produces `s_{k+1}`, the value the component's *next* tick
+  decodes. That is the sampled-data `z⁻¹` delay, by construction. Hence
+  `state_update` runs at boundary zero. That run is the `t₀` sample's only
+  chance.
+- **Same-tick reset consumption** ([§15.2][s15-2]), on the *discrete tier*. A
+  commanded reset of a discrete component's `s` is an input. For same-tick
+  output semantics the *output stage* consumes that input, overriding the
+  state-derived path, and `state_update` stores the matching `s⁺`. A reset
+  honored only in `state_update` reaches the outputs one tick late, and the
+  plant integrates a full step under the stale command. Both spellings are
+  legal, and they mean different things. The continuous tier has no such
+  choice (next entry).
+- **A continuous component's state reset is an event** ([§3.1][s3-1],
+  [§10.6][s10-6], [§15.2][s15-2]). Only handlers write `x`. So even a
+  *commanded* reset, where the condition arrives as an ordinary `Bool` input
+  (weight-on-wheels is the shipped instance), is spelled as an event whose
+  guard reads that input. The discrete tier's input spelling does not
+  transfer. The reason is semantic, not stylistic. The discrete tier's update
+  stage is already a jump map, so a reset there is just another value for
+  `s⁺`. A continuous state jump must be solver-visible and applied *between*
+  integration segments. Every hybrid tool converges on that flow/jump split.
+  Simulink applies its reset ports through zero-crossing events plus a solver
+  restart, and Modelica's `reinit` is syntactically legal only inside a
+  `when`. There is no stale-output hazard to manage either. [§10.6][s10-6]
+  re-sweeps outputs to quiescence after handlers, so a continuous edge-reset
+  is same-boundary by construction.
+- **Guard predicates, edges and priors** ([§2.1][s2-1], [§10.6][s10-6]). A
+  guard defines a predicate, either as a `Bool` or as a sign value `σ` with
+  positive meaning holding. The form chosen *is* the detection policy. A
+  `Bool` guard is boundary-detected, a sign guard is localized. Events fire on
+  *edges* from not-holding to holding, judged against per-event priors, where
+  the prior is the previous boundary's quiescent sample. A predicate that
+  keeps holding fires once, at the boundary where it first held. Boundary zero
+  sets every prior to not-holding, so a predicate already holding in the
+  authored state fires at `t₀`. The opposite crossing direction is a second
+  event with the negated guard.
+- **Handler-phase visibility** ([§5.3][s5-3], [§10.6][s10-6]). A handler
+  executes against exactly the world its guard fired on. Its own `y`, foreign
+  `u` and its own `x`/`m` all come from the firing round's sweep. A component
+  fires at most one event per round. Its later own events are re-decided
+  against the next round's sweep, one round per causal link, within and across
+  components alike. Only sweeps write the signal table.
+- **Stage totality** ([§9.3][s9-3]; [§13.4][s13-4], [§13.5][s13-5]). Stage
+  code is total over type-valid inputs. The probe evaluates every user
+  function against values chosen for their types alone. A value-level throw
+  is a build failure there and a `StepError` at runtime. Physical plausibility
+  is a published `Bool` and `stop_on`. Self-consistency asserts belong in
+  tests. Parameter validation belongs at instance construction, not inside a
+  stage.
+- **Stop-face sampling** ([§13.5][s13-5]). Stop faces are read in
+  completed-boundary snapshots. Declare a sign-form (localized) event if the
+  stop needs localizing.
 
 For periphery authors and consumers:
 
 - **Levels, never deltas** ([§11.4][s11-4]). Staged input values are levels
-  (`press_count = 17`, never `presses += 1`) — idempotent under
-  coalescing; button edges ride as monotonic counters. Cross-datum state
-  (press counters, edge detection) lives in the device struct, maintained
-  by the loop, arriving *inside* the datum — `map_input` is pure ([§11.6][s11-6]).
-- **The device loop idioms** ([§11.6][s11-6], [§12.4][s12-4]). Loop on `running(handle)`;
-  make every blocking call interruptible (an `unblock!` override, or
-  timeouts); voluntary exit is returning. Three canonical shapes:
-  timer-poll (sleep, poll, stage), source-driven (block on your socket;
-  `unblock!` closes it), boundary-driven (`wait_next_snapshot`, gather,
-  send). A forgotten predicate check surfaces as `DeviceJoinTimeout` with
-  your device's name; a stall as a stale heartbeat.
-- **`shutdown!` closes only what is open** ([§11.6][s11-6], [§12.4][s12-4]). The framework
-  runs `shutdown!` on every exit path, your own `init!`'s failure included:
-  a throw half-way through acquisition hands the half-built device straight
-  back to you, so guard each release (`isopen`, a `nothing` handle) rather than
-  assuming initialization completed. The converse is a burden you do *not*
-  carry: `init!` owes no cleanup of its own.
-- **Binding traits are declarations, mappings are your own idiom** ([§11.6][s11-6]).
-  Keep `is_input`/`is_output`/`is_greedy` trivial — a literal, or a flag read
-  off a field fixed at the constructor call — because the framework calls them
-  once, at attach, and cross-checks each against the enumeration method it
-  implies. `map_input`/`map_output` are the other kind of thing: conventions of
-  the loop idiom, called only by your own `loop`, never by the framework — the
-  names are worth keeping for readers, and nothing enforces them.
-- **Bad datum vs. bug** ([§11.6][s11-6], [§13.4][s13-4]). Catch what your parser can throw,
-  `report!(handle, MalformedDatum(cause))`, stage nothing, continue; let
-  everything else propagate — the wrapper makes it `DeviceCrash`.
-  Tolerating everything hides bugs as "device attached, nothing happens";
-  tolerating nothing kills a live link on its first truncated datagram.
-- **Derived liveness** ([§11.7][s11-7]). A widget is live iff its port's feed chain
-  terminates in a root input inside the GUI's own claim in the run's frozen
-  partition; there is no per-port marking, and unexported ports are
+  (`press_count = 17`, never `presses += 1`), which makes them idempotent
+  under coalescing. Button edges ride as monotonic counters. Cross-datum
+  state such as press counters and edge detection lives in the device struct.
+  The loop maintains it, and it arrives *inside* the datum, because
+  `map_input` is pure ([§11.6][s11-6]).
+- **The device loop idioms** ([§11.6][s11-6], [§12.4][s12-4]). Loop on
+  `running(handle)`. Make every blocking call interruptible, through an
+  `unblock!` override or timeouts. Voluntary exit is returning. There are
+  three canonical shapes. Timer-poll sleeps, polls and stages. Source-driven
+  blocks on your socket, and `unblock!` closes it. Boundary-driven calls
+  `wait_next_snapshot`, gathers and sends. A forgotten predicate check
+  surfaces as `DeviceJoinTimeout` with your device's name. A stall surfaces as
+  a stale heartbeat.
+- **`shutdown!` closes only what is open** ([§11.6][s11-6], [§12.4][s12-4]).
+  The framework runs `shutdown!` on every exit path, including your own
+  `init!`'s failure. A throw half-way through acquisition hands the half-built
+  device straight back to you. So guard each release (`isopen`, a `nothing`
+  handle) rather than assuming initialization completed. You do *not* carry
+  the converse burden. `init!` owes no cleanup of its own.
+- **Binding traits are declarations, mappings are your own idiom**
+  ([§11.6][s11-6]). Keep `is_input`/`is_output`/`is_greedy` trivial, a
+  literal or a flag read off a field fixed at the constructor call. The
+  framework calls them once, at attach, and cross-checks each against the
+  enumeration method it implies. `map_input`/`map_output` are a different
+  kind of thing. They are conventions of the loop idiom, called only by your
+  own `loop` and never by the framework. The names are worth keeping for
+  readers, and nothing enforces them.
+- **Bad datum vs. bug** ([§11.6][s11-6], [§13.4][s13-4]). Catch what your
+  parser can throw, call `report!(handle, MalformedDatum(cause))`, stage
+  nothing and continue. Let everything else propagate, and the wrapper makes
+  it `DeviceCrash`. Tolerating everything hides bugs as "device attached,
+  nothing happens". Tolerating nothing kills a live link on its first
+  truncated datagram.
+- **Derived liveness** ([§11.7][s11-7]). A widget is live iff its port's feed
+  chain terminates in a root input inside the GUI's own claim in the run's
+  frozen partition. There is no per-port marking, and unexported ports are
   unpokeable.
-- **The two observation registers** ([§11.2][s11-2], [§13.5][s13-5]). A deep snapshot path is
-  the *inspection* register: it sees everything and promises nothing
-  across builds. An exported output face is the *integration* register:
-  curated, writer-independent meaning — the only shield against silent
-  semantic drift. Bind faces in anything meant to outlive the current
-  build. The store selectors (`get_state`/`get_deriv`) belong to neither:
-  they read live stores, never snapshots (the source rule, [§14.4][s14-4]).
+- **The two observation registers** ([§11.2][s11-2], [§13.5][s13-5]). A deep
+  snapshot path is the *inspection* register. It sees everything and promises
+  nothing across builds. An exported output face is the *integration*
+  register. It carries curated, writer-independent meaning, and it is the only
+  shield against silent semantic drift. Bind faces in anything meant to
+  outlive the current build. The store selectors (`get_state`/`get_deriv`)
+  belong to neither register. They read live stores, never snapshots (the
+  source rule, [§14.4][s14-4]).
 
 ---
 
