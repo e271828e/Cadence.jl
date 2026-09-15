@@ -9278,27 +9278,27 @@ visible zero rows suffice.
 
 # Part V — Grounding
 
-Part V grounds the design and marks what it leaves open. [§15][s15] is five case
-studies, each starting from code that exists today: the `Vehicle`
-transliteration that validated [§5][s5], torture tests aimed at the [§5.2][s5-2] interfaces
-and at the [§11][s11] staging shapes, the full C172X demo read as a load test on the
-periphery, and the strapdown IMU challenge to the [§3][s3] class split. [§16][s16] records
-the three axes still to be settled, the migration of FlightPhysics and
-FlightApps among them.
+Part V grounds the design and marks what it leaves open. [§15][s15] is five
+case studies, each starting from code that exists today: the `Vehicle`
+transliteration that validated [§5][s5], torture tests aimed at the
+[§5.2][s5-2] interfaces and at the [§11][s11] staging shapes, the full C172X
+demo read as a load test on the periphery, and the strapdown IMU challenge to
+the [§3][s3] class split. [§16][s16] records the three axes still to be
+settled, the migration of FlightPhysics and FlightApps among them.
 
 Part V assumes the whole specification and norms none of it. The case studies
 are evidence rather than rules, so where a measurement here and a rule earlier
-disagree, the rule wins. They keep their worked comparisons at full resolution,
-which is the one place the rationale-belongs-in-the-decision-log rule is
-relaxed.
+disagree, the rule wins. They keep their worked comparisons at full
+resolution. That is the one place where the rule that rationale belongs in the
+decision log is relaxed.
 
 ## 15. Case studies
 
 ### 15.1 `Vehicle` today → this framework
 
-This case study is the grounding exercise that validated [§5][s5]. Current
-`Vehicle.f_ode!` (`aircraftbase.jl:142-170`) is a hand-woven instance of the machinery
-specified here:
+This case study is the grounding exercise that validated [§5][s5]. Today's
+`Vehicle.f_ode!` (`aircraftbase.jl:142-170`) is a hand-woven instance of the
+machinery specified here:
 
 | Today (convention) | This design (checked structure) |
 |---|---|
@@ -9310,34 +9310,36 @@ specified here:
 | `Aircraft.f_ode!` runs avionics before the vehicle → continuous avionics reads one-stage-stale `vehicle.y` (implicit delay) | Avionics scheduled inside the [sweep](#g-sweep), after the stage-1 outputs avionics consumes — no delay. Or avionics declared periodic, sampling post-step by stated semantics |
 | `atmosphere`/`terrain` threaded as arguments through every signature | Field-handle signals through ordinary ports ([§4.4][s4-4]) |
 
-Two of those entries carry detail a cell cannot hold. The artificial loop in
-`VehicleDynamics` is the pairing of a state-only velocity output with
-[feedthrough](#g-feedthrough) accelerations. The hand sync of the duplicated velocity
-state reaches into initialization, where `f_init!` carries the line
+Two of those rows carry detail a cell cannot hold. The artificial loop in
+`VehicleDynamics` pairs a state-only velocity output with
+[feedthrough](#g-feedthrough) accelerations. The hand sync of the duplicated
+velocity state reaches into initialization, where `f_init!` carries the line
 `dynamics.x .= kinematics.u  #essential`.
 
-The same exercise surfaced a migration cost: today's monolithic `KinData` splits in
-two, because its parts genuinely have different dependencies.
+The same exercise surfaced a migration cost. Today's monolithic `KinData`
+splits in two, because its parts have different dependencies.
 
-- `pose` — stage 1: `q_eb`, `r_eb_e`, `ϕ_λ_h`, ...
-- `kin_vel` — stage 2: `v_eb_n`, `v_gnd`, `χ`, `γ`, ...
+- `pose`, at stage 1: `q_eb`, `r_eb_e`, `ϕ_λ_h`, ...
+- `kin_vel`, at stage 2: `v_eb_n`, `v_gnd`, `χ`, `γ`, ...
 
-The recurring trade, stated once: the framework asks authors to write down structure
-previously kept in their heads, and pays them back by never letting that structure
-silently rot.
+The recurring trade, stated once, is this. The framework asks authors to write
+down structure they previously kept in their heads. It pays them back by never
+letting that structure silently rot.
 
-The genuine [algebraic loop](#g-algebraic-loop) in the domain — α̇-dependent
-aerodynamics — is already broken in the current C172 model by a filter state, exactly
-the explicit break [§5.5][s5-5] prescribes. That precedent is evidence that the
-reject-loops policy matches domain practice rather than fighting it.
+The genuine [algebraic loop](#g-algebraic-loop) in the domain is α̇-dependent
+aerodynamics. The current C172 model already breaks it with a filter state,
+which is exactly the explicit break [§5.5][s5-5] prescribes. That precedent is
+evidence that the reject-loops policy matches domain practice rather than
+fighting it.
 
 ### 15.2 Torture tests for the §5.2 interfaces: `PistonEngine` and the FCS PID cascade
 
-Three exercises, each starting from code that exists today. Two [components](#g-component) were
-transliterated to validate the decoder interfaces before adoption: `PistonEngine`
-on the continuous side, `PID` and the C172X FCS on the discrete one. A third
-exercise takes the supervisor sitting one level above those compensators. Each
-is read first as what today's code does, then as what this design makes of it.
+This case study is three exercises, each starting from code that exists today.
+Two [components](#g-component) were transliterated to validate the decoder
+interfaces before adoption: `PistonEngine` on the continuous side, `PID` and
+the C172X FCS on the discrete one. A third exercise takes the supervisor
+sitting one level above those compensators. Each is read first as what today's
+code does, then as what this design makes of it.
 
 #### `PistonEngine`: the continuous side
 
@@ -9347,84 +9349,90 @@ transitions and an argument-threaded `fuel_available`. The points below place
 each of those features under the decoder interfaces.
 
 - The compensator paths (`idle`, `frc`) are pure functions of the engine's own
-  state `ω`. Their complete PI laws — outputs *and* state derivatives —
-  therefore evaluate in `output_state`. (The alternative factoring, compensators as
-  child components of an engine [assembly](#g-assembly), also [schedules](#g-schedule) cleanly from the
-  core's stage-1 [ports](#g-port).)
+  state `ω`. Their complete PI laws, outputs and state derivatives alike,
+  therefore evaluate in `output_state`. The alternative factoring, with the
+  compensators as child components of an engine [assembly](#g-assembly), also
+  [schedules](#g-schedule) cleanly from the core's stage-1 [ports](#g-port).
 - `output_direct` runs the lookup chain and the mode branch once.
-  `state_derivative` is a three-field
-  copy (`ω̇`, `ẋ_idle`, `ẋ_frc`). Under the orthodox split, `f(x, u, t)` would reproduce
-  essentially the whole `f_ode!` body — four lookups and the mode branch — ×4
-  RK stages per step ([D-015][d-015]).
-- `f_step!`'s transitions become [boundary-detected](#g-boundary-detected) events with mixed [predicate](#g-predicate)/threshold [guards](#g-guard)
+  `state_derivative` is a three-field copy (`ω̇`, `ẋ_idle`, `ẋ_frc`). Under
+  the orthodox split, `f(x, u, t)` would reproduce essentially the whole
+  `f_ode!` body, four lookups and the mode branch, at each of the four RK
+  stages per step ([D-015][d-015]).
+- `f_step!`'s transitions become [boundary-detected](#g-boundary-detected)
+  events with mixed [predicate](#g-predicate)/threshold [guards](#g-guard)
   ([§2.1][s2-1]).
 - `fuel_available` becomes an ordinary port. It is state-derived at the fuel
-  system, hence a stage-1 port — no loop.
-- Forced publications: none — everything `state_derivative` reads was already in `PistonEngineY`.
+  system, hence a stage-1 port, so it closes no loop.
+- Forced publications: none. Everything `state_derivative` reads was already
+  in `PistonEngineY`.
 
 #### `PID` and the C172X FCS: the discrete side
 
-`PID` (control.jl:431-471) and the C172X FCS around it are the discrete side's
-representative.
+`PID` (control.jl:431-471) and the C172X FCS around it represent the discrete
+side.
 
 - The current update entangles outputs and next state by construction. The
-  spelling is `y_i = s_i`: this [tick](#g-tick)'s integral-path output *is* the updated
-  integrator state.
-- Under [§5.3][s5-3] the law runs once in `output_direct`, publishing paths, saturation and the
-  updated states; `state_update` is a three-field copy.
+  spelling is `y_i = s_i`: this [tick](#g-tick)'s integral-path output *is*
+  the updated integrator state.
+- Under [§5.3][s5-3] the law runs once in `output_direct`, publishing paths,
+  saturation and the updated states. `state_update` is a three-field copy.
 - Under the orthodox split, `g(s, u, t)` would reproduce the entire law per
   compensator per tick ([D-015][d-015]).
 
-**Discovered latent delay.** The FCS chains anti-windup: outer compensators
-take `sat_ext` from the inner LQR's `sat_out` (c172x_ctl.jl:332,345,...). Wired
-naively, that chain is a *genuine* tick-domain [algebraic loop](#g-algebraic-loop), and the build
-correctly rejects it:
+**The exercise discovered a latent delay.** The FCS chains anti-windup: outer
+compensators take `sat_ext` from the inner LQR's `sat_out`
+(c172x_ctl.jl:332,345,...). Wired naively, that chain is a genuine tick-domain
+[algebraic loop](#g-algebraic-loop), and the build correctly rejects it:
 
 ```
 outer.output → inner.input → inner.sat_out → outer.sat_ext →
 outer.int_halted → outer.y_i → outer.output
 ```
 
-Today's code escapes the loop only through hand-managed call order: the outer
-loops read the LQR's `sat_out` *before* the LQR updates, silently consuming
-the **previous tick's** value. That is a unit delay existing nowhere in the
-code, only in statement ordering.
+Today's code escapes the loop only through hand-managed call order. The outer
+loops read the LQR's `sat_out` *before* the LQR updates, so they silently
+consume the **previous tick's** value. That is a unit delay that exists
+nowhere in the code, only in statement ordering.
 
-Under this design the fix is one visible wire: connect `outer.sat_ext` to the
+Under this design the fix is one visible wire. Connect `outer.sat_ext` to the
 inner compensator's stage-1 port for the previous saturation, `sat_out_0`.
-That port is an `s` field declared in the LQR's output [contract](#g-contract), hence
-auto-published at stage-1 position ([§8.3][s8-3]). The delay becomes an explicit
-property of the wiring. The loop and its fix are formalism-independent: the
-framework's contribution is refusing to let the ambiguity through, and stage
-1's contribution is having the delayed value already on a port.
+That port is an `s` field declared in the LQR's output [contract](#g-contract),
+hence auto-published at stage-1 position ([§8.3][s8-3]). The delay becomes an
+explicit property of the wiring. The loop and its fix do not depend on the
+formalism. The framework's contribution is that it refuses to let the
+ambiguity through. Stage 1's contribution is that the delayed value is already
+on a port.
 
-Both components passed without blockers, with zero publications forced beyond
-current practice. That result is the empirical basis for the claim ([§5.3][s5-3]) that
-derivative/output overlap is the domain norm and that the decoder matches the
-codebase's grain.
+Both components passed without blockers, and neither needed a publication
+beyond current practice. That result is the empirical basis for the claim in
+[§5.3][s5-3] that derivative/output overlap is the domain norm and that the
+decoder matches the codebase's grain.
 
 #### The supervisor slice: scheduled gains and bumpless engage
 
 One level above the compensators, today's `c172x_ctl.jl` runs on two idioms
-the [stores](#g-store)-and-[views](#g-view) rules deliberately remove. The first is per-tick gain
-scheduling by mutation: `assign!` writes `Ref`-cell parameters from
-EAS/altitude lookups every 50 Hz tick, LQR matrix sets included. The second is
-mode-transition resets: `f_init!` plus a bumpless-transfer latch, hand-ordered
-*before* the same tick's `f_periodic!`. Both survive as dataflow.
+that the [stores](#g-store)-and-[views](#g-view) rules deliberately remove.
+The first is per-tick gain scheduling by mutation. `assign!` writes `Ref`-cell
+parameters from EAS/altitude lookups on every 50 Hz tick, LQR matrix sets
+included. The second is mode-transition resets. `f_init!` plus a
+bumpless-transfer latch run hand-ordered *before* the same tick's
+`f_periodic!`. Both survive as dataflow.
 
 *Scheduled gains are inputs.* A scheduler component owns the lookup tables as
 inert parameters, reads the scheduling variables as inputs, and publishes one
-gain bundle per compensator; compensators consume gains as `u`. What mutation
-hid, ports expose. Gain trajectories become observable in log, [trace](#g-trace) and
-[replay](#g-replay); the `Ref` writes were invisible to all three. The [feedthrough](#g-feedthrough)
-graph carries the dependency. Linearization holds unseeded gain inputs
-constant with zero special-casing ([§14.10][s14-10]). One-shot design-time gains
-(`robot2d`'s controller synthesis at init) are construction-time parameters or
-stopped-sim service outputs — not a runtime write path.
+gain bundle per compensator. Compensators consume gains as `u`. What mutation
+hid, ports expose. Gain trajectories become observable in log,
+[trace](#g-trace) and [replay](#g-replay), where the `Ref` writes were
+invisible to all three. The [feedthrough](#g-feedthrough) graph carries the
+dependency. Linearization holds unseeded gain inputs constant with no special
+casing ([§14.10][s14-10]). One-shot design-time gains, such as `robot2d`'s
+controller synthesis at init, are construction-time parameters or stopped-sim
+service outputs. They are not a runtime write path.
 
 *Resets are same-tick inputs, consumed in the output stage.* The supervisor
-publishes `engage` and the latch value from its own feedthrough stage; the
-compensator, topologically after the supervisor, honors them **this tick**:
+publishes `engage` and the latch value from its own feedthrough stage. The
+compensator sits topologically after the supervisor and honors them **this
+tick**:
 
 ```julia
 output_direct(c::PI, (; s, u)) = (; u_cmd = u.engage ? u.u_latch : c.k_p*u.e + s.s_i)
@@ -9432,301 +9440,337 @@ state_update(c::PI, (; s, u, Δt)) = (; s_i = u.engage ? u.u_latch - c.k_p*u.e
                                                       : s.s_i + c.k_i*Δt*u.e)
 ```
 
-Honoring the reset only in `state_update` is legal, and it means something else. The
-state still lands correctly at the next tick. But the *output at the
-engagement tick* was already published from the stale state during the [sweep](#g-sweep),
-and under ZOH the plant integrates a full step under that stale command. That
-one-tick-late command is exactly the bump that bumpless transfer exists to
-remove. No diagnostic can catch the bump: both spellings are meaningful
-designs.
+Honoring the reset only in `state_update` is legal, and it means something
+else. The state still lands correctly at the next tick. But the *output at the
+engagement tick* was already published from the stale state during the
+[sweep](#g-sweep), and under ZOH the plant integrates a full step under that
+stale command. That one-tick-late command is exactly the bump that bumpless
+transfer exists to remove. No diagnostic can catch the bump, because both
+spellings are meaningful designs.
 
-The update stage cannot rescue its own [boundary](#g-boundary) — republish-from-`s⁺` is
-rejected ([D-067][d-067]) — so the output stage is the *only* same-tick path. Today's
-hand-ordering (`f_init!` before `f_periodic!` in one call) is that same-tick
-reset contract enforced manually. [Appendix A][sA] carries it as the same-tick reset
-entry, and the bumpless-engage answer ([§11.7][s11-7]) presupposes exactly this
-spelling — engage semantics live in the FCS.
+The update stage cannot rescue its own [boundary](#g-boundary), because
+republishing from `s⁺` is rejected ([D-067][d-067]). The output stage is
+therefore the *only* same-tick path. Today's hand-ordering, `f_init!` before
+`f_periodic!` in one call, is that same-tick reset contract enforced by hand.
+[Appendix A][sA] carries it as the same-tick reset entry, and the
+bumpless-engage answer ([§11.7][s11-7]) presupposes exactly this spelling.
+Engage semantics live in the FCS.
 
 One relative lives outside the FCS. The landing gear's level-triggered
 cross-component reset (`!wow` re-initializing the friction regulator every
-step) becomes an edge-triggered event owned by the regulator, a semantic
-tightening recorded in the migration mapping ([§16][s16]). There the respelling is
-not a stylistic one: the continuous [tier](#g-tier) admits no input spelling at all,
-because only handlers write `x` ([§3.1][s3-1]). The event is therefore necessity
-rather than taste, and the reimplemented `PIVector`'s optional reset [face](#g-face)
-([§16][s16]) is sugar over exactly that event. [Appendix A][sA] carries the
-continuous-reset contract too.
+step) becomes an edge-triggered event owned by the regulator. That is a
+semantic tightening, recorded in the migration mapping ([§16][s16]). There the
+respelling is not a stylistic one. The continuous [tier](#g-tier) admits no
+input spelling at all, because only handlers write `x` ([§3.1][s3-1]). The
+event is therefore necessity rather than taste, and the reimplemented
+`PIVector`'s optional reset [face](#g-face) ([§16][s16]) is sugar over exactly
+that event. [Appendix A][sA] carries the continuous-reset contract too.
 
 ### 15.3 Torture test for the §11 staging shapes: filter, joystick and GUI
 
-This case study is the exercise that selected per-[device](#g-device) [cells](#g-staging-cell)
-([§11.4][s11-4]) and produced the [§11.7][s11-7] staging contracts. Setup: a
-first-order filter with root inputs `u_cmd` and `τ`; a fictitious 100 Hz
-single-axis joystick streaming a slow ramp onto `u_cmd` (complete writer); a 60
-Hz GUI with sliders for both [root inputs](#g-root-input) (sparse writer); 50 Hz
-[boundaries](#g-boundary); pace 1. The interference on `u_cmd` is the point.
+This case study is the exercise that selected per-[device](#g-device)
+[cells](#g-staging-cell) ([§11.4][s11-4]) and produced the [§11.7][s11-7]
+staging contracts. The setup is a first-order filter with root inputs `u_cmd`
+and `τ`, a fictitious 100 Hz single-axis joystick streaming a slow ramp onto
+`u_cmd` (a complete writer), and a 60 Hz GUI with sliders for both
+[root inputs](#g-root-input) (a sparse writer). [Boundaries](#g-boundary) run
+at 50 Hz, at pace 1. The interference on `u_cmd` is the point.
 
-Three candidate staging shapes were on the table: **per-input cells**, a shared
-**[batch](#g-batch) stack**, and **per-device cells**. The user-level listing
-came out identical across all three — ergonomics cannot discriminate between
-them; behavior under a concrete interleaving did.
+Three candidate staging shapes were on the table: **per-input cells**, a
+shared **[batch](#g-batch) stack**, and **per-device cells**. The user-level
+listing came out identical across all three, so ergonomics cannot discriminate
+between them. Behavior under a concrete interleaving did.
 
 **Root-input exclusivity rules out the very contest the setup builds.** Under
-root-input exclusivity ([§11.3][s11-3]) the contested-`u_cmd` scenario cannot arise — a
-second writer on `u_cmd` is an attach-time error. What the test settles is
-therefore the cell *shapes*: atomicity, [coalescing](#g-coalescing), pause
-behavior and the peek rule. Its conflict-precedence comparison and the
-active-widget stage-every-pass contract ([§11.7][s11-7]) describe a contested-input
-world the design does not have. The findings below are read under that scope.
+root-input exclusivity ([§11.3][s11-3]) the contested-`u_cmd` scenario cannot
+arise, because a second writer on `u_cmd` is an attach-time error. What the
+test settles is therefore the cell *shapes*: atomicity,
+[coalescing](#g-coalescing), pause behavior and the peek rule. Its
+conflict-precedence comparison and the active-widget stage-every-pass contract
+([§11.7][s11-7]) describe a contested-input world the design does not have.
+The findings below are read under that scope.
 
-- **Drag against the stream** — the user grabs the `u_cmd` slider while the
+- **Drag against the stream.** The user grabs the `u_cmd` slider while the
   joystick streams. Under per-input cells and the batch stack, each
-  [frame](#g-frame)'s conflict resolves by last-store/last-push wall-clock order
-  ([D-024][d-024]). With 16.7 ms renders against 10 ms polls, the applied input
-  alternates between drag value and ramp on the cadence beat, the filter visibly
-  wobbles, and the pattern differs run to run. The [trace](#g-trace) replays any
-  given run exactly; the behavior is still a timing artifact. Under per-device
-  cells the GUI stages in every drag frame: ≥ one render per 20 ms frame, plus
-  the active-widget stage-every-pass contract. The GUI therefore wins every
-  [drain](#g-drain) (the
-  frame-top swap that publishes staged device writes into the root inputs) by
-  attachment order. That win is a clean, deterministic override for exactly the
-  grab duration. Same user code, qualitatively different physics.
-- **Edits while paused.** Under per-input cells, the user's `u_cmd` edit is
-  overwritten by the still-polling joystick ~10 ms later ([D-024][d-024]); the knob
-  visibly snaps back and the edit never applies. Under the batch stack, the edit
-  is buried under newer pushes, and the pending chain grows at the polling rate
-  — ~10³ nodes per 10 s pause — with every [peek](#g-peek) walking that chain
-  ([D-024][d-024]). Under per-device cells, the `u_cmd` edit holds in the GUI's own cell
-  across the pause, the knob keeping the edit by the [§11.7][s11-7] peek rule. That
-  edit merges with the `τ` edit — the sparse-accumulation case — and applies at
-  the un-pause drain, for one deterministic frame before the joystick reclaims
-  the root input. That one-frame application is the honest semantics of one-shot
+  [frame](#g-frame)'s conflict resolves by last-store/last-push wall-clock
+  order ([D-024][d-024]). With 16.7 ms renders against 10 ms polls, the
+  applied input alternates between drag value and ramp on the cadence beat,
+  the filter visibly wobbles, and the pattern differs run to run. The
+  [trace](#g-trace) replays any given run exactly, but the behavior is still a
+  timing artifact. Under per-device cells the GUI stages in every drag frame,
+  since it renders at least once per 20 ms frame and the active-widget
+  contract stages on every pass. The GUI therefore wins every
+  [drain](#g-drain) (the frame-top swap that publishes staged device writes
+  into the root inputs) by attachment order. That win is a clean,
+  deterministic override for exactly the grab duration. The same user code
+  gives qualitatively different physics.
+- **Edits while paused.** Under per-input cells, the still-polling joystick
+  overwrites the user's `u_cmd` edit about 10 ms later ([D-024][d-024]). The
+  knob visibly snaps back and the edit never applies. Under the batch stack,
+  the edit is buried under newer pushes, and the pending chain grows at the
+  polling rate, about 10³ nodes per 10 s pause, with every [peek](#g-peek)
+  walking that chain ([D-024][d-024]). Under per-device cells, the `u_cmd`
+  edit holds in the GUI's own cell across the pause, and the knob keeps the
+  edit by the [§11.7][s11-7] peek rule. That edit merges with the `τ` edit,
+  which is the sparse-accumulation case, and applies at the un-pause drain. It
+  holds for one deterministic frame before the joystick reclaims the root
+  input. That one-frame application is the honest semantics of one-shot
   editing a streamed input. The uncontested `τ` edit works under all three
   shapes.
 - **Corrections the exercise forced.** The sparse-writer lost-write hazard is
-  specific to one-cell-per-device layouts: per-input cells cannot lose
-  independent-input writes; the CAS merge is per-device cells' antidote, not a
-  general need. And the batch stack's conflict order is temporal, not an
+  specific to one-cell-per-device layouts. Per-input cells cannot lose
+  independent-input writes, so the CAS merge is per-device cells' antidote,
+  not a general need. And the batch stack's conflict order is temporal, not an
   attachment-order policy ([D-024][d-024]).
-- **Discoveries.** Two: the active-widget contract, and the
-  [port](#g-port)-resolution answer to panel reuse ([§11.7][s11-7]) — prompted by
-  asking how the filter's panel survives the filter becoming an embedded
-  [component](#g-component) with `u_cmd` driven by another component. That
-  embedded-filter case is the `Cessna172Xv0` → `Xv1` throttle situation.
+- **Discoveries.** There were two: the active-widget contract, and the
+  [port](#g-port)-resolution answer to panel reuse ([§11.7][s11-7]). The
+  second came from asking how the filter's panel survives the filter becoming
+  an embedded [component](#g-component) with `u_cmd` driven by another
+  component. That embedded-filter case is the `Cessna172Xv0` → `Xv1` throttle
+  situation.
 
 ### 15.4 The interactive C172X demo: the periphery under load
 
-The full-fidelity successor to [§15.3][s15-3], against the real deployment:
-`generic_simulation()` (`FlightApps/demos/c172_demos.jl`) —
-`SimpleWorld(Cessna172Xv1, SimpleAtmosphere, HorizontalTerrain)`, GUI, joysticks,
-an XPlane12 output [device](#g-device), ground/trim init, paced run, post-run plots. Method:
-FlightCore's mechanisms are reference *behavior*, not requirements — the question
-is whether the new machinery expresses the experience (move stick, plane banks),
+This case study is the full-fidelity successor to [§15.3][s15-3], run against
+the real deployment. `generic_simulation()` (`FlightApps/demos/c172_demos.jl`)
+builds `SimpleWorld(Cessna172Xv1, SimpleAtmosphere, HorizontalTerrain)` and
+adds a GUI, joysticks, an XPlane12 output [device](#g-device), ground/trim
+init, a paced run and post-run plots. The method treats FlightCore's
+mechanisms as reference *behavior*, not as requirements. The question is
+whether the new machinery expresses the experience (move stick, plane banks),
 never how to reproduce `assign_input!`. The interactive surface is *not* one
-thing: pilot commands cluster under a prefix; environment knobs stay with their
-components' panels. Inventory of the complete interactive surface, with each
-item's home:
+thing. Pilot commands cluster under a prefix, and environment knobs stay with
+their components' panels. The complete interactive surface follows, with each
+item's home.
 
-- **Streamed commands** (`throttle_axis`, `elevator/aileron/rudder_axis`): today
-  written by joystick mappings after shaping *and* by GUI sliders on the same
-  fields. Every dual-writer field in the demo is this pattern — a stream shadowed
-  by a mirror, where simultaneous live writing is a bug. This adjudicated [root-input](#g-root-input)
-  exclusivity ([§11.3][s11-3]): [claim](#g-claim)/disable covers every case found; none needs two
-  concurrent writers.
-- **Edge-driven increments** (trim offsets ±5e-3 per hat release, flaps ±⅓ per
-  button release): today `+=` deltas executed *inside the mappings*, accumulating
-  in model `u` — the levels-never-deltas violation, live in the codebase.
-  Becomes: devices stage monotonic press counters; accumulator state lives in the
-  model (avionics discrete state).
-- **The shaping stack**: exp curves and deadzones (defined in the aircraft
-  variant module, duplicated *verbatim* across the T16000M and Gladiator
-  mappings — the duplication smell), plus the `q_ref = q_sf · axis` fan-out. It
-  decomposes into device conditioning (device truth), feel curves (deployment
-  preference) and command semantics (FCS design); the [face](#g-face) [contract](#g-contract) splits it —
-  conditioning upstream as mapping data, semantics in-model ([§11.4][s11-4]).
-- **Mode engage** (`mode_req` + setpoint capture from current measurements — the
-  GUI handler does `u.EAS_ref = EAS` read from `vehicle.y`): the one place the
-  GUI composes writes from model state. Resolved under *Frame anatomies* below.
-- **Vehicle-direct and environment tunables** (engine start/stop/mixture, payload
-  masses, terrain surface enum, sea-level T/p, wind NED): ordinary [component](#g-component)
-  inputs exported to root faces; the GUI writes them under its [greedy claim](#g-greedy-claim)
-  (the unclaimed complement, computed by the framework instead of returned) via
-  [§11.7][s11-7]; no machinery.
-- **The Xv1 actuator sliders**: FlightCore's dead sliders; resolved read-only by
-  [§11.7][s11-7]. No action.
+- **Streamed commands** (`throttle_axis`, `elevator/aileron/rudder_axis`).
+  Today joystick mappings write these after shaping, *and* GUI sliders write
+  the same fields. Every dual-writer field in the demo is this pattern, a
+  stream shadowed by a mirror, where simultaneous live writing is a bug. This
+  finding adjudicated [root-input](#g-root-input) exclusivity
+  ([§11.3][s11-3]). [Claim](#g-claim)/disable covers every case found, and
+  none needs two concurrent writers.
+- **Edge-driven increments** (trim offsets ±5e-3 per hat release, flaps ±⅓
+  per button release). Today these are `+=` deltas executed *inside the
+  mappings*, accumulating in model `u`. That is the levels-never-deltas
+  violation, live in the codebase. Under this design, devices stage monotonic
+  press counters, and the accumulator state lives in the model as avionics
+  discrete state.
+- **The shaping stack.** The exp curves and deadzones are defined in the
+  aircraft variant module and duplicated *verbatim* across the T16000M and
+  Gladiator mappings, which is the duplication smell. The
+  `q_ref = q_sf · axis` fan-out sits beside them. The stack decomposes into
+  device conditioning (device truth), feel curves (deployment preference) and
+  command semantics (FCS design). The [face](#g-face) [contract](#g-contract)
+  splits it along those lines: conditioning upstream as mapping data,
+  semantics in-model ([§11.4][s11-4]).
+- **Mode engage** (`mode_req` plus setpoint capture from current
+  measurements). The GUI handler does `u.EAS_ref = EAS`, read from
+  `vehicle.y`. This is the one place where the GUI composes writes from model
+  state. It is resolved under *Frame anatomies* below.
+- **Vehicle-direct and environment tunables** (engine start/stop/mixture,
+  payload masses, terrain surface enum, sea-level T/p, wind NED). These are
+  ordinary [component](#g-component) inputs exported to root faces. The GUI
+  writes them under its [greedy claim](#g-greedy-claim) (the unclaimed
+  complement, computed by the framework instead of returned) via
+  [§11.7][s11-7]. No machinery is needed.
+- **The Xv1 actuator sliders.** These are FlightCore's dead sliders.
+  [§11.7][s11-7] resolves them as read-only. No action.
 - **Outbound** (XPlane12: control-surface angles, nose-wheel steering, prop
-  speed/phase, pose, `t`): a [snapshot](#g-snapshot)-consuming device, pure `map_output` on the
-  device task ([§11.2][s11-2]). No friction found.
-- **Init/trim, pause/pace, post-run plots**: stopped-sim services ([§14][s14]), control
-  plane ([§12.1][s12-1]), log/[trace](#g-trace) ([§11.2][s11-2], [§11.5][s11-5]).
+  speed/phase, pose, `t`). This is a [snapshot](#g-snapshot)-consuming device,
+  a pure `map_output` on the device task ([§11.2][s11-2]). No friction found.
+- **Init/trim, pause/pace, post-run plots.** These are stopped-sim services
+  ([§14][s14]), the control plane ([§12.1][s12-1]) and log/[trace](#g-trace)
+  ([§11.2][s11-2], [§11.5][s11-5]).
 
 #### Architectures examined here and rejected
 
-The [§11][s11], [§12][s12] [periphery](#g-periphery) decisions were
-forced by this cast: [devices](#g-device) as [components](#g-component) (a `T16000M`
-component wrapping SDL), a root-level `PilotInterface` cockpit component, and
-bundled command [faces](#g-face) (`pilot_inputs` as one struct [port](#g-port)) —
-all three litigated in [D-045][d-045]. What each leaves behind is the design's own
-answer:
+This cast forced the [§11][s11] and [§12][s12] [periphery](#g-periphery)
+decisions. Three architectures were examined: [devices](#g-device) as
+[components](#g-component) (a `T16000M` component wrapping SDL), a root-level
+`PilotInterface` cockpit component, and bundled command [faces](#g-face)
+(`pilot_inputs` as one struct [port](#g-port)). [D-045][d-045] litigates all
+three. What each leaves behind is the design's own answer.
 
-- the *knowledge* half of a device model — its semantics — is expressible as an
-  ordinary in-model [component](#g-component) wherever wanted; only the wall-clock
-  pump stays outside;
-- the cockpit component's claimed jobs are covered where they belong: struct
-  assembly in-model downstream of scalar faces, curves as mapping
-  data, widget arbitration by [§11.7][s11-7] plus exclusivity, and the stateful
-  residue (accumulators, capture-on-engage) in the avionics;
-- the routing convenience a command bundle bought in FlightCore's
+- The *knowledge* half of a device model, its semantics, is expressible as an
+  ordinary in-model [component](#g-component) wherever wanted. Only the
+  wall-clock pump stays outside.
+- The cockpit component's claimed jobs are covered where they belong. Struct
+  assembly happens in-model, downstream of scalar faces. Curves are mapping
+  data. Widget arbitration is [§11.7][s11-7] plus exclusivity. The stateful
+  residue (accumulators, capture-on-engage) lives in the avionics.
+- The routing convenience a command bundle bought in FlightCore's
   argument-threading world is provided by the namespace prefix and
-  `input_passthrough` ([§8.8][s8-8]), with the struct reappearing legitimately
+  `input_passthrough` ([§8.8][s8-8]). The struct reappears legitimately
   downstream, assembled in-model by a single producer.
 
 #### Surface walkthrough
 
-The demo line by line:
+The demo, line by line:
 
-- `SimpleWorld(Cessna172Xv1(), SimpleAtmosphere(), HorizontalTerrain(h_LOWS15))` —
-  pure value construction; no `Model` wrapper (its jobs move into the build).
-  `HorizontalTerrain`'s elevation is a plain field (parameter), its surface type
-  an input [port](#g-port): the parameter/port split FlightCore kept implicit in
-  `U()`-vs-field convention is now the declaration itself. The aircraft's
-  `input_connections` block carries the `pilot.*` [face](#g-face) group in one place,
-  handed one level down to avionics and systems and re-routed at each level below
-  ([§6.1][s6-1]) — today's mapping writes flaps/brakes directly
-  into `act`, bypassing avionics; that bypass becomes a declared route.
-- `Simulation(world; algorithm = RK4, h = 0.02, N_base = 1, t_end = 1000)` — `N_base`
-  binds `Δt_base = N_base·h` ([§10.5][s10-5]; default 1: base [tick](#g-tick) every step). The entire
-  build pipeline runs here: [class](#g-class) resolution, path validation, face derivation
-  (computed interface connections expanded, printable), two-producers/unconnected checks,
-  topological sort, [probe](#g-probe) passes, rate compilation, flat layout, [root input](#g-root-input) table.
-- `init!(sim, ready_for_taxi(ac); t0 = 0.0)` — stopped-sim services ([§14][s14];
-  trim is its own service, `trim!(sim, problem; baseline, …)`, whose commit
-  runs the same boundary): they write `(x, s, m)`, **establish every
-  root input's initial value**, and capture the [trace header](#g-trace-header). Root-input initialization
-  decisively belongs here, not in declarations: the trim service writes root-input
-  values it *solved for* (throttle, elevator) — not declaration constants.
-- `attach!(sim, XPlane12Control(…), binding)` — output [device](#g-device): [claims](#g-claim) nothing,
-  consumes [snapshots](#g-snapshot) via [§12.3][s12-3], pure `map_output` on its task. Its [binding](#g-binding) names
-  snapshot paths, **validated at attach against the actual [contract](#g-contract)** — an
-  aircraft substitution that breaks the binding fails at attach, not with silent
-  garbage UDP (a new, cheap [§11.2][s11-2] obligation).
-- `attach!(sim, joystick, T16000MBinding())` — the binding is a declarative
-  table: axis/button → face name + conditioning params
+- `SimpleWorld(Cessna172Xv1(), SimpleAtmosphere(), HorizontalTerrain(h_LOWS15))`
+  is pure value construction, with no `Model` wrapper (its jobs move into the
+  build). `HorizontalTerrain`'s elevation is a plain field (a parameter) and
+  its surface type an input [port](#g-port). The parameter/port split that
+  FlightCore kept implicit in its `U()`-vs-field convention is now the
+  declaration itself. The aircraft's `input_connections` block carries the
+  `pilot.*` [face](#g-face) group in one place, hands it one level down to
+  avionics and systems, and re-routes it at each level below ([§6.1][s6-1]).
+  Today's mapping writes flaps/brakes directly into `act`, bypassing avionics.
+  That bypass becomes a declared route.
+- `Simulation(world; algorithm = RK4, h = 0.02, N_base = 1, t_end = 1000)`.
+  `N_base` binds `Δt_base = N_base·h` ([§10.5][s10-5]). Its default of 1 puts
+  a base [tick](#g-tick) on every step. The entire build pipeline runs here:
+  [class](#g-class) resolution, path validation, face derivation (computed
+  interface connections expanded, printable), the two-producers and
+  unconnected checks, topological sort, [probe](#g-probe) passes, rate
+  compilation, flat layout and the [root input](#g-root-input) table.
+- `init!(sim, ready_for_taxi(ac); t0 = 0.0)` runs the stopped-sim services
+  ([§14][s14]). Trim is its own service, `trim!(sim, problem; baseline, …)`,
+  and its commit runs the same boundary. The services write `(x, s, m)`,
+  **establish every root input's initial value**, and capture the
+  [trace header](#g-trace-header). Root-input initialization belongs here and
+  not in declarations, because the trim service writes root-input values it
+  *solved for* (throttle, elevator), not declaration constants.
+- `attach!(sim, XPlane12Control(…), binding)` attaches an output
+  [device](#g-device). It [claims](#g-claim) nothing, consumes
+  [snapshots](#g-snapshot) via [§12.3][s12-3], and runs a pure `map_output` on
+  its task. Its [binding](#g-binding) names snapshot paths, **validated at
+  attach against the actual [contract](#g-contract)**. An aircraft substitution
+  that breaks the binding therefore fails at attach, not with silent garbage
+  UDP. That is a new, cheap [§11.2][s11-2] obligation.
+- `attach!(sim, joystick, T16000MBinding())`. The binding is a declarative
+  table from axis or button to face name plus conditioning parameters
   (`stick_y = (face = "aircraft.pilot.elevator_axis", expo = 1.0, deadzone =
   0.05)`, `button_3 = (face = "aircraft.pilot.flaps_up_count", as = :count)`).
-  At attach: faces resolved against the root contract (typo → [did-you-mean](#g-did-you-mean)),
-  claim set registered (second joystick on the same faces errors here). The
-  Gladiator variant is the same table with different keys, zero shaping code —
-  the duplication smell structurally gone.
-- `run!(sim; gui = true, pace = 1)` — a [greedy claim](#g-greedy-claim) over every
-  unclaimed face and liveness with zero configuration, both settled at run start
-  against the [frozen roster](#g-roster) ([§11.3][s11-3]): axis mirrors read-only
-  (claimed, with provenance), mode/setpoint/mixture/payload/environment widgets
-  live, actuator sliders read-only ([component](#g-component)-fed). The `gui`
-  flag's attachment lasts exactly this run ([§12.6][s12-6]).
-  Unplug the joystick → its task exits. The mirrors stay read-only with the
-  death in their provenance ("claimed by `T16000M` — task dead"), and the axes
-  hold their last-drained values; those two behaviors are the accepted orphan
-  anomaly ([§11.3][s11-3]). Recovery is between runs: stop, `detach!`, then
-  `init!` for a fresh trajectory, or `replay!`-to-end + `run!` to continue the
-  interrupted one ([§12.7][s12-7]).
-  Post-run: `TimeSeries` over retained snapshots; the [trace](#g-trace) can
-  re-drive a fresh `Simulation(world)` bit-identically. That replay is also the
-  state-trajectory inspector ([D-038][d-038] paying its way).
+  At attach, faces resolve against the root contract (a typo gets a
+  [did-you-mean](#g-did-you-mean)) and the claim set registers, so a second
+  joystick on the same faces errors here. The Gladiator variant is the same
+  table with different keys and zero shaping code. The duplication smell is
+  structurally gone.
+- `run!(sim; gui = true, pace = 1)` makes a [greedy claim](#g-greedy-claim)
+  over every unclaimed face and settles liveness with zero configuration, both
+  at run start against the [frozen roster](#g-roster) ([§11.3][s11-3]). Axis
+  mirrors are read-only (claimed, with provenance). The mode, setpoint,
+  mixture, payload and environment widgets are live. Actuator sliders are
+  read-only ([component](#g-component)-fed). The `gui` flag's attachment lasts
+  exactly this run ([§12.6][s12-6]).
+  Unplugging the joystick makes its task exit. The mirrors stay read-only with
+  the death in their provenance ("claimed by `T16000M` — task dead"), and the
+  axes hold their last-drained values. Those two behaviors are the accepted
+  orphan anomaly ([§11.3][s11-3]). Recovery happens between runs: stop,
+  `detach!`, then `init!` for a fresh trajectory, or `replay!` to the end
+  followed by `run!` to continue the interrupted one ([§12.7][s12-7]).
+  After the run, `TimeSeries` reads the retained snapshots, and the
+  [trace](#g-trace) can re-drive a fresh `Simulation(world)` bit-identically.
+  That replay is also the state-trajectory inspector, which is
+  [D-038][d-038] paying its way.
 
 #### Frame anatomies
 
 One [frame](#g-frame) each:
 
-- *Stick motion*: [device](#g-device) task polls, conditioning helper applies binding params,
-  complete [batch](#g-batch) overwrites the [cell](#g-staging-cell) (inter-frame polls coalesce, ZOH-correct);
-  [drain](#g-drain) applies + [traces](#g-trace); avionics [tick](#g-tick) reads the [root input](#g-root-input) fresh; worst-case
-  stick-to-physics latency = poll interval + frame, now by stated semantics.
-- *Flaps click*: button [peeks](#g-peek) counter `k` (own-pending-else-[snapshot](#g-snapshot)), stages
-  level `k+1` on activation; drain applies; avionics compares the root-input counter to its
-  `s` counter, moves the detent, stores. Multi-click in one window counts via
-  own-pending-first peek; repeated staging idempotent ([§11.7][s11-7]).
-- *Mode engage*: the GUI stages `mode_req`, plus optionally peek-captured
-  setpoint root inputs. **Bumpless-engage semantics live in the FCS already**: the
-  current `ControlLaws` latches each controller's reference from the present
-  command vector on mode transitions. So the capture fork dissolved: semantic
-  capture is aircraft design. That arrangement is the status quo, and it is uniform across
-  writers — a script engages sanely staging one value.
-  The GUI [peek](#g-peek)-batch ([§11.7][s11-7]) therefore
-  survives as display/input-sync sugar only. Residual check for migration:
-  order-sensitivity of latch vs. sync-write on the same [boundary](#g-boundary)
-  (believed none — both derive from the same measurements).
-- *Wind slider*: sparse CAS-merge, the uncontested-`τ` case ([§15.3][s15-3]), live in the
-  real cast.
-- *Pause/un-pause*: [control plane](#g-control-plane); GUI edits hold in its cell (peek displays),
-  joystick cell coalesces bounded; un-pause drain applies both (disjoint root inputs —
-  exclusivity makes the contested question unaskable), pacer re-anchors.
-- *Window close*: [§12.4][s12-4] verbatim — complete boundary, final snapshot, sticky
-  stopped, wake waits, unblock hooks, named-timeout joins.
+- *Stick motion.* The [device](#g-device) task polls, and the conditioning
+  helper applies the binding parameters. A complete [batch](#g-batch)
+  overwrites the [cell](#g-staging-cell), so inter-frame polls coalesce, which
+  is ZOH-correct. The [drain](#g-drain) applies the batch and
+  [traces](#g-trace) it, and the avionics [tick](#g-tick) reads the
+  [root input](#g-root-input) fresh. The worst-case stick-to-physics latency
+  is the poll interval plus one frame, now by stated semantics.
+- *Flaps click.* The button [peeks](#g-peek) the counter `k`
+  (own-pending-else-[snapshot](#g-snapshot)) and stages level `k+1` on
+  activation. The drain applies it. The avionics compares the root-input
+  counter to its `s` counter, moves the detent, and stores. Multiple clicks in
+  one window count through the own-pending-first peek, and repeated staging is
+  idempotent ([§11.7][s11-7]).
+- *Mode engage.* The GUI stages `mode_req`, plus optionally peek-captured
+  setpoint root inputs. **Bumpless-engage semantics live in the FCS already.**
+  The current `ControlLaws` latches each controller's reference from the
+  present command vector on mode transitions. So the capture fork dissolved.
+  Semantic capture is aircraft design. That arrangement is the status quo, and
+  it is uniform across writers, so a script engages sanely by staging one
+  value. The GUI [peek](#g-peek)-batch ([§11.7][s11-7]) therefore survives as
+  display and input-sync sugar only. One residual check remains for migration:
+  the order-sensitivity of the latch against a sync-write on the same
+  [boundary](#g-boundary). None is believed to exist, because both derive from
+  the same measurements.
+- *Wind slider.* A sparse CAS merge, the uncontested-`τ` case
+  ([§15.3][s15-3]), live in the real cast.
+- *Pause/un-pause.* The [control plane](#g-control-plane) handles it. GUI
+  edits hold in its cell, and peek displays them. The joystick cell coalesces,
+  bounded. The un-pause drain applies both, since the root inputs are disjoint
+  and exclusivity makes the contested question unaskable. The pacer
+  re-anchors.
+- *Window close.* [§12.4][s12-4] applies verbatim: complete the boundary,
+  final snapshot, sticky stopped, wake waits, unblock hooks, named-timeout
+  joins.
 
-Remaining open (feeding [§16][s16]): the `q_sf` home (thin mapping entry vs.
-avionics-internal derivation — aircraft design, not framework design), and the
-mode-engage entry's write-order check.
+Two items remain open and feed [§16][s16]. The first is the `q_sf` home, a
+thin mapping entry against an avionics-internal derivation, which is aircraft
+design rather than framework design. The second is the mode-engage entry's
+write-order check.
 
 ### 15.5 The strapdown IMU: integrate-and-dump across the tier boundary
 
-The strongest challenge mounted against the [§3][s3] class split, and its resolution.
-The general question first: why two leaf classes at all — why not one all-in-one
-primitive carrying continuous state, modes *and* discrete state, with `state_derivative`, events *and* `state_update`, purely
-continuous or discrete [components](#g-component) falling out by whichever facets an author
-declares? ([Class](#g-class) is already read off declaration shape, [§8.5][s8-5] — the question is
-whether the two declaration sets should be exclusive.)
+This case study is the strongest challenge mounted against the [§3][s3] class
+split, and its resolution. The general question comes first. Why two leaf
+classes at all? Why not one all-in-one primitive carrying continuous state,
+modes *and* discrete state, with `state_derivative`, events *and*
+`state_update`, where a purely continuous or discrete
+[component](#g-component) falls out by whichever facets an author declares?
+[Class](#g-class) is already read off declaration shape ([§8.5][s8-5]). The
+question is whether the two declaration sets should be exclusive.
 
 #### Why the merge buys nothing
 
-The split is between *time bases*, not state
-classes — the continuous primitive is already hybrid (`m`, [guards](#g-guard),
-handlers, [§3.1][s3-1]); what separates the classes is [sweep](#g-sweep)-driven
-versus [tick](#g-tick)-driven execution. And the settled rules force a merged
+The split is between *time bases*, not state classes. The continuous
+primitive is already hybrid, with `m`, [guards](#g-guard) and handlers
+([§3.1][s3-1]). What separates the classes is [sweep](#g-sweep)-driven versus
+[tick](#g-tick)-driven execution. And the settled rules force a merged
 [component](#g-component)'s two halves to communicate exactly as two siblings
-do: [one home per datum](#g-one-home-per-datum) ([§5.2][s5-2]), `state_derivative` sees only
-the continuous state and `state_update` only the discrete one, and `s⁺` is decoded only at
-the owner's next tick (`state_update` runs last). That deferred decode is what makes
-ticks→events structurally impossible and what terminates the
-[boundary](#g-boundary) iteration ([§10.6][s10-6]). Cross-[tier](#g-tier)
-influence inside the merged class still routes through published table
-[cells](#g-cell). The all-in-one component is therefore an
-[assembly](#g-assembly) of two primitives in a trench coat, buying no
-expressiveness and incurring costs of its own that [D-056][d-056] enumerates. One of
-those costs is not bookkeeping. The sampling [seam](#g-seam) — ZOH and the
-`z⁻¹` delay — is the most bug-prone boundary in a flight-control stack. A
-monolith swallows it; the split keeps it a visible wire.
+do. There is [one home per datum](#g-one-home-per-datum) ([§5.2][s5-2]),
+`state_derivative` sees only the continuous state and `state_update` only the
+discrete one, and `s⁺` is decoded only at the owner's next tick, because
+`state_update` runs last. That deferred decode is what makes ticks→events
+structurally impossible and what terminates the [boundary](#g-boundary)
+iteration ([§10.6][s10-6]). Cross-[tier](#g-tier) influence inside the merged
+class still routes through published table [cells](#g-cell). The all-in-one
+component is therefore an [assembly](#g-assembly) of two primitives in a
+trench coat. It buys no expressiveness and incurs costs of its own, which
+[D-056][d-056] enumerates. One of those costs is not bookkeeping. The sampling
+[seam](#g-seam), the ZOH and the `z⁻¹` delay, is the most bug-prone boundary
+in a flight-control stack. A monolith swallows it. The split keeps it a
+visible wire.
 
 #### The counterexample
 
 The source is a pre-design FlightCore sketch, `navsensors.jl`, whose operative
-content and companion derivation note are recorded here in full. In that sketch
-a strapdown IMU integrates raw increments continuously — `ẋ.ϑ_c = ω_ic_c`,
-`ẋ.υ_c = f_c_c`, the coning attitude increment `q_c_cc` and the sculling integral
-`ẋ.υ_c_sc = q_c_cc(f_c_c)` — and `f_disc!`, at the IMU's own `Δt`, reads the
-integrals, publishes the sample, and **zeroes them**. In interval terms, the
-sketch's piecewise quantities are integrals over $[t_{k-1}, t_k]$ with their
-weights re-anchored at each reset: `ϑ_c` $= \int_{t_{k-1}}^{t_k} \omega^{c}_{ic} \, dt$
-and `υ_c` $= \int_{t_{k-1}}^{t_k} f^{c} \, dt$ from zero,
-`q_c_cc` $= q_{c_{k-1} \to c(t)}$ from identity, and
-`υ_c_sc` $= \int_{t_{k-1}}^{t_k} R^{c_{k-1}}_{c} f^{c} \, dt$ with the rotation
-anchored at the interval
-start — exactly the forms the differencing bullets below recover from the
-cumulative stores, term by term. The reset is periodic, not
-condition-triggered, so events are the wrong [tier](#g-tier); and the reset is a
-discrete-tier write into continuous state, exactly the operation this design
-forbids (`state_update` writes only its own `s`; handlers are the sole resetters of
-continuous state, and they are [guard](#g-guard)-driven).
-Integrate-and-dump falls squarely into the crack between the classes:
-tightly-coupled continuous and periodic dynamics in one physical instrument.
+content and companion derivation note are recorded here in full. In that
+sketch a strapdown IMU integrates raw increments continuously:
+`ẋ.ϑ_c = ω_ic_c`, `ẋ.υ_c = f_c_c`, the coning attitude increment `q_c_cc`
+and the sculling integral `ẋ.υ_c_sc = q_c_cc(f_c_c)`. Then `f_disc!`, at the
+IMU's own `Δt`, reads the integrals, publishes the sample, and **zeroes
+them**. In interval terms, the sketch's piecewise quantities are integrals
+over $[t_{k-1}, t_k]$ with their weights re-anchored at each reset. `ϑ_c`
+$= \int_{t_{k-1}}^{t_k} \omega^{c}_{ic} \, dt$ and `υ_c`
+$= \int_{t_{k-1}}^{t_k} f^{c} \, dt$ run from zero, `q_c_cc`
+$= q_{c_{k-1} \to c(t)}$ runs from identity, and `υ_c_sc`
+$= \int_{t_{k-1}}^{t_k} R^{c_{k-1}}_{c} f^{c} \, dt$ has its rotation
+anchored at the interval start. These are exactly the forms the differencing
+bullets below recover from the cumulative stores, term by term. The reset is
+periodic, not condition-triggered, so events are the wrong [tier](#g-tier).
+And the reset is a discrete-tier write into continuous state, exactly the
+operation this design forbids. `state_update` writes only its own `s`, and
+handlers are the sole resetters of continuous state, [guard](#g-guard)-driven.
+Integrate-and-dump falls squarely into the crack between the classes. It is
+tightly coupled continuous and periodic dynamics in one physical instrument.
 
 #### The idiom: integrate-and-difference
 
-The reset is eliminable by algebra, not
-approximation. Every interval-relative integral becomes a *cumulative* one; the
-sampler differences against the previous sample, held in its `s` — the textbook
-sampled-data latch, and the only new store (the memory the reset used to erase):
+Algebra eliminates the reset, with no approximation. Every interval-relative
+integral becomes a *cumulative* one. The sampler differences against the
+previous sample, held in its `s`. That is the textbook sampled-data latch, and
+it is the only new store, the memory the reset used to erase.
 
 - *Raw increments* (linear): $\Theta(t) = \int_{t_0}^{t} \omega^{c}_{ic} \, dt$,
   $\Upsilon(t) = \int_{t_0}^{t} f^{c} \, dt$, never reset;
@@ -9734,46 +9778,49 @@ sampled-data latch, and the only new store (the memory the reset used to erase):
   $\upsilon_c = \Upsilon(t_k) - \Upsilon(t_{k-1})$.
 - *Coning*: cumulative $q(t) = q_{c_0 \to c(t)}$ with
   $\dot{q} = \tfrac{1}{2} \, q \otimes \omega^{c}_{ic}$ from
-  identity at $t_0$; the interval rotation is $\Delta q = q(t_{k-1})' \circ q(t_k)$, exact by
+  identity at $t_0$. The interval rotation is $\Delta q = q(t_{k-1})' \circ q(t_k)$, exact by
   right-invariance ($\Delta q$ satisfies the same ODE with the same body rate).
 - *Sculling*:
   $\int_{t_{k-1}}^{t_k} R^{c_{k-1}}_{c} f^{c} \, dt = q(t_{k-1})' \, ( V(t_k) - V(t_{k-1}) )$
-  with $\dot{V} = q(t)(f^{c})$. The derivation, in two steps: re-anchor the rotation through the fixed $c_0$ frame,
-  $R^{c_{k-1}}_{c} = (R^{c_0}_{c_{k-1}})^{\mathsf{T}} R^{c_0}_{c}$, so the $c_{k-1}$-dependent
-  factor — constant over the interval — exits the integral; what remains is the
-  cumulative integrand, and splitting its range at $t_{k-1}$ gives the
-  difference of the running store:
+  with $\dot{V} = q(t)(f^{c})$. The derivation takes two steps. First,
+  re-anchor the rotation through the fixed $c_0$ frame,
+  $R^{c_{k-1}}_{c} = (R^{c_0}_{c_{k-1}})^{\mathsf{T}} R^{c_0}_{c}$, so that
+  the $c_{k-1}$-dependent factor, constant over the interval, exits the
+  integral. What remains is the cumulative integrand. Second, split its range
+  at $t_{k-1}$, which gives the difference of the running store:
 
   $$\int_{t_{k-1}}^{t_k} R^{c_{k-1}}_{c} f^{c} \, dt
   = (R^{c_0}_{c_{k-1}})^{\mathsf{T}} \left( \int_{t_0}^{t_k} R^{c_0}_{c} f^{c} \, dt -
   \int_{t_0}^{t_{k-1}} R^{c_0}_{c} f^{c} \, dt \right)
   = q(t_{k-1})' \, \big( V(t_k) - V(t_{k-1}) \big)$$
 
-  — in code, the sampler line
-  `υ_c_sc = s.q'(u.V - s.V)`. The factor leaving the integral is the **anchor
-  change between two inertially-fixed frames** — constant because $t_{k-1}$ is
-  in the past and latched. The physical intra-interval rotation, the thing
-  sculling corrections are *about*, stays inside the integrand via $q(t)$: every
-  [RHS](#g-flow) evaluation, RK stages included, applies the current cumulative attitude,
+  In code, this is the sampler line `υ_c_sc = s.q'(u.V - s.V)`. The factor
+  leaving the integral is the **anchor change between two inertially-fixed
+  frames**. It is constant because $t_{k-1}$ is in the past and latched. The
+  physical intra-interval rotation, the thing sculling corrections are
+  *about*, stays inside the integrand via $q(t)$. Every [RHS](#g-flow)
+  evaluation, RK stages included, applies the current cumulative attitude,
   exactly as the sketch applies the current `q_c_cc`.
 
 #### Exactness condition, stated once
 
-Interval-relative integrals factor into
-cumulative ones whenever the interval-dependence enters through a *left action by
-the interval-start value of a cumulatively-integrable quantity* — the identity
-action for linear integrals, right-invariance for attitude increments, constancy
-of the anchor change for sculling. Two provisos: the cumulative attitude must be
-integrated with the **inertial** rate, so the anchor frame is inertially fixed and
-the pulled factor rigorously constant (anchoring to a rotating reference breaks
-the factorization); and the equivalence survives discretization — quaternion
-kinematics is linear in `q`, every RK stage composes on the right, and left
-multiplication by the constant anchor commutes through, so the formulations agree
-to machine precision, not merely in the continuous-time limit. Numerics of never
-resetting: `q` stays unit under `state_projection` (better conditioned than the sketch's
-`normalization = false` + reset); `Θ`/`Υ`/`V` grow linearly, so differencing
-loses relative precision — after an hour of flight, order $10^{-11}\ \mathrm{m/s}$ per sample
-against $10^{4}\ \mathrm{m/s}$ totals, six-plus orders below any error model worth simulating.
+Interval-relative integrals factor into cumulative ones whenever the interval
+dependence enters through a *left action by the interval-start value of a
+cumulatively-integrable quantity*. That action is the identity for linear
+integrals, right-invariance for attitude increments, and constancy of the
+anchor change for sculling. Two provisos apply. First, the cumulative attitude
+must be integrated with the **inertial** rate, so that the anchor frame is
+inertially fixed and the pulled factor rigorously constant. Anchoring to a
+rotating reference breaks the factorization. Second, the equivalence survives
+discretization. Quaternion kinematics is linear in `q`, every RK stage
+composes on the right, and left multiplication by the constant anchor commutes
+through, so the formulations agree to machine precision, not merely in the
+continuous-time limit. Never resetting has numerical consequences. `q` stays
+unit under `state_projection`, which is better conditioned than the sketch's
+`normalization = false` plus reset. `Θ`, `Υ` and `V` grow linearly, so
+differencing loses relative precision. After an hour of flight that loss is of
+order $10^{-11}\ \mathrm{m/s}$ per sample against $10^{4}\ \mathrm{m/s}$
+totals, six-plus orders below any error model worth simulating.
 
 ```julia
 struct IMUIntegrals <: AbstractComponent
@@ -9814,71 +9861,83 @@ end
 state_update(smp::IMUSampler, (; u)) = (Θ = u.Θ, q = u.q, Υ = u.Υ, V = u.V)   # the latch
 ```
 
-The `IMU` [assembly](#g-assembly) wires the four integral [ports](#g-port) across, holds the error model as
-a discrete sibling consuming `sample`, and leaves the sampler at `K = 1` in its
-own scope — the parent sets the IMU's rate ([§8.7][s8-7]). `Δt` in the stage [bundle](#g-bundle)
-(the NamedTuple of zero-copy views a component function receives) is the [§10.5][s10-5]
-single source of truth, put there for exactly this kind of discretized law.
-(Initialization consistency — the sampler's `s` must equal the initial
-integrals or the `t₀` sample is wrong — holds by default at zeros/identity, and
-[boundary zero](#g-boundary-zero) discharges the rest: its [due](#g-due) `state_update` latches `s ← integrals(t₀)` for
-every subsequent sample, so only the `t₀` sample itself depends on the authored
-`s` — a [condition](#g-condition)-authoring obligation under trim, [§14.5][s14-5].)
+The `IMU` [assembly](#g-assembly) wires the four integral [ports](#g-port)
+across, holds the error model as a discrete sibling consuming `sample`, and
+leaves the sampler at `K = 1` in its own scope. The parent sets the IMU's rate
+([§8.7][s8-7]). `Δt` in the stage [bundle](#g-bundle) (the NamedTuple of
+zero-copy views a component function receives) is the [§10.5][s10-5] single
+source of truth, put there for exactly this kind of discretized law.
+Initialization consistency also holds. The sampler's `s` must equal the
+initial integrals, or the `t₀` sample is wrong. That holds by default at
+zeros/identity, and [boundary zero](#g-boundary-zero) discharges the rest. Its
+[due](#g-due) `state_update` latches `s ← integrals(t₀)` for every subsequent
+sample, so only the `t₀` sample itself depends on the authored `s`. That
+dependence is a [condition](#g-condition)-authoring obligation under trim
+([§14.5][s14-5]).
 
-#### Why `u.V` is fresh — the line that would silently zero
+#### Why `u.V` is fresh: the line that would silently zero
 
-The sculling line is
-correct only because a due [tick](#g-tick) samples the *completed* [boundary](#g-boundary): if `u.V` still
-held the previous boundary's decode it would equal `s.V` exactly (that is the
-value `state_update` latched), and sculling would vanish without an error anywhere. The
-guarantee is the [§10.6][s10-6] macro-sequence, not a scheduling accident: integrate →
-project → [sweep](#g-sweep), with the due sampler's stages gated *into* that sweep ([§10.5][s10-5]) and
-the integrals arriving at stage-1 position (auto-published state, [§5.3][s5-3]) — before
-any stage-2 function runs, regardless of topological placement. The rest of the
-timeline closes consistently: the sampler's `output_direct` decodes `s` (the `t_{k-1}` latch)
-*before* `state_update` runs — the `z⁻¹` semantics — and after event [quiescence](#g-quiescence)
-`state_update` latches
-the `t_k` values for the next tick; same-boundary events re-run the gated stages
-in their re-sweeps, so `state_update` and external readers see the settled boundary.
+The sculling line is correct only because a due [tick](#g-tick) samples the
+*completed* [boundary](#g-boundary). If `u.V` still held the previous
+boundary's decode, it would equal `s.V` exactly, since that is the value
+`state_update` latched, and sculling would vanish without an error anywhere.
+The guarantee is the [§10.6][s10-6] macro-sequence, not a scheduling accident.
+The sequence is integrate, project, [sweep](#g-sweep), with the due sampler's
+stages gated *into* that sweep ([§10.5][s10-5]) and the integrals arriving at
+stage-1 position as auto-published state ([§5.3][s5-3]). They arrive before
+any stage-2 function runs, regardless of topological placement. The rest of
+the timeline closes consistently. The sampler's `output_direct` decodes `s`,
+the `t_{k-1}` latch, *before* `state_update` runs, which is the `z⁻¹`
+semantics. After event [quiescence](#g-quiescence), `state_update` latches the
+`t_k` values for the next tick. Same-boundary events re-run the gated stages
+in their re-sweeps, so `state_update` and external readers see the settled
+boundary.
 
 #### Author-knowledge note
 
-User observation, recorded as a documentation
-obligation: the clean implementation leans on the author *knowing* that "sampling
-at `t_k`" means post-integration, post-[projection](#g-projection), stage-1-fresh state. That
-knowledge must be part of the framework's taught contract — [§10.5][s10-5]/[§10.6][s10-6] semantics
-stated in [component](#g-component)-author documentation with this IMU as the [worked](#g-worked) example — not
-internal lore. The failure mode of not knowing it is instructive: an author who
-distrusts the [sweep](#g-sweep) order adds a defensive one-[tick](#g-tick) delay or re-derives the
-integrals in the sampler, silently degrading the model.
+This is a user observation, recorded as a documentation obligation. The clean
+implementation leans on the author *knowing* that "sampling at `t_k`" means
+post-integration, post-[projection](#g-projection), stage-1-fresh state. That
+knowledge must be part of the framework's taught contract, with the
+[§10.5][s10-5] and [§10.6][s10-6] semantics stated in
+[component](#g-component)-author documentation and this IMU as the
+[worked](#g-worked) example. It must not stay internal lore. The failure mode
+of not knowing it is instructive. An author who distrusts the
+[sweep](#g-sweep) order adds a defensive one-[tick](#g-tick) delay or
+re-derives the integrals in the sampler, silently degrading the model.
 
-**When the coupling is genuinely two-way: the latch-back wire.** The IMU's
-coupling is one-directional (integrals → sampler). If the [flow](#g-flow) itself needed the
-interval-relative value — integrator saturation within the sampling interval,
-say — the latch becomes a wire back: the sampler publishes the sample-instant
-values from its *[feedthrough](#g-feedthrough)* stage (`output_direct` reads `u`, so the latch [port](#g-port) carries
-the current tick's values, ZOH until the next; an `output_state`-published latch would be
-one period stale), and the continuous `state_derivative` computes `x − u.latch`. Both cross-wires
-consume the other side's ports and the [schedule](#g-schedule) stays acyclic (integrals stage 1 →
-sampler `output_direct`; sampler `output_direct` → the integrals'
-`state_derivative`-edge, [§5.4][s5-4]). The "reset"
-becomes a visible [tier](#g-tier)-crossing feedback loop — which is what it always was,
-physically.
+**When the coupling is genuinely two-way, the latch becomes a wire back.** The
+IMU's coupling is one-directional, from integrals to sampler. Suppose the
+[flow](#g-flow) itself needed the interval-relative value, say for integrator
+saturation within the sampling interval. Then the sampler publishes the
+sample-instant values from its *[feedthrough](#g-feedthrough)* stage, and the
+continuous `state_derivative` computes `x − u.latch`. The feedthrough stage is
+the right one because `output_direct` reads `u`, so the latch [port](#g-port)
+carries the current tick's values, ZOH until the next. An
+`output_state`-published latch would be one period stale. Both cross-wires
+consume the other side's ports, and the [schedule](#g-schedule) stays acyclic.
+The integrals' stage 1 feeds the sampler's `output_direct`, and the sampler's
+`output_direct` feeds the integrals' `state_derivative` edge ([§5.4][s5-4]).
+The "reset" becomes a visible [tier](#g-tier)-crossing feedback loop, which is
+what it always was, physically.
 
-**Verdict.** The strongest counterexample landed on the two-class taxonomy with
-*less* code than the fused original — same thirteen integral scalars, same math,
-minus the reset block — and three structural gains. The sampling [seam](#g-seam) became a
-wire. The sketch's incidental violations became visible structure: the
-`CircularBuffer` mutated inside the component struct (constants) moves to the
-consumer's `s` or falls out of the log; the parent-called `f_disc!(errors)`
-becomes a discrete sibling, making the truth/corrupted sample pair separately
-loggable. And linearization got sane: under a `Dual` [activation](#g-activation) the discrete tier
-is held ([§8.2][s8-2]), and "integrators that never reset" *is* the cumulative
-formulation — the framework's rules pushed the model into the only form its own
-linearization semantics could coherently handle. Residual escape hatch, recorded
-unbuilt: if interval-relative dynamics ever neither factor algebraically nor
-tolerate the latch-back wire, the [guarded addition](#g-guarded-addition) is a **tick-triggered handler**
-on [continuous components](#g-continuous-component) (periodic events). Nothing surveyed needs it ([D-056][d-056]).
+**Verdict.** The strongest counterexample landed on the two-class taxonomy
+with *less* code than the fused original. It keeps the same thirteen integral
+scalars and the same math, minus the reset block, and it brought three
+structural gains. The sampling [seam](#g-seam) became a wire. The sketch's
+incidental violations became visible structure. The `CircularBuffer` mutated
+inside the component struct (constants) moves to the consumer's `s` or falls
+out of the log, and the parent-called `f_disc!(errors)` becomes a discrete
+sibling, which makes the truth/corrupted sample pair separately loggable. And
+linearization got sane. Under a `Dual` [activation](#g-activation) the
+discrete tier is held ([§8.2][s8-2]), and "integrators that never reset" *is*
+the cumulative formulation. The framework's rules pushed the model into the
+only form its own linearization semantics could coherently handle. One escape
+hatch is recorded, unbuilt. If interval-relative dynamics ever neither factor
+algebraically nor tolerate the latch-back wire, the
+[guarded addition](#g-guarded-addition) is a **tick-triggered handler** on
+[continuous components](#g-continuous-component) (periodic events). Nothing
+surveyed needs it ([D-056][d-056]).
 
 ---
 
