@@ -144,11 +144,4 @@ retires or the code conforms. Currently empty.
 ## Pending on the spec itself
 
 Not a code deviation: what the design documents owe their reader.
-
-- **The plain-register rewrite of `spec.md`** — the whole document, one
-  Part per session, one commit per chapter, style first but clarifying
-  unclear passages where context settles them. Plan, rulings, cost and the
-  orphan-tracking table: `briefs/brief_spec_rewrite.md`; exemplar:
-  `briefs/spec_rewrite_pilot.md` (§10.4 and §10.6). Approved 2026-09-14,
-  not started. Retires chapter by chapter as the commits land; the bullet
-  goes when the appendices are done.
+Currently empty.

@@ -5,8 +5,11 @@ Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`. Drafted
 directory). Status: **approved 2026-09-14** (§5 and §6 rulings folded in).
 Registered in `pending.md`. Step 0, `check_linkset.jl` and the pilot landed
 2026-09-14; Parts I, II and III committed and cold-reviewed the same day,
-Part IV and Part V on 2026-09-15, all awaiting the user's diff review. The
-appendices are next.
+Part IV, Part V and the appendices on 2026-09-15, all awaiting the user's
+diff review. **The rewrite is complete**; the gloss table's link counts were
+recounted with the appendices. Two appendix exemptions: the glossary entry
+separator `**term** —` stays, since `check_glossary.jl` keys on it, and five
+unbreakable signature or name-chain lines exceed 80 rendered columns.
 `check_linkset.jl` was made fence-aware during Part III (a `# comment` line
 in a sketch had been ending a section early); Parts I and II re-checked clean
 under the fixed tool. Part IV left one passage for a ruling: §13.4 calls the
