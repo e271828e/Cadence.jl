@@ -18,8 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **One unguarded periphery edge**: staging through a handle whose device
-  was detached lands in an orphaned cell and is lost.
 - **§5.6's feedthrough tracer** (the global set-tracer and its sampled-state
   fallback), and with it the `AlgebraicCycle` the spec promises: D-012's SCC
   members as terminals in loop order, the wires between them and the

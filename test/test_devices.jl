@@ -383,6 +383,27 @@ function test_devices()
         @test diag.reason === :no_output_side && diag.device == "device 1 (Pad)"
     end
 
+    @testset "a detached handle's writes refuse by name, its reads stay legal (§11.6, D-244)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        dev = Pad("p")
+        h = attach!(sim, dev, Enumerated("a"))
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        stage!(h, "a" => 1.0)                    # attached: the ordinary path
+        detach!(sim, dev)
+        diag = carried(@test_throws DiagnosticError{DeviceContractMismatch} stage!(h, "a" => 2.0))
+        @test diag.reason === :detached && diag.device == "device 1 (Pad)"
+        diag = carried(@test_throws DiagnosticError{DeviceContractMismatch} report!(h, MalformedDatum(ErrorException("x"))))
+        @test diag.reason === :detached
+        @test occursin("was detached", logline(diag))
+        @test latest(h) === latest(sim)          # the reads touch shared state alone
+        @test running(h) === false
+        # A fresh attachment is a fresh handle; the retired one stays refused.
+        h2 = attach!(sim, dev, Enumerated("a"))
+        @test h2 !== h
+        stage!(h2, "a" => 3.0)
+        @test_throws DiagnosticError{DeviceContractMismatch} stage!(h, "a" => 4.0)
+    end
+
     @testset "join_timeout is validated and never trajectory-determining (§12.4, D-198)" begin
         err = failure(() -> Simulation(two_root_inputs(); h = 1//10, join_timeout = 0))
         diag = only(diagnostics(err))

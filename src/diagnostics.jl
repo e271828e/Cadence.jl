@@ -1078,17 +1078,21 @@ function message(d::BindingContractMismatch)
     "get_face (§14.4) — got $(d.observed)"
 end
 
-"§11.6: the device twin of `BindingContractMismatch` — no `loop` method, or `gather` against a binding with no output side."
+"§11.6: the device twin of `BindingContractMismatch` — no `loop` method, `gather` against a binding with no output side, or a write through a detached handle (D-244)."
 Base.@kwdef struct DeviceContractMismatch <: Diagnostic
     device::String                           # the device type, or the roster id where that is what the site holds
-    reason::Symbol                           # :no_loop | :no_output_side
+    reason::Symbol                           # :no_loop | :no_output_side | :detached
 end
-message(d::DeviceContractMismatch) =
-    d.reason === :no_loop ?
-    "$(d.device) defines no `loop` method — the task body is the authoring " *
-    "contract's one mandatory function (§11.6)" :
+function message(d::DeviceContractMismatch)
+    d.reason === :no_loop &&
+        return "$(d.device) defines no `loop` method — the task body is the authoring " *
+               "contract's one mandatory function (§11.6)"
+    d.reason === :detached &&
+        return "$(d.device) was detached — its handle's `stage!` and `report!` have no " *
+               "roster entry to reach, and rebinding is spelled `attach!` (§11.6, D-244)"
     "$(d.device)'s binding declares no output side — `gather` serves the compiled " *
     "`reads` enumeration (§11.6)"
+end
 
 "§11.2, §14.4: a binding read that does not resolve against the published snapshot."
 Base.@kwdef struct ReadBindingUnresolved <: Diagnostic

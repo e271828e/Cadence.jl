@@ -153,10 +153,11 @@ the attachment's binding, read back by `binding(handle)`: the loop's own
 `map_input`/`map_output` calls take it from the handle instead of the device
 carrying its configuration (§11.6). `last_seen` is the §12.3 waiter's private
 register, refreshed at spawn so a run's first wait observes that run's
-boundaries. One unguarded edge (`pending.md`): staging through a handle whose
-device was detached lands in an orphaned cell and is silently lost — handles
-are run-scoped task equipment, and guarding would put a roster scan back
-into `stage!`.
+boundaries. `detached` is D-244's flag: the handle outlives its roster entry
+as an object only, and `detach!` sets the flag so that the two write
+primitives, `stage!` and `report!`, refuse by name instead of landing in a
+cell no drain reads — one atomic load per stage, no roster scan. The reads
+stay legal.
 """
 mutable struct DeviceHandle
     const id::Int
@@ -169,7 +170,13 @@ mutable struct DeviceHandle
     const diag::DiagCell
     const gatherer::Union{Nothing,ReadGather}   # the compiled reads; nothing without an output side
     last_seen::Int
+    @atomic detached::Bool                      # set by detach! (D-244), read by the write primitives
 end
+
+# D-244's guard, on the write primitives alone.
+_assert_attached(h::DeviceHandle) =
+    (@atomic :acquire h.detached) && throw(DiagnosticError(
+        DeviceContractMismatch(device = h.who, reason = :detached)))
 
 # --- the authoring contract (§11.6) --------------------------------------------
 
@@ -253,9 +260,11 @@ merge and per-face newest-wins as every writer's, against this attachment's
 claim set — every check at staging, an out-of-claim face discarded under
 `OutOfClaimEntry` naming the incumbent, the rest of the batch standing. From
 any task, at any wall-clock moment; the batch lands at the top of the next
-frame `run!` advances.
+frame `run!` advances. On a handle whose device was detached the call is a
+contract misuse and throws by name (D-244).
 """
 function stage!(h::DeviceHandle, pairs::Pair...)
+    _assert_attached(h)
     _beat!(h.diag)
     batch = _normalize(h.writer, pairs, h.plane.claimedby, h.diag; device = h.who)
     batch === nothing || _stage!(h.writer, batch)
@@ -298,7 +307,8 @@ cell at frame top, folding it into the published framework status —
 device-attributed, delta plus totals (§11.8) — and sweeps it once more at the
 run's end for whatever landed past the last frame top.
 """
-report!(h::DeviceHandle, d::MalformedDatum) = (_beat!(h.diag); _report!(h.diag, d))
+report!(h::DeviceHandle, d::MalformedDatum) =
+    (_assert_attached(h); _beat!(h.diag); _report!(h.diag, d))
 
 """
     wait_next_snapshot(handle)

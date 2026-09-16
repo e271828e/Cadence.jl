@@ -1301,7 +1301,7 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
     w = Writer(sim.exec.act.layout, claim)
     diag = DiagCell(EMPTY_DIAG)                    # the device's diagnostic cell (§11.8)
     h = DeviceHandle(id, "device $id ($(_typename(dev)))", b, w, plane, sim.control,
-                     sim.published, diag, rg, sim.control.counter)
+                     sim.published, diag, rg, sim.control.counter, false)
     push!(plane.roster, RosterEntry(dev, b, id, w,
                                     _drain_thunk(sim.exec.store, w, sim.trace, 0),
                                     should_abort, diag, WriterAccount(), h))
@@ -1321,6 +1321,9 @@ claims are released and the harness writer's surface regains them; a
 pending undrained batch in the entry's cell is discarded with it, detach
 being a deliberate reconfiguration, while the root inputs it fed hold their
 last-drained values. The device id retires with the entry, never reused.
+The handle `attach!` returned outlives the entry as an object only: its
+`stage!` and `report!` refuse by name from here on, its reads stay legal
+(D-244).
 """
 function detach!(sim::Simulation, dev::AbstractDevice)
     plane = sim.plane
@@ -1328,6 +1331,7 @@ function detach!(sim::Simulation, dev::AbstractDevice)
     i = findfirst(e -> e.dev === dev, plane.roster)
     i === nothing && throw(DiagnosticError(NotAttached(
         device = _typename(dev), roster = [_who(e) for e in plane.roster])))
+    @atomic :release plane.roster[i].handle.detached = true   # D-244
     deleteat!(plane.roster, i)
     reclaim!(plane, sim.exec.act.layout, sim.trace)
     nothing
