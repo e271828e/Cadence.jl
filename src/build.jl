@@ -293,19 +293,24 @@ Edges run producer → consumer for every consumed **stage-2** port; consuming a
 stage-1 *or auto-published* port adds no edge, which is the whole structural
 payoff of the split — an auto-published cell is the framework's own
 stage-1-position write and carries no input dependence either (§5.3).
-Returns a topological order over component indices, or reports the cycle.
+Returns a topological order over component indices. A stall is not reported as
+its residue: the residue is *decomposed* into one `AlgebraicCycle` per strongly
+connected cluster below (§5.6, D-012), which is why `edges` carries the
+per-dependence provenance Kahn itself discards.
 """
 function schedule_stage2(flat::Flat, tiers::Vector{Tier}, stage1::Vector, published::Vector)
     n = length(flat.comps)
     deps = [Int[] for _ in 1:n]
+    edges = [Tuple{Int,Symbol,Symbol}[] for _ in 1:n]    # per consumer: (producer, port, face)
     for ci in 1:n
         has_stage(output_direct, flat.comps[ci]) || continue
-        for (_, (ppath, pport)) in flat.conns[ci]
+        for (face, (ppath, pport)) in flat.conns[ci]
             isempty(ppath) && continue                   # a root input: no producer to wait for
             pi = index_of(flat, ppath)
             # stage-1 position, by a stage or by the framework: no dependence
             (haskey(stage1[pi], pport) || haskey(published[pi], pport)) && continue
             push!(deps[ci], pi)
+            push!(edges[ci], (pi, pport, face))
         end
     end
 
@@ -324,10 +329,92 @@ function schedule_stage2(flat::Flat, tiers::Vector{Tier}, stage1::Vector, publis
         end
     end
 
-    if !isempty(remaining)
-        cycle = sort!(collect(remaining))
-        throw(DiagnosticError(AlgebraicCycle(members = String[flat.paths[ci] for ci in cycle])))
+    isempty(remaining) || throw(DiagnosticError(_cycle_diagnostics(flat, edges, remaining)))
+    order
+end
+
+"""
+§5.6, D-012: the stall residue decomposed. Every nontrivial strongly connected
+component of the subgraph induced on the unplaced components is one cluster and
+one diagnostic; the innocent downstream cone the residue also holds lies in no
+such component and is reported nowhere. `members` is the depth-first preorder
+along the cluster's own wires from its lowest flatten index, neighbours taken in
+flatten order, and `wires` follows the members.
+"""
+function _cycle_diagnostics(flat::Flat, edges::Vector{Vector{Tuple{Int,Symbol,Symbol}}},
+                            remaining::Set{Int})
+    nodes = sort!(collect(remaining))
+    succ = [Int[] for _ in eachindex(flat.comps)]        # producer → consumer, inside the residue
+    for ci in nodes, (pi, _, _) in edges[ci]
+        pi in remaining && push!(succ[pi], ci)
     end
+    for v in nodes
+        succ[v] = sort!(unique(succ[v]))
+    end
+
+    clusters = Tuple{Int,AlgebraicCycle}[]
+    for scc in _tarjan(nodes, succ)
+        length(scc) > 1 || first(scc) in succ[first(scc)] || continue
+        inscc = Set(scc)
+        order = _cluster_walk(scc, succ, inscc)
+        pos = Dict(ci => i for (i, ci) in enumerate(order))
+        ws = Tuple{Int,Int,String,String}[]
+        for ci in order, (pi, pport, face) in edges[ci]
+            pi in inscc && push!(ws, (pos[pi], pos[ci], string(pport), string(face)))
+        end
+        sort!(ws)
+        push!(clusters, (minimum(scc), AlgebraicCycle(
+            members = String[flat.paths[ci] for ci in order],
+            wires = ["$(flat.paths[order[a]])/$p" => "$(flat.paths[order[b]])/$f"
+                     for (a, b, p, f) in ws])))
+    end
+    sort!(clusters; by = first)
+    Diagnostic[d for (_, d) in clusters]
+end
+
+"Tarjan's algorithm over `nodes`, recursive: the strongly connected components."
+function _tarjan(nodes::Vector{Int}, succ::Vector{Vector{Int}})
+    index, low, onstack, stack, sccs = Dict{Int,Int}(), Dict{Int,Int}(), Set{Int}(), Int[], Vector{Int}[]
+    function strong!(v)
+        index[v] = low[v] = length(index) + 1
+        push!(stack, v)
+        push!(onstack, v)
+        for w in succ[v]
+            if !haskey(index, w)
+                strong!(w)
+                low[v] = min(low[v], low[w])
+            elseif w in onstack
+                low[v] = min(low[v], index[w])
+            end
+        end
+        if low[v] == index[v]
+            comp = Int[]
+            while true
+                w = pop!(stack)
+                delete!(onstack, w)
+                push!(comp, w)
+                w == v && break
+            end
+            push!(sccs, comp)
+        end
+    end
+    for v in nodes
+        haskey(index, v) || strong!(v)
+    end
+    sccs
+end
+
+"The cluster's members in walk order: a cluster is strongly connected, so one walk reaches all."
+function _cluster_walk(scc::Vector{Int}, succ::Vector{Vector{Int}}, inscc::Set{Int})
+    order, seen = Int[], Set{Int}()
+    function visit!(v)
+        push!(seen, v)
+        push!(order, v)
+        for w in succ[v]
+            w in inscc && !(w in seen) && visit!(w)
+        end
+    end
+    visit!(minimum(scc))
     order
 end
 

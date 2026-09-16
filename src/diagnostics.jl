@@ -713,14 +713,61 @@ message(d::IllegalStoreField) =
 # Strata B and C — schedule and contract conformance (§5.5, §8.3, §9.3, §9.5)
 # ==============================================================================
 
-"§5.5, §5.6: the components the schedule could not place, standing in for the SCC until the tracer lands (`pending.md`)."
+"""
+§5.5, §5.6: one strongly connected cluster of the stage-2 feedthrough graph.
+`members` are component paths in walk order and `wires` the cluster's own
+wires as `producer/port => consumer/face`, in the same order. The
+classification is D-245's graph verdict, `nothing` when a member's
+evaluation threw; `dead` lists every hop the trace found unrouted, as
+(member, input face, output port); `traced` records each member's mode,
+`:global`, `:sampled` or `:structural`.
+"""
 Base.@kwdef struct AlgebraicCycle <: Diagnostic
-    members::Vector{String}                  # Kahn's stall residue, as component paths in flatten order
+    members::Vector{String}
+    wires::Vector{Pair{String,String}}
+    classification::Union{Nothing,Symbol} = nothing
+    dead::Vector{Tuple{String,Symbol,Symbol}} = Tuple{String,Symbol,Symbol}[]
+    traced::Vector{Pair{String,Symbol}} = Pair{String,Symbol}[]
 end
-path(d::AlgebraicCycle) = isempty(d.members) ? "" : first(d.members)
-message(d::AlgebraicCycle) =
-    "algebraic loop through stage-2 ports: $(join(d.members, " → ")) — break it with a " *
-    "stage-1 (`output_state`) port, which carries no input dependence (§5.4/§5.5)"
+path(d::AlgebraicCycle) = first(d.members)
+
+# The cluster read out: its wires as one loop, a dead hop in the ladder's own
+# words, and the per-member tracing modes as one phrase (§5.6, D-245).
+_wirelist(ws) = join(("$p → $c" for (p, c) in ws), ", ")
+_hop((m, f, q)) = "`$m`'s `$q` does not route `$f`"
+
+function _modes(traced)
+    rest = ["`$m` " * (t === :sampled ? "at sampled states" : "structurally")
+            for (m, t) in traced if t !== :global]
+    isempty(rest) && return "traced globally"
+    join(rest, ", ") * (any(t === :global for (_, t) in traced) ? ", the rest globally" : "")
+end
+
+# The ladder's two exits (§5.4, D-140), each dead member named once.
+_cycle_hint(dead) =
+    join((let fs = unique(f for (mm, f, _) in dead if mm == m)
+              "split `$m`, or narrow the neighbor's contract if $(_namelist(fs)) " *
+              (length(fs) == 1 ? "is" : "are") * " consumed only in a fallback branch"
+          end for m in unique(first.(dead))), "; ") * " (§5.4)"
+
+const _BREAK_CYCLE = "break it with a state, a unit delay or a stage-1 (`output_state`) port (§5.5)"
+
+function message(d::AlgebraicCycle)
+    head = "algebraic loop among $(_namelist(d.members)): $(_wirelist(d.wires))"
+    d.classification === nothing && return "$head — $_BREAK_CYCLE"
+    if d.classification === :real
+        s = "$head — real: a loop survives the trace ($(_modes(d.traced)))"
+        for h in d.dead
+            s *= "; $(_hop(h)), a wire the loop does not need"
+        end
+        return "$s; $_BREAK_CYCLE"
+    end
+    modes = Dict(d.traced)
+    hops = join((_hop(h) * (get(modes, first(h), :global) === :sampled ?
+                            " (on the sampled paths; an untaken branch may still route it)" : "")
+                 for h in d.dead), ", ")
+    "$head — artificial at port level: $hops; $(_cycle_hint(d.dead))"
+end
 
 "§4.3, §8.3: one port written by both stages."
 Base.@kwdef struct ProducedByTwoStages <: Diagnostic

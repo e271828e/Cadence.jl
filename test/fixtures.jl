@@ -773,6 +773,8 @@ late_diverger_guard(c::LateDiverger, (; x)) = x.q - c.level
 late_diverger_handler(::LateDiverger, (; m)) = (m = (blown = true,),)
 state_events(::LateDiverger) = (blow = StateEvent(late_diverger_guard, late_diverger_handler),)
 
+# --- the algebraic-cycle coverage set (§5.5, §5.6) ----------------------------
+
 # --- the reference models -----------------------------------------------------
 
 """

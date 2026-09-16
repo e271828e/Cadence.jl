@@ -71,8 +71,67 @@ function build_schedule()
 
     @testset "an algebraic loop is a build error (§5.5)" begin
         # `build` alone: rejection needs no deployment, which is the strata split.
-        d = carried(@test_throws DiagnosticError{AlgebraicCycle} build(feedback_model(feedback_port = "power")))
-        @test sort(d.members) == ["ctl", "plant", "sum"]
+        # One cluster, one diagnostic, and the carrier is the collected one — the
+        # policy the stall takes now that a residue can hold several (§5.6).
+        err = failure(() -> build(feedback_model(feedback_port = "power")))
+        @test err isa DiagnosticError{Vector{Diagnostic}}
+        d = only(diagnostics(err))
+        @test d isa AlgebraicCycle
+        # the walk from the lowest flatten index, and the wires behind it
+        @test d.members == ["plant", "sum", "ctl"]
+        @test d.wires == ["plant/power" => "sum/b", "sum/e" => "ctl/e", "ctl/out" => "plant/u"]
+        @test d.classification === nothing
+        @test isempty(d.dead) && isempty(d.traced)
+    end
+end
+
+# --- the algebraic-cycle clusters (§5.5, §5.6, D-012, D-245) ------------------
+# The SCC decomposition alone: the classification the trace adds rides on top of
+# the members and the wires asserted here.
+
+function build_algebraic_cycles()
+    @testset "each cluster is one diagnostic and the tail is in none (§5.6, D-012)" begin
+        # Two disjoint loops and a tail hanging off `b`. Kahn's residue holds all
+        # five, which is the shape D-012 rejects; the decomposition holds two
+        # clusters and leaves the innocent tail out of both.
+        err = failure(() -> build(Group((a = Gain(1.0), b = Gain(1.0), c = Gain(1.0),
+                                         d = Gain(1.0), e = Gain(1.0));
+                                        wires = ("a/out" => "b/e", "b/out" => "a/e",
+                                                 "c/out" => "d/e", "d/out" => "c/e",
+                                                 "b/out" => "e/e"))))
+        @test err isa DiagnosticError{Vector{Diagnostic}}
+        ds = diagnostics(err)
+        @test length(ds) == 2
+        @test ds[1].members == ["a", "b"]
+        @test ds[1].wires == ["a/out" => "b/e", "b/out" => "a/e"]
+        @test ds[2].members == ["c", "d"]
+        @test ds[2].wires == ["c/out" => "d/e", "d/out" => "c/e"]
+        @test all(d -> !("e" in d.members), ds)
+    end
+
+    @testset "a self-wire is a one-member cluster with its wire (§5.6)" begin
+        # A self-edge is a nontrivial SCC of size one, and the wire is its own.
+        d = only(diagnostics(failure(() -> build(
+            Group((plant = Plant(),); wires = ("plant/power" => "plant/u",))))))
+        @test d.members == ["plant"]
+        @test d.wires == ["plant/power" => "plant/u"]
+    end
+
+    @testset "a tangle is one cluster with every wire among its members (§5.6, D-245)" begin
+        # `i` is a plain `Gain` here: what is under test is the cluster's shape,
+        # two loops sharing `s`, not the trace's verdict over it.
+        d = only(diagnostics(failure(() -> build(
+            Group((s = Sum(), g = Gain(1.0), i = Gain(1.0));
+                  wires = ("s/e" => "g/e", "g/out" => "s/a",
+                           "s/e" => "i/e", "i/out" => "s/b"))))))
+        @test d.members == ["s", "g", "i"]
+        @test d.wires == ["s/e" => "g/e", "s/e" => "i/e",
+                          "g/out" => "s/a", "i/out" => "s/b"]
+    end
+
+    @testset "the message names the loop (§5.5)" begin
+        d = only(diagnostics(failure(() -> build(feedback_model(feedback_port = "power")))))
+        @test occursin("plant/power → sum/b, sum/e → ctl/e, ctl/out → plant/u", message(d))
     end
 end
 
@@ -102,11 +161,12 @@ function build_auto_publication()
         @test failure(() -> build(auto_feedback_model())) === nothing
         # The exemption is that port's alone: the same loop routed through
         # `power`, a genuine stage-2 product, is still an algebraic cycle.
-        d = carried(@test_throws DiagnosticError{AlgebraicCycle} build(
+        d = only(diagnostics(failure(() -> build(
             Group((plant = AutoPlant(), fb = StateFeedback(1.0), g = Gain(1.0));
                   wires = ("plant/q" => "fb/q", "plant/power" => "g/e",
-                           "g/out" => "plant/u"))))
-        @test sort(d.members) == ["g", "plant"]
+                           "g/out" => "plant/u"))))))
+        @test d.members == ["plant", "g"]
+        @test d.wires == ["plant/power" => "g/e", "g/out" => "plant/u"]
     end
 
     @testset "the discrete tier publishes from `init_s` (§5.3)" begin
@@ -897,6 +957,7 @@ end
 function test_build()
     build_probe_refusals()
     build_schedule()
+    build_algebraic_cycles()
     build_auto_publication()
     build_root_input_type()
     build_wire_clauses()
