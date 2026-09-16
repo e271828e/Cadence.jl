@@ -36,6 +36,9 @@ Tracer{S}(x::Real) where {S} = Tracer{S}(Float64(x), UInt64(0))
 Tracer{S}(x::Tracer{S}) where {S} = x
 
 Base.promote_rule(::Type{Tracer{S}}, ::Type{<:Real}) where {S} = Tracer{S}
+# The two non-nominal scalars never meet in one evaluation; this rule exists only
+# to keep the method table free of an ambiguity with ForwardDiff's own.
+Base.promote_rule(::Type{Tracer{S}}, ::Type{ForwardDiff.Dual{T,V,N}}) where {S,T,V,N} = Union{}
 Base.zero(::Type{Tracer{S}}) where {S} = Tracer{S}(0.0, UInt64(0))
 Base.one(::Type{Tracer{S}}) where {S} = Tracer{S}(1.0, UInt64(0))
 Base.float(x::Tracer) = x
@@ -76,7 +79,8 @@ end
 
 # `hypot` beyond two arguments and `norm` scale by the largest operand, a
 # comparison the global tracer refuses; the union is that answer without the
-# branch. An infinite `p` keeps Base's own walk, hence its `Undecidable` (§5.6).
+# branch. An infinite `p` keeps Base's own walk: `Inf` reaches the union `max`
+# and passes, `-Inf` meets a tainted comparison and refuses (§5.6).
 function Base.hypot(x::Tracer{S}, y::Tracer{S}, z::Tracer{S}...) where {S}
     t = (x, y, z...)
     Tracer{S}(hypot(map(v -> v.val, t)...), reduce(|, map(v -> v.deps, t)))
