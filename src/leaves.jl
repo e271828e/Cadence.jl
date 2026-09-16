@@ -11,10 +11,12 @@
 # reuses it for cells; C1 uses it only for state.
 
 # D-237's opaque leaf: a concrete immutable type that is not isbits — a
-# handle, a struct holding a `Ref` — stored whole. Abstract types are not
-# leaves and fall through to the struct walk as before; `String` and `Symbol`
-# are mutable types to Julia and are refused as such.
-_opaque(::Type{P}) where {P} = isconcretetype(P) && !isbitstype(P) && !ismutabletype(P)
+# handle, a struct holding a `Ref` — stored whole. A `Symbol` is one by ruling
+# (D-243): Julia classifies it mutable, but it is interned and never freed.
+# Abstract types are not leaves and fall through to the struct walk as before;
+# `String` is a mutable type to Julia and is refused as such.
+_opaque(::Type{P}) where {P} =
+    P === Symbol || (isconcretetype(P) && !isbitstype(P) && !ismutabletype(P))
 
 # A type the walk stores whole, as one leaf of its own eltype: a real, an enum,
 # an opaque leaf. Everything else is a static array or a struct it descends.
@@ -94,6 +96,7 @@ mutable_position(::Type{P}) where {P} = _mutable_position(P, "")
 
 function _mutable_position(::Type{P}, pre) where {P}
     P <: Real && return nothing                  # `BigFloat` is a mutable `Real`, and a leaf
+    P === Symbol && return nothing               # an opaque leaf by ruling (D-243)
     ismutabletype(P) && return (pre, P)
     P <: StaticArray && return _mutable_position(eltype(P), string(pre, "[1]"))
     _opaque(P) && return nothing                 # the walk never looks inside a handle

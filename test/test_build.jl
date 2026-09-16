@@ -567,11 +567,11 @@ struct AnonBound <: AbstractComponent end
 output_types(::AnonBound, ::Type{<:AbstractFloat}) = (a = Float64,)
 output_state(::AnonBound, (; t)) = (a = 1.0,)
 
-# --- enum-valued ports (§4.1, §8.2, §9.3) --------------------------------------
-# The fixtures are in `fixtures.jl`: a discrete producer, a consumer declaring
-# an enum entry beside a `T` one, and a public enum mode.
+# --- enum- and Symbol-valued ports (§4.1, §4.3, §8.2, §9.3) --------------------
+# The fixtures are in `fixtures.jl`: a discrete producer, a consumer and a
+# public mode for each of the two label types.
 
-function build_enum_ports()
+function build_label_ports()
     @testset "an enum port is one pinned leaf of its own eltype (§4.1, §8.2)" begin
         m = Group((; sel = GearSelector(), rd = GearReader());
                   wires = ("sel/gear" => "rd/gear",), inputs = ("x" => "rd/x",))
@@ -612,6 +612,26 @@ function build_enum_ports()
         @test keys(activation(b, D8).published[i]) === (:gear,)
         sim = Simulation(b, D8; h = 1//10)
         @test port(sim, "c", :gear) === up
+    end
+
+    @testset "a Symbol port is one opaque leaf, with no synthesis at a root (§4.3, D-243)" begin
+        m = Group((; sel = PhaseSelector(), rd = PhaseReader());
+                  wires = ("sel/phase" => "rd/phase",))
+        sim = Simulation(build(m); h = 1//10)
+        init!(sim, fragment())
+        @test port(sim, "sel", :phase) === :idle && !port(sim, "rd", :armed)
+        run!(sim; t_end = 0.1)
+        @test port(sim, "sel", :phase) === :armed && port(sim, "rd", :armed)
+
+        # The mode label publishes (§7.5's remedy on the idiomatic label).
+        b = build(single(PhaseMode()))
+        @test b.nominal.published[index_of(b.flat, "c")] === (phase = :idle,)
+
+        # At a root input the leaf has no synthesis, so the refusal is the
+        # opaque leaf's, ahead of `probe_value`.
+        d = only(diagnostics(failure(() -> build(fed(PhaseReader(), "phase")))))
+        @test d isa IllegalPortType && d.site === :root_input
+        @test d.reason === :handle_at_root && d.declared === Symbol
     end
 end
 
@@ -881,7 +901,7 @@ function test_build()
     build_root_input_type()
     build_wire_clauses()
     build_port_type_refusals()
-    build_enum_ports()
+    build_label_ports()
     build_tier()
     build_store_values()
     build_state_leaves()

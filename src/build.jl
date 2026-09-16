@@ -384,10 +384,11 @@ function cell_layout(flat::Flat, decls::Vector{Decls}, ::Type{T}) where {T}
     end
     for (i, face) in enumerate(flat.root_inputs)
         P = _root_input_cell(flat, decls, i, face, T)
-        # A handle at a root input has no synthesis and no producer (D-237), so
-        # it is refused here, ahead of `probe_value`. A real or an enum leaf has
-        # a synthesis (§9.3); an opaque one is the handle. A mutable `P` is left
-        # to `place!`'s own arm on the next line, whatever its leaves.
+        # An opaque leaf at a root input, a handle or a `Symbol`, has no
+        # synthesis and no producer (D-237, D-243), so it is refused here, ahead
+        # of `probe_value`. A real or an enum leaf has a synthesis (§9.3). A
+        # mutable `P` is left to `place!`'s own arm on the next line, whatever
+        # its leaves.
         if mutable_position(P) === nothing && any(L -> !(L <: Real || L <: Enum), leaf_types(P))
             push!(diags, IllegalPortType(path = "", site = :root_input, name = face,
                                          declared = P, reason = :handle_at_root))

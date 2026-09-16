@@ -150,6 +150,16 @@ function leaves_shape()
         @test mutable_position(Gear) === nothing
         @test probe_value(Gear) === up
 
+        # A `Symbol` is an opaque leaf by ruling (D-243), Julia's classification
+        # notwithstanding; a struct nesting one is opaque as a whole, by D-237's
+        # outermost-type rule.
+        @test nleaves(Symbol) == 1
+        @test leaf_types(Symbol) == Type[Symbol]
+        @test mutable_position(Symbol) === nothing
+        @test leaf_types(@NamedTuple{s::Symbol, x::Float64}) == Type[@NamedTuple{s::Symbol, x::Float64}]
+        @test _accepts(Symbol, Symbol, D8)
+        @test mutable_position(Vector{Symbol}) == ("", Vector{Symbol})
+
         # The refusal's walker: the first mutable position the walk meets, the
         # port type itself spelled `""`. A handle is opaque, so its `Matrix`
         # field is not a position the walk visits.
@@ -201,9 +211,11 @@ function leaves_roundtrip()
         flatten!(buf, 1, fr)
         @test reconstruct(Framed, buf, 1).f.z === fr.f.z
 
-        # An enum leaf rides whole through the same builders.
+        # An enum leaf rides whole through the same builders, and so does a
+        # `Symbol`.
         roundtrip(down, 3; E = Any)
         roundtrip((g = down, x = 2.5), 1; E = Any)
+        roundtrip(:armed, 2; E = Any)
     end
 end
 

@@ -1119,10 +1119,11 @@ output_direct(::OffsetQuery, (; u)) = (h = 2 * u.terrain.h0,)
 offset_model(src) = Group((; src = src, q = OffsetQuery());
                           wires = ("src/terrain" => "q/terrain",))
 
-# --- the enum port coverage set (§4.1, §8.2, §9.3) ------------------------------
+# --- the label port coverage set (§4.1, §4.3, §8.2, §9.3) -----------------------
 # An enum is a port value (§4.1) and a pinned leaf (§8.2): one leaf of its own
 # eltype, stored whole, never following the activation scalar. Its probe value
-# is the first instance (§9.3, D-051).
+# is the first instance (§9.3, D-051). A `Symbol` is an opaque leaf (D-243):
+# stored whole too, and with no synthesis, so it is refused at a root input.
 
 @enum Gear up = 1 down = 2
 
@@ -1158,6 +1159,31 @@ init_m(::GearMode) = (gear = up,)
 output_types(::GearMode, ::Type{T}) where {T <: Real} = (gear = Gear, y = T)
 
 output_state(::GearMode, (; m)) = (y = m.gear === up ? 0.0 : 1.0,)
+
+"""A discrete producer of a `Symbol` port, the idiomatic label of §7.3."""
+struct PhaseSelector <: AbstractComponent end
+
+init_s(::PhaseSelector) = (n = 0,)
+output_types(::PhaseSelector) = (phase = Symbol,)
+
+output_state(::PhaseSelector, (; s)) = (phase = iseven(s.n) ? :idle : :armed,)
+state_update(::PhaseSelector, (; s)) = (n = s.n + 1,)
+
+"""A consumer of a `Symbol` entry; alone under a root, that entry is a root input."""
+struct PhaseReader <: AbstractComponent end
+
+input_types(::PhaseReader, ::Type{T}) where {T <: Real} = (phase = Symbol,)
+output_types(::PhaseReader, ::Type{T}) where {T <: Real} = (armed = Bool,)
+
+output_direct(::PhaseReader, (; u)) = (armed = u.phase === :armed,)
+
+"""A `Symbol` mode declared public: §7.5's remedy on the idiomatic label."""
+struct PhaseMode <: AbstractComponent end
+
+init_m(::PhaseMode) = (phase = :idle,)
+output_types(::PhaseMode, ::Type{T}) where {T <: Real} = (phase = Symbol, y = T)
+
+output_state(::PhaseMode, (; m)) = (y = m.phase === :idle ? 0.0 : 1.0,)
 
 # --- the periphery's coverage set: devices and bindings (§11.3, §11.6) ----------
 
