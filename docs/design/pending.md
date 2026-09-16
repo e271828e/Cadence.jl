@@ -112,7 +112,15 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-Currently empty.
+- **A port value with an enum leaf fails to embed at a non-nominal
+  activation.** `_embed` (`build.jl` ~208) and `retype_value` (`leaves.jl`
+  ~239) lift every leaf through `T`, so a stage returning
+  `Mixed{Float64}(0.0, 3, right)` at a port declared `Mixed{T}` (the
+  constant-branch idiom, D-166) reaches `activation(b, Dual)` as a raw
+  `MethodError: no method matching Float64(::Side)` where §4.1 admits the
+  enum leaf and §9.4 promises the activation. `Bool` and `Int` leaves convert
+  back and pass. Found while briefing increment 36; the fix is a leaf-wise
+  lift touching `Float64` leaves alone, the walk the tracer's `_lift` models.
 
 ### Retire with a feature or a pass
 

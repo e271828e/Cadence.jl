@@ -998,10 +998,18 @@ in-cycle cells synthesized through `probe_value` ([§9.3][s9-3]) under tracer ta
 tracer's product is a per-member dependence set rather than a value, so no
 ordering has to be valid for the labels to come out right.
 
-The loop is **real** iff every hop of the structural cycle survives in the
-traced per-member maps. It is **artificial** ([§5.4][s5-4]) iff some hop dies, at the
-component whose stage-2 function does not in fact route that input to that
-output. No Stratum C machinery is touched. There is no [activation](#g-activation) (a re-run of
+**Rule.** The traced maps decide the verdict as one graph question over the
+cluster. Every wire holds. A hop inside a member, from the face one wire
+enters to the port the next wire leaves, holds iff that member's map routes
+the face to the port. The loop is **real** iff a cycle survives in that graph.
+It is **artificial** ([§5.4][s5-4]) iff none does, because every cycle through
+the cluster crosses a dead hop, at a component whose stage-2 function does not
+in fact route that input to that output. The diagnostic lists every dead hop
+under either verdict, so a real loop still shows the chords the trace found
+false ([D-245][d-245]). For a simple cycle this reduces to the expected reading: real
+iff every hop survives.
+
+No Stratum C machinery is touched. There is no [activation](#g-activation) (a re-run of
 Stratum C at a given scalar type), no layouts and no table. This is the *local*
 variant ([D-012][d-012]), the schedule-free per-member trace at the probe point, which is
 what the cycle classifier uses. The "tracer activation" ([§9.4][s9-4]) names the other
@@ -1013,11 +1021,16 @@ speaks for the branch taken at the probe state (the diagnostic-only doctrine,
 [D-012][d-012]). Discrete members trace *structurally*, because the discrete [tier](#g-tier)'s
 plain, wholesale-pinning declarations admit no tracer scalar. Structural tracing
 is sound as a may-depend answer but never sharp, so the remedy hint is offered
-only for continuous members. The hint itself is to split this component, *or* to
+only for continuous members. A continuous face or port declared with no walking
+leaf admits no tracer scalar either, so the hops through it trace structurally
+too. The diagnostic records, per member, whether its map came from the global
+tracer, from sampled states or from structure, so a reader can weigh a dead hop
+found on a few sampled paths against one found exactly ([D-245][d-245]). The hint
+itself is to split this component, *or* to
 narrow the neighbor's [contract](#g-contract) when the dead hop's input is consumed only in a
 fallback branch (the ladder, [§5.4][s5-4]). If a member's evaluation itself throws, the
-diagnostic ships with the member list alone. Classification is a bonus on the
-cycle error, never its precondition.
+diagnostic ships with its members and wires alone, unclassified. Classification
+is a bonus on the cycle error, never its precondition.
 
 There are two modes, and they degrade gracefully.
 
@@ -10852,9 +10865,10 @@ with the collection and never trigger its throw, is currently empty
 **Schedule and contract conformance** (Strata B and C):
 
 - **`AlgebraicCycle`** ([§5.5][s5-5], [§5.6][s5-6]). Error · build ·
-  collected. The SCC's member terminals in slash form, the wires among them,
-  optional classification (`real`/`artificial`) with the member whose hop
-  died.
+  collected. The SCC's members, the wires among them as terminal pairs in
+  slash form, optional classification (`real`/`artificial`) with every dead
+  hop (member, input face, output port), and per member the tracing mode
+  (global, sampled or structural).
 - **`ProducedByTwoStages`** ([§4.3][s4-3], [§8.3][s8-3]). Error · build ·
   fail-fast, with the probe chain ([D-229][d-229]). Component path, port
   name, both stage names.
@@ -12242,6 +12256,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-241]: decisions.md#d-241--keep-the-status-a-vector-of-records-one-small-allocation-per-publication
 [d-243]: decisions.md#d-243--classify-symbol-as-an-opaque-port-leaf
 [d-244]: decisions.md#d-244--refuse-the-write-primitives-of-a-detached-handle-by-name
+[d-245]: decisions.md#d-245--classify-a-cycle-cluster-by-a-surviving-traced-cycle-and-carry-each-members-tracing-mode
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
