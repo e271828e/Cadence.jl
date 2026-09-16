@@ -225,19 +225,23 @@ function build_algebraic_cycles()
         d = only(diagnostics(failure(() -> build(loop))))
         @test d.classification === :real
         @test d.traced == ["m" => :sampled, "g1" => :global, "g2" => :global]
-        # `g` is consumed in `state_derivative` alone and `v` only by the branch
-        # the tracer severs, so both chords are dead under the real verdict.
-        @test d.dead == [("m", :v, :F), ("m", :g, :F)]
+        # `v` rides the positive arm's arithmetic, so its hop lives on the sampled
+        # paths; `g` is consumed in `state_derivative` alone and stays dead, a
+        # chord the real verdict lists anyway.
+        @test d.dead == [("m", :g, :F)]
 
-        # The same branch with `f` off the cluster: no hop out of `m` survives the
-        # sampled map, so the loop is artificial at port level.
+        # The branch decided at the prefix instead: `v` comes from `g1`, which
+        # Kahn places, so it is untagged and the global tracer reads it. The
+        # cluster is `m ↔ g2` alone and `g` is its only entering face, which no
+        # arm routes — artificial at port level, traced globally throughout.
         d = only(diagnostics(failure(() -> build(
-            Group((m = Piecewise(), g2 = Gain(1.0));
-                  wires = ("m/F" => "g2/e", "g2/out" => "m/g", "g2/out" => "m/v"),
-                  inputs = "f" => "m/f")))))
+            Group((m = Piecewise(), g1 = Gain(1.0), g2 = Gain(1.0));
+                  wires = ("m/F" => "g2/e", "g2/out" => "m/g", "g1/out" => "m/v"),
+                  inputs = ("r" => "g1/e", "f" => "m/f"))))))
+        @test d.members == ["m", "g2"]
         @test d.classification === :artificial
-        @test d.dead == [("m", :v, :F), ("m", :g, :F)]
-        @test d.traced == ["m" => :sampled, "g2" => :global]
+        @test d.dead == [("m", :g, :F)]
+        @test d.traced == ["m" => :global, "g2" => :global]
 
         # The seed is fixed and per member, so two builds of one model agree —
         # `AlgebraicCycle` has no `==`, so the payload is compared field by field.
@@ -256,6 +260,23 @@ function build_algebraic_cycles()
         @test !(Tracer{true}(1.0, UInt64(0)) < Tracer{true}(0.0, UInt64(0)))
         # The local tracer decides on the primal and reports the taken path.
         @test Tracer{false}(1.0, 0b1) < Tracer{false}(2.0, 0b10)
+    end
+
+    @testset "the unary list and the norms carry the set through (§5.6)" begin
+        t = Tracer{true}(0.5, 0b1)
+        @test atan(t).deps == 0b1
+        @test asinh(t).deps == 0b1
+        # Base routes `deg2rad` through `float`, the identity here: without its
+        # own method the fallback recurses instead of raising a `MethodError`.
+        @test deg2rad(t) isa Tracer{true}
+        @test deg2rad(t).deps == 0b1
+        # The overflow-scaling guards of `hypot` and `norm` compare their
+        # operands, which the global tracer refuses; the union answers instead.
+        t1, t2, t3 = Tracer{true}(1.0, 0b1), Tracer{true}(2.0, 0b10), Tracer{true}(3.0, 0b100)
+        @test hypot(t1, t2, t3).deps == 0b111
+        v = SVector(t1, t2, t3)
+        @test norm(v).deps == 0b111
+        @test norm(v, 1).deps == 0b111
     end
 end
 

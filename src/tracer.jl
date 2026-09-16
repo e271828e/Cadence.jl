@@ -6,6 +6,13 @@
 # inside Stratum B's failure path, where no schedule and no layout for the
 # cluster exist. The other variant, the tracer *activation* of §9.4, is a
 # whole-model run at this scalar and is not built here.
+#
+# SparseConnectivityTracer.jl offers the same global/local pair, and its "requires
+# primal value" error is this file's `Undecidable`. It was weighed and not
+# adopted: its global tracer carries no primal, so a branch on state, on a mode or
+# on time would force the sampled fallback where this scalar decides at the probe
+# point. It is the drop-in behind `_lift`, `_tag` and `_classify` if the method
+# list below proves too narrow on a real model.
 
 # --- the scalar ---------------------------------------------------------------
 
@@ -53,9 +60,36 @@ Base.ifelse(b::Bool, x::Tracer{S}, y::Tracer{S}) where {S} =
     Tracer{S}(ifelse(b, x.val, y.val), x.deps | y.deps)   # branch-free: both sets survive
 
 for f in (:-, :abs, :abs2, :sqrt, :cbrt, :exp, :log, :log2, :log10, :sin, :cos, :tan,
-          :asin, :acos, :sinh, :cosh, :tanh, :sign, :inv, :floor, :ceil, :round, :trunc)
+          :asin, :acos, :sinh, :cosh, :tanh, :sign, :inv, :floor, :ceil, :round, :trunc,
+          :atan, :asinh, :acosh, :atanh, :expm1, :log1p, :exp2, :exp10, :sinpi, :cospi,
+          :deg2rad, :rad2deg, :sind, :cosd, :tand, :asind, :acosd, :atand,
+          :sec, :csc, :cot, :mod2pi)
     @eval Base.$f(x::Tracer{S}) where {S} = Tracer{S}($f(x.val), x.deps)
 end
+
+# A function off these lists degrades in one of two ways, and the classifier's
+# catch ships the cluster unclassified under either: a `MethodError` from the
+# member's evaluation, or — where Base routes a `Real` through `f(float(x))` —
+# a `StackOverflowError`, `float` being the identity here. That identity stays:
+# `AbstractFloat(x)` instead would route through `Float64(::Tracer)`, which throws
+# in global mode and silently severs the set in local mode, both worse.
+
+# `hypot` beyond two arguments and `norm` scale by the largest operand, a
+# comparison the global tracer refuses; the union is that answer without the
+# branch. An infinite `p` keeps Base's own walk, hence its `Undecidable` (§5.6).
+function Base.hypot(x::Tracer{S}, y::Tracer{S}, z::Tracer{S}...) where {S}
+    t = (x, y, z...)
+    Tracer{S}(hypot(map(v -> v.val, t)...), reduce(|, map(v -> v.deps, t)))
+end
+
+_norm(v, p::Real) = p == 2 ? sqrt(sum(abs2, v)) : sum(x -> abs(x)^p, v)^(1 / p)
+
+LinearAlgebra.norm(v::AbstractArray{<:Tracer}, p::Real = 2) =
+    isfinite(p) ? _norm(v, p) : invoke(LinearAlgebra.norm, Tuple{Any,Real}, v, p)
+# StaticArrays' own `norm` is the more specific method on an `SVector`, so the
+# scalar has to meet it there too.
+LinearAlgebra.norm(v::StaticArray{S,<:Tracer}, p::Real = 2) where {S<:Tuple} =
+    isfinite(p) ? _norm(v, p) : invoke(LinearAlgebra.norm, Tuple{StaticArray,Real}, v, p)
 
 """
 A decision is legal when no operand carries a set, or when the local tracer is
