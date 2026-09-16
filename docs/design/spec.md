@@ -5688,6 +5688,16 @@ control access (observe running, request shutdown). Read returns the latest
 [snapshot](#g-snapshot), optionally waiting for the next
 [boundary](#g-boundary) ([§12.3][s12-3]).
 
+**A handle outlives its roster entry as an object only.** `detach!` retires
+the entry and the compiled writer behind it, but the caller may still hold
+the handle `attach!` returned. Its two write primitives, `stage!` and
+`report!`, then refuse by name (`DeviceContractMismatch`, [Appendix C][sC]). A
+batch staged there would land in a cell no [drain](#g-drain) reads, and a
+report would land in a diagnostic cell no frame top folds. Silence is the
+hidden-bug class this section tolerates nowhere. The read primitives stay
+legal, since they read the simulation's shared state and nothing of the
+entry's ([D-244][d-244]).
+
 **[`should_abort`](#g-should_abort) is an `attach!` keyword**, defaulting to
 `false`. It is per-attachment, never a device property. The same joystick is
 advisory in one deployment and decisive in another. With it clear, a
@@ -10919,8 +10929,9 @@ with the collection and never trigger its throw, is currently empty
   `is_input`, `claims` defined on a greedy binding, and a binding declaring
   neither side report here too.
 - **`DeviceContractMismatch`** ([§11.6][s11-6]). Error · service · fail-fast.
-  The device type, and what the contract lacks: the `loop` method, or the
-  output side `gather` needs from a binding that declares none. The device
+  The device, and what the contract lacks: the `loop` method, the output
+  side `gather` needs from a binding that declares none, or the roster entry
+  a detached handle's `stage!`/`report!` no longer has ([D-244][d-244]). The device
   twin of `BindingContractMismatch`.
 - **`ReadBindingUnresolved`** ([§11.2][s11-2], [§14.4][s14-4]). Error ·
   service · fail-fast. The device (by type, since its roster id is assigned
@@ -12230,6 +12241,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-240]: decisions.md#d-240--read-the-heartbeat-at-publication-beside-the-task-state
 [d-241]: decisions.md#d-241--keep-the-status-a-vector-of-records-one-small-allocation-per-publication
 [d-243]: decisions.md#d-243--classify-symbol-as-an-opaque-port-leaf
+[d-244]: decisions.md#d-244--refuse-the-write-primitives-of-a-detached-handle-by-name
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
