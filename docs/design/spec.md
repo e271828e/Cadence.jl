@@ -434,11 +434,15 @@ GUI and logs drill into them lazily (the view clause, [§4.2][s4-2]). Bare-struc
 are rejected ([D-036][d-036]).
 
 A port value's leaves are what the leaf walk reaches through `Real`s, static
-arrays and isbits structs. The walk stops at an immutable type that is not
-isbits and treats it as one opaque leaf (a leaf the table stores whole,
-references included). That leaf is the [field handle](#g-field-handle) ([§4.4][s4-4]). A mutable type
-anywhere in a port value is refused, and so is a handle-typed face surfacing as
-a root input (`IllegalPortType`, [D-237][d-237]).
+arrays and isbits structs. An enum is one leaf, pinned ([§8.2][s8-2]). The walk
+stops at an immutable type that is not isbits and treats it as one opaque leaf
+(a leaf the table stores whole, references included). That leaf is the
+[field handle](#g-field-handle) ([§4.4][s4-4]). A `Symbol` is an opaque leaf too. Julia classifies
+it mutable, but it is interned, immutable and never freed, the same grounds
+[§7.3][s7-3] admits it in a store on, so a `Symbol` mode publishes like any other
+([D-243][d-243]). A mutable type anywhere in a port value is refused, and so is an
+opaque leaf surfacing as a root input, which has no synthesis
+(`IllegalPortType`, [D-237][d-237]).
 
 #### Granularity, read side
 
@@ -1491,7 +1495,8 @@ buffer, and no arithmetic is ever done on them.
 immutable value that holds no references, transitively. Enums, integers,
 `Bool`s, `SArray`s and nested isbits structs all qualify. A `Symbol` is admitted
 as the idiomatic label. It is interned, immutable and never freed, so it copies
-as a pointer to permanent data and serializes as its name. A `String`, an array,
+as a pointer to permanent data and serializes as its name. The table admits it
+on the same grounds, as an opaque leaf ([§4.3][s4-3]). A `String`, an array,
 or a struct holding either does not qualify, and neither does a struct nesting a
 `Symbol`. Stratum A checks every `init_s` and `init_m` field and reports a
 violation as `IllegalStoreField` ([§9.1][s9-1], [Appendix C][sC], [D-231][d-231]).
@@ -10827,8 +10832,8 @@ with the collection and never trigger its throw, is currently empty
 - **`IllegalPortType`** ([§7.1][s7-1], [§8.2][s8-2]). Error · build ·
   collected. Component path, the declaration at fault
   (`input_types`/`output_types`, or a root input), port name, the offending
-  type (one with no numeric leaves, a mutable one, or a handle at a root
-  input), the leaf vocabulary ([§7.1][s7-1]).
+  type (one with no leaves, a mutable one, or an opaque leaf at a root
+  input), the leaf vocabulary ([§4.3][s4-3]).
 - **`IllegalStoreField`** ([§7.3][s7-3], [§8.2][s8-2], [§9.1][s9-1]). Error ·
   build · collected. Component path, the store at fault (`init_s`/`init_m`),
   field name, the offending type (one neither isbits nor `Symbol`), the fix
@@ -12224,6 +12229,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-239]: decisions.md#d-239--report-a-typod-return-field-alone-without-the-unproduced-port
 [d-240]: decisions.md#d-240--read-the-heartbeat-at-publication-beside-the-task-state
 [d-241]: decisions.md#d-241--keep-the-status-a-vector-of-records-one-small-allocation-per-publication
+[d-243]: decisions.md#d-243--classify-symbol-as-an-opaque-port-leaf
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
