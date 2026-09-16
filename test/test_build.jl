@@ -80,14 +80,13 @@ function build_schedule()
         # the walk from the lowest flatten index, and the wires behind it
         @test d.members == ["plant", "sum", "ctl"]
         @test d.wires == ["plant/power" => "sum/b", "sum/e" => "ctl/e", "ctl/out" => "plant/u"]
-        @test d.classification === nothing
-        @test isempty(d.dead) && isempty(d.traced)
+        # The trace's verdict over this same cluster is asserted below.
     end
 end
 
 # --- the algebraic-cycle clusters (§5.5, §5.6, D-012, D-245) ------------------
-# The SCC decomposition alone: the classification the trace adds rides on top of
-# the members and the wires asserted here.
+# The SCC decomposition, then the trace's verdict over it: kind and payload only
+# (§13.2). The three message forms are rendered in `test_diagnostics.jl`.
 
 function build_algebraic_cycles()
     @testset "each cluster is one diagnostic and the tail is in none (§5.6, D-012)" begin
@@ -118,20 +117,112 @@ function build_algebraic_cycles()
     end
 
     @testset "a tangle is one cluster with every wire among its members (§5.6, D-245)" begin
-        # `i` is a plain `Gain` here: what is under test is the cluster's shape,
-        # two loops sharing `s`, not the trace's verdict over it.
+        # Two loops sharing `s`: one cluster, and every wire among its members,
+        # the chord `s/e → i/b` included.
         d = only(diagnostics(failure(() -> build(
-            Group((s = Sum(), g = Gain(1.0), i = Gain(1.0));
+            Group((s = Sum(), g = Gain(1.0), i = DerivativeFed());
                   wires = ("s/e" => "g/e", "g/out" => "s/a",
-                           "s/e" => "i/e", "i/out" => "s/b"))))))
+                           "s/e" => "i/b", "i/y" => "s/b"),
+                  inputs = "a" => "i/a")))))
         @test d.members == ["s", "g", "i"]
-        @test d.wires == ["s/e" => "g/e", "s/e" => "i/e",
-                          "g/out" => "s/a", "i/out" => "s/b"]
+        @test d.wires == ["s/e" => "g/e", "s/e" => "i/b",
+                          "g/out" => "s/a", "i/y" => "s/b"]
     end
 
-    @testset "the message names the loop (§5.5)" begin
+    @testset "a loop every hop routes is real (§5.6)" begin
         d = only(diagnostics(failure(() -> build(feedback_model(feedback_port = "power")))))
-        @test occursin("plant/power → sum/b, sum/e → ctl/e, ctl/out → plant/u", message(d))
+        @test d.classification === :real
+        @test isempty(d.dead)
+        @test d.traced == ["plant" => :global, "sum" => :global, "ctl" => :global]
+        # A self-wire is one hop and the same verdict.
+        d = only(diagnostics(failure(() -> build(
+            Group((plant = Plant(),); wires = ("plant/power" => "plant/u",))))))
+        @test d.classification === :real && isempty(d.dead)
+        @test d.traced == ["plant" => :global]
+    end
+
+    @testset "a hop stage 2 does not route makes the loop artificial (§5.4, §5.6)" begin
+        # `DerivativeFed` consumes `b` in `state_derivative` alone, so the wire
+        # closing the loop through `b` is §5.4's false dependency.
+        d = only(diagnostics(failure(() -> build(
+            Group((d = DerivativeFed(), g = Gain(1.0));
+                  wires = ("d/y" => "g/e", "g/out" => "d/b"), inputs = "a" => "d/a")))))
+        @test d.classification === :artificial
+        @test d.dead == [("d", :b, :y)]
+        @test d.traced == ["d" => :global, "g" => :global]
+        # The same pair closed through `a`, which stage 2 does route, is real.
+        d = only(diagnostics(failure(() -> build(
+            Group((d = DerivativeFed(), g = Gain(1.0));
+                  wires = ("d/y" => "g/e", "g/out" => "d/a"), inputs = "b" => "d/b")))))
+        @test d.classification === :real && isempty(d.dead)
+    end
+
+    @testset "a tangle is real through its surviving loop and lists the dead chord (D-245)" begin
+        # `s ↔ g` survives the trace, so the cluster is real; the chord through
+        # `i` is dead and is listed anyway, being a wire the author can delete.
+        d = only(diagnostics(failure(() -> build(
+            Group((s = Sum(), g = Gain(1.0), i = DerivativeFed());
+                  wires = ("s/e" => "g/e", "g/out" => "s/a",
+                           "s/e" => "i/b", "i/y" => "s/b"),
+                  inputs = "a" => "i/a")))))
+        @test d.classification === :real
+        @test d.dead == [("i", :b, :y)]
+        @test d.traced == ["s" => :global, "g" => :global, "i" => :global]
+    end
+
+    @testset "out-of-cycle inputs come from the prefix and never tag (§5.6)" begin
+        # `pre` is placed by Kahn, so `i/a` reads its probe product rather than a
+        # synthesized value — untagged either way, and the verdict is unchanged.
+        d = only(diagnostics(failure(() -> build(
+            Group((s = Sum(), g = Gain(1.0), i = DerivativeFed(), pre = Gain(1.0));
+                  wires = ("s/e" => "g/e", "g/out" => "s/a", "s/e" => "i/b",
+                           "i/y" => "s/b", "pre/out" => "i/a"),
+                  inputs = "a" => "pre/e")))))
+        @test d.classification === :real
+        @test d.dead == [("i", :b, :y)]
+        @test d.members == ["s", "g", "i"]
+    end
+
+    @testset "a discrete member traces structurally (§5.6)" begin
+        # The discrete tier's wholesale-pinned declarations admit no tracer
+        # scalar, so every hop is alive by structure alone.
+        d = only(diagnostics(failure(() -> build(
+            Group((p = DiscreteMap(), q = DiscreteMap());
+                  wires = ("p/b" => "q/a", "q/b" => "p/a"))))))
+        @test d.classification === :real
+        @test d.traced == ["p" => :structural, "q" => :structural]
+    end
+
+    @testset "a pinned face traces structurally (§5.6, D-245)" begin
+        # A continuous declaration with no walking leaf admits no scalar either.
+        d = only(diagnostics(failure(() -> build(
+            Group((a = PinnedGain(), b = PinnedGain());
+                  wires = ("a/out" => "b/e", "b/out" => "a/e"))))))
+        @test d.classification === :real
+        @test d.traced == ["a" => :structural, "b" => :structural]
+    end
+
+    @testset "a member that throws ships the cluster unclassified (§5.6)" begin
+        # Classification is a bonus on the cycle error, never its precondition:
+        # the members and the wires still name the loop.
+        d = only(diagnostics(failure(() -> build(
+            Group((a = TypedGain(), b = TypedGain());
+                  wires = ("a/out" => "b/e", "b/out" => "a/e"))))))
+        @test d.classification === nothing
+        @test isempty(d.dead) && isempty(d.traced)
+        @test d.members == ["a", "b"]
+        @test d.wires == ["a/out" => "b/e", "b/out" => "a/e"]
+    end
+
+    @testset "the tracer unions sets and refuses a tainted branch (§5.6)" begin
+        @test (Tracer{true}(1.0, 0b01) + Tracer{true}(2.0, 0b10)).deps == 0b11
+        # May-depend semantics: a saturated `clamp` still reports its set.
+        @test clamp(Tracer{true}(5.0, 0b1), 0.0, 1.0).deps == 0b1
+        # Either arm would drop the other's set, so the global tracer refuses.
+        @test_throws Undecidable Tracer{true}(1.0, 0b1) < Tracer{true}(0.0, UInt64(0))
+        @test !(Tracer{true}(1.0, UInt64(0)) < Tracer{true}(0.0, UInt64(0)))
+        # The local tracer decides on the primal and reports the taken path.
+        @test Tracer{false}(1.0, 0b1) < Tracer{false}(2.0, 0b10)
     end
 end
 

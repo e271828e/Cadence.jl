@@ -774,6 +774,34 @@ late_diverger_handler(::LateDiverger, (; m)) = (m = (blown = true,),)
 state_events(::LateDiverger) = (blow = StateEvent(late_diverger_guard, late_diverger_handler),)
 
 # --- the algebraic-cycle coverage set (§5.5, §5.6) ----------------------------
+# What the feedthrough tracer has to tell apart: a hop stage 2 does not route, a
+# declaration no tracer scalar can enter, and a member whose evaluation throws.
+
+"""
+Consumes `b` in `state_derivative` only: stage 2 routes `a` and not `b`, so a
+loop closed through `b` is §5.4's last paragraph, artificial at port level.
+"""
+struct DerivativeFed <: AbstractComponent end
+
+init_x(::DerivativeFed) = (q = 0.0,)
+input_types(::DerivativeFed, ::Type{T}) where {T <: Real} = (a = T, b = T)
+output_types(::DerivativeFed, ::Type{T}) where {T <: Real} = (y = T,)
+output_direct(::DerivativeFed, (; u)) = (y = 2u.a,)
+state_derivative(::DerivativeFed, (; u)) = (q = u.b,)
+
+"""`Gain` with both ends pinned `Float64`: no tracer scalar can enter, so its hops trace structurally."""
+struct PinnedGain <: AbstractComponent end
+
+input_types(::PinnedGain, ::Type{T}) where {T <: Real} = (e = Float64,)
+output_types(::PinnedGain, ::Type{T}) where {T <: Real} = (out = Float64,)
+output_direct(::PinnedGain, (; u)) = (out = 2u.e,)
+
+"""`Gain` asserting its return `Float64`: fine at the nominal probe, a throw at any other scalar."""
+struct TypedGain <: AbstractComponent end
+
+input_types(::TypedGain, ::Type{T}) where {T <: Real} = (e = T,)
+output_types(::TypedGain, ::Type{T}) where {T <: Real} = (out = T,)
+output_direct(::TypedGain, (; u)) = (out = (2u.e)::Float64,)
 
 # --- the reference models -----------------------------------------------------
 

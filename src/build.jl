@@ -298,7 +298,8 @@ its residue: the residue is *decomposed* into one `AlgebraicCycle` per strongly
 connected cluster below (§5.6, D-012), which is why `edges` carries the
 per-dependence provenance Kahn itself discards.
 """
-function schedule_stage2(flat::Flat, tiers::Vector{Tier}, stage1::Vector, published::Vector)
+function schedule_stage2(flat::Flat, tiers::Vector{Tier}, decls::Vector{Decls},
+                         stage1::Vector, published::Vector, mstores::Vector)
     n = length(flat.comps)
     deps = [Int[] for _ in 1:n]
     edges = [Tuple{Int,Symbol,Symbol}[] for _ in 1:n]    # per consumer: (producer, port, face)
@@ -329,7 +330,9 @@ function schedule_stage2(flat::Flat, tiers::Vector{Tier}, stage1::Vector, publis
         end
     end
 
-    isempty(remaining) || throw(DiagnosticError(_cycle_diagnostics(flat, edges, remaining)))
+    isempty(remaining) ||
+        throw(DiagnosticError(_cycle_diagnostics(flat, edges, remaining, order, tiers, decls,
+                                                 stage1, published, mstores)))
     order
 end
 
@@ -339,10 +342,14 @@ component of the subgraph induced on the unplaced components is one cluster and
 one diagnostic; the innocent downstream cone the residue also holds lies in no
 such component and is reported nowhere. `members` is the depth-first preorder
 along the cluster's own wires from its lowest flatten index, neighbours taken in
-flatten order, and `wires` follows the members.
+flatten order, and `wires` follows the members. Each cluster is then handed to
+the tracer for §5.6's classification, `placed` being the acyclic prefix its
+out-of-cycle faces read from.
 """
 function _cycle_diagnostics(flat::Flat, edges::Vector{Vector{Tuple{Int,Symbol,Symbol}}},
-                            remaining::Set{Int})
+                            remaining::Set{Int}, placed::Vector{Int}, tiers::Vector{Tier},
+                            decls::Vector{Decls}, stage1::Vector, published::Vector,
+                            mstores::Vector)
     nodes = sort!(collect(remaining))
     succ = [Int[] for _ in eachindex(flat.comps)]        # producer → consumer, inside the residue
     for ci in nodes, (pi, _, _) in edges[ci]
@@ -363,10 +370,11 @@ function _cycle_diagnostics(flat::Flat, edges::Vector{Vector{Tuple{Int,Symbol,Sy
             pi in inscc && push!(ws, (pos[pi], pos[ci], string(pport), string(face)))
         end
         sort!(ws)
-        push!(clusters, (minimum(scc), AlgebraicCycle(
-            members = String[flat.paths[ci] for ci in order],
-            wires = ["$(flat.paths[order[a]])/$p" => "$(flat.paths[order[b]])/$f"
-                     for (a, b, p, f) in ws])))
+        d = AlgebraicCycle(members = String[flat.paths[ci] for ci in order],
+                           wires = ["$(flat.paths[order[a]])/$p" => "$(flat.paths[order[b]])/$f"
+                                    for (a, b, p, f) in ws])
+        push!(clusters, (minimum(scc), _classify(d, order, edges, placed, flat, tiers, decls,
+                                                 stage1, published, mstores)))
     end
     sort!(clusters; by = first)
     Diagnostic[d for (_, d) in clusters]
@@ -770,7 +778,8 @@ function _stratum_c(flat::Flat, tiers::Vector{Tier}, order, carry, ::Type{T}) wh
                            for ci in eachindex(flat.comps)]
     isempty(pubdiags) || throw(DiagnosticError(pubdiags))
 
-    order === nothing && (order = schedule_stage2(flat, tiers, stage1, published))
+    order === nothing &&
+        (order = schedule_stage2(flat, tiers, decls, stage1, published, mstores))
     layout = cell_layout(flat, decls, T)
     products = probe_stage2(flat, decls, tiers, stage1, published, order, layout,
                             wss, mstores, carry, T)
@@ -824,24 +833,8 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
          for face in keys(d.ins))...))
 
     for ci in order
-        c, path, d, s1 = flat.comps[ci], flat.paths[ci], decls[ci], stage1[ci]
-        (has_stage(output_direct, c) && !_frozen(tiers, ci, T)) || continue
-        stage = String(nameof(output_direct))
-        bn = bundle_names(output_direct, c, tiers[ci], tuple(keys(s1)...))
-        u = in_values(ci, d)
-        y2 = output_direct(c, _bundle_values(bn, d, u, s1, T; ws = wss[ci], m = mstores[ci],
-                                  Δt = 1.0))
-        y2 isa NamedTuple ||
-            throw(DiagnosticError(ConformanceFailure(path = path, what = stage,
-                                                reason = :return_type, shape = :namedtuple,
-                                                observed = typeof(y2))))
-        _check_ports(path, stage, y2, d.outs, T)
-        # Stage-1 position is the stage's or the framework's; either way a
-        # stage-2 return of the same port writes it twice (§5.3, §8.3).
-        twice = intersect(union(keys(s1), keys(published[ci])), keys(y2))
-        isempty(twice) ||
-            throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice))))
-        products[ci] = merge(s1, published[ci], _embed_ports(y2, d.outs, T))
+        _probe_direct!(products, ci, flat, decls, tiers, stage1, published, layout,
+                       wss, mstores, T)
     end
 
     # Completeness of the declaration set (§8.2), for every component and not
@@ -900,6 +893,38 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
     end
     isempty(diags) || throw(DiagnosticError(diags))
     products
+end
+
+"""
+One component's stage-2 probe, writing its complete product into `products[ci]`:
+the body of `probe_stage2`'s topological loop, factored so the cycle classifier
+can run the same chain over the acyclic prefix Kahn did place (§5.6). A
+component with no `output_direct`, and a frozen one, is a no-op.
+"""
+function _probe_direct!(products::Vector{NamedTuple}, ci::Int, flat::Flat,
+                        decls::Vector{Decls}, tiers::Vector{Tier}, stage1, published::Vector,
+                        layout::Layout, wss::Vector, mstores::Vector, ::Type{T}) where {T}
+    c, path, d, s1 = flat.comps[ci], flat.paths[ci], decls[ci], stage1[ci]
+    (has_stage(output_direct, c) && !_frozen(tiers, ci, T)) || return nothing
+    stage = String(nameof(output_direct))
+    bn = bundle_names(output_direct, c, tiers[ci], tuple(keys(s1)...))
+    u = NamedTuple{tuple(keys(d.ins)...)}(tuple(
+        (_probe_input(flat, layout, products, ci, face, d.ins[face], T)
+         for face in keys(d.ins))...))
+    y2 = output_direct(c, _bundle_values(bn, d, u, s1, T; ws = wss[ci], m = mstores[ci],
+                              Δt = 1.0))
+    y2 isa NamedTuple ||
+        throw(DiagnosticError(ConformanceFailure(path = path, what = stage,
+                                            reason = :return_type, shape = :namedtuple,
+                                            observed = typeof(y2))))
+    _check_ports(path, stage, y2, d.outs, T)
+    # Stage-1 position is the stage's or the framework's; either way a
+    # stage-2 return of the same port writes it twice (§5.3, §8.3).
+    twice = intersect(union(keys(s1), keys(published[ci])), keys(y2))
+    isempty(twice) ||
+        throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice))))
+    products[ci] = merge(s1, published[ci], _embed_ports(y2, d.outs, T))
+    nothing
 end
 
 # The complete state write-back (§9.3): the same predicate for

@@ -596,6 +596,36 @@ function diagnostics_kind_set()
                                 candidates = [:throttle, :brake]))
         @test occursin("names no `throtle`", m) && occursin("throttle, brake", m)
 
+        # The cycle's three forms (§5.5, §5.6, D-245), over constructed values: the
+        # cluster's wires read as one loop, and the classification, where there is
+        # one, names the dead hops in the ladder's own words.
+        m = message(AlgebraicCycle(members = ["plant", "sum", "ctl"],
+                                   wires = ["plant/power" => "sum/b", "sum/e" => "ctl/e",
+                                            "ctl/out" => "plant/u"]))
+        @test occursin("plant/power → sum/b, sum/e → ctl/e, ctl/out → plant/u", m)
+        @test occursin("break it with a state", m)
+        # Artificial: the hop, then §5.4's two exits, each dead member named once.
+        m = message(AlgebraicCycle(members = ["d", "g"],
+                                   wires = ["d/y" => "g/e", "g/out" => "d/b"],
+                                   classification = :artificial, dead = [("d", :b, :y)],
+                                   traced = ["d" => :global, "g" => :global]))
+        @test occursin("artificial at port level", m)
+        @test occursin("`d`'s `y` does not route `b`", m)
+        @test occursin("split `d`, or narrow", m)
+        # Real with a dead chord: the hop is still listed, as a wire to delete.
+        m = message(AlgebraicCycle(members = ["s", "g", "i"],
+                                   wires = ["s/e" => "g/e", "s/e" => "i/b",
+                                            "g/out" => "s/a", "i/y" => "s/b"],
+                                   classification = :real, dead = [("i", :b, :y)],
+                                   traced = ["s" => :global, "g" => :global, "i" => :global]))
+        @test occursin("a wire the loop does not need", m)
+        # The mode rides in the message: a structural map can never kill a hop.
+        m = message(AlgebraicCycle(members = ["p", "q"],
+                                   wires = ["p/b" => "q/a", "q/b" => "p/a"],
+                                   classification = :real,
+                                   traced = ["p" => :structural, "q" => :structural]))
+        @test occursin("structurally", m)
+
         # The remedy form: the shortfall, then the fix, with the list in hand.
         m = message(UninitializedInputs(op = :init!, faces = [:u, :e]))
         @test occursin("`init!`", m) && occursin("`u`, `e`", m)
