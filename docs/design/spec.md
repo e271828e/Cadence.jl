@@ -2449,7 +2449,8 @@ The edges of the container form are fixed by rule:
   list-in-hand it should have matched). All-component elements are children,
   and zero-component elements are inert parameter data.
 - Containers of containers are rejected in the first cut, because deeper
-  grouping is what assemblies are for.
+  grouping is what assemblies are for. The element whose value is itself a
+  component-bearing container is named, with its type (`ContainerNested`).
 - Empty containers are legal and contribute zero children, so parametric code
   needs no special case.
 - Abstract element types follow the same concreteness discipline as plain
@@ -10778,6 +10779,9 @@ with the collection and never trigger its throw, is currently empty
   the `child_connections` declaration and the offending leaf declarations.
 - **`ContainerMixed`** ([§8.5][s8-5]). Error · build · fail-fast. Container
   field path, offending element keys/indices, their types.
+- **`ContainerNested`** ([§8.5][s8-5]). Error · build · fail-fast. Container
+  field path, the element keys/indices that are themselves component-bearing
+  containers, their types.
 - **`DeclarationOnWrongTier`** ([§5.2][s5-2], [§8.2][s8-2], [§8.5][s8-5]).
   Error · build · collected. Component path, the offending declaration, the
   tier the leaf's other declarations announce. The offending declaration is
