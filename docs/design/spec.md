@@ -940,8 +940,9 @@ order.
 
 The build diagnostic offers both exits explicitly. It reads "cycle through
 `systems/aero` is artificial at port level — split the component, or narrow the
-neighbor's contract". The offending stage-2 function is carried as a separate
-[payload](#g-payload) field rather than dotted onto the path ([§8.6][s8-6], [§13.2][s13-2]).
+neighbor's contract". The dead hop, the member with the input face it does
+not route to the output port, is carried as a separate [payload](#g-payload)
+field rather than dotted onto the path ([§8.6][s8-6], [§13.2][s13-2]).
 
 The split is rare, and the ladder is what earns that word rather than asserting
 it. The two-stage split dissolves the common shapes, and the contract
@@ -957,8 +958,8 @@ the same ladder.
 ### 5.5 Algebraic loop policy: reject at build time
 
 A genuine cycle in the instantaneous dependency graph is a **build error**. The
-diagnostic names the full path in the canonical slash form of [§8.6][s8-6], as in
-`aero/F → dyn/a → aero/α̇ → aero/F`.
+diagnostic names every wire of the loop as a terminal pair in the canonical
+slash form of [§8.6][s8-6], as in `aero/F → dyn/F, dyn/a → aero/a`.
 
 The user breaks the cycle explicitly, by one of three routes. They can insert
 dynamics (the α-filter idiom), insert an explicit unit delay (`UnitDelay`,
@@ -986,8 +987,9 @@ and an artificial one gets the remedy ladder ([§5.4][s5-4]).
 The stalled subgraph is decomposed into **strongly connected components**. Each
 nontrivial SCC names one cyclic cluster exactly, and each cluster becomes one
 diagnostic. The diagnostic presents the cluster's members and the wires among
-them as one readable loop in the canonical slash form ([§8.6][s8-6], `aero/F → dyn/a →
-aero/α̇ → aero/F`). Neither the raw stall residue nor a single back edge names
+them as one readable loop of terminal pairs in the canonical slash form
+([§8.6][s8-6], `aero/F → dyn/F, dyn/a → aero/a`). Neither the raw stall residue
+nor a single back edge names
 the cluster correctly ([D-012][d-012]).
 
 **Classification is [schedule](#g-schedule)-free.** It runs inside Stratum B's failure path,

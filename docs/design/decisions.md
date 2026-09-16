@@ -455,7 +455,9 @@ per-member local trace at the probe point (each member evaluated once in
 isolation; in-cycle cells from `probe_value` under tracer tags) — real iff
 every structural hop survives, artificial iff one dies; conservative on
 discrete members (pinned signatures admit no tracer scalar), classification
-optional on the error.
+optional on the error. Superseded on the verdict clause by [D-245][d-245] — over a
+cluster the loop is real iff a traced cycle survives, which reduces to this
+reading on a simple cycle.
 
 **Spec.** [§5.6][s5-6], [§9.4][s9-4]
 
