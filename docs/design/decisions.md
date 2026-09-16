@@ -57,7 +57,7 @@ were derived.
 | [D-030][d-030] | Shutdown protocol: publish, wake, unblock, join | ratified |
 | [D-031][d-031] | Mid-run mutation doctrine: staging and control commands only | ratified |
 | [D-032][d-032] | Component declaration: trait layer with probe-checked schema authority | ratified |
-| [D-033][d-033] | Declaration inventory: by-value, by-type, by-allocation registers | ratified |
+| [D-033][d-033] | Declaration inventory: by-value, by-type, by-allocation conventions | ratified |
 | [D-034][d-034] | Contract visibility: declared fields are public | ratified |
 | [D-035][d-035] | Stores and views: components read zero-copy view bundles | ratified |
 | [D-036][d-036] | Table mechanics: stage returns are NamedTuples of port values | ratified |
@@ -90,7 +90,7 @@ were derived.
 | [D-063][d-063] | Conditions are path-addressed sparse overlays on `init_*` defaults | ratified |
 | [D-064][d-064] | Compose per-component init by pull, via fragment functions | ratified |
 | [D-065][d-065] | Fragments form a lazy inert tree, resolved against the `Build` | ratified |
-| [D-066][d-066] | Two application registers: specialized `apply!` vs dynamic entry-list walk | ratified |
+| [D-066][d-066] | Two ways to apply one plan: specialized `apply!` vs dynamic entry-list walk | ratified |
 | [D-067][d-067] | Boundary zero runs the macro-sequence with an empty integrate | ratified |
 | [D-068][d-068] | Enforce slot totality at the init/commit service boundary | ratified |
 | [D-069][d-069] | Trim problem spelling: NamedTuples, residual vector, exact AD Jacobians | ratified |
@@ -100,7 +100,7 @@ were derived.
 | [D-073][d-073] | Companion sketches carry the settled condition-algebra design | ratified |
 | [D-074][d-074] | Hand off component-function arguments as one named bundle | ratified |
 | [D-075][d-075] | Name flow/update/output stages by letter and dependence class | ratified |
-| [D-076][d-076] | Name declarations `input_types`/`output_types`/`local_types` by register | ratified |
+| [D-076][d-076] | Name declarations `input_types`/`output_types`/`local_types` by convention | ratified |
 | [D-077][d-077] | Allocate workspace via a per-activation `workspace` method | ratified |
 | [D-078][d-078] | Treat input entries as face constraints checked by subtyping | ratified |
 | [D-079][d-079] | Type declarations concretely, resolved by an activation leaf walk | ratified |
@@ -120,7 +120,7 @@ were derived.
 | [D-093][d-093] | Spawn device tasks per run, not per attach | ratified |
 | [D-094][d-094] | Close the state-leaf vocabulary to plain scalars and `SArray`s | ratified |
 | [D-095][d-095] | Prefix the read-selector family with `get_` | ratified |
-| [D-096][d-096] | Define the harness register: `stage!`/`latest`/`step!` duration | ratified |
+| [D-096][d-096] | Define the harness writer: `stage!`/`latest`/`step!` duration | ratified |
 | [D-097][d-097] | Split device shutdown failures into two diagnostic kinds | ratified |
 | [D-098][d-098] | Resolve selectors against a source before client policy | ratified |
 | [D-099][d-099] | Spell the CI activation invariant with a canonical probe scalar type | ratified |
@@ -148,13 +148,13 @@ were derived.
 | [D-121][d-121] | Partition the cell/store vocabulary and bless "staging cell" | ratified |
 | [D-122][d-122] | Resolve de-polysemy by giving each overloaded term one owner | ratified |
 | [D-123][d-123] | Add a non-normative Appendix D glossary | ratified |
-| [D-124][d-124] | Widen §14.7's `reads` grammar to the full load-bearing selector set | ratified |
-| [D-125][d-125] | Admit `get_face` to the load-bearing `reads` set | ratified |
+| [D-124][d-124] | Widen §14.7's `reads` grammar to the full service selector set | ratified |
+| [D-125][d-125] | Admit `get_face` to the service `reads` set | ratified |
 | [D-126][d-126] | Give trim-commit events a report channel | ratified |
 | [D-127][d-127] | Add a deployment block to the trace header for replay validation | ratified |
 | [D-128][d-128] | Define `to_boundary` as the frame-entry boundary index | ratified |
 | [D-129][d-129] | Restate the two-notation rule as directional (structure vs contract) | ratified |
-| [D-130][d-130] | Scope `resolve`'s generic-boundary duty by register (structural/load-bearing/diagnostic) | ratified |
+| [D-130][d-130] | Scope `resolve`'s generic-boundary duty by client (wiring/service/inspection) | ratified |
 | [D-131][d-131] | Apply the round-4 consistency sweep (findings 4–11) | ratified |
 | [D-132][d-132] | Treat operator interrupt (Ctrl-C) as a control-plane stop, not a failure | ratified |
 | [D-133][d-133] | Split spec-invoked numeric constants into deployment parameters vs owning-section defaults | ratified |
@@ -185,7 +185,7 @@ were derived.
 | [D-158][d-158] | Pin the backend seam to one required `solve` signature | ratified |
 | [D-159][d-159] | Define `warning (service)` as a sixth severity | ratified |
 | [D-160][d-160] | Rename `report` to `report!` | ratified |
-| [D-161][d-161] | Grow the naming audit to the full register-violation set | ratified |
+| [D-161][d-161] | Grow the naming audit to the full class-violation set | ratified |
 | [D-162][d-162] | Adopt per-eltype homogeneous cell stores over per-instance | ratified |
 | [D-163][d-163] | Ban `==` for separately-compiled float comparisons | ratified |
 | [D-164][d-164] | Reject components that declare nothing and define no stage | ratified |
@@ -209,7 +209,7 @@ were derived.
 | [D-182][d-182] | Add a θ=0 validation probe to the localization trigger | ratified |
 | [D-183][d-183] | Retire workspace poisoning | ratified |
 | [D-184][d-184] | Fold `Group` into the spec as an ordinary library component | ratified |
-| [D-185][d-185] | Adopt the phased, two-register sample-time declaration | ratified |
+| [D-185][d-185] | Adopt the phased, two-form sample-time declaration | ratified |
 | [D-186][d-186] | Legalize absolute declarations in any scope via anchors | ratified |
 | [D-187][d-187] | Make the bound schedule a named artifact with exact grid diagnostics | ratified |
 | [D-188][d-188] | Construct `TrimProblem` by keyword everywhere | ratified |
@@ -224,7 +224,7 @@ were derived.
 | [D-197][d-197] | Reject discrete stores in linearization's `x`-tap list | ratified |
 | [D-198][d-198] | Promote the shutdown join timeout to a deployment keyword | ratified |
 | [D-199][d-199] | The `reads` enumeration returns a labeled NamedTuple of selectors | ratified |
-| [D-200][d-200] | The harness register is a diagnostic writer with its own cell | ratified |
+| [D-200][d-200] | The harness writer has its own cell and is diagnostic only | ratified |
 | [D-201][d-201] | The terminal account closes at the final frame top | ratified |
 | [D-202][d-202] | Stage batches as values plus touched-mask, never union tuples | ratified |
 | [D-203][d-203] | The termination record carries typed sources and the tail residue | ratified |
@@ -266,6 +266,7 @@ were derived.
 | [D-239][d-239] | Report a typo'd return field alone, without the unproduced port | ratified |
 | [D-240][d-240] | Read the heartbeat at publication, beside the task state | ratified |
 | [D-241][d-241] | Keep the status a vector of records, one small allocation per publication | ratified |
+| [D-242][d-242] | Name the resolution cases wiring, service and inspection, and retire "register" and "load-bearing" as spec vocabulary | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -872,7 +873,7 @@ idiom; EOT demoted to wire courtesy) → join with named timeout; device crash =
 **Rationale.** Recorded only through the rejections below.
 
 **Rejected.**
-- *EOT as the load-bearing unblock mechanism:* protocol detail doing framework
+- *EOT as the relied-on unblock mechanism:* protocol detail doing framework
   work.
 - *Unbounded join:* one wedged device hangs `run!`.
 - *Mid-frame abort:* torn final snapshot; consumers observe un-swept state.
@@ -909,7 +910,7 @@ addition with shape on record.
 (well-known functions returning plain values; stage functions ordinary
 methods); schema authority — declarations define, probe evaluation checks
 (build probe with real values + free always-on conformance); convenience macros
-addable a posteriori, never load-bearing.
+addable a posteriori, never essential.
 
 **Spec.** [§8.1][s8-1], [§8.4][s8-4]
 
@@ -934,7 +935,7 @@ addable a posteriori, never load-bearing.
 - *Optional declarations with inference fallback:* two idioms; the quick hacks
   most likely to skip are most likely to harbor branch bugs.
 
-### D-033 — Declaration inventory: by-value, by-type, by-allocation registers
+### D-033 — Declaration inventory: by-value, by-type, by-allocation conventions
 
 **Status.** ratified
 
@@ -949,7 +950,7 @@ derived (inputless `h_x` probes first, remainder is stage 2), no stage tags.
 
 **Spec.** [§4.2][s4-2], [§8.1][s8-1], [§8.2][s8-2], [§9.7][s9-7]
 
-**Rationale.** The inventory is self-classifying by register: by value
+**Rationale.** The inventory is self-classifying by convention: by value
 `init_*`, by type `*_types`, by allocation `workspace` ([D-076][d-076]). Contract
 declarations are functions of the component's *type*, parameters included
 (`SumJunction{W,N}`, `Or{N}`), never of field values — `workspace` explicitly
@@ -964,8 +965,8 @@ key set from the type; a rule authors keep, not a check the build can run
   = deliberate non-participation; retired with the `T`-signature ([D-079][d-079]).
 - *Exact-equality wiring check:* relaxed to subtype, equality the concrete
   degenerate ([D-078][d-078]).
-- *The names `inputs`/`outputs`/`locals`:* renamed for register
-  self-classification and to dissolve the `inputs` vs `input_faces` ambiguity
+- *The names `inputs`/`outputs`/`locals`:* renamed for self-classification by
+  convention and to dissolve the `inputs` vs `input_faces` ambiguity
   ([D-076][d-076]).
 - *Under-the-hood `Float64→T` substitution:* reflection-heavy; cannot
   distinguish honest `Float64`s.
@@ -1237,7 +1238,7 @@ structurally cannot arise and drain order stays diagnostic.
   discard every GUI write.
 - *Ownership-only discard (claimed-by-another):* leaves enumerated bindings
   unenforced at the drain and reopens unclaimed multi-writer races.
-- *Unclaimed-register opportunism "for any device":* reinstates the rejected
+- *Unclaimed-surface opportunism "for any device":* reinstates the rejected
   attachment-order policy; breaks [§11.7][s11-7]'s stays-put and sole-writer arguments.
 
 ### D-045 — Periphery input semantics: derived liveness, conditioning, mappings, edge logic
@@ -1574,7 +1575,7 @@ compiler-style rendering.
 - User-code exceptions are wrapped in framing diagnostics, the original riding
   as `cause`.
 - Warnings ride the same stream and never throw.
-- The didactic register is policy.
+- The didactic style is policy.
 - Tests match kind + payload, never message text.
 
 **Spec.** [Appendix C][sC]
@@ -1648,8 +1649,8 @@ always abnormal; no `SimulationTermination` exception type.
   about it.
 - *Control-plane capability components* ([§12.1][s12-1]): components live inside
   boundary semantics.
-- *Observation-by-path:* load-bearing observation must speak the contract;
-  diagnostic observation sees everything — [§6.1][s6-1]'s knowledge rule applied to
+- *Observation-by-path:* service observation must speak the contract;
+  inspection observation sees everything — [§6.1][s6-1]'s knowledge rule applied to
   reads.
 
 ### D-061 — `resolve` walks declared types to enforce the generic-boundary rule
@@ -1659,10 +1660,10 @@ always abnormal; no `SimulationTermination` exception type.
 **Position.** `resolve(asm, path)` walks declared field types alongside
 instances, enforcing [§6.1][s6-1]'s generic-boundary rule at the primitive
 (past-generic segment = diagnostic even where the instance resolves;
-register-scoped by [D-130][d-130] — structural and load-bearing registers enforce, the
-diagnostic register takes the instance walk); `input_faces`/`output_faces`
-return declaration-ordered face-name strings; the wiring resolver splits a
-terminal path's final segment (slash the only structural separator).
+client-scoped by [D-130][d-130] — wiring and service clients enforce, the inspection
+client takes the instance walk); `input_faces`/`output_faces` return
+declaration-ordered face-name strings; the wiring resolver splits a terminal
+path's final segment (slash the only structural separator).
 
 **Spec.** [§6.1][s6-1]
 
@@ -1714,7 +1715,7 @@ apply).
   outside the path vocabulary.
 - *Current-stores overlay base:* run-history dependence breaks header
   reproducibility.
-- *Condition-by-contract-only:* forfeits the concrete-build authoring register
+- *Condition-by-contract-only:* forfeits the concrete-build authoring idiom
   that `connections` already occupies.
 
 ### D-064 — Compose per-component init by pull, via fragment functions
@@ -1764,11 +1765,11 @@ untouched.
 - *Machine-enforced ownership:* not build-visible; same convention status as
   [§6.1][s6-1].
 
-### D-066 — Two application registers: specialized `apply!` vs dynamic entry-list walk
+### D-066 — Two ways to apply one plan: specialized `apply!` vs dynamic entry-list walk
 
 **Status.** ratified
 
-**Position.** Two application registers over one compiled plan: specialized
+**Position.** Two ways to apply one compiled plan: specialized
 `apply!` (`Getter{P}` lenses, unrolled baked stores, zero-alloc; [§9.5][s9-5]-style
 shape check via tree type + literal `===` sweep; ~10–50 ms codegen once per
 shape) for iterating services; dynamic entry-list walk (microseconds, no
@@ -1781,9 +1782,9 @@ primitive family in the `Build`'s client kit.
 **Rationale.** Recorded only through the rejections below.
 
 **Rejected.**
-- *Single always-specialized register:* per-shape codegen tax on scripted
+- *A single always-specialized form:* per-shape codegen tax on scripted
   one-shot conditions.
-- *Single always-dynamic register:* forfeits the zero-alloc trim loop.
+- *A single always-dynamic form:* forfeits the zero-alloc trim loop.
 - *Per-write convert decisions:* the converter is a resolution-time fact;
   [§9.5][s9-5]'s no-convert-on-write stands for table cells.
 
@@ -1945,7 +1946,7 @@ unifies the services as condition-algebra clients.
 - The world-level `f_init!` wrapper dissolves into the `baseline` condition:
   method nesting becomes value layering.
 - `design_world(ac)` promotes today's ad-hoc linearize models to a shipped rig
-  ("root" = shallowest world, one register).
+  ("root" = shallowest world, one idiom).
 - A swarm takes one problem per solve — sequential commits, or user-side joint
   composition (concatenated decisions, merged trees, stacked residuals).
 - A `product()` helper is recorded for the [§13.7][s13-7] library, unbuilt.
@@ -1957,8 +1958,8 @@ unifies the services as condition-algebra clients.
 **Rejected.**
 - *World-level trim wrapper methods:* call-tree reuse: one method per
   container, ad-hoc plumbing per multi-aircraft case.
-- *Literal aircraft-as-root register:* environment inputs must be wired from
-  providers; a second register to maintain.
+- *Literal aircraft-as-root idiom:* environment inputs must be wired from
+  providers; a second idiom to maintain.
 - *Framework-side joint-trim machinery now:* user-side value composition
   suffices until routine.
 
@@ -2017,7 +2018,7 @@ unparametrized type constructor.
 - *Split-form sketch files and separate `navsensors.jl`/`imu.md` notes:*
   retired, content absorbed into [§15.5][s15-5].
 - *`init_*` as types + `probe_value` synthesis:* defaults are the [§14.1][s14-1] overlay
-  base; the [§14.6][s14-6] probe-value barrier; a per-field two-register protocol,
+  base; the [§14.6][s14-6] probe-value barrier; a per-field two-form protocol,
   [§14.2][s14-2]. The `init_*`-as-types grounds spelled out ([§8.2][s8-2]): the condition
   substrate needs an authored value under every leaf ([§14.1][s14-1]'s overlays fall
   back leaf by leaf and the compiled store writers bake `merge(defaults,
@@ -2025,9 +2026,9 @@ unparametrized type constructor.
   (a fabricated zero is a fine probe input and a terrible flight condition —
   states no less than slots), and every field where synthesis picks wrong
   (modes, `Ranged` values excluding zero, trim-sensitive states) would need an
-  authored default *beside* its type — the per-field two-register protocol
+  authored default *beside* its type — the per-field two-form protocol
   [§14.2][s14-2] kills for `initialize` specs, aggravated in Julia by types being
-  first-class values, the two registers distinguishable only by `isa Type`.
+  first-class values, the two forms distinguishable only by `isa Type`.
 - *Extending differentiation through the discrete tier now:* frozen-`z` is
   exact for every built consumer; $\Phi$ differentiability breaks at events —
   kept as an opt-in door.
@@ -2056,7 +2057,7 @@ wrapper the recorded fallback.
 **Rejected.**
 - *Positional signatures + a clock-view type:* dead slots written unread,
   un-droppable mid-list holes; the view type subsumed by naming.
-- *Keyword arguments via `Base.kwarg_decl` reflection:* load-bearing seam on an
+- *Keyword arguments via `Base.kwarg_decl` reflection:* a relied-on seam on an
   internal binding — the [§10.1][s10-1] `task_local_storage` lesson.
 - *Keyword + `_...` slurp:* permanent noise; "signature = read-set" weakens to
   "at least".
@@ -2108,12 +2109,12 @@ taught (stage name ⊇ bundle ⊇ destructured reads).
 - *The earlier `g_s1`/`g_s2` stage spelling:* numbered stages name a schedule
   position, not a dependence class, and leave `h` double-booked.
 
-### D-076 — Name declarations `input_types`/`output_types`/`local_types` by register
+### D-076 — Name declarations `input_types`/`output_types`/`local_types` by convention
 
 **Status.** ratified
 
 **Position.** Declaration names: `input_types`/`output_types`/`local_types` —
-the inventory becomes self-classifying by register (by value `init_*`, by type
+the inventory becomes self-classifying by convention (by value `init_*`, by type
 `*_types`, by allocation `workspace`).
 
 **Rationale.** The `input_types`-vs-`input_faces` types/names near-collision
@@ -2123,7 +2124,7 @@ signature.
 **Rejected.**
 - *`*_ports`:* the methods type ports, not just enumerate them.
 - *`*_schema`:* vaguer than what it replaces.
-- *The bare `inputs`/`outputs`/`locals` status quo:* two unmarked registers in
+- *The bare `inputs`/`outputs`/`locals` status quo:* two unmarked classes in
   one inventory; `inputs(c)` vs `input_faces(c)` ambiguity.
 
 ### D-077 — Allocate workspace via a per-activation `workspace` method
@@ -2313,21 +2314,21 @@ never accumulated (remainder step targets the grid point).
 **Status.** ratified
 
 **Position.** Output-device reads are snapshot-path bindings: writes speak the
-root contract (faces, claims, exclusivity — load-bearing by definition), reads
-see the whole table (diagnostic observation, the log/GUI/replay register; local
+root contract (faces, claims, exclusivity — service by definition), reads see
+the whole table (inspection observation, the log/GUI/replay clients; local
 cells accessible — presentation filters are defaults, not walls).
 
 **Spec.** [§13.3][s13-3], [§13.5][s13-5], [§14.4][s14-4]
 
 **Rationale.** Attach validation against the `Build` makes structural drift
-loud; two-register guidance — deep path = inspection (zero promises, right for
+loud; two-sided guidance — deep path = inspection (zero promises, right for
 this build), exported output face = integration (curated writer-independent
 meaning, the only shield against silent semantic drift under
 same-path/same-type substitution); generic consumers bind faces, aircraft
 families export conventional surfaces with wrapper types (`VelocityData` —
 field meaning defined at the type; wrong quantity = deliberate lie, not drift)
 as the checkable fraction of semantics; [§13.5][s13-5]'s observation-by-path rejection
-rests on the load-bearing/diagnostic split alone.
+rests on the service/inspection split alone.
 
 **Rejected.**
 - *Faces-only reads:* export bloat: the root contract as a peripheral dumping
@@ -2420,7 +2421,7 @@ by the walk.
   rescues only toy scale and cannot close an open method set.
 - *Type-erased call tables (`FunctionWrapper`-style):* same specialization
   count as chunk-of-one with extra machinery, no cross-entry inlining/SROA,
-  load-bearing seam on internal ABI — the [§10.1][s10-1] lesson.
+  a relied-on seam on internal ABI — the [§10.1][s10-1] lesson.
 - *Framework-maintained view hoisting:* manual cache-invalidation duty for
   loads the compiler hoists exactly where legal; mis-scoping = silent
   stale-state reads.
@@ -2474,8 +2475,8 @@ during `step!` through the ordinary [§12.4][s12-4] tail, and `step!` returns th
 `errored` terminal ([D-059][d-059]).
 
 **Rejected.**
-- *`run!`-only surface:* kills the test-harness advance-assert register and the
-  REPL fly-inspect-continue register — neither is a [§12.5][s12-5] script.
+- *`run!`-only surface:* kills the test-harness advance-assert idiom and the
+  REPL fly-inspect-continue idiom — neither is a [§12.5][s12-5] script.
 - *Implicit auto-`init!`:* which condition? silent defaults are [§14.6][s14-6]'s
   rejected zero-fill.
 - *Resumable errored sims:* [D-059][d-059] — stores may be mid-boundary.
@@ -2590,7 +2591,7 @@ true` mere ensure-rostered sugar ([D-109][d-109]) — otherwise the loop runs on
 calling task (preserving [§13.4][s13-4]'s synchronous rethrow and inline threading of
 parallel batch sweeps); `run!` blocks its caller either way. Stepping sessions
 are deviceless by construction (`attach!` registers only, tasks appear at the
-next `run!`); the write/read paths while stepping are [D-096][d-096]'s harness register;
+next `run!`); the write/read paths while stepping are [D-096][d-096]'s harness writer;
 `init!` discards staged batches along with trace and log.
 
 **Rejected.**
@@ -2627,7 +2628,7 @@ live in `project` and on the write paths (condition apply's baked converts
 [§14.3][s14-3], `capture`'s gather, handlers' own constructors).
 
 Annotation (2026-09-14): the declaration is also flat. A `NamedTuple` field
-would materialize without invariants, but the condition register and the
+would materialize without invariants, but the condition algebra and the
 readers address an `init_x` field as one leaf ([§14.3][s14-3], [§14.4][s14-4]), and structure is
 the component tree's to express; the check that enforces the vocabulary
 refuses nesting with the rest.
@@ -2658,11 +2659,11 @@ domain code, and restores the `local_types` ↔ `get_local` pairing.
 
 **Spec.** [§11.2][s11-2], [§14.4][s14-4]
 
-**Rationale.** `get_face` gives [§11.2][s11-2]'s integration register its spelling
-(previously recommended but unspellable); validation = three policies:
-load-bearing services `get_state`/`get_deriv`/`get_output`/`get_slot`
-(completed by [D-125][d-125]: `get_face` admitted) within owned scopes (no `get_local` —
-export instead), diagnostic readers the whole family (within [D-098][d-098]'s later
+**Rationale.** `get_face` gives [§11.2][s11-2]'s integration reads their spelling
+(previously recommended but unspellable); validation = three policies: the
+services `get_state`/`get_deriv`/`get_output`/`get_slot` (completed by
+[D-125][d-125]: `get_face` admitted) within owned scopes (no `get_local` — export
+instead), inspection readers the whole family (within [D-098][d-098]'s later
 source axis), `stop_on` outside the family entirely (root-exported `Bool` faces
 only, [D-060][d-060]).
 
@@ -2678,15 +2679,15 @@ only, [D-060][d-060]).
   the round-1 slip that motivated the rewrite.
 - *`get_slot` doubling for output faces:* opposite directions under one name.
 
-### D-096 — Define the harness register: `stage!`/`latest`/`step!` duration
+### D-096 — Define the harness writer: `stage!`/`latest`/`step!` duration
 
 **Status.** ratified
 
-**Position.** The harness register ([§12.6][s12-6], [§11.3][s11-3], [§11.2][s11-2]): `stage!(sim, "face" =>
+**Position.** The harness writer ([§12.6][s12-6], [§11.3][s11-3], [§11.2][s11-2]): `stage!(sim, "face" =>
 value, ...)` = task-free staging from the calling task into the interactive
-register ([D-044][d-044]'s derived surface) — traced, surface-checked, drained *last* at
+writer ([D-044][d-044]'s derived surface) — traced, surface-checked, drained *last* at
 the frame top (the explicit hand of code beats a widget interaction; sequencing
-within one register, not cross-device policy), so the mutation doctrine
+within one writer, not cross-device policy), so the mutation doctrine
 (staging and control, nothing else) and replay bit-identity hold.
 
 **Spec.** [§11.2][s11-2], [§11.3][s11-3], [§12.6][s12-6]
@@ -2695,7 +2696,7 @@ within one register, not cross-device policy), so the mutation doctrine
 immutable value device handles read; `step!` gains the duration spelling
 `t_plus` (whole frames until the boundary time covers the duration, mutually
 exclusive with `frames`); together the write/read halves of [D-088][d-088]'s
-advance-assert and fly-inspect registers and the migration path for the suite's
+advance-assert and fly-inspect idioms and the migration path for the suite's
 dominant write-`u` → `step!` → assert idiom.
 
 **Rejected.**
@@ -2704,7 +2705,7 @@ dominant write-`u` → `step!` → assert idiom.
 - *`step!(sim; inputs = …)` drain-from-argument:* a second staging spelling
   with no `run!` analogue.
 - *Direct slot pokes from the calling task:* [§2.2][s2-2]/[§12.5][s12-5]'s rejected
-  unrecorded-mutation register — breaks replay.
+  unrecorded-mutation idiom — breaks replay.
 - *Leaving reads to device handles or the log:* the log can be off, a handle
   needs a device, and [D-088][d-088]'s "inspect" must be spellable.
 - *A public closure-evaluation API:* [§13.5][s13-5]'s rejected cost — an inspection
@@ -2723,7 +2724,7 @@ disposition), both warning (runtime).
 
 **Rationale.** [§12.4][s12-4]'s committed abandoned-join warning and device-crash log
 join [§13.2][s13-2]'s closed inventory per [D-092][d-092]'s rule; two kinds, not one, because the
-payloads differ in the load-bearing field (`cause`) and [§13.4][s13-4]'s domain
+payloads differ in the decisive field (`cause`) and [§13.4][s13-4]'s domain
 separation already treats the crash path as its own species.
 
 **Rejected.**
@@ -2746,7 +2747,7 @@ stopped-sim service evaluations, `capture` and post-run inspection ever hold.
 
 **Rationale.** A snapshot-bound reader naming a store selector is an
 attach-time `ReadBindingUnresolved` (new `reason` payload field), didactic
-register, remedy = declare the field public and read the auto-published port;
+style, remedy = declare the field public and read the auto-published port;
 [D-083][d-083]'s client split rides on top unchanged, [D-095][d-095]'s family stays closed and
 identically spelled.
 
@@ -2838,10 +2839,10 @@ prefix); pacing/control plane unchanged (paced replay + visualizer = session
 playback); rostered devices run as snapshot readers, live staging never drained
 (`ReplayDiscardedStaging`); entry validation loud and up front
 (`ReplayHeaderMismatch`, `ReplayUnknownFace`), the same pass normalizing the
-interactive register's sparse records to positional batches against the
+interactive writer's sparse records to positional batches against the
 header's schemas ([D-107][d-107] — once, off the loop, so the replay drain applies
 compiled scatters exactly as the live drain); structural mismatch errors,
-parametric difference = the what-if register (determinism promised,
+parametric difference = the what-if replay (determinism promised,
 reproduction only against the identical build).
 
 **Rejected.**
@@ -2933,7 +2934,7 @@ framework conversion on the device task.
 
 **Spec.** [§11.2][s11-2], [§11.4][s11-4]
 
-**Rationale.** The interactive register gets the same treatment under the [D-106][d-106]
+**Rationale.** The interactive writer gets the same treatment under the [D-106][d-106]
 freeze — positional shape over the unclaimed set, recompiled at each
 stopped-sim `attach!`/`detach!` (which also renormalizes pending batches:
 reshape, discard newly-claimed faces with `ClaimedFaceEntry`) — one
@@ -2955,7 +2956,7 @@ normalization.
 - *Name-keyed batches everywhere:* dynamic dispatch in the drain, inside the
   loop's frame.
 - *One build-wide shape over all root faces:* trace memory inflates by
-  faces/entries, and only the interactive register would need it.
+  faces/entries, and only the interactive writer would need it.
 
 ### D-105 — Split device-side bad-datum handling into tolerated garbage and propagated crashes
 
@@ -3033,7 +3034,7 @@ and was barely reachable.
 
 **Position.** Trace records match batch density: enumerated writers' positional
 batches are retained verbatim, zero-copy (claim-narrow, dense by nature); the
-interactive register's wide mostly-`nothing` tuple is converted at the drain on
+interactive writer's wide mostly-`nothing` tuple is converted at the drain on
 retention — (position ⇒ value) pairs for the non-`nothing` entries, an
 O(surface-width) scan and one small allocation at most once per frame, only on
 interactive-active frames, inside the [§7.5][s7-5] retention carve-out the log already
@@ -3086,7 +3087,7 @@ stay readable as diagnostics, never as condition values; one kind
 lacked.
 
 **Rejected.**
-- *Folding `MissingInit` into `ServiceLifecycle`:* distinct registers: a
+- *Folding `MissingInit` into `ServiceLifecycle`:* distinct cases: a
   missing prior step pointing forward to `init!` vs. an operation illegal in
   the current state — different messages, different tests.
 - *Tolerating `capture` on `errored` for diagnostics:* the produced condition
@@ -3149,7 +3150,7 @@ canonical statement, and the looser "roster-derived" shorthand elsewhere
 
 **Position.** `trim!` commit clock and recording clear: `trim!` gains the
 init-service `t0` argument (`trim!(sim, problem; baseline, t0 = 0.0, backend)`)
-— [D-067][d-067]'s register applied to the second init-service entry point, never a
+— [D-067][d-067]'s rule applied to the second init-service entry point, never a
 `TrimProblem` field (problems stay time-free, [§14.9][s14-9]'s lift untouched); default
 `0.0` matching `init!` (one rule for both entry points), resume-at-time spelled
 explicitly via `capture`'s returned `t` passed as `t0`.
@@ -3326,7 +3327,7 @@ re-invocation, not an introduction.
 named callables bound over the simulation's own buffers — the four blocks
 (`rhs`, `sweep_hx`, `sweep_hxu`, `ticks` taking the tick index its entries gate
 on) plus per-event guards/handlers and per-component `project`, keyed by the
-model's roster; one diagnostic-register promise: identity with the bodies the
+model's roster; one inspection promise: identity with the bodies the
 loop runs, so the in-loop argument types come by construction; CI is
 warm-then-assert at per-body granularity (a documented tolerance loosens
 exactly one assertion).
@@ -3383,9 +3384,9 @@ extension-only surface; short names stay unexported deliberately (`f`, `g`,
   through the namespace.
 - *A re-export submodule as the ergonomic fix:* `using Flight.Declarations`
   carries identical silent-shadowing semantics — per-name `import` is the only
-  extension register the language provides.
+  extension idiom the language provides.
 - *Adopting an `@declarations` macro now:* sugar addable a posteriori, never
-  load-bearing ([D-032][d-032]).
+  essential ([D-032][d-032]).
 
 ### D-118 — TrimProblem authoring surface
 
@@ -3461,7 +3462,7 @@ producer; in a rig, a stub child).
 **Rejected.**
 - *Relaxing abstract-at-root:* [D-078][d-078] stands: staging cells, trace header and
   `probe_value` need concrete types at build.
-- *A narrowing register at export:* new machinery, breaks the consumer-sourced
+- *A narrowing form at export:* new machinery, breaks the consumer-sourced
   slot-typing rule and [§13.7][s13-7]'s no-framework-support charter.
 - *Leaving [§13.7][s13-7]'s "any component in isolation" claim unqualified:* false for
   exactly the class [§4.4][s4-4] exists to support.
@@ -3492,7 +3493,7 @@ observed" ([D-082][d-082] restated, no semantic change).
 - *Rewriting the log's historical [D-004][d-004]/[D-013][d-013]/[D-024][d-024] to the new vocabulary:*
   amendments annotate, never rewrite.
 - *Leaving [§4.1][s4-1]'s "throughout this document" rule broken by the spec's own
-  load-bearing prose:* a reader applying it uniformly derives the wrong
+  normative prose:* a reader applying it uniformly derives the wrong
   mutation invariant for staging cells.
 
 ### D-122 — Resolve de-polysemy by giving each overloaded term one owner
@@ -3558,7 +3559,7 @@ batch/collect, register/recorders, frame/boundary).
 [Appendix D][sD]
 
 **Rationale.** [§11.1][s11-1] gains the **frame** anchor — one loop iteration (drain,
-integrate, boundary sequence, publication), the one load-bearing term used
+integrate, boundary sequence, publication), the one central term used
 throughout without a defining home, with kinematic reference frames always
 compounded. Drafting doubled as an audit and closed [D-122][d-122]'s application
 stragglers (component-sense "kind" residue in [§3][s3], [§11.3][s11-3]–[§11.6][s11-6], [§8.2][s8-2]/[§8.6][s8-6],
@@ -3574,11 +3575,11 @@ diagnostic-name half).
 - *Defining *frame* in the glossary alone:* a non-normative entry cannot own a
   term; the [§11.1][s11-1] anchor gives it a normative home.
 
-### D-124 — Widen §14.7's `reads` grammar to the full load-bearing selector set
+### D-124 — Widen §14.7's `reads` grammar to the full service selector set
 
 **Status.** ratified
 
-**Position.** [§14.7][s14-7]'s `reads` grammar widens to the full load-bearing set
+**Position.** [§14.7][s14-7]'s `reads` grammar widens to the full service set
 ([D-095][d-095]'s four plus [D-125][d-125]'s `get_face`) with per-selector validation targets —
 `get_state`/`get_deriv` against `init_x`, `get_output` against `output_types`,
 `get_slot`/`get_face` against the root face lists; the two-selector alternation
@@ -3589,7 +3590,7 @@ was a pre-[D-095][d-095] straggler, not policy.
 **Rationale.** [§14.4][s14-4]'s source axis is restated as *table sources* (a boundary
 snapshot, or the scratch tables a service evaluation instantiates, [§14.8][s14-8]) vs.
 store sources — the prior "boundary snapshot" wording did not cover trim, the
-axis's primary load-bearing client; [D-098][d-098]'s enforcement (snapshot-bound store
+axis's primary service client; [D-098][d-098]'s enforcement (snapshot-bound store
 selector = attach-time `ReadBindingUnresolved`) is unchanged.
 
 **Rejected.**
@@ -3600,14 +3601,14 @@ selector = attach-time `ReadBindingUnresolved`) is unchanged.
   prose:* the axis's own point is that source precedes client policy — an axis
   that skips its primary client is not an axis.
 
-### D-125 — Admit `get_face` to the load-bearing `reads` set
+### D-125 — Admit `get_face` to the service `reads` set
 
 **Status.** ratified
 
-**Position.** `get_face` is admitted to the load-bearing set — it resolves
+**Position.** `get_face` is admitted to the service set — it resolves
 through export chains exactly as [§14.9][s14-9]'s mounting resolves slot faces (the read
 side mirroring the write side), so an equilibrium equation crossing a generic
-seam binds the curated face register. This amends [D-095][d-095]: the four-selector set
+seam binds the curated face contract. This amends [D-095][d-095]: the four-selector set
 was inherited from [D-083][d-083] and predates `get_face`'s spelling ([D-095][d-095]), so this is
 completion, not reversal.
 
@@ -3626,13 +3627,13 @@ outline. Grounding: the C172's engine-speed equilibrium
 of the real aircraft tree is a generic seam.
 
 **Rejected.**
-- *Load-bearing deep paths past generic seams / instance-resolved `reads`:*
-  dissolves [D-083][d-083]'s register split exactly where it pays: a same-path/same-type
+- *Service deep paths past generic seams / instance-resolved `reads`:*
+  dissolves [D-083][d-083]'s client split exactly where it pays: a same-path/same-type
   substitution silently changes the committed trim point — the drift `get_face`
   exists to shield; breaks [§14.9][s14-9]'s relocatability; [§6.1][s6-1] forbids the traversal
   even where the concrete instantiation would resolve it, and [D-061][d-061] fixed
   `resolve` to diagnose past-generic segments even where the instance resolves.
-- *A face-level `ẋ` spelling:* reintroduces a zero-promises register at the
+- *A face-level `ẋ` spelling:* reintroduces a zero-promises read at the
   face level — faces are curated contract, and `ẋ` buffers are not
   boundary-consistent ([D-098][d-098]).
 - *Auto-publishing every state derivative:* contract bloat, and routes
@@ -3670,7 +3671,7 @@ signal with no channel is the same silence relocated.
 
 **Position.** The trace header gains a **deployment block** — `t₀`, `Δt_base`,
 `h`, `n`, the algorithm identifier and the effective `t_end`/`stop_on` pair,
-captured with the stores. [§12.7][s12-7]'s up-front pass treats it in two registers:
+captured with the stores. [§12.7][s12-7]'s up-front pass treats it in two ways:
 `Δt_base`/`h`/`n`/algorithm compared against the target's deployment binding
 (widened to six by [D-133][d-133]: `localization_tol` and `event_budget` join both the
 block and the comparison), mismatch = `ReplayHeaderMismatch` with a new
@@ -3691,7 +3692,7 @@ without a home ([§13.5][s13-5] ×2, [Appendix B][sB]; [D-091][d-091]'s obligati
   [§12.7][s12-7] explicitly leaves overridable, and a recorded `stop_on` termination
   reproduces itself anyway.
 - *An overridable deployment check to allow what-if-with-different-`h`:* not a
-  what-if under [§12.7][s12-7]'s own definition — the register promises the recorded
+  what-if under [§12.7][s12-7]'s own definition — what-if replay promises the recorded
   inputs, and ordinal keying re-times them under a changed grid.
 - *A separate `ReplayDeploymentMismatch` kind:* one validation pass, one
   carrier — the payload discriminator mirrors the store/slot split already
@@ -3734,9 +3735,9 @@ counter/frame-ordinal separation intact).
 
 **Position.** The two-notation rule is restated as directional — slash is
 structure, face names are contract; the write side speaks contract exclusively
-([§11.3][s11-3], unchanged), the read side speaks structure in the inspection register
-and contract wherever meaning must outlive the build: integration bindings
-([§11.2][s11-2]'s `get_face`, [D-095][d-095]) and load-bearing service reads ([§14.4][s14-4], [D-125][d-125]).
+([§11.3][s11-3], unchanged), the read side speaks structure in inspection reads and
+contract wherever meaning must outlive the build: integration bindings
+([§11.2][s11-2]'s `get_face`, [D-095][d-095]) and service reads ([§14.4][s14-4], [D-125][d-125]).
 
 **Spec.** [§11.2][s11-2], [§11.3][s11-3], [§8.6][s8-6], [§14.4][s14-4], [Appendix D][sD]
 
@@ -3749,24 +3750,24 @@ binding style [§11.2][s11-2] itself recommends.
 - *Keeping the read/write phrasing with a `get_face` carve-out footnote:* the
   rule's real axis was never read vs. write — the write side's exclusivity is
   about the root contract being the only write surface, and the read side's
-  freedom is register choice ([D-083][d-083]); a footnoted exception would misstate the
+  freedom is client choice ([D-083][d-083]); a footnoted exception would misstate the
   principle it patches.
 
-### D-130 — Scope `resolve`'s generic-boundary duty by register (structural/load-bearing/diagnostic)
+### D-130 — Scope `resolve`'s generic-boundary duty by client (wiring/service/inspection)
 
 **Status.** ratified
 
 **Position.** `resolve`/`resolve_terminal`'s generic-boundary duty is
-register-scoped — [D-083][d-083]'s line carried into resolution: *structural* (wiring,
-Stratum A) strict as stated; *load-bearing* (condition entries, trim `reads`,
-taps) strict at the authoring or mount level (the locality law is
+client-scoped — [D-083][d-083]'s line carried into resolution: *wiring* (connection
+declarations, Stratum A) strict as stated; *service* (condition entries, trim
+`reads`, taps) strict at the authoring or mount level (the locality law is
 authoring-level, [§14.2][s14-2] — absolute paths are a compiled derivative — and the
 mount prefix is checked by the mount itself, [§14.9][s14-9]'s contract validation);
-*diagnostic* (device read bindings, GUI panels, snapshot/log inspection) the
+*inspection* (device read bindings, GUI panels, snapshot/log inspection) the
 instance walk — a generic seam is no error for a client that never claimed
 substitutability, drift still loud at attach (`ReadBindingUnresolved`); which
-register a client resolves under is internal, never user-facing API ([§14.4][s14-4]'s
-`apply!`-register status). This amends [D-061][d-061].
+of the three a client falls under is internal, never user-facing API
+([§14.4][s14-4]'s `apply!` precedent). This amends [D-061][d-061].
 
 **Spec.** [§13.3][s13-3], [§14.2][s14-2], [§14.4][s14-4], [§14.9][s14-9]
 
@@ -3776,12 +3777,12 @@ it.
 
 **Rejected.**
 - *A single unconditional strict rule:* as written it made [D-083][d-083]'s blessed
-  inspection register unreachable in any real tree — the shipped XPlane
+  inspection reads unreachable in any real tree — the shipped XPlane
   binding, GUI panels and the log all traverse generic seams — and broke
   [§14.9][s14-9]'s mounting on compiled absolute paths.
-- *A public register parameter on `resolve`:* client policy is
+- *A public client parameter on `resolve`:* client policy is
   framework-internal; [§14.4][s14-4] precedent.
-- *Permissive resolution for load-bearing clients at the compiled path:* erases
+- *Permissive resolution for service clients at the compiled path:* erases
   the locality law exactly where substitution safety pays — [D-125][d-125]'s rejected
   deep-path reads.
 
@@ -3992,12 +3993,12 @@ always-present harness cell: a fourth part of the attach-time admission check,
 in `needs_calling_task`'s shape and error style (`InteractiveConflict`, naming
 both the rostered holder and the candidate, exactly as `CallerTaskConflict`
 does) — the derived surface is shared rather than partitioned, and the
-singleton keeps intra-register drain order trivial (interactive device, then
+singleton keeps intra-surface drain order trivial (interactive device, then
 the harness cell last). The shipped GUI binding is the class's **sole shipped
 instance**, declaring `interactive` only: no `faces` (its surface is computed),
 no `selectors` (its read path is the handle's primitive read — VSync-paced
 `latest` per render, [§12.3][s12-3] — with an ad-hoc render-time read set over the whole
-snapshot in the inspection register's shape, [§11.2][s11-2], so the compiled gather has
+snapshot in an inspection read's shape, [§11.2][s11-2], so the compiled gather has
 nothing to do for it); `gui = true` becomes "attach the standard GUI device
 under the standard interactive binding iff no interactive device is already
 rostered" ([D-109][d-109]'s idempotency, now stated against the class rather than the
@@ -4006,8 +4007,8 @@ type). Two non-reopenings are on record: [§11.6][s11-6]'s rejected `sides(b)` t
 methods that must exist anyway, and nothing analogous exists here, the derived
 surface being computed, so no method's presence could witness the class and a
 marker is the only possible declaration, not a second copy of a fact; and
-[D-044][d-044]'s rejection of unclaimed-register opportunism "for any device" stands
-unchanged — autonomous devices still enumerate, the interactive register stays
+[D-044][d-044]'s rejection of unclaimed-surface opportunism "for any device" stands
+unchanged — autonomous devices still enumerate, the interactive writer stays
 human-mediated, singleton-limited and staging-checked (`ClaimedFaceEntry`
 untouched). The marker makes the privileged class visible and checkable, not
 open.
@@ -4018,10 +4019,10 @@ open.
   refuse.
 - *Empty-tuple-or-`nothing`-means-derived:* silent promotion of an accidentally
   empty enumeration — `faces` bodies are ordinary code, comprehensions included
-  — to the register's *maximal* write surface: the silent-widening class this
-  design refuses everywhere, and the most privileged classification must be the
-  hardest to enter by accident; `faces(b) = ()` keeps its honest meaning, an
-  inert enumerated device whose writes are still binding-bounded by
+  — to the interactive writer's *maximal* write surface: the silent-widening
+  class this design refuses everywhere, and the most privileged classification
+  must be the hardest to enter by accident; `faces(b) = ()` keeps its honest
+  meaning, an inert enumerated device whose writes are still binding-bounded by
   `OutOfClaimEntry`.
 - *A shipped concrete `InteractiveBinding` type:* edges toward the abstract
   binding-type taxonomy [§11.6][s11-6] already rejected, and abandons the method-presence
@@ -4064,7 +4065,7 @@ plus [§11.1][s11-1]'s inline-`run!` parallel sweeps were already inviting), and
 materialization is torn-state-free under concurrent first requests** as a
 normative guarantee, mechanism unspecified (a guard around insertion suffices,
 at service time and never on the hot path; purity makes the worst benign race
-duplicated work). Recommended idiom for the [§11.1][s11-1] parallel-sweep register,
+duplicated work). Recommended idiom for [§11.1][s11-1]'s parallel sweeps,
 recorded at both sites: pre-materialize with the existing `build(world;
 activations = …)` keyword and the shared artifact is fully immutable, with no
 synchronization on any path.
@@ -4294,7 +4295,7 @@ natural end) and `gui = true`'s standard attachment stating that value
   the opposite of [§12.4][s12-4](6)'s stated intent.
 - *Declaring `should_abort` in the device authoring contract as a fifth
   function or a trait:* it is an *attachment* fact — the same device is
-  advisory in one deployment and load-bearing in another, and the contract is
+  advisory in one deployment and relied on in another, and the contract is
   the place where per-deployment policy least belongs.
 - *Leaving initialization failure at "reported by name through (6)'s crash
   path":* the clause under review — (6) is written about a task that has
@@ -4340,7 +4341,7 @@ to be unconnected. [§14.9][s14-9]'s "the aircraft is never literally the root" 
 **softened from doctrine to default**: leaving an environment face unconnected
 is legal by construction — the face becomes an ordinary root slot holding the
 handle *value*, written by the `baseline` like any other slot, the **test-rig
-register** and the function-valued sibling of a constant source — while
+idiom** and the function-valued sibling of a constant source — while
 `design_world(ac)` remains the shipped rig for design tasks, keeping the
 environment's tunables in the slot vocabulary that conditions, `capture`,
 linearization's input surface and the trace header already speak. [§9.6][s9-6]'s
@@ -4436,7 +4437,7 @@ remedy not taken; the `AbstractSteering` contract change is an
 **aircraft-library migration call living in [§16][s16]**, not framework vocabulary.
 
 **Rejected.**
-- *A visibility register for split-orphaned intermediates (`unlisted`,
+- *A visibility level for split-orphaned intermediates (`unlisted`,
   `Private(T)`):* an explicit non-reopening of [D-034][d-034] and [D-055][d-055] — the promotion
   cost is real but bounded, and the bundle port keeps it to one name, whereas a
   hiding annotation would buy back that name at the price of "public always
@@ -4673,7 +4674,7 @@ keyword arguments (`prefix`, `sep`, `except`, `only`) and semantics are
 unchanged. [§11.6][s11-6]'s `faces(b)` claim-set declaration is deliberately untouched:
 the rename dissolves the overload rather than propagating it, leaving the
 device-binding declaration sole owner of the name. The rename is the first
-application of the four-register naming convention now recorded as [§16][s16]'s
+application of the four-class naming convention now recorded as [§16][s16]'s
 API-audit criterion: (1) declarations (author defines, framework calls) are
 bare nouns or `init_*`/`_types` — `connections`, `exports`, `events`,
 `input_types`, `output_types`, `local_types`, `init_x`/`init_z`/`init_m`,
@@ -4684,7 +4685,7 @@ snapshots carry `get_` — `get_state`, `get_deriv`, `get_output`, `get_local`,
 `!` when they mutate — `build`, `run!`, `step!`, `replay!`, `init!`, `attach!`,
 `detach!`, `shutdown!`, `apply!`; (4) build primitives ([§13.3][s13-3],
 framework/tooling-facing) are plain verbs — `resolve`, `resolve_terminal`. A
-name in the wrong register is a rename candidate on that ground alone. Two
+name in the wrong class is a rename candidate on that ground alone. Two
 residuals are flagged and deferred to the [§16][s16] audit, not renamed now:
 `input_faces`/`output_faces` (noun accessors punning on the `_types`
 declarations, mitigated by being framework-facing rather than daily authoring
@@ -4695,7 +4696,7 @@ borderline, every rename candidate clunkier, lean keep).
 B (swept)
 
 **Rationale.** Two ambiguity axes motivated it: the helper wore the declaration
-register — a bare noun like `connections`, `exports`, `events`, `input_types`,
+class — a bare noun like `connections`, `exports`, `events`, `input_types`,
 `workspace`, things an author defines and never calls — while actually being a
 helper the author calls inside an `exports` body; and it collided with
 `get_face`, the value selector, so "faces" named both a selection of values and
@@ -4714,7 +4715,7 @@ output-direction addition ever lands.
   exported, so there is nothing to re-export — the word would only be honest
   for the assembly-child case.
 - *`child_faces`:* fixes plurality alone, keeping both ambiguity axes — still a
-  bare noun in the declaration register, still colliding with `get_face`.
+  bare noun in the declaration class, still colliding with `get_face`.
 - *Renaming `input_faces`/`output_faces` or `workspace` in the same pass:*
   audit-time calls whose cost lands when the real export surface exists;
   deciding them now would settle by anticipation what [§16][s16] exists to settle
@@ -4806,15 +4807,15 @@ selectors"); only the binding method renames, and `reads(b)` still returns
 **Spec.** [§11.3][s11-3], [§11.6][s11-6], [§14.4][s14-4], [§14.7][s14-7], [§14.10][s14-10], [§16][s16], [Appendix B][sB], [Appendix C][sC],
 [Appendix D][sD] (swept)
 
-**Rationale.** This is the first application of [D-144][d-144]'s four-register
-convention on its semantic axis: both names sat in the right register —
+**Rationale.** This is the first application of [D-144][d-144]'s four-class
+convention on its semantic axis: both names sat in the right class —
 bare-noun declarations the author defines and the framework calls — but were
 content-named where the spec's own `exports` precedent is consequence-named,
 naming the role the declaration plays rather than the material it returns. The
 side-detection prose improves in the same stroke: "`claims` defined ⇒
-enumerated write side, claims staked". The register difference (trim's `reads`
-load-bearing, a device read binding diagnostic) is no obstacle — [D-130][d-130] made the
-register an internal framework fact, never user-facing API.
+enumerated write side, claims staked". The client difference (trim's `reads`
+service, a device read binding inspection) is no obstacle — [D-130][d-130] made the
+client an internal framework fact, never user-facing API.
 
 **Rejected.**
 - *Keeping `selectors(b)`:* defensible status quo — content-accurate and
@@ -4825,7 +4826,7 @@ register an internal framework fact, never user-facing API.
   polysemy this rename retires.
 - *`gather(b)`:* names the compiled artifact, not the declaration — the gather
   is what the framework builds from the declared read set, and a declaration
-  named after its downstream product is the register error one level over.
+  named after its downstream product is the class error one level over.
 - *Direction words such as `outputs(b)`:* invite the writer/reader direction
   confusion `selectors` was originally chosen to avoid — a device's "output" is
   the sim's input.
@@ -4955,7 +4956,7 @@ on state views.
   of the very shape the plan is compiled against, so a runtime decision buys
   nothing and costs the unrolled zero-alloc store.
 - *Explicit user marking of decision-dependent leaves:* a per-leaf annotation,
-  or a second "held"/"seeded" condition register — redundant with what the
+  or a second "held"/"seeded" condition vocabulary — redundant with what the
   seeded eltype already proves, and a second source of truth free to drift from
   the actual dataflow — an annotation reading "held" on a leaf the decisions do
   descend into restores the silent zero-Jacobian bug with paperwork on top of
@@ -5017,7 +5018,7 @@ nothing.
 
 **Rationale.** A round-5 kernel dry-run finding (finding 6), extending — not
 amending — [D-069][d-069]'s service-side squaring. **The tolerance translation into each
-backend's stopping language is the service's too**, per register: under
+backend's stopping language is the service's too**, per backend family: under
 Levenberg–Marquardt the tolerances feed the per-residual test directly; for the
 derivative-free scalar fallback the service squares *and normalizes*,
 minimizing $\sum_i (r_i/\mathit{tol}_i)^2$ at `stopval = 1` — dimensionless in
@@ -5266,7 +5267,7 @@ does not participate, with the reason stated**: any nonfinite `ẋ` contaminates
 the same state block's step result within that very step, so the `x` check at
 the next boundary is the same detection with identical component attribution,
 and `ẋ` buffers are integrator scratch, not boundary-consistent ([D-098][d-098]'s
-register).
+source axis).
 
 **Spec.** [§8.4][s8-4], [§13.4][s13-4]
 
@@ -5288,7 +5289,7 @@ nevals, niters)`: `eval!(r, J, d)` in-place, always filling `r` (packed in
 `tolerances`' field order), filling `J` iff `J !== nothing`
 (request-by-argument — a Jacobian-free backend always passes `nothing`);
 `d0`/`lower`/`upper` packed in `guess`'s field order with ±Inf = unbounded;
-`tol` in `tolerances`' order, data a backend may stop on ([D-150][d-150]'s per-register
+`tol` in `tolerances`' order, data a backend may stop on ([D-150][d-150]'s per-backend
 translation), decisive of nothing; `status::Symbol` a deliberately **open** set
 recorded verbatim ([D-150][d-150] demoted status to diagnostic — a closed enum would
 launder foreign solver vocabularies back into per-backend meaning);
@@ -5343,25 +5344,25 @@ and `mark_dead!`.
 
 **Spec.** [§11.6][s11-6], [§11.8][s11-8]
 
-**Rationale.** A round-5 vocabulary finding (finding 2.1), per [D-144][d-144]'s register
+**Rationale.** A round-5 vocabulary finding (finding 2.1), per [D-144][d-144]'s class
 (3).
 
 **Rejected.**
-- *Keeping the bare spelling:* a mutating action in noun dress — the register
+- *Keeping the bare spelling:* a mutating action in noun dress — the class
   violation [D-144][d-144]/[D-146][d-146] exist to retire.
 
-### D-161 — Grow the naming audit to the full register-violation set
+### D-161 — Grow the naming audit to the full class-violation set
 
 **Status.** ratified
 
 **Position.** **The naming audit's flagged list grows from two residuals to the
-full register-violation set** — `loop` (mutating task body as bare noun in the
+full class-violation set** — `loop` (mutating task body as bare noun in the
 verb-`!` device contract; `run!` taken, prose entrenched), the bare-noun
 accessor family
 `trace(sim)`/`latest(sim)`/`binding(handle)`/`phase_bodies(sim)` against
-register (2)'s `get_` rule with `trace`'s kill-switch/accessor collision the
+class (2)'s `get_` rule with `trace`'s kill-switch/accessor collision the
 sharpest case (one name, two senses — the [D-122][d-122]/[D-144][d-144] pattern), and an explicit
-register-(1) exemption question for markers (`interactive`) and predicate
+class-(1) exemption question for markers (`interactive`) and predicate
 traits (`needs_calling_task`).
 
 **Spec.** [§16][s16]
@@ -5370,7 +5371,7 @@ traits (`needs_calling_task`).
 
 **Rejected.**
 - *Renaming any of them now:* each needs the whole-surface view the audit
-  exists to take; piecemeal renames outside it are how registers drift.
+  exists to take; piecemeal renames outside it are how classes drift.
 
 ### D-162 — Adopt per-eltype homogeneous cell stores over per-instance
 
@@ -5526,7 +5527,7 @@ exact).
 `local_types` is deleted with its satellites: stage membership derives over
 `output_types` alone; `ContractNameCollision` retired; `UndeclaredReturnField`
 candidates = `output_types`; `get_local` retired from the [§14.4][s14-4] selector family
-and [§11.2][s11-2]'s binding registers — the inspection path for intermediates is
+and [§11.2][s11-2]'s read bindings — the inspection path for intermediates is
 *promote to output* (FlightCore precedent: intermediates were only ever
 inspected by inclusion in the `Model` output); local cells leave the [§9.7][s9-7]
 store; [§8.3][s8-3] visibility becomes: declared in `output_types` = public, returned
@@ -5654,7 +5655,7 @@ the type, by lifting and exact comparison, per [D-238][d-238].
 - *Two-argument `init_x` by evaluation:* the `T` records no choice — [§7.1][s7-1]
   admits no pinned state leaf; `zero(T)`/constructor ceremony on values; a new
   forgotten-`T` class *on values* caught only at activation build; the didactic
-  side-by-side reading is bought instead by the recorded register criterion.
+  side-by-side reading is bought instead by the recorded signature criterion.
 - *Two-argument `init_m`/`init_z`:* nothing could ever follow `T`; the
   signature would invite exactly the misplacement [§8.2][s8-2]'s didactic errors exist
   to catch.
@@ -5692,7 +5693,7 @@ violation being `WalkingFaceAtFrozenEntry` (consumer path + entry, producer
 path + face, the leaf, both declared leaf types, both remedies in the message;
 [§13][s13]).
 
-**The clause is tier-scoped, and the scope is load-bearing**: discrete
+**The clause is tier-scoped, and the scope is decisive**: discrete
 consumers take the nominal bound check only, because their stages read
 exclusively at real ticks in the nominal world — a `Dual`-carrying cell exists
 only inside activations discrete stages never run in — so continuous → discrete
@@ -5846,7 +5847,7 @@ any single mixed-direction list must sacrifice one.
 **Rejected.**
 - *Status quo (the sacrifice above — the output entries read against the
   signal).*
-- *Consequence-named family `wires`/`imports`/`exports`:* register-purist, but
+- *Consequence-named family `wires`/`imports`/`exports`:* convention-purist, but
   `imports` needs decoding and a *narrowed* `exports` is a stale-citation
   hazard across 169 rows — a dead name cannot be misread, a narrowed one can.
 - *`inner_connections`/`internal_connections`:* visual near-collision with
@@ -5872,7 +5873,7 @@ pointer, the name now carrying the direction.
 **Rejected.**
 - *Bare `passthrough`:* [D-144][d-144]'s premise retired by the split.
 - *Plural `input_passthroughs`:* a bare plural collection noun re-enters the
-  declaration register [D-144][d-144] moved the helper out of; return cardinality never
+  declaration class [D-144][d-144] moved the helper out of; return cardinality never
   drives operation naming.
 - *Building `output_passthrough` now:* stays guarded — no demonstrated
   consumer.
@@ -5923,7 +5924,7 @@ sets become per-function-per-tier.
 **Spec.** [§3.2][s3-2], [§5.2][s5-2], [§5.3][s5-3], [§7.3][s7-3], [§8.2][s8-2], [§8.7][s8-7], [§9.3][s9-3], [§9.5][s9-5], [§13.7][s13-7], [§14.1][s14-1],
 [§15.2][s15-2], [§15.5][s15-5], [Appendix C][sC] (all companions swept), [Appendix D][sD]
 
-**Rationale.** [D-056][d-056] untouched and load-bearing — it is what makes the fusion
+**Rationale.** [D-056][d-056] untouched and central — it is what makes the fusion
 safe, a leaf being strictly one tier and no component reading another's state.
 
 Tier doctrine restated: stateful leaves declare tier by update law (`f` vs `g`,
@@ -5992,7 +5993,7 @@ the autopilot faces beside a local GUI claiming the stick faces), only
 The `interactive(b)` marker and `InteractiveConflict` are retired and admission
 narrows to three parts — identity, affinity, claims.
 
-The **harness register** (renamed from the interactive register) is the sole
+The **harness writer** (renamed from the interactive writer) is the sole
 remaining derived surface: the framework-owned `stage!(sim, ...)` entry point
 and its always-present cell, covering the unclaimed complement, recomputed at
 every stopped-sim `attach!`/`detach!`, with the pending-batch renormalization
@@ -6005,7 +6006,7 @@ slot **inside the GUI's own claim**; the harness cell still drains last, now as
 plain convention, the "explicit hand of code beats a widget interaction"
 arbitration rationale being objectless once surfaces are disjoint.
 
-Supersedes the interactive-register halves of [D-044][d-044], [D-104][d-104] and [D-106][d-106].
+Supersedes the interactive-writer halves of [D-044][d-044], [D-104][d-104] and [D-106][d-106].
 
 **Rejected.**
 - *`UserInput`-as-device:* a taskless degenerate inside a loop-body device
@@ -6374,11 +6375,11 @@ untouched (immutable grouping needs no builder), and the component enters
   seam — it is expressible under today's rules, so the charter's
   none-built-until-need gate had nothing left to guard.
 
-### D-185 — Adopt the phased, two-register sample-time declaration
+### D-185 — Adopt the phased, two-form sample-time declaration
 
 **Status.** ratified
 
-**Position.** Sample-time declaration gains phases and becomes two-register —
+**Position.** Sample-time declaration gains phases and becomes two-form —
 `sample_time_proposal.md` adopted (the proposal remains the worked companion):
 a `sample_times` entry (the method renamed from `rates`, faithfulness over
 brevity) declares one (period, phase) pair as an explicit wrapper type naming
@@ -6410,8 +6411,8 @@ declared at twice their rate.
 
 **Rejected.**
 - *Bare-value sugar behind a normalization function (`ratespec`: bare `Int` ⇒
-  `Relative`, bare quantity ⇒ `Absolute`):* implicit register inference; the
-  register stays visible at every declaration site, the common case handled by
+  `Relative`, bare quantity ⇒ `Absolute`):* implicit form inference; the
+  form stays visible at every declaration site, the common case handled by
   the unlisted-child default instead.
 - *Floats in periods or offsets:* GCD derivation over floats is ill-defined;
   `Rational{Int}` fields make exactness structural.
@@ -6474,7 +6475,7 @@ invariant surviving into the bound `(D, Φ, Δt)`.
 **Rejected.**
 - *Root-only absolute declaration (the superseded [§10.5][s10-5] clause):* right about
   deployment preferences, wrong for device-intrinsic rates; kept only as the
-  default-register rationale.
+  default-form rationale.
 - *Silent `Δt_base` derivation with unanchored components present:* the
   logger-rescaled-by-an-offset-edit case.
 - *Absolute pinning from outside a subtree's contract:* standing rejection,
@@ -6584,7 +6585,7 @@ checked structurally at [§9.5][s9-5] (each field of `f`'s return scatters into 
 field's block at `T`), never of author discipline.
 
 **Rejected.**
-- *A per-leaf `derivative_type` override hook:* a second register for a fact
+- *A per-leaf `derivative_type` override hook:* a second source for a fact
   the layout already knows — the two can disagree, and the disagreement has no
   adjudicator; the case that would motivate it, a leaf whose derivative lives
   off its own type, is exactly what [D-094][d-094]'s closed vocabulary excludes.
@@ -6628,7 +6629,7 @@ update line.
 
 **Status.** ratified
 
-**Position.** A rostered greedy claimant empties the harness register's derived
+**Position.** A rostered greedy claimant empties the harness writer's derived
 surface: the greedy claim wins and the harness surface genuinely goes empty, so
 every `stage!` in such a session is rejected at staging with `ClaimedFaceEntry`
 naming the incumbent — already-specified behavior, not a new diagnostic.
@@ -6638,9 +6639,9 @@ naming the incumbent — already-specified behavior, not a new diagnostic.
 **Rationale.** The precedence is an *implication* of the claimed-versus-derived
 distinction [§11.3][s11-3] already draws, not a new rule: the greedy claim is a **rostered
 claim** whose computed source is exhausted at the attach point, while the
-harness register's surface is the **derived** complement of the rostered claims
+harness writer's surface is the **derived** complement of the rostered claims
 — the faces no rostered device speaks for. A rostered greedy claimant therefore
-leaves that complement empty by construction. The harness register exists for
+leaves that complement empty by construction. The harness writer exists for
 script and test sessions without an interactive claimant, and a `stage!`
 rejected in a GUI session with `ClaimedFaceEntry` is informative, not broken;
 [§11.6][s11-6]'s `EmptyGreedyClaim` covers greedy-vs-greedy only and wants no companion
@@ -6649,7 +6650,7 @@ alongside the GUI attaches the GUI under a non-greedy (returned) binding — the
 design already allows it, the same GUI device type being equally attachable
 under a binding that returns explicit claims ([§11.6][s11-6]). Greedy-last attach is the
 idiom, computed claims staying exhausted at attach: attachment order is
-load-bearing by design.
+decisive by design.
 
 **Rejected.**
 - *Harness-first subtraction — subtract the harness remainder before computing
@@ -6709,7 +6710,7 @@ ordinary declared port, reaching its consumers through the existing views.
   activation.
 - `DeadStage`'s ground simplifies: a stage returning `(;)` produces no ports
   and is dead ([§9.3][s9-3]).
-- Visibility stays binary and [D-034][d-034]/[D-055][d-055] stay closed: no `Private` register
+- Visibility stays binary and [D-034][d-034]/[D-055][d-055] stay closed: no `Private` level
   is added, the enclosing assembly's faces remain the scoping surface ([§8.6][s8-6]),
   the [§4.3][s4-3] granularity guideline (one struct-valued bundle port) remains the
   mitigation, and [D-034][d-034]'s `Private(T)` fallback-on-record remains the door.
@@ -6759,7 +6760,7 @@ a subsystem-scoped signal. No private inter-method channel exists there.
   objection stands unweakened — the probe observes one branch, so the cell
   type detonates branch-dependently at non-nominal activations.
 - *`Private{P}`-tagged output entries:* re-litigated here and kept closed;
-  [D-034][d-034]'s no-demonstrated-customer ground and the load-bearing binary
+  [D-034][d-034]'s no-demonstrated-customer ground and the central binary
   visibility rule survive, [D-055][d-055]'s "first wrapper type" ground has expired
   ([D-185][d-185]'s `Relative`/`Absolute`), and the fallback stays on record.
 
@@ -6849,7 +6850,7 @@ is the tier-neutral fact ([§5.3][s5-3]), so the names state it.
 tier's `init_x` stores only; a tap naming a discrete store is a
 tap-resolution error carrying the offending entry and its tier. Trim's
 `get_state` reads stay tier-spanning ([§14.7][s14-7]). The recorded sampled-data step
-map extension, when built, adds a distinct `s`-tap register rather than
+map extension, when built, adds a distinct `s`-tap list rather than
 widening the `x` list.
 
 **Spec.** [§14.10][s14-10]
@@ -6864,7 +6865,7 @@ rather than silently yielding zeros, and the error's next-move guidance points
 at the step map $\Phi$, the object whose differentiation the author actually
 wants. Under the fused letter the question was decided by spelling accident —
 "validated against `init_x`" admitted both tiers silently; [D-195][d-195]'s split makes
-the rule stateable, and gives the future extension its own register with named
+the rule stateable, and gives the future extension its own list with named
 Jacobian blocks $\partial(x^+, s^+)/\partial(x, s)$.
 
 **Rejected.**
@@ -6941,15 +6942,15 @@ change under substitution.
   position is exactly the drift a single labeled value refuses — names and
   reads can disagree in length or order with no check to catch it.
 
-### D-200 — The harness register is a diagnostic writer with its own cell
+### D-200 — The harness writer has its own cell and is diagnostic only
 
 **Status.** ratified
 
-**Position.** [§11.8][s11-8]'s cell roster has three writer classes: one cell per rostered device, one for the harness register, one for the loop itself. The harness register's staging diagnostics — `ClaimedFaceEntry`, `EntryTypeMismatch`, and the no-such-face `OutOfClaimEntry` ([§11.4][s11-4]) — are written into its cell on whichever task stages; its record rides the published status with no heartbeat and no `task_state`. This amends [D-136][d-136]: its mechanism, bound and drain stand, and the writer enumeration gains the harness register.
+**Position.** [§11.8][s11-8]'s cell roster has three writer classes: one cell per rostered device, one for the harness writer, one for the loop itself. The harness writer's staging diagnostics — `ClaimedFaceEntry`, `EntryTypeMismatch`, and the no-such-face `OutOfClaimEntry` ([§11.4][s11-4]) — are written into its cell on whichever task stages; its record rides the published status with no heartbeat and no `task_state`. This amends [D-136][d-136]: its mechanism, bound and drain stand, and the writer enumeration gains the harness writer.
 
 **Spec.** [§11.8][s11-8], [Appendix D][sD]
 
-**Rationale.** The enumeration followed the writer list — device tasks and the loop — but the harness register is a third writer: `ClaimedFaceEntry` is harness-only by definition ([Appendix C][sC]), and a harness `stage!` runs on whatever task calls it — the calling task, a script, the GUI — which is neither a device task nor the loop. Without a cell of its own, those diagnostics have no home with the channel's bound and drain, and would fall back to an unbounded synchronous stream invisible to every status reader. The single-writer ownership argument relaxes for this one cell exactly as it already does for the harness staging cell: several tasks may stage concurrently, and the same CAS append arbitrates — no lock, no new primitive. Attribution is unchanged: the cell supplies the writer identity, and the status discriminates a staging rejection from a loop degradation by record.
+**Rationale.** The enumeration followed the writer list — device tasks and the loop — but the harness is a third writer: `ClaimedFaceEntry` is harness-only by definition ([Appendix C][sC]), and a harness `stage!` runs on whatever task calls it — the calling task, a script, the GUI — which is neither a device task nor the loop. Without a cell of its own, those diagnostics have no home with the channel's bound and drain, and would fall back to an unbounded synchronous stream invisible to every status reader. The single-writer ownership argument relaxes for this one cell exactly as it already does for the harness staging cell: several tasks may stage concurrently, and the same CAS append arbitrates — no lock, no new primitive. Attribution is unchanged: the cell supplies the writer identity, and the status discriminates a staging rejection from a loop degradation by record.
 
 **Rejected.**
 - *Folding harness staging diagnostics into the loop's cell:* the writers are the staging tasks, not the loop — the loop is the channel's reader — and the merge would misattribute staging rejections to the loop's own degradations.
@@ -7121,7 +7122,7 @@ design meant extending `Base.merge` with methods contradicting its contract —
 the piracy surface [§16][s16]'s exported-name audit had flagged. Under a fresh name
 the fall-through to last-wins semantics is structurally impossible, and the
 mixed-argument error methods become directive diagnostics rather than
-load-bearing insurance.
+essential insurance.
 
 **Rejected.**
 - *Keep `merge`, separated by dispatch:* the original position — dispatch on
@@ -7212,7 +7213,7 @@ rule) accepted.
 **Rejected.**
 - *Keeping "slot":* brevity was its only virtue; it never carried its
   meaning.
-- *`get_root_input`:* precise but heavy in the selector family's register.
+- *`get_root_input`:* precise but heavy in the selector family's naming.
 
 ### D-207 — Route every connection one level: faces are the only cross-boundary currency
 
@@ -7427,7 +7428,7 @@ and the judgment is per-instantiation, like every wiring judgment.
 **Rationale.** Surfaced by increment 20's cold review: [D-211][d-211]'s collision check
 compares the names children actually bear, and the shadow collides with none of
 them — the build succeeded while the shadowed container's elements stayed in
-the flat list yet became unreachable in the structural register, the one-level
+the flat list yet became unreachable in wiring resolution, the one-level
 rejection reporting them as reaching past the bare child and advising a route
 through that child's faces. The empty-field exemption was settled the hard
 way: uniform reservation was built first and immediately displaced the
@@ -7549,7 +7550,7 @@ dual-stage kinds are fail-fast at both stages.
 - Service, fail-fast: `ArgumentInvalid` (the twin of `DeploymentInvalid` for
   arguments that are not deployment parameters — `step!`'s, `trim!`'s,
   `TableBinding`'s, a period constructor's), `ReadSetMisuse` (the read
-  register's twin of `ConditionNodeMisuse`), `NotAttached` (`detach!`'s mirror
+  side's twin of `ConditionNodeMisuse`), `NotAttached` (`detach!`'s mirror
   of `AlreadyAttached`).
 - `UnknownPort`'s wire end admits `connection`, an interface-connection entry's
   internal side ([D-210][d-210]); `EventHalfMissing`'s reason admits an entry that is
@@ -7684,7 +7685,7 @@ rides on it.
 **Rejected.**
 - *A mutable termination slot in the header, rewritten at every advance:* one
   slot holds one run's pair, and the header stops being a single-instant
-  capture, which [§11.5][s11-5] makes load-bearing.
+  capture, which [§11.5][s11-5] relies on.
 - *Moving the pair out of the header into the termination record:* the next
   run overwrites the record, so the pair would leave the one persistent
   artifact.
@@ -7745,7 +7746,7 @@ and which one it was is readable before it runs.
 
 **Status.** ratified
 
-**Position.** Two additions to the replay register, both serving one workflow:
+**Position.** Two additions to the replay surface, both serving one workflow:
 replay to a chosen time, inspect the halt, then continue live from it.
 
 - `replay!(sim, trc; to_time)` halts at the last frame top at or before
@@ -7858,7 +7859,7 @@ already means *establish* — the device contract's `init!` — rather than
 [D-077][d-077]'s position, declaration by allocation called per activation and per
 scratch-store set, stands unchanged. Both entries keep `ratified`: the log has
 no partial status, and neither position is replaced. [D-144][d-144]'s naming
-register is amended rather than retired: its register 1 reads *noun phrases*
+convention is amended rather than retired: its class 1 reads *noun phrases*
 from here, the stage and update-law names no longer being bare nouns, and the
 `workspace` item it flagged for the [§16][s16] audit is settled by this entry.
 [D-144][d-144] keeps `ratified` for the same reason.
@@ -7889,7 +7890,7 @@ bundle fields a guard reads.
 - *Keeping `Event`:* `Base.Event` is exported from Base, so a forgotten import
   gives a `MethodError` naming `Base.Event` — loud, but misleading.
 - *`alloc_workspace`:* a third prefix for one function, against an `init_*`
-  register the inventory already has.
+  convention the inventory already has.
 - *Per-tier output-stage words (a second pair over `s`):* re-creates the split
   this entry retires, to state a tier the rest of the family already states.
 
@@ -8094,7 +8095,7 @@ nothing.
   boundary, and [§16][s16]'s audit. A function or name on the API surface is
   "public". The rename sweeps the spec and its companions, not the log.
 - The interim is conformance, not a gap: the suite reaches every name through
-  `using Cadence` plus a per-name `import` list, [D-117][d-117]'s register, and a REPL
+  `using Cadence` plus a per-name `import` list, [D-117][d-117]'s idiom, and a REPL
   session loads the same list through `test/repl.jl`.
 - The authoring family stays unexported under [D-117][d-117] whatever the audit
   decides for the operator half.
@@ -8107,7 +8108,7 @@ as an obligation the module does not meet, `names(Cadence)` being
 a function a model package must expose so condition math can call it outside
 any sweep; [§9.4][s9-4]'s `ProbeDual` is a name a CI activation list spells. Neither
 needs `export`; both need a public name. [§16][s16] already records the export list
-as open, to be decided by a full-surface audit under the four-register
+as open, to be decided by a full-surface audit under the four-class
 convention, and names what the operator half carries: `condition`,
 `fragment`, `at` and `combine` share a namespace with FlightPhysics domain
 code, and whether the condition algebra ships behind a submodule is the
@@ -8180,7 +8181,7 @@ to, and the published status record's `who` and the tail residue carry it.
 **Spec.** [§11.8][s11-8], [Appendix C][sC]
 
 **Rationale.** [§11.8][s11-8] gives every writer its own cell: one per rostered
-device, one for the harness register, one for the loop. A device reports
+device, one for the harness writer, one for the loop. A device reports
 through its handle, the handle owns the cell, and no call anywhere passes a
 device id. At the drain each cell becomes one record of the published
 framework status, keyed by the writer's name, with the ring, the suppressed
@@ -8306,7 +8307,7 @@ that determine its next draw are the state.
 
 **Spec.** [§3.2][s3-2], [§7.3][s7-3], [§8.2][s8-2], [§9.1][s9-1], [Appendix C][sC], [Appendix D][sD]
 
-**Rationale.** The three registers disagreed and the code checked nothing:
+**Rationale.** The three sources disagreed and the code checked nothing:
 [§7.3][s7-3] granted `s` "any immutable value" under the frozen-reference rule, the
 declaration's docstring and [D-195][d-195] said isbits, and the build enforced neither.
 Isbits is one exact predicate, `isbitstype`, checkable once at build.
@@ -8710,7 +8711,7 @@ snapshot type recompiling with it. The periphery's doctrine is [D-023][d-023]'s
 GC-over-reuse trade: one fresh allocation per boundary rather than buffer
 management. A second small allocation beside an accepted one changes
 nothing the collector feels; a snapshot type per roster size changes what
-every attach costs. The load-bearing invariant is the one the vector keeps:
+every attach costs. The decisive invariant is the one the vector keeps:
 nothing on a quiet frame scales with diagnostic activity, the counters are
 an isbits record, and a noisy frame allocates only its rings.
 
@@ -8721,6 +8722,68 @@ an isbits record, and a noisy frame allocates only its rings.
   [§7.5][s7-5]'s invariant extended past the scope [§7.5][s7-5] gives it.
 - *A fixed-capacity tuple:* no compile per size, but a cap on the roster and
   a record's worth of bytes per unused slot in every snapshot.
+
+### D-242 — Name the resolution cases wiring, service and inspection, and retire "register" and "load-bearing" as spec vocabulary
+
+**Status.** ratified
+
+**Position.** [§13.3][s13-3]'s three resolution cases are named by their client, and
+two words leave the design documents' vocabulary, the log included. Every
+position stands as ratified; only the words for unchanged concepts move, under
+rule 2's word-substitution exception and rule 7's audit. This overturns
+[D-122][d-122]'s reservation of "register" for the mode sense.
+- *Wiring* replaces [D-130][d-130]'s *structural*: connection declarations, resolved
+  in Stratum A under [§6.1][s6-1]'s one-level rule.
+- *Service* replaces *load-bearing*: condition entries, trim `reads` and
+  taps, checked at the authoring or mount level. "Service" keeps its [§14][s14]
+  meaning; the paths are the ones a stopped-sim service compiles.
+- *Inspection* replaces *diagnostic*: device read bindings, GUI panels,
+  snapshot and log inspection, resolved by the instance walk. It is [D-083][d-083]'s
+  own word for that side, so the two vocabularies for one line collapse into
+  one. The paired side is *integration reads*.
+- "Register" in the sense "a mode or idiom in which something is done" (the
+  retired [§D.10][sD-10] entry) is gone. Its compounds are renamed by family: the
+  *harness writer* and *what-if replay* (glossary anchors renamed), the run
+  *modes* (unattended, test-harness, REPL), usage *idioms* (`step!`,
+  test-rig, parallel sweep), the *didactic style* of errors, the
+  *by-allocation convention*, the sample time's two *forms*, the naming
+  convention's four *classes*, and [§14.4][s14-4]'s *two ways of applying one plan*
+  named as the specialized `apply!` and the dynamic walk. The word survives
+  only in its storage sense: a slot holding a value.
+- "Load-bearing" is dropped outright, its plain-intensifier uses replaced by
+  ordinary words.
+
+**Spec.** [§8.1][s8-1], [§8.2][s8-2], [§10.5][s10-5], [§11.2][s11-2], [§11.3][s11-3], [§11.5][s11-5], [§12.6][s12-6], [§12.7][s12-7], [§13.2][s13-2], [§13.3][s13-3], [§13.5][s13-5],
+[§14.4][s14-4], [§14.8][s14-8], [§15.5][s15-5], [Appendix A][sA], [§D.10][sD-10]
+
+**Rationale.** Four terms failed the cold reader at once. "Register" asked
+for a linguistics sense no technical reader reaches for; a heading such as
+"the duty is register-scoped" was decodable only from the table beneath it,
+and the same word also named storage slots elsewhere in the spec, so a reader
+could not tell which sense applied. "Load-bearing" named the right case at a
+distance but three quarters of its occurrences were plain intensifier, so the
+term of art had no room to be one; it also named the stakes axis where the
+spec's own argument turns on where a violation's cost lands. "Diagnostic"
+already meant warnings and errors throughout, with an appendix named for
+them, and sat a few characters from "didactic". "Structural" was
+serviceable but said nothing about wiring. Naming each case by its client
+lets the table's row name carry who resolves and, through the chapter the
+client belongs to, what is at stake.
+
+**Rejected.**
+- *"Task", "analysis" or "operation" in place of "service":* "task" collides
+  with Julia's `Task`; "analysis" excludes initialization and `capture`;
+  "operation" is accurate but buys little over the compounded "stopped-sim
+  service" and costs a chapter-wide rename.
+- *Naming the middle case by its stakes ("portable" or "relocatable"
+  paths):* self-explaining, but the other two rows name clients, and a mixed
+  scheme is harder to hold.
+- *Keeping "register" in the mode sense with an inline gloss at each first
+  use:* the gloss fights the reader's prior at every occurrence instead of
+  once.
+- *Leaving the log in its old vocabulary:* rule 2's first reading; rejected
+  because the substitution moves no position and the old words would mislead
+  every later reader of the log, so the exception was written into rule 2.
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
@@ -8755,7 +8818,7 @@ an isbits record, and a noisy frame allocates only its rings.
 [d-030]: #d-030--shutdown-protocol-publish-wake-unblock-join
 [d-031]: #d-031--mid-run-mutation-doctrine-staging-and-control-commands-only
 [d-032]: #d-032--component-declaration-trait-layer-with-probe-checked-schema-authority
-[d-033]: #d-033--declaration-inventory-by-value-by-type-by-allocation-registers
+[d-033]: #d-033--declaration-inventory-by-value-by-type-by-allocation-conventions
 [d-034]: #d-034--contract-visibility-declared-fields-are-public
 [d-035]: #d-035--stores-and-views-components-read-zero-copy-view-bundles
 [d-036]: #d-036--table-mechanics-stage-returns-are-namedtuples-of-port-values
@@ -8788,7 +8851,7 @@ an isbits record, and a noisy frame allocates only its rings.
 [d-063]: #d-063--conditions-are-path-addressed-sparse-overlays-on-init_-defaults
 [d-064]: #d-064--compose-per-component-init-by-pull-via-fragment-functions
 [d-065]: #d-065--fragments-form-a-lazy-inert-tree-resolved-against-the-build
-[d-066]: #d-066--two-application-registers-specialized-apply-vs-dynamic-entry-list-walk
+[d-066]: #d-066--two-ways-to-apply-one-plan-specialized-apply-vs-dynamic-entry-list-walk
 [d-067]: #d-067--boundary-zero-runs-the-macro-sequence-with-an-empty-integrate
 [d-068]: #d-068--enforce-slot-totality-at-the-initcommit-service-boundary
 [d-069]: #d-069--trim-problem-spelling-namedtuples-residual-vector-exact-ad-jacobians
@@ -8798,7 +8861,7 @@ an isbits record, and a noisy frame allocates only its rings.
 [d-073]: #d-073--companion-sketches-carry-the-settled-condition-algebra-design
 [d-074]: #d-074--hand-off-component-function-arguments-as-one-named-bundle
 [d-075]: #d-075--name-flowupdateoutput-stages-by-letter-and-dependence-class
-[d-076]: #d-076--name-declarations-input_typesoutput_typeslocal_types-by-register
+[d-076]: #d-076--name-declarations-input_typesoutput_typeslocal_types-by-convention
 [d-077]: #d-077--allocate-workspace-via-a-per-activation-workspace-method
 [d-078]: #d-078--treat-input-entries-as-face-constraints-checked-by-subtyping
 [d-079]: #d-079--type-declarations-concretely-resolved-by-an-activation-leaf-walk
@@ -8818,7 +8881,7 @@ an isbits record, and a noisy frame allocates only its rings.
 [d-093]: #d-093--spawn-device-tasks-per-run-not-per-attach
 [d-094]: #d-094--close-the-state-leaf-vocabulary-to-plain-scalars-and-sarrays
 [d-095]: #d-095--prefix-the-read-selector-family-with-get_
-[d-096]: #d-096--define-the-harness-register-stagelateststep-duration
+[d-096]: #d-096--define-the-harness-writer-stagelateststep-duration
 [d-097]: #d-097--split-device-shutdown-failures-into-two-diagnostic-kinds
 [d-098]: #d-098--resolve-selectors-against-a-source-before-client-policy
 [d-099]: #d-099--spell-the-ci-activation-invariant-with-a-canonical-probe-scalar-type
@@ -8846,13 +8909,13 @@ an isbits record, and a noisy frame allocates only its rings.
 [d-121]: #d-121--partition-the-cellstore-vocabulary-and-bless-staging-cell
 [d-122]: #d-122--resolve-de-polysemy-by-giving-each-overloaded-term-one-owner
 [d-123]: #d-123--add-a-non-normative-appendix-d-glossary
-[d-124]: #d-124--widen-147s-reads-grammar-to-the-full-load-bearing-selector-set
-[d-125]: #d-125--admit-get_face-to-the-load-bearing-reads-set
+[d-124]: #d-124--widen-147s-reads-grammar-to-the-full-service-selector-set
+[d-125]: #d-125--admit-get_face-to-the-service-reads-set
 [d-126]: #d-126--give-trim-commit-events-a-report-channel
 [d-127]: #d-127--add-a-deployment-block-to-the-trace-header-for-replay-validation
 [d-128]: #d-128--define-to_boundary-as-the-frame-entry-boundary-index
 [d-129]: #d-129--restate-the-two-notation-rule-as-directional-structure-vs-contract
-[d-130]: #d-130--scope-resolves-generic-boundary-duty-by-register-structuralload-bearingdiagnostic
+[d-130]: #d-130--scope-resolves-generic-boundary-duty-by-client-wiringserviceinspection
 [d-131]: #d-131--apply-the-round-4-consistency-sweep-findings-411
 [d-132]: #d-132--treat-operator-interrupt-ctrl-c-as-a-control-plane-stop-not-a-failure
 [d-133]: #d-133--split-spec-invoked-numeric-constants-into-deployment-parameters-vs-owning-section-defaults
@@ -8883,7 +8946,7 @@ an isbits record, and a noisy frame allocates only its rings.
 [d-158]: #d-158--pin-the-backend-seam-to-one-required-solve-signature
 [d-159]: #d-159--define-warning-service-as-a-sixth-severity
 [d-160]: #d-160--rename-report-to-report
-[d-161]: #d-161--grow-the-naming-audit-to-the-full-register-violation-set
+[d-161]: #d-161--grow-the-naming-audit-to-the-full-class-violation-set
 [d-162]: #d-162--adopt-per-eltype-homogeneous-cell-stores-over-per-instance
 [d-163]: #d-163--ban--for-separately-compiled-float-comparisons
 [d-164]: #d-164--reject-components-that-declare-nothing-and-define-no-stage
@@ -8907,7 +8970,7 @@ an isbits record, and a noisy frame allocates only its rings.
 [d-182]: #d-182--add-a-θ0-validation-probe-to-the-localization-trigger
 [d-183]: #d-183--retire-workspace-poisoning
 [d-184]: #d-184--fold-group-into-the-spec-as-an-ordinary-library-component
-[d-185]: #d-185--adopt-the-phased-two-register-sample-time-declaration
+[d-185]: #d-185--adopt-the-phased-two-form-sample-time-declaration
 [d-186]: #d-186--legalize-absolute-declarations-in-any-scope-via-anchors
 [d-187]: #d-187--make-the-bound-schedule-a-named-artifact-with-exact-grid-diagnostics
 [d-188]: #d-188--construct-trimproblem-by-keyword-everywhere
@@ -8922,7 +8985,7 @@ an isbits record, and a noisy frame allocates only its rings.
 [d-197]: #d-197--reject-discrete-stores-in-linearizations-x-tap-list
 [d-198]: #d-198--promote-the-shutdown-join-timeout-to-a-deployment-keyword
 [d-199]: #d-199--the-reads-enumeration-returns-a-labeled-namedtuple-of-selectors
-[d-200]: #d-200--the-harness-register-is-a-diagnostic-writer-with-its-own-cell
+[d-200]: #d-200--the-harness-writer-has-its-own-cell-and-is-diagnostic-only
 [d-201]: #d-201--the-terminal-account-closes-at-the-final-frame-top
 [d-202]: #d-202--stage-batches-as-values-plus-touched-mask-never-union-tuples
 [d-203]: #d-203--the-termination-record-carries-typed-sources-and-the-tail-residue
@@ -8964,6 +9027,7 @@ an isbits record, and a noisy frame allocates only its rings.
 [d-239]: #d-239--report-a-typod-return-field-alone-without-the-unproduced-port
 [d-240]: #d-240--read-the-heartbeat-at-publication-beside-the-task-state
 [d-241]: #d-241--keep-the-status-a-vector-of-records-one-small-allocation-per-publication
+[d-242]: #d-242--name-the-resolution-cases-wiring-service-and-inspection-and-retire-register-and-load-bearing-as-spec-vocabulary
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
@@ -9000,7 +9064,7 @@ an isbits record, and a noisy frame allocates only its rings.
 [s14-10]: spec.md#1410-linearization-tap-selectors-one-seeded-pass-a-pure-query
 [s14-2]: spec.md#142-fragment-composition-locality-without-schema
 [s14-3]: spec.md#143-resolution-flatten-validate-compile-once
-[s14-4]: spec.md#144-two-application-registers-over-one-plan
+[s14-4]: spec.md#144-one-plan-two-ways-to-apply-it
 [s14-5]: spec.md#145-boundary-zero-an-ordinary-boundary-with-authored-incoming-transitions
 [s14-6]: spec.md#146-root-input-totality-the-missing-value-error-and-the-override-combinator
 [s14-7]: spec.md#147-the-trim-problem-namedtuple-decisions-declared-reads-named-residuals
@@ -9058,6 +9122,7 @@ an isbits record, and a noisy frame allocates only its rings.
 [sB]: spec.md#appendix-b-api-synopsis-the-entry-points
 [sC]: spec.md#appendix-c-the-diagnostic-kind-set
 [sD]: spec.md#appendix-d-glossary
+[sD-10]: spec.md#d10-meta-vocabulary
 [sD-3]: spec.md#d3-evaluation-and-scheduling
 [sD-6]: spec.md#d6-runtime-periphery
 [sD-8]: spec.md#d8-stopped-sim-services-and-the-condition-algebra

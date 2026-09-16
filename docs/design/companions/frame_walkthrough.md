@@ -290,7 +290,7 @@ no drain.
 [d-018]: ../decisions.md#d-018--tier-2-event-localization-via-dense-output-and-bracketed-root-finding
 [d-101]: ../decisions.md#d-101--implement-replay-as-the-ordinary-loop-with-two-substitutions
 [d-147]: ../decisions.md#d-147--split-the-sweep-into-static-interior-and-boundary-variants
-[d-185]: ../decisions.md#d-185--adopt-the-phased-two-register-sample-time-declaration
+[d-185]: ../decisions.md#d-185--adopt-the-phased-two-form-sample-time-declaration
 [d-191]: ../decisions.md#d-191--defer-not-consume-the-edge-on-a-blocked-event
 [d-205]: ../decisions.md#d-205--boundary-zero-publishes-every-discrete-output-stage-due-or-not
 [d-223]: ../decisions.md#d-223--host-the-runtime-catch-in-boundary-zero-under-the-services-disposition

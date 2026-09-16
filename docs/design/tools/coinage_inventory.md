@@ -35,11 +35,10 @@ owning entry's anchor; no new entries needed.
 | bundle law | bundle (the entry states the law: a name is present iff the store exists) |
 | name-transparent container | container children (the entry states the naming opt-out `transparent_container` declares) |
 
-Compositional uses of the §D.10 meta-vocabulary ("didactic register",
-"inspection register", "what-if register", "device contract", "face
+Compositional uses of the §D.10 meta-vocabulary ("device contract", "face
 contract", "authoring contract", "mid-run mutation doctrine") are ordinary
-compositions of *register* / *contract* / *doctrine* with a qualifier, not
-separate coinages: link the meta-term or the owning section, whichever the
+compositions of *contract* / *doctrine* with a qualifier, not separate
+coinages: link the meta-term or the owning section, whichever the
 context wants.
 
 ## C. Promoted coinages — settled
@@ -61,5 +60,5 @@ this row is the record of the promotion.
 ## D. Low-frequency coinages — inline gloss only
 
 One or two uses each; promote to bucket C only if usage grows: arrival sweep, post-transition sweep, sampling seam, getfield walk,
-branch-shape rule, locality law, active-widget contract, by-allocation
-register.
+branch-shape rule, locality law, active-widget contract, the by-allocation
+convention.

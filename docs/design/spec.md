@@ -91,7 +91,7 @@
     - [14.1 Conditions are path-addressed overlays on the declared defaults](#141-conditions-are-path-addressed-overlays-on-the-declared-defaults)
     - [14.2 Fragment composition: locality without schema](#142-fragment-composition-locality-without-schema)
     - [14.3 Resolution: flatten, validate, compile once](#143-resolution-flatten-validate-compile-once)
-    - [14.4 Two application registers over one plan](#144-two-application-registers-over-one-plan)
+    - [14.4 One plan, two ways to apply it](#144-one-plan-two-ways-to-apply-it)
     - [14.5 Boundary zero: an ordinary boundary with authored incoming transitions](#145-boundary-zero-an-ordinary-boundary-with-authored-incoming-transitions)
     - [14.6 Root-input totality: the missing-value error and the `override` combinator](#146-root-input-totality-the-missing-value-error-and-the-override-combinator)
     - [14.7 The trim problem: NamedTuple decisions, declared reads, named residuals](#147-the-trim-problem-namedtuple-decisions-declared-reads-named-residuals)
@@ -133,7 +133,7 @@ event-detection policies, and the exclusions taken deliberately. [§3][s3] and [
 introduce the two objects every later part manipulates. [§3][s3] gives the component
 taxonomy, with two leaf classes and the assembly that composes them. [§4][s4] gives
 the port, the addressable unit through which components exchange immutable
-values. [§5][s5] is the load-bearing chapter. It fixes two output stages per
+values. [§5][s5] is the central chapter. It fixes two output stages per
 component, what each stage may see, and how those signatures alone yield a
 static evaluation schedule. [§6][s6] lifts composition from a single component to a
 hierarchy of them. [§7][s7] fixes where data lives, on both tiers and outside them.
@@ -679,7 +679,7 @@ method existence, and stage membership is a partition of the declared ports.
 
 An empty `y = (;)` is a `DeadStage` build error at the probe ([§9.3][s9-3]). A stage
 returning nothing at all computes nothing any consumer can read. That is the
-inert-component check in the stage register ([§8.1][s8-1]).
+inert-component check ([§8.1][s8-1]), applied to a single stage.
 
 #### The handler return law
 
@@ -931,7 +931,7 @@ order.
   one producing stage and one consumer. The idiom spells out as **one
   struct-valued bundle port**, a `StrutGeometry`-shaped value, not N loose
   ports. The bundle type is then contract. That is a real cost, but a bounded
-  and honest one. No visibility register is added for the orphaned
+  and honest one. No visibility level is added for the orphaned
   intermediates. [D-034][d-034] and [D-055][d-055] (`unlisted`, `Private(T)`) stay closed.
 
 The build diagnostic offers both exits explicitly. It reads "cycle through
@@ -971,11 +971,11 @@ and bounded. Rejecting framework-level loops does not forbid such models.
 
 ### 5.6 Diagnostics: feedthrough tracing
 
-Tracing is **diagnostic only, never load-bearing**. Scheduling correctness comes
-exclusively from the structural two-stage split. Tracing improves error messages
-and verification. The scheduler triggers it when it finds a cycle, to classify
-that cycle. A genuine cycle gets "insert a state", and an artificial one gets
-the remedy ladder ([§5.4][s5-4]).
+Tracing is **diagnostic only, never relied on for correctness**. Scheduling
+correctness comes exclusively from the structural two-stage split. Tracing
+improves error messages and verification. The scheduler triggers it when it
+finds a cycle, to classify that cycle. A genuine cycle gets "insert a state",
+and an artificial one gets the remedy ladder ([§5.4][s5-4]).
 
 **Detection and naming.** A cycle surfaces as a topological-sort stall in
 [Stratum](#g-stratum) B (one of the build's three phases: structure, schedule, activation).
@@ -1131,12 +1131,12 @@ on the whole declaration. The producer's declaration at the marker, or the same
 with every pinned leaf lifted to the marker, must be `<:` the entry at the
 marker ([D-236][d-236]).
 
-**The [tier](#g-tier) scope is load-bearing, not tidiness.** A discrete consumer takes the
-bound check alone, because its stages read exclusively at real [ticks](#g-tick) in the
-[nominal](#g-nominal) world (the `Float64` activation, and a declaration's `Float64` face). A
-`Dual`-carrying [cell](#g-cell) exists only inside activations the discrete tier never runs
-in ([§9.4][s9-4]). A continuous producer feeding a discrete consumer is therefore
-unconditionally legal ([D-167][d-167]).
+**The [tier](#g-tier) scope is a correctness rule, not tidiness.** A discrete consumer
+takes the bound check alone, because its stages read exclusively at real [ticks](#g-tick)
+in the [nominal](#g-nominal) world (the `Float64` activation, and a declaration's `Float64`
+face). A `Dual`-carrying [cell](#g-cell) exists only inside activations the discrete tier
+never runs in ([§9.4][s9-4]). A continuous producer feeding a discrete consumer is
+therefore unconditionally legal ([D-167][d-167]).
 
 The same clause also gives the two [contract](#g-contract) sides their **failure asymmetry**.
 The input-side forgotten `T`, the habitual `Float64` written at an entry whose
@@ -1324,7 +1324,7 @@ common eltype `T`**, and nothing else. `Int`s, enums and `Bool`s belong in
 modes. Domain wrapper types (`RQuat`, `Ranged`) are not state leaves. An
 attitude state is an `SVector{4,T}`, cast where rotation semantics are wanted,
 as described below. The declaration is flat. Each field is one leaf, never a
-`NamedTuple` of leaves. The condition register and the readers address a field
+`NamedTuple` of leaves. The condition algebra and the readers address a field
 as one leaf ([§14.3][s14-3], [§14.4][s14-4]), and structure comes from the component tree, not
 from the value ([D-094][d-094]). The framework does three things with the declaration.
 
@@ -1548,10 +1548,10 @@ workspace's type, and mistyped scratch detonates loudly at the `Dual` [probe](#g
 
 The `undef` spelling is the recommended idiom and the sole visible marker that
 contents are meaningless. It puts that fact in the declaration, which is the
-register this store actually lives in. Declaration is by allocation, never by
-initial value ([D-077][d-077]). The `init_` prefix means *establish*, as the device
-contract's `init!` does ([§11.6][s11-6]), and carries no claim that the allocated
-contents are a value ([D-220][d-220]).
+by-allocation convention this store actually lives in. Declaration is by
+allocation, never by initial value ([D-077][d-077]). The `init_` prefix means
+*establish*, as the device contract's `init!` does ([§11.6][s11-6]), and carries no claim
+that the allocated contents are a value ([D-220][d-220]).
 
 **Available on both tiers.** Nothing in the workspace contract is tier-specific,
 and a continuous workspace simply joins the `T`-generic surface. Under a `Dual`
@@ -1561,7 +1561,7 @@ they don't run marathons.
 
 The continuous side runs many calls per [boundary](#g-boundary), for RK stages, localization
 trial evaluations and event re-[sweeps](#g-sweep). That multiplicity makes the
-no-information-between-calls contract *more* load-bearing there, not less.
+no-information-between-calls contract *more* essential there, not less.
 
 **The [blessed](#g-blessed) idiom for zero-allocation [ticks](#g-tick) with immutable `s`.** Do the
 in-place math (`mul!`, `cholesky!`, BLAS) on the workspace. At the end, snapshot
@@ -1747,7 +1747,7 @@ build time where possible and at first execution otherwise.
 
 A macro can only ever *lower to* a layer like this one. A convenience macro
 therefore remains addable a posteriori as pure sugar, on the `@kwdef`
-precedent, and never becomes load-bearing.
+precedent, and never becomes essential.
 
 The door stays open for the declaration layer specifically. A macro generating
 the well-known declarations is admissible sugar *on top of* the plain-Julia
@@ -1802,7 +1802,7 @@ module is evidence of the missing import, not a coincidence.
 A convenience macro expanding to the import list remains addable a posteriori
 as sugar, per this section's macro doctrine. A re-export submodule is not an
 alternative, because per-name `import` is the only *unqualified* extension
-register the language provides ([D-117][d-117]).
+mechanism the language provides ([D-117][d-117]).
 
 **The same trap has a local-scope sibling** ([D-164][d-164]). Written inside a `let`, a
 function body or a `@testset`, `output_state(::MyComp, (; x)) = …` does not add
@@ -1879,7 +1879,7 @@ value-dependent contract does not announce itself. This is a rule authors keep,
 not a check the build can run.
 
 **`init_workspace` is the one exception**, and explicitly so. It is the
-by-allocation [register](#g-register) ([D-077][d-077]), an allocator the framework *calls* rather
+by-allocation convention ([D-077][d-077]), an allocator the framework *calls* rather
 than a schema it *walks*. It legitimately takes sizes from the instance
 (`init_workspace(c::KF, ::Type{T})` reads `c.n`, [§7.3][s7-3]), because no entry type
 is derived from it.
@@ -1913,7 +1913,7 @@ end
 
 state_derivative(eng::Engine, (; x, y, u)) = (ω = (y.M_shaft - u.M_load) / eng.J,)
 
-#events: ordered and named — order is load-bearing (§5.3, §10.6); detection policy by the guard's return type (§2.1)
+#events: ordered and named — order matters (§5.3, §10.6); detection policy by the guard's return type (§2.1)
 state_events(::Engine) = (
     start    = StateEvent(start_guard, start_handler),        # boundary-detected: Bool guard
     ignition = StateEvent(ignition_guard, ignition_handler),  # boundary-detected: Bool guard
@@ -1938,7 +1938,7 @@ where each schema fact gets its authority.
 
 There is consequently no second artifact to drift and no separate type
 declaration to check. The [workspace](#g-workspace) (component-declared mutable scratch
-arriving as the `ws` bundle field) is the exception to that [register](#g-register). It is
+arriving as the `ws` bundle field) is the exception to that convention. It is
 declared *by allocation*, as `init_workspace(::C, ::Type{T})` on the continuous
 tier and `init_workspace(::C)` on the discrete one, and the method itself is
 the allocator. A workspace earns the exception because it is not memory and
@@ -1962,19 +1962,19 @@ The asymmetry against `input_types`/`output_types` is one of kind, not style.
 [sweep](#g-sweep), and so need only types. `init_*` describe [stores](#g-store), the model's
 memory, which must have contents before the first sweep can run.
 
-**These declarations stay one-argument**, and the criterion is the register
-they live in ([D-166][d-166]). It is stated once here, and the blocks below refer
-back to it. A *by-value* declaration states nominal physics, and its *types*
-[walk by rule](#g-leaf-walk) (the derivation of per-activation types from a declared nominal
-type). [§7.1][s7-1] forces every state leaf to follow the [activation](#g-activation) scalar (a
-re-run of Stratum C at a given scalar type), so a `T` in the signature would
-record no choice its author could make. Partials enter through per-invocation
-seeding, never through initialization. A *by-type* declaration is a function
-of the activation scalar, which is why `input_types` and `output_types` both
-take it on the continuous tier. A *by-allocation* declaration takes the scalar
-too, and `init_workspace(c, T)` is the standing precedent ([D-077][d-077]). The
-criterion, not uniformity, is the rule. A `T` in a signature means a choice was
-made there.
+**These declarations stay one-argument**, and the criterion is the
+declaration convention they live in ([D-166][d-166]). It is stated once here, and the
+blocks below refer back to it. A *by-value* declaration states nominal physics,
+and its *types* [walk by rule](#g-leaf-walk) (the derivation of per-activation types from a
+declared nominal type). [§7.1][s7-1] forces every state leaf to follow the [activation](#g-activation)
+scalar (a re-run of Stratum C at a given scalar type), so a `T` in the signature
+would record no choice its author could make. Partials enter through
+per-invocation seeding, never through initialization. A *by-type* declaration is
+a function of the activation scalar, which is why `input_types` and
+`output_types` both take it on the continuous tier. A *by-allocation*
+declaration takes the scalar too, and `init_workspace(c, T)` is the standing
+precedent ([D-077][d-077]). The criterion, not uniformity, is the rule. A `T` in a
+signature means a choice was made there.
 
 #### `input_types(::C, ::Type{T})` on the continuous tier, `input_types(::C)` on the discrete
 
@@ -2035,7 +2035,7 @@ structure, schedule, activation) by evaluating them at a marker scalar. No
 user stage code runs ([§9.1][s9-1]), and a violation is `WalkingFaceAtFrozenEntry`.
 
 **Discrete consumers take the bound check only**, and that scope is
-load-bearing rather than tidy.
+a correctness rule rather than tidiness.
 
 **Why.** A discrete stage reads exclusively at real [ticks](#g-tick) in the nominal
 world, and a `Dual`-carrying cell exists only inside activations discrete
@@ -2186,7 +2186,7 @@ say so.
 **The stores are walked, and only the output side is evaluated.** The type
 derived from `init_x` is walked. Real leaves and `Real` type parameters follow
 the activation scalar. `init_m` and `init_s` pin wholesale, mirroring the
-discrete-producer rule. The asymmetry is the register criterion stated above
+discrete-producer rule. The asymmetry is the allocation criterion stated above
 under the by-value declarations, not an inconsistency. `init_*` declare *by
 value*, and [§7.1][s7-1] admits no pinned state leaf for a `T` to record a choice
 about. Declared `Float64` initial values embed as zero-partial constants under
@@ -2196,7 +2196,7 @@ non-nominal activations. That is the rule for `Float64` condition leaves
 Walking `init_x` presupposes the closed leaf vocabulary [§7.1][s7-1] fixes, scalars
 and `SArray`s at the common eltype. On the discrete tier, the stores answer to
 the isbits rule of [§7.3][s7-3], checked field by field. Stratum A checks both
-vocabularies ([§9.1][s9-1]) and reports a failure in the didactic register:
+vocabularies ([§9.1][s9-1]) and reports a failure in the didactic style:
 - "`init_x` field `gear_count::Int` is not a continuous state — integers,
   `Bool`s and enums belong in `init_m`";
 - "`init_x` field `q_nb::RQuat` is not a state leaf — declare the `SVector{4}`
@@ -2257,7 +2257,7 @@ they are properties of the declarations, not of the wiring.
 continuous state with no [flow](#g-flow), the second a discrete store nothing updates.
 The framework will not silently supply `ẋ = 0`, which is a model, not a
 default. An unupdated discrete store is a parameter in disguise, and
-parameters are plain struct fields. The didactic register says exactly that.
+parameters are plain struct fields. The didactic style says exactly that.
 `init_m` carries no such obligation. Modes are written by handlers, and a
 [component](#g-component) may legitimately declare modes no event of its own transitions.
 
@@ -2326,7 +2326,7 @@ That is the same move as class-by-declaration-shape. [Ports](#g-port) in the
 [contract](#g-contract) are connectable, GUI-listed, [snapshot](#g-snapshot)-carried and log-exported.
 The table is public throughout, with every [cell](#g-cell) a declared port or an
 auto-published one, so nothing anywhere needs a presentation filter.
-Visibility is binary, with no third register between the two. A value a later
+Visibility is binary, with no third class between the two. A value a later
 function reads travels as a declared port like any other ([§5.2][s5-2]).
 
 The inspection path for an intermediate is therefore **declaration**. One line
@@ -2392,7 +2392,7 @@ in every case the failure surfaced inside *correct* code, later, or never.
    returns, on a component whose returns are all declared, is the
    completeness pass's error, with the stage-product and state-field lists in
    hand ([§8.3][s8-3]). Every returned field is a declared port, so this one
-   register is the whole case. An intermediate a later function reads is
+   error form is the whole case. An intermediate a later function reads is
    declared like any other output and typo'd like any other output ([§8.3][s8-3]).
 ### 8.5 Assembly declaration: type-based, class by declaration shape
 
@@ -2601,9 +2601,9 @@ navigation, tuples of symbols and dotted paths were all rejected ([D-040][d-040]
 path-tracking proxy remains addable sugar. The three wiring declarations use
 only the short case of that form, one child segment and one [face](#g-face) name
 ([§6.1][s6-1]). The read side walks the full depth (`"systems/ldg/left/trn"` in a
-[snapshot](#g-snapshot) or the log tree). That read side is the inspection [register](#g-register) and
+[snapshot](#g-snapshot) or the log tree). That read side is the inspection side and
 `resolve` as a provenance primitive ([§13.3][s13-3]). One fact from that
-adjudication is load-bearing downstream. Symmetric immutable siblings are
+adjudication is relied on downstream. Symmetric immutable siblings are
 `===`-identical, so a path is unrecoverable from an instance. That is why the
 helpers ([§8.8][s8-8]) name the child by path.
 
@@ -2641,12 +2641,12 @@ their producers' cells and place nothing. Non-root leaves are left alone.
 
 The two-notation rule this rests on is directional. It separates structure
 from derived contract, not read from write. **Slash is structure**: endpoint
-paths walking real children and ports, and the inspection [register](#g-register)'s
+paths walking real children and ports, and the inspection side's
 [snapshot](#g-snapshot) and log addressing. **Face names are opaque derived-contract
 tokens.** The [periphery](#g-periphery)'s write side (input devices, mappings, the trace,
 the GUI write path) speaks face names exclusively ([§11.3][s11-3]). The read side
 speaks them wherever it wants meaning that outlives the build, in integration
-bindings (`get_face`, [§11.2][s11-2]) and load-bearing service reads ([§14.4][s14-4]). The
+bindings (`get_face`, [§11.2][s11-2]) and service reads ([§14.4][s14-4]). The
 three declarations return pairs of strings rather than NamedTuples ([D-046][d-046]).
 
 One invariant spans all three declarations. Every pair's arrow points the way
@@ -2731,7 +2731,7 @@ one more ordinary pair.
 
 The declaration is `sample_times(::A) = (nav = Relative(5), gnss = Absolute(Hz(10)))`,
 mapping each child name to a `Relative` or `Absolute` entry. These are the two
-registers of [§10.5][s10-5]. Relative entries compose affinely down the tree,
+forms of [§10.5][s10-5]. Relative entries compose affinely down the tree,
 absolute entries anchor, and all are compiled to one `(D, Φ)` pair per
 discrete [component](#g-component). The wrappers are the whole value vocabulary, so a
 bare integer or bare quantity is a declaration error. The declaration is
@@ -3256,7 +3256,7 @@ already put their valid default (`RQuat()` is the identity, and the `@kwdef`
 convention supplies it broadly). `probe_value` is **overridable**. A type
 whose valid default is not reachable that way declares its own method, which
 is also the [seam](#g-seam) a [walked](#g-walked) type uses to state a constrained default. No
-method is a build error, in the didactic register. It names the [face](#g-face) and the
+method is a build error, in the didactic style. It names the [face](#g-face) and the
 type, and asks for one of the two fixes ("no `probe_value` for
 `Ranged{Float64, -1, 1}` at face `pilot.elevator_axis` — define
 `probe_value(::Type{Ranged{Float64, -1, 1}})` or a zero-argument
@@ -3362,7 +3362,7 @@ advice ([D-166][d-166]). **Every component gets a `Dual` activation built in CI.
 `build(world; activations = (Float64, ProbeDual))` (or a `check` entry) runs
 the exhaustive set, catching both genericity violations and forgotten-`T`
 leaves at PR time, at the cost of a Stratum-C re-run per component. The same
-keyword is the recommended idiom for the parallel-sweep register ([§11.1][s11-1]).
+keyword is also recommended for the parallel-sweep idiom ([§11.1][s11-1]).
 Pre-materialize the activations the sweep will need, and the shared `Build`
 is a fully immutable artifact, with no synchronization on any path.
 [`ProbeDual`](#g-probedual) is the framework's public canonical probe scalar,
@@ -3709,7 +3709,7 @@ assertion passes vacuously. That is the point, because consumers then
 iterate the roster uniformly, with no existence checks and no per-model
 branching in the measurement code.
 
-One promise, in the diagnostic register ([§13.5][s13-5]). **These are the bodies
+One promise, and it is diagnostic only ([§13.5][s13-5]). **These are the bodies
 the loop runs**, not re-derivations. That is what makes the measurement
 honest, and why each callable carries the real in-loop argument types by
 construction. Those types are the thing a hand-built standalone test cannot
@@ -3834,7 +3834,7 @@ guarded-additions rule it is not built until then.
 
 #### Why fixed-step low-order suffices
 
-The domain argument is recorded here because it is load-bearing for the whole
+The domain argument is recorded here because it is decisive for the whole
 axis.
 
 1. **The closed-loop tick cap.** Every application beyond bare propagation
@@ -4353,7 +4353,7 @@ and no opt-in variant ([D-019][d-019]).
 interleaving semantically invisible. Consumers read cells whose freshness is
 guaranteed by topological order rather than by contiguity.
 
-#### Declaring a sample time: two registers, one concept
+#### Declaring a sample time: two forms, one concept
 
 **Rule.** A discrete component or sub-assembly is scheduled by a
 `sample_times` entry in its enclosing assembly ([§8.7][s8-7]). The entry
@@ -4387,7 +4387,7 @@ declaration-validation stratum, and is collected with path attribution
 themselves are plain data carriers, with no checks of their own
 ([D-185][d-185]).
 
-#### The relative register composes affinely and stays on the scope grid
+#### The relative form composes affinely and stays on the scope grid
 
 **Rule.** Multipliers compose multiplicatively and phases affinely down the
 tree. Under a scope compiled to divisor and phase `(D_s, Φ_s)` in base ticks, a
@@ -4400,14 +4400,14 @@ component**, and the boundary sweep gates on that pair with the
 `(tick − Φ) % D == 0` test above. The lattice stays static, and the interior
 sweep still holds no discrete entries to gate.
 
-**Why relative is the default register.** In a layered control architecture
+**Why relative is the default form.** In a layered control architecture
 the *ratios* are intrinsic to the design and travel with the assembly type.
 The inner loop runs at `Relative(1)` and the outer loops at `Relative(5)`,
 whatever the deployment. The convention that keeps `K ≥ 1` livable is this:
 **a scope's base rate is its fastest relative member**, and that member gets
 `K = 1`.
 
-**Two structural properties confine grid cost to the other register.** A
+**Two structural properties confine grid cost to the other form.** A
 relative phase selects among scope ticks that already exist, so it never
 refines the base grid. And it cannot place a tick *between* scope ticks.
 Staggering off-grid means declaring the offset in seconds, or declaring the
@@ -4473,7 +4473,7 @@ this model's numbers.
 
 #### Where the doctrinal line falls on mid-tree anchors
 
-Absolute-first declaration as the default register is rejected
+Absolute-first declaration as the default form is rejected
 ([D-019][d-019], [D-186][d-186]). What mid-tree anchors legitimize is
 narrower.
 
@@ -4858,7 +4858,7 @@ task per attached interface reading or mutating the model under it (sim.jl).
 That lock does enforce the [boundary](#g-boundary)-visibility rule
 ([§10.3][s10-3]), because it is only ever free between steps. Transplanting
 it here was nevertheless rejected, on three structural costs ([D-022][d-022]).
-One of the three is load-bearing for everything below. Under a lock, input
+One of the three is decisive for everything below. Under a lock, input
 timing is scheduler-determined and unrecorded. There is then no defined input
 [trace](#g-trace), and bit-identical [replay](#g-replay) ([§10.7][s10-7]) is
 unachievable *in principle* for interactive runs.
@@ -4911,7 +4911,7 @@ rostered, the loop runs on the calling task.
 | the calling task runs | the loop | that device's loop body, inline |
 | spawned tasks | one per rostered device | the loop, plus one per other rostered device |
 
-The loop-on-the-calling-task case is the unattended register. It is what the
+The loop-on-the-calling-task case is unattended mode. It is what the
 synchronous rethrow ([§13.4][s13-4]) presupposes. It is also what lets
 parallel unattended sweeps thread `run!` inline with no nested task fan-out.
 One immutable [`Build`](#g-build) is shared across the workers
@@ -4975,7 +4975,7 @@ snapshot carries the boundary-consistent [signal table](#g-signal-table), `t`
 and the framework status. Readers acquire-load that reference and then work
 with an immutable, coherent world for as long as they like. The
 [calling task](#g-calling-task) (the task that invoked `run!`) reads the same
-value through `latest(sim)`, the inspection register ([§12.6][s12-6]).
+value through `latest(sim)`, an inspection read ([§12.6][s12-6]).
 
 The exchange is wait-free in both directions. A wedged reader cannot delay
 publication by a nanosecond, and the loop cannot tear a reader's view.
@@ -5006,7 +5006,7 @@ authored fact like every other.
 
 **The captured table also includes the [root inputs](#g-root-input)**
 ([§15.4][s15-4]). Root inputs are source cells of the table, not state stores,
-so they ride along. That is load-bearing, not incidental. The [§11.7][s11-7]
+so they ride along. That is essential, not incidental. The [§11.7][s11-7]
 [peek](#g-peek) (showing a widget's own pending write, else the snapshot
 value) falls back to the snapshot, and that fallback is what an idle live
 widget displays. Read-only mirrors of claimed root inputs, such as the axis
@@ -5137,8 +5137,8 @@ is also what defines the hint when `t_end = Inf`.
 (telemetry, the XPlane visualizer, disk streaming) consumes snapshots via
 [§12.3][s12-3]. It addresses what it reads with the
 [selectors](#g-selector) (the closed family of deferred reads resolving
-against a source, [§14.4][s14-4]), which reach any cell, since the diagnostic
-register admits deep paths. A binding is resolved at attach against the
+against a source, [§14.4][s14-4]), which reach any cell, since inspection
+reads admit deep paths. A binding is resolved at attach against the
 `Build` with [did-you-mean](#g-did-you-mean) (the offending name plus the
 list-in-hand it should have matched), and compiled to one gather, the output
 half of the binding interface ([§11.6][s11-6]). `map_output` therefore
@@ -5147,22 +5147,22 @@ receives a labeled NamedTuple, keyed by the names `reads` declared
 the obligation stated in [§15.4][s15-4]. A substitution that breaks a binding
 fails at attach, not with silent garbage UDP.
 
-This is **diagnostic observation** ([§13.5][s13-5]). It is human-facing, with
-no effect on run semantics. It is the same register as the log retaining the
-full table and the GUI's deep-reading panels. Every cell is reachable, because
-the table is public throughout ([§8.3][s8-3]), and an intermediate a device
-wants to stream is one promoted to a declared output.
+This is **inspection** ([§13.5][s13-5]). It is human-facing, with no effect
+on run semantics. It is the same kind of observation as the log
+retaining the full table and the GUI's deep-reading panels. Every cell is
+reachable, because the table is public throughout ([§8.3][s8-3]), and an intermediate a
+device wants to stream is one promoted to a declared output.
 
-**A binding chooses its register.** A deep path is the *inspection* register.
+**A binding chooses its side.** A deep path is an *inspection* read.
 It makes zero promises, gives free access, and is right for looking at *this*
 build. An exported output [face](#g-face), spelled `get_face(name)`
-([§14.4][s14-4]), is the *integration* register. It is named, curated and
+([§14.4][s14-4]), is an *integration* read. It is named, curated and
 meaning-stable under substitution, and right for consumers that outlive the
 build they were configured against. What makes a face meaning-stable is
 writer-independent semantics ([§15.4][s15-4]).
 
 **Why the choice matters.** Attach validation converts *structural* drift to
-loud errors in both registers. Only faces protect against *semantic* drift,
+loud errors on both sides. Only faces protect against *semantic* drift,
 where a substituted aircraft publishes the same path at the same type with a
 different meaning, such as a CG velocity under a name read as body-origin
 velocity. Nothing else can, because meaning is not in the schema.
@@ -5197,8 +5197,8 @@ through the resolution ([§11.7][s11-7]), and control commands are not writes
 the GUI write path address root inputs by **face name** ([§8.6][s8-6]).
 Structural slash paths never cross the periphery's *write* boundary. The
 write side speaks the root [contract](#g-contract)'s names only. The read
-side chooses per binding. It uses slash paths in the inspection register, and
-face names in the integration register and in load-bearing service reads
+side chooses per binding. It uses slash paths in inspection reads, and face
+names in integration reads and in service reads
 ([§11.2][s11-2]/[§13.5][s13-5]/[§14.4][s14-4]).
 
 **Root-input exclusivity: one writer per root input at any time**
@@ -5254,7 +5254,7 @@ computed claim exactly as a returned one. The GUI is therefore not an
 exception but an ordinary enumerated writer whose enumeration the framework
 performed. Attaching the greedy claimant last is the idiom. Its computed
 claim is taken at the attach point and never recomputed, so attachment order
-is load-bearing by design. Opportunistic writing by autonomous devices does
+is decisive by design. Opportunistic writing by autonomous devices does
 not exist. A device that wants a face enumerates it, and greediness is an
 explicit declaration, never a default. Cross-writer races on one root input
 therefore cannot arise structurally, because every claim is exclusive,
@@ -5262,12 +5262,12 @@ whatever its source. That is what keeps drain order a diagnostic fact (below)
 and lets a drained GUI value simply stay ([§11.7][s11-7]).
 
 **One framework-owned remainder: the
-[harness register](#g-harness-register).** Beside the roster sits a
+[harness writer](#g-harness-writer).** Beside the roster sits a
 **task-free entry point**, `stage!(sim, "face" => value, …)`, the harness/REPL
 write path ([§12.6][s12-6]). It stages a batch from the
 [calling task](#g-calling-task) itself (the task that invoked `run!`). Its
 always-present cell is drained, traced and surface-checked exactly as any
-device's. The register's surface is the one thing in the design that is
+device's. The harness writer's surface is the one thing in the design that is
 *derived* rather than claimed. It is the unclaimed complement, the faces no
 rostered device speaks for. That surface is recomputed at every stopped-sim
 roster change, and is therefore as fixed within a run as any claim set. A
@@ -5278,7 +5278,7 @@ so the complement it leaves is empty and every `stage!` in such a session is
 rejected that way ([D-192][d-192]). There is one seam, a batch staged while
 stopped whose face a subsequent `attach!` claims, and the attach itself
 renormalizes it away (below). The [harness cell](#g-harness-cell) (the
-always-present staging cell of the harness register) drains **last**, by
+always-present staging cell of the harness writer) drains **last**, by
 convention. With every surface disjoint the order is unobservable, so the
 rule exists to make the trace read the same way every time, not to arbitrate
 anything.
@@ -5306,7 +5306,7 @@ mid-run. The roster (entries, claims, attachment order) is therefore a plain
 immutable value the loop reads once at `run!`. The partition of the root face
 set into per-writer surfaces plus the harness remainder is a static,
 inspectable fact of the run. It is printable before the run starts and valid
-until it ends (the provenance register, [§13.7][s13-7]). No republication
+until it ends (the provenance rule, [§13.7][s13-7]). No republication
 machinery exists. There is no atomic roster reference, no per-frame
 acquire-load, no next-frame attachment granularity and no sequence numbers.
 Attachment order is the roster's own order. The trace still tags entries
@@ -5471,7 +5471,7 @@ the attach point, and by the time shapes are compiled it is an ordinary claim
 set ([§11.3][s11-3]). The GUI's cell is compiled exactly as a joystick's.
 
 **The [harness cell](#g-harness-cell) (the always-present staging cell of the
-harness register) gets the same treatment.** Under the roster freeze its
+harness writer) gets the same treatment.** Under the roster freeze its
 derived surface, the unclaimed complement, is as static as any claim set, so
 it too is compiled to a positional shape. That shape is recompiled at each
 `attach!`/`detach!`, both stopped-sim points, and it carries the same shim,
@@ -5583,7 +5583,7 @@ about one binding, not about a class of writers. A
 [contract](#g-contract) ([§11.3][s11-3]), so keying retention by claim source
 is rejected ([D-176][d-176]). Every consumer then handles one format instead
 of two. There is one record format at the trace's edge, no per-entry format
-flag, one decoder in the [what-if register](#g-what-if-register) (replay with
+flag, one decoder in [what-if replay](#g-what-if-replay) (replay with
 edited inputs), in disk serialization and in human inspection, and one
 inverse conversion in [replay](#g-replay). That work is paid once, up front,
 off the loop ([§12.7][s12-7]). The conversion site is the drain and not the
@@ -5613,7 +5613,7 @@ replay path exactly as they are.
 `(x, s, m)` **plus the initial [root-input](#g-root-input) values** at
 `init!`. The capture happens **after `apply!` and the root-input writes,
 before the boundary-zero sequence runs** ([§14.5][s14-5]). Both halves of
-that placement are load-bearing:
+that placement matter:
 
 - The header holds the *resolved* stores and root inputs as values, never
   the sparse authored overlay. Replay must survive edits to declared
@@ -5684,7 +5684,7 @@ control access (observe running, request shutdown). Read returns the latest
 
 **[`should_abort`](#g-should_abort) is an `attach!` keyword**, defaulting to
 `false`. It is per-attachment, never a device property. The same joystick is
-advisory in one deployment and load-bearing in another. With it clear, a
+advisory in one deployment and decisive in another. With it clear, a
 device's departure is reported and the run continues without it. With it
 set, that departure also requests a sim stop ([§12.4][s12-4]). A departure
 is the loop body returning, a crash, or a failed `init!`. The shipped GUI
@@ -5923,7 +5923,7 @@ Rejected, correspondingly ([D-177][d-177]): an abstract binding-type
 `sides(b)` trait returning the side set. The last of the three is **answered
 rather than repeated** by the design above, since redundancy *with a
 cross-check* is drift detection. That is what the bidirectional check turns
-the traits into. The same fact is stated twice, in two registers, with the
+the traits into. The same fact is stated twice, in two forms, with the
 framework paid to compare them.
 
 **`is_greedy` is a claim source, not a device class.** What the declaration
@@ -5960,7 +5960,7 @@ it attaches), and defines no `claims` of its own. It declares no `reads`
 either, because its read path is the handle's primitive read. VSync-paced,
 it reads `latest` afresh each render ([§12.3][s12-3]), with an ad-hoc,
 render-time read set over the whole [snapshot](#g-snapshot). That is the
-inspection register's shape ([§11.2][s11-2]). The compiled output gather
+shape of an inspection read ([§11.2][s11-2]). The compiled output gather
 therefore has nothing to do for it. The same GUI device type is equally
 attachable under a binding that returns explicit claims. Greediness is the
 binding's declaration, not the device's nature. Every other interactive
@@ -6142,7 +6142,7 @@ The runtime warning stream ([§13.2][s13-2]) and the liveness heartbeat
 ([§12.2][s12-2]) are a third, and they cross the same task boundaries. They
 are written at staging by whichever task stages (`OutOfClaimEntry`,
 `ClaimedFaceEntry` and `EntryTypeMismatch`, [§11.4][s11-4], on a
-[device](#g-device) task or through the harness register, [D-200][d-200]).
+[device](#g-device) task or through the harness writer, [D-200][d-200]).
 They are written by the device tasks (`MalformedDatum` from the author's loop
 body via `report!(handle, …)`, [§11.6][s11-6]), and by the loop itself
 (`ChatteringBudget`, `FiringBudget`, `DebtReanchor`). They are read by the
@@ -6154,11 +6154,11 @@ exist to eliminate, so it gets the mechanism [§11.4][s11-4] already
 established, not one of its own.
 
 **One [diagnostic cell](#g-diagnostic-cell) per writer: one per rostered
-device, one for the harness register, one for the loop itself
+device, one for the harness writer, one for the loop itself
 ([D-200][d-200]).** A device's [cell](#g-diagnostic-cell) and the loop's have
 a single writer, the same ownership argument as the
 [staging cells](#g-staging-cell). There is no locking, no arbitration and no
-new primitive. The harness register's cell is written from whichever task
+new primitive. The harness writer's cell is written from whichever task
 stages, exactly as its staging cell is, and the same CAS append arbitrates.
 It carries no heartbeat, and its status record no `task_state`, because it
 has no task of its own to be alive or dead. The cell holds a **bounded
@@ -6488,7 +6488,7 @@ task or the loop itself ends first.
    `unblock!(device)`, default no-op. A network input's override closes its
    own socket, which raises in the blocked task. The framework wrapper
    catches that raise and treats it as shutdown. This demotes FlightCore's
-   EOT convention from load-bearing shutdown mechanism to an optional
+   EOT convention from essential shutdown mechanism to an optional
    wire-protocol courtesy between remote peers.
 4. **Loop bodies exit.** The exit is the author's own
    `while running(handle)` loop, the authoring contract of [§11.6][s11-6].
@@ -6844,9 +6844,8 @@ boundary zero, under either entry, leaves the simulation `built`
 the task that invoked `run!`, unless a calling-task [device](#g-device) is
 rostered. That device is the GUI, and the topology is derived from the
 [roster](#g-roster) ([§11.1][s11-1]). Deviceless, `run!` is fully
-synchronous. That is the unattended register. An
-[unattended run](#g-unattended-run) is the same loop with empty staging
-([§11.1][s11-1]). It is also what the synchronous rethrow presupposes
+synchronous. That is unattended mode. An [unattended run](#g-unattended-run) is the same loop with
+empty staging ([§11.1][s11-1]). It is also what the synchronous rethrow presupposes
 ([§13.4][s13-4]).
 
 **Partial advance.** `step!(sim; frames = 1)` advances whole frames
@@ -6857,8 +6856,8 @@ is the duration spelling, mutually exclusive with `frames`. It advances
 whole frames until the boundary time first covers the duration, which is
 the migration suite's advance-by-duration idiom.
 
-Partial advance is the test-harness register: advance, assert, advance. It
-is equally the REPL register: fly a while, inspect, continue. Neither is a
+Partial advance is the test-harness mode: advance, assert, advance. It
+is equally the REPL mode: fly a while, inspect, continue. Neither is a
 script, so the scenario-[component](#g-component) doctrine does not absorb
 them ([§12.5][s12-5]).
 
@@ -6882,7 +6881,7 @@ The read half is `latest(sim)`. It hands back the same immutable
 navigated directly for assertions. Advance-assert-advance is `stage!` →
 `step!` → `latest`. Both entry points work under `run!` too. The
 [harness cell](#g-harness-cell), the always-present staging cell of the
-harness register, is not step-scoped. An inspection accessor leaves the
+harness writer, is not step-scoped. An inspection accessor leaves the
 rejection of closure-based termination ([§13.5][s13-5]) untouched.
 
 **Status, termination and the `run!` [seam](#g-seam).** Between `step!`
@@ -6949,7 +6948,7 @@ therefore affected.
 
 **Run policy is re-bindable per cycle.** `t_end` and `stop_on` are
 `Simulation` defaults that `run!` may override for the run it starts
-([§13.5][s13-5]). A second run, or a `step!` register between two runs, can
+([§13.5][s13-5]). A second run, or a `step!` sequence between two runs, can
 therefore stop on a different clock or a different face set without a
 rebuild.
 
@@ -6964,7 +6963,7 @@ The entry point the [§11.5][s11-5] [trace](#g-trace) exists for:
 trc  = trace(sim)                     # the recorded session: header + per-frame batches
 sim2 = Simulation(world)              # the same build
 replay!(sim2, trc)                    # header-init, then re-drive every recorded frame
-replay!(sim2, trc; to_boundary = k)   # partial: the §13.4 replay-pointer register
+replay!(sim2, trc; to_boundary = k)   # partial: the §13.4 replay-pointer idiom
 replay!(sim2, trc; to_time = 100.0)   # partial: the same halt addressed by time
 ```
 
@@ -7004,7 +7003,7 @@ exactly as the bullet above describes. There is still one loop and one drain
 
 **Why.** A mode that outlives the call makes a partial replay a resumable
 position rather than the end of an operation. Whatever advances the
-simulation next reads the same register and finds the same records. That is
+simulation next reads the same mode and finds the same records. That is
 what lets the reproduction workflow of [§13.4][s13-4] run through the
 ordinary entry points, with no replay-only spelling of `step!`. That
 workflow halts at the frame top the error names, then `step!`s the failing
@@ -7130,9 +7129,9 @@ Everything else is the loop as already specified:
 
   *Structural* mismatch is an error. *Parametric* difference is not.
   Replaying against the same structure with changed parameters is the
-  **[what-if register](#g-what-if-register)**, the deterministic re-driving
+  **[what-if replay](#g-what-if-replay)**, the deterministic re-driving
   of the recorded inputs through a modified model. Bit-identity is promised
-  only against the identical build. The what-if register promises
+  only against the identical build. What-if replay promises
   determinism, never reproduction.
 
   The header's deployment block ([§11.5][s11-5]) validates in the same pass,
@@ -7166,7 +7165,7 @@ The dispositions, by header content:
 
 Rejected shapes, for the record ([D-101][d-101]): a `run!(sim; replay = trc)`
 flag, a synthetic playback device staging the recorded batches, and replay
-ending `stopped`. The mode register clarifies that decision's second
+ending `stopped`. The input mode clarifies that decision's second
 substitution rather than replacing it, and carries its own rejected shapes
 ([D-218][d-218]).
 
@@ -7338,7 +7337,7 @@ Two rendering rules are doctrine, not style.
   `compact_backtrace` lesson. Expected and observed *[port](#g-port)* types are
   the one payload exception, and they are small. Examples are a `Float64`
   against a `Bool`, and a NamedTuple field diff.
-- **The didactic [register](#g-register) is policy.** Every diagnostic states
+- **The didactic style is policy.** Every diagnostic states
   the fix or the lists-in-hand, not just the violation. Examples are "return
   `zero(x.ω)`, not `0`" and "no input `throtle`; did you mean `throttle`?", or
   the child's face list shown alongside the unknown `except` entry.
@@ -7438,58 +7437,59 @@ hand would resolve it. Resolving *to* a generic child is [port](#g-port)-level
 access and legal. An unknown segment errors with the sibling field list in
 hand.
 
-**The duty is [register](#g-register)-scoped.** The line between load-bearing
-and diagnostic clients ([D-083][d-083]) carries into resolution. Client policy
-rides on one primitive. The two application registers over one plan
-([§14.4][s14-4]) use the same arrangement.
+**Which rule applies depends on who is resolving.** [D-083][d-083]
+separates the reads a build's correctness rests on from the reads that only
+observe it. The same line runs through resolution. Three kinds of client share
+one primitive, and each gets the rule its promises require. The two ways of
+applying one plan ([§14.4][s14-4]) use the same arrangement.
 
-| register | who resolves under it | what the walk enforces |
+| client | who resolves | what the walk enforces |
 |---|---|---|
-| **structural** | wiring resolution, in [Stratum](#g-stratum) A (one of the build's three phases: structure, schedule, activation) | the one-level rule: an immediate child and one of its faces |
-| **load-bearing** | [condition](#g-condition) entries (the path-addressed sparse overlay that sets a build's state), trim `reads`, [taps](#g-taps) ([§14.3][s14-3], [§14.7][s14-7], [§14.10][s14-10]) | strict, evaluated **at the authoring or mount level** |
-| **diagnostic** | [device](#g-device) read [bindings](#g-binding), GUI panels, [snapshot](#g-snapshot) and log inspection ([§11.2][s11-2], [§11.7][s11-7]) | the instance walk |
+| **wiring** | connection declarations, in [Stratum](#g-stratum) A (one of the build's three phases: structure, schedule, activation) | the one-level rule: an immediate child and one of its faces |
+| **service** | [condition](#g-condition) entries (the path-addressed sparse overlay that sets a build's state), trim `reads`, [taps](#g-taps) ([§14.3][s14-3], [§14.7][s14-7], [§14.10][s14-10]) | strict: no traversal past a generic child, checked **at the authoring or mount level** |
+| **inspection** | [device](#g-device) read [bindings](#g-binding), GUI panels, [snapshot](#g-snapshot) and log inspection ([§11.2][s11-2], [§11.7][s11-7]) | the instance walk |
 
-Each register's treatment has its own warrant. The structural register is the
-one the law ([§6.1][s6-1]) lives in, so it applies that law verbatim. Under
-one-level routing the generic-holding question never arises there, because an
-endpoint stops before any field it could traverse past. The load-bearing
-register evaluates at the authoring or mount level for two reasons. First, the
+Each client's treatment has its own warrant. Wiring is what the law
+([§6.1][s6-1]) is stated for, so wiring resolution applies that law verbatim.
+Under one-level routing the generic-holding question never arises there,
+because an endpoint stops before any field it could traverse past. Service
+paths are checked at the authoring or mount level for two reasons. First, the
 locality law is an authoring-level law, and absolute paths are a compiled
 derivative ([§14.2][s14-2]). Second, the mount itself checks a mount prefix,
 where the problem's authored names resolve through the export chain from the
-mount point ([§14.9][s14-9]). So this register checks the authored path below
-that prefix. The diagnostic register walks instances instead. A generic
+mount point ([§14.9][s14-9]). So the service check covers the authored path
+below that prefix. Inspection walks instances instead. A generic
 [seam](#g-seam) is not an error for a client that never claimed
-substitutability. "What is in *this* build" is the inspection register's
-defining question. Drift still stays loud. An unknown path is an attach-time
+substitutability. "What is in *this* build" is inspection's defining question.
+Drift still stays loud. An unknown path is an attach-time
 `ReadBindingUnresolved` with a [did-you-mean](#g-did-you-mean) (the offending
 name plus the list-in-hand it should have matched).
 
-**The scoping is one principle, not three concessions.** What varies across the
-registers is not how far a client is trusted. It is what a violation costs, and
-where the cost lands. A diagnostic client claims no substitutability. It
-addresses one build's instances, and a broken binding fails at attach, at its
-own site, harming only the observer. A wiring entry is carried by the declaring
-*type* and compiled into every instantiation. That is why its endpoints stop at
-the boundary. A wire reaching past one would fail at substitution time, at a
-different site, for whoever exercised the substitution the field advertised.
-That is the non-local failure class the error discipline exists to eliminate
-([§8.4][s8-4]). The rule is strict exactly where a promise depends on it, and
-relaxed exactly where none is made ([D-083][d-083], [D-130][d-130]).
-Strictness forbids nothing outright in the load-bearing register. Declaring the
-field's concrete type restores the deep read legally, with the hard-coding
-visible in the declaration itself. For wiring there is no deep route left to
-restore, because the face chain is the route ([§6.1][s6-1]).
+**The scoping is one principle, not three concessions.** What varies across
+the three clients is not how far a client is trusted. It is what a violation
+costs, and where the cost lands. An inspection client claims no
+substitutability. It addresses one build's instances, and a broken binding
+fails at attach, at its own site, harming only the observer. A wiring entry is
+carried by the declaring *type* and compiled into every instantiation. That is
+why its endpoints stop at the boundary. A wire reaching past one would fail at
+substitution time, at a different site, for whoever exercised the substitution
+the field advertised. That is the non-local failure class the error discipline
+exists to eliminate ([§8.4][s8-4]). The rule is strict exactly where a promise
+depends on it, and relaxed exactly where none is made ([D-083][d-083],
+[D-130][d-130]). Strictness forbids nothing outright for a service path.
+Declaring the field's concrete type restores the deep read legally, with the
+hard-coding visible in the declaration itself. For wiring there is no deep
+route left to restore, because the face chain is the route ([§6.1][s6-1]).
 
-Which register a client resolves under is internal framework fact, never
-user-facing API. The two `apply!` registers ([§14.4][s14-4]) have the same
-status.
+Which of the three rules a client resolves under is internal framework fact,
+never user-facing API. The two ways of applying one plan ([§14.4][s14-4]) have
+the same status.
 
 `resolve_terminal` is first-class because five clients share it across the
-three registers. Wiring resolution is structural. Condition addressing
-([§14.3][s14-3]) and tap resolution ([§14.10][s14-10]) are load-bearing.
-Device-binding validation ([§11.2][s11-2]) and snapshot inspection are
-diagnostic. The result is one splitter and one did-you-mean site.
+three rules. Wiring resolution is one. Condition addressing ([§14.3][s14-3])
+and tap resolution ([§14.10][s14-10]) are service clients. Device-binding
+validation ([§11.2][s11-2]) and snapshot inspection are inspection clients.
+The result is one splitter and one did-you-mean site.
 
 ### 13.4 Runtime failures: one catch site, an execution cursor
 
@@ -7722,7 +7722,7 @@ init!(sim, cond); run!(sim)                # the constructor's pair again: nothi
 This is not the root-declared stop policy rejected below. The `run!` argument
 moves binding one notch *later* along the same axis, more deployment-flavored
 rather than less ([D-060][d-060] and [D-091][d-091]). The
-`stopped → init! → run!` cycle and the `step!` register ([§12.6][s12-6]) are
+`stopped → init! → run!` cycle and the `step!` idiom ([§12.6][s12-6]) are
 precisely where one `Simulation` wants different stopping policies on
 different runs. The honest cost is two homes for one fact. The precedence rule
 above settles it.
@@ -7787,16 +7787,15 @@ A root-declared *default*, overridable at the constructor, is the one variant
 on record for reopening, should the constructor argument prove chronically
 forgotten ([§16][s16]).
 
-The observation-by-path line leaves doctrine behind it. **Diagnostic
-observation** is human-facing, has no effect on run semantics, and
-legitimately sees every public [cell](#g-cell). The log retaining the full
-table, GUI panels rendering a component's [ports](#g-port), and
-[replay](#g-replay) inspection are all diagnostic observation. **Load-bearing
-observation** is a read that changes what the run *does*, and it must speak
-the [contract](#g-contract). `stop_on` is the one read that changes what the
-run does, which is why it alone names root-exported faces. Output devices are
-the other half of the same doctrine. Their reads are diagnostic snapshot-path
-bindings ([§11.2][s11-2], [§15.4][s15-4]).
+The observation-by-path line leaves doctrine behind it. **Inspection** is
+human-facing, has no effect on run semantics, and legitimately sees every
+public [cell](#g-cell). The log retaining the full table, GUI panels
+rendering a component's [ports](#g-port), and [replay](#g-replay) inspection
+are all inspection. **A read the run acts on** changes what the run *does*,
+and it must speak the [contract](#g-contract). `stop_on` is the one read that
+changes what the run does, which is why it alone names root-exported faces.
+Output devices are the other half of the same doctrine. Their reads are
+inspection bindings on snapshot paths ([§11.2][s11-2], [§15.4][s15-4]).
 
 The wall-clock channel (GUI stop button, device handle, code) is orthogonal
 and untouched. That is the [control plane](#g-control-plane)'s operator path.
@@ -8054,8 +8053,8 @@ stays available as a diagnostic read. It may not become a condition value.
 A violation is `ServiceLifecycle` ([Appendix C][sC]). Its payload is the
 operation, the current status and the legal statuses. It is the same kind
 `attach!`/`detach!` raise while `running` ([§11.3][s11-3]), so there is one
-[register](#g-register) for "this operation is illegal in the current
-lifecycle state." `MissingInit` is distinct, and names a missing prior step.
+error form for "this operation is illegal in the current lifecycle state."
+`MissingInit` is distinct, and names a missing prior step.
 
 ### 14.1 Conditions are path-addressed overlays on the declared defaults
 
@@ -8067,8 +8066,8 @@ also specify [root inputs](#g-root-input), addressed by [face](#g-face). It
 never specifies outputs, which are derived data. It never specifies
 [workspace](#g-workspace) (component-declared mutable scratch arriving as the
 `ws` bundle field). Entries are validated in the [§13.1][s13-1] collecting
-[register](#g-register). The full list is checked, violations are collected,
-and one `DiagnosticError` is thrown.
+form. The full list is checked, violations are collected, and one
+`DiagnosticError` is thrown.
 
 **The overlay base is always the declared defaults.** Every [store](#g-store)
 has a declared initial value (declaration-by-initial-value, [§8.2][s8-2]), so
@@ -8086,7 +8085,7 @@ observation-by-path rejection ([§13.5][s13-5]). That rejection was about
 *runtime* coupling, where a root-authored predicate reaches through generic
 [seams](#g-seam) the root does not own and breaks on substitution. A condition
 is a *design-time statement about a concrete build*. It is authored in the
-same register as `child_connections`, which also speaks paths, about children
+same vocabulary as `child_connections`, which also speaks paths, about children
 its author owns. The composition law ([§14.2][s14-2]) makes the parallel
 exact.
 
@@ -8153,8 +8152,8 @@ Every node is isbits except the prefix strings, and a prefix is a reference to
 the author's own literal. So **rebuilding the tree per trim iteration
 allocates nothing**. There is no path arithmetic, no validation and no copy of
 the payloads. The zero-alloc property of today's `assign!` loop holds of the
-construction and of the [register](#g-register) that *applies* the tree
-([§14.4][s14-4]) alike. An evaluation's cost is therefore the sweep it feeds.
+construction and of the walk that *applies* the tree ([§14.4][s14-4]) alike. An
+evaluation's cost is therefore the sweep it feeds.
 
 `fragment`'s payloads speak only about the component at the authoring point.
 Addressing children is exclusively `at`'s job, so there is one way to say
@@ -8276,14 +8275,14 @@ Overlay partiality for the `s` and `m` stores is baked the same way. The
 writer holds `merge(init_m_defaults, overlay)`, with the base resolved at
 compile time (the overlay-base rule, [§14.1][s14-1]).
 
-### 14.4 Two application registers over one plan
+### 14.4 One plan, two ways to apply it
 
 **The paradigm-change tax feared at execution does not materialize.** All
 string work, validation and addressing are functions of the *shape* of the
 [condition](#g-condition) (the path-addressed sparse overlay that sets a
 build's state). Every hot path holds the shape fixed while varying values.
-Execution is therefore resolve-once/execute-many, with two
-[registers](#g-register) over one plan.
+Execution is therefore resolve-once/execute-many, with two ways to apply one
+plan.
 
 - **Specialized `apply!`** serves the services that iterate, namely trim's
   per-evaluation write and linearization's seeding. It unrolls stores through
@@ -8307,7 +8306,7 @@ Execution is therefore resolve-once/execute-many, with two
   structurally different scripted conditions cost fifty walks, not fifty
   compiles.
 
-**Rule.** Which register a service uses is internal, never user-facing API.
+**Rule.** Which of the two a service uses is internal, never user-facing API.
 
 A compiled plan or reader carries the [activation](#g-activation) it was
 compiled at and applies only to a store set of that activation. That pairing
@@ -8330,7 +8329,7 @@ There is no selector for a value a [component](#g-component) computes without
 declaring it, and there cannot be one, because only [cells](#g-cell) are
 addressable ([§5.2][s5-2]). So a reader that wants one is asking the producing
 component to declare it an output ([§8.3][s8-3]). `get_face` addresses a
-root-exported output [face](#g-face), which is the *integration* register
+root-exported output [face](#g-face), which is an *integration* read
 ([§11.2][s11-2]).
 
 **Rule.** A selector resolves against a source, before any client policy
@@ -8349,17 +8348,17 @@ live stores. The snapshot deliberately carries no state stores
 ([§11.2][s11-2]), and `ẋ` [buffers](#g-buffer) are integrator scratch, not
 boundary-consistent objects outside a service evaluation. A snapshot-bound
 reader naming a store selector is therefore a resolution error at attach
-(`ReadBindingUnresolved`), raised in the didactic register. The honest remedy
+(`ReadBindingUnresolved`), raised in the didactic style. The honest remedy
 ([§11.2][s11-2]) is to declare the field public and read the
 [auto-published port](#g-auto-published-port) (published by the framework
 from the state or mode store).
 
-Client policy rides on top. It is the registers of [D-083][d-083] restated as
-a resolver property.
+Client policy rides on top. It is [D-083][d-083]'s service and inspection
+sides restated as a resolver property.
 
-- **Load-bearing services speak the [contract](#g-contract).** Trim's `reads`
-  and linearization's [taps](#g-taps) (the three selector lists declaring
-  what linearization seeds and reports) name
+- **Service reads speak the [contract](#g-contract).** Trim's `reads` and
+  linearization's [taps](#g-taps) (the three selector lists declaring what
+  linearization seeds and reports) name
   `get_state`/`get_deriv`/`get_output`/`get_input`/`get_face`. They do so
   within the scopes the locality law ([§6.1][s6-1]) and
   [fragment](#g-fragment) scoping ([§14.2][s14-2]) own. `get_face` is the
@@ -8368,13 +8367,13 @@ a resolver property.
   with `at(prefix, …)`) resolves [root input](#g-root-input) faces
   ([§14.9][s14-9]), so the read side mirrors the write side. An equilibrium
   equation reaching behind a generically-held child therefore binds the
-  curated face register instead of a path the locality law forbids. A service
-  evaluation needing an undeclared intermediate has one remedy, and it is the
-  same at every register. The component exports it ([§14.7][s14-7]).
-- **Diagnostic readers admit the whole family, within the source rule.**
+  curated face instead of a path the locality law forbids. A service evaluation
+  needing an undeclared intermediate has one remedy, and it is the same for
+  every client. The component exports it ([§14.7][s14-7]).
+- **Inspection readers admit the whole family, within the source rule.**
   Output-[device](#g-device) bindings, GUI panels and log inspection take deep
   paths and `get_face` names alike. The store selectors reach only the
-  diagnostic clients that actually hold stores (`capture`, post-run
+  inspection clients that actually hold stores (`capture`, post-run
   inspection). A snapshot-bound reader is barred from them by source, not by
   client.
 - **`stop_on` is not a family client.** It names root-exported `Bool` output
@@ -8383,7 +8382,7 @@ a resolver property.
 
 The five selectors, their sources, and their clients:
 
-| selector | resolves against | load-bearing services | diagnostic readers |
+| selector | resolves against | service reads | inspection readers |
 |---|---|---|---|
 | `get_state(path, field[, i])` | live stores | named in the contract | only clients that hold stores |
 | `get_deriv(path, field[, i])` | live stores | named in the contract | only clients that hold stores |
@@ -8618,7 +8617,7 @@ against today's `c172.jl`.
 - **The read side is declared, then compiled.** The spelling is
   `reads(name = get_state(path, field) | get_deriv(path, field) |
   get_output(path, field) | get_input([face](#g-face)) | get_face(name),
-  ...)`, the load-bearing set ([§14.4][s14-4]). `get_state` and `get_deriv`
+  ...)`, the service read set ([§14.4][s14-4]). `get_state` and `get_deriv`
   address a declared state field and its derivative (validated against
   `init_x`/`init_s`). `get_output` addresses a declared output
   [port](#g-port) (validated against `output_types`). `get_input` and
@@ -8658,7 +8657,7 @@ against today's `c172.jl`.
   `Dual`-typed there and takes the structural conversion, while the
   zero-partial embedding stays on the held `Float64` leaves. The *default* is
   nonlinear least squares on $r(d)$ with exact AD Jacobians, in the
-  trust-region/Levenberg–Marquardt register ([§9.6][s9-6]). Convergence is
+  trust-region/Levenberg–Marquardt family ([§9.6][s9-6]). Convergence is
   quadratic (~5–15 evaluations), the tolerances are per-residual and
   physical, and failure reports name the unbalanced equations with
   magnitudes. The convergence verdict itself is service-owned and
@@ -8751,8 +8750,8 @@ backend that ignores bounds therefore ignores two vectors, not a missing
 argument.
 
 `tol` is a `Vector{Float64}` in `tolerances`' field order. It is data the
-backend *may* stop on, under the service's per-register translation below, and
-it is decisive of nothing.
+backend *may* stop on, under the service's per-backend-family translation below,
+and it is decisive of nothing.
 
 The return holds `d`, the solution, `status::Symbol` from a deliberately
 **open** set, and the diagnostic counts `nevals` and `niters`. The status is
@@ -8770,10 +8769,10 @@ solve that produced it. That verdict, and nothing else, gates the commit and
 fills `TrimReport.converged`. The backend's returned `status` is recorded in
 the report as diagnostic data, and it is authoritative over nothing.
 
-#### The tolerance translation, per register
+#### The tolerance translation, per backend family
 
-The tolerance translation is the service's too, per register. In the
-least-squares register the tolerances *are* the stopping criterion. They feed
+The tolerance translation is the service's too, per backend family. In
+least-squares backends the tolerances *are* the stopping criterion. They feed
 the per-residual test directly, so LM's damping loop tests exactly what the
 service will re-test.
 
@@ -8841,7 +8840,7 @@ composite first, by the dynamic walk ([§14.4][s14-4]), and runs one
 establishment round. That round is boundary zero's sweep with every discrete
 output stage admitted, due or not ([D-205][d-205]), with no
 [projection](#g-projection), no [guards](#g-guard) and no `state_update`. The
-seeded set is then written by the specialized register, and its frozen cells
+seeded set is then written by the specialized `apply!`, and its frozen cells
 are copied from the nominal set as zero-partial constants (the embedding of
 [§14.3][s14-3]). Every cell the iterations read is thus derived from the
 authored world. A frozen cell holds what the authored discrete state
@@ -8890,7 +8889,7 @@ both init-service entry points ([§14.5][s14-5]). The
 [batches](#g-batch) still in [staging cells](#g-staging-cell) (where a
 device's pending write batch waits between drains).
 
-A fresh recording starting at its own anchor is the unattended register's
+A fresh recording starting at its own anchor is unattended mode's
 natural shape. Fly-then-retrim keeps continuity explicitly. The resumed
 spelling is `trim!(sim, problem; baseline = c, t0 = t)`, with `(condition, t)`
 coming from a `capture` ([§14.1][s14-1]).
@@ -9064,11 +9063,11 @@ signals) are wired from provider components. Design tasks therefore use a
 shipped rig, `design_world(ac)` = aircraft +
 `SimpleAtmosphere(wind = NoWind())` + `HorizontalTerrain`. That rig is today's
 ad-hoc models inside `linearize` promoted to a named artifact. There is one
-register. The "root" case is the shallowest world, and the trim problem mounts
+mechanism. The "root" case is the shallowest world, and the trim problem mounts
 at `"aircraft"` like anywhere else. Leaving an environment face *unconnected*
 is legal by construction, though. The face becomes an ordinary root input
 holding the handle **value**, written by the `baseline` like any other root
-input. That is the test-rig register. It is the function-valued sibling of a
+input. That is the test-rig idiom. It is the function-valued sibling of a
 [constant source](#g-constant-source) (a library component publishing a value
 its instance holds), with zero ceremony for a frozen environment. For design
 tasks the shipped rig stays `design_world(ac)`. That keeps the environment's
@@ -9143,7 +9142,7 @@ type) by *evaluating* its consuming `input_types` entry at that scalar
 ([§8.2][s8-2]). The discrete [tier](#g-tier) is frozen with zero partials,
 which is precisely "linearize with the discrete state held" ([§8.2][s8-2]).
 Differentiation participation is a per-invocation *seeding* fact for every
-root input the schema leaves seedable, one register for `x` and root inputs
+root input the schema leaves seedable, one rule for `x` and root inputs
 alike. One declared exception is visible in the schema. A root input whose
 entry is declared `Float64` is **declaredly unseedable**, and its cell is
 frozen at every activation. Selecting it as a `B`-matrix tap is therefore
@@ -9230,7 +9229,7 @@ extension is additive along existing [seams](#g-seam).
   + the discrete tier's output stages + `state_update`".
 - **Forward sensitivities** through the in-house RK steppers, for free. That
   is a payoff of owning the loop ([§10.1][s10-1]).
-- **A distinct `s`-tap register** beside the `x` list, labeling the step map's
+- **A distinct `s`-tap list** beside the `x` list, labeling the step map's
   state blocks $\partial(x^+, s^+)/\partial(x, s)$ ([D-197][d-197]). The `x`
   list keeps its continuous meaning unchanged.
 
@@ -9969,7 +9968,7 @@ whose disposition exceeds a cell are expanded below the table.
 | The steering contract re-factoring | `AbstractSteering` moves from "give me the angle" to `(engaged, ψ_cmd)` | [§5.4][s5-4] | — |
 | Splitting `Strut` | the residual remedy, recorded and not taken | — | — |
 | The state-declaration conversion to the closed vocabulary | each `RQuat` state field becomes its `SVector{4}` backing, each `Ranged` state field a plain scalar | [§7.1][s7-1] | — |
-| The exported-name surface | decided deliberately rather than by accident, by a full-surface audit under the four-register naming convention | [§14.2][s14-2] | [D-144][d-144] |
+| The exported-name surface | decided deliberately rather than by accident, by a full-surface audit under the four-class naming convention | [§14.2][s14-2] | [D-144][d-144] |
 | The [executor](#g-executor) compile-cost re-measurement | runs on the real vehicle skeleton, early — before the executor's shape hardens | [§9.7][s9-7] | — |
 | *Residual*: the `q_sf` home | aircraft design, so it belongs on this list | [§15.4][s15-4] | — |
 | *Residual*: a root-declared overridable `stop_on` default | reopen only if the constructor argument proves chronically forgotten | [§13.5][s13-5] | — |
@@ -9990,10 +9989,9 @@ apples-to-apples with today's `@ballocated f_ode!` suites.
 
 **The conventional exported aircraft surface.** Generic
 [periphery](#g-periphery) consumers read the integration
-[register](#g-register) ([§11.2][s11-2]). That surface exports pose and
-velocity [faces](#g-face) with wrapper types (`VelocityData`, with field
-meaning defined at the type). It is the periphery-facing half of the `KinData`
-successor.
+side ([§11.2][s11-2]). That surface exports pose and velocity [faces](#g-face) with wrapper types
+(`VelocityData`, with field meaning defined at the type). It is the
+periphery-facing half of the `KinData` successor.
 
 **The supervisor seam.** The supervisor sitting above the compensators
 ([§15.2][s15-2]) contributes three respellings. Compensator gains become input
@@ -10089,7 +10087,7 @@ disposition. Extension-only surface has three parts.
   Authors extend it by `import` or qualified name, `Base.show`-style, rather
   than call it every day.
 
-The audit's criterion is the **four-register naming convention**
+The audit's criterion is the **four-class naming convention**
 ([D-144][d-144]):
 
 1. **Declarations**, which the author defines and the framework calls, are
@@ -10102,15 +10100,15 @@ The audit's criterion is the **four-register naming convention**
 3. **Lifecycle and mutating actions** are verbs, with `!` when they mutate.
 4. **Build primitives** ([§13.3][s13-3]) are plain verbs.
 
-A name in the wrong register is a rename candidate on that ground alone.
+A name in the wrong class is a rename candidate on that ground alone.
 
-The convention also has a **semantic axis**: right register, wrong noun.
+The convention also has a **semantic axis**: right class, wrong noun.
 `input_passthrough` ([§8.8][s8-8], [D-171][d-171]) and the binding methods
 `claims`/`reads` ([§11.6][s11-6], [D-146][d-146]) are what settle it. A
 bare-noun declaration names the *consequence* a declaration has rather than
 its *content*. `exports` is that axis's retired exemplar ([D-170][d-170]). The
 `*_connections` family names content deliberately, for authoring transparency.
-That is a recorded choice, not register drift.
+That is a recorded choice, not class drift.
 
 Four items are flagged for the sweep and deliberately not settled here.
 
@@ -10122,11 +10120,11 @@ Four items are flagged for the sweep and deliberately not settled here.
   entrenched, it needs the audit's whole-surface view.
 - The bare-noun accessor family `trace(sim)`, `latest(sim)`,
   `binding(handle)`, `phase_bodies(sim)` holds value selectors outside
-  register (2)'s `get_` rule. `trace` is the sharpest of them. The constructor
+  class (2)'s `get_` rule. `trace` is the sharpest of them. The constructor
   kill-switch `trace = false` and the post-run accessor `trace(sim)` are one
   name in two senses, which is the overload pattern [D-122][d-122] and
   [D-144][d-144] retire.
-- Whether register (1) needs an explicit exemption for predicate traits
+- Whether class (1) needs an explicit exemption for predicate traits
   (`is_greedy`, `needs_calling_task`).
 
 All four are boundary cases the convention in [D-144][d-144] does not settle,
@@ -10309,14 +10307,14 @@ For periphery authors and consumers:
   chain terminates in a root input inside the GUI's own claim in the run's
   frozen partition. There is no per-port marking, and unexported ports are
   unpokeable.
-- **The two observation registers** ([§11.2][s11-2], [§13.5][s13-5]). A deep
-  snapshot path is the *inspection* register. It sees everything and promises
-  nothing across builds. An exported output face is the *integration*
-  register. It carries curated, writer-independent meaning, and it is the only
-  shield against silent semantic drift. Bind faces in anything meant to
-  outlive the current build. The store selectors (`get_state`/`get_deriv`)
-  belong to neither register. They read live stores, never snapshots (the
-  source rule, [§14.4][s14-4]).
+- **The two observation sides** ([§11.2][s11-2], [§13.5][s13-5]). A deep
+  snapshot path is an *inspection* read. It sees everything and promises
+  nothing across builds. An exported output face is an *integration* read. It
+  carries curated, writer-independent meaning, and it is the only shield
+  against silent semantic drift. Bind faces in anything meant to outlive the
+  current build. The store selectors (`get_state`/`get_deriv`) belong to
+  neither side. They read live stores, never snapshots (the source rule,
+  [§14.4][s14-4]).
 
 ---
 
@@ -10610,13 +10608,13 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   boundary. A stepping session is deviceless. Write via `stage!` and read via
   `latest` ([§12.6][s12-6]).
 - `stage!(sim, "face" => value, …)`. Task-free staging from the calling task
-  into the harness register ([§11.3][s11-3]). Its surface is the currently
+  into the harness writer ([§11.3][s11-3]). Its surface is the currently
   unclaimed faces. The batch is traced, drained last at the next frame top,
   and surface-checked exactly as the GUI's writes (the harness cell,
   [§12.6][s12-6]). It is legal under `run!` and `step!` alike.
 - `latest(sim) → snapshot`. The current published snapshot, the same
   immutable value device handles read ([§11.2][s11-2]). It is the assertion
-  and inspection accessor of the harness and REPL registers ([§12.6][s12-6]).
+  and inspection accessor of the harness and REPL modes ([§12.6][s12-6]).
 - `phase_bodies(sim) → named callables`. The compiled phase bodies of the
   nominal activation, bound over the simulation's own buffers. They are the
   four blocks (`rhs`, `sweep_1`, `sweep_2`, `ticks`), with the sweeps in both
@@ -10624,7 +10622,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   the tick index. Per-event guards/handlers and per-component
   `state_projection` come with them, keyed by the model's roster. This is the
   [§7.5][s7-5] allocation seam. Warm, then `@ballocated(body()) == 0` per
-  body. It is a diagnostic register, and its one promise is identity with
+  body. It is an inspection-only surface, and its one promise is identity with
   what the loop runs. An isolated invocation leaves buffers valid but
   off-trajectory. Re-run `init!` to continue ([§9.7][s9-7]).
 - Control plane. Pause/un-pause, pace and `margin` changes, and stop all
@@ -10664,7 +10662,7 @@ The kinds below are the closed set [D-058][d-058] commits to, made normative.
 acceptance-test contract. Adding a kind is a decision-log entry. Every
 entry's payload is *in addition to* what [§13.2][s13-2] requires of all
 diagnostics: paths and names as strings, never instances; the list-in-hand
-wherever a did-you-mean renders; the didactic register (state the fix).
+wherever a did-you-mean renders; the didactic style (state the fix).
 Owning sections stay the normative home of each rule. This appendix is an
 index of the values, in the manner of Appendices A and B.
 
@@ -10699,7 +10697,7 @@ The policies:
   declarative pass's violations are the `DiagnosticError` of the stratum
   barrier, and every pass that ran under [§13.1][s13-1]'s dependency rule
   merges into the one throw ([D-229][d-229]). A service's violations are
-  collected wherever the owning section says so (the register,
+  collected wherever the owning section says so (the condition algebra,
   [§14.1][s14-1]; the pre-write check, [§14.6][s14-6]).
 - **fail-fast**. The first occurrence throws on its own, and nothing else is
   gathered. At build the first user-code failure aborts the phase
@@ -10716,7 +10714,7 @@ The policies:
   and bounded by them. Every kind reported this way is bounded per writer
   per boundary (a ring of sixteen retained values, the excess becoming
   per-kind suppressed counts). The per-entry qualifiers record where that
-  bound is load-bearing (a source that can repeat within a frame) and where
+  bound matters (a source that can repeat within a frame) and where
   the source itself fires once. A kind carried this way names its subjects
   in the payload, never its writer. The cell attributes the writer, and the
   status record's `who` and the tail residue carry that attribution
@@ -10748,11 +10746,11 @@ with the collection and never trigger its throw, is currently empty
   ("declare the entry `T` if the consumer promotes; feed it from a
   non-walking source if the freeze is genuine").
 - **`PathResolution`** ([§6.1][s6-1], [§13.3][s13-3]). Error · build, or
-  service under the load-bearing register · collected. Path, offending
-  segment, sibling field list. For a wiring endpoint reaching past the
-  immediate child, the level it stopped at. For a load-bearing traversal past
-  a generically-held field, the level it reached past and that field's
-  declared type.
+  service resolving a service path · collected. Path, offending segment,
+  sibling field list. For a wiring endpoint reaching past the immediate
+  child, the level it stopped at. For a service path traversing past a
+  generically-held field, the level it reached past and that field's declared
+  type.
 - **`AbstractAtRoot`** ([§8.2][s8-2]). Error · build · collected. Face name,
   consuming leaf path, the abstract entry; a remedy hint (wire a concrete
   producer, or in a rig a stub child, [§13.7][s13-7]).
@@ -10979,7 +10977,7 @@ with the collection and never trigger its throw, is currently empty
   the value in hand, the violated constraint. The twin of
   `DeploymentInvalid` for arguments that are not deployment parameters.
 - **`ReadSetMisuse`** ([§14.4][s14-4]). Error · service · fail-fast. The
-  offending argument's type, the selector kinds in hand. The read register's
+  offending argument's type, the selector kinds in hand. The read side's
   twin of `ConditionNodeMisuse`.
 - **`NotAttached`** ([§11.3][s11-3]). Error · service · fail-fast. The device
   id or handle offered to `detach!`, the roster's device ids.
@@ -11005,7 +11003,7 @@ with the collection and never trigger its throw, is currently empty
 - **`ClaimedFaceEntry`** ([§11.3][s11-3], [§11.4][s11-4]). Warning · runtime
   · rate-limited. Face name, the incumbent (claiming) device id, the
   discarded value, the site (staging, or a stopped-sim attach's
-  renormalization). Harness-register only. A device's out-of-surface entry
+  renormalization). Harness writer only. A device's out-of-surface entry
   is `OutOfClaimEntry`.
 - **`OutOfClaimEntry`** ([§11.3][s11-3]). Warning · runtime · rate-limited.
   Face name, the discarded value, the device's claim set, and the incumbent's
@@ -11113,7 +11111,7 @@ step-boundary contract ([§10.6][s10-6]) and the *derived contract*
 ([§D.1][sD-1] above).
 
 <a id="g-declaration-inventory"></a>**declaration inventory** — the closed set of well-known functions a component
-or assembly defines, each declared in a stated register of authority: by
+or assembly defines, each declared in a stated source of authority: by
 value, by type, by allocation ([§8.2][s8-2]). The set is
 `init_x`/`init_s`/`init_m`, `init_workspace`, `input_types`/`output_types`,
 `state_events`, the stages, `state_derivative`/`state_update`/
@@ -11644,7 +11642,7 @@ waking waiter can never see a stale snapshot ([§12.3][s12-3]). Distinct from
 the per-trajectory ordinal a snapshot carries.
 
 <a id="g-calling-task"></a>**calling task** — the task that invoked `run!`. It runs the loop itself
-(the unattended register) unless a `needs_calling_task` device is rostered.
+(unattended mode) unless a `needs_calling_task` device is rostered.
 In that case it runs that device's loop body inline and the loop moves to a
 spawned task ([§11.1][s11-1]).
 
@@ -11676,7 +11674,7 @@ output-only are degenerate uses, and the GUI is an ordinary device
 ([§11.6][s11-6]).
 
 <a id="g-diagnostic-cell"></a>**diagnostic cell** — the per-writer cell each rostered device, the harness
-register and the loop itself own for runtime diagnostics and liveness. It
+writer and the loop itself own for runtime diagnostics and liveness. It
 holds a bounded ring (capacity 16) of diagnostic values plus per-kind
 suppressed counts, the bound being the rate limit itself, and an atomic
 heartbeat timestamp. The loop takes it with `atomicswap` at the frame-top
@@ -11702,12 +11700,12 @@ by `claims`, ordinary in every respect afterwards. An empty remainder is
 legal and reported (`EmptyGreedyClaim`), and the shipped GUI binding is the
 shipped instance ([§11.3][s11-3], [§11.6][s11-6]).
 
-<a id="g-harness-cell"></a>**harness cell** — the always-present staging cell of the harness register,
+<a id="g-harness-cell"></a>**harness cell** — the always-present staging cell of the harness writer,
 written by `stage!(sim, "face" => value, …)` from the calling task itself.
 Its batches are ordinary, traced and surface-checked, and drained last by
 convention ([§12.6][s12-6], [§11.3][s11-3]).
 
-<a id="g-harness-register"></a>**harness register** — the framework-owned write path of the calling task,
+<a id="g-harness-writer"></a>**harness writer** — the framework-owned write path of the calling task,
 `stage!(sim, …)` and its cell, and the design's sole *derived* surface. That
 surface is the unclaimed complement, the faces no rostered device claims,
 recomputed at every stopped-sim roster change. A write to a claimed face is
@@ -11766,7 +11764,7 @@ defaulting to `false`. Set, a device's departure (loop body returning,
 crash, or a failed `init!`) also requests a control-plane stop. Clear, the
 run continues with the device absent and its claims held to run end. It is
 an attachment fact, never a device property, since the same device can be
-advisory in one deployment and load-bearing in another. The shipped GUI
+advisory in one deployment and decisive in another. The shipped GUI
 attaches with `true` ([§11.6][s11-6], [§12.4][s12-4]).
 
 <a id="g-snapshot"></a>**snapshot** — the immutable per-boundary publication: boundary-consistent
@@ -11785,7 +11783,7 @@ shutdown tail so CI fails honestly ([§11.1][s11-1], [§13.4][s13-4]).
 
 <a id="g-write-surface"></a>**write surface** — the set of faces a writer's batch entries may reach. For
 a device it is the claim set, whether returned by `claims` or computed under
-`is_greedy` ([§11.6][s11-6]). For the harness register it is the derived
+`is_greedy` ([§11.6][s11-6]). For the harness writer it is the derived
 unclaimed complement. It is static per run and enforced entirely at staging,
 `OutOfClaimEntry` for a device and `ClaimedFaceEntry` for the harness
 ([§11.3][s11-3]).
@@ -11850,7 +11848,7 @@ at the drain against the header's schema. Trace size therefore tracks
 information rather than surface width, and consumers meet one format and
 one replay path ([§11.5][s11-5], [D-176][d-176]).
 
-<a id="g-what-if-register"></a>**what-if register** — replaying a trace against the same structure with
+<a id="g-what-if-replay"></a>**what-if replay** — replaying a trace against the same structure with
 changed parameters: deterministic re-driving of the recorded inputs through
 a modified model. It promises determinism but never bit-identical
 reproduction ([§12.7][s12-7]).
@@ -12040,13 +12038,6 @@ deliberately left unimplemented, with its seams named so adoption is
 additive (the closed-loop trim, [§14.7][s14-7]; the sampled-data `Dual`
 activation and declarative non-participation, [§14.10][s14-10]).
 
-<a id="g-register"></a>**register** — the spec's word for a mode or idiom in which something is
-done, always compounded: the didactic register ([§13.2][s13-2]), the
-inspection and integration registers ([§11.2][s11-2]), the by-allocation
-register ([§8.2][s8-2]), the harness, unattended and what-if registers
-([§12.6][s12-6], [§12.7][s12-7]). It is reserved for this sense. The
-recording artifacts are the *recorders* ([§D.7][sD-7]).
-
 <a id="g-seam"></a>**seam** — a narrow, named interface kept deliberately thin so what sits
 behind it can be replaced or measured: the stepper seam ([§10.2][s10-2]),
 the backend seam ([§14.8][s14-8]), the measurement seam ([§9.7][s9-7]), the
@@ -12092,7 +12083,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-029]: decisions.md#d-029--input-trace-on-by-default
 [d-031]: decisions.md#d-031--mid-run-mutation-doctrine-staging-and-control-commands-only
 [d-032]: decisions.md#d-032--component-declaration-trait-layer-with-probe-checked-schema-authority
-[d-033]: decisions.md#d-033--declaration-inventory-by-value-by-type-by-allocation-registers
+[d-033]: decisions.md#d-033--declaration-inventory-by-value-by-type-by-allocation-conventions
 [d-034]: decisions.md#d-034--contract-visibility-declared-fields-are-public
 [d-035]: decisions.md#d-035--stores-and-views-components-read-zero-copy-view-bundles
 [d-036]: decisions.md#d-036--table-mechanics-stage-returns-are-namedtuples-of-port-values
@@ -12149,7 +12140,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-116]: decisions.md#d-116--expose-phase_bodiessim-as-the-zero-allocation-invariants-measurement-seam
 [d-117]: decisions.md#d-117--extend-declarations-and-stages-via-explicit-per-name-import
 [d-122]: decisions.md#d-122--resolve-de-polysemy-by-giving-each-overloaded-term-one-owner
-[d-130]: decisions.md#d-130--scope-resolves-generic-boundary-duty-by-register-structuralload-bearingdiagnostic
+[d-130]: decisions.md#d-130--scope-resolves-generic-boundary-duty-by-client-wiringserviceinspection
 [d-133]: decisions.md#d-133--split-spec-invoked-numeric-constants-into-deployment-parameters-vs-owning-section-defaults
 [d-136]: decisions.md#d-136--unify-diagnostics-and-liveness-heartbeat-into-one-per-writer-diagnostic-cell
 [d-137]: decisions.md#d-137--bound-snapshot-log-retention-by-count-with-amortized-doubling-stride
@@ -12180,7 +12171,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-181]: decisions.md#d-181--replace-once-per-boundary-firing-with-budgeted-re-firing
 [d-183]: decisions.md#d-183--retire-workspace-poisoning
 [d-184]: decisions.md#d-184--fold-group-into-the-spec-as-an-ordinary-library-component
-[d-185]: decisions.md#d-185--adopt-the-phased-two-register-sample-time-declaration
+[d-185]: decisions.md#d-185--adopt-the-phased-two-form-sample-time-declaration
 [d-186]: decisions.md#d-186--legalize-absolute-declarations-in-any-scope-via-anchors
 [d-187]: decisions.md#d-187--make-the-bound-schedule-a-named-artifact-with-exact-grid-diagnostics
 [d-190]: decisions.md#d-190--reject-a-separate-derivative_type-declaration
@@ -12192,7 +12183,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-197]: decisions.md#d-197--reject-discrete-stores-in-linearizations-x-tap-list
 [d-198]: decisions.md#d-198--promote-the-shutdown-join-timeout-to-a-deployment-keyword
 [d-199]: decisions.md#d-199--the-reads-enumeration-returns-a-labeled-namedtuple-of-selectors
-[d-200]: decisions.md#d-200--the-harness-register-is-a-diagnostic-writer-with-its-own-cell
+[d-200]: decisions.md#d-200--the-harness-writer-has-its-own-cell-and-is-diagnostic-only
 [d-201]: decisions.md#d-201--the-terminal-account-closes-at-the-final-frame-top
 [d-202]: decisions.md#d-202--stage-batches-as-values-plus-touched-mask-never-union-tuples
 [d-203]: decisions.md#d-203--the-termination-record-carries-typed-sources-and-the-tail-residue
@@ -12268,7 +12259,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [s14-10]: #1410-linearization-tap-selectors-one-seeded-pass-a-pure-query
 [s14-2]: #142-fragment-composition-locality-without-schema
 [s14-3]: #143-resolution-flatten-validate-compile-once
-[s14-4]: #144-two-application-registers-over-one-plan
+[s14-4]: #144-one-plan-two-ways-to-apply-it
 [s14-5]: #145-boundary-zero-an-ordinary-boundary-with-authored-incoming-transitions
 [s14-6]: #146-root-input-totality-the-missing-value-error-and-the-override-combinator
 [s14-7]: #147-the-trim-problem-namedtuple-decisions-declared-reads-named-residuals
@@ -12334,6 +12325,5 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [sD-4]: #d4-time-and-events
 [sD-5]: #d5-build-pipeline
 [sD-6]: #d6-runtime-periphery
-[sD-7]: #d7-recording-and-replay
 [sD-8]: #d8-stopped-sim-services-and-the-condition-algebra
 [sD-9]: #d9-error-discipline-and-diagnostics

@@ -6,7 +6,7 @@ policy declared by the guard's return type, honest priors under budgeted re-firi
 `localization_budget`/`firing_budget` as the two event budgets.*
 
 This document explains one small mechanism — a single extra guard evaluation at the
-start of every localization — and why it is load-bearing: it closes a correctness hole
+start of every localization — and why it matters: it closes a correctness hole
 in the localization trigger, supplies a value the root-finders always needed but the
 spec never sourced, and draws the jurisdictional line between the two kinds of edges a
 guard can exhibit. The mechanism is easy to state and easy to implement; what is worth

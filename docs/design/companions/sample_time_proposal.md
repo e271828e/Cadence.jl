@@ -25,7 +25,7 @@ sessions of 2026-08-12.
 ## Contents
 
 - [1. Where the parent-relative paradigm hurts](#1-where-the-parent-relative-paradigm-hurts)
-- [2. The declaration surface: two registers, one concept](#2-the-declaration-surface-two-registers-one-concept)
+- [2. The declaration surface: two forms, one concept](#2-the-declaration-surface-two-forms-one-concept)
 - [3. The composition law](#3-the-composition-law)
 - [4. Anchors: absolute declarations anywhere in the tree](#4-anchors-absolute-declarations-anywhere-in-the-tree)
 - [5. The pipeline, stage by stage](#5-the-pipeline-stage-by-stage)
@@ -70,9 +70,9 @@ ADC pipeline has a fixed conversion offset. Forcing those declarations to the ro
 them. Section 4 develops this into the case for absolute declarations anywhere in
 the tree.
 
-## 2. The declaration surface: two registers, one concept
+## 2. The declaration surface: two forms, one concept
 
-A rate entry can be declared in one of two **registers** — relative or absolute —
+A rate entry can be declared in one of two **forms** — relative or absolute —
 and the proposal makes each an explicit wrapper type, with `Period`/`Hz` as pure
 quantity types underneath:
 
@@ -95,7 +95,7 @@ struct Absolute
 end
 ```
 
-The symmetry is the point, and worth stating as the mental model: **both registers
+The symmetry is the point, and worth stating as the mental model: **both forms
 are the same pair — (period, phase) — expressed in different unit systems, and the
 type name declares the unit system.** `Relative(K, Φ)` is period and phase in *scope
 ticks*; `Absolute(q, τ)` is period and phase in *seconds*. Even the validity
@@ -178,12 +178,12 @@ cost a 2× finer grid; an offset of `T/1000` can cost 1000×. Offsets should be 
 fractions of their period — though section 8 shows why that authoring rule cannot be
 the engine's actual test.
 
-Three properties distinguish the registers, and they are what make the split
+Three properties distinguish the forms, and they are what make the split
 principled rather than cosmetic:
 
 1. **Relative offsets never refine the base grid.** `φ` is an integer count of scope
    ticks — it selects among instants that already exist. Grid cost is confined
-   entirely to the absolute register.
+   entirely to the absolute form.
 2. **Relative offsets cannot leave the scope grid.** A child can fire on the 3rd or
    19th scope tick of a cycle, never *between* scope ticks. Staggering off-grid
    requires expressing the offset where the grid is finer: in absolute time (paying
@@ -242,7 +242,7 @@ authoring doctrine, one paragraph next to the declaration forms.
 pinning happens in the *enclosing assembly's* `sample_times` — the same site where `K`
 lives today. The component type itself remains rate-agnostic; its author still
 cannot know the rate, still consumes the bundle's `Δt`. What changes is only which
-register the parent's declaration uses. Nesting is likewise unproblematic — an
+form the parent's declaration uses. Nesting is likewise unproblematic — an
 anchor inside an anchored subtree just seeds again; anchors need no relation to each
 other beyond sharing the base lattice, which the grid derivation guarantees.
 
@@ -267,7 +267,7 @@ into absolute divisors — everything except binding `Δt_base`" ([§9.1][s9-1])
 keeps that shape and enriches the fold. During the tree walk, each scope's `sample_times`
 NamedTuple is read, normalized through `ratespec`, and validated per entry — `K ≥ 1`,
 `0 ≤ Φ < K`, `T > 0`, `0 ≤ τ < T`, keys matching the discrete/scope children — all
-collected with path attribution, per [§9.1][s9-1]'s usual register.
+collected with path attribution, per [§9.1][s9-1]'s usual convention.
 
 The fold itself: each node carries a triple `(anchor, m, c)` — which anchor it hangs
 from, and its divisor and phase *in that anchor's tick units*. Treat the base grid
@@ -357,7 +357,7 @@ run, and what coincides with what."
 ### 5.4 The execution form: entry fields and the gate
 
 At activation compile, the bound schedule bakes into the compiled executor, and
-[§9.7][s9-7] has already made the load-bearing choice: *"an entry carries what selects
+[§9.7][s9-7] has already made the decisive choice: *"an entry carries what selects
 code — component type, stage — in type parameters, and what is plain data — tick
 divisor, layout offsets — in fields."* `D`, `Φ` and `Δt` are exactly the second
 kind. Two instances of one controller type at different rates and phases differ only
@@ -758,8 +758,8 @@ didn't it fire" and "why is my data stale" — into lookups.
 All small, all honest; collected so a future increment can check them off:
 
 - **[§10.5][s10-5], rate declaration.** The relative-declaration paragraph gains the two
-  registers and the severing rule (section 4); `K ≥ 1` is scoped to the relative
-  register; the fastest-member convention is stated; the recorded limitation "no
+  forms and the severing rule (section 4); `K ≥ 1` is scoped to the relative
+  form; the fastest-member convention is stated; the recorded limitation "no
   phase offsets in the first cut (no demonstrated use)" is replaced by a pointer
   here.
 - **[§10.5][s10-5], boundary zero.** "At boundary zero the due set is everything" refines to
@@ -787,7 +787,7 @@ All small, all honest; collected so a future increment can check them off:
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-162]: ../decisions.md#d-162--adopt-per-eltype-homogeneous-cell-stores-over-per-instance
-[d-185]: ../decisions.md#d-185--adopt-the-phased-two-register-sample-time-declaration
+[d-185]: ../decisions.md#d-185--adopt-the-phased-two-form-sample-time-declaration
 [d-187]: ../decisions.md#d-187--make-the-bound-schedule-a-named-artifact-with-exact-grid-diagnostics
 [s10-5]: ../spec.md#105-multi-rate-tick-scheduling
 [s10-6]: ../spec.md#106-event-iteration-at-boundaries-to-quiescence-budgeted

@@ -82,10 +82,15 @@ external tool's behavior (Simulink/MATLAB/Modelica does X; we do Y; because Z).
    rewording an old entry into current vocabulary falsifies the record of what
    was decided in what terms; rule 7 licenses prose rewrites, not vocabulary
    modernization. The current name is always one spec read away, or in the
-   superseding entry. **Citations are the one exception**: every entry, old
-   ones included, cites the CURRENT § numbering — a spec renumbering sweeps
-   the whole log's citations, and the log never double-maps old numbering
-   against new.
+   superseding entry. **Two exceptions.** Citations: every entry, old ones
+   included, cites the CURRENT § numbering — a spec renumbering sweeps the
+   whole log's citations, and the log never double-maps old numbering against
+   new. And a pure word substitution: when a word is retired for a concept
+   that does not move (D-242's "register" and "load-bearing"), the
+   substitution sweeps the log too, under rule 7's audit, because every
+   position survives it verbatim and the old word would otherwise mislead
+   each later reader. A rename that moves a concept's boundary still applies
+   forward only.
 3. **Citations are written bare, then linked mechanically.** Write `§5.2`,
    `Appendix B`, `D-037`, ranges as `D-166–D-168`; run
    `julia docs/design/tools/linkify.jl` and it converts them to reference

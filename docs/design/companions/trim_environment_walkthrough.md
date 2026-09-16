@@ -139,7 +139,7 @@ AbstractTerrainField`) so any concrete field type below the bound may be
 wired — today's `AbstractTerrain` polymorphism moved to the declaration
 layer. The environment's tunables — sea-level temperature and pressure, the
 wind vector, terrain elevation — are the *atmosphere component's* root inputs,
-which is the register everything else already speaks: conditions write them,
+which is the vocabulary everything else already speaks: conditions write them,
 `capture` reads them back, linearization can take them as inputs, and the
 trace header records them. This is what `design_world(ac)` ships, and it is
 the blessed default for design tasks.
@@ -570,7 +570,7 @@ For the record, commit `daf3298d`, decision [D-139][d-139]:
   a thin rig.
 - **[§14.9][s14-9]**'s "the aircraft is never literally the root" is softened from
   doctrine to default, admitting the unconnected environment face as the
-  test-rig register while keeping `design_world(ac)` as the shipped rig for
+  test-rig idiom while keeping `design_world(ac)` as the shipped rig for
   design tasks.
 - **[§9.6][s9-6]**'s claim that `Kinematics.Initializer` "survives untouched,
   aircraft-side" is corrected: it survives aircraft-side with its

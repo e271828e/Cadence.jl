@@ -6,7 +6,7 @@ coinage); **B** = glossary link alone suffices (near-ordinary or
 domain-standard vocabulary, or core Part-I terms the spec teaches head-on and
 repeats on nearly every page); **—** = entry carries no body link (whitelisted
 in `check_glossary.jl`), gloss recorded for completeness only.
-*n* = body link count, recounted 2026-09-15 at the end of the plain-register rewrite: the
+*n* = body link count, recounted 2026-09-15 at the end of the plain-style rewrite: the
 count of `](#g-…)` links to the anchor in chapters 1–16.
 
 ## D.1 Component model and declaration layer
@@ -136,8 +136,8 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | drain | g-drain | 20 | A | the frame-top swap that publishes staged device writes into the root inputs |
 | framework status | g-framework-status | 5 | A | the frozen diagnostics value each snapshot carries beside the table |
 | greedy claim | g-greedy-claim | 3 | A | the unclaimed complement, computed by the framework instead of returned |
-| harness cell | g-harness-cell | 4 | A | the always-present staging cell of the harness register |
-| harness register | g-harness-register | 1 | A | the framework-owned `stage!` write path of the calling task |
+| harness cell | g-harness-cell | 4 | A | the always-present staging cell of the harness writer |
+| harness writer | g-harness-writer | 1 | A | the framework-owned `stage!` write path of the calling task |
 | `latest` | g-latest | 1 | B | the atomic reference a published snapshot is stored into |
 | next-snapshot wait | g-next-snapshot-wait | 0 | — | the boundary counter plus one condition variable |
 | operator interrupt | g-operator-interrupt | 3 | A | Ctrl-C read as a control-plane stop rather than a failure |
@@ -166,7 +166,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | trace | g-trace | 27 | B | the primary record: drained, device-tagged batches per frame |
 | trace header | g-trace-header | 13 | B | the trace's preamble: initial stores, root-input values, schemas, deployment |
 | trace record | g-trace-record | 0 | — | the retained form of a drained batch |
-| what-if register | g-what-if-register | 2 | A | replaying a trace against the same structure with changed parameters |
+| what-if replay | g-what-if-replay | 2 | A | replaying a trace against the same structure with changed parameters |
 
 ## D.8 Stopped-sim services and the condition algebra
 
@@ -214,7 +214,6 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | guarded addition | g-guarded-addition | 7 | A | a capability the design admits but does not build |
 | normative / index, not a second home | g-normative | 1 | B | the spec norms; its appendices are indices |
 | recorded, not built | g-recorded-not-built | 3 | A | a worked-out extension deliberately left unimplemented, its seams named |
-| register | g-register | 11 | B | the spec's word for a mode or idiom, always compounded |
 | seam | g-seam | 19 | B | a narrow, named interface kept deliberately thin |
 | torture test | g-torture-test | 1 | B | an awkward existing artifact transliterated to validate a mechanism |
 | worked (example) | g-worked | 4 | B | a full spelling of a mechanism against a real artifact |
@@ -284,7 +283,7 @@ Appendix D grouping above.
 | write surface | §11.3, §8.6 |
 | decimation | §11.8 |
 | frame ordinal | §12.7 |
-| what-if register | §11.5, §12.7 |
+| what-if replay | §11.5, §12.7 |
 | boundary zero | §10.4, §10.5, §12.4, §12.6, §12.7, §13.4, §14.4, §14.6, §14.8, §14.9, §14.10, §16 |
 | capture | §14 |
 | condition | §8.2, §13.3, §13.5, §14.4, §14.5 |
@@ -302,6 +301,6 @@ The seventeen class-A terms with no application anywhere in the body — each
 either defined copularly at its owning section and used bare thereafter, or
 carrying only a differently-worded expansion: `at`/`Scoped`, bad datum,
 blessed, chattering, container children, derived liveness, executable set,
-harness register, input epoch, measurement seam, one home per datum, operator
+harness writer, input epoch, measurement seam, one home per datum, operator
 interrupt, orphaned claims, probe value, remainder step, the freeze,
 walked/pinned/exempt.
