@@ -29,7 +29,9 @@ abstract type Diagnostic end
 # names are recorded in a trace header (§11.5) and matched on replay.
 _typename(x) = string(nameof(typeof(x)))
 _typename(T::Type) = string(nameof(T))
-_typename(v::TypeVar) = string(v)      # a declared generic holding: `nameof` has no method
+# A declared generic holding: `nameof` has no method, and `string` on the
+# variable qualifies its bound the same way interpolating a type does.
+_typename(v::TypeVar) = "$(v.name)<:$(_typename(v.ub))"
 
 """
 The kind's severity (§13.2, D-214): `:error` — an occurrence throws, alone or

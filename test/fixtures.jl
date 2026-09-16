@@ -899,6 +899,21 @@ input_connections(::Vehicle) = ("ref" => "trim/e",)
 output_connections(::Vehicle) =
     ("loop/y" => "y", "loop/cmd" => "cmd", "loop/power" => "power")
 
+"""A primitive that also holds a component, a field the flatten pass never descends into (§8.5)."""
+struct OpaqueLeaf <: AbstractComponent
+    hidden::Gain
+end
+
+init_x(::OpaqueLeaf) = (z = 0.0,)
+state_derivative(::OpaqueLeaf, (; x)) = (z = -x.z,)
+
+"""One `OpaqueLeaf` in a concretely declared field, so a path reaches the primitive with a segment to spare (§13.3)."""
+struct OpaqueHold <: AbstractComponent
+    c::OpaqueLeaf
+end
+
+child_connections(::OpaqueHold) = ()
+
 # --- the fragment-function idiom (§14.2) ----------------------------------------
 # User-idiom material, not framework API: `condition` is an ordinary function
 # dispatched on the component, shipped beside it, and nothing in `src/` outside

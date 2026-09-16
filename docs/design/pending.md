@@ -71,8 +71,8 @@ Where the reason is not given here, the cited decision carries it:
   `StopFaceInvalid` no binding site (constructor vs. `run!`),
   `ConformanceFailure` no simulation time on its runtime occurrences and no
   event name on a handler's,
-  `TapResolution` no candidates on the path-selector arms and none of
-  §14.10's tap-set half; and from the audit (M-C, M-B14, M-B17, M-B19):
+  `TapResolution` none of §14.10's tap-set half; and from the audit
+  (M-C, M-B14, M-B17, M-B19):
   `TwoProducers` producer terminals only inside provenance strings,
   `AttachUnknownFace`/`ReadBindingUnresolved` the binding type where the
   column says device type, `ServiceLifecycle.legal` empty at `init!`, `trim!`

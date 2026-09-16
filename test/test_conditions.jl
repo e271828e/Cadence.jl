@@ -419,6 +419,18 @@ function conditions_load_bearing_walk()
                             at("ctl", fragment(s = (acc = 1.0,)))), build(tri())))))
         @test d isa PathResolution && d.entry == "combine[1] → at(\"x\")"
         @test d.reason === :unknown_child && d.candidates == ["plant", "ctl", "trig"]
+
+        # The walk stops at a primitive, whatever that primitive's struct holds: a
+        # component-typed field of a leaf is inert parameter data to the
+        # composition — the flatten pass never descends into it, so nothing below
+        # it has a path — and the refusal is an unknown child with no list to
+        # offer, not a level of the build (§8.5, §13.3).
+        bo = build(OpaqueHold(OpaqueLeaf(Gain(2.0))))
+        @test bo.flat.paths == ["c"]
+        d = only(diagnostics(failure(() -> resolve_condition(at("c/hidden",
+                           fragment(x = (z = 1.0,))), bo))))
+        @test d isa PathResolution && d.reason === :unknown_child
+        @test d.segment == "hidden" && d.owner == "`c`" && d.candidates == String[]
     end
 end
 

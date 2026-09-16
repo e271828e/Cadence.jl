@@ -787,7 +787,10 @@ end
 Read the current committed stores **and root inputs** back as a condition value
 (§14.1, glossary): every component's `x` field by field, every discrete `s`,
 every mode store and every root input, as one `combine` of per-component
-fragments plus the root-input fragment. The pair is capture → tweak → apply:
+fragments plus the root-input fragment — each fragment under one `at` per child
+segment of its component's path, so the tree is authored level by level and
+re-applies across a generic seam the way §14.2's idiom does. The pair is
+capture → tweak → apply:
 `init!(sim, c; t0 = t)` re-establishes exactly the world that was read, and a
 `trim!` resumes from it as `trim!(sim, problem; baseline = c, t0 = t)`
 (§14.8).
@@ -826,7 +829,12 @@ function capture(sim::Simulation{T}) where {T}
         ex.sstores[ci] === nothing || (payload = merge(payload, (s = ex.sstores[ci][],)))
         ex.mstores[ci] === nothing || (payload = merge(payload, (m = ex.mstores[ci][],)))
         isempty(payload) && continue
-        push!(nodes, at(flat.paths[ci], fragment(; payload...)))
+        # One `at` per child segment, innermost first: the absolute path is a
+        # compiled derivative, and the authored spelling is the one the
+        # load-bearing walk admits wherever a level holds its child generically
+        # (§14.2, §13.3).
+        push!(nodes, foldr(at, authored_chain(flat.root, flat.paths[ci]);
+                           init = fragment(; payload...)))
     end
     isempty(flat.root_inputs) || push!(nodes, fragment(inputs =
         NamedTuple{Tuple(flat.root_inputs)}(Tuple(gather(ex.store, act.layout.addr[("", f)])

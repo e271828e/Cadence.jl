@@ -137,6 +137,16 @@ function test_readers()
         for holder in (ConcreteHold(SampledLoop()), GenericHold(SampledLoop()))
             @test _compile_reads(reads(y = get_face(:y)), build(holder)) isa Reader
         end
+
+        # The walk stops at a primitive here too: a leaf's component-typed field is
+        # no level of the build, so the segment past it names no child and the
+        # refusal has no list to offer (§8.5, §13.3).
+        b = build(OpaqueHold(OpaqueLeaf(Gain(2.0))))
+        d = only(diagnostics(failure(() ->
+                _compile_reads(reads(z = get_state("c/hidden", :z)), b))))
+        @test d isa PathResolution && d.reason === :unknown_child
+        @test d.segment == "hidden" && d.owner == "`c`" && d.candidates == String[]
+        @test startswith(d.entry, "the read labeled `z`")
     end
 
     @testset "the source rule: a snapshot-bound reader may not name a store selector (§14.4)" begin
@@ -204,6 +214,34 @@ function test_readers()
         init!(twin, c2; t0 = t2)
         @test world(twin) == world(sim)
         @test twin.exec.clock.t === 0.5 && twin.exec.clock.t₀ === 0.5
+    end
+
+    @testset "`capture` authors level by level, so it re-applies across a generic seam (§14.1, §14.2)" begin
+        # The absolute path is a compiled derivative; the authored spelling is one
+        # `at` per child segment. Both models hold their children generically — a
+        # `Group` through its `children` parameter, `GenericHold` through `L` — so
+        # a capture spelled `at("loop/plant", …)` would refuse at its own walk, and
+        # the cycle capture → tweak → `init!` would not close (§13.3, §14.2).
+        for (model, inputs, leaf) in ((nested, (in = 1.0,), "loop/plant"),
+                                      (() -> GenericHold(SampledLoop()), (ref = 1.0,),
+                                       "inner/plant"))
+            sim = Simulation(model(); h = 1//50)
+            init!(sim, fragment(inputs = inputs))
+            run!(sim; t_end = 0.1)
+            (c, t) = capture(sim)
+            @test all(p -> !occursin('/', p), prefixes(c))    # every `at` names one child
+            @test !isempty(prefixes(c))
+
+            twin = Simulation(model(); h = 1//50)
+            init!(twin, c; t0 = t)
+            # The continuous stores come back bitwise. The discrete one need not:
+            # the re-application runs boundary zero's outgoing transition, which is
+            # capture's documented caveat, not a resolution failure — and the
+            # controller here is a mover, unlike `readable_condition`'s.
+            @test state(twin, leaf).q === state(sim, leaf).q
+            @test twin.exec.xbuf == sim.exec.xbuf
+            @test twin.exec.clock.t === t
+        end
     end
 
     @testset "`capture` is legal in `initialized` and `stopped`, and nowhere else (§14)" begin

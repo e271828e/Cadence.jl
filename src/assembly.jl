@@ -325,6 +325,19 @@ function resolve_authored(entry::String, base::String, level, path::AbstractStri
     segs = String.(split(path, '/'))
     here, at, i = level, base, 1
     while i ≤ length(segs)
+        # A primitive has no children in this walk. A component-typed field of one
+        # is inert to the composition — `flatten!` stops at the primitive and never
+        # descends, so no path indexes what the field holds (§8.5,
+        # `ClassUnreadable.holds_components`) — and asking `_children` about it
+        # would invent a child, or raise the container checks over a component the
+        # build never walked. Every level below is a child the flatten pass walked,
+        # so `classify` only reads back a class it already proved readable.
+        if classify(at, here) === PRIMITIVE
+            push!(diags, PathResolution(entry = entry, spelling = String(path),
+                                       reason = :unknown_child, owner = _at(at),
+                                       segment = segs[i]))
+            return nothing
+        end
         # `_children` re-runs the container collision checks and throws on its
         # own when they fail; the build proved this tree clean, so here the call
         # only hands the list back.
@@ -351,6 +364,32 @@ function resolve_authored(entry::String, base::String, level, path::AbstractStri
         here, at = kid, _join(at, seg)
     end
     here
+end
+
+"""
+The child names an absolute `path` traverses, outermost first, as `_children`
+names them — so a D-211 container pair such as `"units/1"` is one name, not two
+segments. The same greedy match `resolve_authored` runs, over a path the build
+compiled and which therefore always resolves. A service that authors a
+condition back out of the flattened list spells it level by level from this, the
+one spelling the load-bearing walk admits across a generic seam (§14.2, §13.3).
+"""
+function authored_chain(root, path::AbstractString)
+    isempty(path) && return String[]
+    segs = String.(split(path, '/'))
+    chain, here, at, i = String[], root, "", 1
+    while i ≤ length(segs)
+        kids, = _children(at, here)
+        j = findfirst(kid -> first(kid) == segs[i], kids)
+        j === nothing && i < length(segs) &&
+            (j = findfirst(kid -> first(kid) == segs[i] * "/" * segs[i + 1], kids))
+        j === nothing && throw(InternalInvariant("no child of `$at` at `$path`"))
+        seg, kid = kids[j]
+        push!(chain, seg)
+        i += count(==('/'), seg) + 1
+        here, at = kid, _join(at, seg)
+    end
+    chain
 end
 
 # --- §13.3's build primitives -------------------------------------------------

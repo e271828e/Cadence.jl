@@ -518,6 +518,14 @@ function diagnostics_kind_set()
             m = message(d)
             @test m isa String && !isempty(m)
         end
+        # A declared generic holding renders through `_typename` like any other
+        # name: the variable and its bound, unqualified, whoever is printing — the
+        # `string(::TypeVar)` spelling reads `Cadence.AbstractComponent` from
+        # anywhere but this module. A payload claim, so it sits here rather than in
+        # the rendering testset below.
+        m = message(only(d for d in occurrences
+                         if d isa PathResolution && d.reason === :past_generic))
+        @test occursin("`L<:AbstractComponent`", m) && !occursin("Cadence.", m)
 
         # Every kind of the closed set has an occurrence above: the coverage
         # check is over `Diagnostic`'s own subtypes, so adding a kind without an
