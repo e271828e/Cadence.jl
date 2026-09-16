@@ -1,8 +1,10 @@
 # Leaf walk over the closed value vocabulary (spec §7.1): real scalars, static
 # arrays, and isbits structs whose fields are drawn from the same vocabulary.
-# A port value admits a third leaf kind (§4.3, §4.4, D-237): a concrete
-# immutable type that is not isbits is one *opaque* leaf, stored whole with its
-# references — the field handle. The walk never looks inside one.
+# A port value admits two more leaf kinds. An enum (§4.1, §8.2) is a primitive
+# isbits type with no fields, one leaf of its own eltype, pinned. A concrete
+# immutable type that is not isbits is one *opaque* leaf (§4.3, §4.4, D-237),
+# stored whole with its references — the field handle. The walk never looks
+# inside either.
 #
 # Shared by both candidates: the continuous state buffer is flat by decision
 # (§7.1), so *some* flatten/reconstruct machinery is needed either way. C2 then
@@ -14,6 +16,10 @@
 # are mutable types to Julia and are refused as such.
 _opaque(::Type{P}) where {P} = isconcretetype(P) && !isbitstype(P) && !ismutabletype(P)
 
+# A type the walk stores whole, as one leaf of its own eltype: a real, an enum,
+# an opaque leaf. Everything else is a static array or a struct it descends.
+_atom(::Type{P}) where {P} = P <: Real || P <: Enum || _opaque(P)
+
 """
     nleaves(P)
 
@@ -21,6 +27,7 @@ Number of activation-scalar leaves a value of type `P` occupies in a flat
 buffer. Layout-time only — never on an evaluation path.
 """
 nleaves(::Type{<:Real}) = 1
+nleaves(::Type{<:Enum}) = 1
 nleaves(::Type{P}) where {P<:StaticArray} = length(P) * nleaves(eltype(P))
 nleaves(::Type{P}) where {P} = _opaque(P) ? 1 : sum(nleaves, fieldtypes(P); init = 0)
 
@@ -33,6 +40,7 @@ cell against the store it has to live in. An opaque leaf is its own eltype: the
 handle type itself, one entry (D-237).
 """
 leaf_types(::Type{P}) where {P<:Real} = Type[P]
+leaf_types(::Type{P}) where {P<:Enum} = Type[P]
 leaf_types(::Type{P}) where {P<:StaticArray} = repeat(leaf_types(eltype(P)), length(P))
 leaf_types(::Type{P}) where {P} =
     _opaque(P) ? Type[P] :
@@ -59,6 +67,7 @@ sweep calls it once, at throw time, to name the offending state leaf.
 leaf_names(::Type{P}) where {P} = _leaf_names!(String[], P, "")
 
 _leaf_names!(out, ::Type{P}, pre) where {P<:Real} = (push!(out, pre); out)
+_leaf_names!(out, ::Type{P}, pre) where {P<:Enum} = (push!(out, pre); out)
 
 function _leaf_names!(out, ::Type{P}, pre) where {P<:StaticArray}
     for i in 1:length(P)
@@ -108,7 +117,7 @@ function _reconstruct_expr(::Type{P}, base::Int) where {P}
             push!(args, e)
         end
         return Expr(:call, P, args...), b
-    elseif P <: Real || _opaque(P)
+    elseif _atom(P)
         return :(@inbounds buf[off + $(base + 1)]), base + 1
     else
         args = Expr[]
@@ -134,7 +143,7 @@ function _flatten_expr(::Type{P}, v, base::Int) where {P}
             push!(stmts, blk)
         end
         return Expr(:block, stmts...), b
-    elseif P <: Real || _opaque(P)
+    elseif _atom(P)
         push!(stmts, :(@inbounds buf[off + $(base + 1)] = $v))
         return Expr(:block, stmts...), base + 1
     else
@@ -159,7 +168,7 @@ function _mreconstruct_expr(::Type{P}, Ls::Vector, bases::Vector{Int}) where {P}
     if P <: StaticArray
         args = [_mreconstruct_expr(eltype(P), Ls, bases) for _ in 1:length(P)]
         return Expr(:call, P, args...)
-    elseif P <: Real || _opaque(P)
+    elseif _atom(P)
         k = findfirst(==(P), Ls)
         bases[k] += 1
         return :(@inbounds $(Symbol(:buf, k))[offs[$k] + $(bases[k])])
@@ -176,7 +185,7 @@ function _mflatten_expr(::Type{P}, v, Ls::Vector, bases::Vector{Int}) where {P}
         for i in 1:length(P)
             push!(stmts, _mflatten_expr(eltype(P), :(@inbounds $v[$i]), Ls, bases))
         end
-    elseif P <: Real || _opaque(P)
+    elseif _atom(P)
         k = findfirst(==(P), Ls)
         bases[k] += 1
         push!(stmts, :(@inbounds $(Symbol(:buf, k))[offs[$k] + $(bases[k])] = $v))
@@ -230,6 +239,7 @@ function retype_value(::Type{T}, v) where {T}
 end
 
 _leaf_values(v::Real) = (v,)
+_leaf_values(v::Enum) = (v,)
 _leaf_values(v::StaticArray) = Iterators.flatten(map(_leaf_values, Tuple(v)))
 # An opaque leaf is one value, not a field walk (D-237); the tuple arms agree.
 _leaf_values(v::NamedTuple) = isbits(v) ? Iterators.flatten(map(_leaf_values, values(v))) : (v,)

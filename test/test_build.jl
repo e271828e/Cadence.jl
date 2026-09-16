@@ -567,6 +567,54 @@ struct AnonBound <: AbstractComponent end
 output_types(::AnonBound, ::Type{<:AbstractFloat}) = (a = Float64,)
 output_state(::AnonBound, (; t)) = (a = 1.0,)
 
+# --- enum-valued ports (§4.1, §8.2, §9.3) --------------------------------------
+# The fixtures are in `fixtures.jl`: a discrete producer, a consumer declaring
+# an enum entry beside a `T` one, and a public enum mode.
+
+function build_enum_ports()
+    @testset "an enum port is one pinned leaf of its own eltype (§4.1, §8.2)" begin
+        m = Group((; sel = GearSelector(), rd = GearReader());
+                  wires = ("sel/gear" => "rd/gear",), inputs = ("x" => "rd/x",))
+        b = build(m)
+        sim = Simulation(b; h = 1//10)
+        init!(sim, fragment(inputs = (x = 1.0,)))
+        @test port(sim, "sel", :gear) === up
+        @test port(sim, "rd", :code) == 1
+        # The producer's tick moves the store, and the cell follows it whole.
+        run!(sim; t_end = 0.1)
+        @test port(sim, "sel", :gear) === down
+        @test port(sim, "rd", :code) == 2
+        # At the walking activation the real walks and the enum pins; the
+        # discrete producer is outside that activation's executable set (D-052),
+        # so its cell holds the nominal probe's product.
+        simd = Simulation(b, D8; h = 1//10)
+        init!(simd, fragment(inputs = (x = 1.0,)))
+        @test port(simd, "rd", :drag) isa D8
+        @test port(simd, "sel", :gear) === up
+    end
+
+    @testset "an enum root input is synthesized as the first instance (§9.3, D-051)" begin
+        m = Group((; rd = GearReader()); inputs = ("gear" => "rd/gear", "x" => "rd/x"))
+        b = build(m)
+        @test b.nominal.products[index_of(b.flat, "rd")].code == 1
+        # Probe values are probe-scoped: the run's value is the one the fragment
+        # authored, and an enum converts through the condition apply as itself.
+        sim = Simulation(b; h = 1//10)
+        init!(sim, fragment(inputs = (gear = down, x = 1.0)))
+        @test port(sim, "", :gear) === down
+        @test port(sim, "rd", :code) == 2
+    end
+
+    @testset "an enum mode is auto-published (§5.3, §7.5)" begin
+        b = build(single(GearMode()))
+        i = index_of(b.flat, "c")
+        @test b.nominal.published[i] === (gear = up,)
+        @test keys(activation(b, D8).published[i]) === (:gear,)
+        sim = Simulation(b, D8; h = 1//10)
+        @test port(sim, "c", :gear) === up
+    end
+end
+
 function build_tier()
     @testset "tier is read off the declaration shape (§8.2)" begin
         # The two deciders: the update law for a stateful leaf, the contract arity
@@ -833,6 +881,7 @@ function test_build()
     build_root_input_type()
     build_wire_clauses()
     build_port_type_refusals()
+    build_enum_ports()
     build_tier()
     build_store_values()
     build_state_leaves()

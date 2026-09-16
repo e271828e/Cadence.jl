@@ -330,5 +330,6 @@ end
 
 probe_value(::Type{T}) where {T<:Real} = zero(T)
 probe_value(::Type{Bool}) = false
+probe_value(::Type{E}) where {E<:Enum} = first(instances(E))
 probe_value(::Type{P}) where {P<:StaticArray} = zero(P)
 probe_value(::Type{P}) where {P} = P()

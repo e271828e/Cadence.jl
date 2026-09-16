@@ -137,6 +137,19 @@ function leaves_shape()
         @test length(collect(_leaf_values((a = 1.0, b = 2)))) == 2
         @test leaf_names(Framed) == [""]
 
+        # An enum (`Gear`, `fixtures.jl`) is a primitive type with no fields:
+        # one leaf of its own eltype, pinned, and the value walk agrees.
+        @test nleaves(Gear) == 1
+        @test leaf_types(Gear) == Type[Gear]
+        @test leaf_names(Gear) == [""]
+        @test leaf_types(@NamedTuple{g::Gear, x::Float64}) == Type[Gear, Float64]
+        @test leaf_names(@NamedTuple{g::Gear, x::Float64}) == ["g", "x"]
+        @test collect(_leaf_values((g = down, x = 1.0))) == Any[down, 1.0]
+        @test retype(D8, Gear) === Gear
+        @test _accepts(Gear, Gear, D8) && !_accepts(Gear, Int, D8)
+        @test mutable_position(Gear) === nothing
+        @test probe_value(Gear) === up
+
         # The refusal's walker: the first mutable position the walk meets, the
         # port type itself spelled `""`. A handle is opaque, so its `Matrix`
         # field is not a position the walk visits.
@@ -187,6 +200,10 @@ function leaves_roundtrip()
         buf = Vector{Any}(undef, 4)
         flatten!(buf, 1, fr)
         @test reconstruct(Framed, buf, 1).f.z === fr.f.z
+
+        # An enum leaf rides whole through the same builders.
+        roundtrip(down, 3; E = Any)
+        roundtrip((g = down, x = 2.5), 1; E = Any)
     end
 end
 
@@ -215,6 +232,9 @@ function leaves_mixed()
         # The NamedTuple branch of the same builder.
         gnt, _ = mgather(@NamedTuple{a::Float64, n::Int})
         @test gnt([9.5], [4], (0, 0)) === (a = 9.5, n = 4)
+        # An enum is its own eltype, so it binds its own buffer.
+        gen, _ = mgather(@NamedTuple{g::Gear, x::Float64})
+        @test gen([down], [9.5], (0, 0)) === (g = down, x = 9.5)
 
         # `K = 1` is the homogeneous case, where the builders emit the
         # single-base expressions: what `flatten!` wrote reads back through them.

@@ -1119,6 +1119,46 @@ output_direct(::OffsetQuery, (; u)) = (h = 2 * u.terrain.h0,)
 offset_model(src) = Group((; src = src, q = OffsetQuery());
                           wires = ("src/terrain" => "q/terrain",))
 
+# --- the enum port coverage set (§4.1, §8.2, §9.3) ------------------------------
+# An enum is a port value (§4.1) and a pinned leaf (§8.2): one leaf of its own
+# eltype, stored whole, never following the activation scalar. Its probe value
+# is the first instance (§9.3, D-051).
+
+@enum Gear up = 1 down = 2
+
+"""A discrete producer of an enum port: the cell's eltype is `Gear` itself."""
+struct GearSelector <: AbstractComponent end
+
+init_s(::GearSelector) = (n = 0,)
+output_types(::GearSelector) = (gear = Gear,)
+
+output_state(::GearSelector, (; s)) = (gear = iseven(s.n) ? up : down,)
+state_update(::GearSelector, (; s)) = (n = s.n + 1,)
+
+"""
+A consumer declaring an enum entry beside a `T` one: the enum pins, the real
+walks. `code` republishes the enum as its `Int`, which is what a test reads to
+tell which instance arrived.
+"""
+struct GearReader <: AbstractComponent end
+
+input_types(::GearReader, ::Type{T}) where {T <: Real} = (gear = Gear, x = T)
+output_types(::GearReader, ::Type{T}) where {T <: Real} = (drag = T, code = Int)
+
+output_direct(::GearReader, (; u)) = (drag = u.gear === down ? 2 * u.x : u.x,
+                                      code = Int(u.gear))
+
+"""
+An enum mode declared public and produced by no stage: §5.3's auto-publication,
+which is §7.5's remedy for the missing event stream.
+"""
+struct GearMode <: AbstractComponent end
+
+init_m(::GearMode) = (gear = up,)
+output_types(::GearMode, ::Type{T}) where {T <: Real} = (gear = Gear, y = T)
+
+output_state(::GearMode, (; m)) = (y = m.gear === up ? 0.0 : 1.0,)
+
 # --- the periphery's coverage set: devices and bindings (§11.3, §11.6) ----------
 
 """
