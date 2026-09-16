@@ -279,6 +279,8 @@ function diagnostics_kind_set()
             ClassUnreadable(path = "a", families = "`init_x`, `init_s`", holds_components = true),
             ClassMixed(path = "a", declarations = [:init_x, :output_types]),
             ContainerMixed(path = "a", field = :kids, types = Any[Int, Float64]),
+            ContainerNested(path = "a", field = :kids, keys = Any[1, :b],
+                            types = Any[Tuple{Int}, @NamedTuple{c::Int}]),
             DeclarationOnWrongTier(path = "a/b", declaration = :init_workspace, reason = :tier_form,
                                    found = :continuous, announced = :discrete),
             DeclarationOnWrongTier(path = "a/b", declaration = :state_projection, reason = :continuous_only,

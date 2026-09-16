@@ -139,6 +139,20 @@ function assembly_container_children()
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa ContainerMixed && d.field === :units && Float64 in d.types
+
+        # A container of containers has no direct component element, so it
+        # would read as inert data and its components would vanish; §8.5
+        # refuses it instead, naming the elements that bear components.
+        err = failure(() -> build(TupleRoster(((Gain(1.0), Gain(2.0)), (Gain(3.0),)))))
+        @test err isa DiagnosticError
+        d = only(diagnostics(err))
+        @test d isa ContainerNested && d.field === :units
+        @test d.keys == [1, 2] && d.types == [Tuple{Gain,Gain}, Tuple{Gain}]
+        # The NamedTuple form, at any depth, and beside inert data: the bearing
+        # element alone is named.
+        err = failure(() -> build(single(MixedContainer((a = (g = (Gain(1.0),),), b = 2.0)))))
+        d = only(diagnostics(err))
+        @test d isa ContainerNested && d.field === :kids && d.keys == [:a]
     end
 end
 

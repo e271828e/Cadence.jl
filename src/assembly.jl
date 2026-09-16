@@ -119,7 +119,16 @@ function _children(path::String, c)
             push!(prov, "field `$name`")
         elseif v isa NamedTuple || v isa Tuple
             n = count(e -> e isa AbstractComponent, v)
-            n == 0 && continue                     # inert data; an empty container too
+            if n == 0
+                # Inert data, an empty container too — unless an element is
+                # itself a container bearing components, the nesting §8.5
+                # refuses in the first cut.
+                nested = [k for k in keys(v) if _bears_component(v[k])]
+                isempty(nested) ||
+                    push!(diags, ContainerNested(path = path, field = name, keys = nested,
+                                                types = Any[typeof(v[k]) for k in nested]))
+                continue
+            end
             if n != length(v)
                 push!(diags, ContainerMixed(path = path, field = name,
                                            types = unique(Any[typeof(e) for e in v
@@ -160,6 +169,10 @@ end
 # The container form, the empty one included — it contributes zero children, and
 # parametric code then needs no special case (§8.5).
 _is_container(v) = (v isa NamedTuple || v isa Tuple) && all(e -> e isa AbstractComponent, v)
+
+# A container holding a component at any depth: the shape `ContainerNested` names.
+_bears_component(v) = (v isa NamedTuple || v isa Tuple) &&
+                      any(e -> e isa AbstractComponent || _bears_component(e), v)
 
 # The declaration is checked after the walk, so a mixed container reports as one
 # rather than as a bad transparency declaration.

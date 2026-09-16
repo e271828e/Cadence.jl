@@ -18,11 +18,10 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **Port-value coverage** (M-B7, M-B10): `Symbol`-valued ports are refused
-  as mutable (`ismutabletype(Symbol)` holds, so D-237's walk meets it), which
+- **Port-value coverage** (M-B7): `Symbol`-valued ports are refused as
+  mutable (`ismutabletype(Symbol)` holds, so D-237's walk meets it), which
   closes one of §7.3's mode labels out of §5.3's auto-publication and §7.5's
-  publish-a-mode remedy; containers of containers take `_children`'s
-  inert-data branch and are silently dropped where §8.5 says rejected.
+  publish-a-mode remedy.
 - **Two unguarded periphery edges**: staging through a handle whose device
   was detached lands in an orphaned cell and is lost, and an
   `InterruptException` in a device loop reports as `DeviceCrash`, the

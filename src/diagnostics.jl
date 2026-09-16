@@ -463,6 +463,19 @@ message(d::ContainerMixed) =
     "$(_at_path(d.path)): container field `$(d.field)` mixes components with " *
     "$(_plainlist(d.types)) — a container holds components only (§8.5)"
 
+"§8.5: a container whose element is itself a component-bearing container — deeper grouping is what assemblies are for."
+Base.@kwdef struct ContainerNested <: Diagnostic
+    path::String
+    field::Symbol
+    keys::Vector{Any}                        # the offending element keys or indices
+    types::Vector{Any}                       # their types, one per key
+end
+path(d::ContainerNested) = d.path
+message(d::ContainerNested) =
+    "$(_at_path(d.path)): container field `$(d.field)` holds containers at " *
+    "$(_namelist(d.keys)) ($(_plainlist(d.types))) — containers of containers are " *
+    "rejected in the first cut; deeper grouping is an assembly (§8.5)"
+
 "§5.2, §8.2, §8.5: a declaration written in the other tier's form, or `state_projection` off the continuous tier."
 Base.@kwdef struct DeclarationOnWrongTier <: Diagnostic
     path::String
