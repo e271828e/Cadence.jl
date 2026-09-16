@@ -1,6 +1,7 @@
 module Cadence
 
 using StaticArrays, LinearAlgebra, ForwardDiff
+using Random: Xoshiro, randn
 
 include("leaves.jl")
 include("diagnostics.jl")

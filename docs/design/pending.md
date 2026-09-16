@@ -18,14 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **§5.6's feedthrough tracer** (the global set-tracer and its sampled-state
-  fallback), and with it the `AlgebraicCycle` the spec promises: D-012's SCC
-  members as terminals in loop order, the wires between them and the
-  real/artificial classification. What stands in is Kahn's stall residue
-  (M-B5), the shape D-012 rejects: every component the schedule could not
-  place, downstream acyclic ones included, as component paths in flatten
-  order, two disjoint cycles merged into one diagnostic. `test_build.jl`
-  asserts that shape.
 - **§8.1's shadowing check**, the forgotten-import diagnostic (M-B25). The
   mechanism is `implementation.md`'s second caveat; it needs a decision entry
   and an Appendix C payload on `ClassUnreadable`/`TierUnreadable`.

@@ -214,6 +214,39 @@ function build_algebraic_cycles()
         @test d.wires == ["a/out" => "b/e", "b/out" => "a/e"]
     end
 
+    @testset "an input-dependent branch falls back to sampled states (§5.6, D-012)" begin
+        # `Piecewise` branches on `v`, an in-cycle face: either arm would drop the
+        # other's set, so the global tracer refuses and the local one decides on
+        # redrawn primals. `F` routes `f` on both arms, so the loop through `g1`
+        # survives the sampled map and the cluster is real.
+        loop = Group((m = Piecewise(), g1 = Gain(1.0), g2 = Gain(1.0));
+                     wires = ("m/F" => "g1/e", "g1/out" => "m/f", "g1/out" => "m/v",
+                              "m/F" => "g2/e", "g2/out" => "m/g"))
+        d = only(diagnostics(failure(() -> build(loop))))
+        @test d.classification === :real
+        @test d.traced == ["m" => :sampled, "g1" => :global, "g2" => :global]
+        # `g` is consumed in `state_derivative` alone and `v` only by the branch
+        # the tracer severs, so both chords are dead under the real verdict.
+        @test d.dead == [("m", :v, :F), ("m", :g, :F)]
+
+        # The same branch with `f` off the cluster: no hop out of `m` survives the
+        # sampled map, so the loop is artificial at port level.
+        d = only(diagnostics(failure(() -> build(
+            Group((m = Piecewise(), g2 = Gain(1.0));
+                  wires = ("m/F" => "g2/e", "g2/out" => "m/g", "g2/out" => "m/v"),
+                  inputs = "f" => "m/f")))))
+        @test d.classification === :artificial
+        @test d.dead == [("m", :v, :F), ("m", :g, :F)]
+        @test d.traced == ["m" => :sampled, "g2" => :global]
+
+        # The seed is fixed and per member, so two builds of one model agree —
+        # `AlgebraicCycle` has no `==`, so the payload is compared field by field.
+        a = only(diagnostics(failure(() -> build(loop))))
+        b = only(diagnostics(failure(() -> build(loop))))
+        @test (a.members, a.wires, a.classification, a.dead, a.traced) ==
+              (b.members, b.wires, b.classification, b.dead, b.traced)
+    end
+
     @testset "the tracer unions sets and refuses a tainted branch (§5.6)" begin
         @test (Tracer{true}(1.0, 0b01) + Tracer{true}(2.0, 0b10)).deps == 0b11
         # May-depend semantics: a saturated `clamp` still reports its set.

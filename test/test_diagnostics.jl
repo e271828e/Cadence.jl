@@ -625,6 +625,20 @@ function diagnostics_kind_set()
                                    classification = :real,
                                    traced = ["p" => :structural, "q" => :structural]))
         @test occursin("structurally", m)
+        # The sampled fallback rides in both forms: as the mode phrase under a
+        # real verdict, and as the caveat on a hop it found under an artificial
+        # one, an untaken branch being its only miss (§5.6, D-012).
+        m = message(AlgebraicCycle(members = ["m", "g1", "g2"],
+                                   wires = ["m/F" => "g1/e", "g1/out" => "m/f"],
+                                   classification = :real, dead = [("m", :g, :F)],
+                                   traced = ["m" => :sampled, "g1" => :global,
+                                             "g2" => :global]))
+        @test occursin("`m` at sampled states, the rest globally", m)
+        m = message(AlgebraicCycle(members = ["m", "g2"],
+                                   wires = ["m/F" => "g2/e", "g2/out" => "m/g"],
+                                   classification = :artificial, dead = [("m", :g, :F)],
+                                   traced = ["m" => :sampled, "g2" => :global]))
+        @test occursin("on the sampled paths; an untaken branch may still route it", m)
 
         # The remedy form: the shortfall, then the fix, with the list in hand.
         m = message(UninitializedInputs(op = :init!, faces = [:u, :e]))

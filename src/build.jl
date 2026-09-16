@@ -337,7 +337,7 @@ function schedule_stage2(flat::Flat, tiers::Vector{Tier}, decls::Vector{Decls},
 end
 
 """
-§5.6, D-012: the stall residue decomposed. Every nontrivial strongly connected
+§5.6, D-012: the stalled subgraph decomposed. Every nontrivial strongly connected
 component of the subgraph induced on the unplaced components is one cluster and
 one diagnostic; the innocent downstream cone the residue also holds lies in no
 such component and is reported nowhere. `members` is the depth-first preorder

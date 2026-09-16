@@ -803,6 +803,20 @@ input_types(::TypedGain, ::Type{T}) where {T <: Real} = (e = T,)
 output_types(::TypedGain, ::Type{T}) where {T <: Real} = (out = T,)
 output_direct(::TypedGain, (; u)) = (out = (2u.e)::Float64,)
 
+"""
+A branch on an input: the global tracer refuses it and the sampled one
+reports the taken paths. `f` is routed on both arms and `g` on neither, so a
+loop through `f` is real and one through `g` artificial, both found by
+sampling; `v` is the branch's subject and stays outside every loop.
+"""
+struct Piecewise <: AbstractComponent end
+
+init_x(::Piecewise) = (q = 0.0,)
+input_types(::Piecewise, ::Type{T}) where {T <: Real} = (v = T, f = T, g = T)
+output_types(::Piecewise, ::Type{T}) where {T <: Real} = (F = T,)
+output_direct(::Piecewise, (; u)) = (F = u.v > 0 ? u.f : -u.f,)
+state_derivative(::Piecewise, (; u)) = (q = u.g,)
+
 # --- the reference models -----------------------------------------------------
 
 """

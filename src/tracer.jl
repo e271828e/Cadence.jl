@@ -112,6 +112,15 @@ leaves, which is why the walk re-tags those as well as `Float64` ones.
 _tag(::Type{T}, v, bit::UInt64) where {T} =
     _walk(T, v, l -> l isa Float64 ? T(l, bit) : l isa Tracer ? T(l.val, bit) : l)
 
+"""
+`_tag` with the primal redrawn: the sampled fallback's seed (§5.6). The local
+tracer decides on `val`, so a state and an in-cycle face have to move between
+evaluations for the branches to move with them; the leaf order is the walk's,
+so one `rng` gives one reproducible draw per evaluation.
+"""
+_sample(rng, ::Type{T}, v, bit::UInt64) where {T} =
+    _walk(T, v, l -> l isa Float64 || l isa Tracer ? T(randn(rng), bit) : l)
+
 """The union of the tags a value's `Tracer` leaves carry; a `Float64` port has none (D-166)."""
 function _depset(v)
     s = UInt64(0)
@@ -124,24 +133,59 @@ end
 # --- the per-member trace ------------------------------------------------------
 
 """
-One member's global evaluation (§5.6): `output_direct` once, in isolation, at
-the probe point. The in-cluster faces of `fs` are seeded with their tags, every
+One member's evaluation (§5.6): `output_direct` once, in isolation, at the
+probe point. The in-cluster faces of `fs` are seeded with their tags, every
 other bundle field untagged — only inputs are seeded, so a branch on state,
 modes, parameters or time never interferes (§5.6's boundaries). Returns
 `port => the union of the tags the port's leaves carry`, over `qs`.
+
+With an `rng` this is one sampled evaluation instead: the state and the seeded
+faces carry redrawn primals, everything else the probe point's own values.
 """
 function _trace_direct(ci::Int, dT::Decls, fs::Vector{Symbol}, tf::Vector{Bool},
                        qs::Vector{Symbol}, flat::Flat, tiers::Vector{Tier},
                        decls::Vector{Decls}, stage1::Vector, mstores::Vector,
-                       products::Vector{NamedTuple}, inscc::Set{Int}, ::Type{T}) where {T}
+                       products::Vector{NamedTuple}, inscc::Set{Int}, ::Type{T};
+                       rng = nothing) where {T}
     c, dc = flat.comps[ci], decls[ci]
     u = NamedTuple{tuple(keys(dc.ins)...)}(tuple(
-        (_seed(ci, face, fs, tf, flat, tiers, products, inscc, T) for face in keys(dc.ins))...))
+        (_seed(ci, face, fs, tf, flat, tiers, products, inscc, T, rng)
+         for face in keys(dc.ins))...))
+    # The nominal `x` carries `Float64` leaves, which the sampled walk redraws;
+    # `dT.x` is the declared one, already at `T`.
+    d = rng === nothing ? dT :
+        Decls(_sample(rng, T, dc.x, UInt64(0)), dT.s, dT.ins, dT.outs)
     bn = bundle_names(output_direct, c, CONTINUOUS, tuple(keys(stage1[ci])...))
     ws = _declares_workspace(c, CONTINUOUS) ? init_workspace(c, T) : nothing
-    y2 = output_direct(c, _bundle_values(bn, dT, u, _lift(T, stage1[ci]), T;
+    y2 = output_direct(c, _bundle_values(bn, d, u, _lift(T, stage1[ci]), T;
                                          ws = ws, m = mstores[ci], Δt = 1.0))
     Dict{Symbol,UInt64}(q => _depset(y2[q]) for q in qs)
+end
+
+"""
+The sampled fallback (§5.6, D-012): where the global tracer met an
+input-tainted branch, the local tracer decides on its primal and reports the
+paths that decision took. Eight evaluations at a fixed seed, the state and the
+in-cycle faces redrawn for each, the map their union — so a face routed on any
+sampled path counts as routed, and only a branch none of the eight took is
+missed. The seed is per member, so the verdict is reproducible.
+"""
+function _trace_sampled(ci::Int, fs::Vector{Symbol}, tf::Vector{Bool}, qs::Vector{Symbol},
+                        flat::Flat, tiers::Vector{Tier}, decls::Vector{Decls},
+                        stage1::Vector, mstores::Vector, products::Vector{NamedTuple},
+                        inscc::Set{Int})
+    T = Tracer{false}
+    dT = declarations(flat.comps[ci], CONTINUOUS, T)
+    rng = Xoshiro(0)
+    routes = Dict{Symbol,UInt64}(q => UInt64(0) for q in qs)
+    for _ in 1:8
+        r = _trace_direct(ci, dT, fs, tf, qs, flat, tiers, decls, stage1, mstores,
+                          products, inscc, T; rng = rng)
+        for q in qs
+            routes[q] |= r[q]
+        end
+    end
+    routes
 end
 
 """
@@ -149,11 +193,13 @@ One face's seed. An in-cluster face carries its tag, synthesized through
 `probe_value` at the producer's declared type; a face the acyclic prefix feeds
 carries that prefix's probe product, lifted and untagged; a root input is
 synthesized untagged; an unplaced producer outside the cluster is synthesized
-untagged too, there being no product to read.
+untagged too, there being no product to read. Only the in-cluster face's seed
+is redrawn under an `rng`; everything the trace reads from outside the cluster
+stays at the probe point.
 """
 function _seed(ci::Int, face::Symbol, fs::Vector{Symbol}, tf::Vector{Bool}, flat::Flat,
                tiers::Vector{Tier}, products::Vector{NamedTuple}, inscc::Set{Int},
-               ::Type{T}) where {T}
+               ::Type{T}, rng) where {T}
     conns = flat.conns[ci]
     (ppath, pport) = last(conns[findfirst(p -> first(p) === face, conns)])
     if isempty(ppath)
@@ -163,7 +209,10 @@ function _seed(ci::Int, face::Symbol, fs::Vector{Symbol}, tf::Vector{Bool}, flat
     pi = index_of(flat, ppath)
     declared() = probe_value(declarations(flat.comps[pi], tiers[pi], T).outs[pport])
     j = pi in inscc ? findfirst(==(face), fs) : nothing
-    j === nothing || return _tag(T, declared(), tf[j] ? UInt64(1) << (j - 1) : UInt64(0))
+    if j !== nothing
+        bit = tf[j] ? UInt64(1) << (j - 1) : UInt64(0)
+        return rng === nothing ? _tag(T, declared(), bit) : _sample(rng, T, declared(), bit)
+    end
     haskey(products[pi], pport) ? _lift(T, products[pi][pport]) : declared()
 end
 
@@ -177,8 +226,9 @@ classification is a bonus on the cycle error, never its precondition.
 `scc` is the cluster in `d.members` order and `placed` Kahn's partial schedule,
 whose components are the acyclic prefix the out-of-cycle faces read from. The
 whole body runs under one `try`: an `InternalInvariant` is a framework bug and
-is rethrown, and everything else — an `Undecidable` at a tainted branch
-included, until the sampled fallback lands — ships the cluster unclassified.
+is rethrown, and everything else ships the cluster unclassified. An
+`Undecidable` is not "everything else": it is the global tracer's own refusal,
+and the member falls back to the sampled trace below.
 """
 function _classify(d::AlgebraicCycle, scc::Vector{Int}, edges, placed::Vector{Int},
                    flat::Flat, tiers::Vector{Tier}, decls::Vector{Decls}, stage1::Vector,
@@ -227,9 +277,18 @@ function _classify(d::AlgebraicCycle, scc::Vector{Int}, edges, placed::Vector{In
                 end
                 continue
             end
-            routes = _trace_direct(ci, dT, fs, tf, qs, flat, tiers, decls, stage1, mstores,
-                                   products, inscc, T)
-            push!(modes, :global)
+            # The global tracer is exact in one evaluation and refuses an
+            # input-tainted branch; the local one then decides on its primal
+            # over sampled states, missing only an untaken branch (§5.6, D-012).
+            routes, mode = try
+                _trace_direct(ci, dT, fs, tf, qs, flat, tiers, decls, stage1, mstores,
+                              products, inscc, T), :global
+            catch e
+                e isa Undecidable || rethrow()
+                _trace_sampled(ci, fs, tf, qs, flat, tiers, decls, stage1, mstores,
+                               products, inscc), :sampled
+            end
+            push!(modes, mode)
             # An untraceable face or port leaves its hops alive; a traced hop the
             # map does not route is dead, and is listed under either verdict (D-245).
             for (a, f) in enumerate(fs), (b, q) in enumerate(qs)
