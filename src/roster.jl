@@ -1,7 +1,7 @@
 # The roster and claims (§11.3), with the attach-point slice of §11.6's device
 # contract: the periphery's two roots, the declared sides, the enumeration
 # contract with its bidirectional conformance check, the three-part admission,
-# both claim sources, and the harness register as the derived remainder. The
+# both claim sources, and the harness writer as the derived remainder. The
 # task side of the contract — the handle, the wrapper, the run's bracket and
 # tail — lives in devices.jl, the trace whose schema list the roster's writers
 # grow in trace.jl; the binding conventions and the compiled gather live in
@@ -63,7 +63,7 @@ reads(b::AbstractBinding) = throw(DiagnosticError(
 
 """
 §11.6's bidirectional conformance check over each (trait, method) pair, run
-at the attach point: the same fact stated twice, in two registers, with the
+at the attach point: the same fact stated twice, in two forms, with the
 framework paid to compare them. The declared-but-missing direction is the
 `claims`/`reads` fallback firing when the attach calls it; the
 defined-but-undeclared direction is one `which` against that fallback — the
@@ -112,7 +112,7 @@ assigned at `attach!` — monotonic per `Simulation`, never reused, living
 exactly as long as the entry — the compiled writer over its claim set, the
 entry's drain thunk, the per-attachment `should_abort` policy (§11.6: never
 a device property — the same joystick is advisory in one deployment and
-load-bearing in another), and the handle `attach!` constructed and returned.
+essential in another), and the handle `attach!` constructed and returned.
 Past the attach point nothing distinguishes a computed claim from a returned
 one: the source is exhausted there, and validation, storage and the drain
 treat the two identically.
@@ -147,7 +147,7 @@ _drain_thunk(store, w::Writer, reg, widx::Int) = () -> _drain!(store, w, reg, wi
 
 """
 The data plane's mutable holder: the roster in attachment order — which is the
-drain's application order — the harness register's writer and drain thunk, the
+drain's application order — the harness writer and its drain thunk, the
 exclusivity index behind the `ClaimedFaceEntry` payload, the store the thunks
 compile against, and the id counter; the §11.3 freeze itself is the
 lifecycle's `:running` state (devices.jl). Mutable and
@@ -156,8 +156,8 @@ roster change (its schema is recompiled), so it cannot be a `Simulation` type
 parameter, and everything here is stopped-sim configuration read behind
 function barriers.
 
-The harness register is a writer, so it owns a diagnostic cell and its
-account like any other (§11.8, D-200: the harness register is a
+The harness writer owns a diagnostic cell and its
+account like any other (§11.8, D-200: it is a
 diagnostic writer, its staging diagnostics needing a single-writer home).
 Unlike the writer, the cell
 survives roster changes: its diagnostics are the harness's, whatever surface
@@ -171,7 +171,7 @@ mutable struct DataPlane
     roster::Vector{RosterEntry}     # attachment order (§11.3): the drain applies in it
     harness::Writer                 # the derived-surface writer, recompiled at roster changes
     harness_drain::Function         # its drain thunk, recompiled with it
-    harness_diag::DiagCell          # the harness register's diagnostic cell (§11.8)
+    harness_diag::DiagCell          # the harness writer's diagnostic cell (§11.8)
     harness_acct::WriterAccount     # and the loop's account behind it
     run_tasks::Dict{Int,Task}       # the run's device tasks, by device id (§12.2, D-193)
     claimedby::Dict{Symbol,String}  # face → incumbent: the exclusivity index
@@ -180,7 +180,7 @@ mutable struct DataPlane
 end
 
 # The register is an argument because the drain thunks close over it (§11.5):
-# with the roster empty the harness register is the sole writer, index 1 of the
+# with the roster empty the harness writer is the sole writer, index 1 of the
 # first set the header captures, and `_install_writers!` re-fixes that at the
 # capture and at every roster change.
 function DataPlane(layout::Layout, store, reg)
@@ -192,7 +192,7 @@ end
 """
 The claim, from its source (§11.3): computed — `is_greedy`, the unclaimed
 complement at this instant, disjoint from every incumbent by construction and
-never recomputed, which is what makes attachment order load-bearing — or
+never recomputed, which is what makes attachment order decisive — or
 returned, the enumeration called once, each face validated against the root
 face set (`AttachUnknownFace`: a mapping drifted onto a nonexistent face is a
 diagnosable anomaly, never a silent write). Duplicates within one enumeration
@@ -212,7 +212,7 @@ function _claim(plane::DataPlane, layout::Layout, b::AbstractBinding)
 end
 
 """
-Recompute the exclusivity index and recompile the harness register's writer
+Recompute the exclusivity index and recompile the harness writer
 after a roster change (§11.3, §11.4): the harness surface is the unclaimed
 complement — the faces no rostered device speaks for — so it moves exactly
 when the roster does, and is as fixed within a run as any claim set. Being

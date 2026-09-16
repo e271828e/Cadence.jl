@@ -42,7 +42,7 @@ decide_θ_alone(d) = at("c", fragment(x = (θ = d.θ, ω = 0.0)))
 
 # The two-decision shape, for the seam's packing: `torque` balances the moment
 # and `hold` pins the attitude, so the residual system is genuinely square and
-# both decisions are load-bearing.
+# both decisions are essential.
 decide_both(d) = combine(at("c", fragment(x = (θ = d.θ, ω = 0.0))),
                          fragment(inputs = (in = d.u,)))
 both_reads() = reads(ω̇ = get_deriv("c", :ω), θ = get_state("c", :θ))
@@ -380,7 +380,7 @@ function test_trim()
         @test state(sim, "ctl") === (acc = 4.0,)          # and the authored `s` committed
 
         # The same model with a *different* authored `s` moves the solution with it,
-        # which is what makes the copy load-bearing rather than incidental.
+        # which is what makes the copy decisive rather than incidental.
         other = Simulation(sampled_pend(); h = 1//10)
         @test trim!(other, θ_alone_problem(); baseline = sampled_base(2.0)).solution.θ ≈
               asin(2.0 / PEND_G_L)

@@ -39,7 +39,7 @@ struct Simulation{T,E,M}
     stepper::M                    # the seam's backend (§10.2), owning its own scratch
     xnext::Vector{T}              # the retained arrival pair (§10.4): xₙ₊₁ saved before trials clobber
     ẋnext::Vector{T}              # the buffer, ẋₙ₊₁ paid only past a validated trigger
-    plane::DataPlane              # the §11.3 roster and harness register, mutable at stopped-sim points
+    plane::DataPlane              # the §11.3 roster and harness writer, mutable at stopped-sim points
     published::Published          # §11.2's `@atomic latest` holder
     control::Control              # §12.1's stop word, §12.4's sticky status, §12.3's wait (devices.jl)
     log::SnapshotLog              # §11.2's retained snapshots, loop-task bookkeeping
@@ -615,7 +615,7 @@ scratch: such predicates fire again at the new `t₀`. The log resets with them
 (§11.2): a warm restart is a new trajectory, and its boundary zero lands as a
 fresh first endpoint. The trace resets with them (§11.5) and its header is
 captured *here* — after `apply!` and the clock writes, before the sequence
-runs — which is §14.5's placement, load-bearing on both sides: the header
+runs — which is §14.5's placement, essential on both sides: the header
 holds the resolved stores and root inputs rather than the authored overlay
 (D-038), and it never holds the post-transition result, boundary zero being
 re-executed under replay (§12.7).
@@ -628,7 +628,7 @@ in the same lifecycle position with the trace header in the condition's place
 opens the fresh trajectory wholesale — the stop word, the §13.5 termination
 record, the input mode's return to `:live` (§12.6, D-218) *and every staged
 batch still in a staging cell* clear with the registers (§12.6: no stale batch
-survives to clobber the boundary zero it predates — the pre-run register is
+survives to clobber the boundary zero it predates — the pre-run sequence is
 `init!` → `stage!` → `run!`, the batch then waiting for the first frame top as
 §11.4 says). The diagnostic cells are
 deliberately not cleared: a rejection recorded while stopped is a fact about
@@ -968,7 +968,7 @@ function _run_body!(sim::Simulation, pol::RunPolicy, upto::Int, target::Int)
         live = _init_devices!(sim)            # §12.4's pre-spawn bracket, attachment order
         @atomic ctl.stopped = false
         ct = findfirst(e -> needs_calling_task(e.dev), live)
-        if ct === nothing                     # the unattended register (§11.1)
+        if ct === nothing                     # the unattended mode (§11.1)
             tasks = _spawn!(live)
             _register_tasks!(plane, live, tasks)
             try
@@ -1155,7 +1155,7 @@ frame loop. `t_plus` is the duration spelling, mutually exclusive with
 A stepping session is deviceless by construction (§12.6): no task is spawned
 and no bracket runs — device tasks are per-`run!` artifacts — while the
 frame-top drain still runs, so `stage!(sim, …)` → `step!` → `latest(sim)` is
-the advance-assert-advance register, and a batch staged into a rostered
+the advance-assert-advance idiom, and a batch staged into a rostered
 device's cell while stopped is applied exactly as §11.4 says. Between calls
 the simulation reports `initialized`, so `attach!` is legal there and `run!`
 may follow, continuing from the current boundary.
@@ -1204,7 +1204,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing)
         err_src = LoopError(err)              # the record is assembled below,
         rethrow()                             # after the sweep (D-203)
     finally
-        if err_src !== nothing                # §13.6, the stepped register: same tail,
+        if err_src !== nothing                # §13.6, the stepped entry: same tail,
             _finish!(sim)                     # deviceless — waits woken, accounts swept
             ctl.termination = _record(sim, err_src, _sweep_tail!(sim))
             @atomic :release ctl.lifecycle = :errored
@@ -1253,13 +1253,13 @@ staked from its source — the enumeration called once, or the unclaimed
 complement computed at this instant and never recomputed, so attaching the
 greedy claimant last is the idiom and a second greedy stakes the empty
 remainder under an `EmptyGreedyClaim` warning (§11.6) — the entry's writer is
-compiled over it, and the harness register's surface is recompiled to the
+compiled over it, and the harness writer's surface is recompiled to the
 complement that remains, renormalizing any pending harness batch (§11.4). On
 the output side `reads(b)` is called once, resolved against the build and
 compiled to the one gather `gather(handle, snap)` runs (§11.2, §14.4) — a
 binding that drifted from its model fails here, not with silent garbage on
 the wire. An output-only binding stakes no claim: its write surface is empty,
-and the harness register keeps every face.
+and the harness writer keeps every face.
 
 `should_abort` is §11.6's per-attachment failure policy, never a device
 property: set, the device's departure — its loop body returning, a crash, or
@@ -1317,7 +1317,7 @@ end
     detach!(sim, dev)
 
 Release a rostered device — the same stopped-sim gate as `attach!`. The
-claims are released and the harness register's surface regains them; a
+claims are released and the harness writer's surface regains them; a
 pending undrained batch in the entry's cell is discarded with it, detach
 being a deliberate reconfiguration, while the root inputs it fed hold their
 last-drained values. The device id retires with the entry, never reused.
@@ -1336,14 +1336,14 @@ end
 # --- the data plane (§11): staging, the drain, publication ---------------------
 
 """
-    stage!(sim, "face" => value, ...)          # the harness register (§11.3)
+    stage!(sim, "face" => value, ...)          # the harness writer (§11.3)
 
 Stage a batch of root-input writes from any task, at any wall-clock moment,
 never touching a live root input (§11.1): the entries land in the writer's staging
 cell under the one coalescing policy — CAS merge, newest wins per face
 (§11.4). Untouched faces survive into the pending batch; re-staged faces take
 the newest level. Every check runs here, on the writer's side, its findings
-written into the harness register's diagnostic cell (§11.8): a face outside
+written into the harness writer's diagnostic cell (§11.8): a face outside
 the harness surface is discarded — `ClaimedFaceEntry` naming the incumbent
 when a rostered claim covers the face (a rostered greedy claimant empties the
 harness surface outright, D-192) and `OutOfClaimEntry` when nothing does — an
@@ -1367,7 +1367,7 @@ takes each staged batch with one `atomicswap(cell, nothing)` — an indivisible
 take, so there is no lost-write window — and applies it through the entry's
 compiled scatter, masked-off positions skipped, every check long since spent
 at staging.
-Cells drain in attachment order, the harness register's last by convention:
+Cells drain in attachment order, the harness writer's last by convention:
 with every surface disjoint the order is unobservable, so the rule exists to
 make the record read the same way every time, not to arbitrate (§11.3). Never
 at a `t*` boundary (§10.4). Between drains the loop owns its data exclusively,
@@ -1516,7 +1516,7 @@ end
 
 # The status assembly (§11.8, §11.2), on the publishing task: per-writer
 # records in the drain's order — devices in attachment order, then the
-# harness register, then the loop itself.
+# harness writer, then the loop itself.
 function _status(sim::Simulation)
     plane = sim.plane
     ws = Vector{WriterStatus}(undef, length(plane.roster) + 2)
@@ -1535,7 +1535,7 @@ end
 Acquire-load the most recently published snapshot — `nothing` before the first
 `init!`. A reader on any task observes an immutable, coherent world for as
 long as it holds the value, without coordinating with the loop; the calling
-task reads the same reference, §12.6's inspection register.
+task reads the same reference, §12.6's inspection read.
 """
 latest(sim::Simulation) = @atomic :acquire sim.published.latest
 
@@ -1547,7 +1547,7 @@ endpoint, the bounded middle at the effective stride, and the terminal
 endpoint — the latest published boundary — deduplicated when retention
 already holds it. A stopped-sim read behind the §11.3 gate: the log is
 loop-task bookkeeping, so reading it beside a running loop is the same
-hazard class as a mid-run `attach!`; a concurrent reader's register is
+hazard class as a mid-run `attach!`; a concurrent reader's inspection read is
 `latest(sim)`, and it holds snapshots or loses them (§11.2). Empty before
 the first `init!`, and empty under `log = false` — the switch gates
 retention wholesale.

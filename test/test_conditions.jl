@@ -145,7 +145,7 @@ function conditions_algebra()
         e = failure(() -> resolve_condition(bad, b))
         @test e isa DiagnosticError
         @test length(diagnostics(e)) == 5                       # the full list, one throw
-        # The path itself is the walk's refusal, one register over (§13.3), with
+        # The path itself is the walk's refusal, one case over (§13.3), with
         # the sibling list in hand; the entry's own kind keeps what lies beyond it.
         pr = only(d for d in diagnostics(e) if d isa PathResolution)
         @test pr.reason === :unknown_child && pr.segment == "nope" &&
@@ -350,14 +350,14 @@ function conditions_algebra()
     end
 end
 
-# --- the load-bearing register's walk (§13.3, §14.2, D-130) ---------------------
+# --- the service walk (§13.3, §14.2, D-130) --------------------------------------
 # Every `at` prefix is resolved at the level its enclosing `at`s compiled, along
 # the *declared* field types rather than the instance: resolving to a
 # generically held child is port-level access and legal, traversing past one is
 # the refusal whatever the instance in hand. The holders live in
 # `test_assembly.jl`, which is included first.
 
-function conditions_load_bearing_walk()
+function conditions_service_walk()
     @testset "a deep `at` path stays within a concretely declared subtree (§13.3, §14.2, D-130)" begin
         q = SVector(0.3, 0.1)
         deep = at("inner/plant", fragment(x = (q = q,)))
@@ -434,8 +434,8 @@ function conditions_load_bearing_walk()
     end
 end
 
-# --- the specialized application register (§14.3, §14.4, D-066) -----------------
-# The other register over the same checks: a plan compiled from a tree's shape,
+# --- the specialized `apply!` (§14.3, §14.4, D-066) ------------------------------
+# The other way over the same checks: a plan compiled from a tree's shape,
 # applied to every later tree of that shape. The fixtures stay at top level for
 # `implementation.md`'s local-scope reason.
 
@@ -471,7 +471,7 @@ landed(sim) = (copy(sim.exec.xbuf),
                [m === nothing ? nothing : m[] for m in sim.exec.mstores],
                [port(sim, "", f) for f in sim.build.flat.root_inputs])
 
-function conditions_specialized_register()
+function conditions_specialized_apply()
     @testset "a shape-compiled plan lands what the dynamic walk lands (§14.4, D-066)" begin
         specialized = Simulation(tri(); h = 1//10)
         dynamic = Simulation(tri(); h = 1//10)
@@ -496,7 +496,7 @@ function conditions_specialized_register()
         @test only(plan.xs).authored isa Authored{(:nodes, 1, :node, :x, :q),SVector{2,Float64}}
     end
 
-    @testset "the specialized register writes without allocating (§14.4, §7.5)" begin
+    @testset "the specialized `apply!` writes without allocating (§14.4, §7.5)" begin
         sim = Simulation(tri(); h = 1//10)
         plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.build)
         tree = tri_tree(SVector(9.0, 8.0), 7.0, :armed, 6.0, 5.5)
@@ -605,6 +605,6 @@ end
 
 function test_conditions()
     conditions_algebra()
-    conditions_load_bearing_walk()
-    conditions_specialized_register()
+    conditions_service_walk()
+    conditions_specialized_apply()
 end

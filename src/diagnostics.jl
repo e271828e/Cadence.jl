@@ -9,7 +9,7 @@
 # is reported are facts of the site, not of the value, so no kind carries them.
 #
 # Messages are presentation: `message(d)` renders one diagnostic in the didactic
-# register (state the fix, show the list-in-hand) and carries no kind name —
+# style (state the fix, show the list-in-hand) and carries no kind name —
 # the carrier's `showerror` leads each line with it. Tests match on kind plus
 # payload, never on message text (§13.2).
 #
@@ -363,9 +363,9 @@ message(d::RootInputTypeConflict) =
     "has to be unique across the fan-out; agree the entries, or give the face a " *
     "producer (§8.2, D-168)"
 
-"§6.1, §13.3: a path that resolves to nothing, or reaches past the one level a register admits."
+"§6.1, §13.3: a path that resolves to nothing, or reaches past the one level its client admits."
 Base.@kwdef struct PathResolution <: Diagnostic
-    entry::String                            # the register or wiring entry: provenance
+    entry::String                            # the condition or wiring entry: provenance
     spelling::String                         # the path as written
     reason::Symbol   # :not_a_terminal|:unknown_child|:reaches_past|:past_generic|:empty_path
     owner::String = ""                       # the component the path was resolved against
@@ -381,8 +381,8 @@ function message(d::PathResolution)
         return "$(d.entry): `$(d.spelling)` is not an endpoint — a terminal path names a " *
                "child and one of its ports or faces (§8.6)"
     d.reason === :empty_path &&
-        return "$(d.entry): the empty path names no child — a path in this register names " *
-               "an immediate child of the component in hand (§13.3)"
+        return "$(d.entry): the empty path names no child — a path here names an immediate " *
+               "child of the component in hand (§13.3)"
     d.reason === :unknown_child &&
         return "$(d.entry): `$(d.spelling)` names no child `$(d.segment)` of $(d.owner)" *
                (isempty(d.candidates) ? " — it has no children" :
@@ -390,7 +390,7 @@ function message(d::PathResolution)
     d.reason === :past_generic &&
         return "$(d.entry): `$(d.spelling)` reaches past `$(d.level)`, which $(d.owner) " *
                "holds through the non-concrete declared type `$(_typename(d.declared))` — a " *
-               "path in this register stops at a generically held child or stays within a " *
+               "service path stops at a generically held child or stays within a " *
                "concretely declared subtree: address the child at its own level, read a " *
                "face it exports, or declare the field's concrete type (§13.3, §14.2)"
     "$(d.entry): `$(d.spelling)` reaches past `$(d.level)` — " *
@@ -399,7 +399,7 @@ function message(d::PathResolution)
      "endpoint path is one child segment (plus the key segment where the child is a " *
      "container element) and one face name; route through `$(d.segment)`'s own face " *
      "instead, declared level by level (§6.1)" :
-     "a path in this register names an immediate child: one child segment, plus the key " *
+     "a path here names an immediate child: one child segment, plus the key " *
      "segment where the child is a container element, and nothing further (§6.1, §13.3)")
 end
 
@@ -1096,7 +1096,7 @@ function message(d::ReadBindingUnresolved)
                "declare the field public and read the port published from it"
     d.reason === :indexed &&
         return "$(d.binding) reads $(d.selector) — a binding read is a whole cell, and " *
-               "sub-cell index addressing is absent in this register (§14.4, docs/design/pending.md)"
+               "sub-cell index addressing is absent in a binding read (§14.4, docs/design/pending.md)"
     d.reason === :unknown_cell &&
         return "$(d.binding) reads $(d.selector), which names no cell — only declared " *
                "outputs, assembly faces and root inputs are addressable (§14.4)"
@@ -1105,7 +1105,7 @@ function message(d::ReadBindingUnresolved)
                "root inputs are $(_faceset(d.candidates)) (§14.4)"
     d.reason === :root_input_not_output &&
         return "$(d.binding) reads $(d.selector), which names a root *input* face — the " *
-               "integration register is the exported output faces, and a root input is " *
+               "integration reads are the exported output faces, and a root input is " *
                "read back with get_input (§14.4, §11.2)"
     "$(d.binding) reads $(d.selector): `$(d.field)` is no root-exported output face " *
     "(§14.4, §11.2)"
@@ -1265,8 +1265,8 @@ function message(d::TapResolution)
         return _tapviol(d, "`$(d.field)` is no root input face — the root's inputs are " *
                            "$(_namelist(d.candidates))")
     d.reason === :root_input_not_face &&
-        return _tapviol(d, "`$(d.field)` is a root *input* face — the integration register " *
-                           "is the root-exported output faces, and a root input is read " *
+        return _tapviol(d, "`$(d.field)` is a root *input* face — the integration reads " *
+                           "are the root-exported output faces, and a root input is read " *
                            "back with `get_input`")
     _tapviol(d, "`$(d.field)` is no root-exported output face — the root exports " *
                 "$(_namelist(d.candidates))")
@@ -1362,11 +1362,11 @@ message(d::ConditionShapeDrift) =
     d.reason === :prefix ?
     "the `at` prefix at tree position $(_drift_position(d.position)) was " *
     "$(repr(d.compiled)) when this plan was compiled and is $(repr(d.observed)) now — " *
-    "prefixes are runtime `String` fields the tree type cannot carry, so the register " *
-    "closes the shape with a `===` sweep over them, and a condition function has to return " *
-    "one shape for every decision it is evaluated at (§14.4, §9.5, D-066)" :
+    "prefixes are runtime `String` fields the tree type cannot carry, so the specialized " *
+    "`apply!` closes the shape with a `===` sweep over them, and a condition function has " *
+    "to return one shape for every decision it is evaluated at (§14.4, §9.5, D-066)" :
     "this plan was compiled from a condition tree of type\n    $(d.compiled)\nand the tree " *
-    "handed to `apply!` is\n    $(d.observed)\nThe specialized register proves the shape " *
+    "handed to `apply!` is\n    $(d.observed)\nThe specialized `apply!` proves the shape " *
     "by dispatch, so a condition function has to return one shape for every decision it is " *
     "evaluated at — a branch that authors a different field set, a different nesting or a " *
     "different leaf type is a different shape, and needs its own plan (§14.4, §9.5, D-066)"
@@ -1482,7 +1482,7 @@ message(d::NotAttached) =
 # writer's schema against the target's root-input faces, and every record's
 # positions against the schema they were written under. The line the three
 # kinds draw is §12.7's: *structural* mismatch is an error, *parametric*
-# difference is the what-if register and no error at all.
+# difference is the what-if replay and no error at all.
 
 "§11.5, §12.7: the trace's header disagrees with the target build, its scalar or its deployment binding."
 Base.@kwdef struct ReplayHeaderMismatch <: Diagnostic
@@ -1523,7 +1523,7 @@ message(d::ReplayHeaderMismatch) =
      "target's own compiled scatter (§11.4, §12.7)") :
     "replay: the $(_replay_subject(d)) was $(repr(d.expected)) at the recording and is " *
     "$(repr(d.found)) here — the store layout is compared against the `Build`, structural " *
-    "mismatch being a replay error and only *parametric* difference the what-if register (§12.7)"
+    "mismatch being a replay error and only *parametric* difference the what-if replay (§12.7)"
 
 "§11.5, §12.7: a recorded writer schema naming faces the target model does not export as root inputs."
 Base.@kwdef struct ReplaySchemaMismatch <: Diagnostic

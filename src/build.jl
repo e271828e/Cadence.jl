@@ -25,8 +25,8 @@ end
 """The tier's own state register: exactly one of the two is ever populated."""
 state_decls(d::Decls, t::Tier) = t === CONTINUOUS ? d.x : d.s
 
-# The two registers split by D-166's criterion: `init_x` is by value and its
-# types are *walked*; `input_types`/`output_types` are functions of the
+# The two declaration kinds split by D-166's criterion: `init_x` is by value
+# and its types are *walked*; `input_types`/`output_types` are functions of the
 # activation scalar on the continuous tier and are *evaluated*. There is no
 # output-side leaf walk — the cell types at an activation are literally what the
 # declaration returns at that `T`. On the discrete tier the plain forms declare

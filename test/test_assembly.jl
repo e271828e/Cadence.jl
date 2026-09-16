@@ -262,7 +262,7 @@ function assembly_transparent_containers()
         @test sim.build.flat.paths == ["units", "trim"]     # the bare child, and nothing under it
         init!(sim, fragment(inputs = (in = 1.0,)))
         @test port(sim, "units", :out) === 6.0             # reads resolve `units` bare
-        @test port(sim, "", :y) === 6.0                    # and so does the wiring register
+        @test port(sim, "", :y) === 6.0                    # and so does wiring resolution
 
         # And the declaration must name a container field of the type — a component
         # field and an absent name are refused alike.
@@ -339,7 +339,7 @@ function assembly_paths()
         # The identical declarations against the identical instance, held
         # generically: substitutability now holds at *every* boundary, so the
         # generic holder builds too, and the concrete/generic distinction has left
-        # this register entirely.
+        # this case entirely.
         gsim = Simulation(GenericHold(SampledLoop()); h = 1//50)
         init!(gsim, fragment(inputs = (ref = 1.0,)))
         @test gsim.build.flat.paths == sim.build.flat.paths

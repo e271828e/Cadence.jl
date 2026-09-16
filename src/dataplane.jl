@@ -2,7 +2,7 @@
 # and 2 of §11.1's replacement for the shared mutable model — the diagnostic
 # channel with the published framework status (§11.8, §13.2), snapshot
 # publication, plane 3, and the log riding behind it (§11.2). The cells'
-# owners — the roster's device entries and the harness register beside them —
+# owners — the roster's device entries and the harness writer beside them —
 # live in roster.jl, the device tasks that stage into them in devices.jl,
 # the trace the drain feeds in trace.jl; what stands further out in the spec —
 # the pacer diagnostics — is deliberately absent (`pending.md`).
@@ -245,7 +245,7 @@ const EMPTY_DIAG = DiagBatch(DiagValue[], KindCounts())
 
 """
 The diagnostic cell (§11.8): one per writer — each rostered device's, the
-harness register's, the loop's own — single-writer, the same ownership
+harness writer's, the loop's own — single-writer, the same ownership
 argument as the staging cells: no locking, no arbitration, no new primitive.
 The CAS mirrors `_stage!`'s: a failed replace means the loaded batch was
 intercepted by the drain, and the retry re-reads what is pending now — the
@@ -344,7 +344,7 @@ snapshots (so log decimation loses *which* boundary an occurrence fell on,
 never *how many*); and, for a rostered device, the liveness `heartbeat`
 (§12.2) beside the `task_state` the loop reads off the run's `Task` handle at
 publication (D-193) — `:none` when no task exists (a failed `init!`, or a
-stopped sim), `:running`, `:done`, or `:failed`. The harness register's and
+stopped sim), `:running`, `:done`, or `:failed`. The harness writer's and
 the loop's own records carry `nothing` for both: no task of their own to be
 alive or dead.
 """
@@ -360,7 +360,7 @@ end
 """
 The published framework status (§11.8, §11.2): a concrete frozen value, never
 a window onto live bookkeeping — per-writer records in the drain's own order,
-each rostered device in attachment order, then the harness register, then the
+each rostered device in attachment order, then the harness writer, then the
 loop itself. Built fresh in `publish!` and frozen into the snapshot; the
 binding rule holds because everything here is either immutable, a copy, or a
 vector the account has released.
@@ -407,14 +407,14 @@ end
 """
 The compiled writer (§11.4): one write surface's staged representation, fixed
 at a stopped-sim point — a device's compiled at attach against its claim set,
-the harness register's at deployment binding and at every roster change
+the harness writer's at deployment binding and at every roster change
 against its *derived* surface, the unclaimed complement (§11.3). The batch is
 the values-plus-mask pair above (D-202), isbits with one concrete layout per
 writer. The face-name → position schema, the root-input types, the per-position
 cell addresses — the compiled scatter's data — and the blank batch the shim
 starts from (placeholders drawn from the layout's probe values, mask all clear)
 live here beside the staging cell they describe; a roster entry carries one of
-these per device (roster.jl), and the harness register carries the one whose
+these per device (roster.jl), and the harness writer carries the one whose
 shape the framework derives rather than receives.
 """
 struct Writer{B<:Batch,A<:Tuple}
@@ -446,14 +446,14 @@ static facts of the run, so a face with no position in the schema is
 discarded under an `OutOfClaimEntry`/`ClaimedFaceEntry` and an unconvertible
 value under `EntryTypeMismatch`, while the rest of the batch stands. Nothing
 remains at the drain. The diagnostics are written into the writer's own cell
-(§11.8) — the device's for a handle staging, the harness register's
+(§11.8) — the device's for a handle staging, the harness writer's
 otherwise — on the staging task, surfacing in the status at the next frame
 top's drain; a batch staged while stopped waits in the cell exactly as its
 entries wait in the staging cell.
 
 The out-of-schema kind discriminates by writer (§11.3, Appendix C): a
 device's entry is always `OutOfClaimEntry` — naming the incumbent when the
-face is claimed elsewhere — while the harness register's is `ClaimedFaceEntry`
+face is claimed elsewhere — while the harness writer's is `ClaimedFaceEntry`
 naming the incumbent when a rostered claim covers the face, and
 `OutOfClaimEntry` only when the face names no root input at all. `claimedby` is
 the exclusivity index the roster maintains; `device` identifies a device

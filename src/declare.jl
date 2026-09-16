@@ -109,7 +109,7 @@ keeping their key segment — is the default.
 transparent_container(::Any) = nothing
 
 # --- rate scopes (§8.7, §10.5) --------------------------------------------------
-# The two registers of the sample-time declaration, and the wrappers are the
+# The two forms of the sample-time declaration, and the wrappers are the
 # whole value vocabulary — a bare integer or bare quantity in a `sample_times`
 # entry is a declaration error. They are plain data carriers (D-185): range
 # validation is Stratum A's, with path attribution, in the fold. The one

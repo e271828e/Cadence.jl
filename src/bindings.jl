@@ -103,11 +103,11 @@ end
 # The selectors themselves are §14.4's closed family, declared in readers.jl
 # above this file: the three *table* members are what a snapshot-bound reader
 # may name, and the source rule is enforced here, at the attach point where the
-# source is finally known (§14.4). `get_output` is the inspection register —
+# source is finally known (§14.4). `get_output` is an inspection read —
 # deep paths, zero promises, free access, right for looking at *this* build —
-# and `get_face` the integration register: a root-exported output face, named,
+# and `get_face` an integration read: a root-exported output face, named,
 # curated, meaning-stable under substitution (§11.2). `get_input` reads a root
-# input back, the source cell it is. What this register does not take is depth
+# input back, the source cell it is. What these reads do not take is depth
 # *inside* a cell: a binding read is a whole cell, as every reader of the
 # published table is (`pending.md`).
 
@@ -153,7 +153,7 @@ _root_input_names(layout::Layout) = Symbol[f for (f, _) in layout.root_inputs]
 # §14.4's source rule, enforced where the source is known: a snapshot carries
 # no state stores by construction (§11.2) and `ẋ` is integrator scratch, so a
 # snapshot-bound reader naming a store selector is a resolution error at
-# attach — in the didactic register, with the remedy named.
+# attach — in the didactic style, with the remedy named.
 _resolve_read(::Layout, s::StoreSelector, T::Type) = throw(DiagnosticError(
     ReadBindingUnresolved(binding = string(T), selector = _spell(s), reason = :store_selector,
                            path = _selpath(s), field = _field(s))))

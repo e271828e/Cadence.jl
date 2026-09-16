@@ -1,6 +1,6 @@
 # --- the roster and claims (§11.3, §11.4, §11.6's attach-point slice) -----------
 # Increment 10: attach/detach admission, both claim sources, per-device staging
-# cells, and the harness register as the derived remainder.
+# cells, and the harness writer as the derived remainder.
 #
 # The malformed bindings live at top level for `implementation.md`'s local-scope
 # reason: a trait method defined inside a @testset binds a new local function,
@@ -116,7 +116,7 @@ function test_roster()
         @test only((@atomic hg.diag.batch).ring) isa OutOfClaimEntry
 
         # A rostered greedy claimant empties the harness surface: every harness
-        # stage! in such a session is rejected by name into the harness register's
+        # stage! in such a session is rejected by name into the harness writer's
         # own cell (D-192, §11.8).
         @test isempty(sim.plane.harness.faces)
         stage!(sim, "b" => 9.0)

@@ -117,7 +117,7 @@ function diagnostics_channel()
         h = attach!(sim, Pad("p"), Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         # Boundary zero's status: the writers in the drain's order — devices in
-        # attachment order, the harness register, the loop — every account zero,
+        # attachment order, the harness writer, the loop — every account zero,
         # and no run task to be alive: device tasks are run-scoped observables.
         st0 = latest(sim).status
         @test [w.who for w in st0.writers] == ["device 1 (Pad)", "harness", "loop"]
@@ -540,11 +540,11 @@ function diagnostics_kind_set()
     # --- rendering: the suite's one deliberate exception -----------------------------
     # Everywhere else a test matches a diagnostic's *kind and payload*, never its
     # text (§13.2). Here, and only here, the rendered string is the claim: the
-    # carrier's compiler-style layout, and the didactic register `message` is for —
+    # carrier's compiler-style layout, and the didactic style `message` is for —
     # state the fix, show the list in hand. Nothing outside this testset may
     # `occursin` on a rendered diagnostic; a wording change is free everywhere else
     # and lands here.
-    @testset "rendering: the carrier compiler-style, the register didactic (§13.1, §13.2)" begin
+    @testset "rendering: the carrier compiler-style, the didactic style (§13.1, §13.2)" begin
         # Two kinds × two paths: groups in first-appearance order, paths sorted
         # within a group, the kind name leading each line, the count line above.
         e = DiagnosticError(Diagnostic[UnconnectedInput(path = "b", face = :u),
@@ -585,7 +585,7 @@ function diagnostics_kind_set()
                                 candidates = [:throttle, :brake]))
         @test occursin("names no `throtle`", m) && occursin("throttle, brake", m)
 
-        # The remedy register: the shortfall, then the fix, with the list in hand.
+        # The remedy form: the shortfall, then the fix, with the list in hand.
         m = message(UninitializedInputs(op = :init!, faces = [:u, :e]))
         @test occursin("`init!`", m) && occursin("`u`, `e`", m)
         @test occursin("nothing was written", m)

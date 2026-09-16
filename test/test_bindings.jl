@@ -218,7 +218,7 @@ function test_bindings()
         # map_output received the labeled NamedTuple, labels in reads order.
         @test all(keys(nt) == (:alt, :raw, :cmd) for nt in dev.wire)
         # Coherence in every observed snapshot: the exported face and the deep path
-        # alias one cell (§11.2), so the two registers agree bitwise, always.
+        # alias one cell (§11.2), so the two reads agree bitwise, always.
         @test all(nt.alt === nt.raw for nt in dev.wire)
         # The stop wake handed the final world: the last datum is the run's end.
         @test last(dev.wire).raw === port(sim, "p", :y)

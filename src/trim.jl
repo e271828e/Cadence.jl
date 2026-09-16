@@ -2,16 +2,17 @@
 # the solver seam it is driven across, the in-house Levenberg–Marquardt behind
 # that seam, and the report it comes back as.
 #
-# Everything the service needs already exists one file up. The write side is the
-# condition algebra's two application registers — the dynamic walk for the one
-# setup application, the specialized register for the iterations (§14.4, D-066)
-# — and the read side is the compiled reader (readers.jl). What trim adds is the
-# loop between them, the vectorization at its edges, and the discipline the
-# whole section is about: **the simulation's stores have exactly one writer, the
-# commit through boundary zero**. Every evaluation happens on scratch executors
-# the invocation instantiates and discards (§9.2's one-owner rule, §14.8's
-# scratch-store paragraph), so a solve that does not converge leaves the
-# simulation bit-for-bit untouched — "never initialized" included.
+# Everything the service needs already exists one file up. The write side is
+# the condition algebra's two ways of applying one plan — the dynamic walk for
+# the one setup application, the specialized `apply!` for the iterations
+# (§14.4, D-066) — and the read side is the compiled reader (readers.jl). What
+# trim adds is the loop between them, the vectorization at its edges, and the
+# discipline the whole section is about: **the simulation's stores have
+# exactly one writer, the commit through boundary zero**. Every evaluation
+# happens on scratch executors the invocation instantiates and discards
+# (§9.2's one-owner rule, §14.8's scratch-store paragraph), so a solve that
+# does not converge leaves the simulation bit-for-bit untouched — "never
+# initialized" included.
 
 # --- the problem (§14.7) --------------------------------------------------------
 
@@ -148,8 +149,8 @@ box** (§14.8's bound treatment), stopping when `all(abs.(r) .≤ tol)` — the
 per-residual test in the service's own units — or at `maxiter`, or when a step
 stalls below the `eps` scale of the decisions it would move.
 
-Descent test and stopping rule are measured in the same units on purpose. In
-this register "the tolerances *are* the stopping criterion" (§14.8), so LM's
+Descent test and stopping rule are measured in the same units on purpose.
+Under this view, "the tolerances *are* the stopping criterion" (§14.8), so LM's
 damping loop tests exactly what the service will re-test: a raw `norm(r)` sums
 forces against moments, and on a problem whose residuals differ by orders of
 magnitude in physical scale it can reject every projected step short of a point
@@ -223,10 +224,10 @@ end
 # --- setup validation (§14.7, §13.1) --------------------------------------------
 # One collecting pass over what a build can answer, then the guess evaluation,
 # which is where the residual return is observed. Both throws are §13.1's
-# register: `TrimProblemInvalid` values for the problem's own fields, with the
-# read set's `TapResolution` values spliced in beside them — the read keeps its
-# own kind and the *problem* is what the setup is refusing, which is what
-# `_resolve_reads` was factored apart for.
+# collecting form: `TrimProblemInvalid` values for the problem's own fields,
+# with the read set's `TapResolution` values spliced in beside them — the read
+# keeps its own kind and the *problem* is what the setup is refusing, which is
+# what `_resolve_reads` was factored apart for.
 
 function _report_trim!(diags::Vector{Diagnostic})
     isempty(diags) && return nothing
@@ -270,7 +271,7 @@ function _check_decisions!(diags::Vector{Diagnostic}, p::TrimProblem)
 end
 
 # `tolerances`: a NamedTuple of `Float64`s, each finite and strictly positive.
-# Positivity is load-bearing rather than cosmetic. A tolerance is the half-width
+# Positivity is essential rather than cosmetic. A tolerance is the half-width
 # of the box its residual has to sit in, so zero and negative name no box at
 # all — and the acceptance test measures `‖r ./ tol`‖ (§14.8), so a non-positive
 # one sends the descent test to `Inf`/`NaN`, rejects every trial step and
@@ -345,7 +346,7 @@ before any evaluation (`UninitializedInputs`, all-or-nothing), and runs one
 **establishment round** — boundary zero's sweep with every discrete output
 stage admitted, due or not (D-205), with no projection, no guards and no
 `state_update`.
-The seeded set is then written by the specialized register, and its **frozen
+The seeded set is then written by the specialized `apply!`, and its **frozen
 cells are copied from the nominal set** as zero-partial constants: at the
 seeded activation the discrete tier never runs (§9.4), so nothing there can
 derive a discrete output cell from the authored `s`, and without the copy those
@@ -541,7 +542,7 @@ function _saturated(K::Tuple, d::Vector{Float64}, lower::Vector{Float64},
     out
 end
 
-# The verdict, the commit and the report, shared by both registers — the solved
+# The verdict, the commit and the report, shared by both forms — the solved
 # problem and the bypassed zero-decision one, which differ in how they got their
 # residual vector and in nothing after it (§14.8).
 function _verdict!(sim::Simulation, p::TrimProblem, baseline, solution::NamedTuple,

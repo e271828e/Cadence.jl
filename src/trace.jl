@@ -19,7 +19,7 @@
 The trace header (§11.5): the full initial state as **resolved values**, never
 the authored overlay (D-038), captured after `apply!` and the root-input
 writes and before the boundary-zero sequence — both halves of §14.5's
-placement being load-bearing, since replay re-executes boundary zero and a
+placement being essential, since replay re-executes boundary zero and a
 post-sequence capture would hand it already-transitioned state.
 
 `x` is the flat continuous buffer; `s` and `m` carry each component's store
@@ -142,7 +142,7 @@ mutable struct TraceRegister
     mode::Symbol                      # :live | :replay — §12.6's input mode (D-218)
 end
 
-# The empty roster leaves the harness register sole writer, so the fresh
+# The empty roster leaves the harness writer sole writer, so the fresh
 # register's provisional set is `1:1`; `_install_writers!` re-fixes it at every
 # capture and every roster change.
 TraceRegister(enabled::Bool) =
@@ -197,7 +197,7 @@ function _record!(reg::TraceRegister, widx::Int, batch::Batch)
 end
 
 # The run's writers in the drain's own order (§11.3, §11.4): each rostered
-# device in attachment order, then the harness register. The tags are §11.8's
+# device in attachment order, then the harness writer. The tags are §11.8's
 # writer names, so a trace and a published status name a writer identically.
 function _writer_schemas(plane)
     schemas = Pair{String,Vector{Symbol}}[_who(e) => copy(e.writer.faces) for e in plane.roster]

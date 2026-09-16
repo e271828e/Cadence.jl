@@ -1,6 +1,6 @@
 # --- the data plane's core exchange (§11, increment 9) ---------------------------
 # Staging → drain inbound, snapshot publication outbound: §11.1's planes 1–3 with
-# the roster empty, so the harness register's derived surface is every root face.
+# the roster empty, so the harness writer's derived surface is every root face.
 
 # Two root inputs feeding one summing junction: the sparse-batch hazard's shape.
 two_root_inputs() = Group((; s = Sum(sa = 1.0, sb = 1.0));
@@ -40,14 +40,14 @@ function dataplane_exchange()
         # `init!` makes the predicate hold in the authored state and fire at t₀
         # (test_events). A batch staged *before* init! predates the boundary zero
         # it would clobber, so init! clears it (§12.6); staged *after* init! — the
-        # pre-run register — it is pending, not applied, and the edge arrives with
+        # pre-run sequence — it is pending, not applied, and the edge arrives with
         # frame 1's drain, never at boundary zero.
         sim = Simulation(fed(Trigger(0.5), "sig"); h = 1//10)
         stage!(sim, "in" => 1.0)                 # predates boundary zero: cleared by init!
         init!(sim, fragment(inputs = (in = 0.0,)))
         @test (@atomic sim.plane.harness.cell.pending) === nothing
         @test modes(sim, "c").count == 0
-        stage!(sim, "in" => 1.0)                 # the pre-run register: init! → stage! → run!
+        stage!(sim, "in" => 1.0)                 # the pre-run sequence: init! → stage! → run!
         @test modes(sim, "c").count == 0
         run!(sim; t_end = 0.1)
         @test modes(sim, "c").count == 1
@@ -68,7 +68,7 @@ function dataplane_exchange()
     @testset "every check runs at staging, on the writer's side; the drain is pure (§11.4)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-        # Each rejection is written into the harness register's diagnostic cell on
+        # Each rejection is written into the harness writer's diagnostic cell on
         # the staging task (§11.8) — a stopped-sim staging waits there exactly as
         # its surviving entries wait in the staging cell, both drained at the next
         # run's first frame top.

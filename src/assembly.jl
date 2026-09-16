@@ -250,7 +250,7 @@ the refusal in `diags` and returning `nothing` (§13.1).
 segment where the child is a container element (`"units/1/e"` is one level, not
 two), and one face name. Anything deeper is a build error whatever the declared
 field types along it, which is why the generic-holding question never arises in
-this register: an endpoint stops before any field it could traverse past
+wiring resolution: an endpoint stops before any field it could traverse past
 (§13.3). Faces are the only currency crossing a boundary, so a route through
 several levels is declared level by level, each assembly speaking of its own
 children alone.
@@ -309,7 +309,7 @@ _held_concretely(c, field::Symbol) =
     (ft = _declared_holding(c, field); !(ft isa TypeVar) && isconcretetype(ft))
 
 """
-The load-bearing register's walk (§13.3, D-130): `path`'s segments from
+The service walk (§13.3, D-130): `path`'s segments from
 `level`, the component at `base`, following the declared field types
 alongside the instances. Resolving *to* a generically held child is legal;
 traversing *past* one is the refusal, whatever the instance in hand — the
@@ -372,7 +372,7 @@ names them — so a D-211 container pair such as `"units/1"` is one name, not tw
 segments. The same greedy match `resolve_authored` runs, over a path the build
 compiled and which therefore always resolves. A service that authors a
 condition back out of the flattened list spells it level by level from this, the
-one spelling the load-bearing walk admits across a generic seam (§14.2, §13.3).
+one spelling the service walk admits across a generic seam (§14.2, §13.3).
 """
 function authored_chain(root, path::AbstractString)
     isempty(path) && return String[]
@@ -395,11 +395,10 @@ end
 # --- §13.3's build primitives -------------------------------------------------
 # The four the declaration surface calls: `resolve` and `resolve_terminal` in
 # their public, entry-less forms, plus the two face-list accessors. Those are the
-# *structural* register of §13.3's table — the one-level rule verbatim, the same
+# *wiring resolution* of §13.3's table — the one-level rule verbatim, the same
 # walk wiring resolution runs, entered from a declaration body with no wiring
-# entry to attribute the failure to. `resolve_authored` above is the
-# *load-bearing* register's own walk, entered by the services with an entry to
-# attribute the refusal to.
+# entry to attribute the failure to. `resolve_authored` above is *the service
+# walk*, entered by the services with an entry to attribute the refusal to.
 
 """
     resolve(asm, path) → AbstractComponent
@@ -633,11 +632,11 @@ the cells they derive from, and beside them every input face at every level with
 the producer it routes to. The input side is total: one-level routing gives
 every signal crossing a boundary a declared face there (D-207), so a fragment's
 `inputs` payload resolves from any authoring level (§14.2). The root itself is
-retained, because the load-bearing register's walk resolves against the tree the
+retained, because the service walk resolves against the tree the
 paths index rather than against the compiled list (§13.3).
 """
 struct Flat
-    root::Any                       # the tree the paths index (§13.3's load-bearing walk)
+    root::Any                       # the tree the paths index (§13.3's service walk)
     paths::Vector{String}
     comps::Vector{Any}
     conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}}   # face => (producer path, port)

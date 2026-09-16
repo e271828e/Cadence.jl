@@ -1,6 +1,6 @@
 # The condition algebra and its resolution (§14.1–§14.3, §14.6): the inert lazy
 # tree the fragment functions build, the collecting pass that validates it
-# against a `Build`, and the plan §14.4's dynamic-walk register executes.
+# against a `Build`, and the plan §14.4's dynamic walk executes.
 #
 # Two properties carry the section. Composition performs no path arithmetic and
 # no validation — `at` stores a prefix and never applies it — so a fragment
@@ -133,8 +133,8 @@ _node_misuse(v, in_hand) = throw(DiagnosticError(ConditionNodeMisuse(
 #
 # The recursion carries a third accumulator, the entry's **tree position**
 # (§14.3): the `getfield`/`getindex` step tuple from the root node down to the
-# authored value. The dynamic register ignores it — it bakes the value itself —
-# and the specialized register lifts it to a `Getter{P}` lens, which is what
+# authored value. The dynamic walk ignores it — it bakes the value itself —
+# and the specialized `apply!` lifts it to a `Getter{P}` lens, which is what
 # lets one compiled plan be applied to every later tree of the same shape.
 
 struct CEntry
@@ -250,7 +250,7 @@ end
     resolve_condition(node, b::Build, T = Float64) → ConditionPlan
 
 Flatten the condition tree, validate every entry against `b` in §13.1's
-collecting register — full list, violations collected, one `DiagnosticError` — and
+collecting form — full list, violations collected, one `DiagnosticError` — and
 compile what survives to a plan.
 
 The checks are §14.3's: the path resolves to a component, the field is
@@ -293,11 +293,11 @@ function resolve_condition(node::ConditionNode, b::Build, ::Type{T} = Float64) w
     ConditionPlan{T}(xs, stores, inputs, faces)
 end
 
-# --- the collecting pass, shared by both registers (§14.3, §13.1) ---------------
+# --- the collecting pass, shared by both (§14.3, §13.1) -------------------------
 
 """
-One entry that survived §14.3's checks, beside everything either register needs
-to bake from it. The two registers differ in *what* they bake — the dynamic one
+One entry that survived §14.3's checks, beside everything either one needs
+to bake from it. The two differ in *what* they bake — the dynamic one
 takes `v`, the specialized one lifts `e.pos` to a lens and keeps `L` as the
 converter — and in nothing else, which is why the checks have one implementation.
 """
@@ -353,7 +353,7 @@ function _resolve_entries(node::ConditionNode, b::Build, ::Type{T}) where {T}
     (out, diags, act)
 end
 
-# The merge bases, in one order both registers walk: per component, the discrete
+# The merge bases, in one order both walk: per component, the discrete
 # store's declared defaults and then the mode store's (§14.3's fork).
 _store_bases(b::Build, act::Activation) =
     [(store, ci, store === :s ? act.decls[ci].s : init_m(b.flat.comps[ci]))
@@ -468,7 +468,7 @@ end
 _seeded_into_pinned(::Type{V}, ::Type{P}, ::Type{T}) where {V,P,T} =
     T !== Float64 && T in leaf_types(V) && !(T in leaf_types(P))
 
-# §13.1's collecting register: the full list, every violation, one throw.
+# §13.1's collecting form: the full list, every violation, one throw.
 function _report_violations(diags::Vector{Diagnostic})
     isempty(diags) && return nothing
     throw(DiagnosticError(diags))
@@ -496,7 +496,7 @@ function assert_total(plan::ConditionPlan, flat::Flat, op::Symbol)
     throw(DiagnosticError(UninitializedInputs(op = op, faces = uncovered)))
 end
 
-# --- the dynamic-walk application register (§14.4) ------------------------------
+# --- the dynamic walk (§14.4) ----------------------------------------------------
 
 """
     apply!(ex::Executor, plan)
@@ -506,8 +506,8 @@ end
 write — microseconds total, allocation permitted, the stopped-sim path never
 having been under §7.5's zero-alloc regime — with no per-shape codegen, so
 fifty structurally different scripted conditions cost fifty walks rather than
-fifty compiles. Which register a service uses is internal, never user-facing:
-the specialized `apply!` below is the other register over the same checks, for
+fifty compiles. Which way a service uses is internal, never user-facing:
+the specialized `apply!` below is the other way over the same checks, for
 the services that hold one shape fixed and vary its values.
 """
 function apply!(ex::Executor{T}, plan::ConditionPlan{T}) where {T}
@@ -528,8 +528,8 @@ apply!(::Executor{S}, ::ConditionPlan{T}) where {S,T} =
 
 apply!(sim::Simulation, plan::ConditionPlan) = apply!(sim.exec, plan)
 
-# --- the specialized application register (§14.3, §14.4, D-066) -----------------
-# The other register over the same checks. The dynamic walk bakes *values*, so a
+# --- the specialized `apply!` (§14.3, §14.4, D-066) ------------------------------
+# The other way over the same checks. The dynamic walk bakes *values*, so a
 # plan is good for one tree; this one bakes *lenses*, so a plan compiled from a
 # tree's shape applies to every later tree of that shape. That is the trade
 # §14.4 states: ~10–50 ms of codegen once per shape, against a per-iteration
@@ -658,9 +658,9 @@ SpecializedPlan{T,NT}(xs::XS, stores::ST, inputs::IN, prefixes::PF) where {T,NT,
 """
     compile_plan(node, b::Build, T = Float64) → SpecializedPlan
 
-Compile a condition tree's **shape** into the specialized register's plan,
+Compile a condition tree's **shape** into the specialized `apply!`'s plan,
 running exactly the checks `resolve_condition` runs — one implementation, in
-§13.1's collecting register, the two registers differing only in what they bake
+§13.1's collecting form, the two differing only in what they bake
 (§14.3).
 
 The tree handed here is a genuine tree, and its values matter to exactly one
@@ -779,7 +779,7 @@ end
     ConditionShapeDrift(reason = :prefix, compiled = expected, observed = observed,
                         position = P)))
 
-# --- capture: the gather twin of the application register (§14.1, §14.10) -------
+# --- capture: the gather twin of `apply!` (§14.1, §14.10) -----------------------
 
 """
     capture(sim) → (condition, t)
@@ -831,7 +831,7 @@ function capture(sim::Simulation{T}) where {T}
         isempty(payload) && continue
         # One `at` per child segment, innermost first: the absolute path is a
         # compiled derivative, and the authored spelling is the one the
-        # load-bearing walk admits wherever a level holds its child generically
+        # service walk admits wherever a level holds its child generically
         # (§14.2, §13.3).
         push!(nodes, foldr(at, authored_chain(flat.root, flat.paths[ci]);
                            init = fragment(; payload...)))

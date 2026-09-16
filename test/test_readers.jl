@@ -1,7 +1,7 @@
 # --- the read-selector family, the compiled reader and `capture` (§14.4, §14.1;
 # increment 21) ------------------------------------------------------------------
 # The five deferred reads, their resolution against a build in §13.1's
-# collecting register, the gather twin of `apply!` over an executor, and the
+# collecting form, the gather twin of `apply!` over an executor, and the
 # service that reads the committed world back as a condition. The fixtures live
 # at top level for `implementation.md`'s local-scope reason.
 
@@ -82,7 +82,7 @@ function test_readers()
                                                d = get_face(:nope)), b))
         @test e isa DiagnosticError && length(diagnostics(e)) == 4                  # the full list, one throw
         (a, b_, c, d) = diagnostics(e)
-        # The path itself is the walk's refusal, one register over, and the one
+        # The path itself is the walk's refusal, one case over, and the one
         # path arm that now carries a list in hand (§13.3).
         @test a isa PathResolution && a.reason === :unknown_child && a.segment == "plnt" &&
               a.candidates == ["plant", "ctl", "src"]
@@ -107,7 +107,7 @@ function test_readers()
               d.candidates == [:q]
 
         # The read set is a type, not a NamedTuple: the bare spelling is refused
-        # with a directive, not a `MethodError` (§14.2's rule, one register over).
+        # with a directive, not a `MethodError` (§14.2's rule, one case over).
         diag = carried(@test_throws DiagnosticError{ReadSetMisuse} _compile_reads((q = get_state("plant", :q),), b))
         @test diag.reason === :not_a_read_set
         d = carried(@test_throws DiagnosticError{ReadSetMisuse} reads(q = 2.0))                    # nor is 2.0 a selector
@@ -133,7 +133,7 @@ function test_readers()
         @test gather(_compile_reads(deep, sim.build), sim.exec).q == SVector(0.3, 0.1)
 
         # D-125's own remedy, and the one that survives substitution: the seam
-        # publishes a face, and the face register is what the read binds.
+        # publishes a face, which is what the read binds to.
         for holder in (ConcreteHold(SampledLoop()), GenericHold(SampledLoop()))
             @test _compile_reads(reads(y = get_face(:y)), build(holder)) isa Reader
         end

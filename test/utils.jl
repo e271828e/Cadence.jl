@@ -19,7 +19,7 @@ single(c) = Group((; c = c))
 fed(c, face) = Group((; c = c); inputs = ("in" => "c/$face",))
 
 # Every `at` prefix in a condition tree, outermost first: what a service authored
-# is what the load-bearing walk sees, one prefix at a time (§14.2).
+# is what the service walk sees, one prefix at a time (§14.2).
 prefixes(n::Scoped) = vcat([n.prefix], prefixes(n.node))
 prefixes(n::Combined) = reduce(vcat, map(prefixes, n.nodes); init = String[])
 prefixes(::ConditionNode) = String[]
@@ -49,7 +49,7 @@ failure(f) =
 carried(p::Test.Pass) = diagnostic(p.value)
 
 # One writer's record in a snapshot's framework status (§11.8), by name: the
-# devices as "device 1 (Pad)", the harness register as "harness", the loop as
+# devices as "device 1 (Pad)", the harness writer as "harness", the loop as
 # "loop".
 writer_status(snap, who::String) =
     only(w for w in snap.status.writers if w.who == who)

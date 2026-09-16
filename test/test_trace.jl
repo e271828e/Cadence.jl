@@ -45,7 +45,7 @@ function trace_recording()
         trc = trace(sim)
         b = only(trc.batches)
         @test b.frame == 1                     # the drain precedes the step increment
-        @test b.writer == 1                    # the harness register, sole writer here
+        @test b.writer == 1                    # the harness writer, sole writer here
         @test first(trc.header.schemas[b.writer]) == "harness"
         (pos, v) = only(b.entries)             # sparse: the touched position alone
         @test pos == 2 && v === 1.0            # `b` is position 2 of {a, b, c}
@@ -337,14 +337,14 @@ end
 # --- replay as the ordinary loop (§12.7, increment 23 stage 3) -------------------
 # D-101's two substitutions, and the properties they exist to buy: bit-identity
 # against the identical build, partial replay and the reproduction it opens,
-# continuation, the discard of live staging, and the what-if register.
+# continuation, the discard of live staging, and the what-if replay.
 
 # One model reaching all three state homes with a localized event in the middle:
 # the reference-fed plant of `feedback_model` (continuous state, a feedback
 # wire), a discrete integrator on a second root input (discrete state), and an
 # autonomous bouncer whose reset lands *between* frame tops — so a replay has to
 # reproduce `t*` boundaries (§10.4) and mode state, not just a grid of frames.
-# `k` is the parameter the what-if register moves.
+# `k` is the parameter the what-if replay moves.
 replay_model(k = 4.0) =
     Group((plant = Plant(; ω = 2.0, ζ = 0.1), ctl = Gain(k), sum = Sum(),
            acc = DiscreteIntegrator(1.0), b = Bouncer(1.0, 0.32));
@@ -423,7 +423,7 @@ function trace_replay_loop()
         @test rec.header.root_inputs == trc.header.root_inputs
         @test rec.header.schemas !== trc.header.schemas
 
-        # §12.7's own register — `Simulation(world)` then `replay!`, no `init!` at
+        # §12.7's own door — `Simulation(world)` then `replay!`, no `init!` at
         # all: `replay!` *is* a door into `initialized`, so it owes one to nothing.
         raw = Simulation(replay_model(); h = 1//10)
         @test lifecycle(raw) === :built
@@ -455,7 +455,7 @@ function trace_replay_loop()
         (sim, trc) = recorded_run()
         sim2 = replay_twin()
         replay!(sim2, trc; to_boundary = 5)
-        @test lifecycle(sim2) === :initialized      # the pointer's register: ready to advance
+        @test lifecycle(sim2) === :initialized      # the replay pointer: ready to advance
         @test sim2.exec.clock.step == 5      # the halt is at `k` itself (§12.7, §13.4)
         @test trace(sim2).frames == 5
         @test same_trajectory(logged(sim2), [s for s in logged(sim) if s.frame ≤ 5])
@@ -694,7 +694,7 @@ function trace_replay_loop()
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} live!(crashed))
         @test d.op === :live! && d.status === :errored
         # (`live!` from `:running` is the same gate the two advance entries share,
-        # and reaching it needs `test_lifecycle.jl`'s spawned-run register; it is
+        # and reaching it needs `test_lifecycle.jl`'s spawned-run idiom; it is
         # asserted there, for those two entries, and not here.)
     end
 end
@@ -744,7 +744,7 @@ end
 # The harness arm of the same discard, with a synchronous route into it: a
 # `needs_calling_task` device runs its loop body *inline* on the calling task
 # while the run body is spawned (§11.1), so its `stage!(sim, …)` — the harness
-# register's own surface, not the device's claim — lands mid-replay, frame after
+# writer's own surface, not the device's claim — lands mid-replay, frame after
 # frame, where a spawned device's timing is the scheduler's alone.
 mutable struct HarnessPoker <: AbstractDevice
     sim::Any
@@ -789,7 +789,7 @@ function trace_discarded_harness()
         @test writer_status(latest(sim2), "device 1 (HarnessPoker)").totals.replay_discarded == 0
     end
 
-    @testset "a changed parameter replays deterministically: the what-if register (§12.7)" begin
+    @testset "a changed parameter replays deterministically: the what-if replay (§12.7)" begin
         (sim, trc) = recorded_run()
         # Same structure, a different gain — *parametric* difference, on the
         # non-error side of §12.7's line: the recorded inputs re-driven through a
@@ -828,7 +828,7 @@ function trace_discarded_harness()
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} replay!(crashed, own))
         @test d.op === :replay! && d.status === :errored
         # (`replay!` from `:running` is the same gate one line above it, and reaching
-        # it needs the spawned-run register `test_lifecycle.jl` exercises for `init!`
+        # it needs the spawned-run idiom `test_lifecycle.jl` exercises for `init!`
         # and `run!`; it is asserted there, for those two entries, and not here.)
     end
 

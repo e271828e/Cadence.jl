@@ -7,7 +7,7 @@
 # both directions over the same layout tables. What the condition algebra
 # resolves to a plan of baked destinations, a read set resolves to a tuple of
 # baked sources — the same resolve-once/execute-many shape, the same §13.1
-# collecting register on the way in, and the same rule that all string work is
+# collecting form on the way in, and the same rule that all string work is
 # a function of the *shape* and none of it survives into the read.
 #
 # This file sits above the data plane because the selectors are its vocabulary
@@ -39,12 +39,12 @@ source, an executor's own signal table or a published snapshot. A
 snapshot-bound reader naming a store selector is therefore refused at attach
 (`ReadBindingUnresolved`, bindings.jl), by source rather than by client.
 
-`get_output` is the *inspection* register — a component's own declared output
-port, addressed by path — and `get_face` the *integration* register: a
+`get_output` is an *inspection read* — a component's own declared output
+port, addressed by path — and `get_face` an *integration read*: a
 root-exported output face, named, curated, meaning-stable under substitution
 (§11.2). `get_input` reads a root input back, the source cell it is. Only cells
 and stores are addressable: there is no selector for a value a component
-computes without declaring it, and the remedy is the same at every register —
+computes without declaring it, and the remedy is the same in every case —
 the component exports it (§5.2, §8.3).
 
 `i` is the optional component index (§14.10): the read is `v[i]`, so a vector
@@ -207,7 +207,7 @@ gather(::Reader{T}, ::Executor{S}) where {T,S} = _activation_mismatch("reader", 
     _compile_reads(rs::Reads, b::Build, T = Float64) → Reader
 
 Resolve a declared read set against a build and compile it, validating every
-selector in §13.1's collecting register — full list, violations collected, one
+selector in §13.1's collecting form — full list, violations collected, one
 `DiagnosticError`. Schema is the authority on *may you read this, at what type*, and
 the activation's layout supplies the source: an `xbuf` offset for a continuous
 state field, the `ẋbuf` offset beside it for its derivative, a component index
@@ -228,7 +228,7 @@ function _compile_reads(rs::Reads, b::Build, ::Type{T} = Float64) where {T}
     reader
 end
 
-# A bare NamedTuple of selectors is the §14.2 misuse in the read register: the
+# A bare NamedTuple of selectors is the §14.2 misuse in the read side: the
 # same slip, the same directive, and not a `MethodError`.
 _compile_reads(other, ::Build, ::Type = Float64) = throw(DiagnosticError(
     ReadSetMisuse(observed = typeof(other), reason = :not_a_read_set)))
@@ -253,7 +253,7 @@ end
 # The component a path-addressed selector names. No mounting exists, so every
 # selector path is authored at the root and walked from it in full (§13.3): the
 # walk owns the unknown-segment refusal and its candidates, and the past-generic
-# one with them. What stays here is `_component`'s residue, one register over —
+# one with them. What stays here is `_component`'s residue, one case over —
 # a level the walk admitted that owns no state of its own.
 function _read_component(s, label::Symbol, flat::Flat, diags::Vector{Diagnostic})
     entry = "the read labeled `$label`, $(_spell(s))"

@@ -115,15 +115,6 @@ Where the reason is not given here, the cited decision carries it:
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, the rig; §6.2's spellings) — a
   migration-phase deliverable by the spec's word, deferred with §16 (M-B22).
 
-- **Retired vocabulary in the code's prose** (D-242): comments and
-  docstrings in `assembly.jl`, `conditions.jl`, `readers.jl`, `bindings.jl`,
-  `trim.jl` and `sim.jl` still say "load-bearing register", "inspection
-  register", "integration register", "specialized register" and "two
-  application registers", and `test_conditions.jl` names its walk
-  `conditions_load_bearing_walk`; §13.3 now says wiring, service and
-  inspection, §14.4 names the specialized `apply!` and the dynamic walk.
-  Prose and one test name, no behavior.
-
 ## Built in a shape the spec's is not
 
 Transactional: the commit introducing a deviation adds its bullet, the one
