@@ -80,8 +80,8 @@ Where the reason is not given here, the cited decision carries it:
   the two tiers rather than §8.5's two forms, `TierSignatureMismatch` its
   bound arm alone, the arity arms riding as `DeclarationOnWrongTier`'s
   `:tier_form`,
-  `EventHalfMissing.found` a model type interpolated into the message against
-  §13.2 (`_typename` is one screen up).
+  `EventHalfMissing.found` and `AbstractAtRoot.declared` model types
+  interpolated into the message against §13.2 (`_typename` is one screen up).
 - **§8.8 beyond the helper pair** (the feed-list idiom, generic-holding sugar,
   required-faces declarations, D-209's predicate filter on the passthrough
   helpers); **D-187's grid diagnostics** (the bound schedule is plain data;

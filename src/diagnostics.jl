@@ -28,7 +28,10 @@ abstract type Diagnostic end
 # differently from `Main` and from a package or test module — and some of these
 # names are recorded in a trace header (§11.5) and matched on replay.
 _typename(x) = string(nameof(typeof(x)))
-_typename(T::Type) = string(nameof(T))
+# A `Union` has no name of its own: spell it from its members, each unqualified.
+_typename(T::Type) =
+    T isa Union ? "Union{" * join(_typename.(Base.uniontypes(T)), ", ") * "}" :
+                  string(nameof(T))
 # A declared generic holding: `nameof` has no method, and `string` on the
 # variable qualifies its bound the same way interpolating a type does.
 _typename(v::TypeVar) = "$(v.name)<:$(_typename(v.ub))"

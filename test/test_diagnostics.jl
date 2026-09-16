@@ -526,6 +526,9 @@ function diagnostics_kind_set()
         m = message(only(d for d in occurrences
                          if d isa PathResolution && d.reason === :past_generic))
         @test occursin("`L<:AbstractComponent`", m) && !occursin("Cadence.", m)
+        # A `Union`-typed holding has no name to take: it renders from its members,
+        # in the order Julia itself keeps them.
+        @test _typename(Union{Plant, Gain}) == "Union{Gain, Plant}"
 
         # Every kind of the closed set has an occurrence above: the coverage
         # check is over `Diagnostic`'s own subtypes, so adding a kind without an
