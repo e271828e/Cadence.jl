@@ -25,9 +25,10 @@ configured bound lives with the policy. `ModelRequestedStop` carries the
 first named `stop_on` face observed holding, in declaration order.
 `ControlRequestedStop` carries its issuer — `:code` from `stop!(sim)`, the
 requesting device's name from `stop!(handle)`, or `:interrupt`, requested by
-§13.4's carve-out when an `InterruptException` reaches the catch site — through
-the same first-writer-wins word, so an earlier issuer keeps it (§12.4's masking
-and the operator-interrupt entry itself are still absent, `pending.md`). `LoopError` is §13.6's abnormal entry, `exception` the retained
+§13.4's carve-out when an `InterruptException` reaches the catch site or by
+§11.6's wrapper when one leaves a device loop body — through the same
+first-writer-wins word, so an earlier issuer keeps it (§12.4's masking and the
+operator-interrupt entry itself are still absent, `pending.md`). `LoopError` is §13.6's abnormal entry, `exception` the retained
 cause — a `StepError` from the frame loop's one catch site (§13.4), which
 carries the raw cause in turn.
 """
@@ -363,13 +364,21 @@ function _wrap(e::RosterEntry)
     try
         loop(e.dev, e.handle)
     catch err
-        # A raise after the sticky stop, from a device overriding `unblock!`, is
-        # the one the override provoked — its blocking call returning by
-        # throwing — and is shutdown, not a crash (§12.4(3)). A device with no
-        # override has nothing to provoke it, so its raise is a crash whenever
-        # it lands. An `InterruptException` still lands here (`pending.md`).
-        unblocked = (@atomic e.handle.ctl.stopped) && _unblocks(e.dev)
-        unblocked || _report!(e.diag, DeviceCrash(err, e.should_abort))
+        if err isa InterruptException
+            # The wrapper's one discrimination (§11.6, D-132): the operator's
+            # stop, raised inside a body that did nothing wrong, is forwarded
+            # through the stop word — an earlier issuer keeps it — and never
+            # reported as a crash. The abort consult below is inert after it.
+            _request_stop!(e.handle.ctl, :interrupt)
+        else
+            # A raise after the sticky stop, from a device overriding `unblock!`,
+            # is the one the override provoked — its blocking call returning by
+            # throwing — and is shutdown, not a crash (§12.4(3)). A device with
+            # no override has nothing to provoke it, so its raise is a crash
+            # whenever it lands.
+            unblocked = (@atomic e.handle.ctl.stopped) && _unblocks(e.dev)
+            unblocked || _report!(e.diag, DeviceCrash(err, e.should_abort))
+        end
     finally
         _shutdown!(e)
         e.should_abort && stop!(e.handle)

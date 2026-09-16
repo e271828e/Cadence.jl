@@ -100,6 +100,15 @@ function loop(d::Raising, h)
     nothing
 end
 
+# The operator's Ctrl-C landing inside a loop body: the wrapper's one
+# discrimination (§11.6, D-132) — a stop forwarded, never a crash.
+mutable struct Interrupting <: AbstractDevice
+    log::Vector{Symbol}
+end
+Interrupting() = Interrupting(Symbol[])
+shutdown!(d::Interrupting) = (push!(d.log, :shutdown); nothing)
+loop(d::Interrupting, h) = (push!(d.log, :loop); throw(InterruptException()))
+
 # A calling-task device: records which task ran its body (§11.1's pinning),
 # polling between running checks and never blocking across them (§12.4).
 mutable struct Inline <: AbstractDevice
@@ -315,6 +324,30 @@ function test_devices()
         @test isempty(termination(sim).residue)
         @test writer_status(latest(sim), "device 1 (Raising)").totals.crash == 0
         @test dev.log == [:shutdown]
+    end
+
+    @testset "an interrupt leaving a loop body is a stop, never a crash (§11.6, D-132)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10, join_timeout = 2.0)
+        dev = Interrupting()
+        attach!(sim, dev, Enumerated())
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        logs, _ = Test.collect_test_logs() do
+            run!(sim; t_end = 1000.0)
+        end
+        @test lifecycle(sim) === :stopped
+        @test termination(sim).source === ControlRequestedStop(:interrupt)
+        @test sim.exec.clock.step < 10000        # ended by the forwarded stop, not t_end
+        @test writer_status(latest(sim), "device 1 (Interrupting)").totals.crash == 0
+        @test !any(occursin("DeviceCrash", string(l.message)) for l in logs)
+        @test isempty(termination(sim).residue)
+        @test dev.log == [:loop, :shutdown]      # shutdown! on this exit path too
+        # No should_abort consultation: the interrupt already holds the stop word,
+        # and the abort's later request loses the first-writer CAS (§11.6).
+        sim2 = Simulation(two_root_inputs(); h = 1//10, join_timeout = 2.0)
+        attach!(sim2, Interrupting(), Enumerated(); should_abort = true)
+        init!(sim2, fragment(inputs = (a = 0.0, b = 0.0)))
+        run!(sim2; t_end = 1000.0)
+        @test termination(sim2).source === ControlRequestedStop(:interrupt)
     end
 
     @testset "a calling-task device runs inline and the loop moves, trajectory untouched (§11.1)" begin
