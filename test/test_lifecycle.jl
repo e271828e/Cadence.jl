@@ -55,6 +55,7 @@ function test_lifecycle()
         @test lifecycle(sim) === :stopped
         diag = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim))
         @test diag.op === :run! && diag.status === :stopped
+        @test diag.legal == [:initialized]               # §12.6: the advance entries' one state
         diag2 = carried(@test_throws DiagnosticError{ServiceLifecycle} step!(sim))
         @test diag2.op === :step! && diag2.status === :stopped
         init!(sim, fragment(inputs = (ref = 0.0,)))  # the supported cycle reopens it
@@ -152,13 +153,17 @@ function test_lifecycle()
         m = feedback_model()                        # "ref" a root input, "y" a Float64 export
         sim = Simulation(m; h = 1//50, t_end = 1.0)
         init!(sim, fragment(inputs = (ref = 0.0,)))
+        trc = trace(sim)                            # the header alone: `replay!` binds as `run!` does
         for (bad, reason) in (("nope", :unknown), ("ref", :root_input), ("y", :not_bool))
             ec = failure(() -> Simulation(m; h = 1//50, stop_on = (bad,)))
             er = failure(() -> run!(sim; stop_on = (bad,)))
-            dc, dr = only(diagnostics(ec)), only(diagnostics(er))
+            ep = failure(() -> replay!(sim, trc; stop_on = (bad,)))
+            dc, dr, dp = only(diagnostics(ec)), only(diagnostics(er)), only(diagnostics(ep))
             @test ec isa DiagnosticError && dc isa StopFaceInvalid && dc.reason === reason
-            @test dc.face == dr.face && dc.reason == dr.reason &&
-                  dc.declared == dr.declared            # identical at both binding sites
+            @test dc.face == dr.face == dp.face && dc.reason == dr.reason == dp.reason &&
+                  dc.declared == dr.declared == dp.declared   # identical at all three sites
+            # The binding site is the one payload field that differs (§13.5, D-249).
+            @test dc.site === :constructor && dr.site === :run! && dp.site === :replay!
         end
         # The constructor is one call, so a stop-face refusal joins the deployment's
         # own list in the single throw (§9.1, D-229); `run!` is its own call.
@@ -277,11 +282,12 @@ function test_lifecycle()
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} step!(sim))
         @test d.status === :errored
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} init!(sim))
-        @test d.status === :errored
+        @test d.status === :errored && d.legal == [:built, :initialized, :stopped]
         # The roster operations refuse it too (D-232): they configure the next
         # run, and there is none. The post-mortem read above stays admitted.
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} attach!(sim, TailProbe(), NoClaim()))
         @test d.op === :attach! && d.status === :errored
+        @test d.legal == [:built, :initialized, :stopped]   # §11.3, D-232: no next run
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} detach!(sim, probe))
         @test d.op === :detach! && d.status === :errored
     end

@@ -18,25 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **Kinds carrying less than their Appendix C payload.** D-216 rules
-  that the column is the design and the implementation's gaps stay visible
-  as such, and it leaves the enumeration here:
-  `ContainerMixed` no element keys or indices,
-  `UnconnectedInput` no declared entry type and no obligation-chain level,
-  `ClassUnreadable`/`TierUnreadable` no type and no declarations-found list,
-  `ProducedByTwoStages` no stage names,
-  `TransparentContainerUnknown` no container-field list,
-  `StopFaceInvalid` no binding site (constructor, `run!` or `replay!`),
-  `ConformanceFailure` no event name on a handler's; and from the audit
-  (M-C, M-B14, M-B17, M-B19):
-  `TwoProducers` producer terminals only inside provenance strings,
-  `AttachUnknownFace`/`ReadBindingUnresolved` the binding type where the
-  column says device type, `ServiceLifecycle.legal` empty at `init!`, `trim!`
-  and `replay!` (only `capture` fills it), `TierSignatureMismatch` its bound
-  arm alone, the contract-arity arms riding as `DeclarationOnWrongTier`'s
-  `:tier_form` (D-249),
-  `EventHalfMissing.found` and `AbstractAtRoot.declared` model types
-  interpolated into the message against §13.2 (`_typename` is one screen up).
 - **§8.8 beyond the helper pair** (the feed-list idiom, generic-holding sugar,
   required-faces declarations, D-209's predicate filter on the passthrough
   helpers); **D-187's grid diagnostics** (the bound schedule is plain data;

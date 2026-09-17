@@ -198,14 +198,15 @@ face set (`AttachUnknownFace`: a mapping drifted onto a nonexistent face is a
 diagnosable anomaly, never a silent write). Duplicates within one enumeration
 collapse; the empty enumeration is the honest may-write-nothing degenerate.
 """
-function _claim(plane::DataPlane, layout::Layout, b::AbstractBinding)
+function _claim(plane::DataPlane, layout::Layout, b::AbstractBinding, device::String)
     faceset = Symbol[f for (f, _) in layout.root_inputs]
     is_greedy(b) && return Symbol[f for f in faceset if !haskey(plane.claimedby, f)]
     claim = Symbol[]
     for f in claims(b)
         s = Symbol(f)
         s in faceset || throw(DiagnosticError(
-            AttachUnknownFace(binding = _typename(b), face = s, candidates = faceset)))
+            AttachUnknownFace(device = device, binding = _typename(b), face = s,
+                              candidates = faceset)))
         s in claim || push!(claim, s)
     end
     claim

@@ -135,7 +135,7 @@ selectors, `(; label = get_output(...), ...)`, and the labels are the
 NamedTuple `map_output` receives. Every failure names the selector at fault;
 the did-you-mean candidate lists are absent (`pending.md`).
 """
-function _compile_gather(layout::Layout, nt, T::Type)
+function _compile_gather(layout::Layout, nt, T::Type, device::String)
     nt isa NamedTuple || throw(DiagnosticError(
         BindingContractMismatch(binding = string(T), reason = :reads_not_namedtuple,
                                  observed = typeof(nt))))
@@ -143,7 +143,7 @@ function _compile_gather(layout::Layout, nt, T::Type)
         s isa ReadSelector || throw(DiagnosticError(
             BindingContractMismatch(binding = string(T), reason = :reads_not_selectors,
                                      observed = typeof(s))))
-        _resolve_read(layout, s, T)
+        _resolve_read(layout, s, T, device)
     end
     ReadGather{keys(nt)}(addrs)
 end
@@ -165,35 +165,35 @@ end
 # no state stores by construction (§11.2) and `ẋ` is integrator scratch, so a
 # snapshot-bound reader naming a store selector is a resolution error at
 # attach — in the didactic style, with the remedy named.
-_resolve_read(::Layout, s::StoreSelector, T::Type) = throw(DiagnosticError(
-    ReadBindingUnresolved(binding = string(T), selector = _spell(s), reason = :store_selector,
-                           path = _selpath(s), field = _field(s))))
+_resolve_read(::Layout, s::StoreSelector, T::Type, device::String) = throw(DiagnosticError(
+    ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
+                           reason = :store_selector, path = _selpath(s), field = _field(s))))
 
-function _resolve_read(layout::Layout, s::GetOutput, T::Type)
+function _resolve_read(layout::Layout, s::GetOutput, T::Type, device::String)
     s.i === nothing || throw(DiagnosticError(
-        ReadBindingUnresolved(binding = string(T), selector = _spell(s), reason = :indexed,
-                               path = s.path, field = s.name)))
+        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
+                               reason = :indexed, path = s.path, field = s.name)))
     haskey(layout.addr, (s.path, s.name)) || throw(DiagnosticError(
-        ReadBindingUnresolved(binding = string(T), selector = _spell(s), reason = :unknown_cell,
-                               path = s.path, field = s.name,
+        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
+                               reason = :unknown_cell, path = s.path, field = s.name,
                                candidates = _cells_at(layout, s.path))))
     layout.addr[(s.path, s.name)]
 end
 
-function _resolve_read(layout::Layout, s::GetInput, T::Type)
+function _resolve_read(layout::Layout, s::GetInput, T::Type, device::String)
     s.face in _root_input_names(layout) || throw(DiagnosticError(
-        ReadBindingUnresolved(binding = string(T), selector = _spell(s),
+        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
                                reason = :unknown_root_input, field = s.face,
                                candidates = _root_input_names(layout))))
     layout.addr[("", s.face)]
 end
 
-function _resolve_read(layout::Layout, s::GetFace, T::Type)
+function _resolve_read(layout::Layout, s::GetFace, T::Type, device::String)
     s.name in _root_input_names(layout) && throw(DiagnosticError(
-        ReadBindingUnresolved(binding = string(T), selector = _spell(s),
+        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
                                reason = :root_input_not_output, field = s.name)))
     haskey(layout.addr, ("", s.name)) || throw(DiagnosticError(
-        ReadBindingUnresolved(binding = string(T), selector = _spell(s),
+        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
                                reason = :unknown_output_face, field = s.name,
                                candidates = _root_output_faces(layout))))
     layout.addr[("", s.name)]

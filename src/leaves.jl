@@ -318,28 +318,31 @@ Store the leaves of `v` into `buf` starting at `off + 1`. Returns `nothing`.
 end
 
 """
-    flatten_state!(buf, off, v, XT, T, path, what, shape)
+    flatten_state!(buf, off, v, XT, T, path, what, shape, event)
 
 The wholesale state write with §9.5's always-on check decided at generation
 (D-235): `v`'s key set must equal the state's, and each field must be a lawful
 arrival at the state's field type under embed-accept. Fields pair by name,
 never by position. `shape` is the diagnostic's shape: `:init_x` for a
-derivative, `:state` for a projection or a handler's `x` key.
+derivative, `:state` for a projection or a handler's `x` key. `event` names the
+event on a handler's write and is `nothing` everywhere else (D-249).
 """
 @generated function flatten_state!(buf::AbstractVector, off::Int, v::NamedTuple{Vs},
                                    ::Type{XT}, ::Type{T}, path::String, what::Symbol,
-                                   shape::Symbol) where {Vs,XT<:NamedTuple,T}
+                                   shape::Symbol,
+                                   event::Union{Nothing,Symbol}) where {Vs,XT<:NamedTuple,T}
     Xs = fieldnames(XT)
     Set(Vs) == Set(Xs) ||
         return :(throw(DiagnosticError(ConformanceFailure(
-            path = path, what = String(what), reason = :field_set, shape = shape,
+            path = path, what = String(what), event = event, reason = :field_set, shape = shape,
             observed_fields = $(collect(Vs)), declared_fields = $(collect(Xs))))))
     stmts, base = Expr[], 0
     for k in Xs
         P, V = fieldtype(XT, k), fieldtype(v, k)
         _accepts(P, V, T) ||
             return :(throw(DiagnosticError(ConformanceFailure(
-                path = path, what = String(what), reason = :field_type, shape = shape,
+                path = path, what = String(what), event = event, reason = :field_type,
+                shape = shape,
                 field = $(QuoteNode(k)), observed = $V, declared = $P, activation = $T))))
         blk, base = _flatten_expr(P, :(getfield(v, $(QuoteNode(k)))), base)
         push!(stmts, blk)
@@ -352,7 +355,7 @@ derivative, `:state` for a projection or a handler's `x` key.
 end
 
 # A non-NamedTuple return is the law's first clause failing.
-flatten_state!(buf, off, v, ::Type{XT}, ::Type{T}, path, what, shape) where {XT,T} =
-    throw(DiagnosticError(ConformanceFailure(path = path, what = String(what),
+flatten_state!(buf, off, v, ::Type{XT}, ::Type{T}, path, what, shape, event) where {XT,T} =
+    throw(DiagnosticError(ConformanceFailure(path = path, what = String(what), event = event,
                                              reason = :return_type, shape = shape,
                                              observed = typeof(v))))

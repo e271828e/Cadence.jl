@@ -897,7 +897,9 @@ message(d::DeadStage) =
 """
 §9.5: the return laws, probed. `shape` names what the return had to be shaped
 like and `reason` which half of the law failed — the return's own type, its
-field set, or one field's type.
+field set, or one field's type. `event` is the event name on a handler's
+occurrence, at the probe and at run time alike (D-249); the simulation time of
+a runtime occurrence rides the `StepError` carrier, never the diagnostic.
 """
 Base.@kwdef struct ConformanceFailure <: Diagnostic
     path::String
@@ -910,8 +912,15 @@ Base.@kwdef struct ConformanceFailure <: Diagnostic
     observed_fields::Vector{Symbol} = Symbol[]
     declared_fields::Vector{Symbol} = Symbol[]
     activation::Any = nothing                # the activation scalar, for the pin hint
+    event::Union{Nothing,Symbol} = nothing   # the event, on a handler's occurrence
 end
 path(d::ConformanceFailure) = d.path
+
+# The function at fault, with its event where it has one: `what` names the
+# handler and `event` the occurrence it belongs to, and the two compose here
+# rather than at each construction site.
+_cf_what(d::ConformanceFailure) =
+    d.event === nothing ? d.what : "event `$(d.event)`'s $(d.what)"
 
 _cf_expect(s::Symbol) =
     s === :ports      ? "must return a NamedTuple of port values" :
@@ -935,20 +944,20 @@ _pin(d::ConformanceFailure) =
 
 function message(d::ConformanceFailure)
     d.reason === :return_type &&
-        return "`$(d.path)`: $(d.what) $(_cf_expect(d.shape)), got $(d.observed)" *
+        return "`$(d.path)`: $(_cf_what(d)) $(_cf_expect(d.shape)), got $(d.observed)" *
                _cf_section(d.shape)
     if d.reason === :field_set
         d.shape === :mode &&
-            return "`$(d.path)`: $(d.what) writes mode `$(d.field)`, and `init_m` declares " *
+            return "`$(d.path)`: $(_cf_what(d)) writes mode `$(d.field)`, and `init_m` declares " *
                    "$(_symtuple(d.declared_fields)) — `m` is a names-subset write (§5.2)"
         d.shape === :init_s &&
-            return "`$(d.path)`: $(d.what) returns $(d.observed), state store is " *
+            return "`$(d.path)`: $(_cf_what(d)) returns $(d.observed), state store is " *
                    "$(d.declared) — a discrete successor is the store's own type exactly (§7.3)"
         d.shape === :init_x &&
-            return "`$(d.path)`: $(d.what) returns fields $(_symtuple(d.observed_fields)), " *
+            return "`$(d.path)`: $(_cf_what(d)) returns fields $(_symtuple(d.observed_fields)), " *
                    "state has $(_symtuple(d.declared_fields)) — derivative completeness is " *
                    "structural (§7.1)"
-        return "`$(d.path)`: $(d.what) returns fields $(_symtuple(d.observed_fields)), " *
+        return "`$(d.path)`: $(_cf_what(d)) returns fields $(_symtuple(d.observed_fields)), " *
                "state has $(_symtuple(d.declared_fields)) — a state write-back is complete " *
                "against the field set (§9.3, §9.5)"
     end
@@ -956,16 +965,16 @@ function message(d::ConformanceFailure)
     # (§5.3), so the verb follows `what` rather than naming a return that is not
     # one.
     d.shape === :ports &&
-        return "`$(d.path)`: $(d.what) " *
+        return "`$(d.path)`: $(_cf_what(d)) " *
                (d.what == "auto-publication" ? "publishes" : "returns") *
                " `$(d.field)`::$(d.observed), declared $(d.declared)" * _pin(d)
     d.shape === :mode &&
-        return "`$(d.path)`: $(d.what) mode `$(d.field)` is $(d.observed), declared " *
+        return "`$(d.path)`: $(_cf_what(d)) mode `$(d.field)` is $(d.observed), declared " *
                "$(d.declared) (§5.2)"
     d.shape === :init_x &&
         return "`$(d.path)`: derivative field `$(d.field)` is $(d.observed), state field " *
                "is $(d.declared)" * _pin(d)
-    "`$(d.path)`: $(d.what) field `$(d.field)` is $(d.observed), state field is " *
+    "`$(d.path)`: $(_cf_what(d)) field `$(d.field)` is $(d.observed), state field is " *
     "$(d.declared)" * _pin(d)
 end
 
@@ -1061,11 +1070,19 @@ message(d::MissingInit) =
     "`$(d.op)` before `init!`: boundary zero has not completed and this simulation is " *
     "`$(d.status)` — `init!` is mandatory (§12.6)"
 
+# §12.6's legality table and §11.3's sentence, as the lists a refusal carries.
+# The advance entries admit `:initialized` alone; a reader admits every status
+# but `:running`; a stopped-sim operation adds `:errored` to the refusals
+# (D-232). `capture` narrows further and names its own list at the site.
+const ADVANCE_LEGAL = [:initialized]
+const READER_LEGAL = [:built, :initialized, :stopped, :errored]
+const STOPPED_SIM_LEGAL = [:built, :initialized, :stopped]
+
 "§11.3, §14: a service call against a lifecycle status that does not admit it."
 Base.@kwdef struct ServiceLifecycle <: Diagnostic
     op::Symbol
     status::Symbol
-    legal::Vector{Symbol} = Symbol[]         # the statuses that admit the operation
+    legal::Vector{Symbol}                    # the statuses that admit the operation
 end
 
 # `:running` refuses two different operations, and the sentence differs: an
@@ -1094,18 +1111,25 @@ message(d::ServiceLifecycle) =
 Base.@kwdef struct StopFaceInvalid <: Diagnostic
     face::Symbol
     reason::Symbol                           # :unknown | :root_input | :not_bool
+    site::Symbol                             # :constructor | :run! | :replay!
     declared::Any = nothing                  # the declared type, for :not_bool
     candidates::Vector{Symbol} = Symbol[]    # the root output-face list
 end
+
+# The binding site the name came from (§13.5, §12.7, D-249): the constructor's
+# default, or the per-run override of `run!` or `replay!`.
+_stop_site(s::Symbol) =
+    s === :constructor ? "the constructor's `stop_on`" : "`$(s)`'s `stop_on`"
+
 message(d::StopFaceInvalid) =
     d.reason === :unknown ?
-    "stop_on names `$(d.face)`, which is no root face — a stop face is a root-exported " *
-    "Bool output face, and this model exports $(_namelist(d.candidates)) (§13.5)" :
+    "$(_stop_site(d.site)) names `$(d.face)`, which is no root face — a stop face is a " *
+    "root-exported Bool output face, and this model exports $(_namelist(d.candidates)) (§13.5)" :
     d.reason === :root_input ?
-    "stop_on names `$(d.face)`, a root input — a stop face is a root-exported *output*: " *
-    "the model detects and exports the condition, and the deployment names it (§13.5)" :
-    "stop_on names `$(d.face)`, whose declared type is $(d.declared) — stop faces are " *
-    "Bool, OR-combined (§13.5)"
+    "$(_stop_site(d.site)) names `$(d.face)`, a root input — a stop face is a root-exported " *
+    "*output*: the model detects and exports the condition, and the deployment names it (§13.5)" :
+    "$(_stop_site(d.site)) names `$(d.face)`, whose declared type is $(d.declared) — stop " *
+    "faces are Bool, OR-combined (§13.5)"
 
 "§9.1: a deployment parameter outside its constraint, or a grid that does not close."
 Base.@kwdef struct DeploymentInvalid <: Diagnostic
@@ -1183,13 +1207,14 @@ end
 
 "§11.3: a claim naming no root input face."
 Base.@kwdef struct AttachUnknownFace <: Diagnostic
+    device::String                           # the device type, admission not yet reached
     binding::String                          # the binding type, as a string
     face::Symbol
     candidates::Vector{Symbol} = Symbol[]    # the root input-face list
 end
 message(d::AttachUnknownFace) =
-    "$(d.binding) claims `$(d.face)`, which names no root input face — the root faces are " *
-    "$(_faceset(d.candidates)) (§11.3)"
+    "$(d.device)'s $(d.binding) claims `$(d.face)`, which names no root input face — the " *
+    "root faces are $(_faceset(d.candidates)) (§11.3)"
 
 "§11.3: the same device instance offered to `attach!` twice."
 Base.@kwdef struct AlreadyAttached <: Diagnostic
@@ -1286,7 +1311,8 @@ end
 
 "§11.2, §14.4: a binding read that does not resolve against the published snapshot."
 Base.@kwdef struct ReadBindingUnresolved <: Diagnostic
-    binding::String                          # the binding type, as a string
+    device::String                           # the device type, admission not yet reached
+    binding::String                          # the binding type, by name (§13.2)
     selector::String                         # the selector as authored
     reason::Symbol   # :store_selector|:indexed|:unknown_cell|:unknown_root_input|
                      # :root_input_not_output|:unknown_output_face
@@ -1297,28 +1323,29 @@ end
 path(d::ReadBindingUnresolved) = d.path
 function message(d::ReadBindingUnresolved)
     d.reason === :store_selector &&
-        return "$(d.binding) reads $(d.selector), a *store* selector — the store selectors " *
-               "resolve only against live stores, and a binding reads a published " *
-               "snapshot, which deliberately carries none (§14.4, §11.2). The remedy is to " *
-               "declare the field public and read the port published from it"
+        return "$(d.device)'s $(d.binding) reads $(d.selector), a *store* selector — the " *
+               "store selectors resolve only against live stores, and a binding reads a " *
+               "published snapshot, which deliberately carries none (§14.4, §11.2). The " *
+               "remedy is to declare the field public and read the port published from it"
     d.reason === :indexed &&
-        return "$(d.binding) reads $(d.selector) — a binding read is a whole cell, and " *
-               "sub-cell index addressing is absent in a binding read (§14.4, docs/design/pending.md)"
+        return "$(d.device)'s $(d.binding) reads $(d.selector) — a binding read is a whole " *
+               "cell, and sub-cell index addressing is absent in a binding read " *
+               "(§14.4, docs/design/pending.md)"
     d.reason === :unknown_cell &&
-        return "$(d.binding) reads $(d.selector), which names no cell — " *
+        return "$(d.device)'s $(d.binding) reads $(d.selector), which names no cell — " *
                (isempty(d.candidates) ?
                 "$(_at_path(d.path)) has no cells; only declared outputs, assembly " *
                 "faces and root inputs are addressable" :
                 "the cells at $(_at_path(d.path)) are $(_faceset(d.candidates))") * " (§14.4)"
     d.reason === :unknown_root_input &&
-        return "$(d.binding) reads $(d.selector), which names no root input face — the " *
-               "root inputs are $(_faceset(d.candidates)) (§14.4)"
+        return "$(d.device)'s $(d.binding) reads $(d.selector), which names no root input " *
+               "face — the root inputs are $(_faceset(d.candidates)) (§14.4)"
     d.reason === :root_input_not_output &&
-        return "$(d.binding) reads $(d.selector), which names a root *input* face — the " *
-               "integration reads are the exported output faces, and a root input is " *
-               "read back with get_input (§14.4, §11.2)"
-    "$(d.binding) reads $(d.selector): `$(d.field)` is no root-exported output face — " *
-    "the output faces are $(_faceset(d.candidates)) (§14.4, §11.2)"
+        return "$(d.device)'s $(d.binding) reads $(d.selector), which names a root *input* " *
+               "face — the integration reads are the exported output faces, and a root " *
+               "input is read back with get_input (§14.4, §11.2)"
+    "$(d.device)'s $(d.binding) reads $(d.selector): `$(d.field)` is no root-exported " *
+    "output face — the output faces are $(_faceset(d.candidates)) (§14.4, §11.2)"
 end
 
 "§14.2, §14.3: a condition leaf that does not resolve against this build."

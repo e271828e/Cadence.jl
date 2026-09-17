@@ -528,5 +528,6 @@ function test_trim()
         wait(task)
         @test d3.op === :trim!
         @test d3.status === :running
+        @test d3.legal == [:built, :initialized, :stopped]   # §12.6's row for `trim!`
     end
 end

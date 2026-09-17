@@ -157,7 +157,7 @@ function Simulation(b::Build, ::Type{T} = Float64; h = nothing, N_base = nothing
     d_t === nothing || push!(diags, d_t)
     bound = bind_schedule(b, h, N_base, Δt_base, diags)
     act = activation(b, T)
-    (stop_faces, stop_addrs) = _stop_faces(act.layout, stop_on, diags)
+    (stop_faces, stop_addrs) = _stop_faces(act.layout, stop_on, diags; site = :constructor)
     isempty(diags) || throw(DiagnosticError(diags))    # one throw per call (§9.1, D-229)
     ex = compile(b, act, bound.D, bound.Φ, bound.Δt; chunk_size)
     stepper = algorithm(T, length(ex.xbuf))
@@ -208,13 +208,14 @@ end
 _frame_at(t::Real, t₀::Real, h::Float64) = floor(Int, (t - t₀) / h + _frame_slack(t, h))
 _t_end_frame(sim::Simulation, te::Float64) = _frames_to(te, sim.exec.clock.t₀, sim.h)
 
-# §13.5's stop-face validation and compilation, run identically at both binding
-# sites — the constructor's default and `run!`'s override: each name must be a
-# root-exported Bool *output* face. Duplicates collapse; the order kept is the
+# §13.5's stop-face validation and compilation, run identically at all three
+# binding sites — the constructor's default and the `run!`/`replay!` overrides
+# (§12.7): each name must be a root-exported Bool *output* face. `site` is the
+# one the refusal names (D-249). Duplicates collapse; the order kept is the
 # declaration's, which is the order the first-holding face is reported in. The
 # pass records into the list it is given and always returns the pair; the
 # constructor merges it into the deployment's one throw (§9.1, D-229).
-function _stop_faces(layout::Layout, stop_on, diags::Vector{Diagnostic})
+function _stop_faces(layout::Layout, stop_on, diags::Vector{Diagnostic}; site::Symbol)
     faces, addrs = Symbol[], Any[]
     root_input_names = Symbol[f for (f, _) in layout.root_inputs]
     # The root output-face list Appendix C asks a refusal to carry: every cell
@@ -225,16 +226,18 @@ function _stop_faces(layout::Layout, stop_on, diags::Vector{Diagnostic})
     for f in stop_on
         s = Symbol(f)
         if !haskey(layout.addr, ("", s))
-            push!(diags, StopFaceInvalid(face = s, reason = :unknown, candidates = out_faces))
+            push!(diags, StopFaceInvalid(face = s, reason = :unknown, site = site,
+                                         candidates = out_faces))
             continue
         end
         if s in root_input_names
-            push!(diags, StopFaceInvalid(face = s, reason = :root_input))
+            push!(diags, StopFaceInvalid(face = s, reason = :root_input, site = site))
             continue
         end
         a = layout.addr[("", s)]
         if _port_type(a) !== Bool
-            push!(diags, StopFaceInvalid(face = s, reason = :not_bool, declared = _port_type(a)))
+            push!(diags, StopFaceInvalid(face = s, reason = :not_bool, site = site,
+                                         declared = _port_type(a)))
             continue
         end
         s in faces || (push!(faces, s); push!(addrs, a))
@@ -244,9 +247,9 @@ end
 
 # `run!` and `replay!` each override the default in a call of their own, so a
 # fresh list thrown here is that call's one barrier (§13.1, D-229).
-function _stop_faces(layout::Layout, stop_on)
+function _stop_faces(layout::Layout, stop_on; site::Symbol)
     diags = Diagnostic[]
-    r = _stop_faces(layout, stop_on, diags)
+    r = _stop_faces(layout, stop_on, diags; site)
     isempty(diags) || throw(DiagnosticError(diags))
     r
 end
@@ -323,9 +326,11 @@ function _assert_advanceable(sim::Simulation, op::Symbol)
     lc = @atomic sim.control.lifecycle
     lc === :initialized && return nothing
     lc === :built && throw(DiagnosticError(MissingInit(op = op, status = lc)))
-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running)))
-    lc === :stopped && throw(DiagnosticError(ServiceLifecycle(op = op, status = :stopped)))
-    throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored)))
+    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
+                                                              legal = ADVANCE_LEGAL)))
+    lc === :stopped && throw(DiagnosticError(ServiceLifecycle(op = op, status = :stopped,
+                                                              legal = ADVANCE_LEGAL)))
+    throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored, legal = ADVANCE_LEGAL)))
 end
 
 """
@@ -642,8 +647,10 @@ simulation `built`, `init!` and `replay!` legal again (§13.4, D-223).
 function init!(sim::Simulation{T}, condition = fragment(); t0::T = zero(T)) where {T}
     ctl = sim.control
     lc = @atomic ctl.lifecycle
-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :running)))
-    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :errored)))
+    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :running,
+                                                              legal = STOPPED_SIM_LEGAL)))
+    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :errored,
+                                                              legal = STOPPED_SIM_LEGAL)))
     plan = resolve_condition(condition, sim.build, T)      # both refusals precede every write
     assert_total(plan, sim.build.flat, :init!)   # (§14.6): all-or-nothing
     establish_defaults!(sim.exec.xbuf, sim.exec.sstores, sim.exec.mstores, sim.build.flat.comps,
@@ -757,8 +764,10 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
                  to_time = nothing, t_end = nothing, stop_on = nothing) where {T}
     ex, ctl = sim.exec, sim.control
     lc = @atomic ctl.lifecycle
-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :running)))
-    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :errored)))
+    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :running,
+                                                              legal = STOPPED_SIM_LEGAL)))
+    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :errored,
+                                                              legal = STOPPED_SIM_LEGAL)))
     to_boundary === nothing || to_time === nothing ||     # two spellings of one halt (D-219)
         throw(DiagnosticError(ArgumentInvalid(call = :replay!, reason = :both_given)))
     # §13.4's pointer, in grid boundaries: whole and non-negative, and no further
@@ -788,7 +797,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     end
     te = t_end === nothing ? sim.t_end : _t_bound(t_end)   # validated as `run!` does;
     (faces, addrs) = stop_on === nothing ? (sim.stop_on, sim.stop_addrs) :   # absent is legal
-                                           _stop_faces(ex.act.layout, stop_on)
+                                           _stop_faces(ex.act.layout, stop_on; site = :replay!)
     feed = _compile_feed(sim, trc)        # the entry pass: every refusal precedes every write
     # substitution (1): the header applied where `establish_defaults!` + `apply!`
     # stand in `init!`. The recorded values are already resolved (D-038), so
@@ -913,7 +922,7 @@ function run!(sim::Simulation; t_end = nothing, stop_on = nothing)
     _assert_advanceable(sim, :run!)
     te = t_end === nothing ? sim.t_end : _t_bound(t_end)
     (faces, addrs) = stop_on === nothing ? (sim.stop_on, sim.stop_addrs) :
-                                           _stop_faces(sim.exec.act.layout, stop_on)
+                                           _stop_faces(sim.exec.act.layout, stop_on; site = :run!)
     pol = sim.policy
     pol.faces, pol.addrs, pol.hit = faces, addrs, nothing
     # a live run owes its end to a §13.5 source alone, so its frame budget is
@@ -1319,7 +1328,7 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
         i === nothing || throw(DiagnosticError(CallerTaskConflict(
             device = _typename(dev), incumbent = _who(plane.roster[i]))))
     end
-    claim = is_input(b) ? _claim(plane, sim.exec.act.layout, b) : Symbol[]
+    claim = is_input(b) ? _claim(plane, sim.exec.act.layout, b, _typename(dev)) : Symbol[]
     claim_diags = Diagnostic[]
     for f in claim                                 # claims: face exclusivity
         haskey(plane.claimedby, f) && push!(claim_diags, ClaimConflict(
@@ -1327,7 +1336,8 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
     end
     isempty(claim_diags) || throw(DiagnosticError(claim_diags))
     # The output side: reads → one gather, resolved before admission commits.
-    rg = is_output(b) ? _compile_gather(sim.exec.act.layout, reads(b), typeof(b)) : nothing
+    rg = is_output(b) ? _compile_gather(sim.exec.act.layout, reads(b), typeof(b),
+                                        _typename(dev)) : nothing
     id = plane.next_id                             # assigned on admission alone: a
     plane.next_id += 1                             # rejected attach consumes no id
     w = Writer(sim.exec.act.layout, claim)

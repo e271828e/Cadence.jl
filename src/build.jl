@@ -1108,20 +1108,22 @@ end
 # `state_projection` pass and the handler check — can put it under their own
 # barrier (§13.1). The two shape checks are sequential: neither later one is
 # meaningful once an earlier one fails.
-function _check_state_write(path, what, x⁺, x::NamedTuple, ::Type{T}) where {T}
+function _check_state_write(path, what, x⁺, x::NamedTuple, ::Type{T};
+                            event = nothing) where {T}
     x⁺ isa NamedTuple ||
-        return Diagnostic[ConformanceFailure(path = path, what = what,
+        return Diagnostic[ConformanceFailure(path = path, what = what, event = event,
                                              reason = :return_type, shape = :state,
                                              observed = typeof(x⁺))]
     Set(keys(x⁺)) == Set(keys(x)) ||
-        return Diagnostic[ConformanceFailure(path = path, what = what, reason = :field_set,
-                                             shape = :state,
+        return Diagnostic[ConformanceFailure(path = path, what = what, event = event,
+                                             reason = :field_set, shape = :state,
                                              observed_fields = collect(keys(x⁺)),
                                              declared_fields = collect(keys(x)))]
     diags = Diagnostic[]
     for k in keys(x)
         _accepts(typeof(x[k]), typeof(x⁺[k]), T) ||
-            push!(diags, ConformanceFailure(path = path, what = what, reason = :field_type,
+            push!(diags, ConformanceFailure(path = path, what = what, event = event,
+                                           reason = :field_type,
                                            shape = :state, field = k,
                                            observed = typeof(x⁺[k]),
                                            declared = typeof(x[k]), activation = T))
@@ -1177,9 +1179,10 @@ end
 # The key loops collect under one barrier per handler (§13.1): a handler naming
 # three stores it does not own names all three.
 function _check_handler(path, name, ret, d::Decls, c)
-    what = "event `$name`'s handler"
+    what = "handler"        # the event rides beside it, and the renderer composes the two
     ret isa NamedTuple ||
-        throw(DiagnosticError(ConformanceFailure(path = path, what = what, reason = :return_type,
+        throw(DiagnosticError(ConformanceFailure(path = path, what = what, event = name,
+                                            reason = :return_type,
                                             shape = :stores, observed = typeof(ret))))
     m₀ = invoke_declaration(init_m, c)
     stores = Symbol[]
@@ -1194,21 +1197,21 @@ function _check_handler(path, name, ret, d::Decls, c)
     # is the outer fact, and holding a write to `x` against an empty state would
     # report the same omission twice in different words.
     haskey(ret, :x) && :x in stores &&
-        append!(diags, _check_state_write(path, "$what `x`", ret.x, d.x, Float64))
+        append!(diags, _check_state_write(path, "$what `x`", ret.x, d.x, Float64; event = name))
     if haskey(ret, :m) && :m in stores
         if !(ret.m isa NamedTuple)
-            push!(diags, ConformanceFailure(path = path, what = "$what `m`",
+            push!(diags, ConformanceFailure(path = path, what = "$what `m`", event = name,
                                            reason = :return_type, shape = :mode,
                                            observed = typeof(ret.m)))
         else
             for k in keys(ret.m)
                 if !haskey(m₀, k)
-                    push!(diags, ConformanceFailure(path = path, what = what,
+                    push!(diags, ConformanceFailure(path = path, what = what, event = name,
                                                    reason = :field_set, shape = :mode,
                                                    field = k,
                                                    declared_fields = collect(keys(m₀))))
                 elseif typeof(ret.m[k]) !== typeof(m₀[k])
-                    push!(diags, ConformanceFailure(path = path, what = what,
+                    push!(diags, ConformanceFailure(path = path, what = what, event = name,
                                                    reason = :field_type, shape = :mode,
                                                    field = k, observed = typeof(ret.m[k]),
                                                    declared = typeof(m₀[k])))
@@ -1562,7 +1565,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
                 push!(ev_entries, EventEntry{typeof(d.x),bn}(
                     evs[name].guard, evs[name].handler, pj, c, length(ev_entries) + 1,
                     in_group(ci, d), addr_group(flat.paths[ci], keys(d.outs)),
-                    x_offs[ci], clock, mstores[ci], wss[ci], flat.paths[ci], ci, cursor))
+                    x_offs[ci], clock, mstores[ci], wss[ci], flat.paths[ci], name, ci, cursor))
                 push!(ev_owner, ci)
                 push!(ev_names, (flat.paths[ci], name))
                 push!(ev_localized, b.policies[ci][name] === :localized)

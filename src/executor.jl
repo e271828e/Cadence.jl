@@ -175,7 +175,7 @@ end
     e.cursor.comp = e.ci; e.cursor.fn = :state_derivative
     ẋ = state_derivative(e.comp, make_bundle(e, store, xbuf))
     flatten_state!(ẋbuf, e.x_off, ẋ, XT, activation_scalar(e.clock), e.path,
-                   :state_derivative, :init_x)
+                   :state_derivative, :init_x, nothing)
     nothing
 end
 
@@ -223,16 +223,17 @@ struct EventEntry{G,H,P,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
     mstore::MS
     ws::WS
     path::String
+    event::Symbol   # the event this entry declares, for a handler write's diagnostic
     ci::Int
     cursor::ExecutionCursor
 end
 
 EventEntry{XT,BN}(guard, handler, proj, comp, idx, inputs, y, x_off, clock,
-                  mstore, ws, path, ci, cursor) where {XT,BN} =
+                  mstore, ws, path, event, ci, cursor) where {XT,BN} =
     EventEntry{typeof(guard),typeof(handler),typeof(proj),typeof(comp),XT,BN,
                typeof(inputs),typeof(y),typeof(clock),typeof(mstore),typeof(ws)}(
         guard, handler, proj, comp, idx, inputs, y, x_off, clock, mstore, ws,
-        path, ci, cursor)
+        path, event, ci, cursor)
 
 @generated function make_bundle(e::EventEntry{G,H,P,Comp,XT,BN}, store,
                                 xbuf) where {G,H,P,Comp,XT,BN}
@@ -261,7 +262,7 @@ ProjectEntry{XT}(comp, x_off, clock, path, ci, cursor) where {XT} =
 @inline function run_project!(e::ProjectEntry{Comp,XT}, xbuf) where {Comp,XT}
     e.cursor.comp = e.ci; e.cursor.fn = :state_projection
     flatten_state!(xbuf, e.x_off, state_projection(e.comp, reconstruct(XT, xbuf, e.x_off)),
-                   XT, activation_scalar(e.clock), e.path, :state_projection, :state)
+                   XT, activation_scalar(e.clock), e.path, :state_projection, :state, nothing)
     nothing
 end
 
@@ -355,8 +356,9 @@ end
 @inline function _latch!(e::EventEntry{G,H,P,Comp,XT}, ret::NamedTuple,
                          xbuf) where {G,H,P,Comp,XT}
     haskey(ret, :x) && flatten_state!(xbuf, e.x_off, ret.x, XT,
-                                      activation_scalar(e.clock), e.path, :handler, :state)
-    haskey(ret, :m) && _merge_modes!(e.mstore, ret.m, e.path, :handler)
+                                      activation_scalar(e.clock), e.path, :handler, :state,
+                                      e.event)
+    haskey(ret, :m) && _merge_modes!(e.mstore, ret.m, e.path, :handler, e.event)
     nothing
 end
 
@@ -372,15 +374,18 @@ _store_successor!(ref::Base.RefValue{S}, s⁺, path, what) where {S} =
 # §9.5's partial-`m` predicate at the write: every written mode exists and keeps
 # its type, decided at generation like the port write.
 @generated function _merge_modes!(ref::Base.RefValue{M}, m::NamedTuple{Ms},
-                                  path::String, what::Symbol) where {M,Ms}
+                                  path::String, what::Symbol,
+                                  event::Union{Nothing,Symbol}) where {M,Ms}
     for k in Ms
         hasfield(M, k) ||
             return :(throw(DiagnosticError(ConformanceFailure(
-                path = path, what = String(what), reason = :field_set, shape = :mode,
+                path = path, what = String(what), event = event, reason = :field_set,
+                shape = :mode,
                 field = $(QuoteNode(k)), declared_fields = $(collect(fieldnames(M)))))))
         fieldtype(M, k) === fieldtype(m, k) ||
             return :(throw(DiagnosticError(ConformanceFailure(
-                path = path, what = String(what), reason = :field_type, shape = :mode,
+                path = path, what = String(what), event = event, reason = :field_type,
+                shape = :mode,
                 field = $(QuoteNode(k)), observed = $(fieldtype(m, k)),
                 declared = $(fieldtype(M, k))))))
     end
@@ -388,8 +393,8 @@ _store_successor!(ref::Base.RefValue{S}, s⁺, path, what) where {S} =
 end
 
 # A non-NamedTuple `m` is the law's first clause failing, as the probe reports it.
-_merge_modes!(ref::Base.RefValue{M}, m, path, what) where {M} =
-    throw(DiagnosticError(ConformanceFailure(path = path, what = String(what),
+_merge_modes!(ref::Base.RefValue{M}, m, path, what, event) where {M} =
+    throw(DiagnosticError(ConformanceFailure(path = path, what = String(what), event = event,
                                              reason = :return_type, shape = :mode,
                                              observed = typeof(m))))
 
@@ -397,7 +402,7 @@ _merge_modes!(ref::Base.RefValue{M}, m, path, what) where {M} =
     P === Nothing && return nothing
     e.cursor.fn = :state_projection # the component is the handler's own
     flatten_state!(xbuf, e.x_off, e.proj(e.comp, reconstruct(XT, xbuf, e.x_off)), XT,
-                   activation_scalar(e.clock), e.path, :state_projection, :state)
+                   activation_scalar(e.clock), e.path, :state_projection, :state, nothing)
     nothing
 end
 

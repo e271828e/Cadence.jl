@@ -384,8 +384,10 @@ operating point an equilibrium?" probe, useful in its own right and free.
 function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
                t0::Real = 0.0, backend = LevenbergMarquardt())
     lc = lifecycle(sim)
-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :running)))
-    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :errored)))
+    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :running,
+                                                              legal = STOPPED_SIM_LEGAL)))
+    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :errored,
+                                                              legal = STOPPED_SIM_LEGAL)))
 
     b = sim.build
     diags = Diagnostic[]

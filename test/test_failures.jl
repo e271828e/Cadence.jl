@@ -556,6 +556,7 @@ function failures_conformance()
         e = failure(() -> run!(sim))
         @test e isa StepError{ConformanceFailure}
         @test e.cause.what == "state_projection" && e.cause.shape === :state
+        @test e.cause.event === nothing      # a projection is the component's, not an event's
         @test e.cause.reason === :field_type && e.cause.field === :a
         @test e.cause.observed === Int64 && e.cause.declared === Float64
         @test e.frame.fn === :state_projection
@@ -590,6 +591,7 @@ function failures_conformance()
         e = failure(() -> run!(sim))
         @test e isa StepError{ConformanceFailure}
         @test e.cause.what == "handler" && e.cause.shape === :mode
+        @test e.cause.event === :fire        # the event name, at run time too (§9.5, D-249)
         @test e.cause.reason === :field_type && e.cause.field === :k
         @test e.cause.observed === Float64 && e.cause.declared === Int
         @test e.frame.fn === :handler
@@ -602,6 +604,7 @@ function failures_conformance()
         e = failure(() -> run!(sim))
         @test e isa StepError{ConformanceFailure}
         @test e.cause.what == "handler" && e.cause.shape === :mode
+        @test e.cause.event === :fire
         @test e.cause.reason === :return_type && e.cause.observed === Int
         @test occursin("NamedTuple", message(e.cause))
         @test e.frame.fn === :handler

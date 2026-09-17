@@ -827,6 +827,7 @@ function trace_discarded_harness()
         @test_throws StepError run!(crashed)        # §13.4's wrap, the cause one level down
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} replay!(crashed, own))
         @test d.op === :replay! && d.status === :errored
+        @test d.legal == [:built, :initialized, :stopped]   # §12.6's stopped-sim row
         # (`replay!` from `:running` is the same gate one line above it, and reaching
         # it needs the spawned-run idiom `test_lifecycle.jl` exercises for `init!`
         # and `run!`; it is asserted there, for those two entries, and not here.)

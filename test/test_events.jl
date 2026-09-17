@@ -87,6 +87,9 @@ function test_events()
         d = only(diagnostics(failure(() -> build(single(PartialX())))))
         @test d isa ConformanceFailure && d.reason === :field_set && d.shape === :state &&
               d.observed_fields == [:a] && d.declared_fields == [:a, :b]
+        # A handler's occurrence names its event (§9.5, D-249); `what` names the
+        # function alone, and the two compose in the message.
+        @test d.event === :reset && d.what == "handler `x`"
 
         # `state_events` is continuous-only, beside `init_m` in the tier-agreement check.
         diags = Diagnostic[]
@@ -102,6 +105,7 @@ function test_events()
         d = only(diagnostics(failure(() -> build(single(BadProjectShape())))))
         @test d isa ConformanceFailure && d.what == "state_projection" && d.reason === :field_set &&
               d.observed_fields == [:v] && d.declared_fields == [:q]
+        @test d.event === nothing                 # no handler, no event
     end
 
     @testset "the guard's form is the declared policy (§2.1, §10.4, D-179)" begin

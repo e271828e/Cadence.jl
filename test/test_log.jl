@@ -131,6 +131,8 @@ function test_log()
         err = try logged(sim) catch e; e end
         wait(t)
         @test err isa DiagnosticError && diagnostic(err) isa ServiceLifecycle
+        # the readers' gate refuses `:running` alone, post-mortem reads included (§13.6)
+        @test diagnostic(err).legal == [:built, :initialized, :stopped, :errored]
         @test length(logged(sim)) ≥ 2                        # the gate lifts with the run
     end
 

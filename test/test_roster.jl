@@ -62,7 +62,8 @@ function test_roster()
         @test attach!(sim, Panel("p1"), Enumerated("b")).id == 2
         @test_throws DiagnosticError{CallerTaskConflict} attach!(sim, Panel("p2"), Enumerated())
         # An enumeration drifted onto a nonexistent face is a diagnosable anomaly.
-        @test_throws DiagnosticError{AttachUnknownFace} attach!(sim, Pad("d3"), Enumerated("flaps"))
+        du = carried(@test_throws DiagnosticError{AttachUnknownFace} attach!(sim, Pad("d3"), Enumerated("flaps")))
+        @test du.device == "Pad" && du.binding == "Enumerated" && du.face === :flaps
         # Detaching what was never rostered is an error, not a silent no-op.
         @test_throws DiagnosticError{NotAttached} detach!(sim, Pad("ghost"))
     end

@@ -193,6 +193,8 @@ function test_bindings()
         @test diag.reason === :unknown_cell &&
               diag.selector == "get_output(\"q\", :y)" &&
               diag.candidates == Symbol[]            # no such path: no list to offer
+        # The device is named by type (Appendix C): admission assigns no id yet.
+        @test diag.device == "Pad" && diag.binding == "Readout"
         diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(alt = get_output("p", "nope"))))
         @test diag.reason === :unknown_cell && diag.candidates == [:power, :y]
         diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(v = get_input("nope"))))
