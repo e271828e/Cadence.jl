@@ -91,6 +91,35 @@ function assembly_class()
         init!(sim2, combine(condition(Plant(); y = 1.0), fragment(inputs = (u = 0.0,))))
         @test state(sim2, "").q === SVector(1.0, 0.0)
     end
+
+    @testset "the forgotten import throws before the class is read (§8.1, D-246)" begin
+        # The whole inventory shadowed: without the check this read as
+        # `ClassUnreadable`, whose message — "declares neither family" — is false
+        # from the author's chair. The kind names the module, the foreign names in
+        # family order and, through the message, the import line that fixes them.
+        d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(ForgottenImport.Inventory.Leaf()))
+        @test d.path == ""
+        @test d.names == [:init_x, :output_types, :output_state, :state_derivative]
+        @test d.mod == string(ForgottenImport.Inventory)
+
+        # One bare definition on an otherwise sound leaf: the modeling diagnostic
+        # this used to raise, `StoreWithoutUpdate`, is not what throws.
+        d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(single(ForgottenImport.Update.Leaf())))
+        @test d.path == "c" && d.names == [:state_derivative]
+        @test d.mod == string(ForgottenImport.Update)
+
+        # The optional declarations are the reason the check runs on every
+        # component: a shadowed `state_events` has no absence to notice, and built
+        # today with its events silently dropped.
+        d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(single(ForgottenImport.Events.Leaf())))
+        @test d.path == "c" && d.names == [:state_events]
+
+        # The same on the assembly side, and at the root path: the throw names the
+        # first component the walk reaches, ahead of the child below it.
+        d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(ForgottenImport.Rates.Assembly(ForgottenImport.Rates.Leaf())))
+        @test d.path == "" && d.names == [:sample_times]
+        @test d.mod == string(ForgottenImport.Rates)
+    end
 end
 
 # --- container children (§8.5) ------------------------------------------------

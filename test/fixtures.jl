@@ -1344,3 +1344,61 @@ state_derivative(c::Pendulum, (; x, u)) = (θ = x.ω, ω = -c.g_l * sin(x.θ) - 
 
 """The pendulum's own vocabulary, in the fragment-function idiom (§14.2)."""
 condition(::Pendulum; θ = 0.0, ω = 0.0) = fragment(x = (θ = θ, ω = ω))
+
+# --- the forgotten-import fixtures (§8.1, D-246) --------------------------------
+
+"""
+The forgotten-import fixtures (§8.1, D-246), one module per case because the
+check reads the module: every bare definition below lands on a function of its
+own module, which is the mistake `DeclarationShadowed` names. Qualified
+`Cadence.f(…)` definitions are the ones that reach the framework.
+"""
+module ForgottenImport
+
+"Every declaration bare: the whole inventory shadowed."
+module Inventory
+using Cadence
+struct Leaf <: Cadence.AbstractComponent end
+init_x(::Leaf) = (q = 0.0,)
+output_types(::Leaf, ::Type{T}) where {T <: Real} = (y = T,)
+output_state(::Leaf, (; x)) = (y = x.q,)
+state_derivative(::Leaf, (; x)) = (q = -x.q,)
+end
+
+"A sound leaf whose update alone is bare: would have read as `StoreWithoutUpdate`."
+module Update
+using Cadence
+struct Leaf <: Cadence.AbstractComponent end
+Cadence.init_x(::Leaf) = (q = 0.0,)
+Cadence.output_types(::Leaf, ::Type{T}) where {T <: Real} = (y = T,)
+Cadence.output_state(::Leaf, (; x)) = (y = x.q,)
+state_derivative(::Leaf, (; x)) = (q = -x.q,)
+end
+
+"A sound leaf whose events alone are bare: builds today with no events."
+module Events
+using Cadence
+struct Leaf <: Cadence.AbstractComponent end
+Cadence.init_x(::Leaf) = (q = 1.0,)
+Cadence.output_types(::Leaf, ::Type{T}) where {T <: Real} = (y = T,)
+Cadence.output_state(::Leaf, (; x)) = (y = x.q,)
+Cadence.state_derivative(::Leaf, (; x)) = (q = -x.q,)
+state_events(::Leaf) = (;)
+end
+
+"A sound assembly whose rate declaration alone is bare: builds today on the parent's grid."
+module Rates
+using Cadence
+struct Leaf <: Cadence.AbstractComponent end
+Cadence.init_x(::Leaf) = (q = 1.0,)
+Cadence.output_types(::Leaf, ::Type{T}) where {T <: Real} = (y = T,)
+Cadence.output_state(::Leaf, (; x)) = (y = x.q,)
+Cadence.state_derivative(::Leaf, (; x)) = (q = -x.q,)
+struct Assembly <: Cadence.AbstractComponent
+    kid::Leaf
+end
+Cadence.child_connections(::Assembly) = ()
+sample_times(::Assembly) = (kid = Cadence.Relative(2),)
+end
+
+end

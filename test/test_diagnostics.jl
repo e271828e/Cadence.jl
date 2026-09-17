@@ -276,6 +276,8 @@ function diagnostics_kind_set()
             StoreWithoutUpdate(path = "a/b", store = :init_x),
             EventHalfMissing(path = "a/b", event = :snap, reason = :guard, found = Int),
             EventHalfMissing(path = "a/b", event = :snap, reason = :not_an_event, found = Int),
+            DeclarationShadowed(path = "a/b", mod = "Main.MyModel",
+                                names = [:init_x, :output_types]),
             ClassUnreadable(path = "a", families = "`init_x`, `init_s`", holds_components = true),
             ClassMixed(path = "a", declarations = [:init_x, :output_types]),
             ContainerMixed(path = "a", field = :kids, types = Any[Int, Float64]),
@@ -595,6 +597,12 @@ function diagnostics_kind_set()
                                 spelling = "a/b", port = :throtle,
                                 candidates = [:throttle, :brake]))
         @test occursin("names no `throtle`", m) && occursin("throttle, brake", m)
+
+        # The forgotten import (§8.1, D-246) states its fix as the line to paste,
+        # spelled for exactly the names the module shadowed.
+        m = message(DeclarationShadowed(path = "a/b", mod = "Main.MyModel",
+                                        names = [:init_x, :output_types]))
+        @test occursin("import Cadence: init_x, output_types", m)
 
         # The forgotten-`T` hint on the input side (§6.1, §8.2, D-236) states the
         # fix by name.

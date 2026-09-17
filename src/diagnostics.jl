@@ -428,6 +428,19 @@ message(d::EventHalfMissing) =
     "`$(d.path)`: event `$(d.event)`'s $(d.reason) has no method for $(d.found) — an " *
     "event needs both halves (§8.2)"
 
+"§8.1, D-246: a family name the component's module binds to a function of its own — the forgotten import."
+Base.@kwdef struct DeclarationShadowed <: Diagnostic
+    path::String
+    mod::String                              # the parent module, `string(M)`
+    names::Vector{Symbol}                    # the foreign names, family order
+end
+path(d::DeclarationShadowed) = d.path
+message(d::DeclarationShadowed) =
+    "$(_at_path(d.path)): its module `$(d.mod)` defines its own $(_namelist(d.names)), " *
+    "distinct from " *
+    (length(d.names) == 1 ? "`Cadence.$(only(d.names))`" : "`Cadence`'s") *
+    "; add `import Cadence: $(join(d.names, ", "))` (§8.1)"
+
 "§8.5: a component declaring neither family, so its class cannot be read off declaration shape."
 Base.@kwdef struct ClassUnreadable <: Diagnostic
     path::String

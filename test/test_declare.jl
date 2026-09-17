@@ -47,4 +47,27 @@ function test_declare()
         @test bundle_names(output_direct, DiscreteMap(), DISCRETE, ()) === (:u, :t, :Δt)
         @test bundle_names(output_direct, DiscreteCounter(), DISCRETE, (:n,)) === (:s, :y_s, :t, :Δt)
     end
+
+    @testset "a foreign binding of a family name is the forgotten import (§8.1, D-246)" begin
+        # The evidence the shadowing check acts on: a family name the component's
+        # parent module binds to something other than the framework's function,
+        # listed in family order. `using Cadence` alone leaves the name undefined
+        # (the family is unexported, D-117), so only the bare definition shows.
+        @test foreign_declarations(ForgottenImport.Inventory.Leaf()) ==
+              [:init_x, :output_types, :output_state, :state_derivative]
+        @test foreign_declarations(ForgottenImport.Update.Leaf()) == [:state_derivative]
+        @test foreign_declarations(ForgottenImport.Events.Leaf()) == [:state_events]
+        @test foreign_declarations(ForgottenImport.Rates.Assembly(ForgottenImport.Rates.Leaf())) ==
+              [:sample_times]
+
+        # The evidence is a fact about the *module*, not the component: the sound
+        # leaf of a module whose assembly forgot one import reads the same list.
+        @test foreign_declarations(ForgottenImport.Rates.Leaf()) == [:sample_times]
+
+        # A module that imported what it extends has nothing foreign — the suite's
+        # own fixtures — and neither has a framework-owned type, whose parent
+        # module is `Cadence` itself.
+        @test isempty(foreign_declarations(Plant()))
+        @test isempty(foreign_declarations(Group((; c = Plant()))))
+    end
 end

@@ -827,6 +827,16 @@ end
 
 function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
                 diags::Vector{Diagnostic})
+    # The forgotten import (§8.1, D-246), first and alone: a module holding a
+    # foreign binding of a family name declares nothing the framework can read,
+    # so the class below would be read off an empty set. `ClassUnreadable` is
+    # fail-fast too, and would throw alone with a message that is false from the
+    # author's chair — the declarations were written, to the wrong function.
+    foreign = foreign_declarations(comp)
+    isempty(foreign) ||
+        throw(DiagnosticError(DeclarationShadowed(path = path,
+                                                  mod = string(parentmodule(typeof(comp))),
+                                                  names = foreign)))
     if classify(path, comp) === PRIMITIVE
         push!(w.flat.paths, path)
         push!(w.flat.comps, comp)

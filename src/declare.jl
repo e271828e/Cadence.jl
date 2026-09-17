@@ -227,6 +227,28 @@ function output_direct end
 function state_derivative end
 function state_update end
 
+# --- the family, and the forgotten import (§8.1, D-246) -----------------------
+# The declaration and stage family, in §8.1's import-list order. Every name here
+# is a generic function this module owns, which is what makes the check below a
+# comparison against `Cadence`'s own object.
+
+const DECLARATION_FAMILY = (:init_x, :init_s, :init_m, :init_workspace,
+    :input_types, :output_types, :state_events, :output_state, :output_direct,
+    :state_derivative, :state_update, :state_projection, :child_connections,
+    :input_connections, :output_connections, :sample_times,
+    :transparent_container)
+
+"""
+The family names `c`'s parent module binds to something other than the
+framework's function, in family order — the forgotten-import evidence of
+§8.1 (D-246). Empty for a module that imported what it extends.
+"""
+function foreign_declarations(c)
+    M = parentmodule(typeof(c))
+    Symbol[n for n in DECLARATION_FAMILY
+           if isdefined(M, n) && getfield(M, n) !== getfield(@__MODULE__, n)]
+end
+
 has_stage(fn, c) = hasmethod(fn, Tuple{typeof(c),NamedTuple})
 
 """
