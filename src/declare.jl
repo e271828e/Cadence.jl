@@ -355,3 +355,9 @@ probe_value(::Type{Bool}) = false
 probe_value(::Type{E}) where {E<:Enum} = first(instances(E))
 probe_value(::Type{P}) where {P<:StaticArray} = zero(P)
 probe_value(::Type{P}) where {P} = P()
+
+# Whether `P`'s probe value comes from the chain above rather than an author's
+# override. A `MethodError` out of the chain is a missing synthesis (§9.3). One
+# out of an override is the override's own bug and propagates.
+_framework_synthesis(::Type{P}) where {P} =
+    which(probe_value, Tuple{Type{P}}).module === @__MODULE__

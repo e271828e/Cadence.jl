@@ -717,6 +717,17 @@ input_types(::Synthesized, ::Type{T}) where {T <: Real} = (q = WithProbe{T},)
 output_types(::Synthesized, ::Type{T}) where {T <: Real} = (s = T,)
 output_direct(::Synthesized, (; u)) = (s = u.q.a + u.q.b,)
 
+# An override that is itself broken: its `MethodError` is the author's, not a
+# missing synthesis, and propagates as itself.
+struct BrokenProbe{T}
+    a::T
+end
+probe_value(::Type{BrokenProbe{T}}) where {T} = BrokenProbe(sqrt("one"))
+struct Misprobed <: AbstractComponent end
+input_types(::Misprobed, ::Type{T}) where {T <: Real} = (q = BrokenProbe{T},)
+output_types(::Misprobed, ::Type{T}) where {T <: Real} = (s = T,)
+output_direct(::Misprobed, (; u)) = (s = u.q.a,)
+
 function build_port_type_refusals()
     @testset "a mutable port and a handle at root are refused (§4.4, D-237)" begin
         d = only(diagnostics(failure(() -> build(Group((; c = MutableSource()))))))
@@ -770,6 +781,11 @@ function build_port_type_refusals()
         ds2 = diagnostics(err2)
         @test length(ds2) == 2 && all(d -> d isa MissingProbeValue, ds2)
         @test Set(d.face for d in ds2) == Set([:in1, :in2])
+
+        # An override's own `MethodError` is not a missing synthesis: it
+        # propagates as itself, never as this kind.
+        err3 = failure(() -> build(Group((; c = Misprobed()); inputs = ("in" => "c/q",))))
+        @test err3 isa MethodError
     end
 
     @testset "an opaque leaf is accepted by identity alone (D-237)" begin

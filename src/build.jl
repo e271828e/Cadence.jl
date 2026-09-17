@@ -512,11 +512,12 @@ function cell_layout(flat::Flat, decls::Vector{Decls}, ::Type{T}) where {T}
         place!("", :root_input, face, P) || continue
         # §9.3, D-051: the synthesis chain ends at `P()`, and a type reaching
         # it with no zero-argument constructor has no probe value. Collected,
-        # beside the placement refusals above.
+        # beside the placement refusals above. A `MethodError` out of an
+        # author's override is the override's own and propagates.
         v = try
             probe_value(P)
         catch e
-            e isa MethodError || rethrow()
+            (e isa MethodError && _framework_synthesis(P)) || rethrow()
             push!(diags, MissingProbeValue(face = face, declared = P))
             continue
         end

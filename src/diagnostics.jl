@@ -616,9 +616,9 @@ end
 
 """
 §9.3, D-051: a root input whose type the synthesis chain cannot produce a probe
-value for. Every `MethodError` out of `probe_value` reports as this kind, an
-author's own override included. That is the conservative reading of §9.3's "no
-method is a build error".
+value for. A `MethodError` out of the framework's own chain reports as this
+kind. One out of an author's override is the override's own bug and propagates
+as itself.
 """
 Base.@kwdef struct MissingProbeValue <: Diagnostic
     face::Symbol                             # the root input face
