@@ -549,7 +549,8 @@ message(d::FaceNameCollision) =
     "primitive's faces are its `input_types` and `output_types` keys together, and a key " *
     "declared in both is the same build error a duplicate assembly face name is (§8.6)" :
     "$(_at_path(d.path)): face name(s) $(_plainlist(d.faces)) appear twice — face names " *
-    "are unique across `input_connections` and `output_connections` together (§8.6)"
+    "are unique across `input_connections` and `output_connections` together; to route " *
+    "one input face to several children, write `name => (path, path, …)` (§8.6)"
 
 "§8.6: an entry whose endpoint resolves to a port of the opposite direction."
 Base.@kwdef struct FaceDirectionConflict <: Diagnostic
