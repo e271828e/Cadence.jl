@@ -2319,10 +2319,11 @@ continuous-only, because the event system is continuous-side only ([§5.2][s5-2]
 ([D-166][d-166]–[D-167][d-167]). Disagreement is `DeclarationOnWrongTier` ([Appendix C][sC]),
 reported as the offending declaration with the tier the leaf's other
 declarations announce. It covers declaring both `state_derivative` and
-`state_update`, a `state_update` beside a two-argument `output_types`, and the
+`state_update`, an `init_workspace` arity against the update law, and the
 mixed-store cases the split state letters restore, namely an `init_x` on a
 leaf whose update law is `state_update` and an `init_s` on one whose update
-law is `state_derivative`.
+law is `state_derivative`. A contract declaration whose arity disagrees is
+`TierSignatureMismatch` instead, the contract's own kind (below, [D-249][d-249]).
 
 A **stateless** leaf declares no store and no update law, so its tier is
 decided by its [contract](#g-contract) arities. `output_types` is mandatory and hence always
@@ -2620,7 +2621,9 @@ Any of three violations is `TierSignatureMismatch` ([Appendix C][sC]): a
 continuous declaration missing the `T`-form, a discrete declaration carrying
 one, or a `T`-form bounded narrower than `Real`. The diagnostic reports the
 component path, the declaration at fault, the tier its other declarations
-announce, and the form found versus the form mandated. The check is Stratum A
+announce, and the form found versus the form mandated. On a stateful leaf the
+tier comes from the store and the update law, and a contract arity against it
+is this kind, never `DeclarationOnWrongTier` ([D-249][d-249]). The check is Stratum A
 and collected. Declaration shape is read, and nothing is evaluated.
 
 The tier fact is therefore spelled in the signature *and* fixed by the class,
@@ -3570,14 +3573,17 @@ probed return type is a build error naming both admissible forms. There is
 nothing further to check. The probed form *is* the detection policy ([§10.4][s10-4],
 [D-179][d-179]), so no form/policy mismatch can be declared.
 
-**Failure payload.** The payload carries the component path, function,
-field-level diff (missing / unexpected / per-field expected-vs-observed) and
-simulation time. Deliberately absent is the source branch. Values carry no
-provenance, and the diff identifies it. The always-on input [trace](#g-trace) makes
-every such failure **reproducible by [replay](#g-replay)**. The error names the [boundary](#g-boundary)
-to replay to (`to_boundary`, [§12.7][s12-7]). At run time the failure travels as a
-[species](#g-species) of `StepError` through the single catch site ([§13.4][s13-4]), which adds
-the loop-level nonfinite-state check as its divergence sibling.
+**Failure payload.** The payload carries the component path, the function,
+the event name on a handler's occurrence, and the field-level diff (missing /
+unexpected / per-field expected-vs-observed). Simulation time is the
+carrier's, not the diagnostic's. At run time the failure travels as a
+[species](#g-species) of `StepError` through the single catch site ([§13.4][s13-4]), whose
+frame holds the boundary time and the replay index, and a build-time
+occurrence has no time to carry ([D-249][d-249]). Deliberately absent is the source
+branch. Values carry no provenance, and the diff identifies it. The always-on
+input [trace](#g-trace) makes every such failure **reproducible by [replay](#g-replay)**. The error
+names the [boundary](#g-boundary) to replay to (`to_boundary`, [§12.7][s12-7]). The catch site adds
+the loop-level nonfinite-state check as the failure's divergence sibling.
 ### 9.6 Stopped-sim services as Stratum-C clients
 
 This section is sketched here because it grounds the strata. The services
@@ -10865,7 +10871,8 @@ with the collection and never trigger its throw, is currently empty
   tier the leaf's other declarations announce. The offending declaration is
   `state_derivative`/`state_update`, a store from the wrong family (`init_x`
   against `init_s`, [D-195][d-195]), `state_events`, `init_m`,
-  `state_projection`, or an `init_workspace`/`output_types` arity.
+  `state_projection`, or an `init_workspace` arity. A contract arity is
+  `TierSignatureMismatch`'s ([D-249][d-249]).
 - **`TierSignatureMismatch`** ([§6.1][s6-1], [§8.2][s8-2], [§8.5][s8-5]).
   Error · build · collected. Component path, the declaration at fault
   (`input_types` or `output_types`), the leaf's tier, the signature form
@@ -10879,7 +10886,8 @@ with the collection and never trigger its throw, is currently empty
 - **`FaceNameIllegal`** ([§8.6][s8-6]). Error · build · collected. Assembly
   path, face name, the violated invariant (contains `/`).
 - **`FaceNameCollision`** ([§8.6][s8-6]). Error · build · collected. Assembly
-  path, face name, both entries' provenance (hand-written / computed).
+  path, the colliding face names. No per-entry provenance: a computed entry
+  collides like a hand-written one ([§8.8][s8-8], [D-249][d-249]).
 - **`FaceDirectionConflict`** ([§8.6][s8-6]). Error · build · collected.
   Assembly path, the declaring method, the offending entry, the resolved
   port's actual direction.
@@ -10935,9 +10943,9 @@ with the collection and never trigger its throw, is currently empty
   producing no ports.
 - **`ConformanceFailure`** ([§9.5][s9-5]). Error · build, at probe; runtime
   thereafter · fail-fast, a `StepError` species at runtime. Component path,
-  function, field-level diff (missing / unexpected / per-field
-  expected-vs-observed, order-insensitive, fields pairing by name),
-  simulation time.
+  function, the event name on a handler's occurrence, field-level diff
+  (missing / unexpected / per-field expected-vs-observed, order-insensitive,
+  fields pairing by name). Simulation time rides the runtime carrier ([D-249][d-249]).
 - **`GuardForm`** ([§9.5][s9-5]). Error · build · fail-fast. Component path,
   event name, observed probe return type, both admissible forms.
 - **`BundleFieldError`** ([§5.2][s5-2], [§13.2][s13-2]). Error · build, at
@@ -10964,8 +10972,8 @@ with the collection and never trigger its throw, is currently empty
   status, the legal statuses.
 - **`StopFaceInvalid`** ([§13.5][s13-5]). Error · service · collected, over
   the given faces. Face name, reason (unknown / not root-exported / not
-  `Bool`), the root output-face list, the binding site (constructor or
-  `run!`).
+  `Bool`), the root output-face list, the binding site (constructor, `run!`
+  or `replay!`).
 - **`DeploymentInvalid`** ([§9.1][s9-1]). Error · service · collected. The
   deployment parameter, the value in hand, the violated constraint. The
   parameter is one of `h`, `N_base`, `Δt_base`, algorithm,
@@ -12312,6 +12320,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-246]: decisions.md#d-246--diagnose-a-foreign-declaration-binding-as-its-own-fail-fast-kind
 [d-247]: decisions.md#d-247--accept-the-namedtuple-as-the-only-store-declaration-form
 [d-248]: decisions.md#d-248--frame-every-user-authored-method-the-build-invokes-declarations-included
+[d-249]: decisions.md#d-249--settle-three-payload-columns-contract-arity-runtime-time-and-face-provenance
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
