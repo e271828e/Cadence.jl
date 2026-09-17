@@ -3369,9 +3369,9 @@ measures through the seam.
 **Status.** ratified
 
 **Position.** The declaration and stage family is extended, not called, and
-enters a component module through explicit per-name `import Flight: init_x, …,
+enters a component module through explicit per-name `import Cadence: init_x, …,
 f, g, project, connections, exports, rates` — normative authoring surface
-stated in [§8.1][s8-1], with qualified definition (`Flight.f(…) = …`, the `Base.show`
+stated in [§8.1][s8-1], with qualified definition (`Cadence.f(…) = …`, the `Base.show`
 idiom) the recorded alternative for the extension-only periphery.
 
 **Spec.** [§8.1][s8-1], [§8.4][s8-4], [§16][s16], [Appendix C][sC]
@@ -3388,7 +3388,7 @@ extension-only surface; short names stay unexported deliberately (`f`, `g`,
   verified: no error, no warning, and the build's diagnostics then misname a
   namespace mistake as a modeling one, the [§8.4][s8-4] error-locality inversion
   through the namespace.
-- *A re-export submodule as the ergonomic fix:* `using Flight.Declarations`
+- *A re-export submodule as the ergonomic fix:* `using Cadence.Declarations`
   carries identical silent-shadowing semantics — per-name `import` is the only
   extension idiom the language provides.
 - *Adopting an `@declarations` macro now:* sugar addable a posteriori, never
@@ -5464,7 +5464,7 @@ increment-2 finding, extending [§8.1][s8-1].
 binds a new *local* function rather than adding a method to the global `h_x`,
 so calls inside the block resolve correctly while the build, dispatching on the
 generic function, sees a component that declares nothing and proceeds. The
-local-scope sibling of [§8.1][s8-1]'s `using Flight` trap, and worse-behaved: the
+local-scope sibling of [§8.1][s8-1]'s `using Cadence` trap, and worse-behaved: the
 existing shadowing check cannot reach it, there being no parent-module binding
 to compare against — the shadow is a local binding that vanishes with its
 block. Mitigation adopted at the other end: an inert component is unwritable on
@@ -8944,7 +8944,7 @@ component a module defines reads the same foreign list, and the throw names
 the first one the walk reaches.
 
 The mechanism is the two-line test [D-117][d-117] described, `isdefined(M, name) &&
-getfield(M, name) !== getfield(Flight, name)` on `M = parentmodule(typeof(c))`,
+getfield(M, name) !== getfield(Cadence, name)` on `M = parentmodule(typeof(c))`,
 verified on Julia 1.13.0: a bare definition after `using` reads as foreign, a
 per-name import does not, an untouched name is undefined, and a REPL
 definition in `Main` behaves the same. Three limits are accepted and

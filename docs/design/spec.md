@@ -1784,18 +1784,18 @@ Authoring a component means adding methods to framework-owned generic
 functions.
 
 Julia admits that only through an explicit per-name `import`, or through a
-qualified `Flight.state_derivative(…) = …` definition. The latter is the
+qualified `Cadence.state_derivative(…) = …` definition. The latter is the
 `Base.show` idiom that [§16][s16] records for the extension-only periphery
 surface. A component module therefore opens with
 
 ```julia
-import Flight: init_x, init_s, init_m, init_workspace, input_types,
+import Cadence: init_x, init_s, init_m, init_workspace, input_types,
     output_types, state_events, output_state, output_direct, state_derivative,
     state_update, state_projection, child_connections, input_connections,
     output_connections, sample_times, transparent_container
 ```
 
-**The explicit list is needed because `using Flight` alone is a silent trap.**
+**The explicit list is needed because `using Cadence` alone is a silent trap.**
 After a bare `using`, `state_derivative(eng::Engine, …) = …` defines a new,
 unrelated `MyModule.state_derivative`, with no error and no warning. The
 declarations are deliberately unexported ([D-117][d-117]). A bare `using` therefore
@@ -1815,8 +1815,8 @@ component before its class is read ([D-246][d-246]). If the component's parent
 module holds a binding of a family name distinct from the framework's
 function, the build throws `DeclarationShadowed`, alone, naming the module,
 the foreign names and the missing import: "`MyEngine`'s module defines its
-own `state_derivative`, distinct from `Flight.state_derivative`; add
-`import Flight: state_derivative`". The check is a two-line `isdefined`/`!==`
+own `state_derivative`, distinct from `Cadence.state_derivative`; add
+`import Cadence: state_derivative`". The check is a two-line `isdefined`/`!==`
 test on the family's names. Those names are distinctive by design
 ([D-220][d-220]), so a foreign binding of one of them in a component's module
 is evidence of the missing import, not a coincidence. The check throws alone
@@ -1842,9 +1842,9 @@ therefore reads as one declaring nothing at all.
 ```julia
 @testset "mycomp" begin
     output_state(::MyComp, (; x)) = …   #a NEW local one, not a method of
-    …                                   #Flight.output_state; calls here
+    …                                   #Cadence.output_state; calls here
 end                                     #resolve to it, and look correct
-#outside: Flight.output_state still has no MyComp method
+#outside: Cadence.output_state still has no MyComp method
 ```
 
 The shadowing check above cannot reach this case. There is no parent-module
