@@ -13,6 +13,71 @@
 # Its input is the flattened tree (`src/assembly.jl`): primitives by absolute
 # path, one resolved producer per input. Assemblies are virtual from here on.
 
+# --- the user-code frame (§13.2, D-248) ---------------------------------------
+# Every user-authored method the build invokes is reached through one of the two
+# accessors below, and every per-component body that reads declarations without
+# a path in hand runs under `at_component`, which fills the path in.
+
+# What passes through a frame unwrapped: none of these is user code failing.
+_passes_frame(e) = e isa DiagnosticError || e isa InternalInvariant || e isa InterruptException
+
+"""
+The framing accessor for a declaration (§13.2, D-248): `fn(c, args...)`, a
+throw out of it framed as `UserCodeFraming` naming the method. The path is
+not known here; `at_component` fills it.
+"""
+function invoke_declaration(fn, c, args...)
+    try
+        fn(c, args...)
+    catch e
+        _passes_frame(e) && rethrow()
+        throw(DiagnosticError(UserCodeFraming(fn = String(nameof(fn)), cause = e)))
+    end
+end
+
+"""
+The framing accessor for a probed bundle-taking function (§13.2, D-248):
+`fn(c, bundle)`. A `FieldError` matched against the bundle's own type is the
+bundle-law diagnostic, classified (§5.2); any other throw is the plain frame,
+carrying the bundle's names and the synthesized inputs as a spelling.
+"""
+function invoke_probed(fn, family::Symbol, path::String, c, t::Tier, bundle::NamedTuple)
+    try
+        fn(c, bundle)
+    catch e
+        _passes_frame(e) && rethrow()
+        if e isa FieldError && e.type === typeof(bundle)
+            throw(DiagnosticError(BundleFieldError(path = path, family = String(family),
+                tier = t === CONTINUOUS ? :continuous : :discrete, field = e.field,
+                legal = collect(keys(bundle)),
+                reason = classify_bundle_field(family, t, e.field))))
+        end
+        throw(DiagnosticError(UserCodeFraming(path = path, fn = String(family),
+            bundle = collect(keys(bundle)), inputs = _inputs_spelling(bundle), cause = e)))
+    end
+end
+
+_inputs_spelling(b::NamedTuple) =
+    haskey(b, :u) ? sprint(show, b.u; context = :compact => true) : ""
+
+"""
+The component frame (§13.2, D-248): runs `f()` for the component at `path`
+and fills the path into a `UserCodeFraming` an accessor raised without one.
+Every other throw passes.
+"""
+function at_component(f, path::String)
+    try
+        f()
+    catch e
+        if e isa DiagnosticError{UserCodeFraming} && isempty(e.carried.path)
+            d = e.carried
+            throw(DiagnosticError(UserCodeFraming(path = path, fn = d.fn, bundle = d.bundle,
+                                                  inputs = d.inputs, cause = d.cause)))
+        end
+        rethrow()
+    end
+end
+
 # --- 1. declarations at the activation scalar ---------------------------------
 
 struct Decls
@@ -33,8 +98,9 @@ state_decls(d::Decls, t::Tier) = t === CONTINUOUS ? d.x : d.s
 # the pinned world, so `init_s` does not walk and nothing is evaluated at `T`.
 function declarations(c, t::Tier, ::Type{T}) where {T}
     t === CONTINUOUS ?
-        Decls(retype_value(T, init_x(c)), NamedTuple(), input_types(c, T), output_types(c, T)) :
-        Decls(NamedTuple(), init_s(c),
+        Decls(retype_value(T, invoke_declaration(init_x, c)), NamedTuple(),
+              invoke_declaration(input_types, c, T), invoke_declaration(output_types, c, T)) :
+        Decls(NamedTuple(), invoke_declaration(init_s, c),
               declared_at(input_types, c, t), declared_at(output_types, c, t))
 end
 
@@ -57,7 +123,7 @@ end
 # §7.1, §8.2, D-094: every `init_x` field is a `Float64` or an `SArray` of them,
 # and the declaration is flat. The arm names where the value belongs instead.
 function check_state_leaves(path::String, c, diags::Vector{Diagnostic})
-    for (name, v) in pairs(init_x(c))
+    for (name, v) in pairs(invoke_declaration(init_x, c))
         L = v isa SArray ? eltype(v) : typeof(v)
         L === Float64 && continue
         reason = v isa NamedTuple ? :nested :
@@ -74,7 +140,7 @@ end
 function check_store_form(path::String, c, diags::Vector{Diagnostic})
     ok = true
     for (name, fn) in ((:init_x, init_x), (:init_s, init_s), (:init_m, init_m))
-        v = fn(c)
+        v = invoke_declaration(fn, c)
         v isa NamedTuple && continue
         push!(diags, StoreNotNamedTuple(path = path, store = name, declared = typeof(v)))
         ok = false
@@ -84,7 +150,8 @@ end
 
 # §7.3, D-231: every store field is isbits or a `Symbol`, checked on both stores.
 function check_stores(path::String, c, diags::Vector{Diagnostic})
-    for (store, nt) in ((:init_s, init_s(c)), (:init_m, init_m(c)))
+    for (store, nt) in ((:init_s, invoke_declaration(init_s, c)),
+                        (:init_m, invoke_declaration(init_m, c)))
         for (name, v) in pairs(nt)
             isbits(v) || v isa Symbol ||
                 push!(diags, IllegalStoreField(path = path, store = store,
@@ -101,10 +168,10 @@ function classify_tier(path::String, c, diags::Vector{Diagnostic})
     votes = Tuple{Symbol,Tier}[]
     has_stage(state_derivative, c) && push!(votes, (:state_derivative, CONTINUOUS))
     has_stage(state_update, c) && push!(votes, (:state_update, DISCRETE))
-    !isempty(init_x(c)) && push!(votes, (:init_x, CONTINUOUS))
-    !isempty(init_s(c)) && push!(votes, (:init_s, DISCRETE))
-    !isempty(init_m(c)) && push!(votes, (:init_m, CONTINUOUS))
-    !isempty(state_events(c)) && push!(votes, (:state_events, CONTINUOUS))
+    !isempty(invoke_declaration(init_x, c)) && push!(votes, (:init_x, CONTINUOUS))
+    !isempty(invoke_declaration(init_s, c)) && push!(votes, (:init_s, DISCRETE))
+    !isempty(invoke_declaration(init_m, c)) && push!(votes, (:init_m, CONTINUOUS))
+    !isempty(invoke_declaration(state_events, c)) && push!(votes, (:state_events, CONTINUOUS))
     for (name, fn) in ((:output_types, output_types), (:input_types, input_types),
                        (:init_workspace, init_workspace))
         _declares(fn, c, Type{Float64}) && push!(votes, (name, CONTINUOUS))
@@ -112,7 +179,8 @@ function classify_tier(path::String, c, diags::Vector{Diagnostic})
     end
 
     # The decider, by §8.2's two cases.
-    state = !isempty(init_x(c)) ? :init_x : !isempty(init_s(c)) ? :init_s : nothing
+    state = !isempty(invoke_declaration(init_x, c)) ? :init_x :
+            !isempty(invoke_declaration(init_s, c)) ? :init_s : nothing
     if state !== nothing
         i = findfirst(v -> first(v) === :state_derivative || first(v) === :state_update, votes)
         if i === nothing
@@ -161,19 +229,22 @@ function probe_stage1(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
                       wss::Vector, mstores::Vector, carry, ::Type{T}) where {T}
     map(eachindex(flat.comps)) do ci
         path, c, d = flat.paths[ci], flat.comps[ci], decls[ci]
-        _frozen(tiers, ci, T) && return carry.stage1[ci]
-        has_stage(output_state, c) || return NamedTuple()
-        stage = String(nameof(output_state))
-        bn = bundle_names(output_state, c, tiers[ci], ())
-        y = output_state(c, _bundle_values(bn, d, NamedTuple(), NamedTuple(), T;
-                                 ws = wss[ci], m = mstores[ci], Δt = 1.0))
-        y isa NamedTuple ||
-            throw(DiagnosticError(ConformanceFailure(path = path, what = stage,
-                                                reason = :return_type, shape = :ports,
-                                                observed = typeof(y))))
-        isempty(y) && throw(DiagnosticError(DeadStage(path = path, stage = stage)))
-        _check_ports(path, stage, y, d.outs, T)
-        _embed_ports(y, d.outs, T)
+        at_component(path) do
+            _frozen(tiers, ci, T) && return carry.stage1[ci]
+            has_stage(output_state, c) || return NamedTuple()
+            stage = String(nameof(output_state))
+            bn = bundle_names(output_state, c, tiers[ci], ())
+            y = invoke_probed(output_state, :output_state, path, c, tiers[ci],
+                              _bundle_values(bn, d, NamedTuple(), NamedTuple(), T;
+                                             ws = wss[ci], m = mstores[ci], Δt = 1.0))
+            y isa NamedTuple ||
+                throw(DiagnosticError(ConformanceFailure(path = path, what = stage,
+                                                    reason = :return_type, shape = :ports,
+                                                    observed = typeof(y))))
+            isempty(y) && throw(DiagnosticError(DeadStage(path = path, stage = stage)))
+            _check_ports(path, stage, y, d.outs, T)
+            _embed_ports(y, d.outs, T)
+        end
     end
 end
 
@@ -640,16 +711,18 @@ function _check_event_declarations(flat::Flat, diags::Vector{Diagnostic})
     # The pass collects (§13.1): every malformed entry in the model is named, not
     # the first one the walk reaches, and the list merges into the stratum's.
     for (path, c) in zip(flat.paths, flat.comps)
-        for (name, ev) in pairs(state_events(c))
-            if !(ev isa StateEvent)
-                push!(diags, EventHalfMissing(path = path, event = name,
-                                             reason = :not_an_event, found = typeof(ev)))
-                continue                           # neither half exists to look up
-            end
-            for (half, fn) in ((:guard, ev.guard), (:handler, ev.handler))
-                hasmethod(fn, Tuple{typeof(c),NamedTuple}) ||
-                    push!(diags, EventHalfMissing(path = path, event = name, reason = half,
-                                                 found = typeof(c)))
+        at_component(path) do
+            for (name, ev) in pairs(invoke_declaration(state_events, c))
+                if !(ev isa StateEvent)
+                    push!(diags, EventHalfMissing(path = path, event = name,
+                                                 reason = :not_an_event, found = typeof(ev)))
+                    continue                       # neither half exists to look up
+                end
+                for (half, fn) in ((:guard, ev.guard), (:handler, ev.handler))
+                    hasmethod(fn, Tuple{typeof(c),NamedTuple}) ||
+                        push!(diags, EventHalfMissing(path = path, event = name, reason = half,
+                                                     found = typeof(c)))
+                end
             end
         end
     end
@@ -698,7 +771,8 @@ function _check_wires(flat::Flat, tiers::Vector{Tier}, diags::Vector{Diagnostic}
             refused[ci] = true
         end
     end
-    at(fn, S) = [declared_at(fn, c, t, S) for (c, t) in zip(flat.comps, tiers)]
+    at(fn, S) = [at_component(() -> declared_at(fn, flat.comps[ci], tiers[ci], S),
+                              flat.paths[ci]) for ci in eachindex(flat.comps)]
     ins_F, outs_F = at(input_types, Float64), at(output_types, Float64)
     ins_M, outs_M = at(input_types, Marker), at(output_types, Marker)
     for (ci, conns) in enumerate(flat.conns), (face, (ppath, pport)) in conns
@@ -797,12 +871,13 @@ end
 # components' products are carried across from `carry` rather than probed,
 # their stages being outside this activation's executable set (§9.4).
 function _stratum_c(flat::Flat, tiers::Vector{Tier}, order, carry, ::Type{T}) where {T}
-    decls = [declarations(c, t, T) for (c, t) in zip(flat.comps, tiers)]
+    decls = [at_component(() -> declarations(flat.comps[ci], tiers[ci], T), flat.paths[ci])
+             for ci in eachindex(flat.comps)]
 
     # Probe-scoped mode stores and workspaces (§9.3): the probes need `m` and
     # `ws` to build bundles, and everything these hold is garbage once the
     # build finishes — each `Simulation` materializes its own.
-    mstores = Any[isempty(init_m(c)) ? nothing : Ref(init_m(c)) for c in flat.comps]
+    mstores = _mstores(flat)
     wss = _workspaces(flat, tiers, T)
 
     stage1 = probe_stage1(flat, decls, tiers, wss, mstores, carry, T)
@@ -829,12 +904,24 @@ function _stratum_c(flat::Flat, tiers::Vector{Tier}, order, carry, ::Type{T}) wh
     Activation{T}(decls, collect(stage1), published, products, layout), order
 end
 
+# Probe-scoped mode stores (§9.3), one read of `init_m` per component under the
+# component frame (§13.2, D-248) — the tip before the frame read it twice.
+_mstores(flat::Flat) =
+    Any[at_component(() -> (m = invoke_declaration(init_m, flat.comps[ci]);
+                            isempty(m) ? nothing : Ref(m)), flat.paths[ci])
+        for ci in eachindex(flat.comps)]
+
 # Declaration by allocation (§7.3, D-077): sizes from the instance, eltypes from
 # the activation. Called once per probe and once per `Simulation`.
 _workspaces(flat::Flat, tiers::Vector{Tier}, ::Type{T}) where {T} =
-    Any[_declares_workspace(c, t) ?
-        (t === CONTINUOUS ? init_workspace(c, T) : init_workspace(c)) : nothing
-        for (c, t) in zip(flat.comps, tiers)]
+    Any[_workspace(flat.paths[ci], flat.comps[ci], tiers[ci], T) for ci in eachindex(flat.comps)]
+
+_workspace(path::String, c, t::Tier, ::Type{T}) where {T} =
+    at_component(path) do
+        _declares_workspace(c, t) || return nothing
+        t === CONTINUOUS ? invoke_declaration(init_workspace, c, T) :
+                           invoke_declaration(init_workspace, c)
+    end
 
 # A discrete component's stages never run at a non-nominal activation: its
 # cells are frozen `Float64` constants with zero partials, holding what the
@@ -904,13 +991,18 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
     for (ci, c) in enumerate(flat.comps)
         path, d, t = flat.paths[ci], decls[ci], tiers[ci]
         (isempty(state_decls(d, t)) || _frozen(tiers, ci, T)) && continue
-        update = update_of(t)
-        bn = bundle_names(update, c, t, tuple(keys(stage1[ci])...))
-        vals = _bundle_values(bn, d, in_values(ci, d), stage1[ci], T; y = products[ci],
-                              ws = wss[ci], m = mstores[ci], Δt = 1.0)
-        append!(diags, t === CONTINUOUS ?
-            _check_derivative(path, state_derivative(c, vals), d.x, T) :
-            _check_update(path, state_update(c, vals), d.s))
+        at_component(path) do
+            update = update_of(t)
+            bn = bundle_names(update, c, t, tuple(keys(stage1[ci])...))
+            vals = _bundle_values(bn, d, in_values(ci, d), stage1[ci], T; y = products[ci],
+                                  ws = wss[ci], m = mstores[ci], Δt = 1.0)
+            append!(diags, t === CONTINUOUS ?
+                _check_derivative(path,
+                    invoke_probed(state_derivative, :state_derivative, path, c, t, vals),
+                    d.x, T) :
+                _check_update(path,
+                    invoke_probed(state_update, :state_update, path, c, t, vals), d.s))
+        end
     end
     isempty(diags) || throw(DiagnosticError(diags))
 
@@ -931,8 +1023,10 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
                                                reason = :no_manifold))
             continue
         end
-        append!(diags, _check_state_write(path, "state_projection",
-                                         state_projection(c, d.x), d.x, T))
+        append!(diags, at_component(path) do
+            _check_state_write(path, "state_projection",
+                               invoke_declaration(state_projection, c, d.x), d.x, T)
+        end)
     end
     isempty(diags) || throw(DiagnosticError(diags))
     products
@@ -949,25 +1043,28 @@ function _probe_direct!(products::Vector{NamedTuple}, ci::Int, flat::Flat,
                         layout::Layout, wss::Vector, mstores::Vector, ::Type{T}) where {T}
     c, path, d, s1 = flat.comps[ci], flat.paths[ci], decls[ci], stage1[ci]
     (has_stage(output_direct, c) && !_frozen(tiers, ci, T)) || return nothing
-    stage = String(nameof(output_direct))
-    bn = bundle_names(output_direct, c, tiers[ci], tuple(keys(s1)...))
-    u = NamedTuple{tuple(keys(d.ins)...)}(tuple(
-        (_probe_input(flat, layout, products, ci, face, d.ins[face], T)
-         for face in keys(d.ins))...))
-    y2 = output_direct(c, _bundle_values(bn, d, u, s1, T; ws = wss[ci], m = mstores[ci],
-                              Δt = 1.0))
-    y2 isa NamedTuple ||
-        throw(DiagnosticError(ConformanceFailure(path = path, what = stage,
-                                            reason = :return_type, shape = :namedtuple,
-                                            observed = typeof(y2))))
-    isempty(y2) && throw(DiagnosticError(DeadStage(path = path, stage = stage)))
-    _check_ports(path, stage, y2, d.outs, T)
-    # Stage-1 position is the stage's or the framework's; either way a
-    # stage-2 return of the same port writes it twice (§5.3, §8.3).
-    twice = intersect(union(keys(s1), keys(published[ci])), keys(y2))
-    isempty(twice) ||
-        throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice))))
-    products[ci] = merge(s1, published[ci], _embed_ports(y2, d.outs, T))
+    at_component(path) do
+        stage = String(nameof(output_direct))
+        bn = bundle_names(output_direct, c, tiers[ci], tuple(keys(s1)...))
+        u = NamedTuple{tuple(keys(d.ins)...)}(tuple(
+            (_probe_input(flat, layout, products, ci, face, d.ins[face], T)
+             for face in keys(d.ins))...))
+        y2 = invoke_probed(output_direct, :output_direct, path, c, tiers[ci],
+                           _bundle_values(bn, d, u, s1, T; ws = wss[ci], m = mstores[ci],
+                                  Δt = 1.0))
+        y2 isa NamedTuple ||
+            throw(DiagnosticError(ConformanceFailure(path = path, what = stage,
+                                                reason = :return_type, shape = :namedtuple,
+                                                observed = typeof(y2))))
+        isempty(y2) && throw(DiagnosticError(DeadStage(path = path, stage = stage)))
+        _check_ports(path, stage, y2, d.outs, T)
+        # Stage-1 position is the stage's or the framework's; either way a
+        # stage-2 return of the same port writes it twice (§5.3, §8.3).
+        twice = intersect(union(keys(s1), keys(published[ci])), keys(y2))
+        isempty(twice) ||
+            throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice))))
+        products[ci] = merge(s1, published[ci], _embed_ports(y2, d.outs, T))
+    end
     nothing
 end
 
@@ -1011,27 +1108,31 @@ key by key. Returns the per-component policy register.
 """
 function probe_events(flat::Flat, tiers::Vector{Tier}, act::Activation{Float64})
     decls, layout, products = act.decls, act.layout, act.products
-    mstores = Any[isempty(init_m(c)) ? nothing : Ref(init_m(c)) for c in flat.comps]
+    mstores = _mstores(flat)
     wss = _workspaces(flat, tiers, Float64)
     map(eachindex(flat.comps)) do ci
         c, path, d = flat.comps[ci], flat.paths[ci], decls[ci]
-        evs = state_events(c)
-        isempty(evs) && return NamedTuple()
-        bn = event_bundle_names(c)
-        u = NamedTuple{tuple(keys(d.ins)...)}(tuple(
-            (_probe_input(flat, layout, products, ci, face, d.ins[face], Float64)
-             for face in keys(d.ins))...))
-        vals = _bundle_values(bn, d, u, NamedTuple(), Float64; y = products[ci],
-                              ws = wss[ci], m = mstores[ci])
-        NamedTuple{tuple(keys(evs)...)}(map(tuple(keys(evs)...)) do name
-            σ = evs[name].guard(c, vals)
-            policy = σ isa Bool ? :boundary :
-                     σ isa Float64 ? :localized :
-                     throw(DiagnosticError(GuardForm(path = path, event = name,
-                                                observed = typeof(σ))))
-            _check_handler(path, name, evs[name].handler(c, vals), d, c)
-            policy
-        end)
+        at_component(path) do
+            evs = invoke_declaration(state_events, c)
+            isempty(evs) && return NamedTuple()
+            bn = event_bundle_names(c)
+            u = NamedTuple{tuple(keys(d.ins)...)}(tuple(
+                (_probe_input(flat, layout, products, ci, face, d.ins[face], Float64)
+                 for face in keys(d.ins))...))
+            vals = _bundle_values(bn, d, u, NamedTuple(), Float64; y = products[ci],
+                                  ws = wss[ci], m = mstores[ci])
+            NamedTuple{tuple(keys(evs)...)}(map(tuple(keys(evs)...)) do name
+                σ = invoke_probed(evs[name].guard, :guard, path, c, CONTINUOUS, vals)
+                policy = σ isa Bool ? :boundary :
+                         σ isa Float64 ? :localized :
+                         throw(DiagnosticError(GuardForm(path = path, event = name,
+                                                    observed = typeof(σ))))
+                _check_handler(path, name,
+                    invoke_probed(evs[name].handler, :handler, path, c, CONTINUOUS, vals),
+                    d, c)
+                policy
+            end)
+        end
     end
 end
 
@@ -1048,7 +1149,7 @@ function _check_handler(path, name, ret, d::Decls, c)
     ret isa NamedTuple ||
         throw(DiagnosticError(ConformanceFailure(path = path, what = what, reason = :return_type,
                                             shape = :stores, observed = typeof(ret))))
-    m₀ = init_m(c)
+    m₀ = invoke_declaration(init_m, c)
     stores = Symbol[]
     isempty(d.x) || push!(stores, :x)
     isempty(m₀) || push!(stores, :m)
@@ -1299,7 +1400,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
     # instances still compile to one body; only the reference varies.
     sstores = Any[t === DISCRETE && !isempty(d.s) ? Ref(d.s) : nothing
                   for (d, t) in zip(decls, tiers)]
-    mstores = Any[isempty(init_m(c)) ? nothing : Ref(init_m(c)) for c in flat.comps]
+    mstores = _mstores(flat)
     wss = _workspaces(flat, tiers, T)
 
     store = StoreBundle(NamedTuple{tuple((_cell_key(L) for (L, _) in layout.sizes)...)}(
@@ -1420,10 +1521,10 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
     ev_localized = Bool[]
     if T === Float64
         for (ci, c) in enumerate(flat.comps)
-            evs = state_events(c)
+            evs = at_component(() -> invoke_declaration(state_events, c), flat.paths[ci])
             isempty(evs) && continue
             d = decls[ci]
-            bn = event_bundle_names(c)
+            bn = at_component(() -> event_bundle_names(c), flat.paths[ci])
             pj = has_stage(state_projection, c) ? state_projection : nothing
             for name in keys(evs)
                 push!(ev_entries, EventEntry{typeof(d.x),bn}(

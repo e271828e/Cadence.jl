@@ -275,8 +275,8 @@ scalar `S` is the one a continuous declaration is evaluated at — `Float64` for
 every reader but Stratum A's wire pass, which also reads it at the marker.
 """
 declared_at(fn, c, t::Tier, ::Type{S} = Float64) where {S} =
-    t === CONTINUOUS ? (_declares(fn, c, Type{Float64}) ? fn(c, S) : NamedTuple()) :
-                       (_declares(fn, c) ? fn(c) : NamedTuple())
+    t === CONTINUOUS ? (_declares(fn, c, Type{Float64}) ? invoke_declaration(fn, c, S) : NamedTuple()) :
+                       (_declares(fn, c) ? invoke_declaration(fn, c) : NamedTuple())
 
 # The tier's own update law (D-195). Everything downstream asks for it
 # *through* the tier, so no code path ever holds a name that serves both; the
@@ -306,10 +306,10 @@ function bundle_names(fn, c, t::Tier, stage1_ports::Tuple)
     update = update_of(t)
     names = Symbol[]
     if t === CONTINUOUS
-        !isempty(init_x(c)) && push!(names, :x)
-        !isempty(init_m(c)) && push!(names, :m)
+        !isempty(invoke_declaration(init_x, c)) && push!(names, :x)
+        !isempty(invoke_declaration(init_m, c)) && push!(names, :m)
     else
-        !isempty(init_s(c)) && push!(names, :s)
+        !isempty(invoke_declaration(init_s, c)) && push!(names, :s)
     end
     if fn === output_direct || fn === update
         !isempty(declared_at(input_types, c, t)) && push!(names, :u)
@@ -336,13 +336,41 @@ distinction: guards and handlers run against the complete fresh table.
 """
 function event_bundle_names(c)
     names = Symbol[]
-    !isempty(init_x(c)) && push!(names, :x)
-    !isempty(init_m(c)) && push!(names, :m)
+    !isempty(invoke_declaration(init_x, c)) && push!(names, :x)
+    !isempty(invoke_declaration(init_m, c)) && push!(names, :m)
     !isempty(declared_at(input_types, c, CONTINUOUS)) && push!(names, :u)
     !isempty(declared_at(output_types, c, CONTINUOUS)) && push!(names, :y)
     _declares_workspace(c, CONTINUOUS) && push!(names, :ws)
     push!(names, :t)
     tuple(names...)
+end
+
+# The maximal legal sets (§5.2, Appendix B), keyed by family and tier. A
+# component's bundle narrows one of these to declared reality.
+const LEGAL_BUNDLE = Dict(
+    (:output_state, CONTINUOUS)     => (:x, :m, :t, :ws),
+    (:output_direct, CONTINUOUS)    => (:x, :m, :u, :y_x, :t, :ws),
+    (:state_derivative, CONTINUOUS) => (:x, :m, :y, :u, :t, :ws),
+    (:output_state, DISCRETE)       => (:s, :t, :Δt, :ws),
+    (:output_direct, DISCRETE)      => (:s, :u, :y_s, :t, :Δt, :ws),
+    (:state_update, DISCRETE)       => (:s, :y, :u, :t, :Δt, :ws),
+    (:guard, CONTINUOUS)            => (:x, :m, :y, :u, :t, :ws),
+    (:handler, CONTINUOUS)          => (:x, :m, :y, :u, :t, :ws))
+
+# Every name any family may carry at a tier: the wrong-tier test's universe.
+_tier_names(t::Tier) = union((v for ((_, tt), v) in LEGAL_BUNDLE if tt === t)...)
+
+"""
+§5.2's three classes for a bundle field the component's bundle lacks: a name
+this family may carry that the component did not declare; a name this tier
+never carries but the other does (the state letters included, D-195); or a
+name illegal for this family, which is also every name from nowhere.
+"""
+function classify_bundle_field(family::Symbol, t::Tier, field::Symbol)
+    field in get(LEGAL_BUNDLE, (family, t), ()) && return :undeclared
+    field in _tier_names(t) && return :illegal_for_family
+    field in _tier_names(t === CONTINUOUS ? DISCRETE : CONTINUOUS) && return :wrong_tier
+    :illegal_for_family
 end
 
 # --- probe values (§9.3) -----------------------------------------------------

@@ -89,7 +89,7 @@ form, the bare field name applying one entry to every element of a container
 unchanged.
 """
 function _children(path::String, c)
-    tf = transparent_container(c)
+    tf = invoke_declaration(transparent_container, c)
     kids = Pair{String,Any}[]
     fields = Symbol[]
     prov = String[]                            # per child, who contributed it
@@ -454,8 +454,8 @@ end
 
 # The key set of a contract declaration, whichever arity declares it: the keys are
 # a tier-independent fact, and §8.2's classifier is what settles a disagreement.
-_contract(fn, c) = _declares(fn, c, Type{Float64}) ? fn(c, Float64) :
-                   _declares(fn, c) ? fn(c) : NamedTuple()
+_contract(fn, c) = _declares(fn, c, Type{Float64}) ? invoke_declaration(fn, c, Float64) :
+                   _declares(fn, c) ? invoke_declaration(fn, c) : NamedTuple()
 
 """
     input_faces(c) → Vector{String}
@@ -466,7 +466,7 @@ order is preserved: deterministic printouts, stable diagnostics (§13.3).
 """
 input_faces(c) = classify("", c) === PRIMITIVE ?
                  String[String(k) for k in keys(_contract(input_types, c))] :
-                 String[String(face) for (face, _) in input_connections(c)]
+                 String[String(face) for (face, _) in invoke_declaration(input_connections, c)]
 
 """
     output_faces(c) → Vector{String}
@@ -476,7 +476,7 @@ input_faces(c) = classify("", c) === PRIMITIVE ?
 """
 output_faces(c) = classify("", c) === PRIMITIVE ?
                   String[String(k) for k in keys(_contract(output_types, c))] :
-                  String[String(face) for (_, face) in output_connections(c)]
+                  String[String(face) for (_, face) in invoke_declaration(output_connections, c)]
 
 # --- §8.8's passthrough helpers -----------------------------------------------
 # `input_connections` and `output_connections` are ordinary functions evaluated
@@ -838,94 +838,101 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
                                                   mod = string(parentmodule(typeof(comp))),
                                                   names = foreign)))
     if classify(path, comp) === PRIMITIVE
-        push!(w.flat.paths, path)
-        push!(w.flat.comps, comp)
-        push!(w.flat.triples, scope)
-        # The store-form check (§8.2, D-247) gates the rest: the tier classifier
-        # and the two field checks read a store value as a `NamedTuple`, so a
-        # primitive that fails the form is read no further. The one tier
-        # classification (§8.2) follows: a failure is recorded and the walk
-        # carries `nothing` where the tier would be.
-        if check_store_form(path, comp, diags)
-            t = classify_tier(path, comp, diags)
-            check_stores(path, comp, diags)
-            check_state_leaves(path, comp, diags)
-        else
-            t = nothing                      # D-247: read no further
+        # Everything below reads this primitive's own declarations, so it runs
+        # under the component frame: an accessor's `UserCodeFraming` leaves the
+        # path empty and this is where the path is known (§13.2, D-248).
+        return at_component(path) do
+            push!(w.flat.paths, path)
+            push!(w.flat.comps, comp)
+            push!(w.flat.triples, scope)
+            # The store-form check (§8.2, D-247) gates the rest: the tier classifier
+            # and the two field checks read a store value as a `NamedTuple`, so a
+            # primitive that fails the form is read no further. The one tier
+            # classification (§8.2) follows: a failure is recorded and the walk
+            # carries `nothing` where the tier would be.
+            if check_store_form(path, comp, diags)
+                t = classify_tier(path, comp, diags)
+                check_stores(path, comp, diags)
+                check_state_leaves(path, comp, diags)
+            else
+                t = nothing                      # D-247: read no further
+            end
+            push!(w.tiers, t)
+            # A primitive at the root: its `input_types` keys are the model's root
+            # inputs, each face its own consuming entry (§8.6, §11.3, D-208), fed by
+            # the same pseudo-producer an assembly root's faces get.
+            if isempty(path)
+                _check_root_faces(comp, diags)
+                for face in keys(_contract(input_types, comp))
+                    push!(w.flat.root_inputs, face)
+                    _claim!(w, (path, face), ("", face),
+                            "the root component's `input_types` entry `$face`", diags)
+                end
+            end
+            t
         end
-        push!(w.tiers, t)
-        # A primitive at the root: its `input_types` keys are the model's root
-        # inputs, each face its own consuming entry (§8.6, §11.3, D-208), fed by
-        # the same pseudo-producer an assembly root's faces get.
-        if isempty(path)
-            _check_root_faces(comp, diags)
-            for face in keys(_contract(input_types, comp))
-                push!(w.flat.root_inputs, face)
-                _claim!(w, (path, face), ("", face),
-                        "the root component's `input_types` entry `$face`", diags)
+    end
+    at_component(path) do
+        st = invoke_declaration(sample_times, comp)
+        kids, fields = _children(path, comp)
+        _check_sample_times(path, st, kids, fields, diags)
+        for ((seg, kid), fld) in zip(kids, fields)
+            kidpath = _join(path, seg)
+            kscope, keyed = _child_scope(w, path, st, seg, fld, scope)
+            t = _walk!(w, kidpath, kid, kscope, diags)   # a primitive's tier, `nothing` for an assembly
+            # A key on a continuous child is the Δt-on-continuous error at
+            # declaration time (§8.7): keys name discrete or scope children only.
+            keyed && t === CONTINUOUS &&
+                push!(diags, RatesViolation(path = path, reason = :continuous_child,
+                                           key = Symbol(seg)))
+        end
+
+        # The boundary declarations are read only after the children are walked: a
+        # computed entry (`input_passthrough`, §8.8) classifies the child it names,
+        # and a shadowed child must meet its own check above first, at its own path
+        # (D-246).
+        _check_face_names(path, comp, diags)
+
+        for pair in invoke_declaration(child_connections, comp)
+            entry = _entry("child_connections", path, pair)
+            producer = resolve_source(w, entry, path, comp, first(pair), diags)
+            producer === nothing && continue   # recorded; the destination stays unfed
+            for consumer in resolve_dest(w, entry, path, comp, last(pair), diags)
+                _claim!(w, consumer, producer, entry, diags)
             end
         end
-        return t
-    end
-    st = sample_times(comp)
-    kids, fields = _children(path, comp)
-    _check_sample_times(path, st, kids, fields, diags)
-    for ((seg, kid), fld) in zip(kids, fields)
-        kidpath = _join(path, seg)
-        kscope, keyed = _child_scope(w, path, st, seg, fld, scope)
-        t = _walk!(w, kidpath, kid, kscope, diags)   # a primitive's tier, `nothing` for an assembly
-        # A key on a continuous child is the Δt-on-continuous error at
-        # declaration time (§8.7): keys name discrete or scope children only.
-        keyed && t === CONTINUOUS &&
-            push!(diags, RatesViolation(path = path, reason = :continuous_child,
-                                       key = Symbol(seg)))
-    end
 
-    # The boundary declarations are read only after the children are walked: a
-    # computed entry (`input_passthrough`, §8.8) classifies the child it names,
-    # and a shadowed child must meet its own check above first, at its own path
-    # (D-246).
-    _check_face_names(path, comp, diags)
-
-    for pair in child_connections(comp)
-        entry = _entry("child_connections", path, pair)
-        producer = resolve_source(w, entry, path, comp, first(pair), diags)
-        producer === nothing && continue   # recorded; the destination stays unfed
-        for consumer in resolve_dest(w, entry, path, comp, last(pair), diags)
-            _claim!(w, consumer, producer, entry, diags)
+        # Both boundary declarations are resolved wherever they appear, so their
+        # entries are checked at every level; only the root's input faces *feed*
+        # anything, there being no parent above them to claim the obligation.
+        for (face, inner) in invoke_declaration(input_connections, comp)
+            entry = _entry("input_connections", path, face => inner)
+            consumers = _fanout(w, entry, path, comp, inner, diags)
+            # Every entry routes to at least one internal endpoint, at every level
+            # (D-210): a face feeding nothing declares nothing, and the empty tuple
+            # would otherwise reach no consumer, leave no row in §9.2's face graph,
+            # and let a condition addressing it misdiagnose as a bare typo. Declared
+            # empty is the refusal; empty because every endpoint failed to resolve is
+            # already recorded, and registers nothing more.
+            if isempty(consumers)
+                isempty(_endpoints(inner)) &&
+                    push!(diags, UnknownPort(entry = entry, end_ = :connection, path = path,
+                                            port = Symbol(face)))
+                continue                       # a route with no consumer registers nothing
+            end
+            push!(w.routes, (path, Symbol(face), consumers))
+            isempty(path) || continue
+            push!(w.flat.root_inputs, Symbol(face))
+            for consumer in consumers
+                _claim!(w, consumer, ("", Symbol(face)), entry, diags)
+            end
         end
-    end
-
-    # Both boundary declarations are resolved wherever they appear, so their
-    # entries are checked at every level; only the root's input faces *feed*
-    # anything, there being no parent above them to claim the obligation.
-    for (face, inner) in input_connections(comp)
-        entry = _entry("input_connections", path, face => inner)
-        consumers = _fanout(w, entry, path, comp, inner, diags)
-        # Every entry routes to at least one internal endpoint, at every level
-        # (D-210): a face feeding nothing declares nothing, and the empty tuple
-        # would otherwise reach no consumer, leave no row in §9.2's face graph,
-        # and let a condition addressing it misdiagnose as a bare typo. Declared
-        # empty is the refusal; empty because every endpoint failed to resolve is
-        # already recorded, and registers nothing more.
-        if isempty(consumers)
-            isempty(_endpoints(inner)) &&
-                push!(diags, UnknownPort(entry = entry, end_ = :connection, path = path,
-                                        port = Symbol(face)))
-            continue                       # a route with no consumer registers nothing
+        for (src, face) in invoke_declaration(output_connections, comp)
+            entry = _entry("output_connections", path, src => face)
+            producer = resolve_source(w, entry, path, comp, src, diags)
+            producer === nothing && continue   # recorded; the face registers no row
+            push!(w.flat.out_faces, (path, Symbol(face)) => producer)
         end
-        push!(w.routes, (path, Symbol(face), consumers))
-        isempty(path) || continue
-        push!(w.flat.root_inputs, Symbol(face))
-        for consumer in consumers
-            _claim!(w, consumer, ("", Symbol(face)), entry, diags)
-        end
-    end
-    for (src, face) in output_connections(comp)
-        entry = _entry("output_connections", path, src => face)
-        producer = resolve_source(w, entry, path, comp, src, diags)
-        producer === nothing && continue   # recorded; the face registers no row
-        push!(w.flat.out_faces, (path, Symbol(face)) => producer)
     end
     nothing
 end
@@ -949,8 +956,8 @@ end
 
 # §8.6's two face-name invariants. Every other naming choice is author convention.
 function _check_face_names(path::String, comp, diags::Vector{Diagnostic})
-    names = vcat(String[String(face) for (face, _) in input_connections(comp)],
-                 String[String(face) for (_, face) in output_connections(comp)])
+    names = vcat(String[String(face) for (face, _) in invoke_declaration(input_connections, comp)],
+                 String[String(face) for (_, face) in invoke_declaration(output_connections, comp)])
     for n in names
         occursin('/', n) &&
             push!(diags, FaceNameIllegal(path = path, face = n, invariant = :contains_slash))

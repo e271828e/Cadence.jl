@@ -809,6 +809,231 @@ function build_port_type_refusals()
     end
 end
 
+# --- the user-code frame at the build (§13.2, D-248) --------------------------
+# The framing coverage set: a throw out of each probed function and out of each
+# kind of declaration, the seven bundle-law classes, the type match's negative,
+# and the two throws that pass through the frame unwrapped.
+
+# A stage that throws: the plain frame names the method, the bundle and the
+# probe's inputs.
+struct Thrower <: AbstractComponent end
+init_x(::Thrower) = (; a = 0.0)
+output_types(::Thrower, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::Thrower, (; x)) = error("boom")
+state_derivative(::Thrower, (; x)) = (; a = 0.0)
+
+# A throw out of each other probed function, one fixture each.
+struct ThrowingDerivative <: AbstractComponent end
+init_x(::ThrowingDerivative) = (; a = 0.0)
+output_types(::ThrowingDerivative, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::ThrowingDerivative, (; x)) = (p = x.a,)
+state_derivative(::ThrowingDerivative, (; x)) = error("derivative boom")
+
+struct ThrowingGuard <: AbstractComponent end
+init_x(::ThrowingGuard) = (; a = 0.0)
+output_types(::ThrowingGuard, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::ThrowingGuard, (; x)) = (p = x.a,)
+state_derivative(::ThrowingGuard, (; x)) = (; a = 0.0)
+throwing_guard(::ThrowingGuard, (; x)) = error("guard boom")
+throwing_guard_handler(::ThrowingGuard, (; x)) = (x = (; a = 0.0),)
+state_events(::ThrowingGuard) = (e = StateEvent(throwing_guard, throwing_guard_handler),)
+
+struct ThrowingHandler <: AbstractComponent end
+init_x(::ThrowingHandler) = (; a = 0.0)
+output_types(::ThrowingHandler, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::ThrowingHandler, (; x)) = (p = x.a,)
+state_derivative(::ThrowingHandler, (; x)) = (; a = 0.0)
+# A sign-form guard, so the probe reaches the handler with a policy in hand.
+throwing_handler_guard(::ThrowingHandler, (; x)) = x.a - 1.0
+throwing_handler(::ThrowingHandler, (; x)) = error("handler boom")
+state_events(::ThrowingHandler) = (e = StateEvent(throwing_handler_guard, throwing_handler),)
+
+struct ThrowingProjection <: AbstractComponent end
+init_x(::ThrowingProjection) = (; a = 0.0)
+output_types(::ThrowingProjection, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::ThrowingProjection, (; x)) = (p = x.a,)
+state_derivative(::ThrowingProjection, (; x)) = (; a = 0.0)
+state_projection(::ThrowingProjection, x) = error("projection boom")
+
+# Declarations that throw: the frame names the declaration and the walk's path.
+# One by value, one by type at `T`, one by allocation, one assembly declaration.
+# `BadInit` is taken (`test_devices.jl`), so the four read `Throwing*`.
+struct ThrowingInit <: AbstractComponent end
+init_x(::ThrowingInit) = error("init boom")
+state_derivative(::ThrowingInit, (; x)) = (; a = 0.0)
+
+struct ThrowingInputTypes <: AbstractComponent end
+init_x(::ThrowingInputTypes) = (; a = 0.0)
+input_types(::ThrowingInputTypes, ::Type{T}) where {T <: Real} = error("input_types boom")
+output_types(::ThrowingInputTypes, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::ThrowingInputTypes, (; x)) = (p = x.a,)
+state_derivative(::ThrowingInputTypes, (; x)) = (; a = 0.0)
+
+struct ThrowingWorkspace <: AbstractComponent end
+init_x(::ThrowingWorkspace) = (; a = 0.0)
+init_workspace(::ThrowingWorkspace, ::Type{T}) where {T <: Real} = error("workspace boom")
+output_types(::ThrowingWorkspace, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::ThrowingWorkspace, (; x)) = (p = x.a,)
+state_derivative(::ThrowingWorkspace, (; x)) = (; a = 0.0)
+
+struct ThrowingChildren <: AbstractComponent
+    inner::ScrambledDerivative
+end
+ThrowingChildren() = ThrowingChildren(ScrambledDerivative())
+child_connections(::ThrowingChildren) = error("child_connections boom")
+
+# Bundle-law misses, one per class and per direction (§5.2): the continuous
+# `output_state` reading `m` with no `init_m` (undeclared), `u` (illegal for
+# the family), `s` (wrong tier); a discrete `output_state` reading `x` (wrong
+# tier); a `state_derivative` reading `y_x` (illegal: that is `output_direct`'s
+# name) and `foo` (illegal, a name from nowhere); a guard reading `s`.
+struct ReadsM <: AbstractComponent end
+init_x(::ReadsM) = (; a = 0.0)
+output_types(::ReadsM, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::ReadsM, (; x, m)) = (p = x.a,)
+state_derivative(::ReadsM, (; x)) = (; a = 0.0)
+
+struct ReadsU <: AbstractComponent end
+init_x(::ReadsU) = (; a = 0.0)
+output_types(::ReadsU, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::ReadsU, (; x, u)) = (p = x.a,)
+state_derivative(::ReadsU, (; x)) = (; a = 0.0)
+
+struct ReadsS <: AbstractComponent end
+init_x(::ReadsS) = (; a = 0.0)
+output_types(::ReadsS, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::ReadsS, (; x, s)) = (p = x.a,)
+state_derivative(::ReadsS, (; x)) = (; a = 0.0)
+
+struct DiscreteReadsX <: AbstractComponent end
+init_s(::DiscreteReadsX) = (n = 0,)
+output_types(::DiscreteReadsX) = (p = Int,)
+output_state(::DiscreteReadsX, (; s, x)) = (p = s.n,)
+state_update(::DiscreteReadsX, (; s)) = (n = s.n + 1,)
+
+struct DerivativeReadsYx <: AbstractComponent end
+init_x(::DerivativeReadsYx) = (; a = 0.0)
+output_types(::DerivativeReadsYx, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::DerivativeReadsYx, (; x)) = (p = x.a,)
+state_derivative(::DerivativeReadsYx, (; x, y_x)) = (; a = 0.0)
+
+struct ReadsFoo <: AbstractComponent end
+init_x(::ReadsFoo) = (; a = 0.0)
+output_types(::ReadsFoo, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::ReadsFoo, (; x)) = (p = x.a,)
+state_derivative(::ReadsFoo, (; x, foo)) = (; a = 0.0)
+
+struct GuardReadsS <: AbstractComponent end
+init_x(::GuardReadsS) = (; a = 0.0)
+output_types(::GuardReadsS, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::GuardReadsS, (; x)) = (p = x.a,)
+state_derivative(::GuardReadsS, (; x)) = (; a = 0.0)
+guard_reads_s(::GuardReadsS, (; s)) = s.n > 0
+guard_reads_s_handler(::GuardReadsS, (; x)) = (x = (; a = 0.0),)
+state_events(::GuardReadsS) = (e = StateEvent(guard_reads_s, guard_reads_s_handler),)
+
+# The type match's negative: a `FieldError` on the author's own struct inside
+# a stage is not a bundle miss, and frames as the plain frame with the
+# `FieldError` as cause.
+struct Own; a::Float64; end
+struct OwnFieldMiss <: AbstractComponent end
+init_x(::OwnFieldMiss) = (; a = 0.0)
+output_types(::OwnFieldMiss, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::OwnFieldMiss, (; x)) = (p = Own(x.a).b,)
+state_derivative(::OwnFieldMiss, (; x)) = (; a = 0.0)
+
+# The pass-through: a carrier a framework call inside the stage threw, and an
+# interrupt, both leave the frame unwrapped.
+struct CarrierInside <: AbstractComponent end
+init_x(::CarrierInside) = (; a = 0.0)
+output_types(::CarrierInside, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::CarrierInside, (; x)) = (fragment(x = 1.0); (p = x.a,))
+state_derivative(::CarrierInside, (; x)) = (; a = 0.0)
+
+struct InterruptInside <: AbstractComponent end
+init_x(::InterruptInside) = (; a = 0.0)
+output_types(::InterruptInside, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::InterruptInside, (; x)) = throw(InterruptException())
+state_derivative(::InterruptInside, (; x)) = (; a = 0.0)
+
+function build_user_code_framing()
+    @testset "a throw out of a probed function is framed with the method, the bundle and the inputs (§13.2, D-248)" begin
+        err = failure(() -> build(single(Thrower())))
+        @test err isa DiagnosticError{UserCodeFraming}
+        d = diagnostic(err)
+        @test path(d) == "c" && d.fn == "output_state"
+        @test d.bundle == [:x, :t] && d.inputs == ""
+        @test d.cause isa ErrorException
+
+        @test diagnostic(failure(() -> build(single(ThrowingDerivative())))).fn ==
+              "state_derivative"
+        # The event bundle is the update law's view (§5.2): `x`, the table `y`, `t`.
+        d = diagnostic(failure(() -> build(single(ThrowingGuard()))))
+        @test d.fn == "guard" && d.bundle == [:x, :y, :t]
+        d = diagnostic(failure(() -> build(single(ThrowingHandler()))))
+        @test d.fn == "handler" && d.bundle == [:x, :y, :t]
+        # `state_projection` takes `x` positionally, so it frames as a declaration.
+        @test diagnostic(failure(() -> build(single(ThrowingProjection())))).fn ==
+              "state_projection"
+    end
+
+    @testset "a throw out of a declaration is framed with the walk's path (§13.2, D-248)" begin
+        err = failure(() -> build(single(ThrowingInit())))
+        @test err isa DiagnosticError{UserCodeFraming}
+        d = diagnostic(err)
+        @test d.fn == "init_x" && path(d) == "c" && isempty(d.bundle)
+        @test diagnostic(failure(() -> build(single(ThrowingInputTypes())))).fn == "input_types"
+        @test diagnostic(failure(() -> build(single(ThrowingWorkspace())))).fn == "init_workspace"
+        d = diagnostic(failure(() -> build(Group((; a = ThrowingChildren())))))
+        @test d.fn == "child_connections" && path(d) == "a"
+    end
+
+    @testset "a bundle field the bundle lacks is `BundleFieldError`, classified (§5.2, §13.2)" begin
+        err = failure(() -> build(single(ReadsM())))
+        @test err isa DiagnosticError{BundleFieldError}
+        d = diagnostic(err)
+        @test (d.family, d.field, d.reason) == ("output_state", :m, :undeclared)
+        @test d.legal == [:x, :t] && path(d) == "c" && d.tier === :continuous
+        for (c, family, field, reason) in
+                ((ReadsU(), "output_state", :u, :illegal_for_family),
+                 (ReadsS(), "output_state", :s, :wrong_tier),
+                 (DerivativeReadsYx(), "state_derivative", :y_x, :illegal_for_family),
+                 (ReadsFoo(), "state_derivative", :foo, :illegal_for_family),
+                 (GuardReadsS(), "guard", :s, :wrong_tier))
+            err = failure(() -> build(single(c)))
+            @test err isa DiagnosticError{BundleFieldError}
+            @test (diagnostic(err).family, diagnostic(err).field, diagnostic(err).reason) ==
+                  (family, field, reason)
+        end
+        err = failure(() -> build(single(DiscreteReadsX())))
+        @test err isa DiagnosticError{BundleFieldError}
+        d = diagnostic(err)
+        @test (d.family, d.field, d.reason) == ("output_state", :x, :wrong_tier)
+        @test d.tier === :discrete
+    end
+
+    @testset "the match is by the bundle's own type (§5.2)" begin
+        err = failure(() -> build(single(OwnFieldMiss())))
+        @test err isa DiagnosticError{UserCodeFraming}
+        @test diagnostic(err).cause isa FieldError
+    end
+
+    @testset "a carrier and an interrupt pass through the frame unwrapped (§13.2, D-248)" begin
+        @test failure(() -> build(single(CarrierInside()))) isa
+              DiagnosticError{ConditionNodeMisuse}
+        @test failure(() -> build(single(InterruptInside()))) isa InterruptException
+    end
+
+    @testset "`classify_bundle_field`'s three classes (§5.2, Appendix B)" begin
+        @test classify_bundle_field(:output_state, CONTINUOUS, :m) === :undeclared
+        @test classify_bundle_field(:output_state, CONTINUOUS, :u) === :illegal_for_family
+        @test classify_bundle_field(:output_state, CONTINUOUS, :Δt) === :wrong_tier
+        @test classify_bundle_field(:state_update, DISCRETE, :x) === :wrong_tier
+        @test classify_bundle_field(:guard, CONTINUOUS, :foo) === :illegal_for_family
+        @test length(LEGAL_BUNDLE) == 8
+    end
+end
+
 # --- tier classification (§8.2) -----------------------------------------------
 # Tier is read off the declaration shape. `DiscreteCounter` and `DiscreteMap` are
 # the two shapes the classifier has to separate (`fixtures.jl`, shared with the
@@ -1251,6 +1476,7 @@ end
 
 function test_build()
     build_probe_refusals()
+    build_user_code_framing()
     build_schedule()
     build_algebraic_cycles()
     build_auto_publication()

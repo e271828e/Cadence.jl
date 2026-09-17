@@ -949,6 +949,40 @@ message(d::GuardForm) =
     "`Bool`-valued (boundary-detected) or returns the continuous sign value (localized) " *
     "(§2.1, §10.4)"
 
+"§5.2, §13.2: a bundle field a component function destructured that its bundle does not carry, classified against the legal sets."
+Base.@kwdef struct BundleFieldError <: Diagnostic
+    path::String
+    family::String                           # "output_state" | "output_direct" | "state_derivative" | "state_update" | "guard" | "handler"
+    tier::Symbol                             # :continuous | :discrete
+    field::Symbol                            # the requested field
+    legal::Vector{Symbol}                    # the bundle's own field names, the list in hand
+    reason::Symbol                           # :undeclared | :wrong_tier | :illegal_for_family
+end
+path(d::BundleFieldError) = d.path
+
+# The declaration that would have put the field in the bundle (§5.2's iff
+# table). `y_x`/`y_s` name no declaration at all — a stage-1 port is a probe
+# discovery — so that arm gets its own sentence below.
+_bundle_declaration(f::Symbol) =
+    f === :x  ? "init_x"  : f === :s ? "init_s" : f === :m ? "init_m" :
+    f === :ws ? "init_workspace" : f === :u ? "input_types" :
+    f === :y  ? "output_types" : ""
+
+function message(d::BundleFieldError)
+    head = "$(_at_path(d.path)): `$(d.family)` destructures `$(d.field)`"
+    tail = " — the bundle carries $(_faceset(d.legal)) (§5.2"
+    if d.reason === :undeclared
+        decl = _bundle_declaration(d.field)
+        return head * ", but " * _at_path(d.path) *
+               (isempty(decl) ? " produces no stage-1 port" : " declares no `$decl`") *
+               tail * ")"
+    end
+    d.reason === :wrong_tier &&
+        return head * ", a $(d.tier === :continuous ? "discrete" : "continuous")-tier fact, " *
+               "and $(_at_path(d.path)) is $(d.tier)" * tail * ", D-195)"
+    head * ", which no `$(d.family)` bundle carries on the $(d.tier) tier" * tail * ")"
+end
+
 "§5.2, §9.5: a handler key naming no store the component declares."
 Base.@kwdef struct HandlerReturnKey <: Diagnostic
     path::String
@@ -961,6 +995,26 @@ message(d::HandlerReturnKey) =
     "`$(d.path)`: event `$(d.event)`'s handler returns `$(d.key)` — a handler's keys name " *
     "the stores it writes, and this component's are " *
     (isempty(d.stores) ? "none" : _namelist(d.stores)) * " (§5.2)"
+
+"§13.2, D-248: a throw out of a user-authored method the build invoked, framed with where it ran."
+Base.@kwdef struct UserCodeFraming <: Diagnostic
+    path::String = ""                        # empty until the component frame fills it
+    fn::String                               # the method's name
+    bundle::Vector{Symbol} = Symbol[]        # the bundle's field names; empty for a declaration
+    inputs::String = ""                      # the synthesized inputs as a spelling; empty without `u`
+    cause::Exception
+end
+path(d::UserCodeFraming) = d.path
+
+# The frame first, the raw throw second: the didactic sentence says where the
+# code ran, and `showerror` on the cause says what it said (§13.2).
+function message(d::UserCodeFraming)
+    head = isempty(d.bundle) ?
+        "$(_at_path(d.path)): `$(d.fn)` threw while the build read its declarations (§13.2)" :
+        "$(_at_path(d.path)): `$(d.fn)` threw during the build's probe — bundle " *
+        _faceset(d.bundle) * (isempty(d.inputs) ? "" : ", inputs $(d.inputs)") * " (§13.2)"
+    head * "\n  cause: " * sprint(showerror, d.cause)
+end
 
 # ==============================================================================
 # Deployment, periphery and services (§9.1, §11, §12, §13.5, §14)

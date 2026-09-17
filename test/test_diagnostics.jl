@@ -362,7 +362,11 @@ function diagnostics_kind_set()
             ConformanceFailure(path = "a/b", what = "event `e`'s handler", reason = :field_set,
                                shape = :mode, field = :k, declared_fields = [:m]),
             GuardForm(path = "a/b", event = :snap, observed = Int),
+            BundleFieldError(path = "a/b", family = "output_state", tier = :continuous,
+                             field = :m, legal = [:x, :t], reason = :undeclared),
             HandlerReturnKey(path = "a/b", event = :snap, key = :s, stores = [:x, :m]),
+            UserCodeFraming(path = "a/b", fn = "output_state", bundle = [:x, :t],
+                            inputs = "", cause = ErrorException("boom")),
             # Deployment, periphery and services
             MissingInit(op = :run!, status = :built),
             ServiceLifecycle(op = :attach!, status = :running, legal = [:built, :initialized]),
@@ -610,6 +614,30 @@ function diagnostics_kind_set()
         # The dead stage names the return it got and the stage it got it from.
         m = message(DeadStage(path = "a/b", stage = "output_state"))
         @test occursin("`(;)`", m) && occursin("output_state", m)
+
+        # The bundle law's three classes (§5.2, §13.2): each names what would have
+        # put the field in the bundle, and all three print the list in hand.
+        bfe(field, reason; family = "output_state", tier = :continuous) =
+            message(BundleFieldError(path = "a/b", family = family, tier = tier,
+                                     field = field, legal = [:x, :t], reason = reason))
+        m = bfe(:m, :undeclared)
+        @test occursin("init_m", m) && occursin("{x, t}", m)
+        m = bfe(:s, :wrong_tier)
+        @test occursin("discrete-tier fact", m) && occursin("{x, t}", m)
+        m = bfe(:u, :illegal_for_family)
+        @test occursin("no `output_state` bundle carries", m) && occursin("{x, t}", m)
+        # A stage-1 port names no declaration at all, so that arm says so.
+        @test occursin("produces no stage-1 port", bfe(:y_x, :undeclared,
+                                                       family = "output_direct"))
+
+        # The frame first, the raw throw second (§13.2, D-248).
+        m = message(UserCodeFraming(path = "a/b", fn = "output_state", bundle = [:x, :t],
+                                    cause = ErrorException("boom")))
+        @test occursin("output_state", m) && occursin("{x, t}", m)
+        @test occursin("boom", split(m, "cause:")[2])
+        @test occursin("read its declarations",
+                       message(UserCodeFraming(path = "a/b", fn = "init_x",
+                                               cause = ErrorException("boom"))))
 
         # A read miss that is name-shaped prints the list the site had in hand.
         m = message(ReadBindingUnresolved(binding = "Readout", selector = "get_output(\"p\", :nope)",
