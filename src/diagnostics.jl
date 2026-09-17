@@ -35,6 +35,14 @@ _typename(T::Type) =
 # A declared generic holding: `nameof` has no method, and `string` on the
 # variable qualifies its bound the same way interpolating a type does.
 _typename(v::TypeVar) = "$(v.name)<:$(_typename(v.ub))"
+# A plain-data type with its shape, for the two container kinds alone: the outer
+# name through `_typename` and every parameter spelled the same way, so a
+# `Tuple{Gain,Gain}` keeps its arity and stays unqualified. A port type is
+# interpolated whole (§13.2's exception), a label goes through `_typename`.
+_typespell(T::Type) =
+    !(T isa DataType) || isempty(T.parameters) ? _typename(T) :
+    _typename(T) * "{" *
+    join((p isa Type ? _typespell(p) : string(p) for p in T.parameters), ", ") * "}"
 
 """
 The kind's severity (§13.2, D-214): `:error` — an occurrence throws, alone or
@@ -486,7 +494,7 @@ Base.@kwdef struct ContainerMixed <: Diagnostic
     path::String
     field::Symbol
     keys::Vector{Any}                        # the non-component element keys or indices
-    types::Vector{String}                    # the unique non-component element types, by name (§13.2)
+    types::Vector{String}                    # the unique non-component element types, spelled with their shape (§13.2)
 end
 path(d::ContainerMixed) = d.path
 message(d::ContainerMixed) =
@@ -499,7 +507,7 @@ Base.@kwdef struct ContainerNested <: Diagnostic
     path::String
     field::Symbol
     keys::Vector{Any}                        # the offending element keys or indices
-    types::Vector{String}                    # their types, by name, one per key (§13.2)
+    types::Vector{String}                    # their types, spelled with their shape, one per key (§13.2)
 end
 path(d::ContainerNested) = d.path
 message(d::ContainerNested) =

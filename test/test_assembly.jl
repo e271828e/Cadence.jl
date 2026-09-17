@@ -187,7 +187,7 @@ function assembly_container_children()
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa ContainerNested && d.field === :units
-        @test d.keys == [1, 2] && d.types == ["Tuple", "Tuple"]   # by name (§13.2)
+        @test d.keys == [1, 2] && d.types == ["Tuple{Gain, Gain}", "Tuple{Gain}"]   # unqualified, with the shape (§13.2)
         # The NamedTuple form, at any depth, and beside inert data: the bearing
         # element alone is named.
         err = failure(() -> build(single(MixedContainer((a = (g = (Gain(1.0),),), b = 2.0)))))

@@ -290,7 +290,7 @@ function diagnostics_kind_set()
             ContainerMixed(path = "a", field = :kids, keys = Any[1, :b],
                            types = ["Int64", "Float64"]),
             ContainerNested(path = "a", field = :kids, keys = Any[1, :b],
-                            types = ["Tuple", "NamedTuple"]),
+                            types = ["Tuple{Gain, Gain}", "NamedTuple{(:c,), Tuple{Gain}}"]),
             DeclarationOnWrongTier(path = "a/b", declaration = :init_workspace, reason = :tier_form,
                                    found = :continuous, announced = :discrete),
             DeclarationOnWrongTier(path = "a/b", declaration = :state_projection, reason = :continuous_only,
