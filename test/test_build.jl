@@ -822,6 +822,13 @@ output_types(::Thrower, ::Type{T}) where {T <: Real} = (p = T,)
 output_state(::Thrower, (; x)) = error("boom")
 state_derivative(::Thrower, (; x)) = (; a = 0.0)
 
+# The same throw with a non-empty `u`: one input face, fed from a root input, so
+# the frame carries the synthesized inputs as a spelling.
+struct ThrowingDirect <: AbstractComponent end
+input_types(::ThrowingDirect, ::Type{T}) where {T <: Real} = (in = T,)
+output_types(::ThrowingDirect, ::Type{T}) where {T <: Real} = (p = T,)
+output_direct(::ThrowingDirect, (; u)) = error("direct boom")
+
 # A throw out of each other probed function, one fixture each.
 struct ThrowingDerivative <: AbstractComponent end
 init_x(::ThrowingDerivative) = (; a = 0.0)
@@ -983,6 +990,11 @@ function build_user_code_framing()
         @test d.bundle == [:x, :t] && d.inputs == ""
         @test d.cause isa ErrorException
 
+        # A fed face puts the synthesized inputs in the frame.
+        d = diagnostic(failure(() -> build(fed(ThrowingDirect(), :in))))
+        @test d.fn == "output_direct" && :u in d.bundle
+        @test d.inputs == sprint(show, (in = 0.0,); context = :compact => true)
+
         @test diagnostic(failure(() -> build(single(ThrowingDerivative())))).fn ==
               "state_derivative"
         # The event bundle is the update law's view (§5.2): `x`, the table `y`, `t`.
@@ -1000,8 +1012,10 @@ function build_user_code_framing()
         @test err isa DiagnosticError{UserCodeFraming}
         d = diagnostic(err)
         @test d.fn == "init_x" && path(d) == "c" && isempty(d.bundle)
-        @test diagnostic(failure(() -> build(single(ThrowingInputTypes())))).fn == "input_types"
-        @test diagnostic(failure(() -> build(single(ThrowingWorkspace())))).fn == "init_workspace"
+        d = diagnostic(failure(() -> build(single(ThrowingInputTypes()))))
+        @test d.fn == "input_types" && path(d) == "c"
+        d = diagnostic(failure(() -> build(single(ThrowingWorkspace()))))
+        @test d.fn == "init_workspace" && path(d) == "c"
         d = diagnostic(failure(() -> build(Group((; a = ThrowingChildren())))))
         @test d.fn == "child_connections" && path(d) == "a"
     end
@@ -1048,6 +1062,9 @@ function build_user_code_framing()
         @test classify_bundle_field(:output_state, CONTINUOUS, :Δt) === :wrong_tier
         @test classify_bundle_field(:state_update, DISCRETE, :x) === :wrong_tier
         @test classify_bundle_field(:guard, CONTINUOUS, :foo) === :illegal_for_family
+    end
+
+    @testset "the legal sets are Appendix B's eight rows (§5.2)" begin
         @test length(LEGAL_BUNDLE) == 8
     end
 end

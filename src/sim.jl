@@ -1135,11 +1135,17 @@ function _species(sim::Simulation, err::FieldError)
     ci, fam = cur.comp, cur.fn
     c, t = sim.build.flat.comps[ci], sim.build.tiers[ci]
     s1 = keys(sim.build.nominal.stage1[ci])
-    bn = fam === :guard || fam === :handler       ? event_bundle_names(c) :
-         fam === :output_state                    ? bundle_names(output_state, c, t, s1) :
-         fam === :output_direct                   ? bundle_names(output_direct, c, t, s1) :
-         fam === :state_derivative || fam === :state_update ? bundle_names(update_of(t), c, t, s1) :
-         return err
+    # Reading the names invokes declarations, and a throw here would replace the
+    # author's error, the cursor frame and the `StepError` with a frame of its own.
+    bn = try
+        fam === :guard || fam === :handler       ? event_bundle_names(c) :
+        fam === :output_state                    ? bundle_names(output_state, c, t, s1) :
+        fam === :output_direct                   ? bundle_names(output_direct, c, t, s1) :
+        fam === :state_derivative || fam === :state_update ? bundle_names(update_of(t), c, t, s1) :
+        return err
+    catch
+        return err
+    end
     # By names, not by the exact type: the runtime bundle's value types differ
     # from the probe's at a non-nominal activation, and the names are the law's
     # invariant (§5.2).

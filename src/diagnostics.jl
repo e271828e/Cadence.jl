@@ -961,8 +961,8 @@ end
 path(d::BundleFieldError) = d.path
 
 # The declaration that would have put the field in the bundle (§5.2's iff
-# table). `y_x`/`y_s` name no declaration at all — a stage-1 port is a probe
-# discovery — so that arm gets its own sentence below.
+# table). `y_x`/`y_s` name no declaration at all, a stage-1 port being a probe
+# discovery. That arm gets its own sentence below.
 _bundle_declaration(f::Symbol) =
     f === :x  ? "init_x"  : f === :s ? "init_s" : f === :m ? "init_m" :
     f === :ws ? "init_workspace" : f === :u ? "input_types" :

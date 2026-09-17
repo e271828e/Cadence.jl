@@ -796,9 +796,11 @@ function flatten!(w::Walk, root, diags::Vector{Diagnostic})
     # to resolve claimed nothing, so the input it should have fed is reported
     # here beside the refusal itself.
     for (path, c) in zip(w.flat.paths, w.flat.comps)
-        for face in keys(_contract(input_types, c))
-            haskey(w.feeds, (path, face)) ||
-                push!(diags, UnconnectedInput(path = path, face = face))
+        at_component(path) do
+            for face in keys(_contract(input_types, c))
+                haskey(w.feeds, (path, face)) ||
+                    push!(diags, UnconnectedInput(path = path, face = face))
+            end
         end
     end
     nothing

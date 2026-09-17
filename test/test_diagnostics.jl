@@ -638,6 +638,11 @@ function diagnostics_kind_set()
         @test occursin("read its declarations",
                        message(UserCodeFraming(path = "a/b", fn = "init_x",
                                                cause = ErrorException("boom"))))
+        # A non-empty `u` prints the synthesized inputs beside the bundle.
+        @test occursin("inputs (in = 0.0,)",
+                       message(UserCodeFraming(path = "a/b", fn = "output_direct",
+                                               bundle = [:u, :t], inputs = "(in = 0.0,)",
+                                               cause = ErrorException("boom"))))
 
         # A read miss that is name-shaped prints the list the site had in hand.
         m = message(ReadBindingUnresolved(binding = "Readout", selector = "get_output(\"p\", :nope)",

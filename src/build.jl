@@ -25,6 +25,12 @@ _passes_frame(e) = e isa DiagnosticError || e isa InternalInvariant || e isa Int
 The framing accessor for a declaration (§13.2, D-248): `fn(c, args...)`, a
 throw out of it framed as `UserCodeFraming` naming the method. The path is
 not known here; `at_component` fills it.
+
+A few reads stay bare because the build already invoked the same declaration
+through this accessor and it returned: `conditions.jl`'s `_resolve_entries`,
+`_store_bases` and `_declared_workspace`, `establish_defaults!` below,
+`children`, `resolve_authored` and `authored_chain` reaching `assembly.jl`'s
+`_children`, and `tracer.jl`'s sampled `_trace_direct`.
 """
 function invoke_declaration(fn, c, args...)
     try
@@ -57,8 +63,13 @@ function invoke_probed(fn, family::Symbol, path::String, c, t::Tier, bundle::Nam
     end
 end
 
-_inputs_spelling(b::NamedTuple) =
-    haskey(b, :u) ? sprint(show, b.u; context = :compact => true) : ""
+# One line, whatever the author's `show` does. A `show` that throws must not
+# replace the throw the frame is already carrying.
+function _inputs_spelling(b::NamedTuple)
+    haskey(b, :u) || return ""
+    try replace(sprint(show, b.u; context = :compact => true), '\n' => ' ')
+    catch; "<unshowable>" end
+end
 
 """
 The component frame (§13.2, D-248): runs `f()` for the component at `path`
@@ -904,8 +915,8 @@ function _stratum_c(flat::Flat, tiers::Vector{Tier}, order, carry, ::Type{T}) wh
     Activation{T}(decls, collect(stage1), published, products, layout), order
 end
 
-# Probe-scoped mode stores (§9.3), one read of `init_m` per component under the
-# component frame (§13.2, D-248) — the tip before the frame read it twice.
+# Probe-scoped mode stores (§9.3). One read of `init_m` per component, under the
+# component frame (§13.2, D-248).
 _mstores(flat::Flat) =
     Any[at_component(() -> (m = invoke_declaration(init_m, flat.comps[ci]);
                             isempty(m) ? nothing : Ref(m)), flat.paths[ci])
