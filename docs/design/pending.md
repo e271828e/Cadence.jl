@@ -24,6 +24,9 @@ Where the reason is not given here, the cited decision carries it:
 - **The Appendix C kinds whose mechanism is absent** — an absence gets no
   struct (`ThreadBudget`, `DeadStage`, `BundleFieldError`, `UserCodeFraming`,
   `UnboundedRun`; likewise `MissingProbeValue`, whose *check* is absent;
+  one `BundleFieldError` case to carry when it lands: `init_x(::C) = (;)`
+  beside a `state_derivative` is the fallback's own value, so the leaf reads
+  as stateless and the derivative is probed without `x`, a raw `FieldError`;
   `TapResolution` comes from the read register alone, never §14.10's absent
   tap register). One periphery refusal is still a plain `error(...)` with no
   kind — a datum naming no channel of a `TableBinding` (`bindings.jl` ~93):
