@@ -18,12 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **The §13.2 framing kinds**: `BundleFieldError` and `UserCodeFraming`,
-  raised at the probe and again as a `StepError` species at runtime, on the
-  `cause` conventions §13.2 fixes. One `BundleFieldError` case to carry when
-  it lands: `init_x(::C) = (;)` beside a `state_derivative` is the fallback's
-  own value, so the leaf reads as stateless and the derivative is probed
-  without `x`, a raw `FieldError`.
 - **Kinds carrying less than their Appendix C payload.** D-216 rules
   that the column is the design and the implementation's gaps stay visible
   as such, and it leaves the enumeration here: `FaceNameCollision` no

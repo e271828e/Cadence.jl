@@ -1113,7 +1113,7 @@ function _wrap_step(sim::Simulation, entry::Int, err)
     cur = sim.exec.cursor
     frame = CursorFrame(cur.comp == 0 ? nothing : sim.build.flat.paths[cur.comp],
                         cur.fn, cur.phase, cur.index)
-    StepError(frame, _seconds(sim.exec.clock.t), entry, _species(err))
+    StepError(frame, _seconds(sim.exec.clock.t), entry, _species(sim, err))
 end
 
 # The species rule (§13.4, D-221): a fail-fast carrier thrown inside the
@@ -1121,8 +1121,33 @@ end
 # check (§9.5's conformance failure, the nonfinite sweep) be a plain thrower
 # of its kind while the catch site stays the only wrap. A collected carrier has
 # no single kind and rides as the cause it is.
-_species(err) = err
-_species(err::DiagnosticError{<:Diagnostic}) = err.carried
+_species(::Simulation, err) = err
+_species(::Simulation, err::DiagnosticError{<:Diagnostic}) = err.carried
+
+# §13.2's bundle-field match at runtime (D-248): a `FieldError` whose type is the
+# bundle the cursor's function received is the bundle-law diagnostic, classified
+# as at the probe. Any other `FieldError` is the author's own and rides as the
+# cause it is. `UserCodeFraming` gets no runtime arm: the carrier already names
+# the frame and the function through the cursor.
+function _species(sim::Simulation, err::FieldError)
+    cur = sim.exec.cursor
+    cur.comp == 0 && return err
+    ci, fam = cur.comp, cur.fn
+    c, t = sim.build.flat.comps[ci], sim.build.tiers[ci]
+    s1 = keys(sim.build.nominal.stage1[ci])
+    bn = fam === :guard || fam === :handler       ? event_bundle_names(c) :
+         fam === :output_state                    ? bundle_names(output_state, c, t, s1) :
+         fam === :output_direct                   ? bundle_names(output_direct, c, t, s1) :
+         fam === :state_derivative || fam === :state_update ? bundle_names(update_of(t), c, t, s1) :
+         return err
+    # By names, not by the exact type: the runtime bundle's value types differ
+    # from the probe's at a non-nominal activation, and the names are the law's
+    # invariant (§5.2).
+    (err.type <: NamedTuple && fieldnames(err.type) == bn) || return err
+    BundleFieldError(path = sim.build.flat.paths[ci], family = String(fam),
+                     tier = t === CONTINUOUS ? :continuous : :discrete, field = err.field,
+                     legal = collect(bn), reason = classify_bundle_field(fam, t, err.field))
+end
 
 # The second host of §13.4's catch (D-223): boundary zero runs the loop's
 # user-code surfaces with the cursor maintained through them, so a throw inside

@@ -956,6 +956,24 @@ output_types(::InterruptInside, ::Type{T}) where {T <: Real} = (p = T,)
 output_state(::InterruptInside, (; x)) = throw(InterruptException())
 state_derivative(::InterruptInside, (; x)) = (; a = 0.0)
 
+# The lateness pair for the runtime arm (§13.4, exercised in `test_failures.jl`):
+# the probe only ever takes the early branch, so the build passes and the miss
+# surfaces at the frame loop.
+
+# A destructure the probe never sees: `m` is read only past t = 0.05.
+struct LateRead <: AbstractComponent end
+init_x(::LateRead) = (; a = 0.0)
+output_types(::LateRead, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::LateRead, b) = b.t > 0.05 ? (p = b.m.phase,) : (p = b.x.a,)
+state_derivative(::LateRead, (; x)) = (; a = 1.0)
+
+# The same lateness on the author's own struct: stays a raw `FieldError`.
+struct LateOwnMiss <: AbstractComponent end
+init_x(::LateOwnMiss) = (; a = 0.0)
+output_types(::LateOwnMiss, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::LateOwnMiss, b) = b.t > 0.05 ? (p = Own(b.x.a).b,) : (p = b.x.a,)
+state_derivative(::LateOwnMiss, (; x)) = (; a = 1.0)
+
 function build_user_code_framing()
     @testset "a throw out of a probed function is framed with the method, the bundle and the inputs (§13.2, D-248)" begin
         err = failure(() -> build(single(Thrower())))

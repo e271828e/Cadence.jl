@@ -156,6 +156,22 @@ function failures_runtime()
         @test e2 isa StepError{Detonated} && e2.boundary == 3
     end
 
+    @testset "a bundle field missed past the probe is a `BundleFieldError` species (§13.2, §13.4, D-248)" begin
+        sim = Simulation(single(LateRead()); h = 1//100)
+        init!(sim)
+        e = failure(() -> run!(sim; t_end = 0.2))
+        @test e isa StepError{BundleFieldError}
+        @test e.frame.fn === :output_state
+        d = diagnostic(e)
+        @test d.reason === :undeclared && d.field === :m && d.legal == [:x, :t]
+        @test lifecycle(sim) === :errored
+
+        # The author's own struct, missed just as late: unmatched, so the raw throw.
+        own = Simulation(single(LateOwnMiss()); h = 1//100)
+        init!(own)
+        @test failure(() -> run!(own; t_end = 0.2)) isa StepError{FieldError}
+    end
+
     @testset "a throw inside boundary zero takes the catch with pointer 0 (§13.4, D-223)" begin
         # The same mine, armed by the *authored* condition: the guard holds against
         # the not-holding prior boundary zero establishes, so the handler fires
