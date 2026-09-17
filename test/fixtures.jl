@@ -1182,6 +1182,21 @@ output_state(::GearSelector, (; s)) = (gear = iseven(s.n) ? up : down,)
 state_update(::GearSelector, (; s)) = (n = s.n + 1,)
 
 """
+A struct port with an enum leaf beside a walking one, returned from literals:
+the constant-branch idiom at a mixed-leaf port, which embeds leaf by leaf at
+a non-nominal activation (D-166).
+"""
+struct GearState{T}
+    h::T
+    gear::Gear
+end
+
+struct GearStateSource <: AbstractComponent end
+
+output_types(::GearStateSource, ::Type{T}) where {T <: Real} = (gs = GearState{T},)
+output_direct(::GearStateSource, (; t)) = (gs = GearState(1.0, down),)
+
+"""
 A consumer declaring an enum entry beside a `T` one: the enum pins, the real
 walks. `code` republishes the enum as its `Int`, which is what a test reads to
 tell which instance arrived.

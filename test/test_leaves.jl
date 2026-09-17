@@ -267,6 +267,8 @@ function leaves_retype()
         @test retype(D8, Int) === Int
         @test retype(Float64, SVector{2,Float64}) === SVector{2,Float64}
         @test retype_value(D8, (q = SVector(1.0, 2.0),)).q isa SVector{2,D8}
+        # Only `Float64` leaves lift; an `Int` or an enum beside them is pinned.
+        @test retype_value(D8, (h = 1.0, n = 3, g = down)) == (h = D8(1.0), n = 3, g = down)
 
         # The wire relation's lifted candidate retypes a declaration already
         # evaluated at `T`, so the walk is idempotent and passes through anything

@@ -235,10 +235,14 @@ function retype(::Type{T}, ::Type{P}) where {T,P}
     P.name.wrapper{(p isa Type ? retype(T, p) : p for p in P.parameters)...}
 end
 
-"""Value counterpart: the same value with its leaves converted to `T`."""
+"""
+Value counterpart: the same value with its `Float64` leaves converted to `T`.
+Every other leaf — a `Bool`, an `Int`, an enum, an opaque handle — is pinned
+by the type walk above and passes through untouched.
+"""
 function retype_value(::Type{T}, v) where {T}
     P = retype(T, typeof(v))
-    reconstruct(P, T[T(l) for l in _leaf_values(v)], 0)
+    reconstruct(P, Any[l isa Float64 ? T(l) : l for l in _leaf_values(v)], 0)
 end
 
 _leaf_values(v::Real) = (v,)

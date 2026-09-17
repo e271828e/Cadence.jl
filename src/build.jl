@@ -203,10 +203,15 @@ end
 What the cell will hold: an accepted `Float64` arrival stored into the
 activation buffer *is* a zero-partial, so the probe hands downstream the
 embedded value rather than the literal the stage returned. Without this the
-probe's product types diverge from the ones the runtime gather produces.
+probe's product types diverge from the ones the runtime gather produces. The
+lift is leaf by leaf, exactly where `_accepts` admitted it: a `Float64` leaf
+at a position `P` declares `T`; every other leaf, a pinned `Float64`, a `Bool`,
+an enum, passes through.
 """
 _embed(::Type{P}, v, ::Type{T}) where {P,T} =
-    typeof(v) === P ? v : reconstruct(P, T[T(l) for l in _leaf_values(v)], 0)
+    typeof(v) === P ? v :
+    reconstruct(P, Any[lt === T && l isa Float64 ? T(l) : l
+                       for (lt, l) in zip(leaf_types(P), _leaf_values(v))], 0)
 
 _embed_ports(y::NamedTuple, outs::NamedTuple, ::Type{T}) where {T} =
     NamedTuple{keys(y)}(map(n -> _embed(outs[n], y[n], T), keys(y)))

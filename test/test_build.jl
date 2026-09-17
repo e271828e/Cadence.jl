@@ -1012,6 +1012,14 @@ output_types(::ConstantBranch, ::Type{T}) where {T <: Real} = (out = T, vec = SV
 output_direct(::ConstantBranch, (; u)) = (out = u.in > 0 ? u.in : 0.0, vec = SVector(0.0, 1.0))
 
 function build_embed_accept()
+    @testset "a mixed-leaf port embeds leaf by leaf (§4.1, §9.4, D-166)" begin
+        # The enum leaf is pinned and passes through; the `Float64` beside it
+        # lifts to the activation scalar as a zero-partial.
+        b = build(Group((; c = GearStateSource())))
+        v = activation(b, D8).products[index_of(b.flat, "c")].gs
+        @test v isa GearState{D8} && v.gear === down && ForwardDiff.value(v.h) == 1.0
+    end
+
     @testset "embed-accept keeps the constant branch legal (D-166)" begin
         # Both ports return literal `Float64`s at a `Dual` activation — the scalar
         # through a branch not taken, the `SVector` wholesale.
