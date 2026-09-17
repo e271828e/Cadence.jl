@@ -80,7 +80,8 @@ Traps the code does not warn about, each hit more than once while building:
   `state_projection`, `init_m`, `init_workspace`, `sample_times`, the
   connection declarations) silently drops its feature. The diagnostic that
   would catch it, a foreign binding of a D-220 name in the component's
-  module found via `parentmodule(typeof(c))`, is proposed and not designed;
+  module found via `parentmodule(typeof(c))`, is D-246's fail-fast
+  `DeclarationShadowed`, not yet built (`pending.md`);
 - the suite reaches the framework through `test/imports.jl`'s `import Cadence:`
   list, so a test that calls or extends a name not on it fails with an
   `UndefVarError` — add the name there. A fixture reusing a framework name

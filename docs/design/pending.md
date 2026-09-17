@@ -18,9 +18,9 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **§8.1's shadowing check**, the forgotten-import diagnostic (M-B25). The
-  mechanism is `implementation.md`'s second caveat; it needs a decision entry
-  and an Appendix C payload on `ClassUnreadable`/`TierUnreadable`.
+- **§8.1's shadowing check**, the forgotten-import diagnostic (M-B25): D-246's
+  fail-fast `DeclarationShadowed` is ruled and rostered in Appendix C and not
+  built. The mechanism is `implementation.md`'s second caveat.
 - **The declaration side of the bundle law**: a non-bundle `init_x`/`init_s`
   refuses as a raw `MethodError` from `Decls`' field type (`build.jl` ~17);
   no Appendix C kind owns it, the return side has `ConformanceFailure`.
@@ -44,7 +44,6 @@ Where the reason is not given here, the cited decision carries it:
   as such, and it leaves the enumeration here: `FaceNameCollision` no
   per-entry provenance, `ContainerMixed` no element keys or indices,
   `UnconnectedInput` no declared entry type and no obligation-chain level,
-  `ClassUnreadable`/`StoreWithoutUpdate` no §8.1 shadowing note,
   `ClassUnreadable`/`TierUnreadable` no type and no declarations-found list,
   `ProducedByTwoStages` no stage names,
   `TransparentContainerUnknown` no container-field list,

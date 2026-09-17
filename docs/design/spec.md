@@ -1800,24 +1800,32 @@ After a bare `using`, `state_derivative(eng::Engine, …) = …` defines a new,
 unrelated `MyModule.state_derivative`, with no error and no warning. The
 declarations are deliberately unexported ([D-117][d-117]). A bare `using` therefore
 brings no name into scope for the definition to clash with, so there is nothing
-for the language to detect. The build then sees a component with no
-`state_derivative` method and reports a *modeling* diagnostic,
+for the language to detect. Left alone, the build would see a component with
+no `state_derivative` method and report a *modeling* diagnostic,
 `StoreWithoutUpdate`, or `ClassUnreadable` when the whole inventory was
-shadowed. A one-line namespace mistake is thereby reported far from the line
+shadowed. A one-line namespace mistake would be reported far from the line
 that caused it. That is the [§8.4][s8-4] inversion of [error locality](#g-error-locality) (the
 property that a mistake fails at the site of the mistake), arriving through the
 namespace.
 
 Two mitigations, both normative. The first is that the import list above is
 authoring surface, stated wherever a component file is first shown. The second
-is that the two diagnostics run a **shadowing check**. If the component's parent
-module defines a same-named function distinct from the framework's, the message
-says so and names the missing import: "`MyEngine`'s module defines its own
-`state_derivative`, distinct from `Flight.state_derivative` — add
+is a **shadowing check** in the structural walk ([§9.1][s9-1]), run on every
+component before its class is read ([D-246][d-246]). If the component's parent
+module holds a binding of a family name distinct from the framework's
+function, the build throws `DeclarationShadowed`, alone, naming the module,
+the foreign names and the missing import: "`MyEngine`'s module defines its
+own `state_derivative`, distinct from `Flight.state_derivative`; add
 `import Flight: state_derivative`". The check is a two-line `isdefined`/`!==`
-test on names the build already looks up. The family's names are distinctive
-by design ([D-220][d-220]), so a foreign binding of one of them in a component's
-module is evidence of the missing import, not a coincidence.
+test on the family's names. Those names are distinctive by design
+([D-220][d-220]), so a foreign binding of one of them in a component's module
+is evidence of the missing import, not a coincidence. The check throws alone
+because nothing the module declares can be trusted. Every declaration it
+holds may have gone to a foreign function, and a walk past it would only
+report cascades of the one cause. It runs on every component rather than
+only where an absence is noticed, because an optional declaration such as
+`state_events` or `sample_times` has no absence to notice. Shadowed, it would
+drop its feature silently.
 
 A convenience macro expanding to the import list remains addable a posteriori
 as sugar, per this section's macro doctrine. A re-export submodule is not an
@@ -1852,9 +1860,8 @@ level.
 
 The net holds under a *partially* shadowed component too, because `output_types`
 is still a declaration. A component whose [ports](#g-port) are declared but whose
-stage went to a local binding reads as "declared but not produced" ([§8.3][s8-3]),
-with the shadowing note attached, rather than as a component with nothing to
-say.
+stage went to a local binding reads as "declared but not produced" ([§8.3][s8-3])
+rather than as a component with nothing to say.
 
 #### Declarations are the schema authority
 
@@ -10794,17 +10801,18 @@ with the collection and never trigger its throw, is currently empty
   vocabulary (scalar / `SArray` at the common eltype).
 - **`StoreWithoutUpdate`** ([§8.2][s8-2]). Error · build · collected.
   Component path, the `init_x` or `init_s` store, the missing update (no
-  `state_derivative` for the one, no `state_update` for the other); a
-  shadowing note when the parent module defines its own
-  `state_derivative`/`state_update` ([§8.1][s8-1]).
+  `state_derivative` for the one, no `state_update` for the other).
 - **`EventHalfMissing`** ([§8.2][s8-2]). Error · build · collected. Component
   path, event name, reason (guard half missing / handler half missing / the
   entry is not a `StateEvent`), the function that has no method or the
   entry's type.
+- **`DeclarationShadowed`** ([§8.1][s8-1], [D-246][d-246]). Error · build ·
+  fail-fast. Component path, the parent module, the family names the module
+  binds to something other than the framework's function, the import line
+  that fixes them.
 - **`ClassUnreadable`** ([§8.5][s8-5]). Error · build · fail-fast. Component
   path, type, declarations found, both family lists; did-you-mean when the
-  type holds component-typed fields; a shadowing note when the parent module
-  defines same-named declaration functions ([§8.1][s8-1]).
+  type holds component-typed fields.
 - **`ClassMixed`** ([§8.5][s8-5]). Error · build · fail-fast. Component path,
   the `child_connections` declaration and the offending leaf declarations.
 - **`ContainerMixed`** ([§8.5][s8-5]). Error · build · fail-fast. Container
@@ -12259,6 +12267,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-243]: decisions.md#d-243--classify-symbol-as-an-opaque-port-leaf
 [d-244]: decisions.md#d-244--refuse-the-write-primitives-of-a-detached-handle-by-name
 [d-245]: decisions.md#d-245--classify-a-cycle-cluster-by-a-surviving-traced-cycle-and-carry-each-members-tracing-mode
+[d-246]: decisions.md#d-246--diagnose-a-foreign-declaration-binding-as-its-own-fail-fast-kind
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
