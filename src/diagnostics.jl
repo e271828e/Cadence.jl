@@ -687,6 +687,21 @@ function message(d::IllegalPortType)
     "$(_at_path(d.path)): $site `$(d.name)` declares $(d.declared), which has no leaves"
 end
 
+"§8.2, D-247: a store declaration returning something other than a `NamedTuple`, the one admitted form."
+Base.@kwdef struct StoreNotNamedTuple <: Diagnostic
+    path::String
+    store::Symbol                            # :init_x | :init_s | :init_m
+    declared::Any                            # the observed type
+end
+path(d::StoreNotNamedTuple) = d.path
+function message(d::StoreNotNamedTuple)
+    wrap = d.store === :init_x ? "(; ω = 0.0)" :
+           d.store === :init_s ? "(; n = 0)" : "(; phase = :idle)"
+    "$(_at_path(d.path)): `$(d.store)` returns a `$(d.declared)`, not a NamedTuple — a " *
+    "store is declared by initial value as named fields, one leaf per field, " *
+    "`$(d.store)(::C) = $wrap` (§8.2)"
+end
+
 "§7.1, §8.2, D-094: an `init_x` field outside the closed vocabulary — a mode value, a real off the common eltype, a nested `NamedTuple`, or a wrapper type."
 Base.@kwdef struct IllegalStateLeaf <: Diagnostic
     path::String

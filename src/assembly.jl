@@ -841,12 +841,19 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
         push!(w.flat.paths, path)
         push!(w.flat.comps, comp)
         push!(w.flat.triples, scope)
-        # The one tier classification (§8.2): a failure is recorded and the walk
+        # The store-form check (§8.2, D-247) gates the rest: the tier classifier
+        # and the two field checks read a store value as a `NamedTuple`, so a
+        # primitive that fails the form is read no further. The one tier
+        # classification (§8.2) follows: a failure is recorded and the walk
         # carries `nothing` where the tier would be.
-        t = classify_tier(path, comp, diags)
+        if check_store_form(path, comp, diags)
+            t = classify_tier(path, comp, diags)
+            check_stores(path, comp, diags)
+            check_state_leaves(path, comp, diags)
+        else
+            t = nothing                      # D-247: read no further
+        end
         push!(w.tiers, t)
-        check_stores(path, comp, diags)
-        check_state_leaves(path, comp, diags)
         # A primitive at the root: its `input_types` keys are the model's root
         # inputs, each face its own consuming entry (§8.6, §11.3, D-208), fed by
         # the same pseudo-producer an assembly root's faces get.

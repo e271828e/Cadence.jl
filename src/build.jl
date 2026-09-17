@@ -68,6 +68,20 @@ function check_state_leaves(path::String, c, diags::Vector{Diagnostic})
     end
 end
 
+# §8.2, D-247: every by-value store is a `NamedTuple`, and the classifier and
+# the two field checks below read it as one. Returns whether this primitive
+# can be read further; the fallbacks return `NamedTuple()` and pass.
+function check_store_form(path::String, c, diags::Vector{Diagnostic})
+    ok = true
+    for (name, fn) in ((:init_x, init_x), (:init_s, init_s), (:init_m, init_m))
+        v = fn(c)
+        v isa NamedTuple && continue
+        push!(diags, StoreNotNamedTuple(path = path, store = name, declared = typeof(v)))
+        ok = false
+    end
+    ok
+end
+
 # §7.3, D-231: every store field is isbits or a `Symbol`, checked on both stores.
 function check_stores(path::String, c, diags::Vector{Diagnostic})
     for (store, nt) in ((:init_s, init_s(c)), (:init_m, init_m(c)))

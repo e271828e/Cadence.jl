@@ -18,9 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **The declaration side of the bundle law**: a non-bundle `init_x`/`init_s`
-  refuses as a raw `MethodError` from `Decls`' field type (`build.jl` ~17);
-  no Appendix C kind owns it, the return side has `ConformanceFailure`.
 - **Two surface names do not exist**: there is no `condition` generic (two
   model packages defining one would define two functions, breaking §14.2's
   pull composition), and `ProbeDual`/`ProbeTag` are not names (M-B23).

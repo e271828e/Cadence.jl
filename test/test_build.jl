@@ -917,9 +917,34 @@ end
 # an event missing its handler. `HalfEvent` is `test_events.jl`'s, which this
 # file precedes, so the children are a `Group`'s values rather than a struct's
 # declared fields.
-merged_failures() = Group((; g = Gain(1.0), s = Sum(), n = NoFlow(), h = HalfEvent());
+merged_failures() = Group((; g = Gain(1.0), s = Sum(), n = NoFlow(), h = HalfEvent(),
+                             f = BareState());
                           wires = ("g/ot" => "s/a",),
                           inputs = ("e" => "g/e", "b" => "s/b"))
+
+# A store that is not a `NamedTuple` (§8.2, D-247), one per store. `BareVector`
+# is the value that segfaulted the generated `reconstruct` before the check;
+# `BareModes` is the one that built silently. Each carries its update law and
+# a vocabulary fault in another store, so the only finding is the form: the
+# field checks do not read a primitive the form check refused.
+struct BareState <: AbstractComponent end
+init_x(::BareState) = zeros(SVector{3})
+state_derivative(::BareState, (; x)) = zeros(SVector{3})
+
+struct BareVector <: AbstractComponent end
+init_x(::BareVector) = [1.0]
+state_derivative(::BareVector, (; x)) = [0.0]
+
+struct BareDiscrete <: AbstractComponent end
+init_s(::BareDiscrete) = 0.0
+output_types(::BareDiscrete) = (a = Float64,)
+output_state(::BareDiscrete, (; s)) = (a = s,)
+state_update(::BareDiscrete, (; s)) = s
+
+struct BareModes <: AbstractComponent end
+init_x(::BareModes) = (gear_count = 3,)      # `IllegalStateLeaf`, were it read
+init_m(::BareModes) = 1
+state_derivative(::BareModes, (; x)) = (gear_count = 0,)
 
 struct LabelInStore <: AbstractComponent end   # a `String` in `init_s` (D-231)
 init_s(::LabelInStore) = (n = 0, phase = :armed, label = "armed")
@@ -983,14 +1008,32 @@ function build_store_values()
     end
 end
 
+function build_store_form()
+    @testset "a store declaration is a NamedTuple, checked before the stores are read (§8.2, §9.1, D-247)" begin
+        # One throw for the model, each bare store named with the store at fault
+        # and the type it returned. `BareModes`' `gear_count` raises no
+        # `IllegalStateLeaf`: the form check refused the primitive, and the
+        # vocabulary check never read it.
+        err = failure(() -> build(Group((; a = BareState(), b = BareVector(),
+                                          c = BareDiscrete(), d = BareModes()))))
+        ds = diagnostics(err)
+        @test all(d -> d isa StoreNotNamedTuple, ds)
+        @test Set(kinds(err)) == Set([StoreNotNamedTuple])
+        @test Set((d.path, d.store, d.declared) for d in ds) ==
+              Set([("a", :init_x, SVector{3,Float64}), ("b", :init_x, Vector{Float64}),
+                   ("c", :init_s, Float64), ("d", :init_m, Int)])
+    end
+end
+
 function build_stratum_a()
     @testset "every Stratum A pass that ran merges into one throw (§13.1, D-229)" begin
-        # The wiring walk, the obligation check, tier classification and event
-        # declarations each read a result the others did not spoil, so all four
-        # run and the model is refused once.
+        # The wiring walk, the obligation check, tier classification, the event
+        # declarations and the store form each read a result the others did not
+        # spoil, so all five run and the model is refused once.
         err = failure(() -> build(merged_failures()))
         @test Set(kinds(err)) ==
-              Set([UnknownPort, UnconnectedInput, StoreWithoutUpdate, EventHalfMissing])
+              Set([UnknownPort, UnconnectedInput, StoreWithoutUpdate, EventHalfMissing,
+                   StoreNotNamedTuple])
     end
 end
 
@@ -1117,6 +1160,7 @@ function test_build()
     build_label_ports()
     build_tier()
     build_store_values()
+    build_store_form()
     build_state_leaves()
     build_stratum_a()
     build_embed_accept()

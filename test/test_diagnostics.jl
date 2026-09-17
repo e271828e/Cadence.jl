@@ -321,6 +321,7 @@ function diagnostics_kind_set()
                             reason = :mutable, position = "p.z"),
             IllegalPortType(path = "", site = :root_input, name = :terrain, declared = Nothing,
                             reason = :handle_at_root),
+            StoreNotNamedTuple(path = "a/b", store = :init_x, declared = Float64),
             IllegalStoreField(path = "a/b", store = :init_s, name = :label, declared = String),
             IllegalStateLeaf(path = "a/b", name = :gear_count, declared = Int, reason = :mode_value),
             IllegalStateLeaf(path = "a/b", name = :q, declared = Float32, reason = :eltype),
@@ -603,6 +604,10 @@ function diagnostics_kind_set()
         m = message(DeclarationShadowed(path = "a/b", mod = "Main.MyModel",
                                         names = [:init_x, :output_types]))
         @test occursin("import Cadence: init_x, output_types", m)
+
+        # A bare store value (§8.2, D-247) spells the wrap for the store at fault.
+        m = message(StoreNotNamedTuple(path = "a/b", store = :init_x, declared = Float64))
+        @test occursin("init_x(::C) = (; ω = 0.0)", m)
 
         # The forgotten-`T` hint on the input side (§6.1, §8.2, D-236) states the
         # fix by name.
