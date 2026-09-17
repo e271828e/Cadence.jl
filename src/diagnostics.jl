@@ -617,7 +617,7 @@ end
 """
 §9.3, D-051: a root input whose type the synthesis chain cannot produce a probe
 value for. Every `MethodError` out of `probe_value` reports as this kind, an
-author's own override included: that is the conservative reading of §9.3's "no
+author's own override included. That is the conservative reading of §9.3's "no
 method is a build error".
 """
 Base.@kwdef struct MissingProbeValue <: Diagnostic
@@ -1221,7 +1221,8 @@ function message(d::ReadBindingUnresolved)
     d.reason === :unknown_cell &&
         return "$(d.binding) reads $(d.selector), which names no cell — " *
                (isempty(d.candidates) ?
-                "$(_at_path(d.path)) has no cells" :
+                "$(_at_path(d.path)) has no cells; only declared outputs, assembly " *
+                "faces and root inputs are addressable" :
                 "the cells at $(_at_path(d.path)) are $(_faceset(d.candidates))") * " (§14.4)"
     d.reason === :unknown_root_input &&
         return "$(d.binding) reads $(d.selector), which names no root input face — the " *

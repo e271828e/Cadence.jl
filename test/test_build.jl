@@ -689,6 +689,12 @@ function build_wire_clauses()
     end
 end
 
+# --- the port type the walk cannot lay out (§4.3, §4.4, D-237) ----------------
+# `IllegalPortType`'s other two arms, both raised by `cell_layout`: a mutable
+# type anywhere the walk visits, and a handle-typed face surfacing as a root
+# input, which has no producer and no synthesis. The fixtures are in
+# `fixtures.jl`, shared with `test_store.jl`.
+
 # A product-type root input with `Real` leaves and no zero-argument constructor
 # (§9.3, D-051): it passes the handle check and reaches the synthesis chain's
 # last arm, `P()`. `WithProbe` is the same shape with the remedy the message names.
@@ -710,12 +716,6 @@ struct Synthesized <: AbstractComponent end
 input_types(::Synthesized, ::Type{T}) where {T <: Real} = (q = WithProbe{T},)
 output_types(::Synthesized, ::Type{T}) where {T <: Real} = (s = T,)
 output_direct(::Synthesized, (; u)) = (s = u.q.a + u.q.b,)
-
-# --- the port type the walk cannot lay out (§4.3, §4.4, D-237) ----------------
-# `IllegalPortType`'s other two arms, both raised by `cell_layout`: a mutable
-# type anywhere the walk visits, and a handle-typed face surfacing as a root
-# input, which has no producer and no synthesis. The fixtures are in
-# `fixtures.jl`, shared with `test_store.jl`.
 
 function build_port_type_refusals()
     @testset "a mutable port and a handle at root are refused (§4.4, D-237)" begin
@@ -742,9 +742,18 @@ function build_port_type_refusals()
         @test d isa IllegalPortType && d.site === :root_input
         @test d.reason === :mutable && d.position == "" && d.declared === Matrix{Float64}
 
-        # A root input the synthesis chain cannot value is `MissingProbeValue`,
-        # collected (§9.3, D-051): the chain's last arm is `P()`, and `NoDefault`
-        # has no zero-argument constructor.
+        # Placement collects, so one model reports both and throws once.
+        err2 = failure(() -> build(Group((; c = MutableSource(), q = Query());
+                                         inputs = ("terrain" => "q/terrain",))))
+        @test err2 isa DiagnosticError
+        ds = diagnostics(err2)
+        @test length(ds) == 2 && all(d -> d isa IllegalPortType, ds)
+        @test Set(d.reason for d in ds) == Set([:mutable, :handle_at_root])
+    end
+
+    @testset "a root input the synthesis chain cannot value is `MissingProbeValue`, collected (§9.3, D-051)" begin
+        # The chain's last arm is `P()`, and `NoDefault` has no zero-argument
+        # constructor.
         err = failure(() -> build(Group((; c = Unsynthesized()); inputs = ("in" => "c/q",))))
         d = only(diagnostics(err))
         @test d isa MissingProbeValue
@@ -756,19 +765,11 @@ function build_port_type_refusals()
         @test (:in, WithProbe(0.0, 1.0)) in b.nominal.layout.root_inputs
 
         # Collected: two unsynthesizable faces are one throw carrying both.
-        err3 = failure(() -> build(Group((; a = Unsynthesized(), b = Unsynthesized());
+        err2 = failure(() -> build(Group((; a = Unsynthesized(), b = Unsynthesized());
                                          inputs = ("in1" => "a/q", "in2" => "b/q"))))
-        ds3 = diagnostics(err3)
-        @test length(ds3) == 2 && all(d -> d isa MissingProbeValue, ds3)
-        @test Set(d.face for d in ds3) == Set([:in1, :in2])
-
-        # Placement collects, so one model reports both and throws once.
-        err2 = failure(() -> build(Group((; c = MutableSource(), q = Query());
-                                         inputs = ("terrain" => "q/terrain",))))
-        @test err2 isa DiagnosticError
-        ds = diagnostics(err2)
-        @test length(ds) == 2 && all(d -> d isa IllegalPortType, ds)
-        @test Set(d.reason for d in ds) == Set([:mutable, :handle_at_root])
+        ds2 = diagnostics(err2)
+        @test length(ds2) == 2 && all(d -> d isa MissingProbeValue, ds2)
+        @test Set(d.face for d in ds2) == Set([:in1, :in2])
     end
 
     @testset "an opaque leaf is accepted by identity alone (D-237)" begin

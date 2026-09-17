@@ -150,15 +150,16 @@ end
 
 _root_input_names(layout::Layout) = Symbol[f for (f, _) in layout.root_inputs]
 
-# The two name-shaped read misses' candidate lists (§14.4): the cells at the
-# selector's path — an assembly path lists its faces, the alias pass having
-# entered them into `addr` — and the root-exported output faces, the names at the
-# root that are not root inputs.
+# The two name-shaped read misses carry candidate lists (§14.4). One lists the
+# cells at the selector's path, and an assembly path lists its faces, which the
+# alias pass entered into `addr`. The other lists the root-exported output faces,
+# the names at the root that are not root inputs.
 _cells_at(layout::Layout, p::AbstractString) =
     sort!(Symbol[n for (q, n) in keys(layout.addr) if q == p])
-_root_output_faces(layout::Layout) =
-    sort!(Symbol[n for (q, n) in keys(layout.addr)
-                 if q == "" && n ∉ _root_input_names(layout)])
+function _root_output_faces(layout::Layout)
+    inputs = _root_input_names(layout)
+    sort!(Symbol[n for (q, n) in keys(layout.addr) if q == "" && n ∉ inputs])
+end
 
 # §14.4's source rule, enforced where the source is known: a snapshot carries
 # no state stores by construction (§11.2) and `ẋ` is integrator scratch, so a

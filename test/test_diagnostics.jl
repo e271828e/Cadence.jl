@@ -605,6 +605,7 @@ function diagnostics_kind_set()
         # and both remedies (§9.3, D-051).
         m = message(MissingProbeValue(face = :pilot, declared = NamedTuple{(:a,),Tuple{Float64}}))
         @test occursin("probe_value(::Type{", m) && occursin("zero-argument constructor", m)
+        @test occursin("at face `pilot`", m) && occursin("Float64", m)
 
         # The dead stage names the return it got and the stage it got it from.
         m = message(DeadStage(path = "a/b", stage = "output_state"))
