@@ -960,12 +960,11 @@ end
 child_connections(::OpaqueHold) = ()
 
 # --- the fragment-function idiom (§14.2) ----------------------------------------
-# User-idiom material, not framework API: `condition` is an ordinary function
-# dispatched on the component, shipped beside it, and nothing in `src/` outside
-# this file knows the name exists. What it buys is locality — the caller says
-# "start the plant at this displacement", and only `Plant` knows displacement and
-# rate pack into `q` — composed by *pull* from the structure's owner, never by a
-# schema routing sub-specs down the tree (D-064).
+# Methods of the framework's `condition` generic, one per component, shipped
+# beside it. What the idiom buys is locality — the caller says "start the plant
+# at this displacement", and only `Plant` knows displacement and rate pack into
+# `q` — composed by *pull* from the structure's owner, never by a schema routing
+# sub-specs down the tree (D-064).
 
 """The plant's own vocabulary: displacement and rate, which it packs into `q`."""
 condition(::Plant; y = 0.0, v = 0.0) = fragment(x = (q = SVector(y, v),))
@@ -1344,6 +1343,11 @@ state_derivative(c::Pendulum, (; x, u)) = (θ = x.ω, ω = -c.g_l * sin(x.θ) - 
 
 """The pendulum's own vocabulary, in the fragment-function idiom (§14.2)."""
 condition(::Pendulum; θ = 0.0, ω = 0.0) = fragment(x = (θ = θ, ω = ω))
+
+"""A component that ships no fragment function: the owner's pull fails on it by name."""
+struct Voiceless <: AbstractComponent end
+init_x(::Voiceless) = (; a = 0.0)
+state_derivative(::Voiceless, (; x)) = (; a = 0.0)
 
 # --- the forgotten-import fixtures (§8.1, D-246) --------------------------------
 

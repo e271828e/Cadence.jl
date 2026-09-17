@@ -18,9 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **Two surface names do not exist**: there is no `condition` generic (two
-  model packages defining one would define two functions, breaking §14.2's
-  pull composition), and `ProbeDual`/`ProbeTag` are not names (M-B23).
 - **The Appendix C kinds whose mechanism is absent** — an absence gets no
   struct (`ThreadBudget`, `DeadStage`, `BundleFieldError`, `UserCodeFraming`,
   `UnboundedRun`; likewise `MissingProbeValue`, whose *check* is absent;

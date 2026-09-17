@@ -50,6 +50,19 @@ end
 const ConditionNode = Union{Fragment,Scoped,Combined,Override}
 
 """
+    condition(c; kw...)
+
+The fragment function's generic (§14.2, Appendix B). A component ships its
+initialization vocabulary as a method, `condition(::C; kw...) = fragment(…)`,
+and the owner of a structure pulls its children's under `at`. The generic is
+framework-owned so that pull crosses a package seam; a model package extends
+it through `import Cadence: condition`, as it extends the declaration family
+(§8.1). No fallback method: a child without one fails at the owner's pull as
+a `MethodError` naming it.
+"""
+function condition end
+
+"""
     fragment(; x = (;), s = (;), m = (;), inputs = (;))
 
 The leaf constructor of the condition tree (§14.2, Appendix B). Payloads are

@@ -1127,12 +1127,23 @@ function build_activations()
         sims = Simulation(single(ClockStamp()), D8; h = 1//100)
         @test port(sims, "c", :stamp) === 0.0
 
+        # The framework's canonical probe scalar (§9.4): concrete, so it can key
+        # an activation, and one partial wide, because what CI pins is genericity
+        # and not any particular Jacobian.
+        @test isconcretetype(ProbeDual)
+        @test ProbeDual <: ForwardDiff.Dual && ForwardDiff.npartials(ProbeDual) == 1
+        @test haskey(build(pair(); activations = (Float64, ProbeDual)).cache, ProbeDual)
+
         # §9.4's opt-in exhaustive mode: the listed activations materialize at
-        # build time, which is where CI catches a lurking pinned leaf.
-        err = failure(() -> build(single(PinnedGetsDual()); activations = (Float64, D8)))
+        # build time, which is where CI catches a lurking pinned leaf. D-166's
+        # CI pin is spelled with `ProbeDual`; `D8` stands in for a trim's or a
+        # user's own activation elsewhere in the suite.
+        err = failure(() -> build(single(PinnedGetsDual());
+                                  activations = (Float64, ProbeDual)))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
-        @test d isa ConformanceFailure && d.declared === Float64 && d.activation === D8
+        @test d isa ConformanceFailure && d.declared === Float64 &&
+              d.activation === ProbeDual
     end
 
     @testset "concurrent first requests share one activation (§9.4's torn-state guarantee)" begin

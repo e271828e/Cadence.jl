@@ -575,6 +575,17 @@ struct Build
 end
 
 """
+The framework's public canonical probe scalar (§9.4, D-166): the one concrete
+`Dual` a CI activation list spells, `build(world; activations = (Float64,
+ProbeDual))`. An activation is keyed by a concrete scalar, and the bare `Dual`
+`UnionAll` can key none. The tag keeps a probe activation distinguishable from
+trim's (`TrimTag`) and from a user's own; the width is one because what CI
+pins is genericity, not any particular Jacobian (§14.10 chunks at its own).
+"""
+struct ProbeTag end
+const ProbeDual = ForwardDiff.Dual{ProbeTag,Float64,1}
+
+"""
     build(root; activations = ()) → Build
 
 Strata A and B plus the nominal activation (§9.1): flatten, classify, type-check

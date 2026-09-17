@@ -54,6 +54,19 @@ function conditions_algebra()
         @test failure(() -> resolve_condition(n, build(tri()))) isa DiagnosticError
     end
 
+    @testset "the fragment function is a method of the framework's generic (§14.2, Appendix B)" begin
+        # The suite extends the framework's `condition`, not a module-local one:
+        # that is what lets an owner's pull reach a child across a package seam.
+        @test condition === Cadence.condition
+        @test parentmodule(condition) === Cadence
+        # A leaf's method and an owner's both land on the one generic.
+        @test hasmethod(condition, Tuple{Pendulum})
+        @test hasmethod(condition, Tuple{Vehicle})
+        # No fallback: a component shipping none fails at the pull by name.
+        @test failure(() -> condition(Voiceless(); θ = 1.0)) isa MethodError
+        @test condition(Pendulum(); θ = 0.5) isa Fragment
+    end
+
     @testset "a `combine` collision names both provenance chains and the layering combinator (§14.2)" begin
         b = build(tri())
         e = failure(() -> resolve_condition(combine(at("plant", condition(Plant(); y = 1.0)),
