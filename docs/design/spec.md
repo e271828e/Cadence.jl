@@ -1961,7 +1961,18 @@ where each schema fact gets its authority.
 #### State, modes, discrete state
 
 **Rule.** `init_x` on the continuous [tier](#g-tier), `init_s` on the discrete, and
-`init_m`, declare *by initial value*. The type is derived from the value.
+`init_m`, declare *by initial value*. The type is derived from the value. The
+value is a `NamedTuple`, one named field per leaf, and no other form is
+admitted. A bare leaf such as `init_x(::C) = 0.0` or
+`init_s(::C) = zeros(SVector{3})` is refused. Stratum A reports it as
+`StoreNotNamedTuple`, and the message spells the wrap ([§9.1][s9-1],
+[Appendix C][sC], [D-247][d-247]).
+
+**Why.** Every service reaches a leaf by its field name. The condition overlay
+merges on it ([§14.1][s14-1]), readers and the trace spell it ([§14.4][s14-4]),
+and a one-field store publishes its field as the port of that name
+([§5.3][s5-3]). The name a one-state component is asked for is the name every
+service then uses.
 
 There is consequently no second artifact to drift and no separate type
 declaration to check. The [workspace](#g-workspace) (component-declared mutable scratch
@@ -2985,6 +2996,10 @@ Resolution runs these checks:
   should have matched) against the destination's input list;
 - the two wiring type clauses ([§6.1][s6-1], [§8.2][s8-2]), stated below;
 - the whole-tree obligation check;
+- the store form ([§8.2][s8-2]): every `init_x`, `init_s` and `init_m` value is
+  a `NamedTuple`. It is checked before the classifier and the vocabulary
+  checks read the value, and a primitive failing it is read no further in
+  this stratum;
 - the closed leaf vocabulary ([§7.1][s7-1]), checked on every `init_x` because
   the walk in [§8.2][s8-2] rests on it. `init_s` pins wholesale and answers to the
   isbits rule of [§7.3][s7-3] instead, checked with `init_m` field by field.
@@ -10796,6 +10811,10 @@ with the collection and never trigger its throw, is currently empty
   name, the consuming paths, their conflicting concrete declarations at
   nominal. A tolerance difference is not a conflict (the meet,
   [§8.2][s8-2]).
+- **`StoreNotNamedTuple`** ([§8.2][s8-2], [§9.1][s9-1], [D-247][d-247]).
+  Error · build · collected. Component path, the store
+  (`init_x`/`init_s`/`init_m`), the observed type; the message spells the
+  wrap.
 - **`IllegalStateLeaf`** ([§7.1][s7-1], [§8.2][s8-2]). Error · build ·
   collected. Component path, `init_x` field name, leaf type, the closed
   vocabulary (scalar / `SArray` at the common eltype).
@@ -12268,6 +12287,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-244]: decisions.md#d-244--refuse-the-write-primitives-of-a-detached-handle-by-name
 [d-245]: decisions.md#d-245--classify-a-cycle-cluster-by-a-surviving-traced-cycle-and-carry-each-members-tracing-mode
 [d-246]: decisions.md#d-246--diagnose-a-foreign-declaration-binding-as-its-own-fail-fast-kind
+[d-247]: decisions.md#d-247--accept-the-namedtuple-as-the-only-store-declaration-form
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
