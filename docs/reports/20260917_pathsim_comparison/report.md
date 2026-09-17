@@ -86,14 +86,16 @@ RK4, h = 1 ms, 10 s of simulated time. Apple Silicon, Julia 1.13.0, Python 3
 with numpy 2.0.2. Scripts: `probes/bench_pathsim.py`,
 `probes/bench_cadence.jl`.
 
-| N | components | PathSim setup | PathSim per step | Cadence cold compile¹ | Cadence per step | step allocation | ratio |
+| N | components | PathSim setup | PathSim per step | Cadence compile¹ | Cadence per step | step allocation | ratio |
 |---|---|---|---|---|---|---|---|
 | 1 | 3 (+1 const) | 0.2 ms | 58 µs | 6.8 s | 0.4 µs | 0 B | ~150× |
 | 10 | 30 | 0.6 ms | 445 µs | 12.4 s | 1.3 µs | 0 B | ~340× |
 | 100 | 300 | 6 ms | 4170 µs | 29.3 s | 13.1 µs | 0 B | ~320× |
 
-¹ `Simulation` + `init!` + first `run!` on a cold process, package JIT
-included. Both frameworks reach |x − exact| ≈ 2e-12.
+¹ `Simulation` + `init!` + first `run!`, package load excluded (0.6 s).
+N = 1 was measured on a fresh process; N = 10 and N = 100 afterwards in the
+same process, so those rows exclude the ~5 s of framework-generic compilation
+the first model in a session pays. Both frameworks reach |x − exact| ≈ 2e-12.
 
 **Execution.** Cadence costs about 50 ns per component per step; PathSim about
 14 µs. PathSim's per-step work is interpreted Python: for every RK stage,
@@ -107,9 +109,12 @@ that recovers part of the gap by giving up block-diagram granularity, which
 Cadence never has to trade away.
 
 **Compilation.** PathSim imports in 0.57 s and builds a 300-block model in
-6 ms with no JIT. Cadence pays 7–30 s per model *type* on a cold process,
-roughly 0.1 s per component in this run, then 1.4 ms to rebuild the same type
-warm. Break-even against PathSim is about two minutes of simulated time at
+6 ms with no JIT. Cadence pays 7–30 s per model *type*, of which about 5 s
+is framework-generic and paid once per session, then 1.4 ms to rebuild the
+same type warm. Compile cost is not monotone in model size: N = 30 costs 38 s
+in the same session where N = 100 costs 29 s, with the excess in `init!` and
+the first `run!` rather than the build. Unexplained; see §16's re-measurement
+item. Break-even against PathSim is about two minutes of simulated time at
 N = 1 and about 7 s at N = 100. The spec's mitigation ladder (§9.7) applies:
 lazy activations, chunking, precompile workloads baked into package images.
 Nothing in these runs used a package image.
@@ -324,3 +329,5 @@ architecture precludes.
 - `probes/cascade.py`: the missed cascade.
 - `probes/feedthrough.py`: the numerical feedthrough misclassification.
 - `probes/fanout.jl`: both fan-out spellings.
+- `probes/compile_cost.jl`: compile cost of a second model type in the same
+  session versus a fresh process, behind the non-monotonicity remark in §2.
