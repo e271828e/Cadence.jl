@@ -1,0 +1,4 @@
+Error: The Julia launcher failed to load a configuration file.
+
+Caused by:
+    Could not create lockfile: Operation not permitted (os error 1).

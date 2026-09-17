@@ -1,0 +1,16 @@
+{
+  "verified_at": "2026-09-16T07:53:14.558274+00:00",
+  "revision": "6986ad41b5f04c671fc6b321b4bab6df54520a40",
+  "baseline_revision": "6986ad41b5f04c671fc6b321b4bab6df54520a40",
+  "input_count": 52,
+  "changed_inputs": [],
+  "added_inputs": [],
+  "removed_inputs": [],
+  "git_status_short": "?? docs/reports/20260915_audit/\n",
+  "audit_writes_confined_to": "docs/reports/20260915_audit/",
+  "passed": true,
+  "markdown_links_resolve": true,
+  "numbered_subsections_covered": 81,
+  "source_file_count": 19,
+  "test_file_count": 30
+}

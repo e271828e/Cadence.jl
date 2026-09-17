@@ -1,0 +1,25 @@
+{
+  "revision": "6986ad41b5f04c671fc6b321b4bab6df54520a40",
+  "package_gate": {
+    "command": "julia --project=. -e 'using Pkg; Pkg.test()'",
+    "exit_code": 0,
+    "assertions_passed": 2514,
+    "assertions_total": 2514,
+    "suite_elapsed": "5m34.6s",
+    "log": "pkg-test-final.log"
+  },
+  "targeted_probes": {
+    "count": 9,
+    "all_exit_codes_zero": true,
+    "summary": "probe-results-final.log",
+    "meaning": "Some probes assert or print reproduced defects; exit zero does not mean conformance."
+  },
+  "independent_final_document_review": {
+    "reviewer": "coverage_review (Terra)",
+    "issues_found": 2,
+    "issues_resolved": [
+      "Add final package-gate result row",
+      "Mark spec section 4.3 as deviation for mutable Real F-13"
+    ]
+  }
+}

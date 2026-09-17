@@ -1,0 +1,861 @@
+diff --git a/docs/design/implementation.md b/docs/design/implementation.md
+index 03d7d2b..125baf6 100644
+--- a/docs/design/implementation.md
++++ b/docs/design/implementation.md
+@@ -21,8 +21,8 @@ to. For more than a line, read the file itself and the sections it cites.
+ | `src/declare.jl` | the declaration layer: both tiers' name families and arities, the bundle law, `probe_value`, the connection declarations beside `transparent_container`, the rate registers with `sample_times`, the event surface | §2.1, §5.2, §8.2, §8.5–§8.7, §9.3, D-179, D-185, D-195, D-211 |
+ | `src/assembly.jl` | class by declaration shape; children and containers with their collision family; `Group`, the anonymous assembly, kernel material by decision where the rest of the old `library.jl` became fixtures; paths and §6.1's one-level rule; endpoint and face resolution with the root's face invariants; the flatten pass under one Stratum A barrier (`Walk` owning the `Flat` it builds, resolvers recording into the stratum's list, `wire!` deriving the two-sided face graph after the barrier, `Flat.root_types` holding the root-input types the wire pass fixes) and the sample-time fold; §13.3's `resolve`/`resolve_terminal`/face-list primitives and §8.8's `input_passthrough`/`output_passthrough` | §6.1, §8.5–§8.8, §9.1, §9.2, §13.3, D-171, D-207–D-212, D-229, D-236 |
+ | `src/store.jl` | per-eltype cell stores (a handle type is its own eltype, D-237), the `StoreBundle`, gather and the checked scatter (§9.5's always-on check decided at generation, D-235), `_cell_key`, the `Clock` | §9.5, §9.7, D-162, D-235, D-237 |
+-| `src/executor.jl` | entries (each carrying its component's path, for the write's diagnostic), the chunked unrolled walk, the interior/boundary split, the `(idx − Φ) % D` gate and boundary zero's `ESTABLISH` beside it, the event set with its registers and the guard/fire/project walks, and the execution cursor every entry stores into | §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §14.5, D-059, D-205, D-235 |
+-| `src/build.jl` | tier classification (recording, the tier read in the walk beside the class, `build` owning Stratum A's one throw, the wire pass (both type clauses at `Float64` and at the marker scalar, the root-input type and its two refusals, the contract-bound check (`TierSignatureMismatch`'s bound arm); D-236)), the store isbits check (§7.3, D-231) and the state-leaf vocabulary check (§7.1, D-094), the probe and the event probe, the feedthrough graph, the layout with the root-input meet (D-168, D-236) and `IllegalPortType`'s three arms (D-237), the probe's embedding of products (`_embed`), the `Build` and its activations, deployment binding (one throw per `Simulation` call), and `compile` → `Executor{T}` — one activation's buffer set with the bodies closed over it, one owner per set, `evaluate!`/`_round!`/`apply!` on it | §5.3, §6.1, §8.2, §9.1–§9.4, §9.7, §10.4, D-166, D-179, D-208, D-210, D-229, D-235, D-236, D-237 |
++| `src/executor.jl` | entries (each carrying its component's path, for the write's diagnostic; `PublishEntry`, the framework's stage-1-position copy of store fields into cells, §5.3), the chunked unrolled walk, the interior/boundary split, the `(idx − Φ) % D` gate and boundary zero's `ESTABLISH` beside it, the event set with its registers and the guard/fire/project walks, and the execution cursor every entry stores into | §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §14.5, D-059, D-205, D-235 |
++| `src/build.jl` | tier classification (recording, the tier read in the walk beside the class, `build` owning Stratum A's one throw, the wire pass (both type clauses at `Float64` and at the marker scalar, the root-input type and its two refusals, the contract-bound check (`TierSignatureMismatch`'s bound arm); D-236)), the store isbits check (§7.3, D-231) and the state-leaf vocabulary check (§7.1, D-094), the probe and the event probe, `auto_published` and the published set on the `Activation` (§5.3, D-169), the feedthrough graph, the layout with the root-input meet (D-168, D-236) and `IllegalPortType`'s three arms (D-237), the probe's embedding of products (`_embed`), the `Build` and its activations, deployment binding (one throw per `Simulation` call), and `compile` → `Executor{T}` — one activation's buffer set with the bodies closed over it, one owner per set, `evaluate!`/`_round!`/`apply!` on it | §5.3, §6.1, §8.2, §9.1–§9.4, §9.7, §10.4, D-016, D-166, D-169, D-179, D-208, D-210, D-229, D-235, D-236, D-237 |
+ | `src/readers.jl` | the closed read-selector family, `reads`, the internal `_compile_reads` → `Reader{T}`, `gather` as `apply!`'s twin over an executor; activation identity on readers and plans as an internal invariant | §13.1, §14.1, §14.4, §14.7, §14.10 |
+ | `src/sim.jl` | `Simulation` (owning its `exec`), the deployment keywords, the boundary macro-sequence and the §10.6 event phase with its `FiringBudget` degradation, `init!`, `run!`/`step!`, `replay!` over the one shared run body, `attach!`/`detach!`, staging/drain/publication with the drain's replay substitution, §12.6's input mode (`mode(sim)`, `to_time`, `live!`), the lifecycle and termination record, the frame loop's one catch site with the species rule and the interrupt carve-out and its second host around boundary zero, the seam's `isfinite` sweep over `x` as the boundary's first act, the accessors | §10.2–§10.6, §11.1–§11.4, §11.8, §12.1–§12.7, §13.4–§13.6, §14.5, §14.6, D-059, D-101, D-157, D-203, D-218, D-219, D-221, D-223, D-232, D-233 |
+ | `src/stepper.jl` | the seam's backend side: RK4 and Heun, the retained `startpoint`, dense output | §10.2, D-017 |
+diff --git a/src/build.jl b/src/build.jl
+index f876009..0d11c34 100644
+--- a/src/build.jl
++++ b/src/build.jl
+@@ -211,14 +211,91 @@ _embed(::Type{P}, v, ::Type{T}) where {P,T} =
+ _embed_ports(y::NamedTuple, outs::NamedTuple, ::Type{T}) where {T} =
+     NamedTuple{keys(y)}(map(n -> _embed(outs[n], y[n], T), keys(y)))
+ 
++# --- 2b. auto-publication (§5.3, D-016, D-169) --------------------------------
++
++"""
++The tier's state homes, in the order a declared name is matched against them:
++`x` then `m` on the continuous tier, `s` on the discrete (§5.3). `m` arrives as
++the probe-scoped `Ref`, or `nothing` where the component declares no modes.
++"""
++_homes(d::Decls, t::Tier, m) =
++    t === CONTINUOUS ? (x = d.x, m = m === nothing ? NamedTuple() : m[]) : (s = d.s,)
++
++"""Which home holds `n`, or `nothing` — the first match, so one home per datum (§7.1)."""
++function _home_of(homes::NamedTuple, n::Symbol)
++    for h in keys(homes)
++        haskey(homes[h], n) && return h
++    end
++    nothing
++end
++
++"""The tier's store field names, for `DeclaredNotProduced`'s list-in-hand (§8.3)."""
++_state_fields(homes::NamedTuple) = Symbol[keys(merge(values(homes)...))...]
++
++"""
++§5.3's auto-published set for one component: the declared ports naming a field
++of the tier's stores — `x` and `m` on the continuous tier, `s` on the discrete —
++at the matching type, that stage 1 did not return. Port name => the store's own
++declared initial, which is what the cell holds until the first sweep (§10.5);
++the home a name was matched in is `_home_of`'s, recomputed where `compile`
++needs it rather than carried alongside every value.
++
++A declared name a store holds at *another* type is not published: it falls
++through to `DeclaredNotProduced`, whose state-field list then names it.
++
++At the nominal activation, reached with `nominal === nothing`, the set is
++derived over every declared port and the type test is exact. At a non-nominal
++`T` the set is already fixed by the nominal — the classification is structural,
++names only, and the schedule is `T`-independent (§9.1 Stratum B) — so `nominal`
++arrives as that set and the test runs over its keys alone: the embed-accept
++relation, a failure being a refusal rather than a silent drop. Names outside the
++nominal set are not examined there, so a stage-2 product colliding with a store
++field at another type is never mistaken for a failed auto-publication. The
++refusal is what a `Float64`-pinned declaration of a walking state field meets at
++the `Dual` activation, `_accepts(Float64, Dual, Dual)` being false; publishing
++it stripped would be a stop-gradient the author never wrote. Failures are
++collected into `diags` for the caller's one barrier (§13.1).
++"""
++function auto_published(d::Decls, t::Tier, m, s1::NamedTuple, nominal, path::String,
++                        diags::Vector{Diagnostic}, ::Type{T}) where {T}
++    homes = _homes(d, t, m)
++    if nominal === nothing
++        names, vals = Symbol[], Any[]
++        for n in keys(d.outs)                   # declaration order (§9.5)
++            haskey(s1, n) && continue           # stage 1 returned it: the stage wins
++            h = _home_of(homes, n)
++            h === nothing && continue
++            v = homes[h][n]
++            if d.outs[n] === typeof(v)
++                push!(names, n)
++                push!(vals, v)
++            end
++        end
++        return NamedTuple{tuple(names...)}(tuple(vals...))
++    end
++    vals = Any[]
++    for n in keys(nominal)
++        v = homes[_home_of(homes, n)][n]
++        _accepts(d.outs[n], typeof(v), T) ||
++            push!(diags, ConformanceFailure(path = path, what = "auto-publication",
++                                           reason = :field_type, shape = :ports, field = n,
++                                           observed = typeof(v), declared = d.outs[n],
++                                           activation = T))
++        push!(vals, v)
++    end
++    NamedTuple{keys(nominal)}(tuple(vals...))
++end
++
+ # --- 3. the feedthrough graph and the stage-2 schedule -------------------------
+ 
+ """
+ Edges run producer → consumer for every consumed **stage-2** port; consuming a
+-stage-1 port adds no edge, which is the whole structural payoff of the split.
++stage-1 *or auto-published* port adds no edge, which is the whole structural
++payoff of the split — an auto-published cell is the framework's own
++stage-1-position write and carries no input dependence either (§5.3).
+ Returns a topological order over component indices, or reports the cycle.
+ """
+-function schedule_stage2(flat::Flat, tiers::Vector{Tier}, stage1::Vector)
++function schedule_stage2(flat::Flat, tiers::Vector{Tier}, stage1::Vector, published::Vector)
+     n = length(flat.comps)
+     deps = [Int[] for _ in 1:n]
+     for ci in 1:n
+@@ -226,7 +303,8 @@ function schedule_stage2(flat::Flat, tiers::Vector{Tier}, stage1::Vector)
+         for (_, (ppath, pport)) in flat.conns[ci]
+             isempty(ppath) && continue                   # a root input: no producer to wait for
+             pi = index_of(flat, ppath)
+-            haskey(stage1[pi], pport) && continue        # stage-1 port: no dependence
++            # stage-1 position, by a stage or by the framework: no dependence
++            (haskey(stage1[pi], pport) || haskey(published[pi], pport)) && continue
+             push!(deps[ci], pi)
+         end
+     end
+@@ -355,6 +433,7 @@ constructed; the probe products are what a cell holds until first written
+ struct Activation{T}
+     decls::Vector{Decls}
+     stage1::Vector{NamedTuple}     # stage-1 probe products, per component
++    published::Vector{NamedTuple}  # §5.3's auto-published cells, port => value
+     products::Vector{NamedTuple}   # complete probe products, per component
+     layout::Layout
+ end
+@@ -587,10 +666,26 @@ function _stratum_c(flat::Flat, tiers::Vector{Tier}, order, carry, ::Type{T}) wh
+     wss = _workspaces(flat, tiers, T)
+ 
+     stage1 = probe_stage1(flat, decls, tiers, wss, mstores, carry, T)
+-    order === nothing && (order = schedule_stage2(flat, tiers, stage1))
++
++    # §5.3's auto-published set, classified beside the stage-1 products and
++    # before the schedule, because §9.1 classifies ports over `output_types`
++    # alone and the stage-2 graph is built from the wires carrying stage-2
++    # ports. A frozen component's set is carried, exactly as its stage-1
++    # product is (§9.4), and at a non-nominal activation every set is the
++    # nominal's, `carry` carrying it in. One barrier for the activation (§13.1).
++    pubdiags = Diagnostic[]
++    published = NamedTuple[_frozen(tiers, ci, T) ? carry.published[ci] :
++                           auto_published(decls[ci], tiers[ci], mstores[ci], stage1[ci],
++                                          carry === nothing ? nothing : carry.published[ci],
++                                          flat.paths[ci], pubdiags, T)
++                           for ci in eachindex(flat.comps)]
++    isempty(pubdiags) || throw(DiagnosticError(pubdiags))
++
++    order === nothing && (order = schedule_stage2(flat, tiers, stage1, published))
+     layout = cell_layout(flat, decls, T)
+-    products = probe_stage2(flat, decls, tiers, stage1, order, layout, wss, mstores, carry, T)
+-    Activation{T}(decls, collect(stage1), products, layout), order
++    products = probe_stage2(flat, decls, tiers, stage1, published, order, layout,
++                            wss, mstores, carry, T)
++    Activation{T}(decls, collect(stage1), published, products, layout), order
+ end
+ 
+ # Declaration by allocation (§7.3, D-077): sizes from the instance, eltypes from
+@@ -617,9 +712,12 @@ probe-scoped placeholder of `probe_stage1`. Returns the complete probe
+ products.
+ """
+ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
+-                      stage1, order::Vector{Int}, layout::Layout,
++                      stage1, published::Vector, order::Vector{Int}, layout::Layout,
+                       wss::Vector, mstores::Vector, carry, ::Type{T}) where {T}
+-    products = NamedTuple[s1 for s1 in stage1]
++    # The ordering invariant every downstream reader relies on:
++    # `keys(products[ci]) == (keys(stage1[ci])…, keys(published[ci])…, keys(y2)…)`.
++    # `compile`'s `y2keys` takes the stage-2 tail off the front two lengths.
++    products = NamedTuple[merge(s1, pub) for (s1, pub) in zip(stage1, published)]
+ 
+     # A frozen component's stages never run at this activation, so its complete
+     # product is the *nominal* activation's, carried across (§9.4): its cells
+@@ -649,11 +747,12 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
+                                                 reason = :return_type, shape = :namedtuple,
+                                                 observed = typeof(y2))))
+         _check_ports(path, stage, y2, d.outs, T)
+-        isempty(intersect(keys(s1), keys(y2))) ||
+-            throw(DiagnosticError(ProducedByTwoStages(path = path,
+-                                                 ports = collect(intersect(keys(s1),
+-                                                                           keys(y2))))))
+-        products[ci] = merge(s1, _embed_ports(y2, d.outs, T))
++        # Stage-1 position is the stage's or the framework's; either way a
++        # stage-2 return of the same port writes it twice (§5.3, §8.3).
++        twice = intersect(union(keys(s1), keys(published[ci])), keys(y2))
++        isempty(twice) ||
++            throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice))))
++        products[ci] = merge(s1, published[ci], _embed_ports(y2, d.outs, T))
+     end
+ 
+     # Completeness of the declaration set (§8.2), for every component and not
+@@ -667,7 +766,9 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
+         isempty(missing_ports) ||
+             push!(diags, DeclaredNotProduced(path = flat.paths[ci],
+                                             ports = collect(missing_ports),
+-                                            products = collect(keys(products[ci]))))
++                                            products = collect(keys(products[ci])),
++                                            state_fields = _state_fields(
++                                                _homes(decls[ci], tiers[ci], mstores[ci]))))
+     end
+     isempty(diags) || throw(DiagnosticError(diags))
+ 
+@@ -1085,11 +1186,28 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
+ 
+     frozen(ci) = _frozen(tiers, ci, T)
+     gate(ci) = tiers[ci] === DISCRETE ? (D_c[ci], Φ_c[ci]) : nothing
+-    y2keys(ci) = keys(act.products[ci])[length(keys(act.stage1[ci]))+1:end]
++    y2keys(ci) = keys(act.products[ci])[length(keys(act.stage1[ci])) +
++                                        length(keys(act.published[ci]))+1:end]
+ 
+     stage1_entries, stage2_entries, rhs_entries, tick_entries = Any[], Any[], Any[], Any[]
+     stage1_gates, stage2_gates, rhs_gates, tick_gates = Any[], Any[], Any[], Any[]
+ 
++    # §5.3's auto-publication, one entry per home: the framework's own
++    # stage-1-position copy of store fields into their declared cells. The
++    # stage-1 block is order-free (§9.7 — no stage-1 entry reads a cell), so
++    # standing the framework's writes before the stages is legibility only.
++    for (ci, path) in enumerate(flat.paths)
++        (!frozen(ci) && !isempty(act.published[ci])) || continue
++        d, homes = decls[ci], _homes(decls[ci], tiers[ci], mstores[ci])
++        for h in keys(homes)
++            names = tuple((n for n in keys(act.published[ci]) if _home_of(homes, n) === h)...)
++            isempty(names) && continue
++            push!(stage1_entries, PublishEntry{h,typeof(d.x),names}(
++                addr_group(path, names), x_offs[ci], clock, sstores[ci], mstores[ci], path))
++            push!(stage1_gates, gate(ci))
++        end
++    end
++
+     for (ci, c) in enumerate(flat.comps)
+         (has_stage(output_state, c) && !frozen(ci)) || continue
+         d, s1 = decls[ci], act.stage1[ci]
+diff --git a/src/diagnostics.jl b/src/diagnostics.jl
+index 86c4c9e..577e01f 100644
+--- a/src/diagnostics.jl
++++ b/src/diagnostics.jl
+@@ -703,19 +703,22 @@ Base.@kwdef struct ProducedByTwoStages <: Diagnostic
+ end
+ path(d::ProducedByTwoStages) = d.path
+ message(d::ProducedByTwoStages) =
+-    "`$(d.path)`: $(_plainlist(d.ports)) produced by two stages"
++    "`$(d.path)`: $(_plainlist(d.ports)) produced twice — by two stages, or by a stage " *
++    "and the framework's auto-publication (§5.3, §8.3)"
+ 
+ "§8.3: a declared port no stage writes — a cell no one fills, reading as a silent zero."
+ Base.@kwdef struct DeclaredNotProduced <: Diagnostic
+     path::String
+     ports::Vector{Symbol}
+     products::Vector{Symbol} = Symbol[]      # the stage-product list
++    state_fields::Vector{Symbol} = Symbol[]  # the tier's store field names (§5.3)
+ end
+ path(d::DeclaredNotProduced) = d.path
+ message(d::DeclaredNotProduced) =
+-    "`$(d.path)`: declared port(s) $(_plainlist(d.ports)) produced by no stage — either a " *
+-    "stage returns them or `output_types` drops them; the stages return " *
+-    "$(_namelist(d.products))"
++    "`$(d.path)`: declared port(s) $(_plainlist(d.ports)) produced by no stage and not a " *
++    "state field of the declared type — a stage returns them, a store field of that name " *
++    "and type carries them (§5.3), or `output_types` drops them; the stages return " *
++    "$(_namelist(d.products)); the state fields are $(_namelist(d.state_fields))"
+ 
+ "§8.3, §8.4 w5: a stage returning a field `output_types` does not declare."
+ Base.@kwdef struct UndeclaredReturnField <: Diagnostic
+@@ -787,9 +790,13 @@ function message(d::ConformanceFailure)
+                "state has $(_symtuple(d.declared_fields)) — a state write-back is complete " *
+                "against the field set (§9.3, §9.5)"
+     end
++    # A stage returns its ports; the framework's auto-publication publishes them
++    # (§5.3), so the verb follows `what` rather than naming a return that is not
++    # one.
+     d.shape === :ports &&
+-        return "`$(d.path)`: $(d.what) returns `$(d.field)`::$(d.observed), declared " *
+-               "$(d.declared)" * _pin(d)
++        return "`$(d.path)`: $(d.what) " *
++               (d.what == "auto-publication" ? "publishes" : "returns") *
++               " `$(d.field)`::$(d.observed), declared $(d.declared)" * _pin(d)
+     d.shape === :mode &&
+         return "`$(d.path)`: $(d.what) mode `$(d.field)` is $(d.observed), declared " *
+                "$(d.declared) (§5.2)"
+diff --git a/src/executor.jl b/src/executor.jl
+index 6cf284e..3920736 100644
+--- a/src/executor.jl
++++ b/src/executor.jl
+@@ -29,11 +29,13 @@ ExecutionCursor() = ExecutionCursor(0, :none, :drain, 0)
+ end
+ 
+ # --- entries ------------------------------------------------------------------
+-# Three kinds, by where the product goes: a stage entry writes cells (both
+-# tiers — one entry type carries either tier's output stage, one shared pair of
+-# names over both tiers (D-220), an RHS entry writes the flat `ẋ` buffer, an
+-# update entry writes its own discrete state store. All build their §5.2 bundle
+-# the same way, from `BN` — the bundle name set the law fixed at build time.
++# Four kinds, by where the product comes from and where it goes: a stage entry
++# writes cells (both tiers — one entry type carries either tier's output stage,
++# one shared pair of names over both tiers (D-220), an RHS entry writes the flat
++# `ẋ` buffer, an update entry writes its own discrete state store, and a publish
++# entry copies store fields straight into cells with no user function in
++# between (§5.3). The first three build their §5.2 bundle the same way, from
++# `BN` — the bundle name set the law fixed at build time.
+ #
+ # What selects code sits in type parameters, what varies per instance in fields
+ # (§9.7): the state store is a `Ref` whose *type* is shared by every instance of
+@@ -83,6 +85,19 @@ struct UpdateEntry{Comp,BN,IA<:NamedTuple,YA<:NamedTuple,CL,SS,WS}
+     cursor::ExecutionCursor
+ end
+ 
++# §5.3's auto-publication: the framework's stage-1-position copy of store fields
++# into their declared cells. `S` names the home (:x, :s or :m), `Ns` the fields
++# copied; both select code. No user function runs here, so the cursor is not
++# written (§13.4 frames user code only).
++struct PublishEntry{S,XT,Ns,OA<:NamedTuple,CL,SS,MS}
++    outs::OA        # port => cell address, in `Ns` order
++    x_off::Int
++    clock::CL
++    sstore::SS
++    mstore::MS
++    path::String
++end
++
+ # Outer constructors: only `XT`/`BN` cannot be inferred from the arguments.
+ StageEntry{XT,BN}(fn, comp, inputs, y1, outs, x_off, clock, sstore, mstore, ws, Δt,
+                   path, ci, cursor) where {XT,BN} =
+@@ -101,6 +116,10 @@ UpdateEntry{BN}(comp, inputs, y, clock, sstore, ws, Δt, path, ci, cursor) where
+                 typeof(sstore),typeof(ws)}(comp, inputs, y, clock, sstore, ws, Δt,
+                                            path, ci, cursor)
+ 
++PublishEntry{S,XT,Ns}(outs, x_off, clock, sstore, mstore, path) where {S,XT,Ns} =
++    PublishEntry{S,XT,Ns,typeof(outs),typeof(clock),typeof(sstore),typeof(mstore)}(
++        outs, x_off, clock, sstore, mstore, path)
++
+ # One bundle-expression builder, three @generated entry points. Absent names are
+ # absent, never `nothing`-filled: a body destructuring what it does not own
+ # fails at the destructuring (§5.2). The two state letters name the two homes
+@@ -170,6 +189,17 @@ end
+     nothing
+ end
+ 
++# The framework's own write (§5.3): select the published fields out of the home
++# store by name — `Ns` is a type parameter, so the selection is static — and
++# scatter them. §9.5's check is decided at generation and passes by
++# construction, the classification having admitted exactly these types.
++@inline function run!(e::PublishEntry{S,XT,Ns}, store, xbuf, ẋbuf) where {S,XT,Ns}
++    v = S === :x ? reconstruct(XT, xbuf, e.x_off) :
++        S === :s ? e.sstore[] : e.mstore[]
++    scatter_group!(store, e.outs, NamedTuple{Ns}(v), activation_scalar(e.clock),
++                   e.path, :auto_publish)
++end
++
+ # --- the event machinery (§10.6, §5.3) ------------------------------------------
+ # Not sweep entries: guards and handlers are driven by the boundary iteration in
+ # `sim.jl`, against per-event registers, so their entries live in their own
+diff --git a/test/fixtures.jl b/test/fixtures.jl
+index 35c8d68..daac4db 100644
+--- a/test/fixtures.jl
++++ b/test/fixtures.jl
+@@ -32,6 +32,123 @@ function state_derivative(c::Plant, (; x, u))
+     (q = SVector(q[2], -ω^2 * q[1] - 2ζ * ω * q[2] + u.u),)
+ end
+ 
++# --- §5.3's auto-published ports ----------------------------------------------
++# Components whose `output_types` names a state or mode field no stage returns,
++# so the framework publishes it from the store at stage-1 position (D-016,
++# D-169), plus the three refusals that bound the construct.
++
++"""
++§8.2's worked engine at the suite's size: `ω` is a state field and `running` a
++mode field, both declared and returned by no stage, so both are auto-published;
++`M_shaft` is the one stage-2 product. The boundary-detected `start` event flips
++`running` at `t = 0.1`, after which `M_shaft = 1` — with `M_load = 0` and
++`J = 1`, `ω(t) = max(t − 0.1, 0)` at every boundary.
++"""
++struct Motor <: AbstractComponent
++    J::Float64
++end
++
++init_x(::Motor) = (ω = 0.0,)
++init_m(::Motor) = (running = false,)
++input_types(::Motor, ::Type{T}) where {T <: Real} = (M_load = T,)
++output_types(::Motor, ::Type{T}) where {T <: Real} = (M_shaft = T, ω = T, running = Bool)
++
++output_direct(::Motor, (; x, m, u)) = (M_shaft = m.running ? one(x.ω) : zero(x.ω),)
++state_derivative(c::Motor, (; x, y, u)) = (ω = (y.M_shaft - u.M_load) / c.J,)
++
++motor_start_guard(::Motor, (; m, t)) = !m.running && t ≥ 0.1
++motor_start_handler(::Motor, (; m)) = (m = (running = true,),)
++state_events(::Motor) = (start = StateEvent(motor_start_guard, motor_start_handler),)
++
++"""
++`Plant` with its `output_state` removed: the whole state vector `q` is declared
++and published from the store instead, which is what lets `auto_feedback_model`
++close the same loop through it.
++"""
++struct AutoPlant <: AbstractComponent
++    ω::Float64
++    ζ::Float64
++    q₀::SVector{2,Float64}
++end
++
++AutoPlant(; ω = 2.0, ζ = 0.1, q₀ = SVector(0.0, 0.0)) = AutoPlant(ω, ζ, q₀)
++
++init_x(c::AutoPlant) = (q = c.q₀,)
++input_types(::AutoPlant, ::Type{T}) where {T <: Real} = (u = T,)
++output_types(::AutoPlant, ::Type{T}) where {T <: Real} = (q = SVector{2,T}, power = T)
++
++output_direct(::AutoPlant, (; x, u)) = (power = u.u * x.q[2],)
++
++function state_derivative(c::AutoPlant, (; x, u))
++    q, ω, ζ = x.q, c.ω, c.ζ
++    (q = SVector(q[2], -ω^2 * q[1] - 2ζ * ω * q[2] + u.u),)
++end
++
++"""Proportional state feedback on the published state vector: stage 2 only."""
++struct StateFeedback <: AbstractComponent
++    k::Float64
++end
++
++input_types(::StateFeedback, ::Type{T}) where {T <: Real} = (q = SVector{2,T},)
++output_types(::StateFeedback, ::Type{T}) where {T <: Real} = (u = T,)
++
++output_direct(c::StateFeedback, (; u)) = (u = -c.k * u.q[1],)
++
++"""`DiscreteCounter` without its `output_state`: `n` is published from `init_s`."""
++struct AutoCounter <: AbstractComponent end
++
++init_s(::AutoCounter) = (n = 0,)
++output_types(::AutoCounter) = (n = Int,)
++state_update(::AutoCounter, (; s)) = (n = s.n + 1,)
++
++"""
++A `Float64`-pinned declaration of a walking state field: published at the
++nominal activation, and a refusal at every other one — stripping the partials
++would be a stop-gradient the author never wrote (§5.3, D-166).
++"""
++struct PinnedState <: AbstractComponent end
++
++init_x(::PinnedState) = (q = 0.0,)
++output_types(::PinnedState, ::Type{T}) where {T <: Real} = (q = Float64,)
++state_derivative(::PinnedState, (; x)) = (q = 0.0,)
++
++"""The same name at a type no store holds: not published, and `DeclaredNotProduced`."""
++struct WrongTyped <: AbstractComponent end
++
++init_x(::WrongTyped) = (q = 0.0,)
++output_types(::WrongTyped, ::Type{T}) where {T <: Real} = (q = Int,)
++state_derivative(::WrongTyped, (; x)) = (q = 0.0,)
++
++"""A stage-2 return of a publishable name: two writers of one cell (§8.3)."""
++struct Twice <: AbstractComponent end
++
++init_x(::Twice) = (q = 0.0,)
++output_types(::Twice, ::Type{T}) where {T <: Real} = (q = T,)
++output_direct(::Twice, (; x)) = (q = x.q,)
++state_derivative(::Twice, (; x)) = (q = 0.0,)
++
++"""The same from stage 1, which is legal: the stage runs and nothing is published."""
++struct TwiceState <: AbstractComponent end
++
++init_x(::TwiceState) = (q = 0.0,)
++output_types(::TwiceState, ::Type{T}) where {T <: Real} = (q = T,)
++output_state(::TwiceState, (; x)) = (q = x.q,)
++state_derivative(::TwiceState, (; x)) = (q = 0.0,)
++
++"""
++A stage-2 product named after a mode field the store holds at *another* type,
++beside a publishable state field. The classification is structural and names
++only (§9.1 Stratum B), so the non-nominal set is the nominal's: `flag` is a
++stage-2 product at every activation, never a failed publication.
++"""
++struct ModeNamedProduct <: AbstractComponent end
++
++init_x(::ModeNamedProduct) = (q = 0.0,)
++init_m(::ModeNamedProduct) = (flag = 0,)
++output_types(::ModeNamedProduct, ::Type{T}) where {T <: Real} = (flag = T, q = T)
++output_direct(::ModeNamedProduct, (; x, m)) = (flag = m.flag * one(x.q),)
++state_derivative(::ModeNamedProduct, (; x)) = (q = 0.0,)
++
+ """
+ Proportional gain: **stateless**, stage 2 only. The three-level funnel of §5.2
+ in its smallest instance — a component that legitimately writes `output_direct` while
+@@ -438,6 +555,37 @@ overload_guard(c::Overload, (; u)) = u.sig - c.level
+ overload_handler(::Overload, (; m)) = (m = (tripped = true,),)
+ state_events(::Overload) = (trip = StateEvent(overload_guard, overload_handler),)
+ 
++"""
++`Overload` with its `output_state` removed: `tripped` is a mode field the
++framework publishes from `m` instead (§5.3). The component runs no stage at
++all, so the only thing that can move its cell is the boundary sweep — which is
++exactly D-154's coherence, the handler's round being followed by a sweep before
++anything is published.
++"""
++struct AutoOverload <: AbstractComponent
++    level::Float64
++end
++
++init_m(::AutoOverload) = (tripped = false,)
++input_types(::AutoOverload, ::Type{T}) where {T <: Real} = (sig = T,)
++output_types(::AutoOverload, ::Type{T}) where {T <: Real} = (tripped = Bool,)
++
++auto_overload_guard(c::AutoOverload, (; u)) = u.sig - c.level
++auto_overload_handler(::AutoOverload, (; m)) = (m = (tripped = true,),)
++state_events(::AutoOverload) =
++    (trip = StateEvent(auto_overload_guard, auto_overload_handler),)
++
++"""
++    auto_overloaded()
++
++`overloaded()`'s wiring (`test_lifecycle.jl`) over the auto-publishing monitor:
++the sawtooth crosses the level mid-frame and the run stops at the crossing's
++`t*` boundary, with `tripped` reaching the face through publication alone.
++"""
++auto_overloaded() = Group((; src = Sawtooth(1.0), mon = AutoOverload(0.315));
++                          wires = ("src/q" => "mon/sig",),
++                          outputs = ("mon/tripped" => "tripped",))
++
+ """
+ Exploder: the §13.6 specimen — `q̇ = 1` until its `arm` input goes true, then
+ its RHS throws `Exploded`. The throw escapes mid-integration, so the failing
+@@ -654,6 +802,23 @@ function feedback_model(; k = 4.0, ω = 2.0, ζ = 0.1, q₀ = SVector(0.0, 0.0),
+           outputs = "plant/y" => "y")
+ end
+ 
++"""
++    auto_feedback_model(; k)
++
++The same closed loop through an **auto-published** port: `AutoPlant` publishes
++its whole state vector from the store, `StateFeedback` reads it and feeds the
++plant back. No `output_state` runs anywhere in it, and the loop is still legal —
++an auto-published cell is written at stage-1 position, so it carries no input
++dependence and adds no edge (§5.3, D-169).
++
++With `ref = 0` this is `feedback_model(; k)`'s loop with `Sum` and `Gain` fused,
++so the two trajectories agree step for step.
++"""
++auto_feedback_model(; k = 4.0, ω = 2.0, ζ = 0.1, q₀ = SVector(0.0, 0.0)) =
++    Group((plant = AutoPlant(; ω, ζ, q₀), fb = StateFeedback(k));
++          wires = ("plant/q" => "fb/q", "fb/u" => "plant/u"),
++          outputs = ("plant/q" => "q",))
++
+ """
+     sampled_loop(; kI, ω, ζ)
+ 
+diff --git a/test/imports.jl b/test/imports.jl
+index 8893058..b071f9f 100644
+--- a/test/imports.jl
++++ b/test/imports.jl
+@@ -20,11 +20,11 @@ import Cadence: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
+     KindCounts, LoopError, MalformedDatum, Marker, MissingInit,
+     ModelRequestedStop,
+     NonfiniteState, NotAttached, OutOfClaimEntry, PRIMITIVE, PathResolution,
+-    Period, ProducedByTwoStages, RK4, RatesViolation, ReadBindingUnresolved,
++    Period, ProducedByTwoStages, PublishEntry, RK4, RatesViolation, ReadBindingUnresolved,
+     ReadSetMisuse, Relative, ReplayDiscardedStaging, ReplayFeed,
+     ReplayHeaderMismatch, ReplaySchemaMismatch, ReplayUnknownFace,
+     RootInputTypeConflict, Scoped, ServiceLifecycle, Simulation, Snapshot,
+-    SpecializedPlan, StateEvent, StepError, StopFaceInvalid, StoreBundle,
++    SpecializedPlan, StageEntry, StateEvent, StepError, StopFaceInvalid, StoreBundle,
+     StoreWithoutUpdate, TableBinding, TapResolution, TerminationRecord, Tier,
+     TierSignatureMismatch, TierUnreadable, Trace, TraceBatch, TransparentContainerUnknown,
+     TrimCommitEvents, TrimCommitResiduals, TrimProblem, TrimProblemInvalid,
+diff --git a/test/test_build.jl b/test/test_build.jl
+index fca91ab..9913c0e 100644
+--- a/test/test_build.jl
++++ b/test/test_build.jl
+@@ -40,7 +40,8 @@ function build_probe_refusals()
+         d = only(diagnostics(failure(() -> build(single(Undeclared())))))
+         @test d isa UndeclaredReturnField && d.name === :b && d.candidates == [:a]
+         d = only(diagnostics(failure(() -> build(single(Unproduced())))))
+-        @test d isa DeclaredNotProduced && d.ports == [:b] && d.products == [:a]
++        @test d isa DeclaredNotProduced && d.ports == [:b] && d.products == [:a] &&
++              d.state_fields == Symbol[]
+         d = only(diagnostics(failure(() -> build(single(BadDerivative())))))
+         @test d isa ConformanceFailure && d.what == "state_derivative" && d.reason === :field_type &&
+               d.field === :q && d.observed === Float64
+@@ -75,6 +76,84 @@ function build_schedule()
+     end
+ end
+ 
++# --- auto-published ports (§5.3, §8.3, D-016, D-169) --------------------------
++# The classification alone is here, being what the schedule is built from; the
++# runtime properties of the cells it opens belong to the tiers' own files.
++
++function build_auto_publication()
++    @testset "a declared state or mode field no stage produces is published (§5.3)" begin
++        # §8.2's own worked engine: `ω` from `init_x`, `running` from `init_m`,
++        # neither returned by any stage, `M_shaft` the one stage-2 product. The
++        # products' order is the invariant every downstream reader takes its
++        # stage-2 tail off — stage 1, then published, then stage 2.
++        b = build(fed(Motor(1.0), "M_load"))
++        i = index_of(b.flat, "c")
++        @test b.nominal.stage1[i] === NamedTuple()
++        @test keys(b.nominal.published[i]) === (:ω, :running)
++        @test keys(b.nominal.products[i]) === (:ω, :running, :M_shaft)
++        # D-169: the hand-down carries the stage-1 *return*, so a component
++        # whose only stage-1-position ports are published gets no `y_x` at all.
++        @test bundle_names(output_direct, Motor(1.0), CONTINUOUS,
++                           tuple(keys(b.nominal.stage1[i])...)) === (:x, :m, :u, :t)
++    end
++
++    @testset "a loop closes through an auto-published port (§5.3, §5.5, D-169)" begin
++        # The cell is written at stage-1 position, so consuming it adds no edge.
++        @test failure(() -> build(auto_feedback_model())) === nothing
++        # The exemption is that port's alone: the same loop routed through
++        # `power`, a genuine stage-2 product, is still an algebraic cycle.
++        d = carried(@test_throws DiagnosticError{AlgebraicCycle} build(
++            Group((plant = AutoPlant(), fb = StateFeedback(1.0), g = Gain(1.0));
++                  wires = ("plant/q" => "fb/q", "plant/power" => "g/e",
++                           "g/out" => "plant/u"))))
++        @test sort(d.members) == ["g", "plant"]
++    end
++
++    @testset "the discrete tier publishes from `init_s` (§5.3)" begin
++        b = build(single(AutoCounter()))
++        @test b.nominal.published[index_of(b.flat, "c")] == (n = 0,)
++    end
++
++    @testset "publication is by name *and* type (§5.3, §8.3)" begin
++        # A store holding the name at another type publishes nothing, and the
++        # refusal now carries the state-field list that tells the two apart.
++        d = only(diagnostics(failure(() -> build(single(WrongTyped())))))
++        @test d isa DeclaredNotProduced && d.ports == [:q] && d.products == Symbol[] &&
++              d.state_fields == [:q]
++    end
++
++    @testset "stage-1 position is one writer's: a stage's or the framework's (§8.3)" begin
++        d = carried(@test_throws DiagnosticError{ProducedByTwoStages} build(single(Twice())))
++        @test d.ports == [:q]
++        # Returned from stage 1 instead, the same port is the stage's outright.
++        b = build(single(TwiceState()))
++        i = index_of(b.flat, "c")
++        @test b.nominal.stage1[i] == (q = 0.0,)
++        @test b.nominal.published[i] === NamedTuple()
++    end
++
++    @testset "the non-nominal set is the nominal's, by name (§9.1, §5.3)" begin
++        # `flag` names a mode field the store holds as an `Int` and is a genuine
++        # stage-2 product. Re-deriving membership at the walking activation would
++        # meet it there and report a publication that was never classified as one.
++        b = build(single(ModeNamedProduct()))
++        i = index_of(b.flat, "c")
++        @test keys(b.nominal.published[i]) === (:q,)
++        @test keys(activation(b, D8).published[i]) === (:q,)
++    end
++
++    @testset "a pinned declaration of a walking field is refused, not stripped (§5.3, D-166)" begin
++        # The set is fixed by the nominal activation, where the type test is
++        # exact; at the walking one the port no longer embeds, and publishing it
++        # stripped would be a stop-gradient the author never wrote.
++        b = build(single(PinnedState()))
++        d = only(diagnostics(failure(() -> activation(b, D8))))
++        @test d isa ConformanceFailure && d.what == "auto-publication" &&
++              d.reason === :field_type && d.field === :q &&
++              d.observed === D8 && d.declared === Float64
++    end
++end
++
+ # --- the root input's type, under fan-out (§8.2, D-168) -----------------------
+ # A root input is produced by no component, so its type comes from the consumer
+ # declarations alone; with several consumers the concrete declaration has to be
+@@ -750,6 +829,7 @@ end
+ function test_build()
+     build_probe_refusals()
+     build_schedule()
++    build_auto_publication()
+     build_root_input_type()
+     build_wire_clauses()
+     build_port_type_refusals()
+diff --git a/test/test_continuous.jl b/test/test_continuous.jl
+index 4e4407c..2ad5c63 100644
+--- a/test/test_continuous.jl
++++ b/test/test_continuous.jl
+@@ -57,6 +57,67 @@ function continuous_skeleton()
+ 
+ end
+ 
++# --- auto-published cells at runtime (§5.3, D-016, D-169) ---------------------
++# `build.jl`'s file owns the classification; what is asserted here is what the
++# cells *hold* once the loop runs them — the store's own value, at every reader.
++
++function continuous_auto_publication()
++    @testset "a published cell carries the store, not an integration (§5.3, D-163)" begin
++        # Non-default stores first, because the probe seed already wrote the
++        # declared initials into these cells: only a value the seed could not
++        # have left shows that boundary zero's `ESTABLISH` round published them.
++        seeded = Simulation(fed(Motor(1.0), "M_load"); h = 1//100)
++        init!(seeded, combine(at("c", fragment(x = (ω = 3.0,), m = (running = true,))),
++                              fragment(inputs = (in = 0.0,))))
++        @test port(seeded, "c", :ω) == 3.0
++        @test port(seeded, "c", :running) === true
++
++        sim = Simulation(fed(Motor(1.0), "M_load"); h = 1//100)
++        # A root input must be covered at `init!` (§14.6, `UninitializedInputs`),
++        # and `M_load = 0` is what makes the closed form below exact.
++        init!(sim, fragment(inputs = (in = 0.0,)))
++        # Boundary zero's `ESTABLISH` round published the authored stores.
++        @test port(sim, "c", :ω) == 0.0
++        @test port(sim, "c", :running) === false
++
++        run!(sim; t_end = 0.5)
++        # `running` flips at `t = 0.1` and `M_shaft` is 1 after it, so with
++        # `J = 1` and `M_load = 0` the closed form is `ω(t) = max(t − 0.1, 0)`.
++        # The tolerance is RK4's over the ramp, not the semantics' — the event is
++        # boundary-detected and `h = 1//100` places 0.1 exactly on the grid, so
++        # the crossing costs no localization error of its own.
++        @test port(sim, "c", :ω) ≈ 0.4 rtol = 1e-9
++        @test port(sim, "c", :running) === true
++        # Bitwise, and the one place the suite may be: the claim is that the
++        # cell *is* a copy of the store at the boundary, not a second
++        # integration of it (D-163's stamp exception).
++        @test port(sim, "c", :ω) == state(sim, "c").ω
++        @test port(sim, "c", :running) === modes(sim, "c").running
++        # A cell is a cell: the snapshot carries the published one (§11.2).
++        @test port(latest(sim), "c", :ω) == state(sim, "c").ω
++        @test port(latest(sim), "c", :running) === true
++    end
++
++    @testset "a loop closed through a published port integrates alike (§5.3, D-169)" begin
++        # `AutoPlant` publishes its whole state vector and `StateFeedback` reads
++        # it; `feedback_model` closes the same loop through `Sum` and `Gain`
++        # with `ref = 0`. Both start off the origin — at `q₀ = 0` and `ref = 0`
++        # both trajectories are identically zero and the comparison is vacuous.
++        q₀ = SVector(1.0, 0.0)
++        a = Simulation(auto_feedback_model(; k = 4.0, q₀); h = 1//100)
++        f = Simulation(feedback_model(; k = 4.0, q₀); h = 1//100)
++        init!(a)
++        init!(f, fragment(inputs = (ref = 0.0,)))
++        run!(a; t_end = 2.0)
++        run!(f; t_end = 2.0)
++        # The same RK4 steps on the same closed loop, so this is exact agreement
++        # up to the order the two right-hand sides sum their terms in.
++        @test port(a, "plant", :q) ≈ state(f, "plant").q rtol = 1e-12
++        @test state(a, "plant").q ≈ state(f, "plant").q rtol = 1e-12
++    end
++end
++
+ function test_continuous()
+     continuous_skeleton()
++    continuous_auto_publication()
+ end
+diff --git a/test/test_diagnostics.jl b/test/test_diagnostics.jl
+index 8da1fc9..e3103af 100644
+--- a/test/test_diagnostics.jl
++++ b/test/test_diagnostics.jl
+@@ -322,7 +322,8 @@ function diagnostics_kind_set()
+             # Strata B and C
+             AlgebraicCycle(members = ["a/b", "a/c"]),
+             ProducedByTwoStages(path = "a/b", ports = [:y]),
+-            DeclaredNotProduced(path = "a/b", ports = [:y], products = [:z]),
++            DeclaredNotProduced(path = "a/b", ports = [:y], products = [:z],
++                                state_fields = [:q]),
+             UndeclaredReturnField(path = "a/b", stage = "output_state", name = :q, candidates = [:y]),
+             ConformanceFailure(path = "a/b", what = "output_state", reason = :return_type, shape = :ports,
+                                observed = Int),
+@@ -333,6 +334,9 @@ function diagnostics_kind_set()
+             ConformanceFailure(path = "a/b", what = "output_state", reason = :field_type, shape = :ports,
+                                field = :y, observed = Int, declared = Float64,
+                                activation = Float64),
++            ConformanceFailure(path = "a/b", what = "auto-publication", reason = :field_type,
++                               shape = :ports, field = :q, observed = D8,
++                               declared = Float64, activation = D8),
+             ConformanceFailure(path = "a/b", what = "state_update", reason = :field_set, shape = :init_s,
+                                observed = NamedTuple{(:q,),Tuple{Int}},
+                                declared = NamedTuple{(:q,),Tuple{Float64}}),
+diff --git a/test/test_discrete.jl b/test/test_discrete.jl
+index 9cc84cf..9c05b8c 100644
+--- a/test/test_discrete.jl
++++ b/test/test_discrete.jl
+@@ -67,6 +67,35 @@ function discrete_one_rate()
+         @test port(sim, "plant", :y) != y₀
+     end
+ 
++    @testset "the discrete tier publishes `s` from the store (§5.3, §10.5)" begin
++        # `AutoCounter` declares `n` and runs no output stage, so the framework
++        # publishes it from `init_s`'s store at stage-1 position.
++        sim = Simulation(single(AutoCounter()); h = 1//10)
++        # A non-default store, because the probe seed already wrote `init_s`'s
++        # own `0` into the cell: only a value the seed could not have left shows
++        # that boundary zero's `ESTABLISH` round published it.
++        init!(sim, at("c", fragment(s = (n = 7,))))
++        @test port(sim, "c", :n) == 7
++        run!(sim; t_end = 0.3)
++        # The same sampled-data gap the ZOH test asserts above: the cell holds
++        # what the boundary's sweep published, the store what its update left.
++        @test port(sim, "c", :n) == 10
++        @test state(sim, "c").n == 11
++
++        # A discrete component is frozen at a walking activation (§9.4), so no
++        # entry of any kind is compiled for it — publication included — and the
++        # cell keeps the nominal probe's seed.
++        simd = Simulation(build(single(AutoCounter())), D8; h = 1//10)
++        @test !any(e -> e isa PublishEntry, walked(simd.exec.bodies.sweep_1))
++        init!(simd, at("c", fragment(s = (n = 7,))))
++        run!(simd; t_end = 0.3)
++        # The authored store reaches the store and nothing else: no entry
++        # publishes it and none updates it, so the store keeps what `init!`
++        # wrote while the cell still holds what the nominal probe seeded.
++        @test port(simd, "c", :n) == 0
++        @test state(simd, "c").n == 7
++    end
++
+ end
+ 
+ function discrete_frozen_activation()
+diff --git a/test/test_events.jl b/test/test_events.jl
+index 6e13912..b1799ef 100644
+--- a/test/test_events.jl
++++ b/test/test_events.jl
+@@ -283,4 +283,23 @@ function test_events()
+         boundary!(simr, 1)
+         @test @ballocated(boundary!($simr, 1)) == 0
+     end
++
++    @testset "a handler's mode flip reaches its published cell (§5.3, D-154)" begin
++        # `AutoOverload` runs no stage at all: `tripped` reaches the face by
++        # publication alone. The table is written by sweeps and by nothing else
++        # (D-154), so the handler's round is followed by a sweep before anything
++        # is read — which is why the cell and the store agree at the boundary,
++        # and why the snapshot taken there already carries the flip.
++        sim = Simulation(auto_overloaded(); h = 1//10, t_end = 5.0,
++                         stop_on = ("tripped",))
++        init!(sim)
++        @test port(sim, "mon", :tripped) === false       # before the crossing
++        run!(sim)
++        t = termination(sim)
++        @test t.source === ModelRequestedStop(:tripped)
++        @test t.t ≈ 0.315 atol = 1e-6                    # the localized crossing
++        @test modes(sim, "mon").tripped === true
++        @test port(sim, "mon", :tripped) === true
++        @test port(latest(sim), "mon", :tripped) === true
++    end
+ end
+diff --git a/test/test_executor.jl b/test/test_executor.jl
+index 5f73031..c476be6 100644
+--- a/test/test_executor.jl
++++ b/test/test_executor.jl
+@@ -20,6 +20,23 @@ function test_executor()
+             @test @ballocated($body()) == 0
+             @test @ballocated($body(1)) == 0
+         end
++
++        # The fourth entry kind rides the same roster (§5.3): `Motor` returns
++        # neither state nor mode from any stage, so its stage-1 block is two
++        # `PublishEntry`s — one per home, `x` and `m` — and no stage entry at
++        # all. They are compiled entries like any other, so the interior walk
++        # carries them and the canary holds over the whole roster.
++        mot = Simulation(fed(Motor(1.0), "M_load"); h = 1//100)
++        b = phase_bodies(mot)
++        walk = walked(b.sweep_1, :interior)
++        @test count(e -> e isa PublishEntry, walk) == 2
++        @test !any(e -> e isa StageEntry, walk)
++        for name in BLOCKS
++            body = b[name]
++            body(); body(0)
++            @test @ballocated($body()) == 0
++            @test @ballocated($body(1)) == 0
++        end
+     end
+ 
+     @testset "the chunk walk is allocation-free at any width (§9.7)" begin

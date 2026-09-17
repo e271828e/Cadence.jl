@@ -1,0 +1,108 @@
+┌ Warning: The active manifest file has dependencies that were resolved with a different julia version (1.12.7). Unexpected behavior may occur.
+└ @ ~/.julia/dev/Cadence.jl/Manifest.toml:0
+      Status `~/.julia/dev/Cadence.jl/test/Project.toml`
+  [6e4b80f9] BenchmarkTools v1.8.0
+  [653472ee] Cadence v0.1.0 `.`
+⌃ [f6369f11] ForwardDiff v1.4.5
+⌃ [90137ffa] StaticArrays v1.9.19
+  [b77e0a4c] InteractiveUtils v1.11.0
+  [37e2e46d] LinearAlgebra v1.12.0
+  [8dfed614] Test v1.11.0
+      Status `~/.julia/dev/Cadence.jl/Manifest.toml`
+  [6e4b80f9] BenchmarkTools v1.8.0
+  [653472ee] Cadence v0.1.0 `.`
+  [bbf7d656] CommonSubexpressions v0.3.1
+  [34da2185] Compat v4.18.1
+  [163ba53b] DiffResults v1.1.0
+  [b552c78f] DiffRules v1.16.0
+  [ffbed154] DocStringExtensions v0.9.5
+⌃ [f6369f11] ForwardDiff v1.4.5
+  [92d709cd] IrrationalConstants v0.2.6
+  [692b3bcd] JLLWrappers v1.8.0
+⌃ [682c06a0] JSON v1.7.1
+  [2ab3a3ac] LogExpFunctions v1.0.1
+  [1914dd2f] MacroTools v0.5.16
+  [77ba4419] NaNMath v1.1.4
+⌅ [69de0a69] Parsers v2.8.7
+  [aea7be01] PrecompileTools v1.3.4
+⌃ [21216c6a] Preferences v1.5.2
+  [276daf66] SpecialFunctions v2.9.0
+⌃ [90137ffa] StaticArrays v1.9.19
+  [1e83bf80] StaticArraysCore v1.4.4
+⌃ [10745b16] Statistics v1.11.4
+  [ec057cc2] StructUtils v2.8.5
+  [efe28fd5] OpenSpecFun_jll v0.5.6+0
+  [56f22d72] Artifacts v1.11.0
+  [2a0f44e3] Base64 v1.11.0
+  [ade2ca70] Dates v1.11.0
+  [b77e0a4c] InteractiveUtils v1.11.0
+  [ac6e5ff7] JuliaSyntaxHighlighting v1.12.0
+  [8f399da3] Libdl v1.11.0
+  [37e2e46d] LinearAlgebra v1.12.0
+  [56ddb016] Logging v1.11.0
+  [d6f4376e] Markdown v1.11.0
+  [de0858da] Printf v1.11.0
+  [9abbd945] Profile v1.11.0
+  [9a3f8284] Random v1.11.0
+  [ea8e919c] SHA v0.7.0
+  [9e88b42a] Serialization v1.11.0
+  [f489334b] StyledStrings v1.11.0
+  [fa267f1f] TOML v1.0.3
+  [8dfed614] Test v1.11.0
+  [cf7118a7] UUIDs v1.11.0
+  [4ec0a83e] Unicode v1.11.0
+  [e66e0078] CompilerSupportLibraries_jll v1.3.1+2
+  [4536629a] OpenBLAS_jll v0.3.29+0
+  [05823500] OpenLibm_jll v0.8.7+0
+  [8e850b90] libblastrampoline_jll v5.15.0+0
+        Info Packages marked with ⌃ and ⌅ have new versions available. Those with ⌃ may be upgradable, but those with ⌅ are restricted by compatibility constraints from upgrading.
+     Testing Running tests...
+Test Summary: | Pass  Total  Time
+leaves        |   97     97  0.5s
+Test Summary: | Pass  Total  Time
+declare       |   22     22  0.0s
+Test Summary: | Pass  Total   Time
+assembly      |  157    157  19.0s
+Test Summary: | Pass  Total   Time
+store         |   57     57  16.6s
+Test Summary: | Pass  Total   Time
+build         |  152    152  25.4s
+Test Summary: | Pass  Total  Time
+executor      |   37     37  9.0s
+Test Summary: | Pass  Total   Time
+continuous    |   24     24  17.1s
+Test Summary: | Pass  Total   Time
+discrete      |  102    102  17.9s
+Test Summary: | Pass  Total   Time
+stepper       |   16     16  20.5s
+Test Summary: | Pass  Total   Time
+events        |   69     69  25.2s
+Test Summary: | Pass  Total   Time
+localization  |   50     50  33.2s
+Test Summary: | Pass  Total   Time
+dataplane     |   43     43  15.6s
+Test Summary: | Pass  Total  Time
+roster        |   65     65  2.3s
+Test Summary: | Pass  Total  Time
+bindings      |   60     60  1.1s
+Test Summary: | Pass  Total  Time
+devices       |   66     66  2.2s
+Test Summary: | Pass  Total  Time
+log           |   37     37  0.7s
+Test Summary: | Pass  Total   Time
+trace         |  231    231  15.7s
+Test Summary: | Pass  Total  Time
+readers       |   86     86  9.0s
+Test Summary: | Pass  Total   Time
+conditions    |  144    144  12.2s
+Test Summary: | Pass  Total   Time
+trim          |  117    117  19.2s
+Test Summary: | Pass  Total  Time
+diagnostics   |  592    592  2.0s
+Test Summary: | Pass  Total     Time
+failures      |  182    182  1m03.1s
+Test Summary: | Pass  Total  Time
+lifecycle     |  108    108  7.1s
+Test Summary: | Pass  Total     Time
+Cadence       | 2514   2514  5m34.6s
+     Testing Cadence tests passed 

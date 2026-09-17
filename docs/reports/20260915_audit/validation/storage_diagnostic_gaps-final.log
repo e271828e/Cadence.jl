@@ -1,0 +1,7 @@
+enum probe synthesis was rejected first as IllegalPortType(:no_leaves)
+missing probe value raised raw MethodError
+empty stage built successfully
+probe user exception escaped unframed
+illegal bundle field exception type: FieldError
+mutable Real port BigInt built successfully
+mutating a snapshot mutable Real changed both the snapshot and live cell value

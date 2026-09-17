@@ -1,0 +1,851 @@
+diff --git a/docs/design/implementation.md b/docs/design/implementation.md
+index 125baf6..bb11f28 100644
+--- a/docs/design/implementation.md
++++ b/docs/design/implementation.md
+@@ -19,11 +19,11 @@ to. For more than a line, read the file itself and the sections it cites.
+ | `src/leaves.jl` | the leaf walk (with D-237's opaque leaf and `mutable_position`): flatten / reconstruct / the activation retype, and `leaf_names`' dotted spelling of a flat position, embed-accept's relation `_accepts` (D-166, decided on the type per D-238, an opaque leaf by identity per D-237) and the wire relation `_accepts_wire` with its abstract arm (D-236) and the checked state write `flatten_state!` (D-235) | §4.3, §4.4, §6.1, §7.1, §7.2, §9.5, §13.4, D-166, D-235, D-236, D-237, D-238 |
+ | `src/diagnostics.jl` | the diagnostic kinds with `severity`/`path`/`message`, `_typename` (a user type's name for a payload field or a label), the `DiagnosticError` carrier, parametric on policy, with `diagnostic`/`diagnostics`/`kinds` and its two renderings, `logline`, `InternalInvariant`, §13.4's runtime trio — `CursorFrame`, `StepError` (parametric on its cause, `diagnostic` defined on the species) and `NonfiniteState` — and §12.7's replay trio, `ReplayHeaderMismatch`/`ReplaySchemaMismatch`/`ReplayUnknownFace`, whose `face` carries a bare position where no schema resolves it and the name where one does | §13.1, §13.2, §13.4, Appendix C, D-058, D-059, D-157, D-214, D-215, D-222, D-225 |
+ | `src/declare.jl` | the declaration layer: both tiers' name families and arities, the bundle law, `probe_value`, the connection declarations beside `transparent_container`, the rate registers with `sample_times`, the event surface | §2.1, §5.2, §8.2, §8.5–§8.7, §9.3, D-179, D-185, D-195, D-211 |
+-| `src/assembly.jl` | class by declaration shape; children and containers with their collision family; `Group`, the anonymous assembly, kernel material by decision where the rest of the old `library.jl` became fixtures; paths and §6.1's one-level rule; endpoint and face resolution with the root's face invariants; the flatten pass under one Stratum A barrier (`Walk` owning the `Flat` it builds, resolvers recording into the stratum's list, `wire!` deriving the two-sided face graph after the barrier, `Flat.root_types` holding the root-input types the wire pass fixes) and the sample-time fold; §13.3's `resolve`/`resolve_terminal`/face-list primitives and §8.8's `input_passthrough`/`output_passthrough` | §6.1, §8.5–§8.8, §9.1, §9.2, §13.3, D-171, D-207–D-212, D-229, D-236 |
++| `src/assembly.jl` | class by declaration shape; children and containers with their collision family; `Group`, the anonymous assembly, kernel material by decision where the rest of the old `library.jl` became fixtures; paths and §6.1's one-level rule; endpoint and face resolution with the root's face invariants; the flatten pass under one Stratum A barrier (`Walk` owning the `Flat` it builds, resolvers recording into the stratum's list, `wire!` deriving the two-sided face graph after the barrier, `Flat.root_types` holding the root-input types the wire pass fixes) and the sample-time fold; §13.3's `resolve`/`resolve_terminal`/face-list primitives and the load-bearing register's walk `resolve_authored` over the `Flat`'s retained root, declared holdings read off the type definition (D-061, D-130), and `authored_chain`, the child names along an absolute path that `capture` spells level by level, and §8.8's `input_passthrough`/`output_passthrough` | §6.1, §8.5–§8.8, §9.1, §9.2, §13.3, §14.2, D-061, D-130, D-171, D-207–D-212, D-229, D-236 |
+ | `src/store.jl` | per-eltype cell stores (a handle type is its own eltype, D-237), the `StoreBundle`, gather and the checked scatter (§9.5's always-on check decided at generation, D-235), `_cell_key`, the `Clock` | §9.5, §9.7, D-162, D-235, D-237 |
+ | `src/executor.jl` | entries (each carrying its component's path, for the write's diagnostic; `PublishEntry`, the framework's stage-1-position copy of store fields into cells, §5.3), the chunked unrolled walk, the interior/boundary split, the `(idx − Φ) % D` gate and boundary zero's `ESTABLISH` beside it, the event set with its registers and the guard/fire/project walks, and the execution cursor every entry stores into | §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §14.5, D-059, D-205, D-235 |
+ | `src/build.jl` | tier classification (recording, the tier read in the walk beside the class, `build` owning Stratum A's one throw, the wire pass (both type clauses at `Float64` and at the marker scalar, the root-input type and its two refusals, the contract-bound check (`TierSignatureMismatch`'s bound arm); D-236)), the store isbits check (§7.3, D-231) and the state-leaf vocabulary check (§7.1, D-094), the probe and the event probe, `auto_published` and the published set on the `Activation` (§5.3, D-169), the feedthrough graph, the layout with the root-input meet (D-168, D-236) and `IllegalPortType`'s three arms (D-237), the probe's embedding of products (`_embed`), the `Build` and its activations, deployment binding (one throw per `Simulation` call), and `compile` → `Executor{T}` — one activation's buffer set with the bodies closed over it, one owner per set, `evaluate!`/`_round!`/`apply!` on it | §5.3, §6.1, §8.2, §9.1–§9.4, §9.7, §10.4, D-016, D-166, D-169, D-179, D-208, D-210, D-229, D-235, D-236, D-237 |
+-| `src/readers.jl` | the closed read-selector family, `reads`, the internal `_compile_reads` → `Reader{T}`, `gather` as `apply!`'s twin over an executor; activation identity on readers and plans as an internal invariant | §13.1, §14.1, §14.4, §14.7, §14.10 |
++| `src/readers.jl` | the closed read-selector family, `reads`, its path selectors walked from the root (§13.3), the internal `_compile_reads` → `Reader{T}`, `gather` as `apply!`'s twin over an executor; activation identity on readers and plans as an internal invariant | §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130 |
+ | `src/sim.jl` | `Simulation` (owning its `exec`), the deployment keywords, the boundary macro-sequence and the §10.6 event phase with its `FiringBudget` degradation, `init!`, `run!`/`step!`, `replay!` over the one shared run body, `attach!`/`detach!`, staging/drain/publication with the drain's replay substitution, §12.6's input mode (`mode(sim)`, `to_time`, `live!`), the lifecycle and termination record, the frame loop's one catch site with the species rule and the interrupt carve-out and its second host around boundary zero, the seam's `isfinite` sweep over `x` as the boundary's first act, the accessors | §10.2–§10.6, §11.1–§11.4, §11.8, §12.1–§12.7, §13.4–§13.6, §14.5, §14.6, D-059, D-101, D-157, D-203, D-218, D-219, D-221, D-223, D-232, D-233 |
+ | `src/stepper.jl` | the seam's backend side: RK4 and Heun, the retained `startpoint`, dense output | §10.2, D-017 |
+ | `src/localization.jl` | the frame loop: arrival sweep, θ = 0 validation, ITP bracketing, `t*` boundaries, the localization budget and the `ChatteringBudget` degradation; the cursor's arrival/validation/trial phases | §10.2, §10.4, §13.4, D-018, D-059, D-133 |
+@@ -32,7 +32,7 @@ to. For more than a line, read the file itself and the sections it cites.
+ | `src/roster.jl` | device/binding traits and conformance, the roster, both claim sources, the harness register | §11.3, §11.4, §11.6 |
+ | `src/bindings.jl` | `TableBinding`, `map_input` and the conditioning helper, binding reads resolved at attach (`ReadBindingUnresolved`, the source rule) | §11.2, §11.4, §11.6, §14.4 |
+ | `src/devices.jl` | the device contract, the handle, the task wrapper, the init bracket and the tail under `join_timeout`; the two lifecycle gates, the readers' and the roster's | §11.1, §11.3, §11.6, §12.1–§12.4, §13.5, §13.6, D-198, D-232, D-233 |
+-| `src/conditions.jl` | the condition algebra, one collecting pass behind both application registers — `resolve_condition` (values) and `compile_plan` (`Getter{P}` lenses, `SpecializedPlan`, `ConditionShapeDrift`) — root-input totality, `capture` | §9.5, §13.1, §14.1–§14.6, D-063–D-068, D-204, D-205, D-207 |
++| `src/conditions.jl` | the condition algebra, one collecting pass behind both application registers, each `at` prefix walked from its authoring level (§13.3) — `resolve_condition` (values) and `compile_plan` (`Getter{P}` lenses, `SpecializedPlan`, `ConditionShapeDrift`) — root-input totality, `capture` | §9.5, §13.1, §13.3, §14.1–§14.6, D-063–D-068, D-130, D-204, D-205, D-207 |
+ | `src/trim.jl` | `TrimProblem`, the `solve` seam with `LevenbergMarquardt`, `trim!` over D-213's two-half scratch world, `TrimReport`, the `Trim*` kinds | §9.6, §13.1, §14.5–§14.8, D-070, D-158, D-213, D-224 |
+ | `test/fixtures.jl` | the suite's fixtures: the coverage component set, the named assemblies, the devices and bindings, the `condition` fragment-function idiom, `Pendulum` — user material, and no name here is known to `src/` | — |
+ | `test/imports.jl` | the suite's `import Cadence:` list, shared with `repl.jl` — the one place a framework name the tests call or extend is admitted | — |
+diff --git a/docs/design/spec.md b/docs/design/spec.md
+index 425806e..d172a2a 100644
+--- a/docs/design/spec.md
++++ b/docs/design/spec.md
+@@ -10747,11 +10747,12 @@ with the collection and never trigger its throw, is currently empty
+   offending leaf, both declared leaf types; both remedies in the message
+   ("declare the entry `T` if the consumer promotes; feed it from a
+   non-walking source if the freeze is genuine").
+-- **`PathResolution`** ([§6.1][s6-1], [§13.3][s13-3]). Error · build ·
+-  collected. Path, offending segment, sibling field list. For a wiring
+-  endpoint reaching past the immediate child, the level it stopped at. For a
+-  read-side traversal past a generically-held field, that field's declared
+-  type.
++- **`PathResolution`** ([§6.1][s6-1], [§13.3][s13-3]). Error · build, or
++  service under the load-bearing register · collected. Path, offending
++  segment, sibling field list. For a wiring endpoint reaching past the
++  immediate child, the level it stopped at. For a load-bearing traversal past
++  a generically-held field, the level it reached past and that field's
++  declared type.
+ - **`AbstractAtRoot`** ([§8.2][s8-2]). Error · build · collected. Face name,
+   consuming leaf path, the abstract entry; a remedy hint (wire a concrete
+   producer, or in a rig a stub child, [§13.7][s13-7]).
+@@ -10924,8 +10925,9 @@ with the collection and never trigger its throw, is currently empty
+   addresses), offending value type and declared leaf type, the leaf's tier
+   and role where the refusal is tier-bound, the producer where a face is
+   fed, candidates where a list is in hand, provenance chain. Its sub-kinds
+-  are unknown path, undeclared field, unconvertible value and unexported
+-  root-input face.
++  are assembly path, undeclared field, unconvertible value and unexported
++  root-input face. An unknown or past-generic path is `PathResolution`'s
++  ([§13.3][s13-3]).
+ - **`DuplicateConditionLeaf`** ([§14.2][s14-2]). Error · service ·
+   collected. The leaf `(path, store, field)`, both provenance chains, the
+   `override` advice.
+diff --git a/src/assembly.jl b/src/assembly.jl
+index 61d39ae..08d94e5 100644
+--- a/src/assembly.jl
++++ b/src/assembly.jl
+@@ -299,12 +299,107 @@ function _one_level(entry::String, base::String, asm, path::AbstractString,
+     kid, seg
+ end
+ 
++# A child's holding, read off the type's definition rather than the instance:
++# a field typed by a parameter is a `TypeVar` there, whatever the
++# instantiation filled in (§8.5, D-061). Container elements follow their
++# container's declared type.
++_declared_holding(c, field::Symbol) =
++    fieldtype(Base.unwrap_unionall(typeof(c).name.wrapper), field)
++_held_concretely(c, field::Symbol) =
++    (ft = _declared_holding(c, field); !(ft isa TypeVar) && isconcretetype(ft))
++
++"""
++The load-bearing register's walk (§13.3, D-130): `path`'s segments from
++`level`, the component at `base`, following the declared field types
++alongside the instances. Resolving *to* a generically held child is legal;
++traversing *past* one is the refusal, whatever the instance in hand — the
++authoring level speaks its own fields and its declared children's names
++(§14.2), and a deep path is legitimate exactly within an owned concrete
++subtree. Returns the component the path names, primitive or assembly, or
++`nothing` after recording the refusal against `entry`. The empty path names
++`level` itself.
++"""
++function resolve_authored(entry::String, base::String, level, path::AbstractString,
++                          diags::Vector{Diagnostic})
++    isempty(path) && return level
++    segs = String.(split(path, '/'))
++    here, at, i = level, base, 1
++    while i ≤ length(segs)
++        # A primitive has no children in this walk. A component-typed field of one
++        # is inert to the composition — `flatten!` stops at the primitive and never
++        # descends, so no path indexes what the field holds (§8.5,
++        # `ClassUnreadable.holds_components`) — and asking `_children` about it
++        # would invent a child, or raise the container checks over a component the
++        # build never walked. Every level below is a child the flatten pass walked,
++        # so `classify` only reads back a class it already proved readable.
++        if classify(at, here) === PRIMITIVE
++            push!(diags, PathResolution(entry = entry, spelling = String(path),
++                                       reason = :unknown_child, owner = _at(at),
++                                       segment = segs[i]))
++            return nothing
++        end
++        # `_children` re-runs the container collision checks and throws on its
++        # own when they fail; the build proved this tree clean, so here the call
++        # only hands the list back.
++        kids, fields = _children(at, here)
++        j = findfirst(kid -> first(kid) == segs[i], kids)
++        j === nothing && i < length(segs) &&
++            (j = findfirst(kid -> first(kid) == segs[i] * "/" * segs[i + 1], kids))
++        if j === nothing
++            push!(diags, PathResolution(entry = entry, spelling = String(path),
++                                       reason = :unknown_child, owner = _at(at),
++                                       segment = segs[i],
++                                       candidates = String[first(k) for k in kids]))
++            return nothing
++        end
++        seg, kid = kids[j]
++        i += count(==('/'), seg) + 1            # a matched pair consumes two segments
++        if i ≤ length(segs) && !_held_concretely(here, fields[j])
++            push!(diags, PathResolution(entry = entry, spelling = String(path),
++                                       reason = :past_generic, owner = _at(at),
++                                       segment = seg, level = _join(at, seg),
++                                       declared = _declared_holding(here, fields[j])))
++            return nothing
++        end
++        here, at = kid, _join(at, seg)
++    end
++    here
++end
++
++"""
++The child names an absolute `path` traverses, outermost first, as `_children`
++names them — so a D-211 container pair such as `"units/1"` is one name, not two
++segments. The same greedy match `resolve_authored` runs, over a path the build
++compiled and which therefore always resolves. A service that authors a
++condition back out of the flattened list spells it level by level from this, the
++one spelling the load-bearing walk admits across a generic seam (§14.2, §13.3).
++"""
++function authored_chain(root, path::AbstractString)
++    isempty(path) && return String[]
++    segs = String.(split(path, '/'))
++    chain, here, at, i = String[], root, "", 1
++    while i ≤ length(segs)
++        kids, = _children(at, here)
++        j = findfirst(kid -> first(kid) == segs[i], kids)
++        j === nothing && i < length(segs) &&
++            (j = findfirst(kid -> first(kid) == segs[i] * "/" * segs[i + 1], kids))
++        j === nothing && throw(InternalInvariant("no child of `$at` at `$path`"))
++        seg, kid = kids[j]
++        push!(chain, seg)
++        i += count(==('/'), seg) + 1
++        here, at = kid, _join(at, seg)
++    end
++    chain
++end
++
+ # --- §13.3's build primitives -------------------------------------------------
+ # The four the declaration surface calls: `resolve` and `resolve_terminal` in
+-# their public, entry-less forms, plus the two face-list accessors. This is the
++# their public, entry-less forms, plus the two face-list accessors. Those are the
+ # *structural* register of §13.3's table — the one-level rule verbatim, the same
+ # walk wiring resolution runs, entered from a declaration body with no wiring
+-# entry to attribute the failure to.
++# entry to attribute the failure to. `resolve_authored` above is the
++# *load-bearing* register's own walk, entered by the services with an entry to
++# attribute the refusal to.
+ 
+ """
+     resolve(asm, path) → AbstractComponent
+@@ -537,9 +632,12 @@ two-sided face table — the assembly faces the periphery may read, aliased onto
+ the cells they derive from, and beside them every input face at every level with
+ the producer it routes to. The input side is total: one-level routing gives
+ every signal crossing a boundary a declared face there (D-207), so a fragment's
+-`inputs` payload resolves from any authoring level (§14.2).
++`inputs` payload resolves from any authoring level (§14.2). The root itself is
++retained, because the load-bearing register's walk resolves against the tree the
++paths index rather than against the compiled list (§13.3).
+ """
+ struct Flat
++    root::Any                       # the tree the paths index (§13.3's load-bearing walk)
+     paths::Vector{String}
+     comps::Vector{Any}
+     conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}}   # face => (producer path, port)
+@@ -570,7 +668,8 @@ struct Walk
+     routes::Vector{Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}}   # (path, face, consumers)
+ end
+ 
+-Walk() = Walk(Flat(String[], Any[], Vector{Pair{Symbol,Tuple{String,Symbol}}}[], Symbol[],
++Walk(root) = Walk(Flat(root, String[], Any[],
++                   Vector{Pair{Symbol,Tuple{String,Symbol}}}[], Symbol[],
+                    Any[],
+                    Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
+                    Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
+diff --git a/src/build.jl b/src/build.jl
+index 0d11c34..37de006 100644
+--- a/src/build.jl
++++ b/src/build.jl
+@@ -469,7 +469,7 @@ of at first request.
+ """
+ function build(root::AbstractComponent; activations::Tuple = ())
+     diags = Diagnostic[]
+-    w = Walk()
++    w = Walk(root)
+     flatten!(w, root, diags)            # structure, tiers, claims, the obligation check
+     _check_event_declarations(w.flat, diags)
+     # The dependency rule (§13.1, D-229): the wire pass reads the wiring, which a
+diff --git a/src/conditions.jl b/src/conditions.jl
+index f514725..aa47980 100644
+--- a/src/conditions.jl
++++ b/src/conditions.jl
+@@ -150,7 +150,7 @@ end
+ _key(e::CEntry) = e.face === nothing ? (e.path, e.store, e.field) : ("", :input, e.face)
+ _step(prov::String, s::String) = isempty(prov) ? s : prov * " → " * s
+ 
+-function _flat(n::Fragment, path::String, prov::String, pos::Tuple,
++function _flat(n::Fragment, path::String, level, prov::String, pos::Tuple,
+                flat::Flat, diags::Vector{Diagnostic})
+     out = CEntry[]
+     for (store, name, payload) in ((:x, :x, n.x), (:s, :s, n.s),
+@@ -167,26 +167,30 @@ function _flat(n::Fragment, path::String, prov::String, pos::Tuple,
+     out
+ end
+ 
+-_flat(n::Scoped, path::String, prov::String, pos::Tuple,
+-      flat::Flat, diags::Vector{Diagnostic}) =
+-    _flat(n.node, _join(path, n.prefix), _step(prov, "at(\"$(n.prefix)\")"),
+-          (pos..., :node), flat, diags)
++function _flat(n::Scoped, path::String, level, prov::String, pos::Tuple,
++               flat::Flat, diags::Vector{Diagnostic})
++    entry = _step(prov, "at(\"$(n.prefix)\")")
++    kid = resolve_authored(entry, path, level, n.prefix, diags)
++    kid === nothing && return CEntry[]        # the path is the offender, reported once
++    _flat(n.node, _join(path, n.prefix), kid, entry, (pos..., :node), flat, diags)
++end
+ 
+-_flat(n::Combined, path::String, prov::String, pos::Tuple,
++_flat(n::Combined, path::String, level, prov::String, pos::Tuple,
+       flat::Flat, diags::Vector{Diagnostic}) =
+-    reduce(vcat, (_flat(k, path, _step(prov, "combine[$i]"), (pos..., :nodes, i), flat, diags)
++    reduce(vcat, (_flat(k, path, level, _step(prov, "combine[$i]"), (pos..., :nodes, i),
++                        flat, diags)
+                   for (i, k) in enumerate(n.nodes)); init = CEntry[])
+ 
+ # Layering (§14.6): each layer is flattened and checked on its own — a
+ # within-layer collision is still an error — and then folded onto the
+ # accumulator, the patch replacing the leaf it overrode and inheriting its
+ # provenance beside its own.
+-function _flat(n::Override, path::String, prov::String, pos::Tuple,
++function _flat(n::Override, path::String, level, prov::String, pos::Tuple,
+                flat::Flat, diags::Vector{Diagnostic})
+     acc = CEntry[]
+     for (i, layer) in enumerate(n.layers)
+         label = i == 1 ? "override[base]" : "override[patch $(i - 1)]"
+-        es = _flat(layer, path, _step(prov, label), (pos..., :layers, i), flat, diags)
++        es = _flat(layer, path, level, _step(prov, label), (pos..., :layers, i), flat, diags)
+         _check_duplicates!(es, diags)
+         for e in es
+             j = findfirst(a -> _key(a) == _key(e), acc)
+@@ -315,7 +319,7 @@ function _resolve_entries(node::ConditionNode, b::Build, ::Type{T}) where {T}
+     act = activation(b, T)
+     decls, layout = act.decls, act.layout
+     diags = Diagnostic[]
+-    entries = _flat(node, "", "", (), flat, diags)
++    entries = _flat(node, "", flat.root, "", (), flat, diags)
+     _check_duplicates!(entries, diags)
+ 
+     x_offs = _x_offsets(decls, tiers)
+@@ -394,14 +398,15 @@ _cviol(e::CEntry, reason::Symbol; kw...) =
+     ConditionResolution(; path = e.path, store = e.store, field = e.field, face = e.face,
+                         reason = reason, provenance = e.prov, kw...)
+ 
+-# The component a non-input entry addresses. Assemblies are virtual for
++# The component a non-input entry addresses. Every `at` prefix was walked at its
++# own authoring level (§13.3), so the path names a level of this build: what is
++# left to say is that the level owns no state. Assemblies are virtual for
+ # execution (§10.5) and own no state, so an `at` prefix stopping at one has
+ # nothing to write — and saying so beats "no such path".
+ function _component(flat::Flat, e::CEntry, diags::Vector{Diagnostic})
+     i = findfirst(==(e.path), flat.paths)
+     i === nothing || return i
+-    push!(diags, _cviol(e, any(startswith(p, e.path * "/") for p in flat.paths) ?
+-                          :assembly_path : :unknown_path))
++    push!(diags, _cviol(e, :assembly_path))
+     nothing
+ end
+ 
+@@ -421,9 +426,7 @@ function _root_input(flat::Flat, e::CEntry, diags::Vector{Diagnostic})
+     k = findfirst(p -> first(p) === (e.path, e.field), flat.in_faces)
+     if k === nothing
+         here = [f for ((p, f), _) in flat.in_faces if p == e.path]
+-        push!(diags, isempty(here) && !_addresses_level(flat, e.path) ?
+-                    _cviol(e, :unknown_path) :
+-                    _cviol(e, :no_input_face; candidates = here))
++        push!(diags, _cviol(e, :no_input_face; candidates = here))
+         return nothing
+     end
+     (path, port) = last(flat.in_faces[k])
+@@ -432,13 +435,6 @@ function _root_input(flat::Flat, e::CEntry, diags::Vector{Diagnostic})
+     nothing
+ end
+ 
+-# Does the path name a level of this build at all — a component, or an assembly
+-# some component sits under? Assemblies leave no row of their own in the flat
+-# list, so an empty face list alone does not tell a bare typo from an assembly
+-# that declares no input face.
+-_addresses_level(flat::Flat, path::String) =
+-    any(p == path || startswith(p, path * "/") for p in flat.paths)
+-
+ # The store a condition names has to exist on the component at all: `x` is the
+ # continuous tier's state and `s` the discrete one's, disjoint by construction
+ # (D-195), and `m` is continuous-only (§3.2).
+@@ -791,7 +787,10 @@ end
+ Read the current committed stores **and root inputs** back as a condition value
+ (§14.1, glossary): every component's `x` field by field, every discrete `s`,
+ every mode store and every root input, as one `combine` of per-component
+-fragments plus the root-input fragment. The pair is capture → tweak → apply:
++fragments plus the root-input fragment — each fragment under one `at` per child
++segment of its component's path, so the tree is authored level by level and
++re-applies across a generic seam the way §14.2's idiom does. The pair is
++capture → tweak → apply:
+ `init!(sim, c; t0 = t)` re-establishes exactly the world that was read, and a
+ `trim!` resumes from it as `trim!(sim, problem; baseline = c, t0 = t)`
+ (§14.8).
+@@ -830,7 +829,12 @@ function capture(sim::Simulation{T}) where {T}
+         ex.sstores[ci] === nothing || (payload = merge(payload, (s = ex.sstores[ci][],)))
+         ex.mstores[ci] === nothing || (payload = merge(payload, (m = ex.mstores[ci][],)))
+         isempty(payload) && continue
+-        push!(nodes, at(flat.paths[ci], fragment(; payload...)))
++        # One `at` per child segment, innermost first: the absolute path is a
++        # compiled derivative, and the authored spelling is the one the
++        # load-bearing walk admits wherever a level holds its child generically
++        # (§14.2, §13.3).
++        push!(nodes, foldr(at, authored_chain(flat.root, flat.paths[ci]);
++                           init = fragment(; payload...)))
+     end
+     isempty(flat.root_inputs) || push!(nodes, fragment(inputs =
+         NamedTuple{Tuple(flat.root_inputs)}(Tuple(gather(ex.store, act.layout.addr[("", f)])
+diff --git a/src/diagnostics.jl b/src/diagnostics.jl
+index 577e01f..f0be017 100644
+--- a/src/diagnostics.jl
++++ b/src/diagnostics.jl
+@@ -28,7 +28,13 @@ abstract type Diagnostic end
+ # differently from `Main` and from a package or test module — and some of these
+ # names are recorded in a trace header (§11.5) and matched on replay.
+ _typename(x) = string(nameof(typeof(x)))
+-_typename(T::Type) = string(nameof(T))
++# A `Union` has no name of its own: spell it from its members, each unqualified.
++_typename(T::Type) =
++    T isa Union ? "Union{" * join(_typename.(Base.uniontypes(T)), ", ") * "}" :
++                  string(nameof(T))
++# A declared generic holding: `nameof` has no method, and `string` on the
++# variable qualifies its bound the same way interpolating a type does.
++_typename(v::TypeVar) = "$(v.name)<:$(_typename(v.ub))"
+ 
+ """
+ The kind's severity (§13.2, D-214): `:error` — an occurrence throws, alone or
+@@ -361,12 +367,13 @@ message(d::RootInputTypeConflict) =
+ Base.@kwdef struct PathResolution <: Diagnostic
+     entry::String                            # the register or wiring entry: provenance
+     spelling::String                         # the path as written
+-    reason::Symbol                           # :not_a_terminal|:unknown_child|:reaches_past|:empty_path
++    reason::Symbol   # :not_a_terminal|:unknown_child|:reaches_past|:past_generic|:empty_path
+     owner::String = ""                       # the component the path was resolved against
+     segment::String = ""                     # the offending segment
+     level::String = ""                       # the level it stopped at
+     candidates::Vector{String} = String[]    # the sibling child names
+     tail::Int = 0                            # 1 for a wiring endpoint, 0 for a bare child path
++    declared::Any = nothing                  # the offending field's declared type, where generic
+ end
+ path(d::PathResolution) = d.spelling
+ function message(d::PathResolution)
+@@ -380,6 +387,12 @@ function message(d::PathResolution)
+         return "$(d.entry): `$(d.spelling)` names no child `$(d.segment)` of $(d.owner)" *
+                (isempty(d.candidates) ? " — it has no children" :
+                 " — its children are $(_plainlist(d.candidates))")
++    d.reason === :past_generic &&
++        return "$(d.entry): `$(d.spelling)` reaches past `$(d.level)`, which $(d.owner) " *
++               "holds through the non-concrete declared type `$(_typename(d.declared))` — a " *
++               "path in this register stops at a generically held child or stays within a " *
++               "concretely declared subtree: address the child at its own level, read a " *
++               "face it exports, or declare the field's concrete type (§13.3, §14.2)"
+     "$(d.entry): `$(d.spelling)` reaches past `$(d.level)` — " *
+     (d.tail == 1 ?
+      "a connection endpoint names an immediate child and one of its faces, so an " *
+@@ -1103,7 +1116,7 @@ Base.@kwdef struct ConditionResolution <: Diagnostic
+     path::String = ""
+     store::Symbol = :input                   # :x | :s | :m | :input
+     field::Symbol
+-    reason::Symbol   # :assembly_path|:unknown_path|:unexported_face|:no_input_face|
++    reason::Symbol   # :assembly_path|:unexported_face|:no_input_face|
+                      # :internally_wired|:no_store|:undeclared_field|:unconvertible
+     face::Union{Nothing,Symbol} = nothing    # the root input the chain lands on
+     provenance::String = ""                  # the tree's chain to this value
+@@ -1130,9 +1143,6 @@ function message(d::ConditionResolution)
+         return "the condition addresses $(_at_path(d.path)), which is an assembly — " *
+                "assemblies own no state, and a condition addresses components and root " *
+                "inputs (§14.1, §8.5) [$(d.provenance)]"
+-    d.reason === :unknown_path &&
+-        return "the condition addresses $(_at_path(d.path)), which is no component of " *
+-               "this build" * _ctail(d)
+     d.reason === :unexported_face &&
+         return "`$(d.field)` is no root input face — the root's inputs are " *
+                "$(_namelist(d.candidates)) (§14.2) [$(d.provenance)]"
+@@ -1212,7 +1222,7 @@ message(d::UninitializedInputs) =
+ Base.@kwdef struct TapResolution <: Diagnostic
+     label::Symbol                            # the read's label in the set
+     selector::String                         # the selector as authored
+-    reason::Symbol   # :assembly_path|:unknown_path|:scalar_index|:undeclared|:discrete_deriv|
++    reason::Symbol   # :assembly_path|:scalar_index|:undeclared|:discrete_deriv|
+                      # :unknown_root_input|:root_input_not_face|:unknown_output_face
+     tap::Union{Nothing,Symbol} = nothing     # :x | :u | :y
+     path::String = ""
+@@ -1240,8 +1250,6 @@ function message(d::TapResolution)
+         return _tapviol(d, "$(_at_path(d.path)) is an assembly — a path selector addresses " *
+                            "a component's own declarations, and a root-exported face is " *
+                            "read with `get_face`")
+-    d.reason === :unknown_path &&
+-        return _tapviol(d, "$(_at_path(d.path)) is no component of this build")
+     d.reason === :scalar_index &&
+         return _tapviol(d, "the leaf it names is declared $(d.declared) — a scalar has no " *
+                            "index, and `i` addresses a component of a vector leaf")
+diff --git a/src/readers.jl b/src/readers.jl
+index 5d0deba..fd3e9b6 100644
+--- a/src/readers.jl
++++ b/src/readers.jl
+@@ -250,17 +250,17 @@ function _resolve_reads(rs::Reads, b::Build, ::Type{T}) where {T}
+     (isempty(diags) ? Reader{T,keys(rs.sels)}(Tuple(entries)) : nothing, diags)
+ end
+ 
+-# The component a path-addressed selector names. The treatment is
+-# `_component`'s, one register over: the offender named plainly, an assembly
+-# discriminated from a path that is nothing at all (candidate lists are absent
+-# here, `pending.md`).
++# The component a path-addressed selector names. No mounting exists, so every
++# selector path is authored at the root and walked from it in full (§13.3): the
++# walk owns the unknown-segment refusal and its candidates, and the past-generic
++# one with them. What stays here is `_component`'s residue, one register over —
++# a level the walk admitted that owns no state of its own.
+ function _read_component(s, label::Symbol, flat::Flat, diags::Vector{Diagnostic})
++    entry = "the read labeled `$label`, $(_spell(s))"
++    resolve_authored(entry, "", flat.root, s.path, diags) === nothing && return nothing
+     i = findfirst(==(s.path), flat.paths)
+     i === nothing || return i
+-    # An empty path names the root, which is a level of every build — the
+-    # prefix test cannot see that, the root's segment being no segment at all.
+-    push!(diags, _rviol(label, s, (isempty(s.path) || _addresses_level(flat, s.path)) ?
+-                          :assembly_path : :unknown_path))
++    push!(diags, _rviol(label, s, :assembly_path))
+     nothing
+ end
+ 
+diff --git a/test/fixtures.jl b/test/fixtures.jl
+index daac4db..253526b 100644
+--- a/test/fixtures.jl
++++ b/test/fixtures.jl
+@@ -899,6 +899,21 @@ input_connections(::Vehicle) = ("ref" => "trim/e",)
+ output_connections(::Vehicle) =
+     ("loop/y" => "y", "loop/cmd" => "cmd", "loop/power" => "power")
+ 
++"""A primitive that also holds a component, a field the flatten pass never descends into (§8.5)."""
++struct OpaqueLeaf <: AbstractComponent
++    hidden::Gain
++end
++
++init_x(::OpaqueLeaf) = (z = 0.0,)
++state_derivative(::OpaqueLeaf, (; x)) = (z = -x.z,)
++
++"""One `OpaqueLeaf` in a concretely declared field, so a path reaches the primitive with a segment to spare (§13.3)."""
++struct OpaqueHold <: AbstractComponent
++    c::OpaqueLeaf
++end
++
++child_connections(::OpaqueHold) = ()
++
+ # --- the fragment-function idiom (§14.2) ----------------------------------------
+ # User-idiom material, not framework API: `condition` is an ordinary function
+ # dispatched on the component, shipped beside it, and nothing in `src/` outside
+diff --git a/test/imports.jl b/test/imports.jl
+index b071f9f..b580718 100644
+--- a/test/imports.jl
++++ b/test/imports.jl
+@@ -7,7 +7,7 @@ import Cadence: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
+     AbstractAtRoot, AttachUnknownFace, Authored, BindingContractMismatch, Build,
+     CONTINUOUS, CallerTaskConflict, ChatteringBudget, ChildNameCollision,
+     ClaimConflict, ClaimedFaceEntry, Class, ClassMixed, ClassUnreadable,
+-    Combined, ConditionNode, ConditionNodeMisuse, ConditionResolution,
++    Combined, ConditionNode, ConditionNodeMisuse, ConditionPlan, ConditionResolution,
+     ConditionShapeDrift, ConformanceFailure, ContainerMixed,
+     ControlRequestedStop, CursorFrame, DIAG_RING, DISCRETE,
+     DeclarationOnWrongTier, DeclaredNotProduced, DeploymentInvalid,
+@@ -21,7 +21,7 @@ import Cadence: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
+     ModelRequestedStop,
+     NonfiniteState, NotAttached, OutOfClaimEntry, PRIMITIVE, PathResolution,
+     Period, ProducedByTwoStages, PublishEntry, RK4, RatesViolation, ReadBindingUnresolved,
+-    ReadSetMisuse, Relative, ReplayDiscardedStaging, ReplayFeed,
++    ReadSetMisuse, Reader, Relative, ReplayDiscardedStaging, ReplayFeed,
+     ReplayHeaderMismatch, ReplaySchemaMismatch, ReplayUnknownFace,
+     RootInputTypeConflict, Scoped, ServiceLifecycle, Simulation, Snapshot,
+     SpecializedPlan, StageEntry, StateEvent, StepError, StopFaceInvalid, StoreBundle,
+@@ -33,7 +33,7 @@ import Cadence: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
+     WalkingFaceAtFrozenEntry, WireTypeMismatch,
+     _accepts, _accepts_wire, _bump, _leaf_values, _cell_key, _compile_feed, _compile_reads, _heartbeat,
+     _mflatten_expr, _mreconstruct_expr, _report!, _reschema, _saturated,
+-    _take!, _total, activation, apply!, at, attach!, binding, boundary!,
++    _take!, _total, _typename, activation, apply!, at, attach!, binding, boundary!,
+     build, bundle_names, capture, child_connections, children, claims,
+     classify, classify_tier, combine, compile, compile_plan, declarations,
+     detach!, diagnostic, diagnostics, drain!, evaluate!, flatten!, fragment,
+diff --git a/test/test_conditions.jl b/test/test_conditions.jl
+index 7b9cae6..bcc0182 100644
+--- a/test/test_conditions.jl
++++ b/test/test_conditions.jl
+@@ -136,7 +136,7 @@ function conditions_algebra()
+ 
+     @testset "resolution collects every violation into one throw (§14.3, §13.1)" begin
+         b = build(tri())
+-        bad = combine(at("nope", fragment(x = (q = 1.0,))),                  # unknown path
++        bad = combine(at("nope", fragment(x = (q = 1.0,))),         # unknown segment
+                       at("plant", fragment(x = (nope = 1.0,))),     # undeclared field
+                       at("ctl", fragment(s = (acc = "high",))),     # unconvertible
+                       at("trig", fragment(inputs = (sig = 1.0,))),  # never a root input
+@@ -145,9 +145,14 @@ function conditions_algebra()
+         e = failure(() -> resolve_condition(bad, b))
+         @test e isa DiagnosticError
+         @test length(diagnostics(e)) == 5                       # the full list, one throw
++        # The path itself is the walk's refusal, one register over (§13.3), with
++        # the sibling list in hand; the entry's own kind keeps what lies beyond it.
++        pr = only(d for d in diagnostics(e) if d isa PathResolution)
++        @test pr.reason === :unknown_child && pr.segment == "nope" &&
++              pr.candidates == ["plant", "ctl", "trig"]
+         cr = [d for d in diagnostics(e) if d isa ConditionResolution]
+-        @test Set(d.reason for d in cr) == Set([:unknown_path, :undeclared_field,
+-                                                :unconvertible, :internally_wired])
++        @test Set(d.reason for d in cr) == Set([:undeclared_field, :unconvertible,
++                                                :internally_wired])
+         u = only(d for d in cr if d.reason === :undeclared_field)
+         @test u.path == "plant" && u.store === :x && u.field === :nope && u.candidates == [:q]
+         dup = only(d for d in diagnostics(e) if d isa DuplicateConditionLeaf)
+@@ -187,13 +192,12 @@ function conditions_algebra()
+         @test only(diagnostics(failure(() -> resolve_condition(at("plant",
+                            fragment(inputs = (nope = 1.0,))), b)))).reason ===
+               :no_input_face
+-        # The discrimination an `inputs` payload makes on its own: a prefix naming no
+-        # level of this build reads "no component", not the face-typo message the
+-        # real component earns above — an empty face list alone cannot tell them
+-        # apart, assemblies leaving no row in the flat list (§14.3).
+-        @test only(diagnostics(failure(() -> resolve_condition(at("nope",
+-                           fragment(inputs = (dead = 1.0,))), b)))).reason ===
+-              :unknown_path
++        # A prefix naming no level of this build never reaches the face lookup: the
++        # `at` is walked at its authoring level first, so the refusal is the walk's
++        # and carries the sibling list the face-typo arm above has no use for (§13.3).
++        d = only(diagnostics(failure(() -> resolve_condition(at("nope",
++                           fragment(inputs = (dead = 1.0,))), b))))
++        @test d isa PathResolution && d.reason === :unknown_child && d.segment == "nope"
+         @test only(diagnostics(failure(() -> resolve_condition(fragment(inputs = (nope = 1.0,)),
+                                                    b)))).reason === :unexported_face
+     end
+@@ -346,6 +350,90 @@ function conditions_algebra()
+     end
+ end
+ 
++# --- the load-bearing register's walk (§13.3, §14.2, D-130) ---------------------
++# Every `at` prefix is resolved at the level its enclosing `at`s compiled, along
++# the *declared* field types rather than the instance: resolving to a
++# generically held child is port-level access and legal, traversing past one is
++# the refusal whatever the instance in hand. The holders live in
++# `test_assembly.jl`, which is included first.
++
++function conditions_load_bearing_walk()
++    @testset "a deep `at` path stays within a concretely declared subtree (§13.3, §14.2, D-130)" begin
++        q = SVector(0.3, 0.1)
++        deep = at("inner/plant", fragment(x = (q = q,)))
++
++        # Held in a concretely declared field: the walk admits the two-segment
++        # path, and the value lands at the leaf it addressed.
++        bc = build(ConcreteHold(SampledLoop()))
++        @test resolve_condition(deep, bc) isa ConditionPlan
++        csim = Simulation(ConcreteHold(SampledLoop()); h = 1//50)
++        init!(csim, combine(deep, fragment(inputs = (ref = 1.0,))))
++        @test state(csim, "inner/plant").q == q
++
++        # The identical instance held through a type parameter: the declaration
++        # promises substitutability below `inner`, and the path traverses past it.
++        # The refusal names the field's declared type as written, a `TypeVar`.
++        bg = build(GenericHold(SampledLoop()))
++        d = only(diagnostics(failure(() -> resolve_condition(deep, bg))))
++        @test d isa PathResolution && d.reason === :past_generic
++        @test d.segment == "inner" && d.level == "inner"
++        @test d.owner == "the root component" && d.declared isa TypeVar
++        @test d.entry == "at(\"inner/plant\")"
++
++        # The remedy the refusal names, and §14.2's pull-composition idiom: the
++        # nested spelling resolves `inner` *to* a child, then `plant` from that
++        # child's own instance, so the generic holder takes the same value.
++        nest = at("inner", at("plant", fragment(x = (q = q,))))
++        @test resolve_condition(nest, bg) isa ConditionPlan
++        gsim = Simulation(GenericHold(SampledLoop()); h = 1//50)
++        init!(gsim, combine(nest, fragment(inputs = (ref = 1.0,))))
++        @test state(gsim, "inner/plant").q === state(csim, "inner/plant").q
++
++        # One refusal per node, not per leaf: the offender is the path, and the
++        # subtree under it is dropped before any leaf reaches the duplicate check.
++        twice = at("inner/plant", combine(fragment(x = (q = q,)),
++                                          fragment(x = (q = SVector(1.0, 2.0),))))
++        @test length(diagnostics(failure(() -> resolve_condition(twice, bg)))) == 1
++
++        # An unknown segment mid-path is the walk's other refusal, attributed to
++        # the level that owns the siblings rather than to the authoring root.
++        d = only(diagnostics(failure(() -> resolve_condition(at("inner/plnt",
++                           fragment(x = (q = q,))), bc))))
++        @test d isa PathResolution && d.reason === :unknown_child && d.segment == "plnt"
++        @test d.owner == "`inner`" && d.candidates == ["plant", "ctl", "sum"]
++
++        # A `Group` holds its children through one type parameter, so *every*
++        # child of one is generically held and a two-segment path from a `Group`
++        # root refuses — with the same nested remedy.
++        b = build(nested())
++        d = only(diagnostics(failure(() -> resolve_condition(at("loop/plant",
++                           fragment(x = (q = q,))), b))))
++        @test d isa PathResolution && d.reason === :past_generic && d.segment == "loop"
++        @test resolve_condition(at("loop", at("plant", fragment(x = (q = q,)))), b) isa
++              ConditionPlan
++
++        # The provenance chain to the `at` is the refusal's entry, so a path
++        # authored under a combinator says where in the tree it was written.
++        d = only(diagnostics(failure(() -> resolve_condition(
++                    combine(at("x", fragment(x = (q = 1.0,))),
++                            at("ctl", fragment(s = (acc = 1.0,)))), build(tri())))))
++        @test d isa PathResolution && d.entry == "combine[1] → at(\"x\")"
++        @test d.reason === :unknown_child && d.candidates == ["plant", "ctl", "trig"]
++
++        # The walk stops at a primitive, whatever that primitive's struct holds: a
++        # component-typed field of a leaf is inert parameter data to the
++        # composition — the flatten pass never descends into it, so nothing below
++        # it has a path — and the refusal is an unknown child with no list to
++        # offer, not a level of the build (§8.5, §13.3).
++        bo = build(OpaqueHold(OpaqueLeaf(Gain(2.0))))
++        @test bo.flat.paths == ["c"]
++        d = only(diagnostics(failure(() -> resolve_condition(at("c/hidden",
++                           fragment(x = (z = 1.0,))), bo))))
++        @test d isa PathResolution && d.reason === :unknown_child
++        @test d.segment == "hidden" && d.owner == "`c`" && d.candidates == String[]
++    end
++end
++
+ # --- the specialized application register (§14.3, §14.4, D-066) -----------------
+ # The other register over the same checks: a plan compiled from a tree's shape,
+ # applied to every later tree of that shape. The fixtures stay at top level for
+@@ -517,5 +605,6 @@ end
+ 
+ function test_conditions()
+     conditions_algebra()
++    conditions_load_bearing_walk()
+     conditions_specialized_register()
+ end
+diff --git a/test/test_diagnostics.jl b/test/test_diagnostics.jl
+index e3103af..07374c7 100644
+--- a/test/test_diagnostics.jl
++++ b/test/test_diagnostics.jl
+@@ -269,6 +269,9 @@ function diagnostics_kind_set()
+                            owner = "`a`", segment = "z", candidates = ["b", "c"]),
+             PathResolution(entry = "`resolve` on `Group`", spelling = "a/b/c",
+                            reason = :reaches_past, level = "a/b", segment = "b", tail = 1),
++            PathResolution(entry = "at(\"a/b\")", spelling = "a/b", reason = :past_generic,
++                           owner = "the root component", segment = "a", level = "a",
++                           declared = TypeVar(:L, AbstractComponent)),
+             PathResolution(entry = "`resolve` on `Group`", spelling = "", reason = :empty_path),
+             StoreWithoutUpdate(path = "a/b", store = :init_x),
+             EventHalfMissing(path = "a/b", event = :snap, reason = :guard, found = Int),
+@@ -400,7 +403,6 @@ function diagnostics_kind_set()
+             ReadBindingUnresolved(binding = "T", selector = "get_face(:q)",
+                                   reason = :unknown_output_face, field = :q),
+             ConditionResolution(path = "a", field = :u, reason = :assembly_path, provenance = "fragment"),
+-            ConditionResolution(path = "z", field = :u, reason = :unknown_path, provenance = "fragment"),
+             ConditionResolution(field = :q, reason = :unexported_face, candidates = [:a],
+                                 provenance = "fragment"),
+             ConditionResolution(path = "a", field = :q, reason = :no_input_face,
+@@ -420,8 +422,6 @@ function diagnostics_kind_set()
+             UninitializedInputs(op = :init!, faces = [:a, :b]),
+             TapResolution(label = :r, selector = "get_state(\"a\", :x)", reason = :assembly_path,
+                           path = "a"),
+-            TapResolution(label = :r, selector = "get_state(\"z\", :x)", reason = :unknown_path,
+-                          path = "z"),
+             TapResolution(label = :r, selector = "get_state(\"a/b\", :x[1])",
+                           reason = :scalar_index, path = "a/b", declared = Float64, index = 1),
+             TapResolution(label = :r, selector = "get_state(\"a/b\", :q)", reason = :undeclared,
+@@ -518,6 +518,17 @@ function diagnostics_kind_set()
+             m = message(d)
+             @test m isa String && !isempty(m)
+         end
++        # A declared generic holding renders through `_typename` like any other
++        # name: the variable and its bound, unqualified, whoever is printing — the
++        # `string(::TypeVar)` spelling reads `Cadence.AbstractComponent` from
++        # anywhere but this module. A payload claim, so it sits here rather than in
++        # the rendering testset below.
++        m = message(only(d for d in occurrences
++                         if d isa PathResolution && d.reason === :past_generic))
++        @test occursin("`L<:AbstractComponent`", m) && !occursin("Cadence.", m)
++        # A `Union`-typed holding has no name to take: it renders from its members,
++        # in the order Julia itself keeps them.
++        @test _typename(Union{Plant, Gain}) == "Union{Gain, Plant}"
+ 
+         # Every kind of the closed set has an occurrence above: the coverage
+         # check is over `Diagnostic`'s own subtypes, so adding a kind without an
+diff --git a/test/test_readers.jl b/test/test_readers.jl
+index e523a7f..64e68e5 100644
+--- a/test/test_readers.jl
++++ b/test/test_readers.jl
+@@ -81,14 +81,18 @@ function test_readers()
+                                                c = get_deriv("ctl", :acc),
+                                                d = get_face(:nope)), b))
+         @test e isa DiagnosticError && length(diagnostics(e)) == 4                  # the full list, one throw
+-        @test all(d -> d isa TapResolution, diagnostics(e))
+         (a, b_, c, d) = diagnostics(e)
+-        @test a.reason === :unknown_path && a.path == "plnt" && a.tap === :x   # the offender, plainly
++        # The path itself is the walk's refusal, one register over, and the one
++        # path arm that now carries a list in hand (§13.3).
++        @test a isa PathResolution && a.reason === :unknown_child && a.segment == "plnt" &&
++              a.candidates == ["plant", "ctl", "src"]
++        @test startswith(a.entry, "the read labeled `a`")
++        @test all(x -> x isa TapResolution, (b_, c, d))
+         @test b_.reason === :undeclared && b_.declares === :output_port &&
+               b_.field === :thrust && b_.candidates == [:y, :power]            # the list in hand
+         @test c.selector == "get_deriv(\"ctl\", :acc)" && c.reason === :discrete_deriv
+         @test d.reason === :unknown_output_face && d.field === :nope && d.candidates == [:y]
+-        @test [x.label for x in diagnostics(e)] == [:a, :b, :c, :d]             # each read, by label
++        @test [x.label for x in (b_, c, d)] == [:b, :c, :d]                     # each read, by label
+ 
+         # An assembly path, a root input read as a face, an index on a scalar leaf,
+         # and a state field the component does not declare.
+@@ -110,6 +114,41 @@ function test_readers()
+         @test d.reason === :not_a_selector && d.label === :q
+     end
+ 
++    @testset "a read selector's path stays within a concretely declared subtree (§13.3, §14.7, D-125)" begin
++        # No mounting exists, so every selector path is authored at the root and
++        # walked from it in full: the first segment may be generically held, a
++        # segment past one may not. `ConcreteHold`/`GenericHold` hold the same
++        # instance two ways (`test_assembly.jl`).
++        deep = reads(q = get_state("inner/plant", :q))
++        d = only(diagnostics(failure(() -> _compile_reads(deep,
++                                              build(GenericHold(SampledLoop()))))))
++        @test d isa PathResolution && d.reason === :past_generic && d.segment == "inner"
++
++        # Declaring the field's concrete type restores the deep read legally, with
++        # the hard-coding visible in the declaration itself (§13.3).
++        sim = Simulation(ConcreteHold(SampledLoop()); h = 1//50)
++        init!(sim, combine(at("inner/plant", fragment(x = (q = SVector(0.3, 0.1),))),
++                           fragment(inputs = (ref = 1.0,))))
++        evaluate!(sim.exec)
++        @test gather(_compile_reads(deep, sim.build), sim.exec).q == SVector(0.3, 0.1)
++
++        # D-125's own remedy, and the one that survives substitution: the seam
++        # publishes a face, and the face register is what the read binds.
++        for holder in (ConcreteHold(SampledLoop()), GenericHold(SampledLoop()))
++            @test _compile_reads(reads(y = get_face(:y)), build(holder)) isa Reader
++        end
++
++        # The walk stops at a primitive here too: a leaf's component-typed field is
++        # no level of the build, so the segment past it names no child and the
++        # refusal has no list to offer (§8.5, §13.3).
++        b = build(OpaqueHold(OpaqueLeaf(Gain(2.0))))
++        d = only(diagnostics(failure(() ->
++                _compile_reads(reads(z = get_state("c/hidden", :z)), b))))
++        @test d isa PathResolution && d.reason === :unknown_child
++        @test d.segment == "hidden" && d.owner == "`c`" && d.candidates == String[]
++        @test startswith(d.entry, "the read labeled `z`")
++    end
++
+     @testset "the source rule: a snapshot-bound reader may not name a store selector (§14.4)" begin
+         sim = Simulation(readable(); h = 1//10)
+         diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(q = get_state("plant", :q))))
+@@ -177,6 +216,34 @@ function test_readers()
+         @test twin.exec.clock.t === 0.5 && twin.exec.clock.t₀ === 0.5
+     end
+ 
++    @testset "`capture` authors level by level, so it re-applies across a generic seam (§14.1, §14.2)" begin
++        # The absolute path is a compiled derivative; the authored spelling is one
++        # `at` per child segment. Both models hold their children generically — a
++        # `Group` through its `children` parameter, `GenericHold` through `L` — so
++        # a capture spelled `at("loop/plant", …)` would refuse at its own walk, and
++        # the cycle capture → tweak → `init!` would not close (§13.3, §14.2).
++        for (model, inputs, leaf) in ((nested, (in = 1.0,), "loop/plant"),
++                                      (() -> GenericHold(SampledLoop()), (ref = 1.0,),
++                                       "inner/plant"))
++            sim = Simulation(model(); h = 1//50)
++            init!(sim, fragment(inputs = inputs))
++            run!(sim; t_end = 0.1)
++            (c, t) = capture(sim)
++            @test all(p -> !occursin('/', p), prefixes(c))    # every `at` names one child
++            @test !isempty(prefixes(c))
++
++            twin = Simulation(model(); h = 1//50)
++            init!(twin, c; t0 = t)
++            # The continuous stores come back bitwise. The discrete one need not:
++            # the re-application runs boundary zero's outgoing transition, which is
++            # capture's documented caveat, not a resolution failure — and the
++            # controller here is a mover, unlike `readable_condition`'s.
++            @test state(twin, leaf).q === state(sim, leaf).q
++            @test twin.exec.xbuf == sim.exec.xbuf
++            @test twin.exec.clock.t === t
++        end
++    end
++
+     @testset "`capture` is legal in `initialized` and `stopped`, and nowhere else (§14)" begin
+         sim = Simulation(readable(); h = 1//10)
+         d = carried(@test_throws DiagnosticError{ServiceLifecycle} capture(sim))
+diff --git a/test/test_trim.jl b/test/test_trim.jl
+index cf977b5..8bf6322 100644
+--- a/test/test_trim.jl
++++ b/test/test_trim.jl
+@@ -243,10 +243,11 @@ function test_trim()
+         @test ks.field === :lower && ks.names == [:v] && ks.expected == [:u]
+         ft = only(d for d in diagnostics(e) if d.reason === :field_types)
+         @test ft.field === :guess && ft.bad == Pair{Symbol,Any}[:u => Int64]
+-        # The read set keeps its own kind, spliced in beside the problem's fields.
+-        tap = only(d for d in diagnostics(e) if d isa TapResolution)
+-        @test tap.label === :nope && tap.selector == "get_state(\"nope\", :q)" &&
+-              tap.reason === :unknown_path
++        # The read set's path refusal is the walk's, spliced in beside the problem's
++        # fields with the read it came from as its entry (§13.3).
++        tap = only(d for d in diagnostics(e) if d isa PathResolution)
++        @test tap.entry == "the read labeled `nope`, get_state(\"nope\", :q)" &&
++              tap.reason === :unknown_child && tap.segment == "nope"
+         @test world(sim) == before
+ 
+         # The residual key set is the one thing only the setup guess evaluation can
+diff --git a/test/utils.jl b/test/utils.jl
+index f039ea5..d2b40ea 100644
+--- a/test/utils.jl
++++ b/test/utils.jl
+@@ -18,6 +18,12 @@ single(c) = Group((; c = c))
+ # The same, with the component's one input face handed up to a root input `in`.
+ fed(c, face) = Group((; c = c); inputs = ("in" => "c/$face",))
+ 
++# Every `at` prefix in a condition tree, outermost first: what a service authored
++# is what the load-bearing walk sees, one prefix at a time (§14.2).
++prefixes(n::Scoped) = vcat([n.prefix], prefixes(n.node))
++prefixes(n::Combined) = reduce(vcat, map(prefixes, n.nodes); init = String[])
++prefixes(::ConditionNode) = String[]
++
+ # The drain's counterfactual: the same value written straight into a root
+ # input's cell at a stopped point, reaching under the data plane on purpose.
+ # The framework's own write paths are `init!`'s condition (stopped) and

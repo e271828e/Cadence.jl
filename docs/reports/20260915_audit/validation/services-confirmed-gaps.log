@@ -1,0 +1,9 @@
+Command: julia --project=test docs/reports/20260915_audit/probes/services_confirmed_gaps.jl
+Exit: 0
+
+relocate TrimProblem: DiagnosticError{Cadence.ConditionNodeMisuse} carried=Cadence.ConditionNodeMisuse
+relocate Reads: DiagnosticError{Cadence.ConditionNodeMisuse} carried=Cadence.ConditionNodeMisuse
+out-of-range compiled read: BoundsError carried=none
+non-callable trim condition: MethodError carried=none
+interrupt during condition conversion: DiagnosticError{Vector{Cadence.Diagnostic}} carried=Vector{Cadence.Diagnostic}
+linearize defined: false

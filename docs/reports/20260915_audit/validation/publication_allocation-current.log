@@ -1,0 +1,3 @@
+Julia 1.13.0; threads=10
+log=false: publication bytes=576; whole frame bytes=592
+log=true: publication bytes=736; whole frame bytes=752
