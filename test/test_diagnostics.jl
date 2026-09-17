@@ -608,6 +608,10 @@ function diagnostics_kind_set()
         # A bare store value (§8.2, D-247) spells the wrap for the store at fault.
         m = message(StoreNotNamedTuple(path = "a/b", store = :init_x, declared = Float64))
         @test occursin("init_x(::C) = (; ω = 0.0)", m)
+        m = message(StoreNotNamedTuple(path = "a/b", store = :init_s, declared = Float64))
+        @test occursin("init_s(::C) = (; n = 0)", m)
+        m = message(StoreNotNamedTuple(path = "a/b", store = :init_m, declared = Int))
+        @test occursin("init_m(::C) = (; phase = :idle)", m)
 
         # The forgotten-`T` hint on the input side (§6.1, §8.2, D-236) states the
         # fix by name.

@@ -913,10 +913,10 @@ end
 # --- Stratum A's one barrier (§13.1, D-229) -----------------------------------
 
 # One failure from each of the stratum's passes, in one model: a wire typo'd on
-# the producer's port, the input it leaves unfed, a store with no update law and
-# an event missing its handler. `HalfEvent` is `test_events.jl`'s, which this
-# file precedes, so the children are a `Group`'s values rather than a struct's
-# declared fields.
+# the producer's port, the input it leaves unfed, a store with no update law, an
+# event missing its handler and a store that is not a `NamedTuple`. `HalfEvent`
+# is `test_events.jl`'s, which this file precedes, so the children are a
+# `Group`'s values rather than a struct's declared fields.
 merged_failures() = Group((; g = Gain(1.0), s = Sum(), n = NoFlow(), h = HalfEvent(),
                              f = BareState());
                           wires = ("g/ot" => "s/a",),
@@ -924,9 +924,9 @@ merged_failures() = Group((; g = Gain(1.0), s = Sum(), n = NoFlow(), h = HalfEve
 
 # A store that is not a `NamedTuple` (§8.2, D-247), one per store. `BareVector`
 # is the value that segfaulted the generated `reconstruct` before the check;
-# `BareModes` is the one that built silently. Each carries its update law and
-# a vocabulary fault in another store, so the only finding is the form: the
-# field checks do not read a primitive the form check refused.
+# `BareModes` is the one that built silently, and it carries a vocabulary fault
+# in its other store: the only finding is still the form, because the field
+# checks do not read a primitive the form check refused.
 struct BareState <: AbstractComponent end
 init_x(::BareState) = zeros(SVector{3})
 state_derivative(::BareState, (; x)) = zeros(SVector{3})

@@ -133,11 +133,11 @@ override:
 
 | touched in `src/` | run |
 | --- | --- |
-| `declare`, `assembly`, `build`, `tracer` | `declare assembly build diagnostics leaves`; a change in `build.jl`'s `compile` half adds the next row |
+| `declare`, `assembly`, `build`, `tracer`, or a new kind in `diagnostics.jl` | `declare assembly build diagnostics leaves`; a change in `build.jl`'s `compile` half adds the next row |
 | `executor`, `stepper`, `localization` | `executor stepper continuous discrete events localization failures` |
 | `dataplane`, `roster`, `bindings`, `devices`, `trace` | `dataplane roster bindings devices trace lifecycle log` |
 | `readers`, `conditions`, `trim` | `readers conditions trim` |
-| `sim`, `store`, `diagnostics`, `leaves`, `Cadence` | all of it |
+| `sim`, `store`, `leaves`, `Cadence`, or `diagnostics.jl` beyond a new kind | all of it |
 
 To check a refactor for test loss, compare the suite's own assertion total;
 `grep -c '@test '` misses the loops that multiply them.

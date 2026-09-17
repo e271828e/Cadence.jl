@@ -697,7 +697,7 @@ path(d::StoreNotNamedTuple) = d.path
 function message(d::StoreNotNamedTuple)
     wrap = d.store === :init_x ? "(; ω = 0.0)" :
            d.store === :init_s ? "(; n = 0)" : "(; phase = :idle)"
-    "$(_at_path(d.path)): `$(d.store)` returns a `$(d.declared)`, not a NamedTuple — a " *
+    "$(_at_path(d.path)): `$(d.store)` returns `$(d.declared)`, not a `NamedTuple` — a " *
     "store is declared by initial value as named fields, one leaf per field, " *
     "`$(d.store)(::C) = $wrap` (§8.2)"
 end
