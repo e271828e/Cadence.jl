@@ -18,21 +18,16 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **The Appendix C kinds whose mechanism is absent** — an absence gets no
-  struct (`ThreadBudget`, `DeadStage`, `BundleFieldError`, `UserCodeFraming`,
-  `UnboundedRun`; likewise `MissingProbeValue`, whose *check* is absent;
-  one `BundleFieldError` case to carry when it lands: `init_x(::C) = (;)`
-  beside a `state_derivative` is the fallback's own value, so the leaf reads
-  as stateless and the derivative is probed without `x`, a raw `FieldError`;
-  `TapResolution` comes from the read register alone, never §14.10's absent
-  tap register). One periphery refusal is still a plain `error(...)` with no
-  kind — a datum naming no channel of a `TableBinding` (`bindings.jl` ~93):
-  it runs on the device task inside the author's own mapping and reaches the
-  framework as a `DeviceCrash` `cause`, so D-216 leaves it there. Absent with
-  them: did-you-mean **ranking** (no list is ever ordered), and the list
-  itself on one arm — `ReadBindingUnresolved` fills `candidates` on the
-  `get_input` miss only; and §11.8's maxlog renderer (count-only display past
-  25 cumulative occurrences per writer × kind).
+- **Three specified checks**: `DeadStage` (§9.3 names the pass it rides and
+  the bare `(;)` trigger), `MissingProbeValue` (its Appendix C row exists,
+  its check does not), and the `candidates` list on `ReadBindingUnresolved`'s
+  `get_output` arm (the `get_input` miss fills it already).
+- **The §13.2 framing kinds**: `BundleFieldError` and `UserCodeFraming`,
+  raised at the probe and again as a `StepError` species at runtime, on the
+  `cause` conventions §13.2 fixes. One `BundleFieldError` case to carry when
+  it lands: `init_x(::C) = (;)` beside a `state_derivative` is the fallback's
+  own value, so the leaf reads as stateless and the derivative is probed
+  without `x`, a raw `FieldError`.
 - **Kinds carrying less than their Appendix C payload.** D-216 rules
   that the column is the design and the implementation's gaps stay visible
   as such, and it leaves the enumeration here: `FaceNameCollision` no
@@ -70,7 +65,8 @@ Where the reason is not given here, the cited decision carries it:
 - **§11.7's GUI write path**, §10.7 pacing and its diagnostics, the §11.8
   remainder (`DebtReanchor`, `ThreadBudget`, `UnboundedRun`, the maxlog
   renderer).
-- **§14**: `linearize` (§14.10), mounting (§14.9), the NLopt fallback and the
+- **§14**: `linearize` (§14.10) and its tap register (`TapResolution` reads
+  the read register alone today), mounting (§14.9), the NLopt fallback and the
   nominal-activation loop it would run on; sub-port-field addressing; index
   addressing in the binding register; the `check` entry point (M-B23).
 - **Smaller** (M-B26): no `report!(entry, d)` addressed by roster entry, only
