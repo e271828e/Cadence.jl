@@ -189,8 +189,10 @@ The build tests assert kind and payload; message text is asserted only in
   with `ForwardDiff.npartials(ProbeDual) == 1`, and on the `pair()` build of
   that testset, `b = build(pair(); activations = (Float64, ProbeDual))` then
   `haskey(b.cache, ProbeDual)` before any request (eager materialization,
-  §9.4). Every other `D8` use in the file stays: width 8 is what those tests
-  exercise.
+  §9.4). Every other `D8` use in the suite stays. `D8` is a user-tagged,
+  user-width scalar, the stand-in for a trim's or a user's own activation,
+  which is what those tests exercise; `ProbeDual` is the CI pin, and only
+  D-166's spelling means that.
 
 ### Register edits, in the same commit
 
