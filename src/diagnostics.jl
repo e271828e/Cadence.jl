@@ -273,11 +273,16 @@ message(d::UnknownPort) =
 Base.@kwdef struct UnconnectedInput <: Diagnostic
     path::String
     face::Symbol
+    declared::Any                            # the declared entry type, at nominal
+    level::String                            # the obligation chain's last level; the leaf's own path when no route names it
 end
 path(d::UnconnectedInput) = d.path
 message(d::UnconnectedInput) =
-    "`$(d.path)`.$(d.face) is fed by nothing — every input is fed exactly once, by a " *
-    "wire or by an `input_connections` chain ending at a root input face (§6.1)"
+    "`$(d.path)`.$(d.face) declared $(d.declared) is fed by nothing" *
+    (d.level == d.path ? "" :
+     ", handed up to $(_at_path(d.level)) and fed by nothing there") *
+    " — every input is fed exactly once, by a wire or by an `input_connections` chain " *
+    "ending at a root input face (§6.1)"
 
 "§6.1, §8.8: an input claimed twice, both producers named with their provenance."
 Base.@kwdef struct TwoProducers <: Diagnostic
@@ -285,11 +290,14 @@ Base.@kwdef struct TwoProducers <: Diagnostic
     port::Symbol                             # the destination terminal's port
     incumbent::String                        # the entry that claimed it first
     entry::String                            # the entry that claimed it second
+    incumbent_producer::String               # the terminal the first entry feeds it from
+    producer::String                         # the terminal the second entry feeds it from
 end
 path(d::TwoProducers) = d.path
 message(d::TwoProducers) =
-    "`$(d.path)`.$(d.port) is fed twice: by $(d.incumbent), and by $(d.entry) — every " *
-    "input takes exactly one connection, across levels included (§6.1)"
+    "`$(d.path)`.$(d.port) is fed twice: from $(d.incumbent_producer) by $(d.incumbent), " *
+    "and from $(d.producer) by $(d.entry) — every input takes exactly one connection, " *
+    "across levels included (§6.1)"
 
 "§6.1, §8.2, §8.4 w4: a wire whose producer's declaration at `Float64` is not `<:` the consumer's entry at `Float64`."
 Base.@kwdef struct WireTypeMismatch <: Diagnostic
@@ -335,7 +343,7 @@ end
 path(::AbstractAtRoot) = ""
 message(d::AbstractAtRoot) =
     "root input `$(d.face)` is declared " *
-    join(("$(_at_path(p))::$(P)" for (p, P) in zip(d.paths, d.declared)), ", ") *
+    join(("$(_at_path(p))::$(_typename(P))" for (p, P) in zip(d.paths, d.declared)), ", ") *
     " — every entry is abstract, and a root input is typed by its consumers alone, so " *
     "nothing determines its type; wire `$(d.face)` to a concrete producer — in a test " *
     "rig, a stub child (§8.2, §13.7)"
@@ -418,14 +426,14 @@ Base.@kwdef struct EventHalfMissing <: Diagnostic
     path::String
     event::Symbol
     reason::Symbol                           # :guard | :handler | :not_an_event
-    found::Any = nothing                     # the component type, or the entry's type
+    found::String                            # the component type's name, or the entry type's
 end
 path(d::EventHalfMissing) = d.path
 message(d::EventHalfMissing) =
     d.reason === :not_an_event ?
-    "`$(d.path)`: `state_events` entry `$(d.event)` is $(d.found) — an entry is " *
+    "`$(d.path)`: `state_events` entry `$(d.event)` is a `$(d.found)` — an entry is " *
     "`StateEvent(guard, handler)`, with no detection keyword (§8.2)" :
-    "`$(d.path)`: event `$(d.event)`'s $(d.reason) has no method for $(d.found) — an " *
+    "`$(d.path)`: event `$(d.event)`'s $(d.reason) has no method for `$(d.found)` — an " *
     "event needs both halves (§8.2)"
 
 "§8.1, D-246: a family name the component's module binds to a function of its own — the forgotten import."
@@ -444,13 +452,18 @@ message(d::DeclarationShadowed) =
 "§8.5: a component declaring neither family, so its class cannot be read off declaration shape."
 Base.@kwdef struct ClassUnreadable <: Diagnostic
     path::String
-    families::String                         # the leaf family list, the list-in-hand
+    type::String                             # the component type's name
+    found::Vector{Symbol}                    # the `DECLARATION_FAMILY` names it does declare, family order
+    assembly_family::Vector{Symbol}          # the assembly family list, the list-in-hand
+    leaf_family::Vector{Symbol}              # the leaf family list, the list-in-hand
     holds_components::Bool = false
 end
 path(d::ClassUnreadable) = d.path
 message(d::ClassUnreadable) =
-    "$(_at_path(d.path)) declares neither family: `child_connections` would make it an " *
-    "assembly, any of $(d.families) a primitive (§8.5)" *
+    "$(_at_path(d.path))::`$(d.type)` declares neither family: " *
+    "$(_namelist(d.assembly_family)) would make it an assembly, any of " *
+    "$(_namelist(d.leaf_family)) a primitive (§8.5)" *
+    (isempty(d.found) ? "" : " — it declares $(_namelist(d.found))") *
     (d.holds_components ?
      " — it holds components but declares no `child_connections`" : "")
 
@@ -469,12 +482,14 @@ message(d::ClassMixed) =
 Base.@kwdef struct ContainerMixed <: Diagnostic
     path::String
     field::Symbol
-    types::Vector{Any}                       # the non-component element types
+    keys::Vector{Any}                        # the non-component element keys or indices
+    types::Vector{Any}                       # the unique non-component element types
 end
 path(d::ContainerMixed) = d.path
 message(d::ContainerMixed) =
     "$(_at_path(d.path)): container field `$(d.field)` mixes components with " *
-    "$(_plainlist(d.types)) — a container holds components only (§8.5)"
+    "$(_plainlist(d.types)) at $(_namelist(d.keys)) — a container holds components only " *
+    "(§8.5)"
 
 "§8.5: a container whose element is itself a component-bearing container — deeper grouping is what assemblies are for."
 Base.@kwdef struct ContainerNested <: Diagnostic
@@ -508,17 +523,25 @@ message(d::DeclarationOnWrongTier) =
     "`$(d.path)`: `$(d.declaration)` is declared in the $(d.found)-tier form, but this " *
     "component's other declarations announce the $(d.announced) tier (§8.2)"
 
-"§8.2, §8.5: a contract signature whose form is not the one its tier mandates — here the bound arm, a `T` narrower than `Real`."
+"§6.1, §8.2, §8.5, D-249: a contract signature whose form is not the one its tier mandates — the arity arm, and the bound arm, a `T` narrower than `Real`."
 Base.@kwdef struct TierSignatureMismatch <: Diagnostic
     path::String
     declaration::Symbol                      # :input_types | :output_types
-    tier::Symbol                             # :continuous
-    reason::Symbol                           # :bound — the arity arms ride as `DeclarationOnWrongTier`'s `:tier_form`
-    found::Any                               # the bound the method puts on `T`
-    mandated::Any = Real
+    tier::Symbol                             # :continuous | :discrete
+    reason::Symbol                           # :bound | :arity
+    found::Any                               # the bound the method puts on `T`, or the form declared
+    mandated::Any = Real                     # the mandated bound, or the form the tier mandates
 end
 path(d::TierSignatureMismatch) = d.path
+# §8.5's two spellings, the form symbols the `:arity` arm carries rendered as the
+# section writes them.
+_signature(form::Symbol) =
+    form === :two_argument ? "(::C, ::Type{T}) where {T <: Real}" : "(::C)"
 message(d::TierSignatureMismatch) =
+    d.reason === :arity ?
+    "$(_at_path(d.path)): `$(d.declaration)` is declared `$(_signature(d.found))`, but " *
+    "this component's other declarations announce the $(d.tier) tier, whose contract " *
+    "signatures are `$(_signature(d.mandated))` — declare it that way (§8.5)" :
     "$(_at_path(d.path)): `$(d.declaration)` bounds its `T` by $(d.found), but a " *
     "continuous contract is a function of every activation scalar — declare it " *
     "`where {T <: Real}` (§8.5)"
@@ -661,25 +684,29 @@ Base.@kwdef struct TransparentContainerUnknown <: Diagnostic
     path::String
     field::Symbol
     component::String                        # the declaring type, as a string
+    candidates::Vector{Symbol}               # the type's container fields, the list-in-hand
 end
 path(d::TransparentContainerUnknown) = d.path
 message(d::TransparentContainerUnknown) =
     "$(_at_path(d.path)): `transparent_container` returns `:$(d.field)`, which names no " *
-    "container field of `$(d.component)` — a name-transparent declaration names a `Tuple` " *
+    "container field of `$(d.component)` — its container fields are " *
+    "$(_namelist(d.candidates)); a name-transparent declaration names a `Tuple` " *
     "or `NamedTuple` field whose elements are all components, the empty one included " *
     "(§8.5, D-211)"
 
 "§5.2, §8.2, §8.5, D-215: the tier twin of `ClassUnreadable` — no `output_types` and no state."
 Base.@kwdef struct TierUnreadable <: Diagnostic
     path::String
+    type::String                             # the component type's name
+    family::Vector{Symbol}                   # the tier-announcing family, the list-in-hand
     declarations::Vector{Symbol} = Symbol[]  # the tier-announcing declarations found
 end
 path(d::TierUnreadable) = d.path
 message(d::TierUnreadable) =
-    "`$(d.path)` declares no `output_types` and owns no state — there is nothing for the " *
-    "tier to be read off: declare `output_types`, or give the component an `init_x`/`init_s` " *
-    "store with the update law that drives it. Its tier-announcing declarations are " *
-    "$(_namelist(d.declarations)) (§8.2)"
+    "`$(d.path)`::`$(d.type)` declares no `output_types` and owns no state — there is " *
+    "nothing for the tier to be read off: declare `output_types`, or give the component " *
+    "an `init_x`/`init_s` store with the update law that drives it. Its tier-announcing " *
+    "declarations are $(_namelist(d.declarations)), out of $(_namelist(d.family)) (§8.2)"
 
 "§4.3, §7.1, §8.2, D-215, D-237, D-243: a port type the leaf walk cannot lay out — no leaves, a mutable type on the walk, or an opaque leaf at a root input."
 Base.@kwdef struct IllegalPortType <: Diagnostic
@@ -819,11 +846,16 @@ end
 Base.@kwdef struct ProducedByTwoStages <: Diagnostic
     path::String
     ports::Vector{Symbol}
+    producers::Vector{Symbol}                # parallel to `ports`: each one's stage-1 producer
 end
 path(d::ProducedByTwoStages) = d.path
 message(d::ProducedByTwoStages) =
-    "`$(d.path)`: $(_plainlist(d.ports)) produced twice — by two stages, or by a stage " *
-    "and the framework's auto-publication (§5.3, §8.3)"
+    "`$(d.path)`: " *
+    join(("`$p` by " *
+          (q === :auto_publication ? "the framework's auto-publication" : "`$q`") *
+          " and by `output_direct`" for (p, q) in zip(d.ports, d.producers)), ", ") *
+    " — a port is produced once: drop it from `output_direct`, or from its stage-1 " *
+    "producer (§5.3, §8.3)"
 
 "§8.3: a declared port no stage writes — a cell no one fills, reading as a silent zero."
 Base.@kwdef struct DeclaredNotProduced <: Diagnostic

@@ -359,7 +359,7 @@ function build_auto_publication()
 
     @testset "stage-1 position is one writer's: a stage's or the framework's (§8.3)" begin
         d = carried(@test_throws DiagnosticError{ProducedByTwoStages} build(single(Twice())))
-        @test d.ports == [:q]
+        @test d.ports == [:q] && d.producers == [:auto_publication]
         # Returned from stage 1 instead, the same port is the stage's outright.
         b = build(single(TwiceState()))
         i = index_of(b.flat, "c")
@@ -1201,14 +1201,27 @@ function build_tier()
 
         # Disagreement names the offending declaration and the tier the rest
         # announce (§8.2). The classifier records and returns no tier.
-        for (c, offender) in ((BothUpdates(), :state_update), (WrongArity(), :output_types),
-                              (ModesOnDiscrete(), :init_m), (BothArities(), :output_types))
+        for (c, offender) in ((BothUpdates(), :state_update), (ModesOnDiscrete(), :init_m))
             diags = Diagnostic[]
             @test classify_tier("c", c, diags) === nothing
             # The vote loop collects: every declaration off the announced tier is
             # reported, and the one this case is written around is among them.
             @test all(d -> d isa DeclarationOnWrongTier && d.reason === :tier_form, diags)
             @test offender in [d.declaration for d in diags]
+        end
+
+        # A contract arity against the announced tier is the contract's own kind,
+        # on a stateful leaf and a stateless one alike (§8.5, D-249). `WrongArity`
+        # announces discrete in its store and update law; `BothArities` declares
+        # `output_types` twice, the second form reported against the first.
+        for (c, tier, found, mandated) in ((WrongArity(), :discrete, :two_argument, :plain),
+                                           (BothArities(), :continuous, :plain, :two_argument))
+            diags = Diagnostic[]
+            @test classify_tier("c", c, diags) === nothing
+            d = only(diags)
+            @test d isa TierSignatureMismatch && d.reason === :arity
+            @test d.declaration === :output_types && d.tier === tier
+            @test d.found === found && d.mandated === mandated
         end
 
         # A store with no update law is §8.2's sibling of the classless component.

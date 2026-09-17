@@ -72,9 +72,10 @@ function test_events()
     @testset "the declaration layer and probe reject malformed events (§8.2, §9.3)" begin
         d = only(diagnostics(failure(() -> build(single(HalfEvent())))))
         @test d isa EventHalfMissing && d.event === :go && d.reason === :handler
+        @test d.found == "HalfEvent"            # the component type, by name (§13.2)
         d = only(diagnostics(failure(() -> build(single(NotAnEvent())))))
         @test d isa EventHalfMissing && d.event === :go && d.reason === :not_an_event &&
-              d.found === Int
+              d.found == "Int64"
 
         d = carried(@test_throws DiagnosticError{GuardForm} build(single(BadGuardForm())))
         @test d.event === :go && d.observed === String

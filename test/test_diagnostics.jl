@@ -253,9 +253,11 @@ function diagnostics_kind_set()
                         candidates = [:throttle, :mixture]),
             UnknownPort(entry = "input_connections at `a`, entry `:u => ()`", end_ = :connection,
                         path = "a", port = :u),
-            UnconnectedInput(path = "a/b", face = :u),
+            UnconnectedInput(path = "a/b", face = :u, declared = Float64, level = "a/b"),
+            UnconnectedInput(path = "a/b", face = :u, declared = Float64, level = "a"),
             TwoProducers(path = "a/b", port = :u, incumbent = "a sibling wire",
-                         entry = "an interface connection"),
+                         entry = "an interface connection",
+                         incumbent_producer = "`a/c`.y", producer = "root input `u`"),
             WireTypeMismatch(path = "a/b", face = :u, declared = Float64, producer_path = "a/c",
                              producer_port = :y, observed = Bool),
             WalkingFaceAtFrozenEntry(path = "a/b", face = :u, producer_path = "a/c",
@@ -274,13 +276,19 @@ function diagnostics_kind_set()
                            declared = TypeVar(:L, AbstractComponent)),
             PathResolution(entry = "`resolve` on `Group`", spelling = "", reason = :empty_path),
             StoreWithoutUpdate(path = "a/b", store = :init_x),
-            EventHalfMissing(path = "a/b", event = :snap, reason = :guard, found = Int),
-            EventHalfMissing(path = "a/b", event = :snap, reason = :not_an_event, found = Int),
+            EventHalfMissing(path = "a/b", event = :snap, reason = :guard, found = "Latch"),
+            EventHalfMissing(path = "a/b", event = :snap, reason = :not_an_event, found = "Int64"),
             DeclarationShadowed(path = "a/b", mod = "Main.MyModel",
                                 names = [:init_x, :output_types]),
-            ClassUnreadable(path = "a", families = "`init_x`, `init_s`", holds_components = true),
+            ClassUnreadable(path = "a", type = "Inert", found = Symbol[],
+                            assembly_family = [:child_connections],
+                            leaf_family = [:init_x, :output_types], holds_components = true),
+            ClassUnreadable(path = "a", type = "Inert", found = [:sample_times],
+                            assembly_family = [:child_connections],
+                            leaf_family = [:init_x, :output_types]),
             ClassMixed(path = "a", declarations = [:init_x, :output_types]),
-            ContainerMixed(path = "a", field = :kids, types = Any[Int, Float64]),
+            ContainerMixed(path = "a", field = :kids, keys = Any[1, :b],
+                           types = Any[Int, Float64]),
             ContainerNested(path = "a", field = :kids, keys = Any[1, :b],
                             types = Any[Tuple{Int}, @NamedTuple{c::Int}]),
             DeclarationOnWrongTier(path = "a/b", declaration = :init_workspace, reason = :tier_form,
@@ -290,6 +298,8 @@ function diagnostics_kind_set()
             DeclarationOnWrongTier(path = "a/b", declaration = :state_projection, reason = :no_manifold),
             TierSignatureMismatch(path = "a/b", declaration = :output_types, tier = :continuous,
                                   reason = :bound, found = AbstractFloat),
+            TierSignatureMismatch(path = "a/b", declaration = :input_types, tier = :discrete,
+                                  reason = :arity, found = :two_argument, mandated = :plain),
             FaceNameIllegal(path = "a", face = "u/v", invariant = :contains_slash),
             FaceNameCollision(path = "a", faces = ["u"], site = :assembly),
             FaceNameCollision(path = "", faces = ["u"], site = :root),
@@ -313,8 +323,12 @@ function diagnostics_kind_set()
                                provenance = ["container field `kids`, element `b`"], field = :kids),
             ChildNameCollision(path = "a", name = "b", reason = :two_children,
                                provenance = ["field `b`", "container field `kids`, element `b`"]),
-            TransparentContainerUnknown(path = "a", field = :kids, component = "Group"),
-            TierUnreadable(path = "a/b", declarations = [:init_m]),
+            TransparentContainerUnknown(path = "a", field = :kids, component = "Group",
+                                        candidates = [:units]),
+            TransparentContainerUnknown(path = "a", field = :kids, component = "Group",
+                                        candidates = Symbol[]),
+            TierUnreadable(path = "a/b", type = "Inert", family = [:init_x, :output_types],
+                           declarations = [:init_m]),
             IllegalPortType(path = "a/b", site = :port, name = :y, declared = Nothing),
             IllegalPortType(path = "a/b", site = :port, name = :y, declared = Vector{Float64},
                             reason = :mutable, position = ""),
@@ -339,7 +353,8 @@ function diagnostics_kind_set()
                            wires = ["a/b/y" => "a/c/u", "a/c/y" => "a/b/u"],
                            classification = :real,
                            traced = ["a/b" => :structural, "a/c" => :structural]),
-            ProducedByTwoStages(path = "a/b", ports = [:y]),
+            ProducedByTwoStages(path = "a/b", ports = [:y, :z],
+                                producers = [:output_state, :auto_publication]),
             DeclaredNotProduced(path = "a/b", ports = [:y], products = [:z],
                                 state_fields = [:q]),
             UndeclaredReturnField(path = "a/b", stage = "output_state", name = :q, candidates = [:y]),
@@ -567,9 +582,9 @@ function diagnostics_kind_set()
     @testset "rendering: the carrier compiler-style, the didactic style (§13.1, §13.2)" begin
         # Two kinds × two paths: groups in first-appearance order, paths sorted
         # within a group, the kind name leading each line, the count line above.
-        e = DiagnosticError(Diagnostic[UnconnectedInput(path = "b", face = :u),
+        e = DiagnosticError(Diagnostic[UnconnectedInput(path = "b", face = :u, declared = Float64, level = "b"),
                                   FaceNameIllegal(path = "b", face = "p/q", invariant = :contains_slash),
-                                  UnconnectedInput(path = "a", face = :v),
+                                  UnconnectedInput(path = "a", face = :v, declared = Float64, level = "a"),
                                   FaceNameIllegal(path = "a", face = "r/s",
                                                   invariant = :contains_slash)])
         @test kinds(e) == [UnconnectedInput, FaceNameIllegal]
@@ -581,11 +596,11 @@ function diagnostics_kind_set()
         @test startswith(lines[5], "  FaceNameIllegal: ") && occursin("`p/q`", lines[5])
 
         # A fail-fast site's single diagnostic renders on one line, no count.
-        @test sprint(showerror, DiagnosticError(UnconnectedInput(path = "a", face = :v))) ==
-              "DiagnosticError: UnconnectedInput: " * message(UnconnectedInput(path = "a", face = :v))
+        d = UnconnectedInput(path = "a", face = :v, declared = Float64, level = "a")
+        @test sprint(showerror, DiagnosticError(d)) ==
+              "DiagnosticError: UnconnectedInput: " * message(d)
 
         # The parameter is the policy, and the outer constructors choose it (D-222).
-        d = UnconnectedInput(path = "a", face = :v)
         @test DiagnosticError(d) isa DiagnosticError{typeof(d)}
         @test DiagnosticError([d]) isa DiagnosticError{Vector{Diagnostic}}
         @test diagnostic(DiagnosticError(d)) === d

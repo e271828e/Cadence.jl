@@ -171,6 +171,14 @@ function check_stores(path::String, c, diags::Vector{Diagnostic})
     end
 end
 
+# The tier-announcing family (§8.2, §8.5): the names the vote loop below reads,
+# in vote order — the list-in-hand a `TierUnreadable` carries.
+const TIER_FAMILY = (:state_derivative, :state_update, :init_x, :init_s, :init_m,
+                     :state_events, :output_types, :input_types, :init_workspace)
+
+# §8.5's two contract signature forms, as the tier mandates them.
+_form(t::Tier) = t === CONTINUOUS ? :two_argument : :plain
+
 """
 The tier the primitive at `path` announces, or `nothing` with what disagrees
 recorded in `diags` (§13.1).
@@ -201,7 +209,8 @@ function classify_tier(path::String, c, diags::Vector{Diagnostic})
     else
         i = findfirst(v -> first(v) === :output_types, votes)
         if i === nothing
-            push!(diags, TierUnreadable(path = path,
+            push!(diags, TierUnreadable(path = path, type = _typename(c),
+                                       family = collect(TIER_FAMILY),
                                        declarations = Symbol[first(v) for v in votes]))
             return nothing
         end
@@ -209,15 +218,23 @@ function classify_tier(path::String, c, diags::Vector{Diagnostic})
 
     # The vote loop collects (§13.1): a leaf written half in each tier's spelling
     # names every declaration that disagrees, not the first one found. The tier
-    # is announced only if none does.
+    # is announced only if none does. A contract arity against the announced tier
+    # is the contract's own kind, on a stateful leaf and a stateless one alike
+    # (§8.5, D-249); every other name is `DeclarationOnWrongTier`'s.
     t = last(votes[i])
     k = length(diags)
     for (name, vt) in votes
-        vt === t ||
+        vt === t && continue
+        if name === :input_types || name === :output_types
+            push!(diags, TierSignatureMismatch(path = path, declaration = name,
+                                               tier = Symbol(tier_word(t)), reason = :arity,
+                                               found = _form(vt), mandated = _form(t)))
+        else
             push!(diags, DeclarationOnWrongTier(path = path, declaration = name,
                                                reason = :tier_form,
                                                found = Symbol(tier_word(vt)),
                                                announced = Symbol(tier_word(t))))
+        end
     end
     length(diags) == k ? t : nothing
 end
@@ -726,13 +743,13 @@ function _check_event_declarations(flat::Flat, diags::Vector{Diagnostic})
             for (name, ev) in pairs(invoke_declaration(state_events, c))
                 if !(ev isa StateEvent)
                     push!(diags, EventHalfMissing(path = path, event = name,
-                                                 reason = :not_an_event, found = typeof(ev)))
+                                                 reason = :not_an_event, found = _typename(ev)))
                     continue                       # neither half exists to look up
                 end
                 for (half, fn) in ((:guard, ev.guard), (:handler, ev.handler))
                     hasmethod(fn, Tuple{typeof(c),NamedTuple}) ||
                         push!(diags, EventHalfMissing(path = path, event = name, reason = half,
-                                                     found = typeof(c)))
+                                                     found = _typename(c)))
                 end
             end
         end
@@ -1073,7 +1090,11 @@ function _probe_direct!(products::Vector{NamedTuple}, ci::Int, flat::Flat,
         # stage-2 return of the same port writes it twice (§5.3, §8.3).
         twice = intersect(union(keys(s1), keys(published[ci])), keys(y2))
         isempty(twice) ||
-            throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice))))
+            throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice),
+                                                producers = Symbol[p in keys(s1) ?
+                                                                   :output_state :
+                                                                   :auto_publication
+                                                                   for p in twice])))
         products[ci] = merge(s1, published[ci], _embed_ports(y2, d.outs, T))
     end
     nothing

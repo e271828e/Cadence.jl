@@ -43,8 +43,10 @@ function assembly_class()
         # intentional (D-164) — and now says so as a missing class, naming both
         # families rather than failing later and elsewhere.
         d = carried(@test_throws DiagnosticError{ClassUnreadable} classify("c", Inert()))
-        @test d.path == "c" && !d.holds_components
-        @test occursin("`output_types`", d.families)      # the leaf family, in hand
+        @test d.path == "c" && !d.holds_components && d.type == "Inert"
+        @test d.assembly_family == [:child_connections]   # both family lists, in hand
+        @test :output_types in d.leaf_family && :state_projection in d.leaf_family
+        @test isempty(d.found)                            # and it declares none of them
 
         # Sharpened when the type holds components: the likely omission, named.
         d = carried(@test_throws DiagnosticError{ClassUnreadable} classify("c", HoldsComponents(Gain(1.0))))
@@ -161,6 +163,7 @@ function assembly_container_children()
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa ContainerMixed && d.field === :kids && Float64 in d.types
+        @test d.keys == [:b]                              # the offending element, by name
 
         # The `Tuple` form: the same rule with index segments, `"field/1"…"field/N"`
         # (§8.5), addressable by the parent's declarations like any child name.
@@ -175,6 +178,7 @@ function assembly_container_children()
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa ContainerMixed && d.field === :units && Float64 in d.types
+        @test d.keys == [2]                               # the `Tuple` form: an index
 
         # A container of containers has no direct component element, so it
         # would read as inert data and its components would vanish; §8.5
@@ -316,12 +320,13 @@ function assembly_transparent_containers()
 
         # And the declaration must name a container field of the type — a component
         # field and an absent name are refused alike.
-        for (bad, fld) in ((OpaqueDeclared(TickCounter()), :c),
-                           (AbsentDeclared((; c = TickCounter())), :nope))
+        for (bad, fld, cands) in ((OpaqueDeclared(TickCounter()), :c, Symbol[]),
+                                  (AbsentDeclared((; c = TickCounter())), :nope, [:kids]))
             err = failure(() -> build(bad))
             @test err isa DiagnosticError
             d = only(diagnostics(err))
             @test d isa TransparentContainerUnknown && d.field === fld
+            @test d.candidates == cands           # the container fields, the list-in-hand
         end
     end
 
@@ -610,11 +615,14 @@ function assembly_obligations()
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa UnconnectedInput && d.path == "g" && d.face === :e
+        # No route names it, so the chain's last level is the leaf's own path.
+        @test d.declared === Float64 && d.level == "g"
 
         err = failure(() -> build(DoubleFed(SampledLoop(), ModedSource(), ModedSource())))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa TwoProducers && d.path == "loop/sum" && d.port === :a
+        @test d.incumbent_producer == "`src`.out" && d.producer == "`src2`.out"
 
         # The same rule one level down: the sub-assembly's own wire against the
         # ancestor's route through the face, and the diagnostic names both entries.
@@ -624,6 +632,7 @@ function assembly_obligations()
         d = only(diagnostics(err))
         @test d isa TwoProducers && startswith(d.incumbent, "child_connections at `loop`") &&
               startswith(d.entry, "child_connections at the root component")
+        @test d.incumbent_producer == "`loop/s`.out" && d.producer == "`src`.out"
 
         # §13.1's worked example (D-229): the typo'd wire is recorded and claims
         # nothing, so the same throw carries the unknown port *and* the input it
@@ -633,7 +642,7 @@ function assembly_obligations()
         d = only(filter(x -> x isa UnknownPort, diagnostics(err)))
         @test d.port === :ot && :out in d.candidates
         d = only(filter(x -> x isa UnconnectedInput, diagnostics(err)))
-        @test d.path == "s" && d.face === :a
+        @test d.path == "s" && d.face === :a && d.declared === Float64 && d.level == "s"
 
         # A face is resolved once, where it is declared: three parent wires reading
         # a child face whose route is broken report the child's refusal once, not
@@ -649,6 +658,10 @@ function assembly_obligations()
         @test d.path == "i/a" && d.port === :outt
         @test [(x.path, x.face) for x in diagnostics(err) if x isa UnconnectedInput] ==
               [("i/a", :e), ("g1", :e), ("g2", :e), ("g3", :e)]
+        # The obligation chain's last level: `i/a`'s entry was handed up to `i`'s
+        # face and nothing fed it there; the three siblings were never handed up.
+        @test [(x.level, x.declared) for x in diagnostics(err) if x isa UnconnectedInput] ==
+              [("i", Float64), ("g1", Float64), ("g2", Float64), ("g3", Float64)]
 
         # The parent's own typo against a child face is still its own refusal, and
         # the candidates are the child's face list.
@@ -841,6 +854,8 @@ function assembly_primitives()
         d = only(diagnostics(err))
         @test d isa TwoProducers && startswith(d.incumbent, "child_connections") &&
               startswith(d.entry, "input_connections")
+        # The root's own face is the second producer, and spells as one.
+        @test d.incumbent_producer == "`trim`.out" && d.producer == "root input `inner.a`"
     end
 
     @testset "the helpers address a transparent container's child by bare key (D-211)" begin

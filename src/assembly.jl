@@ -10,10 +10,18 @@
 
 @enum Class PRIMITIVE ASSEMBLY
 
-const LEAF_FAMILY = "`init_x`, `init_s`, `init_m`, `init_workspace`, `input_types`, " *
-                    "`output_types`, `state_events` or a stage (`output_state`, " *
-                    "`output_direct`, `state_derivative`, `state_update`, " *
-                    "`state_projection`)"
+const ASSEMBLY_FAMILY = (:child_connections,)
+const LEAF_FAMILY = (:init_x, :init_s, :init_m, :init_workspace, :input_types,
+                     :output_types, :state_events, :output_state, :output_direct,
+                     :state_derivative, :state_update, :state_projection)
+
+# The five `DECLARATION_FAMILY` names no leaf declaration covers: the assembly
+# marker, the two boundary declarations and the two sugars.
+const _OTHER_FAMILY = ((:child_connections, child_connections),
+                       (:input_connections, input_connections),
+                       (:output_connections, output_connections),
+                       (:sample_times, sample_times),
+                       (:transparent_container, transparent_container))
 
 """The leaf declarations `c` defines, in inventory order (§8.2, §8.5)."""
 function leaf_declarations(c)
@@ -36,6 +44,15 @@ function leaf_declarations(c)
     found
 end
 
+"""The `DECLARATION_FAMILY` names `c` defines, in family order (§8.1, §8.5)."""
+function declarations_found(c)
+    found = leaf_declarations(c)
+    for (name, fn) in _OTHER_FAMILY
+        _declares(fn, c) && push!(found, name)
+    end
+    Symbol[n for n in DECLARATION_FAMILY if n in found]
+end
+
 """The class of `c` at `path`, or a `DiagnosticError` naming what makes it unreadable."""
 function classify(path::String, c)
     leaves = leaf_declarations(c)
@@ -45,11 +62,18 @@ function classify(path::String, c)
         return ASSEMBLY
     end
     isempty(leaves) || return PRIMITIVE
-    throw(DiagnosticError(ClassUnreadable(path = path, families = LEAF_FAMILY,
+    throw(DiagnosticError(ClassUnreadable(path = path, type = _typename(c),
+                                     found = declarations_found(c),
+                                     assembly_family = collect(ASSEMBLY_FAMILY),
+                                     leaf_family = collect(LEAF_FAMILY),
                                      holds_components = _holds_components(c))))
 end
 
 _at(path::String) = isempty(path) ? "the root component" : "`$path`"
+# A producer terminal spelled for a payload string: a component's port, or the
+# root's own input face, whose path is the empty one.
+_terminal(t::Tuple{String,Symbol}) =
+    isempty(first(t)) ? "root input `$(last(t))`" : "`$(first(t))`.$(last(t))"
 _join(path::String, seg::String) = isempty(path) ? seg : path * "/" * seg
 
 _holds_components(c) = any(fieldnames(typeof(c))) do name
@@ -130,9 +154,9 @@ function _children(path::String, c)
                 continue
             end
             if n != length(v)
-                push!(diags, ContainerMixed(path = path, field = name,
-                                           types = unique(Any[typeof(e) for e in v
-                                                              if !(e isa AbstractComponent)])))
+                mixed = [k for k in keys(v) if !(v[k] isa AbstractComponent)]
+                push!(diags, ContainerMixed(path = path, field = name, keys = mixed,
+                                           types = unique(Any[typeof(v[k]) for k in mixed])))
                 continue
             end
             bare = name === tf
@@ -170,6 +194,9 @@ end
 # parametric code then needs no special case (§8.5).
 _is_container(v) = (v isa NamedTuple || v isa Tuple) && all(e -> e isa AbstractComponent, v)
 
+# The container fields of `c`'s type: what a name-transparent declaration may name.
+_container_fields(c) = Symbol[n for n in fieldnames(typeof(c)) if _is_container(getfield(c, n))]
+
 # A container holding a component at any depth: the shape `ContainerNested` names.
 _bears_component(v) = (v isa NamedTuple || v isa Tuple) &&
                       any(e -> e isa AbstractComponent || _bears_component(e), v)
@@ -180,7 +207,8 @@ function _check_transparent(path::String, c, tf, diags::Vector{Diagnostic})
     tf === nothing && return nothing
     ok = tf in fieldnames(typeof(c)) && _is_container(getfield(c, tf))
     ok || push!(diags, TransparentContainerUnknown(path = path, field = tf,
-                                                  component = _typename(c)))
+                                                  component = _typename(c),
+                                                  candidates = _container_fields(c)))
     nothing
 end
 
@@ -797,13 +825,28 @@ function flatten!(w::Walk, root, diags::Vector{Diagnostic})
     # here beside the refusal itself.
     for (path, c) in zip(w.flat.paths, w.flat.comps)
         at_component(path) do
-            for face in keys(_contract(input_types, c))
+            for (face, declared) in pairs(_contract(input_types, c))
                 haskey(w.feeds, (path, face)) ||
-                    push!(diags, UnconnectedInput(path = path, face = face))
+                    push!(diags, UnconnectedInput(path = path, face = face,
+                                                 declared = declared,
+                                                 level = _last_level(w, path, face)))
             end
         end
     end
     nothing
+end
+
+# The obligation chain's last level (§6.1): the topmost face an
+# `input_connections` chain handed `(path, face)` up to — the shortest route path
+# naming it as a consumer, an ancestor's path being a prefix of the leaf's. The
+# leaf's own path when no route names it: `w.routes` records only routes with
+# consumers, so an entry nobody handed up has no row.
+function _last_level(w::Walk, path::String, face::Symbol)
+    level = path
+    for (rpath, _, consumers) in w.routes
+        (path, face) in consumers && length(rpath) < length(level) && (level = rpath)
+    end
+    level
 end
 
 """
@@ -948,7 +991,9 @@ _entry(method::String, path::String, pair::Pair) =
 function _claim!(w::Walk, consumer, producer, entry::String, diags::Vector{Diagnostic})
     if haskey(w.feeds, consumer)
         push!(diags, TwoProducers(path = consumer[1], port = consumer[2],
-                                 incumbent = w.claims[consumer], entry = entry))
+                                 incumbent = w.claims[consumer], entry = entry,
+                                 incumbent_producer = _terminal(w.feeds[consumer]),
+                                 producer = _terminal(producer)))
         return nothing                     # the incumbent keeps the claim
     end
     w.feeds[consumer] = producer
