@@ -600,7 +600,6 @@ function build_wire_clauses()
         @test d isa WalkingFaceAtFrozenEntry && d.path == "c" && d.face === :u
         @test d.producer_path == "src" && d.producer_port === :val
         @test d.leaf == "" && d.declared === Float64 && d.observed === Marker
-        @test occursin("declare the entry `T`", message(d))
 
         # One leaf deep the offending leaf is named by its dotted spelling.
         err2 = failure(() -> build(Group((; s = FrameSource(), r = FrameReader());

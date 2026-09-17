@@ -596,6 +596,13 @@ function diagnostics_kind_set()
                                 candidates = [:throttle, :brake]))
         @test occursin("names no `throtle`", m) && occursin("throttle, brake", m)
 
+        # The forgotten-`T` hint on the input side (§6.1, §8.2, D-236) states the
+        # fix by name.
+        m = message(WalkingFaceAtFrozenEntry(path = "c", face = :u, producer_path = "src",
+                                             producer_port = :val, leaf = "",
+                                             declared = Float64, observed = Marker))
+        @test occursin("declare the entry `T`", m)
+
         # The cycle's three forms (§5.5, §5.6, D-245), over constructed values: the
         # cluster's wires read as one loop, and the classification, where there is
         # one, names the dead hops in the ladder's own words.
