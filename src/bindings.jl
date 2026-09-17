@@ -150,6 +150,16 @@ end
 
 _root_input_names(layout::Layout) = Symbol[f for (f, _) in layout.root_inputs]
 
+# The two name-shaped read misses' candidate lists (§14.4): the cells at the
+# selector's path — an assembly path lists its faces, the alias pass having
+# entered them into `addr` — and the root-exported output faces, the names at the
+# root that are not root inputs.
+_cells_at(layout::Layout, p::AbstractString) =
+    sort!(Symbol[n for (q, n) in keys(layout.addr) if q == p])
+_root_output_faces(layout::Layout) =
+    sort!(Symbol[n for (q, n) in keys(layout.addr)
+                 if q == "" && n ∉ _root_input_names(layout)])
+
 # §14.4's source rule, enforced where the source is known: a snapshot carries
 # no state stores by construction (§11.2) and `ẋ` is integrator scratch, so a
 # snapshot-bound reader naming a store selector is a resolution error at
@@ -164,7 +174,8 @@ function _resolve_read(layout::Layout, s::GetOutput, T::Type)
                                path = s.path, field = s.name)))
     haskey(layout.addr, (s.path, s.name)) || throw(DiagnosticError(
         ReadBindingUnresolved(binding = string(T), selector = _spell(s), reason = :unknown_cell,
-                               path = s.path, field = s.name)))
+                               path = s.path, field = s.name,
+                               candidates = _cells_at(layout, s.path))))
     layout.addr[(s.path, s.name)]
 end
 
@@ -182,7 +193,8 @@ function _resolve_read(layout::Layout, s::GetFace, T::Type)
                                reason = :root_input_not_output, field = s.name)))
     haskey(layout.addr, ("", s.name)) || throw(DiagnosticError(
         ReadBindingUnresolved(binding = string(T), selector = _spell(s),
-                               reason = :unknown_output_face, field = s.name)))
+                               reason = :unknown_output_face, field = s.name,
+                               candidates = _root_output_faces(layout))))
     layout.addr[("", s.name)]
 end
 

@@ -614,6 +614,23 @@ function message(d::RatesViolation)
     (isempty(d.candidates) ? "" : "; its children are $(_plainlist(d.candidates))")
 end
 
+"""
+§9.3, D-051: a root input whose type the synthesis chain cannot produce a probe
+value for. Every `MethodError` out of `probe_value` reports as this kind, an
+author's own override included: that is the conservative reading of §9.3's "no
+method is a build error".
+"""
+Base.@kwdef struct MissingProbeValue <: Diagnostic
+    face::Symbol                             # the root input face
+    declared::Any                            # the face's type at this activation
+end
+path(::MissingProbeValue) = ""               # a root input's path is the root's
+# The remedy spells the type with its parameters, so `d.declared` is interpolated
+# directly, as `IllegalPortType` does; `_typename` would strip them.
+message(d::MissingProbeValue) =
+    "no `probe_value` for `$(d.declared)` at face `$(d.face)` — define " *
+    "`probe_value(::Type{$(d.declared)})` or a zero-argument constructor (§9.3)"
+
 "§8.5, D-211, D-212: two children under one name — a bare container key against the sugar, a sibling field, or a plain duplicate."
 Base.@kwdef struct ChildNameCollision <: Diagnostic
     path::String
@@ -833,6 +850,17 @@ path(d::UndeclaredReturnField) = d.path
 message(d::UndeclaredReturnField) =
     "`$(d.path)`: $(d.stage) returns `$(d.name)`, which `output_types` does not declare — " *
     "declare it, or drop it from the return; the declared ports are $(_namelist(d.candidates))"
+
+"§5.2, §9.3: a stage method that returned bare `(;)`, producing no ports."
+Base.@kwdef struct DeadStage <: Diagnostic
+    path::String
+    stage::String                            # "output_state" | "output_direct"
+end
+path(d::DeadStage) = d.path
+message(d::DeadStage) =
+    "$(_at_path(d.path)): `$(d.stage)` returns bare `(;)`, producing no ports — a stage " *
+    "that produces nothing computes nothing any consumer can read; return the ports the " *
+    "stage owns, or drop the method so the stage is absent (§5.2, §9.3)"
 
 """
 §9.5: the return laws, probed. `shape` names what the return had to be shaped
@@ -1191,8 +1219,10 @@ function message(d::ReadBindingUnresolved)
         return "$(d.binding) reads $(d.selector) — a binding read is a whole cell, and " *
                "sub-cell index addressing is absent in a binding read (§14.4, docs/design/pending.md)"
     d.reason === :unknown_cell &&
-        return "$(d.binding) reads $(d.selector), which names no cell — only declared " *
-               "outputs, assembly faces and root inputs are addressable (§14.4)"
+        return "$(d.binding) reads $(d.selector), which names no cell — " *
+               (isempty(d.candidates) ?
+                "$(_at_path(d.path)) has no cells" :
+                "the cells at $(_at_path(d.path)) are $(_faceset(d.candidates))") * " (§14.4)"
     d.reason === :unknown_root_input &&
         return "$(d.binding) reads $(d.selector), which names no root input face — the " *
                "root inputs are $(_faceset(d.candidates)) (§14.4)"
@@ -1200,8 +1230,8 @@ function message(d::ReadBindingUnresolved)
         return "$(d.binding) reads $(d.selector), which names a root *input* face — the " *
                "integration reads are the exported output faces, and a root input is " *
                "read back with get_input (§14.4, §11.2)"
-    "$(d.binding) reads $(d.selector): `$(d.field)` is no root-exported output face " *
-    "(§14.4, §11.2)"
+    "$(d.binding) reads $(d.selector): `$(d.field)` is no root-exported output face — " *
+    "the output faces are $(_faceset(d.candidates)) (§14.4, §11.2)"
 end
 
 "§14.2, §14.3: a condition leaf that does not resolve against this build."

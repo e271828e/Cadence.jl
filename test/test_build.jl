@@ -35,6 +35,23 @@ state_derivative(::ScrambledDerivative, (; x)) = (b = 0.0, a = 1.0)
 struct NoFlow <: AbstractComponent end
 init_x(::NoFlow) = (q = 1.0,)
 
+# A stage that returns bare `(;)` (§5.2, §9.3), one per position. Each produces
+# every declared port from the *other* stage, so nothing else is wrong:
+# `DeclaredNotProduced` stays silent, and only the dead-stage rule sees it.
+struct DeadStateStage <: AbstractComponent end
+init_x(::DeadStateStage) = (; a = 0.0)
+output_types(::DeadStateStage, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::DeadStateStage, (; x)) = (;)
+output_direct(::DeadStateStage, (; x)) = (p = x.a,)
+state_derivative(::DeadStateStage, (; x)) = (; a = 0.0)
+
+struct DeadDirectStage <: AbstractComponent end
+init_x(::DeadDirectStage) = (; a = 0.0)
+output_types(::DeadDirectStage, ::Type{T}) where {T <: Real} = (p = T,)
+output_state(::DeadDirectStage, (; x)) = (p = x.a,)
+output_direct(::DeadDirectStage, (; x)) = (;)
+state_derivative(::DeadDirectStage, (; x)) = (; a = 0.0)
+
 function build_probe_refusals()
     @testset "the probe rejects malformed components (§9.3)" begin
         d = only(diagnostics(failure(() -> build(single(Undeclared())))))
@@ -53,6 +70,19 @@ function build_probe_refusals()
         @test failure(() -> (init!(sim); run!(sim))) === nothing
         d = only(diagnostics(failure(() -> build(single(NoFlow())))))
         @test d isa StoreWithoutUpdate && d.store === :init_x
+    end
+
+    @testset "a stage returning bare `(;)` is dead, whichever position (§5.2, §9.3)" begin
+        # The rule is fail-fast and throws alone, beside the shape check, so the
+        # carrier is the singular one (D-222).
+        err = failure(() -> build(single(DeadStateStage())))
+        @test err isa DiagnosticError{DeadStage}
+        d = diagnostic(err)
+        @test path(d) == "c" && d.stage == "output_state"
+        err = failure(() -> build(single(DeadDirectStage())))
+        @test err isa DiagnosticError{DeadStage}
+        d = diagnostic(err)
+        @test path(d) == "c" && d.stage == "output_direct"
     end
 end
 
@@ -659,6 +689,28 @@ function build_wire_clauses()
     end
 end
 
+# A product-type root input with `Real` leaves and no zero-argument constructor
+# (§9.3, D-051): it passes the handle check and reaches the synthesis chain's
+# last arm, `P()`. `WithProbe` is the same shape with the remedy the message names.
+struct NoDefault{T}
+    a::T
+    b::T
+end
+struct Unsynthesized <: AbstractComponent end
+input_types(::Unsynthesized, ::Type{T}) where {T <: Real} = (q = NoDefault{T},)
+output_types(::Unsynthesized, ::Type{T}) where {T <: Real} = (s = T,)
+output_direct(::Unsynthesized, (; u)) = (s = u.q.a + u.q.b,)
+
+struct WithProbe{T}
+    a::T
+    b::T
+end
+probe_value(::Type{WithProbe{T}}) where {T} = WithProbe(zero(T), one(T))
+struct Synthesized <: AbstractComponent end
+input_types(::Synthesized, ::Type{T}) where {T <: Real} = (q = WithProbe{T},)
+output_types(::Synthesized, ::Type{T}) where {T <: Real} = (s = T,)
+output_direct(::Synthesized, (; u)) = (s = u.q.a + u.q.b,)
+
 # --- the port type the walk cannot lay out (§4.3, §4.4, D-237) ----------------
 # `IllegalPortType`'s other two arms, both raised by `cell_layout`: a mutable
 # type anywhere the walk visits, and a handle-typed face surfacing as a root
@@ -689,6 +741,26 @@ function build_port_type_refusals()
         d = only(diagnostics(err))
         @test d isa IllegalPortType && d.site === :root_input
         @test d.reason === :mutable && d.position == "" && d.declared === Matrix{Float64}
+
+        # A root input the synthesis chain cannot value is `MissingProbeValue`,
+        # collected (§9.3, D-051): the chain's last arm is `P()`, and `NoDefault`
+        # has no zero-argument constructor.
+        err = failure(() -> build(Group((; c = Unsynthesized()); inputs = ("in" => "c/q",))))
+        d = only(diagnostics(err))
+        @test d isa MissingProbeValue
+        @test d.face === :in && d.declared === NoDefault{Float64} && path(d) == ""
+
+        # The remedy the message names: an override, and the value it returns is
+        # the one the layout carries.
+        b = build(Group((; c = Synthesized()); inputs = ("in" => "c/q",)))
+        @test (:in, WithProbe(0.0, 1.0)) in b.nominal.layout.root_inputs
+
+        # Collected: two unsynthesizable faces are one throw carrying both.
+        err3 = failure(() -> build(Group((; a = Unsynthesized(), b = Unsynthesized());
+                                         inputs = ("in1" => "a/q", "in2" => "b/q"))))
+        ds3 = diagnostics(err3)
+        @test length(ds3) == 2 && all(d -> d isa MissingProbeValue, ds3)
+        @test Set(d.face for d in ds3) == Set([:in1, :in2])
 
         # Placement collects, so one model reports both and throws once.
         err2 = failure(() -> build(Group((; c = MutableSource(), q = Query());

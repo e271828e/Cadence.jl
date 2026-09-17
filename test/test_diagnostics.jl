@@ -306,6 +306,7 @@ function diagnostics_kind_set()
             RatesViolation(path = "a", reason = :offset, key = :b, value = 3//1),
             RatesViolation(path = "a", reason = :unknown_child, key = :z, candidates = ["b"]),
             RatesViolation(path = "a", reason = :continuous_child, key = :b),
+            MissingProbeValue(face = :in, declared = Float64),
             ChildNameCollision(path = "a", name = "b", reason = :sample_times_sugar,
                                provenance = ["container field `kids`, element `b`"], field = :kids),
             ChildNameCollision(path = "a", name = "b", reason = :sibling_field,
@@ -342,6 +343,7 @@ function diagnostics_kind_set()
             DeclaredNotProduced(path = "a/b", ports = [:y], products = [:z],
                                 state_fields = [:q]),
             UndeclaredReturnField(path = "a/b", stage = "output_state", name = :q, candidates = [:y]),
+            DeadStage(path = "a/b", stage = "output_state"),
             ConformanceFailure(path = "a/b", what = "output_state", reason = :return_type, shape = :ports,
                                observed = Int),
             ConformanceFailure(path = "a/b", what = "state_projection", reason = :field_set, shape = :state,
@@ -598,6 +600,21 @@ function diagnostics_kind_set()
                                 spelling = "a/b", port = :throtle,
                                 candidates = [:throttle, :brake]))
         @test occursin("names no `throtle`", m) && occursin("throttle, brake", m)
+
+        # The synthesis chain's miss names the face, the type with its parameters,
+        # and both remedies (§9.3, D-051).
+        m = message(MissingProbeValue(face = :pilot, declared = NamedTuple{(:a,),Tuple{Float64}}))
+        @test occursin("probe_value(::Type{", m) && occursin("zero-argument constructor", m)
+
+        # The dead stage names the return it got and the stage it got it from.
+        m = message(DeadStage(path = "a/b", stage = "output_state"))
+        @test occursin("`(;)`", m) && occursin("output_state", m)
+
+        # A read miss that is name-shaped prints the list the site had in hand.
+        m = message(ReadBindingUnresolved(binding = "Readout", selector = "get_output(\"p\", :nope)",
+                                          reason = :unknown_cell, path = "p", field = :nope,
+                                          candidates = [:power, :y]))
+        @test occursin("{power, y}", m)
 
         # The forgotten import (§8.1, D-246) states its fix as the line to paste,
         # spelled for exactly the names the module shadowed.

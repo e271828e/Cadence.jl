@@ -171,6 +171,7 @@ function probe_stage1(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
             throw(DiagnosticError(ConformanceFailure(path = path, what = stage,
                                                 reason = :return_type, shape = :ports,
                                                 observed = typeof(y))))
+        isempty(y) && throw(DiagnosticError(DeadStage(path = path, stage = stage)))
         _check_ports(path, stage, y, d.outs, T)
         _embed_ports(y, d.outs, T)
     end
@@ -509,7 +510,17 @@ function cell_layout(flat::Flat, decls::Vector{Decls}, ::Type{T}) where {T}
             continue
         end
         place!("", :root_input, face, P) || continue
-        push!(root_inputs, (face, probe_value(P)))
+        # §9.3, D-051: the synthesis chain ends at `P()`, and a type reaching
+        # it with no zero-argument constructor has no probe value. Collected,
+        # beside the placement refusals above.
+        v = try
+            probe_value(P)
+        catch e
+            e isa MethodError || rethrow()
+            push!(diags, MissingProbeValue(face = face, declared = P))
+            continue
+        end
+        push!(root_inputs, (face, v))
     end
     isempty(diags) || throw(DiagnosticError(diags))
     for (alias, target) in flat.out_faces
@@ -948,6 +959,7 @@ function _probe_direct!(products::Vector{NamedTuple}, ci::Int, flat::Flat,
         throw(DiagnosticError(ConformanceFailure(path = path, what = stage,
                                             reason = :return_type, shape = :namedtuple,
                                             observed = typeof(y2))))
+    isempty(y2) && throw(DiagnosticError(DeadStage(path = path, stage = stage)))
     _check_ports(path, stage, y2, d.outs, T)
     # Stage-1 position is the stage's or the framework's; either way a
     # stage-2 return of the same port writes it twice (§5.3, §8.3).

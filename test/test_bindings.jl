@@ -191,13 +191,16 @@ function test_bindings()
         sim = Simulation(outfaced(); h = 1//10)
         diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(alt = get_output("q", "y"))))
         @test diag.reason === :unknown_cell &&
-              diag.selector == "get_output(\"q\", :y)"
+              diag.selector == "get_output(\"q\", :y)" &&
+              diag.candidates == Symbol[]            # no such path: no list to offer
+        diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(alt = get_output("p", "nope"))))
+        @test diag.reason === :unknown_cell && diag.candidates == [:power, :y]
         diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(v = get_input("nope"))))
         @test diag.reason === :unknown_root_input && diag.candidates == [:u]  # the root-input list, in hand
         diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(v = get_face("u"))))
         @test diag.reason === :root_input_not_output
         diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(v = get_face("nope"))))
-        @test diag.reason === :unknown_output_face
+        @test diag.reason === :unknown_output_face && diag.candidates == [:y]
         # A rejected attach consumed no id, and the good one lands as device 1.
         h = attach!(sim, Pad("t"), Readout(alt = get_face("y")))
         @test sim.plane.roster[1].id == 1

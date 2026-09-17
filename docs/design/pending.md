@@ -18,10 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **Three specified checks**: `DeadStage` (§9.3 names the pass it rides and
-  the bare `(;)` trigger), `MissingProbeValue` (its Appendix C row exists,
-  its check does not), and the `candidates` list on `ReadBindingUnresolved`'s
-  `get_output` arm (the `get_input` miss fills it already).
 - **The §13.2 framing kinds**: `BundleFieldError` and `UserCodeFraming`,
   raised at the probe and again as a `StepError` species at runtime, on the
   `cause` conventions §13.2 fixes. One `BundleFieldError` case to carry when
