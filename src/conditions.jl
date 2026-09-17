@@ -58,7 +58,8 @@ and the owner of a structure pulls its children's under `at`. The generic is
 framework-owned so that pull crosses a package seam; a model package extends
 it through `import Cadence: condition`, as it extends the declaration family
 (§8.1). No fallback method: a child without one fails at the owner's pull as
-a `MethodError` naming it.
+a `MethodError` naming it. D-246's shadowing check does not cover it: a
+fragment written to a foreign `condition` fails the same way.
 """
 function condition end
 
