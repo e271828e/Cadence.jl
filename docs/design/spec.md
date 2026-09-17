@@ -8175,8 +8175,14 @@ declare `initialize(::C, spec)`, today's `f_init!` reborn declaratively, and
 add an [assembly](#g-assembly)-level rule routing sub-specs to children.
 
 What preserves the locality is an idiom, not schema. It is the
-**[fragment](#g-fragment) function**, an ordinary function shipped beside the
-component and dispatched on the component.
+**[fragment](#g-fragment) function**, a method of the framework's `condition`
+generic, shipped beside the component and dispatched on the component. The
+generic is framework-owned so that an owner's pull reaches a child's fragment
+across a package seam. A model package extends it through
+`import Cadence: condition`, as it extends the declaration family
+([§8.1][s8-1]). No shadowing check covers it: a fragment written to a foreign
+`condition` fails loudly at the owner's pull, as a `MethodError` naming the
+child.
 
 ```julia
 condition(eng::PistonEngine; n_eng) =
@@ -10397,8 +10403,8 @@ lifecycle.
 - Assembly. `child_connections` (mandatory, the class marker),
   `input_connections`, `output_connections`, `sample_times` and
   `transparent_container` (optional, default `nothing`).
-- Shipped conditions. `condition(::C; kw)` fragment functions
-  ([§14.2][s14-2]).
+- Shipped conditions. `condition(::C; kw)` fragment functions, methods of
+  the framework's `condition` generic ([§14.2][s14-2]).
 
 Bundle contents by function family (the maximal legal sets, [§5.2][s5-2];
 signatures destructure less at will):
