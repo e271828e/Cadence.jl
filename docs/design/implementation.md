@@ -53,7 +53,7 @@ roster, so the diff review is what holds it.
 `test/` does not mirror `src/`, and the remainder is not to be "finished":
 `src/` is cut by layering, `test/` by property. `sim.jl` gets no
 `test_sim.jl`; `log`, `lifecycle`, `failures`, `localization` and the loop
-halves of `discrete`, `multirate` and `events` assert emergent properties of
+halves of `discrete` and `events` assert emergent properties of
 the layers cooperating, which no source file owns. `test_leaves.jl` is the one
 file kept for a source file rather than a property: the leaf walk has no
 single consumer to own it.
@@ -73,9 +73,8 @@ Traps the code does not warn about, each hit more than once while building:
   `DeadStage` is not built (`pending.md`);
 - **extending a declaration without importing it is silent on 1.12.** After
   `using Cadence`, a bare `output_state(::MyComp, …)` creates a local generic
-  with no error or warning, exported or not; Julia ≤1.11 raised, 1.12's
-  binding partitions removed that (measured on 1.12.7), and only `using
-  Cadence: output_state` still errors. The build sees the same
+  with no error or warning, exported or not (Julia ≤1.11 raised; only `using
+  Cadence: output_state` still errors). The build sees the same
   declares-nothing component, and an optional declaration (`state_events`,
   `state_projection`, `init_m`, `init_workspace`, `sample_times`, the
   connection declarations) silently drops its feature. The diagnostic that
@@ -119,29 +118,47 @@ From the repository root:
 
 The suite is the one `CadenceTests` module in `test/CadenceTests.jl`: the
 includes, the `import Cadence:` list (`imports.jl`), `runall()` and
-`runonly(names...)`. `julia --project=test -L test/repl.jl` opens a session
-with the same list and the fixtures in `Main`, nothing to import by hand. Each
-file's tests are one function (`CadenceTests.test_trace()`), which is what the
-second form runs and the tightest loop in a live session. The tests are their
-own workspace member (`[workspace] projects = ["test"]`, Julia 1.12), so one
-root `Manifest.toml` resolves both and `Cadence` needs no `develop`; no
-`Manifest.toml` is committed.
+`runonly(names...)`. Each file's tests are one function
+(`CadenceTests.test_trace()`), the tightest loop in a live session;
+`julia --project=test -L test/repl.jl` opens one with the list and the
+fixtures in `Main`. The tests are a workspace member (`[workspace]` in
+`Project.toml`), so one root `Manifest.toml`, never committed, resolves both.
 
-The full run costs about 5 min. A cold process spends about 30 s before the
-first file and little per file after, so name a generous set rather than a
-minimal one. An `src/` edit adds about 15 s of precompile to the first run
-after it. Which files a change reaches is a guess off the table above;
-`sim.jl`, `store.jl` and `diagnostics.jl` are cross-cutting and mean all of
-it. To check a refactor for test loss, compare the suite's own assertion
-total; `grep -c '@test '` misses the loops that multiply them.
+Run the suite in the foreground with a 600 s timeout, never in the
+background. The full run costs about 7 min; a cold process spends about 30 s
+before the first file and little per file after, and an `src/` edit adds
+about 15 s of precompile, so name a generous set rather than a minimal one.
+Which files a change reaches is read off this table, the last row being the
+override:
 
-**None of the above is the gate. Before trusting a green suite, run**
+| touched in `src/` | run |
+| --- | --- |
+| `declare`, `assembly`, `build`, `tracer` | `declare assembly build diagnostics leaves`; a change in `build.jl`'s `compile` half adds the next row |
+| `executor`, `stepper`, `localization` | `executor stepper continuous discrete events localization failures` |
+| `dataplane`, `roster`, `bindings`, `devices`, `trace` | `dataplane roster bindings devices trace lifecycle log` |
+| `readers`, `conditions`, `trim` | `readers conditions trim` |
+| `sim`, `store`, `diagnostics`, `leaves`, `Cadence` | all of it |
 
-    julia --project=. -e 'using Pkg; Pkg.test()'
+To check a refactor for test loss, compare the suite's own assertion total;
+`grep -c '@test '` misses the loops that multiply them.
 
-`--project=test` leaves three ambient sources on the load path that can
-satisfy a dependency the suite never declared — what the developer's
-`startup.jl` loads into `Main`, the default environment, and the stdlib
-directory — and each has already masked one. `Pkg.test()` runs in a sandbox
-holding the declared dependencies alone, with `--startup-file=no` and
-`--check-bounds=yes`, at the cost of a separate precompile.
+**The gate** is the full suite under the sandbox flags:
+
+    JULIA_LOAD_PATH="@" julia --startup-file=no --check-bounds=yes --warn-overwrite=yes --depwarn=yes --project=test test/runtests.jl
+
+A stage commit inside an increment runs its routed subset under the same
+flags and no more. The gate runs once per increment, by the cold reviewer,
+and again by the fixer after a review fix. A loose fix outside an increment,
+and any commit in the table's last row, runs the gate itself. The suite is
+green at every push.
+
+`--project=test` alone leaves three ambient sources on the load path that
+can satisfy a dependency the suite never declared, `startup.jl`, the default
+environment and the stdlib directory, and each has already masked one. The
+load path `@` and the startup flag remove them, as `Pkg.test()`'s sandbox
+does. `--check-bounds=yes` ignores every `@inbounds` in the tree and its
+dependencies, which `Pkg.test()` does not (on 1.13 the test process inherits
+the parent's setting). Run `julia --project=. -e 'using Pkg; Pkg.test()'`
+only after a change to `Project.toml`, `test/Project.toml` or the workspace
+stanza: it proves the conventional entry point still resolves, and nothing
+else the gate does not.
