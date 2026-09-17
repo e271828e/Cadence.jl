@@ -1143,7 +1143,8 @@ function _species(sim::Simulation, err::FieldError)
         fam === :output_direct                   ? bundle_names(output_direct, c, t, s1) :
         fam === :state_derivative || fam === :state_update ? bundle_names(update_of(t), c, t, s1) :
         return err
-    catch
+    catch e
+        e isa InterruptException && rethrow()
         return err
     end
     # By names, not by the exact type: the runtime bundle's value types differ

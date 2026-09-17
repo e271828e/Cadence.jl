@@ -68,7 +68,7 @@ end
 function _inputs_spelling(b::NamedTuple)
     haskey(b, :u) || return ""
     try replace(sprint(show, b.u; context = :compact => true), '\n' => ' ')
-    catch; "<unshowable>" end
+    catch e; e isa InterruptException ? rethrow() : "<unshowable>" end
 end
 
 """
