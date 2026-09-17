@@ -7365,16 +7365,27 @@ struct DiagnosticError{P <: Union{Diagnostic, Vector{Diagnostic}}} <: Exception
 end
 ```
 
-A user-code exception is wrapped in a framing diagnostic, with the original
-exception as `cause`. The frame carries the [component](#g-component) path, the
-function that threw, and the [probe](#g-probe) context including the
-synthesized inputs. The didactic frame therefore renders first and the raw
-throw second.
+A user-code exception is wrapped in a framing diagnostic, `UserCodeFraming`,
+with the original exception as `cause`. The frame carries the
+[component](#g-component) path, the function that threw, and the
+[probe](#g-probe) context, which is the [bundle](#g-bundle)'s field names (the
+bundle is the NamedTuple of zero-copy views a component function receives)
+and the synthesized inputs as a spelling, never as values ([D-248][d-248]). The
+didactic frame therefore renders first and the raw throw second. The framed
+set is every user-authored method the build invokes. The declarations of
+[§8.2][s8-2] and the probed functions of [§9.3][s9-3] are framed alike, each
+reached through one framing accessor rather than a bare call. A declaration
+takes no bundle, so only the plain frame applies to it. Three exceptions pass
+through the frame unwrapped, because none of them is user code failing. They
+are a `DiagnosticError` carrier a check inside the call threw, an
+`InternalInvariant`, and an `InterruptException`. At runtime the same throw
+reaches [§13.4][s13-4]'s one catch site instead. There a `FieldError` matched
+as below becomes a `BundleFieldError` species, and any other exception rides
+as the `StepError`'s `cause`.
 
 One class of exception is recognized rather than merely framed. A `FieldError`
 carries its type and field as data. The framework matches them against the
-[bundle](#g-bundle)'s own NamedTuple type (the NamedTuple of zero-copy views a
-component function receives). The result is the bundle-law did-you-mean
+bundle's own NamedTuple type. The result is the bundle-law did-you-mean
 ([§5.2][s5-2]). It carries the legal field set and classifies the miss as an
 undeclared store, a wrong [tier](#g-tier), or a field illegal for this
 function. Nothing is recovered by reading message text.
@@ -10934,8 +10945,10 @@ with the collection and never trigger its throw, is currently empty
   fail-fast. Component path, event name, offending key, the legal set
   `{x, m}` narrowed to the stores that exist.
 - **`UserCodeFraming`** ([§13.2][s13-2]). Error · build · fail-fast.
-  Component path, which function, the probe context including synthesized
-  inputs, the original exception as `cause`.
+  Component path, which function, the bundle's field names, the synthesized
+  inputs as a spelling, the original exception as `cause`. Every
+  user-authored method the build invokes is framed, declarations included
+  ([D-248][d-248]).
 
 **Deployment, periphery and services:**
 
@@ -12294,6 +12307,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-245]: decisions.md#d-245--classify-a-cycle-cluster-by-a-surviving-traced-cycle-and-carry-each-members-tracing-mode
 [d-246]: decisions.md#d-246--diagnose-a-foreign-declaration-binding-as-its-own-fail-fast-kind
 [d-247]: decisions.md#d-247--accept-the-namedtuple-as-the-only-store-declaration-form
+[d-248]: decisions.md#d-248--frame-every-user-authored-method-the-build-invokes-declarations-included
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
