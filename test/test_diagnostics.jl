@@ -288,16 +288,16 @@ function diagnostics_kind_set()
                             leaf_family = [:init_x, :output_types]),
             ClassMixed(path = "a", declarations = [:init_x, :output_types]),
             ContainerMixed(path = "a", field = :kids, keys = Any[1, :b],
-                           types = Any[Int, Float64]),
+                           types = ["Int64", "Float64"]),
             ContainerNested(path = "a", field = :kids, keys = Any[1, :b],
-                            types = Any[Tuple{Int}, @NamedTuple{c::Int}]),
+                            types = ["Tuple", "NamedTuple"]),
             DeclarationOnWrongTier(path = "a/b", declaration = :init_workspace, reason = :tier_form,
                                    found = :continuous, announced = :discrete),
             DeclarationOnWrongTier(path = "a/b", declaration = :state_projection, reason = :continuous_only,
                                    found = :discrete),
             DeclarationOnWrongTier(path = "a/b", declaration = :state_projection, reason = :no_manifold),
             TierSignatureMismatch(path = "a/b", declaration = :output_types, tier = :continuous,
-                                  reason = :bound, found = AbstractFloat),
+                                  reason = :bound, found = AbstractFloat, mandated = Real),
             TierSignatureMismatch(path = "a/b", declaration = :input_types, tier = :discrete,
                                   reason = :arity, found = :two_argument, mandated = :plain),
             FaceNameIllegal(path = "a", face = "u/v", invariant = :contains_slash),
@@ -631,6 +631,13 @@ function diagnostics_kind_set()
         m = message(MissingProbeValue(face = :pilot, declared = NamedTuple{(:a,),Tuple{Float64}}))
         @test occursin("probe_value(::Type{", m) && occursin("zero-argument constructor", m)
         @test occursin("at face `pilot`", m) && occursin("Float64", m)
+
+        # A port type is §13.2's one payload exception: the abstract entry is
+        # spelled whole, parameters and all, where `_typename` would print
+        # `AbstractVector{Float64}` as `AbstractArray` (§8.2).
+        m = message(AbstractAtRoot(face = :e, paths = ["a/b"],
+                                   declared = Any[AbstractVector{Float64}]))
+        @test occursin("AbstractVector{Float64}", m) && occursin("`a/b`", m)
 
         # The dead stage names the return it got and the stage it got it from.
         m = message(DeadStage(path = "a/b", stage = "output_state"))

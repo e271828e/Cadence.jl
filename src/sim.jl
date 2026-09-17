@@ -327,10 +327,10 @@ function _assert_advanceable(sim::Simulation, op::Symbol)
     lc === :initialized && return nothing
     lc === :built && throw(DiagnosticError(MissingInit(op = op, status = lc)))
     lc === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
-                                                              legal = ADVANCE_LEGAL)))
+                                                              legal = collect(ADVANCE_LEGAL))))
     lc === :stopped && throw(DiagnosticError(ServiceLifecycle(op = op, status = :stopped,
-                                                              legal = ADVANCE_LEGAL)))
-    throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored, legal = ADVANCE_LEGAL)))
+                                                              legal = collect(ADVANCE_LEGAL))))
+    throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored, legal = collect(ADVANCE_LEGAL))))
 end
 
 """
@@ -648,9 +648,9 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::T = zero(T)) wher
     ctl = sim.control
     lc = @atomic ctl.lifecycle
     lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :running,
-                                                              legal = STOPPED_SIM_LEGAL)))
+                                                              legal = collect(STOPPED_SIM_LEGAL))))
     lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :errored,
-                                                              legal = STOPPED_SIM_LEGAL)))
+                                                              legal = collect(STOPPED_SIM_LEGAL))))
     plan = resolve_condition(condition, sim.build, T)      # both refusals precede every write
     assert_total(plan, sim.build.flat, :init!)   # (§14.6): all-or-nothing
     establish_defaults!(sim.exec.xbuf, sim.exec.sstores, sim.exec.mstores, sim.build.flat.comps,
@@ -765,9 +765,9 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     ex, ctl = sim.exec, sim.control
     lc = @atomic ctl.lifecycle
     lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :running,
-                                                              legal = STOPPED_SIM_LEGAL)))
+                                                              legal = collect(STOPPED_SIM_LEGAL))))
     lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :errored,
-                                                              legal = STOPPED_SIM_LEGAL)))
+                                                              legal = collect(STOPPED_SIM_LEGAL))))
     to_boundary === nothing || to_time === nothing ||     # two spellings of one halt (D-219)
         throw(DiagnosticError(ArgumentInvalid(call = :replay!, reason = :both_given)))
     # §13.4's pointer, in grid boundaries: whole and non-negative, and no further

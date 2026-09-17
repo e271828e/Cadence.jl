@@ -341,9 +341,12 @@ Base.@kwdef struct AbstractAtRoot <: Diagnostic
     declared::Vector{Any}                    # their abstract entries
 end
 path(::AbstractAtRoot) = ""
+# A port type is §13.2's one payload exception, so the entry is interpolated
+# whole, as `RootInputTypeConflict` beside it does: `_typename` would strip the
+# parameters and print `AbstractVector{Float64}` as `AbstractArray`.
 message(d::AbstractAtRoot) =
     "root input `$(d.face)` is declared " *
-    join(("$(_at_path(p))::$(_typename(P))" for (p, P) in zip(d.paths, d.declared)), ", ") *
+    join(("$(_at_path(p))::$(P)" for (p, P) in zip(d.paths, d.declared)), ", ") *
     " — every entry is abstract, and a root input is typed by its consumers alone, so " *
     "nothing determines its type; wire `$(d.face)` to a concrete producer — in a test " *
     "rig, a stub child (§8.2, §13.7)"
@@ -483,7 +486,7 @@ Base.@kwdef struct ContainerMixed <: Diagnostic
     path::String
     field::Symbol
     keys::Vector{Any}                        # the non-component element keys or indices
-    types::Vector{Any}                       # the unique non-component element types
+    types::Vector{String}                    # the unique non-component element types, by name (§13.2)
 end
 path(d::ContainerMixed) = d.path
 message(d::ContainerMixed) =
@@ -496,7 +499,7 @@ Base.@kwdef struct ContainerNested <: Diagnostic
     path::String
     field::Symbol
     keys::Vector{Any}                        # the offending element keys or indices
-    types::Vector{Any}                       # their types, one per key
+    types::Vector{String}                    # their types, by name, one per key (§13.2)
 end
 path(d::ContainerNested) = d.path
 message(d::ContainerNested) =
@@ -530,7 +533,7 @@ Base.@kwdef struct TierSignatureMismatch <: Diagnostic
     tier::Symbol                             # :continuous | :discrete
     reason::Symbol                           # :bound | :arity
     found::Any                               # the bound the method puts on `T`, or the form declared
-    mandated::Any = Real                     # the mandated bound, or the form the tier mandates
+    mandated::Any                            # the mandated bound, or the form the tier mandates
 end
 path(d::TierSignatureMismatch) = d.path
 # §8.5's two spellings, the form symbols the `:arity` arm carries rendered as the
@@ -1073,10 +1076,12 @@ message(d::MissingInit) =
 # §12.6's legality table and §11.3's sentence, as the lists a refusal carries.
 # The advance entries admit `:initialized` alone; a reader admits every status
 # but `:running`; a stopped-sim operation adds `:errored` to the refusals
-# (D-232). `capture` narrows further and names its own list at the site.
-const ADVANCE_LEGAL = [:initialized]
-const READER_LEGAL = [:built, :initialized, :stopped, :errored]
-const STOPPED_SIM_LEGAL = [:built, :initialized, :stopped]
+# (D-232). `capture` narrows further and names its own list at the site. Each is
+# an immutable tuple and every site fills the payload through `collect`, so no
+# two refusals share one mutable list.
+const ADVANCE_LEGAL = (:initialized,)
+const READER_LEGAL = (:built, :initialized, :stopped, :errored)
+const STOPPED_SIM_LEGAL = (:built, :initialized, :stopped)
 
 "§11.3, §14: a service call against a lifecycle status that does not admit it."
 Base.@kwdef struct ServiceLifecycle <: Diagnostic
@@ -1257,7 +1262,7 @@ message(d::EmptyGreedyClaim) =
 
 "§11.6: a binding whose traits and whose methods disagree, in either direction."
 Base.@kwdef struct BindingContractMismatch <: Diagnostic
-    binding::String                          # the binding type, as a string
+    binding::String                          # the binding type, by name (§13.2)
     reason::Symbol   # :claims_missing|:reads_missing|:greedy_without_input|:neither_side|
                      # :greedy_with_claims|:claims_without_input|:reads_without_output|
                      # :reads_not_namedtuple|:reads_not_selectors

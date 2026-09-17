@@ -293,6 +293,16 @@ output_types(::ModedSource, ::Type{T}) where {T <: Real} = (out = T,)
 
 output_state(::ModedSource, (; m)) = (out = m.phase === :idle ? 0.0 : 1.0,)
 
+"""
+Modes and a derivative, and no contract: `init_m` is no state store and
+`state_derivative` is no decider without one, so nothing announces a tier and
+there is no `output_types` to read one off — §8.2's `TierUnreadable`.
+"""
+struct ModesNoContract <: AbstractComponent end
+
+init_m(::ModesNoContract) = (phase = :idle,)
+state_derivative(::ModesNoContract, (; m)) = (;)
+
 # --- the event coverage set (§2.1, §10.6) -------------------------------------
 # Guards and handlers are ordinary named functions referenced by `state_events` —
 # nothing global-generic about them, which is why they carry component-prefixed

@@ -150,13 +150,13 @@ function _children(path::String, c)
                 nested = [k for k in keys(v) if _bears_component(v[k])]
                 isempty(nested) ||
                     push!(diags, ContainerNested(path = path, field = name, keys = nested,
-                                                types = Any[typeof(v[k]) for k in nested]))
+                                                types = [_typename(typeof(v[k])) for k in nested]))
                 continue
             end
             if n != length(v)
                 mixed = [k for k in keys(v) if !(v[k] isa AbstractComponent)]
                 push!(diags, ContainerMixed(path = path, field = name, keys = mixed,
-                                           types = unique(Any[typeof(v[k]) for k in mixed])))
+                                           types = unique([_typename(typeof(v[k])) for k in mixed])))
                 continue
             end
             bare = name === tf

@@ -795,7 +795,7 @@ function _check_wires(flat::Flat, tiers::Vector{Tier}, diags::Vector{Diagnostic}
             (_declares(fn, c, Type{Float64}) && !_declares(fn, c, Type{Marker})) || continue
             push!(diags, TierSignatureMismatch(path = flat.paths[ci], declaration = nameof(fn),
                                                tier = :continuous, reason = :bound,
-                                               found = _contract_bound(fn, c)))
+                                               found = _contract_bound(fn, c), mandated = Real))
             refused[ci] = true
         end
     end

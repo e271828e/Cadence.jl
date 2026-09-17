@@ -137,11 +137,11 @@ the did-you-mean candidate lists are absent (`pending.md`).
 """
 function _compile_gather(layout::Layout, nt, T::Type, device::String)
     nt isa NamedTuple || throw(DiagnosticError(
-        BindingContractMismatch(binding = string(T), reason = :reads_not_namedtuple,
+        BindingContractMismatch(binding = _typename(T), reason = :reads_not_namedtuple,
                                  observed = typeof(nt))))
     addrs = map(values(nt)) do s
         s isa ReadSelector || throw(DiagnosticError(
-            BindingContractMismatch(binding = string(T), reason = :reads_not_selectors,
+            BindingContractMismatch(binding = _typename(T), reason = :reads_not_selectors,
                                      observed = typeof(s))))
         _resolve_read(layout, s, T, device)
     end

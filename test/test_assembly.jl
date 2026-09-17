@@ -162,7 +162,7 @@ function assembly_container_children()
         err = failure(() -> build(single(MixedContainer((a = Gain(1.0), b = 2.0)))))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
-        @test d isa ContainerMixed && d.field === :kids && Float64 in d.types
+        @test d isa ContainerMixed && d.field === :kids && "Float64" in d.types
         @test d.keys == [:b]                              # the offending element, by name
 
         # The `Tuple` form: the same rule with index segments, `"field/1"…"field/N"`
@@ -177,7 +177,7 @@ function assembly_container_children()
         err = failure(() -> build(TupleRoster((Gain(1.0), 2.0))))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
-        @test d isa ContainerMixed && d.field === :units && Float64 in d.types
+        @test d isa ContainerMixed && d.field === :units && "Float64" in d.types
         @test d.keys == [2]                               # the `Tuple` form: an index
 
         # A container of containers has no direct component element, so it
@@ -187,7 +187,7 @@ function assembly_container_children()
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa ContainerNested && d.field === :units
-        @test d.keys == [1, 2] && d.types == [Tuple{Gain,Gain}, Tuple{Gain}]
+        @test d.keys == [1, 2] && d.types == ["Tuple", "Tuple"]   # by name (§13.2)
         # The NamedTuple form, at any depth, and beside inert data: the bearing
         # element alone is named.
         err = failure(() -> build(single(MixedContainer((a = (g = (Gain(1.0),),), b = 2.0)))))

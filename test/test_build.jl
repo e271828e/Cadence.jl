@@ -1229,6 +1229,18 @@ function build_tier()
         @test classify_tier("c", NoFlow(), diags) === nothing
         @test only(diags) isa StoreWithoutUpdate
 
+        # The tier twin of `ClassUnreadable` (§8.2, D-215): no store to decide the
+        # tier and no `output_types` to read it off. `init_m` and a derivative vote
+        # continuous, but neither is a decider, so the payload carries what the
+        # component does declare against the whole tier-announcing family.
+        diags = Diagnostic[]
+        @test classify_tier("c", ModesNoContract(), diags) === nothing
+        d = only(diags)
+        @test d isa TierUnreadable && path(d) == "c" && d.type == "ModesNoContract"
+        @test d.declarations == [:state_derivative, :init_m]
+        @test d.family == [:state_derivative, :state_update, :init_x, :init_s, :init_m,
+                           :state_events, :output_types, :input_types, :init_workspace]
+
         # The base tick period is deployment's, not the build's: the same `Build`
         # deploys at any admissible grid, and the executor cannot exist before one
         # binds because `Δt`, `D` and `Φ` are entry-field data (§9.1, §9.7).

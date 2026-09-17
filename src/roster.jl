@@ -77,15 +77,15 @@ function check_binding(b::AbstractBinding)
     drifted = which(claims, Tuple{T}) !== which(claims, Tuple{AbstractBinding})
     rdrifted = which(reads, Tuple{T}) !== which(reads, Tuple{AbstractBinding})
     greedy && !isin && throw(DiagnosticError(
-        BindingContractMismatch(binding = string(T), reason = :greedy_without_input)))
+        BindingContractMismatch(binding = _typename(T), reason = :greedy_without_input)))
     isin || isout || throw(DiagnosticError(
-        BindingContractMismatch(binding = string(T), reason = :neither_side)))
+        BindingContractMismatch(binding = _typename(T), reason = :neither_side)))
     isin && greedy && drifted && throw(DiagnosticError(
-        BindingContractMismatch(binding = string(T), reason = :greedy_with_claims)))
+        BindingContractMismatch(binding = _typename(T), reason = :greedy_with_claims)))
     isin || !drifted || throw(DiagnosticError(
-        BindingContractMismatch(binding = string(T), reason = :claims_without_input)))
+        BindingContractMismatch(binding = _typename(T), reason = :claims_without_input)))
     isout || !rdrifted || throw(DiagnosticError(
-        BindingContractMismatch(binding = string(T), reason = :reads_without_output)))
+        BindingContractMismatch(binding = _typename(T), reason = :reads_without_output)))
     nothing
 end
 

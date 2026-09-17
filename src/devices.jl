@@ -134,14 +134,14 @@ roster change configures the next run, and an errored simulation has none.
 assert_stopped(ctl::Control, op::Symbol) =
     (@atomic ctl.lifecycle) === :running ?
     throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
-                                           legal = READER_LEGAL))) : nothing
+                                           legal = collect(READER_LEGAL)))) : nothing
 
 function assert_configurable(ctl::Control, op::Symbol)
     lc = @atomic ctl.lifecycle
     lc === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
-                                                              legal = STOPPED_SIM_LEGAL)))
+                                                              legal = collect(STOPPED_SIM_LEGAL))))
     lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored,
-                                                              legal = STOPPED_SIM_LEGAL)))
+                                                              legal = collect(STOPPED_SIM_LEGAL))))
     nothing
 end
 

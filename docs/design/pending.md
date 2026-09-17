@@ -29,7 +29,7 @@ Where the reason is not given here, the cited decision carries it:
   not, so a stopped run can hold mid-boundary stores here; §13.4's
   interactive-session behaviour (log and surface the status rather than
   rethrow) has no discrimination in `run!`. `run!` requires a finite `t_end`;
-  every non-running state admits `attach!`/`detach!`.
+  every non-running state but `errored` admits `attach!`/`detach!`.
 - **§11.7's GUI write path**, §10.7 pacing and its diagnostics, the §11.8
   remainder (`DebtReanchor`, `ThreadBudget`, `UnboundedRun`, the maxlog
   renderer).
