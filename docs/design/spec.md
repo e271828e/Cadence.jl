@@ -7384,11 +7384,15 @@ as below becomes a `BundleFieldError` species, and any other exception rides
 as the `StepError`'s `cause`.
 
 One class of exception is recognized rather than merely framed. A `FieldError`
-carries its type and field as data. The framework matches them against the
-bundle's own NamedTuple type. The result is the bundle-law did-you-mean
-([§5.2][s5-2]). It carries the legal field set and classifies the miss as an
-undeclared store, a wrong [tier](#g-tier), or a field illegal for this
-function. Nothing is recovered by reading message text.
+carries its type and field as data. At the probe the framework matches them
+against the bundle's own NamedTuple type, which the accessor holds. At the
+runtime catch site it matches them against the bundle's field names, because
+the bundle's type there is the activation's and is not in hand ([D-248][d-248]).
+A tuple the author builds with the bundle's own names is indistinguishable
+from the bundle at either site, and the diagnosis stays true of it. The result
+is the bundle-law did-you-mean ([§5.2][s5-2]). It carries the legal field set
+and classifies the miss as an undeclared store, a wrong [tier](#g-tier), or a
+field illegal for this function. Nothing is recovered by reading message text.
 
 The [§8.4][s8-4] walkthroughs, run as acceptance tests, target diagnostics.
 Tests match on kind plus payload fields, never on message text. Messages are

@@ -9044,9 +9044,11 @@ synthesized inputs as a spelling and the original exception as `cause`.
   under [§13.2][s13-2]'s strings-never-instances rule.
 - A `DiagnosticError` carrier, an `InternalInvariant` and an
   `InterruptException` pass through the frame unwrapped.
-- A `FieldError` matched against the bundle's own type is `BundleFieldError`
-  at the probe and a `StepError` species at [§13.4][s13-4]'s catch site.
-  `UserCodeFraming` stays build-only.
+- A `FieldError` matched against the bundle is `BundleFieldError` at the
+  probe and a `StepError` species at [§13.4][s13-4]'s catch site. The probe
+  matches by the bundle's own type, which its accessor holds; the catch site
+  matches by the bundle's field names, since the activation's bundle type is
+  not in hand there. `UserCodeFraming` stays build-only.
 
 **Spec.** [§5.2][s5-2], [§9.3][s9-3], [§13.2][s13-2], [§13.4][s13-4], [Appendix C][sC]
 
