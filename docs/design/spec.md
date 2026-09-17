@@ -10808,8 +10808,8 @@ with the collection and never trigger its throw, is currently empty
   entry's type.
 - **`DeclarationShadowed`** ([§8.1][s8-1], [D-246][d-246]). Error · build ·
   fail-fast. Component path, the parent module, the family names the module
-  binds to something other than the framework's function, the import line
-  that fixes them.
+  binds to something other than the framework's function. The message spells
+  the import line from them.
 - **`ClassUnreadable`** ([§8.5][s8-5]). Error · build · fail-fast. Component
   path, type, declarations found, both family lists; did-you-mean when the
   type holds component-typed fields.

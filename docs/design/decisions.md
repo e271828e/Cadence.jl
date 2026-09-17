@@ -8947,11 +8947,14 @@ The mechanism is the two-line test [D-117][d-117] described, `isdefined(M, name)
 getfield(M, name) !== getfield(Flight, name)` on `M = parentmodule(typeof(c))`,
 verified on Julia 1.13.0: a bare definition after `using` reads as foreign, a
 per-name import does not, an untouched name is undefined, and a REPL
-definition in `Main` behaves the same. Two limits are accepted and recorded.
-A type defined in one module and extended in another through qualified
-definitions is not checked, since the check reads the type's module. A user
-function that legitimately carries one of the family's names reads as
-foreign, the price [D-220][d-220] chose the names to keep small.
+definition in `Main` behaves the same. Three limits are accepted and
+recorded. A type defined in one module and extended in another through
+qualified definitions is not checked, since the check reads the type's
+module. A user function that legitimately carries one of the family's names
+reads as foreign, the price [D-220][d-220] chose the names to keep small. A module
+that merely does `using` on a package exporting one of the family's names
+reads as foreign with nothing defined locally; the import line the message
+spells resolves that case too.
 
 **Rejected.**
 - *A note on the diagnostics that notice an absence ([D-117][d-117]'s shape):* leaves

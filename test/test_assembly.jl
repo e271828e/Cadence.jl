@@ -119,6 +119,13 @@ function assembly_class()
         d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(ForgottenImport.Rates.Assembly(ForgottenImport.Rates.Leaf())))
         @test d.path == "" && d.names == [:sample_times]
         @test d.mod == string(ForgottenImport.Rates)
+
+        # A parent whose boundary is computed over the shadowed child (§8.8):
+        # `input_passthrough` classifies the child, so the child's own check
+        # must come first, at the child's path, or `ClassUnreadable` throws at
+        # `""` with the false message.
+        d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(PassthroughOverForgotten(ForgottenImport.Inventory.Leaf())))
+        @test d.path == "kid" && d.mod == string(ForgottenImport.Inventory)
     end
 end
 

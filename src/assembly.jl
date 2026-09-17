@@ -860,7 +860,6 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
         end
         return t
     end
-    _check_face_names(path, comp, diags)
     st = sample_times(comp)
     kids, fields = _children(path, comp)
     _check_sample_times(path, st, kids, fields, diags)
@@ -874,6 +873,12 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
             push!(diags, RatesViolation(path = path, reason = :continuous_child,
                                        key = Symbol(seg)))
     end
+
+    # The boundary declarations are read only after the children are walked: a
+    # computed entry (`input_passthrough`, §8.8) classifies the child it names,
+    # and a shadowed child must meet its own check above first, at its own path
+    # (D-246).
+    _check_face_names(path, comp, diags)
 
     for pair in child_connections(comp)
         entry = _entry("child_connections", path, pair)

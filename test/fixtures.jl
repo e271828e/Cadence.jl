@@ -1402,3 +1402,14 @@ sample_times(::Assembly) = (kid = Cadence.Relative(2),)
 end
 
 end
+
+"""
+A sound assembly whose boundary is computed over a shadowed child (§8.8):
+`input_passthrough` classifies the child it names, so the parent's own
+declarations must not be read before the child is walked (D-246).
+"""
+struct PassthroughOverForgotten <: AbstractComponent
+    kid::ForgottenImport.Inventory.Leaf
+end
+child_connections(::PassthroughOverForgotten) = ()
+input_connections(a::PassthroughOverForgotten) = input_passthrough(a, "kid")
