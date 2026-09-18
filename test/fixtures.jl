@@ -126,7 +126,7 @@ state_derivative(::Twice, (; x)) = (q = 0.0,)
 """
 A stage-2 product named after a mode field the store holds at *another* type,
 beside a declared state field no stage returns. The classification is structural
-and names only (§9.1 Stratum B), so `flag` is a stage-2 product at every
+and names only (§9.1, the nominal evaluation), so `flag` is a stage-2 product at every
 activation, over a non-empty product list.
 """
 struct ModeNamedProduct <: AbstractComponent end

@@ -112,7 +112,7 @@ transparent_container(::Any) = nothing
 # The two forms of the sample-time declaration, and the wrappers are the
 # whole value vocabulary — a bare integer or bare quantity in a `sample_times`
 # entry is a declaration error. They are plain data carriers (D-185): range
-# validation is Stratum A's, with path attribution, in the fold. The one
+# validation is the structure step's, with path attribution, in the fold. The one
 # constructor-side refusal is floats, because it is a normalization failure
 # rather than a range check: grid derivation is GCD arithmetic, ill-defined over
 # floats, so every period and offset is an exact `Rational{Int}` and a float
@@ -272,7 +272,7 @@ tier_word(t::Tier) = t === CONTINUOUS ? "continuous" : "discrete"
 """
 The tier form of `fn`'s arity: two-argument continuous, plain discrete. The
 scalar `S` is the one a continuous declaration is evaluated at — `Float64` for
-every reader but Stratum A's wire pass, which also reads it at the marker.
+every reader but the structure step's wire pass, which also reads it at the marker.
 """
 declared_at(fn, c, t::Tier, ::Type{S} = Float64) where {S} =
     t === CONTINUOUS ? (_declares(fn, c, Type{Float64}) ? invoke_declaration(fn, c, S) : NamedTuple()) :

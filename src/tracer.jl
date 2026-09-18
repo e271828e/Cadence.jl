@@ -3,9 +3,9 @@
 # Diagnostic only, never relied on for correctness: scheduling correctness comes
 # from the structural two-stage split alone. What runs here is the *local*
 # variant of D-012 — the schedule-free per-member trace at the probe point,
-# inside Stratum B's failure path, where no schedule and no layout for the
-# cluster exist. The other variant, the tracer *activation* of §9.4, is a
-# whole-model run at this scalar and is not built here.
+# inside the nominal evaluation's failure path, where no schedule and no
+# layout for the cluster exist. The other variant, the tracer *activation* of
+# §9.4, is a whole-model run at this scalar and is not built here.
 #
 # SparseConnectivityTracer.jl offers the same global/local pair, and its "requires
 # primal value" error is this file's `Undecidable`. It was weighed and not

@@ -421,7 +421,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
 
     # --- the seeded half ---------------------------------------------------------
     TD = ForwardDiff.Dual{TrimTag,Float64,N}
-    act = activation(b, TD)                   # the cached Stratum-C re-run (§9.4)
+    act = activation(b, TD)                   # the cached activation (§9.4)
     ex = _scratch(sim, TD, act)
     _establish_frozen!(ex, act, ex_nom, sim.build)
     d_dual = _seeded(K, guess, TD)

@@ -456,7 +456,7 @@ function resolve(asm, path::AbstractString)
         throw(DiagnosticError(PathResolution(entry = who, spelling = "", reason = :empty_path,
                                         owner = "the component in hand")))
     # A declaration body is user code (§13.1), so the one recorded refusal throws
-    # alone here rather than reaching the stratum's list.
+    # alone here rather than reaching the step's list.
     diags = Diagnostic[]
     r = _one_level(who, "", asm, path, String.(split(path, '/')), 0, diags;
                    owner = "the component in hand")
@@ -682,7 +682,7 @@ struct Flat
     comps::Vector{Any}
     conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}}   # face => (producer path, port)
     root_inputs::Vector{Symbol}                                # root input faces, in order
-    root_types::Vector{Any}         # per root input: the type Stratum A's wire pass fixed (D-236)
+    root_types::Vector{Any}         # per root input: the type the structure step's wire pass fixed (D-236)
     in_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}   # (path, face) => producer
     out_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}  # (path, face) => producer
     triples::Vector{NTuple{3,Int}}      # per component: (anchor, m, c), anchor 0 the base grid
@@ -698,7 +698,7 @@ end
 
 # The walk's state. It owns the `Flat` it is building and appends into it
 # directly; `conns` and `in_faces` stay empty until `wire!` derives them, past
-# the barrier. Violations are not held here — the stratum's list is an argument
+# the barrier. Violations are not held here — the step's list is an argument
 # of every helper that can add to it.
 struct Walk
     flat::Flat
@@ -806,11 +806,11 @@ end
 """
     flatten!(w, root, diags)
 
-The tree walk of Stratum A (§9.1): components collected by path, classes and
+The tree walk of the structure step (§9.1): components collected by path, classes and
 tiers read, wiring resolved to absolute leaf terminals, sample times folded to
 `(anchor, m, c)` triples, the one-producer-per-input and whole-tree obligation
 rules checked. Violations are recorded in `diags` and the walk runs on; the
-throw is `build`'s, at the stratum barrier. Any component may be the root
+throw is `build`'s, at the step barrier. Any component may be the root
 (D-208) — a primitive one flattens to the single leaf at the root path, its
 `input_types` keys the model's root inputs.
 """

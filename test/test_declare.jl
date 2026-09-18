@@ -25,7 +25,7 @@ function test_declare()
         d4 = carried(@test_throws DiagnosticError{ArgumentInvalid} Absolute(1//50))
         @test d4.call === :Absolute && d4.reason === :not_a_quantity
 
-        # Plain data carriers: no range checks of their own — those are Stratum A's,
+        # Plain data carriers: no range checks of their own — those are the structure step's,
         # with path attribution, at the fold.
         @test Relative(5) === Relative(5, 0)
         @test Relative(0).K == 0

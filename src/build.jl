@@ -486,9 +486,9 @@ end
 # --- 4. cell layout -----------------------------------------------------------
 # Every declared port gets a cell; so does every root input face, the one
 # terminal legitimately fed by no component, its initial value synthesized by
-# `probe_value` (§6.1, §9.3, §11.3). A root input's *type* is Stratum A's, fixed
-# once by the wire pass and carried on the `Flat`; the layout picks its cells per
-# activation from that type, by the meet below (D-168, D-236).
+# `probe_value` (§6.1, §9.3, §11.3). A root input's *type* is the structure
+# step's, fixed once by the wire pass and carried on the `Flat`; the layout
+# picks its cells per activation from that type, by the meet below (D-168, D-236).
 #
 # An assembly's faces get no cells of their own. A face *is* its ultimate
 # internal endpoint (§8.6), so it is entered as an alias onto that endpoint's
@@ -571,7 +571,7 @@ end
 # A root input's cells at an activation: D-168's meet, at the level of the whole
 # root input, with D-236's two candidates — the root-input type with every leaf
 # following `T` when every consumer's entry at `T` admits it, the root-input type
-# itself otherwise. Stratum A fixed the type and checked the entries, so nothing
+# itself otherwise. The structure step fixed the type and checked the entries, so nothing
 # is recorded here; at nominal the two candidates coincide.
 function _root_input_cell(flat::Flat, decls::Vector{Decls}, i::Int, face::Symbol,
                           ::Type{T}) where {T}
@@ -589,7 +589,7 @@ input_addr(layout::Layout, conns::Vector{Pair{Symbol,Tuple{String,Symbol}}}, fac
 # --- 5. the Build artifact and its activations (§9.2, §9.4) ---------------------
 
 """
-One activation: Stratum C's products at a concrete scalar `T` (§9.1) —
+One activation: the typed products at a concrete scalar `T` (§9.1) —
 declarations evaluated at `T`, the probe chain run over exactly the function
 set this activation can execute (§9.4), cells laid out. Immutable once
 constructed; the probe products are what a cell holds until first written
@@ -603,10 +603,10 @@ struct Activation{T}
 end
 
 """
-The deployment-free product of the build pipeline (§9.2): everything the strata
-settle before `Δt_base` exists. Structure and schedule are `T`-independent by
-construction (§9.1); the nominal `Float64` activation runs at build, and other
-activations re-run Stratum C only, at first request, cached on the `Build`
+The deployment-free product of the build pipeline (§9.2): everything the build's
+three steps settle before `Δt_base` exists. Structure and schedule are
+`T`-independent by construction (§9.1); the nominal `Float64` activation runs at
+build, and other activations are derived at first request, cached on the `Build`
 (§9.4). The schedule it carries is anchor-relative — `flat.triples` against
 `flat.anchors` — because final divisors for anchored entries do not exist until
 `Δt_base` binds; one `Build` backs any number of `Simulation`s, each
@@ -637,11 +637,11 @@ const ProbeDual = ForwardDiff.Dual{ProbeTag,Float64,1}
 """
     build(root; activations = ()) → Build
 
-Strata A and B plus the nominal activation (§9.1): flatten, classify, type-check
-the wires, probe at `Float64`, schedule, lay out. Nothing here needs `Δt_base`,
-`h` or `N_base` — those are `Simulation`'s. `activations` is §9.4's opt-in
-exhaustive mode: each listed scalar's activation is materialized eagerly instead
-of at first request.
+The structure step, the nominal evaluation and the eager activations (§9.1):
+flatten, classify, type-check the wires, probe at `Float64`, schedule, lay out.
+Nothing here needs `Δt_base`, `h` or `N_base` — those are `Simulation`'s.
+`activations` is §9.4's opt-in exhaustive mode: each listed scalar's
+activation is materialized eagerly instead of at first request.
 """
 function build(root::AbstractComponent; activations::Tuple = ())
     diags = Diagnostic[]
@@ -654,7 +654,7 @@ function build(root::AbstractComponent; activations::Tuple = ())
     flat = wire!(w)                     # the derivation, on a clean walk
     tiers = Vector{Tier}(w.tiers)
     _check_wires(flat, tiers, diags)
-    # Stratum A's barrier (§13.1, D-229): every pass that ran merges here, and
+    # The structure step's barrier (§13.1, D-229): every pass that ran merges here, and
     # nothing derived from the wiring is computed before it. No cascade
     # suppression — a typo'd wire reports its unknown port *and* the input it
     # left unfed.
@@ -674,7 +674,7 @@ end
 # of the envelope would otherwise hide the omission indefinitely.
 function _check_event_declarations(flat::Flat, diags::Vector{Diagnostic})
     # The pass collects (§13.1): every malformed entry in the model is named, not
-    # the first one the walk reaches, and the list merges into the stratum's.
+    # the first one the walk reaches, and the list merges into the step's.
     for (path, c) in zip(flat.paths, flat.comps)
         at_component(path) do
             for (name, ev) in pairs(invoke_declaration(state_events, c))
@@ -694,7 +694,7 @@ function _check_event_declarations(flat::Flat, diags::Vector{Diagnostic})
     nothing
 end
 
-# --- Stratum A's wire pass (§6.1, §9.1, D-236) --------------------------------
+# --- The structure step's wire pass (§6.1, §9.1, D-236) -----------------------
 
 """
 The marker scalar (§6.1, §9.1): the continuous contracts are evaluated at it to
@@ -811,8 +811,8 @@ end
 """
     activation(b, T) → Activation{T}
 
-The activation at `T`: the nominal one directly, any other from the cache or by
-a Stratum-C re-run at first request (§9.4). An activation is a pure function of
+The activation at `T`: the nominal one directly, any other from the cache or
+derived at first request (§9.4). An activation is a pure function of
 the build and the concrete scalar type, so caching is invisible. The lookup and
 the insertion each hold the build's lock and the re-run happens between them,
 so concurrent first requests never see a torn cache: the worst race is a
@@ -827,13 +827,13 @@ function activation(b::Build, ::Type{T}) where {T}
     (@lock b.lock get!(b.cache, T, act))::Activation{T}
 end
 
-# Stratum C at `T`, parametric in the scalar (§9.1): declarations evaluated,
-# probe chain run, cells laid out. At the nominal activation `carry` is
-# `nothing`, every stage is probed (§9.3's probe-everything scope), and Stratum
-# B's schedule falls out between the two probe passes — the stage-1 run at
-# `Float64` serves classification and nominal products alike. A non-nominal
-# activation receives both: the schedule is `T`-independent, and the frozen
-# components' products are carried across from `carry` rather than probed,
+# Activation at `T`, parametric in the scalar (§9.1): declarations evaluated,
+# probe chain run, cells laid out. At the nominal activation `carry` is `nothing`,
+# every stage is probed (§9.3's probe-everything scope), and the nominal
+# evaluation's execution order falls out between the two probe passes — the
+# stage-1 run at `Float64` serves classification and nominal products alike. A
+# non-nominal activation receives both: the schedule is `T`-independent, and the
+# frozen components' products are carried across from `carry` rather than probed,
 # their stages being outside this activation's executable set (§9.4).
 function _stratum_c(flat::Flat, tiers::Vector{Tier}, order, carry, ::Type{T}) where {T}
     decls = [at_component(() -> declarations(flat.comps[ci], tiers[ci], T), flat.paths[ci])
@@ -1143,9 +1143,9 @@ function _check_handler(path, name, ret, d::Decls, c)
 end
 
 # --- 6. deployment binding (§9.1) -----------------------------------------------
-# Everything below post-dates the strata: it exists per `Simulation`, not per
-# `Build`. Grid arithmetic is exact — GCD over `Rational{Int}` — and floats are
-# refused at the door.
+# Everything below post-dates the build's three steps: it exists per
+# `Simulation`, not per `Build`. Grid arithmetic is exact — GCD over
+# `Rational{Int}` — and floats are refused at the door.
 
 # Records and returns `nothing` on its two refusing arms; the call's list carries it.
 _exact(name::Symbol, v::Rational{Int}, diags::Vector{Diagnostic}) = v
@@ -1509,7 +1509,7 @@ end
 # passed on is the producer's, unembedded — the consumer gathers the producer's
 # cell at runtime, so the cell's type is what its bundle carries.
 #
-# Both wire clauses were decided in Stratum A (D-236). The products
+# Both wire clauses were decided in the structure step (D-236). The products
 # `_embed_ports` hands down carry exactly the producer's declared type at `T`,
 # and a root input's cell is admitted by every entry by the meet, so a refusal
 # here is a framework bug rather than a model error — hence the fence, not a
@@ -1524,7 +1524,7 @@ function _probe_input(flat::Flat, layout::Layout, products, ci, face, P, ::Type{
     end
     _accepts_wire(P, typeof(v), T) ||
         throw(InternalInvariant("probe input `$path`.$face: $(typeof(v)) at an entry " *
-                                "declaring $P, which Stratum A admitted"))
+                                "declaring $P, which the structure step admitted"))
     v
 end
 

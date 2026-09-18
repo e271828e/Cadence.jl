@@ -100,7 +100,8 @@ function build_schedule()
     end
 
     @testset "an algebraic loop is a build error (§5.5)" begin
-        # `build` alone: rejection needs no deployment, which is the strata split.
+        # `build` alone: rejection needs no deployment, which is the build's
+        # split from deployment.
         # One cluster, one diagnostic, and the carrier is the collected one — the
         # policy the stall takes now that a residue can hold several (§5.6).
         err = failure(() -> build(feedback_model(feedback_port = "power")))
@@ -410,7 +411,7 @@ function build_root_input_type()
         @test d.paths == ["a", "b"] && d.declared == [Float64, Bool]
         @test path(d) == ""                        # the face's own path is the root's
 
-        # It is Stratum A's wire pass that catches it, ahead of stage-2 probing —
+        # It is the structure step's wire pass that catches it, ahead of stage-2 probing —
         # so the surfacing this replaces, the second consumer's probe reading the
         # first's cell, is gone: no `WireTypeMismatch` for this model.
         @test !any(x -> x isa WireTypeMismatch, diagnostics(err))
@@ -435,7 +436,7 @@ function build_root_input_type()
     end
 end
 
-# --- the two wire clauses in Stratum A (§6.1, §9.1, D-236) --------------------
+# --- the two wire clauses in the structure step (§6.1, §9.1, D-236) -----------
 # Both clauses are one relation, decided by reading declarations: the bound
 # clause at `Float64`, the walk clause at the marker scalar. Fixtures at top
 # level, each under the rule it exercises.
@@ -630,7 +631,7 @@ function build_wire_clauses()
                           wires = ("src/val" => "rd/in",))) isa Build
     end
 
-    @testset "the wire pass collects to Stratum A's barrier (§13.1, D-229, D-236)" begin
+    @testset "the wire pass collects to the structure step's barrier (§13.1, D-229, D-236)" begin
         # The bound clause, both endpoints named.
         err = failure(() -> build(Group((; src = NomSource(), c = BoolEntry());
                                         wires = ("src/val" => "c/u",))))
@@ -1270,9 +1271,9 @@ function build_tier()
     end
 end
 
-# --- Stratum A's one barrier (§13.1, D-229) -----------------------------------
+# --- The structure step's one barrier (§13.1, D-229) --------------------------
 
-# One failure from each of the stratum's passes, in one model: a wire typo'd on
+# One failure from each of the step's passes, in one model: a wire typo'd on
 # the producer's port, the input it leaves unfed, a store with no update law, an
 # event missing its handler and a store that is not a `NamedTuple`. `HalfEvent`
 # is `test_events.jl`'s, which this file precedes, so the children are a
@@ -1386,7 +1387,7 @@ function build_store_form()
 end
 
 function build_stratum_a()
-    @testset "every Stratum A pass that ran merges into one throw (§13.1, D-229)" begin
+    @testset "every structure-step pass that ran merges into one throw (§13.1, D-229)" begin
         # The wiring walk, the obligation check, tier classification, the event
         # declarations and the store form each read a result the others did not
         # spoil, so all five run and the model is refused once.
@@ -1436,7 +1437,7 @@ function build_embed_accept()
 
         # The converse is not accepted: a `Dual` at a pinned leaf is an error, with
         # the hint that names the one honest cause. It fails at the `Dual`
-        # activation's own Stratum-C re-run, not at `build` (§9.4's lazy lurk).
+        # activation's own lazy derivation, not at `build` (§9.4's lazy lurk).
         b = build(single(PinnedGetsDual()))
         err = failure(() -> activation(b, D8))
         @test err isa DiagnosticError
@@ -1447,8 +1448,9 @@ function build_embed_accept()
 end
 
 # The activation seam (§9.1, §9.4): the nominal activation runs at build, any
-# other is a cached Stratum-C re-run, and a frozen component's products are
-# carried across from the nominal activation rather than probed or synthesized.
+# other is a cached activation derived from the nominal one, and a frozen
+# component's products are carried across from the nominal activation rather
+# than probed or synthesized.
 struct NomSource <: AbstractComponent end
 output_types(::NomSource, ::Type{T}) where {T <: Real} = (val = T,)
 output_state(::NomSource, (; t)) = (val = 3.0 + t,)
@@ -1463,7 +1465,7 @@ output_types(::ClockStamp) = (stamp = Float64,)
 output_state(::ClockStamp, (; t)) = (stamp = t,)
 
 function build_activations()
-    @testset "a non-nominal activation re-runs Stratum C; frozen products carry (§9.4)" begin
+    @testset "a non-nominal activation is derived from the nominal one; frozen products carry (§9.4)" begin
         pair() = Group((; src = NomSource(), rd = FrozenReader());
                        wires = ("src/val" => "rd/in",))
 

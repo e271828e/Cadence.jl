@@ -76,7 +76,7 @@ _symtuple(ns) = "(" * join((":$n" for n in ns), ", ") * (length(ns) == 1 ? ",)" 
 
 """
 The one carrier: a fail-fast site throws it holding a single diagnostic, a
-stratum barrier holding the whole collection its passes returned (§13.1). The
+step barrier holding the whole collection its passes returned (§13.1). The
 type parameter is the policy (§13.2, D-222): the diagnostic's kind for a
 fail-fast throw, `Vector{Diagnostic}` for a collected one. Rendering, `kinds`
 and the catch site's species rule dispatch on it.
@@ -257,7 +257,7 @@ Base.showerror(io::IO, e::InternalInvariant) =
     print(io, "InternalInvariant: internal invariant violated: ", e.msg)
 
 # ==============================================================================
-# Stratum A — declaration and wiring (§6.1, §8.2, §8.5–§8.8; collected)
+# The structure step — declaration and wiring (§6.1, §8.2, §8.5–§8.8; collected)
 # ==============================================================================
 
 "§6.1, §8.4 w1: a wire end naming no port of the endpoint it resolved to, with that end's port list."
@@ -366,7 +366,7 @@ fan-out the concrete declaration has to be unique. The comparison is *at
 nominal*, which is what makes a tolerance difference no conflict: `SVector{3,T}`
 and `SVector{3,Float64}` both evaluate to `SVector{3,Float64}` there, and their
 disagreement about partials is the fan-out meet (D-168), a legitimate model.
-The comparison runs in Stratum A's wire pass over the *concrete* entries alone;
+The comparison runs in the structure step's wire pass over the *concrete* entries alone;
 an abstract co-consumer names no type to conflict with, and is checked against
 the one the concrete entries fixed by the bound clause (D-236).
 """
@@ -794,7 +794,8 @@ message(d::IllegalStoreField) =
     "component instance (§7.3)"
 
 # ==============================================================================
-# Strata B and C — schedule and contract conformance (§5.5, §8.3, §9.3, §9.5)
+# The nominal evaluation and activation — schedule and contract conformance
+# (§5.5, §8.3, §9.3, §9.5)
 # ==============================================================================
 
 """

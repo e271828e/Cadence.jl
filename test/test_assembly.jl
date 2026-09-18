@@ -475,7 +475,7 @@ function assembly_connections()
         d = only(diagnostics(err))
         @test d isa FaceNameIllegal && d.face == "sensors/out" && d.invariant === :contains_slash
 
-        # Stratum A's barrier reports the whole list, with no cascade suppression
+        # The structure step's barrier reports the whole list, with no cascade suppression
         # (§13.1): the duplicate face `y` names an input route onto `b/e`, which the
         # sibling wire already claims, so the second violation is the consequence
         # and both are shown.

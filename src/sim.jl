@@ -61,8 +61,8 @@ cross-validated sources — explicit (a `Rational` or `Period`/`Hz` value), the
 `N_base·h` product (the default path), or GCD derivation over the anchors' constraint
 pool, requested as `Δt_base = :derive` and permitted only with every discrete
 component anchored. The scalar picks the activation the entries compile over —
-the nominal one directly, any other via `activation(b, T)`'s cached Stratum-C
-re-run (§9.4). The convenience form is *defined as* `Simulation(build(root), T;
+the nominal one directly, any other via `activation(b, T)`'s cached derivation
+(§9.4). The convenience form is *defined as* `Simulation(build(root), T;
 …)`; entry compilation lives behind the binding because `Δt`, `D` and `Φ` are
 entry data, and one `Build` backs many `Simulation`s.
 

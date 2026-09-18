@@ -247,7 +247,7 @@ using InteractiveUtils: subtypes    # the coverage check below
 function diagnostics_kind_set()
     @testset "diagnostic kinds (§13.2, Appendix C, D-214, D-215)" begin
         occurrences = Diagnostic[
-            # Stratum A
+            # the structure step
             UnknownPort(entry = "child_connections at `a`, entry `x => y`", end_ = :destination,
                         path = "a/b", spelling = "b/throtle", port = :throtle,
                         candidates = [:throttle, :mixture]),
@@ -342,7 +342,7 @@ function diagnostics_kind_set()
             IllegalStateLeaf(path = "a/b", name = :q, declared = Float32, reason = :eltype),
             IllegalStateLeaf(path = "a/b", name = :pose, declared = NamedTuple, reason = :nested),
             IllegalStateLeaf(path = "a/b", name = :q_nb, declared = Symbol, reason = :wrapper),
-            # Strata B and C
+            # the nominal evaluation and activation
             AlgebraicCycle(members = ["a/b", "a/c"],
                            wires = ["a/b/y" => "a/c/u", "a/c/y" => "a/b/u"]),
             AlgebraicCycle(members = ["a/b", "a/c"],
