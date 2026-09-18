@@ -220,7 +220,7 @@ rule makes.
 [s13-4]: ../spec.md#134-runtime-failures-one-catch-site-an-execution-cursor
 [s4-1]: ../spec.md#41-immutable-value-semantics
 [s5-2]: ../spec.md#52-two-stage-outputs-signatures-bundles-and-the-hand-off-laws
-[s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-dataflow-and-step-boundaries
+[s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-execution-order-and-step-boundaries
 [s7]: ../spec.md#7-state-and-data-representation
 [s8-2]: ../spec.md#82-the-declaration-inventory
 [s9-5]: ../spec.md#95-the-always-on-conformance-check

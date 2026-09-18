@@ -61,11 +61,11 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | term | anchor | n | class | gloss |
 |---|---|---|---|---|
 | algebraic loop | g-algebraic-loop | 2 | B | a genuine cycle in the instantaneous dependency graph |
-| dataflow | g-dataflow | 17 | B | the static evaluation order computed once at build time |
+| execution order | g-execution-order | 17 | B | the order in which the stage functions run, fixed at build time from the feedthrough graph |
 | flow / RHS | g-flow | 11 | B | `state_derivative`, the continuous derivative function, `f` in the formulas |
 | frame | g-frame | 7 | A | one iteration of the loop: drain, integrate, boundary, publication |
 | projection | g-projection | 11 | B | the optional per-component hook `x ← state_projection(x)` |
-| sweep | g-sweep | 39 | B | one execution of the dataflow against the current state |
+| sweep | g-sweep | 39 | B | one pass through the execution order against the current state |
 
 ## D.4 Time and events
 
@@ -103,10 +103,10 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 |---|---|---|---|---|
 | activation | g-activation | 27 | A | a re-run of Stratum C at a given scalar type |
 | always-on conformance check | g-always-on-conformance-check | 0 | — | one type test of a stage return at the table-write point |
-| `Build` | g-build | 1 | B | the artifact `build(world)` produces: wires, faces, dataflow, root inputs |
+| `Build` | g-build | 1 | B | the artifact `build(world)` produces: wires, faces, execution order, root inputs |
 | chunking | g-chunking | 2 | A | splitting a large phase body into statically typed chunks |
 | executable set | g-executable-set | 1 | A | the function set an activation can actually run, hence probes |
-| executor | g-executor | 10 | A | the compiled execution form of the dataflow |
+| executor | g-executor | 10 | A | the compiled form of the stage execution order |
 | leaf walk | g-leaf-walk | 1 | A | the derivation of per-activation types from a declared nominal type |
 | lens (`Getter`) | g-lens | 1 | A | the compiled navigation step of a condition entry |
 | measurement seam / phase bodies | g-measurement-seam | 2 | A | `phase_bodies(sim)`, the compiled bodies bound over the simulation's buffers |
@@ -115,7 +115,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | probe value / input synthesis | g-probe-value | 2 | A | fabricated build-time values, synthesized at producerless root inputs and flowing the probe chain |
 | `ProbeDual` | g-probedual | 1 | B | the exported canonical concrete probe scalar |
 | schema vs. layout | g-schema-vs-layout | 0 | — | *(resists compression: the entry contrasts a pair)* |
-| stratum | g-stratum | 16 | A | one of the build's three phases: structure, dataflow, activation |
+| stratum | g-stratum | 16 | A | one of the build's three phases: structure, execution order, activation |
 | walked / pinned / exempt | g-walked | 21 | A | the eltype-genericity classes: follow the activation scalar, stay `Float64`, exempt |
 
 ## D.6 Runtime periphery
@@ -197,7 +197,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | collect the checks, fail the evaluations fast | g-collect-the-checks-fail-the-evaluations-fast | 0 | — | declarative passes collect; the first user-code exception aborts |
 | did-you-mean | g-did-you-mean | 15 | A | the offending name plus the list-in-hand it should have matched |
 | error locality | g-error-locality | 1 | A | a mistake fails at the site of the mistake |
-| execution cursor | g-execution-cursor | 1 | A | the mutable field recording where in the dataflow execution is |
+| execution cursor | g-execution-cursor | 1 | A | the mutable field recording where execution stands in the compiled order |
 | feedthrough tracer | g-feedthrough-tracer | 1 | A | the set-propagation instrument classifying a rejected cycle |
 | kind | g-kind | 3 | B | a diagnostic's identity in the closed Appendix C set |
 | payload | g-payload | 6 | B | the structured data a diagnostic carries beside its kind |

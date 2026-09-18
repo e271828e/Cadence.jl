@@ -9452,9 +9452,9 @@ computed entries. The `replay!` site is a factual completion: [§12.7][s12-7] bi
 [s4-2]: spec.md#42-consumers-see-ports-not-stages
 [s4-3]: spec.md#43-table-mechanics-and-port-granularity
 [s4-4]: spec.md#44-function-valued-signals-environment-access
-[s5-1]: spec.md#51-the-dataflow-problem
+[s5-1]: spec.md#51-the-ordering-problem
 [s5-2]: spec.md#52-two-stage-outputs-signatures-bundles-and-the-hand-off-laws
-[s5-3]: spec.md#53-structural-feedthrough-stage-roles-dataflow-and-step-boundaries
+[s5-3]: spec.md#53-structural-feedthrough-stage-roles-execution-order-and-step-boundaries
 [s5-4]: spec.md#54-artificial-loops-and-the-escape-hatch
 [s5-5]: spec.md#55-algebraic-loop-policy-reject-at-build-time
 [s5-6]: spec.md#56-diagnostics-feedthrough-tracing

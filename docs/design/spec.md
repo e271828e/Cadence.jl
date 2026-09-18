@@ -19,9 +19,9 @@
     - [4.3 Table mechanics and port granularity](#43-table-mechanics-and-port-granularity)
     - [4.4 Function-valued signals: environment access](#44-function-valued-signals-environment-access)
   - [5. Evaluation order and feedthrough](#5-evaluation-order-and-feedthrough)
-    - [5.1 The dataflow problem](#51-the-dataflow-problem)
+    - [5.1 The ordering problem](#51-the-ordering-problem)
     - [5.2 Two-stage outputs: signatures, bundles and the hand-off laws](#52-two-stage-outputs-signatures-bundles-and-the-hand-off-laws)
-    - [5.3 Structural feedthrough: stage roles, dataflow and step boundaries](#53-structural-feedthrough-stage-roles-dataflow-and-step-boundaries)
+    - [5.3 Structural feedthrough: stage roles, execution order and step boundaries](#53-structural-feedthrough-stage-roles-execution-order-and-step-boundaries)
     - [5.4 Artificial loops and the escape hatch](#54-artificial-loops-and-the-escape-hatch)
     - [5.5 Algebraic loop policy: reject at build time](#55-algebraic-loop-policy-reject-at-build-time)
     - [5.6 Diagnostics: feedthrough tracing](#56-diagnostics-feedthrough-tracing)
@@ -135,7 +135,7 @@ taxonomy, with two leaf classes and the assembly that composes them. [§4][s4] g
 the port, the addressable unit through which components exchange immutable
 values. [§5][s5] is the central chapter. It fixes two output stages per
 component, what each stage may see, and how those signatures alone yield a
-static evaluation dataflow. [§6][s6] lifts composition from a single component to a
+static execution order. [§6][s6] lifts composition from a single component to a
 hierarchy of them. [§7][s7] fixes where data lives, on both tiers and outside them.
 
 Part I assumes nothing from later parts. It cites them for spellings only. [§8][s8]
@@ -169,7 +169,7 @@ The design adopts three ground rules.
   through the GUI, and compositional flexibility.
 
 All design axes are settled. They are the formalism, the [component](#g-component) taxonomy, the
-signal and dataflow model, time and execution, the runtime [periphery](#g-periphery), the
+signal and ordering model, time and execution, the runtime [periphery](#g-periphery), the
 declaration layer, the build pipeline, error discipline and the stopped-sim
 services. Only the [§16][s16] items remain open. Those are the migration outline, the
 GUI panel authoring API and the log/[trace](#g-trace) persistence deferral.
@@ -328,7 +328,7 @@ An assembly is pure composition. It holds submodels, child connections and
 boundary [faces](#g-face). **It has no dynamics of its own.** Hybridness emerges at the
 [assembly](#g-assembly) level. An aircraft is continuous vehicle parts plus discrete avionics
 parts. The two-leaf split was upheld against the integrate-and-dump challenge
-([§15.5][s15-5], [D-056][d-056]). Assemblies are flattened away for the dataflow. They are
+([§15.5][s15-5], [D-056][d-056]). Assemblies are flattened away for ordering. They are
 retained as the navigation and introspection hierarchy (GUI, logging, paths) and
 as declaration-level [rate scopes](#g-rate-scope) ([§10.5][s10-5]).
 
@@ -368,17 +368,16 @@ This requirement has four consequences.
 - Concurrent reads from the GUI and logging threads are safe by construction.
 - Isbits payloads allocate nothing, because named tuples of isbits are isbits.
 - Each cell has a definite freshness, tied to its producer's position in the
-  [dataflow](#g-dataflow) ([D-004][d-004]).
+  [execution order](#g-execution-order) ([D-004][d-004]).
 
 ### 4.2 Consumers see ports, not stages
 
 The [port](#g-port) is the addressable unit. A [component](#g-component)'s outputs appear to consumers, the
 GUI and logs as one flat namespace (`dyn.vel`, `dyn.f_c_c`), which can be
-materialized lazily as a view. Which output stage computes which port is a
-dataflow annotation, invisible outside the component. Moving an output between
-stages is non-breaking *for consumers*. No wire, log or panel sees it. The
-build does see it, because the [feedthrough](#g-feedthrough) graph and stage membership change
-([§9.1][s9-1]).
+materialized lazily as a view. Which output stage computes which port is an
+ordering annotation, invisible outside the component. Moving an output between
+stages is non-breaking *for consumers*. No wire, log or panel sees it. The build
+does see it, because the [feedthrough](#g-feedthrough) graph and stage membership change ([§9.1][s9-1]).
 
 **Visibility.** Which ports exist at all is a declaration-layer decision. The
 output [contract](#g-contract) *is* the public interface. There are no private intermediates. A
@@ -561,12 +560,12 @@ wires to any concrete field type below the bound. That preserves today's
 
 ## 5. Evaluation order and feedthrough
 
-### 5.1 The dataflow problem
+### 5.1 The ordering problem
 
 At every evaluation instant, all signals must be computed consistently. Every
 consumer reads values already produced at that instant. The build constructs the
 directed graph of wiring edges and intra-[component](#g-component) [feedthrough](#g-feedthrough) relations. If the
-graph is acyclic, a topological sort yields a **static evaluation [dataflow](#g-dataflow)**,
+graph is acyclic, a topological sort yields a **static [execution order](#g-execution-order)**,
 computed once at build time. The hot loop runs a flat list of `(component,
 stage)` entries, with no runtime graph logic.
 
@@ -606,8 +605,8 @@ NamedTuple [bundle](#g-bundle) of zero-copy views. From that bundle the author *
 by name** only what the body reads, as in `state_derivative(c::LowPassFilter, (;
 x, u)) = …` and `output_direct(c::PID, (; s, u, Δt)) = …`.
 
-**Why.** The [executor](#g-executor) (the compiled execution form of the dataflow) issues one
-fixed call shape, `fn(comp, args)`. Language semantics ignore unread fields.
+**Why.** The [executor](#g-executor) (the compiled form of the stage execution order) issues
+one fixed call shape, `fn(comp, args)`. Language semantics ignore unread fields.
 Argument order cannot be confused, because there is no order.
 
 Positional, `kwarg_decl`-reflected and slurping-keyword spellings are all closed
@@ -721,12 +720,12 @@ and the table holds signals. No store mirrors another. Every bundle field earns
 its place as a view genuinely readable, and no minimization of the set survives
 without introducing a copy ([D-035][d-035]).
 
-### 5.3 Structural feedthrough: stage roles, dataflow and step boundaries
+### 5.3 Structural feedthrough: stage roles, execution order and step boundaries
 
 [§5.2][s5-2] fixes the two-stage surface and the laws that govern it. What remains is
 the reading. A stage's role has two halves, what its name asserts and what it
-may see. The rest of the section orders the stages into a dataflow, then puts
-that dataflow inside a step [boundary](#g-boundary).
+may see. The rest of the section orders the stages, then puts that order inside
+a step [boundary](#g-boundary).
 
 #### Stage roles: the names
 
@@ -768,7 +767,7 @@ not a reading.
 cannot see. Its [bundle](#g-bundle) (the NamedTuple of zero-copy views a component function
 receives) carries no `u`, so "no feedthrough" cannot be violated by
 construction. That structural guarantee is what stage-1 [ports](#g-port) contribute to the
-[dataflow](#g-dataflow). They break would-be loops.
+[feedthrough](#g-feedthrough) graph. They break would-be loops.
 
 Stage 1 exists when the [component](#g-component) has state-derived ports, including any
 state-derived intermediate a later function reads ([§5.2][s5-2]). Otherwise it is simply
@@ -800,9 +799,9 @@ duplication unwritable. Nothing ever needs computing twice ([D-015][d-015], [D-0
 All output stages must be pure, with no side effects. State types make mutation
 impossible anyway ([§7][s7]).
 
-#### The dataflow
+#### The execution order
 
-**Rule.** The dataflow runs all stage-1 functions in any order, then stage 2 in
+**Rule.** Execution runs all stage-1 functions in any order, then stage 2 in
 topological order, then all `state_derivative` calls against the now-consistent
 signal table.
 
@@ -826,9 +825,9 @@ from published fields.
 
 **`state_projection` runs between a state write and its decode.** That is after
 integration, and after any handler `x`-reset. Those are the only positions in
-the dataflow where no fresh `y` of the new state can exist yet.
+the execution order where no fresh `y` of the new state can exist yet.
 `state_projection` is not *unique* in receiving raw state, since every function
-gets state views. It is unique in that dataflow position.
+gets state views. It is unique in that position of the execution order.
 
 **The boundary sequence.** At each boundary the framework integrates, projects,
 runs the boundary sweep, evaluates **all guards once** against that sweep, and
@@ -874,7 +873,7 @@ FlightPhysics/FlightApps ([§15.2][s15-2]). Derivative/output overlap is the *no
 this domain. Newton–Euler, kinematics, the piston engine, gear friction and
 every discrete compensator all show it. That overlap is what makes the orthodox
 split expensive here ([D-015][d-015]). FlightCore's fused `f_ode!` already embodied the
-same economics. This design keeps them while adding a checked dataflow.
+same economics. This design keeps them while adding checked ordering.
 
 **Shared expensive computations** are thereby solved uniformly. Compute once in
 stage 2, publish, and let `state_derivative`/`state_update` consume the ports.
@@ -950,10 +949,10 @@ re-factoring absorbs the false wires. What is left for the split is cycles whose
 halves really are one component's own work.
 
 One consequence of stage-2 conservatism is worth recording. An input consumed
-only by `state_derivative`, never by `output_direct`, still creates a dataflow
-edge if the component has stage-2 outputs. In practice such components are
-integrator-shaped and have no stage-2 outputs. The remedy, if ever needed, is
-the same ladder.
+only by `state_derivative`, never by `output_direct`, still creates a
+feedthrough edge if the component has stage-2 outputs. In practice such
+components are integrator-shaped and have no stage-2 outputs. The remedy, if
+ever needed, is the same ladder.
 
 ### 5.5 Algebraic loop policy: reject at build time
 
@@ -976,29 +975,28 @@ and bounded. Rejecting framework-level loops does not forbid such models.
 
 ### 5.6 Diagnostics: feedthrough tracing
 
-Tracing is **diagnostic only, never relied on for correctness**. Dataflow
+Tracing is **diagnostic only, never relied on for correctness**. Ordering
 correctness comes exclusively from the structural two-stage split. Tracing
 improves error messages and verification. The build triggers it when it
 finds a cycle, to classify that cycle. A genuine cycle gets "insert a state",
 and an artificial one gets the remedy ladder ([§5.4][s5-4]).
 
 **Detection and naming.** A cycle surfaces as a topological-sort stall in
-[Stratum](#g-stratum) B (one of the build's three phases: structure, dataflow, activation).
-The stalled subgraph is decomposed into **strongly connected components**. Each
-nontrivial SCC names one cyclic cluster exactly, and each cluster becomes one
-diagnostic. The diagnostic presents the cluster's members and the wires among
-them as one readable loop of terminal pairs in the canonical slash form
-([§8.6][s8-6], `aero/F → dyn/F, dyn/a → aero/a`). Neither the raw stall residue
-nor a single back edge names
-the cluster correctly ([D-012][d-012]).
+[Stratum](#g-stratum) B (one of the build's three phases: structure, execution order,
+activation). The stalled subgraph is decomposed into **strongly connected
+components**. Each nontrivial SCC names one cyclic cluster exactly, and each
+cluster becomes one diagnostic. The diagnostic presents the cluster's members
+and the wires among them as one readable loop of terminal pairs in the canonical
+slash form ([§8.6][s8-6], `aero/F → dyn/F, dyn/a → aero/a`). Neither the raw stall
+residue nor a single back edge names the cluster correctly ([D-012][d-012]).
 
-**Classification needs no [dataflow](#g-dataflow).** It runs inside Stratum B's failure path,
-where no dataflow exists. None is needed, because each SCC member is evaluated
-*once, in isolation*, at the [probe](#g-probe) point. That evaluation reads state views from
-`init_*`, out-of-cycle [cells](#g-cell) from the acyclic prefix's probe values, and
-in-cycle cells synthesized through `probe_value` ([§9.3][s9-3]) under tracer tags. The
-tracer's product is a per-member dependence set rather than a value, so no
-ordering has to be valid for the labels to come out right.
+**Classification needs no [execution order](#g-execution-order).** It runs inside Stratum B's failure
+path, where no execution order exists. None is needed, because each SCC member
+is evaluated *once, in isolation*, at the [probe](#g-probe) point. That evaluation reads
+state views from `init_*`, out-of-cycle [cells](#g-cell) from the acyclic prefix's probe
+values, and in-cycle cells synthesized through `probe_value` ([§9.3][s9-3]) under tracer
+tags. The tracer's product is a per-member dependence set rather than a value,
+so no ordering has to be valid for the labels to come out right.
 
 **Rule.** The traced maps decide the verdict as one graph question over the
 cluster. Every wire holds. A hop inside a member, from the face one wire
@@ -1013,7 +1011,7 @@ iff every hop survives.
 
 No Stratum C machinery is touched. There is no [activation](#g-activation) (a re-run of
 Stratum C at a given scalar type), no layouts and no table. This is the *local*
-variant ([D-012][d-012]), the dataflow-free per-member trace at the probe point, which is
+variant ([D-012][d-012]), the order-free per-member trace at the probe point, which is
 what the cycle classifier uses. The "tracer activation" ([§9.4][s9-4]) names the other
 variant ([D-012][d-012]), the global set-tracer run as an ordinary Stratum-C activation.
 The two must not be conflated.
@@ -1138,7 +1136,7 @@ entry, because frozen values embed upward under any [activation](#g-activation) 
 Stratum C at a given scalar type).
 
 Both sides are declaration functions of `T`, so the clause is decided in [Stratum](#g-stratum)
-A (one of the build's three phases: structure, dataflow, activation) by
+A (one of the build's three phases: structure, execution order, activation) by
 evaluating them at a marker scalar. That is declaration reading, and no user
 stage code runs ([§9.1][s9-1]). A violation is `WalkingFaceAtFrozenEntry`, naming both
 endpoints, the leaf and both declared leaf types. The message carries both
@@ -1356,7 +1354,7 @@ from the value ([D-094][d-094]). The framework does three things with the declar
 - It receives immutable results back. Derivative functions return an `Ẋ`-typed
   value, which is scatter-stored into the flat `ẋ` buffer. Event handlers and
   [projection](#g-projection) return a new `X`, which is written back, with projection at the two
-  [dataflow](#g-dataflow) positions of [§5.3][s5-3].
+  positions in the [execution order](#g-execution-order) of [§5.3][s5-3].
 
 **What `Ẋ` is.** With the leaf vocabulary closed, the answer takes one line. `Ẋ`
 has exactly `X`'s shape at the [activation](#g-activation) scalar. A scalar leaf's derivative is
@@ -1379,7 +1377,7 @@ is immutable and the buffer is unchanged within a [sweep](#g-sweep).
 
 Whether repeated reads within a sweep re-materialize or reuse the loads is
 codegen freedom, in the literal sense that the freedom is the code generator's.
-The [executor](#g-executor) (the compiled execution form of the dataflow) is spelled
+The [executor](#g-executor) (the compiled form of the stage execution order) is spelled
 rebuild-per-call, and hoisting a repeated read is the code generator's CSE. The
 legality condition of that CSE is exactly the buffer-unchanged-within-a-sweep
 rule ([§9.7][s9-7]).
@@ -1657,7 +1655,7 @@ lazy-evaluation caching, between their `mdlDerivatives`/`mdlOutputs`-style
 callback pairs. **Modelica/MTK** write `der(x) = expr` natively with symbolic
 CSE. The fused [sweep](#g-sweep) plus signal-consuming `state_derivative`/`state_update` is
 the cache-free formulation that fits this design's purity rules. It is also what
-FlightCore's fused `f_ode!` did economically, minus the checked dataflow.
+FlightCore's fused `f_ode!` did economically, minus the checked ordering.
 
 The **computer/integrator split** remains fully expressible without any
 framework support. A stateless component computes derivatives as outputs, wired
@@ -1681,8 +1679,9 @@ commit.
 - **Continuous hot path.** This is per-stage evaluation, plus everything else
   that runs unconditionally per frame or [boundary](#g-boundary). Those unconditional items are
   [guards](#g-guard), evaluated every boundary whether they fire or not, and
-  `state_projection` at both of its [§5.3][s5-3] [dataflow](#g-dataflow) positions. The budget is
-  exactly zero, CI-enforced at the [§9.7][s9-7] phase-body [seam](#g-seam) (`phase_bodies`).
+  `state_projection` at both of its [§5.3][s5-3] positions in the [execution order](#g-execution-order). The
+  budget is exactly zero, CI-enforced at the [§9.7][s9-7] phase-body [seam](#g-seam)
+  (`phase_bodies`).
 - **Periodic [ticks](#g-tick) and event handlers.** These execute episodically, a tick when
   due and a handler only on firing. Allocation here is zero by idiom. The idiom
   is the [workspace](#g-workspace) (component-declared mutable scratch arriving as the `ws`
@@ -1891,8 +1890,8 @@ parameter, not the field, as in `SumJunction{Wrench, 3}` ([§6.2][s6-2]) and `Or
 
 **Why.** The entry typing decides it ([§9.7][s9-7]). A component's [bundle](#g-bundle) is the
 `NamedTuple` of zero-copy views a component function receives, and its key set
-*is* its contract's. An entry of the [executor](#g-executor), the compiled execution form
-of the dataflow, carries what selects code in type parameters and what is plain
+*is* its contract's. An entry of the [executor](#g-executor), the compiled form of the stage
+execution order, carries what selects code in type parameters and what is plain
 data in fields. A key set derivable only from field values would therefore have
 to go one of two ways. It could climb into the type parameters anyway,
 multiplying specialization and changing the cost model ([§9.7][s9-7]) of [chunking](#g-chunking),
@@ -2068,9 +2067,9 @@ sits the **tier-scoped walk-compatibility clause**. For a *continuous*
 consumer, a walking producer leaf (one the producer declared `T`) requires a
 `T` entry, while a [pinned](#g-walked) producer leaf satisfies either, because frozen
 values embed upward. Both sides are declaration functions of `T`, so the
-clause is decidable in [Stratum](#g-stratum) A (one of the build's three phases:
-structure, dataflow, activation) by evaluating them at a marker scalar. No
-user stage code runs ([§9.1][s9-1]), and a violation is `WalkingFaceAtFrozenEntry`.
+clause is decidable in [Stratum](#g-stratum) A (one of the build's three phases: structure,
+execution order, activation) by evaluating them at a marker scalar. No user
+stage code runs ([§9.1][s9-1]), and a violation is `WalkingFaceAtFrozenEntry`.
 
 **Discrete consumers take the bound check only**, and that scope is
 a correctness rule rather than tidiness.
@@ -2557,8 +2556,8 @@ world = Group(
 One type, defined once, and every ad-hoc topology is a *value* of it. The type
 parameters still carry the children's concrete types, so [Stratum](#g-stratum) C
 specialization is unchanged (the strata are the build's three phases:
-structure, dataflow, activation). So is the [executor](#g-executor), the compiled
-execution form of the dataflow ([§9.7][s9-7]). Wiring validation, did-you-mean
+structure, execution order, activation). So is the [executor](#g-executor), the compiled
+form of the stage execution order ([§9.7][s9-7]). Wiring validation, did-you-mean
 errors and the two-producer check all run at build against the instance
 exactly as for a named assembly.
 
@@ -2953,7 +2952,7 @@ is impossible with a bundled face ([§4.3][s4-3] write-side rule).
 ## 9. The build pipeline
 
 The build consumes a root [component](#g-component) instance and produces the runnable
-artifact: resolved wires, typed [signal table](#g-signal-table), evaluation [dataflow](#g-dataflow),
+artifact: resolved wires, typed [signal table](#g-signal-table), [execution order](#g-execution-order),
 absolute rate divisors, flat state layout, [root inputs](#g-root-input). [§8][s8] states what is
 declared and what must hold. This chapter states *when* each fact is checked,
 against what, and with which failure. The [§8.4][s8-4] walkthroughs plus the error
@@ -3050,10 +3049,10 @@ Everything except binding `Δt_base`, which is deployment's, happens in
 Stratum A. Final divisors for anchored entries genuinely cannot exist until
 `Δt_base` binds.
 
-#### Stratum B: dataflow
+#### Stratum B: execution order
 
 Stratum B is the single evaluation-feeds-structure step. It computes the
-[dataflow](#g-dataflow):
+[execution order](#g-execution-order):
 
 - [Workspace](#g-workspace) (component-declared mutable scratch arriving as the `ws` bundle
   field) is allocated at the probing scalar. That is sound this early because
@@ -3175,7 +3174,7 @@ nothing writable is shared. The one mutable thing on the artifact is the
 lazily populated [activation](#g-activation) cache, whose insertion [§9.4][s9-4] makes
 torn-state-free. The `Build` is the inspectable derived contract of the
 instantiation that [§8.8][s8-8] gestures at. It holds the wire list, face table,
-[dataflow](#g-dataflow) and [root inputs](#g-root-input) as plain printable data. "Printable" names the
+[execution order](#g-execution-order) and [root inputs](#g-root-input) as plain printable data. "Printable" names the
 representation. Paths, names and rationals are inspectable as fields and
 printed by any REPL without a method of their own, the diagnostic form set
 against the compiled form ([§9.7][s9-7]). The renderings the artifact owes are the named
@@ -3378,7 +3377,7 @@ An **[activation](#g-activation) at `T`** re-runs [Stratum](#g-stratum) C with a
   [continuous component](#g-continuous-component)'s scratch carries the activation's scalar ([§7.3][s7-3]);
 - the probe chain is re-run.
 
-Structure and [dataflow](#g-dataflow) are `T`-independent by construction.
+Structure and [execution order](#g-execution-order) are `T`-independent by construction.
 
 **Each activation probes exactly the function set it can execute.** A `Dual`
 activation (linearization, gradient trim) evaluates the model at a frozen
@@ -3392,7 +3391,7 @@ a number type it cannot receive. It is one rule with no special cases, and
 the [§5.6][s5-6] tracer activation follows it identically. "Tracer activation"
 names the *global* set-tracer ([D-012][d-012]), a whole-model run at the tracer
 scalar, an activation like any other. The cycle classifier ([§5.6][s5-6]) is the
-other variant ([D-012][d-012]). It is the dataflow-free per-member local trace,
+other variant ([D-012][d-012]). It is the order-free per-member local trace,
 which runs in Stratum B's failure path and is not an activation at all.
 
 **Lazy, with an opt-in exhaustive mode.** Non-nominal activations run at first
@@ -3451,8 +3450,8 @@ Torn state is excluded by contract, not by luck.
 The [probe](#g-probe) validates each function *once*, on the initial state's branch.
 The schema-authority bargain's second clause ("at first execution otherwise",
 [§8.1][s8-1]) is discharged by leaving the probe's comparison permanently in place.
-At the point where the [executor](#g-executor) (the compiled execution form of the
-dataflow) stores a stage return into the table, it holds the complete
+At the point where the [executor](#g-executor) (the compiled form of the stage
+execution order) stores a stage return into the table, it holds the complete
 expected return type at this [activation](#g-activation). That type is the type of the
 [cells](#g-cell) this stage writes, as the probe fixed them at this activation. It is one
 concrete `NamedTuple` type per ([component](#g-component), stage), the stage's declared
@@ -3547,7 +3546,7 @@ check against their probe-derived [predicate](#g-predicate) form (below), `state
 against its leaf's `s` shape, and handlers against the [§5.2][s5-2] return law,
 key by key. `state_projection` checks against `X`'s own shape at `T`,
 **complete**, since its result is written back to the [buffer](#g-buffer) wholesale at
-both of the [dataflow](#g-dataflow) positions ([§5.3][s5-3]) and a [projection](#g-projection) with a
+both of the positions in the [execution order](#g-execution-order) ([§5.3][s5-3]) and a [projection](#g-projection) with a
 mode-dependent branch first executes its second branch at run time. That is
 the same predicate as a handler's `x` key.
 
@@ -3622,8 +3621,8 @@ near-verbatim:
 
 ### 9.7 The compiled executor
 
-The [dataflow](#g-dataflow) exists in two representations at two lifecycle stages. In the
-`Build` it is plain printable data ([§9.2][s9-2]), paths, stage names and order,
+The [execution order](#g-execution-order) exists in two representations at two lifecycle stages. In
+the `Build` it is plain printable data ([§9.2][s9-2]), paths, stage names and order,
 which is the authoring and diagnostic form. At `Simulation` construction, and
 per [activation](#g-activation) (a re-run of Stratum C at a given scalar type), that data
 is compiled into the execution form: **a concretely-typed tuple of entries
@@ -3732,10 +3731,10 @@ which is precisely the staleness rule, and the sweep-varying bundle fields
 (`u`, `y_x`/`y_s`) are per-call by topological necessity either way ([§7.1][s7-1]).
 
 **Construction is type-opaque, and only the [executor](#g-executor) specializes.**
-Dataflow tuples are built from untyped buffers and splatted once. Generic
+Entry tuples are built from untyped buffers and splatted once. Generic
 tuple utilities (range indexing, long `ntuple` closures, naive recursion) are
-inference traps at dataflow length, since a 400-entry heterogeneous tuple
-can send generic `getindex` inference into combinatorial collapse. The
+inference traps at the entry list's length, since a 400-entry heterogeneous
+tuple can send generic `getindex` inference into combinatorial collapse. The
 compiled tuple's type therefore has exactly one consumer, the unrolled walk.
 
 **The phase bodies are the [§7.5][s7-5] [measurement seam](#g-measurement-seam).**
@@ -3796,9 +3795,9 @@ that makes a session replayable. [§12][s12] is the orchestration around
 them: the control plane, the wait primitives and thread budget, the shutdown
 protocol, the five run states, and replay.
 
-Part III assumes the dataflow rather than deriving it. The boundary sequence it
-dispatches is fixed in [§5.3][s5-3], the executor it dispatches through is built in
-[§9.7][s9-7], and the root inputs the periphery writes into are the root
+Part III assumes the execution order rather than deriving it. The boundary
+sequence it dispatches is fixed in [§5.3][s5-3], the executor it dispatches through is
+built in [§9.7][s9-7], and the root inputs the periphery writes into are the root
 component's input [faces](#g-face) ([§8.6][s8-6]). What Part III adds is timing, concurrency and
 orchestration around machinery the earlier parts already settled.
 
@@ -4316,7 +4315,7 @@ static rather than a runtime test ([D-147][d-147]).
   entries gated by `(tick − Φ) % D` against the boundary's tick index. It is
   the variant the [§10.6][s10-6] macro-sequence runs. It is not one fixed list
   either, because different boundaries run different subsets of the
-  [dataflow](#g-dataflow).
+  [execution order](#g-execution-order).
 
 The split applies to **both sweep blocks**. The discrete [tier](#g-tier)'s
 `output_state` entries are absent from the interior stage-1 walk, exactly as
@@ -5239,7 +5238,7 @@ build never sees: the [periphery](#g-periphery) and the services. On that
 reading, root-input exclusivity (below) is that producer's one-writer right,
 and the totality ([§14.6][s14-6]) is its completeness obligation.
 
-Root inputs are sources to the build-time dataflow, constants within a
+Root inputs are sources to the build-time ordering, constants within a
 frame, and the *only* thing the periphery may write. The GUI reaches them
 through the resolution ([§11.7][s11-7]), and control commands are not writes
 ([§12.1][s12-1]). [Devices](#g-device), mappings, the [trace](#g-trace) and
@@ -7276,15 +7275,14 @@ the policy that fits it.
   also cluster in practice. A freshly written [assembly](#g-assembly) has five
   unwired inputs, and a renamed [port](#g-port) breaks three wires. Each of
   these passes returns its full violation list.
-- **User-code evaluation fails fast.** User code runs in three places. The
-  first is the interface-connection bodies in [Stratum](#g-stratum) A (one of
-  the build's three phases: structure, dataflow, activation). The other two
-  are the stage-1 [probes](#g-probe) in B and the probe chain in C. When user
-  code throws,
-  there is no meaningful rest of the collection to report. A failed
-  `input_connections` leaves the parent's face derivation undefined. A failed
-  stage-2 probe starves every downstream probe of its wired inputs, because
-  [probe values](#g-probe-value) flow topologically ([§9.3][s9-3]). The first
+- **User-code evaluation fails fast.** User code runs in three places. The first
+  is the interface-connection bodies in [Stratum](#g-stratum) A (one of the build's three
+  phases: structure, execution order, activation). The other two are the stage-1
+  [probes](#g-probe) in B and the probe chain in C. When user code throws, there is no
+  meaningful rest of the collection to report. A failed `input_connections`
+  leaves the parent's face derivation undefined. A failed stage-2 probe starves
+  every downstream probe of its wired inputs, because [probe values](#g-probe-value) flow
+  topologically ([§9.3][s9-3]). The first
   user-code exception aborts the phase ([D-057][d-057]).
 
 Strata are barriers. A stratum that produced any error-severity diagnostic, of
@@ -7344,11 +7342,11 @@ fields of [Appendix C][sC]. Those two fields describe the occurrence, not the
 kind. `BundleFieldError`, for example, is raised at the probe and as a
 `StepError` [species](#g-species) thereafter.
 
-Checking passes return diagnostics. The [stratum](#g-stratum) barrier (a
-stratum is one of the build's three phases: structure, dataflow, activation)
-throws a single `DiagnosticError` wrapping the collection. A fail-fast site
-throws the same carrier holding one diagnostic. **The carrier's type parameter
-spells the policy.** It is the diagnostic's kind for a fail-fast throw and
+Checking passes return diagnostics. The [stratum](#g-stratum) barrier (a stratum is one of the
+build's three phases: structure, execution order, activation) throws a single
+`DiagnosticError` wrapping the collection. A fail-fast site throws the same
+carrier holding one diagnostic. **The carrier's type parameter spells the
+policy.** It is the diagnostic's kind for a fail-fast throw and
 `Vector{Diagnostic}` for a collected one. A test therefore asserts policy and
 kind at once with `@test_throws DiagnosticError{Kind}` ([D-222][d-222]). The
 runtime carrier follows the same rule. `StepError{C}` carries the type of its
@@ -7519,7 +7517,7 @@ applying one plan ([§14.4][s14-4]) use the same arrangement.
 
 | client | who resolves | what the walk enforces |
 |---|---|---|
-| **wiring** | connection declarations, in [Stratum](#g-stratum) A (one of the build's three phases: structure, dataflow, activation) | the one-level rule: an immediate child and one of its faces |
+| **wiring** | connection declarations, in [Stratum](#g-stratum) A (one of the build's three phases: structure, execution order, activation) | the one-level rule: an immediate child and one of its faces |
 | **service** | [condition](#g-condition) entries (the path-addressed sparse overlay that sets a build's state), trim `reads`, [taps](#g-taps) ([§14.3][s14-3], [§14.7][s14-7], [§14.10][s14-10]) | strict: no traversal past a generic child, checked **at the authoring or mount level** |
 | **inspection** | [device](#g-device) read [bindings](#g-binding), GUI panels, [snapshot](#g-snapshot) and log inspection ([§11.2][s11-2], [§11.7][s11-7]) | the instance walk |
 
@@ -7572,12 +7570,12 @@ macro-sequence (integrate → project → event iteration → [ticks](#g-tick) �
 publication) in a single `try`. It never wraps per stage or per
 [component](#g-component) ([D-059][d-059]). Framing information does not need
 to be *caught* into existence. The [executor](#g-executor) (the compiled
-execution form of the [dataflow](#g-dataflow)) maintains an
+form of the stage [execution order](#g-execution-order)) maintains an
 **[execution cursor](#g-execution-cursor)**, a plain mutable field in the loop
-state recording where in the compiled dataflow execution is. The cursor
-records three facts. The first is the component path, as a dataflow index. The
-second is which function is running: `output_state`, `output_direct`,
-`state_derivative`, `state_update`, a [guard](#g-guard), a handler, or
+state recording where execution stands in the compiled order. The cursor
+records three facts. The first is the component path, as an index into the
+execution order. The second is which function is running: `output_state`,
+`output_direct`, `state_derivative`, `state_update`, a [guard](#g-guard), a handler, or
 `state_projection`. The third is the boundary phase: integration stage *k*,
 event round *r*, a localization evaluation at trial time, or tick. Maintaining
 the cursor costs one cheap store per dispatch on a single-tasked executor, with
@@ -7589,8 +7587,8 @@ trial points, and the environment closures.
 ```julia
 # the cursor: one mutable field of the loop state, overwritten per dispatch
 mutable struct ExecutionCursor
-    …    # what it records, per the prose above: component path (dataflow
-         # index), which function, and the boundary phase
+    …    # what it records, per the prose above: component path
+         # (execution-order index), which function, and the boundary phase
 end
 ```
 
@@ -8308,7 +8306,7 @@ field, and at what leaf type. **Layout** is the destination. It holds the `x`
 backing ranges, the store indices for `s` and for `m`, and the root-input
 indices from the [activation](#g-activation) (a re-run of Stratum C at a given
 scalar type). Layout also carries the face chains from [Stratum](#g-stratum) A
-(one of the build's three phases: structure, dataflow, activation).
+(one of the build's three phases: structure, execution order, activation).
 
 A valid list compiles to a plan. Per leaf, the plan holds a `Getter{P}`
 [lens](#g-lens) (the compiled navigation step of a condition entry), a
@@ -9996,7 +9994,7 @@ continuous `state_derivative` computes `x − u.latch`. The feedthrough stage is
 the right one because `output_direct` reads `u`, so the latch [port](#g-port)
 carries the current tick's values, ZOH until the next. An
 `output_state`-published latch would be one period stale. Both cross-wires
-consume the other side's ports, and the [dataflow](#g-dataflow) stays acyclic.
+consume the other side's ports, and the [feedthrough](#g-feedthrough) graph stays acyclic.
 The integrals' stage 1 feeds the sampler's `output_direct`, and the sampler's
 `output_direct` feeds the integrals' `state_derivative` edge ([§5.4][s5-4]).
 The "reset" becomes a visible [tier](#g-tier)-crossing feedback loop, which is
@@ -10458,8 +10456,8 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 **Build.**
 
 - `build(world) → Build`. Standalone. It yields the inspectable
-  derived-contract artifact: wire list, face table with provenance, dataflow,
-  root inputs ([§9.2][s9-2]). `build(world; activations = (Float64, ProbeDual))`
+  derived-contract artifact: wire list, face table with provenance, execution
+  order, root inputs ([§9.2][s9-2]). `build(world; activations = (Float64, ProbeDual))`
   additionally pins activation invariants for CI (`ProbeDual` is the public
   canonical concrete probe scalar, [§9.4][s9-4]), and pre-materializes
   activations so a parallel sweep shares a fully immutable `Build`
@@ -10920,7 +10918,7 @@ with the collection and never trigger its throw, is currently empty
   field name, the offending type (one neither isbits nor `Symbol`), the fix
   (text and bulk data belong on the component instance).
 
-**Dataflow and contract conformance** (Strata B and C):
+**Execution order and contract conformance** (Strata B and C):
 
 - **`AlgebraicCycle`** ([§5.5][s5-5], [§5.6][s5-6]). Error · build ·
   collected. The SCC's members, the wires among them as terminal pairs in
@@ -11154,7 +11152,7 @@ the face surfaces as a root input (`AbstractAtRoot`) ([§8.2][s8-2]).
 and it declares `child_connections` (mandatory, the class marker),
 `input_connections`, `output_connections`, `sample_times` and the optional
 `transparent_container`. It has no dynamics of its own. It is flattened away
-for the dataflow, and retained as the navigation hierarchy and as
+for ordering, and retained as the navigation hierarchy and as
 declaration-level rate scopes ([§3.3][s3-3], [§8.5][s8-5]).
 
 <a id="g-auto-published-port"></a>**auto-published port** — a declared output that matches a state or mode field
@@ -11214,7 +11212,7 @@ value, by type, by allocation ([§8.2][s8-2]). The set is
 <a id="g-derived-contract"></a>**derived contract** — the checkable surface an assembly or the `Build`
 derives from its children's declarations and its own wiring instead of
 declaring itself: an assembly's effective face list, and the `Build`'s wire
-list, face table, dataflow and root inputs. It is plain printable data
+list, face table, execution order and root inputs. It is plain printable data
 (paths, names and rationals), inspectable as fields, with no rendering
 implied beyond the ones [§9.2][s9-2] names. On a generic holding it is the
 constraint the referencing wires and interface connections impose on
@@ -11333,7 +11331,7 @@ references, never as mutable caches ([§4.4][s4-4]).
 <a id="g-immutable-value-semantics"></a>**immutable value semantics** — the signal rule, stated precisely as
 immutability *plus frozen references* (`isbits` is the common case, not the
 rule). It gives no aliasing, safe concurrent reads, and a definite per-cell
-freshness tied to the producer's dataflow position ([§4.1][s4-1]).
+freshness tied to the producer's position in the execution order ([§4.1][s4-1]).
 
 <a id="g-one-home-per-datum"></a>**one home per datum** — the buffer holds `x`, the stores hold `s` and `m`,
 and the table holds produced signals. No store mirrors another, and the table
@@ -11400,11 +11398,11 @@ port-level acyclic but stage-level cyclic. Its remedy is a ladder: the
 two-stage split, contract re-factoring, and as residual a component split
 ([§5.4][s5-4]).
 
-<a id="g-dataflow"></a>**dataflow** — the static evaluation order computed once at build time from
-wiring edges plus intra-component feedthrough: all stage-1 functions in any
-order, stage 2 in topological order, then `state_derivative`. The hot loop
-runs a flat list of `(component, stage)` entries, with zero runtime graph
-logic ([§5.1][s5-1]).
+<a id="g-execution-order"></a>**execution order** — the order in which the stage functions run, fixed once at
+build time from wiring edges plus intra-component feedthrough: all stage-1
+functions in any order, stage 2 in topological order, then `state_derivative`.
+The hot loop runs a flat list of `(component, stage)` entries, with zero runtime
+graph logic ([§5.1][s5-1]).
 
 <a id="g-flow"></a>**flow / RHS** — `state_derivative`, the continuous derivative function, `f` in
 the spec's formulas ([D-220][d-220]). Evaluating the RHS means running the
@@ -11419,12 +11417,12 @@ kinematic reference frames of the aircraft domain, which always appear
 compounded ("the b frame").
 
 <a id="g-projection"></a>**projection** — the optional per-component hook `x ← state_projection(x)`.
-It runs in the only two dataflow positions between a state write and its
-decode: after integration, and after a handler's `x`-reset. It is the cheap
-end of geometric integration's projection methods ([§2][s2], [§5.3][s5-3]).
+It runs in the only two positions in the execution order between a state write
+and its decode: after integration, and after a handler's `x`-reset. It is the
+cheap end of geometric integration's projection methods ([§2][s2], [§5.3][s5-3]).
 
-<a id="g-sweep"></a>**sweep** — one execution of the dataflow against the current state, in one
-of two statically distinct variants compiled from the same entry list. The
+<a id="g-sweep"></a>**sweep** — one pass through the execution order against the current state, in
+one of two statically distinct variants compiled from the same entry list. The
 **interior sweep** walks continuous entries only. It is what RK stage
 evaluations and localization guard trial evaluations run, so discrete cells
 hold ZOH mid-step by construction. The **boundary sweep** walks the full
@@ -11584,7 +11582,7 @@ boundary runs there, but no ticks are due and no staged inputs are drained
 
 <a id="g-tick"></a>**tick** — an instant at which a discrete component's stages and update run,
 gated by counter modulo against the harmonic grid inside the boundary sweep.
-Different boundaries therefore run different subsets of the dataflow
+Different boundaries therefore run different subsets of the execution order
 ([§10.5][s10-5]).
 
 <a id="g-tick-index"></a>**tick index** — the count of base ticks, `tick = k ÷ N_base` at the frame
@@ -11610,7 +11608,7 @@ are re-typed (producer-fed ones by evaluating the producer's output
 declaration at `T`, root inputs by evaluating the consuming `input_types`
 entry at `T`, the state type by the leaf walk), buffers are re-laid-out,
 workspace allocators are re-invoked, and the probe chain is re-run.
-Structure and dataflow are `T`-independent. Non-nominal activations are
+Structure and execution order are `T`-independent. Non-nominal activations are
 lazy, with an opt-in exhaustive set for CI ([§9.4][s9-4]).
 
 <a id="g-always-on-conformance-check"></a>**always-on conformance check** — the probe's comparison left permanently in
@@ -11621,8 +11619,8 @@ A conformant return type generates the straight stores and no check
 instruction ([§9.5][s9-5], [D-235][d-235]).
 
 <a id="g-build"></a>**`Build`** — the artifact `build(world)` produces: wire list, face table
-with provenance, dataflow and root inputs as plain printable data. It is the
-inspectable contract of the instantiation, and what `attach!`, `stop_on`,
+with provenance, execution order and root inputs as plain printable data. It is
+the inspectable contract of the instantiation, and what `attach!`, `stop_on`,
 replay and condition resolution all validate against ([§9.2][s9-2]).
 
 <a id="g-chunking"></a>**chunking** — splitting a large phase body's entry tuple into statically
@@ -11635,7 +11633,7 @@ exactly what it probes. A `Dual` activation sees only the continuous output
 stages and `state_derivative`, never the discrete stages, `state_update`,
 guards or handlers ([§9.4][s9-4]).
 
-<a id="g-executor"></a>**executor** — the compiled execution form of the dataflow: a concretely
+<a id="g-executor"></a>**executor** — the compiled form of the stage execution order: a concretely
 typed tuple of entries over statically typed cell storage, traversed by a
 compile-time-unrolled walk, with code-selecting facts in type parameters and
 plain data in fields ([§9.7][s9-7]).
@@ -11693,7 +11691,7 @@ it physically lives (buffer ranges, store and root-input indices)
 ([§14.3][s14-3]).
 
 <a id="g-stratum"></a>**stratum** — one of the build's three phases: A structure (pure declaration
-reading), B dataflow (the single evaluation-feeds-structure step), C
+reading), B execution order (the single evaluation-feeds-structure step), C
 activation (everything type-shaped). Strata are barriers. A stratum that
 produced any error-severity diagnostic throws before the next begins
 ([§9.1][s9-1], [§13.1][s13-1]).
@@ -12055,15 +12053,15 @@ fails at the site of the mistake, not later and inside correct code. The
 five walkthroughs ([§8.4][s8-4]) are its grounding cases and the acceptance
 tests ([§8.4][s8-4]).
 
-<a id="g-execution-cursor"></a>**execution cursor** — the plain mutable field recording where in the
-compiled dataflow execution is (component path, function, boundary phase).
+<a id="g-execution-cursor"></a>**execution cursor** — the plain mutable field recording where execution
+stands in the compiled order, as (component path, function, boundary phase).
 It costs one cheap store per dispatch, so a runtime failure gets its frame
 without exception frames in the hot path ([§13.4][s13-4]).
 
 <a id="g-feedthrough-tracer"></a>**feedthrough tracer** — the set-propagation instrument (global
 value-blind, or local primal-carrying at sampled states) used to classify a
 rejected cycle as real or artificial. It is diagnostic only, never an input
-to the dataflow ([§5.6][s5-6]).
+to the ordering ([§5.6][s5-6]).
 
 <a id="g-kind"></a>**kind** — a diagnostic's identity in the closed set enumerated normatively
 in [Appendix C][sC], with payload fields, owning section, severity, where it
@@ -12386,9 +12384,9 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [s4-3]: #43-table-mechanics-and-port-granularity
 [s4-4]: #44-function-valued-signals-environment-access
 [s5]: #5-evaluation-order-and-feedthrough
-[s5-1]: #51-the-dataflow-problem
+[s5-1]: #51-the-ordering-problem
 [s5-2]: #52-two-stage-outputs-signatures-bundles-and-the-hand-off-laws
-[s5-3]: #53-structural-feedthrough-stage-roles-dataflow-and-step-boundaries
+[s5-3]: #53-structural-feedthrough-stage-roles-execution-order-and-step-boundaries
 [s5-4]: #54-artificial-loops-and-the-escape-hatch
 [s5-5]: #55-algebraic-loop-policy-reject-at-build-time
 [s5-6]: #56-diagnostics-feedthrough-tracing
