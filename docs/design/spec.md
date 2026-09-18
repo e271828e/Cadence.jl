@@ -4622,7 +4622,7 @@ One boundary's iteration, sketched:
 ```julia
 # entering the boundary, per event:  last ← prior,  count ← 0
 while the previous round fired something   # the first round always runs
-    boundary sweep                         # whole gated schedule, due set fixed for the boundary
+    boundary sweep                         # the whole boundary sweep, due set fixed for the boundary
     per event:      eligible ← last not-holding && now holding && count < firing_budget
     per component:  firing ← its first eligible event, in declaration order
     per event:      last ← now, unless eligible and not firing   # a blocked edge stays unconsumed
@@ -4666,9 +4666,9 @@ declares simultaneous.
 **Why a full re-sweep per round.** A transition reaches the [signal table](#g-signal-table) only
 through a sweep. A handler writes its component's state stores and nothing else.
 So neither the transitioning component's own [ports](#g-port) nor the downstream stage-2
-chains that read them have moved. A round therefore re-runs the whole gated
-[schedule](#g-schedule). The cost is noise. Sweeps take microseconds, and rounds beyond the
-first require an actual cascade.
+chains that read them have moved. A round therefore re-runs the whole boundary
+sweep, gated entries included. The cost is noise. Sweeps take microseconds, and
+rounds beyond the first require an actual cascade.
 
 **Within a round, the signal table has a single writer, and it is the sweep.** A
 handler writes nothing to the table. It returns transitions, the framework
