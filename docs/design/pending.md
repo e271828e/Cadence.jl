@@ -31,12 +31,12 @@ Where the reason is not given here, the cited decision carries it:
   `EmptyGreedyClaim` into the roster entry's cell (D-250). `Deployment` and
   `Schedule` as artifacts, with D-187's grid diagnostics (leave-one-out
   factors, prime attribution, nearest non-refining offsets, the derivation
-  line and `GridUtilization`) landing on the deployment (D-254). The run: `Run{T}`, the trace split into
-  header plus `schemas` and `batches`, `StopPolicy` per advance,
-  `UnboundedRun`, and the `Simulation`'s six fields (D-255, D-256). The
-  renderings: `show` for `Structure`, `Dataflow`, `Schedule`, `Build` and
-  `Deployment`, with the binary hyperperiod-chart guard at 100 base ticks
-  (D-257). Nothing else of it is built today (M-B26).
+  line and `GridUtilization`) landing on the deployment (D-254). The run:
+  `Run{T}`, the trace split into header plus `schemas` and `batches`,
+  `StopPolicy` per advance, `UnboundedRun`, and the `Simulation`'s six fields
+  (D-255, D-256). The renderings: `show` for `Structure`, `Dataflow`,
+  `Schedule`, `Build` and `Deployment`, with the binary hyperperiod-chart guard
+  at 100 base ticks (D-257). Nothing else of it is built today (M-B26).
 - **§12 beyond its built slices**: pause and the control plane's surface; the
   operator interrupt — §13.4's carve-out exists, the masking and the entry do
   not, so a stopped run can hold mid-boundary stores here; §13.4's

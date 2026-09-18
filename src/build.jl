@@ -1013,9 +1013,7 @@ function _probe_direct!(products::Vector{NamedTuple}, ci::Int, flat::Flat,
         # already returned writes it twice (§5.3, §8.3).
         twice = intersect(keys(s1), keys(y2))
         isempty(twice) ||
-            throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice),
-                                                producers = fill(:output_state,
-                                                                 length(twice)))))
+            throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice))))
         products[ci] = merge(s1, _embed_ports(y2, d.outs, T))
     end
     nothing

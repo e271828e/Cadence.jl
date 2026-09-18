@@ -14,12 +14,6 @@ monitored() = Group((; src = Ramp(0.0), trig = Trigger(0.35));
 armed() = Group((; c = Trigger(0.5)); inputs = ("in" => "c/sig",),
                 outputs = ("c/on" => "stop",))
 
-# The touchdown archetype (§13.5): a sawtooth crossing the overload's level
-# mid-frame, so the stop localizes to the crossing's t* boundary.
-overloaded() = Group((; src = Sawtooth(1.0), mon = Overload(0.315));
-                     wires = ("src/q" => "mon/sig",),
-                     outputs = ("mon/tripped" => "tripped",))
-
 # A resource-bracket witness for the abnormal tail, and the empty-claim binding
 # that rosters it.
 mutable struct TailProbe <: AbstractDevice

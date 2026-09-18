@@ -554,6 +554,16 @@ overload_handler(::Overload, (; m)) = (m = (tripped = true,),)
 state_events(::Overload) = (trip = StateEvent(overload_guard, overload_handler),)
 
 """
+    overloaded()
+
+A sawtooth crossing the overload's level mid-frame, so the stop localizes to the
+crossing's `t*` boundary (§13.5).
+"""
+overloaded() = Group((; src = Sawtooth(1.0), mon = Overload(0.315));
+                     wires = ("src/q" => "mon/sig",),
+                     outputs = ("mon/tripped" => "tripped",))
+
+"""
 `Overload` with its `output_state` removed: `tripped` is a mode field declared
 public that no stage returns (§5.3, D-252), so the component runs no stage at
 all.
@@ -565,11 +575,6 @@ end
 init_m(::UnreturnedMode) = (tripped = false,)
 input_types(::UnreturnedMode, ::Type{T}) where {T <: Real} = (sig = T,)
 output_types(::UnreturnedMode, ::Type{T}) where {T <: Real} = (tripped = Bool,)
-
-unreturned_mode_guard(c::UnreturnedMode, (; u)) = u.sig - c.level
-unreturned_mode_handler(::UnreturnedMode, (; m)) = (m = (tripped = true,),)
-state_events(::UnreturnedMode) =
-    (trip = StateEvent(unreturned_mode_guard, unreturned_mode_handler),)
 
 """
 Exploder: the §13.6 specimen — `q̇ = 1` until its `arm` input goes true, then

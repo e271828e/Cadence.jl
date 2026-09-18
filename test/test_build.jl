@@ -324,8 +324,8 @@ function build_port_classes()
         i = index_of(b.flat, "c")
         @test keys(b.nominal.stage1[i]) === (:ω, :running)
         @test keys(b.nominal.products[i]) === (:ω, :running, :M_shaft)
-        # The hand-down carries the stage-1 return, so stage 2 reads both off
-        # `y_x` rather than re-deriving them.
+        # The hand-down carries the stage-1 return, so `y_x` is now in stage 2's
+        # bundle.
         @test bundle_names(output_direct, Motor(1.0), CONTINUOUS,
                            tuple(keys(b.nominal.stage1[i])...)) === (:x, :m, :u, :y_x, :t)
     end
@@ -360,7 +360,7 @@ function build_port_classes()
 
     @testset "a port is produced by one stage (§8.3)" begin
         d = carried(@test_throws DiagnosticError{ProducedByTwoStages} build(single(Twice())))
-        @test d.ports == [:q] && d.producers == [:output_state]
+        @test d.ports == [:q]
     end
 
     @testset "a pinned declaration of a walking field is refused at the stage-1 port check (§9.5, D-166)" begin

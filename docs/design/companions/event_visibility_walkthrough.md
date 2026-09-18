@@ -69,7 +69,7 @@ latches them into the component's state stores immediately after the return,
 before `state_projection`. Latching writes *stores*, not cells;
 `state_projection` normalizes
 those stores; the next sweep's `output_state` reads those stores like any other
-stage-1 act ([§9.5][s9-5]). Nothing — no user code, no framework step — writes
+stage-1 act ([§5.3][s5-3]). Nothing — no user code, no framework step — writes
 the table between the sweep that opened a round and the sweep that opens the
 next.
 
@@ -224,4 +224,3 @@ rule makes.
 [s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-execution-order-and-step-boundaries
 [s7]: ../spec.md#7-state-and-data-representation
 [s8-2]: ../spec.md#82-the-declaration-inventory
-[s9-5]: ../spec.md#95-the-always-on-conformance-check

@@ -295,10 +295,7 @@ function test_events()
         # by a sweep before anything is read — which is why the cell and the
         # store agree at the boundary, and why the snapshot taken there already
         # carries the flip.
-        sim = Simulation(Group((; src = Sawtooth(1.0), mon = Overload(0.315));
-                               wires = ("src/q" => "mon/sig",),
-                               outputs = ("mon/tripped" => "tripped",));
-                         h = 1//10, t_end = 5.0, stop_on = ("tripped",))
+        sim = Simulation(overloaded(); h = 1//10, t_end = 5.0, stop_on = ("tripped",))
         init!(sim)
         @test port(sim, "mon", :tripped) === false       # before the crossing
         run!(sim)

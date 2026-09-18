@@ -353,8 +353,7 @@ function diagnostics_kind_set()
                            wires = ["a/b/y" => "a/c/u", "a/c/y" => "a/b/u"],
                            classification = :real,
                            traced = ["a/b" => :structural, "a/c" => :structural]),
-            ProducedByTwoStages(path = "a/b", ports = [:y, :z],
-                                producers = [:output_state, :output_state]),
+            ProducedByTwoStages(path = "a/b", ports = [:y, :z]),
             DeclaredNotProduced(path = "a/b", ports = [:y], products = [:z],
                                 state_fields = [:q]),
             UndeclaredReturnField(path = "a/b", stage = "output_state", name = :q, candidates = [:y]),
@@ -639,10 +638,9 @@ function diagnostics_kind_set()
                                    declared = Any[AbstractVector{Float64}]))
         @test occursin("AbstractVector{Float64}", m) && occursin("`a/b`", m)
 
-        # The port classification's two refusals, in D-252's words: one stage name
-        # per producer, and the remedy that names `output_state`.
-        m = message(ProducedByTwoStages(path = "a/b", ports = [:y],
-                                        producers = [:output_state]))
+        # The port classification's two refusals, in D-252's words: the kind's own
+        # two stage names, and the remedy that names `output_state`.
+        m = message(ProducedByTwoStages(path = "a/b", ports = [:y]))
         @test occursin("`y` by `output_state` and by `output_direct`", m)
         m = message(DeclaredNotProduced(path = "a/b", ports = [:y], products = [:z],
                                         state_fields = [:q]))

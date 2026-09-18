@@ -857,13 +857,11 @@ end
 Base.@kwdef struct ProducedByTwoStages <: Diagnostic
     path::String
     ports::Vector{Symbol}
-    producers::Vector{Symbol}                # parallel to `ports`: each one's stage-1 producer
 end
 path(d::ProducedByTwoStages) = d.path
 message(d::ProducedByTwoStages) =
     "`$(d.path)`: " *
-    join(("`$p` by `$q` and by `output_direct`"
-          for (p, q) in zip(d.ports, d.producers)), ", ") *
+    join(("`$p` by `output_state` and by `output_direct`" for p in d.ports), ", ") *
     " — a port is produced once: drop it from `output_direct`, or from its stage-1 " *
     "producer (§5.3, §8.3)"
 
