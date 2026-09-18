@@ -2617,8 +2617,9 @@ one, or a `T`-form bounded narrower than `Real`. The diagnostic reports the
 component path, the declaration at fault, the tier its other declarations
 announce, and the form found versus the form mandated. On a stateful leaf the
 tier comes from the store and the update law, and a contract arity against it
-is this kind, never `DeclarationOnWrongTier` ([D-249][d-249]). The check is the structure
-step's and collected. Declaration shape is read, and nothing is evaluated.
+is this kind, never `DeclarationOnWrongTier` ([D-249][d-249]). The check runs in
+the structure step and is collected. Declaration shape is read, and nothing
+is evaluated.
 
 The tier fact is therefore spelled in the signature *and* fixed by the class,
 and the two are kept in agreement by a check rather than by convention. That
@@ -3161,7 +3162,7 @@ this step* ([§9.4][s9-4]).
 the artifact that carries everything those parameters fix ([D-254][d-254]). It
 binds the grid parameters, the algorithm, the three event parameters, runs
 harmonic-grid validation, and builds the [schedule](#g-schedule). Nothing in
-A–C depends on it.
+the build's three steps depends on it.
 
 A `Deployment` is scalar-free. It holds the build, the grid parameters, the
 algorithm, the three event parameters, the `Schedule`, the grid diagnostics
