@@ -283,6 +283,7 @@ were derived.
 | [D-256][d-256] | Regroup the `Simulation`'s fields by owner | ratified |
 | [D-257][d-257] | Each artifact renders itself | ratified |
 | [D-258][d-258] | "Schedule" is the tick timing and "execution order" the stage sequence | ratified |
+| [D-259][d-259] | Retire the strata: the build is three steps named by their products | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -9323,9 +9324,12 @@ stage write.
   detection policies and bundle names, produced as B's last step, after the
   nominal stage probes.
 - Stratum B is its own function, consuming the structure and returning the
-  dataflow and the events with the `Float64` stage-1 products. Stratum C
-  takes those and completes an activation. No product changes across
-  activations.
+  dataflow, the events and the nominal `Float64` activation, assembled from
+  its own probe chain. Stratum C runs for every other scalar, taking the
+  structure, the dataflow and the nominal activation as the carry for frozen
+  components. No product changes across activations. (Amended by [D-259][d-259]:
+  `Events` is probed against the complete nominal products, so B runs the
+  whole nominal chain, and a C run at `Float64` would be a second pass.)
 - `Build` is structure, dataflow, events and the activations, the nominal
   and the cache merged into one dictionary keyed by scalar type under the
   existing lock.
@@ -9614,6 +9618,62 @@ carries the graph. The log keeps its vocabulary of the day under
   `Structure` and the bound table in `Schedule`, "bound" no longer
   distinguishes anything.
 
+### D-259 — Retire the strata: the build is three steps named by their products
+
+**Status.** ratified
+
+**Position.** The spec names the build's steps by what they produce and
+retires "stratum".
+
+- The three steps are the structure step (the root instance in, `Structure`
+  out), the nominal evaluation (`Structure` in; `Dataflow`, `Events` and the
+  nominal `Float64` `Activation` out) and activation at a scalar
+  (`Structure`, `Dataflow` and the nominal activation in, `Activation{T}`
+  out). [§9.1][s9-1] opens with a table of what each step consumes and produces,
+  with the deployment and the materialization on it as the steps after the
+  build.
+- Each step is a barrier, as each stratum was ([§13.1][s13-1]). No user stage code
+  runs before the structure step completes. The nominal evaluation's
+  products are names only. Only activation re-runs per scalar.
+- The activation gloss is "the build's typed products at a given scalar
+  type". "Stratum A" reads "the structure step", "Stratum B" "the nominal
+  evaluation", "Stratum C" "activation"; [Appendix C][sC]'s group headings, [§9.6][s9-6]'s
+  heading and the glossary follow.
+- The log keeps its vocabulary of the day (`decisions_style.md` rule 2).
+  [D-253][d-253]'s fourth bullet is amended in place to the nominal evaluation's
+  return.
+
+**Spec.** [§5.6][s5-6], [§6.1][s6-1], [§8.2][s8-2], [§8.5][s8-5], [§9.1][s9-1], [§9.2][s9-2], [§9.4][s9-4], [§9.6][s9-6], [§13.1][s13-1], [§13.2][s13-2], [§13.3][s13-3], [§14.3][s14-3], [Appendix C][sC], [Appendix D][sD]
+
+**Rationale.** The strata were named before any step existed as code. Once
+each step had a product ([D-253][d-253]), each letter had become a second name for
+that product: "Stratum A's product" for `Structure`, "a re-run of Stratum C"
+for an activation. A term that needs the product's name to be understood is
+the product's name. The letters also encoded a sequence the pipeline does
+not run. [D-253][d-253] as first written had Stratum C complete the nominal
+activation from B's stage-1 products, but `Events` is probed against every
+component's complete nominal product and the layout, so B runs the whole
+nominal chain, and a C run at `Float64` would be the separate pass [§9.1][s9-1]
+forbade. Stating each step by what it consumes and produces says that seam
+plainly: the nominal evaluation consumes one evaluation at `Float64` and
+fixes both the structure and the `Float64` typing, and activation consumes
+another scalar and fixes the typing at it. Everything the strata carried
+survives without the word: the barrier rule, the line between declaration
+reading and evaluation, and the line between structural and typed products.
+"Step" is the noun because the spec already uses it for deploying and
+materializing ([§9.2][s9-2]), and the integration step is always qualified
+("integration step", "step boundary", `step!`).
+
+**Rejected.**
+- *Keeping the letters with restated definitions:* the definitions would
+  have been the products' names with a letter in front.
+- *"Stage", "phase" or "pass" as the generic noun:* each already names
+  something (the stage functions, the sweep phases and the tick phase, the
+  declarative passes within a step).
+- *One function for the nominal evaluation and activation:* [D-253][d-253]'s
+  rejection stands; the nominal evaluation fixes structure and an activation
+  does not.
+
 ---
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
@@ -9875,6 +9935,7 @@ carries the graph. The log keeps its vocabulary of the day under
 [d-256]: #d-256--regroup-the-simulations-fields-by-owner
 [d-257]: #d-257--each-artifact-renders-itself
 [d-258]: #d-258--schedule-is-the-tick-timing-and-execution-order-the-stage-sequence
+[d-259]: #d-259--retire-the-strata-the-build-is-three-steps-named-by-their-products
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
