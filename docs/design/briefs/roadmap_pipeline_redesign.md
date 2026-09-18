@@ -1,0 +1,214 @@
+# The pipeline redesign: implementation roadmap
+
+The increments that deliver `notes_pipeline_redesign.md`, the settled register
+of the 2026-09-18 session. The register is the map of *what* lands; this file
+is *how* and *in what order*, grounded in the tree at `7b1c1e8` and the
+2026-09-18 pre-flight probe. Item numbers below are the register's. Each
+increment follows the delegation pipeline: a brief in this directory, one
+fresh agent per stage, one cold review, a fixer, push. The suite is green at
+every push.
+
+## Decisions taken after the register
+
+Settled 2026-09-18, and folded into the steps below:
+
+- **Item 11's error is `DeclaredNotProduced`.** No new kind. Its docstring
+  already names the fall-through; once publication goes, every declared and
+  unreturned name takes that path. Its message and `state_fields` column lose
+  the "a store field of that name and type carries them" remedy; the remedy
+  becomes "return it from `output_state`".
+- **§8.8's names.** The warning of item 8 is `EmptyFaceSelection`, beside the
+  existing `UnknownFaceSelection`: `who`, `path`, the selector given and its
+  names, the child's face list as candidates. The `:both_given` reason
+  becomes `:multiple_selectors`, its payload naming the selectors given.
+- **The convenience constructors stay.** `Simulation(build; kw...)` is sugar
+  over the deployment constructor and `Simulation(root; kw...)` over both.
+  The suite's 531 `h =` call sites are untouched by increment 46.
+- **An unbounded run is allowed** with the §11.8 `UnboundedRun` advisory
+  (Appendix C, spec line ~11126). `run!` mutates state, so by the artifact
+  criterion the advisory lives in the loop's diagnostic cell and surfaces
+  through the status record; the log line is presentation. Increment 47
+  builds it and retires that part of the §11.8 pending bullet.
+- **`Run{T}` exists from construction.** `Simulation{T}` is built with a
+  placeholder run: `t₀ = zero(T)`, `mode = :live`, empty log and trace,
+  `termination = nothing`. `init!` and `replay!` replace the object, which is
+  item 23's "fresh objects rather than clearing". The field is `Run{T}`, never
+  `nothing`; `Control.lifecycle` says whether the run ever started.
+
+## Step 0: the audit refresh
+
+Deferred. The 2026-09-17 refresh under `docs/reports/20260915_audit` is still
+in progress and stays uncommitted. Step 1's commits touch `docs/design` only
+and add their paths explicitly, so the refresh never rides along. It is
+committed when the audit closes.
+
+## Step 1: the docs commit
+
+Two commits, both before any code.
+
+**1a, the vocabulary sweep (item 31).** Mechanical. The spec has 104
+occurrences of "schedule", 5 of them "bound schedule"; every one is assigned
+to "schedule" (the bound one, matching `Schedule`) or "dataflow" (the
+evaluation order, matching `Dataflow`). §5.1's heading, Stratum B's heading
+and the glossary's "sweep" entry change with it. The log's 42 occurrences stay
+as history; entry 1b's vocabulary decision records the renaming. A Sonnet
+agent over a frozen copy (`git show 7b1c1e8:docs/design/spec.md`), then
+`linkify.jl`, `check_refs.jl`, `check_rows.jl`, `check_glossary.jl`.
+
+**1b, the normative commit.** Decision entries drafted and shown before the
+spec is touched. Nine themes, D-250 through D-258:
+
+| entry | register items | supersedes |
+| --- | --- | --- |
+| the artifact criterion and warning homes | 1–6 | D-084's slot stays open |
+| §8.8's selectors and the empty selection | 7–10 | D-209's arm |
+| the port model | 11 | D-016's publication rule, D-152, D-169 |
+| the build-side types | 12–18 | §9.2's `Build` roster |
+| `Deployment` and `Schedule` | 19–21 | D-187's "named artifact" wording |
+| the run, the trace split, the stop policy | 22–27 | §13.5's second binding site |
+| the `Simulation` regroup | 28 | — |
+| the renderings and the chart guard | 29–30 | D-187's `show`-form |
+| the vocabulary | 31 | records commit 1a |
+
+Spec sections touched: §5.3, §8.8, §9.1, §9.2, a new subsection for the
+deployment and its schedule, §11.5, §12 for the run, §13.2, §13.5, Appendix
+C, Appendix D. Appendix C: `logged` widens to any artifact-producing call;
+`EmptyGreedyClaim` moves to the roster entry's cell; `GridUtilization` moves
+to the deployment's warnings; `EmptyFaceSelection` gains a row;
+`DeclaredNotProduced`'s message and `UnknownFaceSelection`'s reason column
+change. Read `tools/spec_style.md` and `tools/decisions_style.md` first; run
+the four tools after.
+
+Bookkeeping: `pending.md`'s first bullet becomes one umbrella bullet naming
+this file, since after 1b the code owes the spec every item in steps 2–7.
+`implementation.md`'s rows stay true until each increment changes them.
+
+## Step 2: increment 43, the auto-publishing removal
+
+Item 11. Two stages.
+
+**The pre-flight probe** (2026-09-18, suite green under the hook, script
+`probe_autopub.jl` in the session scratchpad): nine fixture types rely on
+publication, all in `test/fixtures.jl`, 18 use sites outside it.
+
+| type | published | why it exists |
+| --- | --- | --- |
+| `Motor` | `ω::Float64`, `running::Bool` | §5.3's basic publication test |
+| `AutoPlant` | `q::SVector{2,Float64}` | a loop closing through a published port (D-169) |
+| `AutoCounter` | `n::Int` | the discrete tier publishing from `init_s` |
+| `PinnedState` | `q::Float64` | a pinned walking field refused at `Dual` (D-166) |
+| `ModeNamedProduct` | `q::Float64` | the non-nominal set is the nominal's |
+| `AutoOverload` | `tripped::Bool` | a handler's mode flip reaching its cell (D-154) |
+| `Twice` | `q::Float64` | §8.3's one-writer rule |
+| `GearMode` | `gear::Gear` | an enum mode (§7.5) |
+| `PhaseMode` | `phase::Symbol` | a `Symbol` leaf at the root (D-243) |
+
+The first six were written for publication; their testsets become the
+`DeclaredNotProduced` refusal, and each fixture gains an explicit
+`output_state` return or retires where the refusal test needs the unreturned
+port. The last three carry an unrelated property; they keep their tests and
+gain the return. `PinnedState` is the delicate one: its stop-gradient refusal
+at the `Dual` activation must now come from the stage-1 contract check, and
+the brief names the kind that carries it.
+
+- **Stage 1, the framework.** Remove `auto_published` (`build.jl:355–410`),
+  `Activation.published`, `PublishEntry` in `executor.jl`, the `published`
+  argument threaded through `schedule_stage2`, `probe_stage2`,
+  `_probe_direct!` and `tracer.jl`'s `_classify`, and `compile`'s slicing at
+  `build.jl:1484–1497`. Every declared and unreturned name reaches
+  `DeclaredNotProduced`; edit its message.
+- **Stage 2, the sweep.** The nine fixtures and the `build_auto_publication`
+  testsets in `test_build.jl` (lines 313–390 and ~1161).
+- Routing: the fixtures change, so the table's last row.
+
+## Step 3: increment 44, the build-side types
+
+Items 12–17 and the warnings channel (items 2–5, build side). The largest
+increment. Five stages; stages 1–3 and 4–5 split cleanly into two increments
+if the count is too many for one review.
+
+- **Stage 1, `Structure` replaces `Flat`** (`assembly.jl:679`). `tiers` moves
+  in, plus the per-component `Relative`/`Absolute` provenance chain and the
+  assembly scope triples with their `sample_times` key. Mechanical rename
+  across the 19 readers outside `build.jl` and the 32 test hits in 7 files.
+- **Stage 2, Stratum B's function.** `dataflow(structure)` returns
+  `Dataflow`, `Events` and the `Float64` stage-1 products, splitting the
+  current activation flow at `build.jl:905–932`. `Events` is built last,
+  after the nominal stage probes; the `policies` vector leaves `Build` for
+  it. Stratum C is a function of the structure, the dataflow and the events.
+- **Stage 3, `Build` recomposition.** Structure, dataflow, events, one
+  activation dictionary keyed by scalar type under the existing lock, and
+  `warnings`. Every `b.nominal` (26 reads in `sim.jl`, 13 test hits) becomes
+  a lookup.
+- **Stage 4, the consumers (item 17).** Readers, trim, the tracer, `compile`'s
+  key slicing and the catch site's field-error species take name lists from
+  `Structure` and `Dataflow`.
+- **Stage 5, the channel.** A scoped binding the walk establishes
+  (`ScopedValue`; the package's compat is 1.12, so it is available), an
+  append helper, `warnings(::Build)`, the once-per-warning log at return, and
+  the rendering of warnings beside a thrown collection. No build-side
+  producer exists today, so the test is synthetic until increment 45.
+- Routing: the last row.
+
+## Step 4: increment 45, §8.8
+
+Items 7–10 with the names above. Two stages, small.
+
+- **Stage 1.** The `select` predicate, exclusive selectors with
+  `:multiple_selectors`, and `EmptyFaceSelection` through the channel.
+  Files: `assembly.jl:523–582`, the two kinds in `diagnostics.jl`, the
+  rendering testset.
+- **Stage 2.** The feed-list test transcribing the spec's sketch (§8.8, near
+  spec line 2900) against the real helpers. No source change.
+- Routing: the table's first row.
+
+## Step 5: increment 46, `Deployment` and `Schedule`
+
+Items 19–21 and the deployment half of item 28. Three stages.
+
+- **Stage 1, `Schedule`.** Per-component rows with anchor and provenance
+  columns, the rate-scope rows, and the `D`, `Φ`, `Δt` vectors, derived from
+  the structure's triples and anchors.
+- **Stage 2, `Deployment`.** The binding code leaves `Simulation`'s
+  constructor (`sim.jl:131`) for a constructor over a build; the convenience
+  constructors compose it. `h`, `N_base`, `Δt_base`, the three event
+  parameters, `sched`, `D`, `Φ`, `Δt` leave `Simulation` for it. Equality by
+  value, since replay compares two.
+- **Stage 3, D-187's grid diagnostics.** Leave-one-out factors, prime
+  attribution, nearest non-refining offsets, the derivation line and
+  `GridUtilization` on the deployment's warnings. New construction: none of
+  it exists in `src/`.
+- Routing: the last row.
+
+## Step 6: increment 47, the run
+
+Items 22–27, item 6, the rest of item 28, and `UnboundedRun`. Five stages.
+
+- **Stage 1, `StopPolicy`** replaces `RunPolicy` (`sim.jl:13`): immutable,
+  built and validated per advance, `hit` in the loop's scratch. `t_end` and
+  `stop_on` leave the constructor for `run!`, `replay!` and `step!`, with
+  `Inf` and no faces as defaults; 3 constructor uses in the suite, 114 `run!`
+  uses already pass `t_end`. `UnboundedRun` lands here.
+- **Stage 2, `Run{T}` and a mutable `Simulation`.** The placeholder run at
+  construction, `init!` and `replay!` replacing it, `termination` leaving
+  `Control` (`devices.jl:115`; 52 test hits in 7 files), `closed(run)`.
+- **Stage 3, the trace split.** `Trace{T}` as a fixed header plus append-only
+  `schemas` and `batches`; the header holds the deployment and `t₀`, no
+  policy. The register keeps its cursor fields and the feed. `attach!` and
+  `detach!` push schemas in place. 18 `header.` hits, all in `test_trace.jl`.
+- **Stage 4, `EmptyGreedyClaim`** through `_report!` on the roster entry's
+  cell (`sim.jl:1354` → `dataplane.jl:271`), the log line kept.
+- **Stage 5, the regroup's remainder.** `chunk_size`, the stepper and the
+  arrival buffers into the executor; `join_timeout` into `Control`; the loop
+  cells and `published` into the plane. `Simulation` ends as build,
+  deployment, executor, run, plane, control.
+- Routing: all of it.
+
+## Step 7: increment 48, the renderings
+
+Items 29–30. `show` for `Structure`, `Dataflow`, `Schedule`, `Build` and
+`Deployment`, the binary chart guard at 100 base ticks. One stage per type
+family, or one stage if a single agent holds them. A new `test_show.jl`, cut
+by property, with its routing-table row; `test_diagnostics.jl`'s rendering
+testset asserts messages, not artifacts. The face-provenance printer stays
+with the "Smaller" bullet.
