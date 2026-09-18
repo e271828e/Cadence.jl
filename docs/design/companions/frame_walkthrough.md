@@ -306,4 +306,4 @@ no drain.
 [s13-4]: ../spec.md#134-runtime-failures-one-catch-site-an-execution-cursor
 [s13-5]: ../spec.md#135-termination-is-a-state-not-an-exception
 [s14-5]: ../spec.md#145-boundary-zero-an-ordinary-boundary-with-authored-incoming-transitions
-[s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-schedule-and-step-boundaries
+[s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-dataflow-and-step-boundaries

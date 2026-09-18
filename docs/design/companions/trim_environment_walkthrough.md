@@ -589,7 +589,7 @@ Deferred, deliberately: the post-commit target read-back, which belongs to
 [s14-9]: ../spec.md#149-mounting-problems-as-relocatable-values
 [s16]: ../spec.md#16-open-axes
 [s4-4]: ../spec.md#44-function-valued-signals-environment-access
-[s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-schedule-and-step-boundaries
+[s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-dataflow-and-step-boundaries
 [s9-6]: ../spec.md#96-stopped-sim-services-as-stratum-c-clients
 [sA]: ../spec.md#appendix-a-taught-contracts-the-author-facing-index
 [sD]: ../spec.md#appendix-d-glossary

@@ -117,7 +117,7 @@ precisely the error the type-level freeze makes unwritable.
 [d-072]: ../decisions.md#d-072--linearization-surface-three-selector-lists-one-chunked-dual-pass
 [s10-5]: ../spec.md#105-multi-rate-tick-scheduling
 [s14-10]: ../spec.md#1410-linearization-tap-selectors-one-seeded-pass-a-pure-query
-[s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-schedule-and-step-boundaries
+[s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-dataflow-and-step-boundaries
 [s5-5]: ../spec.md#55-algebraic-loop-policy-reject-at-build-time
 [s7-2]: ../spec.md#72-numeric-genericity-eltype
 [s8-2]: ../spec.md#82-the-declaration-inventory
