@@ -21,16 +21,13 @@ function test_executor()
             @test @ballocated($body(1)) == 0
         end
 
-        # The fourth entry kind rides the same roster (§5.3): `Motor` returns
-        # neither state nor mode from any stage, so its stage-1 block is two
-        # `PublishEntry`s — one per home, `x` and `m` — and no stage entry at
-        # all. They are compiled entries like any other, so the interior walk
-        # carries them and the canary holds over the whole roster.
+        # One stage-1 return over both homes (§5.3): `Motor` returns `ω` from
+        # `x` and `running` from `m` in a single `output_state`, so its stage-1
+        # block is one `StageEntry` and the canary holds over it.
         mot = Simulation(fed(Motor(1.0), "M_load"); h = 1//100)
         b = phase_bodies(mot)
         walk = walked(b.sweep_1, :interior)
-        @test count(e -> e isa PublishEntry, walk) == 2
-        @test !any(e -> e isa StageEntry, walk)
+        @test count(e -> e isa StageEntry, walk) == 1
         for name in BLOCKS
             body = b[name]
             body(); body(0)

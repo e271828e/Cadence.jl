@@ -32,17 +32,16 @@ function state_derivative(c::Plant, (; x, u))
     (q = SVector(q[2], -ω^2 * q[1] - 2ζ * ω * q[2] + u.u),)
 end
 
-# --- §5.3's auto-published ports ----------------------------------------------
-# Components whose `output_types` names a state or mode field no stage returns,
-# so the framework publishes it from the store at stage-1 position (D-016,
-# D-169), plus the three refusals that bound the construct.
+# --- §5.3's stage-1 return of exposed state ------------------------------------
+# Components exposing a state or mode field by returning it from `output_state`,
+# plus the refusal fixtures that declare one and return it from no stage (D-252).
 
 """
 §8.2's worked engine at the suite's size: `ω` is a state field and `running` a
-mode field, both declared and returned by no stage, so both are auto-published;
-`M_shaft` is the one stage-2 product. The boundary-detected `start` event flips
-`running` at `t = 0.1`, after which `M_shaft = 1` — with `M_load = 0` and
-`J = 1`, `ω(t) = max(t − 0.1, 0)` at every boundary.
+mode field, both declared and both returned from `output_state`; `M_shaft` is
+the one stage-2 product. The boundary-detected `start` event flips `running` at
+`t = 0.1`, after which `M_shaft = 1` — with `M_load = 0` and `J = 1`,
+`ω(t) = max(t − 0.1, 0)` at every boundary.
 """
 struct Motor <: AbstractComponent
     J::Float64
@@ -53,6 +52,7 @@ init_m(::Motor) = (running = false,)
 input_types(::Motor, ::Type{T}) where {T <: Real} = (M_load = T,)
 output_types(::Motor, ::Type{T}) where {T <: Real} = (M_shaft = T, ω = T, running = Bool)
 
+output_state(::Motor, (; x, m)) = (ω = x.ω, running = m.running)
 output_direct(::Motor, (; x, m, u)) = (M_shaft = m.running ? one(x.ω) : zero(x.ω),)
 state_derivative(c::Motor, (; x, y, u)) = (ω = (y.M_shaft - u.M_load) / c.J,)
 
@@ -61,30 +61,31 @@ motor_start_handler(::Motor, (; m)) = (m = (running = true,),)
 state_events(::Motor) = (start = StateEvent(motor_start_guard, motor_start_handler),)
 
 """
-`Plant` with its `output_state` removed: the whole state vector `q` is declared
-and published from the store instead, which is what lets `auto_feedback_model`
-close the same loop through it.
+`Plant` exposing its whole state vector as one stage-1 port: `q` is declared as
+an `SVector` and returned from `output_state`, which is what lets
+`vector_feedback_model` close the same loop through it.
 """
-struct AutoPlant <: AbstractComponent
+struct VectorPlant <: AbstractComponent
     ω::Float64
     ζ::Float64
     q₀::SVector{2,Float64}
 end
 
-AutoPlant(; ω = 2.0, ζ = 0.1, q₀ = SVector(0.0, 0.0)) = AutoPlant(ω, ζ, q₀)
+VectorPlant(; ω = 2.0, ζ = 0.1, q₀ = SVector(0.0, 0.0)) = VectorPlant(ω, ζ, q₀)
 
-init_x(c::AutoPlant) = (q = c.q₀,)
-input_types(::AutoPlant, ::Type{T}) where {T <: Real} = (u = T,)
-output_types(::AutoPlant, ::Type{T}) where {T <: Real} = (q = SVector{2,T}, power = T)
+init_x(c::VectorPlant) = (q = c.q₀,)
+input_types(::VectorPlant, ::Type{T}) where {T <: Real} = (u = T,)
+output_types(::VectorPlant, ::Type{T}) where {T <: Real} = (q = SVector{2,T}, power = T)
 
-output_direct(::AutoPlant, (; x, u)) = (power = u.u * x.q[2],)
+output_state(::VectorPlant, (; x)) = (q = x.q,)
+output_direct(::VectorPlant, (; x, u)) = (power = u.u * x.q[2],)
 
-function state_derivative(c::AutoPlant, (; x, u))
+function state_derivative(c::VectorPlant, (; x, u))
     q, ω, ζ = x.q, c.ω, c.ζ
     (q = SVector(q[2], -ω^2 * q[1] - 2ζ * ω * q[2] + u.u),)
 end
 
-"""Proportional state feedback on the published state vector: stage 2 only."""
+"""Proportional state feedback on the plant's state-vector port: stage 2 only."""
 struct StateFeedback <: AbstractComponent
     k::Float64
 end
@@ -94,22 +95,23 @@ output_types(::StateFeedback, ::Type{T}) where {T <: Real} = (u = T,)
 
 output_direct(c::StateFeedback, (; u)) = (u = -c.k * u.q[1],)
 
-"""`DiscreteCounter` without its `output_state`: `n` is published from `init_s`."""
-struct AutoCounter <: AbstractComponent end
+"""`DiscreteCounter` without its `output_state`: `n` is declared and no stage returns it."""
+struct UnreturnedCounter <: AbstractComponent end
 
-init_s(::AutoCounter) = (n = 0,)
-output_types(::AutoCounter) = (n = Int,)
-state_update(::AutoCounter, (; s)) = (n = s.n + 1,)
+init_s(::UnreturnedCounter) = (n = 0,)
+output_types(::UnreturnedCounter) = (n = Int,)
+state_update(::UnreturnedCounter, (; s)) = (n = s.n + 1,)
 
 """
-A `Float64`-pinned declaration of a walking state field: published at the
-nominal activation, and a refusal at every other one — stripping the partials
-would be a stop-gradient the author never wrote (§5.3, D-166).
+A `Float64`-pinned declaration of a walking state field, returned from stage 1:
+exact at the nominal activation, and a refusal at every other one — stripping
+the partials would be a stop-gradient the author never wrote (§5.3, D-166).
 """
 struct PinnedState <: AbstractComponent end
 
 init_x(::PinnedState) = (q = 0.0,)
 output_types(::PinnedState, ::Type{T}) where {T <: Real} = (q = Float64,)
+output_state(::PinnedState, (; x)) = (q = x.q,)
 state_derivative(::PinnedState, (; x)) = (q = 0.0,)
 
 """The same name at a type no store holds: not published, and `DeclaredNotProduced`."""
@@ -119,27 +121,20 @@ init_x(::WrongTyped) = (q = 0.0,)
 output_types(::WrongTyped, ::Type{T}) where {T <: Real} = (q = Int,)
 state_derivative(::WrongTyped, (; x)) = (q = 0.0,)
 
-"""A stage-2 return of a publishable name: two writers of one cell (§8.3)."""
+"""One port returned from both stages: two writers of one cell (§8.3)."""
 struct Twice <: AbstractComponent end
 
 init_x(::Twice) = (q = 0.0,)
 output_types(::Twice, ::Type{T}) where {T <: Real} = (q = T,)
+output_state(::Twice, (; x)) = (q = x.q,)
 output_direct(::Twice, (; x)) = (q = x.q,)
 state_derivative(::Twice, (; x)) = (q = 0.0,)
 
-"""The same from stage 1, which is legal: the stage runs and nothing is published."""
-struct TwiceState <: AbstractComponent end
-
-init_x(::TwiceState) = (q = 0.0,)
-output_types(::TwiceState, ::Type{T}) where {T <: Real} = (q = T,)
-output_state(::TwiceState, (; x)) = (q = x.q,)
-state_derivative(::TwiceState, (; x)) = (q = 0.0,)
-
 """
 A stage-2 product named after a mode field the store holds at *another* type,
-beside a publishable state field. The classification is structural and names
-only (§9.1 Stratum B), so the non-nominal set is the nominal's: `flag` is a
-stage-2 product at every activation, never a failed publication.
+beside a declared state field no stage returns. The classification is structural
+and names only (§9.1 Stratum B), so `flag` is a stage-2 product at every
+activation, over a non-empty product list.
 """
 struct ModeNamedProduct <: AbstractComponent end
 
@@ -566,35 +561,22 @@ overload_handler(::Overload, (; m)) = (m = (tripped = true,),)
 state_events(::Overload) = (trip = StateEvent(overload_guard, overload_handler),)
 
 """
-`Overload` with its `output_state` removed: `tripped` is a mode field the
-framework publishes from `m` instead (§5.3). The component runs no stage at
-all, so the only thing that can move its cell is the boundary sweep — which is
-exactly D-154's coherence, the handler's round being followed by a sweep before
-anything is published.
+`Overload` with its `output_state` removed: `tripped` is a mode field declared
+public that no stage returns (§5.3, D-252), so the component runs no stage at
+all.
 """
-struct AutoOverload <: AbstractComponent
+struct UnreturnedMode <: AbstractComponent
     level::Float64
 end
 
-init_m(::AutoOverload) = (tripped = false,)
-input_types(::AutoOverload, ::Type{T}) where {T <: Real} = (sig = T,)
-output_types(::AutoOverload, ::Type{T}) where {T <: Real} = (tripped = Bool,)
+init_m(::UnreturnedMode) = (tripped = false,)
+input_types(::UnreturnedMode, ::Type{T}) where {T <: Real} = (sig = T,)
+output_types(::UnreturnedMode, ::Type{T}) where {T <: Real} = (tripped = Bool,)
 
-auto_overload_guard(c::AutoOverload, (; u)) = u.sig - c.level
-auto_overload_handler(::AutoOverload, (; m)) = (m = (tripped = true,),)
-state_events(::AutoOverload) =
-    (trip = StateEvent(auto_overload_guard, auto_overload_handler),)
-
-"""
-    auto_overloaded()
-
-`overloaded()`'s wiring (`test_lifecycle.jl`) over the auto-publishing monitor:
-the sawtooth crosses the level mid-frame and the run stops at the crossing's
-`t*` boundary, with `tripped` reaching the face through publication alone.
-"""
-auto_overloaded() = Group((; src = Sawtooth(1.0), mon = AutoOverload(0.315));
-                          wires = ("src/q" => "mon/sig",),
-                          outputs = ("mon/tripped" => "tripped",))
+unreturned_mode_guard(c::UnreturnedMode, (; u)) = u.sig - c.level
+unreturned_mode_handler(::UnreturnedMode, (; m)) = (m = (tripped = true,),)
+state_events(::UnreturnedMode) =
+    (trip = StateEvent(unreturned_mode_guard, unreturned_mode_handler),)
 
 """
 Exploder: the §13.6 specimen — `q̇ = 1` until its `arm` input goes true, then
@@ -858,19 +840,18 @@ function feedback_model(; k = 4.0, ω = 2.0, ζ = 0.1, q₀ = SVector(0.0, 0.0),
 end
 
 """
-    auto_feedback_model(; k)
+    vector_feedback_model(; k)
 
-The same closed loop through an **auto-published** port: `AutoPlant` publishes
-its whole state vector from the store, `StateFeedback` reads it and feeds the
-plant back. No `output_state` runs anywhere in it, and the loop is still legal —
-an auto-published cell is written at stage-1 position, so it carries no input
-dependence and adds no edge (§5.3, D-169).
+The same closed loop through a **stage-1 port**, an `SVector` one: `VectorPlant`
+returns its whole state vector from `output_state`, `StateFeedback` reads it and
+feeds the plant back. A stage-1 port carries no input dependence, so the loop
+adds no edge and is legal (§5.3, §5.5).
 
 With `ref = 0` this is `feedback_model(; k)`'s loop with `Sum` and `Gain` fused,
 so the two trajectories agree step for step.
 """
-auto_feedback_model(; k = 4.0, ω = 2.0, ζ = 0.1, q₀ = SVector(0.0, 0.0)) =
-    Group((plant = AutoPlant(; ω, ζ, q₀), fb = StateFeedback(k));
+vector_feedback_model(; k = 4.0, ω = 2.0, ζ = 0.1, q₀ = SVector(0.0, 0.0)) =
+    Group((plant = VectorPlant(; ω, ζ, q₀), fb = StateFeedback(k));
           wires = ("plant/q" => "fb/q", "fb/u" => "plant/u"),
           outputs = ("plant/q" => "q",))
 
@@ -1219,15 +1200,16 @@ output_direct(::GearReader, (; u)) = (drag = u.gear === down ? 2 * u.x : u.x,
                                       code = Int(u.gear))
 
 """
-An enum mode declared public and produced by no stage: §5.3's auto-publication,
-which is §7.5's remedy for the missing event stream.
+An enum mode declared public and returned from stage 1: §7.5's remedy for the
+missing event stream is declaring the mode field public, which the return
+delivers.
 """
 struct GearMode <: AbstractComponent end
 
 init_m(::GearMode) = (gear = up,)
 output_types(::GearMode, ::Type{T}) where {T <: Real} = (gear = Gear, y = T)
 
-output_state(::GearMode, (; m)) = (y = m.gear === up ? 0.0 : 1.0,)
+output_state(::GearMode, (; m)) = (gear = m.gear, y = m.gear === up ? 0.0 : 1.0)
 
 """A discrete producer of a `Symbol` port, the idiomatic label of §7.3."""
 struct PhaseSelector <: AbstractComponent end
@@ -1246,13 +1228,16 @@ output_types(::PhaseReader, ::Type{T}) where {T <: Real} = (armed = Bool,)
 
 output_direct(::PhaseReader, (; u)) = (armed = u.phase === :armed,)
 
-"""A `Symbol` mode declared public: §7.5's remedy on the idiomatic label."""
+"""
+A `Symbol` mode declared public and returned from stage 1: §7.5's remedy on the
+idiomatic label.
+"""
 struct PhaseMode <: AbstractComponent end
 
 init_m(::PhaseMode) = (phase = :idle,)
 output_types(::PhaseMode, ::Type{T}) where {T <: Real} = (phase = Symbol, y = T)
 
-output_state(::PhaseMode, (; m)) = (y = m.phase === :idle ? 0.0 : 1.0,)
+output_state(::PhaseMode, (; m)) = (phase = m.phase, y = m.phase === :idle ? 0.0 : 1.0)
 
 # --- the periphery's coverage set: devices and bindings (§11.3, §11.6) ----------
 

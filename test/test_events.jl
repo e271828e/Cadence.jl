@@ -289,14 +289,16 @@ function test_events()
         @test @ballocated(boundary!($simr, 1)) == 0
     end
 
-    @testset "a handler's mode flip reaches its published cell (§5.3, D-154)" begin
-        # `AutoOverload` runs no stage at all: `tripped` reaches the face by
-        # publication alone. The table is written by sweeps and by nothing else
-        # (D-154), so the handler's round is followed by a sweep before anything
-        # is read — which is why the cell and the store agree at the boundary,
-        # and why the snapshot taken there already carries the flip.
-        sim = Simulation(auto_overloaded(); h = 1//10, t_end = 5.0,
-                         stop_on = ("tripped",))
+    @testset "a handler's mode flip reaches its cell through the next sweep (§5.3, D-154)" begin
+        # `Overload` returns `tripped` from stage 1. The table is written by
+        # sweeps and by nothing else (D-154), so the handler's round is followed
+        # by a sweep before anything is read — which is why the cell and the
+        # store agree at the boundary, and why the snapshot taken there already
+        # carries the flip.
+        sim = Simulation(Group((; src = Sawtooth(1.0), mon = Overload(0.315));
+                               wires = ("src/q" => "mon/sig",),
+                               outputs = ("mon/tripped" => "tripped",));
+                         h = 1//10, t_end = 5.0, stop_on = ("tripped",))
         init!(sim)
         @test port(sim, "mon", :tripped) === false       # before the crossing
         run!(sim)

@@ -57,15 +57,16 @@ function continuous_skeleton()
 
 end
 
-# --- auto-published cells at runtime (§5.3, D-016, D-169) ---------------------
+# --- stage-1 returns of store fields at runtime (§5.3, D-163) -----------------
 # `build.jl`'s file owns the classification; what is asserted here is what the
 # cells *hold* once the loop runs them — the store's own value, at every reader.
 
-function continuous_auto_publication()
-    @testset "a published cell carries the store, not an integration (§5.3, D-163)" begin
+function continuous_state_return()
+    @testset "a stage-1 port returning a store field carries the store, not an integration (§5.3, D-163)" begin
         # Non-default stores first, because the probe seed already wrote the
         # declared initials into these cells: only a value the seed could not
-        # have left shows that boundary zero's `ESTABLISH` round published them.
+        # have left shows that boundary zero's `ESTABLISH` round ran
+        # `output_state` over the authored stores.
         seeded = Simulation(fed(Motor(1.0), "M_load"); h = 1//100)
         init!(seeded, combine(at("c", fragment(x = (ω = 3.0,), m = (running = true,))),
                               fragment(inputs = (in = 0.0,))))
@@ -76,7 +77,8 @@ function continuous_auto_publication()
         # A root input must be covered at `init!` (§14.6, `UninitializedInputs`),
         # and `M_load = 0` is what makes the closed form below exact.
         init!(sim, fragment(inputs = (in = 0.0,)))
-        # Boundary zero's `ESTABLISH` round published the authored stores.
+        # Boundary zero's `ESTABLISH` round ran `output_state` over the
+        # authored stores.
         @test port(sim, "c", :ω) == 0.0
         @test port(sim, "c", :running) === false
 
@@ -93,18 +95,19 @@ function continuous_auto_publication()
         # integration of it (D-163's stamp exception).
         @test port(sim, "c", :ω) == state(sim, "c").ω
         @test port(sim, "c", :running) === modes(sim, "c").running
-        # A cell is a cell: the snapshot carries the published one (§11.2).
+        # A cell is a cell: the snapshot carries this one like any other (§11.2).
         @test port(latest(sim), "c", :ω) == state(sim, "c").ω
         @test port(latest(sim), "c", :running) === true
     end
 
-    @testset "a loop closed through a published port integrates alike (§5.3, D-169)" begin
-        # `AutoPlant` publishes its whole state vector and `StateFeedback` reads
-        # it; `feedback_model` closes the same loop through `Sum` and `Gain`
-        # with `ref = 0`. Both start off the origin — at `q₀ = 0` and `ref = 0`
-        # both trajectories are identically zero and the comparison is vacuous.
+    @testset "a loop closed through a state-vector port integrates like the scalar one (§5.3)" begin
+        # `VectorPlant` returns its whole state vector from stage 1 and
+        # `StateFeedback` reads it; `feedback_model` closes the same loop through
+        # `Sum` and `Gain` with `ref = 0`. Both start off the origin — at
+        # `q₀ = 0` and `ref = 0` both trajectories are identically zero and the
+        # comparison is vacuous.
         q₀ = SVector(1.0, 0.0)
-        a = Simulation(auto_feedback_model(; k = 4.0, q₀); h = 1//100)
+        a = Simulation(vector_feedback_model(; k = 4.0, q₀); h = 1//100)
         f = Simulation(feedback_model(; k = 4.0, q₀); h = 1//100)
         init!(a)
         init!(f, fragment(inputs = (ref = 0.0,)))
@@ -119,5 +122,5 @@ end
 
 function test_continuous()
     continuous_skeleton()
-    continuous_auto_publication()
+    continuous_state_return()
 end

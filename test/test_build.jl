@@ -310,43 +310,38 @@ function build_algebraic_cycles()
     end
 end
 
-# --- auto-published ports (§5.3, §8.3, D-016, D-169) --------------------------
+# --- the two port classes (§5.3, §8.3, §9.1, D-252) ---------------------------
 # The classification alone is here, being what the schedule is built from; the
 # runtime properties of the cells it opens belong to the tiers' own files.
 
-function build_auto_publication()
-    @testset "a declared state or mode field no stage produces is published (§5.3)" begin
-        # §8.2's own worked engine: `ω` from `init_x`, `running` from `init_m`,
-        # neither returned by any stage, `M_shaft` the one stage-2 product. The
-        # products' order is the invariant every downstream reader takes its
-        # stage-2 tail off — stage 1, then published, then stage 2.
+function build_port_classes()
+    @testset "a state or mode field is exposed by returning it from stage 1 (§5.3, D-252)" begin
+        # §8.2's own worked engine: `ω` from `init_x` and `running` from
+        # `init_m`, both returned by `output_state`, `M_shaft` the one stage-2
+        # product. The products' order is the invariant every downstream reader
+        # takes its stage-2 tail off — stage 1, then stage 2.
         b = build(fed(Motor(1.0), "M_load"))
         i = index_of(b.flat, "c")
-        @test b.nominal.stage1[i] === NamedTuple()
-        @test keys(b.nominal.published[i]) === (:ω, :running)
+        @test keys(b.nominal.stage1[i]) === (:ω, :running)
+        @test b.nominal.published[i] === NamedTuple()
         @test keys(b.nominal.products[i]) === (:ω, :running, :M_shaft)
-        # D-169: the hand-down carries the stage-1 *return*, so a component
-        # whose only stage-1-position ports are published gets no `y_x` at all.
+        # The hand-down carries the stage-1 return, so stage 2 reads both off
+        # `y_x` rather than re-deriving them.
         @test bundle_names(output_direct, Motor(1.0), CONTINUOUS,
-                           tuple(keys(b.nominal.stage1[i])...)) === (:x, :m, :u, :t)
+                           tuple(keys(b.nominal.stage1[i])...)) === (:x, :m, :u, :y_x, :t)
     end
 
-    @testset "a loop closes through an auto-published port (§5.3, §5.5, D-169)" begin
-        # The cell is written at stage-1 position, so consuming it adds no edge.
-        @test failure(() -> build(auto_feedback_model())) === nothing
+    @testset "a loop closes through a stage-1 port carrying the state vector (§5.3, §5.5)" begin
+        # The port takes no input, so consuming it adds no edge.
+        @test failure(() -> build(vector_feedback_model())) === nothing
         # The exemption is that port's alone: the same loop routed through
         # `power`, a genuine stage-2 product, is still an algebraic cycle.
         d = only(diagnostics(failure(() -> build(
-            Group((plant = AutoPlant(), fb = StateFeedback(1.0), g = Gain(1.0));
+            Group((plant = VectorPlant(), fb = StateFeedback(1.0), g = Gain(1.0));
                   wires = ("plant/q" => "fb/q", "plant/power" => "g/e",
                            "g/out" => "plant/u"))))))
         @test d.members == ["plant", "g"]
         @test d.wires == ["plant/power" => "g/e", "g/out" => "plant/u"]
-    end
-
-    @testset "the discrete tier publishes from `init_s` (§5.3)" begin
-        b = build(single(AutoCounter()))
-        @test b.nominal.published[index_of(b.flat, "c")] == (n = 0,)
     end
 
     @testset "publication is by name *and* type (§5.3, §8.3)" begin
@@ -357,33 +352,18 @@ function build_auto_publication()
               d.state_fields == [:q]
     end
 
-    @testset "stage-1 position is one writer's: a stage's or the framework's (§8.3)" begin
+    @testset "a port is produced by one stage (§8.3)" begin
         d = carried(@test_throws DiagnosticError{ProducedByTwoStages} build(single(Twice())))
-        @test d.ports == [:q] && d.producers == [:auto_publication]
-        # Returned from stage 1 instead, the same port is the stage's outright.
-        b = build(single(TwiceState()))
-        i = index_of(b.flat, "c")
-        @test b.nominal.stage1[i] == (q = 0.0,)
-        @test b.nominal.published[i] === NamedTuple()
+        @test d.ports == [:q] && d.producers == [:output_state]
     end
 
-    @testset "the non-nominal set is the nominal's, by name (§9.1, §5.3)" begin
-        # `flag` names a mode field the store holds as an `Int` and is a genuine
-        # stage-2 product. Re-deriving membership at the walking activation would
-        # meet it there and report a publication that was never classified as one.
-        b = build(single(ModeNamedProduct()))
-        i = index_of(b.flat, "c")
-        @test keys(b.nominal.published[i]) === (:q,)
-        @test keys(activation(b, D8).published[i]) === (:q,)
-    end
-
-    @testset "a pinned declaration of a walking field is refused, not stripped (§5.3, D-166)" begin
-        # The set is fixed by the nominal activation, where the type test is
-        # exact; at the walking one the port no longer embeds, and publishing it
-        # stripped would be a stop-gradient the author never wrote.
+    @testset "a pinned declaration of a walking field is refused at the stage-1 port check (§9.5, D-166)" begin
+        # At the nominal activation the type test is exact; at the walking one
+        # the returned port no longer embeds, and taking it stripped would be a
+        # stop-gradient the author never wrote.
         b = build(single(PinnedState()))
         d = only(diagnostics(failure(() -> activation(b, D8))))
-        @test d isa ConformanceFailure && d.what == "auto-publication" &&
+        @test d isa ConformanceFailure && d.what == "output_state" &&
               d.reason === :field_type && d.field === :q &&
               d.observed === D8 && d.declared === Float64
     end
@@ -1158,11 +1138,11 @@ function build_label_ports()
         @test port(sim, "rd", :code) == 2
     end
 
-    @testset "an enum mode is auto-published (§5.3, §7.5)" begin
+    @testset "an enum mode is returned from stage 1 (§7.5)" begin
         b = build(single(GearMode()))
         i = index_of(b.flat, "c")
-        @test b.nominal.published[i] === (gear = up,)
-        @test keys(activation(b, D8).published[i]) === (:gear,)
+        @test b.nominal.stage1[i] === (gear = up, y = 0.0)
+        @test keys(activation(b, D8).stage1[i]) === (:gear, :y)
         sim = Simulation(b, D8; h = 1//10)
         @test port(sim, "c", :gear) === up
     end
@@ -1176,9 +1156,9 @@ function build_label_ports()
         run!(sim; t_end = 0.1)
         @test port(sim, "sel", :phase) === :armed && port(sim, "rd", :armed)
 
-        # The mode label publishes (§7.5's remedy on the idiomatic label).
+        # The mode label is returned (§7.5's remedy on the idiomatic label).
         b = build(single(PhaseMode()))
-        @test b.nominal.published[index_of(b.flat, "c")] === (phase = :idle,)
+        @test b.nominal.stage1[index_of(b.flat, "c")] === (phase = :idle, y = 0.0)
 
         # At a root input the leaf has no synthesis, so the refusal is the
         # opaque leaf's, ahead of `probe_value`.
@@ -1539,7 +1519,7 @@ function test_build()
     build_user_code_framing()
     build_schedule()
     build_algebraic_cycles()
-    build_auto_publication()
+    build_port_classes()
     build_root_input_type()
     build_wire_clauses()
     build_port_type_refusals()

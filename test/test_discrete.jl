@@ -67,35 +67,6 @@ function discrete_one_rate()
         @test port(sim, "plant", :y) != y₀
     end
 
-    @testset "the discrete tier publishes `s` from the store (§5.3, §10.5)" begin
-        # `AutoCounter` declares `n` and runs no output stage, so the framework
-        # publishes it from `init_s`'s store at stage-1 position.
-        sim = Simulation(single(AutoCounter()); h = 1//10)
-        # A non-default store, because the probe seed already wrote `init_s`'s
-        # own `0` into the cell: only a value the seed could not have left shows
-        # that boundary zero's `ESTABLISH` round published it.
-        init!(sim, at("c", fragment(s = (n = 7,))))
-        @test port(sim, "c", :n) == 7
-        run!(sim; t_end = 0.3)
-        # The same sampled-data gap the ZOH test asserts above: the cell holds
-        # what the boundary's sweep published, the store what its update left.
-        @test port(sim, "c", :n) == 10
-        @test state(sim, "c").n == 11
-
-        # A discrete component is frozen at a walking activation (§9.4), so no
-        # entry of any kind is compiled for it — publication included — and the
-        # cell keeps the nominal probe's seed.
-        simd = Simulation(build(single(AutoCounter())), D8; h = 1//10)
-        @test !any(e -> e isa PublishEntry, walked(simd.exec.bodies.sweep_1))
-        init!(simd, at("c", fragment(s = (n = 7,))))
-        run!(simd; t_end = 0.3)
-        # The authored store reaches the store and nothing else: no entry
-        # publishes it and none updates it, so the store keeps what `init!`
-        # wrote while the cell still holds what the nominal probe seeded.
-        @test port(simd, "c", :n) == 0
-        @test state(simd, "c").n == 7
-    end
-
 end
 
 function discrete_frozen_activation()
