@@ -206,7 +206,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | feedthrough tracer | g-feedthrough-tracer | 1 | A | the set-propagation instrument classifying a rejected cycle |
 | kind | g-kind | 3 | B | a diagnostic's identity in the closed Appendix C set |
 | payload | g-payload | 6 | B | the structured data a diagnostic carries beside its kind |
-| `stop_on` / termination is a state | g-stop_on | 1 | B | the deployment policy naming the faces the loop reads |
+| `stop_on` / termination is a state | g-stop_on | 1 | B | the per-advance keyword naming the faces the loop reads |
 
 ## D.10 Meta-vocabulary
 

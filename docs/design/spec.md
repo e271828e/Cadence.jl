@@ -3084,9 +3084,9 @@ everything the instance alone fixes), and that is its whole product
 `Structure` carries the components by path with their class and contracts,
 the [tier](#g-tier) each one sits on, the resolved wires, the two-sided face table
 with each face's routing chain, the [root inputs](#g-root-input), per component
-the declaration provenance as its `Relative`/`Absolute` chain, and each
-assembly's scope triple under the explicit `sample_times` key that declared
-it. Nothing in it depends on a scalar type.
+the declaration provenance as its `Relative`/`Absolute` chain, and, for each
+assembly that declares one, its scope triple under that `sample_times` key.
+Nothing in it depends on a scalar type.
 
 #### Stratum B: execution order
 
@@ -3146,10 +3146,10 @@ this stratum* ([§9.4][s9-4]).
 
 **The `Deployment` constructor sits after all three strata.** It consumes the
 `Build` and the grid parameters, and it returns a [`Deployment`](#g-deployment),
-the artifact that carries everything those parameters fix ([D-254][d-254]). It binds
-`Δt_base`, `h`, `N_base`, the algorithm, `localization_tol`,
-`localization_budget` and `firing_budget`, runs harmonic-grid validation, and
-builds the [schedule](#g-schedule). Nothing in A–C depends on it.
+the artifact that carries everything those parameters fix ([D-254][d-254]). It
+binds the grid parameters, the algorithm, the three event parameters, runs
+harmonic-grid validation, and builds the [schedule](#g-schedule). Nothing in
+A–C depends on it.
 
 A `Deployment` is scalar-free. It holds the build, the grid parameters, the
 three event parameters, the `Schedule`, the grid diagnostics below and its own
@@ -3233,7 +3233,8 @@ dictionary keyed by scalar type, the nominal `Float64` entry included, under
 the lock that makes insertion torn-state-free ([§9.4][s9-4]).
 
 **Deploying and materializing are two steps, with two sugar forms over them.**
-The `Deployment` constructor takes a `Build` and the grid parameters
+The constructor of a [`Deployment`](#g-deployment) (the scalar-free artifact
+the grid parameters fix) takes a `Build` and the grid parameters
 ([§9.1][s9-1]). `Simulation(deployment, T)` materializes a deployment at a scalar
 type. `Simulation(build; kw...)` composes those two, and `Simulation(world;
 kw...)` calls `build` first ([D-254][d-254]). The artifact deployed is the very
@@ -3253,8 +3254,10 @@ artifact is the lazily populated activation dictionary, whose insertion
 [§9.4][s9-4] makes torn-state-free. The `Build` is the inspectable derived
 contract of the instantiation that [§8.8][s8-8] gestures at. Its parts hold the
 wire list, face table, [root inputs](#g-root-input) and [execution order](#g-execution-order)
-as plain printable data, the first three on `Structure` and the last on
-`Dataflow` beside the port classes. "Printable" names the
+as plain printable data. The first three sit on [`Structure`](#g-structure)
+(Stratum A's product, the components, wires, faces and tiers). The last sits
+on [`Dataflow`](#g-dataflow) (Stratum B's product, the port name sets and
+edges), beside the port classes. "Printable" names the
 representation. Paths, names and rationals are inspectable as fields and
 printed by any REPL without a method of their own, the diagnostic form set
 against the compiled form ([§9.7][s9-7]).
@@ -3285,9 +3288,10 @@ divisors cannot live here. They do not exist until `Δt_base` binds, and the
 same `Build` already backs many deployments with different grid
 parameters.
 
-**The `Schedule` lives on the `Deployment`** ([D-254][d-254]). The `Deployment`
+**The [`Schedule`](#g-schedule) (the typed per-component `(D, Φ, Δt)` tick
+table) lives on the `Deployment`** ([D-254][d-254]). The `Deployment`
 constructor ([§9.1][s9-1]) builds it from the structure's triples and anchors.
-It is the typed [schedule](#g-schedule): one row per discrete component carrying
+It is the typed schedule: one row per discrete component carrying
 `(D, Φ, Δt)` with the anchor and provenance columns, the [rate-scope](#g-rate-scope)
 rows (an assembly's `sample_times` declaration against the enclosing scope)
 each with its own `(Dₛ, Φₛ)`, and the `D`, `Φ` and `Δt` vectors the executor
@@ -3729,9 +3733,10 @@ near-verbatim:
 ### 9.7 The compiled executor
 
 The [execution order](#g-execution-order) exists in two representations at two lifecycle stages. On
-the `Dataflow` it is plain printable data ([§9.2][s9-2]), paths, stage names and order,
-which is the authoring and diagnostic form. The executor compiles from that
-order ([D-253][d-253]). At `Simulation` construction, and
+[`Dataflow`](#g-dataflow) (Stratum B's product, the port name sets and edges)
+it is plain printable data ([§9.2][s9-2]), paths, stage names and order, which
+is the authoring and diagnostic form. The executor compiles from that order
+([D-253][d-253]). At `Simulation` construction, and
 per [activation](#g-activation) (a re-run of Stratum C at a given scalar type), that data
 is compiled into the execution form: **a concretely-typed tuple of entries
 over statically typed [cell](#g-cell) storage, traversed by a compile-time-unrolled
@@ -5789,9 +5794,10 @@ without the root inputs. The init/trim services own root-input
 initialization ([§14.6][s14-6]), and the header capture extends naturally.
 The header carries one further thing.
 
-- **The run's `Deployment` and `t₀`.** The deployment is the artifact of
-  [§9.1][s9-1], and it carries `Δt_base`, `h`, `N_base`, the algorithm
-  identifier, `localization_tol`, `localization_budget` ([§10.4][s10-4]) and
+- **The run's `Deployment` and `t₀`.** The [deployment](#g-deployment) (the
+  scalar-free artifact the grid parameters fix) comes from [§9.1][s9-1], and it
+  carries `Δt_base`, `h`, `N_base`, the algorithm identifier,
+  `localization_tol`, `localization_budget` ([§10.4][s10-4]) and
   `firing_budget` ([§10.6][s10-6]). It is captured at the same instant as the
   stores. It holds no policy ([D-255][d-255]). `t_end` and `stop_on` are
   keywords of each advance ([§13.5][s13-5]), and only the terminating advance's
@@ -6330,10 +6336,10 @@ body via `report!(handle, …)`, [§11.6][s11-6]), and by the loop itself
 They are written at `attach!` too, into the roster entry being created
 (`EmptyGreedyClaim`, [§11.3][s11-3]). `attach!` mutates the roster, so its
 warning lives in the roster's status rather than on an artifact
-([D-250][d-250]). They are read by the
-loop, which folds them into the published
-[framework status](#g-framework-status) ([§11.2][s11-2]) and hence into every
-[snapshot](#g-snapshot). An unspecified structure with those writers is
+([D-250][d-250]). The device's task does not exist until `run!`, so that cell
+has no other writer yet. They are read by the loop, which folds them into the
+published [framework status](#g-framework-status) ([§11.2][s11-2]) and hence
+into every [snapshot](#g-snapshot). An unspecified structure with those writers is
 exactly the arbitrary shared mutable state the two rules ([§11.1][s11-1])
 exist to eliminate, so it gets the mechanism [§11.4][s11-4] already
 established, not one of its own.
@@ -6486,11 +6492,11 @@ tail. It lands in the [termination record](#g-termination-record)'s
 policy is what the caller declares for one advance ([§13.5][s13-5]); the stop
 word is what anyone can issue at any moment.
 
-**`Control` holds the stop word, the lifecycle state and the wait, and the
-shutdown tail's `join_timeout`** ([§12.4][s12-4], [D-256][d-256]). A run's
-outcome is not a control surface, so `termination` belongs to the `Run`
-([§12.6][s12-6], [D-255][d-255]) and not here. The control plane is what anyone
-may poke.
+**Beside pause, pace and `margin`, `Control` keeps the stop word, the
+lifecycle state, the wait and the shutdown tail's `join_timeout`**
+([§12.4][s12-4], [D-256][d-256]). A run's outcome is not a control surface, so
+`termination` belongs to the `Run` ([§12.6][s12-6], [D-255][d-255]) and not
+here. The control plane is what anyone may poke.
 
 **Control is not staging, structurally.** Staged writes apply at
 [drains](#g-drain), and a paused loop drains nothing, so un-pause via staging
@@ -6899,13 +6905,14 @@ boundary-consistent. It is fully serviceable by the [§14][s14] stopped-sim
 services and resumable by the next `run!` ([§12.6][s12-6]).
 
 The interrupt is the escape from a run nothing else can end. Such a run is
-deviceless, with no finite `t_end` and no `stop_on` faces. That is the
-configuration the `UnboundedRun` warning names ([Appendix C][sC]).
-The interrupt needs no entry point of its own. The stop already rides on the
-[control plane](#g-control-plane), the separate atomic surface carrying
-pause, pace and stop ([§12.1][s12-1]). The exceptions-are-abnormal doctrine
-([§13][s13]) is untouched. That doctrine is about *model* code, while this
-is the one exception whose meaning the framework knows.
+deviceless, and it declares no stop of its own. A run with no finite `t_end`
+and no `stop_on` faces is the configuration `UnboundedRun` names
+([Appendix C][sC]). The interrupt needs no entry point of its own. The stop
+already rides on the [control plane](#g-control-plane), the separate atomic
+surface carrying pause, pace and stop ([§12.1][s12-1]). The
+exceptions-are-abnormal doctrine ([§13][s13]) is untouched. That doctrine is
+about *model* code, while this is the one exception whose meaning the
+framework knows.
 
 **Rule.** Masking across the boundary is normative, not an implementation
 hint.
@@ -7024,15 +7031,17 @@ and never `nothing`, so every accessor has a run to read, and the lifecycle
 state below says whether that run ever started. `init!` allocates fresh objects
 rather than clearing them.
 
-**`Simulation` is a mutable struct of six fields**, the build, the deployment,
-the [executor](#g-executor), the run, the data plane and the
-[control plane](#g-control-plane) ([D-256][d-256]). Every other value belongs to
-one of the six. The grid parameters, the [schedule](#g-schedule) and the event
-parameters are the deployment's ([§9.1][s9-1]). `chunk_size`, the
-stepper and the arrival buffers are the executor's. `join_timeout`
-is `Control`'s ([§12.1][s12-1]). The loop's [diagnostic cell](#g-diagnostic-cell),
-its account and the published holder are the plane's ([§11.8][s11-8]). `t_end`,
-`stop_on`, the policy, the log and the trace are the run's.
+**`Simulation` is a mutable struct of six fields**, the build, the
+[deployment](#g-deployment) (the scalar-free artifact the grid parameters
+fix), the [executor](#g-executor), the run, the data plane and the
+[control plane](#g-control-plane) ([D-256][d-256]). Every other value belongs
+to one of the six. The grid parameters, the [schedule](#g-schedule) (the typed
+per-component `(D, Φ, Δt)` tick table) and the event parameters are the
+deployment's ([§9.1][s9-1]). `chunk_size`, the stepper and the arrival buffers
+are the executor's. `join_timeout` is `Control`'s ([§12.1][s12-1]). The loop's
+[diagnostic cell](#g-diagnostic-cell), its account and the published holder
+are the plane's ([§11.8][s11-8]). The stop policy, with its `t_end` and stop
+faces, the log and the trace are the run's.
 
 A `Simulation` moves through five states: **built**, **initialized**,
 **running**, and terminally **stopped** or **errored** ([§13.4][s13-4]).
@@ -7169,9 +7178,11 @@ therefore affected.
 
 **The stop policy is declared per advance.** `t_end` and `stop_on` are
 keywords of `run!`, `replay!` and `step!`, and each call builds and validates
-the `StopPolicy` it binds on the run ([§13.5][s13-5], [D-255][d-255]). A second
-run, or a `step!` sequence between two runs, can therefore stop on a different
-clock or a different face set without a rebuild.
+the [`StopPolicy`](#g-stop-policy) (the immutable `t_end`-plus-stop-faces
+value an advance declares) it binds on the run ([§13.5][s13-5],
+[D-255][d-255]). A second run, or a `step!` sequence between two runs, can
+therefore stop on a different clock or a different face set without a
+rebuild.
 
 **`errored` is terminal** ([D-059][d-059]). Reproduction is trace replay
 ([§12.7][s12-7]), not resurrection.
@@ -7333,9 +7344,10 @@ Everything else is the loop as already specified:
   validated against the `Build` (store layout, root input
   [faces](#g-face)), the trace's batch entries against the root input-face
   list, and each batch's frame ordinal against the recording's length
-  ([D-217][d-217]). Each writer's face-name → position schema
-  ([§11.5][s11-5]) is **validated** in the same pass. A recorded schema that
-  disagrees with the target model's own root-input faces is a replay error.
+  ([D-217][d-217]). Each writer's face-name → position schema, on the trace's
+  `schemas` list ([§11.5][s11-5]), is **validated** in the same pass. A
+  recorded schema that disagrees with the target model's own root-input faces
+  is a replay error.
   The checks are attach-style, and a failure reports
   [did-you-mean](#g-did-you-mean): the offending name plus the list-in-hand
   it should have matched. The kinds are `ReplayHeaderMismatch`,
@@ -7343,7 +7355,7 @@ Everything else is the loop as already specified:
 
   The same pass pays the trace-record conversion in reverse. Every writer's
   sparse records ([§11.5][s11-5]) are normalized to positional batches
-  against the header's schemas, once, off the loop. Replay has the whole
+  against the trace's `schemas` list, once, off the loop. Replay has the whole
   trace in hand before frame 1. The replay drain therefore applies compiled
   scatters exactly as the live drain does, and no face name is resolved per
   frame under replay either.
@@ -7356,9 +7368,10 @@ Everything else is the loop as already specified:
   determinism, never reproduction.
 
   **The header check compares two deployments as values** ([D-254][d-254]).
-  The header carries the recorded run's `Deployment` ([§11.5][s11-5]), the
-  target `Simulation` carries its own, and the check is their comparison, on
-  the *structural* side of that line. The trajectory-determining parameters it
+  The header carries the recorded run's [`Deployment`](#g-deployment) (the
+  scalar-free artifact the grid parameters fix), the target `Simulation`
+  carries its own, and the check is their comparison, on the *structural* side
+  of that line ([§11.5][s11-5]). The trajectory-determining parameters it
   covers are `Δt_base`, `h`, `N_base`, the algorithm, `localization_tol`,
   `localization_budget` ([§10.4][s10-4]) and `firing_budget`
   ([§10.6][s10-6]). Mismatch is
@@ -7376,13 +7389,13 @@ Everything else is the loop as already specified:
   policy ([D-255][d-255]). `t_end` and `stop_on` are keywords of this
   `replay!` call, validated per call as at `run!`.
 
-The dispositions, by header content:
+The dispositions, by trace content:
 
-| header content | disposition |
+| trace content | disposition |
 |---|---|
 | store layout, root-input faces | compared against the `Build` |
 | the recorded `Deployment`, carrying `Δt_base`, `h`, `N_base`, the algorithm, `localization_tol`, `localization_budget`, `firing_budget` | compared as a value against the target `Simulation`'s own deployment |
-| each writer's face-name → position schema | validated against the target model's root-input faces: disagreement is a replay error |
+| each writer's face-name → position schema (on the trace's `schemas` list) | validated against the target model's root-input faces: disagreement is a replay error |
 | resolved stores, root-input values | applied directly at boundary zero |
 | `t₀` | applied; `replay!` takes no `t0` argument |
 | `t_end`, `stop_on` | absent from the header; each `replay!` call declares its own ([§13.5][s13-5]) |
@@ -7751,8 +7764,9 @@ to be *caught* into existence. The [executor](#g-executor) (the compiled
 form of the stage [execution order](#g-execution-order)) maintains an
 **[execution cursor](#g-execution-cursor)**, a plain mutable field in the loop
 state recording where execution stands in the compiled order. The cursor
-records three facts. The first is the component path, as an index into the
-`Dataflow`'s execution order ([D-253][d-253]). The second is which function is
+records three facts. The first is the component path, an index into the
+execution order that [`Dataflow`](#g-dataflow) (Stratum B's product, the port
+name sets and edges) carries ([D-253][d-253]). The second is which function is
 running: `output_state`,
 `output_direct`, `state_derivative`, `state_update`, a [guard](#g-guard), a handler, or
 `state_projection`. The third is the boundary phase: integration stage *k*,
@@ -8129,8 +8143,12 @@ the declaration site, evaluated at build, and printable. That is the
 down the *rule* and the build evaluates it into inspectable data.
 
 **Every artifact renders itself through `show`** ([§9.2][s9-2],
-[D-257][d-257]). `Structure`, `Dataflow`, `Schedule`, `Build` and `Deployment`
-each have one, and there are no accessor functions returning the tables
+[D-257][d-257]). [`Structure`](#g-structure) (Stratum A's product, the
+components, wires, faces and tiers) has one, and so do
+[`Dataflow`](#g-dataflow) (Stratum B's product, the port name sets and edges),
+[`Schedule`](#g-schedule) (the typed per-component `(D, Φ, Δt)` tick table),
+`Build` and [`Deployment`](#g-deployment) (the scalar-free artifact the grid
+parameters fix). There are no accessor functions returning the tables
 alongside.
 
 **`show(::Structure)` owes [face](#g-face) provenance.** For every root face,
@@ -8493,8 +8511,10 @@ declarations, and it is the authority. It answers whether you may write this
 field, and at what leaf type. **Layout** is the destination. It holds the `x`
 backing ranges, the store indices for `s` and for `m`, and the root-input
 indices from the [activation](#g-activation) (a re-run of Stratum C at a given
-scalar type). The names and the face chains come from `Structure`, never from
-an activation, since no activation fixes them ([§9.1][s9-1], [D-253][d-253]).
+scalar type). The names and the face chains come from
+[`Structure`](#g-structure) (Stratum A's product, the components, wires, faces
+and tiers), never from an activation, since no activation fixes them
+([§9.1][s9-1], [D-253][d-253]).
 
 A valid list compiles to a plan. Per leaf, the plan holds a `Getter{P}`
 [lens](#g-lens) (the compiled navigation step of a condition entry), a
@@ -9884,7 +9904,7 @@ The demo, line by line:
   avionics and systems, and re-routes it at each level below ([§6.1][s6-1]).
   Today's mapping writes flaps/brakes directly into `act`, bypassing avionics.
   That bypass becomes a declared route.
-- `Simulation(world; algorithm = RK4, h = 0.02, N_base = 1, t_end = 1000)`.
+- `Simulation(world; algorithm = RK4, h = 0.02, N_base = 1)`.
   `N_base` binds `Δt_base = N_base·h` ([§10.5][s10-5]). Its default of 1 puts
   a base [tick](#g-tick) on every step. The entire build pipeline runs here:
   [class](#g-class) resolution, path validation, face derivation (computed
@@ -9915,9 +9935,10 @@ The demo, line by line:
   a second joystick on the same faces errors here. The Gladiator variant is
   the same table with different keys and zero shaping code. The duplication
   smell is structurally gone.
-- `run!(sim; gui = true, pace = 1)` makes a [greedy claim](#g-greedy-claim)
-  over every unclaimed face and settles liveness with zero configuration, both
-  at run start against the [frozen roster](#g-roster) ([§11.3][s11-3]). Axis
+- `run!(sim; gui = true, pace = 1, t_end = 1000)` makes a
+  [greedy claim](#g-greedy-claim) over every unclaimed face and settles
+  liveness with zero configuration, both at run start against the
+  [frozen roster](#g-roster) ([§11.3][s11-3]). Axis
   mirrors are read-only (claimed, with provenance). The mode, setpoint,
   mixture, payload and environment widgets are live. Actuator sliders are
   read-only ([component](#g-component)-fed). The `gui` flag's attachment lasts
@@ -10647,14 +10668,16 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 **Build.**
 
 - `build(world) → Build`. Standalone. It yields the inspectable
-  derived-contract artifact, `Structure`, `Dataflow`, `Events`, the
-  activations and `warnings`; the wire list, face table with provenance and
-  root inputs are `Structure`'s and the execution order is `Dataflow`'s
-  ([§9.2][s9-2]). `build(world; activations = (Float64, ProbeDual))`
-  additionally pins activation invariants for CI (`ProbeDual` is the public
-  canonical concrete probe scalar, [§9.4][s9-4]), and pre-materializes
-  activations so a parallel sweep shares a fully immutable `Build`
-  ([§11.1][s11-1], [§9.4][s9-4]).
+  derived-contract artifact, [`Structure`](#g-structure) (Stratum A's product,
+  the components, wires, faces and tiers), [`Dataflow`](#g-dataflow) (Stratum
+  B's product, the port name sets and edges), [`Events`](#g-events) (Stratum
+  B's other product, the event names and policies), the activations and
+  `warnings`; the wire list, face table with provenance and root inputs are
+  `Structure`'s and the execution order is `Dataflow`'s ([§9.2][s9-2]).
+  `build(world; activations = (Float64, ProbeDual))` additionally pins
+  activation invariants for CI (`ProbeDual` is the public canonical concrete
+  probe scalar, [§9.4][s9-4]), and pre-materializes activations so a parallel
+  sweep shares a fully immutable `Build` ([§11.1][s11-1], [§9.4][s9-4]).
 - `resolve(asm, path) → AbstractComponent`. The getfield walk along `/`
   segments. It enforces the one-level rule for wiring ([§6.1][s6-1]) and the
   generic-holding rule for deep reads, at the primitive ([§13.3][s13-3]).
@@ -10673,9 +10696,9 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 
 - `Deployment(build; algorithm = RK4, h, N_base = 1, Δt_base = nothing,
   localization_tol = 1e-6, localization_budget = 8,
-  firing_budget = 4, join_timeout = 5.0,
-  trace = true, log = true, log_every = 1, log_max = 65536) → Deployment`.
-  The artifact the grid parameters fix, scalar-free, carrying the `Schedule`,
+  firing_budget = 4) → Deployment`.
+  The artifact the grid parameters fix, scalar-free, carrying the
+  [`Schedule`](#g-schedule) (the typed per-component `(D, Φ, Δt)` tick table),
   the grid diagnostics and its `warnings` ([§9.1][s9-1], [§9.2][s9-2]).
 
   | keyword | default | meaning | owning section |
@@ -10687,11 +10710,6 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   | `localization_tol` | `1e-6` | the root-finder's relative bracket-width convergence test (`localization_tol · h`) | [§10.4][s10-4] |
   | `localization_budget` | `8` | the per-frame localization allowance | [§10.4][s10-4] |
   | `firing_budget` | `4` | the per-event, per-boundary firing allowance of the event iteration, an integer ≥ 1 | [§10.6][s10-6] |
-  | `join_timeout` | `5.0` | the shutdown tail's join cap, in seconds of wall clock | [§12.4][s12-4] |
-  | `trace` | `true` | the input trace's plain kill switch | [§11.5][s11-5] |
-  | `log` | `true` | the snapshot log's plain kill switch | [§11.2][s11-2] |
-  | `log_every` | `1` | the log's keep-every-kth decimation | [§11.2][s11-2] |
-  | `log_max` | `65536` | the maximum number of retained snapshots, finite by default with `Inf` the opt-out | [§11.2][s11-2] |
 
   `Δt_base` binds from exactly one of three sources ([§9.1][s9-1]). The first
   is the `Δt_base` keyword, a `Rational`, `Period` or `Hz` value; `N_base` is
@@ -10700,8 +10718,9 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   fully anchored model omitting both, is derivation from the constraint pool
   at the coarsest admissible value, printed with its drivers ([§9.2][s9-2]).
 
-  The deployment binds no stop policy. `t_end` and `stop_on` are keywords of
-  each advance ([§13.5][s13-5]). A run ends at the first grid boundary
+  The [deployment](#g-deployment) (the scalar-free artifact the grid parameters
+  fix) binds no stop policy. `t_end` and `stop_on` are keywords of each advance
+  ([§13.5][s13-5]). A run ends at the first grid boundary
   reaching or exceeding `t_end`, whole frames only ([§12.4][s12-4]). An
   unbounded run stays bounded in memory, since `log_max` keeps such a session
   from growing without limit ([§11.2][s11-2]; walkthrough [§15.4][s15-4]).
@@ -10712,24 +10731,36 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   trajectory-determining like their siblings. So they are validated with them
   (`DeploymentInvalid`) and carried on the `Deployment` the trace header
   records, where replay compares the two deployments as values
-  ([§11.5][s11-5], [§12.7][s12-7]). `join_timeout`, the shutdown tail's join
-  cap, lives on `Control` rather than the deployment ([§12.1][s12-1]). It
-  moves no trajectory, so replay neither records nor compares it
-  ([§12.4][s12-4]).
+  ([§11.5][s11-5], [§12.7][s12-7]).
+- `Simulation(deployment, T; join_timeout = 5.0, trace = true, log = true,
+  log_every = 1, log_max = 65536) → Simulation{T}`. Materializes a deployment
+  at a scalar type, allocating the buffers and the stopped-sim services.
 
-  Recording. `log_every` is admissible on the derived artifact only, never on
-  the trace ([§11.2][s11-2], [§11.5][s11-5], [D-029][d-029]). When the log
-  fills, the retention stride doubles, so the whole run stays covered at
-  coarsening density. The boundary-zero and terminal snapshots are retained
-  unconditionally and outside the bound ([§11.2][s11-2]). All four recording
-  keywords (`trace`, `log`, `log_every` and `log_max`) are view policies, not
-  trajectory-determining. Replay neither records nor compares them.
-- `Simulation(deployment, T) → Simulation{T}`. Materializes a deployment at a
-  scalar type, allocating the buffers and the stopped-sim services.
+  | keyword | default | meaning | owning section |
+  |---|---|---|---|
+  | `join_timeout` | `5.0` | the shutdown tail's join cap, in seconds of wall clock | [§12.4][s12-4] |
+  | `trace` | `true` | the input trace's plain kill switch | [§11.5][s11-5] |
+  | `log` | `true` | the snapshot log's plain kill switch | [§11.2][s11-2] |
+  | `log_every` | `1` | the log's keep-every-kth decimation | [§11.2][s11-2] |
+  | `log_max` | `65536` | the maximum number of retained snapshots, finite by default with `Inf` the opt-out | [§11.2][s11-2] |
+
+  `join_timeout`, the shutdown tail's join cap, lives on `Control` rather than
+  the deployment ([§12.1][s12-1]). It moves no trajectory, so replay neither
+  records nor compares it ([§12.4][s12-4]).
+
+  Recording. `trace`, `log`, `log_every` and `log_max` are carried to `init!`,
+  which builds the run with its log and trace ([§12.6][s12-6]). `log_every` is
+  admissible on the derived artifact only, never on the trace
+  ([§11.2][s11-2], [§11.5][s11-5], [D-029][d-029]). When the log fills, the
+  retention stride doubles, so the whole run stays covered at coarsening
+  density. The boundary-zero and terminal snapshots are retained
+  unconditionally and outside the bound ([§11.2][s11-2]). All four are view
+  policies, not trajectory-determining. Replay neither records nor compares
+  them.
 - `Simulation(build; kw...)` and `Simulation(world; kw...)`. The two
   convenience forms. The first composes the `Deployment` constructor with the
   materialization, and the second calls `build` first. They take the
-  deployment keywords above ([§9.2][s9-2]).
+  deployment keywords and the materialization keywords above ([§9.2][s9-2]).
 - `attach!(sim, dev::AbstractDevice, binding::AbstractBinding; should_abort = false)`.
   The roots are mandatory, and the signature is the gate.
 
@@ -10868,9 +10899,11 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 
   `margin` defaults to 2 ms, the sleep primitive's granularity plus its
   measured overshoot. The values `0`, 2 ms and `∞` span the design space
-  ([§10.7][s10-7]). Each advance builds a `StopPolicy` from its `t_end` and
-  `stop_on` and binds it on the `Run`. The termination record carries the
-  policy that ended the run ([§13.5][s13-5]). `t_end = Inf` with no `stop_on`
+  ([§10.7][s10-7]). Each advance builds a [`StopPolicy`](#g-stop-policy) (the
+  immutable `t_end`-plus-stop-faces value an advance declares) from its
+  `t_end` and `stop_on`. It binds that policy on the [`Run`](#g-run) (the
+  state one run owns, log and trace included). The termination record carries
+  the policy that ended the run ([§13.5][s13-5]). `t_end = Inf` with no `stop_on`
   faces is an unbounded run, allowed, with `UnboundedRun` raised into the
   loop's diagnostic cell ([§11.8][s11-8]).
 - `step!(sim; frames = 1, t_end = Inf, stop_on = ()) → frames_advanced`. A
@@ -10969,8 +11002,8 @@ fixes:
 - **build**. During one of the three strata ([§9.1][s9-1]), whether in a
   declarative pass or while *user code* runs (an interface-connection body, a
   probe).
-- **service**. In a stopped-sim service, or in `attach!`/`Simulation`/`run!`
-  validating against the `Build`.
+- **service**. In a stopped-sim service, or in
+  `attach!`/`Deployment`/`Simulation`/`run!` validating against the `Build`.
 - **runtime**. During a boundary.
 
 The policies:
@@ -10992,7 +11025,7 @@ The policies:
   once at return through the standard logging backend. It is part of no
   collection. There is no rate limit. Each kind fires at most once per call,
   and its payload is drawn from the artifact the call returns ([§9.2][s9-2],
-  [§13.2][s13-2], [§14.5][s14-5], [§14.8][s14-8]).
+  [§13.2][s13-2], [§14.8][s14-8]).
 - **rate-limited**. The per-occurrence runtime warning stream of
   [§13.2][s13-2], carried by the per-writer diagnostic cells ([§11.8][s11-8])
   and bounded by them. Every kind reported this way is bounded per writer
@@ -11183,15 +11216,15 @@ collection ([§13.2][s13-2], [D-250][d-250]).
   status, the legal statuses.
 - **`StopFaceInvalid`** ([§13.5][s13-5]). Error · service · collected, over
   the given faces. Face name, reason (unknown / not root-exported / not
-  `Bool`), the root output-face list, the binding site (constructor, `run!`
-  or `replay!`).
+  `Bool`), the root output-face list, the binding site (`run!`, `replay!` or
+  `step!`).
 - **`DeploymentInvalid`** ([§9.1][s9-1]). Error · service · collected. The
   deployment parameter, the value in hand, the violated constraint. The
   parameter is one of `h`, `N_base`, `Δt_base`, algorithm,
-  `localization_tol`, `localization_budget`, `firing_budget`, `join_timeout`,
-  `log`, `log_every`, `log_max`, `t_end` ([§13.5][s13-5]), the harmonic-grid
-  relation, or a non-dividing anchor period or offset (the anchor named with
-  its declaring scope and key).
+  `localization_tol`, `localization_budget`, `firing_budget`, the
+  harmonic-grid relation, or a non-dividing anchor period or offset (the
+  anchor named with its declaring scope and key). The materialization's
+  keywords validate under `ArgumentInvalid` ([Appendix B][sB]).
 - **`AttachUnknownFace`** ([§11.3][s11-3]). Error · service · fail-fast. The
   device (by type, since its roster id is assigned only at admission),
   binding entry, face name, the root input-face list.
@@ -11280,8 +11313,8 @@ collection ([§13.2][s13-2], [D-250][d-250]).
 - **`ArgumentInvalid`** ([§8.7][s8-7], [§11.6][s11-6], [§12.6][s12-6],
   [§14.7][s14-7]). Error · service, or build in a `sample_times` declaration
   · fail-fast, but collected over a `TableBinding`'s entry table. The call
-  (`step!`, `trim!`, `TableBinding`, a period constructor), the argument,
-  the value in hand, the violated constraint. The twin of
+  (`Simulation`, `step!`, `trim!`, `TableBinding`, a period constructor), the
+  argument, the value in hand, the violated constraint. The twin of
   `DeploymentInvalid` for arguments that are not deployment parameters.
 - **`ReadSetMisuse`** ([§14.4][s14-4]). Error · service · fail-fast. The
   offending argument's type, the selector kinds in hand. The read side's
@@ -11339,7 +11372,7 @@ collection ([§13.2][s13-2], [D-250][d-250]).
 - **`UnboundedRun`** ([§11.8][s11-8], [§13.5][s13-5]). Warning · runtime,
   raised at `run!` when `t_end` is `Inf` and no stop faces are given ·
   rate-limited, in the loop's diagnostic cell ([D-255][d-255]). The effective
-  `t_end`, `stop_on` set and `pace`. The remedy names both, and interactively
+  `t_end` and the `stop_on` set. The remedy names both, and interactively
   it names the operator interrupt as the sanctioned escape from the
   configuration warned about ([§12.4][s12-4]).
 
@@ -11928,8 +11961,8 @@ produced any error-severity diagnostic throws before the next begins
 <a id="g-structure"></a>**`Structure`** — Stratum A's product: the components by path with their
 class and contracts, the tier each sits on, the resolved wires, the two-sided
 face table with each face's routing chain, the root inputs, per component the
-declaration provenance as its `Relative`/`Absolute` chain, and each
-assembly's scope triple under the `sample_times` key that declared it.
+declaration provenance as its `Relative`/`Absolute` chain, and, for each
+assembly that declares one, its scope triple under that `sample_times` key.
 Nothing in it depends on a scalar type ([§9.1][s9-1], [D-253][d-253]).
 
 <a id="g-walked"></a>**walked / pinned / exempt** — the eltype-genericity classes. Walked
