@@ -93,6 +93,16 @@ this file, since after 1b the code owes the spec every item in steps 2–7.
 
 ## Step 2: increment 43, the auto-publishing removal
 
+Landed 2026-09-18: the brief as `f2bf173`, the fixture sweep as `43b7149`,
+the framework removal as `ae23a2b`, the cold review's amendment to D-252
+(`ProducedByTwoStages` loses its producer column, §7.5's remedy returns the
+mode field) as `904748f`, and the review's fixes as `77cf4ba`. The stages ran
+in the reverse of the order below, the sweep first, because a stage-1 return
+already won over publication and so the sweep could land green under the
+machinery it retired. The probe table's names are the pre-sweep ones:
+`AutoPlant` is now `VectorPlant`, `AutoCounter` is `UnreturnedCounter`,
+`AutoOverload` is `UnreturnedMode`.
+
 Item 11. Two stages.
 
 **The pre-flight probe** (2026-09-18, suite green under the hook, script
