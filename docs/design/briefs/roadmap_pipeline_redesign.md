@@ -91,6 +91,18 @@ Bookkeeping: `pending.md`'s first bullet becomes one umbrella bullet naming
 this file, since after 1b the code owes the spec every item in steps 2–7.
 `implementation.md`'s rows stay true until each increment changes them.
 
+**1c, the strata retirement.** Landed 2026-09-19, after increment 43 and
+ahead of increment 44: D-259 and the sweep's brief as `09e4151`, the spec
+sweep as `e6352ff` (`brief_step1c_retire_strata.md`), the code's comments
+and testset names as `0b81efd`, two leftover sentences as `3815392`. The
+build's three steps are named by their products (the structure step, the
+nominal evaluation, activation) and §9.1 opens with the table of what each
+step consumes and produces. Raised while briefing increment 44: D-253's
+fourth bullet had Stratum C complete the nominal activation from B's
+stage-1 products, but `Events` needs the complete nominal products, so the
+nominal evaluation returns the nominal activation itself (D-253 amended in
+place).
+
 ## Step 2: increment 43, the auto-publishing removal
 
 Landed 2026-09-18: the brief as `f2bf173`, the fixture sweep as `43b7149`,
@@ -143,7 +155,10 @@ the brief names the kind that carries it.
 
 Items 12–17 and the warnings channel (items 2–5, build side). The largest
 increment. Five stages; stages 1–3 and 4–5 split cleanly into two increments
-if the count is too many for one review.
+if the count is too many for one review. The brief
+(`brief_increment_44_build_side_types.md`, 2026-09-19) merges stages 2 and 3
+into one, since a `Dataflow` flattened back into an `order` field would be
+an interim state with no reader; its stages are numbered 1–4.
 
 - **Stage 1, `Structure` replaces `Flat`** (`assembly.jl:679`). `tiers` moves
   in, plus the per-component `Relative`/`Absolute` provenance chain and the
