@@ -164,10 +164,15 @@ it is why the deployment and the run gain types of their own.
 ## Vocabulary
 
 31. In the spec, "bound schedule" becomes "schedule", matching `Schedule`,
-    and today's "schedule", the evaluation order, becomes "dataflow", one
-    word, matching `Dataflow`. The second is a sweep assigning every
-    occurrence to one sense; §5.1, Stratum B's heading and the glossary's
-    "sweep" entry change meaning.
+    and today's "schedule", the evaluation order, becomes "execution order"
+    (the noun; "ordering" for the activity; "a position in the execution
+    order"). The `Dataflow` type keeps its name: the artifact carries the
+    feedthrough edges and the name sets as well as the order, and the spec
+    says it carries the execution order. Amended 2026-09-18 after a first
+    pass that used "dataflow" for the order itself; a graph has no
+    positions. The second is a sweep assigning every occurrence to one
+    sense; §5.1, Stratum B's heading and the glossary's "sweep" entry change
+    meaning.
 
 ## Sequencing
 

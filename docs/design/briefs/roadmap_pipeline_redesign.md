@@ -46,10 +46,12 @@ committed when the audit closes.
 
 Two commits, both before any code.
 
-**1a, the vocabulary sweep (item 31).** Mechanical. The spec has 104
-occurrences of "schedule", 5 of them "bound schedule"; every one is assigned
-to "schedule" (the bound one, matching `Schedule`) or "dataflow" (the
-evaluation order, matching `Dataflow`). §5.1's heading, Stratum B's heading
+**1a, the vocabulary sweep (item 31).** Two passes, `d0b7712` and its
+follow-up. The spec had 104 occurrences of "schedule", 5 of them "bound
+schedule"; every one is assigned to "schedule" (the tick timing, matching
+`Schedule`) or "execution order" (the stage sequence, carried by `Dataflow`;
+"ordering" for the activity). The first pass wrote "dataflow" for the order
+and was corrected by the second (`brief_step1a2_execution_order.md`). §5.1's heading, Stratum B's heading
 and the glossary's "sweep" entry change with it. The log's 42 occurrences stay
 as history; entry 1b's vocabulary decision records the renaming. A Sonnet
 agent over a frozen copy (`git show 7b1c1e8:docs/design/spec.md`), then
