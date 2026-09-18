@@ -68,9 +68,10 @@ function: it returns `(; x, m)` as immutable values, and the *framework*
 latches them into the component's state stores immediately after the return,
 before `state_projection`. Latching writes *stores*, not cells;
 `state_projection` normalizes
-those stores; auto-publication is a stage-1 sweep act like any other
-([§9.5][s9-5]). Nothing — no user code, no framework step — writes the table
-between the sweep that opened a round and the sweep that opens the next.
+those stores; the next sweep's `output_state` reads those stores like any other
+stage-1 act ([§9.5][s9-5]). Nothing — no user code, no framework step — writes
+the table between the sweep that opened a round and the sweep that opens the
+next.
 
 So the set of table cells that can change between a round's start and its
 end is *empty*.

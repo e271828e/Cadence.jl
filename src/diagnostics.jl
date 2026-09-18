@@ -862,9 +862,8 @@ end
 path(d::ProducedByTwoStages) = d.path
 message(d::ProducedByTwoStages) =
     "`$(d.path)`: " *
-    join(("`$p` by " *
-          (q === :auto_publication ? "the framework's auto-publication" : "`$q`") *
-          " and by `output_direct`" for (p, q) in zip(d.ports, d.producers)), ", ") *
+    join(("`$p` by `$q` and by `output_direct`"
+          for (p, q) in zip(d.ports, d.producers)), ", ") *
     " — a port is produced once: drop it from `output_direct`, or from its stage-1 " *
     "producer (§5.3, §8.3)"
 
@@ -877,10 +876,9 @@ Base.@kwdef struct DeclaredNotProduced <: Diagnostic
 end
 path(d::DeclaredNotProduced) = d.path
 message(d::DeclaredNotProduced) =
-    "`$(d.path)`: declared port(s) $(_plainlist(d.ports)) produced by no stage and not a " *
-    "state field of the declared type — a stage returns them, a store field of that name " *
-    "and type carries them (§5.3), or `output_types` drops them; the stages return " *
-    "$(_namelist(d.products)); the state fields are $(_namelist(d.state_fields))"
+    "`$(d.path)`: declared port(s) $(_plainlist(d.ports)) produced by no stage — " *
+    "`output_state` returns them, or `output_types` drops them (§5.3, §8.3); the stages " *
+    "return $(_namelist(d.products)); the state fields are $(_namelist(d.state_fields))"
 
 "§8.3, §8.4 w5: a stage returning a field `output_types` does not declare."
 Base.@kwdef struct UndeclaredReturnField <: Diagnostic
@@ -972,13 +970,9 @@ function message(d::ConformanceFailure)
                "state has $(_symtuple(d.declared_fields)) — a state write-back is complete " *
                "against the field set (§9.3, §9.5)"
     end
-    # A stage returns its ports; the framework's auto-publication publishes them
-    # (§5.3), so the verb follows `what` rather than naming a return that is not
-    # one.
     d.shape === :ports &&
-        return "`$(d.path)`: $(_cf_what(d)) " *
-               (d.what == "auto-publication" ? "publishes" : "returns") *
-               " `$(d.field)`::$(d.observed), declared $(d.declared)" * _pin(d)
+        return "`$(d.path)`: $(_cf_what(d)) returns `$(d.field)`::$(d.observed), " *
+               "declared $(d.declared)" * _pin(d)
     d.shape === :mode &&
         return "`$(d.path)`: $(_cf_what(d)) mode `$(d.field)` is $(d.observed), declared " *
                "$(d.declared) (§5.2)"

@@ -114,13 +114,6 @@ output_types(::PinnedState, ::Type{T}) where {T <: Real} = (q = Float64,)
 output_state(::PinnedState, (; x)) = (q = x.q,)
 state_derivative(::PinnedState, (; x)) = (q = 0.0,)
 
-"""The same name at a type no store holds: not published, and `DeclaredNotProduced`."""
-struct WrongTyped <: AbstractComponent end
-
-init_x(::WrongTyped) = (q = 0.0,)
-output_types(::WrongTyped, ::Type{T}) where {T <: Real} = (q = Int,)
-state_derivative(::WrongTyped, (; x)) = (q = 0.0,)
-
 """One port returned from both stages: two writers of one cell (§8.3)."""
 struct Twice <: AbstractComponent end
 

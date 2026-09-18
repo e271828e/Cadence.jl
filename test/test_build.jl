@@ -323,7 +323,6 @@ function build_port_classes()
         b = build(fed(Motor(1.0), "M_load"))
         i = index_of(b.flat, "c")
         @test keys(b.nominal.stage1[i]) === (:ω, :running)
-        @test b.nominal.published[i] === NamedTuple()
         @test keys(b.nominal.products[i]) === (:ω, :running, :M_shaft)
         # The hand-down carries the stage-1 return, so stage 2 reads both off
         # `y_x` rather than re-deriving them.
@@ -344,12 +343,19 @@ function build_port_classes()
         @test d.wires == ["plant/power" => "g/e", "g/out" => "plant/u"]
     end
 
-    @testset "publication is by name *and* type (§5.3, §8.3)" begin
-        # A store holding the name at another type publishes nothing, and the
-        # refusal now carries the state-field list that tells the two apart.
-        d = only(diagnostics(failure(() -> build(single(WrongTyped())))))
-        @test d isa DeclaredNotProduced && d.ports == [:q] && d.products == Symbol[] &&
-              d.state_fields == [:q]
+    @testset "a declared port no stage returns is refused at every home (§8.3, D-252)" begin
+        # One refusal per store home — `s`, then `m`, then `x` — the last of them
+        # beside a non-empty product list, so the report tells an unreturned port
+        # from a component that produces nothing at all.
+        d = only(diagnostics(failure(() -> build(single(UnreturnedCounter())))))
+        @test d isa DeclaredNotProduced && d.ports == [:n] && d.products == Symbol[] &&
+              d.state_fields == [:n]
+        d = only(diagnostics(failure(() -> build(fed(UnreturnedMode(0.315), "sig")))))
+        @test d isa DeclaredNotProduced && d.ports == [:tripped] &&
+              d.products == Symbol[] && d.state_fields == [:tripped]
+        d = only(diagnostics(failure(() -> build(single(ModeNamedProduct())))))
+        @test d isa DeclaredNotProduced && d.ports == [:q] && d.products == [:flag] &&
+              d.state_fields == [:q, :flag]
     end
 
     @testset "a port is produced by one stage (§8.3)" begin

@@ -354,7 +354,7 @@ function diagnostics_kind_set()
                            classification = :real,
                            traced = ["a/b" => :structural, "a/c" => :structural]),
             ProducedByTwoStages(path = "a/b", ports = [:y, :z],
-                                producers = [:output_state, :auto_publication]),
+                                producers = [:output_state, :output_state]),
             DeclaredNotProduced(path = "a/b", ports = [:y], products = [:z],
                                 state_fields = [:q]),
             UndeclaredReturnField(path = "a/b", stage = "output_state", name = :q, candidates = [:y]),
@@ -368,7 +368,7 @@ function diagnostics_kind_set()
             ConformanceFailure(path = "a/b", what = "output_state", reason = :field_type, shape = :ports,
                                field = :y, observed = Int, declared = Float64,
                                activation = Float64),
-            ConformanceFailure(path = "a/b", what = "auto-publication", reason = :field_type,
+            ConformanceFailure(path = "a/b", what = "output_state", reason = :field_type,
                                shape = :ports, field = :q, observed = D8,
                                declared = Float64, activation = D8),
             ConformanceFailure(path = "a/b", what = "state_update", reason = :field_set, shape = :init_s,
@@ -638,6 +638,16 @@ function diagnostics_kind_set()
         m = message(AbstractAtRoot(face = :e, paths = ["a/b"],
                                    declared = Any[AbstractVector{Float64}]))
         @test occursin("AbstractVector{Float64}", m) && occursin("`a/b`", m)
+
+        # The port classification's two refusals, in D-252's words: one stage name
+        # per producer, and the remedy that names `output_state`.
+        m = message(ProducedByTwoStages(path = "a/b", ports = [:y],
+                                        producers = [:output_state]))
+        @test occursin("`y` by `output_state` and by `output_direct`", m)
+        m = message(DeclaredNotProduced(path = "a/b", ports = [:y], products = [:z],
+                                        state_fields = [:q]))
+        @test occursin("`output_state` returns them", m) &&
+              occursin("the stages return `z`", m)
 
         # The dead stage names the return it got and the stage it got it from.
         m = message(DeadStage(path = "a/b", stage = "output_state"))

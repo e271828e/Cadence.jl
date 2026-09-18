@@ -270,16 +270,16 @@ and the member falls back to the sampled trace below.
 """
 function _classify(d::AlgebraicCycle, scc::Vector{Int}, edges, placed::Vector{Int},
                    flat::Flat, tiers::Vector{Tier}, decls::Vector{Decls}, stage1::Vector,
-                   published::Vector, mstores::Vector)
+                   mstores::Vector)
     T = Tracer{true}
     try
         # The acyclic prefix's probe products, at the nominal scalar: the same
         # chain `probe_stage2` runs, stopped where Kahn stopped.
         layout = cell_layout(flat, decls, Float64)
         wss = _workspaces(flat, tiers, Float64)
-        products = NamedTuple[merge(s1, pub) for (s1, pub) in zip(stage1, published)]
+        products = NamedTuple[s1 for s1 in stage1]
         for ci in placed
-            _probe_direct!(products, ci, flat, decls, tiers, stage1, published, layout,
+            _probe_direct!(products, ci, flat, decls, tiers, stage1, layout,
                            wss, mstores, Float64)
         end
 

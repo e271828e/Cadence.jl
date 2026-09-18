@@ -29,13 +29,12 @@ ExecutionCursor() = ExecutionCursor(0, :none, :drain, 0)
 end
 
 # --- entries ------------------------------------------------------------------
-# Four kinds, by where the product comes from and where it goes: a stage entry
+# Three kinds, by where the product comes from and where it goes: a stage entry
 # writes cells (both tiers — one entry type carries either tier's output stage,
 # one shared pair of names over both tiers (D-220), an RHS entry writes the flat
-# `ẋ` buffer, an update entry writes its own discrete state store, and a publish
-# entry copies store fields straight into cells with no user function in
-# between (§5.3). The first three build their §5.2 bundle the same way, from
-# `BN` — the bundle name set the law fixed at build time.
+# `ẋ` buffer, and an update entry writes its own discrete state store. All three
+# build their §5.2 bundle the same way, from `BN` — the bundle name set the law
+# fixed at build time.
 #
 # What selects code sits in type parameters, what varies per instance in fields
 # (§9.7): the state store is a `Ref` whose *type* is shared by every instance of
@@ -85,19 +84,6 @@ struct UpdateEntry{Comp,BN,IA<:NamedTuple,YA<:NamedTuple,CL,SS,WS}
     cursor::ExecutionCursor
 end
 
-# §5.3's auto-publication: the framework's stage-1-position copy of store fields
-# into their declared cells. `S` names the home (:x, :s or :m), `Ns` the fields
-# copied; both select code. No user function runs here, so the cursor is not
-# written (§13.4 frames user code only).
-struct PublishEntry{S,XT,Ns,OA<:NamedTuple,CL,SS,MS}
-    outs::OA        # port => cell address, in `Ns` order
-    x_off::Int
-    clock::CL
-    sstore::SS
-    mstore::MS
-    path::String
-end
-
 # Outer constructors: only `XT`/`BN` cannot be inferred from the arguments.
 StageEntry{XT,BN}(fn, comp, inputs, y1, outs, x_off, clock, sstore, mstore, ws, Δt,
                   path, ci, cursor) where {XT,BN} =
@@ -115,10 +101,6 @@ UpdateEntry{BN}(comp, inputs, y, clock, sstore, ws, Δt, path, ci, cursor) where
     UpdateEntry{typeof(comp),BN,typeof(inputs),typeof(y),typeof(clock),
                 typeof(sstore),typeof(ws)}(comp, inputs, y, clock, sstore, ws, Δt,
                                            path, ci, cursor)
-
-PublishEntry{S,XT,Ns}(outs, x_off, clock, sstore, mstore, path) where {S,XT,Ns} =
-    PublishEntry{S,XT,Ns,typeof(outs),typeof(clock),typeof(sstore),typeof(mstore)}(
-        outs, x_off, clock, sstore, mstore, path)
 
 # One bundle-expression builder, three @generated entry points. Absent names are
 # absent, never `nothing`-filled: a body destructuring what it does not own
@@ -187,17 +169,6 @@ end
     _store_successor!(e.sstore, state_update(e.comp, make_bundle(e, store, xbuf)),
                       e.path, :state_update)
     nothing
-end
-
-# The framework's own write (§5.3): select the published fields out of the home
-# store by name — `Ns` is a type parameter, so the selection is static — and
-# scatter them. §9.5's check is decided at generation and passes by
-# construction, the classification having admitted exactly these types.
-@inline function run!(e::PublishEntry{S,XT,Ns}, store, xbuf, ẋbuf) where {S,XT,Ns}
-    v = S === :x ? reconstruct(XT, xbuf, e.x_off) :
-        S === :s ? e.sstore[] : e.mstore[]
-    scatter_group!(store, e.outs, NamedTuple{Ns}(v), activation_scalar(e.clock),
-                   e.path, :auto_publish)
 end
 
 # --- the event machinery (§10.6, §5.3) ------------------------------------------

@@ -330,95 +330,35 @@ _embed(::Type{P}, v, ::Type{T}) where {P,T} =
 _embed_ports(y::NamedTuple, outs::NamedTuple, ::Type{T}) where {T} =
     NamedTuple{keys(y)}(map(n -> _embed(outs[n], y[n], T), keys(y)))
 
-# --- 2b. auto-publication (§5.3, D-016, D-169) --------------------------------
+# --- 2b. the store homes (§7.1, §8.3, D-252) ----------------------------------
+# All that is left of the port classification's store side: `DeclaredNotProduced`
+# names the declared port no stage returns, and the store fields are the context
+# that points at the remedy.
 
 """
-The tier's state homes, in the order a declared name is matched against them:
-`x` then `m` on the continuous tier, `s` on the discrete (§5.3). `m` arrives as
-the probe-scoped `Ref`, or `nothing` where the component declares no modes.
+The tier's state homes, in merge order: `x` then `m` on the continuous tier, `s`
+on the discrete (§5.3, §7.1). `m` arrives as the probe-scoped `Ref`, or `nothing`
+where the component declares no modes.
 """
 _homes(d::Decls, t::Tier, m) =
     t === CONTINUOUS ? (x = d.x, m = m === nothing ? NamedTuple() : m[]) : (s = d.s,)
 
-"""Which home holds `n`, or `nothing` — the first match, so one home per datum (§7.1)."""
-function _home_of(homes::NamedTuple, n::Symbol)
-    for h in keys(homes)
-        haskey(homes[h], n) && return h
-    end
-    nothing
-end
-
 """The tier's store field names, for `DeclaredNotProduced`'s list-in-hand (§8.3)."""
 _state_fields(homes::NamedTuple) = Symbol[keys(merge(values(homes)...))...]
-
-"""
-§5.3's auto-published set for one component: the declared ports naming a field
-of the tier's stores — `x` and `m` on the continuous tier, `s` on the discrete —
-at the matching type, that stage 1 did not return. Port name => the store's own
-declared initial, which is what the cell holds until the first sweep (§10.5);
-the home a name was matched in is `_home_of`'s, recomputed where `compile`
-needs it rather than carried alongside every value.
-
-A declared name a store holds at *another* type is not published: it falls
-through to `DeclaredNotProduced`, whose state-field list then names it.
-
-At the nominal activation, reached with `nominal === nothing`, the set is
-derived over every declared port and the type test is exact. At a non-nominal
-`T` the set is already fixed by the nominal — the classification is structural,
-names only, and the schedule is `T`-independent (§9.1 Stratum B) — so `nominal`
-arrives as that set and the test runs over its keys alone: the embed-accept
-relation, a failure being a refusal rather than a silent drop. Names outside the
-nominal set are not examined there, so a stage-2 product colliding with a store
-field at another type is never mistaken for a failed auto-publication. The
-refusal is what a `Float64`-pinned declaration of a walking state field meets at
-the `Dual` activation, `_accepts(Float64, Dual, Dual)` being false; publishing
-it stripped would be a stop-gradient the author never wrote. Failures are
-collected into `diags` for the caller's one barrier (§13.1).
-"""
-function auto_published(d::Decls, t::Tier, m, s1::NamedTuple, nominal, path::String,
-                        diags::Vector{Diagnostic}, ::Type{T}) where {T}
-    homes = _homes(d, t, m)
-    if nominal === nothing
-        names, vals = Symbol[], Any[]
-        for n in keys(d.outs)                   # declaration order (§9.5)
-            haskey(s1, n) && continue           # stage 1 returned it: the stage wins
-            h = _home_of(homes, n)
-            h === nothing && continue
-            v = homes[h][n]
-            if d.outs[n] === typeof(v)
-                push!(names, n)
-                push!(vals, v)
-            end
-        end
-        return NamedTuple{tuple(names...)}(tuple(vals...))
-    end
-    vals = Any[]
-    for n in keys(nominal)
-        v = homes[_home_of(homes, n)][n]
-        _accepts(d.outs[n], typeof(v), T) ||
-            push!(diags, ConformanceFailure(path = path, what = "auto-publication",
-                                           reason = :field_type, shape = :ports, field = n,
-                                           observed = typeof(v), declared = d.outs[n],
-                                           activation = T))
-        push!(vals, v)
-    end
-    NamedTuple{keys(nominal)}(tuple(vals...))
-end
 
 # --- 3. the feedthrough graph and the stage-2 schedule -------------------------
 
 """
 Edges run producer → consumer for every consumed **stage-2** port; consuming a
-stage-1 *or auto-published* port adds no edge, which is the whole structural
-payoff of the split — an auto-published cell is the framework's own
-stage-1-position write and carries no input dependence either (§5.3).
+stage-1 port adds no edge, which is the whole structural payoff of the split —
+a stage-1 port takes no input and so carries no input dependence (§5.3).
 Returns a topological order over component indices. A stall is not reported as
 its residue: the residue is *decomposed* into one `AlgebraicCycle` per strongly
 connected cluster below (§5.6, D-012), which is why `edges` carries the
 per-dependence provenance Kahn itself discards.
 """
 function schedule_stage2(flat::Flat, tiers::Vector{Tier}, decls::Vector{Decls},
-                         stage1::Vector, published::Vector, mstores::Vector)
+                         stage1::Vector, mstores::Vector)
     n = length(flat.comps)
     deps = [Int[] for _ in 1:n]
     edges = [Tuple{Int,Symbol,Symbol}[] for _ in 1:n]    # per consumer: (producer, port, face)
@@ -427,8 +367,7 @@ function schedule_stage2(flat::Flat, tiers::Vector{Tier}, decls::Vector{Decls},
         for (face, (ppath, pport)) in flat.conns[ci]
             isempty(ppath) && continue                   # a root input: no producer to wait for
             pi = index_of(flat, ppath)
-            # stage-1 position, by a stage or by the framework: no dependence
-            (haskey(stage1[pi], pport) || haskey(published[pi], pport)) && continue
+            haskey(stage1[pi], pport) && continue   # stage-1 position: no dependence
             push!(deps[ci], pi)
             push!(edges[ci], (pi, pport, face))
         end
@@ -451,7 +390,7 @@ function schedule_stage2(flat::Flat, tiers::Vector{Tier}, decls::Vector{Decls},
 
     isempty(remaining) ||
         throw(DiagnosticError(_cycle_diagnostics(flat, edges, remaining, order, tiers, decls,
-                                                 stage1, published, mstores)))
+                                                 stage1, mstores)))
     order
 end
 
@@ -467,8 +406,7 @@ out-of-cycle faces read from.
 """
 function _cycle_diagnostics(flat::Flat, edges::Vector{Vector{Tuple{Int,Symbol,Symbol}}},
                             remaining::Set{Int}, placed::Vector{Int}, tiers::Vector{Tier},
-                            decls::Vector{Decls}, stage1::Vector, published::Vector,
-                            mstores::Vector)
+                            decls::Vector{Decls}, stage1::Vector, mstores::Vector)
     nodes = sort!(collect(remaining))
     succ = [Int[] for _ in eachindex(flat.comps)]        # producer → consumer, inside the residue
     for ci in nodes, (pi, _, _) in edges[ci]
@@ -493,7 +431,7 @@ function _cycle_diagnostics(flat::Flat, edges::Vector{Vector{Tuple{Int,Symbol,Sy
                            wires = ["$(flat.paths[order[a]])/$p" => "$(flat.paths[order[b]])/$f"
                                     for (a, b, p, f) in ws])
         push!(clusters, (minimum(scc), _classify(d, order, edges, placed, flat, tiers, decls,
-                                                 stage1, published, mstores)))
+                                                 stage1, mstores)))
     end
     sort!(clusters; by = first)
     Diagnostic[d for (_, d) in clusters]
@@ -660,7 +598,6 @@ constructed; the probe products are what a cell holds until first written
 struct Activation{T}
     decls::Vector{Decls}
     stage1::Vector{NamedTuple}     # stage-1 probe products, per component
-    published::Vector{NamedTuple}  # §5.3's auto-published cells, port => value
     products::Vector{NamedTuple}   # complete probe products, per component
     layout::Layout
 end
@@ -910,26 +847,12 @@ function _stratum_c(flat::Flat, tiers::Vector{Tier}, order, carry, ::Type{T}) wh
 
     stage1 = probe_stage1(flat, decls, tiers, wss, mstores, carry, T)
 
-    # §5.3's auto-published set, classified beside the stage-1 products and
-    # before the schedule, because §9.1 classifies ports over `output_types`
-    # alone and the stage-2 graph is built from the wires carrying stage-2
-    # ports. A frozen component's set is carried, exactly as its stage-1
-    # product is (§9.4), and at a non-nominal activation every set is the
-    # nominal's, `carry` carrying it in. One barrier for the activation (§13.1).
-    pubdiags = Diagnostic[]
-    published = NamedTuple[_frozen(tiers, ci, T) ? carry.published[ci] :
-                           auto_published(decls[ci], tiers[ci], mstores[ci], stage1[ci],
-                                          carry === nothing ? nothing : carry.published[ci],
-                                          flat.paths[ci], pubdiags, T)
-                           for ci in eachindex(flat.comps)]
-    isempty(pubdiags) || throw(DiagnosticError(pubdiags))
-
     order === nothing &&
-        (order = schedule_stage2(flat, tiers, decls, stage1, published, mstores))
+        (order = schedule_stage2(flat, tiers, decls, stage1, mstores))
     layout = cell_layout(flat, decls, T)
-    products = probe_stage2(flat, decls, tiers, stage1, published, order, layout,
+    products = probe_stage2(flat, decls, tiers, stage1, order, layout,
                             wss, mstores, carry, T)
-    Activation{T}(decls, collect(stage1), published, products, layout), order
+    Activation{T}(decls, collect(stage1), products, layout), order
 end
 
 # Probe-scoped mode stores (§9.3). One read of `init_m` per component, under the
@@ -968,12 +891,12 @@ probe-scoped placeholder of `probe_stage1`. Returns the complete probe
 products.
 """
 function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
-                      stage1, published::Vector, order::Vector{Int}, layout::Layout,
+                      stage1, order::Vector{Int}, layout::Layout,
                       wss::Vector, mstores::Vector, carry, ::Type{T}) where {T}
     # The ordering invariant every downstream reader relies on:
-    # `keys(products[ci]) == (keys(stage1[ci])…, keys(published[ci])…, keys(y2)…)`.
-    # `compile`'s `y2keys` takes the stage-2 tail off the front two lengths.
-    products = NamedTuple[merge(s1, pub) for (s1, pub) in zip(stage1, published)]
+    # `keys(products[ci]) == (keys(stage1[ci])…, keys(y2)…)`. `compile`'s
+    # `y2keys` takes the stage-2 tail off the stage-1 length.
+    products = NamedTuple[s1 for s1 in stage1]
 
     # A frozen component's stages never run at this activation, so its complete
     # product is the *nominal* activation's, carried across (§9.4): its cells
@@ -991,7 +914,7 @@ function probe_stage2(flat::Flat, decls::Vector{Decls}, tiers::Vector{Tier},
          for face in keys(d.ins))...))
 
     for ci in order
-        _probe_direct!(products, ci, flat, decls, tiers, stage1, published, layout,
+        _probe_direct!(products, ci, flat, decls, tiers, stage1, layout,
                        wss, mstores, T)
     end
 
@@ -1067,7 +990,7 @@ can run the same chain over the acyclic prefix Kahn did place (§5.6). A
 component with no `output_direct`, and a frozen one, is a no-op.
 """
 function _probe_direct!(products::Vector{NamedTuple}, ci::Int, flat::Flat,
-                        decls::Vector{Decls}, tiers::Vector{Tier}, stage1, published::Vector,
+                        decls::Vector{Decls}, tiers::Vector{Tier}, stage1,
                         layout::Layout, wss::Vector, mstores::Vector, ::Type{T}) where {T}
     c, path, d, s1 = flat.comps[ci], flat.paths[ci], decls[ci], stage1[ci]
     (has_stage(output_direct, c) && !_frozen(tiers, ci, T)) || return nothing
@@ -1086,16 +1009,14 @@ function _probe_direct!(products::Vector{NamedTuple}, ci::Int, flat::Flat,
                                                 observed = typeof(y2))))
         isempty(y2) && throw(DiagnosticError(DeadStage(path = path, stage = stage)))
         _check_ports(path, stage, y2, d.outs, T)
-        # Stage-1 position is the stage's or the framework's; either way a
-        # stage-2 return of the same port writes it twice (§5.3, §8.3).
-        twice = intersect(union(keys(s1), keys(published[ci])), keys(y2))
+        # Stage-1 position is the stage's: a stage-2 return of a port stage 1
+        # already returned writes it twice (§5.3, §8.3).
+        twice = intersect(keys(s1), keys(y2))
         isempty(twice) ||
             throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice),
-                                                producers = Symbol[p in keys(s1) ?
-                                                                   :output_state :
-                                                                   :auto_publication
-                                                                   for p in twice])))
-        products[ci] = merge(s1, published[ci], _embed_ports(y2, d.outs, T))
+                                                producers = fill(:output_state,
+                                                                 length(twice)))))
+        products[ci] = merge(s1, _embed_ports(y2, d.outs, T))
     end
     nothing
 end
@@ -1480,27 +1401,10 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
 
     frozen(ci) = _frozen(tiers, ci, T)
     gate(ci) = tiers[ci] === DISCRETE ? (D_c[ci], Φ_c[ci]) : nothing
-    y2keys(ci) = keys(act.products[ci])[length(keys(act.stage1[ci])) +
-                                        length(keys(act.published[ci]))+1:end]
+    y2keys(ci) = keys(act.products[ci])[length(keys(act.stage1[ci]))+1:end]
 
     stage1_entries, stage2_entries, rhs_entries, tick_entries = Any[], Any[], Any[], Any[]
     stage1_gates, stage2_gates, rhs_gates, tick_gates = Any[], Any[], Any[], Any[]
-
-    # §5.3's auto-publication, one entry per home: the framework's own
-    # stage-1-position copy of store fields into their declared cells. The
-    # stage-1 block is order-free (§9.7 — no stage-1 entry reads a cell), so
-    # standing the framework's writes before the stages is legibility only.
-    for (ci, path) in enumerate(flat.paths)
-        (!frozen(ci) && !isempty(act.published[ci])) || continue
-        d, homes = decls[ci], _homes(decls[ci], tiers[ci], mstores[ci])
-        for h in keys(homes)
-            names = tuple((n for n in keys(act.published[ci]) if _home_of(homes, n) === h)...)
-            isempty(names) && continue
-            push!(stage1_entries, PublishEntry{h,typeof(d.x),names}(
-                addr_group(path, names), x_offs[ci], clock, sstores[ci], mstores[ci], path))
-            push!(stage1_gates, gate(ci))
-        end
-    end
 
     for (ci, c) in enumerate(flat.comps)
         (has_stage(output_state, c) && !frozen(ci)) || continue
