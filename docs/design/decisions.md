@@ -9268,10 +9268,12 @@ and a sketch that the helpers cannot run is a claim without a check.
 **Position.** A declared output is produced by stage 1 or by stage 2, and by
 nothing else. A component exposes a state or mode field by returning it from
 `output_state`. A declared output that no stage produces is
-`DeclaredNotProduced`, everywhere and at every tier. Supersedes [D-016][d-016]'s
+`DeclaredNotProduced`, everywhere and at every tier. `ProducedByTwoStages`
+carries the component path and the port name; the two stages are the kind's
+own, so the producer column goes with the third class. Supersedes [D-016][d-016]'s
 publication rule, [D-152][d-152]'s successor in [D-154][d-154]'s sequence, and [D-169][d-169].
 
-**Spec.** [§5.2][s5-2], [§5.3][s5-3], [§8.3][s8-3], [§9.1][s9-1], [§9.3][s9-3], [§10.6][s10-6], [§13.2][s13-2], [Appendix B][sB], Appendix
+**Spec.** [§5.2][s5-2], [§5.3][s5-3], [§7.5][s7-5], [§8.3][s8-3], [§9.1][s9-1], [§9.3][s9-3], [§10.6][s10-6], [§13.2][s13-2], [Appendix B][sB], Appendix
 C, [Appendix D][sD]
 
 **Rationale.** Auto-publishing was a third port class the framework wrote.

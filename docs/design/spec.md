@@ -1698,8 +1698,9 @@ commit.
 - **Event firings are not recorded.** The [log](#g-log) holds boundary snapshots and the
   [trace](#g-trace) holds staged inputs ([§11.2][s11-2], [§11.5][s11-5]). Neither carries a per-event record.
   Which events fired at which boundary is recovered by [replay](#g-replay) plus the published
-  modes. The honest remedy ([§11.2][s11-2]) is to declare the mode field public, and a
-  mode field so declared is in every snapshot. An event-firing stream is a
+  modes. The honest remedy ([§11.2][s11-2]) is to declare the mode field public and
+  return it from `output_state` ([D-252][d-252]); a mode field so exposed is in
+  every snapshot. An event-firing stream is a
   [guarded addition](#g-guarded-addition) (a capability the design admits but does not build).
 - **Tools where garbage is unavoidable.** Arena allocation (Bumper.jl-style)
   serves scoped temporaries. A scheduled `GC.gc(false)` at frame boundaries
@@ -11180,7 +11181,8 @@ collection ([§13.2][s13-2], [D-250][d-250]).
   (global, sampled or structural).
 - **`ProducedByTwoStages`** ([§4.3][s4-3], [§8.3][s8-3]). Error · build ·
   fail-fast, with the probe chain ([D-229][d-229]). Component path, port
-  name, both stage names.
+  name. The two stages are the kind's own, so it carries no producer column
+  ([D-252][d-252]).
 - **`DeclaredNotProduced`** ([§8.3][s8-3]). Error · build · collected, by the
   completeness pass over the complete products, which runs only once every
   port check has passed ([D-239][d-239]). Component path, declared name, the
