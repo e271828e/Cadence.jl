@@ -18,12 +18,25 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **§8.8 beyond the helper pair** (the feed-list idiom, generic-holding sugar,
-  required-faces declarations, D-209's predicate filter on the passthrough
-  helpers); **D-187's grid diagnostics** (the bound schedule is plain data;
-  refusals name the anchor and the pool's GCD); and **every `show`** — no
-  `Build` or schedule artifact renders: no anchor table, no `A₀` row, no
-  rate-scope rows, no hyperperiod chart, no derivation line (M-B26).
+- **The pipeline redesign, D-250 through D-258**, delivered by increments
+  43–48 per `docs/design/briefs/roadmap_pipeline_redesign.md`. Seven themes.
+  The port model: auto-publishing goes, ports are stage 1 or stage 2, and an
+  exposed state field is returned from `output_state` (D-252). The build-side
+  types: `Structure`, `Dataflow` and `Events` as named stratum products, one
+  activation dictionary on the `Build`, and the structural consumers reading
+  them instead of the nominal activation (D-253). §8.8's selectors: the
+  `select` predicate, `:multiple_selectors` and `EmptyFaceSelection` (D-251).
+  The warning homes: the artifact criterion, `warnings` on `Build` and
+  `Deployment`, the scoped channel, and `EmptyGreedyClaim` into the roster
+  entry's cell (D-250). `Deployment` and `Schedule` as artifacts, with
+  D-187's grid diagnostics (leave-one-out factors, prime attribution,
+  nearest non-refining offsets, the derivation line and `GridUtilization`)
+  landing on the deployment (D-254). The run: `Run{T}`, the trace split into
+  header plus `schemas` and `batches`, `StopPolicy` per advance,
+  `UnboundedRun`, and the `Simulation`'s six fields (D-255, D-256). The
+  renderings: `show` for `Structure`, `Dataflow`, `Schedule`, `Build` and
+  `Deployment`, with the binary hyperperiod-chart guard at 100 base ticks
+  (D-257). Nothing of it is built today (M-B26).
 - **§12 beyond its built slices**: pause and the control plane's surface; the
   operator interrupt — §13.4's carve-out exists, the masking and the entry do
   not, so a stopped run can hold mid-boundary stores here; §13.4's

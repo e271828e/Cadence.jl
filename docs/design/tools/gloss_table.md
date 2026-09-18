@@ -15,7 +15,6 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 |---|---|---|---|---|
 | abstract entry | g-abstract-entry | 4 | A | an `input_types` entry admitting any concrete producer face |
 | assembly | g-assembly | 21 | B | a component that only composes children, with no dynamics |
-| auto-published port | g-auto-published-port | 3 | A | published by the framework from the state or mode store |
 | class | g-class | 7 | A | a component's primitive-vs-assembly status, read off its declarations |
 | component | g-component | 65 | B | a leaf primitive or an assembly of components |
 | container children | g-container-children | 3 | A | a tuple field contributing its component elements as children |
@@ -90,7 +89,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | prior | g-prior | 6 | A | the event's stored predicate sample from the previous boundary |
 | quiescence | g-quiescence | 5 | A | the fixed point where a round of handlers fires nothing |
 | remainder step | g-remainder-step | 1 | A | the integration from `t*` to the original grid target |
-| schedule | g-schedule | 3 | A | the printable per-component `(D, Φ, Δt)` artifact deployment binding produces |
+| schedule / `Schedule` | g-schedule | 3 | A | the typed per-component `(D, Φ, Δt)` table the `Deployment` carries |
 | state event | g-state-event | 1 | B | an event whose instant is unknown in advance and must be detected |
 | `t*` | g-t | 0 | — | the localized event time, structurally strictly later than `tₙ` |
 | tick | g-tick | 30 | B | an instant at which a discrete component's stages run |
@@ -103,8 +102,11 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 |---|---|---|---|---|
 | activation | g-activation | 27 | A | a re-run of Stratum C at a given scalar type |
 | always-on conformance check | g-always-on-conformance-check | 0 | — | one type test of a stage return at the table-write point |
-| `Build` | g-build | 1 | B | the artifact `build(world)` produces: wires, faces, execution order, root inputs |
+| `Build` | g-build | 1 | B | the bundle of the stratum products, the activations and the build's warnings |
 | chunking | g-chunking | 2 | A | splitting a large phase body into statically typed chunks |
+| `Dataflow` | g-dataflow | 1 | A | Stratum B's product: the port classes, the feedthrough edges and the execution order |
+| `Deployment` | g-deployment | 1 | A | the scalar-free artifact the grid parameters fix, carrying the `Schedule` |
+| `Events` | g-events | 1 | A | Stratum B's other product: per component the event names, policies and bundle names |
 | executable set | g-executable-set | 1 | A | the function set an activation can actually run, hence probes |
 | executor | g-executor | 10 | A | the compiled form of the stage execution order |
 | leaf walk | g-leaf-walk | 1 | A | the derivation of per-activation types from a declared nominal type |
@@ -115,6 +117,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | probe value / input synthesis | g-probe-value | 2 | A | fabricated build-time values, synthesized at producerless root inputs and flowing the probe chain |
 | `ProbeDual` | g-probedual | 1 | B | the exported canonical concrete probe scalar |
 | schema vs. layout | g-schema-vs-layout | 0 | — | *(resists compression: the entry contrasts a pair)* |
+| `Structure` | g-structure | 1 | A | Stratum A's product: components, wires, faces, tiers, provenance and scope triples |
 | stratum | g-stratum | 16 | A | one of the build's three phases: structure, execution order, activation |
 | walked / pinned / exempt | g-walked | 21 | A | the eltype-genericity classes: follow the activation scalar, stay `Float64`, exempt |
 
@@ -129,7 +132,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | calling task | g-calling-task | 8 | A | the task that invoked `run!` |
 | claim | g-claim | 14 | B | the set of faces a device may write |
 | coalescing | g-coalescing | 4 | A | the CAS merge keeping one pending batch per device |
-| control plane | g-control-plane | 6 | A | the separate atomic surface carrying pause, pace and stop |
+| control plane | g-control-plane | 6 | A | the separate atomic surface carrying pause, pace, stop, the lifecycle and the wait |
 | derived liveness | g-derived-liveness | 1 | A | widget liveness derived from the feed chain, never marked per port |
 | device | g-device | 35 | B | any attached participant in the periphery |
 | diagnostic cell | g-diagnostic-cell | 9 | A | the single-writer ring each writer owns for diagnostics and heartbeat |
@@ -145,11 +148,13 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | peek | g-peek | 6 | A | showing a widget's own pending write, else the snapshot value |
 | periphery | g-periphery | 13 | B | everything outside the loop that exchanges data with it |
 | roster | g-roster | 15 | B | the list of attached device entries, read once at `run!` |
+| `Run` | g-run | 1 | A | the state one run owns: `t₀`, mode, log, trace, policy, frames, termination |
 | scenario component | g-scenario-component | 4 | A | an ordinary periodic discrete component holding a sim-time script |
 | selector (read-selector family) | g-selector | 7 | A | the closed family of deferred reads resolving against a source |
 | `should_abort` | g-should_abort | 1 | B | whether a device's departure also requests a stop |
 | snapshot | g-snapshot | 30 | B | the immutable per-boundary publication of the signal table |
 | stage-on-interaction | g-stage-on-interaction | 2 | A | widgets stage on edit or activation, never per render pass |
+| `StopPolicy` | g-stop-policy | 1 | A | the immutable `t_end`-plus-stop-faces value one advance declares |
 | unattended run | g-unattended-run | 6 | A | a run with empty staging and no snapshot readers |
 | write surface | g-write-surface | 2 | A | the set of faces a writer's batch entries may reach |
 
@@ -162,9 +167,9 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | log | g-log | 1 | B | the retained sequence of published snapshots |
 | recorders | g-recorders | 2 | B | the trace and the log jointly |
 | replay | g-replay | 23 | B | the ordinary loop re-driven from the trace |
-| run metadata | g-run-metadata | 1 | B | the trace header's deployment block |
+| run metadata | g-run-metadata | 1 | B | the trace header's `Deployment` and `t₀`, carrying no stop policy |
 | trace | g-trace | 27 | B | the primary record: drained, device-tagged batches per frame |
-| trace header | g-trace-header | 13 | B | the trace's preamble: initial stores, root-input values, schemas, deployment |
+| trace header | g-trace-header | 13 | B | the trace's fixed preamble: initial stores, root-input values, the `Deployment` and `t₀` |
 | trace record | g-trace-record | 0 | — | the retained form of a drained batch |
 | what-if replay | g-what-if-replay | 2 | A | replaying a trace against the same structure with changed parameters |
 
@@ -202,12 +207,12 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | kind | g-kind | 3 | B | a diagnostic's identity in the closed Appendix C set |
 | payload | g-payload | 6 | B | the structured data a diagnostic carries beside its kind |
 | `stop_on` / termination is a state | g-stop_on | 1 | B | the deployment policy naming the faces the loop reads |
-| warning streams | g-warning-streams | 1 | B | two streams, build and runtime, scoped separately |
 
 ## D.10 Meta-vocabulary
 
 | term | anchor | n | class | gloss |
 |---|---|---|---|---|
+| artifact | g-artifact | 1 | A | an immutable pure function of its inputs |
 | blessed | g-blessed | 5 | A | the spec's marker for a practice it explicitly sanctions |
 | decision entry / `D-nnn` | g-row | 0 | — | a numbered entry of `decisions.md` |
 | the freeze | g-the-freeze | 2 | A | the roster freeze: `attach!`/`detach!` are stopped-sim operations |
@@ -215,6 +220,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | normative / index, not a second home | g-normative | 1 | B | the spec norms; its appendices are indices |
 | recorded, not built | g-recorded-not-built | 3 | A | a worked-out extension deliberately left unimplemented, its seams named |
 | seam | g-seam | 19 | B | a narrow, named interface kept deliberately thin |
+| state | g-state-single-owner | 1 | A | a value with a single owner, mutated in place |
 | torture test | g-torture-test | 1 | B | an awkward existing artifact transliterated to validate a mechanism |
 | worked (example) | g-worked | 4 | B | a full spelling of a mechanism against a real artifact |
 
@@ -233,7 +239,6 @@ Appendix D grouping above.
 | gloss | sites |
 |---|---|
 | abstract entry | §13.7 |
-| auto-published port | §7.1, §14.4 |
 | class | §8.2, §8.5, §9.1 |
 | function family | §5.2 |
 | generic holding | §8.5 |
