@@ -9513,6 +9513,13 @@ owner.
   `loop_acct` and `published` into the plane.
 - To the run: `t_end`, `stop_on`, `stop_addrs`, `policy`, `log`, `trace`
   ([D-255][d-255]).
+- Constructor keywords follow their fields. The `Deployment` constructor
+  takes the grid and event parameters and the algorithm. `join_timeout`,
+  `trace`, `log`, `log_every` and `log_max` are keywords of
+  `Simulation(deployment, T)` and of the two convenience forms, the
+  recording flags carried to `init!`, which builds the run. `DeploymentInvalid`
+  names deployment parameters only; the materialization's keywords validate
+  under `ArgumentInvalid`.
 
 **Spec.** [§9.7][s9-7], [§11.2][s11-2], [§11.8][s11-8], [§12.1][s12-1], [§12.4][s12-4]
 
