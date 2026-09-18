@@ -44,6 +44,12 @@ committed when the audit closes.
 
 ## Step 1: the docs commit
 
+Landed 2026-09-18: step 1a as `d0b7712`, `d687271` and `f8f1746`; step 1b as
+`ea86ae8` (the entries), `5502e1a` (the spec), `a85f5e5` (D-256's keyword
+ruling), `6b754fa` and `5f48741` (the cold review's findings, recorded in
+`review_step1b_findings.md`). The spec and the log now say the redesign; the
+code owes it from increment 43 on.
+
 Two commits, both before any code.
 
 **1a, the vocabulary sweep (item 31).** Two passes, `d0b7712` and its
