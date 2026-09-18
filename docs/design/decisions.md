@@ -9521,7 +9521,7 @@ owner.
   names deployment parameters only; the materialization's keywords validate
   under `ArgumentInvalid`.
 
-**Spec.** [§9.7][s9-7], [§11.2][s11-2], [§11.8][s11-8], [§12.1][s12-1], [§12.4][s12-4]
+**Spec.** [§9.7][s9-7], [§11.2][s11-2], [§11.8][s11-8], [§12.1][s12-1], [§12.4][s12-4], [Appendix B][sB], [Appendix C][sC]
 
 **Rationale.** The `Simulation` had twenty-eight fields because it was the
 only struct standing between a build and a running loop, so every value

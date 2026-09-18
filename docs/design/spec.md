@@ -3152,8 +3152,9 @@ harmonic-grid validation, and builds the [schedule](#g-schedule). Nothing in
 A–C depends on it.
 
 A `Deployment` is scalar-free. It holds the build, the grid parameters, the
-three event parameters, the `Schedule`, the grid diagnostics below and its own
-`warnings`. `Simulation` materializes it at a scalar type `T` ([§9.2][s9-2]).
+algorithm, the three event parameters, the `Schedule`, the grid diagnostics
+below and its own `warnings`. `Simulation` materializes it at a scalar type
+`T` ([§9.2][s9-2]).
 Two deployments compare as values, which is what replay's header check reads
 ([§12.7][s12-7]).
 
@@ -3485,8 +3486,10 @@ An **[activation](#g-activation) at `T`** re-runs [Stratum](#g-stratum) C with a
   [continuous component](#g-continuous-component)'s scratch carries the activation's scalar ([§7.3][s7-3]);
 - the probe chain is re-run.
 
-`Structure` and `Dataflow` are `T`-independent by construction, so no
-[execution order](#g-execution-order) and no name list changes across activations
+[`Structure`](#g-structure), Stratum A's product, and
+[`Dataflow`](#g-dataflow), Stratum B's, are `T`-independent by construction,
+so no [execution order](#g-execution-order) and no name list changes across
+activations
 ([D-253][d-253]).
 
 **Each activation probes exactly the function set it can execute.** A `Dual`
@@ -3985,8 +3988,9 @@ required of the stepper, because linearization and the tracer drive the
 *sweep*, never the integrator.
 
 Of the two, **`RK4` is the default**. The `algorithm` keyword selects the
-backend by type on the `Deployment`, and materialization at `Simulation`
-construction binds the stepper against the state buffer, on the
+backend by type on the [`Deployment`](#g-deployment) (the scalar-free artifact
+the grid parameters fix), and materialization at `Simulation` construction
+binds the stepper against the state buffer, on the
 executor ([Appendix B][sB], [§9.2][s9-2], [D-227][d-227]). The step `h` has no default and is
 **required** of the caller. A domain rate is not a framework default.
 
@@ -4360,8 +4364,10 @@ same replay comparison. Both are grid-independent, so neither enters the
 harmonic-grid check ([§10.5][s10-5]).
 
 **Because they determine the trajectory, both are recorded.** They ride the
-[trace header](#g-trace-header)'s `Deployment` and join the set that [replay](#g-replay) compares up front,
-exactly as `h` and the algorithm do ([§11.5][s11-5], [§12.7][s12-7]).
+[trace header](#g-trace-header)'s [`Deployment`](#g-deployment) (the scalar-free
+artifact the grid parameters fix) and join the set that [replay](#g-replay)
+compares up front, exactly as `h` and the algorithm do ([§11.5][s11-5],
+[§12.7][s12-7]).
 
 **Why.** Without this, the replays-identically promise above is empty. A run
 that does not record what its localizer was told to do cannot be re-driven
@@ -5289,8 +5295,9 @@ logged snapshots ([§11.8][s11-8]) is untouched. Re-decimation, like
 decimation, loses *which* boundary within a stretch an occurrence fell on,
 never *how many*. And `log_max` is a **view policy, not a
 trajectory-determining one**. Like `log` and `log_every` it stays out of the
-trace header's `Deployment`, and replay neither records nor compares it
-([§11.5][s11-5], [§12.7][s12-7]). Sizing follows. The `sizehint!` for the
+trace header's [`Deployment`](#g-deployment) (the scalar-free artifact the grid
+parameters fix), and replay neither records nor compares it ([§11.5][s11-5],
+[§12.7][s12-7]). Sizing follows. The `sizehint!` for the
 expected duration ([§7.5][s7-5]) is now naturally capped by `log_max`, which
 is also what defines the hint when `t_end = Inf`.
 
@@ -6495,8 +6502,8 @@ word is what anyone can issue at any moment.
 **Beside pause, pace and `margin`, `Control` keeps the stop word, the
 lifecycle state, the wait and the shutdown tail's `join_timeout`**
 ([§12.4][s12-4], [D-256][d-256]). A run's outcome is not a control surface, so
-`termination` belongs to the `Run` ([§12.6][s12-6], [D-255][d-255]) and not
-here. The control plane is what anyone may poke.
+`termination` belongs to the [`Run`](#g-run) (the state one run owns)
+([§12.6][s12-6], [D-255][d-255]) and not here. The control plane is what anyone may poke.
 
 **Control is not staging, structurally.** Staged writes apply at
 [drains](#g-drain), and a paused loop drains nothing, so un-pause via staging
@@ -6698,8 +6705,8 @@ task or the loop itself ends first.
    point interruptible. The wrapper's `finally shutdown!(device)` is
    guaranteed on every exit path.
 5. **Join under the `join_timeout` cap.** The cap lives on `Control`, the
-   tail's own owner ([§12.1][s12-1], [D-256][d-256]). It is a keyword, a
-   positive real in seconds of wall clock, defaulting to 5
+   tail's own owner ([§12.1][s12-1], [D-256][d-256]). It is a materialization
+   keyword, a positive real in seconds of wall clock, defaulting to 5
    ([Appendix B][sB]). A device task exceeding it is reported *by name*,
    through the [§12.2][s12-2] heartbeat. It is then abandoned with a
    `DeviceJoinTimeout` diagnostic ([Appendix C][sC]) rather than left to hang
@@ -7601,8 +7608,9 @@ presentation and never a home ([D-250][d-250]). An
 criterion places every warning the framework raises.
 
 **The build produces artifacts, so its warnings live on them.** `Build` and
-`Deployment` carry `warnings`, and `warnings(x)` reads the list
-([§9.1][s9-1], [§9.2][s9-2]). A stratum that throws renders its
+[`Deployment`](#g-deployment) (the scalar-free artifact the grid parameters
+fix) carry `warnings`, and `warnings(x)` reads the list ([§9.1][s9-1],
+[§9.2][s9-2]). A stratum that throws renders its
 warnings with the collection it throws. One that completes carries them on the
 artifact, and the entry point logs each once at return. The build's warning set
 holds `EmptyFaceSelection` ([§8.8][s8-8]), and the deployment's holds
@@ -7953,7 +7961,8 @@ loop through declared machinery.
   against the `Build` on every call. Each advance builds a
   **[`StopPolicy`](#g-stop-policy)**,
   the immutable value of `t_end` plus the stop faces with their resolved
-  addresses, and binds it on the `Run` ([§12.6][s12-6]). The loop's `hit`
+  addresses, and binds it on the [`Run`](#g-run) (the state one run owns)
+  ([§12.6][s12-6]). The loop's `hit`
   scratch sits beside the [execution cursor](#g-execution-cursor), never in
   the policy.
   After *every* published boundary the loop reads the named faces in the
@@ -8144,12 +8153,12 @@ down the *rule* and the build evaluates it into inspectable data.
 
 **Every artifact renders itself through `show`** ([§9.2][s9-2],
 [D-257][d-257]). [`Structure`](#g-structure) (Stratum A's product, the
-components, wires, faces and tiers) has one, and so do
-[`Dataflow`](#g-dataflow) (Stratum B's product, the port name sets and edges),
-[`Schedule`](#g-schedule) (the typed per-component `(D, Φ, Δt)` tick table),
-`Build` and [`Deployment`](#g-deployment) (the scalar-free artifact the grid
-parameters fix). There are no accessor functions returning the tables
-alongside.
+components, wires, faces and tiers) has one. So does
+[`Dataflow`](#g-dataflow) (Stratum B's product, the port name sets and edges).
+So does [`Schedule`](#g-schedule) (the typed per-component `(D, Φ, Δt)` tick
+table). So do `Build` and [`Deployment`](#g-deployment) (the scalar-free
+artifact the grid parameters fix). There are no accessor functions returning
+the tables alongside.
 
 **`show(::Structure)` owes [face](#g-face) provenance.** For every root face,
 that means the resolved chain down to the producing terminal (`"crashed" →
@@ -11310,7 +11319,7 @@ collection ([§13.2][s13-2], [D-250][d-250]).
 - **`ReplayUnknownFace`** ([§12.7][s12-7]). Error · service · collected. Face
   name, or the bare position where the writer's schema has no name for it;
   frame ordinal, the trace's device tag, the root input-face list.
-- **`ArgumentInvalid`** ([§8.7][s8-7], [§11.6][s11-6], [§12.6][s12-6],
+- **`ArgumentInvalid`** ([§8.7][s8-7], [§11.6][s11-6], [§12.4][s12-4], [§12.6][s12-6],
   [§14.7][s14-7]). Error · service, or build in a `sample_times` declaration
   · fail-fast, but collected over a `TableBinding`'s entry table. The call
   (`Simulation`, `step!`, `trim!`, `TableBinding`, a period constructor), the
