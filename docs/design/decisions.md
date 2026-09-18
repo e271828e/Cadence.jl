@@ -10019,12 +10019,12 @@ materializing ([§9.2][s9-2]), and the integration step is always qualified
 [s8-7]: spec.md#87-rate-scopes
 [s8-8]: spec.md#88-computed-connections-and-generic-holding
 [s9]: spec.md#9-the-build-pipeline
-[s9-1]: spec.md#91-three-strata
+[s9-1]: spec.md#91-the-builds-three-steps
 [s9-2]: spec.md#92-the-build-artifact
 [s9-3]: spec.md#93-probing-and-input-synthesis
 [s9-4]: spec.md#94-activations-executable-sets-laziness-caching
 [s9-5]: spec.md#95-the-always-on-conformance-check
-[s9-6]: spec.md#96-stopped-sim-services-as-stratum-c-clients
+[s9-6]: spec.md#96-stopped-sim-services-as-activation-clients
 [s9-7]: spec.md#97-the-compiled-executor
 [sA]: spec.md#appendix-a-taught-contracts-the-author-facing-index
 [sB]: spec.md#appendix-b-api-synopsis-the-entry-points

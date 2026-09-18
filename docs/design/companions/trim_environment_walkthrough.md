@@ -590,6 +590,6 @@ Deferred, deliberately: the post-commit target read-back, which belongs to
 [s16]: ../spec.md#16-open-axes
 [s4-4]: ../spec.md#44-function-valued-signals-environment-access
 [s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-execution-order-and-step-boundaries
-[s9-6]: ../spec.md#96-stopped-sim-services-as-stratum-c-clients
+[s9-6]: ../spec.md#96-stopped-sim-services-as-activation-clients
 [sA]: ../spec.md#appendix-a-taught-contracts-the-author-facing-index
 [sD]: ../spec.md#appendix-d-glossary

@@ -23,7 +23,7 @@ Where the reason is not given here, the cited decision carries it:
   The port model: auto-publishing goes, ports are stage 1 or stage 2, and an
   exposed state field is returned from `output_state` (D-252), delivered by
   increment 43. The build-side types: `Structure`, `Dataflow` and `Events` as
-  named stratum products, one activation dictionary on the `Build`, and the
+  named step products, one activation dictionary on the `Build`, and the
   structural consumers reading them instead of the nominal activation (D-253).
   §8.8's selectors: the `select` predicate, `:multiple_selectors` and
   `EmptyFaceSelection` (D-251). The warning homes: the artifact criterion,

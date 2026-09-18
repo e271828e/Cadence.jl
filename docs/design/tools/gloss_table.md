@@ -100,13 +100,13 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 
 | term | anchor | n | class | gloss |
 |---|---|---|---|---|
-| activation | g-activation | 27 | A | a re-run of Stratum C at a given scalar type |
+| activation | g-activation | 27 | A | the build's typed products at a given scalar type |
 | always-on conformance check | g-always-on-conformance-check | 0 | — | one type test of a stage return at the table-write point |
-| `Build` | g-build | 1 | B | the bundle of the stratum products, the activations and the build's warnings |
+| `Build` | g-build | 1 | B | the bundle of the three steps' products, the activations and the build's warnings |
 | chunking | g-chunking | 2 | A | splitting a large phase body into statically typed chunks |
-| `Dataflow` | g-dataflow | 1 | A | Stratum B's product: the port classes, the feedthrough edges and the execution order |
+| `Dataflow` | g-dataflow | 1 | A | the nominal evaluation's product: the port classes, the feedthrough edges and the execution order |
 | `Deployment` | g-deployment | 1 | A | the scalar-free artifact the grid parameters fix, carrying the `Schedule` |
-| `Events` | g-events | 1 | A | Stratum B's other product: per component the event names, policies and bundle names |
+| `Events` | g-events | 1 | A | the nominal evaluation's other product: per component the event names, policies and bundle names |
 | executable set | g-executable-set | 1 | A | the function set an activation can actually run, hence probes |
 | executor | g-executor | 10 | A | the compiled form of the stage execution order |
 | leaf walk | g-leaf-walk | 1 | A | the derivation of per-activation types from a declared nominal type |
@@ -117,8 +117,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | probe value / input synthesis | g-probe-value | 2 | A | fabricated build-time values, synthesized at producerless root inputs and flowing the probe chain |
 | `ProbeDual` | g-probedual | 1 | B | the exported canonical concrete probe scalar |
 | schema vs. layout | g-schema-vs-layout | 0 | — | *(resists compression: the entry contrasts a pair)* |
-| `Structure` | g-structure | 1 | A | Stratum A's product: components, wires, faces, tiers, provenance and scope triples |
-| stratum | g-stratum | 16 | A | one of the build's three phases: structure, execution order, activation |
+| `Structure` | g-structure | 1 | A | the structure step's product: components, wires, faces, tiers, provenance and scope triples |
 | walked / pinned / exempt | g-walked | 21 | A | the eltype-genericity classes: follow the activation scalar, stay `Float64`, exempt |
 
 ## D.6 Runtime periphery
@@ -271,7 +270,6 @@ Appendix D grouping above.
 | leaf walk | §8.2 |
 | lens | §14.3 |
 | nominal | §6.1 |
-| stratum | §5.6, §6.1, §8.2, §8.5, §13.1, §13.2, §13.3, §14.3 |
 | calling task | §11.1, §11.2, §11.3, §11.6, §12.6 |
 | coalescing | §11.4 |
 | control plane | §12.4 |

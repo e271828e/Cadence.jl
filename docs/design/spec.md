@@ -45,12 +45,12 @@
     - [8.7 Rate scopes](#87-rate-scopes)
     - [8.8 Computed connections and generic holding](#88-computed-connections-and-generic-holding)
   - [9. The build pipeline](#9-the-build-pipeline)
-    - [9.1 Three strata](#91-three-strata)
+    - [9.1 The build's three steps](#91-the-builds-three-steps)
     - [9.2 The `Build` artifact](#92-the-build-artifact)
     - [9.3 Probing and input synthesis](#93-probing-and-input-synthesis)
     - [9.4 Activations: executable sets, laziness, caching](#94-activations-executable-sets-laziness-caching)
     - [9.5 The always-on conformance check](#95-the-always-on-conformance-check)
-    - [9.6 Stopped-sim services as Stratum-C clients](#96-stopped-sim-services-as-stratum-c-clients)
+    - [9.6 Stopped-sim services as activation clients](#96-stopped-sim-services-as-activation-clients)
     - [9.7 The compiled executor](#97-the-compiled-executor)
 - [Part III — Execution](#part-iii--execution)
   - [10. Time and execution](#10-time-and-execution)
@@ -977,22 +977,23 @@ improves error messages and verification. The build triggers it when it
 finds a cycle, to classify that cycle. A genuine cycle gets "insert a state",
 and an artificial one gets the remedy ladder ([§5.4][s5-4]).
 
-**Detection and naming.** A cycle surfaces as a topological-sort stall in
-[Stratum](#g-stratum) B (one of the build's three phases: structure, execution order,
-activation). The stalled subgraph is decomposed into **strongly connected
+**Detection and naming.** A cycle surfaces as a topological-sort stall in the
+nominal evaluation (the build's second step, the one evaluation that feeds
+structure). The stalled subgraph is decomposed into **strongly connected
 components**. Each nontrivial SCC names one cyclic cluster exactly, and each
 cluster becomes one diagnostic. The diagnostic presents the cluster's members
 and the wires among them as one readable loop of terminal pairs in the canonical
 slash form ([§8.6][s8-6], `aero/F → dyn/F, dyn/a → aero/a`). Neither the raw stall
 residue nor a single back edge names the cluster correctly ([D-012][d-012]).
 
-**Classification needs no [execution order](#g-execution-order).** It runs inside Stratum B's failure
-path, where no execution order exists. None is needed, because each SCC member
-is evaluated *once, in isolation*, at the [probe](#g-probe) point. That evaluation reads
-state views from `init_*`, out-of-cycle [cells](#g-cell) from the acyclic prefix's probe
-values, and in-cycle cells synthesized through `probe_value` ([§9.3][s9-3]) under tracer
-tags. The tracer's product is a per-member dependence set rather than a value,
-so no ordering has to be valid for the labels to come out right.
+**Classification needs no [execution order](#g-execution-order).** It runs inside the nominal
+evaluation's failure path, where no execution order exists. None is needed,
+because each SCC member is evaluated *once, in isolation*, at the [probe](#g-probe) point.
+That evaluation reads state views from `init_*`, out-of-cycle [cells](#g-cell) from the
+acyclic prefix's probe values, and in-cycle cells synthesized through
+`probe_value` ([§9.3][s9-3]) under tracer tags. The tracer's product is a per-member
+dependence set rather than a value, so no ordering has to be valid for the
+labels to come out right.
 
 **Rule.** The traced maps decide the verdict as one graph question over the
 cluster. Every wire holds. A hop inside a member, from the face one wire
@@ -1005,12 +1006,12 @@ under either verdict, so a real loop still shows the chords the trace found
 false ([D-245][d-245]). For a simple cycle this reduces to the expected reading: real
 iff every hop survives.
 
-No Stratum C machinery is touched. There is no [activation](#g-activation) (a re-run of
-Stratum C at a given scalar type), no layouts and no table. This is the *local*
+No activation machinery is touched. There is no [activation](#g-activation) (the build's typed
+products at a given scalar type), no layouts and no table. This is the *local*
 variant ([D-012][d-012]), the order-free per-member trace at the probe point, which is
 what the cycle classifier uses. The "tracer activation" ([§9.4][s9-4]) names the other
-variant ([D-012][d-012]), the global set-tracer run as an ordinary Stratum-C activation.
-The two must not be conflated.
+variant ([D-012][d-012]), the global set-tracer run as an ordinary activation. The two
+must not be conflated.
 
 **Caveats, carried in the diagnostic rather than assumed away.** The trace
 speaks for the branch taken at the probe state (the diagnostic-only doctrine,
@@ -1128,13 +1129,12 @@ concrete entry. A violation is `WireTypeMismatch`.
 Beside it, and **for a continuous consumer only**, stands the
 **walk-compatibility clause**. A walking producer leaf, one the producer
 declared `T`, requires a `T` entry. A [pinned](#g-walked) producer leaf satisfies either
-entry, because frozen values embed upward under any [activation](#g-activation) (a re-run of
-Stratum C at a given scalar type).
+entry, because frozen values embed upward under any [activation](#g-activation) (the build's
+typed products at a given scalar type).
 
-Both sides are declaration functions of `T`, so the clause is decided in [Stratum](#g-stratum)
-A (one of the build's three phases: structure, execution order, activation) by
-evaluating them at a marker scalar. That is declaration reading, and no user
-stage code runs ([§9.1][s9-1]). A violation is `WalkingFaceAtFrozenEntry`, naming both
+Both sides are declaration functions of `T`, so the clause is decided in the
+structure step by evaluating them at a marker scalar. That is declaration
+reading, and no user stage code runs ([§9.1][s9-1]). A violation is `WalkingFaceAtFrozenEntry`, naming both
 endpoints, the leaf and both declared leaf types. The message carries both
 remedies. Declare the entry `T` if the consumer promotes, or feed it from a
 non-walking source if the freeze is genuine.
@@ -1207,8 +1207,8 @@ output_direct(::SumJunction, (; u)) = (; Σ = +(u...))
 
 The parameter is the *unparametrized* type constructor, as in
 `SumJunction{Wrench, 3}`. UnionAlls are legal type parameters, so both [contracts](#g-contract)
-derive their entries from it by applying it to the scalar of the [activation](#g-activation) (a
-re-run of Stratum C at a given scalar type).
+derive their entries from it by applying it to the scalar of the [activation](#g-activation) (the
+build's typed products at a given scalar type).
 
 The junction is a continuous leaf, so its `input_types` entries are the tolerant
 `W{T}` a promoting consumer writes. Walking, frozen and [root-input](#g-root-input) contributors
@@ -1507,7 +1507,7 @@ as the idiomatic label. It is interned, immutable and never freed, so it copies
 as a pointer to permanent data and serializes as its name. The table admits it
 on the same grounds, as an opaque leaf ([§4.3][s4-3]). A `String`, an array,
 or a struct holding either does not qualify, and neither does a struct nesting a
-`Symbol`. Stratum A checks every `init_s` and `init_m` field and reports a
+`Symbol`. The structure step checks every `init_s` and `init_m` field and reports a
 violation as `IllegalStoreField` ([§9.1][s9-1], [Appendix C][sC], [D-231][d-231]).
 
 **Why.** State is what changes between [ticks](#g-tick). Bulk data and labels do not, and
@@ -1555,8 +1555,8 @@ init_workspace(c::KF, ::Type{T}) where {T} =
 from nowhere else. A one-argument `init_workspace` on a continuous leaf is
 therefore an ordinary tier disagreement ([§8.2][s8-2]).
 
-The allocator is called once per [activation](#g-activation) (a re-run of Stratum C at a given
-scalar type) and once per scratch-store set ([§14.8][s14-8]). Sizes come from the
+The allocator is called once per [activation](#g-activation) (the build's typed products at a
+given scalar type) and once per scratch-store set ([§14.8][s14-8]). Sizes come from the
 instance, and eltypes from the activation. Nothing downstream derives from a
 workspace's type, and mistyped scratch detonates loudly at the `Dual` [probe](#g-probe).
 
@@ -1717,7 +1717,7 @@ artifact. [§8][s8] is the declaration layer. It fixes the closed inventory of
 well-known functions a component defines, the visibility each declaration
 carries, and the shapes an assembly adds on top: children, paths, faces, rate
 scopes and computed connections. [§9][s9] is the build pipeline that consumes them.
-It fixes the three ordering strata, the `Build` artifact they produce, the probe
+It fixes the build's three steps, the `Build` artifact they produce, the probe
 that runs every user function once against real values, activations at other
 scalar types, the conformance check the probe leaves permanently in place, and
 the compiled executor the loop will dispatch through.
@@ -1961,7 +1961,7 @@ where each schema fact gets its authority.
 `init_m`, declare *by initial value*. The type is derived from the value. The
 value is a `NamedTuple`, one named field per leaf, and no other form is
 admitted. A bare leaf such as `init_x(::C) = 0.0` or
-`init_s(::C) = zeros(SVector{3})` is refused. Stratum A reports it as
+`init_s(::C) = zeros(SVector{3})` is refused. The structure step reports it as
 `StoreNotNamedTuple`, and the message spells the wrap ([§9.1][s9-1],
 [Appendix C][sC], [D-247][d-247]).
 
@@ -1997,19 +1997,18 @@ The asymmetry against `input_types`/`output_types` is one of kind, not style.
 [sweep](#g-sweep), and so need only types. `init_*` describe [stores](#g-store), the model's
 memory, which must have contents before the first sweep can run.
 
-**These declarations stay one-argument**, and the criterion is the
-declaration convention they live in ([D-166][d-166]). It is stated once here, and the
-blocks below refer back to it. A *by-value* declaration states nominal physics,
-and its *types* [walk by rule](#g-leaf-walk) (the derivation of per-activation types from a
-declared nominal type). [§7.1][s7-1] forces every state leaf to follow the [activation](#g-activation)
-scalar (a re-run of Stratum C at a given scalar type), so a `T` in the signature
-would record no choice its author could make. Partials enter through
-per-invocation seeding, never through initialization. A *by-type* declaration is
-a function of the activation scalar, which is why `input_types` and
-`output_types` both take it on the continuous tier. A *by-allocation*
-declaration takes the scalar too, and `init_workspace(c, T)` is the standing
-precedent ([D-077][d-077]). The criterion, not uniformity, is the rule. A `T` in a
-signature means a choice was made there.
+**These declarations stay one-argument**, and the criterion is the declaration
+convention they live in ([D-166][d-166]). It is stated once here, and the blocks below
+refer back to it. A *by-value* declaration states nominal physics, and its *types*
+[walk by rule](#g-leaf-walk) (the derivation of per-activation types from a declared nominal
+type). [§7.1][s7-1] forces every state leaf to follow the [activation](#g-activation) scalar (the build's
+typed products at a given scalar type), so a `T` in the signature would record no
+choice its author could make. Partials enter through per-invocation seeding,
+never through initialization. A *by-type* declaration is a function of the
+activation scalar, which is why `input_types` and `output_types` both take it on the
+continuous tier. A *by-allocation* declaration takes the scalar too, and
+`init_workspace(c, T)` is the standing precedent ([D-077][d-077]). The criterion, not
+uniformity, is the rule. A `T` in a signature means a choice was made there.
 
 #### `input_types(::C, ::Type{T})` on the continuous tier, `input_types(::C)` on the discrete
 
@@ -2057,17 +2056,16 @@ over-wiring detection and [did-you-mean](#g-did-you-mean) typo messages definabl
 did-you-mean message is the offending name plus the list-in-hand it should
 have matched.
 
-**Two clauses check a wire** ([§6.1][s6-1]). The **nominal bound check** is stated
-over evaluations. The producer's declaration at `Float64` must be `<:` the
-entry at `Float64`. It is one uniform rule, and it degenerates to exact
-equality for a concrete entry, because concrete types are final. Beside it
-sits the **tier-scoped walk-compatibility clause**. For a *continuous*
-consumer, a walking producer leaf (one the producer declared `T`) requires a
-`T` entry, while a [pinned](#g-walked) producer leaf satisfies either, because frozen
-values embed upward. Both sides are declaration functions of `T`, so the
-clause is decidable in [Stratum](#g-stratum) A (one of the build's three phases: structure,
-execution order, activation) by evaluating them at a marker scalar. No user
-stage code runs ([§9.1][s9-1]), and a violation is `WalkingFaceAtFrozenEntry`.
+**Two clauses check a wire** ([§6.1][s6-1]). The **nominal bound check** is stated over
+evaluations. The producer's declaration at `Float64` must be `<:` the entry at
+`Float64`. It is one uniform rule, and it degenerates to exact equality for a
+concrete entry, because concrete types are final. Beside it sits the **tier-scoped
+walk-compatibility clause**. For a *continuous* consumer, a walking producer leaf
+(one the producer declared `T`) requires a `T` entry, while a [pinned](#g-walked) producer leaf
+satisfies either, because frozen values embed upward. Both sides are declaration
+functions of `T`, so the clause is decidable in the structure step (the build's
+first step, declaration reading only) by evaluating them at a marker scalar. No
+user stage code runs ([§9.1][s9-1]), and a violation is `WalkingFaceAtFrozenEntry`.
 
 **Discrete consumers take the bound check only**, and that scope is
 a correctness rule rather than tidiness.
@@ -2199,24 +2197,24 @@ by seeding ([§14.10][s14-10]), never by typing. The declaration says which leav
 
 **The forgotten-`T` account, stated openly.** The whole-signature variant, a
 continuous producer declared as though it were discrete, is unwritable by
-construction. The tier mandate catches it in [Stratum](#g-stratum) A, before any user
+construction. The tier mandate catches it in the structure step, before any user
 code runs. What remains is per-leaf. An author writes `Float64` at a leaf that
 really participates.
 
 That bug **lurks, but is never silent**. No lossy `Dual → Float64` cast exists,
 so the first `Dual` activation of that [component](#g-component) fails. It fails at that
-activation's own lazy Stratum-C compile ([§9.4][s9-4]), not at `build(world)`. The
+activation's own lazy compile ([§9.4][s9-4]), not at `build(world)`. The
 message carries the didactic hint ("if `F` participates in differentiation,
 declare it `T`"), because an observed `Dual` at a declared-pinned leaf has
 exactly one honest cause.
 
-The lurk is contained by policy rather than machinery. **The test suite builds
-a `Dual` activation of every component**, which is the exhaustive set [§9.4][s9-4]
-defines. An activation is a Stratum-C re-run, cheap enough to make this
+The lurk is contained by policy rather than machinery. **The test suite builds a
+`Dual` activation of every component**, which is the exhaustive set [§9.4][s9-4] defines. An
+activation is derived from the nominal one, cheap enough to make this
 unremarkable in CI. What the form buys in exchange is **reader honesty**.
 Participation is read off the declaration instead of reconstructed from a
-framework rule carried in the reader's head, and a genuinely frozen leaf can
-say so.
+framework rule carried in the reader's head, and a genuinely frozen leaf can say
+so.
 
 **The stores are walked, and only the output side is evaluated.** The type
 derived from `init_x` is walked. Real leaves and `Real` type parameters follow
@@ -2230,7 +2228,7 @@ non-nominal activations. That is the rule for `Float64` condition leaves
 
 Walking `init_x` presupposes the closed leaf vocabulary [§7.1][s7-1] fixes, scalars
 and `SArray`s at the common eltype. On the discrete tier, the stores answer to
-the isbits rule of [§7.3][s7-3], checked field by field. Stratum A checks both
+the isbits rule of [§7.3][s7-3], checked field by field. The structure step checks both
 vocabularies ([§9.1][s9-1]) and reports a failure in the didactic style:
 - "`init_x` field `gear_count::Int` is not a continuous state — integers,
   `Bool`s and enums belong in `init_m`";
@@ -2284,7 +2282,7 @@ invariant reached through the declaration layer with no extra machinery.
 
 #### Completeness of the declaration set
 
-Four rules the build checks in [Stratum](#g-stratum) A ([§9.1][s9-1]), stated here because
+Four rules the build checks in the structure step ([§9.1][s9-1]), stated here because
 they are properties of the declarations, not of the wiring.
 
 **A store needs its update.** `init_x` with no `state_derivative` method, or
@@ -2553,12 +2551,10 @@ world = Group(
 ```
 
 One type, defined once, and every ad-hoc topology is a *value* of it. The type
-parameters still carry the children's concrete types, so [Stratum](#g-stratum) C
-specialization is unchanged (the strata are the build's three phases:
-structure, execution order, activation). So is the [executor](#g-executor), the compiled
-form of the stage execution order ([§9.7][s9-7]). Wiring validation, did-you-mean
-errors and the two-producer check all run at build against the instance
-exactly as for a named assembly.
+parameters still carry the children's concrete types, so activation is
+unchanged. So is the [executor](#g-executor), the compiled form of the stage execution order
+([§9.7][s9-7]). Wiring validation, did-you-mean errors and the two-producer check all
+run at build against the instance exactly as for a named assembly.
 
 What is given up relative to a named type is exactly what named types are
 *for*, namely dispatching domain code on `::Cessna172X` and a reusable
@@ -2621,8 +2617,8 @@ one, or a `T`-form bounded narrower than `Real`. The diagnostic reports the
 component path, the declaration at fault, the tier its other declarations
 announce, and the form found versus the form mandated. On a stateful leaf the
 tier comes from the store and the update law, and a contract arity against it
-is this kind, never `DeclarationOnWrongTier` ([D-249][d-249]). The check is Stratum A
-and collected. Declaration shape is read, and nothing is evaluated.
+is this kind, never `DeclarationOnWrongTier` ([D-249][d-249]). The check is the structure
+step's and collected. Declaration shape is read, and nothing is evaluated.
 
 The tier fact is therefore spelled in the signature *and* fixed by the class,
 and the two are kept in agreement by a check rather than by convention. That
@@ -2988,10 +2984,10 @@ declared and what must hold. This chapter states *when* each fact is checked,
 against what, and with which failure. The [§8.4][s8-4] walkthroughs plus the error
 rules ([§6.1][s6-1]) are its acceptance tests. Error-*reporting* policy is settled in
 [§13.1][s13-1]. Declarative checking passes collect, user-code evaluation fails fast,
-and strata are barriers, so the only partial results carried past failures
-are violation lists from pure checks.
+and the build's steps are barriers, so the only partial results carried past
+failures are violation lists from pure checks.
 
-### 9.1 Three strata
+### 9.1 The build's three steps
 
 Three ordering constraints are forced by settled decisions. [Face](#g-face) derivation
 is **bottom-up**, because an [assembly](#g-assembly)'s interface connections evaluate
@@ -3000,16 +2996,31 @@ and cross-level two-producers detection are **global**, decidable only at the
 root, after every assembly's wires and faces are in hand ([§6.1][s6-1]). And stage
 membership is **derived by probing** the stage-1 functions ([§8.2][s8-2]), so
 evaluation interleaves with graph construction at exactly one [blessed](#g-blessed) spot.
-The pipeline is therefore inherently heterogeneous, and it is organized as
-three [strata](#g-stratum).
+The pipeline is therefore inherently heterogeneous. It runs as the steps
+below, each consuming one artifact and producing the next, and each a
+barrier ([§13.1][s13-1]): a step that produced any error throws before the
+next begins.
 
-#### Stratum A: structure
+| step | consumes | produces | user code it runs |
+|---|---|---|---|
+| the structure step | the root instance | [`Structure`](#g-structure) | declaration bodies only |
+| the nominal evaluation | `Structure` | [`Dataflow`](#g-dataflow), [`Events`](#g-events), the nominal `Float64` [activation](#g-activation) | the stage functions, guards and handlers, at `Float64` |
+| activation at `T` | `Structure`, `Dataflow`, the nominal activation, a scalar `T` | `Activation{T}` | the continuous tier's functions at `T` |
+| deployment | the `Build`, the grid parameters | [`Deployment`](#g-deployment) with its [`Schedule`](#g-schedule) | none |
+| materialization | the `Deployment`, a scalar `T` | `Simulation{T}` | none |
 
-Stratum A is pure declaration reading. No user stage code executes in it. The
-`input_connections`/`output_connections`/`input_passthrough` bodies are
+The first three are the build, and `build(world)` runs them; the
+[`Build`](#g-build) bundles their products ([§9.2][s9-2]). The last two are
+the `Deployment` constructor below and the `Simulation` constructor
+([§9.2][s9-2]).
+
+#### The structure step
+
+The structure step is pure declaration reading. No user stage code executes in
+it. The `input_connections`/`output_connections`/`input_passthrough` bodies are
 declaration code ([§8.8][s8-8]).
 
-The stratum is a tree walk from the root instance, in this order:
+The step is a tree walk from the root instance, in this order:
 
 1. [Components](#g-component) are collected by path.
 2. Each component's [class](#g-class) (its primitive-vs-assembly status) is read off
@@ -3031,7 +3042,7 @@ Resolution runs these checks:
 - the store form ([§8.2][s8-2]): every `init_x`, `init_s` and `init_m` value is
   a `NamedTuple`. It is checked before the classifier and the vocabulary
   checks read the value, and a primitive failing it is read no further in
-  this stratum;
+  this step;
 - the closed leaf vocabulary ([§7.1][s7-1]), checked on every `init_x` because
   the walk in [§8.2][s8-2] rests on it. `init_s` pins wholesale and answers to the
   isbits rule of [§7.3][s7-3] instead, checked with `init_m` field by field.
@@ -3046,22 +3057,22 @@ Equality is the concrete degenerate case. Abstract-at-root is detected here.
 **The walk-compatibility clause** is the second, and it applies to continuous
 consumers only. It is decided by evaluating both declarations at a marker
 scalar and comparing per leaf, and its diagnostic is
-`WalkingFaceAtFrozenEntry`. It stays inside this stratum's charter because
+`WalkingFaceAtFrozenEntry`. It stays inside this step's charter because
 both sides are declaration functions of `T`. Declarations are evaluated, and
 no user stage code runs.
 
-Stratum A also checks the declaration-completeness rules ([§8.2][s8-2]): a store
+The step also checks the declaration-completeness rules ([§8.2][s8-2]): a store
 without its update, an event missing a [guard](#g-guard) or handler method, a leaf
 mixing [tier](#g-tier) families, and a contract signature whose form contradicts the
 leaf's tier ([§8.5][s8-5]).
 
-`sample_times` validation is Stratum A's too, and it has two parts. The first
-is per-entry validity against the constraints of [§10.5][s10-5]: wrapper-typed
-values, `K ≥ 1`, `0 ≤ Φ < K`, `T > 0`, `0 ≤ τ < T`, and keys naming discrete or
-scope children. Those violations are collected with path attribution. The
-second is compilation into **`(anchor, m, c)` triples**. A triple carries a
-discrete component's divisor and [phase](#g-phase) in the [tick](#g-tick) units of its
-[anchor](#g-anchor), the exact `(T, τ)` pair an `Absolute` entry establishes.
+`sample_times` validation is the structure step's too, and it has two parts. The
+first is per-entry validity against the constraints of [§10.5][s10-5]: wrapper-typed
+values, `K ≥ 1`, `0 ≤ Φ < K`, `T > 0`, `0 ≤ τ < T`, and keys naming discrete or scope
+children. Those violations are collected with path attribution. The second is
+compilation into **`(anchor, m, c)` triples**. A triple carries a discrete component's
+divisor and [phase](#g-phase) in the [tick](#g-tick) units of its [anchor](#g-anchor), the exact `(T, τ)` pair an
+`Absolute` entry establishes.
 
 The compilation is a fold down the tree, one rule per case:
 
@@ -3075,11 +3086,11 @@ Anchor 0 is symbolic until deployment. The `Relative` case is the affine law
 ([§10.5][s10-5]) in anchor-tick units. The canonical residue (`c < m`) holds
 within each anchor's subtree by the same induction.
 
-Everything except binding `Δt_base`, which is deployment's, happens in
-Stratum A. Final divisors for anchored entries genuinely cannot exist until
+Everything except binding `Δt_base`, which is deployment's, happens in the
+structure step. Final divisors for anchored entries genuinely cannot exist until
 `Δt_base` binds.
 
-**Stratum A returns [`Structure`](#g-structure)** (the artifact holding
+**The structure step returns [`Structure`](#g-structure)** (the artifact holding
 everything the instance alone fixes), and that is its whole product
 ([D-253][d-253]).
 `Structure` carries the components by path with their class and contracts,
@@ -3089,17 +3100,16 @@ the declaration provenance as its `Relative`/`Absolute` chain, and, for each
 assembly that declares one, its scope triple under that `sample_times` key.
 Nothing in it depends on a scalar type.
 
-#### Stratum B: execution order
+#### The nominal evaluation
 
-**Stratum B is a function of the `Structure`**, and it returns two artifacts,
-[`Dataflow`](#g-dataflow) and [`Events`](#g-events), with the `Float64`
-stage-1 products ([D-253][d-253]).
-It is the single evaluation-feeds-structure step. `Dataflow` (the artifact
-holding the port classification and the order over it) carries per component
-the stage-1 and stage-2 name sets, the [feedthrough](#g-feedthrough) edges with their
-provenance, and the [execution order](#g-execution-order). `Events` (the artifact
-holding the event tables) carries per component the event names, their
-detection policies and the bundle names. B computes them in this order:
+**The nominal evaluation is a function of the `Structure`**, and it returns three
+artifacts, [`Dataflow`](#g-dataflow), [`Events`](#g-events) and the nominal `Float64` [activation](#g-activation) ([D-253][d-253], [D-259][d-259]).
+It is the single evaluation-feeds-structure step. `Dataflow` (the artifact holding
+the port classification and the order over it) carries per component the stage-1
+and stage-2 name sets, the [feedthrough](#g-feedthrough) edges with their provenance, and the
+[execution order](#g-execution-order). `Events` (the artifact holding the event tables) carries per
+component the event names, their detection policies and the bundle names. It
+computes them in this order:
 
 - [Workspace](#g-workspace) (component-declared mutable scratch arriving as the `ws` bundle
   field) is allocated at the probing scalar. That is sound this early because
@@ -3119,16 +3129,17 @@ detection policies and the bundle names. B computes them in this order:
 Both products are structural. They are names only, `T`-independent,
 branch-protected by the branch-shape rule plus the always-on check ([§9.5][s9-5]).
 
-**Stratum B is the nominal evaluation's structural half.** The nominal
-[activation](#g-activation) is B's products plus C's typing at `Float64`, never a
-separate pass ([D-253][d-253]). That is why no product of B changes across
-activations.
+**The nominal evaluation fixes the structure and the `Float64` typing at
+once.** The nominal [activation](#g-activation) is its product beside
+`Dataflow` and `Events`, assembled from the same probe chain, never a
+separate pass ([D-253][d-253], [D-259][d-259]). That is why no product of
+this step changes across activations.
 
-#### Stratum C: activation, parametric in `T`
+#### Activation, parametric in `T`
 
-**Stratum C takes the structure, the dataflow and the events, and completes an
-`Activation`** ([D-253][d-253]). An activation is a re-run of Stratum C at a
-given scalar type. The stratum holds everything type-shaped:
+**Activation at a scalar `T` takes the structure, the dataflow and the
+nominal activation, and completes an `Activation{T}`** ([D-253][d-253],
+[D-259][d-259]). The step holds everything type-shaped:
 
 - The producers' output declarations are **evaluated** at the activation's `T`
   to type the [cells](#g-cell). That is the literal semantics ([§8.2][s8-2]). A
@@ -3141,11 +3152,11 @@ given scalar type. The stratum holds everything type-shaped:
 - The flat `x` [buffer](#g-buffer) and the table are laid out.
 
 The nominal `Float64` activation runs at build. Other activations re-run *only
-this stratum* ([§9.4][s9-4]).
+this step* ([§9.4][s9-4]).
 
 #### The `Deployment` constructor
 
-**The `Deployment` constructor sits after all three strata.** It consumes the
+**The `Deployment` constructor sits after the build's three steps.** It consumes the
 `Build` and the grid parameters, and it returns a [`Deployment`](#g-deployment),
 the artifact that carries everything those parameters fix ([D-254][d-254]). It
 binds the grid parameters, the algorithm, the three event parameters, runs
@@ -3216,8 +3227,8 @@ grid-independent, so they take no part in the harmonic-grid check ([§10.4][s10-
 
 #### Where a build warning lives
 
-**Rule.** A stratum that throws renders its warnings with the collection it
-throws. A stratum that completes carries its warnings on the artifact, and the
+**Rule.** A step that throws renders its warnings with the collection it
+throws. A step that completes carries its warnings on the artifact, and the
 entry point logs each one once at return ([D-250][d-250]). Logging is
 presentation and never a home ([§13.2][s13-2]).
 
@@ -3230,7 +3241,7 @@ how `EmptyFaceSelection` ([§8.8][s8-8]) reaches the `Build`'s list.
 
 `build(world) → Build` is a standalone entry point. **A `Build` is structure,
 dataflow, events, the [activations](#g-activation) and `warnings`** ([D-253][d-253]).
-The first three are the stratum products of [§9.1][s9-1]. The activations are one
+The first three are the products of [§9.1][s9-1]'s three steps. The activations are one
 dictionary keyed by scalar type, the nominal `Float64` entry included, under
 the lock that makes insertion torn-state-free ([§9.4][s9-4]).
 
@@ -3254,14 +3265,13 @@ single-owner ([§9.4][s9-4]). Each `Simulation` materializes its own from the
 shared layouts, so nothing writable is shared. The one mutable thing on the
 artifact is the lazily populated activation dictionary, whose insertion
 [§9.4][s9-4] makes torn-state-free. The `Build` is the inspectable derived
-contract of the instantiation that [§8.8][s8-8] gestures at. Its parts hold the
-wire list, face table, [root inputs](#g-root-input) and [execution order](#g-execution-order)
-as plain printable data. The first three sit on [`Structure`](#g-structure)
-(Stratum A's product, the components, wires, faces and tiers). The last sits
-on [`Dataflow`](#g-dataflow) (Stratum B's product, the port name sets and
-edges), beside the port classes. "Printable" names the
-representation. Paths, names and rationals are inspectable as fields and
-printed by any REPL without a method of their own, the diagnostic form set
+contract of the instantiation that [§8.8][s8-8] gestures at. Its parts hold the wire
+list, face table, [root inputs](#g-root-input) and [execution order](#g-execution-order) as plain printable data. The
+first three sit on [`Structure`](#g-structure) (the structure step's product, the components,
+wires, faces and tiers). The last sits on [`Dataflow`](#g-dataflow) (the nominal evaluation's
+product, the port name sets and edges), beside the port classes. "Printable"
+names the representation. Paths, names and rationals are inspectable as fields
+and printed by any REPL without a method of their own, the diagnostic form set
 against the compiled form ([§9.7][s9-7]).
 
 **The face table on `Structure` is two-sided.** Beside each level's output
@@ -3277,7 +3287,7 @@ acceptance tests target `build` errors directly, and `attach!` validates
 constructor was rejected ([D-049][d-049]).
 
 **`Structure`'s timing tables are anchor-relative, and the `Deployment` binds
-them.** From [Stratum](#g-stratum) A the artifact gains two printable tables. The
+them.** From the structure step the artifact gains two printable tables. The
 **[anchor](#g-anchor) table** holds each anchor's exact `(T, τ)` rationals with the
 declaring scope's path and key. The **[component](#g-component) table** holds the
 `(anchor, m, c)` triples with their declaration provenance, the
@@ -3402,7 +3412,7 @@ and `t₀` post-dates even deployment ([§14.5][s14-5]), so like `Δt` below it 
 fabricated, probe-scoped value. `ws` comes from invoking the component's
 `init_workspace` allocator at the probing scalar. That allocator reads only
 the instance and the scalar ([D-077][d-077]) and derives nothing from layouts, so it
-runs before the [Stratum](#g-stratum) B probes that need it. Exactly one kind of
+runs before the nominal evaluation's probes that need it. Exactly one kind of
 terminal has no producer: **root inputs**. The build synthesizes their values
 via `probe_value(::Type)`. Framework methods cover `Real` (`zero(T)`), `Bool`
 (`false`) and enums (first instance), and the ultimate fallback is the
@@ -3471,7 +3481,7 @@ values, which run before the build, where asserts are perfectly legitimate.
 It never belongs inside a stage, on probe-fed data.
 ### 9.4 Activations: executable sets, laziness, caching
 
-An **[activation](#g-activation) at `T`** re-runs [Stratum](#g-stratum) C with a different scalar:
+An **[activation](#g-activation) at `T`** re-runs the activation step with a different scalar:
 
 - producer-fed [cells](#g-cell) are re-typed by *evaluating* the producing [component](#g-component)'s
   output declaration at `T` ([§8.2][s8-2]). A continuous producer's two-argument
@@ -3483,12 +3493,12 @@ An **[activation](#g-activation) at `T`** re-runs [Stratum](#g-stratum) C with a
 - the state type is re-derived by the walk over `init_x`'s, with table and
   state [buffers](#g-buffer) re-laid-out;
 - [workspace](#g-workspace) allocators are re-invoked at `T`, not introduced. The first
-  invocation precedes the Stratum B [probes](#g-probe) ([§9.1][s9-1]/[§9.3][s9-3]), and a
+  invocation precedes the nominal evaluation's [probes](#g-probe) ([§9.1][s9-1]/[§9.3][s9-3]), and a
   [continuous component](#g-continuous-component)'s scratch carries the activation's scalar ([§7.3][s7-3]);
 - the probe chain is re-run.
 
-[`Structure`](#g-structure), Stratum A's product, and
-[`Dataflow`](#g-dataflow), Stratum B's, are `T`-independent by construction,
+[`Structure`](#g-structure), the structure step's product, and
+[`Dataflow`](#g-dataflow), the nominal evaluation's, are `T`-independent by construction,
 so no [execution order](#g-execution-order) and no name list changes across
 activations
 ([D-253][d-253]).
@@ -3501,12 +3511,12 @@ event localization is `Float64` [sweeps](#g-sweep) by design ([§10.4][s10-4]). 
 continuous output stages (`output_state`/`output_direct`) and
 `state_derivative` ever see a `Dual`, so only they are probed. Probing the
 discrete stages, `state_update`, or guards at `Dual` would check code against
-a number type it cannot receive. It is one rule with no special cases, and
-the [§5.6][s5-6] tracer activation follows it identically. "Tracer activation"
-names the *global* set-tracer ([D-012][d-012]), a whole-model run at the tracer
-scalar, an activation like any other. The cycle classifier ([§5.6][s5-6]) is the
-other variant ([D-012][d-012]). It is the order-free per-member local trace,
-which runs in Stratum B's failure path and is not an activation at all.
+a number type it cannot receive. It is one rule with no special cases, and the
+[§5.6][s5-6] tracer activation follows it identically. "Tracer activation" names the
+*global* set-tracer ([D-012][d-012]), a whole-model run at the tracer scalar, an activation
+like any other. The cycle classifier ([§5.6][s5-6]) is the other variant ([D-012][d-012]). It is
+the order-free per-member local trace, which runs in the nominal evaluation's
+failure path and is not an activation at all.
 
 **Lazy, with an opt-in exhaustive mode.** Non-nominal activations run at first
 request, not at build. The dominant cost is compiling the continuous chain a
@@ -3520,7 +3530,7 @@ repository's test suite pins the invariant instead, as policy rather than
 advice ([D-166][d-166]). **Every component gets a `Dual` activation built in CI.**
 `build(world; activations = (Float64, ProbeDual))` (or a `check` entry) runs
 the exhaustive set, catching both genericity violations and forgotten-`T`
-leaves at PR time, at the cost of a Stratum-C re-run per component. The same
+leaves at PR time, at the cost of an activation per component. The same
 keyword is also recommended for the parallel-sweep idiom ([§11.1][s11-1]).
 Pre-materialize the activations the sweep will need, and the shared `Build`
 is a fully immutable artifact, with no synchronization on any path.
@@ -3614,8 +3624,8 @@ nominal activation, the only one that ever runs in real time, the check is an
 exact type match, with no convert-on-write, decided at generation and absent
 from the conformant path ([D-053][d-053], [D-235][d-235]). The error can afford to be
 didactic: "field `M_shaft`: expected `Float64`, got `Int64` — return
-`zero(x.ω)`, not `0`". Under a non-nominal activation (a re-run of Stratum C
-at a given scalar type) the two leaf kinds the declaration ([§8.2][s8-2])
+`zero(x.ω)`, not `0`". Under a non-nominal activation (the build's typed
+products at a given scalar type) the two leaf kinds the declaration ([§8.2][s8-2])
 distinguishes are checked differently. A **declared-`T` leaf**, where the
 author wrote `T`, accepts exactly two types, the activation scalar or
 `Float64`. The activation scalar is the fast path, the straight store. A
@@ -3698,9 +3708,9 @@ branch. Values carry no provenance, and the diff identifies it. The always-on
 input [trace](#g-trace) makes every such failure **reproducible by [replay](#g-replay)**. The error
 names the [boundary](#g-boundary) to replay to (`to_boundary`, [§12.7][s12-7]). The catch site adds
 the loop-level nonfinite-state check as the failure's divergence sibling.
-### 9.6 Stopped-sim services as Stratum-C clients
+### 9.6 Stopped-sim services as activation clients
 
-This section is sketched here because it grounds the strata. The services
+This section is sketched here because it grounds the build's steps. The services
 themselves are [§14][s14]. The C172 trim problem (`c172.jl`: `TrimState`,
 `TrimParameters`, `θ_constraint`, the `ẋ`-reading cost) transfers
 near-verbatim:
@@ -3708,7 +3718,7 @@ near-verbatim:
 - **Trim** is a loop that writes a condition, runs a [sweep](#g-sweep) and reads the
   result, on an [activation](#g-activation). By default that is the `Dual` activation, with
   decision variables seeded for exact residual Jacobians ([§14.7][s14-7]). The derivative-free fallback runs the
-  same loop on the nominal `Float64` activation (a re-run of Stratum C at a
+  same loop on the nominal `Float64` activation (the build's typed products at a
   given scalar type) with no new activation needed, and the always-on checks
   ride along either way. Decision variables stay opaque to the framework, and
   only the assignment's *output* is framework vocabulary. `assign!` inverts
@@ -3737,11 +3747,11 @@ near-verbatim:
 ### 9.7 The compiled executor
 
 The [execution order](#g-execution-order) exists in two representations at two lifecycle stages. On
-[`Dataflow`](#g-dataflow) (Stratum B's product, the port name sets and edges)
+[`Dataflow`](#g-dataflow) (the nominal evaluation's product, the port name sets and edges)
 it is plain printable data ([§9.2][s9-2]), paths, stage names and order, which
 is the authoring and diagnostic form. The executor compiles from that order
 ([D-253][d-253]). At `Simulation` construction, and
-per [activation](#g-activation) (a re-run of Stratum C at a given scalar type), that data
+per [activation](#g-activation) (the build's typed products at a given scalar type), that data
 is compiled into the execution form: **a concretely-typed tuple of entries
 over statically typed [cell](#g-cell) storage, traversed by a compile-time-unrolled
 walk**. This is a forced move, not a preference. The zero-allocation
@@ -4549,8 +4559,8 @@ declaration error. An unlisted discrete child defaults to `Relative(1)`, so
 the common case costs nothing and a multiplied or anchored child always
 appears explicitly.
 
-**Validation belongs to [Stratum](#g-stratum) A**, the build's
-declaration-validation stratum, and is collected with path attribution
+**Validation belongs to the structure step**, the build's
+declaration-reading step, and is collected with path attribution
 ([§9.1][s9-1], [§13.1][s13-1]). It covers `K ≥ 1`, `0 ≤ Φ < K`, `T > 0`,
 `0 ≤ τ < T`, and keys naming discrete or scope children. The constructors
 themselves are plain data carriers, with no checks of their own
@@ -7463,8 +7473,8 @@ the policy that fits it.
   unwired inputs, and a renamed [port](#g-port) breaks three wires. Each of
   these passes returns its full violation list.
 - **User-code evaluation fails fast.** User code runs in three places. The first
-  is the interface-connection bodies in [Stratum](#g-stratum) A (one of the build's three
-  phases: structure, execution order, activation). The other two are the stage-1
+  is the interface-connection bodies in the structure step (the build's first
+  step, declaration reading only). The other two are the stage-1
   [probes](#g-probe) in B and the probe chain in C. When user code throws, there is no
   meaningful rest of the collection to report. A failed `input_connections`
   leaves the parent's face derivation undefined. A failed stage-2 probe starves
@@ -7472,32 +7482,33 @@ the policy that fits it.
   topologically ([§9.3][s9-3]). The first
   user-code exception aborts the phase ([D-057][d-057]).
 
-Strata are barriers. A stratum that produced any error-severity diagnostic, of
-either kind, throws before the next stratum begins. Probing against unresolved
-wiring would be meaningless.
+The build's steps are barriers. A step that produced any error-severity
+diagnostic, of either kind, throws before the next step begins. Probing
+against unresolved wiring would be meaningless.
 
-**Rule.** Collection reaches the stratum barrier, under a dependency rule. A
+**Rule.** Collection reaches the step barrier, under a dependency rule. A
 declarative pass runs when the results it reads are clean. It records every
 violation it finds and returns a total result. Every pass that ran merges into
 the barrier's one throw ([D-229][d-229]).
 
-Whether a pass can run past a failure follows from what it reads. Stratum A's
-walk yields two results, the component list and the wiring. A wire that fails
-to resolve is recorded and claims nothing, so the obligation check reports its
-input as unfed. Tier and event checking read only the component list, so they
-run and merge. A structural failure leaves the subtree behind it unknown. An
-unreadable or mixed class or a malformed container is such a failure. No pass
-can read past it, so it throws alone. In Stratum C the probe chain consumes
-each check's subject as it goes. A check that reads a failed probe does not
-run, so the chain's fail-fast follows from the same rule. Outside the strata
-the unit is the call. Deployment validation ([§9.1][s9-1]) runs every check
-whose premise holds and throws once. The only partial results ever carried past
-a failure are violation lists and a claim table with the failed wires absent.
-None of the three strata therefore needs machinery for carrying partial
-internal results across a failure. That machinery was the cost that kept this
+Whether a pass can run past a failure follows from what it reads. The
+structure step's walk yields two results, the component list and the wiring.
+A wire that fails to resolve is recorded and claims nothing, so the
+obligation check reports its input as unfed. Tier and event checking read
+only the component list, so they run and merge. A structural failure leaves
+the subtree behind it unknown. An unreadable or mixed class or a malformed
+container is such a failure. No pass can read past it, so it throws alone.
+In the two evaluating steps the probe chain consumes each check's subject as
+it goes. A check that reads a failed probe does not run, so the chain's
+fail-fast follows from the same rule. Outside the build the unit is the
+call. Deployment validation ([§9.1][s9-1]) runs every check whose premise
+holds and throws once. The only partial results ever carried past a failure
+are violation lists and a claim table with the failed wires absent. None of
+the three steps therefore needs machinery for carrying partial internal
+results across a failure. That machinery was the cost that kept this
 decision open, and it never materializes.
 
-**There is no cascade suppression within a stratum.** This is a deliberate
+**There is no cascade suppression within a step.** This is a deliberate
 simplification ([D-057][d-057]). A wire typo'd as `:throtle` produces two
 errors. One is a [did-you-mean](#g-did-you-mean) error (the offending name plus
 the list-in-hand it should have matched). The other is an unconnected-input
@@ -7529,8 +7540,8 @@ fields of [Appendix C][sC]. Those two fields describe the occurrence, not the
 kind. `BundleFieldError`, for example, is raised at the probe and as a
 `StepError` [species](#g-species) thereafter.
 
-Checking passes return diagnostics. The [stratum](#g-stratum) barrier (a stratum is one of the
-build's three phases: structure, execution order, activation) throws a single
+Checking passes return diagnostics. The step barrier (each of the build's
+three steps throws before the next begins) throws a single
 `DiagnosticError` wrapping the collection. A fail-fast site throws the same
 carrier holding one diagnostic. **The carrier's type parameter spells the
 policy.** It is the diagnostic's kind for a fail-fast throw and
@@ -7611,7 +7622,7 @@ criterion places every warning the framework raises.
 **The build produces artifacts, so its warnings live on them.** `Build` and
 [`Deployment`](#g-deployment) (the scalar-free artifact the grid parameters
 fix) carry `warnings`, and `warnings(x)` reads the list ([§9.1][s9-1],
-[§9.2][s9-2]). A stratum that throws renders its
+[§9.2][s9-2]). A step that throws renders its
 warnings with the collection it throws. One that completes carries them on the
 artifact, and the entry point logs each once at return. The build's warning set
 holds `EmptyFaceSelection` ([§8.8][s8-8]), and the deployment's holds
@@ -7717,7 +7728,7 @@ applying one plan ([§14.4][s14-4]) use the same arrangement.
 
 | client | who resolves | what the walk enforces |
 |---|---|---|
-| **wiring** | connection declarations, in [Stratum](#g-stratum) A (one of the build's three phases: structure, execution order, activation) | the one-level rule: an immediate child and one of its faces |
+| **wiring** | connection declarations, in the structure step | the one-level rule: an immediate child and one of its faces |
 | **service** | [condition](#g-condition) entries (the path-addressed sparse overlay that sets a build's state), trim `reads`, [taps](#g-taps) ([§14.3][s14-3], [§14.7][s14-7], [§14.10][s14-10]) | strict: no traversal past a generic child, checked **at the authoring or mount level** |
 | **inspection** | [device](#g-device) read [bindings](#g-binding), GUI panels, [snapshot](#g-snapshot) and log inspection ([§11.2][s11-2], [§11.7][s11-7]) | the instance walk |
 
@@ -7772,13 +7783,11 @@ publication) in a single `try`. It never wraps per stage or per
 to be *caught* into existence. The [executor](#g-executor) (the compiled
 form of the stage [execution order](#g-execution-order)) maintains an
 **[execution cursor](#g-execution-cursor)**, a plain mutable field in the loop
-state recording where execution stands in the compiled order. The cursor
-records three facts. The first is the component path, an index into the
-execution order that [`Dataflow`](#g-dataflow) (Stratum B's product, the port
-name sets and edges) carries ([D-253][d-253]). The second is which function is
-running: `output_state`,
-`output_direct`, `state_derivative`, `state_update`, a [guard](#g-guard), a handler, or
-`state_projection`. The third is the boundary phase: integration stage *k*,
+state recording where execution stands in the compiled order. The cursor records three facts. The first is the component path, an index into
+the execution order that [`Dataflow`](#g-dataflow) (the nominal evaluation's product, the port
+name sets and edges) carries ([D-253][d-253]). The second is which function is running:
+`output_state`, `output_direct`, `state_derivative`, `state_update`, a [guard](#g-guard), a handler,
+or `state_projection`. The third is the boundary phase: integration stage *k*,
 event round *r*, a localization evaluation at trial time, or tick. Maintaining
 the cursor costs one cheap store per dispatch on a single-tasked executor, with
 no allocation and no exception frames. It covers every user-code surface
@@ -8152,14 +8161,12 @@ the declaration site, evaluated at build, and printable. That is the
 [blessed](#g-blessed) side of the auto-bubbling line, where the author writes
 down the *rule* and the build evaluates it into inspectable data.
 
-**Every artifact renders itself through `show`** ([§9.2][s9-2],
-[D-257][d-257]). [`Structure`](#g-structure) (Stratum A's product, the
-components, wires, faces and tiers) has one. So does
-[`Dataflow`](#g-dataflow) (Stratum B's product, the port name sets and edges).
-So does [`Schedule`](#g-schedule) (the typed per-component `(D, Φ, Δt)` tick
-table). So do `Build` and [`Deployment`](#g-deployment) (the scalar-free
-artifact the grid parameters fix). There are no accessor functions returning
-the tables alongside.
+**Every artifact renders itself through `show`** ([§9.2][s9-2], [D-257][d-257]). [`Structure`](#g-structure) (the
+structure step's product, the components, wires, faces and tiers) has one. So
+does [`Dataflow`](#g-dataflow) (the nominal evaluation's product, the port name sets and edges).
+So does [`Schedule`](#g-schedule) (the typed per-component `(D, Φ, Δt)` tick table). So do `Build`
+and [`Deployment`](#g-deployment) (the scalar-free artifact the grid parameters fix). There are no
+accessor functions returning the tables alongside.
 
 **`show(::Structure)` owes [face](#g-face) provenance.** For every root face,
 that means the resolved chain down to the producing terminal (`"crashed" →
@@ -8233,8 +8240,8 @@ output_state(c::Constant, _) = (; out = …)   # the value the instance holds
 
 `Constant` is a stateless continuous leaf, so the tier-transparency argument
 above already covers discrete consumers. No discrete variant is needed. The
-declaration takes the [activation](#g-activation) scalar (a re-run of Stratum
-C at a given scalar type) and ignores it. That is the point. The block's
+declaration takes the [activation](#g-activation) scalar (the build's typed
+products at a given scalar type) and ignores it. That is the point. The block's
 output *is* its stored value, so the leaf is **deliberately
 [pinned](#g-walked)** at that value's own type. A `Constant{Float64}` declares
 a `Float64` port and means it. The embedding ([§8.2][s8-2]) turns it into the
@@ -8304,7 +8311,7 @@ library blocks, a standing ergonomics test of the declaration rules.
 
 ## 14. Stopped-sim services
 
-[§9.6][s9-6] previewed the services as [Stratum](#g-stratum)-C clients. They
+[§9.6][s9-6] previewed the services as activation clients. They
 are initialization, trim, linearization and [capture](#g-capture) (reading the
 current stores and root inputs back as a condition). Everything they share
 reduces to one artifact, the **[condition](#g-condition) value**. A condition
@@ -8520,9 +8527,9 @@ The `Build` supplies two lookup families. **Schema** is the evaluated
 declarations, and it is the authority. It answers whether you may write this
 field, and at what leaf type. **Layout** is the destination. It holds the `x`
 backing ranges, the store indices for `s` and for `m`, and the root-input
-indices from the [activation](#g-activation) (a re-run of Stratum C at a given
+indices from the [activation](#g-activation) (the build's typed products at a given
 scalar type). The names and the face chains come from
-[`Structure`](#g-structure) (Stratum A's product, the components, wires, faces
+[`Structure`](#g-structure) (the structure step's product, the components, wires, faces
 and tiers), never from an activation, since no activation fixes them
 ([§9.1][s9-1], [D-253][d-253]).
 
@@ -9105,8 +9112,8 @@ mysterious residuals.
 Every `trim!` invocation instantiates a fresh working store set. It holds the
 `x` backing, the `s` and `m` stores, the [root input](#g-root-input) and
 [signal tables](#g-signal-table), and the derivative [buffer](#g-buffer). The
-set is built from the [activation](#g-activation)'s *layout* (a re-run of
-Stratum C at a given scalar type). The layout is the reusable compiled
+set is built from the [activation](#g-activation)'s *layout* (the build's typed
+products at a given scalar type). The layout is the reusable compiled
 artifact. The buffers are per-invocation and die with the call (stopped-sim
 allocation, [§7.5][s7-5]).
 
@@ -9432,8 +9439,8 @@ heuristics and ~4n perturbed evaluations.
 constant at the operating point, and so do unseeded
 [root inputs](#g-root-input). The condition apply embeds their `Float64`
 values as zero-partial constants. A root-input [cell](#g-cell) follows the
-[activation](#g-activation) scalar (a re-run of Stratum C at a given scalar
-type) by *evaluating* its consuming `input_types` entry at that scalar
+[activation](#g-activation) scalar (the build's typed products at a given
+scalar type) by *evaluating* its consuming `input_types` entry at that scalar
 ([§8.2][s8-2]). The discrete [tier](#g-tier) is frozen with zero partials,
 which is precisely "linearize with the discrete state held" ([§8.2][s8-2]).
 Differentiation participation is a per-invocation *seeding* fact for every
@@ -10677,13 +10684,13 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 
 **Build.**
 
-- `build(world) → Build`. Standalone. It yields the inspectable
-  derived-contract artifact, [`Structure`](#g-structure) (Stratum A's product,
-  the components, wires, faces and tiers), [`Dataflow`](#g-dataflow) (Stratum
-  B's product, the port name sets and edges), [`Events`](#g-events) (Stratum
-  B's other product, the event names and policies), the activations and
-  `warnings`; the wire list, face table with provenance and root inputs are
-  `Structure`'s and the execution order is `Dataflow`'s ([§9.2][s9-2]).
+- `build(world) → Build`. Standalone. It yields the inspectable derived-contract
+  artifact, [`Structure`](#g-structure) (the structure step's product, the components, wires,
+  faces and tiers), [`Dataflow`](#g-dataflow) (the nominal evaluation's product, the port name
+  sets and edges), [`Events`](#g-events) (the nominal evaluation's other product, the event
+  names and policies), the activations and `warnings`; the wire list, face table
+  with provenance and root inputs are `Structure`'s and the execution order is
+  `Dataflow`'s ([§9.2][s9-2]).
   `build(world; activations = (Float64, ProbeDual))` additionally pins
   activation invariants for CI (`ProbeDual` is the public canonical concrete
   probe scalar, [§9.4][s9-4]), and pre-materializes activations so a parallel
@@ -10996,7 +11003,7 @@ severity · raised · policy, then the payload. Three fields place each kind.
 **Severity** is a property of the kind, read as `severity(d)`
 ([§13.2][s13-2]), and takes one of two values:
 
-- **error**. An occurrence throws, alone or within a collection. A stratum
+- **error**. An occurrence throws, alone or within a collection. A step
   that produced one throws before the next begins ([§13.1][s13-1]).
 - **warning**. An occurrence never throws and joins no throw. It renders
   with a collection, is logged beside a returned value, or rides the runtime
@@ -11009,7 +11016,7 @@ surfaces, and how it is reported. A kind raised at two stages lists both
 field beside the stage they qualify. The stages are the ones [§13][s13]
 fixes:
 
-- **build**. During one of the three strata ([§9.1][s9-1]), whether in a
+- **build**. During one of the build's three steps ([§9.1][s9-1]), whether in a
   declarative pass or while *user code* runs (an interface-connection body, a
   probe).
 - **service**. In a stopped-sim service, or in
@@ -11019,7 +11026,7 @@ fixes:
 The policies:
 
 - **collected**. Gathered with its siblings and thrown as one carrier. A
-  declarative pass's violations are the `DiagnosticError` of the stratum
+  declarative pass's violations are the `DiagnosticError` of the step
   barrier, and every pass that ran under [§13.1][s13-1]'s dependency rule
   merges into the one throw ([D-229][d-229]). A service's violations are
   collected wherever the owning section says so (the condition algebra,
@@ -11049,11 +11056,11 @@ The policies:
   abandoned device, written by the loop.
 
 The *collected*-warning slot, the warning-severity kinds that would render
-with a stratum's throw, is empty ([D-084][d-084]). Build warnings themselves
-live on the `Build`, and a stratum that throws renders its warnings with the
+with a step's throw, is empty ([D-084][d-084]). Build warnings themselves
+live on the `Build`, and a step that throws renders its warnings with the
 collection ([§13.2][s13-2], [D-250][d-250]).
 
-**Declaration and wiring** (Stratum A):
+**Declaration and wiring** (the structure step):
 
 - **`UnknownPort`** ([§6.1][s6-1], [§8.4][s8-4] w1). Error · build ·
   collected. The wire end (`source`/`destination`, or `connection` for an
@@ -11172,7 +11179,8 @@ collection ([§13.2][s13-2], [D-250][d-250]).
   field name, the offending type (one neither isbits nor `Symbol`), the fix
   (text and bulk data belong on the component instance).
 
-**Execution order and contract conformance** (Strata B and C):
+**Execution order and contract conformance** (the nominal evaluation and
+activation):
 
 - **`AlgebraicCycle`** ([§5.5][s5-5], [§5.6][s5-6]). Error · build ·
   collected. The SCC's members, the wires among them as terminal pairs in
@@ -11856,14 +11864,16 @@ detected ([§2.1][s2-1], [§10.5][s10-5]).
 
 ### D.5 Build pipeline
 
-<a id="g-activation"></a>**activation** — a re-run of Stratum C at a given scalar type `T`. Cells
-are re-typed (producer-fed ones by evaluating the producer's output
+<a id="g-activation"></a>**activation** — the build's typed products at a given scalar type `T`.
+Cells are re-typed (producer-fed ones by evaluating the producer's output
 declaration at `T`, root inputs by evaluating the consuming `input_types`
 entry at `T`, the state type by the leaf walk), buffers are re-laid-out,
-workspace allocators are re-invoked, and the probe chain is re-run.
-`Structure` and `Dataflow` are `T`-independent, so no name list and no
-execution order changes across activations. Non-nominal activations are
-lazy, with an opt-in exhaustive set for CI ([§9.4][s9-4]).
+workspace allocators are re-invoked, and the probe chain is re-run. The
+nominal `Float64` activation is the nominal evaluation's product; any
+other is derived on request from it, the structure and the dataflow
+([§9.1][s9-1]). `Structure` and `Dataflow` are `T`-independent, so no name
+list and no execution order changes across activations. Non-nominal
+activations are lazy, with an opt-in exhaustive set for CI ([§9.4][s9-4]).
 
 <a id="g-always-on-conformance-check"></a>**always-on conformance check** — the probe's comparison left permanently in
 place: the key-set and per-field comparison of a stage return against the
@@ -11872,7 +11882,7 @@ generated over the two types (the names pair; order carries no semantics).
 A conformant return type generates the straight stores and no check
 instruction ([§9.5][s9-5], [D-235][d-235]).
 
-<a id="g-build"></a>**`Build`** — the artifact `build(world)` produces, bundling the stratum
+<a id="g-build"></a>**`Build`** — the artifact `build(world)` produces, bundling the three steps'
 products: `Structure`, `Dataflow`, `Events`, the activations keyed by scalar
 type, and `warnings`. It is the inspectable contract of the instantiation, and
 what `attach!`, `stop_on`, replay and condition resolution all validate
@@ -11883,8 +11893,8 @@ typed chunks behind non-inlined function barriers. It is the
 implementation's only representation freedom, and it converts compile cost
 from superlinear in body size to linear in entry count ([§9.7][s9-7]).
 
-<a id="g-dataflow"></a>**`Dataflow`** — Stratum B's product: per component the stage-1 and stage-2
-port name sets, the feedthrough edges with their provenance, and the
+<a id="g-dataflow"></a>**`Dataflow`** — the nominal evaluation's product: per component the stage-1 and
+stage-2 port name sets, the feedthrough edges with their provenance, and the
 execution order. It carries the graph as well as the order, which is why the
 prose says "execution order" and the type keeps this name ([§9.1][s9-1],
 [D-253][d-253]).
@@ -11895,11 +11905,10 @@ the `Schedule`, the grid diagnostics and its own `warnings`. It is
 scalar-free, it compares as a value, and a `Simulation` materializes it at a
 scalar type ([§9.1][s9-1], [§9.2][s9-2], [D-254][d-254]).
 
-<a id="g-events"></a>**`Events`** — Stratum B's other product, built last, after the nominal stage
-probes: per component the event names, their detection policies and the
-bundle names. It is separate from `Dataflow` because a consumer of the
-execution order should not carry the event tables ([§9.1][s9-1],
-[D-253][d-253]).
+<a id="g-events"></a>**`Events`** — the nominal evaluation's other product, built last, after the nominal
+stage probes: per component the event names, their detection policies and the
+bundle names. It is separate from `Dataflow` because a consumer of the execution
+order should not carry the event tables ([§9.1][s9-1], [D-253][d-253]).
 
 <a id="g-executable-set"></a>**executable set** — the function set an activation can actually run, hence
 exactly what it probes. A `Dual` activation sees only the continuous output
@@ -11919,7 +11928,7 @@ wholesale). **Cells are not walked**. An output cell comes from evaluating
 the producer's `output_types` at the activation scalar ([D-166][d-166]),
 and a root-input cell from evaluating the consuming `input_types` entry at
 it ([D-167][d-167]). Participation and tolerance are authored per leaf in
-both ([§8.2][s8-2]; applied in Stratum C, [§9.1][s9-1]).
+both ([§8.2][s8-2]; applied at activation, [§9.1][s9-1]).
 
 <a id="g-lens"></a>**lens (`Getter`)** — the compiled navigation step of a condition entry. Its
 tree position tuple is lifted to a type parameter, giving type-stable access
@@ -11963,13 +11972,7 @@ on whether you may write this field and at what leaf type. *Layout* is where
 it physically lives (buffer ranges, store and root-input indices)
 ([§14.3][s14-3]).
 
-<a id="g-stratum"></a>**stratum** — one of the build's three phases: A structure (pure declaration
-reading), B execution order (the single evaluation-feeds-structure step), C
-activation (everything type-shaped). Strata are barriers. A stratum that
-produced any error-severity diagnostic throws before the next begins
-([§9.1][s9-1], [§13.1][s13-1]).
-
-<a id="g-structure"></a>**`Structure`** — Stratum A's product: the components by path with their
+<a id="g-structure"></a>**`Structure`** — the structure step's product: the components by path with their
 class and contracts, the tier each sits on, the resolved wires, the two-sided
 face table with each face's routing chain, the root inputs, per component the
 declaration provenance as its `Relative`/`Absolute` chain, and, for each
@@ -12327,15 +12330,15 @@ residuals and committed as an `init!` of `override(baseline, solution)`
 
 <a id="g-carrier-exception"></a>**carrier exception** — the single exception diagnostics travel in when
 thrown. `DiagnosticError` holds one diagnostic at a fail-fast site or the
-collection at a stratum barrier, and its type parameter tells which.
+collection at a step barrier, and its type parameter tells which.
 `StepError` at the runtime catch site takes a single diagnostic over as its
 `cause` and carries the cause's type as its parameter. Diagnostics
 themselves are plain values ([§13.2][s13-2], [§13.4][s13-4]).
 
 <a id="g-collect-the-checks-fail-the-evaluations-fast"></a>**collect the checks, fail the evaluations fast** — the reporting policy.
 Declarative passes over collected structure return their full violation
-list, while the first user-code exception aborts the phase. Strata are
-barriers, and the site column spells the collecting case "build
+list, while the first user-code exception aborts the phase. The build's
+steps are barriers, and the site column spells the collecting case "build
 (collected)" ([§13.1][s13-1], [Appendix C][sC]).
 
 <a id="g-did-you-mean"></a>**did-you-mean** — the required shape of any name-shaped failure: the
@@ -12626,6 +12629,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-256]: decisions.md#d-256--regroup-the-simulations-fields-by-owner
 [d-257]: decisions.md#d-257--each-artifact-renders-itself
 [d-258]: decisions.md#d-258--schedule-is-the-tick-timing-and-execution-order-the-stage-sequence
+[d-259]: decisions.md#d-259--retire-the-strata-the-build-is-three-steps-named-by-their-products
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
@@ -12716,12 +12720,12 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [s8-7]: #87-rate-scopes
 [s8-8]: #88-computed-connections-and-generic-holding
 [s9]: #9-the-build-pipeline
-[s9-1]: #91-three-strata
+[s9-1]: #91-the-builds-three-steps
 [s9-2]: #92-the-build-artifact
 [s9-3]: #93-probing-and-input-synthesis
 [s9-4]: #94-activations-executable-sets-laziness-caching
 [s9-5]: #95-the-always-on-conformance-check
-[s9-6]: #96-stopped-sim-services-as-stratum-c-clients
+[s9-6]: #96-stopped-sim-services-as-activation-clients
 [s9-7]: #97-the-compiled-executor
 [sA]: #appendix-a-taught-contracts-the-author-facing-index
 [sB]: #appendix-b-api-synopsis-the-entry-points

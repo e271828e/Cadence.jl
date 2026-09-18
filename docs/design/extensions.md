@@ -374,7 +374,7 @@ pointer.
 [s7-5]: spec.md#75-allocation-policy-a-scoped-invariant
 [s8-2]: spec.md#82-the-declaration-inventory
 [s8-5]: spec.md#85-assembly-declaration-type-based-class-by-declaration-shape
-[s9-1]: spec.md#91-three-strata
+[s9-1]: spec.md#91-the-builds-three-steps
 [s9-2]: spec.md#92-the-build-artifact
 [s9-4]: spec.md#94-activations-executable-sets-laziness-caching
 [s9-7]: spec.md#97-the-compiled-executor
