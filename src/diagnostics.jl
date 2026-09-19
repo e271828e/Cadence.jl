@@ -662,6 +662,8 @@ message(d::UnknownFaceSelection) =
 Base.@kwdef struct EmptyFaceSelection <: Diagnostic
     who::String                              # the calling helper
     path::String                             # the child path
+    # `:only` is in the vocabulary but never constructed by the helper: a
+    # non-empty `only` of known names keeps them all (`_passthrough_faces`).
     selector::Symbol                         # :except | :only | :select
     names::Vector{String} = String[]         # the selector's names; empty for `select`
     candidates::Vector{String} = String[]    # the child's face list on that side

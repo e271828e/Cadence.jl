@@ -491,8 +491,9 @@ _contract(fn, c) = _declares(fn, c, Type{Float64}) ? invoke_declaration(fn, c, F
 A leaf's `input_types` keys — asked at the nominal `Float64`, the key set being
 `T`-independent — or an assembly's `input_connections` face names. Declaration
 order is preserved: deterministic printouts, stable diagnostics (§13.3). Inside a
-walk the list is the one the walk evaluated, so the body is evaluated once per
-call (Appendix C); standalone the body is evaluated here.
+walk the walk has already evaluated the body once and this primitive does not
+evaluate it again (Appendix C); standalone the primitive evaluates it. Either way
+the list returned is a fresh vector, the caller's to mutate.
 """
 input_faces(c) = classify("", c) === PRIMITIVE ?
                  String[String(k) for k in keys(_contract(input_types, c))] :
@@ -503,8 +504,8 @@ input_faces(c) = classify("", c) === PRIMITIVE ?
 
 `input_faces`' mirror: a leaf's `output_types` keys, or an assembly's
 `output_connections` face names, in declaration order (§13.3). Inside a walk the
-list is the one the walk evaluated, once per call (Appendix C); standalone the
-body is evaluated here.
+walk has already evaluated the body once and this primitive does not evaluate it
+again (Appendix C); standalone the primitive evaluates it.
 """
 output_faces(c) = classify("", c) === PRIMITIVE ?
                   String[String(k) for k in keys(_contract(output_types, c))] :
@@ -515,10 +516,12 @@ output_faces(c) = classify("", c) === PRIMITIVE ?
 # asked for: outside a walk a caller asks for one side, and evaluating the other
 # for nothing would raise its warnings for nothing. A miss inside a walk has no
 # reader today (children are walked before any parent reads them); the fallback
-# is correctness, not a path.
+# is correctness, not a path. The hit is copied on the way out: the memo is the
+# walk's own record, and a caller sorting or emptying what a primitive handed it
+# would otherwise reorder the boundary the walk goes on to compute.
 function _walked_faces(c, side::Int, fn, face_of)
     memo = WALK_FACES[]
-    memo !== nothing && haskey(memo, c) && return memo[c][side]
+    memo !== nothing && haskey(memo, c) && return copy(memo[c][side])
     String[String(face_of(pair)) for pair in invoke_declaration(fn, c)]
 end
 
@@ -571,9 +574,10 @@ end
 default `prefix` included, and the same three exclusive selectors, one per
 call, `select` accepting face names and an empty selection warning
 `EmptyFaceSelection` (§8.8, D-251) — its pairs reading along the flow —
-internal source => face name — as every pair in that declaration does. Its consumer is one-level routing (§6.1): every level
-re-exports the outputs it surfaces, so the output side needs the computed
-spelling the input side already has.
+internal source => face name — as every pair in that declaration does. Its
+consumer is one-level routing (§6.1): every level re-exports the outputs it
+surfaces, so the output side needs the computed spelling the input side
+already has.
 """
 function output_passthrough(asm, child_path::AbstractString;
                             sep::AbstractString = ".",

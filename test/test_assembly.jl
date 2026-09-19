@@ -787,6 +787,36 @@ input_connections(p::PassedGroup) = (input_passthrough(p, "inner"; except = ("a"
                                      "e" => "trim/e")
 output_connections(p::PassedGroup) = output_passthrough(p, "inner"; only = ("scaled",))
 
+# A child whose input faces are declared out of alphabetical order, under a
+# parent whose body sorts the list a primitive handed it before computing its
+# boundary. The walk records each assembly's evaluated face lists and the
+# primitives read them (§13.3, Appendix C), so what a caller does with the list
+# it got must not reach that record.
+unsorted_faces() = Group((; p = Gain(1.0), q = Gain(2.0), r = Gain(3.0));
+                         inputs = ("c" => "p/e", "a" => "q/e", "b" => "r/e"),
+                         outputs = ("p/out" => "out",))
+
+struct MutatedFaces{C <: AbstractComponent} <: AbstractComponent
+    k::C
+end
+child_connections(::MutatedFaces) = ()
+input_connections(p::MutatedFaces) =
+    (sort!(input_faces(resolve(p, "k"))); input_passthrough(p, "k"))
+output_connections(p::MutatedFaces) = output_passthrough(p, "k")
+
+# The same producer inside a build: a `select` accepting no face keeps nothing,
+# so the warning reaches the `Build` through the channel rather than the log
+# (D-250, D-251). The hand-written wire feeds the face the boundary no longer
+# exposes, so the model is sound and the build completes.
+struct SelectedNothing <: AbstractComponent
+    g::Gain
+    src::Gain
+end
+child_connections(::SelectedNothing) = ("src/out" => "g/e",)
+input_connections(a::SelectedNothing) = (input_passthrough(a, "g"; select = _ -> false)...,
+                                         "in" => "src/e")
+output_connections(::SelectedNothing) = ("g/out" => "out",)
+
 # §8.8's feed-list idiom, the spec's sketch against the real helpers. An assembly
 # that feeds some of a child's input faces and passes the rest up would restate
 # the wire list in every `except` tuple — structure kept in two artifacts, the
@@ -906,6 +936,16 @@ function assembly_primitives()
         @test port(sp, "", :var"inner.scaled") === 2.0 * (3.0 * 2.0 - 1.0)
     end
 
+    @testset "a primitive hands out a copy of the walk's face list (§13.3)" begin
+        # The list a primitive returns is the caller's: a body that sorts it
+        # must not reorder the walk's own record, which the level's boundary is
+        # then computed from. The child's declaration order survives both the
+        # standalone call and the build.
+        m = MutatedFaces(unsorted_faces())
+        @test input_connections(m) == ("k.c" => "k/c", "k.a" => "k/a", "k.b" => "k/b")
+        @test build(m).structure.root_inputs == [:var"k.c", :var"k.a", :var"k.b"]
+    end
+
     @testset "the passthrough filters, and refuses what it cannot mean (§8.8)" begin
         m = faced()
 
@@ -961,6 +1001,15 @@ function assembly_primitives()
         # helper logs directly (D-250).
         @test (@test_logs (:warn, r"^EmptyFaceSelection") input_passthrough(m, "s"; except = ("a", "b"))) == ()
         @test (@test_logs (:warn, r"^EmptyFaceSelection") input_passthrough(m, "s"; select = _ -> false)) == ()
+        # The output side is the same, over its own face list.
+        @test (@test_logs (:warn, r"^EmptyFaceSelection") output_passthrough(m, "s"; except = ("e",))) == ()
+
+        # Inside a build the warning lands on the `Build` instead of the log
+        # (D-250), and a `select` that accepted nothing has no names to carry.
+        b = @test_logs (:warn, r"^EmptyFaceSelection") build(SelectedNothing(Gain(2.0), Gain(3.0)))
+        d = only(warnings(b))
+        @test d isa EmptyFaceSelection && d.who == "input_passthrough" &&
+              d.selector === :select && d.names == String[] && d.candidates == ["e"]
 
         # A bare call over a faceless child asked for nothing and is silent; the
         # same child under a selector warns, with an empty face list in hand.
