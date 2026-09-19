@@ -7052,11 +7052,12 @@ and never `nothing`, so every accessor has a run to read, and the lifecycle
 state below says whether that run ever started. `init!` allocates fresh objects
 rather than clearing them.
 
-**`Simulation` is a mutable struct of six fields**, the build, the
+**`Simulation` is a mutable struct of five fields**, the
 [deployment](#g-deployment) (the scalar-free artifact the grid parameters
-fix), the [executor](#g-executor), the run, the data plane and the
-[control plane](#g-control-plane) ([D-256][d-256]). Every other value belongs
-to one of the six. The grid parameters, the [schedule](#g-schedule) (the typed
+fix, carrying the build), the [executor](#g-executor), the run, the data
+plane and the [control plane](#g-control-plane) ([D-256][d-256]). Every other
+value belongs to one of the five. The build is reached through the
+deployment, never held twice. The grid parameters, the [schedule](#g-schedule) (the typed
 per-component `(D, Φ, Δt)` tick table) and the event parameters are the
 deployment's ([§9.1][s9-1]). `chunk_size`, the stepper and the arrival buffers
 are the executor's. `join_timeout` is `Control`'s ([§12.1][s12-1]). The loop's

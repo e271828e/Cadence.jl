@@ -29,6 +29,10 @@ Settled 2026-09-18, and folded into the steps below:
   criterion the advisory lives in the loop's diagnostic cell and surfaces
   through the status record; the log line is presentation. Increment 47
   builds it and retires that part of the §11.8 pending bullet.
+- **The `Simulation` holds the build once, through the deployment.** Settled
+  2026-09-19 while briefing increment 46: a `build` field beside
+  `deployment.build` would be an invariant with no enforcer. D-256 and §12.1
+  now roster five fields; the register's item 28 predates the ruling.
 - **`Run{T}` exists from construction.** `Simulation{T}` is built with a
   placeholder run: `t₀ = zero(T)`, `mode = :live`, empty log and trace,
   `termination = nothing`. `init!` and `replay!` replace the object, which is
@@ -256,8 +260,8 @@ Items 22–27, item 6, the rest of item 28, and `UnboundedRun`. Five stages.
   cell (`sim.jl:1354` → `dataplane.jl:271`), the log line kept.
 - **Stage 5, the regroup's remainder.** `chunk_size`, the stepper and the
   arrival buffers into the executor; `join_timeout` into `Control`; the loop
-  cells and `published` into the plane. `Simulation` ends as build,
-  deployment, executor, run, plane, control.
+  cells and `published` into the plane. `Simulation` ends as deployment,
+  executor, run, plane, control.
 - Routing: all of it.
 
 ## Step 7: increment 48, the renderings

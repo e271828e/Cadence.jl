@@ -9509,9 +9509,11 @@ run is allowed because it is the interactive session's ordinary shape, with
 
 **Status.** ratified
 
-**Position.** `Simulation` keeps six fields: the build, the deployment, the
-executor, the run, the plane and the control. Every other field moves to its
-owner.
+**Position.** `Simulation` keeps five fields: the deployment, the executor,
+the run, the plane and the control. The build is reached through the
+deployment, which is the build plus what the grid parameters fix, so a second
+reference to it would be an invariant with no enforcer. Every other field
+moves to its owner.
 
 - To the deployment: `h`, `N_base`, `Δt_base`, the three event parameters,
   `sched`, `D`, `Φ`, `Δt` ([D-254][d-254]).
@@ -9540,7 +9542,7 @@ the state that mutates it. The executor owns its stepper and the arrival
 buffers because it is the one thing that writes them. `join_timeout` is the
 shutdown tail's parameter and the tail runs on `Control`. The loop's
 diagnostic cell and account are one more writer's, and the plane holds the
-writers. The six that remain are the six things a simulation is.
+writers. The five that remain are the five things a simulation is.
 
 **Rejected.**
 - *Leaving the fields flat:* every reader of a grid parameter or a buffer
