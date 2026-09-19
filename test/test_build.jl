@@ -372,7 +372,7 @@ function build_port_classes()
         # The hand-down carries the stage-1 return, so `y_x` is now in stage 2's
         # bundle.
         @test bundle_names(output_direct, Motor(1.0), CONTINUOUS,
-                           tuple(keys(activation(b, Float64).stage1[i])...)) === (:x, :m, :u, :y_x, :t)
+                           tuple(b.dataflow.stage1[i]...)) === (:x, :m, :u, :y_x, :t)
     end
 
     @testset "a loop closes through a stage-1 port carrying the state vector (§5.3, §5.5)" begin

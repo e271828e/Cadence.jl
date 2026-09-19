@@ -952,9 +952,8 @@ products.
 function probe_stage2(s::Structure, decls::Vector{Decls},
                       stage1, order::Vector{Int}, layout::Layout,
                       wss::Vector, mstores::Vector, carry, ::Type{T}) where {T}
-    # The ordering invariant every downstream reader relies on:
-    # `keys(products[ci]) == (keys(stage1[ci])…, keys(y2)…)`. `compile`'s
-    # `y2keys` takes the stage-2 tail off the stage-1 length.
+    # The complete product is a value table read by name, never sliced: a reader
+    # wanting a name list takes it from the `Dataflow` instead (§9.1, D-253).
     products = NamedTuple[s1 for s1 in stage1]
 
     # A frozen component's stages never run at this activation, so its complete
@@ -1465,29 +1464,30 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
 
     frozen(ci) = _frozen(tiers, ci, T)
     gate(ci) = tiers[ci] === DISCRETE ? (D_c[ci], Φ_c[ci]) : nothing
-    y2keys(ci) = keys(act.products[ci])[length(keys(act.stage1[ci]))+1:end]
 
     stage1_entries, stage2_entries, rhs_entries, tick_entries = Any[], Any[], Any[], Any[]
     stage1_gates, stage2_gates, rhs_gates, tick_gates = Any[], Any[], Any[], Any[]
 
     for (ci, c) in enumerate(s.comps)
         (has_stage(output_state, c) && !frozen(ci)) || continue
-        d, s1 = decls[ci], act.stage1[ci]
+        d = decls[ci]
         bn = bundle_names(output_state, c, tiers[ci], ())
         push!(stage1_entries, StageEntry{typeof(d.x),bn}(
-            output_state, c, NamedTuple(), NamedTuple(), addr_group(s.paths[ci], keys(s1)),
+            output_state, c, NamedTuple(), NamedTuple(),
+            addr_group(s.paths[ci], b.dataflow.stage1[ci]),
             x_offs[ci], clock, sstores[ci], mstores[ci], wss[ci], Δt_c[ci],
             s.paths[ci], ci, cursor))
         push!(stage1_gates, gate(ci))
     end
 
     for ci in b.dataflow.order
-        c, path, d, s1 = s.comps[ci], s.paths[ci], decls[ci], act.stage1[ci]
+        c, path, d = s.comps[ci], s.paths[ci], decls[ci]
         (has_stage(output_direct, c) && !frozen(ci)) || continue
-        bn = bundle_names(output_direct, c, tiers[ci], tuple(keys(s1)...))
+        y1keys = b.dataflow.stage1[ci]
+        bn = bundle_names(output_direct, c, tiers[ci], tuple(y1keys...))
         push!(stage2_entries, StageEntry{typeof(d.x),bn}(
-            output_direct, c, in_group(ci, d), addr_group(path, keys(s1)),
-            addr_group(path, y2keys(ci)), x_offs[ci], clock,
+            output_direct, c, in_group(ci, d), addr_group(path, y1keys),
+            addr_group(path, b.dataflow.stage2[ci]), x_offs[ci], clock,
             sstores[ci], mstores[ci], wss[ci], Δt_c[ci], path, ci, cursor))
         push!(stage2_gates, gate(ci))
     end
@@ -1499,8 +1499,8 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
         path, d, t = s.paths[ci], decls[ci], tiers[ci]
         (isempty(state_decls(d, t)) || frozen(ci)) && continue
         update = update_of(t)
-        bn = bundle_names(update, c, t, tuple(keys(act.stage1[ci])...))
-        y_g, in_g = addr_group(path, keys(d.outs)), in_group(ci, d)
+        bn = bundle_names(update, c, t, tuple(b.dataflow.stage1[ci]...))
+        y_g, in_g = addr_group(path, b.dataflow.ports[ci]), in_group(ci, d)
         if t === CONTINUOUS
             push!(rhs_entries, RHSEntry{typeof(d.x),bn}(
                 c, in_g, y_g, x_offs[ci], clock, mstores[ci], wss[ci], path, ci, cursor))
@@ -1524,19 +1524,21 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
     ev_localized = Bool[]
     if T === Float64
         for (ci, c) in enumerate(s.comps)
-            evs = at_component(() -> invoke_declaration(state_events, c), s.paths[ci])
-            isempty(evs) && continue
+            pol, bn = b.events.policies[ci], b.events.bundles[ci]
+            isempty(pol) && continue
             d = decls[ci]
-            bn = at_component(() -> event_bundle_names(c), s.paths[ci])
+            # The names, the policies and the bundle are the product's; the guard
+            # and handler are functions, which no product carries.
+            evs = at_component(() -> invoke_declaration(state_events, c), s.paths[ci])
             pj = has_stage(state_projection, c) ? state_projection : nothing
-            for name in keys(evs)
+            for name in keys(pol)
                 push!(ev_entries, EventEntry{typeof(d.x),bn}(
                     evs[name].guard, evs[name].handler, pj, c, length(ev_entries) + 1,
-                    in_group(ci, d), addr_group(s.paths[ci], keys(d.outs)),
+                    in_group(ci, d), addr_group(s.paths[ci], b.dataflow.ports[ci]),
                     x_offs[ci], clock, mstores[ci], wss[ci], s.paths[ci], name, ci, cursor))
                 push!(ev_owner, ci)
                 push!(ev_names, (s.paths[ci], name))
-                push!(ev_localized, b.events.policies[ci][name] === :localized)
+                push!(ev_localized, pol[name] === :localized)
             end
         end
     end

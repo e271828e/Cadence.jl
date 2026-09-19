@@ -514,7 +514,7 @@ function _establish_frozen!(ex::Executor, act::Activation{T}, nom::Executor,
     for ci in eachindex(b.structure.comps)
         _frozen(b.structure.tiers, ci, T) || continue
         path = b.structure.paths[ci]
-        for name in keys(act.decls[ci].outs)
+        for name in b.dataflow.ports[ci]
             scatter!(ex.store, act.layout.addr[(path, name)],
                      gather(nom.store, nom.act.layout.addr[(path, name)]))
         end

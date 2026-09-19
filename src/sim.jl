@@ -1143,7 +1143,7 @@ function _species(sim::Simulation, err::FieldError)
     cur.comp == 0 && return err
     ci, fam = cur.comp, cur.fn
     c, t = sim.build.structure.comps[ci], sim.build.structure.tiers[ci]
-    s1 = keys(activation(sim.build, Float64).stage1[ci])
+    s1 = tuple(sim.build.dataflow.stage1[ci]...)
     # Reading the names invokes declarations, and a throw here would replace the
     # author's error, the cursor frame and the `StepError` with a frame of its own.
     bn = try
