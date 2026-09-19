@@ -139,10 +139,12 @@ function test_lifecycle()
         # the naming site the one field that differs (D-256, D-249).
         dc = only(diagnostics(failure(() -> Simulation(feedback_model(); h = 1//50, t_end = -1.0))))
         dr = carried(@test_throws DiagnosticError{ArgumentInvalid} run!(unbound; t_end = -1.0))
+        dp = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(unbound, trace(unbound); t_end = -1.0))
         @test dc isa ArgumentInvalid
-        @test dc.argument == dr.argument == :t_end && dc.reason == dr.reason == :range
-        @test dc.value == dr.value == -1.0
-        @test dc.call === :Simulation && dr.call === :run!
+        @test dc.argument == dr.argument == dp.argument == :t_end
+        @test dc.reason == dr.reason == dp.reason == :range
+        @test dc.value == dr.value == dp.value == -1.0
+        @test dc.call === :Simulation && dr.call === :run! && dp.call === :replay!
     end
 
     @testset "stop_on names root-exported Bool output faces, validated at both sites (§13.5)" begin
