@@ -153,6 +153,16 @@ the brief names the kind that carries it.
 
 ## Step 3: increment 44, the build-side types
 
+Landed 2026-09-19: the brief as `bd43b4c`, `Structure` as `8f666a2`, the
+nominal evaluation and the `Build` as `2c21b2e`, the consumers as `169ea66`,
+the channel as `b5edf0e`, the cold review's doc amendments as `10050ae` (the
+build binds the channel, `Structure`'s sentence, the scopes sentence), its
+fixes as `a4c5d50` (the walk evaluates each boundary declaration once) and
+the verification's residues as `00bf0eb`. Deferred to increment 45, in
+`pending.md`'s "Smaller" bullet: the face-list primitives re-evaluate a
+child's boundary declarations for a passthrough helper and on the
+did-you-mean path, so a warning raised there lands once per asking level.
+
 Items 12–17 and the warnings channel (items 2–5, build side). The largest
 increment. Five stages; stages 1–3 and 4–5 split cleanly into two increments
 if the count is too many for one review. The brief
