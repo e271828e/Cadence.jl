@@ -9167,9 +9167,11 @@ status. Logging is presentation, never a home.
 - `Build` and `Deployment` carry `warnings`. A stratum that throws renders
   its warnings with the collection. One that completes carries them on the
   artifact, and the entry point logs each once at return.
-- A scoped channel bound by the walk lets a helper running inside a
-  declaration body append to the build's warnings. The same helper called
-  standalone, outside any build, logs directly.
+- A scoped channel bound by the build around its three steps lets a helper
+  running inside a declaration body append to the build's warnings. The same
+  helper called standalone, outside any build, logs directly. (Amended by
+  increment 44's review: the walk was named as the binder, but a warning may
+  arise in any step, so the build binds once.)
 - [Appendix C][sC]'s `logged` policy widens from stopped-sim service calls to any
   artifact-producing call, the build included. The collected-warning slot
   stays open and empty ([D-084][d-084] stands).
@@ -9195,8 +9197,8 @@ run never reads. A deployment is an artifact, so `GridUtilization` belongs on
 it ([D-254][d-254]). `attach!` mutates the roster, so `EmptyGreedyClaim` belongs in
 the entry's cell beside the other writer diagnostics, and the status record
 is where a reader finds it after the fact. The channel exists because a
-helper inside `input_connections` has no artifact in hand; the walk that
-owns the barrier binds one, and the helper appends without knowing the
+helper inside `input_connections` has no artifact in hand; the build that
+owns the steps binds one, and the helper appends without knowing the
 build. Outside a build there is no artifact, and a log line is the honest
 fallback. Logging each artifact warning once at return keeps the interactive
 experience unchanged while the artifact keeps the record.

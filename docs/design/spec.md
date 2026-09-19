@@ -3094,12 +3094,13 @@ structure step. Final divisors for anchored entries genuinely cannot exist until
 **The structure step returns [`Structure`](#g-structure)** (the artifact holding
 everything the instance alone fixes), and that is its whole product
 ([D-253][d-253]).
-`Structure` carries the components by path with their class and contracts,
-the [tier](#g-tier) each one sits on, the resolved wires, the two-sided face table
-with each face's routing chain, the [root inputs](#g-root-input), per component
-the declaration provenance as its `Relative`/`Absolute` chain, and, for each
-assembly that declares one, its scope triple under that `sample_times` key.
-Nothing in it depends on a scalar type.
+`Structure` carries the component instances by path, the [tier](#g-tier) each
+one sits on, the resolved wires, the two-sided face table with each face's
+routing chain, the [root inputs](#g-root-input), per component the declaration
+provenance as its `Relative`/`Absolute` chain, and, for each assembly an
+explicit `sample_times` key names, the scope triple that key gives it. Class
+and contracts are read off the instance on demand. Nothing in it depends on a
+scalar type.
 
 #### The nominal evaluation
 
@@ -3233,10 +3234,11 @@ throws. A step that completes carries its warnings on the artifact, and the
 entry point logs each one once at return ([D-250][d-250]). Logging is
 presentation and never a home ([§13.2][s13-2]).
 
-A warning raised inside a declaration body has no artifact in hand. The walk
-binds a scoped channel, and the helper appends to it without knowing the build.
-The same helper called standalone, outside any build, logs directly. That is
-how `EmptyFaceSelection` ([§8.8][s8-8]) reaches the `Build`'s list.
+A warning raised inside a declaration body has no artifact in hand. The build
+binds a scoped channel around its three steps, and the helper appends to it
+without knowing the build. The same helper called standalone, outside any
+build, logs directly. That is how `EmptyFaceSelection` ([§8.8][s8-8]) reaches
+the `Build`'s list.
 
 ### 9.2 The `Build` artifact
 
@@ -11973,12 +11975,12 @@ on whether you may write this field and at what leaf type. *Layout* is where
 it physically lives (buffer ranges, store and root-input indices)
 ([§14.3][s14-3]).
 
-<a id="g-structure"></a>**`Structure`** — the structure step's product: the components by path with their
-class and contracts, the tier each sits on, the resolved wires, the two-sided
-face table with each face's routing chain, the root inputs, per component the
-declaration provenance as its `Relative`/`Absolute` chain, and, for each
-assembly that declares one, its scope triple under that `sample_times` key.
-Nothing in it depends on a scalar type ([§9.1][s9-1], [D-253][d-253]).
+<a id="g-structure"></a>**`Structure`** — the structure step's product: the component instances by
+path, the tier each sits on, the resolved wires, the two-sided face table with
+each face's routing chain, the root inputs, per component the declaration
+provenance as its `Relative`/`Absolute` chain, and, for each assembly an
+explicit `sample_times` key names, the scope triple that key gives it. Nothing
+in it depends on a scalar type ([§9.1][s9-1], [D-253][d-253]).
 
 <a id="g-walked"></a>**walked / pinned / exempt** — the eltype-genericity classes. Walked
 payload/value types follow the activation scalar, pinned parameters and

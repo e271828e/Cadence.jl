@@ -176,7 +176,7 @@ an interim state with no reader; its stages are numbered 1–4.
 - **Stage 4, the consumers (item 17).** Readers, trim, the tracer, `compile`'s
   key slicing and the catch site's field-error species take name lists from
   `Structure` and `Dataflow`.
-- **Stage 5, the channel.** A scoped binding the walk establishes
+- **Stage 5, the channel.** A scoped binding the build establishes
   (`ScopedValue`; the package's compat is 1.12, so it is available), an
   append helper, `warnings(::Build)`, the once-per-warning log at return, and
   the rendering of warnings beside a thrown collection. No build-side
