@@ -195,6 +195,20 @@ an interim state with no reader; its stages are numbered 1–4.
 
 ## Step 4: increment 45, §8.8
 
+Landed 2026-09-19: the brief as `903c037`
+(`brief_increment_45_face_selectors.md`), the walk's face memo as
+`414da76`, the selectors and `EmptyFaceSelection` as `97c6380`, the
+feed-list test as `21b6922`, and the cold review's fixes as `4ed28bb` (the
+memo hands out a copy, two test gaps closed). The brief folded in increment
+44's deferred residue as a stage ahead of the roadmap's two: the walk
+records each assembly's evaluated face lists under `WALK_FACES`, so the
+primitives read them once per call and a warning inside a boundary body
+fires once whatever asks. The review left one spec residue for a ruling:
+Appendix C's `logged` bullet still says each kind fires at most once per
+call with its payload drawn from the returned artifact, the pre-D-250
+service-call sentence, while `EmptyFaceSelection` fires once per raising
+site with that site's payload.
+
 Items 7–10 with the names above. Two stages, small.
 
 - **Stage 1.** The `select` predicate, exclusive selectors with
