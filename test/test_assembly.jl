@@ -787,6 +787,79 @@ input_connections(p::PassedGroup) = (input_passthrough(p, "inner"; except = ("a"
                                      "e" => "trim/e")
 output_connections(p::PassedGroup) = output_passthrough(p, "inner"; only = ("scaled",))
 
+# §8.8's feed-list idiom, the spec's sketch against the real helpers. An assembly
+# that feeds some of a child's input faces and passes the rest up would restate
+# the wire list in every `except` tuple — structure kept in two artifacts, the
+# shape §8.1 refuses. Declaration bodies are ordinary code, so the feed list is
+# authored once and both declarations compute their share of it.
+
+"""
+The sketch's actuator: one command in, five channels out. The fifth is unwired
+under the first feed list — an unconnected output, and legal (§6.1, D-084).
+"""
+struct Actuator <: AbstractComponent end
+
+input_types(::Actuator, ::Type{T}) where {T <: Real} = (cmd = T,)
+output_types(::Actuator, ::Type{T}) where {T <: Real} =
+    (e = T, a = T, r = T, brake_left = T, brake_right = T)
+output_direct(::Actuator, (; u)) = (e = u.cmd, a = 2 * u.cmd, r = 3 * u.cmd,
+                                    brake_left = 4 * u.cmd, brake_right = 5 * u.cmd)
+
+"""
+The sketch's aerodynamics: three surfaces fed by the actuator and one face the
+level does not feed, `alpha`, which the `except` tuple therefore leaves on the
+input face surface.
+"""
+struct Aero <: AbstractComponent end
+
+input_types(::Aero, ::Type{T}) where {T <: Real} = (e = T, a = T, r = T, alpha = T)
+output_types(::Aero, ::Type{T}) where {T <: Real} = (wrench = T,)
+output_direct(::Aero, (; u)) = (wrench = u.e + u.a + u.r + u.alpha,)
+
+# The landing gear, an assembly and not a leaf, so its faces carry the dotted
+# names the sketch's destinations use (`"ldg/left.brake"`): a face name with a
+# dot is a legal final path segment, slash being the one structural separator.
+ldg() = Group((; left = Gain(1.0), right = Gain(1.0));
+              inputs = ("left.brake" => "left/e", "right.brake" => "right/e"),
+              outputs = ("left/out" => "left.force", "right/out" => "right.force"))
+
+# The one authored artifact: actuator output face => destination child input
+# face. The second list adds a pair, the one edit that creates the wire and
+# removes the face from the input surface at once. The third mistypes a
+# destination.
+const ACT_FEEDS = ("e" => "aero/e", "a" => "aero/a", "r" => "aero/r",
+                   "brake_left" => "ldg/left.brake")
+const ACT_FEEDS2 = (ACT_FEEDS..., "brake_right" => "ldg/right.brake")
+const ACT_FEEDS3 = ("e" => "aero/ee", "a" => "aero/a", "r" => "aero/r",
+                    "brake_left" => "ldg/left.brake")
+
+# The face names of `child` the feed list targets — the sketch's own projection.
+fed_faces(feeds, child) = Tuple(chopprefix(dst, child * "/")
+                                for (_, dst) in feeds
+                                if startswith(dst, child * "/"))
+
+# `S` selects the authored list, `L` holds the gear generically. Both
+# declarations are projections of the list `S` names, so neither holds the
+# shared face names and the two cannot drift.
+struct Systems{S,L <: AbstractComponent} <: AbstractComponent
+    act::Actuator
+    aero::Aero
+    ldg::L
+end
+
+Systems{S}(l) where {S} = Systems{S,typeof(l)}(Actuator(), Aero(), l)
+
+act_feeds(::Systems{:one}) = ACT_FEEDS
+act_feeds(::Systems{:two}) = ACT_FEEDS2
+act_feeds(::Systems{:typo}) = ACT_FEEDS3
+
+child_connections(s::Systems) = Tuple(("act/" * src) => dst for (src, dst) in act_feeds(s))
+input_connections(s::Systems) =
+    (input_passthrough(s, "aero"; except = fed_faces(act_feeds(s), "aero"))...,
+     input_passthrough(s, "ldg";  except = fed_faces(act_feeds(s), "ldg"))...,
+     "cmd" => "act/cmd")
+output_connections(::Systems) = ("aero/wrench" => "wrench",)
+
 function assembly_primitives()
     @testset "the §13.3 primitives resolve one level and list faces in order" begin
         m = feedback_model()
@@ -928,6 +1001,68 @@ function assembly_primitives()
         @test sim.build.structure.paths == ["inner/s", "inner/g", "trim"]
         init!(sim, fragment(inputs = (var"inner.b" = 1.0, e = 2.0)))
         @test port(sim, "", :var"inner.scaled") === 2.0 * (3.0 * 2.0 - 1.0)
+    end
+
+    @testset "the feed-list idiom: one authored list, two declarations (§8.8, D-251)" begin
+        # The two declarations are projections of the authored list, and neither
+        # holds the shared names.
+        @test fed_faces(ACT_FEEDS, "aero") == ("e", "a", "r")
+        @test fed_faces(ACT_FEEDS, "ldg") == ("left.brake",)
+
+        sys = Systems{:one}(ldg())
+        @test child_connections(sys) == ("act/e" => "aero/e", "act/a" => "aero/a",
+                                         "act/r" => "aero/r",
+                                         "act/brake_left" => "ldg/left.brake")
+        # What the list does not feed is what the boundary exposes: `alpha`, the
+        # right brake, and the actuator's own hand-written `cmd`.
+        @test input_connections(sys) == ("aero.alpha" => "aero/alpha",
+                                         "ldg.right.brake" => "ldg/right.brake",
+                                         "cmd" => "act/cmd")
+
+        b = build(sys)
+        @test isempty(warnings(b))
+        @test b.structure.root_inputs == [:var"aero.alpha", :var"ldg.right.brake", :cmd]
+        # The four wires resolved: three actuator channels into `aero`, the fourth
+        # into the gear's left brake, and the two unfed faces from the root.
+        @test b.structure.conns[index_of(b.structure, "aero")] ==
+              [:e => ("act", :e), :a => ("act", :a), :r => ("act", :r),
+               :alpha => ("", :var"aero.alpha")]
+        @test b.structure.conns[index_of(b.structure, "ldg/left")] == [:e => ("act", :brake_left)]
+        @test b.structure.conns[index_of(b.structure, "ldg/right")] ==
+              [:e => ("", :var"ldg.right.brake")]
+
+        sim = Simulation(sys; h = 1//10)
+        init!(sim, fragment(inputs = (var"aero.alpha" = 0.5, var"ldg.right.brake" = 1.0,
+                                      cmd = 2.0)))
+        @test port(sim, "", :wrench) === 6 * 2.0 + 0.5
+        @test port(sim, "ldg/left", :out) === 4 * 2.0
+        @test port(sim, "ldg/right", :out) === 1.0
+        # `brake_right` is unwired under this list: an unconnected output, legal.
+        @test port(sim, "act", :brake_right) === 5 * 2.0
+
+        # Adding a channel is one edit to the authored list. The new pair creates
+        # the wire and removes the face from the input surface at the same time,
+        # and the level builds with one root input fewer. The gear now has every
+        # input face fed, so the `except` tuple names them all and the selection
+        # keeps nothing — a legitimate empty selection, the warning D-251 makes it
+        # rather than an error for exactly this case.
+        b2 = @test_logs (:warn, r"^EmptyFaceSelection") build(Systems{:two}(ldg()))
+        @test b2.structure.root_inputs == [:var"aero.alpha", :cmd]
+        d = only(warnings(b2))
+        @test d isa EmptyFaceSelection && d.path == "ldg" && d.selector === :except &&
+              d.names == ["left.brake", "right.brake"]
+        @test b2.structure.conns[index_of(b2.structure, "ldg/right")] ==
+              [:e => ("act", :brake_right)]
+
+        # A mistyped destination stays loud. The walk evaluates the boundary before
+        # the wires, so the `except` entry meets it first, fail-fast, with the
+        # child's face list in hand.
+        err = failure(() -> build(Systems{:typo}(ldg())))
+        @test err isa DiagnosticError{UnknownFaceSelection}
+        d = diagnostic(err)
+        @test d.who == "input_passthrough" && d.path == "aero" &&
+              d.reason === :unknown_names && d.names == ["ee"] &&
+              d.candidates == ["e", "a", "r", "alpha"]
     end
 end
 
