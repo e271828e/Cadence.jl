@@ -131,20 +131,23 @@ function test_lifecycle()
         lifted = Simulation(monitored(); h = 1//10, t_end = 0.2, stop_on = ("hit",))
         init!(lifted)
         run!(lifted; t_end = Inf)
-        @test termination(lifted).t == 4 * lifted.h
+        @test termination(lifted).t == 4 * lifted.deployment.h
         unbound = Simulation(feedback_model(); h = 1//50)
         init!(unbound, fragment(inputs = (ref = 0.0,)))
         # The override is validated exactly as the constructor validates the default:
-        # the same payload — parameter, reason and offending value — at both sites.
+        # the same payload — argument, reason and offending value — at both sites,
+        # the naming site the one field that differs (D-256, D-249).
         dc = only(diagnostics(failure(() -> Simulation(feedback_model(); h = 1//50, t_end = -1.0))))
-        dr = carried(@test_throws DiagnosticError{DeploymentInvalid} run!(unbound; t_end = -1.0))
-        @test dc isa DeploymentInvalid
-        @test dc.parameter == dr.parameter == :t_end && dc.reason == dr.reason == :range
+        dr = carried(@test_throws DiagnosticError{ArgumentInvalid} run!(unbound; t_end = -1.0))
+        @test dc isa ArgumentInvalid
+        @test dc.argument == dr.argument == :t_end && dc.reason == dr.reason == :range
         @test dc.value == dr.value == -1.0
+        @test dc.call === :Simulation && dr.call === :run!
     end
 
     @testset "stop_on names root-exported Bool output faces, validated at both sites (§13.5)" begin
         m = feedback_model()                        # "ref" a root input, "y" a Float64 export
+        m_build = build(m)
         sim = Simulation(m; h = 1//50, t_end = 1.0)
         init!(sim, fragment(inputs = (ref = 0.0,)))
         trc = trace(sim)                            # the header alone: `replay!` binds as `run!` does
@@ -159,10 +162,16 @@ function test_lifecycle()
             # The binding site is the one payload field that differs (§13.5, D-249).
             @test dc.site === :constructor && dr.site === :run! && dp.site === :replay!
         end
-        # The constructor is one call, so a stop-face refusal joins the deployment's
-        # own list in the single throw (§9.1, D-229); `run!` is its own call.
+        # The materialization is one call, so a stop-face refusal joins its own
+        # keyword violations in the single throw (§9.1, D-229); `run!` is its own
+        # call. Deploying is the call before it, and it refuses on its own: with no
+        # `h` the deployment never binds, so the stop face is never reached.
         err = failure(() -> Simulation(m; stop_on = ("nope",)))
-        @test kinds(err) == [DeploymentInvalid, StopFaceInvalid]
+        @test kinds(err) == [DeploymentInvalid]
+        @test only(diagnostics(err)).parameter === :h
+        err = failure(() -> Simulation(Deployment(m_build; h = 1//50); t_end = -1.0,
+                                       stop_on = ("nope",)))
+        @test kinds(err) == [ArgumentInvalid, StopFaceInvalid]
 
         @test lifecycle(sim) === :initialized            # a rejected run! bound nothing
     end
@@ -173,7 +182,7 @@ function test_lifecycle()
         run!(sim)
         t = termination(sim)
         @test t.source === ModelRequestedStop(:hit)      # kind + payload, one typed value (D-203)
-        @test t.t == 4 * sim.h                           # the sweep at boundary 4 saw 0.4 ≥ 0.35
+        @test t.t == 4 * sim.deployment.h                # the sweep at boundary 4 saw 0.4 ≥ 0.35
         @test sim.exec.clock.step == 4                        # the run ended there, not at t_end
         @test latest(sim).t === t.t                      # that snapshot is the final one
     end

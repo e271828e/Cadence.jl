@@ -121,7 +121,7 @@ function failures_runtime()
         cur = sim.exec.cursor
         @test cur.phase === :ticks                      # the sequence's last block, empty here
         @test cur.fn === :output_direct                 # the last dispatch the sweep walked
-        @test cur.comp == index_of(sim.build.structure, "plant")
+        @test cur.comp == index_of(sim.deployment.build.structure, "plant")
     end
 
     @testset "a throw mid-integration names the component, `state_derivative` and the stage (§13.4)" begin
@@ -453,7 +453,7 @@ function failures_pointer_twin()
         replay!(sim2, trc; to_boundary = 3)
         @test lifecycle(sim2) === :initialized
         @test sim2.exec.clock.step == 3                 # the halt is at `k`, never at `k · n`
-        @test sim2.exec.clock.step % sim2.N_base == 1        # and 3 is an off-tick frame top here
+        @test sim2.exec.clock.step % sim2.deployment.N_base == 1        # and 3 is an off-tick frame top here
         @test same_trajectory(logged(sim2), [s for s in logged(sim) if s.frame ≤ 3])
 
         # `to_time` counts the same boundaries: 0.3 is boundary 3's own time here,

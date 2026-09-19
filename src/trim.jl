@@ -389,7 +389,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :errored,
                                                               legal = collect(STOPPED_SIM_LEGAL))))
 
-    b = sim.build
+    b = sim.deployment.build
     diags = Diagnostic[]
     _check_decisions!(diags, problem)
     _check_tolerances!(diags, problem)
@@ -423,7 +423,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     TD = ForwardDiff.Dual{TrimTag,Float64,N}
     act = activation(b, TD)                   # the cached activation (§9.4)
     ex = _scratch(sim, TD, act)
-    _establish_frozen!(ex, act, ex_nom, sim.build)
+    _establish_frozen!(ex, act, ex_nom, sim.deployment.build)
     d_dual = _seeded(K, guess, TD)
     plan_d = compile_plan(override(baseline, problem.condition(d_dual)), b, TD)
     reader_d = _compile_reads(problem.reads, b, TD)
@@ -499,9 +499,11 @@ trim!(::Simulation, other; kw...) = throw(DiagnosticError(
 # One scratch executor: the same buffer set the `Simulation` owns, at whatever
 # scalar, from the same cached layouts and the same bound entry data — and it
 # dies with the call (§9.2, §14.8, glossary `scratch`).
-_scratch(sim::Simulation, ::Type{T}) where {T} = _scratch(sim, T, activation(sim.build, T))
-_scratch(sim::Simulation, ::Type{T}, act::Activation{T}) where {T} =
-    compile(sim.build, act, sim.D, sim.Φ, sim.Δt; chunk_size = sim.chunk_size)
+_scratch(sim::Simulation, ::Type{T}) where {T} = _scratch(sim, T, activation(sim.deployment.build, T))
+function _scratch(sim::Simulation, ::Type{T}, act::Activation{T}) where {T}
+    sch = sim.deployment.schedule
+    compile(sim.deployment.build, act, sch.D, sch.Φ, sch.Δt; chunk_size = sim.chunk_size)
+end
 
 # D-213's copy: a frozen component's stages are outside the seeded activation's
 # executable set (§9.4), so its output cells can only come from the nominal half

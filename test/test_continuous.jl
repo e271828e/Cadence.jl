@@ -25,7 +25,7 @@ function continuous_skeleton()
         sim = Simulation(feedback_model(); h = 1//100)
         ex = sim.exec
         @test ex isa Executor{Float64}
-        @test ex.act === activation(sim.build, Float64)   # the activation it was compiled from
+        @test ex.act === activation(sim.deployment.build, Float64)   # the activation it was compiled from
         @test phase_bodies(sim) === ex.bodies             # the loop's bodies, not a re-derivation
 
         # The evaluation entry points are the executor's; the `Simulation` forms

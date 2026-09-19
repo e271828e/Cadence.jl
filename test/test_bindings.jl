@@ -160,7 +160,7 @@ function test_bindings()
         ref_val = last(only(map_input((; stick = 0.55),
                                       TableBinding(stick = (face = "a", deadzone = 0.1)))))
         stage!(ref, "a" => ref_val, "b" => 0.7)
-        run!(ref; t_end = sim.exec.clock.step * sim.h)
+        run!(ref; t_end = sim.exec.clock.step * sim.deployment.h)
         @test port(sim, "s", :e) === port(ref, "s", :e)
         # An unknown channel in a real loop body crashes the device by name, the
         # run continuing (§11.6: any non-datum exception propagates to the wrapper).

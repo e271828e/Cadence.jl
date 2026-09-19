@@ -77,7 +77,7 @@ function test_stepper()
         step!(simf; t_plus = 0.3)
         stage!(simf, "in" => 1.0)                   # frame 4's drain, at its frame top
         step!(simf; t_plus = 0.3)
-        @test modes(simf, "c").t_fired == 4 * simf.h
+        @test modes(simf, "c").t_fired == 4 * simf.deployment.h
     end
 
     @testset "gate 4: the second backend holds the §7.5 invariant" begin

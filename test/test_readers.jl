@@ -34,7 +34,7 @@ readable_reads() = reads(q = get_state("plant", :q), v = get_state("plant", :q, 
 world(sim) = (copy(sim.exec.xbuf),
               [s === nothing ? nothing : s[] for s in sim.exec.sstores],
               [m === nothing ? nothing : m[] for m in sim.exec.mstores],
-              [port(sim, "", f) for f in sim.build.structure.root_inputs],
+              [port(sim, "", f) for f in sim.deployment.build.structure.root_inputs],
               sim.exec.clock.t)
 
 function test_readers()
@@ -43,7 +43,7 @@ function test_readers()
             sim = Simulation(readable(), T; h = 1//10)
             init!(sim, readable_condition())
             evaluate!(sim.exec)                     # `ẋ` is integrator scratch: fill it first
-            r = _compile_reads(readable_reads(), sim.build, T)
+            r = _compile_reads(readable_reads(), sim.deployment.build, T)
             v = gather(r, sim.exec)
 
             @test keys(v) === (:q, :v, :acc, :q̇, :a, :y, :u, :face)
@@ -67,11 +67,11 @@ function test_readers()
         sim = Simulation(readable(); h = 1//10)
         init!(sim, readable_condition())
         evaluate!(sim.exec)
-        r, ex = _compile_reads(readable_reads(), sim.build), sim.exec
+        r, ex = _compile_reads(readable_reads(), sim.deployment.build), sim.exec
         gather(r, ex)
         @test @ballocated(gather($r, $ex)) == 0
         @test @inferred(gather(r, ex)) isa NamedTuple
-        @test gather(_compile_reads(reads(), sim.build), ex) === (;)   # the empty set reads nothing
+        @test gather(_compile_reads(reads(), sim.deployment.build), ex) === (;)   # the empty set reads nothing
     end
 
     @testset "resolution collects every violation into one refusal (§14.4, §13.1)" begin
@@ -130,7 +130,7 @@ function test_readers()
         init!(sim, combine(at("inner/plant", fragment(x = (q = SVector(0.3, 0.1),))),
                            fragment(inputs = (ref = 1.0,))))
         evaluate!(sim.exec)
-        @test gather(_compile_reads(deep, sim.build), sim.exec).q == SVector(0.3, 0.1)
+        @test gather(_compile_reads(deep, sim.deployment.build), sim.exec).q == SVector(0.3, 0.1)
 
         # D-125's own remedy, and the one that survives substitution: the seam
         # publishes a face, which is what the read binds to.
@@ -172,16 +172,16 @@ function test_readers()
         init!(seeded, readable_condition())
         before = world(seeded)
 
-        e = failure(() -> gather(_compile_reads(readable_reads(), nominal.build), seeded.exec))
+        e = failure(() -> gather(_compile_reads(readable_reads(), nominal.deployment.build), seeded.exec))
         @test e isa InternalInvariant           # not a diagnostic kind, and not a DiagnosticError
         @test occursin("compiled at Float64", e.msg) && occursin("Dual{Nothing, Float64, 8}", e.msg)
         # `InternalInvariant` carries a message and no payload by design (D-215),
         # so it is matched on text — it is no diagnostic kind.
 
         c = readable_condition()
-        e2 = failure(() -> apply!(seeded.exec, resolve_condition(c, nominal.build)))
+        e2 = failure(() -> apply!(seeded.exec, resolve_condition(c, nominal.deployment.build)))
         @test e2 isa InternalInvariant
-        e3 = failure(() -> apply!(seeded.exec, compile_plan(c, nominal.build), c))
+        e3 = failure(() -> apply!(seeded.exec, compile_plan(c, nominal.deployment.build), c))
         @test e3 isa InternalInvariant
 
         @test world(seeded) == before                # every refusal left the executor alone
@@ -201,7 +201,7 @@ function test_readers()
         # It is total by construction (§14.6): no baseline underneath, and the
         # authored values are what a re-application establishes — the defaults
         # would show as `phase = :idle` and `acc = 0.0`.
-        @test resolve_condition(c, twin.build).faces == twin.build.structure.root_inputs
+        @test resolve_condition(c, twin.deployment.build).faces == twin.deployment.build.structure.root_inputs
         @test modes(twin, "src") === (phase = :running,)
         @test state(twin, "ctl").acc === 4.0
 

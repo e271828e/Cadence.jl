@@ -11,7 +11,7 @@
 # not a frame top.
 
 """Frame top `k`, computed from the index and `t₀` — never accumulated (§10.4)."""
-_grid_time(sim::Simulation, k::Int) = sim.exec.clock.t₀ + k * sim.h
+_grid_time(sim::Simulation, k::Int) = sim.exec.clock.t₀ + k * sim.deployment.h
 
 """
     frame!(sim, k)
@@ -27,7 +27,7 @@ and the frame top is never stamped.
 """
 function frame!(sim::Simulation{T}, k::Int) where {T}
     t_to = _grid_time(sim, k)
-    sim.has_localized ? _localized_frame!(sim, t_to) : step!(sim, T(sim.h))
+    sim.has_localized ? _localized_frame!(sim, t_to) : step!(sim, T(sim.deployment.h))
     sim.policy.hit === nothing && (sim.exec.clock.t = t_to)
     nothing
 end
@@ -69,14 +69,14 @@ function _localized_frame!(sim::Simulation{T}, t_to) where {T}
         # Budget exhaustion degrades; it does not throw (§10.4): the remainder
         # step has already completed, and this crossing fires in the coming
         # boundary's ordinary iteration — boundary granularity for this frame.
-        if count ≥ sim.localization_budget
+        if count ≥ sim.deployment.localization_budget
             for i in 1:n
                 (es.trig[i] && !es.loc_warned[i]) || continue
                 es.loc_warned[i] = true   # at most one report per event per frame
                 (path, name) = es.names[i]
                 _report!(sim.loop_diag,   # the loop's own cell (§11.8): folded at the next frame top
                          ChatteringBudget(path, name, _seconds(t_to),
-                                          sim.localization_budget, count))
+                                          sim.deployment.localization_budget, count))
             end
             return nothing
         end
@@ -189,7 +189,7 @@ function _crossing(sim::Simulation, i::Int, σ₀::Float64, σ₁::Float64, t_se
     # over a remainder segment shorter than the frame it widens by h/h′; past
     # 1 the segment is already within tolerance, no trial runs, and the
     # crossing folds into the segment's end.
-    tol = sim.localization_tol * sim.h / _seconds(h′)
+    tol = sim.deployment.localization_tol * sim.deployment.h / _seconds(h′)
     lo, hi = 0.0, 1.0
     σlo, σhi = σ₀, σ₁
     # ITP constants over the unit bracket: κ₁ = 0.2, κ₂ = 2, n₀ = 1; ε is the

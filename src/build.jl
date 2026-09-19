@@ -250,7 +250,7 @@ stage-1 — the ones that carry no dependence on inputs and therefore break loop
 product is the nominal activation's, carried across from `carry`.
 
 The `Δt` the discrete bundles carry is a fabricated, probe-scoped placeholder
-(§9.3): `Δt` in seconds does not exist until `Simulation` binds `Δt_base`, and
+(§9.3): `Δt` in seconds does not exist until the `Deployment` binds `Δt_base`, and
 the probe checks types, not physics.
 """
 function probe_stage1(s::Structure, decls::Vector{Decls},
@@ -679,7 +679,7 @@ structure step flattens, classifies and type-checks the wires into the
 `Structure`; the nominal evaluation probes at `Float64` and returns the
 `Dataflow`, the `Events` and the nominal activation, which is its own product and
 never a separate pass (D-253, D-259). Nothing here needs `Δt_base`, `h` or
-`N_base` — those are `Simulation`'s. `activations` is §9.4's opt-in exhaustive
+`N_base` — those are the `Deployment`'s. `activations` is §9.4's opt-in exhaustive
 mode: each listed scalar's activation is materialized eagerly instead of at first
 request.
 """
@@ -891,8 +891,8 @@ end
 
 The warnings the build raised (§9.2, D-250). The build produces artifacts, so
 its warnings live on them; the log line each one got at return is presentation,
-never the home. `Deployment` and `Simulation` answer the same generic once
-increment 46 adds them.
+never the home. `Deployment` and `Simulation` answer the same generic
+(`deployment.jl`, `sim.jl`).
 """
 warnings(b::Build) = b.warnings
 
@@ -1233,129 +1233,6 @@ function _check_handler(path, name, ret, d::Decls, c)
     end
     isempty(diags) || throw(DiagnosticError(diags))
     nothing
-end
-
-# --- 6. deployment binding (§9.1) -----------------------------------------------
-# Everything below post-dates the build's three steps: it exists per
-# `Simulation`, not per `Build`. Grid arithmetic is exact — GCD over
-# `Rational{Int}` — and floats are refused at the door.
-
-# Records and returns `nothing` on its two refusing arms; the call's list carries it.
-_exact(name::Symbol, v::Rational{Int}, diags::Vector{Diagnostic}) = v
-_exact(name::Symbol, v::Integer, diags::Vector{Diagnostic}) = Rational{Int}(v)
-_exact(name::Symbol, v::Period, diags::Vector{Diagnostic}) = v.T
-_exact(name::Symbol, v::AbstractFloat, diags::Vector{Diagnostic}) =
-    (push!(diags, DeploymentInvalid(parameter = name, reason = :inexact, value = v)); nothing)
-_exact(name::Symbol, v, diags::Vector{Diagnostic}) =
-    (push!(diags, DeploymentInvalid(parameter = name, reason = :not_a_quantity,
-                                    value = typeof(v))); nothing)
-
-_as_int(r::Rational) = denominator(r) == 1 ? Int(numerator(r)) : nothing
-
-"""
-Deployment binding (§9.1): `Δt_base` from one of three cross-validated sources —
-the explicit keyword, the `N_base·h` product (default `N_base = 1`), or GCD derivation
-over the constraint pool, requested as `Δt_base = :derive` and permitted only
-with every discrete component anchored. Resolution is one exact division pair
-per anchor and one multiply-add per component. Returns the bound deployment:
-`h`, `N_base`, `Δt_base`, the per-component `(D, Φ, Δt)` columns, and the bound
-schedule (§9.2's printable artifact, as plain data).
-
-The pass records into the call's list and returns `nothing` when a premise
-fails; the caller owns the one throw per `Simulation` call (§9.1, D-229). `h`,
-`N_base` and `Δt_base` are three independent premises, each checked and recorded on
-its own; the harmonic resolution and the anchor loop read all three, so they
-run only when all three are sound (D-229).
-"""
-function bind_schedule(b::Build, h, N_base, Δt_base, diags::Vector{Diagnostic})
-    k0 = length(diags)
-    h === nothing && push!(diags, DeploymentInvalid(parameter = :h, reason = :missing))
-    h_r = h === nothing ? nothing : _exact(:h, h, diags)
-    if h_r !== nothing && !(h_r > 0)
-        push!(diags, DeploymentInvalid(parameter = :h, reason = :range, value = h_r))
-        h_r = nothing
-    end
-    n_ok = N_base === nothing || (N_base isa Integer && N_base ≥ 1)
-    n_ok || push!(diags, DeploymentInvalid(parameter = :N_base, reason = :range, value = N_base))
-
-    anchors, prov, triples = b.structure.anchors, b.structure.aprov, b.structure.triples
-    # The constraint pool: every anchor's period and every nonzero offset (§9.1).
-    pool = vcat([Tk for (Tk, _) in anchors], [τk for (_, τk) in anchors if τk != 0])
-
-    # The Δt_base branch is its own premise: derivation reads the tiers and the
-    # anchors, the explicit keyword reads only itself, and only the default path
-    # reads `h` and `N_base` — which is why it alone is skipped when either is unsound.
-    Δt_r = nothing
-    if Δt_base === :derive
-        unanchored = [b.structure.paths[ci] for ci in eachindex(b.structure.tiers)
-                      if b.structure.tiers[ci] === DISCRETE && triples[ci][1] == 0]
-        if !isempty(unanchored)
-            push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :unanchored,
-                                           paths = unanchored))
-        elseif isempty(pool)
-            push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :no_constraint))
-        else
-            Δt_r = reduce(gcd, pool)                 # the coarsest admissible value
-        end
-    elseif Δt_base !== nothing
-        Δt_r = _exact(:Δt_base, Δt_base, diags)
-    elseif h_r !== nothing && n_ok
-        Δt_r = something(N_base, 1) * h_r                 # the default path (§15.4)
-    end
-
-    # The harmonic checks and the anchor loop read `h`, `N_base` and `Δt_base` together,
-    # so they run only on a sound value of each (D-229).
-    (length(diags) == k0 && h_r !== nothing && Δt_r !== nothing) || return nothing
-
-    n_i = _as_int(Δt_r / h_r)
-    if n_i === nothing || n_i < 1
-        push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :not_harmonic,
-                                       value = Δt_r, related = h_r))
-        return nothing
-    end
-    if !(N_base === nothing || N_base == n_i)
-        push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :disagrees_with_n,
-                                       value = Δt_r, related = N_base, quotient = n_i))
-        return nothing
-    end
-
-    # Per anchor, one exact division pair; anchor 0 is the base grid itself. The
-    # loop collects into the call's list (§13.1): every anchor the chosen base
-    # grid cannot express is named, so the coarsest admissible value is chosen
-    # against the whole list.
-    adm = isempty(pool) ? nothing : reduce(gcd, pool)
-    Dk, Φk = [1], [0]
-    for (k, (Tk, τk)) in enumerate(anchors)
-        D = _as_int(Tk / Δt_r)
-        D === nothing &&
-            push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :anchor_period,
-                                          value = Tk, related = Δt_r, provenance = prov[k],
-                                          admissible = adm))
-        Φ = _as_int(τk / Δt_r)
-        Φ === nothing &&
-            push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :anchor_offset,
-                                          value = τk, related = Δt_r, provenance = prov[k],
-                                          admissible = adm))
-        push!(Dk, something(D, 1)); push!(Φk, something(Φ, 0))
-    end
-    length(diags) == k0 || return nothing
-
-    # Per component, one multiply-add; the canonical residue 0 ≤ Φ < D survives
-    # composition (§10.5), which is what the gate's truncated rem relies on.
-    Δtb = Float64(Δt_r)
-    D_c, Φ_c, Δt_c = Int[], Int[], Float64[]
-    sched = @NamedTuple{path::String, D::Int, Φ::Int, Δt::Float64}[]
-    for ci in eachindex(b.structure.tiers)
-        (a, m, c) = triples[ci]
-        if b.structure.tiers[ci] === DISCRETE
-            D, Φ = m * Dk[a + 1], Φk[a + 1] + c * Dk[a + 1]
-            push!(D_c, D); push!(Φ_c, Φ); push!(Δt_c, D * Δtb)
-            push!(sched, (path = b.structure.paths[ci], D = D, Φ = Φ, Δt = D * Δtb))
-        else
-            push!(D_c, 1); push!(Φ_c, 0); push!(Δt_c, 0.0)
-        end
-    end
-    (h = Float64(h_r), N_base = n_i, Δt_base = Δtb, sched = sched, D = D_c, Φ = Φ_c, Δt = Δt_c)
 end
 
 # --- 7. entry compilation, per deployment ---------------------------------------

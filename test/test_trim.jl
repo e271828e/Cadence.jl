@@ -477,9 +477,10 @@ function test_trim()
         # the service's own seeded scalar. The user's residual lambda is theirs, so
         # the gates are on the two the framework owns.
         sim = Simulation(fed(Pendulum(), :u); h = 1//10)
-        b = sim.build
+        b = sim.deployment.build
         TD = ForwardDiff.Dual{TrimTag,Float64,1}
-        ex = compile(b, activation(b, TD), sim.D, sim.Φ, sim.Δt; chunk_size = sim.chunk_size)
+        sch = sim.deployment.schedule
+        ex = compile(b, activation(b, TD), sch.D, sch.Φ, sch.Δt; chunk_size = sim.chunk_size)
         seeded(v) = (θ = ForwardDiff.Dual{TrimTag}(v, 1.0),)
         plan = compile_plan(override(pend_base(), decide_θ(seeded(0.1))), b, TD)
         reader = _compile_reads(torque_reads(), b, TD)

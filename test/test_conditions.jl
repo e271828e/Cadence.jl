@@ -270,7 +270,7 @@ function conditions_algebra()
         free = Simulation(single(Sawtooth(1.0)); h = 1//10)
         init!(free)                                    # nothing to cover: total by construction
         @test lifecycle(free) === :initialized
-        @test isempty(free.build.structure.root_inputs)
+        @test isempty(free.deployment.build.structure.root_inputs)
     end
 
     @testset "a sparse overlay lands on the declared defaults (§14.1, §14.3)" begin
@@ -482,7 +482,7 @@ ledger_tree(a, b) = override(at("led", fragment(s = (a = a,))),
 landed(sim) = (copy(sim.exec.xbuf),
                [s === nothing ? nothing : s[] for s in sim.exec.sstores],
                [m === nothing ? nothing : m[] for m in sim.exec.mstores],
-               [port(sim, "", f) for f in sim.build.structure.root_inputs])
+               [port(sim, "", f) for f in sim.deployment.build.structure.root_inputs])
 
 function conditions_specialized_apply()
     @testset "a shape-compiled plan lands what the dynamic walk lands (§14.4, D-066)" begin
@@ -490,11 +490,11 @@ function conditions_specialized_apply()
         dynamic = Simulation(tri(); h = 1//10)
         # Compiled from one tree, applied to a second of the same shape with other
         # values everywhere: the plan holds lenses, not the values it was shown.
-        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), specialized.build)
+        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), specialized.deployment.build)
         later = tri_tree(SVector(9.0, 8.0), 7.0, :armed, 6.0, 5.5)
 
         apply!(specialized.exec, plan, later)
-        apply!(dynamic.exec, resolve_condition(later, dynamic.build))
+        apply!(dynamic.exec, resolve_condition(later, dynamic.deployment.build))
         @test landed(specialized) == landed(dynamic)
 
         # And what it landed is the second tree's values, in all four homes.
@@ -511,7 +511,7 @@ function conditions_specialized_apply()
 
     @testset "the specialized `apply!` writes without allocating (§14.4, §7.5)" begin
         sim = Simulation(tri(); h = 1//10)
-        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.build)
+        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.deployment.build)
         tree = tri_tree(SVector(9.0, 8.0), 7.0, :armed, 6.0, 5.5)
         # The whole path: the prefix sweep, the flat-buffer write, both stores as
         # whole values, and the two root-input scatters. The tree is handed in
@@ -525,7 +525,7 @@ function conditions_specialized_apply()
         # the two layers' fields meet in one `merge(defaults, overlay)`. A plan over
         # the patch alone would write `(a = 0.0, b = 4.0)` — the baseline's `a`
         # replaced by the declared default, which is the trap the composite avoids.
-        plan = compile_plan(ledger_tree(1.0, 2.0), sim.build)
+        plan = compile_plan(ledger_tree(1.0, 2.0), sim.deployment.build)
         apply!(sim.exec, plan, ledger_tree(3.0, 4.0))
         @test state(sim, "led") === (a = 3.0, b = 4.0)
         @test (@ballocated apply!($(sim.exec), $plan, $(ledger_tree(3.0, 4.0)))) == 0
@@ -533,7 +533,7 @@ function conditions_specialized_apply()
 
     @testset "shape drift is a structured error, and nothing is written (§14.4, §9.5)" begin
         sim = Simulation(tri(); h = 1//10)
-        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.build)
+        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.deployment.build)
         before = landed(sim)
 
         # A tree of another type never reaches a write: the shape is proven by
@@ -564,7 +564,7 @@ function conditions_specialized_apply()
         # service rebuilding its tree per evaluation actually needs, and it is both
         # stronger and truer than "equal literals are one object".
         sim = Simulation(tri(); h = 1//10)
-        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.build)
+        plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.deployment.build)
 
         paths = split("plant ctl trig")             # the prefixes as data, not literals
         fresh(i) = String(paths[i])                 # a new `String` object per call
@@ -583,7 +583,7 @@ function conditions_specialized_apply()
 
     @testset "the converters are baked per leaf, at the activation (§14.3)" begin
         sim = Simulation(tri(), D8; h = 1//10)
-        b = sim.build
+        b = sim.deployment.build
 
         # A plain `Float64` leaf against a seeded activation: the zero-partial
         # embedding, which is semantically exact for a value held at the operating

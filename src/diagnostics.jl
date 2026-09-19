@@ -1215,19 +1215,14 @@ Base.@kwdef struct DeploymentInvalid <: Diagnostic
     admissible::Any = nothing                # gcd(pool), the coarsest admissible Δt_base
 end
 
+# The parameter set is Appendix C's row: deployment parameters alone. The
+# materialization's keywords validate under `ArgumentInvalid` (D-256), and
+# their constraint text and section moved with them.
 _dep_constraint(p::Symbol) =
     p === :algorithm           ? "must be a stepper type — RK4 or Heun" :
     p === :firing_budget       ? "must be an integer ≥ 1" :
     p === :localization_tol    ? "must be a positive real" :
     p === :localization_budget ? "must be an integer ≥ 1" :
-    p === :join_timeout        ? "must be a positive real — the shutdown tail's join cap " *
-                                 "in seconds of wall clock" :
-    p === :trace               ? "must be true or false — §11.5's trace kill switch" :
-    p === :log                 ? "must be true or false — the retention switch" :
-    p === :log_every           ? "must be an integer ≥ 1" :
-    p === :log_max             ? "must be an integer ≥ 1, or Inf as the explicit opt-out" :
-    p === :t_end               ? "must be a real ≥ 0 — the run's clock bound, taken to " *
-                                 "the nearest frame top, Inf the unbounded default" :
     p === :h                   ? "must be positive" :
     p === :N_base              ? "must be an integer ≥ 1" :
                                  "is outside its constraint"
@@ -1235,10 +1230,6 @@ _dep_section(p::Symbol) =
     p === :algorithm           ? " (§10.2)" :
     p === :firing_budget       ? " (§10.6)" :
     (p === :localization_tol || p === :localization_budget) ? " (§10.4)" :
-    p === :join_timeout        ? " (§12.4)" :
-    p === :trace               ? " (§11.5)" :
-    (p === :log || p === :log_every || p === :log_max) ? " (§11.2)" :
-    p === :t_end               ? " (§13.5)" :
     p === :N_base              ? " (§9.1)" : ""
 _dep_admissible(d) = d.admissible === nothing ? "" :
                      " — an admissible Δt_base divides gcd(pool) = $(d.admissible)"
@@ -1682,7 +1673,7 @@ message(d::ConditionShapeDrift) =
 
 "§8.7, §11.6, §12.6, §12.7, §14.7, D-215: an argument outside its constraint — `DeploymentInvalid`'s twin off the deployment surface."
 Base.@kwdef struct ArgumentInvalid <: Diagnostic
-    call::Symbol                             # :Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:trim!|:trace|:TableBinding|:selector
+    call::Symbol                             # :Simulation|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:trim!|:trace|:TableBinding|:selector
     reason::Symbol
     argument::Union{Nothing,Symbol} = nothing
     value::Any = nothing
@@ -1747,6 +1738,24 @@ function message(d::ArgumentInvalid)
     d.reason === :expo &&
         return "TableBinding: entry `$(d.entry)`'s expo must lie in [0, 1], got " *
                "$(d.value) (§11.6)"
+    # The materialization's keywords (D-256): each carries the constraint text and
+    # section its `DeploymentInvalid` row carried before the keywords moved off
+    # the deployment surface.
+    d.argument === :join_timeout &&
+        return "`join_timeout` must be a positive real — the shutdown tail's join cap in " *
+               "seconds of wall clock, got $(repr(d.value)) (§12.4)"
+    d.argument === :trace &&
+        return "`trace` must be true or false — §11.5's trace kill switch, got $(repr(d.value))"
+    d.argument === :log &&
+        return "`log` must be true or false — the retention switch, got $(repr(d.value)) (§11.2)"
+    d.argument === :log_every &&
+        return "`log_every` must be an integer ≥ 1, got $(repr(d.value)) (§11.2)"
+    d.argument === :log_max &&
+        return "`log_max` must be an integer ≥ 1, or Inf as the explicit opt-out, got " *
+               "$(repr(d.value)) (§11.2)"
+    d.argument === :t_end &&
+        return "`t_end` must be a real ≥ 0 — the run's clock bound, taken to the nearest " *
+               "frame top, Inf the unbounded default, got $(repr(d.value)) (§13.5)"
     d.argument === :frames ?
         "frames must be an integer ≥ 1, got $(d.value) (§12.6)" :
         d.argument === :to_boundary ?

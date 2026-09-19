@@ -57,7 +57,7 @@ function test_localization()
         stage!(sim, "in" => 1.0)                     # staged, drained at the next frame top (§11.4)
         step!(sim; t_plus = 0.3)
         @test modes(sim, "c").count == 1
-        @test modes(sim, "c").t_fired == 4 * sim.h     # the grid point itself
+        @test modes(sim, "c").t_fired == 4 * sim.deployment.h     # the grid point itself
     end
 
     @testset "t* = tₙ₊₁ exactly degenerates to the grid boundary (§10.4)" begin
@@ -70,7 +70,7 @@ function test_localization()
         init!(sim)
         run!(sim; t_end = 0.6)
         @test modes(sim, "s").count == 1
-        @test modes(sim, "s").t_fired == 4 * sim.h
+        @test modes(sim, "s").t_fired == 4 * sim.deployment.h
     end
 
     @testset "multiple crossings in one frame: earliest first, re-localized on the remainder" begin
@@ -104,7 +104,7 @@ function test_localization()
         init!(simb)
         run!(simb; t_end = 0.5)                    # the degradation reports on the loop's cell (§11.8)
         @test modes(simb, "s1").t_fired ≈ 0.31 atol = 1e-6
-        @test modes(simb, "s2").t_fired == 4 * simb.h
+        @test modes(simb, "s2").t_fired == 4 * simb.deployment.h
         lw = writer_status(latest(simb), "loop")
         cb = only(lw.recent)               # frame 4's report, folded at frame 5's top
         @test cb isa ChatteringBudget
@@ -126,8 +126,8 @@ function test_localization()
         init!(sim)
         @test_logs run!(sim; t_end = 0.5)
         @test modes(sim, "s1").t_fired ≈ 0.399 atol = 1e-4
-        @test modes(sim, "s1").t_fired < 4 * sim.h
-        @test modes(sim, "s2").t_fired == 4 * sim.h
+        @test modes(sim, "s1").t_fired < 4 * sim.deployment.h
+        @test modes(sim, "s2").t_fired == 4 * sim.deployment.h
         @test modes(sim, "s1").count == 1 && modes(sim, "s2").count == 1
     end
 
@@ -174,7 +174,7 @@ function test_localization()
         stage!(sim2, "gate" => true)                            # the u seam, through the drain (§11.4)
         step!(sim2; t_plus = 0.3)
         @test modes(sim2, "s").count == 1
-        @test modes(sim2, "s").t_fired == 6 * sim2.h
+        @test modes(sim2, "s").t_fired == 6 * sim2.deployment.h
     end
 
     @testset "ticks are never due at t*: the discrete tier holds through it (§10.4)" begin

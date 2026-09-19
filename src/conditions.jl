@@ -831,8 +831,8 @@ function capture(sim::Simulation{T}) where {T}
     lc = lifecycle(sim)
     lc in (:initialized, :stopped) || throw(DiagnosticError(ServiceLifecycle(
         op = :capture, status = lc, legal = [:initialized, :stopped])))
-    ex, structure, tiers = sim.exec, sim.build.structure, sim.build.structure.tiers
-    act = activation(sim.build, T)
+    ex, structure, tiers = sim.exec, sim.deployment.build.structure, sim.deployment.build.structure.tiers
+    act = activation(sim.deployment.build, T)
     offs = _x_offsets(act.decls, tiers)
     nodes = ConditionNode[]
     for ci in eachindex(structure.comps)

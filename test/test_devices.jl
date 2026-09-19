@@ -405,12 +405,15 @@ function test_devices()
     end
 
     @testset "join_timeout is validated and never trajectory-determining (§12.4, D-198)" begin
+        # It is a keyword of the materialization, not a deployment parameter, so it
+        # is an `ArgumentInvalid` (D-256).
         err = failure(() -> Simulation(two_root_inputs(); h = 1//10, join_timeout = 0))
         diag = only(diagnostics(err))
-        @test err isa DiagnosticError && diag isa DeploymentInvalid && diag.parameter === :join_timeout
+        @test err isa DiagnosticError && diag isa ArgumentInvalid && diag.call === :Simulation
+        @test diag.argument === :join_timeout && diag.reason === :range
         err = failure(() -> Simulation(two_root_inputs(); h = 1//10, join_timeout = "5"))
         diag = only(diagnostics(err))
-        @test err isa DiagnosticError && diag isa DeploymentInvalid && diag.parameter === :join_timeout
+        @test err isa DiagnosticError && diag isa ArgumentInvalid && diag.argument === :join_timeout
         trajectories = map((5.0, 0.01)) do cap
             sim = Simulation(two_root_inputs(); h = 1//10, join_timeout = cap)
             attach!(sim, Pad("p"), Enumerated("a"))

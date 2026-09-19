@@ -266,7 +266,7 @@ function _fingerprint(sim)
     layout = ex.act.layout
     (sizes = copy(layout.sizes),
      root_faces = Symbol[f for (f, _) in layout.root_inputs],
-     paths = copy(sim.build.structure.paths),
+     paths = copy(sim.deployment.build.structure.paths),
      stypes = Any[st === nothing ? nothing : typeof(st[]) for st in ex.sstores],
      mtypes = Any[st === nothing ? nothing : typeof(st[]) for st in ex.mstores])
 end
@@ -284,11 +284,12 @@ function _capture_header(sim)
                              for (f, _) in layout.root_inputs]
     # the effective termination pair is the one `init!` knows: the constructor's,
     # `run!`'s per-run override post-dating the capture (§13.5)
-    deployment = (t₀ = ex.clock.t₀, Δt_base = sim.Δt_base, h = sim.h, N_base = sim.N_base,
+    dep = sim.deployment
+    deployment = (t₀ = ex.clock.t₀, Δt_base = dep.Δt_base, h = dep.h, N_base = dep.N_base,
                   algorithm = nameof(typeof(sim.stepper)),
-                  localization_tol = sim.localization_tol,
-                  localization_budget = sim.localization_budget,
-                  firing_budget = sim.firing_budget, t_end = sim.t_end,
+                  localization_tol = dep.localization_tol,
+                  localization_budget = dep.localization_budget,
+                  firing_budget = dep.firing_budget, t_end = sim.t_end,
                   stop_on = copy(sim.stop_on))
     TraceHeader{T}(copy(ex.xbuf), s, m, roots, Pair{String,Vector{Symbol}}[],
                    deployment, _fingerprint(sim))
@@ -346,12 +347,12 @@ function _check_header!(diags::Vector{Diagnostic}, sim, h::TraceHeader)
                                                   expected = l.mtypes[i], found = f.mtypes[i]))
         end
     end
-    d = h.deployment
-    for (name, found) in ((:Δt_base, sim.Δt_base), (:h, sim.h), (:N_base, sim.N_base),
+    d, dep = h.deployment, sim.deployment
+    for (name, found) in ((:Δt_base, dep.Δt_base), (:h, dep.h), (:N_base, dep.N_base),
                           (:algorithm, nameof(typeof(sim.stepper))),
-                          (:localization_tol, sim.localization_tol),
-                          (:localization_budget, sim.localization_budget),
-                          (:firing_budget, sim.firing_budget))
+                          (:localization_tol, dep.localization_tol),
+                          (:localization_budget, dep.localization_budget),
+                          (:firing_budget, dep.firing_budget))
         getfield(d, name) == found ||
             push!(diags, ReplayHeaderMismatch(what = :deployment, name = name,
                                               expected = getfield(d, name), found = found))

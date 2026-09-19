@@ -138,14 +138,16 @@ function test_log()
 
     @testset "the retention keywords are validated with their siblings (§11.2)" begin
         m = fed(Plant(), "u")
+        # View policies are the materialization's keywords, so they are
+        # `ArgumentInvalid`s at `call = :Simulation` (D-256).
         d1 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, log = 1))))
-        @test d1 isa DeploymentInvalid && d1.parameter === :log
+        @test d1 isa ArgumentInvalid && d1.call === :Simulation && d1.argument === :log
         d2 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, log_every = 0))))
-        @test d2 isa DeploymentInvalid && d2.parameter === :log_every
+        @test d2 isa ArgumentInvalid && d2.argument === :log_every && d2.reason === :range
         d3 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, log_max = 0))))
-        @test d3 isa DeploymentInvalid && d3.parameter === :log_max
+        @test d3 isa ArgumentInvalid && d3.argument === :log_max
         d4 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, log_max = 1.5))))
-        @test d4 isa DeploymentInvalid && d4.parameter === :log_max
+        @test d4 isa ArgumentInvalid && d4.argument === :log_max
         sim = Simulation(m; h = 1//10, log_max = Inf)        # the explicit opt-out
         init!(sim, fragment(inputs = (in = 0.0,)))
         run!(sim; t_end = 1.0)
