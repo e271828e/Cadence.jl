@@ -817,6 +817,16 @@ input_connections(a::SelectedNothing) = (input_passthrough(a, "g"; select = _ ->
                                          "in" => "src/e")
 output_connections(::SelectedNothing) = ("g/out" => "out",)
 
+# The output side's producer: `except` names the gain's only output face, and
+# the hand-written entry beside it exports that face itself.
+struct OutputSelectedNothing <: AbstractComponent
+    g::Gain
+end
+child_connections(::OutputSelectedNothing) = ()
+input_connections(::OutputSelectedNothing) = ("in" => "g/e",)
+output_connections(a::OutputSelectedNothing) =
+    (output_passthrough(a, "g"; except = ("out",))..., "g/out" => "out")
+
 # §8.8's feed-list idiom, the spec's sketch against the real helpers. An assembly
 # that feeds some of a child's input faces and passes the rest up would restate
 # the wire list in every `except` tuple — structure kept in two artifacts, the
@@ -1010,6 +1020,11 @@ function assembly_primitives()
         d = only(warnings(b))
         @test d isa EmptyFaceSelection && d.who == "input_passthrough" &&
               d.selector === :select && d.names == String[] && d.candidates == ["e"]
+        # The output helper constructs its own `who`.
+        b = @test_logs (:warn, r"^EmptyFaceSelection") build(OutputSelectedNothing(Gain(2.0)))
+        d = only(warnings(b))
+        @test d isa EmptyFaceSelection && d.who == "output_passthrough" &&
+              d.selector === :except && d.names == ["out"] && d.candidates == ["out"]
 
         # A bare call over a faceless child asked for nothing and is silent; the
         # same child under a selector warns, with an empty face list in hand.

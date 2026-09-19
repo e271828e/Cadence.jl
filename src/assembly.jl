@@ -505,7 +505,8 @@ input_faces(c) = classify("", c) === PRIMITIVE ?
 `input_faces`' mirror: a leaf's `output_types` keys, or an assembly's
 `output_connections` face names, in declaration order (§13.3). Inside a walk the
 walk has already evaluated the body once and this primitive does not evaluate it
-again (Appendix C); standalone the primitive evaluates it.
+again (Appendix C); standalone the primitive evaluates it. Either way the list
+returned is a fresh vector, the caller's to mutate.
 """
 output_faces(c) = classify("", c) === PRIMITIVE ?
                   String[String(k) for k in keys(_contract(output_types, c))] :
