@@ -165,7 +165,7 @@ _key(e::CEntry) = e.face === nothing ? (e.path, e.store, e.field) : ("", :input,
 _step(prov::String, s::String) = isempty(prov) ? s : prov * " → " * s
 
 function _flat(n::Fragment, path::String, level, prov::String, pos::Tuple,
-               flat::Flat, diags::Vector{Diagnostic})
+               structure::Structure, diags::Vector{Diagnostic})
     out = CEntry[]
     for (store, name, payload) in ((:x, :x, n.x), (:s, :s, n.s),
                                    (:m, :m, n.m), (:input, :inputs, n.inputs))
@@ -174,7 +174,7 @@ function _flat(n::Fragment, path::String, level, prov::String, pos::Tuple,
                        nothing, (pos..., name, field))
             store === :input &&
                 (e = CEntry(e.path, e.store, e.field, e.value, e.prov,
-                            _root_input(flat, e, diags), e.pos))
+                            _root_input(structure, e, diags), e.pos))
             push!(out, e)
         end
     end
@@ -182,17 +182,17 @@ function _flat(n::Fragment, path::String, level, prov::String, pos::Tuple,
 end
 
 function _flat(n::Scoped, path::String, level, prov::String, pos::Tuple,
-               flat::Flat, diags::Vector{Diagnostic})
+               structure::Structure, diags::Vector{Diagnostic})
     entry = _step(prov, "at(\"$(n.prefix)\")")
     kid = resolve_authored(entry, path, level, n.prefix, diags)
     kid === nothing && return CEntry[]        # the path is the offender, reported once
-    _flat(n.node, _join(path, n.prefix), kid, entry, (pos..., :node), flat, diags)
+    _flat(n.node, _join(path, n.prefix), kid, entry, (pos..., :node), structure, diags)
 end
 
 _flat(n::Combined, path::String, level, prov::String, pos::Tuple,
-      flat::Flat, diags::Vector{Diagnostic}) =
+      structure::Structure, diags::Vector{Diagnostic}) =
     reduce(vcat, (_flat(k, path, level, _step(prov, "combine[$i]"), (pos..., :nodes, i),
-                        flat, diags)
+                        structure, diags)
                   for (i, k) in enumerate(n.nodes)); init = CEntry[])
 
 # Layering (§14.6): each layer is flattened and checked on its own — a
@@ -200,11 +200,11 @@ _flat(n::Combined, path::String, level, prov::String, pos::Tuple,
 # accumulator, the patch replacing the leaf it overrode and inheriting its
 # provenance beside its own.
 function _flat(n::Override, path::String, level, prov::String, pos::Tuple,
-               flat::Flat, diags::Vector{Diagnostic})
+               structure::Structure, diags::Vector{Diagnostic})
     acc = CEntry[]
     for (i, layer) in enumerate(n.layers)
         label = i == 1 ? "override[base]" : "override[patch $(i - 1)]"
-        es = _flat(layer, path, level, _step(prov, label), (pos..., :layers, i), flat, diags)
+        es = _flat(layer, path, level, _step(prov, label), (pos..., :layers, i), structure, diags)
         _check_duplicates!(es, diags)
         for e in es
             j = findfirst(a -> _key(a) == _key(e), acc)
@@ -329,11 +329,11 @@ end
 # handed back with the survivors, so a service that owns its own setup
 # diagnostic can fold the same list into its kind.
 function _resolve_entries(node::ConditionNode, b::Build, ::Type{T}) where {T}
-    flat, tiers = b.flat, b.tiers
+    structure, tiers = b.structure, b.structure.tiers
     act = activation(b, T)
     decls, layout = act.decls, act.layout
     diags = Diagnostic[]
-    entries = _flat(node, "", flat.root, "", (), flat, diags)
+    entries = _flat(node, "", structure.root, "", (), structure, diags)
     _check_duplicates!(entries, diags)
 
     x_offs = _x_offsets(decls, tiers)
@@ -348,9 +348,9 @@ function _resolve_entries(node::ConditionNode, b::Build, ::Type{T}) where {T}
             push!(out, Resolved(e, addr, P, v))
             continue
         end
-        ci = _component(flat, e, diags)
+        ci = _component(structure, e, diags)
         ci === nothing && continue
-        c, tier, d = flat.comps[ci], tiers[ci], decls[ci]
+        c, tier, d = structure.comps[ci], tiers[ci], decls[ci]
         declared = e.store === :x ? d.x : e.store === :s ? d.s : init_m(c)
         if isempty(declared)
             push!(diags, _no_store(e, tier))
@@ -370,8 +370,8 @@ end
 # The merge bases, in one order both walk: per component, the discrete
 # store's declared defaults and then the mode store's (§14.3's fork).
 _store_bases(b::Build, act::Activation) =
-    [(store, ci, store === :s ? act.decls[ci].s : init_m(b.flat.comps[ci]))
-     for ci in eachindex(b.flat.comps) for store in (:s, :m)]
+    [(store, ci, store === :s ? act.decls[ci].s : init_m(b.structure.comps[ci]))
+     for ci in eachindex(b.structure.comps) for store in (:s, :m)]
 
 # Anything that is not a node reaching a service entry point is the §14.2
 # misuse, not a `MethodError`: the directive is the same one `combine` prints,
@@ -417,8 +417,8 @@ _cviol(e::CEntry, reason::Symbol; kw...) =
 # left to say is that the level owns no state. Assemblies are virtual for
 # execution (§10.5) and own no state, so an `at` prefix stopping at one has
 # nothing to write — and saying so beats "no such path".
-function _component(flat::Flat, e::CEntry, diags::Vector{Diagnostic})
-    i = findfirst(==(e.path), flat.paths)
+function _component(structure::Structure, e::CEntry, diags::Vector{Diagnostic})
+    i = findfirst(==(e.path), structure.paths)
     i === nothing || return i
     push!(diags, _cviol(e, :assembly_path))
     nothing
@@ -431,19 +431,19 @@ end
 # producer is either a root input or an internal port, and a component-fed face
 # reaches none — writing it would be meaningless, because the first sweep
 # overwrites it.
-function _root_input(flat::Flat, e::CEntry, diags::Vector{Diagnostic})
+function _root_input(structure::Structure, e::CEntry, diags::Vector{Diagnostic})
     if isempty(e.path)
-        e.field in flat.root_inputs && return e.field
-        push!(diags, _cviol(e, :unexported_face; candidates = flat.root_inputs))
+        e.field in structure.root_inputs && return e.field
+        push!(diags, _cviol(e, :unexported_face; candidates = structure.root_inputs))
         return nothing
     end
-    k = findfirst(p -> first(p) === (e.path, e.field), flat.in_faces)
+    k = findfirst(p -> first(p) === (e.path, e.field), structure.in_faces)
     if k === nothing
-        here = [f for ((p, f), _) in flat.in_faces if p == e.path]
+        here = [f for ((p, f), _) in structure.in_faces if p == e.path]
         push!(diags, _cviol(e, :no_input_face; candidates = here))
         return nothing
     end
-    (path, port) = last(flat.in_faces[k])
+    (path, port) = last(structure.in_faces[k])
     isempty(path) && return port
     push!(diags, _cviol(e, :internally_wired; producer = (path, port)))
     nothing
@@ -503,9 +503,9 @@ The services path contains no call to `probe_value`: a root input gets a
 condition value or the application errors, and there is no third branch. A
 fabricated zero is a fine probe input and a terrible flight condition.
 """
-function assert_total(plan::ConditionPlan, flat::Flat, op::Symbol)
+function assert_total(plan::ConditionPlan, structure::Structure, op::Symbol)
     covered = Set(plan.faces)
-    uncovered = [f for f in flat.root_inputs if !(f in covered)]
+    uncovered = [f for f in structure.root_inputs if !(f in covered)]
     isempty(uncovered) && return nothing
     throw(DiagnosticError(UninitializedInputs(op = op, faces = uncovered)))
 end
@@ -831,11 +831,11 @@ function capture(sim::Simulation{T}) where {T}
     lc = lifecycle(sim)
     lc in (:initialized, :stopped) || throw(DiagnosticError(ServiceLifecycle(
         op = :capture, status = lc, legal = [:initialized, :stopped])))
-    ex, flat, tiers = sim.exec, sim.build.flat, sim.build.tiers
+    ex, structure, tiers = sim.exec, sim.build.structure, sim.build.structure.tiers
     act = activation(sim.build, T)
     offs = _x_offsets(act.decls, tiers)
     nodes = ConditionNode[]
-    for ci in eachindex(flat.comps)
+    for ci in eachindex(structure.comps)
         d = act.decls[ci]
         payload = NamedTuple()
         tiers[ci] === CONTINUOUS && !isempty(d.x) &&
@@ -847,12 +847,12 @@ function capture(sim::Simulation{T}) where {T}
         # compiled derivative, and the authored spelling is the one the
         # service walk admits wherever a level holds its child generically
         # (§14.2, §13.3).
-        push!(nodes, foldr(at, authored_chain(flat.root, flat.paths[ci]);
+        push!(nodes, foldr(at, authored_chain(structure.root, structure.paths[ci]);
                            init = fragment(; payload...)))
     end
-    isempty(flat.root_inputs) || push!(nodes, fragment(inputs =
-        NamedTuple{Tuple(flat.root_inputs)}(Tuple(gather(ex.store, act.layout.addr[("", f)])
-                                                  for f in flat.root_inputs))))
+    isempty(structure.root_inputs) || push!(nodes, fragment(inputs =
+        NamedTuple{Tuple(structure.root_inputs)}(Tuple(gather(ex.store, act.layout.addr[("", f)])
+                                                  for f in structure.root_inputs))))
     (combine(nodes...), ex.clock.t)
 end
 

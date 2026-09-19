@@ -64,8 +64,8 @@ function assembly_class()
         # Any component may be the root (D-208): a primitive one flattens to the
         # single leaf at the root path, its `input_types` keys the root inputs.
         b = build(Plant())
-        @test b.flat.paths == [""]
-        @test b.flat.root_inputs == [:u]
+        @test b.structure.paths == [""]
+        @test b.structure.root_inputs == [:u]
     end
 
     @testset "a primitive root is the whole model (§8.2, §9.1, D-208)" begin
@@ -151,12 +151,12 @@ function assembly_container_children()
         # naming rule itself is the undeclared containers' below.
         sim = Simulation(Group((; c1 = TickCounter(), c2 = TickCounter()));
                          h = 1//10)
-        @test sim.build.flat.paths == ["c1", "c2"]
+        @test sim.build.structure.paths == ["c1", "c2"]
         @test state(sim, "c2") === (n = 0,)
 
         # An empty container contributes zero children, and is not an error.
         b = build(EmptyRoster((;), ModedSource()))
-        @test b.flat.paths == ["src"]
+        @test b.structure.paths == ["src"]
 
         # A container mixing components with anything else is one, by name.
         err = failure(() -> build(single(MixedContainer((a = Gain(1.0), b = 2.0)))))
@@ -168,7 +168,7 @@ function assembly_container_children()
         # The `Tuple` form: the same rule with index segments, `"field/1"…"field/N"`
         # (§8.5), addressable by the parent's declarations like any child name.
         tsim = Simulation(TupleRoster((Gain(2.0), Gain(3.0))); h = 1//10)
-        @test tsim.build.flat.paths == ["units/1", "units/2"]
+        @test tsim.build.structure.paths == ["units/1", "units/2"]
         init!(tsim, fragment(inputs = (in = 1.0,)))
         @test port(tsim, "units/2", :out) === 6.0
         @test port(tsim, "", :y) === port(tsim, "units/2", :out)
@@ -258,14 +258,14 @@ function assembly_transparent_containers()
         # the same declaration order, addressed without the field segment — wiring
         # endpoints, the flat list and the read path alike.
         sim = Simulation(TransparentRoster((a = Gain(2.0), b = Gain(3.0))); h = 1//10)
-        @test sim.build.flat.paths == ["a", "b"]
+        @test sim.build.structure.paths == ["a", "b"]
         init!(sim, fragment(inputs = (in = 1.0,)))
         @test port(sim, "b", :out) === 6.0
         @test port(sim, "", :y) === port(sim, "b", :out)
 
         # The undeclared container keeps its key segment: `TupleRoster` above wires
         # and reads the same topology as `"units/1"`, and the default is `nothing`.
-        @test build(TupleRoster((Gain(2.0), Gain(3.0)))).flat.paths == ["units/1", "units/2"]
+        @test build(TupleRoster((Gain(2.0), Gain(3.0)))).structure.paths == ["units/1", "units/2"]
         @test transparent_container(TupleRoster((Gain(1.0),))) === nothing
         @test transparent_container(Group((;))) === :children
 
@@ -313,7 +313,7 @@ function assembly_transparent_containers()
         # over inert data, a false positive where no shadow exists. Legality is
         # per-instantiation, as every wiring judgment already is.
         sim = Simulation(Shadowed((units = Gain(2.0),), (), Gain(3.0)); h = 1//10)
-        @test sim.build.flat.paths == ["units", "trim"]     # the bare child, and nothing under it
+        @test sim.build.structure.paths == ["units", "trim"]     # the bare child, and nothing under it
         init!(sim, fragment(inputs = (in = 1.0,)))
         @test port(sim, "units", :out) === 6.0             # reads resolve `units` bare
         @test port(sim, "", :y) === 6.0                    # and so does wiring resolution
@@ -397,8 +397,8 @@ function assembly_paths()
         # this case entirely.
         gsim = Simulation(GenericHold(SampledLoop()); h = 1//50)
         init!(gsim, fragment(inputs = (ref = 1.0,)))
-        @test gsim.build.flat.paths == sim.build.flat.paths
-        @test gsim.build.flat.conns == sim.build.flat.conns
+        @test gsim.build.structure.paths == sim.build.structure.paths
+        @test gsim.build.structure.conns == sim.build.structure.conns
         run!(sim; t_end = 0.2)                       # equal wiring, and equal trajectories:
         run!(gsim; t_end = 0.2)                      # the t₀ table alone would prove nothing
         @test state(gsim, "inner/plant").q === state(sim, "inner/plant").q
@@ -545,7 +545,7 @@ function assembly_two_level()
         end
 
         sim = Simulation(Vehicle(; k, kI, ω, ζ); h = 1//50)
-        @test sim.build.flat.paths == ["loop/plant", "loop/ctl", "loop/sum", "trim"]
+        @test sim.build.structure.paths == ["loop/plant", "loop/ctl", "loop/sum", "trim"]
         init!(sim, fragment(inputs = (ref = r,)))
         run!(sim; t_end = N * Δt)
         @test state(sim, "loop/plant").q ≈ q rtol = 1e-6
@@ -571,6 +571,42 @@ function assembly_two_level()
         simd = Simulation(Vehicle(), D8; h = 1//50)
         @test port(simd, "", :y) isa D8
         @test port(simd, "", :cmd) isa Float64
+    end
+end
+
+# --- the structure's rate tables (§9.1, §9.2, D-253) ---------------------------
+# The sample-time fold's triples are exercised against the deployed divisors in
+# `test_discrete.jl`; what is read here is the provenance the fold records beside
+# them — who declared each rate, and at which scope.
+
+function assembly_provenance()
+    @testset "the structure records each component's rate provenance and each keyed scope's triple (§9.1, §9.2, D-253)" begin
+        s = build(MultiRate()).structure
+        prov(path) = s.provenance[index_of(s, path)]
+        triple(path) = s.triples[index_of(s, path)]
+
+        @test s.paths == ["src", "fcs/inner", "fcs/outer", "gnss"]
+        @test length(s.tiers) == length(s.paths)
+        @test s.tiers == [CONTINUOUS, DISCRETE, DISCRETE, DISCRETE]
+
+        # Two relative levels compose; the chain names both declaring scopes.
+        @test triple("fcs/inner") == (0, 1, 0)
+        @test prov("fcs/inner") == [(scope = "", key = :fcs, entry = Relative(1)),
+                                    (scope = "fcs", key = :inner, entry = Relative(1))]
+        @test triple("fcs/outer") == (0, 5, 2)
+        @test prov("fcs/outer") == [(scope = "", key = :fcs, entry = Relative(1)),
+                                    (scope = "fcs", key = :outer, entry = Relative(5, 2))]
+        # An anchor severs and re-seeds, and its one link is the anchor's own.
+        @test triple("gnss") == (1, 1, 0)
+        @test prov("gnss") == [(scope = "", key = :gnss, entry = Absolute(Hz(50)))]
+
+        # An unlisted child continues at the enclosing scope and records nothing.
+        @test triple("src") == (0, 1, 0)
+        @test isempty(prov("src"))
+
+        # One row per assembly a key names: `fcs`, at the triple everything under
+        # it folds from. `src` and `gnss` are not assemblies, so neither has a row.
+        @test s.scopes == [(path = "fcs", key = :fcs, triple = (0, 1, 0))]
     end
 end
 
@@ -676,7 +712,7 @@ function assembly_obligations()
         # authored by the init service's condition (§11.3, §14.6).
         sim = Simulation(Group((; c = Gain(2.0)); inputs = ("in" => "c/e",));
                          h = 1//100)
-        @test sim.build.flat.root_inputs == [:in]
+        @test sim.build.structure.root_inputs == [:in]
         init!(sim, fragment(inputs = (in = 0.0,)))
         @test port(sim, "c", :out) == 0.0
         init!(sim, fragment(inputs = (in = 3.0,)))
@@ -787,9 +823,9 @@ function assembly_primitives()
         # And the two builds are the same model: same root inputs, same exported
         # faces, same schedule, same trajectory.
         bp, bw = build(p), build(w)
-        @test bp.flat.root_inputs == bw.flat.root_inputs == [:var"inner.b", :e]
-        @test bp.flat.out_faces == bw.flat.out_faces
-        @test bp.flat.paths == bw.flat.paths
+        @test bp.structure.root_inputs == bw.structure.root_inputs == [:var"inner.b", :e]
+        @test bp.structure.out_faces == bw.structure.out_faces
+        @test bp.structure.paths == bw.structure.paths
         sp, sw = Simulation(p; h = 1//10), Simulation(w; h = 1//10)
         cond = fragment(inputs = (var"inner.b" = 1.0, e = 2.0))
         init!(sp, cond); init!(sw, cond)
@@ -864,7 +900,7 @@ function assembly_primitives()
         @test output_connections(g) == ("inner/scaled" => "inner.scaled",)
 
         sim = Simulation(g; h = 1//10)
-        @test sim.build.flat.paths == ["inner/s", "inner/g", "trim"]
+        @test sim.build.structure.paths == ["inner/s", "inner/g", "trim"]
         init!(sim, fragment(inputs = (var"inner.b" = 1.0, e = 2.0)))
         @test port(sim, "", :var"inner.scaled") === 2.0 * (3.0 * 2.0 - 1.0)
     end
@@ -877,6 +913,7 @@ function test_assembly()
     assembly_paths()
     assembly_connections()
     assembly_two_level()
+    assembly_provenance()
     assembly_obligations()
     assembly_primitives()
 end

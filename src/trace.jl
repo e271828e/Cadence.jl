@@ -266,7 +266,7 @@ function _fingerprint(sim)
     layout = ex.act.layout
     (sizes = copy(layout.sizes),
      root_faces = Symbol[f for (f, _) in layout.root_inputs],
-     paths = copy(sim.build.flat.paths),
+     paths = copy(sim.build.structure.paths),
      stypes = Any[st === nothing ? nothing : typeof(st[]) for st in ex.sstores],
      mtypes = Any[st === nothing ? nothing : typeof(st[]) for st in ex.mstores])
 end

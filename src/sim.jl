@@ -552,7 +552,7 @@ end
     cur.index = 0                     # boundary — no stage of its own, so no ordinal
     names = leaf_names(typeof(ex.act.decls[owner].x))
     throw(DiagnosticError(NonfiniteState(
-        path = sim.build.flat.paths[owner],
+        path = sim.build.structure.paths[owner],
         leaf = names[i - first(ex.xblocks[owner]) + 1],
         value = ex.xbuf[i],
         t = _seconds(ex.clock.t),
@@ -652,9 +652,9 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::T = zero(T)) wher
     lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :errored,
                                                               legal = collect(STOPPED_SIM_LEGAL))))
     plan = resolve_condition(condition, sim.build, T)      # both refusals precede every write
-    assert_total(plan, sim.build.flat, :init!)   # (§14.6): all-or-nothing
-    establish_defaults!(sim.exec.xbuf, sim.exec.sstores, sim.exec.mstores, sim.build.flat.comps,
-                        activation(sim.build, T).decls, sim.build.tiers)   # D-063's reset
+    assert_total(plan, sim.build.structure, :init!)   # (§14.6): all-or-nothing
+    establish_defaults!(sim.exec.xbuf, sim.exec.sstores, sim.exec.mstores, sim.build.structure.comps,
+                        activation(sim.build, T).decls, sim.build.structure.tiers)   # D-063's reset
     apply!(sim, plan)
     _open_trajectory!(sim, t0)
     _reset!(sim.trace)            # §11.5: the trace is cleared at init!, header and all
@@ -1120,7 +1120,7 @@ function _wrap_step(sim::Simulation, entry::Int, err)
         "a StepError reached the catch site (§13.4), which is its only constructor — " *
         "something inside the boundary sequence wrapped one"))
     cur = sim.exec.cursor
-    frame = CursorFrame(cur.comp == 0 ? nothing : sim.build.flat.paths[cur.comp],
+    frame = CursorFrame(cur.comp == 0 ? nothing : sim.build.structure.paths[cur.comp],
                         cur.fn, cur.phase, cur.index)
     StepError(frame, _seconds(sim.exec.clock.t), entry, _species(sim, err))
 end
@@ -1142,7 +1142,7 @@ function _species(sim::Simulation, err::FieldError)
     cur = sim.exec.cursor
     cur.comp == 0 && return err
     ci, fam = cur.comp, cur.fn
-    c, t = sim.build.flat.comps[ci], sim.build.tiers[ci]
+    c, t = sim.build.structure.comps[ci], sim.build.structure.tiers[ci]
     s1 = keys(sim.build.nominal.stage1[ci])
     # Reading the names invokes declarations, and a throw here would replace the
     # author's error, the cursor frame and the `StepError` with a frame of its own.
@@ -1160,7 +1160,7 @@ function _species(sim::Simulation, err::FieldError)
     # from the probe's at a non-nominal activation, and the names are the law's
     # invariant (§5.2).
     (err.type <: NamedTuple && fieldnames(err.type) == bn) || return err
-    BundleFieldError(path = sim.build.flat.paths[ci], family = String(fam),
+    BundleFieldError(path = sim.build.structure.paths[ci], family = String(fam),
                      tier = t === CONTINUOUS ? :continuous : :discrete, field = err.field,
                      legal = collect(bn), reason = classify_bundle_field(fam, t, err.field))
 end
@@ -1647,10 +1647,10 @@ State at `path`, from whichever home owns it: `x` in the flat buffer on the
 continuous tier, `s` in the component's own store on the discrete one (§7.3).
 """
 function state(sim::Simulation{T}, path::String) where {T}
-    ci = index_of(sim.build.flat, path)
+    ci = index_of(sim.build.structure, path)
     sim.exec.sstores[ci] === nothing || return sim.exec.sstores[ci][]
-    _tier(i) = sim.build.tiers[i]
-    _decls(i) = declarations(sim.build.flat.comps[i], _tier(i), T)
+    _tier(i) = sim.build.structure.tiers[i]
+    _decls(i) = declarations(sim.build.structure.comps[i], _tier(i), T)
     off = 0
     for i in 1:(ci-1)
         _tier(i) === CONTINUOUS && (off += nleaves(typeof(_decls(i).x)))
@@ -1659,4 +1659,4 @@ function state(sim::Simulation{T}, path::String) where {T}
 end
 
 """Modes at `path` (§7.3). Read-only here: modes are written by handlers alone."""
-modes(sim::Simulation, path::String) = sim.exec.mstores[index_of(sim.build.flat, path)][]
+modes(sim::Simulation, path::String) = sim.exec.mstores[index_of(sim.build.structure, path)][]

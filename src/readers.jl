@@ -240,7 +240,7 @@ list, the reader being `nothing` when anything failed.
 """
 function _resolve_reads(rs::Reads, b::Build, ::Type{T}) where {T}
     act = activation(b, T)
-    offs = _x_offsets(act.decls, b.tiers)
+    offs = _x_offsets(act.decls, b.structure.tiers)
     diags = Diagnostic[]
     entries = Any[]
     for (label, s) in pairs(rs.sels)
@@ -255,10 +255,10 @@ end
 # walk owns the unknown-segment refusal and its candidates, and the past-generic
 # one with them. What stays here is `_component`'s residue, one case over —
 # a level the walk admitted that owns no state of its own.
-function _read_component(s, label::Symbol, flat::Flat, diags::Vector{Diagnostic})
+function _read_component(s, label::Symbol, structure::Structure, diags::Vector{Diagnostic})
     entry = "the read labeled `$label`, $(_spell(s))"
-    resolve_authored(entry, "", flat.root, s.path, diags) === nothing && return nothing
-    i = findfirst(==(s.path), flat.paths)
+    resolve_authored(entry, "", structure.root, s.path, diags) === nothing && return nothing
+    i = findfirst(==(s.path), structure.paths)
     i === nothing || return i
     push!(diags, _rviol(label, s, :assembly_path))
     nothing
@@ -299,9 +299,9 @@ _field(s::GetOutput) = s.name
 
 function _resolve_selector(s::GetState, label::Symbol, b::Build, act::Activation,
                        offs::Vector{Int}, diags::Vector{Diagnostic})
-    ci = _read_component(s, label, b.flat, diags)
+    ci = _read_component(s, label, b.structure, diags)
     ci === nothing && return nothing
-    d, t = act.decls[ci], b.tiers[ci]
+    d, t = act.decls[ci], b.structure.tiers[ci]
     declared = state_decls(d, t)
     haskey(declared, s.field) ||
         (push!(diags, _declares(label, s, :state_field, declared)); return nothing)
@@ -314,9 +314,9 @@ end
 
 function _resolve_selector(s::GetDeriv, label::Symbol, b::Build, act::Activation,
                        offs::Vector{Int}, diags::Vector{Diagnostic})
-    ci = _read_component(s, label, b.flat, diags)
+    ci = _read_component(s, label, b.structure, diags)
     ci === nothing && return nothing
-    d, t = act.decls[ci], b.tiers[ci]
+    d, t = act.decls[ci], b.structure.tiers[ci]
     if t !== CONTINUOUS
         push!(diags, _rviol(label, s, :discrete_deriv; field = s.field))
         return nothing
@@ -332,7 +332,7 @@ end
 
 function _resolve_selector(s::GetOutput, label::Symbol, b::Build, act::Activation,
                        ::Vector{Int}, diags::Vector{Diagnostic})
-    ci = _read_component(s, label, b.flat, diags)
+    ci = _read_component(s, label, b.structure, diags)
     ci === nothing && return nothing
     d = act.decls[ci]
     haskey(d.outs, s.name) ||
@@ -344,9 +344,9 @@ end
 
 function _resolve_selector(s::GetInput, label::Symbol, b::Build, act::Activation,
                        ::Vector{Int}, diags::Vector{Diagnostic})
-    if !(s.face in b.flat.root_inputs)
+    if !(s.face in b.structure.root_inputs)
         push!(diags, _rviol(label, s, :unknown_root_input; field = s.face,
-                           candidates = b.flat.root_inputs))
+                           candidates = b.structure.root_inputs))
         return nothing
     end
     addr = act.layout.addr[("", s.face)]
@@ -355,9 +355,9 @@ end
 
 function _resolve_selector(s::GetFace, label::Symbol, b::Build, act::Activation,
                        ::Vector{Int}, diags::Vector{Diagnostic})
-    exported = Symbol[f for ((p, f), _) in b.flat.out_faces if isempty(p)]
+    exported = Symbol[f for ((p, f), _) in b.structure.out_faces if isempty(p)]
     if !(s.name in exported)
-        push!(diags, s.name in b.flat.root_inputs ?
+        push!(diags, s.name in b.structure.root_inputs ?
                     _rviol(label, s, :root_input_not_face; field = s.name) :
                     _rviol(label, s, :unknown_output_face; field = s.name,
                            candidates = exported))

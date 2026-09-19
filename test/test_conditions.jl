@@ -270,7 +270,7 @@ function conditions_algebra()
         free = Simulation(single(Sawtooth(1.0)); h = 1//10)
         init!(free)                                    # nothing to cover: total by construction
         @test lifecycle(free) === :initialized
-        @test isempty(free.build.flat.root_inputs)
+        @test isempty(free.build.structure.root_inputs)
     end
 
     @testset "a sparse overlay lands on the declared defaults (§14.1, §14.3)" begin
@@ -439,7 +439,7 @@ function conditions_service_walk()
         # it has a path — and the refusal is an unknown child with no list to
         # offer, not a level of the build (§8.5, §13.3).
         bo = build(OpaqueHold(OpaqueLeaf(Gain(2.0))))
-        @test bo.flat.paths == ["c"]
+        @test bo.structure.paths == ["c"]
         d = only(diagnostics(failure(() -> resolve_condition(at("c/hidden",
                            fragment(x = (z = 1.0,))), bo))))
         @test d isa PathResolution && d.reason === :unknown_child
@@ -482,7 +482,7 @@ ledger_tree(a, b) = override(at("led", fragment(s = (a = a,))),
 landed(sim) = (copy(sim.exec.xbuf),
                [s === nothing ? nothing : s[] for s in sim.exec.sstores],
                [m === nothing ? nothing : m[] for m in sim.exec.mstores],
-               [port(sim, "", f) for f in sim.build.flat.root_inputs])
+               [port(sim, "", f) for f in sim.build.structure.root_inputs])
 
 function conditions_specialized_apply()
     @testset "a shape-compiled plan lands what the dynamic walk lands (§14.4, D-066)" begin

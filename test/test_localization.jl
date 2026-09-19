@@ -155,7 +155,7 @@ function test_localization()
                         wires = ("src/q" => "s/sig",),
                         inputs = ("gate" => "s/gate",))
         b = build(gated())
-        @test b.policies[index_of(b.flat, "s")] === (cross = :localized,)
+        @test b.policies[index_of(b.structure, "s")] === (cross = :localized,)
 
         # Gate true from the start: the Bool factor is constant over the bracket
         # and the continuous atom localizes as such.

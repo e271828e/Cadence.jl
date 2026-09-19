@@ -322,7 +322,7 @@ function build_port_classes()
         # product. The products' order is the invariant every downstream reader
         # takes its stage-2 tail off — stage 1, then stage 2.
         b = build(fed(Motor(1.0), "M_load"))
-        i = index_of(b.flat, "c")
+        i = index_of(b.structure, "c")
         @test keys(b.nominal.stage1[i]) === (:ω, :running)
         @test keys(b.nominal.products[i]) === (:ω, :running, :M_shaft)
         # The hand-down carries the stage-1 return, so `y_x` is now in stage 2's
@@ -1136,7 +1136,7 @@ function build_label_ports()
     @testset "an enum root input is synthesized as the first instance (§9.3, D-051)" begin
         m = Group((; rd = GearReader()); inputs = ("gear" => "rd/gear", "x" => "rd/x"))
         b = build(m)
-        @test b.nominal.products[index_of(b.flat, "rd")].code == 1
+        @test b.nominal.products[index_of(b.structure, "rd")].code == 1
         # Probe values are probe-scoped: the run's value is the one the fragment
         # authored, and an enum converts through the condition apply as itself.
         sim = Simulation(b; h = 1//10)
@@ -1147,7 +1147,7 @@ function build_label_ports()
 
     @testset "an enum mode is returned from stage 1 (§7.5)" begin
         b = build(single(GearMode()))
-        i = index_of(b.flat, "c")
+        i = index_of(b.structure, "c")
         @test b.nominal.stage1[i] === (gear = up, y = 0.0)
         @test keys(activation(b, D8).stage1[i]) === (:gear, :y)
         sim = Simulation(b, D8; h = 1//10)
@@ -1165,7 +1165,7 @@ function build_label_ports()
 
         # The mode label is returned (§7.5's remedy on the idiomatic label).
         b = build(single(PhaseMode()))
-        @test b.nominal.stage1[index_of(b.flat, "c")] === (phase = :idle, y = 0.0)
+        @test b.nominal.stage1[index_of(b.structure, "c")] === (phase = :idle, y = 0.0)
 
         # At a root input the leaf has no synthesis, so the refusal is the
         # opaque leaf's, ahead of `probe_value`.
@@ -1386,7 +1386,7 @@ function build_store_form()
     end
 end
 
-function build_stratum_a()
+function build_barrier()
     @testset "every structure-step pass that ran merges into one throw (§13.1, D-229)" begin
         # The wiring walk, the obligation check, tier classification, the event
         # declarations and the store form each read a result the others did not
@@ -1420,7 +1420,7 @@ function build_embed_accept()
         # The enum leaf is pinned and passes through; the `Float64` beside it
         # lifts to the activation scalar as a zero-partial.
         b = build(Group((; c = GearStateSource())))
-        v = activation(b, D8).products[index_of(b.flat, "c")].gs
+        v = activation(b, D8).products[index_of(b.structure, "c")].gs
         @test v isa GearState{D8} && v.gear === down && ForwardDiff.value(v.h) == 1.0
     end
 
@@ -1536,7 +1536,7 @@ function test_build()
     build_store_values()
     build_store_form()
     build_state_leaves()
-    build_stratum_a()
+    build_barrier()
     build_embed_accept()
     build_activations()
 end

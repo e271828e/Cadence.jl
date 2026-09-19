@@ -604,8 +604,8 @@ function resolve_source(w, entry::String, base::String, asm, path::AbstractStrin
         # Children are walked before wires, so the child's faces are already
         # resolved: an output face's producer is its recorded row, and a face
         # whose source was refused was refused there, once (D-229).
-        i = findfirst(pr -> first(pr) == (cpath, name), w.flat.out_faces)
-        i === nothing || return last(w.flat.out_faces[i])
+        i = findfirst(pr -> first(pr) == (cpath, name), w.out_faces)
+        i === nothing || return last(w.out_faces[i])
         String(name) in output_faces(comp) && return nothing   # declared, refused at the child
     end
     _wrong_direction(entry, path, cpath, name, comp, "producer", diags)   # the parent's own typo
@@ -666,8 +666,20 @@ end
 # --- the flatten pass ---------------------------------------------------------
 
 """
-What the pipeline consumes: primitives by absolute path, one resolved producer
-per declared input, the root's input faces (the [root inputs](§11.3)) and §9.2's
+One `sample_times` link (§9.1, D-253): the declaring assembly's path, the key as
+`_rate_entry` returned it, and the `Relative` or `Absolute` value under it.
+"""
+const RateLink = @NamedTuple{scope::String, key::Symbol, entry::Union{Relative,Absolute}}
+
+"""One keyed scope: the assembly an explicit `sample_times` key names, and its triple."""
+const RateScope = @NamedTuple{path::String, key::Symbol, triple::NTuple{3,Int}}
+
+"""
+The structure step's product (§9.1, D-253): everything the root instance alone
+fixes, nothing in it depending on a scalar type. Primitives by absolute path
+with their tier, one resolved producer per declared input, the root's input
+faces (the [root inputs](§11.3)), the sample-time fold's triples with each
+component's declaration provenance and each keyed scope's own triple, and §9.2's
 two-sided face table — the assembly faces the periphery may read, aliased onto
 the cells they derive from, and beside them every input face at every level with
 the producer it routes to. The input side is total: one-level routing gives
@@ -676,10 +688,11 @@ every signal crossing a boundary a declared face there (D-207), so a fragment's
 retained, because the service walk resolves against the tree the
 paths index rather than against the compiled list (§13.3).
 """
-struct Flat
+struct Structure
     root::Any                       # the tree the paths index (§13.3's service walk)
     paths::Vector{String}
     comps::Vector{Any}
+    tiers::Vector{Tier}                                        # per component, beside `paths`
     conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}}   # face => (producer path, port)
     root_inputs::Vector{Symbol}                                # root input faces, in order
     root_types::Vector{Any}         # per root input: the type the structure step's wire pass fixed (D-236)
@@ -688,33 +701,45 @@ struct Flat
     triples::Vector{NTuple{3,Int}}      # per component: (anchor, m, c), anchor 0 the base grid
     anchors::Vector{NTuple{2,Rational{Int}}}   # anchors 1…K: the exact (T, τ) pairs
     aprov::Vector{String}               # per anchor, the declaring scope and key
+    provenance::Vector{Vector{RateLink}}  # per component: the links met on the way down
+    scopes::Vector{RateScope}             # one row per keyed assembly, in walk order
 end
 
-function index_of(flat::Flat, path::String)
-    i = findfirst(==(path), flat.paths)
+function index_of(s::Structure, path::String)
+    i = findfirst(==(path), s.paths)
     i === nothing && throw(InternalInvariant("no component at path `$path`"))
     i
 end
 
-# The walk's state. It owns the `Flat` it is building and appends into it
-# directly; `conns` and `in_faces` stay empty until `wire!` derives them, past
-# the barrier. Violations are not held here — the step's list is an argument
-# of every helper that can add to it.
+# The walk's state: the accumulators `wire!` closes into the `Structure`, the
+# tiers among them (`nothing` where a store-form failure was recorded, narrowed
+# on the clean walk `wire!` runs on). `conns` and `in_faces` are not here — they
+# are derived past the barrier, by `wire!` itself. Violations are not held here
+# either: the step's list is an argument of every helper that can add to it.
 struct Walk
-    flat::Flat
-    tiers::Vector{Union{Nothing,Tier}}   # per primitive, beside `flat.paths`; `nothing` = recorded
+    root::Any
+    paths::Vector{String}
+    comps::Vector{Any}
+    tiers::Vector{Union{Nothing,Tier}}   # per primitive, beside `paths`; `nothing` = recorded
+    root_inputs::Vector{Symbol}
+    root_types::Vector{Any}
+    out_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}
+    triples::Vector{NTuple{3,Int}}
+    anchors::Vector{NTuple{2,Rational{Int}}}
+    aprov::Vector{String}
+    provenance::Vector{Vector{RateLink}}
+    scopes::Vector{RateScope}
     feeds::Dict{Tuple{String,Symbol},Tuple{String,Symbol}}
     claims::Dict{Tuple{String,Symbol},String}                  # who claimed it, for the message
     routes::Vector{Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}}   # (path, face, consumers)
 end
 
-Walk(root) = Walk(Flat(root, String[], Any[],
-                   Vector{Pair{Symbol,Tuple{String,Symbol}}}[], Symbol[],
-                   Any[],
-                   Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
-                   Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
-                   NTuple{3,Int}[], NTuple{2,Rational{Int}}[], String[]),
+Walk(root) = Walk(root, String[], Any[],
               Union{Nothing,Tier}[],
+              Symbol[], Any[],
+              Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
+              NTuple{3,Int}[], NTuple{2,Rational{Int}}[], String[],
+              Vector{RateLink}[], RateScope[],
               Dict{Tuple{String,Symbol},Tuple{String,Symbol}}(),
               Dict{Tuple{String,Symbol},String}(),
               Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}[])
@@ -778,28 +803,35 @@ function _rate_entry(st, seg::String, fld::Symbol)
     nothing
 end
 
+"""The chain a child walks under: the links above it, plus its own when it has one."""
+_extend(chain::Vector{RateLink}, link::Union{Nothing,RateLink}) =
+    link === nothing ? copy(chain) : push!(copy(chain), link)
+
 """
-The child's scope triple, and whether an explicit key declared it. The unlisted
-child continues at the enclosing triple — the `Relative(1)` default is the
-affine law at `(K, φ) = (1, 0)`, implemented by nothing.
+The child's scope triple, and the link an explicit key declared — the declaring
+assembly's path, the key as `_rate_entry` returned it, and the wrapper value —
+or `nothing` for an unlisted child. The unlisted child continues at the
+enclosing triple: the `Relative(1)` default is the affine law at
+`(K, φ) = (1, 0)`, implemented by nothing.
 """
 function _child_scope(w::Walk, path::String, st, seg::String, fld::Symbol,
                       scope::NTuple{3,Int})
     hit = _rate_entry(st, seg, fld)
-    hit === nothing && return scope, false
+    hit === nothing && return scope, nothing
     (k, v) = hit
     # `_check_sample_times` collects rather than throwing (§13.1), so the fold
     # runs on past a value outside the wrapper vocabulary — which has no affine
     # law to apply. The violation is already recorded; the child continues at the
     # enclosing scope, as an unlisted one would.
-    (v isa Relative || v isa Absolute) || return scope, false
+    (v isa Relative || v isa Absolute) || return scope, nothing
+    link = RateLink((scope = path, key = k, entry = v))
     if v isa Relative
         (a, m, c) = scope
-        (a, v.K * m, c + v.φ * m), true
+        (a, v.K * m, c + v.φ * m), link
     else
-        push!(w.flat.anchors, (v.T, v.τ))
-        push!(w.flat.aprov, "`sample_times` at $(_at(path)), key `$k`")
-        (length(w.flat.anchors), 1, 0), true
+        push!(w.anchors, (v.T, v.τ))
+        push!(w.aprov, "`sample_times` at $(_at(path)), key `$k`")
+        (length(w.anchors), 1, 0), link
     end
 end
 
@@ -815,7 +847,8 @@ throw is `build`'s, at the step barrier. Any component may be the root
 `input_types` keys the model's root inputs.
 """
 function flatten!(w::Walk, root, diags::Vector{Diagnostic})
-    _walk!(w, "", root, (0, 1, 0), diags)   # the root scope: anchor 0, the base grid itself
+    # the root scope: anchor 0, the base grid itself; no link above it and none of its own
+    _walk!(w, "", root, (0, 1, 0), RateLink[], nothing, diags)
 
     # The obligation model (§6.1): an input is fed by a wire in some ancestor's
     # `child_connections` or by an `input_connections` chain handing it up level
@@ -823,7 +856,7 @@ function flatten!(w::Walk, root, diags::Vector{Diagnostic})
     # legitimate unfed terminus is the root's own input face. A wire that failed
     # to resolve claimed nothing, so the input it should have fed is reported
     # here beside the refusal itself.
-    for (path, c) in zip(w.flat.paths, w.flat.comps)
+    for (path, c) in zip(w.paths, w.comps)
         at_component(path) do
             for (face, declared) in pairs(_contract(input_types, c))
                 haskey(w.feeds, (path, face)) ||
@@ -857,20 +890,29 @@ defined. A primitive's own entries complete the record, so the graph carries
 every input face at every level, whatever the level's class.
 """
 function wire!(w::Walk)
-    for (path, c) in zip(w.flat.paths, w.flat.comps)
-        push!(w.flat.conns, [face => w.feeds[(path, face)]
-                             for face in keys(_contract(input_types, c))])
+    conns = Vector{Pair{Symbol,Tuple{String,Symbol}}}[]
+    in_faces = Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[]
+    for (path, c) in zip(w.paths, w.comps)
+        push!(conns, [face => w.feeds[(path, face)]
+                      for face in keys(_contract(input_types, c))])
     end
     for (path, face, consumers) in w.routes
-        push!(w.flat.in_faces, (path, face) => w.feeds[first(consumers)])
+        push!(in_faces, (path, face) => w.feeds[first(consumers)])
     end
-    for (path, cs) in zip(w.flat.paths, w.flat.conns), (face, producer) in cs
-        push!(w.flat.in_faces, (path, face) => producer)
+    for (path, cs) in zip(w.paths, conns), (face, producer) in cs
+        push!(in_faces, (path, face) => producer)
     end
-    w.flat
+    # The walk `wire!` runs on is clean, so no recorded failure is left and the
+    # tiers narrow (§13.1, D-229).
+    Structure(w.root, w.paths, w.comps, Vector{Tier}(w.tiers), conns, w.root_inputs,
+              w.root_types, in_faces, w.out_faces, w.triples, w.anchors, w.aprov,
+              w.provenance, w.scopes)
 end
 
+# `chain` is the links above `comp`, outermost first, and `link` its own — the
+# entry the enclosing assembly's `sample_times` named it under, or `nothing`.
 function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
+                chain::Vector{RateLink}, link::Union{Nothing,RateLink},
                 diags::Vector{Diagnostic})
     # The forgotten import (§8.1, D-246), first and alone: a module holding a
     # foreign binding of a family name declares nothing the framework can read,
@@ -887,9 +929,10 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
         # under the component frame: an accessor's `UserCodeFraming` leaves the
         # path empty and this is where the path is known (§13.2, D-248).
         return at_component(path) do
-            push!(w.flat.paths, path)
-            push!(w.flat.comps, comp)
-            push!(w.flat.triples, scope)
+            push!(w.paths, path)
+            push!(w.comps, comp)
+            push!(w.triples, scope)
+            push!(w.provenance, _extend(chain, link))
             # The store-form check (§8.2, D-247) gates the rest: the tier classifier
             # and the two field checks read a store value as a `NamedTuple`, so a
             # primitive that fails the form is read no further. The one tier
@@ -909,7 +952,7 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
             if isempty(path)
                 _check_root_faces(comp, diags)
                 for face in keys(_contract(input_types, comp))
-                    push!(w.flat.root_inputs, face)
+                    push!(w.root_inputs, face)
                     _claim!(w, (path, face), ("", face),
                             "the root component's `input_types` entry `$face`", diags)
                 end
@@ -918,16 +961,22 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
         end
     end
     at_component(path) do
+        # One row per assembly an explicit key names, in walk order: the scope a
+        # `sample_times` key opened, with the triple everything under it folds from.
+        link === nothing ||
+            push!(w.scopes, RateScope((path = path, key = link.key, triple = scope)))
+        below = _extend(chain, link)
         st = invoke_declaration(sample_times, comp)
         kids, fields = _children(path, comp)
         _check_sample_times(path, st, kids, fields, diags)
         for ((seg, kid), fld) in zip(kids, fields)
             kidpath = _join(path, seg)
-            kscope, keyed = _child_scope(w, path, st, seg, fld, scope)
-            t = _walk!(w, kidpath, kid, kscope, diags)   # a primitive's tier, `nothing` for an assembly
+            kscope, klink = _child_scope(w, path, st, seg, fld, scope)
+            # a primitive's tier, `nothing` for an assembly
+            t = _walk!(w, kidpath, kid, kscope, below, klink, diags)
             # A key on a continuous child is the Δt-on-continuous error at
             # declaration time (§8.7): keys name discrete or scope children only.
-            keyed && t === CONTINUOUS &&
+            klink !== nothing && t === CONTINUOUS &&
                 push!(diags, RatesViolation(path = path, reason = :continuous_child,
                                            key = Symbol(seg)))
         end
@@ -967,7 +1016,7 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
             end
             push!(w.routes, (path, Symbol(face), consumers))
             isempty(path) || continue
-            push!(w.flat.root_inputs, Symbol(face))
+            push!(w.root_inputs, Symbol(face))
             for consumer in consumers
                 _claim!(w, consumer, ("", Symbol(face)), entry, diags)
             end
@@ -976,7 +1025,7 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
             entry = _entry("output_connections", path, src => face)
             producer = resolve_source(w, entry, path, comp, src, diags)
             producer === nothing && continue   # recorded; the face registers no row
-            push!(w.flat.out_faces, (path, Symbol(face)) => producer)
+            push!(w.out_faces, (path, Symbol(face)) => producer)
         end
     end
     nothing

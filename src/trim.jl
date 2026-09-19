@@ -404,7 +404,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     # --- the nominal half (D-213) ------------------------------------------------
     ex_nom = _scratch(sim, Float64)
     plan = resolve_condition(override(baseline, problem.condition(guess)), b, Float64)
-    assert_total(plan, b.flat, :trim!)        # (§14.6): pre-evaluation, all-or-nothing
+    assert_total(plan, b.structure, :trim!)        # (§14.6): pre-evaluation, all-or-nothing
     apply!(ex_nom, plan)
     _round!(ex_nom, ESTABLISH)                # every discrete output stage, due or not
     ex_nom.bodies.rhs()
@@ -511,9 +511,9 @@ _scratch(sim::Simulation, ::Type{T}, act::Activation{T}) where {T} =
 # consumer reads them (§14.3).
 function _establish_frozen!(ex::Executor, act::Activation{T}, nom::Executor,
                             b::Build) where {T}
-    for ci in eachindex(b.flat.comps)
-        _frozen(b.tiers, ci, T) || continue
-        path = b.flat.paths[ci]
+    for ci in eachindex(b.structure.comps)
+        _frozen(b.structure.tiers, ci, T) || continue
+        path = b.structure.paths[ci]
         for name in keys(act.decls[ci].outs)
             scatter!(ex.store, act.layout.addr[(path, name)],
                      gather(nom.store, nom.act.layout.addr[(path, name)]))

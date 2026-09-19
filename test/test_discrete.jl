@@ -154,7 +154,7 @@ function discrete_rate_fold()
                                             var"kids/b" = Relative(3, 1))); h = 1//10)
         @test [(e.D, e.Φ) for e in bare.sched] == [(2, 0), (3, 1)]
         @test [(e.D, e.Φ) for e in bare.sched] == [(e.D, e.Φ) for e in opaque.sched]
-        @test bare.build.flat.paths == ["a", "b"] && opaque.build.flat.paths == ["kids/a", "kids/b"]
+        @test bare.build.structure.paths == ["a", "b"] && opaque.build.structure.paths == ["kids/a", "kids/b"]
     end
 
     # The schedule the fold produces: the spec's own worked example, and the

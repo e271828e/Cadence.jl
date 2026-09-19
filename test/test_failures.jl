@@ -121,7 +121,7 @@ function failures_runtime()
         cur = sim.exec.cursor
         @test cur.phase === :ticks                      # the sequence's last block, empty here
         @test cur.fn === :output_direct                 # the last dispatch the sweep walked
-        @test cur.comp == index_of(sim.build.flat, "plant")
+        @test cur.comp == index_of(sim.build.structure, "plant")
     end
 
     @testset "a throw mid-integration names the component, `state_derivative` and the stage (§13.4)" begin

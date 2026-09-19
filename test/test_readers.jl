@@ -34,7 +34,7 @@ readable_reads() = reads(q = get_state("plant", :q), v = get_state("plant", :q, 
 world(sim) = (copy(sim.exec.xbuf),
               [s === nothing ? nothing : s[] for s in sim.exec.sstores],
               [m === nothing ? nothing : m[] for m in sim.exec.mstores],
-              [port(sim, "", f) for f in sim.build.flat.root_inputs],
+              [port(sim, "", f) for f in sim.build.structure.root_inputs],
               sim.exec.clock.t)
 
 function test_readers()
@@ -201,7 +201,7 @@ function test_readers()
         # It is total by construction (§14.6): no baseline underneath, and the
         # authored values are what a re-application establishes — the defaults
         # would show as `phase = :idle` and `acc = 0.0`.
-        @test resolve_condition(c, twin.build).faces == twin.build.flat.root_inputs
+        @test resolve_condition(c, twin.build).faces == twin.build.structure.root_inputs
         @test modes(twin, "src") === (phase = :running,)
         @test state(twin, "ctl").acc === 4.0
 
