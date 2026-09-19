@@ -346,20 +346,25 @@ _homes(d::Decls, t::Tier, m) =
 """The tier's store field names, for `DeclaredNotProduced`'s list-in-hand (§8.3)."""
 _state_fields(homes::NamedTuple) = Symbol[keys(merge(values(homes)...))...]
 
-# --- 3. the feedthrough graph and the stage-2 schedule -------------------------
+# --- 3. the nominal evaluation's products -------------------------------------
 
 """
-Edges run producer → consumer for every consumed **stage-2** port; consuming a
-stage-1 port adds no edge, which is the whole structural payoff of the split —
-a stage-1 port takes no input and so carries no input dependence (§5.3).
-Returns a topological order over component indices. A stall is not reported as
-its residue: the residue is *decomposed* into one `AlgebraicCycle` per strongly
-connected cluster below (§5.6, D-012), which is why `edges` carries the
-per-dependence provenance Kahn itself discards.
+The `Dataflow` (§9.1, D-253): every component's declared ports split into the
+stage-1 names and the stage-2 remainder, the feedthrough edges with their
+provenance, and the execution order over them. Edges run producer → consumer for
+every consumed **stage-2** port; consuming a stage-1 port adds no edge, which is
+the whole structural payoff of the split — a stage-1 port takes no input and so
+carries no input dependence (§5.3). A stall is not reported as its residue: the
+residue is *decomposed* into one `AlgebraicCycle` per strongly connected cluster
+below (§5.6, D-012), which is why `edges` carries the per-dependence provenance
+Kahn itself discards.
 """
-function schedule_stage2(s::Structure, decls::Vector{Decls},
-                         stage1::Vector, mstores::Vector)
+function _dataflow(s::Structure, decls::Vector{Decls},
+                   stage1::Vector, mstores::Vector)
     n = length(s.comps)
+    ports = [Symbol[keys(decls[ci].outs)...] for ci in 1:n]
+    names1 = [Symbol[keys(stage1[ci])...] for ci in 1:n]
+    names2 = [filter(∉(names1[ci]), ports[ci]) for ci in 1:n]
     deps = [Int[] for _ in 1:n]
     edges = [Tuple{Int,Symbol,Symbol}[] for _ in 1:n]    # per consumer: (producer, port, face)
     for ci in 1:n
@@ -391,7 +396,7 @@ function schedule_stage2(s::Structure, decls::Vector{Decls},
     isempty(remaining) ||
         throw(DiagnosticError(_cycle_diagnostics(s, edges, remaining, order, decls,
                                                  stage1, mstores)))
-    order
+    Dataflow(ports, names1, names2, edges, order)
 end
 
 """
@@ -603,22 +608,55 @@ struct Activation{T}
 end
 
 """
-The deployment-free product of the build pipeline (§9.2): everything the build's
-three steps settle before `Δt_base` exists. Structure and schedule are
-`T`-independent by construction (§9.1); the nominal `Float64` activation runs at
-build, and other activations are derived at first request, cached on the `Build`
-(§9.4). The schedule it carries is anchor-relative — `structure.triples`
-against `structure.anchors` — because final divisors for anchored entries do
-not exist until `Δt_base` binds; one `Build` backs any number of `Simulation`s, each
-materializing its own stores and buffers, so nothing writable lives here.
+The nominal evaluation's product (§9.1, D-253): the port classification and the
+order over it. Per component the declared ports split into the stage-1 names and
+the stage-2 remainder, then the feedthrough edges with their provenance and the
+execution order over component indices. It is structural — names and edges, never
+values — and so `T`-independent, which is why a reader wanting a name list takes
+it from here rather than from a scalar-typed activation.
+"""
+struct Dataflow
+    ports::Vector{Vector{Symbol}}    # per component: every declared output port, in `output_types` order
+    stage1::Vector{Vector{Symbol}}   # per component: the stage-1 names, in the product's order
+    stage2::Vector{Vector{Symbol}}   # per component: the remainder, in `output_types` order
+    edges::Vector{Vector{Tuple{Int,Symbol,Symbol}}}   # per consumer: (producer, port, face)
+    order::Vector{Int}               # the execution order over component indices
+end
+
+"""
+The nominal evaluation's other product (§9.1, D-253), built last, after the stage
+probes: per component the event names with the detection policy each guard's
+return form fixes (§10.4), and the event bundle's field names. It is structural
+and `T`-independent like the `Dataflow`, and separate from it because a different
+input fixes it — the event declarations, read after the probes — so a consumer of
+the execution order never carries the event tables.
+"""
+struct Events
+    policies::Vector{NamedTuple}   # per component: event name => :boundary | :localized (§10.4)
+    bundles::Vector{Tuple}         # per component: the event bundle's field names, `()` where none
+end
+
+"""
+The deployment-free product of the build pipeline (§9.2): structure, dataflow,
+events, the activations and `warnings`, the first three being what §9.1's three
+steps produce. Everything here is settled before `Δt_base` exists, and the first
+three are `T`-independent by construction (§9.1). The activations are one
+dictionary keyed by scalar type, the nominal `Float64` entry included like any
+other; the rest are derived at first request (§9.4). The schedule the structure
+carries is anchor-relative — `structure.triples` against `structure.anchors` —
+because final divisors for anchored entries do not exist until `Δt_base` binds.
+The `Build` is immutable and backs any number of deployments and `Simulation`s,
+each materializing its own stores and buffers, so nothing writable lives here;
+the one mutable thing is the activation dictionary, whose insertion the lock
+makes torn-state-free (§9.4).
 """
 struct Build
     structure::Structure
-    order::Vector{Int}
-    nominal::Activation{Float64}
-    policies::Vector{NamedTuple}   # per component: event name => :boundary | :localized (§10.4)
-    cache::Dict{DataType,Any}      # non-nominal activations, lazily materialized
-    lock::ReentrantLock            # guards `cache` (§9.4's torn-state guarantee)
+    dataflow::Dataflow
+    events::Events
+    activations::Dict{DataType,Any}   # keyed by scalar type, the nominal `Float64` entry included
+    lock::ReentrantLock               # guards `activations` (§9.4's torn-state guarantee)
+    warnings::Vector{Diagnostic}      # the warnings the build raised (§9.1, D-250)
 end
 
 "The probe scalar's own tag (§9.4): what keeps a probe activation distinguishable from trim's (`TrimTag`) and from a user's own."
@@ -636,11 +674,14 @@ const ProbeDual = ForwardDiff.Dual{ProbeTag,Float64,1}
 """
     build(root; activations = ()) → Build
 
-The structure step, the nominal evaluation and the eager activations (§9.1):
-flatten, classify, type-check the wires, probe at `Float64`, schedule, lay out.
-Nothing here needs `Δt_base`, `h` or `N_base` — those are `Simulation`'s.
-`activations` is §9.4's opt-in exhaustive mode: each listed scalar's
-activation is materialized eagerly instead of at first request.
+The structure step, the nominal evaluation and the eager activations (§9.1). The
+structure step flattens, classifies and type-checks the wires into the
+`Structure`; the nominal evaluation probes at `Float64` and returns the
+`Dataflow`, the `Events` and the nominal activation, which is its own product and
+never a separate pass (D-253, D-259). Nothing here needs `Δt_base`, `h` or
+`N_base` — those are `Simulation`'s. `activations` is §9.4's opt-in exhaustive
+mode: each listed scalar's activation is materialized eagerly instead of at first
+request.
 """
 function build(root::AbstractComponent; activations::Tuple = ())
     diags = Diagnostic[]
@@ -657,9 +698,9 @@ function build(root::AbstractComponent; activations::Tuple = ())
     # suppression — a typo'd wire reports its unknown port *and* the input it
     # left unfed.
     isempty(diags) || throw(DiagnosticError(diags))
-    nominal, order = _stratum_c(s, nothing, nothing, Float64)
-    policies = probe_events(s, nominal)
-    b = Build(s, order, nominal, policies, Dict{DataType,Any}(), ReentrantLock())
+    df, ev, nominal = _nominal(s)
+    b = Build(s, df, ev, Dict{DataType,Any}(Float64 => nominal), ReentrantLock(),
+              Diagnostic[])
     for A in activations
         activation(b, A)
     end
@@ -810,48 +851,67 @@ end
 """
     activation(b, T) → Activation{T}
 
-The activation at `T`: the nominal one directly, any other from the cache or
-derived at first request (§9.4). An activation is a pure function of
-the build and the concrete scalar type, so caching is invisible. The lookup and
-the insertion each hold the build's lock and the re-run happens between them,
-so concurrent first requests never see a torn cache: the worst race is a
-duplicated re-run, and the first writer's activation is the one every caller
-gets.
+The activation at `T`, from the build's dictionary or derived at first request
+(§9.4). The nominal `Float64` entry is one key there like any other, put in by
+the nominal evaluation. An activation is a pure function of the build and the
+concrete scalar type, so caching is invisible. The lookup and the insertion each
+hold the build's lock and the re-run happens between them, so concurrent first
+requests never see a torn dictionary: the worst race is a duplicated re-run, and
+the first writer's activation is the one every caller gets.
 """
 function activation(b::Build, ::Type{T}) where {T}
-    T === Float64 && return b.nominal
-    hit = @lock b.lock get(b.cache, T, nothing)
+    hit = @lock b.lock get(b.activations, T, nothing)
     hit === nothing || return hit::Activation{T}
-    act = first(_stratum_c(b.structure, b.order, b.nominal, T))
-    (@lock b.lock get!(b.cache, T, act))::Activation{T}
+    nominal = (@lock b.lock b.activations[Float64])::Activation{Float64}
+    act = _activate(b.structure, b.dataflow, nominal, T)
+    (@lock b.lock get!(b.activations, T, act))::Activation{T}
 end
 
-# Activation at `T`, parametric in the scalar (§9.1): declarations evaluated,
-# probe chain run, cells laid out. At the nominal activation `carry` is `nothing`,
-# every stage is probed (§9.3's probe-everything scope), and the nominal
-# evaluation's execution order falls out between the two probe passes — the
-# stage-1 run at `Float64` serves classification and nominal products alike. A
-# non-nominal activation receives both: the schedule is `T`-independent, and the
-# frozen components' products are carried across from `carry` rather than probed,
-# their stages being outside this activation's executable set (§9.4).
-function _stratum_c(s::Structure, order, carry, ::Type{T}) where {T}
-    decls = [at_component(() -> declarations(s.comps[ci], s.tiers[ci], T), s.paths[ci])
+# The nominal evaluation (§9.1, D-253, D-259): the build's one
+# evaluation-feeds-structure step, a function of the structure alone. It runs the
+# whole nominal probe chain once and returns its three products — the dataflow,
+# the events and the nominal `Float64` activation — so the structure and the
+# `Float64` typing are fixed together rather than in two passes. Every stage is
+# probed (§9.3's probe-everything scope), the classification and the execution
+# order fall out between the two probe passes, and the event declarations are read
+# last, against every component's complete nominal product and the layout.
+function _nominal(s::Structure)
+    decls = [at_component(() -> declarations(s.comps[ci], s.tiers[ci], Float64), s.paths[ci])
              for ci in eachindex(s.comps)]
 
     # Probe-scoped mode stores and workspaces (§9.3): the probes need `m` and
     # `ws` to build bundles, and everything these hold is garbage once the
     # build finishes — each `Simulation` materializes its own.
     mstores = _mstores(s)
+    wss = _workspaces(s, Float64)
+
+    stage1 = probe_stage1(s, decls, wss, mstores, nothing, Float64)
+    df = _dataflow(s, decls, stage1, mstores)
+    layout = cell_layout(s, decls, Float64)
+    products = probe_stage2(s, decls, stage1, df.order, layout,
+                            wss, mstores, nothing, Float64)
+    nominal = Activation{Float64}(decls, collect(stage1), products, layout)
+    df, probe_events(s, nominal), nominal
+end
+
+# Activation at another scalar (§9.1, §9.4): the nominal evaluation's typed half
+# re-run at `T`, with nothing structural recomputed. Declarations are evaluated at
+# `T`, the probe chain runs and the cells are laid out, over the dataflow's
+# execution order, which is `T`-independent. A frozen component's products are
+# carried across from the nominal activation rather than probed, its stages being
+# outside this activation's executable set.
+function _activate(s::Structure, df::Dataflow, nominal::Activation{Float64},
+                   ::Type{T}) where {T}
+    decls = [at_component(() -> declarations(s.comps[ci], s.tiers[ci], T), s.paths[ci])
+             for ci in eachindex(s.comps)]
+    mstores = _mstores(s)
     wss = _workspaces(s, T)
 
-    stage1 = probe_stage1(s, decls, wss, mstores, carry, T)
-
-    order === nothing &&
-        (order = schedule_stage2(s, decls, stage1, mstores))
+    stage1 = probe_stage1(s, decls, wss, mstores, nominal, T)
     layout = cell_layout(s, decls, T)
-    products = probe_stage2(s, decls, stage1, order, layout,
-                            wss, mstores, carry, T)
-    Activation{T}(decls, collect(stage1), products, layout), order
+    products = probe_stage2(s, decls, stage1, df.order, layout,
+                            wss, mstores, nominal, T)
+    Activation{T}(decls, collect(stage1), products, layout)
 end
 
 # Probe-scoped mode stores (§9.3). One read of `init_m` per component, under the
@@ -1056,17 +1116,20 @@ parametric in the scalar. Each guard runs against real probed values and its
 return type *is* the detection policy (§10.4, D-179) — `Bool` boundary-detected,
 the nominal scalar localized, anything else an error naming both admissible
 forms. Each handler runs once and its return is held to the §5.2 return law,
-key by key. Returns the per-component policy register.
+key by key. Returns the `Events`, the nominal evaluation's last product (§9.1,
+D-253): the per-component policy register beside the bundle names each
+component's guards and handlers are called with.
 """
 function probe_events(s::Structure, act::Activation{Float64})
     decls, layout, products = act.decls, act.layout, act.products
     mstores = _mstores(s)
     wss = _workspaces(s, Float64)
-    map(eachindex(s.comps)) do ci
+    policies, bundles = NamedTuple[], Tuple[]
+    for ci in eachindex(s.comps)
         c, path, d = s.comps[ci], s.paths[ci], decls[ci]
-        at_component(path) do
+        policy, bn = at_component(path) do
             evs = invoke_declaration(state_events, c)
-            isempty(evs) && return NamedTuple()
+            isempty(evs) && return NamedTuple(), ()
             bn = event_bundle_names(c)
             u = NamedTuple{tuple(keys(d.ins)...)}(tuple(
                 (_probe_input(s, layout, products, ci, face, d.ins[face], Float64)
@@ -1083,9 +1146,12 @@ function probe_events(s::Structure, act::Activation{Float64})
                     invoke_probed(evs[name].handler, :handler, path, c, CONTINUOUS, vals),
                     d, c)
                 policy
-            end)
+            end), bn
         end
+        push!(policies, policy)
+        push!(bundles, bn)
     end
+    Events(policies, bundles)
 end
 
 # The handler return law (§5.2, §9.3): a key is present iff the store exists on
@@ -1415,7 +1481,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
         push!(stage1_gates, gate(ci))
     end
 
-    for ci in b.order
+    for ci in b.dataflow.order
         c, path, d, s1 = s.comps[ci], s.paths[ci], decls[ci], act.stage1[ci]
         (has_stage(output_direct, c) && !frozen(ci)) || continue
         bn = bundle_names(output_direct, c, tiers[ci], tuple(keys(s1)...))
@@ -1451,7 +1517,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
     # D-052), so the event phase there is the bare sweep. Entries carry a global
     # index into the register vectors, in executor component order then
     # declaration order within a component (§10.6), and each carries its
-    # `Build.policies` verdict into the compiled mask — which is what the frame
+    # `Events.policies` verdict into the compiled mask — which is what the frame
     # loop's trigger check reads (§10.4).
     ev_entries, ev_owner = Any[], Int[]
     ev_names = Tuple{String,Symbol}[]
@@ -1470,7 +1536,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
                     x_offs[ci], clock, mstores[ci], wss[ci], s.paths[ci], name, ci, cursor))
                 push!(ev_owner, ci)
                 push!(ev_names, (s.paths[ci], name))
-                push!(ev_localized, b.policies[ci][name] === :localized)
+                push!(ev_localized, b.events.policies[ci][name] === :localized)
             end
         end
     end

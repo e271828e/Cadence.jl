@@ -1,7 +1,7 @@
 # Localization mechanics (§10.4): the frame loop that carries each grid step
 # through `integrate → arrival sweep → trigger → θ = 0 validation → bracket →
 # root-find → t* → remainder step`, iterated under `localization_budget`. The
-# runtime consultation of `Build.policies` lives here — a sign-form guard's
+# runtime consultation of `Events.policies` lives here — a sign-form guard's
 # crossing is bracketed by trial evaluations over the seam's dense output
 # (§10.2, `dense!`) and fired at a `t*` boundary, strictly inside the frame.
 #

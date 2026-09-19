@@ -88,6 +88,14 @@ end
 
 # --- the feedthrough graph and the schedule (§5.3, §5.5) ----------------------
 
+# Stage 1 returns its two ports in the reverse of the declared order: the product
+# is addressed by name, so the `Dataflow`'s two name lists differ here on purpose.
+struct SwappedPorts <: AbstractComponent end
+init_x(::SwappedPorts) = (p = 1.0, q = 2.0)
+output_types(::SwappedPorts, ::Type{T}) where {T <: Real} = (p = T, q = T)
+output_state(::SwappedPorts, (; x)) = (q = x.q, p = x.p)
+state_derivative(::SwappedPorts, (; x)) = (p = -x.p, q = -x.q)
+
 function build_schedule()
     @testset "the schedule follows the feedthrough graph (§5.3)" begin
         sim = Simulation(feedback_model(); h = 1//1000)
@@ -97,6 +105,42 @@ function build_schedule()
         @test paths == [:sum, :ctl, :plant]
         @test length(walked(sim.exec.bodies.sweep_1)) == 1
         @test length(walked(sim.exec.bodies.rhs)) == 1
+    end
+
+    @testset "the nominal evaluation's products are names and edges (§9.1, D-253)" begin
+        # The same model, read off the `Dataflow` rather than off a compiled
+        # executor: names and edges, fixed by the structure and one nominal
+        # evaluation, with no scalar type in sight.
+        b = build(feedback_model())
+        df = b.dataflow
+        plant, ctl, sm = index_of(b.structure, "plant"), index_of(b.structure, "ctl"),
+                         index_of(b.structure, "sum")
+        # Every declared port in `output_types` order, split into the stage-1
+        # names and the stage-2 remainder. `Plant` returns `y` from stage 1 and
+        # `power` from stage 2; `Gain` and `Sum` are stage-2 only.
+        @test df.ports[plant] == [:y, :power]
+        @test df.stage1[plant] == [:y] && df.stage2[plant] == [:power]
+        @test df.ports[ctl] == [:out]
+        @test isempty(df.stage1[ctl]) && df.stage2[ctl] == [:out]
+        @test df.ports[sm] == [:e]
+        @test isempty(df.stage1[sm]) && df.stage2[sm] == [:e]
+        # One edge per consumed stage-2 port, on the consumer's row, carrying the
+        # producer's index, its port and the consuming face. `sum/b` consumes
+        # `plant/y`, a stage-1 port, so the wire that closes the loop is no edge.
+        @test df.edges[plant] == [(ctl, :out, :u)]
+        @test df.edges[ctl] == [(sm, :e, :e)]
+        @test isempty(df.edges[sm])
+        # The order the testset above reads off the compiled sweep.
+        @test df.order == [sm, ctl, plant]
+
+        # The stage-1 list follows the *return*, the port list the declaration,
+        # and the two are free to disagree: the product is a value table read by
+        # name (§8.3).
+        b2 = build(single(SwappedPorts()))
+        i, df2 = index_of(b2.structure, "c"), b2.dataflow
+        @test df2.ports[i] == [:p, :q]
+        @test df2.stage1[i] == [:q, :p]
+        @test isempty(df2.stage2[i])
     end
 
     @testset "an algebraic loop is a build error (§5.5)" begin
@@ -323,12 +367,12 @@ function build_port_classes()
         # takes its stage-2 tail off — stage 1, then stage 2.
         b = build(fed(Motor(1.0), "M_load"))
         i = index_of(b.structure, "c")
-        @test keys(b.nominal.stage1[i]) === (:ω, :running)
-        @test keys(b.nominal.products[i]) === (:ω, :running, :M_shaft)
+        @test keys(activation(b, Float64).stage1[i]) === (:ω, :running)
+        @test keys(activation(b, Float64).products[i]) === (:ω, :running, :M_shaft)
         # The hand-down carries the stage-1 return, so `y_x` is now in stage 2's
         # bundle.
         @test bundle_names(output_direct, Motor(1.0), CONTINUOUS,
-                           tuple(keys(b.nominal.stage1[i])...)) === (:x, :m, :u, :y_x, :t)
+                           tuple(keys(activation(b, Float64).stage1[i])...)) === (:x, :m, :u, :y_x, :t)
     end
 
     @testset "a loop closes through a stage-1 port carrying the state vector (§5.3, §5.5)" begin
@@ -760,7 +804,7 @@ function build_port_type_refusals()
         # The remedy the message names: an override, and the value it returns is
         # the one the layout carries.
         b = build(Group((; c = Synthesized()); inputs = ("in" => "c/q",)))
-        @test (:in, WithProbe(0.0, 1.0)) in b.nominal.layout.root_inputs
+        @test (:in, WithProbe(0.0, 1.0)) in activation(b, Float64).layout.root_inputs
 
         # Collected: two unsynthesizable faces are one throw carrying both.
         err2 = failure(() -> build(Group((; a = Unsynthesized(), b = Unsynthesized());
@@ -1136,7 +1180,7 @@ function build_label_ports()
     @testset "an enum root input is synthesized as the first instance (§9.3, D-051)" begin
         m = Group((; rd = GearReader()); inputs = ("gear" => "rd/gear", "x" => "rd/x"))
         b = build(m)
-        @test b.nominal.products[index_of(b.structure, "rd")].code == 1
+        @test activation(b, Float64).products[index_of(b.structure, "rd")].code == 1
         # Probe values are probe-scoped: the run's value is the one the fragment
         # authored, and an enum converts through the condition apply as itself.
         sim = Simulation(b; h = 1//10)
@@ -1148,7 +1192,7 @@ function build_label_ports()
     @testset "an enum mode is returned from stage 1 (§7.5)" begin
         b = build(single(GearMode()))
         i = index_of(b.structure, "c")
-        @test b.nominal.stage1[i] === (gear = up, y = 0.0)
+        @test activation(b, Float64).stage1[i] === (gear = up, y = 0.0)
         @test keys(activation(b, D8).stage1[i]) === (:gear, :y)
         sim = Simulation(b, D8; h = 1//10)
         @test port(sim, "c", :gear) === up
@@ -1165,7 +1209,7 @@ function build_label_ports()
 
         # The mode label is returned (§7.5's remedy on the idiomatic label).
         b = build(single(PhaseMode()))
-        @test b.nominal.stage1[index_of(b.structure, "c")] === (phase = :idle, y = 0.0)
+        @test activation(b, Float64).stage1[index_of(b.structure, "c")] === (phase = :idle, y = 0.0)
 
         # At a root input the leaf has no synthesis, so the refusal is the
         # opaque leaf's, ahead of `probe_value`.
@@ -1472,7 +1516,7 @@ function build_activations()
         # The nominal activation runs at build and *is* the Float64 activation; a
         # non-nominal one materializes at first request and is cached on the Build.
         b = build(pair())
-        @test activation(b, Float64) === b.nominal
+        @test activation(b, Float64) === b.activations[Float64]
         @test activation(b, D8) === activation(b, D8)
 
         # The frozen reader's cells hold what the *nominal* probe computed from its
@@ -1494,7 +1538,7 @@ function build_activations()
         # and not any particular Jacobian.
         @test isconcretetype(ProbeDual)
         @test ProbeDual <: ForwardDiff.Dual && ForwardDiff.npartials(ProbeDual) == 1
-        @test haskey(build(pair(); activations = (Float64, ProbeDual)).cache, ProbeDual)
+        @test haskey(build(pair(); activations = (Float64, ProbeDual)).activations, ProbeDual)
 
         # §9.4's opt-in exhaustive mode: the listed activations materialize at
         # build time, which is where CI catches a lurking pinned leaf. D-166's
@@ -1518,7 +1562,9 @@ function build_activations()
         acts = fetch.([Threads.@spawn activation(b, D8) for _ in 1:8])
         @test all(a -> a === first(acts), acts)
         @test first(acts) === activation(b, D8)
-        @test length(b.cache) == 1
+        # Two entries: the nominal `Float64` one the build inserted, and the
+        # single `D8` one the race produced.
+        @test length(b.activations) == 2
     end
 end
 
