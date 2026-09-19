@@ -1602,6 +1602,36 @@ child_connections(::WarningUnfed) = ()
 input_connections(::WarningUnfed) = (_warn!(SyntheticWarning("unfed")); ())
 output_connections(::WarningUnfed) = ("c/out" => "out",)
 
+# The shapes that ask a child for its face lists (§13.3, Appendix C). A parent
+# computing its whole boundary off `WarningWires` asks the primitives for the
+# child's lists, and a grandparent asks again one level up; without the walk's
+# memo each asker re-evaluates the child's `input_connections` and the warning
+# fires once per level.
+struct WarningPassthrough <: AbstractComponent
+    w::WarningWires
+end
+child_connections(::WarningPassthrough) = ()
+input_connections(p::WarningPassthrough) = input_passthrough(p, "w")
+output_connections(p::WarningPassthrough) = output_passthrough(p, "w")
+
+struct WarningGrandparent <: AbstractComponent
+    p::WarningPassthrough
+end
+child_connections(::WarningGrandparent) = ()
+input_connections(g::WarningGrandparent) = input_passthrough(g, "p")
+output_connections(g::WarningGrandparent) = output_passthrough(g, "p")
+
+# The did-you-mean path: the wire names a face the child does not have, so
+# endpoint resolution asks the child for both face lists to build the candidate
+# list. The step throws, and the warning still travels with it once.
+struct WarningTypo <: AbstractComponent
+    w::WarningWires
+    g::Gain
+end
+child_connections(::WarningTypo) = ("w/nope" => "g/e",)
+input_connections(::WarningTypo) = ("in" => "w/in",)
+output_connections(::WarningTypo) = ("g/out" => "out",)
+
 function build_warnings()
     @testset "a warning raised inside a declaration body lands on the Build and is logged once at return (§9.1, D-250)" begin
         # A declaration body has no artifact in hand, so it appends through the
@@ -1618,6 +1648,19 @@ function build_warnings()
             Group((; w = WarningWires(Gain(1.0)));
                   inputs = ("in" => "w/in",), outputs = ("w/out" => "out",)))
         @test only(warnings(n)) isa SyntheticWarning
+        # A passthrough level asks the child for its face lists, and a second
+        # level asks again: the count stays one because the walk records each
+        # assembly's evaluated lists and the primitives read them (§13.3,
+        # Appendix C).
+        p = @test_logs (:warn, r"^SyntheticWarning: synthetic") build(
+            WarningPassthrough(WarningWires(Gain(1.0))))
+        @test length(warnings(p)) == 1
+        @test only(warnings(p)) isa SyntheticWarning
+        g = @test_logs (:warn, r"^SyntheticWarning: synthetic") build(
+            WarningGrandparent(WarningPassthrough(WarningWires(Gain(1.0)))))
+        @test length(warnings(g)) == 1
+        # The memo is the walk's, and the binding is gone once `build` returns.
+        @test WALK_FACES[] === nothing
     end
 
     @testset "a step that throws carries its warnings beside the collection (§9.1, D-250)" begin
@@ -1630,6 +1673,11 @@ function build_warnings()
         @test length(e.warnings) == 1
         # A warning joins no collection (Appendix C): the accessors never see it.
         @test only(diagnostics(e)) isa UnconnectedInput
+        # The did-you-mean path asks the child for both face lists, after the
+        # walk recorded them: the throw carries one warning, not one per asker.
+        t = @test_logs failure(() -> build(WarningTypo(WarningWires(Gain(1.0)), Gain(1.0))))
+        @test UnknownPort in kinds(t)
+        @test length(t.warnings) == 1
     end
 
     @testset "outside a build the helper logs directly (D-250)" begin

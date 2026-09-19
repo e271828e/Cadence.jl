@@ -490,21 +490,37 @@ _contract(fn, c) = _declares(fn, c, Type{Float64}) ? invoke_declaration(fn, c, F
 
 A leaf's `input_types` keys — asked at the nominal `Float64`, the key set being
 `T`-independent — or an assembly's `input_connections` face names. Declaration
-order is preserved: deterministic printouts, stable diagnostics (§13.3).
+order is preserved: deterministic printouts, stable diagnostics (§13.3). Inside a
+walk the list is the one the walk evaluated, so the body is evaluated once per
+call (Appendix C); standalone the body is evaluated here.
 """
 input_faces(c) = classify("", c) === PRIMITIVE ?
                  String[String(k) for k in keys(_contract(input_types, c))] :
-                 String[String(face) for (face, _) in invoke_declaration(input_connections, c)]
+                 _walked_faces(c, 1, input_connections, first)
 
 """
     output_faces(c) → Vector{String}
 
 `input_faces`' mirror: a leaf's `output_types` keys, or an assembly's
-`output_connections` face names, in declaration order (§13.3).
+`output_connections` face names, in declaration order (§13.3). Inside a walk the
+list is the one the walk evaluated, once per call (Appendix C); standalone the
+body is evaluated here.
 """
 output_faces(c) = classify("", c) === PRIMITIVE ?
                   String[String(k) for k in keys(_contract(output_types, c))] :
-                  String[String(face) for (_, face) in invoke_declaration(output_connections, c)]
+                  _walked_faces(c, 2, output_connections, last)
+
+# The walk's list when the walk evaluated this assembly, the one body asked for
+# otherwise — one side per primitive, so that a miss evaluates only the body
+# asked for: outside a walk a caller asks for one side, and evaluating the other
+# for nothing would raise its warnings for nothing. A miss inside a walk has no
+# reader today (children are walked before any parent reads them); the fallback
+# is correctness, not a path.
+function _walked_faces(c, side::Int, fn, face_of)
+    memo = WALK_FACES[]
+    memo !== nothing && haskey(memo, c) && return memo[c][side]
+    String[String(face_of(pair)) for pair in invoke_declaration(fn, c)]
+end
 
 # --- §8.8's passthrough helpers -----------------------------------------------
 # `input_connections` and `output_connections` are ordinary functions evaluated
@@ -732,6 +748,7 @@ struct Walk
     feeds::Dict{Tuple{String,Symbol},Tuple{String,Symbol}}
     claims::Dict{Tuple{String,Symbol},String}                  # who claimed it, for the message
     routes::Vector{Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}}   # (path, face, consumers)
+    faces::IdDict{Any,Tuple{Vector{String},Vector{String}}}   # per assembly instance, (inputs, outputs)
 end
 
 Walk(root) = Walk(root, String[], Any[],
@@ -742,7 +759,20 @@ Walk(root) = Walk(root, String[], Any[],
               Vector{RateLink}[], RateScope[],
               Dict{Tuple{String,Symbol},Tuple{String,Symbol}}(),
               Dict{Tuple{String,Symbol},String}(),
-              Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}[])
+              Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}[],
+              IdDict{Any,Tuple{Vector{String},Vector{String}}}())
+
+"""
+The running walk's evaluated face lists (§13.3, Appendix C): `flatten!` binds it
+around the walk, so a primitive asked for an assembly's faces while the walk runs
+— by a passthrough helper inside a parent's body, or by endpoint resolution
+building a did-you-mean list — reads the lists the walk already evaluated rather
+than evaluating the body again. Unbound outside a walk, where the primitives
+evaluate the body themselves. Keyed by instance because the helpers name a child
+by a path relative to the assembly, never absolutely, and a face list is a
+function of the instance's value (§8.8).
+"""
+const WALK_FACES = ScopedValue{Union{Nothing,IdDict{Any,Tuple{Vector{String},Vector{String}}}}}(nothing)
 
 # --- the sample-time fold (§8.7, §9.1, §10.5) -----------------------------------
 # Nested rate declarations compile to one `(anchor, m, c)` triple per component,
@@ -847,8 +877,12 @@ throw is `build`'s, at the step barrier. Any component may be the root
 `input_types` keys the model's root inputs.
 """
 function flatten!(w::Walk, root, diags::Vector{Diagnostic})
-    # the root scope: anchor 0, the base grid itself; no link above it and none of its own
-    _walk!(w, "", root, (0, 1, 0), RateLink[], nothing, diags)
+    # the root scope: anchor 0, the base grid itself; no link above it and none of its own.
+    # The face memo is the walk's own and is bound around it alone: the obligation
+    # loop below reads `input_types`, never a face list.
+    with(WALK_FACES => w.faces) do
+        _walk!(w, "", root, (0, 1, 0), RateLink[], nothing, diags)
+    end
 
     # The obligation model (§6.1): an input is fed by a wire in some ancestor's
     # `child_connections` or by an `input_connections` chain handing it up level
@@ -989,6 +1023,11 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
         # fires once per call (Appendix C).
         ins = invoke_declaration(input_connections, comp)
         outs = invoke_declaration(output_connections, comp)
+        # The evaluated lists, recorded for the primitives (`WALK_FACES`): the
+        # readers are a parent's own body and its wire resolution, both later, so
+        # nothing below this line reads the row just written.
+        w.faces[comp] = (String[String(f) for (f, _) in ins],
+                         String[String(f) for (_, f) in outs])
         _check_face_names(path, ins, outs, diags)
 
         for pair in invoke_declaration(child_connections, comp)
