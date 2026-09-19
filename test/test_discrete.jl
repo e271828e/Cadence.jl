@@ -378,12 +378,24 @@ function discrete_deployment()
         @test d isa DeploymentInvalid && d.parameter === :N_base && d.reason === :range
 
         # A non-dividing anchor is refused with its declaring scope and key, and the
-        # admissible set is named off the pool.
+        # attribution is named off the pool (§9.2, D-187). `MultiRate`'s pool is the
+        # one anchor period, and a pool of one refines nothing.
         err = failure(() -> Simulation(b; h = 1//500, Δt_base = 3//250))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa DeploymentInvalid && d.reason === :anchor_period
-        @test occursin("key `gnss`", d.provenance) && d.admissible == 1//50
+        @test occursin("key `gnss`", d.provenance) && d.grid.admissible == 1//50
+        @test [(e.kind, e.value, e.factor) for e in d.grid.pool] == [(:period, 1//50, 1)]
+
+        # A driving offset's refusal carries the repair: the nearest offsets on the
+        # grid the rest of the pool already supports (§9.2, D-187).
+        offset = Group((; a = TickCounter(), b = TickCounter());
+                       rates = (; a = Absolute(Hz(500)), b = Absolute(Hz(10), 1//150)))
+        d = only(diagnostics(failure(() -> Simulation(offset; h = 1//500))))
+        @test d isa DeploymentInvalid && d.reason === :anchor_offset
+        @test d.grid.admissible == 1//1500
+        @test only(e.alternatives for e in d.grid.pool if e.kind === :offset) ==
+              [3//500, 1//125]
     end
 
     @testset "Δt_base derivation demands an all-anchored model (§9.1)" begin
@@ -398,9 +410,82 @@ function discrete_deployment()
         # derived value is its GCD — the offset drives the grid 2× finer here.
         anchored = Group((; c = TickCounter());
                          rates = (; c = Absolute(Hz(50), 1//100)))
-        sim = Simulation(anchored; h = 1//500, Δt_base = :derive)
+        sim = @test_logs (:info, r"derived") (:warn, r"^GridUtilization") Simulation(
+            anchored; h = 1//500, Δt_base = :derive)
         @test sim.deployment.Δt_base == 0.01 && sim.deployment.N_base == 5
         @test [(e.D, e.Φ) for e in sim.deployment.schedule.rows] == [(2, 1)]
+
+        # The offset alone refines, so the grid is twice the fastest declared work
+        # and the advisory says so, with the repair: no offset keeps the 50 Hz grid
+        # (§9.2, D-187). The advisory lives on the deployment (D-250).
+        w = only(warnings(sim.deployment))
+        @test w isa GridUtilization && w.Δt_base == 1//100 && w.utilization == 2
+        @test w.fastest == "c"
+        @test only(w.drivers).kind === :offset && only(w.drivers).factor == 2
+        @test only(w.drivers).alternatives == [0//1]
+    end
+
+    @testset "the grid attribution is exact, and derivation prints it (§9.2, D-187)" begin
+        # The companion's worked case: a 500 Hz anchor and a 10 Hz one offset by
+        # 1//150 s. The offset's denominator brings the prime 3 the rest of the pool
+        # has not, so the derived grid is three times finer than the 500 Hz period.
+        comp = Group((; a = TickCounter(), b = TickCounter());
+                     rates = (; a = Absolute(Hz(500)), b = Absolute(Hz(10), 1//150)))
+        d = @test_logs (:info, r"derived") (:warn, r"^GridUtilization") Deployment(
+            build(comp); h = 1//1500, Δt_base = :derive)
+        g = d.grid
+        @test d.Δt_base == Float64(1//1500) && d.N_base == 1
+        @test g.admissible == 1//1500 && [r.D for r in d.schedule.rows] == [3, 150]
+
+        # The pool is one entry per anchor period and one per nonzero offset, in
+        # anchor order, periods first, each carrying its anchor's provenance.
+        @test [(e.kind, e.value, e.anchor) for e in g.pool] ==
+              [(:period, 1//500, 1), (:period, 1//10, 2), (:offset, 1//150, 2)]
+        @test all(occursin("`sample_times`", e.provenance) for e in g.pool)
+
+        # Leave-one-out: how much coarser the grid would be without each entry.
+        # Both the 500 Hz period and the offset drive, which is the honest answer —
+        # without the period the offset alone would suffice, and the 10 Hz period
+        # refines nothing.
+        @test [e.factor for e in g.pool] == [10, 1, 3]
+
+        # Prime attribution, the sharper cut: 1500 = 2²·3·5³, with 2² and 5³ from
+        # the 500 Hz period alone and the single prime 3 from the offset alone.
+        @test g.primes == [(prime = 2, power = 2, suppliers = [1]),
+                           (prime = 3, power = 1, suppliers = [3]),
+                           (prime = 5, power = 3, suppliers = [1])]
+
+        # The driving offset's repair: its neighbours on the 1//500 grid the rest of
+        # the pool supports. Only a driving offset gets them.
+        @test g.pool[3].alternatives == [3//500, 1//125]
+        @test isempty(g.pool[1].alternatives) && isempty(g.pool[2].alternatives)
+
+        # The advisory the derivation path carries: the fastest declared work ticks
+        # every third base tick, so two boundaries in three are empty.
+        w = only(warnings(d))
+        @test w isa GridUtilization && w.Δt_base == 1//1500 && w.utilization == 3
+        @test w.fastest == "a" && [e.value for e in w.drivers] == [1//500, 1//150]
+
+        # Drop the offset and the prime 3 goes with it: the grid is the 500 Hz
+        # period itself, the fastest work fills every base tick, and `u == 1` is no
+        # information — the line prints, nothing warns.
+        plain = Group((; a = TickCounter(), b = TickCounter());
+                      rates = (; a = Absolute(Hz(500)), b = Absolute(Hz(10))))
+        d2 = @test_logs (:info, r"derived") Deployment(build(plain); h = 1//500,
+                                                       Δt_base = :derive)
+        @test d2.grid.admissible == 1//500 && [e.factor for e in d2.grid.pool] == [50, 1]
+        @test [r.D for r in d2.schedule.rows] == [1, 50] && warnings(d2) == Diagnostic[]
+
+        # Where every entry divides what the others already give, no entry refines
+        # another and the line says exactly that.
+        harmonic = Group((; a = TickCounter(), b = TickCounter(), c = TickCounter());
+                         rates = (; a = Absolute(Hz(4)), b = Absolute(Hz(6)),
+                                    c = Absolute(Hz(12))))
+        d3 = @test_logs (:info, r"no entry refines another") Deployment(build(harmonic);
+                                                                        h = 1//12,
+                                                                        Δt_base = :derive)
+        @test d3.grid.admissible == 1//12 && [e.factor for e in d3.grid.pool] == [1, 1, 1]
+        @test [r.D for r in d3.schedule.rows] == [3, 2, 1] && warnings(d3) == Diagnostic[]
     end
 
     # --- multi-rate: the gate at run time (§10.5) -----------------------------------

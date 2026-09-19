@@ -1645,6 +1645,20 @@ input_connections(a::EmptySelection) = (input_passthrough(a, "g"; except = ("e",
                                         "in" => "src/e")
 output_connections(::EmptySelection) = ("g/out" => "out",)
 
+# The same shape with one anchored discrete child, so that the build warns and
+# the deployment warns too: `warnings(sim)` is the concatenation of both lists
+# (§9.2, D-250), and each artifact holds its own.
+struct EmptySelectionRated <: AbstractComponent
+    g::Gain
+    src::Gain
+    c::TickCounter
+end
+child_connections(::EmptySelectionRated) = ("src/out" => "g/e",)
+input_connections(a::EmptySelectionRated) = (input_passthrough(a, "g"; except = ("e",))...,
+                                             "in" => "src/e")
+output_connections(::EmptySelectionRated) = ("g/out" => "out",)
+sample_times(::EmptySelectionRated) = (; c = Absolute(Hz(50), 1//100))
+
 # One passthrough level above it, which asks the child for its face lists: the
 # walk's memo keeps the warning's count at one (§13.3, Appendix C).
 struct EmptySelectionParent <: AbstractComponent
@@ -1716,6 +1730,19 @@ function build_warnings()
         n = @test_logs (:warn, r"^EmptyFaceSelection") build(
             EmptySelectionParent(EmptySelection(Gain(2.0), Gain(3.0))))
         @test length(warnings(n)) == 1 && only(warnings(n)) isa EmptyFaceSelection
+    end
+
+    @testset "warnings(sim) concatenates its artifacts' lists (§9.2, D-250)" begin
+        # A producer on each side: the empty selection on the build, and the
+        # derivation path's `GridUtilization` on the deployment — the offset drives
+        # the grid twice as fine as the one discrete child's own period. Each
+        # artifact logs its own once at return, in the order the two steps run.
+        sim = @test_logs (:warn, r"^EmptyFaceSelection") (:info, r"derived") (:warn, r"^GridUtilization") Simulation(
+            EmptySelectionRated(Gain(2.0), Gain(3.0), TickCounter()); h = 1//500,
+            Δt_base = :derive)
+        @test only(warnings(sim.deployment.build)) isa EmptyFaceSelection
+        @test only(warnings(sim.deployment)) isa GridUtilization
+        @test [typeof(w) for w in warnings(sim)] == [EmptyFaceSelection, GridUtilization]
     end
 
     @testset "outside a build the helper logs directly (D-250)" begin

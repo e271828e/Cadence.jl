@@ -31,10 +31,10 @@ Where the reason is not given here, the cited decision carries it:
   `Build` and the scoped channel the build binds, delivered by increment 44;
   `Deployment`'s own list is delivered by increment 46, and `EmptyGreedyClaim`
   into the roster entry's cell waits on increment 47 (D-250). `Deployment` and
-  `Schedule` as artifacts, delivered by increment 46; D-187's grid diagnostics
-  on the deployment (leave-one-out factors, prime attribution, nearest
-  non-refining offsets, the derivation line and `GridUtilization`) are still
-  owed until its stage 2 lands (D-254). The run: `Run{T}`, the
+  `Schedule` as artifacts, with D-187's grid diagnostics on the deployment
+  (leave-one-out factors, prime attribution, nearest non-refining offsets, the
+  derivation line and `GridUtilization`), delivered by increment 46 (D-254).
+  The run: `Run{T}`, the
   trace split into header plus `schemas` and `batches`, `StopPolicy` per
   advance, `UnboundedRun`, and the `Simulation`'s six fields (D-255, D-256).
   The renderings: `show` for `Structure`, `Dataflow`, `Schedule`, `Build` and

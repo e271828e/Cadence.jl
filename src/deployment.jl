@@ -20,6 +20,76 @@ _exact(name::Symbol, v, diags::Vector{Diagnostic}) =
 
 _as_int(r::Rational) = denominator(r) == 1 ? Int(numerator(r)) : nothing
 
+# --- the grid attribution (§9.2, D-187) -----------------------------------------
+
+# Trial division: the integers factored here are grid denominators, lcms of a
+# handful of declared ones, so no prime table is worth a dependency.
+function _prime_powers(n::Int)
+    out = Tuple{Int,Int}[]
+    m, q = n, 2
+    while q * q ≤ m
+        if m % q == 0
+            e = 0
+            while m % q == 0; m ÷= q; e += 1 end
+            push!(out, (q, e))
+        end
+        q += 1
+    end
+    m > 1 && push!(out, (m, 1))
+    out
+end
+
+"""
+The grid attribution D-187 asks for (§9.2), a pure function of the structure's
+anchors: the constraint pool — every anchor's period and every nonzero offset,
+in anchor order, periods first — with each entry's leave-one-out refinement
+factor `r_p = gcd(pool ∖ p)/gcd(pool)`, the prime attribution of `gcd(pool)`'s
+denominator, and, for a driving offset, the nearest offsets the rest of the pool
+already supports. One report per constructor call, computed ahead of the
+`Δt_base` branch: the refusal path's suggestion, the derivation path's line and
+the `Deployment` itself read the same substrate.
+"""
+function _grid_report(anchors, prov)
+    kinds, values, ks = Symbol[], Rational{Int}[], Int[]
+    for (k, (Tk, _)) in enumerate(anchors)
+        push!(kinds, :period); push!(values, Tk); push!(ks, k)
+    end
+    for (k, (_, τk)) in enumerate(anchors)
+        τk == 0 && continue
+        push!(kinds, :offset); push!(values, τk); push!(ks, k)
+    end
+    isempty(values) &&
+        return GridReport(GridEntry[], nothing,
+                          Vector{@NamedTuple{prime::Int, power::Int, suppliers::Vector{Int}}}())
+    adm = reduce(gcd, values)
+    pool = GridEntry[]
+    for i in eachindex(values)
+        # The empty reduction has no value, so a singleton pool gives factor 1 by
+        # convention: with nothing else declared, nothing is refined.
+        g = length(values) == 1 ? adm :
+            reduce(gcd, (values[j] for j in eachindex(values) if j != i))
+        r = _as_int(g / adm)
+        r === nothing &&
+            throw(InternalInvariant("leave-one-out factor $(g / adm) is not an integer: " *
+                                    "gcd(pool) divides every partial gcd"))
+        alts = Rational{Int}[]
+        if kinds[i] === :offset && r > 1
+            # The grid the rest of the pool supports, and τ's neighbours on it. The
+            # fold requires 0 ≤ τ < T (`assembly.jl`), so an upper neighbour reaching
+            # the anchor's period is no offset; 0 stays, declaring none being a repair.
+            τ, T = values[i], anchors[ks[i]][1]
+            lo = floor(Int, τ / g) * g
+            push!(alts, lo)
+            lo + g < T && push!(alts, lo + g)
+        end
+        push!(pool, GridEntry(kinds[i], values[i], ks[i], prov[ks[i]], r, alts))
+    end
+    primes = [(prime = q, power = e,
+               suppliers = [i for i in eachindex(values) if denominator(values[i]) % q^e == 0])
+              for (q, e) in _prime_powers(denominator(adm))]
+    GridReport(pool, adm, primes)
+end
+
 # --- the typed schedule (§9.2, §10.5, D-254) ------------------------------------
 
 """
@@ -82,7 +152,8 @@ the explicit keyword, the `N_base·h` product (default `N_base = 1`), or GCD der
 over the constraint pool, requested as `Δt_base = :derive` and permitted only
 with every discrete component anchored. Resolution is one exact division pair
 per anchor and one multiply-add per component. Returns the bound grid: `h`,
-`N_base`, `Δt_base` and the `Schedule` (§9.2's typed artifact).
+`N_base`, `Δt_base`, the `Schedule` (§9.2's typed artifact), the grid
+attribution and whether the derivation path produced the value.
 
 The pass records into the call's list and returns `nothing` when a premise
 fails; the caller owns the one throw per `Deployment` call (§9.1, D-229). `h`,
@@ -102,23 +173,25 @@ function bind_schedule(b::Build, h, N_base, Δt_base, diags::Vector{Diagnostic})
     n_ok || push!(diags, DeploymentInvalid(parameter = :N_base, reason = :range, value = N_base))
 
     anchors, prov, triples = b.structure.anchors, b.structure.aprov, b.structure.triples
-    # The constraint pool: every anchor's period and every nonzero offset (§9.1).
-    pool = vcat([Tk for (Tk, _) in anchors], [τk for (_, τk) in anchors if τk != 0])
+    # The attribution over the constraint pool — every anchor's period and every
+    # nonzero offset (§9.1) — computed once, ahead of the branch, and handed to
+    # every refusal that names the grid as well as to the artifact (§9.2, D-187).
+    grid = _grid_report(anchors, prov)
 
     # The Δt_base branch is its own premise: derivation reads the tiers and the
     # anchors, the explicit keyword reads only itself, and only the default path
     # reads `h` and `N_base` — which is why it alone is skipped when either is unsound.
-    Δt_r = nothing
+    Δt_r, derived = nothing, false
     if Δt_base === :derive
         unanchored = [b.structure.paths[ci] for ci in eachindex(b.structure.tiers)
                       if b.structure.tiers[ci] === DISCRETE && triples[ci][1] == 0]
         if !isempty(unanchored)
             push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :unanchored,
-                                           paths = unanchored))
-        elseif isempty(pool)
+                                           paths = unanchored, grid = grid))
+        elseif grid.admissible === nothing
             push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :no_constraint))
         else
-            Δt_r = reduce(gcd, pool)                 # the coarsest admissible value
+            Δt_r, derived = grid.admissible, true    # the coarsest admissible value
         end
     elseif Δt_base !== nothing
         Δt_r = _exact(:Δt_base, Δt_base, diags)
@@ -146,19 +219,18 @@ function bind_schedule(b::Build, h, N_base, Δt_base, diags::Vector{Diagnostic})
     # loop collects into the call's list (§13.1): every anchor the chosen base
     # grid cannot express is named, so the coarsest admissible value is chosen
     # against the whole list.
-    adm = isempty(pool) ? nothing : reduce(gcd, pool)
     Dk, Φk = [1], [0]
     for (k, (Tk, τk)) in enumerate(anchors)
         D = _as_int(Tk / Δt_r)
         D === nothing &&
             push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :anchor_period,
                                           value = Tk, related = Δt_r, provenance = prov[k],
-                                          admissible = adm))
+                                          grid = grid))
         Φ = _as_int(τk / Δt_r)
         Φ === nothing &&
             push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :anchor_offset,
                                           value = τk, related = Δt_r, provenance = prov[k],
-                                          admissible = adm))
+                                          grid = grid))
         push!(Dk, something(D, 1)); push!(Φk, something(Φ, 0))
     end
     length(diags) == k0 || return nothing
@@ -186,7 +258,7 @@ function bind_schedule(b::Build, h, N_base, Δt_base, diags::Vector{Diagnostic})
                        Φk[sc.triple[1] + 1] + sc.triple[3] * Dk[sc.triple[1] + 1])
               for sc in b.structure.scopes]
     (h = Float64(h_r), N_base = n_i, Δt_base = Δtb,
-     schedule = Schedule(rows, scopes, D_c, Φ_c, Δt_c))
+     schedule = Schedule(rows, scopes, D_c, Φ_c, Δt_c), grid = grid, derived = derived)
 end
 
 # --- the artifact (§9.1, §9.2, D-254) -------------------------------------------
@@ -197,7 +269,8 @@ end
 
 The artifact the grid parameters fix (§9.1, §9.2, D-254): the build plus the
 grid parameters, the algorithm and the three event parameters, scalar-free,
-carrying the `Schedule` the constructor built and its own `warnings`.
+carrying the `Schedule` the constructor built, the grid attribution of §9.2 and
+its own `warnings`.
 `Simulation` materializes it at a scalar type, and one deployment backs many
 (§9.2). Two deployments compare as values, which is what replay's header check
 reads (§12.7).
@@ -239,6 +312,7 @@ struct Deployment
     localization_tol::Float64     # relative bracket-width stop (§10.4)
     localization_budget::Int      # t* boundaries permitted per frame (§10.4)
     schedule::Schedule            # the bound per-component tick table (§9.2)
+    grid::GridReport              # the attribution over the constraint pool (§9.2, D-187)
     warnings::Vector{Diagnostic}  # the warnings the constructor raised (§9.1, D-250)
 end
 
@@ -247,7 +321,7 @@ function Deployment(b::Build; h = nothing, N_base = nothing, Δt_base = nothing,
                     localization_budget = 8)
     # The event parameters and the algorithm validate on their own terms, ahead
     # of the grid; all of it lands in one list and one throw (§9.1, D-229).
-    diags = Diagnostic[]
+    diags, ws = Diagnostic[], Diagnostic[]
     algorithm isa Type && algorithm <: AbstractStepper ||
         push!(diags, DeploymentInvalid(parameter = :algorithm, reason = :range, value = algorithm))
     firing_budget isa Integer && firing_budget ≥ 1 ||
@@ -257,16 +331,43 @@ function Deployment(b::Build; h = nothing, N_base = nothing, Δt_base = nothing,
     localization_budget isa Integer && localization_budget ≥ 1 ||
         push!(diags, DeploymentInvalid(parameter = :localization_budget, reason = :range, value = localization_budget))
     bound = bind_schedule(b, h, N_base, Δt_base, diags)
-    isempty(diags) || throw(DiagnosticError(diags))    # one throw per call (§9.1, D-229)
-    Deployment(b, bound.h, bound.N_base, bound.Δt_base, algorithm, Int(firing_budget),
-               Float64(localization_tol), Int(localization_budget), bound.schedule,
-               Diagnostic[])
+    # One throw per call (§9.1, D-229), carrying the warnings raised so far: the
+    # artifact that would have held them never returns (D-250).
+    isempty(diags) || throw(DiagnosticError(diags, ws))
+    # Derivation is the one place refinement happens silently (§9.2, D-187), so it
+    # always prints the derived value with its drivers. The line is presentation,
+    # never a home (§9.1, D-250).
+    if bound.derived
+        g = bound.grid
+        drivers = [e for e in g.pool if e.factor > 1]
+        @info "Δt_base derived as $(g.admissible) s: " *
+              (isempty(drivers) ? "no entry refines another" :
+               "drivers: " * _grid_drivers(drivers, g.admissible)) * " (§9.2)"
+        # The advisory rides the same path, when the grid is finer than the fastest
+        # declared work. `u == 1` is no information. No user body runs inside this
+        # constructor, so the warning goes straight onto its own list, not through
+        # `_warn!`'s channel.
+        rows = bound.schedule.rows
+        u = isempty(rows) ? 1 : minimum(r.D for r in rows)
+        u > 1 && push!(ws, GridUtilization(Δt_base = g.admissible, utilization = u,
+                                           fastest = rows[findfirst(r -> r.D == u, rows)].path,
+                                           drivers = drivers))
+    end
+    d = Deployment(b, bound.h, bound.N_base, bound.Δt_base, algorithm, Int(firing_budget),
+                   Float64(localization_tol), Int(localization_budget), bound.schedule,
+                   bound.grid, ws)
+    # The completed constructor carries the record, and logs each warning once at
+    # return through the standard backend (Appendix C's `logged`), as `build` does.
+    for w in ws
+        @warn logline(w)
+    end
+    d
 end
 
 # §12.7's header check is the consumer, and a what-if replay re-drives a
 # recording against a *modified model of the same structure*, so **the build is
-# not compared**: comparing it would refuse what the spec admits. `warnings` is
-# not compared either — it is a function of the rest.
+# not compared**: comparing it would refuse what the spec admits. `grid` and
+# `warnings` are not compared either — both are functions of the rest.
 Base.:(==)(a::Deployment, b::Deployment) =
     a.h == b.h && a.N_base == b.N_base && a.Δt_base == b.Δt_base &&
     a.algorithm === b.algorithm && a.firing_budget == b.firing_budget &&

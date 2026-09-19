@@ -1203,6 +1203,38 @@ message(d::StopFaceInvalid) =
     "$(_stop_site(d.site)) names `$(d.face)`, whose declared type is $(d.declared) — stop " *
     "faces are Bool, OR-combined (§13.5)"
 
+# --- the grid attribution (§9.2, D-187) -----------------------------------------
+# Deployment substrate rather than diagnostics: `deployment.jl`'s `_grid_report`
+# is what fills these two, and the `Deployment` carries one. They are defined
+# here because the two payloads below name them and this file is included first.
+
+"""
+One constraint-pool entry (§9.1, §9.2): an anchor's period or its nonzero offset,
+with the anchor's provenance, its leave-one-out refinement factor
+`r_p = gcd(pool ∖ p) / gcd(pool)` and, for an offset that drives, the nearest
+offsets on the grid the rest of the pool supports.
+"""
+struct GridEntry
+    kind::Symbol                          # :period | :offset
+    value::Rational{Int}
+    anchor::Int                           # 1…K, into the structure's anchor table
+    provenance::String                    # the anchor's declaring scope and key
+    factor::Int                           # r_p ≥ 1
+    alternatives::Vector{Rational{Int}}   # a driving offset's nearest non-refining neighbours; else empty
+end
+
+"""
+The grid attribution (§9.2, D-187): the pool, the coarsest admissible `Δt_base`
+and each prime power of its denominator traced to the entries supplying it. A
+pure function of the structure's anchors, printed by the refusal path's
+suggestion and the derivation path's line alike.
+"""
+struct GridReport
+    pool::Vector{GridEntry}
+    admissible::Union{Nothing,Rational{Int}}   # gcd(pool); nothing for an empty pool
+    primes::Vector{@NamedTuple{prime::Int, power::Int, suppliers::Vector{Int}}}  # indices into pool
+end
+
 "§9.1: a deployment parameter outside its constraint, or a grid that does not close."
 Base.@kwdef struct DeploymentInvalid <: Diagnostic
     parameter::Symbol
@@ -1212,7 +1244,7 @@ Base.@kwdef struct DeploymentInvalid <: Diagnostic
     quotient::Union{Nothing,Int} = nothing   # Δt_base / h, where that is the fact
     paths::Vector{String} = String[]         # the unanchored components
     provenance::String = ""                  # the anchor's declaring scope and key
-    admissible::Any = nothing                # gcd(pool), the coarsest admissible Δt_base
+    grid::Union{Nothing,GridReport} = nothing   # the attribution, on the three grid refusals
 end
 
 # The parameter set is Appendix C's row: deployment parameters alone. The
@@ -1231,8 +1263,26 @@ _dep_section(p::Symbol) =
     p === :firing_budget       ? " (§10.6)" :
     (p === :localization_tol || p === :localization_budget) ? " (§10.4)" :
     p === :N_base              ? " (§9.1)" : ""
-_dep_admissible(d) = d.admissible === nothing ? "" :
-                     " — an admissible Δt_base divides gcd(pool) = $(d.admissible)"
+# One driver clause (§9.2, D-187): the anchor's provenance, the entry's kind and
+# value, how much coarser the grid would be without it, and — for a driving
+# offset — the repair, the nearest offsets the rest of the pool already supports.
+_grid_driver(e::GridEntry, adm::Rational{Int}) =
+    "$(e.provenance) $(e.kind) $(e.value) ×$(e.factor)" *
+    (isempty(e.alternatives) ? "" :
+     " (declaring " * join(e.alternatives, " or ") * " keeps Δt_base = $(e.factor * adm))")
+_grid_drivers(es, adm::Rational{Int}) = join((_grid_driver(e, adm) for e in es), ", ")
+
+# The suggestion the three grid refusals carry (§9.2, D-187): the coarsest
+# admissible value with the admissible set, then one clause per driver. No
+# driver, no clause — joint responsibility is listed whole, never crowned.
+function _dep_grid(d::DeploymentInvalid)
+    g = d.grid
+    (g === nothing || g.admissible === nothing) && return ""
+    drivers = [e for e in g.pool if e.factor > 1]
+    s = " — an admissible Δt_base divides gcd(pool) = $(g.admissible), the coarsest " *
+        "admissible value, the set being gcd(pool)/k"
+    isempty(drivers) ? s : s * "; drivers: " * _grid_drivers(drivers, g.admissible)
+end
 
 function message(d::DeploymentInvalid)
     d.reason === :inexact &&
@@ -1248,7 +1298,7 @@ function message(d::DeploymentInvalid)
         return "Δt_base cannot be derived: `$(join(d.paths, "`, `"))` is/are unanchored, " *
                "with period `m·Δt_base` — an anchor edit anywhere in the tree would " *
                "silently rescale it. Declare the base tick period instead: `Δt_base = …`, " *
-               "or `N_base = …` (§9.1)"
+               "or `N_base = …`$(_dep_grid(d)) (§9.1)"
     d.reason === :no_constraint &&
         return "Δt_base cannot be derived: no anchor declares a constraint to derive it " *
                "from (§9.1)"
@@ -1260,13 +1310,26 @@ function message(d::DeploymentInvalid)
                "$(d.quotient) (§9.1)"
     d.reason === :anchor_period &&
         return "$(d.provenance): period $(d.value) is not an integer multiple of " *
-               "Δt_base = $(d.related)$(_dep_admissible(d)) (§9.1)"
+               "Δt_base = $(d.related)$(_dep_grid(d)) (§9.1)"
     d.reason === :anchor_offset &&
         return "$(d.provenance): offset $(d.value) does not land on the base grid at " *
-               "Δt_base = $(d.related)$(_dep_admissible(d)) (§9.1)"
+               "Δt_base = $(d.related)$(_dep_grid(d)) (§9.1)"
     "`$(d.parameter)` $(_dep_constraint(d.parameter)), got $(d.value)" *
     _dep_section(d.parameter)
 end
+
+"§9.1, §9.2: the derived grid is finer than the fastest declared work."
+Base.@kwdef struct GridUtilization <: Diagnostic
+    Δt_base::Rational{Int}
+    utilization::Int                     # min_i Dᵢ over the discrete rows
+    fastest::String                      # the path attaining it
+    drivers::Vector{GridEntry}           # the entries with factor > 1
+end
+severity(::GridUtilization) = :warning
+message(d::GridUtilization) =
+    "Δt_base derived as $(d.Δt_base) s: the grid is $(d.utilization)× finer than the " *
+    "fastest declared work (`$(d.fastest)` at D = $(d.utilization))" *
+    (isempty(d.drivers) ? "" : " — drivers: " * _grid_drivers(d.drivers, d.Δt_base)) * " (§9.2)"
 
 "§11.3: a claim naming no root input face."
 Base.@kwdef struct AttachUnknownFace <: Diagnostic
@@ -1671,7 +1734,7 @@ message(d::ConditionShapeDrift) =
     "evaluated at — a branch that authors a different field set, a different nesting or a " *
     "different leaf type is a different shape, and needs its own plan (§14.4, §9.5, D-066)"
 
-"§8.7, §11.6, §12.6, §12.7, §14.7, D-215: an argument outside its constraint — `DeploymentInvalid`'s twin off the deployment surface."
+"§8.7, §11.6, §12.4, §12.6, §14.7, D-215: an argument outside its constraint — `DeploymentInvalid`'s twin off the deployment surface."
 Base.@kwdef struct ArgumentInvalid <: Diagnostic
     call::Symbol                             # :Simulation|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:trim!|:trace|:TableBinding|:selector
     reason::Symbol

@@ -246,6 +246,17 @@ using InteractiveUtils: subtypes    # the coverage check below
 
 function diagnostics_kind_set()
     @testset "diagnostic kinds (§13.2, Appendix C, D-214, D-215)" begin
+        # The attribution the three grid refusals and the advisory print from
+        # (§9.2, D-187): two drivers, the offset among them carrying the nearest
+        # offsets the rest of the pool supports.
+        grid = GridReport([GridEntry(:period, 1//30, 1, "`sample_times` at `a`, key `b`",
+                                     10, Rational{Int}[]),
+                           GridEntry(:offset, 1//7, 1, "`sample_times` at `a`, key `b`",
+                                     3, Rational{Int}[7//50, 3//20])],
+                          1//300,
+                          [(prime = 2, power = 2, suppliers = [1]),
+                           (prime = 3, power = 1, suppliers = [1]),
+                           (prime = 5, power = 2, suppliers = [2])])
         occurrences = Diagnostic[
             # the structure step
             UnknownPort(entry = "child_connections at `a`, entry `x => y`", end_ = :destination,
@@ -403,7 +414,8 @@ function diagnostics_kind_set()
             DeploymentInvalid(parameter = :h, reason = :inexact, value = 0.01),
             DeploymentInvalid(parameter = :Δt_base, reason = :not_a_quantity, value = Int),
             DeploymentInvalid(parameter = :h, reason = :missing),
-            DeploymentInvalid(parameter = :Δt_base, reason = :unanchored, paths = ["a/b"]),
+            DeploymentInvalid(parameter = :Δt_base, reason = :unanchored, paths = ["a/b"],
+                              grid = grid),
             DeploymentInvalid(parameter = :Δt_base, reason = :no_constraint),
             DeploymentInvalid(parameter = :Δt_base, reason = :not_harmonic, value = 1//3,
                               related = 1//100),
@@ -411,10 +423,12 @@ function diagnostics_kind_set()
                               related = 3, quotient = 2),
             DeploymentInvalid(parameter = :Δt_base, reason = :anchor_period, value = 1//30,
                               related = 1//100, provenance = "`sample_times` at `a`, key `b`",
-                              admissible = 1//300),
+                              grid = grid),
             DeploymentInvalid(parameter = :Δt_base, reason = :anchor_offset, value = 1//7,
                               related = 1//100, provenance = "`sample_times` at `a`, key `b`",
-                              admissible = 1//300),
+                              grid = grid),
+            GridUtilization(Δt_base = 1//300, utilization = 3, fastest = "a/b",
+                            drivers = grid.pool),
             AttachUnknownFace(device = "Pad", binding = "Enumerated", face = :q,
                               candidates = [:a, :b]),
             AlreadyAttached(device = "Pad", incumbent = "device 1 (Pad)", binding = "Enumerated"),
@@ -563,7 +577,8 @@ function diagnostics_kind_set()
                                       TrimCommitEvents, TrimCommitResiduals,
                                       MalformedDatum, OutOfClaimEntry, ClaimedFaceEntry,
                                       EntryTypeMismatch, ChatteringBudget, FiringBudget,
-                                      DeviceCrash, DeviceJoinTimeout, ReplayDiscardedStaging])
+                                      DeviceCrash, DeviceJoinTimeout, GridUtilization,
+                                      ReplayDiscardedStaging])
         for d in occurrences
             @test severity(d) === (typeof(d) in warning_kinds ? :warning : :error)
             @test path(d) isa String
