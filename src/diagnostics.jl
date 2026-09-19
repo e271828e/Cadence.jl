@@ -641,22 +641,45 @@ message(d::FaceDirectionConflict) =
     (d.found === :input ? "an input" : "an output") * " of $(_at_path(d.path)), but this " *
     "entry's endpoint is a $(d.wanted) — direction is declared by the method (§8.6)"
 
-"§8.8: a passthrough filter naming faces the child does not have, or giving both `except` and `only`."
+"§8.8: a passthrough filter naming faces the child does not have, or giving more than one selector."
 Base.@kwdef struct UnknownFaceSelection <: Diagnostic
     who::String                              # the calling helper
     path::String                             # the child path
-    reason::Symbol                           # :both_given | :unknown_names
-    names::Vector{String} = String[]         # the offending names
+    reason::Symbol                           # :multiple_selectors | :unknown_names
+    names::Vector{String} = String[]         # the offending names, or the selectors given
     candidates::Vector{String} = String[]    # the child's face list
 end
 path(d::UnknownFaceSelection) = d.path
 message(d::UnknownFaceSelection) =
-    d.reason === :both_given ?
-    "`$(d.who)` at `$(d.path)`: `except` and `only` were both given — one names the faces " *
-    "to drop, the other the faces to keep, and they are mutually exclusive (§8.8)" :
+    d.reason === :multiple_selectors ?
+    "`$(d.who)` at `$(d.path)`: $(_namelist(d.names)) were given together — the three " *
+    "selectors are exclusive, one per call, and a second rule takes a second call (§8.8)" :
     "`$(d.who)` at `$(d.path)`: $(_namelist(d.names)) " *
     "$(length(d.names) == 1 ? "names" : "name") no face of that child — its faces are " *
     "$(_namelist(d.candidates)) (§8.8)"
+
+"§8.8, D-251: a passthrough selector that kept no face of the child."
+Base.@kwdef struct EmptyFaceSelection <: Diagnostic
+    who::String                              # the calling helper
+    path::String                             # the child path
+    selector::Symbol                         # :except | :only | :select
+    names::Vector{String} = String[]         # the selector's names; empty for `select`
+    candidates::Vector{String} = String[]    # the child's face list on that side
+end
+severity(::EmptyFaceSelection) = :warning
+path(d::EmptyFaceSelection) = d.path
+function message(d::EmptyFaceSelection)
+    side = startswith(d.who, "input") ? "input" : "output"
+    isempty(d.candidates) &&
+        return "`$(d.who)` at `$(d.path)`: `$(d.selector)` was given and the child has no " *
+               "$side face, so nothing passes through — a bare call over a faceless child " *
+               "says the same thing without the selector (§8.8)"
+    isempty(d.names) &&
+        return "`$(d.who)` at `$(d.path)`: `$(d.selector)` accepted no face of the child, so " *
+               "nothing passes through — its $side faces are $(_namelist(d.candidates)) (§8.8)"
+    "`$(d.who)` at `$(d.path)`: `$(d.selector)` names $(_namelist(d.names)), every $side face " *
+    "of the child, so nothing passes through (§8.8)"
+end
 
 "§8.7, §10.5: a `sample_times` declaration outside the value vocabulary, the residue bounds or the key rule."
 Base.@kwdef struct RatesViolation <: Diagnostic

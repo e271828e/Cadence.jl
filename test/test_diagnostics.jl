@@ -305,9 +305,13 @@ function diagnostics_kind_set()
             FaceNameCollision(path = "", faces = ["u"], site = :root),
             FaceDirectionConflict(entry = "child_connections at `a`", path = "a/b",
                                   spelling = "b/u", found = :input, wanted = :producer),
-            UnknownFaceSelection(who = "input_passthrough", path = "a/b", reason = :both_given),
+            UnknownFaceSelection(who = "input_passthrough", path = "a/b",
+                                 reason = :multiple_selectors, names = ["except", "only"]),
             UnknownFaceSelection(who = "input_passthrough", path = "a/b",
                                  reason = :unknown_names, names = ["q"], candidates = ["u", "v"]),
+            EmptyFaceSelection(who = "input_passthrough", path = "a/b", selector = :except,
+                               names = ["u", "v"], candidates = ["u", "v"]),
+            EmptyFaceSelection(who = "output_passthrough", path = "a/b", selector = :select),
             RatesViolation(path = "a", reason = :declaration_shape),
             RatesViolation(path = "a", reason = :value_vocabulary, key = :b, value = 3),
             RatesViolation(path = "a", reason = :multiplier, key = :b, value = 0),
@@ -548,7 +552,8 @@ function diagnostics_kind_set()
 
         # Appendix C's severity column, as the list it is: every other kind is an
         # error, so a kind added on the wrong side of the line fails here.
-        warning_kinds = Set{DataType}([EmptyGreedyClaim, TrimCommitEvents, TrimCommitResiduals,
+        warning_kinds = Set{DataType}([EmptyFaceSelection, EmptyGreedyClaim,
+                                      TrimCommitEvents, TrimCommitResiduals,
                                       MalformedDatum, OutOfClaimEntry, ClaimedFaceEntry,
                                       EntryTypeMismatch, ChatteringBudget, FiringBudget,
                                       DeviceCrash, DeviceJoinTimeout, ReplayDiscardedStaging])
@@ -650,6 +655,14 @@ function diagnostics_kind_set()
         m = message(MissingProbeValue(face = :pilot, declared = NamedTuple{(:a,),Tuple{Float64}}))
         @test occursin("probe_value(::Type{", m) && occursin("zero-argument constructor", m)
         @test occursin("at face `pilot`", m) && occursin("Float64", m)
+
+        # The empty selection states the fix with the list in hand: the selector
+        # named, and the faces it kept nothing of (§8.8, D-251).
+        m = message(EmptyFaceSelection(who = "input_passthrough", path = "a/b",
+                                       selector = :except, names = ["u", "v"],
+                                       candidates = ["u", "v"]))
+        @test startswith(m, "`input_passthrough` at `a/b`: `except` names `u`, `v`") &&
+              occursin("nothing passes through", m)
 
         # A port type is §13.2's one payload exception: the abstract entry is
         # spelled whole, parameters and all, where `_typename` would print

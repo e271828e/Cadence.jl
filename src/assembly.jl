@@ -536,46 +536,51 @@ end
 """
     input_passthrough(asm, child_path; sep = ".",
                       prefix = replace(child_path, "/" => sep),
-                      except = (), only = ())
+                      except = (), only = (), select = nothing)
 
 Every input face of `child_path` the assembly does not feed, exposed on its own
 boundary under `prefix * sep * face` — splatted into `input_connections` (§8.8).
 The default `prefix` folds the path's slash into `sep`, so an undeclared
 container element (`"units/1"`) labels its faces `"units.1.…"` — a legal face
 name — by default; an explicit `prefix` is used verbatim, and `prefix = ""`
-drops the prefixing entirely. `except` and `only` filter face names
-within the child's set and are mutually exclusive. `child_path` names an
-immediate child (a bare key where the container is name-transparent); a deeper
-path meets `resolve`'s one-level rejection like any other wiring endpoint.
+drops the prefixing entirely. `except`, `only` and `select` filter face names
+within the child's set and are exclusive, one selector per call (D-251):
+`select` is a predicate over face names, receiving each as a `String` and
+keeping the ones it accepts. A selector that keeps nothing warns
+`EmptyFaceSelection` on the `Build` (§9.1), while a bare call over a faceless
+child is silent. `child_path` names an immediate child (a bare key where the
+container is name-transparent); a deeper path meets `resolve`'s one-level
+rejection like any other wiring endpoint.
 """
 function input_passthrough(asm, child_path::AbstractString;
                            sep::AbstractString = ".",
                            prefix::AbstractString = replace(child_path, "/" => sep),
-                           except::Tuple = (), only::Tuple = ())
+                           except::Tuple = (), only::Tuple = (), select = nothing)
     names = input_faces(resolve(asm, child_path))
-    wanted = _passthrough_faces("input_passthrough", child_path, names, except, only)
+    wanted = _passthrough_faces("input_passthrough", child_path, names, except, only, select)
     Tuple(_labelled(prefix, sep, n) => string(child_path, "/", n) for n in wanted)
 end
 
 """
     output_passthrough(asm, child_path; sep = ".",
                        prefix = replace(child_path, "/" => sep),
-                       except = (), only = ())
+                       except = (), only = (), select = nothing)
 
 `input_passthrough`'s sibling on the outward boundary (D-209), splatted into
 `output_connections`: the same surface over `output_faces` — the same folded
-default `prefix` included — its pairs reading
-along the flow — internal source => face name — as every pair in that
-declaration does. Its consumer is one-level routing (§6.1): every level
+default `prefix` included, and the same three exclusive selectors, one per
+call, `select` accepting face names and an empty selection warning
+`EmptyFaceSelection` (§8.8, D-251) — its pairs reading along the flow —
+internal source => face name — as every pair in that declaration does. Its consumer is one-level routing (§6.1): every level
 re-exports the outputs it surfaces, so the output side needs the computed
 spelling the input side already has.
 """
 function output_passthrough(asm, child_path::AbstractString;
                             sep::AbstractString = ".",
                             prefix::AbstractString = replace(child_path, "/" => sep),
-                            except::Tuple = (), only::Tuple = ())
+                            except::Tuple = (), only::Tuple = (), select = nothing)
     names = output_faces(resolve(asm, child_path))
-    wanted = _passthrough_faces("output_passthrough", child_path, names, except, only)
+    wanted = _passthrough_faces("output_passthrough", child_path, names, except, only, select)
     Tuple(string(child_path, "/", n) => _labelled(prefix, sep, n) for n in wanted)
 end
 
@@ -583,19 +588,39 @@ _labelled(prefix, sep, n) = isempty(prefix) ? String(n) : string(prefix, sep, n)
 
 # Exclusivity is enforced, not documented, and a filter naming a face the child
 # does not have errors with the list in hand — the same did-you-mean shape every
-# declaration-time refusal takes here (§8.8).
+# declaration-time refusal takes here (§8.8). The order of the checks is the
+# spec's: exclusivity, the unknown names, the selection, then the warning a
+# selector that kept nothing raises (D-251).
 function _passthrough_faces(who::String, child_path::AbstractString,
-                            names::Vector{String}, except::Tuple, only::Tuple)
-    isempty(except) || isempty(only) ||
+                            names::Vector{String}, except::Tuple, only::Tuple, select)
+    given = Symbol[]
+    isempty(except) || push!(given, :except)
+    isempty(only) || push!(given, :only)
+    select === nothing || push!(given, :select)
+    length(given) ≤ 1 ||
         throw(DiagnosticError(UnknownFaceSelection(who = who, path = String(child_path),
-                                              reason = :both_given)))
+                                              reason = :multiple_selectors,
+                                              names = String[String(g) for g in given])))
     unknown = [String(n) for n in (except..., only...) if !(String(n) in names)]
     isempty(unknown) ||
         throw(DiagnosticError(UnknownFaceSelection(who = who, path = String(child_path),
                                               reason = :unknown_names, names = unknown,
                                               candidates = names)))
-    isempty(only) ? setdiff(names, String[String(n) for n in except]) :
-                    String[String(n) for n in only]
+    wanted = !isempty(only)     ? String[String(n) for n in only] :
+             select !== nothing ? filter(select, names) :
+                                  setdiff(names, String[String(n) for n in except])
+    # A selector that kept nothing is almost always a typo the unknown-names check
+    # cannot see; a bare call over a faceless child asked for nothing and is
+    # silent. `only` cannot reach here — a non-empty `only` of known names keeps
+    # them all — so only `except` has names to carry.
+    if length(given) == 1 && isempty(wanted)
+        sel = given[1]
+        _warn!(EmptyFaceSelection(who = who, path = String(child_path), selector = sel,
+                                  names = sel === :except ? String[String(n) for n in except] :
+                                                            String[],
+                                  candidates = names))
+    end
+    wanted
 end
 
 # --- endpoint resolution (§8.6) -----------------------------------------------

@@ -27,7 +27,7 @@ Where the reason is not given here, the cited decision carries it:
   structural consumers reading them instead of the nominal activation (D-253),
   delivered by increment 44.
   §8.8's selectors: the `select` predicate, `:multiple_selectors` and
-  `EmptyFaceSelection` (D-251). The warning homes: the artifact criterion,
+  `EmptyFaceSelection` (D-251), delivered by increment 45. The warning homes: the artifact criterion,
   `warnings` on the `Build` and the scoped channel the build binds, delivered
   by increment 44; `Deployment`'s own list waits on increment 46, and
   `EmptyGreedyClaim` into the roster entry's cell on increment 47 (D-250). `Deployment` and

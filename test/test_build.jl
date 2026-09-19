@@ -1569,10 +1569,11 @@ function build_activations()
 end
 
 # --- the build's warnings (§9.1, §13.2, D-250) --------------------------------
-# No build-side producer of a warning exists yet — `EmptyFaceSelection` is
-# increment 45's — so the channel is exercised by a test-local warning kind and
-# two assemblies whose declaration bodies raise it. The body is a boundary
-# declaration because that is where increment 45's producer will sit, and the
+# The channel is exercised by a test-local warning kind and two assemblies whose
+# declaration bodies raise it: a synthetic kind tests the channel without the
+# producer's own selection logic, so what these tests prove stays theirs while
+# `EmptyFaceSelection`'s own testset below covers the producer. The body is a
+# boundary declaration because that is where the real producer sits, and the
 # walk reads each boundary declaration once: one evaluation feeds both the
 # face-name check and the face pass, so a warning raised inside one fires once
 # per call (Appendix C).
@@ -1632,6 +1633,27 @@ child_connections(::WarningTypo) = ("w/nope" => "g/e",)
 input_connections(::WarningTypo) = ("in" => "w/in",)
 output_connections(::WarningTypo) = ("g/out" => "out",)
 
+# §8.8's producer: `except` naming every input face of the child keeps nothing,
+# so the helper warns, while the hand-written wire feeds the face the boundary no
+# longer exposes and the build completes (D-251).
+struct EmptySelection <: AbstractComponent
+    g::Gain
+    src::Gain
+end
+child_connections(::EmptySelection) = ("src/out" => "g/e",)
+input_connections(a::EmptySelection) = (input_passthrough(a, "g"; except = ("e",))...,
+                                        "in" => "src/e")
+output_connections(::EmptySelection) = ("g/out" => "out",)
+
+# One passthrough level above it, which asks the child for its face lists: the
+# walk's memo keeps the warning's count at one (§13.3, Appendix C).
+struct EmptySelectionParent <: AbstractComponent
+    kid::EmptySelection
+end
+child_connections(::EmptySelectionParent) = ()
+input_connections(p::EmptySelectionParent) = input_passthrough(p, "kid")
+output_connections(p::EmptySelectionParent) = output_passthrough(p, "kid")
+
 function build_warnings()
     @testset "a warning raised inside a declaration body lands on the Build and is logged once at return (§9.1, D-250)" begin
         # A declaration body has no artifact in hand, so it appends through the
@@ -1678,6 +1700,22 @@ function build_warnings()
         t = @test_logs failure(() -> build(WarningTypo(WarningWires(Gain(1.0)), Gain(1.0))))
         @test UnknownPort in kinds(t)
         @test length(t.warnings) == 1
+    end
+
+    @testset "the empty selection lands on the Build (§8.8, D-251)" begin
+        # The helper inside a declaration body has no artifact in hand, so the
+        # warning reaches the `Build` through the channel and the entry point logs
+        # it once at return. The model is sound, so the build completes.
+        b = @test_logs (:warn, r"^EmptyFaceSelection") build(EmptySelection(Gain(2.0), Gain(3.0)))
+        d = only(warnings(b))
+        @test d isa EmptyFaceSelection
+        @test d.who == "input_passthrough" && d.path == "g" && d.selector === :except
+        @test d.names == ["e"] && d.candidates == ["e"]
+        # One passthrough level above, the parent asks the child for its face
+        # lists and the count stays one: the walk evaluated the body once.
+        n = @test_logs (:warn, r"^EmptyFaceSelection") build(
+            EmptySelectionParent(EmptySelection(Gain(2.0), Gain(3.0))))
+        @test length(warnings(n)) == 1 && only(warnings(n)) isa EmptyFaceSelection
     end
 
     @testset "outside a build the helper logs directly (D-250)" begin

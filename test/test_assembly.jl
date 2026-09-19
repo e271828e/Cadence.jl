@@ -845,6 +845,14 @@ function assembly_primitives()
               ("env_a" => "s/a", "env_b" => "s/b")
         @test input_passthrough(m, "s"; prefix = "") == ("a" => "s/a", "b" => "s/b")
 
+        # `select` is the third selector (D-251): a predicate over face names,
+        # receiving each name as a `String` and keeping the ones it accepts, in
+        # declaration order.
+        @test input_passthrough(m, "s"; select = n -> n == "b") == ("s.b" => "s/b",)
+        @test input_passthrough(m, "s"; select = startswith("a")) == ("s.a" => "s/a",)
+        @test output_passthrough(m, "s"; select = n -> n == "e", prefix = "") ==
+              ("s/e" => "e",)
+
         # The output side is the mirror, its pairs reading along the flow.
         @test output_passthrough(m, "g") == ("g/out" => "g.out",)
         @test output_passthrough(m, "s"; only = ("e",), prefix = "") == ("s/e" => "e",)
@@ -857,10 +865,15 @@ function assembly_primitives()
         @test output_passthrough(r, "units/2"; sep = "_") == ("units/2/out" => "units_2_out",)
         @test input_passthrough(r, "units/1"; prefix = "u1") == ("u1.e" => "units/1/e",)
 
-        # Exclusivity is enforced, not documented.
+        # Exclusivity is enforced, not documented: one selector per call, and the
+        # payload names the ones given (D-251).
         d = carried(@test_throws DiagnosticError{UnknownFaceSelection} input_passthrough(m, "s"; except = ("a",), only = ("b",)))
-        @test d.reason === :both_given &&
+        @test d.reason === :multiple_selectors && d.names == ["except", "only"] &&
               d.who == "input_passthrough" && d.path == "s"
+        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} input_passthrough(m, "s"; except = ("a",), only = ("b",), select = startswith("a")))
+        @test d.names == ["except", "only", "select"]
+        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} output_passthrough(m, "g"; only = ("out",), select = startswith("o")))
+        @test d.names == ["only", "select"]
 
         # A filter naming a face the child does not have errors with the list in
         # hand, on either side.
@@ -869,6 +882,18 @@ function assembly_primitives()
               d.names == ["z"] && d.candidates == ["a", "b"]
         d = carried(@test_throws DiagnosticError{UnknownFaceSelection} output_passthrough(m, "g"; except = ("z",)))
         @test d.candidates == ["out"]
+
+        # A selector that keeps nothing is `EmptyFaceSelection`, a warning and not
+        # an error (D-251). Standalone the build's channel is unbound, so the
+        # helper logs directly (D-250).
+        @test (@test_logs (:warn, r"^EmptyFaceSelection") input_passthrough(m, "s"; except = ("a", "b"))) == ()
+        @test (@test_logs (:warn, r"^EmptyFaceSelection") input_passthrough(m, "s"; select = _ -> false)) == ()
+
+        # A bare call over a faceless child asked for nothing and is silent; the
+        # same child under a selector warns, with an empty face list in hand.
+        faceless = Group((; kid = Group((; g = Gain(2.0)))))
+        @test (@test_logs input_passthrough(faceless, "kid")) == ()
+        @test (@test_logs (:warn, r"^EmptyFaceSelection") input_passthrough(faceless, "kid"; select = _ -> true)) == ()
 
         # A deeper `child_path` meets the one-level rejection like any endpoint.
         d = carried(@test_throws DiagnosticError{PathResolution} input_passthrough(m, "s/a"))
