@@ -1571,11 +1571,11 @@ end
 # --- the build's warnings (§9.1, §13.2, D-250) --------------------------------
 # No build-side producer of a warning exists yet — `EmptyFaceSelection` is
 # increment 45's — so the channel is exercised by a test-local warning kind and
-# two assemblies whose declaration bodies raise it. The body is
-# `child_connections` because the walk reads it exactly once, where it reads
-# `input_connections` and `output_connections` twice apiece (the face pass and
-# the face-name check); what is under test is the channel, not how often the
-# walk reads a declaration.
+# two assemblies whose declaration bodies raise it. The body is a boundary
+# declaration because that is where increment 45's producer will sit, and the
+# walk reads each boundary declaration once: one evaluation feeds both the
+# face-name check and the face pass, so a warning raised inside one fires once
+# per call (Appendix C).
 
 struct SyntheticWarning <: Diagnostic
     note::String
@@ -1588,8 +1588,8 @@ message(d::SyntheticWarning) = d.note
 struct WarningWires <: AbstractComponent
     c::Gain
 end
-child_connections(::WarningWires) = (_warn!(SyntheticWarning("synthetic")); ())
-input_connections(::WarningWires) = ("in" => "c/e",)
+child_connections(::WarningWires) = ()
+input_connections(::WarningWires) = (_warn!(SyntheticWarning("synthetic")); ("in" => "c/e",))
 output_connections(::WarningWires) = ("c/out" => "out",)
 
 # The same warning under a model that cannot build: nothing feeds the gain's
@@ -1597,7 +1597,9 @@ output_connections(::WarningWires) = ("c/out" => "out",)
 struct WarningUnfed <: AbstractComponent
     c::Gain
 end
-child_connections(::WarningUnfed) = (_warn!(SyntheticWarning("unfed")); ())
+child_connections(::WarningUnfed) = ()
+# The empty tuple declares no input face, so the gain stays unfed.
+input_connections(::WarningUnfed) = (_warn!(SyntheticWarning("unfed")); ())
 output_connections(::WarningUnfed) = ("c/out" => "out",)
 
 function build_warnings()
@@ -1610,6 +1612,12 @@ function build_warnings()
         @test only(warnings(b)) isa SyntheticWarning
         @test only(warnings(b)).note == "synthetic"
         @test BUILD_WARNINGS[] === nothing
+        # One level down the count is still one: the parent's wiring names the
+        # child's faces without evaluating the child's declaration bodies.
+        n = @test_logs (:warn, r"^SyntheticWarning: synthetic") build(
+            Group((; w = WarningWires(Gain(1.0)));
+                  inputs = ("in" => "w/in",), outputs = ("w/out" => "out",)))
+        @test only(warnings(n)) isa SyntheticWarning
     end
 
     @testset "a step that throws carries its warnings beside the collection (§9.1, D-250)" begin

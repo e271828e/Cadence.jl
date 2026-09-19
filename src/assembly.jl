@@ -984,8 +984,12 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
         # The boundary declarations are read only after the children are walked: a
         # computed entry (`input_passthrough`, §8.8) classifies the child it names,
         # and a shadowed child must meet its own check above first, at its own path
-        # (D-246).
-        _check_face_names(path, comp, diags)
+        # (D-246). Each body is evaluated exactly once and its entries reused by
+        # the name check and by the face loop below: a warning raised inside one
+        # fires once per call (Appendix C).
+        ins = invoke_declaration(input_connections, comp)
+        outs = invoke_declaration(output_connections, comp)
+        _check_face_names(path, ins, outs, diags)
 
         for pair in invoke_declaration(child_connections, comp)
             entry = _entry("child_connections", path, pair)
@@ -999,7 +1003,7 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
         # Both boundary declarations are resolved wherever they appear, so their
         # entries are checked at every level; only the root's input faces *feed*
         # anything, there being no parent above them to claim the obligation.
-        for (face, inner) in invoke_declaration(input_connections, comp)
+        for (face, inner) in ins
             entry = _entry("input_connections", path, face => inner)
             consumers = _fanout(w, entry, path, comp, inner, diags)
             # Every entry routes to at least one internal endpoint, at every level
@@ -1021,7 +1025,7 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
                 _claim!(w, consumer, ("", Symbol(face)), entry, diags)
             end
         end
-        for (src, face) in invoke_declaration(output_connections, comp)
+        for (src, face) in outs
             entry = _entry("output_connections", path, src => face)
             producer = resolve_source(w, entry, path, comp, src, diags)
             producer === nothing && continue   # recorded; the face registers no row
@@ -1050,10 +1054,11 @@ function _claim!(w::Walk, consumer, producer, entry::String, diags::Vector{Diagn
     nothing
 end
 
-# §8.6's two face-name invariants. Every other naming choice is author convention.
-function _check_face_names(path::String, comp, diags::Vector{Diagnostic})
-    names = vcat(String[String(face) for (face, _) in invoke_declaration(input_connections, comp)],
-                 String[String(face) for (_, face) in invoke_declaration(output_connections, comp)])
+# §8.6's two face-name invariants, over the boundary entries the walk already
+# evaluated. Every other naming choice is author convention.
+function _check_face_names(path::String, ins, outs, diags::Vector{Diagnostic})
+    names = vcat(String[String(face) for (face, _) in ins],
+                 String[String(face) for (_, face) in outs])
     for n in names
         occursin('/', n) &&
             push!(diags, FaceNameIllegal(path = path, face = n, invariant = :contains_slash))

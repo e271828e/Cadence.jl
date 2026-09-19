@@ -891,7 +891,8 @@ end
 
 The warnings the build raised (§9.2, D-250). The build produces artifacts, so
 its warnings live on them; the log line each one got at return is presentation,
-never the home. `Deployment` and `Simulation` answer the same generic.
+never the home. `Deployment` and `Simulation` answer the same generic once
+increment 46 adds them.
 """
 warnings(b::Build) = b.warnings
 
@@ -1614,7 +1615,7 @@ function _probe_input(s::Structure, layout::Layout, products, ci, face, P, ::Typ
     path = s.paths[ci]
     (ppath, pport) = last(s.conns[ci][findfirst(p -> first(p) === face, s.conns[ci])])
     v = if isempty(ppath)
-        last(layout.root_inputs[findfirst(s -> first(s) === pport, layout.root_inputs)])
+        last(layout.root_inputs[findfirst(r -> first(r) === pport, layout.root_inputs)])
     else
         products[index_of(s, ppath)][pport]
     end

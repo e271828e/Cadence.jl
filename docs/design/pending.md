@@ -61,7 +61,13 @@ Where the reason is not given here, the cited decision carries it:
   `assert_stopped`'s policy rather than by type; the suite has no
   every-component `Dual` sweep, so D-166's CI policy is one fixture; the
   once-per-frame `ReplayDiscardedStaging` noise from a live device during
-  replay is unpresented (§11.8).
+  replay is unpresented (§11.8); the face-list primitives
+  `input_faces`/`output_faces` re-evaluate a child's boundary declarations when
+  a parent's passthrough helper asks for them, so a warning raised inside a
+  nested passthrough body lands once per level that asks, against Appendix C's
+  once-per-call rule — increment 45, which adds the only producer, settles
+  whether the walk memoizes the evaluated declarations for the primitives or
+  the helpers take them from the walk.
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, the rig; §6.2's spellings) — a
   migration-phase deliverable by the spec's word, deferred with §16 (M-B22).
