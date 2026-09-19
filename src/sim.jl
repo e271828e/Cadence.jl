@@ -62,9 +62,10 @@ cross-validated sources — explicit (a `Rational` or `Period`/`Hz` value), the
 pool, requested as `Δt_base = :derive` and permitted only with every discrete
 component anchored. The scalar picks the activation the entries compile over,
 through `activation(b, T)`, which serves the nominal `Float64` entry the build
-inserted and derives and caches any other (§9.4). The convenience form is *defined as* `Simulation(build(root), T;
-…)`; entry compilation lives behind the binding because `Δt`, `D` and `Φ` are
-entry data, and one `Build` backs many `Simulation`s.
+inserted and derives and caches any other (§9.4). The convenience form is
+*defined as* `Simulation(build(root), T; …)`; entry compilation lives behind
+the binding because `Δt`, `D` and `Φ` are entry data, and one `Build` backs
+many `Simulation`s.
 
 What compilation returns is one `Executor` (§9.7), and the `Simulation` owns
 it: every buffer set has exactly one owner (§9.2), so a service invocation

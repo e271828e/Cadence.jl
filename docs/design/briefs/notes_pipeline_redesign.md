@@ -36,8 +36,9 @@ it is why the deployment and the run gain types of their own.
 2. `Build` and `Deployment` carry `warnings`. A stratum that throws renders
    its warnings with the collection; one that completes carries them on the
    artifact and the entry point logs each once at return.
-3. A scoped channel bound by the walk lets a helper running inside a
-   declaration body append to the build's warnings. A standalone call
+3. A scoped channel bound by the build around its three steps (amended by
+   increment 44's review; the walk was named first) lets a helper running
+   inside a declaration body append to the build's warnings. A standalone call
    outside any build logs directly.
 4. Appendix C's `logged` policy widens to any artifact-producing call, build
    included. The collected-warning slot stays open and empty (D-084 stands).
