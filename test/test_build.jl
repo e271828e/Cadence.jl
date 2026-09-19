@@ -1568,6 +1568,75 @@ function build_activations()
     end
 end
 
+# --- the build's warnings (§9.1, §13.2, D-250) --------------------------------
+# No build-side producer of a warning exists yet — `EmptyFaceSelection` is
+# increment 45's — so the channel is exercised by a test-local warning kind and
+# two assemblies whose declaration bodies raise it. The body is
+# `child_connections` because the walk reads it exactly once, where it reads
+# `input_connections` and `output_connections` twice apiece (the face pass and
+# the face-name check); what is under test is the channel, not how often the
+# walk reads a declaration.
+
+struct SyntheticWarning <: Diagnostic
+    note::String
+end
+severity(::SyntheticWarning) = :warning
+message(d::SyntheticWarning) = d.note
+
+# An assembly whose declaration body warns through the channel, and whose model
+# is otherwise sound: the build completes and carries the warning.
+struct WarningWires <: AbstractComponent
+    c::Gain
+end
+child_connections(::WarningWires) = (_warn!(SyntheticWarning("synthetic")); ())
+input_connections(::WarningWires) = ("in" => "c/e",)
+output_connections(::WarningWires) = ("c/out" => "out",)
+
+# The same warning under a model that cannot build: nothing feeds the gain's
+# input, so the structure step throws and the warning travels with it.
+struct WarningUnfed <: AbstractComponent
+    c::Gain
+end
+child_connections(::WarningUnfed) = (_warn!(SyntheticWarning("unfed")); ())
+output_connections(::WarningUnfed) = ("c/out" => "out",)
+
+function build_warnings()
+    @testset "a warning raised inside a declaration body lands on the Build and is logged once at return (§9.1, D-250)" begin
+        # A declaration body has no artifact in hand, so it appends through the
+        # channel `build` binds. The completed build carries the record and the
+        # entry point logs it once at return — logging is presentation, never a
+        # home — and the binding is gone once `build` returns.
+        b = @test_logs (:warn, r"^SyntheticWarning: synthetic") build(WarningWires(Gain(1.0)))
+        @test only(warnings(b)) isa SyntheticWarning
+        @test only(warnings(b)).note == "synthetic"
+        @test BUILD_WARNINGS[] === nothing
+    end
+
+    @testset "a step that throws carries its warnings beside the collection (§9.1, D-250)" begin
+        # The artifact that would have carried the warning never returned, so
+        # the throw renders it beside the collection. Nothing is logged: the log
+        # line at return belongs to a build that completed. `failure` returns the
+        # throw rather than propagating it, so `@test_logs` sees the whole call.
+        e = @test_logs failure(() -> build(WarningUnfed(Gain(1.0))))
+        @test kinds(e) == [UnconnectedInput]
+        @test length(e.warnings) == 1
+        # A warning joins no collection (Appendix C): the accessors never see it.
+        @test only(diagnostics(e)) isa UnconnectedInput
+    end
+
+    @testset "outside a build the helper logs directly (D-250)" begin
+        # Unbound channel, no artifact to append to, and a log line is the honest
+        # fallback.
+        @test_logs (:warn, r"^SyntheticWarning") _warn!(SyntheticWarning("x"))
+    end
+
+    @testset "the helper refuses an error-severity kind (D-250)" begin
+        # An error-severity kind is collected or thrown, never warned.
+        @test_throws InternalInvariant _warn!(UnconnectedInput(path = "a", face = :v,
+                                                               declared = Float64, level = "a"))
+    end
+end
+
 function test_build()
     build_probe_refusals()
     build_user_code_framing()
@@ -1585,4 +1654,5 @@ function test_build()
     build_barrier()
     build_embed_accept()
     build_activations()
+    build_warnings()
 end

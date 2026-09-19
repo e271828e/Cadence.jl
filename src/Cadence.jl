@@ -2,6 +2,7 @@ module Cadence
 
 using StaticArrays, LinearAlgebra, ForwardDiff
 using Random: Xoshiro, randn
+using Base.ScopedValues: ScopedValue, with
 
 include("leaves.jl")
 include("diagnostics.jl")

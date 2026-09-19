@@ -24,11 +24,13 @@ Where the reason is not given here, the cited decision carries it:
   exposed state field is returned from `output_state` (D-252), delivered by
   increment 43. The build-side types: `Structure`, `Dataflow` and `Events` as
   named step products, one activation dictionary on the `Build`, and the
-  structural consumers reading them instead of the nominal activation (D-253).
+  structural consumers reading them instead of the nominal activation (D-253),
+  delivered by increment 44.
   §8.8's selectors: the `select` predicate, `:multiple_selectors` and
   `EmptyFaceSelection` (D-251). The warning homes: the artifact criterion,
-  `warnings` on `Build` and `Deployment`, the scoped channel, and
-  `EmptyGreedyClaim` into the roster entry's cell (D-250). `Deployment` and
+  `warnings` on the `Build` and the scoped channel the build binds, delivered
+  by increment 44; `Deployment`'s own list waits on increment 46, and
+  `EmptyGreedyClaim` into the roster entry's cell on increment 47 (D-250). `Deployment` and
   `Schedule` as artifacts, with D-187's grid diagnostics (leave-one-out
   factors, prime attribution, nearest non-refining offsets, the derivation
   line and `GridUtilization`) landing on the deployment (D-254). The run:

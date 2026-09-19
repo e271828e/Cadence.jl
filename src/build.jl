@@ -684,25 +684,44 @@ mode: each listed scalar's activation is materialized eagerly instead of at firs
 request.
 """
 function build(root::AbstractComponent; activations::Tuple = ())
-    diags = Diagnostic[]
-    w = Walk(root)
-    flatten!(w, root, diags)            # structure, tiers, claims, the obligation check
-    _check_event_declarations(w, diags)
-    # The dependency rule (§13.1, D-229): the wire pass reads the wiring, which a
-    # dirty walk never produced, so it runs on a clean walk alone.
-    isempty(diags) || throw(DiagnosticError(diags))
-    s = wire!(w)                        # the derivation, on a clean walk
-    _check_wires(s, diags)
-    # The structure step's barrier (§13.1, D-229): every pass that ran merges here, and
-    # nothing derived from the wiring is computed before it. No cascade
-    # suppression — a typo'd wire reports its unknown port *and* the input it
-    # left unfed.
-    isempty(diags) || throw(DiagnosticError(diags))
-    df, ev, nominal = _nominal(s)
-    b = Build(s, df, ev, Dict{DataType,Any}(Float64 => nominal), ReentrantLock(),
-              Diagnostic[])
-    for A in activations
-        activation(b, A)
+    # One binding around all three steps, and one list (§9.1, D-250): a helper
+    # inside a declaration body appends to it without knowing the build, the
+    # completed `Build` carries it, and a throw leaving the build takes it along.
+    ws = Diagnostic[]
+    b = try
+        with(BUILD_WARNINGS => ws) do
+            diags = Diagnostic[]
+            w = Walk(root)
+            flatten!(w, root, diags)    # structure, tiers, claims, the obligation check
+            _check_event_declarations(w, diags)
+            # The dependency rule (§13.1, D-229): the wire pass reads the wiring, which a
+            # dirty walk never produced, so it runs on a clean walk alone.
+            isempty(diags) || throw(DiagnosticError(diags))
+            s = wire!(w)                # the derivation, on a clean walk
+            _check_wires(s, diags)
+            # The structure step's barrier (§13.1, D-229): every pass that ran merges here, and
+            # nothing derived from the wiring is computed before it. No cascade
+            # suppression — a typo'd wire reports its unknown port *and* the input it
+            # left unfed.
+            isempty(diags) || throw(DiagnosticError(diags))
+            df, ev, nominal = _nominal(s)
+            b = Build(s, df, ev, Dict{DataType,Any}(Float64 => nominal), ReentrantLock(), ws)
+            for A in activations
+                activation(b, A)
+            end
+            b
+        end
+    catch e
+        # The rewrap sits here, not at each barrier: a barrier throws the
+        # collection its own passes produced and stays ignorant of the channel,
+        # and only the entry point knows the whole build's warnings (D-250).
+        (e isa DiagnosticError && !isempty(ws)) && throw(DiagnosticError(e.carried, ws))
+        rethrow()
+    end
+    # The completed build carries the record; the entry point logs each warning
+    # once at return, through the standard backend (Appendix C's `logged`).
+    for d in ws
+        @warn logline(d)
     end
     b
 end
@@ -866,6 +885,15 @@ function activation(b::Build, ::Type{T}) where {T}
     act = _activate(b.structure, b.dataflow, nominal, T)
     (@lock b.lock get!(b.activations, T, act))::Activation{T}
 end
+
+"""
+    warnings(b::Build) → Vector{Diagnostic}
+
+The warnings the build raised (§9.2, D-250). The build produces artifacts, so
+its warnings live on them; the log line each one got at return is presentation,
+never the home. `Deployment` and `Simulation` answer the same generic.
+"""
+warnings(b::Build) = b.warnings
 
 # The nominal evaluation (§9.1, D-253, D-259): the build's one
 # evaluation-feeds-structure step, a function of the structure alone. It runs the

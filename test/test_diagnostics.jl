@@ -572,8 +572,11 @@ function diagnostics_kind_set()
 
         # Every kind of the closed set has an occurrence above: the coverage
         # check is over `Diagnostic`'s own subtypes, so adding a kind without an
-        # occurrence fails here rather than going unrendered.
-        @test Set(typeof.(occurrences)) == Set(subtypes(Diagnostic))
+        # occurrence fails here rather than going unrendered. The set is the
+        # framework's own — a test-local kind, such as `test_build.jl`'s
+        # `SyntheticWarning`, is a fixture and answers to no roster here.
+        @test Set(typeof.(occurrences)) ==
+              Set(T for T in subtypes(Diagnostic) if parentmodule(T) === parentmodule(Diagnostic))
 
     end
 
@@ -600,10 +603,27 @@ function diagnostics_kind_set()
         @test startswith(lines[4], "  FaceNameIllegal: ") && occursin("`r/s`", lines[4])
         @test startswith(lines[5], "  FaceNameIllegal: ") && occursin("`p/q`", lines[5])
 
+        # The build's warnings so far ride the throw (§9.1, D-250): the count line
+        # names them beside the diagnostics, singular at one, and each renders as
+        # its own line after the collection. They join no collection, so `kinds`
+        # and `diagnostics` read exactly what they read without them.
+        w = TrimCommitResiduals(residuals = [(:a, 1.0, 0.1)])
+        ew = DiagnosticError(diagnostics(e), Diagnostic[w])
+        wlines = split(sprint(showerror, ew), '\n')
+        @test wlines[1] == "DiagnosticError: 4 diagnostics, 1 warning"
+        @test wlines[2:5] == lines[2:5]
+        @test startswith(wlines[end], "  TrimCommitResiduals: ")
+        @test kinds(ew) == kinds(e) && diagnostics(ew) == diagnostics(e)
+
         # A fail-fast site's single diagnostic renders on one line, no count.
         d = UnconnectedInput(path = "a", face = :v, declared = Float64, level = "a")
         @test sprint(showerror, DiagnosticError(d)) ==
               "DiagnosticError: UnconnectedInput: " * message(d)
+
+        # The fail-fast carrier renders its one line and then the warning's.
+        dwlines = split(sprint(showerror, DiagnosticError(d, Diagnostic[w])), '\n')
+        @test dwlines[1] == "DiagnosticError: UnconnectedInput: " * message(d)
+        @test only(dwlines[2:end]) == "  TrimCommitResiduals: " * message(w)
 
         # The parameter is the policy, and the outer constructors choose it (D-222).
         @test DiagnosticError(d) isa DiagnosticError{typeof(d)}

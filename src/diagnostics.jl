@@ -80,14 +80,21 @@ step barrier holding the whole collection its passes returned (§13.1). The
 type parameter is the policy (§13.2, D-222): the diagnostic's kind for a
 fail-fast throw, `Vector{Diagnostic}` for a collected one. Rendering, `kinds`
 and the catch site's species rule dispatch on it.
+
+`warnings` carries the build's warnings so far, and is empty everywhere else: a
+step that throws renders its warnings with the collection it throws, because the
+artifact that would have carried them never returned (§9.1, D-250). A warning
+joins no collection, so `diagnostic`, `diagnostics` and `kinds` never see one.
 """
 struct DiagnosticError{P <: Union{Diagnostic, Vector{Diagnostic}}} <: Exception
     carried::P
+    warnings::Vector{Diagnostic}
 end
 
-DiagnosticError(d::Diagnostic) = DiagnosticError{typeof(d)}(d)
-DiagnosticError(ds::AbstractVector{<:Diagnostic}) =
-    DiagnosticError{Vector{Diagnostic}}(Vector{Diagnostic}(ds))
+DiagnosticError(d::Diagnostic, ws::Vector{Diagnostic} = Diagnostic[]) =
+    DiagnosticError{typeof(d)}(d, ws)
+DiagnosticError(ds::AbstractVector{<:Diagnostic}, ws::Vector{Diagnostic} = Diagnostic[]) =
+    DiagnosticError{Vector{Diagnostic}}(Vector{Diagnostic}(ds), ws)
 
 "The one diagnostic a fail-fast throw, or a `StepError` species, carries."
 diagnostic(e::DiagnosticError{<:Diagnostic}) = e.carried
@@ -109,16 +116,28 @@ function _groups(ds::Vector{Diagnostic})
     [sort(filter(d -> typeof(d) === T, ds); by = path, alg = MergeSort) for T in order]
 end
 
-Base.showerror(io::IO, e::DiagnosticError{<:Diagnostic}) =
-    print(io, "DiagnosticError: ", nameof(typeof(e.carried)), ": ", message(e.carried))
-
-function Base.showerror(io::IO, e::DiagnosticError{Vector{Diagnostic}})
-    ds = e.carried
-    print(io, "DiagnosticError: ", length(ds), " diagnostics")
-    for g in _groups(ds), d in g
+# The warnings tail both renderings end with, one line per warning in
+# first-appearance order and in the carrier's own layout (§9.1, D-250).
+function _show_warnings(io::IO, ws::Vector{Diagnostic})
+    for d in ws
         print(io, "\n  ", nameof(typeof(d)), ": ", message(d))
     end
     nothing
+end
+
+function Base.showerror(io::IO, e::DiagnosticError{<:Diagnostic})
+    print(io, "DiagnosticError: ", nameof(typeof(e.carried)), ": ", message(e.carried))
+    _show_warnings(io, e.warnings)
+end
+
+function Base.showerror(io::IO, e::DiagnosticError{Vector{Diagnostic}})
+    ds, ws = e.carried, e.warnings
+    print(io, "DiagnosticError: ", length(ds), " diagnostics")
+    isempty(ws) || print(io, ", ", length(ws), length(ws) == 1 ? " warning" : " warnings")
+    for g in _groups(ds), d in g
+        print(io, "\n  ", nameof(typeof(d)), ": ", message(d))
+    end
+    _show_warnings(io, ws)
 end
 
 """
@@ -130,6 +149,28 @@ policy): the same kind-name-leading line the carrier prints, minus the carrier
 over both would be two unrelated meanings sharing a name.
 """
 logline(d::Diagnostic) = string(nameof(typeof(d)), ": ", message(d))
+
+"""
+The build's warning channel (§9.1, D-250). `build` binds it around its three
+steps, so a helper raising a warning from inside a declaration body appends to
+the build's list without knowing the build — a declaration body has no artifact
+in hand. Unbound is the honest standalone case, and `_warn!` logs there instead.
+"""
+const BUILD_WARNINGS = ScopedValue{Union{Nothing,Vector{Diagnostic}}}(nothing)
+
+"""
+Raise a warning (§9.1, D-250): append it to the bound build's list, or, outside
+any build, log it directly. Logging is presentation and never a home, so the
+bound case does not log here — `build` logs each warning once at return.
+"""
+function _warn!(d::Diagnostic)
+    severity(d) === :warning ||
+        throw(InternalInvariant("`$(nameof(typeof(d)))` is an error-severity kind: it is " *
+                                "collected or thrown, never warned"))
+    ws = BUILD_WARNINGS[]
+    ws === nothing ? (@warn logline(d)) : push!(ws, d)
+    nothing
+end
 
 # --- the runtime carrier (§13.4, D-059) ---------------------------------------
 
