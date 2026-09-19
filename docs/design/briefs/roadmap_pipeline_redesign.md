@@ -203,11 +203,10 @@ memo hands out a copy, two test gaps closed). The brief folded in increment
 44's deferred residue as a stage ahead of the roadmap's two: the walk
 records each assembly's evaluated face lists under `WALK_FACES`, so the
 primitives read them once per call and a warning inside a boundary body
-fires once whatever asks. The review left one spec residue for a ruling:
-Appendix C's `logged` bullet still says each kind fires at most once per
-call with its payload drawn from the returned artifact, the pre-D-250
-service-call sentence, while `EmptyFaceSelection` fires once per raising
-site with that site's payload.
+fires once whatever asks. The review found one spec residue, Appendix C's
+`logged` bullet still carrying the pre-D-250 once-per-call sentence, ruled
+and amended after the push: a warning raised at a call site inside the call
+fires once per raising site with that site's payload.
 
 Items 7–10 with the names above. Two stages, small.
 

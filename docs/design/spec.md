@@ -11043,9 +11043,12 @@ The policies:
   build and the `Deployment` constructor included ([D-250][d-250]). The
   warning lives on the artifact the call returns, and the entry point logs it
   once at return through the standard logging backend. It is part of no
-  collection. There is no rate limit. Each kind fires at most once per call,
-  and its payload is drawn from the artifact the call returns ([§9.2][s9-2],
-  [§13.2][s13-2], [§14.8][s14-8]).
+  collection. There is no rate limit. A warning about the artifact itself
+  fires at most once per call, and its payload is drawn from the artifact the
+  call returns ([§9.2][s9-2], [§13.2][s13-2], [§14.8][s14-8]). A warning
+  raised at a call site inside the call, `EmptyFaceSelection` in a
+  passthrough helper ([§8.8][s8-8]), fires once per raising site and carries
+  that site's payload, so one artifact may hold several of one kind.
 - **rate-limited**. The per-occurrence runtime warning stream of
   [§13.2][s13-2], carried by the per-writer diagnostic cells ([§11.8][s11-8])
   and bounded by them. Every kind reported this way is bounded per writer
