@@ -166,6 +166,10 @@ at spawn and emptied at run end, which is what lets `publish!` read
 `task_state` off the handles the loop owns (D-193); while stopped it is
 empty, and every device reads `:none` — device tasks are run-scoped
 observables (§12.4).
+
+`recorder` is §11.5's trace register (D-255): the drain's own bookkeeping, held
+here because the drain is what every writer's thunk runs and the plane holds
+the writers. It outlives every run and points at the current run's `Trace`.
 """
 mutable struct DataPlane
     roster::Vector{RosterEntry}     # attachment order (§11.3): the drain applies in it
@@ -176,17 +180,18 @@ mutable struct DataPlane
     run_tasks::Dict{Int,Task}       # the run's device tasks, by device id (§12.2, D-193)
     claimedby::Dict{Symbol,String}  # face → incumbent: the exclusivity index
     store::Any                      # the model's store bundle, captured into the drain thunks
-    next_id::Int
+    recorder::TraceRegister         # §11.5's drain bookkeeping: the plane holds the writers,
+    next_id::Int                    # and this is one more piece of what a writer's drain does
 end
 
-# The register is an argument because the drain thunks close over it (§11.5):
-# with the roster empty the harness writer is the sole writer, index 1 of the
-# first set the header captures, and `_install_writers!` re-fixes that at the
-# capture and at every roster change.
-function DataPlane(layout::Layout, store, reg)
+# The register is built ahead of the plane because the drain thunks close over
+# it (§11.5): with the roster empty the harness writer is the sole writer, index
+# 1 of the first set a run's trace records, and `_install_writers!` re-fixes
+# that at each door and at every roster change.
+function DataPlane(layout::Layout, store, reg::TraceRegister)
     w = Writer(layout, Symbol[f for (f, _) in layout.root_inputs])
     DataPlane(RosterEntry[], w, _drain_thunk(store, w, reg, 1), DiagCell(EMPTY_DIAG),
-              WriterAccount(), Dict{Int,Task}(), Dict{Symbol,String}(), store, 1)
+              WriterAccount(), Dict{Int,Task}(), Dict{Symbol,String}(), store, reg, 1)
 end
 
 """
@@ -230,7 +235,8 @@ The roster change is also where the trace's schema list grows (§11.5): the
 current writer set is appended and every drain thunk recompiled against its
 new index, which is what `_install_writers!` does at the tail here.
 """
-function reclaim!(plane::DataPlane, layout::Layout, reg)
+function reclaim!(plane::DataPlane, layout::Layout)
+    reg = plane.recorder
     empty!(plane.claimedby)
     for e in plane.roster, f in e.writer.faces
         plane.claimedby[f] = _who(e)

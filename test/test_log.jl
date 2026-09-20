@@ -56,7 +56,7 @@ function test_log()
         run!(sim; t_end = 4.0)
         snaps = logged(sim)
         @test [s.frame for s in snaps] == [0, 16, 32, 40]    # two generations in
-        @test sim.log.live == 2                              # the bound counts the middle alone
+        @test sim.run.log.live == 2                              # the bound counts the middle alone
     end
 
     @testset "re-decimation: stride doubles, coverage stays global, the bound holds continuously (§11.2, D-137)" begin
@@ -65,7 +65,7 @@ function test_log()
         ok_bound = ok_ends = ok_sorted = true
         for k in 1:128                                       # one frame at a time: every
             step!(sim; frames = 1)                           # intermediate state is checked
-            ok_bound &= sim.log.live ≤ 8
+            ok_bound &= sim.run.log.live ≤ 8
             snaps = logged(sim)
             ok_ends &= snaps[1].frame == 0 && snaps[end].frame == k
             ts = [s.t for s in snaps]
@@ -75,8 +75,8 @@ function test_log()
         # 128 = 16·8 boundaries, four generations in: the middle sits at exactly
         # stride·(1..max) — coverage global at the effective stride, gap-free —
         # and the retained final boundary dedups against the terminal endpoint.
-        @test sim.log.stride == 16
-        @test [s.frame for s in sim.log.snaps] == collect(16:16:128)
+        @test sim.run.log.stride == 16
+        @test [s.frame for s in sim.run.log.snaps] == collect(16:16:128)
         @test length(logged(sim)) == 9
 
         # The effective stride composes with the authored one: log_every · 2^k.
@@ -84,7 +84,7 @@ function test_log()
         init!(sim2, fragment(inputs = (in = 0.0,)))
         run!(sim2; t_end = 4.0)
         @test [s.frame for s in logged(sim2)] == [0, 8, 16, 24, 32, 40]
-        @test sim2.log.stride == 16                          # 2 · 2³
+        @test sim2.run.log.stride == 16                          # 2 · 2³
     end
 
     @testset "log = false retains nothing; publication is upstream of the switch (§11.2)" begin

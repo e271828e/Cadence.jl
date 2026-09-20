@@ -652,18 +652,6 @@ SnapshotLog(enabled::Bool, every::Int, max::Int) =
     SnapshotLog(enabled, every, max, every, nothing, nothing,
                 Union{Nothing,Snapshot}[], 0, 0)
 
-# A warm restart is a new trajectory (§10.6's register reset, carried through):
-# the log starts over, its boundary zero a fresh first endpoint.
-function _reset!(L::SnapshotLog)
-    L.stride = L.every
-    L.first = nothing
-    L.last = nothing
-    empty!(L.snaps)
-    L.live = 0
-    L.cursor = 0
-    nothing
-end
-
 """
 One published boundary enters the log (§11.2), on the loop task, right behind
 the release-store: boundary zero lands in `first`, a stride multiple is

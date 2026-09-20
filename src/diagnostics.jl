@@ -1887,8 +1887,10 @@ message(d::NotAttached) =
 "§11.5, §12.7: the trace's header disagrees with the target build, its scalar or its deployment binding."
 Base.@kwdef struct ReplayHeaderMismatch <: Diagnostic
     what::Symbol                             # :store | :root_input | :deployment | :scalar | :frame
-    path::String = ""                        # the component path, for the per-component :store arms
-    name::Symbol = Symbol("")                # :sizes|:paths|:s|:m, the root-input face, or the parameter
+    path::String = ""                        # the component path: the per-component :store arms,
+                                             # and a :deployment schedule row (§12.7)
+    name::Symbol = Symbol("")                # :sizes|:paths|:s|:m, the root-input face, the
+                                             # deployment parameter, or the schedule column
     expected::Any = nothing                  # the trace's value
     found::Any = nothing                     # the target's
 end
@@ -1905,10 +1907,16 @@ message(d::ReplayHeaderMismatch) =
     "`Simulation{$(d.found)}` — the scalar is a structural fact of the deployment, and a " *
     "trace re-drives the build it was recorded on (§12.7)" :
     d.what === :deployment ?
-    "replay: the recording ran at `$(d.name)` = $(d.expected) and this simulation is bound " *
-    "at $(d.found) — the seven trajectory-determining deployment parameters are compared, " *
-    "never taken as a what-if: a deployment change moves the times the frame-ordinal " *
-    "batches apply at, which is different inputs rather than a modified model (§12.7)" :
+    (isempty(d.path) ?
+     "replay: the recording ran at `$(d.name)` = $(d.expected) and this simulation is bound " *
+     "at $(d.found) — the seven trajectory-determining deployment parameters are compared, " *
+     "the schedule with them, never taken as a what-if: a deployment change moves the times " *
+     "the frame-ordinal batches apply at, which is different inputs rather than a modified " *
+     "model (§12.7)" :
+     "replay: the schedule row for $(_at_path(d.path)) recorded `$(d.name)` = " *
+     "$(repr(d.expected)) and this deployment binds $(repr(d.found)) — the schedule is " *
+     "compared with every column, the anchor and provenance included, so a rate re-declared " *
+     "through a different anchor at the same tick table is a different deployment (§12.7)") :
     d.what === :frame ?
     "replay: $(d.name)'s record is stamped frame $(d.found), which is outside the " *
     "recording's own $(d.expected) — a batch replays at the frame ordinal it was drained " *

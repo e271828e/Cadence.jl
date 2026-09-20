@@ -36,7 +36,7 @@ function test_lifecycle()
     @testset "the five states, and the gates between them (§12.6)" begin
         sim = Simulation(feedback_model(); h = 1//50)
         @test lifecycle(sim) === :built
-        @test termination(sim) === nothing
+        @test termination(sim) === nothing && !closed(sim.run)
         diag = carried(@test_throws DiagnosticError{MissingInit} run!(sim; t_end = 1.0))
         @test diag.op === :run! && diag.status === :built
         diag2 = carried(@test_throws DiagnosticError{MissingInit} step!(sim; t_end = 1.0))
@@ -46,7 +46,7 @@ function test_lifecycle()
         @test lifecycle(sim) === :initialized
         init!(sim, fragment(inputs = (ref = 0.0,)))  # a warm restart from initialized is legal
         run!(sim; t_end = 1.0)
-        @test lifecycle(sim) === :stopped
+        @test lifecycle(sim) === :stopped && closed(sim.run)
         diag = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim; t_end = 1.0))
         @test diag.op === :run! && diag.status === :stopped
         @test diag.legal == [:initialized]               # §12.6: the advance entries' one state
@@ -54,7 +54,28 @@ function test_lifecycle()
         @test diag2.op === :step! && diag2.status === :stopped
         init!(sim, fragment(inputs = (ref = 0.0,)))  # the supported cycle reopens it
         @test lifecycle(sim) === :initialized
-        @test termination(sim) === nothing               # the record cleared with the trajectory
+        @test termination(sim) === nothing && !closed(sim.run)   # a fresh run, not a cleared one
+    end
+
+    @testset "the placeholder run, and the object each door replaces (§12.6, D-255)" begin
+        # Every accessor has a run to read before the first `init!`: the
+        # placeholder carries `t₀ = 0`, `:live`, an empty log and trace and no
+        # termination, and the lifecycle is what says it never started.
+        sim = Simulation(feedback_model(); h = 1//50)
+        r0 = sim.run
+        @test r0.t₀ === 0.0 && mode(sim) === :live && !closed(r0)
+        @test isempty(logged(sim)) && termination(sim) === nothing
+        d = carried(@test_throws DiagnosticError{MissingInit} trace(sim))
+        @test d.op === :trace && d.status === :built
+
+        # `init!` allocates a fresh run rather than clearing this one (§12.6), and
+        # the loop's tail writes the termination onto the run it ran.
+        init!(sim, fragment(inputs = (ref = 0.0,)))
+        r1 = sim.run
+        @test r1 !== r0 && r1.t₀ === 0.0 && !closed(r1)
+        run!(sim; t_end = 0.1)
+        @test sim.run === r1 && closed(r1)
+        @test termination(sim) === r1.termination
     end
 
     @testset "the freeze is the lifecycle's :running — init! and run! refuse it too (§12.6)" begin
@@ -307,7 +328,7 @@ function test_lifecycle()
         stage!(sim, "in" => true)                        # armed: frame 1's drain applies it,
         # frame 1's integration throws (§13.4's synchronous rethrow, after the tail)
         @test_throws StepError run!(sim; t_end = 5.0)
-        @test lifecycle(sim) === :errored
+        @test lifecycle(sim) === :errored && closed(sim.run)
         t = termination(sim)
         # the loop's one catch site wrapped it, and the cause is one level down
         @test t.source isa LoopError && t.source.exception isa StepError

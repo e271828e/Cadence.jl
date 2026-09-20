@@ -87,8 +87,9 @@ every record (D-233); `policy` is the terminating advance's `StopPolicy`, so
 `EndTimeReached`'s bound is read off the record rather than off a constructor
 default that no longer exists (D-255); `source` is the typed source above;
 `residue` is what the run's-end sweep collected — recorded here and presented
-through the logging backend, never published (D-201, D-203). `init!` clears the
-record with the trajectory.
+through the logging backend, never published (D-201, D-203). It lives on the
+`Run`, written once by the loop's tail, so a fresh run starts without one
+(§12.6, D-255).
 """
 struct TerminationRecord{T}
     t::T
@@ -115,9 +116,9 @@ end.
 the §11.3 freeze, and it deliberately spans the whole of `run!` — tail
 included, the terminal state landing in the outermost `finally` — while
 `stopped` flips at tail step (1), so device loops exit while the joins are
-still ahead. `termination` is the §13.5 record beside it, written by the
-run's own task before the terminal state's release-store; readers reach both
-through `lifecycle(sim)`/`termination(sim)`, never the raw fields.
+still ahead. A run's *outcome* is not a control surface, so §13.5's termination
+record is the `Run`'s and not here (§12.1, §12.6, D-255); the control plane is
+what anyone may poke.
 
 `cond` and `counter` are §12.3's two artifacts: the counter counts *published
 boundaries* — grid, `t*`, boundary zero — mirrored under the lock right
@@ -133,9 +134,8 @@ mutable struct Control
     cond::Threads.Condition
     counter::Int
     @atomic lifecycle::Symbol
-    termination::Union{Nothing,TerminationRecord}
 end
-Control() = Control(nothing, true, Threads.Condition(), 0, :built, nothing)
+Control() = Control(nothing, true, Threads.Condition(), 0, :built)
 
 # The stop word's one write path (§12.1, D-203): first CAS from empty wins —
 # the same arbitration as the loop reacting to the first holding stop face —

@@ -2,27 +2,57 @@
 # seam (§10.2) and the phase-body accessor (§9.7). The framework owns the loop;
 # the one delegated operation is "advance the continuous state from `t` by `h`".
 
+"""
+The state one run owns (§12.6, D-255): the origin, the input mode, the log and
+the trace, fixed by the constructing entry point; the stop policy the current
+advance bound, and the termination record the loop's tail writes once. `init!`
+and `replay!` construct one, and a change of mode is a change of run — `live!`,
+and the flip at a recording's end (D-218).
+
+A `Simulation` is built with a placeholder run — `t₀ = zero(T)`, `:live`, an
+empty log and trace, no termination — so every accessor has a run to read;
+`lifecycle(sim)` is what says whether that run ever started.
+"""
+mutable struct Run{T}
+    const t₀::T
+    const mode::Symbol                            # :live | :replay (§12.6, D-218)
+    const log::SnapshotLog                        # §11.2's retained snapshots
+    const trace::Trace{T}                         # §11.5's recording of this run
+    policy::StopPolicy                            # the current advance's (§13.5)
+    termination::Union{Nothing,TerminationRecord{T}}   # the tail's one write (§13.5)
+end
+
+"""
+    closed(run)
+
+True once the loop's tail has written the run's termination record (§12.6,
+§13.5, Appendix B) — the run's own answer to "did it end?", beside
+`lifecycle(sim)`'s answer about the simulation.
+"""
+closed(run::Run) = run.termination !== nothing
+
 mutable struct Simulation{T,E,M}
-    exec::E                       # the nominal executor this simulation owns (§9.2, §9.7)
-    deployment::Deployment        # what the grid parameters fixed (§9.1, D-254), and through it
+    const deployment::Deployment  # what the grid parameters fixed (§9.1, D-254), and through it
                                   # the build — the schema authority a condition resolves
                                   # against (§14.3). Held once: a second reference would be
                                   # an invariant with no enforcer (§12.1, D-256)
-    join_timeout::Float64         # the shutdown tail's join cap, seconds of wall clock (§12.4)
-    policy::StopPolicy            # the policy the current advance declared and bound (§13.5, D-255)
-    has_localized::Bool           # any localized event compiled in: the frame loop's fast-path key
-    chunk_size::Int               # the unroll width the executor was compiled at, retained so a
-                                  # service can compile one of its own exactly as this was
-    stepper::M                    # the seam's backend (§10.2), owning its own scratch
-    xnext::Vector{T}              # the retained arrival pair (§10.4): xₙ₊₁ saved before trials clobber
-    ẋnext::Vector{T}              # the buffer, ẋₙ₊₁ paid only past a validated trigger
-    plane::DataPlane              # the §11.3 roster and harness writer, mutable at stopped-sim points
-    published::Published          # §11.2's `@atomic latest` holder
-    control::Control              # §12.1's stop word, §12.4's sticky status, §12.3's wait (devices.jl)
-    log::SnapshotLog              # §11.2's retained snapshots, loop-task bookkeeping
-    trace::TraceRegister          # §11.5's input trace: the header and its sparse records
-    loop_diag::DiagCell           # the loop's own diagnostic cell (§11.8): the budget degradations
-    loop_acct::WriterAccount      # and the account behind it
+    const exec::E                 # the nominal executor this simulation owns (§9.2, §9.7)
+    run::Run{T}                   # §12.6's run state: rebound at each door (D-255)
+    const plane::DataPlane        # the §11.3 roster, the harness writer and §11.5's recorder
+    const control::Control        # §12.1's stop word, §12.4's sticky status, §12.3's wait (devices.jl)
+    # The nine fields below still sit here; D-256 moves each to its owner, and
+    # the comment names the one it goes to.
+    const join_timeout::Float64   # → `Control`: the shutdown tail's join cap, seconds (§12.4)
+    const has_localized::Bool     # → the executor: any localized event compiled in, the
+                                  # frame loop's fast-path key
+    const chunk_size::Int         # → the executor: the unroll width it was compiled at, retained
+                                  # so a service can compile one of its own exactly as this was
+    const stepper::M              # → the executor: the seam's backend (§10.2), own scratch
+    const xnext::Vector{T}        # → the executor: the retained arrival pair (§10.4), xₙ₊₁ saved
+    const ẋnext::Vector{T}        # → the executor: ẋₙ₊₁, paid only past a validated trigger
+    const published::Published    # → the plane: §11.2's `@atomic latest` holder
+    const loop_diag::DiagCell     # → the plane: the loop's own diagnostic cell (§11.8)
+    const loop_acct::WriterAccount  # → the plane: the account behind it
 end
 
 """
@@ -87,6 +117,10 @@ density before anything is dropped — with `Inf` the explicit opt-out). Unlike
 every deployment keyword they are **view policies, never trajectory-determining**:
 two simulations differing only here produce bitwise-identical trajectories,
 retention being reference bookkeeping over what publication already built.
+
+The recording flags are carried to `init!`, which is what builds the run with
+its log and trace (§12.6, D-255, Appendix B): the three log flags ride on the
+placeholder run, the trace switch on the register the plane holds.
 """
 function Simulation(d::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
                     trace = true, log = true, log_every = 1,
@@ -108,13 +142,17 @@ function Simulation(d::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
     ex = compile(d.build, act, sch.D, sch.Φ, sch.Δt; chunk_size)
     stepper = d.algorithm(T, length(ex.xbuf))
     reg = TraceRegister(trace)     # the drain thunks close over it, so it precedes the plane
+    # §12.6's placeholder run (D-255): the recording flags ride on it until `init!`
+    # reads them off and builds the run that records for real.
+    run = Run{T}(zero(T), :live,
+                 SnapshotLog(log, Int(log_every), log_max === Inf ? typemax(Int) : Int(log_max)),
+                 Trace{T}(nothing, Pair{String,Vector{Symbol}}[], TraceBatch[], 0),
+                 StopPolicy(Inf, Symbol[], Any[]), nothing)
     Simulation{T,typeof(ex),typeof(stepper)}(
-        ex, d, Float64(join_timeout),
-        StopPolicy(Inf, Symbol[], Any[]), any(ex.events.localized), chunk_size,
+        d, ex, run, DataPlane(act.layout, ex.store, reg), Control(),
+        Float64(join_timeout), any(ex.events.localized), chunk_size,
         stepper, zeros(T, length(ex.xbuf)), zeros(T, length(ex.xbuf)),
-        DataPlane(act.layout, ex.store, reg), Published(nothing), Control(),
-        SnapshotLog(log, Int(log_every), log_max === Inf ? typemax(Int) : Int(log_max)),
-        reg, DiagCell(EMPTY_DIAG), WriterAccount())
+        Published(nothing), DiagCell(EMPTY_DIAG), WriterAccount())
 end
 
 # The two sugar forms, each *defined as* the composition (§9.2, D-254): every
@@ -251,21 +289,22 @@ exactly when a halt lands there, the records exhausted. `init!` and a fresh
 terminal state makes it moot — nothing advances until one of those three doors
 is taken.
 """
-mode(sim::Simulation) = sim.trace.mode
+mode(sim::Simulation) = sim.run.mode
 
 """
     termination(sim)
 
-§13.5's termination record (devices.jl, D-203) — the run's outcome, `nothing`
-unless the lifecycle is terminal: the final snapshot's boundary time, the
+§13.5's termination record (devices.jl, D-203) — the current run's outcome: the
+final snapshot's boundary time, the terminating advance's `StopPolicy`, the
 typed source that ended the run (`EndTimeReached`, `ModelRequestedStop` with
 the face, `ControlRequestedStop` with its issuer, or `LoopError` with the
 cause retained), and the tail residue the run's-end sweep collected.
+
+`nothing` until the loop's tail writes it, which is `closed(sim.run)`. No
+lifecycle gate is needed for that: `init!` and `replay!` each build a *fresh*
+run (§12.6, D-255), so no record of a previous one is reachable here.
 """
-function termination(sim::Simulation)
-    lc = @atomic :acquire sim.control.lifecycle
-    lc === :stopped || lc === :errored ? sim.control.termination : nothing
-end
+termination(sim::Simulation) = sim.run.termination
 
 # The record's assembly (§13.5, D-203), once per advance entry in its
 # outermost `finally`, after the sweep has the residue in hand. `t` is the
@@ -274,7 +313,7 @@ end
 # exists (D-233). The policy is the terminating advance's, the one that
 # explains the stop (D-255).
 _record(sim::Simulation{T}, src::TerminationSource, residue::Vector{ResidueRecord}) where {T} =
-    TerminationRecord{T}(latest(sim).t, sim.policy, src, residue)
+    TerminationRecord{T}(latest(sim).t, sim.run.policy, src, residue)
 
 # §13.5's sampling read, after every publication: the named faces off the
 # just-published snapshot, first holding face wins, in declaration order.
@@ -532,26 +571,45 @@ end
 # `init!` below and `replay!` (§12.7), whose difference is *how the state is
 # established* — a resolved condition against the header's recorded values —
 # and nothing else. Everything here is the wholesale opening §12.6 describes:
-# the clock anchored at `t₀`, every event prior cleared (§10.6), the log and
-# the §11.8 accounts reset, every staged batch dropped so none survives into
-# the trajectory it predates (§11.4), and the stop word and termination record
-# cleared. The diagnostic *cells* are deliberately untouched at both entries: a
-# rejection recorded while stopped is a fact about what happened.
+# the clock anchored at `t₀`, every event prior cleared (§10.6), the §11.8
+# accounts reset, every staged batch dropped so none survives into the
+# trajectory it predates (§11.4), and the stop word cleared. The log, the trace,
+# the mode and the termination record are *not* cleared here: each door builds a
+# fresh `Run` behind this call, and a fresh run is all four at once (D-255). The
+# diagnostic *cells* are deliberately untouched at both entries: a rejection
+# recorded while stopped is a fact about what happened.
 function _open_trajectory!(sim::Simulation{T}, t₀::T) where {T}
-    ctl = sim.control
     sim.exec.clock.t = t₀
     sim.exec.clock.t₀ = t₀
     sim.exec.clock.step = 0
     sim.exec.clock.boundary = 0
     fill!(sim.exec.events.prior, false)
-    _reset!(sim.log)
     _reset_accounts!(sim)         # a new trajectory opens a fresh account (§11.8)
     for e in sim.plane.roster     # §12.6: no staged batch survives into the
         @atomic e.writer.cell.pending = nothing   # trajectory it predates
     end
     @atomic sim.plane.harness.cell.pending = nothing
-    @atomic ctl.stop_issuer = nothing
-    ctl.termination = nothing
+    @atomic sim.control.stop_issuer = nothing
+    nothing
+end
+
+# The run one door opens (§12.6, D-255): the log flags ride on the run the last
+# door left — the placeholder's, before the first `init!` — and the fresh run
+# gets a log and a trace of its own rather than cleared ones. The register is
+# pointed at that trace and its cursor fields cleared with it; under the kill
+# switch it points at nothing instead, nothing is ever recorded and `trace(sim)`
+# refuses for the switch. `_install_writers!` then fixes the drain's indices for
+# the trajectory about to open.
+function _open_run!(sim::Simulation{T}, t₀::T, mode::Symbol, header, schemas,
+                    pol::StopPolicy) where {T}
+    reg = sim.plane.recorder
+    L = sim.run.log
+    trc = Trace{T}(header, schemas, TraceBatch[], 0)
+    sim.run = Run{T}(t₀, mode, SnapshotLog(L.enabled, L.every, L.max), trc, pol, nothing)
+    reg.trace = reg.enabled ? trc : nothing
+    reg.frame = 0
+    reg.feed = nothing
+    _install_writers!(reg, sim.plane)
     nothing
 end
 
@@ -585,23 +643,24 @@ implemented by nothing.
 Boundary zero also establishes every event prior as not-holding (§10.6), so a
 predicate already holding in the authored state fires at `t₀` — derived, not
 asserted — and a warm restart (`init!` again) resets all three registers from
-scratch: such predicates fire again at the new `t₀`. The log resets with them
-(§11.2): a warm restart is a new trajectory, and its boundary zero lands as a
-fresh first endpoint. The trace resets with them (§11.5) and its header is
-captured *here* — after `apply!` and the clock writes, before the sequence
-runs — which is §14.5's placement, essential on both sides: the header
-holds the resolved stores and root inputs rather than the authored overlay
-(D-038), and it never holds the post-transition result, boundary zero being
-re-executed under replay (§12.7).
+scratch: such predicates fire again at the new `t₀`. A warm restart is a new
+trajectory and therefore a new `Run` (§12.6, D-255): the log and the
+trace are fresh *objects* rather than cleared ones, and the log's boundary zero
+lands as a first endpoint of its own (§11.2). The trace's header is captured
+*here* — after `apply!` and the clock writes, before the sequence runs — which
+is §14.5's placement, essential on both sides: the header holds the resolved
+stores and root inputs rather than the authored overlay (D-038), and it never
+holds the post-transition result, boundary zero being re-executed under replay
+(§12.7).
 
 `init!` is §12.6's door into `initialized` from an *authored* condition, and
 some door is mandatory: `run!` and `step!` refuse a simulation whose boundary
 zero has not completed. `replay!` (§12.7) is the one alternative — it stands
 in the same lifecycle position with the trace header in the condition's place
 (D-101), and the trajectory-opening tail below is literally shared with it. It
-opens the fresh trajectory wholesale — the stop word, the §13.5 termination
-record, the input mode's return to `:live` (§12.6, D-218) *and every staged
-batch still in a staging cell* clear with the registers (§12.6: no stale batch
+opens the fresh trajectory wholesale — the stop word and *every staged batch
+still in a staging cell* clear, while the §13.5 termination record and the
+input mode's return to `:live` (§12.6, D-218) are the new run itself (§12.6: no stale batch
 survives to clobber the boundary zero it predates — the pre-run sequence is
 `init!` → `stage!` → `run!`, the batch then waiting for the first frame top as
 §11.4 says). The diagnostic cells are
@@ -626,8 +685,11 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::T = zero(T)) wher
                         activation(sim.deployment.build, T).decls, sim.deployment.build.structure.tiers)   # D-063's reset
     apply!(sim, plan)
     _open_trajectory!(sim, t0)
-    _reset!(sim.trace)            # §11.5: the trace is cleared at init!, header and all
-    _capture!(sim)                # and re-captured here, at §14.5's placement
+    # §11.5's capture, at §14.5's placement — after `apply!` and the clock
+    # writes, before the sequence — and the fresh run it opens (§12.6)
+    reg = sim.plane.recorder
+    _open_run!(sim, t0, :live, reg.enabled ? _capture_header(sim) : nothing,
+               Pair{String,Vector{Symbol}}[], StopPolicy(Inf, Symbol[], Any[]))
     _host_boundary_zero!(sim)
     publish!(sim)                 # the boundary-zero snapshot (§11.2, §14.5)
     @atomic :release ctl.lifecycle = :initialized
@@ -654,8 +716,14 @@ the fallback beside it is what a `Trace{Float64}` offered to a
 function _compile_feed(sim::Simulation{T}, trc::Trace{T}) where {T}
     faces = Symbol[f for (f, _) in sim.exec.act.layout.root_inputs]
     diags = Diagnostic[]
-    _check_header!(diags, sim, trc.header)
-    _check_schemas!(diags, faces, trc.header)
+    h = trc.header
+    # `trace(sim)` refuses a headerless trace (`MissingInit`) and the two doors
+    # are the only builders of one, so a `nothing` here is an invariant firing
+    # rather than a case the pass handles (§11.5, D-255).
+    h === nothing && throw(InternalInvariant(
+        "a Trace with no header reached replay's entry pass (§11.5, §12.7)"))
+    _check_header!(diags, sim, h)
+    _check_schemas!(diags, faces, trc.schemas)
     isempty(diags) || throw(DiagnosticError(diags))     # the header before the entries
     records = _compile_records!(diags, sim, trc, faces)
     isempty(diags) || throw(DiagnosticError(diags))
@@ -755,7 +823,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
         # word about a time the recording covers). `_frame_at` carries the
         # slack: without it the plain floor would halt one boundary short of
         # the one named.
-        t₀ = trc.header.deployment.t₀
+        t₀ = trc.header.t₀
         to_time isa Real && isfinite(to_time) && to_time ≥ t₀ || throw(DiagnosticError(
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
                             value = to_time)))
@@ -780,24 +848,21 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     for (f, v) in h.root_inputs
         scatter!(ex.store, ex.act.layout.addr[("", f)], v)
     end
-    _open_trajectory!(sim, h.deployment.t₀)     # `t₀` is applied, never compared (§12.7)
-    reg = sim.trace
-    _reset!(reg)
-    if reg.enabled
-        # the new trace inherits the old header (§12.7), detached — every mutable
-        # field of it copied, so neither the growth below nor a continuation's
-        # writes ever reach the `Trace` the caller still holds
-        reg.header = _detach(h)
-        _install_writers!(reg, sim.plane)       # …with this session's writers appended
-    end
+    _open_trajectory!(sim, h.t₀)                # `t₀` is applied, never compared (§12.7)
+    reg = sim.plane.recorder
+    # The new run, and substitution (2) with it: the mode is one of the run's
+    # `const` fields, so entering `:replay` *is* constructing this run (§12.6,
+    # D-255), and its policy is this call's, bound past the last refusal (§13.5).
+    # The new trace inherits the old header, detached — every mutable field of it
+    # copied — and the recording's own schema entries, so neither the growth
+    # below nor a continuation's writes ever reach the `Trace` the caller holds.
+    _open_run!(sim, h.t₀, :replay, reg.enabled ? _detach(h) : nothing,
+               reg.enabled ? copy(trc.schemas) : Pair{String,Vector{Symbol}}[], pol)
+    # the recording attached, outliving this call — the halt below detaches it
+    # only where it lands at the recording's last frame (§12.6, §12.7, D-218)
+    reg.feed = feed
     _host_boundary_zero!(sim)
     publish!(sim)                               # the boundary-zero snapshot (§11.2, §14.5)
-    # substitution (2): the recording attached and the input mode entered, both
-    # outliving this call — the halt below detaches them only where it lands at
-    # the recording's last frame (§12.6, §12.7, D-218)
-    reg.feed = feed
-    reg.mode = :replay
-    sim.policy = pol                    # …up front and bound past the last refusal (§13.5)
     upto = to_boundary === nothing ? trc.frames : Int(to_boundary)
     _run_body!(sim, pol, upto, _t_end_frame(sim, pol.t_end))
     nothing
@@ -829,13 +894,15 @@ simulation already `:live` refuses too — the call would have nothing to do, an
 a silent no-op would let the caller believe a recording was dropped that was
 never attached.
 """
-function live!(sim::Simulation)
+function live!(sim::Simulation{T}) where {T}
     _assert_advanceable(sim, :live!)
-    reg = sim.trace
-    reg.mode === :replay || throw(DiagnosticError(
+    r = sim.run
+    r.mode === :replay || throw(DiagnosticError(
         ArgumentInvalid(call = :live!, reason = :not_replaying)))
-    reg.feed = nothing
-    reg.mode = :live
+    sim.plane.recorder.feed = nothing
+    # §12.6: the mode is a `const` field, so a change of mode is a change of run
+    # — the same log, the same trace, the same policy and record (D-255)
+    sim.run = Run{T}(r.t₀, :live, r.log, r.trace, r.policy, r.termination)
     nothing
 end
 
@@ -886,12 +953,13 @@ frames from `t₀` (§12.4).
 """
 function run!(sim::Simulation; t_end = Inf, stop_on = ())
     _assert_advanceable(sim, :run!)
-    sim.policy = pol = _bind_policy(sim, t_end, stop_on, :run!)
+    pol = _bind_policy(sim, t_end, stop_on, :run!)
+    sim.run.policy = pol
     # §13.5's advisory (D-255): a live run bounded by neither clock nor face
     # ends only by the operator interrupt, so the loop says so once, into its
     # own cell. A `:replay` run is bounded by the recording (D-218), so the
     # warning would be false there.
-    sim.trace.mode === :live && isinf(pol.t_end) && isempty(pol.faces) &&
+    sim.run.mode === :live && isinf(pol.t_end) && isempty(pol.faces) &&
         _report!(sim.loop_diag, UnboundedRun(pol.t_end, copy(pol.faces)))
     # a live run owes its end to a §13.5 source alone, so its frame budget is
     # unbounded here; in `:replay` the recording binds it (`_run_body!`, D-218)
@@ -904,7 +972,7 @@ end
 # runs past the records and goes on live, and every frame of a session is either
 # record-driven or live before it runs.
 _replay_bound(sim::Simulation, upto::Int) =
-    sim.trace.mode === :replay ? min(upto, _feed(sim.trace).frames) : upto
+    sim.run.mode === :replay ? min(upto, _feed(sim.plane.recorder).frames) : upto
 
 # §12.7's flip (D-218), at the one place the terminal disposition already lives:
 # the mode becomes `:live` exactly when the halt consumed the recording's last
@@ -913,12 +981,13 @@ _replay_bound(sim::Simulation, upto::Int) =
 # recording. An `errored` exit leaves both as they stand: the frame was
 # abandoned mid-execution, nothing advances from a terminal state, and `init!`
 # and `replay!` are the resets.
-function _settle_mode!(sim::Simulation)
-    reg = sim.trace
-    reg.mode === :replay || return nothing
+function _settle_mode!(sim::Simulation{T}) where {T}
+    r = sim.run
+    r.mode === :replay || return nothing
+    reg = sim.plane.recorder
     if sim.exec.clock.step ≥ _feed(reg).frames
         reg.feed = nothing
-        reg.mode = :live
+        sim.run = Run{T}(r.t₀, :live, r.log, r.trace, r.policy, r.termination)
     end
     nothing
 end
@@ -988,14 +1057,14 @@ function _run_body!(sim::Simulation, pol::StopPolicy, upto::Int, target::Int)
         residue = _sweep_tail!(sim)           # the run's last take (§11.8): what landed past
         empty!(plane.run_tasks)               # the final frame top — recorded and presented,
         if err_src !== nothing                # never published (D-201, D-203)
-            ctl.termination = _record(sim, err_src, residue)
+            sim.run.termination = _record(sim, err_src, residue)
             @atomic :release ctl.lifecycle = :errored
         else
             _settle_mode!(sim)                # §12.7's flip, at the halt (D-218)
             if term === nothing               # the frame budget ran out: a replay ended at a
                 @atomic :release ctl.lifecycle = :initialized  # frame top (§12.7)
             elseif (@atomic ctl.lifecycle) === :running
-                ctl.termination = _record(sim, term, residue)
+                sim.run.termination = _record(sim, term, residue)
                 @atomic :release ctl.lifecycle = :stopped
             end
         end
@@ -1205,7 +1274,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         t = sim.exec.clock.t                  # the frame top the duration counts from
         nf = max(1, _frames_to(t + Float64(t_plus), t, sim.deployment.h))
     end
-    sim.policy = pol
+    sim.run.policy = pol
     t_end_frame = _t_end_frame(sim, pol.t_end)
     @atomic :release ctl.lifecycle = :running   # the freeze holds within the call
     term, adv, err_src = nothing, 0, nothing
@@ -1221,7 +1290,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
     finally
         if err_src !== nothing                # §13.6, the stepped entry: same tail,
             _finish!(sim)                     # deviceless — waits woken, accounts swept
-            ctl.termination = _record(sim, err_src, _sweep_tail!(sim))
+            sim.run.termination = _record(sim, err_src, _sweep_tail!(sim))
             @atomic :release ctl.lifecycle = :errored
         else
             _settle_mode!(sim)                # §12.7's flip, at the halt (D-218)
@@ -1229,7 +1298,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
                 @atomic :release ctl.lifecycle = :initialized
             else                              # a §13.5 source fired inside the call:
                 _finish!(sim)                 # the deviceless §12.4 tail, then terminal
-                ctl.termination = _record(sim, term, _sweep_tail!(sim))
+                sim.run.termination = _record(sim, term, _sweep_tail!(sim))
                 @atomic :release ctl.lifecycle = :stopped
             end
         end
@@ -1319,11 +1388,11 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
     h = DeviceHandle(id, "device $id ($(_typename(dev)))", b, w, plane, sim.control,
                      sim.published, diag, rg, sim.control.counter, false)
     push!(plane.roster, RosterEntry(dev, b, id, w,
-                                    _drain_thunk(sim.exec.store, w, sim.trace, 0),
+                                    _drain_thunk(sim.exec.store, w, plane.recorder, 0),
                                     should_abort, diag, WriterAccount(), h))
     # the writer index above is a placeholder: `reclaim!` appends the new writer
     # set to the trace's schema list and recompiles every thunk against it (§11.5)
-    reclaim!(plane, sim.exec.act.layout, sim.trace)
+    reclaim!(plane, sim.exec.act.layout)
     is_greedy(b) && isempty(claim) &&
         @warn logline(EmptyGreedyClaim(device = "device $id ($(_typename(dev)))", binding = _typename(b)))
     h
@@ -1349,7 +1418,7 @@ function detach!(sim::Simulation, dev::AbstractDevice)
         device = _typename(dev), roster = [_who(e) for e in plane.roster])))
     @atomic :release plane.roster[i].handle.detached = true   # D-244
     deleteat!(plane.roster, i)
-    reclaim!(plane, sim.exec.act.layout, sim.trace)
+    reclaim!(plane, sim.exec.act.layout)
     nothing
 end
 
@@ -1406,7 +1475,8 @@ what "the ordinary loop" means (§12.7) — and what selects it is the input mod
 the caller can read, not the incidental presence of a recording (§12.6, D-218).
 """
 function drain!(sim::Simulation)
-    plane, reg = sim.plane, sim.trace
+    plane = sim.plane
+    reg = plane.recorder
     cur = sim.exec.cursor         # the one store per frame that keeps a stale frame from
     cur.comp = 0; cur.fn = :none  # being reported for a drain-side throw (§13.4)
     _phase!(cur, :drain)
@@ -1414,7 +1484,7 @@ function drain!(sim::Simulation)
     # clock's step increments, so a batch taken at the top of frame `k` is
     # recorded — and replayed — at `k`
     reg.enabled && (reg.frame = sim.exec.clock.step + 1)
-    reg.mode === :replay && return _replay_drain!(sim, reg, _feed(reg))
+    sim.run.mode === :replay && return _replay_drain!(sim, reg, _feed(reg))
     for e in plane.roster
         e.drain()
         _fold!(e.acct, e.diag)    # the diagnostic cells drain at the same point (§11.8):
@@ -1422,7 +1492,9 @@ function drain!(sim::Simulation)
     plane.harness_drain()         # occurrence into the totals
     _fold!(plane.harness_acct, plane.harness_diag)
     _fold!(sim.loop_acct, sim.loop_diag)
-    reg.enabled && (reg.frames += 1)   # one drain per frame: the recording's length (§11.5)
+    # one drain per frame: the recording's length (§11.5). Counted through the
+    # run, whose `trace` is the concrete `Trace{T}`, so the frame path stays free
+    reg.enabled && (sim.run.trace.frames += 1)
     nothing
 end
 
@@ -1466,12 +1538,12 @@ function _replay_drain!(sim::Simulation, reg::TraceRegister, feed::ReplayFeed)
         # the recording's own `TraceBatch`, re-recorded as an equal value rather
         # than shared: re-recording is not a re-conversion — the prefix is
         # bit-identical by construction — but the two traces are two values
-        reg.enabled && push!(reg.batches,
+        reg.enabled && push!(reg.trace.batches,
                              TraceBatch(r.record.frame, r.record.writer, copy(r.record.entries)))
         i += 1
     end
     feed.next = i
-    reg.enabled && (reg.frames += 1)
+    reg.enabled && (sim.run.trace.frames += 1)
     nothing
 end
 
@@ -1512,7 +1584,7 @@ function publish!(sim::Simulation)
                     sim.exec.act.layout, _status(sim))
     clock.boundary += 1
     @atomic :release sim.published.latest = snap
-    log!(sim.log, snap)
+    log!(sim.run.log, snap)
     lock(ctl.cond)
     try
         ctl.counter += 1
@@ -1574,7 +1646,7 @@ retention wholesale.
 """
 function logged(sim::Simulation)
     assert_stopped(sim.control, :logged)
-    L = sim.log
+    L = sim.run.log
     out = Snapshot[]
     L.first === nothing && return out
     push!(out, L.first)
@@ -1599,12 +1671,13 @@ before the first `init!`, which is where the header is captured: with no
 header there is no recording, and `MissingInit` names the way out exactly as
 an advance entry's refusal does (§12.6).
 """
-function trace(sim::Simulation)
-    reg = sim.trace
-    reg.enabled || throw(DiagnosticError(ArgumentInvalid(call = :trace, reason = :disabled)))
-    h = reg.header
-    h === nothing && throw(DiagnosticError(MissingInit(op = :trace, status = lifecycle(sim))))
-    Trace(h, copy(reg.batches), reg.frames)
+function trace(sim::Simulation{T}) where {T}
+    sim.plane.recorder.enabled ||
+        throw(DiagnosticError(ArgumentInvalid(call = :trace, reason = :disabled)))
+    t = sim.run.trace
+    t.header === nothing &&
+        throw(DiagnosticError(MissingInit(op = :trace, status = lifecycle(sim))))
+    Trace{T}(t.header, copy(t.schemas), copy(t.batches), t.frames)
 end
 
 # --- reading and writing the table outside the loop ---------------------------

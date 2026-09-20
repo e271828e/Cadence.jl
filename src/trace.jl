@@ -1,7 +1,7 @@
 # The input trace (§11.5): the header captured at `init!` — the resolved
-# initial state, the root-input values, the writers' schemas and the run's
-# deployment block — and behind it one sparse record per drained batch, in the
-# one record format D-176 unified on. The trace is *primary* data (D-029,
+# initial state, the root-input values, the run's `Deployment` and its `t₀` —
+# and behind it the writers' schemas and one sparse record per drained batch,
+# in the one record format D-176 unified on. The trace is *primary* data (D-029,
 # D-038): the log is recomputable from it, and what recomputes it is replay
 # (§12.7), whose entry pass — the validation and normalization a trace is
 # admitted through — lives at the tail of this file, beside the capture it
@@ -25,24 +25,25 @@ post-sequence capture would hand it already-transitioned state.
 `x` is the flat continuous buffer; `s` and `m` carry each component's store
 value (`nothing` where the component owns none). `root_inputs` is what makes
 replay possible at all: an unfed `mixture = 0.5` appears in no batch, so the
-initial root-input values are recorded beside the stores. `schemas` is the
-run's writers as `tag => face-name-by-position` — the positional records are
-meaningless without it, and replay does not reconstruct claims (§12.7) — the
-tags being §11.8's own writer names, `_who(entry)` and `"harness"`.
+initial root-input values are recorded beside the stores. The writers' schemas
+are the `Trace`'s, not the header's (D-255): the list grows at every roster
+change, and an artifact does not.
+
 `deployment` and `layout` are the two fingerprints: the trajectory depends on
-the deployment block exactly as it depends on the stores (the block sits
+the deployment exactly as it depends on the stores (the `Deployment` sits
 outside the `Build`, and `t₀` post-dates even deployment), and the structural
-half is what a replay target is compared against (§12.7).
+half is what a replay target is compared against (§12.7). Replay compares the
+two deployments as values and *applies* `t₀`, never comparing it. The header
+holds no policy: `t_end` and `stop_on` are the advance's, and the termination
+record carries the terminating one (§13.5, D-255).
 """
 struct TraceHeader{T}
     x::Vector{T}                                    # a copy of xbuf after apply!
     s::Vector{Any}                                  # per component: the store value, or nothing
     m::Vector{Any}                                  # likewise for the mode stores
     root_inputs::Vector{Pair{Symbol,Any}}           # face => the resolved value in its cell
-    schemas::Vector{Pair{String,Vector{Symbol}}}    # writer tag => face-name-by-position
-    deployment::@NamedTuple{t₀::T, Δt_base::Float64, h::Float64, N_base::Int, algorithm::Symbol,
-                            localization_tol::Float64, localization_budget::Int,
-                            firing_budget::Int}
+    deployment::Deployment                          # compared as a value at replay (§12.7)
+    t₀::T                                           # applied at replay, never compared
     layout::@NamedTuple{sizes::Vector{Pair{DataType,Int}}, root_faces::Vector{Symbol},
                         paths::Vector{String}, stypes::Vector{Any}, mtypes::Vector{Any}}
 end
@@ -50,13 +51,13 @@ end
 """
 One drained batch, retained sparse (§11.5, D-176): the masked (touched)
 positions as `position ⇒ value` pairs against the writer's schema, which is
-`header.schemas[writer]`. `frame` is the frame ordinal the batch was drained
+`trace.schemas[writer]`. `frame` is the frame ordinal the batch was drained
 at the top of — the drain runs before the clock's step increments, so a batch
 drained at the top of frame `k` carries `frame = k` and replays there.
 """
 struct TraceBatch
     frame::Int
-    writer::Int                       # index into header.schemas
+    writer::Int                       # index into the trace's schema list
     entries::Vector{Pair{Int,Any}}
 end
 
@@ -71,14 +72,20 @@ Base.:(==)(a::TraceBatch, b::TraceBatch) =
 Base.hash(b::TraceBatch, h::UInt) = hash(b.entries, hash(b.writer, hash(b.frame, h)))
 
 """
-What `trace(sim)` hands back (§11.5): header plus batches, the *primary*
-record from which the log is derived — a value, detached from the register
-that built it. `frames` counts the drains since the header, one per frame, so
-a recording whose last frames staged nothing still knows how long it ran.
+The trace (§11.5, D-255): a fixed header, written once at `init!` and never
+again, plus two append-only lists — the writers' schemas, grown at every roster
+change, and the sparse records, one per drained batch — and its length, the
+drains since the capture. `Run.trace` is the live one; `trace(sim)` hands back
+a detached value of the same type, which no drain ever advances.
+
+A record is meaningless without its schema entry: the positions are against
+`schemas[batch.writer]`, and replay does not reconstruct claims (§12.7). The
+tags are §11.8's own writer names, `_who(entry)` and `"harness"`.
 """
-struct Trace{T}
-    header::TraceHeader{T}
-    batches::Vector{TraceBatch}       # in drain order: by frame, then by writer index
+mutable struct Trace{T}
+    const header::Union{Nothing,TraceHeader{T}}    # nothing: the placeholder run, or the kill switch
+    const schemas::Vector{Pair{String,Vector{Symbol}}}   # writer tag => face-name-by-position
+    const batches::Vector{TraceBatch}              # in drain order: by frame, then by writer index
     frames::Int
 end
 
@@ -111,13 +118,14 @@ mutable struct ReplayFeed
 end
 
 """
-The `Simulation`'s trace holder: the kill switch fixed at construction
-(§11.5's plain switch for memory-constrained marathon sessions, D-029), the
-captured header, the records behind it, and the two counters the drain
-maintains — `frame`, the ordinal `drain!` stamps the frame's records with,
-and `frames`, the recording's length.
+The drain's bookkeeping, held by the data plane (D-255): the kill switch fixed
+at construction (§11.5's plain switch for memory-constrained marathon sessions,
+D-029), the current run's `Trace` — the one the drain writes into, `nothing`
+before the first `init!` and under the switch — the ordinal `drain!` stamps the
+frame's records with, and the attached recording. The register outlives every
+run; what one run owns is the `Trace` it points at (§12.6).
 
-`live_writers` names the current writer set's entries in `header.schemas`.
+`live_writers` names the current writer set's entries in `trace.schemas`.
 **The schema list only grows**: a roster change is a stopped-sim point that
 recompiles the harness writer and may add or remove device writers, while
 batches already recorded reference the old indices — so every capture and
@@ -126,42 +134,22 @@ order, then the harness: the drain's own order) and recompiles the drain
 thunks against the new indices. Earlier entries stay, referenced by earlier
 batches, and a run's `schemas` may therefore carry superseded ones.
 
-The register also holds §12.6's **input mode** (D-218), `:live` or `:replay`,
-the one thing that selects the drain's source, and the attached recording
-behind it — non-`nothing` for exactly as long as the mode is `:replay`.
+§12.6's **input mode** is the run's, not the register's (D-255): `feed` is the
+attached recording behind it, non-`nothing` for exactly as long as the run's
+mode is `:replay`.
 """
 mutable struct TraceRegister
     enabled::Bool
-    header::Union{Nothing,TraceHeader}
-    batches::Vector{TraceBatch}
-    frames::Int
+    trace::Union{Nothing,Trace}       # the current run's trace: what the drain writes into
     frame::Int                        # the ordinal this frame's records take
-    live_writers::UnitRange{Int}      # the current set's entries in header.schemas
+    live_writers::UnitRange{Int}      # the current set's entries in trace.schemas
     feed::Union{Nothing,ReplayFeed}   # the attached recording: the mode's source (§12.7)
-    mode::Symbol                      # :live | :replay — §12.6's input mode (D-218)
 end
 
 # The empty roster leaves the harness writer sole writer, so the fresh
 # register's provisional set is `1:1`; `_install_writers!` re-fixes it at every
 # capture and every roster change.
-TraceRegister(enabled::Bool) =
-    TraceRegister(enabled, nothing, TraceBatch[], 0, 0, 1:1, nothing, :live)
-
-# §11.5's clearing at `init!`: the header and every record it stood in front of
-# go together, the recording's length with them. `live_writers` is left where it
-# is — the drain thunks hold those indices, and the capture below re-fixes both
-# at once. The mode goes back to `:live` with the trajectory (§12.6, D-218), and
-# the recording detaches with it: this runs at both doors, `replay!` re-entering
-# `:replay` immediately after.
-function _reset!(reg::TraceRegister)
-    reg.header = nothing
-    empty!(reg.batches)
-    reg.frames = 0
-    reg.frame = 0
-    reg.feed = nothing
-    reg.mode = :live
-    nothing
-end
+TraceRegister(enabled::Bool) = TraceRegister(enabled, nothing, 0, 1:1, nothing)
 
 # The recording the mode implies (D-218): in `:replay` it is always attached, so
 # its absence is an invariant firing rather than a case the loop handles.
@@ -191,7 +179,7 @@ function _record!(reg::TraceRegister, widx::Int, batch::Batch)
     for i in 1:length(mask)
         mask[i] && (entries[j += 1] = i => batch.vals[i])
     end
-    push!(reg.batches, TraceBatch(reg.frame, widx, entries))
+    push!(reg.trace.batches, TraceBatch(reg.frame, widx, entries))
     nothing
 end
 
@@ -204,40 +192,36 @@ function _writer_schemas(plane)
     schemas
 end
 
-_reschema(h::TraceHeader{T}, schemas) where {T} =
-    TraceHeader{T}(h.x, h.s, h.m, h.root_inputs, schemas, h.deployment, h.layout)
-
 # The recording's header, detached, for the replay that *inherits* it (§12.7):
 # every mutable field copied — the stores by value, being isbits (D-231) — so
 # the trace the replay goes on to build is a value of its own and nothing the
-# caller still holds is reachable from it. `_reschema`'s sharing is the growth
-# rule's, within one register; this crosses between two.
+# caller still holds is reachable from it. The `Deployment` and the layout
+# fingerprint are immutable artifacts and ride as they are.
 _detach(h::TraceHeader{T}) where {T} =
     TraceHeader{T}(copy(h.x), copy(h.s), copy(h.m), copy(h.root_inputs),
-                   copy(h.schemas), h.deployment, h.layout)
+                   h.deployment, h.t₀, h.layout)
 
 """
 The growth rule (§11.5), and the one site a drain thunk is compiled at: append
-the current writer set to the header's schema list, name the appended range
-`live_writers`, and recompile every thunk with its writer's new index. The
-header is *rebuilt* rather than mutated, so a `Trace` already handed out keeps
-the schema list it was given — a valid prefix for its own batches, indices
-only ever growing.
+the current writer set to the trace's schema list, name the appended range
+`live_writers`, and recompile every thunk with its writer's new index. The list
+grows *in place* (D-255) — a `Trace` a caller holds is a detached value, its
+own copy of the schemas, so the growth cannot reach it.
 
-Reached from three places, all of them stopped-sim: the header capture below,
-which starts from an empty list, and `reclaim!`'s two callers, `attach!` and
-`detach!`. With no header — before the first `init!`, or under `trace = false`
-— nothing is appended and the indices are provisional; no drain runs before
-boundary zero has, so nothing reads them.
+Reached from three places, all of them stopped-sim: the two doors that build a
+run, `init!` and `replay!`, and `reclaim!`'s two callers, `attach!` and
+`detach!`. With no trace to write into — before the first `init!`, or under
+`trace = false` — nothing is appended and the indices are provisional; no drain
+runs before boundary zero has, so nothing reads them.
 """
 function _install_writers!(reg::TraceRegister, plane)
     k = length(plane.roster) + 1
-    if reg.header === nothing
+    trc = reg.trace
+    if trc === nothing
         reg.live_writers = 1:k
     else
-        h = reg.header
-        n = length(h.schemas)
-        reg.header = _reschema(h, vcat(h.schemas, _writer_schemas(plane)))
+        n = length(trc.schemas)
+        append!(trc.schemas, _writer_schemas(plane))
         reg.live_writers = (n + 1):(n + k)
     end
     for (i, e) in enumerate(plane.roster)
@@ -281,25 +265,7 @@ function _capture_header(sim)
     m = Any[st === nothing ? nothing : st[] for st in ex.mstores]
     roots = Pair{Symbol,Any}[f => gather(ex.store, layout.addr[("", f)])
                              for (f, _) in layout.root_inputs]
-    dep = sim.deployment
-    deployment = (t₀ = ex.clock.t₀, Δt_base = dep.Δt_base, h = dep.h, N_base = dep.N_base,
-                  algorithm = nameof(typeof(sim.stepper)),
-                  localization_tol = dep.localization_tol,
-                  localization_budget = dep.localization_budget,
-                  firing_budget = dep.firing_budget)
-    TraceHeader{T}(copy(ex.xbuf), s, m, roots, Pair{String,Vector{Symbol}}[],
-                   deployment, _fingerprint(sim))
-end
-
-# The capture, at `init!`'s §14.5 placement: the header first, then the growth
-# rule's first application — which is what fills the empty schema list and
-# fixes the thunks' indices for the trajectory that is about to open.
-function _capture!(sim)
-    reg = sim.trace
-    reg.enabled || return nothing
-    reg.header = _capture_header(sim)
-    _install_writers!(reg, sim.plane)
-    nothing
+    TraceHeader{T}(copy(ex.xbuf), s, m, roots, sim.deployment, ex.clock.t₀, _fingerprint(sim))
 end
 
 # ==============================================================================
@@ -315,9 +281,11 @@ end
 
 # The header against the target `Build` and its deployment binding (§12.7's
 # disposition table): the structural fingerprint compared field for field, then
-# the seven trajectory-determining deployment parameters. `t₀` is applied rather
-# than compared. The header holds no policy (§11.5, D-255): `t_end` and
-# `stop_on` are the terminating advance's, and the termination record has them.
+# the two deployments as *values* — one `==`, which is what D-254 asks for, with
+# `_walk_deployment!` below as its explanation rather than as a second spelling.
+# `t₀` is applied rather than compared. The header holds no policy (§11.5,
+# D-255): `t_end` and `stop_on` are the terminating advance's, and the
+# termination record has them.
 function _check_header!(diags::Vector{Diagnostic}, sim, h::TraceHeader)
     f = _fingerprint(sim)
     l = h.layout
@@ -343,15 +311,49 @@ function _check_header!(diags::Vector{Diagnostic}, sim, h::TraceHeader)
                                                   expected = l.mtypes[i], found = f.mtypes[i]))
         end
     end
-    d, dep = h.deployment, sim.deployment
-    for (name, found) in ((:Δt_base, dep.Δt_base), (:h, dep.h), (:N_base, dep.N_base),
-                          (:algorithm, nameof(typeof(sim.stepper))),
-                          (:localization_tol, dep.localization_tol),
-                          (:localization_budget, dep.localization_budget),
-                          (:firing_budget, dep.firing_budget))
-        getfield(d, name) == found ||
-            push!(diags, ReplayHeaderMismatch(what = :deployment, name = name,
-                                              expected = getfield(d, name), found = found))
+    h.deployment == sim.deployment || _walk_deployment!(diags, h.deployment, sim.deployment)
+    nothing
+end
+
+_dep_diff!(diags::Vector{Diagnostic}, path::String, name::Symbol, expected, found) =
+    expected == found ? nothing :
+    push!(diags, ReplayHeaderMismatch(what = :deployment, path = path, name = name,
+                                      expected = expected, found = found))
+
+# What the `==` above refused, named (§12.7, Appendix C): the seven
+# trajectory-determining parameters by name, then the schedule, which the value
+# covers with every column — the anchor and provenance included, so a rate
+# re-declared through a different anchor at the same tick table is a different
+# deployment. The walk covers exactly what `Deployment`'s and `Schedule`'s `==`
+# compare, so a refusal is never silent.
+function _walk_deployment!(diags::Vector{Diagnostic}, rec::Deployment, tgt::Deployment)
+    for name in (:Δt_base, :h, :N_base, :algorithm, :localization_tol,
+                 :localization_budget, :firing_budget)
+        _dep_diff!(diags, "", name, getfield(rec, name), getfield(tgt, name))
+    end
+    a, b = rec.schedule, tgt.schedule
+    # the rows, identified by path: a differing row count or path list is the
+    # whole list, since rows past the first difference name different components
+    if [r.path for r in a.rows] == [r.path for r in b.rows]
+        for (ra, rb) in zip(a.rows, b.rows), col in (:anchor, :D, :Φ, :Δt, :provenance)
+            _dep_diff!(diags, ra.path, col, getfield(ra, col), getfield(rb, col))
+        end
+    else
+        _dep_diff!(diags, "", :schedule, [r.path for r in a.rows], [r.path for r in b.rows])
+    end
+    if [(s.path, s.key) for s in a.scopes] == [(s.path, s.key) for s in b.scopes]
+        for (sa, sb) in zip(a.scopes, b.scopes), col in (:anchor, :D, :Φ)
+            _dep_diff!(diags, sa.path, Symbol("scope.", col), getfield(sa, col), getfield(sb, col))
+        end
+    else
+        _dep_diff!(diags, "", Symbol("scope.key"),
+                   [string(s.path, ':', s.key) for s in a.scopes],
+                   [string(s.path, ':', s.key) for s in b.scopes])
+    end
+    # the per-component vectors the executor compiles over: every tier, so they
+    # move where a continuous component does and the rows do not
+    for col in (:D, :Φ, :Δt)
+        _dep_diff!(diags, "", Symbol("schedule.", col), getfield(a, col), getfield(b, col))
     end
     nothing
 end
@@ -361,8 +363,9 @@ end
 # writer with the whole schema and the list-in-hand beside it. Superseded schema
 # entries are checked with the live ones — a batch may still reference them, and
 # the compiled scatters below are built from whatever a batch names.
-function _check_schemas!(diags::Vector{Diagnostic}, faces::Vector{Symbol}, h::TraceHeader)
-    for (tag, schema) in h.schemas
+function _check_schemas!(diags::Vector{Diagnostic}, faces::Vector{Symbol},
+                         schemas::Vector{Pair{String,Vector{Symbol}}})
+    for (tag, schema) in schemas
         unknown = Symbol[s for s in schema if !(s in faces)]
         isempty(unknown) ||
             push!(diags, ReplaySchemaMismatch(writer = tag, schema = schema,
@@ -404,7 +407,7 @@ that produced a diagnostic contributes no record: a partially applied frame is
 not a replay of anything.
 """
 function _compile_records!(diags::Vector{Diagnostic}, sim, trc::Trace, faces::Vector{Symbol})
-    layout, store, schemas = sim.exec.act.layout, sim.exec.store, trc.header.schemas
+    layout, store, schemas = sim.exec.act.layout, sim.exec.store, trc.schemas
     writers = Dict{Int,Writer}()
     recs = ReplayRecord[]
     for b in trc.batches

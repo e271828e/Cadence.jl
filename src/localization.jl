@@ -148,7 +148,7 @@ function _localized_frame!(sim::Simulation{T}, t_to) where {T}
         # holding in the t* snapshot makes it the final one — the frame's
         # remainder is abandoned, and the hit reaches the loop through the
         # cursor's scratch (D-255).
-        face = _stop_hit(sim, sim.policy)
+        face = _stop_hit(sim, sim.run.policy)
         if face !== nothing
             cur.hit = face
             return nothing

@@ -186,7 +186,7 @@ function failures_runtime()
         # The service's disposition: back to `built`, no termination record, and
         # the advance entries meet §12.6's ordinary refusal.
         @test lifecycle(sim) === :built
-        @test termination(sim) === nothing
+        @test termination(sim) === nothing && !closed(sim.run)
         ds = carried(@test_throws DiagnosticError{MissingInit} step!(sim; t_end = 5.0))
         @test ds.op === :step! && ds.status === :built
         dr = carried(@test_throws DiagnosticError{MissingInit} run!(sim; t_end = 5.0))
@@ -200,7 +200,7 @@ function failures_runtime()
         @test !occursin("step!", sprint(showerror, e))  # which a `step!` after would be refused
 
         # The twin is put in `:replay` first, by a partial replay of a good
-        # recording, so the words below are ones the failed replay moved.
+        # recording, so the run below is one the failed replay replaced.
         ok = Simulation(fed(Mine(), "sig"); h = 1//10)
         init!(ok, fragment(inputs = (in = false,)))
         @test step!(ok; frames = 2, t_end = 5.0) == 2
@@ -213,7 +213,11 @@ function failures_runtime()
         @test e2 isa StepError{Detonated}
         @test e2.frame == e.frame && e2.boundary == 0
         @test lifecycle(sim2) === :built
-        @test mode(sim2) === :live                      # the reset precedes the boundary
+        # The run is the mode (§12.6, D-255), so the failed `replay!`'s own run —
+        # built ahead of the boundary — is what stands, and it declared `:replay`.
+        # `built` is what governs: nothing advances on it, and the next door
+        # replaces the run wholesale.
+        @test mode(sim2) === :replay
 
         # The remedy is a corrected condition, and `init!` re-establishes first.
         init!(sim, fragment(inputs = (in = false,)))
