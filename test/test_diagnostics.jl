@@ -428,7 +428,7 @@ function diagnostics_kind_set()
                               related = 1//100, provenance = "`sample_times` at `a`, key `b`",
                               grid = grid),
             GridUtilization(Δt_base = 1//300, utilization = 3, fastest = "a/b",
-                            drivers = grid.pool),
+                            grid = grid),
             AttachUnknownFace(device = "Pad", binding = "Enumerated", face = :q,
                               candidates = [:a, :b]),
             AlreadyAttached(device = "Pad", incumbent = "device 1 (Pad)", binding = "Enumerated"),
@@ -596,6 +596,22 @@ function diagnostics_kind_set()
         # A `Union`-typed holding has no name to take: it renders from its members,
         # in the order Julia itself keeps them.
         @test _typename(Union{Plant, Gain}) == "Union{Gain, Plant}"
+        # The grid block (§9.2, D-187) on a refusal arm: the first line is the arm's
+        # own, then the pool table with the driving offset's repair on its row's
+        # tail, then the prime attribution with each supplier labelled by the
+        # anchor's key and the entry's kind.
+        m = message(only(d for d in occurrences
+                         if d isa DeploymentInvalid && d.reason === :anchor_offset))
+        @test startswith(m, "`sample_times` at `a`, key `b`: offset 1//7")
+        @test occursin("\n  admissible: gcd(pool)/k, coarsest 1//300\n  pool:\n", m)
+        @test occursin("offset 1//7   ×3   declaring 7//50 or 3//20 keeps 1//100", m)
+        @test occursin("\n  primes: 300 = 2²·3·5²\n", m)
+        @test occursin("\n    2²  b period\n    3   b period\n    5²  b offset", m)
+        # The advisory keeps its first line and appends the same block.
+        m = message(only(d for d in occurrences if d isa GridUtilization))
+        @test startswith(m, "Δt_base derived as 1//300 s: the grid is 3× finer than the " *
+                            "fastest declared work (`a/b` at D = 3) (§9.2)\n  admissible:")
+        @test occursin("\n    5²  b offset", m)
 
         # Every kind of the closed set has an occurrence above: the coverage
         # check is over `Diagnostic`'s own subtypes, so adding a kind without an

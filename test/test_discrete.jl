@@ -421,8 +421,9 @@ function discrete_deployment()
         w = only(warnings(sim.deployment))
         @test w isa GridUtilization && w.Δt_base == 1//100 && w.utilization == 2
         @test w.fastest == "c"
-        @test only(w.drivers).kind === :offset && only(w.drivers).factor == 2
-        @test only(w.drivers).alternatives == [0//1]
+        driver = only(e for e in w.grid.pool if e.factor > 1)
+        @test driver.kind === :offset && driver.factor == 2
+        @test driver.alternatives == [0//1]
     end
 
     @testset "the grid attribution is exact, and derivation prints it (§9.2, D-187)" begin
@@ -464,7 +465,8 @@ function discrete_deployment()
         # every third base tick, so two boundaries in three are empty.
         w = only(warnings(d))
         @test w isa GridUtilization && w.Δt_base == 1//1500 && w.utilization == 3
-        @test w.fastest == "a" && [e.value for e in w.drivers] == [1//500, 1//150]
+        @test w.fastest == "a" && w.grid === g
+        @test [e.value for e in w.grid.pool if e.factor > 1] == [1//500, 1//150]
 
         # Drop the offset and the prime 3 goes with it: the grid is the 500 Hz
         # period itself, the fastest work fills every base tick, and `u == 1` is no

@@ -335,14 +335,14 @@ function Deployment(b::Build; h = nothing, N_base = nothing, Δt_base = nothing,
     # artifact that would have held them never returns (D-250).
     isempty(diags) || throw(DiagnosticError(diags, ws))
     # Derivation is the one place refinement happens silently (§9.2, D-187), so it
-    # always prints the derived value with its drivers. The line is presentation,
-    # never a home (§9.1, D-250).
+    # always prints the derived value over the grid block, both attribution forms;
+    # a pool where nothing refines says so on the first line. The line is
+    # presentation, never a home (§9.1, D-250).
     if bound.derived
         g = bound.grid
-        drivers = [e for e in g.pool if e.factor > 1]
-        @info "Δt_base derived as $(g.admissible) s: " *
-              (isempty(drivers) ? "no entry refines another" :
-               "drivers: " * _grid_drivers(drivers, g.admissible)) * " (§9.2)"
+        @info "Δt_base derived as $(g.admissible) s" *
+              (all(e.factor == 1 for e in g.pool) ? ", no entry refines another" : "") *
+              " (§9.2)" * _grid_block(g)
         # The advisory rides the same path, when the grid is finer than the fastest
         # declared work. `u == 1` is no information. No user body runs inside this
         # constructor, so the warning goes straight onto its own list, not through
@@ -351,7 +351,7 @@ function Deployment(b::Build; h = nothing, N_base = nothing, Δt_base = nothing,
         u = isempty(rows) ? 1 : minimum(r.D for r in rows)
         u > 1 && push!(ws, GridUtilization(Δt_base = g.admissible, utilization = u,
                                            fastest = rows[findfirst(r -> r.D == u, rows)].path,
-                                           drivers = drivers))
+                                           grid = g))
     end
     d = Deployment(b, bound.h, bound.N_base, bound.Δt_base, algorithm, Int(firing_budget),
                    Float64(localization_tol), Int(localization_budget), bound.schedule,

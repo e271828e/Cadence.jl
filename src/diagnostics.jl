@@ -1263,25 +1263,46 @@ _dep_section(p::Symbol) =
     p === :firing_budget       ? " (§10.6)" :
     (p === :localization_tol || p === :localization_budget) ? " (§10.4)" :
     p === :N_base              ? " (§9.1)" : ""
-# One driver clause (§9.2, D-187): the anchor's provenance, the entry's kind and
-# value, how much coarser the grid would be without it, and — for a driving
-# offset — the repair, the nearest offsets the rest of the pool already supports.
-_grid_driver(e::GridEntry, adm::Rational{Int}) =
-    "$(e.provenance) $(e.kind) $(e.value) ×$(e.factor)" *
-    (isempty(e.alternatives) ? "" :
-     " (declaring " * join(e.alternatives, " or ") * " keeps Δt_base = $(e.factor * adm))")
-_grid_drivers(es, adm::Rational{Int}) = join((_grid_driver(e, adm) for e in es), ", ")
 
-# The suggestion the three grid refusals carry (§9.2, D-187): the coarsest
-# admissible value with the admissible set, then one clause per driver. No
-# driver, no clause — joint responsibility is listed whole, never crowned.
-function _dep_grid(d::DeploymentInvalid)
-    g = d.grid
+# The grid block (§9.2, D-187), appended to the first line of every consumer that
+# names the grid: the three grid refusals, the derivation path's info line and
+# the `GridUtilization` advisory. Its rows are the admissible set with the
+# coarsest value; the pool table, every entry and not only the drivers, since a
+# ×1 beside a ×10 tells the reader which entry is innocent, with a driving
+# offset's repair on its row's tail; and the prime attribution, one prime power
+# per row naming its suppliers. The block indents two spaces, its rows four. An
+# empty pool renders no block.
+const _SUPERSCRIPTS = collect("⁰¹²³⁴⁵⁶⁷⁸⁹")
+_sup(n::Int) = n == 1 ? "" : join(_SUPERSCRIPTS[c - '0' + 1] for c in string(n))
+
+# A supplier's short label: the anchor's key, read off the tail of the
+# provenance `assembly.jl` spells ("…, key `k`"), and the entry's kind.
+function _grid_label(e::GridEntry)
+    m = match(r"key `([^`]*)`$", e.provenance)
+    (m === nothing ? e.provenance : m.captures[1]) * " " * string(e.kind)
+end
+
+function _grid_block(g::Union{Nothing,GridReport})
     (g === nothing || g.admissible === nothing) && return ""
-    drivers = [e for e in g.pool if e.factor > 1]
-    s = " — an admissible Δt_base divides gcd(pool) = $(g.admissible), the coarsest " *
-        "admissible value, the set being gcd(pool)/k"
-    isempty(drivers) ? s : s * "; drivers: " * _grid_drivers(drivers, g.admissible)
+    prov = [e.provenance for e in g.pool]
+    kv = ["$(e.kind) $(e.value)" for e in g.pool]
+    fac = ["×$(e.factor)" for e in g.pool]
+    wp, wk, wf = maximum(textwidth, prov), maximum(textwidth, kv), maximum(textwidth, fac)
+    rows = ["  admissible: gcd(pool)/k, coarsest $(g.admissible)", "  pool:"]
+    for (i, e) in enumerate(g.pool)
+        row = "    " * rpad(prov[i], wp) * "  " * rpad(kv[i], wk) * "  " * rpad(fac[i], wf)
+        isempty(e.alternatives) ||
+            (row *= "  declaring " * join(e.alternatives, " or ") * " keeps $(e.factor * g.admissible)")
+        push!(rows, rstrip(row))
+    end
+    # A whole-second grid has no prime to attribute, so the section is absent.
+    pw = ["$(p.prime)$(_sup(p.power))" for p in g.primes]
+    isempty(pw) || push!(rows, "  primes: $(denominator(g.admissible)) = " * join(pw, "·"))
+    for (i, p) in enumerate(g.primes)
+        push!(rows, "    " * rpad(pw[i], maximum(textwidth, pw)) * "  " *
+                    join((_grid_label(g.pool[j]) for j in p.suppliers), ", "))
+    end
+    "\n" * join(rows, "\n")
 end
 
 function message(d::DeploymentInvalid)
@@ -1298,7 +1319,7 @@ function message(d::DeploymentInvalid)
         return "Δt_base cannot be derived: `$(join(d.paths, "`, `"))` is/are unanchored, " *
                "with period `m·Δt_base` — an anchor edit anywhere in the tree would " *
                "silently rescale it. Declare the base tick period instead: `Δt_base = …`, " *
-               "or `N_base = …`$(_dep_grid(d)) (§9.1)"
+               "or `N_base = …` (§9.1)" * _grid_block(d.grid)
     d.reason === :no_constraint &&
         return "Δt_base cannot be derived: no anchor declares a constraint to derive it " *
                "from (§9.1)"
@@ -1310,10 +1331,10 @@ function message(d::DeploymentInvalid)
                "$(d.quotient) (§9.1)"
     d.reason === :anchor_period &&
         return "$(d.provenance): period $(d.value) is not an integer multiple of " *
-               "Δt_base = $(d.related)$(_dep_grid(d)) (§9.1)"
+               "Δt_base = $(d.related) (§9.1)" * _grid_block(d.grid)
     d.reason === :anchor_offset &&
         return "$(d.provenance): offset $(d.value) does not land on the base grid at " *
-               "Δt_base = $(d.related)$(_dep_grid(d)) (§9.1)"
+               "Δt_base = $(d.related) (§9.1)" * _grid_block(d.grid)
     "`$(d.parameter)` $(_dep_constraint(d.parameter)), got $(d.value)" *
     _dep_section(d.parameter)
 end
@@ -1323,13 +1344,12 @@ Base.@kwdef struct GridUtilization <: Diagnostic
     Δt_base::Rational{Int}
     utilization::Int                     # min_i Dᵢ over the discrete rows
     fastest::String                      # the path attaining it
-    drivers::Vector{GridEntry}           # the entries with factor > 1
+    grid::GridReport                     # the attribution the block renders
 end
 severity(::GridUtilization) = :warning
 message(d::GridUtilization) =
     "Δt_base derived as $(d.Δt_base) s: the grid is $(d.utilization)× finer than the " *
-    "fastest declared work (`$(d.fastest)` at D = $(d.utilization))" *
-    (isempty(d.drivers) ? "" : " — drivers: " * _grid_drivers(d.drivers, d.Δt_base)) * " (§9.2)"
+    "fastest declared work (`$(d.fastest)` at D = $(d.utilization)) (§9.2)" * _grid_block(d.grid)
 
 "§11.3: a claim naming no root input face."
 Base.@kwdef struct AttachUnknownFace <: Diagnostic
