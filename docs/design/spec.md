@@ -7393,10 +7393,16 @@ Everything else is the loop as already specified:
   The header carries the recorded run's [`Deployment`](#g-deployment) (the
   scalar-free artifact the grid parameters fix), the target `Simulation`
   carries its own, and the check is their comparison, on the *structural* side
-  of that line ([§11.5][s11-5]). The trajectory-determining parameters it
-  covers are `Δt_base`, `h`, `N_base`, the algorithm, `localization_tol`,
+  of that line ([§11.5][s11-5]). The value covers the trajectory-determining
+  parameters, `Δt_base`, `h`, `N_base`, the algorithm, `localization_tol`,
   `localization_budget` ([§10.4][s10-4]) and `firing_budget`
-  ([§10.6][s10-6]). Mismatch is
+  ([§10.6][s10-6]), and the [schedule](#g-schedule) (the typed
+  per-component `(D, Φ, Δt)` tick table) with every column, the anchor and
+  provenance columns included. A rate re-declared through a different anchor
+  at the same tick table is therefore a different deployment, and the
+  replay is refused. The refusal costs one re-recording in a rare case, and
+  it keeps the equality a plain value equality rather than one that ignores
+  two of a row's columns. Mismatch is
   `ReplayHeaderMismatch` with a deployment-parameter discriminator, never a
   what-if. A deployment change moves the times at which the frame-ordinal
   batches apply. That is different inputs, not a modified model. The event
@@ -11338,7 +11344,9 @@ activation):
   frame ordinal, the trace's device tag, the root input-face list.
 - **`ArgumentInvalid`** ([§8.7][s8-7], [§11.6][s11-6], [§12.4][s12-4], [§12.6][s12-6],
   [§14.7][s14-7]). Error · service, or build in a `sample_times` declaration
-  · fail-fast, but collected over a `TableBinding`'s entry table. The call
+  · fail-fast, but collected over a `TableBinding`'s entry table and over the
+  materialization's keywords, where it joins `StopFaceInvalid` in the one
+  throw ([§9.2][s9-2]). The call
   (`Simulation`, `step!`, `trim!`, `TableBinding`, a period constructor), the
   argument, the value in hand, the violated constraint. The twin of
   `DeploymentInvalid` for arguments that are not deployment parameters.

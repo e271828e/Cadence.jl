@@ -256,6 +256,11 @@ Items 22–27, item 6, the rest of item 28, and `UnboundedRun`. Five stages.
   `schemas` and `batches`; the header holds the deployment and `t₀`, no
   policy. The register keeps its cursor fields and the feed. `attach!` and
   `detach!` push schemas in place. 18 `header.` hits, all in `test_trace.jl`.
+  Logged by increment 46's review: the header check becomes one `==` over
+  two `Deployment`s, whose value covers the schedule with every column
+  (§12.7, amended 2026-09-20), so on inequality the check must fall back to
+  a field-wise walk, rows included, to keep `ReplayHeaderMismatch`'s `name`
+  discriminator and say which parameter, or which row and column, differs.
 - **Stage 4, `EmptyGreedyClaim`** through `_report!` on the roster entry's
   cell (`sim.jl:1354` → `dataplane.jl:271`), the log line kept.
 - **Stage 5, the regroup's remainder.** `chunk_size`, the stepper and the
