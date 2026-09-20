@@ -5826,9 +5826,11 @@ The header carries one further thing.
   carries that one.
 
 **`Trace{T}` is that fixed header plus two append-only lists**, `schemas` and
-`batches` ([D-255][d-255]). The header is written once at `init!` and never
-again, which is what makes it an artifact. The lists grow in place, the
-batches at every drain and the schemas at every roster change.
+`batches`, and its length ([D-255][d-255]). The header is written once at
+`init!` and never again, which is what makes it an artifact. The lists grow
+in place, the batches at every drain and the schemas at every roster change.
+The length is the drain's count on the live trace, frozen into the value
+`trace(sim)` hands back.
 
 **Each writer's face-name → position schema lives in the `schemas` list.**
 Positional records are meaningless without it, and replay does not reconstruct
@@ -7040,9 +7042,9 @@ exception.
 ### 12.6 Run lifecycle and partial advance
 
 **[`Run{T}`](#g-run) is what one run owns** ([D-255][d-255]). It is a mutable
-struct with four `const` fields, `t₀`, `mode`, `log` and `trace`, and three
-writable ones, `policy`, `frames` and `termination`. `init!` and `replay!` construct one. The
-loop's tail writes `termination` once, and `closed(run)` is
+struct with four `const` fields, `t₀`, `mode`, `log` and `trace`, and two
+writable ones, `policy` and `termination`. `init!` and `replay!` construct
+one. The loop's tail writes `termination` once, and `closed(run)` is
 `termination !== nothing`.
 
 A `Simulation{T}` is constructed with a **placeholder run**, `t₀ = zero(T)`,
@@ -11332,9 +11334,10 @@ activation):
   input (component path, store, expected vs. found layout/type), a
   deployment parameter
   (`Δt_base`/`h`/`N_base`/algorithm/`localization_tol`/`localization_budget`/`firing_budget`,
-  recorded vs. bound value), or a frame ordinal outside the recording's
-  length (the writer, the ordinal, the legal range). The build's and the
-  trace's provenance.
+  recorded vs. bound value), a [schedule](#g-schedule) row whose column
+  differs (the component path, the column, recorded vs. bound value), or a
+  frame ordinal outside the recording's length (the writer, the ordinal, the
+  legal range). The build's and the trace's provenance.
 - **`ReplaySchemaMismatch`** ([§11.5][s11-5], [§12.7][s12-7]). Error ·
   service · collected. The trace's device tag, its recorded face-name →
   position schema, the disagreeing face names, the target's root input-face
@@ -11345,8 +11348,7 @@ activation):
 - **`ArgumentInvalid`** ([§8.7][s8-7], [§11.6][s11-6], [§12.4][s12-4], [§12.6][s12-6],
   [§14.7][s14-7]). Error · service, or build in a `sample_times` declaration
   · fail-fast, but collected over a `TableBinding`'s entry table and over the
-  materialization's keywords, where it joins `StopFaceInvalid` in the one
-  throw ([§9.2][s9-2]). The call
+  materialization's keywords ([§9.2][s9-2]). The call
   (`Simulation`, `step!`, `trim!`, `TableBinding`, a period constructor), the
   argument, the value in hand, the violated constraint. The twin of
   `DeploymentInvalid` for arguments that are not deployment parameters.
@@ -12139,8 +12141,8 @@ once at `run!`, since `attach!`/`detach!` are stopped-sim operations
 ([§11.3][s11-3]).
 
 <a id="g-run"></a>**`Run`** — the state one run owns, a `Simulation` field beside the control
-plane. Four `const` fields, `t₀`, `mode`, the log and the trace; three
-writable ones, `policy`, `frames` and `termination`. `init!` and `replay!`
+plane. Four `const` fields, `t₀`, `mode`, the log and the trace; two
+writable ones, `policy` and `termination`. `init!` and `replay!`
 construct one, the loop's tail writes `termination` once, and `closed(run)`
 is `termination !== nothing` ([§12.6][s12-6], [D-255][d-255]).
 

@@ -9434,9 +9434,9 @@ in one call, and nothing in the artifact is lost by composing.
 value bound per advance.
 
 - `Run{T}` is a mutable struct with four `const` fields, `t₀`, `mode`, `log`
-  and `trace`, and three writable ones, `policy`, `frames` and
-  `termination`. `init!` and `replay!` construct one; the loop's tail writes
-  `termination` once. `closed(run)` is `termination !== nothing`.
+  and `trace`, and two writable ones, `policy` and `termination`. `init!`
+  and `replay!` construct one; the loop's tail writes `termination` once.
+  `closed(run)` is `termination !== nothing`.
 - `Run` is a `Simulation` field beside `control`, so `Simulation` is a
   mutable struct. A `Simulation{T}` is constructed with a placeholder run
   (`t₀ = zero(T)`, `mode = :live`, empty log and trace, no termination) that
@@ -9445,8 +9445,11 @@ value bound per advance.
   lifecycle and the wait. `init!` allocates fresh objects rather than
   clearing.
 - `Trace{T}` is a fixed header plus two append-only lists, `schemas` and
-  `batches`. The header loses its schema list; `attach!` and `detach!` push
-  onto the list in place. The register keeps its cursor fields and the
+  `batches`, and its length, the drains since the capture. The header loses
+  its schema list; `attach!` and `detach!` push onto the list in place. The
+  drain advances the length on the live trace, and `trace(sim)` freezes it
+  into the value it hands back; no reader of the run needs it, every reader
+  of the length reads a trace. The register keeps its cursor fields and the
   replay feed.
 - `StopPolicy` replaces `RunPolicy`: an immutable value of `t_end` plus the
   stop faces and their addresses, built and validated by each advance and
