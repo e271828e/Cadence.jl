@@ -7699,9 +7699,10 @@ runtime warnings, in one place, are these.
 - **Device crash** ([§12.4][s12-4], [§13.4][s13-4]). The framework wrapper
   catches a device task's failure, and the sim continues with the device
   absent.
-- **Unbounded run** ([§13.5][s13-5]). `run!` is called with `t_end = Inf` and
-  no `stop_on` faces. `UnboundedRun` lands in the loop's own cell, because
-  `run!` mutates state ([D-255][d-255]).
+- **Unbounded run** ([§13.5][s13-5]). `run!` is called in `:live` with
+  `t_end = Inf` and no `stop_on` faces. A `run!` in `:replay` is bounded by
+  the recording and raises nothing. `UnboundedRun` lands in the loop's own
+  cell, because `run!` mutates state ([D-255][d-255]).
 
 ### 13.3 Build primitives: `resolve` and the face-list accessors
 
@@ -8004,7 +8005,9 @@ loop through declared machinery.
 faces is the interactive session's ordinary shape, and the
 [operator interrupt](#g-operator-interrupt) is its escape ([§12.4][s12-4]).
 The loop raises `UnboundedRun` into its own [diagnostic cell](#g-diagnostic-cell),
-and the status record carries it ([§11.8][s11-8], [D-255][d-255]).
+and the status record carries it ([§11.8][s11-8], [D-255][d-255]). The
+advisory fires in `:live` only. A `run!` in `:replay` is bounded by the
+recording, whatever its policy says ([§12.7][s12-7], [D-218][d-218]).
 
 ```julia
 sim = Simulation(world; h = 0.02)          # no policy here: the deployment has none
@@ -10762,8 +10765,9 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   records, where replay compares the two deployments as values
   ([§11.5][s11-5], [§12.7][s12-7]).
 - `Simulation(deployment, T; join_timeout = 5.0, trace = true, log = true,
-  log_every = 1, log_max = 65536) → Simulation{T}`. Materializes a deployment
-  at a scalar type, allocating the buffers and the stopped-sim services.
+  log_every = 1, log_max = 65536, chunk_size = 16) → Simulation{T}`.
+  Materializes a deployment at a scalar type, allocating the buffers and the
+  stopped-sim services.
 
   | keyword | default | meaning | owning section |
   |---|---|---|---|
@@ -10772,6 +10776,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   | `log` | `true` | the snapshot log's plain kill switch | [§11.2][s11-2] |
   | `log_every` | `1` | the log's keep-every-kth decimation | [§11.2][s11-2] |
   | `log_max` | `65536` | the maximum number of retained snapshots, finite by default with `Inf` the opt-out | [§11.2][s11-2] |
+  | `chunk_size` | `16` | the executor's unroll width, a performance knob that never moves the trajectory | [§9.7][s9-7], [§12.6][s12-6] |
 
   `join_timeout`, the shutdown tail's join cap, lives on `Control` rather than
   the deployment ([§12.1][s12-1]). It moves no trajectory, so replay neither
@@ -11335,9 +11340,12 @@ activation):
   deployment parameter
   (`Δt_base`/`h`/`N_base`/algorithm/`localization_tol`/`localization_budget`/`firing_budget`,
   recorded vs. bound value), a [schedule](#g-schedule) row whose column
-  differs (the component path, the column, recorded vs. bound value), or a
-  frame ordinal outside the recording's length (the writer, the ordinal, the
-  legal range). The build's and the trace's provenance.
+  differs (the component path, the column, recorded vs. bound value), a rate
+  scope whose column differs (its path, the column, recorded vs. bound
+  value), a schedule whose row list, scope list or per-component vector
+  differs (the name, the two lists), or a frame ordinal outside the
+  recording's length (the writer, the ordinal, the legal range). The build's
+  and the trace's provenance.
 - **`ReplaySchemaMismatch`** ([§11.5][s11-5], [§12.7][s12-7]). Error ·
   service · collected. The trace's device tag, its recorded face-name →
   position schema, the disagreeing face names, the target's root input-face
@@ -11406,8 +11414,9 @@ activation):
   Face name, the offending value's type, the root input's declared type, the
   discarded value.
 - **`UnboundedRun`** ([§11.8][s11-8], [§13.5][s13-5]). Warning · runtime,
-  raised at `run!` when `t_end` is `Inf` and no stop faces are given ·
-  rate-limited, in the loop's diagnostic cell ([D-255][d-255]). The effective
+  raised at `run!` in `:live` when `t_end` is `Inf` and no stop faces are
+  given (a `run!` in `:replay` is bounded by the recording) · rate-limited,
+  in the loop's diagnostic cell ([D-255][d-255]). The effective
   `t_end` and the `stop_on` set. The remedy names both, and interactively
   it names the operator interrupt as the sanctioned escape from the
   configuration warned about ([§12.4][s12-4]).
