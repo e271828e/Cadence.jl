@@ -11323,10 +11323,10 @@ activation):
   function returns one shape for every decision.
 - **`GridUtilization`** ([§9.1][s9-1], [§9.2][s9-2]). Warning · service, at
   the `Deployment` constructor (derivation path only) · logged, on the
-  deployment's warnings ([D-254][d-254]). The derived `Δt_base`,
-  its driver entries with provenance and refinement factors, and
-  `min_i Dᵢ`, the grid rendered as "N× finer than the fastest declared
-  work".
+  deployment's warnings ([D-254][d-254]). The derived `Δt_base`, the grid
+  attribution (the pool with each entry's provenance and refinement factor,
+  the coarsest admissible `Δt_base`, the prime attribution) and `min_i Dᵢ`,
+  the grid rendered as "N× finer than the fastest declared work".
 - **`ReplayHeaderMismatch`** ([§11.5][s11-5], [§12.7][s12-7]). Error ·
   service · collected. The mismatch, discriminated. It is a store or root
   input (component path, store, expected vs. found layout/type), a

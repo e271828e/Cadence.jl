@@ -224,6 +224,23 @@ Items 7–10 with the names above. Two stages, small.
 
 ## Step 5: increment 46, `Deployment` and `Schedule`
 
+Landed 2026-09-20: the five-field ruling as `2b6adc4`, the brief as
+`5371c68` (`brief_increment_46_deployment.md`), the artifacts and the
+materialization split as `d7c21db`, the grid diagnostics as `7c1b832`, the
+review's fixes as `081871b`, its two rulings as `53bf82d` (§12.7's value
+covers the schedule with every column; `ArgumentInvalid` collects over the
+materialization's keywords) and the prime attribution's structured block as
+`b528450`. The brief merged the roadmap's first two stages, since a
+`Schedule` with no `Deployment` around it would be crossed twice by every
+test site. Two residues the verification logged: the primes section's
+supplier label parses the anchor's key off the provenance string, sound on
+every provenance the walk produces, to be replaced when increment 48 makes
+`Structure.aprov` a structured `(scope, key)` record for the anchor table;
+and a bare container key over an `NTuple` of children pushes one anchor per
+element, so the pool holds twins that mask each other's leave-one-out
+factor, a question of anchor identity to rule before increment 48 prints the
+anchor table.
+
 Items 19–21 and the deployment half of item 28. Three stages.
 
 - **Stage 1, `Schedule`.** Per-component rows with anchor and provenance
