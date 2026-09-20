@@ -232,14 +232,13 @@ covers the schedule with every column; `ArgumentInvalid` collects over the
 materialization's keywords) and the prime attribution's structured block as
 `b528450`. The brief merged the roadmap's first two stages, since a
 `Schedule` with no `Deployment` around it would be crossed twice by every
-test site. Two residues the verification logged: the primes section's
-supplier label parses the anchor's key off the provenance string, sound on
-every provenance the walk produces, to be replaced when increment 48 makes
-`Structure.aprov` a structured `(scope, key)` record for the anchor table;
-and a bare container key over an `NTuple` of children pushes one anchor per
-element, so the pool holds twins that mask each other's leave-one-out
-factor, a question of anchor identity to rule before increment 48 prints the
-anchor table.
+test site. The verification logged two residues. The walk pushed one
+anchor per element under a bare container key, so the pool held twins that
+masked each other's leave-one-out factor; §9.1 defines an anchor per
+`Absolute` entry, and the loose fix landed as the commit after this one.
+The primes section's supplier label parses the anchor's key off the
+provenance string, sound on every provenance the walk produces; it goes to
+step 7 below.
 
 Items 19–21 and the deployment half of item 28. Three stages.
 
@@ -293,4 +292,9 @@ Items 29–30. `show` for `Structure`, `Dataflow`, `Schedule`, `Build` and
 family, or one stage if a single agent holds them. A new `test_show.jl`, cut
 by property, with its routing-table row; `test_diagnostics.jl`'s rendering
 testset asserts messages, not artifacts. The face-provenance printer stays
-with the "Smaller" bullet.
+with the "Smaller" bullet. A stage ahead of the renderings, folded in from
+increment 46's verification: `Structure.aprov` becomes a structured
+`(scope, key)` record built in `_child_scope`, the anchor table's two columns,
+and the grid block's supplier label and `DeploymentInvalid`'s provenance
+string are formatted from it at the consumers instead of the label parsing
+the key off the string.

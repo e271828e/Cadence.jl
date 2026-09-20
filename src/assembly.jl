@@ -889,9 +889,17 @@ function _child_scope(w::Walk, path::String, st, seg::String, fld::Symbol,
         (a, m, c) = scope
         (a, v.K * m, c + v.φ * m), link
     else
-        push!(w.anchors, (v.T, v.τ))
-        push!(w.aprov, "`sample_times` at $(_at(path)), key `$k`")
-        (length(w.anchors), 1, 0), link
+        # One anchor per `Absolute` entry (§9.1): a bare container key applies one
+        # declaration to every element (§8.7), so the elements share the anchor
+        # the first of them established rather than each pushing a twin.
+        prov = "`sample_times` at $(_at(path)), key `$k`"
+        a = findfirst(==(prov), w.aprov)
+        if a === nothing
+            push!(w.anchors, (v.T, v.τ))
+            push!(w.aprov, prov)
+            a = length(w.anchors)
+        end
+        (a, 1, 0), link
     end
 end
 

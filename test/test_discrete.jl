@@ -101,6 +101,15 @@ end
 child_connections(::OpaqueRoster) = ()
 sample_times(r::OpaqueRoster) = r.rates
 
+# A bare container key over a tuple of elements: one `Absolute` entry, applied
+# to every element by §8.7's sugar, establishes one anchor (§9.1).
+struct AnchoredBank <: AbstractComponent
+    units::NTuple{2,TickCounter}
+    clock::TickCounter
+end
+child_connections(::AnchoredBank) = ()
+sample_times(::AnchoredBank) = (units = Absolute(Hz(10), 1//150), clock = Absolute(Hz(500)))
+
 function discrete_rate_fold()
     @testset "the fold validates with path attribution (§8.7, §9.1)" begin
         rated(rates) = Group((; c = TickCounter()); rates = rates)
@@ -394,6 +403,19 @@ function discrete_deployment()
         d = only(diagnostics(failure(() -> Simulation(offset; h = 1//500))))
         @test d isa DeploymentInvalid && d.reason === :anchor_offset
         @test d.grid.admissible == 1//1500
+        @test only(e.alternatives for e in d.grid.pool if e.kind === :offset) ==
+              [3//500, 1//125]
+
+        # One anchor per `Absolute` entry: a bare container key's elements share
+        # it, so the pool holds no twin to mask the offset's leave-one-out factor,
+        # and the offset is named as a driver with its repair (§8.7, §9.1, §9.2).
+        b = build(AnchoredBank((TickCounter(), TickCounter()), TickCounter()))
+        @test length(b.structure.anchors) == 2
+        @test b.structure.triples == [(1, 1, 0), (1, 1, 0), (2, 1, 0)]
+        d = only(diagnostics(failure(() -> Deployment(b; h = 1//500))))
+        @test d isa DeploymentInvalid && d.reason === :anchor_offset
+        @test [(e.kind, e.factor) for e in d.grid.pool] ==
+              [(:period, 1), (:period, 10), (:offset, 3)]
         @test only(e.alternatives for e in d.grid.pool if e.kind === :offset) ==
               [3//500, 1//125]
     end
