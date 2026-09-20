@@ -33,8 +33,8 @@ Appendix C): each kind is a Julia type, its identity, and its payload is
 plain data — paths and names as strings and symbols, never component
 instances; the declared/observed *port* types are the payload exception, and
 they are small. These are the kinds whose sources are built here;
-the three whose features are absent — `DebtReanchor`, `ThreadBudget`,
-`UnboundedRun` — are absent with them (`pending.md`).
+the two whose features are absent — `DebtReanchor` and `ThreadBudget` — are
+absent with them (`pending.md`).
 Writer attribution is never a payload field: the channel is per-writer, so
 the cell supplies it (§11.8, §12.4: no call passes a device id).
 `DeviceJoinTimeout`'s `who` is not that attribution — it is the payload's
@@ -98,6 +98,17 @@ struct FiringBudget <: Diagnostic
     count::Int
 end
 
+"""
+§13.5's unbounded run: `run!` with `t_end = Inf` and no stop faces, the
+interactive shape whose escape is the operator interrupt (§12.4). It is raised
+once per `run!`, into the loop's own cell, and the ring is the rate limit
+(D-255).
+"""
+struct UnboundedRun <: Diagnostic
+    t_end::Float64            # Inf
+    stop_on::Vector{Symbol}   # empty
+end
+
 "§12.4's device failure — the wrapper's catch, or the init bracket's; `abort` is the attachment's `should_abort`."
 struct DeviceCrash <: Diagnostic
     cause::Any
@@ -134,9 +145,10 @@ end
 "The closed set as a union: what a ring holds, and what `_report!` admits."
 const DiagValue = Union{MalformedDatum,OutOfClaimEntry,ClaimedFaceEntry,
                         EntryTypeMismatch,ChatteringBudget,FiringBudget,
-                        DeviceCrash,DeviceJoinTimeout,ReplayDiscardedStaging}
+                        UnboundedRun,DeviceCrash,DeviceJoinTimeout,
+                        ReplayDiscardedStaging}
 
-# The nine ride `src/diagnostics.jl`'s root so `severity` covers them (§13.2,
+# The ten ride `src/diagnostics.jl`'s root so `severity` covers them (§13.2,
 # D-214): the channel *is* the warning stream, so every one of them is a
 # warning by construction. `message(d)` renders what the emitting site
 # interpolates today; the sites still print the value itself (§11.8), so
@@ -147,6 +159,7 @@ severity(::ClaimedFaceEntry) = :warning
 severity(::EntryTypeMismatch) = :warning
 severity(::ChatteringBudget) = :warning
 severity(::FiringBudget) = :warning
+severity(::UnboundedRun) = :warning
 severity(::DeviceCrash) = :warning
 severity(::DeviceJoinTimeout) = :warning
 severity(::ReplayDiscardedStaging) = :warning
@@ -173,6 +186,13 @@ message(d::ChatteringBudget) =
 message(d::FiringBudget) =
     "`$(d.path)`.$(d.event) exhausted its firing budget $(d.budget) at t = $(d.t) after " *
     "$(d.count) firings — its further edges at this boundary are lost (§10.6)"
+message(d::UnboundedRun) =
+    "this `run!` declared `t_end = $(d.t_end)` and " *
+    (isempty(d.stop_on) ? "no stop face" : "the stop faces $(_facelist(d.stop_on))") *
+    " — nothing in the model or the clock can end it, so it runs until a " *
+    "control-plane stop: `stop!(sim)`, a device's stop button, or the operator " *
+    "interrupt, which is the sanctioned escape from this configuration. Give " *
+    "`run!` a finite `t_end`, or a `stop_on` face, to bound it (§13.5, §12.4)"
 message(d::DeviceCrash) =
     "the device task failed with $(d.cause)" *
     (d.abort ? " and `should_abort` was set" : ", and the simulation continues without it") *
@@ -200,11 +220,12 @@ struct KindCounts
     type_mismatch::Int
     chattering::Int
     firing::Int
+    unbounded::Int
     crash::Int
     join_timeout::Int
     replay_discarded::Int
 end
-KindCounts() = KindCounts(0, 0, 0, 0, 0, 0, 0, 0, 0)
+KindCounts() = KindCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 _kind(::MalformedDatum)   = :malformed
 _kind(::OutOfClaimEntry)  = :out_of_claim
@@ -212,6 +233,7 @@ _kind(::ClaimedFaceEntry) = :claimed_face
 _kind(::EntryTypeMismatch) = :type_mismatch
 _kind(::ChatteringBudget) = :chattering
 _kind(::FiringBudget)     = :firing
+_kind(::UnboundedRun)     = :unbounded
 _kind(::DeviceCrash)      = :crash
 _kind(::DeviceJoinTimeout) = :join_timeout
 _kind(::ReplayDiscardedStaging) = :replay_discarded

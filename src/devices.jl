@@ -61,17 +61,38 @@ struct ResidueRecord
 end
 
 """
-§13.5's termination record: the run's *outcome*, where the deployment carries
-its policy — so a stopped simulation answers "why did it stop?", and "how did
-the stop go?", without its consumer reconstructing either from the clock or
+The stop policy one advance declares (§13.5, D-255): the clock bound and the
+stop faces with their compiled root-cell addresses, built and validated by
+`run!`, `replay!` and `step!` per call and bound on the run for that advance.
+`ControlRequestedStop` is outside it: the policy is what the caller declares,
+the stop word is what anyone can issue (§12.1).
+
+It is defined here, ahead of the record that names it, for include order
+alone — the binder `_bind_policy` and the validation it runs are in sim.jl,
+beside `_stop_faces`.
+"""
+struct StopPolicy
+    t_end::Float64            # Inf = no clock bound
+    faces::Vector{Symbol}     # declaration order: the order a holding face is reported in
+    addrs::Vector{Any}        # their compiled root-cell addresses
+end
+
+"""
+§13.5's termination record: the run's *outcome*, and the policy of the advance
+that ended it — so a stopped simulation answers "why did it stop?", and "how
+did the stop go?", without its consumer reconstructing either from the clock or
 the log stream (D-203). `t` is the final snapshot's boundary time in the
 deployment's own scalar (§7.2), always present since boundary zero precedes
-every record (D-233); `source` is the typed source above; `residue` is what the run's-end sweep collected —
-recorded here and presented through the logging backend, never published
-(D-201, D-203). `init!` clears the record with the trajectory.
+every record (D-233); `policy` is the terminating advance's `StopPolicy`, so
+`EndTimeReached`'s bound is read off the record rather than off a constructor
+default that no longer exists (D-255); `source` is the typed source above;
+`residue` is what the run's-end sweep collected — recorded here and presented
+through the logging backend, never published (D-201, D-203). `init!` clears the
+record with the trajectory.
 """
 struct TerminationRecord{T}
     t::T
+    policy::StopPolicy
     source::TerminationSource
     residue::Vector{ResidueRecord}
 end

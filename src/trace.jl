@@ -42,8 +42,7 @@ struct TraceHeader{T}
     schemas::Vector{Pair{String,Vector{Symbol}}}    # writer tag => face-name-by-position
     deployment::@NamedTuple{t₀::T, Δt_base::Float64, h::Float64, N_base::Int, algorithm::Symbol,
                             localization_tol::Float64, localization_budget::Int,
-                            firing_budget::Int, t_end::Float64,
-                            stop_on::Vector{Symbol}}
+                            firing_budget::Int}
     layout::@NamedTuple{sizes::Vector{Pair{DataType,Int}}, root_faces::Vector{Symbol},
                         paths::Vector{String}, stypes::Vector{Any}, mtypes::Vector{Any}}
 end
@@ -282,15 +281,12 @@ function _capture_header(sim)
     m = Any[st === nothing ? nothing : st[] for st in ex.mstores]
     roots = Pair{Symbol,Any}[f => gather(ex.store, layout.addr[("", f)])
                              for (f, _) in layout.root_inputs]
-    # the effective termination pair is the one `init!` knows: the constructor's,
-    # `run!`'s per-run override post-dating the capture (§13.5)
     dep = sim.deployment
     deployment = (t₀ = ex.clock.t₀, Δt_base = dep.Δt_base, h = dep.h, N_base = dep.N_base,
                   algorithm = nameof(typeof(sim.stepper)),
                   localization_tol = dep.localization_tol,
                   localization_budget = dep.localization_budget,
-                  firing_budget = dep.firing_budget, t_end = sim.t_end,
-                  stop_on = copy(sim.stop_on))
+                  firing_budget = dep.firing_budget)
     TraceHeader{T}(copy(ex.xbuf), s, m, roots, Pair{String,Vector{Symbol}}[],
                    deployment, _fingerprint(sim))
 end
@@ -320,8 +316,8 @@ end
 # The header against the target `Build` and its deployment binding (§12.7's
 # disposition table): the structural fingerprint compared field for field, then
 # the seven trajectory-determining deployment parameters. `t₀` is applied rather
-# than compared, and the recorded `t_end`/`stop_on` pair is a fact of the
-# recorded session, never a constraint on this one — so neither is looked at.
+# than compared. The header holds no policy (§11.5, D-255): `t_end` and
+# `stop_on` are the terminating advance's, and the termination record has them.
 function _check_header!(diags::Vector{Diagnostic}, sim, h::TraceHeader)
     f = _fingerprint(sim)
     l = h.layout

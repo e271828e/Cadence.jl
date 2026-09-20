@@ -28,7 +28,7 @@ and the frame top is never stamped.
 function frame!(sim::Simulation{T}, k::Int) where {T}
     t_to = _grid_time(sim, k)
     sim.has_localized ? _localized_frame!(sim, t_to) : step!(sim, T(sim.deployment.h))
-    sim.policy.hit === nothing && (sim.exec.clock.t = t_to)
+    sim.exec.cursor.hit === nothing && (sim.exec.clock.t = t_to)
     nothing
 end
 
@@ -147,10 +147,10 @@ function _localized_frame!(sim::Simulation{T}, t_to) where {T}
         # Every publication is a stop-face sampling point (§13.5): a face
         # holding in the t* snapshot makes it the final one — the frame's
         # remainder is abandoned, and the hit reaches the loop through the
-        # policy seam.
+        # cursor's scratch (D-255).
         face = _stop_hit(sim, sim.policy)
         if face !== nothing
-            sim.policy.hit = face
+            cur.hit = face
             return nothing
         end
         count += 1

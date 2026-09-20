@@ -518,9 +518,9 @@ function test_trim()
 
         # `running` is the §11.3 freeze, as for every other §14 service. Both ends
         # of the run are test-controlled, exactly as in test_readers.
-        live = Simulation(armed(); h = 1//100, t_end = 3.0e5, stop_on = ("stop",))
+        live = Simulation(armed(); h = 1//100)
         init!(live, fragment(inputs = (in = 0.0,)))
-        task = Threads.@spawn run!(live)
+        task = Threads.@spawn run!(live; t_end = 3.0e5, stop_on = ("stop",))
         while lifecycle(live) !== :running
             yield()
         end

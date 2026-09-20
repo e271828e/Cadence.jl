@@ -1183,15 +1183,14 @@ message(d::ServiceLifecycle) =
 Base.@kwdef struct StopFaceInvalid <: Diagnostic
     face::Symbol
     reason::Symbol                           # :unknown | :root_input | :not_bool
-    site::Symbol                             # :constructor | :run! | :replay!
+    site::Symbol                             # :run! | :replay! | :step!
     declared::Any = nothing                  # the declared type, for :not_bool
     candidates::Vector{Symbol} = Symbol[]    # the root output-face list
 end
 
-# The binding site the name came from (§13.5, §12.7, D-249): the constructor's
-# default, or the per-run override of `run!` or `replay!`.
-_stop_site(s::Symbol) =
-    s === :constructor ? "the constructor's `stop_on`" : "`$(s)`'s `stop_on`"
+# The binding site the name came from (§13.5, §12.7, D-249): the advance that
+# declared it — `run!`, `replay!` or `step!` (D-255).
+_stop_site(s::Symbol) = "`$(s)`'s `stop_on`"
 
 message(d::StopFaceInvalid) =
     d.reason === :unknown ?

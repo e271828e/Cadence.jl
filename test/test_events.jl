@@ -303,10 +303,10 @@ function test_events()
         # by a sweep before anything is read — which is why the cell and the
         # store agree at the boundary, and why the snapshot taken there already
         # carries the flip.
-        sim = Simulation(overloaded(); h = 1//10, t_end = 5.0, stop_on = ("tripped",))
+        sim = Simulation(overloaded(); h = 1//10)
         init!(sim)
         @test port(sim, "mon", :tripped) === false       # before the crossing
-        run!(sim)
+        run!(sim; t_end = 5.0, stop_on = ("tripped",))
         t = termination(sim)
         @test t.source === ModelRequestedStop(:tripped)
         @test t.t ≈ 0.315 atol = 1e-6                    # the localized crossing

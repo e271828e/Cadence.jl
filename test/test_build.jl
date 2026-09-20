@@ -66,8 +66,8 @@ function build_probe_refusals()
         @test d isa ConformanceFailure && d.what == "state_derivative" &&
               d.reason === :field_type && d.observed === Int64 && d.declared === Float64
         @test failure(() -> build(single(ScrambledDerivative()))) === nothing
-        sim = Simulation(single(ScrambledDerivative()); h = 1//100, t_end = 0.05)
-        @test failure(() -> (init!(sim); run!(sim))) === nothing
+        sim = Simulation(single(ScrambledDerivative()); h = 1//100)
+        @test failure(() -> (init!(sim); run!(sim; t_end = 0.05))) === nothing
         d = only(diagnostics(failure(() -> build(single(NoFlow())))))
         @test d isa StoreWithoutUpdate && d.store === :init_x
     end

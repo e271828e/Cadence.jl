@@ -44,10 +44,9 @@ Where the reason is not given here, the cited decision carries it:
   operator interrupt — §13.4's carve-out exists, the masking and the entry do
   not, so a stopped run can hold mid-boundary stores here; §13.4's
   interactive-session behaviour (log and surface the status rather than
-  rethrow) has no discrimination in `run!`. `run!` requires a finite `t_end`.
+  rethrow) has no discrimination in `run!`.
 - **§11.7's GUI write path**, §10.7 pacing and its diagnostics, the §11.8
-  remainder (`DebtReanchor`, `ThreadBudget`, `UnboundedRun`, the maxlog
-  renderer).
+  remainder (`DebtReanchor`, `ThreadBudget`, the maxlog renderer).
 - **§14**: `linearize` (§14.10) and its tap register (`TapResolution` reads
   the read register alone today), mounting (§14.9), the NLopt fallback and the
   nominal-activation loop it would run on; sub-port-field addressing; index

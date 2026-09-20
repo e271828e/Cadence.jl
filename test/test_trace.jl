@@ -87,12 +87,13 @@ function trace_recording()
         # ever staged, so no batch would carry them and replay would have nothing.
         @test h.root_inputs == Pair{Symbol,Any}[:sig => 1.0, :e => 2.0]
 
-        # The deployment block, captured at the same instant as the stores (§11.5):
-        # the effective termination pair is the one `init!` knows, the constructor's.
+        # The deployment block, captured at the same instant as the stores (§11.5).
+        # It holds no policy: `t_end` and `stop_on` are the advance's, and the
+        # termination record carries the terminating one (D-255).
         d = h.deployment
         @test d.t₀ === 0.0 && d.h === 0.1 && d.N_base == 1 && d.algorithm === :RK4
         @test d.firing_budget == 4 && d.localization_budget == 8
-        @test d.t_end === Inf && isempty(d.stop_on)
+        @test !hasproperty(d, :t_end) && !hasproperty(d, :stop_on)
         @test h.layout.paths == ["t", "d"] && h.layout.root_faces == [:sig, :e]
     end
 
@@ -231,10 +232,8 @@ function trace_entry_pass()
         @test d.what === :deployment && d.name === :firing_budget
         @test d.expected == 4 && d.found == 2
 
-        # `t_end` and `stop_on` are a recorded fact of the recorded session, never a
-        # constraint on this one, and `t₀` is applied rather than compared (§12.7).
-        @test _compile_feed(Simulation(three_root_inputs(); h = 1//10, t_end = 3.0,
-                                       stop_on = ()), trc) isa ReplayFeed
+        # `t₀` is applied rather than compared (§12.7).
+        @test _compile_feed(Simulation(three_root_inputs(); h = 1//10), trc) isa ReplayFeed
     end
 
     @testset "a recorded schema is validated against the target's own faces (§11.5, §12.7)" begin
@@ -433,11 +432,11 @@ function trace_replay_loop()
     end
 
     @testset "a device's recorded batches replay on a deviceless twin (§12.7)" begin
-        sim = Simulation(replay_model(); h = 1//10, t_end = 2.0)
+        sim = Simulation(replay_model(); h = 1//10)
         attach!(sim, Nudge("rate", 3.0), Enumerated("rate"))
         init!(sim, fragment(inputs = (ref = 1.0, rate = 0.0)))
         stage!(sim, "ref" => 2.0)      # the harness surface is {ref}: the device holds {rate}
-        run!(sim)
+        run!(sim; t_end = 2.0)
         trc = trace(sim)
         @test lifecycle(sim) === :stopped
 
@@ -687,10 +686,10 @@ function trace_replay_loop()
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} live!(stopped))
         @test d.op === :live! && d.status === :stopped
 
-        crashed = Simulation(fed(Exploder(), "arm"); h = 1//10, t_end = 5.0)
+        crashed = Simulation(fed(Exploder(), "arm"); h = 1//10)
         init!(crashed, fragment(inputs = (in = 0.0,)))
         stage!(crashed, "in" => true)
-        @test_throws StepError run!(crashed)
+        @test_throws StepError run!(crashed; t_end = 5.0)
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} live!(crashed))
         @test d.op === :live! && d.status === :errored
         # (`live!` from `:running` is the same gate the two advance entries share,
@@ -820,12 +819,12 @@ function trace_discarded_harness()
         # `errored` is terminal (§13.6): never resumable, never re-initialized, and
         # `replay!` is refused there exactly as `init!` is — reproduction is
         # replaying the trace on a *fresh* simulation, which is the arm above.
-        crashed = Simulation(fed(Exploder(), "arm"); h = 1//10, t_end = 5.0)
+        crashed = Simulation(fed(Exploder(), "arm"); h = 1//10)
         init!(crashed, fragment(inputs = (in = 0.0,)))
         own = trace(crashed)
         stage!(crashed, "in" => true)
-        @test_throws StepError run!(crashed)        # §13.4's wrap, the cause one level down
-        d = carried(@test_throws DiagnosticError{ServiceLifecycle} replay!(crashed, own))
+        @test_throws StepError run!(crashed; t_end = 5.0)        # §13.4's wrap, the cause one level down
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} replay!(crashed, own; t_end = 5.0))
         @test d.op === :replay! && d.status === :errored
         @test d.legal == [:built, :initialized, :stopped]   # §12.6's stopped-sim row
         # (`replay!` from `:running` is the same gate one line above it, and reaching

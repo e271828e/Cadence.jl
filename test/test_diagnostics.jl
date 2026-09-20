@@ -405,7 +405,7 @@ function diagnostics_kind_set()
             ServiceLifecycle(op = :capture, status = :errored, legal = [:initialized, :stopped]),
             ServiceLifecycle(op = :run!, status = :stopped, legal = [:initialized]),
             ServiceLifecycle(op = :capture, status = :built, legal = [:initialized, :stopped]),
-            StopFaceInvalid(face = :done, reason = :unknown, site = :constructor,
+            StopFaceInvalid(face = :done, reason = :unknown, site = :step!,
                             candidates = [:hit]),
             StopFaceInvalid(face = :done, reason = :root_input, site = :run!),
             StopFaceInvalid(face = :done, reason = :not_bool, site = :replay!,
@@ -566,6 +566,7 @@ function diagnostics_kind_set()
             EntryTypeMismatch(:a, "x", Float64),
             ChatteringBudget("a/b", :snap, 1.0, 8, 9),
             FiringBudget("a/b", :snap, 1.0, 4, 5),
+            UnboundedRun(Inf, Symbol[]),
             DeviceCrash(ArgumentError("bad"), false),
             DeviceJoinTimeout("device 1 (Pad)", 5.0, 1.0, 10),
             ReplayDiscardedStaging([:a, :b], 3),
@@ -577,8 +578,8 @@ function diagnostics_kind_set()
                                       TrimCommitEvents, TrimCommitResiduals,
                                       MalformedDatum, OutOfClaimEntry, ClaimedFaceEntry,
                                       EntryTypeMismatch, ChatteringBudget, FiringBudget,
-                                      DeviceCrash, DeviceJoinTimeout, GridUtilization,
-                                      ReplayDiscardedStaging])
+                                      UnboundedRun, DeviceCrash, DeviceJoinTimeout,
+                                      GridUtilization, ReplayDiscardedStaging])
         for d in occurrences
             @test severity(d) === (typeof(d) in warning_kinds ? :warning : :error)
             @test path(d) isa String
