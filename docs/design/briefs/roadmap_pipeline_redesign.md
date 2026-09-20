@@ -258,6 +258,29 @@ Items 19–21 and the deployment half of item 28. Three stages.
 
 ## Step 6: increment 47, the run
 
+Landed 2026-09-21: the `frames` ruling and two Appendix C rows as
+`9e1577d`, the brief as `8589d71` (`brief_increment_47_run.md`), the stop
+policy and `UnboundedRun` as `46f261e`, the run and the trace split as
+`2a4086f`, the periphery as `f2c3695`, the cold review's fixes as `fa663a7`
+and `68a4f90`, and its three spec amendments as `d6bd78b` (the advisory
+fires in `:live` only; `ReplayHeaderMismatch`'s row admits the schedule's
+list, scope and vector arms; Appendix B's materialization table gains
+`chunk_size`). Ruled while briefing: the recording's length is the trace's,
+not the run's, since every reader of it reads a `Trace` and the loop reads
+`clock.step`; `Run{T}` has six fields. The brief merged the roadmap's five
+stages into three, the run and the trace split together and the greedy
+claim with the regroup. The roadmap's "3 constructor uses" were 63. Two
+engineering choices the review endorsed: `deployment.jl` and `trace.jl`
+moved up the include order so the header's deployment and the plane's
+recorder are concretely typed, and the drain counts through the run's
+concrete trace so a quiet drain still allocates nothing. Residues: the
+header walk's `:anchor` and `scope.*` arms are implemented and rendered but
+no fixture pair reaches them; a `replay!` that throws inside boundary zero
+leaves a `built` simulation in `:replay` with the feed attached, as a
+failed `init!` leaves its own fresh run; a hand-built headerless `Trace`
+trips an `InternalInvariant` at `replay!`, to become an `ArgumentInvalid`
+when §16's edited-trace replay makes a trace an argument.
+
 Items 22–27, item 6, the rest of item 28, and `UnboundedRun`. Five stages.
 
 - **Stage 1, `StopPolicy`** replaces `RunPolicy` (`sim.jl:13`): immutable,
