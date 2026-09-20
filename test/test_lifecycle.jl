@@ -130,7 +130,8 @@ function test_lifecycle()
         init!(sim, fragment(inputs = (ref = 0.0,)); t0 = 10.0)
         run!(sim; t_end = 5.0)
         @test termination(sim).source === EndTimeReached() && sim.exec.clock.step == 0
-        late = Simulation(feedback_model(); h = 1//50)   # `t_end = Inf`: the default `1.0` would precede `t0`
+        late = Simulation(feedback_model(); h = 1//50)   # the advance below carries the bound:
+                                                        # one before `t0` advances nothing
         init!(late, fragment(inputs = (ref = 0.0,)); t0 = 86400.0)
         @test step!(late; t_plus = 1.0) == 50
         run!(late; t_end = 86402.0)
@@ -306,6 +307,11 @@ function test_lifecycle()
         @test d2.call === :step! && d2.argument === :frames && d2.value == 0
         d3 = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(sim2; t_plus = 0.0))
         @test d3.call === :step! && d3.argument === :t_plus && d3.value == 0.0
+        # `step!` reads its own keywords before the policy, as `replay!` does: a
+        # call naming both a bad pair and a bad face is refused for the pair.
+        d4 = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(
+            sim2; frames = 1, t_plus = 0.1, stop_on = ("nope",)))
+        @test d4.call === :step! && d4.reason === :both_given
     end
 
     @testset "a stop face inside step! truncates it through the deviceless tail (§12.6, §13.5)" begin

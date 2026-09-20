@@ -1325,9 +1325,11 @@ readers being user values, so reaching here is an internal assertion firing.
         "and against another's buffer set they would read and write the wrong slot in " *
         "silence; one product is compiled per activation (§9.2)"))
 
+# `algorithm` takes no default: it is trajectory-determining (§12.7), so a
+# scratch executor silently built on `RK4` against a `Heun` deployment would
+# give a wrong answer with no diagnostic. Every caller passes the deployment's.
 function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{Int},
-                 Δt_c::Vector{Float64}; chunk_size::Int = 16,
-                 algorithm = RK4) where {T}
+                 Δt_c::Vector{Float64}; chunk_size::Int = 16, algorithm) where {T}
     s, decls, layout = b.structure, act.decls, act.layout
     tiers = s.tiers
 

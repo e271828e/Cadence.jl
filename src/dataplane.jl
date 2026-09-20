@@ -211,9 +211,9 @@ message(d::ReplayDiscardedStaging) =
 """
 The per-kind counter record (§11.8): a **fixed-shape isbits record, never a
 `Dict`** — licensed by the closed kind set, which makes the counter layout a
-type rather than a lookup. One field per kind, in the kinds' declaration
-order; the same shape serves a batch's suppressed counts and the loop's
-cumulative totals, and `+` is the fold between them.
+type rather than a lookup. One field per kind, in `DiagValue`'s order; the same
+shape serves a batch's suppressed counts and the loop's cumulative totals, and
+`+` is the fold between them.
 """
 struct KindCounts
     malformed::Int
@@ -603,10 +603,13 @@ port(s::Snapshot, path::String, name::Symbol) = gather(s.store, s.layout.addr[(p
 capture(b::StoreBundle) = StoreBundle(map(cs -> CellStore(copy(cs.buf)), b.stores))
 
 """
-§11.2's `@atomic latest` reference in its own mutable holder, so the plane and
-every device handle share one slot: release-store at publication, acquire-load
-at `latest(sim)`. The exchange is wait-free in both directions — a wedged
-reader cannot delay publication, and the loop cannot tear a reader's view.
+§11.2's `@atomic latest` reference in a mutable object of its own. The plane is
+a mutable struct whose other fields the loop and the service calls rewrite
+non-atomically, so the one published reference lives apart from them: the
+wait-free exchange shares no struct with loop-owned mutable state, and a
+handle's `latest` is one load off a small object. Release-store at publication,
+acquire-load at `latest(sim)`, wait-free in both directions: a wedged reader
+cannot delay publication, and the loop cannot tear a reader's view.
 """
 mutable struct Published
     @atomic latest::Union{Nothing,Snapshot}

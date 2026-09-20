@@ -4,9 +4,10 @@
 # `Deployment`, not per `Build` and not per scalar type. Grid arithmetic is
 # exact — GCD over `Rational{Int}` — and floats are refused at the door.
 #
-# The file sits after `stepper.jl` because the constructor checks
-# `algorithm <: AbstractStepper`, and before `sim.jl` because the materialization
-# consumes what is built here.
+# The file sits after `build.jl` and `readers.jl` because the binding consumes the
+# `Build`, and before `trace.jl` because `TraceHeader.deployment` is a typed field.
+# The `AbstractStepper` check at the constructor and the `RK4` default resolve at
+# call time, so `stepper.jl` may come later.
 
 # Records and returns `nothing` on its two refusing arms; the call's list carries it.
 _exact(name::Symbol, v::Rational{Int}, diags::Vector{Diagnostic}) = v

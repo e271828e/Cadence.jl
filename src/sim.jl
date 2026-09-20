@@ -1249,7 +1249,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
                t_end = Inf, stop_on = ())
     ctl = sim.control
     _assert_advanceable(sim, :step!)
-    pol = _bind_policy(sim, t_end, stop_on, :step!)   # this advance's policy (§13.5, D-255)
+    # own keywords first, then the policy, then the write: `replay!`'s order too
     frames === nothing || t_plus === nothing ||
         throw(DiagnosticError(ArgumentInvalid(call = :step!, reason = :both_given)))
     if t_plus === nothing
@@ -1263,6 +1263,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         t = sim.exec.clock.t                  # the frame top the duration counts from
         nf = max(1, _frames_to(t + Float64(t_plus), t, sim.deployment.h))
     end
+    pol = _bind_policy(sim, t_end, stop_on, :step!)   # this advance's policy (§13.5, D-255)
     sim.run.policy = pol
     t_end_frame = _t_end_frame(sim, pol.t_end)
     @atomic :release ctl.lifecycle = :running   # the freeze holds within the call

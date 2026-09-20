@@ -1888,9 +1888,10 @@ message(d::NotAttached) =
 Base.@kwdef struct ReplayHeaderMismatch <: Diagnostic
     what::Symbol                             # :store | :root_input | :deployment | :scalar | :frame
     path::String = ""                        # the component path: the per-component :store arms,
-                                             # and a :deployment schedule row (§12.7)
+                                             # a :deployment schedule row and a rate scope (§12.7)
     name::Symbol = Symbol("")                # :sizes|:paths|:s|:m, the root-input face, the
-                                             # deployment parameter, or the schedule column
+                                             # deployment parameter, a schedule or `scope.` column,
+                                             # or a list name: :schedule, `scope.key`, `schedule.`
     expected::Any = nothing                  # the trace's value
     found::Any = nothing                     # the target's
 end
@@ -1901,22 +1902,48 @@ _replay_subject(d::ReplayHeaderMismatch) =
     d.name === :sizes ? "cell-size list" :
     "$(_at_path(d.path))'s $(d.name) store type"
 
+_replay_paths(ps) = isempty(ps) ? "none" : join((_at_path(p) for p in ps), ", ")
+
+# The `:deployment` arms, one per case the walk in `trace.jl` emits: the seven
+# parameters and the two lists carry no path, a schedule row and a rate scope
+# carry theirs, and the column rides in `name` behind its prefix.
+_replay_deployment(d::ReplayHeaderMismatch) =
+    isempty(d.path) ?
+    (d.name === :schedule ?
+     "replay: the recording's schedule covers $(_replay_paths(d.expected)) and this " *
+     "deployment's covers $(_replay_paths(d.found)) — the rows are compared by component " *
+     "path, so a differing component list is reported whole: past the first difference the " *
+     "rows name different components (§12.7)" :
+     d.name === Symbol("scope.key") ?
+     "replay: the recording opened the rate scopes $(_namelist(d.expected)) and this " *
+     "deployment opens $(_namelist(d.found)) — a scope is identified by its path and its " *
+     "key, so a differing scope list is reported whole rather than column by column (§12.7)" :
+     startswith(String(d.name), "schedule.") ?
+     "replay: the recording's per-component `$(chopprefix(String(d.name), "schedule."))` " *
+     "vector is $(repr(d.expected)) and this deployment's is $(repr(d.found)) — the " *
+     "executor compiles over these vectors, every tier in them, so they are compared " *
+     "beside the schedule's own rows (§12.7)" :
+     "replay: the recording ran at `$(d.name)` = $(d.expected) and this simulation is bound " *
+     "at $(d.found) — the seven trajectory-determining deployment parameters are compared, " *
+     "the schedule with them, never taken as a what-if: a deployment change moves the times " *
+     "the frame-ordinal batches apply at, which is different inputs rather than a modified " *
+     "model (§12.7)") :
+    startswith(String(d.name), "scope.") ?
+    "replay: the rate scope at $(_at_path(d.path)) recorded " *
+    "`$(chopprefix(String(d.name), "scope."))` = $(repr(d.expected)) and this deployment " *
+    "binds $(repr(d.found)) — a scope is compared with every column, the anchor included, " *
+    "because it is what the rates under it were declared through (§12.7)" :
+    "replay: the schedule row for $(_at_path(d.path)) recorded `$(d.name)` = " *
+    "$(repr(d.expected)) and this deployment binds $(repr(d.found)) — the schedule is " *
+    "compared with every column, the anchor and provenance included, so a rate re-declared " *
+    "through a different anchor at the same tick table is a different deployment (§12.7)"
+
 message(d::ReplayHeaderMismatch) =
     d.what === :scalar ?
     "replay: the trace was recorded on a `Simulation{$(d.expected)}` and this one is a " *
     "`Simulation{$(d.found)}` — the scalar is a structural fact of the deployment, and a " *
     "trace re-drives the build it was recorded on (§12.7)" :
-    d.what === :deployment ?
-    (isempty(d.path) ?
-     "replay: the recording ran at `$(d.name)` = $(d.expected) and this simulation is bound " *
-     "at $(d.found) — the seven trajectory-determining deployment parameters are compared, " *
-     "the schedule with them, never taken as a what-if: a deployment change moves the times " *
-     "the frame-ordinal batches apply at, which is different inputs rather than a modified " *
-     "model (§12.7)" :
-     "replay: the schedule row for $(_at_path(d.path)) recorded `$(d.name)` = " *
-     "$(repr(d.expected)) and this deployment binds $(repr(d.found)) — the schedule is " *
-     "compared with every column, the anchor and provenance included, so a rate re-declared " *
-     "through a different anchor at the same tick table is a different deployment (§12.7)") :
+    d.what === :deployment ? _replay_deployment(d) :
     d.what === :frame ?
     "replay: $(d.name)'s record is stamped frame $(d.found), which is outside the " *
     "recording's own $(d.expected) — a batch replays at the frame ordinal it was drained " *
