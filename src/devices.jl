@@ -3,8 +3,8 @@
 # contract's four functions, the framework wrapper around the author-owned
 # loop body, the pre-spawn init bracket and the tail. The control surface here
 # is §12.1's stop word, §12.3's counter-plus-condition wait and §12.6's
-# lifecycle with §13.5's termination record beside it: pause, pacing and the
-# operator interrupt are absent (`pending.md`). A device
+# lifecycle: pause, pacing and the operator interrupt are absent
+# (`pending.md`). A device
 # failure reports as `DeviceCrash` into the device's own diagnostic cell
 # (§11.8, §12.4); what the tail alone produces — the join timeout, and
 # whatever landed past the final frame top — is folded into the termination
@@ -17,38 +17,6 @@
 # include order only — they run once per run, never inside a frame.
 
 """
-§13.5's termination sources (D-203): the diagnostic convention applied to the
-run's outcome — each kind is its identity, its payload plain data — without
-joining Appendix C's diagnostic set, the record being outcome, not warning.
-`EndTimeReached` carries nothing: the record's own `t` is the fact, and the
-configured bound lives with the policy. `ModelRequestedStop` carries the
-first named `stop_on` face observed holding, in declaration order.
-`ControlRequestedStop` carries its issuer — `:code` from `stop!(sim)`, the
-requesting device's name from `stop!(handle)`, or `:interrupt`, requested by
-§13.4's carve-out when an `InterruptException` reaches the catch site or by
-§11.6's wrapper when one leaves a device loop body — through the same
-first-writer-wins word, so an earlier issuer keeps it (§12.4's masking and the
-operator-interrupt entry itself are still absent, `pending.md`). `LoopError` is §13.6's abnormal entry, `exception` the retained
-cause — a `StepError` from the frame loop's one catch site (§13.4), which
-carries the raw cause in turn.
-"""
-abstract type TerminationSource end
-
-struct EndTimeReached <: TerminationSource end
-
-struct ModelRequestedStop <: TerminationSource
-    face::Symbol
-end
-
-struct ControlRequestedStop <: TerminationSource
-    issuer::Union{Symbol,String}
-end
-
-struct LoopError <: TerminationSource
-    exception::Any
-end
-
-"""
 One writer's share of the tail residue (§11.8, D-203): what the run's-end
 sweep took past the final frame top — the final ring, at most `DIAG_RING`
 entries, and the per-kind counts the ring refused. A quiet writer contributes
@@ -58,44 +26,6 @@ struct ResidueRecord
     writer::String
     recent::Vector{DiagValue}
     suppressed::KindCounts
-end
-
-"""
-The stop policy one advance declares (§13.5, D-255): the clock bound and the
-stop faces with their compiled root-cell addresses, built and validated by
-`run!`, `replay!` and `step!` per call and bound on the run for that advance.
-`ControlRequestedStop` is outside it: the policy is what the caller declares,
-the stop word is what anyone can issue (§12.1).
-
-It is defined here, ahead of the record that names it, for include order
-alone — the binder `_bind_policy` and the validation it runs are in sim.jl,
-beside `_stop_faces`.
-"""
-struct StopPolicy
-    t_end::Float64            # Inf = no clock bound
-    faces::Vector{Symbol}     # declaration order: the order a holding face is reported in
-    addrs::Vector{Any}        # their compiled root-cell addresses
-end
-
-"""
-§13.5's termination record: the run's *outcome*, and the policy of the advance
-that ended it — so a stopped simulation answers "why did it stop?", and "how
-did the stop go?", without its consumer reconstructing either from the clock or
-the log stream (D-203). `t` is the final snapshot's boundary time in the
-deployment's own scalar (§7.2), always present since boundary zero precedes
-every record (D-233); `policy` is the terminating advance's `StopPolicy`, so
-`EndTimeReached`'s bound is read off the record rather than off a constructor
-default that no longer exists (D-255); `source` is the typed source above;
-`residue` is what the run's-end sweep collected — recorded here and presented
-through the logging backend, never published (D-201, D-203). It lives on the
-`Run`, written once by the loop's tail, so a fresh run starts without one
-(§12.6, D-255).
-"""
-struct TerminationRecord{T}
-    t::T
-    policy::StopPolicy
-    source::TerminationSource
-    residue::Vector{ResidueRecord}
 end
 
 """
