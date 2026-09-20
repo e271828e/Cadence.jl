@@ -6,9 +6,9 @@
 function test_stepper()
     @testset "the method is a deployment binding, RK4 the default (§10.2)" begin
         sim = Simulation(feedback_model(); h = 1//100)
-        @test sim.stepper isa RK4{Float64}
+        @test sim.exec.stepper isa RK4{Float64}
         simh = Simulation(feedback_model(); h = 1//100, algorithm = Heun)
-        @test simh.stepper isa Heun{Float64}
+        @test simh.exec.stepper isa Heun{Float64}
         # validated with its siblings: a backend is named by stepper type, and
         # anything else is refused at binding, not deep in a MethodError
         d1 = only(diagnostics(failure(() -> Simulation(feedback_model(); h = 1//100, algorithm = 4))))

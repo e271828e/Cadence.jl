@@ -1277,8 +1277,13 @@ into the phase bodies, beside the store set they read and write.
 Buffers are never cached, because every buffer set has exactly one owner
 (§9.2): a `Simulation` owns its nominal executor, and every service invocation
 instantiates its own from the same cached layouts.
+
+The stepper, the arrival buffers, `chunk_size` and the localized-event key are
+the executor's too (§12.6, D-256): it is the one thing that writes them. The
+stepper's type is the parameter `M` because `stepper.jl` is included after this
+file, which a call tolerates and a field type would not.
 """
-struct Executor{T,S,B,CL,EV}
+struct Executor{T,S,B,CL,EV,M}
     act::Activation{T}     # the layout and probe products it was materialized from
     store::S               # the signal table: cells and root inputs
     xbuf::Vector{T}        # continuous state, the flat buffer (§7.1)
@@ -1291,6 +1296,12 @@ struct Executor{T,S,B,CL,EV}
     cursor::ExecutionCursor          # §13.4: where execution is, written per dispatch
     # the flat-buffer range each component's `x` occupies, empty where it owns none
     xblocks::Vector{UnitRange{Int}}
+    chunk_size::Int        # the unroll width it was compiled at, retained so a service
+                           # can compile one of its own exactly as this was
+    stepper::M             # the seam's backend (§10.2), with its own scratch
+    xnext::Vector{T}       # the retained arrival pair (§10.4), xₙ₊₁ saved
+    ẋnext::Vector{T}       # ẋₙ₊₁, paid only past a validated trigger
+    has_localized::Bool    # any localized event compiled in: the frame loop's fast-path key
 end
 
 """
@@ -1315,7 +1326,8 @@ readers being user values, so reaching here is an internal assertion firing.
         "silence; one product is compiled per activation (§9.2)"))
 
 function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{Int},
-                 Δt_c::Vector{Float64}; chunk_size::Int = 16) where {T}
+                 Δt_c::Vector{Float64}; chunk_size::Int = 16,
+                 algorithm = RK4) where {T}
     s, decls, layout = b.structure, act.decls, act.layout
     tiers = s.tiers
 
@@ -1471,7 +1483,11 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
 
     evset = EventSet(ev_entries, proj_entries, store, xbuf, ev_owner, ev_names,
                      ev_localized, length(s.comps))
-    Executor(act, store, xbuf, ẋbuf, sstores, mstores, clock, bodies, evset, cursor, xblocks)
+    # The seam's backend and the arrival pair are this buffer set's, so they are
+    # built here rather than by the caller (§12.6, D-256).
+    Executor(act, store, xbuf, ẋbuf, sstores, mstores, clock, bodies, evset, cursor,
+             xblocks, chunk_size, algorithm(T, nx), zeros(T, nx), zeros(T, nx),
+             any(ev_localized))
 end
 
 # A probed input value: the producer's product, or the synthesized value of the

@@ -30,14 +30,14 @@ Where the reason is not given here, the cited decision carries it:
   increment 45. The warning homes: the artifact criterion, `warnings` on the
   `Build` and the scoped channel the build binds, delivered by increment 44;
   `Deployment`'s own list is delivered by increment 46, and `EmptyGreedyClaim`
-  into the roster entry's cell waits on increment 47 (D-250). `Deployment` and
+  into the roster entry's cell by increment 47 (D-250). `Deployment` and
   `Schedule` as artifacts, with D-187's grid diagnostics on the deployment
   (leave-one-out factors, prime attribution, nearest non-refining offsets, the
   derivation line and `GridUtilization`), delivered by increment 46 (D-254).
   The run: `Run{T}`, the
   trace split into header plus `schemas` and `batches`, `StopPolicy` per
-  advance and `UnboundedRun` are delivered by increment 47; the
-  `Simulation`'s five fields wait on its third stage (D-255, D-256).
+  advance, `UnboundedRun` and the `Simulation`'s five fields are delivered by
+  increment 47 (D-255, D-256).
   The renderings: `show` for `Structure`, `Dataflow`, `Schedule`, `Build` and
   `Deployment`, with the binary hyperperiod-chart guard at 100 base ticks
   (D-257). Nothing else of it is built today (M-B26).

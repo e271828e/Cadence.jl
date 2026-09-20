@@ -32,9 +32,10 @@ The closed kind set for the runtime warning stream (§13.2,
 Appendix C): each kind is a Julia type, its identity, and its payload is
 plain data — paths and names as strings and symbols, never component
 instances; the declared/observed *port* types are the payload exception, and
-they are small. These are the kinds whose sources are built here;
-the two whose features are absent — `DebtReanchor` and `ThreadBudget` — are
-absent with them (`pending.md`).
+they are small. Most are built here; `EmptyGreedyClaim` is declared with the
+service kinds (`diagnostics.jl`) and raised by `attach!` into the roster
+entry's own cell (§11.3, D-250), and the two whose features are absent —
+`DebtReanchor` and `ThreadBudget` — are absent altogether (`pending.md`).
 Writer attribution is never a payload field: the channel is per-writer, so
 the cell supplies it (§11.8, §12.4: no call passes a device id).
 `DeviceJoinTimeout`'s `who` is not that attribution — it is the payload's
@@ -146,13 +147,14 @@ end
 const DiagValue = Union{MalformedDatum,OutOfClaimEntry,ClaimedFaceEntry,
                         EntryTypeMismatch,ChatteringBudget,FiringBudget,
                         UnboundedRun,DeviceCrash,DeviceJoinTimeout,
-                        ReplayDiscardedStaging}
+                        ReplayDiscardedStaging,EmptyGreedyClaim}
 
-# The ten ride `src/diagnostics.jl`'s root so `severity` covers them (§13.2,
-# D-214): the channel *is* the warning stream, so every one of them is a
-# warning by construction. `message(d)` renders what the emitting site
-# interpolates today; the sites still print the value itself (§11.8), so
-# nothing here changes what the stream shows.
+# The ones declared here ride `src/diagnostics.jl`'s root so `severity` covers
+# them (§13.2, D-214): the channel *is* the warning stream, so every member is a
+# warning by construction — `EmptyGreedyClaim` already is one where it is
+# declared. `message(d)` renders what the emitting site interpolates today; the
+# sites still print the value itself (§11.8), so nothing here changes what the
+# stream shows.
 severity(::MalformedDatum) = :warning
 severity(::OutOfClaimEntry) = :warning
 severity(::ClaimedFaceEntry) = :warning
@@ -224,8 +226,9 @@ struct KindCounts
     crash::Int
     join_timeout::Int
     replay_discarded::Int
+    empty_greedy::Int
 end
-KindCounts() = KindCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+KindCounts() = KindCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 _kind(::MalformedDatum)   = :malformed
 _kind(::OutOfClaimEntry)  = :out_of_claim
@@ -237,6 +240,7 @@ _kind(::UnboundedRun)     = :unbounded
 _kind(::DeviceCrash)      = :crash
 _kind(::DeviceJoinTimeout) = :join_timeout
 _kind(::ReplayDiscardedStaging) = :replay_discarded
+_kind(::EmptyGreedyClaim) = :empty_greedy
 
 _bump(c::KindCounts, k::Symbol) =
     KindCounts((getfield(c, f) + (f === k) for f in fieldnames(KindCounts))...)
@@ -599,11 +603,10 @@ port(s::Snapshot, path::String, name::Symbol) = gather(s.store, s.layout.addr[(p
 capture(b::StoreBundle) = StoreBundle(map(cs -> CellStore(copy(cs.buf)), b.stores))
 
 """
-§11.2's `@atomic latest` reference in its own mutable holder, so the
-`Simulation` itself stays immutable: release-store at publication,
-acquire-load at `latest(sim)`. The exchange is wait-free in both directions —
-a wedged reader cannot delay publication, and the loop cannot tear a reader's
-view.
+§11.2's `@atomic latest` reference in its own mutable holder, so the plane and
+every device handle share one slot: release-store at publication, acquire-load
+at `latest(sim)`. The exchange is wait-free in both directions — a wedged
+reader cannot delay publication, and the loop cannot tear a reader's view.
 """
 mutable struct Published
     @atomic latest::Union{Nothing,Snapshot}

@@ -502,7 +502,8 @@ trim!(::Simulation, other; kw...) = throw(DiagnosticError(
 _scratch(sim::Simulation, ::Type{T}) where {T} = _scratch(sim, T, activation(sim.deployment.build, T))
 function _scratch(sim::Simulation, ::Type{T}, act::Activation{T}) where {T}
     sch = sim.deployment.schedule
-    compile(sim.deployment.build, act, sch.D, sch.Φ, sch.Δt; chunk_size = sim.chunk_size)
+    compile(sim.deployment.build, act, sch.D, sch.Φ, sch.Δt;
+            chunk_size = sim.exec.chunk_size, algorithm = sim.deployment.algorithm)
 end
 
 # D-213's copy: a frozen component's stages are outside the seeded activation's

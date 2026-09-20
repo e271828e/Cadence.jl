@@ -31,28 +31,20 @@ True once the loop's tail has written the run's termination record (§12.6,
 """
 closed(run::Run) = run.termination !== nothing
 
-mutable struct Simulation{T,E,M}
+# The five things a simulation is (§12.6, D-256): every other value belongs to
+# one of them, and each field's comment names what it carries.
+mutable struct Simulation{T,E}
     const deployment::Deployment  # what the grid parameters fixed (§9.1, D-254), and through it
                                   # the build — the schema authority a condition resolves
                                   # against (§14.3). Held once: a second reference would be
                                   # an invariant with no enforcer (§12.1, D-256)
-    const exec::E                 # the nominal executor this simulation owns (§9.2, §9.7)
+    const exec::E                 # the nominal executor this simulation owns (§9.2, §9.7),
+                                  # with its stepper, arrival buffers and `chunk_size`
     run::Run{T}                   # §12.6's run state: rebound at each door (D-255)
-    const plane::DataPlane        # the §11.3 roster, the harness writer and §11.5's recorder
-    const control::Control        # §12.1's stop word, §12.4's sticky status, §12.3's wait (devices.jl)
-    # The nine fields below still sit here; D-256 moves each to its owner, and
-    # the comment names the one it goes to.
-    const join_timeout::Float64   # → `Control`: the shutdown tail's join cap, seconds (§12.4)
-    const has_localized::Bool     # → the executor: any localized event compiled in, the
-                                  # frame loop's fast-path key
-    const chunk_size::Int         # → the executor: the unroll width it was compiled at, retained
-                                  # so a service can compile one of its own exactly as this was
-    const stepper::M              # → the executor: the seam's backend (§10.2), own scratch
-    const xnext::Vector{T}        # → the executor: the retained arrival pair (§10.4), xₙ₊₁ saved
-    const ẋnext::Vector{T}        # → the executor: ẋₙ₊₁, paid only past a validated trigger
-    const published::Published    # → the plane: §11.2's `@atomic latest` holder
-    const loop_diag::DiagCell     # → the plane: the loop's own diagnostic cell (§11.8)
-    const loop_acct::WriterAccount  # → the plane: the account behind it
+    const plane::DataPlane        # the §11.3 roster, the harness and loop writers, §11.2's
+                                  # published holder and §11.5's recorder
+    const control::Control        # §12.1's stop word, §12.4's sticky status and join cap,
+                                  # §12.3's wait (devices.jl)
 end
 
 """
@@ -139,8 +131,7 @@ function Simulation(d::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
     isempty(diags) || throw(DiagnosticError(diags))    # one throw per call (§9.1, D-229)
     act = activation(d.build, T)
     sch = d.schedule
-    ex = compile(d.build, act, sch.D, sch.Φ, sch.Δt; chunk_size)
-    stepper = d.algorithm(T, length(ex.xbuf))
+    ex = compile(d.build, act, sch.D, sch.Φ, sch.Δt; chunk_size, algorithm = d.algorithm)
     reg = TraceRegister(trace)     # the drain thunks close over it, so it precedes the plane
     # §12.6's placeholder run (D-255): the recording flags ride on it until `init!`
     # reads them off and builds the run that records for real.
@@ -148,11 +139,8 @@ function Simulation(d::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
                  SnapshotLog(log, Int(log_every), log_max === Inf ? typemax(Int) : Int(log_max)),
                  Trace{T}(nothing, Pair{String,Vector{Symbol}}[], TraceBatch[], 0),
                  StopPolicy(Inf, Symbol[], Any[]), nothing)
-    Simulation{T,typeof(ex),typeof(stepper)}(
-        d, ex, run, DataPlane(act.layout, ex.store, reg), Control(),
-        Float64(join_timeout), any(ex.events.localized), chunk_size,
-        stepper, zeros(T, length(ex.xbuf)), zeros(T, length(ex.xbuf)),
-        Published(nothing), DiagCell(EMPTY_DIAG), WriterAccount())
+    Simulation{T,typeof(ex)}(d, ex, run, DataPlane(act.layout, ex.store, reg),
+                             Control(Float64(join_timeout)))
 end
 
 # The two sugar forms, each *defined as* the composition (§9.2, D-254): every
@@ -492,7 +480,8 @@ function event_phase!(sim::Simulation, tick)
             if edge && !eligible && !es.warned[i]
                 es.warned[i] = true       # at most one report per event per boundary
                 (path, name) = es.names[i]
-                _report!(sim.loop_diag,   # the loop's own cell (§11.8): folded at the next frame top
+                # the loop's own cell (§11.8): folded at the next frame top
+                _report!(sim.plane.loop_diag,
                          FiringBudget(path, name, _seconds(sim.exec.clock.t), budget,
                                       es.count[i]))
             end
@@ -529,7 +518,7 @@ would do at N = 0.
 """
 @inline function step!(sim::Simulation, h)
     _phase!(sim.exec.cursor, :integrate)     # §13.4: `evaluate!` counts the stages from here
-    isempty(sim.exec.xbuf) ? (sim.exec.clock.t += h) : step!(sim.stepper, sim, h)
+    isempty(sim.exec.xbuf) ? (sim.exec.clock.t += h) : step!(sim.exec.stepper, sim, h)
     _check_finite!(sim)
     nothing
 end
@@ -960,7 +949,7 @@ function run!(sim::Simulation; t_end = Inf, stop_on = ())
     # own cell. A `:replay` run is bounded by the recording (D-218), so the
     # warning would be false there.
     sim.run.mode === :live && isinf(pol.t_end) && isempty(pol.faces) &&
-        _report!(sim.loop_diag, UnboundedRun(pol.t_end, copy(pol.faces)))
+        _report!(sim.plane.loop_diag, UnboundedRun(pol.t_end, copy(pol.faces)))
     # a live run owes its end to a §13.5 source alone, so its frame budget is
     # unbounded here; in `:replay` the recording binds it (`_run_body!`, D-218)
     _run_body!(sim, pol, typemax(Int), _t_end_frame(sim, pol.t_end))
@@ -1081,7 +1070,7 @@ function _reset_accounts!(sim::Simulation)
         _reset!(e.acct)
     end
     _reset!(sim.plane.harness_acct)
-    _reset!(sim.loop_acct)
+    _reset!(sim.plane.loop_acct)
     nothing
 end
 
@@ -1336,7 +1325,8 @@ first always makes two *distinct* devices). On the input side the claim is
 staked from its source — the enumeration called once, or the unclaimed
 complement computed at this instant and never recomputed, so attaching the
 greedy claimant last is the idiom and a second greedy stakes the empty
-remainder under an `EmptyGreedyClaim` warning (§11.6) — the entry's writer is
+remainder under an `EmptyGreedyClaim` warning, raised into the new entry's own
+diagnostic cell and logged once here (§11.6, §11.8, D-250) — the entry's writer is
 compiled over it, and the harness writer's surface is recompiled to the
 complement that remains, renormalizing any pending harness batch (§11.4). On
 the output side `reads(b)` is called once, resolved against the build and
@@ -1386,15 +1376,23 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
     w = Writer(sim.exec.act.layout, claim)
     diag = DiagCell(EMPTY_DIAG)                    # the device's diagnostic cell (§11.8)
     h = DeviceHandle(id, "device $id ($(_typename(dev)))", b, w, plane, sim.control,
-                     sim.published, diag, rg, sim.control.counter, false)
+                     sim.plane.published, diag, rg, sim.control.counter, false)
     push!(plane.roster, RosterEntry(dev, b, id, w,
                                     _drain_thunk(sim.exec.store, w, plane.recorder, 0),
                                     should_abort, diag, WriterAccount(), h))
     # the writer index above is a placeholder: `reclaim!` appends the new writer
     # set to the trace's schema list and recompiles every thunk against it (§11.5)
     reclaim!(plane, sim.exec.act.layout)
-    is_greedy(b) && isempty(claim) &&
-        @warn logline(EmptyGreedyClaim(device = "device $id ($(_typename(dev)))", binding = _typename(b)))
+    if is_greedy(b) && isempty(claim)
+        # `attach!` mutates the roster, so the warning lives in the entry's own
+        # cell (§11.3, §11.8, D-250): the first frame-top drain folds it into the
+        # entry's account and every status from there on carries it. The line at
+        # return stays, as presentation.
+        egc = EmptyGreedyClaim(device = "device $id ($(_typename(dev)))",
+                               binding = _typename(b))
+        _report!(diag, egc)
+        @warn logline(egc)
+    end
     h
 end
 
@@ -1491,7 +1489,7 @@ function drain!(sim::Simulation)
     end                           # retained values into the pending delta, every
     plane.harness_drain()         # occurrence into the totals
     _fold!(plane.harness_acct, plane.harness_diag)
-    _fold!(sim.loop_acct, sim.loop_diag)
+    _fold!(sim.plane.loop_acct, sim.plane.loop_diag)
     # one drain per frame: the recording's length (§11.5). Counted through the
     # run, whose `trace` is the concrete `Trace{T}`, so the frame path stays free
     reg.enabled && (sim.run.trace.frames += 1)
@@ -1526,7 +1524,7 @@ function _replay_drain!(sim::Simulation, reg::TraceRegister, feed::ReplayFeed)
     end
     _discard_staged!(plane.harness, plane.harness_diag, frame)
     _fold!(plane.harness_acct, plane.harness_diag)
-    _fold!(sim.loop_acct, sim.loop_diag)
+    _fold!(sim.plane.loop_acct, sim.plane.loop_diag)
     i, n = feed.next, length(feed.records)
     # keyed exactly: the records are stably sorted by `(frame, writer)`, the entry
     # pass has validated every ordinal into `1:frames`, and the loop visits each
@@ -1583,7 +1581,7 @@ function publish!(sim::Simulation)
     snap = Snapshot(clock.t, clock.step, clock.boundary, capture(sim.exec.store),
                     sim.exec.act.layout, _status(sim))
     clock.boundary += 1
-    @atomic :release sim.published.latest = snap
+    @atomic :release sim.plane.published.latest = snap
     log!(sim.run.log, snap)
     lock(ctl.cond)
     try
@@ -1617,7 +1615,7 @@ function _status(sim::Simulation)
         ws[i] = _writer_status(_who(e), e.acct, _heartbeat(e.diag), _task_state(t))
     end
     ws[end-1] = _writer_status("harness", plane.harness_acct, nothing, nothing)
-    ws[end] = _writer_status("loop", sim.loop_acct, nothing, nothing)
+    ws[end] = _writer_status("loop", sim.plane.loop_acct, nothing, nothing)
     FrameworkStatus(ws)
 end
 
@@ -1629,7 +1627,7 @@ Acquire-load the most recently published snapshot — `nothing` before the first
 long as it holds the value, without coordinating with the loop; the calling
 task reads the same reference, §12.6's inspection read.
 """
-latest(sim::Simulation) = @atomic :acquire sim.published.latest
+latest(sim::Simulation) = @atomic :acquire sim.plane.published.latest
 
 """
     logged(sim)

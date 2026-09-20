@@ -131,6 +131,12 @@ function test_roster()
         g2 = Pad("gui2")
         @test_logs (:warn, r"^EmptyGreedyClaim: ") attach!(sim, g2, Greedy())   # `logged`, kind first
         @test isempty(sim.plane.roster[3].writer.faces)
+        # The line is presentation; the warning's home is the new entry's own
+        # cell (§11.8, D-250), so the next run's status carries it.
+        @test only((@atomic sim.plane.roster[3].diag.batch).ring) isa EmptyGreedyClaim
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))   # cells survive a fresh trajectory
+        step!(sim; frames = 1)
+        @test writer_status(latest(sim), "device 3 (Pad)").totals.empty_greedy == 1
     end
 
     @testset "the harness surface is the unclaimed complement, recomputed at roster changes (§11.3)" begin

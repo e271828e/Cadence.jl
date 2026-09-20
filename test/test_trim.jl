@@ -480,7 +480,9 @@ function test_trim()
         b = sim.deployment.build
         TD = ForwardDiff.Dual{TrimTag,Float64,1}
         sch = sim.deployment.schedule
-        ex = compile(b, activation(b, TD), sch.D, sch.Φ, sch.Δt; chunk_size = sim.chunk_size)
+        ex = compile(b, activation(b, TD), sch.D, sch.Φ, sch.Δt;
+                     chunk_size = sim.exec.chunk_size,
+                     algorithm = sim.deployment.algorithm)
         seeded(v) = (θ = ForwardDiff.Dual{TrimTag}(v, 1.0),)
         plan = compile_plan(override(pend_base(), decide_θ(seeded(0.1))), b, TD)
         reader = _compile_reads(torque_reads(), b, TD)

@@ -127,6 +127,10 @@ observing `counter > last_seen` can never wake onto a stale snapshot. The
 counter is monotonic across runs and never re-armed: its absolute value is
 nowhere normative, and monotonicity keeps the predicate sound with no
 per-run reset.
+
+`join_timeout` is §12.4's shutdown cap in seconds, validated at
+materialization and fixed for the simulation's life: the tail runs here, so
+the parameter it waits under is `Control`'s (§12.1, D-256).
 """
 mutable struct Control
     @atomic stop_issuer::Union{Nothing,Symbol,String}
@@ -134,8 +138,10 @@ mutable struct Control
     cond::Threads.Condition
     counter::Int
     @atomic lifecycle::Symbol
+    join_timeout::Float64
 end
-Control() = Control(nothing, true, Threads.Condition(), 0, :built)
+Control(join_timeout::Float64) =
+    Control(nothing, true, Threads.Condition(), 0, :built, join_timeout)
 
 # The stop word's one write path (§12.1, D-203): first CAS from empty wins —
 # the same arbitration as the loop reacting to the first holding stop face —
@@ -500,7 +506,7 @@ function _tail!(sim, entries::Vector{RosterEntry}, tasks::Vector{Task})
                   "through the join timeout (§12.4)" exception = (err, catch_backtrace())
         end
     end
-    deadline = time() + sim.join_timeout
+    deadline = time() + sim.control.join_timeout
     for (e, t) in zip(entries, tasks)
         remaining = deadline - time()
         joined = istaskdone(t) ||
@@ -508,8 +514,9 @@ function _tail!(sim, entries::Vector{RosterEntry}, tasks::Vector{Task})
              timedwait(() -> istaskdone(t), remaining; pollint = min(0.01, remaining)) === :ok)
         if !joined
             s = latest(sim)                  # after init!, never nothing (§14.5)
-            _report!(sim.loop_diag, DeviceJoinTimeout(_who(e), sim.join_timeout,
-                                                      _seconds(s.t), s.boundary))
+            _report!(sim.plane.loop_diag,
+                     DeviceJoinTimeout(_who(e), sim.control.join_timeout,
+                                       _seconds(s.t), s.boundary))
         end
     end
     nothing
@@ -536,8 +543,8 @@ function _sweep_tail!(sim)
     end
     _fold!(plane.harness_acct, plane.harness_diag)
     _residue!(residue, "harness", plane.harness_acct)
-    _fold!(sim.loop_acct, sim.loop_diag)
-    _residue!(residue, "loop", sim.loop_acct)
+    _fold!(plane.loop_acct, plane.loop_diag)
+    _residue!(residue, "loop", plane.loop_acct)
     residue
 end
 

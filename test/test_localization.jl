@@ -205,7 +205,7 @@ function test_localization()
         # Events are outside every non-nominal executable set, so the frame loop's
         # fast-path key is off: the bare step, no arrival machinery, no reset.
         sim = Simulation(single(Bouncer(1.0, 0.315)), D8; h = 1//10)
-        @test !sim.has_localized
+        @test !sim.exec.has_localized
         init!(sim)
         run!(sim; t_end = 0.5)
         @test ForwardDiff.value(state(sim, "c").q) ≈ 0.5 rtol = 1e-12

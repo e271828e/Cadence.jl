@@ -170,18 +170,26 @@ observables (§12.4).
 `recorder` is §11.5's trace register (D-255): the drain's own bookkeeping, held
 here because the drain is what every writer's thunk runs and the plane holds
 the writers. It outlives every run and points at the current run's `Trace`.
+
+The loop is a diagnostic writer too, so its cell and account are the plane's
+(§11.8, D-256), and `published` is §11.2's holder, read by `latest(sim)` and
+by every device handle.
 """
 mutable struct DataPlane
     roster::Vector{RosterEntry}     # attachment order (§11.3): the drain applies in it
     harness::Writer                 # the derived-surface writer, recompiled at roster changes
     harness_drain::Function         # its drain thunk, recompiled with it
     harness_diag::DiagCell          # the harness writer's diagnostic cell (§11.8)
-    harness_acct::WriterAccount     # and the loop's account behind it
+    harness_acct::WriterAccount     # and the account behind it
+    loop_diag::DiagCell             # the loop's own diagnostic cell (§11.8)
+    loop_acct::WriterAccount        # and the account behind it
+    published::Published            # §11.2's `@atomic latest` holder
     run_tasks::Dict{Int,Task}       # the run's device tasks, by device id (§12.2, D-193)
     claimedby::Dict{Symbol,String}  # face → incumbent: the exclusivity index
     store::Any                      # the model's store bundle, captured into the drain thunks
     recorder::TraceRegister         # §11.5's drain bookkeeping: the plane holds the writers,
-    next_id::Int                    # and this is one more piece of what a writer's drain does
+                                    # and this is one more piece of what a writer's drain does
+    next_id::Int
 end
 
 # The register is built ahead of the plane because the drain thunks close over
@@ -191,7 +199,8 @@ end
 function DataPlane(layout::Layout, store, reg::TraceRegister)
     w = Writer(layout, Symbol[f for (f, _) in layout.root_inputs])
     DataPlane(RosterEntry[], w, _drain_thunk(store, w, reg, 1), DiagCell(EMPTY_DIAG),
-              WriterAccount(), Dict{Int,Task}(), Dict{Symbol,String}(), store, reg, 1)
+              WriterAccount(), DiagCell(EMPTY_DIAG), WriterAccount(), Published(nothing),
+              Dict{Int,Task}(), Dict{Symbol,String}(), store, reg, 1)
 end
 
 """
