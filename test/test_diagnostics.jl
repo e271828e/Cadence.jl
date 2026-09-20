@@ -555,7 +555,7 @@ function diagnostics_kind_set()
             ReplayHeaderMismatch(what = :deployment, path = "m/fcs", name = :D,
                                  expected = 5, found = 10),
             ReplayHeaderMismatch(what = :deployment, path = "m/fcs", name = Symbol("scope.anchor"),
-                                 expected = :self, found = :inherited),
+                                 expected = 0, found = 1),
             ReplayHeaderMismatch(what = :deployment, name = :schedule,
                                  expected = ["m/fcs"], found = ["m/fcs", "m/act"]),
             ReplayHeaderMismatch(what = :deployment, name = Symbol("scope.key"),
