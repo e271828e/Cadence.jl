@@ -285,6 +285,7 @@ were derived.
 | [D-258][d-258] | "Schedule" is the tick timing and "execution order" the stage sequence | ratified |
 | [D-259][d-259] | Retire the strata: the build is three steps named by their products | ratified |
 | [D-260][d-260] | Trim the run to what lasts it and retire the trace register | ratified |
+| [D-261][d-261] | Three ownership rules for fields, with the placements they settle | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -9766,6 +9767,116 @@ simulation, which a `T`-typed keyword refused.
 - *The frame ordinal as the thunk's argument:* a boxed `Int` per drain per
   writer, on the frame path.
 
+
+### D-261 — Three ownership rules for fields, with the placements they settle
+
+**Status.** ratified
+
+**Position.** Three rules decide where a value lives, and the placements
+below settle under them.
+
+- A struct holds what it owns or what it must retain across calls. A callee
+  takes what it reads as an argument, never off a field added to a container
+  it already holds.
+- An artifact holds declared facts. Its consumer compiles what it needs from
+  them once, at one home, and the activation's cell layout is that home for
+  address facts.
+- An object is built after its inputs exist. The placeholder an accessor
+  needs is the one exception, and it carries no configuration and no
+  compiled state.
+- The `Schedule` is its component rows and its rate-scope rows, the `Δt`
+  column among them. The per-component `(D, Φ, Δt)` the executor compiles
+  over are derived from the rows at `compile`.
+- A `t*` stop hit is `frame!`'s return value, a face or `nothing`. The
+  execution cursor keeps its dispatch fields alone.
+- `StopPolicy` is `t_end` and the stop faces. Their compiled addresses are
+  the loop's argument, bound by the advance and carried to the sampling read.
+- `trace`, `log`, `log_every` and `log_max` are keywords of `init!` and
+  `replay!`, the doors that build a run, with their defaults unchanged.
+  `Simulation(deployment, T)` keeps `join_timeout` and `chunk_size`. The
+  placeholder run is an empty log and no trace, and `trace(sim)` refuses on
+  the lifecycle before it reads the switch.
+- The roster entry keeps the stable device id and the handle drops its copy.
+  The entry reads its writer, its diagnostic cell and its binding through
+  the handle.
+- A snapshot carries its frame index beside its published-boundary ordinal.
+- The periphery resolves root faces against the activation's cell layout
+  alone. It carries the root faces in structure order with their probe
+  values beside the address table, so the periphery's schema lookups and
+  its layout lookups ([§14.3][s14-3]'s two families) both read it, and writers,
+  claims and the harness compile against it.
+- The data plane compiles no drain thunk at construction. The thunks are
+  compiled at each door and each roster change, at one site that takes the
+  store as an argument.
+- `Deployment.grid`, `Dataflow.edges`, the header fingerprint's root faces,
+  and `StepError`'s time and boundary beside `NonfiniteState`'s payload stay
+  as they are.
+
+Supersedes [D-254][d-254]'s "`D`, `Φ`, `Δt` vectors" clause, [D-255][d-255]'s "stop faces
+and their addresses" and "`hit` leaves it for the loop's scratch beside the
+cursor" clauses, and [D-256][d-256]'s clause making the recording flags keywords of
+`Simulation(deployment, T)`. [D-260][d-260]'s "the trace switch rides on the run"
+stands.
+
+**Spec.** [§9.2][s9-2], [§11.2][s11-2], [§11.3][s11-3], [§11.5][s11-5], [§12.6][s12-6], [§13.5][s13-5], [Appendix B][sB]
+
+**Rationale.** A survey of every struct in `src/` (104 structs, 22
+findings, `docs/reports/20260921_data_survey/`) found no field with two
+writers and no shared mutable state without an owner. What it found was
+redundancy and reach, and two mechanisms produced most of it. Reach: a
+callee needs one more value, it already holds a container, and the
+container grows a field instead of the callee growing an argument. The
+walk's root types, the cursor's hit, the plane's store, the handle's plane
+and the recording flags on the placeholder run were all this. [D-260][d-260] stated
+the test for the stop policy, a field written only so a caller without the
+argument can reach it, and applied it to that one field. Declared beside
+compiled: an artifact is the value a user inspects and also the table the
+next stage consumes, and where the two forms differ the artifact grows a
+compiled shadow of itself, the schedule's vectors beside its rows, the
+policy's addresses beside its faces, a plan's face slot beside its face
+list. Stating the rules makes the fixes an application rather than twenty
+local judgments, and gives every later increment a check.
+
+The placements follow. The schedule's vectors are the rows re-indexed by
+component, built in the same loop, and `==`, `hash` and the replay header
+walk each carried a clause the rows already decide. The hit as a return
+value costs no allocation and leaves the cursor to the catch site it exists
+for. The addresses are derivable from the faces and the layout, and nothing
+reads them off the record. The recording keywords configure the run's two
+`const` fields, which the doors build, so [D-256][d-256]'s own rule, keywords follow
+their fields, puts them on the doors. On the constructor they rode a
+placeholder run through every later door, and `trace === nothing` meant
+both "switched off" and "no door yet". Per-run recording comes with the
+move, a long untraced run and then a short traced one on one simulation,
+at no cost the doors did not already pay, since each rebuilds the log, the
+trace and the drain thunks. The device id survives a stop on the entry
+([§12.4][s12-4]), so the handle's copy was the dead one. The frame index is what
+places a `t*` snapshot in its frame, since a `t*` publication counts an
+ordinal of its own. The layout already holds the three facts the periphery
+reads, the faces, their types through the address parameter and their
+probe values, so reading both lookups off it costs one sentence where
+resolving against the structure instead would cost four signatures and a
+parallel-vector invariant across two structs. A thunk compiled before the
+first door closes over a trace that door discards, and the constructor's
+compile was the one reason the run had to be built ahead of the plane.
+
+**Rejected.**
+- *The recording flags as a sixth `Simulation` field:* a parameter nothing
+  on the simulation reads, on the struct whose five fields are the five
+  things a simulation is ([D-256][d-256]).
+- *The flags on `Control` beside `join_timeout`:* a recorders' parameter on
+  the control plane by convenience alone.
+- *The periphery resolving root faces against the `Structure`, as the
+  services do:* uniform, but four signatures and a parallel-vector
+  invariant for names the layout already holds.
+- *Dropping the schedule's `Δt` column for `D · Δt_base`:* the row is the
+  printable schedule and `Δt` is what it prints; the product is the same
+  float either way.
+- *Skipping the thunk compile at a roster change before the first door:* a
+  lifecycle test in `reclaim!` to save one small closure per attach.
+- *A nullable run in place of the placeholder:* [D-255][d-255]'s rejection stands.
+  The placeholder stays and is emptied.
+
 ---
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
@@ -10029,6 +10140,7 @@ simulation, which a `T`-typed keyword refused.
 [d-258]: #d-258--schedule-is-the-tick-timing-and-execution-order-the-stage-sequence
 [d-259]: #d-259--retire-the-strata-the-build-is-three-steps-named-by-their-products
 [d-260]: #d-260--trim-the-run-to-what-lasts-it-and-retire-the-trace-register
+[d-261]: #d-261--three-ownership-rules-for-fields-with-the-placements-they-settle
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

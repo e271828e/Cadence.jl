@@ -3309,10 +3309,17 @@ constructor ([§9.1][s9-1]) builds it from the structure's triples and anchors.
 It is the typed schedule: one row per discrete component carrying
 `(D, Φ, Δt)` with the anchor and provenance columns, the [rate-scope](#g-rate-scope)
 rows (an assembly's `sample_times` declaration against the enclosing scope)
-each with its own `(Dₛ, Φₛ)`, and the `D`, `Φ` and `Δt` vectors the executor
-reads. It is the single source of truth for `Δt` ([§10.5][s10-5]), the substrate
-of the grid diagnostics below, and the table that answers "when does what run,
-and what coincides with what".
+each with its own `(Dₛ, Φₛ)`. The per-component `(D, Φ, Δt)` the executor
+compiles over are derived from the rows at `compile`, never stored beside
+them ([D-261][d-261]). The schedule is the single source of truth for `Δt`
+([§10.5][s10-5]), the substrate of the grid diagnostics below, and the table
+that answers "when does what run, and what coincides with what".
+
+**Rule.** An [artifact](#g-artifact) holds declared facts. A consumer
+compiles what it needs from them once, at one home, and the activation's
+cell layout is that home for address facts ([D-261][d-261]). A compiled form
+stored beside its declared one is a second home, with no enforcer but the
+constructor that filled both.
 
 **Each artifact renders itself through `show`, with no accessors**
 ([D-257][d-257]). `show(::Structure)` prints the anchor table with the `A₀` row
@@ -5152,8 +5159,11 @@ what it reads.
 
 **Rule.** The loop builds each snapshot in private memory, then publishes it
 with a single release-store to an [`@atomic latest`](#g-latest) reference. A
-snapshot carries the boundary-consistent [signal table](#g-signal-table), `t`
-and the framework status. Readers acquire-load that reference and then work
+snapshot carries the boundary-consistent [signal table](#g-signal-table), `t`,
+its frame index and its published-boundary ordinal ([§12.3][s12-3]), and the
+framework status. The frame index is what places a `t*` snapshot in its
+frame, since a `t*` publication counts an ordinal of its own
+([D-261][d-261]). Readers acquire-load that reference and then work
 with an immutable, coherent world for as long as they like. The
 [calling task](#g-calling-task) (the task that invoked `run!`) reads the same
 value through `latest(sim)`, an inspection read ([§12.6][s12-6]).
@@ -5433,6 +5443,14 @@ all. **Every device's surface is its claim set**, and a claim set has two
   useless, and `attach!` records `EmptyGreedyClaim` in the roster entry's
   [diagnostic cell](#g-diagnostic-cell) ([§11.6][s11-6], [§11.8][s11-8],
   [D-250][d-250]).
+
+**The periphery resolves root faces against the activation's cell layout
+alone** ([D-261][d-261]). The layout carries the root faces in structure
+order with their probe values, beside the address table, so both of the
+build's lookup families, [schema and layout](#g-schema-vs-layout), read it
+there, and writers, claims and the harness compile against it. The services
+take their schema from the `Build` itself ([§14.3][s14-3]); the periphery
+never needs an authored fact the layout does not hold.
 
 One claim mechanism, two claim sources. The source is exhausted at the attach
 point. Past it, validation, roster-entry storage, shape compilation
@@ -5856,7 +5874,8 @@ nothing still ran them, and every advance in `:replay` is capped at that
 count ([§12.7][s12-7], [D-218][d-218]).
 
 **Trace recording is on by default.** `init!` builds a fresh trace with the
-run ([§12.6][s12-6]), the trace is retrievable after the run, and a plain kill
+run under its `trace` keyword ([§12.6][s12-6], [Appendix B][sB]), the trace
+is retrievable after the run, and a plain kill
 switch covers memory-constrained marathon sessions. The asymmetry that decides
 the default is that the trace is *primary* data and the log *derived*. Given the initial
 state and the trace, the log is recomputable, which is what bit-identical
@@ -7045,6 +7064,10 @@ exception.
 **[`Run{T}`](#g-run) is what one run owns** ([D-255][d-255], [D-260][d-260]).
 It is a mutable struct of four fields. Two are `const` and last the run's whole
 life, the log and the [trace](#g-trace) (`nothing` under the trace switch).
+The door that builds the run takes the four recording keywords, `trace`,
+`log`, `log_every` and `log_max` ([Appendix B][sB], [D-261][d-261]), so a
+run's recording is that door's declaration and the next door may declare
+otherwise.
 Two evolve during it, `feed`, the recording `replay!` attached or `nothing`,
 and `termination`. `init!` and `replay!` construct one, and nothing else
 rebinds it. `live!` and the halt at a recording's end write `feed`. The loop's
@@ -7053,11 +7076,13 @@ The origin `t₀` is not a run field. The doors apply it to the clock
 ([§14.5][s14-5]) and the trace header records it ([§11.5][s11-5]). It is a
 `Float64`, as `h` and `t_end` are.
 
-A `Simulation{T}` is constructed with a **placeholder run**, an empty log and
+A `Simulation{T}` is constructed with a **placeholder run**, an empty log, no
 trace, no feed and no termination, which `init!` and `replay!` replace
 ([D-255][d-255]). The field is always a `Run{T}` and never `nothing`, so every
 accessor has a run to read, and the lifecycle state below says whether that
-run ever started. `init!` allocates fresh objects rather than clearing them.
+run ever started. The placeholder carries no configuration and no compiled
+state ([D-261][d-261]). `init!` allocates fresh objects rather than clearing
+them.
 
 **`Simulation` is a mutable struct of five fields**, the
 [deployment](#g-deployment) (the scalar-free artifact the grid parameters
@@ -7073,6 +7098,11 @@ are the plane's ([§11.8][s11-8]). The log and the trace are the run's. The
 stop policy, with its `t_end` and stop faces, is the advance's argument, and
 the [termination record](#g-termination-record) keeps the terminating one
 ([D-260][d-260]).
+
+**Rule.** A struct holds what it owns or what it must retain across calls. A
+callee takes what it reads as an argument, never off a field added to the
+container it already holds. An object is built after its inputs exist, and
+the placeholder run above is the one exception ([D-261][d-261]).
 
 A `Simulation` moves through five states: **built**, **initialized**,
 **running**, and terminally **stopped** or **errored** ([§13.4][s13-4]).
@@ -7991,12 +8021,13 @@ loop through declared machinery.
   root-exported `Bool` output faces. They are OR-combined and validated
   against the `Build` on every call. Each advance builds a
   **[`StopPolicy`](#g-stop-policy)**,
-  the immutable value of `t_end` plus the stop faces with their resolved
-  addresses, and passes it to the loop. The value lives as long as the
+  the immutable value of `t_end` plus the stop faces, and passes it to the
+  loop with the faces' compiled addresses as a second argument
+  ([D-261][d-261]). The value lives as long as the
   call, and afterwards only on the termination record of the advance that
-  ended the run ([§12.6][s12-6], [D-260][d-260]). The loop's `hit`
-  scratch sits beside the [execution cursor](#g-execution-cursor), never in
-  the policy.
+  ended the run ([§12.6][s12-6], [D-260][d-260]). A `t*` hit reaches the
+  loop as `frame!`'s return value, never as a field of the policy or of the
+  [execution cursor](#g-execution-cursor) ([D-261][d-261]).
   After *every* published boundary the loop reads the named faces in the
   snapshot it just published. Grid boundaries, `t*` ([§10.4][s10-4]) and
   [boundary zero](#g-boundary-zero) ([§14.5][s14-5]) all count. The first
@@ -10773,33 +10804,20 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   (`DeploymentInvalid`) and carried on the `Deployment` the trace header
   records, where replay compares the two deployments as values
   ([§11.5][s11-5], [§12.7][s12-7]).
-- `Simulation(deployment, T; join_timeout = 5.0, trace = true, log = true,
-  log_every = 1, log_max = 65536, chunk_size = 16) → Simulation{T}`.
-  Materializes a deployment at a scalar type, allocating the buffers and the
-  stopped-sim services.
+- `Simulation(deployment, T; join_timeout = 5.0, chunk_size = 16) →
+  Simulation{T}`. Materializes a deployment at a scalar type, allocating the
+  buffers and the stopped-sim services.
 
   | keyword | default | meaning | owning section |
   |---|---|---|---|
   | `join_timeout` | `5.0` | the shutdown tail's join cap, in seconds of wall clock | [§12.4][s12-4] |
-  | `trace` | `true` | the input trace's plain kill switch | [§11.5][s11-5] |
-  | `log` | `true` | the snapshot log's plain kill switch | [§11.2][s11-2] |
-  | `log_every` | `1` | the log's keep-every-kth decimation | [§11.2][s11-2] |
-  | `log_max` | `65536` | the maximum number of retained snapshots, finite by default with `Inf` the opt-out | [§11.2][s11-2] |
   | `chunk_size` | `16` | the executor's unroll width, a performance knob that never moves the trajectory | [§9.7][s9-7], [§12.6][s12-6] |
 
   `join_timeout`, the shutdown tail's join cap, lives on `Control` rather than
   the deployment ([§12.1][s12-1]). It moves no trajectory, so replay neither
-  records nor compares it ([§12.4][s12-4]).
-
-  Recording. `trace`, `log`, `log_every` and `log_max` are carried to `init!`,
-  which builds the run with its log and trace ([§12.6][s12-6]). `log_every` is
-  admissible on the derived artifact only, never on the trace
-  ([§11.2][s11-2], [§11.5][s11-5], [D-029][d-029]). When the log fills, the
-  retention stride doubles, so the whole run stays covered at coarsening
-  density. The boundary-zero and terminal snapshots are retained
-  unconditionally and outside the bound ([§11.2][s11-2]). All four are view
-  policies, not trajectory-determining. Replay neither records nor compares
-  them.
+  records nor compares it ([§12.4][s12-4]). The four recording keywords are
+  `init!`'s and `replay!`'s, the doors that build a run (below,
+  [D-261][d-261]).
 - `Simulation(build; kw...)` and `Simulation(world; kw...)`. The two
   convenience forms. The first composes the `Deployment` constructor with the
   materialization, and the second calls `build` first. They take the
@@ -10886,11 +10904,29 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 
 **Stopped-sim services** ([§14][s14]).
 
-- `init!(sim, condition; t0 = 0.0)`. `t0` is any real, held as a `Float64`
+- `init!(sim, condition; t0 = 0.0, trace = true, log = true, log_every = 1,
+  log_max = 65536)`. `t0` is any real, held as a `Float64`
   origin ([D-260][d-260]). Root-input totality is checked
   pre-write ([§14.6][s14-6]). Then boundary zero runs: project, sweep, events,
   the due `state_update` calls, then the header and first snapshot
   ([§14.5][s14-5]).
+
+  | keyword | default | meaning | owning section |
+  |---|---|---|---|
+  | `trace` | `true` | the input trace's plain kill switch | [§11.5][s11-5] |
+  | `log` | `true` | the snapshot log's plain kill switch | [§11.2][s11-2] |
+  | `log_every` | `1` | the log's keep-every-kth decimation | [§11.2][s11-2] |
+  | `log_max` | `65536` | the maximum number of retained snapshots, finite by default with `Inf` the opt-out | [§11.2][s11-2] |
+
+  Recording. The four keywords configure the run this call builds, with its
+  log and trace ([§12.6][s12-6], [D-261][d-261]); `replay!` takes the same
+  four. `log_every` is admissible on the derived artifact only, never on the
+  trace ([§11.2][s11-2], [§11.5][s11-5], [D-029][d-029]). When the log fills,
+  the retention stride doubles, so the whole run stays covered at coarsening
+  density. The boundary-zero and terminal snapshots are retained
+  unconditionally and outside the bound ([§11.2][s11-2]). All four are view
+  policies, not trajectory-determining. Replay neither records nor compares
+  them.
 - `trim!(sim, problem; baseline, t0 = 0.0, backend) → TrimReport`. Nonlinear
   least squares on the packed residuals with exact Dual Jacobians, against
   the problem's own `tolerances`. `residuals(reads, d) → NamedTuple` is
@@ -10986,7 +11022,8 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   publishes the final snapshot, then joins ([§12.4][s12-4]).
 - Post-run. The log is the retained snapshots. `trace(sim) → trc` retrieves
   the always-on input trace.
-  `replay!(sim2, trc; to_boundary = k, t_end = Inf, stop_on = ())` re-drives
+  `replay!(sim2, trc; to_boundary = k, t_end = Inf, stop_on = ())`, taking
+  `init!`'s four recording keywords as well ([D-261][d-261]), re-drives
   a fresh `Simulation(world)` bit-identically through the ordinary loop, with
   boundary zero from the trace header and the drain fed by frame ordinal, and
   ends `initialized`. `to_time = t` is the mutually exclusive time spelling
@@ -11860,10 +11897,11 @@ it under the localization budget ([§10.4][s10-4]).
 
 <a id="g-schedule"></a>**schedule / `Schedule`** — the typed tick timing the `Deployment` carries,
 built by the `Deployment` constructor: one row per discrete component,
-`(D, Φ, Δt)` with anchor and provenance columns, the rate-scope rows, and the
-`D`, `Φ` and `Δt` vectors. It is the single source of truth for `Δt` and the
+`(D, Φ, Δt)` with anchor and provenance columns, and the rate-scope rows; the
+per-component triples the executor compiles over are derived from the rows.
+It is the single source of truth for `Δt` and the
 substrate of the grid diagnostics and the hyperperiod chart ([§9.2][s9-2],
-[§10.5][s10-5]).
+[§10.5][s10-5], [D-261][d-261]).
 
 <a id="g-state-event"></a>**state event** — an event whose instant is unknown in advance and must be
 detected, declared as a `StateEvent(guard, handler)` pair under
@@ -12186,9 +12224,9 @@ advisory in one deployment and decisive in another. The shipped GUI
 attaches with `true` ([§11.6][s11-6], [§12.4][s12-4]).
 
 <a id="g-snapshot"></a>**snapshot** — the immutable per-boundary publication: boundary-consistent
-signal table (root inputs included), `t`, boundary index and framework
-status. It deliberately carries no state stores, because the state
-trajectory is derived data ([§11.2][s11-2]).
+signal table (root inputs included), `t`, frame index, boundary index and
+framework status. It deliberately carries no state stores, because the state
+trajectory is derived data ([§11.2][s11-2], [D-261][d-261]).
 
 <a id="g-stage-on-interaction"></a>**stage-on-interaction** — the GUI staging contract. Value widgets stage the
 new level on edit, and edge widgets stage on activation, as a level computed
@@ -12196,9 +12234,10 @@ from the peek. Held buttons do not re-stage, and no widget stages per render
 pass ([§11.7][s11-7]).
 
 <a id="g-stop-policy"></a>**`StopPolicy`** — the immutable value one advance declares: `t_end` plus the
-stop faces with their resolved addresses. `run!`, `replay!` and `step!` build
-and validate it per call and pass it to the loop; afterwards only the
-termination record keeps one. The loop's `hit` scratch sits elsewhere.
+stop faces. `run!`, `replay!` and `step!` build
+and validate it per call and pass it to the loop, the faces' compiled
+addresses beside it as the loop's own argument; afterwards only the
+termination record keeps one. A `t*` hit is `frame!`'s return value.
 `ControlRequestedStop` is outside it, since the policy is what the caller
 declares and the stop word is what anyone can issue ([§13.5][s13-5],
 [D-255][d-255], [D-260][d-260]).
@@ -12430,7 +12469,9 @@ never on the control plane ([§12.6][s12-6], [§13.5][s13-5]).
 <a id="g-artifact"></a>**artifact** — an immutable pure function of its inputs: `Structure`,
 `Dataflow`, `Events`, an activation, the `Build`, the `Deployment`, the
 `Schedule`, a condition plan, a trim report and the trace header. A warning
-raised producing one lives on it ([§13.2][s13-2], [D-250][d-250]).
+raised producing one lives on it ([§13.2][s13-2], [D-250][d-250]). It holds
+declared facts, and a consumer compiles what it needs from them at one home
+([§9.2][s9-2], [D-261][d-261]).
 
 <a id="g-blessed"></a>**blessed** — the spec's marker for a practice it explicitly sanctions where
 a neighboring one is forbidden: derivation from other declarations
@@ -12668,6 +12709,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-258]: decisions.md#d-258--schedule-is-the-tick-timing-and-execution-order-the-stage-sequence
 [d-259]: decisions.md#d-259--retire-the-strata-the-build-is-three-steps-named-by-their-products
 [d-260]: decisions.md#d-260--trim-the-run-to-what-lasts-it-and-retire-the-trace-register
+[d-261]: decisions.md#d-261--three-ownership-rules-for-fields-with-the-placements-they-settle
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

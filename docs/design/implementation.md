@@ -109,7 +109,17 @@ Traps the code does not warn about, each hit more than once while building:
   buffers with `_cell_key`;
 - the init-service keyword is `t0` (the spec's signatures, D-110) while the
   *concept* and `Clock`'s field stay `t₀` — `clock.t₀ = t0` inside `init!`
-  is that split, not a typo; don't unify them.
+  is that split, not a typo; don't unify them;
+- **a callee that needs one more value takes it as an argument.** Never add
+  a field to a container the callee already holds so the value can be
+  reached without one: that is how the plane came to hold the executor's
+  store and the cursor the loop's stop hit (§12.6, D-261). A struct holds
+  what it owns or must retain across calls;
+- **an artifact holds declared facts; compile at the consumer, once.** A
+  compiled form stored beside its declared one (the schedule's vectors
+  beside its rows, a policy's addresses beside its faces) is a second home
+  with no enforcer but the constructor. `Layout` is the one home for
+  address facts (§9.2, D-261).
 
 ## Running the suite
 

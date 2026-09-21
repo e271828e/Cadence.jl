@@ -76,7 +76,17 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-Currently empty.
+- **D-261's placements**, delivered by increment 47c ahead of 48, together
+  with the unrostered fixes of the 2026-09-21 data survey
+  (`docs/reports/20260921_data_survey/merge.md`). The code still holds
+  `Schedule.D`, `.Φ`, `.Δt` beside the rows and `compile` takes them (§9.2);
+  the cursor carries the `t*` hit and `StopPolicy` its compiled addresses
+  (§13.5); the four recording keywords are `Simulation(deployment, T)`'s and
+  ride the placeholder run, while `init!` and `replay!` take none
+  (§12.6, Appendix B); `DeviceHandle` keeps an `id` and the roster entry
+  mirrors the handle's writer, cell and binding; `DataPlane(layout, store,
+  trc)` compiles the harness thunk at construction and holds the store; a
+  snapshot's frame index is unrostered in §11.2 but built.
 
 ### Retire with a feature or a pass
 
@@ -91,4 +101,10 @@ retires or the code conforms. Currently empty.
 ## Pending on the spec itself
 
 Not a code deviation: what the design documents owe their reader.
-Currently empty.
+
+- **The trace header's deployment half.** `TraceHeader.deployment` carries
+  the whole `Deployment`, and through it the `Build` with the component
+  instances, into an artifact §11.5 calls primary data; the deployment's
+  `==` excludes the build, so replay never compares it. Whether the header
+  should hold the build-free half is a D-254 question, to be ruled when the
+  on-disk persistence deferral (§16) lifts.

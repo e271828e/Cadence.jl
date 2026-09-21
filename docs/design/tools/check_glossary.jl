@@ -37,7 +37,6 @@ const WHITELIST = Dict(
     "g-entry" => "disambiguation entry; never used bare by its own text",
     "g-row" => "D-nnn citations are mechanical links already; glossary-linking them was rejected",
     "g-the-letters" => "only body occurrences are §5's own definition passage",
-    "g-schema-vs-layout" => "glossary-coined recall key; body says schema/layout separately",
     "g-fragment-tree" => "glossary-coined recall key; body says fragment functions",
     "g-service-lifecycle" => "glossary-coined recall key; body says run lifecycle",
     # coined by the polysemy pass (2026-08-15) to separate the assembly/Build's
