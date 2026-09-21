@@ -10482,7 +10482,7 @@ Four items are flagged for the sweep and deliberately not settled here.
   entrenched, it needs the audit's whole-surface view.
 - The bare-noun accessor family `trace(sim)`, `latest(sim)`,
   `binding(handle)`, `phase_bodies(sim)` holds value selectors outside
-  class (2)'s `get_` rule. `trace` is the sharpest of them. The constructor
+  class (2)'s `get_` rule. `trace` is the sharpest of them. The door's
   kill-switch `trace = false` and the post-run accessor `trace(sim)` are one
   name in two senses, which is the overload pattern [D-122][d-122] and
   [D-144][d-144] retire.

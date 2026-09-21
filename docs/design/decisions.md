@@ -9794,8 +9794,8 @@ below settle under them.
 - `trace`, `log`, `log_every` and `log_max` are keywords of `init!` and
   `replay!`, the doors that build a run, with their defaults unchanged.
   `Simulation(deployment, T)` keeps `join_timeout` and `chunk_size`. The
-  placeholder run is an empty log and no trace, and `trace(sim)` refuses on
-  the lifecycle before it reads the switch.
+  placeholder run is an empty log and no trace, and `trace(sim)` refuses a
+  traceless `built` simulation on the lifecycle before it reads the switch.
 - The roster entry keeps the stable device id and the handle drops its copy.
   The entry reads its writer, its diagnostic cell and its binding through
   the handle.
