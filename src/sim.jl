@@ -108,20 +108,28 @@ True once the loop's tail has written the run's termination record (§12.6,
 """
 closed(run::Run) = run.termination !== nothing
 
-# The five things a simulation is (§12.6, D-256): every other value belongs to
-# one of them, and each field's comment names what it carries.
+"""
+The five things a simulation is (§12.6, D-256). Every other value belongs to
+one of them.
+
+- `deployment`: what the grid parameters fixed (§9.1, D-254), and through it
+  the build, the schema authority a condition resolves against (§14.3). Held
+  once: a second reference would be an invariant with no enforcer (§12.1,
+  D-256).
+- `exec`: the nominal executor this simulation owns (§9.2, §9.7), with its
+  stepper, arrival buffers and `chunk_size`.
+- `plane`: the §11.3 roster, the harness and loop writers and §11.2's
+  published holder.
+- `control`: §12.1's stop word, §12.4's sticky status and join cap, §12.3's
+  wait (devices.jl).
+- `run`: §12.6's run state, the one field a door rebinds (D-255, D-260).
+"""
 mutable struct Simulation{T,E}
-    const deployment::Deployment  # what the grid parameters fixed (§9.1, D-254), and through it
-                                  # the build — the schema authority a condition resolves
-                                  # against (§14.3). Held once: a second reference would be
-                                  # an invariant with no enforcer (§12.1, D-256)
-    const exec::E                 # the nominal executor this simulation owns (§9.2, §9.7),
-                                  # with its stepper, arrival buffers and `chunk_size`
-    run::Run{T}                   # §12.6's run state: rebound at each door (D-255)
-    const plane::DataPlane        # the §11.3 roster, the harness and loop writers and
-                                  # §11.2's published holder
-    const control::Control        # §12.1's stop word, §12.4's sticky status and join cap,
-                                  # §12.3's wait (devices.jl)
+    const deployment::Deployment
+    const exec::E
+    const plane::DataPlane
+    const control::Control
+    run::Run{T}
 end
 
 """
@@ -218,8 +226,8 @@ function Simulation(d::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
     run = Run{T}(SnapshotLog(log, Int(log_every), log_max === Inf ? typemax(Int) : Int(log_max)),
                  trace ? Trace{T}(nothing, Pair{String,Vector{Symbol}}[], TraceBatch[], 0) : nothing,
                  nothing, nothing)
-    Simulation{T,typeof(ex)}(d, ex, run, DataPlane(act.layout, ex.store, run.trace),
-                             Control(Float64(join_timeout)))
+    Simulation{T,typeof(ex)}(d, ex, DataPlane(act.layout, ex.store, run.trace),
+                             Control(Float64(join_timeout)), run)
 end
 
 # The two sugar forms, each *defined as* the composition (§9.2, D-254): every
