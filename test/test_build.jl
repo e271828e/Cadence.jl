@@ -367,7 +367,7 @@ function build_port_classes()
         # takes its stage-2 tail off — stage 1, then stage 2.
         b = build(fed(Motor(1.0), "M_load"))
         i = index_of(b.structure, "c")
-        @test keys(activation(b, Float64).stage1[i]) === (:ω, :running)
+        @test Tuple(b.dataflow.stage1[i]) === (:ω, :running)
         @test keys(activation(b, Float64).products[i]) === (:ω, :running, :M_shaft)
         # The hand-down carries the stage-1 return, so `y_x` is now in stage 2's
         # bundle.
@@ -1192,8 +1192,9 @@ function build_label_ports()
     @testset "an enum mode is returned from stage 1 (§7.5)" begin
         b = build(single(GearMode()))
         i = index_of(b.structure, "c")
-        @test activation(b, Float64).stage1[i] === (gear = up, y = 0.0)
-        @test keys(activation(b, D8).stage1[i]) === (:gear, :y)
+        s1 = Tuple(b.dataflow.stage1[i])
+        @test activation(b, Float64).products[i][s1] === (gear = up, y = 0.0)
+        @test keys(activation(b, D8).products[i][s1]) === (:gear, :y)
         sim = Simulation(b, D8; h = 1//10)
         @test port(sim, "c", :gear) === up
     end
@@ -1209,7 +1210,8 @@ function build_label_ports()
 
         # The mode label is returned (§7.5's remedy on the idiomatic label).
         b = build(single(PhaseMode()))
-        @test activation(b, Float64).stage1[index_of(b.structure, "c")] === (phase = :idle, y = 0.0)
+        i = index_of(b.structure, "c")
+        @test activation(b, Float64).products[i][Tuple(b.dataflow.stage1[i])] === (phase = :idle, y = 0.0)
 
         # At a root input the leaf has no synthesis, so the refusal is the
         # opaque leaf's, ahead of `probe_value`.

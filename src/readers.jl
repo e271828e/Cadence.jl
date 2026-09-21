@@ -240,11 +240,10 @@ list, the reader being `nothing` when anything failed.
 """
 function _resolve_reads(rs::Reads, b::Build, ::Type{T}) where {T}
     act = activation(b, T)
-    offs = _x_offsets(act.decls, b.structure.tiers)
     diags = Diagnostic[]
     entries = Any[]
     for (label, s) in pairs(rs.sels)
-        e = _resolve_selector(s, label, b, act, offs, diags)
+        e = _resolve_selector(s, label, b, act, diags)
         e === nothing || push!(entries, e)
     end
     (isempty(diags) ? Reader{T,keys(rs.sels)}(Tuple(entries)) : nothing, diags)
@@ -304,7 +303,7 @@ _field(s::Union{GetState,GetDeriv}) = s.field
 _field(s::GetOutput) = s.name
 
 function _resolve_selector(s::GetState, label::Symbol, b::Build, act::Activation,
-                       offs::Vector{Int}, diags::Vector{Diagnostic})
+                       diags::Vector{Diagnostic})
     ci = _read_component(s, label, b.structure, diags)
     ci === nothing && return nothing
     d, t = act.decls[ci], b.structure.tiers[ci]
@@ -314,12 +313,12 @@ function _resolve_selector(s::GetState, label::Symbol, b::Build, act::Activation
     P = typeof(declared[s.field])
     _check_index(s, label, P, diags) || return nothing
     t === CONTINUOUS ?
-        StateRead{P,typeof(s.i)}(offs[ci] + _leaf_offset(d.x, s.field), s.i) :
+        StateRead{P,typeof(s.i)}(first(act.layout.xblocks[ci]) - 1 + _leaf_offset(d.x, s.field), s.i) :
         StoreRead{typeof(d.s),s.field,typeof(s.i)}(ci, s.i)
 end
 
 function _resolve_selector(s::GetDeriv, label::Symbol, b::Build, act::Activation,
-                       offs::Vector{Int}, diags::Vector{Diagnostic})
+                       diags::Vector{Diagnostic})
     ci = _read_component(s, label, b.structure, diags)
     ci === nothing && return nothing
     d, t = act.decls[ci], b.structure.tiers[ci]
@@ -333,11 +332,11 @@ function _resolve_selector(s::GetDeriv, label::Symbol, b::Build, act::Activation
     _check_index(s, label, P, diags) || return nothing
     # `ẋ` has `x`'s shape at the activation scalar (§7.1), so the derivative of
     # a state field sits at the state field's own offset in the other buffer.
-    DerivRead{P,typeof(s.i)}(offs[ci] + _leaf_offset(d.x, s.field), s.i)
+    DerivRead{P,typeof(s.i)}(first(act.layout.xblocks[ci]) - 1 + _leaf_offset(d.x, s.field), s.i)
 end
 
 function _resolve_selector(s::GetOutput, label::Symbol, b::Build, act::Activation,
-                       ::Vector{Int}, diags::Vector{Diagnostic})
+                       diags::Vector{Diagnostic})
     ci = _read_component(s, label, b.structure, diags)
     ci === nothing && return nothing
     d = act.decls[ci]
@@ -351,7 +350,7 @@ function _resolve_selector(s::GetOutput, label::Symbol, b::Build, act::Activatio
 end
 
 function _resolve_selector(s::GetInput, label::Symbol, b::Build, act::Activation,
-                       ::Vector{Int}, diags::Vector{Diagnostic})
+                       diags::Vector{Diagnostic})
     if !(s.face in b.structure.root_inputs)
         push!(diags, _rviol(label, s, :unknown_root_input; field = s.face,
                            candidates = b.structure.root_inputs))
@@ -362,7 +361,7 @@ function _resolve_selector(s::GetInput, label::Symbol, b::Build, act::Activation
 end
 
 function _resolve_selector(s::GetFace, label::Symbol, b::Build, act::Activation,
-                       ::Vector{Int}, diags::Vector{Diagnostic})
+                       diags::Vector{Diagnostic})
     exported = Symbol[f for ((p, f), _) in b.structure.out_faces if isempty(p)]
     if !(s.name in exported)
         push!(diags, s.name in b.structure.root_inputs ?

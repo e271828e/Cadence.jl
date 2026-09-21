@@ -259,11 +259,9 @@ predicate, `σ ≥ 0`); `σ0`/`σ1` retain the θ = 0 validation and arrival sam
 across the trials that clobber `σ`; `trig` is the frame's triggered set and
 `loc_warned` the `ChatteringBudget` once-per-event-per-frame latch.
 """
-struct EventSet{E<:Tuple,P<:Tuple,S,X}
+struct EventSet{E<:Tuple,P<:Tuple}
     entries::E
     projects::P
-    store::S
-    xbuf::X
     owner::Vector{Int}                   # component index per event
     names::Vector{Tuple{String,Symbol}}  # (path, event name), for the degradation warnings
     localized::Vector{Bool}              # detection policy per event (§10.4)
@@ -281,30 +279,31 @@ struct EventSet{E<:Tuple,P<:Tuple,S,X}
     loc_warned::Vector{Bool}
 end
 
-function EventSet(entries::Vector, projects::Vector, store, xbuf,
+function EventSet(entries::Vector, projects::Vector,
                   owner::Vector{Int}, names::Vector{Tuple{String,Symbol}},
                   localized::Vector{Bool}, ncomps::Int)
     n = length(entries)
-    EventSet(tuple(entries...), tuple(projects...), store, xbuf, owner, names, localized,
+    EventSet(tuple(entries...), tuple(projects...), owner, names, localized,
              fill(false, n), fill(false, n), fill(false, n), fill(false, n),
              zeros(Int, n), fill(false, n), fill(false, ncomps),
              zeros(n), zeros(n), zeros(n), fill(false, n), fill(false, n))
 end
 
 # The three walks the iteration drives, each the compile-time-unrolled tuple
-# recursion of the phase bodies. Guard evaluation writes each predicate sample
-# into `now` by global index; the fire walk runs `handler → state_projection` for
-# exactly the masked entries, latching the returned stores — `x` into the flat
-# buffer, `m` merged into the mode store, per the return law's iff shape (§5.2).
+# recursion of the phase bodies, over the executor's buffers the caller hands
+# them (D-261). Guard evaluation writes each predicate sample into `now` by
+# global index; the fire walk runs `handler → state_projection` for exactly the
+# masked entries, latching the returned stores — `x` into the flat buffer, `m`
+# merged into the mode store, per the return law's iff shape (§5.2).
 
-@noinline _projects!(es::EventSet) = _proj_walk(es.projects, es.xbuf)
+@noinline _projects!(es::EventSet, xbuf) = _proj_walk(es.projects, xbuf)
 @inline _proj_walk(::Tuple{}, xbuf) = nothing
 @inline function _proj_walk(t::Tuple, xbuf)
     run_project!(t[1], xbuf)
     _proj_walk(Base.tail(t), xbuf)
 end
 
-@noinline _guards!(es::EventSet) = _guard_walk(es.entries, es.store, es.xbuf, es.now, es.σ)
+@noinline _guards!(es::EventSet, store, xbuf) = _guard_walk(es.entries, store, xbuf, es.now, es.σ)
 @inline _guard_walk(::Tuple{}, store, xbuf, now, σs) = nothing
 @inline function _guard_walk(t::Tuple, store, xbuf, now, σs)
     e = t[1]
@@ -318,7 +317,7 @@ end
     _guard_walk(Base.tail(t), store, xbuf, now, σs)
 end
 
-@noinline _fire!(es::EventSet) = _fire_walk(es.entries, es.store, es.xbuf, es.fire)
+@noinline _fire!(es::EventSet, store, xbuf) = _fire_walk(es.entries, store, xbuf, es.fire)
 @inline _fire_walk(::Tuple{}, store, xbuf, fire) = nothing
 @inline function _fire_walk(t::Tuple, store, xbuf, fire)
     e = t[1]
@@ -447,12 +446,11 @@ end
 
 # --- the walk -----------------------------------------------------------------
 
-struct Chunk{E<:Tuple,S,X,CL}
+struct Chunk{E<:Tuple,S,X}
     entries::E
     store::S
     xbuf::X
     ẋbuf::X
-    clock::CL
 end
 
 @noinline (c::Chunk)() = _walk(c.entries, c.store, c.xbuf, c.ẋbuf)
@@ -511,10 +509,10 @@ end
 # `gates` runs parallel to `entries`: `nothing` for a continuous entry, the
 # compiled `(D, Φ)` pair for a discrete one — which is also what selects the
 # interior subset, discreteness being a build-time fact (§10.5, D-147).
-function chunked_body(entries::Vector, gates::Vector, store, xbuf, ẋbuf, clock;
+function chunked_body(entries::Vector, gates::Vector, store, xbuf, ẋbuf;
                       chunk_size::Int = 16)
     chunks(es) = tuple((Chunk(tuple(es[lo:min(lo + chunk_size - 1, length(es))]...),
-                              store, xbuf, ẋbuf, clock)
+                              store, xbuf, ẋbuf)
                         for lo in 1:chunk_size:length(es))...)
     PhaseBody(chunks([e for (e, gt) in zip(entries, gates) if gt === nothing]),
               chunks([gt === nothing ? e : Gated(e, gt[1], gt[2])

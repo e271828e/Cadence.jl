@@ -83,7 +83,7 @@ function _grid_report(anchors, prov)
             push!(alts, lo)
             lo + g < T && push!(alts, lo + g)
         end
-        push!(pool, GridEntry(kinds[i], values[i], ks[i], prov[ks[i]], r, alts))
+        push!(pool, GridEntry(kinds[i], values[i], prov[ks[i]], r, alts))
     end
     primes = [(prime = q, power = e,
                suppliers = [i for i in eachindex(values) if denominator(values[i]) % q^e == 0])
@@ -130,22 +130,32 @@ end
 
 """
 The typed schedule (§9.2, §10.5, D-254): one row per discrete component in walk
-order, the rate-scope rows, and the per-component `D`, `Φ` and `Δt` vectors the
-executor compiles over, every tier included (a continuous component holds
-`(1, 0, 0.0)`). The single source of truth for `Δt` (§10.5).
+order, and the rate-scope rows. The single source of truth for `Δt` (§10.5). The
+per-component `(D, Φ, Δt)` the executor compiles over are derived from the rows
+at `compile`, never stored beside them (D-261).
 """
 struct Schedule
     rows::Vector{ScheduleRow}
     scopes::Vector{ScopeRow}
-    D::Vector{Int}
-    Φ::Vector{Int}
-    Δt::Vector{Float64}
 end
 
-Base.:(==)(a::Schedule, b::Schedule) =
-    a.rows == b.rows && a.scopes == b.scopes && a.D == b.D && a.Φ == b.Φ && a.Δt == b.Δt
-Base.hash(s::Schedule, h::UInt) =
-    hash(s.Δt, hash(s.Φ, hash(s.D, hash(s.scopes, hash(s.rows, h)))))
+Base.:(==)(a::Schedule, b::Schedule) = a.rows == b.rows && a.scopes == b.scopes
+Base.hash(s::Schedule, h::UInt) = hash(s.scopes, hash(s.rows, h))
+
+# The per-component `(D, Φ, Δt)` the executor compiles over, derived from the
+# rows by path at `compile` (§9.2, D-261); a component with no row is the
+# continuous tier's `(1, 0, 0.0)`.
+function _gates(sch::Schedule, s::Structure)
+    byrow = Dict(r.path => r for r in sch.rows)
+    D_c, Φ_c, Δt_c = Int[], Int[], Float64[]
+    for path in s.paths
+        r = get(byrow, path, nothing)
+        push!(D_c, r === nothing ? 1 : r.D)
+        push!(Φ_c, r === nothing ? 0 : r.Φ)
+        push!(Δt_c, r === nothing ? 0.0 : r.Δt)
+    end
+    D_c, Φ_c, Δt_c
+end
 
 """
 Deployment binding (§9.1): `Δt_base` from one of three cross-validated sources —
@@ -240,26 +250,21 @@ function bind_schedule(b::Build, h, N_base, Δt_base, diags::Vector{Diagnostic})
     # composition (§10.5), which is what the gate's truncated rem relies on. The
     # rate scopes resolve by the same law, off the triple the fold left them.
     Δtb = Float64(Δt_r)
-    D_c, Φ_c, Δt_c = Int[], Int[], Float64[]
     rows = ScheduleRow[]
     for ci in eachindex(b.structure.tiers)
+        b.structure.tiers[ci] === DISCRETE || continue
         (a, m, c) = triples[ci]
-        if b.structure.tiers[ci] === DISCRETE
-            D, Φ = m * Dk[a + 1], Φk[a + 1] + c * Dk[a + 1]
-            push!(D_c, D); push!(Φ_c, Φ); push!(Δt_c, D * Δtb)
-            # the provenance vector itself: the structure is immutable, so no copy
-            push!(rows, ScheduleRow(b.structure.paths[ci], a, D, Φ, D * Δtb,
-                                    b.structure.provenance[ci]))
-        else
-            push!(D_c, 1); push!(Φ_c, 0); push!(Δt_c, 0.0)
-        end
+        D, Φ = m * Dk[a + 1], Φk[a + 1] + c * Dk[a + 1]
+        # the provenance vector itself: the structure is immutable, so no copy
+        push!(rows, ScheduleRow(b.structure.paths[ci], a, D, Φ, D * Δtb,
+                                b.structure.provenance[ci]))
     end
     scopes = [ScopeRow(sc.path, sc.key, sc.triple[1],
                        sc.triple[2] * Dk[sc.triple[1] + 1],
                        Φk[sc.triple[1] + 1] + sc.triple[3] * Dk[sc.triple[1] + 1])
               for sc in b.structure.scopes]
     (h = Float64(h_r), N_base = n_i, Δt_base = Δtb,
-     schedule = Schedule(rows, scopes, D_c, Φ_c, Δt_c), grid = grid, derived = derived)
+     schedule = Schedule(rows, scopes), grid = grid, derived = derived)
 end
 
 # --- the artifact (§9.1, §9.2, D-254) -------------------------------------------

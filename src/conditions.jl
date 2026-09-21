@@ -336,7 +336,6 @@ function _resolve_entries(node::ConditionNode, b::Build, ::Type{T}) where {T}
     entries = _flat(node, "", structure.root, "", (), structure, diags)
     _check_duplicates!(entries, diags)
 
-    x_offs = _x_offsets(decls, tiers)
     out = Resolved[]
     for e in entries
         if e.store === :input
@@ -361,7 +360,7 @@ function _resolve_entries(node::ConditionNode, b::Build, ::Type{T}) where {T}
         L = typeof(declared[e.field])
         (ok, v) = _convert(L, e.value)
         ok || (push!(diags, _unconvertible(e, e.value, L, T)); continue)
-        push!(out, Resolved(e, e.store === :x ? x_offs[ci] + _leaf_offset(d.x, e.field) : ci,
+        push!(out, Resolved(e, e.store === :x ? first(layout.xblocks[ci]) - 1 + _leaf_offset(d.x, e.field) : ci,
                             L, v))
     end
     (out, diags, act)
@@ -377,18 +376,6 @@ _store_bases(b::Build, act::Activation) =
 # misuse, not a `MethodError`: the directive is the same one `combine` prints,
 # and a bare NamedTuple handed to `init!` is exactly the slip it addresses.
 resolve_condition(other, ::Build, ::Type = Float64) = _node_misuse(other, ())
-
-# The `x` destinations, per component then per field: the flat buffer's layout
-# is the declaration walk, so the plan bakes the offsets the state accessor
-# recomputes (§7.1).
-function _x_offsets(decls::Vector{Decls}, tiers::Vector{Tier})
-    offs, n = Int[], 0
-    for (d, t) in zip(decls, tiers)
-        push!(offs, n)
-        t === CONTINUOUS && (n += nleaves(typeof(d.x)))
-    end
-    offs
-end
 
 function _leaf_offset(x::NamedTuple, field::Symbol)
     off = 0
@@ -833,13 +820,12 @@ function capture(sim::Simulation{T}) where {T}
         op = :capture, status = lc, legal = [:initialized, :stopped])))
     ex, structure, tiers = sim.exec, sim.deployment.build.structure, sim.deployment.build.structure.tiers
     act = activation(sim.deployment.build, T)
-    offs = _x_offsets(act.decls, tiers)
     nodes = ConditionNode[]
     for ci in eachindex(structure.comps)
         d = act.decls[ci]
         payload = NamedTuple()
         tiers[ci] === CONTINUOUS && !isempty(d.x) &&
-            (payload = merge(payload, (x = _capture_x(d.x, ex.xbuf, offs[ci]),)))
+            (payload = merge(payload, (x = _capture_x(d.x, ex.xbuf, first(act.layout.xblocks[ci]) - 1),)))
         ex.sstores[ci] === nothing || (payload = merge(payload, (s = ex.sstores[ci][],)))
         ex.mstores[ci] === nothing || (payload = merge(payload, (m = ex.mstores[ci][],)))
         isempty(payload) && continue

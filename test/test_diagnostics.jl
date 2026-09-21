@@ -249,9 +249,9 @@ function diagnostics_kind_set()
         # The attribution the three grid refusals and the advisory print from
         # (§9.2, D-187): two drivers, the offset among them carrying the nearest
         # offsets the rest of the pool supports.
-        grid = GridReport([GridEntry(:period, 1//30, 1, "`sample_times` at `a`, key `b`",
+        grid = GridReport([GridEntry(:period, 1//30, "`sample_times` at `a`, key `b`",
                                      10, Rational{Int}[]),
-                           GridEntry(:offset, 1//7, 1, "`sample_times` at `a`, key `b`",
+                           GridEntry(:offset, 1//7, "`sample_times` at `a`, key `b`",
                                      3, Rational{Int}[7//50, 3//20])],
                           1//300,
                           [(prime = 2, power = 2, suppliers = [1]),

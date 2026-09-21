@@ -1216,7 +1216,6 @@ offsets on the grid the rest of the pool supports.
 struct GridEntry
     kind::Symbol                          # :period | :offset
     value::Rational{Int}
-    anchor::Int                           # 1…K, into the structure's anchor table
     provenance::String                    # the anchor's declaring scope and key
     factor::Int                           # r_p ≥ 1
     alternatives::Vector{Rational{Int}}   # a driving offset's nearest non-refining neighbours; else empty

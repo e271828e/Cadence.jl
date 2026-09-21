@@ -79,8 +79,7 @@ ruling; the second waits on the feature or the pass its bullet names.
 - **D-261's placements**, delivered by increment 47c ahead of 48, together
   with the unrostered fixes of the 2026-09-21 data survey
   (`docs/reports/20260921_data_survey/merge.md`). The code still holds
-  `Schedule.D`, `.Φ`, `.Δt` beside the rows and `compile` takes them (§9.2);
-  the cursor carries the `t*` hit and `StopPolicy` its compiled addresses
+  the cursor carrying the `t*` hit and `StopPolicy` its compiled addresses
   (§13.5); the four recording keywords are `Simulation(deployment, T)`'s and
   ride the placeholder run, while `init!` and `replay!` take none
   (§12.6, Appendix B); `DeviceHandle` keeps an `id` and the roster entry

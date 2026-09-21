@@ -57,7 +57,7 @@ function _localized_frame!(sim::Simulation{T}, t_to, pol::StopPolicy) where {T}
         # sweep that closes the integration step is what raises the trigger.
         _phase!(cur, :arrival)
         sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
-        _guards!(es)
+        _guards!(es, sim.exec.store, sim.exec.xbuf)
         copyto!(es.σ1, es.σ)
 
         # The trigger (§10.4): localized policy, prior not-holding at the last
@@ -97,7 +97,7 @@ function _localized_frame!(sim::Simulation{T}, t_to, pol::StopPolicy) where {T}
         sim.exec.clock.t = t_seg
         _phase!(cur, :validation)
         sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
-        _guards!(es)
+        _guards!(es, sim.exec.store, sim.exec.xbuf)
         copyto!(es.σ0, es.σ)
         remaining = false
         for i in 1:n
@@ -173,7 +173,7 @@ function _trial!(sim::Simulation, θ::Float64, t_seg, h′)
     dense!(sim.exec.stepper, sim.exec.xbuf, sim.exec.xnext, sim.exec.ẋnext, θ, h′)
     sim.exec.clock.t = t_seg + θ * h′
     sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
-    _guards!(sim.exec.events)
+    _guards!(sim.exec.events, sim.exec.store, sim.exec.xbuf)
     nothing
 end
 

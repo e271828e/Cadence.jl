@@ -741,7 +741,7 @@ struct Structure
     tiers::Vector{Tier}                                        # per component, beside `paths`
     conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}}   # face => (producer path, port)
     root_inputs::Vector{Symbol}                                # root input faces, in order
-    root_types::Vector{Any}         # per root input: the type the structure step's wire pass fixed (D-236)
+    root_types::Vector{Any}         # per root input: the type the wire pass fixed ahead of construction (D-236, D-261)
     in_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}   # (path, face) => producer
     out_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}  # (path, face) => producer
     triples::Vector{NTuple{3,Int}}      # per component: (anchor, m, c), anchor 0 the base grid
@@ -751,16 +751,12 @@ struct Structure
     scopes::Vector{RateScope}             # one row per keyed assembly, in walk order
 end
 
-function index_of(s::Structure, path::String)
-    i = findfirst(==(path), s.paths)
-    i === nothing && throw(InternalInvariant("no component at path `$path`"))
-    i
-end
-
-# The walk's state: the accumulators `wire!` closes into the `Structure`, the
-# tiers among them (`nothing` where a store-form failure was recorded, narrowed
-# on the clean walk `wire!` runs on). `conns` and `in_faces` are not here — they
-# are derived past the barrier, by `wire!` itself. Violations are not held here
+# The walk's state: the accumulators the `Structure` closes over past the
+# barrier, the tiers among them (`nothing` where a store-form failure was
+# recorded, narrowed on the clean walk `wire!` runs on). `conns` and `in_faces`
+# are not here — they are derived past the barrier, by `wire!` itself — and
+# neither are the root-input types, which the wire pass fixes (D-236) and the
+# `Structure` takes at construction (D-261). Violations are not held here
 # either: the step's list is an argument of every helper that can add to it.
 struct Walk
     root::Any
@@ -768,7 +764,6 @@ struct Walk
     comps::Vector{Any}
     tiers::Vector{Union{Nothing,Tier}}   # per primitive, beside `paths`; `nothing` = recorded
     root_inputs::Vector{Symbol}
-    root_types::Vector{Any}
     out_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}
     triples::Vector{NTuple{3,Int}}
     anchors::Vector{NTuple{2,Rational{Int}}}
@@ -783,7 +778,7 @@ end
 
 Walk(root) = Walk(root, String[], Any[],
               Union{Nothing,Tier}[],
-              Symbol[], Any[],
+              Symbol[],
               Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
               NTuple{3,Int}[], NTuple{2,Rational{Int}}[], String[],
               Vector{RateLink}[], RateScope[],
@@ -791,6 +786,12 @@ Walk(root) = Walk(root, String[], Any[],
               Dict{Tuple{String,Symbol},String}(),
               Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}[],
               IdDict{Any,Tuple{Vector{String},Vector{String}}}())
+
+function index_of(s::Union{Structure,Walk}, path::String)
+    i = findfirst(==(path), s.paths)
+    i === nothing && throw(InternalInvariant("no component at path `$path`"))
+    i
+end
 
 """
 The running walk's evaluated face lists (§13.3, Appendix C): `flatten!` binds it
@@ -959,7 +960,9 @@ end
 input is fed exactly once, so an assembly's face and the leaf entries behind it
 share the one producer above them and `(path, face) => producer` is well
 defined. A primitive's own entries complete the record, so the graph carries
-every input face at every level, whatever the level's class.
+every input face at every level, whatever the level's class. Returns the
+per-component `conns` and the `in_faces` table; the `Structure` is built from
+them once the wire pass has fixed the root-input types.
 """
 function wire!(w::Walk)
     conns = Vector{Pair{Symbol,Tuple{String,Symbol}}}[]
@@ -974,12 +977,19 @@ function wire!(w::Walk)
     for (path, cs) in zip(w.paths, conns), (face, producer) in cs
         push!(in_faces, (path, face) => producer)
     end
-    # The walk `wire!` runs on is clean, so no recorded failure is left and the
-    # tiers narrow (§13.1, D-229).
-    Structure(w.root, w.paths, w.comps, Vector{Tier}(w.tiers), conns, w.root_inputs,
-              w.root_types, in_faces, w.out_faces, w.triples, w.anchors, w.aprov,
-              w.provenance, w.scopes)
+    conns, in_faces
 end
+
+# The structure step's last act (D-261): the artifact, complete at construction,
+# from the clean walk, what `wire!` derived and the root-input types the wire
+# pass fixed. The walk is clean, so no recorded failure is left and the tiers
+# narrow (§13.1, D-229).
+Structure(w::Walk, conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}},
+          in_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}},
+          root_types::Vector{Any}) =
+    Structure(w.root, w.paths, w.comps, Vector{Tier}(w.tiers), conns, w.root_inputs,
+              root_types, in_faces, w.out_faces, w.triples, w.anchors, w.aprov,
+              w.provenance, w.scopes)
 
 # `chain` is the links above `comp`, outermost first, and `link` its own — the
 # entry the enclosing assembly's `sample_times` named it under, or `nothing`.

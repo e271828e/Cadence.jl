@@ -217,8 +217,7 @@ function Simulation(d::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
     (log_max isa Integer && log_max ≥ 1) || log_max === Inf || _arg(:log_max, log_max)
     isempty(diags) || throw(DiagnosticError(diags))    # one throw per call (§9.1, D-229)
     act = activation(d.build, T)
-    sch = d.schedule
-    ex = compile(d.build, act, sch.D, sch.Φ, sch.Δt; chunk_size, algorithm = d.algorithm)
+    ex = compile(d.build, act, d.schedule; chunk_size, algorithm = d.algorithm)
     # §12.6's placeholder run (D-255): the recording flags ride on it until `init!`
     # reads them off and builds the run that records for real. It precedes the
     # plane because the drain thunks close over its trace (§11.5, D-260), and
@@ -472,7 +471,7 @@ construction rather than by convention.
 @inline function boundary!(sim::Simulation, tick::Int)
     cur = sim.exec.cursor
     _phase!(cur, :project)
-    _projects!(sim.exec.events)
+    _projects!(sim.exec.events, sim.exec.xbuf)
     event_phase!(sim, tick)
     _phase!(cur, :ticks)
     sim.exec.bodies.ticks(tick)
@@ -490,7 +489,7 @@ projection and the event phase run in full — every step boundary is a boundary
 """
 @inline function offtick_boundary!(sim::Simulation)
     _phase!(sim.exec.cursor, :project)
-    _projects!(sim.exec.events)
+    _projects!(sim.exec.events, sim.exec.xbuf)
     event_phase!(sim, nothing)
     nothing
 end
@@ -517,7 +516,7 @@ wrapping a throw as §13.4's catch does (D-223).
 @inline function boundary_zero!(sim::Simulation)
     cur = sim.exec.cursor
     _phase!(cur, :project)
-    _projects!(sim.exec.events)
+    _projects!(sim.exec.events, sim.exec.xbuf)
     event_phase!(sim, ESTABLISH)
     _phase!(cur, :ticks)
     sim.exec.bodies.ticks(0)
@@ -564,7 +563,7 @@ function event_phase!(sim::Simulation, tick)
     fill!(es.warned, false)
     budget = sim.deployment.firing_budget
     while true
-        _guards!(es)
+        _guards!(es, sim.exec.store, sim.exec.xbuf)
         fill!(es.comp_fired, false)
         any_fired = false
         for i in 1:n
@@ -590,7 +589,7 @@ function event_phase!(sim::Simulation, tick)
             (eligible && !firing) || (es.last[i] = es.now[i])
         end
         any_fired || break
-        _fire!(es)
+        _fire!(es, sim.exec.store, sim.exec.xbuf)
         cur.index += 1
         _round!(sim, tick)
     end
@@ -632,18 +631,19 @@ end
 end
 
 # The owner of flat index `i` and its leaf within that component's block, both
-# read off `xblocks`. Thrown as a fail-fast `DiagnosticError`, which the catch
-# site's species rule unwraps into the `StepError`'s `cause`.
+# read off the layout's `xblocks`. Thrown as a fail-fast `DiagnosticError`, which
+# the catch site's species rule unwraps into the `StepError`'s `cause`.
 @noinline function _nonfinite(sim::Simulation, i::Int)
     ex = sim.exec
-    owner = findfirst(b -> i in b, ex.xblocks)::Int
+    xblocks = ex.act.layout.xblocks
+    owner = findfirst(b -> i in b, xblocks)::Int
     cur = ex.cursor                   # the phase stays `:integrate`, but the sweep is the
     cur.comp = owner; cur.fn = :none  # framework's own act between the stages and the
     cur.index = 0                     # boundary — no stage of its own, so no ordinal
     names = leaf_names(typeof(ex.act.decls[owner].x))
     throw(DiagnosticError(NonfiniteState(
         path = sim.deployment.build.structure.paths[owner],
-        leaf = names[i - first(ex.xblocks[owner]) + 1],
+        leaf = names[i - first(xblocks[owner]) + 1],
         value = ex.xbuf[i],
         t = _seconds(ex.clock.t),
         boundary = ex.clock.step - 1)))   # the frame-entry index: this frame's own top

@@ -266,10 +266,12 @@ function discrete_deployment()
         @test rows[3].provenance[1].entry isa Absolute
         @test rows[2].provenance[2].entry == Relative(5, 2)
 
-        # The vectors the executor compiles over hold every tier: `src` is
-        # continuous, so it carries (1, 0, 0.0) between the discrete rows.
-        @test d.schedule.D == [1, 1, 5, 10] && d.schedule.Φ == [0, 0, 2, 0]
-        @test d.schedule.Δt ≈ [0.0, 0.002, 0.01, 0.02]
+        # The per-component gates the executor compiles over are derived from
+        # the rows at `compile` (D-261) and hold every tier: `src` is continuous,
+        # so it carries (1, 0, 0.0) between the discrete rows.
+        D, Φ, Δt = _gates(d.schedule, b.structure)
+        @test D == [1, 1, 5, 10] && Φ == [0, 0, 2, 0]
+        @test Δt ≈ [0.0, 0.002, 0.01, 0.02]
 
         # One scope row per assembly an explicit key opened — `fcs` here — resolved
         # by the same multiply-add its members use, off the structure's own triple.
@@ -462,8 +464,10 @@ function discrete_deployment()
 
         # The pool is one entry per anchor period and one per nonzero offset, in
         # anchor order, periods first, each carrying its anchor's provenance.
-        @test [(e.kind, e.value, e.anchor) for e in g.pool] ==
-              [(:period, 1//500, 1), (:period, 1//10, 2), (:offset, 1//150, 2)]
+        @test [(e.kind, e.value) for e in g.pool] ==
+              [(:period, 1//500), (:period, 1//10), (:offset, 1//150)]
+        @test [occursin("key `$k`", e.provenance) for (e, k) in zip(g.pool, (:a, :b, :b))] ==
+              [true, true, true]
         @test all(occursin("`sample_times`", e.provenance) for e in g.pool)
 
         # Leave-one-out: how much coarser the grid would be without each entry.

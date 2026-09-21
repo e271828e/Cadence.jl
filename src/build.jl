@@ -246,19 +246,20 @@ Probe the stage-1 function — `output_state`, on either tier (D-220) — for
 every component in this activation's executable set: no wiring
 is needed, so this runs first and tells the rest of the build which ports are
 stage-1 — the ones that carry no dependence on inputs and therefore break loops
-(§5.3). A frozen component's stages are outside the set (§9.4), so its stage-1
-product is the nominal activation's, carried across from `carry`.
+(§5.3). A frozen component's stages are outside the set (§9.4), so it probes
+nothing here; `probe_stage2` carries its complete product across from the
+nominal activation.
 
 The `Δt` the discrete bundles carry is a fabricated, probe-scoped placeholder
 (§9.3): `Δt` in seconds does not exist until the `Deployment` binds `Δt_base`, and
 the probe checks types, not physics.
 """
 function probe_stage1(s::Structure, decls::Vector{Decls},
-                      wss::Vector, mstores::Vector, carry, ::Type{T}) where {T}
+                      wss::Vector, mstores::Vector, ::Type{T}) where {T}
     map(eachindex(s.comps)) do ci
         path, c, d = s.paths[ci], s.comps[ci], decls[ci]
         at_component(path) do
-            _frozen(s.tiers, ci, T) && return carry.stage1[ci]
+            _frozen(s.tiers, ci, T) && return NamedTuple()
             has_stage(output_state, c) || return NamedTuple()
             stage = String(nameof(output_state))
             bn = bundle_names(output_state, c, s.tiers[ci], ())
@@ -504,6 +505,7 @@ struct Layout
     addr::Dict{Tuple{String,Symbol},Any}     # (path, port|face) => CellAddr
     root_inputs::Vector{Tuple{Symbol,Any}}   # root inputs, with their probe values
     sizes::Vector{Pair{DataType,Int}}        # leaf eltype => buffer length, name-sorted
+    xblocks::Vector{UnitRange{Int}}          # per component: its range in the flat `x` buffer, empty where it owns none
 end
 
 function cell_layout(s::Structure, decls::Vector{Decls}, ::Type{T}) where {T}
@@ -570,7 +572,15 @@ function cell_layout(s::Structure, decls::Vector{Decls}, ::Type{T}) where {T}
         addr[alias] = addr[target]
     end
     sizes = sort!([L => n for (L, n) in offs]; by = p -> string(first(p)))
-    Layout(addr, root_inputs, sizes)
+    # The flat buffer's layout is the declaration walk (§7.1): one range per
+    # component, the one home every `x` offset is read from (§13.4, D-261).
+    xblocks, nx = UnitRange{Int}[], 0
+    for (d, t) in zip(decls, s.tiers)
+        n = t === CONTINUOUS ? nleaves(typeof(d.x)) : 0
+        push!(xblocks, (nx+1):(nx+n))
+        nx += n
+    end
+    Layout(addr, root_inputs, sizes, xblocks)
 end
 
 # A root input's cells at an activation: D-168's meet, at the level of the whole
@@ -602,7 +612,6 @@ constructed; the probe products are what a cell holds until first written
 """
 struct Activation{T}
     decls::Vector{Decls}
-    stage1::Vector{NamedTuple}     # stage-1 probe products, per component
     products::Vector{NamedTuple}   # complete probe products, per component
     layout::Layout
 end
@@ -697,13 +706,14 @@ function build(root::AbstractComponent; activations::Tuple = ())
             # The dependency rule (§13.1, D-229): the wire pass reads the wiring, which a
             # dirty walk never produced, so it runs on a clean walk alone.
             isempty(diags) || throw(DiagnosticError(diags))
-            s = wire!(w)                # the derivation, on a clean walk
-            _check_wires(s, diags)
+            conns, in_faces = wire!(w)  # the derivation, on a clean walk
+            root_types = _check_wires(w, conns, diags)
             # The structure step's barrier (§13.1, D-229): every pass that ran merges here, and
             # nothing derived from the wiring is computed before it. No cascade
             # suppression — a typo'd wire reports its unknown port *and* the input it
             # left unfed.
             isempty(diags) || throw(DiagnosticError(diags))
+            s = Structure(w, conns, in_faces, root_types)   # the artifact, complete at construction (D-261)
             df, ev, nominal = _nominal(s)
             b = Build(s, df, ev, Dict{DataType,Any}(Float64 => nominal), ReentrantLock(), ws)
             for A in activations
@@ -778,64 +788,68 @@ end
 # root-input type with its two refusals. Pure declaration reading — the
 # contracts are evaluated at `Float64` for the bound clause and at the marker for
 # the walk clause; no stage runs. The pass collects (§13.1): every wire is
-# checked, and the barrier throws once.
-function _check_wires(s::Structure, diags::Vector{Diagnostic})
+# checked, and the barrier throws once. Runs on the clean walk and the `conns`
+# `wire!` derived, ahead of the `Structure`, and returns the root-input types
+# the artifact takes at construction (D-236, D-261).
+function _check_wires(w::Walk, conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}},
+                      diags::Vector{Diagnostic})
     # A continuous contract bounded narrower than `Real` (§8.5) has no method at
     # the marker, so its marker declaration is the `::Any` fallback's empty
     # `NamedTuple` — refuse the component and skip every wire and root entry that
     # touches it, rather than index that emptiness by face.
-    refused = falses(length(s.comps))
-    for (ci, (c, t)) in enumerate(zip(s.comps, s.tiers))
+    refused = falses(length(w.comps))
+    for (ci, (c, t)) in enumerate(zip(w.comps, w.tiers))
         t === CONTINUOUS || continue
         for fn in (input_types, output_types)
             (_declares(fn, c, Type{Float64}) && !_declares(fn, c, Type{Marker})) || continue
-            push!(diags, TierSignatureMismatch(path = s.paths[ci], declaration = nameof(fn),
+            push!(diags, TierSignatureMismatch(path = w.paths[ci], declaration = nameof(fn),
                                                tier = :continuous, reason = :bound,
                                                found = _contract_bound(fn, c), mandated = Real))
             refused[ci] = true
         end
     end
-    at(fn, S) = [at_component(() -> declared_at(fn, s.comps[ci], s.tiers[ci], S),
-                              s.paths[ci]) for ci in eachindex(s.comps)]
+    at(fn, S) = [at_component(() -> declared_at(fn, w.comps[ci], w.tiers[ci], S),
+                              w.paths[ci]) for ci in eachindex(w.comps)]
     ins_F, outs_F = at(input_types, Float64), at(output_types, Float64)
     ins_M, outs_M = at(input_types, Marker), at(output_types, Marker)
-    for (ci, conns) in enumerate(s.conns), (face, (ppath, pport)) in conns
+    for (ci, cs) in enumerate(conns), (face, (ppath, pport)) in cs
         isempty(ppath) && continue                  # a root input: typed below
-        pi = index_of(s, ppath)
+        pi = index_of(w, ppath)
         (refused[ci] || refused[pi]) && continue
         P_F, V_F = ins_F[ci][face], outs_F[pi][pport]
         if !_accepts_wire(P_F, V_F, Float64)
-            push!(diags, WireTypeMismatch(path = s.paths[ci], face = face, declared = P_F,
+            push!(diags, WireTypeMismatch(path = w.paths[ci], face = face, declared = P_F,
                                           producer_path = ppath, producer_port = pport,
                                           observed = V_F))
             continue        # the walk clause reads a shape the bound clause has vouched for
         end
-        s.tiers[ci] === CONTINUOUS || continue        # D-167's tier scope
+        w.tiers[ci] === CONTINUOUS || continue        # D-167's tier scope
         P_M, V_M = ins_M[ci][face], outs_M[pi][pport]
         _accepts_wire(P_M, V_M, Marker) && continue
         leaf, declared, observed = _walking_leaf(P_M, V_M)
-        push!(diags, WalkingFaceAtFrozenEntry(path = s.paths[ci], face = face,
+        push!(diags, WalkingFaceAtFrozenEntry(path = w.paths[ci], face = face,
                                               producer_path = ppath, producer_port = pport,
                                               leaf = leaf, declared = declared,
                                               observed = observed))
     end
-    for face in s.root_inputs
+    root_types = Any[]
+    for face in w.root_inputs
         paths, faces, entries, routed = String[], Symbol[], Any[], false
-        for (ci, conns) in enumerate(s.conns), (f, producer) in conns
+        for (ci, cs) in enumerate(conns), (f, producer) in cs
             producer === ("", face) || continue
             routed = true
             refused[ci] && continue
-            push!(paths, s.paths[ci]); push!(faces, f); push!(entries, ins_F[ci][f])
+            push!(paths, w.paths[ci]); push!(faces, f); push!(entries, ins_F[ci][f])
         end
         routed || throw(InternalInvariant("root input face `$face` routes to no input"))
         if isempty(paths)                   # every consumer refused; the barrier throws
-            push!(s.root_types, nothing)
+            push!(root_types, nothing)
             continue
         end
         conc = findall(isconcretetype, entries)
         if isempty(conc)
             push!(diags, AbstractAtRoot(face = face, paths = paths, declared = entries))
-            push!(s.root_types, nothing)
+            push!(root_types, nothing)
             continue
         end
         P_F = entries[first(conc)]
@@ -849,9 +863,9 @@ function _check_wires(s::Structure, diags::Vector{Diagnostic})
                                               declared = entries[k], producer_path = "",
                                               producer_port = face, observed = P_F))
         end
-        push!(s.root_types, P_F)
+        push!(root_types, P_F)
     end
-    nothing
+    root_types
 end
 
 # The offending leaf, for the walk clause's message. For a concrete entry the
@@ -914,12 +928,12 @@ function _nominal(s::Structure)
     mstores = _mstores(s)
     wss = _workspaces(s, Float64)
 
-    stage1 = probe_stage1(s, decls, wss, mstores, nothing, Float64)
+    stage1 = probe_stage1(s, decls, wss, mstores, Float64)
     df = _dataflow(s, decls, stage1, mstores)
     layout = cell_layout(s, decls, Float64)
     products = probe_stage2(s, decls, stage1, df.order, layout,
                             wss, mstores, nothing, Float64)
-    nominal = Activation{Float64}(decls, collect(stage1), products, layout)
+    nominal = Activation{Float64}(decls, products, layout)
     df, probe_events(s, nominal), nominal
 end
 
@@ -936,11 +950,11 @@ function _activate(s::Structure, df::Dataflow, nominal::Activation{Float64},
     mstores = _mstores(s)
     wss = _workspaces(s, T)
 
-    stage1 = probe_stage1(s, decls, wss, mstores, nominal, T)
+    stage1 = probe_stage1(s, decls, wss, mstores, T)
     layout = cell_layout(s, decls, T)
     products = probe_stage2(s, decls, stage1, df.order, layout,
                             wss, mstores, nominal, T)
-    Activation{T}(decls, collect(stage1), products, layout)
+    Activation{T}(decls, products, layout)
 end
 
 # Probe-scoped mode stores (§9.3). One read of `init_m` per component, under the
@@ -1294,8 +1308,6 @@ struct Executor{T,S,B,CL,EV,M}
     bodies::B              # the phase bodies, closed over the buffers above
     events::EV             # the compiled event set, likewise (nominal only)
     cursor::ExecutionCursor          # §13.4: where execution is, written per dispatch
-    # the flat-buffer range each component's `x` occupies, empty where it owns none
-    xblocks::Vector{UnitRange{Int}}
     chunk_size::Int        # the unroll width it was compiled at, retained so a service
                            # can compile one of its own exactly as this was
     stepper::M             # the seam's backend (§10.2), with its own scratch
@@ -1328,10 +1340,13 @@ readers being user values, so reaching here is an internal assertion firing.
 # `algorithm` takes no default: it is trajectory-determining (§12.7), so a
 # scratch executor silently built on `RK4` against a `Heun` deployment would
 # give a wrong answer with no diagnostic. Every caller passes the deployment's.
-function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{Int},
-                 Δt_c::Vector{Float64}; chunk_size::Int = 16, algorithm) where {T}
+# `sch` is the deployment's `Schedule`, untyped here because `deployment.jl` is
+# included after this file; the per-component gates are derived from its rows
+# by `_gates` there (§9.2, D-261).
+function compile(b::Build, act::Activation{T}, sch; chunk_size::Int = 16, algorithm) where {T}
     s, decls, layout = b.structure, act.decls, act.layout
     tiers = s.tiers
+    D_c, Φ_c, Δt_c = _gates(sch, s)
 
     # Three homes for state, and no store mirrors another (§7.3): the flat
     # buffer for continuous `x`, one store per discrete `s`, one per mode set.
@@ -1346,14 +1361,8 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
         tuple((CellStore(L <: Real ? zeros(L, n) : Vector{L}(undef, n))
                for (L, n) in layout.sizes)...)))
 
-    x_offs, nx = Int[], 0
-    xblocks = UnitRange{Int}[]
-    for (d, t) in zip(decls, tiers)
-        push!(x_offs, nx)
-        n = t === CONTINUOUS ? nleaves(typeof(d.x)) : 0
-        push!(xblocks, (nx+1):(nx+n))     # §13.4's owner lookup, one range per component
-        nx += n
-    end
+    x_offs = [first(r) - 1 for r in layout.xblocks]
+    nx = sum(length, layout.xblocks; init = 0)
     xbuf = zeros(T, nx)
     establish_defaults!(xbuf, sstores, mstores, s.comps, decls, tiers)
     ẋbuf = zeros(T, nx)
@@ -1471,7 +1480,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
                        for (ci, c) in enumerate(s.comps)
                        if tiers[ci] === CONTINUOUS && has_stage(state_projection, c)]
 
-    body(es, gs) = chunked_body(es, gs, store, xbuf, ẋbuf, clock; chunk_size)
+    body(es, gs) = chunked_body(es, gs, store, xbuf, ẋbuf; chunk_size)
     # Beside the four blocks ride the per-event and per-projection callables,
     # keyed by the roster (§9.7): (path, event name) and path.
     ev_bodies = Dict{Tuple{String,Symbol},NamedTuple}(
@@ -1483,12 +1492,12 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
               ticks = body(tick_entries, tick_gates),
               events = ev_bodies, projections = proj_bodies)
 
-    evset = EventSet(ev_entries, proj_entries, store, xbuf, ev_owner, ev_names,
-                     ev_localized, length(s.comps))
+    evset = EventSet(ev_entries, proj_entries, ev_owner, ev_names, ev_localized,
+                     length(s.comps))
     # The seam's backend and the arrival pair are this buffer set's, so they are
     # built here rather than by the caller (§12.6, D-256).
     Executor(act, store, xbuf, ẋbuf, sstores, mstores, clock, bodies, evset, cursor,
-             xblocks, chunk_size, algorithm(T, nx), zeros(T, nx), zeros(T, nx),
+             chunk_size, algorithm(T, nx), zeros(T, nx), zeros(T, nx),
              any(ev_localized))
 end
 

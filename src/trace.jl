@@ -314,13 +314,6 @@ function _walk_deployment!(diags::Vector{Diagnostic}, rec::Deployment, tgt::Depl
                    [string(s.path, ':', s.key) for s in a.scopes],
                    [string(s.path, ':', s.key) for s in b.scopes])
     end
-    # the per-component vectors the executor compiles over: every tier, so they
-    # move where a continuous component does and the rows do not. They resolve
-    # from the rows above, so a reachable difference is already named there. This
-    # arm is the backstop that keeps the walk covering what `==` compares.
-    for col in (:D, :Φ, :Δt)
-        _dep_diff!(diags, "", Symbol("schedule.", col), getfield(a, col), getfield(b, col))
-    end
     nothing
 end
 
