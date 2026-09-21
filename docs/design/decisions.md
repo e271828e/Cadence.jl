@@ -9570,7 +9570,12 @@ methods, with no accessors.
   the hyperperiod chart. `show(::Build)` and `show(::Deployment)` print a
   summary and their parts. (Amended 2026-09-21, ahead of increment 48:
   `Events` renders itself too, each component's event names with their
-  policies, and it is among the parts `show(::Build)` prints.)
+  policies, and it is among the parts `show(::Build)` prints. Extended
+  2026-09-22, with increment 48b: `show(::Build)` also prints the feedthrough
+  edges the execution order was computed over, on a line of its own between
+  the outputs table and the events table, derived from the structure's
+  connections and the producers' stage-2 names, since [D-261][d-261]'s artifact rule
+  dropped the `edges` column.)
 - The chart guard is binary: the chart prints whole when `lcm(Dᵢ)` is at
   most 100 base ticks, and otherwise the hyperperiod's length with "chart
   omitted".

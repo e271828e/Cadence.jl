@@ -39,7 +39,7 @@ to.
   visible counterpart in the diagram or the schedule view, or is left out of
   the first iteration.
 - **Where rates become known** (axes 1, 5). At which product rate colouring
-  and the schedule view have data, so that a `Structure` or `Dataflow`
+  and the schedule view have data, so that a `Structure` or `Outputs`
   inspected alone degrades honestly.
 - **Docstring projection** (axis 1). Whether the projection reads a
   component's docstring for hover text, and if so from where, since no product
@@ -90,7 +90,7 @@ Each entry gives the question, the answer, and the reason the answer won.
    refactors of `src/`, lets the viewer use web diagram tooling, and makes a
    model shareable with someone who has no Julia.
 3. **Build or run?** Build only in the first iteration: `Structure`,
-   `Dataflow`, `Schedule`, `Deployment`. Run data (log, trace) is a later,
+   `Outputs`, `Schedule`, `Deployment`. Run data (log, trace) is a later,
    additive payload that references ports by identity. The diagram is the
    hook; plotting a log is three lines of Makie at the REPL; and §16 defers
    on-disk persistence of the log and trace, which the run payload would
@@ -160,7 +160,7 @@ Quasi-orthogonal, each a session of its own. Coupling is named where it
 exists.
 
 1. **The document schema.** One section per product (`Structure`,
-   `Dataflow`, `Events`, `Schedule`, `Deployment`), a surface section for a
+   `Outputs`, `Events`, `Schedule`, `Deployment`), a surface section for a
    `Simulation`, a diagnostics section. Identities on every component, port,
    wire, row and device. Versioning. Field names from the spec glossary.
    Couples to every other axis, since it is the contract, and to the later
@@ -202,7 +202,7 @@ spec meaning and are not redefined here.
   built later on the inspector's views. Not part of this design.
 - **Editor.** A hypothetical block-diagram authoring tool. Deferred
   indefinitely; named only to say what the inspector is not.
-- **Product.** A named output of the pipeline: `Structure`, `Dataflow`,
+- **Product.** A named output of the pipeline: `Structure`, `Outputs`,
   `Events`, `Schedule`, `Build`, `Deployment`, and by extension a
   `Simulation`.
 - **Document.** The JSON description of one inspected object. Composed of
