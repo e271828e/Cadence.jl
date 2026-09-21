@@ -375,6 +375,29 @@ empty.
 
 ## Step 7: increment 48, the renderings
 
+Landed 2026-09-21: the docs amendments as `ac58690` (D-257 gains `Events`,
+D-261's artifact rule says rows) and `4ac061c` (the two sweeps in
+`pending.md`), the brief as `13a4c48`
+(`brief_increment_48_renderings.md`), the shapes as `fc7ee53`, the
+renderings as `0aaea88` and the cold review's two fixes as `ab8eaf0`. The
+review found no defect. Settled while briefing, in discussion: `Structure`
+holds rows (`ComponentEntry` with `path`, `instance`, `tier`, `rates`,
+`timing`, `conns`; `Anchor` with `T`, `τ`, `scope`, `key`; `Timing` the
+named `(anchor, m, c)`), the walk's accumulator is `StructureDraft` and
+keeps the columns, the `Walk`/`Structure` split stays because the
+constructor after the barrier is what makes a `Structure` complete;
+`ScheduleRow`/`ScopeRow` became `ScheduleEntry`/`ScopeEntry`; the
+renderings live in one file, `src/show.jl`, since they share their table
+machinery and compose. Rulings from the review: `τ` and `Absolute` print
+their rationals as rationals (`0//1`), the column being exact; the
+compact `Build` lists `Float64` first and the rest by name; `Dataflow` and
+`Events` still hold per-component columns and go to increment 48b under
+D-261's amended rule, `Activation{T}` exempt as compiled state; the
+loop-body locals the sweep left (`c`, `d`, `t` in `build.jl`, `tracer.jl`,
+`sim.jl`, `_grid_block`'s `g` and `e`) belong to the naming sweep. With
+this step the register's 31 items are delivered and `pending.md`'s
+umbrella bullet is gone.
+
 Items 29–30. `show` for `Structure`, `Dataflow`, `Schedule`, `Build` and
 `Deployment`, the binary chart guard at 100 base ticks. One stage per type
 family, or one stage if a single agent holds them. A new `test_show.jl`, cut
