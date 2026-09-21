@@ -36,6 +36,7 @@ to. For more than a line, read the file itself and the sections it cites.
 | `src/devices.jl` | the device contract, the handle — the binding, the writer, the diagnostic cell, the compiled gather and the plane's exclusivity index by reference, never the plane, its stable id being the roster entry's (D-261) —, the task wrapper, the init bracket and the tail under `join_timeout`, which `Control` carries (D-256); the two lifecycle gates, the readers' and the roster's; `ResidueRecord`, the tail's product, beside the sweep that builds it (§13.5, D-203); `Control` keeping the stop word, the lifecycle, the wait and the shutdown cap, the termination record having left it for the `Run` (D-255, D-256) | §11.1, §11.3, §11.6, §12.1–§12.4, §13.5, §13.6, D-198, D-232, D-233, D-244, D-255, D-256, D-261 |
 | `src/conditions.jl` | `condition`, the fragment function's generic (§14.2, Appendix B); the condition algebra, one collecting pass behind both ways of applying a plan, each `at` prefix walked from its authoring level (§13.3) — `resolve_condition` (values) and `compile_plan` (`Getter{P}` lenses, `SpecializedPlan`, `ConditionShapeDrift`) — root-input totality, `capture` | §9.5, §13.1, §13.3, §14.1–§14.6, D-063–D-068, D-117, D-130, D-204, D-205, D-207, D-226 |
 | `src/trim.jl` | `TrimProblem`, the `solve` seam with `LevenbergMarquardt`, `trim!` over D-213's two-half scratch world, the frozen copy over the `Dataflow`'s port list, `TrimReport`, the `Trim*` kinds | §9.6, §13.1, §14.5–§14.8, D-070, D-158, D-213, D-224, D-253 |
+| `src/show.jl` | the artifacts' renderings, each through `show` with no accessor beside it: for `Structure`, `Dataflow`, `Events`, `Schedule`, `Build` and `Deployment` the compact one-line form and the `MIME"text/plain"` tables, twelve methods over one `_lines` per artifact — the `Dataflow` and `Events` table builders taking a `label(ci)` function, `#ci` standalone and the path inside the `Build` —, the `Schedule`'s hyperperiod chart over `lcm(Dᵢ)` base ticks with its binary guard at 100, and the `Deployment` setting `_grid_block`'s lines under `grid:` | §9.2, §13.7, D-257 |
 | `test/fixtures.jl` | the suite's fixtures: the coverage component set, the named assemblies, the devices and bindings, the `condition` methods (the fragment-function idiom over the framework's generic, `src/conditions.jl`), `Pendulum`, the `ForgottenImport` module, the forgotten-import fixtures, importing nothing — user material, and no name here is known to `src/` | — |
 | `test/imports.jl` | the suite's `import Cadence:` list, shared with `repl.jl` — the one place a framework name the tests call or extend is admitted | — |
 | `test/repl.jl` | the REPL bootstrap: `julia --project=test -L test/repl.jl` loads the list and the fixtures into `Main` | — |
@@ -145,10 +146,11 @@ override:
 
 | touched in `src/` | run |
 | --- | --- |
-| `declare`, `assembly`, `build`, `tracer`, or a new kind in `diagnostics.jl` | `declare assembly build diagnostics leaves`; a change in `build.jl`'s `compile` half adds the next row |
+| `declare`, `assembly`, `build`, `tracer`, or a new kind in `diagnostics.jl` | `declare assembly build diagnostics leaves show`; a change in `build.jl`'s `compile` half adds the next row |
 | `executor`, `stepper`, `localization` | `executor stepper continuous discrete events localization failures` |
 | `dataplane`, `roster`, `bindings`, `devices`, `trace` | `dataplane roster bindings devices trace lifecycle log` |
 | `readers`, `conditions`, `trim` | `readers conditions trim` |
+| `show` | `show` |
 | `sim`, `deployment`, `store`, `leaves`, `Cadence`, or `diagnostics.jl` beyond a new kind | all of it |
 
 To check a refactor for test loss, compare the suite's own assertion total;

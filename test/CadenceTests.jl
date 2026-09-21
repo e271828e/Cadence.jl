@@ -35,6 +35,7 @@ include("test_trim.jl")
 include("test_diagnostics.jl")
 include("test_failures.jl")
 include("test_lifecycle.jl")
+include("test_show.jl")
 
 """
 Run one file's tests in a testset named `name` and print its summary as soon as
@@ -77,6 +78,7 @@ function runall()
         live("diagnostics",  test_diagnostics)
         live("failures",     test_failures)
         live("lifecycle",    test_lifecycle)
+        live("show",         test_show)
     end
 end
 

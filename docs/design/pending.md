@@ -18,30 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **The pipeline redesign, D-250 through D-258**, delivered by increments
-  43–48 per `docs/design/briefs/roadmap_pipeline_redesign.md`. Seven themes.
-  The port model: auto-publishing goes, ports are stage 1 or stage 2, and an
-  exposed state field is returned from `output_state` (D-252), delivered by
-  increment 43. The build-side types: `Structure`, `Dataflow` and `Events` as
-  named step products, one activation dictionary on the `Build`, and the
-  structural consumers reading them instead of the nominal activation (D-253),
-  delivered by increment 44. §8.8's selectors: the `select` predicate,
-  `:multiple_selectors` and `EmptyFaceSelection` (D-251), delivered by
-  increment 45. The warning homes: the artifact criterion, `warnings` on the
-  `Build` and the scoped channel the build binds, delivered by increment 44;
-  `Deployment`'s own list is delivered by increment 46, and `EmptyGreedyClaim`
-  into the roster entry's cell by increment 47 (D-250). `Deployment` and
-  `Schedule` as artifacts, with D-187's grid diagnostics on the deployment
-  (leave-one-out factors, prime attribution, nearest non-refining offsets, the
-  derivation line and `GridUtilization`), delivered by increment 46 (D-254).
-  The run: `Run{T}`, the
-  trace split into header plus `schemas` and `batches`, `StopPolicy` per
-  advance, `UnboundedRun` and the `Simulation`'s five fields are delivered by
-  increment 47 (D-255, D-256).
-  The renderings: `show` for `Structure`, `Dataflow`, `Events`, `Schedule`,
-  `Build` and `Deployment`, with the binary hyperperiod-chart guard at 100
-  base ticks, and ahead of them the row shape of `Structure` (D-257, D-261).
-  Nothing else of it is built today (M-B26).
 - **§12 beyond its built slices**: pause and the control plane's surface; the
   operator interrupt — §13.4's carve-out exists, the masking and the entry do
   not, so a stopped run can hold mid-boundary stores here; §13.4's
