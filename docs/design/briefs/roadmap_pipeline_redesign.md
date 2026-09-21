@@ -310,6 +310,23 @@ Items 22–27, item 6, the rest of item 28, and `UnboundedRun`. Five stages.
 
 ## Step 6b: increment 47b, the run's trim
 
+Landed 2026-09-21: D-260 and the spec as `142c00a`, the brief as `f63ce99`
+(`brief_increment_47b_run_trim.md`), the origin and the policy as `6398050`,
+a §13.5 residue as `253a761`, the mode and the register as `0bee595`, the
+cold review's three spec residues as `60a85aa` and its comment findings as
+`a7dfe06`. The review found no code defect. Checked in it: the drain and the
+frame allocate nothing under every switch state, the union on the run's
+trace and feed splits in `drain!`, the switched-off thunk's typed code
+carries no record call, a `Dual` deployment with `t0 = 0.25` is bit-identical
+to its `Float64` twin, and `trace(sim).frames == clock.step` at every halt
+across a partial replay, `live!` and the automatic flip. Residues: the flips
+now write one field in place rather than rebinding the run, a race no
+observer reaches since both are stopped-sim or run-tail points; `trim!`'s
+`t0 = Float64(t0)` call was a `TypeError` on any non-`Float64` deployment
+before stage 1 and no test advances `trim!` at a `Dual`; an `attach!` on a
+`built` traced simulation appends a writer set to the placeholder run's
+trace, which the first door discards.
+
 Settled 2026-09-21 in discussion, before increment 48, as D-260
 (`142c00a`): `Run{T}` shrinks to the log, the trace, the feed and the
 termination. `t₀` had no reader on the run and becomes a `Float64` on the
