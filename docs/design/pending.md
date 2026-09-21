@@ -37,7 +37,9 @@ Where the reason is not given here, the cited decision carries it:
   The run: `Run{T}`, the
   trace split into header plus `schemas` and `batches`, `StopPolicy` per
   advance, `UnboundedRun` and the `Simulation`'s five fields are delivered by
-  increment 47 (D-255, D-256).
+  increment 47 (D-255, D-256). The run's trim: `t₀` and the policy off the
+  run, the mode read off the feed, a `Float64` origin and `TraceRegister`
+  retired, delivered by increment 47b (D-260).
   The renderings: `show` for `Structure`, `Dataflow`, `Schedule`, `Build` and
   `Deployment`, with the binary hyperperiod-chart guard at 100 base ticks
   (D-257). Nothing else of it is built today (M-B26).

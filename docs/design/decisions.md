@@ -284,6 +284,7 @@ were derived.
 | [D-257][d-257] | Each artifact renders itself | ratified |
 | [D-258][d-258] | "Schedule" is the tick timing and "execution order" the stage sequence | ratified |
 | [D-259][d-259] | Retire the strata: the build is three steps named by their products | ratified |
+| [D-260][d-260] | Trim the run to what lasts it and retire the trace register | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -9681,6 +9682,90 @@ materializing ([§9.2][s9-2]), and the integration step is always qualified
   rejection stands; the nominal evaluation fixes structure and an activation
   does not.
 
+
+### D-260 — Trim the run to what lasts it and retire the trace register
+
+**Status.** ratified
+
+**Position.** A `Run{T}` holds what lasts from one door to the next and the
+state that evolves in between. The stop policy, the origin and the drain's
+bookkeeping leave it.
+
+- `Run{T}` is a mutable struct of four fields: `const log`, `const trace`
+  (`nothing` under the trace switch), `feed` (the attached recording, or
+  `nothing`) and `termination`. `init!` and `replay!` construct one and
+  rebind `sim.run`; nothing else rebinds it. `live!` and the halt at the
+  recording's end write `feed`; the loop's tail writes `termination` once.
+  `closed(run)` is unchanged.
+- The input mode is read, not stored. `mode(sim)` is `:replay` while a feed
+  is attached and `:live` otherwise. A change of mode is a write to the run,
+  not a change of run.
+- The stop policy is the advance's argument. `run!`, `replay!` and `step!`
+  build it, pass it to the loop and to the record's assembly, and drop it.
+  The termination record is the policy's one lasting home.
+- The origin `t₀` is not a run field. The clock holds it, `init!` and
+  `replay!` set it, and the trace header records it. It is a `Float64`, like
+  `h` and `t_end`; the clock's `t` stays in the deployment's scalar.
+- `TraceRegister` retires. The drain thunks close over the run's trace and
+  are recompiled at every door and roster change, as they already were. The
+  frame ordinal a record carries is the trace's own `frames`, incremented at
+  the top of the drain. The current writer set's index range is local to the
+  recompile. The trace switch rides on the run: a run built under
+  `trace = false` has no trace.
+
+Supersedes [D-255][d-255]'s first bullet, its "the register keeps its cursor fields
+and the replay feed" clause and its "rebound on `Run.policy`" clause, and
+[D-256][d-256]'s "the trace switch on the register the plane holds". [D-218][d-218]'s mode,
+"a register the caller can read", is `mode(sim)`, unchanged as an
+observable.
+
+**Spec.** [§11.5][s11-5], [§12.6][s12-6], [§12.7][s12-7], [§13.5][s13-5], [Appendix B][sB]
+
+**Rationale.** [D-255][d-255] classed the run's fields by whether the door fixed them
+or the loop advanced them. The policy fit neither. An advance declares it,
+the loop reads it as an argument, and the field on the run was written at
+every `run!` and `step!` only so two readers without the argument, the t*
+sampling read and the record's assembly, could reach it. It does not shape
+the trajectory, since a stepped and a run simulation are bit-identical
+whatever each call declared ([§12.6][s12-6]), and only the terminating advance's
+policy is ever read afterwards, off the record. `t₀` on the run had no
+reader: every consumer of the origin, the frame count, the grid time and the
+header capture, read the clock's. `mode` was `const`, so a flip rebuilt the
+run, but a flip keeps the log and the trace, which is what makes it the
+same run; and the feed was attached exactly while the mode was `:replay`,
+an invariant the code guarded with an internal throw. One field states
+both. Of the register's five fields, the trace duplicated the run's, the
+frame was a courier to the thunk that the trace's own drain count already
+carries, the writer range was read only where it was written, and the
+switch is a fact about the run's trace. The thunk cannot take the ordinal
+as an argument: it is called through an untyped field, and a boxed `Int`
+would allocate on the frame path ([§7.5][s7-5]). Closing over the trace, a mutable
+object, keeps the ordinal reachable at no cost. The origin's type follows
+the grid's. `h` and `t_end` are `Float64` already, and a `Dual` origin with
+a nonzero partial, a start-time perturbation, has no reader in the design.
+A `Float64` origin also lets `init!` take `t0 = 0.25` on a `Dual`
+simulation, which a `T`-typed keyword refused.
+
+**Rejected.**
+- *A run per advance, owning its policy:* the log and the trace span
+  advances, so consecutive runs would share them and own neither; and an
+  advance that halts at a frame top leaves nothing of its policy behind.
+- *An immutable `Run` rebuilt at every flip and at the close:* the flips and
+  the close keep the log and the trace, so a rebuild there spells "the same
+  run" as a new object.
+- *The termination record as `run!`'s return value:* the errored path
+  rethrows and returns nothing, `step!` already returns the frame count, and
+  [D-060][d-060] chose state over exception so a stopped simulation answers from any
+  task and at any later time.
+- *`mode::Symbol` beside the feed:* two fields that must agree, and the
+  throw that guarded them.
+- *The `Run` holding the `Simulation`:* every run would be a live handle to
+  the executor's buffers, so a stale run after a warm restart would advance
+  the new trajectory under the old run's name, an invariant with no
+  enforcer ([§9.2][s9-2]).
+- *The frame ordinal as the thunk's argument:* a boxed `Int` per drain per
+  writer, on the frame path.
+
 ---
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
@@ -9943,6 +10028,7 @@ materializing ([§9.2][s9-2]), and the integration step is always qualified
 [d-257]: #d-257--each-artifact-renders-itself
 [d-258]: #d-258--schedule-is-the-tick-timing-and-execution-order-the-stage-sequence
 [d-259]: #d-259--retire-the-strata-the-build-is-three-steps-named-by-their-products
+[d-260]: #d-260--trim-the-run-to-what-lasts-it-and-retire-the-trace-register
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

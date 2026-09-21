@@ -7041,18 +7041,22 @@ exception.
 
 ### 12.6 Run lifecycle and partial advance
 
-**[`Run{T}`](#g-run) is what one run owns** ([D-255][d-255]). It is a mutable
-struct with four `const` fields, `t₀`, `mode`, `log` and `trace`, and two
-writable ones, `policy` and `termination`. `init!` and `replay!` construct
-one. The loop's tail writes `termination` once, and `closed(run)` is
-`termination !== nothing`.
+**[`Run{T}`](#g-run) is what one run owns** ([D-255][d-255], [D-260][d-260]).
+It is a mutable struct of four fields. Two are `const` and last the run's whole
+life, the log and the [trace](#g-trace) (`nothing` under the trace switch).
+Two evolve during it, `feed`, the recording `replay!` attached or `nothing`,
+and `termination`. `init!` and `replay!` construct one, and nothing else
+rebinds it. `live!` and the halt at a recording's end write `feed`. The loop's
+tail writes `termination` once, and `closed(run)` is `termination !== nothing`.
+The origin `t₀` is not a run field. The doors apply it to the clock
+([§14.5][s14-5]) and the trace header records it ([§11.5][s11-5]). It is a
+`Float64`, as `h` and `t_end` are.
 
-A `Simulation{T}` is constructed with a **placeholder run**, `t₀ = zero(T)`,
-`mode = :live`, an empty log and [trace](#g-trace) and no termination, which
-`init!` and `replay!` replace ([D-255][d-255]). The field is always a `Run{T}`
-and never `nothing`, so every accessor has a run to read, and the lifecycle
-state below says whether that run ever started. `init!` allocates fresh objects
-rather than clearing them.
+A `Simulation{T}` is constructed with a **placeholder run**, an empty log and
+trace, no feed and no termination, which `init!` and `replay!` replace
+([D-255][d-255]). The field is always a `Run{T}` and never `nothing`, so every
+accessor has a run to read, and the lifecycle state below says whether that
+run ever started. `init!` allocates fresh objects rather than clearing them.
 
 **`Simulation` is a mutable struct of five fields**, the
 [deployment](#g-deployment) (the scalar-free artifact the grid parameters
@@ -7064,8 +7068,10 @@ per-component `(D, Φ, Δt)` tick table) and the event parameters are the
 deployment's ([§9.1][s9-1]). `chunk_size`, the stepper and the arrival buffers
 are the executor's. `join_timeout` is `Control`'s ([§12.1][s12-1]). The loop's
 [diagnostic cell](#g-diagnostic-cell), its account and the published holder
-are the plane's ([§11.8][s11-8]). The stop policy, with its `t_end` and stop
-faces, the log and the trace are the run's.
+are the plane's ([§11.8][s11-8]). The log and the trace are the run's. The
+stop policy, with its `t_end` and stop faces, is the advance's argument, and
+the [termination record](#g-termination-record) keeps the terminating one
+([D-260][d-260]).
 
 A `Simulation` moves through five states: **built**, **initialized**,
 **running**, and terminally **stopped** or **errored** ([§13.4][s13-4]).
@@ -7076,10 +7082,10 @@ has completed boundary zero, the initialization boundary run as the ordinary
 macro-sequence with an empty integrate ([§14.5][s14-5]).
 
 Beside the state, the run carries an **[input mode](#g-input-mode)**,
-`:live` or `:replay`, read as `mode(sim)`. It is one of the run's `const`
-fields, so a change of mode is a change of run. The mode names where the next
-frame's [drain](#g-drain) takes its batches from, the staging cells or an
-attached recording ([§12.7][s12-7]). State and mode are orthogonal. The
+`:live` or `:replay`, read as `mode(sim)`. It is read off the run's `feed`:
+`:replay` while a recording is attached, `:live` otherwise ([D-260][d-260]).
+The mode names where the next frame's [drain](#g-drain) takes its batches
+from, the staging cells or the attached recording ([§12.7][s12-7]). State and mode are orthogonal. The
 state says whether the simulation may advance, and the mode says what it
 will advance on.
 
@@ -7203,10 +7209,11 @@ therefore affected.
 **The stop policy is declared per advance.** `t_end` and `stop_on` are
 keywords of `run!`, `replay!` and `step!`, and each call builds and validates
 the [`StopPolicy`](#g-stop-policy) (the immutable `t_end`-plus-stop-faces
-value an advance declares) it binds on the run ([§13.5][s13-5],
-[D-255][d-255]). A second run, or a `step!` sequence between two runs, can
-therefore stop on a different clock or a different face set without a
-rebuild.
+value an advance declares) it passes to the loop ([§13.5][s13-5],
+[D-255][d-255]). The value lives as long as the call, and afterwards only on
+the termination record of the advance that ended the run ([D-260][d-260]). A
+second run, or a `step!` sequence between two runs, can therefore stop on a
+different clock or a different face set without a rebuild.
 
 **`errored` is terminal** ([D-059][d-059]). Reproduction is trace replay
 ([§12.7][s12-7]), not resurrection.
@@ -7310,7 +7317,7 @@ Everything else is the loop as already specified:
   and it happens only at the recording's end. `live!(sim)` performs it by
   hand. It sets the mode to `:live` and detaches the recording's remainder,
   touching nothing else. The trajectory stands where the replay left it, and
-  so does the trace register with the header it inherited. The next `run!`
+  so does the trace with the header it inherited. The next `run!`
   or `step!` is therefore the live continuation from the replayed boundary,
   and its drains append to the re-recorded prefix. `live!` is a stopped-sim
   operation, legal only on an `initialized` simulation in `:replay`.
@@ -7346,7 +7353,7 @@ Everything else is the loop as already specified:
   across as many `step!` and `run!` calls as the caller makes, and the
   session goes live at the recording's end. Or `live!` drops that
   remainder, and the continuation starts at the halt.
-- **Replay re-records.** The trace register runs normally. The new trace
+- **Replay re-records.** The drain records normally. The new trace
   inherits the old header and accumulates the re-drained batches, a
   bit-identical prefix. A replayed-then-continued session therefore leaves
   behind a complete, valid trace of *itself*, with no special stitching.
@@ -10877,7 +10884,8 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 
 **Stopped-sim services** ([§14][s14]).
 
-- `init!(sim, condition; t0 = 0.0)`. Root-input totality is checked
+- `init!(sim, condition; t0 = 0.0)`. `t0` is any real, held as a `Float64`
+  origin ([D-260][d-260]). Root-input totality is checked
   pre-write ([§14.6][s14-6]). Then boundary zero runs: project, sweep, events,
   the due `state_update` calls, then the header and first snapshot
   ([§14.5][s14-5]).
@@ -10995,7 +11003,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   staging cells or an attached `replay!` recording ([§12.6][s12-6],
   [§12.7][s12-7]).
 - `live!(sim)`. Detaches the remainder of an attached recording and sets the
-  mode to `:live`, touching neither trajectory nor trace register. The next
+  mode to `:live`, touching neither the trajectory nor the trace. The next
   `run!` or `step!` then continues live from the replayed boundary and
   re-records onto the replayed prefix. Stopped-sim only. It is legal on an
   `initialized` simulation in `:replay`, and an already live one refuses
@@ -12150,10 +12158,10 @@ once at `run!`, since `attach!`/`detach!` are stopped-sim operations
 ([§11.3][s11-3]).
 
 <a id="g-run"></a>**`Run`** — the state one run owns, a `Simulation` field beside the control
-plane. Four `const` fields, `t₀`, `mode`, the log and the trace; two
-writable ones, `policy` and `termination`. `init!` and `replay!`
-construct one, the loop's tail writes `termination` once, and `closed(run)`
-is `termination !== nothing` ([§12.6][s12-6], [D-255][d-255]).
+plane. Two `const` fields, the log and the trace; two writable ones, `feed`
+and `termination`. `init!` and `replay!` construct one, the flips write
+`feed`, the loop's tail writes `termination` once, and `closed(run)` is
+`termination !== nothing` ([§12.6][s12-6], [D-255][d-255], [D-260][d-260]).
 
 <a id="g-scenario-component"></a>**scenario component** — the home of a sim-time script under the mid-run
 mutation doctrine: an ordinary periodic discrete component executed
@@ -12220,8 +12228,8 @@ trajectory-determining ([§11.2][s11-2]).
 for frame *k* at frame *k*. That is exact because the frame sequence is
 itself deterministic under replay ([§12.7][s12-7], [§11.1][s11-1]).
 
-<a id="g-input-mode"></a>**input mode** — the `Simulation` register naming where the
-[drain](#g-drain) takes its batches from: `:live` from the staging cells,
+<a id="g-input-mode"></a>**input mode** — where the [drain](#g-drain) takes its batches from,
+read as `mode(sim)` off the run's `feed`: `:live` from the staging cells,
 `:replay` from a recording `replay!` attached. A replaying advance is
 bounded by the recording. The mode returns to `:live` when the recording's
 last frame is consumed, or when `live!` drops the remainder by hand
@@ -12656,6 +12664,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-257]: decisions.md#d-257--each-artifact-renders-itself
 [d-258]: decisions.md#d-258--schedule-is-the-tick-timing-and-execution-order-the-stage-sequence
 [d-259]: decisions.md#d-259--retire-the-strata-the-build-is-three-steps-named-by-their-products
+[d-260]: decisions.md#d-260--trim-the-run-to-what-lasts-it-and-retire-the-trace-register
 [s1]: #1-purpose-and-method
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
