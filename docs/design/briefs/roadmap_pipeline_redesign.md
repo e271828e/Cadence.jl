@@ -335,9 +335,27 @@ clock, the header and `init!`; the policy is the advance's argument from
 the call to the record; the mode is read off the feed, so the flips and the
 close write the run instead of rebuilding it; `TraceRegister` retires, the
 drain thunks closing over the run's trace and the ordinal coming off the
-trace's own count. Two stages, `brief_increment_47b_run_trim.md`. A sweep
-of the codebase for the same two smells, redundant and misplaced data, is
-queued after increment 48.
+trace's own count. Two stages, `brief_increment_47b_run_trim.md`. The
+sweep of the codebase for the same two smells, redundant and misplaced
+data, ran on 2026-09-21 as the data survey, step 6c.
+
+## Step 6c: increment 47c, the data survey's fixes
+
+The survey (`brief_data_survey.md`, five Opus slices over every struct in
+`src/`, reports in `docs/reports/20260921_data_survey/`, `6d5b63d`) found
+22 findings in 104 structs, none a defect: redundancy and reach, produced
+by two mechanisms the spec had not named. D-261 states them as rules,
+settles the ten rulings and retires one finding (`296f4a0`). The increment
+delivers D-261's placements and the twelve unrostered fixes, cut by slice:
+authoring and build (A1, B1, B3, B4, B8, B9, B10), the loop (B2, D3), the
+periphery (C1, C2, C3, C4, E1), and the run (D1, the recording keywords
+moving to `init!` and `replay!`, about thirty test sites). Four stages,
+`brief_increment_47c_data_survey.md`. Routing: all of it, every stage.
+Kept by ruling: `Deployment.grid`, `Dataflow.edges`, the fingerprint's
+root faces; left: `Writer.types`, `StepError`'s duplicates; retired as a
+finding: `Layout.root_inputs`' name half, the layout being the periphery's
+one lookup object. The trace header's build half is a `pending.md` bullet
+for D-254, ruled when persistence lands.
 
 ## Step 7: increment 48, the renderings
 
