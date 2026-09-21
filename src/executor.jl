@@ -10,12 +10,8 @@ Where in the compiled schedule execution is (§13.4): one plain mutable struct
 the executor owns, overwritten by one cheap store per user-code dispatch and
 one per phase transition, read only at the catch site (`_wrap_step`, sim.jl).
 No allocation and no exception frames — framing information does not need to
-be caught into existence.
-
-`hit` is the loop's stop-face scratch, beside the cursor and never in the
-policy (§13.5, D-255): a `t*` boundary publishes mid-frame, so the frame
-records the holding face here and abandons its remainder — the `t*` snapshot
-is the final one. The frame loop clears it at each frame top.
+be caught into existence. The cursor holds its dispatch fields alone: a `t*`
+stop hit is `frame!`'s return value, never a field here (§13.5, D-261).
 """
 mutable struct ExecutionCursor
     comp::Int        # the component's index in the flat, 0 = none
@@ -23,9 +19,8 @@ mutable struct ExecutionCursor
                      # :guard | :handler | :state_projection | :none
     phase::Symbol    # :drain | :integrate | :arrival | :validation | :trial | :project | :round | :ticks
     index::Int       # the RK stage, the event round, the trial ordinal; 0 where none applies
-    hit::Union{Nothing,Symbol}   # the mid-frame stop observation (§13.5)
 end
-ExecutionCursor() = ExecutionCursor(0, :none, :drain, 0, nothing)
+ExecutionCursor() = ExecutionCursor(0, :none, :drain, 0)
 
 "A phase transition: written by the loop, never per dispatch (§13.4)."
 @inline function _phase!(c::ExecutionCursor, phase::Symbol, index::Int = 0)

@@ -218,8 +218,8 @@ function test_localization()
         simq = Simulation(mq; h = 1//10)
         init!(simq)
         run!(simq; t_end = 0.2)
-        nopol = StopPolicy(Inf, Symbol[], Any[])   # the advance's argument (D-260)
-        @test @ballocated(frame!($simq, 3, $nopol)) == 0
+        nopol, noaddrs = StopPolicy(Inf, Symbol[]), Any[]   # the advance's arguments (D-260, D-261)
+        @test @ballocated(frame!($simq, 3, $nopol, $noaddrs)) == 0
 
         # A localizing frame: one crossing, θ = 0 validation, ẋₙ₊₁, the bracketing
         # trials, the t* boundary and the remainder — all against preallocated
@@ -229,6 +229,6 @@ function test_localization()
         siml = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10, log = false)
         init!(siml)
         pub = @ballocated publish!($siml)
-        @test @ballocated(frame!($siml, 1, $nopol), setup = (init!($siml)), evals = 1) == pub
+        @test @ballocated(frame!($siml, 1, $nopol, $noaddrs), setup = (init!($siml)), evals = 1) == pub
     end
 end

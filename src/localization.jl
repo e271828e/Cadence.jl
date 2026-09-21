@@ -16,7 +16,7 @@ clock write below converts it into the deployment's scalar (D-260)."""
 _grid_time(sim::Simulation, k::Int) = sim.exec.clock.t₀ + k * sim.deployment.h
 
 """
-    frame!(sim, k, pol)
+    frame!(sim, k, pol, addrs)
 
 Advance through the frame `[tₖ₋₁, tₖ]`, leaving the clock at the indexed frame
 top with the state and table at their arrival values — the frame-top boundary
@@ -25,14 +25,16 @@ itself is the caller's, exactly as before. A model with no localized events
 the bare step: no arrival machinery, no extra sweep, today's exact path.
 The one exception is a §13.5 stop observed at a `t*` publication: the frame's
 remainder was abandoned, so the clock stays at `t*` — where the stores are —
-and the frame top is never stamped. `pol` is the advance's stop policy, carried
-here for exactly that sampling read (D-260).
+and the frame top is never stamped. Returns the holding face then, `nothing`
+otherwise (D-261). `pol` is the advance's stop policy and `addrs` its faces'
+compiled addresses, carried here for exactly that sampling read (D-260, D-261).
 """
-function frame!(sim::Simulation{T}, k::Int, pol::StopPolicy) where {T}
+function frame!(sim::Simulation{T}, k::Int, pol::StopPolicy, addrs::Vector{Any}) where {T}
     t_to = _grid_time(sim, k)
-    sim.exec.has_localized ? _localized_frame!(sim, t_to, pol) : step!(sim, T(sim.deployment.h))
-    sim.exec.cursor.hit === nothing && (sim.exec.clock.t = t_to)
-    nothing
+    hit = sim.exec.has_localized ? _localized_frame!(sim, t_to, pol, addrs) :
+                                   step!(sim, T(sim.deployment.h))
+    hit === nothing && (sim.exec.clock.t = t_to)
+    hit
 end
 
 # The localization loop (§10.4). Each turn integrates one segment — the whole
@@ -40,8 +42,9 @@ end
 # frame top or fires one `t*` boundary and goes around. The budget counts
 # localizations, one per `t*` boundary produced: per segment, root-finding runs
 # are already structurally bounded (at most one per declared event), while the
-# segment count is the quantity chattering inflates without bound.
-function _localized_frame!(sim::Simulation{T}, t_to, pol::StopPolicy) where {T}
+# segment count is the quantity chattering inflates without bound. Returns
+# `nothing` at the frame top and the holding face at a `t*` stop (D-261).
+function _localized_frame!(sim::Simulation{T}, t_to, pol::StopPolicy, addrs::Vector{Any}) where {T}
     es, cur = sim.exec.events, sim.exec.cursor
     n = length(es.prior)
     (x₀, _) = startpoint(sim.exec.stepper)         # the seam's retained pair (§10.2):
@@ -151,14 +154,11 @@ function _localized_frame!(sim::Simulation{T}, t_to, pol::StopPolicy) where {T}
 
         # Every publication is a stop-face sampling point (§13.5): a face
         # holding in the t* snapshot makes it the final one — the frame's
-        # remainder is abandoned, and the hit reaches the loop through the
-        # cursor's scratch (D-255). The policy is the advance's argument,
-        # carried down from `_advance!` through `frame!` (D-260).
-        face = _stop_hit(sim, pol)
-        if face !== nothing
-            cur.hit = face
-            return nothing
-        end
+        # remainder is abandoned, and the hit reaches the loop as the return
+        # value (D-261). The policy and its faces' addresses are the advance's
+        # arguments, carried down from `_advance!` through `frame!` (D-260).
+        face = _stop_hit(sim, pol, addrs)
+        face === nothing || return face
         count += 1
     end
 end

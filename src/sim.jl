@@ -36,9 +36,10 @@ end
 
 """
 The stop policy one advance declares (§13.5, D-255): the clock bound and the
-stop faces with their compiled root-cell addresses, built and validated by
-`run!`, `replay!` and `step!` per call and passed to the loop as that advance's
-argument — from the call to the record, and nowhere else (D-260). It lives as
+stop faces, built and validated by `run!`, `replay!` and `step!` per call and
+passed to the loop as that advance's argument — from the call to the record,
+and nowhere else (D-260). The faces' compiled root-cell addresses are not part
+of it: they travel beside it as the loop's own argument (D-261). It lives as
 long as the call, and afterwards only on the termination record of the advance
 that ended the run. `ControlRequestedStop` is outside it: the policy is what
 the caller declares, the stop word is what anyone can issue (§12.1).
@@ -46,7 +47,6 @@ the caller declares, the stop word is what anyone can issue (§12.1).
 struct StopPolicy
     t_end::Float64            # Inf = no clock bound
     faces::Vector{Symbol}     # declaration order: the order a holding face is reported in
-    addrs::Vector{Any}        # their compiled root-cell addresses
 end
 
 """
@@ -324,14 +324,15 @@ function _stop_faces(layout::Layout, stop_on; site::Symbol)
 end
 
 # §13.5's one binder, shared by `run!`, `replay!` and `step!` (D-255): the
-# advance's declared pair validated and compiled into the immutable value the
-# call then carries as its argument (D-260). The bound refuses first —
+# advance's declared pair validated into the immutable value the call then
+# carries as its argument (D-260), and the faces' compiled addresses returned
+# beside it as the loop's second argument (D-261). The bound refuses first —
 # `_t_bound` is fail-fast, and the faces are a collecting pass behind it — so a
 # call naming both a bad bound and a bad face is refused for the bound.
 function _bind_policy(sim::Simulation, t_end, stop_on, site::Symbol)
     te = _t_bound(t_end, site)
     (faces, addrs) = _stop_faces(sim.exec.act.layout, stop_on; site)
-    StopPolicy(te, faces, addrs)
+    (StopPolicy(te, faces), addrs)
 end
 
 """
@@ -397,11 +398,13 @@ _record(sim::Simulation{T}, pol::StopPolicy, src::TerminationSource,
 
 # §13.5's sampling read, after every publication: the named faces off the
 # just-published snapshot, first holding face wins, in declaration order.
-function _stop_hit(sim::Simulation, pol::StopPolicy)
-    isempty(pol.addrs) && return nothing
+# `addrs` is the faces' compiled addresses, index-aligned with `pol.faces` by
+# `_bind_policy` (D-261).
+function _stop_hit(sim::Simulation, pol::StopPolicy, addrs::Vector{Any})
+    isempty(addrs) && return nothing
     snap = latest(sim)
-    for i in eachindex(pol.addrs)
-        gather(snap.store, pol.addrs[i]) === true && return pol.faces[i]
+    for i in eachindex(addrs)
+        gather(snap.store, addrs[i]) === true && return pol.faces[i]
     end
     nothing
 end
@@ -911,7 +914,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
                             value = to_time)))
     end
-    pol = _bind_policy(sim, t_end, stop_on, :replay!)   # this advance's policy, validated
+    (pol, addrs) = _bind_policy(sim, t_end, stop_on, :replay!)   # this advance's policy, validated
     feed = _compile_feed(sim, trc)        # the entry pass: every refusal precedes every write
     # substitution (1): the header applied where `establish_defaults!` + `apply!`
     # stand in `init!`. The recorded values are already resolved (D-038), so
@@ -943,7 +946,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     _host_boundary_zero!(sim)
     publish!(sim)                               # the boundary-zero snapshot (§11.2, §14.5)
     upto = to_boundary === nothing ? trc.frames : Int(to_boundary)
-    _run_body!(sim, pol, upto, _t_end_frame(sim, pol.t_end))
+    _run_body!(sim, pol, addrs, upto, _t_end_frame(sim, pol.t_end))
     nothing
 end
 
@@ -1031,7 +1034,7 @@ frames from `t₀` (§12.4).
 """
 function run!(sim::Simulation; t_end = Inf, stop_on = ())
     _assert_advanceable(sim, :run!)
-    pol = _bind_policy(sim, t_end, stop_on, :run!)   # this advance's, carried (D-260)
+    (pol, addrs) = _bind_policy(sim, t_end, stop_on, :run!)   # this advance's, carried (D-260)
     # §13.5's advisory (D-255): a live run bounded by neither clock nor face
     # ends only by the operator interrupt, so the loop says so once, into its
     # own cell. A `:replay` run is bounded by the recording (D-218), so the
@@ -1040,7 +1043,7 @@ function run!(sim::Simulation; t_end = Inf, stop_on = ())
         _report!(sim.plane.loop_diag, UnboundedRun(pol.t_end, copy(pol.faces)))
     # a live run owes its end to a §13.5 source alone, so its frame budget is
     # unbounded here; in `:replay` the recording binds it (`_run_body!`, D-218)
-    _run_body!(sim, pol, typemax(Int), _t_end_frame(sim, pol.t_end))
+    _run_body!(sim, pol, addrs, typemax(Int), _t_end_frame(sim, pol.t_end))
     nothing
 end
 
@@ -1072,7 +1075,8 @@ end
 # The run's body: the §11.3 freeze, §12.4's bracket, §11.1's topology, the tail
 # and §13.5's terminal disposition — everything from `:running` to the terminal
 # store, shared verbatim by `run!` and `replay!` because D-101's claim is that
-# replay *is* this loop. `upto` is the frame budget, `target` the `t_end` frame.
+# replay *is* this loop. `addrs` is the policy's faces compiled, the loop's own
+# argument (D-261); `upto` is the frame budget, `target` the `t_end` frame.
 #
 # The terminal mapping is `step!`'s. `term === nothing` means the budget ran out
 # rather than a source firing, which only a bounded advance can reach — a
@@ -1080,7 +1084,7 @@ end
 # and it lands `initialized` at a frame top, §12.7's promise. A §13.5 source is
 # `stopped` with the record, a throw `errored` with the cause retained. The mode
 # settles here too, on every exit but the errored one.
-function _run_body!(sim::Simulation, pol::StopPolicy, upto::Int, target::Int)
+function _run_body!(sim::Simulation, pol::StopPolicy, addrs::Vector{Any}, upto::Int, target::Int)
     plane, ctl = sim.plane, sim.control
     upto = _replay_bound(sim, upto)             # §12.7: the recording bounds a replaying run
     @atomic :release ctl.lifecycle = :running   # the §11.3 freeze: the roster is fixed for the run
@@ -1095,7 +1099,7 @@ function _run_body!(sim::Simulation, pol::StopPolicy, upto::Int, target::Int)
             tasks = _spawn!(live)
             _register_tasks!(plane, live, tasks)
             try
-                term = _advance!(sim, pol, upto, target)[1]
+                term = _advance!(sim, pol, addrs, upto, target)[1]
             finally
                 _finish!(sim)                 # tail (1)–(2), even off a loop-side throw
                 _tail!(sim, live, tasks)      # tail (3)–(5)
@@ -1108,7 +1112,7 @@ function _run_body!(sim::Simulation, pol::StopPolicy, upto::Int, target::Int)
             plane.run_tasks[e_ct.id] = current_task()   # the inline body's task (§11.1)
             e_ct.handle.last_seen = ctl.counter
             loop_task = Threads.@spawn try
-                _advance!(sim, pol, upto, target)[1]
+                _advance!(sim, pol, addrs, upto, target)[1]
             finally
                 _finish!(sim)                 # the spawned loop wakes the inline body too
             end
@@ -1176,15 +1180,17 @@ _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{T
 # completed; and the stop faces at every publication — the entry check first
 # (a boundary-zero or authored condition already terminal advances nothing,
 # §13.5), then after each frame's own publications, where a mid-frame `t*`
-# hit arrives through the cursor's `hit` with the frame's remainder already
-# abandoned (D-255: the scratch sits beside the cursor, never in the policy).
+# hit arrives as `frame!`'s return value with the frame's remainder already
+# abandoned (D-261: never a field of the policy or the cursor). `addrs` is the
+# policy's faces compiled, bound beside it and carried to the sampling read.
 # With devices rostered every frame yields at least once (§12.2, the unpaced
 # case): the explicit yield is the co-resident device tasks' scheduling slot.
-function _advance!(sim::Simulation, pol::StopPolicy, upto::Int, t_end_frame::Int)
-    plane, ctl, cur = sim.plane, sim.control, sim.exec.cursor
+function _advance!(sim::Simulation, pol::StopPolicy, addrs::Vector{Any}, upto::Int,
+                   t_end_frame::Int)
+    plane, ctl = sim.plane, sim.control
     nb = sim.deployment.N_base
     adv = 0
-    face = _stop_hit(sim, pol)
+    face = _stop_hit(sim, pol, addrs)
     face === nothing || return (ModelRequestedStop(face), adv)
     entry = 0                     # the frame-entry boundary index, read at the frame top
     try                           # before the drain, so the catch has it wherever the
@@ -1195,16 +1201,15 @@ function _advance!(sim::Simulation, pol::StopPolicy, upto::Int, t_end_frame::Int
             sim.exec.clock.step < upto || return (nothing, adv)
             isempty(plane.roster) || yield()
             entry = sim.exec.clock.step
-            cur.hit = nothing     # the frame's own scratch, cleared where it is stamped
             drain!(sim)
             k = (sim.exec.clock.step += 1)
-            frame!(sim, k, pol)
-            if cur.hit === nothing
+            hit = frame!(sim, k, pol, addrs)
+            if hit === nothing
                 k % nb == 0 ? boundary!(sim, k ÷ nb) : offtick_boundary!(sim)
                 publish!(sim)
-                face = _stop_hit(sim, pol)
+                face = _stop_hit(sim, pol, addrs)
             else
-                face = cur.hit    # a t* publication hit (§13.5): that snapshot is final
+                face = hit        # a t* publication hit (§13.5): that snapshot is final
             end
             # a frame counts once it has published a boundary — which a `t*` stop
             # hit has done, its remainder abandoned; the carve-out below is what
@@ -1351,7 +1356,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         t = sim.exec.clock.t                  # the frame top the duration counts from
         nf = max(1, _frames_to(t + Float64(t_plus), t, sim.deployment.h))
     end
-    pol = _bind_policy(sim, t_end, stop_on, :step!)   # this advance's policy (§13.5, D-255)
+    (pol, addrs) = _bind_policy(sim, t_end, stop_on, :step!)   # this advance's policy (§13.5, D-255)
     t_end_frame = _t_end_frame(sim, pol.t_end)
     @atomic :release ctl.lifecycle = :running   # the freeze holds within the call
     term, adv, err_src = nothing, 0, nothing
@@ -1360,7 +1365,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         # end advances only to the last recorded frame and returns fewer frames
         # than asked — the truncation the caller reads (D-218)
         upto = _replay_bound(sim, sim.exec.clock.step + nf)
-        (term, adv) = _advance!(sim, pol, upto, t_end_frame)
+        (term, adv) = _advance!(sim, pol, addrs, upto, t_end_frame)
     catch err
         err_src = LoopError(err)              # the record is assembled below,
         rethrow()                             # after the sweep (D-203)
