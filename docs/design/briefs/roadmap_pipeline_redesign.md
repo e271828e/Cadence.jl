@@ -308,6 +308,19 @@ Items 22–27, item 6, the rest of item 28, and `UnboundedRun`. Five stages.
   executor, run, plane, control.
 - Routing: all of it.
 
+## Step 6b: increment 47b, the run's trim
+
+Settled 2026-09-21 in discussion, before increment 48, as D-260
+(`142c00a`): `Run{T}` shrinks to the log, the trace, the feed and the
+termination. `t₀` had no reader on the run and becomes a `Float64` on the
+clock, the header and `init!`; the policy is the advance's argument from
+the call to the record; the mode is read off the feed, so the flips and the
+close write the run instead of rebuilding it; `TraceRegister` retires, the
+drain thunks closing over the run's trace and the ordinal coming off the
+trace's own count. Two stages, `brief_increment_47b_run_trim.md`. A sweep
+of the codebase for the same two smells, redundant and misplaced data, is
+queued after increment 48.
+
 ## Step 7: increment 48, the renderings
 
 Items 29–30. `show` for `Structure`, `Dataflow`, `Schedule`, `Build` and
