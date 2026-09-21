@@ -7991,8 +7991,9 @@ loop through declared machinery.
   against the `Build` on every call. Each advance builds a
   **[`StopPolicy`](#g-stop-policy)**,
   the immutable value of `t_end` plus the stop faces with their resolved
-  addresses, and binds it on the [`Run`](#g-run) (the state one run owns)
-  ([§12.6][s12-6]). The loop's `hit`
+  addresses, and passes it to the loop. The value lives as long as the
+  call, and afterwards only on the termination record of the advance that
+  ended the run ([§12.6][s12-6], [D-260][d-260]). The loop's `hit`
   scratch sits beside the [execution cursor](#g-execution-cursor), never in
   the policy.
   After *every* published boundary the loop reads the named faces in the
