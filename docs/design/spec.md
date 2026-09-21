@@ -5830,7 +5830,8 @@ The header carries one further thing.
 `init!` and never again, which is what makes it an artifact. The lists grow
 in place, the batches at every drain and the schemas at every roster change.
 The length is the drain's count on the live trace, frozen into the value
-`trace(sim)` hands back.
+`trace(sim)` hands back. It advances at the top of each drain, and the frame
+ordinal every record of that drain carries is this count ([D-260][d-260]).
 
 **Each writer's face-name → position schema lives in the `schemas` list.**
 Positional records are meaningless without it, and replay does not reconstruct
@@ -10944,9 +10945,9 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   measured overshoot. The values `0`, 2 ms and `∞` span the design space
   ([§10.7][s10-7]). Each advance builds a [`StopPolicy`](#g-stop-policy) (the
   immutable `t_end`-plus-stop-faces value an advance declares) from its
-  `t_end` and `stop_on`. It binds that policy on the [`Run`](#g-run) (the
-  state one run owns, log and trace included). The termination record carries
-  the policy that ended the run ([§13.5][s13-5]). `t_end = Inf` with no `stop_on`
+  `t_end` and `stop_on`. It passes that policy to the loop, and the value
+  lives as long as the call. The termination record carries the policy that
+  ended the run, and nothing else keeps one ([§13.5][s13-5], [D-260][d-260]). `t_end = Inf` with no `stop_on`
   faces is an unbounded run, allowed, with `UnboundedRun` raised into the
   loop's diagnostic cell ([§11.8][s11-8]).
 - `step!(sim; frames = 1, t_end = Inf, stop_on = ()) → frames_advanced`. A
@@ -12196,10 +12197,11 @@ pass ([§11.7][s11-7]).
 
 <a id="g-stop-policy"></a>**`StopPolicy`** — the immutable value one advance declares: `t_end` plus the
 stop faces with their resolved addresses. `run!`, `replay!` and `step!` build
-and validate it per call and bind it on the `Run`; the loop's `hit` scratch
-sits elsewhere. `ControlRequestedStop` is outside it, since the policy is
-what the caller declares and the stop word is what anyone can issue
-([§13.5][s13-5], [D-255][d-255]).
+and validate it per call and pass it to the loop; afterwards only the
+termination record keeps one. The loop's `hit` scratch sits elsewhere.
+`ControlRequestedStop` is outside it, since the policy is what the caller
+declares and the stop word is what anyone can issue ([§13.5][s13-5],
+[D-255][d-255], [D-260][d-260]).
 
 <a id="g-unattended-run"></a>**unattended run** — a run with empty staging and no snapshot readers. It is
 the same loop, fully synchronous on the calling task, rethrowing after the
