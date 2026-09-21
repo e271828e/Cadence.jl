@@ -257,7 +257,7 @@ end
 function _read_component(s, label::Symbol, structure::Structure, diags::Vector{Diagnostic})
     entry = "the read labeled `$label`, $(_spell(s))"
     resolve_authored(entry, "", structure.root, s.path, diags) === nothing && return nothing
-    ci = findfirst(entry -> entry.path == s.path, structure.components)
+    ci = findfirst(component -> component.path == s.path, structure.components)
     ci === nothing || return ci
     push!(diags, _rviol(label, s, :assembly_path))
     nothing

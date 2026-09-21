@@ -74,6 +74,11 @@ function test_show()
         @test compact(deployed.schedule) == "Schedule(3 rows, hyperperiod 10 base ticks)"
         @test compact(pendulum_deployed.schedule) == "Schedule(no rows)"
         @test compact(multirate) == "Build(4 components, activations: Float64)"
+        # A second activation lists after the nominal one, whatever the dictionary's
+        # order; on its own build, since the others print the shared one.
+        activated = build(MultiRate())
+        activation(activated, D8)
+        @test compact(activated) == "Build(4 components, activations: Float64, $(D8))"
         @test compact(deployed) == "Deployment(h = 0.002, N_base = 1, Δt_base = 0.002, RK4)"
         for x in (multirate.structure, multirate.dataflow, multirate.events, deployed.schedule,
                   multirate, deployed)

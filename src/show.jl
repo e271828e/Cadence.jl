@@ -183,10 +183,12 @@ end
 
 # --- Build ------------------------------------------------------------------------
 
-# The activation keys, read under the build's lock (§9.4).
+# The activation keys, read under the build's lock (§9.4): the nominal `Float64`
+# first, the rest by name, since the dictionary has no order of its own.
 _activations_label(built::Build) =
     lock(built.lock) do
-        join((string(T) for T in keys(built.activations)), ", ")
+        others = sort([string(T) for T in keys(built.activations) if T !== Float64])
+        join(["Float64"; others], ", ")
     end
 
 Base.show(io::IO, built::Build) =
