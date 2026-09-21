@@ -562,13 +562,14 @@ end
 # concrete. The trace's conversion rides here (§11.5): the drained tuple is
 # the *coalesced* truth, so the record is taken at the drain and nowhere
 # earlier, against the writer's own schema index — closed into the thunk with
-# the register (trace.jl, `reg` untyped for include order alone).
-function _drain!(store, w::Writer, reg, widx::Int)
+# the run's trace (trace.jl, `trc` untyped for include order alone). Under the
+# kill switch that capture is `nothing` and the branch below folds (D-260).
+function _drain!(store, w::Writer, trc, widx::Int)
     ref = @atomicswap w.cell.pending = nothing
     ref === nothing && return nothing
     batch = ref[]
     _apply!(store, w.addrs, batch)
-    reg.enabled && _record!(reg, widx, batch)
+    trc === nothing || _record!(trc, widx, batch)
     nothing
 end
 

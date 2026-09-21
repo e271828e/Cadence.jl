@@ -276,7 +276,7 @@ recorder are concretely typed, and the drain counts through the run's
 concrete trace so a quiet drain still allocates nothing. Residues: the
 header walk's `:anchor` and `scope.*` arms are implemented and rendered but
 no fixture pair reaches them; a `replay!` that throws inside boundary zero
-leaves a `built` simulation in `:replay` with the feed attached, as a
+leaves a `built` simulation with `feed` set on the fresh run, as a
 failed `init!` leaves its own fresh run; a hand-built headerless `Trace`
 trips an `InternalInvariant` at `replay!`, to become an `ArgumentInvalid`
 when §16's edited-trace replay makes a trace an argument.

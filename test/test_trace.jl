@@ -101,7 +101,7 @@ function trace_recording()
         @test d.call === :trace && d.reason === :disabled
         stage!(off, "a" => 1.0)
         step!(off)
-        @test isempty(off.run.trace.batches) && off.run.trace.frames == 0   # nothing recorded
+        @test off.run.trace === nothing        # the switch rides on the run (D-260)
 
         # Before the first `init!` there is no header, so there is no recording, and
         # the refusal is the one an advance entry gives (§12.6).
@@ -137,7 +137,6 @@ function trace_recording()
         @test trc.schemas[1] == ("harness" => [:a, :b, :c])
         @test trc.schemas[2] == ("device 1 (Pad)" => [:a])
         @test trc.schemas[3] == ("harness" => [:b, :c])
-        @test sim.plane.recorder.live_writers == 2:3  # the current writers, named
 
         (b1, b2, b3) = trc.batches
         # `b` is position 2 of the old schema and position 1 of the new one, and both
@@ -153,10 +152,14 @@ function trace_recording()
         stage!(sim, "a" => 7.0)
         step!(sim)
         trc = trace(sim)
-        @test length(trc.schemas) == 4 && sim.plane.recorder.live_writers == 4:4
+        @test length(trc.schemas) == 4
         b4 = last(trc.batches)
         @test b4.frame == 3 && b4.writer == 4 && recorded_faces(trc, b4) == [:a]
         @test trc.batches[1:3] == [b1, b2, b3]        # the earlier records, untouched
+        # The ordinal a record carries is the trace's own drain count (D-260):
+        # advanced at the top of the drain, one per frame, so after three frames
+        # it is the clock's step and the last batch's `frame` is it.
+        @test trc.frames == 3 == sim.exec.clock.step
     end
 end
 
@@ -434,7 +437,7 @@ function trace_replay_loop()
         @test !closed(sim2.run)
         # …and `:live`, the halt having landed at the recording's last frame: the
         # records are exhausted, so whatever advances next is a live frame (D-218).
-        @test mode(sim2) === :live && sim2.plane.recorder.feed === nothing
+        @test mode(sim2) === :live && sim2.run.feed === nothing
         @test sim2.exec.clock.step == trc.frames
         @test same_trajectory(logged(sim2), logged(sim))
         # …including the localized boundaries the recording never stored: `t*` is
@@ -592,10 +595,10 @@ function trace_replay_loop()
         @test lifecycle(sim2) === :initialized && termination(sim2) === nothing
         @test !closed(sim2.run)
         @test sim2.exec.clock.step == trc.frames
-        @test mode(sim2) === :live && sim2.plane.recorder.feed === nothing
-        # §12.6: the mode is a `const` field, so the flip is a new run over the
-        # same log and the same trace — nothing of the session is rebuilt
-        @test sim2.run !== r && sim2.run.log === r.log && sim2.run.trace === r.trace
+        @test mode(sim2) === :live && sim2.run.feed === nothing
+        # §12.6: the mode is read off the feed, so the flip is a *write* to the
+        # run — the same object, with the same log and the same trace (D-260)
+        @test sim2.run === r && sim2.run.log === r.log && sim2.run.trace === r.trace
         @test same_trajectory(logged(sim2), logged(sim))    # the recording's own trajectory
         @test port(sim2, "", :ref) == 2.0                   # never the 99.0 staged into it
         seen = [d for s in logged(sim2) for w in s.status.writers if w.who == "harness"
@@ -631,7 +634,7 @@ function trace_replay_loop()
         # `init!` opens a fresh trajectory, and the mode returns with it: the
         # recording detaches, and the next frame's drain is the staging cells'.
         init!(sim2, fragment(inputs = (ref = 0.0, rate = 0.0)))
-        @test mode(sim2) === :live && sim2.plane.recorder.feed === nothing
+        @test mode(sim2) === :live && sim2.run.feed === nothing
         @test sim2.exec.clock.step == 0
         stage!(sim2, "ref" => 3.0)
         @test step!(sim2) == 1
@@ -656,8 +659,10 @@ function trace_replay_loop()
         @test cont.header.root_inputs == trc.header.root_inputs   # the header inherited
         # the recording's schema entries stand, this session's appended behind them
         @test cont.schemas[1:length(trc.schemas)] == trc.schemas
-        @test sim2.plane.recorder.live_writers ==
-              (length(trc.schemas) + 1):length(cont.schemas)
+        # the continuation's own drains write under the appended set, never the
+        # recording's (D-260: the range is local to the recompile, so the batch
+        # index is what names it)
+        @test last(cont.batches).writer > length(trc.schemas)
     end
 
     @testset "`live!` takes a replayed halt live, and the session records itself (§12.7, D-219)" begin
@@ -667,12 +672,13 @@ function trace_replay_loop()
         @test mode(sim2) === :replay && sim2.exec.clock.step == 5
 
         # The door moves the mode and nothing else: the trajectory stands at the
-        # halt, and so does the trace register with the header it inherited and the
+        # halt, and so does the run's trace with the header it inherited and the
         # batches it has re-recorded.
         r = sim2.run
         live!(sim2)
-        @test mode(sim2) === :live && sim2.plane.recorder.feed === nothing
-        @test sim2.run !== r && sim2.run.log === r.log && sim2.run.trace === r.trace
+        @test mode(sim2) === :live && sim2.run.feed === nothing
+        # the flip is a write, not a rebuild: the same run, log and trace (D-260)
+        @test sim2.run === r && sim2.run.log === r.log && sim2.run.trace === r.trace
         @test lifecycle(sim2) === :initialized && sim2.exec.clock.step == 5
         at_halt = trace(sim2)
         @test at_halt.frames == 5 && at_halt.batches == trc.batches
@@ -879,10 +885,9 @@ function trace_discarded_harness()
         (sim, trc) = recorded_run()
         off = replay_twin(; trace = false)
         replay!(off, trc)                      # the feed is compiled from the `Trace` in hand,
-        @test lifecycle(off) === :initialized   # never from the target's own register
+        @test lifecycle(off) === :initialized   # never from the target's own trace
         @test same_trajectory(logged(off), logged(sim))
-        @test off.run.trace.header === nothing && isempty(off.run.trace.batches)
-        @test off.run.trace.frames == 0
+        @test off.run.trace === nothing        # the switch rides on the run (D-260)
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} trace(off))
         @test d.reason === :disabled
     end

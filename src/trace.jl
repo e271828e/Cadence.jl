@@ -7,7 +7,7 @@
 # admitted through — lives at the tail of this file, beside the capture it
 # mirrors.
 #
-# This file holds the register and the pure mechanics; the `Simulation`-facing
+# This file holds the trace itself and the pure mechanics; the `Simulation`-facing
 # surface — the capture's placement in `init!`, the drain's frame stamp,
 # `trace(sim)`, `_compile_feed`'s scalar gate, `replay!` and the drain
 # substitution — lives in sim.jl, beside the loop that runs it. The drain
@@ -63,7 +63,7 @@ end
 
 # A record is a *value*, and the claim replay makes about a continuation — the
 # recording is a bit-identical prefix of what the continued session records
-# (§12.7) — is an equality between records built by two different registers.
+# (§12.7) — is an equality between records built by two different drains.
 # The default `==` on a mutable-free struct with a `Vector` field is egal, which
 # would make that claim untestable, so the field-wise one is defined here, and
 # `hash` with it as Julia's convention requires.
@@ -75,8 +75,10 @@ Base.hash(b::TraceBatch, h::UInt) = hash(b.entries, hash(b.writer, hash(b.frame,
 The trace (§11.5, D-255): a fixed header, written once at `init!` and never
 again, plus two append-only lists — the writers' schemas, grown at every roster
 change, and the sparse records, one per drained batch — and its length, the
-drains since the capture. `Run.trace` is the live one; `trace(sim)` hands back
-a detached value of the same type, which no drain ever advances.
+drains since the capture, which is also the ordinal each record carries
+(D-260). `Run.trace` is the live one, `nothing` under the kill switch;
+`trace(sim)` hands back a detached value of the same type, which no drain ever
+advances.
 
 A record is meaningless without its schema entry: the positions are against
 `schemas[batch.writer]`, and replay does not reconstruct claims (§12.7). The
@@ -117,49 +119,6 @@ mutable struct ReplayFeed
     frames::Int
 end
 
-"""
-The drain's bookkeeping, held by the data plane (D-255): the kill switch fixed
-at construction (§11.5's plain switch for memory-constrained marathon sessions,
-D-029), the current run's `Trace` — the one the drain writes into, `nothing`
-before the first `init!` and under the switch — the ordinal `drain!` stamps the
-frame's records with, and the attached recording. The register outlives every
-run; what one run owns is the `Trace` it points at (§12.6).
-
-`live_writers` names the current writer set's entries in `trace.schemas`.
-**The schema list only grows**: a roster change is a stopped-sim point that
-recompiles the harness writer and may add or remove device writers, while
-batches already recorded reference the old indices — so every capture and
-every roster change *appends* the current set (the roster in attachment
-order, then the harness: the drain's own order) and recompiles the drain
-thunks against the new indices. Earlier entries stay, referenced by earlier
-batches, and a run's `schemas` may therefore carry superseded ones.
-
-§12.6's **input mode** is the run's, not the register's (D-255): `feed` is the
-attached recording behind it, non-`nothing` for exactly as long as the run's
-mode is `:replay`.
-"""
-mutable struct TraceRegister
-    enabled::Bool
-    trace::Union{Nothing,Trace}       # the current run's trace: what the drain writes into
-    frame::Int                        # the ordinal this frame's records take
-    live_writers::UnitRange{Int}      # the current set's entries in trace.schemas
-    feed::Union{Nothing,ReplayFeed}   # the attached recording: the mode's source (§12.7)
-end
-
-# The empty roster leaves the harness writer sole writer, so the fresh
-# register's provisional set is `1:1`; `_install_writers!` re-fixes it at every
-# capture and every roster change.
-TraceRegister(enabled::Bool) = TraceRegister(enabled, nothing, 0, 1:1, nothing)
-
-# The recording the mode implies (D-218): in `:replay` it is always attached, so
-# its absence is an invariant firing rather than a case the loop handles.
-function _feed(reg::TraceRegister)
-    f = reg.feed
-    f === nothing && throw(InternalInvariant(
-        "the input mode is :replay with no recording attached (§12.7, D-218)"))
-    f
-end
-
 # The conversion at the drain (§11.5, D-176), inside the drain thunk so nothing
 # on the frame path boxes an argument: two O(surface-width) scans of the mask —
 # one to count the touched positions, one to fill — so the `entries` vector is
@@ -168,7 +127,7 @@ end
 # width-dependent beyond them — the cost D-176 records rather than argues away.
 # A drained batch always carries at least one touched position (`_normalize`
 # returns `nothing` for one that would not), so no record here is empty.
-function _record!(reg::TraceRegister, widx::Int, batch::Batch)
+function _record!(trc::Trace, widx::Int, batch::Batch)
     mask = batch.mask
     k = 0
     for i in 1:length(mask)
@@ -179,7 +138,7 @@ function _record!(reg::TraceRegister, widx::Int, batch::Batch)
     for i in 1:length(mask)
         mask[i] && (entries[j += 1] = i => batch.vals[i])
     end
-    push!(reg.trace.batches, TraceBatch(reg.frame, widx, entries))
+    push!(trc.batches, TraceBatch(trc.frames, widx, entries))
     nothing
 end
 
@@ -213,26 +172,30 @@ run, `init!` and `replay!`, and `reclaim!`'s two callers, `attach!` and
 `detach!`. With no trace to write into — before the first `init!`, or under
 `trace = false` — nothing is appended and the indices are provisional; no drain
 runs before boundary zero has, so nothing reads them.
+
+The appended range is a local (D-260): the thunks are compiled against it here
+and nothing reads it afterwards. `trc` is the run's trace, `nothing` under the
+switch, and each thunk closes over it concretely — so the record branch inside
+`_drain!` folds away where there is nothing to record.
 """
-function _install_writers!(reg::TraceRegister, plane)
+function _install_writers!(plane, trc)
     k = length(plane.roster) + 1
-    trc = reg.trace
-    if trc === nothing
-        reg.live_writers = 1:k
+    live_writers = if trc === nothing
+        1:k
     else
         n = length(trc.schemas)
         append!(trc.schemas, _writer_schemas(plane))
-        reg.live_writers = (n + 1):(n + k)
+        (n + 1):(n + k)
     end
     for (i, e) in enumerate(plane.roster)
         # the entry is immutable and its thunk carries the index, so the
         # recompilation replaces the entry itself (§11.4's stopped-sim compile)
         plane.roster[i] = RosterEntry(
             e.dev, e.binding, e.id, e.writer,
-            _drain_thunk(plane.store, e.writer, reg, reg.live_writers[i]),
+            _drain_thunk(plane.store, e.writer, trc, live_writers[i]),
             e.should_abort, e.diag, e.acct, e.handle)
     end
-    plane.harness_drain = _drain_thunk(plane.store, plane.harness, reg, reg.live_writers[k])
+    plane.harness_drain = _drain_thunk(plane.store, plane.harness, trc, live_writers[k])
     nothing
 end
 
@@ -464,8 +427,8 @@ function _compile_records!(diags::Vector{Diagnostic}, sim, trc::Trace, faces::Ve
         push!(recs, (frame = b.frame, thunk = _apply_thunk(store, w.addrs, batch), record = b))
     end
     # the drain's own order (§11.5): by frame, then by the recording's writer
-    # index. Stable, so a trace already in drain order — every trace this
-    # register produces — keeps exactly the order it was recorded in.
+    # index. Stable, so a trace already in drain order — every trace the drain
+    # produces — keeps exactly the order it was recorded in.
     sort!(recs; by = r -> (r.frame, r.record.writer), alg = MergeSort)
     recs
 end

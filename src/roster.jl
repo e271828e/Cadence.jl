@@ -139,11 +139,12 @@ _who(e::RosterEntry) = (e.handle::DeviceHandle).who
 # the drain, empty or populated, stays allocation-free (D-202). The per-entry
 # dispatch this leaves is
 # the iteration §11.4 licenses in place of the tuple specialization the freeze
-# would also permit. The trace register and this writer's index into its schema
-# list ride along (§11.5), which is why every thunk is compiled at one site
-# alone — `_install_writers!` (trace.jl) — and recompiled whenever the indices
-# move.
-_drain_thunk(store, w::Writer, reg, widx::Int) = () -> _drain!(store, w, reg, widx)
+# would also permit. The run's trace and this writer's index into its schema
+# list ride along (§11.5, D-260), which is why every thunk is compiled at one
+# site alone — `_install_writers!` (trace.jl) — and recompiled whenever the
+# indices move. `trc` is concrete in the closure, a `Trace{T}` or `nothing`, so
+# the record branch inside `_drain!` folds where there is nothing to record.
+_drain_thunk(store, w::Writer, trc, widx::Int) = () -> _drain!(store, w, trc, widx)
 
 """
 The data plane's mutable holder: the roster in attachment order — which is the
@@ -167,9 +168,9 @@ at spawn and emptied at run end, which is what lets `publish!` read
 empty, and every device reads `:none` — device tasks are run-scoped
 observables (§12.4).
 
-`recorder` is §11.5's trace register (D-255): the drain's own bookkeeping, held
-here because the drain is what every writer's thunk runs and the plane holds
-the writers. It outlives every run and points at the current run's `Trace`.
+The trace the drain writes into is the run's (§11.5, D-260), closed into every
+thunk here rather than held on the plane: a door or a roster change recompiles
+the thunks against the run's trace, and nothing on the plane duplicates it.
 
 The loop is a diagnostic writer too, so its cell and account are the plane's
 (§11.8, D-256), and `published` is §11.2's holder, read by `latest(sim)` and
@@ -187,20 +188,18 @@ mutable struct DataPlane
     run_tasks::Dict{Int,Task}       # the run's device tasks, by device id (§12.2, D-193)
     claimedby::Dict{Symbol,String}  # face → incumbent: the exclusivity index
     store::Any                      # the model's store bundle, captured into the drain thunks
-    recorder::TraceRegister         # §11.5's drain bookkeeping: the plane holds the writers,
-                                    # and this is one more piece of what a writer's drain does
     next_id::Int
 end
 
-# The register is built ahead of the plane because the drain thunks close over
-# it (§11.5): with the roster empty the harness writer is the sole writer, index
-# 1 of the first set a run's trace records, and `_install_writers!` re-fixes
-# that at each door and at every roster change.
-function DataPlane(layout::Layout, store, reg::TraceRegister)
+# The run is built ahead of the plane because the drain thunks close over its
+# trace (§11.5, D-260): with the roster empty the harness writer is the sole
+# writer, index 1 of the first set a run's trace records, and
+# `_install_writers!` re-fixes that at each door and at every roster change.
+function DataPlane(layout::Layout, store, trc)
     w = Writer(layout, Symbol[f for (f, _) in layout.root_inputs])
-    DataPlane(RosterEntry[], w, _drain_thunk(store, w, reg, 1), DiagCell(EMPTY_DIAG),
+    DataPlane(RosterEntry[], w, _drain_thunk(store, w, trc, 1), DiagCell(EMPTY_DIAG),
               WriterAccount(), DiagCell(EMPTY_DIAG), WriterAccount(), Published(nothing),
-              Dict{Int,Task}(), Dict{Symbol,String}(), store, reg, 1)
+              Dict{Int,Task}(), Dict{Symbol,String}(), store, 1)
 end
 
 """
@@ -242,10 +241,10 @@ only broadens and every pending entry survives the reshape.
 
 The roster change is also where the trace's schema list grows (§11.5): the
 current writer set is appended and every drain thunk recompiled against its
-new index, which is what `_install_writers!` does at the tail here.
+new index, which is what `_install_writers!` does at the tail here. The trace
+it grows is the current run's, passed in by `attach!` and `detach!` (D-260).
 """
-function reclaim!(plane::DataPlane, layout::Layout)
-    reg = plane.recorder
+function reclaim!(plane::DataPlane, layout::Layout, trc)
     empty!(plane.claimedby)
     for e in plane.roster, f in e.writer.faces
         plane.claimedby[f] = _who(e)
@@ -254,7 +253,7 @@ function reclaim!(plane::DataPlane, layout::Layout)
     pending = @atomicswap old.cell.pending = nothing
     w = Writer(layout, Symbol[f for (f, _) in layout.root_inputs if !haskey(plane.claimedby, f)])
     plane.harness = w
-    _install_writers!(reg, plane)          # §11.5: the schema list grows, the thunks follow
+    _install_writers!(plane, trc)          # §11.5: the schema list grows, the thunks follow
     if pending !== nothing
         batch = pending[]
         entries = [old.faces[i] => batch.vals[i] for i in 1:length(old.faces) if batch.mask[i]]
