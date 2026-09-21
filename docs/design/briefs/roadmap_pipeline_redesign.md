@@ -322,8 +322,9 @@ to its `Float64` twin, and `trace(sim).frames == clock.step` at every halt
 across a partial replay, `live!` and the automatic flip. Residues: the flips
 now write one field in place rather than rebinding the run, a race no
 observer reaches since both are stopped-sim or run-tail points; `trim!`'s
-`t0 = Float64(t0)` call was a `TypeError` on any non-`Float64` deployment
-before stage 1 and no test advances `trim!` at a `Dual`; an `attach!` on a
+`t0 = Float64(t0)` call would have been a `TypeError` against the old
+`t0::T` keyword, but `trim!` is declared on `Simulation{Float64}` alone and
+refuses any other scalar first, so the path was never reachable; an `attach!` on a
 `built` traced simulation appends a writer set to the placeholder run's
 trace, which the first door discards.
 
