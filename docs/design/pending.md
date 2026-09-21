@@ -71,7 +71,8 @@ Where the reason is not given here, the cited decision carries it:
   is a descriptive name, single letters kept for the spec's symbols, for
   bindings visible in one glance and for the component index `ci`.
   Increment 48 applies it to what it touches; the rest of the tree is one
-  mechanical sweep after it.
+  mechanical sweep after it, which also folds `assembly.jl`'s `_at` into
+  `diagnostics.jl`'s `_at_path`, the same function twice.
 - **The "provenance" sweep**, owed to every reader. The word is obscure and
   carries six meanings in the tree: a component's rate declaration chain
   and an anchor's declaring scope and key (§9.1, §9.2); a face's route to
