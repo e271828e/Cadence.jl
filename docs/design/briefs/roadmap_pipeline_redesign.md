@@ -357,6 +357,22 @@ finding: `Layout.root_inputs`' name half, the layout being the periphery's
 one lookup object. The trace header's build half is a `pending.md` bullet
 for D-254, ruled when persistence lands.
 
+Landed 2026-09-21: the brief as `c84978b`, authoring and build as `1c1db9f`,
+the loop as `e18c2fd`, the periphery as `8cdf260`, the run as `2217475`,
+the cold review's five findings as `94182e7` and the D-261 amendment as
+`b644377`. The review found no code defect. Checked in it: the frame and the
+drain allocate nothing against `296f4a0`'s numbers on every measured path;
+every retired name has no reader left; the sweep under D-261's three rules
+found one instance the survey missed, `SnapshotLog.every`, orphaned by stage
+4 and dropped in the fix. Sites the brief's probe missed: `test_roster.jl`'s
+seven `attach!(…).id` reads, two more `_guards!` callers, two `GridEntry`
+constructions in `test_diagnostics.jl`; the "32 test sites" were keyword
+occurrences, 20 calls moved. The one ruling: `trace(sim)` on a `built`
+simulation whose door threw inside boundary zero hands back the trace §13.4
+promises, so D-261's sentence now says the lifecycle refusal covers a
+traceless `built` simulation alone. `pending.md`'s "Retire alone" section is
+empty.
+
 ## Step 7: increment 48, the renderings
 
 Items 29–30. `show` for `Structure`, `Dataflow`, `Schedule`, `Build` and
