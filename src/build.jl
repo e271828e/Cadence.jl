@@ -350,9 +350,10 @@ _state_fields(homes::NamedTuple) = Symbol[keys(merge(values(homes)...))...]
 # --- 3. the nominal evaluation's products -------------------------------------
 
 """
-The `Dataflow` (§9.1, D-253): every component's declared ports split into the
-stage-1 names and the stage-2 remainder, the feedthrough edges with their
-provenance, and the execution order over them. Edges run producer → consumer for
+The `Outputs` (§9.1, D-253, D-261): every component's declared ports split into
+the stage-1 names and the stage-2 remainder, and the execution order Kahn takes
+over the feedthrough graph. The artifact carries the two name lists and the
+order; the graph stays the builder's scratch. Edges run producer → consumer for
 every consumed **stage-2** port; consuming a stage-1 port adds no edge, which is
 the whole structural payoff of the split — a stage-1 port takes no input and so
 carries no input dependence (§5.3). A stall is not reported as its residue: the
@@ -360,8 +361,8 @@ residue is *decomposed* into one `AlgebraicCycle` per strongly connected cluster
 below (§5.6, D-012), which is why `edges` carries the per-dependence provenance
 Kahn itself discards.
 """
-function _dataflow(structure::Structure, decls::Vector{Decls},
-                   stage1::Vector, mstores::Vector)
+function _outputs(structure::Structure, decls::Vector{Decls},
+                  stage1::Vector, mstores::Vector)
     n = length(structure.components)
     ports = [Symbol[keys(decls[ci].outs)...] for ci in 1:n]
     names1 = [Symbol[keys(stage1[ci])...] for ci in 1:n]
@@ -397,7 +398,8 @@ function _dataflow(structure::Structure, decls::Vector{Decls},
     isempty(remaining) ||
         throw(DiagnosticError(_cycle_diagnostics(structure, edges, remaining, order, decls,
                                                  stage1, mstores)))
-    Dataflow(ports, names1, names2, edges, order)
+    Outputs([ComponentOutputs(entry.path, names1[ci], names2[ci])
+             for (ci, entry) in enumerate(structure.components)], order)
 end
 
 """
@@ -618,36 +620,57 @@ struct Activation{T}
 end
 
 """
-The nominal evaluation's product (§9.1, D-253): the port classification and the
-order over it. Per component the declared ports split into the stage-1 names and
-the stage-2 remainder, then the feedthrough edges with their provenance and the
-execution order over component indices. It is structural — names and edges, never
-values — and so `T`-independent, which is why a reader wanting a name list takes
-it from here rather than from a scalar-typed activation.
+One component's outputs (§9.1): the port names each stage produces, `stage1`
+in the return's order, `stage2` the declared remainder in `output_types`
+order. Their concatenation is the products' order, stage 1 then stage 2.
 """
-struct Dataflow
-    ports::Vector{Vector{Symbol}}    # per component: every declared output port, in `output_types` order
-    stage1::Vector{Vector{Symbol}}   # per component: the stage-1 names, in the product's order
-    stage2::Vector{Vector{Symbol}}   # per component: the remainder, in `output_types` order
-    edges::Vector{Vector{Tuple{Int,Symbol,Symbol}}}   # per consumer: (producer, port, face)
-    order::Vector{Int}               # the execution order over component indices
+struct ComponentOutputs
+    path::String
+    stage1::Vector{Symbol}
+    stage2::Vector{Symbol}
+end
+
+"The output port names in the products' order (§8.3): stage 1, then stage 2."
+_ports(entry::ComponentOutputs) = vcat(entry.stage1, entry.stage2)
+
+"""
+The nominal evaluation's product (§9.1, D-253, D-261): per component, in walk
+order, the output ports each stage produces, and the execution order over the
+component indices. Structural and `T`-independent, names only, which is why a
+reader wanting a name list takes it from here rather than from a scalar-typed
+activation. The feedthrough graph the order was computed over is not carried;
+where it is shown it is derived from the structure's connections and the
+producers' `stage2`.
+"""
+struct Outputs
+    components::Vector{ComponentOutputs}   # in walk order; the index is `ci`
+    order::Vector{Int}                     # the execution order over `ci`
 end
 
 """
-The nominal evaluation's other product (§9.1, D-253), built last, after the stage
-probes: per component the event names with the detection policy each guard's
-return form fixes (§10.4), and the event bundle's field names. It is structural
-and `T`-independent like the `Dataflow`, and separate from it because a different
-input fixes it — the event declarations, read after the probes — so a consumer of
-the execution order never carries the event tables.
+One component's events (§9.1, §10.4): the detection policy each guard's return
+form fixes, by event name in declaration order, and the event bundle's field
+names, `()` where the component declares no events.
+"""
+struct ComponentEvents
+    path::String
+    policies::NamedTuple   # event name => :boundary | :localized
+    bundle::Tuple
+end
+
+"""
+The nominal evaluation's other product (§9.1, D-253), built last, after the
+stage probes: one row per component in walk order, the index being `ci`. It is
+structural and `T`-independent like the `Outputs`, and separate from it because
+a different input fixes it, the event declarations, read after the probes, so
+a consumer of the execution order never carries the event tables.
 """
 struct Events
-    policies::Vector{NamedTuple}   # per component: event name => :boundary | :localized (§10.4)
-    bundles::Vector{Tuple}         # per component: the event bundle's field names, `()` where none
+    components::Vector{ComponentEvents}
 end
 
 """
-The deployment-free product of the build pipeline (§9.2): structure, dataflow,
+The deployment-free product of the build pipeline (§9.2): structure, outputs,
 events, the activations and `warnings`, the first three being what §9.1's three
 steps produce. Everything here is settled before `Δt_base` exists, and the first
 three are `T`-independent by construction (§9.1). The activations are one
@@ -663,7 +686,7 @@ makes torn-state-free (§9.4).
 """
 struct Build
     structure::Structure
-    dataflow::Dataflow
+    outputs::Outputs
     events::Events
     activations::Dict{DataType,Any}   # keyed by scalar type, the nominal `Float64` entry included
     lock::ReentrantLock               # guards `activations` (§9.4's torn-state guarantee)
@@ -688,7 +711,7 @@ const ProbeDual = ForwardDiff.Dual{ProbeTag,Float64,1}
 The structure step, the nominal evaluation and the eager activations (§9.1). The
 structure step flattens, classifies and type-checks the wires into the
 `Structure`; the nominal evaluation probes at `Float64` and returns the
-`Dataflow`, the `Events` and the nominal activation, which is its own product and
+`Outputs`, the `Events` and the nominal activation, which is its own product and
 never a separate pass (D-253, D-259). Nothing here needs `Δt_base`, `h` or
 `N_base` — those are the `Deployment`'s. `activations` is §9.4's opt-in exhaustive
 mode: each listed scalar's activation is materialized eagerly instead of at first
@@ -716,8 +739,8 @@ function build(root::AbstractComponent; activations::Tuple = ())
             # left unfed.
             isempty(diags) || throw(DiagnosticError(diags))
             structure = Structure(draft, conns, in_faces, root_types)   # the artifact, complete at construction (D-261)
-            df, ev, nominal = _nominal(structure)
-            built = Build(structure, df, ev, Dict{DataType,Any}(Float64 => nominal),
+            outputs, events, nominal = _nominal(structure)
+            built = Build(structure, outputs, events, Dict{DataType,Any}(Float64 => nominal),
                           ReentrantLock(), ws)
             for A in activations
                 activation(built, A)
@@ -901,7 +924,7 @@ function activation(b::Build, ::Type{T}) where {T}
     hit = @lock b.lock get(b.activations, T, nothing)
     hit === nothing || return hit::Activation{T}
     nominal = (@lock b.lock b.activations[Float64])::Activation{Float64}
-    act = _activate(b.structure, b.dataflow, nominal, T)
+    act = _activate(b.structure, b.outputs, nominal, T)
     (@lock b.lock get!(b.activations, T, act))::Activation{T}
 end
 
@@ -917,7 +940,7 @@ warnings(b::Build) = b.warnings
 
 # The nominal evaluation (§9.1, D-253, D-259): the build's one
 # evaluation-feeds-structure step, a function of the structure alone. It runs the
-# whole nominal probe chain once and returns its three products — the dataflow,
+# whole nominal probe chain once and returns its three products — the outputs,
 # the events and the nominal `Float64` activation — so the structure and the
 # `Float64` typing are fixed together rather than in two passes. Every stage is
 # probed (§9.3's probe-everything scope), the classification and the execution
@@ -933,12 +956,12 @@ function _nominal(structure::Structure)
     wss = _workspaces(structure, Float64)
 
     stage1 = probe_stage1(structure, decls, wss, mstores, Float64)
-    df = _dataflow(structure, decls, stage1, mstores)
+    outputs = _outputs(structure, decls, stage1, mstores)
     layout = cell_layout(structure, decls, Float64)
-    products = probe_stage2(structure, decls, stage1, df.order, layout,
+    products = probe_stage2(structure, decls, stage1, outputs.order, layout,
                             wss, mstores, nothing, Float64)
     nominal = Activation{Float64}(decls, products, layout)
-    df, probe_events(structure, nominal), nominal
+    outputs, probe_events(structure, nominal), nominal
 end
 
 # Every component's declarations at `T`, each read under its component frame (§13.2, D-248).
@@ -948,11 +971,11 @@ _declarations(structure::Structure, ::Type{T}) where {T} =
 
 # Activation at another scalar (§9.1, §9.4): the nominal evaluation's typed half
 # re-run at `T`, with nothing structural recomputed. Declarations are evaluated at
-# `T`, the probe chain runs and the cells are laid out, over the dataflow's
+# `T`, the probe chain runs and the cells are laid out, over the `Outputs`'
 # execution order, which is `T`-independent. A frozen component's products are
 # carried across from the nominal activation rather than probed, its stages being
 # outside this activation's executable set.
-function _activate(structure::Structure, df::Dataflow, nominal::Activation{Float64},
+function _activate(structure::Structure, outputs::Outputs, nominal::Activation{Float64},
                    ::Type{T}) where {T}
     decls = _declarations(structure, T)
     mstores = _mstores(structure)
@@ -960,7 +983,7 @@ function _activate(structure::Structure, df::Dataflow, nominal::Activation{Float
 
     stage1 = probe_stage1(structure, decls, wss, mstores, T)
     layout = cell_layout(structure, decls, T)
-    products = probe_stage2(structure, decls, stage1, df.order, layout,
+    products = probe_stage2(structure, decls, stage1, outputs.order, layout,
                             wss, mstores, nominal, T)
     Activation{T}(decls, products, layout)
 end
@@ -1003,7 +1026,7 @@ function probe_stage2(structure::Structure, decls::Vector{Decls},
                       stage1, order::Vector{Int}, layout::Layout,
                       wss::Vector, mstores::Vector, carry, ::Type{T}) where {T}
     # The complete product is a value table read by name, never sliced: a reader
-    # wanting a name list takes it from the `Dataflow` instead (§9.1, D-253).
+    # wanting a name list takes it from the `Outputs` instead (§9.1, D-253).
     products = NamedTuple[s1 for s1 in stage1]
 
     # A frozen component's stages never run at this activation, so its complete
@@ -1168,14 +1191,14 @@ return type *is* the detection policy (§10.4, D-179) — `Bool` boundary-detect
 the nominal scalar localized, anything else an error naming both admissible
 forms. Each handler runs once and its return is held to the §5.2 return law,
 key by key. Returns the `Events`, the nominal evaluation's last product (§9.1,
-D-253): the per-component policy register beside the bundle names each
-component's guards and handlers are called with.
+D-253): one row per component, its policy register beside the bundle names its
+guards and handlers are called with.
 """
 function probe_events(structure::Structure, act::Activation{Float64})
     decls, layout, products = act.decls, act.layout, act.products
     mstores = _mstores(structure)
     wss = _workspaces(structure, Float64)
-    policies, bundles = NamedTuple[], Tuple[]
+    rows = ComponentEvents[]
     for (ci, entry) in enumerate(structure.components)
         c, path, d = entry.instance, entry.path, decls[ci]
         policy, bn = at_component(path) do
@@ -1199,10 +1222,9 @@ function probe_events(structure::Structure, act::Activation{Float64})
                 policy
             end), bn
         end
-        push!(policies, policy)
-        push!(bundles, bn)
+        push!(rows, ComponentEvents(path, policy, bn))
     end
-    Events(policies, bundles)
+    Events(rows)
 end
 
 # The handler return law (§5.2, §9.3): a key is present iff the store exists on
@@ -1352,7 +1374,7 @@ readers being user values, so reaching here is an internal assertion firing.
 # included after this file; the per-component gates are derived from its rows
 # by `_gates` there (§9.2, D-261).
 function compile(build::Build, act::Activation{T}, sch; chunk_size::Int = 16, algorithm) where {T}
-    structure, decls, layout = build.structure, act.decls, act.layout
+    structure, outputs, decls, layout = build.structure, build.outputs, act.decls, act.layout
     components = structure.components
     D_c, Φ_c, Δt_c = _gates(sch, structure)
 
@@ -1412,21 +1434,21 @@ function compile(build::Build, act::Activation{T}, sch; chunk_size::Int = 16, al
         bn = bundle_names(output_state, c, entry.tier, ())
         push!(stage1_entries, StageEntry{typeof(d.x),bn}(
             output_state, c, NamedTuple(), NamedTuple(),
-            addr_group(path, build.dataflow.stage1[ci]),
+            addr_group(path, outputs.components[ci].stage1),
             x_offs[ci], clock, sstores[ci], mstores[ci], wss[ci], Δt_c[ci],
             path, ci, cursor))
         push!(stage1_gates, gate(ci))
     end
 
-    for ci in build.dataflow.order
+    for ci in outputs.order
         entry = components[ci]
         c, path, d = entry.instance, entry.path, decls[ci]
         (has_stage(output_direct, c) && !frozen(ci)) || continue
-        y1keys = build.dataflow.stage1[ci]
+        y1keys = outputs.components[ci].stage1
         bn = bundle_names(output_direct, c, entry.tier, tuple(y1keys...))
         push!(stage2_entries, StageEntry{typeof(d.x),bn}(
             output_direct, c, in_group(ci, d), addr_group(path, y1keys),
-            addr_group(path, build.dataflow.stage2[ci]), x_offs[ci], clock,
+            addr_group(path, outputs.components[ci].stage2), x_offs[ci], clock,
             sstores[ci], mstores[ci], wss[ci], Δt_c[ci], path, ci, cursor))
         push!(stage2_gates, gate(ci))
     end
@@ -1438,8 +1460,8 @@ function compile(build::Build, act::Activation{T}, sch; chunk_size::Int = 16, al
         c, path, d, t = entry.instance, entry.path, decls[ci], entry.tier
         (isempty(state_decls(d, t)) || frozen(ci)) && continue
         update = update_of(t)
-        bn = bundle_names(update, c, t, tuple(build.dataflow.stage1[ci]...))
-        y_g, in_g = addr_group(path, build.dataflow.ports[ci]), in_group(ci, d)
+        bn = bundle_names(update, c, t, tuple(outputs.components[ci].stage1...))
+        y_g, in_g = addr_group(path, _ports(outputs.components[ci])), in_group(ci, d)
         if t === CONTINUOUS
             push!(rhs_entries, RHSEntry{typeof(d.x),bn}(
                 c, in_g, y_g, x_offs[ci], clock, mstores[ci], wss[ci], path, ci, cursor))
@@ -1455,16 +1477,17 @@ function compile(build::Build, act::Activation{T}, sch; chunk_size::Int = 16, al
     # handlers are outside every other activation's executable set (§9.4,
     # D-052), so the event phase there is the bare sweep. Entries carry a global
     # index into the register vectors, in executor component order then
-    # declaration order within a component (§10.6), and each carries its
-    # `Events.policies` verdict into the compiled mask — which is what the frame
-    # loop's trigger check reads (§10.4).
+    # declaration order within a component (§10.6), and each carries the policy
+    # its component's `Events` row fixes into the compiled mask — which is what
+    # the frame loop's trigger check reads (§10.4).
     ev_entries, ev_owner = Any[], Int[]
     ev_names = Tuple{String,Symbol}[]
     ev_localized = Bool[]
     if T === Float64
         for (ci, entry) in enumerate(components)
             c, path = entry.instance, entry.path
-            pol, bn = build.events.policies[ci], build.events.bundles[ci]
+            row = build.events.components[ci]
+            pol, bn = row.policies, row.bundle
             isempty(pol) && continue
             d = decls[ci]
             # The names, the policies and the bundle are the product's; the guard
@@ -1474,7 +1497,7 @@ function compile(build::Build, act::Activation{T}, sch; chunk_size::Int = 16, al
             for name in keys(pol)
                 push!(ev_entries, EventEntry{typeof(d.x),bn}(
                     evs[name].guard, evs[name].handler, pj, c, length(ev_entries) + 1,
-                    in_group(ci, d), addr_group(path, build.dataflow.ports[ci]),
+                    in_group(ci, d), addr_group(path, _ports(outputs.components[ci])),
                     x_offs[ci], clock, mstores[ci], wss[ci], path, name, ci, cursor))
                 push!(ev_owner, ci)
                 push!(ev_names, (path, name))

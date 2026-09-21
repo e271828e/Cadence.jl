@@ -109,17 +109,18 @@ function test_events()
     end
 
     @testset "the guard's form is the declared policy (§2.1, §10.4, D-179)" begin
-        @test build(fed(Trigger(0.5), "sig")).events.policies[1] === (fire = :boundary,)
-        @test build(single(Sawtooth(0.3))).events.policies[1] === (wrap = :localized,)
-        @test build(single(Rotor())).events.policies[1] === NamedTuple()
+        @test build(fed(Trigger(0.5), "sig")).events.components[1].policies === (fire = :boundary,)
+        @test build(single(Sawtooth(0.3))).events.components[1].policies === (wrap = :localized,)
+        @test build(single(Rotor())).events.components[1].policies === NamedTuple()
     end
 
     @testset "the events product carries the policies and the bundle names (§9.1, D-253)" begin
-        # `Events` is the nominal evaluation's last product: the policy register
-        # beside the bundle each component's guards and handlers are called with.
-        # A component with no events carries an empty register and no bundle.
-        @test build(fed(Trigger(0.5), "sig")).events.bundles[1] === (:m, :u, :y, :t)
-        @test build(single(Rotor())).events.bundles[1] === ()
+        # `Events` is the nominal evaluation's last product: one row per
+        # component, its policy register beside the bundle its guards and
+        # handlers are called with. A component with no events carries an empty
+        # register and no bundle.
+        @test build(fed(Trigger(0.5), "sig")).events.components[1].bundle === (:m, :u, :y, :t)
+        @test build(single(Rotor())).events.components[1].bundle === ()
     end
 
     @testset "edge semantics: a u-edge fires at its boundary, a sticky predicate once" begin

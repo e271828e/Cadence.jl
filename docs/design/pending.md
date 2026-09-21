@@ -18,11 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the spec's own migration deliverables last.
 Where the reason is not given here, the cited decision carries it:
 
-- **`Dataflow` and `Events` as rows** (D-261, as amended 2026-09-21): both
-  still hold per-component parallel vectors (`ports`, `stage1`, `stage2`,
-  `edges`; `policies`, `bundles`), the shape `Structure` and `Schedule`
-  left. One entry record per component each, with D-261's note extended.
-  `Activation{T}` stays columns as compiled state. Increment 48b.
 - **§12 beyond its built slices**: pause and the control plane's surface; the
   operator interrupt — §13.4's carve-out exists, the masking and the entry do
   not, so a stopped run can hold mid-boundary stores here; §13.4's

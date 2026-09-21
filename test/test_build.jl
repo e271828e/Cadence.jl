@@ -89,7 +89,7 @@ end
 # --- the feedthrough graph and the schedule (§5.3, §5.5) ----------------------
 
 # Stage 1 returns its two ports in the reverse of the declared order: the product
-# is addressed by name, so the `Dataflow`'s two name lists differ here on purpose.
+# is addressed by name, so the `Outputs`' two name lists differ here on purpose.
 struct SwappedPorts <: AbstractComponent end
 init_x(::SwappedPorts) = (p = 1.0, q = 2.0)
 output_types(::SwappedPorts, ::Type{T}) where {T <: Real} = (p = T, q = T)
@@ -107,40 +107,36 @@ function build_schedule()
         @test length(walked(sim.exec.bodies.rhs)) == 1
     end
 
-    @testset "the nominal evaluation's products are names and edges (§9.1, D-253)" begin
-        # The same model, read off the `Dataflow` rather than off a compiled
-        # executor: names and edges, fixed by the structure and one nominal
-        # evaluation, with no scalar type in sight.
+    @testset "the nominal evaluation's products are names and an order (§9.1, D-253, D-261)" begin
+        # The same model, read off the `Outputs` rather than off a compiled
+        # executor: one row per component in walk order and the execution order
+        # over the rows, fixed by the structure and one nominal evaluation, with
+        # no scalar type in sight.
         b = build(feedback_model())
-        df = b.dataflow
+        outputs = b.outputs
         plant, ctl, sm = index_of(b.structure, "plant"), index_of(b.structure, "ctl"),
                          index_of(b.structure, "sum")
-        # Every declared port in `output_types` order, split into the stage-1
-        # names and the stage-2 remainder. `Plant` returns `y` from stage 1 and
-        # `power` from stage 2; `Gain` and `Sum` are stage-2 only.
-        @test df.ports[plant] == [:y, :power]
-        @test df.stage1[plant] == [:y] && df.stage2[plant] == [:power]
-        @test df.ports[ctl] == [:out]
-        @test isempty(df.stage1[ctl]) && df.stage2[ctl] == [:out]
-        @test df.ports[sm] == [:e]
-        @test isempty(df.stage1[sm]) && df.stage2[sm] == [:e]
-        # One edge per consumed stage-2 port, on the consumer's row, carrying the
-        # producer's index, its port and the consuming face. `sum/b` consumes
-        # `plant/y`, a stage-1 port, so the wire that closes the loop is no edge.
-        @test df.edges[plant] == [(ctl, :out, :u)]
-        @test df.edges[ctl] == [(sm, :e, :e)]
-        @test isempty(df.edges[sm])
-        # The order the testset above reads off the compiled sweep.
-        @test df.order == [sm, ctl, plant]
+        # Each row splits the declared ports into the stage-1 names and the
+        # stage-2 remainder. `Plant` returns `y` from stage 1 and `power` from
+        # stage 2; `Gain` and `Sum` are stage-2 only.
+        @test outputs.components[plant].stage1 == [:y] && outputs.components[plant].stage2 == [:power]
+        @test isempty(outputs.components[ctl].stage1) && outputs.components[ctl].stage2 == [:out]
+        @test isempty(outputs.components[sm].stage1) && outputs.components[sm].stage2 == [:e]
+        # The products' order, stage 1 then stage 2.
+        @test _ports(outputs.components[plant]) == [:y, :power]
+        # The order the testset above reads off the compiled sweep, as indices
+        # into the rows.
+        @test outputs.order == [sm, ctl, plant]
+        @test [outputs.components[ci].path for ci in outputs.order] == ["sum", "ctl", "plant"]
 
         # The stage-1 list follows the *return*, the port list the declaration,
         # and the two are free to disagree: the product is a value table read by
         # name (§8.3).
         b2 = build(single(SwappedPorts()))
-        i, df2 = index_of(b2.structure, "c"), b2.dataflow
-        @test df2.ports[i] == [:p, :q]
-        @test df2.stage1[i] == [:q, :p]
-        @test isempty(df2.stage2[i])
+        row = b2.outputs.components[index_of(b2.structure, "c")]
+        @test row.stage1 == [:q, :p]
+        @test isempty(row.stage2)
+        @test _ports(row) == [:q, :p]
     end
 
     @testset "an algebraic loop is a build error (§5.5)" begin
@@ -367,12 +363,12 @@ function build_port_classes()
         # takes its stage-2 tail off — stage 1, then stage 2.
         b = build(fed(Motor(1.0), "M_load"))
         i = index_of(b.structure, "c")
-        @test Tuple(b.dataflow.stage1[i]) === (:ω, :running)
+        @test Tuple(b.outputs.components[i].stage1) === (:ω, :running)
         @test keys(activation(b, Float64).products[i]) === (:ω, :running, :M_shaft)
         # The hand-down carries the stage-1 return, so `y_x` is now in stage 2's
         # bundle.
         @test bundle_names(output_direct, Motor(1.0), CONTINUOUS,
-                           tuple(b.dataflow.stage1[i]...)) === (:x, :m, :u, :y_x, :t)
+                           tuple(b.outputs.components[i].stage1...)) === (:x, :m, :u, :y_x, :t)
     end
 
     @testset "a loop closes through a stage-1 port carrying the state vector (§5.3, §5.5)" begin
@@ -1192,7 +1188,7 @@ function build_label_ports()
     @testset "an enum mode is returned from stage 1 (§7.5)" begin
         b = build(single(GearMode()))
         i = index_of(b.structure, "c")
-        s1 = Tuple(b.dataflow.stage1[i])
+        s1 = Tuple(b.outputs.components[i].stage1)
         @test activation(b, Float64).products[i][s1] === (gear = up, y = 0.0)
         @test keys(activation(b, D8).products[i][s1]) === (:gear, :y)
         sim = Simulation(b, D8; h = 1//10)
@@ -1211,7 +1207,7 @@ function build_label_ports()
         # The mode label is returned (§7.5's remedy on the idiomatic label).
         b = build(single(PhaseMode()))
         i = index_of(b.structure, "c")
-        @test activation(b, Float64).products[i][Tuple(b.dataflow.stage1[i])] === (phase = :idle, y = 0.0)
+        @test activation(b, Float64).products[i][Tuple(b.outputs.components[i].stage1)] === (phase = :idle, y = 0.0)
 
         # At a root input the leaf has no synthesis, so the refusal is the
         # opaque leaf's, ahead of `probe_value`.

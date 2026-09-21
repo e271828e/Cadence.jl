@@ -1283,7 +1283,7 @@ function _species(sim::Simulation, err::FieldError)
     ci, fam = cur.comp, cur.fn
     entry = sim.deployment.build.structure.components[ci]
     c, t = entry.instance, entry.tier
-    s1 = tuple(sim.deployment.build.dataflow.stage1[ci]...)
+    s1 = tuple(sim.deployment.build.outputs.components[ci].stage1...)
     # Reading the names invokes declarations, and a throw here would replace the
     # author's error, the cursor frame and the `StepError` with a frame of its own.
     bn = try

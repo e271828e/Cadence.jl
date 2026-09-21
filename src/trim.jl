@@ -516,7 +516,7 @@ function _establish_frozen!(ex::Executor, act::Activation{T}, nom::Executor,
     for (ci, entry) in enumerate(build.structure.components)
         _frozen(entry.tier, T) || continue
         path = entry.path
-        for name in build.dataflow.ports[ci]
+        for name in _ports(build.outputs.components[ci])
             scatter!(ex.store, act.layout.addr[(path, name)],
                      gather(nom.store, nom.act.layout.addr[(path, name)]))
         end

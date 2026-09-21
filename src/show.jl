@@ -89,45 +89,42 @@ function _lines(structure::Structure)
     lines
 end
 
-# --- Dataflow ---------------------------------------------------------------------
+# --- Outputs ----------------------------------------------------------------------
 
-Base.show(io::IO, dataflow::Dataflow) =
-    print(io, "Dataflow(", _count(length(dataflow.order), "component"), ")")
+Base.show(io::IO, outputs::Outputs) =
+    print(io, "Outputs(", _count(length(outputs.order), "component"), ")")
 
-# One row per position in the execution order: the component at it, its stage-1
-# and stage-2 names, and the feedthrough edges into it, the stage-2 dependencies
-# the order was computed over. `label(ci)` names a component: `#ci` standalone,
-# the path where the `Build` renders it.
-function _lines(dataflow::Dataflow, label)
-    rows = [[string(position), label(ci), _names_label(dataflow.stage1[ci]),
-             _names_label(dataflow.stage2[ci]),
-             _names_label(("$face ← $(label(producer)).$port"
-                           for (producer, port, face) in dataflow.edges[ci]))]
-            for (position, ci) in enumerate(dataflow.order)]
-    vcat(["Dataflow: execution order over " * _count(length(dataflow.order), "component")],
-         _table("  ", ["position", "component", "stage 1", "stage 2", "feedthrough"], rows))
+# One row per position in the execution order: the component at it, by its
+# path, with its stage-1 and stage-2 names.
+function _lines(outputs::Outputs)
+    rows = [[_path_label(outputs.components[ci].path),
+             _names_label(outputs.components[ci].stage1),
+             _names_label(outputs.components[ci].stage2)]
+            for ci in outputs.order]
+    vcat(["Outputs: execution order over " * _count(length(outputs.order), "component")],
+         _table("  ", ["component", "stage 1", "stage 2"], rows))
 end
-_lines(dataflow::Dataflow) = _lines(dataflow, ci -> "#$ci")
 
 # --- Events -----------------------------------------------------------------------
 
 _events_counts(events::Events) =
-    _count(sum(length, events.policies; init = 0), "event") * " over " *
-    _count(length(events.policies), "component")
+    _count(sum(row -> length(row.policies), events.components; init = 0), "event") *
+    " over " * _count(length(events.components), "component")
 
 Base.show(io::IO, events::Events) = print(io, "Events(", _events_counts(events), ")")
 
-# One row per component that declares an event: `name => policy` in declaration
-# order, and the event bundle's field names. No events is the heading alone.
-function _lines(events::Events, label)
-    rows = [[label(ci), join(("$name => $policy" for (name, policy) in pairs(policies)), ", "),
-             isempty(events.bundles[ci]) ? "—" : "(" * join(events.bundles[ci], ", ") * ")"]
-            for (ci, policies) in enumerate(events.policies) if !isempty(policies)]
+# One row per component that declares an event: its path, `name => policy` in
+# declaration order, and the event bundle's field names. No events is the
+# heading alone.
+function _lines(events::Events)
+    rows = [[_path_label(row.path),
+             join(("$name => $policy" for (name, policy) in pairs(row.policies)), ", "),
+             isempty(row.bundle) ? "—" : "(" * join(row.bundle, ", ") * ")"]
+            for row in events.components if !isempty(row.policies)]
     lines = ["Events: " * _events_counts(events)]
     isempty(rows) || append!(lines, _table("  ", ["component", "events", "bundle"], rows))
     lines
 end
-_lines(events::Events) = _lines(events, ci -> "#$ci")
 
 # --- Schedule ---------------------------------------------------------------------
 
@@ -195,18 +192,36 @@ Base.show(io::IO, built::Build) =
     print(io, "Build(", _count(length(built.structure.components), "component"),
           ", activations: ", _activations_label(built), ")")
 
-# The summary and the parts: the structure, then the dataflow and the events
-# with paths as component labels, then the warnings.
+# The feedthrough edges the execution order was computed over (§5.3, D-261),
+# derived rather than carried: a face of a component with a stage 2, fed by
+# another component's stage-2 port. A root input and a stage-1 port add none.
+function _feedthrough(structure::Structure, outputs::Outputs)
+    edges = String[]
+    for ci in outputs.order
+        isempty(outputs.components[ci].stage2) && continue
+        consumer = structure.components[ci]
+        for (face, (producer, port)) in consumer.conns
+            isempty(producer) && continue
+            port in outputs.components[index_of(structure, producer)].stage2 || continue
+            push!(edges, "$producer.$port → $(_path_label(consumer.path)).$face")
+        end
+    end
+    edges
+end
+
+# The summary and the parts: the structure, the outputs, the feedthrough line
+# the `Build` alone can derive, the events, then the warnings.
 function _lines(built::Build)
     components = built.structure.components
     continuous = count(entry.tier === CONTINUOUS for entry in components)
-    label = ci -> _path_label(components[ci].path)
+    edges = _feedthrough(built.structure, built.outputs)
     vcat(["Build: " * _count(length(components), "component") *
           " ($continuous continuous, $(length(components) - continuous) discrete); activations: " *
           _activations_label(built) * "; " * _count(length(built.warnings), "warning")],
          _indented(_lines(built.structure)),
-         _indented(_lines(built.dataflow, label)),
-         _indented(_lines(built.events, label)),
+         _indented(_lines(built.outputs)),
+         ["  feedthrough: " * (isempty(edges) ? "none" : join(edges, ", "))],
+         _indented(_lines(built.events)),
          _indented(_warning_lines(built.warnings)))
 end
 
@@ -238,6 +253,6 @@ end
 
 # --- the REPL forms ---------------------------------------------------------------
 
-for T in (Structure, Dataflow, Events, Schedule, Build, Deployment)
+for T in (Structure, Outputs, Events, Schedule, Build, Deployment)
     @eval Base.show(io::IO, ::MIME"text/plain", x::$T) = join(io, _lines(x), "\n")
 end

@@ -35,13 +35,13 @@ Structure: 4 components, 1 anchor, 1 rate scope; root inputs: none
     A₀      Δt_base  0//1  —      —
     A₁      1//50    0//1  root   gnss"""
 
-const MULTIRATE_DATAFLOW = """
-Dataflow: execution order over 4 components
-  position  component  stage 1  stage 2  feedthrough
-  1         #1         out      —        —
-  2         #2         —        out      —
-  3         #4         —        out      —
-  4         #3         —        out      in ← #4.out"""
+const MULTIRATE_OUTPUTS = """
+Outputs: execution order over 4 components
+  component  stage 1  stage 2
+  src        out      —
+  fcs/inner  —        out
+  gnss       —        out
+  fcs/outer  —        out"""
 
 const MULTIRATE_SCHEDULE = """
 Schedule: 3 rows, 1 rate scope, hyperperiod 10 base ticks
@@ -68,7 +68,7 @@ function test_show()
     @testset "the compact forms are one line with the counts (§9.2, D-257)" begin
         @test compact(multirate.structure) == "Structure(4 components, 1 anchor, 1 rate scope)"
         @test compact(pendulum.structure) == "Structure(1 component, no anchors, no rate scopes)"
-        @test compact(multirate.dataflow) == "Dataflow(4 components)"
+        @test compact(multirate.outputs) == "Outputs(4 components)"
         @test compact(multirate.events) == "Events(no events over 4 components)"
         @test compact(build(Motor(1.0)).events) == "Events(1 event over 1 component)"
         @test compact(deployed.schedule) == "Schedule(3 rows, hyperperiod 10 base ticks)"
@@ -80,7 +80,7 @@ function test_show()
         activation(activated, D8)
         @test compact(activated) == "Build(4 components, activations: Float64, $(D8))"
         @test compact(deployed) == "Deployment(h = 0.002, N_base = 1, Δt_base = 0.002, RK4)"
-        for x in (multirate.structure, multirate.dataflow, multirate.events, deployed.schedule,
+        for x in (multirate.structure, multirate.outputs, multirate.events, deployed.schedule,
                   multirate, deployed)
             @test !occursin('\n', compact(x))
             @test repr(x) == compact(x)
@@ -106,19 +106,14 @@ function test_show()
         @test count('\n', text) == 6
     end
 
-    @testset "Dataflow: the execution order with the stage-2 dependencies (§9.2, D-257)" begin
-        @test plain(multirate.dataflow) == MULTIRATE_DATAFLOW
-        # The one feedthrough edge is `fcs/outer`'s, fed by `gnss`'s stage-2 port;
-        # `fcs/inner` and `gnss` read `src.out`, a stage-1 port, so they carry none.
-        lines = split(MULTIRATE_DATAFLOW, '\n')[3:end]
-        @test count(endswith("  in ← #4.out"), lines) == 1 && count(endswith("  —"), lines) == 3
-        # Inside the `Build` the same table carries paths.
-        @test occursin("\n  Dataflow: execution order over 4 components\n" *
-                       "    position  component  stage 1  stage 2  feedthrough\n" *
-                       "    1         src        out      —        —\n" *
-                       "    2         fcs/inner  —        out      —\n" *
-                       "    3         gnss       —        out      —\n" *
-                       "    4         fcs/outer  —        out      in ← gnss.out\n", plain(multirate))
+    @testset "Outputs: the execution order with each stage's ports (§9.2, D-257, D-261)" begin
+        @test plain(multirate.outputs) == MULTIRATE_OUTPUTS
+        # Inside the `Build` the same table, indented, and under it the one
+        # feedthrough edge, `fcs/outer`'s, fed by `gnss`'s stage-2 port;
+        # `fcs/inner` and `gnss` read `src.out`, a stage-1 port, so they add none.
+        text = plain(multirate)
+        @test occursin("\n" * join("  " .* split(MULTIRATE_OUTPUTS, '\n'), "\n") * "\n", text)
+        @test occursin("\n  feedthrough: gnss.out → fcs/outer.in\n", text)
     end
 
     @testset "Events: one row per declaring component (§9.2, D-257)" begin
@@ -126,7 +121,7 @@ function test_show()
         @test plain(build(Motor(1.0)).events) ==
               "Events: 1 event over 1 component\n" *
               "  component  events             bundle\n" *
-              "  #1         start => boundary  (x, m, u, y, t)"
+              "  root       start => boundary  (x, m, u, y, t)"
         @test occursin("\n  Events: 1 event over 1 component\n" *
                        "    component  events             bundle\n" *
                        "    root       wrap => localized  (x, y, t)\n", plain(build(Sawtooth(1.0))))
@@ -161,7 +156,12 @@ function test_show()
         @test startswith(text, "Build: 4 components (1 continuous, 3 discrete); activations: Float64; no warnings\n")
         @test occursin("\n" * join("  " .* split(MULTIRATE_STRUCTURE, '\n'), "\n") * "\n", text)
         @test endswith(text, "\n  Events: no events over 4 components\n  warnings: none")
-        @test startswith(plain(pendulum), "Build: 1 component (1 continuous, 0 discrete); activations: Float64; no warnings\n")
+        # The feedthrough line lists every edge, consumers in execution order,
+        # or `none`.
+        @test occursin("\n  feedthrough: sum.e → ctl.e, ctl.out → plant.u\n", plain(build(feedback_model())))
+        text = plain(pendulum)
+        @test startswith(text, "Build: 1 component (1 continuous, 0 discrete); activations: Float64; no warnings\n")
+        @test occursin("\n  feedthrough: none\n", text)
         # A build with a warning names it on the heading and lists its logline.
         warned = @test_logs (:warn, r"^EmptyFaceSelection") build(SelectedNothing(Gain(2.0), Gain(3.0)))
         text = plain(warned)
@@ -188,7 +188,7 @@ function test_show()
     end
 
     @testset "every REPL form ends without a newline and carries no trailing whitespace (D-257)" begin
-        for x in (multirate.structure, multirate.dataflow, multirate.events, deployed.schedule,
+        for x in (multirate.structure, multirate.outputs, multirate.events, deployed.schedule,
                   multirate, deployed, pendulum.structure, pendulum_deployed.schedule, pendulum,
                   pendulum_deployed, group.schedule, group, build(Motor(1.0)).events)
             text = plain(x)

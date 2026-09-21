@@ -293,11 +293,11 @@ _declares(label::Symbol, s, declares::Symbol, declared::NamedTuple) =
     _rviol(label, s, :undeclared; declares = declares, field = _field(s),
            candidates = collect(keys(declared)))
 
-# The port list in hand is the `Dataflow`'s, and a copy of it: the payload is
-# the user's to hold, the artifact's vector is not (D-253).
+# The port list in hand is the `Outputs`' row concatenated by `_ports`, a fresh
+# vector the payload is free to hold (D-253).
 _declares(label::Symbol, s, declares::Symbol, declared::Vector{Symbol}) =
     _rviol(label, s, :undeclared; declares = declares, field = _field(s),
-           candidates = copy(declared))
+           candidates = declared)
 
 _field(s::Union{GetState,GetDeriv}) = s.field
 _field(s::GetOutput) = s.name
@@ -340,7 +340,7 @@ function _resolve_selector(s::GetOutput, label::Symbol, b::Build, act::Activatio
     ci = _read_component(s, label, b.structure, diags)
     ci === nothing && return nothing
     d = act.decls[ci]
-    ports = b.dataflow.ports[ci]
+    ports = _ports(b.outputs.components[ci])
     s.name in ports ||
         (push!(diags, _declares(label, s, :output_port, ports)); return nothing)
     # The port's *type* is the activation's, a type being no name list (D-253).
