@@ -267,7 +267,7 @@ function trace_entry_pass()
         @test d.expected == 1 && d.found == 2
         # the other columns the one re-declaration moves ride beside it, each named
         @test any(x -> x.path == "l/ctl" && x.name === :Δt, diagnostics(err))
-        @test any(x -> x.path == "l/ctl" && x.name === :provenance, diagnostics(err))
+        @test any(x -> x.path == "l/ctl" && x.name === :rates, diagnostics(err))
         # …and the same deployment against itself is no refusal at all
         @test _compile_feed(sampled_session(1), trc) isa ReplayFeed
     end

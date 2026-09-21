@@ -1209,17 +1209,23 @@ message(d::StopFaceInvalid) =
 
 """
 One constraint-pool entry (§9.1, §9.2): an anchor's period or its nonzero offset,
-with the anchor's provenance, its leave-one-out refinement factor
-`r_p = gcd(pool ∖ p) / gcd(pool)` and, for an offset that drives, the nearest
-offsets on the grid the rest of the pool supports.
+with the scope path and key of the `sample_times` entry that declared the
+anchor, its leave-one-out refinement factor `r_p = gcd(pool ∖ p) / gcd(pool)`
+and, for an offset that drives, the nearest offsets on the grid the rest of
+the pool supports.
 """
 struct GridEntry
     kind::Symbol                          # :period | :offset
     value::Rational{Int}
-    provenance::String                    # the anchor's declaring scope and key
+    scope::String                         # the anchor's declaring scope path
+    key::Symbol                           # the anchor's declaring key
     factor::Int                           # r_p ≥ 1
     alternatives::Vector{Rational{Int}}   # a driving offset's nearest non-refining neighbours; else empty
 end
+
+# The anchor's declaring entry, as every grid consumer names it.
+_anchor_label(scope::String, key::Symbol) =
+    "`sample_times` at $(_at_path(scope)), key `$key`"
 
 """
 The grid attribution (§9.2, D-187): the pool, the coarsest admissible `Δt_base`
@@ -1241,7 +1247,8 @@ Base.@kwdef struct DeploymentInvalid <: Diagnostic
     related::Any = nothing                   # the value it is measured against
     quotient::Union{Nothing,Int} = nothing   # Δt_base / h, where that is the fact
     paths::Vector{String} = String[]         # the unanchored components
-    provenance::String = ""                  # the anchor's declaring scope and key
+    scope::String = ""                       # the anchor's declaring scope path, on the two anchor arms
+    key::Union{Nothing,Symbol} = nothing     # the anchor's declaring key, on the two anchor arms
     grid::Union{Nothing,GridReport} = nothing   # the attribution, on the three grid refusals
 end
 
@@ -1274,22 +1281,18 @@ _dep_section(p::Symbol) =
 const _SUPERSCRIPTS = collect("⁰¹²³⁴⁵⁶⁷⁸⁹")
 _sup(n::Int) = n == 1 ? "" : join(_SUPERSCRIPTS[c - '0' + 1] for c in string(n))
 
-# A supplier's short label: the anchor's key, read off the tail of the
-# provenance `assembly.jl` spells ("…, key `k`"), and the entry's kind.
-function _grid_label(e::GridEntry)
-    m = match(r"key `([^`]*)`$", e.provenance)
-    (m === nothing ? e.provenance : m.captures[1]) * " " * string(e.kind)
-end
+# A supplier's short label: the anchor's declaring key and the entry's kind.
+_grid_label(entry::GridEntry) = "$(entry.key) $(entry.kind)"
 
 function _grid_block(g::Union{Nothing,GridReport})
     (g === nothing || g.admissible === nothing) && return ""
-    prov = [e.provenance for e in g.pool]
+    labels = [_anchor_label(e.scope, e.key) for e in g.pool]
     kv = ["$(e.kind) $(e.value)" for e in g.pool]
     fac = ["×$(e.factor)" for e in g.pool]
-    wp, wk, wf = maximum(textwidth, prov), maximum(textwidth, kv), maximum(textwidth, fac)
+    wp, wk, wf = maximum(textwidth, labels), maximum(textwidth, kv), maximum(textwidth, fac)
     rows = ["  admissible: gcd(pool)/k, coarsest $(g.admissible)", "  pool:"]
     for (i, e) in enumerate(g.pool)
-        row = "    " * rpad(prov[i], wp) * "  " * rpad(kv[i], wk) * "  " * rpad(fac[i], wf)
+        row = "    " * rpad(labels[i], wp) * "  " * rpad(kv[i], wk) * "  " * rpad(fac[i], wf)
         isempty(e.alternatives) ||
             (row *= "  declaring " * join(e.alternatives, " or ") * " keeps $(e.factor * g.admissible)")
         push!(rows, rstrip(row))
@@ -1329,11 +1332,11 @@ function message(d::DeploymentInvalid)
         return "Δt_base = $(d.value) disagrees with N_base = $(d.related): Δt_base/h = " *
                "$(d.quotient) (§9.1)"
     d.reason === :anchor_period &&
-        return "$(d.provenance): period $(d.value) is not an integer multiple of " *
-               "Δt_base = $(d.related) (§9.1)" * _grid_block(d.grid)
+        return "$(_anchor_label(d.scope, d.key)): period $(d.value) is not an integer " *
+               "multiple of Δt_base = $(d.related) (§9.1)" * _grid_block(d.grid)
     d.reason === :anchor_offset &&
-        return "$(d.provenance): offset $(d.value) does not land on the base grid at " *
-               "Δt_base = $(d.related) (§9.1)" * _grid_block(d.grid)
+        return "$(_anchor_label(d.scope, d.key)): offset $(d.value) does not land on the " *
+               "base grid at Δt_base = $(d.related) (§9.1)" * _grid_block(d.grid)
     "`$(d.parameter)` $(_dep_constraint(d.parameter)), got $(d.value)" *
     _dep_section(d.parameter)
 end

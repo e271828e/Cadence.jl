@@ -64,7 +64,7 @@ function assembly_class()
         # Any component may be the root (D-208): a primitive one flattens to the
         # single leaf at the root path, its `input_types` keys the root inputs.
         b = build(Plant())
-        @test b.structure.paths == [""]
+        @test paths(b.structure) == [""]
         @test b.structure.root_inputs == [:u]
     end
 
@@ -151,12 +151,12 @@ function assembly_container_children()
         # naming rule itself is the undeclared containers' below.
         sim = Simulation(Group((; c1 = TickCounter(), c2 = TickCounter()));
                          h = 1//10)
-        @test sim.deployment.build.structure.paths == ["c1", "c2"]
+        @test paths(sim.deployment.build.structure) == ["c1", "c2"]
         @test state(sim, "c2") === (n = 0,)
 
         # An empty container contributes zero children, and is not an error.
         b = build(EmptyRoster((;), ModedSource()))
-        @test b.structure.paths == ["src"]
+        @test paths(b.structure) == ["src"]
 
         # A container mixing components with anything else is one, by name.
         err = failure(() -> build(single(MixedContainer((a = Gain(1.0), b = 2.0)))))
@@ -168,7 +168,7 @@ function assembly_container_children()
         # The `Tuple` form: the same rule with index segments, `"field/1"…"field/N"`
         # (§8.5), addressable by the parent's declarations like any child name.
         tsim = Simulation(TupleRoster((Gain(2.0), Gain(3.0))); h = 1//10)
-        @test tsim.deployment.build.structure.paths == ["units/1", "units/2"]
+        @test paths(tsim.deployment.build.structure) == ["units/1", "units/2"]
         init!(tsim, fragment(inputs = (in = 1.0,)))
         @test port(tsim, "units/2", :out) === 6.0
         @test port(tsim, "", :y) === port(tsim, "units/2", :out)
@@ -258,14 +258,14 @@ function assembly_transparent_containers()
         # the same declaration order, addressed without the field segment — wiring
         # endpoints, the flat list and the read path alike.
         sim = Simulation(TransparentRoster((a = Gain(2.0), b = Gain(3.0))); h = 1//10)
-        @test sim.deployment.build.structure.paths == ["a", "b"]
+        @test paths(sim.deployment.build.structure) == ["a", "b"]
         init!(sim, fragment(inputs = (in = 1.0,)))
         @test port(sim, "b", :out) === 6.0
         @test port(sim, "", :y) === port(sim, "b", :out)
 
         # The undeclared container keeps its key segment: `TupleRoster` above wires
         # and reads the same topology as `"units/1"`, and the default is `nothing`.
-        @test build(TupleRoster((Gain(2.0), Gain(3.0)))).structure.paths == ["units/1", "units/2"]
+        @test paths(build(TupleRoster((Gain(2.0), Gain(3.0)))).structure) == ["units/1", "units/2"]
         @test transparent_container(TupleRoster((Gain(1.0),))) === nothing
         @test transparent_container(Group((;))) === :children
 
@@ -313,7 +313,7 @@ function assembly_transparent_containers()
         # over inert data, a false positive where no shadow exists. Legality is
         # per-instantiation, as every wiring judgment already is.
         sim = Simulation(Shadowed((units = Gain(2.0),), (), Gain(3.0)); h = 1//10)
-        @test sim.deployment.build.structure.paths == ["units", "trim"]     # the bare child, and nothing under it
+        @test paths(sim.deployment.build.structure) == ["units", "trim"]     # the bare child, and nothing under it
         init!(sim, fragment(inputs = (in = 1.0,)))
         @test port(sim, "units", :out) === 6.0             # reads resolve `units` bare
         @test port(sim, "", :y) === 6.0                    # and so does wiring resolution
@@ -397,8 +397,9 @@ function assembly_paths()
         # this case entirely.
         gsim = Simulation(GenericHold(SampledLoop()); h = 1//50)
         init!(gsim, fragment(inputs = (ref = 1.0,)))
-        @test gsim.deployment.build.structure.paths == sim.deployment.build.structure.paths
-        @test gsim.deployment.build.structure.conns == sim.deployment.build.structure.conns
+        @test paths(gsim.deployment.build.structure) == paths(sim.deployment.build.structure)
+        @test [entry.conns for entry in gsim.deployment.build.structure.components] ==
+              [entry.conns for entry in sim.deployment.build.structure.components]
         run!(sim; t_end = 0.2)                       # equal wiring, and equal trajectories:
         run!(gsim; t_end = 0.2)                      # the t₀ table alone would prove nothing
         @test state(gsim, "inner/plant").q === state(sim, "inner/plant").q
@@ -545,7 +546,7 @@ function assembly_two_level()
         end
 
         sim = Simulation(Vehicle(; k, kI, ω, ζ); h = 1//50)
-        @test sim.deployment.build.structure.paths == ["loop/plant", "loop/ctl", "loop/sum", "trim"]
+        @test paths(sim.deployment.build.structure) == ["loop/plant", "loop/ctl", "loop/sum", "trim"]
         init!(sim, fragment(inputs = (ref = r,)))
         run!(sim; t_end = N * Δt)
         @test state(sim, "loop/plant").q ≈ q rtol = 1e-6
@@ -574,39 +575,41 @@ function assembly_two_level()
     end
 end
 
-# --- the structure's rate tables (§9.1, §9.2, D-253) ---------------------------
-# The sample-time fold's triples are exercised against the deployed divisors in
-# `test_discrete.jl`; what is read here is the provenance the fold records beside
-# them — who declared each rate, and at which scope.
+# --- the structure's rate tables (§9.1, §9.2, D-253, D-261) --------------------
+# The sample-time fold's timings are exercised against the deployed divisors in
+# `test_discrete.jl`; what is read here is the rate chain the fold records beside
+# them on each component's row — who declared each rate, and at which scope.
 
 function assembly_provenance()
-    @testset "the structure records each component's rate provenance and each keyed scope's triple (§9.1, §9.2, D-253)" begin
-        s = build(MultiRate()).structure
-        prov(path) = s.provenance[index_of(s, path)]
-        triple(path) = s.triples[index_of(s, path)]
+    @testset "the structure's rows record each component's rate chain and each keyed scope's timing (§9.1, §9.2, D-253, D-261)" begin
+        structure = build(MultiRate()).structure
+        entry(path) = structure.components[index_of(structure, path)]
+        timing(path) = Tuple(entry(path).timing)
 
-        @test s.paths == ["src", "fcs/inner", "fcs/outer", "gnss"]
-        @test length(s.tiers) == length(s.paths)
-        @test s.tiers == [CONTINUOUS, DISCRETE, DISCRETE, DISCRETE]
+        @test paths(structure) == ["src", "fcs/inner", "fcs/outer", "gnss"]
+        @test [e.tier for e in structure.components] == [CONTINUOUS, DISCRETE, DISCRETE, DISCRETE]
+        @test all(e.instance isa AbstractComponent for e in structure.components)
 
         # Two relative levels compose; the chain names both declaring scopes.
-        @test triple("fcs/inner") == (0, 1, 0)
-        @test prov("fcs/inner") == [(scope = "", key = :fcs, entry = Relative(1)),
-                                    (scope = "fcs", key = :inner, entry = Relative(1))]
-        @test triple("fcs/outer") == (0, 5, 2)
-        @test prov("fcs/outer") == [(scope = "", key = :fcs, entry = Relative(1)),
-                                    (scope = "fcs", key = :outer, entry = Relative(5, 2))]
-        # An anchor severs and re-seeds, and its one link is the anchor's own.
-        @test triple("gnss") == (1, 1, 0)
-        @test prov("gnss") == [(scope = "", key = :gnss, entry = Absolute(Hz(50)))]
+        @test timing("fcs/inner") == (0, 1, 0)
+        @test entry("fcs/inner").rates == [(scope = "", key = :fcs, entry = Relative(1)),
+                                           (scope = "fcs", key = :inner, entry = Relative(1))]
+        @test timing("fcs/outer") == (0, 5, 2)
+        @test entry("fcs/outer").rates == [(scope = "", key = :fcs, entry = Relative(1)),
+                                           (scope = "fcs", key = :outer, entry = Relative(5, 2))]
+        # An anchor severs and re-seeds, and its one link is the anchor's own; the
+        # anchor's row carries its `(T, τ)` with the declaring scope and key.
+        @test timing("gnss") == (1, 1, 0)
+        @test entry("gnss").rates == [(scope = "", key = :gnss, entry = Absolute(Hz(50)))]
+        @test structure.anchors == [Anchor(1//50, 0, "", :gnss)]
 
         # An unlisted child continues at the enclosing scope and records nothing.
-        @test triple("src") == (0, 1, 0)
-        @test isempty(prov("src"))
+        @test timing("src") == (0, 1, 0)
+        @test isempty(entry("src").rates)
 
-        # One row per assembly a key names: `fcs`, at the triple everything under
+        # One row per assembly a key names: `fcs`, at the timing everything under
         # it folds from. `src` and `gnss` are not assemblies, so neither has a row.
-        @test s.scopes == [(path = "fcs", key = :fcs, triple = (0, 1, 0))]
+        @test structure.scopes == [(path = "fcs", key = :fcs, timing = (anchor = 0, m = 1, c = 0))]
     end
 end
 
@@ -938,7 +941,7 @@ function assembly_primitives()
         bp, bw = build(p), build(w)
         @test bp.structure.root_inputs == bw.structure.root_inputs == [:var"inner.b", :e]
         @test bp.structure.out_faces == bw.structure.out_faces
-        @test bp.structure.paths == bw.structure.paths
+        @test paths(bp.structure) == paths(bw.structure)
         sp, sw = Simulation(p; h = 1//10), Simulation(w; h = 1//10)
         cond = fragment(inputs = (var"inner.b" = 1.0, e = 2.0))
         init!(sp, cond); init!(sw, cond)
@@ -1062,7 +1065,7 @@ function assembly_primitives()
         @test output_connections(g) == ("inner/scaled" => "inner.scaled",)
 
         sim = Simulation(g; h = 1//10)
-        @test sim.deployment.build.structure.paths == ["inner/s", "inner/g", "trim"]
+        @test paths(sim.deployment.build.structure) == ["inner/s", "inner/g", "trim"]
         init!(sim, fragment(inputs = (var"inner.b" = 1.0, e = 2.0)))
         @test port(sim, "", :var"inner.scaled") === 2.0 * (3.0 * 2.0 - 1.0)
     end
@@ -1088,12 +1091,12 @@ function assembly_primitives()
         @test b.structure.root_inputs == [:var"aero.alpha", :var"ldg.right.brake", :cmd]
         # The four wires resolved: three actuator channels into `aero`, the fourth
         # into the gear's left brake, and the two unfed faces from the root.
-        @test b.structure.conns[index_of(b.structure, "aero")] ==
+        conns(structure, path) = structure.components[index_of(structure, path)].conns
+        @test conns(b.structure, "aero") ==
               [:e => ("act", :e), :a => ("act", :a), :r => ("act", :r),
                :alpha => ("", :var"aero.alpha")]
-        @test b.structure.conns[index_of(b.structure, "ldg/left")] == [:e => ("act", :brake_left)]
-        @test b.structure.conns[index_of(b.structure, "ldg/right")] ==
-              [:e => ("", :var"ldg.right.brake")]
+        @test conns(b.structure, "ldg/left") == [:e => ("act", :brake_left)]
+        @test conns(b.structure, "ldg/right") == [:e => ("", :var"ldg.right.brake")]
 
         sim = Simulation(sys; h = 1//10)
         init!(sim, fragment(inputs = (var"aero.alpha" = 0.5, var"ldg.right.brake" = 1.0,
@@ -1115,8 +1118,7 @@ function assembly_primitives()
         d = only(warnings(b2))
         @test d isa EmptyFaceSelection && d.path == "ldg" && d.selector === :except &&
               d.names == ["left.brake", "right.brake"]
-        @test b2.structure.conns[index_of(b2.structure, "ldg/right")] ==
-              [:e => ("act", :brake_right)]
+        @test conns(b2.structure, "ldg/right") == [:e => ("act", :brake_right)]
 
         # A mistyped destination stays loud. The walk evaluates the boundary before
         # the wires, so the `except` entry meets it first, fail-fast, with the

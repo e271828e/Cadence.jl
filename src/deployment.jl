@@ -50,14 +50,14 @@ already supports. One report per constructor call, computed ahead of the
 `Δt_base` branch: the refusal path's suggestion, the derivation path's line and
 the `Deployment` itself read the same substrate.
 """
-function _grid_report(anchors, prov)
+function _grid_report(anchors::Vector{Anchor})
     kinds, values, ks = Symbol[], Rational{Int}[], Int[]
-    for (k, (Tk, _)) in enumerate(anchors)
-        push!(kinds, :period); push!(values, Tk); push!(ks, k)
+    for (k, anchor) in enumerate(anchors)
+        push!(kinds, :period); push!(values, anchor.T); push!(ks, k)
     end
-    for (k, (_, τk)) in enumerate(anchors)
-        τk == 0 && continue
-        push!(kinds, :offset); push!(values, τk); push!(ks, k)
+    for (k, anchor) in enumerate(anchors)
+        anchor.τ == 0 && continue
+        push!(kinds, :offset); push!(values, anchor.τ); push!(ks, k)
     end
     isempty(values) &&
         return GridReport(GridEntry[], nothing,
@@ -78,12 +78,13 @@ function _grid_report(anchors, prov)
             # The grid the rest of the pool supports, and τ's neighbours on it. The
             # fold requires 0 ≤ τ < T (`assembly.jl`), so an upper neighbour reaching
             # the anchor's period is no offset; 0 stays, declaring none being a repair.
-            τ, T = values[i], anchors[ks[i]][1]
+            τ, T = values[i], anchors[ks[i]].T
             lo = floor(Int, τ / g) * g
             push!(alts, lo)
             lo + g < T && push!(alts, lo + g)
         end
-        push!(pool, GridEntry(kinds[i], values[i], prov[ks[i]], r, alts))
+        anchor = anchors[ks[i]]
+        push!(pool, GridEntry(kinds[i], values[i], anchor.scope, anchor.key, r, alts))
     end
     primes = [(prime = q, power = e,
                suppliers = [i for i in eachindex(values) if denominator(values[i]) % q^e == 0])
@@ -95,32 +96,33 @@ end
 
 """
 One discrete component's row of the schedule (§9.2): its `(D, Φ, Δt)` with the
-anchor it resolved against (0 is the base grid `A₀`) and its declaration
-provenance, the `sample_times` links met on the way down.
+anchor it resolved against (0 is the base grid `A₀`) and its `rates`, the
+`sample_times` links met on the way down.
 """
-struct ScheduleRow
+struct ScheduleEntry
     path::String
     anchor::Int
     D::Int
     Φ::Int
     Δt::Float64
-    provenance::Vector{RateLink}
+    rates::Vector{RateLink}
 end
 
-# `provenance` is a vector, so the `===` fallback would make two rows of two
+# `rates` is a vector, so the `===` fallback would make two rows of two
 # builds of one model unequal. Value equality is what §12.7's header check
 # needs, so both are spelled field-wise here (`hash` alongside, consistently).
-Base.:(==)(a::ScheduleRow, b::ScheduleRow) =
+Base.:(==)(a::ScheduleEntry, b::ScheduleEntry) =
     a.path == b.path && a.anchor == b.anchor && a.D == b.D && a.Φ == b.Φ &&
-    a.Δt == b.Δt && a.provenance == b.provenance
-Base.hash(r::ScheduleRow, h::UInt) =
-    hash(r.provenance, hash(r.Δt, hash(r.Φ, hash(r.D, hash(r.anchor, hash(r.path, h))))))
+    a.Δt == b.Δt && a.rates == b.rates
+Base.hash(entry::ScheduleEntry, h::UInt) =
+    hash(entry.rates, hash(entry.Δt, hash(entry.Φ, hash(entry.D,
+        hash(entry.anchor, hash(entry.path, h))))))
 
 """
 One rate scope's row (§9.2, §10.5): the assembly an explicit `sample_times` key
 opened, resolved to its own `(Dₛ, Φₛ)` by the same multiply-add its members use.
 """
-struct ScopeRow
+struct ScopeEntry
     path::String
     key::Symbol
     anchor::Int
@@ -135,24 +137,24 @@ per-component `(D, Φ, Δt)` the executor compiles over are derived from the row
 at `compile`, never stored beside them (D-261).
 """
 struct Schedule
-    rows::Vector{ScheduleRow}
-    scopes::Vector{ScopeRow}
+    rows::Vector{ScheduleEntry}
+    scopes::Vector{ScopeEntry}
 end
 
 Base.:(==)(a::Schedule, b::Schedule) = a.rows == b.rows && a.scopes == b.scopes
-Base.hash(s::Schedule, h::UInt) = hash(s.scopes, hash(s.rows, h))
+Base.hash(schedule::Schedule, h::UInt) = hash(schedule.scopes, hash(schedule.rows, h))
 
 # The per-component `(D, Φ, Δt)` the executor compiles over, derived from the
 # rows by path at `compile` (§9.2, D-261); a component with no row is the
 # continuous tier's `(1, 0, 0.0)`.
-function _gates(sch::Schedule, s::Structure)
-    byrow = Dict(r.path => r for r in sch.rows)
+function _gates(schedule::Schedule, structure::Structure)
+    byrow = Dict(row.path => row for row in schedule.rows)
     D_c, Φ_c, Δt_c = Int[], Int[], Float64[]
-    for path in s.paths
-        r = get(byrow, path, nothing)
-        push!(D_c, r === nothing ? 1 : r.D)
-        push!(Φ_c, r === nothing ? 0 : r.Φ)
-        push!(Δt_c, r === nothing ? 0.0 : r.Δt)
+    for entry in structure.components
+        row = get(byrow, entry.path, nothing)
+        push!(D_c, row === nothing ? 1 : row.D)
+        push!(Φ_c, row === nothing ? 0 : row.Φ)
+        push!(Δt_c, row === nothing ? 0.0 : row.Δt)
     end
     D_c, Φ_c, Δt_c
 end
@@ -172,7 +174,7 @@ fails; the caller owns the one throw per `Deployment` call (§9.1, D-229). `h`,
 its own; the harmonic resolution and the anchor loop read all three, so they
 run only when all three are sound (D-229).
 """
-function bind_schedule(b::Build, h, N_base, Δt_base, diags::Vector{Diagnostic})
+function bind_schedule(build::Build, h, N_base, Δt_base, diags::Vector{Diagnostic})
     k0 = length(diags)
     h === nothing && push!(diags, DeploymentInvalid(parameter = :h, reason = :missing))
     h_r = h === nothing ? nothing : _exact(:h, h, diags)
@@ -183,19 +185,20 @@ function bind_schedule(b::Build, h, N_base, Δt_base, diags::Vector{Diagnostic})
     n_ok = N_base === nothing || (N_base isa Integer && N_base ≥ 1)
     n_ok || push!(diags, DeploymentInvalid(parameter = :N_base, reason = :range, value = N_base))
 
-    anchors, prov, triples = b.structure.anchors, b.structure.aprov, b.structure.triples
+    structure = build.structure
+    anchors = structure.anchors
     # The attribution over the constraint pool — every anchor's period and every
     # nonzero offset (§9.1) — computed once, ahead of the branch, and handed to
     # every refusal that names the grid as well as to the artifact (§9.2, D-187).
-    grid = _grid_report(anchors, prov)
+    grid = _grid_report(anchors)
 
     # The Δt_base branch is its own premise: derivation reads the tiers and the
     # anchors, the explicit keyword reads only itself, and only the default path
     # reads `h` and `N_base` — which is why it alone is skipped when either is unsound.
     Δt_r, derived = nothing, false
     if Δt_base === :derive
-        unanchored = [b.structure.paths[ci] for ci in eachindex(b.structure.tiers)
-                      if b.structure.tiers[ci] === DISCRETE && triples[ci][1] == 0]
+        unanchored = [entry.path for entry in structure.components
+                      if entry.tier === DISCRETE && entry.timing.anchor == 0]
         if !isempty(unanchored)
             push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :unanchored,
                                            paths = unanchored, grid = grid))
@@ -231,38 +234,36 @@ function bind_schedule(b::Build, h, N_base, Δt_base, diags::Vector{Diagnostic})
     # grid cannot express is named, so the coarsest admissible value is chosen
     # against the whole list.
     Dk, Φk = [1], [0]
-    for (k, (Tk, τk)) in enumerate(anchors)
-        D = _as_int(Tk / Δt_r)
+    for anchor in anchors
+        D = _as_int(anchor.T / Δt_r)
         D === nothing &&
             push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :anchor_period,
-                                          value = Tk, related = Δt_r, provenance = prov[k],
-                                          grid = grid))
-        Φ = _as_int(τk / Δt_r)
+                                          value = anchor.T, related = Δt_r,
+                                          scope = anchor.scope, key = anchor.key, grid = grid))
+        Φ = _as_int(anchor.τ / Δt_r)
         Φ === nothing &&
             push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :anchor_offset,
-                                          value = τk, related = Δt_r, provenance = prov[k],
-                                          grid = grid))
+                                          value = anchor.τ, related = Δt_r,
+                                          scope = anchor.scope, key = anchor.key, grid = grid))
         push!(Dk, something(D, 1)); push!(Φk, something(Φ, 0))
     end
     length(diags) == k0 || return nothing
 
     # Per component, one multiply-add; the canonical residue 0 ≤ Φ < D survives
     # composition (§10.5), which is what the gate's truncated rem relies on. The
-    # rate scopes resolve by the same law, off the triple the fold left them.
+    # rate scopes resolve by the same law, off the timing the fold left them.
     Δtb = Float64(Δt_r)
-    rows = ScheduleRow[]
-    for ci in eachindex(b.structure.tiers)
-        b.structure.tiers[ci] === DISCRETE || continue
-        (a, m, c) = triples[ci]
-        D, Φ = m * Dk[a + 1], Φk[a + 1] + c * Dk[a + 1]
-        # the provenance vector itself: the structure is immutable, so no copy
-        push!(rows, ScheduleRow(b.structure.paths[ci], a, D, Φ, D * Δtb,
-                                b.structure.provenance[ci]))
+    bind(timing::Timing) = (timing.m * Dk[timing.anchor + 1],
+                            Φk[timing.anchor + 1] + timing.c * Dk[timing.anchor + 1])
+    rows = ScheduleEntry[]
+    for entry in structure.components
+        entry.tier === DISCRETE || continue
+        D, Φ = bind(entry.timing)
+        # the rates vector itself: the structure is immutable, so no copy
+        push!(rows, ScheduleEntry(entry.path, entry.timing.anchor, D, Φ, D * Δtb, entry.rates))
     end
-    scopes = [ScopeRow(sc.path, sc.key, sc.triple[1],
-                       sc.triple[2] * Dk[sc.triple[1] + 1],
-                       Φk[sc.triple[1] + 1] + sc.triple[3] * Dk[sc.triple[1] + 1])
-              for sc in b.structure.scopes]
+    scopes = [ScopeEntry(scope.path, scope.key, scope.timing.anchor, bind(scope.timing)...)
+              for scope in structure.scopes]
     (h = Float64(h_r), N_base = n_i, Δt_base = Δtb,
      schedule = Schedule(rows, scopes), grid = grid, derived = derived)
 end
@@ -322,7 +323,7 @@ struct Deployment
     warnings::Vector{Diagnostic}  # the warnings the constructor raised (§9.1, D-250)
 end
 
-function Deployment(b::Build; h = nothing, N_base = nothing, Δt_base = nothing,
+function Deployment(build::Build; h = nothing, N_base = nothing, Δt_base = nothing,
                     algorithm = RK4, firing_budget = 4, localization_tol = 1e-6,
                     localization_budget = 8)
     # The event parameters and the algorithm validate on their own terms, ahead
@@ -336,7 +337,7 @@ function Deployment(b::Build; h = nothing, N_base = nothing, Δt_base = nothing,
         push!(diags, DeploymentInvalid(parameter = :localization_tol, reason = :range, value = localization_tol))
     localization_budget isa Integer && localization_budget ≥ 1 ||
         push!(diags, DeploymentInvalid(parameter = :localization_budget, reason = :range, value = localization_budget))
-    bound = bind_schedule(b, h, N_base, Δt_base, diags)
+    bound = bind_schedule(build, h, N_base, Δt_base, diags)
     # One throw per call (§9.1, D-229), carrying the warnings raised so far: the
     # artifact that would have held them never returns (D-250).
     isempty(diags) || throw(DiagnosticError(diags, ws))
@@ -354,20 +355,20 @@ function Deployment(b::Build; h = nothing, N_base = nothing, Δt_base = nothing,
         # constructor, so the warning goes straight onto its own list, not through
         # `_warn!`'s channel.
         rows = bound.schedule.rows
-        u = isempty(rows) ? 1 : minimum(r.D for r in rows)
+        u = isempty(rows) ? 1 : minimum(row.D for row in rows)
         u > 1 && push!(ws, GridUtilization(Δt_base = g.admissible, utilization = u,
-                                           fastest = rows[findfirst(r -> r.D == u, rows)].path,
+                                           fastest = rows[findfirst(row -> row.D == u, rows)].path,
                                            grid = g))
     end
-    d = Deployment(b, bound.h, bound.N_base, bound.Δt_base, algorithm, Int(firing_budget),
-                   Float64(localization_tol), Int(localization_budget), bound.schedule,
-                   bound.grid, ws)
+    deployment = Deployment(build, bound.h, bound.N_base, bound.Δt_base, algorithm,
+                            Int(firing_budget), Float64(localization_tol),
+                            Int(localization_budget), bound.schedule, bound.grid, ws)
     # The completed constructor carries the record, and logs each warning once at
     # return through the standard backend (Appendix C's `logged`), as `build` does.
-    for w in ws
-        @warn logline(w)
+    for warning in ws
+        @warn logline(warning)
     end
-    d
+    deployment
 end
 
 # §12.7's header check is the consumer, and a what-if replay re-drives a

@@ -439,7 +439,7 @@ function conditions_service_walk()
         # it has a path — and the refusal is an unknown child with no list to
         # offer, not a level of the build (§8.5, §13.3).
         bo = build(OpaqueHold(OpaqueLeaf(Gain(2.0))))
-        @test bo.structure.paths == ["c"]
+        @test paths(bo.structure) == ["c"]
         d = only(diagnostics(failure(() -> resolve_condition(at("c/hidden",
                            fragment(x = (z = 1.0,))), bo))))
         @test d isa PathResolution && d.reason === :unknown_child

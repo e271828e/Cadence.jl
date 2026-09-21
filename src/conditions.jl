@@ -328,9 +328,9 @@ end
 # root input, and no leaf is written twice. Violations are collected (§13.1) and
 # handed back with the survivors, so a service that owns its own setup
 # diagnostic can fold the same list into its kind.
-function _resolve_entries(node::ConditionNode, b::Build, ::Type{T}) where {T}
-    structure, tiers = b.structure, b.structure.tiers
-    act = activation(b, T)
+function _resolve_entries(node::ConditionNode, build::Build, ::Type{T}) where {T}
+    structure = build.structure
+    act = activation(build, T)
     decls, layout = act.decls, act.layout
     diags = Diagnostic[]
     entries = _flat(node, "", structure.root, "", (), structure, diags)
@@ -349,7 +349,8 @@ function _resolve_entries(node::ConditionNode, b::Build, ::Type{T}) where {T}
         end
         ci = _component(structure, e, diags)
         ci === nothing && continue
-        c, tier, d = structure.comps[ci], tiers[ci], decls[ci]
+        entry = structure.components[ci]
+        c, tier, d = entry.instance, entry.tier, decls[ci]
         declared = e.store === :x ? d.x : e.store === :s ? d.s : init_m(c)
         if isempty(declared)
             push!(diags, _no_store(e, tier))
@@ -368,9 +369,9 @@ end
 
 # The merge bases, in one order both walk: per component, the discrete
 # store's declared defaults and then the mode store's (§14.3's fork).
-_store_bases(b::Build, act::Activation) =
-    [(store, ci, store === :s ? act.decls[ci].s : init_m(b.structure.comps[ci]))
-     for ci in eachindex(b.structure.comps) for store in (:s, :m)]
+_store_bases(build::Build, act::Activation) =
+    [(store, ci, store === :s ? act.decls[ci].s : init_m(entry.instance))
+     for (ci, entry) in enumerate(build.structure.components) for store in (:s, :m)]
 
 # Anything that is not a node reaching a service entry point is the §14.2
 # misuse, not a `MethodError`: the directive is the same one `combine` prints,
@@ -405,8 +406,8 @@ _cviol(e::CEntry, reason::Symbol; kw...) =
 # execution (§10.5) and own no state, so an `at` prefix stopping at one has
 # nothing to write — and saying so beats "no such path".
 function _component(structure::Structure, e::CEntry, diags::Vector{Diagnostic})
-    i = findfirst(==(e.path), structure.paths)
-    i === nothing || return i
+    ci = findfirst(entry -> entry.path == e.path, structure.components)
+    ci === nothing || return ci
     push!(diags, _cviol(e, :assembly_path))
     nothing
 end
@@ -818,13 +819,13 @@ function capture(sim::Simulation{T}) where {T}
     lc = lifecycle(sim)
     lc in (:initialized, :stopped) || throw(DiagnosticError(ServiceLifecycle(
         op = :capture, status = lc, legal = [:initialized, :stopped])))
-    ex, structure, tiers = sim.exec, sim.deployment.build.structure, sim.deployment.build.structure.tiers
+    ex, structure = sim.exec, sim.deployment.build.structure
     act = activation(sim.deployment.build, T)
     nodes = ConditionNode[]
-    for ci in eachindex(structure.comps)
+    for (ci, entry) in enumerate(structure.components)
         d = act.decls[ci]
         payload = NamedTuple()
-        tiers[ci] === CONTINUOUS && !isempty(d.x) &&
+        entry.tier === CONTINUOUS && !isempty(d.x) &&
             (payload = merge(payload, (x = _capture_x(d.x, ex.xbuf, first(act.layout.xblocks[ci]) - 1),)))
         ex.sstores[ci] === nothing || (payload = merge(payload, (s = ex.sstores[ci][],)))
         ex.mstores[ci] === nothing || (payload = merge(payload, (m = ex.mstores[ci][],)))
@@ -833,7 +834,7 @@ function capture(sim::Simulation{T}) where {T}
         # compiled derivative, and the authored spelling is the one the
         # service walk admits wherever a level holds its child generically
         # (§14.2, §13.3).
-        push!(nodes, foldr(at, authored_chain(structure.root, structure.paths[ci]);
+        push!(nodes, foldr(at, authored_chain(structure.root, entry.path);
                            init = fragment(; payload...)))
     end
     isempty(structure.root_inputs) || push!(nodes, fragment(inputs =

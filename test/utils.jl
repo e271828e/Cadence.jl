@@ -33,6 +33,9 @@ prefixes(::ConditionNode) = String[]
 poke!(sim, face, v) =
     (scatter!(sim.exec.store, sim.exec.act.layout.addr[("", Symbol(face))], v); nothing)
 
+# The structure's component paths in walk order, off its rows.
+paths(structure::Structure) = [entry.path for entry in structure.components]
+
 # The error a build raises, for the tests that read the diagnostics.
 failure(f) =
     try

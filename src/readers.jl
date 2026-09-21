@@ -257,8 +257,8 @@ end
 function _read_component(s, label::Symbol, structure::Structure, diags::Vector{Diagnostic})
     entry = "the read labeled `$label`, $(_spell(s))"
     resolve_authored(entry, "", structure.root, s.path, diags) === nothing && return nothing
-    i = findfirst(==(s.path), structure.paths)
-    i === nothing || return i
+    ci = findfirst(entry -> entry.path == s.path, structure.components)
+    ci === nothing || return ci
     push!(diags, _rviol(label, s, :assembly_path))
     nothing
 end
@@ -302,11 +302,11 @@ _declares(label::Symbol, s, declares::Symbol, declared::Vector{Symbol}) =
 _field(s::Union{GetState,GetDeriv}) = s.field
 _field(s::GetOutput) = s.name
 
-function _resolve_selector(s::GetState, label::Symbol, b::Build, act::Activation,
+function _resolve_selector(s::GetState, label::Symbol, build::Build, act::Activation,
                        diags::Vector{Diagnostic})
-    ci = _read_component(s, label, b.structure, diags)
+    ci = _read_component(s, label, build.structure, diags)
     ci === nothing && return nothing
-    d, t = act.decls[ci], b.structure.tiers[ci]
+    d, t = act.decls[ci], build.structure.components[ci].tier
     declared = state_decls(d, t)
     haskey(declared, s.field) ||
         (push!(diags, _declares(label, s, :state_field, declared)); return nothing)
@@ -317,11 +317,11 @@ function _resolve_selector(s::GetState, label::Symbol, b::Build, act::Activation
         StoreRead{typeof(d.s),s.field,typeof(s.i)}(ci, s.i)
 end
 
-function _resolve_selector(s::GetDeriv, label::Symbol, b::Build, act::Activation,
+function _resolve_selector(s::GetDeriv, label::Symbol, build::Build, act::Activation,
                        diags::Vector{Diagnostic})
-    ci = _read_component(s, label, b.structure, diags)
+    ci = _read_component(s, label, build.structure, diags)
     ci === nothing && return nothing
-    d, t = act.decls[ci], b.structure.tiers[ci]
+    d, t = act.decls[ci], build.structure.components[ci].tier
     if t !== CONTINUOUS
         push!(diags, _rviol(label, s, :discrete_deriv; field = s.field))
         return nothing

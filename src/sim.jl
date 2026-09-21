@@ -619,7 +619,7 @@ end
     cur.index = 0                     # boundary — no stage of its own, so no ordinal
     names = leaf_names(typeof(ex.act.decls[owner].x))
     throw(DiagnosticError(NonfiniteState(
-        path = sim.deployment.build.structure.paths[owner],
+        path = sim.deployment.build.structure.components[owner].path,
         leaf = names[i - first(xblocks[owner]) + 1],
         value = ex.xbuf[i],
         t = _seconds(ex.clock.t),
@@ -778,8 +778,9 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace
     _check_recording(:init!, trace, log, log_every, log_max)   # the run's keywords (D-261)
     plan = resolve_condition(condition, sim.deployment.build, T)      # both refusals precede every write
     assert_total(plan, sim.deployment.build.structure, :init!)   # (§14.6): all-or-nothing
-    establish_defaults!(sim.exec.xbuf, sim.exec.sstores, sim.exec.mstores, sim.deployment.build.structure.comps,
-                        activation(sim.deployment.build, T).decls, sim.deployment.build.structure.tiers)   # D-063's reset
+    establish_defaults!(sim.exec.xbuf, sim.exec.sstores, sim.exec.mstores,
+                        sim.deployment.build.structure.components,
+                        activation(sim.deployment.build, T).decls)   # D-063's reset
     apply!(sim, plan)
     _open_trajectory!(sim, Float64(t0))   # the origin at the door (D-260)
     # §11.5's capture, at §14.5's placement — after `apply!` and the clock
@@ -1257,7 +1258,8 @@ function _wrap_step(sim::Simulation, entry::Int, err)
         "a StepError reached the catch site (§13.4), which is its only constructor — " *
         "something inside the boundary sequence wrapped one"))
     cur = sim.exec.cursor
-    frame = CursorFrame(cur.comp == 0 ? nothing : sim.deployment.build.structure.paths[cur.comp],
+    frame = CursorFrame(cur.comp == 0 ? nothing :
+                            sim.deployment.build.structure.components[cur.comp].path,
                         cur.fn, cur.phase, cur.index)
     StepError(frame, _seconds(sim.exec.clock.t), entry, _species(sim, err))
 end
@@ -1279,7 +1281,8 @@ function _species(sim::Simulation, err::FieldError)
     cur = sim.exec.cursor
     cur.comp == 0 && return err
     ci, fam = cur.comp, cur.fn
-    c, t = sim.deployment.build.structure.comps[ci], sim.deployment.build.structure.tiers[ci]
+    entry = sim.deployment.build.structure.components[ci]
+    c, t = entry.instance, entry.tier
     s1 = tuple(sim.deployment.build.dataflow.stage1[ci]...)
     # Reading the names invokes declarations, and a throw here would replace the
     # author's error, the cursor frame and the `StepError` with a frame of its own.
@@ -1297,7 +1300,7 @@ function _species(sim::Simulation, err::FieldError)
     # from the probe's at a non-nominal activation, and the names are the law's
     # invariant (§5.2).
     (err.type <: NamedTuple && fieldnames(err.type) == bn) || return err
-    BundleFieldError(path = sim.deployment.build.structure.paths[ci], family = String(fam),
+    BundleFieldError(path = entry.path, family = String(fam),
                      tier = t === CONTINUOUS ? :continuous : :discrete, field = err.field,
                      legal = collect(bn), reason = classify_bundle_field(fam, t, err.field))
 end
@@ -1810,8 +1813,8 @@ continuous tier, `s` in the component's own store on the discrete one (§7.3).
 function state(sim::Simulation{T}, path::String) where {T}
     ci = index_of(sim.deployment.build.structure, path)
     sim.exec.sstores[ci] === nothing || return sim.exec.sstores[ci][]
-    _tier(i) = sim.deployment.build.structure.tiers[i]
-    _decls(i) = declarations(sim.deployment.build.structure.comps[i], _tier(i), T)
+    _tier(i) = sim.deployment.build.structure.components[i].tier
+    _decls(i) = declarations(sim.deployment.build.structure.components[i].instance, _tier(i), T)
     off = 0
     for i in 1:(ci-1)
         _tier(i) === CONTINUOUS && (off += nleaves(typeof(_decls(i).x)))

@@ -512,11 +512,11 @@ end
 # is a value copy; the zero-partial embedding happens where a continuous
 # consumer reads them (§14.3).
 function _establish_frozen!(ex::Executor, act::Activation{T}, nom::Executor,
-                            b::Build) where {T}
-    for ci in eachindex(b.structure.comps)
-        _frozen(b.structure.tiers, ci, T) || continue
-        path = b.structure.paths[ci]
-        for name in b.dataflow.ports[ci]
+                            build::Build) where {T}
+    for (ci, entry) in enumerate(build.structure.components)
+        _frozen(entry.tier, T) || continue
+        path = entry.path
+        for name in build.dataflow.ports[ci]
             scatter!(ex.store, act.layout.addr[(path, name)],
                      gather(nom.store, nom.act.layout.addr[(path, name)]))
         end

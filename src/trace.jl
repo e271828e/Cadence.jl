@@ -214,7 +214,7 @@ function _fingerprint(sim)
     layout = ex.act.layout
     (sizes = copy(layout.sizes),
      root_faces = Symbol[f for (f, _) in layout.root_inputs],
-     paths = copy(sim.deployment.build.structure.paths),
+     paths = String[entry.path for entry in sim.deployment.build.structure.components],
      stypes = Any[st === nothing ? nothing : typeof(st[]) for st in ex.sstores],
      mtypes = Any[st === nothing ? nothing : typeof(st[]) for st in ex.mstores])
 end
@@ -287,7 +287,7 @@ _dep_diff!(diags::Vector{Diagnostic}, path::String, name::Symbol, expected, foun
 
 # What the `==` above refused, named (§12.7, Appendix C): the seven
 # trajectory-determining parameters by name, then the schedule, which the value
-# covers with every column — the anchor and provenance included, so a rate
+# covers with every column — the anchor and the rates included, so a rate
 # re-declared through a different anchor at the same tick table is a different
 # deployment. The walk covers exactly what `Deployment`'s and `Schedule`'s `==`
 # compare, so a refusal is never silent.
@@ -300,7 +300,7 @@ function _walk_deployment!(diags::Vector{Diagnostic}, rec::Deployment, tgt::Depl
     # the rows, identified by path: a differing row count or path list is the
     # whole list, since rows past the first difference name different components
     if [r.path for r in a.rows] == [r.path for r in b.rows]
-        for (ra, rb) in zip(a.rows, b.rows), col in (:anchor, :D, :Φ, :Δt, :provenance)
+        for (ra, rb) in zip(a.rows, b.rows), col in (:anchor, :D, :Φ, :Δt, :rates)
             _dep_diff!(diags, ra.path, col, getfield(ra, col), getfield(rb, col))
         end
     else

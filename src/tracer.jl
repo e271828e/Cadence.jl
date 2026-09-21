@@ -181,13 +181,13 @@ With an `rng` this is one sampled evaluation instead: the state and the seeded
 faces carry redrawn primals, everything else the probe point's own values.
 """
 function _trace_direct(ci::Int, dT::Decls, fs::Vector{Symbol}, tf::Vector{Bool},
-                       qs::Vector{Symbol}, s::Structure,
+                       qs::Vector{Symbol}, structure::Structure,
                        decls::Vector{Decls}, stage1::Vector, mstores::Vector,
                        products::Vector{NamedTuple}, inscc::Set{Int}, ::Type{T};
                        rng = nothing) where {T}
-    c, dc = s.comps[ci], decls[ci]
+    c, dc = structure.components[ci].instance, decls[ci]
     u = NamedTuple{tuple(keys(dc.ins)...)}(tuple(
-        (_seed(ci, face, fs, tf, s, products, inscc, T, rng)
+        (_seed(ci, face, fs, tf, structure, products, inscc, T, rng)
          for face in keys(dc.ins))...))
     # The nominal `x` carries `Float64` leaves, which the sampled walk redraws;
     # `dT.x` is the declared one, already at `T`.
@@ -209,15 +209,15 @@ sampled path counts as routed, and only a branch none of the eight took is
 missed. The seed is per member, so the verdict is reproducible.
 """
 function _trace_sampled(ci::Int, fs::Vector{Symbol}, tf::Vector{Bool}, qs::Vector{Symbol},
-                        s::Structure, decls::Vector{Decls},
+                        structure::Structure, decls::Vector{Decls},
                         stage1::Vector, mstores::Vector, products::Vector{NamedTuple},
                         inscc::Set{Int})
     T = Tracer{false}
-    dT = declarations(s.comps[ci], CONTINUOUS, T)
+    dT = declarations(structure.components[ci].instance, CONTINUOUS, T)
     rng = Xoshiro(0)
     routes = Dict{Symbol,UInt64}(q => UInt64(0) for q in qs)
     for _ in 1:8
-        r = _trace_direct(ci, dT, fs, tf, qs, s, decls, stage1, mstores,
+        r = _trace_direct(ci, dT, fs, tf, qs, structure, decls, stage1, mstores,
                           products, inscc, T; rng = rng)
         for q in qs
             routes[q] |= r[q]
@@ -235,17 +235,18 @@ untagged too, there being no product to read. Only the in-cluster face's seed
 is redrawn under an `rng`; everything the trace reads from outside the cluster
 stays at the probe point.
 """
-function _seed(ci::Int, face::Symbol, fs::Vector{Symbol}, tf::Vector{Bool}, s::Structure,
+function _seed(ci::Int, face::Symbol, fs::Vector{Symbol}, tf::Vector{Bool}, structure::Structure,
                products::Vector{NamedTuple}, inscc::Set{Int},
                ::Type{T}, rng) where {T}
-    conns = s.conns[ci]
+    conns = structure.components[ci].conns
     (ppath, pport) = last(conns[findfirst(p -> first(p) === face, conns)])
     if isempty(ppath)
-        k = findfirst(==(pport), s.root_inputs)
-        return probe_value(retype(T, s.root_types[k]))
+        k = findfirst(==(pport), structure.root_inputs)
+        return probe_value(retype(T, structure.root_types[k]))
     end
-    pi = index_of(s, ppath)
-    declared() = probe_value(declarations(s.comps[pi], s.tiers[pi], T).outs[pport])
+    pi = index_of(structure, ppath)
+    producer = structure.components[pi]
+    declared() = probe_value(declarations(producer.instance, producer.tier, T).outs[pport])
     j = pi in inscc ? findfirst(==(face), fs) : nothing
     if j !== nothing
         bit = tf[j] ? UInt64(1) << (j - 1) : UInt64(0)
@@ -269,17 +270,17 @@ is rethrown, and everything else ships the cluster unclassified. An
 and the member falls back to the sampled trace below.
 """
 function _classify(d::AlgebraicCycle, scc::Vector{Int}, edges, placed::Vector{Int},
-                   s::Structure, decls::Vector{Decls}, stage1::Vector,
+                   structure::Structure, decls::Vector{Decls}, stage1::Vector,
                    mstores::Vector)
     T = Tracer{true}
     try
         # The acyclic prefix's probe products, at the nominal scalar: the same
         # chain `probe_stage2` runs, stopped where Kahn stopped.
-        layout = cell_layout(s, decls, Float64)
-        wss = _workspaces(s, Float64)
+        layout = cell_layout(structure, decls, Float64)
+        wss = _workspaces(structure, Float64)
         products = NamedTuple[s1 for s1 in stage1]
         for ci in placed
-            _probe_direct!(products, ci, s, decls, stage1, layout,
+            _probe_direct!(products, ci, structure, decls, stage1, layout,
                            wss, mstores, Float64)
         end
 
@@ -301,8 +302,8 @@ function _classify(d::AlgebraicCycle, scc::Vector{Int}, edges, placed::Vector{In
             # A discrete member's pinned declarations admit no tracer scalar, and
             # neither does a continuous face or port declared with no walking leaf
             # (§5.6, D-245). Beyond 64 faces the bitmask runs out.
-            dT = s.tiers[ci] === CONTINUOUS && length(fs) ≤ 64 ?
-                 declarations(s.comps[ci], CONTINUOUS, T) : nothing
+            dT = structure.components[ci].tier === CONTINUOUS && length(fs) ≤ 64 ?
+                 declarations(structure.components[ci].instance, CONTINUOUS, T) : nothing
             tf = dT === nothing ? falses(length(fs)) :
                  Bool[T in leaf_types(dT.ins[f]) for f in fs]
             tq = dT === nothing ? falses(length(qs)) :
@@ -319,11 +320,11 @@ function _classify(d::AlgebraicCycle, scc::Vector{Int}, edges, placed::Vector{In
             # input-tainted branch; the local one then decides on its primal
             # over sampled states, missing only an untaken branch (§5.6, D-012).
             routes, mode = try
-                _trace_direct(ci, dT, fs, tf, qs, s, decls, stage1, mstores,
+                _trace_direct(ci, dT, fs, tf, qs, structure, decls, stage1, mstores,
                               products, inscc, T), :global
             catch e
                 e isa Undecidable || rethrow()
-                _trace_sampled(ci, fs, tf, qs, s, decls, stage1, mstores,
+                _trace_sampled(ci, fs, tf, qs, structure, decls, stage1, mstores,
                                products, inscc), :sampled
             end
             push!(modes, mode)

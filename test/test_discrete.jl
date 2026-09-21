@@ -165,7 +165,8 @@ function discrete_rate_fold()
         br, op = bare.deployment.schedule.rows, opaque.deployment.schedule.rows
         @test [(e.D, e.Φ) for e in br] == [(2, 0), (3, 1)]
         @test [(e.D, e.Φ) for e in br] == [(e.D, e.Φ) for e in op]
-        @test bare.deployment.build.structure.paths == ["a", "b"] && opaque.deployment.build.structure.paths == ["kids/a", "kids/b"]
+        @test paths(bare.deployment.build.structure) == ["a", "b"] &&
+              paths(opaque.deployment.build.structure) == ["kids/a", "kids/b"]
     end
 
     # The schedule the fold produces: the spec's own worked example, and the
@@ -259,12 +260,12 @@ function discrete_deployment()
               [("fcs/inner", 1, 0), ("fcs/outer", 5, 2), ("gnss", 10, 0)]
         @test [r.Δt for r in rows] ≈ [0.002, 0.01, 0.02]
         @test [r.anchor for r in rows] == [0, 0, 1]
-        @test [[(l.scope, l.key) for l in r.provenance] for r in rows] ==
+        @test [[(l.scope, l.key) for l in r.rates] for r in rows] ==
               [[("", :fcs), ("fcs", :inner)],
                [("", :fcs), ("fcs", :outer)],
                [("", :gnss)]]
-        @test rows[3].provenance[1].entry isa Absolute
-        @test rows[2].provenance[2].entry == Relative(5, 2)
+        @test rows[3].rates[1].entry isa Absolute
+        @test rows[2].rates[2].entry == Relative(5, 2)
 
         # The per-component gates the executor compiles over are derived from
         # the rows at `compile` (D-261) and hold every tier: `src` is continuous,
@@ -274,10 +275,10 @@ function discrete_deployment()
         @test Δt ≈ [0.0, 0.002, 0.01, 0.02]
 
         # One scope row per assembly an explicit key opened — `fcs` here — resolved
-        # by the same multiply-add its members use, off the structure's own triple.
+        # by the same multiply-add its members use, off the structure's own timing.
         sc = only(b.structure.scopes)
-        @test (sc.path, sc.key, sc.triple) == ("fcs", :fcs, (0, 1, 0))
-        @test only(d.schedule.scopes) == ScopeRow("fcs", :fcs, 0, 1, 0)
+        @test (sc.path, sc.key, Tuple(sc.timing)) == ("fcs", :fcs, (0, 1, 0))
+        @test only(d.schedule.scopes) == ScopeEntry("fcs", :fcs, 0, 1, 0)
 
         # A completed constructor carries its warnings; there is no producer here.
         @test warnings(d) == Diagnostic[]
@@ -395,7 +396,7 @@ function discrete_deployment()
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa DeploymentInvalid && d.reason === :anchor_period
-        @test occursin("key `gnss`", d.provenance) && d.grid.admissible == 1//50
+        @test d.scope == "" && d.key === :gnss && d.grid.admissible == 1//50
         @test [(e.kind, e.value, e.factor) for e in d.grid.pool] == [(:period, 1//50, 1)]
 
         # A driving offset's refusal carries the repair: the nearest offsets on the
@@ -413,7 +414,7 @@ function discrete_deployment()
         # and the offset is named as a driver with its repair (§8.7, §9.1, §9.2).
         b = build(AnchoredBank((TickCounter(), TickCounter()), TickCounter()))
         @test length(b.structure.anchors) == 2
-        @test b.structure.triples == [(1, 1, 0), (1, 1, 0), (2, 1, 0)]
+        @test [Tuple(e.timing) for e in b.structure.components] == [(1, 1, 0), (1, 1, 0), (2, 1, 0)]
         d = only(diagnostics(failure(() -> Deployment(b; h = 1//500))))
         @test d isa DeploymentInvalid && d.reason === :anchor_offset
         @test [(e.kind, e.factor) for e in d.grid.pool] ==
@@ -463,12 +464,10 @@ function discrete_deployment()
         @test g.admissible == 1//1500 && [r.D for r in d.schedule.rows] == [3, 150]
 
         # The pool is one entry per anchor period and one per nonzero offset, in
-        # anchor order, periods first, each carrying its anchor's provenance.
+        # anchor order, periods first, each carrying its anchor's declaring scope and key.
         @test [(e.kind, e.value) for e in g.pool] ==
               [(:period, 1//500), (:period, 1//10), (:offset, 1//150)]
-        @test [occursin("key `$k`", e.provenance) for (e, k) in zip(g.pool, (:a, :b, :b))] ==
-              [true, true, true]
-        @test all(occursin("`sample_times`", e.provenance) for e in g.pool)
+        @test [(e.scope, e.key) for e in g.pool] == [("", :a), ("", :b), ("", :b)]
 
         # Leave-one-out: how much coarser the grid would be without each entry.
         # Both the 500 Hz period and the offset drive, which is the honest answer —

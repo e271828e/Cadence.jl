@@ -639,7 +639,7 @@ The primitive port a producing endpoint ultimately names, as `(path, port)`, or
 `nothing` with the refusal recorded in `diags` — the endpoint then claims nothing
 and the obligation pass reports what it left unfed (§13.1).
 """
-function resolve_source(w, entry::String, base::String, asm, path::AbstractString,
+function resolve_source(draft, entry::String, base::String, asm, path::AbstractString,
                         diags::Vector{Diagnostic})
     r = resolve_terminal(entry, base, asm, path, diags)
     r === nothing && return nothing
@@ -650,8 +650,8 @@ function resolve_source(w, entry::String, base::String, asm, path::AbstractStrin
         # Children are walked before wires, so the child's faces are already
         # resolved: an output face's producer is its recorded row, and a face
         # whose source was refused was refused there, once (D-229).
-        i = findfirst(pr -> first(pr) == (cpath, name), w.out_faces)
-        i === nothing || return last(w.out_faces[i])
+        i = findfirst(pr -> first(pr) == (cpath, name), draft.out_faces)
+        i === nothing || return last(draft.out_faces[i])
         String(name) in output_faces(comp) && return nothing   # declared, refused at the child
     end
     _wrong_direction(entry, path, cpath, name, comp, "producer", diags)   # the parent's own typo
@@ -662,7 +662,7 @@ The primitive inputs a consuming endpoint ultimately names, as `(path, face)`.
 Several, when the endpoint is a sub-assembly's input face fanning out through the
 boundary; none, when the endpoint failed to resolve and the refusal was recorded.
 """
-function resolve_dest(w, entry::String, base::String, asm, path::AbstractString,
+function resolve_dest(draft, entry::String, base::String, asm, path::AbstractString,
                       diags::Vector{Diagnostic})
     r = resolve_terminal(entry, base, asm, path, diags)
     r === nothing && return Tuple{String,Symbol}[]
@@ -673,8 +673,8 @@ function resolve_dest(w, entry::String, base::String, asm, path::AbstractString,
         # Children are walked before wires, so the child's faces are already
         # resolved: a face's consumers are its recorded route, and a face whose
         # route was refused was refused there, once (D-229).
-        i = findfirst(rt -> rt[1] == cpath && rt[2] === name, w.routes)
-        i === nothing || return copy(w.routes[i][3])
+        i = findfirst(rt -> rt[1] == cpath && rt[2] === name, draft.routes)
+        i === nothing || return copy(draft.routes[i][3])
         String(name) in input_faces(comp) && return Tuple{String,Symbol}[]   # refused at the child
     end
     _wrong_direction(entry, path, cpath, name, comp, "consumer", diags)   # the parent's own typo
@@ -686,8 +686,8 @@ _endpoints(ps::Tuple) = ps
 
 # Called by the declaring level alone, on its own children's endpoints: a parent
 # reading the face reads the route this built.
-_fanout(w, entry, base, comp, inner, diags) =
-    reduce(vcat, (resolve_dest(w, entry, base, comp, p, diags) for p in _endpoints(inner));
+_fanout(draft, entry, base, comp, inner, diags) =
+    reduce(vcat, (resolve_dest(draft, entry, base, comp, p, diags) for p in _endpoints(inner));
            init = Tuple{String,Symbol}[])
 
 # Direction is declared by the method; the resolved endpoint only cross-checks it.
@@ -717,80 +717,115 @@ One `sample_times` link (§9.1, D-253): the declaring assembly's path, the key a
 """
 const RateLink = @NamedTuple{scope::String, key::Symbol, entry::Union{Relative,Absolute}}
 
-"""One keyed scope: the assembly an explicit `sample_times` key names, and its triple."""
-const RateScope = @NamedTuple{path::String, key::Symbol, triple::NTuple{3,Int}}
+"The sample-time fold's value for one scope or component (§9.1): the anchor it hangs from (0 the base grid), and its period multiple and phase in that anchor's ticks."
+const Timing = @NamedTuple{anchor::Int, m::Int, c::Int}
+
+"""One keyed scope: the assembly an explicit `sample_times` key names, and its timing."""
+const RateScope = @NamedTuple{path::String, key::Symbol, timing::Timing}
+
+"""
+One anchor (§9.1, §9.2): the exact `(T, τ)` an `Absolute` entry seeds, with
+the `sample_times` entry that declared it, by scope path and key. Anchor 0,
+the base grid, has no record here; it is symbolic until `Δt_base` binds.
+"""
+struct Anchor
+    T::Rational{Int}
+    τ::Rational{Int}
+    scope::String
+    key::Symbol
+end
+
+"""
+One component of the structure (§9.1): its path, the instance, the tier the
+walk read, the `sample_times` links met on the way down and the timing the
+fold made of them, and each declared input face resolved to its producer.
+"""
+struct ComponentEntry
+    path::String
+    instance::AbstractComponent
+    tier::Tier
+    rates::Vector{RateLink}
+    timing::Timing
+    conns::Vector{Pair{Symbol,Tuple{String,Symbol}}}   # face => (producer path, port)
+end
 
 """
 The structure step's product (§9.1, D-253): everything the root instance alone
-fixes, nothing in it depending on a scalar type. Primitives by absolute path
-with their tier, one resolved producer per declared input, the root's input
-faces (the [root inputs](§11.3)), the sample-time fold's triples with each
-component's declaration provenance and each keyed scope's own triple, and §9.2's
-two-sided face table — the assembly faces the periphery may read, aliased onto
-the cells they derive from, and beside them every input face at every level with
-the producer it routes to. The input side is total: one-level routing gives
-every signal crossing a boundary a declared face there (D-207), so a fragment's
+fixes, nothing in it depending on a scalar type, held as rows (D-261). One
+`ComponentEntry` per primitive in walk order — its absolute path, instance and
+tier, the `sample_times` links met on the way down and the timing the fold made
+of them, and one resolved producer per declared input — and one `Anchor` per
+`Absolute` entry, the exact `(T, τ)` with the declaring scope and key. Beside
+them each keyed scope's own timing, the root's input faces (the
+[root inputs](§11.3)) with the types the wire pass fixed, and §9.2's two-sided
+face table — the assembly faces the periphery may read, aliased onto the cells
+they derive from, and beside them every input face at every level with the
+producer it routes to. The input side is total: one-level routing gives every
+signal crossing a boundary a declared face there (D-207), so a fragment's
 `inputs` payload resolves from any authoring level (§14.2). The root itself is
-retained, because the service walk resolves against the tree the
-paths index rather than against the compiled list (§13.3).
+retained, because the service walk resolves against the tree the paths index
+rather than against the compiled list (§13.3). The component index `ci` is the
+position in `components`; nothing pushes into a `Structure`'s vectors after
+construction.
 """
 struct Structure
-    root::Any                       # the tree the paths index (§13.3's service walk)
-    paths::Vector{String}
-    comps::Vector{Any}
-    tiers::Vector{Tier}                                        # per component, beside `paths`
-    conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}}   # face => (producer path, port)
-    root_inputs::Vector{Symbol}                                # root input faces, in order
-    root_types::Vector{Any}         # per root input: the type the wire pass fixed ahead of construction (D-236, D-261)
+    root::AbstractComponent                # the tree the paths index (§13.3's service walk)
+    components::Vector{ComponentEntry}     # in walk order; the index is `ci` everywhere
+    anchors::Vector{Anchor}                # anchors 1…K
+    scopes::Vector{RateScope}              # one row per keyed assembly, in walk order
+    root_inputs::Vector{Symbol}            # root input faces, in order
+    root_types::Vector{Type}               # per root input: the type the wire pass fixed (D-236, D-261)
     in_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}   # (path, face) => producer
     out_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}  # (path, face) => producer
-    triples::Vector{NTuple{3,Int}}      # per component: (anchor, m, c), anchor 0 the base grid
-    anchors::Vector{NTuple{2,Rational{Int}}}   # anchors 1…K: the exact (T, τ) pairs
-    aprov::Vector{String}               # per anchor, the declaring scope and key
-    provenance::Vector{Vector{RateLink}}  # per component: the links met on the way down
-    scopes::Vector{RateScope}             # one row per keyed assembly, in walk order
 end
 
-# The walk's state: the accumulators the `Structure` closes over past the
-# barrier, the tiers among them (`nothing` where a store-form failure was
-# recorded, narrowed on the clean walk `wire!` runs on). `conns` and `in_faces`
-# are not here — they are derived past the barrier, by `wire!` itself — and
-# neither are the root-input types, which the wire pass fixes (D-236) and the
+# The structure step's accumulator, disposable: the per-component columns the
+# `Structure`'s rows are built from at the barrier, with the slack the dirty
+# pass needs (a tier is `nothing` where a store-form failure was recorded, and
+# narrows on the clean walk `wire!` runs on), plus the walk's scratch — the
+# claims, the routes and the evaluated face lists. `conns` and `in_faces` are
+# not here — they are derived past the barrier, by `wire!` itself — and neither
+# are the root-input types, which the wire pass fixes (D-236) and the
 # `Structure` takes at construction (D-261). Violations are not held here
 # either: the step's list is an argument of every helper that can add to it.
-struct Walk
-    root::Any
+struct StructureDraft
+    root::AbstractComponent
     paths::Vector{String}
-    comps::Vector{Any}
+    instances::Vector{AbstractComponent}
     tiers::Vector{Union{Nothing,Tier}}   # per primitive, beside `paths`; `nothing` = recorded
+    rates::Vector{Vector{RateLink}}      # per primitive: the links met on the way down
+    timings::Vector{Timing}              # per primitive: the fold's value
+    anchors::Vector{Anchor}
+    scopes::Vector{RateScope}
     root_inputs::Vector{Symbol}
     out_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}
-    triples::Vector{NTuple{3,Int}}
-    anchors::Vector{NTuple{2,Rational{Int}}}
-    aprov::Vector{String}
-    provenance::Vector{Vector{RateLink}}
-    scopes::Vector{RateScope}
     feeds::Dict{Tuple{String,Symbol},Tuple{String,Symbol}}
     claims::Dict{Tuple{String,Symbol},String}                  # who claimed it, for the message
     routes::Vector{Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}}   # (path, face, consumers)
     faces::IdDict{Any,Tuple{Vector{String},Vector{String}}}   # per assembly instance, (inputs, outputs)
 end
 
-Walk(root) = Walk(root, String[], Any[],
-              Union{Nothing,Tier}[],
-              Symbol[],
-              Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
-              NTuple{3,Int}[], NTuple{2,Rational{Int}}[], String[],
-              Vector{RateLink}[], RateScope[],
-              Dict{Tuple{String,Symbol},Tuple{String,Symbol}}(),
-              Dict{Tuple{String,Symbol},String}(),
-              Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}[],
-              IdDict{Any,Tuple{Vector{String},Vector{String}}}())
+StructureDraft(root::AbstractComponent) =
+    StructureDraft(root, String[], AbstractComponent[],
+                   Union{Nothing,Tier}[],
+                   Vector{RateLink}[], Timing[],
+                   Anchor[], RateScope[],
+                   Symbol[],
+                   Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
+                   Dict{Tuple{String,Symbol},Tuple{String,Symbol}}(),
+                   Dict{Tuple{String,Symbol},String}(),
+                   Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}[],
+                   IdDict{Any,Tuple{Vector{String},Vector{String}}}())
 
-function index_of(s::Union{Structure,Walk}, path::String)
-    i = findfirst(==(path), s.paths)
-    i === nothing && throw(InternalInvariant("no component at path `$path`"))
-    i
+function index_of(structure::Structure, path::String)
+    ci = findfirst(entry -> entry.path == path, structure.components)
+    ci === nothing && throw(InternalInvariant("no component at path `$path`"))
+    ci
+end
+function index_of(draft::StructureDraft, path::String)
+    ci = findfirst(==(path), draft.paths)
+    ci === nothing && throw(InternalInvariant("no component at path `$path`"))
+    ci
 end
 
 """
@@ -806,7 +841,7 @@ function of the instance's value (§8.8).
 const WALK_FACES = ScopedValue{Union{Nothing,IdDict{Any,Tuple{Vector{String},Vector{String}}}}}(nothing)
 
 # --- the sample-time fold (§8.7, §9.1, §10.5) -----------------------------------
-# Nested rate declarations compile to one `(anchor, m, c)` triple per component,
+# Nested rate declarations compile to one `(anchor, m, c)` timing per component,
 # folding down the tree beside the wiring walk: the root scope seeds
 # `(A₀, 1, 0)`, `Relative(K, φ)` under a scope at `(a, mₛ, cₛ)` steps to
 # `(a, K·mₛ, cₛ + φ·mₛ)`, and `Absolute` severs and re-seeds a fresh anchor at
@@ -869,14 +904,14 @@ _extend(chain::Vector{RateLink}, link::Union{Nothing,RateLink}) =
     link === nothing ? copy(chain) : push!(copy(chain), link)
 
 """
-The child's scope triple, and the link an explicit key declared — the declaring
+The child's scope timing, and the link an explicit key declared — the declaring
 assembly's path, the key as `_rate_entry` returned it, and the wrapper value —
 or `nothing` for an unlisted child. The unlisted child continues at the
-enclosing triple: the `Relative(1)` default is the affine law at
+enclosing timing: the `Relative(1)` default is the affine law at
 `(K, φ) = (1, 0)`, implemented by nothing.
 """
-function _child_scope(w::Walk, path::String, st, seg::String, fld::Symbol,
-                      scope::NTuple{3,Int})
+function _child_scope(draft::StructureDraft, path::String, st, seg::String, fld::Symbol,
+                      scope::Timing)
     hit = _rate_entry(st, seg, fld)
     hit === nothing && return scope, nothing
     (k, v) = hit
@@ -887,40 +922,37 @@ function _child_scope(w::Walk, path::String, st, seg::String, fld::Symbol,
     (v isa Relative || v isa Absolute) || return scope, nothing
     link = RateLink((scope = path, key = k, entry = v))
     if v isa Relative
-        (a, m, c) = scope
-        (a, v.K * m, c + v.φ * m), link
+        Timing((scope.anchor, v.K * scope.m, scope.c + v.φ * scope.m)), link
     else
         # One anchor per `Absolute` entry (§9.1): a bare container key applies one
         # declaration to every element (§8.7), so the elements share the anchor
         # the first of them established rather than each pushing a twin.
-        prov = "`sample_times` at $(_at(path)), key `$k`"
-        a = findfirst(==(prov), w.aprov)
+        a = findfirst(anchor -> anchor.scope == path && anchor.key === k, draft.anchors)
         if a === nothing
-            push!(w.anchors, (v.T, v.τ))
-            push!(w.aprov, prov)
-            a = length(w.anchors)
+            push!(draft.anchors, Anchor(v.T, v.τ, path, k))
+            a = length(draft.anchors)
         end
-        (a, 1, 0), link
+        Timing((a, 1, 0)), link
     end
 end
 
 """
-    flatten!(w, root, diags)
+    flatten!(draft, root, diags)
 
 The tree walk of the structure step (§9.1): components collected by path, classes and
 tiers read, wiring resolved to absolute leaf terminals, sample times folded to
-`(anchor, m, c)` triples, the one-producer-per-input and whole-tree obligation
+`(anchor, m, c)` timings, the one-producer-per-input and whole-tree obligation
 rules checked. Violations are recorded in `diags` and the walk runs on; the
 throw is `build`'s, at the step barrier. Any component may be the root
 (D-208) — a primitive one flattens to the single leaf at the root path, its
 `input_types` keys the model's root inputs.
 """
-function flatten!(w::Walk, root, diags::Vector{Diagnostic})
+function flatten!(draft::StructureDraft, root, diags::Vector{Diagnostic})
     # the root scope: anchor 0, the base grid itself; no link above it and none of its own.
     # The face memo is the walk's own and is bound around it alone: the obligation
     # loop below reads `input_types`, never a face list.
-    with(WALK_FACES => w.faces) do
-        _walk!(w, "", root, (0, 1, 0), RateLink[], nothing, diags)
+    with(WALK_FACES => draft.faces) do
+        _walk!(draft, "", root, Timing((0, 1, 0)), RateLink[], nothing, diags)
     end
 
     # The obligation model (§6.1): an input is fed by a wire in some ancestor's
@@ -929,13 +961,13 @@ function flatten!(w::Walk, root, diags::Vector{Diagnostic})
     # legitimate unfed terminus is the root's own input face. A wire that failed
     # to resolve claimed nothing, so the input it should have fed is reported
     # here beside the refusal itself.
-    for (path, c) in zip(w.paths, w.comps)
+    for (path, instance) in zip(draft.paths, draft.instances)
         at_component(path) do
-            for (face, declared) in pairs(_contract(input_types, c))
-                haskey(w.feeds, (path, face)) ||
+            for (face, declared) in pairs(_contract(input_types, instance))
+                haskey(draft.feeds, (path, face)) ||
                     push!(diags, UnconnectedInput(path = path, face = face,
                                                  declared = declared,
-                                                 level = _last_level(w, path, face)))
+                                                 level = _last_level(draft, path, face)))
             end
         end
     end
@@ -945,11 +977,11 @@ end
 # The obligation chain's last level (§6.1): the topmost face an
 # `input_connections` chain handed `(path, face)` up to — the shortest route path
 # naming it as a consumer, an ancestor's path being a prefix of the leaf's. The
-# leaf's own path when no route names it: `w.routes` records only routes with
+# leaf's own path when no route names it: `draft.routes` records only routes with
 # consumers, so an entry nobody handed up has no row.
-function _last_level(w::Walk, path::String, face::Symbol)
+function _last_level(draft::StructureDraft, path::String, face::Symbol)
     level = path
-    for (rpath, _, consumers) in w.routes
+    for (rpath, _, consumers) in draft.routes
         (path, face) in consumers && length(rpath) < length(level) && (level = rpath)
     end
     level
@@ -964,36 +996,41 @@ every input face at every level, whatever the level's class. Returns the
 per-component `conns` and the `in_faces` table; the `Structure` is built from
 them once the wire pass has fixed the root-input types.
 """
-function wire!(w::Walk)
+function wire!(draft::StructureDraft)
     conns = Vector{Pair{Symbol,Tuple{String,Symbol}}}[]
     in_faces = Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[]
-    for (path, c) in zip(w.paths, w.comps)
-        push!(conns, [face => w.feeds[(path, face)]
-                      for face in keys(_contract(input_types, c))])
+    for (path, instance) in zip(draft.paths, draft.instances)
+        push!(conns, [face => draft.feeds[(path, face)]
+                      for face in keys(_contract(input_types, instance))])
     end
-    for (path, face, consumers) in w.routes
-        push!(in_faces, (path, face) => w.feeds[first(consumers)])
+    for (path, face, consumers) in draft.routes
+        push!(in_faces, (path, face) => draft.feeds[first(consumers)])
     end
-    for (path, cs) in zip(w.paths, conns), (face, producer) in cs
+    for (path, cs) in zip(draft.paths, conns), (face, producer) in cs
         push!(in_faces, (path, face) => producer)
     end
     conns, in_faces
 end
 
 # The structure step's last act (D-261): the artifact, complete at construction,
-# from the clean walk, what `wire!` derived and the root-input types the wire
-# pass fixed. The walk is clean, so no recorded failure is left and the tiers
-# narrow (§13.1, D-229).
-Structure(w::Walk, conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}},
+# its rows built from the draft's columns, what `wire!` derived and the
+# root-input types the wire pass fixed. The walk is clean, so no recorded
+# failure is left and the tiers and root types narrow (§13.1, D-229). No code
+# pushes into a `Structure`'s vector after this call.
+Structure(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}},
           in_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}},
           root_types::Vector{Any}) =
-    Structure(w.root, w.paths, w.comps, Vector{Tier}(w.tiers), conns, w.root_inputs,
-              root_types, in_faces, w.out_faces, w.triples, w.anchors, w.aprov,
-              w.provenance, w.scopes)
+    Structure(draft.root,
+              [ComponentEntry(path, instance, tier, rates, timing, cs)
+               for (path, instance, tier, rates, timing, cs) in
+                   zip(draft.paths, draft.instances, Vector{Tier}(draft.tiers),
+                       draft.rates, draft.timings, conns)],
+              draft.anchors, draft.scopes, draft.root_inputs, Vector{Type}(root_types),
+              in_faces, draft.out_faces)
 
 # `chain` is the links above `comp`, outermost first, and `link` its own — the
 # entry the enclosing assembly's `sample_times` named it under, or `nothing`.
-function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
+function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
                 chain::Vector{RateLink}, link::Union{Nothing,RateLink},
                 diags::Vector{Diagnostic})
     # The forgotten import (§8.1, D-246), first and alone: a module holding a
@@ -1011,10 +1048,10 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
         # under the component frame: an accessor's `UserCodeFraming` leaves the
         # path empty and this is where the path is known (§13.2, D-248).
         return at_component(path) do
-            push!(w.paths, path)
-            push!(w.comps, comp)
-            push!(w.triples, scope)
-            push!(w.provenance, _extend(chain, link))
+            push!(draft.paths, path)
+            push!(draft.instances, comp)
+            push!(draft.timings, scope)
+            push!(draft.rates, _extend(chain, link))
             # The store-form check (§8.2, D-247) gates the rest: the tier classifier
             # and the two field checks read a store value as a `NamedTuple`, so a
             # primitive that fails the form is read no further. The one tier
@@ -1027,15 +1064,15 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
             else
                 t = nothing                      # D-247: read no further
             end
-            push!(w.tiers, t)
+            push!(draft.tiers, t)
             # A primitive at the root: its `input_types` keys are the model's root
             # inputs, each face its own consuming entry (§8.6, §11.3, D-208), fed by
             # the same pseudo-producer an assembly root's faces get.
             if isempty(path)
                 _check_root_faces(comp, diags)
                 for face in keys(_contract(input_types, comp))
-                    push!(w.root_inputs, face)
-                    _claim!(w, (path, face), ("", face),
+                    push!(draft.root_inputs, face)
+                    _claim!(draft, (path, face), ("", face),
                             "the root component's `input_types` entry `$face`", diags)
                 end
             end
@@ -1044,18 +1081,18 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
     end
     at_component(path) do
         # One row per assembly an explicit key names, in walk order: the scope a
-        # `sample_times` key opened, with the triple everything under it folds from.
+        # `sample_times` key opened, with the timing everything under it folds from.
         link === nothing ||
-            push!(w.scopes, RateScope((path = path, key = link.key, triple = scope)))
+            push!(draft.scopes, RateScope((path = path, key = link.key, timing = scope)))
         below = _extend(chain, link)
         st = invoke_declaration(sample_times, comp)
         kids, fields = _children(path, comp)
         _check_sample_times(path, st, kids, fields, diags)
         for ((seg, kid), fld) in zip(kids, fields)
             kidpath = _join(path, seg)
-            kscope, klink = _child_scope(w, path, st, seg, fld, scope)
+            kscope, klink = _child_scope(draft, path, st, seg, fld, scope)
             # a primitive's tier, `nothing` for an assembly
-            t = _walk!(w, kidpath, kid, kscope, below, klink, diags)
+            t = _walk!(draft, kidpath, kid, kscope, below, klink, diags)
             # A key on a continuous child is the Δt-on-continuous error at
             # declaration time (§8.7): keys name discrete or scope children only.
             klink !== nothing && t === CONTINUOUS &&
@@ -1074,16 +1111,16 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
         # The evaluated lists, recorded for the primitives (`WALK_FACES`): the
         # readers are a parent's own body and its wire resolution, both later, so
         # nothing below this line reads the row just written.
-        w.faces[comp] = (String[String(f) for (f, _) in ins],
-                         String[String(f) for (_, f) in outs])
+        draft.faces[comp] = (String[String(f) for (f, _) in ins],
+                             String[String(f) for (_, f) in outs])
         _check_face_names(path, ins, outs, diags)
 
         for pair in invoke_declaration(child_connections, comp)
             entry = _entry("child_connections", path, pair)
-            producer = resolve_source(w, entry, path, comp, first(pair), diags)
+            producer = resolve_source(draft, entry, path, comp, first(pair), diags)
             producer === nothing && continue   # recorded; the destination stays unfed
-            for consumer in resolve_dest(w, entry, path, comp, last(pair), diags)
-                _claim!(w, consumer, producer, entry, diags)
+            for consumer in resolve_dest(draft, entry, path, comp, last(pair), diags)
+                _claim!(draft, consumer, producer, entry, diags)
             end
         end
 
@@ -1092,7 +1129,7 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
         # anything, there being no parent above them to claim the obligation.
         for (face, inner) in ins
             entry = _entry("input_connections", path, face => inner)
-            consumers = _fanout(w, entry, path, comp, inner, diags)
+            consumers = _fanout(draft, entry, path, comp, inner, diags)
             # Every entry routes to at least one internal endpoint, at every level
             # (D-210): a face feeding nothing declares nothing, and the empty tuple
             # would otherwise reach no consumer, leave no row in §9.2's face graph,
@@ -1105,18 +1142,18 @@ function _walk!(w::Walk, path::String, comp, scope::NTuple{3,Int},
                                             port = Symbol(face)))
                 continue                       # a route with no consumer registers nothing
             end
-            push!(w.routes, (path, Symbol(face), consumers))
+            push!(draft.routes, (path, Symbol(face), consumers))
             isempty(path) || continue
-            push!(w.root_inputs, Symbol(face))
+            push!(draft.root_inputs, Symbol(face))
             for consumer in consumers
-                _claim!(w, consumer, ("", Symbol(face)), entry, diags)
+                _claim!(draft, consumer, ("", Symbol(face)), entry, diags)
             end
         end
         for (src, face) in outs
             entry = _entry("output_connections", path, src => face)
-            producer = resolve_source(w, entry, path, comp, src, diags)
+            producer = resolve_source(draft, entry, path, comp, src, diags)
             producer === nothing && continue   # recorded; the face registers no row
-            push!(w.out_faces, (path, Symbol(face)) => producer)
+            push!(draft.out_faces, (path, Symbol(face)) => producer)
         end
     end
     nothing
@@ -1128,16 +1165,17 @@ _entry(method::String, path::String, pair::Pair) =
 # Every input takes exactly one connection, and the rule spans levels (§6.1): an
 # input fed both by a sibling wire and by an ancestor's route — or handed up while
 # also wired — meets its second claim here.
-function _claim!(w::Walk, consumer, producer, entry::String, diags::Vector{Diagnostic})
-    if haskey(w.feeds, consumer)
+function _claim!(draft::StructureDraft, consumer, producer, entry::String,
+                 diags::Vector{Diagnostic})
+    if haskey(draft.feeds, consumer)
         push!(diags, TwoProducers(path = consumer[1], port = consumer[2],
-                                 incumbent = w.claims[consumer], entry = entry,
-                                 incumbent_producer = _terminal(w.feeds[consumer]),
+                                 incumbent = draft.claims[consumer], entry = entry,
+                                 incumbent_producer = _terminal(draft.feeds[consumer]),
                                  producer = _terminal(producer)))
         return nothing                     # the incumbent keeps the claim
     end
-    w.feeds[consumer] = producer
-    w.claims[consumer] = entry
+    draft.feeds[consumer] = producer
+    draft.claims[consumer] = entry
     nothing
 end
 

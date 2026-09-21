@@ -249,10 +249,8 @@ function diagnostics_kind_set()
         # The attribution the three grid refusals and the advisory print from
         # (§9.2, D-187): two drivers, the offset among them carrying the nearest
         # offsets the rest of the pool supports.
-        grid = GridReport([GridEntry(:period, 1//30, "`sample_times` at `a`, key `b`",
-                                     10, Rational{Int}[]),
-                           GridEntry(:offset, 1//7, "`sample_times` at `a`, key `b`",
-                                     3, Rational{Int}[7//50, 3//20])],
+        grid = GridReport([GridEntry(:period, 1//30, "a", :b, 10, Rational{Int}[]),
+                           GridEntry(:offset, 1//7, "a", :b, 3, Rational{Int}[7//50, 3//20])],
                           1//300,
                           [(prime = 2, power = 2, suppliers = [1]),
                            (prime = 3, power = 1, suppliers = [1]),
@@ -422,11 +420,9 @@ function diagnostics_kind_set()
             DeploymentInvalid(parameter = :Δt_base, reason = :disagrees_with_n, value = 1//50,
                               related = 3, quotient = 2),
             DeploymentInvalid(parameter = :Δt_base, reason = :anchor_period, value = 1//30,
-                              related = 1//100, provenance = "`sample_times` at `a`, key `b`",
-                              grid = grid),
+                              related = 1//100, scope = "a", key = :b, grid = grid),
             DeploymentInvalid(parameter = :Δt_base, reason = :anchor_offset, value = 1//7,
-                              related = 1//100, provenance = "`sample_times` at `a`, key `b`",
-                              grid = grid),
+                              related = 1//100, scope = "a", key = :b, grid = grid),
             GridUtilization(Δt_base = 1//300, utilization = 3, fastest = "a/b",
                             grid = grid),
             AttachUnknownFace(device = "Pad", binding = "Enumerated", face = :q,
