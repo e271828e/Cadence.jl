@@ -169,9 +169,10 @@ own copy of the schemas, so the growth cannot reach it.
 
 Reached from three places, all of them stopped-sim: the two doors that build a
 run, `init!` and `replay!`, and `reclaim!`'s two callers, `attach!` and
-`detach!`. With no trace to write into — before the first `init!`, or under
-`trace = false` — nothing is appended and the indices are provisional; no drain
-runs before boundary zero has, so nothing reads them.
+`detach!`. With no trace to write into, under `trace = false`, nothing is
+appended and the indices are provisional. Before the first `init!` the appends
+land on the placeholder run's trace, which `init!` discards. No drain runs
+before boundary zero has, so nothing reads either.
 
 The appended range is a local (D-260): the thunks are compiled against it here
 and nothing reads it afterwards. `trc` is the run's trace, `nothing` under the

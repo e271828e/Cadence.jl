@@ -213,8 +213,8 @@ function failures_runtime()
         @test e2 isa StepError{Detonated}
         @test e2.frame == e.frame && e2.boundary == 0
         @test lifecycle(sim2) === :built
-        # The run is the mode (§12.6, D-255), so the failed `replay!`'s own run —
-        # built ahead of the boundary — is what stands, and it declared `:replay`.
+        # The failed `replay!`'s own run, built ahead of the boundary, is what
+        # stands, and it carries the feed, so the mode reads `:replay` (§12.6, D-260).
         # `built` is what governs: nothing advances on it, and the next door
         # replaces the run wholesale.
         @test mode(sim2) === :replay

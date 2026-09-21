@@ -67,8 +67,8 @@ function trace_recording()
         @test b.frame == 3 && recorded_faces(trace(sim), b) == [:a, :c]
         @test [v for (_, v) in b.entries] == [3.0, 2.0]
 
-        # The quiet frame stays free: the register's frame stamp and its counter are
-        # field writes, and nothing is recorded where nothing was drained (§11.1).
+        # The quiet frame stays free: the trace's drain count is one field write,
+        # and nothing is recorded where nothing was drained (§11.1, D-260).
         @test @ballocated(drain!($sim)) == 0
     end
 

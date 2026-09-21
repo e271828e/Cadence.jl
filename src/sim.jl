@@ -261,8 +261,8 @@ _t_bound(t, call::Symbol) = (t isa Real && t ≥ 0) ? Float64(t) :
 # that magnitude, not the duration's, is the precision the comparison has —
 # `0.3/0.1` is `2.9999999999999996`, and at a large clock the subtraction
 # alone is off by more than a fixed frame fraction would absorb.
-# The scalars are the deployment's own `T` (a `Dual` included), the step the
-# bound `Float64`.
+# `t` may be the deployment's own `T` (a `Dual` included); the origin `t₀` and
+# the step are `Float64` (D-260).
 _frame_slack(t::Real, h::Float64) = 4 * eps(t) / h
 function _frames_to(t::Real, t₀::Real, h::Float64)
     isinf(t) && return typemax(Int)
@@ -854,7 +854,7 @@ exactly when a halt lands at the recording's last frame; every advance in
 `:replay` is capped there, so none ever runs past the records and goes on
 live.
 
-Replay re-records: the trace register runs normally and **the new trace
+Replay re-records: the drain records normally and **the new trace
 inherits the old header** (§12.7), this simulation's writers appended under
 §11.5's growth rule, so the re-drained batches keep the recording's own writer
 indices — a bit-identical prefix — while a continuation's live drains record
@@ -945,8 +945,8 @@ end
 §12.6's third door, and the only one that moves the input mode alone (§12.7,
 D-219): take a replaying simulation live where it stands. The mode becomes
 `:live` and the recording's remainder detaches, and **nothing else is
-touched** — not the trajectory, which stands at the halt, and not the trace
-register, which keeps the header it inherited and the batches it has
+touched** — not the trajectory, which stands at the halt, and not the run's
+trace, which keeps the header it inherited and the batches it has
 re-recorded. The next `run!` or `step!` is therefore the live continuation from
 the replayed boundary, and its drains append to the replayed prefix, so the
 session leaves behind one seamless recording of itself.
