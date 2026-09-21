@@ -97,7 +97,7 @@ function test_bindings()
         # duplicates (§11.3).
         sim = Simulation(two_root_inputs(); h = 1//10)
         attach!(sim, Pad("p"), TableBinding(x = (face = "a",), y = (face = "a",)))
-        @test sim.plane.roster[1].writer.faces == [:a]
+        @test sim.plane.roster[1].handle.writer.faces == [:a]
     end
 
     @testset "the conditioning: deadzone rescales, expo attenuates, endpoints fixed (§11.4)" begin
@@ -148,7 +148,7 @@ function test_bindings()
         dev = Poller((; stick = 0.55, thr = 0.7))
         h = attach!(sim, dev, TableBinding(stick = (face = "a", deadzone = 0.1),
                                            thr   = (face = "b",)))
-        @test binding(h) === sim.plane.roster[1].binding
+        @test h === sim.plane.roster[1].handle
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         run!(sim; t_end = 1000.0)                # ends by the device's stop, past its observed apply
         @test port(sim, "", :a) ≈ 0.5            # (0.55 − 0.1) / 0.9: conditioned at staging
@@ -244,7 +244,7 @@ function test_bindings()
     @testset "a bidirectional binding composes both halves (§11.6)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         h = attach!(sim, Pad("p"), Duplex())
-        @test sim.plane.roster[1].writer.faces == [:a]     # the input half: the claim staked
+        @test sim.plane.roster[1].handle.writer.faces == [:a]   # the input half: the claim staked
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         stage!(h, "a" => 0.4)
         run!(sim; t_end = 0.2)

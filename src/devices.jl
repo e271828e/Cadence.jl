@@ -107,24 +107,26 @@ The handle (§11.6): the one object every attached device receives, carrying
 exactly the primitive capabilities — read (`latest`, `wait_next_snapshot`),
 stage (`stage!`) and control access (`running`, `stop!`) — and deliberately
 *not* the `Simulation`: what a device may touch is what the handle holds.
-`attach!` constructs it and returns it, and the same handle is what the
-wrapper passes to `loop(dev, handle)` on the device's task. It also carries
-the attachment's binding, read back by `binding(handle)`: the loop's own
+Of the plane it holds the exclusivity index alone, the `Dict` `stage!` checks
+a face against, never the plane itself (D-261). `attach!` constructs it and
+returns it, and the same handle is what the wrapper passes to
+`loop(dev, handle)` on the device's task. It also carries the attachment's
+binding, read back by `binding(handle)`: the loop's own
 `map_input`/`map_output` calls take it from the handle instead of the device
-carrying its configuration (§11.6). `last_seen` is the §12.3 waiter's private
-register, refreshed at spawn so a run's first wait observes that run's
-boundaries. `detached` is D-244's flag: the handle outlives its roster entry
-as an object only, and `detach!` sets the flag so that the two write
-primitives, `stage!` and `report!`, refuse by name instead of landing in a
-cell no drain reads — one atomic load per stage, no roster scan. The reads
-stay legal.
+carrying its configuration (§11.6). The stable device id is the roster
+entry's (§12.4); the handle's `who` renders it. `last_seen` is the §12.3
+waiter's private register, refreshed at spawn so a run's first wait observes
+that run's boundaries. `detached` is D-244's flag: the handle outlives its
+roster entry as an object only, and `detach!` sets the flag so that the two
+write primitives, `stage!` and `report!`, refuse by name instead of landing
+in a cell no drain reads — one atomic load per stage, no roster scan. The
+reads stay legal.
 """
 mutable struct DeviceHandle
-    const id::Int
     const who::String
     const b::AbstractBinding
     const writer::Writer
-    const plane::DataPlane
+    const claimedby::Dict{Symbol,String}        # the plane's exclusivity index, by reference
     const ctl::Control
     const published::Published
     const diag::DiagCell
@@ -226,7 +228,7 @@ contract misuse and throws by name (D-244).
 function stage!(h::DeviceHandle, pairs::Pair...)
     _assert_attached(h)
     _beat!(h.diag)
-    batch = _normalize(h.writer, pairs, h.plane.claimedby, h.diag; device = h.who)
+    batch = _normalize(h.writer, pairs, h.claimedby, h.diag; device = h.who)
     batch === nothing || _stage!(h.writer, batch)
     nothing
 end
@@ -347,7 +349,7 @@ function _wrap(e::RosterEntry)
             # no override has nothing to provoke it, so its raise is a crash
             # whenever it lands.
             unblocked = (@atomic e.handle.ctl.stopped) && _unblocks(e.dev)
-            unblocked || _report!(e.diag, DeviceCrash(err, e.should_abort))
+            unblocked || _report!(_handle(e).diag, DeviceCrash(err, e.should_abort))
         end
     finally
         _shutdown!(e)
@@ -378,8 +380,8 @@ function _init_devices!(sim)
             true
         catch err
             _shutdown!(e)
-            _report!(e.diag, DeviceCrash(err, e.should_abort))   # addressed by the entry:
-            e.should_abort && stop!(e.handle)                    # no task holds a handle yet (§12.4)
+            _report!(_handle(e).diag, DeviceCrash(err, e.should_abort))  # addressed by the
+            e.should_abort && stop!(e.handle)     # entry: no task holds a handle yet (§12.4)
             false
         end
         ok && push!(live, e)
@@ -468,7 +470,7 @@ function _sweep_tail!(sim)
     plane = sim.plane
     residue = ResidueRecord[]
     for e in plane.roster
-        _fold!(e.acct, e.diag)
+        _fold!(e.acct, _handle(e).diag)
         _residue!(residue, _who(e), e.acct)
     end
     _fold!(plane.harness_acct, plane.harness_diag)

@@ -49,7 +49,8 @@ function test_roster()
     @testset "admission is three checks in spec order (§11.3)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         d1 = Pad("d1")
-        @test attach!(sim, d1, Enumerated("a")).id == 1
+        attach!(sim, d1, Enumerated("a"))
+        @test sim.plane.roster[end].id == 1
         # Identity before claims: the same instance re-attached — even under an
         # overlapping claim — is AlreadyAttached, never a self-ClaimConflict.
         @test_throws DiagnosticError{AlreadyAttached} attach!(sim, d1, Enumerated("a"))
@@ -59,7 +60,8 @@ function test_roster()
         @test err isa DiagnosticError && diag isa ClaimConflict
         @test occursin("device 1", diag.incumbent)
         # Affinity: the calling task is a single-slot resource.
-        @test attach!(sim, Panel("p1"), Enumerated("b")).id == 2
+        attach!(sim, Panel("p1"), Enumerated("b"))
+        @test sim.plane.roster[end].id == 2
         @test_throws DiagnosticError{CallerTaskConflict} attach!(sim, Panel("p2"), Enumerated())
         # An enumeration drifted onto a nonexistent face is a diagnosable anomaly.
         du = carried(@test_throws DiagnosticError{AttachUnknownFace} attach!(sim, Pad("d3"), Enumerated("flaps")))
@@ -107,7 +109,7 @@ function test_roster()
         d1, g = Pad("d1"), Pad("gui")
         attach!(sim, d1, Enumerated("a"))
         hg = attach!(sim, g, Greedy())                   # greedy last: exactly what is left
-        @test sim.plane.roster[2].writer.faces == [:b]
+        @test sim.plane.roster[2].handle.writer.faces == [:b]
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         stage!(hg, "b" => 5.0)
         run!(sim; t_end = 0.1)
@@ -130,10 +132,10 @@ function test_roster()
         # A second greedy stakes the empty remainder: legal, useless, said out loud.
         g2 = Pad("gui2")
         @test_logs (:warn, r"^EmptyGreedyClaim: ") attach!(sim, g2, Greedy())   # `logged`, kind first
-        @test isempty(sim.plane.roster[3].writer.faces)
+        @test isempty(sim.plane.roster[3].handle.writer.faces)
         # The line is presentation; the warning's home is the new entry's own
         # cell (§11.8, D-250), so the next run's status carries it.
-        @test only((@atomic sim.plane.roster[3].diag.batch).ring) isa EmptyGreedyClaim
+        @test only((@atomic sim.plane.roster[3].handle.diag.batch).ring) isa EmptyGreedyClaim
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))   # cells survive a fresh trajectory
         step!(sim; frames = 1)
         @test writer_status(latest(sim), "device 3 (Pad)").totals.empty_greedy == 1
@@ -190,20 +192,24 @@ function test_roster()
     @testset "device ids are monotonic per Simulation and never reused (§11.3)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         d1 = Pad("d1")
-        @test attach!(sim, d1, Enumerated("a")).id == 1
-        @test attach!(sim, Pad("d2"), Enumerated("b")).id == 2
+        attach!(sim, d1, Enumerated("a"))
+        @test sim.plane.roster[end].id == 1
+        attach!(sim, Pad("d2"), Enumerated("b"))
+        @test sim.plane.roster[end].id == 2
         detach!(sim, d1)
         err = failure(() -> attach!(sim, Pad("dx"), Enumerated("b")))     # rejected: ClaimConflict
         @test err isa DiagnosticError
-        @test attach!(sim, Pad("d3"), Enumerated("a")).id == 3            # not 1, and no id burned
+        attach!(sim, Pad("d3"), Enumerated("a"))
+        @test sim.plane.roster[end].id == 3                                # not 1, and no id burned
     end
 
     @testset "the roster is frozen per run: attach and detach are stopped-sim operations (§11.3)" begin
         sim = Simulation(chain3(); h = 1//100000)
         init!(sim, fragment(inputs = (u = 0.0,)))
         d = Pad("d")
-        @test attach!(sim, d, Enumerated("u")).id == 1   # also warms both compile paths, so
-        detach!(sim, d)                                  # the mid-run checks below race no JIT
+        attach!(sim, d, Enumerated("u"))                 # also warms both compile paths, so
+        @test sim.plane.roster[end].id == 1              # the mid-run checks below race no JIT
+        detach!(sim, d)
         t = Threads.@spawn run!(sim; t_end = 1.0)                # 100k frames: alive throughout the checks
         while lifecycle(sim) !== :running
             yield()
@@ -216,7 +222,8 @@ function test_roster()
         @test err_a isa DiagnosticError && diagnostic(err_a) isa ServiceLifecycle
         @test err_d isa DiagnosticError && diagnostic(err_d) isa ServiceLifecycle
         # The freeze lifts with the run: the same operations are legal again.
-        @test attach!(sim, d, Enumerated("u")).id == 2
+        attach!(sim, d, Enumerated("u"))
+        @test sim.plane.roster[end].id == 2
         detach!(sim, d)
     end
 

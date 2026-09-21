@@ -107,31 +107,36 @@ function check_device(dev::AbstractDevice)
 end
 
 """
-One roster entry (§11.3): the device instance, its binding, the stable id
-assigned at `attach!` — monotonic per `Simulation`, never reused, living
-exactly as long as the entry — the compiled writer over its claim set, the
-entry's drain thunk, the per-attachment `should_abort` policy (§11.6: never
-a device property — the same joystick is advisory in one deployment and
-essential in another), and the handle `attach!` constructed and returned.
+One roster entry (§11.3): the device instance, the stable id assigned at
+`attach!` — monotonic per `Simulation`, never reused, living exactly as long
+as the entry — the entry's drain thunk, the per-attachment `should_abort`
+policy (§11.6: never a device property — the same joystick is advisory in one
+deployment and essential in another), the loop's account, and the handle
+`attach!` constructed and returned. The binding, the compiled writer over the
+claim set and the device's diagnostic cell are the handle's, read through it
+(D-261): what survives a stop, binding, claims and stable device id (§12.4),
+survives on the entry through its handle.
 Past the attach point nothing distinguishes a computed claim from a returned
 one: the source is exhausted there, and validation, storage and the drain
 treat the two identically.
 """
 struct RosterEntry
     dev::AbstractDevice
-    binding::AbstractBinding
     id::Int
-    writer::Writer
     drain::Function                 # the compiled (cell, scatter) pair as a callable, see _drain_thunk
     should_abort::Bool              # the per-attachment failure policy (§11.6, §12.4)
-    diag::DiagCell                  # the device's diagnostic cell (§11.8), shared with the handle
     acct::WriterAccount             # the loop's private account behind the cell (§11.8)
-    handle::Any                     # the DeviceHandle; `Any` for include order only, read off the frame path
+    handle::Any                     # the DeviceHandle; `Any` for include order only
 end
+
+# The entry's handle, read typed: `DeviceHandle` is defined after this file, so
+# the field is `Any` and every reader pays the assert here — a check, not an
+# allocation, on the frame top too.
+_handle(e::RosterEntry) = e.handle::DeviceHandle
 
 # The handle's own name, read typed: a fresh string per publication would be
 # an allocation on the quiet frame (§11.8).
-_who(e::RosterEntry) = (e.handle::DeviceHandle).who
+_who(e::RosterEntry) = _handle(e).who
 
 # The stopped-sim compile of one writer's drain (§11.4): a zero-argument thunk
 # capturing the store and the writer *concretely* — this dynamic dispatch is
@@ -146,16 +151,20 @@ _who(e::RosterEntry) = (e.handle::DeviceHandle).who
 # the record branch inside `_drain!` folds where there is nothing to record.
 _drain_thunk(store, w::Writer, trc, widx::Int) = () -> _drain!(store, w, trc, widx)
 
+# The thunk a plane and a fresh entry hold before a door or a roster change
+# compiles one (D-261): nothing drains before boundary zero has run, so a call
+# here is a lifecycle invariant broken, not a device's fault.
+_no_drain() = throw(InternalInvariant("drain thunk called before a door compiled it"))
+
 """
 The data plane's mutable holder: the roster in attachment order — which is the
 drain's application order — the harness writer and its drain thunk, the
-exclusivity index behind the `ClaimedFaceEntry` payload, the store the thunks
-compile against, and the id counter; the §11.3 freeze itself is the
-lifecycle's `:running` state (devices.jl). Mutable and
-abstractly typed deliberately: the harness writer's *type* changes at every
-roster change (its schema is recompiled), so it cannot be a `Simulation` type
-parameter, and everything here is stopped-sim configuration read behind
-function barriers.
+exclusivity index behind the `ClaimedFaceEntry` payload, and the id counter;
+the §11.3 freeze itself is the lifecycle's `:running` state (devices.jl).
+Mutable and abstractly typed deliberately: the harness writer's *type*
+changes at every roster change (its schema is recompiled), so it cannot be a
+`Simulation` type parameter, and everything here is stopped-sim configuration
+read behind function barriers.
 
 The harness writer owns a diagnostic cell and its
 account like any other (§11.8, D-200: it is a
@@ -168,9 +177,12 @@ at spawn and emptied at run end, which is what lets `publish!` read
 empty, and every device reads `:none` — device tasks are run-scoped
 observables (§12.4).
 
-The trace the drain writes into is the run's (§11.5, D-260), closed into every
-thunk here rather than held on the plane: a door or a roster change recompiles
-the thunks against the run's trace, and nothing on the plane duplicates it.
+The trace the drain writes into is the run's (§11.5, D-260) and the store it
+scatters into is the executor's: both are closed into every thunk rather than
+held on the plane. The plane compiles no thunk at construction (D-261): a door
+or a roster change compiles them, at `_install_writers!` alone, which takes
+the store and the run's trace as arguments, and `harness_drain` holds the
+`_no_drain` sentinel until the first does.
 
 The loop is a diagnostic writer too, so its cell and account are the plane's
 (§11.8, D-256), and `published` is §11.2's holder, read by `latest(sim)` and
@@ -187,19 +199,14 @@ mutable struct DataPlane
     published::Published            # §11.2's `@atomic latest` holder
     run_tasks::Dict{Int,Task}       # the run's device tasks, by device id (§12.2, D-193)
     claimedby::Dict{Symbol,String}  # face → incumbent: the exclusivity index
-    store::Any                      # the model's store bundle, captured into the drain thunks
     next_id::Int
 end
 
-# The run is built ahead of the plane because the drain thunks close over its
-# trace (§11.5, D-260): with the roster empty the harness writer is the sole
-# writer, index 1 of the first set a run's trace records, and
-# `_install_writers!` re-fixes that at each door and at every roster change.
-function DataPlane(layout::Layout, store, trc)
+function DataPlane(layout::Layout)
     w = Writer(layout, Symbol[f for (f, _) in layout.root_inputs])
-    DataPlane(RosterEntry[], w, _drain_thunk(store, w, trc, 1), DiagCell(EMPTY_DIAG),
+    DataPlane(RosterEntry[], w, _no_drain, DiagCell(EMPTY_DIAG),
               WriterAccount(), DiagCell(EMPTY_DIAG), WriterAccount(), Published(nothing),
-              Dict{Int,Task}(), Dict{Symbol,String}(), store, 1)
+              Dict{Int,Task}(), Dict{Symbol,String}(), 1)
 end
 
 """
@@ -241,19 +248,20 @@ only broadens and every pending entry survives the reshape.
 
 The roster change is also where the trace's schema list grows (§11.5): the
 current writer set is appended and every drain thunk recompiled against its
-new index, which is what `_install_writers!` does at the tail here. The trace
-it grows is the current run's, passed in by `attach!` and `detach!` (D-260).
+new index, which is what `_install_writers!` does at the tail here. The store
+the thunks scatter into and the trace they grow are the executor's and the
+current run's, passed in by `attach!` and `detach!` (D-260, D-261).
 """
-function reclaim!(plane::DataPlane, layout::Layout, trc)
+function reclaim!(plane::DataPlane, layout::Layout, store, trc)
     empty!(plane.claimedby)
-    for e in plane.roster, f in e.writer.faces
+    for e in plane.roster, f in _handle(e).writer.faces
         plane.claimedby[f] = _who(e)
     end
     old = plane.harness
     pending = @atomicswap old.cell.pending = nothing
     w = Writer(layout, Symbol[f for (f, _) in layout.root_inputs if !haskey(plane.claimedby, f)])
     plane.harness = w
-    _install_writers!(plane, trc)          # §11.5: the schema list grows, the thunks follow
+    _install_writers!(plane, store, trc)   # §11.5: the schema list grows, the thunks follow
     if pending !== nothing
         batch = pending[]
         entries = [old.faces[i] => batch.vals[i] for i in 1:length(old.faces) if batch.mask[i]]

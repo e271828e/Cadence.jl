@@ -254,7 +254,7 @@ raises (§14.4).
 struct ConditionPlan{T}
     xs::Vector{Tuple{Int,Any}}             # (xbuf offset, value)
     stores::Vector{Tuple{Symbol,Int,Any}}  # (:s | :m, component index, whole store value)
-    inputs::Vector{Tuple{Symbol,Any,Any}}  # (root face, cell address, value)
+    inputs::Vector{Tuple{Any,Any}}         # (cell address, value)
     faces::Vector{Symbol}
 end
 
@@ -281,13 +281,13 @@ function resolve_condition(node::ConditionNode, b::Build, ::Type{T} = Float64) w
     _report_violations(diags)
 
     xs = Tuple{Int,Any}[]
-    inputs = Tuple{Symbol,Any,Any}[]
+    inputs = Tuple{Any,Any}[]
     faces = Symbol[]
     overlays = Dict{Tuple{Symbol,Int},Vector{Pair{Symbol,Any}}}()
     for r in resolved
         e = r.e
         if e.store === :input
-            push!(inputs, (e.face, r.dest, r.v))
+            push!(inputs, (r.dest, r.v))
             push!(faces, e.face)
         elseif e.store === :x
             push!(xs, (r.dest, r.v))
@@ -518,7 +518,7 @@ function apply!(ex::Executor{T}, plan::ConditionPlan{T}) where {T}
     for (store, ci, v) in plan.stores
         (store === :s ? ex.sstores : ex.mstores)[ci][] = v
     end
-    for (_, addr, v) in plan.inputs
+    for (addr, v) in plan.inputs
         scatter!(ex.store, addr, v)
     end
     nothing

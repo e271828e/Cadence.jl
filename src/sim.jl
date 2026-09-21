@@ -219,14 +219,13 @@ function Simulation(d::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
     act = activation(d.build, T)
     ex = compile(d.build, act, d.schedule; chunk_size, algorithm = d.algorithm)
     # §12.6's placeholder run (D-255): the recording flags ride on it until `init!`
-    # reads them off and builds the run that records for real. It precedes the
-    # plane because the drain thunks close over its trace (§11.5, D-260), and
-    # that trace is `nothing` exactly under the kill switch.
+    # reads them off and builds the run that records for real. The plane compiles
+    # no drain thunk against it (D-261): the first door does.
     run = Run{T}(SnapshotLog(log, Int(log_every), log_max === Inf ? typemax(Int) : Int(log_max)),
                  trace ? Trace{T}(nothing, Pair{String,Vector{Symbol}}[], TraceBatch[], 0) : nothing,
                  nothing, nothing)
-    Simulation{T,typeof(ex)}(d, ex, DataPlane(act.layout, ex.store, run.trace),
-                             Control(Float64(join_timeout)), run)
+    Simulation{T,typeof(ex)}(d, ex, DataPlane(act.layout), Control(Float64(join_timeout)),
+                             run)
 end
 
 # The two sugar forms, each *defined as* the composition (§9.2, D-254): every
@@ -671,7 +670,7 @@ function _open_trajectory!(sim::Simulation, t₀::Float64)
     fill!(sim.exec.events.prior, false)
     _reset_accounts!(sim)         # a new trajectory opens a fresh account (§11.8)
     for e in sim.plane.roster     # §12.6: no staged batch survives into the
-        @atomic e.writer.cell.pending = nothing   # trajectory it predates
+        @atomic _handle(e).writer.cell.pending = nothing   # trajectory it predates
     end
     @atomic sim.plane.harness.cell.pending = nothing
     @atomic sim.control.stop_issuer = nothing
@@ -690,7 +689,7 @@ function _open_run!(sim::Simulation{T}, header, schemas, feed) where {T}
     L = sim.run.log
     trc = sim.run.trace === nothing ? nothing : Trace{T}(header, schemas, TraceBatch[], 0)
     sim.run = Run{T}(SnapshotLog(L.enabled, L.every, L.max), trc, feed, nothing)
-    _install_writers!(sim.plane, trc)
+    _install_writers!(sim.plane, sim.exec.store, trc)
     nothing
 end
 
@@ -1433,9 +1432,10 @@ property: set, the device's departure — its loop body returning, a crash, or
 a failed `init!` — also requests a sim stop (§12.4(6)); clear, the run
 continues with the device's task absent and its claims held to run end.
 
-Returns the attachment's handle (devices.jl), carrying the entry's stable
-device id and the device's capabilities — read, stage, control access — the
-same object the wrapper passes to `loop(dev, handle)` on the device's task.
+Returns the attachment's handle (devices.jl), named by the entry's stable
+device id and carrying the device's capabilities — read, stage, control
+access — the same object the wrapper passes to `loop(dev, handle)` on the
+device's task.
 `attach!` never spawns: it registers, and the task appears at the next
 `run!` (§11.1).
 """
@@ -1447,7 +1447,8 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
     check_device(dev)
     for e in plane.roster                          # identity, before claims (§11.3)
         e.dev === dev && throw(DiagnosticError(AlreadyAttached(
-            device = _typename(dev), incumbent = _who(e), binding = _typename(e.binding))))
+            device = _typename(dev), incumbent = _who(e),
+            binding = _typename(binding(_handle(e))))))
     end
     if needs_calling_task(dev)                     # affinity: a single-slot resource
         i = findfirst(e -> needs_calling_task(e.dev), plane.roster)
@@ -1468,14 +1469,12 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
     plane.next_id += 1                             # rejected attach consumes no id
     w = Writer(sim.exec.act.layout, claim)
     diag = DiagCell(EMPTY_DIAG)                    # the device's diagnostic cell (§11.8)
-    h = DeviceHandle(id, "device $id ($(_typename(dev)))", b, w, plane, sim.control,
+    h = DeviceHandle("device $id ($(_typename(dev)))", b, w, plane.claimedby, sim.control,
                      sim.plane.published, diag, rg, sim.control.counter, false)
-    push!(plane.roster, RosterEntry(dev, b, id, w,
-                                    _drain_thunk(sim.exec.store, w, sim.run.trace, 0),
-                                    should_abort, diag, WriterAccount(), h))
-    # the writer index above is a placeholder: `reclaim!` appends the new writer
-    # set to the trace's schema list and recompiles every thunk against it (§11.5)
-    reclaim!(plane, sim.exec.act.layout, sim.run.trace)
+    push!(plane.roster, RosterEntry(dev, id, _no_drain, should_abort, WriterAccount(), h))
+    # the thunk above is the sentinel: `reclaim!` appends the new writer set to
+    # the trace's schema list and compiles every thunk against it (§11.5, D-261)
+    reclaim!(plane, sim.exec.act.layout, sim.exec.store, sim.run.trace)
     if is_greedy(b) && isempty(claim)
         # `attach!` mutates the roster, so the warning lives in the entry's own
         # cell (§11.3, §11.8, D-250): the first frame-top drain folds it into the
@@ -1509,7 +1508,7 @@ function detach!(sim::Simulation, dev::AbstractDevice)
         device = _typename(dev), roster = [_who(e) for e in plane.roster])))
     @atomic :release plane.roster[i].handle.detached = true   # D-244
     deleteat!(plane.roster, i)
-    reclaim!(plane, sim.exec.act.layout, sim.run.trace)
+    reclaim!(plane, sim.exec.act.layout, sim.exec.store, sim.run.trace)
     nothing
 end
 
@@ -1580,9 +1579,9 @@ function drain!(sim::Simulation)
     f === nothing || return _replay_drain!(sim, f)
     for e in plane.roster
         e.drain()
-        _fold!(e.acct, e.diag)    # the diagnostic cells drain at the same point (§11.8):
-    end                           # retained values into the pending delta, every
-    plane.harness_drain()         # occurrence into the totals
+        _fold!(e.acct, _handle(e).diag)   # the diagnostic cells drain at the same
+    end                                   # point (§11.8): retained values into the
+    plane.harness_drain()                 # pending delta, every occurrence into the totals
     _fold!(plane.harness_acct, plane.harness_diag)
     _fold!(sim.plane.loop_acct, sim.plane.loop_diag)
     nothing
@@ -1615,8 +1614,9 @@ function _replay_drain!(sim::Simulation, feed::ReplayFeed)
     plane = sim.plane
     frame = sim.exec.clock.step + 1
     for e in plane.roster
-        _discard_staged!(e.writer, e.diag, frame)
-        _fold!(e.acct, e.diag)        # the diagnostic fold is the live path's, unchanged
+        h = _handle(e)
+        _discard_staged!(h.writer, h.diag, frame)
+        _fold!(e.acct, h.diag)        # the diagnostic fold is the live path's, unchanged
     end
     _discard_staged!(plane.harness, plane.harness_diag, frame)
     _fold!(plane.harness_acct, plane.harness_diag)
@@ -1708,7 +1708,7 @@ function _status(sim::Simulation)
     ws = Vector{WriterStatus}(undef, length(plane.roster) + 2)
     for (i, e) in enumerate(plane.roster)
         t = get(plane.run_tasks, e.id, nothing)
-        ws[i] = _writer_status(_who(e), e.acct, _heartbeat(e.diag), _task_state(t))
+        ws[i] = _writer_status(_who(e), e.acct, _heartbeat(_handle(e).diag), _task_state(t))
     end
     ws[end-1] = _writer_status("harness", plane.harness_acct, nothing, nothing)
     ws[end] = _writer_status("loop", sim.plane.loop_acct, nothing, nothing)

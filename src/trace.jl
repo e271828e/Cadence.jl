@@ -146,7 +146,8 @@ end
 # device in attachment order, then the harness writer. The tags are §11.8's
 # writer names, so a trace and a published status name a writer identically.
 function _writer_schemas(plane)
-    schemas = Pair{String,Vector{Symbol}}[_who(e) => copy(e.writer.faces) for e in plane.roster]
+    schemas = Pair{String,Vector{Symbol}}[_who(e) => copy(_handle(e).writer.faces)
+                                          for e in plane.roster]
     push!(schemas, "harness" => copy(plane.harness.faces))
     schemas
 end
@@ -175,11 +176,12 @@ land on the placeholder run's trace, which `init!` discards. No drain runs
 before boundary zero has, so nothing reads either.
 
 The appended range is a local (D-260): the thunks are compiled against it here
-and nothing reads it afterwards. `trc` is the run's trace, `nothing` under the
-switch, and each thunk closes over it concretely — so the record branch inside
-`_drain!` folds away where there is nothing to record.
+and nothing reads it afterwards. `store` is the executor's and `trc` the run's
+trace, `nothing` under the switch, both taken as arguments (D-261) and closed
+over concretely — so the record branch inside `_drain!` folds away where there
+is nothing to record.
 """
-function _install_writers!(plane, trc)
+function _install_writers!(plane, store, trc)
     k = length(plane.roster) + 1
     live_writers = if trc === nothing
         1:k
@@ -192,11 +194,10 @@ function _install_writers!(plane, trc)
         # the entry is immutable and its thunk carries the index, so the
         # recompilation replaces the entry itself (§11.4's stopped-sim compile)
         plane.roster[i] = RosterEntry(
-            e.dev, e.binding, e.id, e.writer,
-            _drain_thunk(plane.store, e.writer, trc, live_writers[i]),
-            e.should_abort, e.diag, e.acct, e.handle)
+            e.dev, e.id, _drain_thunk(store, _handle(e).writer, trc, live_writers[i]),
+            e.should_abort, e.acct, e.handle)
     end
-    plane.harness_drain = _drain_thunk(plane.store, plane.harness, trc, live_writers[k])
+    plane.harness_drain = _drain_thunk(store, plane.harness, trc, live_writers[k])
     nothing
 end
 

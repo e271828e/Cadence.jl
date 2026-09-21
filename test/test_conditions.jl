@@ -83,7 +83,7 @@ function conditions_algebra()
         b = build(tri())
         base = combine(at("plant", fragment(x = (q = SVector(1.0, 2.0),))),
                        fragment(inputs = (u = 1.0, e = 2.0)))
-        input(p, f) = only(v for (face, _, v) in p.inputs if face === f)
+        input(p, f) = only(v for (face, (_, v)) in zip(p.faces, p.inputs) if face === f)
 
         p = resolve_condition(override(base, fragment(inputs = (u = 9.0,))), b)
         @test input(p, :u) === 9.0                     # the patch wins on the shared leaf
