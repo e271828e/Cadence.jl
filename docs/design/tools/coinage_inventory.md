@@ -49,7 +49,7 @@ context wants.
 | termination record | 13 | defined in §13.5; also §11.8, §12.1, §12.4, §12.6, §13.2, §13.6 and Appendix C |
 | scratch | 45 | promoted to an Appendix D entry (`g-scratch`) with D-213; bucket A from here on |
 | `Structure` | — | D-253's structure-step artifact; Appendix D entry `g-structure`, bucket A from here on |
-| `Dataflow` | — | D-253's nominal-evaluation artifact; Appendix D entry `g-dataflow`, bucket A from here on |
+| `Outputs` | — | D-253's nominal-evaluation artifact, `Dataflow` until D-261's 2026-09-21 extension; Appendix D entry `g-outputs`, bucket A from here on |
 | `Events` | — | D-253's other nominal-evaluation artifact; Appendix D entry `g-events`, bucket A from here on |
 | `Deployment` | — | D-254's artifact between the build and the simulation; Appendix D entry `g-deployment`, bucket A |
 | `Schedule` | — | D-254's typed tick timing; folded into the existing `g-schedule` entry rather than given one of its own |

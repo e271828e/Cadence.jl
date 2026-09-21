@@ -3005,8 +3005,8 @@ next begins.
 | step | consumes | produces | user code it runs |
 |---|---|---|---|
 | the structure step | the root instance | [`Structure`](#g-structure) | declaration bodies only |
-| the nominal evaluation | `Structure` | [`Dataflow`](#g-dataflow), [`Events`](#g-events), the nominal `Float64` [activation](#g-activation) | the stage functions, guards and handlers, at `Float64` |
-| activation at `T` | `Structure`, `Dataflow`, the nominal activation, a scalar `T` | `Activation{T}` | the continuous tier's functions at `T` |
+| the nominal evaluation | `Structure` | [`Outputs`](#g-outputs), [`Events`](#g-events), the nominal `Float64` [activation](#g-activation) | the stage functions, guards and handlers, at `Float64` |
+| activation at `T` | `Structure`, `Outputs`, the nominal activation, a scalar `T` | `Activation{T}` | the continuous tier's functions at `T` |
 | deployment | the `Build`, the grid parameters | [`Deployment`](#g-deployment) with its [`Schedule`](#g-schedule) | none |
 | materialization | the `Deployment`, a scalar `T` | `Simulation{T}` | none |
 
@@ -3105,13 +3105,15 @@ scalar type.
 #### The nominal evaluation
 
 **The nominal evaluation is a function of the `Structure`**, and it returns three
-artifacts, [`Dataflow`](#g-dataflow), [`Events`](#g-events) and the nominal `Float64` [activation](#g-activation) ([D-253][d-253], [D-259][d-259]).
-It is the single evaluation-feeds-structure step. `Dataflow` (the artifact holding
+artifacts, [`Outputs`](#g-outputs), [`Events`](#g-events) and the nominal `Float64` [activation](#g-activation) ([D-253][d-253], [D-259][d-259]).
+It is the single evaluation-feeds-structure step. `Outputs` (the artifact holding
 the port classification and the order over it) carries per component the stage-1
-and stage-2 name sets, the [feedthrough](#g-feedthrough) edges with their provenance, and the
-[execution order](#g-execution-order). `Events` (the artifact holding the event tables) carries per
-component the event names, their detection policies and the bundle names. It
-computes them in this order:
+and stage-2 output names, and the [execution order](#g-execution-order) over the
+components. The [feedthrough](#g-feedthrough) graph the order is computed over is
+not carried. It is derived from the `Structure`'s connections and the producers'
+stage-2 names wherever it is shown ([D-261][d-261]). `Events` (the artifact
+holding the event tables) carries per component the event names, their detection
+policies and the bundle names. It computes them in this order:
 
 - [Workspace](#g-workspace) (component-declared mutable scratch arriving as the `ws` bundle
   field) is allocated at the probing scalar. That is sound this early because
@@ -3133,13 +3135,13 @@ branch-protected by the branch-shape rule plus the always-on check ([§9.5][s9-5
 
 **The nominal evaluation fixes the structure and the `Float64` typing at
 once.** The nominal [activation](#g-activation) is its product beside
-`Dataflow` and `Events`, assembled from the same probe chain, never a
+`Outputs` and `Events`, assembled from the same probe chain, never a
 separate pass ([D-253][d-253], [D-259][d-259]). That is why no product of
 this step changes across activations.
 
 #### Activation, parametric in `T`
 
-**Activation at a scalar `T` takes the structure, the dataflow and the
+**Activation at a scalar `T` takes the `Structure`, the `Outputs` and the
 nominal activation, and completes an `Activation{T}`** ([D-253][d-253],
 [D-259][d-259]). The step holds everything type-shaped:
 
@@ -3243,7 +3245,7 @@ the `Build`'s list.
 ### 9.2 The `Build` artifact
 
 `build(world) → Build` is a standalone entry point. **A `Build` is structure,
-dataflow, events, the [activations](#g-activation) and `warnings`** ([D-253][d-253]).
+outputs, events, the [activations](#g-activation) and `warnings`** ([D-253][d-253]).
 The first three are the products of [§9.1][s9-1]'s three steps. The activations are one
 dictionary keyed by scalar type, the nominal `Float64` entry included, under
 the lock that makes insertion torn-state-free ([§9.4][s9-4]).
@@ -3271,9 +3273,9 @@ artifact is the lazily populated activation dictionary, whose insertion
 contract of the instantiation that [§8.8][s8-8] gestures at. Its parts hold the wire
 list, face table, [root inputs](#g-root-input) and [execution order](#g-execution-order) as plain printable data. The
 first three sit on [`Structure`](#g-structure) (the structure step's product, the components,
-wires, faces and tiers). The last sits on [`Dataflow`](#g-dataflow) (the nominal evaluation's
-product, the port name sets and edges), beside the port classes. "Printable"
-names the representation. Paths, names and rationals are inspectable as fields
+wires, faces and tiers). The last sits on [`Outputs`](#g-outputs) (the nominal evaluation's
+product, the port classes and the execution order). "Printable" names the
+representation. Paths, names and rationals are inspectable as fields
 and printed by any REPL without a method of their own, the diagnostic form set
 against the compiled form ([§9.7][s9-7]).
 
@@ -3323,7 +3325,7 @@ constructor that filled both.
 
 **Each artifact renders itself through `show`, with no accessors**
 ([D-257][d-257]). `show(::Structure)` prints the anchor table with the `A₀` row
-and the component table with the rate-scope rows. `show(::Dataflow)` prints the
+and the component table with the rate-scope rows. `show(::Outputs)` prints the
 execution order with each port's class. `show(::Schedule)` prints the rows and
 the **hyperperiod chart**. `show(::Build)` and `show(::Deployment)` print a
 summary and their parts. A REPL user gets each table by evaluating the value.
@@ -3508,7 +3510,7 @@ An **[activation](#g-activation) at `T`** re-runs the activation step with a dif
 - the probe chain is re-run.
 
 [`Structure`](#g-structure), the structure step's product, and
-[`Dataflow`](#g-dataflow), the nominal evaluation's, are `T`-independent by construction,
+[`Outputs`](#g-outputs), the nominal evaluation's, are `T`-independent by construction,
 so no [execution order](#g-execution-order) and no name list changes across
 activations
 ([D-253][d-253]).
@@ -3757,7 +3759,7 @@ near-verbatim:
 ### 9.7 The compiled executor
 
 The [execution order](#g-execution-order) exists in two representations at two lifecycle stages. On
-[`Dataflow`](#g-dataflow) (the nominal evaluation's product, the port name sets and edges)
+[`Outputs`](#g-outputs) (the nominal evaluation's product, the port classes and the execution order)
 it is plain printable data ([§9.2][s9-2]), paths, stage names and order, which
 is the authoring and diagnostic form. The executor compiles from that order
 ([D-253][d-253]). At `Simulation` construction, and
@@ -7835,8 +7837,8 @@ to be *caught* into existence. The [executor](#g-executor) (the compiled
 form of the stage [execution order](#g-execution-order)) maintains an
 **[execution cursor](#g-execution-cursor)**, a plain mutable field in the loop
 state recording where execution stands in the compiled order. The cursor records three facts. The first is the component path, an index into
-the execution order that [`Dataflow`](#g-dataflow) (the nominal evaluation's product, the port
-name sets and edges) carries ([D-253][d-253]). The second is which function is running:
+the execution order that [`Outputs`](#g-outputs) (the nominal evaluation's product, the port
+classes and the execution order) carries ([D-253][d-253]). The second is which function is running:
 `output_state`, `output_direct`, `state_derivative`, `state_update`, a [guard](#g-guard), a handler,
 or `state_projection`. The third is the boundary phase: integration stage *k*,
 event round *r*, a localization evaluation at trial time, or tick. Maintaining
@@ -8218,7 +8220,7 @@ down the *rule* and the build evaluates it into inspectable data.
 
 **Every artifact renders itself through `show`** ([§9.2][s9-2], [D-257][d-257]). [`Structure`](#g-structure) (the
 structure step's product, the components, wires, faces and tiers) has one. So
-does [`Dataflow`](#g-dataflow) (the nominal evaluation's product, the port name sets and edges).
+does [`Outputs`](#g-outputs) (the nominal evaluation's product, the port classes and the execution order).
 So does [`Schedule`](#g-schedule) (the typed per-component `(D, Φ, Δt)` tick table). So do `Build`
 and [`Deployment`](#g-deployment) (the scalar-free artifact the grid parameters fix). There are no
 accessor functions returning the tables alongside.
@@ -10741,11 +10743,10 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 
 - `build(world) → Build`. Standalone. It yields the inspectable derived-contract
   artifact, [`Structure`](#g-structure) (the structure step's product, the components, wires,
-  faces and tiers), [`Dataflow`](#g-dataflow) (the nominal evaluation's product, the port name
-  sets and edges), [`Events`](#g-events) (the nominal evaluation's other product, the event
+  faces and tiers), [`Outputs`](#g-outputs) (the nominal evaluation's product, the port classes and the execution order), [`Events`](#g-events) (the nominal evaluation's other product, the event
   names and policies), the activations and `warnings`; the wire list, face table
   with provenance and root inputs are `Structure`'s and the execution order is
-  `Dataflow`'s ([§9.2][s9-2]).
+  `Outputs`'s ([§9.2][s9-2]).
   `build(world; activations = (Float64, ProbeDual))` additionally pins
   activation invariants for CI (`ProbeDual` is the public canonical concrete
   probe scalar, [§9.4][s9-4]), and pre-materializes activations so a parallel
@@ -11733,7 +11734,7 @@ two-stage split, contract re-factoring, and as residual a component split
 <a id="g-execution-order"></a>**execution order** — the order in which the stage functions run, fixed once at
 build time from wiring edges plus intra-component feedthrough: all stage-1
 functions in any order, stage 2 in topological order, then `state_derivative`.
-It is carried by the `Dataflow` artifact, and "ordering" names the activity
+It is carried by the `Outputs` artifact, and "ordering" names the activity
 ([D-258][d-258]). The hot loop runs a flat list of `(component, stage)`
 entries, with zero runtime graph logic ([§5.1][s5-1], [§9.1][s9-1]).
 
@@ -11944,8 +11945,8 @@ declaration at `T`, root inputs by evaluating the consuming `input_types`
 entry at `T`, the state type by the leaf walk), buffers are re-laid-out,
 workspace allocators are re-invoked, and the probe chain is re-run. The
 nominal `Float64` activation is the nominal evaluation's product; any
-other is derived on request from it, the structure and the dataflow
-([§9.1][s9-1]). `Structure` and `Dataflow` are `T`-independent, so no name
+other is derived on request from it, the `Structure` and the `Outputs`
+([§9.1][s9-1]). `Structure` and `Outputs` are `T`-independent, so no name
 list and no execution order changes across activations. Non-nominal
 activations are lazy, with an opt-in exhaustive set for CI ([§9.4][s9-4]).
 
@@ -11957,7 +11958,7 @@ A conformant return type generates the straight stores and no check
 instruction ([§9.5][s9-5], [D-235][d-235]).
 
 <a id="g-build"></a>**`Build`** — the artifact `build(world)` produces, bundling the three steps'
-products: `Structure`, `Dataflow`, `Events`, the activations keyed by scalar
+products: `Structure`, `Outputs`, `Events`, the activations keyed by scalar
 type, and `warnings`. It is the inspectable contract of the instantiation, and
 what `attach!`, `stop_on`, replay and condition resolution all validate
 against ([§9.2][s9-2]).
@@ -11967,12 +11968,6 @@ typed chunks behind non-inlined function barriers. It is the
 implementation's only representation freedom, and it converts compile cost
 from superlinear in body size to linear in entry count ([§9.7][s9-7]).
 
-<a id="g-dataflow"></a>**`Dataflow`** — the nominal evaluation's product: per component the stage-1 and
-stage-2 port name sets, the feedthrough edges with their provenance, and the
-execution order. It carries the graph as well as the order, which is why the
-prose says "execution order" and the type keeps this name ([§9.1][s9-1],
-[D-253][d-253]).
-
 <a id="g-deployment"></a>**`Deployment`** — the artifact the grid parameters fix: the build plus `h`,
 `N_base`, `Δt_base`, the algorithm and the three event parameters, carrying
 the `Schedule`, the grid diagnostics and its own `warnings`. It is
@@ -11981,7 +11976,7 @@ scalar type ([§9.1][s9-1], [§9.2][s9-2], [D-254][d-254]).
 
 <a id="g-events"></a>**`Events`** — the nominal evaluation's other product, built last, after the nominal
 stage probes: per component the event names, their detection policies and the
-bundle names. It is separate from `Dataflow` because a consumer of the execution
+bundle names. It is separate from `Outputs` because a consumer of the execution
 order should not carry the event tables ([§9.1][s9-1], [D-253][d-253]).
 
 <a id="g-executable-set"></a>**executable set** — the function set an activation can actually run, hence
@@ -12021,6 +12016,12 @@ face (for a continuous producer's output declaration, its evaluation at
 `Float64`). It is the only activation that runs in real time, and the one
 where the conformance check demands exact type match ([§8.2][s8-2],
 [§9.4][s9-4], [§9.5][s9-5]).
+
+<a id="g-outputs"></a>**`Outputs`** — the nominal evaluation's product: per component the output
+port names each stage produces, and the execution order over the components.
+The feedthrough graph the order was computed over is derived from the
+`Structure`'s connections and the stage-2 names where it is shown, never
+carried ([§9.1][s9-1], [D-253][d-253], [D-261][d-261]).
 
 <a id="g-probe"></a>**probe** — the build's single evaluation of a user function with real
 values, checking shape and type conformance and discarding the result. Every
@@ -12428,7 +12429,7 @@ tests ([§8.4][s8-4]).
 
 <a id="g-execution-cursor"></a>**execution cursor** — the plain mutable field recording where execution
 stands in the compiled order. It holds three facts, the component path as an
-index into the `Dataflow`'s execution order, the function running, and the
+index into the `Outputs`'s execution order, the function running, and the
 boundary phase. It costs one cheap store per dispatch, so a runtime failure
 gets its frame without exception frames in the hot path ([§13.4][s13-4]).
 
@@ -12467,7 +12468,7 @@ never on the control plane ([§12.6][s12-6], [§13.5][s13-5]).
 ### D.10 Meta-vocabulary
 
 <a id="g-artifact"></a>**artifact** — an immutable pure function of its inputs: `Structure`,
-`Dataflow`, `Events`, an activation, the `Build`, the `Deployment`, the
+`Outputs`, `Events`, an activation, the `Build`, the `Deployment`, the
 `Schedule`, a condition plan, a trim report and the trace header. A warning
 raised producing one lives on it ([§13.2][s13-2], [D-250][d-250]). It holds
 declared facts, and a consumer compiles what it needs from them at one home

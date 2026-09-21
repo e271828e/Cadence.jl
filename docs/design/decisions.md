@@ -9789,7 +9789,19 @@ below settle under them.
   scope and key, as the `Schedule` carries `ScheduleEntry` and `ScopeEntry`
   rows; the parallel vectors of the old shape were the same facts with no
   enforcer of their common length. The walk's accumulator keeps the
-  columns and is named for what it is, a `StructureDraft`.)
+  columns and is named for what it is, a `StructureDraft`. Extended
+  2026-09-21, ahead of increment 48b: the nominal evaluation's first
+  product is `Outputs`, one `ComponentOutputs` per component in walk order,
+  its path and the output names each stage produces, with the execution
+  order beside the rows as component indices, the order being a product of
+  the evaluation and not derivable from the rows alone. The old `ports`
+  column was the two name lists concatenated and the old `edges` column was
+  derivable from the structure's connections and the producers' stage-2
+  names, so both went, and the `Build` renders the feedthrough from those
+  where it shows the table. `Events` is one `ComponentEvents` per component
+  in walk order, its path, its policy table and its bundle names.
+  `Activation{T}` keeps its columns: it is compiled state the executor
+  indexes, and no user reads it as a table.)
 - An object is built after its inputs exist. The placeholder an accessor
   needs is the one exception, and it carries no configuration and no
   compiled state.
@@ -9819,13 +9831,16 @@ below settle under them.
   store as an argument.
 - `Deployment.grid`, `Dataflow.edges`, the header fingerprint's root faces,
   and `StepError`'s time and boundary beside `NonfiniteState`'s payload stay
-  as they are.
+  as they are. (`Dataflow.edges` fell with the 2026-09-21 extension of the
+  artifact rule above.)
 
 Supersedes [D-254][d-254]'s "`D`, `Φ`, `Δt` vectors" clause, [D-255][d-255]'s "stop faces
 and their addresses" and "`hit` leaves it for the loop's scratch beside the
 cursor" clauses, and [D-256][d-256]'s clause making the recording flags keywords of
 `Simulation(deployment, T)`. [D-260][d-260]'s "the trace switch rides on the run"
-stands.
+stands. The rename of `Dataflow` to `Outputs` supersedes [D-253][d-253]'s clause keeping
+the `Dataflow` name and [D-258][d-258]'s rejection of renaming it: both rested on the
+artifact carrying the graph, and it no longer does.
 
 **Spec.** [§9.2][s9-2], [§11.2][s11-2], [§11.3][s11-3], [§11.5][s11-5], [§12.6][s12-6], [§13.5][s13-5], [Appendix B][sB]
 

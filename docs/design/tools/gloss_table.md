@@ -104,7 +104,6 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | always-on conformance check | g-always-on-conformance-check | 0 | — | one type test of a stage return at the table-write point |
 | `Build` | g-build | 1 | B | the bundle of the three steps' products, the activations and the build's warnings |
 | chunking | g-chunking | 2 | A | splitting a large phase body into statically typed chunks |
-| `Dataflow` | g-dataflow | 1 | A | the nominal evaluation's product: the port classes, the feedthrough edges and the execution order |
 | `Deployment` | g-deployment | 1 | A | the scalar-free artifact the grid parameters fix, carrying the `Schedule` |
 | `Events` | g-events | 1 | A | the nominal evaluation's other product: per component the event names, policies and bundle names |
 | executable set | g-executable-set | 1 | A | the function set an activation can actually run, hence probes |
@@ -113,6 +112,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | lens (`Getter`) | g-lens | 1 | A | the compiled navigation step of a condition entry |
 | measurement seam / phase bodies | g-measurement-seam | 2 | A | `phase_bodies(sim)`, the compiled bodies bound over the simulation's buffers |
 | nominal | g-nominal | 2 | A | the `Float64` activation, and a declaration's `Float64` face |
+| `Outputs` | g-outputs | 1 | A | the nominal evaluation's product: per component the output names each stage produces, and the execution order |
 | probe | g-probe | 20 | B | the build's single evaluation of a user function with real values |
 | probe value / input synthesis | g-probe-value | 2 | A | fabricated build-time values, synthesized at producerless root inputs and flowing the probe chain |
 | `ProbeDual` | g-probedual | 1 | B | the exported canonical concrete probe scalar |
