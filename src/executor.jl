@@ -248,11 +248,11 @@ the global event index, in no state store, reconstructed deterministically.
 `FiringBudget` degradation.
 
 The localization registers (§10.4) sit beside them: `localized` is the
-runtime's read of the policies the `Events` rows fix, at compilation; `σ` holds
-each sign-form guard's numeric sample from the latest walk (`now` holds its
-predicate, `σ ≥ 0`); `σ0`/`σ1` retain the θ = 0 validation and arrival samples
-across the trials that clobber `σ`; `trig` is the frame's triggered set and
-`loc_warned` the `ChatteringBudget` once-per-event-per-frame latch.
+runtime's read, fixed at compilation, of the policies the `Events` rows carry;
+`σ` holds each sign-form guard's numeric sample from the latest walk (`now`
+holds its predicate, `σ ≥ 0`); `σ0`/`σ1` retain the θ = 0 validation and arrival
+samples across the trials that clobber `σ`; `trig` is the frame's triggered set
+and `loc_warned` the `ChatteringBudget` once-per-event-per-frame latch.
 """
 struct EventSet{E<:Tuple,P<:Tuple}
     entries::E
