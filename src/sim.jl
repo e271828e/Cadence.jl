@@ -37,9 +37,11 @@ end
 """
 The stop policy one advance declares (§13.5, D-255): the clock bound and the
 stop faces with their compiled root-cell addresses, built and validated by
-`run!`, `replay!` and `step!` per call and bound on the run for that advance.
-`ControlRequestedStop` is outside it: the policy is what the caller declares,
-the stop word is what anyone can issue (§12.1).
+`run!`, `replay!` and `step!` per call and passed to the loop as that advance's
+argument — from the call to the record, and nowhere else (D-260). It lives as
+long as the call, and afterwards only on the termination record of the advance
+that ended the run. `ControlRequestedStop` is outside it: the policy is what
+the caller declares, the stop word is what anyone can issue (§12.1).
 """
 struct StopPolicy
     t_end::Float64            # Inf = no clock bound
@@ -59,7 +61,7 @@ default that no longer exists (D-255); `source` is the typed source above;
 `residue` is what the run's-end sweep collected — recorded here and presented
 through the logging backend, never published (D-201, D-203). It lives on the
 `Run`, written once by the loop's tail, so a fresh run starts without one
-(§12.6, D-255).
+(§12.6, D-255), and it is the policy's one lasting home (D-260).
 """
 struct TerminationRecord{T}
     t::T
@@ -69,22 +71,26 @@ struct TerminationRecord{T}
 end
 
 """
-The state one run owns (§12.6, D-255): the origin, the input mode, the log and
-the trace, fixed by the constructing entry point; the stop policy the current
-advance bound, and the termination record the loop's tail writes once. `init!`
-and `replay!` construct one, and a change of mode is a change of run — `live!`,
-and the flip at a recording's end (D-218).
+The state one run owns (§12.6, D-255, D-260): what lasts from one door to the
+next and the state that evolves in between, and nothing else — the input mode,
+the log and the trace, fixed by the constructing entry point, and the
+termination record the loop's tail writes once. `init!` and `replay!` construct
+one, and a change of mode is a change of run — `live!`, and the flip at a
+recording's end (D-218).
 
-A `Simulation` is built with a placeholder run — `t₀ = zero(T)`, `:live`, an
-empty log and trace, no termination — so every accessor has a run to read;
-`lifecycle(sim)` is what says whether that run ever started.
+The origin and the stop policy are not fields here (D-260). The clock holds
+`t₀`, the doors apply it and the trace header records it; the policy is the
+advance's argument, carried from the call to the record's assembly and dropped
+there.
+
+A `Simulation` is built with a placeholder run — `:live`, an empty log and
+trace, no termination — so every accessor has a run to read; `lifecycle(sim)`
+is what says whether that run ever started.
 """
 mutable struct Run{T}
-    const t₀::T
     const mode::Symbol                            # :live | :replay (§12.6, D-218)
     const log::SnapshotLog                        # §11.2's retained snapshots
     const trace::Trace{T}                         # §11.5's recording of this run
-    policy::StopPolicy                            # the current advance's (§13.5)
     termination::Union{Nothing,TerminationRecord{T}}   # the tail's one write (§13.5)
 end
 
@@ -157,7 +163,7 @@ tail's wall-clock patience, nothing more.
 
 §13.5's termination policy is declared per advance and is no keyword here
 (D-255): `t_end` and `stop_on` belong to `run!`, `replay!` and `step!`, each
-call building and validating the `StopPolicy` it binds.
+call building and validating the `StopPolicy` it passes to the loop (D-260).
 
 `trace` is §11.5's kill switch (default `true`): the input trace is on by
 default because it is **primary** data and the log derived — given the initial
@@ -201,10 +207,10 @@ function Simulation(d::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
     reg = TraceRegister(trace)     # the drain thunks close over it, so it precedes the plane
     # §12.6's placeholder run (D-255): the recording flags ride on it until `init!`
     # reads them off and builds the run that records for real.
-    run = Run{T}(zero(T), :live,
+    run = Run{T}(:live,
                  SnapshotLog(log, Int(log_every), log_max === Inf ? typemax(Int) : Int(log_max)),
                  Trace{T}(nothing, Pair{String,Vector{Symbol}}[], TraceBatch[], 0),
-                 StopPolicy(Inf, Symbol[], Any[]), nothing)
+                 nothing)
     Simulation{T,typeof(ex)}(d, ex, run, DataPlane(act.layout, ex.store, reg),
                              Control(Float64(join_timeout)))
 end
@@ -304,10 +310,10 @@ function _stop_faces(layout::Layout, stop_on; site::Symbol)
 end
 
 # §13.5's one binder, shared by `run!`, `replay!` and `step!` (D-255): the
-# advance's declared pair validated and compiled into the immutable value it
-# binds on the run. The bound refuses first — `_t_bound` is fail-fast, and the
-# faces are a collecting pass behind it — so a call naming both a bad bound and
-# a bad face is refused for the bound.
+# advance's declared pair validated and compiled into the immutable value the
+# call then carries as its argument (D-260). The bound refuses first —
+# `_t_bound` is fail-fast, and the faces are a collecting pass behind it — so a
+# call naming both a bad bound and a bad face is refused for the bound.
 function _bind_policy(sim::Simulation, t_end, stop_on, site::Symbol)
     te = _t_bound(t_end, site)
     (faces, addrs) = _stop_faces(sim.exec.act.layout, stop_on; site)
@@ -364,10 +370,12 @@ termination(sim::Simulation) = sim.run.termination
 # outermost `finally`, after the sweep has the residue in hand. `t` is the
 # final snapshot's boundary time in the deployment's own scalar: both entries
 # refuse a `built` simulation and boundary zero published, so the snapshot
-# exists (D-233). The policy is the terminating advance's, the one that
-# explains the stop (D-255).
-_record(sim::Simulation{T}, src::TerminationSource, residue::Vector{ResidueRecord}) where {T} =
-    TerminationRecord{T}(latest(sim).t, sim.run.policy, src, residue)
+# exists (D-233). `pol` is this advance's, arriving as the argument the call
+# built — the terminating one, the one that explains the stop, and this is
+# where it stops travelling (D-255, D-260).
+_record(sim::Simulation{T}, pol::StopPolicy, src::TerminationSource,
+        residue::Vector{ResidueRecord}) where {T} =
+    TerminationRecord{T}(latest(sim).t, pol, src, residue)
 
 # §13.5's sampling read, after every publication: the named faces off the
 # just-published snapshot, first holding face wins, in declaration order.
@@ -633,9 +641,9 @@ end
 # fresh `Run` behind this call, and a fresh run is all four at once (D-255). The
 # diagnostic *cells* are deliberately untouched at both entries: a rejection
 # recorded while stopped is a fact about what happened.
-function _open_trajectory!(sim::Simulation{T}, t₀::T) where {T}
-    sim.exec.clock.t = t₀
-    sim.exec.clock.t₀ = t₀
+function _open_trajectory!(sim::Simulation, t₀::Float64)
+    sim.exec.clock.t = t₀         # into the deployment's scalar (D-260)
+    sim.exec.clock.t₀ = t₀        # exact: the clock's origin is a `Float64` too
     sim.exec.clock.step = 0
     sim.exec.clock.boundary = 0
     fill!(sim.exec.events.prior, false)
@@ -655,12 +663,11 @@ end
 # switch it points at nothing instead, nothing is ever recorded and `trace(sim)`
 # refuses for the switch. `_install_writers!` then fixes the drain's indices for
 # the trajectory about to open.
-function _open_run!(sim::Simulation{T}, t₀::T, mode::Symbol, header, schemas,
-                    pol::StopPolicy) where {T}
+function _open_run!(sim::Simulation{T}, mode::Symbol, header, schemas) where {T}
     reg = sim.plane.recorder
     L = sim.run.log
     trc = Trace{T}(header, schemas, TraceBatch[], 0)
-    sim.run = Run{T}(t₀, mode, SnapshotLog(L.enabled, L.every, L.max), trc, pol, nothing)
+    sim.run = Run{T}(mode, SnapshotLog(L.enabled, L.every, L.max), trc, nothing)
     reg.trace = reg.enabled ? trc : nothing
     reg.frame = 0
     reg.feed = nothing
@@ -669,7 +676,7 @@ function _open_run!(sim::Simulation{T}, t₀::T, mode::Symbol, header, schemas,
 end
 
 """
-    init!(sim, condition = fragment(); t0 = zero(T))
+    init!(sim, condition = fragment(); t0 = 0.0)
 
 Initialize: state at the declared defaults with the condition's overrides
 applied, table consistent, clock at `t₀`.
@@ -687,7 +694,9 @@ root input faces (§14.6), and only then writes: a rejected `init!` leaves the
 simulation exactly as it was, and a root input gets a condition value or the
 call errors — the services path contains no call to `probe_value`. `t0` is a
 service argument, never a condition entry: time is not a store of any
-component (§14.5).
+component (§14.5). It is any real, held as a `Float64` origin on the clock and
+in the trace header (D-260), while the clock's `t` stays in the deployment's
+scalar — so a `Dual` simulation takes `t0 = 0.25` like any other.
 
 Boundary zero is an ordinary boundary with an empty integrate (§10.5, §14.5),
 run with the sweep's one amendment: every discrete output stage publishes,
@@ -727,7 +736,7 @@ stopped (§13.6) — reproduction is trace replay, not resurrection. A throw
 inside boundary zero arrives as a `StepError` with pointer 0 and leaves the
 simulation `built`, `init!` and `replay!` legal again (§13.4, D-223).
 """
-function init!(sim::Simulation{T}, condition = fragment(); t0::T = zero(T)) where {T}
+function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0) where {T}
     ctl = sim.control
     lc = @atomic ctl.lifecycle
     lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :running,
@@ -739,12 +748,12 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::T = zero(T)) wher
     establish_defaults!(sim.exec.xbuf, sim.exec.sstores, sim.exec.mstores, sim.deployment.build.structure.comps,
                         activation(sim.deployment.build, T).decls, sim.deployment.build.structure.tiers)   # D-063's reset
     apply!(sim, plan)
-    _open_trajectory!(sim, t0)
+    _open_trajectory!(sim, Float64(t0))   # the origin at the door (D-260)
     # §11.5's capture, at §14.5's placement — after `apply!` and the clock
     # writes, before the sequence — and the fresh run it opens (§12.6)
     reg = sim.plane.recorder
-    _open_run!(sim, t0, :live, reg.enabled ? _capture_header(sim) : nothing,
-               Pair{String,Vector{Symbol}}[], StopPolicy(Inf, Symbol[], Any[]))
+    _open_run!(sim, :live, reg.enabled ? _capture_header(sim) : nothing,
+               Pair{String,Vector{Symbol}}[])
     _host_boundary_zero!(sim)
     publish!(sim)                 # the boundary-zero snapshot (§11.2, §14.5)
     @atomic :release ctl.lifecycle = :initialized
@@ -907,12 +916,13 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     reg = sim.plane.recorder
     # The new run, and substitution (2) with it: the mode is one of the run's
     # `const` fields, so entering `:replay` *is* constructing this run (§12.6,
-    # D-255), and its policy is this call's, bound past the last refusal (§13.5).
+    # D-255). The policy is not the run's: it is this call's argument, carried
+    # to the loop and to the record (§13.5, D-260).
     # The new trace inherits the old header, detached — every mutable field of it
     # copied — and the recording's own schema entries, so neither the growth
     # below nor a continuation's writes ever reach the `Trace` the caller holds.
-    _open_run!(sim, h.t₀, :replay, reg.enabled ? _detach(h) : nothing,
-               reg.enabled ? copy(trc.schemas) : Pair{String,Vector{Symbol}}[], pol)
+    _open_run!(sim, :replay, reg.enabled ? _detach(h) : nothing,
+               reg.enabled ? copy(trc.schemas) : Pair{String,Vector{Symbol}}[])
     # the recording attached, outliving this call — the halt below detaches it
     # only where it lands at the recording's last frame (§12.6, §12.7, D-218)
     reg.feed = feed
@@ -956,8 +966,8 @@ function live!(sim::Simulation{T}) where {T}
         ArgumentInvalid(call = :live!, reason = :not_replaying)))
     sim.plane.recorder.feed = nothing
     # §12.6: the mode is a `const` field, so a change of mode is a change of run
-    # — the same log, the same trace, the same policy and record (D-255)
-    sim.run = Run{T}(r.t₀, :live, r.log, r.trace, r.policy, r.termination)
+    # — the same log, the same trace and the same record (D-255)
+    sim.run = Run{T}(:live, r.log, r.trace, r.termination)
     nothing
 end
 
@@ -981,7 +991,7 @@ promoted final one; the tail runs identically, the cause is retained on the
 record, and `run!` rethrows after the tail completes (§13.4's synchronous
 rule).
 
-The run's shape, in order: the policy binds and the §11.3 freeze rises (the
+The run's shape, in order: the policy is built and the §11.3 freeze rises (the
 lifecycle's `:running`, spanning the tail); the stop word is cleared (a fresh
 run owes nothing to the last one's stop); the §12.4 init bracket runs per
 roster entry on the calling task; the topology is derived from the *live*
@@ -1008,8 +1018,7 @@ frames from `t₀` (§12.4).
 """
 function run!(sim::Simulation; t_end = Inf, stop_on = ())
     _assert_advanceable(sim, :run!)
-    pol = _bind_policy(sim, t_end, stop_on, :run!)
-    sim.run.policy = pol
+    pol = _bind_policy(sim, t_end, stop_on, :run!)   # this advance's, carried (D-260)
     # §13.5's advisory (D-255): a live run bounded by neither clock nor face
     # ends only by the operator interrupt, so the loop says so once, into its
     # own cell. A `:replay` run is bounded by the recording (D-218), so the
@@ -1042,7 +1051,7 @@ function _settle_mode!(sim::Simulation{T}) where {T}
     reg = sim.plane.recorder
     if sim.exec.clock.step ≥ _feed(reg).frames
         reg.feed = nothing
-        sim.run = Run{T}(r.t₀, :live, r.log, r.trace, r.policy, r.termination)
+        sim.run = Run{T}(:live, r.log, r.trace, r.termination)
     end
     nothing
 end
@@ -1112,14 +1121,14 @@ function _run_body!(sim::Simulation, pol::StopPolicy, upto::Int, target::Int)
         residue = _sweep_tail!(sim)           # the run's last take (§11.8): what landed past
         empty!(plane.run_tasks)               # the final frame top — recorded and presented,
         if err_src !== nothing                # never published (D-201, D-203)
-            sim.run.termination = _record(sim, err_src, residue)
+            sim.run.termination = _record(sim, pol, err_src, residue)
             @atomic :release ctl.lifecycle = :errored
         else
             _settle_mode!(sim)                # §12.7's flip, at the halt (D-218)
             if term === nothing               # the frame budget ran out: a replay ended at a
                 @atomic :release ctl.lifecycle = :initialized  # frame top (§12.7)
             elseif (@atomic ctl.lifecycle) === :running
-                sim.run.termination = _record(sim, term, residue)
+                sim.run.termination = _record(sim, pol, term, residue)
                 @atomic :release ctl.lifecycle = :stopped
             end
         end
@@ -1176,7 +1185,7 @@ function _advance!(sim::Simulation, pol::StopPolicy, upto::Int, t_end_frame::Int
             cur.hit = nothing     # the frame's own scratch, cleared where it is stamped
             drain!(sim)
             k = (sim.exec.clock.step += 1)
-            frame!(sim, k)
+            frame!(sim, k, pol)
             if cur.hit === nothing
                 k % nb == 0 ? boundary!(sim, k ÷ nb) : offtick_boundary!(sim)
                 publish!(sim)
@@ -1330,7 +1339,6 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         nf = max(1, _frames_to(t + Float64(t_plus), t, sim.deployment.h))
     end
     pol = _bind_policy(sim, t_end, stop_on, :step!)   # this advance's policy (§13.5, D-255)
-    sim.run.policy = pol
     t_end_frame = _t_end_frame(sim, pol.t_end)
     @atomic :release ctl.lifecycle = :running   # the freeze holds within the call
     term, adv, err_src = nothing, 0, nothing
@@ -1346,7 +1354,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
     finally
         if err_src !== nothing                # §13.6, the stepped entry: same tail,
             _finish!(sim)                     # deviceless — waits woken, accounts swept
-            sim.run.termination = _record(sim, err_src, _sweep_tail!(sim))
+            sim.run.termination = _record(sim, pol, err_src, _sweep_tail!(sim))
             @atomic :release ctl.lifecycle = :errored
         else
             _settle_mode!(sim)                # §12.7's flip, at the halt (D-218)
@@ -1354,7 +1362,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
                 @atomic :release ctl.lifecycle = :initialized
             else                              # a §13.5 source fired inside the call:
                 _finish!(sim)                 # the deviceless §12.4 tail, then terminal
-                sim.run.termination = _record(sim, term, _sweep_tail!(sim))
+                sim.run.termination = _record(sim, pol, term, _sweep_tail!(sim))
                 @atomic :release ctl.lifecycle = :stopped
             end
         end

@@ -90,7 +90,8 @@ function test_stepper()
         siml = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10, algorithm = Heun, log = false)
         init!(siml)
         pub = @ballocated publish!($siml)
-        @test @ballocated(frame!($siml, 1), setup = (init!($siml)), evals = 1) == pub
+        nopol = StopPolicy(Inf, Symbol[], Any[])   # the advance's argument (D-260)
+        @test @ballocated(frame!($siml, 1, $nopol), setup = (init!($siml)), evals = 1) == pub
     end
 
     @testset "the second backend is generic over the scalar (§7.2)" begin

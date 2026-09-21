@@ -10,11 +10,13 @@
 # published consistency point. Every `t*` produced here is a boundary that is
 # not a frame top.
 
-"""Frame top `k`, computed from the index and `t₀` — never accumulated (§10.4)."""
+"""Frame top `k`, computed from the index and `t₀` — never accumulated (§10.4).
+The origin and the stride are both `Float64`, so the top is one too, and the
+clock write below converts it into the deployment's scalar (D-260)."""
 _grid_time(sim::Simulation, k::Int) = sim.exec.clock.t₀ + k * sim.deployment.h
 
 """
-    frame!(sim, k)
+    frame!(sim, k, pol)
 
 Advance through the frame `[tₖ₋₁, tₖ]`, leaving the clock at the indexed frame
 top with the state and table at their arrival values — the frame-top boundary
@@ -23,11 +25,12 @@ itself is the caller's, exactly as before. A model with no localized events
 the bare step: no arrival machinery, no extra sweep, today's exact path.
 The one exception is a §13.5 stop observed at a `t*` publication: the frame's
 remainder was abandoned, so the clock stays at `t*` — where the stores are —
-and the frame top is never stamped.
+and the frame top is never stamped. `pol` is the advance's stop policy, carried
+here for exactly that sampling read (D-260).
 """
-function frame!(sim::Simulation{T}, k::Int) where {T}
+function frame!(sim::Simulation{T}, k::Int, pol::StopPolicy) where {T}
     t_to = _grid_time(sim, k)
-    sim.exec.has_localized ? _localized_frame!(sim, t_to) : step!(sim, T(sim.deployment.h))
+    sim.exec.has_localized ? _localized_frame!(sim, t_to, pol) : step!(sim, T(sim.deployment.h))
     sim.exec.cursor.hit === nothing && (sim.exec.clock.t = t_to)
     nothing
 end
@@ -38,7 +41,7 @@ end
 # localizations, one per `t*` boundary produced: per segment, root-finding runs
 # are already structurally bounded (at most one per declared event), while the
 # segment count is the quantity chattering inflates without bound.
-function _localized_frame!(sim::Simulation{T}, t_to) where {T}
+function _localized_frame!(sim::Simulation{T}, t_to, pol::StopPolicy) where {T}
     es, cur = sim.exec.events, sim.exec.cursor
     n = length(es.prior)
     (x₀, _) = startpoint(sim.exec.stepper)         # the seam's retained pair (§10.2):
@@ -149,8 +152,9 @@ function _localized_frame!(sim::Simulation{T}, t_to) where {T}
         # Every publication is a stop-face sampling point (§13.5): a face
         # holding in the t* snapshot makes it the final one — the frame's
         # remainder is abandoned, and the hit reaches the loop through the
-        # cursor's scratch (D-255).
-        face = _stop_hit(sim, sim.run.policy)
+        # cursor's scratch (D-255). The policy is the advance's argument,
+        # carried down from `_advance!` through `frame!` (D-260).
+        face = _stop_hit(sim, pol)
         if face !== nothing
             cur.hit = face
             return nothing

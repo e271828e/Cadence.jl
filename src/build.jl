@@ -1357,7 +1357,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
     xbuf = zeros(T, nx)
     establish_defaults!(xbuf, sstores, mstores, s.comps, decls, tiers)
     ẋbuf = zeros(T, nx)
-    clock = Clock(zero(T))
+    clock = Clock{T}(0.0)
     cursor = ExecutionCursor()     # closed over by every entry, exactly as `clock` is (§13.4)
 
     addr_group(path, names) =

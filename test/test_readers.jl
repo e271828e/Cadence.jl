@@ -187,6 +187,16 @@ function test_readers()
         @test world(seeded) == before                # every refusal left the executor alone
     end
 
+    @testset "the origin is a `Float64`, so a seeded simulation takes `t0` (§12.6, D-260)" begin
+        # `t₀` is the grid's anchor and no design reader wants it perturbed, so
+        # it is a `Float64` on the clock while `t` stays in the deployment's
+        # scalar. A `T`-typed keyword refused `t0 = 0.25` here.
+        seeded = Simulation(readable(), D8; h = 1//10)
+        init!(seeded, readable_condition(); t0 = 0.25)
+        @test seeded.exec.clock.t₀ === 0.25
+        @test seeded.exec.clock.t isa D8 && ForwardDiff.value(seeded.exec.clock.t) === 0.25
+    end
+
     @testset "`capture` reads the committed world back as a total condition (§14.1, §14.10)" begin
         sim = Simulation(readable(); h = 1//10)
         twin = Simulation(readable(); h = 1//10)

@@ -59,11 +59,12 @@ function test_lifecycle()
 
     @testset "the placeholder run, and the object each door replaces (§12.6, D-255)" begin
         # Every accessor has a run to read before the first `init!`: the
-        # placeholder carries `t₀ = 0`, `:live`, an empty log and trace and no
-        # termination, and the lifecycle is what says it never started.
+        # placeholder carries `:live`, an empty log and trace and no
+        # termination, and the lifecycle is what says it never started. The
+        # origin is the clock's, not the run's (D-260).
         sim = Simulation(feedback_model(); h = 1//50)
         r0 = sim.run
-        @test r0.t₀ === 0.0 && mode(sim) === :live && !closed(r0)
+        @test mode(sim) === :live && !closed(r0)
         @test isempty(logged(sim)) && termination(sim) === nothing
         d = carried(@test_throws DiagnosticError{MissingInit} trace(sim))
         @test d.op === :trace && d.status === :built
@@ -72,7 +73,7 @@ function test_lifecycle()
         # the loop's tail writes the termination onto the run it ran.
         init!(sim, fragment(inputs = (ref = 0.0,)))
         r1 = sim.run
-        @test r1 !== r0 && r1.t₀ === 0.0 && !closed(r1)
+        @test r1 !== r0 && !closed(r1)
         run!(sim; t_end = 0.1)
         @test sim.run === r1 && closed(r1)
         @test termination(sim) === r1.termination

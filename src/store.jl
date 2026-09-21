@@ -114,15 +114,19 @@ continuous steps since `t₀`; every `N_base`-th step boundary is a base tick (�
 and no entry reads it — it is the loop's, not the bundle's. `t₀` anchors the
 indexed grid: frame tops are `t₀ + k·h`, computed from the index and never
 accumulated, so a remainder step's float arithmetic cannot drift the grid
-(§10.4).
+(§10.4). `t₀` is a `Float64`, like `h` and `t_end`, while `t` stays in the
+deployment's scalar: the origin is the grid's anchor and no design reader wants
+it perturbed, and a `Float64` origin is what lets `init!` take `t0 = 0.25` on a
+`Dual` simulation (§12.6, D-260). The constructor below takes it and converts
+it into `t`.
 """
 mutable struct Clock{T}
     t::T
     step::Int
     boundary::Int   # the trajectory's published-boundary ordinal (§12.3, D-230); boundary zero = 0
-    t₀::T
+    t₀::Float64
 end
-Clock(t) = Clock(t, 0, 0, t)
+Clock{T}(t₀::Float64) where {T} = Clock{T}(T(t₀), 0, 0, t₀)
 
 "The activation scalar an executor runs at, read off its clock (§9.4)."
 activation_scalar(::Clock{T}) where {T} = T

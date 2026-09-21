@@ -43,7 +43,7 @@ struct TraceHeader{T}
     m::Vector{Any}                                  # likewise for the mode stores
     root_inputs::Vector{Pair{Symbol,Any}}           # face => the resolved value in its cell
     deployment::Deployment                          # compared as a value at replay (§12.7)
-    t₀::T                                           # applied at replay, never compared
+    t₀::Float64                                     # applied at replay, never compared (D-260)
     layout::@NamedTuple{sizes::Vector{Pair{DataType,Int}}, root_faces::Vector{Symbol},
                         paths::Vector{String}, stypes::Vector{Any}, mtypes::Vector{Any}}
 end
