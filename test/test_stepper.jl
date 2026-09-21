@@ -87,11 +87,11 @@ function test_stepper()
         @test @ballocated(step!($sim, 1e-3)) == 0
         # The localizing frame allocates exactly its t* boundary's publication —
         # the framework-side carve-out (§7.5, §11.2) — as under RK4 (gate 3).
-        siml = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10, algorithm = Heun, log = false)
-        init!(siml)
+        siml = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10, algorithm = Heun)
+        init!(siml; log = false)
         pub = @ballocated publish!($siml)
         nopol, noaddrs = StopPolicy(Inf, Symbol[]), Any[]   # the advance's arguments (D-260, D-261)
-        @test @ballocated(frame!($siml, 1, $nopol, $noaddrs), setup = (init!($siml)), evals = 1) == pub
+        @test @ballocated(frame!($siml, 1, $nopol, $noaddrs), setup = (init!($siml; log = false)), evals = 1) == pub
     end
 
     @testset "the second backend is generic over the scalar (§7.2)" begin

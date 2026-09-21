@@ -226,9 +226,9 @@ function test_localization()
         # buffers, re-run from init! each sample. What it allocates is exactly the
         # t* boundary's own publication — the framework-side carve-out (§7.5,
         # §11.2) — and nothing of the localization machinery's.
-        siml = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10, log = false)
-        init!(siml)
+        siml = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10)
+        init!(siml; log = false)
         pub = @ballocated publish!($siml)
-        @test @ballocated(frame!($siml, 1, $nopol, $noaddrs), setup = (init!($siml)), evals = 1) == pub
+        @test @ballocated(frame!($siml, 1, $nopol, $noaddrs), setup = (init!($siml; log = false)), evals = 1) == pub
     end
 end

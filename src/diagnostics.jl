@@ -1246,8 +1246,9 @@ Base.@kwdef struct DeploymentInvalid <: Diagnostic
 end
 
 # The parameter set is Appendix C's row: deployment parameters alone. The
-# materialization's keywords validate under `ArgumentInvalid` (D-256), and
-# their constraint text and section moved with them.
+# materialization's keyword and the doors' recording keywords validate under
+# `ArgumentInvalid` (D-256, D-261), and their constraint text and section moved
+# with them.
 _dep_constraint(p::Symbol) =
     p === :algorithm           ? "must be a stepper type — RK4 or Heun" :
     p === :firing_budget       ? "must be an integer ≥ 1" :
@@ -1754,7 +1755,7 @@ message(d::ConditionShapeDrift) =
 
 "§8.7, §11.6, §12.4, §12.6, §14.7, D-215: an argument outside its constraint — `DeploymentInvalid`'s twin off the deployment surface."
 Base.@kwdef struct ArgumentInvalid <: Diagnostic
-    call::Symbol                             # :Simulation|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:trim!|:trace|:TableBinding|:selector
+    call::Symbol                             # :Simulation|:init!|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:trim!|:trace|:TableBinding|:selector
     reason::Symbol
     argument::Union{Nothing,Symbol} = nothing
     value::Any = nothing
@@ -1795,9 +1796,9 @@ function message(d::ArgumentInvalid)
                "one value with a closed field set: TrimProblem(; guess, lower, upper, " *
                "condition, reads, residuals, tolerances) (§14.7)"
     d.reason === :disabled &&
-        return "this simulation was built with `trace = false`, so there is no recording to " *
-               "hand back — the switch is §11.5's plain kill switch for the " *
-               "memory-constrained marathon session, fixed at construction (D-029)"
+        return "this simulation was initialized with `trace = false`, so there is no " *
+               "recording to hand back — the switch is §11.5's plain kill switch for the " *
+               "memory-constrained marathon session, the door's keyword (D-029, D-261)"
     d.reason === :index_not_integer &&
         return "a selector's index must be an integer — the component index of §14.10, " *
                "applied to the read value — got $(repr(d.value)) (§14.4)"
@@ -1819,9 +1820,10 @@ function message(d::ArgumentInvalid)
     d.reason === :expo &&
         return "TableBinding: entry `$(d.entry)`'s expo must lie in [0, 1], got " *
                "$(d.value) (§11.6)"
-    # The materialization's keywords (D-256): each carries the constraint text and
-    # section its `DeploymentInvalid` row carried before the keywords moved off
-    # the deployment surface.
+    # The materialization's `join_timeout` (D-256) and the doors' four recording
+    # keywords (D-261): each carries the constraint text and section its
+    # `DeploymentInvalid` row carried before the keywords moved off the
+    # deployment surface.
     d.argument === :join_timeout &&
         return "`join_timeout` must be a positive real — the shutdown tail's join cap in " *
                "seconds of wall clock, got $(repr(d.value)) (§12.4)"

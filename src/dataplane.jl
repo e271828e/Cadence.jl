@@ -622,7 +622,7 @@ end
 The log (§11.2): logging dissolves into publication. What is retained are the
 published snapshots themselves — the same objects, zero extra copies (D-023
 rejected preallocated buffers; unlogged snapshots die young) — under three
-policies validated at deployment binding: the plain switch, the keep-every-kth
+policies the door that builds the run takes (D-261): the plain switch, the keep-every-kth
 stride `log_every`, and the retention bound `log_max` (`Inf` stored as
 `typemax(Int)`). Normative are the guarantees, not the mechanism below: the
 bound is respected *continuously*, the retained count never exceeding

@@ -95,8 +95,8 @@ function trace_recording()
     end
 
     @testset "the kill switch, and the clearing at `init!` (§11.5, D-029)" begin
-        off = Simulation(three_root_inputs(); h = 1//10, trace = false)
-        init!(off, fragment(inputs = (a = 0.0, b = 0.0, c = 0.0)))
+        off = Simulation(three_root_inputs(); h = 1//10)
+        init!(off, fragment(inputs = (a = 0.0, b = 0.0, c = 0.0)); trace = false)
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} trace(off))
         @test d.call === :trace && d.reason === :disabled
         stage!(off, "a" => 1.0)
@@ -418,10 +418,11 @@ function recorded_run()
 end
 
 # A fresh target of that build, initialized from a *different* condition — so
-# nothing but the header can put it on the recorded trajectory.
+# nothing but the header can put it on the recorded trajectory. The keywords
+# are `init!`'s recording keywords, for this door alone (D-261).
 function replay_twin(k = 4.0; kw...)
-    sim = Simulation(replay_model(k); h = 1//10, kw...)
-    init!(sim, fragment(inputs = (ref = 0.0, rate = 0.0)))
+    sim = Simulation(replay_model(k); h = 1//10)
+    init!(sim, fragment(inputs = (ref = 0.0, rate = 0.0)); kw...)
     sim
 end
 
@@ -884,8 +885,8 @@ function trace_discarded_harness()
     @testset "a replay runs under the kill switch, and records nothing (§11.5, §12.7)" begin
         (sim, trc) = recorded_run()
         off = replay_twin(; trace = false)
-        replay!(off, trc)                      # the feed is compiled from the `Trace` in hand,
-        @test lifecycle(off) === :initialized   # never from the target's own trace
+        replay!(off, trc; trace = false)       # the replay's own run takes the switch (D-261); the feed
+        @test lifecycle(off) === :initialized   # is compiled from the `Trace` in hand, never the target's
         @test same_trajectory(logged(off), logged(sim))
         @test off.run.trace === nothing        # the switch rides on the run (D-260)
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} trace(off))

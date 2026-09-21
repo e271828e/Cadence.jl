@@ -365,13 +365,13 @@ function discrete_deployment()
         @test Set((d.parameter, d.reason) for d in diagnostics(err)) ==
               Set([(:h, :inexact), (:N_base, :range)])
 
-        # Deploying and materializing are two calls (§9.2, D-254, D-256), each with
-        # its own barrier: the deployment refuses `h` on its own, and `log_every` is
-        # the materialization's keyword, refused under `ArgumentInvalid`.
-        d = only(diagnostics(failure(() -> Simulation(b; log_every = 0))))
-        @test d isa DeploymentInvalid && d.parameter === :h
-        d = only(diagnostics(failure(() -> Simulation(b; h = 1//500, log_every = 0))))
-        @test d isa ArgumentInvalid && d.call === :Simulation && d.argument === :log_every
+        # Deploying, materializing and initializing are separate calls (§9.2,
+        # D-254, D-256, D-261), each with its own barrier: `log_every` is the
+        # door's keyword, refused under `ArgumentInvalid` before any write.
+        sim = Simulation(b; h = 1//500)
+        d = only(diagnostics(failure(() -> init!(sim; log_every = 0))))
+        @test d isa ArgumentInvalid && d.call === :init! && d.argument === :log_every
+        @test lifecycle(sim) === :built
 
         # `Δt_base` is a third independent premise: the explicit keyword reads only
         # itself and derivation reads the tiers and the anchors, so neither is

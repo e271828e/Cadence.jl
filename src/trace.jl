@@ -85,7 +85,7 @@ A record is meaningless without its schema entry: the positions are against
 tags are §11.8's own writer names, `_who(entry)` and `"harness"`.
 """
 mutable struct Trace{T}
-    const header::Union{Nothing,TraceHeader{T}}    # nothing: the placeholder run, or the kill switch
+    const header::Union{Nothing,TraceHeader{T}}    # captured at the door; no door builds one without it (D-261)
     const schemas::Vector{Pair{String,Vector{Symbol}}}   # writer tag => face-name-by-position
     const batches::Vector{TraceBatch}              # in drain order: by frame, then by writer index
     frames::Int
@@ -170,9 +170,9 @@ own copy of the schemas, so the growth cannot reach it.
 
 Reached from three places, all of them stopped-sim: the two doors that build a
 run, `init!` and `replay!`, and `reclaim!`'s two callers, `attach!` and
-`detach!`. With no trace to write into, under `trace = false`, nothing is
-appended and the indices are provisional. Before the first `init!` the appends
-land on the placeholder run's trace, which `init!` discards. No drain runs
+`detach!`. With no trace to write into, under the door's `trace = false` or at
+a roster change before the first door, whose placeholder run has no trace
+(D-261), nothing is appended and the indices are provisional. No drain runs
 before boundary zero has, so nothing reads either.
 
 The appended range is a local (D-260): the thunks are compiled against it here

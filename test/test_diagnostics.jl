@@ -101,9 +101,9 @@ function diagnostics_channel()
     end
 
     @testset "a quiet publication allocates the capture, the status vector and the snapshot (§11.8, D-241)" begin
-        sim = Simulation(two_root_inputs(); h = 1//10, log = false)
+        sim = Simulation(two_root_inputs(); h = 1//10)
         attach!(sim, Pad("p"), Enumerated("a"))
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)); log = false)
         publish!(sim); capture(sim.exec.store)               # warm
         # Nothing scales with diagnostic activity: the store capture's own
         # allocations, the status vector (object and memory), and the snapshot
@@ -512,10 +512,10 @@ function diagnostics_kind_set()
             ConditionShapeDrift(reason = :prefix, compiled = "a", observed = "b",
                                 position = (:x, 1)),
             ArgumentInvalid(call = :Simulation, reason = :range, argument = :join_timeout, value = 0),
-            ArgumentInvalid(call = :Simulation, reason = :range, argument = :trace, value = 1),
-            ArgumentInvalid(call = :Simulation, reason = :range, argument = :log, value = 1),
-            ArgumentInvalid(call = :Simulation, reason = :range, argument = :log_every, value = 0),
-            ArgumentInvalid(call = :Simulation, reason = :range, argument = :log_max, value = 1.5),
+            ArgumentInvalid(call = :init!, reason = :range, argument = :trace, value = 1),
+            ArgumentInvalid(call = :init!, reason = :range, argument = :log, value = 1),
+            ArgumentInvalid(call = :init!, reason = :range, argument = :log_every, value = 0),
+            ArgumentInvalid(call = :init!, reason = :range, argument = :log_max, value = 1.5),
             ArgumentInvalid(call = :Simulation, reason = :range, argument = :t_end, value = -1.0),
             ArgumentInvalid(call = :run!, reason = :range, argument = :t_end, value = -1.0),
             ArgumentInvalid(call = :Period, reason = :inexact, value = 0.02),

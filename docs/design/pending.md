@@ -76,12 +76,7 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-- **D-261's placements**, delivered by increment 47c ahead of 48, together
-  with the unrostered fixes of the 2026-09-21 data survey
-  (`docs/reports/20260921_data_survey/merge.md`). The four recording
-  keywords are still `Simulation(deployment, T)`'s and ride the placeholder
-  run, while `init!` and `replay!` take none (§12.6, Appendix B); a
-  snapshot's frame index is unrostered in §11.2 but built.
+Currently empty.
 
 ### Retire with a feature or a pass
 

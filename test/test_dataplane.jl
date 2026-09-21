@@ -182,8 +182,8 @@ function dataplane_exchange()
         # sparse record is the drain's one admitted allocation (D-176, pinned in
         # test_trace.jl) — it would otherwise stand between the measurement and
         # D-202's claim.
-        sim = Simulation(two_root_inputs(); h = 1//10, trace = false)
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)); trace = false)
         stage!(sim, "a" => 1.0); drain!(sim)             # warm the writer's one scatter
         @test @ballocated(drain!($sim), setup = (stage!($sim, "a" => 1.0)), evals = 1) == 0
         # A never-drained sparsity pattern costs the same nothing: the scatter is
@@ -209,8 +209,8 @@ wide_zero(n) = fragment(inputs = NamedTuple(Symbol(p, i) => 0.0
 function dataplane_wide_surface()
     @testset "a wide surface stages, merges and drains like a narrow one (§11.4, D-202)" begin
         # `trace = false` for the two allocation assertions below, as above
-        sim = Simulation(wide_root_inputs(17); h = 1//10, trace = false)   # 34 root faces
-        init!(sim, wide_zero(17))
+        sim = Simulation(wide_root_inputs(17); h = 1//10)   # 34 root faces
+        init!(sim, wide_zero(17); trace = false)
         stage!(sim, "a3" => 1.5)
         stage!(sim, "b9" => -2.0, "a3" => 2.5)           # merge: newest wins, untouched survive
         drain!(sim)

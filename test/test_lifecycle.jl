@@ -57,16 +57,18 @@ function test_lifecycle()
         @test termination(sim) === nothing && !closed(sim.run)   # a fresh run, not a cleared one
     end
 
-    @testset "the placeholder run, and the object each door replaces (§12.6, D-255)" begin
+    @testset "the placeholder run, and the object each door replaces (§12.6, D-255, D-261)" begin
         # Every accessor has a run to read before the first `init!`: the
-        # placeholder carries an empty log and trace, no feed and no
+        # placeholder carries an empty log, no trace, no feed and no
         # termination, and the lifecycle is what says it never started. The
-        # origin, the policy and the mode are not fields of it (D-260).
+        # origin, the policy and the mode are not fields of it (D-260), and
+        # neither is any configuration (D-261).
         @test fieldnames(Run) === (:log, :trace, :feed, :termination)
         sim = Simulation(feedback_model(); h = 1//50)
         r0 = sim.run
         @test mode(sim) === :live && r0.feed === nothing && !closed(r0)
         @test isempty(logged(sim)) && termination(sim) === nothing
+        @test r0.trace === nothing
         d = carried(@test_throws DiagnosticError{MissingInit} trace(sim))
         @test d.op === :trace && d.status === :built
 
@@ -78,6 +80,15 @@ function test_lifecycle()
         run!(sim; t_end = 0.1)
         @test sim.run === r1 && closed(r1)
         @test termination(sim) === r1.termination
+
+        # Recording is per run (D-261): the door's keyword configures the run it
+        # builds and the next door may declare otherwise.
+        init!(sim, fragment(inputs = (ref = 0.0,)); trace = false)
+        @test sim.run.trace === nothing
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} trace(sim))
+        @test d.call === :trace && d.reason === :disabled
+        init!(sim, fragment(inputs = (ref = 0.0,)))
+        @test sim.run.trace !== nothing && trace(sim).frames == 0
     end
 
     @testset "the freeze is the lifecycle's :running — init! and run! refuse it too (§12.6)" begin

@@ -88,9 +88,10 @@ The origin and the stop policy are not fields here (D-260). The clock holds
 advance's argument, carried from the call to the record's assembly and dropped
 there.
 
-A `Simulation` is built with a placeholder run — an empty log and trace, no
+A `Simulation` is built with a placeholder run — an empty log, no trace, no
 feed, no termination — so every accessor has a run to read; `lifecycle(sim)`
-is what says whether that run ever started.
+is what says whether that run ever started. It carries no configuration: the
+recording keywords are the doors' (D-261).
 """
 mutable struct Run{T}
     const log::SnapshotLog                        # §11.2's retained snapshots
@@ -133,9 +134,7 @@ mutable struct Simulation{T,E}
 end
 
 """
-    Simulation(deployment::Deployment, T = Float64; join_timeout = 5.0,
-               trace = true, log = true, log_every = 1,
-               log_max = 65536, chunk_size = 16)
+    Simulation(deployment::Deployment, T = Float64; join_timeout = 5.0, chunk_size = 16)
     Simulation(build::Build, T = Float64; h, N_base = nothing, Δt_base = nothing,
                algorithm = RK4, firing_budget = 4, localization_tol = 1e-6,
                localization_budget = 8, kw...)
@@ -178,52 +177,28 @@ tail's wall-clock patience, nothing more.
 (D-255): `t_end` and `stop_on` belong to `run!`, `replay!` and `step!`, each
 call building and validating the `StopPolicy` it passes to the loop (D-260).
 
-`trace` is §11.5's kill switch (default `true`): the input trace is on by
-default because it is **primary** data and the log derived — given the initial
-state and the trace the log is recomputable, never the reverse, and an
-untraced interactive session is unreproducible permanently (D-029). The switch
-covers the memory-constrained marathon session, and nothing else: no sampling,
-no rolling window. Like the log keywords below it is a view policy, never
-trajectory-determining — recording reads the drained batch and writes nowhere.
-
-`log`, `log_every` and `log_max` are §11.2's retention keywords: the plain
-switch (default `true`), the keep-every-kth stride over published boundaries
-(an integer ≥ 1, default 1) and the bound on retained snapshot references (an
-integer ≥ 1 defaulting to 65536 = 2¹⁶ — about 22 minutes at 50 Hz and full
-density before anything is dropped — with `Inf` the explicit opt-out). Unlike
-every deployment keyword they are **view policies, never trajectory-determining**:
-two simulations differing only here produce bitwise-identical trajectories,
-retention being reference bookkeeping over what publication already built.
-
-The recording flags are carried to `init!`, which is what builds the run with
-its log and trace (§12.6, D-255, Appendix B): the three log flags ride on the
-placeholder run's log, and the trace switch rides on the placeholder run's
-trace — `nothing` where it is off, so every run the doors build after it is
-untraced too (D-260).
+The four recording keywords, `trace`, `log`, `log_every` and `log_max`, are
+no keywords here either: they configure the run's log and trace, which the
+doors build, so `init!` and `replay!` take them, each for the run it opens
+(§12.6, Appendix B, D-261).
 """
 function Simulation(d::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
-                    trace = true, log = true, log_every = 1,
-                    log_max = 65536, chunk_size::Int = 16) where {T}
-    # This call's own keywords are not deployment parameters, so they are
-    # `ArgumentInvalid`s (D-256, Appendix C), collected into one throw
-    # (§9.1, D-229). The stop policy is no longer among them (D-255).
+                    chunk_size::Int = 16) where {T}
+    # This call's own keyword is not a deployment parameter, so it is an
+    # `ArgumentInvalid` (D-256, Appendix C), collected as the call's one throw
+    # (§9.1, D-229). The stop policy and the recording keywords are not among
+    # them (D-255, D-261).
     diags = Diagnostic[]
-    _arg(name, v) = push!(diags, ArgumentInvalid(call = :Simulation, reason = :range,
-                                                 argument = name, value = v))
-    join_timeout isa Real && join_timeout > 0 || _arg(:join_timeout, join_timeout)
-    trace isa Bool || _arg(:trace, trace)
-    log isa Bool || _arg(:log, log)
-    log_every isa Integer && log_every ≥ 1 || _arg(:log_every, log_every)
-    (log_max isa Integer && log_max ≥ 1) || log_max === Inf || _arg(:log_max, log_max)
-    isempty(diags) || throw(DiagnosticError(diags))    # one throw per call (§9.1, D-229)
+    join_timeout isa Real && join_timeout > 0 ||
+        push!(diags, ArgumentInvalid(call = :Simulation, reason = :range,
+                                     argument = :join_timeout, value = join_timeout))
+    isempty(diags) || throw(DiagnosticError(diags))
     act = activation(d.build, T)
     ex = compile(d.build, act, d.schedule; chunk_size, algorithm = d.algorithm)
-    # §12.6's placeholder run (D-255): the recording flags ride on it until `init!`
-    # reads them off and builds the run that records for real. The plane compiles
-    # no drain thunk against it (D-261): the first door does.
-    run = Run{T}(SnapshotLog(log, Int(log_every), log_max === Inf ? typemax(Int) : Int(log_max)),
-                 trace ? Trace{T}(nothing, Pair{String,Vector{Symbol}}[], TraceBatch[], 0) : nothing,
-                 nothing, nothing)
+    # §12.6's placeholder run (D-255, D-261): an empty log at the defaults that
+    # nothing reads and no trace, so every accessor has a run to read. It
+    # carries no configuration; the first door builds the run that records.
+    run = Run{T}(SnapshotLog(true, 1, typemax(Int)), nothing, nothing, nothing)
     Simulation{T,typeof(ex)}(d, ex, DataPlane(act.layout), Control(Float64(join_timeout)),
                              run)
 end
@@ -677,27 +652,45 @@ function _open_trajectory!(sim::Simulation, t₀::Float64)
     nothing
 end
 
-# The run one door opens (§12.6, D-255, D-260): the log flags and the kill
-# switch ride on the run the last door left — the placeholder's, before the
-# first `init!` — and the fresh run gets a log and a trace of its own rather
-# than cleared ones. Under the switch the last run's trace is `nothing`, so the
-# fresh one's is too, nothing is ever recorded and `trace(sim)` refuses for the
-# switch. `feed` goes in at construction: `nothing` from `init!`, the compiled
+# The four recording keywords, validated as the door's own `ArgumentInvalid`s
+# and collected into one throw (§9.1, D-229, D-261). Called after the door's
+# lifecycle gate and before its first write, so a refused keyword writes nothing.
+function _check_recording(call::Symbol, trace, log, log_every, log_max)
+    diags = Diagnostic[]
+    _arg(name, v) = push!(diags, ArgumentInvalid(call = call, reason = :range,
+                                                 argument = name, value = v))
+    trace isa Bool || _arg(:trace, trace)
+    log isa Bool || _arg(:log, log)
+    log_every isa Integer && log_every ≥ 1 || _arg(:log_every, log_every)
+    (log_max isa Integer && log_max ≥ 1) || log_max === Inf || _arg(:log_max, log_max)
+    isempty(diags) || throw(DiagnosticError(diags))
+    nothing
+end
+
+# The run one door opens (§12.6, D-255, D-260, D-261): the door's four recording
+# keywords configure it, and nothing is read off the run the last door left,
+# so the fresh run gets a log and a trace of its own rather than cleared ones
+# and the next door may declare otherwise. Under the switch the trace is
+# `nothing`, nothing is recorded and `trace(sim)` refuses for the switch.
+# `feed` goes in at construction: `nothing` from `init!`, the compiled
 # recording from `replay!`. `_install_writers!` then compiles the drain's thunks
 # against the new trace for the trajectory about to open.
-function _open_run!(sim::Simulation{T}, header, schemas, feed) where {T}
-    L = sim.run.log
-    trc = sim.run.trace === nothing ? nothing : Trace{T}(header, schemas, TraceBatch[], 0)
-    sim.run = Run{T}(SnapshotLog(L.enabled, L.every, L.max), trc, feed, nothing)
+function _open_run!(sim::Simulation{T}, header, schemas, feed,
+                    trace::Bool, log::Bool, log_every::Int, log_max) where {T}
+    trc = trace ? Trace{T}(header, schemas, TraceBatch[], 0) : nothing
+    sim.run = Run{T}(SnapshotLog(log, log_every, log_max === Inf ? typemax(Int) : Int(log_max)),
+                     trc, feed, nothing)
     _install_writers!(sim.plane, sim.exec.store, trc)
     nothing
 end
 
 """
-    init!(sim, condition = fragment(); t0 = 0.0)
+    init!(sim, condition = fragment(); t0 = 0.0,
+          trace = true, log = true, log_every = 1, log_max = 65536)
 
 Initialize: state at the declared defaults with the condition's overrides
-applied, table consistent, clock at `t₀`.
+applied, table consistent, clock at `t₀`, and a fresh run recording under the
+four keywords.
 
 The condition is §14.1's path-addressed sparse overlay, and the overlay base
 is **always the declared defaults**: `init!` re-establishes the three state
@@ -735,6 +728,26 @@ stores and root inputs rather than the authored overlay (D-038), and it never
 holds the post-transition result, boundary zero being re-executed under replay
 (§12.7).
 
+The four recording keywords configure the run this call builds, and `replay!`
+takes the same four for the run it builds (§12.6, Appendix B, D-261). `trace`
+is §11.5's kill switch (default `true`): the input trace is on by default
+because it is **primary** data and the log derived — given the initial state
+and the trace the log is recomputable, never the reverse, and an untraced
+interactive session is unreproducible permanently (D-029). The switch covers
+the memory-constrained marathon session, and nothing else: no sampling, no
+rolling window. `log`, `log_every` and `log_max` are §11.2's retention
+keywords: the plain switch (default `true`), the keep-every-kth stride over
+published boundaries (an integer ≥ 1, default 1) and the bound on retained
+snapshot references (an integer ≥ 1 defaulting to 65536 = 2¹⁶ — about 22
+minutes at 50 Hz and full density before anything is dropped — with `Inf` the
+explicit opt-out). All four are **view policies, never
+trajectory-determining**: two runs differing only here produce bitwise-identical
+trajectories, recording reading the drained batch and retention being
+reference bookkeeping over what publication already built. They validate
+under `ArgumentInvalid` at `call = :init!`, after the lifecycle gate and
+before any write, and a run declared under one policy is followed by
+whatever the next door declares.
+
 `init!` is §12.6's door into `initialized` from an *authored* condition, and
 some door is mandatory: `run!` and `step!` refuse a simulation whose boundary
 zero has not completed. `replay!` (§12.7) is the one alternative — it stands
@@ -754,13 +767,15 @@ stopped (§13.6) — reproduction is trace replay, not resurrection. A throw
 inside boundary zero arrives as a `StepError` with pointer 0 and leaves the
 simulation `built`, `init!` and `replay!` legal again (§13.4, D-223).
 """
-function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0) where {T}
+function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace = true,
+               log = true, log_every = 1, log_max = 65536) where {T}
     ctl = sim.control
     lc = @atomic ctl.lifecycle
     lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :running,
                                                               legal = collect(STOPPED_SIM_LEGAL))))
     lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :errored,
                                                               legal = collect(STOPPED_SIM_LEGAL))))
+    _check_recording(:init!, trace, log, log_every, log_max)   # the run's keywords (D-261)
     plan = resolve_condition(condition, sim.deployment.build, T)      # both refusals precede every write
     assert_total(plan, sim.deployment.build.structure, :init!)   # (§14.6): all-or-nothing
     establish_defaults!(sim.exec.xbuf, sim.exec.sstores, sim.exec.mstores, sim.deployment.build.structure.comps,
@@ -769,8 +784,8 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0) where
     _open_trajectory!(sim, Float64(t0))   # the origin at the door (D-260)
     # §11.5's capture, at §14.5's placement — after `apply!` and the clock
     # writes, before the sequence — and the fresh run it opens (§12.6)
-    _open_run!(sim, sim.run.trace === nothing ? nothing : _capture_header(sim),
-               Pair{String,Vector{Symbol}}[], nothing)
+    _open_run!(sim, trace ? _capture_header(sim) : nothing, Pair{String,Vector{Symbol}}[],
+               nothing, trace, log, Int(log_every), log_max)
     _host_boundary_zero!(sim)
     publish!(sim)                 # the boundary-zero snapshot (§11.2, §14.5)
     @atomic :release ctl.lifecycle = :initialized
@@ -815,7 +830,8 @@ _compile_feed(sim::Simulation{Ts}, trc::Trace{Tt}) where {Ts,Tt} =
     throw(DiagnosticError(ReplayHeaderMismatch(what = :scalar, expected = Tt, found = Ts)))
 
 """
-    replay!(sim, trc; to_boundary = nothing, t_end = Inf, stop_on = ())
+    replay!(sim, trc; to_boundary = nothing, t_end = Inf, stop_on = (),
+            trace = true, log = true, log_every = 1, log_max = 65536)
     replay!(sim, trc; to_time)
 
 Re-drive a recorded session (§12.7) — **the ordinary loop with exactly two
@@ -868,24 +884,29 @@ Replay re-records: the drain records normally and **the new trace
 inherits the old header** (§12.7), this simulation's writers appended under
 §11.5's growth rule, so the re-drained batches keep the recording's own writer
 indices — a bit-identical prefix — while a continuation's live drains record
-under this session's own. Rostered devices init, spawn and consume snapshots
-normally (§11.1): they are readers here, and a session that wants live input is
-a continuation, not a replay.
+under this session's own. The run this call builds records under its own four
+keywords, `init!`'s exactly, with the same defaults (D-261): under
+`trace = false` nothing is re-recorded. Rostered devices init, spawn and
+consume snapshots normally (§11.1): they are readers here, and a session that
+wants live input is a continuation, not a replay.
 
 Refused while `running` and on an `errored` simulation, as `init!` is. Every
-refusal — the lifecycle gate, `to_boundary`'s range, `to_time`'s, the keyword
-validation and the whole entry pass — precedes every write. A throw inside
+refusal — the lifecycle gate, the recording keywords, `to_boundary`'s range,
+`to_time`'s, the policy's validation and the whole entry pass — precedes
+every write. A throw inside
 boundary zero arrives as a `StepError` with pointer 0 and leaves the simulation
 `built`, `init!` and `replay!` legal again (§13.4, D-223).
 """
 function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
-                 to_time = nothing, t_end = Inf, stop_on = ()) where {T}
+                 to_time = nothing, t_end = Inf, stop_on = (), trace = true,
+                 log = true, log_every = 1, log_max = 65536) where {T}
     ex, ctl = sim.exec, sim.control
     lc = @atomic ctl.lifecycle
     lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :running,
                                                               legal = collect(STOPPED_SIM_LEGAL))))
     lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :errored,
                                                               legal = collect(STOPPED_SIM_LEGAL))))
+    _check_recording(:replay!, trace, log, log_every, log_max)   # the run's keywords (D-261)
     to_boundary === nothing || to_time === nothing ||     # two spellings of one halt (D-219)
         throw(DiagnosticError(ArgumentInvalid(call = :replay!, reason = :both_given)))
     # §13.4's pointer, in grid boundaries: whole and non-negative, and no further
@@ -936,12 +957,13 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     # the halt below detaches it only where it lands at the recording's last
     # frame (§12.7, D-218). The policy is not the run's either: it is this
     # call's argument, carried to the loop and to the record (§13.5, D-260).
-    # The new trace inherits the old header, detached — every mutable field of it
-    # copied — and the recording's own schema entries, so neither the growth
-    # below nor a continuation's writes ever reach the `Trace` the caller holds.
-    on = sim.run.trace !== nothing
-    _open_run!(sim, on ? _detach(h) : nothing,
-               on ? copy(trc.schemas) : Pair{String,Vector{Symbol}}[], feed)
+    # Under this call's `trace`, the new trace inherits the old header, detached
+    # — every mutable field of it copied — and the recording's own schema
+    # entries, so neither the growth below nor a continuation's writes ever
+    # reach the `Trace` the caller holds.
+    _open_run!(sim, trace ? _detach(h) : nothing,
+               trace ? copy(trc.schemas) : Pair{String,Vector{Symbol}}[], feed,
+               trace, log, Int(log_every), log_max)
     _host_boundary_zero!(sim)
     publish!(sim)                               # the boundary-zero snapshot (§11.2, §14.5)
     upto = to_boundary === nothing ? trc.frames : Int(to_boundary)
@@ -1760,17 +1782,21 @@ number of frames drained behind them. Header plus batches are the run's
 *primary* record — the state trajectory, the log included, is derived from it
 (D-038) — and what consumes it is `replay!` (§12.7).
 
-Refused under `trace = false`, the construction-time kill switch (D-029), and
-before the first `init!`, which is where the header is captured: with no
-header there is no recording, and `MissingInit` names the way out exactly as
-an advance entry's refusal does (§12.6).
+Refused before the first door, where no run has recorded and `MissingInit`
+names the way out exactly as an advance entry's refusal does (§12.6), and
+under the door's `trace = false`, §11.5's kill switch (D-029, D-261). The
+lifecycle is read first: no trace at `built` is the placeholder run, or a door
+that never completed, and never the switch. A door that threw inside boundary
+zero leaves its trace behind, header captured, and that is the reproduction
+§13.4 promises (D-223).
 """
 function trace(sim::Simulation{T}) where {T}
+    lc = lifecycle(sim)
     t = sim.run.trace
+    lc === :built && t === nothing &&
+        throw(DiagnosticError(MissingInit(op = :trace, status = lc)))
     t === nothing &&        # §11.5's kill switch, which rides on the run's trace (D-260)
         throw(DiagnosticError(ArgumentInvalid(call = :trace, reason = :disabled)))
-    t.header === nothing &&
-        throw(DiagnosticError(MissingInit(op = :trace, status = lifecycle(sim))))
     Trace{T}(t.header, copy(t.schemas), copy(t.batches), t.frames)
 end
 

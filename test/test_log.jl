@@ -41,8 +41,8 @@ function test_log()
     end
 
     @testset "log_every thins retention, never publication (§11.2)" begin
-        sim = Simulation(fed(Plant(), "u"); h = 1//10, log_every = 3)
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        sim = Simulation(fed(Plant(), "u"); h = 1//10)
+        init!(sim, fragment(inputs = (in = 0.0,)); log_every = 3)
         step!(sim; frames = 1)
         @test latest(sim).frame == 1                         # published to live readers…
         @test [s.frame for s in logged(sim)] == [0, 1]       # …not retained: `last` alone holds it
@@ -51,8 +51,8 @@ function test_log()
     end
 
     @testset "the endpoints are unconditional and outside the bound (§11.2)" begin
-        sim = Simulation(fed(Plant(), "u"); h = 1//10, log_every = 4, log_max = 2)
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        sim = Simulation(fed(Plant(), "u"); h = 1//10)
+        init!(sim, fragment(inputs = (in = 0.0,)); log_every = 4, log_max = 2)
         run!(sim; t_end = 4.0)
         snaps = logged(sim)
         @test [s.frame for s in snaps] == [0, 16, 32, 40]    # two generations in
@@ -60,8 +60,8 @@ function test_log()
     end
 
     @testset "re-decimation: stride doubles, coverage stays global, the bound holds continuously (§11.2, D-137)" begin
-        sim = Simulation(fed(Plant(), "u"); h = 1//10, log_max = 8)
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        sim = Simulation(fed(Plant(), "u"); h = 1//10)
+        init!(sim, fragment(inputs = (in = 0.0,)); log_max = 8)
         ok_bound = ok_ends = ok_sorted = true
         for k in 1:128                                       # one frame at a time: every
             step!(sim; frames = 1)                           # intermediate state is checked
@@ -80,16 +80,16 @@ function test_log()
         @test length(logged(sim)) == 9
 
         # The effective stride composes with the authored one: log_every · 2^k.
-        sim2 = Simulation(fed(Plant(), "u"); h = 1//10, log_every = 2, log_max = 4)
-        init!(sim2, fragment(inputs = (in = 0.0,)))
+        sim2 = Simulation(fed(Plant(), "u"); h = 1//10)
+        init!(sim2, fragment(inputs = (in = 0.0,)); log_every = 2, log_max = 4)
         run!(sim2; t_end = 4.0)
         @test [s.frame for s in logged(sim2)] == [0, 8, 16, 24, 32, 40]
         @test sim2.run.log.stride == 16                          # 2 · 2³
     end
 
     @testset "log = false retains nothing; publication is upstream of the switch (§11.2)" begin
-        sim = Simulation(fed(Plant(), "u"); h = 1//10, log = false)
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        sim = Simulation(fed(Plant(), "u"); h = 1//10)
+        init!(sim, fragment(inputs = (in = 0.0,)); log = false)
         run!(sim; t_end = 0.5)
         @test isempty(logged(sim))
         @test latest(sim).frame == 5
@@ -98,9 +98,12 @@ function test_log()
     @testset "view policies, never trajectory-determining (§11.2)" begin
         # A localized-event trajectory, so the t* machinery is in the loop too:
         # retention differing in every keyword, the trajectory bitwise the same.
-        mk(; kw...) = Simulation(single(Bouncer(1.0, 0.315)); h = 1//10, kw...)
+        function mk(; kw...)
+            s = Simulation(single(Bouncer(1.0, 0.315)); h = 1//10)
+            init!(s; kw...)
+            s
+        end
         a, b, c = mk(), mk(log = false), mk(log_every = 7, log_max = 3)
-        foreach(init!, (a, b, c))
         foreach(s -> run!(s; t_end = 2.0), (a, b, c))
         qa = state(a, "c").q
         @test qa === state(b, "c").q
@@ -120,8 +123,8 @@ function test_log()
     end
 
     @testset "logged is a stopped-sim read behind the §11.3 gate" begin
-        sim = Simulation(fed(Plant(), "u"); h = 1//100000, log_max = 16)
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        sim = Simulation(fed(Plant(), "u"); h = 1//100000)
+        init!(sim, fragment(inputs = (in = 0.0,)); log_max = 16)
         logged(sim)                                          # warms the compile path, so the
                                                              # mid-run check below races no JIT
         t = Threads.@spawn run!(sim; t_end = 1.0)
@@ -137,19 +140,20 @@ function test_log()
     end
 
     @testset "the retention keywords are validated with their siblings (§11.2)" begin
-        m = fed(Plant(), "u")
-        # View policies are the materialization's keywords, so they are
-        # `ArgumentInvalid`s at `call = :Simulation` (D-256).
-        d1 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, log = 1))))
-        @test d1 isa ArgumentInvalid && d1.call === :Simulation && d1.argument === :log
-        d2 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, log_every = 0))))
+        sim = Simulation(fed(Plant(), "u"); h = 1//10)
+        c = fragment(inputs = (in = 0.0,))
+        # View policies are the door's keywords, so they are `ArgumentInvalid`s
+        # at `call = :init!` (D-261), refused before any write.
+        d1 = only(diagnostics(failure(() -> init!(sim, c; log = 1))))
+        @test d1 isa ArgumentInvalid && d1.call === :init! && d1.argument === :log
+        d2 = only(diagnostics(failure(() -> init!(sim, c; log_every = 0))))
         @test d2 isa ArgumentInvalid && d2.argument === :log_every && d2.reason === :range
-        d3 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, log_max = 0))))
+        d3 = only(diagnostics(failure(() -> init!(sim, c; log_max = 0))))
         @test d3 isa ArgumentInvalid && d3.argument === :log_max
-        d4 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, log_max = 1.5))))
+        d4 = only(diagnostics(failure(() -> init!(sim, c; log_max = 1.5))))
         @test d4 isa ArgumentInvalid && d4.argument === :log_max
-        sim = Simulation(m; h = 1//10, log_max = Inf)        # the explicit opt-out
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        @test lifecycle(sim) === :built
+        init!(sim, c; log_max = Inf)                         # the explicit opt-out
         run!(sim; t_end = 1.0)
         @test length(logged(sim)) == 11
     end
