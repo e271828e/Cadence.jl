@@ -1892,7 +1892,7 @@ Base.@kwdef struct ReplayHeaderMismatch <: Diagnostic
                                              # a :deployment schedule row and a rate scope (§12.7)
     name::Symbol = Symbol("")                # :sizes|:paths|:s|:m, the root-input face, the
                                              # deployment parameter, a schedule or `scope.` column,
-                                             # or a list name: :schedule, `scope.key`, `schedule.`
+                                             # or a list name: :schedule, `scope.key`
     expected::Any = nothing                  # the trace's value
     found::Any = nothing                     # the target's
 end
@@ -1907,7 +1907,7 @@ _replay_paths(ps) = isempty(ps) ? "none" : join((_at_path(p) for p in ps), ", ")
 
 # The `:deployment` arms, one per case the walk in `trace.jl` emits: the seven
 # parameters and the two lists carry no path, a schedule row and a rate scope
-# carry theirs, and the column rides in `name` behind its prefix.
+# carry theirs, and a scope column rides in `name` behind its prefix.
 _replay_deployment(d::ReplayHeaderMismatch) =
     isempty(d.path) ?
     (d.name === :schedule ?
@@ -1919,11 +1919,6 @@ _replay_deployment(d::ReplayHeaderMismatch) =
      "replay: the recording opened the rate scopes $(_namelist(d.expected)) and this " *
      "deployment opens $(_namelist(d.found)) — a scope is identified by its path and its " *
      "key, so a differing scope list is reported whole rather than column by column (§12.7)" :
-     startswith(String(d.name), "schedule.") ?
-     "replay: the recording's per-component `$(chopprefix(String(d.name), "schedule."))` " *
-     "vector is $(repr(d.expected)) and this deployment's is $(repr(d.found)) — the " *
-     "executor compiles over these vectors, every tier in them, so they are compared " *
-     "beside the schedule's own rows (§12.7)" :
      "replay: the recording ran at `$(d.name)` = $(d.expected) and this simulation is bound " *
      "at $(d.found) — the seven trajectory-determining deployment parameters are compared, " *
      "the schedule with them, never taken as a what-if: a deployment change moves the times " *

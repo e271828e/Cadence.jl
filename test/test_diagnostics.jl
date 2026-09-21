@@ -560,8 +560,6 @@ function diagnostics_kind_set()
                                  expected = ["m/fcs"], found = ["m/fcs", "m/act"]),
             ReplayHeaderMismatch(what = :deployment, name = Symbol("scope.key"),
                                  expected = ["m/fcs:fast"], found = ["m/fcs:slow"]),
-            ReplayHeaderMismatch(what = :deployment, name = Symbol("schedule.D"),
-                                 expected = [1, 5], found = [1, 10]),
             ReplayHeaderMismatch(what = :frame, name = :harness, expected = 1:8, found = 99),
             ReplaySchemaMismatch(writer = "harness", schema = [:a, :z], unknown = [:z],
                                  faces = [:a, :b]),

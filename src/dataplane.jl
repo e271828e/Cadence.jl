@@ -645,9 +645,8 @@ abandons are exactly the odd indices, and `cursor` walks them.
 """
 mutable struct SnapshotLog
     enabled::Bool
-    every::Int                      # log_every: the authored stride
     max::Int                        # log_max: what bounds `live`, never the endpoints
-    stride::Int                     # the effective stride, every · 2^generation
+    stride::Int                     # the effective stride, log_every · 2^generation
     first::Union{Nothing,Snapshot}  # the boundary-zero endpoint (§14.5)
     last::Union{Nothing,Snapshot}   # the terminal endpoint: the latest published boundary
     snaps::Vector{Union{Nothing,Snapshot}}   # the bounded middle; `nothing` = released
@@ -656,7 +655,7 @@ mutable struct SnapshotLog
 end
 
 SnapshotLog(enabled::Bool, every::Int, max::Int) =
-    SnapshotLog(enabled, every, max, every, nothing, nothing,
+    SnapshotLog(enabled, max, every, nothing, nothing,
                 Union{Nothing,Snapshot}[], 0, 0)
 
 """

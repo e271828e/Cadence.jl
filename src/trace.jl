@@ -85,7 +85,7 @@ A record is meaningless without its schema entry: the positions are against
 tags are §11.8's own writer names, `_who(entry)` and `"harness"`.
 """
 mutable struct Trace{T}
-    const header::Union{Nothing,TraceHeader{T}}    # captured at the door; no door builds one without it (D-261)
+    const header::TraceHeader{T}                   # captured at the door (D-261)
     const schemas::Vector{Pair{String,Vector{Symbol}}}   # writer tag => face-name-by-position
     const batches::Vector{TraceBatch}              # in drain order: by frame, then by writer index
     frames::Int

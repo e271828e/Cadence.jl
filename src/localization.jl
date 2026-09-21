@@ -32,7 +32,7 @@ compiled addresses, carried here for exactly that sampling read (D-260, D-261).
 function frame!(sim::Simulation{T}, k::Int, pol::StopPolicy, addrs::Vector{Any}) where {T}
     t_to = _grid_time(sim, k)
     hit = sim.exec.has_localized ? _localized_frame!(sim, t_to, pol, addrs) :
-                                   step!(sim, T(sim.deployment.h))
+                                   (step!(sim, T(sim.deployment.h)); nothing)
     hit === nothing && (sim.exec.clock.t = t_to)
     hit
 end

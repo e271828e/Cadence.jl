@@ -812,13 +812,7 @@ the fallback beside it is what a `Trace{Float64}` offered to a
 function _compile_feed(sim::Simulation{T}, trc::Trace{T}) where {T}
     faces = Symbol[f for (f, _) in sim.exec.act.layout.root_inputs]
     diags = Diagnostic[]
-    h = trc.header
-    # `trace(sim)` refuses a headerless trace (`MissingInit`) and the two doors
-    # are the only builders of one, so a `nothing` here is an invariant firing
-    # rather than a case the pass handles (§11.5, D-255).
-    h === nothing && throw(InternalInvariant(
-        "a Trace with no header reached replay's entry pass (§11.5, §12.7)"))
-    _check_header!(diags, sim, h)
+    _check_header!(diags, sim, trc.header)
     _check_schemas!(diags, faces, trc.schemas)
     isempty(diags) || throw(DiagnosticError(diags))     # the header before the entries
     records = _compile_records!(diags, sim, trc, faces)
