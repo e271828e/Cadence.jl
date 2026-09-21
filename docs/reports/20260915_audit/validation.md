@@ -1,5 +1,9 @@
 # Validation and reproducibility
 
+> Historical evidence for the audit through `6986ad4` (2026-09-16).
+> The [refreshed report](report.md) and [latest validation](refresh_20260918/validation.md)
+> carry the 2026-09-17/18 dispositions; this ledger/log summary was not re-audited wholesale.
+
 ## Runtime and revisions
 
 - Julia **1.13.0**, 10 default-pool threads, 2 thread pools as reported by Julia.

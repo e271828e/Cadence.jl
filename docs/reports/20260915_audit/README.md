@@ -1,6 +1,16 @@
-# Cadence audit — 2026-09-15/16
+# Cadence audit — 2026-09-15/16, refreshed 2026-09-17/18
 
-Start with the **[curated report](report.md)**.
+Start with the **[curated report](report.md)**, refreshed against committed
+`2938a0`. Seven findings are retired; F-05/G-07/G-11 are narrowed. See
+[latest validation](refresh_20260918/validation.md) and the preserved
+[original report](refresh_20260917/original_report.md).
+
+Contract arity and auto-publication documentation items are retired too. The
+new pipeline design remains largely pending; the report separates that work
+from delivered fixes. The earlier `7b1c1e8` gate passed **2,828/2,828** assertions;
+the latest revision’s validation is recorded separately.
+
+The links below retain the original audit evidence at `6986ad4`.
 
 - [Specification/source/test coverage](coverage.md)
 - [Validation, reproduced cases and limits](validation.md)
@@ -18,5 +28,5 @@ Auto-publication and path-resolution fixes landed independently during pauses;
 resolved findings are explicitly retired. The audit itself changed no source,
 tests or design documents. Final validation and integrity records are linked above.
 
-Final validation: **2,514/2,514 package assertions passed**; all nine targeted
+Original 2026-09-16 validation: **2,514/2,514 package assertions passed**; all nine targeted
 probes completed. Probe success includes successful reproduction of defects.

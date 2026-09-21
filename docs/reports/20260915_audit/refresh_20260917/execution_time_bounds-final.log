@@ -1,0 +1,2 @@
+finite BigFloat t_end converted to Inf
+large finite Float64 t_end raised raw InexactError

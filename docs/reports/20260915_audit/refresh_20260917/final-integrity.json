@@ -1,0 +1,22 @@
+{
+  "verified_at": "2026-09-18T12:54:43.042416+00:00",
+  "reviewed_revision": "7b1c1e850515dad77942973e9ae87ebcc2ac7a6c",
+  "observed_head": "6b92356b7f34f5bfb7f1078f2249ee312759f884",
+  "input_count": 54,
+  "changed_inputs": [],
+  "added_inputs": [],
+  "removed_inputs": [],
+  "git_status_short": " M docs/reports/20260915_audit/README.md\n M docs/reports/20260915_audit/coverage.md\n M docs/reports/20260915_audit/method.md\n M docs/reports/20260915_audit/report.md\n M docs/reports/20260915_audit/validation.md\n?? docs/reports/20260915_audit/refresh_20260917/\n?? docs/reports/20260915_audit/reviews/08_build_refresh_20260917.md\n?? docs/reports/20260915_audit/reviews/09_services_refresh_20260917.md\n?? docs/reports/20260915_audit/reviews/10_design_refresh_20260917.md\n?? docs/reports/20260915_audit/reviews/11_runtime_refresh_20260917.md\n",
+  "all_writes_in_report_directory": true,
+  "markdown_links_resolve": true,
+  "package_gate": {
+    "assertions_passed": 2828,
+    "assertions_total": 2828,
+    "suite_elapsed": "8m48.6s",
+    "exit_code": 0,
+    "log": "pkg-test-final.log"
+  },
+  "focused_probe_count": 7,
+  "all_focused_probes_exit_zero": true,
+  "passed": true
+}

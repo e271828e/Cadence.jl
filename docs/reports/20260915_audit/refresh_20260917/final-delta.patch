@@ -1,0 +1,1806 @@
+diff --git a/docs/design/implementation.md b/docs/design/implementation.md
+index 17a9d37..8928b34 100644
+--- a/docs/design/implementation.md
++++ b/docs/design/implementation.md
+@@ -21,8 +21,8 @@ to. For more than a line, read the file itself and the sections it cites.
+ | `src/declare.jl` | the declaration layer: both tiers' name families and arities, the bundle law with the legal bundle sets and `classify_bundle_field` (§5.2, Appendix B), `probe_value` with its enum arm (D-051), the connection declarations beside `transparent_container`, the rate forms with `sample_times`, the event surface, the declaration family `DECLARATION_FAMILY` and `foreign_declarations` | §2.1, §5.2, §8.1, §8.2, §8.5–§8.7, §9.3, D-179, D-185, D-195, D-211, D-246, D-248 |
+ | `src/assembly.jl` | class by declaration shape; children and containers with their collision family; `Group`, the anonymous assembly, kernel material by decision where the rest of the old `library.jl` became fixtures; paths and §6.1's one-level rule; endpoint and face resolution with the root's face invariants; the flatten pass under one Stratum A barrier (`Walk` owning the `Flat` it builds, resolvers recording into the stratum's list, `wire!` deriving the two-sided face graph after the barrier, `Flat.root_types` holding the root-input types the wire pass fixes) and the sample-time fold; §13.3's `resolve`/`resolve_terminal`/face-list primitives and the service walk `resolve_authored` over the `Flat`'s retained root, declared holdings read off the type definition (D-061, D-130), and `authored_chain`, the child names along an absolute path that `capture` spells level by level, and §8.8's `input_passthrough`/`output_passthrough`; the shadowing check ahead of `classify` in the walk (D-246); the store-form gate ahead of the classifier in the walk (D-247); the component frame around the walk's two branches (D-248) | §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §13.3, §14.2, D-061, D-130, D-171, D-207–D-212, D-229, D-236, D-246, D-247, D-248 |
+ | `src/store.jl` | per-eltype cell stores (a handle type is its own eltype, D-237), the `StoreBundle`, gather and the checked scatter (§9.5's always-on check decided at generation, D-235), `_cell_key`, the `Clock` | §9.5, §9.7, D-162, D-235, D-237 |
+-| `src/executor.jl` | entries (each carrying its component's path, for the write's diagnostic; `PublishEntry`, the framework's stage-1-position copy of store fields into cells, §5.3), the chunked unrolled walk, the interior/boundary split, the `(idx − Φ) % D` gate and boundary zero's `ESTABLISH` beside it, the event set with its registers and the guard/fire/project walks, and the execution cursor every entry stores into | §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §14.5, D-059, D-205, D-235 |
+-| `src/build.jl` | the user-code frame — `invoke_declaration`, `invoke_probed`, `at_component` (§13.2, D-248); tier classification (recording, the tier read in the walk beside the class, `build` owning Stratum A's one throw, the wire pass (both type clauses at `Float64` and at the marker scalar, the root-input type and its two refusals, the contract-bound check (`TierSignatureMismatch`'s bound arm); D-236)), the store-form check `check_store_form` (§8.2, D-247), the store isbits check (§7.3, D-231) and the state-leaf vocabulary check (§7.1, D-094), the probe and the event probe, the dead-stage rule at both stage probes and `MissingProbeValue` in `cell_layout` (§9.3), `auto_published` and the published set on the `Activation` (§5.3, D-169), the feedthrough graph with its edge provenance, Kahn's schedule and, at a stall, the SCC decomposition into one `AlgebraicCycle` per cluster (§5.6, D-012), `_probe_direct!` shared with the classifier's prefix probe, the layout with the root-input meet (D-168, D-236) and `IllegalPortType`'s three arms (D-237), the probe's embedding of products (`_embed`), the `Build` and its activations, `ProbeTag`/`ProbeDual`, the canonical probe scalar (§9.4), deployment binding (one throw per `Simulation` call), and `compile` → `Executor{T}` — one activation's buffer set with the bodies closed over it, one owner per set, `evaluate!`/`_round!`/`apply!` on it | §5.3, §5.5, §5.6, §6.1, §8.2, §9.1–§9.4, §9.7, §10.4, §13.2, D-012, D-016, D-051, D-166, D-169, D-179, D-208, D-210, D-229, D-235, D-236, D-237, D-247, D-248 |
++| `src/executor.jl` | entries (each carrying its component's path, for the write's diagnostic, an event entry its event name beside it (D-249); `PublishEntry`, the framework's stage-1-position copy of store fields into cells, §5.3), the chunked unrolled walk, the interior/boundary split, the `(idx − Φ) % D` gate and boundary zero's `ESTABLISH` beside it, the event set with its registers and the guard/fire/project walks, and the execution cursor every entry stores into | §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §14.5, D-059, D-205, D-235, D-249 |
++| `src/build.jl` | the user-code frame — `invoke_declaration`, `invoke_probed`, `at_component` (§13.2, D-248); tier classification (recording, the tier read in the walk beside the class, `build` owning Stratum A's one throw, the wire pass (both type clauses at `Float64` and at the marker scalar, the root-input type and its two refusals), the contract-form check — `TierSignatureMismatch`'s arity arm in the vote loop, its bound arm in the wire pass (D-249); D-236), the store-form check `check_store_form` (§8.2, D-247), the store isbits check (§7.3, D-231) and the state-leaf vocabulary check (§7.1, D-094), the probe and the event probe, the dead-stage rule at both stage probes and `MissingProbeValue` in `cell_layout` (§9.3), `auto_published` and the published set on the `Activation` (§5.3, D-169), the feedthrough graph with its edge provenance, Kahn's schedule and, at a stall, the SCC decomposition into one `AlgebraicCycle` per cluster (§5.6, D-012), `_probe_direct!` shared with the classifier's prefix probe, the layout with the root-input meet (D-168, D-236) and `IllegalPortType`'s three arms (D-237), the probe's embedding of products (`_embed`), the `Build` and its activations, `ProbeTag`/`ProbeDual`, the canonical probe scalar (§9.4), deployment binding (one throw per `Simulation` call), and `compile` → `Executor{T}` — one activation's buffer set with the bodies closed over it, one owner per set, `evaluate!`/`_round!`/`apply!` on it | §5.3, §5.5, §5.6, §6.1, §8.2, §9.1–§9.4, §9.7, §10.4, §13.2, D-012, D-016, D-051, D-166, D-169, D-179, D-208, D-210, D-229, D-235, D-236, D-237, D-247, D-248, D-249 |
+ | `src/tracer.jl` | §5.6's set-propagation scalar `Tracer{S}` (global on `true`, local on `false`, `Undecidable` the marker between them), the leaf-wise lift and tag walks, and `_classify` — the schedule-free per-member trace at the probe point, its prefix probe, D-245's port-graph verdict and the sampled fallback at a fixed seed | §5.4, §5.6, §9.3, D-012, D-140, D-245 |
+ | `src/readers.jl` | the closed read-selector family, `reads`, its path selectors walked from the root (§13.3), the internal `_compile_reads` → `Reader{T}`, `gather` as `apply!`'s twin over an executor; activation identity on readers and plans as an internal invariant | §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130 |
+ | `src/sim.jl` | `Simulation` (owning its `exec`), the deployment keywords, the boundary macro-sequence and the §10.6 event phase with its `FiringBudget` degradation, `init!`, `run!`/`step!`, `replay!` over the one shared run body, `attach!`/`detach!`, staging/drain/publication with the drain's replay substitution, §12.6's input mode (`mode(sim)`, `to_time`, `live!`), the lifecycle and termination record, the frame loop's one catch site with the species rule — the runtime bundle-field match in it (§13.2, §13.4, D-248) — and the interrupt carve-out and its second host around boundary zero, the seam's `isfinite` sweep over `x` as the boundary's first act, the accessors | §10.2–§10.6, §11.1–§11.4, §11.8, §12.1–§12.7, §13.2, §13.4–§13.6, §14.5, §14.6, D-059, D-101, D-157, D-203, D-218, D-219, D-221, D-223, D-232, D-233, D-248 |
+diff --git a/docs/design/pending.md b/docs/design/pending.md
+index 0f70f8d..1213c0e 100644
+--- a/docs/design/pending.md
++++ b/docs/design/pending.md
+@@ -18,25 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
+ the kinds later sweeps fill, and the spec's own migration deliverables last.
+ Where the reason is not given here, the cited decision carries it:
+ 
+-- **Kinds carrying less than their Appendix C payload.** D-216 rules
+-  that the column is the design and the implementation's gaps stay visible
+-  as such, and it leaves the enumeration here:
+-  `ContainerMixed` no element keys or indices,
+-  `UnconnectedInput` no declared entry type and no obligation-chain level,
+-  `ClassUnreadable`/`TierUnreadable` no type and no declarations-found list,
+-  `ProducedByTwoStages` no stage names,
+-  `TransparentContainerUnknown` no container-field list,
+-  `StopFaceInvalid` no binding site (constructor, `run!` or `replay!`),
+-  `ConformanceFailure` no event name on a handler's; and from the audit
+-  (M-C, M-B14, M-B17, M-B19):
+-  `TwoProducers` producer terminals only inside provenance strings,
+-  `AttachUnknownFace`/`ReadBindingUnresolved` the binding type where the
+-  column says device type, `ServiceLifecycle.legal` empty at `init!`, `trim!`
+-  and `replay!` (only `capture` fills it), `TierSignatureMismatch` its bound
+-  arm alone, the contract-arity arms riding as `DeclarationOnWrongTier`'s
+-  `:tier_form` (D-249),
+-  `EventHalfMissing.found` and `AbstractAtRoot.declared` model types
+-  interpolated into the message against §13.2 (`_typename` is one screen up).
+ - **§8.8 beyond the helper pair** (the feed-list idiom, generic-holding sugar,
+   required-faces declarations, D-209's predicate filter on the passthrough
+   helpers); **D-187's grid diagnostics** (the bound schedule is plain data;
+@@ -47,8 +28,7 @@ Where the reason is not given here, the cited decision carries it:
+   operator interrupt — §13.4's carve-out exists, the masking and the entry do
+   not, so a stopped run can hold mid-boundary stores here; §13.4's
+   interactive-session behaviour (log and surface the status rather than
+-  rethrow) has no discrimination in `run!`. `run!` requires a finite `t_end`;
+-  every non-running state admits `attach!`/`detach!`.
++  rethrow) has no discrimination in `run!`. `run!` requires a finite `t_end`.
+ - **§11.7's GUI write path**, §10.7 pacing and its diagnostics, the §11.8
+   remainder (`DebtReanchor`, `ThreadBudget`, `UnboundedRun`, the maxlog
+   renderer).
+diff --git a/src/assembly.jl b/src/assembly.jl
+index 4971967..8e259f7 100644
+--- a/src/assembly.jl
++++ b/src/assembly.jl
+@@ -10,10 +10,18 @@
+ 
+ @enum Class PRIMITIVE ASSEMBLY
+ 
+-const LEAF_FAMILY = "`init_x`, `init_s`, `init_m`, `init_workspace`, `input_types`, " *
+-                    "`output_types`, `state_events` or a stage (`output_state`, " *
+-                    "`output_direct`, `state_derivative`, `state_update`, " *
+-                    "`state_projection`)"
++const ASSEMBLY_FAMILY = (:child_connections,)
++const LEAF_FAMILY = (:init_x, :init_s, :init_m, :init_workspace, :input_types,
++                     :output_types, :state_events, :output_state, :output_direct,
++                     :state_derivative, :state_update, :state_projection)
++
++# The five `DECLARATION_FAMILY` names no leaf declaration covers: the assembly
++# marker, the two boundary declarations and the two sugars.
++const _OTHER_FAMILY = ((:child_connections, child_connections),
++                       (:input_connections, input_connections),
++                       (:output_connections, output_connections),
++                       (:sample_times, sample_times),
++                       (:transparent_container, transparent_container))
+ 
+ """The leaf declarations `c` defines, in inventory order (§8.2, §8.5)."""
+ function leaf_declarations(c)
+@@ -36,6 +44,15 @@ function leaf_declarations(c)
+     found
+ end
+ 
++"""The `DECLARATION_FAMILY` names `c` defines, in family order (§8.1, §8.5)."""
++function declarations_found(c)
++    found = leaf_declarations(c)
++    for (name, fn) in _OTHER_FAMILY
++        _declares(fn, c) && push!(found, name)
++    end
++    Symbol[n for n in DECLARATION_FAMILY if n in found]
++end
++
+ """The class of `c` at `path`, or a `DiagnosticError` naming what makes it unreadable."""
+ function classify(path::String, c)
+     leaves = leaf_declarations(c)
+@@ -45,11 +62,18 @@ function classify(path::String, c)
+         return ASSEMBLY
+     end
+     isempty(leaves) || return PRIMITIVE
+-    throw(DiagnosticError(ClassUnreadable(path = path, families = LEAF_FAMILY,
++    throw(DiagnosticError(ClassUnreadable(path = path, type = _typename(c),
++                                     found = declarations_found(c),
++                                     assembly_family = collect(ASSEMBLY_FAMILY),
++                                     leaf_family = collect(LEAF_FAMILY),
+                                      holds_components = _holds_components(c))))
+ end
+ 
+ _at(path::String) = isempty(path) ? "the root component" : "`$path`"
++# A producer terminal spelled for a payload string: a component's port, or the
++# root's own input face, whose path is the empty one.
++_terminal(t::Tuple{String,Symbol}) =
++    isempty(first(t)) ? "root input `$(last(t))`" : "`$(first(t))`.$(last(t))"
+ _join(path::String, seg::String) = isempty(path) ? seg : path * "/" * seg
+ 
+ _holds_components(c) = any(fieldnames(typeof(c))) do name
+@@ -126,13 +150,13 @@ function _children(path::String, c)
+                 nested = [k for k in keys(v) if _bears_component(v[k])]
+                 isempty(nested) ||
+                     push!(diags, ContainerNested(path = path, field = name, keys = nested,
+-                                                types = Any[typeof(v[k]) for k in nested]))
++                                                types = [_typespell(typeof(v[k])) for k in nested]))
+                 continue
+             end
+             if n != length(v)
+-                push!(diags, ContainerMixed(path = path, field = name,
+-                                           types = unique(Any[typeof(e) for e in v
+-                                                              if !(e isa AbstractComponent)])))
++                mixed = [k for k in keys(v) if !(v[k] isa AbstractComponent)]
++                push!(diags, ContainerMixed(path = path, field = name, keys = mixed,
++                                           types = unique([_typespell(typeof(v[k])) for k in mixed])))
+                 continue
+             end
+             bare = name === tf
+@@ -170,6 +194,9 @@ end
+ # parametric code then needs no special case (§8.5).
+ _is_container(v) = (v isa NamedTuple || v isa Tuple) && all(e -> e isa AbstractComponent, v)
+ 
++# The container fields of `c`'s type: what a name-transparent declaration may name.
++_container_fields(c) = Symbol[n for n in fieldnames(typeof(c)) if _is_container(getfield(c, n))]
++
+ # A container holding a component at any depth: the shape `ContainerNested` names.
+ _bears_component(v) = (v isa NamedTuple || v isa Tuple) &&
+                       any(e -> e isa AbstractComponent || _bears_component(e), v)
+@@ -180,7 +207,8 @@ function _check_transparent(path::String, c, tf, diags::Vector{Diagnostic})
+     tf === nothing && return nothing
+     ok = tf in fieldnames(typeof(c)) && _is_container(getfield(c, tf))
+     ok || push!(diags, TransparentContainerUnknown(path = path, field = tf,
+-                                                  component = _typename(c)))
++                                                  component = _typename(c),
++                                                  candidates = _container_fields(c)))
+     nothing
+ end
+ 
+@@ -797,15 +825,30 @@ function flatten!(w::Walk, root, diags::Vector{Diagnostic})
+     # here beside the refusal itself.
+     for (path, c) in zip(w.flat.paths, w.flat.comps)
+         at_component(path) do
+-            for face in keys(_contract(input_types, c))
++            for (face, declared) in pairs(_contract(input_types, c))
+                 haskey(w.feeds, (path, face)) ||
+-                    push!(diags, UnconnectedInput(path = path, face = face))
++                    push!(diags, UnconnectedInput(path = path, face = face,
++                                                 declared = declared,
++                                                 level = _last_level(w, path, face)))
+             end
+         end
+     end
+     nothing
+ end
+ 
++# The obligation chain's last level (§6.1): the topmost face an
++# `input_connections` chain handed `(path, face)` up to — the shortest route path
++# naming it as a consumer, an ancestor's path being a prefix of the leaf's. The
++# leaf's own path when no route names it: `w.routes` records only routes with
++# consumers, so an entry nobody handed up has no row.
++function _last_level(w::Walk, path::String, face::Symbol)
++    level = path
++    for (rpath, _, consumers) in w.routes
++        (path, face) in consumers && length(rpath) < length(level) && (level = rpath)
++    end
++    level
++end
++
+ """
+ §9.2's input side, derived on a walk the barrier has already proved clean: every
+ input is fed exactly once, so an assembly's face and the leaf entries behind it
+@@ -948,7 +991,9 @@ _entry(method::String, path::String, pair::Pair) =
+ function _claim!(w::Walk, consumer, producer, entry::String, diags::Vector{Diagnostic})
+     if haskey(w.feeds, consumer)
+         push!(diags, TwoProducers(path = consumer[1], port = consumer[2],
+-                                 incumbent = w.claims[consumer], entry = entry))
++                                 incumbent = w.claims[consumer], entry = entry,
++                                 incumbent_producer = _terminal(w.feeds[consumer]),
++                                 producer = _terminal(producer)))
+         return nothing                     # the incumbent keeps the claim
+     end
+     w.feeds[consumer] = producer
+diff --git a/src/bindings.jl b/src/bindings.jl
+index ddeff42..f9d15e6 100644
+--- a/src/bindings.jl
++++ b/src/bindings.jl
+@@ -135,15 +135,15 @@ selectors, `(; label = get_output(...), ...)`, and the labels are the
+ NamedTuple `map_output` receives. Every failure names the selector at fault;
+ the did-you-mean candidate lists are absent (`pending.md`).
+ """
+-function _compile_gather(layout::Layout, nt, T::Type)
++function _compile_gather(layout::Layout, nt, T::Type, device::String)
+     nt isa NamedTuple || throw(DiagnosticError(
+-        BindingContractMismatch(binding = string(T), reason = :reads_not_namedtuple,
++        BindingContractMismatch(binding = _typename(T), reason = :reads_not_namedtuple,
+                                  observed = typeof(nt))))
+     addrs = map(values(nt)) do s
+         s isa ReadSelector || throw(DiagnosticError(
+-            BindingContractMismatch(binding = string(T), reason = :reads_not_selectors,
++            BindingContractMismatch(binding = _typename(T), reason = :reads_not_selectors,
+                                      observed = typeof(s))))
+-        _resolve_read(layout, s, T)
++        _resolve_read(layout, s, T, device)
+     end
+     ReadGather{keys(nt)}(addrs)
+ end
+@@ -165,35 +165,35 @@ end
+ # no state stores by construction (§11.2) and `ẋ` is integrator scratch, so a
+ # snapshot-bound reader naming a store selector is a resolution error at
+ # attach — in the didactic style, with the remedy named.
+-_resolve_read(::Layout, s::StoreSelector, T::Type) = throw(DiagnosticError(
+-    ReadBindingUnresolved(binding = string(T), selector = _spell(s), reason = :store_selector,
+-                           path = _selpath(s), field = _field(s))))
++_resolve_read(::Layout, s::StoreSelector, T::Type, device::String) = throw(DiagnosticError(
++    ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
++                           reason = :store_selector, path = _selpath(s), field = _field(s))))
+ 
+-function _resolve_read(layout::Layout, s::GetOutput, T::Type)
++function _resolve_read(layout::Layout, s::GetOutput, T::Type, device::String)
+     s.i === nothing || throw(DiagnosticError(
+-        ReadBindingUnresolved(binding = string(T), selector = _spell(s), reason = :indexed,
+-                               path = s.path, field = s.name)))
++        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
++                               reason = :indexed, path = s.path, field = s.name)))
+     haskey(layout.addr, (s.path, s.name)) || throw(DiagnosticError(
+-        ReadBindingUnresolved(binding = string(T), selector = _spell(s), reason = :unknown_cell,
+-                               path = s.path, field = s.name,
++        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
++                               reason = :unknown_cell, path = s.path, field = s.name,
+                                candidates = _cells_at(layout, s.path))))
+     layout.addr[(s.path, s.name)]
+ end
+ 
+-function _resolve_read(layout::Layout, s::GetInput, T::Type)
++function _resolve_read(layout::Layout, s::GetInput, T::Type, device::String)
+     s.face in _root_input_names(layout) || throw(DiagnosticError(
+-        ReadBindingUnresolved(binding = string(T), selector = _spell(s),
++        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
+                                reason = :unknown_root_input, field = s.face,
+                                candidates = _root_input_names(layout))))
+     layout.addr[("", s.face)]
+ end
+ 
+-function _resolve_read(layout::Layout, s::GetFace, T::Type)
++function _resolve_read(layout::Layout, s::GetFace, T::Type, device::String)
+     s.name in _root_input_names(layout) && throw(DiagnosticError(
+-        ReadBindingUnresolved(binding = string(T), selector = _spell(s),
++        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
+                                reason = :root_input_not_output, field = s.name)))
+     haskey(layout.addr, ("", s.name)) || throw(DiagnosticError(
+-        ReadBindingUnresolved(binding = string(T), selector = _spell(s),
++        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
+                                reason = :unknown_output_face, field = s.name,
+                                candidates = _root_output_faces(layout))))
+     layout.addr[("", s.name)]
+diff --git a/src/build.jl b/src/build.jl
+index 02a2d6a..a858d9c 100644
+--- a/src/build.jl
++++ b/src/build.jl
+@@ -171,6 +171,14 @@ function check_stores(path::String, c, diags::Vector{Diagnostic})
+     end
+ end
+ 
++# The tier-announcing family (§8.2, §8.5): the names the vote loop below reads,
++# in vote order — the list-in-hand a `TierUnreadable` carries.
++const TIER_FAMILY = (:state_derivative, :state_update, :init_x, :init_s, :init_m,
++                     :state_events, :output_types, :input_types, :init_workspace)
++
++# §8.5's two contract signature forms, as the tier mandates them.
++_form(t::Tier) = t === CONTINUOUS ? :two_argument : :plain
++
+ """
+ The tier the primitive at `path` announces, or `nothing` with what disagrees
+ recorded in `diags` (§13.1).
+@@ -201,7 +209,8 @@ function classify_tier(path::String, c, diags::Vector{Diagnostic})
+     else
+         i = findfirst(v -> first(v) === :output_types, votes)
+         if i === nothing
+-            push!(diags, TierUnreadable(path = path,
++            push!(diags, TierUnreadable(path = path, type = _typename(c),
++                                       family = collect(TIER_FAMILY),
+                                        declarations = Symbol[first(v) for v in votes]))
+             return nothing
+         end
+@@ -209,15 +218,23 @@ function classify_tier(path::String, c, diags::Vector{Diagnostic})
+ 
+     # The vote loop collects (§13.1): a leaf written half in each tier's spelling
+     # names every declaration that disagrees, not the first one found. The tier
+-    # is announced only if none does.
++    # is announced only if none does. A contract arity against the announced tier
++    # is the contract's own kind, on a stateful leaf and a stateless one alike
++    # (§8.5, D-249); every other name is `DeclarationOnWrongTier`'s.
+     t = last(votes[i])
+     k = length(diags)
+     for (name, vt) in votes
+-        vt === t ||
++        vt === t && continue
++        if name === :input_types || name === :output_types
++            push!(diags, TierSignatureMismatch(path = path, declaration = name,
++                                               tier = Symbol(tier_word(t)), reason = :arity,
++                                               found = _form(vt), mandated = _form(t)))
++        else
+             push!(diags, DeclarationOnWrongTier(path = path, declaration = name,
+                                                reason = :tier_form,
+                                                found = Symbol(tier_word(vt)),
+                                                announced = Symbol(tier_word(t))))
++        end
+     end
+     length(diags) == k ? t : nothing
+ end
+@@ -726,13 +743,13 @@ function _check_event_declarations(flat::Flat, diags::Vector{Diagnostic})
+             for (name, ev) in pairs(invoke_declaration(state_events, c))
+                 if !(ev isa StateEvent)
+                     push!(diags, EventHalfMissing(path = path, event = name,
+-                                                 reason = :not_an_event, found = typeof(ev)))
++                                                 reason = :not_an_event, found = _typename(ev)))
+                     continue                       # neither half exists to look up
+                 end
+                 for (half, fn) in ((:guard, ev.guard), (:handler, ev.handler))
+                     hasmethod(fn, Tuple{typeof(c),NamedTuple}) ||
+                         push!(diags, EventHalfMissing(path = path, event = name, reason = half,
+-                                                     found = typeof(c)))
++                                                     found = _typename(c)))
+                 end
+             end
+         end
+@@ -778,7 +795,7 @@ function _check_wires(flat::Flat, tiers::Vector{Tier}, diags::Vector{Diagnostic}
+             (_declares(fn, c, Type{Float64}) && !_declares(fn, c, Type{Marker})) || continue
+             push!(diags, TierSignatureMismatch(path = flat.paths[ci], declaration = nameof(fn),
+                                                tier = :continuous, reason = :bound,
+-                                               found = _contract_bound(fn, c)))
++                                               found = _contract_bound(fn, c), mandated = Real))
+             refused[ci] = true
+         end
+     end
+@@ -1073,7 +1090,11 @@ function _probe_direct!(products::Vector{NamedTuple}, ci::Int, flat::Flat,
+         # stage-2 return of the same port writes it twice (§5.3, §8.3).
+         twice = intersect(union(keys(s1), keys(published[ci])), keys(y2))
+         isempty(twice) ||
+-            throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice))))
++            throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice),
++                                                producers = Symbol[p in keys(s1) ?
++                                                                   :output_state :
++                                                                   :auto_publication
++                                                                   for p in twice])))
+         products[ci] = merge(s1, published[ci], _embed_ports(y2, d.outs, T))
+     end
+     nothing
+@@ -1087,20 +1108,22 @@ end
+ # `state_projection` pass and the handler check — can put it under their own
+ # barrier (§13.1). The two shape checks are sequential: neither later one is
+ # meaningful once an earlier one fails.
+-function _check_state_write(path, what, x⁺, x::NamedTuple, ::Type{T}) where {T}
++function _check_state_write(path, what, x⁺, x::NamedTuple, ::Type{T};
++                            event = nothing) where {T}
+     x⁺ isa NamedTuple ||
+-        return Diagnostic[ConformanceFailure(path = path, what = what,
++        return Diagnostic[ConformanceFailure(path = path, what = what, event = event,
+                                              reason = :return_type, shape = :state,
+                                              observed = typeof(x⁺))]
+     Set(keys(x⁺)) == Set(keys(x)) ||
+-        return Diagnostic[ConformanceFailure(path = path, what = what, reason = :field_set,
+-                                             shape = :state,
++        return Diagnostic[ConformanceFailure(path = path, what = what, event = event,
++                                             reason = :field_set, shape = :state,
+                                              observed_fields = collect(keys(x⁺)),
+                                              declared_fields = collect(keys(x)))]
+     diags = Diagnostic[]
+     for k in keys(x)
+         _accepts(typeof(x[k]), typeof(x⁺[k]), T) ||
+-            push!(diags, ConformanceFailure(path = path, what = what, reason = :field_type,
++            push!(diags, ConformanceFailure(path = path, what = what, event = event,
++                                           reason = :field_type,
+                                            shape = :state, field = k,
+                                            observed = typeof(x⁺[k]),
+                                            declared = typeof(x[k]), activation = T))
+@@ -1156,9 +1179,10 @@ end
+ # The key loops collect under one barrier per handler (§13.1): a handler naming
+ # three stores it does not own names all three.
+ function _check_handler(path, name, ret, d::Decls, c)
+-    what = "event `$name`'s handler"
++    what = "handler"        # the event rides beside it, and the renderer composes the two
+     ret isa NamedTuple ||
+-        throw(DiagnosticError(ConformanceFailure(path = path, what = what, reason = :return_type,
++        throw(DiagnosticError(ConformanceFailure(path = path, what = what, event = name,
++                                            reason = :return_type,
+                                             shape = :stores, observed = typeof(ret))))
+     m₀ = invoke_declaration(init_m, c)
+     stores = Symbol[]
+@@ -1173,21 +1197,21 @@ function _check_handler(path, name, ret, d::Decls, c)
+     # is the outer fact, and holding a write to `x` against an empty state would
+     # report the same omission twice in different words.
+     haskey(ret, :x) && :x in stores &&
+-        append!(diags, _check_state_write(path, "$what `x`", ret.x, d.x, Float64))
++        append!(diags, _check_state_write(path, "$what `x`", ret.x, d.x, Float64; event = name))
+     if haskey(ret, :m) && :m in stores
+         if !(ret.m isa NamedTuple)
+-            push!(diags, ConformanceFailure(path = path, what = "$what `m`",
++            push!(diags, ConformanceFailure(path = path, what = "$what `m`", event = name,
+                                            reason = :return_type, shape = :mode,
+                                            observed = typeof(ret.m)))
+         else
+             for k in keys(ret.m)
+                 if !haskey(m₀, k)
+-                    push!(diags, ConformanceFailure(path = path, what = what,
++                    push!(diags, ConformanceFailure(path = path, what = what, event = name,
+                                                    reason = :field_set, shape = :mode,
+                                                    field = k,
+                                                    declared_fields = collect(keys(m₀))))
+                 elseif typeof(ret.m[k]) !== typeof(m₀[k])
+-                    push!(diags, ConformanceFailure(path = path, what = what,
++                    push!(diags, ConformanceFailure(path = path, what = what, event = name,
+                                                    reason = :field_type, shape = :mode,
+                                                    field = k, observed = typeof(ret.m[k]),
+                                                    declared = typeof(m₀[k])))
+@@ -1541,7 +1565,7 @@ function compile(b::Build, act::Activation{T}, D_c::Vector{Int}, Φ_c::Vector{In
+                 push!(ev_entries, EventEntry{typeof(d.x),bn}(
+                     evs[name].guard, evs[name].handler, pj, c, length(ev_entries) + 1,
+                     in_group(ci, d), addr_group(flat.paths[ci], keys(d.outs)),
+-                    x_offs[ci], clock, mstores[ci], wss[ci], flat.paths[ci], ci, cursor))
++                    x_offs[ci], clock, mstores[ci], wss[ci], flat.paths[ci], name, ci, cursor))
+                 push!(ev_owner, ci)
+                 push!(ev_names, (flat.paths[ci], name))
+                 push!(ev_localized, b.policies[ci][name] === :localized)
+diff --git a/src/devices.jl b/src/devices.jl
+index 92de034..88164b8 100644
+--- a/src/devices.jl
++++ b/src/devices.jl
+@@ -133,12 +133,15 @@ roster change configures the next run, and an errored simulation has none.
+ """
+ assert_stopped(ctl::Control, op::Symbol) =
+     (@atomic ctl.lifecycle) === :running ?
+-    throw(DiagnosticError(ServiceLifecycle(op = op, status = :running))) : nothing
++    throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
++                                           legal = collect(READER_LEGAL)))) : nothing
+ 
+ function assert_configurable(ctl::Control, op::Symbol)
+     lc = @atomic ctl.lifecycle
+-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running)))
+-    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored)))
++    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
++                                                              legal = collect(STOPPED_SIM_LEGAL))))
++    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored,
++                                                              legal = collect(STOPPED_SIM_LEGAL))))
+     nothing
+ end
+ 
+diff --git a/src/diagnostics.jl b/src/diagnostics.jl
+index f7947c4..abc9b5a 100644
+--- a/src/diagnostics.jl
++++ b/src/diagnostics.jl
+@@ -35,6 +35,14 @@ _typename(T::Type) =
+ # A declared generic holding: `nameof` has no method, and `string` on the
+ # variable qualifies its bound the same way interpolating a type does.
+ _typename(v::TypeVar) = "$(v.name)<:$(_typename(v.ub))"
++# A plain-data type with its shape, for the two container kinds alone: the outer
++# name through `_typename` and every parameter spelled the same way, so a
++# `Tuple{Gain,Gain}` keeps its arity and stays unqualified. A port type is
++# interpolated whole (§13.2's exception), a label goes through `_typename`.
++_typespell(T::Type) =
++    !(T isa DataType) || isempty(T.parameters) ? _typename(T) :
++    _typename(T) * "{" *
++    join((p isa Type ? _typespell(p) : string(p) for p in T.parameters), ", ") * "}"
+ 
+ """
+ The kind's severity (§13.2, D-214): `:error` — an occurrence throws, alone or
+@@ -273,11 +281,16 @@ message(d::UnknownPort) =
+ Base.@kwdef struct UnconnectedInput <: Diagnostic
+     path::String
+     face::Symbol
++    declared::Any                            # the declared entry type, at nominal
++    level::String                            # the obligation chain's last level; the leaf's own path when no route names it
+ end
+ path(d::UnconnectedInput) = d.path
+ message(d::UnconnectedInput) =
+-    "`$(d.path)`.$(d.face) is fed by nothing — every input is fed exactly once, by a " *
+-    "wire or by an `input_connections` chain ending at a root input face (§6.1)"
++    "`$(d.path)`.$(d.face) declared $(d.declared) is fed by nothing" *
++    (d.level == d.path ? "" :
++     ", handed up to $(_at_path(d.level)) and fed by nothing there") *
++    " — every input is fed exactly once, by a wire or by an `input_connections` chain " *
++    "ending at a root input face (§6.1)"
+ 
+ "§6.1, §8.8: an input claimed twice, both producers named with their provenance."
+ Base.@kwdef struct TwoProducers <: Diagnostic
+@@ -285,11 +298,14 @@ Base.@kwdef struct TwoProducers <: Diagnostic
+     port::Symbol                             # the destination terminal's port
+     incumbent::String                        # the entry that claimed it first
+     entry::String                            # the entry that claimed it second
++    incumbent_producer::String               # the terminal the first entry feeds it from
++    producer::String                         # the terminal the second entry feeds it from
+ end
+ path(d::TwoProducers) = d.path
+ message(d::TwoProducers) =
+-    "`$(d.path)`.$(d.port) is fed twice: by $(d.incumbent), and by $(d.entry) — every " *
+-    "input takes exactly one connection, across levels included (§6.1)"
++    "`$(d.path)`.$(d.port) is fed twice: from $(d.incumbent_producer) by $(d.incumbent), " *
++    "and from $(d.producer) by $(d.entry) — every input takes exactly one connection, " *
++    "across levels included (§6.1)"
+ 
+ "§6.1, §8.2, §8.4 w4: a wire whose producer's declaration at `Float64` is not `<:` the consumer's entry at `Float64`."
+ Base.@kwdef struct WireTypeMismatch <: Diagnostic
+@@ -333,6 +349,9 @@ Base.@kwdef struct AbstractAtRoot <: Diagnostic
+     declared::Vector{Any}                    # their abstract entries
+ end
+ path(::AbstractAtRoot) = ""
++# A port type is §13.2's one payload exception, so the entry is interpolated
++# whole, as `RootInputTypeConflict` beside it does: `_typename` would strip the
++# parameters and print `AbstractVector{Float64}` as `AbstractArray`.
+ message(d::AbstractAtRoot) =
+     "root input `$(d.face)` is declared " *
+     join(("$(_at_path(p))::$(P)" for (p, P) in zip(d.paths, d.declared)), ", ") *
+@@ -418,14 +437,14 @@ Base.@kwdef struct EventHalfMissing <: Diagnostic
+     path::String
+     event::Symbol
+     reason::Symbol                           # :guard | :handler | :not_an_event
+-    found::Any = nothing                     # the component type, or the entry's type
++    found::String                            # the component type's name, or the entry type's
+ end
+ path(d::EventHalfMissing) = d.path
+ message(d::EventHalfMissing) =
+     d.reason === :not_an_event ?
+-    "`$(d.path)`: `state_events` entry `$(d.event)` is $(d.found) — an entry is " *
++    "`$(d.path)`: `state_events` entry `$(d.event)` is a `$(d.found)` — an entry is " *
+     "`StateEvent(guard, handler)`, with no detection keyword (§8.2)" :
+-    "`$(d.path)`: event `$(d.event)`'s $(d.reason) has no method for $(d.found) — an " *
++    "`$(d.path)`: event `$(d.event)`'s $(d.reason) has no method for `$(d.found)` — an " *
+     "event needs both halves (§8.2)"
+ 
+ "§8.1, D-246: a family name the component's module binds to a function of its own — the forgotten import."
+@@ -444,13 +463,18 @@ message(d::DeclarationShadowed) =
+ "§8.5: a component declaring neither family, so its class cannot be read off declaration shape."
+ Base.@kwdef struct ClassUnreadable <: Diagnostic
+     path::String
+-    families::String                         # the leaf family list, the list-in-hand
++    type::String                             # the component type's name
++    found::Vector{Symbol}                    # the `DECLARATION_FAMILY` names it does declare, family order
++    assembly_family::Vector{Symbol}          # the assembly family list, the list-in-hand
++    leaf_family::Vector{Symbol}              # the leaf family list, the list-in-hand
+     holds_components::Bool = false
+ end
+ path(d::ClassUnreadable) = d.path
+ message(d::ClassUnreadable) =
+-    "$(_at_path(d.path)) declares neither family: `child_connections` would make it an " *
+-    "assembly, any of $(d.families) a primitive (§8.5)" *
++    "$(_at_path(d.path))::`$(d.type)` declares neither family: " *
++    "$(_namelist(d.assembly_family)) would make it an assembly, any of " *
++    "$(_namelist(d.leaf_family)) a primitive (§8.5)" *
++    (isempty(d.found) ? "" : " — it declares $(_namelist(d.found))") *
+     (d.holds_components ?
+      " — it holds components but declares no `child_connections`" : "")
+ 
+@@ -469,19 +493,21 @@ message(d::ClassMixed) =
+ Base.@kwdef struct ContainerMixed <: Diagnostic
+     path::String
+     field::Symbol
+-    types::Vector{Any}                       # the non-component element types
++    keys::Vector{Any}                        # the non-component element keys or indices
++    types::Vector{String}                    # the unique non-component element types, spelled with their shape (§13.2)
+ end
+ path(d::ContainerMixed) = d.path
+ message(d::ContainerMixed) =
+     "$(_at_path(d.path)): container field `$(d.field)` mixes components with " *
+-    "$(_plainlist(d.types)) — a container holds components only (§8.5)"
++    "$(_plainlist(d.types)) at $(_namelist(d.keys)) — a container holds components only " *
++    "(§8.5)"
+ 
+ "§8.5: a container whose element is itself a component-bearing container — deeper grouping is what assemblies are for."
+ Base.@kwdef struct ContainerNested <: Diagnostic
+     path::String
+     field::Symbol
+     keys::Vector{Any}                        # the offending element keys or indices
+-    types::Vector{Any}                       # their types, one per key
++    types::Vector{String}                    # their types, spelled with their shape, one per key (§13.2)
+ end
+ path(d::ContainerNested) = d.path
+ message(d::ContainerNested) =
+@@ -508,17 +534,25 @@ message(d::DeclarationOnWrongTier) =
+     "`$(d.path)`: `$(d.declaration)` is declared in the $(d.found)-tier form, but this " *
+     "component's other declarations announce the $(d.announced) tier (§8.2)"
+ 
+-"§8.2, §8.5: a contract signature whose form is not the one its tier mandates — here the bound arm, a `T` narrower than `Real`."
++"§6.1, §8.2, §8.5, D-249: a contract signature whose form is not the one its tier mandates — the arity arm, and the bound arm, a `T` narrower than `Real`."
+ Base.@kwdef struct TierSignatureMismatch <: Diagnostic
+     path::String
+     declaration::Symbol                      # :input_types | :output_types
+-    tier::Symbol                             # :continuous
+-    reason::Symbol                           # :bound — the arity arms ride as `DeclarationOnWrongTier`'s `:tier_form`
+-    found::Any                               # the bound the method puts on `T`
+-    mandated::Any = Real
++    tier::Symbol                             # :continuous | :discrete
++    reason::Symbol                           # :bound | :arity
++    found::Any                               # the bound the method puts on `T`, or the form declared
++    mandated::Any                            # the mandated bound, or the form the tier mandates
+ end
+ path(d::TierSignatureMismatch) = d.path
++# §8.5's two spellings, the form symbols the `:arity` arm carries rendered as the
++# section writes them.
++_signature(form::Symbol) =
++    form === :two_argument ? "(::C, ::Type{T}) where {T <: Real}" : "(::C)"
+ message(d::TierSignatureMismatch) =
++    d.reason === :arity ?
++    "$(_at_path(d.path)): `$(d.declaration)` is declared `$(_signature(d.found))`, but " *
++    "this component's other declarations announce the $(d.tier) tier, whose contract " *
++    "signatures are `$(_signature(d.mandated))` — declare it that way (§8.5)" :
+     "$(_at_path(d.path)): `$(d.declaration)` bounds its `T` by $(d.found), but a " *
+     "continuous contract is a function of every activation scalar — declare it " *
+     "`where {T <: Real}` (§8.5)"
+@@ -661,25 +695,29 @@ Base.@kwdef struct TransparentContainerUnknown <: Diagnostic
+     path::String
+     field::Symbol
+     component::String                        # the declaring type, as a string
++    candidates::Vector{Symbol}               # the type's container fields, the list-in-hand
+ end
+ path(d::TransparentContainerUnknown) = d.path
+ message(d::TransparentContainerUnknown) =
+     "$(_at_path(d.path)): `transparent_container` returns `:$(d.field)`, which names no " *
+-    "container field of `$(d.component)` — a name-transparent declaration names a `Tuple` " *
++    "container field of `$(d.component)` — its container fields are " *
++    "$(_namelist(d.candidates)); a name-transparent declaration names a `Tuple` " *
+     "or `NamedTuple` field whose elements are all components, the empty one included " *
+     "(§8.5, D-211)"
+ 
+ "§5.2, §8.2, §8.5, D-215: the tier twin of `ClassUnreadable` — no `output_types` and no state."
+ Base.@kwdef struct TierUnreadable <: Diagnostic
+     path::String
++    type::String                             # the component type's name
++    family::Vector{Symbol}                   # the tier-announcing family, the list-in-hand
+     declarations::Vector{Symbol} = Symbol[]  # the tier-announcing declarations found
+ end
+ path(d::TierUnreadable) = d.path
+ message(d::TierUnreadable) =
+-    "`$(d.path)` declares no `output_types` and owns no state — there is nothing for the " *
+-    "tier to be read off: declare `output_types`, or give the component an `init_x`/`init_s` " *
+-    "store with the update law that drives it. Its tier-announcing declarations are " *
+-    "$(_namelist(d.declarations)) (§8.2)"
++    "`$(d.path)`::`$(d.type)` declares no `output_types` and owns no state — there is " *
++    "nothing for the tier to be read off: declare `output_types`, or give the component " *
++    "an `init_x`/`init_s` store with the update law that drives it. Its tier-announcing " *
++    "declarations are $(_namelist(d.declarations)), out of $(_namelist(d.family)) (§8.2)"
+ 
+ "§4.3, §7.1, §8.2, D-215, D-237, D-243: a port type the leaf walk cannot lay out — no leaves, a mutable type on the walk, or an opaque leaf at a root input."
+ Base.@kwdef struct IllegalPortType <: Diagnostic
+@@ -819,11 +857,16 @@ end
+ Base.@kwdef struct ProducedByTwoStages <: Diagnostic
+     path::String
+     ports::Vector{Symbol}
++    producers::Vector{Symbol}                # parallel to `ports`: each one's stage-1 producer
+ end
+ path(d::ProducedByTwoStages) = d.path
+ message(d::ProducedByTwoStages) =
+-    "`$(d.path)`: $(_plainlist(d.ports)) produced twice — by two stages, or by a stage " *
+-    "and the framework's auto-publication (§5.3, §8.3)"
++    "`$(d.path)`: " *
++    join(("`$p` by " *
++          (q === :auto_publication ? "the framework's auto-publication" : "`$q`") *
++          " and by `output_direct`" for (p, q) in zip(d.ports, d.producers)), ", ") *
++    " — a port is produced once: drop it from `output_direct`, or from its stage-1 " *
++    "producer (§5.3, §8.3)"
+ 
+ "§8.3: a declared port no stage writes — a cell no one fills, reading as a silent zero."
+ Base.@kwdef struct DeclaredNotProduced <: Diagnostic
+@@ -865,7 +908,9 @@ message(d::DeadStage) =
+ """
+ §9.5: the return laws, probed. `shape` names what the return had to be shaped
+ like and `reason` which half of the law failed — the return's own type, its
+-field set, or one field's type.
++field set, or one field's type. `event` is the event name on a handler's
++occurrence, at the probe and at run time alike (D-249); the simulation time of
++a runtime occurrence rides the `StepError` carrier, never the diagnostic.
+ """
+ Base.@kwdef struct ConformanceFailure <: Diagnostic
+     path::String
+@@ -878,9 +923,16 @@ Base.@kwdef struct ConformanceFailure <: Diagnostic
+     observed_fields::Vector{Symbol} = Symbol[]
+     declared_fields::Vector{Symbol} = Symbol[]
+     activation::Any = nothing                # the activation scalar, for the pin hint
++    event::Union{Nothing,Symbol} = nothing   # the event, on a handler's occurrence
+ end
+ path(d::ConformanceFailure) = d.path
+ 
++# The function at fault, with its event where it has one: `what` names the
++# handler and `event` the occurrence it belongs to, and the two compose here
++# rather than at each construction site.
++_cf_what(d::ConformanceFailure) =
++    d.event === nothing ? d.what : "event `$(d.event)`'s $(d.what)"
++
+ _cf_expect(s::Symbol) =
+     s === :ports      ? "must return a NamedTuple of port values" :
+     s === :state      ? "must return a NamedTuple shaped like the state" :
+@@ -903,20 +955,20 @@ _pin(d::ConformanceFailure) =
+ 
+ function message(d::ConformanceFailure)
+     d.reason === :return_type &&
+-        return "`$(d.path)`: $(d.what) $(_cf_expect(d.shape)), got $(d.observed)" *
++        return "`$(d.path)`: $(_cf_what(d)) $(_cf_expect(d.shape)), got $(d.observed)" *
+                _cf_section(d.shape)
+     if d.reason === :field_set
+         d.shape === :mode &&
+-            return "`$(d.path)`: $(d.what) writes mode `$(d.field)`, and `init_m` declares " *
++            return "`$(d.path)`: $(_cf_what(d)) writes mode `$(d.field)`, and `init_m` declares " *
+                    "$(_symtuple(d.declared_fields)) — `m` is a names-subset write (§5.2)"
+         d.shape === :init_s &&
+-            return "`$(d.path)`: $(d.what) returns $(d.observed), state store is " *
++            return "`$(d.path)`: $(_cf_what(d)) returns $(d.observed), state store is " *
+                    "$(d.declared) — a discrete successor is the store's own type exactly (§7.3)"
+         d.shape === :init_x &&
+-            return "`$(d.path)`: $(d.what) returns fields $(_symtuple(d.observed_fields)), " *
++            return "`$(d.path)`: $(_cf_what(d)) returns fields $(_symtuple(d.observed_fields)), " *
+                    "state has $(_symtuple(d.declared_fields)) — derivative completeness is " *
+                    "structural (§7.1)"
+-        return "`$(d.path)`: $(d.what) returns fields $(_symtuple(d.observed_fields)), " *
++        return "`$(d.path)`: $(_cf_what(d)) returns fields $(_symtuple(d.observed_fields)), " *
+                "state has $(_symtuple(d.declared_fields)) — a state write-back is complete " *
+                "against the field set (§9.3, §9.5)"
+     end
+@@ -924,16 +976,16 @@ function message(d::ConformanceFailure)
+     # (§5.3), so the verb follows `what` rather than naming a return that is not
+     # one.
+     d.shape === :ports &&
+-        return "`$(d.path)`: $(d.what) " *
++        return "`$(d.path)`: $(_cf_what(d)) " *
+                (d.what == "auto-publication" ? "publishes" : "returns") *
+                " `$(d.field)`::$(d.observed), declared $(d.declared)" * _pin(d)
+     d.shape === :mode &&
+-        return "`$(d.path)`: $(d.what) mode `$(d.field)` is $(d.observed), declared " *
++        return "`$(d.path)`: $(_cf_what(d)) mode `$(d.field)` is $(d.observed), declared " *
+                "$(d.declared) (§5.2)"
+     d.shape === :init_x &&
+         return "`$(d.path)`: derivative field `$(d.field)` is $(d.observed), state field " *
+                "is $(d.declared)" * _pin(d)
+-    "`$(d.path)`: $(d.what) field `$(d.field)` is $(d.observed), state field is " *
++    "`$(d.path)`: $(_cf_what(d)) field `$(d.field)` is $(d.observed), state field is " *
+     "$(d.declared)" * _pin(d)
+ end
+ 
+@@ -1029,11 +1081,21 @@ message(d::MissingInit) =
+     "`$(d.op)` before `init!`: boundary zero has not completed and this simulation is " *
+     "`$(d.status)` — `init!` is mandatory (§12.6)"
+ 
++# §12.6's legality table and §11.3's sentence, as the lists a refusal carries.
++# The advance entries admit `:initialized` alone; a reader admits every status
++# but `:running`; a stopped-sim operation adds `:errored` to the refusals
++# (D-232). `capture` narrows further and names its own list at the site. Each is
++# an immutable tuple and every site fills the payload through `collect`, so no
++# two refusals share one mutable list.
++const ADVANCE_LEGAL = (:initialized,)
++const READER_LEGAL = (:built, :initialized, :stopped, :errored)
++const STOPPED_SIM_LEGAL = (:built, :initialized, :stopped)
++
+ "§11.3, §14: a service call against a lifecycle status that does not admit it."
+ Base.@kwdef struct ServiceLifecycle <: Diagnostic
+     op::Symbol
+     status::Symbol
+-    legal::Vector{Symbol} = Symbol[]         # the statuses that admit the operation
++    legal::Vector{Symbol}                    # the statuses that admit the operation
+ end
+ 
+ # `:running` refuses two different operations, and the sentence differs: an
+@@ -1062,18 +1124,25 @@ message(d::ServiceLifecycle) =
+ Base.@kwdef struct StopFaceInvalid <: Diagnostic
+     face::Symbol
+     reason::Symbol                           # :unknown | :root_input | :not_bool
++    site::Symbol                             # :constructor | :run! | :replay!
+     declared::Any = nothing                  # the declared type, for :not_bool
+     candidates::Vector{Symbol} = Symbol[]    # the root output-face list
+ end
++
++# The binding site the name came from (§13.5, §12.7, D-249): the constructor's
++# default, or the per-run override of `run!` or `replay!`.
++_stop_site(s::Symbol) =
++    s === :constructor ? "the constructor's `stop_on`" : "`$(s)`'s `stop_on`"
++
+ message(d::StopFaceInvalid) =
+     d.reason === :unknown ?
+-    "stop_on names `$(d.face)`, which is no root face — a stop face is a root-exported " *
+-    "Bool output face, and this model exports $(_namelist(d.candidates)) (§13.5)" :
++    "$(_stop_site(d.site)) names `$(d.face)`, which is no root face — a stop face is a " *
++    "root-exported Bool output face, and this model exports $(_namelist(d.candidates)) (§13.5)" :
+     d.reason === :root_input ?
+-    "stop_on names `$(d.face)`, a root input — a stop face is a root-exported *output*: " *
+-    "the model detects and exports the condition, and the deployment names it (§13.5)" :
+-    "stop_on names `$(d.face)`, whose declared type is $(d.declared) — stop faces are " *
+-    "Bool, OR-combined (§13.5)"
++    "$(_stop_site(d.site)) names `$(d.face)`, a root input — a stop face is a root-exported " *
++    "*output*: the model detects and exports the condition, and the deployment names it (§13.5)" :
++    "$(_stop_site(d.site)) names `$(d.face)`, whose declared type is $(d.declared) — stop " *
++    "faces are Bool, OR-combined (§13.5)"
+ 
+ "§9.1: a deployment parameter outside its constraint, or a grid that does not close."
+ Base.@kwdef struct DeploymentInvalid <: Diagnostic
+@@ -1151,13 +1220,14 @@ end
+ 
+ "§11.3: a claim naming no root input face."
+ Base.@kwdef struct AttachUnknownFace <: Diagnostic
++    device::String                           # the device type, admission not yet reached
+     binding::String                          # the binding type, as a string
+     face::Symbol
+     candidates::Vector{Symbol} = Symbol[]    # the root input-face list
+ end
+ message(d::AttachUnknownFace) =
+-    "$(d.binding) claims `$(d.face)`, which names no root input face — the root faces are " *
+-    "$(_faceset(d.candidates)) (§11.3)"
++    "$(d.device)'s $(d.binding) claims `$(d.face)`, which names no root input face — the " *
++    "root faces are $(_faceset(d.candidates)) (§11.3)"
+ 
+ "§11.3: the same device instance offered to `attach!` twice."
+ Base.@kwdef struct AlreadyAttached <: Diagnostic
+@@ -1200,7 +1270,7 @@ message(d::EmptyGreedyClaim) =
+ 
+ "§11.6: a binding whose traits and whose methods disagree, in either direction."
+ Base.@kwdef struct BindingContractMismatch <: Diagnostic
+-    binding::String                          # the binding type, as a string
++    binding::String                          # the binding type, by name (§13.2)
+     reason::Symbol   # :claims_missing|:reads_missing|:greedy_without_input|:neither_side|
+                      # :greedy_with_claims|:claims_without_input|:reads_without_output|
+                      # :reads_not_namedtuple|:reads_not_selectors
+@@ -1254,7 +1324,8 @@ end
+ 
+ "§11.2, §14.4: a binding read that does not resolve against the published snapshot."
+ Base.@kwdef struct ReadBindingUnresolved <: Diagnostic
+-    binding::String                          # the binding type, as a string
++    device::String                           # the device type, admission not yet reached
++    binding::String                          # the binding type, by name (§13.2)
+     selector::String                         # the selector as authored
+     reason::Symbol   # :store_selector|:indexed|:unknown_cell|:unknown_root_input|
+                      # :root_input_not_output|:unknown_output_face
+@@ -1265,28 +1336,29 @@ end
+ path(d::ReadBindingUnresolved) = d.path
+ function message(d::ReadBindingUnresolved)
+     d.reason === :store_selector &&
+-        return "$(d.binding) reads $(d.selector), a *store* selector — the store selectors " *
+-               "resolve only against live stores, and a binding reads a published " *
+-               "snapshot, which deliberately carries none (§14.4, §11.2). The remedy is to " *
+-               "declare the field public and read the port published from it"
++        return "$(d.device)'s $(d.binding) reads $(d.selector), a *store* selector — the " *
++               "store selectors resolve only against live stores, and a binding reads a " *
++               "published snapshot, which deliberately carries none (§14.4, §11.2). The " *
++               "remedy is to declare the field public and read the port published from it"
+     d.reason === :indexed &&
+-        return "$(d.binding) reads $(d.selector) — a binding read is a whole cell, and " *
+-               "sub-cell index addressing is absent in a binding read (§14.4, docs/design/pending.md)"
++        return "$(d.device)'s $(d.binding) reads $(d.selector) — a binding read is a whole " *
++               "cell, and sub-cell index addressing is absent in a binding read " *
++               "(§14.4, docs/design/pending.md)"
+     d.reason === :unknown_cell &&
+-        return "$(d.binding) reads $(d.selector), which names no cell — " *
++        return "$(d.device)'s $(d.binding) reads $(d.selector), which names no cell — " *
+                (isempty(d.candidates) ?
+                 "$(_at_path(d.path)) has no cells; only declared outputs, assembly " *
+                 "faces and root inputs are addressable" :
+                 "the cells at $(_at_path(d.path)) are $(_faceset(d.candidates))") * " (§14.4)"
+     d.reason === :unknown_root_input &&
+-        return "$(d.binding) reads $(d.selector), which names no root input face — the " *
+-               "root inputs are $(_faceset(d.candidates)) (§14.4)"
++        return "$(d.device)'s $(d.binding) reads $(d.selector), which names no root input " *
++               "face — the root inputs are $(_faceset(d.candidates)) (§14.4)"
+     d.reason === :root_input_not_output &&
+-        return "$(d.binding) reads $(d.selector), which names a root *input* face — the " *
+-               "integration reads are the exported output faces, and a root input is " *
+-               "read back with get_input (§14.4, §11.2)"
+-    "$(d.binding) reads $(d.selector): `$(d.field)` is no root-exported output face — " *
+-    "the output faces are $(_faceset(d.candidates)) (§14.4, §11.2)"
++        return "$(d.device)'s $(d.binding) reads $(d.selector), which names a root *input* " *
++               "face — the integration reads are the exported output faces, and a root " *
++               "input is read back with get_input (§14.4, §11.2)"
++    "$(d.device)'s $(d.binding) reads $(d.selector): `$(d.field)` is no root-exported " *
++    "output face — the output faces are $(_faceset(d.candidates)) (§14.4, §11.2)"
+ end
+ 
+ "§14.2, §14.3: a condition leaf that does not resolve against this build."
+diff --git a/src/executor.jl b/src/executor.jl
+index 3920736..8f5e976 100644
+--- a/src/executor.jl
++++ b/src/executor.jl
+@@ -175,7 +175,7 @@ end
+     e.cursor.comp = e.ci; e.cursor.fn = :state_derivative
+     ẋ = state_derivative(e.comp, make_bundle(e, store, xbuf))
+     flatten_state!(ẋbuf, e.x_off, ẋ, XT, activation_scalar(e.clock), e.path,
+-                   :state_derivative, :init_x)
++                   :state_derivative, :init_x, nothing)
+     nothing
+ end
+ 
+@@ -223,16 +223,17 @@ struct EventEntry{G,H,P,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
+     mstore::MS
+     ws::WS
+     path::String
++    event::Symbol   # the event this entry declares, for a handler write's diagnostic
+     ci::Int
+     cursor::ExecutionCursor
+ end
+ 
+ EventEntry{XT,BN}(guard, handler, proj, comp, idx, inputs, y, x_off, clock,
+-                  mstore, ws, path, ci, cursor) where {XT,BN} =
++                  mstore, ws, path, event, ci, cursor) where {XT,BN} =
+     EventEntry{typeof(guard),typeof(handler),typeof(proj),typeof(comp),XT,BN,
+                typeof(inputs),typeof(y),typeof(clock),typeof(mstore),typeof(ws)}(
+         guard, handler, proj, comp, idx, inputs, y, x_off, clock, mstore, ws,
+-        path, ci, cursor)
++        path, event, ci, cursor)
+ 
+ @generated function make_bundle(e::EventEntry{G,H,P,Comp,XT,BN}, store,
+                                 xbuf) where {G,H,P,Comp,XT,BN}
+@@ -261,7 +262,7 @@ ProjectEntry{XT}(comp, x_off, clock, path, ci, cursor) where {XT} =
+ @inline function run_project!(e::ProjectEntry{Comp,XT}, xbuf) where {Comp,XT}
+     e.cursor.comp = e.ci; e.cursor.fn = :state_projection
+     flatten_state!(xbuf, e.x_off, state_projection(e.comp, reconstruct(XT, xbuf, e.x_off)),
+-                   XT, activation_scalar(e.clock), e.path, :state_projection, :state)
++                   XT, activation_scalar(e.clock), e.path, :state_projection, :state, nothing)
+     nothing
+ end
+ 
+@@ -355,8 +356,9 @@ end
+ @inline function _latch!(e::EventEntry{G,H,P,Comp,XT}, ret::NamedTuple,
+                          xbuf) where {G,H,P,Comp,XT}
+     haskey(ret, :x) && flatten_state!(xbuf, e.x_off, ret.x, XT,
+-                                      activation_scalar(e.clock), e.path, :handler, :state)
+-    haskey(ret, :m) && _merge_modes!(e.mstore, ret.m, e.path, :handler)
++                                      activation_scalar(e.clock), e.path, :handler, :state,
++                                      e.event)
++    haskey(ret, :m) && _merge_modes!(e.mstore, ret.m, e.path, :handler, e.event)
+     nothing
+ end
+ 
+@@ -372,15 +374,18 @@ _store_successor!(ref::Base.RefValue{S}, s⁺, path, what) where {S} =
+ # §9.5's partial-`m` predicate at the write: every written mode exists and keeps
+ # its type, decided at generation like the port write.
+ @generated function _merge_modes!(ref::Base.RefValue{M}, m::NamedTuple{Ms},
+-                                  path::String, what::Symbol) where {M,Ms}
++                                  path::String, what::Symbol,
++                                  event::Union{Nothing,Symbol}) where {M,Ms}
+     for k in Ms
+         hasfield(M, k) ||
+             return :(throw(DiagnosticError(ConformanceFailure(
+-                path = path, what = String(what), reason = :field_set, shape = :mode,
++                path = path, what = String(what), event = event, reason = :field_set,
++                shape = :mode,
+                 field = $(QuoteNode(k)), declared_fields = $(collect(fieldnames(M)))))))
+         fieldtype(M, k) === fieldtype(m, k) ||
+             return :(throw(DiagnosticError(ConformanceFailure(
+-                path = path, what = String(what), reason = :field_type, shape = :mode,
++                path = path, what = String(what), event = event, reason = :field_type,
++                shape = :mode,
+                 field = $(QuoteNode(k)), observed = $(fieldtype(m, k)),
+                 declared = $(fieldtype(M, k))))))
+     end
+@@ -388,8 +393,8 @@ _store_successor!(ref::Base.RefValue{S}, s⁺, path, what) where {S} =
+ end
+ 
+ # A non-NamedTuple `m` is the law's first clause failing, as the probe reports it.
+-_merge_modes!(ref::Base.RefValue{M}, m, path, what) where {M} =
+-    throw(DiagnosticError(ConformanceFailure(path = path, what = String(what),
++_merge_modes!(ref::Base.RefValue{M}, m, path, what, event) where {M} =
++    throw(DiagnosticError(ConformanceFailure(path = path, what = String(what), event = event,
+                                              reason = :return_type, shape = :mode,
+                                              observed = typeof(m))))
+ 
+@@ -397,7 +402,7 @@ _merge_modes!(ref::Base.RefValue{M}, m, path, what) where {M} =
+     P === Nothing && return nothing
+     e.cursor.fn = :state_projection # the component is the handler's own
+     flatten_state!(xbuf, e.x_off, e.proj(e.comp, reconstruct(XT, xbuf, e.x_off)), XT,
+-                   activation_scalar(e.clock), e.path, :state_projection, :state)
++                   activation_scalar(e.clock), e.path, :state_projection, :state, nothing)
+     nothing
+ end
+ 
+diff --git a/src/leaves.jl b/src/leaves.jl
+index d100e12..f744c8c 100644
+--- a/src/leaves.jl
++++ b/src/leaves.jl
+@@ -318,28 +318,31 @@ Store the leaves of `v` into `buf` starting at `off + 1`. Returns `nothing`.
+ end
+ 
+ """
+-    flatten_state!(buf, off, v, XT, T, path, what, shape)
++    flatten_state!(buf, off, v, XT, T, path, what, shape, event)
+ 
+ The wholesale state write with §9.5's always-on check decided at generation
+ (D-235): `v`'s key set must equal the state's, and each field must be a lawful
+ arrival at the state's field type under embed-accept. Fields pair by name,
+ never by position. `shape` is the diagnostic's shape: `:init_x` for a
+-derivative, `:state` for a projection or a handler's `x` key.
++derivative, `:state` for a projection or a handler's `x` key. `event` names the
++event on a handler's write and is `nothing` everywhere else (D-249).
+ """
+ @generated function flatten_state!(buf::AbstractVector, off::Int, v::NamedTuple{Vs},
+                                    ::Type{XT}, ::Type{T}, path::String, what::Symbol,
+-                                   shape::Symbol) where {Vs,XT<:NamedTuple,T}
++                                   shape::Symbol,
++                                   event::Union{Nothing,Symbol}) where {Vs,XT<:NamedTuple,T}
+     Xs = fieldnames(XT)
+     Set(Vs) == Set(Xs) ||
+         return :(throw(DiagnosticError(ConformanceFailure(
+-            path = path, what = String(what), reason = :field_set, shape = shape,
++            path = path, what = String(what), event = event, reason = :field_set, shape = shape,
+             observed_fields = $(collect(Vs)), declared_fields = $(collect(Xs))))))
+     stmts, base = Expr[], 0
+     for k in Xs
+         P, V = fieldtype(XT, k), fieldtype(v, k)
+         _accepts(P, V, T) ||
+             return :(throw(DiagnosticError(ConformanceFailure(
+-                path = path, what = String(what), reason = :field_type, shape = shape,
++                path = path, what = String(what), event = event, reason = :field_type,
++                shape = shape,
+                 field = $(QuoteNode(k)), observed = $V, declared = $P, activation = $T))))
+         blk, base = _flatten_expr(P, :(getfield(v, $(QuoteNode(k)))), base)
+         push!(stmts, blk)
+@@ -352,7 +355,7 @@ derivative, `:state` for a projection or a handler's `x` key.
+ end
+ 
+ # A non-NamedTuple return is the law's first clause failing.
+-flatten_state!(buf, off, v, ::Type{XT}, ::Type{T}, path, what, shape) where {XT,T} =
+-    throw(DiagnosticError(ConformanceFailure(path = path, what = String(what),
++flatten_state!(buf, off, v, ::Type{XT}, ::Type{T}, path, what, shape, event) where {XT,T} =
++    throw(DiagnosticError(ConformanceFailure(path = path, what = String(what), event = event,
+                                              reason = :return_type, shape = shape,
+                                              observed = typeof(v))))
+diff --git a/src/roster.jl b/src/roster.jl
+index 8768aab..01aa177 100644
+--- a/src/roster.jl
++++ b/src/roster.jl
+@@ -77,15 +77,15 @@ function check_binding(b::AbstractBinding)
+     drifted = which(claims, Tuple{T}) !== which(claims, Tuple{AbstractBinding})
+     rdrifted = which(reads, Tuple{T}) !== which(reads, Tuple{AbstractBinding})
+     greedy && !isin && throw(DiagnosticError(
+-        BindingContractMismatch(binding = string(T), reason = :greedy_without_input)))
++        BindingContractMismatch(binding = _typename(T), reason = :greedy_without_input)))
+     isin || isout || throw(DiagnosticError(
+-        BindingContractMismatch(binding = string(T), reason = :neither_side)))
++        BindingContractMismatch(binding = _typename(T), reason = :neither_side)))
+     isin && greedy && drifted && throw(DiagnosticError(
+-        BindingContractMismatch(binding = string(T), reason = :greedy_with_claims)))
++        BindingContractMismatch(binding = _typename(T), reason = :greedy_with_claims)))
+     isin || !drifted || throw(DiagnosticError(
+-        BindingContractMismatch(binding = string(T), reason = :claims_without_input)))
++        BindingContractMismatch(binding = _typename(T), reason = :claims_without_input)))
+     isout || !rdrifted || throw(DiagnosticError(
+-        BindingContractMismatch(binding = string(T), reason = :reads_without_output)))
++        BindingContractMismatch(binding = _typename(T), reason = :reads_without_output)))
+     nothing
+ end
+ 
+@@ -198,14 +198,15 @@ face set (`AttachUnknownFace`: a mapping drifted onto a nonexistent face is a
+ diagnosable anomaly, never a silent write). Duplicates within one enumeration
+ collapse; the empty enumeration is the honest may-write-nothing degenerate.
+ """
+-function _claim(plane::DataPlane, layout::Layout, b::AbstractBinding)
++function _claim(plane::DataPlane, layout::Layout, b::AbstractBinding, device::String)
+     faceset = Symbol[f for (f, _) in layout.root_inputs]
+     is_greedy(b) && return Symbol[f for f in faceset if !haskey(plane.claimedby, f)]
+     claim = Symbol[]
+     for f in claims(b)
+         s = Symbol(f)
+         s in faceset || throw(DiagnosticError(
+-            AttachUnknownFace(binding = _typename(b), face = s, candidates = faceset)))
++            AttachUnknownFace(device = device, binding = _typename(b), face = s,
++                              candidates = faceset)))
+         s in claim || push!(claim, s)
+     end
+     claim
+diff --git a/src/sim.jl b/src/sim.jl
+index 2b2e9e7..b023527 100644
+--- a/src/sim.jl
++++ b/src/sim.jl
+@@ -157,7 +157,7 @@ function Simulation(b::Build, ::Type{T} = Float64; h = nothing, N_base = nothing
+     d_t === nothing || push!(diags, d_t)
+     bound = bind_schedule(b, h, N_base, Δt_base, diags)
+     act = activation(b, T)
+-    (stop_faces, stop_addrs) = _stop_faces(act.layout, stop_on, diags)
++    (stop_faces, stop_addrs) = _stop_faces(act.layout, stop_on, diags; site = :constructor)
+     isempty(diags) || throw(DiagnosticError(diags))    # one throw per call (§9.1, D-229)
+     ex = compile(b, act, bound.D, bound.Φ, bound.Δt; chunk_size)
+     stepper = algorithm(T, length(ex.xbuf))
+@@ -208,13 +208,14 @@ end
+ _frame_at(t::Real, t₀::Real, h::Float64) = floor(Int, (t - t₀) / h + _frame_slack(t, h))
+ _t_end_frame(sim::Simulation, te::Float64) = _frames_to(te, sim.exec.clock.t₀, sim.h)
+ 
+-# §13.5's stop-face validation and compilation, run identically at both binding
+-# sites — the constructor's default and `run!`'s override: each name must be a
+-# root-exported Bool *output* face. Duplicates collapse; the order kept is the
++# §13.5's stop-face validation and compilation, run identically at all three
++# binding sites — the constructor's default and the `run!`/`replay!` overrides
++# (§12.7): each name must be a root-exported Bool *output* face. `site` is the
++# one the refusal names (D-249). Duplicates collapse; the order kept is the
+ # declaration's, which is the order the first-holding face is reported in. The
+ # pass records into the list it is given and always returns the pair; the
+ # constructor merges it into the deployment's one throw (§9.1, D-229).
+-function _stop_faces(layout::Layout, stop_on, diags::Vector{Diagnostic})
++function _stop_faces(layout::Layout, stop_on, diags::Vector{Diagnostic}; site::Symbol)
+     faces, addrs = Symbol[], Any[]
+     root_input_names = Symbol[f for (f, _) in layout.root_inputs]
+     # The root output-face list Appendix C asks a refusal to carry: every cell
+@@ -225,16 +226,18 @@ function _stop_faces(layout::Layout, stop_on, diags::Vector{Diagnostic})
+     for f in stop_on
+         s = Symbol(f)
+         if !haskey(layout.addr, ("", s))
+-            push!(diags, StopFaceInvalid(face = s, reason = :unknown, candidates = out_faces))
++            push!(diags, StopFaceInvalid(face = s, reason = :unknown, site = site,
++                                         candidates = out_faces))
+             continue
+         end
+         if s in root_input_names
+-            push!(diags, StopFaceInvalid(face = s, reason = :root_input))
++            push!(diags, StopFaceInvalid(face = s, reason = :root_input, site = site))
+             continue
+         end
+         a = layout.addr[("", s)]
+         if _port_type(a) !== Bool
+-            push!(diags, StopFaceInvalid(face = s, reason = :not_bool, declared = _port_type(a)))
++            push!(diags, StopFaceInvalid(face = s, reason = :not_bool, site = site,
++                                         declared = _port_type(a)))
+             continue
+         end
+         s in faces || (push!(faces, s); push!(addrs, a))
+@@ -244,9 +247,9 @@ end
+ 
+ # `run!` and `replay!` each override the default in a call of their own, so a
+ # fresh list thrown here is that call's one barrier (§13.1, D-229).
+-function _stop_faces(layout::Layout, stop_on)
++function _stop_faces(layout::Layout, stop_on; site::Symbol)
+     diags = Diagnostic[]
+-    r = _stop_faces(layout, stop_on, diags)
++    r = _stop_faces(layout, stop_on, diags; site)
+     isempty(diags) || throw(DiagnosticError(diags))
+     r
+ end
+@@ -323,9 +326,11 @@ function _assert_advanceable(sim::Simulation, op::Symbol)
+     lc = @atomic sim.control.lifecycle
+     lc === :initialized && return nothing
+     lc === :built && throw(DiagnosticError(MissingInit(op = op, status = lc)))
+-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running)))
+-    lc === :stopped && throw(DiagnosticError(ServiceLifecycle(op = op, status = :stopped)))
+-    throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored)))
++    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
++                                                              legal = collect(ADVANCE_LEGAL))))
++    lc === :stopped && throw(DiagnosticError(ServiceLifecycle(op = op, status = :stopped,
++                                                              legal = collect(ADVANCE_LEGAL))))
++    throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored, legal = collect(ADVANCE_LEGAL))))
+ end
+ 
+ """
+@@ -642,8 +647,10 @@ simulation `built`, `init!` and `replay!` legal again (§13.4, D-223).
+ function init!(sim::Simulation{T}, condition = fragment(); t0::T = zero(T)) where {T}
+     ctl = sim.control
+     lc = @atomic ctl.lifecycle
+-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :running)))
+-    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :errored)))
++    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :running,
++                                                              legal = collect(STOPPED_SIM_LEGAL))))
++    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :errored,
++                                                              legal = collect(STOPPED_SIM_LEGAL))))
+     plan = resolve_condition(condition, sim.build, T)      # both refusals precede every write
+     assert_total(plan, sim.build.flat, :init!)   # (§14.6): all-or-nothing
+     establish_defaults!(sim.exec.xbuf, sim.exec.sstores, sim.exec.mstores, sim.build.flat.comps,
+@@ -757,8 +764,10 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
+                  to_time = nothing, t_end = nothing, stop_on = nothing) where {T}
+     ex, ctl = sim.exec, sim.control
+     lc = @atomic ctl.lifecycle
+-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :running)))
+-    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :errored)))
++    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :running,
++                                                              legal = collect(STOPPED_SIM_LEGAL))))
++    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :errored,
++                                                              legal = collect(STOPPED_SIM_LEGAL))))
+     to_boundary === nothing || to_time === nothing ||     # two spellings of one halt (D-219)
+         throw(DiagnosticError(ArgumentInvalid(call = :replay!, reason = :both_given)))
+     # §13.4's pointer, in grid boundaries: whole and non-negative, and no further
+@@ -788,7 +797,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
+     end
+     te = t_end === nothing ? sim.t_end : _t_bound(t_end)   # validated as `run!` does;
+     (faces, addrs) = stop_on === nothing ? (sim.stop_on, sim.stop_addrs) :   # absent is legal
+-                                           _stop_faces(ex.act.layout, stop_on)
++                                           _stop_faces(ex.act.layout, stop_on; site = :replay!)
+     feed = _compile_feed(sim, trc)        # the entry pass: every refusal precedes every write
+     # substitution (1): the header applied where `establish_defaults!` + `apply!`
+     # stand in `init!`. The recorded values are already resolved (D-038), so
+@@ -913,7 +922,7 @@ function run!(sim::Simulation; t_end = nothing, stop_on = nothing)
+     _assert_advanceable(sim, :run!)
+     te = t_end === nothing ? sim.t_end : _t_bound(t_end)
+     (faces, addrs) = stop_on === nothing ? (sim.stop_on, sim.stop_addrs) :
+-                                           _stop_faces(sim.exec.act.layout, stop_on)
++                                           _stop_faces(sim.exec.act.layout, stop_on; site = :run!)
+     pol = sim.policy
+     pol.faces, pol.addrs, pol.hit = faces, addrs, nothing
+     # a live run owes its end to a §13.5 source alone, so its frame budget is
+@@ -1319,7 +1328,7 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
+         i === nothing || throw(DiagnosticError(CallerTaskConflict(
+             device = _typename(dev), incumbent = _who(plane.roster[i]))))
+     end
+-    claim = is_input(b) ? _claim(plane, sim.exec.act.layout, b) : Symbol[]
++    claim = is_input(b) ? _claim(plane, sim.exec.act.layout, b, _typename(dev)) : Symbol[]
+     claim_diags = Diagnostic[]
+     for f in claim                                 # claims: face exclusivity
+         haskey(plane.claimedby, f) && push!(claim_diags, ClaimConflict(
+@@ -1327,7 +1336,8 @@ function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
+     end
+     isempty(claim_diags) || throw(DiagnosticError(claim_diags))
+     # The output side: reads → one gather, resolved before admission commits.
+-    rg = is_output(b) ? _compile_gather(sim.exec.act.layout, reads(b), typeof(b)) : nothing
++    rg = is_output(b) ? _compile_gather(sim.exec.act.layout, reads(b), typeof(b),
++                                        _typename(dev)) : nothing
+     id = plane.next_id                             # assigned on admission alone: a
+     plane.next_id += 1                             # rejected attach consumes no id
+     w = Writer(sim.exec.act.layout, claim)
+diff --git a/src/trim.jl b/src/trim.jl
+index 8d19f7b..cf7deca 100644
+--- a/src/trim.jl
++++ b/src/trim.jl
+@@ -384,8 +384,10 @@ operating point an equilibrium?" probe, useful in its own right and free.
+ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
+                t0::Real = 0.0, backend = LevenbergMarquardt())
+     lc = lifecycle(sim)
+-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :running)))
+-    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :errored)))
++    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :running,
++                                                              legal = collect(STOPPED_SIM_LEGAL))))
++    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :errored,
++                                                              legal = collect(STOPPED_SIM_LEGAL))))
+ 
+     b = sim.build
+     diags = Diagnostic[]
+diff --git a/test/fixtures.jl b/test/fixtures.jl
+index 2e88a3c..f17950d 100644
+--- a/test/fixtures.jl
++++ b/test/fixtures.jl
+@@ -293,6 +293,16 @@ output_types(::ModedSource, ::Type{T}) where {T <: Real} = (out = T,)
+ 
+ output_state(::ModedSource, (; m)) = (out = m.phase === :idle ? 0.0 : 1.0,)
+ 
++"""
++Modes and a derivative, and no contract: `init_m` is no state store and
++`state_derivative` is no decider without one, so nothing announces a tier and
++there is no `output_types` to read one off — §8.2's `TierUnreadable`.
++"""
++struct ModesNoContract <: AbstractComponent end
++
++init_m(::ModesNoContract) = (phase = :idle,)
++state_derivative(::ModesNoContract, (; m)) = (;)
++
+ # --- the event coverage set (§2.1, §10.6) -------------------------------------
+ # Guards and handlers are ordinary named functions referenced by `state_events` —
+ # nothing global-generic about them, which is why they carry component-prefixed
+diff --git a/test/test_assembly.jl b/test/test_assembly.jl
+index 74060ae..932a51d 100644
+--- a/test/test_assembly.jl
++++ b/test/test_assembly.jl
+@@ -43,8 +43,10 @@ function assembly_class()
+         # intentional (D-164) — and now says so as a missing class, naming both
+         # families rather than failing later and elsewhere.
+         d = carried(@test_throws DiagnosticError{ClassUnreadable} classify("c", Inert()))
+-        @test d.path == "c" && !d.holds_components
+-        @test occursin("`output_types`", d.families)      # the leaf family, in hand
++        @test d.path == "c" && !d.holds_components && d.type == "Inert"
++        @test d.assembly_family == [:child_connections]   # both family lists, in hand
++        @test :output_types in d.leaf_family && :state_projection in d.leaf_family
++        @test isempty(d.found)                            # and it declares none of them
+ 
+         # Sharpened when the type holds components: the likely omission, named.
+         d = carried(@test_throws DiagnosticError{ClassUnreadable} classify("c", HoldsComponents(Gain(1.0))))
+@@ -160,7 +162,8 @@ function assembly_container_children()
+         err = failure(() -> build(single(MixedContainer((a = Gain(1.0), b = 2.0)))))
+         @test err isa DiagnosticError
+         d = only(diagnostics(err))
+-        @test d isa ContainerMixed && d.field === :kids && Float64 in d.types
++        @test d isa ContainerMixed && d.field === :kids && "Float64" in d.types
++        @test d.keys == [:b]                              # the offending element, by name
+ 
+         # The `Tuple` form: the same rule with index segments, `"field/1"…"field/N"`
+         # (§8.5), addressable by the parent's declarations like any child name.
+@@ -174,7 +177,8 @@ function assembly_container_children()
+         err = failure(() -> build(TupleRoster((Gain(1.0), 2.0))))
+         @test err isa DiagnosticError
+         d = only(diagnostics(err))
+-        @test d isa ContainerMixed && d.field === :units && Float64 in d.types
++        @test d isa ContainerMixed && d.field === :units && "Float64" in d.types
++        @test d.keys == [2]                               # the `Tuple` form: an index
+ 
+         # A container of containers has no direct component element, so it
+         # would read as inert data and its components would vanish; §8.5
+@@ -183,7 +187,7 @@ function assembly_container_children()
+         @test err isa DiagnosticError
+         d = only(diagnostics(err))
+         @test d isa ContainerNested && d.field === :units
+-        @test d.keys == [1, 2] && d.types == [Tuple{Gain,Gain}, Tuple{Gain}]
++        @test d.keys == [1, 2] && d.types == ["Tuple{Gain, Gain}", "Tuple{Gain}"]   # unqualified, with the shape (§13.2)
+         # The NamedTuple form, at any depth, and beside inert data: the bearing
+         # element alone is named.
+         err = failure(() -> build(single(MixedContainer((a = (g = (Gain(1.0),),), b = 2.0)))))
+@@ -316,12 +320,13 @@ function assembly_transparent_containers()
+ 
+         # And the declaration must name a container field of the type — a component
+         # field and an absent name are refused alike.
+-        for (bad, fld) in ((OpaqueDeclared(TickCounter()), :c),
+-                           (AbsentDeclared((; c = TickCounter())), :nope))
++        for (bad, fld, cands) in ((OpaqueDeclared(TickCounter()), :c, Symbol[]),
++                                  (AbsentDeclared((; c = TickCounter())), :nope, [:kids]))
+             err = failure(() -> build(bad))
+             @test err isa DiagnosticError
+             d = only(diagnostics(err))
+             @test d isa TransparentContainerUnknown && d.field === fld
++            @test d.candidates == cands           # the container fields, the list-in-hand
+         end
+     end
+ 
+@@ -610,11 +615,14 @@ function assembly_obligations()
+         @test err isa DiagnosticError
+         d = only(diagnostics(err))
+         @test d isa UnconnectedInput && d.path == "g" && d.face === :e
++        # No route names it, so the chain's last level is the leaf's own path.
++        @test d.declared === Float64 && d.level == "g"
+ 
+         err = failure(() -> build(DoubleFed(SampledLoop(), ModedSource(), ModedSource())))
+         @test err isa DiagnosticError
+         d = only(diagnostics(err))
+         @test d isa TwoProducers && d.path == "loop/sum" && d.port === :a
++        @test d.incumbent_producer == "`src`.out" && d.producer == "`src2`.out"
+ 
+         # The same rule one level down: the sub-assembly's own wire against the
+         # ancestor's route through the face, and the diagnostic names both entries.
+@@ -624,6 +632,7 @@ function assembly_obligations()
+         d = only(diagnostics(err))
+         @test d isa TwoProducers && startswith(d.incumbent, "child_connections at `loop`") &&
+               startswith(d.entry, "child_connections at the root component")
++        @test d.incumbent_producer == "`loop/s`.out" && d.producer == "`src`.out"
+ 
+         # §13.1's worked example (D-229): the typo'd wire is recorded and claims
+         # nothing, so the same throw carries the unknown port *and* the input it
+@@ -633,7 +642,7 @@ function assembly_obligations()
+         d = only(filter(x -> x isa UnknownPort, diagnostics(err)))
+         @test d.port === :ot && :out in d.candidates
+         d = only(filter(x -> x isa UnconnectedInput, diagnostics(err)))
+-        @test d.path == "s" && d.face === :a
++        @test d.path == "s" && d.face === :a && d.declared === Float64 && d.level == "s"
+ 
+         # A face is resolved once, where it is declared: three parent wires reading
+         # a child face whose route is broken report the child's refusal once, not
+@@ -649,6 +658,10 @@ function assembly_obligations()
+         @test d.path == "i/a" && d.port === :outt
+         @test [(x.path, x.face) for x in diagnostics(err) if x isa UnconnectedInput] ==
+               [("i/a", :e), ("g1", :e), ("g2", :e), ("g3", :e)]
++        # The obligation chain's last level: `i/a`'s entry was handed up to `i`'s
++        # face and nothing fed it there; the three siblings were never handed up.
++        @test [(x.level, x.declared) for x in diagnostics(err) if x isa UnconnectedInput] ==
++              [("i", Float64), ("g1", Float64), ("g2", Float64), ("g3", Float64)]
+ 
+         # The parent's own typo against a child face is still its own refusal, and
+         # the candidates are the child's face list.
+@@ -841,6 +854,8 @@ function assembly_primitives()
+         d = only(diagnostics(err))
+         @test d isa TwoProducers && startswith(d.incumbent, "child_connections") &&
+               startswith(d.entry, "input_connections")
++        # The root's own face is the second producer, and spells as one.
++        @test d.incumbent_producer == "`trim`.out" && d.producer == "root input `inner.a`"
+     end
+ 
+     @testset "the helpers address a transparent container's child by bare key (D-211)" begin
+diff --git a/test/test_bindings.jl b/test/test_bindings.jl
+index 3d90785..ddbd597 100644
+--- a/test/test_bindings.jl
++++ b/test/test_bindings.jl
+@@ -193,6 +193,8 @@ function test_bindings()
+         @test diag.reason === :unknown_cell &&
+               diag.selector == "get_output(\"q\", :y)" &&
+               diag.candidates == Symbol[]            # no such path: no list to offer
++        # The device is named by type (Appendix C): admission assigns no id yet.
++        @test diag.device == "Pad" && diag.binding == "Readout"
+         diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(alt = get_output("p", "nope"))))
+         @test diag.reason === :unknown_cell && diag.candidates == [:power, :y]
+         diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(v = get_input("nope"))))
+diff --git a/test/test_build.jl b/test/test_build.jl
+index 528cee6..5113634 100644
+--- a/test/test_build.jl
++++ b/test/test_build.jl
+@@ -359,7 +359,7 @@ function build_auto_publication()
+ 
+     @testset "stage-1 position is one writer's: a stage's or the framework's (§8.3)" begin
+         d = carried(@test_throws DiagnosticError{ProducedByTwoStages} build(single(Twice())))
+-        @test d.ports == [:q]
++        @test d.ports == [:q] && d.producers == [:auto_publication]
+         # Returned from stage 1 instead, the same port is the stage's outright.
+         b = build(single(TwiceState()))
+         i = index_of(b.flat, "c")
+@@ -1201,8 +1201,7 @@ function build_tier()
+ 
+         # Disagreement names the offending declaration and the tier the rest
+         # announce (§8.2). The classifier records and returns no tier.
+-        for (c, offender) in ((BothUpdates(), :state_update), (WrongArity(), :output_types),
+-                              (ModesOnDiscrete(), :init_m), (BothArities(), :output_types))
++        for (c, offender) in ((BothUpdates(), :state_update), (ModesOnDiscrete(), :init_m))
+             diags = Diagnostic[]
+             @test classify_tier("c", c, diags) === nothing
+             # The vote loop collects: every declaration off the announced tier is
+@@ -1211,11 +1210,37 @@ function build_tier()
+             @test offender in [d.declaration for d in diags]
+         end
+ 
++        # A contract arity against the announced tier is the contract's own kind,
++        # on a stateful leaf and a stateless one alike (§8.5, D-249). `WrongArity`
++        # announces discrete in its store and update law; `BothArities` declares
++        # `output_types` twice, the second form reported against the first.
++        for (c, tier, found, mandated) in ((WrongArity(), :discrete, :two_argument, :plain),
++                                           (BothArities(), :continuous, :plain, :two_argument))
++            diags = Diagnostic[]
++            @test classify_tier("c", c, diags) === nothing
++            d = only(diags)
++            @test d isa TierSignatureMismatch && d.reason === :arity
++            @test d.declaration === :output_types && d.tier === tier
++            @test d.found === found && d.mandated === mandated
++        end
++
+         # A store with no update law is §8.2's sibling of the classless component.
+         diags = Diagnostic[]
+         @test classify_tier("c", NoFlow(), diags) === nothing
+         @test only(diags) isa StoreWithoutUpdate
+ 
++        # The tier twin of `ClassUnreadable` (§8.2, D-215): no store to decide the
++        # tier and no `output_types` to read it off. `init_m` and a derivative vote
++        # continuous, but neither is a decider, so the payload carries what the
++        # component does declare against the whole tier-announcing family.
++        diags = Diagnostic[]
++        @test classify_tier("c", ModesNoContract(), diags) === nothing
++        d = only(diags)
++        @test d isa TierUnreadable && path(d) == "c" && d.type == "ModesNoContract"
++        @test d.declarations == [:state_derivative, :init_m]
++        @test d.family == [:state_derivative, :state_update, :init_x, :init_s, :init_m,
++                           :state_events, :output_types, :input_types, :init_workspace]
++
+         # The base tick period is deployment's, not the build's: the same `Build`
+         # deploys at any admissible grid, and the executor cannot exist before one
+         # binds because `Δt`, `D` and `Φ` are entry-field data (§9.1, §9.7).
+diff --git a/test/test_diagnostics.jl b/test/test_diagnostics.jl
+index aa7c222..f1dd3a1 100644
+--- a/test/test_diagnostics.jl
++++ b/test/test_diagnostics.jl
+@@ -253,9 +253,11 @@ function diagnostics_kind_set()
+                         candidates = [:throttle, :mixture]),
+             UnknownPort(entry = "input_connections at `a`, entry `:u => ()`", end_ = :connection,
+                         path = "a", port = :u),
+-            UnconnectedInput(path = "a/b", face = :u),
++            UnconnectedInput(path = "a/b", face = :u, declared = Float64, level = "a/b"),
++            UnconnectedInput(path = "a/b", face = :u, declared = Float64, level = "a"),
+             TwoProducers(path = "a/b", port = :u, incumbent = "a sibling wire",
+-                         entry = "an interface connection"),
++                         entry = "an interface connection",
++                         incumbent_producer = "`a/c`.y", producer = "root input `u`"),
+             WireTypeMismatch(path = "a/b", face = :u, declared = Float64, producer_path = "a/c",
+                              producer_port = :y, observed = Bool),
+             WalkingFaceAtFrozenEntry(path = "a/b", face = :u, producer_path = "a/c",
+@@ -274,22 +276,30 @@ function diagnostics_kind_set()
+                            declared = TypeVar(:L, AbstractComponent)),
+             PathResolution(entry = "`resolve` on `Group`", spelling = "", reason = :empty_path),
+             StoreWithoutUpdate(path = "a/b", store = :init_x),
+-            EventHalfMissing(path = "a/b", event = :snap, reason = :guard, found = Int),
+-            EventHalfMissing(path = "a/b", event = :snap, reason = :not_an_event, found = Int),
++            EventHalfMissing(path = "a/b", event = :snap, reason = :guard, found = "Latch"),
++            EventHalfMissing(path = "a/b", event = :snap, reason = :not_an_event, found = "Int64"),
+             DeclarationShadowed(path = "a/b", mod = "Main.MyModel",
+                                 names = [:init_x, :output_types]),
+-            ClassUnreadable(path = "a", families = "`init_x`, `init_s`", holds_components = true),
++            ClassUnreadable(path = "a", type = "Inert", found = Symbol[],
++                            assembly_family = [:child_connections],
++                            leaf_family = [:init_x, :output_types], holds_components = true),
++            ClassUnreadable(path = "a", type = "Inert", found = [:sample_times],
++                            assembly_family = [:child_connections],
++                            leaf_family = [:init_x, :output_types]),
+             ClassMixed(path = "a", declarations = [:init_x, :output_types]),
+-            ContainerMixed(path = "a", field = :kids, types = Any[Int, Float64]),
++            ContainerMixed(path = "a", field = :kids, keys = Any[1, :b],
++                           types = ["Int64", "Float64"]),
+             ContainerNested(path = "a", field = :kids, keys = Any[1, :b],
+-                            types = Any[Tuple{Int}, @NamedTuple{c::Int}]),
++                            types = ["Tuple{Gain, Gain}", "NamedTuple{(:c,), Tuple{Gain}}"]),
+             DeclarationOnWrongTier(path = "a/b", declaration = :init_workspace, reason = :tier_form,
+                                    found = :continuous, announced = :discrete),
+             DeclarationOnWrongTier(path = "a/b", declaration = :state_projection, reason = :continuous_only,
+                                    found = :discrete),
+             DeclarationOnWrongTier(path = "a/b", declaration = :state_projection, reason = :no_manifold),
+             TierSignatureMismatch(path = "a/b", declaration = :output_types, tier = :continuous,
+-                                  reason = :bound, found = AbstractFloat),
++                                  reason = :bound, found = AbstractFloat, mandated = Real),
++            TierSignatureMismatch(path = "a/b", declaration = :input_types, tier = :discrete,
++                                  reason = :arity, found = :two_argument, mandated = :plain),
+             FaceNameIllegal(path = "a", face = "u/v", invariant = :contains_slash),
+             FaceNameCollision(path = "a", faces = ["u"], site = :assembly),
+             FaceNameCollision(path = "", faces = ["u"], site = :root),
+@@ -313,8 +323,12 @@ function diagnostics_kind_set()
+                                provenance = ["container field `kids`, element `b`"], field = :kids),
+             ChildNameCollision(path = "a", name = "b", reason = :two_children,
+                                provenance = ["field `b`", "container field `kids`, element `b`"]),
+-            TransparentContainerUnknown(path = "a", field = :kids, component = "Group"),
+-            TierUnreadable(path = "a/b", declarations = [:init_m]),
++            TransparentContainerUnknown(path = "a", field = :kids, component = "Group",
++                                        candidates = [:units]),
++            TransparentContainerUnknown(path = "a", field = :kids, component = "Group",
++                                        candidates = Symbol[]),
++            TierUnreadable(path = "a/b", type = "Inert", family = [:init_x, :output_types],
++                           declarations = [:init_m]),
+             IllegalPortType(path = "a/b", site = :port, name = :y, declared = Nothing),
+             IllegalPortType(path = "a/b", site = :port, name = :y, declared = Vector{Float64},
+                             reason = :mutable, position = ""),
+@@ -339,7 +353,8 @@ function diagnostics_kind_set()
+                            wires = ["a/b/y" => "a/c/u", "a/c/y" => "a/b/u"],
+                            classification = :real,
+                            traced = ["a/b" => :structural, "a/c" => :structural]),
+-            ProducedByTwoStages(path = "a/b", ports = [:y]),
++            ProducedByTwoStages(path = "a/b", ports = [:y, :z],
++                                producers = [:output_state, :auto_publication]),
+             DeclaredNotProduced(path = "a/b", ports = [:y], products = [:z],
+                                 state_fields = [:q]),
+             UndeclaredReturnField(path = "a/b", stage = "output_state", name = :q, candidates = [:y]),
+@@ -359,8 +374,11 @@ function diagnostics_kind_set()
+             ConformanceFailure(path = "a/b", what = "state_update", reason = :field_set, shape = :init_s,
+                                observed = NamedTuple{(:q,),Tuple{Int}},
+                                declared = NamedTuple{(:q,),Tuple{Float64}}),
+-            ConformanceFailure(path = "a/b", what = "event `e`'s handler", reason = :field_set,
++            ConformanceFailure(path = "a/b", what = "handler", event = :e, reason = :field_set,
+                                shape = :mode, field = :k, declared_fields = [:m]),
++            ConformanceFailure(path = "a/b", what = "handler `x`", event = :e,
++                               reason = :field_set, shape = :state,
++                               observed_fields = [:p], declared_fields = [:q]),
+             GuardForm(path = "a/b", event = :snap, observed = Int),
+             BundleFieldError(path = "a/b", family = "output_state", tier = :continuous,
+                              field = :m, legal = [:x, :t], reason = :undeclared),
+@@ -370,12 +388,14 @@ function diagnostics_kind_set()
+             # Deployment, periphery and services
+             MissingInit(op = :run!, status = :built),
+             ServiceLifecycle(op = :attach!, status = :running, legal = [:built, :initialized]),
+-            ServiceLifecycle(op = :capture, status = :errored),
+-            ServiceLifecycle(op = :run!, status = :stopped),
++            ServiceLifecycle(op = :capture, status = :errored, legal = [:initialized, :stopped]),
++            ServiceLifecycle(op = :run!, status = :stopped, legal = [:initialized]),
+             ServiceLifecycle(op = :capture, status = :built, legal = [:initialized, :stopped]),
+-            StopFaceInvalid(face = :done, reason = :unknown, candidates = [:hit]),
+-            StopFaceInvalid(face = :done, reason = :root_input),
+-            StopFaceInvalid(face = :done, reason = :not_bool, declared = Float64),
++            StopFaceInvalid(face = :done, reason = :unknown, site = :constructor,
++                            candidates = [:hit]),
++            StopFaceInvalid(face = :done, reason = :root_input, site = :run!),
++            StopFaceInvalid(face = :done, reason = :not_bool, site = :replay!,
++                            declared = Float64),
+             DeploymentInvalid(parameter = :firing_budget, reason = :range, value = 0),
+             DeploymentInvalid(parameter = :h, reason = :inexact, value = 0.01),
+             DeploymentInvalid(parameter = :Δt_base, reason = :not_a_quantity, value = Int),
+@@ -392,7 +412,8 @@ function diagnostics_kind_set()
+             DeploymentInvalid(parameter = :Δt_base, reason = :anchor_offset, value = 1//7,
+                               related = 1//100, provenance = "`sample_times` at `a`, key `b`",
+                               admissible = 1//300),
+-            AttachUnknownFace(binding = "Enumerated", face = :q, candidates = [:a, :b]),
++            AttachUnknownFace(device = "Pad", binding = "Enumerated", face = :q,
++                              candidates = [:a, :b]),
+             AlreadyAttached(device = "Pad", incumbent = "device 1 (Pad)", binding = "Enumerated"),
+             CallerTaskConflict(device = "Pad", incumbent = "device 1 (Poller)"),
+             ClaimConflict(face = :a, device = "Pad", incumbent = "device 1 (Pad)"),
+@@ -410,17 +431,17 @@ function diagnostics_kind_set()
+                                     observed = "1"),
+             DeviceContractMismatch(device = "Loopless", reason = :no_loop),
+             DeviceContractMismatch(device = "device 1 (Pad)", reason = :no_output_side),
+-            ReadBindingUnresolved(binding = "T", selector = "get_state(\"a\", :x)",
++            ReadBindingUnresolved(device = "Pad", binding = "T", selector = "get_state(\"a\", :x)",
+                                   reason = :store_selector, path = "a", field = :x),
+-            ReadBindingUnresolved(binding = "T", selector = "get_output(\"a\", :y[1])",
++            ReadBindingUnresolved(device = "Pad", binding = "T", selector = "get_output(\"a\", :y[1])",
+                                   reason = :indexed, path = "a", field = :y),
+-            ReadBindingUnresolved(binding = "T", selector = "get_output(\"a\", :y)",
++            ReadBindingUnresolved(device = "Pad", binding = "T", selector = "get_output(\"a\", :y)",
+                                   reason = :unknown_cell, path = "a", field = :y),
+-            ReadBindingUnresolved(binding = "T", selector = "get_input(:q)",
++            ReadBindingUnresolved(device = "Pad", binding = "T", selector = "get_input(:q)",
+                                   reason = :unknown_root_input, field = :q, candidates = [:a]),
+-            ReadBindingUnresolved(binding = "T", selector = "get_face(:a)",
++            ReadBindingUnresolved(device = "Pad", binding = "T", selector = "get_face(:a)",
+                                   reason = :root_input_not_output, field = :a),
+-            ReadBindingUnresolved(binding = "T", selector = "get_face(:q)",
++            ReadBindingUnresolved(device = "Pad", binding = "T", selector = "get_face(:q)",
+                                   reason = :unknown_output_face, field = :q),
+             ConditionResolution(path = "a", field = :u, reason = :assembly_path, provenance = "fragment"),
+             ConditionResolution(field = :q, reason = :unexported_face, candidates = [:a],
+@@ -567,9 +588,9 @@ function diagnostics_kind_set()
+     @testset "rendering: the carrier compiler-style, the didactic style (§13.1, §13.2)" begin
+         # Two kinds × two paths: groups in first-appearance order, paths sorted
+         # within a group, the kind name leading each line, the count line above.
+-        e = DiagnosticError(Diagnostic[UnconnectedInput(path = "b", face = :u),
++        e = DiagnosticError(Diagnostic[UnconnectedInput(path = "b", face = :u, declared = Float64, level = "b"),
+                                   FaceNameIllegal(path = "b", face = "p/q", invariant = :contains_slash),
+-                                  UnconnectedInput(path = "a", face = :v),
++                                  UnconnectedInput(path = "a", face = :v, declared = Float64, level = "a"),
+                                   FaceNameIllegal(path = "a", face = "r/s",
+                                                   invariant = :contains_slash)])
+         @test kinds(e) == [UnconnectedInput, FaceNameIllegal]
+@@ -581,11 +602,11 @@ function diagnostics_kind_set()
+         @test startswith(lines[5], "  FaceNameIllegal: ") && occursin("`p/q`", lines[5])
+ 
+         # A fail-fast site's single diagnostic renders on one line, no count.
+-        @test sprint(showerror, DiagnosticError(UnconnectedInput(path = "a", face = :v))) ==
+-              "DiagnosticError: UnconnectedInput: " * message(UnconnectedInput(path = "a", face = :v))
++        d = UnconnectedInput(path = "a", face = :v, declared = Float64, level = "a")
++        @test sprint(showerror, DiagnosticError(d)) ==
++              "DiagnosticError: UnconnectedInput: " * message(d)
+ 
+         # The parameter is the policy, and the outer constructors choose it (D-222).
+-        d = UnconnectedInput(path = "a", face = :v)
+         @test DiagnosticError(d) isa DiagnosticError{typeof(d)}
+         @test DiagnosticError([d]) isa DiagnosticError{Vector{Diagnostic}}
+         @test diagnostic(DiagnosticError(d)) === d
+@@ -611,6 +632,13 @@ function diagnostics_kind_set()
+         @test occursin("probe_value(::Type{", m) && occursin("zero-argument constructor", m)
+         @test occursin("at face `pilot`", m) && occursin("Float64", m)
+ 
++        # A port type is §13.2's one payload exception: the abstract entry is
++        # spelled whole, parameters and all, where `_typename` would print
++        # `AbstractVector{Float64}` as `AbstractArray` (§8.2).
++        m = message(AbstractAtRoot(face = :e, paths = ["a/b"],
++                                   declared = Any[AbstractVector{Float64}]))
++        @test occursin("AbstractVector{Float64}", m) && occursin("`a/b`", m)
++
+         # The dead stage names the return it got and the stage it got it from.
+         m = message(DeadStage(path = "a/b", stage = "output_state"))
+         @test occursin("`(;)`", m) && occursin("output_state", m)
+@@ -645,7 +673,8 @@ function diagnostics_kind_set()
+                                                cause = ErrorException("boom"))))
+ 
+         # A read miss that is name-shaped prints the list the site had in hand.
+-        m = message(ReadBindingUnresolved(binding = "Readout", selector = "get_output(\"p\", :nope)",
++        m = message(ReadBindingUnresolved(device = "Pad", binding = "Readout",
++                                          selector = "get_output(\"p\", :nope)",
+                                           reason = :unknown_cell, path = "p", field = :nope,
+                                           candidates = [:power, :y]))
+         @test occursin("{power, y}", m)
+diff --git a/test/test_events.jl b/test/test_events.jl
+index b1799ef..ff5d10a 100644
+--- a/test/test_events.jl
++++ b/test/test_events.jl
+@@ -72,9 +72,10 @@ function test_events()
+     @testset "the declaration layer and probe reject malformed events (§8.2, §9.3)" begin
+         d = only(diagnostics(failure(() -> build(single(HalfEvent())))))
+         @test d isa EventHalfMissing && d.event === :go && d.reason === :handler
++        @test d.found == "HalfEvent"            # the component type, by name (§13.2)
+         d = only(diagnostics(failure(() -> build(single(NotAnEvent())))))
+         @test d isa EventHalfMissing && d.event === :go && d.reason === :not_an_event &&
+-              d.found === Int
++              d.found == "Int64"
+ 
+         d = carried(@test_throws DiagnosticError{GuardForm} build(single(BadGuardForm())))
+         @test d.event === :go && d.observed === String
+@@ -86,6 +87,9 @@ function test_events()
+         d = only(diagnostics(failure(() -> build(single(PartialX())))))
+         @test d isa ConformanceFailure && d.reason === :field_set && d.shape === :state &&
+               d.observed_fields == [:a] && d.declared_fields == [:a, :b]
++        # A handler's occurrence names its event (§9.5, D-249); `what` names the
++        # function alone, and the two compose in the message.
++        @test d.event === :reset && d.what == "handler `x`"
+ 
+         # `state_events` is continuous-only, beside `init_m` in the tier-agreement check.
+         diags = Diagnostic[]
+@@ -101,6 +105,7 @@ function test_events()
+         d = only(diagnostics(failure(() -> build(single(BadProjectShape())))))
+         @test d isa ConformanceFailure && d.what == "state_projection" && d.reason === :field_set &&
+               d.observed_fields == [:v] && d.declared_fields == [:q]
++        @test d.event === nothing                 # no handler, no event
+     end
+ 
+     @testset "the guard's form is the declared policy (§2.1, §10.4, D-179)" begin
+diff --git a/test/test_failures.jl b/test/test_failures.jl
+index 8cf919b..a334a0b 100644
+--- a/test/test_failures.jl
++++ b/test/test_failures.jl
+@@ -556,6 +556,7 @@ function failures_conformance()
+         e = failure(() -> run!(sim))
+         @test e isa StepError{ConformanceFailure}
+         @test e.cause.what == "state_projection" && e.cause.shape === :state
++        @test e.cause.event === nothing      # a projection is the component's, not an event's
+         @test e.cause.reason === :field_type && e.cause.field === :a
+         @test e.cause.observed === Int64 && e.cause.declared === Float64
+         @test e.frame.fn === :state_projection
+@@ -590,6 +591,7 @@ function failures_conformance()
+         e = failure(() -> run!(sim))
+         @test e isa StepError{ConformanceFailure}
+         @test e.cause.what == "handler" && e.cause.shape === :mode
++        @test e.cause.event === :fire        # the event name, at run time too (§9.5, D-249)
+         @test e.cause.reason === :field_type && e.cause.field === :k
+         @test e.cause.observed === Float64 && e.cause.declared === Int
+         @test e.frame.fn === :handler
+@@ -602,6 +604,7 @@ function failures_conformance()
+         e = failure(() -> run!(sim))
+         @test e isa StepError{ConformanceFailure}
+         @test e.cause.what == "handler" && e.cause.shape === :mode
++        @test e.cause.event === :fire
+         @test e.cause.reason === :return_type && e.cause.observed === Int
+         @test occursin("NamedTuple", message(e.cause))
+         @test e.frame.fn === :handler
+diff --git a/test/test_lifecycle.jl b/test/test_lifecycle.jl
+index e776fe2..0ef881e 100644
+--- a/test/test_lifecycle.jl
++++ b/test/test_lifecycle.jl
+@@ -55,6 +55,7 @@ function test_lifecycle()
+         @test lifecycle(sim) === :stopped
+         diag = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim))
+         @test diag.op === :run! && diag.status === :stopped
++        @test diag.legal == [:initialized]               # §12.6: the advance entries' one state
+         diag2 = carried(@test_throws DiagnosticError{ServiceLifecycle} step!(sim))
+         @test diag2.op === :step! && diag2.status === :stopped
+         init!(sim, fragment(inputs = (ref = 0.0,)))  # the supported cycle reopens it
+@@ -152,13 +153,17 @@ function test_lifecycle()
+         m = feedback_model()                        # "ref" a root input, "y" a Float64 export
+         sim = Simulation(m; h = 1//50, t_end = 1.0)
+         init!(sim, fragment(inputs = (ref = 0.0,)))
++        trc = trace(sim)                            # the header alone: `replay!` binds as `run!` does
+         for (bad, reason) in (("nope", :unknown), ("ref", :root_input), ("y", :not_bool))
+             ec = failure(() -> Simulation(m; h = 1//50, stop_on = (bad,)))
+             er = failure(() -> run!(sim; stop_on = (bad,)))
+-            dc, dr = only(diagnostics(ec)), only(diagnostics(er))
++            ep = failure(() -> replay!(sim, trc; stop_on = (bad,)))
++            dc, dr, dp = only(diagnostics(ec)), only(diagnostics(er)), only(diagnostics(ep))
+             @test ec isa DiagnosticError && dc isa StopFaceInvalid && dc.reason === reason
+-            @test dc.face == dr.face && dc.reason == dr.reason &&
+-                  dc.declared == dr.declared            # identical at both binding sites
++            @test dc.face == dr.face == dp.face && dc.reason == dr.reason == dp.reason &&
++                  dc.declared == dr.declared == dp.declared   # identical at all three sites
++            # The binding site is the one payload field that differs (§13.5, D-249).
++            @test dc.site === :constructor && dr.site === :run! && dp.site === :replay!
+         end
+         # The constructor is one call, so a stop-face refusal joins the deployment's
+         # own list in the single throw (§9.1, D-229); `run!` is its own call.
+@@ -277,11 +282,12 @@ function test_lifecycle()
+         d = carried(@test_throws DiagnosticError{ServiceLifecycle} step!(sim))
+         @test d.status === :errored
+         d = carried(@test_throws DiagnosticError{ServiceLifecycle} init!(sim))
+-        @test d.status === :errored
++        @test d.status === :errored && d.legal == [:built, :initialized, :stopped]
+         # The roster operations refuse it too (D-232): they configure the next
+         # run, and there is none. The post-mortem read above stays admitted.
+         d = carried(@test_throws DiagnosticError{ServiceLifecycle} attach!(sim, TailProbe(), NoClaim()))
+         @test d.op === :attach! && d.status === :errored
++        @test d.legal == [:built, :initialized, :stopped]   # §11.3, D-232: no next run
+         d = carried(@test_throws DiagnosticError{ServiceLifecycle} detach!(sim, probe))
+         @test d.op === :detach! && d.status === :errored
+     end
+diff --git a/test/test_log.jl b/test/test_log.jl
+index 1220534..cb06778 100644
+--- a/test/test_log.jl
++++ b/test/test_log.jl
+@@ -131,6 +131,8 @@ function test_log()
+         err = try logged(sim) catch e; e end
+         wait(t)
+         @test err isa DiagnosticError && diagnostic(err) isa ServiceLifecycle
++        # the readers' gate refuses `:running` alone, post-mortem reads included (§13.6)
++        @test diagnostic(err).legal == [:built, :initialized, :stopped, :errored]
+         @test length(logged(sim)) ≥ 2                        # the gate lifts with the run
+     end
+ 
+diff --git a/test/test_roster.jl b/test/test_roster.jl
+index 1fe6d6f..56fe280 100644
+--- a/test/test_roster.jl
++++ b/test/test_roster.jl
+@@ -62,7 +62,8 @@ function test_roster()
+         @test attach!(sim, Panel("p1"), Enumerated("b")).id == 2
+         @test_throws DiagnosticError{CallerTaskConflict} attach!(sim, Panel("p2"), Enumerated())
+         # An enumeration drifted onto a nonexistent face is a diagnosable anomaly.
+-        @test_throws DiagnosticError{AttachUnknownFace} attach!(sim, Pad("d3"), Enumerated("flaps"))
++        du = carried(@test_throws DiagnosticError{AttachUnknownFace} attach!(sim, Pad("d3"), Enumerated("flaps")))
++        @test du.device == "Pad" && du.binding == "Enumerated" && du.face === :flaps
+         # Detaching what was never rostered is an error, not a silent no-op.
+         @test_throws DiagnosticError{NotAttached} detach!(sim, Pad("ghost"))
+     end
+diff --git a/test/test_trace.jl b/test/test_trace.jl
+index 72d4066..5429e13 100644
+--- a/test/test_trace.jl
++++ b/test/test_trace.jl
+@@ -827,6 +827,7 @@ function trace_discarded_harness()
+         @test_throws StepError run!(crashed)        # §13.4's wrap, the cause one level down
+         d = carried(@test_throws DiagnosticError{ServiceLifecycle} replay!(crashed, own))
+         @test d.op === :replay! && d.status === :errored
++        @test d.legal == [:built, :initialized, :stopped]   # §12.6's stopped-sim row
+         # (`replay!` from `:running` is the same gate one line above it, and reaching
+         # it needs the spawned-run idiom `test_lifecycle.jl` exercises for `init!`
+         # and `run!`; it is asserted there, for those two entries, and not here.)
+diff --git a/test/test_trim.jl b/test/test_trim.jl
+index 1536e6c..820c179 100644
+--- a/test/test_trim.jl
++++ b/test/test_trim.jl
+@@ -528,5 +528,6 @@ function test_trim()
+         wait(task)
+         @test d3.op === :trim!
+         @test d3.status === :running
++        @test d3.legal == [:built, :initialized, :stopped]   # §12.6's row for `trim!`
+     end
+ end

@@ -1,0 +1,6 @@
+┌ Warning: DeviceJoinTimeout from loop, past the final snapshot's account: Cadence.DeviceJoinTimeout("device 1 (LateAction)", 0.02, 0.1, 1) (§11.8)
+└ @ Cadence ~/.julia/dev/Cadence.jl/src/devices.jl:531
+┌ Warning: DeviceJoinTimeout from loop, past the final snapshot's account: Cadence.DeviceJoinTimeout("device 1 (LateAction)", 0.02, 0.1, 1) (§11.8)
+└ @ Cadence ~/.julia/dev/Cadence.jl/src/devices.jl:531
+late stage: advanced=1, a=77.0, lifecycle=initialized
+late stop: advanced=0, lifecycle=stopped, source=Cadence.ControlRequestedStop("device 1 (LateAction)")

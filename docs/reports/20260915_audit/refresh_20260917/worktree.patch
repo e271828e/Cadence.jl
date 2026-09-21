@@ -1,0 +1,461 @@
+diff --git a/docs/design/implementation.md b/docs/design/implementation.md
+index 17a9d37..16e164c 100644
+--- a/docs/design/implementation.md
++++ b/docs/design/implementation.md
+@@ -22,7 +22,7 @@ to. For more than a line, read the file itself and the sections it cites.
+ | `src/assembly.jl` | class by declaration shape; children and containers with their collision family; `Group`, the anonymous assembly, kernel material by decision where the rest of the old `library.jl` became fixtures; paths and §6.1's one-level rule; endpoint and face resolution with the root's face invariants; the flatten pass under one Stratum A barrier (`Walk` owning the `Flat` it builds, resolvers recording into the stratum's list, `wire!` deriving the two-sided face graph after the barrier, `Flat.root_types` holding the root-input types the wire pass fixes) and the sample-time fold; §13.3's `resolve`/`resolve_terminal`/face-list primitives and the service walk `resolve_authored` over the `Flat`'s retained root, declared holdings read off the type definition (D-061, D-130), and `authored_chain`, the child names along an absolute path that `capture` spells level by level, and §8.8's `input_passthrough`/`output_passthrough`; the shadowing check ahead of `classify` in the walk (D-246); the store-form gate ahead of the classifier in the walk (D-247); the component frame around the walk's two branches (D-248) | §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §13.3, §14.2, D-061, D-130, D-171, D-207–D-212, D-229, D-236, D-246, D-247, D-248 |
+ | `src/store.jl` | per-eltype cell stores (a handle type is its own eltype, D-237), the `StoreBundle`, gather and the checked scatter (§9.5's always-on check decided at generation, D-235), `_cell_key`, the `Clock` | §9.5, §9.7, D-162, D-235, D-237 |
+ | `src/executor.jl` | entries (each carrying its component's path, for the write's diagnostic; `PublishEntry`, the framework's stage-1-position copy of store fields into cells, §5.3), the chunked unrolled walk, the interior/boundary split, the `(idx − Φ) % D` gate and boundary zero's `ESTABLISH` beside it, the event set with its registers and the guard/fire/project walks, and the execution cursor every entry stores into | §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §14.5, D-059, D-205, D-235 |
+-| `src/build.jl` | the user-code frame — `invoke_declaration`, `invoke_probed`, `at_component` (§13.2, D-248); tier classification (recording, the tier read in the walk beside the class, `build` owning Stratum A's one throw, the wire pass (both type clauses at `Float64` and at the marker scalar, the root-input type and its two refusals, the contract-bound check (`TierSignatureMismatch`'s bound arm); D-236)), the store-form check `check_store_form` (§8.2, D-247), the store isbits check (§7.3, D-231) and the state-leaf vocabulary check (§7.1, D-094), the probe and the event probe, the dead-stage rule at both stage probes and `MissingProbeValue` in `cell_layout` (§9.3), `auto_published` and the published set on the `Activation` (§5.3, D-169), the feedthrough graph with its edge provenance, Kahn's schedule and, at a stall, the SCC decomposition into one `AlgebraicCycle` per cluster (§5.6, D-012), `_probe_direct!` shared with the classifier's prefix probe, the layout with the root-input meet (D-168, D-236) and `IllegalPortType`'s three arms (D-237), the probe's embedding of products (`_embed`), the `Build` and its activations, `ProbeTag`/`ProbeDual`, the canonical probe scalar (§9.4), deployment binding (one throw per `Simulation` call), and `compile` → `Executor{T}` — one activation's buffer set with the bodies closed over it, one owner per set, `evaluate!`/`_round!`/`apply!` on it | §5.3, §5.5, §5.6, §6.1, §8.2, §9.1–§9.4, §9.7, §10.4, §13.2, D-012, D-016, D-051, D-166, D-169, D-179, D-208, D-210, D-229, D-235, D-236, D-237, D-247, D-248 |
++| `src/build.jl` | the user-code frame — `invoke_declaration`, `invoke_probed`, `at_component` (§13.2, D-248); tier classification (recording, the tier read in the walk beside the class, `build` owning Stratum A's one throw, the wire pass (both type clauses at `Float64` and at the marker scalar, the root-input type and its two refusals), the contract-form check — `TierSignatureMismatch`'s arity arm in the vote loop, its bound arm in the wire pass (D-249); D-236), the store-form check `check_store_form` (§8.2, D-247), the store isbits check (§7.3, D-231) and the state-leaf vocabulary check (§7.1, D-094), the probe and the event probe, the dead-stage rule at both stage probes and `MissingProbeValue` in `cell_layout` (§9.3), `auto_published` and the published set on the `Activation` (§5.3, D-169), the feedthrough graph with its edge provenance, Kahn's schedule and, at a stall, the SCC decomposition into one `AlgebraicCycle` per cluster (§5.6, D-012), `_probe_direct!` shared with the classifier's prefix probe, the layout with the root-input meet (D-168, D-236) and `IllegalPortType`'s three arms (D-237), the probe's embedding of products (`_embed`), the `Build` and its activations, `ProbeTag`/`ProbeDual`, the canonical probe scalar (§9.4), deployment binding (one throw per `Simulation` call), and `compile` → `Executor{T}` — one activation's buffer set with the bodies closed over it, one owner per set, `evaluate!`/`_round!`/`apply!` on it | §5.3, §5.5, §5.6, §6.1, §8.2, §9.1–§9.4, §9.7, §10.4, §13.2, D-012, D-016, D-051, D-166, D-169, D-179, D-208, D-210, D-229, D-235, D-236, D-237, D-247, D-248, D-249 |
+ | `src/tracer.jl` | §5.6's set-propagation scalar `Tracer{S}` (global on `true`, local on `false`, `Undecidable` the marker between them), the leaf-wise lift and tag walks, and `_classify` — the schedule-free per-member trace at the probe point, its prefix probe, D-245's port-graph verdict and the sampled fallback at a fixed seed | §5.4, §5.6, §9.3, D-012, D-140, D-245 |
+ | `src/readers.jl` | the closed read-selector family, `reads`, its path selectors walked from the root (§13.3), the internal `_compile_reads` → `Reader{T}`, `gather` as `apply!`'s twin over an executor; activation identity on readers and plans as an internal invariant | §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130 |
+ | `src/sim.jl` | `Simulation` (owning its `exec`), the deployment keywords, the boundary macro-sequence and the §10.6 event phase with its `FiringBudget` degradation, `init!`, `run!`/`step!`, `replay!` over the one shared run body, `attach!`/`detach!`, staging/drain/publication with the drain's replay substitution, §12.6's input mode (`mode(sim)`, `to_time`, `live!`), the lifecycle and termination record, the frame loop's one catch site with the species rule — the runtime bundle-field match in it (§13.2, §13.4, D-248) — and the interrupt carve-out and its second host around boundary zero, the seam's `isfinite` sweep over `x` as the boundary's first act, the accessors | §10.2–§10.6, §11.1–§11.4, §11.8, §12.1–§12.7, §13.2, §13.4–§13.6, §14.5, §14.6, D-059, D-101, D-157, D-203, D-218, D-219, D-221, D-223, D-232, D-233, D-248 |
+diff --git a/src/assembly.jl b/src/assembly.jl
+index 4971967..2f54de7 100644
+--- a/src/assembly.jl
++++ b/src/assembly.jl
+@@ -10,10 +10,18 @@
+ 
+ @enum Class PRIMITIVE ASSEMBLY
+ 
+-const LEAF_FAMILY = "`init_x`, `init_s`, `init_m`, `init_workspace`, `input_types`, " *
+-                    "`output_types`, `state_events` or a stage (`output_state`, " *
+-                    "`output_direct`, `state_derivative`, `state_update`, " *
+-                    "`state_projection`)"
++const ASSEMBLY_FAMILY = (:child_connections,)
++const LEAF_FAMILY = (:init_x, :init_s, :init_m, :init_workspace, :input_types,
++                     :output_types, :state_events, :output_state, :output_direct,
++                     :state_derivative, :state_update, :state_projection)
++
++# The five `DECLARATION_FAMILY` names no leaf declaration covers: the assembly
++# marker, the two boundary declarations and the two sugars.
++const _OTHER_FAMILY = ((:child_connections, child_connections),
++                       (:input_connections, input_connections),
++                       (:output_connections, output_connections),
++                       (:sample_times, sample_times),
++                       (:transparent_container, transparent_container))
+ 
+ """The leaf declarations `c` defines, in inventory order (§8.2, §8.5)."""
+ function leaf_declarations(c)
+@@ -36,6 +44,15 @@ function leaf_declarations(c)
+     found
+ end
+ 
++"""The `DECLARATION_FAMILY` names `c` defines, in family order (§8.1, §8.5)."""
++function declarations_found(c)
++    found = leaf_declarations(c)
++    for (name, fn) in _OTHER_FAMILY
++        _declares(fn, c) && push!(found, name)
++    end
++    Symbol[n for n in DECLARATION_FAMILY if n in found]
++end
++
+ """The class of `c` at `path`, or a `DiagnosticError` naming what makes it unreadable."""
+ function classify(path::String, c)
+     leaves = leaf_declarations(c)
+@@ -45,11 +62,18 @@ function classify(path::String, c)
+         return ASSEMBLY
+     end
+     isempty(leaves) || return PRIMITIVE
+-    throw(DiagnosticError(ClassUnreadable(path = path, families = LEAF_FAMILY,
++    throw(DiagnosticError(ClassUnreadable(path = path, type = _typename(c),
++                                     found = declarations_found(c),
++                                     assembly_family = collect(ASSEMBLY_FAMILY),
++                                     leaf_family = collect(LEAF_FAMILY),
+                                      holds_components = _holds_components(c))))
+ end
+ 
+ _at(path::String) = isempty(path) ? "the root component" : "`$path`"
++# A producer terminal spelled for a payload string: a component's port, or the
++# root's own input face, whose path is the empty one.
++_terminal(t::Tuple{String,Symbol}) =
++    isempty(first(t)) ? "root input `$(last(t))`" : "`$(first(t))`.$(last(t))"
+ _join(path::String, seg::String) = isempty(path) ? seg : path * "/" * seg
+ 
+ _holds_components(c) = any(fieldnames(typeof(c))) do name
+@@ -130,9 +154,9 @@ function _children(path::String, c)
+                 continue
+             end
+             if n != length(v)
+-                push!(diags, ContainerMixed(path = path, field = name,
+-                                           types = unique(Any[typeof(e) for e in v
+-                                                              if !(e isa AbstractComponent)])))
++                mixed = [k for k in keys(v) if !(v[k] isa AbstractComponent)]
++                push!(diags, ContainerMixed(path = path, field = name, keys = mixed,
++                                           types = unique(Any[typeof(v[k]) for k in mixed])))
+                 continue
+             end
+             bare = name === tf
+@@ -170,6 +194,9 @@ end
+ # parametric code then needs no special case (§8.5).
+ _is_container(v) = (v isa NamedTuple || v isa Tuple) && all(e -> e isa AbstractComponent, v)
+ 
++# The container fields of `c`'s type: what a name-transparent declaration may name.
++_container_fields(c) = Symbol[n for n in fieldnames(typeof(c)) if _is_container(getfield(c, n))]
++
+ # A container holding a component at any depth: the shape `ContainerNested` names.
+ _bears_component(v) = (v isa NamedTuple || v isa Tuple) &&
+                       any(e -> e isa AbstractComponent || _bears_component(e), v)
+@@ -180,7 +207,8 @@ function _check_transparent(path::String, c, tf, diags::Vector{Diagnostic})
+     tf === nothing && return nothing
+     ok = tf in fieldnames(typeof(c)) && _is_container(getfield(c, tf))
+     ok || push!(diags, TransparentContainerUnknown(path = path, field = tf,
+-                                                  component = _typename(c)))
++                                                  component = _typename(c),
++                                                  candidates = _container_fields(c)))
+     nothing
+ end
+ 
+@@ -797,15 +825,30 @@ function flatten!(w::Walk, root, diags::Vector{Diagnostic})
+     # here beside the refusal itself.
+     for (path, c) in zip(w.flat.paths, w.flat.comps)
+         at_component(path) do
+-            for face in keys(_contract(input_types, c))
++            for (face, declared) in pairs(_contract(input_types, c))
+                 haskey(w.feeds, (path, face)) ||
+-                    push!(diags, UnconnectedInput(path = path, face = face))
++                    push!(diags, UnconnectedInput(path = path, face = face,
++                                                 declared = declared,
++                                                 level = _last_level(w, path, face)))
+             end
+         end
+     end
+     nothing
+ end
+ 
++# The obligation chain's last level (§6.1): the topmost face an
++# `input_connections` chain handed `(path, face)` up to — the shortest route path
++# naming it as a consumer, an ancestor's path being a prefix of the leaf's. The
++# leaf's own path when no route names it: `w.routes` records only routes with
++# consumers, so an entry nobody handed up has no row.
++function _last_level(w::Walk, path::String, face::Symbol)
++    level = path
++    for (rpath, _, consumers) in w.routes
++        (path, face) in consumers && length(rpath) < length(level) && (level = rpath)
++    end
++    level
++end
++
+ """
+ §9.2's input side, derived on a walk the barrier has already proved clean: every
+ input is fed exactly once, so an assembly's face and the leaf entries behind it
+@@ -948,7 +991,9 @@ _entry(method::String, path::String, pair::Pair) =
+ function _claim!(w::Walk, consumer, producer, entry::String, diags::Vector{Diagnostic})
+     if haskey(w.feeds, consumer)
+         push!(diags, TwoProducers(path = consumer[1], port = consumer[2],
+-                                 incumbent = w.claims[consumer], entry = entry))
++                                 incumbent = w.claims[consumer], entry = entry,
++                                 incumbent_producer = _terminal(w.feeds[consumer]),
++                                 producer = _terminal(producer)))
+         return nothing                     # the incumbent keeps the claim
+     end
+     w.feeds[consumer] = producer
+diff --git a/src/build.jl b/src/build.jl
+index 02a2d6a..f2a7eef 100644
+--- a/src/build.jl
++++ b/src/build.jl
+@@ -171,6 +171,14 @@ function check_stores(path::String, c, diags::Vector{Diagnostic})
+     end
+ end
+ 
++# The tier-announcing family (§8.2, §8.5): the names the vote loop below reads,
++# in vote order — the list-in-hand a `TierUnreadable` carries.
++const TIER_FAMILY = (:state_derivative, :state_update, :init_x, :init_s, :init_m,
++                     :state_events, :output_types, :input_types, :init_workspace)
++
++# §8.5's two contract signature forms, as the tier mandates them.
++_form(t::Tier) = t === CONTINUOUS ? :two_argument : :plain
++
+ """
+ The tier the primitive at `path` announces, or `nothing` with what disagrees
+ recorded in `diags` (§13.1).
+@@ -201,7 +209,8 @@ function classify_tier(path::String, c, diags::Vector{Diagnostic})
+     else
+         i = findfirst(v -> first(v) === :output_types, votes)
+         if i === nothing
+-            push!(diags, TierUnreadable(path = path,
++            push!(diags, TierUnreadable(path = path, type = _typename(c),
++                                       family = collect(TIER_FAMILY),
+                                        declarations = Symbol[first(v) for v in votes]))
+             return nothing
+         end
+@@ -209,15 +218,23 @@ function classify_tier(path::String, c, diags::Vector{Diagnostic})
+ 
+     # The vote loop collects (§13.1): a leaf written half in each tier's spelling
+     # names every declaration that disagrees, not the first one found. The tier
+-    # is announced only if none does.
++    # is announced only if none does. A contract arity against the announced tier
++    # is the contract's own kind, on a stateful leaf and a stateless one alike
++    # (§8.5, D-249); every other name is `DeclarationOnWrongTier`'s.
+     t = last(votes[i])
+     k = length(diags)
+     for (name, vt) in votes
+-        vt === t ||
++        vt === t && continue
++        if name === :input_types || name === :output_types
++            push!(diags, TierSignatureMismatch(path = path, declaration = name,
++                                               tier = Symbol(tier_word(t)), reason = :arity,
++                                               found = _form(vt), mandated = _form(t)))
++        else
+             push!(diags, DeclarationOnWrongTier(path = path, declaration = name,
+                                                reason = :tier_form,
+                                                found = Symbol(tier_word(vt)),
+                                                announced = Symbol(tier_word(t))))
++        end
+     end
+     length(diags) == k ? t : nothing
+ end
+@@ -726,13 +743,13 @@ function _check_event_declarations(flat::Flat, diags::Vector{Diagnostic})
+             for (name, ev) in pairs(invoke_declaration(state_events, c))
+                 if !(ev isa StateEvent)
+                     push!(diags, EventHalfMissing(path = path, event = name,
+-                                                 reason = :not_an_event, found = typeof(ev)))
++                                                 reason = :not_an_event, found = _typename(ev)))
+                     continue                       # neither half exists to look up
+                 end
+                 for (half, fn) in ((:guard, ev.guard), (:handler, ev.handler))
+                     hasmethod(fn, Tuple{typeof(c),NamedTuple}) ||
+                         push!(diags, EventHalfMissing(path = path, event = name, reason = half,
+-                                                     found = typeof(c)))
++                                                     found = _typename(c)))
+                 end
+             end
+         end
+@@ -1073,7 +1090,11 @@ function _probe_direct!(products::Vector{NamedTuple}, ci::Int, flat::Flat,
+         # stage-2 return of the same port writes it twice (§5.3, §8.3).
+         twice = intersect(union(keys(s1), keys(published[ci])), keys(y2))
+         isempty(twice) ||
+-            throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice))))
++            throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice),
++                                                producers = Symbol[p in keys(s1) ?
++                                                                   :output_state :
++                                                                   :auto_publication
++                                                                   for p in twice])))
+         products[ci] = merge(s1, published[ci], _embed_ports(y2, d.outs, T))
+     end
+     nothing
+diff --git a/src/diagnostics.jl b/src/diagnostics.jl
+index f7947c4..aa1a4fd 100644
+--- a/src/diagnostics.jl
++++ b/src/diagnostics.jl
+@@ -273,11 +273,16 @@ message(d::UnknownPort) =
+ Base.@kwdef struct UnconnectedInput <: Diagnostic
+     path::String
+     face::Symbol
++    declared::Any                            # the declared entry type, at nominal
++    level::String                            # the obligation chain's last level; the leaf's own path when no route names it
+ end
+ path(d::UnconnectedInput) = d.path
+ message(d::UnconnectedInput) =
+-    "`$(d.path)`.$(d.face) is fed by nothing — every input is fed exactly once, by a " *
+-    "wire or by an `input_connections` chain ending at a root input face (§6.1)"
++    "`$(d.path)`.$(d.face) declared $(d.declared) is fed by nothing" *
++    (d.level == d.path ? "" :
++     ", handed up to $(_at_path(d.level)) and fed by nothing there") *
++    " — every input is fed exactly once, by a wire or by an `input_connections` chain " *
++    "ending at a root input face (§6.1)"
+ 
+ "§6.1, §8.8: an input claimed twice, both producers named with their provenance."
+ Base.@kwdef struct TwoProducers <: Diagnostic
+@@ -285,11 +290,14 @@ Base.@kwdef struct TwoProducers <: Diagnostic
+     port::Symbol                             # the destination terminal's port
+     incumbent::String                        # the entry that claimed it first
+     entry::String                            # the entry that claimed it second
++    incumbent_producer::String               # the terminal the first entry feeds it from
++    producer::String                         # the terminal the second entry feeds it from
+ end
+ path(d::TwoProducers) = d.path
+ message(d::TwoProducers) =
+-    "`$(d.path)`.$(d.port) is fed twice: by $(d.incumbent), and by $(d.entry) — every " *
+-    "input takes exactly one connection, across levels included (§6.1)"
++    "`$(d.path)`.$(d.port) is fed twice: from $(d.incumbent_producer) by $(d.incumbent), " *
++    "and from $(d.producer) by $(d.entry) — every input takes exactly one connection, " *
++    "across levels included (§6.1)"
+ 
+ "§6.1, §8.2, §8.4 w4: a wire whose producer's declaration at `Float64` is not `<:` the consumer's entry at `Float64`."
+ Base.@kwdef struct WireTypeMismatch <: Diagnostic
+@@ -335,7 +343,7 @@ end
+ path(::AbstractAtRoot) = ""
+ message(d::AbstractAtRoot) =
+     "root input `$(d.face)` is declared " *
+-    join(("$(_at_path(p))::$(P)" for (p, P) in zip(d.paths, d.declared)), ", ") *
++    join(("$(_at_path(p))::$(_typename(P))" for (p, P) in zip(d.paths, d.declared)), ", ") *
+     " — every entry is abstract, and a root input is typed by its consumers alone, so " *
+     "nothing determines its type; wire `$(d.face)` to a concrete producer — in a test " *
+     "rig, a stub child (§8.2, §13.7)"
+@@ -418,14 +426,14 @@ Base.@kwdef struct EventHalfMissing <: Diagnostic
+     path::String
+     event::Symbol
+     reason::Symbol                           # :guard | :handler | :not_an_event
+-    found::Any = nothing                     # the component type, or the entry's type
++    found::String                            # the component type's name, or the entry type's
+ end
+ path(d::EventHalfMissing) = d.path
+ message(d::EventHalfMissing) =
+     d.reason === :not_an_event ?
+-    "`$(d.path)`: `state_events` entry `$(d.event)` is $(d.found) — an entry is " *
++    "`$(d.path)`: `state_events` entry `$(d.event)` is a `$(d.found)` — an entry is " *
+     "`StateEvent(guard, handler)`, with no detection keyword (§8.2)" :
+-    "`$(d.path)`: event `$(d.event)`'s $(d.reason) has no method for $(d.found) — an " *
++    "`$(d.path)`: event `$(d.event)`'s $(d.reason) has no method for `$(d.found)` — an " *
+     "event needs both halves (§8.2)"
+ 
+ "§8.1, D-246: a family name the component's module binds to a function of its own — the forgotten import."
+@@ -444,13 +452,18 @@ message(d::DeclarationShadowed) =
+ "§8.5: a component declaring neither family, so its class cannot be read off declaration shape."
+ Base.@kwdef struct ClassUnreadable <: Diagnostic
+     path::String
+-    families::String                         # the leaf family list, the list-in-hand
++    type::String                             # the component type's name
++    found::Vector{Symbol}                    # the `DECLARATION_FAMILY` names it does declare, family order
++    assembly_family::Vector{Symbol}          # the assembly family list, the list-in-hand
++    leaf_family::Vector{Symbol}              # the leaf family list, the list-in-hand
+     holds_components::Bool = false
+ end
+ path(d::ClassUnreadable) = d.path
+ message(d::ClassUnreadable) =
+-    "$(_at_path(d.path)) declares neither family: `child_connections` would make it an " *
+-    "assembly, any of $(d.families) a primitive (§8.5)" *
++    "$(_at_path(d.path))::`$(d.type)` declares neither family: " *
++    "$(_namelist(d.assembly_family)) would make it an assembly, any of " *
++    "$(_namelist(d.leaf_family)) a primitive (§8.5)" *
++    (isempty(d.found) ? "" : " — it declares $(_namelist(d.found))") *
+     (d.holds_components ?
+      " — it holds components but declares no `child_connections`" : "")
+ 
+@@ -469,12 +482,14 @@ message(d::ClassMixed) =
+ Base.@kwdef struct ContainerMixed <: Diagnostic
+     path::String
+     field::Symbol
+-    types::Vector{Any}                       # the non-component element types
++    keys::Vector{Any}                        # the non-component element keys or indices
++    types::Vector{Any}                       # the unique non-component element types
+ end
+ path(d::ContainerMixed) = d.path
+ message(d::ContainerMixed) =
+     "$(_at_path(d.path)): container field `$(d.field)` mixes components with " *
+-    "$(_plainlist(d.types)) — a container holds components only (§8.5)"
++    "$(_plainlist(d.types)) at $(_namelist(d.keys)) — a container holds components only " *
++    "(§8.5)"
+ 
+ "§8.5: a container whose element is itself a component-bearing container — deeper grouping is what assemblies are for."
+ Base.@kwdef struct ContainerNested <: Diagnostic
+@@ -508,17 +523,25 @@ message(d::DeclarationOnWrongTier) =
+     "`$(d.path)`: `$(d.declaration)` is declared in the $(d.found)-tier form, but this " *
+     "component's other declarations announce the $(d.announced) tier (§8.2)"
+ 
+-"§8.2, §8.5: a contract signature whose form is not the one its tier mandates — here the bound arm, a `T` narrower than `Real`."
++"§6.1, §8.2, §8.5, D-249: a contract signature whose form is not the one its tier mandates — the arity arm, and the bound arm, a `T` narrower than `Real`."
+ Base.@kwdef struct TierSignatureMismatch <: Diagnostic
+     path::String
+     declaration::Symbol                      # :input_types | :output_types
+-    tier::Symbol                             # :continuous
+-    reason::Symbol                           # :bound — the arity arms ride as `DeclarationOnWrongTier`'s `:tier_form`
+-    found::Any                               # the bound the method puts on `T`
+-    mandated::Any = Real
++    tier::Symbol                             # :continuous | :discrete
++    reason::Symbol                           # :bound | :arity
++    found::Any                               # the bound the method puts on `T`, or the form declared
++    mandated::Any = Real                     # the mandated bound, or the form the tier mandates
+ end
+ path(d::TierSignatureMismatch) = d.path
++# §8.5's two spellings, the form symbols the `:arity` arm carries rendered as the
++# section writes them.
++_signature(form::Symbol) =
++    form === :two_argument ? "(::C, ::Type{T}) where {T <: Real}" : "(::C)"
+ message(d::TierSignatureMismatch) =
++    d.reason === :arity ?
++    "$(_at_path(d.path)): `$(d.declaration)` is declared `$(_signature(d.found))`, but " *
++    "this component's other declarations announce the $(d.tier) tier, whose contract " *
++    "signatures are `$(_signature(d.mandated))` — declare it that way (§8.5)" :
+     "$(_at_path(d.path)): `$(d.declaration)` bounds its `T` by $(d.found), but a " *
+     "continuous contract is a function of every activation scalar — declare it " *
+     "`where {T <: Real}` (§8.5)"
+@@ -661,25 +684,29 @@ Base.@kwdef struct TransparentContainerUnknown <: Diagnostic
+     path::String
+     field::Symbol
+     component::String                        # the declaring type, as a string
++    candidates::Vector{Symbol}               # the type's container fields, the list-in-hand
+ end
+ path(d::TransparentContainerUnknown) = d.path
+ message(d::TransparentContainerUnknown) =
+     "$(_at_path(d.path)): `transparent_container` returns `:$(d.field)`, which names no " *
+-    "container field of `$(d.component)` — a name-transparent declaration names a `Tuple` " *
++    "container field of `$(d.component)` — its container fields are " *
++    "$(_namelist(d.candidates)); a name-transparent declaration names a `Tuple` " *
+     "or `NamedTuple` field whose elements are all components, the empty one included " *
+     "(§8.5, D-211)"
+ 
+ "§5.2, §8.2, §8.5, D-215: the tier twin of `ClassUnreadable` — no `output_types` and no state."
+ Base.@kwdef struct TierUnreadable <: Diagnostic
+     path::String
++    type::String                             # the component type's name
++    family::Vector{Symbol}                   # the tier-announcing family, the list-in-hand
+     declarations::Vector{Symbol} = Symbol[]  # the tier-announcing declarations found
+ end
+ path(d::TierUnreadable) = d.path
+ message(d::TierUnreadable) =
+-    "`$(d.path)` declares no `output_types` and owns no state — there is nothing for the " *
+-    "tier to be read off: declare `output_types`, or give the component an `init_x`/`init_s` " *
+-    "store with the update law that drives it. Its tier-announcing declarations are " *
+-    "$(_namelist(d.declarations)) (§8.2)"
++    "`$(d.path)`::`$(d.type)` declares no `output_types` and owns no state — there is " *
++    "nothing for the tier to be read off: declare `output_types`, or give the component " *
++    "an `init_x`/`init_s` store with the update law that drives it. Its tier-announcing " *
++    "declarations are $(_namelist(d.declarations)), out of $(_namelist(d.family)) (§8.2)"
+ 
+ "§4.3, §7.1, §8.2, D-215, D-237, D-243: a port type the leaf walk cannot lay out — no leaves, a mutable type on the walk, or an opaque leaf at a root input."
+ Base.@kwdef struct IllegalPortType <: Diagnostic
+@@ -819,11 +846,16 @@ end
+ Base.@kwdef struct ProducedByTwoStages <: Diagnostic
+     path::String
+     ports::Vector{Symbol}
++    producers::Vector{Symbol}                # parallel to `ports`: each one's stage-1 producer
+ end
+ path(d::ProducedByTwoStages) = d.path
+ message(d::ProducedByTwoStages) =
+-    "`$(d.path)`: $(_plainlist(d.ports)) produced twice — by two stages, or by a stage " *
+-    "and the framework's auto-publication (§5.3, §8.3)"
++    "`$(d.path)`: " *
++    join(("`$p` by " *
++          (q === :auto_publication ? "the framework's auto-publication" : "`$q`") *
++          " and by `output_direct`" for (p, q) in zip(d.ports, d.producers)), ", ") *
++    " — a port is produced once: drop it from `output_direct`, or from its stage-1 " *
++    "producer (§5.3, §8.3)"
+ 
+ "§8.3: a declared port no stage writes — a cell no one fills, reading as a silent zero."
+ Base.@kwdef struct DeclaredNotProduced <: Diagnostic
+diff --git a/test/test_assembly.jl b/test/test_assembly.jl
+index 74060ae..a5fdad3 100644
+--- a/test/test_assembly.jl
++++ b/test/test_assembly.jl
+@@ -43,8 +43,10 @@ function assembly_class()
+         # intentional (D-164) — and now says so as a missing class, naming both
+         # families rather than failing later and elsewhere.
+         d = carried(@test_throws DiagnosticError{ClassUnreadable} classify("c", Inert()))
+-        @test d.path == "c" && !d.holds_components
+-        @test occursin("`output_types`", d.families)      # the leaf family, in hand
++        @test d.path == "c" && !d.holds_components && d.type == "Inert"
++        @test d.assembly_family == [:child_connections]   # both family lists, in hand
++        @test :output_types in d.leaf_family && :state_projection in d.leaf_family
++        @test isempty(d.found)                            # and it declares none of them
+ 
+         # Sharpened when the type holds components: the likely omission, named.
+         d = carried(@test_throws DiagnosticError{ClassUnreadable} classify("c", HoldsComponents(Gain(1.0))))
+@@ -161,6 +163,7 @@ function assembly_container_children()
+         @test err isa DiagnosticError
+         d = only(diagnostics(err))
+         @test d isa ContainerMixed && d.field === :kids && Float64 in d.types
++        @test d.keys == [:b]                              # the offending element, by name
+ 
+         # The `Tuple` form: the same rule with index segments, `"field/1"…"field/N"`
+         # (§8.5), addressable by the parent's declarations like any child name.
+@@ -175,6 +178,7 @@ function assembly_container_children()
+         @test err isa DiagnosticError
+         d = only(diagnostics(err))
+         @test d isa ContainerMixed && d.field === :units && Float64 in d.types
++        @test d.keys == [2]                               # the `Tuple` form: an index
+ 
+         # A container of containers has no direct component element, so it
+         # would read as inert data and its components would vanish; §8.5

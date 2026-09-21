@@ -73,3 +73,29 @@ full independent review of every unchanged file. Decisions remained unchanged.
 The three hash manifests and two allowed-scope patches under `validation/`
 preserve those revision boundaries. No new design ruling is inferred from a
 concurrent code change; historical findings remain identifiable in the reviews.
+
+## Finding refresh — 2026-09-17
+
+The user explicitly authorized `pending.md` as an additional input to reassess
+which findings were fixed. The refresh checks the original IDs against source,
+tests and current rulings at committed `66c49f0`; it does not repeat the full
+subsection audit. Three bounded Sol/Terra reviews and primary runtime review are
+retained as reviews 08–11. Concurrent diagnostic edits are separated from
+committed conclusions. Only this report directory is edited by the audit; the
+pre-existing and concurrent implementation work is left to its owner. The
+original report is archived with its relative links adjusted for the archive's
+location. Original validation files and input manifests are preserved.
+
+On resumption on 2026-09-18, the diagnostic work had landed at `7b1c1e8`.
+The additional allowed delta (24 files, 475 insertions/230 deletions) was reviewed
+for changes to the named findings. A clean source/test baseline was hashed and
+the full gate plus focused probes rerun. The earlier mixed-worktree failure is
+retained and identified; its tests/source were not a coherent committed target.
+
+The final resumption found a further 17-file allowed delta at `2938a0`:
+D-250–D-258 and removal of auto-publication. Separate build and design reviews
+reconciled its effect on the existing findings. The primary reviewer froze
+54 permitted inputs, inspected source/test changes and the new rulings, and
+launched a new package gate and retained-behavior probes. Evidence lives under
+`refresh_20260918/`; the `7b1c1e8` checkpoint remains historical. No pipeline
+briefs, roadmap or prior audit reports were followed.

@@ -1,0 +1,3 @@
+boundary zero: control + face: frames=0; source=Cadence.ModelRequestedStop(:stop)
+boundary zero: end time + face: frames=0; source=Cadence.ModelRequestedStop(:stop)
+frame one: end time + face: frames=1; source=Cadence.ModelRequestedStop(:stop)

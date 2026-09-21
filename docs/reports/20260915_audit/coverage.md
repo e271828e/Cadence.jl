@@ -1,5 +1,9 @@
 # Independent specification, source, and test coverage ledger
 
+> Historical evidence for the audit through `6986ad4` (2026-09-16).
+> The [refreshed report](report.md) and [latest validation](refresh_20260918/validation.md)
+> carry the 2026-09-17/18 dispositions; this ledger/log summary was not re-audited wholesale.
+
 **Subsystem baseline:** `f941c504c90eadbad9950a182feafa96b300a642`
 **Final delta reconciled by primary reviewer:** `6986ad41b5f04c671fc6b321b4bab6df54520a40`  
 **Audit scope:** only `src/**`, `test/**`, `docs/design/spec.md`,

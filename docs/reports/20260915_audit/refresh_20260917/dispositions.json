@@ -1,0 +1,43 @@
+{
+  "revision": "7b1c1e850515dad77942973e9ae87ebcc2ac7a6c",
+  "findings": {
+    "F-01": "open",
+    "F-02": "open",
+    "F-03": "open",
+    "F-04": "open",
+    "F-05": "partial",
+    "F-06": "open",
+    "F-07": "open",
+    "F-08": "retired",
+    "F-09": "retired",
+    "F-10": "open",
+    "F-11": "open",
+    "F-12": "open",
+    "F-13": "open",
+    "G-01": "open",
+    "G-02": "open",
+    "G-03": "open",
+    "G-04": "retired",
+    "G-05": "retired",
+    "G-06": "retired",
+    "G-07": "partial",
+    "G-08": "retired",
+    "G-09": "retired",
+    "G-10": "open",
+    "G-11": "partial",
+    "G-12": "open",
+    "G-13": "open"
+  },
+  "documentation": {
+    "1": "stale prose; behavior settled",
+    "2": "stale prose; behavior settled",
+    "3": "retired by D-249 and implementation",
+    "4": "open design choice",
+    "5": "open design concern"
+  },
+  "counts": {
+    "retired_findings": 7,
+    "partial_findings": 3,
+    "fully_open_findings": 16
+  }
+}

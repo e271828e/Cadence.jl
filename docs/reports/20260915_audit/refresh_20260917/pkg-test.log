@@ -1,0 +1,441 @@
+      Status `~/.julia/dev/Cadence.jl/test/Project.toml`
+  [6e4b80f9] BenchmarkTools v1.8.0
+  [653472ee] Cadence v0.1.0 `.`
+⌃ [f6369f11] ForwardDiff v1.4.5
+⌃ [90137ffa] StaticArrays v1.9.19
+  [b77e0a4c] InteractiveUtils v1.11.0
+  [37e2e46d] LinearAlgebra v1.13.0
+  [8dfed614] Test v1.11.0
+      Status `~/.julia/dev/Cadence.jl/Manifest.toml`
+  [6e4b80f9] BenchmarkTools v1.8.0
+  [653472ee] Cadence v0.1.0 `.`
+  [bbf7d656] CommonSubexpressions v0.3.1
+  [34da2185] Compat v4.18.1
+  [163ba53b] DiffResults v1.1.0
+  [b552c78f] DiffRules v1.16.0
+  [ffbed154] DocStringExtensions v0.9.5
+⌃ [f6369f11] ForwardDiff v1.4.5
+  [92d709cd] IrrationalConstants v0.2.6
+  [692b3bcd] JLLWrappers v1.8.0
+⌃ [682c06a0] JSON v1.7.1
+  [2ab3a3ac] LogExpFunctions v1.0.1
+  [1914dd2f] MacroTools v0.5.16
+  [77ba4419] NaNMath v1.1.4
+⌅ [69de0a69] Parsers v2.8.7
+  [aea7be01] PrecompileTools v1.3.4
+⌃ [21216c6a] Preferences v1.5.2
+  [276daf66] SpecialFunctions v2.9.0
+⌃ [90137ffa] StaticArrays v1.9.19
+  [1e83bf80] StaticArraysCore v1.4.4
+⌃ [10745b16] Statistics v1.11.4
+  [ec057cc2] StructUtils v2.8.5
+  [efe28fd5] OpenSpecFun_jll v0.5.6+0
+  [56f22d72] Artifacts v1.11.0
+  [2a0f44e3] Base64 v1.11.0
+  [ade2ca70] Dates v1.11.0
+  [b77e0a4c] InteractiveUtils v1.11.0
+  [ac6e5ff7] JuliaSyntaxHighlighting v1.12.0
+  [8f399da3] Libdl v1.11.0
+  [37e2e46d] LinearAlgebra v1.13.0
+  [56ddb016] Logging v1.11.0
+  [d6f4376e] Markdown v1.11.0
+  [de0858da] Printf v1.11.0
+  [9abbd945] Profile v1.11.0
+  [9a3f8284] Random v1.11.0
+  [ea8e919c] SHA v1.0.0
+  [9e88b42a] Serialization v1.11.0
+  [f489334b] StyledStrings v1.11.0
+  [fa267f1f] TOML v1.0.3
+  [8dfed614] Test v1.11.0
+  [cf7118a7] UUIDs v1.11.0
+  [4ec0a83e] Unicode v1.11.0
+  [e66e0078] CompilerSupportLibraries_jll v1.5.5+2
+  [4536629a] OpenBLAS_jll v0.3.30+0
+  [05823500] OpenLibm_jll v0.8.7+0
+  [8e850b90] libblastrampoline_jll v5.15.0+0
+        Info Packages marked with ⌃ and ⌅ have new versions available. Those with ⌃ may be upgradable, but those with ⌅ are restricted by compatibility constraints from upgrading.
+Precompiling for configuration --code-coverage=none --color=no --warn-overwrite=yes --depwarn=yes --inline=yes --startup-file=no --track-allocation=none
+   2.1 s  ✓ Cadence
+  1 dependency successfully precompiled in 2 seconds. 42 already precompiled.
+     Testing Running tests...
+Test Summary: | Pass  Total  Time
+leaves        |  124    124  0.7s
+Test Summary: | Pass  Total  Time
+declare       |   29     29  0.0s
+Test Summary: | Pass  Total   Time
+assembly      |  184    184  37.9s
+Test Summary: | Pass  Total   Time
+store         |   57     57  26.8s
+
+tier is read off the declaration shape (§8.2): Test Failed at /Users/miguel/.julia/dev/Cadence.jl/test/test_build.jl:1210
+  Expression: all((d->begin
+            #= /Users/miguel/.julia/dev/Cadence.jl/test/test_build.jl:1210 =#
+            d isa DeclarationOnWrongTier && d.reason === :tier_form
+        end), diags)
+   Evaluated: all(Main.CadenceTests.var"#build_tier##0#build_tier##1"(), Cadence.Diagnostic[Cadence.TierSignatureMismatch("c", :output_types, :discrete, :arity, :two_argument, :plain)])
+  Stacktrace:
+   [1] macro expansion
+     @ ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Test/src/Test.jl:753 [inlined]
+   [2] macro expansion
+     @ ~/.julia/dev/Cadence.jl/test/test_build.jl:1210 [inlined]
+   [3] macro expansion
+     @ ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Test/src/Test.jl:1962 [inlined]
+   [4] build_tier()
+     @ Main.CadenceTests ~/.julia/dev/Cadence.jl/test/test_build.jl:1195
+
+tier is read off the declaration shape (§8.2): Test Failed at /Users/miguel/.julia/dev/Cadence.jl/test/test_build.jl:1210
+  Expression: all((d->begin
+            #= /Users/miguel/.julia/dev/Cadence.jl/test/test_build.jl:1210 =#
+            d isa DeclarationOnWrongTier && d.reason === :tier_form
+        end), diags)
+   Evaluated: all(Main.CadenceTests.var"#build_tier##0#build_tier##1"(), Cadence.Diagnostic[Cadence.TierSignatureMismatch("c", :output_types, :continuous, :arity, :plain, :two_argument)])
+  Stacktrace:
+   [1] macro expansion
+     @ ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Test/src/Test.jl:753 [inlined]
+   [2] macro expansion
+     @ ~/.julia/dev/Cadence.jl/test/test_build.jl:1210 [inlined]
+   [3] macro expansion
+     @ ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Test/src/Test.jl:1962 [inlined]
+   [4] build_tier()
+     @ Main.CadenceTests ~/.julia/dev/Cadence.jl/test/test_build.jl:1195
+Test Summary:                                                                                          | Pass  Fail  Total     Time
+build                                                                                                  |  280     2    282  1m28.9s
+  the probe rejects malformed components (§9.3)                                                        |    7            7     5.0s
+  a stage returning bare `(;)` is dead, whichever position (§5.2, §9.3)                                |    4            4     1.4s
+  a throw out of a probed function is framed with the method, the bundle and the inputs (§13.2, D-248) |   10           10     2.7s
+  a throw out of a declaration is framed with the walk's path (§13.2, D-248)                           |    5            5     1.1s
+  a bundle field the bundle lacks is `BundleFieldError`, classified (§5.2, §13.2)                      |   16           16     4.3s
+  the match is by the bundle's own type (§5.2)                                                         |    2            2     0.3s
+  a carrier and an interrupt pass through the frame unwrapped (§13.2, D-248)                           |    2            2     0.6s
+  `classify_bundle_field`'s three classes (§5.2, Appendix B)                                           |    5            5     0.0s
+  the legal sets are Appendix B's eight rows (§5.2)                                                    |    1            1     0.0s
+  the schedule follows the feedthrough graph (§5.3)                                                    |    3            3     0.3s
+  an algebraic loop is a build error (§5.5)                                                            |    4            4     0.5s
+  each cluster is one diagnostic and the tail is in none (§5.6, D-012)                                 |    7            7     0.3s
+  a self-wire is a one-member cluster with its wire (§5.6)                                             |    2            2     0.2s
+  a tangle is one cluster with every wire among its members (§5.6, D-245)                              |    2            2     0.6s
+  a loop every hop routes is real (§5.6)                                                               |    5            5     0.0s
+  a hop stage 2 does not route makes the loop artificial (§5.4, §5.6)                                  |    4            4     0.3s
+  a tangle is real through its surviving loop and lists the dead chord (D-245)                         |    3            3     0.0s
+  out-of-cycle inputs come from the prefix and never tag (§5.6)                                        |    3            3     0.3s
+  a discrete member traces structurally (§5.6)                                                         |    2            2     0.5s
+  a pinned face traces structurally (§5.6, D-245)                                                      |    2            2     0.4s
+  a member that throws ships the cluster unclassified (§5.6)                                           |    4            4     0.4s
+  an input-dependent branch falls back to sampled states (§5.6, D-012)                                 |    8            8     1.2s
+  the tracer unions sets and refuses a tainted branch (§5.6)                                           |    5            5     0.0s
+  the unary list and the norms carry the set through (§5.6)                                            |    7            7     0.0s
+  a declared state or mode field no stage produces is published (§5.3)                                 |    4            4     1.1s
+  a loop closes through an auto-published port (§5.3, §5.5, D-169)                                     |    3            3     1.3s
+  the discrete tier publishes from `init_s` (§5.3)                                                     |    1            1     0.3s
+  publication is by name *and* type (§5.3, §8.3)                                                       |    1            1     0.4s
+  stage-1 position is one writer's: a stage's or the framework's (§8.3)                                |    4            4     1.3s
+  the non-nominal set is the nominal's, by name (§9.1, §5.3)                                           |    2            2     0.8s
+  a pinned declaration of a walking field is refused, not stripped (§5.3, D-166)                       |    1            1     0.4s
+  two consumers of one root input declare one concrete type (§8.2, D-168)                              |   11           11     2.9s
+  an abstract entry takes any concrete producer below it (§4.4, §8.2, D-236)                           |   10           10    19.9s
+  a root input with no concrete entry is refused (§8.2, D-236)                                         |    6            6     0.6s
+  an abstract co-consumer votes but does not type a root input (§8.2, D-236)                           |    6            6     2.4s
+  the walk clause fails at the first nominal build (§6.1, §8.2, D-236)                                 |    7            7     1.7s
+  the wire pass collects to Stratum A's barrier (§13.1, D-229, D-236)                                  |    7            7     1.0s
+  a bundle's field names are part of the entry's type (§6.1, D-238)                                    |    5            5     0.6s
+  a mutable port and a handle at root are refused (§4.4, D-237)                                        |   13           13     1.5s
+  a root input the synthesis chain cannot value is `MissingProbeValue`, collected (§9.3, D-051)        |    6            6     1.9s
+  an opaque leaf is accepted by identity alone (D-237)                                                 |    5            5     3.9s
+  an enum port is one pinned leaf of its own eltype (§4.1, §8.2)                                       |    6            6     6.1s
+  an enum root input is synthesized as the first instance (§9.3, D-051)                                |    3            3     1.2s
+  an enum mode is auto-published (§5.3, §7.5)                                                          |    3            3     1.1s
+  a Symbol port is one opaque leaf, with no synthesis at a root (§4.3, D-243)                          |    5            5     5.3s
+  tier is read off the declaration shape (§8.2)                                                        |   21     2     23     2.0s
+  a continuous contract bounded narrower than Real is refused (§8.5)                                   |    9            9     1.6s
+  a store field is isbits or a Symbol, checked field by field (§7.3, D-231)                            |    2            2     0.6s
+  a store declaration is a NamedTuple, checked before the stores are read (§8.2, §9.1, D-247)          |    3            3     0.9s
+  an init_x field is a Float64 or an SArray of them, flat (§7.1, §8.2, D-094)                          |    2            2     0.7s
+  every Stratum A pass that ran merges into one throw (§13.1, D-229)                                   |    1            1     0.5s
+  a mixed-leaf port embeds leaf by leaf (§4.1, §9.4, D-166)                                            |    1            1     0.8s
+  embed-accept keeps the constant branch legal (D-166)                                                 |    6            6     3.1s
+  a non-nominal activation re-runs Stratum C; frozen products carry (§9.4)                             |   10           10     2.1s
+  concurrent first requests share one activation (§9.4's torn-state guarantee)                         |    3            3     0.1s
+RNG of the outermost testset: Random.Xoshiro(0xc92048de6b5e5218, 0xf7bf8a0ac1c16d22, 0x6ba77d60f2700517, 0xf4c50fe680cd2bec, 0x7c07c930f26ee665)
+Test Summary: | Pass  Total   Time
+executor      |   37     37  12.2s
+Test Summary: | Pass  Total   Time
+continuous    |   24     24  21.0s
+Test Summary: | Pass  Total   Time
+discrete      |  102    102  25.4s
+Test Summary: | Pass  Total   Time
+stepper       |   16     16  27.7s
+
+the declaration layer and probe reject malformed events (§8.2, §9.3): Test Failed at /Users/miguel/.julia/dev/Cadence.jl/test/test_events.jl:76
+  Expression: d isa EventHalfMissing && (d.event === :go && (d.reason === :not_an_event && d.found === Int))
+  Stacktrace:
+   [1] macro expansion
+     @ ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Test/src/Test.jl:753 [inlined]
+   [2] macro expansion
+     @ ~/.julia/dev/Cadence.jl/test/test_events.jl:76 [inlined]
+   [3] macro expansion
+     @ ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Test/src/Test.jl:1962 [inlined]
+   [4] test_events()
+     @ Main.CadenceTests ~/.julia/dev/Cadence.jl/test/test_events.jl:73
+Test Summary:                                                                              | Pass  Fail  Total   Time
+events                                                                                     |   68     1     69  38.7s
+  the declaration layer and probe reject malformed events (§8.2, §9.3)                     |   11     1     12   3.4s
+  the guard's form is the declared policy (§2.1, §10.4, D-179)                             |    3            3   2.1s
+  edge semantics: a u-edge fires at its boundary, a sticky predicate once                  |    6            6   1.8s
+  a cascade settles within one boundary, independently of h (§10.6)                        |    8            8   1.8s
+  priority with re-decision: a blocked edge stands, a falsified premise re-decides (D-191) |    2            2   3.5s
+  an x-writing handler's carried overshoot is resolution-invariant                         |    6            6   1.8s
+  due updates run after quiescence, from post-transition values (§10.6)                    |    1            1   3.8s
+  budget exhaustion degrades, reported on the loop's cell (§10.6, §11.8)                   |   14           14   5.4s
+  projection runs at every boundary, between write and decode (§5.3)                       |    4            4   3.3s
+  events compile out at a non-nominal activation (§9.4, D-052)                             |    3            3   4.6s
+  gate 3: a quiet boundary with events does not allocate (§7.5)                            |    4            4   2.6s
+  a handler's mode flip reaches its published cell (§5.3, D-154)                           |    6            6   4.5s
+RNG of the outermost testset: Random.Xoshiro(0xc92048de6b5e5218, 0xf7bf8a0ac1c16d22, 0x6ba77d60f2700517, 0xf4c50fe680cd2bec, 0x7c07c930f26ee665)
+Test Summary: | Pass  Total   Time
+localization  |   50     50  47.9s
+Test Summary: | Pass  Total   Time
+dataplane     |   43     43  20.9s
+Test Summary: | Pass  Total  Time
+roster        |   65     65  2.9s
+Test Summary: | Pass  Total  Time
+bindings      |   62     62  1.8s
+Test Summary: | Pass  Total  Time
+devices       |   83     83  2.7s
+Test Summary: | Pass  Total  Time
+log           |   37     37  0.8s
+Test Summary: | Pass  Total   Time
+trace         |  231    231  25.0s
+Test Summary: | Pass  Total   Time
+readers       |   86     86  15.3s
+Test Summary: | Pass  Total   Time
+conditions    |  150    150  21.0s
+Test Summary: | Pass  Total   Time
+trim          |  117    117  32.4s
+
+diagnostic kinds (§13.2, Appendix C, D-214, D-215): Error During Test at /Users/miguel/.julia/dev/Cadence.jl/test/test_diagnostics.jl:248
+  Got exception outside of a @test
+  UndefKeywordError: keyword argument `declared` not assigned
+  Stacktrace:
+    [1] kwcall(::@NamedTuple{path::String, face::Symbol}, ::Type{Cadence.UnconnectedInput})
+      @ Cadence ~/.julia/dev/Cadence.jl/src/diagnostics.jl:273
+    [2] macro expansion
+      @ ~/.julia/dev/Cadence.jl/test/test_diagnostics.jl:249 [inlined]
+    [3] macro expansion
+      @ ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Test/src/Test.jl:1962 [inlined]
+    [4] diagnostics_kind_set()
+      @ Main.CadenceTests ~/.julia/dev/Cadence.jl/test/test_diagnostics.jl:249
+    [5] test_diagnostics
+      @ ~/.julia/dev/Cadence.jl/test/test_diagnostics.jl:734 [inlined]
+    [6] macro expansion
+      @ ~/.julia/dev/Cadence.jl/test/CadenceTests.jl:46 [inlined]
+    [7] macro expansion
+      @ ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Test/src/Test.jl:1962 [inlined]
+    [8] live(name::String, f::typeof(Main.CadenceTests.test_diagnostics))
+      @ Main.CadenceTests ~/.julia/dev/Cadence.jl/test/CadenceTests.jl:46
+    [9] macro expansion
+      @ ~/.julia/dev/Cadence.jl/test/CadenceTests.jl:77 [inlined]
+   [10] macro expansion
+      @ ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Test/src/Test.jl:1962 [inlined]
+   [11] runall()
+      @ Main.CadenceTests ~/.julia/dev/Cadence.jl/test/CadenceTests.jl:57
+   [12] top-level scope
+      @ ~/.julia/dev/Cadence.jl/test/runtests.jl:2
+   [13] include(mapexpr::Function, mod::Module, _path::String)
+      @ Base ./Base.jl:310
+   [14] top-level scope
+      @ none:6
+   [15] eval(m::Module, e::Any)
+      @ Core ./boot.jl:489
+   [16] exec_options(opts::Base.JLOptions)
+      @ Base ./client.jl:310
+   [17] _start()
+      @ Base ./client.jl:577
+
+rendering: the carrier compiler-style, the didactic style (§13.1, §13.2): Error During Test at /Users/miguel/.julia/dev/Cadence.jl/test/test_diagnostics.jl:567
+  Got exception outside of a @test
+  UndefKeywordError: keyword argument `declared` not assigned
+  Stacktrace:
+    [1] kwcall(::@NamedTuple{path::String, face::Symbol}, ::Type{Cadence.UnconnectedInput})
+      @ Cadence ~/.julia/dev/Cadence.jl/src/diagnostics.jl:273
+    [2] macro expansion
+      @ ~/.julia/dev/Cadence.jl/test/test_diagnostics.jl:570 [inlined]
+    [3] macro expansion
+      @ ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Test/src/Test.jl:1962 [inlined]
+    [4] diagnostics_kind_set()
+      @ Main.CadenceTests ~/.julia/dev/Cadence.jl/test/test_diagnostics.jl:570
+    [5] test_diagnostics
+      @ ~/.julia/dev/Cadence.jl/test/test_diagnostics.jl:734 [inlined]
+    [6] macro expansion
+      @ ~/.julia/dev/Cadence.jl/test/CadenceTests.jl:46 [inlined]
+    [7] macro expansion
+      @ ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Test/src/Test.jl:1962 [inlined]
+    [8] live(name::String, f::typeof(Main.CadenceTests.test_diagnostics))
+      @ Main.CadenceTests ~/.julia/dev/Cadence.jl/test/CadenceTests.jl:46
+    [9] macro expansion
+      @ ~/.julia/dev/Cadence.jl/test/CadenceTests.jl:77 [inlined]
+   [10] macro expansion
+      @ ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Test/src/Test.jl:1962 [inlined]
+   [11] runall()
+      @ Main.CadenceTests ~/.julia/dev/Cadence.jl/test/CadenceTests.jl:57
+   [12] top-level scope
+      @ ~/.julia/dev/Cadence.jl/test/runtests.jl:2
+   [13] include(mapexpr::Function, mod::Module, _path::String)
+      @ Base ./Base.jl:310
+   [14] top-level scope
+      @ none:6
+   [15] eval(m::Module, e::Any)
+      @ Core ./boot.jl:489
+   [16] exec_options(opts::Base.JLOptions)
+      @ Base ./client.jl:310
+   [17] _start()
+      @ Base ./client.jl:577
+Test Summary:                                                                                  | Pass  Error  Total  Time
+diagnostics                                                                                    |   36      2     38  0.7s
+  a bad datum is tolerated: catch, stage nothing, report, continue (§11.6)                     |    4             4  0.1s
+  the ring's bound is the rate limit: 16 retained, excess to the counts (§11.8)                |    3             3  0.0s
+  a quiet publication allocates the capture, the status vector and the snapshot (§11.8, D-241) |    2             2  0.1s
+  the status: the delta rides one snapshot, totals ride every one (§11.8, §11.2)               |    8             8  0.0s
+  liveness: heartbeat and task_state ride the device's record (§11.8, §12.2, §12.4)            |    3             3  0.1s
+  the run's-end sweep: past the final frame top, loud rather than lost (§11.8, §12.4)          |    2             2  0.1s
+  the cell is kind-generic: mixed rings, per-kind suppression (§11.8, §13.2)                   |   11            11  0.0s
+  the heartbeat rides in the cell, stored by the handle primitives (§11.8, §12.2)              |    3             3  0.0s
+  diagnostic kinds (§13.2, Appendix C, D-214, D-215)                                           |           1      1  0.3s
+  rendering: the carrier compiler-style, the didactic style (§13.1, §13.2)                     |           1      1  0.0s
+RNG of the outermost testset: Random.Xoshiro(0xc92048de6b5e5218, 0xf7bf8a0ac1c16d22, 0x6ba77d60f2700517, 0xf4c50fe680cd2bec, 0x7c07c930f26ee665)
+Test Summary: | Pass  Total     Time
+failures      |  187    187  1m17.4s
+Test Summary: | Pass  Total  Time
+lifecycle     |  108    108  7.8s
+Test Summary:                                                                                            | Pass  Fail  Error  Total     Time
+Cadence                                                                                                  | 2176     3      2   2181  8m56.4s
+  leaves                                                                                                 |  124                 124     0.7s
+  declare                                                                                                |   29                  29     0.0s
+  assembly                                                                                               |  184                 184    37.9s
+  store                                                                                                  |   57                  57    26.8s
+  build                                                                                                  |  280     2           282  1m28.9s
+    the probe rejects malformed components (§9.3)                                                        |    7                   7     5.0s
+    a stage returning bare `(;)` is dead, whichever position (§5.2, §9.3)                                |    4                   4     1.4s
+    a throw out of a probed function is framed with the method, the bundle and the inputs (§13.2, D-248) |   10                  10     2.7s
+    a throw out of a declaration is framed with the walk's path (§13.2, D-248)                           |    5                   5     1.1s
+    a bundle field the bundle lacks is `BundleFieldError`, classified (§5.2, §13.2)                      |   16                  16     4.3s
+    the match is by the bundle's own type (§5.2)                                                         |    2                   2     0.3s
+    a carrier and an interrupt pass through the frame unwrapped (§13.2, D-248)                           |    2                   2     0.6s
+    `classify_bundle_field`'s three classes (§5.2, Appendix B)                                           |    5                   5     0.0s
+    the legal sets are Appendix B's eight rows (§5.2)                                                    |    1                   1     0.0s
+    the schedule follows the feedthrough graph (§5.3)                                                    |    3                   3     0.3s
+    an algebraic loop is a build error (§5.5)                                                            |    4                   4     0.5s
+    each cluster is one diagnostic and the tail is in none (§5.6, D-012)                                 |    7                   7     0.3s
+    a self-wire is a one-member cluster with its wire (§5.6)                                             |    2                   2     0.2s
+    a tangle is one cluster with every wire among its members (§5.6, D-245)                              |    2                   2     0.6s
+    a loop every hop routes is real (§5.6)                                                               |    5                   5     0.0s
+    a hop stage 2 does not route makes the loop artificial (§5.4, §5.6)                                  |    4                   4     0.3s
+    a tangle is real through its surviving loop and lists the dead chord (D-245)                         |    3                   3     0.0s
+    out-of-cycle inputs come from the prefix and never tag (§5.6)                                        |    3                   3     0.3s
+    a discrete member traces structurally (§5.6)                                                         |    2                   2     0.5s
+    a pinned face traces structurally (§5.6, D-245)                                                      |    2                   2     0.4s
+    a member that throws ships the cluster unclassified (§5.6)                                           |    4                   4     0.4s
+    an input-dependent branch falls back to sampled states (§5.6, D-012)                                 |    8                   8     1.2s
+    the tracer unions sets and refuses a tainted branch (§5.6)                                           |    5                   5     0.0s
+    the unary list and the norms carry the set through (§5.6)                                            |    7                   7     0.0s
+    a declared state or mode field no stage produces is published (§5.3)                                 |    4                   4     1.1s
+    a loop closes through an auto-published port (§5.3, §5.5, D-169)                                     |    3                   3     1.3s
+    the discrete tier publishes from `init_s` (§5.3)                                                     |    1                   1     0.3s
+    publication is by name *and* type (§5.3, §8.3)                                                       |    1                   1     0.4s
+    stage-1 position is one writer's: a stage's or the framework's (§8.3)                                |    4                   4     1.3s
+    the non-nominal set is the nominal's, by name (§9.1, §5.3)                                           |    2                   2     0.8s
+    a pinned declaration of a walking field is refused, not stripped (§5.3, D-166)                       |    1                   1     0.4s
+    two consumers of one root input declare one concrete type (§8.2, D-168)                              |   11                  11     2.9s
+    an abstract entry takes any concrete producer below it (§4.4, §8.2, D-236)                           |   10                  10    19.9s
+    a root input with no concrete entry is refused (§8.2, D-236)                                         |    6                   6     0.6s
+    an abstract co-consumer votes but does not type a root input (§8.2, D-236)                           |    6                   6     2.4s
+    the walk clause fails at the first nominal build (§6.1, §8.2, D-236)                                 |    7                   7     1.7s
+    the wire pass collects to Stratum A's barrier (§13.1, D-229, D-236)                                  |    7                   7     1.0s
+    a bundle's field names are part of the entry's type (§6.1, D-238)                                    |    5                   5     0.6s
+    a mutable port and a handle at root are refused (§4.4, D-237)                                        |   13                  13     1.5s
+    a root input the synthesis chain cannot value is `MissingProbeValue`, collected (§9.3, D-051)        |    6                   6     1.9s
+    an opaque leaf is accepted by identity alone (D-237)                                                 |    5                   5     3.9s
+    an enum port is one pinned leaf of its own eltype (§4.1, §8.2)                                       |    6                   6     6.1s
+    an enum root input is synthesized as the first instance (§9.3, D-051)                                |    3                   3     1.2s
+    an enum mode is auto-published (§5.3, §7.5)                                                          |    3                   3     1.1s
+    a Symbol port is one opaque leaf, with no synthesis at a root (§4.3, D-243)                          |    5                   5     5.3s
+    tier is read off the declaration shape (§8.2)                                                        |   21     2            23     2.0s
+    a continuous contract bounded narrower than Real is refused (§8.5)                                   |    9                   9     1.6s
+    a store field is isbits or a Symbol, checked field by field (§7.3, D-231)                            |    2                   2     0.6s
+    a store declaration is a NamedTuple, checked before the stores are read (§8.2, §9.1, D-247)          |    3                   3     0.9s
+    an init_x field is a Float64 or an SArray of them, flat (§7.1, §8.2, D-094)                          |    2                   2     0.7s
+    every Stratum A pass that ran merges into one throw (§13.1, D-229)                                   |    1                   1     0.5s
+    a mixed-leaf port embeds leaf by leaf (§4.1, §9.4, D-166)                                            |    1                   1     0.8s
+    embed-accept keeps the constant branch legal (D-166)                                                 |    6                   6     3.1s
+    a non-nominal activation re-runs Stratum C; frozen products carry (§9.4)                             |   10                  10     2.1s
+    concurrent first requests share one activation (§9.4's torn-state guarantee)                         |    3                   3     0.1s
+  executor                                                                                               |   37                  37    12.2s
+  continuous                                                                                             |   24                  24    21.0s
+  discrete                                                                                               |  102                 102    25.4s
+  stepper                                                                                                |   16                  16    27.7s
+  events                                                                                                 |   68     1            69    38.7s
+    the declaration layer and probe reject malformed events (§8.2, §9.3)                                 |   11     1            12     3.4s
+    the guard's form is the declared policy (§2.1, §10.4, D-179)                                         |    3                   3     2.1s
+    edge semantics: a u-edge fires at its boundary, a sticky predicate once                              |    6                   6     1.8s
+    a cascade settles within one boundary, independently of h (§10.6)                                    |    8                   8     1.8s
+    priority with re-decision: a blocked edge stands, a falsified premise re-decides (D-191)             |    2                   2     3.5s
+    an x-writing handler's carried overshoot is resolution-invariant                                     |    6                   6     1.8s
+    due updates run after quiescence, from post-transition values (§10.6)                                |    1                   1     3.8s
+    budget exhaustion degrades, reported on the loop's cell (§10.6, §11.8)                               |   14                  14     5.4s
+    projection runs at every boundary, between write and decode (§5.3)                                   |    4                   4     3.3s
+    events compile out at a non-nominal activation (§9.4, D-052)                                         |    3                   3     4.6s
+    gate 3: a quiet boundary with events does not allocate (§7.5)                                        |    4                   4     2.6s
+    a handler's mode flip reaches its published cell (§5.3, D-154)                                       |    6                   6     4.5s
+  localization                                                                                           |   50                  50    47.9s
+  dataplane                                                                                              |   43                  43    20.9s
+  roster                                                                                                 |   65                  65     2.9s
+  bindings                                                                                               |   62                  62     1.8s
+  devices                                                                                                |   83                  83     2.7s
+  log                                                                                                    |   37                  37     0.8s
+  trace                                                                                                  |  231                 231    25.0s
+  readers                                                                                                |   86                  86    15.3s
+  conditions                                                                                             |  150                 150    21.0s
+  trim                                                                                                   |  117                 117    32.4s
+  diagnostics                                                                                            |   36            2     38     0.7s
+    a bad datum is tolerated: catch, stage nothing, report, continue (§11.6)                             |    4                   4     0.1s
+    the ring's bound is the rate limit: 16 retained, excess to the counts (§11.8)                        |    3                   3     0.0s
+ERROR: LoadError: Some tests did not pass: 2176 passed, 3 failed, 2 errored, 0 broken.
+in expression starting at /Users/miguel/.julia/dev/Cadence.jl/test/runtests.jl:2
+    a quiet publication allocates the capture, the status vector and the snapshot (§11.8, D-241)         |    2                   2     0.1s
+    the status: the delta rides one snapshot, totals ride every one (§11.8, §11.2)                       |    8                   8     0.0s
+    liveness: heartbeat and task_state ride the device's record (§11.8, §12.2, §12.4)                    |    3                   3     0.1s
+    the run's-end sweep: past the final frame top, loud rather than lost (§11.8, §12.4)                  |    2                   2     0.1s
+    the cell is kind-generic: mixed rings, per-kind suppression (§11.8, §13.2)                           |   11                  11     0.0s
+    the heartbeat rides in the cell, stored by the handle primitives (§11.8, §12.2)                      |    3                   3     0.0s
+    diagnostic kinds (§13.2, Appendix C, D-214, D-215)                                                   |                 1      1     0.3s
+    rendering: the carrier compiler-style, the didactic style (§13.1, §13.2)                             |                 1      1     0.0s
+  failures                                                                                               |  187                 187  1m17.4s
+  lifecycle                                                                                              |  108                 108     7.8s
+RNG of the outermost testset: Random.Xoshiro(0xc92048de6b5e5218, 0xf7bf8a0ac1c16d22, 0x6ba77d60f2700517, 0xf4c50fe680cd2bec, 0x7c07c930f26ee665)
+ERROR: Package Cadence errored during testing
+Stacktrace:
+  [1] pkgerror(msg::String)
+    @ Pkg.Types ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Pkg/src/Types.jl:68
+  [2] test(ctx::Pkg.Types.Context, pkgs::Vector{PackageSpec}; coverage::Bool, julia_args::Cmd, test_args::Cmd, test_fn::Nothing, force_latest_compatible_version::Bool, allow_earlier_backwards_compatible_versions::Bool, allow_reresolve::Bool)
+    @ Pkg.Operations ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Pkg/src/Operations.jl:3148
+  [3] test
+    @ ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Pkg/src/Operations.jl:3026 [inlined]
+  [4] test(ctx::Pkg.Types.Context, pkgs::Vector{PackageSpec}; coverage::Bool, test_fn::Nothing, julia_args::Cmd, test_args::Cmd, force_latest_compatible_version::Bool, allow_earlier_backwards_compatible_versions::Bool, allow_reresolve::Bool, kwargs::@Kwargs{io::IOContext{IO}})
+    @ Pkg.API ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Pkg/src/API.jl:586
+  [5] kwcall(::@NamedTuple{io::IOContext{IO}}, ::typeof(Pkg.API.test), ctx::Pkg.Types.Context, pkgs::Vector{PackageSpec})
+    @ Pkg.API ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Pkg/src/API.jl:562
+  [6] test(pkgs::Vector{PackageSpec}; io::IOContext{IO}, kwargs::@Kwargs{})
+    @ Pkg.API ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Pkg/src/API.jl:172
+  [7] test(pkgs::Vector{PackageSpec})
+    @ Pkg.API ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Pkg/src/API.jl:161
+  [8] test(; name::Nothing, uuid::Nothing, version::Nothing, url::Nothing, rev::Nothing, path::Nothing, mode::PackageMode, subdir::Nothing, kwargs::@Kwargs{})
+    @ Pkg.API ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Pkg/src/API.jl:189
+  [9] test()
+    @ Pkg.API ~/.julia/juliaup/julia-1.13.0+0.aarch64.apple.darwin14/Julia-1.13.app/Contents/Resources/julia/share/julia/stdlib/v1.13/Pkg/src/API.jl:178
+ [10] top-level scope
+    @ none:1
+ [11] eval(m::Module, e::Any)
+    @ Core ./boot.jl:489
+ [12] exec_options(opts::Base.JLOptions)
+    @ Base ./client.jl:310
+ [13] _start()
+    @ Base ./client.jl:577

@@ -1,0 +1,2 @@
+unknown runtime handler key was silently ignored
+non-NamedTuple runtime handler return became raw MethodError cause
