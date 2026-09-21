@@ -9568,7 +9568,9 @@ methods, with no accessors.
   component table with the rate-scope rows. `show(::Dataflow)` prints the
   execution order with port classes. `show(::Schedule)` prints the rows and
   the hyperperiod chart. `show(::Build)` and `show(::Deployment)` print a
-  summary and their parts.
+  summary and their parts. (Amended 2026-09-21, ahead of increment 48:
+  `Events` renders itself too, each component's event names with their
+  policies, and it is among the parts `show(::Build)` prints.)
 - The chart guard is binary: the chart prints whole when `lcm(Dᵢ)` is at
   most 100 base ticks, and otherwise the hyperperiod's length with "chart
   omitted".
@@ -9780,7 +9782,14 @@ below settle under them.
   it already holds.
 - An artifact holds declared facts. Its consumer compiles what it needs from
   them once, at one home, and the activation's cell layout is that home for
-  address facts.
+  address facts. (Amended 2026-09-21, ahead of increment 48: an artifact
+  holds its facts as rows. `Structure` carries one `ComponentEntry` per
+  component, its path, instance, tier, triple, provenance and resolved
+  inputs, and one `Anchor` per anchor, its `(T, τ)` with the declaring
+  scope and key, as the `Schedule` carries `ScheduleEntry` and `ScopeEntry`
+  rows; the parallel vectors of the old shape were the same facts with no
+  enforcer of their common length. The walk's accumulator keeps the
+  columns and is named for what it is, a `StructureDraft`.)
 - An object is built after its inputs exist. The placeholder an accessor
   needs is the one exception, and it carries no configuration and no
   compiled state.

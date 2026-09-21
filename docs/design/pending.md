@@ -38,9 +38,10 @@ Where the reason is not given here, the cited decision carries it:
   trace split into header plus `schemas` and `batches`, `StopPolicy` per
   advance, `UnboundedRun` and the `Simulation`'s five fields are delivered by
   increment 47 (D-255, D-256).
-  The renderings: `show` for `Structure`, `Dataflow`, `Schedule`, `Build` and
-  `Deployment`, with the binary hyperperiod-chart guard at 100 base ticks
-  (D-257). Nothing else of it is built today (M-B26).
+  The renderings: `show` for `Structure`, `Dataflow`, `Events`, `Schedule`,
+  `Build` and `Deployment`, with the binary hyperperiod-chart guard at 100
+  base ticks, and ahead of them the row shape of `Structure` (D-257, D-261).
+  Nothing else of it is built today (M-B26).
 - **§12 beyond its built slices**: pause and the control plane's surface; the
   operator interrupt — §13.4's carve-out exists, the masking and the entry do
   not, so a stopped run can hold mid-boundary stores here; §13.4's
@@ -63,6 +64,14 @@ Where the reason is not given here, the cited decision carries it:
   every-component `Dual` sweep, so D-166's CI policy is one fixture; the
   once-per-frame `ReplayDiscardedStaging` noise from a live device during
   replay is unpresented (§11.8).
+- **Naming sweeps**, owed to the code's reader rather than the spec.
+  Function parameters and bindings that outlive a few lines carry
+  single-letter names across `src/` (`w`, `s`, `b`, `d`, the last meaning a
+  diagnostic, a deployment or a `Decls` by file); the rule since 2026-09-21
+  is a descriptive name, single letters kept for the spec's symbols, for
+  bindings visible in one glance and for the component index `ci`.
+  Increment 48 applies it to what it touches; the rest of the tree is one
+  mechanical sweep after it.
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, the rig; §6.2's spellings) — a
   migration-phase deliverable by the spec's word, deferred with §16 (M-B22).
