@@ -409,3 +409,28 @@ increment 46's verification: `Structure.aprov` becomes a structured
 and the grid block's supplier label and `DeploymentInvalid`'s provenance
 string are formatted from it at the consumers instead of the label parsing
 the key off the string.
+
+## Step 7b: increment 48b, the `Outputs` and `Events` rows
+
+Landed 2026-09-22: the docs amendment as `6cbbaea` (`Dataflow` renamed
+`Outputs` in the spec; D-261's artifact rule says `ComponentOutputs` rows
+with the execution order beside them as component indices, the `ports` and
+`edges` columns derived facts and gone, `ComponentEvents` rows, `Activation{T}`
+exempt as compiled state; the log's D-253 and D-258 keep the old name by
+`decisions_style.md`'s rule 2), the brief as `1136482`
+(`brief_increment_48b_outputs_rows.md`), the increment as `b16a885` in one
+stage and the cold review's one prose fix as `250d2af`. The review found no
+defect. `_ports` is the one concatenation, stage 1 then stage 2, the
+products' order; the `Build` renders the feedthrough edges on a line of its
+own, derived in `show.jl`'s `_feedthrough` from the structure's connections
+and the producers' `stage2`, the `Build` being the one artifact holding both.
+Sites the brief missed: `activation`'s `_activate` call read the old field;
+the `Events` testset's `Motor(1.0)` is a root primitive and prints `root`,
+not `c`. One observable change beyond the renames: the `y` bundle handed to
+`state_derivative`, `state_update`, guards and handlers now carries its keys
+in the products' order rather than `output_types` order, so it matches the
+probe-time `y`; read by name per §8.3, no test pins either. Unrouted and
+left: `Dataflow` in `docs/design/inspector/initial_design.md`; D-257's
+amendment lists `show(::Build)`'s parts without the `feedthrough:` line,
+D-261's extension being its authority. Next: the naming sweep and the
+provenance sweep, `pending.md`'s two bullets after "Smaller".
