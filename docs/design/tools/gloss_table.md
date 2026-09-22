@@ -117,7 +117,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | probe value / input synthesis | g-probe-value | 2 | A | fabricated build-time values, synthesized at producerless root inputs and flowing the probe chain |
 | `ProbeDual` | g-probedual | 1 | B | the exported canonical concrete probe scalar |
 | schema vs. layout | g-schema-vs-layout | 0 | — | *(resists compression: the entry contrasts a pair)* |
-| `Structure` | g-structure | 1 | A | the structure step's product: components, wires, faces, tiers, provenance and scope triples |
+| `Structure` | g-structure | 1 | A | the structure step's product: components, wires, faces, tiers, rate chains and scope triples |
 | walked / pinned / exempt | g-walked | 21 | A | the eltype-genericity classes: follow the activation scalar, stay `Float64`, exempt |
 
 ## D.6 Runtime periphery

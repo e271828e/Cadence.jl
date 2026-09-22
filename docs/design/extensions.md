@@ -10,7 +10,7 @@ seams the spec deliberately left open. For the sample-time gaps, the worked prop
 lives in its own companion, [`sample_time_proposal.md`](companions/sample_time_proposal.md)
 (adopted into the spec 2026-08-12, decision [D-185][d-185]–[D-187][d-187]).
 
-Provenance: distilled from the gap-analysis discussion of 2026-08-08/09.
+Source: distilled from the gap-analysis discussion of 2026-08-08/09.
 
 ---
 
@@ -211,7 +211,7 @@ section 1.4's closed axis is dragged in.
 
 ## 3. Parameter sensitivities: walking the parameter fields
 
-Provenance: distilled from the parameter-AD discussion of 2026-08-12. Status as
+Source: distilled from the parameter-AD discussion of 2026-08-12. Status as
 everything here: analysis preserved, nothing built, guarded-additions rule applies.
 
 ### 3.1 The capability and its consumers
@@ -356,7 +356,7 @@ pointer.
 [s11-1]: spec.md#111-no-shared-mutable-model-staged-writes-snapshot-reads
 [s11-5]: spec.md#115-inbound-the-input-trace
 [s13]: spec.md#13-error-discipline
-[s13-7]: spec.md#137-tooling-consequences-provenance-and-the-component-library
+[s13-7]: spec.md#137-tooling-consequences-face-routes-and-the-component-library
 [s14-1]: spec.md#141-conditions-are-path-addressed-overlays-on-the-declared-defaults
 [s14-10]: spec.md#1410-linearization-tap-selectors-one-seeded-pass-a-pure-query
 [s14-7]: spec.md#147-the-trim-problem-namedtuple-decisions-declared-reads-named-residuals

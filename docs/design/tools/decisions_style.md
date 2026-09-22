@@ -51,7 +51,7 @@ external tool's behavior (Simulink/MATLAB/Modelica does X; we do Y; because Z).
   are Rationale, not Position. Where an entry bundles parallel rulings, the
   headline sentence is followed by a bulleted list, one ruling per bullet: the
   rulings stay in the ruling field, and the reader gets a headline instead of a
-  semicolon chain. No provenance — which review round or finding raised a
+  semicolon chain. No history — which review round or finding raised a
   decision belongs to this file's git history, not to the Position.
 - **Spec.** The sections where the decided mechanism lives, sorted and
   deduplicated. Omit the field entirely if there are none.

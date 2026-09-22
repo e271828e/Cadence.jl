@@ -58,7 +58,7 @@ ends. One entry per device:
 
 ```julia
 struct RosterEntry
-    id::DeviceId              # stable across runs — trace provenance
+    id::DeviceId              # stable across runs — trace tag
     cell::StagingCell         # this device's mailbox (§3)
     claims::NTuple{N,String}  # face names this device owns
     schema::Schema            # face name → position, compiled at attach (§3)

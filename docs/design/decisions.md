@@ -273,7 +273,7 @@ were derived.
 | [D-246][d-246] | Diagnose a foreign declaration binding as its own fail-fast kind | ratified |
 | [D-247][d-247] | Accept the `NamedTuple` as the only store declaration form | ratified |
 | [D-248][d-248] | Frame every user-authored method the build invokes, declarations included | ratified |
-| [D-249][d-249] | Settle three payload columns: contract arity, runtime time and face provenance | ratified |
+| [D-249][d-249] | Settle three payload columns: contract arity, runtime time and face routes | ratified |
 | [D-250][d-250] | Warnings live where the artifact criterion puts them | ratified |
 | [D-251][d-251] | Make the passthrough selectors exclusive and warn on an empty selection | ratified |
 | [D-252][d-252] | Remove auto-publishing: two port classes, exposed state returned by stage 1 | ratified |
@@ -770,7 +770,7 @@ device task; device-tagged replayable input trace.
   exclusivity, which removes the conflict instead of ranking it (the per-device
   cells, CAS merge and drain are retained for atomicity and coalescing).
 - *Per-slot cells:* conflicts by hardware store order — run-to-run behavioral
-  variance; cross-device peek; no trace provenance; atomic-width fallback on
+  variance; cross-device peek; no trace tag; atomic-width fallback on
   wide slots.
 - *Shared batch stack:* temporal conflict order; unbounded pending under pause,
   taxing peeks.
@@ -803,8 +803,8 @@ degenerate uses; bidirectional peer = one device; GUI an ordinary device
 
 **Position.** GUI write path: per-component panels name own ports; build-time
 resolution to root input slots; live vs first-class read-only rendering (with
-wiring provenance); own-pending-else-snapshot peek; active widgets stage on
-interaction events ([D-047][d-047]).
+its wiring source shown); own-pending-else-snapshot peek; active widgets stage
+on interaction events ([D-047][d-047]).
 
 **Spec.** [§11.7][s11-7]
 
@@ -1301,7 +1301,7 @@ conditioning, mappings, edge logic and pokeability:
   criterion, the scheme being internally consistent in an interactive paced
   world.
 - **Bundled command faces** (`pilot_inputs` as one struct port): kills
-  per-field claiming, liveness and trace provenance — the port is the
+  per-field claiming, liveness and trace tag — the port is the
   periphery's atomic unit on the write side too, [§4.3][s4-3] — and the routing
   convenience it bought under argument threading is the namespace prefix plus
   `input_passthrough` here.
@@ -1344,7 +1344,7 @@ demoted to display-sync sugar.
 
 **Rationale.** No claim-transition policy exists — mid-run claim transitions
 cannot occur under the [D-106][d-106] freeze, liveness is baked once per run, and the
-orphan case (claiming device's task dead) renders in the widget's provenance.
+orphan case (claiming device's task dead) renders in the widget's source label.
 
 **Rejected.**
 - *Stage-every-pass:* motivating contest died with exclusivity; as insurance it
@@ -1479,8 +1479,8 @@ type, per [D-235][d-235].
   partials — wrong Jacobian, no error; `Int` sloppiness passing at nominal but
   detonating under `Dual` makes "it runs" activation-dependent.
 - *Per-field checks:* one whole-type test suffices and folds.
-- *Branch identification in the error:* values carry no provenance — the diff +
-  replay suffice.
+- *Branch identification in the error:* a value does not say which branch
+  produced it — the diff + replay suffice.
 
 ### D-054 — Producers determine activation types; consumers stay generic
 
@@ -1702,7 +1702,7 @@ path's final segment (slash the only structural separator).
 **Position.** Three tooling commitments are made:
 
 - `faces` gains predicate selection.
-- The `Build` printer renders face provenance, the root face → producing
+- The `Build` printer renders face routes, the root face → producing
   terminal chain.
 - A standard component library (summing junctions, Bool gates) ships as ordinary
   components, demand-driven, arity by type parameter (`Or{N}` — computed
@@ -1768,7 +1768,7 @@ equilibrium constraint for the trim service.
 **Position.** Fragments form a lazy inert tree (`Fragment`/`Scoped`/`Merged`;
 `at`/`merge` store, never apply — stack-only rebuild per iteration); all
 flattening/validation/addressing at resolution against the `Build`; duplicate
-leaf = error with both provenances; converters and `m`/`z` overlay bases baked
+leaf = error with both origins; converters and `m`/`z` overlay bases baked
 at compile; slots resolve through export chains (unexported = unwritable, init
 included); locality law = [§6.1][s6-1]'s, third instance (own fields, declared
 children, own faces; deep `at` only within owned concrete subtrees) — absolute
@@ -1861,8 +1861,8 @@ diagnostic, all-or-nothing — a rejected init leaves the sim untouched.
   home).
 - `override(base, patch)` is admitted as the fourth node kind: ordered and
   asymmetric against `merge`'s symmetric collision-intolerance, patch winning
-  with dual provenance; within-layer collisions still error; layering is
-  variadic; trim commits `override(baseline, solution)`.
+  with an origin recording both layers; within-layer collisions still error;
+  layering is variadic; trim commits `override(baseline, solution)`.
 
 **Spec.** [§14.6][s14-6]
 
@@ -2451,7 +2451,7 @@ by the walk.
 
 **Status.** ratified
 
-**Position.** Device roster representation and provenance ([§11.3][s11-3]), as narrowed
+**Position.** Device roster representation and trace tags ([§11.3][s11-3]), as narrowed
 by the [D-106][d-106] freeze: the roster (entries, claims, order) is a plain immutable
 value the loop reads once at `run!` — no republication, no per-frame
 acquire-load, no sequence numbers (attachment order = the roster's own order).
@@ -2469,8 +2469,8 @@ ids read across runs, where the roster does change.
   detach and on the `should_close` exit path (earlier design of record):*
   superseded wholesale by the [D-106][d-106] roster freeze.
 - *Roster fixed at build:* devices post-date the build.
-- *Roster-index trace tags:* indices unstable *across runs* — replay provenance
-  broken.
+- *Roster-index trace tags:* indices unstable *across runs* — the replay's
+  trace tag broken.
 - *Mid-run claim release on task death:* the freeze adopts the reverse: see
   [D-106][d-106]'s reversal note.
 
@@ -3261,7 +3261,7 @@ honest:
   cluster (discharged, [D-118][d-118]).
 - `ConditionNodeMisuse` for [§14.2][s14-2]'s mixed-`merge` error method: offending
   argument type, node kinds in hand; raised at composition time before any
-  resolution pass or provenance chain exists — hence its own kind, not a
+  resolution pass runs or any origin exists — hence its own kind, not a
   `ConditionResolution` sub-kind.
 - `faces` enforces `except`/`only` mutual exclusivity with a
   `declaration_error`, and `UnknownFaceSelection` gains a reason field (unknown
@@ -3275,7 +3275,7 @@ honest:
 - *`UnknownSourcePort` as a second kind:* the two ends are one mistake; an
   `end` payload field tests exactly as precisely without doubling the taxonomy.
 - *Folding the merge rejection into `ConditionResolution` sub-kinds:* misstates
-  the site — no provenance chain exists at merge time.
+  the site — no origin exists at merge time.
 - *Dropping the sketch's mutually-exclusive comment instead of enforcing it:*
   silent-ignore of a passed argument is the warn-but-continue pattern the spec
   rejects everywhere else.
@@ -3456,7 +3456,7 @@ point, with `Simulation(world; …)` defined as `Simulation(build(world); …)`.
 **Spec.** [§9.2][s9-2], [Appendix B][sB]
 
 **Rationale.** The inspected artifact — CI-checked, acceptance-tested,
-provenance-printed — is the one deployed; computed `exports` bodies are
+route-printed — is the one deployed; computed `exports` bodies are
 ordinary user code re-evaluated per build, so equality between two builds of
 one world is an assumption the factorization removes; deployment binding is
 unchanged, only at `Simulation` construction ([D-048][d-048]).
@@ -4972,7 +4972,7 @@ on state views.
   damping loop stalls, LM *honestly* reports non-convergence on a perfectly
   well-posed problem, `trim!` correctly refuses to commit, and every health
   signal is green (type-stable, zero-alloc, conformance check passing,
-  provenance clean) with no diagnostic anywhere pointing at the converter —
+  origins clean) with no diagnostic anywhere pointing at the converter —
   after which the derivative-free fallback backend "fixes" the symptom and
   entrenches the defect permanently.
 - *Per-write runtime convert decisions:* [D-066][d-066]'s rejected alternative, still
@@ -6482,7 +6482,7 @@ type stays rate-agnostic and consumes the bundle's `Δt`); Stratum A compiles to
 **`(anchor, m, c)` triples** — seed `(A₀, 1, 0)` with anchor 0 the symbolic
 base grid, `Relative(K, φ)` step `(a, K·mₛ, cₛ + φ·mₛ)`, `Absolute` severs and
 re-seeds `(Aₖ, 1, 0)`, nested anchors just seeding again — the `Build` gaining
-the anchor and component tables with declaration provenance, final divisors for
+the anchor and component tables with rate chain, final divisors for
 anchored entries deferred to binding (they do not exist until `Δt_base` does,
 and one `Build` backs many `Simulation`s); deployment: the **constraint pool**
 is every anchor period plus every nonzero offset, `Δt_base` admissible iff it
@@ -6514,7 +6514,7 @@ invariant surviving into the bound `(D, Φ, Δt)`.
 
 **Position.** The bound schedule becomes a named artifact and the grid gets
 exact diagnostics: deployment binding produces the **bound schedule** on the
-`Simulation` — per discrete component `(D, Φ, Δt)` with anchor and provenance
+`Simulation` — per discrete component `(D, Φ, Δt)` with anchor and rate-chain
 columns, the single source of truth for `Δt` and the substrate every grid
 diagnostic reads; its `show`-form is the **hyperperiod chart**, exact because
 the gate is pure modulo arithmetic (the pattern repeats with `lcm(Dᵢ)` base
@@ -7259,7 +7259,7 @@ included) and one of its faces. Supersedes [D-009][d-009]. The bundled rulings:
   concrete subtrees" clause: a prefix stops at faces on every child, owned
   or not).
 - Deep structural paths survive on the read side — inspection, logging,
-  provenance — untouched.
+  the face routes — untouched.
 
 **Spec.** [§6.1][s6-1], [§8.6][s8-6], [§8.8][s8-8], [§9.2][s9-2], [§13.3][s13-3], [§14.2][s14-2], [§14.3][s14-3]
 
@@ -7416,7 +7416,7 @@ removed. With bare keys, a `Group`'s declarations are textually identical to
 a named assembly's — the anonymous-beside-named promise made literal. The
 declaration is opt-in with a collision check rather than a naming change,
 keeping the informative segment where parametric rosters and mounting rely
-on it; one transparent container per type keeps a bare name's provenance
+on it; one transparent container per type keeps a bare name's declaration
 evident, and nothing wants two.
 
 **Rejected.**
@@ -7645,7 +7645,7 @@ already holds, the cost [§13.1][s13-1] exists to avoid. An id assigned at admis
 cannot be in a refusal that keeps the device out. A column narrower than the
 sub-kinds it names cannot be the acceptance contract for tests that match on
 those sub-kinds' payload. Everything else — the wires on an `AlgebraicCycle`,
-the provenance on a `FaceNameCollision`, the shadowing notes, the binding site
+the declaration on a `FaceNameCollision`, the shadowing notes, the binding site
 of a stop face — is data the design wants and the prototype does not yet
 gather; the column keeps naming it and the prototype's absence list carries the
 shortfall until a later increment closes it.
@@ -9094,7 +9094,7 @@ payload and [D-216][d-216] licenses as spellings.
   names the frame and the function through the cursor and carries the
   cause. A second wrapper would say the same thing twice.
 
-### D-249 — Settle three payload columns: contract arity, runtime time and face provenance
+### D-249 — Settle three payload columns: contract arity, runtime time and face routes
 
 **Status.** ratified
 
@@ -9111,7 +9111,7 @@ site holds.
   and that satisfies [§9.5][s9-5]. A handler's occurrence names its event, at the
   probe and at run time alike.
 - `FaceNameCollision` carries the assembly path and the colliding names, with
-  no per-entry provenance.
+  no per-entry declaration.
 - `StopFaceInvalid`'s binding site is one of three, the constructor, `run!`
   or `replay!`, since a replay binds the run policy as `run!` does ([§12.7][s12-7]).
 
@@ -9131,11 +9131,11 @@ form mandated. Simulation time on a runtime `ConformanceFailure` would be a
 second copy of a value the catch site stamps on every carrier, and filling it
 means passing a clock into every generated store write, whose only context
 today is the path and the function. The carrier's time and boundary index
-are what the replay idiom reads. Provenance on a colliding face name would
-say which of two declarations the author wrote by hand, when a computed
-entry collides only under an empty or a coinciding prefix, the message
-already names the assembly and the faces, and the fix is an `except` entry
-or a prefix either way. Carrying it would make the passthrough helpers return
+are what the replay idiom reads. Naming the declaration behind a colliding face
+name would say which of two declarations the author wrote by hand, when a
+computed entry collides only under an empty or a coinciding prefix, the message
+already names the assembly and the faces, and the fix is an `except` entry or a
+prefix either way. Carrying it would make the passthrough helpers return
 a marked pair, every reader of the two boundary declarations unwrap it, and
 the root arm carry a tag with nothing to say, a primitive root having no
 computed entries. The `replay!` site is a factual completion: [§12.7][s12-7] binds
@@ -9150,7 +9150,7 @@ computed entries. The `replay!` site is a factual completion: [§12.7][s12-7] bi
   field, and every store write grows an argument for a value read from one
   place.
 - *Marking computed passthrough entries:* a public helper's return shape
-  changes, and the root arm's provenance is meaningless, for one word in one
+  changes, and the root arm's declaration is meaningless, for one word in one
   message.
 - *Leaving the three columns as written:* `pending.md` would carry three
   permanent gaps that no increment could close without one of the mechanisms
@@ -9320,10 +9320,11 @@ stage write.
 `Build` is their bundle.
 
 - `Structure` replaces `Flat` as Stratum A's product, with the tiers moved
-  in, per-component declaration provenance (the `Relative`/`Absolute` chain)
-  and the scope triples of assemblies with an explicit `sample_times` key.
+  in, per component its rate chain of `Relative`/`Absolute` links, and the
+  scope triples of assemblies with an explicit `sample_times` key.
 - `Dataflow` is Stratum B's product: per component the stage-1 and stage-2
-  name sets, the feedthrough edges with provenance, and the execution order.
+  name sets, the feedthrough edges with their port and face, and the
+  execution order.
 - `Events` is Stratum B's other product: per component the event names,
   detection policies and bundle names, produced as B's last step, after the
   nominal stage probes.
@@ -9390,7 +9391,7 @@ materializes it.
   `Simulation` materializes a deployment at `T`. Replay compares two
   deployments as values.
 - `Schedule` is the typed schedule inside the deployment: per discrete
-  component `(D, Φ, Δt)` with anchor and provenance columns, the rate-scope
+  component `(D, Φ, Δt)` with anchor and rate-chain columns, the rate-scope
   rows, and the `D`, `Φ`, `Δt` vectors.
 - The grid diagnostics land on the deployment: leave-one-out factors, prime
   attribution, nearest non-refining offsets, the derivation line and
@@ -9579,7 +9580,7 @@ methods, with no accessors.
 - The chart guard is binary: the chart prints whole when `lcm(Dᵢ)` is at
   most 100 base ticks, and otherwise the hyperperiod's length with "chart
   omitted".
-- The face-provenance printer joins `Structure` when the routing chain is
+- The face-route printer joins `Structure` when the routing chain is
   recorded; that is `pending.md`'s "Smaller" bullet, unchanged.
 
 **Spec.** [§9.2][s9-2], [§13.7][s13-7]
@@ -9789,7 +9790,7 @@ below settle under them.
   them once, at one home, and the activation's cell layout is that home for
   address facts. (Amended 2026-09-21, ahead of increment 48: an artifact
   holds its facts as rows. `Structure` carries one `ComponentEntry` per
-  component, its path, instance, tier, triple, provenance and resolved
+  component, its path, instance, tier, triple, rate chain and resolved
   inputs, and one `Anchor` per anchor, its `(T, τ)` with the declaring
   scope and key, as the `Schedule` carries `ScheduleEntry` and `ScopeEntry`
   rows; the parallel vectors of the old shape were the same facts with no
@@ -10157,7 +10158,7 @@ compile was the one reason the run had to be built ahead of the plane.
 [d-246]: #d-246--diagnose-a-foreign-declaration-binding-as-its-own-fail-fast-kind
 [d-247]: #d-247--accept-the-namedtuple-as-the-only-store-declaration-form
 [d-248]: #d-248--frame-every-user-authored-method-the-build-invokes-declarations-included
-[d-249]: #d-249--settle-three-payload-columns-contract-arity-runtime-time-and-face-provenance
+[d-249]: #d-249--settle-three-payload-columns-contract-arity-runtime-time-and-face-routes
 [d-250]: #d-250--warnings-live-where-the-artifact-criterion-puts-them
 [d-251]: #d-251--make-the-passthrough-selectors-exclusive-and-warn-on-an-empty-selection
 [d-252]: #d-252--remove-auto-publishing-two-port-classes-exposed-state-returned-by-stage-1
@@ -10200,7 +10201,7 @@ compile was the one reason the run had to be built ahead of the plane.
 [s13-4]: spec.md#134-runtime-failures-one-catch-site-an-execution-cursor
 [s13-5]: spec.md#135-termination-is-a-state-not-an-exception
 [s13-6]: spec.md#136-abnormal-shutdown-one-tail-two-entries
-[s13-7]: spec.md#137-tooling-consequences-provenance-and-the-component-library
+[s13-7]: spec.md#137-tooling-consequences-face-routes-and-the-component-library
 [s14]: spec.md#14-stopped-sim-services
 [s14-1]: spec.md#141-conditions-are-path-addressed-overlays-on-the-declared-defaults
 [s14-10]: spec.md#1410-linearization-tap-selectors-one-seeded-pass-a-pure-query

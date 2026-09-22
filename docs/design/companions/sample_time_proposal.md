@@ -19,7 +19,7 @@ live only in this document. Everything below stays on the **static lattice**: ti
 instants remain build-time constants, and nothing from the closed tick-queue axis
 (`extensions.md` section 1.4) is dragged in.
 
-Provenance: the gap-analysis discussion of 2026-08-08/09 and the sample-time pipeline
+Source: the gap-analysis discussion of 2026-08-08/09 and the sample-time pipeline
 sessions of 2026-08-12.
 
 ## Contents
@@ -285,7 +285,7 @@ The canonical-residue invariant of section 3 holds within each anchor's subtree 
 the same induction (`c < m` throughout, from the seed `(1, 0)`). The output, stored
 in the `Build` artifact as plain printable data ([§9.2][s9-2]): an **anchor table** — each
 anchor's exact `(T, τ)` rationals plus the declaring scope's path — and a
-**component table** of `(anchor, m, c)` triples with their declaration provenance
+**component table** of `(anchor, m, c)` triples with their rate chain
 (the `Relative`/`Absolute` chain down the tree). For a fully relative model the only
 anchor is `A0` and the triples *are* the final base-tick `(D, Φ)` pairs, exactly as
 today; nothing about the current design's output changes until an absolute entry
@@ -334,7 +334,7 @@ The refusal is not a dead end: the engine has everything needed to make it
 constructive — section 8 specifies the suggestion. Either way, validation failures
 are collected `DeploymentInvalid`s in [§9.1][s9-1]'s style, and with anchors the diagnostic
 gains error locality: "period `1//500` does not divide declared `Δt_base` — declared
-`Absolute(Hz(500))` at `Avionics`, for `sensors`," straight from the provenance
+`Absolute(Hz(500))` at `Avionics`, for `sensors`," straight from the rate-chain
 column.
 
 **Resolution.** With `Δt_base` in hand, one division pair per anchor and one
@@ -348,7 +348,7 @@ multiply-add per component:
 
 The residue invariant survives this last step too (`Φ_k < D_k` from `τ < T`, `c < m`
 from the fold, so `Φ ≤ (D_k − 1) + (m − 1)·D_k = D − 1`). The output is the **bound
-schedule**: per discrete component, `(D, Φ, Δt)` plus the anchor and provenance
+schedule**: per discrete component, `(D, Φ, Δt)` plus the anchor and rate-chain
 columns carried through. This deserves to be a **named, printable artifact on the
 `Simulation`** — it is the single source of truth for `Δt` ([§10.5][s10-5]), the substrate of
 every diagnostic in section 8, and the table a user reads to answer "when does what
@@ -554,7 +554,7 @@ anchors:     A0 = base grid (deployment's)
              A1 = (T = 1//500, τ = 0)       — Absolute(Hz(500)) at Avionics, for sensors
              A2 = (T = 1//10, τ = 1//100)   — Absolute(Hz(10), 1//100) at Sensors, for gnss
 
-component            anchor   m    c    provenance
+component            anchor   m    c    rate chain
 avionics/computing   A0       2    0    Relative(1)@Aircraft · Relative(2)@Avionics
 …/sensors/imu        A1       2    1    Relative(2,1)@Sensors
 …/sensors/gnss       A2       1    0    (anchor is its own rate)

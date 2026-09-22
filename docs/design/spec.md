@@ -86,7 +86,7 @@
     - [13.4 Runtime failures: one catch site, an execution cursor](#134-runtime-failures-one-catch-site-an-execution-cursor)
     - [13.5 Termination is a state, not an exception](#135-termination-is-a-state-not-an-exception)
     - [13.6 Abnormal shutdown: one tail, two entries](#136-abnormal-shutdown-one-tail-two-entries)
-    - [13.7 Tooling consequences: provenance and the component library](#137-tooling-consequences-provenance-and-the-component-library)
+    - [13.7 Tooling consequences: face routes and the component library](#137-tooling-consequences-face-routes-and-the-component-library)
   - [14. Stopped-sim services](#14-stopped-sim-services)
     - [14.1 Conditions are path-addressed overlays on the declared defaults](#141-conditions-are-path-addressed-overlays-on-the-declared-defaults)
     - [14.2 Fragment composition: locality without schema](#142-fragment-composition-locality-without-schema)
@@ -2639,7 +2639,7 @@ path-tracking proxy remains addable sugar. The three wiring declarations use
 only the short case of that form, one child segment and one [face](#g-face) name
 ([§6.1][s6-1]). The read side walks the full depth (`"systems/ldg/left/trn"` in a
 [snapshot](#g-snapshot) or the log tree). That read side is the inspection side and
-`resolve` as a provenance primitive ([§13.3][s13-3]). One fact from that
+`resolve` as the inspection primitive ([§13.3][s13-3]). One fact from that
 adjudication is relied on downstream. Symmetric immutable siblings are
 `===`-identical, so a path is unrecoverable from an instance. That is why the
 helpers ([§8.8][s8-8]) name the child by path.
@@ -3096,10 +3096,10 @@ everything the instance alone fixes), and that is its whole product
 ([D-253][d-253]).
 `Structure` carries the component instances by path, the [tier](#g-tier) each
 one sits on, the resolved wires, the two-sided face table with each face's
-routing chain, the [root inputs](#g-root-input), per component the declaration
-provenance as its `Relative`/`Absolute` chain, and, for each assembly an
-explicit `sample_times` key names, the scope triple that key gives it. Class
-and contracts are read off the instance on demand. Nothing in it depends on a
+routing chain, the [root inputs](#g-root-input), per component its rate chain
+of `Relative`/`Absolute` links, and, for each assembly an explicit
+`sample_times` key names, the scope triple that key gives it. Class and
+contracts are read off the instance on demand. Nothing in it depends on a
 scalar type.
 
 #### The nominal evaluation
@@ -3208,7 +3208,7 @@ Admissibility is exact GCD arithmetic over the **constraint pool**:
 Resolution is therefore one division pair per anchor and one multiply-add per
 component. `Dₖ` and `Φₖ` must both come out exact integers. Otherwise the
 result is a `DeploymentInvalid`, naming the anchor with its declaring scope
-and key from the provenance column. The per-component triples are the
+and key from the rate-chain column. The per-component triples are the
 [schedule](#g-schedule), the `Schedule` the constructor builds and the
 `Deployment` carries ([§9.2][s9-2]).
 
@@ -3257,7 +3257,7 @@ the grid parameters fix) takes a `Build` and the grid parameters
 type. `Simulation(build; kw...)` composes those two, and `Simulation(world;
 kw...)` calls `build` first ([D-254][d-254]). The artifact deployed is the very
 build that CI checked, that an acceptance test targeted, and that a
-[face](#g-face)-provenance table was printed from, never an assumed-equal
+[face](#g-face)-route table was printed from, never an assumed-equal
 reconstruction.
 
 **Why.** Computed interface-connection bodies are ordinary user code
@@ -3280,7 +3280,7 @@ and printed by any REPL without a method of their own, the diagnostic form set
 against the compiled form ([§9.7][s9-7]).
 
 **The face table on `Structure` is two-sided.** Beside each level's output
-faces and their provenance it retains that level's *input* faces, each resolved
+faces and their routes it retains that level's *input* faces, each resolved
 producer-ward
 to the one feed its consumers share, either a root input or a producer inside
 the model. The record is total, because one-level routing gives every signal
@@ -3295,7 +3295,7 @@ constructor was rejected ([D-049][d-049]).
 them.** From the structure step the artifact gains two printable tables. The
 **[anchor](#g-anchor) table** holds each anchor's exact `(T, τ)` rationals with the
 declaring scope's path and key. The **[component](#g-component) table** holds the
-`(anchor, m, c)` triples with their declaration provenance, the
+`(anchor, m, c)` triples with their rate chain, the
 `Relative`/`Absolute` chain down the tree. The base grid `A₀` takes an
 anchor-table row of its own, with a dash in the scope and key columns,
 because no scope declares it. Its `(T, τ)` stays symbolic there until
@@ -3309,7 +3309,7 @@ parameters.
 table) lives on the `Deployment`** ([D-254][d-254]). The `Deployment`
 constructor ([§9.1][s9-1]) builds it from the structure's triples and anchors.
 It is the typed schedule: one row per discrete component carrying
-`(D, Φ, Δt)` with the anchor and provenance columns, the [rate-scope](#g-rate-scope)
+`(D, Φ, Δt)` with the anchor and rate-chain columns, the [rate-scope](#g-rate-scope)
 rows (an assembly's `sample_times` declaration against the enclosing scope)
 each with its own `(Dₛ, Φₛ)`. The per-component `(D, Φ, Δt)` the executor
 compiles over are derived from the rows at `compile`, never stored beside
@@ -3329,7 +3329,7 @@ and the component table with the rate-scope rows. `show(::Outputs)` prints the
 execution order with each port's class. `show(::Schedule)` prints the rows and
 the **hyperperiod chart**. `show(::Build)` and `show(::Deployment)` print a
 summary and their parts. A REPL user gets each table by evaluating the value.
-The face-provenance printer joins `Structure` when the routing chain is
+The face-route printer joins `Structure` when the routing chain is
 recorded ([§13.7][s13-7]).
 
 The chart's pattern repeats with period `lcm(Dᵢ)` base ticks, and the gate is
@@ -3716,8 +3716,9 @@ carrier's, not the diagnostic's. At run time the failure travels as a
 [species](#g-species) of `StepError` through the single catch site ([§13.4][s13-4]), whose
 frame holds the boundary time and the replay index, and a build-time
 occurrence has no time to carry ([D-249][d-249]). Deliberately absent is the source
-branch. Values carry no provenance, and the diff identifies it. The always-on
-input [trace](#g-trace) makes every such failure **reproducible by [replay](#g-replay)**. The error
+branch. A value does not say which branch produced it, and the diff identifies
+it. The always-on input [trace](#g-trace) makes every such failure **reproducible by
+[replay](#g-replay)**. The error
 names the [boundary](#g-boundary) to replay to (`to_boundary`, [§12.7][s12-7]). The catch site adds
 the loop-level nonfinite-state check as the failure's divergence sibling.
 ### 9.6 Stopped-sim services as activation clients
@@ -5513,7 +5514,7 @@ mid-run. The roster (entries, claims, attachment order) is therefore a plain
 immutable value the loop reads once at `run!`. The partition of the root face
 set into per-writer surfaces plus the harness remainder is a static,
 inspectable fact of the run. It is printable before the run starts and valid
-until it ends (the provenance rule, [§13.7][s13-7]). No republication
+until it ends (printable like the face routes, [§13.7][s13-7]). No republication
 machinery exists. There is no atomic roster reference, no per-frame
 acquire-load, no next-frame attachment granularity and no sequence numbers.
 Attachment order is the roster's own order. The trace still tags entries
@@ -5763,9 +5764,9 @@ lives in-model, in the avionics. Alternatively it is accepted as a small
 per-aircraft×device mapping entry, an aircraft-design fork ([§15.4][s15-4]).
 
 The trace records post-conditioning levels. Those are exactly what the model
-consumed, so [replay](#g-replay) is exact. Raw-stick provenance, re-running a
-session through *different* curves, is the known, accepted loss. Edge logic
-follows the levels doctrine. Devices stage monotonic press counters.
+consumed, so [replay](#g-replay) is exact. The raw stick levels are the known,
+accepted loss: re-running a session through *different* curves is impossible.
+Edge logic follows the levels doctrine. Devices stage monotonic press counters.
 Accumulators (trim offsets, flap detents) are model state, not mapping state
 ([§15.4][s15-4]).
 
@@ -6278,7 +6279,7 @@ source ([§6.1][s6-1]), so the resolution is total:
   [staging cell](#g-staging-cell).
 - **Component-driven, or root-driven under another device's claim: a
   read-only rendering.** It displays the driven value from the
-  [snapshot](#g-snapshot), visually distinct, with the source as provenance
+  [snapshot](#g-snapshot), visually distinct, with its source
   ("driven by `avionics/throttle_cmd`", the canonical slash form of
   [§8.6][s8-6]).
 
@@ -6350,7 +6351,7 @@ render-rate-while-grabbed to actual edits.
 No claim-transition policy exists, because no claim transition can occur
 mid-run (the freeze, [§11.3][s11-3]). The one liveness-adjacent display rule
 is the orphan case. A read-only widget whose claiming device's task has died
-renders the fact in its provenance ("claimed by `T16000M` — task dead"), the
+renders the fact in its source label ("claimed by `T16000M` — task dead"), the
 heartbeat surfaced in place ([§12.2][s12-2]). What it displays beside that
 fact is the ordinary snapshot value, the orphaned root input's last drained
 level. An orphan widget is a read-only rendering like any other, never a
@@ -6625,7 +6626,7 @@ as a stale heartbeat with a name on it, not as mysteriously frozen physics.
 
 **Stale means a liveness timestamp more than 2 s behind wall clock.** The
 threshold is deliberately loose, because the heartbeat is advisory. It is a
-liveness display and a provenance record, never a kill trigger, never a
+liveness display and a record, never a kill trigger, never a
 detach. It must also tolerate a device legitimately parked in a blocking
 read between rare data.
 
@@ -7028,8 +7029,8 @@ trace.
   [ticks](#g-tick), with no latching.
 - In a scenario configuration the script drives the avionics' input
   [ports](#g-port). [§11.7][s11-7] therefore renders the corresponding GUI
-  widgets read-only with provenance. Today's demo-vs-GUI dead-slider fight is
-  resolved by the port-resolution rule.
+  widgets read-only with its source shown. Today's demo-vs-GUI dead-slider fight
+  is resolved by the port-resolution rule.
 
 **`user_callback!` is eliminated** ([D-031][d-031]). It is the
 [periphery](#g-periphery)'s `f_step!`, and cheap composition leaves it
@@ -7440,7 +7441,7 @@ Everything else is the loop as already specified:
   `localization_budget` ([§10.4][s10-4]) and `firing_budget`
   ([§10.6][s10-6]), and the [schedule](#g-schedule) (the typed
   per-component `(D, Φ, Δt)` tick table) with every column, the anchor and
-  provenance columns included. A rate re-declared through a different anchor
+  rate-chain columns included. A rate re-declared through a different anchor
   at the same tick table is therefore a different deployment, and the
   replay is refused. The refusal costs one re-recording in a rare case, and
   it keeps the equality a plain value equality rather than one that ignores
@@ -8204,7 +8205,7 @@ with them ([§11.3][s11-3], [D-232][d-232]). Inspection is reading, but
 chain, log, trace) ends at the last consistent boundary. Nothing downstream of
 the sim ever sees half a boundary.
 
-### 13.7 Tooling consequences: provenance and the component library
+### 13.7 Tooling consequences: face routes and the component library
 
 Termination chains are the second structural customer of computed interface
 connections, after generic-holding [contracts](#g-contract). Computed
@@ -8225,7 +8226,7 @@ So does [`Schedule`](#g-schedule) (the typed per-component `(D, Φ, Δt)` tick t
 and [`Deployment`](#g-deployment) (the scalar-free artifact the grid parameters fix). There are no
 accessor functions returning the tables alongside.
 
-**`show(::Structure)` owes [face](#g-face) provenance.** For every root face,
+**`show(::Structure)` owes [face](#g-face) routes.** For every root face,
 that means the resolved chain down to the producing terminal (`"crashed" →
 aircraft/monitor/out ← systems/ldg/{left,right,nose}/damaged`). Once faces are
 computed rather than hand-listed, "what does this face actually reach" is a
@@ -8544,7 +8545,7 @@ and idiomatic rather than machine-checked. `fragment`/`at`/`combine` are
 privileges.
 
 A [combine](#g-combine) collision is two entries on one leaf. Collisions are
-errors at resolution, and the error reports *both* provenance chains. The
+errors at resolution, and the error reports *both* origins. The
 message names the layering combinator: "`combine` is collision-intolerant by
 design — use `override(base, patch)` to layer." Last-writer-wins was rejected
 ([D-065][d-065]). That rejection is also why the combinator is not
@@ -8558,8 +8559,8 @@ method**. Its message is directive: wrap the NamedTuple in `fragment(…)` (or
 `at(prefix, fragment(…))`) and combine nodes with nodes. The rejection carries
 a [kind](#g-kind) like every other. It is `ConditionNodeMisuse`
 ([Appendix C][sC]), carrying the offending argument's type and the node kinds
-in hand. It is raised at composition time, before any resolution pass or
-provenance chain exists. That is why it is its own kind and not a
+in hand. It is raised at composition time, before any resolution pass runs
+or any origin exists. That is why it is its own kind and not a
 `ConditionResolution` sub-kind ([§14.3][s14-3]). The explicit, *ordered*
 layering spelling, `override`, belongs with the use case
 [root-input totality](#g-root-input-totality) produces ([§14.6][s14-6]).
@@ -8906,7 +8907,7 @@ conditions. But "baseline plus tweaks" collides with the duplicate-leaf error
 ([§14.2][s14-2]) by design. The collision *is* the intent. Hence the fourth
 node kind, **`override(base, patch)`**. It is ordered and asymmetric, where
 `combine` is symmetric and collision-intolerant. At resolution a leaf present
-in both takes the patch's value, with provenance recording both sources
+in both takes the patch's value, with the origin recording both layers
 ("patch overrode base's `throttle`"). Collisions *within* one layer remain
 errors. Variadic layering (`override(campaign, aircraft, todays_case)`)
 composes. Trim uses it on day one. The committed condition is
@@ -10013,12 +10014,12 @@ The demo, line by line:
   [greedy claim](#g-greedy-claim) over every unclaimed face and settles
   liveness with zero configuration, both at run start against the
   [frozen roster](#g-roster) ([§11.3][s11-3]). Axis
-  mirrors are read-only (claimed, with provenance). The mode, setpoint,
+  mirrors are read-only (claimed, source shown). The mode, setpoint,
   mixture, payload and environment widgets are live. Actuator sliders are
   read-only ([component](#g-component)-fed). The `gui` flag's attachment lasts
   exactly this run ([§12.6][s12-6]).
   Unplugging the joystick makes its task exit. The mirrors stay read-only with
-  the death in their provenance ("claimed by `T16000M` — task dead"), and the
+  the death in their source label ("claimed by `T16000M` — task dead"), and the
   axes hold their last-drained values. Those two behaviors are the accepted
   orphan anomaly ([§11.3][s11-3]). Recovery happens between runs: stop,
   `detach!`, then `init!` for a fresh trajectory, or `replay!` to the end
@@ -10745,7 +10746,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   artifact, [`Structure`](#g-structure) (the structure step's product, the components, wires,
   faces and tiers), [`Outputs`](#g-outputs) (the nominal evaluation's product, the port classes and the execution order), [`Events`](#g-events) (the nominal evaluation's other product, the event
   names and policies), the activations and `warnings`; the wire list, face table
-  with provenance and root inputs are `Structure`'s and the execution order is
+  with routes and root inputs are `Structure`'s and the execution order is
   `Outputs`'s ([§9.2][s9-2]).
   `build(world; activations = (Float64, ProbeDual))` additionally pins
   activation invariants for CI (`ProbeDual` is the public canonical concrete
@@ -10894,11 +10895,11 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 - `at(prefix, node)`. Scoping. It stores, never applies. It also lifts whole
   `TrimProblem`s and linearization tap sets ([§14.9][s14-9],
   [§14.10][s14-10]).
-- `combine(nodes...)`. Symmetric collection. Duplicate leaves error with dual
-  provenance. Blending a node with a bare NamedTuple is a directive error
+- `combine(nodes...)`. Symmetric collection. Duplicate leaves error with both
+  origins. Blending a node with a bare NamedTuple is a directive error
   method ([§14.2][s14-2]).
 - `override(base, patches...)`. Ordered layering. The patch wins, and
-  provenance keeps both ([§14.6][s14-6]).
+  the origin keeps both ([§14.6][s14-6]).
 - `condition(comp; kw)`. The shipped fragment-function idiom. Aircraft
   baselines (`ready_for_taxi(ac)`, `cold_and_dark(ac)`) are its
   full-coverage instances.
@@ -11138,8 +11139,8 @@ collection ([§13.2][s13-2], [D-250][d-250]).
   collected. Leaf path, input name, declared entry type, the obligation
   chain's last level.
 - **`TwoProducers`** ([§6.1][s6-1], [§8.8][s8-8]). Error · build · collected.
-  Destination terminal, both producer terminals with provenance (sibling wire
-  / interface connection entry).
+  Destination terminal, both producer terminals with their declarations
+  (sibling wire / interface connection entry).
 - **`WireTypeMismatch`** ([§6.1][s6-1], [§8.2][s8-2], [§8.4][s8-4] w4). Error
   · build · collected. Both endpoint paths, both face names, declared entry
   type, producer face type.
@@ -11209,7 +11210,7 @@ collection ([§13.2][s13-2], [D-250][d-250]).
 - **`FaceNameIllegal`** ([§8.6][s8-6]). Error · build · collected. Assembly
   path, face name, the violated invariant (contains `/`).
 - **`FaceNameCollision`** ([§8.6][s8-6]). Error · build · collected. Assembly
-  path, the colliding face names. No per-entry provenance: a computed entry
+  path, the colliding face names. No per-entry declaration: a computed entry
   collides like a hand-written one ([§8.8][s8-8], [D-249][d-249]).
 - **`FaceDirectionConflict`** ([§8.6][s8-6]). Error · build · collected.
   Assembly path, the declaring method, the offending entry, the resolved
@@ -11229,7 +11230,7 @@ collection ([§13.2][s13-2], [D-250][d-250]).
 - **`ChildNameCollision`** ([§8.5][s8-5]). Error · build · fail-fast.
   Assembly path, the colliding child name, reason (a bare container key
   against the `sample_times` sugar, [D-211][d-211] / against a sibling field,
-  [D-212][d-212] / two children with one name), both provenances.
+  [D-212][d-212] / two children with one name), both declarations.
 - **`TransparentContainerUnknown`** ([§8.5][s8-5], [D-211][d-211]). Error ·
   build · fail-fast. Assembly path, the field `transparent_container` names,
   the type's container fields (the list-in-hand).
@@ -11348,12 +11349,12 @@ activation):
   · collected. Entry path, store and field (or the root-input face the entry
   addresses), offending value type and declared leaf type, the leaf's tier
   and role where the refusal is tier-bound, the producer where a face is
-  fed, candidates where a list is in hand, provenance chain. Its sub-kinds
+  fed, candidates where a list is in hand, the origin. Its sub-kinds
   are assembly path, undeclared field, unconvertible value and unexported
   root-input face. An unknown or past-generic path is `PathResolution`'s
   ([§13.3][s13-3]).
 - **`DuplicateConditionLeaf`** ([§14.2][s14-2]). Error · service ·
-  collected. The leaf `(path, store, field)`, both provenance chains, the
+  collected. The leaf `(path, store, field)`, both origins, the
   `override` advice.
 - **`ConditionNodeMisuse`** ([§14.2][s14-2]). Error · service · fail-fast.
   The offending argument's type, the node kinds in hand.
@@ -11379,7 +11380,7 @@ activation):
 - **`GridUtilization`** ([§9.1][s9-1], [§9.2][s9-2]). Warning · service, at
   the `Deployment` constructor (derivation path only) · logged, on the
   deployment's warnings ([D-254][d-254]). The derived `Δt_base`, the grid
-  attribution (the pool with each entry's provenance and refinement factor,
+  attribution (the pool with each entry's anchor and refinement factor,
   the coarsest admissible `Δt_base`, the prime attribution) and `min_i Dᵢ`,
   the grid rendered as "N× finer than the fastest declared work".
 - **`ReplayHeaderMismatch`** ([§11.5][s11-5], [§12.7][s12-7]). Error ·
@@ -11392,8 +11393,7 @@ activation):
   scope whose column differs (its path, the column, recorded vs. bound
   value), a schedule whose row list, scope list or per-component vector
   differs (the name, the two lists), or a frame ordinal outside the
-  recording's length (the writer, the ordinal, the legal range). The build's
-  and the trace's provenance.
+  recording's length (the writer, the ordinal, the legal range).
 - **`ReplaySchemaMismatch`** ([§11.5][s11-5], [§12.7][s12-7]). Error ·
   service · collected. The trace's device tag, its recorded face-name →
   position schema, the disagreeing face names, the target's root input-face
@@ -11898,7 +11898,7 @@ it under the localization budget ([§10.4][s10-4]).
 
 <a id="g-schedule"></a>**schedule / `Schedule`** — the typed tick timing the `Deployment` carries,
 built by the `Deployment` constructor: one row per discrete component,
-`(D, Φ, Δt)` with anchor and provenance columns, and the rate-scope rows; the
+`(D, Φ, Δt)` with anchor and rate-chain columns, and the rate-scope rows; the
 per-component triples the executor compiles over are derived from the rows.
 It is the single source of truth for `Δt` and the
 substrate of the grid diagnostics and the hyperperiod chart ([§9.2][s9-2],
@@ -12049,10 +12049,10 @@ it physically lives (buffer ranges, store and root-input indices)
 
 <a id="g-structure"></a>**`Structure`** — the structure step's product: the component instances by
 path, the tier each sits on, the resolved wires, the two-sided face table with
-each face's routing chain, the root inputs, per component the declaration
-provenance as its `Relative`/`Absolute` chain, and, for each assembly an
-explicit `sample_times` key names, the scope triple that key gives it. Nothing
-in it depends on a scalar type ([§9.1][s9-1], [D-253][d-253]).
+each face's routing chain, the root inputs, per component its rate chain of
+`Relative`/`Absolute` links, and, for each assembly an explicit `sample_times`
+key names, the scope triple that key gives it. Nothing in it depends on a
+scalar type ([§9.1][s9-1], [D-253][d-253]).
 
 <a id="g-walked"></a>**walked / pinned / exempt** — the eltype-genericity classes. Walked
 payload/value types follow the activation scalar, pinned parameters and
@@ -12182,7 +12182,7 @@ still kills the process ([§12.4][s12-4], [§12.1][s12-1]).
 <a id="g-orphaned-claims"></a>**orphaned claims** — the claims of a device whose task died mid-run. Death
 is not detach. The roster entry and claims persist to run end, the root
 inputs hold their last-drained values, and the GUI renders the fact in the
-widget's provenance. Recovery is between runs ([§11.3][s11-3]).
+widget's source label. Recovery is between runs ([§11.3][s11-3]).
 
 <a id="g-peek"></a>**peek** — the GUI display rule: a widget shows its own pending write if
 any, else the snapshot value. It reads its own cell only, which is what
@@ -12343,7 +12343,7 @@ gather twin of `apply!`, and what makes warm restart need no second
 semantics ([§14.1][s14-1], [§14.10][s14-10]).
 
 <a id="g-combine"></a>**combine** — the symmetric, collision-intolerant combinator over condition
-nodes. A duplicate leaf is an error naming both provenance chains, and
+nodes. A duplicate leaf is an error naming both origins, and
 blending a node with a bare `NamedTuple` is a directive error method
 ([§14.2][s14-2]).
 
@@ -12378,7 +12378,7 @@ Every field is either condition-producing (path-relative, post-composed) or
 path-free, so the service never knows where its paths sit ([§14.9][s14-9]).
 
 <a id="g-override"></a>**override** — the ordered, asymmetric layering combinator. On a shared leaf
-the patch wins and provenance keeps both sources, while collisions *within*
+the patch wins and the origin records both layers, while collisions *within*
 a layer remain errors. It is variadic ([§14.6][s14-6]).
 
 <a id="g-root-input-totality"></a>**root-input totality** — the pre-write requirement that an application
@@ -12698,7 +12698,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-246]: decisions.md#d-246--diagnose-a-foreign-declaration-binding-as-its-own-fail-fast-kind
 [d-247]: decisions.md#d-247--accept-the-namedtuple-as-the-only-store-declaration-form
 [d-248]: decisions.md#d-248--frame-every-user-authored-method-the-build-invokes-declarations-included
-[d-249]: decisions.md#d-249--settle-three-payload-columns-contract-arity-runtime-time-and-face-provenance
+[d-249]: decisions.md#d-249--settle-three-payload-columns-contract-arity-runtime-time-and-face-routes
 [d-250]: decisions.md#d-250--warnings-live-where-the-artifact-criterion-puts-them
 [d-251]: decisions.md#d-251--make-the-passthrough-selectors-exclusive-and-warn-on-an-empty-selection
 [d-252]: decisions.md#d-252--remove-auto-publishing-two-port-classes-exposed-state-returned-by-stage-1
@@ -12744,7 +12744,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [s13-4]: #134-runtime-failures-one-catch-site-an-execution-cursor
 [s13-5]: #135-termination-is-a-state-not-an-exception
 [s13-6]: #136-abnormal-shutdown-one-tail-two-entries
-[s13-7]: #137-tooling-consequences-provenance-and-the-component-library
+[s13-7]: #137-tooling-consequences-face-routes-and-the-component-library
 [s14]: #14-stopped-sim-services
 [s14-1]: #141-conditions-are-path-addressed-overlays-on-the-declared-defaults
 [s14-10]: #1410-linearization-tap-selectors-one-seeded-pass-a-pure-query

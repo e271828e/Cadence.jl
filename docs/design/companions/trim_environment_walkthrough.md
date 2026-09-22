@@ -325,7 +325,7 @@ trim!(sim, cruise; baseline)          #mounted at the root: no `at` needed
 ```
 
 Note that the *problem* is identical in both sketches — same `condition`,
-same `reads`, same residuals. Only the rig and the provenance of `atm`
+same `reads`, same residuals. Only the rig and where `atm` comes from
 changed. That is [§14.9][s14-9]'s relocatability doing its job, and it is the reason
 the problem must never *write* the environment: a condition entry naming a
 wired input fails resolution by name (correctly), so a problem that wrote
