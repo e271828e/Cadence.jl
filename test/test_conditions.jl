@@ -67,7 +67,7 @@ function conditions_algebra()
         @test condition(Pendulum(); θ = 0.5) isa Fragment
     end
 
-    @testset "a `combine` collision names both provenance chains and the layering combinator (§14.2)" begin
+    @testset "a `combine` collision names both origins and the layering combinator (§14.2)" begin
         b = build(tri())
         e = failure(() -> resolve_condition(combine(at("plant", condition(Plant(); y = 1.0)),
                                           at("plant",
@@ -75,8 +75,8 @@ function conditions_algebra()
         d = only(diagnostics(e))
         @test e isa DiagnosticError && d isa DuplicateConditionLeaf
         @test d.path == "plant" && d.store === :x && d.field === :q      # the leaf, by coordinates
-        @test d.provenance == ["combine[1] → at(\"plant\") → fragment(x).q",
-                               "combine[2] → at(\"plant\") → fragment(x).q"]
+        @test d.origins == ["combine[1] → at(\"plant\") → fragment(x).q",
+                            "combine[2] → at(\"plant\") → fragment(x).q"]
     end
 
     @testset "`override` layers: the patch wins, untouched leaves pass through (§14.6)" begin
@@ -96,11 +96,11 @@ function conditions_algebra()
                                         fragment(inputs = (u = 7.0,))), b)
         @test input(p3, :u) === 7.0
 
-        # Provenance keeps both sources: the patch's own chain, and the base's
+        # The origin records both layers: the patch's own chain, and the base's
         # beside it — surfaced here through a violation on the overridden leaf.
         e = failure(() -> resolve_condition(override(fragment(inputs = (u = 1.0,)),
                                            fragment(inputs = (u = "high",))), b))
-        @test only(diagnostics(e)).provenance ==
+        @test only(diagnostics(e)).origin ==
               "override[patch 1] → fragment(inputs).u (overrode override[base] → fragment(inputs).u)"
 
         # A collision *within* one layer is still an error (§14.6).
@@ -127,8 +127,8 @@ function conditions_algebra()
     end
 
     @testset "blending a node with a bare NamedTuple is a directive error method (§14.2)" begin
-        # Raised at composition time, before any resolution pass or provenance
-        # chain exists — which is why it carries its own kind. No build in hand.
+        # Raised at composition time, before any resolution pass runs or any
+        # origin exists — which is why it carries its own kind. No build in hand.
         for f in (() -> combine(fragment(), (q = 1.0,)),        # node × NamedTuple
                   () -> combine((q = 1.0,), fragment()),        # and the other order
                   () -> combine(fragment(), fragment(), (q = 1.0,)),   # at any arity
@@ -425,7 +425,7 @@ function conditions_service_walk()
         @test resolve_condition(at("loop", at("plant", fragment(x = (q = q,)))), b) isa
               ConditionPlan
 
-        # The provenance chain to the `at` is the refusal's entry, so a path
+        # The origin to the `at` is the refusal's entry, so a path
         # authored under a combinator says where in the tree it was written.
         d = only(diagnostics(failure(() -> resolve_condition(
                     combine(at("x", fragment(x = (q = 1.0,))),

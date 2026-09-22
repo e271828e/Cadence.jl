@@ -277,8 +277,8 @@ function assembly_transparent_containers()
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa ChildNameCollision && d.reason === :two_children && d.name == "c1"
-        @test d.provenance == ["name-transparent container field `kids`, element `c1`",
-                               "field `c1`"]
+        @test d.declarations == ["name-transparent container field `kids`, element `c1`",
+                                 "field `c1`"]
         err = failure(() -> build(Pathological((var"units/1" = TickCounter(),),
                                                (TickCounter(),))))
         @test err isa DiagnosticError
@@ -294,7 +294,7 @@ function assembly_transparent_containers()
         d = only(diagnostics(err))
         @test d isa ChildNameCollision && d.reason === :sample_times_sugar && d.name == "kids"
         @test d.field === :kids &&
-              d.provenance == ["name-transparent container field `kids`, element `kids`"]
+              d.declarations == ["name-transparent container field `kids`, element `kids`"]
 
         # ...and one equal to a sibling container field's name shadows the
         # `"field/key"` grammar that reaches *its* children: no child bears the bare
@@ -304,7 +304,7 @@ function assembly_transparent_containers()
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa ChildNameCollision && d.reason === :sibling_field && d.name == "units"
-        @test d.provenance == ["name-transparent container field `kids`, element `units`"]
+        @test d.declarations == ["name-transparent container field `kids`, element `units`"]
 
         # The exemption, on the same type one instantiation away: an *empty* sibling
         # container reaches no children, so there is no grammar to shadow and the
@@ -580,7 +580,7 @@ end
 # `test_discrete.jl`; what is read here is the rate chain the fold records beside
 # them on each component's row — who declared each rate, and at which scope.
 
-function assembly_provenance()
+function assembly_rate_chains()
     @testset "the structure's rows record each component's rate chain and each keyed scope's timing (§9.1, §9.2, D-253, D-261)" begin
         structure = build(MultiRate()).structure
         entry(path) = structure.components[index_of(structure, path)]
@@ -1139,7 +1139,7 @@ function test_assembly()
     assembly_paths()
     assembly_connections()
     assembly_two_level()
-    assembly_provenance()
+    assembly_rate_chains()
     assembly_obligations()
     assembly_primitives()
 end

@@ -32,7 +32,7 @@ end
 
 """
 `combine(nodes...)`: symmetric collection. Order is diagnostics only, and a
-duplicate leaf is an error at resolution with both provenance chains (§14.2).
+duplicate leaf is an error at resolution with both origins (§14.2).
 """
 struct Combined{T<:Tuple}
     nodes::T
@@ -40,7 +40,7 @@ end
 
 """
 `override(base, patches...)`: ordered layering, the fourth node kind (§14.6).
-The patch wins on a shared leaf and provenance keeps both sources; collisions
+The patch wins on a shared leaf and the origin records both layers; collisions
 *within* one layer remain errors, and layering is variadic.
 """
 struct Override{T<:Tuple}
@@ -96,15 +96,15 @@ at(::AbstractString, other) = _node_misuse(other, ())
     combine(nodes...)
 
 Symmetric collection of sibling nodes (§14.2, D-204). Collision-intolerant by
-design: two entries on one leaf are a resolution error naming both provenance
-chains, and the layering spelling is `override`. It is not `Base.merge` and
+design: two entries on one leaf are a resolution error naming both origins,
+and the layering spelling is `override`. It is not `Base.merge` and
 does not extend it — `Base.merge` is last-writer-wins on NamedTuples, the
 exact semantics D-065 rejects here.
 """
 combine(nodes::ConditionNode...) = Combined(nodes)
 
 # The blend of a node with a bare NamedTuple, both orders: an error method,
-# raised at composition time — before any resolution pass or provenance chain
+# raised at composition time — before any resolution pass runs or any origin
 # exists, which is why it carries its own kind rather than a
 # `ConditionResolution` sub-kind (§14.2).
 combine(a::ConditionNode, b::NamedTuple) = _node_misuse(b, (nameof(typeof(a)),))
@@ -115,7 +115,7 @@ combine(nodes...) = _misuse_in(nodes)
     override(base, patches...)
 
 Ordered layering (§14.6): a leaf present in several layers takes the last
-layer's value, with provenance recording both sources. The use case is
+layer's value, with the origin recording both layers. The use case is
 "baseline plus tweaks" — the collision with `combine`'s duplicate-leaf error
 *is* the intent — and trim commits `override(baseline, solution)`.
 
@@ -135,7 +135,7 @@ _node_misuse(v, in_hand) = throw(DiagnosticError(ConditionNodeMisuse(
 
 # --- flattening (§14.3) --------------------------------------------------------
 # The only place path strings are ever concatenated: a recursion with a path
-# accumulator, carrying the provenance chain beside it — the `at` prefixes and
+# accumulator, carrying the origin beside it — the `at` prefixes and
 # the payload position, which is what a collision diagnostic reports.
 #
 # An input entry's *leaf* is the root input its face resolves to, not the face
@@ -156,78 +156,79 @@ struct CEntry
     store::Symbol        # :x | :s | :m | :input
     field::Symbol
     value::Any
-    prov::String
+    origin::String
     face::Union{Nothing,Symbol}   # input entries: the root input the chain lands on
     pos::Tuple                    # the tree position: the step tuple to this value
 end
 
 _key(e::CEntry) = e.face === nothing ? (e.path, e.store, e.field) : ("", :input, e.face)
-_step(prov::String, s::String) = isempty(prov) ? s : prov * " → " * s
+_step(origin::String, s::String) = isempty(origin) ? s : origin * " → " * s
 
-function _flat(n::Fragment, path::String, level, prov::String, pos::Tuple,
+function _flat(n::Fragment, path::String, level, origin::String, pos::Tuple,
                structure::Structure, diags::Vector{Diagnostic})
     out = CEntry[]
     for (store, name, payload) in ((:x, :x, n.x), (:s, :s, n.s),
                                    (:m, :m, n.m), (:input, :inputs, n.inputs))
         for (field, v) in pairs(payload)
-            e = CEntry(path, store, field, v, _step(prov, "fragment($name).$field"),
-                       nothing, (pos..., name, field))
+            entry = CEntry(path, store, field, v, _step(origin, "fragment($name).$field"),
+                           nothing, (pos..., name, field))
             store === :input &&
-                (e = CEntry(e.path, e.store, e.field, e.value, e.prov,
-                            _root_input(structure, e, diags), e.pos))
-            push!(out, e)
+                (entry = CEntry(entry.path, entry.store, entry.field, entry.value,
+                                entry.origin, _root_input(structure, entry, diags), entry.pos))
+            push!(out, entry)
         end
     end
     out
 end
 
-function _flat(n::Scoped, path::String, level, prov::String, pos::Tuple,
+function _flat(n::Scoped, path::String, level, origin::String, pos::Tuple,
                structure::Structure, diags::Vector{Diagnostic})
-    entry = _step(prov, "at(\"$(n.prefix)\")")
+    entry = _step(origin, "at(\"$(n.prefix)\")")
     kid = resolve_authored(entry, path, level, n.prefix, diags)
     kid === nothing && return CEntry[]        # the path is the offender, reported once
     _flat(n.node, _join(path, n.prefix), kid, entry, (pos..., :node), structure, diags)
 end
 
-_flat(n::Combined, path::String, level, prov::String, pos::Tuple,
+_flat(n::Combined, path::String, level, origin::String, pos::Tuple,
       structure::Structure, diags::Vector{Diagnostic}) =
-    reduce(vcat, (_flat(k, path, level, _step(prov, "combine[$i]"), (pos..., :nodes, i),
+    reduce(vcat, (_flat(k, path, level, _step(origin, "combine[$i]"), (pos..., :nodes, i),
                         structure, diags)
                   for (i, k) in enumerate(n.nodes)); init = CEntry[])
 
 # Layering (§14.6): each layer is flattened and checked on its own — a
 # within-layer collision is still an error — and then folded onto the
 # accumulator, the patch replacing the leaf it overrode and inheriting its
-# provenance beside its own.
-function _flat(n::Override, path::String, level, prov::String, pos::Tuple,
+# origin beside its own.
+function _flat(n::Override, path::String, level, origin::String, pos::Tuple,
                structure::Structure, diags::Vector{Diagnostic})
     acc = CEntry[]
     for (i, layer) in enumerate(n.layers)
         label = i == 1 ? "override[base]" : "override[patch $(i - 1)]"
-        es = _flat(layer, path, level, _step(prov, label), (pos..., :layers, i), structure, diags)
+        es = _flat(layer, path, level, _step(origin, label), (pos..., :layers, i), structure, diags)
         _check_duplicates!(es, diags)
-        for e in es
-            j = findfirst(a -> _key(a) == _key(e), acc)
-            j === nothing ? push!(acc, e) :
-                (acc[j] = CEntry(e.path, e.store, e.field, e.value,
-                                 "$(e.prov) (overrode $(acc[j].prov))", e.face, e.pos))
+        for entry in es
+            j = findfirst(a -> _key(a) == _key(entry), acc)
+            j === nothing ? push!(acc, entry) :
+                (acc[j] = CEntry(entry.path, entry.store, entry.field, entry.value,
+                                 "$(entry.origin) (overrode $(acc[j].origin))", entry.face,
+                                 entry.pos))
         end
     end
     acc
 end
 
 # `combine`'s one collision rule, collected rather than thrown (§13.1): both
-# provenance chains and the directive naming the layering combinator.
+# origins and the directive naming the layering combinator.
 function _check_duplicates!(es::Vector{CEntry}, diags::Vector{Diagnostic})
     seen = Dict{Tuple{String,Symbol,Symbol},CEntry}()
-    for e in es
-        k = _key(e)
+    for entry in es
+        k = _key(entry)
         if haskey(seen, k)
-            push!(diags, DuplicateConditionLeaf(path = e.path, store = e.store,
-                                               field = e.field, face = e.face,
-                                               provenance = [seen[k].prov, e.prov]))
+            push!(diags, DuplicateConditionLeaf(path = entry.path, store = entry.store,
+                                               field = entry.field, face = entry.face,
+                                               origins = [seen[k].origin, entry.origin]))
         else
-            seen[k] = e
+            seen[k] = entry
         end
     end
     nothing
@@ -395,10 +396,10 @@ _convert(::Type{P}, v) where {P} =
     end
 
 # One `ConditionResolution` off an entry: the leaf coordinates and the
-# provenance chain are the entry's own, and each arm adds what it observed.
-_cviol(e::CEntry, reason::Symbol; kw...) =
-    ConditionResolution(; path = e.path, store = e.store, field = e.field, face = e.face,
-                        reason = reason, provenance = e.prov, kw...)
+# origin are the entry's own, and each arm adds what it observed.
+_cviol(entry::CEntry, reason::Symbol; kw...) =
+    ConditionResolution(; path = entry.path, store = entry.store, field = entry.field,
+                        face = entry.face, reason = reason, origin = entry.origin, kw...)
 
 # The component a non-input entry addresses. Every `at` prefix was walked at its
 # own authoring level (§13.3), so the path names a level of this build: what is

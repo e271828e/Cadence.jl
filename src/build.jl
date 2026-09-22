@@ -358,8 +358,8 @@ every consumed **stage-2** port; consuming a stage-1 port adds no edge, which is
 the whole structural payoff of the split — a stage-1 port takes no input and so
 carries no input dependence (§5.3). A stall is not reported as its residue: the
 residue is *decomposed* into one `AlgebraicCycle` per strongly connected cluster
-below (§5.6, D-012), which is why `edges` carries the per-dependence provenance
-Kahn itself discards.
+below (§5.6, D-012), which is why `edges` keeps each dependence's port and face,
+which Kahn itself discards.
 """
 function _outputs(structure::Structure, decls::Vector{Decls},
                   stage1::Vector, mstores::Vector)

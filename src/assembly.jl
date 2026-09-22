@@ -116,7 +116,7 @@ function _children(path::String, c)
     tf = invoke_declaration(transparent_container, c)
     kids = Pair{String,Any}[]
     fields = Symbol[]
-    prov = String[]                            # per child, who contributed it
+    declarations = String[]                    # per child, who contributed it
     # The child-naming pass collects (§13.1): every field is walked, and the
     # whole violation list leaves through one throw at the end. A component with
     # three mixed containers reports three, not the first.
@@ -140,7 +140,7 @@ function _children(path::String, c)
         if v isa AbstractComponent
             push!(kids, string(name) => v)
             push!(fields, name)
-            push!(prov, "field `$name`")
+            push!(declarations, "field `$name`")
         elseif v isa NamedTuple || v isa Tuple
             n = count(e -> e isa AbstractComponent, v)
             if n == 0
@@ -169,23 +169,23 @@ function _children(path::String, c)
                 if bare && string(k) == string(name)
                     push!(diags, ChildNameCollision(path = path, name = string(k),
                                                    reason = :sample_times_sugar,
-                                                   provenance = [p], field = name))
+                                                   declarations = [p], field = name))
                     hit = true
                 end
                 if bare && string(k) in shadowable
                     push!(diags, ChildNameCollision(path = path, name = string(k),
-                                                   reason = :sibling_field, provenance = [p]))
+                                                   reason = :sibling_field, declarations = [p]))
                     hit = true
                 end
                 hit && continue                    # a shadowed key names no child
                 push!(kids, (bare ? string(k) : string(name, "/", k)) => v[k])
                 push!(fields, name)
-                push!(prov, p)
+                push!(declarations, p)
             end
         end
     end
     _check_transparent(path, c, tf, diags)
-    _check_child_names(path, kids, prov, diags)
+    _check_child_names(path, kids, declarations, diags)
     isempty(diags) || throw(DiagnosticError(diags))
     kids, fields
 end
@@ -216,12 +216,12 @@ end
 # produced them, two children may not share a name. Bare keys make the case
 # reachable, but the rule is the older one — a child name is a path segment, and
 # a path segment addresses one component.
-function _check_child_names(path::String, kids, prov, diags::Vector{Diagnostic})
+function _check_child_names(path::String, kids, declarations, diags::Vector{Diagnostic})
     for i in eachindex(kids), j in 1:(i - 1)
         first(kids[i]) == first(kids[j]) &&
             push!(diags, ChildNameCollision(path = path, name = first(kids[i]),
                                            reason = :two_children,
-                                           provenance = [prov[j], prov[i]]))
+                                           declarations = [declarations[j], declarations[i]]))
     end
     nothing
 end
@@ -278,8 +278,8 @@ transparent_container(::Group) = :children
 # Slash-separated, relative to the declaring assembly, no leading slash: the one
 # canonical form, used verbatim in declarations and in error messages. A terminal
 # path's last segment is a port or face name; the prefix names one child. Deep
-# structural paths survive on the read side — inspection, provenance, the table
-# accessors — and nowhere in the three wiring declarations (D-207).
+# structural paths survive on the read side — inspection, the face routes, the
+# table accessors — and nowhere in the three wiring declarations (D-207).
 
 """
 Resolve terminal `path` against assembly `asm` at `base`, returning the component

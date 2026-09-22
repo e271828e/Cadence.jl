@@ -303,7 +303,7 @@ Base.showerror(io::IO, e::InternalInvariant) =
 
 "§6.1, §8.4 w1: a wire end naming no port of the endpoint it resolved to, with that end's port list."
 Base.@kwdef struct UnknownPort <: Diagnostic
-    entry::String                            # the declaring method and entry: provenance
+    entry::String                            # the declaring method and entry
     end_::Symbol                             # :source | :destination | :connection (D-210)
     path::String = ""                        # the component that end resolved to
     spelling::String = ""                    # the endpoint path as the entry wrote it
@@ -333,7 +333,7 @@ message(d::UnconnectedInput) =
     " — every input is fed exactly once, by a wire or by an `input_connections` chain " *
     "ending at a root input face (§6.1)"
 
-"§6.1, §8.8: an input claimed twice, both producers named with their provenance."
+"§6.1, §8.8: an input claimed twice, both producers named with their declarations."
 Base.@kwdef struct TwoProducers <: Diagnostic
     path::String                             # the destination terminal's component
     port::Symbol                             # the destination terminal's port
@@ -425,7 +425,7 @@ message(d::RootInputTypeConflict) =
 
 "§6.1, §13.3: a path that resolves to nothing, or reaches past the one level its client admits."
 Base.@kwdef struct PathResolution <: Diagnostic
-    entry::String                            # the condition or wiring entry: provenance
+    entry::String                            # the condition or wiring entry
     spelling::String                         # the path as written
     reason::Symbol   # :not_a_terminal|:unknown_child|:reaches_past|:past_generic|:empty_path
     owner::String = ""                       # the component the path was resolved against
@@ -736,25 +736,30 @@ Base.@kwdef struct ChildNameCollision <: Diagnostic
     path::String
     name::String                             # the colliding child name
     reason::Symbol                           # :sample_times_sugar | :sibling_field | :two_children
-    provenance::Vector{String} = String[]    # one entry for the bare-key arms, two for the duplicate
+    declarations::Vector{String} = String[]  # one entry for the bare-key arms, two for the duplicate
     field::Union{Nothing,Symbol} = nothing   # the container field the key came from
 end
 path(d::ChildNameCollision) = d.path
-_prov(d, i) = i ≤ length(d.provenance) ? d.provenance[i] : "an undetermined declaration"
-message(d::ChildNameCollision) =
-    d.reason === :sample_times_sugar ?
-    "$(_at_path(d.path)): the bare key `$(d.name)` — $(_prov(d, 1)) — collides with " *
+_declaration(diagnostic, i) = i ≤ length(diagnostic.declarations) ?
+                              diagnostic.declarations[i] : "an undetermined declaration"
+message(diagnostic::ChildNameCollision) =
+    diagnostic.reason === :sample_times_sugar ?
+    "$(_at_path(diagnostic.path)): the bare key `$(diagnostic.name)` — " *
+    "$(_declaration(diagnostic, 1)) — collides with " *
     "`sample_times`' field-name sugar, which spells one declaration for every element of " *
-    "`$(d.field)` under that same name (§8.5, §8.7, D-211)" :
-    d.reason === :sibling_field ?
-    "$(_at_path(d.path)): the bare key `$(d.name)` — $(_prov(d, 1)) — collides with " *
-    "container field `$(d.name)`, whose own children are named `$(d.name)/<key>`: no " *
+    "`$(diagnostic.field)` under that same name (§8.5, §8.7, D-211)" :
+    diagnostic.reason === :sibling_field ?
+    "$(_at_path(diagnostic.path)): the bare key `$(diagnostic.name)` — " *
+    "$(_declaration(diagnostic, 1)) — collides with " *
+    "container field `$(diagnostic.name)`, whose own children are named " *
+    "`$(diagnostic.name)/<key>`: no " *
     "child bears the bare name, but the segment grammar that reaches those children does, " *
     "and the key shadows it — leaving them unreachable behind a diagnostic naming the " *
     "wrong child (§8.5, §6.1, D-212)" :
-    "$(_at_path(d.path)): two children are named `$(d.name)` — $(_prov(d, 1)) and " *
-    "$(_prov(d, 2)); a child name is a path segment, and a path segment addresses one " *
-    "component (§8.5, D-211)"
+    "$(_at_path(diagnostic.path)): two children are named `$(diagnostic.name)` — " *
+    "$(_declaration(diagnostic, 1)) and " *
+    "$(_declaration(diagnostic, 2)); a child name is a path segment, and a path segment " *
+    "addresses one component (§8.5, D-211)"
 
 "§8.5, D-211: `transparent_container` naming no container field of the type."
 Base.@kwdef struct TransparentContainerUnknown <: Diagnostic
@@ -1504,7 +1509,7 @@ Base.@kwdef struct ConditionResolution <: Diagnostic
     reason::Symbol   # :assembly_path|:unexported_face|:no_input_face|
                      # :internally_wired|:no_store|:undeclared_field|:unconvertible
     face::Union{Nothing,Symbol} = nothing    # the root input the chain lands on
-    provenance::String = ""                  # the tree's chain to this value
+    origin::String = ""                      # the tree's chain to this value
     candidates::Vector{Symbol} = Symbol[]
     declared::Any = nothing                  # the declared leaf type
     observed::Any = nothing                  # the authored value's type
@@ -1519,47 +1524,54 @@ path(d::ConditionResolution) = d.path
 _cleaf(d) = d.face !== nothing ? "root input `$(d.face)`" :
             d.store === :input ? "input face `$(d.field)` of $(_at_path(d.path))" :
                                  "`$(d.store).$(d.field)` at $(_at_path(d.path))"
-_ctail(d) = " (§14.3) [$(d.provenance)]"
+_ctail(diagnostic) = " (§14.3) [$(diagnostic.origin)]"
 _role_word(r) = r === :output_port ? "an output port" :
                 r === :input_face  ? "an input face" : "a workspace entry"
 
-function message(d::ConditionResolution)
-    d.reason === :assembly_path &&
-        return "the condition addresses $(_at_path(d.path)), which is an assembly — " *
+function message(diagnostic::ConditionResolution)
+    diagnostic.reason === :assembly_path &&
+        return "the condition addresses $(_at_path(diagnostic.path)), which is an assembly — " *
                "assemblies own no state, and a condition addresses components and root " *
-               "inputs (§14.1, §8.5) [$(d.provenance)]"
-    d.reason === :unexported_face &&
-        return "`$(d.field)` is no root input face — the root's inputs are " *
-               "$(_namelist(d.candidates)) (§14.2) [$(d.provenance)]"
-    d.reason === :no_input_face &&
-        return "$(_at_path(d.path)) declares no input face `$(d.field)` — its input faces " *
-               "are $(_namelist(d.candidates)) (§14.2) [$(d.provenance)]"
-    d.reason === :internally_wired &&
-        return "$(_at_path(d.path))'s input face `$(d.field)` reaches no root input — it " *
-               "is wired internally, to `$(first(d.producer))`.$(last(d.producer)), and " *
+               "inputs (§14.1, §8.5) [$(diagnostic.origin)]"
+    diagnostic.reason === :unexported_face &&
+        return "`$(diagnostic.field)` is no root input face — the root's inputs are " *
+               "$(_namelist(diagnostic.candidates)) (§14.2) [$(diagnostic.origin)]"
+    diagnostic.reason === :no_input_face &&
+        return "$(_at_path(diagnostic.path)) declares no input face `$(diagnostic.field)` " *
+               "— its input faces are $(_namelist(diagnostic.candidates)) (§14.2) " *
+               "[$(diagnostic.origin)]"
+    diagnostic.reason === :internally_wired &&
+        return "$(_at_path(diagnostic.path))'s input face `$(diagnostic.field)` reaches no " *
+               "root input — it is wired internally, to `$(first(diagnostic.producer))`." *
+               "$(last(diagnostic.producer)), and " *
                "the first sweep overwrites it; unexported stays unpokeable (§14.2) " *
-               "[$(d.provenance)]"
-    d.reason === :no_store &&
-        return "$(_cleaf(d)) — $(_at_path(d.path)) is a $(d.tier) component and declares " *
-               "no `init_$(d.store)`" *
-               (d.store === :x && d.tier === :discrete ?
+               "[$(diagnostic.origin)]"
+    diagnostic.reason === :no_store &&
+        return "$(_cleaf(diagnostic)) — $(_at_path(diagnostic.path)) is a $(diagnostic.tier) " *
+               "component and declares " *
+               "no `init_$(diagnostic.store)`" *
+               (diagnostic.store === :x && diagnostic.tier === :discrete ?
                 "; the discrete tier's state is `s` (D-195)" :
-                d.store === :s && d.tier === :continuous ?
+                diagnostic.store === :s && diagnostic.tier === :continuous ?
                 "; the continuous tier's state is `x` (D-195)" :
-                d.store === :m ?
-                "; modes are declared by `init_m`, continuous-only (§3.2)" : "") * _ctail(d)
-    d.reason === :undeclared_field &&
-        return "$(_cleaf(d)) is not declared — `init_$(d.store)` at $(_at_path(d.path)) " *
-               "declares $(_namelist(d.candidates))" *
-               (d.role === nothing ? "" :
-                "; `$(d.field)` is $(_role_word(d.role)), and a condition specifies state, " *
-                "modes and root inputs — never outputs, never workspace (§14.1)") * _ctail(d)
-    "$(_cleaf(d)) takes $(d.declared), and the authored value is " *
-    "$(repr(d.value))::$(d.observed), which does not convert" *
-    (d.activation === nothing ? "" :
-     "; this is the seeded activation's own refusal — a value at $(d.activation) is a " *
-     "decision variable and this leaf is pinned, and a decision variable descends into " *
-     "neither a frozen discrete `s` nor a pinned leaf (§14.3, §9.4)") * _ctail(d)
+                diagnostic.store === :m ?
+                "; modes are declared by `init_m`, continuous-only (§3.2)" : "") *
+               _ctail(diagnostic)
+    diagnostic.reason === :undeclared_field &&
+        return "$(_cleaf(diagnostic)) is not declared — `init_$(diagnostic.store)` at " *
+               "$(_at_path(diagnostic.path)) " *
+               "declares $(_namelist(diagnostic.candidates))" *
+               (diagnostic.role === nothing ? "" :
+                "; `$(diagnostic.field)` is $(_role_word(diagnostic.role)), and a condition " *
+                "specifies state, " *
+                "modes and root inputs — never outputs, never workspace (§14.1)") *
+               _ctail(diagnostic)
+    "$(_cleaf(diagnostic)) takes $(diagnostic.declared), and the authored value is " *
+    "$(repr(diagnostic.value))::$(diagnostic.observed), which does not convert" *
+    (diagnostic.activation === nothing ? "" :
+     "; this is the seeded activation's own refusal — a value at $(diagnostic.activation) " *
+     "is a decision variable and this leaf is pinned, and a decision variable descends into " *
+     "neither a frozen discrete `s` nor a pinned leaf (§14.3, §9.4)") * _ctail(diagnostic)
 end
 
 "§14.2: one leaf written by two fragments of a `combine` — collision-intolerant by design."
@@ -1568,11 +1580,14 @@ Base.@kwdef struct DuplicateConditionLeaf <: Diagnostic
     store::Symbol = :input
     field::Symbol
     face::Union{Nothing,Symbol} = nothing
-    provenance::Vector{String} = String[]    # both chains
+    origins::Vector{String} = String[]       # both chains
 end
 path(d::DuplicateConditionLeaf) = d.path
-message(d::DuplicateConditionLeaf) =
-    "$(_cleaf(d)) is written twice — by $(_prov(d, 1)), and by $(_prov(d, 2)). `combine` " *
+_origin(diagnostic, i) = i ≤ length(diagnostic.origins) ?
+                         diagnostic.origins[i] : "an undetermined declaration"
+message(diagnostic::DuplicateConditionLeaf) =
+    "$(_cleaf(diagnostic)) is written twice — by $(_origin(diagnostic, 1)), and by " *
+    "$(_origin(diagnostic, 2)). `combine` " *
     "is collision-intolerant by design — use `override(base, patch)` to layer (§14.2, §14.6)"
 
 "§14.2: a value handed to a condition combinator that is not a condition node."
@@ -1911,30 +1926,33 @@ _replay_paths(ps) = isempty(ps) ? "none" : join((_at_path(p) for p in ps), ", ")
 # The `:deployment` arms, one per case the walk in `trace.jl` emits: the seven
 # parameters and the two lists carry no path, a schedule row and a rate scope
 # carry theirs, and a scope column rides in `name` behind its prefix.
-_replay_deployment(d::ReplayHeaderMismatch) =
-    isempty(d.path) ?
-    (d.name === :schedule ?
-     "replay: the recording's schedule covers $(_replay_paths(d.expected)) and this " *
-     "deployment's covers $(_replay_paths(d.found)) — the rows are compared by component " *
-     "path, so a differing component list is reported whole: past the first difference the " *
-     "rows name different components (§12.7)" :
-     d.name === Symbol("scope.key") ?
-     "replay: the recording opened the rate scopes $(_namelist(d.expected)) and this " *
-     "deployment opens $(_namelist(d.found)) — a scope is identified by its path and its " *
-     "key, so a differing scope list is reported whole rather than column by column (§12.7)" :
-     "replay: the recording ran at `$(d.name)` = $(d.expected) and this simulation is bound " *
-     "at $(d.found) — the seven trajectory-determining deployment parameters are compared, " *
-     "the schedule with them, never taken as a what-if: a deployment change moves the times " *
-     "the frame-ordinal batches apply at, which is different inputs rather than a modified " *
-     "model (§12.7)") :
-    startswith(String(d.name), "scope.") ?
-    "replay: the rate scope at $(_at_path(d.path)) recorded " *
-    "`$(chopprefix(String(d.name), "scope."))` = $(repr(d.expected)) and this deployment " *
-    "binds $(repr(d.found)) — a scope is compared with every column, the anchor included, " *
-    "because it is what the rates under it were declared through (§12.7)" :
-    "replay: the schedule row for $(_at_path(d.path)) recorded `$(d.name)` = " *
-    "$(repr(d.expected)) and this deployment binds $(repr(d.found)) — the schedule is " *
-    "compared with every column, the anchor and provenance included, so a rate re-declared " *
+_replay_deployment(diagnostic::ReplayHeaderMismatch) =
+    isempty(diagnostic.path) ?
+    (diagnostic.name === :schedule ?
+     "replay: the recording's schedule covers $(_replay_paths(diagnostic.expected)) and " *
+     "this deployment's covers $(_replay_paths(diagnostic.found)) — the rows are compared " *
+     "by component path, so a differing component list is reported whole: past the first " *
+     "difference the rows name different components (§12.7)" :
+     diagnostic.name === Symbol("scope.key") ?
+     "replay: the recording opened the rate scopes $(_namelist(diagnostic.expected)) and " *
+     "this deployment opens $(_namelist(diagnostic.found)) — a scope is identified by its " *
+     "path and its key, so a differing scope list is reported whole rather than column by " *
+     "column (§12.7)" :
+     "replay: the recording ran at `$(diagnostic.name)` = $(diagnostic.expected) and this " *
+     "simulation is bound at $(diagnostic.found) — the seven trajectory-determining " *
+     "deployment parameters are compared, the schedule with them, never taken as a " *
+     "what-if: a deployment change moves the times the frame-ordinal batches apply at, " *
+     "which is different inputs rather than a modified model (§12.7)") :
+    startswith(String(diagnostic.name), "scope.") ?
+    "replay: the rate scope at $(_at_path(diagnostic.path)) recorded " *
+    "`$(chopprefix(String(diagnostic.name), "scope."))` = $(repr(diagnostic.expected)) and " *
+    "this deployment binds $(repr(diagnostic.found)) — a scope is compared with every " *
+    "column, the anchor included, because it is what the rates under it were declared " *
+    "through (§12.7)" :
+    "replay: the schedule row for $(_at_path(diagnostic.path)) recorded " *
+    "`$(diagnostic.name)` = $(repr(diagnostic.expected)) and this deployment binds " *
+    "$(repr(diagnostic.found)) — the schedule is " *
+    "compared with every column, the anchor and rate chain included, so a rate re-declared " *
     "through a different anchor at the same tick table is a different deployment (§12.7)"
 
 message(d::ReplayHeaderMismatch) =
