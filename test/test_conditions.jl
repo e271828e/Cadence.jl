@@ -425,7 +425,7 @@ function conditions_service_walk()
         @test resolve_condition(at("loop", at("plant", fragment(x = (q = q,)))), b) isa
               ConditionPlan
 
-        # The origin to the `at` is the refusal's entry, so a path
+        # The refusal's entry is the origin down to the `at`, so a path
         # authored under a combinator says where in the tree it was written.
         d = only(diagnostics(failure(() -> resolve_condition(
                     combine(at("x", fragment(x = (q = 1.0,))),
