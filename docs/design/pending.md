@@ -40,15 +40,11 @@ Where the reason is not given here, the cited decision carries it:
   every-component `Dual` sweep, so D-166's CI policy is one fixture; the
   once-per-frame `ReplayDiscardedStaging` noise from a live device during
   replay is unpresented (§11.8).
-- **Naming sweeps**, owed to the code's reader rather than the spec.
-  Function parameters and bindings that outlive a few lines carry
-  single-letter names across `src/` (`w`, `s`, `b`, `d`, the last meaning a
-  diagnostic, a deployment or a `Decls` by file); the rule since 2026-09-21
-  is a descriptive name, single letters kept for the spec's symbols, for
-  bindings visible in one glance and for the component index `ci`.
-  Increment 48 applies it to what it touches; the rest of the tree is one
-  mechanical sweep after it, which also folds `assembly.jl`'s `_at` into
-  `diagnostics.jl`'s `_at_path`, the same function twice.
+- **`_at` and `_at_path` are the same function twice**, owed to the code's
+  reader rather than the spec: `assembly.jl:72`'s `_at(path::String)` and
+  `diagnostics.jl:69`'s `_at_path(p::AbstractString)` render a component
+  path identically. Fold the first into the second; its six callers are
+  `assembly.jl:300, 321, 378, 391, 400, 1163`.
 - **The "provenance" sweep**, owed to every reader. The word is obscure and
   carries six meanings in the tree: a component's rate declaration chain
   and an anchor's declaring scope and key (§9.1, §9.2); a face's route to
@@ -62,7 +58,7 @@ Where the reason is not given here, the cited decision carries it:
   style rule 2), `implementation.md`, `src/` and `test/`. Counts on
   2026-09-21: spec 44, log 31, companions 7, `implementation.md` 3, `src/`
   58, `test/` 35; §13.7's heading and D-249's title carry it, so the sweep
-  re-runs `linkify.jl`. After the naming sweep above.
+  re-runs `linkify.jl`.
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, the rig; §6.2's spellings) — a
   migration-phase deliverable by the spec's word, deferred with §16 (M-B22).
