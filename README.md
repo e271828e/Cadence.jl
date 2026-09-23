@@ -1,196 +1,112 @@
 # Cadence.jl
 
-Cadence is a framework for simulating hierarchical models that mix continuous
-dynamics, multi-rate periodic discrete dynamics and discrete events. It is
-being built to replace `FlightCore` as the substrate for `FlightPhysics` and
-`FlightApps` in Flight.jl, and it is not yet usable as a dependency: the
-package exports nothing, and it grows one increment at a time behind a settled
-design.
+Cadence is a Julia framework for modeling and simulating hierarchical hybrid
+systems. A model is a tree of components that exchange values through directed
+ports, mixing continuous dynamics, multi-rate periodic discrete dynamics and
+events. Its home domain is aircraft guidance, navigation and control, but the
+formalism is domain-neutral.
 
-The design is written down before it is built. `docs/design/spec.md` is
-normative and defines the framework; `docs/design/decisions.md` records every
-ruling and the alternatives it rejected. Design and code are peers: `src/`
-implements the specification, and what the code learns amends it. Neither is
-subservient to the other, and neither is finished until they agree.
+## Status
 
-## What it simulates
+Cadence is under active development and is not yet registered. Its API may
+change without notice. The module exports nothing yet, so every name is
+imported explicitly. Cadence requires Julia 1.12 or later.
 
-A model is a tree of components over one hybrid formalism:
-
-- **Continuous dynamics**, `ẋ = f(x, m, u, t)`, with algebraic outputs.
-- **Multi-rate periodic discrete dynamics**, `s⁺ = g(s, u, t)` at declared
-  rates, whose outputs are held zero-order between ticks.
-- **Zero-crossing events**: a guard function and a handler, under two
-  detection policies. A `Bool` guard is checked for edges at step boundaries
-  and costs one evaluation per event per step. A sign-valued guard has its
-  crossing instant located by root-finding, for the events where timing
-  matters.
-- **Manifold projection**: an optional `x ← state_projection(x)` after each
-  accepted step, for quaternion renormalization and anything else
-  manifold-valued.
-- **External inputs**, injected asynchronously by the runtime from devices,
-  the network or a GUI.
-
-Leaves are one tier or the other. Hybridness emerges at the assembly level,
-where continuous vehicle parts meet discrete avionics parts.
-
-## Authoring a component
-
-A component is ordinary Julia. There is no macro DSL. Its structural facts are
-declared by methods on a small set of framework generic functions, defined
-beside the stage functions that compute with them:
+## Installation
 
 ```julia
-import Cadence: AbstractComponent, init_x, input_types, output_types,
-    output_state, output_direct, state_derivative
+using Pkg
+Pkg.add(url = "https://github.com/e271828e/Cadence.jl")
+```
 
-struct Oscillator <: AbstractComponent
+## Quick start
+
+A continuous plant under a discrete PI controller running at 50 Hz:
+
+```julia
+using Cadence
+import Cadence: AbstractComponent, init_x, init_s, input_types, output_types,
+    output_state, output_direct, state_derivative, state_update,
+    Group, Absolute, Hz, Simulation, init!, run!, fragment, port, state, build
+
+struct Plant <: AbstractComponent
     ω::Float64
     ζ::Float64
 end
 
-init_x(::Oscillator) = (q = SVector(0.0, 0.0),)
-input_types(::Oscillator, ::Type{T}) where {T <: Real} = (u = T,)
-output_types(::Oscillator, ::Type{T}) where {T <: Real} = (y = T, power = T)
+init_x(::Plant) = (q = 0.0, v = 0.0)
+input_types(::Plant, ::Type{T}) where {T <: Real} = (u = T,)
+output_types(::Plant, ::Type{T}) where {T <: Real} = (y = T, power = T)
 
-output_state(::Oscillator, (; x)) = (y = x.q[1],)              # stage 1: state only
-output_direct(::Oscillator, (; x, u)) = (power = u.u * x.q[2],) # stage 2: feeds through
+output_state(::Plant, (; x)) = (y = x.q,)                 # stage 1: state only
+output_direct(::Plant, (; x, u)) = (power = u.u * x.v,)   # stage 2: reads inputs
+state_derivative(p::Plant, (; x, u)) =
+    (q = x.v, v = -p.ω^2 * x.q - 2p.ζ * p.ω * x.v + u.u)
 
-state_derivative(c::Oscillator, (; x, u)) =
-    (q = SVector(x.q[2], -c.ω^2 * x.q[1] - 2c.ζ * c.ω * x.q[2] + u.u),)
-```
+struct PI <: AbstractComponent
+    k_p::Float64
+    k_i::Float64
+end
 
-Three things in that listing carry weight.
+init_s(::PI) = (integral = 0.0,)
+input_types(::PI) = (ref = Float64, y = Float64)
+output_types(::PI) = (u = Float64,)
 
-The `import` line is authoring surface, not boilerplate. A component author
-*extends* the framework's generics rather than calling them, and Julia admits
-that only through an explicit per-name import. A bare `using` would leave
-`state_derivative(::Oscillator, …)` defining a new unrelated function,
-silently, so the list is written wherever a component is. Everything used
-further down — `Group`, `Simulation`, `run!` — is imported the same way, the
-package exporting nothing so far.
+output_direct(c::PI, (; s, u)) = (u = c.k_p * (u.ref - u.y) + s.integral,)
+state_update(c::PI, (; s, u, Δt)) = (integral = s.integral + c.k_i * Δt * (u.ref - u.y),)
 
-The declarations are the schema. `output_types` defines what the component
-publishes; the build probes the stage functions with real values and checks
-what they return against it. Types by declaration, values by execution,
-conformance by comparison, never the reverse.
+loop(feedback) = Group((plant = Plant(2.0, 0.3), ctl = PI(3.0, 2.0));
+    wires = ("ctl/u" => "plant/u", "plant/$feedback" => "ctl/y"),
+    inputs = "ref" => "ctl/ref",
+    outputs = "plant/y" => "y",
+    rates = (ctl = Absolute(Hz(50)),))
 
-Outputs come in two stages. `output_state` sees state and time but no inputs,
-so nothing consuming it acquires a dependence on this component's inputs.
-`output_direct` sees inputs and feeds through. That distinction is what the
-next section is about.
-
-## Composition, and what the build makes of it
-
-An assembly is children, connections and boundary faces. It has no dynamics of
-its own:
-
-```julia
-loop(feedback_port) =
-    Group((plant = Oscillator(2.0, 0.1), ctl = Gain(4.0), sum = Sum());
-          wires = ("ctl/out" => "plant/u",
-                   "sum/e"   => "ctl/e",
-                   "plant/$feedback_port" => "sum/b"),
-          inputs = "ref" => "sum/a",
-          outputs = "plant/y" => "y")
-```
-
-Nothing here states an evaluation order. The build derives the schedule from
-the declared feedthrough structure, and the two output stages are what make
-that structure readable: `plant/y` is a stage-1 port, so routing it back into
-the summing junction breaks the loop legally.
-
-Route the feedback through the stage-2 port instead, and the model is refused:
-
-```julia
-julia> build(loop("power"))
-ERROR: BuildError: AlgebraicCycle: algebraic loop through stage-2 ports:
-plant → ctl → sum — break it with a stage-1 (`output_state`) port, which
-carries no input dependence (§5.4/§5.5)
-```
-
-Refusals are like that throughout. A diagnostic is a value with a kind and a
-payload, it names the parties involved, and where a check can collect rather
-than fail on the first violation, it does.
-
-## Running it
-
-```julia
 sim = Simulation(loop("y"); h = 1//1000)
-init!(sim, fragment(inputs = (ref = 0.7,)))
-run!(sim; t_end = 2.0)
+init!(sim, fragment(inputs = (ref = 1.0,)))
+run!(sim; t_end = 10.0)
 
-port(sim, "plant", :y)      # a published port, by path and name
-state(sim, "plant").q       # a component's continuous state
+port(sim, "plant", :y)    # 0.9654…
+state(sim, "plant")       # (q = 0.9654…, v = 0.0120…)
 ```
 
-The framework owns the loop. `init!` takes an initial condition as a value
-that resolves against the model's structure, and the run advances on a fixed
-grid with events localized inside it.
+The `import` list is part of authoring. A component extends the framework's
+functions rather than calling them, and Julia allows that only for names
+imported explicitly.
 
-## Design commitments
+Each component has two output stages. `output_state` sees only the state, and
+`output_direct` also sees the inputs. The build derives the execution order
+from that split. Feeding back the plant's stage-2 `power` port instead of `y`
+closes an algebraic loop, and the build refuses the model:
 
-- **The schedule is derived, not authored.** Feedthrough is structural, so
-  algebraic loops are a build error naming the cycle rather than a runtime
-  surprise.
-- **Zero-allocation stepping and type stability** are invariants the test
-  suite asserts, not aspirations.
-- **No shared mutable model.** The periphery writes by staging and reads by
-  snapshot, so nothing outside the loop touches live state.
-- **Deterministic replay is a guarantee.** RNG state lives in component
-  discrete state and never in ambient globals, so the same seed gives a
-  bit-identical trajectory. A recorded input trace re-drives the ordinary
-  loop rather than a special one.
-- **Failures are structured values.** One carrier exception, a closed set of
-  diagnostic kinds, and compiler-style rendering.
+```
+julia> build(loop("power"))
+ERROR: DiagnosticError: 1 diagnostics
+  AlgebraicCycle: algebraic loop among `plant`, `ctl`: plant/power → ctl/y, ctl/u → plant/u — real: a loop survives the trace (`ctl` structurally, the rest globally); break it with a state, a unit delay or a stage-1 (`output_state`) port (§5.5)
+```
 
-What it deliberately excludes says as much. No DAEs, because projection covers
-the actual need, which is state manifolds. No SDEs, because turbulence and
-sensor noise are faithfully modeled as RNG-driven discrete processes, and that
-choice is what buys deterministic replay. No unconditional per-step hook,
-because every use of one decomposes into projection or a boundary-detected
-event.
+## Features
 
-## Status
+- Continuous dynamics on a fixed step, with events located by root-finding or
+  checked at step boundaries.
+- Multi-rate periodic discrete dynamics, held zero-order between ticks.
+- An execution order derived from declared feedthrough. Algebraic loops are
+  build errors that name the cycle.
+- Zero-allocation stepping and type stability, both asserted by the test suite.
+- A runtime data plane for devices, GUIs and scripts, with staged writes,
+  snapshot reads and no shared mutable model.
+- Bit-identical replay from a recorded input trace.
+- Initialization and trim, with exact automatic-differentiation Jacobians.
+- Structured diagnostics from a closed set of kinds, reported where the
+  mistake was made.
 
-All design axes are settled, with a few items in §16 still open. The decision
-log runs to 217 entries.
+Linearization, the GUI write path, real-time pacing and pausing are designed
+but not yet built.
 
-The package implements the formalism, the declaration layer, the build
-pipeline, execution with multi-rate scheduling and event localization, the
-runtime data plane with its trace and replay, error discipline, and the
-stopped-sim services including trimming. It runs 1803 tests green. Not built
-yet: the GUI write path, real-time pacing, linearization and mounting, and the
-control plane's pause surface. `docs/design/pending.md` keeps the full list
-of what is absent and why.
+## Documentation
 
-The package exports nothing so far. Which names are public API is a
-spec-driven question, still open.
+Cadence has no user manual yet. Its design is written down in full:
 
-## Repository layout
-
-- `docs/design/` holds the design and the implementation's register.
-  `spec.md` is normative, `decisions.md` is the log, `implementation.md`
-  covers what `src/` and `test/` actually build and `pending.md` what they
-  still owe the spec, `companions/` holds worked explainers, and `tools/`
-  holds the consistency checkers and the two style guides. Read the matching
-  style guide before editing the spec or the log, and `implementation.md`
-  before touching `src/`.
-- `src/` is the `Cadence` package, `test/` its suite.
-- `prototypes/` holds the frozen cell-store benchmark behind D-162 and a
-  pre-design syntax sketch that no longer runs.
-
-The repository was spun off from Flight.jl's `core-redesign-2` branch on
-2026-08-29 and carries that branch's history.
-
-## Commands
-
-Run the test suite from the repository root:
-
-    julia --project=. test/runtests.jl
-
-Check the design documents' cross references:
-
-    julia docs/design/tools/check_refs.jl
-
-The other design tools sit beside it in `docs/design/tools/`.
+- `docs/design/spec.md` is the normative specification.
+- `docs/design/decisions.md` records every design decision and the
+  alternatives it rejected.
+- `docs/design/companions/` holds worked explainers.
