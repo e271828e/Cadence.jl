@@ -35,9 +35,9 @@ through this accessor and it returned: `conditions.jl`'s `_resolve_entries`,
 function invoke_declaration(fn, comp, args...)
     try
         fn(comp, args...)
-    catch e
-        _passes_frame(e) && rethrow()
-        throw(DiagnosticError(UserCodeFraming(fn = String(nameof(fn)), cause = e)))
+    catch err
+        _passes_frame(err) && rethrow()
+        throw(DiagnosticError(UserCodeFraming(fn = String(nameof(fn)), cause = err)))
     end
 end
 
@@ -50,16 +50,16 @@ carrying the bundle's names and the synthesized inputs as a spelling.
 function invoke_probed(fn, family::Symbol, path::String, comp, tier::Tier, bundle::NamedTuple)
     try
         fn(comp, bundle)
-    catch exception
-        _passes_frame(exception) && rethrow()
-        if exception isa FieldError && exception.type === typeof(bundle)
+    catch err
+        _passes_frame(err) && rethrow()
+        if err isa FieldError && err.type === typeof(bundle)
             throw(DiagnosticError(BundleFieldError(path = path, family = String(family),
-                tier = tier === CONTINUOUS ? :continuous : :discrete, field = exception.field,
+                tier = tier === CONTINUOUS ? :continuous : :discrete, field = err.field,
                 legal = collect(keys(bundle)),
-                reason = classify_bundle_field(family, tier, exception.field))))
+                reason = classify_bundle_field(family, tier, err.field))))
         end
         throw(DiagnosticError(UserCodeFraming(path = path, fn = String(family),
-            bundle = collect(keys(bundle)), inputs = _inputs_spelling(bundle), cause = exception)))
+            bundle = collect(keys(bundle)), inputs = _inputs_spelling(bundle), cause = err)))
     end
 end
 
@@ -68,7 +68,7 @@ end
 function _inputs_spelling(bundle::NamedTuple)
     haskey(bundle, :u) || return ""
     try replace(sprint(show, bundle.u; context = :compact => true), '\n' => ' ')
-    catch e; e isa InterruptException ? rethrow() : "<unshowable>" end
+    catch err; err isa InterruptException ? rethrow() : "<unshowable>" end
 end
 
 """
@@ -79,9 +79,9 @@ Every other throw passes.
 function at_component(thunk, path::String)
     try
         thunk()
-    catch exception
-        if exception isa DiagnosticError{UserCodeFraming} && isempty(exception.carried.path)
-            framing = exception.carried
+    catch err
+        if err isa DiagnosticError{UserCodeFraming} && isempty(err.carried.path)
+            framing = err.carried
             throw(DiagnosticError(UserCodeFraming(path = path, fn = framing.fn, bundle = framing.bundle,
                                                   inputs = framing.inputs, cause = framing.cause)))
         end
@@ -568,8 +568,8 @@ function cell_layout(structure::Structure, decls::Vector{Decls}, ::Type{T}) wher
         # author's override is the override's own and propagates.
         value = try
             probe_value(cell_type)
-        catch e
-            (e isa MethodError && _framework_synthesis(cell_type)) || rethrow()
+        catch err
+            (err isa MethodError && _framework_synthesis(cell_type)) || rethrow()
             push!(diags, MissingProbeValue(face = face, declared = cell_type))
             continue
         end
@@ -752,12 +752,12 @@ function build(root::AbstractComponent; activations::Tuple = ())
             end
             built
         end
-    catch e
+    catch err
         # The rewrap sits here, not at each barrier: a barrier throws the
         # collection its own passes produced and stays ignorant of the channel,
         # and only the entry point knows the whole build's warnings (D-250).
-        (e isa DiagnosticError && !isempty(raised_warnings)) &&
-            throw(DiagnosticError(e.carried, raised_warnings))
+        (err isa DiagnosticError && !isempty(raised_warnings)) &&
+            throw(DiagnosticError(err.carried, raised_warnings))
         rethrow()
     end
     # The completed build carries the record; the entry point logs each warning
