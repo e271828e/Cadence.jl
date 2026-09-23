@@ -225,10 +225,10 @@ any task, at any wall-clock moment; the batch lands at the top of the next
 frame `run!` advances. On a handle whose device was detached the call is a
 contract misuse and throws by name (D-244).
 """
-function stage!(h::DeviceHandle, pairs::Pair...)
+function stage!(h::DeviceHandle, writes::Pair...)
     _assert_attached(h)
     _beat!(h.diag)
-    batch = _normalize(h.writer, pairs, h.claimedby, h.diag; device = h.who)
+    batch = _normalize(h.writer, writes, h.claimedby, h.diag; device = h.who)
     batch === nothing || _stage!(h.writer, batch)
     nothing
 end

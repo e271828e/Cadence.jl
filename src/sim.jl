@@ -144,7 +144,7 @@ Materialization (§9.2, D-254): deploying and materializing are two steps, with
 two sugar forms over them. The `Deployment` is scalar-free and one backs many
 `Simulation`s; this call fixes the scalar, allocating the buffers and the
 stopped-sim services. The scalar picks the activation the entries compile over,
-through `activation(d.build, T)`, which serves the nominal `Float64` entry the
+through `activation(deployment.build, T)`, which serves the nominal `Float64` entry the
 build inserted and derives and caches any other (§9.4). The two convenience
 forms are *defined as* the compositions: `Simulation(build; kw…)` is
 `Simulation(Deployment(build; grid kw…), T; rest…)`, and `Simulation(root; kw…)`
@@ -182,7 +182,7 @@ no keywords here either: they configure the run's log and trace, which the
 doors build, so `init!` and `replay!` take them, each for the run it opens
 (§12.6, Appendix B, D-261).
 """
-function Simulation(d::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
+function Simulation(deployment::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
                     chunk_size::Int = 16) where {T}
     # This call's own keyword is not a deployment parameter, so it is an
     # `ArgumentInvalid` (D-256, Appendix C), collected as the call's one throw
@@ -193,23 +193,24 @@ function Simulation(d::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
         push!(diags, ArgumentInvalid(call = :Simulation, reason = :range,
                                      argument = :join_timeout, value = join_timeout))
     isempty(diags) || throw(DiagnosticError(diags))
-    act = activation(d.build, T)
-    ex = compile(d.build, act, d.schedule; chunk_size, algorithm = d.algorithm)
+    act = activation(deployment.build, T)
+    exec = compile(deployment.build, act, deployment.schedule; chunk_size,
+                   algorithm = deployment.algorithm)
     # §12.6's placeholder run (D-255, D-261): an empty log at the defaults that
     # nothing reads and no trace, so every accessor has a run to read. It
     # carries no configuration; the first door builds the run that records.
     run = Run{T}(SnapshotLog(true, 1, typemax(Int)), nothing, nothing, nothing)
-    Simulation{T,typeof(ex)}(d, ex, DataPlane(act.layout), Control(Float64(join_timeout)),
+    Simulation{T,typeof(exec)}(deployment, exec, DataPlane(act.layout), Control(Float64(join_timeout)),
                              run)
 end
 
 # The two sugar forms, each *defined as* the composition (§9.2, D-254): every
 # existing call site deploys and materializes in one call, and nothing in the
 # artifact is lost by composing.
-Simulation(b::Build, ::Type{T} = Float64; h = nothing, N_base = nothing,
+Simulation(build::Build, ::Type{T} = Float64; h = nothing, N_base = nothing,
            Δt_base = nothing, algorithm = RK4, firing_budget = 4,
            localization_tol = 1e-6, localization_budget = 8, kw...) where {T} =
-    Simulation(Deployment(b; h, N_base, Δt_base, algorithm, firing_budget,
+    Simulation(Deployment(build; h, N_base, Δt_base, algorithm, firing_budget,
                           localization_tol, localization_budget), T; kw...)
 Simulation(root::AbstractComponent, ::Type{T} = Float64; kw...) where {T} =
     Simulation(build(root), T; kw...)
@@ -231,9 +232,9 @@ warnings(sim::Simulation) = vcat(warnings(sim.deployment.build), warnings(sim.de
 # the stop faces are looked at. `Inf` is a value, not an absence: it is the
 # default every advance states, and `_frames_to` maps it onto the frame loop's
 # unbounded budget.
-_t_bound(t, call::Symbol) = (t isa Real && t ≥ 0) ? Float64(t) :
+_t_bound(t_end, call::Symbol) = (t_end isa Real && t_end ≥ 0) ? Float64(t_end) :
     throw(DiagnosticError(ArgumentInvalid(call = call, reason = :range,
-                                          argument = :t_end, value = t)))
+                                          argument = :t_end, value = t_end)))
 
 # Whole frames from the origin `t₀` until the grid boundary `t₀ + k·h` first
 # reaches the bound `t` (§12.4, §12.6), and its floor sibling, the last
@@ -250,7 +251,7 @@ function _frames_to(t::Real, t₀::Real, h::Float64)
     max(0, ceil(Int, (t - t₀) / h - _frame_slack(t, h)))
 end
 _frame_at(t::Real, t₀::Real, h::Float64) = floor(Int, (t - t₀) / h + _frame_slack(t, h))
-_t_end_frame(sim::Simulation, te::Float64) = _frames_to(te, sim.exec.clock.t₀, sim.deployment.h)
+_t_end_frame(sim::Simulation, t_end::Float64) = _frames_to(t_end, sim.exec.clock.t₀, sim.deployment.h)
 
 # §13.5's stop-face validation and compilation, run identically at the three
 # binding sites — `run!`, `replay!` and `step!` (§12.7): each name must be a
@@ -264,26 +265,26 @@ function _stop_faces(layout::Layout, stop_on, diags::Vector{Diagnostic}; site::S
     # The root output-face list Appendix C asks a refusal to carry: every cell
     # the root addresses, less the root inputs — `addr` is a dictionary, so the
     # order is fixed here rather than left to hashing.
-    out_faces = sort!(Symbol[f for ((p, f), _) in layout.addr
+    candidates = sort!(Symbol[f for ((p, f), _) in layout.addr
                              if isempty(p) && !(f in root_input_names)])
-    for f in stop_on
-        s = Symbol(f)
-        if !haskey(layout.addr, ("", s))
-            push!(diags, StopFaceInvalid(face = s, reason = :unknown, site = site,
-                                         candidates = out_faces))
+    for requested in stop_on
+        face = Symbol(requested)
+        if !haskey(layout.addr, ("", face))
+            push!(diags, StopFaceInvalid(face = face, reason = :unknown, site = site,
+                                         candidates = candidates))
             continue
         end
-        if s in root_input_names
-            push!(diags, StopFaceInvalid(face = s, reason = :root_input, site = site))
+        if face in root_input_names
+            push!(diags, StopFaceInvalid(face = face, reason = :root_input, site = site))
             continue
         end
-        a = layout.addr[("", s)]
-        if _port_type(a) !== Bool
-            push!(diags, StopFaceInvalid(face = s, reason = :not_bool, site = site,
-                                         declared = _port_type(a)))
+        address = layout.addr[("", face)]
+        if _port_type(address) !== Bool
+            push!(diags, StopFaceInvalid(face = face, reason = :not_bool, site = site,
+                                         declared = _port_type(address)))
             continue
         end
-        s in faces || (push!(faces, s); push!(addrs, a))
+        face in faces || (push!(faces, face); push!(addrs, address))
     end
     (faces, addrs)
 end
@@ -304,9 +305,9 @@ end
 # `_t_bound` is fail-fast, and the faces are a collecting pass behind it — so a
 # call naming both a bad bound and a bad face is refused for the bound.
 function _bind_policy(sim::Simulation, t_end, stop_on, site::Symbol)
-    te = _t_bound(t_end, site)
+    bound = _t_bound(t_end, site)
     (faces, addrs) = _stop_faces(sim.exec.act.layout, stop_on; site)
-    (StopPolicy(te, faces), addrs)
+    (StopPolicy(bound, faces), addrs)
 end
 
 """
@@ -363,22 +364,22 @@ termination(sim::Simulation) = sim.run.termination
 # outermost `finally`, after the sweep has the residue in hand. `t` is the
 # final snapshot's boundary time in the deployment's own scalar: both entries
 # refuse a `built` simulation and boundary zero published, so the snapshot
-# exists (D-233). `pol` is this advance's, arriving as the argument the call
+# exists (D-233). `policy` is this advance's, arriving as the argument the call
 # built — the terminating one, the one that explains the stop, and this is
 # where it stops travelling (D-255, D-260).
-_record(sim::Simulation{T}, pol::StopPolicy, src::TerminationSource,
+_record(sim::Simulation{T}, policy::StopPolicy, source::TerminationSource,
         residue::Vector{ResidueRecord}) where {T} =
-    TerminationRecord{T}(latest(sim).t, pol, src, residue)
+    TerminationRecord{T}(latest(sim).t, policy, source, residue)
 
 # §13.5's sampling read, after every publication: the named faces off the
 # just-published snapshot, first holding face wins, in declaration order.
-# `addrs` is the faces' compiled addresses, index-aligned with `pol.faces` by
+# `addrs` is the faces' compiled addresses, index-aligned with `policy.faces` by
 # `_bind_policy` (D-261).
-function _stop_hit(sim::Simulation, pol::StopPolicy, addrs::Vector{Any})
+function _stop_hit(sim::Simulation, policy::StopPolicy, addrs::Vector{Any})
     isempty(addrs) && return nothing
-    snap = latest(sim)
+    snapshot = latest(sim)
     for i in eachindex(addrs)
-        gather(snap.store, addrs[i]) === true && return pol.faces[i]
+        gather(snapshot.store, addrs[i]) === true && return policy.faces[i]
     end
     nothing
 end
@@ -388,13 +389,13 @@ end
 # its own way out — the `:running` sentence discriminating on the op, since
 # `live!` meets a running loop as a stopped-sim operation.
 function _assert_advanceable(sim::Simulation, op::Symbol)
-    lc = @atomic sim.control.lifecycle
-    lc === :initialized && return nothing
-    lc === :built && throw(DiagnosticError(MissingInit(op = op, status = lc)))
-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
-                                                              legal = collect(ADVANCE_LEGAL))))
-    lc === :stopped && throw(DiagnosticError(ServiceLifecycle(op = op, status = :stopped,
-                                                              legal = collect(ADVANCE_LEGAL))))
+    lifecycle_state = @atomic sim.control.lifecycle
+    lifecycle_state === :initialized && return nothing
+    lifecycle_state === :built && throw(DiagnosticError(MissingInit(op = op, status = lifecycle_state)))
+    lifecycle_state === :running && throw(DiagnosticError(
+        ServiceLifecycle(op = op, status = :running, legal = collect(ADVANCE_LEGAL))))
+    lifecycle_state === :stopped && throw(DiagnosticError(
+        ServiceLifecycle(op = op, status = :stopped, legal = collect(ADVANCE_LEGAL))))
     throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored, legal = collect(ADVANCE_LEGAL))))
 end
 
@@ -421,11 +422,11 @@ interior variant of each sweep block, then the `state_derivative` block
 against the complete fresh table. Leaves `ẋbuf` holding the derivative of
 whatever `xbuf` holds.
 """
-@inline function evaluate!(ex::Executor)
-    ex.cursor.index += 1          # §13.4: the stage ordinal counts RHS evaluations,
-    ex.bodies.sweep_1()           # so the backends stay untouched
-    ex.bodies.sweep_2()
-    ex.bodies.rhs()
+@inline function evaluate!(exec::Executor)
+    exec.cursor.index += 1          # §13.4: the stage ordinal counts RHS evaluations,
+    exec.bodies.sweep_1()           # so the backends stay untouched
+    exec.bodies.sweep_2()
+    exec.bodies.rhs()
     nothing
 end
 
@@ -446,11 +447,11 @@ a discrete component's cells carry `y[k]` computed from `s[k]` while
 construction rather than by convention.
 """
 @inline function boundary!(sim::Simulation, tick::Int)
-    cur = sim.exec.cursor
-    _phase!(cur, :project)
+    cursor = sim.exec.cursor
+    _phase!(cursor, :project)
     _projects!(sim.exec.events, sim.exec.xbuf)
     event_phase!(sim, tick)
-    _phase!(cur, :ticks)
+    _phase!(cursor, :ticks)
     sim.exec.bodies.ticks(tick)
     nothing
 end
@@ -491,24 +492,24 @@ Never called bare: `_host_boundary_zero!` below hosts it for both services,
 wrapping a throw as §13.4's catch does (D-223).
 """
 @inline function boundary_zero!(sim::Simulation)
-    cur = sim.exec.cursor
-    _phase!(cur, :project)
+    cursor = sim.exec.cursor
+    _phase!(cursor, :project)
     _projects!(sim.exec.events, sim.exec.xbuf)
     event_phase!(sim, ESTABLISH)
-    _phase!(cur, :ticks)
+    _phase!(cursor, :ticks)
     sim.exec.bodies.ticks(0)
     nothing
 end
 
 # One iteration round's sweep: the whole gated schedule (§10.6), in the due-set
 # arity the boundary fixed — never the update laws, which wait for quiescence.
-@inline _round!(ex::Executor, tick::Int) =
-    (ex.bodies.sweep_1(tick); ex.bodies.sweep_2(tick); nothing)
-@inline _round!(ex::Executor, ::Nothing) =
-    (ex.bodies.sweep_1(); ex.bodies.sweep_2(); nothing)
+@inline _round!(exec::Executor, tick::Int) =
+    (exec.bodies.sweep_1(tick); exec.bodies.sweep_2(tick); nothing)
+@inline _round!(exec::Executor, ::Nothing) =
+    (exec.bodies.sweep_1(); exec.bodies.sweep_2(); nothing)
 # Boundary zero's round: the whole schedule, gated by nothing (§14.5, D-205).
-@inline _round!(ex::Executor, e::Establish) =
-    (ex.bodies.sweep_1(e); ex.bodies.sweep_2(e); nothing)
+@inline _round!(exec::Executor, tick::Establish) =
+    (exec.bodies.sweep_1(tick); exec.bodies.sweep_2(tick); nothing)
 @inline _round!(sim::Simulation, tick) = _round!(sim.exec, tick)
 
 """
@@ -530,47 +531,47 @@ is updated unconditionally from the final samples — every prior an honest
 observation of a settled boundary.
 """
 function event_phase!(sim::Simulation, tick)
-    es, cur = sim.exec.events, sim.exec.cursor
-    _phase!(cur, :round, 1)       # §13.4: the boundary sweep is round 1, and the guard
+    events, cursor = sim.exec.events, sim.exec.cursor
+    _phase!(cursor, :round, 1)       # §13.4: the boundary sweep is round 1, and the guard
     _round!(sim, tick)            # walk and the fire walk of a round carry its index
-    n = length(es.prior)
-    n == 0 && return nothing
-    copyto!(es.last, es.prior)
-    fill!(es.count, 0)
-    fill!(es.warned, false)
+    event_count = length(events.prior)
+    event_count == 0 && return nothing
+    copyto!(events.last, events.prior)
+    fill!(events.count, 0)
+    fill!(events.warned, false)
     budget = sim.deployment.firing_budget
     while true
-        _guards!(es, sim.exec.store, sim.exec.xbuf)
-        fill!(es.comp_fired, false)
+        _guards!(events, sim.exec.store, sim.exec.xbuf)
+        fill!(events.comp_fired, false)
         any_fired = false
-        for i in 1:n
-            edge = !es.last[i] && es.now[i]
-            eligible = edge && es.count[i] < budget
-            if edge && !eligible && !es.warned[i]
-                es.warned[i] = true       # at most one report per event per boundary
-                (path, name) = es.names[i]
+        for i in 1:event_count
+            edge = !events.last[i] && events.now[i]
+            eligible = edge && events.count[i] < budget
+            if edge && !eligible && !events.warned[i]
+                events.warned[i] = true       # at most one report per event per boundary
+                (path, name) = events.names[i]
                 # the loop's own cell (§11.8): folded at the next frame top
                 _report!(sim.plane.loop_diag,
                          FiringBudget(path, name, _seconds(sim.exec.clock.t), budget,
-                                      es.count[i]))
+                                      events.count[i]))
             end
-            firing = eligible && !es.comp_fired[es.owner[i]]
-            es.fire[i] = firing
+            firing = eligible && !events.comp_fired[events.owner[i]]
+            events.fire[i] = firing
             if firing
-                es.comp_fired[es.owner[i]] = true
-                es.count[i] += 1
+                events.comp_fired[events.owner[i]] = true
+                events.count[i] += 1
                 any_fired = true
             end
             # A blocked edge stays unconsumed (D-191): only the eligible-but-
             # blocked sample stands; every other event takes this round's.
-            (eligible && !firing) || (es.last[i] = es.now[i])
+            (eligible && !firing) || (events.last[i] = events.now[i])
         end
         any_fired || break
-        _fire!(es, sim.exec.store, sim.exec.xbuf)
-        cur.index += 1
+        _fire!(events, sim.exec.store, sim.exec.xbuf)
+        cursor.index += 1
         _round!(sim, tick)
     end
-    copyto!(es.prior, es.last)
+    copyto!(events.prior, events.last)
     nothing
 end
 
@@ -610,20 +611,20 @@ end
 # The owner of flat index `i` and its leaf within that component's block, both
 # read off the layout's `xblocks`. Thrown as a fail-fast `DiagnosticError`, which
 # the catch site's species rule unwraps into the `StepError`'s `cause`.
-@noinline function _nonfinite(sim::Simulation, i::Int)
-    ex = sim.exec
-    xblocks = ex.act.layout.xblocks
-    owner = findfirst(b -> i in b, xblocks)::Int
-    cur = ex.cursor                   # the phase stays `:integrate`, but the sweep is the
-    cur.comp = owner; cur.fn = :none  # framework's own act between the stages and the
-    cur.index = 0                     # boundary — no stage of its own, so no ordinal
-    names = leaf_names(typeof(ex.act.decls[owner].x))
+@noinline function _nonfinite(sim::Simulation, flat_index::Int)
+    exec = sim.exec
+    xblocks = exec.act.layout.xblocks
+    owner = findfirst(b -> flat_index in b, xblocks)::Int
+    cursor = exec.cursor                    # the phase stays `:integrate`, but the sweep is the
+    cursor.comp = owner; cursor.fn = :none  # framework's own act between the stages and the
+    cursor.index = 0                        # boundary — no stage of its own, so no ordinal
+    x_leaf_names = leaf_names(typeof(exec.act.decls[owner].x))
     throw(DiagnosticError(NonfiniteState(
         path = sim.deployment.build.structure.components[owner].path,
-        leaf = names[i - first(xblocks[owner]) + 1],
-        value = ex.xbuf[i],
-        t = _seconds(ex.clock.t),
-        boundary = ex.clock.step - 1)))   # the frame-entry index: this frame's own top
+        leaf = x_leaf_names[flat_index - first(xblocks[owner]) + 1],
+        value = exec.xbuf[flat_index],
+        t = _seconds(exec.clock.t),
+        boundary = exec.clock.step - 1)))   # the frame-entry index: this frame's own top
 end
 
 # The trajectory's opening, shared by the two entries that own one (§12.6):
@@ -644,8 +645,8 @@ function _open_trajectory!(sim::Simulation, t₀::Float64)
     sim.exec.clock.boundary = 0
     fill!(sim.exec.events.prior, false)
     _reset_accounts!(sim)         # a new trajectory opens a fresh account (§11.8)
-    for e in sim.plane.roster     # §12.6: no staged batch survives into the
-        @atomic _handle(e).writer.cell.pending = nothing   # trajectory it predates
+    for entry in sim.plane.roster     # §12.6: no staged batch survives into the
+        @atomic _handle(entry).writer.cell.pending = nothing   # trajectory it predates
     end
     @atomic sim.plane.harness.cell.pending = nothing
     @atomic sim.control.stop_issuer = nothing
@@ -655,12 +656,12 @@ end
 # The four recording keywords, validated as the door's own `ArgumentInvalid`s
 # and collected into one throw (§9.1, D-229, D-261). Called after the door's
 # lifecycle gate and before its first write, so a refused keyword writes nothing.
-function _check_recording(call::Symbol, trace, log, log_every, log_max)
+function _check_recording(call::Symbol, trace_switch, log_switch, log_every, log_max)
     diags = Diagnostic[]
-    _arg(name, v) = push!(diags, ArgumentInvalid(call = call, reason = :range,
-                                                 argument = name, value = v))
-    trace isa Bool || _arg(:trace, trace)
-    log isa Bool || _arg(:log, log)
+    _arg(argument, v) = push!(diags, ArgumentInvalid(call = call, reason = :range,
+                                                 argument = argument, value = v))
+    trace_switch isa Bool || _arg(:trace, trace_switch)
+    log_switch isa Bool || _arg(:log, log_switch)
     log_every isa Integer && log_every ≥ 1 || _arg(:log_every, log_every)
     (log_max isa Integer && log_max ≥ 1) || log_max === Inf || _arg(:log_max, log_max)
     isempty(diags) || throw(DiagnosticError(diags))
@@ -676,9 +677,9 @@ end
 # recording from `replay!`. `_install_writers!` then compiles the drain's thunks
 # against the new trace for the trajectory about to open.
 function _open_run!(sim::Simulation{T}, header, schemas, feed,
-                    trace::Bool, log::Bool, log_every::Int, log_max) where {T}
-    trc = trace ? Trace{T}(header, schemas, TraceBatch[], 0) : nothing
-    sim.run = Run{T}(SnapshotLog(log, log_every, log_max === Inf ? typemax(Int) : Int(log_max)),
+                    trace_switch::Bool, log_switch::Bool, log_every::Int, log_max) where {T}
+    trc = trace_switch ? Trace{T}(header, schemas, TraceBatch[], 0) : nothing
+    sim.run = Run{T}(SnapshotLog(log_switch, log_every, log_max === Inf ? typemax(Int) : Int(log_max)),
                      trc, feed, nothing)
     _install_writers!(sim.plane, sim.exec.store, trc)
     nothing
@@ -769,12 +770,12 @@ simulation `built`, `init!` and `replay!` legal again (§13.4, D-223).
 """
 function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace = true,
                log = true, log_every = 1, log_max = 65536) where {T}
-    ctl = sim.control
-    lc = @atomic ctl.lifecycle
-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :running,
-                                                              legal = collect(STOPPED_SIM_LEGAL))))
-    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :init!, status = :errored,
-                                                              legal = collect(STOPPED_SIM_LEGAL))))
+    control = sim.control
+    lifecycle_state = @atomic control.lifecycle
+    lifecycle_state === :running && throw(DiagnosticError(
+        ServiceLifecycle(op = :init!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
+    lifecycle_state === :errored && throw(DiagnosticError(
+        ServiceLifecycle(op = :init!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
     _check_recording(:init!, trace, log, log_every, log_max)   # the run's keywords (D-261)
     plan = resolve_condition(condition, sim.deployment.build, T)      # both refusals precede every write
     assert_total(plan, sim.deployment.build.structure, :init!)   # (§14.6): all-or-nothing
@@ -789,7 +790,7 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace
                nothing, trace, log, Int(log_every), log_max)
     _host_boundary_zero!(sim)
     publish!(sim)                 # the boundary-zero snapshot (§11.2, §14.5)
-    @atomic :release ctl.lifecycle = :initialized
+    @atomic :release control.lifecycle = :initialized
     nothing
 end
 
@@ -895,12 +896,12 @@ boundary zero arrives as a `StepError` with pointer 0 and leaves the simulation
 function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
                  to_time = nothing, t_end = Inf, stop_on = (), trace = true,
                  log = true, log_every = 1, log_max = 65536) where {T}
-    ex, ctl = sim.exec, sim.control
-    lc = @atomic ctl.lifecycle
-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :running,
-                                                              legal = collect(STOPPED_SIM_LEGAL))))
-    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :replay!, status = :errored,
-                                                              legal = collect(STOPPED_SIM_LEGAL))))
+    exec, control = sim.exec, sim.control
+    lifecycle_state = @atomic control.lifecycle
+    lifecycle_state === :running && throw(DiagnosticError(
+        ServiceLifecycle(op = :replay!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
+    lifecycle_state === :errored && throw(DiagnosticError(
+        ServiceLifecycle(op = :replay!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
     _check_recording(:replay!, trace, log, log_every, log_max)   # the run's keywords (D-261)
     to_boundary === nothing || to_time === nothing ||     # two spellings of one halt (D-219)
         throw(DiagnosticError(ArgumentInvalid(call = :replay!, reason = :both_given)))
@@ -929,23 +930,23 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
                             value = to_time)))
     end
-    (pol, addrs) = _bind_policy(sim, t_end, stop_on, :replay!)   # this advance's policy, validated
+    (policy, addrs) = _bind_policy(sim, t_end, stop_on, :replay!)   # this advance's policy, validated
     feed = _compile_feed(sim, trc)        # the entry pass: every refusal precedes every write
     # substitution (1): the header applied where `establish_defaults!` + `apply!`
     # stand in `init!`. The recorded values are already resolved (D-038), so
     # there is nothing to resolve and nothing to check for totality.
-    h = trc.header
-    ex.xbuf .= h.x
-    for ci in eachindex(h.s)
-        h.s[ci] === nothing || (ex.sstores[ci][] = h.s[ci])
+    header = trc.header
+    exec.xbuf .= header.x
+    for ci in eachindex(header.s)
+        header.s[ci] === nothing || (exec.sstores[ci][] = header.s[ci])
     end
-    for ci in eachindex(h.m)
-        h.m[ci] === nothing || (ex.mstores[ci][] = h.m[ci])
+    for ci in eachindex(header.m)
+        header.m[ci] === nothing || (exec.mstores[ci][] = header.m[ci])
     end
-    for (f, v) in h.root_inputs
-        scatter!(ex.store, ex.act.layout.addr[("", f)], v)
+    for (f, v) in header.root_inputs
+        scatter!(exec.store, exec.act.layout.addr[("", f)], v)
     end
-    _open_trajectory!(sim, h.t₀)                # `t₀` is applied, never compared (§12.7)
+    _open_trajectory!(sim, header.t₀)                # `t₀` is applied, never compared (§12.7)
     # The new run, and substitution (2) with it: the recording goes in at
     # construction and the mode is read off it, so entering `:replay` *is*
     # constructing this run with a feed (§12.6, D-260). It outlives this call —
@@ -956,13 +957,13 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     # — every mutable field of it copied — and the recording's own schema
     # entries, so neither the growth below nor a continuation's writes ever
     # reach the `Trace` the caller holds.
-    _open_run!(sim, trace ? _detach(h) : nothing,
+    _open_run!(sim, trace ? _detach(header) : nothing,
                trace ? copy(trc.schemas) : Pair{String,Vector{Symbol}}[], feed,
                trace, log, Int(log_every), log_max)
     _host_boundary_zero!(sim)
     publish!(sim)                               # the boundary-zero snapshot (§11.2, §14.5)
     upto = to_boundary === nothing ? trc.frames : Int(to_boundary)
-    _run_body!(sim, pol, addrs, upto, _t_end_frame(sim, pol.t_end))
+    _run_body!(sim, policy, addrs, upto, _t_end_frame(sim, policy.t_end))
     nothing
 end
 
@@ -994,12 +995,12 @@ never attached.
 """
 function live!(sim::Simulation)
     _assert_advanceable(sim, :live!)
-    r = sim.run
-    r.feed === nothing && throw(DiagnosticError(
+    run = sim.run
+    run.feed === nothing && throw(DiagnosticError(
         ArgumentInvalid(call = :live!, reason = :not_replaying)))
     # §12.6: the mode is read off the feed, so dropping the recording *is* the
     # flip — the same run, with its log, its trace and its record (D-260)
-    r.feed = nothing
+    run.feed = nothing
     nothing
 end
 
@@ -1050,16 +1051,16 @@ frames from `t₀` (§12.4).
 """
 function run!(sim::Simulation; t_end = Inf, stop_on = ())
     _assert_advanceable(sim, :run!)
-    (pol, addrs) = _bind_policy(sim, t_end, stop_on, :run!)   # this advance's, carried (D-260)
+    (policy, addrs) = _bind_policy(sim, t_end, stop_on, :run!)   # this advance's, carried (D-260)
     # §13.5's advisory (D-255): a live run bounded by neither clock nor face
     # ends only by the operator interrupt, so the loop says so once, into its
     # own cell. A `:replay` run is bounded by the recording (D-218), so the
     # warning would be false there.
-    mode(sim) === :live && isinf(pol.t_end) && isempty(pol.faces) &&
-        _report!(sim.plane.loop_diag, UnboundedRun(pol.t_end, copy(pol.faces)))
+    mode(sim) === :live && isinf(policy.t_end) && isempty(policy.faces) &&
+        _report!(sim.plane.loop_diag, UnboundedRun(policy.t_end, copy(policy.faces)))
     # a live run owes its end to a §13.5 source alone, so its frame budget is
     # unbounded here; in `:replay` the recording binds it (`_run_body!`, D-218)
-    _run_body!(sim, pol, addrs, typemax(Int), _t_end_frame(sim, pol.t_end))
+    _run_body!(sim, policy, addrs, typemax(Int), _t_end_frame(sim, policy.t_end))
     nothing
 end
 
@@ -1068,8 +1069,8 @@ end
 # runs past the records and goes on live, and every frame of a session is either
 # record-driven or live before it runs.
 function _replay_bound(sim::Simulation, upto::Int)
-    f = sim.run.feed
-    f === nothing ? upto : min(upto, f.frames)
+    feed = sim.run.feed
+    feed === nothing ? upto : min(upto, feed.frames)
 end
 
 # §12.7's flip (D-218), at the one place the terminal disposition already lives:
@@ -1080,11 +1081,11 @@ end
 # abandoned mid-execution, nothing advances from a terminal state, and `init!`
 # and `replay!` are the resets.
 function _settle_mode!(sim::Simulation)
-    r = sim.run
-    f = r.feed
-    f === nothing && return nothing
+    run = sim.run
+    feed = run.feed
+    feed === nothing && return nothing
     # the detach is the flip: the mode is the feed's absence (§12.6, D-260)
-    sim.exec.clock.step ≥ f.frames && (r.feed = nothing)
+    sim.exec.clock.step ≥ feed.frames && (run.feed = nothing)
     nothing
 end
 
@@ -1092,49 +1093,49 @@ end
 # and §13.5's terminal disposition — everything from `:running` to the terminal
 # store, shared verbatim by `run!` and `replay!` because D-101's claim is that
 # replay *is* this loop. `addrs` is the policy's faces compiled, the loop's own
-# argument (D-261); `upto` is the frame budget, `target` the `t_end` frame.
+# argument (D-261); `upto` is the frame budget, `t_end_frame` the `t_end` frame.
 #
-# The terminal mapping is `step!`'s. `term === nothing` means the budget ran out
+# The terminal mapping is `step!`'s. `source === nothing` means the budget ran out
 # rather than a source firing, which only a bounded advance can reach — a
 # `replay!`, or any run in `:replay`, where the recording is the bound (D-218) —
 # and it lands `initialized` at a frame top, §12.7's promise. A §13.5 source is
 # `stopped` with the record, a throw `errored` with the cause retained. The mode
 # settles here too, on every exit but the errored one.
-function _run_body!(sim::Simulation, pol::StopPolicy, addrs::Vector{Any}, upto::Int, target::Int)
-    plane, ctl = sim.plane, sim.control
+function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto::Int, t_end_frame::Int)
+    plane, control = sim.plane, sim.control
     upto = _replay_bound(sim, upto)             # §12.7: the recording bounds a replaying run
-    @atomic :release ctl.lifecycle = :running   # the §11.3 freeze: the roster is fixed for the run
-    term, err_src = nothing, nothing
+    @atomic :release control.lifecycle = :running   # the §11.3 freeze: the roster is fixed for the run
+    source, error_source = nothing, nothing
     try
-        @atomic ctl.stop_issuer = nothing
+        @atomic control.stop_issuer = nothing
         _reset_accounts!(sim)                 # §11.8: totals count since the run began
         live = _init_devices!(sim)            # §12.4's pre-spawn bracket, attachment order
-        @atomic ctl.stopped = false
-        ct = findfirst(e -> needs_calling_task(e.dev), live)
-        if ct === nothing                     # the unattended mode (§11.1)
+        @atomic control.stopped = false
+        inline_index = findfirst(e -> needs_calling_task(e.dev), live)
+        if inline_index === nothing                     # the unattended mode (§11.1)
             tasks = _spawn!(live)
             _register_tasks!(plane, live, tasks)
             try
-                term = _advance!(sim, pol, addrs, upto, target)[1]
+                source = _advance!(sim, policy, addrs, upto, t_end_frame)[1]
             finally
                 _finish!(sim)                 # tail (1)–(2), even off a loop-side throw
                 _tail!(sim, live, tasks)      # tail (3)–(5)
             end
         else                                  # the loop is the movable piece (§11.1)
-            e_ct = live[ct]
-            others = [live[i] for i in eachindex(live) if i != ct]
+            inline_entry = live[inline_index]
+            others = [live[i] for i in eachindex(live) if i != inline_index]
             tasks = _spawn!(others)
             _register_tasks!(plane, others, tasks)
-            plane.run_tasks[e_ct.id] = current_task()   # the inline body's task (§11.1)
-            e_ct.handle.last_seen = ctl.counter
+            plane.run_tasks[inline_entry.id] = current_task()   # the inline body's task (§11.1)
+            inline_entry.handle.last_seen = control.counter
             loop_task = Threads.@spawn try
-                _advance!(sim, pol, addrs, upto, target)[1]
+                _advance!(sim, policy, addrs, upto, t_end_frame)[1]
             finally
                 _finish!(sim)                 # the spawned loop wakes the inline body too
             end
-            _wrap(e_ct)                       # the identical wrapper, inline (§11.6)
+            _wrap(inline_entry)                       # the identical wrapper, inline (§11.6)
             try
-                term = fetch(loop_task)       # run! blocks until the run ends (§11.1)
+                source = fetch(loop_task)       # run! blocks until the run ends (§11.1)
             finally
                 _tail!(sim, others, tasks)    # the calling-task device sits outside the join
             end
@@ -1147,22 +1148,22 @@ function _run_body!(sim::Simulation, pol::StopPolicy, addrs::Vector{Any}, upto::
         # against the execution cursor (§13.4) — unwrapped from the spawned
         # loop's task failure where the topology moved it; the record itself is
         # assembled below, after the sweep (D-203).
-        err_src = LoopError(err isa TaskFailedException ? err.task.exception : err)
+        error_source = LoopError(err isa TaskFailedException ? err.task.exception : err)
         rethrow()
     finally
-        @atomic ctl.stopped = true
+        @atomic control.stopped = true
         residue = _sweep_tail!(sim)           # the run's last take (§11.8): what landed past
         empty!(plane.run_tasks)               # the final frame top — recorded and presented,
-        if err_src !== nothing                # never published (D-201, D-203)
-            sim.run.termination = _record(sim, pol, err_src, residue)
-            @atomic :release ctl.lifecycle = :errored
+        if error_source !== nothing                # never published (D-201, D-203)
+            sim.run.termination = _record(sim, policy, error_source, residue)
+            @atomic :release control.lifecycle = :errored
         else
             _settle_mode!(sim)                # §12.7's flip, at the halt (D-218)
-            if term === nothing               # the frame budget ran out: a replay ended at a
-                @atomic :release ctl.lifecycle = :initialized  # frame top (§12.7)
-            elseif (@atomic ctl.lifecycle) === :running
-                sim.run.termination = _record(sim, pol, term, residue)
-                @atomic :release ctl.lifecycle = :stopped
+            if source === nothing               # the frame budget ran out: a replay ended at a
+                @atomic :release control.lifecycle = :initialized  # frame top (§12.7)
+            elseif (@atomic control.lifecycle) === :running
+                sim.run.termination = _record(sim, policy, source, residue)
+                @atomic :release control.lifecycle = :stopped
             end
         end
     end
@@ -1174,8 +1175,8 @@ end
 # batch reported or staged while stopped waits for the first frame top's
 # drain, exactly as a staged input batch waits (§11.4).
 function _reset_accounts!(sim::Simulation)
-    for e in sim.plane.roster
-        _reset!(e.acct)
+    for entry in sim.plane.roster
+        _reset!(entry.acct)
     end
     _reset!(sim.plane.harness_acct)
     _reset!(sim.plane.loop_acct)
@@ -1183,7 +1184,7 @@ function _reset_accounts!(sim::Simulation)
 end
 
 _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{Task}) =
-    (for (e, t) in zip(entries, tasks); plane.run_tasks[e.id] = t; end; nothing)
+    (for (entry, task) in zip(entries, tasks); plane.run_tasks[entry.id] = task; end; nothing)
 
 # The frame loop, shared by both advance entries (§12.6: a stepped frame is
 # bit-identical to a run frame because this is the same code) — returns
@@ -1201,37 +1202,37 @@ _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{T
 # policy's faces compiled, bound beside it and carried to the sampling read.
 # With devices rostered every frame yields at least once (§12.2, the unpaced
 # case): the explicit yield is the co-resident device tasks' scheduling slot.
-function _advance!(sim::Simulation, pol::StopPolicy, addrs::Vector{Any}, upto::Int,
+function _advance!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto::Int,
                    t_end_frame::Int)
-    plane, ctl = sim.plane, sim.control
-    nb = sim.deployment.N_base
-    adv = 0
-    face = _stop_hit(sim, pol, addrs)
-    face === nothing || return (ModelRequestedStop(face), adv)
-    entry = 0                     # the frame-entry boundary index, read at the frame top
+    plane, control = sim.plane, sim.control
+    N_base = sim.deployment.N_base
+    advanced = 0
+    face = _stop_hit(sim, policy, addrs)
+    face === nothing || return (ModelRequestedStop(face), advanced)
+    entry_boundary = 0             # the frame-entry boundary index, read at the frame top
     try                           # before the drain, so the catch has it wherever the
         while true                # throw came from (§13.4)
-            issuer = @atomic ctl.stop_issuer
-            issuer === nothing || return (ControlRequestedStop(issuer), adv)
-            sim.exec.clock.step < t_end_frame || return (EndTimeReached(), adv)
-            sim.exec.clock.step < upto || return (nothing, adv)
+            issuer = @atomic control.stop_issuer
+            issuer === nothing || return (ControlRequestedStop(issuer), advanced)
+            sim.exec.clock.step < t_end_frame || return (EndTimeReached(), advanced)
+            sim.exec.clock.step < upto || return (nothing, advanced)
             isempty(plane.roster) || yield()
-            entry = sim.exec.clock.step
+            entry_boundary = sim.exec.clock.step
             drain!(sim)
             k = (sim.exec.clock.step += 1)
-            hit = frame!(sim, k, pol, addrs)
+            hit = frame!(sim, k, policy, addrs)
             if hit === nothing
-                k % nb == 0 ? boundary!(sim, k ÷ nb) : offtick_boundary!(sim)
+                k % N_base == 0 ? boundary!(sim, k ÷ N_base) : offtick_boundary!(sim)
                 publish!(sim)
-                face = _stop_hit(sim, pol, addrs)
+                face = _stop_hit(sim, policy, addrs)
             else
                 face = hit        # a t* publication hit (§13.5): that snapshot is final
             end
             # a frame counts once it has published a boundary — which a `t*` stop
             # hit has done, its remainder abandoned; the carve-out below is what
             # makes the count observable, a throw carrying no return value out
-            adv += 1
-            face === nothing || return (ModelRequestedStop(face), adv)
+            advanced += 1
+            face === nothing || return (ModelRequestedStop(face), advanced)
         end
     catch err
         # §13.4's one exception never wrapped: the operator's stop command, not
@@ -1239,11 +1240,11 @@ function _advance!(sim::Simulation, pol::StopPolicy, addrs::Vector{Any}, upto::I
         # abandoned unpublished and the stores may be mid-boundary — this is the
         # masked guarantee without the masking, the defensive branch §13.4 keeps.
         if err isa InterruptException
-            _request_stop!(ctl, :interrupt)   # through the stop word, so an earlier issuer keeps it
-            issuer = @atomic ctl.stop_issuer
-            return (ControlRequestedStop(something(issuer)), adv)
+            _request_stop!(control, :interrupt)   # through the stop word, so an earlier issuer keeps it
+            issuer = @atomic control.stop_issuer
+            return (ControlRequestedStop(something(issuer)), advanced)
         end
-        rethrow(_wrap_step(sim, entry, err))
+        rethrow(_wrap_step(sim, entry_boundary, err))
     end
 end
 
@@ -1253,15 +1254,15 @@ end
 # `StepError`, so one arriving here is an invariant firing, not a re-wrap. Two
 # callers reach it — the frame loop above and the boundary-zero host below
 # (D-223) — and it stays the only constructor.
-function _wrap_step(sim::Simulation, entry::Int, err)
+function _wrap_step(sim::Simulation, entry_boundary::Int, err)
     err isa StepError && throw(InternalInvariant(
         "a StepError reached the catch site (§13.4), which is its only constructor — " *
         "something inside the boundary sequence wrapped one"))
-    cur = sim.exec.cursor
-    frame = CursorFrame(cur.comp == 0 ? nothing :
-                            sim.deployment.build.structure.components[cur.comp].path,
-                        cur.fn, cur.phase, cur.index)
-    StepError(frame, _seconds(sim.exec.clock.t), entry, _species(sim, err))
+    cursor = sim.exec.cursor
+    frame = CursorFrame(cursor.comp == 0 ? nothing :
+                            sim.deployment.build.structure.components[cursor.comp].path,
+                        cursor.fn, cursor.phase, cursor.index)
+    StepError(frame, _seconds(sim.exec.clock.t), entry_boundary, _species(sim, err))
 end
 
 # The species rule (§13.4, D-221): a fail-fast carrier thrown inside the
@@ -1278,31 +1279,36 @@ _species(::Simulation, err::DiagnosticError{<:Diagnostic}) = err.carried
 # cause it is. `UserCodeFraming` gets no runtime arm: the carrier already names
 # the frame and the function through the cursor.
 function _species(sim::Simulation, err::FieldError)
-    cur = sim.exec.cursor
-    cur.comp == 0 && return err
-    ci, fam = cur.comp, cur.fn
-    entry = sim.deployment.build.structure.components[ci]
-    c, t = entry.instance, entry.tier
-    s1 = tuple(sim.deployment.build.outputs.components[ci].stage1...)
+    cursor = sim.exec.cursor
+    cursor.comp == 0 && return err
+    ci, family = cursor.comp, cursor.fn
+    comp_entry = sim.deployment.build.structure.components[ci]
+    comp, tier = comp_entry.instance, comp_entry.tier
+    stage1_ports = tuple(sim.deployment.build.outputs.components[ci].stage1...)
     # Reading the names invokes declarations, and a throw here would replace the
     # author's error, the cursor frame and the `StepError` with a frame of its own.
-    bn = try
-        fam === :guard || fam === :handler       ? event_bundle_names(c) :
-        fam === :output_state                    ? bundle_names(output_state, c, t, s1) :
-        fam === :output_direct                   ? bundle_names(output_direct, c, t, s1) :
-        fam === :state_derivative || fam === :state_update ? bundle_names(update_of(t), c, t, s1) :
+    legal_names = try
+        family === :guard || family === :handler ?
+            event_bundle_names(comp) :
+        family === :output_state ?
+            bundle_names(output_state, comp, tier, stage1_ports) :
+        family === :output_direct ?
+            bundle_names(output_direct, comp, tier, stage1_ports) :
+        family === :state_derivative || family === :state_update ?
+            bundle_names(update_of(tier), comp, tier, stage1_ports) :
         return err
-    catch e
-        e isa InterruptException && rethrow()
+    catch lookup_err
+        lookup_err isa InterruptException && rethrow()
         return err
     end
     # By names, not by the exact type: the runtime bundle's value types differ
     # from the probe's at a non-nominal activation, and the names are the law's
     # invariant (§5.2).
-    (err.type <: NamedTuple && fieldnames(err.type) == bn) || return err
-    BundleFieldError(path = entry.path, family = String(fam),
-                     tier = t === CONTINUOUS ? :continuous : :discrete, field = err.field,
-                     legal = collect(bn), reason = classify_bundle_field(fam, t, err.field))
+    (err.type <: NamedTuple && fieldnames(err.type) == legal_names) || return err
+    BundleFieldError(path = comp_entry.path, family = String(family),
+                     tier = tier === CONTINUOUS ? :continuous : :discrete, field = err.field,
+                     legal = collect(legal_names),
+                     reason = classify_bundle_field(family, tier, err.field))
 end
 
 # The second host of §13.4's catch (D-223): boundary zero runs the loop's
@@ -1358,52 +1364,52 @@ turning `:live` there.
 """
 function step!(sim::Simulation; frames = nothing, t_plus = nothing,
                t_end = Inf, stop_on = ())
-    ctl = sim.control
+    control = sim.control
     _assert_advanceable(sim, :step!)
     # own keywords first, then the policy, then the write: `replay!`'s order too
     frames === nothing || t_plus === nothing ||
         throw(DiagnosticError(ArgumentInvalid(call = :step!, reason = :both_given)))
     if t_plus === nothing
-        nf = frames === nothing ? 1 : frames
-        nf isa Integer && nf ≥ 1 || throw(DiagnosticError(
-            ArgumentInvalid(call = :step!, reason = :range, argument = :frames, value = nf)))
-        nf = Int(nf)
+        frame_count = frames === nothing ? 1 : frames
+        frame_count isa Integer && frame_count ≥ 1 || throw(DiagnosticError(
+            ArgumentInvalid(call = :step!, reason = :range, argument = :frames, value = frame_count)))
+        frame_count = Int(frame_count)
     else
         t_plus isa Real && isfinite(t_plus) && t_plus > 0 || throw(DiagnosticError(
             ArgumentInvalid(call = :step!, reason = :range, argument = :t_plus, value = t_plus)))
         t = sim.exec.clock.t                  # the frame top the duration counts from
-        nf = max(1, _frames_to(t + Float64(t_plus), t, sim.deployment.h))
+        frame_count = max(1, _frames_to(t + Float64(t_plus), t, sim.deployment.h))
     end
-    (pol, addrs) = _bind_policy(sim, t_end, stop_on, :step!)   # this advance's policy (§13.5, D-255)
-    t_end_frame = _t_end_frame(sim, pol.t_end)
-    @atomic :release ctl.lifecycle = :running   # the freeze holds within the call
-    term, adv, err_src = nothing, 0, nothing
+    (policy, addrs) = _bind_policy(sim, t_end, stop_on, :step!)   # this advance's policy (§13.5, D-255)
+    t_end_frame = _t_end_frame(sim, policy.t_end)
+    @atomic :release control.lifecycle = :running   # the freeze holds within the call
+    source, advanced, error_source = nothing, 0, nothing
     try
         # §12.7: in `:replay` the recording is the bound, so a `step!` past its
         # end advances only to the last recorded frame and returns fewer frames
         # than asked — the truncation the caller reads (D-218)
-        upto = _replay_bound(sim, sim.exec.clock.step + nf)
-        (term, adv) = _advance!(sim, pol, addrs, upto, t_end_frame)
+        upto = _replay_bound(sim, sim.exec.clock.step + frame_count)
+        (source, advanced) = _advance!(sim, policy, addrs, upto, t_end_frame)
     catch err
-        err_src = LoopError(err)              # the record is assembled below,
+        error_source = LoopError(err)              # the record is assembled below,
         rethrow()                             # after the sweep (D-203)
     finally
-        if err_src !== nothing                # §13.6, the stepped entry: same tail,
+        if error_source !== nothing                # §13.6, the stepped entry: same tail,
             _finish!(sim)                     # deviceless — waits woken, accounts swept
-            sim.run.termination = _record(sim, pol, err_src, _sweep_tail!(sim))
-            @atomic :release ctl.lifecycle = :errored
+            sim.run.termination = _record(sim, policy, error_source, _sweep_tail!(sim))
+            @atomic :release control.lifecycle = :errored
         else
             _settle_mode!(sim)                # §12.7's flip, at the halt (D-218)
-            if term === nothing
-                @atomic :release ctl.lifecycle = :initialized
+            if source === nothing
+                @atomic :release control.lifecycle = :initialized
             else                              # a §13.5 source fired inside the call:
                 _finish!(sim)                 # the deviceless §12.4 tail, then terminal
-                sim.run.termination = _record(sim, pol, term, _sweep_tail!(sim))
-                @atomic :release ctl.lifecycle = :stopped
+                sim.run.termination = _record(sim, policy, source, _sweep_tail!(sim))
+                @atomic :release control.lifecycle = :stopped
             end
         end
     end
-    adv
+    advanced
 end
 
 """
@@ -1421,7 +1427,7 @@ stop!(sim::Simulation) = _request_stop!(sim.control, :code)
 # --- the roster (§11.3): stopped-sim configuration -----------------------------
 
 """
-    attach!(sim, dev::AbstractDevice, b::AbstractBinding;
+    attach!(sim, dev::AbstractDevice, new_binding::AbstractBinding;
             should_abort = false) -> DeviceHandle
 
 Roster a device under a binding — a stopped-sim configuration operation
@@ -1440,7 +1446,7 @@ remainder under an `EmptyGreedyClaim` warning, raised into the new entry's own
 diagnostic cell and logged once here (§11.6, §11.8, D-250) — the entry's writer is
 compiled over it, and the harness writer's surface is recompiled to the
 complement that remains, renormalizing any pending harness batch (§11.4). On
-the output side `reads(b)` is called once, resolved against the build and
+the output side `reads(new_binding)` is called once, resolved against the build and
 compiled to the one gather `gather(handle, snap)` runs (§11.2, §14.4) — a
 binding that drifted from its model fails here, not with silent garbage on
 the wire. An output-only binding stakes no claim: its write surface is empty,
@@ -1458,53 +1464,57 @@ device's task.
 `attach!` never spawns: it registers, and the task appears at the next
 `run!` (§11.1).
 """
-function attach!(sim::Simulation, dev::AbstractDevice, b::AbstractBinding;
+function attach!(sim::Simulation, dev::AbstractDevice, new_binding::AbstractBinding;
                  should_abort::Bool = false)
     plane = sim.plane
     assert_configurable(sim.control, :attach!)
-    check_binding(b)
+    check_binding(new_binding)
     check_device(dev)
-    for e in plane.roster                          # identity, before claims (§11.3)
-        e.dev === dev && throw(DiagnosticError(AlreadyAttached(
-            device = _typename(dev), incumbent = _who(e),
-            binding = _typename(binding(_handle(e))))))
+    for entry in plane.roster                          # identity, before claims (§11.3)
+        entry.dev === dev && throw(DiagnosticError(AlreadyAttached(
+            device = _typename(dev), incumbent = _who(entry),
+            binding = _typename(binding(_handle(entry))))))
     end
     if needs_calling_task(dev)                     # affinity: a single-slot resource
-        i = findfirst(e -> needs_calling_task(e.dev), plane.roster)
-        i === nothing || throw(DiagnosticError(CallerTaskConflict(
-            device = _typename(dev), incumbent = _who(plane.roster[i]))))
+        holder = findfirst(e -> needs_calling_task(e.dev), plane.roster)
+        holder === nothing || throw(DiagnosticError(CallerTaskConflict(
+            device = _typename(dev), incumbent = _who(plane.roster[holder]))))
     end
-    claim = is_input(b) ? _claim(plane, sim.exec.act.layout, b, _typename(dev)) : Symbol[]
+    claim = is_input(new_binding) ?
+        _claim(plane, sim.exec.act.layout, new_binding, _typename(dev)) : Symbol[]
     claim_diags = Diagnostic[]
-    for f in claim                                 # claims: face exclusivity
-        haskey(plane.claimedby, f) && push!(claim_diags, ClaimConflict(
-            face = f, device = _typename(dev), incumbent = plane.claimedby[f]))
+    for face in claim                                 # claims: face exclusivity
+        haskey(plane.claimedby, face) && push!(claim_diags, ClaimConflict(
+            face = face, device = _typename(dev), incumbent = plane.claimedby[face]))
     end
     isempty(claim_diags) || throw(DiagnosticError(claim_diags))
     # The output side: reads → one gather, resolved before admission commits.
-    rg = is_output(b) ? _compile_gather(sim.exec.act.layout, reads(b), typeof(b),
-                                        _typename(dev)) : nothing
-    id = plane.next_id                             # assigned on admission alone: a
+    gatherer = is_output(new_binding) ?
+        _compile_gather(sim.exec.act.layout, reads(new_binding), typeof(new_binding),
+                        _typename(dev)) : nothing
+    device_id = plane.next_id                             # assigned on admission alone: a
     plane.next_id += 1                             # rejected attach consumes no id
-    w = Writer(sim.exec.act.layout, claim)
-    diag = DiagCell(EMPTY_DIAG)                    # the device's diagnostic cell (§11.8)
-    h = DeviceHandle("device $id ($(_typename(dev)))", b, w, plane.claimedby, sim.control,
-                     sim.plane.published, diag, rg, sim.control.counter, false)
-    push!(plane.roster, RosterEntry(dev, id, _no_drain, should_abort, WriterAccount(), h))
+    writer = Writer(sim.exec.act.layout, claim)
+    diag_cell = DiagCell(EMPTY_DIAG)                    # the device's diagnostic cell (§11.8)
+    handle = DeviceHandle("device $device_id ($(_typename(dev)))", new_binding, writer,
+                     plane.claimedby, sim.control,
+                     sim.plane.published, diag_cell, gatherer, sim.control.counter, false)
+    push!(plane.roster,
+          RosterEntry(dev, device_id, _no_drain, should_abort, WriterAccount(), handle))
     # the thunk above is the sentinel: `reclaim!` appends the new writer set to
     # the trace's schema list and compiles every thunk against it (§11.5, D-261)
     reclaim!(plane, sim.exec.act.layout, sim.exec.store, sim.run.trace)
-    if is_greedy(b) && isempty(claim)
+    if is_greedy(new_binding) && isempty(claim)
         # `attach!` mutates the roster, so the warning lives in the entry's own
         # cell (§11.3, §11.8, D-250): the first frame-top drain folds it into the
         # entry's account and every status from there on carries it. The line at
         # return stays, as presentation.
-        egc = EmptyGreedyClaim(device = "device $id ($(_typename(dev)))",
-                               binding = _typename(b))
-        _report!(diag, egc)
-        @warn logline(egc)
+        empty_claim = EmptyGreedyClaim(device = "device $device_id ($(_typename(dev)))",
+                               binding = _typename(new_binding))
+        _report!(diag_cell, empty_claim)
+        @warn logline(empty_claim)
     end
-    h
+    handle
 end
 
 """
@@ -1522,11 +1532,11 @@ The handle `attach!` returned outlives the entry as an object only: its
 function detach!(sim::Simulation, dev::AbstractDevice)
     plane = sim.plane
     assert_configurable(sim.control, :detach!)
-    i = findfirst(e -> e.dev === dev, plane.roster)
-    i === nothing && throw(DiagnosticError(NotAttached(
+    slot = findfirst(e -> e.dev === dev, plane.roster)
+    slot === nothing && throw(DiagnosticError(NotAttached(
         device = _typename(dev), roster = [_who(e) for e in plane.roster])))
-    @atomic :release plane.roster[i].handle.detached = true   # D-244
-    deleteat!(plane.roster, i)
+    @atomic :release plane.roster[slot].handle.detached = true   # D-244
+    deleteat!(plane.roster, slot)
     reclaim!(plane, sim.exec.act.layout, sim.exec.store, sim.run.trace)
     nothing
 end
@@ -1548,14 +1558,14 @@ harness surface outright, D-192) and `OutOfClaimEntry` when nothing does — an
 unconvertible value under `EntryTypeMismatch`, and the rest of the batch
 stands. The staged batch is applied by the drain at the top
 of the next frame `run!` advances. A device stages through the handle its
-`attach!` returned — `stage!(handle, pairs...)`, devices.jl — the same shim
+`attach!` returned — `stage!(handle, writes...)`, devices.jl — the same shim
 against its own claim set.
 """
-function stage!(sim::Simulation, pairs::Pair...)
+function stage!(sim::Simulation, writes::Pair...)
     plane = sim.plane
-    w = plane.harness
-    batch = _normalize(w, pairs, plane.claimedby, plane.harness_diag)
-    batch === nothing || _stage!(w, batch)
+    harness = plane.harness
+    batch = _normalize(harness, writes, plane.claimedby, plane.harness_diag)
+    batch === nothing || _stage!(harness, batch)
     nothing
 end
 
@@ -1585,20 +1595,20 @@ recording, which is what the input mode the caller reads *is* (§12.6, D-260).
 """
 function drain!(sim::Simulation)
     plane = sim.plane
-    cur = sim.exec.cursor         # the one store per frame that keeps a stale frame from
-    cur.comp = 0; cur.fn = :none  # being reported for a drain-side throw (§13.4)
-    _phase!(cur, :drain)
+    cursor = sim.exec.cursor         # the one store per frame that keeps a stale frame from
+    cursor.comp = 0; cursor.fn = :none  # being reported for a drain-side throw (§13.4)
+    _phase!(cursor, :drain)
     # one drain per frame, counted before any thunk runs, on both paths: the
     # count is the recording's length (§11.5) *and* the ordinal each record
     # takes (D-260). The drain runs before the clock's step increments, so a
     # batch taken at the top of frame `k` is recorded — and replayed — at `k`.
     trc = sim.run.trace
     trc === nothing || (trc.frames += 1)
-    f = sim.run.feed
-    f === nothing || return _replay_drain!(sim, f)
-    for e in plane.roster
-        e.drain()
-        _fold!(e.acct, _handle(e).diag)   # the diagnostic cells drain at the same
+    feed = sim.run.feed
+    feed === nothing || return _replay_drain!(sim, feed)
+    for entry in plane.roster
+        entry.drain()
+        _fold!(entry.acct, _handle(entry).diag)   # the diagnostic cells drain at the same
     end                                   # point (§11.8): retained values into the
     plane.harness_drain()                 # pending delta, every occurrence into the totals
     _fold!(plane.harness_acct, plane.harness_diag)
@@ -1632,28 +1642,29 @@ the kill switch there is no trace to read it from (D-260).
 function _replay_drain!(sim::Simulation, feed::ReplayFeed)
     plane = sim.plane
     frame = sim.exec.clock.step + 1
-    for e in plane.roster
-        h = _handle(e)
-        _discard_staged!(h.writer, h.diag, frame)
-        _fold!(e.acct, h.diag)        # the diagnostic fold is the live path's, unchanged
+    for entry in plane.roster
+        handle = _handle(entry)
+        _discard_staged!(handle.writer, handle.diag, frame)
+        _fold!(entry.acct, handle.diag)        # the diagnostic fold is the live path's, unchanged
     end
     _discard_staged!(plane.harness, plane.harness_diag, frame)
     _fold!(plane.harness_acct, plane.harness_diag)
     _fold!(sim.plane.loop_acct, sim.plane.loop_diag)
-    i, n = feed.next, length(feed.records)
+    i, record_count = feed.next, length(feed.records)
     # keyed exactly: the records are stably sorted by `(frame, writer)`, the entry
     # pass has validated every ordinal into `1:frames`, and the loop visits each
     # frame in `[1, upto]` once — so `==` cannot strand the cursor, and the
     # records past a `to_boundary` truncation are correctly left unapplied
-    while i ≤ n && feed.records[i].frame == frame
-        r = feed.records[i]
-        r.thunk()
+    while i ≤ record_count && feed.records[i].frame == frame
+        replay_record = feed.records[i]
+        replay_record.thunk()
         # the recording's own `TraceBatch`, re-recorded as an equal value rather
         # than shared: re-recording is not a re-conversion — the prefix is
         # bit-identical by construction — but the two traces are two values
         trc = sim.run.trace
         trc === nothing || push!(trc.batches,
-                                 TraceBatch(r.record.frame, r.record.writer, copy(r.record.entries)))
+                                 TraceBatch(replay_record.record.frame, replay_record.record.writer,
+                                           copy(replay_record.record.entries)))
         i += 1
     end
     feed.next = i
@@ -1663,11 +1674,11 @@ end
 # One cell's take under a feed (§12.7): the batch is dropped, and what the drop
 # cost — the faces it touched, read off the mask against the writer's schema —
 # is reported on the writer's own diagnostic cell.
-function _discard_staged!(w::Writer, cell::DiagCell, frame::Int)
-    ref = @atomicswap w.cell.pending = nothing
+function _discard_staged!(writer::Writer, cell::DiagCell, frame::Int)
+    ref = @atomicswap writer.cell.pending = nothing
     ref === nothing && return nothing
     mask = ref[].mask
-    _report!(cell, ReplayDiscardedStaging(Symbol[w.faces[i] for i in 1:length(mask) if mask[i]],
+    _report!(cell, ReplayDiscardedStaging(Symbol[writer.faces[i] for i in 1:length(mask) if mask[i]],
                                           frame))
     nothing
 end
@@ -1691,32 +1702,32 @@ ordinal is the trajectory's, off the clock (D-230); the counter is the wait
 predicate's alone.
 """
 function publish!(sim::Simulation)
-    ctl = sim.control
+    control = sim.control
     clock = sim.exec.clock
-    snap = Snapshot(clock.t, clock.step, clock.boundary, capture(sim.exec.store),
+    snapshot = Snapshot(clock.t, clock.step, clock.boundary, capture(sim.exec.store),
                     sim.exec.act.layout, _status(sim))
     clock.boundary += 1
-    @atomic :release sim.plane.published.latest = snap
-    log!(sim.run.log, snap)
-    lock(ctl.cond)
+    @atomic :release sim.plane.published.latest = snapshot
+    log!(sim.run.log, snapshot)
+    lock(control.cond)
     try
-        ctl.counter += 1
-        notify(ctl.cond)
+        control.counter += 1
+        notify(control.cond)
     finally
-        unlock(ctl.cond)
+        unlock(control.cond)
     end
     nothing
 end
 
 # One writer's record (§11.8): the account's pending delta is *taken* — the
 # status owns the vector, the account re-arms the shared empty — and the
-# totals, isbits, copy by read. `hb` and `ts` are `nothing` for the two
+# totals, isbits, copy by read. `heartbeat` and `task_state` are `nothing` for the two
 # writers with no task of their own.
-function _writer_status(who::String, a::WriterAccount, hb, ts)
-    ws = WriterStatus(who, a.recent, a.suppressed, a.totals, hb, ts)
-    a.recent = EMPTY_RECENT
-    a.suppressed = KindCounts()
-    ws
+function _writer_status(who::String, account::WriterAccount, heartbeat, task_state)
+    status = WriterStatus(who, account.recent, account.suppressed, account.totals, heartbeat, task_state)
+    account.recent = EMPTY_RECENT
+    account.suppressed = KindCounts()
+    status
 end
 
 # The status assembly (§11.8, §11.2), on the publishing task: per-writer
@@ -1724,14 +1735,15 @@ end
 # harness writer, then the loop itself.
 function _status(sim::Simulation)
     plane = sim.plane
-    ws = Vector{WriterStatus}(undef, length(plane.roster) + 2)
-    for (i, e) in enumerate(plane.roster)
-        t = get(plane.run_tasks, e.id, nothing)
-        ws[i] = _writer_status(_who(e), e.acct, _heartbeat(_handle(e).diag), _task_state(t))
+    statuses = Vector{WriterStatus}(undef, length(plane.roster) + 2)
+    for (i, entry) in enumerate(plane.roster)
+        task = get(plane.run_tasks, entry.id, nothing)
+        statuses[i] = _writer_status(_who(entry), entry.acct, _heartbeat(_handle(entry).diag),
+                                     _task_state(task))
     end
-    ws[end-1] = _writer_status("harness", plane.harness_acct, nothing, nothing)
-    ws[end] = _writer_status("loop", sim.plane.loop_acct, nothing, nothing)
-    FrameworkStatus(ws)
+    statuses[end-1] = _writer_status("harness", plane.harness_acct, nothing, nothing)
+    statuses[end] = _writer_status("loop", sim.plane.loop_acct, nothing, nothing)
+    FrameworkStatus(statuses)
 end
 
 """
@@ -1759,15 +1771,15 @@ retention wholesale.
 """
 function logged(sim::Simulation)
     assert_stopped(sim.control, :logged)
-    L = sim.run.log
-    out = Snapshot[]
-    L.first === nothing && return out
-    push!(out, L.first)
-    for s in L.snaps
-        s === nothing || push!(out, s)
+    snapshot_log = sim.run.log
+    retained = Snapshot[]
+    snapshot_log.first === nothing && return retained
+    push!(retained, snapshot_log.first)
+    for snapshot in snapshot_log.snaps
+        snapshot === nothing || push!(retained, snapshot)
     end
-    L.last === out[end] || push!(out, L.last)
-    out
+    snapshot_log.last === retained[end] || push!(retained, snapshot_log.last)
+    retained
 end
 
 """
@@ -1788,13 +1800,13 @@ zero leaves its trace behind, header captured, and that is the reproduction
 §13.4 promises (D-223).
 """
 function trace(sim::Simulation{T}) where {T}
-    lc = lifecycle(sim)
-    t = sim.run.trace
-    lc === :built && t === nothing &&
-        throw(DiagnosticError(MissingInit(op = :trace, status = lc)))
-    t === nothing &&        # §11.5's kill switch, which rides on the run's trace (D-260)
+    lifecycle_state = lifecycle(sim)
+    trc = sim.run.trace
+    lifecycle_state === :built && trc === nothing &&
+        throw(DiagnosticError(MissingInit(op = :trace, status = lifecycle_state)))
+    trc === nothing &&        # §11.5's kill switch, which rides on the run's trace (D-260)
         throw(DiagnosticError(ArgumentInvalid(call = :trace, reason = :disabled)))
-    Trace{T}(t.header, copy(t.schemas), copy(t.batches), t.frames)
+    Trace{T}(trc.header, copy(trc.schemas), copy(trc.batches), trc.frames)
 end
 
 # --- reading and writing the table outside the loop ---------------------------
@@ -1815,11 +1827,11 @@ function state(sim::Simulation{T}, path::String) where {T}
     sim.exec.sstores[ci] === nothing || return sim.exec.sstores[ci][]
     _tier(i) = sim.deployment.build.structure.components[i].tier
     _decls(i) = declarations(sim.deployment.build.structure.components[i].instance, _tier(i), T)
-    off = 0
+    x_offset = 0
     for i in 1:(ci-1)
-        _tier(i) === CONTINUOUS && (off += nleaves(typeof(_decls(i).x)))
+        _tier(i) === CONTINUOUS && (x_offset += nleaves(typeof(_decls(i).x)))
     end
-    reconstruct(typeof(_decls(ci).x), sim.exec.xbuf, off)
+    reconstruct(typeof(_decls(ci).x), sim.exec.xbuf, x_offset)
 end
 
 """Modes at `path` (§7.3). Read-only here: modes are written by handlers alone."""
