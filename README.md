@@ -24,15 +24,6 @@ formalism is domain-neutral.
 Linearization, the GUI write path, real-time pacing and pausing are designed
 but not yet built.
 
-## Documentation
-
-Cadence has no user manual yet. Its design is written down in full:
-
-- `docs/design/spec.md` is the normative specification.
-- `docs/design/decisions.md` records every design decision and the
-  alternatives it rejected.
-- `docs/design/companions/` holds worked explainers.
-
 ## Status
 
 Cadence is under active development and is not yet registered. Its API may
@@ -110,3 +101,13 @@ julia> build(loop("power"))
 ERROR: DiagnosticError: 1 diagnostics
   AlgebraicCycle: algebraic loop among `plant`, `ctl`: plant/power → ctl/y, ctl/u → plant/u — real: a loop survives the trace (`ctl` structurally, the rest globally); break it with a state, a unit delay or a stage-1 (`output_state`) port (§5.5)
 ```
+
+## Documentation
+
+Cadence has no user manual yet. Its design is written down in full:
+
+- `docs/design/spec.md` is the normative specification.
+- `docs/design/decisions.md` records every design decision and the
+  alternatives it rejected.
+- `docs/design/companions/` holds worked explainers.
+
