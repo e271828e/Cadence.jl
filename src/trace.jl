@@ -67,9 +67,10 @@ end
 # The default `==` on a mutable-free struct with a `Vector` field is egal, which
 # would make that claim untestable, so the field-wise one is defined here, and
 # `hash` with it as Julia's convention requires.
-Base.:(==)(a::TraceBatch, b::TraceBatch) =
-    a.frame == b.frame && a.writer == b.writer && a.entries == b.entries
-Base.hash(b::TraceBatch, seed::UInt) = hash(b.entries, hash(b.writer, hash(b.frame, seed)))
+Base.:(==)(record::TraceBatch, other::TraceBatch) =
+    record.frame == other.frame && record.writer == other.writer && record.entries == other.entries
+Base.hash(record::TraceBatch, seed::UInt) =
+    hash(record.entries, hash(record.writer, hash(record.frame, seed)))
 
 """
 The trace (§11.5, D-255): a fixed header, written once at `init!` and never
@@ -127,18 +128,18 @@ end
 # width-dependent beyond them — the cost D-176 records rather than argues away.
 # A drained batch always carries at least one touched position (`_normalize`
 # returns `nothing` for one that would not), so no record here is empty.
-function _record!(trc::Trace, widx::Int, batch::Batch)
+function _record!(trc::Trace, writer_index::Int, batch::Batch)
     mask = batch.mask
-    k = 0
+    touched = 0
     for i in 1:length(mask)
-        mask[i] && (k += 1)
+        mask[i] && (touched += 1)
     end
-    entries = Vector{Pair{Int,Any}}(undef, k)
+    entries = Vector{Pair{Int,Any}}(undef, touched)
     j = 0
     for i in 1:length(mask)
         mask[i] && (entries[j += 1] = i => batch.vals[i])
     end
-    push!(trc.batches, TraceBatch(trc.frames, widx, entries))
+    push!(trc.batches, TraceBatch(trc.frames, writer_index, entries))
     nothing
 end
 
@@ -157,9 +158,9 @@ end
 # the trace the replay goes on to build is a value of its own and nothing the
 # caller still holds is reachable from it. The `Deployment` and the layout
 # fingerprint are immutable artifacts and ride as they are.
-_detach(h::TraceHeader{T}) where {T} =
-    TraceHeader{T}(copy(h.x), copy(h.s), copy(h.m), copy(h.root_inputs),
-                   h.deployment, h.t₀, h.layout)
+_detach(header::TraceHeader{T}) where {T} =
+    TraceHeader{T}(copy(header.x), copy(header.s), copy(header.m), copy(header.root_inputs),
+                   header.deployment, header.t₀, header.layout)
 
 """
 The growth rule (§11.5), and the one site a drain thunk is compiled at: append
@@ -182,22 +183,22 @@ over concretely — so the record branch inside `_drain!` folds away where there
 is nothing to record.
 """
 function _install_writers!(plane, store, trc)
-    k = length(plane.roster) + 1
+    writer_count = length(plane.roster) + 1
     live_writers = if trc === nothing
-        1:k
+        1:writer_count
     else
-        n = length(trc.schemas)
+        schema_count = length(trc.schemas)
         append!(trc.schemas, _writer_schemas(plane))
-        (n + 1):(n + k)
+        (schema_count + 1):(schema_count + writer_count)
     end
-    for (i, e) in enumerate(plane.roster)
+    for (i, entry) in enumerate(plane.roster)
         # the entry is immutable and its thunk carries the index, so the
         # recompilation replaces the entry itself (§11.4's stopped-sim compile)
         plane.roster[i] = RosterEntry(
-            e.dev, e.id, _drain_thunk(store, _handle(e).writer, trc, live_writers[i]),
-            e.should_abort, e.acct, e.handle)
+            entry.dev, entry.id, _drain_thunk(store, _handle(entry).writer, trc, live_writers[i]),
+            entry.should_abort, entry.acct, entry.handle)
     end
-    plane.harness_drain = _drain_thunk(store, plane.harness, trc, live_writers[k])
+    plane.harness_drain = _drain_thunk(store, plane.harness, trc, live_writers[writer_count])
     nothing
 end
 
@@ -210,27 +211,28 @@ spellings of one fingerprint would be a silent way for a replay to pass.
 `sim` is untyped for include order alone, as `_capture_header` below is.
 """
 function _fingerprint(sim)
-    ex = sim.exec
-    layout = ex.act.layout
+    exec = sim.exec
+    layout = exec.act.layout
     (sizes = copy(layout.sizes),
      root_faces = Symbol[f for (f, _) in layout.root_inputs],
      paths = String[entry.path for entry in sim.deployment.build.structure.components],
-     stypes = Any[st === nothing ? nothing : typeof(st[]) for st in ex.sstores],
-     mtypes = Any[st === nothing ? nothing : typeof(st[]) for st in ex.mstores])
+     stypes = Any[st === nothing ? nothing : typeof(st[]) for st in exec.sstores],
+     mtypes = Any[st === nothing ? nothing : typeof(st[]) for st in exec.mstores])
 end
 
 # §11.5's header, read off the simulation at §14.5's placement. `sim` is
 # untyped for include order alone — this file precedes sim.jl, the drain
 # thunks it compiles being what the data plane is built with.
 function _capture_header(sim)
-    ex = sim.exec
-    layout = ex.act.layout
-    T = eltype(ex.xbuf)      # the deployment's scalar, off the buffer that carries it
-    s = Any[st === nothing ? nothing : st[] for st in ex.sstores]
-    m = Any[st === nothing ? nothing : st[] for st in ex.mstores]
-    roots = Pair{Symbol,Any}[f => gather(ex.store, layout.addr[("", f)])
+    exec = sim.exec
+    layout = exec.act.layout
+    T = eltype(exec.xbuf)      # the deployment's scalar, off the buffer that carries it
+    s = Any[st === nothing ? nothing : st[] for st in exec.sstores]
+    m = Any[st === nothing ? nothing : st[] for st in exec.mstores]
+    roots = Pair{Symbol,Any}[f => gather(exec.store, layout.addr[("", f)])
                              for (f, _) in layout.root_inputs]
-    TraceHeader{T}(copy(ex.xbuf), s, m, roots, sim.deployment, ex.clock.t₀, _fingerprint(sim))
+    TraceHeader{T}(copy(exec.xbuf), s, m, roots, sim.deployment, exec.clock.t₀,
+                   _fingerprint(sim))
 end
 
 # ==============================================================================
@@ -251,32 +253,35 @@ end
 # `t₀` is applied rather than compared. The header holds no policy (§11.5,
 # D-255): `t_end` and `stop_on` are the terminating advance's, and the
 # termination record has them.
-function _check_header!(diags::Vector{Diagnostic}, sim, h::TraceHeader)
-    f = _fingerprint(sim)
-    l = h.layout
-    l.sizes == f.sizes ||
+function _check_header!(diags::Vector{Diagnostic}, sim, header::TraceHeader)
+    target = _fingerprint(sim)
+    recorded = header.layout
+    recorded.sizes == target.sizes ||
         push!(diags, ReplayHeaderMismatch(what = :store, name = :sizes,
-                                          expected = l.sizes, found = f.sizes))
-    l.paths == f.paths ||
+                                          expected = recorded.sizes, found = target.sizes))
+    recorded.paths == target.paths ||
         push!(diags, ReplayHeaderMismatch(what = :store, name = :paths,
-                                          expected = l.paths, found = f.paths))
-    l.root_faces == f.root_faces ||
-        push!(diags, ReplayHeaderMismatch(what = :root_input,
-                                          expected = l.root_faces, found = f.root_faces))
+                                          expected = recorded.paths, found = target.paths))
+    recorded.root_faces == target.root_faces ||
+        push!(diags, ReplayHeaderMismatch(what = :root_input, expected = recorded.root_faces,
+                                          found = target.root_faces))
     # the per-component store types, only where the path lists agree on what a
     # component *index* means — otherwise the comparison would be by position
     # between two different models, and the path mismatch above is the honest fact
-    if l.paths == f.paths
-        for (i, p) in enumerate(f.paths)
-            l.stypes[i] === f.stypes[i] ||
-                push!(diags, ReplayHeaderMismatch(what = :store, path = p, name = :s,
-                                                  expected = l.stypes[i], found = f.stypes[i]))
-            l.mtypes[i] === f.mtypes[i] ||
-                push!(diags, ReplayHeaderMismatch(what = :store, path = p, name = :m,
-                                                  expected = l.mtypes[i], found = f.mtypes[i]))
+    if recorded.paths == target.paths
+        for (i, path) in enumerate(target.paths)
+            recorded.stypes[i] === target.stypes[i] ||
+                push!(diags, ReplayHeaderMismatch(what = :store, path = path, name = :s,
+                                                  expected = recorded.stypes[i],
+                                                  found = target.stypes[i]))
+            recorded.mtypes[i] === target.mtypes[i] ||
+                push!(diags, ReplayHeaderMismatch(what = :store, path = path, name = :m,
+                                                  expected = recorded.mtypes[i],
+                                                  found = target.mtypes[i]))
         end
     end
-    h.deployment == sim.deployment || _walk_deployment!(diags, h.deployment, sim.deployment)
+    header.deployment == sim.deployment ||
+        _walk_deployment!(diags, header.deployment, sim.deployment)
     nothing
 end
 
@@ -291,29 +296,35 @@ _dep_diff!(diags::Vector{Diagnostic}, path::String, name::Symbol, expected, foun
 # re-declared through a different anchor at the same tick table is a different
 # deployment. The walk covers exactly what `Deployment`'s and `Schedule`'s `==`
 # compare, so a refusal is never silent.
-function _walk_deployment!(diags::Vector{Diagnostic}, rec::Deployment, tgt::Deployment)
+function _walk_deployment!(diags::Vector{Diagnostic}, recorded::Deployment, target::Deployment)
     for name in (:Δt_base, :h, :N_base, :algorithm, :localization_tol,
                  :localization_budget, :firing_budget)
-        _dep_diff!(diags, "", name, getfield(rec, name), getfield(tgt, name))
+        _dep_diff!(diags, "", name, getfield(recorded, name), getfield(target, name))
     end
-    a, b = rec.schedule, tgt.schedule
+    recorded_schedule, target_schedule = recorded.schedule, target.schedule
     # the rows, identified by path: a differing row count or path list is the
     # whole list, since rows past the first difference name different components
-    if [r.path for r in a.rows] == [r.path for r in b.rows]
-        for (ra, rb) in zip(a.rows, b.rows), col in (:anchor, :D, :Φ, :Δt, :rates)
-            _dep_diff!(diags, ra.path, col, getfield(ra, col), getfield(rb, col))
+    if [r.path for r in recorded_schedule.rows] == [r.path for r in target_schedule.rows]
+        for (recorded_row, target_row) in zip(recorded_schedule.rows, target_schedule.rows),
+            column in (:anchor, :D, :Φ, :Δt, :rates)
+            _dep_diff!(diags, recorded_row.path, column, getfield(recorded_row, column),
+                       getfield(target_row, column))
         end
     else
-        _dep_diff!(diags, "", :schedule, [r.path for r in a.rows], [r.path for r in b.rows])
+        _dep_diff!(diags, "", :schedule, [r.path for r in recorded_schedule.rows],
+                   [r.path for r in target_schedule.rows])
     end
-    if [(s.path, s.key) for s in a.scopes] == [(s.path, s.key) for s in b.scopes]
-        for (sa, sb) in zip(a.scopes, b.scopes), col in (:anchor, :D, :Φ)
-            _dep_diff!(diags, sa.path, Symbol("scope.", col), getfield(sa, col), getfield(sb, col))
+    if [(scope.path, scope.key) for scope in recorded_schedule.scopes] ==
+       [(scope.path, scope.key) for scope in target_schedule.scopes]
+        for (recorded_scope, target_scope) in
+                zip(recorded_schedule.scopes, target_schedule.scopes), column in (:anchor, :D, :Φ)
+            _dep_diff!(diags, recorded_scope.path, Symbol("scope.", column),
+                       getfield(recorded_scope, column), getfield(target_scope, column))
         end
     else
         _dep_diff!(diags, "", Symbol("scope.key"),
-                   [string(s.path, ':', s.key) for s in a.scopes],
-                   [string(s.path, ':', s.key) for s in b.scopes])
+                   [string(scope.path, ':', scope.key) for scope in recorded_schedule.scopes],
+                   [string(scope.path, ':', scope.key) for scope in target_schedule.scopes])
     end
     nothing
 end
@@ -326,7 +337,7 @@ end
 function _check_schemas!(diags::Vector{Diagnostic}, faces::Vector{Symbol},
                          schemas::Vector{Pair{String,Vector{Symbol}}})
     for (tag, schema) in schemas
-        unknown = Symbol[s for s in schema if !(s in faces)]
+        unknown = Symbol[face for face in schema if !(face in faces)]
         isempty(unknown) ||
             push!(diags, ReplaySchemaMismatch(writer = tag, schema = schema,
                                               unknown = unknown, faces = faces))
@@ -348,8 +359,8 @@ function _replay_writer(layout::Layout, diags::Vector{Diagnostic}, tag::String,
                         schema::Vector{Symbol}, frame::Int, faces::Vector{Symbol})
     absent = Symbol[f for f in schema if !haskey(layout.addr, ("", f))]
     isempty(absent) && return Writer(layout, schema)
-    for f in absent
-        push!(diags, ReplayUnknownFace(face = f, frame = frame, writer = tag, faces = faces))
+    for face in absent
+        push!(diags, ReplayUnknownFace(face = face, frame = frame, writer = tag, faces = faces))
     end
     nothing
 end
@@ -369,61 +380,66 @@ not a replay of anything.
 function _compile_records!(diags::Vector{Diagnostic}, sim, trc::Trace, faces::Vector{Symbol})
     layout, store, schemas = sim.exec.act.layout, sim.exec.store, trc.schemas
     writers = Dict{Int,Writer}()
-    recs = ReplayRecord[]
-    for b in trc.batches
-        if !(1 ≤ b.frame ≤ trc.frames)
+    replay_records = ReplayRecord[]
+    for record in trc.batches
+        if !(1 ≤ record.frame ≤ trc.frames)
             # the batch disagrees with the trace's *own* frame count: the drain
             # visits every frame in `1:frames` exactly once, so an ordinal outside
             # it names a frame that never comes round and the record would silently
             # never apply. Named by the writer's tag where the schema list has one
             push!(diags, ReplayHeaderMismatch(
                 what = :frame,
-                name = 1 ≤ b.writer ≤ length(schemas) ? Symbol(first(schemas[b.writer])) :
-                                                        Symbol("writer #$(b.writer)"),
-                expected = 1:trc.frames, found = b.frame))
+                name = 1 ≤ record.writer ≤ length(schemas) ?
+                       Symbol(first(schemas[record.writer])) :
+                       Symbol("writer #$(record.writer)"),
+                expected = 1:trc.frames, found = record.frame))
             continue
         end
-        if !(1 ≤ b.writer ≤ length(schemas))
+        if !(1 ≤ record.writer ≤ length(schemas))
             # no schema to resolve the positions through, and the writer index is
             # what is missing — the tag §11.8 cannot supply is spelled positionally
-            for (pos, _) in b.entries
-                push!(diags, ReplayUnknownFace(face = pos, frame = b.frame,
-                                               writer = "writer #$(b.writer)", faces = faces))
+            for (face_position, _) in record.entries
+                push!(diags, ReplayUnknownFace(face = face_position, frame = record.frame,
+                                               writer = "writer #$(record.writer)", faces = faces))
             end
             continue
         end
-        (tag, schema) = schemas[b.writer]
-        if !haskey(writers, b.writer)
-            w = _replay_writer(layout, diags, tag, schema, b.frame, faces)
-            w === nothing && continue
-            writers[b.writer] = w
+        (tag, schema) = schemas[record.writer]
+        if !haskey(writers, record.writer)
+            writer = _replay_writer(layout, diags, tag, schema, record.frame, faces)
+            writer === nothing && continue
+            writers[record.writer] = writer
         end
-        w = writers[b.writer]
-        vals, mask, ok = Any[w.blank.vals...], fill(false, length(schema)), true
-        for (pos, v) in b.entries
-            if !(1 ≤ pos ≤ length(schema))
-                push!(diags, ReplayUnknownFace(face = pos, frame = b.frame, writer = tag,
-                                               faces = faces))
-                ok = false
+        writer = writers[record.writer]
+        batch_values, mask, resolved = Any[writer.blank.vals...], fill(false, length(schema)), true
+        for (face_position, value) in record.entries
+            if !(1 ≤ face_position ≤ length(schema))
+                push!(diags, ReplayUnknownFace(face = face_position, frame = record.frame,
+                                               writer = tag, faces = faces))
+                resolved = false
                 continue
             end
-            vals[pos] = try
-                convert(w.types[pos], v)
+            batch_values[face_position] = try
+                convert(writer.types[face_position], value)
             catch
-                push!(diags, ReplayHeaderMismatch(what = :root_input, name = schema[pos],
-                                                  expected = w.types[pos], found = v))
-                ok = false
+                push!(diags, ReplayHeaderMismatch(what = :root_input,
+                                                  name = schema[face_position],
+                                                  expected = writer.types[face_position],
+                                                  found = value))
+                resolved = false
                 continue
             end
-            mask[pos] = true
+            mask[face_position] = true
         end
-        ok || continue
-        batch = Batch(convert(typeof(w.blank.vals), (vals...,)), (mask...,))
-        push!(recs, (frame = b.frame, thunk = _apply_thunk(store, w.addrs, batch), record = b))
+        resolved || continue
+        batch = Batch(convert(typeof(writer.blank.vals), (batch_values...,)), (mask...,))
+        push!(replay_records,
+              (frame = record.frame, thunk = _apply_thunk(store, writer.addrs, batch),
+               record = record))
     end
     # the drain's own order (§11.5): by frame, then by the recording's writer
     # index. Stable, so a trace already in drain order — every trace the drain
     # produces — keeps exactly the order it was recorded in.
-    sort!(recs; by = r -> (r.frame, r.record.writer), alg = MergeSort)
-    recs
+    sort!(replay_records; by = r -> (r.frame, r.record.writer), alg = MergeSort)
+    replay_records
 end
