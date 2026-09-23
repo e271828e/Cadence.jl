@@ -76,8 +76,8 @@ Control(join_timeout::Float64) =
 # The stop word's one write path (§12.1, D-203): first CAS from empty wins —
 # the same arbitration as the loop reacting to the first holding stop face —
 # and a later issuer is dropped, the tail already having its initiator.
-_request_stop!(ctl::Control, issuer::Union{Symbol,String}) =
-    (@atomicreplace ctl.stop_issuer nothing => issuer; nothing)
+_request_stop!(control::Control, issuer::Union{Symbol,String}) =
+    (@atomicreplace control.stop_issuer nothing => issuer; nothing)
 
 """
 The §11.3 freeze, keyed on the lifecycle (§12.6), as two gates. The readers'
@@ -88,16 +88,16 @@ inspection of a terminally stopped simulation is reading (§13.6). The roster's
 gate, `assert_configurable`, adds `:errored` to the refusals (D-232): a
 roster change configures the next run, and an errored simulation has none.
 """
-assert_stopped(ctl::Control, op::Symbol) =
-    (@atomic ctl.lifecycle) === :running ?
+assert_stopped(control::Control, op::Symbol) =
+    (@atomic control.lifecycle) === :running ?
     throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
                                            legal = collect(READER_LEGAL)))) : nothing
 
-function assert_configurable(ctl::Control, op::Symbol)
-    lc = @atomic ctl.lifecycle
-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
+function assert_configurable(control::Control, op::Symbol)
+    status = @atomic control.lifecycle
+    status === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
                                                               legal = collect(STOPPED_SIM_LEGAL))))
-    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored,
+    status === :errored && throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored,
                                                               legal = collect(STOPPED_SIM_LEGAL))))
     nothing
 end
@@ -136,9 +136,9 @@ mutable struct DeviceHandle
 end
 
 # D-244's guard, on the write primitives alone.
-_assert_attached(h::DeviceHandle) =
-    (@atomic :acquire h.detached) && throw(DiagnosticError(
-        DeviceContractMismatch(device = h.who, reason = :detached)))
+_assert_attached(handle::DeviceHandle) =
+    (@atomic :acquire handle.detached) && throw(DiagnosticError(
+        DeviceContractMismatch(device = handle.who, reason = :detached)))
 
 # --- the authoring contract (§11.6) --------------------------------------------
 
@@ -181,7 +181,7 @@ heartbeat on its way through (§11.8, §12.2): the framework observes activity
 without owning the loop body, and there is no separate liveness channel to
 remember to feed.
 """
-running(h::DeviceHandle) = (_beat!(h.diag); !(@atomic h.ctl.stopped))
+running(handle::DeviceHandle) = (_beat!(handle.diag); !(@atomic handle.ctl.stopped))
 
 """
     stop!(handle)
@@ -192,7 +192,7 @@ loop observes it at the next frame top, completes that boundary, publishes,
 and enters the tail (§12.4). Idempotent — a second request loses the CAS and
 changes nothing — and inert while already stopped.
 """
-stop!(h::DeviceHandle) = _request_stop!(h.ctl, h.who)
+stop!(handle::DeviceHandle) = _request_stop!(handle.ctl, handle.who)
 
 """
     binding(handle)
@@ -204,7 +204,7 @@ body, and the handle carrying the binding is what keeps the device struct
 free of its per-deployment configuration (the binding stays an `attach!`
 argument, never a device field).
 """
-binding(h::DeviceHandle) = h.b
+binding(handle::DeviceHandle) = handle.b
 
 """
     latest(handle)
@@ -212,7 +212,7 @@ binding(h::DeviceHandle) = h.b
 The handle's primitive read (§11.6): acquire-load the most recently published
 snapshot — exactly `latest(sim)`, through the capability the handle carries.
 """
-latest(h::DeviceHandle) = (_beat!(h.diag); @atomic :acquire h.published.latest)
+latest(handle::DeviceHandle) = (_beat!(handle.diag); @atomic :acquire handle.published.latest)
 
 """
     stage!(handle, "face" => value, ...)
@@ -225,31 +225,31 @@ any task, at any wall-clock moment; the batch lands at the top of the next
 frame `run!` advances. On a handle whose device was detached the call is a
 contract misuse and throws by name (D-244).
 """
-function stage!(h::DeviceHandle, writes::Pair...)
-    _assert_attached(h)
-    _beat!(h.diag)
-    batch = _normalize(h.writer, writes, h.claimedby, h.diag; device = h.who)
-    batch === nothing || _stage!(h.writer, batch)
+function stage!(handle::DeviceHandle, writes::Pair...)
+    _assert_attached(handle)
+    _beat!(handle.diag)
+    batch = _normalize(handle.writer, writes, handle.claimedby, handle.diag; device = handle.who)
+    batch === nothing || _stage!(handle.writer, batch)
     nothing
 end
 
 """
-    gather(handle, snap)
+    gather(handle, snapshot)
 
 The output side's read (§11.2, §11.6): run the attachment's compiled gather —
 `reads(b)`, resolved at attach — over a snapshot, returning the labeled
 NamedTuple `map_output` receives. The loop idiom is
-`send(dev.socket, map_output(gather(handle, snap), binding(handle)))`, on the
+`send(dev.socket, map_output(gather(handle, snapshot), binding(handle)))`, on the
 device's own task, against the snapshot §12.3's wait handed it: the compiled
 addresses read the frozen store, so no name is resolved per datum and nothing
 here touches the running loop. On a handle whose binding declares no output
 side the call is a contract misuse, and throws by name.
 """
-function gather(h::DeviceHandle, s::Snapshot)
-    _beat!(h.diag)
-    h.gatherer === nothing && throw(DiagnosticError(
-        DeviceContractMismatch(device = h.who, reason = :no_output_side)))
-    _gather(h.gatherer, s)
+function gather(handle::DeviceHandle, snapshot::Snapshot)
+    _beat!(handle.diag)
+    handle.gatherer === nothing && throw(DiagnosticError(
+        DeviceContractMismatch(device = handle.who, reason = :no_output_side)))
+    _gather(handle.gatherer, snapshot)
 end
 
 """
@@ -269,8 +269,8 @@ cell at frame top, folding it into the published framework status —
 device-attributed, delta plus totals (§11.8) — and sweeps it once more at the
 run's end for whatever landed past the last frame top.
 """
-report!(h::DeviceHandle, d::MalformedDatum) =
-    (_assert_attached(h); _beat!(h.diag); _report!(h.diag, d))
+report!(handle::DeviceHandle, occurrence::MalformedDatum) =
+    (_assert_attached(handle); _beat!(handle.diag); _report!(handle.diag, occurrence))
 
 """
     wait_next_snapshot(handle)
@@ -285,30 +285,30 @@ every wake, which is what makes shutdown work: tail step (2) wakes every
 waiter and the predicate routes it out. After a stop return the author's
 loop re-checks `running(handle)`, exactly as after any blocking call.
 """
-function wait_next_snapshot(h::DeviceHandle)
-    _beat!(h.diag)
-    ctl = h.ctl
-    lock(ctl.cond)
+function wait_next_snapshot(handle::DeviceHandle)
+    _beat!(handle.diag)
+    control = handle.ctl
+    lock(control.cond)
     try
-        while ctl.counter <= h.last_seen && !(@atomic ctl.stopped)
-            wait(ctl.cond)
+        while control.counter <= handle.last_seen && !(@atomic control.stopped)
+            wait(control.cond)
         end
-        h.last_seen = ctl.counter
+        handle.last_seen = control.counter
     finally
-        unlock(ctl.cond)
+        unlock(control.cond)
     end
-    latest(h)
+    latest(handle)
 end
 
 # --- the wrapper and the run's bracket (§11.6, §12.4) --------------------------
 
 # The guarded release: `shutdown!` is guaranteed on every exit path, and a
 # throw out of it must not wreck the bracket or the tail around it (§11.6).
-function _shutdown!(e::RosterEntry)
+function _shutdown!(entry::RosterEntry)
     try
-        shutdown!(e.dev)
+        shutdown!(entry.dev)
     catch err
-        @warn "shutdown! of $(_who(e)) threw; its resources may leak (§11.6)" #=
+        @warn "shutdown! of $(_who(entry)) threw; its resources may leak (§11.6)" #=
             =# exception = (err, catch_backtrace())
     end
     nothing
@@ -332,28 +332,28 @@ stale (§12.2).
 _unblocks(dev::AbstractDevice) =
     which(unblock!, Tuple{typeof(dev)}) !== which(unblock!, Tuple{AbstractDevice})
 
-function _wrap(e::RosterEntry)
+function _wrap(entry::RosterEntry)
     try
-        loop(e.dev, e.handle)
+        loop(entry.dev, entry.handle)
     catch err
         if err isa InterruptException
             # The wrapper's one discrimination (§11.6, D-132): the operator's
             # stop, raised inside a body that did nothing wrong, is forwarded
             # through the stop word — an earlier issuer keeps it — and never
             # reported as a crash. The abort consult below is inert after it.
-            _request_stop!(e.handle.ctl, :interrupt)
+            _request_stop!(entry.handle.ctl, :interrupt)
         else
             # A raise after the sticky stop, from a device overriding `unblock!`,
             # is the one the override provoked — its blocking call returning by
             # throwing — and is shutdown, not a crash (§12.4(3)). A device with
             # no override has nothing to provoke it, so its raise is a crash
             # whenever it lands.
-            unblocked = (@atomic e.handle.ctl.stopped) && _unblocks(e.dev)
-            unblocked || _report!(_handle(e).diag, DeviceCrash(err, e.should_abort))
+            unblocked = (@atomic entry.handle.ctl.stopped) && _unblocks(entry.dev)
+            unblocked || _report!(_handle(entry).diag, DeviceCrash(err, entry.should_abort))
         end
     finally
-        _shutdown!(e)
-        e.should_abort && stop!(e.handle)
+        _shutdown!(entry)
+        entry.should_abort && stop!(entry.handle)
     end
     nothing
 end
@@ -374,17 +374,17 @@ uniformly. Returns the live entries, from which §11.1's topology is derived
 """
 function _init_devices!(sim)
     live = RosterEntry[]
-    for e in sim.plane.roster
-        ok = try
-            init!(e.dev)
+    for entry in sim.plane.roster
+        initialized = try
+            init!(entry.dev)
             true
         catch err
-            _shutdown!(e)
-            _report!(_handle(e).diag, DeviceCrash(err, e.should_abort))  # addressed by the
-            e.should_abort && stop!(e.handle)     # entry: no task holds a handle yet (§12.4)
+            _shutdown!(entry)
+            _report!(_handle(entry).diag, DeviceCrash(err, entry.should_abort))  # addressed by the
+            entry.should_abort && stop!(entry.handle)     # entry: no task holds a handle yet (§12.4)
             false
         end
-        ok && push!(live, e)
+        initialized && push!(live, entry)
     end
     live
 end
@@ -393,10 +393,10 @@ end
 # only, never at `attach!` — a task exists only once the run it serves does.
 # The §12.3 registers are refreshed first, on the calling task.
 function _spawn!(entries::Vector{RosterEntry})
-    for e in entries
-        e.handle.last_seen = e.handle.ctl.counter
+    for entry in entries
+        entry.handle.last_seen = entry.handle.ctl.counter
     end
-    [Threads.@spawn _wrap(e) for e in entries]
+    [Threads.@spawn _wrap(entry) for entry in entries]
 end
 
 # Tail steps (1)'s close and (2) (§12.4): the final snapshot is whatever the
@@ -405,13 +405,13 @@ end
 # Idempotent, and run even when the loop leaves by a throw — the §13.6 catch
 # path is absent (`pending.md`), but device tasks must never be left parked.
 function _finish!(sim)
-    ctl = sim.control
-    @atomic ctl.stopped = true
-    lock(ctl.cond)
+    control = sim.control
+    @atomic control.stopped = true
+    lock(control.cond)
     try
-        notify(ctl.cond)
+        notify(control.cond)
     finally
-        unlock(ctl.cond)
+        unlock(control.cond)
     end
     nothing
 end
@@ -430,25 +430,25 @@ backend. The calling-task device sits outside the join: nothing can abandon
 the task `run!` stands on.
 """
 function _tail!(sim, entries::Vector{RosterEntry}, tasks::Vector{Task})
-    for e in entries
+    for entry in entries
         try
-            unblock!(e.dev)
+            unblock!(entry.dev)
         catch err
-            @warn "unblock! of $(_who(e)) threw; its task can now exit only " *
+            @warn "unblock! of $(_who(entry)) threw; its task can now exit only " *
                   "through the join timeout (§12.4)" exception = (err, catch_backtrace())
         end
     end
     deadline = time() + sim.control.join_timeout
-    for (e, t) in zip(entries, tasks)
+    for (entry, task) in zip(entries, tasks)
         remaining = deadline - time()
-        joined = istaskdone(t) ||
+        joined = istaskdone(task) ||
             (remaining > 0 &&
-             timedwait(() -> istaskdone(t), remaining; pollint = min(0.01, remaining)) === :ok)
+             timedwait(() -> istaskdone(task), remaining; pollint = min(0.01, remaining)) === :ok)
         if !joined
-            s = latest(sim)                  # after init!, never nothing (§14.5)
+            snapshot = latest(sim)                  # after init!, never nothing (§14.5)
             _report!(sim.plane.loop_diag,
-                     DeviceJoinTimeout(_who(e), sim.control.join_timeout,
-                                       _seconds(s.t), s.boundary))
+                     DeviceJoinTimeout(_who(entry), sim.control.join_timeout,
+                                       _seconds(snapshot.t), snapshot.boundary))
         end
     end
     nothing
@@ -469,9 +469,9 @@ and the tail's remainder is loud *and* recorded, still never published.
 function _sweep_tail!(sim)
     plane = sim.plane
     residue = ResidueRecord[]
-    for e in plane.roster
-        _fold!(e.acct, _handle(e).diag)
-        _residue!(residue, _who(e), e.acct)
+    for entry in plane.roster
+        _fold!(entry.acct, _handle(entry).diag)
+        _residue!(residue, _who(entry), entry.acct)
     end
     _fold!(plane.harness_acct, plane.harness_diag)
     _residue!(residue, "harness", plane.harness_acct)
@@ -483,17 +483,19 @@ end
 # One writer's take: a quiet account contributes no record; a noisy one hands
 # its pending vector over — the account re-arms the shared empty, so the
 # record's vector is never written again — and is rendered entry by entry.
-function _residue!(out::Vector{ResidueRecord}, who::String, a::WriterAccount)
-    isempty(a.recent) && _total(a.suppressed) == 0 && return nothing
-    r = ResidueRecord(who, a.recent, a.suppressed)
-    push!(out, r)
-    for d in r.recent
-        @warn "$(nameof(typeof(d))) from $who, past the final snapshot's account: $d (§11.8)"
+function _residue!(residue::Vector{ResidueRecord}, who::String, account::WriterAccount)
+    isempty(account.recent) && _total(account.suppressed) == 0 && return nothing
+    record = ResidueRecord(who, account.recent, account.suppressed)
+    push!(residue, record)
+    for occurrence in record.recent
+        @warn "$(nameof(typeof(occurrence))) from $who, past the final snapshot's " *
+              "account: $occurrence (§11.8)"
     end
-    s = _total(r.suppressed)
-    s > 0 && @warn "$s more suppressed occurrence(s) from $who past the final " *
-                   "snapshot's account (§11.8)"
-    a.recent = EMPTY_RECENT
-    a.suppressed = KindCounts()
+    suppressed_count = _total(record.suppressed)
+    suppressed_count > 0 &&
+        @warn "$suppressed_count more suppressed occurrence(s) from $who past the final " *
+              "snapshot's account (§11.8)"
+    account.recent = EMPTY_RECENT
+    account.suppressed = KindCounts()
     nothing
 end
