@@ -6,6 +6,33 @@ ports, mixing continuous dynamics, multi-rate periodic discrete dynamics and
 events. Its home domain is aircraft guidance, navigation and control, but the
 formalism is domain-neutral.
 
+## Features
+
+- Continuous dynamics on a fixed step, with events located by root-finding or
+  checked at step boundaries.
+- Multi-rate periodic discrete dynamics, held zero-order between ticks.
+- An execution order derived from declared feedthrough. Algebraic loops are
+  build errors that name the cycle.
+- Zero-allocation stepping and type stability, both asserted by the test suite.
+- A runtime data plane for devices, GUIs and scripts, with staged writes,
+  snapshot reads and no shared mutable model.
+- Bit-identical replay from a recorded input trace.
+- Initialization and trim, with exact automatic-differentiation Jacobians.
+- Structured diagnostics from a closed set of kinds, reported where the
+  mistake was made.
+
+Linearization, the GUI write path, real-time pacing and pausing are designed
+but not yet built.
+
+## Documentation
+
+Cadence has no user manual yet. Its design is written down in full:
+
+- `docs/design/spec.md` is the normative specification.
+- `docs/design/decisions.md` records every design decision and the
+  alternatives it rejected.
+- `docs/design/companions/` holds worked explainers.
+
 ## Status
 
 Cadence is under active development and is not yet registered. Its API may
@@ -83,30 +110,3 @@ julia> build(loop("power"))
 ERROR: DiagnosticError: 1 diagnostics
   AlgebraicCycle: algebraic loop among `plant`, `ctl`: plant/power → ctl/y, ctl/u → plant/u — real: a loop survives the trace (`ctl` structurally, the rest globally); break it with a state, a unit delay or a stage-1 (`output_state`) port (§5.5)
 ```
-
-## Features
-
-- Continuous dynamics on a fixed step, with events located by root-finding or
-  checked at step boundaries.
-- Multi-rate periodic discrete dynamics, held zero-order between ticks.
-- An execution order derived from declared feedthrough. Algebraic loops are
-  build errors that name the cycle.
-- Zero-allocation stepping and type stability, both asserted by the test suite.
-- A runtime data plane for devices, GUIs and scripts, with staged writes,
-  snapshot reads and no shared mutable model.
-- Bit-identical replay from a recorded input trace.
-- Initialization and trim, with exact automatic-differentiation Jacobians.
-- Structured diagnostics from a closed set of kinds, reported where the
-  mistake was made.
-
-Linearization, the GUI write path, real-time pacing and pausing are designed
-but not yet built.
-
-## Documentation
-
-Cadence has no user manual yet. Its design is written down in full:
-
-- `docs/design/spec.md` is the normative specification.
-- `docs/design/decisions.md` records every design decision and the
-  alternatives it rejected.
-- `docs/design/companions/` holds worked explainers.
