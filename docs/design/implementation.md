@@ -124,9 +124,9 @@ Traps the code does not warn about, each hit more than once while building:
 
 ## Naming
 
-Rules for locals and parameters, applied to new and touched code and cited by
-every stage brief and the cold review. The rulings behind them are
-`docs/reports/20260923_naming_inventory/README.md`.
+Rules for locals, parameters, fields and package functions, applied to new
+and touched code and cited by every stage brief and the cold review. The
+rulings behind them are `docs/reports/20260923_naming_inventory/README.md`.
 
 - **a local names what it holds**, with the noun the spec uses for the
   concept (`entry`, `structure`, `deployment`, `tier`, `policy`). Two values
@@ -165,6 +165,16 @@ every stage brief and the cold review. The rulings behind them are
   and a deliberate contrast (`other` in a misuse method) stands. Operator
   operands stay `a`, `b`; a Base overload takes Base's `x`, `y`, `z`; a hash
   seed is `seed`;
+- **fields follow the same rules**: a field names what it holds, in full or
+  by the roster, one meaning per file; a field the spec names or the API
+  reads keeps the spec's spelling; a constructor parameter mirrors its
+  field;
+- **a package function spells its words in full**, joined by underscores,
+  the roster's abbreviations admitted (`_condition_violation`, never
+  `_cviol`); a generic has one meaning across its methods; a private helper
+  never shares an API function's name, and where the spec's verb is the
+  right verb the helper appends its target (`gather_cell`, `gather_reads`,
+  `capture_stores`, `run_entry!`);
 - **no local shares a name with a function** defined in the package, or with
   a Base function the package calls anywhere in `src/` (`pairs`, `count`,
   `max`, `values`, `only`, `bind`; a Base name the package never calls, such
@@ -177,7 +187,7 @@ every stage brief and the cold review. The rulings behind them are
   the selectors' `i`); a name the code generators emit and read back
   (`buf`, `off`, `offs`, `stmts`, `_bundle_expr`'s `e`) changes only with
   its builder; a parameter mirroring a struct field keeps the field's
-  spelling until the field changes;
+  spelling;
 - **words join with underscores** (`port_name`, `claimed_by`, `child_path`);
   two words never fuse in a local. A spec symbol fuses with the word for
   what holds it and takes an underscore for a subscript, counts included:
