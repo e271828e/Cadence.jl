@@ -80,9 +80,9 @@ const ReadSelector = Union{GetState,GetDeriv,GetOutput,GetInput,GetFace}
 const StoreSelector = Union{GetState,GetDeriv}
 
 _index_arg(::Nothing) = nothing
-_index_arg(i::Integer) = Int(i)
-_index_arg(i) = throw(DiagnosticError(
-    ArgumentInvalid(call = :selector, reason = :index_not_integer, value = i)))
+_index_arg(index::Integer) = Int(index)
+_index_arg(index) = throw(DiagnosticError(
+    ArgumentInvalid(call = :selector, reason = :index_not_integer, value = index)))
 
 get_state(path::AbstractString, field::Union{Symbol,AbstractString}, i = nothing) =
     GetState(String(path), Symbol(field), _index_arg(i))
@@ -95,12 +95,12 @@ get_face(name::Union{Symbol,AbstractString}) = GetFace(Symbol(name))
 
 # The selector as authored, for the diagnostics: a refusal names the read the
 # way its author wrote it, which is what makes a collected list readable.
-_ipart(i) = i === nothing ? "" : ", $i"
-_spell(s::GetState) = "get_state(\"$(s.path)\", :$(s.field)$(_ipart(s.i)))"
-_spell(s::GetDeriv) = "get_deriv(\"$(s.path)\", :$(s.field)$(_ipart(s.i)))"
-_spell(s::GetOutput) = "get_output(\"$(s.path)\", :$(s.name)$(_ipart(s.i)))"
-_spell(s::GetInput) = "get_input(:$(s.face))"
-_spell(s::GetFace) = "get_face(:$(s.name))"
+_ipart(index) = index === nothing ? "" : ", $index"
+_spell(selector::GetState) = "get_state(\"$(selector.path)\", :$(selector.field)$(_ipart(selector.i)))"
+_spell(selector::GetDeriv) = "get_deriv(\"$(selector.path)\", :$(selector.field)$(_ipart(selector.i)))"
+_spell(selector::GetOutput) = "get_output(\"$(selector.path)\", :$(selector.name)$(_ipart(selector.i)))"
+_spell(selector::GetInput) = "get_input(:$(selector.face))"
+_spell(selector::GetFace) = "get_face(:$(selector.name))"
 
 # --- the declared read set (§14.7) ---------------------------------------------
 
@@ -122,15 +122,15 @@ NamedTuple carries, and the names a trim problem's residual function
 destructures (§14.7). Order is the declared side's own, as everywhere at an
 author↔framework NamedTuple seam (§9.5).
 """
-reads(; sels...) = _reads(NamedTuple(sels))
+reads(; selectors...) = _reads(NamedTuple(selectors))
 
-function _reads(nt::NamedTuple)
-    for (label, s) in pairs(nt)
-        s isa ReadSelector || throw(DiagnosticError(ReadSetMisuse(
-            observed = typeof(s), reason = :not_a_selector, label = label,
-            in_hand = Symbol[nameof(typeof(v)) for v in values(nt) if v isa ReadSelector])))
+function _reads(selectors::NamedTuple)
+    for (label, selector) in pairs(selectors)
+        selector isa ReadSelector || throw(DiagnosticError(ReadSetMisuse(
+            observed = typeof(selector), reason = :not_a_selector, label = label,
+            in_hand = Symbol[nameof(typeof(v)) for v in values(selectors) if v isa ReadSelector])))
     end
-    Reads(nt)
+    Reads(selectors)
 end
 
 # --- the compiled reader (§14.4) ------------------------------------------------
@@ -160,20 +160,20 @@ struct CellRead{A,I}
     i::I
 end
 
-_take(v, ::Nothing) = v
-_take(v, i::Int) = v[i]
+_take(value, ::Nothing) = value
+_take(value, index::Int) = value[index]
 
-@inline _read(r::StateRead{P}, ex::Executor) where {P} =
-    _take(reconstruct(P, ex.xbuf, r.off), r.i)
-@inline _read(r::DerivRead{P}, ex::Executor) where {P} =
-    _take(reconstruct(P, ex.ẋbuf, r.off), r.i)
+@inline _read(entry::StateRead{P}, exec::Executor) where {P} =
+    _take(reconstruct(P, exec.xbuf, entry.off), entry.i)
+@inline _read(entry::DerivRead{P}, exec::Executor) where {P} =
+    _take(reconstruct(P, exec.ẋbuf, entry.off), entry.i)
 # The `s` stores are held by component index in a `Vector{Any}` — one store
 # type per component type, not per model — so the baked store type is what
 # keeps the read inferable. The assertion goes on the *reference*: asserting
 # the dereferenced value instead leaves the `[]` a dynamic call, which boxes.
-@inline _read(r::StoreRead{S,F}, ex::Executor) where {S,F} =
-    _take(getfield((ex.sstores[r.ci]::Base.RefValue{S})[], F), r.i)
-@inline _read(r::CellRead, ex::Executor) = _take(gather(ex.store, r.addr), r.i)
+@inline _read(entry::StoreRead{S,F}, exec::Executor) where {S,F} =
+    _take(getfield((exec.sstores[entry.ci]::Base.RefValue{S})[], F), entry.i)
+@inline _read(entry::CellRead, exec::Executor) = _take(gather(exec.store, entry.addr), entry.i)
 
 """
 One compiled read set (§14.4): the labels as a type parameter, the resolved
@@ -196,15 +196,15 @@ end
 
 Reader{T,L}(entries::E) where {T,L,E<:Tuple} = Reader{T,L,E}(entries)
 
-@inline gather(r::Reader{T,L}, ex::Executor{T}) where {T,L} =
-    NamedTuple{L}(map(e -> _read(e, ex), r.entries))
+@inline gather(reader::Reader{T,L}, exec::Executor{T}) where {T,L} =
+    NamedTuple{L}(map(e -> _read(e, exec), reader.entries))
 
 gather(::Reader{T}, ::Executor{S}) where {T,S} = _activation_mismatch("reader", T, S)
 
 # --- resolution (§14.4, §13.1) --------------------------------------------------
 
 """
-    _compile_reads(rs::Reads, b::Build, T = Float64) → Reader
+    _compile_reads(read_set::Reads, build::Build, T = Float64) → Reader
 
 Resolve a declared read set against a build and compile it, validating every
 selector in §13.1's collecting form — full list, violations collected, one
@@ -222,8 +222,8 @@ collecting pass is factored apart from the throw. The violations are
 `TapResolution` values either way — the kind is the read's own, and it is the
 *site* that decides where they surface (§13.2, Appendix C).
 """
-function _compile_reads(rs::Reads, b::Build, ::Type{T} = Float64) where {T}
-    reader, diags = _resolve_reads(rs, b, T)
+function _compile_reads(read_set::Reads, build::Build, ::Type{T} = Float64) where {T}
+    reader, diags = _resolve_reads(read_set, build, T)
     isempty(diags) || throw(DiagnosticError(diags))
     reader
 end
@@ -238,15 +238,15 @@ The collecting half of `_compile_reads`, shared with the services that own their
 own setup diagnostic (§14.8): returns the compiled reader and the violation
 list, the reader being `nothing` when anything failed.
 """
-function _resolve_reads(rs::Reads, b::Build, ::Type{T}) where {T}
-    act = activation(b, T)
+function _resolve_reads(read_set::Reads, build::Build, ::Type{T}) where {T}
+    act = activation(build, T)
     diags = Diagnostic[]
     entries = Any[]
-    for (label, s) in pairs(rs.sels)
-        e = _resolve_selector(s, label, b, act, diags)
-        e === nothing || push!(entries, e)
+    for (label, selector) in pairs(read_set.sels)
+        entry = _resolve_selector(selector, label, build, act, diags)
+        entry === nothing || push!(entries, entry)
     end
-    (isempty(diags) ? Reader{T,keys(rs.sels)}(Tuple(entries)) : nothing, diags)
+    (isempty(diags) ? Reader{T,keys(read_set.sels)}(Tuple(entries)) : nothing, diags)
 end
 
 # The component a path-addressed selector names. No mounting exists, so every
@@ -254,122 +254,126 @@ end
 # walk owns the unknown-segment refusal and its candidates, and the past-generic
 # one with them. What stays here is `_component`'s residue, one case over —
 # a level the walk admitted that owns no state of its own.
-function _read_component(s, label::Symbol, structure::Structure, diags::Vector{Diagnostic})
-    entry = "the read labeled `$label`, $(_spell(s))"
-    resolve_authored(entry, "", structure.root, s.path, diags) === nothing && return nothing
-    ci = findfirst(component -> component.path == s.path, structure.components)
+function _read_component(selector, label::Symbol, structure::Structure, diags::Vector{Diagnostic})
+    entry = "the read labeled `$label`, $(_spell(selector))"
+    resolve_authored(entry, "", structure.root, selector.path, diags) === nothing && return nothing
+    ci = findfirst(component -> component.path == selector.path, structure.components)
     ci === nothing || return ci
-    push!(diags, _rviol(label, s, :assembly_path))
+    push!(diags, _rviol(label, selector, :assembly_path))
     nothing
 end
 
 # One `TapResolution` off a selector: the label and the selector as authored are
 # what makes a collected list readable, and the tap set, path and index come off
 # the selector's own kind (§14.10's payload); each arm adds what it observed.
-_rviol(label::Symbol, s, reason::Symbol; kw...) =
-    TapResolution(; label = label, selector = _spell(s), reason = reason, tap = _tap(s),
-                  path = _selpath(s), index = _selindex(s), kw...)
+_rviol(label::Symbol, selector, reason::Symbol; payload...) =
+    TapResolution(; label = label, selector = _spell(selector), reason = reason,
+                  tap = _tap(selector), path = _selpath(selector), index = _selindex(selector),
+                  payload...)
 
 _tap(::Union{GetState,GetDeriv}) = :x
 _tap(::Union{GetOutput,GetFace}) = :y
 _tap(::GetInput) = :u
 
-_selpath(s::Union{GetState,GetDeriv,GetOutput}) = s.path
+_selpath(selector::Union{GetState,GetDeriv,GetOutput}) = selector.path
 _selpath(::Union{GetInput,GetFace}) = ""
-_selindex(s::Union{GetState,GetDeriv,GetOutput}) = s.i
+_selindex(selector::Union{GetState,GetDeriv,GetOutput}) = selector.i
 _selindex(::Union{GetInput,GetFace}) = nothing
 
 # `i` is checked against the resolved leaf's declared type in exactly one
 # respect: `getindex` has to mean something there. A scalar leaf is refused;
 # nothing further is checked, the index being the author's own coordinate
 # choice over a value whose length the schema does not fix everywhere.
-function _check_index(s, label::Symbol, ::Type{P}, diags::Vector{Diagnostic}) where {P}
-    (s.i === nothing || !(P <: Real)) && return true
-    push!(diags, _rviol(label, s, :scalar_index; declared = P))
+function _check_index(selector, label::Symbol, ::Type{P}, diags::Vector{Diagnostic}) where {P}
+    (selector.i === nothing || !(P <: Real)) && return true
+    push!(diags, _rviol(label, selector, :scalar_index; declared = P))
     false
 end
 
-_declares(label::Symbol, s, declares::Symbol, declared::NamedTuple) =
-    _rviol(label, s, :undeclared; declares = declares, field = _field(s),
+_undeclared_violation(label::Symbol, selector, declares::Symbol, declared::NamedTuple) =
+    _rviol(label, selector, :undeclared; declares = declares, field = _field(selector),
            candidates = collect(keys(declared)))
 
 # The port list in hand is the `Outputs`' row concatenated by `_ports`, a fresh
 # vector the payload is free to hold (D-253).
-_declares(label::Symbol, s, declares::Symbol, declared::Vector{Symbol}) =
-    _rviol(label, s, :undeclared; declares = declares, field = _field(s),
+_undeclared_violation(label::Symbol, selector, declares::Symbol, declared::Vector{Symbol}) =
+    _rviol(label, selector, :undeclared; declares = declares, field = _field(selector),
            candidates = declared)
 
-_field(s::Union{GetState,GetDeriv}) = s.field
-_field(s::GetOutput) = s.name
+_field(selector::Union{GetState,GetDeriv}) = selector.field
+_field(selector::GetOutput) = selector.name
 
-function _resolve_selector(s::GetState, label::Symbol, build::Build, act::Activation,
+function _resolve_selector(selector::GetState, label::Symbol, build::Build, act::Activation,
                        diags::Vector{Diagnostic})
-    ci = _read_component(s, label, build.structure, diags)
+    ci = _read_component(selector, label, build.structure, diags)
     ci === nothing && return nothing
-    d, t = act.decls[ci], build.structure.components[ci].tier
-    declared = state_decls(d, t)
-    haskey(declared, s.field) ||
-        (push!(diags, _declares(label, s, :state_field, declared)); return nothing)
-    P = typeof(declared[s.field])
-    _check_index(s, label, P, diags) || return nothing
-    t === CONTINUOUS ?
-        StateRead{P,typeof(s.i)}(first(act.layout.xblocks[ci]) - 1 + _leaf_offset(d.x, s.field), s.i) :
-        StoreRead{typeof(d.s),s.field,typeof(s.i)}(ci, s.i)
+    decls, tier = act.decls[ci], build.structure.components[ci].tier
+    declared = state_decls(decls, tier)
+    haskey(declared, selector.field) ||
+        (push!(diags, _undeclared_violation(label, selector, :state_field, declared)); return nothing)
+    field_type = typeof(declared[selector.field])
+    _check_index(selector, label, field_type, diags) || return nothing
+    tier === CONTINUOUS ?
+        StateRead{field_type,typeof(selector.i)}(
+            first(act.layout.xblocks[ci]) - 1 + _leaf_offset(decls.x, selector.field), selector.i) :
+        StoreRead{typeof(decls.s),selector.field,typeof(selector.i)}(ci, selector.i)
 end
 
-function _resolve_selector(s::GetDeriv, label::Symbol, build::Build, act::Activation,
+function _resolve_selector(selector::GetDeriv, label::Symbol, build::Build, act::Activation,
                        diags::Vector{Diagnostic})
-    ci = _read_component(s, label, build.structure, diags)
+    ci = _read_component(selector, label, build.structure, diags)
     ci === nothing && return nothing
-    d, t = act.decls[ci], build.structure.components[ci].tier
-    if t !== CONTINUOUS
-        push!(diags, _rviol(label, s, :discrete_deriv; field = s.field))
+    decls, tier = act.decls[ci], build.structure.components[ci].tier
+    if tier !== CONTINUOUS
+        push!(diags, _rviol(label, selector, :discrete_deriv; field = selector.field))
         return nothing
     end
-    haskey(d.x, s.field) ||
-        (push!(diags, _declares(label, s, :state_field, d.x)); return nothing)
-    P = typeof(d.x[s.field])
-    _check_index(s, label, P, diags) || return nothing
+    haskey(decls.x, selector.field) ||
+        (push!(diags, _undeclared_violation(label, selector, :state_field, decls.x)); return nothing)
+    field_type = typeof(decls.x[selector.field])
+    _check_index(selector, label, field_type, diags) || return nothing
     # `ẋ` has `x`'s shape at the activation scalar (§7.1), so the derivative of
     # a state field sits at the state field's own offset in the other buffer.
-    DerivRead{P,typeof(s.i)}(first(act.layout.xblocks[ci]) - 1 + _leaf_offset(d.x, s.field), s.i)
+    DerivRead{field_type,typeof(selector.i)}(
+        first(act.layout.xblocks[ci]) - 1 + _leaf_offset(decls.x, selector.field), selector.i)
 end
 
-function _resolve_selector(s::GetOutput, label::Symbol, b::Build, act::Activation,
+function _resolve_selector(selector::GetOutput, label::Symbol, build::Build, act::Activation,
                        diags::Vector{Diagnostic})
-    ci = _read_component(s, label, b.structure, diags)
+    ci = _read_component(selector, label, build.structure, diags)
     ci === nothing && return nothing
-    d = act.decls[ci]
-    ports = _ports(b.outputs.components[ci])
-    s.name in ports ||
-        (push!(diags, _declares(label, s, :output_port, ports)); return nothing)
+    decls = act.decls[ci]
+    ports = _ports(build.outputs.components[ci])
+    selector.name in ports ||
+        (push!(diags, _undeclared_violation(label, selector, :output_port, ports)); return nothing)
     # The port's *type* is the activation's, a type being no name list (D-253).
-    _check_index(s, label, d.outs[s.name], diags) || return nothing
-    addr = act.layout.addr[(s.path, s.name)]
-    CellRead{typeof(addr),typeof(s.i)}(addr, s.i)
+    _check_index(selector, label, decls.outs[selector.name], diags) || return nothing
+    addr = act.layout.addr[(selector.path, selector.name)]
+    CellRead{typeof(addr),typeof(selector.i)}(addr, selector.i)
 end
 
-function _resolve_selector(s::GetInput, label::Symbol, b::Build, act::Activation,
+function _resolve_selector(selector::GetInput, label::Symbol, build::Build, act::Activation,
                        diags::Vector{Diagnostic})
-    if !(s.face in b.structure.root_inputs)
-        push!(diags, _rviol(label, s, :unknown_root_input; field = s.face,
-                           candidates = b.structure.root_inputs))
+    if !(selector.face in build.structure.root_inputs)
+        push!(diags, _rviol(label, selector, :unknown_root_input; field = selector.face,
+                           candidates = build.structure.root_inputs))
         return nothing
     end
-    addr = act.layout.addr[("", s.face)]
+    addr = act.layout.addr[("", selector.face)]
     CellRead{typeof(addr),Nothing}(addr, nothing)
 end
 
-function _resolve_selector(s::GetFace, label::Symbol, b::Build, act::Activation,
+function _resolve_selector(selector::GetFace, label::Symbol, build::Build, act::Activation,
                        diags::Vector{Diagnostic})
-    exported = Symbol[f for ((p, f), _) in b.structure.out_faces if isempty(p)]
-    if !(s.name in exported)
-        push!(diags, s.name in b.structure.root_inputs ?
-                    _rviol(label, s, :root_input_not_face; field = s.name) :
-                    _rviol(label, s, :unknown_output_face; field = s.name,
+    exported = Symbol[face for ((face_path, face), _) in build.structure.out_faces
+                       if isempty(face_path)]
+    if !(selector.name in exported)
+        push!(diags, selector.name in build.structure.root_inputs ?
+                    _rviol(label, selector, :root_input_not_face; field = selector.name) :
+                    _rviol(label, selector, :unknown_output_face; field = selector.name,
                            candidates = exported))
         return nothing
     end
-    addr = act.layout.addr[("", s.name)]
+    addr = act.layout.addr[("", selector.name)]
     CellRead{typeof(addr),Nothing}(addr, nothing)
 end
