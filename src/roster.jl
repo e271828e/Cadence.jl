@@ -72,20 +72,20 @@ Greediness stays orthogonal to `reads`: a greedy front end driving a compiled
 output gather is legal and currently uninstantiated (§11.6).
 """
 function check_binding(b::AbstractBinding)
-    T = typeof(b)
-    isin, isout, greedy = is_input(b), is_output(b), is_greedy(b)
-    drifted = which(claims, Tuple{T}) !== which(claims, Tuple{AbstractBinding})
-    rdrifted = which(reads, Tuple{T}) !== which(reads, Tuple{AbstractBinding})
-    greedy && !isin && throw(DiagnosticError(
-        BindingContractMismatch(binding = _typename(T), reason = :greedy_without_input)))
-    isin || isout || throw(DiagnosticError(
-        BindingContractMismatch(binding = _typename(T), reason = :neither_side)))
-    isin && greedy && drifted && throw(DiagnosticError(
-        BindingContractMismatch(binding = _typename(T), reason = :greedy_with_claims)))
-    isin || !drifted || throw(DiagnosticError(
-        BindingContractMismatch(binding = _typename(T), reason = :claims_without_input)))
-    isout || !rdrifted || throw(DiagnosticError(
-        BindingContractMismatch(binding = _typename(T), reason = :reads_without_output)))
+    binding_type = typeof(b)
+    input_side, output_side, greedy = is_input(b), is_output(b), is_greedy(b)
+    claims_drifted = which(claims, Tuple{binding_type}) !== which(claims, Tuple{AbstractBinding})
+    reads_drifted = which(reads, Tuple{binding_type}) !== which(reads, Tuple{AbstractBinding})
+    greedy && !input_side && throw(DiagnosticError(
+        BindingContractMismatch(binding = _typename(binding_type), reason = :greedy_without_input)))
+    input_side || output_side || throw(DiagnosticError(
+        BindingContractMismatch(binding = _typename(binding_type), reason = :neither_side)))
+    input_side && greedy && claims_drifted && throw(DiagnosticError(
+        BindingContractMismatch(binding = _typename(binding_type), reason = :greedy_with_claims)))
+    input_side || !claims_drifted || throw(DiagnosticError(
+        BindingContractMismatch(binding = _typename(binding_type), reason = :claims_without_input)))
+    output_side || !reads_drifted || throw(DiagnosticError(
+        BindingContractMismatch(binding = _typename(binding_type), reason = :reads_without_output)))
     nothing
 end
 
@@ -98,11 +98,12 @@ spawned) is what makes `DeviceContractMismatch` `service, fail-fast` rather
 than a task-side `DeviceCrash` (Appendix C).
 """
 function check_device(dev::AbstractDevice)
-    T = typeof(dev)
-    # against the handle type the wrapper calls with: a `loop(::T, ::DeviceHandle)`
-    # is a method, and `Tuple{T,Any}` would not see it
-    which(loop, Tuple{T,DeviceHandle}) === which(loop, Tuple{AbstractDevice,DeviceHandle}) &&
-        throw(DiagnosticError(DeviceContractMismatch(device = _typename(T), reason = :no_loop)))
+    device_type = typeof(dev)
+    # against the handle type the wrapper calls with: a `loop(::device_type, ::DeviceHandle)`
+    # is a method, and `Tuple{device_type,Any}` would not see it
+    which(loop, Tuple{device_type,DeviceHandle}) === which(loop, Tuple{AbstractDevice,DeviceHandle}) &&
+        throw(DiagnosticError(DeviceContractMismatch(
+            device = _typename(device_type), reason = :no_loop)))
     nothing
 end
 
@@ -132,11 +133,11 @@ end
 # The entry's handle, read typed: `DeviceHandle` is defined after this file, so
 # the field is `Any` and every reader pays the assert here — a check, not an
 # allocation, on the frame top too.
-_handle(e::RosterEntry) = e.handle::DeviceHandle
+_handle(entry::RosterEntry) = entry.handle::DeviceHandle
 
 # The handle's own name, read typed: a fresh string per publication would be
 # an allocation on the quiet frame (§11.8).
-_who(e::RosterEntry) = _handle(e).who
+_who(entry::RosterEntry) = _handle(entry).who
 
 # The stopped-sim compile of one writer's drain (§11.4): a zero-argument thunk
 # capturing the store and the writer *concretely* — this dynamic dispatch is
@@ -149,7 +150,8 @@ _who(e::RosterEntry) = _handle(e).who
 # site alone — `_install_writers!` (trace.jl) — and recompiled whenever the
 # indices move. `trc` is concrete in the closure, a `Trace{T}` or `nothing`, so
 # the record branch inside `_drain!` folds where there is nothing to record.
-_drain_thunk(store, w::Writer, trc, widx::Int) = () -> _drain!(store, w, trc, widx)
+_drain_thunk(store, writer::Writer, trc, writer_index::Int) =
+    () -> _drain!(store, writer, trc, writer_index)
 
 # The thunk a plane and a fresh entry hold before a door or a roster change
 # compiles one (D-261): nothing drains before boundary zero has run, so a call
@@ -203,8 +205,8 @@ mutable struct DataPlane
 end
 
 function DataPlane(layout::Layout)
-    w = Writer(layout, Symbol[f for (f, _) in layout.root_inputs])
-    DataPlane(RosterEntry[], w, _no_drain, DiagCell(EMPTY_DIAG),
+    harness = Writer(layout, Symbol[f for (f, _) in layout.root_inputs])
+    DataPlane(RosterEntry[], harness, _no_drain, DiagCell(EMPTY_DIAG),
               WriterAccount(), DiagCell(EMPTY_DIAG), WriterAccount(), Published(nothing),
               Dict{Int,Task}(), Dict{Symbol,String}(), 1)
 end
@@ -222,12 +224,12 @@ function _claim(plane::DataPlane, layout::Layout, b::AbstractBinding, device::St
     faceset = Symbol[f for (f, _) in layout.root_inputs]
     is_greedy(b) && return Symbol[f for f in faceset if !haskey(plane.claimedby, f)]
     claim = Symbol[]
-    for f in claims(b)
-        s = Symbol(f)
-        s in faceset || throw(DiagnosticError(
-            AttachUnknownFace(device = device, binding = _typename(b), face = s,
+    for claimed in claims(b)
+        face = Symbol(claimed)
+        face in faceset || throw(DiagnosticError(
+            AttachUnknownFace(device = device, binding = _typename(b), face = face,
                               candidates = faceset)))
-        s in claim || push!(claim, s)
+        face in claim || push!(claim, face)
     end
     claim
 end
@@ -254,20 +256,20 @@ current run's, passed in by `attach!` and `detach!` (D-260, D-261).
 """
 function reclaim!(plane::DataPlane, layout::Layout, store, trc)
     empty!(plane.claimedby)
-    for e in plane.roster, f in _handle(e).writer.faces
-        plane.claimedby[f] = _who(e)
+    for entry in plane.roster, face in _handle(entry).writer.faces
+        plane.claimedby[face] = _who(entry)
     end
     old = plane.harness
     pending = @atomicswap old.cell.pending = nothing
-    w = Writer(layout, Symbol[f for (f, _) in layout.root_inputs if !haskey(plane.claimedby, f)])
-    plane.harness = w
+    harness = Writer(layout, Symbol[f for (f, _) in layout.root_inputs if !haskey(plane.claimedby, f)])
+    plane.harness = harness
     _install_writers!(plane, store, trc)   # §11.5: the schema list grows, the thunks follow
     if pending !== nothing
         batch = pending[]
         entries = [old.faces[i] => batch.vals[i] for i in 1:length(old.faces) if batch.mask[i]]
-        renorm = _normalize(plane.harness, entries, plane.claimedby, plane.harness_diag;
+        renormalized = _normalize(plane.harness, entries, plane.claimedby, plane.harness_diag;
                             site = :renormalization)
-        renorm === nothing || _stage!(plane.harness, renorm)
+        renormalized === nothing || _stage!(plane.harness, renormalized)
     end
     nothing
 end
