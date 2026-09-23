@@ -23,9 +23,9 @@ end
 ExecutionCursor() = ExecutionCursor(0, :none, :drain, 0)
 
 "A phase transition: written by the loop, never per dispatch (§13.4)."
-@inline function _phase!(c::ExecutionCursor, phase::Symbol, index::Int = 0)
-    c.phase = phase
-    c.index = index
+@inline function _phase!(cursor::ExecutionCursor, phase::Symbol, index::Int = 0)
+    cursor.phase = phase
+    cursor.index = index
     nothing
 end
 
@@ -110,18 +110,18 @@ UpdateEntry{BN}(comp, inputs, y, clock, sstore, ws, Δt, path, ci, cursor) where
 # component's own store, and no name selects a home by tier at compile time
 # because the tier already picked the name.
 function _bundle_expr(BN, XT)
-    args = map(BN) do n
-        n === :x   ? :(reconstruct($XT, xbuf, e.x_off)) :
-        n === :s   ? :(e.sstore[]) :
-        n === :m   ? :(e.mstore[]) :
-        n === :u   ? :(gather_group(e.inputs, store)) :
-        n === :y_x ? :(gather_group(e.y1, store)) :
-        n === :y_s ? :(gather_group(e.y1, store)) :
-        n === :y   ? :(gather_group(e.y, store)) :
-        n === :ws  ? :(e.ws) :
-        n === :t   ? :(e.clock.t) :
-        n === :Δt  ? :(e.Δt) :
-        throw(InternalInvariant("no source for bundle field $n"))
+    args = map(BN) do field
+        field === :x   ? :(reconstruct($XT, xbuf, e.x_off)) :
+        field === :s   ? :(e.sstore[]) :
+        field === :m   ? :(e.mstore[]) :
+        field === :u   ? :(gather_group(e.inputs, store)) :
+        field === :y_x ? :(gather_group(e.y1, store)) :
+        field === :y_s ? :(gather_group(e.y1, store)) :
+        field === :y   ? :(gather_group(e.y, store)) :
+        field === :ws  ? :(e.ws) :
+        field === :t   ? :(e.clock.t) :
+        field === :Δt  ? :(e.Δt) :
+        throw(InternalInvariant("no source for bundle field $field"))
     end
     :(NamedTuple{$BN}(($(args...),)))
 end
@@ -148,16 +148,16 @@ end
     end
 end
 
-@inline function run!(e::StageEntry, store, xbuf, ẋbuf)
-    e.cursor.comp = e.ci; e.cursor.fn = e.fname     # the dispatch store (§13.4)
-    y = e.fn(e.comp, make_bundle(e, store, xbuf))
-    scatter_group!(store, e.outs, y, activation_scalar(e.clock), e.path, e.fname)
+@inline function run!(entry::StageEntry, store, xbuf, ẋbuf)
+    entry.cursor.comp = entry.ci; entry.cursor.fn = entry.fname     # the dispatch store (§13.4)
+    y = entry.fn(entry.comp, make_bundle(entry, store, xbuf))
+    scatter_group!(store, entry.outs, y, activation_scalar(entry.clock), entry.path, entry.fname)
 end
 
-@inline function run!(e::RHSEntry{Comp,XT}, store, xbuf, ẋbuf) where {Comp,XT}
-    e.cursor.comp = e.ci; e.cursor.fn = :state_derivative
-    ẋ = state_derivative(e.comp, make_bundle(e, store, xbuf))
-    flatten_state!(ẋbuf, e.x_off, ẋ, XT, activation_scalar(e.clock), e.path,
+@inline function run!(entry::RHSEntry{Comp,XT}, store, xbuf, ẋbuf) where {Comp,XT}
+    entry.cursor.comp = entry.ci; entry.cursor.fn = :state_derivative
+    ẋ = state_derivative(entry.comp, make_bundle(entry, store, xbuf))
+    flatten_state!(ẋbuf, entry.x_off, ẋ, XT, activation_scalar(entry.clock), entry.path,
                    :state_derivative, :init_x, nothing)
     nothing
 end
@@ -165,10 +165,10 @@ end
 # The jump map: `state_update` reads the fresh table and writes only its own
 # store, which is what makes the update block order-free with disjoint writes
 # (§9.7).
-@inline function run!(e::UpdateEntry, store, xbuf, ẋbuf)
-    e.cursor.comp = e.ci; e.cursor.fn = :state_update
-    _store_successor!(e.sstore, state_update(e.comp, make_bundle(e, store, xbuf)),
-                      e.path, :state_update)
+@inline function run!(entry::UpdateEntry, store, xbuf, ẋbuf)
+    entry.cursor.comp = entry.ci; entry.cursor.fn = :state_update
+    _store_successor!(entry.sstore, state_update(entry.comp, make_bundle(entry, store, xbuf)),
+                      entry.path, :state_update)
     nothing
 end
 
@@ -231,10 +231,10 @@ end
 ProjectEntry{XT}(comp, x_off, clock, path, ci, cursor) where {XT} =
     ProjectEntry{typeof(comp),XT,typeof(clock)}(comp, x_off, clock, path, ci, cursor)
 
-@inline function run_project!(e::ProjectEntry{Comp,XT}, xbuf) where {Comp,XT}
-    e.cursor.comp = e.ci; e.cursor.fn = :state_projection
-    flatten_state!(xbuf, e.x_off, state_projection(e.comp, reconstruct(XT, xbuf, e.x_off)),
-                   XT, activation_scalar(e.clock), e.path, :state_projection, :state, nothing)
+@inline function run_project!(entry::ProjectEntry{Comp,XT}, xbuf) where {Comp,XT}
+    entry.cursor.comp = entry.ci; entry.cursor.fn = :state_projection
+    flatten_state!(xbuf, entry.x_off, state_projection(entry.comp, reconstruct(XT, xbuf, entry.x_off)),
+                   XT, activation_scalar(entry.clock), entry.path, :state_projection, :state, nothing)
     nothing
 end
 
@@ -275,13 +275,14 @@ struct EventSet{E<:Tuple,P<:Tuple}
 end
 
 function EventSet(entries::Vector, projects::Vector,
-                  owner::Vector{Int}, names::Vector{Tuple{String,Symbol}},
-                  localized::Vector{Bool}, ncomps::Int)
-    n = length(entries)
-    EventSet(tuple(entries...), tuple(projects...), owner, names, localized,
-             fill(false, n), fill(false, n), fill(false, n), fill(false, n),
-             zeros(Int, n), fill(false, n), fill(false, ncomps),
-             zeros(n), zeros(n), zeros(n), fill(false, n), fill(false, n))
+                  owner::Vector{Int}, event_names::Vector{Tuple{String,Symbol}},
+                  localized::Vector{Bool}, component_count::Int)
+    event_count = length(entries)
+    EventSet(tuple(entries...), tuple(projects...), owner, event_names, localized,
+             fill(false, event_count), fill(false, event_count), fill(false, event_count),
+             fill(false, event_count), zeros(Int, event_count), fill(false, event_count),
+             fill(false, component_count), zeros(event_count), zeros(event_count),
+             zeros(event_count), fill(false, event_count), fill(false, event_count))
 end
 
 # The three walks the iteration drives, each the compile-time-unrolled tuple
@@ -291,52 +292,55 @@ end
 # masked entries, latching the returned stores — `x` into the flat buffer, `m`
 # merged into the mode store, per the return law's iff shape (§5.2).
 
-@noinline _projects!(es::EventSet, xbuf) = _proj_walk(es.projects, xbuf)
+@noinline _projects!(event_set::EventSet, xbuf) = _proj_walk(event_set.projects, xbuf)
 @inline _proj_walk(::Tuple{}, xbuf) = nothing
-@inline function _proj_walk(t::Tuple, xbuf)
-    run_project!(t[1], xbuf)
-    _proj_walk(Base.tail(t), xbuf)
+@inline function _proj_walk(projects::Tuple, xbuf)
+    run_project!(projects[1], xbuf)
+    _proj_walk(Base.tail(projects), xbuf)
 end
 
-@noinline _guards!(es::EventSet, store, xbuf) = _guard_walk(es.entries, store, xbuf, es.now, es.σ)
+@noinline _guards!(event_set::EventSet, store, xbuf) =
+    _guard_walk(event_set.entries, store, xbuf, event_set.now, event_set.σ)
 @inline _guard_walk(::Tuple{}, store, xbuf, now, σs) = nothing
-@inline function _guard_walk(t::Tuple, store, xbuf, now, σs)
-    e = t[1]
-    e.cursor.comp = e.ci; e.cursor.fn = :guard
-    σ = e.guard(e.comp, make_bundle(e, store, xbuf))
-    now[e.idx] = _holding(σ)
+@inline function _guard_walk(entries::Tuple, store, xbuf, now, σs)
+    entry = entries[1]
+    entry.cursor.comp = entry.ci; entry.cursor.fn = :guard
+    σ = entry.guard(entry.comp, make_bundle(entry, store, xbuf))
+    now[entry.idx] = _holding(σ)
     # The numeric sample, for the localization brackets (§10.4). The guard's
     # return type is in the entry's type, so the branch folds per entry: a
     # `Bool` guard never touches the register.
-    σ isa Bool || (σs[e.idx] = σ)
-    _guard_walk(Base.tail(t), store, xbuf, now, σs)
+    σ isa Bool || (σs[entry.idx] = σ)
+    _guard_walk(Base.tail(entries), store, xbuf, now, σs)
 end
 
-@noinline _fire!(es::EventSet, store, xbuf) = _fire_walk(es.entries, store, xbuf, es.fire)
+@noinline _fire!(event_set::EventSet, store, xbuf) =
+    _fire_walk(event_set.entries, store, xbuf, event_set.fire)
 @inline _fire_walk(::Tuple{}, store, xbuf, fire) = nothing
-@inline function _fire_walk(t::Tuple, store, xbuf, fire)
-    e = t[1]
-    if fire[e.idx]
-        e.cursor.comp = e.ci; e.cursor.fn = :handler
-        _latch!(e, e.handler(e.comp, make_bundle(e, store, xbuf)), xbuf)
-        _fire_project!(e, xbuf)
+@inline function _fire_walk(entries::Tuple, store, xbuf, fire)
+    entry = entries[1]
+    if fire[entry.idx]
+        entry.cursor.comp = entry.ci; entry.cursor.fn = :handler
+        _latch!(entry, entry.handler(entry.comp, make_bundle(entry, store, xbuf)), xbuf)
+        _fire_project!(entry, xbuf)
     end
-    _fire_walk(Base.tail(t), store, xbuf, fire)
+    _fire_walk(Base.tail(entries), store, xbuf, fire)
 end
 
-@inline function _latch!(e::EventEntry{G,H,P,Comp,XT}, ret::NamedTuple,
+@inline function _latch!(entry::EventEntry{G,H,P,Comp,XT}, returned::NamedTuple,
                          xbuf) where {G,H,P,Comp,XT}
-    haskey(ret, :x) && flatten_state!(xbuf, e.x_off, ret.x, XT,
-                                      activation_scalar(e.clock), e.path, :handler, :state,
-                                      e.event)
-    haskey(ret, :m) && _merge_modes!(e.mstore, ret.m, e.path, :handler, e.event)
+    haskey(returned, :x) && flatten_state!(xbuf, entry.x_off, returned.x, XT,
+                                      activation_scalar(entry.clock), entry.path, :handler, :state,
+                                      entry.event)
+    haskey(returned, :m) && _merge_modes!(entry.mstore, returned.m, entry.path, :handler, entry.event)
     nothing
 end
 
 # §7.3: a discrete successor is the store's own type exactly — the assignment
 # that would convert is refused at generation instead (D-235).
-@inline _store_successor!(ref::Base.RefValue{S}, s⁺::S, path, what) where {S} = (ref[] = s⁺; nothing)
-_store_successor!(ref::Base.RefValue{S}, s⁺, path, what) where {S} =
+@inline _store_successor!(sstore::Base.RefValue{S}, s⁺::S, path, what) where {S} =
+    (sstore[] = s⁺; nothing)
+_store_successor!(sstore::Base.RefValue{S}, s⁺, path, what) where {S} =
     throw(DiagnosticError(ConformanceFailure(path = path, what = String(what),
                                              reason = s⁺ isa NamedTuple ? :field_set : :return_type,
                                              shape = :init_s, observed = typeof(s⁺),
@@ -344,36 +348,36 @@ _store_successor!(ref::Base.RefValue{S}, s⁺, path, what) where {S} =
 
 # §9.5's partial-`m` predicate at the write: every written mode exists and keeps
 # its type, decided at generation like the port write.
-@generated function _merge_modes!(ref::Base.RefValue{M}, m::NamedTuple{Ms},
+@generated function _merge_modes!(mstore::Base.RefValue{M}, m::NamedTuple{Ms},
                                   path::String, what::Symbol,
                                   event::Union{Nothing,Symbol}) where {M,Ms}
-    for k in Ms
-        hasfield(M, k) ||
+    for mode_field in Ms
+        hasfield(M, mode_field) ||
             return :(throw(DiagnosticError(ConformanceFailure(
                 path = path, what = String(what), event = event, reason = :field_set,
                 shape = :mode,
-                field = $(QuoteNode(k)), declared_fields = $(collect(fieldnames(M)))))))
-        fieldtype(M, k) === fieldtype(m, k) ||
+                field = $(QuoteNode(mode_field)), declared_fields = $(collect(fieldnames(M)))))))
+        fieldtype(M, mode_field) === fieldtype(m, mode_field) ||
             return :(throw(DiagnosticError(ConformanceFailure(
                 path = path, what = String(what), event = event, reason = :field_type,
                 shape = :mode,
-                field = $(QuoteNode(k)), observed = $(fieldtype(m, k)),
-                declared = $(fieldtype(M, k))))))
+                field = $(QuoteNode(mode_field)), observed = $(fieldtype(m, mode_field)),
+                declared = $(fieldtype(M, mode_field))))))
     end
-    :(ref[] = merge(ref[], m); nothing)
+    :(mstore[] = merge(mstore[], m); nothing)
 end
 
 # A non-NamedTuple `m` is the law's first clause failing, as the probe reports it.
-_merge_modes!(ref::Base.RefValue{M}, m, path, what, event) where {M} =
+_merge_modes!(mstore::Base.RefValue{M}, m, path, what, event) where {M} =
     throw(DiagnosticError(ConformanceFailure(path = path, what = String(what), event = event,
                                              reason = :return_type, shape = :mode,
                                              observed = typeof(m))))
 
-@inline function _fire_project!(e::EventEntry{G,H,P,Comp,XT}, xbuf) where {G,H,P,Comp,XT}
+@inline function _fire_project!(entry::EventEntry{G,H,P,Comp,XT}, xbuf) where {G,H,P,Comp,XT}
     P === Nothing && return nothing
-    e.cursor.fn = :state_projection # the component is the handler's own
-    flatten_state!(xbuf, e.x_off, e.proj(e.comp, reconstruct(XT, xbuf, e.x_off)), XT,
-                   activation_scalar(e.clock), e.path, :state_projection, :state, nothing)
+    entry.cursor.fn = :state_projection # the component is the handler's own
+    flatten_state!(xbuf, entry.x_off, entry.proj(entry.comp, reconstruct(XT, xbuf, entry.x_off)), XT,
+                   activation_scalar(entry.clock), entry.path, :state_projection, :state, nothing)
     nothing
 end
 
@@ -381,19 +385,19 @@ end
 # the handler as the walks run them, closed over the entry and the buffers, so
 # `@ballocated(body()) == 0` measures the loop's own call. The entry arrives
 # typed through this barrier, never as the `Any` the build collects it in.
-function _event_bodies(e::EventEntry, store, xbuf)
-    guard() = (e.cursor.comp = e.ci; e.cursor.fn = :guard;
-               e.guard(e.comp, make_bundle(e, store, xbuf)))
-    handler() = (e.cursor.comp = e.ci; e.cursor.fn = :handler;
-                 _latch!(e, e.handler(e.comp, make_bundle(e, store, xbuf)), xbuf);
-                 _fire_project!(e, xbuf))
+function _event_bodies(entry::EventEntry, store, xbuf)
+    guard() = (entry.cursor.comp = entry.ci; entry.cursor.fn = :guard;
+               entry.guard(entry.comp, make_bundle(entry, store, xbuf)))
+    handler() = (entry.cursor.comp = entry.ci; entry.cursor.fn = :handler;
+                 _latch!(entry, entry.handler(entry.comp, make_bundle(entry, store, xbuf)), xbuf);
+                 _fire_project!(entry, xbuf))
     (guard = guard, handler = handler)
 end
-_project_body(e::ProjectEntry, xbuf) = () -> run_project!(e, xbuf)
+_project_body(entry::ProjectEntry, xbuf) = () -> run_project!(entry, xbuf)
 
 # --- the gate (§10.5, D-185, D-205) ---------------------------------------------
 # The boundary sweep walks the full list with *discrete* entries gated by
-# `(idx − Φ) % D == 0`. The gate is a wrapper only discrete entries wear, so a
+# `(tick − Φ) % D == 0`. The gate is a wrapper only discrete entries wear, so a
 # continuous entry pays nothing at a boundary, and the interior walk — compiled
 # from continuous entries alone — never meets an index at all: an empty due set
 # is arity selection, never a sentinel index failing every gate (D-185).
@@ -423,21 +427,21 @@ const ESTABLISH = Establish()
 # one site that reads it, and dispatch there is what separates the two gates.
 # Every caller passes a concrete `Int` or `ESTABLISH`, so each specializes
 # exactly as it did when the annotation was `::Int`.
-@inline run_at!(e, store, xbuf, ẋbuf, idx) = run!(e, store, xbuf, ẋbuf)
+@inline run_at!(entry, store, xbuf, ẋbuf, tick) = run!(entry, store, xbuf, ẋbuf)
 
-@inline function run_at!(g::Gated, store, xbuf, ẋbuf, tick::Int)
+@inline function run_at!(entry::Gated, store, xbuf, ẋbuf, tick::Int)
     # Under the canonical residue 0 ≤ Φ < D, truncated rem is never 0 on the
     # negative pre-first-tick differences, so one subtraction and one remainder
     # are the whole admission test — and "everything with Φ = 0" is this same
     # gate at index 0, implemented by nothing (§10.5).
-    (tick - g.Φ) % g.D == 0 && run!(g.e, store, xbuf, ẋbuf)
+    (tick - entry.Φ) % entry.D == 0 && run!(entry.e, store, xbuf, ẋbuf)
     nothing
 end
 
 # Establishment admits every gated entry (§14.5, D-205). Dueness at boundary
 # zero governs the `state_update` updates alone.
-@inline run_at!(g::Gated, store, xbuf, ẋbuf, ::Establish) =
-    (run!(g.e, store, xbuf, ẋbuf); nothing)
+@inline run_at!(entry::Gated, store, xbuf, ẋbuf, ::Establish) =
+    (run!(entry.e, store, xbuf, ẋbuf); nothing)
 
 # --- the walk -----------------------------------------------------------------
 
@@ -448,19 +452,19 @@ struct Chunk{E<:Tuple,S,X}
     ẋbuf::X
 end
 
-@noinline (c::Chunk)() = _walk(c.entries, c.store, c.xbuf, c.ẋbuf)
-@noinline (c::Chunk)(idx) = _walk_at(c.entries, c.store, c.xbuf, c.ẋbuf, idx)
+@noinline (chunk::Chunk)() = _walk(chunk.entries, chunk.store, chunk.xbuf, chunk.ẋbuf)
+@noinline (chunk::Chunk)(tick) = _walk_at(chunk.entries, chunk.store, chunk.xbuf, chunk.ẋbuf, tick)
 
 @inline _walk(::Tuple{}, store, xbuf, ẋbuf) = nothing
-@inline function _walk(t::Tuple, store, xbuf, ẋbuf)
-    run!(t[1], store, xbuf, ẋbuf)
-    _walk(Base.tail(t), store, xbuf, ẋbuf)
+@inline function _walk(entries::Tuple, store, xbuf, ẋbuf)
+    run!(entries[1], store, xbuf, ẋbuf)
+    _walk(Base.tail(entries), store, xbuf, ẋbuf)
 end
 
-@inline _walk_at(::Tuple{}, store, xbuf, ẋbuf, idx) = nothing
-@inline function _walk_at(t::Tuple, store, xbuf, ẋbuf, idx)
-    run_at!(t[1], store, xbuf, ẋbuf, idx)
-    _walk_at(Base.tail(t), store, xbuf, ẋbuf, idx)
+@inline _walk_at(::Tuple{}, store, xbuf, ẋbuf, tick) = nothing
+@inline function _walk_at(entries::Tuple, store, xbuf, ẋbuf, tick)
+    run_at!(entries[1], store, xbuf, ẋbuf, tick)
+    _walk_at(Base.tail(entries), store, xbuf, ẋbuf, tick)
 end
 
 """
@@ -484,19 +488,19 @@ struct PhaseBody{I<:Tuple,B<:Tuple}
     boundary::B
 end
 
-@inline (b::PhaseBody)() = _walkchunks(b.interior)
-@inline (b::PhaseBody)(idx) = _walkchunks(b.boundary, idx)
+@inline (body::PhaseBody)() = _walkchunks(body.interior)
+@inline (body::PhaseBody)(tick) = _walkchunks(body.boundary, tick)
 
 @inline _walkchunks(::Tuple{}) = nothing
-@inline function _walkchunks(t::Tuple)
-    t[1]()
-    _walkchunks(Base.tail(t))
+@inline function _walkchunks(chunks::Tuple)
+    chunks[1]()
+    _walkchunks(Base.tail(chunks))
 end
 
-@inline _walkchunks(::Tuple{}, idx) = nothing
-@inline function _walkchunks(t::Tuple, idx)
-    t[1](idx)
-    _walkchunks(Base.tail(t), idx)
+@inline _walkchunks(::Tuple{}, tick) = nothing
+@inline function _walkchunks(chunks::Tuple, tick)
+    chunks[1](tick)
+    _walkchunks(Base.tail(chunks), tick)
 end
 
 # Construction is type-opaque: entries are built into untyped buffers and
@@ -506,9 +510,10 @@ end
 # interior subset, discreteness being a build-time fact (§10.5, D-147).
 function chunked_body(entries::Vector, gates::Vector, store, xbuf, ẋbuf;
                       chunk_size::Int = 16)
-    chunks(es) = tuple((Chunk(tuple(es[lo:min(lo + chunk_size - 1, length(es))]...),
-                              store, xbuf, ẋbuf)
-                        for lo in 1:chunk_size:length(es))...)
+    chunks(walk_entries) =
+        tuple((Chunk(tuple(walk_entries[lo:min(lo + chunk_size - 1, length(walk_entries))]...),
+                    store, xbuf, ẋbuf)
+              for lo in 1:chunk_size:length(walk_entries))...)
     PhaseBody(chunks([e for (e, gt) in zip(entries, gates) if gt === nothing]),
               chunks([gt === nothing ? e : Gated(e, gt[1], gt[2])
                       for (e, gt) in zip(entries, gates)]))
