@@ -4,7 +4,7 @@ The implementation of the framework in `spec.md`, grown one increment at a
 time (increment 1, the cell-store bench, is frozen in
 `prototypes/cellstore_bench`; D-162 cites its numbers). Spec and code are
 peers: neither is subservient, and both are kept in agreement. This file is
-the map and the traps; `pending.md` is what the code still owes the spec. Why
+the map, the traps and the naming rules; `pending.md` is what the code still owes the spec. Why
 a given test asserts what it does is carried by the suite itself: every
 testset name states its property and cites the section it answers to.
 
@@ -121,6 +121,38 @@ Traps the code does not warn about, each hit more than once while building:
   beside its rows, a policy's addresses beside its faces) is a second home
   with no enforcer but the constructor. `Layout` is the one home for
   address facts (§9.2, D-261).
+
+## Naming
+
+Rules for locals and parameters, applied to new and touched code and cited by
+every stage brief and the cold review:
+
+- **a local names what it holds**, with the noun the spec uses for the
+  concept (`entry`, `structure`, `deployment`, `tier`, `policy`). Two values
+  of one type coexisting are named by role, not type: `producer`/`consumer`,
+  `child_path`/`parent_path`;
+- **single letters are reserved** for five uses: loop and comprehension
+  indices (`i`, `j`, `k`, and `ci` for the component index); type parameters;
+  the spec's symbols and their derivatives (`x`, `ẋ`, `s`, `m`, `u`, `y`, `h`,
+  `Δt`, `D`, `Φ`, `σ`, `θ`, `t₀`, `t_seg`, `h′`, `x_offs`, `nx`); a binding
+  whose whole life fits in one glance (a lambda parameter, a comprehension
+  variable, a destructuring consumed on the next line, any local of a method
+  under about five lines); and the sole parameter of a method family
+  dispatching on one type family, fixed once per file (`d` for a diagnostic
+  kind throughout `diagnostics.jl`);
+- **abbreviations are a roster**: `sim`, `exec`, `comp`, `decl`/`decls`,
+  `diags`, `conns`, `addrs`, `ci`. A frequent name earns a place by being
+  added here, never by being coined in place. `diag` in the singular never
+  joins: it shadows `LinearAlgebra.diag`, live in `trim.jl`;
+- **one name, one meaning per file**: `t` is time, never a tier; `T` is the
+  numeric type; `d` is a diagnostic in `diagnostics.jl` and nothing elsewhere;
+- **every method of a function names its parameters alike**;
+- **no local shares a name with a function** defined in the package or
+  reached from Base. Where the natural noun is taken, the local takes a
+  qualifier or a role name. The one exception is `path`: the spec's accessor
+  and its noun for a component path are one concept;
+- the suite follows the same rules; the API's keyword names inside calls are
+  not locals.
 
 ## Running the suite
 
