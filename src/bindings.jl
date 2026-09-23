@@ -41,28 +41,30 @@ const _TABLE_ENTRY_VOCABULARY = Symbol[:face, :deadzone, :expo]
 function TableBinding(; entries...)
     table = NamedTuple(entries)
     diags = Diagnostic[]
-    for (k, e) in pairs(table)
-        if !(e isa NamedTuple)
-            push!(diags, ArgumentInvalid(call = :TableBinding, reason = :entry_shape, entry = k))
+    for (channel, entry) in pairs(table)
+        if !(entry isa NamedTuple)
+            push!(diags, ArgumentInvalid(
+                call = :TableBinding, reason = :entry_shape, entry = channel))
             continue
         end
-        if !haskey(e, :face)
-            push!(diags, ArgumentInvalid(call = :TableBinding, reason = :no_face, entry = k))
-        elseif !(e.face isa Union{AbstractString,Symbol})
+        if !haskey(entry, :face)
+            push!(diags, ArgumentInvalid(
+                call = :TableBinding, reason = :no_face, entry = channel))
+        elseif !(entry.face isa Union{AbstractString,Symbol})
             push!(diags, ArgumentInvalid(call = :TableBinding, reason = :face_name,
-                                          entry = k, value = e.face))
+                                          entry = channel, value = entry.face))
         end
-        for key in keys(e)
+        for key in keys(entry)
             key in _TABLE_ENTRY_VOCABULARY || push!(diags, ArgumentInvalid(
-                call = :TableBinding, reason = :vocabulary, entry = k, argument = key,
+                call = :TableBinding, reason = :vocabulary, entry = channel, argument = key,
                 vocabulary = _TABLE_ENTRY_VOCABULARY))
         end
-        dz = get(e, :deadzone, nothing)
-        dz === nothing || 0 <= dz < 1 || push!(diags, ArgumentInvalid(
-            call = :TableBinding, reason = :deadzone, entry = k, value = dz))
-        ex = get(e, :expo, nothing)
-        ex === nothing || 0 <= ex <= 1 || push!(diags, ArgumentInvalid(
-            call = :TableBinding, reason = :expo, entry = k, value = ex))
+        deadzone = get(entry, :deadzone, nothing)
+        deadzone === nothing || 0 <= deadzone < 1 || push!(diags, ArgumentInvalid(
+            call = :TableBinding, reason = :deadzone, entry = channel, value = deadzone))
+        expo = get(entry, :expo, nothing)
+        expo === nothing || 0 <= expo <= 1 || push!(diags, ArgumentInvalid(
+            call = :TableBinding, reason = :expo, entry = channel, value = expo))
     end
     isempty(diags) || throw(DiagnosticError(diags))
     TableBinding(table)
@@ -89,12 +91,12 @@ device struct, maintained by the loop, and arrives *inside* the datum:
 `map_input` stays pure, and staged values are levels, never deltas (§11.4).
 """
 function map_input(datum::NamedTuple, b::TableBinding)
-    map(keys(datum)) do k
-        haskey(b.table, k) || error(
-            "map_input: the datum carries `$k`, which names no channel of this " *
+    map(keys(datum)) do channel
+        haskey(b.table, channel) || error(
+            "map_input: the datum carries `$channel`, which names no channel of this " *
             "TableBinding — its channels are $(_faceset(keys(b.table))) (§11.6)")
-        e = b.table[k]
-        String(e.face) => _condition(datum[k], e)
+        entry = b.table[channel]
+        String(entry.face) => _condition(datum[channel], entry)
     end
 end
 
@@ -123,8 +125,8 @@ struct ReadGather{L,A<:Tuple}
 end
 ReadGather{L}(addrs::A) where {L,A<:Tuple} = ReadGather{L,A}(addrs)
 
-_gather(r::ReadGather{L}, s::Snapshot) where {L} =
-    NamedTuple{L}(map(a -> gather(s.store, a), r.addrs))
+_gather(read_gather::ReadGather{L}, snapshot::Snapshot) where {L} =
+    NamedTuple{L}(map(a -> gather(snapshot.store, a), read_gather.addrs))
 
 """
 Resolve one attachment's `reads` against the build and compile the gather —
@@ -135,17 +137,19 @@ selectors, `(; label = get_output(...), ...)`, and the labels are the
 NamedTuple `map_output` receives. Every failure names the selector at fault;
 the did-you-mean candidate lists are absent (`pending.md`).
 """
-function _compile_gather(layout::Layout, nt, T::Type, device::String)
-    nt isa NamedTuple || throw(DiagnosticError(
-        BindingContractMismatch(binding = _typename(T), reason = :reads_not_namedtuple,
-                                 observed = typeof(nt))))
-    addrs = map(values(nt)) do s
-        s isa ReadSelector || throw(DiagnosticError(
-            BindingContractMismatch(binding = _typename(T), reason = :reads_not_selectors,
-                                     observed = typeof(s))))
-        _resolve_read(layout, s, T, device)
+function _compile_gather(layout::Layout, selectors, binding_type::Type, device::String)
+    selectors isa NamedTuple || throw(DiagnosticError(
+        BindingContractMismatch(binding = _typename(binding_type),
+                                 reason = :reads_not_namedtuple,
+                                 observed = typeof(selectors))))
+    addrs = map(values(selectors)) do selector
+        selector isa ReadSelector || throw(DiagnosticError(
+            BindingContractMismatch(binding = _typename(binding_type),
+                                     reason = :reads_not_selectors,
+                                     observed = typeof(selector))))
+        _resolve_read(layout, selector, binding_type, device)
     end
-    ReadGather{keys(nt)}(addrs)
+    ReadGather{keys(selectors)}(addrs)
 end
 
 _root_input_names(layout::Layout) = Symbol[f for (f, _) in layout.root_inputs]
@@ -154,49 +158,55 @@ _root_input_names(layout::Layout) = Symbol[f for (f, _) in layout.root_inputs]
 # cells at the selector's path, and an assembly path lists its faces, which the
 # alias pass entered into `addr`. The other lists the root-exported output faces,
 # the names at the root that are not root inputs.
-_cells_at(layout::Layout, p::AbstractString) =
-    sort!(Symbol[n for (q, n) in keys(layout.addr) if q == p])
+_cells_at(layout::Layout, path::AbstractString) =
+    sort!(Symbol[name for (cell_path, name) in keys(layout.addr) if cell_path == path])
 function _root_output_faces(layout::Layout)
     inputs = _root_input_names(layout)
-    sort!(Symbol[n for (q, n) in keys(layout.addr) if q == "" && n ∉ inputs])
+    sort!(Symbol[name for (cell_path, name) in keys(layout.addr)
+                 if cell_path == "" && name ∉ inputs])
 end
 
 # §14.4's source rule, enforced where the source is known: a snapshot carries
 # no state stores by construction (§11.2) and `ẋ` is integrator scratch, so a
 # snapshot-bound reader naming a store selector is a resolution error at
 # attach — in the didactic style, with the remedy named.
-_resolve_read(::Layout, s::StoreSelector, T::Type, device::String) = throw(DiagnosticError(
-    ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
-                           reason = :store_selector, path = _selpath(s), field = _field(s))))
+_resolve_read(::Layout, selector::StoreSelector, binding_type::Type, device::String) =
+    throw(DiagnosticError(
+        ReadBindingUnresolved(device = device, binding = _typename(binding_type),
+                               selector = _spell(selector), reason = :store_selector,
+                               path = _selpath(selector), field = _field(selector))))
 
-function _resolve_read(layout::Layout, s::GetOutput, T::Type, device::String)
-    s.i === nothing || throw(DiagnosticError(
-        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
-                               reason = :indexed, path = s.path, field = s.name)))
-    haskey(layout.addr, (s.path, s.name)) || throw(DiagnosticError(
-        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
-                               reason = :unknown_cell, path = s.path, field = s.name,
-                               candidates = _cells_at(layout, s.path))))
-    layout.addr[(s.path, s.name)]
+function _resolve_read(layout::Layout, selector::GetOutput, binding_type::Type, device::String)
+    selector.i === nothing || throw(DiagnosticError(
+        ReadBindingUnresolved(device = device, binding = _typename(binding_type),
+                               selector = _spell(selector), reason = :indexed,
+                               path = selector.path, field = selector.name)))
+    haskey(layout.addr, (selector.path, selector.name)) || throw(DiagnosticError(
+        ReadBindingUnresolved(device = device, binding = _typename(binding_type),
+                               selector = _spell(selector), reason = :unknown_cell,
+                               path = selector.path, field = selector.name,
+                               candidates = _cells_at(layout, selector.path))))
+    layout.addr[(selector.path, selector.name)]
 end
 
-function _resolve_read(layout::Layout, s::GetInput, T::Type, device::String)
-    s.face in _root_input_names(layout) || throw(DiagnosticError(
-        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
-                               reason = :unknown_root_input, field = s.face,
-                               candidates = _root_input_names(layout))))
-    layout.addr[("", s.face)]
+function _resolve_read(layout::Layout, selector::GetInput, binding_type::Type, device::String)
+    selector.face in _root_input_names(layout) || throw(DiagnosticError(
+        ReadBindingUnresolved(device = device, binding = _typename(binding_type),
+                               selector = _spell(selector), reason = :unknown_root_input,
+                               field = selector.face, candidates = _root_input_names(layout))))
+    layout.addr[("", selector.face)]
 end
 
-function _resolve_read(layout::Layout, s::GetFace, T::Type, device::String)
-    s.name in _root_input_names(layout) && throw(DiagnosticError(
-        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
-                               reason = :root_input_not_output, field = s.name)))
-    haskey(layout.addr, ("", s.name)) || throw(DiagnosticError(
-        ReadBindingUnresolved(device = device, binding = _typename(T), selector = _spell(s),
-                               reason = :unknown_output_face, field = s.name,
-                               candidates = _root_output_faces(layout))))
-    layout.addr[("", s.name)]
+function _resolve_read(layout::Layout, selector::GetFace, binding_type::Type, device::String)
+    selector.name in _root_input_names(layout) && throw(DiagnosticError(
+        ReadBindingUnresolved(device = device, binding = _typename(binding_type),
+                               selector = _spell(selector), reason = :root_input_not_output,
+                               field = selector.name)))
+    haskey(layout.addr, ("", selector.name)) || throw(DiagnosticError(
+        ReadBindingUnresolved(device = device, binding = _typename(binding_type),
+                               selector = _spell(selector), reason = :unknown_output_face,
+                               field = selector.name, candidates = _root_output_faces(layout))))
+    layout.addr[("", selector.name)]
 end
 
 """
@@ -213,19 +223,21 @@ function map_output end
 
 # The conditioning (§11.4): axis-convention values in [-1, 1], symmetric about
 # zero. The deadzone zeroes the band and rescales the remainder so the
-# endpoints stay fixed; expo blends linear into cubic — a = (1-e)·a + e·a³ —
-# attenuating the midrange with the endpoints again fixed. An entry declaring
-# neither passes its value through untouched, which is what carries a
-# throttle's [0, 1] level or a press counter (the levels doctrine): faces take
-# post-conditioning semantics, and only where conditioning is declared does
-# the axis convention bind.
-function _condition(v, e)
-    dz = get(e, :deadzone, nothing)
-    ex = get(e, :expo, nothing)
-    dz === nothing && ex === nothing && return v
-    x = clamp(float(v), -1, 1)
-    a = abs(x)
-    dz === nothing || (a = a <= dz ? zero(a) : (a - dz) / (1 - dz))
-    ex === nothing || (a = (1 - ex) * a + ex * a^3)
-    flipsign(a, x)
+# endpoints stay fixed; expo blends linear into cubic — magnitude =
+# (1-expo)·magnitude + expo·magnitude³ — attenuating the midrange with the
+# endpoints again fixed. An entry declaring neither passes its value through
+# untouched, which is what carries a throttle's [0, 1] level or a press
+# counter (the levels doctrine): faces take post-conditioning semantics, and
+# only where conditioning is declared does the axis convention bind.
+function _condition(value, entry)
+    deadzone = get(entry, :deadzone, nothing)
+    expo = get(entry, :expo, nothing)
+    deadzone === nothing && expo === nothing && return value
+    clamped = clamp(float(value), -1, 1)
+    magnitude = abs(clamped)
+    deadzone === nothing ||
+        (magnitude = magnitude <= deadzone ?
+            zero(magnitude) : (magnitude - deadzone) / (1 - deadzone))
+    expo === nothing || (magnitude = (1 - expo) * magnitude + expo * magnitude^3)
+    flipsign(magnitude, clamped)
 end
