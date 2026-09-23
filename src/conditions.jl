@@ -107,8 +107,8 @@ combine(nodes::ConditionNode...) = Combined(nodes)
 # raised at composition time — before any resolution pass runs or any origin
 # exists, which is why it carries its own kind rather than a
 # `ConditionResolution` sub-kind (§14.2).
-combine(a::ConditionNode, b::NamedTuple) = _node_misuse(b, (nameof(typeof(a)),))
-combine(a::NamedTuple, b::ConditionNode) = _node_misuse(a, (nameof(typeof(b)),))
+combine(left::ConditionNode, right::NamedTuple) = _node_misuse(right, (nameof(typeof(left)),))
+combine(left::NamedTuple, right::ConditionNode) = _node_misuse(left, (nameof(typeof(right)),))
 combine(nodes...) = _misuse_in(nodes)
 
 """
@@ -161,17 +161,17 @@ struct CEntry
     pos::Tuple                    # the tree position: the step tuple to this value
 end
 
-_key(e::CEntry) = e.face === nothing ? (e.path, e.store, e.field) : ("", :input, e.face)
-_step(origin::String, s::String) = isempty(origin) ? s : origin * " → " * s
+_key(entry::CEntry) = entry.face === nothing ? (entry.path, entry.store, entry.field) : ("", :input, entry.face)
+_step(origin::String, label::String) = isempty(origin) ? label : origin * " → " * label
 
-function _flat(n::Fragment, path::String, level, origin::String, pos::Tuple,
+function _flat(node::Fragment, path::String, level, origin::String, tree_position::Tuple,
                structure::Structure, diags::Vector{Diagnostic})
     out = CEntry[]
-    for (store, name, payload) in ((:x, :x, n.x), (:s, :s, n.s),
-                                   (:m, :m, n.m), (:input, :inputs, n.inputs))
+    for (store, name, payload) in ((:x, :x, node.x), (:s, :s, node.s),
+                                   (:m, :m, node.m), (:input, :inputs, node.inputs))
         for (field, v) in pairs(payload)
             entry = CEntry(path, store, field, v, _step(origin, "fragment($name).$field"),
-                           nothing, (pos..., name, field))
+                           nothing, (tree_position..., name, field))
             store === :input &&
                 (entry = CEntry(entry.path, entry.store, entry.field, entry.value,
                                 entry.origin, _root_input(structure, entry, diags), entry.pos))
@@ -181,54 +181,56 @@ function _flat(n::Fragment, path::String, level, origin::String, pos::Tuple,
     out
 end
 
-function _flat(n::Scoped, path::String, level, origin::String, pos::Tuple,
+function _flat(node::Scoped, path::String, level, origin::String, tree_position::Tuple,
                structure::Structure, diags::Vector{Diagnostic})
-    entry = _step(origin, "at(\"$(n.prefix)\")")
-    kid = resolve_authored(entry, path, level, n.prefix, diags)
+    scoped_origin = _step(origin, "at(\"$(node.prefix)\")")
+    kid = resolve_authored(scoped_origin, path, level, node.prefix, diags)
     kid === nothing && return CEntry[]        # the path is the offender, reported once
-    _flat(n.node, _join(path, n.prefix), kid, entry, (pos..., :node), structure, diags)
+    _flat(node.node, _join(path, node.prefix), kid, scoped_origin, (tree_position..., :node),
+         structure, diags)
 end
 
-_flat(n::Combined, path::String, level, origin::String, pos::Tuple,
+_flat(node::Combined, path::String, level, origin::String, tree_position::Tuple,
       structure::Structure, diags::Vector{Diagnostic}) =
-    reduce(vcat, (_flat(k, path, level, _step(origin, "combine[$i]"), (pos..., :nodes, i),
-                        structure, diags)
-                  for (i, k) in enumerate(n.nodes)); init = CEntry[])
+    reduce(vcat, (_flat(child, path, level, _step(origin, "combine[$i]"),
+                        (tree_position..., :nodes, i), structure, diags)
+                  for (i, child) in enumerate(node.nodes)); init = CEntry[])
 
 # Layering (§14.6): each layer is flattened and checked on its own — a
 # within-layer collision is still an error — and then folded onto the
 # accumulator, the patch replacing the leaf it overrode and inheriting its
 # origin beside its own.
-function _flat(n::Override, path::String, level, origin::String, pos::Tuple,
+function _flat(node::Override, path::String, level, origin::String, tree_position::Tuple,
                structure::Structure, diags::Vector{Diagnostic})
-    acc = CEntry[]
-    for (i, layer) in enumerate(n.layers)
+    layered = CEntry[]
+    for (i, layer) in enumerate(node.layers)
         label = i == 1 ? "override[base]" : "override[patch $(i - 1)]"
-        es = _flat(layer, path, level, _step(origin, label), (pos..., :layers, i), structure, diags)
-        _check_duplicates!(es, diags)
-        for entry in es
-            j = findfirst(a -> _key(a) == _key(entry), acc)
-            j === nothing ? push!(acc, entry) :
-                (acc[j] = CEntry(entry.path, entry.store, entry.field, entry.value,
-                                 "$(entry.origin) (overrode $(acc[j].origin))", entry.face,
+        layer_entries = _flat(layer, path, level, _step(origin, label), (tree_position..., :layers, i),
+                              structure, diags)
+        _check_duplicates!(layer_entries, diags)
+        for entry in layer_entries
+            overridden = findfirst(a -> _key(a) == _key(entry), layered)
+            overridden === nothing ? push!(layered, entry) :
+                (layered[overridden] = CEntry(entry.path, entry.store, entry.field, entry.value,
+                                 "$(entry.origin) (overrode $(layered[overridden].origin))", entry.face,
                                  entry.pos))
         end
     end
-    acc
+    layered
 end
 
 # `combine`'s one collision rule, collected rather than thrown (§13.1): both
 # origins and the directive naming the layering combinator.
-function _check_duplicates!(es::Vector{CEntry}, diags::Vector{Diagnostic})
+function _check_duplicates!(entries::Vector{CEntry}, diags::Vector{Diagnostic})
     seen = Dict{Tuple{String,Symbol,Symbol},CEntry}()
-    for entry in es
-        k = _key(entry)
-        if haskey(seen, k)
+    for entry in entries
+        key = _key(entry)
+        if haskey(seen, key)
             push!(diags, DuplicateConditionLeaf(path = entry.path, store = entry.store,
                                                field = entry.field, face = entry.face,
-                                               origins = [seen[k].origin, entry.origin]))
+                                               origins = [seen[key].origin, entry.origin]))
         else
-            seen[k] = entry
+            seen[key] = entry
         end
     end
     nothing
@@ -262,9 +264,9 @@ end
 # --- resolution (§14.3) ---------------------------------------------------------
 
 """
-    resolve_condition(node, b::Build, T = Float64) → ConditionPlan
+    resolve_condition(node, build::Build, T = Float64) → ConditionPlan
 
-Flatten the condition tree, validate every entry against `b` in §13.1's
+Flatten the condition tree, validate every entry against `build` in §13.1's
 collecting form — full list, violations collected, one `DiagnosticError` — and
 compile what survives to a plan.
 
@@ -277,33 +279,34 @@ Schema is the
 authority on *may you write this, at what type*; the activation's layout
 supplies the destination.
 """
-function resolve_condition(node::ConditionNode, b::Build, ::Type{T} = Float64) where {T}
-    resolved, diags, act = _resolve_entries(node, b, T)
+function resolve_condition(node::ConditionNode, build::Build, ::Type{T} = Float64) where {T}
+    resolved, diags, act = _resolve_entries(node, build, T)
     _report_violations(diags)
 
     xs = Tuple{Int,Any}[]
     inputs = Tuple{Any,Any}[]
     faces = Symbol[]
     overlays = Dict{Tuple{Symbol,Int},Vector{Pair{Symbol,Any}}}()
-    for r in resolved
-        e = r.e
-        if e.store === :input
-            push!(inputs, (r.dest, r.v))
-            push!(faces, e.face)
-        elseif e.store === :x
-            push!(xs, (r.dest, r.v))
+    for survivor in resolved
+        entry = survivor.e
+        if entry.store === :input
+            push!(inputs, (survivor.dest, survivor.v))
+            push!(faces, entry.face)
+        elseif entry.store === :x
+            push!(xs, (survivor.dest, survivor.v))
         else
-            push!(get!(() -> Pair{Symbol,Any}[], overlays, (e.store, r.dest)), e.field => r.v)
+            push!(get!(() -> Pair{Symbol,Any}[], overlays, (entry.store, survivor.dest)),
+                 entry.field => survivor.v)
         end
     end
 
     # Overlay partiality baked now (§14.3): the store's write is one whole
     # value, `merge(defaults, overlay)`, so application decides nothing.
     stores = Tuple{Symbol,Int,Any}[]
-    for (store, ci, defaults) in _store_bases(b, act)
-        ov = get(overlays, (store, ci), nothing)
-        ov === nothing && continue
-        push!(stores, (store, ci, convert(typeof(defaults), merge(defaults, (; ov...)))))
+    for (store, ci, defaults) in _store_bases(build, act)
+        overlay = get(overlays, (store, ci), nothing)
+        overlay === nothing && continue
+        push!(stores, (store, ci, convert(typeof(defaults), merge(defaults, (; overlay...)))))
     end
     ConditionPlan{T}(xs, stores, inputs, faces)
 end
@@ -338,32 +341,34 @@ function _resolve_entries(node::ConditionNode, build::Build, ::Type{T}) where {T
     _check_duplicates!(entries, diags)
 
     out = Resolved[]
-    for e in entries
-        if e.store === :input
-            e.face === nothing && continue     # the chain was reported at flattening
-            addr = layout.addr[("", e.face)]
-            P = _port_type(addr)
-            (ok, v) = _convert(P, e.value)
-            ok || (push!(diags, _unconvertible(e, e.value, P, T)); continue)
-            push!(out, Resolved(e, addr, P, v))
+    for entry in entries
+        if entry.store === :input
+            entry.face === nothing && continue     # the chain was reported at flattening
+            addr = layout.addr[("", entry.face)]
+            port_type = _port_type(addr)
+            (ok, v) = _convert(port_type, entry.value)
+            ok || (push!(diags, _unconvertible(entry, entry.value, port_type, T)); continue)
+            push!(out, Resolved(entry, addr, port_type, v))
             continue
         end
-        ci = _component(structure, e, diags)
+        ci = _component(structure, entry, diags)
         ci === nothing && continue
-        entry = structure.components[ci]
-        c, tier, d = entry.instance, entry.tier, decls[ci]
-        declared = e.store === :x ? d.x : e.store === :s ? d.s : init_m(c)
+        comp_entry = structure.components[ci]
+        comp, tier, decl = comp_entry.instance, comp_entry.tier, decls[ci]
+        declared = entry.store === :x ? decl.x : entry.store === :s ? decl.s : init_m(comp)
         if isempty(declared)
-            push!(diags, _no_store(e, tier))
+            push!(diags, _no_store(entry, tier))
             continue
         end
-        haskey(declared, e.field) ||
-            (push!(diags, _undeclared(e, c, tier, declared, T)); continue)
-        L = typeof(declared[e.field])
-        (ok, v) = _convert(L, e.value)
-        ok || (push!(diags, _unconvertible(e, e.value, L, T)); continue)
-        push!(out, Resolved(e, e.store === :x ? first(layout.xblocks[ci]) - 1 + _leaf_offset(d.x, e.field) : ci,
-                            L, v))
+        haskey(declared, entry.field) ||
+            (push!(diags, _undeclared(entry, comp, tier, declared, T)); continue)
+        leaf_type = typeof(declared[entry.field])
+        (ok, v) = _convert(leaf_type, entry.value)
+        ok || (push!(diags, _unconvertible(entry, entry.value, leaf_type, T)); continue)
+        push!(out, Resolved(entry,
+                            entry.store === :x ?
+                                first(layout.xblocks[ci]) - 1 + _leaf_offset(decl.x, entry.field) : ci,
+                            leaf_type, v))
     end
     (out, diags, act)
 end
@@ -371,8 +376,8 @@ end
 # The merge bases, in one order both walk: per component, the discrete
 # store's declared defaults and then the mode store's (§14.3's fork).
 _store_bases(build::Build, act::Activation) =
-    [(store, ci, store === :s ? act.decls[ci].s : init_m(entry.instance))
-     for (ci, entry) in enumerate(build.structure.components) for store in (:s, :m)]
+    [(store, ci, store === :s ? act.decls[ci].s : init_m(comp_entry.instance))
+     for (ci, comp_entry) in enumerate(build.structure.components) for store in (:s, :m)]
 
 # Anything that is not a node reaching a service entry point is the §14.2
 # misuse, not a `MethodError`: the directive is the same one `combine` prints,
@@ -380,12 +385,12 @@ _store_bases(build::Build, act::Activation) =
 resolve_condition(other, ::Build, ::Type = Float64) = _node_misuse(other, ())
 
 function _leaf_offset(x::NamedTuple, field::Symbol)
-    off = 0
+    offset = 0
     for (k, v) in pairs(x)
-        k === field && return off
-        off += nleaves(typeof(v))
+        k === field && return offset
+        offset += nleaves(typeof(v))
     end
-    off
+    offset
 end
 
 _convert(::Type{P}, v) where {P} =
@@ -406,10 +411,10 @@ _cviol(entry::CEntry, reason::Symbol; kw...) =
 # left to say is that the level owns no state. Assemblies are virtual for
 # execution (§10.5) and own no state, so an `at` prefix stopping at one has
 # nothing to write — and saying so beats "no such path".
-function _component(structure::Structure, e::CEntry, diags::Vector{Diagnostic})
-    ci = findfirst(entry -> entry.path == e.path, structure.components)
+function _component(structure::Structure, entry::CEntry, diags::Vector{Diagnostic})
+    ci = findfirst(comp_entry -> comp_entry.path == entry.path, structure.components)
     ci === nothing || return ci
-    push!(diags, _cviol(e, :assembly_path))
+    push!(diags, _cviol(entry, :assembly_path))
     nothing
 end
 
@@ -420,51 +425,51 @@ end
 # producer is either a root input or an internal port, and a component-fed face
 # reaches none — writing it would be meaningless, because the first sweep
 # overwrites it.
-function _root_input(structure::Structure, e::CEntry, diags::Vector{Diagnostic})
-    if isempty(e.path)
-        e.field in structure.root_inputs && return e.field
-        push!(diags, _cviol(e, :unexported_face; candidates = structure.root_inputs))
+function _root_input(structure::Structure, entry::CEntry, diags::Vector{Diagnostic})
+    if isempty(entry.path)
+        entry.field in structure.root_inputs && return entry.field
+        push!(diags, _cviol(entry, :unexported_face; candidates = structure.root_inputs))
         return nothing
     end
-    k = findfirst(p -> first(p) === (e.path, e.field), structure.in_faces)
-    if k === nothing
-        here = [f for ((p, f), _) in structure.in_faces if p == e.path]
-        push!(diags, _cviol(e, :no_input_face; candidates = here))
+    row = findfirst(p -> first(p) === (entry.path, entry.field), structure.in_faces)
+    if row === nothing
+        here = [f for ((p, f), _) in structure.in_faces if p == entry.path]
+        push!(diags, _cviol(entry, :no_input_face; candidates = here))
         return nothing
     end
-    (path, port) = last(structure.in_faces[k])
-    isempty(path) && return port
-    push!(diags, _cviol(e, :internally_wired; producer = (path, port)))
+    (producer_path, producer_port) = last(structure.in_faces[row])
+    isempty(producer_path) && return producer_port
+    push!(diags, _cviol(entry, :internally_wired; producer = (producer_path, producer_port)))
     nothing
 end
 
 # The store a condition names has to exist on the component at all: `x` is the
 # continuous tier's state and `s` the discrete one's, disjoint by construction
 # (D-195), and `m` is continuous-only (§3.2).
-_no_store(e::CEntry, tier::Tier) =
-    _cviol(e, :no_store; tier = Symbol(tier_word(tier)))
+_no_store(entry::CEntry, tier::Tier) =
+    _cviol(entry, :no_store; tier = Symbol(tier_word(tier)))
 
 # An undeclared field, discriminated against the component's other name
 # families: a condition specifies state, modes and root inputs — never outputs,
 # which are derived data, and never workspace (§14.1).
-function _undeclared(e::CEntry, c, tier::Tier, declared::NamedTuple, ::Type{T}) where {T}
-    role = haskey(declared_at(output_types, c, tier), e.field) ? :output_port :
-           haskey(declared_at(input_types, c, tier), e.field) ? :input_face :
-           (_declares_workspace(c, tier) &&
-            haskey(_declared_workspace(c, tier, T), e.field)) ? :workspace : nothing
-    _cviol(e, :undeclared_field; candidates = collect(keys(declared)), role = role)
+function _undeclared(entry::CEntry, comp, tier::Tier, declared::NamedTuple, ::Type{T}) where {T}
+    role = haskey(declared_at(output_types, comp, tier), entry.field) ? :output_port :
+           haskey(declared_at(input_types, comp, tier), entry.field) ? :input_face :
+           (_declares_workspace(comp, tier) &&
+            haskey(_declared_workspace(comp, tier, T), entry.field)) ? :workspace : nothing
+    _cviol(entry, :undeclared_field; candidates = collect(keys(declared)), role = role)
 end
 
-_declared_workspace(c, tier::Tier, ::Type{T}) where {T} =
-    tier === CONTINUOUS ? init_workspace(c, T) : init_workspace(c)
+_declared_workspace(comp, tier::Tier, ::Type{T}) where {T} =
+    tier === CONTINUOUS ? init_workspace(comp, T) : init_workspace(comp)
 
 # The one refusal §14.3's converter table cannot bake around. Its second clause
 # is the non-nominal case: at a seeded activation the leaves a decision descends
 # into are the ones the activation retyped, and a *frozen* discrete `s` (§9.4,
 # D-166) or a leaf pinned `Float64` by its own declaration is not one of them —
 # so the value cannot be carried and there is nowhere to put its partials.
-function _unconvertible(e::CEntry, v, ::Type{P}, ::Type{T}) where {P,T}
-    _cviol(e, :unconvertible; declared = P, observed = typeof(v), value = v,
+function _unconvertible(entry::CEntry, v, ::Type{P}, ::Type{T}) where {P,T}
+    _cviol(entry, :unconvertible; declared = P, observed = typeof(v), value = v,
            activation = _seeded_into_pinned(typeof(v), P, T) ? T : nothing)
 end
 
@@ -492,17 +497,17 @@ The services path contains no call to `probe_value`: a root input gets a
 condition value or the application errors, and there is no third branch. A
 fabricated zero is a fine probe input and a terrible flight condition.
 """
-function assert_total(plan::ConditionPlan, structure::Structure, op::Symbol)
+function assert_total(plan::ConditionPlan, structure::Structure, operation::Symbol)
     covered = Set(plan.faces)
     uncovered = [f for f in structure.root_inputs if !(f in covered)]
     isempty(uncovered) && return nothing
-    throw(DiagnosticError(UninitializedInputs(op = op, faces = uncovered)))
+    throw(DiagnosticError(UninitializedInputs(op = operation, faces = uncovered)))
 end
 
 # --- the dynamic walk (§14.4) ----------------------------------------------------
 
 """
-    apply!(ex::Executor, plan)
+    apply!(exec::Executor, plan)
     apply!(sim, plan)
 
 §14.4's dynamic walk: execute the validated entry list by runtime dispatch per
@@ -513,15 +518,15 @@ fifty compiles. Which way a service uses is internal, never user-facing:
 the specialized `apply!` below is the other way over the same checks, for
 the services that hold one shape fixed and vary its values.
 """
-function apply!(ex::Executor{T}, plan::ConditionPlan{T}) where {T}
-    for (off, v) in plan.xs
-        flatten!(ex.xbuf, off, v)
+function apply!(exec::Executor{T}, plan::ConditionPlan{T}) where {T}
+    for (offset, v) in plan.xs
+        flatten!(exec.xbuf, offset, v)
     end
     for (store, ci, v) in plan.stores
-        (store === :s ? ex.sstores : ex.mstores)[ci][] = v
+        (store === :s ? exec.sstores : exec.mstores)[ci][] = v
     end
     for (addr, v) in plan.inputs
-        scatter!(ex.store, addr, v)
+        scatter!(exec.store, addr, v)
     end
     nothing
 end
@@ -553,13 +558,14 @@ search and no runtime fact consulted.
 struct Getter{P} end
 
 @generated function (::Getter{P})(tree) where {P}
-    ex = :tree
-    for step in P
-        ex = step isa Symbol ? :(getfield($ex, $(QuoteNode(step)))) : :(getindex($ex, $step))
+    access = :tree
+    for path_step in P
+        access = path_step isa Symbol ? :(getfield($access, $(QuoteNode(path_step)))) :
+                                         :(getindex($access, $path_step))
     end
     quote
         $(Expr(:meta, :inline))
-        $ex
+        $access
     end
 end
 
@@ -606,16 +612,16 @@ end
 StoreWrite{K,S,F}(ci::Int, defaults::S, authored::A) where {K,S,F,A<:Tuple} =
     StoreWrite{K,S,F,A}(ci, defaults, authored)
 
-@inline _write!(w::XWrite, ex::Executor, tree) =
-    flatten!(ex.xbuf, w.off, w.authored(tree))
+@inline _write!(w::XWrite, exec::Executor, tree) =
+    flatten!(exec.xbuf, w.off, w.authored(tree))
 
-@inline _write!(w::InputWrite, ex::Executor, tree) =
-    scatter!(ex.store, w.addr, w.authored(tree))
+@inline _write!(w::InputWrite, exec::Executor, tree) =
+    scatter!(exec.store, w.addr, w.authored(tree))
 
-@inline function _write!(w::StoreWrite{K,S,F}, ex::Executor, tree) where {K,S,F}
-    ov = NamedTuple{F}(map(a -> a(tree), w.authored))
-    ((K === :s ? ex.sstores : ex.mstores)[w.ci]::Base.RefValue{S})[] =
-        convert(S, merge(w.defaults, ov))
+@inline function _write!(w::StoreWrite{K,S,F}, exec::Executor, tree) where {K,S,F}
+    overlay = NamedTuple{F}(map(a -> a(tree), w.authored))
+    ((K === :s ? exec.sstores : exec.mstores)[w.ci]::Base.RefValue{S})[] =
+        convert(S, merge(w.defaults, overlay))
     nothing
 end
 
@@ -637,7 +643,7 @@ What a condition *shape* compiles to (§14.3, §14.4): the tree type it was
 compiled from in the plan's own type, and its writes as tuples, so `apply!`
 unrolls into the same machine operations an in-place write would be.
 
-Application is `apply!(ex, plan, tree)` for any tree of that shape. Nothing is
+Application is `apply!(exec, plan, tree)` for any tree of that shape. Nothing is
 decided there: the destinations, the converters and the merge bases were all
 settled at compile time, and what is left is the fold-away shape check plus the
 writes.
@@ -659,7 +665,7 @@ SpecializedPlan{T,NT}(xs::XS, stores::ST, inputs::IN, prefixes::PF) where {T,NT,
     SpecializedPlan{T,NT,XS,ST,IN,PF}(xs, stores, inputs, prefixes)
 
 """
-    compile_plan(node, b::Build, T = Float64) → SpecializedPlan
+    compile_plan(node, build::Build, T = Float64) → SpecializedPlan
 
 Compile a condition tree's **shape** into the specialized `apply!`'s plan,
 running exactly the checks `resolve_condition` runs — one implementation, in
@@ -672,29 +678,29 @@ frozen or pinned leaf is refused. Everything else the compile reads is shape —
 paths, field names, tree positions, the destination leaf types at this
 activation.
 """
-function compile_plan(node::ConditionNode, b::Build, ::Type{T} = Float64) where {T}
-    resolved, diags, act = _resolve_entries(node, b, T)
+function compile_plan(node::ConditionNode, build::Build, ::Type{T} = Float64) where {T}
+    resolved, diags, act = _resolve_entries(node, build, T)
     _report_violations(diags)
 
     xs, inputs = Any[], Any[]
     overlays = Dict{Tuple{Symbol,Int},Vector{Resolved}}()
-    for r in resolved
-        e = r.e
-        if e.store === :input
-            push!(inputs, InputWrite(Authored{e.pos,r.L}(), r.dest))
-        elseif e.store === :x
-            push!(xs, XWrite(Authored{e.pos,r.L}(), r.dest))
+    for survivor in resolved
+        entry = survivor.e
+        if entry.store === :input
+            push!(inputs, InputWrite(Authored{entry.pos,survivor.L}(), survivor.dest))
+        elseif entry.store === :x
+            push!(xs, XWrite(Authored{entry.pos,survivor.L}(), survivor.dest))
         else
-            push!(get!(() -> Resolved[], overlays, (e.store, r.dest)), r)
+            push!(get!(() -> Resolved[], overlays, (entry.store, survivor.dest)), survivor)
         end
     end
 
     stores = Any[]
-    for (store, ci, defaults) in _store_bases(b, act)
-        ov = get(overlays, (store, ci), nothing)
-        ov === nothing && continue
-        push!(stores, StoreWrite{store,typeof(defaults),Tuple(r.e.field for r in ov)}(
-            ci, defaults, Tuple(Authored{r.e.pos,r.L}() for r in ov)))
+    for (store, ci, defaults) in _store_bases(build, act)
+        overlay = get(overlays, (store, ci), nothing)
+        overlay === nothing && continue
+        push!(stores, StoreWrite{store,typeof(defaults),Tuple(r.e.field for r in overlay)}(
+            ci, defaults, Tuple(Authored{r.e.pos,r.L}() for r in overlay)))
     end
 
     SpecializedPlan{T,typeof(node)}(Tuple(xs), Tuple(stores), Tuple(inputs),
@@ -713,19 +719,20 @@ function _scoped_prefixes(node::ConditionNode)
 end
 
 _scoped!(::Fragment, ::Tuple, ::Vector) = nothing
-_scoped!(n::Scoped, pos::Tuple, out::Vector) =
-    (push!(out, ((pos..., :prefix), n.prefix)); _scoped!(n.node, (pos..., :node), out))
-_scoped!(n::Combined, pos::Tuple, out::Vector) =
-    for (i, k) in enumerate(n.nodes)
-        _scoped!(k, (pos..., :nodes, i), out)
+_scoped!(node::Scoped, tree_position::Tuple, out::Vector) =
+    (push!(out, ((tree_position..., :prefix), node.prefix));
+     _scoped!(node.node, (tree_position..., :node), out))
+_scoped!(node::Combined, tree_position::Tuple, out::Vector) =
+    for (i, child) in enumerate(node.nodes)
+        _scoped!(child, (tree_position..., :nodes, i), out)
     end
-_scoped!(n::Override, pos::Tuple, out::Vector) =
-    for (i, k) in enumerate(n.layers)
-        _scoped!(k, (pos..., :layers, i), out)
+_scoped!(node::Override, tree_position::Tuple, out::Vector) =
+    for (i, child) in enumerate(node.layers)
+        _scoped!(child, (tree_position..., :layers, i), out)
     end
 
 """
-    apply!(ex::Executor{T}, plan::SpecializedPlan{T,NT}, tree::NT)
+    apply!(exec::Executor{T}, plan::SpecializedPlan{T,NT}, tree::NT)
 
 §14.4's specialized walk: write every leaf of `tree` through its baked lens and
 converter — `x` leaves flattened at their offsets, each `s` and `m` store as one
@@ -743,11 +750,11 @@ silent corruption.
 The sweep runs before any write, so a refused application leaves the executor
 exactly as it found it.
 """
-function apply!(ex::Executor{T}, plan::SpecializedPlan{T,NT}, tree::NT) where {T,NT}
+function apply!(exec::Executor{T}, plan::SpecializedPlan{T,NT}, tree::NT) where {T,NT}
     _sweep_prefixes(plan.prefixes, tree)
-    _writes!(plan.xs, ex, tree)
-    _writes!(plan.stores, ex, tree)
-    _writes!(plan.inputs, ex, tree)
+    _writes!(plan.xs, exec, tree)
+    _writes!(plan.stores, exec, tree)
+    _writes!(plan.inputs, exec, tree)
     nothing
 end
 
@@ -758,29 +765,29 @@ apply!(::Executor{S}, ::SpecializedPlan{T}, tree) where {S,T} =
     _activation_mismatch("plan", T, S)
 
 @inline _writes!(::Tuple{}, ::Executor, tree) = nothing
-@inline function _writes!(ws::Tuple, ex::Executor, tree)
-    _write!(first(ws), ex, tree)
-    _writes!(Base.tail(ws), ex, tree)
+@inline function _writes!(writes::Tuple, exec::Executor, tree)
+    _write!(first(writes), exec, tree)
+    _writes!(Base.tail(writes), exec, tree)
 end
 
 @inline _sweep_prefixes(::Tuple{}, tree) = nothing
-@inline function _sweep_prefixes(ps::Tuple, tree)
-    _compare(first(ps), tree)
-    _sweep_prefixes(Base.tail(ps), tree)
+@inline function _sweep_prefixes(prefixes::Tuple, tree)
+    _compare(first(prefixes), tree)
+    _sweep_prefixes(Base.tail(prefixes), tree)
 end
 
-@inline function _compare(p::Prefix{P}, tree) where {P}
+@inline function _compare(prefix::Prefix{P}, tree) where {P}
     observed = Getter{P}()(tree)
-    observed === p.expected || _prefix_drift(P, p.expected, observed)
+    observed === prefix.expected || _prefix_drift(P, prefix.expected, observed)
     nothing
 end
 
 @noinline _shape_drift(::Type{NT}, ::Type{O}) where {NT,O} = throw(DiagnosticError(
     ConditionShapeDrift(reason = :tree_type, compiled = NT, observed = O)))
 
-@noinline _prefix_drift(P::Tuple, expected::String, observed::String) = throw(DiagnosticError(
+@noinline _prefix_drift(tree_position::Tuple, expected::String, observed::String) = throw(DiagnosticError(
     ConditionShapeDrift(reason = :prefix, compiled = expected, observed = observed,
-                        position = P)))
+                        position = tree_position)))
 
 # --- capture: the gather twin of `apply!` (§14.1, §14.10) -----------------------
 
@@ -817,41 +824,42 @@ again there — which is exactly what makes a warm restart a *fresh run from
 these values* rather than a resumption.
 """
 function capture(sim::Simulation{T}) where {T}
-    lc = lifecycle(sim)
-    lc in (:initialized, :stopped) || throw(DiagnosticError(ServiceLifecycle(
-        op = :capture, status = lc, legal = [:initialized, :stopped])))
-    ex, structure = sim.exec, sim.deployment.build.structure
+    status = lifecycle(sim)
+    status in (:initialized, :stopped) || throw(DiagnosticError(ServiceLifecycle(
+        op = :capture, status = status, legal = [:initialized, :stopped])))
+    exec, structure = sim.exec, sim.deployment.build.structure
     act = activation(sim.deployment.build, T)
     nodes = ConditionNode[]
-    for (ci, entry) in enumerate(structure.components)
-        d = act.decls[ci]
+    for (ci, comp_entry) in enumerate(structure.components)
+        decl = act.decls[ci]
         payload = NamedTuple()
-        entry.tier === CONTINUOUS && !isempty(d.x) &&
-            (payload = merge(payload, (x = _capture_x(d.x, ex.xbuf, first(act.layout.xblocks[ci]) - 1),)))
-        ex.sstores[ci] === nothing || (payload = merge(payload, (s = ex.sstores[ci][],)))
-        ex.mstores[ci] === nothing || (payload = merge(payload, (m = ex.mstores[ci][],)))
+        comp_entry.tier === CONTINUOUS && !isempty(decl.x) &&
+            (payload = merge(payload,
+                             (x = _capture_x(decl.x, exec.xbuf, first(act.layout.xblocks[ci]) - 1),)))
+        exec.sstores[ci] === nothing || (payload = merge(payload, (s = exec.sstores[ci][],)))
+        exec.mstores[ci] === nothing || (payload = merge(payload, (m = exec.mstores[ci][],)))
         isempty(payload) && continue
         # One `at` per child segment, innermost first: the absolute path is a
         # compiled derivative, and the authored spelling is the one the
         # service walk admits wherever a level holds its child generically
         # (§14.2, §13.3).
-        push!(nodes, foldr(at, authored_chain(structure.root, entry.path);
+        push!(nodes, foldr(at, authored_chain(structure.root, comp_entry.path);
                            init = fragment(; payload...)))
     end
     isempty(structure.root_inputs) || push!(nodes, fragment(inputs =
-        NamedTuple{Tuple(structure.root_inputs)}(Tuple(gather(ex.store, act.layout.addr[("", f)])
+        NamedTuple{Tuple(structure.root_inputs)}(Tuple(gather(exec.store, act.layout.addr[("", f)])
                                                   for f in structure.root_inputs))))
-    (combine(nodes...), ex.clock.t)
+    (combine(nodes...), exec.clock.t)
 end
 
 # One component's `x` payload, field by field: the flat buffer is read through
 # the same declaration walk the plan writes through, so what comes back is
 # exactly what goes in (§7.1).
-function _capture_x(x::NamedTuple, buf::Vector, base::Int)
-    off, vals = base, Any[]
+function _capture_x(x::NamedTuple, xbuf::Vector, base::Int)
+    offset, field_values = base, Any[]
     for v in values(x)
-        push!(vals, reconstruct(typeof(v), buf, off))
-        off += nleaves(typeof(v))
+        push!(field_values, reconstruct(typeof(v), xbuf, offset))
+        offset += nleaves(typeof(v))
     end
-    NamedTuple{keys(x)}(Tuple(vals))
+    NamedTuple{keys(x)}(Tuple(field_values))
 end
