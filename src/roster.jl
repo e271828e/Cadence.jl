@@ -101,7 +101,8 @@ function check_device(dev::AbstractDevice)
     device_type = typeof(dev)
     # against the handle type the wrapper calls with: a `loop(::device_type, ::DeviceHandle)`
     # is a method, and `Tuple{device_type,Any}` would not see it
-    which(loop, Tuple{device_type,DeviceHandle}) === which(loop, Tuple{AbstractDevice,DeviceHandle}) &&
+    which(loop, Tuple{device_type,DeviceHandle}) ===
+        which(loop, Tuple{AbstractDevice,DeviceHandle}) &&
         throw(DiagnosticError(DeviceContractMismatch(
             device = _typename(device_type), reason = :no_loop)))
     nothing
@@ -221,14 +222,14 @@ diagnosable anomaly, never a silent write). Duplicates within one enumeration
 collapse; the empty enumeration is the honest may-write-nothing degenerate.
 """
 function _claim(plane::DataPlane, layout::Layout, b::AbstractBinding, device::String)
-    faceset = Symbol[f for (f, _) in layout.root_inputs]
-    is_greedy(b) && return Symbol[f for f in faceset if !haskey(plane.claimedby, f)]
+    face_set = Symbol[f for (f, _) in layout.root_inputs]
+    is_greedy(b) && return Symbol[f for f in face_set if !haskey(plane.claimedby, f)]
     claim = Symbol[]
     for claimed in claims(b)
         face = Symbol(claimed)
-        face in faceset || throw(DiagnosticError(
+        face in face_set || throw(DiagnosticError(
             AttachUnknownFace(device = device, binding = _typename(b), face = face,
-                              candidates = faceset)))
+                              candidates = face_set)))
         face in claim || push!(claim, face)
     end
     claim
@@ -261,14 +262,15 @@ function reclaim!(plane::DataPlane, layout::Layout, store, trc)
     end
     old = plane.harness
     pending = @atomicswap old.cell.pending = nothing
-    harness = Writer(layout, Symbol[f for (f, _) in layout.root_inputs if !haskey(plane.claimedby, f)])
+    harness = Writer(layout, Symbol[f for (f, _) in layout.root_inputs
+                                    if !haskey(plane.claimedby, f)])
     plane.harness = harness
     _install_writers!(plane, store, trc)   # §11.5: the schema list grows, the thunks follow
     if pending !== nothing
         batch = pending[]
         entries = [old.faces[i] => batch.vals[i] for i in 1:length(old.faces) if batch.mask[i]]
         renormalized = _normalize(plane.harness, entries, plane.claimedby, plane.harness_diag;
-                            site = :renormalization)
+                                  site = :renormalization)
         renormalized === nothing || _stage!(plane.harness, renormalized)
     end
     nothing

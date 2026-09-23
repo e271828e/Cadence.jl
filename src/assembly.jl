@@ -142,8 +142,8 @@ function _children(path::String, comp)
             push!(fields, name)
             push!(contributors, "field `$name`")
         elseif value isa NamedTuple || value isa Tuple
-            component_count = count(e -> e isa AbstractComponent, value)
-            if component_count == 0
+            n_components = count(e -> e isa AbstractComponent, value)
+            if n_components == 0
                 # Inert data, an empty container too — unless an element is
                 # itself a container bearing components, the nesting §8.5
                 # refuses in the first cut.
@@ -153,7 +153,7 @@ function _children(path::String, comp)
                                                 types = [_typespell(typeof(value[k])) for k in nested]))
                 continue
             end
-            if component_count != length(value)
+            if n_components != length(value)
                 mixed = [k for k in keys(value) if !(value[k] isa AbstractComponent)]
                 push!(diags, ContainerMixed(path = path, field = name, keys = mixed,
                                            types = unique([_typespell(typeof(value[k])) for k in mixed])))
@@ -174,7 +174,8 @@ function _children(path::String, comp)
                 end
                 if bare && string(key) in shadowable
                     push!(diags, ChildNameCollision(path = path, name = string(key),
-                                                   reason = :sibling_field, declarations = [contributor]))
+                                                   reason = :sibling_field,
+                                                   declarations = [contributor]))
                     hit = true
                 end
                 hit && continue                    # a shadowed key names no child
@@ -195,7 +196,8 @@ end
 _is_container(v) = (v isa NamedTuple || v isa Tuple) && all(e -> e isa AbstractComponent, v)
 
 # The container fields of `comp`'s type: what a name-transparent declaration may name.
-_container_fields(comp) = Symbol[n for n in fieldnames(typeof(comp)) if _is_container(getfield(comp, n))]
+_container_fields(comp) =
+    Symbol[n for n in fieldnames(typeof(comp)) if _is_container(getfield(comp, n))]
 
 # A container holding a component at any depth: the shape `ContainerNested` names.
 _bears_component(v) = (v isa NamedTuple || v isa Tuple) &&
@@ -386,7 +388,8 @@ function resolve_authored(entry::String, base::String, level, path::AbstractStri
         kids, fields = _children(here_path, here)
         child_index = findfirst(kid -> first(kid) == segments[i], kids)
         child_index === nothing && i < length(segments) &&
-            (child_index = findfirst(kid -> first(kid) == segments[i] * "/" * segments[i + 1], kids))
+            (child_index =
+                 findfirst(kid -> first(kid) == segments[i] * "/" * segments[i + 1], kids))
         if child_index === nothing
             push!(diags, PathResolution(entry = entry, spelling = String(path),
                                        reason = :unknown_child, owner = _at_path(here_path),
@@ -424,7 +427,8 @@ function authored_chain(root, path::AbstractString)
         kids, = _children(here_path, here)
         child_index = findfirst(kid -> first(kid) == segments[i], kids)
         child_index === nothing && i < length(segments) &&
-            (child_index = findfirst(kid -> first(kid) == segments[i] * "/" * segments[i + 1], kids))
+            (child_index =
+                 findfirst(kid -> first(kid) == segments[i] * "/" * segments[i + 1], kids))
         child_index === nothing && throw(InternalInvariant("no child of `$here_path` at `$path`"))
         segment, kid = kids[child_index]
         push!(chain, segment)
@@ -460,7 +464,7 @@ function resolve(assembly, path::AbstractString)
     # alone here rather than reaching the step's list.
     diags = Diagnostic[]
     resolved = _one_level(who, "", assembly, path, String.(split(path, '/')), 0, diags;
-                   owner = "the component in hand")
+                          owner = "the component in hand")
     resolved === nothing && throw(DiagnosticError(only(diags)))
     first(resolved)
 end
@@ -475,7 +479,8 @@ contain dots, never slashes (§8.6).
 function resolve_terminal(assembly, path::AbstractString)
     diags = Diagnostic[]
     resolved = resolve_terminal("`resolve_terminal` on `$(nameof(typeof(assembly)))`",
-                         "", assembly, path, diags; owner = "the component in hand")
+                                "", assembly, path, diags;
+                                owner = "the component in hand")
     resolved === nothing && throw(DiagnosticError(only(diags)))   # declaration code: fail-fast
     comp, _, name = resolved
     comp, String(name)
@@ -655,7 +660,8 @@ function resolve_source(draft, entry::String, base::String, assembly, path::Abst
         row === nothing || return last(draft.out_faces[row])
         String(name) in output_faces(comp) && return nothing   # declared, refused at the child
     end
-    _wrong_direction(entry, path, comp_path, name, comp, "producer", diags)   # the parent's own typo
+    # the parent's own typo
+    _wrong_direction(entry, path, comp_path, name, comp, "producer", diags)
 end
 
 """
@@ -678,7 +684,8 @@ function resolve_dest(draft, entry::String, base::String, assembly, path::Abstra
         row === nothing || return copy(draft.routes[row][3])
         String(name) in input_faces(comp) && return Tuple{String,Symbol}[]   # refused at the child
     end
-    _wrong_direction(entry, path, comp_path, name, comp, "consumer", diags)   # the parent's own typo
+    # the parent's own typo
+    _wrong_direction(entry, path, comp_path, name, comp, "consumer", diags)
     Tuple{String,Symbol}[]
 end
 
@@ -858,29 +865,33 @@ attribution (§9.1, §13.1): wrapper-typed values only, `K ≥ 1`, `0 ≤ φ < K
 `T > 0`, `0 ≤ τ < T`, and every key naming an immediate child.
 """
 function _check_sample_times(path::String, rate_decl, kids, fields, diags::Vector{Diagnostic})
-    _rv(reason; kw...) = push!(diags, RatesViolation(; path = path, reason = reason, kw...))
+    record_violation(reason; kw...) =
+        push!(diags, RatesViolation(; path = path, reason = reason, kw...))
     if !(rate_decl isa NamedTuple)
-        _rv(:declaration_shape)                    # nothing further is iterable
+        record_violation(:declaration_shape)       # nothing further is iterable
         return nothing
     end
     for (key, rate) in pairs(rate_decl)
         if !(rate isa Relative || rate isa Absolute)
-            _rv(:value_vocabulary; key = key, value = rate)
+            record_violation(:value_vocabulary; key = key, value = rate)
             continue                               # neither residue arm applies
         end
         # The residue bound is stated against the multiplier, so an invalid `K`
         # (or `T`) leaves `φ` (or `τ`) with nothing to be measured against: the
         # dependent check is skipped, not doubled up.
         if rate isa Relative
-            rate.K ≥ 1 ? (0 ≤ rate.φ < rate.K || _rv(:phase; key = key, value = rate.φ)) :
-                      _rv(:multiplier; key = key, value = rate.K)
+            rate.K ≥ 1 ? (0 ≤ rate.φ < rate.K ||
+                          record_violation(:phase; key = key, value = rate.φ)) :
+                         record_violation(:multiplier; key = key, value = rate.K)
         else
-            rate.T > 0 ? (0 ≤ rate.τ < rate.T || _rv(:offset; key = key, value = rate.τ)) :
-                      _rv(:period; key = key, value = rate.T)
+            rate.T > 0 ? (0 ≤ rate.τ < rate.T ||
+                          record_violation(:offset; key = key, value = rate.τ)) :
+                         record_violation(:period; key = key, value = rate.T)
         end
         any(seg == String(key) for (seg, _) in kids) ||
             any(String(fld) == String(key) for fld in fields) ||
-            _rv(:unknown_child; key = key, candidates = String[first(p) for p in kids])
+            record_violation(:unknown_child; key = key,
+                             candidates = String[first(p) for p in kids])
     end
     nothing
 end
@@ -912,8 +923,8 @@ or `nothing` for an unlisted child. The unlisted child continues at the
 enclosing timing: the `Relative(1)` default is the affine law at
 `(K, φ) = (1, 0)`, implemented by nothing.
 """
-function _child_scope(draft::StructureDraft, path::String, rate_decl, segment::String, field::Symbol,
-                      scope::Timing)
+function _child_scope(draft::StructureDraft, path::String, rate_decl, segment::String,
+                      field::Symbol, scope::Timing)
     hit = _rate_entry(rate_decl, segment, field)
     hit === nothing && return scope, nothing
     (key, rate) = hit
@@ -929,7 +940,8 @@ function _child_scope(draft::StructureDraft, path::String, rate_decl, segment::S
         # One anchor per `Absolute` entry (§9.1): a bare container key applies one
         # declaration to every element (§8.7), so the elements share the anchor
         # the first of them established rather than each pushing a twin.
-        anchor_index = findfirst(anchor -> anchor.scope == path && anchor.key === key, draft.anchors)
+        anchor_index = findfirst(anchor -> anchor.scope == path && anchor.key === key,
+                                 draft.anchors)
         if anchor_index === nothing
             push!(draft.anchors, Anchor(rate.T, rate.τ, path, key))
             anchor_index = length(draft.anchors)
@@ -1091,10 +1103,10 @@ function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
         kids, fields = _children(path, comp)
         _check_sample_times(path, rate_decl, kids, fields, diags)
         for ((segment, kid), field) in zip(kids, fields)
-            kid_path = _join(path, segment)
+            child_path = _join(path, segment)
             kid_scope, kid_link = _child_scope(draft, path, rate_decl, segment, field, scope)
             # a primitive's tier, `nothing` for an assembly
-            tier = _walk!(draft, kid_path, kid, kid_scope, below, kid_link, diags)
+            tier = _walk!(draft, child_path, kid, kid_scope, below, kid_link, diags)
             # A key on a continuous child is the Δt-on-continuous error at
             # declaration time (§8.7): keys name discrete or scope children only.
             kid_link !== nothing && tier === CONTINUOUS &&
@@ -1207,6 +1219,7 @@ end
 function _check_root_faces(comp, diags::Vector{Diagnostic})
     output_names = String.(keys(_contract(output_types, comp)))
     duplicates = [n for n in String.(keys(_contract(input_types, comp))) if n in output_names]
-    isempty(duplicates) || push!(diags, FaceNameCollision(path = "", faces = duplicates, site = :root))
+    isempty(duplicates) ||
+        push!(diags, FaceNameCollision(path = "", faces = duplicates, site = :root))
     nothing
 end

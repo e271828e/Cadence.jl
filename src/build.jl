@@ -19,7 +19,8 @@
 # a path in hand runs under `at_component`, which fills the path in.
 
 # What passes through a frame unwrapped: none of these is user code failing.
-_passes_frame(e) = e isa DiagnosticError || e isa InternalInvariant || e isa InterruptException
+_passes_frame(err) =
+    err isa DiagnosticError || err isa InternalInvariant || err isa InterruptException
 
 """
 The framing accessor for a declaration (§13.2, D-248): `fn(comp, args...)`, a
@@ -82,8 +83,10 @@ function at_component(thunk, path::String)
     catch err
         if err isa DiagnosticError{UserCodeFraming} && isempty(err.carried.path)
             framing = err.carried
-            throw(DiagnosticError(UserCodeFraming(path = path, fn = framing.fn, bundle = framing.bundle,
-                                                  inputs = framing.inputs, cause = framing.cause)))
+            throw(DiagnosticError(UserCodeFraming(path = path, fn = framing.fn,
+                                                  bundle = framing.bundle,
+                                                  inputs = framing.inputs,
+                                                  cause = framing.cause)))
         end
         rethrow()
     end
@@ -162,7 +165,7 @@ end
 # §7.3, D-231: every store field is isbits or a `Symbol`, checked on both stores.
 function check_stores(path::String, comp, diags::Vector{Diagnostic})
     for (store, contents) in ((:init_s, invoke_declaration(init_s, comp)),
-                        (:init_m, invoke_declaration(init_m, comp)))
+                              (:init_m, invoke_declaration(init_m, comp)))
         for (name, value) in pairs(contents)
             isbits(value) || value isa Symbol ||
                 push!(diags, IllegalStoreField(path = path, store = store,
@@ -199,9 +202,10 @@ function classify_tier(path::String, comp, diags::Vector{Diagnostic})
 
     # The decider, by §8.2's two cases.
     state_store = !isempty(invoke_declaration(init_x, comp)) ? :init_x :
-            !isempty(invoke_declaration(init_s, comp)) ? :init_s : nothing
+                  !isempty(invoke_declaration(init_s, comp)) ? :init_s : nothing
     if state_store !== nothing
-        decider = findfirst(v -> first(v) === :state_derivative || first(v) === :state_update, votes)
+        decider = findfirst(v -> first(v) === :state_derivative || first(v) === :state_update,
+                            votes)
         if decider === nothing
             push!(diags, StoreWithoutUpdate(path = path, store = state_store))
             return nothing
@@ -277,8 +281,8 @@ function probe_stage1(structure::Structure, decls::Vector{Decls},
     end
 end
 
-function _bundle_values(bundle_fields, decl::Decls, u, y1, ::Type{T}; y = NamedTuple(), ws = nothing,
-                        m = nothing, Δt = 0.0) where {T}
+function _bundle_values(bundle_fields, decl::Decls, u, y1, ::Type{T}; y = NamedTuple(),
+                        ws = nothing, m = nothing, Δt = 0.0) where {T}
     field_values = map(bundle_fields) do field
         field === :x   ? decl.x :
         field === :s   ? decl.s :
@@ -363,26 +367,28 @@ which Kahn itself discards.
 """
 function _outputs(structure::Structure, decls::Vector{Decls},
                   stage1::Vector, mstores::Vector)
-    ncomponents = length(structure.components)
-    ports = [Symbol[keys(decls[ci].outs)...] for ci in 1:ncomponents]
-    stage1_names = [Symbol[keys(stage1[ci])...] for ci in 1:ncomponents]
-    stage2_names = [filter(∉(stage1_names[ci]), ports[ci]) for ci in 1:ncomponents]
-    dependencies = [Int[] for _ in 1:ncomponents]
-    edges = [Tuple{Int,Symbol,Symbol}[] for _ in 1:ncomponents]    # per consumer: (producer, port, face)
+    n_components = length(structure.components)
+    ports = [Symbol[keys(decls[ci].outs)...] for ci in 1:n_components]
+    stage1_names = [Symbol[keys(stage1[ci])...] for ci in 1:n_components]
+    stage2_names = [filter(∉(stage1_names[ci]), ports[ci]) for ci in 1:n_components]
+    dependencies = [Int[] for _ in 1:n_components]
+    # per consumer: (producer, port, face)
+    edges = [Tuple{Int,Symbol,Symbol}[] for _ in 1:n_components]
     for (ci, entry) in enumerate(structure.components)
         has_stage(output_direct, entry.instance) || continue
         for (face, (producer_path, producer_port)) in entry.conns
             isempty(producer_path) && continue           # a root input: no producer to wait for
             producer_ci = index_of(structure, producer_path)
-            haskey(stage1[producer_ci], producer_port) && continue   # stage-1 position: no dependence
+            # stage-1 position: no dependence
+            haskey(stage1[producer_ci], producer_port) && continue
             push!(dependencies[ci], producer_ci)
             push!(edges[ci], (producer_ci, producer_port, face))
         end
     end
 
     order = Int[]
-    ready = [ci for ci in 1:ncomponents if isempty(dependencies[ci])]
-    remaining = Set(1:ncomponents)
+    ready = [ci for ci in 1:n_components if isempty(dependencies[ci])]
+    remaining = Set(1:n_components)
     while !isempty(ready)
         ci = popfirst!(ready)
         push!(order, ci)
@@ -434,15 +440,15 @@ function _cycle_diagnostics(structure::Structure, edges::Vector{Vector{Tuple{Int
         for ci in order, (producer_ci, producer_port, face) in edges[ci]
             producer_ci in member_set &&
                 push!(wires,
-                     (position[producer_ci], position[ci], string(producer_port), string(face)))
+                      (position[producer_ci], position[ci], string(producer_port), string(face)))
         end
         sort!(wires)
         path_at(ci) = structure.components[ci].path
         cycle = AlgebraicCycle(members = String[path_at(ci) for ci in order],
-                           wires = ["$(path_at(order[producer_position]))/$port_name" =>
-                                    "$(path_at(order[consumer_position]))/$face_name"
-                                    for (producer_position, consumer_position, port_name,
-                                         face_name) in wires])
+                               wires = ["$(path_at(order[producer_position]))/$port_name" =>
+                                        "$(path_at(order[consumer_position]))/$face_name"
+                                        for (producer_position, consumer_position,
+                                             port_name, face_name) in wires])
         push!(clusters, (minimum(scc), _classify(cycle, order, edges, placed, structure, decls,
                                                  stage1, mstores)))
     end
@@ -452,16 +458,16 @@ end
 
 "Tarjan's algorithm over `nodes`, recursive: the strongly connected components."
 function _tarjan(nodes::Vector{Int}, successors::Vector{Vector{Int}})
-    index, low, onstack, stack, sccs = Dict{Int,Int}(), Dict{Int,Int}(), Set{Int}(), Int[], Vector{Int}[]
+    index, low, on_stack, stack, sccs = Dict{Int,Int}(), Dict{Int,Int}(), Set{Int}(), Int[], Vector{Int}[]
     function strong!(node)
         index[node] = low[node] = length(index) + 1
         push!(stack, node)
-        push!(onstack, node)
+        push!(on_stack, node)
         for successor in successors[node]
             if !haskey(index, successor)
                 strong!(successor)
                 low[node] = min(low[node], low[successor])
-            elseif successor in onstack
+            elseif successor in on_stack
                 low[node] = min(low[node], index[successor])
             end
         end
@@ -469,7 +475,7 @@ function _tarjan(nodes::Vector{Int}, successors::Vector{Vector{Int}})
             scc = Int[]
             while true
                 member = pop!(stack)
-                delete!(onstack, member)
+                delete!(on_stack, member)
                 push!(scc, member)
                 member == node && break
             end
@@ -553,8 +559,8 @@ function cell_layout(structure::Structure, decls::Vector{Decls}, ::Type{T}) wher
         # An opaque leaf at a root input, a handle or a `Symbol`, has no
         # synthesis and no producer (D-237, D-243), so it is refused here, ahead
         # of `probe_value`. A real or an enum leaf has a synthesis (§9.3). A
-        # mutable `P` is left to `place!`'s own arm on the next line, whatever
-        # its leaves.
+        # mutable `cell_type` is left to `place!`'s own arm on the next line,
+        # whatever its leaves.
         if mutable_position(cell_type) === nothing &&
            any(L -> !(L <: Real || L <: Enum), leaf_types(cell_type))
             push!(diags, IllegalPortType(path = "", site = :root_input, name = face,
@@ -600,8 +606,10 @@ function _root_input_cell(structure::Structure, decls::Vector{Decls}, root_index
                           ::Type{T}) where {T}
     P_F = structure.root_types[root_index]
     walked_type = retype(T, P_F)
-    consumer_types = (decls[ci].ins[consumer_face] for (ci, entry) in enumerate(structure.components)
-               for (consumer_face, producer) in entry.conns if producer === ("", face))
+    consumer_types = (decls[ci].ins[consumer_face]
+                      for (ci, entry) in enumerate(structure.components)
+                      for (consumer_face, producer) in entry.conns
+                      if producer === ("", face))
     all(input_type -> _accepts_wire(input_type, walked_type, T), consumer_types) ? walked_type : P_F
 end
 
@@ -809,7 +817,8 @@ Base.show(io::IO, ::Type{Marker}) = print(io, "T")   # a declaration at the mark
 # at `Float64` (§8.5): the type variable's upper bound, or the argument type
 # itself when the second argument is not `Type{…}`. Throwing path only.
 function _contract_bound(fn, comp)
-    argument_type = Base.unwrap_unionall(which(fn, Tuple{typeof(comp),Type{Float64}}).sig).parameters[3]
+    argument_type =
+        Base.unwrap_unionall(which(fn, Tuple{typeof(comp),Type{Float64}}).sig).parameters[3]
     unwrapped = Base.unwrap_unionall(argument_type)
     (unwrapped isa DataType && unwrapped.name === Base.typename(Type)) || return argument_type
     parameter = unwrapped.parameters[1]
@@ -843,8 +852,9 @@ function _check_wires(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tu
         end
     end
     contracts_at(fn, scalar) = [at_component(() -> declared_at(fn, draft.instances[ci],
-                                                                draft.tiers[ci], scalar),
-                              draft.paths[ci]) for ci in eachindex(draft.paths)]
+                                                               draft.tiers[ci], scalar),
+                                             draft.paths[ci])
+                                for ci in eachindex(draft.paths)]
     ins_F, outs_F = contracts_at(input_types, Float64), contracts_at(output_types, Float64)
     ins_M, outs_M = contracts_at(input_types, Marker), contracts_at(output_types, Marker)
     for (ci, consumer_conns) in enumerate(conns),
@@ -1089,7 +1099,8 @@ function probe_stage2(structure::Structure, decls::Vector{Decls},
             update = update_of(tier)
             bundle_fields = bundle_names(update, comp, tier, tuple(keys(stage1[ci])...))
             bundle = _bundle_values(bundle_fields, decl, in_values(ci, decl), stage1[ci], T;
-                                  y = products[ci], ws = workspaces[ci], m = mstores[ci], Δt = 1.0)
+                                    y = products[ci], ws = workspaces[ci], m = mstores[ci],
+                                    Δt = 1.0)
             append!(diags, tier === CONTINUOUS ?
                 _check_derivative(path,
                     invoke_probed(state_derivative, :state_derivative, path, comp, tier, bundle),
@@ -1137,17 +1148,17 @@ function _probe_direct!(products::Vector{NamedTuple}, ci::Int, structure::Struct
                         decls::Vector{Decls}, stage1,
                         layout::Layout, workspaces::Vector, mstores::Vector, ::Type{T}) where {T}
     entry = structure.components[ci]
-    comp, path, decl, stage1_product = entry.instance, entry.path, decls[ci], stage1[ci]
+    comp, path, decl, s1 = entry.instance, entry.path, decls[ci], stage1[ci]
     (has_stage(output_direct, comp) && !_frozen(entry.tier, T)) || return nothing
     at_component(path) do
         stage = String(nameof(output_direct))
-        bundle_fields = bundle_names(output_direct, comp, entry.tier, tuple(keys(stage1_product)...))
+        bundle_fields = bundle_names(output_direct, comp, entry.tier, tuple(keys(s1)...))
         u = NamedTuple{tuple(keys(decl.ins)...)}(tuple(
             (_probe_input(structure, layout, products, ci, face, decl.ins[face], T)
              for face in keys(decl.ins))...))
         y2 = invoke_probed(output_direct, :output_direct, path, comp, entry.tier,
-                           _bundle_values(bundle_fields, decl, u, stage1_product, T;
-                                  ws = workspaces[ci], m = mstores[ci], Δt = 1.0))
+                           _bundle_values(bundle_fields, decl, u, s1, T;
+                                          ws = workspaces[ci], m = mstores[ci], Δt = 1.0))
         y2 isa NamedTuple ||
             throw(DiagnosticError(ConformanceFailure(path = path, what = stage,
                                                 reason = :return_type, shape = :namedtuple,
@@ -1156,10 +1167,10 @@ function _probe_direct!(products::Vector{NamedTuple}, ci::Int, structure::Struct
         _check_ports(path, stage, y2, decl.outs, T)
         # Stage-1 position is the stage's: a stage-2 return of a port stage 1
         # already returned writes it twice (§5.3, §8.3).
-        twice = intersect(keys(stage1_product), keys(y2))
+        twice = intersect(keys(s1), keys(y2))
         isempty(twice) ||
             throw(DiagnosticError(ProducedByTwoStages(path = path, ports = collect(twice))))
-        products[ci] = merge(stage1_product, _embed_ports(y2, decl.outs, T))
+        products[ci] = merge(s1, _embed_ports(y2, decl.outs, T))
     end
     nothing
 end
@@ -1206,8 +1217,8 @@ key by key. Returns the `Events`, the nominal evaluation's last product (§9.1,
 D-253): one row per component, its policy register beside the bundle names its
 guards and handlers are called with.
 """
-function probe_events(structure::Structure, nominal::Activation{Float64})
-    decls, layout, products = nominal.decls, nominal.layout, nominal.products
+function probe_events(structure::Structure, act::Activation{Float64})
+    decls, layout, products = act.decls, act.layout, act.products
     mstores = _mstores(structure)
     workspaces = _workspaces(structure, Float64)
     rows = ComponentEvents[]
@@ -1220,10 +1231,11 @@ function probe_events(structure::Structure, nominal::Activation{Float64})
             u = NamedTuple{tuple(keys(decl.ins)...)}(tuple(
                 (_probe_input(structure, layout, products, ci, face, decl.ins[face], Float64)
                  for face in keys(decl.ins))...))
-            bundle = _bundle_values(bundle_fields, decl, u, NamedTuple(), Float64; y = products[ci],
-                                  ws = workspaces[ci], m = mstores[ci])
+            bundle = _bundle_values(bundle_fields, decl, u, NamedTuple(), Float64;
+                                    y = products[ci], ws = workspaces[ci], m = mstores[ci])
             NamedTuple{tuple(keys(declared_events)...)}(map(tuple(keys(declared_events)...)) do name
-                σ = invoke_probed(declared_events[name].guard, :guard, path, comp, CONTINUOUS, bundle)
+                σ = invoke_probed(declared_events[name].guard, :guard, path, comp,
+                                  CONTINUOUS, bundle)
                 policy = σ isa Bool ? :boundary :
                          σ isa Float64 ? :localized :
                          throw(DiagnosticError(GuardForm(path = path, event = name,
@@ -1267,7 +1279,8 @@ function _check_handler(path, name, returned, decl::Decls, comp)
     # is the outer fact, and holding a write to `x` against an empty state would
     # report the same omission twice in different words.
     haskey(returned, :x) && :x in stores &&
-        append!(diags, _check_state_write(path, "$what `x`", returned.x, decl.x, Float64; event = name))
+        append!(diags, _check_state_write(path, "$what `x`", returned.x, decl.x, Float64;
+                                          event = name))
     if haskey(returned, :m) && :m in stores
         if !(returned.m isa NamedTuple)
             push!(diags, ConformanceFailure(path = path, what = "$what `m`", event = name,
@@ -1283,7 +1296,8 @@ function _check_handler(path, name, returned, decl::Decls, comp)
                 elseif typeof(returned.m[field]) !== typeof(m₀[field])
                     push!(diags, ConformanceFailure(path = path, what = what, event = name,
                                                    reason = :field_type, shape = :mode,
-                                                   field = field, observed = typeof(returned.m[field]),
+                                                   field = field,
+                                                   observed = typeof(returned.m[field]),
                                                    declared = typeof(m₀[field])))
                 end
             end
@@ -1386,7 +1400,8 @@ readers being user values, so reaching here is an internal assertion firing.
 # `schedule` is the deployment's `Schedule`, untyped here because `deployment.jl` is
 # included after this file; the per-component gates are derived from its rows
 # by `_gates` there (§9.2, D-261).
-function compile(build::Build, act::Activation{T}, schedule; chunk_size::Int = 16, algorithm) where {T}
+function compile(build::Build, act::Activation{T}, schedule; chunk_size::Int = 16,
+                 algorithm) where {T}
     structure, outputs, decls, layout = build.structure, build.outputs, act.decls, act.layout
     components = structure.components
     D_c, Φ_c, Δt_c = _gates(schedule, structure)
@@ -1474,7 +1489,8 @@ function compile(build::Build, act::Activation{T}, schedule; chunk_size::Int = 1
         (isempty(state_decls(decl, tier)) || frozen(ci)) && continue
         update = update_of(tier)
         bundle_fields = bundle_names(update, comp, tier, tuple(outputs.components[ci].stage1...))
-        output_addrs, input_addrs = addr_group(path, _ports(outputs.components[ci])), in_group(ci, decl)
+        output_addrs, input_addrs =
+            addr_group(path, _ports(outputs.components[ci])), in_group(ci, decl)
         if tier === CONTINUOUS
             push!(rhs_entries, RHSEntry{typeof(decl.x),bundle_fields}(
                 comp, input_addrs, output_addrs, x_offs[ci], clock, mstores[ci], workspaces[ci],
@@ -1526,25 +1542,28 @@ function compile(build::Build, act::Activation{T}, schedule; chunk_size::Int = 1
     # every executable set — between the integrate's state write and its decode
     # (§5.3).
     projection_entries = Any[ProjectEntry{typeof(decls[ci].x)}(entry.instance, x_offs[ci], clock,
-                                                        entry.path, ci, cursor)
-                       for (ci, entry) in enumerate(components)
-                       if entry.tier === CONTINUOUS && has_stage(state_projection, entry.instance)]
+                                                               entry.path, ci, cursor)
+                             for (ci, entry) in enumerate(components)
+                             if entry.tier === CONTINUOUS &&
+                                has_stage(state_projection, entry.instance)]
 
     body(entries, gates) = chunked_body(entries, gates, store, xbuf, ẋbuf; chunk_size)
     # Beside the four blocks ride the per-event and per-projection callables,
     # keyed by the roster (§9.7): (path, event name) and path.
     event_bodies = Dict{Tuple{String,Symbol},NamedTuple}(
-        event_names[i] => _event_bodies(event_entries[i], store, xbuf) for i in eachindex(event_entries))
-    projection_bodies = Dict{String,Function}(entry.path => _project_body(entry, xbuf)
-                                              for entry in projection_entries)
+        event_names[i] => _event_bodies(event_entries[i], store, xbuf)
+        for i in eachindex(event_entries))
+    projection_bodies = Dict{String,Function}(
+        projection_entry.path => _project_body(projection_entry, xbuf)
+        for projection_entry in projection_entries)
     bodies = (sweep_1 = body(stage1_entries, stage1_gates),
               sweep_2 = body(stage2_entries, stage2_gates),
               rhs = body(rhs_entries, rhs_gates),
               ticks = body(tick_entries, tick_gates),
               events = event_bodies, projections = projection_bodies)
 
-    event_set = EventSet(event_entries, projection_entries, event_owner, event_names, event_localized,
-                     length(components))
+    event_set = EventSet(event_entries, projection_entries, event_owner, event_names,
+                         event_localized, length(components))
     # The seam's backend and the arrival pair are this buffer set's, so they are
     # built here rather than by the caller (§12.6, D-256).
     Executor(act, store, xbuf, ẋbuf, sstores, mstores, clock, bodies, event_set, cursor,
@@ -1570,7 +1589,8 @@ function _probe_input(structure::Structure, layout::Layout, products, ci, face, 
                       ::Type{T}) where {T}
     entry = structure.components[ci]
     path = entry.path
-    (producer_path, producer_port) = last(entry.conns[findfirst(p -> first(p) === face, entry.conns)])
+    (producer_path, producer_port) =
+        last(entry.conns[findfirst(p -> first(p) === face, entry.conns)])
     value = if isempty(producer_path)
         last(layout.root_inputs[findfirst(r -> first(r) === producer_port, layout.root_inputs)])
     else
@@ -1601,7 +1621,8 @@ function _check_derivative(path, ẋ, x::NamedTuple, ::Type{T}) where {T}
             push!(diags, ConformanceFailure(path = path, what = "state_derivative",
                                            reason = :field_type,
                                            shape = :init_x, field = field,
-                                           observed = typeof(ẋ[field]), declared = typeof(x[field]),
+                                           observed = typeof(ẋ[field]),
+                                           declared = typeof(x[field]),
                                            activation = T))
     end
     diags

@@ -193,12 +193,12 @@ function _trace_direct(ci::Int, traced_decl::Decls, faces::Vector{Symbol},
     # `traced_decl.x` is the declared one, already at `T`.
     evaluation_decl = rng === nothing ? traced_decl :
         Decls(_sample(rng, T, decl.x, UInt64(0)), traced_decl.s, traced_decl.ins,
-             traced_decl.outs)
+              traced_decl.outs)
     bundle_fields = bundle_names(output_direct, comp, CONTINUOUS, tuple(keys(stage1[ci])...))
     workspace = _declares_workspace(comp, CONTINUOUS) ? init_workspace(comp, T) : nothing
     y2 = output_direct(comp, _bundle_values(bundle_fields, evaluation_decl, u,
-                                         _lift(T, stage1[ci]), T;
-                                         ws = workspace, m = mstores[ci], Δt = 1.0))
+                                            _lift(T, stage1[ci]), T;
+                                            ws = workspace, m = mstores[ci], Δt = 1.0))
     Dict{Symbol,UInt64}(q => _depset(y2[q]) for q in ports)
 end
 
@@ -219,8 +219,9 @@ function _trace_sampled(ci::Int, faces::Vector{Symbol}, face_traceable::Vector{B
     rng = Xoshiro(0)
     routes = Dict{Symbol,UInt64}(q => UInt64(0) for q in ports)
     for _ in 1:8
-        sample_routes = _trace_direct(ci, traced_decl, faces, face_traceable, ports, structure,
-                          decls, stage1, mstores, products, cluster_set, T; rng = rng)
+        sample_routes = _trace_direct(ci, traced_decl, faces, face_traceable, ports,
+                                      structure, decls, stage1, mstores, products,
+                                      cluster_set, T; rng = rng)
         for q in ports
             routes[q] |= sample_routes[q]
         end
@@ -298,10 +299,12 @@ function _classify(cycle::AlgebraicCycle, scc::Vector{Int}, edges, placed::Vecto
         for (i, ci) in enumerate(scc)
             decl = decls[ci]
             faces = Symbol[face for face in keys(decl.ins)
-                        if any(edge -> edge[3] === face && edge[1] in cluster_set, edges[ci])]
+                           if any(edge -> edge[3] === face && edge[1] in cluster_set,
+                                  edges[ci])]
             ports = Symbol[q for q in keys(decl.outs)
-                        if any(cj -> any(edge -> edge[1] == ci && edge[2] === q, edges[cj]),
-                               scc)]
+                           if any(cj -> any(edge -> edge[1] == ci && edge[2] === q,
+                                            edges[cj]),
+                                  scc)]
             member_faces[i], member_ports[i] = faces, ports
 
             # A discrete member's pinned declarations admit no tracer scalar, and

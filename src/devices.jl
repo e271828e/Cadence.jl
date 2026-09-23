@@ -95,10 +95,10 @@ assert_stopped(control::Control, op::Symbol) =
 
 function assert_configurable(control::Control, op::Symbol)
     status = @atomic control.lifecycle
-    status === :running && throw(DiagnosticError(ServiceLifecycle(op = op, status = :running,
-                                                              legal = collect(STOPPED_SIM_LEGAL))))
-    status === :errored && throw(DiagnosticError(ServiceLifecycle(op = op, status = :errored,
-                                                              legal = collect(STOPPED_SIM_LEGAL))))
+    status === :running && throw(DiagnosticError(ServiceLifecycle(
+        op = op, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
+    status === :errored && throw(DiagnosticError(ServiceLifecycle(
+        op = op, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
     nothing
 end
 
@@ -380,8 +380,9 @@ function _init_devices!(sim)
             true
         catch err
             _shutdown!(entry)
-            _report!(_handle(entry).diag, DeviceCrash(err, entry.should_abort))  # addressed by the
-            entry.should_abort && stop!(entry.handle)     # entry: no task holds a handle yet (§12.4)
+            # addressed by the entry: no task holds a handle yet (§12.4)
+            _report!(_handle(entry).diag, DeviceCrash(err, entry.should_abort))
+            entry.should_abort && stop!(entry.handle)
             false
         end
         initialized && push!(live, entry)

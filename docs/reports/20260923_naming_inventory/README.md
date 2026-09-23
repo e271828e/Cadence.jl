@@ -162,6 +162,9 @@ renames on merit.
 
 **C3. API names.** Settled by R2: `trace`, `log`, `condition`, `reads`,
 `children`, `sep`, `only`, `except`, `maxiter`, the selectors' `i`.
+`attach!`'s `new_binding` is the one public signature whose spec name
+cannot be used: the spec's `binding` would shadow the `binding` function
+called in that scope.
 
 **C4. Package functions, plain renames.** Accept the reports: `state` →
 `state_store`; `port` → `port_name`/`output_port` (no `path`-style

@@ -47,7 +47,7 @@ end
 # `nothing` at the frame top and the holding face at a `t*` stop (D-261).
 function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::Vector{Any}) where {T}
     events, cursor = sim.exec.events, sim.exec.cursor
-    event_count = length(events.prior)
+    n_events = length(events.prior)
     (x₀, _) = startpoint(sim.exec.stepper)         # the seam's retained pair (§10.2):
     localizations = 0                                 # x₀ = x(t_seg) after each step!
     fill!(events.loc_warned, false)
@@ -67,7 +67,7 @@ function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::
         # The trigger (§10.4): localized policy, prior not-holding at the last
         # boundary's quiescence, holding at arrival — §2.1's directional edge.
         any_triggered = false
-        for i in 1:event_count
+        for i in 1:n_events
             events.trig[i] = events.localized[i] && !events.prior[i] && events.σ1[i] ≥ 0
             any_triggered |= events.trig[i]
         end
@@ -77,7 +77,7 @@ function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::
         # step has already completed, and this crossing fires in the coming
         # boundary's ordinary iteration — boundary granularity for this frame.
         if localizations ≥ sim.deployment.localization_budget
-            for i in 1:event_count
+            for i in 1:n_events
                 (events.trig[i] && !events.loc_warned[i]) || continue
                 events.loc_warned[i] = true   # at most one report per event per frame
                 (path, name) = events.names[i]
@@ -104,7 +104,7 @@ function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::
         _guards!(events, sim.exec.store, sim.exec.xbuf)
         copyto!(events.σ0, events.σ)
         remaining = false
-        for i in 1:event_count
+        for i in 1:n_events
             events.trig[i] = events.trig[i] && events.σ0[i] < 0
             remaining |= events.trig[i]
         end
@@ -127,7 +127,7 @@ function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::
         # the boundary's own iteration — and a later crossing simply does not
         # hold at θ★, so it re-triggers on the remainder and re-localizes there.
         θ★ = 1.0
-        for i in 1:event_count
+        for i in 1:n_events
             events.trig[i] || continue
             θ★ = min(θ★, _crossing(sim, i, events.σ0[i], events.σ1[i], t_seg, h′))
         end

@@ -355,7 +355,8 @@ function _fold!(account::WriterAccount, cell::DiagCell)
     for occurrence in batch.ring
         counts = _bump(counts, _kind(occurrence))
     end
-    account.recent = account.recent === EMPTY_RECENT ? copy(batch.ring) : append!(account.recent, batch.ring)
+    account.recent = account.recent === EMPTY_RECENT ? copy(batch.ring) :
+                                                       append!(account.recent, batch.ring)
     account.suppressed = account.suppressed + batch.suppressed
     account.totals = account.totals + counts
     nothing
@@ -525,7 +526,7 @@ end
 # heuristic, so width does not degrade it (D-202).
 @generated function _merge(pending::Batch{V,M}, incoming::Batch{V,M}) where {V,M}
     value_exprs = [:(incoming.mask[$i] ? incoming.vals[$i] : pending.vals[$i])
-            for i in 1:fieldcount(M)]
+                   for i in 1:fieldcount(M)]
     mask_exprs = [:(pending.mask[$i] | incoming.mask[$i]) for i in 1:fieldcount(M)]
     :(Batch{V,M}(($(value_exprs...),), ($(mask_exprs...),)))
 end
@@ -584,7 +585,7 @@ Built in private memory by copying the cell buffers, then handed out through
 one release-store; nothing reachable from a published snapshot is ever
 written again, which is what makes the lock-free read sound. The state
 stores (`x`, `s`, `m`) are deliberately not carried (§11.2). Read it with
-`port(snap, path, name)`, addressed exactly as the live table.
+`port(snapshot, path, name)`, addressed exactly as the live table.
 """
 struct Snapshot{T,S<:StoreBundle}
     t::T
@@ -595,7 +596,8 @@ struct Snapshot{T,S<:StoreBundle}
     status::FrameworkStatus
 end
 
-port(snapshot::Snapshot, path::String, name::Symbol) = gather(snapshot.store, snapshot.layout.addr[(path, name)])
+port(snapshot::Snapshot, path::String, name::Symbol) =
+    gather(snapshot.store, snapshot.layout.addr[(path, name)])
 
 # One boundary's capture: fresh buffers, one allocation per boundary — the
 # framework side of §7.5's scope, which carved publication and logging out.

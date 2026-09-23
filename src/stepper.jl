@@ -4,8 +4,8 @@
 # changing. The contract has three clauses, each answered by dispatch on the
 # stepper:
 #
-#   - **advance by arbitrary `h`** — `step!(stepper, sim, h)`: the loop lands on tick
-#     boundaries and resumes from localized event times;
+#   - **advance by arbitrary `h`** — `step!(stepper, sim, h)`: the loop lands on
+#     tick boundaries and resumes from localized event times;
 #   - **dense output on demand over the last completed step** — `dense!`, built
 #     lazily on the pair `startpoint` retains, because only event localization
 #     (§10.4) ever asks;

@@ -107,8 +107,10 @@ combine(nodes::ConditionNode...) = Combined(nodes)
 # raised at composition time — before any resolution pass runs or any origin
 # exists, which is why it carries its own kind rather than a
 # `ConditionResolution` sub-kind (§14.2).
-combine(left::ConditionNode, right::NamedTuple) = _node_misuse(right, (nameof(typeof(left)),))
-combine(left::NamedTuple, right::ConditionNode) = _node_misuse(left, (nameof(typeof(right)),))
+combine(left::ConditionNode, right::NamedTuple) =
+    _node_misuse(right, (nameof(typeof(left)),))
+combine(left::NamedTuple, right::ConditionNode) =
+    _node_misuse(left, (nameof(typeof(right)),))
 combine(nodes...) = _misuse_in(nodes)
 
 """
@@ -161,7 +163,8 @@ struct CEntry
     pos::Tuple                    # the tree position: the step tuple to this value
 end
 
-_key(entry::CEntry) = entry.face === nothing ? (entry.path, entry.store, entry.field) : ("", :input, entry.face)
+_key(entry::CEntry) = entry.face === nothing ? (entry.path, entry.store, entry.field) :
+                                               ("", :input, entry.face)
 _step(origin::String, label::String) = isempty(origin) ? label : origin * " → " * label
 
 function _flat(node::Fragment, path::String, level, origin::String, tree_position::Tuple,
@@ -184,10 +187,10 @@ end
 function _flat(node::Scoped, path::String, level, origin::String, tree_position::Tuple,
                structure::Structure, diags::Vector{Diagnostic})
     scoped_origin = _step(origin, "at(\"$(node.prefix)\")")
-    kid = resolve_authored(scoped_origin, path, level, node.prefix, diags)
-    kid === nothing && return CEntry[]        # the path is the offender, reported once
-    _flat(node.node, _join(path, node.prefix), kid, scoped_origin, (tree_position..., :node),
-         structure, diags)
+    child = resolve_authored(scoped_origin, path, level, node.prefix, diags)
+    child === nothing && return CEntry[]      # the path is the offender, reported once
+    _flat(node.node, _join(path, node.prefix), child, scoped_origin,
+          (tree_position..., :node), structure, diags)
 end
 
 _flat(node::Combined, path::String, level, origin::String, tree_position::Tuple,
@@ -211,9 +214,10 @@ function _flat(node::Override, path::String, level, origin::String, tree_positio
         for entry in layer_entries
             overridden = findfirst(a -> _key(a) == _key(entry), layered)
             overridden === nothing ? push!(layered, entry) :
-                (layered[overridden] = CEntry(entry.path, entry.store, entry.field, entry.value,
-                                 "$(entry.origin) (overrode $(layered[overridden].origin))", entry.face,
-                                 entry.pos))
+                (layered[overridden] =
+                     CEntry(entry.path, entry.store, entry.field, entry.value,
+                            "$(entry.origin) (overrode $(layered[overridden].origin))",
+                            entry.face, entry.pos))
         end
     end
     layered
@@ -296,7 +300,7 @@ function resolve_condition(node::ConditionNode, build::Build, ::Type{T} = Float6
             push!(xs, (survivor.dest, survivor.v))
         else
             push!(get!(() -> Pair{Symbol,Any}[], overlays, (entry.store, survivor.dest)),
-                 entry.field => survivor.v)
+                  entry.field => survivor.v)
         end
     end
 
@@ -306,7 +310,8 @@ function resolve_condition(node::ConditionNode, build::Build, ::Type{T} = Float6
     for (store, ci, defaults) in _store_bases(build, act)
         overlay = get(overlays, (store, ci), nothing)
         overlay === nothing && continue
-        push!(stores, (store, ci, convert(typeof(defaults), merge(defaults, (; overlay...)))))
+        push!(stores, (store, ci, convert(typeof(defaults),
+                                          merge(defaults, (; overlay...)))))
     end
     ConditionPlan{T}(xs, stores, inputs, faces)
 end
@@ -439,7 +444,8 @@ function _root_input(structure::Structure, entry::CEntry, diags::Vector{Diagnost
     end
     (producer_path, producer_port) = last(structure.in_faces[row])
     isempty(producer_path) && return producer_port
-    push!(diags, _cviol(entry, :internally_wired; producer = (producer_path, producer_port)))
+    push!(diags, _cviol(entry, :internally_wired;
+                        producer = (producer_path, producer_port)))
     nothing
 end
 
@@ -452,7 +458,8 @@ _no_store(entry::CEntry, tier::Tier) =
 # An undeclared field, discriminated against the component's other name
 # families: a condition specifies state, modes and root inputs — never outputs,
 # which are derived data, and never workspace (§14.1).
-function _undeclared(entry::CEntry, comp, tier::Tier, declared::NamedTuple, ::Type{T}) where {T}
+function _undeclared(entry::CEntry, comp, tier::Tier, declared::NamedTuple,
+                     ::Type{T}) where {T}
     role = haskey(declared_at(output_types, comp, tier), entry.field) ? :output_port :
            haskey(declared_at(input_types, comp, tier), entry.field) ? :input_face :
            (_declares_workspace(comp, tier) &&
@@ -497,11 +504,11 @@ The services path contains no call to `probe_value`: a root input gets a
 condition value or the application errors, and there is no third branch. A
 fabricated zero is a fine probe input and a terrible flight condition.
 """
-function assert_total(plan::ConditionPlan, structure::Structure, operation::Symbol)
+function assert_total(plan::ConditionPlan, structure::Structure, op::Symbol)
     covered = Set(plan.faces)
     uncovered = [f for f in structure.root_inputs if !(f in covered)]
     isempty(uncovered) && return nothing
-    throw(DiagnosticError(UninitializedInputs(op = operation, faces = uncovered)))
+    throw(DiagnosticError(UninitializedInputs(op = op, faces = uncovered)))
 end
 
 # --- the dynamic walk (§14.4) ----------------------------------------------------
@@ -559,9 +566,9 @@ struct Getter{P} end
 
 @generated function (::Getter{P})(tree) where {P}
     access = :tree
-    for path_step in P
-        access = path_step isa Symbol ? :(getfield($access, $(QuoteNode(path_step)))) :
-                                         :(getindex($access, $path_step))
+    for step in P
+        access = step isa Symbol ? :(getfield($access, $(QuoteNode(step)))) :
+                                   :(getindex($access, $step))
     end
     quote
         $(Expr(:meta, :inline))
@@ -785,7 +792,8 @@ end
 @noinline _shape_drift(::Type{NT}, ::Type{O}) where {NT,O} = throw(DiagnosticError(
     ConditionShapeDrift(reason = :tree_type, compiled = NT, observed = O)))
 
-@noinline _prefix_drift(tree_position::Tuple, expected::String, observed::String) = throw(DiagnosticError(
+@noinline _prefix_drift(tree_position::Tuple, expected::String,
+                        observed::String) = throw(DiagnosticError(
     ConditionShapeDrift(reason = :prefix, compiled = expected, observed = observed,
                         position = tree_position)))
 
@@ -835,9 +843,12 @@ function capture(sim::Simulation{T}) where {T}
         payload = NamedTuple()
         comp_entry.tier === CONTINUOUS && !isempty(decl.x) &&
             (payload = merge(payload,
-                             (x = _capture_x(decl.x, exec.xbuf, first(act.layout.xblocks[ci]) - 1),)))
-        exec.sstores[ci] === nothing || (payload = merge(payload, (s = exec.sstores[ci][],)))
-        exec.mstores[ci] === nothing || (payload = merge(payload, (m = exec.mstores[ci][],)))
+                             (x = _capture_x(decl.x, exec.xbuf,
+                                             first(act.layout.xblocks[ci]) - 1),)))
+        exec.sstores[ci] === nothing ||
+            (payload = merge(payload, (s = exec.sstores[ci][],)))
+        exec.mstores[ci] === nothing ||
+            (payload = merge(payload, (m = exec.mstores[ci][],)))
         isempty(payload) && continue
         # One `at` per child segment, innermost first: the absolute path is a
         # compiled derivative, and the authored spelling is the one the
@@ -847,7 +858,8 @@ function capture(sim::Simulation{T}) where {T}
                            init = fragment(; payload...)))
     end
     isempty(structure.root_inputs) || push!(nodes, fragment(inputs =
-        NamedTuple{Tuple(structure.root_inputs)}(Tuple(gather(exec.store, act.layout.addr[("", f)])
+        NamedTuple{Tuple(structure.root_inputs)}(Tuple(gather(exec.store,
+                                                              act.layout.addr[("", f)])
                                                   for f in structure.root_inputs))))
     (combine(nodes...), exec.clock.t)
 end

@@ -125,9 +125,9 @@ rational period at construction (§10.5).
 """
 struct Period
     T::Rational{Int}
-    Period(period::Union{Integer,Rational{<:Integer}}) = new(Rational{Int}(period))
-    Period(period::AbstractFloat) =
-        throw(DiagnosticError(ArgumentInvalid(call = :Period, reason = :inexact, value = period)))
+    Period(T::Union{Integer,Rational{<:Integer}}) = new(Rational{Int}(T))
+    Period(T::AbstractFloat) =
+        throw(DiagnosticError(ArgumentInvalid(call = :Period, reason = :inexact, value = T)))
 end
 
 Hz(frequency::Union{Integer,Rational{<:Integer}}) = Period(1 // frequency)
@@ -306,25 +306,25 @@ The per-function, per-tier name sets are closed, and so are the state letters:
 """
 function bundle_names(fn, comp, tier::Tier, stage1_ports::Tuple)
     update = update_of(tier)
-    fields = Symbol[]
+    bundle_fields = Symbol[]
     if tier === CONTINUOUS
-        !isempty(invoke_declaration(init_x, comp)) && push!(fields, :x)
-        !isempty(invoke_declaration(init_m, comp)) && push!(fields, :m)
+        !isempty(invoke_declaration(init_x, comp)) && push!(bundle_fields, :x)
+        !isempty(invoke_declaration(init_m, comp)) && push!(bundle_fields, :m)
     else
-        !isempty(invoke_declaration(init_s, comp)) && push!(fields, :s)
+        !isempty(invoke_declaration(init_s, comp)) && push!(bundle_fields, :s)
     end
     if fn === output_direct || fn === update
-        !isempty(declared_at(input_types, comp, tier)) && push!(fields, :u)
+        !isempty(declared_at(input_types, comp, tier)) && push!(bundle_fields, :u)
     end
     if fn === output_direct
-        !isempty(stage1_ports) && push!(fields, tier === CONTINUOUS ? :y_x : :y_s)
+        !isempty(stage1_ports) && push!(bundle_fields, tier === CONTINUOUS ? :y_x : :y_s)
     elseif fn === update
-        !isempty(declared_at(output_types, comp, tier)) && push!(fields, :y)
+        !isempty(declared_at(output_types, comp, tier)) && push!(bundle_fields, :y)
     end
-    _declares_workspace(comp, tier) && push!(fields, :ws)
-    push!(fields, :t)
-    tier === DISCRETE && push!(fields, :Δt)
-    tuple(fields...)
+    _declares_workspace(comp, tier) && push!(bundle_fields, :ws)
+    push!(bundle_fields, :t)
+    tier === DISCRETE && push!(bundle_fields, :Δt)
+    tuple(bundle_fields...)
 end
 
 _declares_workspace(comp, tier::Tier) =
@@ -338,14 +338,14 @@ continuous tier only. The same iff rule as `bundle_names`, without a stage-1
 distinction: guards and handlers run against the complete fresh table.
 """
 function event_bundle_names(comp)
-    fields = Symbol[]
-    !isempty(invoke_declaration(init_x, comp)) && push!(fields, :x)
-    !isempty(invoke_declaration(init_m, comp)) && push!(fields, :m)
-    !isempty(declared_at(input_types, comp, CONTINUOUS)) && push!(fields, :u)
-    !isempty(declared_at(output_types, comp, CONTINUOUS)) && push!(fields, :y)
-    _declares_workspace(comp, CONTINUOUS) && push!(fields, :ws)
-    push!(fields, :t)
-    tuple(fields...)
+    bundle_fields = Symbol[]
+    !isempty(invoke_declaration(init_x, comp)) && push!(bundle_fields, :x)
+    !isempty(invoke_declaration(init_m, comp)) && push!(bundle_fields, :m)
+    !isempty(declared_at(input_types, comp, CONTINUOUS)) && push!(bundle_fields, :u)
+    !isempty(declared_at(output_types, comp, CONTINUOUS)) && push!(bundle_fields, :y)
+    _declares_workspace(comp, CONTINUOUS) && push!(bundle_fields, :ws)
+    push!(bundle_fields, :t)
+    tuple(bundle_fields...)
 end
 
 # The maximal legal sets (§5.2, Appendix B), keyed by family and tier. A

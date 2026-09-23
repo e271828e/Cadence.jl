@@ -67,8 +67,8 @@ end
 # The default `==` on a mutable-free struct with a `Vector` field is egal, which
 # would make that claim untestable, so the field-wise one is defined here, and
 # `hash` with it as Julia's convention requires.
-Base.:(==)(record::TraceBatch, other::TraceBatch) =
-    record.frame == other.frame && record.writer == other.writer && record.entries == other.entries
+Base.:(==)(a::TraceBatch, b::TraceBatch) =
+    a.frame == b.frame && a.writer == b.writer && a.entries == b.entries
 Base.hash(record::TraceBatch, seed::UInt) =
     hash(record.entries, hash(record.writer, hash(record.frame, seed)))
 
@@ -195,10 +195,12 @@ function _install_writers!(plane, store, trc)
         # the entry is immutable and its thunk carries the index, so the
         # recompilation replaces the entry itself (§11.4's stopped-sim compile)
         plane.roster[i] = RosterEntry(
-            entry.dev, entry.id, _drain_thunk(store, _handle(entry).writer, trc, live_writers[i]),
+            entry.dev, entry.id,
+            _drain_thunk(store, _handle(entry).writer, trc, live_writers[i]),
             entry.should_abort, entry.acct, entry.handle)
     end
-    plane.harness_drain = _drain_thunk(store, plane.harness, trc, live_writers[writer_count])
+    plane.harness_drain =
+        _drain_thunk(store, plane.harness, trc, live_writers[writer_count])
     nothing
 end
 
@@ -263,7 +265,8 @@ function _check_header!(diags::Vector{Diagnostic}, sim, header::TraceHeader)
         push!(diags, ReplayHeaderMismatch(what = :store, name = :paths,
                                           expected = recorded.paths, found = target.paths))
     recorded.root_faces == target.root_faces ||
-        push!(diags, ReplayHeaderMismatch(what = :root_input, expected = recorded.root_faces,
+        push!(diags, ReplayHeaderMismatch(what = :root_input,
+                                          expected = recorded.root_faces,
                                           found = target.root_faces))
     # the per-component store types, only where the path lists agree on what a
     # component *index* means — otherwise the comparison would be by position
@@ -296,7 +299,8 @@ _dep_diff!(diags::Vector{Diagnostic}, path::String, name::Symbol, expected, foun
 # re-declared through a different anchor at the same tick table is a different
 # deployment. The walk covers exactly what `Deployment`'s and `Schedule`'s `==`
 # compare, so a refusal is never silent.
-function _walk_deployment!(diags::Vector{Diagnostic}, recorded::Deployment, target::Deployment)
+function _walk_deployment!(diags::Vector{Diagnostic}, recorded::Deployment,
+                           target::Deployment)
     for name in (:Δt_base, :h, :N_base, :algorithm, :localization_tol,
                  :localization_budget, :firing_budget)
         _dep_diff!(diags, "", name, getfield(recorded, name), getfield(target, name))
@@ -317,13 +321,15 @@ function _walk_deployment!(diags::Vector{Diagnostic}, recorded::Deployment, targ
     if [(scope.path, scope.key) for scope in recorded_schedule.scopes] ==
        [(scope.path, scope.key) for scope in target_schedule.scopes]
         for (recorded_scope, target_scope) in
-                zip(recorded_schedule.scopes, target_schedule.scopes), column in (:anchor, :D, :Φ)
+                zip(recorded_schedule.scopes, target_schedule.scopes),
+            column in (:anchor, :D, :Φ)
             _dep_diff!(diags, recorded_scope.path, Symbol("scope.", column),
                        getfield(recorded_scope, column), getfield(target_scope, column))
         end
     else
         _dep_diff!(diags, "", Symbol("scope.key"),
-                   [string(scope.path, ':', scope.key) for scope in recorded_schedule.scopes],
+                   [string(scope.path, ':', scope.key)
+                    for scope in recorded_schedule.scopes],
                    [string(scope.path, ':', scope.key) for scope in target_schedule.scopes])
     end
     nothing
@@ -360,7 +366,8 @@ function _replay_writer(layout::Layout, diags::Vector{Diagnostic}, tag::String,
     absent = Symbol[f for f in schema if !haskey(layout.addr, ("", f))]
     isempty(absent) && return Writer(layout, schema)
     for face in absent
-        push!(diags, ReplayUnknownFace(face = face, frame = frame, writer = tag, faces = faces))
+        push!(diags, ReplayUnknownFace(face = face, frame = frame, writer = tag,
+                                       faces = faces))
     end
     nothing
 end
@@ -400,7 +407,8 @@ function _compile_records!(diags::Vector{Diagnostic}, sim, trc::Trace, faces::Ve
             # what is missing — the tag §11.8 cannot supply is spelled positionally
             for (face_position, _) in record.entries
                 push!(diags, ReplayUnknownFace(face = face_position, frame = record.frame,
-                                               writer = "writer #$(record.writer)", faces = faces))
+                                               writer = "writer #$(record.writer)",
+                                               faces = faces))
             end
             continue
         end
@@ -411,7 +419,8 @@ function _compile_records!(diags::Vector{Diagnostic}, sim, trc::Trace, faces::Ve
             writers[record.writer] = writer
         end
         writer = writers[record.writer]
-        batch_values, mask, resolved = Any[writer.blank.vals...], fill(false, length(schema)), true
+        batch_values, mask, resolved =
+            Any[writer.blank.vals...], fill(false, length(schema)), true
         for (face_position, value) in record.entries
             if !(1 ≤ face_position ≤ length(schema))
                 push!(diags, ReplayUnknownFace(face = face_position, frame = record.frame,

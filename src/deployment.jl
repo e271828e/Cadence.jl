@@ -14,7 +14,8 @@ _exact(name::Symbol, value::Rational{Int}, diags::Vector{Diagnostic}) = value
 _exact(name::Symbol, value::Integer, diags::Vector{Diagnostic}) = Rational{Int}(value)
 _exact(name::Symbol, value::Period, diags::Vector{Diagnostic}) = value.T
 _exact(name::Symbol, value::AbstractFloat, diags::Vector{Diagnostic}) =
-    (push!(diags, DeploymentInvalid(parameter = name, reason = :inexact, value = value)); nothing)
+    (push!(diags, DeploymentInvalid(parameter = name, reason = :inexact, value = value));
+     nothing)
 _exact(name::Symbol, value, diags::Vector{Diagnostic}) =
     (push!(diags, DeploymentInvalid(parameter = name, reason = :not_a_quantity,
                                     value = typeof(value))); nothing)
@@ -70,9 +71,9 @@ function _grid_report(anchors::Vector{Anchor})
         partial = length(entry_values) == 1 ? admissible :
             reduce(gcd, (entry_values[j] for j in eachindex(entry_values) if j != i))
         factor = _as_int(partial / admissible)
-        factor === nothing &&
-            throw(InternalInvariant("leave-one-out factor $(partial / admissible) is not an integer: " *
-                                    "gcd(pool) divides every partial gcd"))
+        factor === nothing && throw(InternalInvariant(
+            "leave-one-out factor $(partial / admissible) is not an integer: " *
+            "gcd(pool) divides every partial gcd"))
         alternatives = Rational{Int}[]
         if entry_kinds[i] === :offset && factor > 1
             # The grid the rest of the pool supports, and τ's neighbours on it. The
@@ -84,10 +85,12 @@ function _grid_report(anchors::Vector{Anchor})
             lower + partial < T && push!(alternatives, lower + partial)
         end
         anchor = anchors[anchor_indices[i]]
-        push!(pool, GridEntry(entry_kinds[i], entry_values[i], anchor.scope, anchor.key, factor, alternatives))
+        push!(pool, GridEntry(entry_kinds[i], entry_values[i], anchor.scope, anchor.key,
+                              factor, alternatives))
     end
     primes = [(prime = prime, power = power,
-               suppliers = [i for i in eachindex(entry_values) if denominator(entry_values[i]) % prime^power == 0])
+               suppliers = [i for i in eachindex(entry_values)
+                            if denominator(entry_values[i]) % prime^power == 0])
               for (prime, power) in _prime_powers(denominator(admissible))]
     GridReport(pool, admissible, primes)
 end
@@ -183,7 +186,8 @@ function bind_schedule(build::Build, h, N_base, Δt_base, diags::Vector{Diagnost
         h_r = nothing
     end
     N_base_sound = N_base === nothing || (N_base isa Integer && N_base ≥ 1)
-    N_base_sound || push!(diags, DeploymentInvalid(parameter = :N_base, reason = :range, value = N_base))
+    N_base_sound || push!(diags, DeploymentInvalid(parameter = :N_base, reason = :range,
+                                                   value = N_base))
 
     structure = build.structure
     anchors = structure.anchors
@@ -215,7 +219,8 @@ function bind_schedule(build::Build, h, N_base, Δt_base, diags::Vector{Diagnost
 
     # The harmonic checks and the anchor loop read `h`, `N_base` and `Δt_base` together,
     # so they run only on a sound value of each (D-229).
-    (length(diags) == count_on_entry && h_r !== nothing && Δt_r !== nothing) || return nothing
+    (length(diags) == count_on_entry && h_r !== nothing && Δt_r !== nothing) ||
+        return nothing
 
     N_base_resolved = _as_int(Δt_r / h_r)
     if N_base_resolved === nothing || N_base_resolved < 1
@@ -225,7 +230,8 @@ function bind_schedule(build::Build, h, N_base, Δt_base, diags::Vector{Diagnost
     end
     if !(N_base === nothing || N_base == N_base_resolved)
         push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :disagrees_with_n,
-                                       value = Δt_r, related = N_base, quotient = N_base_resolved))
+                                       value = Δt_r, related = N_base,
+                                       quotient = N_base_resolved))
         return nothing
     end
 
@@ -254,7 +260,8 @@ function bind_schedule(build::Build, h, N_base, Δt_base, diags::Vector{Diagnost
     # rate scopes resolve by the same law, off the timing the fold left them.
     Δtb = Float64(Δt_r)
     timing_gates(timing::Timing) = (timing.m * Dk[timing.anchor + 1],
-                            Φk[timing.anchor + 1] + timing.c * Dk[timing.anchor + 1])
+                                    Φk[timing.anchor + 1] +
+                                    timing.c * Dk[timing.anchor + 1])
     rows = ScheduleEntry[]
     for entry in structure.components
         entry.tier === DISCRETE || continue
@@ -262,7 +269,8 @@ function bind_schedule(build::Build, h, N_base, Δt_base, diags::Vector{Diagnost
         # the rates vector itself: the structure is immutable, so no copy
         push!(rows, ScheduleEntry(entry.path, entry.timing.anchor, D, Φ, D * Δtb, entry.rates))
     end
-    scopes = [ScopeEntry(scope.path, scope.key, scope.timing.anchor, timing_gates(scope.timing)...)
+    scopes = [ScopeEntry(scope.path, scope.key, scope.timing.anchor,
+                         timing_gates(scope.timing)...)
               for scope in structure.scopes]
     (h = Float64(h_r), N_base = N_base_resolved, Δt_base = Δtb,
      schedule = Schedule(rows, scopes), grid = grid, derived = derived)
@@ -358,7 +366,8 @@ function Deployment(build::Build; h = nothing, N_base = nothing, Δt_base = noth
         utilization = isempty(rows) ? 1 : minimum(row.D for row in rows)
         utilization > 1 && push!(raised,
             GridUtilization(Δt_base = grid.admissible, utilization = utilization,
-                            fastest = rows[findfirst(row -> row.D == utilization, rows)].path,
+                            fastest =
+                                rows[findfirst(row -> row.D == utilization, rows)].path,
                             grid = grid))
     end
     deployment = Deployment(build, bound.h, bound.N_base, bound.Δt_base, algorithm,
@@ -382,9 +391,10 @@ Base.:(==)(a::Deployment, b::Deployment) =
     a.localization_tol == b.localization_tol &&
     a.localization_budget == b.localization_budget && a.schedule == b.schedule
 Base.hash(deployment::Deployment, seed::UInt) =
-    hash(deployment.schedule, hash(deployment.localization_budget, hash(deployment.localization_tol,
-        hash(deployment.firing_budget, hash(deployment.algorithm, hash(deployment.Δt_base,
-            hash(deployment.N_base, hash(deployment.h, seed))))))))
+    hash(deployment.schedule, hash(deployment.localization_budget,
+        hash(deployment.localization_tol, hash(deployment.firing_budget,
+            hash(deployment.algorithm, hash(deployment.Δt_base,
+                hash(deployment.N_base, hash(deployment.h, seed))))))))
 
 """
     warnings(deployment::Deployment) → Vector{Diagnostic}

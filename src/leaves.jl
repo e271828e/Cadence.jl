@@ -81,7 +81,8 @@ end
 function _leaf_names!(out, ::Type{P}, prefix) where {P}
     _opaque(P) && return (push!(out, prefix); out)
     for (name, field_type) in zip(fieldnames(P), fieldtypes(P))
-        _leaf_names!(out, field_type, isempty(prefix) ? string(name) : string(prefix, ".", name))
+        _leaf_names!(out, field_type,
+                     isempty(prefix) ? string(name) : string(prefix, ".", name))
     end
     out
 end
@@ -101,7 +102,8 @@ function _mutable_position(::Type{P}, prefix) where {P}
     P <: StaticArray && return _mutable_position(eltype(P), string(prefix, "[1]"))
     _opaque(P) && return nothing                 # the walk never looks inside a handle
     for (name, field_type) in zip(fieldnames(P), fieldtypes(P))
-        position = _mutable_position(field_type, isempty(prefix) ? string(name) : string(prefix, ".", name))
+        position = _mutable_position(
+            field_type, isempty(prefix) ? string(name) : string(prefix, ".", name))
         position === nothing || return position
     end
     nothing
@@ -174,7 +176,8 @@ function _mreconstruct_expr(::Type{P}, eltypes::Vector, bases::Vector{Int}) wher
     elseif _atom(P)
         eltype_index = findfirst(==(P), eltypes)
         bases[eltype_index] += 1
-        return :(@inbounds $(Symbol(:buf, eltype_index))[offs[$eltype_index] + $(bases[eltype_index])])
+        return :(@inbounds $(Symbol(:buf, eltype_index))[offs[$eltype_index] +
+                                                         $(bases[eltype_index])])
     else
         args = [_mreconstruct_expr(field_type, eltypes, bases) for field_type in fieldtypes(P)]
         P <: NamedTuple && return Expr(:call, P, Expr(:tuple, args...))
@@ -191,7 +194,8 @@ function _mflatten_expr(::Type{P}, v, eltypes::Vector, bases::Vector{Int}) where
     elseif _atom(P)
         eltype_index = findfirst(==(P), eltypes)
         bases[eltype_index] += 1
-        push!(stmts, :(@inbounds $(Symbol(:buf, eltype_index))[offs[$eltype_index] + $(bases[eltype_index])] = $v))
+        push!(stmts, :(@inbounds $(Symbol(:buf, eltype_index))[offs[$eltype_index] +
+                                                               $(bases[eltype_index])] = $v))
     else
         for (i, field_type) in enumerate(fieldtypes(P))
             push!(stmts, _mflatten_expr(field_type, :(getfield($v, $i)), eltypes, bases))
@@ -249,7 +253,8 @@ _leaf_values(value::Real) = (value,)
 _leaf_values(value::Enum) = (value,)
 _leaf_values(value::StaticArray) = Iterators.flatten(map(_leaf_values, Tuple(value)))
 # An opaque leaf is one value, not a field walk (D-237); the tuple arms agree.
-_leaf_values(value::NamedTuple) = isbits(value) ? Iterators.flatten(map(_leaf_values, values(value))) : (value,)
+_leaf_values(value::NamedTuple) = isbits(value) ? Iterators.flatten(map(_leaf_values,
+    values(value))) : (value,)
 _leaf_values(value::Tuple) = isbits(value) ? Iterators.flatten(map(_leaf_values, value)) : (value,)
 _leaf_values(value) = isbits(value) ? Iterators.flatten(map(_leaf_values,
     ntuple(i -> getfield(value, i), fieldcount(typeof(value))))) : (value,)
@@ -280,7 +285,8 @@ function _accepts(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T}
     _opaque(P) && return false                       # an opaque leaf embeds nothing (D-237)
     (P isa DataType && V isa DataType && P.name === V.name &&
      length(P.parameters) == length(V.parameters)) || return false
-    all(declared isa Type && observed isa Type ? _accepts(declared, observed, T) : declared === observed
+    all(declared isa Type && observed isa Type ? _accepts(declared, observed, T) :
+                                                 declared === observed
         for (declared, observed) in zip(P.parameters, V.parameters))
 end
 
@@ -331,19 +337,21 @@ event on a handler's write and is `nothing` everywhere else (D-249).
                                    ::Type{XT}, ::Type{T}, path::String, what::Symbol,
                                    shape::Symbol,
                                    event::Union{Nothing,Symbol}) where {Vs,XT<:NamedTuple,T}
-    Xs = fieldnames(XT)
-    Set(Vs) == Set(Xs) ||
+    state_fields = fieldnames(XT)
+    Set(Vs) == Set(state_fields) ||
         return :(throw(DiagnosticError(ConformanceFailure(
             path = path, what = String(what), event = event, reason = :field_set, shape = shape,
-            observed_fields = $(collect(Vs)), declared_fields = $(collect(Xs))))))
+            observed_fields = $(collect(Vs)),
+            declared_fields = $(collect(state_fields))))))
     stmts, base = Expr[], 0
-    for field in Xs
+    for field in state_fields
         declared, observed = fieldtype(XT, field), fieldtype(v, field)
         _accepts(declared, observed, T) ||
             return :(throw(DiagnosticError(ConformanceFailure(
                 path = path, what = String(what), event = event, reason = :field_type,
                 shape = shape,
-                field = $(QuoteNode(field)), observed = $observed, declared = $declared, activation = $T))))
+                field = $(QuoteNode(field)), observed = $observed, declared = $declared,
+                activation = $T))))
         block, base = _flatten_expr(declared, :(getfield(v, $(QuoteNode(field)))), base)
         push!(stmts, block)
     end

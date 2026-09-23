@@ -47,9 +47,10 @@ _indented(lines::Vector{<:AbstractString}) = ["  " * line for line in lines]
 
 # The warnings block every artifact that carries a list ends with: `none`, or one
 # `logline` per warning, its own lines indented under the heading.
-_warning_lines(warnings::Vector{Diagnostic}) =
-    isempty(warnings) ? ["warnings: none"] :
-    vcat(["warnings:"], (_indented(split(logline(warning), '\n')) for warning in warnings)...)
+_warning_lines(warning_list::Vector{Diagnostic}) =
+    isempty(warning_list) ? ["warnings: none"] :
+    vcat(["warnings:"],
+         (_indented(split(logline(warning), '\n')) for warning in warning_list)...)
 
 # --- Structure --------------------------------------------------------------------
 
@@ -164,7 +165,8 @@ function _lines(schedule::Schedule)
     end
     isempty(rows) && return lines
     hyperperiod = _hyperperiod(schedule)
-    hyperperiod > 100 && return push!(lines, "  hyperperiod: $hyperperiod base ticks, chart omitted")
+    hyperperiod > 100 &&
+        return push!(lines, "  hyperperiod: $hyperperiod base ticks, chart omitted")
     push!(lines, "  hyperperiod chart, $hyperperiod base ticks:")
     width = maximum(textwidth(_path_label(row.path)) for row in rows)
     ruler = ""
@@ -201,10 +203,10 @@ function _feedthrough(structure::Structure, outputs::Outputs)
     for ci in outputs.order
         isempty(outputs.components[ci].stage2) && continue
         consumer = structure.components[ci]
-        for (face, (producer, port)) in consumer.conns
+        for (face, (producer, port_name)) in consumer.conns
             isempty(producer) && continue
-            port in outputs.components[index_of(structure, producer)].stage2 || continue
-            push!(edges, "$producer.$port → $(_path_label(consumer.path)).$face")
+            port_name in outputs.components[index_of(structure, producer)].stage2 || continue
+            push!(edges, "$producer.$port_name → $(_path_label(consumer.path)).$face")
         end
     end
     edges
@@ -255,5 +257,6 @@ end
 # --- the REPL forms ---------------------------------------------------------------
 
 for Artifact in (Structure, Outputs, Events, Schedule, Build, Deployment)
-    @eval Base.show(io::IO, ::MIME"text/plain", artifact::$Artifact) = join(io, _lines(artifact), "\n")
+    @eval Base.show(io::IO, ::MIME"text/plain", artifact::$Artifact) =
+        join(io, _lines(artifact), "\n")
 end

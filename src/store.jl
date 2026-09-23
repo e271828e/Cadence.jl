@@ -90,15 +90,15 @@ end
             path = path, what = String(what), reason = :field_set, shape = :ports,
             observed_fields = $(collect(Ys)), declared_fields = $(collect(Ns))))))
     stmts = Expr[]
-    for (i, port) in enumerate(Ns)
+    for (i, port_name) in enumerate(Ns)
         declared = fieldtype(addrs, i).parameters[1]  # the cell's type, CellAddr{P,K}
-        observed = fieldtype(y, port)
+        observed = fieldtype(y, port_name)
         _accepts(declared, observed, T) ||
             return :(throw(DiagnosticError(ConformanceFailure(
                 path = path, what = String(what), reason = :field_type, shape = :ports,
-                field = $(QuoteNode(port)), observed = $observed,
+                field = $(QuoteNode(port_name)), observed = $observed,
                 declared = $declared, activation = $T))))
-        push!(stmts, :(scatter!(store, addrs[$i], getfield(y, $(QuoteNode(port))))))
+        push!(stmts, :(scatter!(store, addrs[$i], getfield(y, $(QuoteNode(port_name))))))
     end
     quote
         $(Expr(:meta, :inline))

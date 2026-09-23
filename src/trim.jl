@@ -183,10 +183,11 @@ function solve(backend::LevenbergMarquardt, eval!, d0::Vector{Float64},
     d, r, J = copy(d0), zeros(n_residuals), zeros(n_residuals, n_decisions)
     d_trial, r_trial, J_trial = similar(d), similar(r), similar(J)
     eval!(r, J, d)
-    nevals, λ = 1, backend.λ₀
+    n_evals, λ = 1, backend.λ₀
 
     for iteration in 1:backend.maxiter
-        _within(r, tol) && return (; d, status = :converged, nevals, niters = iteration - 1)
+        _within(r, tol) &&
+            return (; d, status = :converged, nevals = n_evals, niters = iteration - 1)
         # The normal equations of the linearized step, with Marquardt's own
         # scaling: the damping rides the curvature of each column rather than
         # the identity, so a decision the residuals barely respond to is not
@@ -206,7 +207,7 @@ function solve(backend::LevenbergMarquardt, eval!, d0::Vector{Float64},
             # dressed up as convergence or as an exhausted iteration count.
             maximum(abs, d_trial .- d) ≤ eps(maximum(abs, d) + 1.0) && break
             eval!(r_trial, J_trial, d_trial)
-            nevals += 1
+            n_evals += 1
             if _scaled_norm(r_trial, tol) < current_norm
                 d .= d_trial; r .= r_trial; J .= J_trial
                 λ = max(λ / 10, LM_λMIN)
@@ -216,9 +217,10 @@ function solve(backend::LevenbergMarquardt, eval!, d0::Vector{Float64},
             λ *= 10
             λ > LM_λMAX && break
         end
-        accepted || return (; d, status = :stalled, nevals, niters = iteration)
+        accepted || return (; d, status = :stalled, nevals = n_evals, niters = iteration)
     end
-    (; d, status = _within(r, tol) ? :converged : :maxiter, nevals, niters = backend.maxiter)
+    (; d, status = _within(r, tol) ? :converged : :maxiter, nevals = n_evals,
+       niters = backend.maxiter)
 end
 
 # --- setup validation (§14.7, §13.1) --------------------------------------------
@@ -266,8 +268,8 @@ function _check_decisions!(diags::Vector{Diagnostic}, problem::TrimProblem)
         (haskey(problem.lower, key) && haskey(problem.upper, key) &&
          problem.lower[key] isa Float64 && problem.upper[key] isa Float64) || continue
         problem.lower[key] ≤ problem.upper[key] ||
-            push!(diags, _tviol(:lower, :inverted_box; key = key, value = problem.lower[key],
-                               bound = problem.upper[key]))
+            push!(diags, _tviol(:lower, :inverted_box; key = key,
+                               value = problem.lower[key], bound = problem.upper[key]))
     end
     nothing
 end
@@ -288,14 +290,15 @@ function _check_tolerances!(diags::Vector{Diagnostic}, problem::TrimProblem)
         tolerance = problem.tolerances[key]
         tolerance isa Float64 || continue   # the type violation is already named above
         (isfinite(tolerance) && tolerance > 0) ||
-            push!(diags, _tviol(:tolerances, :nonpositive_tolerance; key = key, value = tolerance))
+            push!(diags, _tviol(:tolerances, :nonpositive_tolerance; key = key,
+                               value = tolerance))
     end
     nothing
 end
 
 function _check_floats!(diags::Vector{Diagnostic}, name::Symbol, field_value::NamedTuple)
     bad = Pair{Symbol,Any}[k => typeof(field_value[k]) for k in keys(field_value)
-                            if !(field_value[k] isa Float64)]
+                           if !(field_value[k] isa Float64)]
     isempty(bad) || push!(diags, _tviol(name, :field_types; bad = bad))
     nothing
 end
@@ -387,10 +390,10 @@ operating point an equilibrium?" probe, useful in its own right and free.
 function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
                t0::Real = 0.0, backend = LevenbergMarquardt())
     status = lifecycle(sim)
-    status === :running && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :running,
-                                                              legal = collect(STOPPED_SIM_LEGAL))))
-    status === :errored && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :errored,
-                                                              legal = collect(STOPPED_SIM_LEGAL))))
+    status === :running && throw(DiagnosticError(ServiceLifecycle(
+        op = :trim!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
+    status === :errored && throw(DiagnosticError(ServiceLifecycle(
+        op = :trim!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
 
     build = sim.deployment.build
     diags = Diagnostic[]
@@ -493,9 +496,9 @@ end
 trim!(sim::Simulation, ::TrimProblem; kw...) = throw(DiagnosticError(
     ArgumentInvalid(call = :trim!, reason = :non_nominal, value = string(typeof(sim)))))
 
-trim!(::Simulation, problem; kw...) = throw(DiagnosticError(
+trim!(::Simulation, other; kw...) = throw(DiagnosticError(
     ArgumentInvalid(call = :trim!, argument = :problem, reason = :not_a_problem,
-                    value = string(typeof(problem)))))
+                    value = string(typeof(other)))))
 
 # --- the pieces the service is built out of --------------------------------------
 
@@ -514,8 +517,8 @@ end
 # A discrete producer's cells are pinned `Float64` at every activation, so this
 # is a value copy; the zero-partial embedding happens where a continuous
 # consumer reads them (§14.3).
-function _establish_frozen!(seeded_exec::Executor, act::Activation{T}, nominal_exec::Executor,
-                            build::Build) where {T}
+function _establish_frozen!(seeded_exec::Executor, act::Activation{T},
+                            nominal_exec::Executor, build::Build) where {T}
     for (ci, entry) in enumerate(build.structure.components)
         _frozen(entry.tier, T) || continue
         path = entry.path
@@ -531,10 +534,12 @@ end
 # slot `i`, which is what makes one sweep yield `r` and `J` together (§14.7).
 # `decisions` is indexed positionally, so the packed vector and the guess
 # NamedTuple seed through the same code.
-_seeded(decision_names::Tuple, decisions, ::Type{ForwardDiff.Dual{TG,Float64,N}}) where {TG,N} =
-    NamedTuple{decision_names}(ntuple(i -> ForwardDiff.Dual{TG}(Float64(decisions[i]),
-                                                   ntuple(j -> Float64(i == j), Val(N))...),
-                         Val(N)))
+_seeded(decision_names::Tuple, decisions,
+        ::Type{ForwardDiff.Dual{TG,Float64,N}}) where {TG,N} =
+    NamedTuple{decision_names}(
+        ntuple(i -> ForwardDiff.Dual{TG}(Float64(decisions[i]),
+                                         ntuple(j -> Float64(i == j), Val(N))...),
+               Val(N)))
 
 # The decisions sitting at a bound at the returned point (§14.8): the comparison
 # is exact because the projection assigns the bound itself, and an infinite
@@ -578,12 +583,13 @@ function _verdict!(sim::Simulation, problem::TrimProblem, baseline, solution::Na
     # the derivative reads, `ẋbuf` being integrator scratch and this a service
     # evaluation (§7.5, §14.8).
     sim.exec.bodies.rhs()
-    committed = NamedTuple{residual_names}(problem.residuals(gather(reader, sim.exec), solution))
+    committed = NamedTuple{residual_names}(problem.residuals(gather(reader, sim.exec),
+                                                             solution))
     off = Tuple{Symbol,Float64,Float64}[(k, Float64(committed[k]), tol[i])
                                         for (i, k) in enumerate(residual_names)
                                         if !(abs(committed[k]) ≤ tol[i])]
     isempty(off) || @warn logline(TrimCommitResiduals(residuals = off))
 
-    TrimReport(true, solution, residuals, problem.tolerances, committed, status, nevals, niters,
-               saturated, fired)
+    TrimReport(true, solution, residuals, problem.tolerances, committed, status, nevals,
+               niters, saturated, fired)
 end

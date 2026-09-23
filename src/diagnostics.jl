@@ -31,7 +31,7 @@ _typename(value) = string(nameof(typeof(value)))
 # A `Union` has no name of its own: spell it from its members, each unqualified.
 _typename(type::Type) =
     type isa Union ? "Union{" * join(_typename.(Base.uniontypes(type)), ", ") * "}" :
-                  string(nameof(type))
+                     string(nameof(type))
 # A declared generic holding: `nameof` has no method, and `string` on the
 # variable qualifies its bound the same way interpolating a type does.
 _typename(typevar::TypeVar) = "$(typevar.name)<:$(_typename(typevar.ub))"
@@ -92,8 +92,9 @@ end
 
 DiagnosticError(d::Diagnostic, warning_list::Vector{Diagnostic} = Diagnostic[]) =
     DiagnosticError{typeof(d)}(d, warning_list)
-DiagnosticError(ds::AbstractVector{<:Diagnostic}, warning_list::Vector{Diagnostic} = Diagnostic[]) =
-    DiagnosticError{Vector{Diagnostic}}(Vector{Diagnostic}(ds), warning_list)
+DiagnosticError(diags::AbstractVector{<:Diagnostic},
+                warning_list::Vector{Diagnostic} = Diagnostic[]) =
+    DiagnosticError{Vector{Diagnostic}}(Vector{Diagnostic}(diags), warning_list)
 
 "The one diagnostic a fail-fast throw, or a `StepError` species, carries."
 diagnostic(carrier::DiagnosticError{<:Diagnostic}) = carrier.carried
@@ -112,7 +113,8 @@ function _groups(diags::Vector{Diagnostic})
         kind = typeof(d)
         kind in order || push!(order, kind)
     end
-    [sort(filter(d -> typeof(d) === kind, diags); by = path, alg = MergeSort) for kind in order]
+    [sort(filter(d -> typeof(d) === kind, diags); by = path, alg = MergeSort)
+     for kind in order]
 end
 
 # The warnings tail both renderings end with, one line per warning in
@@ -125,7 +127,8 @@ function _show_warnings(io::IO, warning_list::Vector{Diagnostic})
 end
 
 function Base.showerror(io::IO, carrier::DiagnosticError{<:Diagnostic})
-    print(io, "DiagnosticError: ", nameof(typeof(carrier.carried)), ": ", message(carrier.carried))
+    print(io, "DiagnosticError: ", nameof(typeof(carrier.carried)), ": ",
+          message(carrier.carried))
     _show_warnings(io, carrier.warnings)
 end
 
@@ -133,7 +136,8 @@ function Base.showerror(io::IO, carrier::DiagnosticError{Vector{Diagnostic}})
     diags, warning_list = carrier.carried, carrier.warnings
     print(io, "DiagnosticError: ", length(diags), " diagnostics")
     isempty(warning_list) ||
-        print(io, ", ", length(warning_list), length(warning_list) == 1 ? " warning" : " warnings")
+        print(io, ", ", length(warning_list),
+              length(warning_list) == 1 ? " warning" : " warnings")
     for group in _groups(diags), d in group
         print(io, "\n  ", nameof(typeof(d)), ": ", message(d))
     end
@@ -259,7 +263,8 @@ function Base.showerror(io::IO, carrier::StepError)
         print(io, "replay!(sim2, trc; to_boundary = ", carrier.boundary,
               ") then step!(sim2) reproduces it")
     print(io, "\n  cause: ")
-    carrier.cause isa Diagnostic ? print(io, logline(carrier.cause)) : showerror(io, carrier.cause)
+    carrier.cause isa Diagnostic ? print(io, logline(carrier.cause)) :
+                                   showerror(io, carrier.cause)
     nothing
 end
 
@@ -902,9 +907,11 @@ end
 
 # The ladder's two exits (§5.4, D-140), each dead member named once.
 _cycle_hint(dead) =
-    join((let dead_faces = unique(face for (hop_member, face, _) in dead if hop_member == member)
+    join((let dead_faces = unique(face for (hop_member, face, _) in dead
+                                  if hop_member == member)
               "split `$member`, or narrow the neighbor's contract if $(_namelist(dead_faces)) " *
-              (length(dead_faces) == 1 ? "is" : "are") * " consumed only in a fallback branch"
+              (length(dead_faces) == 1 ? "is" : "are") *
+              " consumed only in a fallback branch"
           end for member in unique(first.(dead))), "; ") * " (§5.4)"
 
 const _BREAK_CYCLE = "break it with a state, a unit delay or a stage-1 (`output_state`) port (§5.5)"
@@ -921,7 +928,8 @@ function message(d::AlgebraicCycle)
     end
     member_tracing = Dict(d.traced)
     hops = join((_hop(hop) * (get(member_tracing, first(hop), :global) === :sampled ?
-                            " (on the sampled paths; an untaken branch may still route it)" : "")
+                              " (on the sampled paths; an untaken branch may still route it)" :
+                              "")
                  for hop in d.dead), ", ")
     "$head — artificial at port level: $hops; $(_cycle_hint(d.dead))"
 end
@@ -1166,7 +1174,7 @@ end
 # `:running` refuses two different operations, and the sentence differs: an
 # advance entry is refused *because the loop is already advancing*, while every
 # other refusal at this status is a stopped-sim operation meeting a running loop.
-_advance_entry(operation::Symbol) = operation === :run! || operation === :step!
+_advance_entry(op::Symbol) = op === :run! || op === :step!
 
 message(d::ServiceLifecycle) =
     d.status === :running ?
@@ -1309,9 +1317,11 @@ function _grid_block(grid::Union{Nothing,GridReport})
     # A whole-second grid has no prime to attribute, so the section is absent.
     prime_powers = ["$(p.prime)$(_sup(p.power))" for p in grid.primes]
     isempty(prime_powers) ||
-        push!(rows, "  primes: $(denominator(grid.admissible)) = " * join(prime_powers, "·"))
+        push!(rows, "  primes: $(denominator(grid.admissible)) = " *
+                    join(prime_powers, "·"))
     for (i, attribution) in enumerate(grid.primes)
-        push!(rows, "    " * rpad(prime_powers[i], maximum(textwidth, prime_powers)) * "  " *
+        push!(rows, "    " *
+                    rpad(prime_powers[i], maximum(textwidth, prime_powers)) * "  " *
                     join((_grid_label(grid.pool[j]) for j in attribution.suppliers), ", "))
     end
     "\n" * join(rows, "\n")
@@ -1692,14 +1702,17 @@ Base.@kwdef struct TrimProblemInvalid <: Diagnostic
 end
 
 _trim_shape(field::Symbol) =
-    field === :tolerances ? "the per-residual convergence test is an all-`Float64` NamedTuple" :
-    field === :residuals  ? "the residual system is a NamedTuple of named equations, " *
-                        "same-named as `tolerances`" :
-                        "the decisions and their two bounds are same-named all-`Float64` " *
-                        "NamedTuples"
+    field === :tolerances ?
+        "the per-residual convergence test is an all-`Float64` NamedTuple" :
+    field === :residuals ?
+        "the residual system is a NamedTuple of named equations, " *
+        "same-named as `tolerances`" :
+        "the decisions and their two bounds are same-named all-`Float64` " *
+        "NamedTuples"
 _trim_floats(field::Symbol) =
-    field === :tolerances ? "a tolerance is a `Float64` in its residual's own physical units" :
-                        "decisions and bounds are `Float64`"
+    field === :tolerances ?
+        "a tolerance is a `Float64` in its residual's own physical units" :
+        "decisions and bounds are `Float64`"
 _trim_verb(field::Symbol) = field === :residuals ? "returned" : "is"
 _trim_bad(d) = join(("`$k`::$v" for (k, v) in d.bad), ", ")
 

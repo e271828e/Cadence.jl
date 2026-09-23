@@ -233,8 +233,10 @@ ProjectEntry{XT}(comp, x_off, clock, path, ci, cursor) where {XT} =
 
 @inline function run_project!(entry::ProjectEntry{Comp,XT}, xbuf) where {Comp,XT}
     entry.cursor.comp = entry.ci; entry.cursor.fn = :state_projection
-    flatten_state!(xbuf, entry.x_off, state_projection(entry.comp, reconstruct(XT, xbuf, entry.x_off)),
-                   XT, activation_scalar(entry.clock), entry.path, :state_projection, :state, nothing)
+    flatten_state!(xbuf, entry.x_off,
+                   state_projection(entry.comp, reconstruct(XT, xbuf, entry.x_off)),
+                   XT, activation_scalar(entry.clock), entry.path, :state_projection,
+                   :state, nothing)
     nothing
 end
 
@@ -275,14 +277,14 @@ struct EventSet{E<:Tuple,P<:Tuple}
 end
 
 function EventSet(entries::Vector, projects::Vector,
-                  owner::Vector{Int}, event_names::Vector{Tuple{String,Symbol}},
-                  localized::Vector{Bool}, component_count::Int)
-    event_count = length(entries)
-    EventSet(tuple(entries...), tuple(projects...), owner, event_names, localized,
-             fill(false, event_count), fill(false, event_count), fill(false, event_count),
-             fill(false, event_count), zeros(Int, event_count), fill(false, event_count),
-             fill(false, component_count), zeros(event_count), zeros(event_count),
-             zeros(event_count), fill(false, event_count), fill(false, event_count))
+                  owner::Vector{Int}, names::Vector{Tuple{String,Symbol}},
+                  localized::Vector{Bool}, n_components::Int)
+    n_events = length(entries)
+    EventSet(tuple(entries...), tuple(projects...), owner, names, localized,
+             fill(false, n_events), fill(false, n_events), fill(false, n_events),
+             fill(false, n_events), zeros(Int, n_events), fill(false, n_events),
+             fill(false, n_components), zeros(n_events), zeros(n_events),
+             zeros(n_events), fill(false, n_events), fill(false, n_events))
 end
 
 # The three walks the iteration drives, each the compile-time-unrolled tuple
@@ -330,9 +332,10 @@ end
 @inline function _latch!(entry::EventEntry{G,H,P,Comp,XT}, returned::NamedTuple,
                          xbuf) where {G,H,P,Comp,XT}
     haskey(returned, :x) && flatten_state!(xbuf, entry.x_off, returned.x, XT,
-                                      activation_scalar(entry.clock), entry.path, :handler, :state,
-                                      entry.event)
-    haskey(returned, :m) && _merge_modes!(entry.mstore, returned.m, entry.path, :handler, entry.event)
+                                           activation_scalar(entry.clock), entry.path,
+                                           :handler, :state, entry.event)
+    haskey(returned, :m) &&
+        _merge_modes!(entry.mstore, returned.m, entry.path, :handler, entry.event)
     nothing
 end
 
@@ -376,7 +379,8 @@ _merge_modes!(mstore::Base.RefValue{M}, m, path, what, event) where {M} =
 @inline function _fire_project!(entry::EventEntry{G,H,P,Comp,XT}, xbuf) where {G,H,P,Comp,XT}
     P === Nothing && return nothing
     entry.cursor.fn = :state_projection # the component is the handler's own
-    flatten_state!(xbuf, entry.x_off, entry.proj(entry.comp, reconstruct(XT, xbuf, entry.x_off)), XT,
+    flatten_state!(xbuf, entry.x_off,
+                   entry.proj(entry.comp, reconstruct(XT, xbuf, entry.x_off)), XT,
                    activation_scalar(entry.clock), entry.path, :state_projection, :state, nothing)
     nothing
 end
