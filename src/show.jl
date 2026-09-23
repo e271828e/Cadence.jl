@@ -15,7 +15,8 @@ const _SUBSCRIPTS = collect("₀₁₂₃₄₅₆₇₈₉")
 _anchor_name(anchor::Int) = "A" * join(_SUBSCRIPTS[c - '0' + 1] for c in string(anchor))
 
 # A count with its noun: `no anchors`, `1 anchor`, `4 components`.
-_count(n::Int, noun::String) = n == 0 ? "no $(noun)s" : n == 1 ? "1 $noun" : "$n $(noun)s"
+_count(number::Int, noun::String) =
+    number == 0 ? "no $(noun)s" : number == 1 ? "1 $noun" : "$number $(noun)s"
 
 # The root's path in a table column; a primitive at the root is its own component.
 _path_label(path::String) = isempty(path) ? "root" : path
@@ -31,7 +32,7 @@ _rates_label(rates::Vector{RateLink}) =
     join(("$(link.key) = $(_entry_label(link.entry))" for link in rates), " → ")
 
 # A comma-separated list of names; empty is a dash.
-_names_label(names) = isempty(names) ? "—" : join(names, ", ")
+_names_label(name_list) = isempty(name_list) ? "—" : join(name_list, ", ")
 
 # One aligned table, header first, every line under `indent` and stripped on
 # the right.
@@ -139,10 +140,10 @@ function Base.show(io::IO, schedule::Schedule)
 end
 
 # The rows, the rate-scope rows when any exist, and the hyperperiod chart: one
-# row per schedule row, one character per base tick `k = 0 … L−1`, `●` where
-# `(k − Φ) % D == 0`, under a ruler carrying the tick index at every column
-# divisible by 10. The guard is binary (D-257): at `L > 100` the chart's place
-# holds one line naming the length instead.
+# row per schedule row, one character per base tick `k = 0 … hyperperiod−1`, `●`
+# where `(k − Φ) % D == 0`, under a ruler carrying the tick index at every
+# column divisible by 10. The guard is binary (D-257): at `hyperperiod > 100`
+# the chart's place holds one line naming the length instead.
 function _lines(schedule::Schedule)
     rows = schedule.rows
     heading = "Schedule: " * (isempty(rows) ? "no rows" : _count(length(rows), "row")) *
@@ -162,18 +163,18 @@ function _lines(schedule::Schedule)
                                for scope in schedule.scopes]))
     end
     isempty(rows) && return lines
-    L = _hyperperiod(schedule)
-    L > 100 && return push!(lines, "  hyperperiod: $L base ticks, chart omitted")
-    push!(lines, "  hyperperiod chart, $L base ticks:")
+    hyperperiod = _hyperperiod(schedule)
+    hyperperiod > 100 && return push!(lines, "  hyperperiod: $hyperperiod base ticks, chart omitted")
+    push!(lines, "  hyperperiod chart, $hyperperiod base ticks:")
     width = maximum(textwidth(_path_label(row.path)) for row in rows)
     ruler = ""
-    for k in 0:10:L-1
+    for k in 0:10:hyperperiod-1
         ruler = rpad(ruler, k) * string(k)
     end
     push!(lines, " "^(4 + width + 2) * ruler)
     for row in rows
         push!(lines, "    " * rpad(_path_label(row.path), width) * "  " *
-                     join(((k - row.Φ) % row.D == 0 ? '●' : '·') for k in 0:L-1))
+                     join(((k - row.Φ) % row.D == 0 ? '●' : '·') for k in 0:hyperperiod-1))
     end
     lines
 end
@@ -182,15 +183,15 @@ end
 
 # The activation keys, read under the build's lock (§9.4): the nominal `Float64`
 # first, the rest by name, since the dictionary has no order of its own.
-_activations_label(built::Build) =
-    lock(built.lock) do
-        others = sort([string(T) for T in keys(built.activations) if T !== Float64])
+_activations_label(build::Build) =
+    lock(build.lock) do
+        others = sort([string(T) for T in keys(build.activations) if T !== Float64])
         join(["Float64"; others], ", ")
     end
 
-Base.show(io::IO, built::Build) =
-    print(io, "Build(", _count(length(built.structure.components), "component"),
-          ", activations: ", _activations_label(built), ")")
+Base.show(io::IO, build::Build) =
+    print(io, "Build(", _count(length(build.structure.components), "component"),
+          ", activations: ", _activations_label(build), ")")
 
 # The feedthrough edges the execution order was computed over (§5.3, D-261),
 # derived rather than carried: a face of a component with a stage 2, fed by
@@ -211,18 +212,18 @@ end
 
 # The summary and the parts: the structure, the outputs, the feedthrough line
 # the `Build` alone can derive, the events, then the warnings.
-function _lines(built::Build)
-    components = built.structure.components
+function _lines(build::Build)
+    components = build.structure.components
     continuous = count(entry.tier === CONTINUOUS for entry in components)
-    edges = _feedthrough(built.structure, built.outputs)
+    edges = _feedthrough(build.structure, build.outputs)
     vcat(["Build: " * _count(length(components), "component") *
           " ($continuous continuous, $(length(components) - continuous) discrete); activations: " *
-          _activations_label(built) * "; " * _count(length(built.warnings), "warning")],
-         _indented(_lines(built.structure)),
-         _indented(_lines(built.outputs)),
+          _activations_label(build) * "; " * _count(length(build.warnings), "warning")],
+         _indented(_lines(build.structure)),
+         _indented(_lines(build.outputs)),
          ["  feedthrough: " * (isempty(edges) ? "none" : join(edges, ", "))],
-         _indented(_lines(built.events)),
-         _indented(_warning_lines(built.warnings)))
+         _indented(_lines(build.events)),
+         _indented(_warning_lines(build.warnings)))
 end
 
 # --- Deployment -------------------------------------------------------------------
@@ -253,6 +254,6 @@ end
 
 # --- the REPL forms ---------------------------------------------------------------
 
-for T in (Structure, Outputs, Events, Schedule, Build, Deployment)
-    @eval Base.show(io::IO, ::MIME"text/plain", x::$T) = join(io, _lines(x), "\n")
+for Artifact in (Structure, Outputs, Events, Schedule, Build, Deployment)
+    @eval Base.show(io::IO, ::MIME"text/plain", artifact::$Artifact) = join(io, _lines(artifact), "\n")
 end
