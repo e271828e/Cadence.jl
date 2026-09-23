@@ -111,8 +111,8 @@ end
 
 # --- expression builders (compile time) --------------------------------------
 
-# Returns (expr, next_base): `expr` reconstructs a `P` from `buf` starting at
-# `off + base + 1`, with all indices static relative to `off`.
+# Returns (expr, next_base): `expr` reconstructs a `P` from `buffer` starting at
+# `offset + base + 1`, with all indices static relative to `offset`.
 function _reconstruct_expr(::Type{P}, base::Int) where {P}
     if P <: StaticArray
         args = Expr[]
@@ -123,7 +123,7 @@ function _reconstruct_expr(::Type{P}, base::Int) where {P}
         end
         return Expr(:call, P, args...), next_base
     elseif _atom(P)
-        return :(@inbounds buf[off + $(base + 1)]), base + 1
+        return :(@inbounds buffer[offset + $(base + 1)]), base + 1
     else
         args = Expr[]
         next_base = base
@@ -138,34 +138,34 @@ function _reconstruct_expr(::Type{P}, base::Int) where {P}
 end
 
 # Returns (block, next_base): statements storing the leaves of the value
-# denoted by expression `v` into `buf` starting at `off + base + 1`.
-function _flatten_expr(::Type{P}, v, base::Int) where {P}
-    stmts = Expr[]
+# denoted by expression `value_expr` into `buffer` starting at `offset + base + 1`.
+function _flatten_expr(::Type{P}, value_expr, base::Int) where {P}
+    statements = Expr[]
     if P <: StaticArray
         next_base = base
         for i in 1:length(P)
-            block, next_base = _flatten_expr(eltype(P), :(@inbounds $v[$i]), next_base)
-            push!(stmts, block)
+            block, next_base = _flatten_expr(eltype(P), :(@inbounds $value_expr[$i]), next_base)
+            push!(statements, block)
         end
-        return Expr(:block, stmts...), next_base
+        return Expr(:block, statements...), next_base
     elseif _atom(P)
-        push!(stmts, :(@inbounds buf[off + $(base + 1)] = $v))
-        return Expr(:block, stmts...), base + 1
+        push!(statements, :(@inbounds buffer[offset + $(base + 1)] = $value_expr))
+        return Expr(:block, statements...), base + 1
     else
         next_base = base
         for (i, field_type) in enumerate(fieldtypes(P))
-            block, next_base = _flatten_expr(field_type, :(getfield($v, $i)), next_base)
-            push!(stmts, block)
+            block, next_base = _flatten_expr(field_type, :(getfield($value_expr, $i)), next_base)
+            push!(statements, block)
         end
-        return Expr(:block, stmts...), next_base
+        return Expr(:block, statements...), next_base
     end
 end
 
 # --- mixed-cell expression builders (compile time) ----------------------------
 # The per-eltype generalization of the two builders above: a cell whose leaves
 # span several eltypes lives split across the per-eltype buffers, so leaf i is
-# drawn from the buffer bound as `buf<k>` for its own eltype, at
-# `offs[k] + <static index>` — one running base per eltype, all indices static
+# drawn from the buffer bound as `buffer<k>` for its own eltype, at
+# `offsets[k] + <static index>` — one running base per eltype, all indices static
 # relative to the offsets. The homogeneous cell is the `K = 1` case, where
 # these emit exactly the single-base expressions above.
 
@@ -176,8 +176,8 @@ function _mreconstruct_expr(::Type{P}, eltypes::Vector, bases::Vector{Int}) wher
     elseif _atom(P)
         eltype_index = findfirst(==(P), eltypes)
         bases[eltype_index] += 1
-        return :(@inbounds $(Symbol(:buf, eltype_index))[offs[$eltype_index] +
-                                                         $(bases[eltype_index])])
+        return :(@inbounds $(Symbol(:buffer, eltype_index))[offsets[$eltype_index] +
+                                                            $(bases[eltype_index])])
     else
         args = [_mreconstruct_expr(field_type, eltypes, bases) for field_type in fieldtypes(P)]
         P <: NamedTuple && return Expr(:call, P, Expr(:tuple, args...))
@@ -185,34 +185,37 @@ function _mreconstruct_expr(::Type{P}, eltypes::Vector, bases::Vector{Int}) wher
     end
 end
 
-function _mflatten_expr(::Type{P}, v, eltypes::Vector, bases::Vector{Int}) where {P}
-    stmts = Expr[]
+function _mflatten_expr(::Type{P}, value_expr, eltypes::Vector, bases::Vector{Int}) where {P}
+    statements = Expr[]
     if P <: StaticArray
         for i in 1:length(P)
-            push!(stmts, _mflatten_expr(eltype(P), :(@inbounds $v[$i]), eltypes, bases))
+            push!(statements,
+                  _mflatten_expr(eltype(P), :(@inbounds $value_expr[$i]), eltypes, bases))
         end
     elseif _atom(P)
         eltype_index = findfirst(==(P), eltypes)
         bases[eltype_index] += 1
-        push!(stmts, :(@inbounds $(Symbol(:buf, eltype_index))[offs[$eltype_index] +
-                                                               $(bases[eltype_index])] = $v))
+        push!(statements, :(@inbounds $(Symbol(:buffer, eltype_index))[offsets[$eltype_index] +
+                                                                       $(bases[eltype_index])] =
+                                                                       $value_expr))
     else
         for (i, field_type) in enumerate(fieldtypes(P))
-            push!(stmts, _mflatten_expr(field_type, :(getfield($v, $i)), eltypes, bases))
+            push!(statements,
+                  _mflatten_expr(field_type, :(getfield($value_expr, $i)), eltypes, bases))
         end
     end
-    Expr(:block, stmts...)
+    Expr(:block, statements...)
 end
 
 # --- evaluation-path entry points --------------------------------------------
 
 """
-    reconstruct(P, buf, off)
+    reconstruct(P, buffer, offset)
 
-Materialize a `P` from `nleaves(P)` consecutive entries of `buf` starting at
-`off + 1`. Fully unrolled; register-level for isbits `P`.
+Materialize a `P` from `nleaves(P)` consecutive entries of `buffer` starting at
+`offset + 1`. Fully unrolled; register-level for isbits `P`.
 """
-@generated function reconstruct(::Type{P}, buf::AbstractVector, off::Int) where {P}
+@generated function reconstruct(::Type{P}, buffer::AbstractVector, offset::Int) where {P}
     expr, _ = _reconstruct_expr(P, 0)
     quote
         $(Expr(:meta, :inline))
@@ -310,12 +313,12 @@ _accepts_wire(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T} =
     isconcretetype(P) ? _accepts(P, V, T) : (V <: P || retype(T, V) <: P)
 
 """
-    flatten!(buf, off, v)
+    flatten!(buffer, offset, value)
 
-Store the leaves of `v` into `buf` starting at `off + 1`. Returns `nothing`.
+Store the leaves of `value` into `buffer` starting at `offset + 1`. Returns `nothing`.
 """
-@generated function flatten!(buf::AbstractVector, off::Int, v::P) where {P}
-    block, _ = _flatten_expr(P, :v, 0)
+@generated function flatten!(buffer::AbstractVector, offset::Int, value::P) where {P}
+    block, _ = _flatten_expr(P, :value, 0)
     quote
         $(Expr(:meta, :inline))
         $block
@@ -324,16 +327,16 @@ Store the leaves of `v` into `buf` starting at `off + 1`. Returns `nothing`.
 end
 
 """
-    flatten_state!(buf, off, v, XT, T, path, what, shape, event)
+    flatten_state!(buffer, offset, value, XT, T, path, what, shape, event)
 
 The wholesale state write with §9.5's always-on check decided at generation
-(D-235): `v`'s key set must equal the state's, and each field must be a lawful
+(D-235): `value`'s key set must equal the state's, and each field must be a lawful
 arrival at the state's field type under embed-accept. Fields pair by name,
 never by position. `shape` is the diagnostic's shape: `:init_x` for a
 derivative, `:state` for a projection or a handler's `x` key. `event` names the
 event on a handler's write and is `nothing` everywhere else (D-249).
 """
-@generated function flatten_state!(buf::AbstractVector, off::Int, v::NamedTuple{Vs},
+@generated function flatten_state!(buffer::AbstractVector, offset::Int, value::NamedTuple{Vs},
                                    ::Type{XT}, ::Type{T}, path::String, what::Symbol,
                                    shape::Symbol,
                                    event::Union{Nothing,Symbol}) where {Vs,XT<:NamedTuple,T}
@@ -343,27 +346,28 @@ event on a handler's write and is `nothing` everywhere else (D-249).
             path = path, what = String(what), event = event, reason = :field_set, shape = shape,
             observed_fields = $(collect(Vs)),
             declared_fields = $(collect(state_fields))))))
-    stmts, base = Expr[], 0
+    statements, base = Expr[], 0
     for field in state_fields
-        declared, observed = fieldtype(XT, field), fieldtype(v, field)
+        declared, observed = fieldtype(XT, field), fieldtype(value, field)
         _accepts(declared, observed, T) ||
             return :(throw(DiagnosticError(ConformanceFailure(
                 path = path, what = String(what), event = event, reason = :field_type,
                 shape = shape,
                 field = $(QuoteNode(field)), observed = $observed, declared = $declared,
                 activation = $T))))
-        block, base = _flatten_expr(declared, :(getfield(v, $(QuoteNode(field)))), base)
-        push!(stmts, block)
+        block, base = _flatten_expr(declared, :(getfield(value, $(QuoteNode(field)))), base)
+        push!(statements, block)
     end
     quote
         $(Expr(:meta, :inline))
-        $(stmts...)
+        $(statements...)
         nothing
     end
 end
 
 # A non-NamedTuple return is the law's first clause failing.
-flatten_state!(buf, off, v, ::Type{XT}, ::Type{T}, path, what, shape, event) where {XT,T} =
+flatten_state!(buffer, offset, value, ::Type{XT}, ::Type{T}, path, what, shape,
+               event) where {XT,T} =
     throw(DiagnosticError(ConformanceFailure(path = path, what = String(what), event = event,
                                              reason = :return_type, shape = shape,
-                                             observed = typeof(v))))
+                                             observed = typeof(value))))

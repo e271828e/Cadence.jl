@@ -77,22 +77,22 @@ end
 
 # `_mreconstruct_expr` and `_mflatten_expr` build the bodies of `store.jl`'s
 # generated gather and scatter: one buffer bound per leaf eltype, every index
-# static against `offs`. Compiling one into a function of exactly the arguments
+# static against `offsets`. Compiling one into a function of exactly the arguments
 # the generator binds runs it with no store bundle in the way. Both take a
-# `buf2` even at `K = 1`, where the built expression ignores it. Each returns
+# `buffer2` even at `K = 1`, where the built expression ignores it. Each returns
 # the `bases` vector the builder mutated as it walked, and wraps the compiled
 # method in `invokelatest`, which is what a method defined mid-call costs.
 function mgather(P)
     bases = zeros(Int, length(leaf_eltypes(P)))
     e = _mreconstruct_expr(P, leaf_eltypes(P), bases)
-    fn = Core.eval(@__MODULE__, Expr(:->, Expr(:tuple, :buf1, :buf2, :offs), e))
+    fn = Core.eval(@__MODULE__, Expr(:->, Expr(:tuple, :buffer1, :buffer2, :offsets), e))
     (a...) -> Base.invokelatest(fn, a...), bases
 end
 
 function mscatter(P)
     bases = zeros(Int, length(leaf_eltypes(P)))
     e = _mflatten_expr(P, :v, leaf_eltypes(P), bases)
-    fn = Core.eval(@__MODULE__, Expr(:->, Expr(:tuple, :buf1, :buf2, :offs, :v), e))
+    fn = Core.eval(@__MODULE__, Expr(:->, Expr(:tuple, :buffer1, :buffer2, :offsets, :v), e))
     (a...) -> Base.invokelatest(fn, a...), bases
 end
 

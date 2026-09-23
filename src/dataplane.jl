@@ -601,7 +601,7 @@ port(snapshot::Snapshot, path::String, name::Symbol) =
 
 # One boundary's capture: fresh buffers, one allocation per boundary — the
 # framework side of §7.5's scope, which carved publication and logging out.
-capture_stores(bundle::StoreBundle) = StoreBundle(map(cs -> CellStore(copy(cs.buf)), bundle.stores))
+capture_stores(bundle::StoreBundle) = StoreBundle(map(cs -> CellStore(copy(cs.buffer)), bundle.stores))
 
 """
 §11.2's `@atomic latest` reference in a mutable object of its own. The plane is

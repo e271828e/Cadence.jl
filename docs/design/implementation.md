@@ -185,9 +185,9 @@ rulings behind them are `docs/reports/20260923_naming_inventory/README.md`.
 - **out of the rules' reach**: a parameter of a public signature keeps the
   spec's spelling (`trace`, `log`, `condition`, `reads`, `sep`, `maxiter`,
   the selectors' `i`); a name the code generators emit and read back
-  (`buf`, `off`, `offs`, `stmts`, `_bundle_expr`'s `e`) changes only with
-  its builder; a parameter mirroring a struct field keeps the field's
-  spelling;
+  (`buffer`, `offset`, `offsets`, `statements`, `_bundle_expr`'s `entry`)
+  changes only with its builder; a parameter mirroring a struct field keeps
+  the field's spelling;
 - **words join with underscores** (`port_name`, `claimed_by`, `child_path`);
   two words never fuse in a local. A spec symbol fuses with the word for
   what holds it and takes an underscore for a subscript, counts included:

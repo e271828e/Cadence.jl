@@ -9,11 +9,11 @@
 # the `K = 1` case of the same representation.
 
 struct CellAddr{P,K}
-    offs::NTuple{K,Int}
+    offsets::NTuple{K,Int}
 end
 
 struct CellStore{T}
-    buf::Vector{T}
+    buffer::Vector{T}
 end
 
 """
@@ -41,12 +41,12 @@ _cell_key(::Type{L}) where {L} = Symbol(sprint(show, L; context = :module => not
 
 @generated function gather_cell(bundle::StoreBundle, addr::CellAddr{P,K}) where {P,K}
     eltypes = leaf_eltypes(P)
-    binds = [:($(Symbol(:buf, k)) = getfield(bundle.stores, $(QuoteNode(_cell_key(L)))).buf)
+    binds = [:($(Symbol(:buffer, k)) = getfield(bundle.stores, $(QuoteNode(_cell_key(L)))).buffer)
              for (k, L) in enumerate(eltypes)]
     expr = _mreconstruct_expr(P, eltypes, zeros(Int, K))
     quote
         $(Expr(:meta, :inline))
-        offs = addr.offs
+        offsets = addr.offsets
         $(binds...)
         $expr
     end
@@ -54,12 +54,12 @@ end
 
 @generated function scatter_cell!(bundle::StoreBundle, addr::CellAddr{P,K}, v) where {P,K}
     eltypes = leaf_eltypes(P)
-    binds = [:($(Symbol(:buf, k)) = getfield(bundle.stores, $(QuoteNode(_cell_key(L)))).buf)
+    binds = [:($(Symbol(:buffer, k)) = getfield(bundle.stores, $(QuoteNode(_cell_key(L)))).buffer)
              for (k, L) in enumerate(eltypes)]
     block = _mflatten_expr(P, :v, eltypes, zeros(Int, K))
     quote
         $(Expr(:meta, :inline))
-        offs = addr.offs
+        offsets = addr.offsets
         $(binds...)
         $block
         nothing
@@ -89,7 +89,7 @@ end
         return :(throw(DiagnosticError(ConformanceFailure(
             path = path, what = String(what), reason = :field_set, shape = :ports,
             observed_fields = $(collect(Ys)), declared_fields = $(collect(Ns))))))
-    stmts = Expr[]
+    statements = Expr[]
     for (i, port_name) in enumerate(Ns)
         declared = fieldtype(addrs, i).parameters[1]  # the cell's type, CellAddr{P,K}
         observed = fieldtype(y, port_name)
@@ -98,11 +98,11 @@ end
                 path = path, what = String(what), reason = :field_type, shape = :ports,
                 field = $(QuoteNode(port_name)), observed = $observed,
                 declared = $declared, activation = $T))))
-        push!(stmts, :(scatter_cell!(store, addrs[$i], getfield(y, $(QuoteNode(port_name))))))
+        push!(statements, :(scatter_cell!(store, addrs[$i], getfield(y, $(QuoteNode(port_name))))))
     end
     quote
         $(Expr(:meta, :inline))
-        $(stmts...)
+        $(statements...)
         nothing
     end
 end
