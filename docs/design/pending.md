@@ -42,6 +42,13 @@ Where the reason is not given here, the cited decision carries it:
   replay is unpresented (§11.8).
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, the rig; §6.2's spellings) (M-B22).
+- **Naming, the later passes** (`docs/reports/20260923_naming_inventory/README.md`,
+  §5): struct fields that mirror renamed parameters (`Resolved.e/L/v`, the
+  entry structs' `fn`/`outs`/`proj`/`idx`, `RosterEntry.dev`,
+  `DeviceHandle.ctl`); abbreviated function names (`_cviol`, `_tviol`,
+  `_tapviol`, `_rviol`, `_cf_*`, `_dep_*`, `_sup`) and the three-meaning
+  `gather`; the code generators' emitted names with their builders; the
+  `test/` wave, under its own brief once `src/` has landed.
 
 ## Built in a shape the spec's is not
 

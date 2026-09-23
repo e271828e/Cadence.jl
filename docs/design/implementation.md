@@ -137,7 +137,7 @@ every stage brief and the cold review. The rulings behind them are
   and a binding that plays one's part (`T = Tracer{true}`, a `Dual` width
   `N`); the spec's symbols and their derivatives — a symbol followed by a
   digit, a plural `s`, or a suffix or word (`x_offs`, `xbuf`, `mstores`,
-  `y1`, `σs`, `h_r`, `Δtb`, `nx`, `t_seg`, `h′`), never a bare letter that
+  `y1`, `σs`, `h_r`, `Δtb`, `n_x`, `t_seg`, `h′`), never a bare letter that
   spells no symbol (`n_ok`); a binding whose whole life fits in one glance
   (a lambda parameter, a comprehension variable, a destructuring consumed on
   the next line, any local or parameter of a method under about five lines,
@@ -178,6 +178,11 @@ every stage brief and the cold review. The rulings behind them are
   (`buf`, `off`, `offs`, `stmts`, `_bundle_expr`'s `e`) changes only with
   its builder; a parameter mirroring a struct field keeps the field's
   spelling until the field changes;
+- **words join with underscores** (`port_name`, `claimed_by`, `child_path`);
+  two words never fuse in a local. A spec symbol fuses with the word for
+  what holds it and takes an underscore for a subscript, counts included:
+  `xbuf`, `mstores`, `xnext`; `t_seg`, `h_r`, `y_x`, `n_leaves`, `n_x`,
+  `N_base`. Locals never take camelCase;
 - the suite follows the same rules; the API's keyword names inside calls are
   not locals.
 
