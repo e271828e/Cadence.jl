@@ -236,7 +236,7 @@ function _report_trim!(diags::Vector{Diagnostic})
     throw(DiagnosticError(diags))
 end
 
-_tviol(field::Symbol, reason::Symbol; kw...) =
+_trim_violation(field::Symbol, reason::Symbol; kw...) =
     TrimProblemInvalid(; field = field, reason = reason, kw...)
 
 # `guess`, `lower` and `upper`: NamedTuples, one key set between them, all
@@ -247,13 +247,13 @@ function _check_decisions!(diags::Vector{Diagnostic}, problem::TrimProblem)
     for (name, field_value) in
             ((:guess, problem.guess), (:lower, problem.lower), (:upper, problem.upper))
         field_value isa NamedTuple && continue
-        push!(diags, _tviol(name, :not_a_namedtuple; observed = typeof(field_value)))
+        push!(diags, _trim_violation(name, :not_a_namedtuple; observed = typeof(field_value)))
         named = false
     end
     named || return nothing
     for (name, field_value) in ((:lower, problem.lower), (:upper, problem.upper))
         Set(keys(field_value)) == Set(keys(problem.guess)) ||
-            push!(diags, _tviol(name, :key_set; names = collect(keys(field_value)),
+            push!(diags, _trim_violation(name, :key_set; names = collect(keys(field_value)),
                                expected = collect(keys(problem.guess))))
     end
     for (name, field_value) in
@@ -268,7 +268,7 @@ function _check_decisions!(diags::Vector{Diagnostic}, problem::TrimProblem)
         (haskey(problem.lower, key) && haskey(problem.upper, key) &&
          problem.lower[key] isa Float64 && problem.upper[key] isa Float64) || continue
         problem.lower[key] ≤ problem.upper[key] ||
-            push!(diags, _tviol(:lower, :inverted_box; key = key,
+            push!(diags, _trim_violation(:lower, :inverted_box; key = key,
                                value = problem.lower[key], bound = problem.upper[key]))
     end
     nothing
@@ -282,7 +282,8 @@ end
 # returns `:stalled` at the guess. That is a malformed problem, named here.
 function _check_tolerances!(diags::Vector{Diagnostic}, problem::TrimProblem)
     if !(problem.tolerances isa NamedTuple)
-        push!(diags, _tviol(:tolerances, :not_a_namedtuple; observed = typeof(problem.tolerances)))
+        push!(diags, _trim_violation(:tolerances, :not_a_namedtuple;
+                            observed = typeof(problem.tolerances)))
         return nothing
     end
     _check_floats!(diags, :tolerances, problem.tolerances)
@@ -290,7 +291,7 @@ function _check_tolerances!(diags::Vector{Diagnostic}, problem::TrimProblem)
         tolerance = problem.tolerances[key]
         tolerance isa Float64 || continue   # the type violation is already named above
         (isfinite(tolerance) && tolerance > 0) ||
-            push!(diags, _tviol(:tolerances, :nonpositive_tolerance; key = key,
+            push!(diags, _trim_violation(:tolerances, :nonpositive_tolerance; key = key,
                                value = tolerance))
     end
     nothing
@@ -299,7 +300,7 @@ end
 function _check_floats!(diags::Vector{Diagnostic}, name::Symbol, field_value::NamedTuple)
     bad = Pair{Symbol,Any}[k => typeof(field_value[k]) for k in keys(field_value)
                            if !(field_value[k] isa Float64)]
-    isempty(bad) || push!(diags, _tviol(name, :field_types; bad = bad))
+    isempty(bad) || push!(diags, _trim_violation(name, :field_types; bad = bad))
     nothing
 end
 
@@ -310,7 +311,7 @@ end
 # halves of it.
 function _check_reads!(diags::Vector{Diagnostic}, problem::TrimProblem, build::Build)
     if !(problem.reads isa Reads)
-        push!(diags, _tviol(:reads, :not_a_read_set; observed = typeof(problem.reads)))
+        push!(diags, _trim_violation(:reads, :not_a_read_set; observed = typeof(problem.reads)))
         return nothing
     end
     (reader, read_violations) = _resolve_reads(problem.reads, build, Float64)
@@ -325,13 +326,13 @@ end
 function _check_residuals(r, tolerances::NamedTuple)
     diags = Diagnostic[]
     if !(r isa NamedTuple)
-        push!(diags, _tviol(:residuals, :not_a_namedtuple; observed = typeof(r)))
+        push!(diags, _trim_violation(:residuals, :not_a_namedtuple; observed = typeof(r)))
     else
         Set(keys(r)) == Set(keys(tolerances)) ||
-            push!(diags, _tviol(:residuals, :key_set; names = collect(keys(r)),
+            push!(diags, _trim_violation(:residuals, :key_set; names = collect(keys(r)),
                                expected = collect(keys(tolerances))))
         bad = Pair{Symbol,Any}[k => typeof(r[k]) for k in keys(r) if !(r[k] isa Real)]
-        isempty(bad) || push!(diags, _tviol(:residuals, :field_types; bad = bad))
+        isempty(bad) || push!(diags, _trim_violation(:residuals, :field_types; bad = bad))
     end
     _report_trim!(diags)
 end

@@ -288,7 +288,7 @@ function _check_header!(diags::Vector{Diagnostic}, sim, header::TraceHeader)
     nothing
 end
 
-_dep_diff!(diags::Vector{Diagnostic}, path::String, name::Symbol, expected, found) =
+_deployment_diff!(diags::Vector{Diagnostic}, path::String, name::Symbol, expected, found) =
     expected == found ? nothing :
     push!(diags, ReplayHeaderMismatch(what = :deployment, path = path, name = name,
                                       expected = expected, found = found))
@@ -303,7 +303,7 @@ function _walk_deployment!(diags::Vector{Diagnostic}, recorded::Deployment,
                            target::Deployment)
     for name in (:Δt_base, :h, :N_base, :algorithm, :localization_tol,
                  :localization_budget, :firing_budget)
-        _dep_diff!(diags, "", name, getfield(recorded, name), getfield(target, name))
+        _deployment_diff!(diags, "", name, getfield(recorded, name), getfield(target, name))
     end
     recorded_schedule, target_schedule = recorded.schedule, target.schedule
     # the rows, identified by path: a differing row count or path list is the
@@ -311,11 +311,11 @@ function _walk_deployment!(diags::Vector{Diagnostic}, recorded::Deployment,
     if [r.path for r in recorded_schedule.rows] == [r.path for r in target_schedule.rows]
         for (recorded_row, target_row) in zip(recorded_schedule.rows, target_schedule.rows),
             column in (:anchor, :D, :Φ, :Δt, :rates)
-            _dep_diff!(diags, recorded_row.path, column, getfield(recorded_row, column),
+            _deployment_diff!(diags, recorded_row.path, column, getfield(recorded_row, column),
                        getfield(target_row, column))
         end
     else
-        _dep_diff!(diags, "", :schedule, [r.path for r in recorded_schedule.rows],
+        _deployment_diff!(diags, "", :schedule, [r.path for r in recorded_schedule.rows],
                    [r.path for r in target_schedule.rows])
     end
     if [(scope.path, scope.key) for scope in recorded_schedule.scopes] ==
@@ -323,11 +323,11 @@ function _walk_deployment!(diags::Vector{Diagnostic}, recorded::Deployment,
         for (recorded_scope, target_scope) in
                 zip(recorded_schedule.scopes, target_schedule.scopes),
             column in (:anchor, :D, :Φ)
-            _dep_diff!(diags, recorded_scope.path, Symbol("scope.", column),
+            _deployment_diff!(diags, recorded_scope.path, Symbol("scope.", column),
                        getfield(recorded_scope, column), getfield(target_scope, column))
         end
     else
-        _dep_diff!(diags, "", Symbol("scope.key"),
+        _deployment_diff!(diags, "", Symbol("scope.key"),
                    [string(scope.path, ':', scope.key)
                     for scope in recorded_schedule.scopes],
                    [string(scope.path, ':', scope.key) for scope in target_schedule.scopes])

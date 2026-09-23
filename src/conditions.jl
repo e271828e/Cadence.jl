@@ -408,7 +408,7 @@ _convert(::Type{P}, v) where {P} =
 
 # One `ConditionResolution` off an entry: the leaf coordinates and the
 # origin are the entry's own, and each arm adds what it observed.
-_cviol(entry::CEntry, reason::Symbol; kw...) =
+_condition_violation(entry::CEntry, reason::Symbol; kw...) =
     ConditionResolution(; path = entry.path, store = entry.store, field = entry.field,
                         face = entry.face, reason = reason, origin = entry.origin, kw...)
 
@@ -420,7 +420,7 @@ _cviol(entry::CEntry, reason::Symbol; kw...) =
 function _component(structure::Structure, entry::CEntry, diags::Vector{Diagnostic})
     ci = findfirst(comp_entry -> comp_entry.path == entry.path, structure.components)
     ci === nothing || return ci
-    push!(diags, _cviol(entry, :assembly_path))
+    push!(diags, _condition_violation(entry, :assembly_path))
     nothing
 end
 
@@ -434,18 +434,18 @@ end
 function _root_input(structure::Structure, entry::CEntry, diags::Vector{Diagnostic})
     if isempty(entry.path)
         entry.field in structure.root_inputs && return entry.field
-        push!(diags, _cviol(entry, :unexported_face; candidates = structure.root_inputs))
+        push!(diags, _condition_violation(entry, :unexported_face; candidates = structure.root_inputs))
         return nothing
     end
     row = findfirst(p -> first(p) === (entry.path, entry.field), structure.in_faces)
     if row === nothing
         here = [f for ((p, f), _) in structure.in_faces if p == entry.path]
-        push!(diags, _cviol(entry, :no_input_face; candidates = here))
+        push!(diags, _condition_violation(entry, :no_input_face; candidates = here))
         return nothing
     end
     (producer_path, producer_port) = last(structure.in_faces[row])
     isempty(producer_path) && return producer_port
-    push!(diags, _cviol(entry, :internally_wired;
+    push!(diags, _condition_violation(entry, :internally_wired;
                         producer = (producer_path, producer_port)))
     nothing
 end
@@ -454,7 +454,7 @@ end
 # continuous tier's state and `s` the discrete one's, disjoint by construction
 # (D-195), and `m` is continuous-only (§3.2).
 _no_store(entry::CEntry, tier::Tier) =
-    _cviol(entry, :no_store; tier = Symbol(tier_word(tier)))
+    _condition_violation(entry, :no_store; tier = Symbol(tier_word(tier)))
 
 # An undeclared field, discriminated against the component's other name
 # families: a condition specifies state, modes and root inputs — never outputs,
@@ -465,7 +465,7 @@ function _undeclared(entry::CEntry, comp, tier::Tier, declared::NamedTuple,
            haskey(declared_at(input_types, comp, tier), entry.field) ? :input_face :
            (_declares_workspace(comp, tier) &&
             haskey(_declared_workspace(comp, tier, T), entry.field)) ? :workspace : nothing
-    _cviol(entry, :undeclared_field; candidates = collect(keys(declared)), role = role)
+    _condition_violation(entry, :undeclared_field; candidates = collect(keys(declared)), role = role)
 end
 
 _declared_workspace(comp, tier::Tier, ::Type{T}) where {T} =
@@ -477,7 +477,7 @@ _declared_workspace(comp, tier::Tier, ::Type{T}) where {T} =
 # D-166) or a leaf pinned `Float64` by its own declaration is not one of them —
 # so the value cannot be carried and there is nowhere to put its partials.
 function _unconvertible(entry::CEntry, v, ::Type{P}, ::Type{T}) where {P,T}
-    _cviol(entry, :unconvertible; declared = P, observed = typeof(v), value = v,
+    _condition_violation(entry, :unconvertible; declared = P, observed = typeof(v), value = v,
            activation = _seeded_into_pinned(typeof(v), P, T) ? T : nothing)
 end
 

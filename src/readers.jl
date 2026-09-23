@@ -266,14 +266,14 @@ function _read_component(selector, label::Symbol, structure::Structure,
         return nothing
     ci = findfirst(component -> component.path == selector.path, structure.components)
     ci === nothing || return ci
-    push!(diags, _rviol(label, selector, :assembly_path))
+    push!(diags, _reader_violation(label, selector, :assembly_path))
     nothing
 end
 
 # One `TapResolution` off a selector: the label and the selector as authored are
 # what makes a collected list readable, and the tap set, path and index come off
 # the selector's own kind (§14.10's payload); each arm adds what it observed.
-_rviol(label::Symbol, selector, reason::Symbol; kw...) =
+_reader_violation(label::Symbol, selector, reason::Symbol; kw...) =
     TapResolution(; label = label, selector = _spell(selector), reason = reason,
                   tap = _tap(selector), path = _selpath(selector),
                   index = _selindex(selector), kw...)
@@ -294,18 +294,18 @@ _selindex(::Union{GetInput,GetFace}) = nothing
 function _check_index(selector, label::Symbol, ::Type{P},
                       diags::Vector{Diagnostic}) where {P}
     (selector.i === nothing || !(P <: Real)) && return true
-    push!(diags, _rviol(label, selector, :scalar_index; declared = P))
+    push!(diags, _reader_violation(label, selector, :scalar_index; declared = P))
     false
 end
 
 _undeclared_violation(label::Symbol, selector, declares::Symbol, declared::NamedTuple) =
-    _rviol(label, selector, :undeclared; declares = declares, field = _field(selector),
+    _reader_violation(label, selector, :undeclared; declares = declares, field = _field(selector),
            candidates = collect(keys(declared)))
 
 # The port list in hand is the `Outputs`' row concatenated by `_ports`, a fresh
 # vector the payload is free to hold (D-253).
 _undeclared_violation(label::Symbol, selector, declares::Symbol, declared::Vector{Symbol}) =
-    _rviol(label, selector, :undeclared; declares = declares, field = _field(selector),
+    _reader_violation(label, selector, :undeclared; declares = declares, field = _field(selector),
            candidates = declared)
 
 _field(selector::Union{GetState,GetDeriv}) = selector.field
@@ -334,7 +334,7 @@ function _resolve_selector(selector::GetDeriv, label::Symbol, build::Build,
     ci === nothing && return nothing
     decl, tier = act.decls[ci], build.structure.components[ci].tier
     if tier !== CONTINUOUS
-        push!(diags, _rviol(label, selector, :discrete_deriv; field = selector.field))
+        push!(diags, _reader_violation(label, selector, :discrete_deriv; field = selector.field))
         return nothing
     end
     haskey(decl.x, selector.field) ||
@@ -367,7 +367,7 @@ end
 function _resolve_selector(selector::GetInput, label::Symbol, build::Build,
                            act::Activation, diags::Vector{Diagnostic})
     if !(selector.face in build.structure.root_inputs)
-        push!(diags, _rviol(label, selector, :unknown_root_input; field = selector.face,
+        push!(diags, _reader_violation(label, selector, :unknown_root_input; field = selector.face,
                            candidates = build.structure.root_inputs))
         return nothing
     end
@@ -381,8 +381,9 @@ function _resolve_selector(selector::GetFace, label::Symbol, build::Build,
                       if isempty(face_path)]
     if !(selector.name in exported)
         push!(diags, selector.name in build.structure.root_inputs ?
-                    _rviol(label, selector, :root_input_not_face; field = selector.name) :
-                    _rviol(label, selector, :unknown_output_face; field = selector.name,
+                    _reader_violation(label, selector, :root_input_not_face;
+                           field = selector.name) :
+                    _reader_violation(label, selector, :unknown_output_face; field = selector.name,
                            candidates = exported))
         return nothing
     end

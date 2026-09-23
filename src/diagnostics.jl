@@ -1007,10 +1007,10 @@ path(d::ConformanceFailure) = d.path
 # The function at fault, with its event where it has one: `what` names the
 # handler and `event` the occurrence it belongs to, and the two compose here
 # rather than at each construction site.
-_cf_what(d::ConformanceFailure) =
+_conformance_what(d::ConformanceFailure) =
     d.event === nothing ? d.what : "event `$(d.event)`'s $(d.what)"
 
-_cf_expect(shape::Symbol) =
+_conformance_expect(shape::Symbol) =
     shape === :ports      ? "must return a NamedTuple of port values" :
     shape === :state      ? "must return a NamedTuple shaped like the state" :
     shape === :init_x     ? "must return a NamedTuple shaped like `init_x`" :
@@ -1018,7 +1018,7 @@ _cf_expect(shape::Symbol) =
     shape === :stores     ? "must return a NamedTuple of the stores it writes" :
     shape === :mode       ? "must be a NamedTuple" :
                         "must return a NamedTuple"
-_cf_section(shape::Symbol) = (shape === :stores || shape === :mode) ? " (§5.2)" : ""
+_conformance_section(shape::Symbol) = (shape === :stores || shape === :mode) ? " (§5.2)" : ""
 
 # §9.5's didactic hint: `0` where a real was declared names the fix outright.
 # Otherwise the D-166 pin hint, as `_pin` renders it everywhere else.
@@ -1032,33 +1032,33 @@ _pin(d::ConformanceFailure) =
 
 function message(d::ConformanceFailure)
     d.reason === :return_type &&
-        return "`$(d.path)`: $(_cf_what(d)) $(_cf_expect(d.shape)), got $(d.observed)" *
-               _cf_section(d.shape)
+        return "`$(d.path)`: $(_conformance_what(d)) $(_conformance_expect(d.shape)), got $(d.observed)" *
+               _conformance_section(d.shape)
     if d.reason === :field_set
         d.shape === :mode &&
-            return "`$(d.path)`: $(_cf_what(d)) writes mode `$(d.field)`, and `init_m` declares " *
+            return "`$(d.path)`: $(_conformance_what(d)) writes mode `$(d.field)`, and `init_m` declares " *
                    "$(_symtuple(d.declared_fields)) — `m` is a names-subset write (§5.2)"
         d.shape === :init_s &&
-            return "`$(d.path)`: $(_cf_what(d)) returns $(d.observed), state store is " *
+            return "`$(d.path)`: $(_conformance_what(d)) returns $(d.observed), state store is " *
                    "$(d.declared) — a discrete successor is the store's own type exactly (§7.3)"
         d.shape === :init_x &&
-            return "`$(d.path)`: $(_cf_what(d)) returns fields $(_symtuple(d.observed_fields)), " *
+            return "`$(d.path)`: $(_conformance_what(d)) returns fields $(_symtuple(d.observed_fields)), " *
                    "state has $(_symtuple(d.declared_fields)) — derivative completeness is " *
                    "structural (§7.1)"
-        return "`$(d.path)`: $(_cf_what(d)) returns fields $(_symtuple(d.observed_fields)), " *
+        return "`$(d.path)`: $(_conformance_what(d)) returns fields $(_symtuple(d.observed_fields)), " *
                "state has $(_symtuple(d.declared_fields)) — a state write-back is complete " *
                "against the field set (§9.3, §9.5)"
     end
     d.shape === :ports &&
-        return "`$(d.path)`: $(_cf_what(d)) returns `$(d.field)`::$(d.observed), " *
+        return "`$(d.path)`: $(_conformance_what(d)) returns `$(d.field)`::$(d.observed), " *
                "declared $(d.declared)" * _pin(d)
     d.shape === :mode &&
-        return "`$(d.path)`: $(_cf_what(d)) mode `$(d.field)` is $(d.observed), declared " *
+        return "`$(d.path)`: $(_conformance_what(d)) mode `$(d.field)` is $(d.observed), declared " *
                "$(d.declared) (§5.2)"
     d.shape === :init_x &&
         return "`$(d.path)`: derivative field `$(d.field)` is $(d.observed), state field " *
                "is $(d.declared)" * _pin(d)
-    "`$(d.path)`: $(_cf_what(d)) field `$(d.field)` is $(d.observed), state field is " *
+    "`$(d.path)`: $(_conformance_what(d)) field `$(d.field)` is $(d.observed), state field is " *
     "$(d.declared)" * _pin(d)
 end
 
@@ -1270,7 +1270,7 @@ end
 # materialization's keyword and the doors' recording keywords validate under
 # `ArgumentInvalid` (D-256, D-261), and their constraint text and section moved
 # with them.
-_dep_constraint(parameter::Symbol) =
+_deployment_constraint(parameter::Symbol) =
     parameter === :algorithm           ? "must be a stepper type — RK4 or Heun" :
     parameter === :firing_budget       ? "must be an integer ≥ 1" :
     parameter === :localization_tol    ? "must be a positive real" :
@@ -1278,7 +1278,7 @@ _dep_constraint(parameter::Symbol) =
     parameter === :h                   ? "must be positive" :
     parameter === :N_base              ? "must be an integer ≥ 1" :
                                  "is outside its constraint"
-_dep_section(parameter::Symbol) =
+_deployment_section(parameter::Symbol) =
     parameter === :algorithm           ? " (§10.2)" :
     parameter === :firing_budget       ? " (§10.6)" :
     (parameter === :localization_tol || parameter === :localization_budget) ? " (§10.4)" :
@@ -1293,7 +1293,7 @@ _dep_section(parameter::Symbol) =
 # per row naming its suppliers. The block indents two spaces, its rows four. An
 # empty pool renders no block.
 const _SUPERSCRIPTS = collect("⁰¹²³⁴⁵⁶⁷⁸⁹")
-_sup(power::Int) = power == 1 ? "" : join(_SUPERSCRIPTS[c - '0' + 1] for c in string(power))
+_superscript(power::Int) = power == 1 ? "" : join(_SUPERSCRIPTS[c - '0' + 1] for c in string(power))
 
 # A supplier's short label: the anchor's declaring key and the entry's kind.
 _grid_label(entry::GridEntry) = "$(entry.key) $(entry.kind)"
@@ -1315,7 +1315,7 @@ function _grid_block(grid::Union{Nothing,GridReport})
         push!(rows, rstrip(row))
     end
     # A whole-second grid has no prime to attribute, so the section is absent.
-    prime_powers = ["$(p.prime)$(_sup(p.power))" for p in grid.primes]
+    prime_powers = ["$(p.prime)$(_superscript(p.power))" for p in grid.primes]
     isempty(prime_powers) ||
         push!(rows, "  primes: $(denominator(grid.admissible)) = " *
                     join(prime_powers, "·"))
@@ -1357,8 +1357,8 @@ function message(d::DeploymentInvalid)
     d.reason === :anchor_offset &&
         return "$(_anchor_label(d.scope, d.key)): offset $(d.value) does not land on the " *
                "base grid at Δt_base = $(d.related) (§9.1)" * _grid_block(d.grid)
-    "`$(d.parameter)` $(_dep_constraint(d.parameter)), got $(d.value)" *
-    _dep_section(d.parameter)
+    "`$(d.parameter)` $(_deployment_constraint(d.parameter)), got $(d.value)" *
+    _deployment_section(d.parameter)
 end
 
 "§9.1, §9.2: the derived grid is finer than the fastest declared work."
@@ -1654,7 +1654,7 @@ _tap_noun(declares) = declares === :output_port ? "output port" : "state field"
 # The tap set and the index come off the selector's own kind, so every arm has
 # them and the shared prefix shows them: which of `x`/`u`/`y` the read addresses
 # is §14.10's payload, and the index is the coordinate the author wrote.
-_tapviol(d, what) =
+_tap_violation(d, what) =
     "the read labeled `$(d.label)` is $(d.selector)" *
     (d.tap === nothing ? "" :
      " (tap `$(d.tap)`" * (d.index === nothing ? "" : ", index $(d.index)") * ")") *
@@ -1662,28 +1662,28 @@ _tapviol(d, what) =
 
 function message(d::TapResolution)
     d.reason === :assembly_path &&
-        return _tapviol(d, "$(_at_path(d.path)) is an assembly — a path selector addresses " *
+        return _tap_violation(d, "$(_at_path(d.path)) is an assembly — a path selector addresses " *
                            "a component's own declarations, and a root-exported face is " *
                            "read with `get_face`")
     d.reason === :scalar_index &&
-        return _tapviol(d, "the leaf it names is declared $(d.declared) — a scalar has no " *
+        return _tap_violation(d, "the leaf it names is declared $(d.declared) — a scalar has no " *
                            "index, and `i` addresses a component of a vector leaf")
     d.reason === :discrete_deriv &&
-        return _tapviol(d, "$(_at_path(d.path)) is a discrete component — a discrete `s` " *
+        return _tap_violation(d, "$(_at_path(d.path)) is a discrete component — a discrete `s` " *
                            "has no derivative, and `ẋ` exists on the continuous tier alone " *
                            "(§7.1, D-195)")
     d.reason === :undeclared &&
-        return _tapviol(d, "$(_at_path(d.path)) declares no $(_tap_noun(d.declares)) " *
+        return _tap_violation(d, "$(_at_path(d.path)) declares no $(_tap_noun(d.declares)) " *
                            "`$(d.field)` — its $(_tap_noun(d.declares)) names are " *
                            "$(_namelist(d.candidates))")
     d.reason === :unknown_root_input &&
-        return _tapviol(d, "`$(d.field)` is no root input face — the root's inputs are " *
+        return _tap_violation(d, "`$(d.field)` is no root input face — the root's inputs are " *
                            "$(_namelist(d.candidates))")
     d.reason === :root_input_not_face &&
-        return _tapviol(d, "`$(d.field)` is a root *input* face — the integration reads " *
+        return _tap_violation(d, "`$(d.field)` is a root *input* face — the integration reads " *
                            "are the root-exported output faces, and a root input is read " *
                            "back with `get_input`")
-    _tapviol(d, "`$(d.field)` is no root-exported output face — the root exports " *
+    _tap_violation(d, "`$(d.field)` is no root-exported output face — the root exports " *
                 "$(_namelist(d.candidates))")
 end
 
