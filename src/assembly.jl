@@ -69,7 +69,6 @@ function classify(path::String, c)
                                      holds_components = _holds_components(c))))
 end
 
-_at(path::String) = isempty(path) ? "the root component" : "`$path`"
 # A producer terminal spelled for a payload string: a component's port, or the
 # root's own input face, whose path is the empty one.
 _terminal(t::Tuple{String,Symbol}) =
@@ -297,7 +296,7 @@ several levels is declared level by level, each assembly speaking of its own
 children alone.
 """
 function resolve_terminal(entry::String, base::String, asm, path::AbstractString,
-                          diags::Vector{Diagnostic}; owner::String = _at(base))
+                          diags::Vector{Diagnostic}; owner::String = _at_path(base))
     segs = String.(split(path, '/'))
     if length(segs) ≤ 1
         push!(diags, PathResolution(entry = entry, spelling = String(path),
@@ -318,7 +317,7 @@ end
 # spends one, and neither is "deeper".
 function _one_level(entry::String, base::String, asm, path::AbstractString,
                     segs::Vector{String}, tail::Int, diags::Vector{Diagnostic};
-                    owner::String = _at(base))
+                    owner::String = _at_path(base))
     kids = children(base, asm)
     j = findfirst(kid -> first(kid) == segs[1], kids)
     j === nothing && length(segs) > 1 + tail &&
@@ -375,7 +374,7 @@ function resolve_authored(entry::String, base::String, level, path::AbstractStri
         # so `classify` only reads back a class it already proved readable.
         if classify(at, here) === PRIMITIVE
             push!(diags, PathResolution(entry = entry, spelling = String(path),
-                                       reason = :unknown_child, owner = _at(at),
+                                       reason = :unknown_child, owner = _at_path(at),
                                        segment = segs[i]))
             return nothing
         end
@@ -388,7 +387,7 @@ function resolve_authored(entry::String, base::String, level, path::AbstractStri
             (j = findfirst(kid -> first(kid) == segs[i] * "/" * segs[i + 1], kids))
         if j === nothing
             push!(diags, PathResolution(entry = entry, spelling = String(path),
-                                       reason = :unknown_child, owner = _at(at),
+                                       reason = :unknown_child, owner = _at_path(at),
                                        segment = segs[i],
                                        candidates = String[first(k) for k in kids]))
             return nothing
@@ -397,7 +396,7 @@ function resolve_authored(entry::String, base::String, level, path::AbstractStri
         i += count(==('/'), seg) + 1            # a matched pair consumes two segments
         if i ≤ length(segs) && !_held_concretely(here, fields[j])
             push!(diags, PathResolution(entry = entry, spelling = String(path),
-                                       reason = :past_generic, owner = _at(at),
+                                       reason = :past_generic, owner = _at_path(at),
                                        segment = seg, level = _join(at, seg),
                                        declared = _declared_holding(here, fields[j])))
             return nothing
@@ -1160,7 +1159,7 @@ function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
 end
 
 _entry(method::String, path::String, pair::Pair) =
-    "$method at $(_at(path)), entry `$(repr(first(pair))) => $(repr(last(pair)))`"
+    "$method at $(_at_path(path)), entry `$(repr(first(pair))) => $(repr(last(pair)))`"
 
 # Every input takes exactly one connection, and the rule spans levels (§6.1): an
 # input fed both by a sibling wire and by an ancestor's route — or handed up while

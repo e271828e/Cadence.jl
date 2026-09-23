@@ -62,9 +62,8 @@ path(::Diagnostic) = ""
 # without one fails loudly at its first rendering rather than printing a stub.
 
 # --- the shared renderings ----------------------------------------------------
-# The framework's own spellings, lifted out of the sites so the kinds can
-# render without them: `_at`'s path decoration (assembly.jl), `_names`' list-in-hand
-# (conditions.jl) and `_facelist`'s face set (dataplane.jl).
+# The framework's own spellings, shared so every rendering spells a component
+# path, a name list and a face set the same way.
 
 _at_path(p::AbstractString) = isempty(p) ? "the root component" : "`$p`"
 _namelist(ns) = isempty(ns) ? "none" : join(("`$n`" for n in ns), ", ")

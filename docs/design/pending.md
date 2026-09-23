@@ -40,11 +40,6 @@ Where the reason is not given here, the cited decision carries it:
   every-component `Dual` sweep, so D-166's CI policy is one fixture; the
   once-per-frame `ReplayDiscardedStaging` noise from a live device during
   replay is unpresented (§11.8).
-- **`_at` and `_at_path` are the same function twice**, owed to the code's
-  reader rather than the spec: `assembly.jl:72`'s `_at(path::String)` and
-  `diagnostics.jl:69`'s `_at_path(p::AbstractString)` render a component
-  path identically. Fold the first into the second; its six callers are
-  `assembly.jl:300, 321, 378, 391, 400, 1163`.
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, the rig; §6.2's spellings) — a
   migration-phase deliverable by the spec's word, deferred with §16 (M-B22).
