@@ -176,7 +176,7 @@ may still read a complete final world. The author's loop obligation is to
 check it between blocking points (§11.6).
 
 Every handle primitive that a loop pass touches — this one, `latest`,
-`stage!`, `wait_next_snapshot`, `gather_reads`, `report!` — stores the liveness
+`stage!`, `wait_next_snapshot`, `gather`, `report!` — stores the liveness
 heartbeat on its way through (§11.8, §12.2): the framework observes activity
 without owning the loop body, and there is no separate liveness channel to
 remember to feed.
@@ -234,18 +234,18 @@ function stage!(handle::DeviceHandle, writes::Pair...)
 end
 
 """
-    gather_reads(handle, snapshot)
+    gather(handle, snapshot)
 
 The output side's read (§11.2, §11.6): run the attachment's compiled gather —
 `reads(b)`, resolved at attach — over a snapshot, returning the labeled
 NamedTuple `map_output` receives. The loop idiom is
-`send(dev.socket, map_output(gather_reads(handle, snapshot), binding(handle)))`, on the
+`send(dev.socket, map_output(gather(handle, snapshot), binding(handle)))`, on the
 device's own task, against the snapshot §12.3's wait handed it: the compiled
 addresses read the frozen store, so no name is resolved per datum and nothing
 here touches the running loop. On a handle whose binding declares no output
 side the call is a contract misuse, and throws by name.
 """
-function gather_reads(handle::DeviceHandle, snapshot::Snapshot)
+function gather(handle::DeviceHandle, snapshot::Snapshot)
     _beat!(handle.diag)
     handle.gatherer === nothing && throw(DiagnosticError(
         DeviceContractMismatch(device = handle.who, reason = :no_output_side)))

@@ -379,7 +379,7 @@ function test_devices()
         sim = Simulation(two_root_inputs(); h = 1//10)
         h = attach!(sim, Pad("p"), Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-        diag = carried(@test_throws DiagnosticError{DeviceContractMismatch} gather_reads(h, latest(sim)))
+        diag = carried(@test_throws DiagnosticError{DeviceContractMismatch} gather(h, latest(sim)))
         @test diag.reason === :no_output_side && diag.device == "device 1 (Pad)"
     end
 

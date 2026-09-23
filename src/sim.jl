@@ -1452,7 +1452,7 @@ diagnostic cell and logged once here (§11.6, §11.8, D-250) — the entry's wri
 compiled over it, and the harness writer's surface is recompiled to the
 complement that remains, renormalizing any pending harness batch (§11.4). On
 the output side `reads(new_binding)` is called once, resolved against the build
-and compiled to the one gather `gather_reads(handle, snapshot)` runs (§11.2, §14.4) —
+and compiled to the one gather `gather(handle, snapshot)` runs (§11.2, §14.4) —
 a binding that drifted from its model fails here, not with silent garbage on
 the wire. An output-only binding stakes no claim: its write surface is empty,
 and the harness writer keeps every face.
