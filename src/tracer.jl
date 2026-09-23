@@ -51,16 +51,16 @@ Base.Float64(::Tracer{true}) = throw(Undecidable())
 # Set union. `min`/`max` are here rather than on the deciders below because a
 # saturated `clamp` still reports its argument's set — may-depend semantics.
 for f in (:+, :-, :*, :/, :^, :atan, :hypot, :min, :max, :copysign, :rem, :mod)
-    @eval Base.$f(a::Tracer{S}, b::Tracer{S}) where {S} =
-        Tracer{S}($f(a.val, b.val), a.deps | b.deps)
+    @eval Base.$f(x::Tracer{S}, y::Tracer{S}) where {S} =
+        Tracer{S}($f(x.val, y.val), x.deps | y.deps)
 end
 Base.:^(x::Tracer{S}, n::Integer) where {S} = Tracer{S}(x.val^n, x.deps)
-Base.muladd(a::Tracer{S}, b::Tracer{S}, c::Tracer{S}) where {S} =
-    Tracer{S}(muladd(a.val, b.val, c.val), a.deps | b.deps | c.deps)
+Base.muladd(x::Tracer{S}, y::Tracer{S}, z::Tracer{S}) where {S} =
+    Tracer{S}(muladd(x.val, y.val, z.val), x.deps | y.deps | z.deps)
 Base.clamp(x::Tracer{S}, lo::Real, hi::Real) where {S} =
     min(max(x, Tracer{S}(lo)), Tracer{S}(hi))
-Base.ifelse(b::Bool, x::Tracer{S}, y::Tracer{S}) where {S} =
-    Tracer{S}(ifelse(b, x.val, y.val), x.deps | y.deps)   # branch-free: both sets survive
+Base.ifelse(test::Bool, x::Tracer{S}, y::Tracer{S}) where {S} =
+    Tracer{S}(ifelse(test, x.val, y.val), x.deps | y.deps)   # branch-free: both sets survive
 
 for f in (:-, :abs, :abs2, :sqrt, :cbrt, :exp, :log, :log2, :log10, :sin, :cos, :tan,
           :asin, :acos, :sinh, :cosh, :tanh, :sign, :inv, :floor, :ceil, :round, :trunc,
@@ -82,8 +82,8 @@ end
 # branch. An infinite `p` keeps Base's own walk: `Inf` reaches the union `max`
 # and passes, `-Inf` meets a tainted comparison and refuses (§5.6).
 function Base.hypot(x::Tracer{S}, y::Tracer{S}, z::Tracer{S}...) where {S}
-    t = (x, y, z...)
-    Tracer{S}(hypot(map(v -> v.val, t)...), reduce(|, map(v -> v.deps, t)))
+    operands = (x, y, z...)
+    Tracer{S}(hypot(map(v -> v.val, operands)...), reduce(|, map(v -> v.deps, operands)))
 end
 
 _norm(v, p::Real) = p == 2 ? sqrt(sum(abs2, v)) : sum(x -> abs(x)^p, v)^(1 / p)
@@ -103,9 +103,9 @@ branch on them decides at the probe state in either mode (§5.6's boundaries).
 _decide(S::Bool, deps::UInt64) = (S && !iszero(deps)) ? throw(Undecidable()) : nothing
 
 for f in (:<, :<=, :(==), :isless)
-    @eval function Base.$f(a::Tracer{S}, b::Tracer{S}) where {S}
-        _decide(S, a.deps | b.deps)
-        $f(a.val, b.val)
+    @eval function Base.$f(x::Tracer{S}, y::Tracer{S}) where {S}
+        _decide(S, x.deps | y.deps)
+        $f(x.val, y.val)
     end
 end
 for f in (:iszero, :isnan, :isfinite, :isinf, :signbit)
@@ -161,43 +161,45 @@ _sample(rng, ::Type{T}, v, bit::UInt64) where {T} =
 
 """The union of the tags a value's `Tracer` leaves carry; a `Float64` port has none (D-166)."""
 function _depset(v)
-    s = UInt64(0)
-    for l in _leaf_values(v)
-        l isa Tracer && (s |= l.deps)
+    deps = UInt64(0)
+    for leaf in _leaf_values(v)
+        leaf isa Tracer && (deps |= leaf.deps)
     end
-    s
+    deps
 end
 
 # --- the per-member trace ------------------------------------------------------
 
 """
 One member's evaluation (§5.6): `output_direct` once, in isolation, at the
-probe point. The in-cluster faces of `fs` are seeded with their tags, every
+probe point. The in-cluster faces of `faces` are seeded with their tags, every
 other bundle field untagged — only inputs are seeded, so a branch on state,
 modes, parameters or time never interferes (§5.6's boundaries). Returns
-`port => the union of the tags the port's leaves carry`, over `qs`.
+`port => the union of the tags the port's leaves carry`, over `ports`.
 
 With an `rng` this is one sampled evaluation instead: the state and the seeded
 faces carry redrawn primals, everything else the probe point's own values.
 """
-function _trace_direct(ci::Int, dT::Decls, fs::Vector{Symbol}, tf::Vector{Bool},
-                       qs::Vector{Symbol}, structure::Structure,
+function _trace_direct(ci::Int, traced_decl::Decls, faces::Vector{Symbol},
+                       face_traceable::Vector{Bool}, ports::Vector{Symbol}, structure::Structure,
                        decls::Vector{Decls}, stage1::Vector, mstores::Vector,
-                       products::Vector{NamedTuple}, inscc::Set{Int}, ::Type{T};
+                       products::Vector{NamedTuple}, cluster_set::Set{Int}, ::Type{T};
                        rng = nothing) where {T}
-    c, dc = structure.components[ci].instance, decls[ci]
-    u = NamedTuple{tuple(keys(dc.ins)...)}(tuple(
-        (_seed(ci, face, fs, tf, structure, products, inscc, T, rng)
-         for face in keys(dc.ins))...))
+    comp, decl = structure.components[ci].instance, decls[ci]
+    u = NamedTuple{tuple(keys(decl.ins)...)}(tuple(
+        (_seed(ci, face, faces, face_traceable, structure, products, cluster_set, T, rng)
+         for face in keys(decl.ins))...))
     # The nominal `x` carries `Float64` leaves, which the sampled walk redraws;
-    # `dT.x` is the declared one, already at `T`.
-    d = rng === nothing ? dT :
-        Decls(_sample(rng, T, dc.x, UInt64(0)), dT.s, dT.ins, dT.outs)
-    bn = bundle_names(output_direct, c, CONTINUOUS, tuple(keys(stage1[ci])...))
-    ws = _declares_workspace(c, CONTINUOUS) ? init_workspace(c, T) : nothing
-    y2 = output_direct(c, _bundle_values(bn, d, u, _lift(T, stage1[ci]), T;
-                                         ws = ws, m = mstores[ci], Δt = 1.0))
-    Dict{Symbol,UInt64}(q => _depset(y2[q]) for q in qs)
+    # `traced_decl.x` is the declared one, already at `T`.
+    evaluation_decl = rng === nothing ? traced_decl :
+        Decls(_sample(rng, T, decl.x, UInt64(0)), traced_decl.s, traced_decl.ins,
+             traced_decl.outs)
+    bundle_fields = bundle_names(output_direct, comp, CONTINUOUS, tuple(keys(stage1[ci])...))
+    workspace = _declares_workspace(comp, CONTINUOUS) ? init_workspace(comp, T) : nothing
+    y2 = output_direct(comp, _bundle_values(bundle_fields, evaluation_decl, u,
+                                         _lift(T, stage1[ci]), T;
+                                         ws = workspace, m = mstores[ci], Δt = 1.0))
+    Dict{Symbol,UInt64}(q => _depset(y2[q]) for q in ports)
 end
 
 """
@@ -208,19 +210,19 @@ in-cycle faces redrawn for each, the map their union — so a face routed on any
 sampled path counts as routed, and only a branch none of the eight took is
 missed. The seed is per member, so the verdict is reproducible.
 """
-function _trace_sampled(ci::Int, fs::Vector{Symbol}, tf::Vector{Bool}, qs::Vector{Symbol},
-                        structure::Structure, decls::Vector{Decls},
+function _trace_sampled(ci::Int, faces::Vector{Symbol}, face_traceable::Vector{Bool},
+                        ports::Vector{Symbol}, structure::Structure, decls::Vector{Decls},
                         stage1::Vector, mstores::Vector, products::Vector{NamedTuple},
-                        inscc::Set{Int})
+                        cluster_set::Set{Int})
     T = Tracer{false}
-    dT = declarations(structure.components[ci].instance, CONTINUOUS, T)
+    traced_decl = declarations(structure.components[ci].instance, CONTINUOUS, T)
     rng = Xoshiro(0)
-    routes = Dict{Symbol,UInt64}(q => UInt64(0) for q in qs)
+    routes = Dict{Symbol,UInt64}(q => UInt64(0) for q in ports)
     for _ in 1:8
-        r = _trace_direct(ci, dT, fs, tf, qs, structure, decls, stage1, mstores,
-                          products, inscc, T; rng = rng)
-        for q in qs
-            routes[q] |= r[q]
+        sample_routes = _trace_direct(ci, traced_decl, faces, face_traceable, ports, structure,
+                          decls, stage1, mstores, products, cluster_set, T; rng = rng)
+        for q in ports
+            routes[q] |= sample_routes[q]
         end
     end
     routes
@@ -235,41 +237,43 @@ untagged too, there being no product to read. Only the in-cluster face's seed
 is redrawn under an `rng`; everything the trace reads from outside the cluster
 stays at the probe point.
 """
-function _seed(ci::Int, face::Symbol, fs::Vector{Symbol}, tf::Vector{Bool}, structure::Structure,
-               products::Vector{NamedTuple}, inscc::Set{Int},
+function _seed(ci::Int, face::Symbol, faces::Vector{Symbol}, face_traceable::Vector{Bool},
+               structure::Structure, products::Vector{NamedTuple}, cluster_set::Set{Int},
                ::Type{T}, rng) where {T}
     conns = structure.components[ci].conns
-    (ppath, pport) = last(conns[findfirst(p -> first(p) === face, conns)])
-    if isempty(ppath)
-        k = findfirst(==(pport), structure.root_inputs)
+    (producer_path, producer_port) = last(conns[findfirst(p -> first(p) === face, conns)])
+    if isempty(producer_path)
+        k = findfirst(==(producer_port), structure.root_inputs)
         return probe_value(retype(T, structure.root_types[k]))
     end
-    pi = index_of(structure, ppath)
-    producer = structure.components[pi]
-    declared() = probe_value(declarations(producer.instance, producer.tier, T).outs[pport])
-    j = pi in inscc ? findfirst(==(face), fs) : nothing
+    producer_ci = index_of(structure, producer_path)
+    producer = structure.components[producer_ci]
+    declared() =
+        probe_value(declarations(producer.instance, producer.tier, T).outs[producer_port])
+    j = producer_ci in cluster_set ? findfirst(==(face), faces) : nothing
     if j !== nothing
-        bit = tf[j] ? UInt64(1) << (j - 1) : UInt64(0)
+        bit = face_traceable[j] ? UInt64(1) << (j - 1) : UInt64(0)
         return rng === nothing ? _tag(T, declared(), bit) : _sample(rng, T, declared(), bit)
     end
-    haskey(products[pi], pport) ? _lift(T, products[pi][pport]) : declared()
+    haskey(products[producer_ci], producer_port) ?
+        _lift(T, products[producer_ci][producer_port]) : declared()
 end
 
 # --- the verdict ---------------------------------------------------------------
 
 """
-§5.6's classification, D-245's verdict. Returns `d` carrying `classification`,
-`dead` and `traced`, or `d` unchanged when any member's evaluation threw —
+§5.6's classification, D-245's verdict. Returns `cycle` carrying `classification`,
+`dead` and `traced`, or `cycle` unchanged when any member's evaluation threw —
 classification is a bonus on the cycle error, never its precondition.
 
-`scc` is the cluster in `d.members` order and `placed` Kahn's partial schedule,
+`scc` is the cluster in `cycle.members` order and `placed` Kahn's partial schedule,
 whose components are the acyclic prefix the out-of-cycle faces read from. The
 whole body runs under one `try`: an `InternalInvariant` is a framework bug and
 is rethrown, and everything else ships the cluster unclassified. An
 `Undecidable` is not "everything else": it is the global tracer's own refusal,
 and the member falls back to the sampled trace below.
 """
-function _classify(d::AlgebraicCycle, scc::Vector{Int}, edges, placed::Vector{Int},
+function _classify(cycle::AlgebraicCycle, scc::Vector{Int}, edges, placed::Vector{Int},
                    structure::Structure, decls::Vector{Decls}, stage1::Vector,
                    mstores::Vector)
     T = Tracer{true}
@@ -277,64 +281,66 @@ function _classify(d::AlgebraicCycle, scc::Vector{Int}, edges, placed::Vector{In
         # The acyclic prefix's probe products, at the nominal scalar: the same
         # chain `probe_stage2` runs, stopped where Kahn stopped.
         layout = cell_layout(structure, decls, Float64)
-        wss = _workspaces(structure, Float64)
+        workspaces = _workspaces(structure, Float64)
         products = NamedTuple[s1 for s1 in stage1]
         for ci in placed
             _probe_direct!(products, ci, structure, decls, stage1, layout,
-                           wss, mstores, Float64)
+                           workspaces, mstores, Float64)
         end
 
-        inscc = Set(scc)
-        faces = [Symbol[] for _ in scc]         # entering faces, in `decls` order
-        ports = [Symbol[] for _ in scc]         # leaving ports, in `decls` order
+        cluster_set = Set(scc)
+        member_faces = [Symbol[] for _ in scc]         # entering faces, in `decls` order
+        member_ports = [Symbol[] for _ in scc]         # leaving ports, in `decls` order
         alive = [Set{Tuple{Symbol,Symbol}}() for _ in scc]
-        modes = Symbol[]
+        trace_modes = Symbol[]
         dead = Tuple{String,Symbol,Symbol}[]
 
         for (i, ci) in enumerate(scc)
-            dc = decls[ci]
-            fs = Symbol[f for f in keys(dc.ins)
-                        if any(e -> e[3] === f && e[1] in inscc, edges[ci])]
-            qs = Symbol[q for q in keys(dc.outs)
-                        if any(cj -> any(e -> e[1] == ci && e[2] === q, edges[cj]), scc)]
-            faces[i], ports[i] = fs, qs
+            decl = decls[ci]
+            faces = Symbol[face for face in keys(decl.ins)
+                        if any(edge -> edge[3] === face && edge[1] in cluster_set, edges[ci])]
+            ports = Symbol[q for q in keys(decl.outs)
+                        if any(cj -> any(edge -> edge[1] == ci && edge[2] === q, edges[cj]),
+                               scc)]
+            member_faces[i], member_ports[i] = faces, ports
 
             # A discrete member's pinned declarations admit no tracer scalar, and
             # neither does a continuous face or port declared with no walking leaf
             # (§5.6, D-245). Beyond 64 faces the bitmask runs out.
-            dT = structure.components[ci].tier === CONTINUOUS && length(fs) ≤ 64 ?
+            traced_decl = structure.components[ci].tier === CONTINUOUS && length(faces) ≤ 64 ?
                  declarations(structure.components[ci].instance, CONTINUOUS, T) : nothing
-            tf = dT === nothing ? falses(length(fs)) :
-                 Bool[T in leaf_types(dT.ins[f]) for f in fs]
-            tq = dT === nothing ? falses(length(qs)) :
-                 Bool[T in leaf_types(dT.outs[q]) for q in qs]
+            face_traceable = traced_decl === nothing ? falses(length(faces)) :
+                 Bool[T in leaf_types(traced_decl.ins[face]) for face in faces]
+            port_traceable = traced_decl === nothing ? falses(length(ports)) :
+                 Bool[T in leaf_types(traced_decl.outs[q]) for q in ports]
 
-            if !any(tf) || !any(tq)             # no traceable hop: structure alone
-                push!(modes, :structural)
-                for f in fs, q in qs
-                    push!(alive[i], (f, q))
+            if !any(face_traceable) || !any(port_traceable)   # no traceable hop: structure alone
+                push!(trace_modes, :structural)
+                for face in faces, port_name in ports
+                    push!(alive[i], (face, port_name))
                 end
                 continue
             end
             # The global tracer is exact in one evaluation and refuses an
             # input-tainted branch; the local one then decides on its primal
             # over sampled states, missing only an untaken branch (§5.6, D-012).
-            routes, mode = try
-                _trace_direct(ci, dT, fs, tf, qs, structure, decls, stage1, mstores,
-                              products, inscc, T), :global
-            catch e
-                e isa Undecidable || rethrow()
-                _trace_sampled(ci, fs, tf, qs, structure, decls, stage1, mstores,
-                               products, inscc), :sampled
+            routes, trace_mode = try
+                _trace_direct(ci, traced_decl, faces, face_traceable, ports, structure, decls,
+                              stage1, mstores, products, cluster_set, T), :global
+            catch err
+                err isa Undecidable || rethrow()
+                _trace_sampled(ci, faces, face_traceable, ports, structure, decls, stage1,
+                               mstores, products, cluster_set), :sampled
             end
-            push!(modes, mode)
+            push!(trace_modes, trace_mode)
             # An untraceable face or port leaves its hops alive; a traced hop the
             # map does not route is dead, and is listed under either verdict (D-245).
-            for (a, f) in enumerate(fs), (b, q) in enumerate(qs)
-                if !tf[a] || !tq[b] || !iszero(routes[q] & (UInt64(1) << (a - 1)))
-                    push!(alive[i], (f, q))
+            for (j, face) in enumerate(faces), (k, port_name) in enumerate(ports)
+                if !face_traceable[j] || !port_traceable[k] ||
+                        !iszero(routes[port_name] & (UInt64(1) << (j - 1)))
+                    push!(alive[i], (face, port_name))
                 else
-                    push!(dead, (d.members[i], f, q))
+                    push!(dead, (cycle.members[i], face, port_name))
                 end
             end
         end
@@ -343,41 +349,43 @@ function _classify(d::AlgebraicCycle, scc::Vector{Int}, edges, placed::Vector{In
         # a member's surviving hops the edges inside it. Real iff a cycle
         # survives it (D-245).
         node = Dict{Tuple{Int,Bool,Symbol},Int}()
-        adj = Vector{Int}[]
-        id!(k) = get!(node, k) do
-            push!(adj, Int[])
-            length(adj)
+        adjacency = Vector{Int}[]
+        node_id!(endpoint) = get!(node, endpoint) do
+            push!(adjacency, Int[])
+            length(adjacency)
         end
-        for i in eachindex(scc), f in faces[i], q in ports[i]
-            (f, q) in alive[i] && push!(adj[id!((i, true, f))], id!((i, false, q)))
+        for i in eachindex(scc), face in member_faces[i], port_name in member_ports[i]
+            (face, port_name) in alive[i] &&
+                push!(adjacency[node_id!((i, true, face))], node_id!((i, false, port_name)))
         end
-        for (i, ci) in enumerate(scc), (pi, pport, face) in edges[ci]
-            pi in inscc || continue
-            j = findfirst(==(pi), scc)
-            push!(adj[id!((j, false, pport))], id!((i, true, face)))
+        for (i, ci) in enumerate(scc), (producer_ci, producer_port, face) in edges[ci]
+            producer_ci in cluster_set || continue
+            j = findfirst(==(producer_ci), scc)
+            push!(adjacency[node_id!((j, false, producer_port))], node_id!((i, true, face)))
         end
 
-        AlgebraicCycle(members = d.members, wires = d.wires,
-                       classification = _has_cycle(adj) ? :real : :artificial,
+        AlgebraicCycle(members = cycle.members, wires = cycle.wires,
+                       classification = _has_cycle(adjacency) ? :real : :artificial,
                        dead = dead,
-                       traced = [m => t for (m, t) in zip(d.members, modes)])
-    catch e
-        e isa InternalInvariant && rethrow()
-        d
+                       traced = [member => trace_mode
+                                 for (member, trace_mode) in zip(cycle.members, trace_modes)])
+    catch err
+        err isa InternalInvariant && rethrow()
+        cycle
     end
 end
 
 "Depth-first search for a back edge: white/grey/black, recursive as Tarjan above."
-function _has_cycle(adj::Vector{Vector{Int}})
-    color = zeros(UInt8, length(adj))
-    function grey!(v)
-        color[v] = 0x1
-        for w in adj[v]
-            color[w] == 0x1 && return true
-            color[w] == 0x0 && grey!(w) && return true
+function _has_cycle(adjacency::Vector{Vector{Int}})
+    color = zeros(UInt8, length(adjacency))
+    function grey!(vertex)
+        color[vertex] = 0x1
+        for successor in adjacency[vertex]
+            color[successor] == 0x1 && return true
+            color[successor] == 0x0 && grey!(successor) && return true
         end
-        color[v] = 0x2
+        color[vertex] = 0x2
         false
     end
-    any(v -> color[v] == 0x0 && grey!(v), eachindex(adj))
+    any(v -> color[v] == 0x0 && grey!(v), eachindex(adjacency))
 end
