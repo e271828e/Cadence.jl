@@ -125,32 +125,59 @@ Traps the code does not warn about, each hit more than once while building:
 ## Naming
 
 Rules for locals and parameters, applied to new and touched code and cited by
-every stage brief and the cold review:
+every stage brief and the cold review. The rulings behind them are
+`docs/reports/20260923_naming_inventory/README.md`.
 
 - **a local names what it holds**, with the noun the spec uses for the
   concept (`entry`, `structure`, `deployment`, `tier`, `policy`). Two values
   of one type coexisting are named by role, not type: `producer`/`consumer`,
   `child_path`/`parent_path`;
 - **single letters are reserved** for five uses: loop and comprehension
-  indices (`i`, `j`, `k`, and `ci` for the component index); type parameters;
-  the spec's symbols and their derivatives (`x`, `ẋ`, `s`, `m`, `u`, `y`, `h`,
-  `Δt`, `D`, `Φ`, `σ`, `θ`, `t₀`, `t_seg`, `h′`, `x_offs`, `nx`); a binding
-  whose whole life fits in one glance (a lambda parameter, a comprehension
-  variable, a destructuring consumed on the next line, any local of a method
-  under about five lines); and the sole parameter of a method family
-  dispatching on one type family, fixed once per file (`d` for a diagnostic
-  kind throughout `diagnostics.jl`);
+  indices (`i`, `j`, `k`, and `ci` for the component index); type parameters,
+  and a binding that plays one's part (`T = Tracer{true}`, a `Dual` width
+  `N`); the spec's symbols and their derivatives — a symbol followed by a
+  digit, a plural `s`, or a suffix or word (`x_offs`, `xbuf`, `mstores`,
+  `y1`, `σs`, `h_r`, `Δtb`, `nx`, `t_seg`, `h′`), never a bare letter that
+  spells no symbol (`n_ok`); a binding whose whole life fits in one glance
+  (a lambda parameter, a comprehension variable, a destructuring consumed on
+  the next line, any local or parameter of a method under about five lines,
+  unless the letter breaks one-meaning in its file); and a family letter: a
+  parameter holding a per-kind method family's dispatch value, fixed once
+  per family across every file extending it (`d` for a diagnostic kind, `b`
+  for a binding);
 - **abbreviations are a roster**: `sim`, `exec`, `comp`, `decl`/`decls`,
-  `diags`, `conns`, `addrs`, `ci`. A frequent name earns a place by being
-  added here, never by being coined in place. `diag` in the singular never
-  joins: it shadows `LinearAlgebra.diag`, live in `trim.jl`;
+  `diags`, `conns`, `addr`/`addrs`, `ci`, `act` (activation), `fn` (a
+  declaration, stage, guard or handler passed by value), `io`, `err` (a
+  caught exception, always `catch err`), `dev` (a device; `device` is its
+  id string), `trc` (a trace; `trace` is the API's keyword flag), `op` (a
+  lifecycle payload's operation), `rng`, `kw`, `scc`/`sccs`, and
+  `ins`/`outs` for a `Decls` row's declared faces and ports only. A frequent
+  name earns a place by being added here, never by being coined in place.
+  `diag` in the singular never joins: it shadows `LinearAlgebra.diag`, live
+  in `trim.jl`;
 - **one name, one meaning per file**: `t` is time, never a tier; `T` is the
-  numeric type; `d` is a diagnostic in `diagnostics.jl` and nothing elsewhere;
-- **every method of a function names its parameters alike**;
-- **no local shares a name with a function** defined in the package or
-  reached from Base. Where the natural noun is taken, the local takes a
-  qualifier or a role name. The one exception is `path`: the spec's accessor
-  and its noun for a component path are one concept;
+  numeric type, and a `Type`-valued parameter that is not it takes a noun
+  (`binding_type`); `d` is a diagnostic in the diagnostic families and the
+  decision vector in `trim.jl`, nothing else;
+- **every method of a function names alike the positions that hold the same
+  thing**; a method dispatching on a different type names its parameter by
+  what it holds (`warnings(build)`, `warnings(deployment)`, `warnings(sim)`),
+  and a deliberate contrast (`other` in a misuse method) stands. Operator
+  operands stay `a`, `b`; a Base overload takes Base's `x`, `y`, `z`; a hash
+  seed is `seed`;
+- **no local shares a name with a function** defined in the package, or with
+  a Base function the package calls anywhere in `src/` (`pairs`, `count`,
+  `max`, `values`, `only`, `bind`; a Base name the package never calls, such
+  as `run` or `schedule`, is free). Where the natural noun is taken, the
+  local takes a qualifier or a role name. Two exceptions, `path` and
+  `build`: a spec noun whose function produces the thing the local holds,
+  where no scope holding one calls the function;
+- **out of the rules' reach**: a parameter of a public signature keeps the
+  spec's spelling (`trace`, `log`, `condition`, `reads`, `sep`, `maxiter`,
+  the selectors' `i`); a name the code generators emit and read back
+  (`buf`, `off`, `offs`, `stmts`, `_bundle_expr`'s `e`) changes only with
+  its builder; a parameter mirroring a struct field keeps the field's
+  spelling until the field changes;
 - the suite follows the same rules; the API's keyword names inside calls are
   not locals.
 
