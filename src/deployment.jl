@@ -210,7 +210,7 @@ function bind_schedule(build::Build, h, N_base, Δt_base, diags::Vector{Diagnost
     elseif Δt_base !== nothing
         Δt_r = _exact(:Δt_base, Δt_base, diags)
     elseif h_r !== nothing && n_ok
-        Δt_r = something(N_base, 1) * h_r                 # the default path (§15.4)
+        Δt_r = something(N_base, 1) * h_r                 # the default path (§9.1)
     end
 
     # The harmonic checks and the anchor loop read `h`, `N_base` and `Δt_base` together,

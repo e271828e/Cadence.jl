@@ -3,7 +3,7 @@
 *A companion outline, not normative text. It records how the `FlightPhysics`
 and `FlightApps` packages of Flight.jl move onto this framework, and it is an
 outline rather than a specification. The ground truth is `spec.md`, and the
-case studies of [§15][s15] are the outline's evidence. If this document and the
+case studies of `flight_case_studies.md` are the outline's evidence. If this document and the
 spec ever disagree, the spec wins.*
 
 The table carries one row per item: the item, the disposition recorded for it,
@@ -19,12 +19,12 @@ whose disposition exceeds a cell are expanded below the table.
 | Comparison criteria against FlightCore's demonstrated strengths | three strengths to compare against: zero-alloc stepping, flexibility, interactive operation | [§9.7][s9-7] | — |
 | The component library's starting inventory | — | [§13.7][s13-7] | — |
 | The conventional exported aircraft surface for generic periphery consumers | pose and velocity faces with wrapper types, the periphery-facing half of the `KinData` successor | [§11.2][s11-2] | — |
-| The supervisor seam | three respellings — gain ports and schedulers, mode-transition latches, the gear's reset — the last of which lands on the *library* side | [§15.2][s15-2] | [D-089][d-089], [D-139][d-139] and [D-141][d-141] |
+| The supervisor seam | three respellings — gain ports and schedulers, mode-transition latches, the gear's reset — the last of which lands on the *library* side | [§5.3][s5-3] | [D-089][d-089], [D-139][d-139] and [D-141][d-141] |
 | The steering contract re-factoring | `AbstractSteering` moves from "give me the angle" to `(engaged, ψ_cmd)` | [§5.4][s5-4] | — |
 | Splitting `Strut` | the residual remedy, recorded and not taken | — | — |
 | The state-declaration conversion to the closed vocabulary | each `RQuat` state field becomes its `SVector{4}` backing, each `Ranged` state field a plain scalar | [§7.1][s7-1] | — |
-| *Residual*: the `q_sf` home | aircraft design, so it belongs on this list | [§15.4][s15-4] | — |
-| *Residual*: the engage-boundary write-order check | verify the FCS latch and the GUI input sync-write commute on one boundary — believed order-free, both deriving from the same measurements | [§15.4][s15-4] | — |
+| *Residual*: the `q_sf` home | aircraft design, so it belongs on this list | — | — |
+| *Residual*: the engage-boundary write-order check | verify the FCS latch and the GUI input sync-write commute on one boundary — believed order-free, both deriving from the same measurements | — | — |
 | *Residual*: the C172 AD audit for trim | Interpolations tables (prefer cubic knots), saturation rank-deficiency (LM-tolerated, reported), the gear identically zero airborne | [§14.8][s14-8] | [D-070][d-070] |
 
 **The parametrization pass.** `Ranged` survives at ports and
@@ -46,7 +46,7 @@ side ([§11.2][s11-2]). That surface exports pose and velocity faces with wrappe
 periphery-facing half of the `KinData` successor.
 
 **The supervisor seam.** The supervisor sitting above the compensators
-([§15.2][s15-2]) contributes three respellings. Compensator gains become input
+(section 2 of `flight_case_studies.md`) contributes three respellings. Compensator gains become input
 ports fed by scheduler components (about 7 for the C172X). Every
 mode-transition latch is respelled as a same-tick reset. The gear's
 level-triggered reset becomes an edge event, and that last one lands on the
@@ -94,7 +94,7 @@ on the same axis.
 `ψ_sw = engaged ? ψ_cmd : ψ_v` computed inside `Strut`. That move deletes the
 strut → steering → strut artificial loop that stage-2 conservatism would
 otherwise manufacture. The `VehicleDynamics` instance standing beside it
-([§15.1][s15-1]) needs no such move. It dissolves under the two-stage split
+(section 1 of `flight_case_studies.md`) needs no such move. It dissolves under the two-stage split
 alone.
 
 **Splitting `Strut`.** The residual remedy is to split `Strut`, with its
@@ -119,11 +119,8 @@ projection, never as construction.
 [s13-7]: ../spec.md#137-tooling-consequences-face-routes-and-the-component-library
 [s14-5]: ../spec.md#145-boundary-zero-an-ordinary-boundary-with-authored-incoming-transitions
 [s14-8]: ../spec.md#148-the-trim-service-solver-seam-scratch-stores-commit-and-report
-[s15]: ../spec.md#15-case-studies
-[s15-1]: ../spec.md#151-vehicle-today--this-framework
-[s15-2]: ../spec.md#152-torture-tests-for-the-52-interfaces-pistonengine-and-the-fcs-pid-cascade
-[s15-4]: ../spec.md#154-the-interactive-c172x-demo-the-periphery-under-load
 [s2-1]: ../spec.md#21-events-two-detection-policies
+[s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-execution-order-and-step-boundaries
 [s5-4]: ../spec.md#54-artificial-loops-and-the-escape-hatch
 [s6-2]: ../spec.md#62-aggregation-explicit-summing-junctions
 [s7-1]: ../spec.md#71-continuous-state-structured-immutable-flat-backing

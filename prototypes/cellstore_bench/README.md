@@ -73,7 +73,7 @@ Apple Silicon, Julia 1.12.6, chunk 16, one cold process per point. Raw data in
 - On `Dual8` the *ratio* narrows (3.5× at N = 200) but the shape is the point:
   C2 saturates near 9 s from N ≈ 50 — bounded by chunk-type count, not by model
   size — while C1 keeps climbing. C2's nominal and Dual activations for a
-  C172X-scale model both land in single-digit seconds, which makes §9.7's
+  full-aircraft-scale model both land in single-digit seconds, which makes §9.7's
   mitigation ladder optional rather than load-bearing.
 - **Gate 3** follows: C2's per-entry cost is flat (~7.1 ns nominal, ~48 ns
   Dual); C1's degrades with model size (5.0 → 48.9 ns nominal) as 400+ distinct

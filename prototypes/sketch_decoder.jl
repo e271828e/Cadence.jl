@@ -33,8 +33,8 @@
 #sketch.jl form, now retired) remains expressible without framework support and
 #is the idiom of choice when the factoring earns reuse (§5.2, §9.4).
 #
-#Port types are spelled at their Float64 nominal faces (§13.2). The migration's
-#Tier-1 parametrization pass (§9.2) makes the underlying structs parametric so
+#Port types are spelled at their Float64 nominal faces (§13.2). A Tier-1
+#parametrization pass (§9.2) makes the underlying structs parametric so
 #the activation leaf walk can re-scalar them (Wrench{Float64} → Wrench{Dual});
 #the declarations themselves never mention the activation scalar (v0.20).
 
@@ -256,7 +256,7 @@ exports(::Systems) = (
 
 
 ########################### Vehicle (root) #####################################
-#A parametric child field (sys::S, today's Cessna172X{K, A} shape) is the
+#A parametric child field (sys::S, a vehicle type parametric in its subsystems) is the
 #substitutability idiom (§13.5); concrete here for brevity.
 
 struct Vehicle <: AbstractComponent

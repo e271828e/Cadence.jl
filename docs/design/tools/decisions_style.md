@@ -65,9 +65,10 @@ external tool's behavior (Simulink/MATLAB/Modelica does X; we do Y; because Z).
   `*Superseded position — …:*`.
 - **Divergence.** Only where the text explicitly contrasts an external tool's
   behavior with ours. External precedent cited *in support* of a decision is
-  not divergence — it stays where it is. Ruled 2026-08-14: FlightCore, the
-  predecessor in-house framework, does **not** count as external — contrast
-  with it is lineage (§7.4 territory) and belongs in Rationale.
+  not divergence — it stays where it is. `FlightCore`, the Flight.jl core the
+  framework began as a replacement for (spec §1), does **not** count as an
+  external tool (ruled 2026-08-14). A contrast with it records how the design
+  got here, so it belongs in Rationale.
 
 ## Standing rules
 

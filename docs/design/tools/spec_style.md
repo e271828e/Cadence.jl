@@ -46,7 +46,7 @@ in pedagogy is not.
 - **The wrap target is 80 columns of *rendered* text**, link markup collapsed.
   A source line carrying citations runs longer than 80 and is not a defect:
   `[contract](#g-contract)` is 24 source characters for 8 rendered ones.
-- One standing glossary-link trap: §15.5's "class split" and "two leaf
+- One standing glossary-link trap: §3.4's "class split" and "two leaf
   classes" name the continuous-vs-discrete taxonomy, not the
   primitive-vs-assembly status of `#g-class` — they take no glossary link.
   `check_glossary.jl`'s WHITELIST is the record of anchors adjudicated as
@@ -77,12 +77,14 @@ would destroy the signal. *Why* holds constructive rationale only.
   `decisions.md`, cited as "(D-nnn)". Before deleting an inline
   argument, verify the entry carries it; enrich the entry first if the inline
   version is richer.
-- **Case-study measurements are exempt** (ch. 15, the grounding charter): a
-  torture test's worked comparison — the concrete, measured cost of a losing
-  candidate — is evidence, not litigation, and stays at full resolution.
+- **Worked-example measurements are exempt.** A worked example's comparison
+  (the concrete, measured cost of a losing candidate, as in §11.4's staging
+  example) is evidence, not litigation, and stays at full resolution.
   Verdict-only prose (a sentence whose content is "and therefore X loses")
   still reduces to its entry. Every exempt comparative passage must cite its
-  entry: the log stays the decision of record, the case study its evidence.
+  entry: the log stays the decision of record, the example its evidence. The
+  case studies grounded in Flight.jl live in
+  `companions/flight_case_studies.md`, outside the spec.
 
 ## Content preservation
 
@@ -115,8 +117,8 @@ flag it for discussion instead of guessing.
 
 ## Document structure — settled, not open
 
-The part order is Foundations, Authoring and build, Execution, Failure and
-services, Grounding, with the appendices as back matter. It rests on conceptual
+The part order is Foundations, Authoring and build, Execution, and Failure and
+services, with the appendices as back matter. It rests on conceptual
 dependency — a reader meets how a model is authored before how it executes —
 and deliberately *not* on forward-reference count: measured at the 2026-08-15
 swap, cross-part citation traffic between Authoring and Execution ran 30 one way

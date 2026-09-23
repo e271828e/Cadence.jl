@@ -523,7 +523,7 @@ included), and additionally receive state views ([D-035][d-035]); single computa
 site for derivatives and outputs is the *rewarded* idiom, not an impossibility
 claim.
 
-**Spec.** [§5.3][s5-3], [§7.4][s7-4], [§15.2][s15-2]
+**Spec.** [§5.3][s5-3], [§7.4][s7-4]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -760,7 +760,7 @@ interception); drain by `atomicswap` in attachment order; conflicts resolved by
 slot exclusivity ([D-044][d-044]); levels-never-deltas doctrine; mappings pure, on the
 device task; device-tagged replayable input trace.
 
-**Spec.** [§11.4][s11-4], [§15.3][s15-3]
+**Spec.** [§11.4][s11-4]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -1116,7 +1116,7 @@ guarded addition) — admissible precisely because the log is derived
 (recomputable by replay), so [D-029][d-029]'s anti-decimation argument does not reach
 it; publication and tracing are unaffected.
 
-**Spec.** [§11.2][s11-2], [§11.5][s11-5], [§15.4][s15-4]
+**Spec.** [§11.2][s11-2], [§11.5][s11-5]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -1245,13 +1245,13 @@ changes — a write to a claimed face is `ClaimedFaceEntry` at staging;
 dead); autonomous opportunistic writing does not exist, so cross-writer races
 structurally cannot arise and drain order stays diagnostic.
 
-**Spec.** [§11.3][s11-3], [§11.6][s11-6], [§11.7][s11-7], [§15.4][s15-4]
+**Spec.** [§11.3][s11-3], [§11.6][s11-6], [§11.7][s11-7]
 
 **Rationale.** Recorded only through the rejections below.
 
 **Rejected.**
 - *Cross-device attachment-order precedence as conflict policy:* resolves races
-  the [§15.4][s15-4] cast shows nobody wants — every dual writer is a stream shadowed by
+  the C172X demo's cast (`flight_case_studies.md`) shows nobody wants — every dual writer is a stream shadowed by
   a mirror.
 - *FlightCore-style concurrent multi-device writing of one input:* a bug
   surface, not a feature.
@@ -1278,7 +1278,7 @@ conditioning, mappings, edge logic and pokeability:
 - Edge logic is staged counters plus model-state accumulators.
 - Unexported ports are unpokeable.
 
-**Spec.** [§11.7][s11-7], [§15.4][s15-4]
+**Spec.** [§11.7][s11-7]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -1291,9 +1291,9 @@ conditioning, mappings, edge logic and pokeability:
   deadzoned.
 - *Shaping as per-device mapping code:* aircraft semantics duplicated per
   device — today's demonstrated smell.
-- *Joystick-as-component and root-level `PilotInterface`* ([§15.4][s15-4]): replay
+- *Joystick-as-component and root-level `PilotInterface`* (`flight_case_studies.md`): replay
   same-build, single audit point, no natural home in `World`. Annotation (from
-  [§15.4][s15-4]'s inline treatment, migrated): devices-as-components also duplicates
+  the C172X case study's inline treatment, migrated): devices-as-components also duplicates
   [§12.4][s12-4]'s device lifecycle in component vocabulary and costs the drain its
   standing as the single audit point for external data, while the GUI stays
   irreducibly a staging device so inbound uniformity is unreachable either way
@@ -1534,7 +1534,7 @@ nominal on both tiers, same activation leaf walk as `output_types` ([D-079][d-07
 **Status.** ratified
 
 **Position.** The two-kind taxonomy is upheld under the integrate-and-dump
-challenge ([§15.5][s15-5]): the kinds are time bases, sweep-driven vs. tick-driven, and
+challenge ([§3.4][s3-4]): the kinds are time bases, sweep-driven vs. tick-driven, and
 cross-tier coupling always routes through table cells.
 
 - The idiom is integrate-and-difference: cumulative integrals in `x`,
@@ -1547,7 +1547,7 @@ cross-tier coupling always routes through table cells.
 - Tick-triggered continuous handlers are the recorded, unbuilt escape hatch.
 - Boundary-sampling semantics are promoted to taught contract.
 
-**Spec.** [§3.2][s3-2], [§3.3][s3-3], [§15.5][s15-5]
+**Spec.** [§3.2][s3-2], [§3.3][s3-3], [§3.4][s3-4], [§8.6][s8-6]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -1818,7 +1818,7 @@ integrate: project → sweep (every tick due; discrete stages publish from the
 authored `z`) → events to quiescence → due `g` updates → header capture + first
 snapshot.
 
-- Interval alignment is a taught contract, sibling of [§15.5][s15-5]'s boundary-sampling
+- Interval alignment is a taught contract, sibling of [§8.6][s8-6]'s boundary-sampling
   line: a boundary's update is the *outgoing* transition — `z_{k+1}` from
   `t_k`'s samples — so boundary zero's incoming transitions on both tiers are
   replaced by authorship, and the update at `t₀` is the `t₀` sample's only
@@ -1829,7 +1829,7 @@ snapshot.
   activation — and only the commit runs boundary zero, a guard firing at commit
   replacing today's hand-written trim asserts.
 
-**Spec.** [§10.6][s10-6], [§14.5][s14-5], [§15.2][s15-2], [§15.5][s15-5]
+**Spec.** [§10.6][s10-6], [§14.5][s14-5], [§5.3][s5-3], [§3.4][s3-4], [§8.6][s8-6]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -2037,7 +2037,7 @@ unparametrized type constructor.
 
 **Rejected.**
 - *Split-form sketch files and separate `navsensors.jl`/`imu.md` notes:*
-  retired, content absorbed into [§15.5][s15-5].
+  retired, content absorbed into [§3.4][s3-4] and [§8.6][s8-6].
 - *`init_*` as types + `probe_value` synthesis:* defaults are the [§14.1][s14-1] overlay
   base; the [§14.6][s14-6] probe-value barrier; a per-field two-form protocol,
   [§14.2][s14-2]. The `init_*`-as-types grounds spelled out ([§8.2][s8-2]): the condition
@@ -2506,13 +2506,13 @@ during `step!` through the ordinary [§12.4][s12-4] tail, and `step!` returns th
 
 **Status.** ratified
 
-**Position.** Supervisor idioms ([§15.2][s15-2]): scheduled gains are input ports —
+**Position.** Supervisor idioms ([§5.3][s5-3]): scheduled gains are input ports —
 scheduler components own lookup tables as inert parameters and publish
 per-compensator gain bundles (gain trajectories observable in log/trace/replay,
 dependency visible to the feedthrough graph, linearization holds unseeded gains
 constant).
 
-**Spec.** [§15.2][s15-2], [Appendix A][sA]
+**Spec.** [§5.3][s5-3], [Appendix A][sA]
 
 **Rationale.** One-shot design-time gains = construction-time parameters or
 stopped-sim service outputs; commanded resets are same-tick inputs consumed in
@@ -2778,7 +2778,7 @@ identically spelled.
   schema knows the field — then has nothing to gather from at run time, the
   silent-garbage failure attach validation exists to prevent; `get_deriv` worse
   — `ẋ` is integrator scratch, not boundary-consistent.
-- *Runtime resolution failure:* defers the error [§11.2][s11-2]/[§15.4][s15-4] deliberately moved
+- *Runtime resolution failure:* defers the error [§11.2][s11-2] and the C172X case study (`flight_case_studies.md`) deliberately moved
   to attach.
 - *Snapshots carrying stores to make such bindings resolvable:* [D-038][d-038] stands —
   the source axis enforces it.
@@ -3580,7 +3580,7 @@ with "not to be confused with" clauses on genuine near-collisions
 (class/tier/kind, predicate/condition, prior/baseline, cell/staging cell/store,
 batch/collect, register/recorders, frame/boundary).
 
-**Spec.** [§3][s3], [§11.1][s11-1], [§11.3][s11-3]–[§11.6][s11-6], [§8.1][s8-1], [§8.2][s8-2], [§8.6][s8-6], [§9.1][s9-1], [§13.7][s13-7], [§15.4][s15-4]–[§15.5][s15-5],
+**Spec.** [§3][s3], [§11.1][s11-1], [§11.3][s11-3]–[§11.6][s11-6], [§8.1][s8-1], [§8.2][s8-2], [§8.6][s8-6], [§9.1][s9-1], [§13.7][s13-7], [§3.4][s3-4],
 [Appendix D][sD]
 
 **Rationale.** [§11.1][s11-1] gains the **frame** anchor — one loop iteration (drain,
@@ -3588,7 +3588,7 @@ integrate, boundary sequence, publication), the one central term used
 throughout without a defining home, with kinematic reference frames always
 compounded. Drafting doubled as an audit and closed [D-122][d-122]'s application
 stragglers (component-sense "kind" residue in [§3][s3], [§11.3][s11-3]–[§11.6][s11-6], [§8.2][s8-2]/[§8.6][s8-6],
-[§9.1][s9-1], [§13.7][s13-7], [§15.4][s15-4]–[§15.5][s15-5]; `KindMixed` → `ClassMixed`, completing the
+[§9.1][s9-1], [§13.7][s13-7], [§3.4][s3-4], [§8.6][s8-6], `flight_case_studies.md`; `KindMixed` → `ClassMixed`, completing the
 diagnostic-name half).
 
 **Rejected.**
@@ -3822,12 +3822,12 @@ no settled decision changes, only text brought into line with decisions already
 recorded.
 
 **Spec.** [§5.3][s5-3], [§6.2][s6-2], [§7][s7], [§7.1][s7-1], [§7.5][s7-5], [§11.4][s11-4], [§11.7][s11-7], [§12][s12], [§12.6][s12-6], [§9.5][s9-5], [§13.4][s13-4],
-[§14][s14], [§14.6][s14-6], [§15.4][s15-4], [Appendix B][sB], [§D.3][sD-3], [§D.6][sD-6], [§D.8][sD-8]
+[§14][s14], [§14.6][s14-6], [Appendix B][sB], [§D.3][sD-3], [§D.6][sD-6], [§D.8][sD-8]
 
 **Rationale.** `pending.md`'s GUI panel entry lists orphan display among the settled
 semantics, not the deleted claim-transition policy ([D-047][d-047], [D-106][d-106]); [§11.7][s11-7]'s
 closing constraint bakes port resolution *and* the liveness verdict at run
-start, matching its own mid-text, [§15.4][s15-4] and [§D.6][sD-6]; three [D-122][d-122] stragglers renamed
+start, matching its own mid-text, the C172X case study (`flight_case_studies.md`) and [§D.6][sD-6]; three [D-122][d-122] stragglers renamed
 ([§9.5][s9-5]'s probe-derived *predicate* form, [Appendix B][sB]'s bundle footnote *function
 family*, [Appendix B][sB]'s `Simulation` entry *unattended run*); two [D-121][d-121] slot
 slips reworded ([§14.6][s14-6] "the one initialized datum without declared defaults",
@@ -4426,7 +4426,7 @@ artificial loops; [§8.3][s8-3] and [§4.3][s4-3] are unchanged.
 **Spec.** [§4.3][s4-3], [§5.4][s5-4], [§5.6][s5-6], [§8.3][s8-3]
 
 **Rationale.** (i) The **two-stage split** dissolves most of the class —
-[§15.1][s15-1]'s `VehicleDynamics` instance is the canonical dissolution. (ii)
+the `VehicleDynamics` instance of `flight_case_studies.md` is the canonical dissolution. (ii)
 **Contract re-factoring**, the new middle rung: when [§5.6][s5-6]'s tracer says
 *artificial*, re-examine the cycle's wires before moving any code, because an
 input the neighbor consumes **only in a fallback branch** is the archetypal
@@ -4456,8 +4456,8 @@ narrow the neighbor's contract"), continuous members only as before, and the
 classifier machinery is untouched: it already knows which hop died. [§5.4][s5-4]'s
 "rare" is thereby **earned** rather than asserted — the split is rare *because*
 rungs (i) and (ii) absorb the common shapes. `migration_outline.md` records the strut/steering
-pair as the contract-re-factoring worked instance, beside [§15.1][s15-1]'s dissolving
-`VehicleDynamics`, with the split and its bundle port noted as the residual
+pair as the contract-re-factoring worked instance, beside the dissolving
+`VehicleDynamics` of `flight_case_studies.md`, with the split and its bundle port noted as the residual
 remedy not taken; the `AbstractSteering` contract change is an
 **aircraft-library migration call living in `migration_outline.md`**, not framework vocabulary.
 
@@ -4483,7 +4483,7 @@ remedy not taken; the `AbstractSteering` contract change is an
 
 **Position.** A continuous component's state reset is an event — a new Appendix
 A entry, with the tier asymmetry now taught as a contract: the same-tick reset
-entry is marked explicitly discrete-tier, and [§15.2][s15-2]'s gear sentence is extended
+entry is marked explicitly discrete-tier, and [§5.3][s5-3]'s gear sentence is extended
 to say why. [§3.1][s3-1], [§2.1][s2-1] and [§13.7][s13-7] are unchanged. Even a commanded continuous
 reset — the condition arriving as an ordinary `Bool` input, weight-on-wheels
 being the shipped instance — is spelled as an event whose guard reads that
@@ -4495,7 +4495,7 @@ implemented internally as an ordinary guard/handler event (the [Appendix A][sA]
 contract's worked instance). The gear wires `strut.wow → frc.reset` (the
 touchdown edge).
 
-**Spec.** [§2.1][s2-1], [§3.1][s3-1], [§3.3][s3-3], [§10.6][s10-6], [§8.5][s8-5], [§13.7][s13-7], [§15.2][s15-2], [Appendix A][sA]
+**Spec.** [§2.1][s2-1], [§3.1][s3-1], [§3.3][s3-3], [§10.6][s10-6], [§8.5][s8-5], [§13.7][s13-7], [§5.3][s5-3], [Appendix A][sA]
 
 **Rationale.** The reason is semantic, not stylistic: only the discrete tier's
 update stage is already a jump map (a reset there is merely another value for
@@ -4699,8 +4699,8 @@ keyword arguments (`prefix`, `sep`, `except`, `only`) and semantics are
 unchanged. [§11.6][s11-6]'s `faces(b)` claim-set declaration is deliberately untouched:
 the rename dissolves the overload rather than propagating it, leaving the
 device-binding declaration sole owner of the name. The rename is the first
-application of the four-class naming convention now recorded as the
-exported-name audit's criterion in `pending.md`: (1) declarations (author defines, framework calls) are
+application of the four-class naming convention now recorded in [§8.1][s8-1] as the
+exported-name audit's criterion: (1) declarations (author defines, framework calls) are
 bare nouns or `init_*`/`_types` — `connections`, `exports`, `events`,
 `input_types`, `output_types`, `local_types`, `init_x`/`init_z`/`init_m`,
 `workspace`, `probe_value`, the stages `h_x`/`h_xu`/`h_z`/`h_zu`, `f`, `g`,
@@ -4717,7 +4717,7 @@ declarations, mitigated by being framework-facing rather than daily authoring
 surface) and `workspace` (a declaration whose bare noun reads as an accessor —
 borderline, every rename candidate clunkier, lean keep).
 
-**Spec.** [§11.6][s11-6], [§8.6][s8-6], [§8.8][s8-8], [§9.1][s9-1], [§13.3][s13-3], [§13.7][s13-7], [§14.4][s14-4], [§15.4][s15-4], Appendix
+**Spec.** [§11.6][s11-6], [§8.1][s8-1], [§8.6][s8-6], [§8.8][s8-8], [§9.1][s9-1], [§13.3][s13-3], [§13.7][s13-7], [§14.4][s14-4], Appendix
 B (swept)
 
 **Rationale.** Two ambiguity axes motivated it: the helper wore the declaration
@@ -5945,7 +5945,7 @@ and `Δt` keep their tier-scoped meanings; the per-function closed bundle-name
 sets become per-function-per-tier.
 
 **Spec.** [§3.2][s3-2], [§5.2][s5-2], [§5.3][s5-3], [§7.3][s7-3], [§8.2][s8-2], [§8.7][s8-7], [§9.3][s9-3], [§9.5][s9-5], [§13.7][s13-7], [§14.1][s14-1],
-[§15.2][s15-2], [§15.5][s15-5], [Appendix C][sC] (all companions swept), [Appendix D][sD]
+[§5.3][s5-3], [§3.4][s3-4], [§8.6][s8-6], [Appendix C][sC] (all companions swept), [Appendix D][sD]
 
 **Rationale.** [D-056][d-056] untouched and central — it is what makes the fusion
 safe, a leaf being strictly one tier and no component reading another's state.
@@ -6805,7 +6805,7 @@ operator `z⁻¹`.
   `DeclarationOnWrongTier`'s member set — a discrete leaf declaring `h_x`, or
   a continuous one declaring `h_s`, is statically diagnosable again.
 
-**Spec.** [§3.2][s3-2], [§5.2][s5-2], [§5.3][s5-3], [§7.3][s7-3], [§8.2][s8-2], [§8.7][s8-7], [§9.3][s9-3], [§9.5][s9-5], [§12.5][s12-5], [§13.7][s13-7], [§14.1][s14-1], [§15.2][s15-2], [§15.5][s15-5],
+**Spec.** [§3.2][s3-2], [§5.2][s5-2], [§5.3][s5-3], [§7.3][s7-3], [§8.2][s8-2], [§8.7][s8-7], [§9.3][s9-3], [§9.5][s9-5], [§12.5][s12-5], [§13.7][s13-7], [§14.1][s14-1], [§3.4][s3-4], [§8.6][s8-6],
 [Appendix A][sA], [Appendix B][sB], [Appendix C][sC], [Appendix D][sD] (all companions swept)
 
 **Rationale.** [D-173][d-173] correctly retired `z` but recycled the continuous letter,
@@ -7842,7 +7842,7 @@ mathematical symbols.
 
 **Spec.** [§2.1][s2-1], [§3.2][s3-2], [§4.3][s4-3], [§4.4][s4-4], [§5.2][s5-2], [§5.3][s5-3], [§5.4][s5-4], [§6.2][s6-2], [§7.1][s7-1], [§7.3][s7-3], [§7.4][s7-4],
 [§7.5][s7-5], [§8.1][s8-1], [§8.2][s8-2], [§8.5][s8-5], [§9.3][s9-3], [§9.4][s9-4], [§9.5][s9-5], [§9.7][s9-7], [§10.4][s10-4], [§10.5][s10-5], [§10.6][s10-6], [§12.5][s12-5],
-[§13.4][s13-4], [§13.5][s13-5], [§13.6][s13-6], [§13.7][s13-7], [§14.5][s14-5], [§14.7][s14-7], [§14.8][s14-8], [§14.10][s14-10], [§15.1][s15-1], [§15.2][s15-2], [§15.5][s15-5],
+[§13.4][s13-4], [§13.5][s13-5], [§13.6][s13-6], [§13.7][s13-7], [§14.5][s14-5], [§14.7][s14-7], [§14.8][s14-8], [§14.10][s14-10], [§3.4][s3-4], [§8.6][s8-6],
 [Appendix A][sA], [Appendix B][sB], [Appendix C][sC], [Appendix D][sD]
 
 **Rationale.** On Julia 1.12 a declaration written without `import Cadence: …`
@@ -8777,7 +8777,7 @@ rule 2's word-substitution exception and rule 7's audit. This overturns
   ordinary words.
 
 **Spec.** [§8.1][s8-1], [§8.2][s8-2], [§10.5][s10-5], [§11.2][s11-2], [§11.3][s11-3], [§11.5][s11-5], [§12.6][s12-6], [§12.7][s12-7], [§13.2][s13-2], [§13.3][s13-3], [§13.5][s13-5],
-[§14.4][s14-4], [§14.8][s14-8], [§15.5][s15-5], [Appendix A][sA], [§D.10][sD-10]
+[§14.4][s14-4], [§14.8][s14-8], [§3.4][s3-4], [§8.6][s8-6], [Appendix A][sA], [§D.10][sD-10]
 
 **Rationale.** Four terms failed the cold reader at once. "Register" asked
 for a linguistics sense no technical reader reaches for; a heading such as
@@ -10211,17 +10211,13 @@ compile was the one reason the run had to be built ahead of the plane.
 [s14-7]: spec.md#147-the-trim-problem-namedtuple-decisions-declared-reads-named-residuals
 [s14-8]: spec.md#148-the-trim-service-solver-seam-scratch-stores-commit-and-report
 [s14-9]: spec.md#149-mounting-problems-as-relocatable-values
-[s15-1]: spec.md#151-vehicle-today--this-framework
-[s15-2]: spec.md#152-torture-tests-for-the-52-interfaces-pistonengine-and-the-fcs-pid-cascade
-[s15-3]: spec.md#153-torture-test-for-the-11-staging-shapes-filter-joystick-and-gui
-[s15-4]: spec.md#154-the-interactive-c172x-demo-the-periphery-under-load
-[s15-5]: spec.md#155-the-strapdown-imu-integrate-and-dump-across-the-tier-boundary
 [s2-1]: spec.md#21-events-two-detection-policies
 [s2-2]: spec.md#22-exclusions-deliberate
 [s3]: spec.md#3-component-taxonomy
 [s3-1]: spec.md#31-continuous-component-the-hybrid-primitive
 [s3-2]: spec.md#32-periodic-discrete-component
 [s3-3]: spec.md#33-assembly
+[s3-4]: spec.md#34-why-two-leaf-classes-not-one-hybrid-primitive
 [s4-1]: spec.md#41-immutable-value-semantics
 [s4-2]: spec.md#42-consumers-see-ports-not-stages
 [s4-3]: spec.md#43-table-mechanics-and-port-granularity

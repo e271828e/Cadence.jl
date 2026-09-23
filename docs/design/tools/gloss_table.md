@@ -251,7 +251,7 @@ Appendix D grouping above.
 | value-level constructor | §14.1 |
 | frame | §11.1 |
 | anchor | §9.1 |
-| boundary-detected | §2.2, §10.4, §12.5, §8.2 |
+| boundary-detected | §2.2, §10.4, §12.5, §8.2, §16 |
 | `Δt_base` | §5.5 |
 | due | §9.7 |
 | edge semantics | §10.6, §14.5 |
@@ -287,7 +287,7 @@ Appendix D grouping above.
 | decimation | §11.8 |
 | frame ordinal | §12.7 |
 | what-if replay | §11.5, §12.7 |
-| boundary zero | §10.4, §10.5, §12.4, §12.6, §12.7, §13.4, §14.4, §14.6, §14.8, §14.9, §14.10 |
+| boundary zero | §10.4, §10.5, §12.4, §12.6, §12.7, §13.4, §14.4, §14.6, §14.8, §14.9, §14.10, §16 |
 | capture | §14 |
 | condition | §8.2, §13.3, §13.5, §14.4, §14.5 |
 | mounting | §8.5, §14.4 |

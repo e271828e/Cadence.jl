@@ -387,7 +387,7 @@ concretely typed, those field loads constant-fold in practice; either way it is 
 untouched: discrete entries are *absent* from them at compile time ([§10.5][s10-5]'s static
 split), so the phase machinery adds literally nothing to the RK/localization hot
 path. `Δt` semantics are likewise unchanged: the bundle's `Δt` is still
-`D·Δt_base` — the offset shifts firing instants, never the period — so [§15.2][s15-2]'s
+`D·Δt_base` — the offset shifts firing instants, never the period — so [§5.3][s5-3]'s
 discretized laws and the never-cache-`Δt` rule are unaffected.
 
 ### 5.5 Boundary flavors: one gate, no special cases
@@ -795,7 +795,7 @@ All small, all honest; collected so a future increment can check them off:
 [s13-1]: ../spec.md#131-reporting-policy-collect-the-checks-fail-the-evaluations-fast
 [s14-5]: ../spec.md#145-boundary-zero-an-ordinary-boundary-with-authored-incoming-transitions
 [s14-8]: ../spec.md#148-the-trim-service-solver-seam-scratch-stores-commit-and-report
-[s15-2]: ../spec.md#152-torture-tests-for-the-52-interfaces-pistonengine-and-the-fcs-pid-cascade
+[s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-execution-order-and-step-boundaries
 [s5-6]: ../spec.md#56-diagnostics-feedthrough-tracing
 [s8-7]: ../spec.md#87-rate-scopes
 [s9-1]: ../spec.md#91-the-builds-three-steps
