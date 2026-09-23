@@ -3135,14 +3135,14 @@ blesses. The framework helper, sketched:
 declaration_error(path::AbstractString, why::Symbol)      # e.g. :multiple_selectors
 declaration_error(path::AbstractString, unknown, legal)   # did-you-mean against the legal set
 
-function input_passthrough(asm, child_path::AbstractString;
+function input_passthrough(assembly, child_path::AbstractString;
                      sep::AbstractString = ".",
                      prefix::AbstractString =               # "" → no prefixing
                          replace(child_path, "/" => sep),
                      except::Tuple = (), only::Tuple = (),  # one selector per call
                      select = nothing)                      # predicate over face names
 
-    child = resolve(asm, child_path)      # getfield walk along "/" segments
+    child = resolve(assembly, child_path)      # getfield walk along "/" segments
     names = input_faces(child)            # the leaf's input_types keys,
                                           # entries of input_connections(c) for an assembly
     given = !isempty(except) + !isempty(only) + (select !== nothing)
@@ -8149,14 +8149,14 @@ runtime warnings, in one place, are these.
 The `input_passthrough` sketch ([§8.8][s8-8]) calls two of the primitives below
 without defining them. All three are normative in the forms given here.
 
-- `resolve(asm, path::String) → AbstractComponent` is the getfield walk along
+- `resolve(assembly, path::String) → AbstractComponent` is the getfield walk along
   `/`-segments.
 - `input_faces(c)` / `output_faces(c) → Vector{String}` return the stringified
   keys of a leaf's `input_types` / `output_types` (the key set is
   `T`-independent). For an [assembly](#g-assembly) they return the entries of
   `input_connections(c)` / `output_connections(c)`. Declaration order is
   preserved, which gives deterministic printouts and stable diagnostics.
-- `resolve_terminal(asm, path) → (component, name)` splits off a terminal
+- `resolve_terminal(assembly, path) → (component, name)` splits off a terminal
   path's final segment and resolves the prefix through `resolve`. The split is
   unambiguous because [face](#g-face) names may contain dots but never slashes
   ([§8.6][s8-6]).
@@ -10259,13 +10259,13 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   activation invariants for CI (`ProbeDual` is the public canonical concrete
   probe scalar, [§9.4][s9-4]), and pre-materializes activations so a parallel
   sweep shares a fully immutable `Build` ([§11.1][s11-1], [§9.4][s9-4]).
-- `resolve(asm, path) → AbstractComponent`. The getfield walk along `/`
+- `resolve(assembly, path) → AbstractComponent`. The getfield walk along `/`
   segments. It enforces the one-level rule for wiring ([§6.1][s6-1]) and the
   generic-holding rule for deep reads, at the primitive ([§13.3][s13-3]).
 - `input_faces(c)` / `output_faces(c) → Vector{String}`. Declaration-ordered
   face names ([§13.3][s13-3]).
-- `input_passthrough(asm, path; prefix, sep, except, only, select)` /
-  `output_passthrough(asm, path; prefix, sep, except, only, select)`. The
+- `input_passthrough(assembly, path; prefix, sep, except, only, select)` /
+  `output_passthrough(assembly, path; prefix, sep, except, only, select)`. The
   declaration-site helpers for computed interface connections. `path` names
   an immediate child. `except`, `only` and `select` are exclusive, one per
   call; `select` is a predicate over face names. More than one given is
