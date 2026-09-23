@@ -6,7 +6,7 @@ const D8 = ForwardDiff.Dual{Nothing,Float64,8}
 # the full list — its discrete entries wearing their `Gated` wrapper, unwrapped
 # here — the interior one the continuous entries alone.
 walked(body, variant = :boundary) =
-    [e isa Gated ? e.e : e for c in getfield(body, variant) for e in c.entries]
+    [e isa Gated ? e.entry : e for c in getfield(body, variant) for e in c.entries]
 
 # The gated entries of a body's boundary variant.
 gated(body) = count(e isa Gated for c in body.boundary for e in c.entries)

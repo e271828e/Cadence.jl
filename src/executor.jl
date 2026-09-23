@@ -46,7 +46,7 @@ struct StageEntry{F,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,OA<:NamedTuple,CL,S
     comp::Comp
     inputs::IA      # input face => cell address (the wiring's name binding)
     y1::YA          # own stage-1 port => cell address (`y_x`, `y_s` on the discrete tier)
-    outs::OA        # port this entry writes => cell address
+    outputs::OA        # port this entry writes => cell address
     x_off::Int      # continuous state offset into the flat buffer
     clock::CL
     sstore::SS      # discrete state store, or nothing on the continuous tier
@@ -55,7 +55,7 @@ struct StageEntry{F,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,OA<:NamedTuple,CL,S
     Δt::Float64     # sample period; unused on the continuous tier
     path::String    # the component's path, for the write's diagnostic (§9.5)
     ci::Int         # the schedule index, for the cursor's store (§13.4)
-    fname::Symbol   # `nameof(fn)`, computed once in `compile`: a field read, never a call
+    fn_name::Symbol   # `nameof(fn)`, computed once in `compile`: a field read, never a call
     cursor::ExecutionCursor
 end
 
@@ -86,11 +86,11 @@ struct UpdateEntry{Comp,BN,IA<:NamedTuple,YA<:NamedTuple,CL,SS,WS}
 end
 
 # Outer constructors: only `XT`/`BN` cannot be inferred from the arguments.
-StageEntry{XT,BN}(fn, comp, inputs, y1, outs, x_off, clock, sstore, mstore, ws, Δt,
+StageEntry{XT,BN}(fn, comp, inputs, y1, outputs, x_off, clock, sstore, mstore, ws, Δt,
                   path, ci, cursor) where {XT,BN} =
-    StageEntry{typeof(fn),typeof(comp),XT,BN,typeof(inputs),typeof(y1),typeof(outs),
+    StageEntry{typeof(fn),typeof(comp),XT,BN,typeof(inputs),typeof(y1),typeof(outputs),
                typeof(clock),typeof(sstore),typeof(mstore),typeof(ws)}(
-        fn, comp, inputs, y1, outs, x_off, clock, sstore, mstore, ws, Δt,
+        fn, comp, inputs, y1, outputs, x_off, clock, sstore, mstore, ws, Δt,
         path, ci, nameof(fn), cursor)
 
 RHSEntry{XT,BN}(comp, inputs, y, x_off, clock, mstore, ws, path, ci, cursor) where {XT,BN} =
@@ -149,9 +149,9 @@ end
 end
 
 @inline function run!(entry::StageEntry, store, xbuf, ẋbuf)
-    entry.cursor.comp = entry.ci; entry.cursor.fn = entry.fname     # the dispatch store (§13.4)
+    entry.cursor.comp = entry.ci; entry.cursor.fn = entry.fn_name     # the dispatch store (§13.4)
     y = entry.fn(entry.comp, make_bundle(entry, store, xbuf))
-    scatter_group!(store, entry.outs, y, activation_scalar(entry.clock), entry.path, entry.fname)
+    scatter_group!(store, entry.outputs, y, activation_scalar(entry.clock), entry.path, entry.fn_name)
 end
 
 @inline function run!(entry::RHSEntry{Comp,XT}, store, xbuf, ẋbuf) where {Comp,XT}
@@ -185,9 +185,9 @@ end
 struct EventEntry{G,H,P,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
     guard::G
     handler::H
-    proj::P         # the component's `state_projection`, or nothing
+    projection::P         # the component's `state_projection`, or nothing
     comp::Comp
-    idx::Int        # global event index into the register vectors
+    event_index::Int        # global event index into the register vectors
     inputs::IA
     y::YA           # every own port — guards and handlers read the complete fresh table
     x_off::Int
@@ -200,11 +200,11 @@ struct EventEntry{G,H,P,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
     cursor::ExecutionCursor
 end
 
-EventEntry{XT,BN}(guard, handler, proj, comp, idx, inputs, y, x_off, clock,
+EventEntry{XT,BN}(guard, handler, projection, comp, event_index, inputs, y, x_off, clock,
                   mstore, ws, path, event, ci, cursor) where {XT,BN} =
-    EventEntry{typeof(guard),typeof(handler),typeof(proj),typeof(comp),XT,BN,
+    EventEntry{typeof(guard),typeof(handler),typeof(projection),typeof(comp),XT,BN,
                typeof(inputs),typeof(y),typeof(clock),typeof(mstore),typeof(ws)}(
-        guard, handler, proj, comp, idx, inputs, y, x_off, clock, mstore, ws,
+        guard, handler, projection, comp, event_index, inputs, y, x_off, clock, mstore, ws,
         path, event, ci, cursor)
 
 @generated function make_bundle(e::EventEntry{G,H,P,Comp,XT,BN}, store,
@@ -308,11 +308,11 @@ end
     entry = entries[1]
     entry.cursor.comp = entry.ci; entry.cursor.fn = :guard
     σ = entry.guard(entry.comp, make_bundle(entry, store, xbuf))
-    now[entry.idx] = _holding(σ)
+    now[entry.event_index] = _holding(σ)
     # The numeric sample, for the localization brackets (§10.4). The guard's
     # return type is in the entry's type, so the branch folds per entry: a
     # `Bool` guard never touches the register.
-    σ isa Bool || (σs[entry.idx] = σ)
+    σ isa Bool || (σs[entry.event_index] = σ)
     _guard_walk(Base.tail(entries), store, xbuf, now, σs)
 end
 
@@ -321,7 +321,7 @@ end
 @inline _fire_walk(::Tuple{}, store, xbuf, fire) = nothing
 @inline function _fire_walk(entries::Tuple, store, xbuf, fire)
     entry = entries[1]
-    if fire[entry.idx]
+    if fire[entry.event_index]
         entry.cursor.comp = entry.ci; entry.cursor.fn = :handler
         _latch!(entry, entry.handler(entry.comp, make_bundle(entry, store, xbuf)), xbuf)
         _fire_project!(entry, xbuf)
@@ -380,7 +380,7 @@ _merge_modes!(mstore::Base.RefValue{M}, m, path, what, event) where {M} =
     P === Nothing && return nothing
     entry.cursor.fn = :state_projection # the component is the handler's own
     flatten_state!(xbuf, entry.x_off,
-                   entry.proj(entry.comp, reconstruct(XT, xbuf, entry.x_off)), XT,
+                   entry.projection(entry.comp, reconstruct(XT, xbuf, entry.x_off)), XT,
                    activation_scalar(entry.clock), entry.path, :state_projection, :state, nothing)
     nothing
 end
@@ -407,7 +407,7 @@ _project_body(entry::ProjectEntry, xbuf) = () -> run_project!(entry, xbuf)
 # is arity selection, never a sentinel index failing every gate (D-185).
 
 struct Gated{E}
-    e::E
+    entry::E
     D::Int
     Φ::Int
 end
@@ -438,14 +438,14 @@ const ESTABLISH = Establish()
     # negative pre-first-tick differences, so one subtraction and one remainder
     # are the whole admission test — and "everything with Φ = 0" is this same
     # gate at index 0, implemented by nothing (§10.5).
-    (tick - entry.Φ) % entry.D == 0 && run!(entry.e, store, xbuf, ẋbuf)
+    (tick - entry.Φ) % entry.D == 0 && run!(entry.entry, store, xbuf, ẋbuf)
     nothing
 end
 
 # Establishment admits every gated entry (§14.5, D-205). Dueness at boundary
 # zero governs the `state_update` updates alone.
 @inline run_at!(entry::Gated, store, xbuf, ẋbuf, ::Establish) =
-    (run!(entry.e, store, xbuf, ẋbuf); nothing)
+    (run!(entry.entry, store, xbuf, ẋbuf); nothing)
 
 # --- the walk -----------------------------------------------------------------
 
