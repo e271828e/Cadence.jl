@@ -69,7 +69,7 @@ end
 # `hash` with it as Julia's convention requires.
 Base.:(==)(a::TraceBatch, b::TraceBatch) =
     a.frame == b.frame && a.writer == b.writer && a.entries == b.entries
-Base.hash(b::TraceBatch, h::UInt) = hash(b.entries, hash(b.writer, hash(b.frame, h)))
+Base.hash(b::TraceBatch, seed::UInt) = hash(b.entries, hash(b.writer, hash(b.frame, seed)))
 
 """
 The trace (§11.5, D-255): a fixed header, written once at `init!` and never

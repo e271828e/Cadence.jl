@@ -10,34 +10,34 @@
 # call time, so `stepper.jl` may come later.
 
 # Records and returns `nothing` on its two refusing arms; the call's list carries it.
-_exact(name::Symbol, v::Rational{Int}, diags::Vector{Diagnostic}) = v
-_exact(name::Symbol, v::Integer, diags::Vector{Diagnostic}) = Rational{Int}(v)
-_exact(name::Symbol, v::Period, diags::Vector{Diagnostic}) = v.T
-_exact(name::Symbol, v::AbstractFloat, diags::Vector{Diagnostic}) =
-    (push!(diags, DeploymentInvalid(parameter = name, reason = :inexact, value = v)); nothing)
-_exact(name::Symbol, v, diags::Vector{Diagnostic}) =
+_exact(name::Symbol, value::Rational{Int}, diags::Vector{Diagnostic}) = value
+_exact(name::Symbol, value::Integer, diags::Vector{Diagnostic}) = Rational{Int}(value)
+_exact(name::Symbol, value::Period, diags::Vector{Diagnostic}) = value.T
+_exact(name::Symbol, value::AbstractFloat, diags::Vector{Diagnostic}) =
+    (push!(diags, DeploymentInvalid(parameter = name, reason = :inexact, value = value)); nothing)
+_exact(name::Symbol, value, diags::Vector{Diagnostic}) =
     (push!(diags, DeploymentInvalid(parameter = name, reason = :not_a_quantity,
-                                    value = typeof(v))); nothing)
+                                    value = typeof(value))); nothing)
 
-_as_int(r::Rational) = denominator(r) == 1 ? Int(numerator(r)) : nothing
+_as_int(value::Rational) = denominator(value) == 1 ? Int(numerator(value)) : nothing
 
 # --- the grid attribution (§9.2, D-187) -----------------------------------------
 
 # Trial division: the integers factored here are grid denominators, lcms of a
 # handful of declared ones, so no prime table is worth a dependency.
-function _prime_powers(n::Int)
-    out = Tuple{Int,Int}[]
-    m, q = n, 2
-    while q * q ≤ m
-        if m % q == 0
-            e = 0
-            while m % q == 0; m ÷= q; e += 1 end
-            push!(out, (q, e))
+function _prime_powers(integer::Int)
+    powers = Tuple{Int,Int}[]
+    cofactor, divisor = integer, 2
+    while divisor * divisor ≤ cofactor
+        if cofactor % divisor == 0
+            power = 0
+            while cofactor % divisor == 0; cofactor ÷= divisor; power += 1 end
+            push!(powers, (divisor, power))
         end
-        q += 1
+        divisor += 1
     end
-    m > 1 && push!(out, (m, 1))
-    out
+    cofactor > 1 && push!(powers, (cofactor, 1))
+    powers
 end
 
 """
@@ -51,45 +51,45 @@ already supports. One report per constructor call, computed ahead of the
 the `Deployment` itself read the same substrate.
 """
 function _grid_report(anchors::Vector{Anchor})
-    kinds, values, ks = Symbol[], Rational{Int}[], Int[]
+    entry_kinds, entry_values, anchor_indices = Symbol[], Rational{Int}[], Int[]
     for (k, anchor) in enumerate(anchors)
-        push!(kinds, :period); push!(values, anchor.T); push!(ks, k)
+        push!(entry_kinds, :period); push!(entry_values, anchor.T); push!(anchor_indices, k)
     end
     for (k, anchor) in enumerate(anchors)
         anchor.τ == 0 && continue
-        push!(kinds, :offset); push!(values, anchor.τ); push!(ks, k)
+        push!(entry_kinds, :offset); push!(entry_values, anchor.τ); push!(anchor_indices, k)
     end
-    isempty(values) &&
+    isempty(entry_values) &&
         return GridReport(GridEntry[], nothing,
                           Vector{@NamedTuple{prime::Int, power::Int, suppliers::Vector{Int}}}())
-    adm = reduce(gcd, values)
+    admissible = reduce(gcd, entry_values)
     pool = GridEntry[]
-    for i in eachindex(values)
+    for i in eachindex(entry_values)
         # The empty reduction has no value, so a singleton pool gives factor 1 by
         # convention: with nothing else declared, nothing is refined.
-        g = length(values) == 1 ? adm :
-            reduce(gcd, (values[j] for j in eachindex(values) if j != i))
-        r = _as_int(g / adm)
-        r === nothing &&
-            throw(InternalInvariant("leave-one-out factor $(g / adm) is not an integer: " *
+        partial = length(entry_values) == 1 ? admissible :
+            reduce(gcd, (entry_values[j] for j in eachindex(entry_values) if j != i))
+        factor = _as_int(partial / admissible)
+        factor === nothing &&
+            throw(InternalInvariant("leave-one-out factor $(partial / admissible) is not an integer: " *
                                     "gcd(pool) divides every partial gcd"))
-        alts = Rational{Int}[]
-        if kinds[i] === :offset && r > 1
+        alternatives = Rational{Int}[]
+        if entry_kinds[i] === :offset && factor > 1
             # The grid the rest of the pool supports, and τ's neighbours on it. The
             # fold requires 0 ≤ τ < T (`assembly.jl`), so an upper neighbour reaching
             # the anchor's period is no offset; 0 stays, declaring none being a repair.
-            τ, T = values[i], anchors[ks[i]].T
-            lo = floor(Int, τ / g) * g
-            push!(alts, lo)
-            lo + g < T && push!(alts, lo + g)
+            τ, T = entry_values[i], anchors[anchor_indices[i]].T
+            lower = floor(Int, τ / partial) * partial
+            push!(alternatives, lower)
+            lower + partial < T && push!(alternatives, lower + partial)
         end
-        anchor = anchors[ks[i]]
-        push!(pool, GridEntry(kinds[i], values[i], anchor.scope, anchor.key, r, alts))
+        anchor = anchors[anchor_indices[i]]
+        push!(pool, GridEntry(entry_kinds[i], entry_values[i], anchor.scope, anchor.key, factor, alternatives))
     end
-    primes = [(prime = q, power = e,
-               suppliers = [i for i in eachindex(values) if denominator(values[i]) % q^e == 0])
-              for (q, e) in _prime_powers(denominator(adm))]
-    GridReport(pool, adm, primes)
+    primes = [(prime = prime, power = power,
+               suppliers = [i for i in eachindex(entry_values) if denominator(entry_values[i]) % prime^power == 0])
+              for (prime, power) in _prime_powers(denominator(admissible))]
+    GridReport(pool, admissible, primes)
 end
 
 # --- the typed schedule (§9.2, §10.5, D-254) ------------------------------------
@@ -114,9 +114,9 @@ end
 Base.:(==)(a::ScheduleEntry, b::ScheduleEntry) =
     a.path == b.path && a.anchor == b.anchor && a.D == b.D && a.Φ == b.Φ &&
     a.Δt == b.Δt && a.rates == b.rates
-Base.hash(entry::ScheduleEntry, h::UInt) =
+Base.hash(entry::ScheduleEntry, seed::UInt) =
     hash(entry.rates, hash(entry.Δt, hash(entry.Φ, hash(entry.D,
-        hash(entry.anchor, hash(entry.path, h))))))
+        hash(entry.anchor, hash(entry.path, seed))))))
 
 """
 One rate scope's row (§9.2, §10.5): the assembly an explicit `sample_times` key
@@ -142,16 +142,16 @@ struct Schedule
 end
 
 Base.:(==)(a::Schedule, b::Schedule) = a.rows == b.rows && a.scopes == b.scopes
-Base.hash(schedule::Schedule, h::UInt) = hash(schedule.scopes, hash(schedule.rows, h))
+Base.hash(schedule::Schedule, seed::UInt) = hash(schedule.scopes, hash(schedule.rows, seed))
 
 # The per-component `(D, Φ, Δt)` the executor compiles over, derived from the
 # rows by path at `compile` (§9.2, D-261); a component with no row is the
 # continuous tier's `(1, 0, 0.0)`.
 function _gates(schedule::Schedule, structure::Structure)
-    byrow = Dict(row.path => row for row in schedule.rows)
+    row_by_path = Dict(row.path => row for row in schedule.rows)
     D_c, Φ_c, Δt_c = Int[], Int[], Float64[]
     for entry in structure.components
-        row = get(byrow, entry.path, nothing)
+        row = get(row_by_path, entry.path, nothing)
         push!(D_c, row === nothing ? 1 : row.D)
         push!(Φ_c, row === nothing ? 0 : row.Φ)
         push!(Δt_c, row === nothing ? 0.0 : row.Δt)
@@ -175,15 +175,15 @@ its own; the harmonic resolution and the anchor loop read all three, so they
 run only when all three are sound (D-229).
 """
 function bind_schedule(build::Build, h, N_base, Δt_base, diags::Vector{Diagnostic})
-    k0 = length(diags)
+    count_on_entry = length(diags)
     h === nothing && push!(diags, DeploymentInvalid(parameter = :h, reason = :missing))
     h_r = h === nothing ? nothing : _exact(:h, h, diags)
     if h_r !== nothing && !(h_r > 0)
         push!(diags, DeploymentInvalid(parameter = :h, reason = :range, value = h_r))
         h_r = nothing
     end
-    n_ok = N_base === nothing || (N_base isa Integer && N_base ≥ 1)
-    n_ok || push!(diags, DeploymentInvalid(parameter = :N_base, reason = :range, value = N_base))
+    N_base_sound = N_base === nothing || (N_base isa Integer && N_base ≥ 1)
+    N_base_sound || push!(diags, DeploymentInvalid(parameter = :N_base, reason = :range, value = N_base))
 
     structure = build.structure
     anchors = structure.anchors
@@ -209,23 +209,23 @@ function bind_schedule(build::Build, h, N_base, Δt_base, diags::Vector{Diagnost
         end
     elseif Δt_base !== nothing
         Δt_r = _exact(:Δt_base, Δt_base, diags)
-    elseif h_r !== nothing && n_ok
+    elseif h_r !== nothing && N_base_sound
         Δt_r = something(N_base, 1) * h_r                 # the default path (§9.1)
     end
 
     # The harmonic checks and the anchor loop read `h`, `N_base` and `Δt_base` together,
     # so they run only on a sound value of each (D-229).
-    (length(diags) == k0 && h_r !== nothing && Δt_r !== nothing) || return nothing
+    (length(diags) == count_on_entry && h_r !== nothing && Δt_r !== nothing) || return nothing
 
-    n_i = _as_int(Δt_r / h_r)
-    if n_i === nothing || n_i < 1
+    N_base_resolved = _as_int(Δt_r / h_r)
+    if N_base_resolved === nothing || N_base_resolved < 1
         push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :not_harmonic,
                                        value = Δt_r, related = h_r))
         return nothing
     end
-    if !(N_base === nothing || N_base == n_i)
+    if !(N_base === nothing || N_base == N_base_resolved)
         push!(diags, DeploymentInvalid(parameter = :Δt_base, reason = :disagrees_with_n,
-                                       value = Δt_r, related = N_base, quotient = n_i))
+                                       value = Δt_r, related = N_base, quotient = N_base_resolved))
         return nothing
     end
 
@@ -247,24 +247,24 @@ function bind_schedule(build::Build, h, N_base, Δt_base, diags::Vector{Diagnost
                                           scope = anchor.scope, key = anchor.key, grid = grid))
         push!(Dk, something(D, 1)); push!(Φk, something(Φ, 0))
     end
-    length(diags) == k0 || return nothing
+    length(diags) == count_on_entry || return nothing
 
     # Per component, one multiply-add; the canonical residue 0 ≤ Φ < D survives
     # composition (§10.5), which is what the gate's truncated rem relies on. The
     # rate scopes resolve by the same law, off the timing the fold left them.
     Δtb = Float64(Δt_r)
-    bind(timing::Timing) = (timing.m * Dk[timing.anchor + 1],
+    timing_gates(timing::Timing) = (timing.m * Dk[timing.anchor + 1],
                             Φk[timing.anchor + 1] + timing.c * Dk[timing.anchor + 1])
     rows = ScheduleEntry[]
     for entry in structure.components
         entry.tier === DISCRETE || continue
-        D, Φ = bind(entry.timing)
+        D, Φ = timing_gates(entry.timing)
         # the rates vector itself: the structure is immutable, so no copy
         push!(rows, ScheduleEntry(entry.path, entry.timing.anchor, D, Φ, D * Δtb, entry.rates))
     end
-    scopes = [ScopeEntry(scope.path, scope.key, scope.timing.anchor, bind(scope.timing)...)
+    scopes = [ScopeEntry(scope.path, scope.key, scope.timing.anchor, timing_gates(scope.timing)...)
               for scope in structure.scopes]
-    (h = Float64(h_r), N_base = n_i, Δt_base = Δtb,
+    (h = Float64(h_r), N_base = N_base_resolved, Δt_base = Δtb,
      schedule = Schedule(rows, scopes), grid = grid, derived = derived)
 end
 
@@ -328,7 +328,7 @@ function Deployment(build::Build; h = nothing, N_base = nothing, Δt_base = noth
                     localization_budget = 8)
     # The event parameters and the algorithm validate on their own terms, ahead
     # of the grid; all of it lands in one list and one throw (§9.1, D-229).
-    diags, ws = Diagnostic[], Diagnostic[]
+    diags, raised = Diagnostic[], Diagnostic[]
     algorithm isa Type && algorithm <: AbstractStepper ||
         push!(diags, DeploymentInvalid(parameter = :algorithm, reason = :range, value = algorithm))
     firing_budget isa Integer && firing_budget ≥ 1 ||
@@ -340,32 +340,33 @@ function Deployment(build::Build; h = nothing, N_base = nothing, Δt_base = noth
     bound = bind_schedule(build, h, N_base, Δt_base, diags)
     # One throw per call (§9.1, D-229), carrying the warnings raised so far: the
     # artifact that would have held them never returns (D-250).
-    isempty(diags) || throw(DiagnosticError(diags, ws))
+    isempty(diags) || throw(DiagnosticError(diags, raised))
     # Derivation is the one place refinement happens silently (§9.2, D-187), so it
     # always prints the derived value over the grid block, both attribution forms;
     # a pool where nothing refines says so on the first line. The line is
     # presentation, never a home (§9.1, D-250).
     if bound.derived
-        g = bound.grid
-        @info "Δt_base derived as $(g.admissible) s" *
-              (all(e.factor == 1 for e in g.pool) ? ", no entry refines another" : "") *
-              " (§9.2)" * _grid_block(g)
+        grid = bound.grid
+        @info "Δt_base derived as $(grid.admissible) s" *
+              (all(e.factor == 1 for e in grid.pool) ? ", no entry refines another" : "") *
+              " (§9.2)" * _grid_block(grid)
         # The advisory rides the same path, when the grid is finer than the fastest
-        # declared work. `u == 1` is no information. No user body runs inside this
-        # constructor, so the warning goes straight onto its own list, not through
-        # `_warn!`'s channel.
+        # declared work. `utilization == 1` is no information. No user body runs
+        # inside this constructor, so the warning goes straight onto its own list,
+        # not through `_warn!`'s channel.
         rows = bound.schedule.rows
-        u = isempty(rows) ? 1 : minimum(row.D for row in rows)
-        u > 1 && push!(ws, GridUtilization(Δt_base = g.admissible, utilization = u,
-                                           fastest = rows[findfirst(row -> row.D == u, rows)].path,
-                                           grid = g))
+        utilization = isempty(rows) ? 1 : minimum(row.D for row in rows)
+        utilization > 1 && push!(raised,
+            GridUtilization(Δt_base = grid.admissible, utilization = utilization,
+                            fastest = rows[findfirst(row -> row.D == utilization, rows)].path,
+                            grid = grid))
     end
     deployment = Deployment(build, bound.h, bound.N_base, bound.Δt_base, algorithm,
                             Int(firing_budget), Float64(localization_tol),
-                            Int(localization_budget), bound.schedule, bound.grid, ws)
+                            Int(localization_budget), bound.schedule, bound.grid, raised)
     # The completed constructor carries the record, and logs each warning once at
     # return through the standard backend (Appendix C's `logged`), as `build` does.
-    for warning in ws
+    for warning in raised
         @warn logline(warning)
     end
     deployment
@@ -380,16 +381,16 @@ Base.:(==)(a::Deployment, b::Deployment) =
     a.algorithm === b.algorithm && a.firing_budget == b.firing_budget &&
     a.localization_tol == b.localization_tol &&
     a.localization_budget == b.localization_budget && a.schedule == b.schedule
-Base.hash(d::Deployment, h::UInt) =
-    hash(d.schedule, hash(d.localization_budget, hash(d.localization_tol,
-        hash(d.firing_budget, hash(d.algorithm, hash(d.Δt_base,
-            hash(d.N_base, hash(d.h, h))))))))
+Base.hash(deployment::Deployment, seed::UInt) =
+    hash(deployment.schedule, hash(deployment.localization_budget, hash(deployment.localization_tol,
+        hash(deployment.firing_budget, hash(deployment.algorithm, hash(deployment.Δt_base,
+            hash(deployment.N_base, hash(deployment.h, seed))))))))
 
 """
-    warnings(d::Deployment) → Vector{Diagnostic}
+    warnings(deployment::Deployment) → Vector{Diagnostic}
 
 The warnings the `Deployment` constructor raised (§9.2, D-250). The constructor
 produces an artifact, so its warnings live on it; the log line each one got at
 return is presentation, never the home.
 """
-warnings(d::Deployment) = d.warnings
+warnings(deployment::Deployment) = deployment.warnings
