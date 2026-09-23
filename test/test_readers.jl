@@ -44,7 +44,7 @@ function test_readers()
             init!(sim, readable_condition())
             evaluate!(sim.exec)                     # `ẋ` is integrator scratch: fill it first
             r = _compile_reads(readable_reads(), sim.deployment.build, T)
-            v = gather(r, sim.exec)
+            v = gather_reads(r, sim.exec)
 
             @test keys(v) === (:q, :v, :acc, :q̇, :a, :y, :u, :face)
             @test v.q == SVector{2,T}(0.3, -0.2)     # the whole leaf, out of `xbuf`
@@ -68,10 +68,10 @@ function test_readers()
         init!(sim, readable_condition())
         evaluate!(sim.exec)
         r, ex = _compile_reads(readable_reads(), sim.deployment.build), sim.exec
-        gather(r, ex)
-        @test @ballocated(gather($r, $ex)) == 0
-        @test @inferred(gather(r, ex)) isa NamedTuple
-        @test gather(_compile_reads(reads(), sim.deployment.build), ex) === (;)   # the empty set reads nothing
+        gather_reads(r, ex)
+        @test @ballocated(gather_reads($r, $ex)) == 0
+        @test @inferred(gather_reads(r, ex)) isa NamedTuple
+        @test gather_reads(_compile_reads(reads(), sim.deployment.build), ex) === (;)   # the empty set reads nothing
     end
 
     @testset "resolution collects every violation into one refusal (§14.4, §13.1)" begin
@@ -130,7 +130,7 @@ function test_readers()
         init!(sim, combine(at("inner/plant", fragment(x = (q = SVector(0.3, 0.1),))),
                            fragment(inputs = (ref = 1.0,))))
         evaluate!(sim.exec)
-        @test gather(_compile_reads(deep, sim.deployment.build), sim.exec).q == SVector(0.3, 0.1)
+        @test gather_reads(_compile_reads(deep, sim.deployment.build), sim.exec).q == SVector(0.3, 0.1)
 
         # D-125's own remedy, and the one that survives substitution: the seam
         # publishes a face, which is what the read binds to.
@@ -172,7 +172,7 @@ function test_readers()
         init!(seeded, readable_condition())
         before = world(seeded)
 
-        e = failure(() -> gather(_compile_reads(readable_reads(), nominal.deployment.build), seeded.exec))
+        e = failure(() -> gather_reads(_compile_reads(readable_reads(), nominal.deployment.build), seeded.exec))
         @test e isa InternalInvariant           # not a diagnostic kind, and not a DiagnosticError
         @test occursin("compiled at Float64", e.msg) && occursin("Dual{Nothing, Float64, 8}", e.msg)
         # `InternalInvariant` carries a message and no payload by design (D-215),

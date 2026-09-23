@@ -148,13 +148,13 @@ end
     end
 end
 
-@inline function run!(entry::StageEntry, store, xbuf, ẋbuf)
+@inline function run_entry!(entry::StageEntry, store, xbuf, ẋbuf)
     entry.cursor.comp = entry.ci; entry.cursor.fn = entry.fn_name     # the dispatch store (§13.4)
     y = entry.fn(entry.comp, make_bundle(entry, store, xbuf))
     scatter_group!(store, entry.outputs, y, activation_scalar(entry.clock), entry.path, entry.fn_name)
 end
 
-@inline function run!(entry::RHSEntry{Comp,XT}, store, xbuf, ẋbuf) where {Comp,XT}
+@inline function run_entry!(entry::RHSEntry{Comp,XT}, store, xbuf, ẋbuf) where {Comp,XT}
     entry.cursor.comp = entry.ci; entry.cursor.fn = :state_derivative
     ẋ = state_derivative(entry.comp, make_bundle(entry, store, xbuf))
     flatten_state!(ẋbuf, entry.x_off, ẋ, XT, activation_scalar(entry.clock), entry.path,
@@ -165,7 +165,7 @@ end
 # The jump map: `state_update` reads the fresh table and writes only its own
 # store, which is what makes the update block order-free with disjoint writes
 # (§9.7).
-@inline function run!(entry::UpdateEntry, store, xbuf, ẋbuf)
+@inline function run_entry!(entry::UpdateEntry, store, xbuf, ẋbuf)
     entry.cursor.comp = entry.ci; entry.cursor.fn = :state_update
     _store_successor!(entry.sstore, state_update(entry.comp, make_bundle(entry, store, xbuf)),
                       entry.path, :state_update)
@@ -431,21 +431,21 @@ const ESTABLISH = Establish()
 # one site that reads it, and dispatch there is what separates the two gates.
 # Every caller passes a concrete `Int` or `ESTABLISH`, so each specializes
 # exactly as it did when the annotation was `::Int`.
-@inline run_at!(entry, store, xbuf, ẋbuf, tick) = run!(entry, store, xbuf, ẋbuf)
+@inline run_at!(entry, store, xbuf, ẋbuf, tick) = run_entry!(entry, store, xbuf, ẋbuf)
 
 @inline function run_at!(entry::Gated, store, xbuf, ẋbuf, tick::Int)
     # Under the canonical residue 0 ≤ Φ < D, truncated rem is never 0 on the
     # negative pre-first-tick differences, so one subtraction and one remainder
     # are the whole admission test — and "everything with Φ = 0" is this same
     # gate at index 0, implemented by nothing (§10.5).
-    (tick - entry.Φ) % entry.D == 0 && run!(entry.entry, store, xbuf, ẋbuf)
+    (tick - entry.Φ) % entry.D == 0 && run_entry!(entry.entry, store, xbuf, ẋbuf)
     nothing
 end
 
 # Establishment admits every gated entry (§14.5, D-205). Dueness at boundary
 # zero governs the `state_update` updates alone.
 @inline run_at!(entry::Gated, store, xbuf, ẋbuf, ::Establish) =
-    (run!(entry.entry, store, xbuf, ẋbuf); nothing)
+    (run_entry!(entry.entry, store, xbuf, ẋbuf); nothing)
 
 # --- the walk -----------------------------------------------------------------
 
@@ -461,7 +461,7 @@ end
 
 @inline _walk(::Tuple{}, store, xbuf, ẋbuf) = nothing
 @inline function _walk(entries::Tuple, store, xbuf, ẋbuf)
-    run!(entries[1], store, xbuf, ẋbuf)
+    run_entry!(entries[1], store, xbuf, ẋbuf)
     _walk(Base.tail(entries), store, xbuf, ẋbuf)
 end
 

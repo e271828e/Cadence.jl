@@ -489,13 +489,13 @@ function test_trim()
 
         apply!(ex, plan, tree)
         evaluate!(ex)
-        @test gather(reader, ex).ω̇ isa TD
+        @test gather_reads(reader, ex).ω̇ isa TD
         @test (@ballocated apply!($ex, $plan, $tree)) == 0
-        @test (@ballocated gather($reader, $ex)) == 0
+        @test (@ballocated gather_reads($reader, $ex)) == 0
 
         # And the seeded pass yields value and partials together: one sweep is `r`
         # and the column of `J` beside it (§14.7).
-        v = gather(reader, ex).ω̇
+        v = gather_reads(reader, ex).ω̇
         @test ForwardDiff.value(v) ≈ -PEND_G_L * sin(0.2) + 4.0
         @test ForwardDiff.partials(v, 1) ≈ -PEND_G_L * cos(0.2)
     end

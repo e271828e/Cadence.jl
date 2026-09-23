@@ -380,7 +380,7 @@ function _stop_hit(sim::Simulation, policy::StopPolicy, addrs::Vector{Any})
     isempty(addrs) && return nothing
     snapshot = latest(sim)
     for i in eachindex(addrs)
-        gather(snapshot.store, addrs[i]) === true && return policy.faces[i]
+        gather_cell(snapshot.store, addrs[i]) === true && return policy.faces[i]
     end
     nothing
 end
@@ -947,7 +947,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
         header.m[ci] === nothing || (exec.mstores[ci][] = header.m[ci])
     end
     for (f, v) in header.root_inputs
-        scatter!(exec.store, exec.act.layout.addr[("", f)], v)
+        scatter_cell!(exec.store, exec.act.layout.addr[("", f)], v)
     end
     _open_trajectory!(sim, header.t₀)                # `t₀` is applied, never compared (§12.7)
     # The new run, and substitution (2) with it: the recording goes in at
@@ -1452,7 +1452,7 @@ diagnostic cell and logged once here (§11.6, §11.8, D-250) — the entry's wri
 compiled over it, and the harness writer's surface is recompiled to the
 complement that remains, renormalizing any pending harness batch (§11.4). On
 the output side `reads(new_binding)` is called once, resolved against the build
-and compiled to the one gather `gather(handle, snapshot)` runs (§11.2, §14.4) —
+and compiled to the one gather `gather_reads(handle, snapshot)` runs (§11.2, §14.4) —
 a binding that drifted from its model fails here, not with silent garbage on
 the wire. An output-only binding stakes no claim: its write surface is empty,
 and the harness writer keeps every face.
@@ -1711,7 +1711,7 @@ predicate's alone.
 function publish!(sim::Simulation)
     control = sim.control
     clock = sim.exec.clock
-    snapshot = Snapshot(clock.t, clock.step, clock.boundary, capture(sim.exec.store),
+    snapshot = Snapshot(clock.t, clock.step, clock.boundary, capture_stores(sim.exec.store),
                         sim.exec.act.layout, _status(sim))
     clock.boundary += 1
     @atomic :release sim.plane.published.latest = snapshot
@@ -1824,7 +1824,7 @@ end
 # which resolve to the cells they derive from.
 
 port(sim::Simulation, path::String, name::Symbol) =
-    gather(sim.exec.store, sim.exec.act.layout.addr[(path, name)])
+    gather_cell(sim.exec.store, sim.exec.act.layout.addr[(path, name)])
 
 """
 State at `path`, from whichever home owns it: `x` in the flat buffer on the

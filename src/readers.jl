@@ -178,11 +178,11 @@ _take(value, index::Int) = value[index]
 @inline _read(entry::StoreRead{S,F}, exec::Executor) where {S,F} =
     _take(getfield((exec.sstores[entry.ci]::Base.RefValue{S})[], F), entry.i)
 @inline _read(entry::CellRead, exec::Executor) =
-    _take(gather(exec.store, entry.addr), entry.i)
+    _take(gather_cell(exec.store, entry.addr), entry.i)
 
 """
 One compiled read set (§14.4): the labels as a type parameter, the resolved
-entries as a tuple carrying their leaf types. `gather(reader, executor)` is the
+entries as a tuple carrying their leaf types. `gather_reads(reader, executor)` is the
 gather twin of `apply!` — a stack-only NamedTuple per evaluation, type-stable
 and allocation-free for scalar and `SVector` leaves, which is what lets a
 service's per-iteration read cost nothing beyond the sweep it follows.
@@ -201,10 +201,10 @@ end
 
 Reader{T,L}(entries::E) where {T,L,E<:Tuple} = Reader{T,L,E}(entries)
 
-@inline gather(reader::Reader{T,L}, exec::Executor{T}) where {T,L} =
+@inline gather_reads(reader::Reader{T,L}, exec::Executor{T}) where {T,L} =
     NamedTuple{L}(map(e -> _read(e, exec), reader.entries))
 
-gather(::Reader{T}, ::Executor{S}) where {T,S} = _activation_mismatch("reader", T, S)
+gather_reads(::Reader{T}, ::Executor{S}) where {T,S} = _activation_mismatch("reader", T, S)
 
 # --- resolution (§14.4, §13.1) --------------------------------------------------
 

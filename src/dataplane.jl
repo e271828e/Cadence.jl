@@ -547,7 +547,7 @@ end
 # application, no checks. One specialization per writer, compiled at the
 # stopped-sim point that compiled the writer, whatever the batch touches (D-202).
 @generated function _apply!(store, addrs::Tuple, batch::Batch)
-    stmts = [:(batch.mask[$i] && scatter!(store, addrs[$i], batch.vals[$i]))
+    stmts = [:(batch.mask[$i] && scatter_cell!(store, addrs[$i], batch.vals[$i]))
              for i in 1:fieldcount(fieldtype(batch, :mask))]
     quote
         $(stmts...)
@@ -597,11 +597,11 @@ struct Snapshot{T,S<:StoreBundle}
 end
 
 port(snapshot::Snapshot, path::String, name::Symbol) =
-    gather(snapshot.store, snapshot.layout.addr[(path, name)])
+    gather_cell(snapshot.store, snapshot.layout.addr[(path, name)])
 
 # One boundary's capture: fresh buffers, one allocation per boundary — the
 # framework side of §7.5's scope, which carved publication and logging out.
-capture(bundle::StoreBundle) = StoreBundle(map(cs -> CellStore(copy(cs.buf)), bundle.stores))
+capture_stores(bundle::StoreBundle) = StoreBundle(map(cs -> CellStore(copy(cs.buf)), bundle.stores))
 
 """
 §11.2's `@atomic latest` reference in a mutable object of its own. The plane is

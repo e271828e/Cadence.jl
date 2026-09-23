@@ -39,7 +39,7 @@ end
 # fixes one fully-qualified spelling for every site.
 _cell_key(::Type{L}) where {L} = Symbol(sprint(show, L; context = :module => nothing))
 
-@generated function gather(bundle::StoreBundle, addr::CellAddr{P,K}) where {P,K}
+@generated function gather_cell(bundle::StoreBundle, addr::CellAddr{P,K}) where {P,K}
     eltypes = leaf_eltypes(P)
     binds = [:($(Symbol(:buf, k)) = getfield(bundle.stores, $(QuoteNode(_cell_key(L)))).buf)
              for (k, L) in enumerate(eltypes)]
@@ -52,7 +52,7 @@ _cell_key(::Type{L}) where {L} = Symbol(sprint(show, L; context = :module => not
     end
 end
 
-@generated function scatter!(bundle::StoreBundle, addr::CellAddr{P,K}, v) where {P,K}
+@generated function scatter_cell!(bundle::StoreBundle, addr::CellAddr{P,K}, v) where {P,K}
     eltypes = leaf_eltypes(P)
     binds = [:($(Symbol(:buf, k)) = getfield(bundle.stores, $(QuoteNode(_cell_key(L)))).buf)
              for (k, L) in enumerate(eltypes)]
@@ -71,7 +71,7 @@ end
 # bundle the author destructures.
 
 @generated function gather_group(addrs::NamedTuple{Ns}, store) where {Ns}
-    args = [:(gather(store, addrs[$i])) for i in 1:length(Ns)]
+    args = [:(gather_cell(store, addrs[$i])) for i in 1:length(Ns)]
     quote
         $(Expr(:meta, :inline))
         NamedTuple{$Ns}(($(args...),))
@@ -98,7 +98,7 @@ end
                 path = path, what = String(what), reason = :field_type, shape = :ports,
                 field = $(QuoteNode(port_name)), observed = $observed,
                 declared = $declared, activation = $T))))
-        push!(stmts, :(scatter!(store, addrs[$i], getfield(y, $(QuoteNode(port_name))))))
+        push!(stmts, :(scatter_cell!(store, addrs[$i], getfield(y, $(QuoteNode(port_name))))))
     end
     quote
         $(Expr(:meta, :inline))

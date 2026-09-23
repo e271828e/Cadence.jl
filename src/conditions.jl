@@ -534,7 +534,7 @@ function apply!(exec::Executor{T}, plan::ConditionPlan{T}) where {T}
         (store === :s ? exec.sstores : exec.mstores)[ci][] = v
     end
     for (addr, v) in plan.inputs
-        scatter!(exec.store, addr, v)
+        scatter_cell!(exec.store, addr, v)
     end
     nothing
 end
@@ -624,7 +624,7 @@ StoreWrite{K,S,F}(ci::Int, defaults::S, authored::A) where {K,S,F,A<:Tuple} =
     flatten!(exec.xbuf, w.off, w.authored(tree))
 
 @inline _write!(w::InputWrite, exec::Executor, tree) =
-    scatter!(exec.store, w.addr, w.authored(tree))
+    scatter_cell!(exec.store, w.addr, w.authored(tree))
 
 @inline function _write!(w::StoreWrite{K,S,F}, exec::Executor, tree) where {K,S,F}
     overlay = NamedTuple{F}(map(a -> a(tree), w.authored))
@@ -859,7 +859,7 @@ function capture(sim::Simulation{T}) where {T}
                            init = fragment(; payload...)))
     end
     isempty(structure.root_inputs) || push!(nodes, fragment(inputs =
-        NamedTuple{Tuple(structure.root_inputs)}(Tuple(gather(exec.store,
+        NamedTuple{Tuple(structure.root_inputs)}(Tuple(gather_cell(exec.store,
                                                               act.layout.addr[("", f)])
                                                   for f in structure.root_inputs))))
     (combine(nodes...), exec.clock.t)

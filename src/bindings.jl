@@ -116,7 +116,7 @@ end
 """
 The compiled gather (§11.2, §14.4): one attachment's `reads`, resolved and
 frozen — the labels as a type parameter, the cell addresses as a tuple — so
-`gather(handle, snapshot)` builds its labeled NamedTuple with no name resolved
+`gather_reads(handle, snapshot)` builds its labeled NamedTuple with no name resolved
 per read. The exact mirror of the compiled scatter the drain applies
 (§11.4), run in the other direction over a published snapshot.
 """
@@ -126,7 +126,7 @@ end
 ReadGather{L}(addrs::A) where {L,A<:Tuple} = ReadGather{L,A}(addrs)
 
 _gather(read_gather::ReadGather{L}, snapshot::Snapshot) where {L} =
-    NamedTuple{L}(map(a -> gather(snapshot.store, a), read_gather.addrs))
+    NamedTuple{L}(map(a -> gather_cell(snapshot.store, a), read_gather.addrs))
 
 """
 Resolve one attachment's `reads` against the build and compile the gather —
@@ -213,7 +213,7 @@ end
     map_output(nt, b) -> wire datum
 
 The output side's convention name (§11.6), declared here for the loop idiom —
-`send(dev.socket, map_output(gather(handle, snapshot), binding(handle)))` — and
+`send(dev.socket, map_output(gather_reads(handle, snapshot), binding(handle)))` — and
 never called by the framework: it receives exactly the compiled gather's
 labeled NamedTuple, and what it puts on the wire is the peer's business. An
 output binding defines its own method; the identity one returns the NamedTuple

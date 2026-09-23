@@ -231,7 +231,7 @@ function _capture_header(sim)
     T = eltype(exec.xbuf)      # the deployment's scalar, off the buffer that carries it
     s = Any[st === nothing ? nothing : st[] for st in exec.sstores]
     m = Any[st === nothing ? nothing : st[] for st in exec.mstores]
-    roots = Pair{Symbol,Any}[f => gather(exec.store, layout.addr[("", f)])
+    roots = Pair{Symbol,Any}[f => gather_cell(exec.store, layout.addr[("", f)])
                              for (f, _) in layout.root_inputs]
     TraceHeader{T}(copy(exec.xbuf), s, m, roots, sim.deployment, exec.clock.t₀,
                    _fingerprint(sim))

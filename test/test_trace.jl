@@ -394,7 +394,7 @@ replay_model(k = 4.0) =
 # same thing on both sides. Bit-identity is asserted with `==` — that is the
 # claim (§12.7), D-163's tolerance rule being about numerical agreement.
 snap_cells(s::Snapshot) =
-    Any[gather(s.store, s.layout.addr[k]) for k in sort!(collect(keys(s.layout.addr)))]
+    Any[gather_cell(s.store, s.layout.addr[k]) for k in sort!(collect(keys(s.layout.addr)))]
 
 # Two sessions' logs, boundary for boundary: the `t` stamps and every cell.
 same_trajectory(a, b) =

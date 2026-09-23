@@ -17,7 +17,7 @@ Telemetry() = Telemetry(Any[])
 function loop(d::Telemetry, h)
     while true
         snap = wait_next_snapshot(h)
-        snap === nothing || push!(d.wire, map_output(gather(h, snap), binding(h)))
+        snap === nothing || push!(d.wire, map_output(gather_reads(h, snap), binding(h)))
         running(h) || break
     end
     nothing
@@ -229,7 +229,7 @@ function test_bindings()
         @test last(dev.wire).raw === port(sim, "p", :y)
         @test last(dev.wire).cmd === 2.0
         # The same compiled gather serves the calling task against any snapshot.
-        nt = gather(h, latest(sim))
+        nt = gather_reads(h, latest(sim))
         @test nt === last(dev.wire)
     end
 
@@ -237,7 +237,7 @@ function test_bindings()
         sim = Simulation(two_root_inputs(); h = 1//10)
         h = attach!(sim, Pad("p"), Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-        diag = carried(@test_throws DiagnosticError{DeviceContractMismatch} gather(h, latest(sim)))
+        diag = carried(@test_throws DiagnosticError{DeviceContractMismatch} gather_reads(h, latest(sim)))
         @test diag.reason === :no_output_side
     end
 
@@ -248,7 +248,7 @@ function test_bindings()
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         stage!(h, "a" => 0.4)
         run!(sim; t_end = 0.2)
-        nt = gather(h, latest(sim))                        # the output half: the gather compiled
+        nt = gather_reads(h, latest(sim))                        # the output half: the gather compiled
         @test nt.echo === 0.4                        # the root input read back through get_input
         @test nt.e === port(sim, "s", :e)
     end

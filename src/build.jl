@@ -1446,7 +1446,7 @@ function compile(build::Build, act::Activation{T}, schedule; chunk_size::Int = 1
     end
     # Root inputs hold their synthesized values until a writer replaces them.
     for (face, v) in layout.root_inputs
-        scatter!(store, layout.addr[("", face)], v)
+        scatter_cell!(store, layout.addr[("", face)], v)
     end
 
     frozen(ci) = _frozen(components[ci].tier, T)

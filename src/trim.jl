@@ -415,7 +415,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     apply!(nominal_exec, plan)
     _round!(nominal_exec, ESTABLISH)          # every discrete output stage, due or not
     nominal_exec.bodies.rhs()
-    r0 = problem.residuals(gather(reader, nominal_exec), guess)
+    r0 = problem.residuals(gather_reads(reader, nominal_exec), guess)
     _check_residuals(r0, tolerances)          # the return, observed where §14.7 says
 
     if N == 0
@@ -452,7 +452,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
         decisions = _seeded(decision_names, d, T)
         apply!(seeded_exec, seeded_plan, override(baseline, problem.condition(decisions)))
         evaluate!(seeded_exec)
-        raw = problem.residuals(gather(seeded_reader, seeded_exec), decisions)
+        raw = problem.residuals(gather_reads(seeded_reader, seeded_exec), decisions)
         if !checked[]
             checked[] = true
             _check_residuals(raw, tolerances)
@@ -524,8 +524,8 @@ function _establish_frozen!(seeded_exec::Executor, act::Activation{T},
         _frozen(entry.tier, T) || continue
         path = entry.path
         for name in _ports(build.outputs.components[ci])
-            scatter!(seeded_exec.store, act.layout.addr[(path, name)],
-                     gather(nominal_exec.store, nominal_exec.act.layout.addr[(path, name)]))
+            scatter_cell!(seeded_exec.store, act.layout.addr[(path, name)],
+                     gather_cell(nominal_exec.store, nominal_exec.act.layout.addr[(path, name)]))
         end
     end
     nothing
@@ -584,7 +584,7 @@ function _verdict!(sim::Simulation, problem::TrimProblem, baseline, solution::Na
     # the derivative reads, `ẋbuf` being integrator scratch and this a service
     # evaluation (§7.5, §14.8).
     sim.exec.bodies.rhs()
-    committed = NamedTuple{residual_names}(problem.residuals(gather(reader, sim.exec),
+    committed = NamedTuple{residual_names}(problem.residuals(gather_reads(reader, sim.exec),
                                                              solution))
     off = Tuple{Symbol,Float64,Float64}[(k, Float64(committed[k]), tol[i])
                                         for (i, k) in enumerate(residual_names)

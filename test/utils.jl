@@ -31,7 +31,8 @@ prefixes(::ConditionNode) = String[]
 # is exactly what the drain-equivalence tests need as their reference. Not
 # framework API, and used nowhere else.
 poke!(sim, face, v) =
-    (scatter!(sim.exec.store, sim.exec.act.layout.addr[("", Symbol(face))], v); nothing)
+    (scatter_cell!(sim.exec.store, sim.exec.act.layout.addr[("", Symbol(face))], v);
+     nothing)
 
 # The structure's component paths in walk order, off its rows.
 paths(structure::Structure) = [entry.path for entry in structure.components]

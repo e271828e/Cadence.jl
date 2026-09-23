@@ -97,8 +97,8 @@ ex.bodies.rhs()          # state_derivative block
 
 The zero-argument call on a `PhaseBody` in `executor.jl` walks the interior
 chunk tuple, which `chunked_body` compiled from continuous entries only
-([D-147][d-147]). Each `run!(::StageEntry)` calls the author's stage on a bundle of
-views and scatters the returned ports into the table; each `run!(::RHSEntry)`
+([D-147][d-147]). Each `run_entry!(::StageEntry)` calls the author's stage on a bundle of
+views and scatters the returned ports into the table; each `run_entry!(::RHSEntry)`
 writes the derivative into `ẋbuf`. The controller's output cells are not
 touched at any of the four stages. That is the zero-order hold, by absence
 rather than by a runtime test ([§10.5][s10-5]). On return, `_check_finite!` sweeps `x`
@@ -247,7 +247,7 @@ at `t*`, and every re-sweep of the iteration uses the same due set, since the
 tick index is the boundary's and does not change between rounds.
 
 After quiescence, `bodies.ticks(tick)` walks the update block through the
-same gate. `run!(::UpdateEntry)` computes `state_update` off the settled table
+same gate. `run_entry!(::UpdateEntry)` computes `state_update` off the settled table
 and writes `s[k+1]` into the component's store. Updates run last, so they read
 post-transition values, and they run after the output stages, so the
 sampled-data recursion holds by construction: outputs from `s[k]`, then the

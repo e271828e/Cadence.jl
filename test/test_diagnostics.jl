@@ -104,11 +104,11 @@ function diagnostics_channel()
         sim = Simulation(two_root_inputs(); h = 1//10)
         attach!(sim, Pad("p"), Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)); log = false)
-        publish!(sim); capture(sim.exec.store)               # warm
+        publish!(sim); capture_stores(sim.exec.store)               # warm
         # Nothing scales with diagnostic activity: the store capture's own
         # allocations, the status vector (object and memory), and the snapshot
         # they are frozen into — a fixed shape whatever the roster holds.
-        @test @allocations(publish!(sim)) == @allocations(capture(sim.exec.store)) + 3
+        @test @allocations(publish!(sim)) == @allocations(capture_stores(sim.exec.store)) + 3
         @test length(latest(sim).status.writers) == 3
     end
 
