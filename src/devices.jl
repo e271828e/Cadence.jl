@@ -127,7 +127,7 @@ mutable struct DeviceHandle
     const b::AbstractBinding
     const writer::Writer
     const claimedby::Dict{Symbol,String}        # the plane's exclusivity index, by reference
-    const ctl::Control
+    const control::Control
     const published::Published
     const diag::DiagCell
     const gatherer::Union{Nothing,ReadGather}   # the compiled reads; nothing without an output side
@@ -181,7 +181,7 @@ heartbeat on its way through (§11.8, §12.2): the framework observes activity
 without owning the loop body, and there is no separate liveness channel to
 remember to feed.
 """
-running(handle::DeviceHandle) = (_beat!(handle.diag); !(@atomic handle.ctl.stopped))
+running(handle::DeviceHandle) = (_beat!(handle.diag); !(@atomic handle.control.stopped))
 
 """
     stop!(handle)
@@ -192,7 +192,7 @@ loop observes it at the next frame top, completes that boundary, publishes,
 and enters the tail (§12.4). Idempotent — a second request loses the CAS and
 changes nothing — and inert while already stopped.
 """
-stop!(handle::DeviceHandle) = _request_stop!(handle.ctl, handle.who)
+stop!(handle::DeviceHandle) = _request_stop!(handle.control, handle.who)
 
 """
     binding(handle)
@@ -287,7 +287,7 @@ loop re-checks `running(handle)`, exactly as after any blocking call.
 """
 function wait_next_snapshot(handle::DeviceHandle)
     _beat!(handle.diag)
-    control = handle.ctl
+    control = handle.control
     lock(control.cond)
     try
         while control.counter <= handle.last_seen && !(@atomic control.stopped)
@@ -341,14 +341,14 @@ function _wrap(entry::RosterEntry)
             # stop, raised inside a body that did nothing wrong, is forwarded
             # through the stop word — an earlier issuer keeps it — and never
             # reported as a crash. The abort consult below is inert after it.
-            _request_stop!(entry.handle.ctl, :interrupt)
+            _request_stop!(entry.handle.control, :interrupt)
         else
             # A raise after the sticky stop, from a device overriding `unblock!`,
             # is the one the override provoked — its blocking call returning by
             # throwing — and is shutdown, not a crash (§12.4(3)). A device with
             # no override has nothing to provoke it, so its raise is a crash
             # whenever it lands.
-            unblocked = (@atomic entry.handle.ctl.stopped) && _unblocks(entry.dev)
+            unblocked = (@atomic entry.handle.control.stopped) && _unblocks(entry.dev)
             unblocked || _report!(_handle(entry).diag, DeviceCrash(err, entry.should_abort))
         end
     finally
@@ -395,7 +395,7 @@ end
 # The §12.3 registers are refreshed first, on the calling task.
 function _spawn!(entries::Vector{RosterEntry})
     for entry in entries
-        entry.handle.last_seen = entry.handle.ctl.counter
+        entry.handle.last_seen = entry.handle.control.counter
     end
     [Threads.@spawn _wrap(entry) for entry in entries]
 end
