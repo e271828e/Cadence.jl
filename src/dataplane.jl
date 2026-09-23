@@ -190,7 +190,7 @@ message(d::FiringBudget) =
     "$(d.count) firings — its further edges at this boundary are lost (§10.6)"
 message(d::UnboundedRun) =
     "this `run!` declared `t_end = $(d.t_end)` and " *
-    (isempty(d.stop_on) ? "no stop face" : "the stop faces $(_facelist(d.stop_on))") *
+    (isempty(d.stop_on) ? "no stop face" : "the stop faces $(_faceset(d.stop_on))") *
     " — nothing in the model or the clock can end it, so it runs until a " *
     "control-plane stop: `stop!(sim)`, a device's stop button, or the operator " *
     "interrupt, which is the sanctioned escape from this configuration. Give " *
@@ -203,7 +203,7 @@ message(d::DeviceJoinTimeout) =
     "$(d.who) did not join within $(d.timeout)s at t = $(d.t) (boundary $(d.boundary)) — " *
     "abandoned by name rather than hanging the shutdown tail (§12.4)"
 message(d::ReplayDiscardedStaging) =
-    "$(_facelist(d.faces)) was staged for frame $(d.frame) and discarded — the trace feeds " *
+    "$(_faceset(d.faces)) was staged for frame $(d.frame) and discarded — the trace feeds " *
     "the drain under replay, and mixing live writes into one would destroy the property " *
     "replay exists to provide; a session that wants live input is a continuation, `run!` " *
     "after `replay!` (§12.7)"
@@ -517,8 +517,6 @@ function _normalize(w::Writer, pairs, claimedby::Dict{Symbol,String},
     any(mask) || return nothing
     Batch(convert(typeof(w.blank.vals), (vals...,)), (mask...,))
 end
-
-_facelist(faces) = isempty(faces) ? "empty" : "{$(join(faces, ", "))}"
 
 # The one coalescing policy (§11.4): merge, newest wins per face. Untouched
 # faces survive; re-staged faces take the newest level — the per-face ZOH.

@@ -92,7 +92,7 @@ function map_input(datum::NamedTuple, b::TableBinding)
     map(keys(datum)) do k
         haskey(b.table, k) || error(
             "map_input: the datum carries `$k`, which names no channel of this " *
-            "TableBinding — its channels are $(_facelist(keys(b.table))) (§11.6)")
+            "TableBinding — its channels are $(_faceset(keys(b.table))) (§11.6)")
         e = b.table[k]
         String(e.face) => _condition(datum[k], e)
     end
