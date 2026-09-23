@@ -125,14 +125,14 @@ rational period at construction (§10.5).
 """
 struct Period
     T::Rational{Int}
-    Period(T::Union{Integer,Rational{<:Integer}}) = new(Rational{Int}(T))
-    Period(T::AbstractFloat) =
-        throw(DiagnosticError(ArgumentInvalid(call = :Period, reason = :inexact, value = T)))
+    Period(period::Union{Integer,Rational{<:Integer}}) = new(Rational{Int}(period))
+    Period(period::AbstractFloat) =
+        throw(DiagnosticError(ArgumentInvalid(call = :Period, reason = :inexact, value = period)))
 end
 
-Hz(f::Union{Integer,Rational{<:Integer}}) = Period(1 // f)
-Hz(f::AbstractFloat) =
-    throw(DiagnosticError(ArgumentInvalid(call = :Hz, reason = :inexact, value = f)))
+Hz(frequency::Union{Integer,Rational{<:Integer}}) = Period(1 // frequency)
+Hz(frequency::AbstractFloat) =
+    throw(DiagnosticError(ArgumentInvalid(call = :Hz, reason = :inexact, value = frequency)))
 
 period(q::Period) = q.T
 
@@ -239,17 +239,18 @@ const DECLARATION_FAMILY = (:init_x, :init_s, :init_m, :init_workspace,
     :transparent_container)
 
 """
-The family names `c`'s parent module binds to something other than the
+The family names `comp`'s parent module binds to something other than the
 framework's function, in family order — the forgotten-import evidence of
 §8.1 (D-246). Empty for a module that imported what it extends.
 """
-function foreign_declarations(c)
-    M = parentmodule(typeof(c))
-    Symbol[n for n in DECLARATION_FAMILY
-           if isdefined(M, n) && getfield(M, n) !== getfield(@__MODULE__, n)]
+function foreign_declarations(comp)
+    author_module = parentmodule(typeof(comp))
+    Symbol[name for name in DECLARATION_FAMILY
+           if isdefined(author_module, name) &&
+              getfield(author_module, name) !== getfield(@__MODULE__, name)]
 end
 
-has_stage(fn, c) = hasmethod(fn, Tuple{typeof(c),NamedTuple})
+has_stage(fn, comp) = hasmethod(fn, Tuple{typeof(comp),NamedTuple})
 
 """
 Is `fn` declared *for this component* in the arity `extra` names, as against
@@ -257,9 +258,9 @@ matching a framework fallback? `hasmethod` cannot tell the two apart, so the
 matched method's own signature is what answers: a fallback carries `Any` in the
 component position.
 """
-_declares(fn, c, extra...) =
-    hasmethod(fn, Tuple{typeof(c),extra...}) &&
-    Base.unwrap_unionall(which(fn, Tuple{typeof(c),extra...}).sig).parameters[2] !== Any
+_declares(fn, comp, extra...) =
+    hasmethod(fn, Tuple{typeof(comp),extra...}) &&
+    Base.unwrap_unionall(which(fn, Tuple{typeof(comp),extra...}).sig).parameters[2] !== Any
 
 # --- tiers (§8.2) -------------------------------------------------------------
 # A tier is never announced; it is read off the declaration shape. The enum is
@@ -267,22 +268,23 @@ _declares(fn, c, extra...) =
 
 @enum Tier CONTINUOUS DISCRETE
 
-tier_word(t::Tier) = t === CONTINUOUS ? "continuous" : "discrete"
+tier_word(tier::Tier) = tier === CONTINUOUS ? "continuous" : "discrete"
 
 """
 The tier form of `fn`'s arity: two-argument continuous, plain discrete. The
 scalar `S` is the one a continuous declaration is evaluated at — `Float64` for
 every reader but the structure step's wire pass, which also reads it at the marker.
 """
-declared_at(fn, c, t::Tier, ::Type{S} = Float64) where {S} =
-    t === CONTINUOUS ? (_declares(fn, c, Type{Float64}) ? invoke_declaration(fn, c, S) : NamedTuple()) :
-                       (_declares(fn, c) ? invoke_declaration(fn, c) : NamedTuple())
+declared_at(fn, comp, tier::Tier, ::Type{S} = Float64) where {S} =
+    tier === CONTINUOUS ?
+        (_declares(fn, comp, Type{Float64}) ? invoke_declaration(fn, comp, S) : NamedTuple()) :
+        (_declares(fn, comp) ? invoke_declaration(fn, comp) : NamedTuple())
 
 # The tier's own update law (D-195). Everything downstream asks for it
 # *through* the tier, so no code path ever holds a name that serves both; the
 # output stages are one pair of names shared by both tiers (D-220), so every
 # caller names them directly instead.
-update_of(t::Tier) = t === CONTINUOUS ? state_derivative : state_update
+update_of(tier::Tier) = tier === CONTINUOUS ? state_derivative : state_update
 
 # --- the bundle law (§5.2) ----------------------------------------------------
 # A name appears in a component's bundle iff the corresponding store or fact
@@ -291,7 +293,7 @@ update_of(t::Tier) = t === CONTINUOUS ? state_derivative : state_update
 # destructuring rather than reading a filler.
 
 """
-Bundle field names for `fn` on component `c` at tier `t`, given its discovered
+Bundle field names for `fn` on component `comp` at tier `tier`, given its discovered
 stage-1 ports.
 
 The by-type declarations are asked at nominal `Float64`: presence is a property
@@ -302,31 +304,32 @@ The per-function, per-tier name sets are closed, and so are the state letters:
 `x`/`y_x` with `m` on the continuous tier, `s`/`y_s` with `Δt` on the discrete
 (D-195).
 """
-function bundle_names(fn, c, t::Tier, stage1_ports::Tuple)
-    update = update_of(t)
-    names = Symbol[]
-    if t === CONTINUOUS
-        !isempty(invoke_declaration(init_x, c)) && push!(names, :x)
-        !isempty(invoke_declaration(init_m, c)) && push!(names, :m)
+function bundle_names(fn, comp, tier::Tier, stage1_ports::Tuple)
+    update = update_of(tier)
+    fields = Symbol[]
+    if tier === CONTINUOUS
+        !isempty(invoke_declaration(init_x, comp)) && push!(fields, :x)
+        !isempty(invoke_declaration(init_m, comp)) && push!(fields, :m)
     else
-        !isempty(invoke_declaration(init_s, c)) && push!(names, :s)
+        !isempty(invoke_declaration(init_s, comp)) && push!(fields, :s)
     end
     if fn === output_direct || fn === update
-        !isempty(declared_at(input_types, c, t)) && push!(names, :u)
+        !isempty(declared_at(input_types, comp, tier)) && push!(fields, :u)
     end
     if fn === output_direct
-        !isempty(stage1_ports) && push!(names, t === CONTINUOUS ? :y_x : :y_s)
+        !isempty(stage1_ports) && push!(fields, tier === CONTINUOUS ? :y_x : :y_s)
     elseif fn === update
-        !isempty(declared_at(output_types, c, t)) && push!(names, :y)
+        !isempty(declared_at(output_types, comp, tier)) && push!(fields, :y)
     end
-    _declares_workspace(c, t) && push!(names, :ws)
-    push!(names, :t)
-    t === DISCRETE && push!(names, :Δt)
-    tuple(names...)
+    _declares_workspace(comp, tier) && push!(fields, :ws)
+    push!(fields, :t)
+    tier === DISCRETE && push!(fields, :Δt)
+    tuple(fields...)
 end
 
-_declares_workspace(c, t::Tier) =
-    t === CONTINUOUS ? _declares(init_workspace, c, Type{Float64}) : _declares(init_workspace, c)
+_declares_workspace(comp, tier::Tier) =
+    tier === CONTINUOUS ? _declares(init_workspace, comp, Type{Float64}) :
+                          _declares(init_workspace, comp)
 
 """
 Bundle field names for a guard or handler (§5.2): the update law's view of the
@@ -334,15 +337,15 @@ world — `x, m, y, u, t [, ws]` — one closed set shared by both halves, on th
 continuous tier only. The same iff rule as `bundle_names`, without a stage-1
 distinction: guards and handlers run against the complete fresh table.
 """
-function event_bundle_names(c)
-    names = Symbol[]
-    !isempty(invoke_declaration(init_x, c)) && push!(names, :x)
-    !isempty(invoke_declaration(init_m, c)) && push!(names, :m)
-    !isempty(declared_at(input_types, c, CONTINUOUS)) && push!(names, :u)
-    !isempty(declared_at(output_types, c, CONTINUOUS)) && push!(names, :y)
-    _declares_workspace(c, CONTINUOUS) && push!(names, :ws)
-    push!(names, :t)
-    tuple(names...)
+function event_bundle_names(comp)
+    fields = Symbol[]
+    !isempty(invoke_declaration(init_x, comp)) && push!(fields, :x)
+    !isempty(invoke_declaration(init_m, comp)) && push!(fields, :m)
+    !isempty(declared_at(input_types, comp, CONTINUOUS)) && push!(fields, :u)
+    !isempty(declared_at(output_types, comp, CONTINUOUS)) && push!(fields, :y)
+    _declares_workspace(comp, CONTINUOUS) && push!(fields, :ws)
+    push!(fields, :t)
+    tuple(fields...)
 end
 
 # The maximal legal sets (§5.2, Appendix B), keyed by family and tier. A
@@ -358,7 +361,8 @@ const LEGAL_BUNDLE = Dict(
     (:handler, CONTINUOUS)          => (:x, :m, :y, :u, :t, :ws))
 
 # Every name any family may carry at a tier: the wrong-tier test's universe.
-_tier_names(t::Tier) = union((v for ((_, tt), v) in LEGAL_BUNDLE if tt === t)...)
+_tier_names(tier::Tier) =
+    union((fields for ((_, set_tier), fields) in LEGAL_BUNDLE if set_tier === tier)...)
 
 """
 §5.2's three classes for a bundle field the component's bundle lacks: a name
@@ -366,10 +370,10 @@ this family may carry that the component did not declare; a name this tier
 never carries but the other does (the state letters included, D-195); or a
 name illegal for this family, which is also every name from nowhere.
 """
-function classify_bundle_field(family::Symbol, t::Tier, field::Symbol)
-    field in get(LEGAL_BUNDLE, (family, t), ()) && return :undeclared
-    field in _tier_names(t) && return :illegal_for_family
-    field in _tier_names(t === CONTINUOUS ? DISCRETE : CONTINUOUS) && return :wrong_tier
+function classify_bundle_field(family::Symbol, tier::Tier, field::Symbol)
+    field in get(LEGAL_BUNDLE, (family, tier), ()) && return :undeclared
+    field in _tier_names(tier) && return :illegal_for_family
+    field in _tier_names(tier === CONTINUOUS ? DISCRETE : CONTINUOUS) && return :wrong_tier
     :illegal_for_family
 end
 
