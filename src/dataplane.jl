@@ -242,11 +242,11 @@ _kind(::DeviceJoinTimeout) = :join_timeout
 _kind(::ReplayDiscardedStaging) = :replay_discarded
 _kind(::EmptyGreedyClaim) = :empty_greedy
 
-_bump(c::KindCounts, k::Symbol) =
-    KindCounts((getfield(c, f) + (f === k) for f in fieldnames(KindCounts))...)
+_bump(counts::KindCounts, kind::Symbol) =
+    KindCounts((getfield(counts, f) + (f === kind) for f in fieldnames(KindCounts))...)
 Base.:+(a::KindCounts, b::KindCounts) =
     KindCounts((getfield(a, f) + getfield(b, f) for f in fieldnames(KindCounts))...)
-_total(c::KindCounts) = sum(f -> getfield(c, f), fieldnames(KindCounts))
+_total(counts::KindCounts) = sum(f -> getfield(counts, f), fieldnames(KindCounts))
 
 "The ring's capacity (§11.8): the channel's normative bound, which *is* the rate limit."
 const DIAG_RING = 16
@@ -289,18 +289,18 @@ mutable struct DiagCell
     @atomic batch::DiagBatch
     @atomic heartbeat::Float64
 end
-DiagCell(b::DiagBatch) = DiagCell(b, 0.0)
+DiagCell(batch::DiagBatch) = DiagCell(batch, 0.0)
 
 # The writer's side (§11.8), on the writer's own task: append under the bound,
 # or count past it by kind. Reached through `report!(handle, …)` (devices.jl)
 # and from the framework's own emission sites.
-function _report!(cell::DiagCell, d::DiagValue)
+function _report!(cell::DiagCell, occurrence::DiagValue)
     while true
-        cur = @atomic cell.batch
-        next = length(cur.ring) < DIAG_RING ?
-            DiagBatch(push!(copy(cur.ring), d), cur.suppressed) :
-            DiagBatch(cur.ring, _bump(cur.suppressed, _kind(d)))
-        (; success) = @atomicreplace cell.batch cur => next
+        current = @atomic cell.batch
+        next = length(current.ring) < DIAG_RING ?
+            DiagBatch(push!(copy(current.ring), occurrence), current.suppressed) :
+            DiagBatch(current.ring, _bump(current.suppressed, _kind(occurrence)))
+        (; success) = @atomicreplace cell.batch current => next
         success && return nothing
     end
 end
@@ -337,10 +337,10 @@ mutable struct WriterAccount
 end
 WriterAccount() = WriterAccount(EMPTY_RECENT, KindCounts(), KindCounts())
 
-function _reset!(a::WriterAccount)
-    a.recent = EMPTY_RECENT
-    a.suppressed = KindCounts()
-    a.totals = KindCounts()
+function _reset!(account::WriterAccount)
+    account.recent = EMPTY_RECENT
+    account.suppressed = KindCounts()
+    account.totals = KindCounts()
     nothing
 end
 
@@ -348,16 +348,16 @@ end
 # exclusively the loop's — retained values into the pending delta and every
 # occurrence, retained and suppressed alike, into the totals. The quiet path
 # is the sentinel coming back: no allocation, nothing touched.
-function _fold!(a::WriterAccount, cell::DiagCell)
+function _fold!(account::WriterAccount, cell::DiagCell)
     batch = _take!(cell)
     batch === EMPTY_DIAG && return nothing
     counts = batch.suppressed
-    for d in batch.ring
-        counts = _bump(counts, _kind(d))
+    for occurrence in batch.ring
+        counts = _bump(counts, _kind(occurrence))
     end
-    a.recent = a.recent === EMPTY_RECENT ? copy(batch.ring) : append!(a.recent, batch.ring)
-    a.suppressed = a.suppressed + batch.suppressed
-    a.totals = a.totals + counts
+    account.recent = account.recent === EMPTY_RECENT ? copy(batch.ring) : append!(account.recent, batch.ring)
+    account.suppressed = account.suppressed + batch.suppressed
+    account.totals = account.totals + counts
     nothing
 end
 
@@ -399,7 +399,7 @@ end
 const STALE_S = 2.0
 
 """
-    stale(w::WriterStatus; now = time())
+    stale(record::WriterStatus; now = time())
 
 §12.2's liveness read: a device whose heartbeat is more than `STALE_S` behind
 wall clock — deliberately loose, tolerating a device legitimately parked in a
@@ -408,11 +408,11 @@ as a stale heartbeat with a name on it, not as mysteriously frozen physics;
 the never-heartbeated cell's `0.0` reads stale unconditionally. `false` for
 the harness's and the loop's records, which have no heartbeat to judge.
 """
-stale(w::WriterStatus; now::Float64 = time()) =
-    w.heartbeat !== nothing && now - w.heartbeat > STALE_S
+stale(record::WriterStatus; now::Float64 = time()) =
+    record.heartbeat !== nothing && now - record.heartbeat > STALE_S
 
 _task_state(::Nothing) = :none
-_task_state(t::Task) = istaskfailed(t) ? :failed : istaskdone(t) ? :done : :running
+_task_state(task::Task) = istaskfailed(task) ? :failed : istaskdone(task) ? :done : :running
 
 """
 The batch (§11.4, D-202): a pair of positional tuples over one writer's
@@ -457,8 +457,8 @@ function Writer(layout::Layout, faces::Vector{Symbol})
     addrs = Tuple(layout.addr[("", f)] for f in faces)
     types = Any[_port_type(a) for a in addrs]
     probes = Dict(f => v for (f, v) in layout.root_inputs)
-    vals = Tuple(convert(types[i], probes[faces[i]]) for i in eachindex(faces))
-    blank = Batch(convert(Tuple{types...}, vals), ntuple(_ -> false, length(faces)))
+    placeholders = Tuple(convert(types[i], probes[faces[i]]) for i in eachindex(faces))
+    blank = Batch(convert(Tuple{types...}, placeholders), ntuple(_ -> false, length(faces)))
     Writer{typeof(blank),typeof(addrs)}(faces, types, addrs, blank,
                                         StagingCell{typeof(blank)}(nothing))
 end
@@ -481,41 +481,41 @@ The out-of-schema kind discriminates by writer (§11.3, Appendix C): a
 device's entry is always `OutOfClaimEntry` — naming the incumbent when the
 face is claimed elsewhere — while the harness writer's is `ClaimedFaceEntry`
 naming the incumbent when a rostered claim covers the face, and
-`OutOfClaimEntry` only when the face names no root input at all. `claimedby` is
+`OutOfClaimEntry` only when the face names no root input at all. `claimed_by` is
 the exclusivity index the roster maintains; `device` identifies a device
 writer and `nothing` the harness; `site` distinguishes ordinary staging from
 an attach's renormalization in the `ClaimedFaceEntry` payload. Returns
 `nothing` for a batch with no surviving entry.
 """
-function _normalize(w::Writer, pairs, claimedby::Dict{Symbol,String},
+function _normalize(writer::Writer, entries, claimed_by::Dict{Symbol,String},
                     cell::DiagCell; device::Union{Nothing,String} = nothing,
                     site::Symbol = :staging)
-    vals = Any[w.blank.vals...]
-    mask = fill(false, length(w.faces))
-    for (face, v) in pairs
-        s = Symbol(face)
-        i = findfirst(==(s), w.faces)
-        if i === nothing
-            incumbent = get(claimedby, s, nothing)
+    staged = Any[writer.blank.vals...]
+    mask = fill(false, length(writer.faces))
+    for (key, value) in entries
+        face = Symbol(key)
+        face_position = findfirst(==(face), writer.faces)
+        if face_position === nothing
+            incumbent = get(claimed_by, face, nothing)
             if device !== nothing
-                _report!(cell, OutOfClaimEntry(s, v, w.faces, incumbent))
+                _report!(cell, OutOfClaimEntry(face, value, writer.faces, incumbent))
             elseif incumbent !== nothing
-                _report!(cell, ClaimedFaceEntry(s, incumbent, v, site))
+                _report!(cell, ClaimedFaceEntry(face, incumbent, value, site))
             else
-                _report!(cell, OutOfClaimEntry(s, v, w.faces, nothing))
+                _report!(cell, OutOfClaimEntry(face, value, writer.faces, nothing))
             end
             continue
         end
-        vals[i] = try
-            convert(w.types[i], v)
+        staged[face_position] = try
+            convert(writer.types[face_position], value)
         catch
-            _report!(cell, EntryTypeMismatch(s, v, w.types[i]))
+            _report!(cell, EntryTypeMismatch(face, value, writer.types[face_position]))
             continue
         end
-        mask[i] = true
+        mask[face_position] = true
     end
     any(mask) || return nothing
-    Batch(convert(typeof(w.blank.vals), (vals...,)), (mask...,))
+    Batch(convert(typeof(writer.blank.vals), (staged...,)), (mask...,))
 end
 
 # The one coalescing policy (§11.4): merge, newest wins per face. Untouched
@@ -524,15 +524,15 @@ end
 # writer's one concrete batch type, and the unroll leans on no small-tuple
 # heuristic, so width does not degrade it (D-202).
 @generated function _merge(pending::Batch{V,M}, incoming::Batch{V,M}) where {V,M}
-    vals = [:(incoming.mask[$i] ? incoming.vals[$i] : pending.vals[$i])
+    value_exprs = [:(incoming.mask[$i] ? incoming.vals[$i] : pending.vals[$i])
             for i in 1:fieldcount(M)]
-    mask = [:(pending.mask[$i] | incoming.mask[$i]) for i in 1:fieldcount(M)]
-    :(Batch{V,M}(($(vals...),), ($(mask...),)))
+    mask_exprs = [:(pending.mask[$i] | incoming.mask[$i]) for i in 1:fieldcount(M)]
+    :(Batch{V,M}(($(value_exprs...),), ($(mask_exprs...),)))
 end
 
 # The CAS merge loop (§11.4), on the writer's task.
-function _stage!(w::Writer{B}, batch::B) where {B}
-    cell = w.cell
+function _stage!(writer::Writer{B}, batch::B) where {B}
+    cell = writer.cell
     while true
         pending = @atomic cell.pending
         merged = pending === nothing ? batch : _merge(pending[], batch)
@@ -562,12 +562,12 @@ end
 # earlier, against the writer's own schema index — closed into the thunk with
 # the run's trace (trace.jl, `trc` untyped for include order alone). Under the
 # kill switch that capture is `nothing` and the branch below folds (D-260).
-function _drain!(store, w::Writer, trc, widx::Int)
-    ref = @atomicswap w.cell.pending = nothing
-    ref === nothing && return nothing
-    batch = ref[]
-    _apply!(store, w.addrs, batch)
-    trc === nothing || _record!(trc, widx, batch)
+function _drain!(store, writer::Writer, trc, writer_index::Int)
+    pending = @atomicswap writer.cell.pending = nothing
+    pending === nothing && return nothing
+    batch = pending[]
+    _apply!(store, writer.addrs, batch)
+    trc === nothing || _record!(trc, writer_index, batch)
     nothing
 end
 
@@ -595,11 +595,11 @@ struct Snapshot{T,S<:StoreBundle}
     status::FrameworkStatus
 end
 
-port(s::Snapshot, path::String, name::Symbol) = gather(s.store, s.layout.addr[(path, name)])
+port(snapshot::Snapshot, path::String, name::Symbol) = gather(snapshot.store, snapshot.layout.addr[(path, name)])
 
 # One boundary's capture: fresh buffers, one allocation per boundary — the
 # framework side of §7.5's scope, which carved publication and logging out.
-capture(b::StoreBundle) = StoreBundle(map(cs -> CellStore(copy(cs.buf)), b.stores))
+capture(bundle::StoreBundle) = StoreBundle(map(cs -> CellStore(copy(cs.buf)), bundle.stores))
 
 """
 §11.2's `@atomic latest` reference in a mutable object of its own. The plane is
@@ -652,8 +652,8 @@ mutable struct SnapshotLog
     cursor::Int                     # the thinning cursor over odd indices; 0 = inactive
 end
 
-SnapshotLog(enabled::Bool, every::Int, max::Int) =
-    SnapshotLog(enabled, max, every, nothing, nothing,
+SnapshotLog(enabled::Bool, log_every::Int, log_max::Int) =
+    SnapshotLog(enabled, log_max, log_every, nothing, nothing,
                 Union{Nothing,Snapshot}[], 0, 0)
 
 """
@@ -663,15 +663,15 @@ retained into the middle, and every snapshot re-points `last` — one field
 store, which is all the terminal endpoint costs. Off, the switch retains
 nothing at all: retention is what it gates, publication being upstream of it.
 """
-function log!(L::SnapshotLog, snap::Snapshot)
-    L.enabled || return nothing
-    nb = snap.boundary                  # the trajectory's ordinal rides in the snapshot (D-230)
-    if nb == 0
-        L.first = snap
-    elseif nb % L.stride == 0
-        _retain!(L, snap, nb)
+function log!(snapshot_log::SnapshotLog, snapshot::Snapshot)
+    snapshot_log.enabled || return nothing
+    boundary = snapshot.boundary        # the trajectory's ordinal rides in the snapshot (D-230)
+    if boundary == 0
+        snapshot_log.first = snapshot
+    elseif boundary % snapshot_log.stride == 0
+        _retain!(snapshot_log, snapshot, boundary)
     end
-    L.last = snap
+    snapshot_log.last = snapshot
     nothing
 end
 
@@ -684,19 +684,20 @@ end
 # holds continuously and a generation's thinning completes exactly when its
 # refill does; compaction then runs, once per generation, restoring the
 # index-by-ordinal invariant for the next fill.
-function _retain!(L::SnapshotLog, snap::Snapshot, nb::Int)
-    if L.cursor == 0 && L.live == L.max
-        L.stride *= 2
-        L.cursor = 1
-        nb % L.stride == 0 || return nothing
+function _retain!(snapshot_log::SnapshotLog, snapshot::Snapshot, boundary::Int)
+    if snapshot_log.cursor == 0 && snapshot_log.live == snapshot_log.max
+        snapshot_log.stride *= 2
+        snapshot_log.cursor = 1
+        boundary % snapshot_log.stride == 0 || return nothing
     end
-    if L.cursor > 0
-        L.snaps[L.cursor] = nothing
-        L.live -= 1
-        L.cursor += 2
-        L.cursor > L.max && (filter!(!isnothing, L.snaps); L.cursor = 0)
+    if snapshot_log.cursor > 0
+        snapshot_log.snaps[snapshot_log.cursor] = nothing
+        snapshot_log.live -= 1
+        snapshot_log.cursor += 2
+        snapshot_log.cursor > snapshot_log.max &&
+            (filter!(!isnothing, snapshot_log.snaps); snapshot_log.cursor = 0)
     end
-    push!(L.snaps, snap)
-    L.live += 1
+    push!(snapshot_log.snaps, snapshot)
+    snapshot_log.live += 1
     nothing
 end
