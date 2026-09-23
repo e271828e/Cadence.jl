@@ -111,22 +111,22 @@ UpdateEntry{BN}(comp, inputs, y, clock, sstore, ws, Δt, path, ci, cursor) where
 # because the tier already picked the name.
 function _bundle_expr(BN, XT)
     args = map(BN) do field
-        field === :x   ? :(reconstruct($XT, xbuf, e.x_off)) :
-        field === :s   ? :(e.sstore[]) :
-        field === :m   ? :(e.mstore[]) :
-        field === :u   ? :(gather_group(e.inputs, store)) :
-        field === :y_x ? :(gather_group(e.y1, store)) :
-        field === :y_s ? :(gather_group(e.y1, store)) :
-        field === :y   ? :(gather_group(e.y, store)) :
-        field === :ws  ? :(e.ws) :
-        field === :t   ? :(e.clock.t) :
-        field === :Δt  ? :(e.Δt) :
+        field === :x   ? :(reconstruct($XT, xbuf, entry.x_off)) :
+        field === :s   ? :(entry.sstore[]) :
+        field === :m   ? :(entry.mstore[]) :
+        field === :u   ? :(gather_group(entry.inputs, store)) :
+        field === :y_x ? :(gather_group(entry.y1, store)) :
+        field === :y_s ? :(gather_group(entry.y1, store)) :
+        field === :y   ? :(gather_group(entry.y, store)) :
+        field === :ws  ? :(entry.ws) :
+        field === :t   ? :(entry.clock.t) :
+        field === :Δt  ? :(entry.Δt) :
         throw(InternalInvariant("no source for bundle field $field"))
     end
     :(NamedTuple{$BN}(($(args...),)))
 end
 
-@generated function make_bundle(e::StageEntry{F,Comp,XT,BN}, store,
+@generated function make_bundle(entry::StageEntry{F,Comp,XT,BN}, store,
                                 xbuf) where {F,Comp,XT,BN}
     quote
         $(Expr(:meta, :inline))
@@ -134,14 +134,14 @@ end
     end
 end
 
-@generated function make_bundle(e::RHSEntry{Comp,XT,BN}, store, xbuf) where {Comp,XT,BN}
+@generated function make_bundle(entry::RHSEntry{Comp,XT,BN}, store, xbuf) where {Comp,XT,BN}
     quote
         $(Expr(:meta, :inline))
         $(_bundle_expr(BN, XT))
     end
 end
 
-@generated function make_bundle(e::UpdateEntry{Comp,BN}, store, xbuf) where {Comp,BN}
+@generated function make_bundle(entry::UpdateEntry{Comp,BN}, store, xbuf) where {Comp,BN}
     quote
         $(Expr(:meta, :inline))
         $(_bundle_expr(BN, Nothing))
@@ -207,7 +207,7 @@ EventEntry{XT,BN}(guard, handler, projection, comp, event_index, inputs, y, x_of
         guard, handler, projection, comp, event_index, inputs, y, x_off, clock, mstore, ws,
         path, event, ci, cursor)
 
-@generated function make_bundle(e::EventEntry{G,H,P,Comp,XT,BN}, store,
+@generated function make_bundle(entry::EventEntry{G,H,P,Comp,XT,BN}, store,
                                 xbuf) where {G,H,P,Comp,XT,BN}
     quote
         $(Expr(:meta, :inline))
