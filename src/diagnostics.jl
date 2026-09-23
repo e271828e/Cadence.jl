@@ -27,22 +27,22 @@ abstract type Diagnostic end
 # in unless that module is the printing context, so one component would be named
 # differently from `Main` and from a package or test module — and some of these
 # names are recorded in a trace header (§11.5) and matched on replay.
-_typename(x) = string(nameof(typeof(x)))
+_typename(value) = string(nameof(typeof(value)))
 # A `Union` has no name of its own: spell it from its members, each unqualified.
-_typename(T::Type) =
-    T isa Union ? "Union{" * join(_typename.(Base.uniontypes(T)), ", ") * "}" :
-                  string(nameof(T))
+_typename(type::Type) =
+    type isa Union ? "Union{" * join(_typename.(Base.uniontypes(type)), ", ") * "}" :
+                  string(nameof(type))
 # A declared generic holding: `nameof` has no method, and `string` on the
 # variable qualifies its bound the same way interpolating a type does.
-_typename(v::TypeVar) = "$(v.name)<:$(_typename(v.ub))"
+_typename(typevar::TypeVar) = "$(typevar.name)<:$(_typename(typevar.ub))"
 # A plain-data type with its shape, for the two container kinds alone: the outer
 # name through `_typename` and every parameter spelled the same way, so a
 # `Tuple{Gain,Gain}` keeps its arity and stays unqualified. A port type is
 # interpolated whole (§13.2's exception), a label goes through `_typename`.
-_typespell(T::Type) =
-    !(T isa DataType) || isempty(T.parameters) ? _typename(T) :
-    _typename(T) * "{" *
-    join((p isa Type ? _typespell(p) : string(p) for p in T.parameters), ", ") * "}"
+_typespell(type::Type) =
+    !(type isa DataType) || isempty(type.parameters) ? _typename(type) :
+    _typename(type) * "{" *
+    join((p isa Type ? _typespell(p) : string(p) for p in type.parameters), ", ") * "}"
 
 """
 The kind's severity (§13.2, D-214): `:error` — an occurrence throws, alone or
@@ -65,11 +65,11 @@ path(::Diagnostic) = ""
 # The framework's own spellings, shared so every rendering spells a component
 # path, a name list and a face set the same way.
 
-_at_path(p::AbstractString) = isempty(p) ? "the root component" : "`$p`"
-_namelist(ns) = isempty(ns) ? "none" : join(("`$n`" for n in ns), ", ")
-_faceset(ns) = isempty(ns) ? "empty" : "{$(join(ns, ", "))}"
-_plainlist(ns) = join(ns, ", ")
-_symtuple(ns) = "(" * join((":$n" for n in ns), ", ") * (length(ns) == 1 ? ",)" : ")")
+_at_path(path::AbstractString) = isempty(path) ? "the root component" : "`$path`"
+_namelist(list) = isempty(list) ? "none" : join(("`$n`" for n in list), ", ")
+_faceset(list) = isempty(list) ? "empty" : "{$(join(list, ", "))}"
+_plainlist(list) = join(list, ", ")
+_symtuple(list) = "(" * join((":$n" for n in list), ", ") * (length(list) == 1 ? ",)" : ")")
 
 # --- the carrier (§13.1, §13.2, D-058) ----------------------------------------
 
@@ -90,53 +90,54 @@ struct DiagnosticError{P <: Union{Diagnostic, Vector{Diagnostic}}} <: Exception
     warnings::Vector{Diagnostic}
 end
 
-DiagnosticError(d::Diagnostic, ws::Vector{Diagnostic} = Diagnostic[]) =
-    DiagnosticError{typeof(d)}(d, ws)
-DiagnosticError(ds::AbstractVector{<:Diagnostic}, ws::Vector{Diagnostic} = Diagnostic[]) =
-    DiagnosticError{Vector{Diagnostic}}(Vector{Diagnostic}(ds), ws)
+DiagnosticError(d::Diagnostic, warning_list::Vector{Diagnostic} = Diagnostic[]) =
+    DiagnosticError{typeof(d)}(d, warning_list)
+DiagnosticError(ds::AbstractVector{<:Diagnostic}, warning_list::Vector{Diagnostic} = Diagnostic[]) =
+    DiagnosticError{Vector{Diagnostic}}(Vector{Diagnostic}(ds), warning_list)
 
 "The one diagnostic a fail-fast throw, or a `StepError` species, carries."
-diagnostic(e::DiagnosticError{<:Diagnostic}) = e.carried
+diagnostic(carrier::DiagnosticError{<:Diagnostic}) = carrier.carried
 
 "The collection a barrier's throw carries."
-diagnostics(e::DiagnosticError{Vector{Diagnostic}}) = e.carried
+diagnostics(carrier::DiagnosticError{Vector{Diagnostic}}) = carrier.carried
 
 "The kinds present in a collection, in first-appearance order — what a test asks first."
-kinds(e::DiagnosticError{Vector{Diagnostic}}) = unique(typeof.(e.carried))
+kinds(carrier::DiagnosticError{Vector{Diagnostic}}) = unique(typeof.(carrier.carried))
 
 # Groups in first-appearance order, each sorted by path; the sort is stable, so
 # two diagnostics at one path keep the order the pass produced them in.
-function _groups(ds::Vector{Diagnostic})
+function _groups(diags::Vector{Diagnostic})
     order = DataType[]
-    for d in ds
-        T = typeof(d)
-        T in order || push!(order, T)
+    for d in diags
+        kind = typeof(d)
+        kind in order || push!(order, kind)
     end
-    [sort(filter(d -> typeof(d) === T, ds); by = path, alg = MergeSort) for T in order]
+    [sort(filter(d -> typeof(d) === kind, diags); by = path, alg = MergeSort) for kind in order]
 end
 
 # The warnings tail both renderings end with, one line per warning in
 # first-appearance order and in the carrier's own layout (§9.1, D-250).
-function _show_warnings(io::IO, ws::Vector{Diagnostic})
-    for d in ws
+function _show_warnings(io::IO, warning_list::Vector{Diagnostic})
+    for d in warning_list
         print(io, "\n  ", nameof(typeof(d)), ": ", message(d))
     end
     nothing
 end
 
-function Base.showerror(io::IO, e::DiagnosticError{<:Diagnostic})
-    print(io, "DiagnosticError: ", nameof(typeof(e.carried)), ": ", message(e.carried))
-    _show_warnings(io, e.warnings)
+function Base.showerror(io::IO, carrier::DiagnosticError{<:Diagnostic})
+    print(io, "DiagnosticError: ", nameof(typeof(carrier.carried)), ": ", message(carrier.carried))
+    _show_warnings(io, carrier.warnings)
 end
 
-function Base.showerror(io::IO, e::DiagnosticError{Vector{Diagnostic}})
-    ds, ws = e.carried, e.warnings
-    print(io, "DiagnosticError: ", length(ds), " diagnostics")
-    isempty(ws) || print(io, ", ", length(ws), length(ws) == 1 ? " warning" : " warnings")
-    for g in _groups(ds), d in g
+function Base.showerror(io::IO, carrier::DiagnosticError{Vector{Diagnostic}})
+    diags, warning_list = carrier.carried, carrier.warnings
+    print(io, "DiagnosticError: ", length(diags), " diagnostics")
+    isempty(warning_list) ||
+        print(io, ", ", length(warning_list), length(warning_list) == 1 ? " warning" : " warnings")
+    for group in _groups(diags), d in group
         print(io, "\n  ", nameof(typeof(d)), ": ", message(d))
     end
-    _show_warnings(io, ws)
+    _show_warnings(io, warning_list)
 end
 
 """
@@ -166,8 +167,8 @@ function _warn!(d::Diagnostic)
     severity(d) === :warning ||
         throw(InternalInvariant("`$(nameof(typeof(d)))` is an error-severity kind: it is " *
                                 "collected or thrown, never warned"))
-    ws = BUILD_WARNINGS[]
-    ws === nothing ? (@warn logline(d)) : push!(ws, d)
+    warning_list = BUILD_WARNINGS[]
+    warning_list === nothing ? (@warn logline(d)) : push!(warning_list, d)
     nothing
 end
 
@@ -222,16 +223,16 @@ diagnostic(e::StepError{<:Diagnostic}) = e.cause
 # an `:integrate` frame at index 0 is the framework's own act inside the
 # integrate — the nonfinite sweep — and not a stage. A phase this list does not
 # know renders as its own symbol, never as another phase's spelling.
-_phase_text(fr::CursorFrame) =
-    fr.phase === :integrate  ? (fr.index == 0 ? "integration" :
-                                                "integration stage $(fr.index)") :
-    fr.phase === :arrival    ? "arrival sweep" :
-    fr.phase === :validation ? "θ = 0 validation" :
-    fr.phase === :trial      ? "localization trial $(fr.index)" :
-    fr.phase === :project    ? "projection" :
-    fr.phase === :round      ? "event round $(fr.index)" :
-    fr.phase === :ticks      ? "tick updates" :
-    fr.phase === :drain      ? "drain" : string(fr.phase)
+_phase_text(frame::CursorFrame) =
+    frame.phase === :integrate  ? (frame.index == 0 ? "integration" :
+                                                "integration stage $(frame.index)") :
+    frame.phase === :arrival    ? "arrival sweep" :
+    frame.phase === :validation ? "θ = 0 validation" :
+    frame.phase === :trial      ? "localization trial $(frame.index)" :
+    frame.phase === :project    ? "projection" :
+    frame.phase === :round      ? "event round $(frame.index)" :
+    frame.phase === :ticks      ? "tick updates" :
+    frame.phase === :drain      ? "drain" : string(frame.phase)
 
 # §13.2's doctrine: the didactic frame first, the raw throw second. The frame
 # line names the path, the function, the phase, the time and the pointer, and
@@ -239,26 +240,26 @@ _phase_text(fr::CursorFrame) =
 # whose cursor named no component drops the "in …" clause entirely: `_at_path`
 # spells the empty path as "the root component", which is a *component* of a
 # bare-leaf build and not "nowhere".
-function Base.showerror(io::IO, e::StepError)
-    fr = e.frame
+function Base.showerror(io::IO, carrier::StepError)
+    frame = carrier.frame
     print(io, "StepError: ")
-    if fr.path !== nothing
-        print(io, "in ", _at_path(fr.path))
-        fr.fn === :none || print(io, " ", fr.fn)
+    if frame.path !== nothing
+        print(io, "in ", _at_path(frame.path))
+        frame.fn === :none || print(io, " ", frame.fn)
         print(io, ", ")
     end
-    print(io, _phase_text(fr), " of the frame from boundary ", e.boundary,
-          " (t = ", e.t, "):\n  ")
+    print(io, _phase_text(frame), " of the frame from boundary ", carrier.boundary,
+          " (t = ", carrier.t, "):\n  ")
     # The pointer degenerates at zero (§13.4, D-223): boundary zero and frame
     # one share it, and the replay of the captured header reproduces either —
     # the `step!` the general recipe names is what a boundary-zero failure
     # would refuse.
-    e.boundary == 0 ?
+    carrier.boundary == 0 ?
         print(io, "replay!(sim2, trc) reproduces it") :
-        print(io, "replay!(sim2, trc; to_boundary = ", e.boundary,
+        print(io, "replay!(sim2, trc; to_boundary = ", carrier.boundary,
               ") then step!(sim2) reproduces it")
     print(io, "\n  cause: ")
-    e.cause isa Diagnostic ? print(io, logline(e.cause)) : showerror(io, e.cause)
+    carrier.cause isa Diagnostic ? print(io, logline(carrier.cause)) : showerror(io, carrier.cause)
     nothing
 end
 
@@ -293,8 +294,8 @@ struct InternalInvariant <: Exception
     msg::String
 end
 
-Base.showerror(io::IO, e::InternalInvariant) =
-    print(io, "InternalInvariant: internal invariant violated: ", e.msg)
+Base.showerror(io::IO, invariant::InternalInvariant) =
+    print(io, "InternalInvariant: internal invariant violated: ", invariant.msg)
 
 # ==============================================================================
 # The structure step — declaration and wiring (§6.1, §8.2, §8.5–§8.8; collected)
@@ -739,25 +740,25 @@ Base.@kwdef struct ChildNameCollision <: Diagnostic
     field::Union{Nothing,Symbol} = nothing   # the container field the key came from
 end
 path(d::ChildNameCollision) = d.path
-_declaration(diagnostic, i) = i ≤ length(diagnostic.declarations) ?
-                              diagnostic.declarations[i] : "an undetermined declaration"
-message(diagnostic::ChildNameCollision) =
-    diagnostic.reason === :sample_times_sugar ?
-    "$(_at_path(diagnostic.path)): the bare key `$(diagnostic.name)` — " *
-    "$(_declaration(diagnostic, 1)) — collides with " *
+_declaration(d, ordinal) = ordinal ≤ length(d.declarations) ?
+                           d.declarations[ordinal] : "an undetermined declaration"
+message(d::ChildNameCollision) =
+    d.reason === :sample_times_sugar ?
+    "$(_at_path(d.path)): the bare key `$(d.name)` — " *
+    "$(_declaration(d, 1)) — collides with " *
     "`sample_times`' field-name sugar, which spells one declaration for every element of " *
-    "`$(diagnostic.field)` under that same name (§8.5, §8.7, D-211)" :
-    diagnostic.reason === :sibling_field ?
-    "$(_at_path(diagnostic.path)): the bare key `$(diagnostic.name)` — " *
-    "$(_declaration(diagnostic, 1)) — collides with " *
-    "container field `$(diagnostic.name)`, whose own children are named " *
-    "`$(diagnostic.name)/<key>`: no " *
+    "`$(d.field)` under that same name (§8.5, §8.7, D-211)" :
+    d.reason === :sibling_field ?
+    "$(_at_path(d.path)): the bare key `$(d.name)` — " *
+    "$(_declaration(d, 1)) — collides with " *
+    "container field `$(d.name)`, whose own children are named " *
+    "`$(d.name)/<key>`: no " *
     "child bears the bare name, but the segment grammar that reaches those children does, " *
     "and the key shadows it — leaving them unreachable behind a diagnostic naming the " *
     "wrong child (§8.5, §6.1, D-212)" :
-    "$(_at_path(diagnostic.path)): two children are named `$(diagnostic.name)` — " *
-    "$(_declaration(diagnostic, 1)) and " *
-    "$(_declaration(diagnostic, 2)); a child name is a path segment, and a path segment " *
+    "$(_at_path(d.path)): two children are named `$(d.name)` — " *
+    "$(_declaration(d, 1)) and " *
+    "$(_declaration(d, 2)); a child name is a path segment, and a path segment " *
     "addresses one component (§8.5, D-211)"
 
 "§8.5, D-211: `transparent_container` naming no container field of the type."
@@ -888,22 +889,23 @@ path(d::AlgebraicCycle) = first(d.members)
 
 # The cluster read out: its wires as one loop, a dead hop in the ladder's own
 # words, and the per-member tracing modes as one phrase (§5.6, D-245).
-_wirelist(ws) = join(("$p → $c" for (p, c) in ws), ", ")
-_hop((m, f, q)) = "`$m`'s `$q` does not route `$f`"
+_wirelist(wires) = join(("$p → $c" for (p, c) in wires), ", ")
+_hop((member, face, output_port)) = "`$member`'s `$output_port` does not route `$face`"
 
 function _modes(traced)
-    rest = ["`$m` " * (t === :sampled ? "at sampled states" : "structurally")
-            for (m, t) in traced if t !== :global]
+    rest = ["`$member` " * (tracing === :sampled ? "at sampled states" : "structurally")
+            for (member, tracing) in traced if tracing !== :global]
     isempty(rest) && return "traced globally"
-    join(rest, ", ") * (any(t === :global for (_, t) in traced) ? ", the rest globally" : "")
+    join(rest, ", ") *
+        (any(tracing === :global for (_, tracing) in traced) ? ", the rest globally" : "")
 end
 
 # The ladder's two exits (§5.4, D-140), each dead member named once.
 _cycle_hint(dead) =
-    join((let fs = unique(f for (mm, f, _) in dead if mm == m)
-              "split `$m`, or narrow the neighbor's contract if $(_namelist(fs)) " *
-              (length(fs) == 1 ? "is" : "are") * " consumed only in a fallback branch"
-          end for m in unique(first.(dead))), "; ") * " (§5.4)"
+    join((let dead_faces = unique(face for (hop_member, face, _) in dead if hop_member == member)
+              "split `$member`, or narrow the neighbor's contract if $(_namelist(dead_faces)) " *
+              (length(dead_faces) == 1 ? "is" : "are") * " consumed only in a fallback branch"
+          end for member in unique(first.(dead))), "; ") * " (§5.4)"
 
 const _BREAK_CYCLE = "break it with a state, a unit delay or a stage-1 (`output_state`) port (§5.5)"
 
@@ -911,16 +913,16 @@ function message(d::AlgebraicCycle)
     head = "algebraic loop among $(_namelist(d.members)): $(_wirelist(d.wires))"
     d.classification === nothing && return "$head — $_BREAK_CYCLE"
     if d.classification === :real
-        s = "$head — real: a loop survives the trace ($(_modes(d.traced)))"
-        for h in d.dead
-            s *= "; $(_hop(h)), a wire the loop does not need"
+        sentence = "$head — real: a loop survives the trace ($(_modes(d.traced)))"
+        for hop in d.dead
+            sentence *= "; $(_hop(hop)), a wire the loop does not need"
         end
-        return "$s; $_BREAK_CYCLE"
+        return "$sentence; $_BREAK_CYCLE"
     end
-    modes = Dict(d.traced)
-    hops = join((_hop(h) * (get(modes, first(h), :global) === :sampled ?
+    member_tracing = Dict(d.traced)
+    hops = join((_hop(hop) * (get(member_tracing, first(hop), :global) === :sampled ?
                             " (on the sampled paths; an untaken branch may still route it)" : "")
-                 for h in d.dead), ", ")
+                 for hop in d.dead), ", ")
     "$head — artificial at port level: $hops; $(_cycle_hint(d.dead))"
 end
 
@@ -1000,15 +1002,15 @@ path(d::ConformanceFailure) = d.path
 _cf_what(d::ConformanceFailure) =
     d.event === nothing ? d.what : "event `$(d.event)`'s $(d.what)"
 
-_cf_expect(s::Symbol) =
-    s === :ports      ? "must return a NamedTuple of port values" :
-    s === :state      ? "must return a NamedTuple shaped like the state" :
-    s === :init_x     ? "must return a NamedTuple shaped like `init_x`" :
-    s === :init_s     ? "must return a NamedTuple shaped like `init_s`" :
-    s === :stores     ? "must return a NamedTuple of the stores it writes" :
-    s === :mode       ? "must be a NamedTuple" :
+_cf_expect(shape::Symbol) =
+    shape === :ports      ? "must return a NamedTuple of port values" :
+    shape === :state      ? "must return a NamedTuple shaped like the state" :
+    shape === :init_x     ? "must return a NamedTuple shaped like `init_x`" :
+    shape === :init_s     ? "must return a NamedTuple shaped like `init_s`" :
+    shape === :stores     ? "must return a NamedTuple of the stores it writes" :
+    shape === :mode       ? "must be a NamedTuple" :
                         "must return a NamedTuple"
-_cf_section(s::Symbol) = (s === :stores || s === :mode) ? " (§5.2)" : ""
+_cf_section(shape::Symbol) = (shape === :stores || shape === :mode) ? " (§5.2)" : ""
 
 # §9.5's didactic hint: `0` where a real was declared names the fix outright.
 # Otherwise the D-166 pin hint, as `_pin` renders it everywhere else.
@@ -1078,10 +1080,10 @@ path(d::BundleFieldError) = d.path
 # The declaration that would have put the field in the bundle (§5.2's iff
 # table). `y_x`/`y_s` name no declaration at all, a stage-1 port being a probe
 # discovery. That arm gets its own sentence below.
-_bundle_declaration(f::Symbol) =
-    f === :x  ? "init_x"  : f === :s ? "init_s" : f === :m ? "init_m" :
-    f === :ws ? "init_workspace" : f === :u ? "input_types" :
-    f === :y  ? "output_types" : ""
+_bundle_declaration(field::Symbol) =
+    field === :x  ? "init_x"  : field === :s ? "init_s" : field === :m ? "init_m" :
+    field === :ws ? "init_workspace" : field === :u ? "input_types" :
+    field === :y  ? "output_types" : ""
 
 function message(d::BundleFieldError)
     head = "$(_at_path(d.path)): `$(d.family)` destructures `$(d.field)`"
@@ -1164,7 +1166,7 @@ end
 # `:running` refuses two different operations, and the sentence differs: an
 # advance entry is refused *because the loop is already advancing*, while every
 # other refusal at this status is a stopped-sim operation meeting a running loop.
-_advance_entry(op::Symbol) = op === :run! || op === :step!
+_advance_entry(operation::Symbol) = operation === :run! || operation === :step!
 
 message(d::ServiceLifecycle) =
     d.status === :running ?
@@ -1194,7 +1196,7 @@ end
 
 # The binding site the name came from (§13.5, §12.7, D-249): the advance that
 # declared it — `run!`, `replay!` or `step!` (D-255).
-_stop_site(s::Symbol) = "`$(s)`'s `stop_on`"
+_stop_site(site::Symbol) = "`$(site)`'s `stop_on`"
 
 message(d::StopFaceInvalid) =
     d.reason === :unknown ?
@@ -1260,19 +1262,19 @@ end
 # materialization's keyword and the doors' recording keywords validate under
 # `ArgumentInvalid` (D-256, D-261), and their constraint text and section moved
 # with them.
-_dep_constraint(p::Symbol) =
-    p === :algorithm           ? "must be a stepper type — RK4 or Heun" :
-    p === :firing_budget       ? "must be an integer ≥ 1" :
-    p === :localization_tol    ? "must be a positive real" :
-    p === :localization_budget ? "must be an integer ≥ 1" :
-    p === :h                   ? "must be positive" :
-    p === :N_base              ? "must be an integer ≥ 1" :
+_dep_constraint(parameter::Symbol) =
+    parameter === :algorithm           ? "must be a stepper type — RK4 or Heun" :
+    parameter === :firing_budget       ? "must be an integer ≥ 1" :
+    parameter === :localization_tol    ? "must be a positive real" :
+    parameter === :localization_budget ? "must be an integer ≥ 1" :
+    parameter === :h                   ? "must be positive" :
+    parameter === :N_base              ? "must be an integer ≥ 1" :
                                  "is outside its constraint"
-_dep_section(p::Symbol) =
-    p === :algorithm           ? " (§10.2)" :
-    p === :firing_budget       ? " (§10.6)" :
-    (p === :localization_tol || p === :localization_budget) ? " (§10.4)" :
-    p === :N_base              ? " (§9.1)" : ""
+_dep_section(parameter::Symbol) =
+    parameter === :algorithm           ? " (§10.2)" :
+    parameter === :firing_budget       ? " (§10.6)" :
+    (parameter === :localization_tol || parameter === :localization_budget) ? " (§10.4)" :
+    parameter === :N_base              ? " (§9.1)" : ""
 
 # The grid block (§9.2, D-187), appended to the first line of every consumer that
 # names the grid: the three grid refusals, the derivation path's info line and
@@ -1283,30 +1285,34 @@ _dep_section(p::Symbol) =
 # per row naming its suppliers. The block indents two spaces, its rows four. An
 # empty pool renders no block.
 const _SUPERSCRIPTS = collect("⁰¹²³⁴⁵⁶⁷⁸⁹")
-_sup(n::Int) = n == 1 ? "" : join(_SUPERSCRIPTS[c - '0' + 1] for c in string(n))
+_sup(power::Int) = power == 1 ? "" : join(_SUPERSCRIPTS[c - '0' + 1] for c in string(power))
 
 # A supplier's short label: the anchor's declaring key and the entry's kind.
 _grid_label(entry::GridEntry) = "$(entry.key) $(entry.kind)"
 
-function _grid_block(g::Union{Nothing,GridReport})
-    (g === nothing || g.admissible === nothing) && return ""
-    labels = [_anchor_label(e.scope, e.key) for e in g.pool]
-    kv = ["$(e.kind) $(e.value)" for e in g.pool]
-    fac = ["×$(e.factor)" for e in g.pool]
-    wp, wk, wf = maximum(textwidth, labels), maximum(textwidth, kv), maximum(textwidth, fac)
-    rows = ["  admissible: gcd(pool)/k, coarsest $(g.admissible)", "  pool:"]
-    for (i, e) in enumerate(g.pool)
-        row = "    " * rpad(labels[i], wp) * "  " * rpad(kv[i], wk) * "  " * rpad(fac[i], wf)
-        isempty(e.alternatives) ||
-            (row *= "  declaring " * join(e.alternatives, " or ") * " keeps $(e.factor * g.admissible)")
+function _grid_block(grid::Union{Nothing,GridReport})
+    (grid === nothing || grid.admissible === nothing) && return ""
+    labels = [_anchor_label(e.scope, e.key) for e in grid.pool]
+    kind_values = ["$(e.kind) $(e.value)" for e in grid.pool]
+    factors = ["×$(e.factor)" for e in grid.pool]
+    label_width, kind_value_width, factor_width =
+        maximum(textwidth, labels), maximum(textwidth, kind_values), maximum(textwidth, factors)
+    rows = ["  admissible: gcd(pool)/k, coarsest $(grid.admissible)", "  pool:"]
+    for (i, entry) in enumerate(grid.pool)
+        row = "    " * rpad(labels[i], label_width) * "  " * rpad(kind_values[i], kind_value_width) *
+              "  " * rpad(factors[i], factor_width)
+        isempty(entry.alternatives) ||
+            (row *= "  declaring " * join(entry.alternatives, " or ") *
+                    " keeps $(entry.factor * grid.admissible)")
         push!(rows, rstrip(row))
     end
     # A whole-second grid has no prime to attribute, so the section is absent.
-    pw = ["$(p.prime)$(_sup(p.power))" for p in g.primes]
-    isempty(pw) || push!(rows, "  primes: $(denominator(g.admissible)) = " * join(pw, "·"))
-    for (i, p) in enumerate(g.primes)
-        push!(rows, "    " * rpad(pw[i], maximum(textwidth, pw)) * "  " *
-                    join((_grid_label(g.pool[j]) for j in p.suppliers), ", "))
+    prime_powers = ["$(p.prime)$(_sup(p.power))" for p in grid.primes]
+    isempty(prime_powers) ||
+        push!(rows, "  primes: $(denominator(grid.admissible)) = " * join(prime_powers, "·"))
+    for (i, attribution) in enumerate(grid.primes)
+        push!(rows, "    " * rpad(prime_powers[i], maximum(textwidth, prime_powers)) * "  " *
+                    join((_grid_label(grid.pool[j]) for j in attribution.suppliers), ", "))
     end
     "\n" * join(rows, "\n")
 end
@@ -1523,54 +1529,54 @@ path(d::ConditionResolution) = d.path
 _cleaf(d) = d.face !== nothing ? "root input `$(d.face)`" :
             d.store === :input ? "input face `$(d.field)` of $(_at_path(d.path))" :
                                  "`$(d.store).$(d.field)` at $(_at_path(d.path))"
-_ctail(diagnostic) = " (§14.3) [$(diagnostic.origin)]"
-_role_word(r) = r === :output_port ? "an output port" :
-                r === :input_face  ? "an input face" : "a workspace entry"
+_ctail(d) = " (§14.3) [$(d.origin)]"
+_role_word(role) = role === :output_port ? "an output port" :
+                role === :input_face  ? "an input face" : "a workspace entry"
 
-function message(diagnostic::ConditionResolution)
-    diagnostic.reason === :assembly_path &&
-        return "the condition addresses $(_at_path(diagnostic.path)), which is an assembly — " *
+function message(d::ConditionResolution)
+    d.reason === :assembly_path &&
+        return "the condition addresses $(_at_path(d.path)), which is an assembly — " *
                "assemblies own no state, and a condition addresses components and root " *
-               "inputs (§14.1, §8.5) [$(diagnostic.origin)]"
-    diagnostic.reason === :unexported_face &&
-        return "`$(diagnostic.field)` is no root input face — the root's inputs are " *
-               "$(_namelist(diagnostic.candidates)) (§14.2) [$(diagnostic.origin)]"
-    diagnostic.reason === :no_input_face &&
-        return "$(_at_path(diagnostic.path)) declares no input face `$(diagnostic.field)` " *
-               "— its input faces are $(_namelist(diagnostic.candidates)) (§14.2) " *
-               "[$(diagnostic.origin)]"
-    diagnostic.reason === :internally_wired &&
-        return "$(_at_path(diagnostic.path))'s input face `$(diagnostic.field)` reaches no " *
-               "root input — it is wired internally, to `$(first(diagnostic.producer))`." *
-               "$(last(diagnostic.producer)), and " *
+               "inputs (§14.1, §8.5) [$(d.origin)]"
+    d.reason === :unexported_face &&
+        return "`$(d.field)` is no root input face — the root's inputs are " *
+               "$(_namelist(d.candidates)) (§14.2) [$(d.origin)]"
+    d.reason === :no_input_face &&
+        return "$(_at_path(d.path)) declares no input face `$(d.field)` " *
+               "— its input faces are $(_namelist(d.candidates)) (§14.2) " *
+               "[$(d.origin)]"
+    d.reason === :internally_wired &&
+        return "$(_at_path(d.path))'s input face `$(d.field)` reaches no " *
+               "root input — it is wired internally, to `$(first(d.producer))`." *
+               "$(last(d.producer)), and " *
                "the first sweep overwrites it; unexported stays unpokeable (§14.2) " *
-               "[$(diagnostic.origin)]"
-    diagnostic.reason === :no_store &&
-        return "$(_cleaf(diagnostic)) — $(_at_path(diagnostic.path)) is a $(diagnostic.tier) " *
+               "[$(d.origin)]"
+    d.reason === :no_store &&
+        return "$(_cleaf(d)) — $(_at_path(d.path)) is a $(d.tier) " *
                "component and declares " *
-               "no `init_$(diagnostic.store)`" *
-               (diagnostic.store === :x && diagnostic.tier === :discrete ?
+               "no `init_$(d.store)`" *
+               (d.store === :x && d.tier === :discrete ?
                 "; the discrete tier's state is `s` (D-195)" :
-                diagnostic.store === :s && diagnostic.tier === :continuous ?
+                d.store === :s && d.tier === :continuous ?
                 "; the continuous tier's state is `x` (D-195)" :
-                diagnostic.store === :m ?
+                d.store === :m ?
                 "; modes are declared by `init_m`, continuous-only (§3.2)" : "") *
-               _ctail(diagnostic)
-    diagnostic.reason === :undeclared_field &&
-        return "$(_cleaf(diagnostic)) is not declared — `init_$(diagnostic.store)` at " *
-               "$(_at_path(diagnostic.path)) " *
-               "declares $(_namelist(diagnostic.candidates))" *
-               (diagnostic.role === nothing ? "" :
-                "; `$(diagnostic.field)` is $(_role_word(diagnostic.role)), and a condition " *
+               _ctail(d)
+    d.reason === :undeclared_field &&
+        return "$(_cleaf(d)) is not declared — `init_$(d.store)` at " *
+               "$(_at_path(d.path)) " *
+               "declares $(_namelist(d.candidates))" *
+               (d.role === nothing ? "" :
+                "; `$(d.field)` is $(_role_word(d.role)), and a condition " *
                 "specifies state, " *
                 "modes and root inputs — never outputs, never workspace (§14.1)") *
-               _ctail(diagnostic)
-    "$(_cleaf(diagnostic)) takes $(diagnostic.declared), and the authored value is " *
-    "$(repr(diagnostic.value))::$(diagnostic.observed), which does not convert" *
-    (diagnostic.activation === nothing ? "" :
-     "; this is the seeded activation's own refusal — a value at $(diagnostic.activation) " *
+               _ctail(d)
+    "$(_cleaf(d)) takes $(d.declared), and the authored value is " *
+    "$(repr(d.value))::$(d.observed), which does not convert" *
+    (d.activation === nothing ? "" :
+     "; this is the seeded activation's own refusal — a value at $(d.activation) " *
      "is a decision variable and this leaf is pinned, and a decision variable descends into " *
-     "neither a frozen discrete `s` nor a pinned leaf (§14.3, §9.4)") * _ctail(diagnostic)
+     "neither a frozen discrete `s` nor a pinned leaf (§14.3, §9.4)") * _ctail(d)
 end
 
 "§14.2: one leaf written by two fragments of a `combine` — collision-intolerant by design."
@@ -1582,11 +1588,11 @@ Base.@kwdef struct DuplicateConditionLeaf <: Diagnostic
     origins::Vector{String} = String[]       # both chains
 end
 path(d::DuplicateConditionLeaf) = d.path
-_origin(diagnostic, i) = i ≤ length(diagnostic.origins) ?
-                         diagnostic.origins[i] : "an undetermined declaration"
-message(diagnostic::DuplicateConditionLeaf) =
-    "$(_cleaf(diagnostic)) is written twice — by $(_origin(diagnostic, 1)), and by " *
-    "$(_origin(diagnostic, 2)). `combine` " *
+_origin(d, ordinal) = ordinal ≤ length(d.origins) ?
+                         d.origins[ordinal] : "an undetermined declaration"
+message(d::DuplicateConditionLeaf) =
+    "$(_cleaf(d)) is written twice — by $(_origin(d, 1)), and by " *
+    "$(_origin(d, 2)). `combine` " *
     "is collision-intolerant by design — use `override(base, patch)` to layer (§14.2, §14.6)"
 
 "§14.2: a value handed to a condition combinator that is not a condition node."
@@ -1633,7 +1639,7 @@ Base.@kwdef struct TapResolution <: Diagnostic
 end
 path(d::TapResolution) = d.path
 
-_tap_noun(s) = s === :output_port ? "output port" : "state field"
+_tap_noun(declares) = declares === :output_port ? "output port" : "state field"
 
 # The tap set and the index come off the selector's own kind, so every arm has
 # them and the shared prefix shows them: which of `x`/`u`/`y` the read addresses
@@ -1685,16 +1691,16 @@ Base.@kwdef struct TrimProblemInvalid <: Diagnostic
     bad::Vector{Pair{Symbol,Any}} = Pair{Symbol,Any}[]   # field => observed type
 end
 
-_trim_shape(f::Symbol) =
-    f === :tolerances ? "the per-residual convergence test is an all-`Float64` NamedTuple" :
-    f === :residuals  ? "the residual system is a NamedTuple of named equations, " *
+_trim_shape(field::Symbol) =
+    field === :tolerances ? "the per-residual convergence test is an all-`Float64` NamedTuple" :
+    field === :residuals  ? "the residual system is a NamedTuple of named equations, " *
                         "same-named as `tolerances`" :
                         "the decisions and their two bounds are same-named all-`Float64` " *
                         "NamedTuples"
-_trim_floats(f::Symbol) =
-    f === :tolerances ? "a tolerance is a `Float64` in its residual's own physical units" :
+_trim_floats(field::Symbol) =
+    field === :tolerances ? "a tolerance is a `Float64` in its residual's own physical units" :
                         "decisions and bounds are `Float64`"
-_trim_verb(f::Symbol) = f === :residuals ? "returned" : "is"
+_trim_verb(field::Symbol) = field === :residuals ? "returned" : "is"
 _trim_bad(d) = join(("`$k`::$v" for (k, v) in d.bad), ", ")
 
 function message(d::TrimProblemInvalid)
@@ -1743,7 +1749,8 @@ end
 severity(::TrimCommitResiduals) = :warning
 message(d::TrimCommitResiduals) =
     "this solve converged, and the residuals re-gathered after the commit leave the box: " *
-    join(("`$k` = $v against $t" for (k, v, t) in d.residuals), ", ") * " — the mover is " *
+    join(("`$k` = $v against $tolerance" for (k, v, tolerance) in d.residuals), ", ") *
+    " — the mover is " *
     "boundary zero's `state_projection` or a commit-fired handler, and the verdict is not " *
     "re-litigated: it gated the commit, at the solved point (§14.5, §14.8)"
 
@@ -1755,7 +1762,9 @@ Base.@kwdef struct ConditionShapeDrift <: Diagnostic
     position::Union{Nothing,Tuple} = nothing # the node position, for :prefix
 end
 
-_drift_position(P::Tuple) = "(" * join((s isa Symbol ? ".$s" : "[$s]" for s in P), "") * ")"
+_drift_position(node_position::Tuple) =
+    "(" * join((segment isa Symbol ? ".$segment" : "[$segment]" for segment in node_position), "") *
+    ")"
 
 message(d::ConditionShapeDrift) =
     d.reason === :prefix ?
@@ -1920,37 +1929,37 @@ _replay_subject(d::ReplayHeaderMismatch) =
     d.name === :sizes ? "cell-size list" :
     "$(_at_path(d.path))'s $(d.name) store type"
 
-_replay_paths(ps) = isempty(ps) ? "none" : join((_at_path(p) for p in ps), ", ")
+_replay_paths(paths) = isempty(paths) ? "none" : join((_at_path(p) for p in paths), ", ")
 
 # The `:deployment` arms, one per case the walk in `trace.jl` emits: the seven
 # parameters and the two lists carry no path, a schedule row and a rate scope
 # carry theirs, and a scope column rides in `name` behind its prefix.
-_replay_deployment(diagnostic::ReplayHeaderMismatch) =
-    isempty(diagnostic.path) ?
-    (diagnostic.name === :schedule ?
-     "replay: the recording's schedule covers $(_replay_paths(diagnostic.expected)) and " *
-     "this deployment's covers $(_replay_paths(diagnostic.found)) — the rows are compared " *
+_replay_deployment(d::ReplayHeaderMismatch) =
+    isempty(d.path) ?
+    (d.name === :schedule ?
+     "replay: the recording's schedule covers $(_replay_paths(d.expected)) and " *
+     "this deployment's covers $(_replay_paths(d.found)) — the rows are compared " *
      "by component path, so a differing component list is reported whole: past the first " *
      "difference the rows name different components (§12.7)" :
-     diagnostic.name === Symbol("scope.key") ?
-     "replay: the recording opened the rate scopes $(_namelist(diagnostic.expected)) and " *
-     "this deployment opens $(_namelist(diagnostic.found)) — a scope is identified by its " *
+     d.name === Symbol("scope.key") ?
+     "replay: the recording opened the rate scopes $(_namelist(d.expected)) and " *
+     "this deployment opens $(_namelist(d.found)) — a scope is identified by its " *
      "path and its key, so a differing scope list is reported whole rather than column by " *
      "column (§12.7)" :
-     "replay: the recording ran at `$(diagnostic.name)` = $(diagnostic.expected) and this " *
-     "simulation is bound at $(diagnostic.found) — the seven trajectory-determining " *
+     "replay: the recording ran at `$(d.name)` = $(d.expected) and this " *
+     "simulation is bound at $(d.found) — the seven trajectory-determining " *
      "deployment parameters are compared, the schedule with them, never taken as a " *
      "what-if: a deployment change moves the times the frame-ordinal batches apply at, " *
      "which is different inputs rather than a modified model (§12.7)") :
-    startswith(String(diagnostic.name), "scope.") ?
-    "replay: the rate scope at $(_at_path(diagnostic.path)) recorded " *
-    "`$(chopprefix(String(diagnostic.name), "scope."))` = $(repr(diagnostic.expected)) and " *
-    "this deployment binds $(repr(diagnostic.found)) — a scope is compared with every " *
+    startswith(String(d.name), "scope.") ?
+    "replay: the rate scope at $(_at_path(d.path)) recorded " *
+    "`$(chopprefix(String(d.name), "scope."))` = $(repr(d.expected)) and " *
+    "this deployment binds $(repr(d.found)) — a scope is compared with every " *
     "column, the anchor included, because it is what the rates under it were declared " *
     "through (§12.7)" :
-    "replay: the schedule row for $(_at_path(diagnostic.path)) recorded " *
-    "`$(diagnostic.name)` = $(repr(diagnostic.expected)) and this deployment binds " *
-    "$(repr(diagnostic.found)) — the schedule is " *
+    "replay: the schedule row for $(_at_path(d.path)) recorded " *
+    "`$(d.name)` = $(repr(d.expected)) and this deployment binds " *
+    "$(repr(d.found)) — the schedule is " *
     "compared with every column, the anchor and rate chain included, so a rate re-declared " *
     "through a different anchor at the same tick table is a different deployment (§12.7)"
 
