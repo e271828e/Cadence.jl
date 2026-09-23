@@ -217,7 +217,7 @@ struct StepError{C <: Union{Diagnostic, Exception}} <: Exception
 end
 
 # The species' payload, read as a fail-fast `DiagnosticError`'s is (D-225).
-diagnostic(e::StepError{<:Diagnostic}) = e.cause
+diagnostic(carrier::StepError{<:Diagnostic}) = carrier.cause
 
 # The phase, spelled per case (§13.4). The index rides only where one applies:
 # an `:integrate` frame at index 0 is the framework's own act inside the
