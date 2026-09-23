@@ -177,38 +177,38 @@ _within(r, tol) = all(i -> abs(r[i]) ≤ tol[i], eachindex(r))
 # so it costs no temporary.
 _scaled_norm(r, tol) = sqrt(sum(i -> (r[i] / tol[i])^2, eachindex(r)))
 
-function solve(bk::LevenbergMarquardt, eval!, d0::Vector{Float64},
+function solve(backend::LevenbergMarquardt, eval!, d0::Vector{Float64},
                lower::Vector{Float64}, upper::Vector{Float64}, tol::Vector{Float64})
-    n, m = length(d0), length(tol)
-    d, r, J = copy(d0), zeros(m), zeros(m, n)
-    dt, rt, Jt = similar(d), similar(r), similar(J)
+    n_decisions, n_residuals = length(d0), length(tol)
+    d, r, J = copy(d0), zeros(n_residuals), zeros(n_residuals, n_decisions)
+    d_trial, r_trial, J_trial = similar(d), similar(r), similar(J)
     eval!(r, J, d)
-    nevals, λ = 1, bk.λ₀
+    nevals, λ = 1, backend.λ₀
 
-    for iter in 1:bk.maxiter
-        _within(r, tol) && return (; d, status = :converged, nevals, niters = iter - 1)
+    for iteration in 1:backend.maxiter
+        _within(r, tol) && return (; d, status = :converged, nevals, niters = iteration - 1)
         # The normal equations of the linearized step, with Marquardt's own
         # scaling: the damping rides the curvature of each column rather than
         # the identity, so a decision the residuals barely respond to is not
         # frozen by the same λ that steadies a stiff one. A zero column — a
         # decision whose Jacobian entries all vanished, the saturated-actuator
         # case §14.7 names — takes the floor and keeps the system definite.
-        A, g = J' * J, J' * r
-        damp = Diagonal(max.(diag(A), LM_λMIN))
-        nrm = _scaled_norm(r, tol)
+        JᵀJ, Jᵀr = J' * J, J' * r
+        damping = Diagonal(max.(diag(JᵀJ), LM_λMIN))
+        current_norm = _scaled_norm(r, tol)
         accepted = false
         while true
-            δ = (A + λ * damp) \ (-g)
+            δ = (JᵀJ + λ * damping) \ (-Jᵀr)
             all(isfinite, δ) || break
-            @. dt = clamp(d + δ, lower, upper)          # step projection onto the box
+            @. d_trial = clamp(d + δ, lower, upper)          # step projection onto the box
             # A step the decisions cannot represent is the end of the descent,
             # whatever the residuals still are: reported as its own status, not
             # dressed up as convergence or as an exhausted iteration count.
-            maximum(abs, dt .- d) ≤ eps(maximum(abs, d) + 1.0) && break
-            eval!(rt, Jt, dt)
+            maximum(abs, d_trial .- d) ≤ eps(maximum(abs, d) + 1.0) && break
+            eval!(r_trial, J_trial, d_trial)
             nevals += 1
-            if _scaled_norm(rt, tol) < nrm
-                d .= dt; r .= rt; J .= Jt
+            if _scaled_norm(r_trial, tol) < current_norm
+                d .= d_trial; r .= r_trial; J .= J_trial
                 λ = max(λ / 10, LM_λMIN)
                 accepted = true
                 break
@@ -216,9 +216,9 @@ function solve(bk::LevenbergMarquardt, eval!, d0::Vector{Float64},
             λ *= 10
             λ > LM_λMAX && break
         end
-        accepted || return (; d, status = :stalled, nevals, niters = iter)
+        accepted || return (; d, status = :stalled, nevals, niters = iteration)
     end
-    (; d, status = _within(r, tol) ? :converged : :maxiter, nevals, niters = bk.maxiter)
+    (; d, status = _within(r, tol) ? :converged : :maxiter, nevals, niters = backend.maxiter)
 end
 
 # --- setup validation (§14.7, §13.1) --------------------------------------------
@@ -240,32 +240,34 @@ _tviol(field::Symbol, reason::Symbol; kw...) =
 # `guess`, `lower` and `upper`: NamedTuples, one key set between them, all
 # fields `Float64`. The key-set comparison is by *set*, order being no
 # mismatch — the canonicalization below pairs a permuted spelling by name.
-function _check_decisions!(diags::Vector{Diagnostic}, p::TrimProblem)
+function _check_decisions!(diags::Vector{Diagnostic}, problem::TrimProblem)
     named = true
-    for (name, v) in ((:guess, p.guess), (:lower, p.lower), (:upper, p.upper))
-        v isa NamedTuple && continue
-        push!(diags, _tviol(name, :not_a_namedtuple; observed = typeof(v)))
+    for (name, field_value) in
+            ((:guess, problem.guess), (:lower, problem.lower), (:upper, problem.upper))
+        field_value isa NamedTuple && continue
+        push!(diags, _tviol(name, :not_a_namedtuple; observed = typeof(field_value)))
         named = false
     end
     named || return nothing
-    for (name, v) in ((:lower, p.lower), (:upper, p.upper))
-        Set(keys(v)) == Set(keys(p.guess)) ||
-            push!(diags, _tviol(name, :key_set; names = collect(keys(v)),
-                               expected = collect(keys(p.guess))))
+    for (name, field_value) in ((:lower, problem.lower), (:upper, problem.upper))
+        Set(keys(field_value)) == Set(keys(problem.guess)) ||
+            push!(diags, _tviol(name, :key_set; names = collect(keys(field_value)),
+                               expected = collect(keys(problem.guess))))
     end
-    for (name, v) in ((:guess, p.guess), (:lower, p.lower), (:upper, p.upper))
-        _check_floats!(diags, name, v)
+    for (name, field_value) in
+            ((:guess, problem.guess), (:lower, problem.lower), (:upper, problem.upper))
+        _check_floats!(diags, name, field_value)
     end
     # And the box has to admit a point at all. Checked per decision, over the
     # pairs that survived the two checks above, because an inverted pair is a
     # box no projection can honor — `clamp` would answer the upper bound and
     # the report would name a saturation nobody authored.
-    for k in keys(p.guess)
-        (haskey(p.lower, k) && haskey(p.upper, k) &&
-         p.lower[k] isa Float64 && p.upper[k] isa Float64) || continue
-        p.lower[k] ≤ p.upper[k] ||
-            push!(diags, _tviol(:lower, :inverted_box; key = k, value = p.lower[k],
-                               bound = p.upper[k]))
+    for key in keys(problem.guess)
+        (haskey(problem.lower, key) && haskey(problem.upper, key) &&
+         problem.lower[key] isa Float64 && problem.upper[key] isa Float64) || continue
+        problem.lower[key] ≤ problem.upper[key] ||
+            push!(diags, _tviol(:lower, :inverted_box; key = key, value = problem.lower[key],
+                               bound = problem.upper[key]))
     end
     nothing
 end
@@ -276,23 +278,24 @@ end
 # all — and the acceptance test measures `‖r ./ tol`‖ (§14.8), so a non-positive
 # one sends the descent test to `Inf`/`NaN`, rejects every trial step and
 # returns `:stalled` at the guess. That is a malformed problem, named here.
-function _check_tolerances!(diags::Vector{Diagnostic}, p::TrimProblem)
-    if !(p.tolerances isa NamedTuple)
-        push!(diags, _tviol(:tolerances, :not_a_namedtuple; observed = typeof(p.tolerances)))
+function _check_tolerances!(diags::Vector{Diagnostic}, problem::TrimProblem)
+    if !(problem.tolerances isa NamedTuple)
+        push!(diags, _tviol(:tolerances, :not_a_namedtuple; observed = typeof(problem.tolerances)))
         return nothing
     end
-    _check_floats!(diags, :tolerances, p.tolerances)
-    for k in keys(p.tolerances)
-        v = p.tolerances[k]
-        v isa Float64 || continue           # the type violation is already named above
-        (isfinite(v) && v > 0) ||
-            push!(diags, _tviol(:tolerances, :nonpositive_tolerance; key = k, value = v))
+    _check_floats!(diags, :tolerances, problem.tolerances)
+    for key in keys(problem.tolerances)
+        tolerance = problem.tolerances[key]
+        tolerance isa Float64 || continue   # the type violation is already named above
+        (isfinite(tolerance) && tolerance > 0) ||
+            push!(diags, _tviol(:tolerances, :nonpositive_tolerance; key = key, value = tolerance))
     end
     nothing
 end
 
-function _check_floats!(diags::Vector{Diagnostic}, name::Symbol, v::NamedTuple)
-    bad = Pair{Symbol,Any}[k => typeof(v[k]) for k in keys(v) if !(v[k] isa Float64)]
+function _check_floats!(diags::Vector{Diagnostic}, name::Symbol, field_value::NamedTuple)
+    bad = Pair{Symbol,Any}[k => typeof(field_value[k]) for k in keys(field_value)
+                            if !(field_value[k] isa Float64)]
     isempty(bad) || push!(diags, _tviol(name, :field_types; bad = bad))
     nothing
 end
@@ -302,13 +305,13 @@ end
 # as they are — the read is named as authored, with the list in hand — because
 # here the *problem* is what is malformed (§14.8) and one throw reports both
 # halves of it.
-function _check_reads!(diags::Vector{Diagnostic}, p::TrimProblem, b::Build)
-    if !(p.reads isa Reads)
-        push!(diags, _tviol(:reads, :not_a_read_set; observed = typeof(p.reads)))
+function _check_reads!(diags::Vector{Diagnostic}, problem::TrimProblem, build::Build)
+    if !(problem.reads isa Reads)
+        push!(diags, _tviol(:reads, :not_a_read_set; observed = typeof(problem.reads)))
         return nothing
     end
-    (reader, rviol) = _resolve_reads(p.reads, b, Float64)
-    append!(diags, rviol)
+    (reader, read_violations) = _resolve_reads(problem.reads, build, Float64)
+    append!(diags, read_violations)
     reader
 end
 
@@ -383,50 +386,50 @@ operating point an equilibrium?" probe, useful in its own right and free.
 """
 function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
                t0::Real = 0.0, backend = LevenbergMarquardt())
-    lc = lifecycle(sim)
-    lc === :running && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :running,
+    status = lifecycle(sim)
+    status === :running && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :running,
                                                               legal = collect(STOPPED_SIM_LEGAL))))
-    lc === :errored && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :errored,
+    status === :errored && throw(DiagnosticError(ServiceLifecycle(op = :trim!, status = :errored,
                                                               legal = collect(STOPPED_SIM_LEGAL))))
 
-    b = sim.deployment.build
+    build = sim.deployment.build
     diags = Diagnostic[]
     _check_decisions!(diags, problem)
     _check_tolerances!(diags, problem)
-    reader = _check_reads!(diags, problem, b)
+    reader = _check_reads!(diags, problem, build)
     _report_trim!(diags)                       # one collected throw, before any evaluation
 
     guess, tolerances = problem.guess, problem.tolerances
-    K, RK = keys(guess), keys(tolerances)
-    N = length(K)
-    tol = Float64[tolerances[k] for k in RK]
+    decision_names, residual_names = keys(guess), keys(tolerances)
+    N = length(decision_names)
+    tol = Float64[tolerances[k] for k in residual_names]
 
     # --- the nominal half (D-213) ------------------------------------------------
-    ex_nom = _scratch(sim, Float64)
-    plan = resolve_condition(override(baseline, problem.condition(guess)), b, Float64)
-    assert_total(plan, b.structure, :trim!)        # (§14.6): pre-evaluation, all-or-nothing
-    apply!(ex_nom, plan)
-    _round!(ex_nom, ESTABLISH)                # every discrete output stage, due or not
-    ex_nom.bodies.rhs()
-    r0 = problem.residuals(gather(reader, ex_nom), guess)
+    nominal_exec = _scratch(sim, Float64)
+    plan = resolve_condition(override(baseline, problem.condition(guess)), build, Float64)
+    assert_total(plan, build.structure, :trim!)    # (§14.6): pre-evaluation, all-or-nothing
+    apply!(nominal_exec, plan)
+    _round!(nominal_exec, ESTABLISH)          # every discrete output stage, due or not
+    nominal_exec.bodies.rhs()
+    r0 = problem.residuals(gather(reader, nominal_exec), guess)
     _check_residuals(r0, tolerances)          # the return, observed where §14.7 says
 
     if N == 0
         # The solver is bypassed outright: the establishment round above is the
         # one evaluation, and the ordinary box test decides (§14.8).
-        r = Float64[NamedTuple{RK}(r0)[k] for k in RK]
+        r = Float64[NamedTuple{residual_names}(r0)[k] for k in residual_names]
         return _verdict!(sim, problem, baseline, guess, r, tol, :bypassed, 1, 0,
                          Tuple{Symbol,Symbol}[], reader, t0)
     end
 
     # --- the seeded half ---------------------------------------------------------
-    TD = ForwardDiff.Dual{TrimTag,Float64,N}
-    act = activation(b, TD)                   # the cached activation (§9.4)
-    ex = _scratch(sim, TD, act)
-    _establish_frozen!(ex, act, ex_nom, sim.deployment.build)
-    d_dual = _seeded(K, guess, TD)
-    plan_d = compile_plan(override(baseline, problem.condition(d_dual)), b, TD)
-    reader_d = _compile_reads(problem.reads, b, TD)
+    T = ForwardDiff.Dual{TrimTag,Float64,N}
+    act = activation(build, T)                # the cached activation (§9.4)
+    seeded_exec = _scratch(sim, T, act)
+    _establish_frozen!(seeded_exec, act, nominal_exec, sim.deployment.build)
+    d_dual = _seeded(decision_names, guess, T)
+    seeded_plan = compile_plan(override(baseline, problem.condition(d_dual)), build, T)
+    seeded_reader = _compile_reads(problem.reads, build, T)
 
     # One evaluation: write the decisions through the shape-compiled plan, sweep,
     # gather, and take `r` off the values and `J` off the partials of one and the
@@ -437,33 +440,33 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     # lambda that branches on the scalar it is handed — on `eltype`, on a
     # method that has no `Dual` arm — can answer a different key set here, and
     # without the re-check the reorder below raises a bare `ErrorException`
-    # from `NamedTuple{RK}` instead of the collected `TrimProblemInvalid` that
-    # names what is wrong. Once only: the per-iteration path takes one `Bool`
+    # from `NamedTuple{residual_names}` instead of the collected `TrimProblemInvalid`
+    # that names what is wrong. Once only: the per-iteration path takes one `Bool`
     # load and no work at all.
     checked = Ref(false)
     function eval!(r::Vector{Float64}, J, d::Vector{Float64})
-        d_nt = _seeded(K, d, TD)
-        apply!(ex, plan_d, override(baseline, problem.condition(d_nt)))
-        evaluate!(ex)
-        raw = problem.residuals(gather(reader_d, ex), d_nt)
+        decisions = _seeded(decision_names, d, T)
+        apply!(seeded_exec, seeded_plan, override(baseline, problem.condition(decisions)))
+        evaluate!(seeded_exec)
+        raw = problem.residuals(gather(seeded_reader, seeded_exec), decisions)
         if !checked[]
             checked[] = true
             _check_residuals(raw, tolerances)
         end
-        res = NamedTuple{RK}(raw)
+        residuals = NamedTuple{residual_names}(raw)
         for i in eachindex(r)
-            v = res[i]
-            r[i] = ForwardDiff.value(v)
+            residual = residuals[i]
+            r[i] = ForwardDiff.value(residual)
             J === nothing && continue
             for j in 1:N
-                J[i, j] = ForwardDiff.partials(v, j)
+                J[i, j] = ForwardDiff.partials(residual, j)
             end
         end
         nothing
     end
 
-    lower = Float64[problem.lower[k] for k in K]
-    upper = Float64[problem.upper[k] for k in K]
+    lower = Float64[problem.lower[k] for k in decision_names]
+    upper = Float64[problem.upper[k] for k in decision_names]
     # The guess enters the box here, once. §14.8 honors bounds by step
     # projection, and a backend's returns that never *step* — the
     # already-within-tolerance return, a stall at the first iteration — would
@@ -471,16 +474,16 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     # as converged, with `saturated` empty because it sits at no bound. Every
     # point the backend sees and returns lies in the box because the one it
     # starts from does.
-    d0 = clamp.(Float64[guess[k] for k in K], lower, upper)
+    d0 = clamp.(Float64[guess[k] for k in decision_names], lower, upper)
     out = solve(backend, eval!, d0, lower, upper, tol)
 
     # The verdict, at the backend's returned point and in the service's own
     # units: one residual evaluation, noise against the solve that produced it.
     r = zeros(Float64, length(tol))
     eval!(r, nothing, out.d)
-    _verdict!(sim, problem, baseline, NamedTuple{K}(Tuple(out.d)), r, tol,
-              out.status, out.nevals, out.niters, _saturated(K, out.d, lower, upper),
-              reader, t0)
+    _verdict!(sim, problem, baseline, NamedTuple{decision_names}(Tuple(out.d)), r, tol,
+              out.status, out.nevals, out.niters,
+              _saturated(decision_names, out.d, lower, upper), reader, t0)
 end
 
 # A non-nominal deployment is refused rather than served: the commit runs
@@ -490,9 +493,9 @@ end
 trim!(sim::Simulation, ::TrimProblem; kw...) = throw(DiagnosticError(
     ArgumentInvalid(call = :trim!, reason = :non_nominal, value = string(typeof(sim)))))
 
-trim!(::Simulation, other; kw...) = throw(DiagnosticError(
+trim!(::Simulation, problem; kw...) = throw(DiagnosticError(
     ArgumentInvalid(call = :trim!, argument = :problem, reason = :not_a_problem,
-                    value = string(typeof(other)))))
+                    value = string(typeof(problem)))))
 
 # --- the pieces the service is built out of --------------------------------------
 
@@ -511,14 +514,14 @@ end
 # A discrete producer's cells are pinned `Float64` at every activation, so this
 # is a value copy; the zero-partial embedding happens where a continuous
 # consumer reads them (§14.3).
-function _establish_frozen!(ex::Executor, act::Activation{T}, nom::Executor,
+function _establish_frozen!(seeded_exec::Executor, act::Activation{T}, nominal_exec::Executor,
                             build::Build) where {T}
     for (ci, entry) in enumerate(build.structure.components)
         _frozen(entry.tier, T) || continue
         path = entry.path
         for name in _ports(build.outputs.components[ci])
-            scatter!(ex.store, act.layout.addr[(path, name)],
-                     gather(nom.store, nom.act.layout.addr[(path, name)]))
+            scatter!(seeded_exec.store, act.layout.addr[(path, name)],
+                     gather(nominal_exec.store, nominal_exec.act.layout.addr[(path, name)]))
         end
     end
     nothing
@@ -526,22 +529,22 @@ end
 
 # The decisions at the seeded activation: field `i` carrying the unit partial in
 # slot `i`, which is what makes one sweep yield `r` and `J` together (§14.7).
-# `v` is indexed positionally, so the packed vector and the guess NamedTuple
-# seed through the same code.
-_seeded(K::Tuple, v, ::Type{ForwardDiff.Dual{TG,Float64,N}}) where {TG,N} =
-    NamedTuple{K}(ntuple(i -> ForwardDiff.Dual{TG}(Float64(v[i]),
+# `decisions` is indexed positionally, so the packed vector and the guess
+# NamedTuple seed through the same code.
+_seeded(decision_names::Tuple, decisions, ::Type{ForwardDiff.Dual{TG,Float64,N}}) where {TG,N} =
+    NamedTuple{decision_names}(ntuple(i -> ForwardDiff.Dual{TG}(Float64(decisions[i]),
                                                    ntuple(j -> Float64(i == j), Val(N))...),
                          Val(N)))
 
 # The decisions sitting at a bound at the returned point (§14.8): the comparison
 # is exact because the projection assigns the bound itself, and an infinite
 # bound is never met by a finite decision.
-function _saturated(K::Tuple, d::Vector{Float64}, lower::Vector{Float64},
+function _saturated(decision_names::Tuple, d::Vector{Float64}, lower::Vector{Float64},
                     upper::Vector{Float64})
     out = Tuple{Symbol,Symbol}[]
     for i in eachindex(d)
-        d[i] == lower[i] ? push!(out, (K[i], :lower)) :
-        d[i] == upper[i] && push!(out, (K[i], :upper))
+        d[i] == lower[i] ? push!(out, (decision_names[i], :lower)) :
+        d[i] == upper[i] && push!(out, (decision_names[i], :upper))
     end
     out
 end
@@ -549,24 +552,25 @@ end
 # The verdict, the commit and the report, shared by both forms — the solved
 # problem and the bypassed zero-decision one, which differ in how they got their
 # residual vector and in nothing after it (§14.8).
-function _verdict!(sim::Simulation, p::TrimProblem, baseline, solution::NamedTuple,
+function _verdict!(sim::Simulation, problem::TrimProblem, baseline, solution::NamedTuple,
                   r::Vector{Float64}, tol::Vector{Float64}, status::Symbol,
                   nevals::Int, niters::Int, saturated::Vector{Tuple{Symbol,Symbol}},
                   reader, t0)
-    RK = keys(p.tolerances)
-    residuals = NamedTuple{RK}(Tuple(r))
+    residual_names = keys(problem.tolerances)
+    residuals = NamedTuple{residual_names}(Tuple(r))
     converged = _within(r, tol)
-    converged || return TrimReport(false, solution, residuals, p.tolerances, nothing,
+    converged || return TrimReport(false, solution, residuals, problem.tolerances, nothing,
                                    status, nevals, niters, saturated,
                                    Tuple{String,Symbol}[])
 
-    init!(sim, override(baseline, p.condition(solution)); t0 = Float64(t0))
+    init!(sim, override(baseline, problem.condition(solution)); t0 = Float64(t0))
 
     # The commit's fired events, read off the per-boundary counts right after
     # `init!` returns — they are reset at the next boundary, and there is none
     # (§10.6, §14.5).
-    es = sim.exec.events
-    fired = Tuple{String,Symbol}[es.names[i] for i in eachindex(es.count) if es.count[i] > 0]
+    events = sim.exec.events
+    fired = Tuple{String,Symbol}[events.names[i] for i in eachindex(events.count)
+                                 if events.count[i] > 0]
     isempty(fired) || @warn logline(TrimCommitEvents(events = fired))
 
     # The committed-state residuals, nearly free: that boundary's sweep has just
@@ -574,12 +578,12 @@ function _verdict!(sim::Simulation, p::TrimProblem, baseline, solution::NamedTup
     # the derivative reads, `ẋbuf` being integrator scratch and this a service
     # evaluation (§7.5, §14.8).
     sim.exec.bodies.rhs()
-    committed = NamedTuple{RK}(p.residuals(gather(reader, sim.exec), solution))
+    committed = NamedTuple{residual_names}(problem.residuals(gather(reader, sim.exec), solution))
     off = Tuple{Symbol,Float64,Float64}[(k, Float64(committed[k]), tol[i])
-                                        for (i, k) in enumerate(RK)
+                                        for (i, k) in enumerate(residual_names)
                                         if !(abs(committed[k]) ≤ tol[i])]
     isempty(off) || @warn logline(TrimCommitResiduals(residuals = off))
 
-    TrimReport(true, solution, residuals, p.tolerances, committed, status, nevals, niters,
+    TrimReport(true, solution, residuals, problem.tolerances, committed, status, nevals, niters,
                saturated, fired)
 end
