@@ -160,7 +160,7 @@ struct CEntry
     value::Any
     origin::String
     face::Union{Nothing,Symbol}   # input entries: the root input the chain lands on
-    pos::Tuple                    # the tree position: the step tuple to this value
+    position::Tuple                    # the tree position: the step tuple to this value
 end
 
 _key(entry::CEntry) = entry.face === nothing ? (entry.path, entry.store, entry.field) :
@@ -177,7 +177,7 @@ function _flat(node::Fragment, path::String, level, origin::String, tree_positio
                            nothing, (tree_position..., name, field))
             store === :input &&
                 (entry = CEntry(entry.path, entry.store, entry.field, entry.value,
-                                entry.origin, _root_input(structure, entry, diags), entry.pos))
+                                entry.origin, _root_input(structure, entry, diags), entry.position))
             push!(out, entry)
         end
     end
@@ -217,7 +217,7 @@ function _flat(node::Override, path::String, level, origin::String, tree_positio
                 (layered[overridden] =
                      CEntry(entry.path, entry.store, entry.field, entry.value,
                             "$(entry.origin) (overrode $(layered[overridden].origin))",
-                            entry.face, entry.pos))
+                            entry.face, entry.position))
         end
     end
     layered
@@ -292,15 +292,15 @@ function resolve_condition(node::ConditionNode, build::Build, ::Type{T} = Float6
     faces = Symbol[]
     overlays = Dict{Tuple{Symbol,Int},Vector{Pair{Symbol,Any}}}()
     for survivor in resolved
-        entry = survivor.e
+        entry = survivor.entry
         if entry.store === :input
-            push!(inputs, (survivor.dest, survivor.v))
+            push!(inputs, (survivor.dest, survivor.converted))
             push!(faces, entry.face)
         elseif entry.store === :x
-            push!(xs, (survivor.dest, survivor.v))
+            push!(xs, (survivor.dest, survivor.converted))
         else
             push!(get!(() -> Pair{Symbol,Any}[], overlays, (entry.store, survivor.dest)),
-                  entry.field => survivor.v)
+                  entry.field => survivor.converted)
         end
     end
 
@@ -321,14 +321,15 @@ end
 """
 One entry that survived §14.3's checks, beside everything either one needs
 to bake from it. The two differ in *what* they bake — the dynamic one
-takes `v`, the specialized one lifts `e.pos` to a lens and keeps `L` as the
-converter — and in nothing else, which is why the checks have one implementation.
+takes `converted`, the specialized one lifts `entry.position` to a lens and
+keeps `leaf_type` as the converter — and in nothing else, which is why the
+checks have one implementation.
 """
 struct Resolved
-    e::CEntry
+    entry::CEntry
     dest::Any   # :x → the `xbuf` offset; :s, :m → the component index; :input → the cell address
-    L::Any      # the destination leaf type at this activation — §14.3's converter
-    v::Any      # the authored value, through that converter
+    leaf_type::Any      # the destination leaf type at this activation — §14.3's converter
+    converted::Any      # the authored value, through that converter
 end
 
 # §14.3's list, run once: the path resolves to a component, the field is
@@ -692,11 +693,11 @@ function compile_plan(node::ConditionNode, build::Build, ::Type{T} = Float64) wh
     xs, inputs = Any[], Any[]
     overlays = Dict{Tuple{Symbol,Int},Vector{Resolved}}()
     for survivor in resolved
-        entry = survivor.e
+        entry = survivor.entry
         if entry.store === :input
-            push!(inputs, InputWrite(Authored{entry.pos,survivor.L}(), survivor.dest))
+            push!(inputs, InputWrite(Authored{entry.position,survivor.leaf_type}(), survivor.dest))
         elseif entry.store === :x
-            push!(xs, XWrite(Authored{entry.pos,survivor.L}(), survivor.dest))
+            push!(xs, XWrite(Authored{entry.position,survivor.leaf_type}(), survivor.dest))
         else
             push!(get!(() -> Resolved[], overlays, (entry.store, survivor.dest)), survivor)
         end
@@ -706,8 +707,8 @@ function compile_plan(node::ConditionNode, build::Build, ::Type{T} = Float64) wh
     for (store, ci, defaults) in _store_bases(build, act)
         overlay = get(overlays, (store, ci), nothing)
         overlay === nothing && continue
-        push!(stores, StoreWrite{store,typeof(defaults),Tuple(r.e.field for r in overlay)}(
-            ci, defaults, Tuple(Authored{r.e.pos,r.L}() for r in overlay)))
+        push!(stores, StoreWrite{store,typeof(defaults),Tuple(r.entry.field for r in overlay)}(
+            ci, defaults, Tuple(Authored{r.entry.position,r.leaf_type}() for r in overlay)))
     end
 
     SpecializedPlan{T,typeof(node)}(Tuple(xs), Tuple(stores), Tuple(inputs),
