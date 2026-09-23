@@ -17,7 +17,7 @@ clock write below converts it into the deployment's scalar (D-260)."""
 _grid_time(sim::Simulation, k::Int) = sim.exec.clock.t₀ + k * sim.deployment.h
 
 """
-    frame!(sim, k, pol, addrs)
+    frame!(sim, k, policy, addrs)
 
 Advance through the frame `[tₖ₋₁, tₖ]`, leaving the clock at the indexed frame
 top with the state and table at their arrival values — the frame-top boundary
@@ -27,12 +27,12 @@ the bare step: no arrival machinery, no extra sweep, today's exact path.
 The one exception is a §13.5 stop observed at a `t*` publication: the frame's
 remainder was abandoned, so the clock stays at `t*` — where the stores are —
 and the frame top is never stamped. Returns the holding face then, `nothing`
-otherwise (D-261). `pol` is the advance's stop policy and `addrs` its faces'
+otherwise (D-261). `policy` is the advance's stop policy and `addrs` its faces'
 compiled addresses, carried here for exactly that sampling read (D-260, D-261).
 """
-function frame!(sim::Simulation{T}, k::Int, pol::StopPolicy, addrs::Vector{Any}) where {T}
+function frame!(sim::Simulation{T}, k::Int, policy::StopPolicy, addrs::Vector{Any}) where {T}
     t_to = _grid_time(sim, k)
-    hit = sim.exec.has_localized ? _localized_frame!(sim, t_to, pol, addrs) :
+    hit = sim.exec.has_localized ? _localized_frame!(sim, t_to, policy, addrs) :
                                    (step!(sim, T(sim.deployment.h)); nothing)
     hit === nothing && (sim.exec.clock.t = t_to)
     hit
@@ -45,12 +45,12 @@ end
 # are already structurally bounded (at most one per declared event), while the
 # segment count is the quantity chattering inflates without bound. Returns
 # `nothing` at the frame top and the holding face at a `t*` stop (D-261).
-function _localized_frame!(sim::Simulation{T}, t_to, pol::StopPolicy, addrs::Vector{Any}) where {T}
-    es, cur = sim.exec.events, sim.exec.cursor
-    n = length(es.prior)
+function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::Vector{Any}) where {T}
+    events, cursor = sim.exec.events, sim.exec.cursor
+    event_count = length(events.prior)
     (x₀, _) = startpoint(sim.exec.stepper)         # the seam's retained pair (§10.2):
-    count = 0                                 # x₀ = x(t_seg) after each step!
-    fill!(es.loc_warned, false)
+    localizations = 0                                 # x₀ = x(t_seg) after each step!
+    fill!(events.loc_warned, false)
     while true
         t_seg = sim.exec.clock.t
         h′ = t_to - t_seg
@@ -59,32 +59,32 @@ function _localized_frame!(sim::Simulation{T}, t_to, pol::StopPolicy, addrs::Vec
         # The arrival sweep at the segment's end — interior, on the raw
         # unprojected state, before any discrete cell refreshes (§10.4): the
         # sweep that closes the integration step is what raises the trigger.
-        _phase!(cur, :arrival)
+        _phase!(cursor, :arrival)
         sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
-        _guards!(es, sim.exec.store, sim.exec.xbuf)
-        copyto!(es.σ1, es.σ)
+        _guards!(events, sim.exec.store, sim.exec.xbuf)
+        copyto!(events.σ1, events.σ)
 
         # The trigger (§10.4): localized policy, prior not-holding at the last
         # boundary's quiescence, holding at arrival — §2.1's directional edge.
-        any_trig = false
-        for i in 1:n
-            es.trig[i] = es.localized[i] && !es.prior[i] && es.σ1[i] ≥ 0
-            any_trig |= es.trig[i]
+        any_triggered = false
+        for i in 1:event_count
+            events.trig[i] = events.localized[i] && !events.prior[i] && events.σ1[i] ≥ 0
+            any_triggered |= events.trig[i]
         end
-        any_trig || return nothing
+        any_triggered || return nothing
 
         # Budget exhaustion degrades; it does not throw (§10.4): the remainder
         # step has already completed, and this crossing fires in the coming
         # boundary's ordinary iteration — boundary granularity for this frame.
-        if count ≥ sim.deployment.localization_budget
-            for i in 1:n
-                (es.trig[i] && !es.loc_warned[i]) || continue
-                es.loc_warned[i] = true   # at most one report per event per frame
-                (path, name) = es.names[i]
+        if localizations ≥ sim.deployment.localization_budget
+            for i in 1:event_count
+                (events.trig[i] && !events.loc_warned[i]) || continue
+                events.loc_warned[i] = true   # at most one report per event per frame
+                (path, name) = events.names[i]
                 # the loop's own cell (§11.8): folded at the next frame top
                 _report!(sim.plane.loop_diag,
                          ChatteringBudget(path, name, _seconds(t_to),
-                                          sim.deployment.localization_budget, count))
+                                          sim.deployment.localization_budget, localizations))
             end
             return nothing
         end
@@ -99,14 +99,14 @@ function _localized_frame!(sim::Simulation{T}, t_to, pol::StopPolicy, addrs::Vec
         # exists — not localizing is the action, and it consumes no budget.
         copyto!(sim.exec.xbuf, x₀)
         sim.exec.clock.t = t_seg
-        _phase!(cur, :validation)
+        _phase!(cursor, :validation)
         sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
-        _guards!(es, sim.exec.store, sim.exec.xbuf)
-        copyto!(es.σ0, es.σ)
+        _guards!(events, sim.exec.store, sim.exec.xbuf)
+        copyto!(events.σ0, events.σ)
         remaining = false
-        for i in 1:n
-            es.trig[i] = es.trig[i] && es.σ0[i] < 0
-            remaining |= es.trig[i]
+        for i in 1:event_count
+            events.trig[i] = events.trig[i] && events.σ0[i] < 0
+            remaining |= events.trig[i]
         end
         if !remaining
             # epoch-caused only: fall through to the frame top
@@ -118,7 +118,7 @@ function _localized_frame!(sim::Simulation{T}, t_to, pol::StopPolicy, addrs::Vec
         # RHS block at the arrival state completes the interpolant's data.
         copyto!(sim.exec.xbuf, sim.exec.xnext)
         sim.exec.clock.t = t_seg + h′
-        _phase!(cur, :arrival)        # never a stage: `evaluate!` counts within the phase
+        _phase!(cursor, :arrival)        # never a stage: `evaluate!` counts within the phase
         evaluate!(sim)
         copyto!(sim.exec.ẋnext, sim.exec.ẋbuf)
 
@@ -127,9 +127,9 @@ function _localized_frame!(sim::Simulation{T}, t_to, pol::StopPolicy, addrs::Vec
         # the boundary's own iteration — and a later crossing simply does not
         # hold at θ★, so it re-triggers on the remainder and re-localizes there.
         θ★ = 1.0
-        for i in 1:n
-            es.trig[i] || continue
-            θ★ = min(θ★, _crossing(sim, i, es.σ0[i], es.σ1[i], t_seg, h′))
+        for i in 1:event_count
+            events.trig[i] || continue
+            θ★ = min(θ★, _crossing(sim, i, events.σ0[i], events.σ1[i], t_seg, h′))
         end
         if θ★ ≥ 1.0
             # Degenerate: the crossing is the frame top itself (§10.4). The
@@ -158,9 +158,9 @@ function _localized_frame!(sim::Simulation{T}, t_to, pol::StopPolicy, addrs::Vec
         # remainder is abandoned, and the hit reaches the loop as the return
         # value (D-261). The policy and its faces' addresses are the advance's
         # arguments, carried down from `_advance!` through `frame!` (D-260).
-        face = _stop_hit(sim, pol, addrs)
+        face = _stop_hit(sim, policy, addrs)
         face === nothing || return face
-        count += 1
+        localizations += 1
     end
 end
 
@@ -191,7 +191,7 @@ there. A return of exactly 1.0 is the degenerate crossing-at-the-frame-top,
 discarded by the caller.
 """
 function _crossing(sim::Simulation, i::Int, σ₀::Float64, σ₁::Float64, t_seg, h′)
-    es = sim.exec.events
+    events = sim.exec.events
     # The stop is a width in time, `localization_tol · h` (§10.4, D-133). In θ
     # over a remainder segment shorter than the frame it widens by h/h′; past
     # 1 the segment is already within tolerance, no trial runs, and the
@@ -203,21 +203,23 @@ function _crossing(sim::Simulation, i::Int, σ₀::Float64, σ₁::Float64, t_se
     # half-width target, and past n_max the projection radius hits zero, which
     # degrades each remaining iteration to plain bisection.
     ε = tol / 2
-    nmax = max(ceil(Int, -log2(tol)), 0) + 1
+    n_max = max(ceil(Int, -log2(tol)), 0) + 1
     j = 0
     while hi - lo > tol
-        xh = 0.5 * (lo + hi)
-        (lo < xh < hi) || break                       # the bracket is at float resolution
-        xf = (lo * σhi - hi * σlo) / (σhi - σlo)      # regula falsi, well-defined: σlo < 0 ≤ σhi
-        s = sign(xh - xf)
+        θ_mid = 0.5 * (lo + hi)
+        (lo < θ_mid < hi) || break                       # the bracket is at float resolution
+        θ_falsi = (lo * σhi - hi * σlo) / (σhi - σlo) # regula falsi, well-defined: σlo < 0 ≤ σhi
+        direction = sign(θ_mid - θ_falsi)
         δ = 0.2 * (hi - lo)^2
-        xt = δ ≤ abs(xh - xf) ? xf + s * δ : xh       # truncate toward the midpoint
-        r = max(ε * exp2(nmax - j) - 0.5 * (hi - lo), 0.0)
-        θ = abs(xt - xh) ≤ r ? xt : xh - s * r        # project into the minmax radius
-        (lo < θ < hi) || (θ = xh)
+        # truncate toward the midpoint
+        θ_trunc = δ ≤ abs(θ_mid - θ_falsi) ? θ_falsi + direction * δ : θ_mid
+        radius = max(ε * exp2(n_max - j) - 0.5 * (hi - lo), 0.0)
+        # project into the minmax radius
+        θ = abs(θ_trunc - θ_mid) ≤ radius ? θ_trunc : θ_mid - direction * radius
+        (lo < θ < hi) || (θ = θ_mid)
         _phase!(sim.exec.cursor, :trial, j + 1)   # the trial ordinal, from 1 (§13.4)
         _trial!(sim, θ, t_seg, h′)
-        σθ = es.σ[i]
+        σθ = events.σ[i]
         σθ ≥ 0 ? (hi = θ; σhi = σθ) : (lo = θ; σlo = σθ)
         j += 1
     end
