@@ -257,14 +257,14 @@ struct Group{C <: NamedTuple, W, I, O, R <: NamedTuple} <: AbstractComponent
 end
 
 """
-    Group(members; wires = (), inputs = (), outputs = (), rates = (;))
+    Group(children; wires = (), inputs = (), outputs = (), rates = (;))
 
 The convenience form. A bare `Pair` passed for `wires`, `inputs` or `outputs` is
 the one-entry tuple — the declarations are ordered collections of pairs, and a
 single wire should not have to be written `("a/x" => "b/y",)`.
 """
-Group(members; wires = (), inputs = (), outputs = (), rates = (;)) =
-    Group(members, _entries(wires), _entries(inputs), _entries(outputs), rates)
+Group(children; wires = (), inputs = (), outputs = (), rates = (;)) =
+    Group(children, _entries(wires), _entries(inputs), _entries(outputs), rates)
 
 _entries(connections::Pair) = (connections,)
 _entries(connections) = connections
