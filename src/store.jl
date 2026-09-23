@@ -39,27 +39,27 @@ end
 # fixes one fully-qualified spelling for every site.
 _cell_key(::Type{L}) where {L} = Symbol(sprint(show, L; context = :module => nothing))
 
-@generated function gather(b::StoreBundle, a::CellAddr{P,K}) where {P,K}
-    Ls = leaf_eltypes(P)
-    binds = [:($(Symbol(:buf, k)) = getfield(b.stores, $(QuoteNode(_cell_key(L)))).buf)
-             for (k, L) in enumerate(Ls)]
-    expr = _mreconstruct_expr(P, Ls, zeros(Int, K))
+@generated function gather(bundle::StoreBundle, addr::CellAddr{P,K}) where {P,K}
+    eltypes = leaf_eltypes(P)
+    binds = [:($(Symbol(:buf, k)) = getfield(bundle.stores, $(QuoteNode(_cell_key(L)))).buf)
+             for (k, L) in enumerate(eltypes)]
+    expr = _mreconstruct_expr(P, eltypes, zeros(Int, K))
     quote
         $(Expr(:meta, :inline))
-        offs = a.offs
+        offs = addr.offs
         $(binds...)
         $expr
     end
 end
 
-@generated function scatter!(b::StoreBundle, a::CellAddr{P,K}, v) where {P,K}
-    Ls = leaf_eltypes(P)
-    binds = [:($(Symbol(:buf, k)) = getfield(b.stores, $(QuoteNode(_cell_key(L)))).buf)
-             for (k, L) in enumerate(Ls)]
-    block = _mflatten_expr(P, :v, Ls, zeros(Int, K))
+@generated function scatter!(bundle::StoreBundle, addr::CellAddr{P,K}, v) where {P,K}
+    eltypes = leaf_eltypes(P)
+    binds = [:($(Symbol(:buf, k)) = getfield(bundle.stores, $(QuoteNode(_cell_key(L)))).buf)
+             for (k, L) in enumerate(eltypes)]
+    block = _mflatten_expr(P, :v, eltypes, zeros(Int, K))
     quote
         $(Expr(:meta, :inline))
-        offs = a.offs
+        offs = addr.offs
         $(binds...)
         $block
         nothing
@@ -90,14 +90,15 @@ end
             path = path, what = String(what), reason = :field_set, shape = :ports,
             observed_fields = $(collect(Ys)), declared_fields = $(collect(Ns))))))
     stmts = Expr[]
-    for (i, n) in enumerate(Ns)
-        P = fieldtype(addrs, i).parameters[1]        # the cell's type, CellAddr{P,K}
-        V = fieldtype(y, n)
-        _accepts(P, V, T) ||
+    for (i, port) in enumerate(Ns)
+        declared = fieldtype(addrs, i).parameters[1]  # the cell's type, CellAddr{P,K}
+        observed = fieldtype(y, port)
+        _accepts(declared, observed, T) ||
             return :(throw(DiagnosticError(ConformanceFailure(
                 path = path, what = String(what), reason = :field_type, shape = :ports,
-                field = $(QuoteNode(n)), observed = $V, declared = $P, activation = $T))))
-        push!(stmts, :(scatter!(store, addrs[$i], getfield(y, $(QuoteNode(n))))))
+                field = $(QuoteNode(port)), observed = $observed,
+                declared = $declared, activation = $T))))
+        push!(stmts, :(scatter!(store, addrs[$i], getfield(y, $(QuoteNode(port))))))
     end
     quote
         $(Expr(:meta, :inline))
