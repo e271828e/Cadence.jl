@@ -4,7 +4,7 @@
 # changing. The contract has three clauses, each answered by dispatch on the
 # stepper:
 #
-#   - **advance by arbitrary `h`** — `step!(m, sim, h)`: the loop lands on tick
+#   - **advance by arbitrary `h`** — `step!(stepper, sim, h)`: the loop lands on tick
 #     boundaries and resumes from localized event times;
 #   - **dense output on demand over the last completed step** — `dense!`, built
 #     lazily on the pair `startpoint` retains, because only event localization
@@ -21,7 +21,7 @@
 abstract type AbstractStepper end
 
 """
-    startpoint(m)
+    startpoint(stepper)
 
 The seam's retained pair `(xₙ, ẋₙ)`: the state and derivative at the start of
 the last completed step, surviving in the backend's own scratch. This is the
@@ -31,9 +31,9 @@ reads the state half directly, and the generic `dense!` builds on both halves.
 function startpoint end
 
 """
-    RK4(T, n)
+    RK4(T, n_x)
 
-The classical fourth-order Runge–Kutta method over a flat buffer of `n`
+The classical fourth-order Runge–Kutta method over a flat buffer of `n_x`
 scalars of type `T` — the default backend (§10.2). Owns exactly its own
 scratch: the segment-start state and the four stage derivatives.
 """
@@ -44,20 +44,20 @@ struct RK4{T} <: AbstractStepper
     k₃::Vector{T}
     k₄::Vector{T}
 end
-RK4(::Type{T}, n::Int) where {T} = RK4{T}(ntuple(_ -> zeros(T, n), 5)...)
+RK4(::Type{T}, n_x::Int) where {T} = RK4{T}(ntuple(_ -> zeros(T, n_x), 5)...)
 
-function step!(m::RK4, sim, h)
+function step!(stepper::RK4, sim, h)
     x, ẋ = sim.exec.xbuf, sim.exec.ẋbuf
-    (; x₀, k₁, k₂, k₃, k₄) = m
-    t₀ = sim.exec.clock.t
+    (; x₀, k₁, k₂, k₃, k₄) = stepper
+    t = sim.exec.clock.t
     copyto!(x₀, x)
 
     evaluate!(sim); copyto!(k₁, ẋ)
-    _advance!(x, x₀, k₁, h / 2); sim.exec.clock.t = t₀ + h / 2
+    _advance!(x, x₀, k₁, h / 2); sim.exec.clock.t = t + h / 2
     evaluate!(sim); copyto!(k₂, ẋ)
     _advance!(x, x₀, k₂, h / 2)
     evaluate!(sim); copyto!(k₃, ẋ)
-    _advance!(x, x₀, k₃, h); sim.exec.clock.t = t₀ + h
+    _advance!(x, x₀, k₃, h); sim.exec.clock.t = t + h
     evaluate!(sim); copyto!(k₄, ẋ)
 
     @inbounds for i in eachindex(x)
@@ -66,12 +66,12 @@ function step!(m::RK4, sim, h)
     nothing
 end
 
-startpoint(m::RK4) = (m.x₀, m.k₁)
+startpoint(stepper::RK4) = (stepper.x₀, stepper.k₁)
 
 """
-    Heun(T, n)
+    Heun(T, n_x)
 
-Heun's second-order method (explicit trapezoidal) over a flat buffer of `n`
+Heun's second-order method (explicit trapezoidal) over a flat buffer of `n_x`
 scalars of type `T` — the other first-cut backend (§10.2). Owns exactly its
 own scratch: the segment-start state and the two stage derivatives.
 """
@@ -80,16 +80,16 @@ struct Heun{T} <: AbstractStepper
     k₁::Vector{T}
     k₂::Vector{T}
 end
-Heun(::Type{T}, n::Int) where {T} = Heun{T}(ntuple(_ -> zeros(T, n), 3)...)
+Heun(::Type{T}, n_x::Int) where {T} = Heun{T}(ntuple(_ -> zeros(T, n_x), 3)...)
 
-function step!(m::Heun, sim, h)
+function step!(stepper::Heun, sim, h)
     x, ẋ = sim.exec.xbuf, sim.exec.ẋbuf
-    (; x₀, k₁, k₂) = m
-    t₀ = sim.exec.clock.t
+    (; x₀, k₁, k₂) = stepper
+    t = sim.exec.clock.t
     copyto!(x₀, x)
 
     evaluate!(sim); copyto!(k₁, ẋ)
-    _advance!(x, x₀, k₁, h); sim.exec.clock.t = t₀ + h
+    _advance!(x, x₀, k₁, h); sim.exec.clock.t = t + h
     evaluate!(sim); copyto!(k₂, ẋ)
 
     @inbounds for i in eachindex(x)
@@ -98,16 +98,16 @@ function step!(m::Heun, sim, h)
     nothing
 end
 
-startpoint(m::Heun) = (m.x₀, m.k₁)
+startpoint(stepper::Heun) = (stepper.x₀, stepper.k₁)
 
-@inline function _advance!(x, x₀, k, dt)
+@inline function _advance!(x, x₀, k, h)
     @inbounds for i in eachindex(x)
-        x[i] = x₀[i] + dt * k[i]
+        x[i] = x₀[i] + h * k[i]
     end
 end
 
 """
-    dense!(m, x̂, x₁, ẋ₁, θ, h′)
+    dense!(stepper, x̂, x₁, ẋ₁, θ, h′)
 
 Dense output over the last completed step (§10.2): write x̂(θ), θ ∈ [0, 1],
 into `x̂`, from the seam's retained `startpoint` pair and the arrival pair
@@ -119,15 +119,15 @@ below RK4's discrete solution, above Heun's — and why nothing more expensive
 is worth running trials against. Both first-cut backends inherit it; a
 higher-order backend would override with its own formula.
 """
-function dense!(m::AbstractStepper, x̂, x₁, ẋ₁, θ::Float64, h′)
-    (x₀, ẋ₀) = startpoint(m)
+function dense!(stepper::AbstractStepper, x̂, x₁, ẋ₁, θ::Float64, h′)
+    (x₀, ẋ₀) = startpoint(stepper)
     θ² = θ * θ; θ³ = θ² * θ
-    b₀ = 2θ³ - 3θ² + 1
-    b₁ = 3θ² - 2θ³
-    d₀ = (θ³ - 2θ² + θ) * h′
-    d₁ = (θ³ - θ²) * h′
+    w_x₀ = 2θ³ - 3θ² + 1
+    w_x₁ = 3θ² - 2θ³
+    w_ẋ₀ = (θ³ - 2θ² + θ) * h′
+    w_ẋ₁ = (θ³ - θ²) * h′
     @inbounds for i in eachindex(x̂)
-        x̂[i] = b₀ * x₀[i] + d₀ * ẋ₀[i] + b₁ * x₁[i] + d₁ * ẋ₁[i]
+        x̂[i] = w_x₀ * x₀[i] + w_ẋ₀ * ẋ₀[i] + w_x₁ * x₁[i] + w_ẋ₁ * ẋ₁[i]
     end
     nothing
 end
