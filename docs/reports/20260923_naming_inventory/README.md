@@ -167,7 +167,8 @@ renames on merit.
 `state_store`; `port` → `port_name`/`output_port` (no `path`-style
 exception, three sites in all); `at` → `contracts_at`; `kinds`; `modes` →
 `member_tracing`/`trace_modes`; `mode` → `tracing`/`trace_mode`; `trace`
-→ `trc`; `declarations`, `children` in `assembly.jl`; `warnings` →
+→ `trc`; `declarations` in `assembly.jl` (`Group`'s `children` parameter
+mirrors the field and stays, R2 and the field rule); `warnings` →
 `raised`/`warning_list`; `diagnostic` → `d` (R4); `diag` in `attach!`.
 
 **C5. A generic clash, function level.** `_declares` has methods in
