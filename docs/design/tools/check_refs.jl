@@ -67,7 +67,8 @@ const ROSTER = [DECISIONS,
                 "companions/frozen_discrete_walkthrough.md",
                 "companions/localization_validation_walkthrough.md",
                 "companions/frame_walkthrough.md",
-                "companions/sample_time_proposal.md"]
+                "companions/sample_time_proposal.md",
+                "companions/migration_outline.md"]
 
 # The companions that cite their own numbered sections (see the advisory above).
 const SELF_CITING = ["companions/event_visibility_walkthrough.md",

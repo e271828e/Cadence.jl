@@ -105,7 +105,6 @@
     - [15.3 Torture test for the §11 staging shapes: filter, joystick and GUI](#153-torture-test-for-the-11-staging-shapes-filter-joystick-and-gui)
     - [15.4 The interactive C172X demo: the periphery under load](#154-the-interactive-c172x-demo-the-periphery-under-load)
     - [15.5 The strapdown IMU: integrate-and-dump across the tier boundary](#155-the-strapdown-imu-integrate-and-dump-across-the-tier-boundary)
-  - [16. Open axes](#16-open-axes)
 - [Appendices](#appendices)
   - [Appendix A. Taught contracts: the author-facing index](#appendix-a-taught-contracts-the-author-facing-index)
   - [Appendix B. API synopsis: the entry points](#appendix-b-api-synopsis-the-entry-points)
@@ -171,8 +170,8 @@ The design adopts three ground rules.
 All design axes are settled. They are the formalism, the [component](#g-component) taxonomy, the
 signal and ordering model, time and execution, the runtime [periphery](#g-periphery), the
 declaration layer, the build pipeline, error discipline and the stopped-sim
-services. Only the [§16][s16] items remain open. Those are the migration outline, the
-GUI panel authoring API and the log/[trace](#g-trace) persistence deferral.
+services. The questions still open are registered in `pending.md`. They are the
+exported-name audit, the GUI panel authoring API and log/[trace](#g-trace) persistence.
 
 Decision rationale lives in `decisions.md`, including the alternatives
 considered and the reasons they were rejected. This document cites it throughout
@@ -260,7 +259,7 @@ predicates.
   boundaries only, no root-finding) cover engine phase transitions and the stall
   hysteresis latch. For one class the mapping tightens semantics.
   Level-triggered cross-component resets become edge-triggered events. The gear
-  friction regulator under `!wow` is one such reset ([§15.2][s15-2], [§16][s16], [D-001][d-001]).
+  friction regulator under `!wow` is one such reset ([§15.2][s15-2], [D-001][d-001]).
 
 ---
 
@@ -920,7 +919,7 @@ order.
   outright. The factoring survives substitution, which is the test that it
   records structure rather than dodging the diagnostic. A stateful steering
   actuator produces `ψ_cmd` from its own state and still needs nothing from the
-  strut ([§16][s16] records the migration).
+  strut (`migration_outline.md` records the migration).
 - **Split the component.** This is the residual remedy, taken when both halves
   genuinely belong to the component and the split documents real structure. Its
   cost is stated where it bites. Visibility ([§8.3][s8-3]) is binary, so every
@@ -1781,8 +1780,8 @@ functions.
 
 Julia admits that only through an explicit per-name `import`, or through a
 qualified `Cadence.state_derivative(…) = …` definition. The latter is the
-`Base.show` idiom that [§16][s16] records for the extension-only periphery
-surface. A component module therefore opens with
+`Base.show` idiom that the exported-name audit in `pending.md` records for the
+extension-only periphery surface. A component module therefore opens with
 
 ```julia
 import Cadence: init_x, init_s, init_m, init_workspace, input_types,
@@ -3851,8 +3850,8 @@ assume the chunked mode, the one whose cost is linear in entry count:
 
 The fused curve is visibly superlinear. An 8-partial `Dual` activation
 multiplies instruction count ~20×, and its chunked curve is linear,
-instruction-bound rather than structure-bound. Re-measurement on the real
-vehicle skeleton is a [§16][s16] migration item.
+instruction-bound rather than structure-bound. Re-measurement on a real
+model of that scale is pending (`pending.md`).
 
 **The mitigation ladder**, in order. Activations are lazy ([§9.4][s9-4]), so a
 session that never linearizes never compiles `Dual`. Non-nominal activations
@@ -3909,8 +3908,8 @@ CI is warm-then-assert over the roster. One call compiles, then
 arity in its own right, with the interior call bare and the boundary call at
 a due index. So a documented [§7.5][s7-5] tolerance loosens exactly one assertion.
 This is the successor of the migration suite's
-`@ballocated f_ode!`/`f_step!`/`f_periodic!` idiom and the seam the [§16][s16]
-FlightCore comparison measures through.
+`@ballocated f_ode!`/`f_step!`/`f_periodic!` idiom and the seam the FlightCore
+comparison in `migration_outline.md` measures through.
 
 Publication is not a phase body. That is the carve-out ([§7.5][s7-5]) made
 structural. What the accessor exposes is exactly what the invariant claims
@@ -5367,7 +5366,7 @@ velocity. Nothing else can, because meaning is not in the schema.
 Semantically generic consumers should therefore bind faces. A visualizer
 needs pose, and every aircraft has one. Aircraft families should export the
 conventional surface such consumers need, a library/migration deliverable
-([§16][s16]). Wrapper types make face semantics structurally checkable, as in
+(`migration_outline.md`). Wrapper types make face semantics structurally checkable, as in
 `VelocityData` with its `v_eb_b` defined *at the type* as body-origin
 velocity. A bare vector does not wire, and wrapping the wrong quantity is a
 deliberate lie, not a drift.
@@ -6358,8 +6357,8 @@ level. An orphan widget is a read-only rendering like any other, never a
 blanked one. An orphaned root input is therefore visible where the user is
 looking, not only in the status panel.
 
-The panel-authoring calling convention is deferred to migration
-([§16][s16]), where it is co-designed against the GUI library. It covers what
+The panel-authoring calling convention is deferred, to be co-designed against
+the GUI library (`pending.md`). It covers what
 the drawing context carries, how widgets name their component's ports, and
 how an assembly's panel composes its children's. Its constraints are fixed
 here. Panels name their own ports by face-name string. Resolution to root
@@ -8131,7 +8130,7 @@ closures (`stop_when = snap -> …`), root-type-declared stop policy,
 and observation-by-path (`stop_on` naming a deep path into any public output).
 A root-declared *default*, overridable per advance, is the one variant
 on record for reopening, should the keyword prove chronically
-forgotten ([§16][s16]).
+forgotten (`pending.md`).
 
 The observation-by-path line leaves doctrine behind it. **Inspection** is
 human-facing, has no effect on run semantics, and legitimately sees every
@@ -9116,7 +9115,7 @@ and it is decisive of nothing.
 The return holds `d`, the solution, `status::Symbol` from a deliberately
 **open** set, and the diagnostic counts `nevals` and `niters`. The status is
 recorded verbatim in the report because the verdict is the service's
-([D-158][d-158]). The name `solve` is subject to the [§16][s16] naming audit
+([D-158][d-158]). The name `solve` is subject to the exported-name audit (`pending.md`)
 like every other API spelling. The backend sees vectors and never names, so
 the solution it returns unpacks by the same order it was given.
 
@@ -9637,13 +9636,12 @@ visible zero rows suffice.
 
 # Part V — Grounding
 
-Part V grounds the design and marks what it leaves open. [§15][s15] is five
+Part V grounds the design. [§15][s15] is five
 case studies, each starting from code that exists today: the `Vehicle`
 transliteration that validated [§5][s5], torture tests aimed at the
 [§5.2][s5-2] interfaces and at the [§11][s11] staging shapes, the full C172X
 demo read as a load test on the periphery, and the strapdown IMU challenge to
-the [§3][s3] class split. [§16][s16] records the three axes still to be
-settled, the migration of FlightPhysics and FlightApps among them.
+the [§3][s3] class split.
 
 Part V assumes the whole specification and norms none of it. The case studies
 are evidence rather than rules, so where a measurement here and a rule earlier
@@ -9820,11 +9818,11 @@ Engage semantics live in the FCS.
 One relative lives outside the FCS. The landing gear's level-triggered
 cross-component reset (`!wow` re-initializing the friction regulator every
 step) becomes an edge-triggered event owned by the regulator. That is a
-semantic tightening, recorded in the migration mapping ([§16][s16]). There the
+semantic tightening, recorded in the migration mapping (`migration_outline.md`). There the
 respelling is not a stylistic one. The continuous [tier](#g-tier) admits no
 input spelling at all, because only handlers write `x` ([§3.1][s3-1]). The
 event is therefore necessity rather than taste, and the reimplemented
-`PIVector`'s optional reset [face](#g-face) ([§16][s16]) is sugar over exactly
+`PIVector`'s optional reset [face](#g-face) (`migration_outline.md`) is sugar over exactly
 that event. [Appendix A][sA] carries the continuous-reset contract too.
 
 ### 15.3 Torture test for the §11 staging shapes: filter, joystick and GUI
@@ -10068,7 +10066,8 @@ One [frame](#g-frame) each:
   final snapshot, sticky stopped, wake waits, unblock hooks, named-timeout
   joins.
 
-Two items remain open and feed [§16][s16]. The first is the `q_sf` home, a
+Two items remain open and feed the migration outline
+(`migration_outline.md`). The first is the `q_sf` home, a
 thin mapping entry against an avionics-internal derivation, which is aircraft
 design rather than framework design. The second is the mode-engage entry's
 write-order check.
@@ -10307,225 +10306,6 @@ surveyed needs it ([D-056][d-056]).
 
 ---
 
-## 16. Open axes
-
-Three axes are still to be settled: the migration of FlightPhysics and
-FlightApps, the GUI panel authoring API, and log and [trace](#g-trace)
-persistence.
-
-#### Migration
-
-What follows is an outline for FlightPhysics/FlightApps, not a specification.
-The table carries one row per item: the item, the disposition recorded for it,
-the section owning the machinery it touches, and the governing decision entry.
-A dash means the outline names the item and records nothing further. Items
-whose disposition exceeds a cell are expanded below the table.
-
-| item | disposition | section | decision |
-|---|---|---|---|
-| The [walked](#g-walked)-leaf parametrization pass | the `Ranged` rewrite targets the walk rule wherever `Ranged` survives, at ports and parameters | [§8.2][s8-2] | — |
-| The `KinData`-style output splits | — | — | — |
-| The contributor survey feeding the aggregation chains | mechanical to extract from today's trait implementations | [§6.2][s6-2] | — |
-| Comparison criteria against FlightCore's demonstrated strengths | three strengths to compare against: zero-alloc stepping, flexibility, interactive operation | [§9.7][s9-7] | — |
-| The [component](#g-component) library's starting inventory | — | [§13.7][s13-7] | — |
-| The conventional exported aircraft surface for generic periphery consumers | pose and velocity faces with wrapper types, the periphery-facing half of the `KinData` successor | [§11.2][s11-2] | — |
-| The supervisor seam | three respellings — gain ports and schedulers, mode-transition latches, the gear's reset — the last of which lands on the *library* side | [§15.2][s15-2] | [D-089][d-089], [D-139][d-139] and [D-141][d-141] |
-| The steering contract re-factoring | `AbstractSteering` moves from "give me the angle" to `(engaged, ψ_cmd)` | [§5.4][s5-4] | — |
-| Splitting `Strut` | the residual remedy, recorded and not taken | — | — |
-| The state-declaration conversion to the closed vocabulary | each `RQuat` state field becomes its `SVector{4}` backing, each `Ranged` state field a plain scalar | [§7.1][s7-1] | — |
-| The exported-name surface | decided deliberately rather than by accident, by a full-surface audit under the four-class naming convention | [§14.2][s14-2] | [D-144][d-144] |
-| The [executor](#g-executor) compile-cost re-measurement | runs on the real vehicle skeleton, early — before the executor's shape hardens | [§9.7][s9-7] | — |
-| *Residual*: the `q_sf` home | aircraft design, so it belongs on this list | [§15.4][s15-4] | — |
-| *Residual*: a root-declared `stop_on` default | reopen only if the per-advance keyword proves chronically forgotten | [§13.5][s13-5] | — |
-| *Residual*: the engage-boundary write-order check | verify the FCS latch and the GUI input sync-write commute on one boundary — believed order-free, both deriving from the same measurements | [§15.4][s15-4] | — |
-| *Residual*: the C172 AD audit for trim | Interpolations tables (prefer cubic knots), saturation rank-deficiency (LM-tolerated, reported), the gear identically zero airborne | [§14.8][s14-8] | [D-070][d-070] |
-
-**The parametrization pass.** `Ranged` survives at [ports](#g-port) and
-parameters, and there the rewrite targets the walk rule ([§8.2][s8-2]). The
-rewrite is constructor discipline that admits the walked scalar and leaves the
-value parameters alone, plus a `probe_value` method. State fields are not
-among those survival sites. The state-declaration conversion below turns each
-`Ranged` state field into a plain scalar.
-
-**Comparison criteria.** FlightCore's demonstrated strengths are three:
-zero-alloc stepping, flexibility, interactive operation. Zero-alloc stepping
-is measured through the `phase_bodies` [seam](#g-seam) ([§9.7][s9-7]),
-apples-to-apples with today's `@ballocated f_ode!` suites.
-
-**The conventional exported aircraft surface.** Generic
-[periphery](#g-periphery) consumers read the integration
-side ([§11.2][s11-2]). That surface exports pose and velocity [faces](#g-face) with wrapper types
-(`VelocityData`, with field meaning defined at the type). It is the
-periphery-facing half of the `KinData` successor.
-
-**The supervisor seam.** The supervisor sitting above the compensators
-([§15.2][s15-2]) contributes three respellings. Compensator gains become input
-ports fed by scheduler components (about 7 for the C172X). Every
-mode-transition latch is respelled as a same-[tick](#g-tick) reset. The gear's
-level-triggered reset becomes an edge event, and that last one lands on the
-*library* side.
-
-On the library side, the reimplemented `PIVector` gains a **flag-gated reset
-face**. `PIVector(; reset = true)` adds a `Bool` input face plus the event.
-The default omits both. Declarations are ordinary functions of the instance
-([§8.5][s8-5]), which is what makes this the honest version of Simulink's
-checkbox. One fixed policy governs the face: a rising edge resets to the
-declared `init_x` values. The implementation is internal, an ordinary
-[guard](#g-guard)/handler event. It is the continuous-reset contract in its
-[worked](#g-worked) instance ([Appendix A][sA]).
-
-Falling-edge consumers wire a NOT gate (the Bool gates, [§13.7][s13-7]).
-Level-pinning and reset-to-an-external-value, which is tracking, are different
-blocks rather than options on this one ([D-141][d-141]).
-
-The gear then wires `strut.wow → frc.reset`. That is the **touchdown** edge,
-with the not-[holding](#g-edge-semantics) → holding semantics ([§2.1][s2-1]),
-and it gives fresh regulator state per contact episode. The liftoff edge
-(`!wow`) was rejected ([D-141][d-141]). The
-[boundary-detected](#g-boundary-detected) policy (checked for edges at step
-boundaries only, no root-finding) suffices, because the regulator's input
-ramps from zero at touchdown, so localization buys nothing. A sim initialized
-on ground fires the reset at [boundary zero](#g-boundary-zero) (the
-initialization boundary: the ordinary macro-sequence with an empty integrate).
-It fires harmlessly there. Declared inits are zero, and
-[boundary](#g-boundary)-zero [priors](#g-prior) are not-holding
-([§14.5][s14-5]).
-
-The engine's two `PIVector` instances, `PistonEngine`'s `idle` and `frc`,
-migrate **unchanged, flag off**. They are verified reset-free in today's code,
-where the saturation bounds and `int_halted` already handle windup across
-unused phases. Their `f_init!` gain writes become construction-time
-parameters, as `Contact`'s do ([D-089][d-089]). The PI *law* is shared as
-plain pure functions called by the block's stages, which is the
-laws-as-plain-functions pattern ([D-139][d-139]). `sat_ext` poses the same
-always-on-vs-flag-gated face question, to be decided at reimplementation time
-on the same axis.
-
-**The steering contract re-factoring.** This is the middle rung
-([§5.4][s5-4]), worked on the shipped instance. `AbstractSteering` moves from
-"give me the angle" to `(engaged, ψ_cmd)`, with the castoring fallback
-`ψ_sw = engaged ? ψ_cmd : ψ_v` computed inside `Strut`. That move deletes the
-strut → steering → strut artificial loop that stage-2 conservatism would
-otherwise manufacture. The `VehicleDynamics` instance standing beside it
-([§15.1][s15-1]) needs no such move. It dissolves under the two-stage split
-alone.
-
-**Splitting `Strut`.** The residual remedy is to split `Strut`, with its
-shared geometry crossing the new boundary as one `StrutGeometry` bundle port.
-It is recorded and not taken. The call is an aircraft-library one, about a
-component's own contract, so it is recorded here rather than in framework
-vocabulary.
-
-**The state-declaration conversion.** State declarations move to the closed
-vocabulary ([§7.1][s7-1]). Each `RQuat` state field becomes its `SVector{4}`
-backing, with the explicit `normalization = false` cast at its use sites. The
-4-wide rate is already what today's `Attitude.dt` delivers. Each `Ranged`
-state field becomes a plain scalar, with its clamp respelled as dynamics or
-[projection](#g-projection), never as construction.
-
-**The exported-name surface.** This surface is to be decided deliberately
-rather than by accident. Until the audit below runs, the module exports
-nothing, and a public name is reached by qualified name or per-name `import`
-([D-226][d-226]). `condition`, `fragment`, `at`, `capture` and `combine`
-([§14.2][s14-2]) are generic names that share a namespace with FlightPhysics
-domain code. The `Base.merge` piracy surface the combinator once presented is
-retired with its rename ([D-204][d-204]), and the mixed-argument methods stay
-error methods. For the readers, the `get_` prefix of the
-[selector](#g-selector) family already settles the question ([§14.4][s14-4]).
-Whether the [condition](#g-condition) algebra ships behind a submodule is the
-packaging question.
-
-The audit is a full-surface sweep (per user, 2026-08-01). Every API method
-name is either specific enough to export, or gets renamed, or is left
-unexported. For extension-only surface, *unexported* is the preferred
-disposition. Extension-only surface has three parts.
-
-- The declaration and stage family of the import list ([§8.1][s8-1]) is the
-  larger half of the question. It sits on every component file's first line
-  and is settled there.
-- The [binding](#g-binding) interface `claims`/`reads` ([§11.6][s11-6]) and
-  the side traits `is_input`/`is_output`/`is_greedy` are the second part.
-  `map_input`/`map_output` sit outside the question, as loop-idiom conventions
-  the framework never calls.
-- The [device](#g-device) contract
-  `init!`/`loop`/`shutdown!`/`unblock!`/`needs_calling_task` is the third.
-  Authors extend it by `import` or qualified name, `Base.show`-style, rather
-  than call it every day.
-
-The audit's criterion is the **four-class naming convention**
-([D-144][d-144]):
-
-1. **Declarations**, which the author defines and the framework calls, are
-   noun phrases or `init_*`/`_types`: `child_connections`,
-   `input_connections`/`output_connections`, `state_events`, `input_types`,
-   `init_workspace`, the stage and update-law names ([D-220][d-220]), and
-   `claims(b)` from the binding interface ([§11.6][s11-6]).
-2. **Value selectors**, called against `reads` and [snapshots](#g-snapshot),
-   carry `get_` ([§14.4][s14-4]).
-3. **Lifecycle and mutating actions** are verbs, with `!` when they mutate.
-4. **Build primitives** ([§13.3][s13-3]) are plain verbs.
-
-A name in the wrong class is a rename candidate on that ground alone.
-
-The convention also has a **semantic axis**: right class, wrong noun.
-`input_passthrough` ([§8.8][s8-8], [D-171][d-171]) and the binding methods
-`claims`/`reads` ([§11.6][s11-6], [D-146][d-146]) are what settle it. A
-bare-noun declaration names the *consequence* a declaration has rather than
-its *content*. `exports` is that axis's retired exemplar ([D-170][d-170]). The
-`*_connections` family names content deliberately, for authoring transparency.
-That is a recorded choice, not class drift.
-
-Four items are flagged for the sweep and deliberately not settled here.
-
-- `input_faces`/`output_faces` are noun accessors that pun on the `_types`
-  declarations, mitigated by being framework-facing.
-- `loop`, in the device contract ([§11.6][s11-6]), is a mutating task body
-  spelled as a bare noun among its verb-`!` siblings
-  `init!`/`shutdown!`/`unblock!`. With `run!` taken and the "loop body" prose
-  entrenched, it needs the audit's whole-surface view.
-- The bare-noun accessor family `trace(sim)`, `latest(sim)`,
-  `binding(handle)`, `phase_bodies(sim)` holds value selectors outside
-  class (2)'s `get_` rule. `trace` is the sharpest of them. The door's
-  kill-switch `trace = false` and the post-run accessor `trace(sim)` are one
-  name in two senses, which is the overload pattern [D-122][d-122] and
-  [D-144][d-144] retire.
-- Whether class (1) needs an explicit exemption for predicate traits
-  (`is_greedy`, `needs_calling_task`).
-
-All four are boundary cases the convention in [D-144][d-144] does not settle,
-and they are not defects of its list.
-
-#### GUI panel authoring API
-
-The semantics are settled ([§11.7][s11-7]): derived liveness, first-class
-read-only rendering, own-pending-else-snapshot [peek](#g-peek),
-[stage-on-interaction](#g-stage-on-interaction), orphan display. What is
-deferred to migration is the calling convention: context contents, port
-naming, child composition. That convention is to be co-designed against the
-GUI library under the four constraints ([§11.7][s11-7]).
-
-#### Log and trace persistence
-
-The in-memory artifacts are settled, and nothing on-disk is. Three facts stand
-on the in-memory side.
-
-- The log is the retained boundary snapshots ([§11.2][s11-2]).
-- The input trace is always on and device-tagged, and it carries its header
-  of initial [stores](#g-store) and [root input](#g-root-input) values
-  ([§11.5][s11-5], [§14.5][s14-5], [§14.6][s14-6]).
-- The primary/derived rule holds: the log is recomputable from the trace,
-  never the reverse.
-
-The on-disk questions are deferred to migration, where the consumers exist to
-ground the choices.
-
-- The HDF5 export scope: the whole snapshot log, or selected subtrees.
-- Field-handle summarization over retained snapshots, the successor to the
-  `getproperty` navigation of `TimeSeries`, which is today's post-processing
-  entry point.
-- The trace file format, which doubles as the reproducibility carrier. The
-  [replay](#g-replay) pointers ([§13.4][s13-4]) name positions in it.
-
 ---
 
 # Appendices
@@ -10689,7 +10469,7 @@ The user-facing surface on one page, under the same rule as [Appendix A][sA]:
 an index, not a second home. Each signature is normative only where its
 owning section settles it. Every name here is public by being here, reached
 by qualified name or by per-name `import`. The module exports nothing until
-[§16][s16]'s audit fixes the exported-name list ([D-226][d-226]). The
+the exported-name audit (`pending.md`) fixes the list ([D-226][d-226]). The
 author-side declaration surface comes first, then the operator surface by
 lifecycle.
 
@@ -11033,7 +10813,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   `latest` or the live stores, advance via `step!`, continue via `run!`.
   Replay is the state-trajectory inspector and the `StepError` reproduction
   tool ([§11.2][s11-2], [§11.5][s11-5], [§12.7][s12-7]; on-disk persistence
-  is deferred, [§16][s16]).
+  is deferred, `pending.md`).
 - `warnings(x) → Vector`. The artifact's warning list, on `Build` and
   `Deployment`, and on `Simulation` as the concatenation of its artifacts'
   lists ([§9.2][s9-2], [§13.2][s13-2]).
@@ -12599,7 +12379,6 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-083]: decisions.md#d-083--bind-output-device-reads-to-snapshot-paths-not-just-faces
 [d-084]: decisions.md#d-084--drop-the-unconnected-output-warning
 [d-086]: decisions.md#d-086--compile-the-executors-schedule-into-unrolled-statically-typed-entries
-[d-089]: decisions.md#d-089--route-supervisor-gains-and-resets-through-ordinary-ports
 [d-090]: decisions.md#d-090--return-handler-updates-as-bundle-law-namedtuples
 [d-093]: decisions.md#d-093--spawn-device-tasks-per-run-not-per-attach
 [d-094]: decisions.md#d-094--close-the-state-leaf-vocabulary-to-plain-scalars-and-sarrays
@@ -12612,17 +12391,12 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-108]: decisions.md#d-108--gate-stopped-sim-services-by-input-derived-lifecycle-preconditions
 [d-116]: decisions.md#d-116--expose-phase_bodiessim-as-the-zero-allocation-invariants-measurement-seam
 [d-117]: decisions.md#d-117--extend-declarations-and-stages-via-explicit-per-name-import
-[d-122]: decisions.md#d-122--resolve-de-polysemy-by-giving-each-overloaded-term-one-owner
 [d-130]: decisions.md#d-130--scope-resolves-generic-boundary-duty-by-client-wiringserviceinspection
 [d-133]: decisions.md#d-133--split-spec-invoked-numeric-constants-into-deployment-parameters-vs-owning-section-defaults
 [d-136]: decisions.md#d-136--unify-diagnostics-and-liveness-heartbeat-into-one-per-writer-diagnostic-cell
 [d-137]: decisions.md#d-137--bound-snapshot-log-retention-by-count-with-amortized-doubling-stride
-[d-139]: decisions.md#d-139--give-environment-field-handles-a-value-level-constructor-to-prevent-drift
-[d-141]: decisions.md#d-141--continuous-state-resets-are-events-owned-by-the-reimplemented-pivector
 [d-142]: decisions.md#d-142--stage-code-must-be-total-over-type-valid-inputs
-[d-144]: decisions.md#d-144--rename-the-computed-exports-helper-faces-to-passthrough
 [d-145]: decisions.md#d-145--deduplicate-pass-through-except-lists-with-a-shared-feed-list-idiom
-[d-146]: decisions.md#d-146--rename-facesselectors-to-claimsreads-on-the-binding-interface
 [d-147]: decisions.md#d-147--split-the-sweep-into-static-interior-and-boundary-variants
 [d-150]: decisions.md#d-150--make-the-service-the-sole-authority-on-convergence
 [d-152]: decisions.md#d-152--join-auto-publication-to-the-per-event-re-decode-at-stage-1
@@ -12635,7 +12409,6 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-167]: decisions.md#d-167--mandate-typet-input-signatures-under-the-permissive-reading
 [d-168]: decisions.md#d-168--root-slot-fan-out-tolerance-combines-by-meet-not-agreement
 [d-170]: decisions.md#d-170--split-assembly-connections-into-childinputoutput-declarations
-[d-171]: decisions.md#d-171--rename-passthrough-to-input_passthrough
 [d-173]: decisions.md#d-173--fuse-the-discrete-state-letter-z-into-x
 [d-176]: decisions.md#d-176--unify-trace-retention-on-one-sparse-record-format
 [d-177]: decisions.md#d-177--re-found-the-periphery-on-mandatory-roots-plus-declared-traits
@@ -12677,7 +12450,7 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [d-223]: decisions.md#d-223--host-the-runtime-catch-in-boundary-zero-under-the-services-disposition
 [d-224]: decisions.md#d-224--let-a-throw-inside-a-trim-commit-propagate-as-the-commits-steperror
 [d-225]: decisions.md#d-225--parametrize-steperror-on-its-causes-type
-[d-226]: decisions.md#d-226--reach-the-public-surface-by-qualified-name-until-16s-export-audit
+[d-226]: decisions.md#d-226--reach-the-public-surface-by-qualified-name-until-the-export-audit
 [d-227]: decisions.md#d-227--select-the-stepper-by-type-under-the-algorithm-keyword
 [d-228]: decisions.md#d-228--attribute-runtime-diagnostics-by-cell-never-by-payload
 [d-229]: decisions.md#d-229--collect-to-the-stratum-barrier-under-a-dependency-rule
@@ -12762,7 +12535,6 @@ and the IMU ([§15.5][s15-5]) as the boundary-sampling example
 [s15-3]: #153-torture-test-for-the-11-staging-shapes-filter-joystick-and-gui
 [s15-4]: #154-the-interactive-c172x-demo-the-periphery-under-load
 [s15-5]: #155-the-strapdown-imu-integrate-and-dump-across-the-tier-boundary
-[s16]: #16-open-axes
 [s2]: #2-formalism
 [s2-1]: #21-events-two-detection-policies
 [s2-2]: #22-exclusions-deliberate

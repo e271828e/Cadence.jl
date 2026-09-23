@@ -81,7 +81,7 @@ increasing effort:
    it strains the immutable-state and allocation-policy corners but touches no kernel.
 5. **Enabled-subsystem behavior** (hold or reset states while a control signal is
    low). The pattern already exists as mode logic plus reset events — the
-   `PIVector(; reset = true)` shape from [§16][s16]. What is missing is only sugar for
+   `PIVector(; reset = true)` shape from `companions/migration_outline.md`. What is missing is only sugar for
    applying it to a whole assembly at once; additive if ever wanted.
 6. **Refined output between boundaries.** The seam's dense output exists for
    localization; exposing it to logging is additive, and only matters once adaptive
@@ -360,7 +360,6 @@ pointer.
 [s14-1]: spec.md#141-conditions-are-path-addressed-overlays-on-the-declared-defaults
 [s14-10]: spec.md#1410-linearization-tap-selectors-one-seeded-pass-a-pure-query
 [s14-7]: spec.md#147-the-trim-problem-namedtuple-decisions-declared-reads-named-residuals
-[s16]: spec.md#16-open-axes
 [s2]: spec.md#2-formalism
 [s2-1]: spec.md#21-events-two-detection-policies
 [s2-2]: spec.md#22-exclusions-deliberate

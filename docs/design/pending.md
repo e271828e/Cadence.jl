@@ -42,7 +42,8 @@ Where the reason is not given here, the cited decision carries it:
   replay is unpresented (§11.8).
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, the rig; §6.2's spellings) — a
-  migration-phase deliverable by the spec's word, deferred with §16 (M-B22).
+  migration-phase deliverable by the spec's word, deferred with the migration
+  (`companions/migration_outline.md`, M-B22).
 
 ## Built in a shape the spec's is not
 
@@ -74,4 +75,125 @@ Not a code deviation: what the design documents owe their reader.
   instances, into an artifact §11.5 calls primary data; the deployment's
   `==` excludes the build, so replay never compares it. Whether the header
   should hold the build-free half is a D-254 question, to be ruled when the
-  on-disk persistence deferral (§16) lifts.
+  on-disk persistence deferral below lifts.
+
+### The exported-name audit
+
+The exported-name surface is to be decided deliberately rather than by
+accident. Until the audit runs, the module exports nothing, and a public name
+is reached by qualified name or per-name `import` (D-226). `condition`,
+`fragment`, `at`, `capture` and `combine` (§14.2) are generic names that share
+a namespace with user domain code. The `Base.merge` piracy surface the
+combinator once presented is retired with its rename (D-204), and the
+mixed-argument methods stay error methods. For the readers, the `get_` prefix
+of the selector family already settles the question (§14.4). Whether the
+condition algebra ships behind a submodule is the packaging question.
+
+The audit is a full-surface sweep (per user, 2026-08-01). Every API method
+name is either specific enough to export, or gets renamed, or is left
+unexported. For extension-only surface, *unexported* is the preferred
+disposition. Extension-only surface has three parts.
+
+- The declaration and stage family of the import list (§8.1) is the
+  larger half of the question. It sits on every component file's first line
+  and is settled there.
+- The binding interface `claims`/`reads` (§11.6) and
+  the side traits `is_input`/`is_output`/`is_greedy` are the second part.
+  `map_input`/`map_output` sit outside the question, as loop-idiom conventions
+  the framework never calls.
+- The device contract
+  `init!`/`loop`/`shutdown!`/`unblock!`/`needs_calling_task` is the third.
+  Authors extend it by `import` or qualified name, `Base.show`-style, rather
+  than call it every day.
+
+The audit's criterion is the **four-class naming convention**
+(D-144):
+
+1. **Declarations**, which the author defines and the framework calls, are
+   noun phrases or `init_*`/`_types`: `child_connections`,
+   `input_connections`/`output_connections`, `state_events`, `input_types`,
+   `init_workspace`, the stage and update-law names (D-220), and
+   `claims(b)` from the binding interface (§11.6).
+2. **Value selectors**, called against `reads` and snapshots,
+   carry `get_` (§14.4).
+3. **Lifecycle and mutating actions** are verbs, with `!` when they mutate.
+4. **Build primitives** (§13.3) are plain verbs.
+
+A name in the wrong class is a rename candidate on that ground alone.
+
+The convention also has a **semantic axis**: right class, wrong noun.
+`input_passthrough` (§8.8, D-171) and the binding methods
+`claims`/`reads` (§11.6, D-146) are what settle it. A
+bare-noun declaration names the *consequence* a declaration has rather than
+its *content*. `exports` is that axis's retired exemplar (D-170). The
+`*_connections` family names content deliberately, for authoring transparency.
+That is a recorded choice, not class drift.
+
+Four items are flagged for the sweep and deliberately not settled here.
+
+- `input_faces`/`output_faces` are noun accessors that pun on the `_types`
+  declarations, mitigated by being framework-facing.
+- `loop`, in the device contract (§11.6), is a mutating task body
+  spelled as a bare noun among its verb-`!` siblings
+  `init!`/`shutdown!`/`unblock!`. With `run!` taken and the "loop body" prose
+  entrenched, it needs the audit's whole-surface view.
+- The bare-noun accessor family `trace(sim)`, `latest(sim)`,
+  `binding(handle)`, `phase_bodies(sim)` holds value selectors outside
+  class (2)'s `get_` rule. `trace` is the sharpest of them. The door's
+  kill-switch `trace = false` and the post-run accessor `trace(sim)` are one
+  name in two senses, which is the overload pattern D-122 and
+  D-144 retire.
+- Whether class (1) needs an explicit exemption for predicate traits
+  (`is_greedy`, `needs_calling_task`).
+
+All four are boundary cases the convention in D-144 does not settle,
+and they are not defects of its list.
+
+### The GUI panel authoring API
+
+The semantics are settled (§11.7): derived liveness, first-class read-only
+rendering, own-pending-else-snapshot peek, stage-on-interaction, orphan
+display. What is deferred is the calling convention: context contents, port
+naming, child composition. That convention is to be co-designed against the
+GUI library under the four constraints (§11.7).
+
+### Log and trace persistence
+
+The in-memory artifacts are settled, and nothing on-disk is. Three facts stand
+on the in-memory side.
+
+- The log is the retained boundary snapshots (§11.2).
+- The input trace is always on and device-tagged, and it carries its header
+  of initial stores and root input values (§11.5, §14.5, §14.6).
+- The primary/derived rule holds: the log is recomputable from the trace,
+  never the reverse.
+
+The on-disk questions are deferred until real users exist to ground the
+choices.
+
+- The HDF5 export scope: the whole snapshot log, or selected subtrees.
+- Field-handle summarization over retained snapshots, the post-processing
+  entry point: `getproperty`-style navigation of a run's history.
+- The trace file format, which doubles as the reproducibility carrier. The
+  replay pointers (§13.4) name positions in it.
+
+### The executor compile-cost re-measurement
+
+§9.7's compile-time anchors for a model of roughly 200–400 entries are
+extrapolated from synthetic bodies. Re-measure them on a real model of that
+scale early, before the executor's shape hardens.
+
+### The trim post-commit target read-back
+
+Under elimination, a params-vs-world handle mismatch converges to a true
+equilibrium at an unintended operating point, and nothing complains (D-139).
+After the commit, one evaluation of the sweep compares the achieved targets
+against the requested ones and catches the whole class. It belongs on
+`TrimReport`, beside the unbalanced equations and saturated decision
+variables it already names (`companions/trim_environment_walkthrough.md`).
+
+### A root-declared `stop_on` default
+
+§13.5 keeps one variant on record for reopening: a root-declared `stop_on`
+default, overridable per advance. Reopen it only if the per-advance keyword
+proves chronically forgotten.

@@ -250,7 +250,7 @@ were derived.
 | [D-223][d-223] | Host the runtime catch in boundary zero under the service's disposition | ratified |
 | [D-224][d-224] | Let a throw inside a trim commit propagate as the commit's `StepError` | ratified |
 | [D-225][d-225] | Parametrize `StepError` on its cause's type | ratified |
-| [D-226][d-226] | Reach the public surface by qualified name until §16's export audit | ratified |
+| [D-226][d-226] | Reach the public surface by qualified name until the export audit | ratified |
 | [D-227][d-227] | Select the stepper by type under the `algorithm` keyword | ratified |
 | [D-228][d-228] | Attribute runtime diagnostics by cell, never by payload | ratified |
 | [D-229][d-229] | Collect to the stratum barrier under a dependency rule | ratified |
@@ -2512,7 +2512,7 @@ per-compensator gain bundles (gain trajectories observable in log/trace/replay,
 dependency visible to the feedthrough graph, linearization holds unseeded gains
 constant).
 
-**Spec.** [§15.2][s15-2], [§16][s16], [Appendix A][sA]
+**Spec.** [§15.2][s15-2], [Appendix A][sA]
 
 **Rationale.** One-shot design-time gains = construction-time parameters or
 stopped-sim service outputs; commanded resets are same-tick inputs consumed in
@@ -2566,7 +2566,7 @@ validation identical at both binding sites.
   cycles costs a rebuild.
 - *Root-type-declared policy:* [D-060][d-060] stands — the override moves binding
   *later* along the deployment axis, not into the model; the root-declared
-  *default* variant remains the [§16][s16] residual.
+  *default* variant remains the residual recorded in `pending.md`.
 
 ### D-092 — Normative diagnostic kind table (Appendix C)
 
@@ -3353,13 +3353,13 @@ loop runs, so the in-loop argument types come by construction; CI is
 warm-then-assert at per-body granularity (a documented tolerance loosens
 exactly one assertion).
 
-**Spec.** [§7.5][s7-5], [§9.7][s9-7], [§16][s16], [Appendix B][sB]
+**Spec.** [§7.5][s7-5], [§9.7][s9-7], [Appendix B][sB]
 
 **Rationale.** [§7.5][s7-5]'s tiers completed: guards and `project` (unconditional per
 boundary/frame) join the exactly-zero tier, handlers (episodic, only on firing)
 join the tick tier's zero-by-idiom; publication is not a phase body — the [§7.5][s7-5]
 carve-out made structural; isolated invocation leaves buffers valid but
-off-trajectory (re-`init!` to continue); [§16][s16]'s FlightCore allocation comparison
+off-trajectory (re-`init!` to continue); the FlightCore allocation comparison in `migration_outline.md`
 measures through the seam.
 
 **Rejected.**
@@ -3389,11 +3389,11 @@ f, g, project, connections, exports, rates` — normative authoring surface
 stated in [§8.1][s8-1], with qualified definition (`Cadence.f(…) = …`, the `Base.show`
 idiom) the recorded alternative for the extension-only periphery.
 
-**Spec.** [§8.1][s8-1], [§8.4][s8-4], [§16][s16], [Appendix C][sC]
+**Spec.** [§8.1][s8-1], [§8.4][s8-4], [Appendix C][sC]
 
 **Rationale.** `StoreWithoutUpdate`/`KindUnreadable` gain a shadowing check
 (parent module defines a same-named function `!==` the framework's → the
-message names the missing import); [§16][s16]'s exported-name audit widened to name
+message names the missing import); the exported-name audit in `pending.md` widened to name
 the declaration/stage family as the larger half of the unexported
 extension-only surface; short names stay unexported deliberately (`f`, `g`,
 `events`, `project` maximally collision-prone).
@@ -3535,7 +3535,7 @@ and **batch run → unattended run**; linearization **surface → taps**;
 **recording registers → recorders** and the [§12.6][s12-6] **harness register → harness
 cell**, reserving *register* for the idiom/mode sense.
 
-**Spec.** [§11.3][s11-3], [§11.6][s11-6], [§12.6][s12-6], [§8.2][s8-2], [§14][s14], [§14.5][s14-5], [§16][s16]
+**Spec.** [§11.3][s11-3], [§11.6][s11-6], [§12.6][s12-6], [§8.2][s8-2], [§14][s14], [§14.5][s14-5]
 
 **Rationale.** Event detection: Tier 1/2 → boundary-detected/localized is
 descriptive, matching the `localize` flag (`Tier2GuardPredicate` →
@@ -3637,7 +3637,7 @@ seam binds the curated face contract. This amends [D-095][d-095]: the four-selec
 was inherited from [D-083][d-083] and predates `get_face`'s spelling ([D-095][d-095]), so this is
 completion, not reversal.
 
-**Spec.** [§6.1][s6-1], [§7.4][s7-4], [§14.4][s14-4], [§14.7][s14-7], [§14.9][s14-9], [§16][s16]
+**Spec.** [§6.1][s6-1], [§7.4][s7-4], [§14.4][s14-4], [§14.7][s14-7], [§14.9][s14-9]
 
 **Rationale.** Companion idiom recorded beside [§14.7][s14-7]'s `reads` bullet: a
 derivative a service must read across a contract boundary is published as an
@@ -3646,7 +3646,7 @@ contract), `get_deriv` staying scoped to owned concrete subtrees; publication
 is demand-driven — the `get_local` doctrine's sibling (the need surfaces as a
 resolution error with the export remedy), not a design-time obligation on
 component authors, with "equilibrium-defining states have boundary-meaningful
-derivatives" the library-convention heuristic deferred to the [§16][s16] migration
+derivatives" the library-convention heuristic deferred to the migration (`migration_outline.md`)
 outline. Grounding: the C172's engine-speed equilibrium
 (`ẋ.systems.pwp.engine.ω`) is unspellable under [D-083][d-083]/[D-095][d-095] alone — every level
 of the real aircraft tree is a generic seam.
@@ -3822,9 +3822,9 @@ no settled decision changes, only text brought into line with decisions already
 recorded.
 
 **Spec.** [§5.3][s5-3], [§6.2][s6-2], [§7][s7], [§7.1][s7-1], [§7.5][s7-5], [§11.4][s11-4], [§11.7][s11-7], [§12][s12], [§12.6][s12-6], [§9.5][s9-5], [§13.4][s13-4],
-[§14][s14], [§14.6][s14-6], [§15.4][s15-4], [§16][s16], [Appendix B][sB], [§D.3][sD-3], [§D.6][sD-6], [§D.8][sD-8]
+[§14][s14], [§14.6][s14-6], [§15.4][s15-4], [Appendix B][sB], [§D.3][sD-3], [§D.6][sD-6], [§D.8][sD-8]
 
-**Rationale.** [§16][s16]'s GUI bullet lists orphan display among the settled
+**Rationale.** `pending.md`'s GUI panel entry lists orphan display among the settled
 semantics, not the deleted claim-transition policy ([D-047][d-047], [D-106][d-106]); [§11.7][s11-7]'s
 closing constraint bakes port resolution *and* the liveness verdict at run
 start, matching its own mid-text, [§15.4][s15-4] and [§D.6][sD-6]; three [D-122][d-122] stragglers renamed
@@ -4340,7 +4340,7 @@ author can write it: the real component composes sub-models, and anyone else
 reconstructing the map has re-created the silent-drift class [§5.3][s5-3] exists to
 kill.
 
-**Spec.** [§4.4][s4-4], [§5.3][s5-3], [§9.6][s9-6], [§14.1][s14-1], [§14.2][s14-2], [§14.7][s14-7], [§14.9][s14-9], [§16][s16], Appendices A/D
+**Spec.** [§4.4][s4-4], [§5.3][s5-3], [§9.6][s9-6], [§14.1][s14-1], [§14.2][s14-2], [§14.7][s14-7], [§14.9][s14-9], Appendices A/D
 
 **Rationale.** Bulk-data components owe only that the query math be *reachable*
 as a plain function; building a handle outside a build may then cost a resource
@@ -4356,7 +4356,7 @@ existing second escape: promote the eliminated state coordinates to decision
 variables and enforce the targets as residuals on swept outputs, which needs no
 environment access at condition time at all (the detailed
 elimination-vs-enlargement material stays out of the spec — companion
-walkthrough, then [§16][s16]). **Trim problems never author the environment** ([§14.7][s14-7],
+walkthrough, then `pending.md`). **Trim problems never author the environment** ([§14.7][s14-7],
 [§14.9][s14-9]): handles arrive through the user parameter record, the problem
 *receiving* the environment and never writing it, which is what keeps **one
 problem artifact valid across a full world and a thin rig** — a condition entry
@@ -4382,7 +4382,7 @@ condition-side copy is **solution-defining** and must agree with the world's,
 whereas under enlargement a handle can at most inform the initial guess —
 convergence-relevant, solution-irrelevant. The second axis is a rig-shape
 choice and never touches trim doctrine. **Residual risk, mitigation deferred to
-[§16][s16]'s migration outline**: under elimination a params-vs-world handle mismatch
+`pending.md`**: under elimination a params-vs-world handle mismatch
 converges to a *true* equilibrium at an *unintended operating point* — the
 eliminated targets are never residual-checked, so nothing complains — and a
 cheap post-commit read-back of EAS/γ/β against the requested targets catches
@@ -4423,7 +4423,7 @@ on values the caller already holds.
 **Position.** [§5.4][s5-4]'s escape hatch becomes a **three-rung remedy ladder** for
 artificial loops; [§8.3][s8-3] and [§4.3][s4-3] are unchanged.
 
-**Spec.** [§4.3][s4-3], [§5.4][s5-4], [§5.6][s5-6], [§8.3][s8-3], [§16][s16]
+**Spec.** [§4.3][s4-3], [§5.4][s5-4], [§5.6][s5-6], [§8.3][s8-3]
 
 **Rationale.** (i) The **two-stage split** dissolves most of the class —
 [§15.1][s15-1]'s `VehicleDynamics` instance is the canonical dissolution. (ii)
@@ -4455,11 +4455,11 @@ and honest one. [§5.6][s5-6]'s hint offers **both exits** ("split this componen
 narrow the neighbor's contract"), continuous members only as before, and the
 classifier machinery is untouched: it already knows which hop died. [§5.4][s5-4]'s
 "rare" is thereby **earned** rather than asserted — the split is rare *because*
-rungs (i) and (ii) absorb the common shapes. [§16][s16] records the strut/steering
+rungs (i) and (ii) absorb the common shapes. `migration_outline.md` records the strut/steering
 pair as the contract-re-factoring worked instance, beside [§15.1][s15-1]'s dissolving
 `VehicleDynamics`, with the split and its bundle port noted as the residual
 remedy not taken; the `AbstractSteering` contract change is an
-**aircraft-library migration call living in [§16][s16]**, not framework vocabulary.
+**aircraft-library migration call living in `migration_outline.md`**, not framework vocabulary.
 
 **Rejected.**
 - *A visibility level for split-orphaned intermediates (`unlisted`,
@@ -4495,7 +4495,7 @@ implemented internally as an ordinary guard/handler event (the [Appendix A][sA]
 contract's worked instance). The gear wires `strut.wow → frc.reset` (the
 touchdown edge).
 
-**Spec.** [§2.1][s2-1], [§3.1][s3-1], [§3.3][s3-3], [§10.6][s10-6], [§8.5][s8-5], [§13.7][s13-7], [§15.2][s15-2], [§16][s16], [Appendix A][sA]
+**Spec.** [§2.1][s2-1], [§3.1][s3-1], [§3.3][s3-3], [§10.6][s10-6], [§8.5][s8-5], [§13.7][s13-7], [§15.2][s15-2], [Appendix A][sA]
 
 **Rationale.** The reason is semantic, not stylistic: only the discrete tier's
 update stage is already a jump map (a reset there is merely another value for
@@ -4699,8 +4699,8 @@ keyword arguments (`prefix`, `sep`, `except`, `only`) and semantics are
 unchanged. [§11.6][s11-6]'s `faces(b)` claim-set declaration is deliberately untouched:
 the rename dissolves the overload rather than propagating it, leaving the
 device-binding declaration sole owner of the name. The rename is the first
-application of the four-class naming convention now recorded as [§16][s16]'s
-API-audit criterion: (1) declarations (author defines, framework calls) are
+application of the four-class naming convention now recorded as the
+exported-name audit's criterion in `pending.md`: (1) declarations (author defines, framework calls) are
 bare nouns or `init_*`/`_types` — `connections`, `exports`, `events`,
 `input_types`, `output_types`, `local_types`, `init_x`/`init_z`/`init_m`,
 `workspace`, `probe_value`, the stages `h_x`/`h_xu`/`h_z`/`h_zu`, `f`, `g`,
@@ -4711,13 +4711,13 @@ snapshots carry `get_` — `get_state`, `get_deriv`, `get_output`, `get_local`,
 `detach!`, `shutdown!`, `apply!`; (4) build primitives ([§13.3][s13-3],
 framework/tooling-facing) are plain verbs — `resolve`, `resolve_terminal`. A
 name in the wrong class is a rename candidate on that ground alone. Two
-residuals are flagged and deferred to the [§16][s16] audit, not renamed now:
+residuals are flagged and deferred to the exported-name audit in `pending.md`, not renamed now:
 `input_faces`/`output_faces` (noun accessors punning on the `_types`
 declarations, mitigated by being framework-facing rather than daily authoring
 surface) and `workspace` (a declaration whose bare noun reads as an accessor —
 borderline, every rename candidate clunkier, lean keep).
 
-**Spec.** [§11.6][s11-6], [§8.6][s8-6], [§8.8][s8-8], [§9.1][s9-1], [§13.3][s13-3], [§13.7][s13-7], [§14.4][s14-4], [§15.4][s15-4], [§16][s16], Appendix
+**Spec.** [§11.6][s11-6], [§8.6][s8-6], [§8.8][s8-8], [§9.1][s9-1], [§13.3][s13-3], [§13.7][s13-7], [§14.4][s14-4], [§15.4][s15-4], Appendix
 B (swept)
 
 **Rationale.** Two ambiguity axes motivated it: the helper wore the declaration
@@ -4743,7 +4743,7 @@ output-direction addition ever lands.
   bare noun in the declaration class, still colliding with `get_face`.
 - *Renaming `input_faces`/`output_faces` or `workspace` in the same pass:*
   audit-time calls whose cost lands when the real export surface exists;
-  deciding them now would settle by anticipation what [§16][s16] exists to settle
+  deciding them now would settle by anticipation what the exported-name audit exists to settle
   against the migrated code.
 
 ### D-145 — Deduplicate pass-through `except` lists with a shared feed-list idiom
@@ -4829,7 +4829,7 @@ selectors, store selectors, path selectors, [§14.10][s14-10]'s tap selectors, "
 selectors"); only the binding method renames, and `reads(b)` still returns
 [§14.4][s14-4] selectors.
 
-**Spec.** [§11.3][s11-3], [§11.6][s11-6], [§14.4][s14-4], [§14.7][s14-7], [§14.10][s14-10], [§16][s16], [Appendix B][sB], [Appendix C][sC],
+**Spec.** [§11.3][s11-3], [§11.6][s11-6], [§14.4][s14-4], [§14.7][s14-7], [§14.10][s14-10], [Appendix B][sB], [Appendix C][sC],
 [Appendix D][sD] (swept)
 
 **Rationale.** This is the first application of [D-144][d-144]'s four-class
@@ -5318,10 +5318,10 @@ nevals, niters)`: `eval!(r, J, d)` in-place, always filling `r` (packed in
 translation), decisive of nothing; `status::Symbol` a deliberately **open** set
 recorded verbatim ([D-150][d-150] demoted status to diagnostic — a closed enum would
 launder foreign solver vocabularies back into per-backend meaning);
-`nevals`/`niters` diagnostic counts; the name `solve` rides the [§16][s16] naming
+`nevals`/`niters` diagnostic counts; the name `solve` rides the exported-name
 audit like all API spellings.
 
-**Spec.** [§14.8][s14-8], [§16][s16]
+**Spec.** [§14.8][s14-8]
 
 **Rationale.** A round-5 kernel dry-run finding (finding 14), making [D-118][d-118]'s
 one-implementation-target real and upholding [D-150][d-150]/[D-151][d-151].
@@ -5390,8 +5390,6 @@ sharpest case (one name, two senses — the [D-122][d-122]/[D-144][d-144] patter
 class-(1) exemption question for markers (`interactive`) and predicate
 traits (`needs_calling_task`).
 
-**Spec.** [§16][s16]
-
 **Rationale.** Round-5 vocabulary findings 2.2–2.4.
 
 **Rejected.**
@@ -5443,17 +5441,17 @@ bodies plus a pointer chase per gather); snapshot runtime ties (~1130 ns at N =
 **Position.** **Float outputs are compared leaf-wise with a tolerance, never
 `==`, wherever the two sides are separately compiled** — the executor contracts
 `a*b - c*d` into an FMA where a differently-compiled reference (a type-unstable
-evaluator, a hand-rolled per-component check, today's FlightCore path in [§16][s16]'s
+evaluator, a hand-rolled per-component check, today's FlightCore path in `migration_outline.md`'s
 comparison) does not, and along a dependency chain the last-ulp difference
 accumulates.
 
-**Spec.** [§6.2][s6-2], [§7.5][s7-5], [§9.7][s9-7], [§16][s16]
+**Spec.** [§6.2][s6-2], [§7.5][s7-5], [§9.7][s9-7]
 
 **Rationale.** Increment-1 observation promoted to doctrine; measured in
 `prototypes/cellstore_bench`'s `check.jl`, same class as the main line's
 3945596. Two consequences past test hygiene: [§9.7][s9-7]'s chunk size remains a
 genuine implementation freedom only while no test asserts bit-exactness across
-chunk sizes, and [§16][s16]'s FlightCore value comparison is a tolerance comparison by
+chunk sizes, and the FlightCore value comparison in `migration_outline.md` is a tolerance comparison by
 construction, not by concession. Determinism is untouched — within one build
 the schedule is fixed and [§6.2][s6-2] made every sum an ordered junction entry, so a
 run reproduces itself bit-for-bit.
@@ -5861,7 +5859,7 @@ boundary declarations; one invariant spans all three: every pair's arrow points
 the way the signal flows, left = producer or entry point, right = consumer,
 every right side fed exactly once.
 
-**Spec.** [§3.3][s3-3], [§6.1][s6-1], [§6.2][s6-2], [§11.3][s11-3], [§8.2][s8-2], [§8.5][s8-5], [§8.6][s8-6], [§8.8][s8-8], [§9][s9], [§13.3][s13-3], [§16][s16]
+**Spec.** [§3.3][s3-3], [§6.1][s6-1], [§6.2][s6-2], [§11.3][s11-3], [§8.2][s8-2], [§8.5][s8-5], [§8.6][s8-6], [§8.8][s8-8], [§9][s9], [§13.3][s13-3]
 (swept)
 
 **Rationale.** Supersedes [D-041][d-041]'s single-method shape; [D-039][d-039]'s marker role
@@ -5885,7 +5883,7 @@ any single mixed-direction list must sacrifice one.
 
 **Position.** `passthrough` → **`input_passthrough`**.
 
-**Spec.** [§8.8][s8-8], [§16][s16]
+**Spec.** [§8.8][s8-8]
 
 **Rationale.** Annotates [D-144][d-144]: its "stays accurate if the output-direction
 addition lands" clause assumed a direction *keyword* on one helper; after
@@ -6821,7 +6819,7 @@ prose read as one mechanism where the engine holds two.
 the Laplace variable appears nowhere in the spec — the document's only
 transform-domain symbol is `z⁻¹` — and `s` carries unique positive precedent,
 being legacy FlightCore's own discrete state field (`Model.s`), which [§12.5][s12-5]'s
-consumer survey already quotes as `x`/`s`; the migration ([§16][s16]) reads the legacy
+consumer survey already quotes as `x`/`s`; the migration (`migration_outline.md`) reads the legacy
 vocabulary back rather than introducing a third letter. The "doubled API"
 objection is nominal, not per-leaf: a leaf is strictly one tier ([D-056][d-056]) and
 still implements exactly one name family, and the doubling buys back the
@@ -7135,7 +7133,7 @@ nodes is `combine` (`combine(nodes...)`, node type `Combined`), no longer
 log keeps its day's vocabulary ([D-064][d-064], [D-065][d-065]) — and the mixed-argument error
 methods and `ConditionNodeMisuse` stay.
 
-**Spec.** [§14.2][s14-2], [§14.6][s14-6], [§14.9][s14-9], [§16][s16], [Appendix B][sB]
+**Spec.** [§14.2][s14-2], [§14.6][s14-6], [§14.9][s14-9], [Appendix B][sB]
 
 **Rationale.** `Base.merge`'s documented contract is last-writer-wins — the
 exact semantics [D-065][d-065] rejects for condition composition — so the shared name
@@ -7144,7 +7142,7 @@ Base sense (`merge(defaults, overlay)`) one section away: one identifier,
 both contracts. Packaging admits no clean spelling either: a distinct
 exported `merge` collides with `Base`'s binding at `using`, so shipping the
 design meant extending `Base.merge` with methods contradicting its contract —
-the piracy surface [§16][s16]'s exported-name audit had flagged. Under a fresh name
+the piracy surface the exported-name audit in `pending.md` had flagged. Under a fresh name
 the fall-through to last-wins semantics is structurally impossible, and the
 mixed-argument error methods become directive diagnostics rather than
 essential insurance.
@@ -7845,7 +7843,7 @@ mathematical symbols.
 **Spec.** [§2.1][s2-1], [§3.2][s3-2], [§4.3][s4-3], [§4.4][s4-4], [§5.2][s5-2], [§5.3][s5-3], [§5.4][s5-4], [§6.2][s6-2], [§7.1][s7-1], [§7.3][s7-3], [§7.4][s7-4],
 [§7.5][s7-5], [§8.1][s8-1], [§8.2][s8-2], [§8.5][s8-5], [§9.3][s9-3], [§9.4][s9-4], [§9.5][s9-5], [§9.7][s9-7], [§10.4][s10-4], [§10.5][s10-5], [§10.6][s10-6], [§12.5][s12-5],
 [§13.4][s13-4], [§13.5][s13-5], [§13.6][s13-6], [§13.7][s13-7], [§14.5][s14-5], [§14.7][s14-7], [§14.8][s14-8], [§14.10][s14-10], [§15.1][s15-1], [§15.2][s15-2], [§15.5][s15-5],
-[§16][s16], [Appendix A][sA], [Appendix B][sB], [Appendix C][sC], [Appendix D][sD]
+[Appendix A][sA], [Appendix B][sB], [Appendix C][sC], [Appendix D][sD]
 
 **Rationale.** On Julia 1.12 a declaration written without `import Cadence: …`
 creates a fresh local generic, silently, whether or not the name is exported,
@@ -7886,7 +7884,7 @@ scratch-store set, stands unchanged. Both entries keep `ratified`: the log has
 no partial status, and neither position is replaced. [D-144][d-144]'s naming
 convention is amended rather than retired: its class 1 reads *noun phrases*
 from here, the stage and update-law names no longer being bare nouns, and the
-`workspace` item it flagged for the [§16][s16] audit is settled by this entry.
+`workspace` item it flagged for the exported-name audit is settled by this entry.
 [D-144][d-144] keeps `ratified` for the same reason.
 
 `state_events` also names the distinction [§2.1][s2-1] now teaches. The discrete
@@ -8107,17 +8105,17 @@ as it does on the framed path.
 - *A policy parameter as in [D-222][d-222]:* a `StepError` is always fail-fast, so
   there is nothing to encode.
 
-### D-226 — Reach the public surface by qualified name until §16's export audit
+### D-226 — Reach the public surface by qualified name until the export audit
 
 **Status.** ratified
 
 **Position.** A framework name is public by standing on [Appendix B][sB]'s surface,
 reached by qualified name or per-name `import`. Julia's `export` list is
-decided once, by [§16][s16]'s full-surface audit, and until then the module exports
+decided once, by the full-surface audit in `pending.md`, and until then the module exports
 nothing.
 
 - "Exported" keeps two senses in the spec: an assembly face raised to its
-  boundary, and [§16][s16]'s audit. A function or name on the API surface is
+  boundary, and the exported-name audit. A function or name on the API surface is
   "public". The rename sweeps the spec and its companions, not the log.
 - The interim is conformance, not a gap: the suite reaches every name through
   `using Cadence` plus a per-name `import` list, [D-117][d-117]'s idiom, and a REPL
@@ -8125,14 +8123,14 @@ nothing.
 - The authoring family stays unexported under [D-117][d-117] whatever the audit
   decides for the operator half.
 
-**Spec.** [§4.4][s4-4], [§9.4][s9-4], [§16][s16], [Appendix B][sB], [Appendix D][sD]
+**Spec.** [§4.4][s4-4], [§9.4][s9-4], [Appendix B][sB], [Appendix D][sD]
 
 **Rationale.** The 2026-09-04 conformance audit read "exported" at three sites
 as an obligation the module does not meet, `names(Cadence)` being
 `[:Cadence]`. The sites describe visibility. [§4.4][s4-4]'s value-level constructor is
 a function a model package must expose so condition math can call it outside
 any sweep; [§9.4][s9-4]'s `ProbeDual` is a name a CI activation list spells. Neither
-needs `export`; both need a public name. [§16][s16] already records the export list
+needs `export`; both need a public name. `pending.md` already records the export list
 as open, to be decided by a full-surface audit under the four-class
 convention, and names what the operator half carries: `condition`,
 `fragment`, `at` and `combine` share a namespace with FlightPhysics domain
@@ -8146,12 +8144,12 @@ developer's session pays one `-L` flag.
 
 **Rejected.**
 - *Export the operator surface now:* decides the list by accident ahead of
-  the audit [§16][s16] requires, and turns a later rename or submodule move into a
+  the audit `pending.md` records, and turns a later rename or submodule move into a
   breaking change.
 - *Rule that nothing is ever exported:* forecloses the audit.
 - *Read "exported" as Julia's `export` and register the code as deviant:*
   creates an obligation the design itself defers.
-- *A re-export submodule for the operator verbs:* the packaging [§16][s16] lists as
+- *A re-export submodule for the operator verbs:* the packaging `pending.md` lists as
   open, half-decided.
 
 ### D-227 — Select the stepper by type under the `algorithm` keyword
@@ -10135,7 +10133,7 @@ compile was the one reason the run had to be built ahead of the plane.
 [d-223]: #d-223--host-the-runtime-catch-in-boundary-zero-under-the-services-disposition
 [d-224]: #d-224--let-a-throw-inside-a-trim-commit-propagate-as-the-commits-steperror
 [d-225]: #d-225--parametrize-steperror-on-its-causes-type
-[d-226]: #d-226--reach-the-public-surface-by-qualified-name-until-16s-export-audit
+[d-226]: #d-226--reach-the-public-surface-by-qualified-name-until-the-export-audit
 [d-227]: #d-227--select-the-stepper-by-type-under-the-algorithm-keyword
 [d-228]: #d-228--attribute-runtime-diagnostics-by-cell-never-by-payload
 [d-229]: #d-229--collect-to-the-stratum-barrier-under-a-dependency-rule
@@ -10218,7 +10216,6 @@ compile was the one reason the run had to be built ahead of the plane.
 [s15-3]: spec.md#153-torture-test-for-the-11-staging-shapes-filter-joystick-and-gui
 [s15-4]: spec.md#154-the-interactive-c172x-demo-the-periphery-under-load
 [s15-5]: spec.md#155-the-strapdown-imu-integrate-and-dump-across-the-tier-boundary
-[s16]: spec.md#16-open-axes
 [s2-1]: spec.md#21-events-two-detection-policies
 [s2-2]: spec.md#22-exclusions-deliberate
 [s3]: spec.md#3-component-taxonomy

@@ -19,7 +19,7 @@ them.
    persisted layout lives in a viewer-owned sidecar keyed by identity.
 3. **A component author writes nothing for the inspector.** Everything the
    diagram draws is already declared for the framework to work. Panels
-   (`GUI.draw!`, §11.7, §16) are A's obligation and predate this design.
+   (`GUI.draw!`, §11.7, `pending.md`) are A's obligation and predate this design.
 4. **Native vocabulary, borrowed form.** Labels, legend and schema field
    names are the spec glossary's. The drawing grammar is Simulink's, because
    it is the lingua franca of block diagrams.
@@ -67,7 +67,7 @@ to.
   so what its surface section shows, given that an errored simulation has no
   next run.
 - **The run-data container** (later addition b). The columnar format for the
-  log and trace payload and its relation to §16's persistence deferral. To be
+  log and trace payload and its relation to the persistence deferral in `pending.md`. To be
   designed once, not twice.
 
 ## Answered questions
@@ -92,7 +92,7 @@ Each entry gives the question, the answer, and the reason the answer won.
 3. **Build or run?** Build only in the first iteration: `Structure`,
    `Outputs`, `Schedule`, `Deployment`. Run data (log, trace) is a later,
    additive payload that references ports by identity. The diagram is the
-   hook; plotting a log is three lines of Makie at the REPL; and §16 defers
+   hook; plotting a log is three lines of Makie at the REPL; and `pending.md` defers
    on-disk persistence of the log and trace, which the run payload would
    pre-empt. Live streaming during a run is recorded as "an ordinary read
    device" under §11 and needs no framework hook; it belongs after run data
