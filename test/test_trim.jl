@@ -140,13 +140,15 @@ function test_trim()
                                upper = (u = Inf, θ = π/2), condition = decide_both,
                                reads = both_reads(), residuals = both_residuals,
                                tolerances = (hold = 1e-9, torque = 1e-9))
-        a = trim!(Simulation(fed(Pendulum(), :u); h = 1//10), declared; baseline = pend_base())
-        b = trim!(Simulation(fed(Pendulum(), :u); h = 1//10), permuted; baseline = pend_base())
+        declared_report = trim!(Simulation(fed(Pendulum(), :u); h = 1//10), declared; baseline = pend_base())
+        permuted_report = trim!(Simulation(fed(Pendulum(), :u); h = 1//10), permuted; baseline = pend_base())
 
-        @test a.converged && b.converged
-        @test a.solution == b.solution                   # bit for bit, not merely ≈
-        @test a.solution.θ ≈ 0.3 && a.solution.u ≈ PEND_G_L * sin(0.3)
-        @test keys(a.residuals) === (:torque, :hold) && keys(b.residuals) === (:hold, :torque)
+        @test declared_report.converged && permuted_report.converged
+        @test declared_report.solution ==
+              permuted_report.solution                    # bit for bit, not merely ≈
+        @test declared_report.solution.θ ≈ 0.3 &&
+              declared_report.solution.u ≈ PEND_G_L * sin(0.3)
+        @test keys(declared_report.residuals) === (:torque, :hold) && keys(permuted_report.residuals) === (:hold, :torque)
     end
 
     @testset "no convergence, no commit: the simulation is untouched (§14.8)" begin
@@ -173,8 +175,8 @@ function test_trim()
         init!(live, combine(at("c", condition(Pendulum(); θ = 0.2)),
                             fragment(inputs = (in = 1.0,))))
         before = world(live)
-        r2 = trim!(live, infeasible; baseline = pend_base())
-        @test !r2.converged && r2.committed_residuals === nothing
+        live_report = trim!(live, infeasible; baseline = pend_base())
+        @test !live_report.converged && live_report.committed_residuals === nothing
         @test world(live) == before
         @test lifecycle(live) === :initialized
     end
@@ -233,73 +235,73 @@ function test_trim()
         # A bounds key-set mismatch, an `Int` guess field and an unresolvable
         # selector, in one throw — the read set's own violation kept verbatim, and
         # carrying no kind of its own: the *problem* is what is malformed (§14.8).
-        e = failure(() -> trim!(sim, TrimProblem(
+        err = failure(() -> trim!(sim, TrimProblem(
             guess = (u = 0,), lower = (v = -Inf,), upper = (u = Inf,),
             condition = decide_u, reads = reads(ω̇ = get_deriv("c", :ω),
                                                 nope = get_state("nope", :q)),
             residuals = torque_only, tolerances = (torque = 1e-9,)); baseline = pend_base()))
-        @test e isa DiagnosticError && length(diagnostics(e)) == 3
-        ks = only(d for d in diagnostics(e) if d isa TrimProblemInvalid && d.reason === :key_set)
-        @test ks.field === :lower && ks.names == [:v] && ks.expected == [:u]
-        ft = only(d for d in diagnostics(e) if d.reason === :field_types)
-        @test ft.field === :guess && ft.bad == Pair{Symbol,Any}[:u => Int64]
+        @test err isa DiagnosticError && length(diagnostics(err)) == 3
+        d = only(d for d in diagnostics(err) if d isa TrimProblemInvalid && d.reason === :key_set)
+        @test d.field === :lower && d.names == [:v] && d.expected == [:u]
+        d = only(d for d in diagnostics(err) if d.reason === :field_types)
+        @test d.field === :guess && d.bad == Pair{Symbol,Any}[:u => Int64]
         # The read set's path refusal is the walk's, spliced in beside the problem's
         # fields with the read it came from as its entry (§13.3).
-        tap = only(d for d in diagnostics(e) if d isa PathResolution)
-        @test tap.entry == "the read labeled `nope`, get_state(\"nope\", :q)" &&
-              tap.reason === :unknown_child && tap.segment == "nope"
+        d = only(d for d in diagnostics(err) if d isa PathResolution)
+        @test d.entry == "the read labeled `nope`, get_state(\"nope\", :q)" &&
+              d.reason === :unknown_child && d.segment == "nope"
         @test world(sim) == before
 
         # The residual key set is the one thing only the setup guess evaluation can
         # observe (§14.7), so it is reported from there — its own collected throw.
-        e2 = failure(() -> trim!(sim, TrimProblem(
+        err = failure(() -> trim!(sim, TrimProblem(
             guess = (u = 0.0,), lower = (u = -Inf,), upper = (u = Inf,),
             condition = decide_u, reads = torque_reads(),
             residuals = (r, d) -> (wrong = r.ω̇, extra = 1), tolerances = (torque = 1e-9,));
             baseline = pend_base()))
-        d2 = only(diagnostics(e2))
-        @test e2 isa DiagnosticError && d2 isa TrimProblemInvalid && d2.field === :residuals
-        @test d2.reason === :key_set && d2.names == [:wrong, :extra] && d2.expected == [:torque]
+        d = only(diagnostics(err))
+        @test err isa DiagnosticError && d isa TrimProblemInvalid && d.field === :residuals
+        @test d.reason === :key_set && d.names == [:wrong, :extra] && d.expected == [:torque]
         @test world(sim) == before
 
         # A tolerance that is not a `Float64`, and a read set spelled bare.
-        e3 = failure(() -> trim!(sim, TrimProblem(
+        err = failure(() -> trim!(sim, TrimProblem(
             guess = (u = 0.0,), lower = (u = -Inf,), upper = (u = Inf,),
             condition = decide_u, reads = (ω̇ = get_deriv("c", :ω),),
             residuals = torque_only, tolerances = (torque = 1,)); baseline = pend_base()))
-        @test all(d -> d isa TrimProblemInvalid, diagnostics(e3))
-        tol = only(d for d in diagnostics(e3) if d.field === :tolerances)
-        @test tol.reason === :field_types && tol.bad == Pair{Symbol,Any}[:torque => Int64]
-        rd = only(d for d in diagnostics(e3) if d.field === :reads)
-        @test rd.reason === :not_a_read_set && rd.observed === NamedTuple{(:ω̇,),Tuple{GetDeriv}}
+        @test all(d -> d isa TrimProblemInvalid, diagnostics(err))
+        d = only(d for d in diagnostics(err) if d.field === :tolerances)
+        @test d.reason === :field_types && d.bad == Pair{Symbol,Any}[:torque => Int64]
+        d = only(d for d in diagnostics(err) if d.field === :reads)
+        @test d.reason === :not_a_read_set && d.observed === NamedTuple{(:ω̇,),Tuple{GetDeriv}}
         @test world(sim) == before
 
         # An inverted box admits no point at all, and the collecting pass says so
         # per decision, with both values in hand — before the projection at the
         # pack site could quietly answer the upper bound instead.
-        e4 = failure(() -> trim!(sim, TrimProblem(
+        err = failure(() -> trim!(sim, TrimProblem(
             guess = (θ = 0.1, u = 0.0), lower = (θ = -π/2, u = 1.0),
             upper = (θ = π/2, u = -1.0), condition = decide_both, reads = both_reads(),
             residuals = both_residuals, tolerances = (torque = 1e-9, hold = 1e-9));
             baseline = pend_base()))
-        d4 = only(diagnostics(e4))
-        @test e4 isa DiagnosticError && d4 isa TrimProblemInvalid && d4.reason === :inverted_box
-        @test d4.field === :lower && d4.key === :u && d4.value === 1.0 && d4.bound === -1.0
+        d = only(diagnostics(err))
+        @test err isa DiagnosticError && d isa TrimProblemInvalid && d.reason === :inverted_box
+        @test d.field === :lower && d.key === :u && d.value === 1.0 && d.bound === -1.0
         @test world(sim) == before
 
         # A tolerance is the half-width of a box, so zero and negative name no box
         # at all — and the normalized acceptance test divides by them, which would
         # otherwise reject every trial step and stall the solve at the guess. Both
         # named in one throw.
-        e5 = failure(() -> trim!(sim, TrimProblem(
+        err = failure(() -> trim!(sim, TrimProblem(
             guess = (θ = 0.1, u = 0.0), lower = (θ = -π/2, u = -Inf),
             upper = (θ = π/2, u = Inf), condition = decide_both, reads = both_reads(),
             residuals = both_residuals, tolerances = (torque = 0.0, hold = -1e-9));
             baseline = pend_base()))
-        @test e5 isa DiagnosticError && length(diagnostics(e5)) == 2
+        @test err isa DiagnosticError && length(diagnostics(err)) == 2
         @test all(d -> d isa TrimProblemInvalid && d.field === :tolerances &&
-                       d.reason === :nonpositive_tolerance, diagnostics(e5))
-        @test [(d.key, d.value) for d in diagnostics(e5)] == [(:torque, 0.0), (:hold, -1.0e-9)]
+                       d.reason === :nonpositive_tolerance, diagnostics(err))
+        @test [(d.key, d.value) for d in diagnostics(err)] == [(:torque, 0.0), (:hold, -1.0e-9)]
         @test world(sim) == before
     end
 
@@ -327,9 +329,9 @@ function test_trim()
                                  condition = decide_u, reads = torque_reads(),
                                  residuals = torque_only, tolerances = (torque = 10.0,))
         pinned = Simulation(fed(Pendulum(), :u); h = 1//10)
-        r2 = trim!(pinned, degenerate; baseline = pend_base())
-        @test r2.converged && r2.solution.u === 2.0
-        @test r2.saturated == [(:u, :lower)]
+        degenerate_report = trim!(pinned, degenerate; baseline = pend_base())
+        @test degenerate_report.converged && degenerate_report.solution.u === 2.0
+        @test degenerate_report.saturated == [(:u, :lower)]
         @test port(pinned, "", :in) === 2.0
     end
 
@@ -340,12 +342,12 @@ function test_trim()
         # `ErrorException` the reorder to `tolerances`' order would raise.
         sim = Simulation(fed(Pendulum(), :u); h = 1//10)
         before = world(sim)
-        e = failure(() -> trim!(sim, TrimProblem(
+        err = failure(() -> trim!(sim, TrimProblem(
             guess = (u = 0.0,), lower = (u = -Inf,), upper = (u = Inf,),
             condition = decide_u, reads = torque_reads(),
             residuals = eltype_split, tolerances = (torque = 1e-9,)); baseline = pend_base()))
-        d = only(diagnostics(e))
-        @test e isa DiagnosticError && d isa TrimProblemInvalid && d.field === :residuals
+        d = only(diagnostics(err))
+        @test err isa DiagnosticError && d isa TrimProblemInvalid && d.field === :residuals
         @test d.reason === :key_set && d.names == [:wrong] && d.expected == [:torque]
         @test world(sim) == before && lifecycle(sim) === :built
     end
@@ -390,15 +392,15 @@ function test_trim()
         # cannot carry partials, and the refusal says so rather than folding into
         # the problem's kind.
         refused = Simulation(sampled_pend(); h = 1//10)
-        e = failure(() -> trim!(refused, TrimProblem(
+        err = failure(() -> trim!(refused, TrimProblem(
             guess = (θ = 0.1, acc = 4.0), lower = (θ = -π/2, acc = -Inf),
             upper = (θ = π/2, acc = Inf),
             condition = d -> combine(at("c", fragment(x = (θ = d.θ, ω = 0.0))),
                                      at("ctl", fragment(s = (acc = d.acc,)))),
             reads = torque_reads(), residuals = torque_only, tolerances = (torque = 1e-9,));
             baseline = fragment(inputs = (in = 0.0,))))
-        d = only(diagnostics(e))
-        @test e isa DiagnosticError && d isa ConditionResolution && d.reason === :unconvertible
+        d = only(diagnostics(err))
+        @test err isa DiagnosticError && d isa ConditionResolution && d.reason === :unconvertible
         @test d.path == "ctl" && d.store === :s && d.field === :acc
         @test d.activation <: ForwardDiff.Dual    # the seeded activation's own refusal
         @test lifecycle(refused) === :built               # nothing was written to the sim
@@ -458,12 +460,12 @@ function test_trim()
         init!(sim, combine(at("c", condition(Pendulum(); θ = 0.2)),
                            fragment(inputs = (in = 1.0,))))
         run!(sim; t_end = 0.4)
-        (c, t) = capture(sim)
+        (captured, t) = capture(sim)
         @test lifecycle(sim) === :stopped && t === 0.4
 
-        # `trim!(sim, problem; baseline = c, t0 = t)` is §14.8's resumed spelling:
+        # `trim!(sim, problem; baseline = captured, t0 = t)` is §14.8's resumed spelling:
         # continuity is explicit, and the anchor comes back from the capture.
-        report = trim!(sim, u_problem(); baseline = c, t0 = t)
+        report = trim!(sim, u_problem(); baseline = captured, t0 = t)
         @test report.converged && report.committed_residuals !== nothing
         @test lifecycle(sim) === :initialized
         @test sim.exec.clock.t === 0.4 && sim.exec.clock.t₀ === 0.4
@@ -477,27 +479,27 @@ function test_trim()
         # the service's own seeded scalar. The user's residual lambda is theirs, so
         # the gates are on the two the framework owns.
         sim = Simulation(fed(Pendulum(), :u); h = 1//10)
-        b = sim.deployment.build
+        build = sim.deployment.build
         TD = ForwardDiff.Dual{TrimTag,Float64,1}
-        ex = compile(b, activation(b, TD), sim.deployment.schedule;
-                     chunk_size = sim.exec.chunk_size,
-                     algorithm = sim.deployment.algorithm)
+        exec = compile(build, activation(build, TD), sim.deployment.schedule;
+                       chunk_size = sim.exec.chunk_size,
+                       algorithm = sim.deployment.algorithm)
         seeded(v) = (θ = ForwardDiff.Dual{TrimTag}(v, 1.0),)
-        plan = compile_plan(override(pend_base(), decide_θ(seeded(0.1))), b, TD)
-        reader = _compile_reads(torque_reads(), b, TD)
+        plan = compile_plan(override(pend_base(), decide_θ(seeded(0.1))), build, TD)
+        reader = _compile_reads(torque_reads(), build, TD)
         tree = override(pend_base(), decide_θ(seeded(0.2)))
 
-        apply!(ex, plan, tree)
-        evaluate!(ex)
-        @test gather_reads(reader, ex).ω̇ isa TD
-        @test (@ballocated apply!($ex, $plan, $tree)) == 0
-        @test (@ballocated gather_reads($reader, $ex)) == 0
+        apply!(exec, plan, tree)
+        evaluate!(exec)
+        @test gather_reads(reader, exec).ω̇ isa TD
+        @test (@ballocated apply!($exec, $plan, $tree)) == 0
+        @test (@ballocated gather_reads($reader, $exec)) == 0
 
         # And the seeded pass yields value and partials together: one sweep is `r`
         # and the column of `J` beside it (§14.7).
-        v = gather_reads(reader, ex).ω̇
-        @test ForwardDiff.value(v) ≈ -PEND_G_L * sin(0.2) + 4.0
-        @test ForwardDiff.partials(v, 1) ≈ -PEND_G_L * cos(0.2)
+        seeded_torque = gather_reads(reader, exec).ω̇
+        @test ForwardDiff.value(seeded_torque) ≈ -PEND_G_L * sin(0.2) + 4.0
+        @test ForwardDiff.partials(seeded_torque, 1) ≈ -PEND_G_L * cos(0.2)
     end
 
     @testset "`trim!` is a stopped-sim service on a nominal deployment (§14.8, §12.6)" begin
@@ -512,10 +514,10 @@ function test_trim()
 
         # And a value that is not a problem is a directive, not a `MethodError`.
         plain = Simulation(fed(Pendulum(), :u); h = 1//10)
-        d2 = carried(@test_throws DiagnosticError{ArgumentInvalid} trim!(plain, (guess = (u = 0.0,),); baseline = pend_base()))
-        @test d2.call === :trim! &&
-              d2.reason === :not_a_problem && d2.argument === :problem &&
-              occursin("NamedTuple", d2.value)
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} trim!(plain, (guess = (u = 0.0,),); baseline = pend_base()))
+        @test d.call === :trim! &&
+              d.reason === :not_a_problem && d.argument === :problem &&
+              occursin("NamedTuple", d.value)
 
         # `running` is the §11.3 freeze, as for every other §14 service. Both ends
         # of the run are test-controlled, exactly as in test_readers.
@@ -525,11 +527,11 @@ function test_trim()
         while lifecycle(live) !== :running
             yield()
         end
-        d3 = carried(@test_throws DiagnosticError{ServiceLifecycle} trim!(live, u_problem(); baseline = pend_base()))
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} trim!(live, u_problem(); baseline = pend_base()))
         stage!(live, "in" => 1.0)
         wait(task)
-        @test d3.op === :trim!
-        @test d3.status === :running
-        @test d3.legal == [:built, :initialized, :stopped]   # §12.6's row for `trim!`
+        @test d.op === :trim!
+        @test d.status === :running
+        @test d.legal == [:built, :initialized, :stopped]   # §12.6's row for `trim!`
     end
 end
