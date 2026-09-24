@@ -52,6 +52,11 @@ builds (`tri_build`, `feedback_build`), never a number and never a
 restructured call (`Cadence.build(…)`), which a rename does not make.
 `discrete.md`'s five `build` proposals become qualified names; `build.md`'s
 and `conditions.md`'s qualified names stand. `path` is the same.
+*Amended after wave 1:* the shadow bites with a single call too, since the
+assignment alone makes the name local for the whole scope; so a local
+assigned from `build(…)` never takes `build`, only a parameter or a field
+read (`deployment.build`) does. `build.md`'s nine bare-`build` rows took
+qualifiers.
 
 **T2. Spec letters are never borrowed.** `m` for a model, `t` for a `Task`
 or a termination record, `s` for a simulation, a string or a snapshot, `d`
