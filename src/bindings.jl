@@ -125,7 +125,7 @@ struct ReadGather{L,A<:Tuple}
 end
 ReadGather{L}(addrs::A) where {L,A<:Tuple} = ReadGather{L,A}(addrs)
 
-_gather(read_gather::ReadGather{L}, snapshot::Snapshot) where {L} =
+gather_snapshot(read_gather::ReadGather{L}, snapshot::Snapshot) where {L} =
     NamedTuple{L}(map(a -> gather_cell(snapshot.store, a), read_gather.addrs))
 
 """

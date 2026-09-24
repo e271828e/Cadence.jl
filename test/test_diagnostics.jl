@@ -192,14 +192,14 @@ function diagnostics_channel()
         # A raw cell takes any kind of the set; the ring preserves arrival order
         # across kinds, earliest-in-frame retained.
         cell = DiagCell(EMPTY_DIAG)
-        _report!(cell, MalformedDatum("m1"))
-        _report!(cell, OutOfClaimEntry(:flaps, 1.0, [:a, :b], nothing))
-        _report!(cell, ClaimedFaceEntry(:a, "device 1 (Pad)", 2.0, :staging))
-        _report!(cell, EntryTypeMismatch(:b, "high", Float64))
-        _report!(cell, ChatteringBudget("c", :pop, 0.1, 8, 8))
-        _report!(cell, FiringBudget("e", :up, 0.0, 4, 4))
-        _report!(cell, DeviceCrash(ErrorException("boom"), false))
-        _report!(cell, DeviceJoinTimeout("device 9 (Ghost)", 5.0, 1.0, 10))
+        report_cell!(cell, MalformedDatum("m1"))
+        report_cell!(cell, OutOfClaimEntry(:flaps, 1.0, [:a, :b], nothing))
+        report_cell!(cell, ClaimedFaceEntry(:a, "device 1 (Pad)", 2.0, :staging))
+        report_cell!(cell, EntryTypeMismatch(:b, "high", Float64))
+        report_cell!(cell, ChatteringBudget("c", :pop, 0.1, 8, 8))
+        report_cell!(cell, FiringBudget("e", :up, 0.0, 4, 4))
+        report_cell!(cell, DeviceCrash(ErrorException("boom"), false))
+        report_cell!(cell, DeviceJoinTimeout("device 9 (Ghost)", 5.0, 1.0, 10))
         batch = _take!(cell)
         @test length(batch.ring) == 8
         @test batch.ring[1] isa MalformedDatum && batch.ring[8] isa DeviceJoinTimeout
@@ -208,11 +208,11 @@ function diagnostics_channel()
         # Past the bound, suppression counts by kind: the record answers "how many
         # of what", not one blurred integer.
         for k in 1:DIAG_RING
-            _report!(cell, MalformedDatum("datum $k"))
+            report_cell!(cell, MalformedDatum("datum $k"))
         end
-        _report!(cell, MalformedDatum("late m"))
-        _report!(cell, DeviceCrash(ErrorException("late c"), true))
-        _report!(cell, DeviceCrash(ErrorException("later c"), true))
+        report_cell!(cell, MalformedDatum("late m"))
+        report_cell!(cell, DeviceCrash(ErrorException("late c"), true))
+        report_cell!(cell, DeviceCrash(ErrorException("later c"), true))
         batch = _take!(cell)
         @test length(batch.ring) == DIAG_RING
         @test all(d isa MalformedDatum for d in batch.ring)

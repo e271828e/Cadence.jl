@@ -30,7 +30,7 @@ Where the reason is not given here, the cited decision carries it:
   nominal-activation loop it would run on; sub-port-field addressing; index
   addressing in the binding register; the `check` entry point (M-B23).
 - **Smaller** (M-B26): no `report!(entry, d)` addressed by roster entry, only
-  the internal `_report!(cell, d)`; the face table keeps the resolved endpoint
+  the internal `report_cell!(cell, d)`; the face table keeps the resolved endpoint
   and discards §9.1's routing chain that §13.7's face-route printer would print;
   `capture`, the trace header and the compiled `Reader` are three walks over the
   same stores against §14.1/§14.4's "one mechanism"; no `sizehint!`, and

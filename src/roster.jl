@@ -271,7 +271,7 @@ function reclaim!(plane::DataPlane, layout::Layout, store, trc)
         entries = [old.faces[i] => batch.vals[i] for i in 1:length(old.faces) if batch.mask[i]]
         renormalized = _normalize(plane.harness, entries, plane.claimedby, plane.harness_diag;
                                   site = :renormalization)
-        renormalized === nothing || _stage!(plane.harness, renormalized)
+        renormalized === nothing || stage_batch!(plane.harness, renormalized)
     end
     nothing
 end

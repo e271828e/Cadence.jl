@@ -143,7 +143,7 @@ struct ReplayDiscardedStaging <: Diagnostic
     frame::Int
 end
 
-"The closed set as a union: what a ring holds, and what `_report!` admits."
+"The closed set as a union: what a ring holds, and what `report_cell!` admits."
 const DiagValue = Union{MalformedDatum,OutOfClaimEntry,ClaimedFaceEntry,
                         EntryTypeMismatch,ChatteringBudget,FiringBudget,
                         UnboundedRun,DeviceCrash,DeviceJoinTimeout,
@@ -273,7 +273,7 @@ const EMPTY_DIAG = DiagBatch(DiagValue[], KindCounts())
 The diagnostic cell (§11.8): one per writer — each rostered device's, the
 harness writer's, the loop's own — single-writer, the same ownership
 argument as the staging cells: no locking, no arbitration, no new primitive.
-The CAS mirrors `_stage!`'s: a failed replace means the loaded batch was
+The CAS mirrors `stage_batch!`'s: a failed replace means the loaded batch was
 intercepted by the drain, and the retry re-reads what is pending now — the
 intercepted entries are already taken, and the entry in hand merges against
 the fresh (sentinel) state.
@@ -294,7 +294,7 @@ DiagCell(batch::DiagBatch) = DiagCell(batch, 0.0)
 # The writer's side (§11.8), on the writer's own task: append under the bound,
 # or count past it by kind. Reached through `report!(handle, …)` (devices.jl)
 # and from the framework's own emission sites.
-function _report!(cell::DiagCell, occurrence::DiagValue)
+function report_cell!(cell::DiagCell, occurrence::DiagValue)
     while true
         current = @atomic cell.batch
         next = length(current.ring) < DIAG_RING ?
@@ -499,18 +499,18 @@ function _normalize(writer::Writer, entries, claimed_by::Dict{Symbol,String},
         if face_position === nothing
             incumbent = get(claimed_by, face, nothing)
             if device !== nothing
-                _report!(cell, OutOfClaimEntry(face, value, writer.faces, incumbent))
+                report_cell!(cell, OutOfClaimEntry(face, value, writer.faces, incumbent))
             elseif incumbent !== nothing
-                _report!(cell, ClaimedFaceEntry(face, incumbent, value, site))
+                report_cell!(cell, ClaimedFaceEntry(face, incumbent, value, site))
             else
-                _report!(cell, OutOfClaimEntry(face, value, writer.faces, nothing))
+                report_cell!(cell, OutOfClaimEntry(face, value, writer.faces, nothing))
             end
             continue
         end
         staged[face_position] = try
             convert(writer.types[face_position], value)
         catch
-            _report!(cell, EntryTypeMismatch(face, value, writer.types[face_position]))
+            report_cell!(cell, EntryTypeMismatch(face, value, writer.types[face_position]))
             continue
         end
         mask[face_position] = true
@@ -532,7 +532,7 @@ end
 end
 
 # The CAS merge loop (§11.4), on the writer's task.
-function _stage!(writer::Writer{B}, batch::B) where {B}
+function stage_batch!(writer::Writer{B}, batch::B) where {B}
     cell = writer.cell
     while true
         pending = @atomic cell.pending

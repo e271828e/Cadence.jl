@@ -82,9 +82,10 @@ function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::
                 events.loc_warned[i] = true   # at most one report per event per frame
                 (path, name) = events.names[i]
                 # the loop's own cell (§11.8): folded at the next frame top
-                _report!(sim.plane.loop_diag,
-                         ChatteringBudget(path, name, _seconds(t_to),
-                                          sim.deployment.localization_budget, localizations))
+                report_cell!(sim.plane.loop_diag,
+                             ChatteringBudget(path, name, _seconds(t_to),
+                                              sim.deployment.localization_budget,
+                                              localizations))
             end
             return nothing
         end

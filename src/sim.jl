@@ -553,9 +553,9 @@ function event_phase!(sim::Simulation, tick)
                 events.warned[i] = true       # at most one report per event per boundary
                 (path, name) = events.names[i]
                 # the loop's own cell (§11.8): folded at the next frame top
-                _report!(sim.plane.loop_diag,
-                         FiringBudget(path, name, _seconds(sim.exec.clock.t), budget,
-                                      events.count[i]))
+                report_cell!(sim.plane.loop_diag,
+                             FiringBudget(path, name, _seconds(sim.exec.clock.t), budget,
+                                          events.count[i]))
             end
             firing = eligible && !events.comp_fired[events.owner[i]]
             events.fire[i] = firing
@@ -1060,7 +1060,7 @@ function run!(sim::Simulation; t_end = Inf, stop_on = ())
     # own cell. A `:replay` run is bounded by the recording (D-218), so the
     # warning would be false there.
     mode(sim) === :live && isinf(policy.t_end) && isempty(policy.faces) &&
-        _report!(sim.plane.loop_diag, UnboundedRun(policy.t_end, copy(policy.faces)))
+        report_cell!(sim.plane.loop_diag, UnboundedRun(policy.t_end, copy(policy.faces)))
     # a live run owes its end to a §13.5 source alone, so its frame budget is
     # unbounded here; in `:replay` the recording binds it (`_run_body!`, D-218)
     _run_body!(sim, policy, addrs, typemax(Int), _t_end_frame(sim, policy.t_end))
@@ -1516,7 +1516,7 @@ function attach!(sim::Simulation, dev::AbstractDevice, new_binding::AbstractBind
         # return stays, as presentation.
         empty_claim = EmptyGreedyClaim(device = "device $device_id ($(_typename(dev)))",
                                        binding = _typename(new_binding))
-        _report!(diag_cell, empty_claim)
+        report_cell!(diag_cell, empty_claim)
         @warn logline(empty_claim)
     end
     handle
@@ -1570,7 +1570,7 @@ function stage!(sim::Simulation, writes::Pair...)
     plane = sim.plane
     harness = plane.harness
     batch = _normalize(harness, writes, plane.claimedby, plane.harness_diag)
-    batch === nothing || _stage!(harness, batch)
+    batch === nothing || stage_batch!(harness, batch)
     nothing
 end
 
@@ -1684,9 +1684,9 @@ function _discard_staged!(writer::Writer, cell::DiagCell, frame::Int)
     ref = @atomicswap writer.cell.pending = nothing
     ref === nothing && return nothing
     mask = ref[].mask
-    _report!(cell, ReplayDiscardedStaging(Symbol[writer.faces[i] for i in 1:length(mask)
-                                                 if mask[i]],
-                                          frame))
+    report_cell!(cell, ReplayDiscardedStaging(Symbol[writer.faces[i] for i in 1:length(mask)
+                                                     if mask[i]],
+                                              frame))
     nothing
 end
 

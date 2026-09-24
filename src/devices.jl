@@ -229,7 +229,7 @@ function stage!(handle::DeviceHandle, writes::Pair...)
     _assert_attached(handle)
     _beat!(handle.diag)
     batch = _normalize(handle.writer, writes, handle.claimedby, handle.diag; device = handle.who)
-    batch === nothing || _stage!(handle.writer, batch)
+    batch === nothing || stage_batch!(handle.writer, batch)
     nothing
 end
 
@@ -249,7 +249,7 @@ function gather(handle::DeviceHandle, snapshot::Snapshot)
     _beat!(handle.diag)
     handle.gatherer === nothing && throw(DiagnosticError(
         DeviceContractMismatch(device = handle.who, reason = :no_output_side)))
-    _gather(handle.gatherer, snapshot)
+    gather_snapshot(handle.gatherer, snapshot)
 end
 
 """
@@ -270,7 +270,7 @@ device-attributed, delta plus totals (§11.8) — and sweeps it once more at the
 run's end for whatever landed past the last frame top.
 """
 report!(handle::DeviceHandle, occurrence::MalformedDatum) =
-    (_assert_attached(handle); _beat!(handle.diag); _report!(handle.diag, occurrence))
+    (_assert_attached(handle); _beat!(handle.diag); report_cell!(handle.diag, occurrence))
 
 """
     wait_next_snapshot(handle)
@@ -349,7 +349,8 @@ function _wrap(entry::RosterEntry)
             # no override has nothing to provoke it, so its raise is a crash
             # whenever it lands.
             unblocked = (@atomic entry.handle.control.stopped) && _unblocks(entry.dev)
-            unblocked || _report!(_handle(entry).diag, DeviceCrash(err, entry.should_abort))
+            unblocked || report_cell!(_handle(entry).diag,
+                                      DeviceCrash(err, entry.should_abort))
         end
     finally
         _shutdown!(entry)
@@ -381,7 +382,7 @@ function _init_devices!(sim)
         catch err
             _shutdown!(entry)
             # addressed by the entry: no task holds a handle yet (§12.4)
-            _report!(_handle(entry).diag, DeviceCrash(err, entry.should_abort))
+            report_cell!(_handle(entry).diag, DeviceCrash(err, entry.should_abort))
             entry.should_abort && stop!(entry.handle)
             false
         end
@@ -447,9 +448,9 @@ function _tail!(sim, entries::Vector{RosterEntry}, tasks::Vector{Task})
              timedwait(() -> istaskdone(task), remaining; pollint = min(0.01, remaining)) === :ok)
         if !joined
             snapshot = latest(sim)                  # after init!, never nothing (§14.5)
-            _report!(sim.plane.loop_diag,
-                     DeviceJoinTimeout(_who(entry), sim.control.join_timeout,
-                                       _seconds(snapshot.t), snapshot.boundary))
+            report_cell!(sim.plane.loop_diag,
+                         DeviceJoinTimeout(_who(entry), sim.control.join_timeout,
+                                           _seconds(snapshot.t), snapshot.boundary))
         end
     end
     nothing
