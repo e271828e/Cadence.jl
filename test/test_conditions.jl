@@ -35,14 +35,15 @@ function conditions_algebra()
     @testset "composition is inert and lazy: no path arithmetic, no validation (§14.2)" begin
         # A deep tree over a path that resolves against nothing. Constructing it
         # performs no lookup, concatenates no string and checks no field.
-        n = combine(at("nowhere", fragment(x = (q = 1.0,))),
-                    at("children", combine(at("plant", fragment(x = (q = 2.0,))),
-                                           fragment(s = (acc = 3.0,)))))
-        @test n isa Combined
-        @test n.nodes[1] isa Scoped && n.nodes[1].prefix == "nowhere"
-        @test n.nodes[1].node isa Fragment
-        @test n.nodes[2].node isa Combined                  # `at` stores, never applies
-        @test n.nodes[2].node.nodes[1].prefix == "plant"    # unconcatenated with "children"
+        composition = combine(at("nowhere", fragment(x = (q = 1.0,))),
+                              at("children", combine(at("plant", fragment(x = (q = 2.0,))),
+                                                     fragment(s = (acc = 3.0,)))))
+        @test composition isa Combined
+        @test composition.nodes[1] isa Scoped && composition.nodes[1].prefix == "nowhere"
+        @test composition.nodes[1].node isa Fragment
+        @test composition.nodes[2].node isa Combined         # `at` stores, never applies
+        @test composition.nodes[2].node.nodes[1].prefix ==
+              "plant"                              # unconcatenated with "children"
         # Every node is isbits but for the prefix strings (§14.2), and a prefix
         # is a reference to the author's literal, so rebuilding the tree per
         # trim iteration allocates nothing.
@@ -51,7 +52,8 @@ function conditions_algebra()
         @test (@ballocated tri_tree(SVector(9.0, 8.0), 7.0, :armed, 6.0, 5.5)) == 0
         @test (@ballocated ledger_tree(3.0, 4.0)) == 0
         # It fails at resolution, where the build is finally in hand.
-        @test failure(() -> resolve_condition(n, build(tri()))) isa DiagnosticError
+        @test failure(() -> resolve_condition(composition, build(tri()))) isa
+              DiagnosticError
     end
 
     @testset "the fragment function is a method of the framework's generic (§14.2, Appendix B)" begin
@@ -69,73 +71,74 @@ function conditions_algebra()
 
     @testset "a `combine` collision names both origins and the layering combinator (§14.2)" begin
         b = build(tri())
-        e = failure(() -> resolve_condition(combine(at("plant", condition(Plant(); y = 1.0)),
+        err = failure(() -> resolve_condition(combine(at("plant", condition(Plant(); y = 1.0)),
                                           at("plant",
                                              fragment(x = (q = SVector(2.0, 0.0),)))), b))
-        d = only(diagnostics(e))
-        @test e isa DiagnosticError && d isa DuplicateConditionLeaf
+        d = only(diagnostics(err))
+        @test err isa DiagnosticError && d isa DuplicateConditionLeaf
         @test d.path == "plant" && d.store === :x && d.field === :q      # the leaf, by coordinates
         @test d.origins == ["combine[1] → at(\"plant\") → fragment(x).q",
                             "combine[2] → at(\"plant\") → fragment(x).q"]
     end
 
     @testset "`override` layers: the patch wins, untouched leaves pass through (§14.6)" begin
-        b = build(tri())
+        tri_build = build(tri())
         base = combine(at("plant", fragment(x = (q = SVector(1.0, 2.0),))),
                        fragment(inputs = (u = 1.0, e = 2.0)))
         input(p, f) = only(v for (face, (_, v)) in zip(p.faces, p.inputs) if face === f)
 
-        p = resolve_condition(override(base, fragment(inputs = (u = 9.0,))), b)
-        @test input(p, :u) === 9.0                     # the patch wins on the shared leaf
-        @test input(p, :e) === 2.0                     # untouched leaves pass through
-        @test only(v for (_, v) in p.xs) === SVector(1.0, 2.0)
-        @test length(p.inputs) == 2                     # the overridden leaf is replaced, not doubled
+        plan = resolve_condition(override(base, fragment(inputs = (u = 9.0,))), tri_build)
+        @test input(plan, :u) === 9.0                  # the patch wins on the shared leaf
+        @test input(plan, :e) === 2.0                  # untouched leaves pass through
+        @test only(v for (_, v) in plan.xs) === SVector(1.0, 2.0)
+        @test length(plan.inputs) == 2                  # the overridden leaf is replaced, not doubled
 
         # Layering is variadic, and the last layer wins.
-        p3 = resolve_condition(override(base, fragment(inputs = (u = 9.0,)),
-                                        fragment(inputs = (u = 7.0,))), b)
-        @test input(p3, :u) === 7.0
+        plan2 = resolve_condition(override(base, fragment(inputs = (u = 9.0,)),
+                                        fragment(inputs = (u = 7.0,))), tri_build)
+        @test input(plan2, :u) === 7.0
 
         # The origin records both layers: the patch's own chain, and the base's
         # beside it — surfaced here through a violation on the overridden leaf.
-        e = failure(() -> resolve_condition(override(fragment(inputs = (u = 1.0,)),
-                                           fragment(inputs = (u = "high",))), b))
-        @test only(diagnostics(e)).origin ==
+        err = failure(() -> resolve_condition(override(fragment(inputs = (u = 1.0,)),
+                                           fragment(inputs = (u = "high",))), tri_build))
+        @test only(diagnostics(err)).origin ==
               "override[patch 1] → fragment(inputs).u (overrode override[base] → fragment(inputs).u)"
 
         # A collision *within* one layer is still an error (§14.6).
-        e = failure(() -> resolve_condition(override(combine(fragment(inputs = (u = 1.0,)),
-                                                   fragment(inputs = (u = 2.0,))),
-                                           fragment(inputs = (u = 3.0,))), b))
-        @test any(d -> d isa DuplicateConditionLeaf, diagnostics(e))
+        err = failure(() -> resolve_condition(
+                  override(combine(fragment(inputs = (u = 1.0,)),
+                                   fragment(inputs = (u = 2.0,))),
+                           fragment(inputs = (u = 3.0,))), tri_build))
+        @test any(d -> d isa DuplicateConditionLeaf, diagnostics(err))
 
         # §14.6's central use case: a full-coverage baseline authored at the root,
         # under a patch a component's own `condition` method ships against its own
         # face. Two spellings of one root input are one leaf, so they layer.
-        p4 = resolve_condition(override(fragment(inputs = (u = 1.0, e = 2.0)),
-                              at("plant", fragment(inputs = (u = 9.0,)))), b)
-        @test input(p4, :u) === 9.0 && input(p4, :e) === 2.0
-        @test length(p4.inputs) == 2
+        plan3 = resolve_condition(override(fragment(inputs = (u = 1.0, e = 2.0)),
+                              at("plant", fragment(inputs = (u = 9.0,)))), tri_build)
+        @test input(plan3, :u) === 9.0 && input(plan3, :e) === 2.0
+        @test length(plan3.inputs) == 2
 
         # The same two spellings under `combine` still collide — and with layering
         # no longer reaching this branch, its directive is advice that works.
-        e = failure(() -> resolve_condition(combine(fragment(inputs = (u = 1.0,)),
+        err = failure(() -> resolve_condition(combine(fragment(inputs = (u = 1.0,)),
                                           at("plant",
-                                             fragment(inputs = (u = 9.0,)))), b))
-        d = only(diagnostics(e))
+                                             fragment(inputs = (u = 9.0,)))), tri_build))
+        d = only(diagnostics(err))
         @test d isa DuplicateConditionLeaf && d.face === :u   # the resolved root input is the leaf
     end
 
     @testset "blending a node with a bare NamedTuple is a directive error method (§14.2)" begin
         # Raised at composition time, before any resolution pass runs or any
         # origin exists — which is why it carries its own kind. No build in hand.
-        for f in (() -> combine(fragment(), (q = 1.0,)),        # node × NamedTuple
+        for case in (() -> combine(fragment(), (q = 1.0,)),     # node × NamedTuple
                   () -> combine((q = 1.0,), fragment()),        # and the other order
                   () -> combine(fragment(), fragment(), (q = 1.0,)),   # at any arity
                   () -> at("plant", (q = 1.0,)),
                   () -> override(fragment(), (q = 1.0,)),
                   () -> fragment(x = 3.0))                      # and a non-NamedTuple payload
-            e = failure(f)
+            e = failure(case)
             @test e isa DiagnosticError && diagnostic(e) isa ConditionNodeMisuse
         end
         d = carried(@test_throws DiagnosticError{ConditionNodeMisuse} combine(fragment(), (q = 1.0,)))
@@ -148,36 +151,37 @@ function conditions_algebra()
     end
 
     @testset "resolution collects every violation into one throw (§14.3, §13.1)" begin
-        b = build(tri())
+        tri_build = build(tri())
         bad = combine(at("nope", fragment(x = (q = 1.0,))),         # unknown segment
                       at("plant", fragment(x = (nope = 1.0,))),     # undeclared field
                       at("ctl", fragment(s = (acc = "high",))),     # unconvertible
                       at("trig", fragment(inputs = (sig = 1.0,))),  # never a root input
                       fragment(inputs = (u = 1.0,)),
                       at("plant", fragment(inputs = (u = 2.0,))))   # one root input, twice
-        e = failure(() -> resolve_condition(bad, b))
-        @test e isa DiagnosticError
-        @test length(diagnostics(e)) == 5                       # the full list, one throw
+        err = failure(() -> resolve_condition(bad, tri_build))
+        @test err isa DiagnosticError
+        @test length(diagnostics(err)) == 5                     # the full list, one throw
         # The path itself is the walk's refusal, one case over (§13.3), with
         # the sibling list in hand; the entry's own kind keeps what lies beyond it.
-        pr = only(d for d in diagnostics(e) if d isa PathResolution)
-        @test pr.reason === :unknown_child && pr.segment == "nope" &&
-              pr.candidates == ["plant", "ctl", "trig"]
-        cr = [d for d in diagnostics(e) if d isa ConditionResolution]
-        @test Set(d.reason for d in cr) == Set([:undeclared_field, :unconvertible,
-                                                :internally_wired])
-        u = only(d for d in cr if d.reason === :undeclared_field)
+        path_resolution = only(d for d in diagnostics(err) if d isa PathResolution)
+        @test path_resolution.reason === :unknown_child &&
+              path_resolution.segment == "nope" &&
+              path_resolution.candidates == ["plant", "ctl", "trig"]
+        condition_resolutions = [d for d in diagnostics(err) if d isa ConditionResolution]
+        @test Set(d.reason for d in condition_resolutions) ==
+              Set([:undeclared_field, :unconvertible, :internally_wired])
+        u = only(d for d in condition_resolutions if d.reason === :undeclared_field)
         @test u.path == "plant" && u.store === :x && u.field === :nope && u.candidates == [:q]
-        dup = only(d for d in diagnostics(e) if d isa DuplicateConditionLeaf)
-        @test dup.face === :u
+        duplicate = only(d for d in diagnostics(err) if d isa DuplicateConditionLeaf)
+        @test duplicate.face === :u
 
         # An assembly path owns no state, and saying so beats "no such path".
-        e = failure(() -> resolve_condition(at("loop", fragment(x = (q = 1.0,))), build(Vehicle())))
-        @test only(diagnostics(e)).reason === :assembly_path
+        err = failure(() -> resolve_condition(at("loop", fragment(x = (q = 1.0,))), build(Vehicle())))
+        @test only(diagnostics(err)).reason === :assembly_path
 
         # A tier's own state letter: `s` on a continuous component is not a typo
         # the resolver should guess at.
-        d = only(diagnostics(failure(() -> resolve_condition(at("plant", fragment(s = (q = 1.0,))), b))))
+        d = only(diagnostics(failure(() -> resolve_condition(at("plant", fragment(s = (q = 1.0,))), tri_build))))
         @test d.reason === :no_store && d.store === :s && d.tier === :continuous
     end
 
@@ -191,39 +195,41 @@ function conditions_algebra()
     end
 
     @testset "input faces resolve through the export chain to a root input (§14.2)" begin
-        b = build(tri())
+        tri_build = build(tri())
         # The authoring level names a face of its own contract; resolution walks
         # the chain and lands on the root input the obligation ends at.
         p = resolve_condition(combine(at("plant", fragment(inputs = (u = 1.0,))),
-                            fragment(inputs = (e = 2.0,))), b)
+                            fragment(inputs = (e = 2.0,))), tri_build)
         @test Set(p.faces) == Set([:u, :e])
         # An internally wired input reaches no root input: writing it would be
         # meaningless, the first sweep overwriting it. Unexported stays unpokeable.
         @test only(diagnostics(failure(() -> resolve_condition(at("trig",
-                           fragment(inputs = (sig = 1.0,))), b)))).reason ===
+                           fragment(inputs = (sig = 1.0,))), tri_build)))).reason ===
               :internally_wired
         @test only(diagnostics(failure(() -> resolve_condition(at("plant",
-                           fragment(inputs = (nope = 1.0,))), b)))).reason ===
+                           fragment(inputs = (nope = 1.0,))), tri_build)))).reason ===
               :no_input_face
         # A prefix naming no level of this build never reaches the face lookup: the
         # `at` is walked at its authoring level first, so the refusal is the walk's
         # and carries the sibling list the face-typo arm above has no use for (§13.3).
         d = only(diagnostics(failure(() -> resolve_condition(at("nope",
-                           fragment(inputs = (dead = 1.0,))), b))))
+                           fragment(inputs = (dead = 1.0,))), tri_build))))
         @test d isa PathResolution && d.reason === :unknown_child && d.segment == "nope"
         @test only(diagnostics(failure(() -> resolve_condition(fragment(inputs = (nope = 1.0,)),
-                                                   b)))).reason === :unexported_face
+                                                   tri_build)))).reason === :unexported_face
     end
 
     @testset "an `at` prefix stopping at an assembly resolves its faces (§14.2, D-207)" begin
-        b = build(nested())
+        nested_build = build(nested())
         # The face graph is total, so a prefix may stop at *any* child's faces: the
         # sub-assembly's own `ref` is looked up at that level and followed to the
         # root input the chain ends at. The plan is the one the root spelling
         # produces, entry for entry — two spellings of one root input.
-        p = resolve_condition(at("loop", fragment(inputs = (ref = 1.0,))), b)
-        q = resolve_condition(fragment(inputs = (in = 1.0,)), b)
-        @test p.inputs == q.inputs && p.faces == q.faces == [:in]
+        nested_plan = resolve_condition(at("loop", fragment(inputs = (ref = 1.0,))),
+                                        nested_build)
+        direct_plan = resolve_condition(fragment(inputs = (in = 1.0,)), nested_build)
+        @test nested_plan.inputs == direct_plan.inputs &&
+              nested_plan.faces == direct_plan.faces == [:in]
 
         # A component-fed face is still unpokeable, at an assembly prefix as at a
         # primitive's: `Vehicle` feeds the loop's `ref` from its own `trim`.
@@ -232,13 +238,13 @@ function conditions_algebra()
 
         # A face the level does not declare, with the level's face list in hand.
         d = only(diagnostics(failure(() -> resolve_condition(at("loop",
-                           fragment(inputs = (nope = 1.0,))), b))))
+                           fragment(inputs = (nope = 1.0,))), nested_build))))
         @test d.reason === :no_input_face && d.field === :nope && d.candidates == [:ref]
 
         # State at an assembly prefix stays refused: assemblies own no state, and
         # only the `inputs` payload gained a level to resolve at.
         d = only(diagnostics(failure(() -> resolve_condition(at("loop",
-                           fragment(x = (q = 1.0,))), b))))
+                           fragment(x = (q = 1.0,))), nested_build))))
         @test d.reason === :assembly_path && d.path == "loop"
     end
 
@@ -246,7 +252,7 @@ function conditions_algebra()
         sim = Simulation(tri(); h = 1//10)
         init!(sim, fragment(inputs = (u = 1.0, e = 2.0)))
         snap, q = latest(sim), state(sim, "plant").q
-        acc, lc = state(sim, "ctl").acc, lifecycle(sim)
+        acc, initial_lifecycle = state(sim, "ctl").acc, lifecycle(sim)
 
         d = carried(@test_throws DiagnosticError{UninitializedInputs} init!(sim, combine(at("plant",
                                                 fragment(x = (q = SVector(5.0, 5.0),))),
@@ -257,7 +263,7 @@ function conditions_algebra()
         @test state(sim, "plant").q === q
         @test state(sim, "ctl").acc === acc
         @test port(sim, "", :u) === 1.0
-        @test lifecycle(sim) === lc && latest(sim) === snap
+        @test lifecycle(sim) === initial_lifecycle && latest(sim) === snap
 
         # Every uncovered face, in declaration order (§14.6).
         fresh = Simulation(tri(); h = 1//10)
@@ -337,9 +343,9 @@ function conditions_algebra()
         # A condition landing a predicate in holding territory — authored, not
         # staged: boundary zero establishes every prior as not-holding, so the
         # event fires visibly at t₀ rather than one step later.
-        m = tri()
-        sim = Simulation(m; h = 1//10)
-        init!(sim, combine(at("plant", condition(m.children.plant; y = 1.0)),
+        model = tri()
+        sim = Simulation(model; h = 1//10)
+        init!(sim, combine(at("plant", condition(model.children.plant; y = 1.0)),
                            fragment(inputs = (u = 0.0, e = 0.0))))
         @test modes(sim, "trig") === (state = :fired, count = 1)
         @test port(sim, "trig", :on) === true
@@ -347,9 +353,9 @@ function conditions_algebra()
     end
 
     @testset "the fragment-function idiom composes by pull across two levels (§14.2)" begin
-        veh = Vehicle(; k = 2.0)
-        sim = Simulation(veh; h = 1//50)
-        init!(sim, condition(veh; ref = 1.0, y = 0.3, v = -0.2, cmd = 2.0))
+        vehicle = Vehicle(; k = 2.0)
+        sim = Simulation(vehicle; h = 1//50)
+        init!(sim, condition(vehicle; ref = 1.0, y = 0.3, v = -0.2, cmd = 2.0))
         # Deep paths are compiled derivatives of the nesting `at` recorded: the
         # owner wrote "loop", the loop wrote "plant", and nothing wrote "loop/plant".
         @test state(sim, "loop/plant").q === SVector(0.3, -0.2)
@@ -357,7 +363,7 @@ function conditions_algebra()
         @test port(sim, "", :ref) === 1.0
 
         # And the baseline-plus-tweak spelling the same function supports (§14.6).
-        init!(sim, override(condition(veh; ref = 1.0), fragment(inputs = (ref = 5.0,))))
+        init!(sim, override(condition(vehicle; ref = 1.0), fragment(inputs = (ref = 5.0,))))
         @test port(sim, "", :ref) === 5.0
         @test state(sim, "loop/plant").q === SVector(0.0, 0.0)   # the baseline's own defaults
     end
@@ -377,17 +383,17 @@ function conditions_service_walk()
 
         # Held in a concretely declared field: the walk admits the two-segment
         # path, and the value lands at the leaf it addressed.
-        bc = build(ConcreteHold(SampledLoop()))
-        @test resolve_condition(deep, bc) isa ConditionPlan
-        csim = Simulation(ConcreteHold(SampledLoop()); h = 1//50)
-        init!(csim, combine(deep, fragment(inputs = (ref = 1.0,))))
-        @test state(csim, "inner/plant").q == q
+        concrete_build = build(ConcreteHold(SampledLoop()))
+        @test resolve_condition(deep, concrete_build) isa ConditionPlan
+        concrete_sim = Simulation(ConcreteHold(SampledLoop()); h = 1//50)
+        init!(concrete_sim, combine(deep, fragment(inputs = (ref = 1.0,))))
+        @test state(concrete_sim, "inner/plant").q == q
 
         # The identical instance held through a type parameter: the declaration
         # promises substitutability below `inner`, and the path traverses past it.
         # The refusal names the field's declared type as written, a `TypeVar`.
-        bg = build(GenericHold(SampledLoop()))
-        d = only(diagnostics(failure(() -> resolve_condition(deep, bg))))
+        generic_build = build(GenericHold(SampledLoop()))
+        d = only(diagnostics(failure(() -> resolve_condition(deep, generic_build))))
         @test d isa PathResolution && d.reason === :past_generic
         @test d.segment == "inner" && d.level == "inner"
         @test d.owner == "the root component" && d.declared isa TypeVar
@@ -397,33 +403,34 @@ function conditions_service_walk()
         # nested spelling resolves `inner` *to* a child, then `plant` from that
         # child's own instance, so the generic holder takes the same value.
         nest = at("inner", at("plant", fragment(x = (q = q,))))
-        @test resolve_condition(nest, bg) isa ConditionPlan
-        gsim = Simulation(GenericHold(SampledLoop()); h = 1//50)
-        init!(gsim, combine(nest, fragment(inputs = (ref = 1.0,))))
-        @test state(gsim, "inner/plant").q === state(csim, "inner/plant").q
+        @test resolve_condition(nest, generic_build) isa ConditionPlan
+        generic_sim = Simulation(GenericHold(SampledLoop()); h = 1//50)
+        init!(generic_sim, combine(nest, fragment(inputs = (ref = 1.0,))))
+        @test state(generic_sim, "inner/plant").q === state(concrete_sim, "inner/plant").q
 
         # One refusal per node, not per leaf: the offender is the path, and the
         # subtree under it is dropped before any leaf reaches the duplicate check.
         twice = at("inner/plant", combine(fragment(x = (q = q,)),
                                           fragment(x = (q = SVector(1.0, 2.0),))))
-        @test length(diagnostics(failure(() -> resolve_condition(twice, bg)))) == 1
+        @test length(diagnostics(failure(() -> resolve_condition(twice, generic_build)))) ==
+              1
 
         # An unknown segment mid-path is the walk's other refusal, attributed to
         # the level that owns the siblings rather than to the authoring root.
         d = only(diagnostics(failure(() -> resolve_condition(at("inner/plnt",
-                           fragment(x = (q = q,))), bc))))
+                           fragment(x = (q = q,))), concrete_build))))
         @test d isa PathResolution && d.reason === :unknown_child && d.segment == "plnt"
         @test d.owner == "`inner`" && d.candidates == ["plant", "ctl", "sum"]
 
         # A `Group` holds its children through one type parameter, so *every*
         # child of one is generically held and a two-segment path from a `Group`
         # root refuses — with the same nested remedy.
-        b = build(nested())
+        nested_build = build(nested())
         d = only(diagnostics(failure(() -> resolve_condition(at("loop/plant",
-                           fragment(x = (q = q,))), b))))
+                           fragment(x = (q = q,))), nested_build))))
         @test d isa PathResolution && d.reason === :past_generic && d.segment == "loop"
-        @test resolve_condition(at("loop", at("plant", fragment(x = (q = q,)))), b) isa
-              ConditionPlan
+        @test resolve_condition(at("loop", at("plant", fragment(x = (q = q,)))),
+                                nested_build) isa ConditionPlan
 
         # The refusal's entry is the origin down to the `at`, so a path
         # authored under a combinator says where in the tree it was written.
@@ -467,10 +474,10 @@ state_update(::Ledger, (; s)) = (a = s.a, b = s.b)
 # One shape over `tri()`'s four homes, its values the parameters: the `at`
 # literals sit at one source location, which is what makes the `===` prefix
 # sweep a pointer compare rather than a string compare (§14.4).
-tri_tree(q, acc, state, u, e) =
+tri_tree(q, acc, trig_state, u, e) =
     combine(at("plant", fragment(x = (q = q,))),
             at("ctl", fragment(s = (acc = acc,))),
-            at("trig", fragment(m = (state = state,))),
+            at("trig", fragment(m = (state = trig_state,))),
             fragment(inputs = (u = u, e = e)))
 
 # The composite a service compiles from: a baseline authoring one field of the
@@ -550,10 +557,10 @@ function conditions_specialized_apply()
                           at("plant", fragment(s = (acc = 7.0,))),   # was "ctl"
                           at("trig", fragment(m = (state = :armed,))),
                           fragment(inputs = (u = 6.0, e = 5.5)))
-        d2 = carried(@test_throws DiagnosticError{ConditionShapeDrift} apply!(sim.exec, plan, drifted))
-        @test d2.reason === :prefix
-        @test d2.position == (:nodes, 2, :prefix)          # the position, as a tree-step tuple
-        @test d2.compiled == "ctl" && d2.observed == "plant"
+        d = carried(@test_throws DiagnosticError{ConditionShapeDrift} apply!(sim.exec, plan, drifted))
+        @test d.reason === :prefix
+        @test d.position == (:nodes, 2, :prefix)           # the position, as a tree-step tuple
+        @test d.compiled == "ctl" && d.observed == "plant"
         @test landed(sim) == before
     end
 
@@ -583,36 +590,36 @@ function conditions_specialized_apply()
 
     @testset "the converters are baked per leaf, at the activation (§14.3)" begin
         sim = Simulation(tri(), D8; h = 1//10)
-        b = sim.deployment.build
+        build = sim.deployment.build
 
         # A plain `Float64` leaf against a seeded activation: the zero-partial
         # embedding, which is semantically exact for a value held at the operating
         # point and in no other case.
         held = at("plant", fragment(x = (q = SVector(1.0, 2.0),)))
-        apply!(sim.exec, compile_plan(held, b, D8), held)
+        apply!(sim.exec, compile_plan(held, build, D8), held)
         @test sim.exec.xbuf == D8[1.0, 2.0]
         @test all(iszero, ForwardDiff.partials(sim.exec.xbuf[1]))
 
         # A leaf already at the activation's scalar — decision-descended — takes the
         # type's own methods, partials flowing through untouched.
-        d = ForwardDiff.Dual{Nothing}(2.5, ntuple(i -> i == 1 ? 1.0 : 0.0, 8)...)
-        seeded = at("plant", fragment(x = (q = SVector(d, zero(d)),)))
-        apply!(sim.exec, compile_plan(seeded, b, D8), seeded)
+        seed = ForwardDiff.Dual{Nothing}(2.5, ntuple(i -> i == 1 ? 1.0 : 0.0, 8)...)
+        seeded = at("plant", fragment(x = (q = SVector(seed, zero(seed)),)))
+        apply!(sim.exec, compile_plan(seeded, build, D8), seeded)
         @test ForwardDiff.value(sim.exec.xbuf[1]) === 2.5
         @test ForwardDiff.partials(sim.exec.xbuf[1])[1] === 1.0
 
         # And the one case no converter covers: a discrete `s` is frozen at a
         # non-nominal activation (§9.4), so a decision variable authored into it is
         # refused at resolution, with the clause that says why.
-        e = failure(() -> compile_plan(at("ctl", fragment(s = (acc = d,))), b, D8))
-        r = only(diagnostics(e))
-        @test e isa DiagnosticError && r isa ConditionResolution && r.reason === :unconvertible
-        @test r.path == "ctl" && r.store === :s && r.field === :acc && r.declared === Float64
-        @test r.activation === D8      # the clause naming the seeded activation's own refusal
+        err = failure(() -> compile_plan(at("ctl", fragment(s = (acc = seed,))), build, D8))
+        d = only(diagnostics(err))
+        @test err isa DiagnosticError && d isa ConditionResolution && d.reason === :unconvertible
+        @test d.path == "ctl" && d.store === :s && d.field === :acc && d.declared === Float64
+        @test d.activation === D8      # the clause naming the seeded activation's own refusal
         # The nominal activation's own refusals are unchanged: no clause where the
         # value is simply the wrong kind of thing.
-        r0 = only(diagnostics(failure(() -> compile_plan(at("ctl", fragment(s = (acc = :nope,))), b))))
-        @test r0.reason === :unconvertible && r0.activation === nothing
+        d = only(diagnostics(failure(() -> compile_plan(at("ctl", fragment(s = (acc = :nope,))), build))))
+        @test d.reason === :unconvertible && d.activation === nothing
     end
 end
 
