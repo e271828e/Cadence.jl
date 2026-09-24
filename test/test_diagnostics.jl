@@ -12,19 +12,19 @@ mutable struct Parser <: AbstractDevice
     fired::Bool
 end
 Parser(datums...) = Parser(collect(Any, datums), false)
-function loop(d::Parser, h)
-    d.fired && return nothing
-    d.fired = true
-    for datum in d.datums
+function loop(dev::Parser, handle)
+    dev.fired && return nothing
+    dev.fired = true
+    for datum in dev.datums
         try
             datum isa Number || throw(ArgumentError("unparseable: $(repr(datum))"))
-            stage!(h, "a" => datum)
-        catch e
-            e isa ArgumentError || rethrow()     # a bug → wrapper → DeviceCrash
-            report!(h, MalformedDatum(e))        # garbage → visible, bounded, alive
+            stage!(handle, "a" => datum)
+        catch err
+            err isa ArgumentError || rethrow()     # a bug → wrapper → DeviceCrash
+            report!(handle, MalformedDatum(err))   # garbage → visible, bounded, alive
         end
     end
-    stop!(h)
+    stop!(handle)
     nothing
 end
 
@@ -34,11 +34,11 @@ mutable struct LateReporter <: AbstractDevice
     fired::Bool
 end
 LateReporter() = LateReporter(false)
-function loop(d::LateReporter, h)
-    d.fired && return nothing
-    d.fired = true
-    report!(h, MalformedDatum("late"))
-    stop!(h)
+function loop(dev::LateReporter, handle)
+    dev.fired && return nothing
+    dev.fired = true
+    report!(handle, MalformedDatum("late"))
+    stop!(handle)
     nothing
 end
 
@@ -47,10 +47,10 @@ mutable struct Ticker <: AbstractDevice
     n::Int
 end
 Ticker() = Ticker(0)
-function loop(d::Ticker, h)
-    while running(h)
-        wait_next_snapshot(h)
-        (d.n += 1) ≥ 3 && return stop!(h)
+function loop(dev::Ticker, handle)
+    while running(handle)
+        wait_next_snapshot(handle)
+        (dev.n += 1) ≥ 3 && return stop!(handle)
     end
     nothing
 end
@@ -59,7 +59,7 @@ function diagnostics_channel()
     @testset "a bad datum is tolerated: catch, stage nothing, report, continue (§11.6)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         dev = Parser(0.7, "garbage", 0.9)
-        hp = attach!(sim, dev, Enumerated("a"))
+        handle = attach!(sim, dev, Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         logs, _ = Test.collect_test_logs() do
             run!(sim; t_end = 1000.0)                        # ends by the device's stop
@@ -72,14 +72,14 @@ function diagnostics_channel()
         @test accounted(sim, logs, "device 1 (Parser)", :malformed, "MalformedDatum")
         # The author's cause survives wherever the record landed: in some logged
         # snapshot's recent, or in the sweep's presentation.
-        carried = any(d isa MalformedDatum && occursin("unparseable", string(d.cause))
+        survived = any(d isa MalformedDatum && occursin("unparseable", string(d.cause))
                       for s in logged(sim)
                       for d in writer_status(s, "device 1 (Parser)").recent)
-        @test carried ⊻ any(occursin("unparseable", m) for m in msgs)
+        @test survived ⊻ any(occursin("unparseable", m) for m in msgs)
         # The stream's good datums survived — newest wins within the staged batch —
         # applied by a drain the stop did not beat, or still pending in the cell:
         # exactly one of the two, timing's choice.
-        p = @atomic hp.writer.cell.pending
+        p = @atomic handle.writer.cell.pending
         @test (p === nothing ? port(sim, "", :a) : p[].vals[1]) === 0.9
     end
 
@@ -91,13 +91,13 @@ function diagnostics_channel()
             report!(h, MalformedDatum("datum $k"))
         end
         run!(sim; t_end = 0.1)                               # the first frame top folds the cell
-        mw = writer_status(latest(sim), "device 1 (Pad)")
+        writer = writer_status(latest(sim), "device 1 (Pad)")
         # Earliest-in-frame retained: the first occurrences carry the diagnostic
         # content, the excess becomes exactly a per-kind count beside them.
-        @test [d.cause for d in mw.recent] == ["datum $k" for k in 1:DIAG_RING]
-        @test mw.suppressed.malformed == 4
+        @test [d.cause for d in writer.recent] == ["datum $k" for k in 1:DIAG_RING]
+        @test writer.suppressed.malformed == 4
         # Nothing is lost by not looking: the totals carry the full account.
-        @test mw.totals.malformed == 20
+        @test writer.totals.malformed == 20
     end
 
     @testset "a quiet publication allocates the capture, the status vector and the snapshot (§11.8, D-241)" begin
@@ -130,15 +130,15 @@ function diagnostics_channel()
         report!(h, MalformedDatum("one"))            # pending before the run: folded at frame 1's top
         run!(sim; t_end = 0.5)
         snaps = logged(sim)                          # boundary zero, then frames 1..5
-        dw(s) = writer_status(s, "device 1 (Pad)")
+        writer(s) = writer_status(s, "device 1 (Pad)")
         # Exactly one snapshot carries the occurrence in `recent` — the first
         # published after the fold — while `totals` is monotone from there on:
         # a 60 Hz reader sees it once, an occasional sampler still reads the
         # complete account, and log decimation loses *which* boundary, never
         # *how many* (§11.8).
-        @test [length(dw(s).recent) for s in snaps] == [0, 1, 0, 0, 0, 0]
-        @test [dw(s).totals.malformed for s in snaps] == [0, 1, 1, 1, 1, 1]
-        @test only(dw(snaps[2]).recent).cause == "one"
+        @test [length(writer(s).recent) for s in snaps] == [0, 1, 0, 0, 0, 0]
+        @test [writer(s).totals.malformed for s in snaps] == [0, 1, 1, 1, 1, 1]
+        @test only(writer(snaps[2]).recent).cause == "one"
     end
 
     @testset "liveness: heartbeat and task_state ride the device's record (§11.8, §12.2, §12.4)" begin
@@ -148,14 +148,14 @@ function diagnostics_channel()
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         run!(sim; t_end = 1000.0)                            # ends by the device's stop, ≥ 3 boundaries in
         @test dev.n ≥ 3
-        tw = writer_status(latest(sim), "device 1 (Ticker)")
+        writer = writer_status(latest(sim), "device 1 (Ticker)")
         # The device consumed boundaries through the handle primitives, each pass
         # storing the heartbeat: the terminal record reads fresh, with a live (or
         # by now returned) task — never `:none`, never the stale silence of a
         # device that was never there (§12.2: a starved or dead device shows as a
         # stale heartbeat with a name on it).
-        @test tw.heartbeat > 0 && !stale(tw)
-        @test tw.task_state in (:running, :done)
+        @test writer.heartbeat > 0 && !stale(writer)
+        @test writer.task_state in (:running, :done)
     end
 
     @testset "the run's-end sweep: past the final frame top, loud rather than lost (§11.8, §12.4)" begin
@@ -182,10 +182,10 @@ function diagnostics_channel()
         # The closed set rides one union; the counter record is fixed-shape isbits,
         # a type rather than a lookup (§11.8), and + is the fold between records.
         @test isbitstype(KindCounts)
-        a = _bump(_bump(KindCounts(), :malformed), :crash)
-        b = _bump(KindCounts(), :malformed)
-        @test (a + b).malformed == 2 && (a + b).crash == 1
-        @test _total(a + b) == 3
+        left = _bump(_bump(KindCounts(), :malformed), :crash)
+        right = _bump(KindCounts(), :malformed)
+        @test (left + right).malformed == 2 && (left + right).crash == 1
+        @test _total(left + right) == 3
 
         # A raw cell takes any kind of the set; the ring preserves arrival order
         # across kinds, earliest-in-frame retained.
@@ -223,17 +223,17 @@ function diagnostics_channel()
 
     @testset "the heartbeat rides in the cell, stored by the handle primitives (§11.8, §12.2)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
-        h = attach!(sim, Pad("p"), Enumerated("a"))
+        handle = attach!(sim, Pad("p"), Enumerated("a"))
         # A never-heartbeated cell reads its initial 0.0 — stale against any wall
         # clock, which is what marks a failed init!'s device with no machinery
         # (§12.4): dead is "no recent timestamp", recorded nowhere else.
-        @test _heartbeat(h.diag) == 0.0
+        @test _heartbeat(handle.diag) == 0.0
         before = time()
-        running(h)                            # any loop-pass primitive beats —
-        hb = _heartbeat(h.diag)               # (false here: no run has started)
-        @test hb ≥ before
-        stage!(h, "a" => 1.0)                 # and so does each of the others
-        @test _heartbeat(h.diag) ≥ hb
+        running(handle)                       # any loop-pass primitive beats —
+        heartbeat = _heartbeat(handle.diag)   # (false here: no run has started)
+        @test heartbeat ≥ before
+        stage!(handle, "a" => 1.0)             # and so does each of the others
+        @test _heartbeat(handle.diag) ≥ heartbeat
     end
 end
 
@@ -605,18 +605,19 @@ function diagnostics_kind_set()
         # own, then the pool table with the driving offset's repair on its row's
         # tail, then the prime attribution with each supplier labelled by the
         # anchor's key and the entry's kind.
-        m = message(only(d for d in occurrences
+        rendered = message(only(d for d in occurrences
                          if d isa DeploymentInvalid && d.reason === :anchor_offset))
-        @test startswith(m, "`sample_times` at `a`, key `b`: offset 1//7")
-        @test occursin("\n  admissible: gcd(pool)/k, coarsest 1//300\n  pool:\n", m)
-        @test occursin("offset 1//7   ×3   declaring 7//50 or 3//20 keeps 1//100", m)
-        @test occursin("\n  primes: 300 = 2²·3·5²\n", m)
-        @test occursin("\n    2²  b period\n    3   b period\n    5²  b offset", m)
+        @test startswith(rendered, "`sample_times` at `a`, key `b`: offset 1//7")
+        @test occursin("\n  admissible: gcd(pool)/k, coarsest 1//300\n  pool:\n", rendered)
+        @test occursin("offset 1//7   ×3   declaring 7//50 or 3//20 keeps 1//100", rendered)
+        @test occursin("\n  primes: 300 = 2²·3·5²\n", rendered)
+        @test occursin("\n    2²  b period\n    3   b period\n    5²  b offset", rendered)
         # The advisory keeps its first line and appends the same block.
-        m = message(only(d for d in occurrences if d isa GridUtilization))
-        @test startswith(m, "Δt_base derived as 1//300 s: the grid is 3× finer than the " *
-                            "fastest declared work (`a/b` at D = 3) (§9.2)\n  admissible:")
-        @test occursin("\n    5²  b offset", m)
+        rendered = message(only(d for d in occurrences if d isa GridUtilization))
+        @test startswith(rendered,
+                          "Δt_base derived as 1//300 s: the grid is 3× finer than the " *
+                          "fastest declared work (`a/b` at D = 3) (§9.2)\n  admissible:")
+        @test occursin("\n    5²  b offset", rendered)
 
         # Every kind of the closed set has an occurrence above: the coverage
         # check is over `Diagnostic`'s own subtypes, so adding a kind without an
@@ -638,13 +639,13 @@ function diagnostics_kind_set()
     @testset "rendering: the carrier compiler-style, the didactic style (§13.1, §13.2)" begin
         # Two kinds × two paths: groups in first-appearance order, paths sorted
         # within a group, the kind name leading each line, the count line above.
-        e = DiagnosticError(Diagnostic[UnconnectedInput(path = "b", face = :u, declared = Float64, level = "b"),
-                                  FaceNameIllegal(path = "b", face = "p/q", invariant = :contains_slash),
-                                  UnconnectedInput(path = "a", face = :v, declared = Float64, level = "a"),
-                                  FaceNameIllegal(path = "a", face = "r/s",
-                                                  invariant = :contains_slash)])
-        @test kinds(e) == [UnconnectedInput, FaceNameIllegal]
-        lines = split(sprint(showerror, e), '\n')
+        carrier = DiagnosticError(Diagnostic[UnconnectedInput(path = "b", face = :u, declared = Float64, level = "b"),
+                                        FaceNameIllegal(path = "b", face = "p/q", invariant = :contains_slash),
+                                        UnconnectedInput(path = "a", face = :v, declared = Float64, level = "a"),
+                                        FaceNameIllegal(path = "a", face = "r/s",
+                                                        invariant = :contains_slash)])
+        @test kinds(carrier) == [UnconnectedInput, FaceNameIllegal]
+        lines = split(sprint(showerror, carrier), '\n')
         @test lines[1] == "DiagnosticError: 4 diagnostics"
         @test startswith(lines[2], "  UnconnectedInput: `a`.v")
         @test startswith(lines[3], "  UnconnectedInput: `b`.u")
@@ -655,13 +656,14 @@ function diagnostics_kind_set()
         # names them beside the diagnostics, singular at one, and each renders as
         # its own line after the collection. They join no collection, so `kinds`
         # and `diagnostics` read exactly what they read without them.
-        w = TrimCommitResiduals(residuals = [(:a, 1.0, 0.1)])
-        ew = DiagnosticError(diagnostics(e), Diagnostic[w])
-        wlines = split(sprint(showerror, ew), '\n')
-        @test wlines[1] == "DiagnosticError: 4 diagnostics, 1 warning"
-        @test wlines[2:5] == lines[2:5]
-        @test startswith(wlines[end], "  TrimCommitResiduals: ")
-        @test kinds(ew) == kinds(e) && diagnostics(ew) == diagnostics(e)
+        warning = TrimCommitResiduals(residuals = [(:a, 1.0, 0.1)])
+        with_warning = DiagnosticError(diagnostics(carrier), Diagnostic[warning])
+        warning_lines = split(sprint(showerror, with_warning), '\n')
+        @test warning_lines[1] == "DiagnosticError: 4 diagnostics, 1 warning"
+        @test warning_lines[2:5] == lines[2:5]
+        @test startswith(warning_lines[end], "  TrimCommitResiduals: ")
+        @test kinds(with_warning) == kinds(carrier) &&
+              diagnostics(with_warning) == diagnostics(carrier)
 
         # A fail-fast site's single diagnostic renders on one line, no count.
         d = UnconnectedInput(path = "a", face = :v, declared = Float64, level = "a")
@@ -669,9 +671,10 @@ function diagnostics_kind_set()
               "DiagnosticError: UnconnectedInput: " * message(d)
 
         # The fail-fast carrier renders its one line and then the warning's.
-        dwlines = split(sprint(showerror, DiagnosticError(d, Diagnostic[w])), '\n')
-        @test dwlines[1] == "DiagnosticError: UnconnectedInput: " * message(d)
-        @test only(dwlines[2:end]) == "  TrimCommitResiduals: " * message(w)
+        fail_fast_lines =
+            split(sprint(showerror, DiagnosticError(d, Diagnostic[warning])), '\n')
+        @test fail_fast_lines[1] == "DiagnosticError: UnconnectedInput: " * message(d)
+        @test only(fail_fast_lines[2:end]) == "  TrimCommitResiduals: " * message(warning)
 
         # The parameter is the policy, and the outer constructors choose it (D-222).
         @test DiagnosticError(d) isa DiagnosticError{typeof(d)}
@@ -729,24 +732,25 @@ function diagnostics_kind_set()
 
         # The bundle law's three classes (§5.2, §13.2): each names what would have
         # put the field in the bundle, and all three print the list in hand.
-        bfe(field, reason; family = "output_state", tier = :continuous) =
+        bundle_field_message(field, reason; family = "output_state", tier = :continuous) =
             message(BundleFieldError(path = "a/b", family = family, tier = tier,
                                      field = field, legal = [:x, :t], reason = reason))
-        m = bfe(:m, :undeclared)
+        m = bundle_field_message(:m, :undeclared)
         @test occursin("init_m", m) && occursin("{x, t}", m)
-        m = bfe(:s, :wrong_tier)
+        m = bundle_field_message(:s, :wrong_tier)
         @test occursin("discrete-tier fact", m) && occursin("{x, t}", m)
-        m = bfe(:u, :illegal_for_family)
+        m = bundle_field_message(:u, :illegal_for_family)
         @test occursin("no `output_state` bundle carries", m) && occursin("{x, t}", m)
         # A stage-1 port names no declaration at all, so that arm says so.
-        @test occursin("produces no stage-1 port", bfe(:y_x, :undeclared,
+        @test occursin("produces no stage-1 port", bundle_field_message(:y_x, :undeclared,
                                                        family = "output_direct"))
 
         # The frame first, the raw throw second (§13.2, D-248).
-        m = message(UserCodeFraming(path = "a/b", fn = "output_state", bundle = [:x, :t],
-                                    cause = ErrorException("boom")))
-        @test occursin("output_state", m) && occursin("{x, t}", m)
-        @test occursin("boom", split(m, "cause:")[2])
+        rendered = message(UserCodeFraming(path = "a/b", fn = "output_state",
+                                           bundle = [:x, :t],
+                                           cause = ErrorException("boom")))
+        @test occursin("output_state", rendered) && occursin("{x, t}", rendered)
+        @test occursin("boom", split(rendered, "cause:")[2])
         @test occursin("read its declarations",
                        message(UserCodeFraming(path = "a/b", fn = "init_x",
                                                cause = ErrorException("boom"))))
@@ -787,19 +791,19 @@ function diagnostics_kind_set()
         # The cycle's three forms (§5.5, §5.6, D-245), over constructed values: the
         # cluster's wires read as one loop, and the classification, where there is
         # one, names the dead hops in the ladder's own words.
-        m = message(AlgebraicCycle(members = ["plant", "sum", "ctl"],
+        rendered = message(AlgebraicCycle(members = ["plant", "sum", "ctl"],
                                    wires = ["plant/power" => "sum/b", "sum/e" => "ctl/e",
                                             "ctl/out" => "plant/u"]))
-        @test occursin("plant/power → sum/b, sum/e → ctl/e, ctl/out → plant/u", m)
-        @test occursin("break it with a state", m)
+        @test occursin("plant/power → sum/b, sum/e → ctl/e, ctl/out → plant/u", rendered)
+        @test occursin("break it with a state", rendered)
         # Artificial: the hop, then §5.4's two exits, each dead member named once.
-        m = message(AlgebraicCycle(members = ["d", "g"],
+        rendered = message(AlgebraicCycle(members = ["d", "g"],
                                    wires = ["d/y" => "g/e", "g/out" => "d/b"],
                                    classification = :artificial, dead = [("d", :b, :y)],
                                    traced = ["d" => :global, "g" => :global]))
-        @test occursin("artificial at port level", m)
-        @test occursin("`d`'s `y` does not route `b`", m)
-        @test occursin("split `d`, or narrow", m)
+        @test occursin("artificial at port level", rendered)
+        @test occursin("`d`'s `y` does not route `b`", rendered)
+        @test occursin("split `d`, or narrow", rendered)
         # Real with a dead chord: the hop is still listed, as a wire to delete.
         m = message(AlgebraicCycle(members = ["s", "g", "i"],
                                    wires = ["s/e" => "g/e", "s/e" => "i/b",
@@ -829,9 +833,9 @@ function diagnostics_kind_set()
         @test occursin("on the sampled paths; an untaken branch may still route it", m)
 
         # The remedy form: the shortfall, then the fix, with the list in hand.
-        m = message(UninitializedInputs(op = :init!, faces = [:u, :e]))
-        @test occursin("`init!`", m) && occursin("`u`, `e`", m)
-        @test occursin("nothing was written", m)
+        rendered = message(UninitializedInputs(op = :init!, faces = [:u, :e]))
+        @test occursin("`init!`", rendered) && occursin("`u`, `e`", rendered)
+        @test occursin("nothing was written", rendered)
 
         # A `logged`-policy warning renders like a carrier line — the kind name, then
         # the message — because it never gets a `showerror` to lead it (D-214). The
