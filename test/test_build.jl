@@ -628,7 +628,7 @@ function build_wire_clauses()
 
         # Two such faces in one model report together: the pass collects (§13.1).
         err = failure(() -> build(Group((; r = FieldReader(), q = RealReader());
-                                         inputs = ("f" => "r/f", "u" => "q/u"))))
+                                        inputs = ("f" => "r/f", "u" => "q/u"))))
         diags = diagnostics(err)
         @test all(x -> x isa AbstractAtRoot, diags)
         @test Set(x.face for x in diags) == Set([:f, :u])
@@ -669,7 +669,7 @@ function build_wire_clauses()
 
         # One leaf deep the offending leaf is named by its dotted spelling.
         err = failure(() -> build(Group((; s = FrameSource(), r = FrameReader());
-                                         wires = ("s/f" => "r/f",))))
+                                        wires = ("s/f" => "r/f",))))
         d = only(diagnostics(err))
         @test d isa WalkingFaceAtFrozenEntry && d.leaf == "p[1]"
         @test d.declared === Float64 && d.observed === Marker
@@ -691,7 +691,7 @@ function build_wire_clauses()
 
         # Two bad wires in one model are two diagnostics in one throw.
         err = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(), e = BoolEntry());
-                                         wires = ("src/val" => "c/u", "src/val" => "e/u"))))
+                                        wires = ("src/val" => "c/u", "src/val" => "e/u"))))
         diags = diagnostics(err)
         @test length(diags) == 2 && all(x -> x isa WireTypeMismatch, diags)
         @test Set(x.path for x in diags) == Set(["c", "e"])
@@ -708,7 +708,7 @@ function build_wire_clauses()
         # never produced, so an unfed input beside a bad wire reports the walk's
         # kinds alone.
         err = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(), lone = RealEntry());
-                                         wires = ("src/val" => "c/u",))))
+                                        wires = ("src/val" => "c/u",))))
         @test Set(kinds(err)) == Set([UnconnectedInput])
     end
 
@@ -791,7 +791,7 @@ function build_port_type_refusals()
 
         # Placement collects, so one model reports both and throws once.
         err = failure(() -> build(Group((; c = MutableSource(), q = Query());
-                                         inputs = ("terrain" => "q/terrain",))))
+                                        inputs = ("terrain" => "q/terrain",))))
         @test err isa DiagnosticError
         diags = diagnostics(err)
         @test length(diags) == 2 && all(d -> d isa IllegalPortType, diags)
@@ -814,7 +814,7 @@ function build_port_type_refusals()
 
         # Collected: two unsynthesizable faces are one throw carrying both.
         err = failure(() -> build(Group((; a = Unsynthesized(), b = Unsynthesized());
-                                         inputs = ("in1" => "a/q", "in2" => "b/q"))))
+                                        inputs = ("in1" => "a/q", "in2" => "b/q"))))
         diags = diagnostics(err)
         @test length(diags) == 2 && all(d -> d isa MissingProbeValue, diags)
         @test Set(d.face for d in diags) == Set([:in1, :in2])

@@ -272,8 +272,8 @@ function test_devices()
         # carries the device's record, and the abort's stop names it as issuer.
         record = termination(sim2)
         @test record.source === ControlRequestedStop("device 1 (BadInit)")
-        writer_residue = only(trace_record for trace_record in record.residue
-                              if trace_record.writer == "device 1 (BadInit)")
+        writer_residue = only(residue for residue in record.residue
+                              if residue.writer == "device 1 (BadInit)")
         @test only(writer_residue.recent) isa DeviceCrash
     end
 
@@ -291,8 +291,8 @@ function test_devices()
         @test :woke ∉ dev.log                    # the straggler had not returned when run! did
         # Recorded, not just loud (D-203): the termination record's residue holds
         # the structured kind, by name, with the cap and the final boundary.
-        writer_residue = only(record for record in termination(sim).residue
-                              if record.writer == "loop")
+        writer_residue = only(residue for residue in termination(sim).residue
+                              if residue.writer == "loop")
         timeout = only(d for d in writer_residue.recent if d isa DeviceJoinTimeout)
         @test timeout.who == "device 1 (Stubborn)" && timeout.timeout == 0.2
         @test timeout.t == termination(sim).t ≈ 0.3 &&

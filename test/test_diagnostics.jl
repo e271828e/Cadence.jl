@@ -73,8 +73,8 @@ function diagnostics_channel()
         # The author's cause survives wherever the record landed: in some logged
         # snapshot's recent, or in the sweep's presentation.
         survived = any(d isa MalformedDatum && occursin("unparseable", string(d.cause))
-                      for snapshot in logged(sim)
-                      for d in writer_status(snapshot, "device 1 (Parser)").recent)
+                       for snapshot in logged(sim)
+                       for d in writer_status(snapshot, "device 1 (Parser)").recent)
         @test survived ⊻ any(occursin("unparseable", rendered) for rendered in msgs)
         # The stream's good datums survived — newest wins within the staged batch —
         # applied by a drain the stop did not beat, or still pending in the cell:
@@ -749,8 +749,8 @@ function diagnostics_kind_set()
         @test occursin("no `output_state` bundle carries", rendered) &&
               occursin("{x, t}", rendered)
         # A stage-1 port names no declaration at all, so that arm says so.
-        @test occursin("produces no stage-1 port", bundle_field_message(:y_x, :undeclared,
-                                                                        family = "output_direct"))
+        @test occursin("produces no stage-1 port",
+                       bundle_field_message(:y_x, :undeclared, family = "output_direct"))
 
         # The frame first, the raw throw second (§13.2, D-248).
         rendered = message(UserCodeFraming(path = "a/b", fn = "output_state",
@@ -804,14 +804,16 @@ function diagnostics_kind_set()
         # cluster's wires read as one loop, and the classification, where there is
         # one, names the dead hops in the ladder's own words.
         rendered = message(AlgebraicCycle(members = ["plant", "sum", "ctl"],
-                                          wires = ["plant/power" => "sum/b", "sum/e" => "ctl/e",
+                                          wires = ["plant/power" => "sum/b",
+                                                   "sum/e" => "ctl/e",
                                                    "ctl/out" => "plant/u"]))
         @test occursin("plant/power → sum/b, sum/e → ctl/e, ctl/out → plant/u", rendered)
         @test occursin("break it with a state", rendered)
         # Artificial: the hop, then §5.4's two exits, each dead member named once.
         rendered = message(AlgebraicCycle(members = ["d", "g"],
                                           wires = ["d/y" => "g/e", "g/out" => "d/b"],
-                                          classification = :artificial, dead = [("d", :b, :y)],
+                                          classification = :artificial,
+                                          dead = [("d", :b, :y)],
                                           traced = ["d" => :global, "g" => :global]))
         @test occursin("artificial at port level", rendered)
         @test occursin("`d`'s `y` does not route `b`", rendered)
@@ -827,7 +829,8 @@ function diagnostics_kind_set()
         rendered = message(AlgebraicCycle(members = ["p", "q"],
                                           wires = ["p/b" => "q/a", "q/b" => "p/a"],
                                           classification = :real,
-                                          traced = ["p" => :structural, "q" => :structural]))
+                                          traced = ["p" => :structural,
+                                                    "q" => :structural]))
         @test occursin("structurally", rendered)
         # The sampled fallback rides in both forms: as the mode phrase under a
         # real verdict, and as the caveat on a hop it found under an artificial
@@ -840,7 +843,8 @@ function diagnostics_kind_set()
         @test occursin("`m` at sampled states, the rest globally", rendered)
         rendered = message(AlgebraicCycle(members = ["m", "g2"],
                                           wires = ["m/F" => "g2/e", "g2/out" => "m/g"],
-                                          classification = :artificial, dead = [("m", :g, :F)],
+                                          classification = :artificial,
+                                          dead = [("m", :g, :F)],
                                           traced = ["m" => :sampled, "g2" => :global]))
         @test occursin("on the sampled paths; an untaken branch may still route it",
                        rendered)
