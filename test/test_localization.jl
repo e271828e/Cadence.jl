@@ -7,9 +7,9 @@ function test_localization()
     @testset "a localized event fires at t*, within tol of the true crossing (§10.4)" begin
         # Linear trajectory: RK4 and the cubic Hermite are both exact, so the stamp
         # isolates the localization machinery itself — t* within the bracket width.
-        m = Group((; src = Sawtooth(1.0), s = Stamper(0.315));
+        model = Group((; src = Sawtooth(1.0), s = Stamper(0.315));
                   wires = ("src/q" => "s/sig",))
-        sim = Simulation(m; h = 1//10)
+        sim = Simulation(model; h = 1//10)
         init!(sim)
         step!(sim; t_plus = 0.5)
         @test modes(sim, "s").count == 1
@@ -36,9 +36,10 @@ function test_localization()
         # c(t) = -cos t under the renormalizing project: σ = -cos t + 0.5 crosses
         # at t = π/3, mid-frame. Trials run against the raw interpolated state;
         # the error budget is the Hermite's O(h⁴) plus RK4's own global error.
-        m = Group((; src = Rotor(; ω = 1.0, r₀ = SVector(-1.0, 0.0)), s = Stamper(-0.5));
+        model = Group((; src = Rotor(; ω = 1.0, r₀ = SVector(-1.0, 0.0)),
+                       s = Stamper(-0.5));
                   wires = ("src/c" => "s/sig",))
-        sim = Simulation(m; h = 1//10)
+        sim = Simulation(model; h = 1//10)
         init!(sim)
         run!(sim; t_end = 1.5)
         @test modes(sim, "s").count == 1
@@ -64,9 +65,9 @@ function test_localization()
         # The ramp reads t, so σ crosses exactly at the frame top: the trigger sees
         # σ₁ = 0, every interior trial is not-holding, and the localization result
         # is discarded — one boundary, one firing, stamping the indexed grid time.
-        m = Group((; src = Ramp(0.0), s = Stamper(0.4));
+        model = Group((; src = Ramp(0.0), s = Stamper(0.4));
                   wires = ("src/out" => "s/sig",))
-        sim = Simulation(m; h = 1//10)
+        sim = Simulation(model; h = 1//10)
         init!(sim)
         run!(sim; t_end = 0.6)
         @test modes(sim, "s").count == 1
@@ -74,10 +75,11 @@ function test_localization()
     end
 
     @testset "multiple crossings in one frame: earliest first, re-localized on the remainder" begin
-        m2() = Group((; src = Sawtooth(1.0), s1 = Stamper(0.31), s2 = Stamper(0.34));
+        two_stamper_model() = Group(
+                     (; src = Sawtooth(1.0), s1 = Stamper(0.31), s2 = Stamper(0.34));
                      wires = ("src/q" => "s1/sig",
                               "src/q" => "s2/sig"))
-        sim = Simulation(m2(); h = 1//10)
+        sim = Simulation(two_stamper_model(); h = 1//10)
         init!(sim)
         @test_logs run!(sim; t_end = 0.5)                               # both localize: no degradation
         @test modes(sim, "s1").t_fired ≈ 0.31 atol = 1e-6
@@ -87,10 +89,11 @@ function test_localization()
         # A tie is one localization: both edges stand at the shared t* and fire
         # together inside that boundary's iteration — so a budget of 1 suffices,
         # and no ChatteringBudget degradation is seen.
-        mt = Group((; src = Sawtooth(1.0), s1 = Stamper(0.315), s2 = Stamper(0.315));
+        tied_model = Group(
+                   (; src = Sawtooth(1.0), s1 = Stamper(0.315), s2 = Stamper(0.315));
                    wires = ("src/q" => "s1/sig",
                             "src/q" => "s2/sig"))
-        simt = Simulation(mt; h = 1//10, localization_budget = 1)
+        simt = Simulation(tied_model; h = 1//10, localization_budget = 1)
         init!(simt)
         @test_logs run!(simt; t_end = 0.5)
         @test modes(simt, "s1").t_fired == modes(simt, "s2").t_fired
@@ -100,17 +103,19 @@ function test_localization()
         # Distinct crossings under budget 1: the earliest localizes, the second
         # spends nothing — it degrades to boundary granularity under the report,
         # stamping the frame top.
-        simb = Simulation(m2(); h = 1//10, localization_budget = 1)
+        simb = Simulation(two_stamper_model(); h = 1//10, localization_budget = 1)
         init!(simb)
         run!(simb; t_end = 0.5)                    # the degradation reports on the loop's cell (§11.8)
         @test modes(simb, "s1").t_fired ≈ 0.31 atol = 1e-6
         @test modes(simb, "s2").t_fired == 4 * simb.deployment.h
-        lw = writer_status(latest(simb), "loop")
-        cb = only(lw.recent)               # frame 4's report, folded at frame 5's top
-        @test cb isa ChatteringBudget
-        @test cb.path == "s2" && cb.event == :cross
-        @test cb.budget == 1 && cb.count == 1 && cb.t == 0.4
-        @test lw.totals.chattering == 1
+        loop_status = writer_status(latest(simb), "loop")
+        # frame 4's report, folded at frame 5's top
+        chattering_report = only(loop_status.recent)
+        @test chattering_report isa ChatteringBudget
+        @test chattering_report.path == "s2" && chattering_report.event == :cross
+        @test chattering_report.budget == 1 && chattering_report.count == 1 &&
+              chattering_report.t == 0.4
+        @test loop_status.totals.chattering == 1
     end
 
     @testset "the stop is tol·h in time, not tol·h′ over the remainder (§10.4, D-133)" begin
@@ -120,9 +125,9 @@ function test_localization()
         # than tol·h: the holding endpoint is the frame top, so the crossing
         # folds into its ordinary iteration, 5e-5 late and within tolerance. A
         # per-segment tol·h′ would have kept trying, to 0.39995.
-        m = Group((; src = Sawtooth(1.0), s1 = Stamper(0.399), s2 = Stamper(0.39995));
+        model = Group((; src = Sawtooth(1.0), s1 = Stamper(0.399), s2 = Stamper(0.39995));
                   wires = ("src/q" => "s1/sig", "src/q" => "s2/sig"))
-        sim = Simulation(m; h = 1//10, localization_tol = 1e-3)
+        sim = Simulation(model; h = 1//10, localization_tol = 1e-3)
         init!(sim)
         @test_logs run!(sim; t_end = 0.5)
         @test modes(sim, "s1").t_fired ≈ 0.399 atol = 1e-4
@@ -151,15 +156,15 @@ function test_localization()
     end
 
     @testset "the gate idiom localizes; a gate flip is an epoch edge (§10.4)" begin
-        gated() = Group((; src = Sawtooth(1.0), s = GatedStamper(0.315));
+        gated_model() = Group((; src = Sawtooth(1.0), s = GatedStamper(0.315));
                         wires = ("src/q" => "s/sig",),
                         inputs = ("gate" => "s/gate",))
-        b = build(gated())
+        b = build(gated_model())
         @test b.events.components[index_of(b.structure, "s")].policies === (cross = :localized,)
 
         # Gate true from the start: the Bool factor is constant over the bracket
         # and the continuous atom localizes as such.
-        sim = Simulation(gated(); h = 1//10)
+        sim = Simulation(gated_model(); h = 1//10)
         init!(sim, fragment(inputs = (gate = true,)))
         run!(sim; t_end = 0.5)
         @test modes(sim, "s").t_fired ≈ 0.315 atol = 1e-6
@@ -167,7 +172,7 @@ function test_localization()
         # Gate flipped at a frame top, with σ already past the level: the edge is
         # the u seam's, σ₀ holds under the frame's own u, and the event fires at
         # the frame top exactly — epoch-caused, never root-found.
-        sim2 = Simulation(gated(); h = 1//10)
+        sim2 = Simulation(gated_model(); h = 1//10)
         init!(sim2, fragment(inputs = (gate = false,)))
         step!(sim2; t_plus = 0.5)
         @test modes(sim2, "s").count == 0              # gate down: -one(σ) throughout
@@ -181,10 +186,10 @@ function test_localization()
         # A sampled consumer beside a localized event: the t* boundary runs the
         # full event phase but no g update — a spurious tick there would add the
         # mid-frame sample 0.1·q(t*) to the accumulator.
-        m = Group((; src = Sawtooth(1.0), s = Stamper(0.315), ctl = DiscreteIntegrator(1.0));
+        model = Group((; src = Sawtooth(1.0), s = Stamper(0.315), ctl = DiscreteIntegrator(1.0));
                   wires = ("src/q" => "s/sig",
                            "src/q" => "ctl/e"))
-        sim = Simulation(m; h = 1//10)
+        sim = Simulation(model; h = 1//10)
         init!(sim)
         run!(sim; t_end = 0.5)
         @test modes(sim, "s").count == 1               # the event did localize
@@ -192,13 +197,13 @@ function test_localization()
     end
 
     @testset "the two deployment keywords are validated with their siblings (§10.4)" begin
-        m = single(Bouncer(1.0, 0.315))
-        d1 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, localization_tol = 0.0))))
-        @test d1 isa DeploymentInvalid && d1.parameter === :localization_tol
-        d2 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, localization_tol = -1e-3))))
-        @test d2 isa DeploymentInvalid && d2.parameter === :localization_tol
-        d3 = only(diagnostics(failure(() -> Simulation(m; h = 1//10, localization_budget = 0))))
-        @test d3 isa DeploymentInvalid && d3.parameter === :localization_budget
+        model = single(Bouncer(1.0, 0.315))
+        d = only(diagnostics(failure(() -> Simulation(model; h = 1//10, localization_tol = 0.0))))
+        @test d isa DeploymentInvalid && d.parameter === :localization_tol
+        d = only(diagnostics(failure(() -> Simulation(model; h = 1//10, localization_tol = -1e-3))))
+        @test d isa DeploymentInvalid && d.parameter === :localization_tol
+        d = only(diagnostics(failure(() -> Simulation(model; h = 1//10, localization_budget = 0))))
+        @test d isa DeploymentInvalid && d.parameter === :localization_budget
     end
 
     @testset "localization compiles out at a non-nominal activation (§9.4, D-052)" begin
@@ -213,22 +218,22 @@ function test_localization()
 
     @testset "gate 3: localized frames do not allocate (§7.5)" begin
         # A quiet frame pays the arrival sweep and the trigger scan, nothing else.
-        mq = Group((; src = Sawtooth(0.1), s = Stamper(100.0));
+        quiet_model = Group((; src = Sawtooth(0.1), s = Stamper(100.0));
                    wires = ("src/q" => "s/sig",))
-        simq = Simulation(mq; h = 1//10)
+        simq = Simulation(quiet_model; h = 1//10)
         init!(simq)
         run!(simq; t_end = 0.2)
-        nopol, noaddrs = StopPolicy(Inf, Symbol[]), Any[]   # the advance's arguments (D-260, D-261)
-        @test @ballocated(frame!($simq, 3, $nopol, $noaddrs)) == 0
+        no_policy, no_addrs = StopPolicy(Inf, Symbol[]), Any[]   # the advance's arguments (D-260, D-261)
+        @test @ballocated(frame!($simq, 3, $no_policy, $no_addrs)) == 0
 
         # A localizing frame: one crossing, θ = 0 validation, ẋₙ₊₁, the bracketing
         # trials, the t* boundary and the remainder — all against preallocated
         # buffers, re-run from init! each sample. What it allocates is exactly the
         # t* boundary's own publication — the framework-side carve-out (§7.5,
         # §11.2) — and nothing of the localization machinery's.
-        siml = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10)
-        init!(siml; log = false)
-        pub = @ballocated publish!($siml)
-        @test @ballocated(frame!($siml, 1, $nopol, $noaddrs), setup = (init!($siml; log = false)), evals = 1) == pub
+        localizing_sim = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10)
+        init!(localizing_sim; log = false)
+        publish_bytes = @ballocated publish!($localizing_sim)
+        @test @ballocated(frame!($localizing_sim, 1, $no_policy, $no_addrs), setup = (init!($localizing_sim; log = false)), evals = 1) == publish_bytes
     end
 end
