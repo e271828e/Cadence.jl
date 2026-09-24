@@ -91,13 +91,13 @@ costs about 30 s before the first file's tests run and little per file after
 that, so name a generous set rather than the minimal one.
 """
 function runonly(names::AbstractString...)
-    fs = map(names) do n                       # resolve first: a typo costs no run
+    functions = map(names) do n                       # resolve first: a typo costs no run
         s = Symbol("test_", n)
         isdefined(@__MODULE__, s) || error("no tests named `$n` (`runall` names them)")
         getfield(@__MODULE__, s)
     end
     @testset "selected" begin
-        for (n, f) in zip(names, fs)
+        for (n, f) in zip(names, functions)
             live(n, f)
         end
     end
