@@ -1661,7 +1661,7 @@ always abnormal; no `SimulationTermination` exception type.
   migrated): the closure rejection also rests on the extra expressiveness being
   logic that belongs in-model in every use found.
 - *Root-type-declared policy:* stopping is run policy; absolutes bind at
-  deployment — overridable default the one variant on record.
+  deployment.
 - *Scanned terminal types / `terminal` event flags:* action at a distance: deep
   declarations halt the world, root contract silent, disabling needs masking;
   the localization they promise is the event idiom under `stop_on` anyway. The

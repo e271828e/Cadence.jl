@@ -8528,9 +8528,9 @@ closures (`stop_when = snap -> …`), root-type-declared stop policy,
 [blessed](#g-blessed) terminal types and `terminal` event flags, a
 [control-plane](#g-control-plane) capability for [components](#g-component),
 and observation-by-path (`stop_on` naming a deep path into any public output).
-A root-declared *default*, overridable per advance, is the one variant
-on record for reopening, should the keyword prove chronically
-forgotten (`pending.md`).
+An advance that names no face while the model publishes one is the
+silent omission; it is met by diagnosis, not by policy (stop candidates,
+`pending.md`).
 
 The observation-by-path line leaves doctrine behind it. **Inspection** is
 human-facing, has no effect on run semantics, and legitimately sees every

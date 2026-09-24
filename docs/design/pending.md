@@ -68,6 +68,35 @@ retires or the code conforms. Currently empty.
 
 Not a code deviation: what the design documents owe their reader.
 
+- **The trim post-commit target read-back.** Under elimination, a
+  params-vs-world handle mismatch converges to a true equilibrium at an
+  unintended operating point, and nothing complains (D-139). One evaluation
+  of the sweep after the commit, comparing the achieved targets against the
+  requested ones, catches the whole class. It belongs on `TrimReport`, beside
+  the unbalanced equations and saturated decision variables it already names
+  (`companions/trim_environment_walkthrough.md`).
+- **Stop candidates.** §13.5 has two omissions with unequal loudness: a
+  level that fails to re-export a stop face is refused at the next advance
+  that names it, and an advance that names no face integrates a terminal
+  state to `t_end` and nothing complains. A component flags its own `Bool`
+  output faces as stop candidates, an annotation the framework diagnoses and
+  never honours: a build warning (§9.1, D-250) where a flagged face is not
+  re-exported to the root, naming the level that dropped it, and a `run!`
+  advisory beside `UnboundedRun` (§11.8) where the root carries flagged
+  faces and the policy names none. Who decides stays with the advance
+  (D-060, D-255). It replaces the root-declared default D-060 kept on
+  record, which does not compose: the default is the root type's, and a
+  wrapped root has none.
+- **The executor compile-cost re-measurement.** §9.7's compile-time anchors
+  for a model of roughly 200–400 entries are extrapolated from synthetic
+  bodies; re-measure them on a real model of that scale early, before the
+  executor's shape hardens.
+- **The trace header's deployment half.** `TraceHeader.deployment` carries
+  the whole `Deployment`, and through it the `Build` with the component
+  instances, into an artifact §11.5 calls primary data; the deployment's
+  `==` excludes the build, so replay never compares it. Whether the header
+  should hold the build-free half is a D-254 question, to be ruled when the
+  persistence deferral above lifts.
 - **The exported-name audit.** The export list is to be decided deliberately
   rather than by accident; until the audit runs the module exports nothing,
   and a public name is reached by qualified name or per-name `import`
@@ -116,23 +145,3 @@ Not a code deviation: what the design documents owe their reader.
   post-processing entry point, as `getproperty`-style navigation of a run's
   history; and the trace file format, which doubles as the reproducibility
   carrier and whose positions the replay pointers name (§13.4).
-- **The trace header's deployment half.** `TraceHeader.deployment` carries
-  the whole `Deployment`, and through it the `Build` with the component
-  instances, into an artifact §11.5 calls primary data; the deployment's
-  `==` excludes the build, so replay never compares it. Whether the header
-  should hold the build-free half is a D-254 question, to be ruled when the
-  persistence deferral above lifts.
-- **The executor compile-cost re-measurement.** §9.7's compile-time anchors
-  for a model of roughly 200–400 entries are extrapolated from synthetic
-  bodies; re-measure them on a real model of that scale early, before the
-  executor's shape hardens.
-- **The trim post-commit target read-back.** Under elimination, a
-  params-vs-world handle mismatch converges to a true equilibrium at an
-  unintended operating point, and nothing complains (D-139). One evaluation
-  of the sweep after the commit, comparing the achieved targets against the
-  requested ones, catches the whole class. It belongs on `TrimReport`, beside
-  the unbalanced equations and saturated decision variables it already names
-  (`companions/trim_environment_walkthrough.md`).
-- **A root-declared `stop_on` default.** §13.5 keeps one variant on record
-  for reopening: a root-declared `stop_on` default, overridable per advance.
-  Reopen it only if the per-advance keyword proves chronically forgotten.
