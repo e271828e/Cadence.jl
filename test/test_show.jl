@@ -135,12 +135,13 @@ function test_show()
                                    "    gnss       ●·········"]
         # The gate, computed here: `●` exactly where `(k − Φ) % D == 0`.
         rows = deployed.schedule.rows
-        L = lcm([row.D for row in rows])
-        @test L == 10
+        hyperperiod = lcm([row.D for row in rows])
+        @test hyperperiod == 10
         for (row, line) in zip(rows, lines[end-2:end])
             chart = collect(last(split(line)))
-            @test length(chart) == L
-            @test [k for k in 0:L-1 if chart[k+1] == '●'] == [k for k in 0:L-1 if (k - row.Φ) % row.D == 0]
+            @test length(chart) == hyperperiod
+            @test [k for k in 0:hyperperiod-1 if chart[k+1] == '●'] ==
+                  [k for k in 0:hyperperiod-1 if (k - row.Φ) % row.D == 0]
         end
         # The guard is binary: past 100 base ticks the chart's place holds one line.
         text = plain(group.schedule)
