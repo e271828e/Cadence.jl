@@ -67,21 +67,21 @@ function test_readers()
         sim = Simulation(readable(); h = 1//10)
         init!(sim, readable_condition())
         evaluate!(sim.exec)
-        r, ex = _compile_reads(readable_reads(), sim.deployment.build), sim.exec
-        gather_reads(r, ex)
-        @test @ballocated(gather_reads($r, $ex)) == 0
-        @test @inferred(gather_reads(r, ex)) isa NamedTuple
-        @test gather_reads(_compile_reads(reads(), sim.deployment.build), ex) === (;)   # the empty set reads nothing
+        reader, exec = _compile_reads(readable_reads(), sim.deployment.build), sim.exec
+        gather_reads(reader, exec)
+        @test @ballocated(gather_reads($reader, $exec)) == 0
+        @test @inferred(gather_reads(reader, exec)) isa NamedTuple
+        @test gather_reads(_compile_reads(reads(), sim.deployment.build), exec) === (;)   # the empty set reads nothing
     end
 
     @testset "resolution collects every violation into one refusal (§14.4, §13.1)" begin
-        b = build(readable())
-        e = failure(() -> _compile_reads(reads(a = get_state("plnt", :q),
+        readable_build = build(readable())
+        err = failure(() -> _compile_reads(reads(a = get_state("plnt", :q),
                                                b = get_output("plant", :thrust),
                                                c = get_deriv("ctl", :acc),
-                                               d = get_face(:nope)), b))
-        @test e isa DiagnosticError && length(diagnostics(e)) == 4                  # the full list, one throw
-        (a, b_, c, d) = diagnostics(e)
+                                               d = get_face(:nope)), readable_build))
+        @test err isa DiagnosticError && length(diagnostics(err)) == 4              # the full list, one throw
+        (a, b_, c, d) = diagnostics(err)
         # The path itself is the walk's refusal, one case over, and the one
         # path arm that now carries a list in hand (§13.3).
         @test a isa PathResolution && a.reason === :unknown_child && a.segment == "plnt" &&
@@ -96,10 +96,11 @@ function test_readers()
 
         # An assembly path, a root input read as a face, an index on a scalar leaf,
         # and a state field the component does not declare.
-        e = failure(() -> _compile_reads(reads(a = get_output("", :y), b = get_face(:u),
+        err = failure(() -> _compile_reads(reads(a = get_output("", :y), b = get_face(:u),
                                                c = get_output("plant", :y, 1),
-                                               d = get_state("plant", :ω)), b))
-        (a, b_, c, d) = diagnostics(e)
+                                               d = get_state("plant", :ω)),
+                                          readable_build))
+        (a, b_, c, d) = diagnostics(err)
         @test a.reason === :assembly_path && a.path == "" && a.tap === :y
         @test b_.reason === :root_input_not_face && b_.field === :u
         @test c.reason === :scalar_index && c.index == 1 && c.declared === Float64
@@ -108,8 +109,8 @@ function test_readers()
 
         # The read set is a type, not a NamedTuple: the bare spelling is refused
         # with a directive, not a `MethodError` (§14.2's rule, one case over).
-        diag = carried(@test_throws DiagnosticError{ReadSetMisuse} _compile_reads((q = get_state("plant", :q),), b))
-        @test diag.reason === :not_a_read_set
+        d = carried(@test_throws DiagnosticError{ReadSetMisuse} _compile_reads((q = get_state("plant", :q),), readable_build))
+        @test d.reason === :not_a_read_set
         d = carried(@test_throws DiagnosticError{ReadSetMisuse} reads(q = 2.0))                    # nor is 2.0 a selector
         @test d.reason === :not_a_selector && d.label === :q
     end
@@ -141,9 +142,9 @@ function test_readers()
         # The walk stops at a primitive here too: a leaf's component-typed field is
         # no level of the build, so the segment past it names no child and the
         # refusal has no list to offer (§8.5, §13.3).
-        b = build(OpaqueHold(OpaqueLeaf(Gain(2.0))))
+        opaque_build = build(OpaqueHold(OpaqueLeaf(Gain(2.0))))
         d = only(diagnostics(failure(() ->
-                _compile_reads(reads(z = get_state("c/hidden", :z)), b))))
+                _compile_reads(reads(z = get_state("c/hidden", :z)), opaque_build))))
         @test d isa PathResolution && d.reason === :unknown_child
         @test d.segment == "hidden" && d.owner == "`c`" && d.candidates == String[]
         @test startswith(d.entry, "the read labeled `z`")
@@ -151,11 +152,11 @@ function test_readers()
 
     @testset "the source rule: a snapshot-bound reader may not name a store selector (§14.4)" begin
         sim = Simulation(readable(); h = 1//10)
-        diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(q = get_state("plant", :q))))
-        @test diag.reason === :store_selector &&
-              diag.selector == "get_state(\"plant\", :q)"
-        diag = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(y = get_output("plant", :y, 1))))
-        @test diag.reason === :indexed
+        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(q = get_state("plant", :q))))
+        @test d.reason === :store_selector &&
+              d.selector == "get_state(\"plant\", :q)"
+        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(y = get_output("plant", :y, 1))))
+        @test d.reason === :indexed
         @test isempty(sim.plane.roster)              # every rejection left the roster untouched
     end
 
@@ -172,17 +173,17 @@ function test_readers()
         init!(seeded, readable_condition())
         before = world(seeded)
 
-        e = failure(() -> gather_reads(_compile_reads(readable_reads(), nominal.deployment.build), seeded.exec))
-        @test e isa InternalInvariant           # not a diagnostic kind, and not a DiagnosticError
-        @test occursin("compiled at Float64", e.msg) && occursin("Dual{Nothing, Float64, 8}", e.msg)
+        err = failure(() -> gather_reads(_compile_reads(readable_reads(), nominal.deployment.build), seeded.exec))
+        @test err isa InternalInvariant         # not a diagnostic kind, and not a DiagnosticError
+        @test occursin("compiled at Float64", err.msg) && occursin("Dual{Nothing, Float64, 8}", err.msg)
         # `InternalInvariant` carries a message and no payload by design (D-215),
         # so it is matched on text — it is no diagnostic kind.
 
-        c = readable_condition()
-        e2 = failure(() -> apply!(seeded.exec, resolve_condition(c, nominal.deployment.build)))
-        @test e2 isa InternalInvariant
-        e3 = failure(() -> apply!(seeded.exec, compile_plan(c, nominal.deployment.build), c))
-        @test e3 isa InternalInvariant
+        authored = readable_condition()
+        err = failure(() -> apply!(seeded.exec, resolve_condition(authored, nominal.deployment.build)))
+        @test err isa InternalInvariant
+        err = failure(() -> apply!(seeded.exec, compile_plan(authored, nominal.deployment.build), authored))
+        @test err isa InternalInvariant
 
         @test world(seeded) == before                # every refusal left the executor alone
     end
@@ -202,16 +203,16 @@ function test_readers()
         twin = Simulation(readable(); h = 1//10)
         init!(sim, readable_condition())
 
-        (c, t) = capture(sim)
+        (captured, t) = capture(sim)
         @test t === 0.0                              # the condition is time-free; `t` rides beside
-        @test c isa ConditionNode
-        init!(twin, c; t0 = t)
+        @test captured isa ConditionNode
+        init!(twin, captured; t0 = t)
         @test world(twin) == world(sim)              # x, every `s` and `m`, root inputs, clock
 
         # It is total by construction (§14.6): no baseline underneath, and the
         # authored values are what a re-application establishes — the defaults
         # would show as `phase = :idle` and `acc = 0.0`.
-        @test resolve_condition(c, twin.deployment.build).faces == twin.deployment.build.structure.root_inputs
+        @test resolve_condition(captured, twin.deployment.build).faces == twin.deployment.build.structure.root_inputs
         @test modes(twin, "src") === (phase = :running,)
         @test state(twin, "ctl").acc === 4.0
 
@@ -219,9 +220,9 @@ function test_readers()
         # warm restart's baseline — clock included, which is what `t0 = t` is for.
         run!(sim; t_end = 0.5)
         @test lifecycle(sim) === :stopped && state(sim, "plant").q != SVector(0.3, -0.2)
-        (c2, t2) = capture(sim)
+        (warm_capture, t2) = capture(sim)
         @test t2 === 0.5
-        init!(twin, c2; t0 = t2)
+        init!(twin, warm_capture; t0 = t2)
         @test world(twin) == world(sim)
         @test twin.exec.clock.t === 0.5 && twin.exec.clock.t₀ === 0.5
     end
@@ -238,12 +239,13 @@ function test_readers()
             sim = Simulation(model(); h = 1//50)
             init!(sim, fragment(inputs = inputs))
             run!(sim; t_end = 0.1)
-            (c, t) = capture(sim)
-            @test all(p -> !occursin('/', p), prefixes(c))    # every `at` names one child
-            @test !isempty(prefixes(c))
+            (captured, t) = capture(sim)
+            # every `at` names one child
+            @test all(p -> !occursin('/', p), prefixes(captured))
+            @test !isempty(prefixes(captured))
 
             twin = Simulation(model(); h = 1//50)
-            init!(twin, c; t0 = t)
+            init!(twin, captured; t0 = t)
             # The continuous stores come back bitwise. The discrete one need not:
             # the re-application runs boundary zero's outgoing transition, which is
             # capture's documented caveat, not a resolution failure — and the
