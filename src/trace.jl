@@ -329,8 +329,8 @@ function _walk_deployment!(diags::Vector{Diagnostic}, recorded::Deployment,
     else
         _deployment_diff!(diags, "", Symbol("scope.key"),
                           [string(scope.path, ':', scope.key)
-                    for scope in recorded_schedule.scopes],
-                   [string(scope.path, ':', scope.key) for scope in target_schedule.scopes])
+                           for scope in recorded_schedule.scopes],
+                          [string(scope.path, ':', scope.key) for scope in target_schedule.scopes])
     end
     nothing
 end
