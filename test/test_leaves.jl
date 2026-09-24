@@ -68,11 +68,11 @@ end
 # the buffer's eltype: a cell carrying an opaque leaf needs one that holds it.
 function roundtrip(v, off; E = Float64)
     n = nleaves(typeof(v))
-    buf = Vector{E}(fill(NaN, off + n + 3))
-    flatten!(buf, off, v)
-    @test reconstruct(typeof(v), buf, off) === v
-    @test all(isnan, buf[1:off])
-    @test all(isnan, buf[off+n+1:end])
+    buffer = Vector{E}(fill(NaN, off + n + 3))
+    flatten!(buffer, off, v)
+    @test reconstruct(typeof(v), buffer, off) === v
+    @test all(isnan, buffer[1:off])
+    @test all(isnan, buffer[off+n+1:end])
 end
 
 # `_mreconstruct_expr` and `_mflatten_expr` build the bodies of `store.jl`'s
@@ -184,20 +184,20 @@ end
 
 function leaves_roundtrip()
     @testset "the flat round trip (§7.1)" begin
-        b = Body(Pose(1.0, 2.0), SVector(3.0, 4.0, 5.0),
-                 SMatrix{2,2}(6.0, 7.0, 8.0, 9.0))
+        body = Body(Pose(1.0, 2.0), SVector(3.0, 4.0, 5.0),
+                    SMatrix{2,2}(6.0, 7.0, 8.0, 9.0))
 
         # The flat order is the walk's: fields in declaration order, a static
         # array's elements linearly, so the matrix lies down column-major.
-        buf = zeros(20)
-        flatten!(buf, 5, b)
-        @test buf[6:14] == 1.0:9.0
+        buffer = zeros(20)
+        flatten!(buffer, 5, body)
+        @test buffer[6:14] == 1.0:9.0
 
         # Bit-faithful both ways, at an offset, over each case of the vocabulary.
         roundtrip(1.5, 4)
         roundtrip(SVector(1.0, 2.0, 3.0), 0)
         roundtrip(Pose(1.0, 2.0), 2)
-        roundtrip(b, 7)
+        roundtrip(body, 7)
         # A NamedTuple takes its fields as one tuple rather than positionally,
         # which is its own branch of the reconstruct builder.
         roundtrip((q = 1.0, v = SVector(2.0, 3.0, 4.0)), 3)
@@ -205,11 +205,11 @@ function leaves_roundtrip()
         # An opaque leaf makes the round trip whole: `===` on the reconstructed
         # `Framed` is `===` on the handle, which is `===` on the one `Matrix`
         # (D-237). A buffer that holds it is not a `Float64` one.
-        fr = Framed(height_field(Terrain()), 5.0)
-        roundtrip(fr, 2; E = Any)
-        buf = Vector{Any}(undef, 4)
-        flatten!(buf, 1, fr)
-        @test reconstruct(Framed, buf, 1).f.z === fr.f.z
+        framed = Framed(height_field(Terrain()), 5.0)
+        roundtrip(framed, 2; E = Any)
+        buffer = Vector{Any}(undef, 4)
+        flatten!(buffer, 1, framed)
+        @test reconstruct(Framed, buffer, 1).f.z === framed.f.z
 
         # An enum leaf rides whole through the same builders, and so does a
         # `Symbol`.
@@ -222,41 +222,41 @@ end
 function leaves_mixed()
     @testset "a value whose leaves span several eltypes (§7.2)" begin
         P = Tagged{Float64}
-        v = P(SVector(1.5, 2.5), 7)
+        value = P(SVector(1.5, 2.5), 7)
 
         # One running base per eltype, each left at that eltype's leaf count.
-        scat, sbases = mscatter(P)
-        @test sbases == [2, 1]
-        @test sbases == [count(==(L), leaf_types(P)) for L in leaf_eltypes(P)]
+        scatter, scatter_bases = mscatter(P)
+        @test scatter_bases == [2, 1]
+        @test scatter_bases == [count(==(L), leaf_types(P)) for L in leaf_eltypes(P)]
 
         # Every leaf lands in its own eltype's buffer, at that buffer's own
         # offset. The `Int` is stored as an `Int`, never widened into the
         # `Float64` buffer.
-        f1, f2 = zeros(6), zeros(Int, 4)
-        scat(f1, f2, (3, 1), v)
-        @test f1 == [0.0, 0.0, 0.0, 1.5, 2.5, 0.0]
-        @test f2 == [0, 7, 0, 0]
+        buffer1, buffer2 = zeros(6), zeros(Int, 4)
+        scatter(buffer1, buffer2, (3, 1), value)
+        @test buffer1 == [0.0, 0.0, 0.0, 1.5, 2.5, 0.0]
+        @test buffer2 == [0, 7, 0, 0]
 
-        gath, gbases = mgather(P)
-        @test gbases == sbases
-        @test gath(f1, f2, (3, 1)) === v
+        compiled_gather, gather_bases = mgather(P)
+        @test gather_bases == scatter_bases
+        @test compiled_gather(buffer1, buffer2, (3, 1)) === value
 
         # The NamedTuple branch of the same builder.
-        gnt, _ = mgather(@NamedTuple{a::Float64, n::Int})
-        @test gnt([9.5], [4], (0, 0)) === (a = 9.5, n = 4)
+        nt_gather, _ = mgather(@NamedTuple{a::Float64, n::Int})
+        @test nt_gather([9.5], [4], (0, 0)) === (a = 9.5, n = 4)
         # An enum is its own eltype, so it binds its own buffer.
-        gen, _ = mgather(@NamedTuple{g::Gear, x::Float64})
-        @test gen([down], [9.5], (0, 0)) === (g = down, x = 9.5)
+        enum_gather, _ = mgather(@NamedTuple{g::Gear, x::Float64})
+        @test enum_gather([down], [9.5], (0, 0)) === (g = down, x = 9.5)
 
         # `K = 1` is the homogeneous case, where the builders emit the
         # single-base expressions: what `flatten!` wrote reads back through them.
-        b = Body(Pose(1.0, 2.0), SVector(3.0, 4.0, 5.0),
-                 SMatrix{2,2}(6.0, 7.0, 8.0, 9.0))
-        buf = zeros(12)
-        flatten!(buf, 2, b)
-        ghom, hbases = mgather(Body)
-        @test hbases == [nleaves(Body)]
-        @test ghom(buf, buf, (2,)) === b
+        body = Body(Pose(1.0, 2.0), SVector(3.0, 4.0, 5.0),
+                    SMatrix{2,2}(6.0, 7.0, 8.0, 9.0))
+        buffer = zeros(12)
+        flatten!(buffer, 2, body)
+        homogeneous_gather, homogeneous_bases = mgather(Body)
+        @test homogeneous_bases == [nleaves(Body)]
+        @test homogeneous_gather(buffer, buffer, (2,)) === body
     end
 end
 
