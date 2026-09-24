@@ -23,20 +23,20 @@ function continuous_skeleton()
 
     @testset "a simulation owns one executor, and it is the one the loop runs (§9.2, §9.7)" begin
         sim = Simulation(feedback_model(); h = 1//100)
-        ex = sim.exec
-        @test ex isa Executor{Float64}
-        @test ex.act === activation(sim.deployment.build, Float64)   # the activation it was compiled from
-        @test phase_bodies(sim) === ex.bodies             # the loop's bodies, not a re-derivation
+        exec = sim.exec
+        @test exec isa Executor{Float64}
+        @test exec.act === activation(sim.deployment.build, Float64)  # the activation it was compiled from
+        @test phase_bodies(sim) === exec.bodies           # the loop's bodies, not a re-derivation
 
         # The evaluation entry points are the executor's; the `Simulation` forms
         # delegate to the one executor it owns, buffers and all.
         init!(sim, fragment(inputs = (ref = 0.5,)))
         evaluate!(sim)
-        ẋ = copy(ex.ẋbuf)
-        fill!(ex.ẋbuf, 0.0)
-        evaluate!(ex)
-        @test ex.ẋbuf == ẋ
-        @test @ballocated(evaluate!($ex)) == 0
+        ẋ = copy(exec.ẋbuf)
+        fill!(exec.ẋbuf, 0.0)
+        evaluate!(exec)
+        @test exec.ẋbuf == ẋ
+        @test @ballocated(evaluate!($exec)) == 0
     end
 
     @testset "gate 1: stepping does not allocate (§7.5)" begin
@@ -107,16 +107,16 @@ function continuous_state_return()
         # `q₀ = 0` and `ref = 0` both trajectories are identically zero and the
         # comparison is vacuous.
         q₀ = SVector(1.0, 0.0)
-        a = Simulation(vector_feedback_model(; k = 4.0, q₀); h = 1//100)
-        f = Simulation(feedback_model(; k = 4.0, q₀); h = 1//100)
-        init!(a)
-        init!(f, fragment(inputs = (ref = 0.0,)))
-        run!(a; t_end = 2.0)
-        run!(f; t_end = 2.0)
+        vector_sim = Simulation(vector_feedback_model(; k = 4.0, q₀); h = 1//100)
+        scalar_sim = Simulation(feedback_model(; k = 4.0, q₀); h = 1//100)
+        init!(vector_sim)
+        init!(scalar_sim, fragment(inputs = (ref = 0.0,)))
+        run!(vector_sim; t_end = 2.0)
+        run!(scalar_sim; t_end = 2.0)
         # The same RK4 steps on the same closed loop, so this is exact agreement
         # up to the order the two right-hand sides sum their terms in.
-        @test port(a, "plant", :q) ≈ state(f, "plant").q rtol = 1e-12
-        @test state(a, "plant").q ≈ state(f, "plant").q rtol = 1e-12
+        @test port(vector_sim, "plant", :q) ≈ state(scalar_sim, "plant").q rtol = 1e-12
+        @test state(vector_sim, "plant").q ≈ state(scalar_sim, "plant").q rtol = 1e-12
     end
 end
 
