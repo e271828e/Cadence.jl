@@ -100,9 +100,9 @@ function build_schedule()
     @testset "the schedule follows the feedthrough graph (§5.3)" begin
         sim = Simulation(feedback_model(); h = 1//1000)
         # sum first (both its inputs are loop-breaking), then ctl, then plant
-        paths = [e.comp isa Sum ? :sum : e.comp isa Gain ? :ctl : :plant
+        order = [e.comp isa Sum ? :sum : e.comp isa Gain ? :ctl : :plant
                  for e in walked(sim.exec.bodies.sweep_2)]
-        @test paths == [:sum, :ctl, :plant]
+        @test order == [:sum, :ctl, :plant]
         @test length(walked(sim.exec.bodies.sweep_1)) == 1
         @test length(walked(sim.exec.bodies.rhs)) == 1
     end
@@ -112,28 +112,29 @@ function build_schedule()
         # executor: one row per component in walk order and the execution order
         # over the rows, fixed by the structure and one nominal evaluation, with
         # no scalar type in sight.
-        b = build(feedback_model())
-        outputs = b.outputs
-        plant, ctl, sm = index_of(b.structure, "plant"), index_of(b.structure, "ctl"),
-                         index_of(b.structure, "sum")
+        feedback_build = build(feedback_model())
+        outputs = feedback_build.outputs
+        plant, control, sum_ci = index_of(feedback_build.structure, "plant"),
+                                  index_of(feedback_build.structure, "ctl"),
+                                  index_of(feedback_build.structure, "sum")
         # Each row splits the declared ports into the stage-1 names and the
         # stage-2 remainder. `Plant` returns `y` from stage 1 and `power` from
         # stage 2; `Gain` and `Sum` are stage-2 only.
         @test outputs.components[plant].stage1 == [:y] && outputs.components[plant].stage2 == [:power]
-        @test isempty(outputs.components[ctl].stage1) && outputs.components[ctl].stage2 == [:out]
-        @test isempty(outputs.components[sm].stage1) && outputs.components[sm].stage2 == [:e]
+        @test isempty(outputs.components[control].stage1) && outputs.components[control].stage2 == [:out]
+        @test isempty(outputs.components[sum_ci].stage1) && outputs.components[sum_ci].stage2 == [:e]
         # The products' order, stage 1 then stage 2.
         @test _ports(outputs.components[plant]) == [:y, :power]
         # The order the testset above reads off the compiled sweep, as indices
         # into the rows.
-        @test outputs.order == [sm, ctl, plant]
+        @test outputs.order == [sum_ci, control, plant]
         @test [outputs.components[ci].path for ci in outputs.order] == ["sum", "ctl", "plant"]
 
         # The stage-1 list follows the *return*, the port list the declaration,
         # and the two are free to disagree: the product is a value table read by
         # name (§8.3).
-        b2 = build(single(SwappedPorts()))
-        row = b2.outputs.components[index_of(b2.structure, "c")]
+        swapped_build = build(single(SwappedPorts()))
+        row = swapped_build.outputs.components[index_of(swapped_build.structure, "c")]
         @test row.stage1 == [:q, :p]
         @test isempty(row.stage2)
         @test _ports(row) == [:q, :p]
@@ -170,13 +171,13 @@ function build_algebraic_cycles()
                                                  "c/out" => "d/e", "d/out" => "c/e",
                                                  "b/out" => "e/e"))))
         @test err isa DiagnosticError{Vector{Diagnostic}}
-        ds = diagnostics(err)
-        @test length(ds) == 2
-        @test ds[1].members == ["a", "b"]
-        @test ds[1].wires == ["a/out" => "b/e", "b/out" => "a/e"]
-        @test ds[2].members == ["c", "d"]
-        @test ds[2].wires == ["c/out" => "d/e", "d/out" => "c/e"]
-        @test all(d -> !("e" in d.members), ds)
+        diags = diagnostics(err)
+        @test length(diags) == 2
+        @test diags[1].members == ["a", "b"]
+        @test diags[1].wires == ["a/out" => "b/e", "b/out" => "a/e"]
+        @test diags[2].members == ["c", "d"]
+        @test diags[2].wires == ["c/out" => "d/e", "d/out" => "c/e"]
+        @test all(d -> !("e" in d.members), diags)
     end
 
     @testset "a self-wire is a one-member cluster with its wire (§5.6)" begin
@@ -290,10 +291,10 @@ function build_algebraic_cycles()
         # other's set, so the global tracer refuses and the local one decides on
         # redrawn primals. `F` routes `f` on both arms, so the loop through `g1`
         # survives the sampled map and the cluster is real.
-        loop = Group((m = Piecewise(), g1 = Gain(1.0), g2 = Gain(1.0));
-                     wires = ("m/F" => "g1/e", "g1/out" => "m/f", "g1/out" => "m/v",
-                              "m/F" => "g2/e", "g2/out" => "m/g"))
-        d = only(diagnostics(failure(() -> build(loop))))
+        model = Group((m = Piecewise(), g1 = Gain(1.0), g2 = Gain(1.0));
+                      wires = ("m/F" => "g1/e", "g1/out" => "m/f", "g1/out" => "m/v",
+                               "m/F" => "g2/e", "g2/out" => "m/g"))
+        d = only(diagnostics(failure(() -> build(model))))
         @test d.classification === :real
         @test d.traced == ["m" => :sampled, "g1" => :global, "g2" => :global]
         # `v` rides the positive arm's arithmetic, so its hop lives on the sampled
@@ -316,10 +317,12 @@ function build_algebraic_cycles()
 
         # The seed is fixed and per member, so two builds of one model agree —
         # `AlgebraicCycle` has no `==`, so the payload is compared field by field.
-        a = only(diagnostics(failure(() -> build(loop))))
-        b = only(diagnostics(failure(() -> build(loop))))
-        @test (a.members, a.wires, a.classification, a.dead, a.traced) ==
-              (b.members, b.wires, b.classification, b.dead, b.traced)
+        initial = only(diagnostics(failure(() -> build(model))))
+        repeated = only(diagnostics(failure(() -> build(model))))
+        @test (initial.members, initial.wires, initial.classification,
+               initial.dead, initial.traced) ==
+              (repeated.members, repeated.wires, repeated.classification,
+               repeated.dead, repeated.traced)
     end
 
     @testset "the tracer unions sets and refuses a tainted branch (§5.6)" begin
@@ -334,18 +337,19 @@ function build_algebraic_cycles()
     end
 
     @testset "the unary list and the norms carry the set through (§5.6)" begin
-        t = Tracer{true}(0.5, 0b1)
-        @test atan(t).deps == 0b1
-        @test asinh(t).deps == 0b1
+        tracer = Tracer{true}(0.5, 0b1)
+        @test atan(tracer).deps == 0b1
+        @test asinh(tracer).deps == 0b1
         # Base routes `deg2rad` through `float`, the identity here: without its
         # own method the fallback recurses instead of raising a `MethodError`.
-        @test deg2rad(t) isa Tracer{true}
-        @test deg2rad(t).deps == 0b1
+        @test deg2rad(tracer) isa Tracer{true}
+        @test deg2rad(tracer).deps == 0b1
         # The overflow-scaling guards of `hypot` and `norm` compare their
         # operands, which the global tracer refuses; the union answers instead.
-        t1, t2, t3 = Tracer{true}(1.0, 0b1), Tracer{true}(2.0, 0b10), Tracer{true}(3.0, 0b100)
-        @test hypot(t1, t2, t3).deps == 0b111
-        v = SVector(t1, t2, t3)
+        tracer1, tracer2, tracer3 = Tracer{true}(1.0, 0b1), Tracer{true}(2.0, 0b10),
+                                     Tracer{true}(3.0, 0b100)
+        @test hypot(tracer1, tracer2, tracer3).deps == 0b111
+        v = SVector(tracer1, tracer2, tracer3)
         @test norm(v).deps == 0b111
         @test norm(v, 1).deps == 0b111
     end
@@ -361,14 +365,16 @@ function build_port_classes()
         # `init_m`, both returned by `output_state`, `M_shaft` the one stage-2
         # product. The products' order is the invariant every downstream reader
         # takes its stage-2 tail off — stage 1, then stage 2.
-        b = build(fed(Motor(1.0), "M_load"))
-        i = index_of(b.structure, "c")
-        @test Tuple(b.outputs.components[i].stage1) === (:ω, :running)
-        @test keys(activation(b, Float64).products[i]) === (:ω, :running, :M_shaft)
+        motor_build = build(fed(Motor(1.0), "M_load"))
+        ci = index_of(motor_build.structure, "c")
+        @test Tuple(motor_build.outputs.components[ci].stage1) === (:ω, :running)
+        @test keys(activation(motor_build, Float64).products[ci]) ===
+              (:ω, :running, :M_shaft)
         # The hand-down carries the stage-1 return, so `y_x` is now in stage 2's
         # bundle.
         @test bundle_names(output_direct, Motor(1.0), CONTINUOUS,
-                           tuple(b.outputs.components[i].stage1...)) === (:x, :m, :u, :y_x, :t)
+                           tuple(motor_build.outputs.components[ci].stage1...)) ===
+              (:x, :m, :u, :y_x, :t)
     end
 
     @testset "a loop closes through a stage-1 port carrying the state vector (§5.3, §5.5)" begin
@@ -408,8 +414,8 @@ function build_port_classes()
         # At the nominal activation the type test is exact; at the walking one
         # the returned port no longer embeds, and taking it stripped would be a
         # stop-gradient the author never wrote.
-        b = build(single(PinnedState()))
-        d = only(diagnostics(failure(() -> activation(b, D8))))
+        pinned_build = build(single(PinnedState()))
+        d = only(diagnostics(failure(() -> activation(pinned_build, D8))))
         @test d isa ConformanceFailure && d.what == "output_state" &&
               d.reason === :field_type && d.field === :q &&
               d.observed === D8 && d.declared === Float64
@@ -463,9 +469,9 @@ function build_root_input_type()
         # The meet itself, at a seeded activation: one pinning consumer pins the
         # whole root input, whichever order it is declared in, and the tolerant
         # consumer still walks downstream of its own frozen read (D-168, D-236).
-        for m in (_fanned_root(RealEntry(), PinnedEntry()),
-                  _fanned_root(PinnedEntry(), RealEntry()))
-            sim = Simulation(build(m), D8; h = 1//100)
+        for model in (_fanned_root(RealEntry(), PinnedEntry()),
+                      _fanned_root(PinnedEntry(), RealEntry()))
+            sim = Simulation(build(model), D8; h = 1//100)
             @test port(sim, "", :in) isa Float64
             @test port(sim, "a", :y) isa D8
         end
@@ -582,11 +588,11 @@ output_direct(::BundleA, (; u)) = (y = u.q.a,)
 function build_wire_clauses()
     @testset "an abstract entry takes any concrete producer below it (§4.4, §8.2, D-236)" begin
         for (src, want) in ((FieldSourceA(), 2.0), (FieldSourceB(), 3.0))
-            m = Group((; s = src, r = FieldReader()); wires = ("s/fld" => "r/f",))
-            b = build(m)
-            @test b isa Build
+            model = Group((; s = src, r = FieldReader()); wires = ("s/fld" => "r/f",))
+            field_build = build(model)
+            @test field_build isa Build
             for A in (Float64, D8)
-                sim = Simulation(b, A; h = 1//100)
+                sim = Simulation(field_build, A; h = 1//100)
                 init!(sim)
                 run!(sim; t_end = 0.02)
                 # the bundle field carried the concrete type, not the bound
@@ -596,16 +602,17 @@ function build_wire_clauses()
 
         # An abstract numeric entry: `Real` takes the activation scalar, and the
         # consumer's own math promotes behind it.
-        b = build(Group((; src = NomSource(), r = RealReader()); wires = ("src/val" => "r/u",)))
-        @test b isa Build
-        @test port(Simulation(b, D8; h = 1//100), "r", :out) isa D8
+        real_build = build(Group((; src = NomSource(), r = RealReader());
+                                 wires = ("src/val" => "r/u",)))
+        @test real_build isa Build
+        @test port(Simulation(real_build, D8; h = 1//100), "r", :out) isa D8
 
         # An abstract container entry: the walking producer matches as declared,
         # the pinned one through the lifted candidate. Its `Float64` sum embeds at
         # the write into a cell declared `T` (D-235).
         for src in (VecSource(), PinnedVecSource())
-            m = Group((; s = src, r = VecReader()); wires = ("s/v" => "r/v",))
-            sim = Simulation(build(m), D8; h = 1//100)
+            model = Group((; s = src, r = VecReader()); wires = ("s/v" => "r/v",))
+            sim = Simulation(build(model), D8; h = 1//100)
             @test port(sim, "r", :n) isa D8
         end
     end
@@ -621,17 +628,17 @@ function build_wire_clauses()
         # Two such faces in one model report together: the pass collects (§13.1).
         err2 = failure(() -> build(Group((; r = FieldReader(), q = RealReader());
                                          inputs = ("f" => "r/f", "u" => "q/u"))))
-        ds = diagnostics(err2)
-        @test all(x -> x isa AbstractAtRoot, ds)
-        @test Set(x.face for x in ds) == Set([:f, :u])
+        diags = diagnostics(err2)
+        @test all(x -> x isa AbstractAtRoot, diags)
+        @test Set(x.face for x in diags) == Set([:f, :u])
     end
 
     @testset "an abstract co-consumer votes but does not type a root input (§8.2, D-236)" begin
         # The concrete entry fixes the type; the abstract one is checked against
         # it and takes part in the meet, so no `RootInputTypeConflict`.
-        b = build(_fanned_v(VecReader(), SVecEntry()))
-        @test b isa Build
-        @test port(Simulation(b, D8; h = 1//100), "", :in) isa SVector{3,D8}
+        vec_build = build(_fanned_v(VecReader(), SVecEntry()))
+        @test vec_build isa Build
+        @test port(Simulation(vec_build, D8; h = 1//100), "", :in) isa SVector{3,D8}
 
         # Beside a pinning co-consumer the whole root input pins (D-168's meet).
         simp = Simulation(build(_fanned_v(VecReader(), PinnedSVecEntry())), D8; h = 1//100)
@@ -661,9 +668,9 @@ function build_wire_clauses()
         # One leaf deep the offending leaf is named by its dotted spelling.
         err2 = failure(() -> build(Group((; s = FrameSource(), r = FrameReader());
                                          wires = ("s/f" => "r/f",))))
-        d2 = only(diagnostics(err2))
-        @test d2 isa WalkingFaceAtFrozenEntry && d2.leaf == "p[1]"
-        @test d2.declared === Float64 && d2.observed === Marker
+        d = only(diagnostics(err2))
+        @test d isa WalkingFaceAtFrozenEntry && d.leaf == "p[1]"
+        @test d.declared === Float64 && d.observed === Marker
 
         # D-167's tier scope: a discrete consumer takes the bound clause alone, so
         # a continuous producer feeding a pinned discrete entry stays legal.
@@ -683,9 +690,9 @@ function build_wire_clauses()
         # Two bad wires in one model are two diagnostics in one throw.
         err2 = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(), e = BoolEntry());
                                          wires = ("src/val" => "c/u", "src/val" => "e/u"))))
-        ds = diagnostics(err2)
-        @test length(ds) == 2 && all(x -> x isa WireTypeMismatch, ds)
-        @test Set(x.path for x in ds) == Set(["c", "e"])
+        diags = diagnostics(err2)
+        @test length(diags) == 2 && all(x -> x isa WireTypeMismatch, diags)
+        @test Set(x.path for x in diags) == Set(["c", "e"])
 
         # A bound failure, a walk failure and an abstract-at-root face merge.
         err3 = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(),
@@ -784,9 +791,9 @@ function build_port_type_refusals()
         err2 = failure(() -> build(Group((; c = MutableSource(), q = Query());
                                          inputs = ("terrain" => "q/terrain",))))
         @test err2 isa DiagnosticError
-        ds = diagnostics(err2)
-        @test length(ds) == 2 && all(d -> d isa IllegalPortType, ds)
-        @test Set(d.reason for d in ds) == Set([:mutable, :handle_at_root])
+        diags = diagnostics(err2)
+        @test length(diags) == 2 && all(d -> d isa IllegalPortType, diags)
+        @test Set(d.reason for d in diags) == Set([:mutable, :handle_at_root])
     end
 
     @testset "a root input the synthesis chain cannot value is `MissingProbeValue`, collected (§9.3, D-051)" begin
@@ -799,15 +806,16 @@ function build_port_type_refusals()
 
         # The remedy the message names: an override, and the value it returns is
         # the one the layout carries.
-        b = build(Group((; c = Synthesized()); inputs = ("in" => "c/q",)))
-        @test (:in, WithProbe(0.0, 1.0)) in activation(b, Float64).layout.root_inputs
+        synth_build = build(Group((; c = Synthesized()); inputs = ("in" => "c/q",)))
+        @test (:in, WithProbe(0.0, 1.0)) in
+              activation(synth_build, Float64).layout.root_inputs
 
         # Collected: two unsynthesizable faces are one throw carrying both.
         err2 = failure(() -> build(Group((; a = Unsynthesized(), b = Unsynthesized());
                                          inputs = ("in1" => "a/q", "in2" => "b/q"))))
-        ds2 = diagnostics(err2)
-        @test length(ds2) == 2 && all(d -> d isa MissingProbeValue, ds2)
-        @test Set(d.face for d in ds2) == Set([:in1, :in2])
+        diags = diagnostics(err2)
+        @test length(diags) == 2 && all(d -> d isa MissingProbeValue, diags)
+        @test Set(d.face for d in diags) == Set([:in1, :in2])
 
         # An override's own `MethodError` is not a missing synthesis: it
         # propagates as itself, never as this kind.
@@ -826,11 +834,11 @@ function build_port_type_refusals()
         # Built from a literal, the nominal build runs and the `Dual` activation
         # is refused at the probe with both types named, where the tip before
         # D-237's identity rule died in a raw `MethodError` from the embedding.
-        m = offset_model(OffsetAtLiteral())
-        sim = Simulation(m; h = 1//10)
+        model = offset_model(OffsetAtLiteral())
+        sim = Simulation(model; h = 1//10)
         init!(sim)
         @test port(sim, "q", :h) == 2.0
-        d = only(diagnostics(failure(() -> Simulation(m, D8; h = 1//10))))
+        d = only(diagnostics(failure(() -> Simulation(model, D8; h = 1//10))))
         @test d isa ConformanceFailure && d.reason === :field_type && d.field === :terrain
         @test d.observed === OffsetField{Float64} && d.declared === OffsetField{D8}
     end
@@ -998,14 +1006,16 @@ state_derivative(::InterruptInside, (; x)) = (; a = 0.0)
 struct LateRead <: AbstractComponent end
 init_x(::LateRead) = (; a = 0.0)
 output_types(::LateRead, ::Type{T}) where {T <: Real} = (p = T,)
-output_state(::LateRead, b) = b.t > 0.05 ? (p = b.m.phase,) : (p = b.x.a,)
+output_state(::LateRead, bundle) =
+    bundle.t > 0.05 ? (p = bundle.m.phase,) : (p = bundle.x.a,)
 state_derivative(::LateRead, (; x)) = (; a = 1.0)
 
 # The same lateness on the author's own struct: stays a raw `FieldError`.
 struct LateOwnMiss <: AbstractComponent end
 init_x(::LateOwnMiss) = (; a = 0.0)
 output_types(::LateOwnMiss, ::Type{T}) where {T <: Real} = (p = T,)
-output_state(::LateOwnMiss, b) = b.t > 0.05 ? (p = Own(b.x.a).b,) : (p = b.x.a,)
+output_state(::LateOwnMiss, bundle) =
+    bundle.t > 0.05 ? (p = Own(bundle.x.a).b,) : (p = bundle.x.a,)
 state_derivative(::LateOwnMiss, (; x)) = (; a = 1.0)
 
 function build_user_code_framing()
@@ -1153,10 +1163,10 @@ output_state(::AnonBound, (; t)) = (a = 1.0,)
 
 function build_label_ports()
     @testset "an enum port is one pinned leaf of its own eltype (§4.1, §8.2)" begin
-        m = Group((; sel = GearSelector(), rd = GearReader());
-                  wires = ("sel/gear" => "rd/gear",), inputs = ("x" => "rd/x",))
-        b = build(m)
-        sim = Simulation(b; h = 1//10)
+        model = Group((; sel = GearSelector(), rd = GearReader());
+                      wires = ("sel/gear" => "rd/gear",), inputs = ("x" => "rd/x",))
+        gear_build = build(model)
+        sim = Simulation(gear_build; h = 1//10)
         init!(sim, fragment(inputs = (x = 1.0,)))
         @test port(sim, "sel", :gear) === up
         @test port(sim, "rd", :code) == 1
@@ -1167,47 +1177,51 @@ function build_label_ports()
         # At the walking activation the real walks and the enum pins; the
         # discrete producer is outside that activation's executable set (D-052),
         # so its cell holds the nominal probe's product.
-        simd = Simulation(b, D8; h = 1//10)
+        simd = Simulation(gear_build, D8; h = 1//10)
         init!(simd, fragment(inputs = (x = 1.0,)))
         @test port(simd, "rd", :drag) isa D8
         @test port(simd, "sel", :gear) === up
     end
 
     @testset "an enum root input is synthesized as the first instance (§9.3, D-051)" begin
-        m = Group((; rd = GearReader()); inputs = ("gear" => "rd/gear", "x" => "rd/x"))
-        b = build(m)
-        @test activation(b, Float64).products[index_of(b.structure, "rd")].code == 1
+        model = Group((; rd = GearReader()); inputs = ("gear" => "rd/gear", "x" => "rd/x"))
+        gear_root_build = build(model)
+        @test activation(gear_root_build, Float64).products[
+                  index_of(gear_root_build.structure, "rd")].code == 1
         # Probe values are probe-scoped: the run's value is the one the fragment
         # authored, and an enum converts through the condition apply as itself.
-        sim = Simulation(b; h = 1//10)
+        sim = Simulation(gear_root_build; h = 1//10)
         init!(sim, fragment(inputs = (gear = down, x = 1.0)))
         @test port(sim, "", :gear) === down
         @test port(sim, "rd", :code) == 2
     end
 
     @testset "an enum mode is returned from stage 1 (§7.5)" begin
-        b = build(single(GearMode()))
-        i = index_of(b.structure, "c")
-        s1 = Tuple(b.outputs.components[i].stage1)
-        @test activation(b, Float64).products[i][s1] === (gear = up, y = 0.0)
-        @test keys(activation(b, D8).products[i][s1]) === (:gear, :y)
-        sim = Simulation(b, D8; h = 1//10)
+        gear_mode_build = build(single(GearMode()))
+        ci = index_of(gear_mode_build.structure, "c")
+        stage1 = Tuple(gear_mode_build.outputs.components[ci].stage1)
+        @test activation(gear_mode_build, Float64).products[ci][stage1] ===
+              (gear = up, y = 0.0)
+        @test keys(activation(gear_mode_build, D8).products[ci][stage1]) === (:gear, :y)
+        sim = Simulation(gear_mode_build, D8; h = 1//10)
         @test port(sim, "c", :gear) === up
     end
 
     @testset "a Symbol port is one opaque leaf, with no synthesis at a root (§4.3, D-243)" begin
-        m = Group((; sel = PhaseSelector(), rd = PhaseReader());
-                  wires = ("sel/phase" => "rd/phase",))
-        sim = Simulation(build(m); h = 1//10)
+        model = Group((; sel = PhaseSelector(), rd = PhaseReader());
+                      wires = ("sel/phase" => "rd/phase",))
+        sim = Simulation(build(model); h = 1//10)
         init!(sim, fragment())
         @test port(sim, "sel", :phase) === :idle && !port(sim, "rd", :armed)
         run!(sim; t_end = 0.1)
         @test port(sim, "sel", :phase) === :armed && port(sim, "rd", :armed)
 
         # The mode label is returned (§7.5's remedy on the idiomatic label).
-        b = build(single(PhaseMode()))
-        i = index_of(b.structure, "c")
-        @test activation(b, Float64).products[i][Tuple(b.outputs.components[i].stage1)] === (phase = :idle, y = 0.0)
+        mode_build = build(single(PhaseMode()))
+        ci = index_of(mode_build.structure, "c")
+        @test activation(mode_build, Float64).products[ci][
+                  Tuple(mode_build.outputs.components[ci].stage1)] ===
+              (phase = :idle, y = 0.0)
 
         # At a root input the leaf has no synthesis, so the refusal is the
         # opaque leaf's, ahead of `probe_value`.
@@ -1273,12 +1287,12 @@ function build_tier()
         # The base tick period is deployment's, not the build's: the same `Build`
         # deploys at any admissible grid, and the executor cannot exist before one
         # binds because `Δt`, `D` and `Φ` are entry-field data (§9.1, §9.7).
-        b = build(single(DiscreteCounter()))
-        @test b isa Build
-        d = only(diagnostics(failure(() -> Simulation(b))))
+        counter_build = build(single(DiscreteCounter()))
+        @test counter_build isa Build
+        d = only(diagnostics(failure(() -> Simulation(counter_build))))
         @test d isa DeploymentInvalid
         @test d.parameter === :h && d.reason === :missing
-        @test Simulation(b; h = 1//10) isa Simulation
+        @test Simulation(counter_build; h = 1//10) isa Simulation
     end
 
     @testset "a continuous contract bounded narrower than Real is refused (§8.5)" begin
@@ -1289,26 +1303,26 @@ function build_tier()
 
         # The anonymous form `::Type{<:AbstractFloat}` names no `T`; its bound is read
         # off the argument type.
-        da = only(diagnostics(failure(() -> build(single(AnonBound())))))
-        @test da isa TierSignatureMismatch && da.found === AbstractFloat
+        d = only(diagnostics(failure(() -> build(single(AnonBound())))))
+        @test d isa TierSignatureMismatch && d.found === AbstractFloat
 
         # The wire it feeds is skipped, so the refusal is the whole report.
-        d2 = only(diagnostics(failure(() -> build(Group((; p = NarrowOutput(), c = RealEntry());
-                                                        wires = ("p/a" => "c/u",))))))
-        @test d2 isa TierSignatureMismatch && d2.declaration === :output_types
+        d = only(diagnostics(failure(() -> build(Group((; p = NarrowOutput(), c = RealEntry());
+                                                       wires = ("p/a" => "c/u",))))))
+        @test d isa TierSignatureMismatch && d.declaration === :output_types
 
-        d3 = only(diagnostics(failure(() -> build(Group((; src = NomSource(), c = NarrowInput());
-                                                        wires = ("src/val" => "c/u",))))))
-        @test d3 isa TierSignatureMismatch && path(d3) == "c" && d3.declaration === :input_types
+        d = only(diagnostics(failure(() -> build(Group((; src = NomSource(), c = NarrowInput());
+                                                       wires = ("src/val" => "c/u",))))))
+        @test d isa TierSignatureMismatch && path(d) == "c" && d.declaration === :input_types
 
         # Both refusals and an unrelated walk failure merge into one throw.
         err = failure(() -> build(Group((; p = NarrowOutput(), n = NarrowInput(),
                                            src = NomSource(), z = FrozenEntry());
                                         wires = ("src/val" => "n/u", "src/val" => "z/u"))))
-        ds = diagnostics(err)
-        @test err isa DiagnosticError && length(ds) == 3
+        diags = diagnostics(err)
+        @test err isa DiagnosticError && length(diags) == 3
         @test Set(kinds(err)) == Set([TierSignatureMismatch, WalkingFaceAtFrozenEntry])
-        @test Set((d.path, d.declaration) for d in ds if d isa TierSignatureMismatch) ==
+        @test Set((d.path, d.declaration) for d in diags if d isa TierSignatureMismatch) ==
               Set([("p", :output_types), ("n", :input_types)])
     end
 end
@@ -1389,9 +1403,9 @@ function build_state_leaves()
         # arm that says where the value belongs; the `Float64` leaves pass.
         err = failure(() -> build(Group((; a = ModeInState(), b = NarrowState(),
                                           c = ShapedState()))))
-        ds = diagnostics(err)
-        @test all(d -> d isa IllegalStateLeaf, ds)
-        @test Set((d.path, d.name, d.declared, d.reason) for d in ds) ==
+        diags = diagnostics(err)
+        @test all(d -> d isa IllegalStateLeaf, diags)
+        @test Set((d.path, d.name, d.declared, d.reason) for d in diags) ==
               Set([("a", :gear_count, Int, :mode_value), ("a", :armed, Bool, :mode_value),
                    ("b", :q, Float32, :eltype), ("b", :v, SVector{2,Int}, :mode_value),
                    ("c", :pose, typeof((x = 0.0, v = 0.0)), :nested),
@@ -1404,9 +1418,9 @@ function build_store_values()
         # The `String` fields are refused, one throw for both stores; the `Symbol`
         # modes beside them pass.
         err = failure(() -> build(Group((; a = LabelInStore(), b = LabelInModes()))))
-        ds = diagnostics(err)
-        @test all(d -> d isa IllegalStoreField, ds)
-        @test Set((d.path, d.store, d.name, d.declared) for d in ds) ==
+        diags = diagnostics(err)
+        @test all(d -> d isa IllegalStoreField, diags)
+        @test Set((d.path, d.store, d.name, d.declared) for d in diags) ==
               Set([("a", :init_s, :label, String), ("b", :init_m, :label, String)])
     end
 end
@@ -1419,10 +1433,10 @@ function build_store_form()
         # vocabulary check never read it.
         err = failure(() -> build(Group((; a = BareState(), b = BareVector(),
                                           c = BareDiscrete(), d = BareModes()))))
-        ds = diagnostics(err)
-        @test all(d -> d isa StoreNotNamedTuple, ds)
+        diags = diagnostics(err)
+        @test all(d -> d isa StoreNotNamedTuple, diags)
         @test Set(kinds(err)) == Set([StoreNotNamedTuple])
-        @test Set((d.path, d.store, d.declared) for d in ds) ==
+        @test Set((d.path, d.store, d.declared) for d in diags) ==
               Set([("a", :init_x, SVector{3,Float64}), ("b", :init_x, Vector{Float64}),
                    ("c", :init_s, Float64), ("d", :init_m, Int)])
     end
@@ -1461,8 +1475,9 @@ function build_embed_accept()
     @testset "a mixed-leaf port embeds leaf by leaf (§4.1, §9.4, D-166)" begin
         # The enum leaf is pinned and passes through; the `Float64` beside it
         # lifts to the activation scalar as a zero-partial.
-        b = build(Group((; c = GearStateSource())))
-        v = activation(b, D8).products[index_of(b.structure, "c")].gs
+        gear_state_build = build(Group((; c = GearStateSource())))
+        v = activation(gear_state_build, D8).products[
+                index_of(gear_state_build.structure, "c")].gs
         @test v isa GearState{D8} && v.gear === down && ForwardDiff.value(v.h) == 1.0
     end
 
@@ -1480,8 +1495,8 @@ function build_embed_accept()
         # The converse is not accepted: a `Dual` at a pinned leaf is an error, with
         # the hint that names the one honest cause. It fails at the `Dual`
         # activation's own lazy derivation, not at `build` (§9.4's lazy lurk).
-        b = build(single(PinnedGetsDual()))
-        err = failure(() -> activation(b, D8))
+        dual_build = build(single(PinnedGetsDual()))
+        err = failure(() -> activation(dual_build, D8))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa ConformanceFailure && d.shape === :ports && d.reason === :field_type
@@ -1513,14 +1528,14 @@ function build_activations()
 
         # The nominal activation runs at build and *is* the Float64 activation; a
         # non-nominal one materializes at first request and is cached on the Build.
-        b = build(pair())
-        @test activation(b, Float64) === b.activations[Float64]
-        @test activation(b, D8) === activation(b, D8)
+        pair_build = build(pair())
+        @test activation(pair_build, Float64) === pair_build.activations[Float64]
+        @test activation(pair_build, D8) === activation(pair_build, D8)
 
         # The frozen reader's cells hold what the *nominal* probe computed from its
         # real upstream value — 2·(3.0 + 0.0) — not a value synthesized off its
         # declaration. Its cell pins while its producer's walks.
-        simd = Simulation(b, D8; h = 1//100)
+        simd = Simulation(pair_build, D8; h = 1//100)
         @test port(simd, "src", :val) isa D8
         @test port(simd, "rd", :out) === 6.0
 
@@ -1555,14 +1570,14 @@ function build_activations()
         # build: the cache is guarded, so every caller gets the one object the
         # first writer stored and the cache holds a single entry. Under one
         # thread the tasks serialize and the test pins the contract at no cost.
-        b = build(Group((; src = NomSource(), rd = FrozenReader());
-                        wires = ("src/val" => "rd/in",)))
-        acts = fetch.([Threads.@spawn activation(b, D8) for _ in 1:8])
+        pair_build = build(Group((; src = NomSource(), rd = FrozenReader());
+                                 wires = ("src/val" => "rd/in",)))
+        acts = fetch.([Threads.@spawn activation(pair_build, D8) for _ in 1:8])
         @test all(a -> a === first(acts), acts)
-        @test first(acts) === activation(b, D8)
+        @test first(acts) === activation(pair_build, D8)
         # Two entries: the nominal `Float64` one the build inserted, and the
         # single `D8` one the race produced.
-        @test length(b.activations) == 2
+        @test length(pair_build.activations) == 2
     end
 end
 
@@ -1610,15 +1625,15 @@ struct WarningPassthrough <: AbstractComponent
     w::WarningWires
 end
 child_connections(::WarningPassthrough) = ()
-input_connections(p::WarningPassthrough) = input_passthrough(p, "w")
-output_connections(p::WarningPassthrough) = output_passthrough(p, "w")
+input_connections(a::WarningPassthrough) = input_passthrough(a, "w")
+output_connections(a::WarningPassthrough) = output_passthrough(a, "w")
 
 struct WarningGrandparent <: AbstractComponent
     p::WarningPassthrough
 end
 child_connections(::WarningGrandparent) = ()
-input_connections(g::WarningGrandparent) = input_passthrough(g, "p")
-output_connections(g::WarningGrandparent) = output_passthrough(g, "p")
+input_connections(a::WarningGrandparent) = input_passthrough(a, "p")
+output_connections(a::WarningGrandparent) = output_passthrough(a, "p")
 
 # The did-you-mean path: the wire names a face the child does not have, so
 # endpoint resolution asks the child for both face lists to build the candidate
@@ -1663,8 +1678,8 @@ struct EmptySelectionParent <: AbstractComponent
     kid::EmptySelection
 end
 child_connections(::EmptySelectionParent) = ()
-input_connections(p::EmptySelectionParent) = input_passthrough(p, "kid")
-output_connections(p::EmptySelectionParent) = output_passthrough(p, "kid")
+input_connections(a::EmptySelectionParent) = input_passthrough(a, "kid")
+output_connections(a::EmptySelectionParent) = output_passthrough(a, "kid")
 
 function build_warnings()
     @testset "a warning raised inside a declaration body lands on the Build and is logged once at return (§9.1, D-250)" begin
@@ -1672,27 +1687,28 @@ function build_warnings()
         # channel `build` binds. The completed build carries the record and the
         # entry point logs it once at return — logging is presentation, never a
         # home — and the binding is gone once `build` returns.
-        b = @test_logs (:warn, r"^SyntheticWarning: synthetic") build(WarningWires(Gain(1.0)))
-        @test only(warnings(b)) isa SyntheticWarning
-        @test only(warnings(b)).note == "synthetic"
+        leaf_build = @test_logs (:warn, r"^SyntheticWarning: synthetic") build(
+            WarningWires(Gain(1.0)))
+        @test only(warnings(leaf_build)) isa SyntheticWarning
+        @test only(warnings(leaf_build)).note == "synthetic"
         @test BUILD_WARNINGS[] === nothing
         # One level down the count is still one: the parent's wiring names the
         # child's faces without evaluating the child's declaration bodies.
-        n = @test_logs (:warn, r"^SyntheticWarning: synthetic") build(
+        wrapped_build = @test_logs (:warn, r"^SyntheticWarning: synthetic") build(
             Group((; w = WarningWires(Gain(1.0)));
                   inputs = ("in" => "w/in",), outputs = ("w/out" => "out",)))
-        @test only(warnings(n)) isa SyntheticWarning
+        @test only(warnings(wrapped_build)) isa SyntheticWarning
         # A passthrough level asks the child for its face lists, and a second
         # level asks again: the count stays one because the walk records each
         # assembly's evaluated lists and the primitives read them (§13.3,
         # Appendix C).
-        p = @test_logs (:warn, r"^SyntheticWarning: synthetic") build(
+        passthrough_build = @test_logs (:warn, r"^SyntheticWarning: synthetic") build(
             WarningPassthrough(WarningWires(Gain(1.0))))
-        @test length(warnings(p)) == 1
-        @test only(warnings(p)) isa SyntheticWarning
-        g = @test_logs (:warn, r"^SyntheticWarning: synthetic") build(
+        @test length(warnings(passthrough_build)) == 1
+        @test only(warnings(passthrough_build)) isa SyntheticWarning
+        grandparent_build = @test_logs (:warn, r"^SyntheticWarning: synthetic") build(
             WarningGrandparent(WarningPassthrough(WarningWires(Gain(1.0)))))
-        @test length(warnings(g)) == 1
+        @test length(warnings(grandparent_build)) == 1
         # The memo is the walk's, and the binding is gone once `build` returns.
         @test WALK_FACES[] === nothing
     end
@@ -1702,32 +1718,34 @@ function build_warnings()
         # the throw renders it beside the collection. Nothing is logged: the log
         # line at return belongs to a build that completed. `failure` returns the
         # throw rather than propagating it, so `@test_logs` sees the whole call.
-        e = @test_logs failure(() -> build(WarningUnfed(Gain(1.0))))
-        @test kinds(e) == [UnconnectedInput]
-        @test length(e.warnings) == 1
+        err = @test_logs failure(() -> build(WarningUnfed(Gain(1.0))))
+        @test kinds(err) == [UnconnectedInput]
+        @test length(err.warnings) == 1
         # A warning joins no collection (Appendix C): the accessors never see it.
-        @test only(diagnostics(e)) isa UnconnectedInput
+        @test only(diagnostics(err)) isa UnconnectedInput
         # The did-you-mean path asks the child for both face lists, after the
         # walk recorded them: the throw carries one warning, not one per asker.
-        t = @test_logs failure(() -> build(WarningTypo(WarningWires(Gain(1.0)), Gain(1.0))))
-        @test UnknownPort in kinds(t)
-        @test length(t.warnings) == 1
+        err = @test_logs failure(() -> build(WarningTypo(WarningWires(Gain(1.0)), Gain(1.0))))
+        @test UnknownPort in kinds(err)
+        @test length(err.warnings) == 1
     end
 
     @testset "the empty selection lands on the Build (§8.8, D-251)" begin
         # The helper inside a declaration body has no artifact in hand, so the
         # warning reaches the `Build` through the channel and the entry point logs
         # it once at return. The model is sound, so the build completes.
-        b = @test_logs (:warn, r"^EmptyFaceSelection") build(EmptySelection(Gain(2.0), Gain(3.0)))
-        d = only(warnings(b))
+        leaf_build = @test_logs (:warn, r"^EmptyFaceSelection") build(
+            EmptySelection(Gain(2.0), Gain(3.0)))
+        d = only(warnings(leaf_build))
         @test d isa EmptyFaceSelection
         @test d.who == "input_passthrough" && d.path == "g" && d.selector === :except
         @test d.names == ["e"] && d.candidates == ["e"]
         # One passthrough level above, the parent asks the child for its face
         # lists and the count stays one: the walk evaluated the body once.
-        n = @test_logs (:warn, r"^EmptyFaceSelection") build(
+        parent_build = @test_logs (:warn, r"^EmptyFaceSelection") build(
             EmptySelectionParent(EmptySelection(Gain(2.0), Gain(3.0))))
-        @test length(warnings(n)) == 1 && only(warnings(n)) isa EmptyFaceSelection
+        @test length(warnings(parent_build)) == 1 &&
+              only(warnings(parent_build)) isa EmptyFaceSelection
     end
 
     @testset "warnings(sim) concatenates its artifacts' lists (§9.2, D-250)" begin
