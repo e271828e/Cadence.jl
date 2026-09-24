@@ -85,9 +85,9 @@ the different case, and that one throws at setup.
   world after the commit, or `nothing` when there was no commit. There is no
   `committed` flag: a converged solve is always committable (§14.8), so the
   absence of the commit *is* the absence of these numbers.
-- `status`, `nevals`, `niters` — the backend's, verbatim and authoritative over
-  nothing (D-158). `:bypassed` is the zero-decision problem's, where there was
-  no backend call at all.
+- `status`, `n_evaluations`, `n_iterations` — the backend's, verbatim and
+  authoritative over nothing (D-158). `:bypassed` is the zero-decision
+  problem's, where there was no backend call at all.
 - `saturated` — the decisions sitting at a bound at the returned point, as
   `(name, :lower | :upper)`: the classic CG-limit diagnostic (D-070).
 - `fired_events` — the events boundary zero fired at the commit, as
@@ -102,8 +102,8 @@ struct TrimReport
     tolerances::NamedTuple
     committed_residuals::Union{Nothing,NamedTuple}
     status::Symbol
-    nevals::Int
-    niters::Int
+    n_evaluations::Int
+    n_iterations::Int
     saturated::Vector{Tuple{Symbol,Symbol}}
     fired_events::Vector{Tuple{String,Symbol}}
 end
@@ -111,7 +111,8 @@ end
 # --- the backend seam (§14.8) ---------------------------------------------------
 
 """
-    solve(backend, eval!, d0, lower, upper, tol) → (; d, status, nevals, niters)
+    solve(backend, eval!, d0, lower, upper, tol) →
+        (; d, status, n_evaluations, n_iterations)
 
 The backend seam: a **pinned signature, value-passed**, one required method per
 backend (§14.8). The backend sees vectors and never names — the declared side is
@@ -183,11 +184,11 @@ function solve(backend::LevenbergMarquardt, eval!, d0::Vector{Float64},
     d, r, J = copy(d0), zeros(n_residuals), zeros(n_residuals, n_decisions)
     d_trial, r_trial, J_trial = similar(d), similar(r), similar(J)
     eval!(r, J, d)
-    n_evals, λ = 1, backend.λ₀
+    n_evaluations, λ = 1, backend.λ₀
 
     for iteration in 1:backend.maxiter
         _within(r, tol) &&
-            return (; d, status = :converged, nevals = n_evals, niters = iteration - 1)
+            return (; d, status = :converged, n_evaluations, n_iterations = iteration - 1)
         # The normal equations of the linearized step, with Marquardt's own
         # scaling: the damping rides the curvature of each column rather than
         # the identity, so a decision the residuals barely respond to is not
@@ -207,7 +208,7 @@ function solve(backend::LevenbergMarquardt, eval!, d0::Vector{Float64},
             # dressed up as convergence or as an exhausted iteration count.
             maximum(abs, d_trial .- d) ≤ eps(maximum(abs, d) + 1.0) && break
             eval!(r_trial, J_trial, d_trial)
-            n_evals += 1
+            n_evaluations += 1
             if _scaled_norm(r_trial, tol) < current_norm
                 d .= d_trial; r .= r_trial; J .= J_trial
                 λ = max(λ / 10, LM_λMIN)
@@ -217,10 +218,11 @@ function solve(backend::LevenbergMarquardt, eval!, d0::Vector{Float64},
             λ *= 10
             λ > LM_λMAX && break
         end
-        accepted || return (; d, status = :stalled, nevals = n_evals, niters = iteration)
+        accepted || return (; d, status = :stalled, n_evaluations,
+                             n_iterations = iteration)
     end
-    (; d, status = _within(r, tol) ? :converged : :maxiter, nevals = n_evals,
-       niters = backend.maxiter)
+    (; d, status = _within(r, tol) ? :converged : :maxiter, n_evaluations,
+       n_iterations = backend.maxiter)
 end
 
 # --- setup validation (§14.7, §13.1) --------------------------------------------
@@ -486,7 +488,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     r = zeros(Float64, length(tol))
     eval!(r, nothing, out.d)
     _verdict!(sim, problem, baseline, NamedTuple{decision_names}(Tuple(out.d)), r, tol,
-              out.status, out.nevals, out.niters,
+              out.status, out.n_evaluations, out.n_iterations,
               _saturated(decision_names, out.d, lower, upper), reader, t0)
 end
 
@@ -560,13 +562,13 @@ end
 # residual vector and in nothing after it (§14.8).
 function _verdict!(sim::Simulation, problem::TrimProblem, baseline, solution::NamedTuple,
                   r::Vector{Float64}, tol::Vector{Float64}, status::Symbol,
-                  nevals::Int, niters::Int, saturated::Vector{Tuple{Symbol,Symbol}},
-                  reader, t0)
+                  n_evaluations::Int, n_iterations::Int,
+                  saturated::Vector{Tuple{Symbol,Symbol}}, reader, t0)
     residual_names = keys(problem.tolerances)
     residuals = NamedTuple{residual_names}(Tuple(r))
     converged = _within(r, tol)
     converged || return TrimReport(false, solution, residuals, problem.tolerances, nothing,
-                                   status, nevals, niters, saturated,
+                                   status, n_evaluations, n_iterations, saturated,
                                    Tuple{String,Symbol}[])
 
     init!(sim, override(baseline, problem.condition(solution)); t0 = Float64(t0))
@@ -586,11 +588,12 @@ function _verdict!(sim::Simulation, problem::TrimProblem, baseline, solution::Na
     sim.exec.bodies.rhs()
     committed = NamedTuple{residual_names}(problem.residuals(gather_reads(reader, sim.exec),
                                                              solution))
-    off = Tuple{Symbol,Float64,Float64}[(k, Float64(committed[k]), tol[i])
-                                        for (i, k) in enumerate(residual_names)
-                                        if !(abs(committed[k]) ≤ tol[i])]
-    isempty(off) || @warn logline(TrimCommitResiduals(residuals = off))
+    out_of_tolerance = Tuple{Symbol,Float64,Float64}[
+        (k, Float64(committed[k]), tol[i]) for (i, k) in enumerate(residual_names)
+        if !(abs(committed[k]) ≤ tol[i])]
+    isempty(out_of_tolerance) ||
+        @warn logline(TrimCommitResiduals(residuals = out_of_tolerance))
 
-    TrimReport(true, solution, residuals, problem.tolerances, committed, status, nevals,
-               niters, saturated, fired)
+    TrimReport(true, solution, residuals, problem.tolerances, committed, status,
+               n_evaluations, n_iterations, saturated, fired)
 end

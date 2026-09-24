@@ -98,7 +98,8 @@ function test_trim()
         @test report.solution.u ≈ PEND_G_L * sin(0.5)
         @test abs(report.residuals.torque) ≤ report.tolerances.torque
         @test report.status === :converged
-        @test report.nevals ≤ 10 && report.niters ≤ 10   # exact Jacobians, quadratic (§14.7)
+        # exact Jacobians, quadratic (§14.7)
+        @test report.n_evaluations ≤ 10 && report.n_iterations ≤ 10
         @test isempty(report.saturated) && isempty(report.fired_events)
 
         # The commit is an `init!` in every respect: the lifecycle, the anchor, the
@@ -122,7 +123,7 @@ function test_trim()
         @test report.converged && report.status === :converged
         @test report.solution.θ ≈ asin(4.0 / PEND_G_L)
         @test !(report.solution.θ ≈ π - asin(4.0 / PEND_G_L))
-        @test report.niters ≤ 10
+        @test report.n_iterations ≤ 10
         # The fragment mixes a `Dual` leaf and a held `Float64` one in one payload,
         # which is §14.3's two converter arms meeting inside a single write.
         @test state(sim, "c").ω === 0.0
@@ -215,7 +216,7 @@ function test_trim()
         at_rest = Simulation(fed(Pendulum(), :u); h = 1//10)
         yes = trim!(at_rest, probe(0.0); baseline = pend_base())
         @test yes.converged && yes.status === :bypassed
-        @test yes.nevals == 1 && yes.niters == 0
+        @test yes.n_evaluations == 1 && yes.n_iterations == 0
         @test yes.solution === (;) && isempty(yes.saturated)
         @test yes.committed_residuals !== nothing && lifecycle(at_rest) === :initialized
 
