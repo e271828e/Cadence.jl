@@ -26,13 +26,14 @@ function dataplane_exchange()
         # The frame's outcome is a pure function of the drained batch: the same
         # write applied directly at the same stopped point is the same trajectory,
         # bitwise.
-        ref = Simulation(fed(Plant(), "u"); h = 1//10)
-        init!(ref, fragment(inputs = (in = 0.0,)))
-        step!(ref; t_plus = 0.3)
-        poke!(ref, "in", 1.0)                    # the counterfactual, under the data plane
-        step!(ref; t_plus = 0.5)
-        @test port(sim, "c", :y) === port(ref, "c", :y)
-        @test port(sim, "c", :power) === port(ref, "c", :power)
+        reference = Simulation(fed(Plant(), "u"); h = 1//10)
+        init!(reference, fragment(inputs = (in = 0.0,)))
+        step!(reference; t_plus = 0.3)
+        # the counterfactual, under the data plane
+        poke!(reference, "in", 1.0)
+        step!(reference; t_plus = 0.5)
+        @test port(sim, "c", :y) === port(reference, "c", :y)
+        @test port(sim, "c", :power) === port(reference, "c", :power)
     end
 
     @testset "a staged batch waits for the first frame top; one predating init! clears with it (§11.3, §12.6)" begin
@@ -79,12 +80,12 @@ function dataplane_exchange()
         run!(sim; t_end = 0.1)
         @test port(sim, "", :a) === 0.0          # nothing surviving ever named `a`
         @test port(sim, "", :b) === 4.0
-        hw = writer_status(latest(sim), "harness")
-        @test hw.totals.out_of_claim == 2 && hw.totals.type_mismatch == 1
-        @test length(hw.recent) == 3             # the one frame's snapshot carries the delta
-        ooc = only(d for d in hw.recent if d isa OutOfClaimEntry && d.face === :flaps)
+        status = writer_status(latest(sim), "harness")
+        @test status.totals.out_of_claim == 2 && status.totals.type_mismatch == 1
+        @test length(status.recent) == 3             # the one frame's snapshot carries the delta
+        ooc = only(d for d in status.recent if d isa OutOfClaimEntry && d.face === :flaps)
         @test ooc.value == 1.0 && ooc.incumbent === nothing   # no claim anywhere: no such face
-        etm = only(d for d in hw.recent if d isa EntryTypeMismatch)
+        etm = only(d for d in status.recent if d isa EntryTypeMismatch)
         @test etm.face === :a && etm.value == "high" && etm.declared === Float64
     end
 
@@ -104,26 +105,26 @@ function dataplane_exchange()
         @test snap0.t == 0.0 && snap0.frame == 0 # the boundary-zero snapshot (§14.5)
 
         step!(sim; t_plus = 0.5)
-        snap = latest(sim)
-        @test snap.frame == 5 && snap.t == sim.exec.clock.t
+        snapshot = latest(sim)
+        @test snapshot.frame == 5 && snapshot.t == sim.exec.clock.t
         # Boundary-consistent and whole-table: every port bitwise the live table's,
         # the root inputs riding along as the source cells they are (§11.2).
         for (path, name) in (("p", :y), ("p", :power),
                              ("g1", :out), ("g2", :out), ("", :u))
-            @test port(snap, path, name) === port(sim, path, name)
+            @test port(snapshot, path, name) === port(sim, path, name)
         end
 
         # The binding rule: the run moves on, the published snapshot holds.
-        y5 = port(snap, "p", :y)
+        y5 = port(snapshot, "p", :y)
         step!(sim; t_plus = 0.5)
-        @test port(snap, "p", :y) === y5
+        @test port(snapshot, "p", :y) === y5
         @test latest(sim).frame == 10
 
         # Every frame top publishes, the off-tick boundary included.
-        simo = Simulation(chain3(); h = 1//20, N_base = 2)
-        init!(simo, fragment(inputs = (u = 0.0,)))
-        run!(simo; t_end = 0.05)                         # one frame, not a base tick
-        @test latest(simo).frame == 1
+        offtick_sim = Simulation(chain3(); h = 1//20, N_base = 2)
+        init!(offtick_sim, fragment(inputs = (u = 0.0,)))
+        run!(offtick_sim; t_end = 0.05)                         # one frame, not a base tick
+        @test latest(offtick_sim).frame == 1
     end
 
     @testset "the exchange is wait-free and coherent: no reader ever sees a torn world (§11.2)" begin
@@ -133,14 +134,15 @@ function dataplane_exchange()
         reader = Threads.@spawn begin
             seen, bad, tprev, mono = 0, 0, -1.0, true
             while true
-                s = latest(sim)
-                if s !== nothing
+                snapshot = latest(sim)
+                if snapshot !== nothing
                     seen += 1
                     # In-lockstep within one snapshot: g2 was computed as 2·g1 in
                     # the same sweep, so any mix of two boundaries breaks it.
-                    port(s, "g2", :out) === 2.0 * port(s, "g1", :out) || (bad += 1)
-                    s.t ≥ tprev || (mono = false)
-                    tprev = s.t
+                    port(snapshot, "g2", :out) === 2.0 * port(snapshot, "g1", :out) ||
+                        (bad += 1)
+                    snapshot.t ≥ tprev || (mono = false)
+                    tprev = snapshot.t
                 end
                 stop[] && break                  # one final sample past the stop, so seen ≥ 1
                 yield()
