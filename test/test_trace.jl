@@ -9,7 +9,7 @@ mutable struct Nudge <: AbstractDevice
     face::String
     v::Float64
 end
-loop(d::Nudge, h) = (stage!(h, d.face => d.v); nothing)
+loop(dev::Nudge, handle) = (stage!(handle, dev.face => dev.v); nothing)
 
 # --- the input trace (§11.5, increment 23) --------------------------------------
 # The header captured at `init!` and one sparse record per drained batch behind
@@ -31,8 +31,8 @@ boundary_movers() = Group((; t = Trigger(0.5), d = DiscreteIntegrator(1.0));
 
 # One record's face, resolved the way a consumer resolves it: through the
 # writer's schema in the header (§11.5).
-recorded_faces(trc, b::TraceBatch) =
-    Symbol[last(trc.schemas[b.writer])[i] for (i, _) in b.entries]
+recorded_faces(trc, batch::TraceBatch) =
+    Symbol[last(trc.schemas[batch.writer])[i] for (i, _) in batch.entries]
 
 function trace_recording()
     @testset "one sparse record per drained batch, against the writer's schema (§11.5, D-176)" begin
@@ -43,13 +43,13 @@ function trace_recording()
         stage!(sim, "b" => 1.0)
         step!(sim)
         trc = trace(sim)
-        b = only(trc.batches)
-        @test b.frame == 1                     # the drain precedes the step increment
-        @test b.writer == 1                    # the harness writer, sole writer here
-        @test first(trc.schemas[b.writer]) == "harness"
-        (pos, v) = only(b.entries)             # sparse: the touched position alone
+        batch = only(trc.batches)
+        @test batch.frame == 1                     # the drain precedes the step increment
+        @test batch.writer == 1                    # the harness writer, sole writer here
+        @test first(trc.schemas[batch.writer]) == "harness"
+        (pos, v) = only(batch.entries)             # sparse: the touched position alone
         @test pos == 2 && v === 1.0            # `b` is position 2 of {a, b, c}
-        @test recorded_faces(trc, b) == [:b]
+        @test recorded_faces(trc, batch) == [:b]
         @test trc.frames == 1
 
         # A frame nobody staged into records nothing and still advances the count:
@@ -63,9 +63,9 @@ function trace_recording()
         stage!(sim, "a" => 1.0)
         stage!(sim, "c" => 2.0, "a" => 3.0)
         step!(sim)
-        b = last(trace(sim).batches)
-        @test b.frame == 3 && recorded_faces(trace(sim), b) == [:a, :c]
-        @test [v for (_, v) in b.entries] == [3.0, 2.0]
+        batch = last(trace(sim).batches)
+        @test batch.frame == 3 && recorded_faces(trace(sim), batch) == [:a, :c]
+        @test [v for (_, v) in batch.entries] == [3.0, 2.0]
 
         # The quiet frame stays free: the trace's drain count is one field write,
         # and nothing is recorded where nothing was drained (§11.1, D-260).
@@ -75,23 +75,23 @@ function trace_recording()
     @testset "the header is the pre-sequence state, resolved (§11.5, §14.5, D-038)" begin
         sim = Simulation(boundary_movers(); h = 1//10)
         init!(sim, fragment(inputs = (sig = 1.0, e = 2.0)))
-        h = trace(sim).header
+        header = trace(sim).header
         # `flat.paths` is ["t", "d"]: the trigger's modes and the integrator's state.
-        @test h.m == Any[(state = :armed, count = 0), nothing]
-        @test h.s == Any[nothing, (acc = 0.0,)]
+        @test header.m == Any[(state = :armed, count = 0), nothing]
+        @test header.s == Any[nothing, (acc = 0.0,)]
         # …while boundary zero has already fired the guard and run the due `state_update`.
         @test modes(sim, "t") == (state = :fired, count = 1)
         @test state(sim, "d") == (acc = 0.2,)
 
         # The root inputs ride along as resolved values (§11.5): neither face is
         # ever staged, so no batch would carry them and replay would have nothing.
-        @test h.root_inputs == Pair{Symbol,Any}[:sig => 1.0, :e => 2.0]
+        @test header.root_inputs == Pair{Symbol,Any}[:sig => 1.0, :e => 2.0]
 
         # The `Deployment` itself, captured at the same instant as the stores
         # (§11.5, D-255): replay compares the two as values, and `t₀` rides
         # beside it, applied rather than compared (§12.7).
-        @test h.deployment == sim.deployment && h.t₀ === 0.0
-        @test h.layout.paths == ["t", "d"] && h.layout.root_faces == [:sig, :e]
+        @test header.deployment == sim.deployment && header.t₀ === 0.0
+        @test header.layout.paths == ["t", "d"] && header.layout.root_faces == [:sig, :e]
     end
 
     @testset "the kill switch, and the clearing at `init!` (§11.5, D-029)" begin
@@ -126,9 +126,9 @@ function trace_recording()
         stage!(sim, "b" => 1.0)
         step!(sim)                                   # frame 1, against the whole surface
 
-        hd = attach!(sim, Pad("d"), Enumerated("a"))  # a stopped-sim roster change
+        handle = attach!(sim, Pad("d"), Enumerated("a"))  # a stopped-sim roster change
         stage!(sim, "b" => 2.0)                      # the harness surface is {b, c} now
-        stage!(hd, "a" => 5.0)
+        stage!(handle, "a" => 5.0)
         step!(sim)                                   # frame 2, in the drain's own order
 
         trc = trace(sim)
@@ -138,14 +138,17 @@ function trace_recording()
         @test trc.schemas[2] == ("device 1 (Pad)" => [:a])
         @test trc.schemas[3] == ("harness" => [:b, :c])
 
-        (b1, b2, b3) = trc.batches
+        (batch1, batch2, batch3) = trc.batches
         # `b` is position 2 of the old schema and position 1 of the new one, and both
         # records resolve to the same face — which is why the list may not be rewritten.
-        @test b1.frame == 1 && b1.writer == 1 && b1.entries == Pair{Int,Any}[2 => 1.0]
-        @test b2.frame == 2 && b2.writer == 2 && b2.entries == Pair{Int,Any}[1 => 5.0]
-        @test b3.frame == 2 && b3.writer == 3 && b3.entries == Pair{Int,Any}[1 => 2.0]
-        @test recorded_faces(trc, b1) == [:b] && recorded_faces(trc, b3) == [:b]
-        @test recorded_faces(trc, b2) == [:a]
+        @test batch1.frame == 1 && batch1.writer == 1 &&
+              batch1.entries == Pair{Int,Any}[2 => 1.0]
+        @test batch2.frame == 2 && batch2.writer == 2 &&
+              batch2.entries == Pair{Int,Any}[1 => 5.0]
+        @test batch3.frame == 2 && batch3.writer == 3 &&
+              batch3.entries == Pair{Int,Any}[1 => 2.0]
+        @test recorded_faces(trc, batch1) == [:b] && recorded_faces(trc, batch3) == [:b]
+        @test recorded_faces(trc, batch2) == [:a]
 
         # A detach appends again, and the batches recorded under the wider set stand.
         detach!(sim, sim.plane.roster[1].dev)
@@ -153,9 +156,10 @@ function trace_recording()
         step!(sim)
         trc = trace(sim)
         @test length(trc.schemas) == 4
-        b4 = last(trc.batches)
-        @test b4.frame == 3 && b4.writer == 4 && recorded_faces(trc, b4) == [:a]
-        @test trc.batches[1:3] == [b1, b2, b3]        # the earlier records, untouched
+        batch4 = last(trc.batches)
+        @test batch4.frame == 3 && batch4.writer == 4 && recorded_faces(trc, batch4) == [:a]
+        @test trc.batches[1:3] ==
+              [batch1, batch2, batch3]        # the earlier records, untouched
         # The ordinal a record carries is the trace's own drain count (D-260):
         # advanced at the top of the drain, one per frame, so after three frames
         # it is the clock's step and the last batch's `frame` is it.
@@ -227,8 +231,8 @@ function trace_entry_pass()
         # cell-size list both move, and both are `:store`.
         err = failure(() -> _compile_feed(Simulation(extra_component(); h = 1//10), trc))
         @test err isa DiagnosticError && all(d isa ReplayHeaderMismatch for d in diagnostics(err))
-        paths = only(d for d in diagnostics(err) if d.name === :paths)
-        @test paths.what === :store && paths.expected == ["s", "g"] && paths.found == ["s", "g", "k"]
+        d = only(d for d in diagnostics(err) if d.name === :paths)
+        @test d.what === :store && d.expected == ["s", "g"] && d.found == ["s", "g", "k"]
         @test any(d -> d.what === :store && d.name === :sizes, diagnostics(err))
 
         # The seven trajectory-determining parameters, one assertion each where the
@@ -339,8 +343,8 @@ function trace_entry_pass()
 
     @testset "a valid trace normalizes to compiled scatters, in drain order (§12.7, D-101)" begin
         trc = recorded_session()
-        tgt = replay_target()
-        feed = _compile_feed(tgt, trc)
+        target = replay_target()
+        feed = _compile_feed(target, trc)
         @test [r.frame for r in feed.records] == [1, 2]
         @test feed.next == 1 && length(feed.records) == 2
         # The recorded batch rides beside its thunk: a replay re-records, and what it
@@ -349,7 +353,7 @@ function trace_entry_pass()
 
         # The thunks *are* the recording, applied to this build's cells: sparse, so
         # an untouched face keeps whatever the target's own header put there.
-        cells() = (port(tgt, "", :a), port(tgt, "", :b), port(tgt, "", :c))
+        cells() = (port(target, "", :a), port(target, "", :b), port(target, "", :c))
         @test cells() == (0.0, 0.0, 0.0)
         feed.records[1].thunk()
         @test cells() == (0.0, 1.0, 0.0)
@@ -397,13 +401,14 @@ snap_cells(s::Snapshot) =
     Any[gather_cell(s.store, s.layout.addr[k]) for k in sort!(collect(keys(s.layout.addr)))]
 
 # Two sessions' logs, boundary for boundary: the `t` stamps and every cell.
-same_trajectory(a, b) =
-    length(a) == length(b) && all(x.t == y.t && x.frame == y.frame &&
-                                  snap_cells(x) == snap_cells(y) for (x, y) in zip(a, b))
+same_trajectory(candidate, reference) =
+    length(candidate) == length(reference) &&
+    all(x.t == y.t && x.frame == y.frame && snap_cells(x) == snap_cells(y)
+        for (x, y) in zip(candidate, reference))
 
-# The frame-top publication of frame `k`: a frame with a `t*` boundary publishes
+# The frame-top publication of frame `frame`: a frame with a `t*` boundary publishes
 # more than once under the same ordinal, and the frame's own boundary is last.
-at_frame(snaps, k::Int) = last(s for s in snaps if s.frame == k)
+at_frame(snaps, frame::Int) = last(s for s in snaps if s.frame == frame)
 
 # A recorded session over `replay_model()`, staged from the harness across
 # frames: eight frames, batches at 1 and 4, two localized resets inside.
@@ -453,13 +458,13 @@ function trace_replay_loop()
 
         # …as an *equal value*, never the recording's own objects: the two traces are
         # two values, so a continuation's growth cannot reach the `Trace` in hand.
-        rec = trace(sim2)
-        @test all(rec.batches[i] !== trc.batches[i] for i in eachindex(trc.batches))
-        @test rec.header.x !== trc.header.x && rec.header.x == trc.header.x
-        @test rec.header.s !== trc.header.s && rec.header.m !== trc.header.m
-        @test rec.header.root_inputs !== trc.header.root_inputs
-        @test rec.header.root_inputs == trc.header.root_inputs
-        @test rec.schemas !== trc.schemas
+        recording = trace(sim2)
+        @test all(recording.batches[i] !== trc.batches[i] for i in eachindex(trc.batches))
+        @test recording.header.x !== trc.header.x && recording.header.x == trc.header.x
+        @test recording.header.s !== trc.header.s && recording.header.m !== trc.header.m
+        @test recording.header.root_inputs !== trc.header.root_inputs
+        @test recording.header.root_inputs == trc.header.root_inputs
+        @test recording.schemas !== trc.schemas
 
         # §12.7's own door — `Simulation(world)` then `replay!`, no `init!` at
         # all: `replay!` *is* a door into `initialized`, so it owes one to nothing.
@@ -513,7 +518,7 @@ function trace_replay_loop()
 
     @testset "`to_time` addresses the same halt by time (§12.7, D-219)" begin
         (sim, trc) = recorded_run()
-        prefix(k) = [s for s in logged(sim) if s.frame ≤ k]
+        prefix(frame) = [s for s in logged(sim) if s.frame ≤ frame]
 
         # On grid: the time of boundary 5 halts *at* 5, never at the one below it.
         on = replay_twin()
@@ -550,19 +555,19 @@ function trace_replay_loop()
 
         # The two spellings are of one halt, so both together is a refusal, not a
         # precedence rule the reader would have to know.
-        tgt = replay_twin()
-        d = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(tgt, trc; to_boundary = 5, to_time = 0.5))
+        target = replay_twin()
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(target, trc; to_boundary = 5, to_time = 0.5))
         @test d.call === :replay! && d.reason === :both_given
-        @test lifecycle(tgt) === :initialized && tgt.exec.clock.step == 0 && mode(tgt) === :live
+        @test lifecycle(target) === :initialized && target.exec.clock.step == 0 && mode(target) === :live
 
         # Before `t₀`, past the recording's own reach, and the two non-finites: each
         # names the argument and the value, and each precedes every write.
         for bad in (-0.1, 0.9, NaN, Inf)
-            tgt = replay_twin()
-            d = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(tgt, trc; to_time = bad))
+            target = replay_twin()
+            d = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(target, trc; to_time = bad))
             @test d.call === :replay! && d.reason === :range
             @test d.argument === :to_time && d.value === bad
-            @test lifecycle(tgt) === :initialized && mode(tgt) === :live
+            @test lifecycle(target) === :initialized && mode(target) === :live
         end
 
         # …including on a target that has never been through `init!`: a rejected
@@ -576,9 +581,9 @@ function trace_replay_loop()
         # mismatch falls through to the entry pass, which names it honestly.
         coarse = Simulation(replay_model(); h = 1//20)
         init!(coarse, fragment(inputs = (ref = 0.0, rate = 0.0)))
-        e = failure(() -> replay!(coarse, trc; to_time = 0.5))
-        @test e isa DiagnosticError && all(d isa ReplayHeaderMismatch for d in diagnostics(e))
-        @test any(d.what === :deployment && d.name === :h for d in diagnostics(e))
+        err = failure(() -> replay!(coarse, trc; to_time = 0.5))
+        @test err isa DiagnosticError && all(d isa ReplayHeaderMismatch for d in diagnostics(err))
+        @test any(d.what === :deployment && d.name === :h for d in diagnostics(err))
     end
 
     @testset "the recording bounds a replaying advance, and the end flips the mode (§12.7, D-218)" begin
@@ -591,7 +596,7 @@ function trace_replay_loop()
         # the frame budget is capped at the last recorded frame, the halt lands
         # there `initialized`, and only *then* does the mode go `:live`.
         stage!(sim2, "ref" => 99.0)                 # a live batch met by a replaying frame
-        r = sim2.run
+        run = sim2.run
         run!(sim2; t_end = 5.0)
         @test lifecycle(sim2) === :initialized && termination(sim2) === nothing
         @test !closed(sim2.run)
@@ -599,7 +604,7 @@ function trace_replay_loop()
         @test mode(sim2) === :live && sim2.run.feed === nothing
         # §12.6: the mode is read off the feed, so the flip is a *write* to the
         # run — the same object, with the same log and the same trace (D-260)
-        @test sim2.run === r && sim2.run.log === r.log && sim2.run.trace === r.trace
+        @test sim2.run === run && sim2.run.log === run.log && sim2.run.trace === run.trace
         @test same_trajectory(logged(sim2), logged(sim))    # the recording's own trajectory
         @test port(sim2, "", :ref) == 2.0                   # never the 99.0 staged into it
         seen = [d for s in logged(sim2) for w in s.status.writers if w.who == "harness"
@@ -654,16 +659,17 @@ function trace_replay_loop()
         @test sim2.exec.clock.step == 14            # it proceeded from frame 8, not from zero
         # The session leaves behind a complete, valid trace of *itself*, with the
         # recording as a bit-identical prefix and no special stitching (§12.7).
-        cont = trace(sim2)
-        @test cont.frames == 14 > trc.frames
-        @test cont.batches[1:length(trc.batches)] == trc.batches
-        @test cont.header.root_inputs == trc.header.root_inputs   # the header inherited
+        continuation = trace(sim2)
+        @test continuation.frames == 14 > trc.frames
+        @test continuation.batches[1:length(trc.batches)] == trc.batches
+        @test continuation.header.root_inputs ==
+              trc.header.root_inputs   # the header inherited
         # the recording's schema entries stand, this session's appended behind them
-        @test cont.schemas[1:length(trc.schemas)] == trc.schemas
+        @test continuation.schemas[1:length(trc.schemas)] == trc.schemas
         # the continuation's own drains write under the appended set, never the
         # recording's (D-260: the range is local to the recompile, so the batch
         # index is what names it)
-        @test last(cont.batches).writer > length(trc.schemas)
+        @test last(continuation.batches).writer > length(trc.schemas)
     end
 
     @testset "`live!` takes a replayed halt live, and the session records itself (§12.7, D-219)" begin
@@ -675,11 +681,11 @@ function trace_replay_loop()
         # The door moves the mode and nothing else: the trajectory stands at the
         # halt, and so does the run's trace with the header it inherited and the
         # batches it has re-recorded.
-        r = sim2.run
+        run = sim2.run
         live!(sim2)
         @test mode(sim2) === :live && sim2.run.feed === nothing
         # the flip is a write, not a rebuild: the same run, log and trace (D-260)
-        @test sim2.run === r && sim2.run.log === r.log && sim2.run.trace === r.trace
+        @test sim2.run === run && sim2.run.log === run.log && sim2.run.trace === run.trace
         @test lifecycle(sim2) === :initialized && sim2.exec.clock.step == 5
         at_halt = trace(sim2)
         @test at_halt.frames == 5 && at_halt.batches == trc.batches
@@ -699,11 +705,11 @@ function trace_replay_loop()
 
         # …and the trace left behind is one seamless recording of the session: the
         # replayed prefix bit for bit, then the frames flown live after it.
-        cont = trace(sim2)
-        @test cont.frames == 8
-        @test cont.batches[1:length(trc.batches)] == trc.batches
-        @test length(cont.batches) == length(trc.batches) + 1
-        @test last(cont.batches).frame == 6
+        continuation = trace(sim2)
+        @test continuation.frames == 8
+        @test continuation.batches[1:length(trc.batches)] == trc.batches
+        @test length(continuation.batches) == length(trc.batches) + 1
+        @test last(continuation.batches).frame == 6
     end
 
     @testset "`live!`'s refusals are loud, never a no-op (§12.7, §12.6, D-219)" begin
@@ -782,8 +788,8 @@ function trace_discarded_staging()
         # it — the account's totals, or the run's-end sweep — it is accounted once.
         who = "device 1 (Nudge)"
         @test accounted(sim2, logs, who, :replay_discarded, "ReplayDiscardedStaging")
-        r = only(discard_reports(sim2, logs, who))
-        @test occursin("[:rate]", r)
+        report = only(discard_reports(sim2, logs, who))
+        @test occursin("[:rate]", report)
         seen = [d for s in logged(sim2) for w in s.status.writers if w.who == who
                   for d in w.recent if d isa ReplayDiscardedStaging]
         @test all(d -> d.faces == [:rate] && 1 ≤ d.frame ≤ trc.frames, seen)
@@ -799,8 +805,9 @@ mutable struct HarnessPoker <: AbstractDevice
     sim::Any
 end
 needs_calling_task(::HarnessPoker) = true
-loop(d::HarnessPoker, h) = (while running(h); stage!(d.sim, "ref" => 99.0); yield(); end;
-                            nothing)
+loop(dev::HarnessPoker, handle) = (while running(handle);
+                                   stage!(dev.sim, "ref" => 99.0); yield(); end;
+                                   nothing)
 
 function trace_discarded_harness()
     @testset "live staging into the harness is discarded on its own cell (§12.7, §11.8)" begin
@@ -843,16 +850,16 @@ function trace_discarded_harness()
         # Same structure, a different gain — *parametric* difference, on the
         # non-error side of §12.7's line: the recorded inputs re-driven through a
         # modified model. Determinism is promised; reproduction is not.
-        whatif = replay_twin(9.0)
-        replay!(whatif, trc)
-        @test lifecycle(whatif) === :initialized
-        @test whatif.exec.clock.step == trc.frames
-        @test state(whatif, "plant").q != state(sim, "plant").q
+        what_if = replay_twin(9.0)
+        replay!(what_if, trc)
+        @test lifecycle(what_if) === :initialized
+        @test what_if.exec.clock.step == trc.frames
+        @test state(what_if, "plant").q != state(sim, "plant").q
 
         # Deterministic: the same what-if twice is the same trajectory.
         twin = replay_twin(9.0)
         replay!(twin, trc)
-        @test same_trajectory(logged(twin), logged(whatif))
+        @test same_trajectory(logged(twin), logged(what_if))
     end
 
     @testset "the lifecycle and range refusals of `replay!` (§12.7, §12.6)" begin
