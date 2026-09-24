@@ -16,14 +16,14 @@ function test_declare()
         @test period(Hz(50)) === 1//50
         @test period(Period(1//50)) === 1//50
         @test period(Hz(1//2)) === 2//1
-        d1 = carried(@test_throws DiagnosticError{ArgumentInvalid} Period(0.02))
-        @test d1.call === :Period && d1.reason === :inexact
-        d2 = carried(@test_throws DiagnosticError{ArgumentInvalid} Hz(0.5))
-        @test d2.call === :Hz && d2.reason === :inexact
-        d3 = carried(@test_throws DiagnosticError{ArgumentInvalid} Absolute(Hz(50), 0.001))
-        @test d3.call === :Absolute && d3.reason === :inexact
-        d4 = carried(@test_throws DiagnosticError{ArgumentInvalid} Absolute(1//50))
-        @test d4.call === :Absolute && d4.reason === :not_a_quantity
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} Period(0.02))
+        @test d.call === :Period && d.reason === :inexact
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} Hz(0.5))
+        @test d.call === :Hz && d.reason === :inexact
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} Absolute(Hz(50), 0.001))
+        @test d.call === :Absolute && d.reason === :inexact
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} Absolute(1//50))
+        @test d.call === :Absolute && d.reason === :not_a_quantity
 
         # Plain data carriers: no range checks of their own — those are the structure step's,
         # with path attribution, at the fold.
