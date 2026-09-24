@@ -5310,7 +5310,7 @@ source axis).
 
 **Position.** **The backend seam is a pinned signature, not prose** — one
 required method, `solve(backend, eval!, d0, lower, upper, tol) -> (; d, status,
-nevals, niters)`: `eval!(r, J, d)` in-place, always filling `r` (packed in
+n_evaluations, n_iterations)`: `eval!(r, J, d)` in-place, always filling `r` (packed in
 `tolerances`' field order), filling `J` iff `J !== nothing`
 (request-by-argument — a Jacobian-free backend always passes `nothing`);
 `d0`/`lower`/`upper` packed in `guess`'s field order with ±Inf = unbounded;
@@ -5318,7 +5318,7 @@ nevals, niters)`: `eval!(r, J, d)` in-place, always filling `r` (packed in
 translation), decisive of nothing; `status::Symbol` a deliberately **open** set
 recorded verbatim ([D-150][d-150] demoted status to diagnostic — a closed enum would
 launder foreign solver vocabularies back into per-backend meaning);
-`nevals`/`niters` diagnostic counts; the name `solve` rides the exported-name
+`n_evaluations`/`n_iterations` diagnostic counts; the name `solve` rides the exported-name
 audit like all API spellings.
 
 **Spec.** [§14.8][s14-8]

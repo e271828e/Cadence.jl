@@ -174,7 +174,10 @@ rulings behind them are `docs/reports/20260923_naming_inventory/README.md`.
   `_cviol`); a generic has one meaning across its methods; a private helper
   never shares an API function's name, and where the spec's verb is the
   right verb the helper appends its target (`gather_cell`, `gather_reads`,
-  `capture_stores`, `run_entry!`);
+  `capture_stores`, `run_entry!`); an underscore does not lift the rule: a
+  prefixed twin appends its target like any helper (`report_cell!`, never
+  `_report!` beside `report!`), the one exception being a keyword-to-positional
+  shim (`reads`/`_reads`), one function in two calling conventions;
 - **no local shares a name with a function** defined in the package, or with
   a Base function the package calls anywhere in `src/` (`pairs`, `count`,
   `max`, `values`, `only`, `bind`; a Base name the package never calls, such

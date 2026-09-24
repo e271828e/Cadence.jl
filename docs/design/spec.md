@@ -9494,7 +9494,7 @@ The backend contract is a **pinned signature**, value-passed, with one
 required method per backend. That one method is the [seam](#g-seam).
 
 ```julia
-solve(backend, eval!, d0, lower, upper, tol) -> (; d, status, nevals, niters)
+solve(backend, eval!, d0, lower, upper, tol) -> (; d, status, n_evaluations, n_iterations)
 ```
 
 `eval!(r, J, d)` is in-place and always fills `r`, the residual vector packed
@@ -9514,7 +9514,7 @@ backend *may* stop on, under the service's per-backend-family translation below,
 and it is decisive of nothing.
 
 The return holds `d`, the solution, `status::Symbol` from a deliberately
-**open** set, and the diagnostic counts `nevals` and `niters`. The status is
+**open** set, and the diagnostic counts `n_evaluations` and `n_iterations`. The status is
 recorded verbatim in the report because the verdict is the service's
 ([D-158][d-158]). The name `solve` is subject to the exported-name audit (`pending.md`)
 like every other API spelling. The backend sees vectors and never names, so
@@ -10449,7 +10449,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   the backend's returned point. It is backend-independent and the commit's
   gate, and the backend's status and counts are recorded diagnostically. The
   backend seam is a pinned one-method signature,
-  `solve(backend, eval!, d0, lower, upper, tol) → (; d, status, nevals, niters)`.
+  `solve(backend, eval!, d0, lower, upper, tol) → (; d, status, n_evaluations, n_iterations)`.
   The in-place `eval!(r, J, d)` fills `J` only when it is not `nothing`, the
   packed vectors are in the declared orders, and `status` is an open `Symbol`
   recorded verbatim. Non-convergence reports, never throws ([§14.7][s14-7],

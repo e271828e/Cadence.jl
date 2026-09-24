@@ -42,14 +42,6 @@ Where the reason is not given here, the cited decision carries it:
   replay is unpresented (§11.8).
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, the rig; §6.2's spellings) (M-B22).
-- **Naming, the loose ends** (the `src/` passes and the `test/` sweep
-  landed 2026-09-24; `docs/reports/20260924_naming_inventory_test/README.md`):
-  the short fields the field rule reaches that the `src/` inventory's §5
-  never named (`briefs/brief_naming_src_remainder.md`, "Noted, not in
-  scope"); `trim.jl`'s local `off`; and a ruling on whether the rule
-  against sharing an API name covers a prefixed twin (`_gather`,
-  `_report!`, `_stage!`, `_drain!`, `_reads`). A loose fix and a ruling,
-  not a sweep.
 
 ## Built in a shape the spec's is not
 
