@@ -63,9 +63,9 @@ function assembly_class()
 
         # Any component may be the root (D-208): a primitive one flattens to the
         # single leaf at the root path, its `input_types` keys the root inputs.
-        b = build(Plant())
-        @test paths(b.structure) == [""]
-        @test b.structure.root_inputs == [:u]
+        leaf_build = build(Plant())
+        @test paths(leaf_build.structure) == [""]
+        @test leaf_build.structure.root_inputs == [:u]
     end
 
     @testset "a primitive root is the whole model (§8.2, §9.1, D-208)" begin
@@ -167,11 +167,11 @@ function assembly_container_children()
 
         # The `Tuple` form: the same rule with index segments, `"field/1"…"field/N"`
         # (§8.5), addressable by the parent's declarations like any child name.
-        tsim = Simulation(TupleRoster((Gain(2.0), Gain(3.0))); h = 1//10)
-        @test paths(tsim.deployment.build.structure) == ["units/1", "units/2"]
-        init!(tsim, fragment(inputs = (in = 1.0,)))
-        @test port(tsim, "units/2", :out) === 6.0
-        @test port(tsim, "", :y) === port(tsim, "units/2", :out)
+        tuple_sim = Simulation(TupleRoster((Gain(2.0), Gain(3.0))); h = 1//10)
+        @test paths(tuple_sim.deployment.build.structure) == ["units/1", "units/2"]
+        init!(tuple_sim, fragment(inputs = (in = 1.0,)))
+        @test port(tuple_sim, "units/2", :out) === 6.0
+        @test port(tuple_sim, "", :y) === port(tuple_sim, "units/2", :out)
 
         # The mixing rule is form-blind.
         err = failure(() -> build(TupleRoster((Gain(1.0), 2.0))))
@@ -320,29 +320,31 @@ function assembly_transparent_containers()
 
         # And the declaration must name a container field of the type — a component
         # field and an absent name are refused alike.
-        for (bad, fld, cands) in ((OpaqueDeclared(TickCounter()), :c, Symbol[]),
-                                  (AbsentDeclared((; c = TickCounter())), :nope, [:kids]))
+        for (bad, field, candidates) in ((OpaqueDeclared(TickCounter()), :c, Symbol[]),
+                                         (AbsentDeclared((; c = TickCounter())), :nope,
+                                          [:kids]))
             err = failure(() -> build(bad))
             @test err isa DiagnosticError
             d = only(diagnostics(err))
-            @test d isa TransparentContainerUnknown && d.field === fld
-            @test d.candidates == cands           # the container fields, the list-in-hand
+            @test d isa TransparentContainerUnknown && d.field === field
+            @test d.candidates == candidates      # the container fields, the list-in-hand
         end
     end
 
     @testset "`Group`'s keyword form normalizes a bare `Pair` (§8.5, D-211)" begin
-        g = Group((; c = Gain(2.0)); inputs = "in" => "c/e", outputs = "c/out" => "y")
-        @test input_connections(g) == ("in" => "c/e",)
-        @test output_connections(g) == ("c/out" => "y",)
-        @test child_connections(g) == () && sample_times(g) == (;)
+        pair_group = Group((; c = Gain(2.0));
+                           inputs = "in" => "c/e", outputs = "c/out" => "y")
+        @test input_connections(pair_group) == ("in" => "c/e",)
+        @test output_connections(pair_group) == ("c/out" => "y",)
+        @test child_connections(pair_group) == () && sample_times(pair_group) == (;)
 
         # A tuple passes through as written, and every unnamed keyword is empty.
-        w = Group((; a = Gain(1.0), b = Gain(2.0)); wires = ("a/out" => "b/e",))
-        @test child_connections(w) == ("a/out" => "b/e",)
-        @test input_connections(w) == () && output_connections(w) == ()
+        tuple_group = Group((; a = Gain(1.0), b = Gain(2.0)); wires = ("a/out" => "b/e",))
+        @test child_connections(tuple_group) == ("a/out" => "b/e",)
+        @test input_connections(tuple_group) == () && output_connections(tuple_group) == ()
 
         # The normalized declarations are the ones that build.
-        sim = Simulation(g; h = 1//10)
+        sim = Simulation(pair_group; h = 1//10)
         init!(sim, fragment(inputs = (in = 2.0,)))
         @test port(sim, "", :y) === 4.0
     end
@@ -395,15 +397,17 @@ function assembly_paths()
         # generically: substitutability now holds at *every* boundary, so the
         # generic holder builds too, and the concrete/generic distinction has left
         # this case entirely.
-        gsim = Simulation(GenericHold(SampledLoop()); h = 1//50)
-        init!(gsim, fragment(inputs = (ref = 1.0,)))
-        @test paths(gsim.deployment.build.structure) == paths(sim.deployment.build.structure)
-        @test [entry.conns for entry in gsim.deployment.build.structure.components] ==
+        generic_sim = Simulation(GenericHold(SampledLoop()); h = 1//50)
+        init!(generic_sim, fragment(inputs = (ref = 1.0,)))
+        @test paths(generic_sim.deployment.build.structure) ==
+              paths(sim.deployment.build.structure)
+        @test [entry.conns
+               for entry in generic_sim.deployment.build.structure.components] ==
               [entry.conns for entry in sim.deployment.build.structure.components]
         run!(sim; t_end = 0.2)                       # equal wiring, and equal trajectories:
-        run!(gsim; t_end = 0.2)                      # the t₀ table alone would prove nothing
-        @test state(gsim, "inner/plant").q === state(sim, "inner/plant").q
-        @test port(gsim, "", :y) === port(sim, "", :y)
+        run!(generic_sim; t_end = 0.2)  # the t₀ table alone would prove nothing
+        @test state(generic_sim, "inner/plant").q === state(sim, "inner/plant").q
+        @test port(generic_sim, "", :y) === port(sim, "", :y)
 
         # One segment further — the grandchild's own port, bypassing `inner`'s face
         # — is the build error, whatever the field's declared type.
@@ -533,7 +537,7 @@ end
 
 function assembly_two_level()
     @testset "a two-level assembly runs the sampled loop through its faces" begin
-        kI, ω, ζ, Δt, r, k, N = 3.0, 2.0, 0.1, 0.02, 0.7, 2.0, 50
+        kI, ω, ζ, Δt, r, k, n_steps = 3.0, 2.0, 0.1, 0.02, 0.7, 2.0, 50
         A = SMatrix{2,2}(0.0, -ω^2, 1.0, -2ζ * ω)
         B = SVector(0.0, 1.0)
         Ad = exp(A * Δt)
@@ -541,14 +545,14 @@ function assembly_two_level()
 
         # The vehicle's gain scales the reference before the loop sees it.
         q, s = SVector(0.0, 0.0), 0.0
-        for _ in 1:N
+        for _ in 1:n_steps
             q, s = Ad * q + Bd * s, s + kI * Δt * (k * r - q[1])
         end
 
         sim = Simulation(Vehicle(; k, kI, ω, ζ); h = 1//50)
         @test paths(sim.deployment.build.structure) == ["loop/plant", "loop/ctl", "loop/sum", "trim"]
         init!(sim, fragment(inputs = (ref = r,)))
-        run!(sim; t_end = N * Δt)
+        run!(sim; t_end = n_steps * Δt)
         @test state(sim, "loop/plant").q ≈ q rtol = 1e-6
         @test port(sim, "loop", :cmd) ≈ s rtol = 1e-6
     end
@@ -569,9 +573,9 @@ function assembly_two_level()
 
         # Tier-neutral, and the tiers are *derived*: at a non-nominal activation the
         # continuous-sourced face walks while the discrete-sourced one stays pinned.
-        simd = Simulation(Vehicle(), D8; h = 1//50)
-        @test port(simd, "", :y) isa D8
-        @test port(simd, "", :cmd) isa Float64
+        dual_sim = Simulation(Vehicle(), D8; h = 1//50)
+        @test port(dual_sim, "", :y) isa D8
+        @test port(dual_sim, "", :cmd) isa Float64
     end
 end
 
@@ -905,14 +909,14 @@ output_connections(::Systems) = ("aero/wrench" => "wrench",)
 
 function assembly_primitives()
     @testset "the §13.3 primitives resolve one level and list faces in order" begin
-        m = feedback_model()
-        @test resolve(m, "sum") === m.children.sum
-        @test resolve_terminal(m, "sum/a") === (m.children.sum, "a")
+        model = feedback_model()
+        @test resolve(model, "sum") === model.children.sum
+        @test resolve_terminal(model, "sum/a") === (model.children.sum, "a")
 
         # Declaration order, both classes, and the `T`-independent key set read at
         # the nominal activation.
-        @test input_faces(resolve(m, "sum")) == ["a", "b"]
-        @test output_faces(resolve(m, "plant")) == ["y", "power"]
+        @test input_faces(resolve(model, "sum")) == ["a", "b"]
+        @test output_faces(resolve(model, "plant")) == ["y", "power"]
         @test input_faces(SampledLoop()) == ["ref"]
         @test output_faces(SampledLoop()) == ["y", "cmd", "power"]
         @test input_faces(faced()) == ["a", "b"] && output_faces(faced()) == ["sum", "scaled"]
@@ -920,33 +924,35 @@ function assembly_primitives()
         # One level, the same rule wiring resolution runs: a deeper path is a build
         # error naming the child it reaches past, and an unknown segment comes with
         # the sibling list in hand.
-        d = carried(@test_throws DiagnosticError{PathResolution} resolve(m, "sum/a"))
+        d = carried(@test_throws DiagnosticError{PathResolution} resolve(model, "sum/a"))
         @test d.reason === :reaches_past && d.level == "sum"
-        d = carried(@test_throws DiagnosticError{PathResolution} resolve(m, "nope"))
+        d = carried(@test_throws DiagnosticError{PathResolution} resolve(model, "nope"))
         @test d.reason === :unknown_child &&
               d.candidates == ["plant", "ctl", "sum"]
     end
 
     @testset "the §8.8 passthrough pair computes what a hand-wired twin declares" begin
-        p, w = Passed(faced(), Gain(3.0)), HandWired(faced(), Gain(3.0))
+        passed, wired = Passed(faced(), Gain(3.0)), HandWired(faced(), Gain(3.0))
 
         # The computed entries are the authored ones, pair for pair.
-        @test input_connections(p) == input_connections(w)
-        @test output_connections(p) == output_connections(w)
-        @test input_connections(p) == ("inner.b" => "inner/b", "e" => "trim/e")
-        @test output_connections(p) == ("inner/scaled" => "inner.scaled",)
+        @test input_connections(passed) == input_connections(wired)
+        @test output_connections(passed) == output_connections(wired)
+        @test input_connections(passed) == ("inner.b" => "inner/b", "e" => "trim/e")
+        @test output_connections(passed) == ("inner/scaled" => "inner.scaled",)
 
         # And the two builds are the same model: same root inputs, same exported
         # faces, same schedule, same trajectory.
-        bp, bw = build(p), build(w)
-        @test bp.structure.root_inputs == bw.structure.root_inputs == [:var"inner.b", :e]
-        @test bp.structure.out_faces == bw.structure.out_faces
-        @test paths(bp.structure) == paths(bw.structure)
-        sp, sw = Simulation(p; h = 1//10), Simulation(w; h = 1//10)
-        cond = fragment(inputs = (var"inner.b" = 1.0, e = 2.0))
-        init!(sp, cond); init!(sw, cond)
-        @test port(sp, "", :var"inner.scaled") === port(sw, "", :var"inner.scaled")
-        @test port(sp, "", :var"inner.scaled") === 2.0 * (3.0 * 2.0 - 1.0)
+        passed_build, wired_build = build(passed), build(wired)
+        @test passed_build.structure.root_inputs == wired_build.structure.root_inputs ==
+              [:var"inner.b", :e]
+        @test passed_build.structure.out_faces == wired_build.structure.out_faces
+        @test paths(passed_build.structure) == paths(wired_build.structure)
+        passed_sim, wired_sim = Simulation(passed; h = 1//10), Simulation(wired; h = 1//10)
+        authored = fragment(inputs = (var"inner.b" = 1.0, e = 2.0))
+        init!(passed_sim, authored); init!(wired_sim, authored)
+        @test port(passed_sim, "", :var"inner.scaled") ===
+              port(wired_sim, "", :var"inner.scaled")
+        @test port(passed_sim, "", :var"inner.scaled") === 2.0 * (3.0 * 2.0 - 1.0)
     end
 
     @testset "a primitive hands out a copy of the walk's face list (§13.3)" begin
@@ -954,68 +960,72 @@ function assembly_primitives()
         # must not reorder the walk's own record, which the level's boundary is
         # then computed from. The child's declaration order survives both the
         # standalone call and the build.
-        m = MutatedFaces(unsorted_faces())
-        @test input_connections(m) == ("k.c" => "k/c", "k.a" => "k/a", "k.b" => "k/b")
-        @test build(m).structure.root_inputs == [:var"k.c", :var"k.a", :var"k.b"]
+        component = MutatedFaces(unsorted_faces())
+        @test input_connections(component) ==
+              ("k.c" => "k/c", "k.a" => "k/a", "k.b" => "k/b")
+        @test build(component).structure.root_inputs == [:var"k.c", :var"k.a", :var"k.b"]
     end
 
     @testset "the passthrough filters, and refuses what it cannot mean (§8.8)" begin
-        m = faced()
+        component = faced()
 
         # `except` drops, `only` keeps — in the author's order — and the labelling
         # keywords are independent of both.
-        @test input_passthrough(m, "s") == ("s.a" => "s/a", "s.b" => "s/b")
-        @test input_passthrough(m, "s"; except = ("a",)) == ("s.b" => "s/b",)
-        @test input_passthrough(m, "s"; only = ("b", "a")) == ("s.b" => "s/b", "s.a" => "s/a")
-        @test input_passthrough(m, "s"; prefix = "env", sep = "_") ==
+        @test input_passthrough(component, "s") == ("s.a" => "s/a", "s.b" => "s/b")
+        @test input_passthrough(component, "s"; except = ("a",)) == ("s.b" => "s/b",)
+        @test input_passthrough(component, "s"; only = ("b", "a")) == ("s.b" => "s/b", "s.a" => "s/a")
+        @test input_passthrough(component, "s"; prefix = "env", sep = "_") ==
               ("env_a" => "s/a", "env_b" => "s/b")
-        @test input_passthrough(m, "s"; prefix = "") == ("a" => "s/a", "b" => "s/b")
+        @test input_passthrough(component, "s"; prefix = "") == ("a" => "s/a", "b" => "s/b")
 
         # `select` is the third selector (D-251): a predicate over face names,
         # receiving each name as a `String` and keeping the ones it accepts, in
         # declaration order.
-        @test input_passthrough(m, "s"; select = n -> n == "b") == ("s.b" => "s/b",)
-        @test input_passthrough(m, "s"; select = startswith("a")) == ("s.a" => "s/a",)
-        @test output_passthrough(m, "s"; select = n -> n == "e", prefix = "") ==
+        @test input_passthrough(component, "s"; select = n -> n == "b") == ("s.b" => "s/b",)
+        @test input_passthrough(component, "s"; select = startswith("a")) ==
+              ("s.a" => "s/a",)
+        @test output_passthrough(component, "s"; select = n -> n == "e", prefix = "") ==
               ("s/e" => "e",)
 
         # The output side is the mirror, its pairs reading along the flow.
-        @test output_passthrough(m, "g") == ("g/out" => "g.out",)
-        @test output_passthrough(m, "s"; only = ("e",), prefix = "") == ("s/e" => "e",)
+        @test output_passthrough(component, "g") == ("g/out" => "g.out",)
+        @test output_passthrough(component, "s"; only = ("e",), prefix = "") ==
+              ("s/e" => "e",)
 
         # The default `prefix` folds a container element's slash into `sep`, so the
         # blessed `"units/1"` child path labels legally by default — with the sep
         # actually given — while an explicit `prefix` is used verbatim.
-        r = TupleRoster((Gain(2.0), Gain(3.0)))
-        @test input_passthrough(r, "units/1") == ("units.1.e" => "units/1/e",)
-        @test output_passthrough(r, "units/2"; sep = "_") == ("units/2/out" => "units_2_out",)
-        @test input_passthrough(r, "units/1"; prefix = "u1") == ("u1.e" => "units/1/e",)
+        roster = TupleRoster((Gain(2.0), Gain(3.0)))
+        @test input_passthrough(roster, "units/1") == ("units.1.e" => "units/1/e",)
+        @test output_passthrough(roster, "units/2"; sep = "_") == ("units/2/out" => "units_2_out",)
+        @test input_passthrough(roster, "units/1"; prefix = "u1") ==
+              ("u1.e" => "units/1/e",)
 
         # Exclusivity is enforced, not documented: one selector per call, and the
         # payload names the ones given (D-251).
-        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} input_passthrough(m, "s"; except = ("a",), only = ("b",)))
+        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} input_passthrough(component, "s"; except = ("a",), only = ("b",)))
         @test d.reason === :multiple_selectors && d.names == ["except", "only"] &&
               d.who == "input_passthrough" && d.path == "s"
-        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} input_passthrough(m, "s"; except = ("a",), only = ("b",), select = startswith("a")))
+        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} input_passthrough(component, "s"; except = ("a",), only = ("b",), select = startswith("a")))
         @test d.names == ["except", "only", "select"]
-        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} output_passthrough(m, "g"; only = ("out",), select = startswith("o")))
+        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} output_passthrough(component, "g"; only = ("out",), select = startswith("o")))
         @test d.names == ["only", "select"]
 
         # A filter naming a face the child does not have errors with the list in
         # hand, on either side.
-        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} input_passthrough(m, "s"; only = ("z",)))
+        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} input_passthrough(component, "s"; only = ("z",)))
         @test d.reason === :unknown_names &&
               d.names == ["z"] && d.candidates == ["a", "b"]
-        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} output_passthrough(m, "g"; except = ("z",)))
+        d = carried(@test_throws DiagnosticError{UnknownFaceSelection} output_passthrough(component, "g"; except = ("z",)))
         @test d.candidates == ["out"]
 
         # A selector that keeps nothing is `EmptyFaceSelection`, a warning and not
         # an error (D-251). Standalone the build's channel is unbound, so the
         # helper logs directly (D-250).
-        @test (@test_logs (:warn, r"^EmptyFaceSelection") input_passthrough(m, "s"; except = ("a", "b"))) == ()
-        @test (@test_logs (:warn, r"^EmptyFaceSelection") input_passthrough(m, "s"; select = _ -> false)) == ()
+        @test (@test_logs (:warn, r"^EmptyFaceSelection") input_passthrough(component, "s"; except = ("a", "b"))) == ()
+        @test (@test_logs (:warn, r"^EmptyFaceSelection") input_passthrough(component, "s"; select = _ -> false)) == ()
         # The output side is the same, over its own face list.
-        @test (@test_logs (:warn, r"^EmptyFaceSelection") output_passthrough(m, "s"; except = ("e",))) == ()
+        @test (@test_logs (:warn, r"^EmptyFaceSelection") output_passthrough(component, "s"; except = ("e",))) == ()
 
         # Inside a build the warning lands on the `Build` instead of the log
         # (D-250), and a `select` that accepted nothing has no names to carry.
@@ -1036,7 +1046,7 @@ function assembly_primitives()
         @test (@test_logs (:warn, r"^EmptyFaceSelection") input_passthrough(faceless, "kid"; select = _ -> true)) == ()
 
         # A deeper `child_path` meets the one-level rejection like any endpoint.
-        d = carried(@test_throws DiagnosticError{PathResolution} input_passthrough(m, "s/a"))
+        d = carried(@test_throws DiagnosticError{PathResolution} input_passthrough(component, "s/a"))
         @test d.reason === :reaches_past && d.level == "s"
     end
 
@@ -1060,11 +1070,11 @@ function assembly_primitives()
     end
 
     @testset "the helpers address a transparent container's child by bare key (D-211)" begin
-        g = PassedGroup((inner = faced(), trim = Gain(3.0)))
-        @test input_connections(g) == ("inner.b" => "inner/b", "e" => "trim/e")
-        @test output_connections(g) == ("inner/scaled" => "inner.scaled",)
+        group = PassedGroup((inner = faced(), trim = Gain(3.0)))
+        @test input_connections(group) == ("inner.b" => "inner/b", "e" => "trim/e")
+        @test output_connections(group) == ("inner/scaled" => "inner.scaled",)
 
-        sim = Simulation(g; h = 1//10)
+        sim = Simulation(group; h = 1//10)
         @test paths(sim.deployment.build.structure) == ["inner/s", "inner/g", "trim"]
         init!(sim, fragment(inputs = (var"inner.b" = 1.0, e = 2.0)))
         @test port(sim, "", :var"inner.scaled") === 2.0 * (3.0 * 2.0 - 1.0)
@@ -1076,29 +1086,30 @@ function assembly_primitives()
         @test fed_faces(ACT_FEEDS, "aero") == ("e", "a", "r")
         @test fed_faces(ACT_FEEDS, "ldg") == ("left.brake",)
 
-        sys = Systems{:one}(ldg())
-        @test child_connections(sys) == ("act/e" => "aero/e", "act/a" => "aero/a",
-                                         "act/r" => "aero/r",
-                                         "act/brake_left" => "ldg/left.brake")
+        systems = Systems{:one}(ldg())
+        @test child_connections(systems) == ("act/e" => "aero/e", "act/a" => "aero/a",
+                                             "act/r" => "aero/r",
+                                             "act/brake_left" => "ldg/left.brake")
         # What the list does not feed is what the boundary exposes: `alpha`, the
         # right brake, and the actuator's own hand-written `cmd`.
-        @test input_connections(sys) == ("aero.alpha" => "aero/alpha",
-                                         "ldg.right.brake" => "ldg/right.brake",
-                                         "cmd" => "act/cmd")
+        @test input_connections(systems) == ("aero.alpha" => "aero/alpha",
+                                             "ldg.right.brake" => "ldg/right.brake",
+                                             "cmd" => "act/cmd")
 
-        b = build(sys)
-        @test isempty(warnings(b))
-        @test b.structure.root_inputs == [:var"aero.alpha", :var"ldg.right.brake", :cmd]
+        one_build = build(systems)
+        @test isempty(warnings(one_build))
+        @test one_build.structure.root_inputs ==
+              [:var"aero.alpha", :var"ldg.right.brake", :cmd]
         # The four wires resolved: three actuator channels into `aero`, the fourth
         # into the gear's left brake, and the two unfed faces from the root.
         conns(structure, path) = structure.components[index_of(structure, path)].conns
-        @test conns(b.structure, "aero") ==
+        @test conns(one_build.structure, "aero") ==
               [:e => ("act", :e), :a => ("act", :a), :r => ("act", :r),
                :alpha => ("", :var"aero.alpha")]
-        @test conns(b.structure, "ldg/left") == [:e => ("act", :brake_left)]
-        @test conns(b.structure, "ldg/right") == [:e => ("", :var"ldg.right.brake")]
+        @test conns(one_build.structure, "ldg/left") == [:e => ("act", :brake_left)]
+        @test conns(one_build.structure, "ldg/right") == [:e => ("", :var"ldg.right.brake")]
 
-        sim = Simulation(sys; h = 1//10)
+        sim = Simulation(systems; h = 1//10)
         init!(sim, fragment(inputs = (var"aero.alpha" = 0.5, var"ldg.right.brake" = 1.0,
                                       cmd = 2.0)))
         @test port(sim, "", :wrench) === 6 * 2.0 + 0.5
@@ -1113,12 +1124,12 @@ function assembly_primitives()
         # input face fed, so the `except` tuple names them all and the selection
         # keeps nothing — a legitimate empty selection, the warning D-251 makes it
         # rather than an error for exactly this case.
-        b2 = @test_logs (:warn, r"^EmptyFaceSelection") build(Systems{:two}(ldg()))
-        @test b2.structure.root_inputs == [:var"aero.alpha", :cmd]
-        d = only(warnings(b2))
+        two_build = @test_logs (:warn, r"^EmptyFaceSelection") build(Systems{:two}(ldg()))
+        @test two_build.structure.root_inputs == [:var"aero.alpha", :cmd]
+        d = only(warnings(two_build))
         @test d isa EmptyFaceSelection && d.path == "ldg" && d.selector === :except &&
               d.names == ["left.brake", "right.brake"]
-        @test conns(b2.structure, "ldg/right") == [:e => ("act", :brake_right)]
+        @test conns(two_build.structure, "ldg/right") == [:e => ("act", :brake_right)]
 
         # A mistyped destination stays loud. The walk evaluates the boundary before
         # the wires, so the `except` entry meets it first, fail-fast, with the
