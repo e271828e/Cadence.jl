@@ -98,19 +98,20 @@ function test_log()
     @testset "view policies, never trajectory-determining (§11.2)" begin
         # A localized-event trajectory, so the t* machinery is in the loop too:
         # retention differing in every keyword, the trajectory bitwise the same.
-        function mk(; kw...)
-            s = Simulation(single(Bouncer(1.0, 0.315)); h = 1//10)
-            init!(s; kw...)
-            s
+        function session(; kw...)
+            sim = Simulation(single(Bouncer(1.0, 0.315)); h = 1//10)
+            init!(sim; kw...)
+            sim
         end
-        a, b, c = mk(), mk(log = false), mk(log_every = 7, log_max = 3)
-        foreach(s -> run!(s; t_end = 2.0), (a, b, c))
-        qa = state(a, "c").q
-        @test qa === state(b, "c").q
-        @test qa === state(c, "c").q
-        ca = modes(a, "c").count
-        @test ca === modes(b, "c").count
-        @test ca === modes(c, "c").count
+        full, unlogged, thinned =
+            session(), session(log = false), session(log_every = 7, log_max = 3)
+        foreach(sim -> run!(sim; t_end = 2.0), (full, unlogged, thinned))
+        q_ref = state(full, "c").q
+        @test q_ref === state(unlogged, "c").q
+        @test q_ref === state(thinned, "c").q
+        count_ref = modes(full, "c").count
+        @test count_ref === modes(unlogged, "c").count
+        @test count_ref === modes(thinned, "c").count
     end
 
     @testset "a warm restart is a new trajectory: the log starts over (§11.2)" begin
@@ -127,12 +128,12 @@ function test_log()
         init!(sim, fragment(inputs = (in = 0.0,)); log_max = 16)
         logged(sim)                                          # warms the compile path, so the
                                                              # mid-run check below races no JIT
-        t = Threads.@spawn run!(sim; t_end = 1.0)
+        task = Threads.@spawn run!(sim; t_end = 1.0)
         while lifecycle(sim) !== :running
             yield()
         end
-        err = try logged(sim) catch e; e end
-        wait(t)
+        err = try logged(sim) catch err; err end
+        wait(task)
         @test err isa DiagnosticError && diagnostic(err) isa ServiceLifecycle
         # the readers' gate refuses `:running` alone, post-mortem reads included (§13.6)
         @test diagnostic(err).legal == [:built, :initialized, :stopped, :errored]
@@ -141,19 +142,19 @@ function test_log()
 
     @testset "the retention keywords are validated with their siblings (§11.2)" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
-        c = fragment(inputs = (in = 0.0,))
+        authored = fragment(inputs = (in = 0.0,))
         # View policies are the door's keywords, so they are `ArgumentInvalid`s
         # at `call = :init!` (D-261), refused before any write.
-        d1 = only(diagnostics(failure(() -> init!(sim, c; log = 1))))
-        @test d1 isa ArgumentInvalid && d1.call === :init! && d1.argument === :log
-        d2 = only(diagnostics(failure(() -> init!(sim, c; log_every = 0))))
-        @test d2 isa ArgumentInvalid && d2.argument === :log_every && d2.reason === :range
-        d3 = only(diagnostics(failure(() -> init!(sim, c; log_max = 0))))
-        @test d3 isa ArgumentInvalid && d3.argument === :log_max
-        d4 = only(diagnostics(failure(() -> init!(sim, c; log_max = 1.5))))
-        @test d4 isa ArgumentInvalid && d4.argument === :log_max
+        d = only(diagnostics(failure(() -> init!(sim, authored; log = 1))))
+        @test d isa ArgumentInvalid && d.call === :init! && d.argument === :log
+        d = only(diagnostics(failure(() -> init!(sim, authored; log_every = 0))))
+        @test d isa ArgumentInvalid && d.argument === :log_every && d.reason === :range
+        d = only(diagnostics(failure(() -> init!(sim, authored; log_max = 0))))
+        @test d isa ArgumentInvalid && d.argument === :log_max
+        d = only(diagnostics(failure(() -> init!(sim, authored; log_max = 1.5))))
+        @test d isa ArgumentInvalid && d.argument === :log_max
         @test lifecycle(sim) === :built
-        init!(sim, c; log_max = Inf)                         # the explicit opt-out
+        init!(sim, authored; log_max = Inf)                         # the explicit opt-out
         run!(sim; t_end = 1.0)
         @test length(logged(sim)) == 11
     end
