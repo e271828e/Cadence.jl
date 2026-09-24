@@ -280,8 +280,8 @@ _declares(fn, comp, extra...) =
     Base.unwrap_unionall(which(fn, Tuple{typeof(comp),extra...}).sig).parameters[2] !== Any
 
 # --- tiers (§8.2) -------------------------------------------------------------
-# A tier is never announced; it is read off the declaration shape. The enum is
-# the build's internal answer, not an authoring surface.
+# A tier is never spelled in a signature; the store every leaf declares names it
+# (D-263). The enum is the build's internal answer, not an authoring surface.
 
 @enum Tier CONTINUOUS DISCRETE
 
@@ -340,13 +340,13 @@ function bundle_names(fn, comp, tier::Tier, stage1_ports::Tuple)
     elseif fn === update
         !isempty(declared_at(output_types, comp, tier)) && push!(bundle_fields, :y)
     end
-    _declares_workspace(comp, tier) && push!(bundle_fields, :ws)
+    _declares_workspace(comp) && push!(bundle_fields, :ws)
     push!(bundle_fields, :t)
     tier === DISCRETE && push!(bundle_fields, :Δt)
     tuple(bundle_fields...)
 end
 
-_declares_workspace(comp, tier::Tier) = _declares(init_workspace, comp, Type{Float64})
+_declares_workspace(comp) = _declares(init_workspace, comp, Type{Float64})
 
 """
 Bundle field names for a guard or handler (§5.2): the update law's view of the
@@ -360,7 +360,7 @@ function event_bundle_names(comp)
     !isempty(invoke_declaration(init_m, comp)) && push!(bundle_fields, :m)
     !isempty(declared_at(input_types, comp, CONTINUOUS)) && push!(bundle_fields, :u)
     !isempty(declared_at(output_types, comp, CONTINUOUS)) && push!(bundle_fields, :y)
-    _declares_workspace(comp, CONTINUOUS) && push!(bundle_fields, :ws)
+    _declares_workspace(comp) && push!(bundle_fields, :ws)
     push!(bundle_fields, :t)
     tuple(bundle_fields...)
 end

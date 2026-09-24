@@ -579,8 +579,8 @@ message(d::DeclarationOnWrongTier) =
     "`$(d.path)` declares `$(d.declaration)` but no `init_x` — there is no state " *
     "manifold to project onto (§5.2)" :
     d.reason === :pinned_entry ?
-    "`$(d.path)`: entry `$(d.entry)` is declared `Pinned` in `$(d.declaration)`, but this " *
-    "leaf is discrete, where every leaf is pinned — drop the marker (§8.2, §8.5)" :
+    "$(_at_path(d.path)): entry `$(d.entry)` is declared `Pinned` in `$(d.declaration)`, " *
+    "but this leaf is discrete, where every leaf is pinned — drop the marker (§8.2, §8.5)" :
     "`$(d.path)`: `$(d.declaration)` is declared in the $(d.found)-tier form, but this " *
     "component's other declarations announce the $(d.announced) tier (§8.2)"
 
@@ -770,7 +770,7 @@ Base.@kwdef struct TierUnreadable <: Diagnostic
 end
 path(d::TierUnreadable) = d.path
 message(d::TierUnreadable) =
-    "`$(d.path)`::`$(d.type)` declares no store — every leaf declares its tier by its " *
+    "$(_at_path(d.path))::`$(d.type)` declares no store — every leaf declares its tier by its " *
     "store, mandatory even when empty: a stateless leaf writes `init_x(::C) = (;)` or " *
     "`init_s(::C) = (;)`. Its leaf declarations are $(_namelist(d.declarations)) (§8.2)"
 
@@ -782,7 +782,7 @@ Base.@kwdef struct StatelessWithoutOutputs <: Diagnostic
 end
 path(d::StatelessWithoutOutputs) = d.path
 message(d::StatelessWithoutOutputs) =
-    "`$(d.path)`::`$(d.type)` has an empty store and declares no `output_types`, so it " *
+    "$(_at_path(d.path))::`$(d.type)` has an empty store and declares no `output_types`, so it " *
     "produces nothing and stores nothing — declare `output_types`, or give the store " *
     "fields and the update law that drives them. Its leaf declarations are " *
     "$(_namelist(d.declarations)) (§8.2)"
@@ -1013,7 +1013,7 @@ _conformance_expect(shape::Symbol) =
 _conformance_section(shape::Symbol) = (shape === :stores || shape === :mode) ? " (§5.2)" : ""
 
 # §9.5's didactic hint: `0` where a real was declared names the fix outright.
-# Otherwise the D-166 pin hint, as `_pin` renders it everywhere else.
+# Otherwise the D-263 pin hint, as `_pin` renders it everywhere else.
 _pin(d::ConformanceFailure) =
     d.observed isa Type && d.declared isa Type &&
         d.observed <: Integer && d.declared <: AbstractFloat ?

@@ -463,7 +463,7 @@ function _undeclared(entry::CEntry, comp, tier::Tier, declared::NamedTuple,
                      ::Type{T}) where {T}
     role = haskey(declared_at(output_types, comp, tier), entry.field) ? :output_port :
            haskey(declared_at(input_types, comp, tier), entry.field) ? :input_face :
-           (_declares_workspace(comp, tier) &&
+           (_declares_workspace(comp) &&
             haskey(_declared_workspace(comp, tier, T), entry.field)) ? :workspace : nothing
     _condition_violation(entry, :undeclared_field; candidates = collect(keys(declared)), role = role)
 end
@@ -474,7 +474,7 @@ _declared_workspace(comp, tier::Tier, ::Type{T}) where {T} =
 # The one refusal §14.3's converter table cannot bake around. Its second clause
 # is the non-nominal case: at a seeded activation the leaves a decision descends
 # into are the ones the activation retyped, and a *frozen* discrete `s` (§9.4,
-# D-166) or a leaf pinned `Float64` by its own declaration is not one of them —
+# D-166) or a leaf a `Pinned` declaration holds at `Float64` is not one of them —
 # so the value cannot be carried and there is nowhere to put its partials.
 function _unconvertible(entry::CEntry, v, ::Type{P}, ::Type{T}) where {P,T}
     _condition_violation(entry, :unconvertible; declared = P, observed = typeof(v), value = v,

@@ -429,7 +429,7 @@ end
 # declarations alone; with several consumers the concrete declaration has to be
 # unique among them.
 
-struct RealEntry <: AbstractComponent            # a `T` entry: follows the activation
+struct RealEntry <: AbstractComponent            # an unpinned entry: follows the activation
 end
 init_x(::RealEntry) = (;)
 input_types(::RealEntry) = (u = Float64,)
@@ -691,6 +691,15 @@ function build_wire_clauses()
         d = only(diagnostics(err))
         @test d isa WalkingFaceAtFrozenEntry && d.leaf == "p[1]"
         @test d.declared === Float64 && d.observed === Marker
+
+        # A walking handle into a pinned handle entry: the opaque leaf is one leaf
+        # with no scalar pair, and it is named with both whole types.
+        err = failure(() -> build(Group((; src = OffsetAtT(), q = PinnedOffsetQuery());
+                                        wires = ("src/terrain" => "q/terrain",))))
+        d = only(diagnostics(err))
+        @test d isa WalkingFaceAtFrozenEntry && d.path == "q" && d.face === :terrain
+        @test d.leaf == "" && d.declared === OffsetField{Float64}
+        @test d.observed === OffsetField{Marker}
 
         # The habit that used to fail now walks: a bare `Float64` entry fed by a
         # walking producer builds clean, and its cell follows the activation (D-263).
@@ -1253,7 +1262,7 @@ function build_label_ports()
 end
 
 function build_tier()
-    @testset "tier is read off the declaration shape (§8.2)" begin
+    @testset "tier is read off the store (§8.2, D-263)" begin
         # The update law decides beside a non-empty store.
         diags = Diagnostic[]
         @test classify_tier("c", Plant(), diags) === CONTINUOUS
@@ -1467,7 +1476,7 @@ output_types(::PinnedGetsDual) = (frozen = Pinned{Float64},)
 output_state(::PinnedGetsDual, (; t)) = (frozen = t,)
 
 # The constant-branch idiom (D-166): a literal `Float64` returned into a
-# declared-`T` port is a lawful arrival, embedded as a zero-partial.
+# walking port is a lawful arrival, embedded as a zero-partial.
 struct ConstantBranch <: AbstractComponent end
 init_x(::ConstantBranch) = (;)
 input_types(::ConstantBranch) = (in = Float64,)

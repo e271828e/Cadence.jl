@@ -71,7 +71,7 @@ end
 
 function discrete_frozen_activation()
     @testset "the discrete tier is frozen at a non-nominal activation (§7.2)" begin
-        # The plant's input is declared `T` and wired to a discrete `Float64` cell:
+        # The plant's input walks and is wired to a discrete `Float64` cell:
         # a lawful arrival, embedded as a zero-partial. `ctl`'s stages are outside
         # this activation's executable set, so they do not run at all — boundary
         # zero's wide gate included (D-205 admits entries, and a frozen component

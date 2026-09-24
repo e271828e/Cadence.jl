@@ -298,7 +298,7 @@ end
 function leaves_wire_relation()
     @testset "the wire relation with its abstract arm (§6.1, D-236)" begin
         # A concrete entry is embed-accept leaf by leaf: a pinned entry refuses a
-        # walking producer and takes a frozen one, a `T` entry takes both.
+        # walking producer and takes a frozen one, a walking entry takes both.
         @test !_accepts_wire(SVector{3,Float64}, SVector{3,D8}, D8)
         @test _accepts_wire(SVector{3,Float64}, SVector{3,Float64}, D8)
         @test _accepts_wire(SVector{3,D8}, SVector{3,Float64}, D8)

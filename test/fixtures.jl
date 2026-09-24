@@ -1178,6 +1178,14 @@ output_direct(::OffsetQuery, (; u)) = (h = 2 * u.terrain.h0,)
 offset_model(src) = Group((; src = src, q = OffsetQuery());
                           wires = ("src/terrain" => "q/terrain",))
 
+"""Pins the handle entry, so a walking handle producer fails the walk clause."""
+struct PinnedOffsetQuery <: AbstractComponent end
+
+init_x(::PinnedOffsetQuery) = (;)
+input_types(::PinnedOffsetQuery) = (terrain = Pinned{OffsetField{Float64}},)
+output_types(::PinnedOffsetQuery) = (h = Float64,)
+output_direct(::PinnedOffsetQuery, (; u)) = (h = 2 * u.terrain.h0,)
+
 # --- the label port coverage set (§4.1, §4.3, §8.2, §9.3) -----------------------
 # An enum is a port value (§4.1) and a pinned leaf (§8.2): one leaf of its own
 # eltype, stored whole, never following the activation scalar. Its probe value

@@ -53,8 +53,8 @@ struct Plant <: AbstractComponent
 end
 
 init_x(::Plant) = (q = 0.0, v = 0.0)
-input_types(::Plant, ::Type{T}) where {T <: Real} = (u = T,)
-output_types(::Plant, ::Type{T}) where {T <: Real} = (y = T, power = T)
+input_types(::Plant) = (u = Float64,)
+output_types(::Plant) = (y = Float64, power = Float64)
 
 output_state(::Plant, (; x)) = (y = x.q,)                 # stage 1: state only
 output_direct(::Plant, (; x, u)) = (power = u.u * x.v,)   # stage 2: reads inputs

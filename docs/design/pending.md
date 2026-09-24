@@ -62,7 +62,23 @@ Currently empty.
 
 Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
-retires or the code conforms. Currently empty.
+retires or the code conforms.
+
+- **A pinned handle producer at an unpinned handle entry.** A
+  `Pinned{Handle{Float64}}` producer wired to an unpinned `Handle{Float64}`
+  entry throws `InternalInvariant` in the structure step's wire pass (§9.1).
+  §6.1 admits a pinned producer at any entry only because frozen values embed
+  upward; D-237 and §9.5 have an opaque leaf embed nothing. The two rules
+  together require a named, collected refusal at the wire naming both
+  endpoints, whose remedies are to pin the entry or to build the handle at
+  `T`. Appendix C has no kind for that direction. The gap predates
+  `c5c6986`.
+- **A `Pinned` below the top of an entry.** `retype`'s parameter recursion
+  admits a nested marker (`SVector{2, Pinned{Float64}}`), which then acts as
+  the parameter-position pin D-263 rejected; on a discrete leaf it passes the
+  top-level pinned-entry check (§8.2). The fix strips the marker at the top of
+  an entry only and refuses it below. Appendix C names no kind for the
+  refusal; an arm of `IllegalPortType` is the candidate.
 
 ## Pending on the spec itself
 

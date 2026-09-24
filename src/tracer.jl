@@ -197,7 +197,7 @@ function _trace_direct(ci::Int, traced_decl::Decls, faces::Vector{Symbol},
         Decls(_sample(rng, T, decl.x, UInt64(0)), traced_decl.s, traced_decl.ins,
               traced_decl.outs)
     bundle_fields = bundle_names(output_direct, comp, CONTINUOUS, tuple(keys(stage1[ci])...))
-    workspace = _declares_workspace(comp, CONTINUOUS) ? init_workspace(comp, T) : nothing
+    workspace = _declares_workspace(comp) ? init_workspace(comp, T) : nothing
     y2 = output_direct(comp, _bundle_values(bundle_fields, evaluation_decl, u,
                                             _lift(T, stage1[ci]), T;
                                             ws = workspace, m = mstores[ci], Δt = 1.0))

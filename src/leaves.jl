@@ -310,7 +310,7 @@ _pin_hint(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T} =
     _accepts_wire(P, V, T)
 
 Is a producer declaring `V` a lawful feed for an entry declaring `P`, both
-evaluated at activation `T` (§6.1, D-236)? A concrete entry is `_accepts`,
+retyped at activation `T` (§6.1, D-236, D-263)? A concrete entry is `_accepts`,
 decided on the type. An abstract entry has no leaves to walk, so it is decided
 on the whole declaration: `V` as declared, or `V` with every pinned leaf lifted
 to `T`, must be `<:` `P`. The two candidates are exact whenever `P`'s

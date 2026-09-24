@@ -97,8 +97,8 @@ end
 struct Decls
     x::NamedTuple          # continuous state, walked to the activation scalar
     s::NamedTuple          # discrete state, pinned wholesale (D-195)
-    ins::NamedTuple        # face => type, evaluated at the activation scalar
-    outs::NamedTuple       # port => type, evaluated at the activation scalar
+    ins::NamedTuple        # face => type, retyped at the activation scalar (D-263)
+    outs::NamedTuple       # port => type, retyped at the activation scalar (D-263)
 end
 
 """The tier's own state register: exactly one of the two is ever populated."""
@@ -227,10 +227,10 @@ function classify_tier(path::String, comp, diags::Vector{Diagnostic})
     if tier === DISCRETE
         for (name, fn) in ((:input_types, input_types), (:output_types, output_types))
             _declares(fn, comp) || continue
-            for (entry, P) in pairs(invoke_declaration(fn, comp))
+            for (entry_name, P) in pairs(invoke_declaration(fn, comp))
                 P isa DataType && P.name === Base.typename(Pinned) &&
                     push!(diags, DeclarationOnWrongTier(path = path, declaration = name,
-                                                       reason = :pinned_entry, entry = entry,
+                                                       reason = :pinned_entry, entry = entry_name,
                                                        announced = :discrete))
             end
         end
@@ -616,7 +616,7 @@ input_addr(layout::Layout, conns::Vector{Pair{Symbol,Tuple{String,Symbol}}}, fac
 
 """
 One activation: the typed products at a concrete scalar `T` (§9.1) —
-declarations evaluated at `T`, the probe chain run over exactly the function
+declarations retyped at `T`, the probe chain run over exactly the function
 set this activation can execute (§9.4), cells laid out. Immutable once
 constructed; the probe products are what a cell holds until first written
 (§10.5).
@@ -880,16 +880,21 @@ end
 
 # The offending leaf, for the walk clause's message. For a concrete entry the
 # bound clause at `Float64` is exact (`V_F === P_F`, D-238), so the two leaf
-# lists align position for position and a walk failure at the marker can only be
-# a `Marker` in `V_M` where `P_M` has `Float64` — a pinned entry leaf fed by a
-# walking producer leaf. Throwing path only.
+# lists align position for position. A walk failure at the marker is a `Marker`
+# in `V_M` where `P_M` has `Float64`, or an opaque leaf the producer walks and
+# the entry pins (`OffsetField{Marker}` against `OffsetField{Float64}`), which is
+# one leaf with no scalar pair, so the first differing leaf names it. Throwing
+# path only.
 function _walking_leaf(::Type{P}, ::Type{V}) where {P,V}
     isconcretetype(P) || return nothing, P, V     # decided on the whole declaration
     entry_leaves, producer_leaves = leaf_types(P), leaf_types(V)
     offending = findfirst(k -> entry_leaves[k] === Float64 && producer_leaves[k] === Marker,
                           eachindex(entry_leaves))
     offending === nothing &&
-        throw(InternalInvariant("walk clause failed at `$P` ← `$V` with no walking leaf"))
+        (offending = findfirst(k -> entry_leaves[k] !== producer_leaves[k],
+                               eachindex(entry_leaves)))
+    offending === nothing &&
+        throw(InternalInvariant("walk clause failed at `$P` ← `$V` with no differing leaf"))
     leaf_names(P)[offending], entry_leaves[offending], producer_leaves[offending]
 end
 
@@ -954,7 +959,7 @@ _declarations(structure::Structure, ::Type{T}) where {T} =
      for entry in structure.components]
 
 # Activation at another scalar (§9.1, §9.4): the nominal evaluation's typed half
-# re-run at `T`, with nothing structural recomputed. Declarations are evaluated at
+# re-run at `T`, with nothing structural recomputed. Declarations are retyped at
 # `T`, the probe chain runs and the cells are laid out, over the `Outputs`'
 # execution order, which is `T`-independent. A frozen component's products are
 # carried across from the nominal activation rather than probed, its stages being
@@ -986,7 +991,7 @@ _workspaces(structure::Structure, ::Type{T}) where {T} =
 
 _workspace(path::String, comp, tier::Tier, ::Type{T}) where {T} =
     at_component(path) do
-        _declares_workspace(comp, tier) || return nothing
+        _declares_workspace(comp) || return nothing
         invoke_declaration(init_workspace, comp, tier === CONTINUOUS ? T : Float64)
     end
 
@@ -1536,8 +1541,8 @@ end
 # root input the obligation chain ends at. Stage-2 probing runs in topological
 # order, so upstream products exist by construction.
 #
-# The entry is a *bound*, read permissively (D-167): a `T` entry is tolerant of
-# both lawful arrivals, a pinned `Float64` entry demands a frozen one. The value
+# The entry is a *bound*, read permissively (D-167): an unpinned entry is tolerant
+# of both lawful arrivals, a `Pinned` entry demands a frozen one. The value
 # passed on is the producer's, unembedded — the consumer gathers the producer's
 # cell at runtime, so the cell's type is what its bundle carries.
 #
