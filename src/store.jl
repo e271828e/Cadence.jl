@@ -52,11 +52,11 @@ _cell_key(::Type{L}) where {L} = Symbol(sprint(show, L; context = :module => not
     end
 end
 
-@generated function scatter_cell!(bundle::StoreBundle, addr::CellAddr{P,K}, v) where {P,K}
+@generated function scatter_cell!(bundle::StoreBundle, addr::CellAddr{P,K}, value) where {P,K}
     eltypes = leaf_eltypes(P)
     binds = [:($(Symbol(:buffer, k)) = getfield(bundle.stores, $(QuoteNode(_cell_key(L)))).buffer)
              for (k, L) in enumerate(eltypes)]
-    block = _mflatten_expr(P, :v, eltypes, zeros(Int, K))
+    block = _mflatten_expr(P, :value, eltypes, zeros(Int, K))
     quote
         $(Expr(:meta, :inline))
         offsets = addr.offsets

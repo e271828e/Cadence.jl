@@ -160,7 +160,7 @@ struct CEntry
     value::Any
     origin::String
     face::Union{Nothing,Symbol}   # input entries: the root input the chain lands on
-    position::Tuple                    # the tree position: the step tuple to this value
+    position::Tuple               # the tree position: the step tuple to this value
 end
 
 _key(entry::CEntry) = entry.face === nothing ? (entry.path, entry.store, entry.field) :
@@ -328,8 +328,8 @@ checks have one implementation.
 struct Resolved
     entry::CEntry
     dest::Any   # :x → the `xbuf` offset; :s, :m → the component index; :input → the cell address
-    leaf_type::Any      # the destination leaf type at this activation — §14.3's converter
-    converted::Any      # the authored value, through that converter
+    leaf_type::Any # the destination leaf type at this activation — §14.3's converter
+    converted::Any # the authored value, through that converter
 end
 
 # §14.3's list, run once: the path resolves to a component, the field is
@@ -446,7 +446,7 @@ function _root_input(structure::Structure, entry::CEntry, diags::Vector{Diagnost
     (producer_path, producer_port) = last(structure.in_faces[row])
     isempty(producer_path) && return producer_port
     push!(diags, _condition_violation(entry, :internally_wired;
-                        producer = (producer_path, producer_port)))
+                                      producer = (producer_path, producer_port)))
     nothing
 end
 
@@ -478,7 +478,7 @@ _declared_workspace(comp, tier::Tier, ::Type{T}) where {T} =
 # so the value cannot be carried and there is nowhere to put its partials.
 function _unconvertible(entry::CEntry, v, ::Type{P}, ::Type{T}) where {P,T}
     _condition_violation(entry, :unconvertible; declared = P, observed = typeof(v), value = v,
-           activation = _seeded_into_pinned(typeof(v), P, T) ? T : nothing)
+                         activation = _seeded_into_pinned(typeof(v), P, T) ? T : nothing)
 end
 
 _seeded_into_pinned(::Type{V}, ::Type{P}, ::Type{T}) where {V,P,T} =

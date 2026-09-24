@@ -236,7 +236,7 @@ Continuous entries run through the fallback `run_at!` unchanged. Each discrete
 entry wears a `Gated` wrapper whose `run_at!` is the [§10.5][s10-5] gate:
 
 ```julia
-(tick - g.Φ) % g.D == 0 && run!(g.e, store, xbuf, ẋbuf)
+(tick - g.Φ) % g.D == 0 && run_entry!(g.entry, store, xbuf, ẋbuf)
 ```
 
 With `tick = 2` and `(D, Φ) = (1, 0)` the controller is due. Its

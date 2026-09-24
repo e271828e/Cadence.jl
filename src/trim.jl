@@ -254,7 +254,7 @@ function _check_decisions!(diags::Vector{Diagnostic}, problem::TrimProblem)
     for (name, field_value) in ((:lower, problem.lower), (:upper, problem.upper))
         Set(keys(field_value)) == Set(keys(problem.guess)) ||
             push!(diags, _trim_violation(name, :key_set; names = collect(keys(field_value)),
-                               expected = collect(keys(problem.guess))))
+                                         expected = collect(keys(problem.guess))))
     end
     for (name, field_value) in
             ((:guess, problem.guess), (:lower, problem.lower), (:upper, problem.upper))
@@ -269,7 +269,7 @@ function _check_decisions!(diags::Vector{Diagnostic}, problem::TrimProblem)
          problem.lower[key] isa Float64 && problem.upper[key] isa Float64) || continue
         problem.lower[key] ≤ problem.upper[key] ||
             push!(diags, _trim_violation(:lower, :inverted_box; key = key,
-                               value = problem.lower[key], bound = problem.upper[key]))
+                                         value = problem.lower[key], bound = problem.upper[key]))
     end
     nothing
 end
@@ -283,7 +283,7 @@ end
 function _check_tolerances!(diags::Vector{Diagnostic}, problem::TrimProblem)
     if !(problem.tolerances isa NamedTuple)
         push!(diags, _trim_violation(:tolerances, :not_a_namedtuple;
-                            observed = typeof(problem.tolerances)))
+                                     observed = typeof(problem.tolerances)))
         return nothing
     end
     _check_floats!(diags, :tolerances, problem.tolerances)
@@ -292,7 +292,7 @@ function _check_tolerances!(diags::Vector{Diagnostic}, problem::TrimProblem)
         tolerance isa Float64 || continue   # the type violation is already named above
         (isfinite(tolerance) && tolerance > 0) ||
             push!(diags, _trim_violation(:tolerances, :nonpositive_tolerance; key = key,
-                               value = tolerance))
+                                         value = tolerance))
     end
     nothing
 end
@@ -330,7 +330,7 @@ function _check_residuals(r, tolerances::NamedTuple)
     else
         Set(keys(r)) == Set(keys(tolerances)) ||
             push!(diags, _trim_violation(:residuals, :key_set; names = collect(keys(r)),
-                               expected = collect(keys(tolerances))))
+                                         expected = collect(keys(tolerances))))
         bad = Pair{Symbol,Any}[k => typeof(r[k]) for k in keys(r) if !(r[k] isa Real)]
         isempty(bad) || push!(diags, _trim_violation(:residuals, :field_types; bad = bad))
     end

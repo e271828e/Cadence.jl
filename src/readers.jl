@@ -300,13 +300,13 @@ end
 
 _undeclared_violation(label::Symbol, selector, declares::Symbol, declared::NamedTuple) =
     _reader_violation(label, selector, :undeclared; declares = declares, field = _field(selector),
-           candidates = collect(keys(declared)))
+                      candidates = collect(keys(declared)))
 
 # The port list in hand is the `Outputs`' row concatenated by `_ports`, a fresh
 # vector the payload is free to hold (D-253).
 _undeclared_violation(label::Symbol, selector, declares::Symbol, declared::Vector{Symbol}) =
     _reader_violation(label, selector, :undeclared; declares = declares, field = _field(selector),
-           candidates = declared)
+                      candidates = declared)
 
 _field(selector::Union{GetState,GetDeriv}) = selector.field
 _field(selector::GetOutput) = selector.name
@@ -368,7 +368,7 @@ function _resolve_selector(selector::GetInput, label::Symbol, build::Build,
                            act::Activation, diags::Vector{Diagnostic})
     if !(selector.face in build.structure.root_inputs)
         push!(diags, _reader_violation(label, selector, :unknown_root_input; field = selector.face,
-                           candidates = build.structure.root_inputs))
+                                       candidates = build.structure.root_inputs))
         return nothing
     end
     addr = act.layout.addr[("", selector.face)]
@@ -382,9 +382,9 @@ function _resolve_selector(selector::GetFace, label::Symbol, build::Build,
     if !(selector.name in exported)
         push!(diags, selector.name in build.structure.root_inputs ?
                     _reader_violation(label, selector, :root_input_not_face;
-                           field = selector.name) :
+                                      field = selector.name) :
                     _reader_violation(label, selector, :unknown_output_face; field = selector.name,
-                           candidates = exported))
+                                      candidates = exported))
         return nothing
     end
     addr = act.layout.addr[("", selector.name)]

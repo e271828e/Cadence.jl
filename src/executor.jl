@@ -46,7 +46,7 @@ struct StageEntry{F,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,OA<:NamedTuple,CL,S
     comp::Comp
     inputs::IA      # input face => cell address (the wiring's name binding)
     y1::YA          # own stage-1 port => cell address (`y_x`, `y_s` on the discrete tier)
-    outputs::OA        # port this entry writes => cell address
+    outputs::OA     # port this entry writes => cell address
     x_off::Int      # continuous state offset into the flat buffer
     clock::CL
     sstore::SS      # discrete state store, or nothing on the continuous tier
@@ -55,7 +55,7 @@ struct StageEntry{F,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,OA<:NamedTuple,CL,S
     Δt::Float64     # sample period; unused on the continuous tier
     path::String    # the component's path, for the write's diagnostic (§9.5)
     ci::Int         # the schedule index, for the cursor's store (§13.4)
-    fn_name::Symbol   # `nameof(fn)`, computed once in `compile`: a field read, never a call
+    fn_name::Symbol # `nameof(fn)`, computed once in `compile`: a field read, never a call
     cursor::ExecutionCursor
 end
 
@@ -149,7 +149,7 @@ end
 end
 
 @inline function run_entry!(entry::StageEntry, store, xbuf, ẋbuf)
-    entry.cursor.comp = entry.ci; entry.cursor.fn = entry.fn_name     # the dispatch store (§13.4)
+    entry.cursor.comp = entry.ci; entry.cursor.fn = entry.fn_name # the dispatch store (§13.4)
     y = entry.fn(entry.comp, make_bundle(entry, store, xbuf))
     scatter_group!(store, entry.outputs, y, activation_scalar(entry.clock), entry.path, entry.fn_name)
 end
@@ -185,9 +185,9 @@ end
 struct EventEntry{G,H,P,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
     guard::G
     handler::H
-    projection::P         # the component's `state_projection`, or nothing
+    projection::P   # the component's `state_projection`, or nothing
     comp::Comp
-    event_index::Int        # global event index into the register vectors
+    event_index::Int # global event index into the register vectors
     inputs::IA
     y::YA           # every own port — guards and handlers read the complete fresh table
     x_off::Int
