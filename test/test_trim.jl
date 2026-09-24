@@ -339,6 +339,21 @@ function test_trim()
         d = only(d for d in diagnostics(err) if d.reason === :nonpositive_tolerance)
         @test d.key === :ω̇ && d.value === 0.0
         @test world(sim) == before
+
+        # Both returns come from one gather at the guess, so a wrong residual key
+        # and a wrong check key are reported together, in one throw.
+        err = failure(() -> trim!(sim, TrimProblem(
+            guess = (u = 0.0,), lower = (u = -Inf,), upper = (u = Inf,),
+            condition = decide_u, reads = both_reads(), residuals = (r, d) -> (wrong = r.ω̇,),
+            tolerances = (torque = 1e-9,), checks = (r, d) -> (off = r.θ,),
+            check_tolerances = (θ = 1e-6,)); baseline = pend_base()))
+        @test err isa DiagnosticError && length(diagnostics(err)) == 2
+        @test all(d -> d isa TrimProblemInvalid && d.reason === :key_set, diagnostics(err))
+        d = only(d for d in diagnostics(err) if d.field === :residuals)
+        @test d.names == [:wrong] && d.expected == [:torque]
+        d = only(d for d in diagnostics(err) if d.field === :checks)
+        @test d.names == [:off] && d.expected == [:θ]
+        @test world(sim) == before && lifecycle(sim) === :built
     end
 
     @testset "the box is honored at every point the backend returns (§14.8, D-070)" begin
@@ -509,6 +524,37 @@ function test_trim()
         @test abs(report.committed_residuals.torque) ≤ report.tolerances.torque
         @test report.committed_checks.θ ≈ 0.2
         @test state(sim, "c").θ === 0.5                   # committed all the same
+    end
+
+    @testset "a check reads the committed state, not the guess (§14.8, D-262)" begin
+        # The attitude problem starts at θ = 0.1 and solves g/l·sin θ = 4, so a
+        # check that returns θ itself tells the committed state from the guess.
+        sim = Simulation(fed(Pendulum(), :u); h = 1//10)
+        problem = TrimProblem(guess = (θ = 0.1,), lower = (θ = -π/2,), upper = (θ = π/2,),
+                              condition = decide_θ, reads = both_reads(),
+                              residuals = torque_only, tolerances = (torque = 1e-9,),
+                              checks = (r, d) -> (θ = r.θ,), check_tolerances = (θ = 1.0,))
+        report = @test_logs trim!(sim, problem; baseline = pend_base())
+        @test report.converged
+        @test report.committed_checks.θ ≈ asin(4 / PEND_G_L)
+        @test !(report.committed_checks.θ ≈ 0.1)
+    end
+
+    @testset "a mover at the commit shows in the committed-state checks (§14.8, D-262)" begin
+        # The handler resets the solved θ = 0.5 to 0 at boundary zero, and the
+        # checks read the moved point: `θ` returns it and `hold` fails on it.
+        sim = Simulation(fed(Snapback(0.3), :u); h = 1//10)
+        problem = TrimProblem(guess = (u = 0.0,), lower = (u = -Inf,), upper = (u = Inf,),
+                              condition = snap_decide_u, reads = both_reads(),
+                              residuals = torque_only, tolerances = (torque = 1e-9,),
+                              checks = (r, d) -> (θ = r.θ, hold = r.θ - 0.5),
+                              check_tolerances = (θ = 1.0, hold = 1e-6))
+        report = @test_logs((:warn, r"^TrimCommitEvents"), (:warn, r"^TrimCommitResiduals"),
+                            (:warn, r"^TrimCommitChecks"),
+                            trim!(sim, problem; baseline = pend_base()))
+        @test report.converged
+        @test report.committed_checks.θ === 0.0            # the moved point, not the solved 0.5
+        @test report.committed_checks.hold ≈ -0.5
     end
 
     @testset "the commit is literally an `init!` over the same composite (§14.8, §14.9)" begin

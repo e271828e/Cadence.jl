@@ -53,6 +53,9 @@ requires is only checkable against a build — a selector resolves against a
 model, and the residual and check key sets are observed at the setup guess
 evaluation.
 `trim!` runs the whole list in one collecting pass (`TrimProblemInvalid`).
+A check whose key set depends on values, or that throws, fails at the commit
+after the simulation has moved, exactly as a residual does; setup observes the
+shape at the guess and can catch no more than that.
 """
 struct TrimProblem{G,L,U,C,R,F,T,K,V}
     guess::G
@@ -299,10 +302,12 @@ end
 # `tolerances` and `check_tolerances`, `name` saying which: a NamedTuple of
 # `Float64`s, each finite and strictly positive.
 # Positivity is essential rather than cosmetic. A tolerance is the half-width
-# of the box its residual has to sit in, so zero and negative name no box at
-# all — and the acceptance test measures `‖r ./ tol`‖ (§14.8), so a non-positive
-# one sends the descent test to `Inf`/`NaN`, rejects every trial step and
-# returns `:stalled` at the guess. That is a malformed problem, named here.
+# of the box its residual or check has to sit in, so zero and negative name no
+# box at all. A residual's tolerance fails louder still: the acceptance test
+# measures `‖r ./ tol`‖ (§14.8), so a non-positive one sends the descent test
+# to `Inf`/`NaN`, rejects every trial step and returns `:stalled` at the guess.
+# Nothing divides by a check tolerance, and a non-positive one names no box all
+# the same. Either is a malformed problem, named here.
 function _check_tolerances!(diags::Vector{Diagnostic}, name::Symbol, tolerances)
     if !(tolerances isa NamedTuple)
         push!(diags, _trim_violation(name, :not_a_namedtuple; observed = typeof(tolerances)))
@@ -344,8 +349,8 @@ end
 # The residual or check return, `name` saying which, observed at the setup
 # guess evaluation (§14.7): its key set is its tolerances' — order free, the
 # return being reordered to it — and every field is a real scalar, both being
-# named *equations*.
-function _check_residuals(name::Symbol, returned, tolerances::NamedTuple)
+# named *equations*. Returns the violations for the caller to report.
+function _check_equations(name::Symbol, returned, tolerances::NamedTuple)
     diags = Diagnostic[]
     if !(returned isa NamedTuple)
         push!(diags, _trim_violation(name, :not_a_namedtuple; observed = typeof(returned)))
@@ -357,7 +362,7 @@ function _check_residuals(name::Symbol, returned, tolerances::NamedTuple)
                                if !(returned[k] isa Real)]
         isempty(bad) || push!(diags, _trim_violation(name, :field_types; bad = bad))
     end
-    _report_trim!(diags)
+    diags
 end
 
 # --- the service (§14.8) ---------------------------------------------------------
@@ -441,10 +446,13 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     apply!(nominal_exec, plan)
     _round!(nominal_exec, ESTABLISH)          # every discrete output stage, due or not
     nominal_exec.bodies.rhs()
-    r0 = problem.residuals(gather_reads(reader, nominal_exec), guess)
-    _check_residuals(:residuals, r0, tolerances)   # the return, observed where §14.7 says
-    c0 = problem.checks(gather_reads(reader, nominal_exec), guess)
-    _check_residuals(:checks, c0, problem.check_tolerances)
+    gathered = gather_reads(reader, nominal_exec)
+    r0 = problem.residuals(gathered, guess)
+    c0 = problem.checks(gathered, guess)
+    # Both returns, observed where §14.7 says, in one collected throw.
+    append!(diags, _check_equations(:residuals, r0, tolerances))
+    append!(diags, _check_equations(:checks, c0, problem.check_tolerances))
+    _report_trim!(diags)
 
     if N == 0
         # The solver is bypassed outright: the establishment round above is the
@@ -483,7 +491,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
         raw = problem.residuals(gather_reads(seeded_reader, seeded_exec), decisions)
         if !checked[]
             checked[] = true
-            _check_residuals(:residuals, raw, tolerances)
+            _report_trim!(_check_equations(:residuals, raw, tolerances))
         end
         residuals = NamedTuple{residual_names}(raw)
         for i in eachindex(r)

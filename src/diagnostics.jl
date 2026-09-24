@@ -1695,7 +1695,7 @@ Base.@kwdef struct TrimProblemInvalid <: Diagnostic
     observed::Any = nothing
     names::Vector{Symbol} = Symbol[]         # the names in hand
     expected::Vector{Symbol} = Symbol[]      # the names it has to match
-    key::Union{Nothing,Symbol} = nothing     # the offending decision or residual
+    key::Union{Nothing,Symbol} = nothing     # the offending decision, residual or check
     value::Any = nothing
     bound::Any = nothing
     bad::Vector{Pair{Symbol,Any}} = Pair{Symbol,Any}[]   # field => observed type
@@ -1859,7 +1859,8 @@ function message(d::ArgumentInvalid)
     d.reason === :not_a_problem &&
         return "`trim!` takes a `TrimProblem` and was given $(d.value) — the problem is " *
                "one value with a closed field set: TrimProblem(; guess, lower, upper, " *
-               "condition, reads, residuals, tolerances) (§14.7)"
+               "condition, reads, residuals, tolerances, checks = …, " *
+               "check_tolerances = …) (§14.7)"
     d.reason === :disabled &&
         return "this simulation was initialized with `trace = false`, so there is no " *
                "recording to hand back — the switch is §11.5's plain kill switch for the " *
