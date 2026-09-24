@@ -100,7 +100,7 @@ function test_roster()
         # The empty enumeration: an honest may-write-nothing degenerate (§11.6).
         handle_c = attach!(sim, Pad("dc"), Enumerated())
         stage!(handle_c, "a" => 9.0)
-        entry = only((@atomic handle_c.diag.batch).ring)       # pending in the cell until the next drain
+        entry = only((@atomic handle_c.diag_cell.batch).ring)       # pending in the cell until the next drain
         @test entry isa OutOfClaimEntry
         @test entry.surface == Symbol[] && entry.incumbent == "device 1 (Pad)"
     end
@@ -118,7 +118,7 @@ function test_roster()
         @test port(sim, "", :b) === 5.0
         # Past the attach point nothing downstream tells the sources apart.
         stage!(greedy_handle, "a" => 9.0)
-        @test only((@atomic greedy_handle.diag.batch).ring) isa OutOfClaimEntry
+        @test only((@atomic greedy_handle.diag_cell.batch).ring) isa OutOfClaimEntry
 
         # A rostered greedy claimant empties the harness surface: every harness
         # stage! in such a session is rejected by name into the harness writer's
@@ -137,7 +137,7 @@ function test_roster()
         @test isempty(sim.plane.roster[3].handle.writer.faces)
         # The line is presentation; the warning's home is the new entry's own
         # cell (§11.8, D-250), so the next run's status carries it.
-        @test only((@atomic sim.plane.roster[3].handle.diag.batch).ring) isa EmptyGreedyClaim
+        @test only((@atomic sim.plane.roster[3].handle.diag_cell.batch).ring) isa EmptyGreedyClaim
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))   # cells survive a fresh trajectory
         step!(sim; frames = 1)
         @test writer_status(latest(sim), "device 3 (Pad)").totals.empty_greedy == 1

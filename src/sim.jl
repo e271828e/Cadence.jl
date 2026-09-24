@@ -1180,10 +1180,10 @@ end
 # drain, exactly as a staged input batch waits (§11.4).
 function _reset_accounts!(sim::Simulation)
     for entry in sim.plane.roster
-        _reset!(entry.acct)
+        _reset!(entry.account)
     end
-    _reset!(sim.plane.harness_acct)
-    _reset!(sim.plane.loop_acct)
+    _reset!(sim.plane.harness_account)
+    _reset!(sim.plane.loop_account)
     nothing
 end
 
@@ -1611,13 +1611,15 @@ function drain!(sim::Simulation)
     trc === nothing || (trc.frames += 1)
     feed = sim.run.feed
     feed === nothing || return _replay_drain!(sim, feed)
+    # The diagnostic cells drain at the same point (§11.8): retained values into the
+    # pending delta, every occurrence into the totals.
     for entry in plane.roster
         entry.drain()
-        _fold!(entry.acct, _handle(entry).diag)   # the diagnostic cells drain at the same
-    end                                   # point (§11.8): retained values into the
-    plane.harness_drain()                 # pending delta, every occurrence into the totals
-    _fold!(plane.harness_acct, plane.harness_diag)
-    _fold!(sim.plane.loop_acct, sim.plane.loop_diag)
+        _fold!(entry.account, _handle(entry).diag_cell)
+    end
+    plane.harness_drain()
+    _fold!(plane.harness_account, plane.harness_diag)
+    _fold!(sim.plane.loop_account, sim.plane.loop_diag)
     nothing
 end
 
@@ -1649,12 +1651,12 @@ function _replay_drain!(sim::Simulation, feed::ReplayFeed)
     frame = sim.exec.clock.step + 1
     for entry in plane.roster
         handle = _handle(entry)
-        _discard_staged!(handle.writer, handle.diag, frame)
-        _fold!(entry.acct, handle.diag)        # the diagnostic fold is the live path's, unchanged
+        _discard_staged!(handle.writer, handle.diag_cell, frame)
+        _fold!(entry.account, handle.diag_cell)        # the diagnostic fold is the live path's, unchanged
     end
     _discard_staged!(plane.harness, plane.harness_diag, frame)
-    _fold!(plane.harness_acct, plane.harness_diag)
-    _fold!(sim.plane.loop_acct, sim.plane.loop_diag)
+    _fold!(plane.harness_account, plane.harness_diag)
+    _fold!(sim.plane.loop_account, sim.plane.loop_diag)
     i, record_count = feed.next, length(feed.records)
     # keyed exactly: the records are stably sorted by `(frame, writer)`, the entry
     # pass has validated every ordinal into `1:frames`, and the loop visits each
@@ -1716,12 +1718,12 @@ function publish!(sim::Simulation)
     clock.boundary += 1
     @atomic :release sim.plane.published.latest = snapshot
     log!(sim.run.log, snapshot)
-    lock(control.cond)
+    lock(control.wake)
     try
         control.counter += 1
-        notify(control.cond)
+        notify(control.wake)
     finally
-        unlock(control.cond)
+        unlock(control.wake)
     end
     nothing
 end
@@ -1746,11 +1748,11 @@ function _status(sim::Simulation)
     statuses = Vector{WriterStatus}(undef, length(plane.roster) + 2)
     for (i, entry) in enumerate(plane.roster)
         task = get(plane.run_tasks, entry.id, nothing)
-        statuses[i] = _writer_status(_who(entry), entry.acct, _heartbeat(_handle(entry).diag),
+        statuses[i] = _writer_status(_who(entry), entry.account, _heartbeat(_handle(entry).diag_cell),
                                      _task_state(task))
     end
-    statuses[end-1] = _writer_status("harness", plane.harness_acct, nothing, nothing)
-    statuses[end] = _writer_status("loop", sim.plane.loop_acct, nothing, nothing)
+    statuses[end-1] = _writer_status("harness", plane.harness_account, nothing, nothing)
+    statuses[end] = _writer_status("loop", sim.plane.loop_account, nothing, nothing)
     FrameworkStatus(statuses)
 end
 

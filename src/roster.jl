@@ -127,7 +127,7 @@ struct RosterEntry
     id::Int
     drain::Function                 # the compiled (cell, scatter) pair as a callable, see _drain_thunk
     should_abort::Bool              # the per-attachment failure policy (§11.6, §12.4)
-    acct::WriterAccount             # the loop's private account behind the cell (§11.8)
+    account::WriterAccount          # the loop's private account behind the cell (§11.8)
     handle::Any                     # the DeviceHandle; `Any` for include order only
 end
 
@@ -196,9 +196,9 @@ mutable struct DataPlane
     harness::Writer                 # the derived-surface writer, recompiled at roster changes
     harness_drain::Function         # its drain thunk, recompiled with it
     harness_diag::DiagCell          # the harness writer's diagnostic cell (§11.8)
-    harness_acct::WriterAccount     # and the account behind it
+    harness_account::WriterAccount  # and the account behind it
     loop_diag::DiagCell             # the loop's own diagnostic cell (§11.8)
-    loop_acct::WriterAccount        # and the account behind it
+    loop_account::WriterAccount     # and the account behind it
     published::Published            # §11.2's `@atomic latest` holder
     run_tasks::Dict{Int,Task}       # the run's device tasks, by device id (§12.2, D-193)
     claimedby::Dict{Symbol,String}  # face → incumbent: the exclusivity index
@@ -268,7 +268,7 @@ function reclaim!(plane::DataPlane, layout::Layout, store, trc)
     _install_writers!(plane, store, trc)   # §11.5: the schema list grows, the thunks follow
     if pending !== nothing
         batch = pending[]
-        entries = [old.faces[i] => batch.vals[i] for i in 1:length(old.faces) if batch.mask[i]]
+        entries = [old.faces[i] => batch.staged[i] for i in 1:length(old.faces) if batch.mask[i]]
         renormalized = _normalize(plane.harness, entries, plane.claimedby, plane.harness_diag;
                                   site = :renormalization)
         renormalized === nothing || stage_batch!(plane.harness, renormalized)

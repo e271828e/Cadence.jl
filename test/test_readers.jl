@@ -175,7 +175,7 @@ function test_readers()
 
         err = failure(() -> gather_reads(_compile_reads(readable_reads(), nominal.deployment.build), seeded.exec))
         @test err isa InternalInvariant         # not a diagnostic kind, and not a DiagnosticError
-        @test occursin("compiled at Float64", err.msg) && occursin("Dual{Nothing, Float64, 8}", err.msg)
+        @test occursin("compiled at Float64", err.message) && occursin("Dual{Nothing, Float64, 8}", err.message)
         # `InternalInvariant` carries a message and no payload by design (D-215),
         # so it is matched on text — it is no diagnostic kind.
 

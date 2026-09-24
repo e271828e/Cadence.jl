@@ -137,7 +137,7 @@ function _record!(trc::Trace, writer_index::Int, batch::Batch)
     entries = Vector{Pair{Int,Any}}(undef, touched)
     j = 0
     for i in 1:length(mask)
-        mask[i] && (entries[j += 1] = i => batch.vals[i])
+        mask[i] && (entries[j += 1] = i => batch.staged[i])
     end
     push!(trc.batches, TraceBatch(trc.frames, writer_index, entries))
     nothing
@@ -197,7 +197,7 @@ function _install_writers!(plane, store, trc)
         plane.roster[i] = RosterEntry(
             entry.dev, entry.id,
             _drain_thunk(store, _handle(entry).writer, trc, live_writers[i]),
-            entry.should_abort, entry.acct, entry.handle)
+            entry.should_abort, entry.account, entry.handle)
     end
     plane.harness_drain =
         _drain_thunk(store, plane.harness, trc, live_writers[writer_count])
@@ -420,7 +420,7 @@ function _compile_records!(diags::Vector{Diagnostic}, sim, trc::Trace, faces::Ve
         end
         writer = writers[record.writer]
         batch_values, mask, resolved =
-            Any[writer.blank.vals...], fill(false, length(schema)), true
+            Any[writer.blank.staged...], fill(false, length(schema)), true
         for (face_position, value) in record.entries
             if !(1 ≤ face_position ≤ length(schema))
                 push!(diags, ReplayUnknownFace(face = face_position, frame = record.frame,
@@ -441,7 +441,7 @@ function _compile_records!(diags::Vector{Diagnostic}, sim, trc::Trace, faces::Ve
             mask[face_position] = true
         end
         resolved || continue
-        batch = Batch(convert(typeof(writer.blank.vals), (batch_values...,)), (mask...,))
+        batch = Batch(convert(typeof(writer.blank.staged), (batch_values...,)), (mask...,))
         push!(replay_records,
               (frame = record.frame, thunk = _apply_thunk(store, writer.addrs, batch),
                record = record))

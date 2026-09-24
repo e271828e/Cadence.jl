@@ -80,7 +80,7 @@ function diagnostics_channel()
         # applied by a drain the stop did not beat, or still pending in the cell:
         # exactly one of the two, timing's choice.
         p = @atomic handle.writer.cell.pending
-        @test (p === nothing ? port(sim, "", :a) : p[].vals[1]) === 0.9
+        @test (p === nothing ? port(sim, "", :a) : p[].staged[1]) === 0.9
     end
 
     @testset "the ring's bound is the rate limit: 16 retained, excess to the counts (§11.8)" begin
@@ -229,13 +229,13 @@ function diagnostics_channel()
         # A never-heartbeated cell reads its initial 0.0 — stale against any wall
         # clock, which is what marks a failed init!'s device with no machinery
         # (§12.4): dead is "no recent timestamp", recorded nowhere else.
-        @test _heartbeat(handle.diag) == 0.0
+        @test _heartbeat(handle.diag_cell) == 0.0
         before = time()
         running(handle)                       # any loop-pass primitive beats —
-        heartbeat = _heartbeat(handle.diag)   # (false here: no run has started)
+        heartbeat = _heartbeat(handle.diag_cell)   # (false here: no run has started)
         @test heartbeat ≥ before
         stage!(handle, "a" => 1.0)             # and so does each of the others
-        @test _heartbeat(handle.diag) ≥ heartbeat
+        @test _heartbeat(handle.diag_cell) ≥ heartbeat
     end
 end
 
@@ -259,10 +259,10 @@ function diagnostics_kind_set()
                            (prime = 5, power = 2, suppliers = [2])])
         occurrences = Diagnostic[
             # the structure step
-            UnknownPort(entry = "child_connections at `a`, entry `x => y`", end_ = :destination,
+            UnknownPort(entry = "child_connections at `a`, entry `x => y`", endpoint = :destination,
                         path = "a/b", spelling = "b/throtle", port = :throtle,
                         candidates = [:throttle, :mixture]),
-            UnknownPort(entry = "input_connections at `a`, entry `:u => ()`", end_ = :connection,
+            UnknownPort(entry = "input_connections at `a`, entry `:u => ()`", endpoint = :connection,
                         path = "a", port = :u),
             UnconnectedInput(path = "a/b", face = :u, declared = Float64, level = "a/b"),
             UnconnectedInput(path = "a/b", face = :u, declared = Float64, level = "a"),
@@ -289,7 +289,7 @@ function diagnostics_kind_set()
             StoreWithoutUpdate(path = "a/b", store = :init_x),
             EventHalfMissing(path = "a/b", event = :snap, reason = :guard, found = "Latch"),
             EventHalfMissing(path = "a/b", event = :snap, reason = :not_an_event, found = "Int64"),
-            DeclarationShadowed(path = "a/b", mod = "Main.MyModel",
+            DeclarationShadowed(path = "a/b", parent_module = "Main.MyModel",
                                 names = [:init_x, :output_types]),
             ClassUnreadable(path = "a", type = "Inert", found = Symbol[],
                             assembly_family = [:child_connections],
@@ -694,8 +694,8 @@ function diagnostics_kind_set()
         # The did-you-mean list is carried, not ranked (`pending.md`): the
         # candidates the site had in hand are printed, and no edit distance orders
         # them.
-        rendered = message(UnknownPort(entry = "wires", end_ = :destination, path = "a/b",
-                                       spelling = "a/b", port = :throtle,
+        rendered = message(UnknownPort(entry = "wires", endpoint = :destination,
+                                       path = "a/b", spelling = "a/b", port = :throtle,
                                        candidates = [:throttle, :brake]))
         @test occursin("names no `throtle`", rendered) &&
               occursin("throttle, brake", rendered)
@@ -777,7 +777,7 @@ function diagnostics_kind_set()
 
         # The forgotten import (§8.1, D-246) states its fix as the line to paste,
         # spelled for exactly the names the module shadowed.
-        rendered = message(DeclarationShadowed(path = "a/b", mod = "Main.MyModel",
+        rendered = message(DeclarationShadowed(path = "a/b", parent_module = "Main.MyModel",
                                                names = [:init_x, :output_types]))
         @test occursin("import Cadence: init_x, output_types", rendered)
 

@@ -68,8 +68,9 @@ function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::
         # boundary's quiescence, holding at arrival — §2.1's directional edge.
         any_triggered = false
         for i in 1:n_events
-            events.trig[i] = events.localized[i] && !events.prior[i] && events.σ1[i] ≥ 0
-            any_triggered |= events.trig[i]
+            events.triggered[i] = events.localized[i] && !events.prior[i] &&
+                                  events.σ1[i] ≥ 0
+            any_triggered |= events.triggered[i]
         end
         any_triggered || return nothing
 
@@ -78,7 +79,7 @@ function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::
         # boundary's ordinary iteration — boundary granularity for this frame.
         if localizations ≥ sim.deployment.localization_budget
             for i in 1:n_events
-                (events.trig[i] && !events.loc_warned[i]) || continue
+                (events.triggered[i] && !events.loc_warned[i]) || continue
                 events.loc_warned[i] = true   # at most one report per event per frame
                 (path, name) = events.names[i]
                 # the loop's own cell (§11.8): folded at the next frame top
@@ -106,8 +107,8 @@ function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::
         copyto!(events.σ0, events.σ)
         remaining = false
         for i in 1:n_events
-            events.trig[i] = events.trig[i] && events.σ0[i] < 0
-            remaining |= events.trig[i]
+            events.triggered[i] = events.triggered[i] && events.σ0[i] < 0
+            remaining |= events.triggered[i]
         end
         if !remaining
             # epoch-caused only: fall through to the frame top
@@ -129,7 +130,7 @@ function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::
         # hold at θ★, so it re-triggers on the remainder and re-localizes there.
         θ★ = 1.0
         for i in 1:n_events
-            events.trig[i] || continue
+            events.triggered[i] || continue
             θ★ = min(θ★, _crossing(sim, i, events.σ0[i], events.σ1[i], t_seg, h′))
         end
         if θ★ ≥ 1.0

@@ -326,9 +326,9 @@ function build_algebraic_cycles()
     end
 
     @testset "the tracer unions sets and refuses a tainted branch (§5.6)" begin
-        @test (Tracer{true}(1.0, 0b01) + Tracer{true}(2.0, 0b10)).deps == 0b11
+        @test (Tracer{true}(1.0, 0b01) + Tracer{true}(2.0, 0b10)).dependencies == 0b11
         # May-depend semantics: a saturated `clamp` still reports its set.
-        @test clamp(Tracer{true}(5.0, 0b1), 0.0, 1.0).deps == 0b1
+        @test clamp(Tracer{true}(5.0, 0b1), 0.0, 1.0).dependencies == 0b1
         # Either arm would drop the other's set, so the global tracer refuses.
         @test_throws Undecidable Tracer{true}(1.0, 0b1) < Tracer{true}(0.0, UInt64(0))
         @test !(Tracer{true}(1.0, UInt64(0)) < Tracer{true}(0.0, UInt64(0)))
@@ -338,20 +338,20 @@ function build_algebraic_cycles()
 
     @testset "the unary list and the norms carry the set through (§5.6)" begin
         tracer = Tracer{true}(0.5, 0b1)
-        @test atan(tracer).deps == 0b1
-        @test asinh(tracer).deps == 0b1
+        @test atan(tracer).dependencies == 0b1
+        @test asinh(tracer).dependencies == 0b1
         # Base routes `deg2rad` through `float`, the identity here: without its
         # own method the fallback recurses instead of raising a `MethodError`.
         @test deg2rad(tracer) isa Tracer{true}
-        @test deg2rad(tracer).deps == 0b1
+        @test deg2rad(tracer).dependencies == 0b1
         # The overflow-scaling guards of `hypot` and `norm` compare their
         # operands, which the global tracer refuses; the union answers instead.
         tracer1, tracer2, tracer3 = Tracer{true}(1.0, 0b1), Tracer{true}(2.0, 0b10),
                                      Tracer{true}(3.0, 0b100)
-        @test hypot(tracer1, tracer2, tracer3).deps == 0b111
+        @test hypot(tracer1, tracer2, tracer3).dependencies == 0b111
         v = SVector(tracer1, tracer2, tracer3)
-        @test norm(v).deps == 0b111
-        @test norm(v, 1).deps == 0b111
+        @test norm(v).dependencies == 0b111
+        @test norm(v, 1).dependencies == 0b111
     end
 end
 

@@ -597,7 +597,7 @@ struct Authored{P,L} end
 
 struct XWrite{A}
     authored::A
-    off::Int
+    offset::Int
 end
 
 struct InputWrite{A,D}
@@ -621,7 +621,7 @@ StoreWrite{K,S,F}(ci::Int, defaults::S, authored::A) where {K,S,F,A<:Tuple} =
     StoreWrite{K,S,F,A}(ci, defaults, authored)
 
 @inline _write!(w::XWrite, exec::Executor, tree) =
-    flatten!(exec.xbuf, w.off, w.authored(tree))
+    flatten!(exec.xbuf, w.offset, w.authored(tree))
 
 @inline _write!(w::InputWrite, exec::Executor, tree) =
     scatter_cell!(exec.store, w.addr, w.authored(tree))

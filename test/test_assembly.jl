@@ -102,13 +102,13 @@ function assembly_class()
         d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(ForgottenImport.Inventory.Leaf()))
         @test d.path == ""
         @test d.names == [:init_x, :output_types, :output_state, :state_derivative]
-        @test d.mod == string(ForgottenImport.Inventory)
+        @test d.parent_module == string(ForgottenImport.Inventory)
 
         # One bare definition on an otherwise sound leaf: the modeling diagnostic
         # this used to raise, `StoreWithoutUpdate`, is not what throws.
         d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(single(ForgottenImport.Update.Leaf())))
         @test d.path == "c" && d.names == [:state_derivative]
-        @test d.mod == string(ForgottenImport.Update)
+        @test d.parent_module == string(ForgottenImport.Update)
 
         # The optional declarations are the reason the check runs on every
         # component: a shadowed `state_events` has no absence to notice, and built
@@ -120,14 +120,14 @@ function assembly_class()
         # first component the walk reaches, ahead of the child below it.
         d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(ForgottenImport.Rates.Assembly(ForgottenImport.Rates.Leaf())))
         @test d.path == "" && d.names == [:sample_times]
-        @test d.mod == string(ForgottenImport.Rates)
+        @test d.parent_module == string(ForgottenImport.Rates)
 
         # A parent whose boundary is computed over the shadowed child (§8.8):
         # `input_passthrough` classifies the child, so the child's own check
         # must come first, at the child's path, or `ClassUnreadable` throws at
         # `""` with the false message.
         d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(PassthroughOverForgotten(ForgottenImport.Inventory.Leaf())))
-        @test d.path == "kid" && d.mod == string(ForgottenImport.Inventory)
+        @test d.path == "kid" && d.parent_module == string(ForgottenImport.Inventory)
     end
 end
 
@@ -512,14 +512,14 @@ function assembly_connections()
         err = failure(() -> build(DeadFace(Gain(1.0))))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
-        @test d isa UnknownPort && d.end_ === :connection && d.port === :dead
+        @test d isa UnknownPort && d.endpoint === :connection && d.port === :dead
         @test startswith(d.entry, "input_connections at the root component")
 
         nested = Group((; sub = DeadFace(Gain(2.0))); inputs = ("in" => "sub/in",))
         err = failure(() -> build(nested))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
-        @test d isa UnknownPort && d.end_ === :connection && d.path == "sub"
+        @test d isa UnknownPort && d.endpoint === :connection && d.path == "sub"
         @test startswith(d.entry, "input_connections at `sub`")
 
         # The misdiagnosis this closes: the dead face used to build, and a condition

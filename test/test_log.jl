@@ -75,7 +75,7 @@ function test_log()
         end
         @test ok_bound && ok_ends && ok_sorted
         # 128 = 16·8 boundaries, four generations in: the middle sits at exactly
-        # stride·(1..max) — coverage global at the effective stride, gap-free —
+        # stride·(1..log_max) — coverage global at the effective stride, gap-free —
         # and the retained final boundary dedups against the terminal endpoint.
         @test sim.run.log.stride == 16
         @test [snapshot.frame for snapshot in sim.run.log.snaps] == collect(16:16:128)

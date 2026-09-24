@@ -18,15 +18,15 @@
 
 """
 §5.6's set-propagation scalar. Every leaf carries the set of in-cycle input
-faces it may depend on, as a bitmask, unioned by every operation; `val` is a
+faces it may depend on, as a bitmask, unioned by every operation; `value` is a
 primal the local mode branches on. `S = true` is the global, value-blind
 tracer: a comparison or a value-severing conversion touching a tagged operand
 throws `Undecidable`, since either arm would drop the other's set. `S = false`
-is the local tracer: it decides on `val` and reports the taken path (D-012).
+is the local tracer: it decides on `value` and reports the taken path (D-012).
 """
 struct Tracer{S} <: Real
-    val::Float64
-    deps::UInt64
+    value::Float64
+    dependencies::UInt64
 end
 
 "The global tracer's refusal at a tainted decision (§5.6). A marker, never rendered."
@@ -45,29 +45,30 @@ Base.float(x::Tracer) = x
 
 # The documented blind spot (§5.6): a value-severing conversion drops the set,
 # which the local tracer accepts and the global one refuses.
-Base.Float64(x::Tracer{false}) = x.val
+Base.Float64(x::Tracer{false}) = x.value
 Base.Float64(::Tracer{true}) = throw(Undecidable())
 
 # Set union. `min`/`max` are here rather than on the deciders below because a
 # saturated `clamp` still reports its argument's set — may-depend semantics.
 for f in (:+, :-, :*, :/, :^, :atan, :hypot, :min, :max, :copysign, :rem, :mod)
     @eval Base.$f(x::Tracer{S}, y::Tracer{S}) where {S} =
-        Tracer{S}($f(x.val, y.val), x.deps | y.deps)
+        Tracer{S}($f(x.value, y.value), x.dependencies | y.dependencies)
 end
-Base.:^(x::Tracer{S}, n::Integer) where {S} = Tracer{S}(x.val^n, x.deps)
+Base.:^(x::Tracer{S}, n::Integer) where {S} = Tracer{S}(x.value^n, x.dependencies)
 Base.muladd(x::Tracer{S}, y::Tracer{S}, z::Tracer{S}) where {S} =
-    Tracer{S}(muladd(x.val, y.val, z.val), x.deps | y.deps | z.deps)
+    Tracer{S}(muladd(x.value, y.value, z.value),
+              x.dependencies | y.dependencies | z.dependencies)
 Base.clamp(x::Tracer{S}, lo::Real, hi::Real) where {S} =
     min(max(x, Tracer{S}(lo)), Tracer{S}(hi))
 Base.ifelse(test::Bool, x::Tracer{S}, y::Tracer{S}) where {S} =
-    Tracer{S}(ifelse(test, x.val, y.val), x.deps | y.deps)   # branch-free: both sets survive
+    Tracer{S}(ifelse(test, x.value, y.value), x.dependencies | y.dependencies)   # branch-free: both sets survive
 
 for f in (:-, :abs, :abs2, :sqrt, :cbrt, :exp, :log, :log2, :log10, :sin, :cos, :tan,
           :asin, :acos, :sinh, :cosh, :tanh, :sign, :inv, :floor, :ceil, :round, :trunc,
           :atan, :asinh, :acosh, :atanh, :expm1, :log1p, :exp2, :exp10, :sinpi, :cospi,
           :deg2rad, :rad2deg, :sind, :cosd, :tand, :asind, :acosd, :atand,
           :sec, :csc, :cot, :mod2pi)
-    @eval Base.$f(x::Tracer{S}) where {S} = Tracer{S}($f(x.val), x.deps)
+    @eval Base.$f(x::Tracer{S}) where {S} = Tracer{S}($f(x.value), x.dependencies)
 end
 
 # A function off these lists degrades in one of two ways, and the classifier's
@@ -83,7 +84,8 @@ end
 # and passes, `-Inf` meets a tainted comparison and refuses (§5.6).
 function Base.hypot(x::Tracer{S}, y::Tracer{S}, z::Tracer{S}...) where {S}
     operands = (x, y, z...)
-    Tracer{S}(hypot(map(v -> v.val, operands)...), reduce(|, map(v -> v.deps, operands)))
+    Tracer{S}(hypot(map(v -> v.value, operands)...),
+              reduce(|, map(v -> v.dependencies, operands)))
 end
 
 _norm(v, p::Real) = p == 2 ? sqrt(sum(abs2, v)) : sum(x -> abs(x)^p, v)^(1 / p)
@@ -104,29 +106,29 @@ _decide(S::Bool, deps::UInt64) = (S && !iszero(deps)) ? throw(Undecidable()) : n
 
 for f in (:<, :<=, :(==), :isless)
     @eval function Base.$f(x::Tracer{S}, y::Tracer{S}) where {S}
-        _decide(S, x.deps | y.deps)
-        $f(x.val, y.val)
+        _decide(S, x.dependencies | y.dependencies)
+        $f(x.value, y.value)
     end
 end
 for f in (:iszero, :isnan, :isfinite, :isinf, :signbit)
     @eval function Base.$f(x::Tracer{S}) where {S}
-        _decide(S, x.deps)
-        $f(x.val)
+        _decide(S, x.dependencies)
+        $f(x.value)
     end
 end
 for f in (:round, :floor, :trunc)
     @eval function Base.$f(::Type{I}, x::Tracer{S}) where {I<:Integer,S}
-        _decide(S, x.deps)
-        $f(I, x.val)
+        _decide(S, x.dependencies)
+        $f(I, x.value)
     end
 end
 function Base.Int(x::Tracer{S}) where {S}
-    _decide(S, x.deps)
-    Int(x.val)
+    _decide(S, x.dependencies)
+    Int(x.value)
 end
 function Base.Bool(x::Tracer{S}) where {S}
-    _decide(S, x.deps)
-    Bool(x.val)
+    _decide(S, x.dependencies)
+    Bool(x.value)
 end
 
 # --- the leaf-wise lift and tag -----------------------------------------------
@@ -148,11 +150,11 @@ face synthesized through `probe_value` at `T` arrives already carrying `Tracer`
 leaves, which is why the walk re-tags those as well as `Float64` ones.
 """
 _tag(::Type{T}, v, bit::UInt64) where {T} =
-    _walk(T, v, l -> l isa Float64 ? T(l, bit) : l isa Tracer ? T(l.val, bit) : l)
+    _walk(T, v, l -> l isa Float64 ? T(l, bit) : l isa Tracer ? T(l.value, bit) : l)
 
 """
 `_tag` with the primal redrawn: the sampled fallback's seed (§5.6). The local
-tracer decides on `val`, so a state and an in-cycle face have to move between
+tracer decides on `value`, so a state and an in-cycle face have to move between
 evaluations for the branches to move with them; the leaf order is the walk's,
 so one `rng` gives one reproducible draw per evaluation.
 """
@@ -163,7 +165,7 @@ _sample(rng, ::Type{T}, v, bit::UInt64) where {T} =
 function _depset(v)
     deps = UInt64(0)
     for leaf in _leaf_values(v)
-        leaf isa Tracer && (deps |= leaf.deps)
+        leaf isa Tracer && (deps |= leaf.dependencies)
     end
     deps
 end

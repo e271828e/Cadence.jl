@@ -114,7 +114,7 @@ rather than a `MethodError`, exactly as `combine` refuses one in the condition
 algebra (§14.2).
 """
 struct Reads{NT<:NamedTuple}
-    sels::NT
+    selectors::NT
 end
 
 """
@@ -145,12 +145,12 @@ end
 # buffer beside it, a discrete component's own store, and the signal table.
 
 struct StateRead{P,I}
-    off::Int
+    offset::Int
     i::I
 end
 
 struct DerivRead{P,I}
-    off::Int
+    offset::Int
     i::I
 end
 
@@ -168,9 +168,9 @@ _take(value, ::Nothing) = value
 _take(value, index::Int) = value[index]
 
 @inline _read(entry::StateRead{P}, exec::Executor) where {P} =
-    _take(reconstruct(P, exec.xbuf, entry.off), entry.i)
+    _take(reconstruct(P, exec.xbuf, entry.offset), entry.i)
 @inline _read(entry::DerivRead{P}, exec::Executor) where {P} =
-    _take(reconstruct(P, exec.ẋbuf, entry.off), entry.i)
+    _take(reconstruct(P, exec.ẋbuf, entry.offset), entry.i)
 # The `s` stores are held by component index in a `Vector{Any}` — one store
 # type per component type, not per model — so the baked store type is what
 # keeps the read inferable. The assertion goes on the *reference*: asserting
@@ -247,11 +247,11 @@ function _resolve_reads(read_set::Reads, build::Build, ::Type{T}) where {T}
     act = activation(build, T)
     diags = Diagnostic[]
     entries = Any[]
-    for (label, selector) in pairs(read_set.sels)
+    for (label, selector) in pairs(read_set.selectors)
         entry = _resolve_selector(selector, label, build, act, diags)
         entry === nothing || push!(entries, entry)
     end
-    (isempty(diags) ? Reader{T,keys(read_set.sels)}(Tuple(entries)) : nothing, diags)
+    (isempty(diags) ? Reader{T,keys(read_set.selectors)}(Tuple(entries)) : nothing, diags)
 end
 
 # The component a path-addressed selector names. No mounting exists, so every

@@ -50,7 +50,7 @@ still ahead. A run's *outcome* is not a control surface, so §13.5's termination
 record is the `Run`'s and not here (§12.1, §12.6, D-255); the control plane is
 what anyone may poke.
 
-`cond` and `counter` are §12.3's two artifacts: the counter counts *published
+`wake` and `counter` are §12.3's two artifacts: the counter counts *published
 boundaries* — grid, `t*`, boundary zero — mirrored under the lock right
 behind each release-store of `latest`, in that normative order, so a waiter
 observing `counter > last_seen` can never wake onto a stale snapshot. The
@@ -65,7 +65,7 @@ the parameter it waits under is `Control`'s (§12.1, D-256).
 mutable struct Control
     @atomic stop_issuer::Union{Nothing,Symbol,String}
     @atomic stopped::Bool
-    cond::Threads.Condition
+    wake::Threads.Condition
     counter::Int
     @atomic lifecycle::Symbol
     join_timeout::Float64
@@ -129,7 +129,7 @@ mutable struct DeviceHandle
     const claimedby::Dict{Symbol,String}        # the plane's exclusivity index, by reference
     const control::Control
     const published::Published
-    const diag::DiagCell
+    const diag_cell::DiagCell
     const gatherer::Union{Nothing,ReadGather}   # the compiled reads; nothing without an output side
     last_seen::Int
     @atomic detached::Bool                      # set by detach! (D-244), read by the write primitives
@@ -181,7 +181,8 @@ heartbeat on its way through (§11.8, §12.2): the framework observes activity
 without owning the loop body, and there is no separate liveness channel to
 remember to feed.
 """
-running(handle::DeviceHandle) = (_beat!(handle.diag); !(@atomic handle.control.stopped))
+running(handle::DeviceHandle) =
+    (_beat!(handle.diag_cell); !(@atomic handle.control.stopped))
 
 """
     stop!(handle)
@@ -212,7 +213,7 @@ binding(handle::DeviceHandle) = handle.b
 The handle's primitive read (§11.6): acquire-load the most recently published
 snapshot — exactly `latest(sim)`, through the capability the handle carries.
 """
-latest(handle::DeviceHandle) = (_beat!(handle.diag); @atomic :acquire handle.published.latest)
+latest(handle::DeviceHandle) = (_beat!(handle.diag_cell); @atomic :acquire handle.published.latest)
 
 """
     stage!(handle, "face" => value, ...)
@@ -227,8 +228,8 @@ contract misuse and throws by name (D-244).
 """
 function stage!(handle::DeviceHandle, writes::Pair...)
     _assert_attached(handle)
-    _beat!(handle.diag)
-    batch = _normalize(handle.writer, writes, handle.claimedby, handle.diag; device = handle.who)
+    _beat!(handle.diag_cell)
+    batch = _normalize(handle.writer, writes, handle.claimedby, handle.diag_cell; device = handle.who)
     batch === nothing || stage_batch!(handle.writer, batch)
     nothing
 end
@@ -246,7 +247,7 @@ here touches the running loop. On a handle whose binding declares no output
 side the call is a contract misuse, and throws by name.
 """
 function gather(handle::DeviceHandle, snapshot::Snapshot)
-    _beat!(handle.diag)
+    _beat!(handle.diag_cell)
     handle.gatherer === nothing && throw(DiagnosticError(
         DeviceContractMismatch(device = handle.who, reason = :no_output_side)))
     gather_snapshot(handle.gatherer, snapshot)
@@ -270,7 +271,8 @@ device-attributed, delta plus totals (§11.8) — and sweeps it once more at the
 run's end for whatever landed past the last frame top.
 """
 report!(handle::DeviceHandle, occurrence::MalformedDatum) =
-    (_assert_attached(handle); _beat!(handle.diag); report_cell!(handle.diag, occurrence))
+    (_assert_attached(handle); _beat!(handle.diag_cell);
+     report_cell!(handle.diag_cell, occurrence))
 
 """
     wait_next_snapshot(handle)
@@ -286,16 +288,16 @@ waiter and the predicate routes it out. After a stop return the author's
 loop re-checks `running(handle)`, exactly as after any blocking call.
 """
 function wait_next_snapshot(handle::DeviceHandle)
-    _beat!(handle.diag)
+    _beat!(handle.diag_cell)
     control = handle.control
-    lock(control.cond)
+    lock(control.wake)
     try
         while control.counter <= handle.last_seen && !(@atomic control.stopped)
-            wait(control.cond)
+            wait(control.wake)
         end
         handle.last_seen = control.counter
     finally
-        unlock(control.cond)
+        unlock(control.wake)
     end
     latest(handle)
 end
@@ -349,7 +351,7 @@ function _wrap(entry::RosterEntry)
             # no override has nothing to provoke it, so its raise is a crash
             # whenever it lands.
             unblocked = (@atomic entry.handle.control.stopped) && _unblocks(entry.dev)
-            unblocked || report_cell!(_handle(entry).diag,
+            unblocked || report_cell!(_handle(entry).diag_cell,
                                       DeviceCrash(err, entry.should_abort))
         end
     finally
@@ -382,7 +384,7 @@ function _init_devices!(sim)
         catch err
             _shutdown!(entry)
             # addressed by the entry: no task holds a handle yet (§12.4)
-            report_cell!(_handle(entry).diag, DeviceCrash(err, entry.should_abort))
+            report_cell!(_handle(entry).diag_cell, DeviceCrash(err, entry.should_abort))
             entry.should_abort && stop!(entry.handle)
             false
         end
@@ -409,11 +411,11 @@ end
 function _finish!(sim)
     control = sim.control
     @atomic control.stopped = true
-    lock(control.cond)
+    lock(control.wake)
     try
-        notify(control.cond)
+        notify(control.wake)
     finally
-        unlock(control.cond)
+        unlock(control.wake)
     end
     nothing
 end
@@ -472,13 +474,13 @@ function _sweep_tail!(sim)
     plane = sim.plane
     residue = ResidueRecord[]
     for entry in plane.roster
-        _fold!(entry.acct, _handle(entry).diag)
-        _residue!(residue, _who(entry), entry.acct)
+        _fold!(entry.account, _handle(entry).diag_cell)
+        _residue!(residue, _who(entry), entry.account)
     end
-    _fold!(plane.harness_acct, plane.harness_diag)
-    _residue!(residue, "harness", plane.harness_acct)
-    _fold!(plane.loop_acct, plane.loop_diag)
-    _residue!(residue, "loop", plane.loop_acct)
+    _fold!(plane.harness_account, plane.harness_diag)
+    _residue!(residue, "harness", plane.harness_account)
+    _fold!(plane.loop_account, plane.loop_diag)
+    _residue!(residue, "loop", plane.loop_account)
     residue
 end
 

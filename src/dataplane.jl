@@ -427,7 +427,7 @@ frame-top scatter would specialize per pattern — mid-run compilation and a
 boxed dispatch where the drain promises pure application.
 """
 struct Batch{V<:Tuple,M<:Tuple}
-    vals::V                  # position → the staged (or placeholder) value
+    staged::V                  # position → the staged (or placeholder) value
     mask::M                  # position → touched this time (NTuple{n,Bool})
 end
 
@@ -491,7 +491,7 @@ an attach's renormalization in the `ClaimedFaceEntry` payload. Returns
 function _normalize(writer::Writer, entries, claimed_by::Dict{Symbol,String},
                     cell::DiagCell; device::Union{Nothing,String} = nothing,
                     site::Symbol = :staging)
-    staged = Any[writer.blank.vals...]
+    staged = Any[writer.blank.staged...]
     mask = fill(false, length(writer.faces))
     for (key, value) in entries
         face = Symbol(key)
@@ -516,7 +516,7 @@ function _normalize(writer::Writer, entries, claimed_by::Dict{Symbol,String},
         mask[face_position] = true
     end
     any(mask) || return nothing
-    Batch(convert(typeof(writer.blank.vals), (staged...,)), (mask...,))
+    Batch(convert(typeof(writer.blank.staged), (staged...,)), (mask...,))
 end
 
 # The one coalescing policy (§11.4): merge, newest wins per face. Untouched
@@ -525,7 +525,7 @@ end
 # writer's one concrete batch type, and the unroll leans on no small-tuple
 # heuristic, so width does not degrade it (D-202).
 @generated function _merge(pending::Batch{V,M}, incoming::Batch{V,M}) where {V,M}
-    value_exprs = [:(incoming.mask[$i] ? incoming.vals[$i] : pending.vals[$i])
+    value_exprs = [:(incoming.mask[$i] ? incoming.staged[$i] : pending.staged[$i])
                    for i in 1:fieldcount(M)]
     mask_exprs = [:(pending.mask[$i] | incoming.mask[$i]) for i in 1:fieldcount(M)]
     :(Batch{V,M}(($(value_exprs...),), ($(mask_exprs...),)))
@@ -547,7 +547,7 @@ end
 # application, no checks. One specialization per writer, compiled at the
 # stopped-sim point that compiled the writer, whatever the batch touches (D-202).
 @generated function _apply!(store, addrs::Tuple, batch::Batch)
-    statements = [:(batch.mask[$i] && scatter_cell!(store, addrs[$i], batch.vals[$i]))
+    statements = [:(batch.mask[$i] && scatter_cell!(store, addrs[$i], batch.staged[$i]))
                   for i in 1:fieldcount(fieldtype(batch, :mask))]
     quote
         $(statements...)
@@ -640,12 +640,12 @@ what coarsens is density, never extent), amortized: `snaps` holds one
 generation's retained snapshots, `nothing` marking a released slot until the
 once-per-generation compaction. The arithmetic rests on one invariant — at
 each generation's start the compacted vector holds the boundaries at ordinals
-`stride · (1..max)`, index by index — so the entries the doubled stride
+`stride · (1..log_max)`, index by index — so the entries the doubled stride
 abandons are exactly the odd indices, and `cursor` walks them.
 """
 mutable struct SnapshotLog
     enabled::Bool
-    max::Int                        # log_max: what bounds `live`, never the endpoints
+    log_max::Int                    # what bounds `live`, never the endpoints
     stride::Int                     # the effective stride, log_every · 2^generation
     first::Union{Nothing,Snapshot}  # the boundary-zero endpoint (§14.5)
     last::Union{Nothing,Snapshot}   # the terminal endpoint: the latest published boundary
@@ -678,7 +678,7 @@ function log!(snapshot_log::SnapshotLog, snapshot::Snapshot)
 end
 
 # One retained append (§11.2, D-137), the amortized re-decimation in full. At
-# the fill point — middle at `max`, no thinning under way — the stride doubles
+# the fill point — middle at `log_max`, no thinning under way — the stride doubles
 # *immediately*, and the candidate in hand re-tests against it, half the old
 # stride's multiples being no longer retained; the appends that follow continue
 # the surviving even multiples seamlessly. While thinning is active each
@@ -687,7 +687,7 @@ end
 # refill does; compaction then runs, once per generation, restoring the
 # index-by-ordinal invariant for the next fill.
 function _retain!(snapshot_log::SnapshotLog, snapshot::Snapshot, boundary::Int)
-    if snapshot_log.cursor == 0 && snapshot_log.live == snapshot_log.max
+    if snapshot_log.cursor == 0 && snapshot_log.live == snapshot_log.log_max
         snapshot_log.stride *= 2
         snapshot_log.cursor = 1
         boundary % snapshot_log.stride == 0 || return nothing
@@ -696,7 +696,7 @@ function _retain!(snapshot_log::SnapshotLog, snapshot::Snapshot, boundary::Int)
         snapshot_log.snaps[snapshot_log.cursor] = nothing
         snapshot_log.live -= 1
         snapshot_log.cursor += 2
-        snapshot_log.cursor > snapshot_log.max &&
+        snapshot_log.cursor > snapshot_log.log_max &&
             (filter!(!isnothing, snapshot_log.snaps); snapshot_log.cursor = 0)
     end
     push!(snapshot_log.snaps, snapshot)

@@ -706,7 +706,7 @@ function _wrong_direction(entry, path, comp_path, name, comp, wanted, diags)
             String(name) in output_names ? "an output" : nothing
     if found === nothing
         push!(diags, UnknownPort(entry = entry,
-                                end_ = wanted == "producer" ? :source : :destination,
+                                endpoint = wanted == "producer" ? :source : :destination,
                                 path = comp_path, spelling = String(path), port = name,
                                 candidates = Symbol.(vcat(input_names, output_names))))
         return nothing
@@ -1053,10 +1053,9 @@ function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
     # fail-fast too, and would throw alone with a message that is false from the
     # author's chair — the declarations were written, to the wrong function.
     foreign = foreign_declarations(comp)
-    isempty(foreign) ||
-        throw(DiagnosticError(DeclarationShadowed(path = path,
-                                                  mod = string(parentmodule(typeof(comp))),
-                                                  names = foreign)))
+    isempty(foreign) || throw(DiagnosticError(DeclarationShadowed(
+        path = path, names = foreign,
+        parent_module = string(parentmodule(typeof(comp))))))
     if classify(path, comp) === PRIMITIVE
         # Everything below reads this primitive's own declarations, so it runs
         # under the component frame: an accessor's `UserCodeFraming` leaves the
@@ -1152,8 +1151,8 @@ function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
             # already recorded, and registers nothing more.
             if isempty(consumers)
                 isempty(_endpoints(inner)) &&
-                    push!(diags, UnknownPort(entry = entry, end_ = :connection, path = path,
-                                            port = Symbol(face)))
+                    push!(diags, UnknownPort(entry = entry, endpoint = :connection,
+                                            path = path, port = Symbol(face)))
                 continue                       # a route with no consumer registers nothing
             end
             push!(draft.routes, (path, Symbol(face), consumers))

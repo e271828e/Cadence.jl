@@ -296,11 +296,11 @@ it names no failure the user can fix. Its own exception type so the assertions
 stay outside the acceptance-test contract.
 """
 struct InternalInvariant <: Exception
-    msg::String
+    message::String
 end
 
 Base.showerror(io::IO, invariant::InternalInvariant) =
-    print(io, "InternalInvariant: internal invariant violated: ", invariant.msg)
+    print(io, "InternalInvariant: internal invariant violated: ", invariant.message)
 
 # ==============================================================================
 # The structure step — declaration and wiring (§6.1, §8.2, §8.5–§8.8; collected)
@@ -309,7 +309,7 @@ Base.showerror(io::IO, invariant::InternalInvariant) =
 "§6.1, §8.4 w1: a wire end naming no port of the endpoint it resolved to, with that end's port list."
 Base.@kwdef struct UnknownPort <: Diagnostic
     entry::String                            # the declaring method and entry
-    end_::Symbol                             # :source | :destination | :connection (D-210)
+    endpoint::Symbol                         # :source | :destination | :connection (D-210)
     path::String = ""                        # the component that end resolved to
     spelling::String = ""                    # the endpoint path as the entry wrote it
     port::Union{Nothing,Symbol} = nothing    # the unknown port or face name
@@ -317,7 +317,7 @@ Base.@kwdef struct UnknownPort <: Diagnostic
 end
 path(d::UnknownPort) = d.path
 message(d::UnknownPort) =
-    d.end_ === :connection ?
+    d.endpoint === :connection ?
     "$(d.entry): the entry routes to no internal endpoint — every `input_connections` " *
     "entry routes to at least one, a face feeding nothing declaring nothing (§8.6)" :
     "$(d.entry): `$(d.spelling)` names no `$(d.port)` on $(_at_path(d.path)) — its " *
@@ -496,13 +496,13 @@ message(d::EventHalfMissing) =
 "§8.1, D-246: a family name the component's module binds to a function of its own — the forgotten import."
 Base.@kwdef struct DeclarationShadowed <: Diagnostic
     path::String
-    mod::String                              # the parent module, `string(M)`
+    parent_module::String                    # the parent module, `string(M)`
     names::Vector{Symbol}                    # the foreign names, family order
 end
 path(d::DeclarationShadowed) = d.path
 message(d::DeclarationShadowed) =
-    "$(_at_path(d.path)): its module `$(d.mod)` defines its own $(_namelist(d.names)), " *
-    "distinct from " *
+    "$(_at_path(d.path)): its module `$(d.parent_module)` defines its own " *
+    "$(_namelist(d.names)), distinct from " *
     (length(d.names) == 1 ? "`Cadence.$(only(d.names))`" : "`Cadence`'s") *
     "; add `import Cadence: $(join(d.names, ", "))` (§8.1)"
 
