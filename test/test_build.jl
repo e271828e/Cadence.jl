@@ -477,8 +477,9 @@ function build_root_input_type()
         end
 
         # With every consumer tolerant the root input follows the scalar.
-        simr = Simulation(build(_fanned_root(RealEntry(), RealEntry())), D8; h = 1//100)
-        @test port(simr, "", :in) isa D8
+        tolerant_sim = Simulation(build(_fanned_root(RealEntry(), RealEntry())),
+                                  D8; h = 1//100)
+        @test port(tolerant_sim, "", :in) isa D8
     end
 end
 
@@ -626,9 +627,9 @@ function build_wire_clauses()
         @test path(d) == ""                    # the face's own path is the root's
 
         # Two such faces in one model report together: the pass collects (§13.1).
-        err2 = failure(() -> build(Group((; r = FieldReader(), q = RealReader());
+        err = failure(() -> build(Group((; r = FieldReader(), q = RealReader());
                                          inputs = ("f" => "r/f", "u" => "q/u"))))
-        diags = diagnostics(err2)
+        diags = diagnostics(err)
         @test all(x -> x isa AbstractAtRoot, diags)
         @test Set(x.face for x in diags) == Set([:f, :u])
     end
@@ -641,8 +642,9 @@ function build_wire_clauses()
         @test port(Simulation(vec_build, D8; h = 1//100), "", :in) isa SVector{3,D8}
 
         # Beside a pinning co-consumer the whole root input pins (D-168's meet).
-        simp = Simulation(build(_fanned_v(VecReader(), PinnedSVecEntry())), D8; h = 1//100)
-        @test port(simp, "", :in) isa SVector{3,Float64}
+        pinned_sim = Simulation(build(_fanned_v(VecReader(), PinnedSVecEntry())),
+                                D8; h = 1//100)
+        @test port(pinned_sim, "", :in) isa SVector{3,Float64}
 
         # An abstract co-consumer whose bound fails is the bound clause's, named
         # against the root input rather than a producing component.
@@ -666,9 +668,9 @@ function build_wire_clauses()
         @test d.leaf == "" && d.declared === Float64 && d.observed === Marker
 
         # One leaf deep the offending leaf is named by its dotted spelling.
-        err2 = failure(() -> build(Group((; s = FrameSource(), r = FrameReader());
+        err = failure(() -> build(Group((; s = FrameSource(), r = FrameReader());
                                          wires = ("s/f" => "r/f",))))
-        d = only(diagnostics(err2))
+        d = only(diagnostics(err))
         @test d isa WalkingFaceAtFrozenEntry && d.leaf == "p[1]"
         @test d.declared === Float64 && d.observed === Marker
 
@@ -688,26 +690,26 @@ function build_wire_clauses()
         @test d.declared === Bool && d.observed === Float64
 
         # Two bad wires in one model are two diagnostics in one throw.
-        err2 = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(), e = BoolEntry());
+        err = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(), e = BoolEntry());
                                          wires = ("src/val" => "c/u", "src/val" => "e/u"))))
-        diags = diagnostics(err2)
+        diags = diagnostics(err)
         @test length(diags) == 2 && all(x -> x isa WireTypeMismatch, diags)
         @test Set(x.path for x in diags) == Set(["c", "e"])
 
         # A bound failure, a walk failure and an abstract-at-root face merge.
-        err3 = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(),
+        err = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(),
                                             z = FrozenEntry(), r = FieldReader());
                                          wires = ("src/val" => "c/u", "src/val" => "z/u"),
                                          inputs = ("f" => "r/f",))))
-        @test Set(kinds(err3)) ==
+        @test Set(kinds(err)) ==
               Set([WireTypeMismatch, WalkingFaceAtFrozenEntry, AbstractAtRoot])
 
         # The dependency rule: the wire pass reads the wiring, which a dirty walk
         # never produced, so an unfed input beside a bad wire reports the walk's
         # kinds alone.
-        err4 = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(), lone = RealEntry());
+        err = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(), lone = RealEntry());
                                          wires = ("src/val" => "c/u",))))
-        @test Set(kinds(err4)) == Set([UnconnectedInput])
+        @test Set(kinds(err)) == Set([UnconnectedInput])
     end
 
     @testset "a bundle's field names are part of the entry's type (§6.1, D-238)" begin
@@ -788,10 +790,10 @@ function build_port_type_refusals()
         @test d.reason === :mutable && d.position == "" && d.declared === Matrix{Float64}
 
         # Placement collects, so one model reports both and throws once.
-        err2 = failure(() -> build(Group((; c = MutableSource(), q = Query());
+        err = failure(() -> build(Group((; c = MutableSource(), q = Query());
                                          inputs = ("terrain" => "q/terrain",))))
-        @test err2 isa DiagnosticError
-        diags = diagnostics(err2)
+        @test err isa DiagnosticError
+        diags = diagnostics(err)
         @test length(diags) == 2 && all(d -> d isa IllegalPortType, diags)
         @test Set(d.reason for d in diags) == Set([:mutable, :handle_at_root])
     end
@@ -811,16 +813,16 @@ function build_port_type_refusals()
               activation(synth_build, Float64).layout.root_inputs
 
         # Collected: two unsynthesizable faces are one throw carrying both.
-        err2 = failure(() -> build(Group((; a = Unsynthesized(), b = Unsynthesized());
+        err = failure(() -> build(Group((; a = Unsynthesized(), b = Unsynthesized());
                                          inputs = ("in1" => "a/q", "in2" => "b/q"))))
-        diags = diagnostics(err2)
+        diags = diagnostics(err)
         @test length(diags) == 2 && all(d -> d isa MissingProbeValue, diags)
         @test Set(d.face for d in diags) == Set([:in1, :in2])
 
         # An override's own `MethodError` is not a missing synthesis: it
         # propagates as itself, never as this kind.
-        err3 = failure(() -> build(Group((; c = Misprobed()); inputs = ("in" => "c/q",))))
-        @test err3 isa MethodError
+        err = failure(() -> build(Group((; c = Misprobed()); inputs = ("in" => "c/q",))))
+        @test err isa MethodError
     end
 
     @testset "an opaque leaf is accepted by identity alone (D-237)" begin
@@ -1177,10 +1179,10 @@ function build_label_ports()
         # At the walking activation the real walks and the enum pins; the
         # discrete producer is outside that activation's executable set (D-052),
         # so its cell holds the nominal probe's product.
-        simd = Simulation(gear_build, D8; h = 1//10)
-        init!(simd, fragment(inputs = (x = 1.0,)))
-        @test port(simd, "rd", :drag) isa D8
-        @test port(simd, "sel", :gear) === up
+        dual_sim = Simulation(gear_build, D8; h = 1//10)
+        init!(dual_sim, fragment(inputs = (x = 1.0,)))
+        @test port(dual_sim, "rd", :drag) isa D8
+        @test port(dual_sim, "sel", :gear) === up
     end
 
     @testset "an enum root input is synthesized as the first instance (§9.3, D-051)" begin
@@ -1535,16 +1537,16 @@ function build_activations()
         # The frozen reader's cells hold what the *nominal* probe computed from its
         # real upstream value — 2·(3.0 + 0.0) — not a value synthesized off its
         # declaration. Its cell pins while its producer's walks.
-        simd = Simulation(pair_build, D8; h = 1//100)
-        @test port(simd, "src", :val) isa D8
-        @test port(simd, "rd", :out) === 6.0
+        dual_sim = Simulation(pair_build, D8; h = 1//100)
+        @test port(dual_sim, "src", :val) isa D8
+        @test port(dual_sim, "rd", :out) === 6.0
 
         # A discrete stage is never probed at a non-nominal activation (§9.4's
         # executable set): `t` in a discrete bundle is lawful, because it is a
         # `Float64` whenever the stage actually runs — so this must not detonate
         # as a `Dual` arriving at a pinned declaration.
-        sims = Simulation(single(ClockStamp()), D8; h = 1//100)
-        @test port(sims, "c", :stamp) === 0.0
+        stamp_sim = Simulation(single(ClockStamp()), D8; h = 1//100)
+        @test port(stamp_sim, "c", :stamp) === 0.0
 
         # The framework's canonical probe scalar (§9.4): concrete, so it can key
         # an activation, and one partial wide, because what CI pins is genericity
@@ -1725,7 +1727,8 @@ function build_warnings()
         @test only(diagnostics(err)) isa UnconnectedInput
         # The did-you-mean path asks the child for both face lists, after the
         # walk recorded them: the throw carries one warning, not one per asker.
-        err = @test_logs failure(() -> build(WarningTypo(WarningWires(Gain(1.0)), Gain(1.0))))
+        err = @test_logs failure(() -> build(WarningTypo(WarningWires(Gain(1.0)),
+                                                         Gain(1.0))))
         @test UnknownPort in kinds(err)
         @test length(err.warnings) == 1
     end

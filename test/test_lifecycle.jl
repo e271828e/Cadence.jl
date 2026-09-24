@@ -105,16 +105,16 @@ function test_lifecycle()
         while lifecycle(sim) !== :running
             yield()
         end
-        init_diag = carried(@test_throws DiagnosticError{ServiceLifecycle} init!(
+        init_diagnostic = carried(@test_throws DiagnosticError{ServiceLifecycle} init!(
             sim, total))
-        run_diag = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim; t_end = 2.0,
-                                                                            stop_on = ("stop",)))
+        run_diagnostic = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim; t_end = 2.0,
+                                                                                  stop_on = ("stop",)))
         stage!(sim, "in" => 1.0)                         # now, and only now, may the run end:
         wait(task)                                          # the next drain arms the trigger (§12.6)
-        @test init_diag.op === :init! &&
-              init_diag.status === :running
-        @test run_diag.op === :run! &&
-              run_diag.status === :running
+        @test init_diagnostic.op === :init! &&
+              init_diagnostic.status === :running
+        @test run_diagnostic.op === :run! &&
+              run_diagnostic.status === :running
         @test lifecycle(sim) === :stopped
         @test termination(sim).source === ModelRequestedStop(:stop)
     end
@@ -176,37 +176,41 @@ function test_lifecycle()
         # The bound is validated identically at the three binding sites: the same
         # payload — argument, reason and offending value — with the naming call the
         # one field that differs (§13.5, D-255, D-249).
-        run_diag = carried(@test_throws DiagnosticError{ArgumentInvalid} run!(unbound; t_end = -1.0))
-        replay_diag = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(unbound, trace(unbound); t_end = -1.0))
-        step_diag = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(unbound; t_end = -1.0))
-        @test run_diag.argument == replay_diag.argument == step_diag.argument == :t_end
-        @test run_diag.reason == replay_diag.reason == step_diag.reason == :range
-        @test run_diag.value == replay_diag.value == step_diag.value == -1.0
-        @test run_diag.call === :run! && replay_diag.call === :replay! &&
-              step_diag.call === :step!
+        run_diagnostic = carried(@test_throws DiagnosticError{ArgumentInvalid} run!(unbound; t_end = -1.0))
+        replay_diagnostic = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(unbound, trace(unbound); t_end = -1.0))
+        step_diagnostic = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(unbound; t_end = -1.0))
+        @test run_diagnostic.argument == replay_diagnostic.argument ==
+              step_diagnostic.argument == :t_end
+        @test run_diagnostic.reason == replay_diagnostic.reason ==
+              step_diagnostic.reason == :range
+        @test run_diagnostic.value == replay_diagnostic.value ==
+              step_diagnostic.value == -1.0
+        @test run_diagnostic.call === :run! && replay_diagnostic.call === :replay! &&
+              step_diagnostic.call === :step!
     end
 
     @testset "stop_on names root-exported Bool output faces, validated at all three sites (§13.5)" begin
-        m = feedback_model()                        # "ref" a root input, "y" a Float64 export
-        sim = Simulation(m; h = 1//50)
+        model = feedback_model()                    # "ref" a root input, "y" a Float64 export
+        sim = Simulation(model; h = 1//50)
         init!(sim, fragment(inputs = (ref = 0.0,)))
         trc = trace(sim)                            # the header alone: `replay!` binds as `run!` does
         for (bad, reason) in (("nope", :unknown), ("ref", :root_input), ("y", :not_bool))
             run_err = failure(() -> run!(sim; t_end = 1.0, stop_on = (bad,)))
             replay_err = failure(() -> replay!(sim, trc; stop_on = (bad,)))
             step_err = failure(() -> step!(sim; stop_on = (bad,)))
-            run_diag, replay_diag, step_diag =
+            run_diagnostic, replay_diagnostic, step_diagnostic =
                 only(diagnostics(run_err)), only(diagnostics(replay_err)),
                 only(diagnostics(step_err))
-            @test run_err isa DiagnosticError && run_diag isa StopFaceInvalid &&
-                  run_diag.reason === reason
-            @test run_diag.face == replay_diag.face == step_diag.face &&
-                  run_diag.reason == replay_diag.reason == step_diag.reason &&
-                  run_diag.declared == replay_diag.declared ==
-                  step_diag.declared   # identical at all three sites
+            @test run_err isa DiagnosticError && run_diagnostic isa StopFaceInvalid &&
+                  run_diagnostic.reason === reason
+            @test run_diagnostic.face == replay_diagnostic.face == step_diagnostic.face &&
+                  run_diagnostic.reason == replay_diagnostic.reason ==
+                  step_diagnostic.reason &&
+                  run_diagnostic.declared == replay_diagnostic.declared ==
+                  step_diagnostic.declared   # identical at all three sites
             # The binding site is the one payload field that differs (§13.5, D-249).
-            @test run_diag.site === :run! && replay_diag.site === :replay! &&
-                  step_diag.site === :step!
+            @test run_diagnostic.site === :run! && replay_diagnostic.site === :replay! &&
+                  step_diagnostic.site === :step!
         end
         # One advance is one call, and the bound refuses first: `_t_bound` is
         # fail-fast and runs ahead of the faces, so a call naming both a bad bound
@@ -365,7 +369,8 @@ function test_lifecycle()
         # The failed boundary published nothing: boundary zero is the promoted
         # final snapshot, and the published record ends at it.
         @test record.t == 0.0 && latest(sim).t == 0.0
-        @test [s.frame for s in logged(sim)] == [0]      # a post-mortem read, admitted (§13.6)
+        @test [snapshot.frame for snapshot in logged(sim)] ==
+              [0]      # a post-mortem read, admitted (§13.6)
         @test probe.log == [:init, :shutdown]            # the device took the ordinary tail
         # The stores may hold mid-boundary values — retained for inspection,
         # readable, and worth nothing more than inspection.

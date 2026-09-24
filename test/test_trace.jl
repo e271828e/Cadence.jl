@@ -47,8 +47,8 @@ function trace_recording()
         @test batch.frame == 1                     # the drain precedes the step increment
         @test batch.writer == 1                    # the harness writer, sole writer here
         @test first(trc.schemas[batch.writer]) == "harness"
-        (pos, v) = only(batch.entries)             # sparse: the touched position alone
-        @test pos == 2 && v === 1.0            # `b` is position 2 of {a, b, c}
+        (position, v) = only(batch.entries)        # sparse: the touched position alone
+        @test position == 2 && v === 1.0       # `b` is position 2 of {a, b, c}
         @test recorded_faces(trc, batch) == [:b]
         @test trc.frames == 1
 
@@ -345,11 +345,11 @@ function trace_entry_pass()
         trc = recorded_session()
         target = replay_target()
         feed = _compile_feed(target, trc)
-        @test [r.frame for r in feed.records] == [1, 2]
+        @test [record.frame for record in feed.records] == [1, 2]
         @test feed.next == 1 && length(feed.records) == 2
         # The recorded batch rides beside its thunk: a replay re-records, and what it
         # re-records is the recording's own value (§12.7).
-        @test [r.record for r in feed.records] == trc.batches
+        @test [record.record for record in feed.records] == trc.batches
 
         # The thunks *are* the recording, applied to this build's cells: sparse, so
         # an untouched face keeps whatever the target's own header put there.
@@ -370,7 +370,7 @@ function trace_entry_pass()
         stage!(sim, "b" => 2.0)
         step!(sim)
         grown = _compile_feed(replay_target(), trace(sim))
-        @test [r.record.writer for r in grown.records] == [1, 3]     # both schema entries live
+        @test [record.record.writer for record in grown.records] == [1, 3]   # both schema entries live
     end
 end
 
@@ -408,7 +408,8 @@ same_trajectory(candidate, reference) =
 
 # The frame-top publication of frame `frame`: a frame with a `t*` boundary publishes
 # more than once under the same ordinal, and the frame's own boundary is last.
-at_frame(snaps, frame::Int) = last(s for s in snaps if s.frame == frame)
+at_frame(snapshots, frame::Int) =
+    last(snapshot for snapshot in snapshots if snapshot.frame == frame)
 
 # A recorded session over `replay_model()`, staged from the harness across
 # frames: eight frames, batches at 1 and 4, two localized resets inside.
@@ -501,7 +502,8 @@ function trace_replay_loop()
         @test lifecycle(sim2) === :initialized      # the replay pointer: ready to advance
         @test sim2.exec.clock.step == 5      # the halt is at `k` itself (§12.7, §13.4)
         @test trace(sim2).frames == 5
-        @test same_trajectory(logged(sim2), [s for s in logged(sim) if s.frame ≤ 5])
+        @test same_trajectory(logged(sim2),
+                              [snapshot for snapshot in logged(sim) if snapshot.frame ≤ 5])
 
         # §12.6's register, read beside the lifecycle: the halt is short of the
         # recording's end, so the recording is still attached and still the source
@@ -518,7 +520,7 @@ function trace_replay_loop()
 
     @testset "`to_time` addresses the same halt by time (§12.7, D-219)" begin
         (sim, trc) = recorded_run()
-        prefix(frame) = [s for s in logged(sim) if s.frame ≤ frame]
+        prefix(frame) = [snapshot for snapshot in logged(sim) if snapshot.frame ≤ frame]
 
         # On grid: the time of boundary 5 halts *at* 5, never at the one below it.
         on = replay_twin()
@@ -607,8 +609,8 @@ function trace_replay_loop()
         @test sim2.run === run && sim2.run.log === run.log && sim2.run.trace === run.trace
         @test same_trajectory(logged(sim2), logged(sim))    # the recording's own trajectory
         @test port(sim2, "", :ref) == 2.0                   # never the 99.0 staged into it
-        seen = [d for s in logged(sim2) for w in s.status.writers if w.who == "harness"
-                  for d in w.recent if d isa ReplayDiscardedStaging]
+        seen = [d for snapshot in logged(sim2) for w in snapshot.status.writers
+                  if w.who == "harness" for d in w.recent if d isa ReplayDiscardedStaging]
         @test length(seen) == 1 && only(seen).faces == [:ref] && only(seen).frame == 6
 
         # The next call is the live continuation: the same staging surface, applied.
@@ -700,8 +702,8 @@ function trace_replay_loop()
         @test port(sim2, "", :rate) == 9.0
         @test sim2.exec.clock.step == trc.frames
         @test snap_cells(at_frame(logged(sim2), 8)) != snap_cells(at_frame(logged(sim), 8))
-        @test same_trajectory([s for s in logged(sim2) if s.frame ≤ 5],
-                              [s for s in logged(sim) if s.frame ≤ 5])
+        @test same_trajectory([snapshot for snapshot in logged(sim2) if snapshot.frame ≤ 5],
+                              [snapshot for snapshot in logged(sim) if snapshot.frame ≤ 5])
 
         # …and the trace left behind is one seamless recording of the session: the
         # replayed prefix bit for bit, then the frames flown live after it.
@@ -760,8 +762,8 @@ end
 # top (§12.4) — a replay ends `initialized`, so the sweep has no termination
 # record to file its residue in and the log is where it surfaces.
 discard_reports(sim, logs, who::String) =
-    vcat(String[string(d) for s in logged(sim) for w in s.status.writers if w.who == who
-                for d in w.recent if d isa ReplayDiscardedStaging],
+    vcat(String[string(d) for snapshot in logged(sim) for w in snapshot.status.writers
+                if w.who == who for d in w.recent if d isa ReplayDiscardedStaging],
          String[string(l.message) for l in logs
                 if occursin("ReplayDiscardedStaging from $who, past the final",
                             string(l.message))])
@@ -790,8 +792,8 @@ function trace_discarded_staging()
         @test accounted(sim2, logs, who, :replay_discarded, "ReplayDiscardedStaging")
         report = only(discard_reports(sim2, logs, who))
         @test occursin("[:rate]", report)
-        seen = [d for s in logged(sim2) for w in s.status.writers if w.who == who
-                  for d in w.recent if d isa ReplayDiscardedStaging]
+        seen = [d for snapshot in logged(sim2) for w in snapshot.status.writers
+                  if w.who == who for d in w.recent if d isa ReplayDiscardedStaging]
         @test all(d -> d.faces == [:rate] && 1 ≤ d.frame ≤ trc.frames, seen)
     end
 end
@@ -837,8 +839,8 @@ function trace_discarded_harness()
 
         # …and the drop is loud on the *harness* cell (§11.8's attribution), naming
         # the faces it cost — the device's own account untouched, it never staged.
-        seen = [d for s in logged(sim2) for w in s.status.writers if w.who == "harness"
-                  for d in w.recent if d isa ReplayDiscardedStaging]
+        seen = [d for snapshot in logged(sim2) for w in snapshot.status.writers
+                  if w.who == "harness" for d in w.recent if d isa ReplayDiscardedStaging]
         @test !isempty(discard_reports(sim2, logs, "harness"))
         @test all(d -> d.faces == [:ref] && 1 ≤ d.frame ≤ trc.frames, seen)
         @test writer_status(latest(sim2), "harness").totals.replay_discarded ≥ length(seen) ≥ 1

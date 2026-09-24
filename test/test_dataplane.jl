@@ -83,10 +83,13 @@ function dataplane_exchange()
         status = writer_status(latest(sim), "harness")
         @test status.totals.out_of_claim == 2 && status.totals.type_mismatch == 1
         @test length(status.recent) == 3             # the one frame's snapshot carries the delta
-        ooc = only(d for d in status.recent if d isa OutOfClaimEntry && d.face === :flaps)
-        @test ooc.value == 1.0 && ooc.incumbent === nothing   # no claim anywhere: no such face
-        etm = only(d for d in status.recent if d isa EntryTypeMismatch)
-        @test etm.face === :a && etm.value == "high" && etm.declared === Float64
+        out_of_claim = only(d for d in status.recent
+                            if d isa OutOfClaimEntry && d.face === :flaps)
+        @test out_of_claim.value == 1.0 &&
+              out_of_claim.incumbent === nothing   # no claim anywhere: no such face
+        mismatch = only(d for d in status.recent if d isa EntryTypeMismatch)
+        @test mismatch.face === :a && mismatch.value == "high" &&
+              mismatch.declared === Float64
     end
 
     @testset "the shim converts to the activation's root-input types (§11.4)" begin

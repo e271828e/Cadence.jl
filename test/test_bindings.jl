@@ -55,9 +55,9 @@ Poller(datum) = Poller(datum, false)
 function loop(dev::Poller, handle)
     dev.fired && return nothing
     dev.fired = true
-    pairs = map_input(dev.datum, binding(handle))
-    stage!(handle, pairs...)
-    (face, value) = first(pairs)
+    entries = map_input(dev.datum, binding(handle))
+    stage!(handle, entries...)
+    (face, value) = first(entries)
     while running(handle)
         snapshot = wait_next_snapshot(handle)
         port(snapshot, "", Symbol(face)) === value && (stop!(handle); break)
@@ -147,9 +147,9 @@ function test_bindings()
     @testset "the loop idiom end to end: poll → map_input(binding(handle)) → stage! (§11.6)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         dev = Poller((; stick = 0.55, thr = 0.7))
-        h = attach!(sim, dev, TableBinding(stick = (face = "a", deadzone = 0.1),
-                                           thr   = (face = "b",)))
-        @test h === sim.plane.roster[1].handle
+        handle = attach!(sim, dev, TableBinding(stick = (face = "a", deadzone = 0.1),
+                                                thr   = (face = "b",)))
+        @test handle === sim.plane.roster[1].handle
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         run!(sim; t_end = 1000.0)                # ends by the device's stop, past its observed apply
         @test port(sim, "", :a) ≈ 0.5            # (0.55 − 0.1) / 0.9: conditioned at staging
@@ -205,7 +205,7 @@ function test_bindings()
         d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(v = get_face("nope"))))
         @test d.reason === :unknown_output_face && d.candidates == [:y]
         # A rejected attach consumed no id, and the good one lands as device 1.
-        h = attach!(sim, Pad("t"), Readout(alt = get_face("y")))
+        handle = attach!(sim, Pad("t"), Readout(alt = get_face("y")))
         @test sim.plane.roster[1].id == 1
         # An output-only binding stakes no claim: the harness keeps every face.
         @test isempty(sim.plane.claimedby)
@@ -236,9 +236,9 @@ function test_bindings()
 
     @testset "gather without an output side is a contract misuse, by name (§11.6)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
-        h = attach!(sim, Pad("p"), Enumerated("a"))
+        handle = attach!(sim, Pad("p"), Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-        d = carried(@test_throws DiagnosticError{DeviceContractMismatch} gather(h, latest(sim)))
+        d = carried(@test_throws DiagnosticError{DeviceContractMismatch} gather(handle, latest(sim)))
         @test d.reason === :no_output_side
     end
 

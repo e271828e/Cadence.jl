@@ -172,9 +172,9 @@ function test_events()
 
         # The premise the first transition falsifies: re-decided against the
         # post-transition sweep, `second` never fires on its stale round-1 edge.
-        simp = Simulation(fed(Preempted(), "sig"); h = 1//10)
-        init!(simp, fragment(inputs = (in = 2.0,)))
-        @test modes(simp, "c") === (a = true, b = false)
+        preempted_sim = Simulation(fed(Preempted(), "sig"); h = 1//10)
+        init!(preempted_sim, fragment(inputs = (in = 2.0,)))
+        @test modes(preempted_sim, "c") === (a = true, b = false)
     end
 
     @testset "an x-writing handler's carried overshoot is resolution-invariant" begin
@@ -202,7 +202,7 @@ function test_events()
         # update-before-quiescence would accumulate 1.02 where the reference has
         # 0.02.
         model = Group((; saw = Sawtooth(0.3), ctl = DiscreteIntegrator(1.0));
-                  wires = ("saw/q" => "ctl/e",))
+                      wires = ("saw/q" => "ctl/e",))
         sim = Simulation(model; h = 1//10)
         init!(sim)
         run!(sim; t_end = 4.0)
@@ -227,11 +227,11 @@ function test_events()
         @test writer_status(latest(sim), "loop").totals.firing == 0
         step!(sim; t_plus = 0.1)                             # one frame: its snapshot carries the delta
         loop_status = writer_status(latest(sim), "loop")
-        firing_report = only(loop_status.recent)
-        @test firing_report isa FiringBudget
-        @test firing_report.path == "chat" && firing_report.event == :up
-        @test firing_report.budget == 4 && firing_report.count == 4 &&
-              firing_report.t == 0.0
+        d = only(loop_status.recent)
+        @test d isa FiringBudget
+        @test d.path == "chat" && d.event == :up
+        @test d.budget == 4 && d.count == 4 &&
+              d.t == 0.0
         @test loop_status.totals.firing == 1
         step!(sim; t_plus = 0.2)                             # the exhausted boundary's samples
         @test modes(sim, "chat").flips == 8         # became honest priors: quiescent now
@@ -252,9 +252,9 @@ function test_events()
         init!(sim2, fragment(inputs = (in = 1.0,)))
         @test modes(sim2, "chat").flips == 4
         run!(sim2; t_end = 0.1)
-        firing_report = only(writer_status(latest(sim2), "loop").recent)
-        @test firing_report isa FiringBudget && firing_report.budget == 2 &&
-              firing_report.count == 2
+        d = only(writer_status(latest(sim2), "loop").recent)
+        @test d isa FiringBudget && d.budget == 2 &&
+              d.count == 2
         d = only(diagnostics(failure(() -> Simulation(chatty(); h = 1//10, firing_budget = 0))))
         @test d isa DeploymentInvalid && d.parameter === :firing_budget
     end

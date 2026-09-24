@@ -152,8 +152,8 @@ function failures_runtime()
         init!(sim2, fragment(inputs = (in = false,)))
         @test step!(sim2; frames = 3, t_end = 5.0) == 3
         stage!(sim2, "in" => true)
-        err2 = failure(() -> step!(sim2; t_end = 5.0))
-        @test err2 isa StepError{Detonated} && err2.boundary == 3
+        err = failure(() -> step!(sim2; t_end = 5.0))
+        @test err isa StepError{Detonated} && err.boundary == 3
     end
 
     @testset "a bundle field missed past the probe is a `BundleFieldError` species (§13.2, §13.4, D-248)" begin
@@ -187,12 +187,12 @@ function failures_runtime()
         # the advance entries meet §12.6's ordinary refusal.
         @test lifecycle(sim) === :built
         @test termination(sim) === nothing && !closed(sim.run)
-        step_diagnostic =
+        d =
             carried(@test_throws DiagnosticError{MissingInit} step!(sim; t_end = 5.0))
-        @test step_diagnostic.op === :step! && step_diagnostic.status === :built
-        run_diagnostic =
+        @test d.op === :step! && d.status === :built
+        d =
             carried(@test_throws DiagnosticError{MissingInit} run!(sim; t_end = 5.0))
-        @test run_diagnostic.op === :run! && run_diagnostic.status === :built
+        @test d.op === :run! && d.status === :built
 
         # The reproduction: the header is captured before boundary zero runs, so
         # the trace already holds it — and at zero it needs no `step!` after.
@@ -211,9 +211,9 @@ function failures_runtime()
         replay!(sim2, trc_ok; to_boundary = 1, t_end = 5.0)
         @test lifecycle(sim2) === :initialized && mode(sim2) === :replay
 
-        err2 = failure(() -> replay!(sim2, trc; t_end = 5.0))
-        @test err2 isa StepError{Detonated}
-        @test err2.frame == err.frame && err2.boundary == 0
+        replay_err = failure(() -> replay!(sim2, trc; t_end = 5.0))
+        @test replay_err isa StepError{Detonated}
+        @test replay_err.frame == err.frame && replay_err.boundary == 0
         @test lifecycle(sim2) === :built
         # The failed `replay!`'s own run, built ahead of the boundary, is what
         # stands, and it carries the feed, so the mode reads `:replay` (§12.6, D-260).
@@ -262,19 +262,19 @@ function failures_runtime()
         @test err isa StepError{Detonated}
         @test err.frame.path == "c" && err.frame.fn === :state_update && err.frame.phase === :ticks
 
-        simp = Simulation(single(Primer(0.15)); h = 1//10)
-        init!(simp)
-        primer_err = failure(() -> run!(simp; t_end = 5.0))
-        @test primer_err isa StepError{Detonated}
-        @test primer_err.frame.path == "c" && primer_err.frame.fn === :state_projection && primer_err.frame.phase === :project
-        @test primer_err.boundary == 1                  # `q` reaches the level in frame 2
+        projection_sim = Simulation(single(Primer(0.15)); h = 1//10)
+        init!(projection_sim)
+        err = failure(() -> run!(projection_sim; t_end = 5.0))
+        @test err isa StepError{Detonated}
+        @test err.frame.path == "c" && err.frame.fn === :state_projection && err.frame.phase === :project
+        @test err.boundary == 1                         # `q` reaches the level in frame 2
     end
 
     @testset "a failed frame is not counted, and the record ends at the last one (§13.4)" begin
         sim = Simulation(fed(Tripwire(0.25), "arm"); h = 1//10)
         init!(sim, fragment(inputs = (in = true,)))
-        e = failure(() -> step!(sim; frames = 5, t_end = 5.0))
-        @test e isa StepError && e.boundary == 2        # frame 3 throws at its half step
+        err = failure(() -> step!(sim; frames = 5, t_end = 5.0))
+        @test err isa StepError && err.boundary == 2    # frame 3 throws at its half step
         @test latest(sim).t == 0.2 && termination(sim).t == 0.2
     end
 
@@ -313,8 +313,8 @@ function failures_runtime()
     @testset "the rendering states the frame and the reproduction (§13.4, §13.2)" begin
         sim = Simulation(fed(Tripwire(0.05), "arm"); h = 1//10)
         init!(sim, fragment(inputs = (in = true,)))
-        e = failure(() -> run!(sim; t_end = 5.0))
-        rendered = sprint(showerror, e)
+        err = failure(() -> run!(sim; t_end = 5.0))
+        rendered = sprint(showerror, err)
         @test occursin("`c`", rendered) && occursin("state_derivative", rendered) &&
               occursin("stage 2", rendered)
         # The pointer degenerates at zero (D-223): the replay alone reproduces it.
@@ -368,15 +368,15 @@ function failures_runtime()
         # rides as the `Dual` it is, and the payload times are seconds either way.
         diverging_sim = Simulation(diverging(), D8; h = 1//10)
         init!(diverging_sim, fragment(inputs = (in = true,)))
-        nonfinite_err = failure(() -> step!(diverging_sim; t_end = 5.0))
-        @test nonfinite_err isa StepError{NonfiniteState}
+        err = failure(() -> step!(diverging_sim; t_end = 5.0))
+        @test err isa StepError{NonfiniteState}
         # the species rule unwrapped the carrier
-        @test !(nonfinite_err.cause isa DiagnosticError)
-        @test nonfinite_err.cause.path == "div" && nonfinite_err.cause.leaf == "q" &&
-              isnan(nonfinite_err.cause.value)
-        @test nonfinite_err.t == 0.1 && nonfinite_err.cause.t == 0.1 &&
-              nonfinite_err.cause.boundary == 0
-        @test diagnostic(nonfinite_err) === nonfinite_err.cause
+        @test !(err.cause isa DiagnosticError)
+        @test err.cause.path == "div" && err.cause.leaf == "q" &&
+              isnan(err.cause.value)
+        @test err.t == 0.1 && err.cause.t == 0.1 &&
+              err.cause.boundary == 0
+        @test diagnostic(err) === err.cause
     end
 
     @testset "the sweep names the diverging block, never its downstream (§13.4, D-157)" begin
@@ -433,10 +433,11 @@ function reproduction(model, quiet::Int)
     @test lifecycle(sim2) === :initialized          # the pointer is always a legal halt
     @test mode(sim2) === :replay                    # …with the recording still ahead of it
     @test sim2.exec.clock.step == err.boundary
-    err2 = failure(() -> step!(sim2; t_end = 5.0))
-    @test err2 isa StepError
-    @test err2.frame == err.frame && err2.t == err.t && err2.boundary == err.boundary
-    @test typeof(err2.cause) === typeof(err.cause)
+    twin_err = failure(() -> step!(sim2; t_end = 5.0))
+    @test twin_err isa StepError
+    @test twin_err.frame == err.frame && twin_err.t == err.t &&
+          twin_err.boundary == err.boundary
+    @test typeof(twin_err.cause) === typeof(err.cause)
     @test lifecycle(sim2) === :errored
     @test latest(sim2).t == latest(sim).t
     err
@@ -451,9 +452,9 @@ function failures_pointer_twin()
         @test err.frame == CursorFrame("c", :state_derivative, :integrate, 2)
 
         # And the nonfinite species, which the sweep raises rather than model code.
-        nonfinite_err = reproduction(diverging(), 1)
-        @test nonfinite_err.cause isa NonfiniteState && nonfinite_err.cause.path == "div"
-        @test nonfinite_err.boundary == 1               # frame 2's own drain armed it
+        err = reproduction(diverging(), 1)
+        @test err.cause isa NonfiniteState && err.cause.path == "div"
+        @test err.boundary == 1               # frame 2's own drain armed it
     end
 
     @testset "`to_boundary` counts grid boundaries, not base ticks (§12.7, §13.4)" begin
@@ -534,11 +535,11 @@ function failures_conformance()
 
         sim2 = Simulation(single(LateMissingPort()); h = 1//100)
         init!(sim2)
-        err2 = failure(() -> run!(sim2; t_end = 0.2))
-        @test err2 isa StepError{ConformanceFailure}
-        @test err2.cause.reason === :field_set && err2.cause.shape === :ports
-        @test err2.cause.observed_fields == [:a]
-        @test Set(err2.cause.declared_fields) == Set([:a, :b])
+        err = failure(() -> run!(sim2; t_end = 0.2))
+        @test err isa StepError{ConformanceFailure}
+        @test err.cause.reason === :field_set && err.cause.shape === :ports
+        @test err.cause.observed_fields == [:a]
+        @test Set(err.cause.declared_fields) == Set([:a, :b])
     end
 
     @testset "the names are the pairing, at the port write and the state write (§9.5)" begin
@@ -548,11 +549,11 @@ function failures_conformance()
         @test port(sim, "c", :a) == 1.0
         @test port(sim, "c", :b) == 2.0
 
-        simr = Simulation(single(ScrambledRate()); h = 1//100)
-        init!(simr)
-        run!(simr; t_end = 0.1)
-        @test port(simr, "c", :pa) ≈ 1.1        # ȧ = 1, over 0.1 s
-        @test port(simr, "c", :pb) == 2.0       # ḃ = 0, untouched
+        rate_sim = Simulation(single(ScrambledRate()); h = 1//100)
+        init!(rate_sim)
+        run!(rate_sim; t_end = 0.1)
+        @test port(rate_sim, "c", :pa) ≈ 1.1    # ȧ = 1, over 0.1 s
+        @test port(rate_sim, "c", :pb) == 2.0   # ḃ = 0, untouched
     end
 
     @testset "an integer derivative leaf on a late branch is refused (§7.1, §9.5)" begin

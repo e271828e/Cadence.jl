@@ -220,8 +220,8 @@ function test_devices()
         @test crash_accounted(sim, logs, "device 1 (Crasher)")
         # Death is not detach: the claim stands, and the harness cannot take the face.
         stage!(sim, "a" => 9.0)
-        cfe = only((@atomic sim.plane.harness_diag.batch).ring)
-        @test cfe isa ClaimedFaceEntry && cfe.incumbent == "device 1 (Crasher)"
+        entry = only((@atomic sim.plane.harness_diag.batch).ring)
+        @test entry isa ClaimedFaceEntry && entry.incumbent == "device 1 (Crasher)"
     end
 
     @testset "a crash under should_abort requests the stop (§12.4(6))" begin
@@ -248,8 +248,9 @@ function test_devices()
         # snapshot carries the delta, the terminal status the totals.
         status = writer_status(latest(sim), "device 1 (BadInit)")
         @test status.totals.crash == 1
-        dc = only(writer_status(logged(sim)[2], "device 1 (BadInit)").recent)
-        @test dc isa DeviceCrash && dc.cause isa ErrorException && dc.abort === false
+        crash = only(writer_status(logged(sim)[2], "device 1 (BadInit)").recent)
+        @test crash isa DeviceCrash && crash.cause isa ErrorException &&
+              crash.abort === false
         # Dead from boundary zero, with no marking machinery (§12.4): the cell was
         # never heartbeated — stale against any clock — and no task ever existed.
         @test stale(status) && status.task_state === :none
@@ -271,8 +272,9 @@ function test_devices()
         # carries the device's record, and the abort's stop names it as issuer.
         record = termination(sim2)
         @test record.source === ControlRequestedStop("device 1 (BadInit)")
-        rr = only(r for r in record.residue if r.writer == "device 1 (BadInit)")
-        @test only(rr.recent) isa DeviceCrash
+        writer_residue = only(trace_record for trace_record in record.residue
+                              if trace_record.writer == "device 1 (BadInit)")
+        @test only(writer_residue.recent) isa DeviceCrash
     end
 
     @testset "a body ignoring the predicate is abandoned under join_timeout, by name (§12.4(5))" begin
@@ -289,8 +291,9 @@ function test_devices()
         @test :woke ∉ dev.log                    # the straggler had not returned when run! did
         # Recorded, not just loud (D-203): the termination record's residue holds
         # the structured kind, by name, with the cap and the final boundary.
-        rr = only(r for r in termination(sim).residue if r.writer == "loop")
-        timeout = only(d for d in rr.recent if d isa DeviceJoinTimeout)
+        writer_residue = only(record for record in termination(sim).residue
+                              if record.writer == "loop")
+        timeout = only(d for d in writer_residue.recent if d isa DeviceJoinTimeout)
         @test timeout.who == "device 1 (Stubborn)" && timeout.timeout == 0.2
         @test timeout.t == termination(sim).t ≈ 0.3 &&
               timeout.boundary == latest(sim).boundary
@@ -382,9 +385,9 @@ function test_devices()
 
     @testset "gather without an output side is a contract misuse, by kind (§11.6)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
-        h = attach!(sim, Pad("p"), Enumerated("a"))
+        handle = attach!(sim, Pad("p"), Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-        d = carried(@test_throws DiagnosticError{DeviceContractMismatch} gather(h, latest(sim)))
+        d = carried(@test_throws DiagnosticError{DeviceContractMismatch} gather(handle, latest(sim)))
         @test d.reason === :no_output_side && d.device == "device 1 (Pad)"
     end
 

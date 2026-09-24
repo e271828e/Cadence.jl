@@ -6,23 +6,24 @@
 
 function test_log()
     @testset "every boundary publishes: t* included, boundary-consistent (§11.2, §10.6)" begin
-        m = Group((; src = Sawtooth(1.0), s = Stamper(0.315));
-                  wires = ("src/q" => "s/sig",))
-        sim = Simulation(m; h = 1//10)
+        model = Group((; src = Sawtooth(1.0), s = Stamper(0.315));
+                      wires = ("src/q" => "s/sig",))
+        sim = Simulation(model; h = 1//10)
         init!(sim)
         run!(sim; t_end = 0.5)
-        snaps = logged(sim)
+        snapshots = logged(sim)
         t★ = modes(sim, "s").t_fired
-        i = findfirst(s -> s.t == t★, snaps)   # bitwise: a snapshot published at t* itself
+        i = findfirst(snapshot -> snapshot.t == t★,
+                       snapshots)   # bitwise: a snapshot published at t* itself
         @test i !== nothing
-        @test length(snaps) == 7               # boundary zero + 5 frame tops + one t*
-        @test [s.frame for s in snaps] == [0, 1, 2, 3, 4, 4, 5]   # t* shares its frame's ordinal
+        @test length(snapshots) == 7               # boundary zero + 5 frame tops + one t*
+        @test [snapshot.frame for snapshot in snapshots] == [0, 1, 2, 3, 4, 4, 5]   # t* shares its frame's ordinal
         # The t* snapshot is the settled boundary's: the re-sweep after the firing
         # is what it captures, so `armed` has already dropped — while the boundary
         # before it still shows the armed value. Boundary-consistency at t*.
-        @test port(snaps[i], "s", :armed) === false
-        @test port(snaps[i-1], "s", :armed) === true
-        ts = [s.t for s in snaps]
+        @test port(snapshots[i], "s", :armed) === false
+        @test port(snapshots[i-1], "s", :armed) === true
+        ts = [snapshot.t for snapshot in snapshots]
         @test issorted(ts) && allunique(ts)    # t never decreases, t* strictly inside
     end
 
@@ -30,10 +31,10 @@ function test_log()
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
         init!(sim, fragment(inputs = (in = 1.0,)))
         step!(sim; t_plus = 1.0)
-        snaps = logged(sim)
-        @test [s.frame for s in snaps] == collect(0:10)      # boundary zero + every frame top
-        @test snaps[end] === latest(sim)                     # the same object publication handed out
-        ys = [port(s, "c", :y) for s in snaps]
+        snapshots = logged(sim)
+        @test [snapshot.frame for snapshot in snapshots] == collect(0:10)      # boundary zero + every frame top
+        @test snapshots[end] === latest(sim)                     # the same object publication handed out
+        ys = [port(snapshot, "c", :y) for snapshot in snapshots]
         @test issorted(ys) && allunique(ys)                  # the step response, one value per boundary
         @test ys[end] === port(sim, "c", :y)        # the terminal endpoint is the live boundary
         step!(sim; t_plus = 1.0)
@@ -45,17 +46,18 @@ function test_log()
         init!(sim, fragment(inputs = (in = 0.0,)); log_every = 3)
         step!(sim; frames = 1)
         @test latest(sim).frame == 1                         # published to live readers…
-        @test [s.frame for s in logged(sim)] == [0, 1]       # …not retained: `last` alone holds it
+        @test [snapshot.frame for snapshot in logged(sim)] == [0, 1]       # …not retained: `last` alone holds it
         step!(sim; t_plus = 0.9)
-        @test [s.frame for s in logged(sim)] == [0, 3, 6, 9, 10]
+        @test [snapshot.frame for snapshot in logged(sim)] == [0, 3, 6, 9, 10]
     end
 
     @testset "the endpoints are unconditional and outside the bound (§11.2)" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
         init!(sim, fragment(inputs = (in = 0.0,)); log_every = 4, log_max = 2)
         run!(sim; t_end = 4.0)
-        snaps = logged(sim)
-        @test [s.frame for s in snaps] == [0, 16, 32, 40]    # two generations in
+        snapshots = logged(sim)
+        @test [snapshot.frame for snapshot in snapshots] ==
+              [0, 16, 32, 40]    # two generations in
         @test sim.run.log.live == 2                              # the bound counts the middle alone
     end
 
@@ -66,9 +68,9 @@ function test_log()
         for k in 1:128                                       # one frame at a time: every
             step!(sim; frames = 1)                           # intermediate state is checked
             ok_bound &= sim.run.log.live ≤ 8
-            snaps = logged(sim)
-            ok_ends &= snaps[1].frame == 0 && snaps[end].frame == k
-            ts = [s.t for s in snaps]
+            snapshots = logged(sim)
+            ok_ends &= snapshots[1].frame == 0 && snapshots[end].frame == k
+            ts = [snapshot.t for snapshot in snapshots]
             ok_sorted &= issorted(ts) && allunique(ts)
         end
         @test ok_bound && ok_ends && ok_sorted
@@ -76,14 +78,14 @@ function test_log()
         # stride·(1..max) — coverage global at the effective stride, gap-free —
         # and the retained final boundary dedups against the terminal endpoint.
         @test sim.run.log.stride == 16
-        @test [s.frame for s in sim.run.log.snaps] == collect(16:16:128)
+        @test [snapshot.frame for snapshot in sim.run.log.snaps] == collect(16:16:128)
         @test length(logged(sim)) == 9
 
         # The effective stride composes with the authored one: log_every · 2^k.
         sim2 = Simulation(fed(Plant(), "u"); h = 1//10)
         init!(sim2, fragment(inputs = (in = 0.0,)); log_every = 2, log_max = 4)
         run!(sim2; t_end = 4.0)
-        @test [s.frame for s in logged(sim2)] == [0, 8, 16, 24, 32, 40]
+        @test [snapshot.frame for snapshot in logged(sim2)] == [0, 8, 16, 24, 32, 40]
         @test sim2.run.log.stride == 16                          # 2 · 2³
     end
 
@@ -106,12 +108,12 @@ function test_log()
         full, unlogged, thinned =
             session(), session(log = false), session(log_every = 7, log_max = 3)
         foreach(sim -> run!(sim; t_end = 2.0), (full, unlogged, thinned))
-        q_ref = state(full, "c").q
-        @test q_ref === state(unlogged, "c").q
-        @test q_ref === state(thinned, "c").q
-        count_ref = modes(full, "c").count
-        @test count_ref === modes(unlogged, "c").count
-        @test count_ref === modes(thinned, "c").count
+        q_reference = state(full, "c").q
+        @test q_reference === state(unlogged, "c").q
+        @test q_reference === state(thinned, "c").q
+        count_reference = modes(full, "c").count
+        @test count_reference === modes(unlogged, "c").count
+        @test count_reference === modes(thinned, "c").count
     end
 
     @testset "a warm restart is a new trajectory: the log starts over (§11.2)" begin
@@ -120,7 +122,8 @@ function test_log()
         run!(sim; t_end = 1.0)
         @test length(logged(sim)) == 11
         init!(sim, fragment(inputs = (in = 0.0,)))
-        @test [s.frame for s in logged(sim)] == [0]          # the new boundary zero, alone
+        @test [snapshot.frame for snapshot in logged(sim)] ==
+              [0]          # the new boundary zero, alone
     end
 
     @testset "logged is a stopped-sim read behind the §11.3 gate" begin

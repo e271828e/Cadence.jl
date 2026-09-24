@@ -77,9 +77,9 @@ function test_readers()
     @testset "resolution collects every violation into one refusal (§14.4, §13.1)" begin
         readable_build = build(readable())
         err = failure(() -> _compile_reads(reads(a = get_state("plnt", :q),
-                                               b = get_output("plant", :thrust),
-                                               c = get_deriv("ctl", :acc),
-                                               d = get_face(:nope)), readable_build))
+                                                 b = get_output("plant", :thrust),
+                                                 c = get_deriv("ctl", :acc),
+                                                 d = get_face(:nope)), readable_build))
         @test err isa DiagnosticError && length(diagnostics(err)) == 4              # the full list, one throw
         (a, b_, c, d) = diagnostics(err)
         # The path itself is the walk's refusal, one case over, and the one
@@ -97,9 +97,9 @@ function test_readers()
         # An assembly path, a root input read as a face, an index on a scalar leaf,
         # and a state field the component does not declare.
         err = failure(() -> _compile_reads(reads(a = get_output("", :y), b = get_face(:u),
-                                               c = get_output("plant", :y, 1),
-                                               d = get_state("plant", :ω)),
-                                          readable_build))
+                                                 c = get_output("plant", :y, 1),
+                                                 d = get_state("plant", :ω)),
+                                     readable_build))
         (a, b_, c, d) = diagnostics(err)
         @test a.reason === :assembly_path && a.path == "" && a.tap === :y
         @test b_.reason === :root_input_not_face && b_.field === :u

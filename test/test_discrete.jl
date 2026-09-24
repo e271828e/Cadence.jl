@@ -162,8 +162,8 @@ function discrete_rate_fold()
         opaque = Simulation(OpaqueRoster((a = TickCounter(), b = TickCounter()),
                                          (; var"kids/a" = Relative(2),
                                             var"kids/b" = Relative(3, 1))); h = 1//10)
-        bare_rows = bare.deployment.schedule.rows
-        opaque_rows = opaque.deployment.schedule.rows
+        bare_rows, opaque_rows =
+            bare.deployment.schedule.rows, opaque.deployment.schedule.rows
         @test [(e.D, e.Φ) for e in bare_rows] == [(2, 0), (3, 1)]
         @test [(e.D, e.Φ) for e in bare_rows] == [(e.D, e.Φ) for e in opaque_rows]
         @test paths(bare.deployment.build.structure) == ["a", "b"] &&
@@ -213,7 +213,7 @@ function discrete_rate_fold()
     @testset "relative scopes compose affinely; anchors sever (§10.5, §9.1)" begin
         # Under a scope at Relative(2, 1): D = K·Dₛ, Φ = Φₛ + φ·Dₛ.
         inner_group = Group((; a = TickCounter(), b = TickCounter());
-                        rates = (; a = Relative(1), b = Relative(5, 2)))
+                            rates = (; a = Relative(1), b = Relative(5, 2)))
         sim = Simulation(Group((; f = inner_group);
                                rates = (; f = Relative(2, 1))); h = 1//100)
         @test [(e.D, e.Φ) for e in sim.deployment.schedule.rows] == [(2, 1), (10, 5)]
@@ -259,11 +259,11 @@ function discrete_deployment()
         # `gnss = Absolute(Hz(50))`, and `FCS` declares `inner = Relative(1)` and
         # `outer = Relative(5, 2)`.
         rows = deployment.schedule.rows
-        @test [(r.path, r.D, r.Φ) for r in rows] ==
+        @test [(row.path, row.D, row.Φ) for row in rows] ==
               [("fcs/inner", 1, 0), ("fcs/outer", 5, 2), ("gnss", 10, 0)]
-        @test [r.Δt for r in rows] ≈ [0.002, 0.01, 0.02]
-        @test [r.anchor for r in rows] == [0, 0, 1]
-        @test [[(l.scope, l.key) for l in r.rates] for r in rows] ==
+        @test [row.Δt for row in rows] ≈ [0.002, 0.01, 0.02]
+        @test [row.anchor for row in rows] == [0, 0, 1]
+        @test [[(l.scope, l.key) for l in row.rates] for row in rows] ==
               [[("", :fcs), ("fcs", :inner)],
                [("", :fcs), ("fcs", :outer)],
                [("", :gnss)]]
@@ -312,12 +312,12 @@ function discrete_deployment()
         sim = Simulation(deployment, Float64)
         @test sim.deployment === deployment
         # the sugar, *defined as* the composition
-        ref = Simulation(multirate_build; h = 1//500)
-        @test sim.deployment == ref.deployment
+        reference = Simulation(multirate_build; h = 1//500)
+        @test sim.deployment == reference.deployment
         init!(sim); run!(sim; t_end = 12 * 0.002)
-        init!(ref); run!(ref; t_end = 12 * 0.002)
-        @test port(sim, "fcs/outer", :out) == port(ref, "fcs/outer", :out)
-        @test port(sim, "gnss", :out) == port(ref, "gnss", :out)
+        init!(reference); run!(reference; t_end = 12 * 0.002)
+        @test port(sim, "fcs/outer", :out) == port(reference, "fcs/outer", :out)
+        @test port(sim, "gnss", :out) == port(reference, "gnss", :out)
 
         # The same deployment at a second scalar: scalar-free means one backs many.
         dual = Simulation(deployment, D8)
@@ -336,23 +336,23 @@ function discrete_deployment()
         # The N_base·h product (the default path), an explicit N_base, the explicit keyword
         # (Rational or quantity): the anchored divisor is deployment's, not the
         # build's — the same Build lands gnss at D = 10 or D = 5.
-        sim_default = Simulation(multirate_build; h = 1//500)
-        sim_nbase = Simulation(multirate_build; h = 1//500, N_base = 2)
-        sim_dtbase = Simulation(multirate_build; h = 1//500, Δt_base = 1//250)
-        sim_dtbase_qty = Simulation(multirate_build; h = 1//500, Δt_base = Period(1//250))
-        @test [e.D for e in sim_default.deployment.schedule.rows] == [1, 5, 10]
-        @test [e.D for e in sim_nbase.deployment.schedule.rows] == [1, 5, 5]
+        default_sim = Simulation(multirate_build; h = 1//500)
+        n_base_sim = Simulation(multirate_build; h = 1//500, N_base = 2)
+        Δt_base_sim = Simulation(multirate_build; h = 1//500, Δt_base = 1//250)
+        period_sim = Simulation(multirate_build; h = 1//500, Δt_base = Period(1//250))
+        @test [e.D for e in default_sim.deployment.schedule.rows] == [1, 5, 10]
+        @test [e.D for e in n_base_sim.deployment.schedule.rows] == [1, 5, 5]
         # The deployment is a value (§12.7, D-254): two spellings of one base tick
         # period, over one build, deploy equal — and hash equal with it.
-        @test sim_dtbase.deployment.N_base == 2
-        @test sim_dtbase.deployment == sim_nbase.deployment == sim_dtbase_qty.deployment
-        @test hash(sim_dtbase.deployment) == hash(sim_dtbase_qty.deployment)
+        @test Δt_base_sim.deployment.N_base == 2
+        @test Δt_base_sim.deployment == n_base_sim.deployment == period_sim.deployment
+        @test hash(Δt_base_sim.deployment) == hash(period_sim.deployment)
 
         # Nothing writable is shared: each Simulation materializes its own buffers.
-        init!(sim_default); run!(sim_default; t_end = 0.02)
-        init!(sim_nbase)
-        @test port(sim_default, "fcs/inner", :out) ≈ 1.02
-        @test port(sim_nbase, "fcs/inner", :out) == 1.0
+        init!(default_sim); run!(default_sim; t_end = 0.02)
+        init!(n_base_sim)
+        @test port(default_sim, "fcs/inner", :out) ≈ 1.02
+        @test port(n_base_sim, "fcs/inner", :out) == 1.0
 
         # Cross-validation: one `DeploymentInvalid` per refused deployment, the
         # parameter and the failed relation on the payload.
@@ -361,7 +361,8 @@ function discrete_deployment()
              (() -> Simulation(multirate_build; h = 1e-3),                :h, :inexact),
              (() -> Simulation(multirate_build; h = 1//500, Δt_base = 1//250, N_base = 3),
                                :Δt_base, :disagrees_with_n),
-             (() -> Simulation(multirate_build; h = 1//300, Δt_base = 1//500), :Δt_base, :not_harmonic),
+             (() -> Simulation(multirate_build; h = 1//300, Δt_base = 1//500),
+                               :Δt_base, :not_harmonic),
              (() -> Simulation(multirate_build; h = 1//500, N_base = 0),  :N_base, :range))
             d = only(diagnostics(failure(f)))
             @test d isa DeploymentInvalid && d.parameter === param && d.reason === reason
@@ -490,8 +491,8 @@ function discrete_deployment()
         # Prime attribution, the sharper cut: 1500 = 2²·3·5³, with 2² and 5³ from
         # the 500 Hz period alone and the single prime 3 from the offset alone.
         @test grid.primes == [(prime = 2, power = 2, suppliers = [1]),
-                           (prime = 3, power = 1, suppliers = [3]),
-                           (prime = 5, power = 3, suppliers = [1])]
+                              (prime = 3, power = 1, suppliers = [3]),
+                              (prime = 5, power = 3, suppliers = [1])]
 
         # The driving offset's repair: its neighbours on the 1//500 grid the rest of
         # the pool supports. Only a driving offset gets them.

@@ -8,7 +8,7 @@ function test_localization()
         # Linear trajectory: RK4 and the cubic Hermite are both exact, so the stamp
         # isolates the localization machinery itself — t* within the bracket width.
         model = Group((; src = Sawtooth(1.0), s = Stamper(0.315));
-                  wires = ("src/q" => "s/sig",))
+                      wires = ("src/q" => "s/sig",))
         sim = Simulation(model; h = 1//10)
         init!(sim)
         step!(sim; t_plus = 0.5)
@@ -66,7 +66,7 @@ function test_localization()
         # σ₁ = 0, every interior trial is not-holding, and the localization result
         # is discarded — one boundary, one firing, stamping the indexed grid time.
         model = Group((; src = Ramp(0.0), s = Stamper(0.4));
-                  wires = ("src/out" => "s/sig",))
+                      wires = ("src/out" => "s/sig",))
         sim = Simulation(model; h = 1//10)
         init!(sim)
         run!(sim; t_end = 0.6)
@@ -93,28 +93,28 @@ function test_localization()
                    (; src = Sawtooth(1.0), s1 = Stamper(0.315), s2 = Stamper(0.315));
                    wires = ("src/q" => "s1/sig",
                             "src/q" => "s2/sig"))
-        simt = Simulation(tied_model; h = 1//10, localization_budget = 1)
-        init!(simt)
-        @test_logs run!(simt; t_end = 0.5)
-        @test modes(simt, "s1").t_fired == modes(simt, "s2").t_fired
-        @test modes(simt, "s1").t_fired ≈ 0.315 atol = 1e-6
-        @test writer_status(latest(simt), "loop").totals.chattering == 0
+        tied_sim = Simulation(tied_model; h = 1//10, localization_budget = 1)
+        init!(tied_sim)
+        @test_logs run!(tied_sim; t_end = 0.5)
+        @test modes(tied_sim, "s1").t_fired == modes(tied_sim, "s2").t_fired
+        @test modes(tied_sim, "s1").t_fired ≈ 0.315 atol = 1e-6
+        @test writer_status(latest(tied_sim), "loop").totals.chattering == 0
 
         # Distinct crossings under budget 1: the earliest localizes, the second
         # spends nothing — it degrades to boundary granularity under the report,
         # stamping the frame top.
-        simb = Simulation(two_stamper_model(); h = 1//10, localization_budget = 1)
-        init!(simb)
-        run!(simb; t_end = 0.5)                    # the degradation reports on the loop's cell (§11.8)
-        @test modes(simb, "s1").t_fired ≈ 0.31 atol = 1e-6
-        @test modes(simb, "s2").t_fired == 4 * simb.deployment.h
-        loop_status = writer_status(latest(simb), "loop")
+        distinct_sim = Simulation(two_stamper_model(); h = 1//10, localization_budget = 1)
+        init!(distinct_sim)
+        run!(distinct_sim; t_end = 0.5)             # the degradation reports on the loop's cell (§11.8)
+        @test modes(distinct_sim, "s1").t_fired ≈ 0.31 atol = 1e-6
+        @test modes(distinct_sim, "s2").t_fired == 4 * distinct_sim.deployment.h
+        loop_status = writer_status(latest(distinct_sim), "loop")
         # frame 4's report, folded at frame 5's top
-        chattering_report = only(loop_status.recent)
-        @test chattering_report isa ChatteringBudget
-        @test chattering_report.path == "s2" && chattering_report.event == :cross
-        @test chattering_report.budget == 1 && chattering_report.count == 1 &&
-              chattering_report.t == 0.4
+        d = only(loop_status.recent)
+        @test d isa ChatteringBudget
+        @test d.path == "s2" && d.event == :cross
+        @test d.budget == 1 && d.count == 1 &&
+              d.t == 0.4
         @test loop_status.totals.chattering == 1
     end
 
@@ -126,7 +126,7 @@ function test_localization()
         # folds into its ordinary iteration, 5e-5 late and within tolerance. A
         # per-segment tol·h′ would have kept trying, to 0.39995.
         model = Group((; src = Sawtooth(1.0), s1 = Stamper(0.399), s2 = Stamper(0.39995));
-                  wires = ("src/q" => "s1/sig", "src/q" => "s2/sig"))
+                      wires = ("src/q" => "s1/sig", "src/q" => "s2/sig"))
         sim = Simulation(model; h = 1//10, localization_tol = 1e-3)
         init!(sim)
         @test_logs run!(sim; t_end = 0.5)
@@ -157,8 +157,8 @@ function test_localization()
 
     @testset "the gate idiom localizes; a gate flip is an epoch edge (§10.4)" begin
         gated_model() = Group((; src = Sawtooth(1.0), s = GatedStamper(0.315));
-                        wires = ("src/q" => "s/sig",),
-                        inputs = ("gate" => "s/gate",))
+                              wires = ("src/q" => "s/sig",),
+                              inputs = ("gate" => "s/gate",))
         b = build(gated_model())
         @test b.events.components[index_of(b.structure, "s")].policies === (cross = :localized,)
 
@@ -187,8 +187,8 @@ function test_localization()
         # full event phase but no g update — a spurious tick there would add the
         # mid-frame sample 0.1·q(t*) to the accumulator.
         model = Group((; src = Sawtooth(1.0), s = Stamper(0.315), ctl = DiscreteIntegrator(1.0));
-                  wires = ("src/q" => "s/sig",
-                           "src/q" => "ctl/e"))
+                      wires = ("src/q" => "s/sig",
+                               "src/q" => "ctl/e"))
         sim = Simulation(model; h = 1//10)
         init!(sim)
         run!(sim; t_end = 0.5)
@@ -219,12 +219,12 @@ function test_localization()
     @testset "gate 3: localized frames do not allocate (§7.5)" begin
         # A quiet frame pays the arrival sweep and the trigger scan, nothing else.
         quiet_model = Group((; src = Sawtooth(0.1), s = Stamper(100.0));
-                   wires = ("src/q" => "s/sig",))
-        simq = Simulation(quiet_model; h = 1//10)
-        init!(simq)
-        run!(simq; t_end = 0.2)
+                            wires = ("src/q" => "s/sig",))
+        quiet_sim = Simulation(quiet_model; h = 1//10)
+        init!(quiet_sim)
+        run!(quiet_sim; t_end = 0.2)
         no_policy, no_addrs = StopPolicy(Inf, Symbol[]), Any[]   # the advance's arguments (D-260, D-261)
-        @test @ballocated(frame!($simq, 3, $no_policy, $no_addrs)) == 0
+        @test @ballocated(frame!($quiet_sim, 3, $no_policy, $no_addrs)) == 0
 
         # A localizing frame: one crossing, θ = 0 validation, ẋₙ₊₁, the bracketing
         # trials, the t* boundary and the remainder — all against preallocated

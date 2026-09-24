@@ -45,9 +45,9 @@ function test_stepper()
         # Linear trajectory: Heun and the Hermite are both exact, so the stamp is
         # method-independent down to the bracket width — the machinery, not the
         # method, sets the error.
-        m = Group((; src = Sawtooth(1.0), s = Stamper(0.315));
-                  wires = ("src/q" => "s/sig",))
-        sim = Simulation(m; h = 1//10, algorithm = Heun)
+        model = Group((; src = Sawtooth(1.0), s = Stamper(0.315));
+                      wires = ("src/q" => "s/sig",))
+        sim = Simulation(model; h = 1//10, algorithm = Heun)
         init!(sim)
         run!(sim; t_end = 0.5)
         @test modes(sim, "s").count == 1
@@ -58,9 +58,9 @@ function test_stepper()
         # showing through the same machinery. (Boundary-resolution firing would
         # sit at ~h and shrink linearly instead.)
         stamp_error(h) = begin
-            mr = Group((; src = Rotor(; ω = 1.0, r₀ = SVector(-1.0, 0.0)), s = Stamper(-0.5));
-                       wires = ("src/c" => "s/sig",))
-            rotor_sim = Simulation(mr; h, algorithm = Heun)
+            rotor_model = Group((; src = Rotor(; ω = 1.0, r₀ = SVector(-1.0, 0.0)), s = Stamper(-0.5));
+                                wires = ("src/c" => "s/sig",))
+            rotor_sim = Simulation(rotor_model; h, algorithm = Heun)
             init!(rotor_sim)
             run!(rotor_sim; t_end = 1.5)
             @test modes(rotor_sim, "s").count == 1
@@ -89,9 +89,9 @@ function test_stepper()
         # the framework-side carve-out (§7.5, §11.2) — as under RK4 (gate 3).
         bouncer_sim = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10, algorithm = Heun)
         init!(bouncer_sim; log = false)
-        pub = @ballocated publish!($bouncer_sim)
-        stop_policy, addrs = StopPolicy(Inf, Symbol[]), Any[]   # the advance's arguments (D-260, D-261)
-        @test @ballocated(frame!($bouncer_sim, 1, $stop_policy, $addrs), setup = (init!($bouncer_sim; log = false)), evals = 1) == pub
+        publish_bytes = @ballocated publish!($bouncer_sim)
+        no_policy, no_addrs = StopPolicy(Inf, Symbol[]), Any[]   # the advance's arguments (D-260, D-261)
+        @test @ballocated(frame!($bouncer_sim, 1, $no_policy, $no_addrs), setup = (init!($bouncer_sim; log = false)), evals = 1) == publish_bytes
     end
 
     @testset "the second backend is generic over the scalar (§7.2)" begin

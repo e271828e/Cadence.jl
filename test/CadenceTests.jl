@@ -92,9 +92,9 @@ that, so name a generous set rather than the minimal one.
 """
 function runonly(names::AbstractString...)
     functions = map(names) do n                       # resolve first: a typo costs no run
-        s = Symbol("test_", n)
-        isdefined(@__MODULE__, s) || error("no tests named `$n` (`runall` names them)")
-        getfield(@__MODULE__, s)
+        name = Symbol("test_", n)
+        isdefined(@__MODULE__, name) || error("no tests named `$n` (`runall` names them)")
+        getfield(@__MODULE__, name)
     end
     @testset "selected" begin
         for (n, f) in zip(names, functions)

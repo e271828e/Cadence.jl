@@ -93,8 +93,9 @@ function test_roster()
         @test port(sim, "", :b) === 2.0
         status = writer_status(latest(sim), "device 1 (Pad)")
         @test status.totals.out_of_claim == 2
-        ooc = only(d for d in status.recent if d.face === :b)
-        @test ooc.incumbent == "device 2 (Pad)" && ooc.value == 9.0 && ooc.surface == [:a]
+        out_of_claim = only(d for d in status.recent if d.face === :b)
+        @test out_of_claim.incumbent == "device 2 (Pad)" && out_of_claim.value == 9.0 &&
+              out_of_claim.surface == [:a]
         @test only(d for d in status.recent if d.face === :flaps).incumbent === nothing
         # The empty enumeration: an honest may-write-nothing degenerate (§11.6).
         handle_c = attach!(sim, Pad("dc"), Enumerated())
@@ -208,8 +209,7 @@ function test_roster()
         sim = Simulation(chain3(); h = 1//100000)
         init!(sim, fragment(inputs = (u = 0.0,)))
         dev = Pad("d")
-        # also warms both compile paths, so
-        attach!(sim, dev, Enumerated("u"))
+        attach!(sim, dev, Enumerated("u"))               # also warms both compile paths, so
         @test sim.plane.roster[end].id == 1              # the mid-run checks below race no JIT
         detach!(sim, dev)
         task = Threads.@spawn run!(sim; t_end = 1.0)                # 100k frames: alive throughout the checks

@@ -68,14 +68,14 @@ function diagnostics_channel()
         # The link survived its truncated datagram: no crash, and the report is
         # accounted device-attributed exactly once — in the terminal status when a
         # frame top folded it, in the run's-end sweep when none remained (§11.8).
-        @test !any(occursin("DeviceCrash", m) for m in msgs)
+        @test !any(occursin("DeviceCrash", rendered) for rendered in msgs)
         @test accounted(sim, logs, "device 1 (Parser)", :malformed, "MalformedDatum")
         # The author's cause survives wherever the record landed: in some logged
         # snapshot's recent, or in the sweep's presentation.
         survived = any(d isa MalformedDatum && occursin("unparseable", string(d.cause))
-                      for s in logged(sim)
-                      for d in writer_status(s, "device 1 (Parser)").recent)
-        @test survived ⊻ any(occursin("unparseable", m) for m in msgs)
+                      for snapshot in logged(sim)
+                      for d in writer_status(snapshot, "device 1 (Parser)").recent)
+        @test survived ⊻ any(occursin("unparseable", rendered) for rendered in msgs)
         # The stream's good datums survived — newest wins within the staged batch —
         # applied by a drain the stop did not beat, or still pending in the cell:
         # exactly one of the two, timing's choice.
@@ -85,10 +85,10 @@ function diagnostics_channel()
 
     @testset "the ring's bound is the rate limit: 16 retained, excess to the counts (§11.8)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
-        h = attach!(sim, Pad("p"), Enumerated("a"))
+        handle = attach!(sim, Pad("p"), Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         for k in 1:20                                # one frame's flood, pending in the cell
-            report!(h, MalformedDatum("datum $k"))
+            report!(handle, MalformedDatum("datum $k"))
         end
         run!(sim; t_end = 0.1)                               # the first frame top folds the cell
         writer = writer_status(latest(sim), "device 1 (Pad)")
@@ -114,31 +114,33 @@ function diagnostics_channel()
 
     @testset "the status: the delta rides one snapshot, totals ride every one (§11.8, §11.2)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
-        h = attach!(sim, Pad("p"), Enumerated("a"))
+        handle = attach!(sim, Pad("p"), Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         # Boundary zero's status: the writers in the drain's order — devices in
         # attachment order, the harness writer, the loop — every account zero,
         # and no run task to be alive: device tasks are run-scoped observables.
-        st0 = latest(sim).status
-        @test [w.who for w in st0.writers] == ["device 1 (Pad)", "harness", "loop"]
-        @test all(w.totals == KindCounts() && isempty(w.recent) for w in st0.writers)
+        status = latest(sim).status
+        @test [w.who for w in status.writers] == ["device 1 (Pad)", "harness", "loop"]
+        @test all(w.totals == KindCounts() && isempty(w.recent) for w in status.writers)
         @test writer_status(latest(sim), "device 1 (Pad)").task_state === :none
         # The harness's and the loop's records have no task and no heartbeat to
         # judge: never stale, `nothing` for both fields.
         @test writer_status(latest(sim), "loop").heartbeat === nothing
         @test !stale(writer_status(latest(sim), "harness"))
-        report!(h, MalformedDatum("one"))            # pending before the run: folded at frame 1's top
+        report!(handle, MalformedDatum("one"))       # pending before the run: folded at frame 1's top
         run!(sim; t_end = 0.5)
-        snaps = logged(sim)                          # boundary zero, then frames 1..5
+        snapshots = logged(sim)                      # boundary zero, then frames 1..5
         writer(s) = writer_status(s, "device 1 (Pad)")
         # Exactly one snapshot carries the occurrence in `recent` — the first
         # published after the fold — while `totals` is monotone from there on:
         # a 60 Hz reader sees it once, an occasional sampler still reads the
         # complete account, and log decimation loses *which* boundary, never
         # *how many* (§11.8).
-        @test [length(writer(s).recent) for s in snaps] == [0, 1, 0, 0, 0, 0]
-        @test [writer(s).totals.malformed for s in snaps] == [0, 1, 1, 1, 1, 1]
-        @test only(writer(snaps[2]).recent).cause == "one"
+        @test [length(writer(snapshot).recent) for snapshot in snapshots] ==
+              [0, 1, 0, 0, 0, 0]
+        @test [writer(snapshot).totals.malformed for snapshot in snapshots] ==
+              [0, 1, 1, 1, 1, 1]
+        @test only(writer(snapshots[2]).recent).cause == "one"
     end
 
     @testset "liveness: heartbeat and task_state ride the device's record (§11.8, §12.2, §12.4)" begin
@@ -587,17 +589,18 @@ function diagnostics_kind_set()
         for d in occurrences
             @test severity(d) === (typeof(d) in warning_kinds ? :warning : :error)
             @test path(d) isa String
-            m = message(d)
-            @test m isa String && !isempty(m)
+            rendered = message(d)
+            @test rendered isa String && !isempty(rendered)
         end
         # A declared generic holding renders through `_typename` like any other
         # name: the variable and its bound, unqualified, whoever is printing — the
         # `string(::TypeVar)` spelling reads `Cadence.AbstractComponent` from
         # anywhere but this module. A payload claim, so it sits here rather than in
         # the rendering testset below.
-        m = message(only(d for d in occurrences
-                         if d isa PathResolution && d.reason === :past_generic))
-        @test occursin("`L<:AbstractComponent`", m) && !occursin("Cadence.", m)
+        rendered = message(only(d for d in occurrences
+                                if d isa PathResolution && d.reason === :past_generic))
+        @test occursin("`L<:AbstractComponent`", rendered) &&
+              !occursin("Cadence.", rendered)
         # A `Union`-typed holding has no name to take: it renders from its members,
         # in the order Julia itself keeps them.
         @test _typename(Union{Plant, Gain}) == "Union{Gain, Plant}"
@@ -606,7 +609,7 @@ function diagnostics_kind_set()
         # tail, then the prime attribution with each supplier labelled by the
         # anchor's key and the entry's kind.
         rendered = message(only(d for d in occurrences
-                         if d isa DeploymentInvalid && d.reason === :anchor_offset))
+                                if d isa DeploymentInvalid && d.reason === :anchor_offset))
         @test startswith(rendered, "`sample_times` at `a`, key `b`: offset 1//7")
         @test occursin("\n  admissible: gcd(pool)/k, coarsest 1//300\n  pool:\n", rendered)
         @test occursin("offset 1//7   ×3   declaring 7//50 or 3//20 keeps 1//100", rendered)
@@ -691,59 +694,63 @@ function diagnostics_kind_set()
         # The did-you-mean list is carried, not ranked (`pending.md`): the
         # candidates the site had in hand are printed, and no edit distance orders
         # them.
-        m = message(UnknownPort(entry = "wires", end_ = :destination, path = "a/b",
-                                spelling = "a/b", port = :throtle,
-                                candidates = [:throttle, :brake]))
-        @test occursin("names no `throtle`", m) && occursin("throttle, brake", m)
+        rendered = message(UnknownPort(entry = "wires", end_ = :destination, path = "a/b",
+                                       spelling = "a/b", port = :throtle,
+                                       candidates = [:throttle, :brake]))
+        @test occursin("names no `throtle`", rendered) &&
+              occursin("throttle, brake", rendered)
 
         # The synthesis chain's miss names the face, the type with its parameters,
         # and both remedies (§9.3, D-051).
-        m = message(MissingProbeValue(face = :pilot, declared = NamedTuple{(:a,),Tuple{Float64}}))
-        @test occursin("probe_value(::Type{", m) && occursin("zero-argument constructor", m)
-        @test occursin("at face `pilot`", m) && occursin("Float64", m)
+        rendered = message(MissingProbeValue(face = :pilot, declared = NamedTuple{(:a,),Tuple{Float64}}))
+        @test occursin("probe_value(::Type{", rendered) &&
+              occursin("zero-argument constructor", rendered)
+        @test occursin("at face `pilot`", rendered) && occursin("Float64", rendered)
 
         # The empty selection states the fix with the list in hand: the selector
         # named, and the faces it kept nothing of (§8.8, D-251).
-        m = message(EmptyFaceSelection(who = "input_passthrough", path = "a/b",
-                                       selector = :except, names = ["u", "v"],
-                                       candidates = ["u", "v"]))
-        @test startswith(m, "`input_passthrough` at `a/b`: `except` names `u`, `v`") &&
-              occursin("nothing passes through", m)
+        rendered = message(EmptyFaceSelection(who = "input_passthrough", path = "a/b",
+                                              selector = :except, names = ["u", "v"],
+                                              candidates = ["u", "v"]))
+        @test startswith(rendered,
+                         "`input_passthrough` at `a/b`: `except` names `u`, `v`") &&
+              occursin("nothing passes through", rendered)
 
         # A port type is §13.2's one payload exception: the abstract entry is
         # spelled whole, parameters and all, where `_typename` would print
         # `AbstractVector{Float64}` as `AbstractArray` (§8.2).
-        m = message(AbstractAtRoot(face = :e, paths = ["a/b"],
-                                   declared = Any[AbstractVector{Float64}]))
-        @test occursin("AbstractVector{Float64}", m) && occursin("`a/b`", m)
+        rendered = message(AbstractAtRoot(face = :e, paths = ["a/b"],
+                                          declared = Any[AbstractVector{Float64}]))
+        @test occursin("AbstractVector{Float64}", rendered) && occursin("`a/b`", rendered)
 
         # The port classification's two refusals, in D-252's words: the kind's own
         # two stage names, and the remedy that names `output_state`.
-        m = message(ProducedByTwoStages(path = "a/b", ports = [:y]))
-        @test occursin("`y` by `output_state` and by `output_direct`", m)
-        m = message(DeclaredNotProduced(path = "a/b", ports = [:y], products = [:z],
-                                        state_fields = [:q]))
-        @test occursin("`output_state` returns them", m) &&
-              occursin("the stages return `z`", m)
+        rendered = message(ProducedByTwoStages(path = "a/b", ports = [:y]))
+        @test occursin("`y` by `output_state` and by `output_direct`", rendered)
+        rendered = message(DeclaredNotProduced(path = "a/b", ports = [:y], products = [:z],
+                                               state_fields = [:q]))
+        @test occursin("`output_state` returns them", rendered) &&
+              occursin("the stages return `z`", rendered)
 
         # The dead stage names the return it got and the stage it got it from.
-        m = message(DeadStage(path = "a/b", stage = "output_state"))
-        @test occursin("`(;)`", m) && occursin("output_state", m)
+        rendered = message(DeadStage(path = "a/b", stage = "output_state"))
+        @test occursin("`(;)`", rendered) && occursin("output_state", rendered)
 
         # The bundle law's three classes (§5.2, §13.2): each names what would have
         # put the field in the bundle, and all three print the list in hand.
         bundle_field_message(field, reason; family = "output_state", tier = :continuous) =
             message(BundleFieldError(path = "a/b", family = family, tier = tier,
                                      field = field, legal = [:x, :t], reason = reason))
-        m = bundle_field_message(:m, :undeclared)
-        @test occursin("init_m", m) && occursin("{x, t}", m)
-        m = bundle_field_message(:s, :wrong_tier)
-        @test occursin("discrete-tier fact", m) && occursin("{x, t}", m)
-        m = bundle_field_message(:u, :illegal_for_family)
-        @test occursin("no `output_state` bundle carries", m) && occursin("{x, t}", m)
+        rendered = bundle_field_message(:m, :undeclared)
+        @test occursin("init_m", rendered) && occursin("{x, t}", rendered)
+        rendered = bundle_field_message(:s, :wrong_tier)
+        @test occursin("discrete-tier fact", rendered) && occursin("{x, t}", rendered)
+        rendered = bundle_field_message(:u, :illegal_for_family)
+        @test occursin("no `output_state` bundle carries", rendered) &&
+              occursin("{x, t}", rendered)
         # A stage-1 port names no declaration at all, so that arm says so.
         @test occursin("produces no stage-1 port", bundle_field_message(:y_x, :undeclared,
-                                                       family = "output_direct"))
+                                                                        family = "output_direct"))
 
         # The frame first, the raw throw second (§13.2, D-248).
         rendered = message(UserCodeFraming(path = "a/b", fn = "output_state",
@@ -761,76 +768,82 @@ function diagnostics_kind_set()
                                                cause = ErrorException("boom"))))
 
         # A read miss that is name-shaped prints the list the site had in hand.
-        m = message(ReadBindingUnresolved(device = "Pad", binding = "Readout",
-                                          selector = "get_output(\"p\", :nope)",
-                                          reason = :unknown_cell, path = "p", field = :nope,
-                                          candidates = [:power, :y]))
-        @test occursin("{power, y}", m)
+        rendered = message(ReadBindingUnresolved(device = "Pad", binding = "Readout",
+                                                 selector = "get_output(\"p\", :nope)",
+                                                 reason = :unknown_cell, path = "p",
+                                                 field = :nope,
+                                                 candidates = [:power, :y]))
+        @test occursin("{power, y}", rendered)
 
         # The forgotten import (§8.1, D-246) states its fix as the line to paste,
         # spelled for exactly the names the module shadowed.
-        m = message(DeclarationShadowed(path = "a/b", mod = "Main.MyModel",
-                                        names = [:init_x, :output_types]))
-        @test occursin("import Cadence: init_x, output_types", m)
+        rendered = message(DeclarationShadowed(path = "a/b", mod = "Main.MyModel",
+                                               names = [:init_x, :output_types]))
+        @test occursin("import Cadence: init_x, output_types", rendered)
 
         # A bare store value (§8.2, D-247) spells the wrap for the store at fault.
-        m = message(StoreNotNamedTuple(path = "a/b", store = :init_x, declared = Float64))
-        @test occursin("init_x(::C) = (; ω = 0.0)", m)
-        m = message(StoreNotNamedTuple(path = "a/b", store = :init_s, declared = Float64))
-        @test occursin("init_s(::C) = (; n = 0)", m)
-        m = message(StoreNotNamedTuple(path = "a/b", store = :init_m, declared = Int))
-        @test occursin("init_m(::C) = (; phase = :idle)", m)
+        rendered = message(StoreNotNamedTuple(path = "a/b", store = :init_x,
+                                               declared = Float64))
+        @test occursin("init_x(::C) = (; ω = 0.0)", rendered)
+        rendered = message(StoreNotNamedTuple(path = "a/b", store = :init_s,
+                                               declared = Float64))
+        @test occursin("init_s(::C) = (; n = 0)", rendered)
+        rendered = message(StoreNotNamedTuple(path = "a/b", store = :init_m,
+                                               declared = Int))
+        @test occursin("init_m(::C) = (; phase = :idle)", rendered)
 
         # The forgotten-`T` hint on the input side (§6.1, §8.2, D-236) states the
         # fix by name.
-        m = message(WalkingFaceAtFrozenEntry(path = "c", face = :u, producer_path = "src",
-                                             producer_port = :val, leaf = "",
-                                             declared = Float64, observed = Marker))
-        @test occursin("declare the entry `T`", m)
+        rendered = message(WalkingFaceAtFrozenEntry(path = "c", face = :u,
+                                                     producer_path = "src",
+                                                     producer_port = :val, leaf = "",
+                                                     declared = Float64, observed = Marker))
+        @test occursin("declare the entry `T`", rendered)
 
         # The cycle's three forms (§5.5, §5.6, D-245), over constructed values: the
         # cluster's wires read as one loop, and the classification, where there is
         # one, names the dead hops in the ladder's own words.
         rendered = message(AlgebraicCycle(members = ["plant", "sum", "ctl"],
-                                   wires = ["plant/power" => "sum/b", "sum/e" => "ctl/e",
-                                            "ctl/out" => "plant/u"]))
+                                          wires = ["plant/power" => "sum/b", "sum/e" => "ctl/e",
+                                                   "ctl/out" => "plant/u"]))
         @test occursin("plant/power → sum/b, sum/e → ctl/e, ctl/out → plant/u", rendered)
         @test occursin("break it with a state", rendered)
         # Artificial: the hop, then §5.4's two exits, each dead member named once.
         rendered = message(AlgebraicCycle(members = ["d", "g"],
-                                   wires = ["d/y" => "g/e", "g/out" => "d/b"],
-                                   classification = :artificial, dead = [("d", :b, :y)],
-                                   traced = ["d" => :global, "g" => :global]))
+                                          wires = ["d/y" => "g/e", "g/out" => "d/b"],
+                                          classification = :artificial, dead = [("d", :b, :y)],
+                                          traced = ["d" => :global, "g" => :global]))
         @test occursin("artificial at port level", rendered)
         @test occursin("`d`'s `y` does not route `b`", rendered)
         @test occursin("split `d`, or narrow", rendered)
         # Real with a dead chord: the hop is still listed, as a wire to delete.
-        m = message(AlgebraicCycle(members = ["s", "g", "i"],
-                                   wires = ["s/e" => "g/e", "s/e" => "i/b",
-                                            "g/out" => "s/a", "i/y" => "s/b"],
-                                   classification = :real, dead = [("i", :b, :y)],
-                                   traced = ["s" => :global, "g" => :global, "i" => :global]))
-        @test occursin("a wire the loop does not need", m)
+        rendered = message(AlgebraicCycle(members = ["s", "g", "i"],
+                                          wires = ["s/e" => "g/e", "s/e" => "i/b",
+                                                   "g/out" => "s/a", "i/y" => "s/b"],
+                                          classification = :real, dead = [("i", :b, :y)],
+                                          traced = ["s" => :global, "g" => :global, "i" => :global]))
+        @test occursin("a wire the loop does not need", rendered)
         # The mode rides in the message: a structural map can never kill a hop.
-        m = message(AlgebraicCycle(members = ["p", "q"],
-                                   wires = ["p/b" => "q/a", "q/b" => "p/a"],
-                                   classification = :real,
-                                   traced = ["p" => :structural, "q" => :structural]))
-        @test occursin("structurally", m)
+        rendered = message(AlgebraicCycle(members = ["p", "q"],
+                                          wires = ["p/b" => "q/a", "q/b" => "p/a"],
+                                          classification = :real,
+                                          traced = ["p" => :structural, "q" => :structural]))
+        @test occursin("structurally", rendered)
         # The sampled fallback rides in both forms: as the mode phrase under a
         # real verdict, and as the caveat on a hop it found under an artificial
         # one, an untaken branch being its only miss (§5.6, D-012).
-        m = message(AlgebraicCycle(members = ["m", "g1", "g2"],
-                                   wires = ["m/F" => "g1/e", "g1/out" => "m/f"],
-                                   classification = :real, dead = [("m", :g, :F)],
-                                   traced = ["m" => :sampled, "g1" => :global,
-                                             "g2" => :global]))
-        @test occursin("`m` at sampled states, the rest globally", m)
-        m = message(AlgebraicCycle(members = ["m", "g2"],
-                                   wires = ["m/F" => "g2/e", "g2/out" => "m/g"],
-                                   classification = :artificial, dead = [("m", :g, :F)],
-                                   traced = ["m" => :sampled, "g2" => :global]))
-        @test occursin("on the sampled paths; an untaken branch may still route it", m)
+        rendered = message(AlgebraicCycle(members = ["m", "g1", "g2"],
+                                          wires = ["m/F" => "g1/e", "g1/out" => "m/f"],
+                                          classification = :real, dead = [("m", :g, :F)],
+                                          traced = ["m" => :sampled, "g1" => :global,
+                                                    "g2" => :global]))
+        @test occursin("`m` at sampled states, the rest globally", rendered)
+        rendered = message(AlgebraicCycle(members = ["m", "g2"],
+                                          wires = ["m/F" => "g2/e", "g2/out" => "m/g"],
+                                          classification = :artificial, dead = [("m", :g, :F)],
+                                          traced = ["m" => :sampled, "g2" => :global]))
+        @test occursin("on the sampled paths; an untaken branch may still route it",
+                       rendered)
 
         # The remedy form: the shortfall, then the fix, with the list in hand.
         rendered = message(UninitializedInputs(op = :init!, faces = [:u, :e]))

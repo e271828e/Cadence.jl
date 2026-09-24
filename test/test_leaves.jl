@@ -242,8 +242,8 @@ function leaves_mixed()
         @test compiled_gather(buffer1, buffer2, (3, 1)) === value
 
         # The NamedTuple branch of the same builder.
-        nt_gather, _ = mgather(@NamedTuple{a::Float64, n::Int})
-        @test nt_gather([9.5], [4], (0, 0)) === (a = 9.5, n = 4)
+        namedtuple_gather, _ = mgather(@NamedTuple{a::Float64, n::Int})
+        @test namedtuple_gather([9.5], [4], (0, 0)) === (a = 9.5, n = 4)
         # An enum is its own eltype, so it binds its own buffer.
         enum_gather, _ = mgather(@NamedTuple{g::Gear, x::Float64})
         @test enum_gather([down], [9.5], (0, 0)) === (g = down, x = 9.5)

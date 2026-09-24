@@ -195,11 +195,11 @@ function store_opaque_leaf()
 
         # The handle's declaration carries no `T`, so its cell is the same type
         # at every activation while the numeric ports follow the scalar.
-        sim_d8 = Simulation(build(handle_model()), D8; h = 1//10)
-        init!(sim_d8)
-        @test _cell_key(HeightField) in keys(sim_d8.exec.store.stores)
-        @test port(sim_d8, "src", :terrain) isa HeightField
-        @test port(sim_d8, "q", :h) isa D8
+        dual_sim = Simulation(build(handle_model()), D8; h = 1//10)
+        init!(dual_sim)
+        @test _cell_key(HeightField) in keys(dual_sim.exec.store.stores)
+        @test port(dual_sim, "src", :terrain) isa HeightField
+        @test port(dual_sim, "q", :h) isa D8
 
         # One load and one store: the sweep that gathers and scatters a handle
         # allocates nothing (§9.7's canary, `test_executor.jl`).
@@ -224,9 +224,9 @@ function store_opaque_leaf()
         # The abstract entry admits the handle by the bound clause (D-236).
         abstract_model = Group((; src = Terrain(), q = AbstractTerrainQuery());
                                wires = ("src/terrain" => "q/terrain",))
-        abs_sim = Simulation(abstract_model; h = 1//10)
-        init!(abs_sim)
-        @test port(abs_sim, "q", :h) == 3.0
+        abstract_sim = Simulation(abstract_model; h = 1//10)
+        init!(abstract_sim)
+        @test port(abstract_sim, "q", :h) == 3.0
     end
 end
 

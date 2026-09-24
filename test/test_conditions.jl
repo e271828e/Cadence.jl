@@ -94,9 +94,9 @@ function conditions_algebra()
         @test length(plan.inputs) == 2                  # the overridden leaf is replaced, not doubled
 
         # Layering is variadic, and the last layer wins.
-        plan2 = resolve_condition(override(base, fragment(inputs = (u = 9.0,)),
-                                        fragment(inputs = (u = 7.0,))), tri_build)
-        @test input(plan2, :u) === 7.0
+        plan = resolve_condition(override(base, fragment(inputs = (u = 9.0,)),
+                                       fragment(inputs = (u = 7.0,))), tri_build)
+        @test input(plan, :u) === 7.0
 
         # The origin records both layers: the patch's own chain, and the base's
         # beside it — surfaced here through a violation on the overridden leaf.
@@ -115,10 +115,10 @@ function conditions_algebra()
         # §14.6's central use case: a full-coverage baseline authored at the root,
         # under a patch a component's own `condition` method ships against its own
         # face. Two spellings of one root input are one leaf, so they layer.
-        plan3 = resolve_condition(override(fragment(inputs = (u = 1.0, e = 2.0)),
+        plan = resolve_condition(override(fragment(inputs = (u = 1.0, e = 2.0)),
                               at("plant", fragment(inputs = (u = 9.0,)))), tri_build)
-        @test input(plan3, :u) === 9.0 && input(plan3, :e) === 2.0
-        @test length(plan3.inputs) == 2
+        @test input(plan, :u) === 9.0 && input(plan, :e) === 2.0
+        @test length(plan.inputs) == 2
 
         # The same two spellings under `combine` still collide — and with layering
         # no longer reaching this branch, its directive is advice that works.
@@ -133,13 +133,13 @@ function conditions_algebra()
         # Raised at composition time, before any resolution pass runs or any
         # origin exists — which is why it carries its own kind. No build in hand.
         for case in (() -> combine(fragment(), (q = 1.0,)),     # node × NamedTuple
-                  () -> combine((q = 1.0,), fragment()),        # and the other order
-                  () -> combine(fragment(), fragment(), (q = 1.0,)),   # at any arity
-                  () -> at("plant", (q = 1.0,)),
-                  () -> override(fragment(), (q = 1.0,)),
-                  () -> fragment(x = 3.0))                      # and a non-NamedTuple payload
-            e = failure(case)
-            @test e isa DiagnosticError && diagnostic(e) isa ConditionNodeMisuse
+                     () -> combine((q = 1.0,), fragment()),        # and the other order
+                     () -> combine(fragment(), fragment(), (q = 1.0,)),   # at any arity
+                     () -> at("plant", (q = 1.0,)),
+                     () -> override(fragment(), (q = 1.0,)),
+                     () -> fragment(x = 3.0))                      # and a non-NamedTuple payload
+            err = failure(case)
+            @test err isa DiagnosticError && diagnostic(err) isa ConditionNodeMisuse
         end
         d = carried(@test_throws DiagnosticError{ConditionNodeMisuse} combine(fragment(), (q = 1.0,)))
         @test d.observed === NamedTuple{(:q,),Tuple{Float64}} && d.in_hand == [:Fragment]
@@ -251,7 +251,7 @@ function conditions_algebra()
     @testset "root-input totality is checked pre-write, and a rejection changes nothing (§14.6, D-068)" begin
         sim = Simulation(tri(); h = 1//10)
         init!(sim, fragment(inputs = (u = 1.0, e = 2.0)))
-        snap, q = latest(sim), state(sim, "plant").q
+        snapshot, q = latest(sim), state(sim, "plant").q
         acc, initial_lifecycle = state(sim, "ctl").acc, lifecycle(sim)
 
         d = carried(@test_throws DiagnosticError{UninitializedInputs} init!(sim, combine(at("plant",
@@ -263,7 +263,7 @@ function conditions_algebra()
         @test state(sim, "plant").q === q
         @test state(sim, "ctl").acc === acc
         @test port(sim, "", :u) === 1.0
-        @test lifecycle(sim) === initial_lifecycle && latest(sim) === snap
+        @test lifecycle(sim) === initial_lifecycle && latest(sim) === snapshot
 
         # Every uncovered face, in declaration order (§14.6).
         fresh = Simulation(tri(); h = 1//10)
@@ -445,10 +445,10 @@ function conditions_service_walk()
         # composition — the flatten pass never descends into it, so nothing below
         # it has a path — and the refusal is an unknown child with no list to
         # offer, not a level of the build (§8.5, §13.3).
-        bo = build(OpaqueHold(OpaqueLeaf(Gain(2.0))))
-        @test paths(bo.structure) == ["c"]
+        opaque_build = build(OpaqueHold(OpaqueLeaf(Gain(2.0))))
+        @test paths(opaque_build.structure) == ["c"]
         d = only(diagnostics(failure(() -> resolve_condition(at("c/hidden",
-                           fragment(x = (z = 1.0,))), bo))))
+                           fragment(x = (z = 1.0,))), opaque_build))))
         @test d isa PathResolution && d.reason === :unknown_child
         @test d.segment == "hidden" && d.owner == "`c`" && d.candidates == String[]
     end
@@ -573,8 +573,8 @@ function conditions_specialized_apply()
         sim = Simulation(tri(); h = 1//10)
         plan = compile_plan(tri_tree(SVector(1.0, 2.0), 3.0, :fired, 4.0, 5.0), sim.deployment.build)
 
-        paths = split("plant ctl trig")             # the prefixes as data, not literals
-        fresh(i) = String(paths[i])                 # a new `String` object per call
+        prefix_words = split("plant ctl trig")       # the prefixes as data, not literals
+        fresh(i) = String(prefix_words[i])           # a new `String` object per call
         @test pointer(fresh(1)) != pointer(fresh(1))
         @test fresh(1) === "plant"                  # and `===` still says yes: content, not pointer
 
