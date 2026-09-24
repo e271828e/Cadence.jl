@@ -190,8 +190,8 @@ were derived.
 | [D-163][d-163] | Ban `==` for separately-compiled float comparisons | ratified |
 | [D-164][d-164] | Reject components that declare nothing and define no stage | ratified |
 | [D-165][d-165] | Split output-stage returns into public `y` and private `w` | superseded → [D-194][d-194] |
-| [D-166][d-166] | Mandate `Type{T}` output signatures on continuous producers | ratified |
-| [D-167][d-167] | Mandate `Type{T}` input signatures under the permissive reading | ratified |
+| [D-166][d-166] | Mandate `Type{T}` output signatures on continuous producers | superseded → [D-263][d-263] |
+| [D-167][d-167] | Mandate `Type{T}` input signatures under the permissive reading | superseded → [D-263][d-263] |
 | [D-168][d-168] | Root-slot fan-out tolerance combines by meet, not agreement | ratified |
 | [D-169][d-169] | `y_x`/`y_z` carry stage-1 ports only, auto-published excluded | superseded → [D-252][d-252] |
 | [D-170][d-170] | Split assembly connections into child/input/output declarations | ratified |
@@ -287,6 +287,7 @@ were derived.
 | [D-260][d-260] | Trim the run to what lasts it and retire the trace register | ratified |
 | [D-261][d-261] | Three ownership rules for fields, with the placements they settle | ratified |
 | [D-262][d-262] | Post-commit checks on the trim problem | ratified |
+| [D-263][d-263] | One arity on both tiers: plain contracts, the `Pinned` marker and the mandatory store | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -2165,6 +2166,11 @@ scratch joins the `T`-generic surface, generic in-place fallbacks under
 `Dual`); scoped debug poison (`NaN` on float eltypes, `typemin` on integer
 eltypes, element types with no sentinel skipped and the skip reported once per
 activation) and no-information-between-calls contract.
+
+Annotation (2026-09-24): the allocator takes the scalar on both tiers, the
+discrete side always receiving `Float64`, so its arity is no longer a tier
+fact; the rejection of `similar`-based re-scalaring is what keeps the scalar
+in the signature at all ([D-263][d-263]).
 
 **Rejected.**
 - *Concrete-nominal allocation + framework `similar`-based re-scalaring
@@ -5596,7 +5602,7 @@ intermediates when no `h_xu` exists.
 
 ### D-166 — Mandate `Type{T}` output signatures on continuous producers
 
-**Status.** ratified
+**Status.** superseded → [D-263][d-263]
 
 **Position.** `output_types(::C, ::Type{T}) where {T <: Real}` is **mandated on
 continuous producers**; plain `output_types(::C)` is **mandated on discrete
@@ -5667,6 +5673,13 @@ a new forgotten-`T` class caught only at activation build.
 Annotation (2026-09-08): the per-leaf statement of embed-accept is decided on
 the type, by lifting and exact comparison, per [D-238][d-238].
 
+Annotation (2026-09-24): superseded by [D-263][d-263]. The literal semantics and the
+two-argument form go; the walk returns on the output side with a leaf-level
+`Pinned{P}` marker, the element this entry's reversal of [D-079][d-079] lacked. The
+embed-accept relation, the CI policy and the criterion recorded in the
+2026-08-16 annotation all survive; the criterion is what the marker
+satisfies at the leaf instead of the signature.
+
 **Rejected.**
 - *Plain declaration + leaf walk on the output side ([D-079][d-079]'s design):*
   writer-honest — nothing to forget, no lurk — but reader-opaque, and
@@ -5689,7 +5702,7 @@ the type, by lifting and exact comparison, per [D-238][d-238].
 
 ### D-167 — Mandate `Type{T}` input signatures under the permissive reading
 
-**Status.** ratified
+**Status.** superseded → [D-263][d-263]
 
 **Position.** `input_types(::C, ::Type{T}) where {T <: Real}` is **mandated on
 continuous consumers**, plain on discrete consumers, under the **permissive
@@ -5742,6 +5755,11 @@ its point.
 Escape from [D-033][d-033]'s rejection, recorded: the permissive reading predicts
 nothing and is not constant across components (pinned entries are rare but
 real), which is the reading the original adjudication never had on the table.
+
+Annotation (2026-09-24): superseded by [D-263][d-263]. The mandate goes; the
+permissive reading, the walk-compatibility clause, its tier scope and the
+root-slot rules all stand, with `Pinned{P}` as the spelling of "demands
+frozen" and an unpinned `Float64` position as "tolerant".
 
 **Rejected.**
 - *The predictive reading ("this is what will arrive") and the envelope reading
@@ -7895,6 +7913,10 @@ their instants are known in advance; everything declared through
 must be detected. The criterion is detection versus scheduling, not which
 bundle fields a guard reads.
 
+Annotation (2026-09-24): `init_workspace` takes the scalar on both tiers and
+the contract arities are gone, so the tier is determined by the store every
+leaf now declares and the update laws alone ([D-263][d-263]).
+
 **Rejected.**
 - *Keeping the letters and adding a shadowing diagnostic instead:* the
   diagnostic cannot distinguish a user's own `f` from a forgotten import, which
@@ -8558,6 +8580,10 @@ walk clause is vacuous and the error waits for the first `Dual` activation.
 The marker pass evaluates `input_types` and `output_types` alone; `init_x` is
 by value and is walked, never evaluated.
 
+Annotation (2026-09-24): the marker pass retypes the plain declarations at
+the marker scalar instead of calling two-argument ones; the relation and
+both clauses are unchanged ([D-263][d-263]).
+
 **Rejected.**
 - *Equality modulo embedding, with nominal identity on struct types (the built
   shape):* refuses an abstract entry's lawful concrete producer, so [§4.4][s4-4]'s
@@ -8605,6 +8631,12 @@ A root input of handle type has no synthesis (`probe_value`) and no producer.
 Refusing it keeps the field-emitting component, with its value-level
 constructor, as the one way bulk data enters a model; a caller-supplied root
 handle would be a second injection path, closed for the first cut ([D-008][d-008]).
+
+Annotation (2026-09-24): the type walk over a contract substitutes
+parameters and never fields, so a handle's references stay frozen with no
+stop of their own; a handle with a scalar parameter walks, and "pin the
+parameter in the declaration" is spelled `Pinned{Handle{Float64}}`. A
+mutable type's parameters pin by rule ([D-263][d-263]).
 
 **Rejected.**
 - *An author-declared trait marking handle types:* a second place for the
@@ -9025,6 +9057,9 @@ cannot read the value. A primitive that fails it records `nothing` for its
 tier and is read no further in Stratum A. An empty `(;)` is the fallback's
 own value and keeps reading as "declares nothing".
 
+Annotation (2026-09-25): the empty store `(;)` is a `NamedTuple` and admitted; it
+is the stateless leaf's mandatory tier marker ([D-263][d-263]).
+
 **Rejected.**
 - *A single leaf as a second store form, addressed as the store itself:* a
   second shape at every name-keyed seam (conditions, readers, trace, trim,
@@ -9139,6 +9174,10 @@ a marked pair, every reader of the two boundary declarations unwrap it, and
 the root arm carry a tag with nothing to say, a primitive root having no
 computed entries. The `replay!` site is a factual completion: [§12.7][s12-7] binds
 `stop_on` there exactly as at `run!`.
+
+Annotation (2026-09-24): `TierSignatureMismatch` retires with the contract
+arities, and the `init_workspace` arity leaves `DeclarationOnWrongTier`'s
+member set; a `Pinned` entry on a discrete leaf joins it ([D-263][d-263]).
 
 **Rejected.**
 - *Keeping the contract arity under `DeclarationOnWrongTier` on a stateful
@@ -9981,6 +10020,155 @@ and never after the simulation has been mutated.
   by its environment queries. The check makes the exposure loud whichever
   route the author takes.
 
+### D-263 — One arity on both tiers: plain contracts, the `Pinned` marker and the mandatory store
+
+**Status.** ratified
+
+**Position.** Every contract declaration takes the component alone on both
+tiers, is written at nominal `Float64`, and is retyped by the framework. The
+tier is never spelled in a signature.
+
+- On the continuous tier `input_types` and `output_types` are **walked**: the
+  leaf walk that types `init_x` and the root inputs is applied to the declared
+  types, so every `Float64` position follows the activation scalar. A leaf
+  wrapped as `Pinned{P}` is pinned at every activation, and the wrapper is
+  stripped at nominal. On the discrete tier the declarations pin wholesale,
+  as before, and a `Pinned` entry there is `DeclarationOnWrongTier`.
+- The permissive reading of `input_types` ([D-167][d-167]) stands with the marker as
+  its spelling: an unpinned position is tolerant, a `Pinned` one demands a
+  frozen arrival. Both wire clauses of [§6.1][s6-1] stand, decided at the marker
+  scalar by retyping the declarations instead of calling them.
+- The type walk substitutes `Float64` in type-parameter positions, yields `P`
+  at `Pinned{P}`, and does not enter a mutable type's parameters. A handle's
+  data references are fields and never walk; a handle with a scalar parameter
+  walks like any type, and `Pinned` freezes one built from build-time data.
+- `init_workspace(::C, ::Type{T})` keeps its scalar and takes it on **both**
+  tiers; the framework passes `Float64` to a discrete allocator at every
+  activation.
+- Every leaf declares exactly one of `init_x` and `init_s`, and a stateless
+  leaf declares it empty, `init_x(::C) = (;)` or `init_s(::C) = (;)`. The
+  store is the tier marker, mandatory even when empty, as `child_connections`
+  is the class marker ([§8.5][s8-5]). `StoreWithoutUpdate` applies to a non-empty
+  store only.
+- `TierSignatureMismatch` retires with all three arms. `TierUnreadable` names
+  a primitive declaring neither store, and an empty-store leaf with no
+  `output_types` is `StatelessWithoutOutputs`.
+
+**Spec.** [§4.3][s4-3], [§6.1][s6-1], [§6.2][s6-2], [§7.2][s7-2], [§7.3][s7-3], [§8.1][s8-1], [§8.2][s8-2], [§8.3][s8-3], [§8.5][s8-5], [§8.6][s8-6], [§9.1][s9-1],
+[§9.4][s9-4], [§9.5][s9-5], [§13.7][s13-7], [§14.10][s14-10], [Appendix A][sA], [Appendix C][sC], [Appendix D][sD]
+
+**Rationale.** The two-argument form charged every continuous leaf for a
+choice almost none of them make: the suite carries 11 pinned leaves against
+192 `T`-form declarations, and a flight library's components promote by
+default because trim and linearization sweep whole assemblies. [D-166][d-166]'s own
+criterion says a `T` belongs in a signature exactly where the declaration's
+non-nominal behavior is underdetermined by its nominal restriction. With a
+leaf-level marker that underdetermination is gone: the plain declaration,
+`Pinned` included, fixes the declaration at every scalar, so the signature's
+`T` would record nothing the page does not already say. The retype walk is
+not new machinery. It is `retype`, the walk `init_x`, conditions and the
+root-input cells already go through; the contracts were the one declaration
+kind it did not reach, and carrying two conventions cost more than carrying
+one.
+
+[D-166][d-166] reversed [D-079][d-079] on two grounds. Deliberate pinning of a real leaf was
+inexpressible under the plain form, and the plain form was reader-opaque,
+misleading to anyone not carrying the walk rule in their head. The marker is
+the element neither entry had on the table, and it answers the first ground
+outright: the pin is on the page, per leaf, schema-visible and
+conformance-checked, so [§14.10][s14-10]'s freeze door and the FFI door survive as
+declared doors. The second ground is revalued rather than answered. The walk
+rule is one rule, already taught for the state side; a reader who knows that
+`Float64` follows the scalar on the continuous tier reads every declaration
+in the framework with it.
+
+The forgotten-`T` classes vanish rather than move. A `Float64` written at a
+participating leaf now walks, which is what the author meant. The class that
+takes its place, a forgotten pin on an FFI leaf, fails where the forgotten
+`T` did and never silently: an input pin is a wire check at the first
+nominal build only when written, and an output built from frozen data is
+refused at the first `Dual` activation by the identity comparison on the
+opaque leaf or by the `MethodError` inside the user's math, because no lossy
+`Dual → Float64` cast exists. The embedding guarantee ([§9.5][s9-5]) is untouched.
+
+A stateless leaf loses its only tier signal with the arity, and the store
+supplies it. [§3.1][s3-1]'s continuous component has a state vector that may be
+empty, so a stateless continuous leaf is honestly spelled as a continuous
+leaf with zero state fields, `init_x(::C) = (;)`, and a sampled map as
+`init_s(::C) = (;)`. The empty NamedTuple is already the vocabulary's "no
+state": the bundle law puts a store's letter in the bundle only when the
+store is non-empty, so nothing downstream changes. Making the declaration
+mandatory is the move [§8.5][s8-5] already makes for `child_connections`,
+mandatory even when empty because defining it is the class marker; the store
+is the tier marker on the same terms. Every leaf's tier is then on the page
+in one place, stateful or not, with no tier by omission. The alternative
+that was on the table, an `is_discrete(::C)` trait defaulting to `false`,
+would have added a family name and a default, and it would have widened
+[D-178][d-178]'s recorded gap: an optional declaration lost to a local scope or a
+forgotten import silently drops its feature, so a sampler whose
+`is_discrete = true` was lost would silently become a transparent
+continuous wire, where a lost `init_s(::C) = (;)` fails loud as a leaf
+declaring no store. [D-173][d-173]'s and [D-178][d-178]'s rejections of the trait therefore
+stand. The cost is one line on every stateless leaf, the same line an
+assembly author already writes for `child_connections`.
+
+The workspace keeps its scalar because its declaration is by allocation, not
+by type. Retyping a type is a pure substitution and total over the
+vocabulary; retyping an allocated value is undefined for a factorization, a
+plan or a buffer whose size depends on the scalar, which is [D-077][d-077]'s standing
+rejection of `similar`-based re-scalaring. The scalar is consumed by the
+allocation, so it is not ceremony in the contract sense. Taking it on both
+tiers removes the last arity-shaped tier fact: the discrete tier never runs
+off-nominal, so `Float64` is the only scalar its allocator can honestly
+receive; the ceremony falls on a rare declaration; and [§14.10][s14-10]'s sampled-data
+door would bring the scalar there anyway.
+
+Opaque leaves need no stop of their own. The type walk substitutes
+parameters and never looks at fields, so a bulk-data handle whose references
+are fields passes through untouched, which is [§4.4][s4-4]'s frozen build-time data
+by construction. A handle with a scalar parameter is the case [D-237][d-237] admits, a
+different cell type per activation built at `T` by the stage; it walks like
+any type, and `Pinned` spells [D-237][d-237]'s other remedy. A mutable type's
+parameters pin by rule because no stage can produce a `Vector{Dual}` inside a
+handle without copying the grid at every evaluation, so no choice exists
+there for a marker to record.
+
+**Rejected.**
+- *Superseded position — the mandated two-argument forms on the continuous
+  tier ([D-166][d-166], [D-167][d-167]):* ceremony on every continuous leaf for a per-leaf
+  choice made on few; reader honesty bought at the price of a second typing
+  convention beside the state side's walk; the whole-signature and per-leaf
+  forgotten-`T` classes it had to contain exist only because the form exists.
+- *A one-argument `init_workspace` with framework re-scalaring:* [D-077][d-077]'s
+  grounds stand; reconstruction cannot cover plans, factorizations or
+  scalar-dependent structure.
+- *Keeping `init_workspace` tier-split:* one arity would stay a tier fact,
+  with its vote, its `DeclarationOnWrongTier` arm and a paragraph explaining
+  why this declaration alone still splits.
+- *A scalar-only marker (`PinnedFloat64`):* cannot pin an `SVector{3,Float64}`
+  or a handle whole; the parametric marker pins any leaf type.
+- *A parameter-position pin (`MyStruct{Float64, Pinned{Float64}}`):* fails a
+  `<: Real` bound unless `Pinned <: Real`, a lie in the type lattice; the
+  leaf-level pin covers every known case, and the limit is recorded.
+- *Stopping the type walk at every opaque leaf:* removes the handle-with-a-
+  scalar-parameter case [D-237][d-237] admits, and re-imports the inexpressibility
+  [D-166][d-166] charged [D-079][d-079] with.
+- *An `is_discrete(::C)` trait, default `false`:* a new family name and a
+  tier by omission; an optional declaration a local scope or a forgotten
+  import drops silently, turning a sampler into a transparent wire.
+- *Reading a stateless leaf's tier from its parent's `sample_times`:* a
+  block that is discrete by design, a `ZOH` or a sampler, could not say so,
+  and a user who forgets the entry gets a continuous wire with no ground for
+  the build to complain; substituting a stateless map into an unlisted slot
+  would silently flip its tier; the tier is the leaf's own fact ([D-056][d-056]).
+- *`nothing` as the empty store:* a sentinel return, the class [D-178][d-178] refuses
+  and `StoreNotNamedTuple` ([D-247][d-247]) already rejects; the empty NamedTuple
+  says the same thing inside the vocabulary.
+- *A stateless leaf with no outputs as a legal no-op:* admits a component
+  that produces nothing and stores nothing.
+- *Accepting `Pinned` silently on a discrete leaf:* a spelling that says
+  nothing is the class the declaration layer refuses.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -10244,6 +10432,7 @@ and never after the simulation has been mutated.
 [d-260]: #d-260--trim-the-run-to-what-lasts-it-and-retire-the-trace-register
 [d-261]: #d-261--three-ownership-rules-for-fields-with-the-placements-they-settle
 [d-262]: #d-262--post-commit-checks-on-the-trim-problem
+[d-263]: #d-263--one-arity-on-both-tiers-plain-contracts-the-pinned-marker-and-the-mandatory-store
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

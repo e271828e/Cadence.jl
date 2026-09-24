@@ -37,7 +37,7 @@ Where the reason is not given here, the cited decision carries it:
   the log is a `Vector` of snapshot references, not inline records; the
   roster is a mutable `Vector` re-read every frame, frozen by
   `assert_stopped`'s policy rather than by type; the suite has no
-  every-component `Dual` sweep, so D-166's CI policy is one fixture; the
+  every-component `Dual` sweep, so D-263's CI policy is one fixture; the
   once-per-frame `ReplayDiscardedStaging` noise from a live device during
   replay is unpresented (§11.8).
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
@@ -56,7 +56,19 @@ Currently empty.
 
 ### Retire with a feature or a pass
 
-Currently empty.
+- **The contract arities (D-263).** The code still mandates the two-argument
+  `input_types`/`output_types`/`init_workspace` on the continuous tier and
+  the plain forms on the discrete, reads a stateless leaf's tier off the
+  `output_types` arity, raises `TierSignatureMismatch`, and reads
+  `TierUnreadable` off a missing `output_types`. The spec now has every
+  contract take the component alone and be walked by `retype` on the
+  continuous tier, `Pinned{P}` pinning a leaf, `init_workspace(::C, ::Type{T})`
+  on both tiers with `Float64` passed to a discrete allocator, every leaf
+  declaring `init_x` or `init_s` as its tier marker, empty when stateless,
+  `TierUnreadable` for a leaf declaring neither, `StatelessWithoutOutputs`
+  for an empty-store leaf with no `output_types`, and `retype` stopping at
+  `Pinned{P}` and at a mutable type's parameters (§6.1, §7.3, §8.2, §8.5,
+  §9.1, Appendix C). One increment retires this bullet.
 
 ## Awaiting a ruling
 

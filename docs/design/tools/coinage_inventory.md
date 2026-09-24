@@ -81,4 +81,4 @@ this row is the record of the promotion.
 
 One or two uses each; promote to bucket C only if usage grows: arrival sweep, post-transition sweep, sampling seam, getfield walk,
 branch-shape rule, locality law, active-widget contract, the by-allocation
-convention.
+convention, misplaced pin.
