@@ -113,6 +113,8 @@ function test_trim()
         # having moved nothing: no projection to run, no guard to fire.
         @test report.committed_residuals !== nothing
         @test abs(report.committed_residuals.torque) ≤ report.tolerances.torque
+        # A problem that declares no checks reports them empty, not absent (D-262).
+        @test report.committed_checks === (;)
     end
 
     @testset "an iterative nonlinear problem converges, the box picking the branch (§14.7)" begin
@@ -167,6 +169,7 @@ function test_trim()
         @test !report.converged
         @test report.status isa Symbol                   # recorded verbatim, decisive of nothing
         @test report.committed_residuals === nothing     # the absence of a commit, not a flag
+        @test report.committed_checks === nothing        # no commit, no checks (§14.8)
         @test abs(report.residuals.torque) > report.tolerances.torque
         @test lifecycle(fresh) === :built
         @test failure(() -> run!(fresh; t_end = 0.1)) isa DiagnosticError
@@ -209,7 +212,8 @@ function test_trim()
             guess = (;), lower = (;), upper = (;),
             condition = d -> combine(at("c", condition(Pendulum(); θ = 0.0)),
                                      fragment(inputs = (in = u,))),
-            reads = torque_reads(), residuals = torque_only, tolerances = (torque = 1e-9,))
+            reads = both_reads(), residuals = torque_only, tolerances = (torque = 1e-9,),
+            checks = (r, d) -> (θ = r.θ,), check_tolerances = (θ = 1e-12,))
 
         # θ = 0, ω = 0, u = 0 is an equilibrium: nothing to pack, no seeded
         # activation, no backend call — the establishment round is the evaluation.
@@ -219,6 +223,7 @@ function test_trim()
         @test yes.n_evaluations == 1 && yes.n_iterations == 0
         @test yes.solution === (;) && isempty(yes.saturated)
         @test yes.committed_residuals !== nothing && lifecycle(at_rest) === :initialized
+        @test yes.committed_checks === (θ = 0.0,)        # the empty problem runs them too
 
         # And the same probe on a baseline that is not an equilibrium answers no,
         # by the ordinary box test, leaving the simulation untouched.
@@ -226,6 +231,7 @@ function test_trim()
         no = trim!(forced, probe(1.0); baseline = pend_base())
         @test !no.converged && no.status === :bypassed
         @test no.residuals.torque ≈ 1.0 && no.committed_residuals === nothing
+        @test no.committed_checks === nothing
         @test lifecycle(forced) === :built
     end
 
@@ -303,6 +309,35 @@ function test_trim()
         @test all(d -> d isa TrimProblemInvalid && d.field === :tolerances &&
                        d.reason === :nonpositive_tolerance, diagnostics(err))
         @test [(d.key, d.value) for d in diagnostics(err)] == [(:torque, 0.0), (:hold, -1.0e-9)]
+        @test world(sim) == before
+
+        # The check return's key set is observed at the same guess evaluation as the
+        # residuals', after the establishment round, and the simulation is still
+        # untouched (§14.8, D-262).
+        err = failure(() -> trim!(sim, TrimProblem(
+            guess = (u = 0.0,), lower = (u = -Inf,), upper = (u = Inf,),
+            condition = decide_u, reads = both_reads(), residuals = torque_only,
+            tolerances = (torque = 1e-9,), checks = (r, d) -> (wrong = r.θ,),
+            check_tolerances = (θ = 1e-6,)); baseline = pend_base()))
+        d = only(diagnostics(err))
+        @test err isa DiagnosticError && d isa TrimProblemInvalid && d.field === :checks
+        @test d.reason === :key_set && d.names == [:wrong] && d.expected == [:θ]
+        @test world(sim) == before && lifecycle(sim) === :built
+
+        # A check tolerance is validated as a residual tolerance is, collected at
+        # setup before any evaluation: an `Int` and a zero in one throw.
+        err = failure(() -> trim!(sim, TrimProblem(
+            guess = (u = 0.0,), lower = (u = -Inf,), upper = (u = Inf,),
+            condition = decide_u, reads = both_reads(), residuals = torque_only,
+            tolerances = (torque = 1e-9,), checks = (r, d) -> (θ = r.θ, ω̇ = r.ω̇),
+            check_tolerances = (θ = 1, ω̇ = 0.0)); baseline = pend_base()))
+        @test err isa DiagnosticError && length(diagnostics(err)) == 2
+        @test all(d -> d isa TrimProblemInvalid && d.field === :check_tolerances,
+                  diagnostics(err))
+        d = only(d for d in diagnostics(err) if d.reason === :field_types)
+        @test d.bad == Pair{Symbol,Any}[:θ => Int64]
+        d = only(d for d in diagnostics(err) if d.reason === :nonpositive_tolerance)
+        @test d.key === :ω̇ && d.value === 0.0
         @test world(sim) == before
     end
 
@@ -441,6 +476,39 @@ function test_trim()
         # ω̇ at θ = 0 is the solved torque itself, not the zero it balanced.
         @test report.committed_residuals.torque ≈ report.solution.u
         @test abs(report.committed_residuals.torque) > report.tolerances.torque
+    end
+
+    @testset "a check inside its tolerance is reported and raises nothing (§14.7, §14.8, D-262)" begin
+        # The check reads the attitude through the problem's one read set and
+        # compares it with the decision: the committed state is the solved one.
+        sim = Simulation(fed(Pendulum(), :u); h = 1//10)
+        problem = TrimProblem(guess = (θ = 0.1,), lower = (θ = -π/2,), upper = (θ = π/2,),
+                              condition = decide_θ, reads = both_reads(),
+                              residuals = torque_only, tolerances = (torque = 1e-9,),
+                              checks = (r, d) -> (θ = r.θ - d.θ,),
+                              check_tolerances = (θ = 1e-12,))
+        report = @test_logs trim!(sim, problem; baseline = pend_base())
+        @test report.converged
+        @test keys(report.committed_checks) === (:θ,)
+        @test abs(report.committed_checks.θ) ≤ 1e-12
+    end
+
+    @testset "a failed check is a true equilibrium at a point the problem did not ask for (§14.8, D-139, D-262)" begin
+        # The condition pins θ = 0.5, the world side; the request says 0.3, the
+        # params side. The torque balance holds at the committed state, so the
+        # residuals sit inside the box, and only the check sees the mismatch.
+        sim = Simulation(fed(Pendulum(), :u); h = 1//10)
+        problem = TrimProblem(guess = (u = 0.0,), lower = (u = -Inf,), upper = (u = Inf,),
+                              condition = decide_u, reads = both_reads(),
+                              residuals = torque_only, tolerances = (torque = 1e-9,),
+                              checks = (r, d) -> (θ = r.θ - 0.3,),
+                              check_tolerances = (θ = 1e-6,))
+        report = @test_logs (:warn, r"^TrimCommitChecks") trim!(sim, problem;
+                                                                baseline = pend_base())
+        @test report.converged
+        @test abs(report.committed_residuals.torque) ≤ report.tolerances.torque
+        @test report.committed_checks.θ ≈ 0.2
+        @test state(sim, "c").θ === 0.5                   # committed all the same
     end
 
     @testset "the commit is literally an `init!` over the same composite (§14.8, §14.9)" begin

@@ -17,13 +17,14 @@
 # --- the problem (§14.7) --------------------------------------------------------
 
 """
-    TrimProblem(; guess, lower, upper, condition, reads, residuals, tolerances)
+    TrimProblem(; guess, lower, upper, condition, reads, residuals, tolerances,
+                checks = _no_checks, check_tolerances = (;))
 
 What the aircraft author ships: what the solver may vary, what those decisions
 make of the model, what to read back after each evaluation, and which equations
-the readings must satisfy. The field set is **normative and closed** (§14.7),
-and every field is required — there is no defaulting a half-specified problem
-into a solve.
+the readings must satisfy. The field set is **normative and closed** (§14.7).
+The first seven fields are required — there is no defaulting a half-specified
+problem into a solve — and the two check fields default to empty.
 
 - `guess`, `lower`, `upper` — same-*named* all-`Float64` NamedTuples. The names
   are the pairing and order carries no semantics (§9.5): the bounds are
@@ -40,13 +41,20 @@ into a solve.
 - `tolerances` — an all-`Float64` NamedTuple, same-named as the residual return.
   It rides *in the problem* because a relocated problem carries its own
   convergence test (§14.7).
+- `checks` — `checks(reads::NamedTuple, d::NamedTuple) → NamedTuple`, equations
+  the service evaluates once, at the committed state, and never solves. Their
+  reads join `reads`. `_no_checks` returns `(;)`.
+- `check_tolerances` — an all-`Float64` NamedTuple, same-named as the check
+  return. A check outside its tolerance raises `TrimCommitChecks` (§14.8,
+  D-262).
 
 The value is inert: nothing is validated here, because most of what §14.7
 requires is only checkable against a build — a selector resolves against a
-model, and the residual key set is observed at the setup guess evaluation.
+model, and the residual and check key sets are observed at the setup guess
+evaluation.
 `trim!` runs the whole list in one collecting pass (`TrimProblemInvalid`).
 """
-struct TrimProblem{G,L,U,C,R,F,T}
+struct TrimProblem{G,L,U,C,R,F,T,K,V}
     guess::G
     lower::L
     upper::U
@@ -54,10 +62,17 @@ struct TrimProblem{G,L,U,C,R,F,T}
     reads::R
     residuals::F
     tolerances::T
+    checks::K
+    check_tolerances::V
 end
 
-TrimProblem(; guess, lower, upper, condition, reads, residuals, tolerances) =
-    TrimProblem(guess, lower, upper, condition, reads, residuals, tolerances)
+# The default check function: named, so the default problem's type prints as a name.
+_no_checks(_, _) = (;)
+
+TrimProblem(; guess, lower, upper, condition, reads, residuals, tolerances,
+            checks = _no_checks, check_tolerances = (;)) =
+    TrimProblem(guess, lower, upper, condition, reads, residuals, tolerances, checks,
+                check_tolerances)
 
 """
 The service's own seeding tag (§9.4): an activation is keyed by a *concrete*
@@ -85,6 +100,10 @@ the different case, and that one throws at setup.
   world after the commit, or `nothing` when there was no commit. There is no
   `committed` flag: a converged solve is always committable (§14.8), so the
   absence of the commit *is* the absence of these numbers.
+- `committed_checks` — the check function's return at the committed state,
+  gathered from the same sweep as `committed_residuals`. It is `(;)` when the
+  problem declares no checks and `nothing` when there was no commit. A check
+  outside its tolerance raises `TrimCommitChecks` (§14.8, D-262).
 - `status`, `n_evaluations`, `n_iterations` — the backend's, verbatim and
   authoritative over nothing (D-158). `:bypassed` is the zero-decision
   problem's, where there was no backend call at all.
@@ -101,6 +120,7 @@ struct TrimReport
     residuals::NamedTuple
     tolerances::NamedTuple
     committed_residuals::Union{Nothing,NamedTuple}
+    committed_checks::Union{Nothing,NamedTuple}
     status::Symbol
     n_evaluations::Int
     n_iterations::Int
@@ -276,24 +296,24 @@ function _check_decisions!(diags::Vector{Diagnostic}, problem::TrimProblem)
     nothing
 end
 
-# `tolerances`: a NamedTuple of `Float64`s, each finite and strictly positive.
+# `tolerances` and `check_tolerances`, `name` saying which: a NamedTuple of
+# `Float64`s, each finite and strictly positive.
 # Positivity is essential rather than cosmetic. A tolerance is the half-width
 # of the box its residual has to sit in, so zero and negative name no box at
 # all — and the acceptance test measures `‖r ./ tol`‖ (§14.8), so a non-positive
 # one sends the descent test to `Inf`/`NaN`, rejects every trial step and
 # returns `:stalled` at the guess. That is a malformed problem, named here.
-function _check_tolerances!(diags::Vector{Diagnostic}, problem::TrimProblem)
-    if !(problem.tolerances isa NamedTuple)
-        push!(diags, _trim_violation(:tolerances, :not_a_namedtuple;
-                                     observed = typeof(problem.tolerances)))
+function _check_tolerances!(diags::Vector{Diagnostic}, name::Symbol, tolerances)
+    if !(tolerances isa NamedTuple)
+        push!(diags, _trim_violation(name, :not_a_namedtuple; observed = typeof(tolerances)))
         return nothing
     end
-    _check_floats!(diags, :tolerances, problem.tolerances)
-    for key in keys(problem.tolerances)
-        tolerance = problem.tolerances[key]
+    _check_floats!(diags, name, tolerances)
+    for key in keys(tolerances)
+        tolerance = tolerances[key]
         tolerance isa Float64 || continue   # the type violation is already named above
         (isfinite(tolerance) && tolerance > 0) ||
-            push!(diags, _trim_violation(:tolerances, :nonpositive_tolerance; key = key,
+            push!(diags, _trim_violation(name, :nonpositive_tolerance; key = key,
                                          value = tolerance))
     end
     nothing
@@ -321,20 +341,21 @@ function _check_reads!(diags::Vector{Diagnostic}, problem::TrimProblem, build::B
     reader
 end
 
-# The residual return, observed at the setup guess evaluation (§14.7): its key
-# set is `tolerances`' — order free, the return being reordered to it before
-# packing — and every field is a real scalar, the residual system being named
-# *equations*.
-function _check_residuals(r, tolerances::NamedTuple)
+# The residual or check return, `name` saying which, observed at the setup
+# guess evaluation (§14.7): its key set is its tolerances' — order free, the
+# return being reordered to it — and every field is a real scalar, both being
+# named *equations*.
+function _check_residuals(name::Symbol, returned, tolerances::NamedTuple)
     diags = Diagnostic[]
-    if !(r isa NamedTuple)
-        push!(diags, _trim_violation(:residuals, :not_a_namedtuple; observed = typeof(r)))
+    if !(returned isa NamedTuple)
+        push!(diags, _trim_violation(name, :not_a_namedtuple; observed = typeof(returned)))
     else
-        Set(keys(r)) == Set(keys(tolerances)) ||
-            push!(diags, _trim_violation(:residuals, :key_set; names = collect(keys(r)),
+        Set(keys(returned)) == Set(keys(tolerances)) ||
+            push!(diags, _trim_violation(name, :key_set; names = collect(keys(returned)),
                                          expected = collect(keys(tolerances))))
-        bad = Pair{Symbol,Any}[k => typeof(r[k]) for k in keys(r) if !(r[k] isa Real)]
-        isempty(bad) || push!(diags, _trim_violation(:residuals, :field_types; bad = bad))
+        bad = Pair{Symbol,Any}[k => typeof(returned[k]) for k in keys(returned)
+                               if !(returned[k] isa Real)]
+        isempty(bad) || push!(diags, _trim_violation(name, :field_types; bad = bad))
     end
     _report_trim!(diags)
 end
@@ -379,6 +400,8 @@ Boundary zero's `state_projection` and any guard already holding then move the c
 stores off the solved point; both movers are surfaced rather than left silent,
 as the report's fired-event list with `TrimCommitEvents` beside it, and as the
 committed-state residuals with `TrimCommitResiduals` when they leave the box.
+The checks are gathered from the same boundary-zero sweep, and
+`TrimCommitChecks` names the ones outside their tolerances.
 
 **The zero-decision problem is legal** (§14.8): `guess = (;)` bypasses the
 solver outright — nothing to pack, no seeded activation, no backend call. The
@@ -401,7 +424,8 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     build = sim.deployment.build
     diags = Diagnostic[]
     _check_decisions!(diags, problem)
-    _check_tolerances!(diags, problem)
+    _check_tolerances!(diags, :tolerances, problem.tolerances)
+    _check_tolerances!(diags, :check_tolerances, problem.check_tolerances)
     reader = _check_reads!(diags, problem, build)
     _report_trim!(diags)                       # one collected throw, before any evaluation
 
@@ -418,7 +442,9 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     _round!(nominal_exec, ESTABLISH)          # every discrete output stage, due or not
     nominal_exec.bodies.rhs()
     r0 = problem.residuals(gather_reads(reader, nominal_exec), guess)
-    _check_residuals(r0, tolerances)          # the return, observed where §14.7 says
+    _check_residuals(:residuals, r0, tolerances)   # the return, observed where §14.7 says
+    c0 = problem.checks(gather_reads(reader, nominal_exec), guess)
+    _check_residuals(:checks, c0, problem.check_tolerances)
 
     if N == 0
         # The solver is bypassed outright: the establishment round above is the
@@ -457,7 +483,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
         raw = problem.residuals(gather_reads(seeded_reader, seeded_exec), decisions)
         if !checked[]
             checked[] = true
-            _check_residuals(raw, tolerances)
+            _check_residuals(:residuals, raw, tolerances)
         end
         residuals = NamedTuple{residual_names}(raw)
         for i in eachindex(r)
@@ -568,7 +594,7 @@ function _verdict!(sim::Simulation, problem::TrimProblem, baseline, solution::Na
     residuals = NamedTuple{residual_names}(Tuple(r))
     converged = _within(r, tol)
     converged || return TrimReport(false, solution, residuals, problem.tolerances, nothing,
-                                   status, n_evaluations, n_iterations, saturated,
+                                   nothing, status, n_evaluations, n_iterations, saturated,
                                    Tuple{String,Symbol}[])
 
     init!(sim, override(baseline, problem.condition(solution)); t0 = Float64(t0))
@@ -586,14 +612,25 @@ function _verdict!(sim::Simulation, problem::TrimProblem, baseline, solution::Na
     # the derivative reads, `ẋbuf` being integrator scratch and this a service
     # evaluation (§7.5, §14.8).
     sim.exec.bodies.rhs()
-    committed = NamedTuple{residual_names}(problem.residuals(gather_reads(reader, sim.exec),
-                                                             solution))
+    gathered = gather_reads(reader, sim.exec)
+    committed = NamedTuple{residual_names}(problem.residuals(gathered, solution))
     out_of_tolerance = Tuple{Symbol,Float64,Float64}[
         (k, Float64(committed[k]), tol[i]) for (i, k) in enumerate(residual_names)
         if !(abs(committed[k]) ≤ tol[i])]
     isempty(out_of_tolerance) ||
         @warn logline(TrimCommitResiduals(residuals = out_of_tolerance))
 
-    TrimReport(true, solution, residuals, problem.tolerances, committed, status,
-               n_evaluations, n_iterations, saturated, fired)
+    # The committed-state checks, from the same gather (§14.8, D-262): a check
+    # outside its tolerance means the point is not the one the problem asked for.
+    check_tolerances = problem.check_tolerances
+    check_names = keys(check_tolerances)
+    committed_checks = NamedTuple{check_names}(problem.checks(gathered, solution))
+    checks_out_of_tolerance = Tuple{Symbol,Float64,Float64}[
+        (k, Float64(committed_checks[k]), check_tolerances[k]) for k in check_names
+        if !(abs(committed_checks[k]) ≤ check_tolerances[k])]
+    isempty(checks_out_of_tolerance) ||
+        @warn logline(TrimCommitChecks(checks = checks_out_of_tolerance))
+
+    TrimReport(true, solution, residuals, problem.tolerances, committed, committed_checks,
+               status, n_evaluations, n_iterations, saturated, fired)
 end

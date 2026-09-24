@@ -1704,16 +1704,23 @@ end
 _trim_shape(field::Symbol) =
     field === :tolerances ?
         "the per-residual convergence test is an all-`Float64` NamedTuple" :
+    field === :check_tolerances ?
+        "the per-check tolerance set is an all-`Float64` NamedTuple" :
     field === :residuals ?
         "the residual system is a NamedTuple of named equations, " *
         "same-named as `tolerances`" :
+    field === :checks ?
+        "the checks are a NamedTuple of named equations, " *
+        "same-named as `check_tolerances`" :
         "the decisions and their two bounds are same-named all-`Float64` " *
         "NamedTuples"
 _trim_floats(field::Symbol) =
     field === :tolerances ?
         "a tolerance is a `Float64` in its residual's own physical units" :
+    field === :check_tolerances ?
+        "a check tolerance is a `Float64` in its check's own physical units" :
         "decisions and bounds are `Float64`"
-_trim_verb(field::Symbol) = field === :residuals ? "returned" : "is"
+_trim_verb(field::Symbol) = field in (:residuals, :checks) ? "returned" : "is"
 _trim_bad(d) = join(("`$k`::$v" for (k, v) in d.bad), ", ")
 
 function message(d::TrimProblemInvalid)
@@ -1728,20 +1735,27 @@ function message(d::TrimProblemInvalid)
                "`residuals` returns $(_namelist(d.names)) and `tolerances` names " *
                "$(_namelist(d.expected)) — the two share one key set, and order is never a " *
                "mismatch (§14.7)" :
+               d.field === :checks ?
+               "`checks` returns $(_namelist(d.names)) and `check_tolerances` names " *
+               "$(_namelist(d.expected)) — the two share one key set, and order is never a " *
+               "mismatch (§14.7)" :
                "`$(d.field)` names $(_namelist(d.names)) and `guess` names " *
                "$(_namelist(d.expected)) — the three share one key set, a permuted " *
                "spelling pairing by name (§14.7)"
     d.reason === :field_types &&
         return d.field === :residuals ?
                "`residuals` field(s) $(_trim_bad(d)) — each residual is a real scalar (§14.7)" :
+               d.field === :checks ?
+               "`checks` field(s) $(_trim_bad(d)) — each check is a real scalar (§14.7)" :
                "`$(d.field)` field(s) $(_trim_bad(d)) — $(_trim_floats(d.field)) (§14.7)"
     d.reason === :inverted_box &&
         return "`lower` names `$(d.key)` = $(d.value) above `upper`'s $(d.bound) — a " *
                "decision's box is `lower ≤ upper`, and an inverted pair admits no point at " *
                "all (§14.7)"
-    "`tolerances` names `$(d.key)` = $(d.value) — a tolerance is finite and strictly " *
-    "positive: it is the half-width of the box its residual has to sit in, and the " *
-    "normalized acceptance test divides by it (§14.7)"
+    "`$(d.field)` names `$(d.key)` = $(d.value) — a tolerance is finite and strictly " *
+    "positive: it is the half-width of the box its equation has to sit in" *
+    (d.field === :tolerances ? ", and the normalized acceptance test divides by it" : "") *
+    " (§14.7)"
 end
 
 "§14.8: boundary zero fired events at the commit, moving the committed stores off the solved point."
@@ -1766,6 +1780,18 @@ message(d::TrimCommitResiduals) =
     " — the mover is " *
     "boundary zero's `state_projection` or a commit-fired handler, and the verdict is not " *
     "re-litigated: it gated the commit, at the solved point (§14.5, §14.8)"
+
+"§14.8: a converged solve whose committed-state checks leave their tolerances."
+Base.@kwdef struct TrimCommitChecks <: Diagnostic
+    checks::Vector{Tuple{Symbol,Float64,Float64}}   # name, committed value, tolerance
+end
+severity(::TrimCommitChecks) = :warning
+message(d::TrimCommitChecks) =
+    "this solve converged to a real equilibrium, and the checks read back after the " *
+    "commit leave their tolerances: " *
+    join(("`$k` = $v against $tolerance" for (k, v, tolerance) in d.checks), ", ") *
+    " — the equilibrium is not the point the problem asked for, which is what a " *
+    "params-vs-world mismatch produces under elimination (§14.7, D-262)"
 
 "§14.4: a condition tree whose shape differs from the one its plan was compiled from."
 Base.@kwdef struct ConditionShapeDrift <: Diagnostic

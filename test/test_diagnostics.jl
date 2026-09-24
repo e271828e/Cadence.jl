@@ -506,6 +506,7 @@ function diagnostics_kind_set()
             TrimProblemInvalid(field = :reads, reason = :not_a_read_set, observed = NamedTuple),
             TrimCommitEvents(events = [("a/b", :snap)]),
             TrimCommitResiduals(residuals = [(:r, 1.0, 0.5)]),
+            TrimCommitChecks(checks = [(:EAS, 0.3, 0.1)]),
             ConditionShapeDrift(reason = :tree_type, compiled = Int, observed = Float64),
             ConditionShapeDrift(reason = :prefix, compiled = "a", observed = "b",
                                 position = (:x, 1)),
@@ -581,7 +582,7 @@ function diagnostics_kind_set()
         # Appendix C's severity column, as the list it is: every other kind is an
         # error, so a kind added on the wrong side of the line fails here.
         warning_kinds = Set{DataType}([EmptyFaceSelection, EmptyGreedyClaim,
-                                      TrimCommitEvents, TrimCommitResiduals,
+                                      TrimCommitEvents, TrimCommitResiduals, TrimCommitChecks,
                                       MalformedDatum, OutOfClaimEntry, ClaimedFaceEntry,
                                       EntryTypeMismatch, ChatteringBudget, FiringBudget,
                                       UnboundedRun, DeviceCrash, DeviceJoinTimeout,
@@ -860,6 +861,9 @@ function diagnostics_kind_set()
         d = TrimCommitResiduals(residuals = [(:torque, 1.0, 0.5)])
         @test logline(d) == "TrimCommitResiduals: " * message(d)
         @test startswith(logline(d), "TrimCommitResiduals: ") && severity(d) === :warning
+        d = TrimCommitChecks(checks = [(:EAS, 0.3, 0.1)])
+        @test logline(d) == "TrimCommitChecks: " * message(d)
+        @test startswith(logline(d), "TrimCommitChecks: ") && severity(d) === :warning
     end
 end
 
