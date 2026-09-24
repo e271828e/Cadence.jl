@@ -20,11 +20,11 @@ mutable struct TailProbe <: AbstractDevice
     log::Vector{Symbol}
 end
 TailProbe() = TailProbe(Symbol[])
-init!(d::TailProbe) = (push!(d.log, :init); nothing)
-shutdown!(d::TailProbe) = (push!(d.log, :shutdown); nothing)
-function loop(d::TailProbe, h)
-    while running(h)
-        wait_next_snapshot(h)
+init!(dev::TailProbe) = (push!(dev.log, :init); nothing)
+shutdown!(dev::TailProbe) = (push!(dev.log, :shutdown); nothing)
+function loop(dev::TailProbe, handle)
+    while running(handle)
+        wait_next_snapshot(handle)
     end
     nothing
 end
@@ -37,21 +37,21 @@ function test_lifecycle()
         sim = Simulation(feedback_model(); h = 1//50)
         @test lifecycle(sim) === :built
         @test termination(sim) === nothing && !closed(sim.run)
-        diag = carried(@test_throws DiagnosticError{MissingInit} run!(sim; t_end = 1.0))
-        @test diag.op === :run! && diag.status === :built
-        diag2 = carried(@test_throws DiagnosticError{MissingInit} step!(sim; t_end = 1.0))
-        @test diag2.op === :step!
+        d = carried(@test_throws DiagnosticError{MissingInit} run!(sim; t_end = 1.0))
+        @test d.op === :run! && d.status === :built
+        d = carried(@test_throws DiagnosticError{MissingInit} step!(sim; t_end = 1.0))
+        @test d.op === :step!
 
         init!(sim, fragment(inputs = (ref = 0.0,)))
         @test lifecycle(sim) === :initialized
         init!(sim, fragment(inputs = (ref = 0.0,)))  # a warm restart from initialized is legal
         run!(sim; t_end = 1.0)
         @test lifecycle(sim) === :stopped && closed(sim.run)
-        diag = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim; t_end = 1.0))
-        @test diag.op === :run! && diag.status === :stopped
-        @test diag.legal == [:initialized]               # §12.6: the advance entries' one state
-        diag2 = carried(@test_throws DiagnosticError{ServiceLifecycle} step!(sim; t_end = 1.0))
-        @test diag2.op === :step! && diag2.status === :stopped
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim; t_end = 1.0))
+        @test d.op === :run! && d.status === :stopped
+        @test d.legal == [:initialized]               # §12.6: the advance entries' one state
+        d = carried(@test_throws DiagnosticError{ServiceLifecycle} step!(sim; t_end = 1.0))
+        @test d.op === :step! && d.status === :stopped
         init!(sim, fragment(inputs = (ref = 0.0,)))  # the supported cycle reopens it
         @test lifecycle(sim) === :initialized
         @test termination(sim) === nothing && !closed(sim.run)   # a fresh run, not a cleared one
@@ -65,21 +65,21 @@ function test_lifecycle()
         # neither is any configuration (D-261).
         @test fieldnames(Run) === (:log, :trace, :feed, :termination)
         sim = Simulation(feedback_model(); h = 1//50)
-        r0 = sim.run
-        @test mode(sim) === :live && r0.feed === nothing && !closed(r0)
+        placeholder = sim.run
+        @test mode(sim) === :live && placeholder.feed === nothing && !closed(placeholder)
         @test isempty(logged(sim)) && termination(sim) === nothing
-        @test r0.trace === nothing
+        @test placeholder.trace === nothing
         d = carried(@test_throws DiagnosticError{MissingInit} trace(sim))
         @test d.op === :trace && d.status === :built
 
         # `init!` allocates a fresh run rather than clearing this one (§12.6), and
         # the loop's tail writes the termination onto the run it ran.
         init!(sim, fragment(inputs = (ref = 0.0,)))
-        r1 = sim.run
-        @test r1 !== r0 && r1.feed === nothing && !closed(r1)
+        run = sim.run
+        @test run !== placeholder && run.feed === nothing && !closed(run)
         run!(sim; t_end = 0.1)
-        @test sim.run === r1 && closed(r1)
-        @test termination(sim) === r1.termination
+        @test sim.run === run && closed(run)
+        @test termination(sim) === run.termination
 
         # Recording is per run (D-261): the door's keyword configures the run it
         # builds and the next door may declare otherwise.
@@ -101,19 +101,20 @@ function test_lifecycle()
         sim = Simulation(armed(); h = 1//100)
         total = fragment(inputs = (in = 0.0,))           # below the trigger: the run holds
         init!(sim, total)
-        t = Threads.@spawn run!(sim; t_end = 3.0e5, stop_on = ("stop",))
+        task = Threads.@spawn run!(sim; t_end = 3.0e5, stop_on = ("stop",))
         while lifecycle(sim) !== :running
             yield()
         end
-        diag_i = carried(@test_throws DiagnosticError{ServiceLifecycle} init!(sim, total))
-        diag_r = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim; t_end = 2.0,
+        init_diag = carried(@test_throws DiagnosticError{ServiceLifecycle} init!(
+            sim, total))
+        run_diag = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim; t_end = 2.0,
                                                                             stop_on = ("stop",)))
         stage!(sim, "in" => 1.0)                         # now, and only now, may the run end:
-        wait(t)                                          # the next drain arms the trigger (§12.6)
-        @test diag_i.op === :init! &&
-              diag_i.status === :running
-        @test diag_r.op === :run! &&
-              diag_r.status === :running
+        wait(task)                                          # the next drain arms the trigger (§12.6)
+        @test init_diag.op === :init! &&
+              init_diag.status === :running
+        @test run_diag.op === :run! &&
+              run_diag.status === :running
         @test lifecycle(sim) === :stopped
         @test termination(sim).source === ModelRequestedStop(:stop)
     end
@@ -122,10 +123,10 @@ function test_lifecycle()
         sim = Simulation(feedback_model(); h = 1//50)
         init!(sim, fragment(inputs = (ref = 0.0,)))
         run!(sim; t_end = 1.0)                           # this advance's bound
-        t = termination(sim)
-        @test t isa TerminationRecord{Float64}           # the deployment's own scalar (§7.2, D-203)
-        @test t.source === EndTimeReached() && t.t == 1.0
-        @test isempty(t.residue)                         # a quiet tail contributes no record
+        record = termination(sim)
+        @test record isa TerminationRecord{Float64}           # the deployment's own scalar (§7.2, D-203)
+        @test record.source === EndTimeReached() && record.t == 1.0
+        @test isempty(record.residue)                         # a quiet tail contributes no record
         @test sim.exec.clock.step == 50
 
         # §12.4: the run ends at the first frame top reaching or exceeding
@@ -175,13 +176,14 @@ function test_lifecycle()
         # The bound is validated identically at the three binding sites: the same
         # payload — argument, reason and offending value — with the naming call the
         # one field that differs (§13.5, D-255, D-249).
-        dr = carried(@test_throws DiagnosticError{ArgumentInvalid} run!(unbound; t_end = -1.0))
-        dp = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(unbound, trace(unbound); t_end = -1.0))
-        ds = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(unbound; t_end = -1.0))
-        @test dr.argument == dp.argument == ds.argument == :t_end
-        @test dr.reason == dp.reason == ds.reason == :range
-        @test dr.value == dp.value == ds.value == -1.0
-        @test dr.call === :run! && dp.call === :replay! && ds.call === :step!
+        run_diag = carried(@test_throws DiagnosticError{ArgumentInvalid} run!(unbound; t_end = -1.0))
+        replay_diag = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(unbound, trace(unbound); t_end = -1.0))
+        step_diag = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(unbound; t_end = -1.0))
+        @test run_diag.argument == replay_diag.argument == step_diag.argument == :t_end
+        @test run_diag.reason == replay_diag.reason == step_diag.reason == :range
+        @test run_diag.value == replay_diag.value == step_diag.value == -1.0
+        @test run_diag.call === :run! && replay_diag.call === :replay! &&
+              step_diag.call === :step!
     end
 
     @testset "stop_on names root-exported Bool output faces, validated at all three sites (§13.5)" begin
@@ -190,15 +192,21 @@ function test_lifecycle()
         init!(sim, fragment(inputs = (ref = 0.0,)))
         trc = trace(sim)                            # the header alone: `replay!` binds as `run!` does
         for (bad, reason) in (("nope", :unknown), ("ref", :root_input), ("y", :not_bool))
-            er = failure(() -> run!(sim; t_end = 1.0, stop_on = (bad,)))
-            ep = failure(() -> replay!(sim, trc; stop_on = (bad,)))
-            es = failure(() -> step!(sim; stop_on = (bad,)))
-            dr, dp, ds = only(diagnostics(er)), only(diagnostics(ep)), only(diagnostics(es))
-            @test er isa DiagnosticError && dr isa StopFaceInvalid && dr.reason === reason
-            @test dr.face == dp.face == ds.face && dr.reason == dp.reason == ds.reason &&
-                  dr.declared == dp.declared == ds.declared   # identical at all three sites
+            run_err = failure(() -> run!(sim; t_end = 1.0, stop_on = (bad,)))
+            replay_err = failure(() -> replay!(sim, trc; stop_on = (bad,)))
+            step_err = failure(() -> step!(sim; stop_on = (bad,)))
+            run_diag, replay_diag, step_diag =
+                only(diagnostics(run_err)), only(diagnostics(replay_err)),
+                only(diagnostics(step_err))
+            @test run_err isa DiagnosticError && run_diag isa StopFaceInvalid &&
+                  run_diag.reason === reason
+            @test run_diag.face == replay_diag.face == step_diag.face &&
+                  run_diag.reason == replay_diag.reason == step_diag.reason &&
+                  run_diag.declared == replay_diag.declared ==
+                  step_diag.declared   # identical at all three sites
             # The binding site is the one payload field that differs (§13.5, D-249).
-            @test dr.site === :run! && dp.site === :replay! && ds.site === :step!
+            @test run_diag.site === :run! && replay_diag.site === :replay! &&
+                  step_diag.site === :step!
         end
         # One advance is one call, and the bound refuses first: `_t_bound` is
         # fail-fast and runs ahead of the faces, so a call naming both a bad bound
@@ -214,11 +222,12 @@ function test_lifecycle()
         sim = Simulation(monitored(); h = 1//10)
         init!(sim)
         run!(sim; t_end = 5.0, stop_on = ("hit",))
-        t = termination(sim)
-        @test t.source === ModelRequestedStop(:hit)      # kind + payload, one typed value (D-203)
-        @test t.t == 4 * sim.deployment.h                # the sweep at boundary 4 saw 0.4 ≥ 0.35
+        record = termination(sim)
+        @test record.source === ModelRequestedStop(:hit)      # kind + payload, one typed value (D-203)
+        @test record.t == 4 * sim.deployment.h                # the sweep at boundary 4 saw 0.4 ≥ 0.35
         @test sim.exec.clock.step == 4                        # the run ended there, not at t_end
-        @test latest(sim).t === t.t                      # that snapshot is the final one
+        # that snapshot is the final one
+        @test latest(sim).t === record.t
     end
 
     @testset "an authored condition already terminal ends the run at t₀, integrating nothing (§13.5)" begin
@@ -226,8 +235,8 @@ function test_lifecycle()
         init!(sim, fragment(inputs = (in = 1.0,)))        # holds in the authored state:
         #                                                boundary zero derives the firing (§10.6)
         run!(sim; t_end = 5.0, stop_on = ("stop",))
-        t = termination(sim)
-        @test t.source === ModelRequestedStop(:stop) && t.t == 0.0
+        record = termination(sim)
+        @test record.source === ModelRequestedStop(:stop) && record.t == 0.0
         @test sim.exec.clock.step == 0              # zero frames: the check precedes the first step
     end
 
@@ -235,11 +244,11 @@ function test_lifecycle()
         sim = Simulation(overloaded(); h = 1//10)
         init!(sim)
         run!(sim; t_end = 5.0, stop_on = ("tripped",))
-        t = termination(sim)
-        @test t.source === ModelRequestedStop(:tripped)
-        @test t.t ≈ 0.315 atol = 1e-6                    # the analytic crossing, not a frame top
-        @test t.t == sim.exec.clock.t                         # the frame's remainder was abandoned
-        @test latest(sim).t === t.t
+        record = termination(sim)
+        @test record.source === ModelRequestedStop(:tripped)
+        @test record.t ≈ 0.315 atol = 1e-6                    # the analytic crossing, not a frame top
+        @test record.t == sim.exec.clock.t                         # the frame's remainder was abandoned
+        @test latest(sim).t === record.t
         @test logged(sim)[end] === latest(sim)           # the log's terminal endpoint is the t* boundary
     end
 
@@ -257,8 +266,9 @@ function test_lifecycle()
         sim = Simulation(monitored(); h = 1//10)
         init!(sim)
         run!(sim; t_end = 1.0, stop_on = ("hit",))
-        pol = termination(sim).policy
-        @test pol.t_end == 1.0 && pol.faces == [:hit]    # the advance that ended the run
+        policy = termination(sim).policy
+        # the advance that ended the run
+        @test policy.t_end == 1.0 && policy.faces == [:hit]
         # A `step!` that stops carries its own policy, which is where
         # `EndTimeReached`'s bound is read off now that no constructor holds one.
         init!(sim)
@@ -271,18 +281,18 @@ function test_lifecycle()
         # `t_end = Inf` with no stop face is allowed and is the interactive shape:
         # nothing but a control-plane stop can end it, so the loop says so once
         # (D-255). The model stops itself from its own RHS, `:code` the issuer.
-        c = HookedInterrupter()
-        sim = Simulation(hooked_interrupted(c); h = 1//10)
-        c.hook[] = () -> stop!(sim)
+        comp = HookedInterrupter()
+        sim = Simulation(hooked_interrupted(comp); h = 1//10)
+        comp.hook[] = () -> stop!(sim)
         init!(sim)
         run!(sim)
         @test termination(sim).source === ControlRequestedStop(:code)
         @test writer_status(latest(sim), "loop").totals.unbounded == 1
 
         # A bound of either kind is the advisory's absence.
-        c2 = HookedInterrupter()
-        bounded = Simulation(hooked_interrupted(c2); h = 1//10)
-        c2.hook[] = () -> stop!(bounded)
+        comp2 = HookedInterrupter()
+        bounded = Simulation(hooked_interrupted(comp2); h = 1//10)
+        comp2.hook[] = () -> stop!(bounded)
         init!(bounded)
         run!(bounded; t_end = 5.0)
         @test writer_status(latest(bounded), "loop").totals.unbounded == 0
@@ -306,25 +316,25 @@ function test_lifecycle()
         @test termination(sim).source === EndTimeReached()
 
         # A stepped trajectory is bit-identical to the same frames under run!.
-        ref = Simulation(feedback_model(); h = 1//50)
-        init!(ref, fragment(inputs = (ref = 0.0,)))
-        run!(ref; t_end = 1.0)
-        @test port(sim, "plant", :y) === port(ref, "plant", :y)
-        @test state(sim, "plant").q === state(ref, "plant").q
+        reference = Simulation(feedback_model(); h = 1//50)
+        init!(reference, fragment(inputs = (ref = 0.0,)))
+        run!(reference; t_end = 1.0)
+        @test port(sim, "plant", :y) === port(reference, "plant", :y)
+        @test state(sim, "plant").q === state(reference, "plant").q
 
         sim2 = Simulation(feedback_model(); h = 1//50)
         init!(sim2, fragment(inputs = (ref = 0.0,)))
-        d1 = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(sim2; frames = 1, t_plus = 0.1))
-        @test d1.call === :step! && d1.reason === :both_given
-        d2 = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(sim2; frames = 0))
-        @test d2.call === :step! && d2.argument === :frames && d2.value == 0
-        d3 = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(sim2; t_plus = 0.0))
-        @test d3.call === :step! && d3.argument === :t_plus && d3.value == 0.0
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(sim2; frames = 1, t_plus = 0.1))
+        @test d.call === :step! && d.reason === :both_given
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(sim2; frames = 0))
+        @test d.call === :step! && d.argument === :frames && d.value == 0
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(sim2; t_plus = 0.0))
+        @test d.call === :step! && d.argument === :t_plus && d.value == 0.0
         # `step!` reads its own keywords before the policy, as `replay!` does: a
         # call naming both a bad pair and a bad face is refused for the pair.
-        d4 = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(
             sim2; frames = 1, t_plus = 0.1, stop_on = ("nope",)))
-        @test d4.call === :step! && d4.reason === :both_given
+        @test d.call === :step! && d.reason === :both_given
     end
 
     @testset "a stop face inside step! truncates it through the deviceless tail (§12.6, §13.5)" begin
@@ -348,13 +358,13 @@ function test_lifecycle()
         # frame 1's integration throws (§13.4's synchronous rethrow, after the tail)
         @test_throws StepError run!(sim; t_end = 5.0)
         @test lifecycle(sim) === :errored && closed(sim.run)
-        t = termination(sim)
+        record = termination(sim)
         # the loop's one catch site wrapped it, and the cause is one level down
-        @test t.source isa LoopError && t.source.exception isa StepError
-        @test t.source.exception.cause isa Exploded
+        @test record.source isa LoopError && record.source.exception isa StepError
+        @test record.source.exception.cause isa Exploded
         # The failed boundary published nothing: boundary zero is the promoted
         # final snapshot, and the published record ends at it.
-        @test t.t == 0.0 && latest(sim).t == 0.0
+        @test record.t == 0.0 && latest(sim).t == 0.0
         @test [s.frame for s in logged(sim)] == [0]      # a post-mortem read, admitted (§13.6)
         @test probe.log == [:init, :shutdown]            # the device took the ordinary tail
         # The stores may hold mid-boundary values — retained for inspection,
