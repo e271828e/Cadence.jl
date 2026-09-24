@@ -9405,14 +9405,16 @@ against today's `c172.jl`.
   again, and the residual return is canonicalized to it. The decisions rule
   holds symmetrically on both ends of the seam. Names pair, and order never
   does.
-- **Checks are equations the service evaluates once, at the committed state,
+- **Checks are equations the service reports once, at the committed state,
   and never solves.** `checks` has the residual function's signature, and
   `check_tolerances` pairs with its return as `tolerances` pairs with the
   residuals'. The service gathers the checks after the commit, from the
-  boundary-zero sweep, and reports them ([§14.8][s14-8]). Their reads join the
-  problem's one read set. *Why.* Under analytic elimination the condition
-  math pins the airspeed and the flight-path angle from the targets and the
-  atmosphere the user's `params` record holds, while the world measures
+  boundary-zero sweep, and reports them ([§14.8][s14-8]). Setup observes their
+  return's shape at the guess evaluation, as it observes the residuals'
+  ([§14.8][s14-8]). Their reads join the problem's one read set. *Why.*
+  Under analytic elimination the condition math pins the airspeed and the
+  flight-path angle from the targets and the atmosphere the user's `params`
+  record holds, while the world measures
   against the atmosphere the baseline wrote. If the two disagree, the
   residuals vanish at a true equilibrium that is not the requested point,
   and nothing in the residual system can tell ([D-139][d-139]). A check reading EAS

@@ -42,8 +42,9 @@ problem into a solve — and the two check fields default to empty.
   It rides *in the problem* because a relocated problem carries its own
   convergence test (§14.7).
 - `checks` — `checks(reads::NamedTuple, d::NamedTuple) → NamedTuple`, equations
-  the service evaluates once, at the committed state, and never solves. Their
-  reads join `reads`. `_no_checks` returns `(;)`.
+  the service reports once, at the committed state, and never solves; setup
+  observes the return's shape at the guess evaluation. Their reads join
+  `reads`. `_no_checks` returns `(;)`.
 - `check_tolerances` — an all-`Float64` NamedTuple, same-named as the check
   return. A check outside its tolerance raises `TrimCommitChecks` (§14.8,
   D-262).
