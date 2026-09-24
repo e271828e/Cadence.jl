@@ -7,14 +7,14 @@ function test_stepper()
     @testset "the method is a deployment binding, RK4 the default (§10.2)" begin
         sim = Simulation(feedback_model(); h = 1//100)
         @test sim.exec.stepper isa RK4{Float64}
-        simh = Simulation(feedback_model(); h = 1//100, algorithm = Heun)
-        @test simh.exec.stepper isa Heun{Float64}
+        heun_sim = Simulation(feedback_model(); h = 1//100, algorithm = Heun)
+        @test heun_sim.exec.stepper isa Heun{Float64}
         # validated with its siblings: a backend is named by stepper type, and
         # anything else is refused at binding, not deep in a MethodError
-        d1 = only(diagnostics(failure(() -> Simulation(feedback_model(); h = 1//100, algorithm = 4))))
-        @test d1 isa DeploymentInvalid && d1.parameter === :algorithm
-        d2 = only(diagnostics(failure(() -> Simulation(feedback_model(); h = 1//100, algorithm = Int))))
-        @test d2 isa DeploymentInvalid && d2.parameter === :algorithm
+        d = only(diagnostics(failure(() -> Simulation(feedback_model(); h = 1//100, algorithm = 4))))
+        @test d isa DeploymentInvalid && d.parameter === :algorithm
+        d = only(diagnostics(failure(() -> Simulation(feedback_model(); h = 1//100, algorithm = Int))))
+        @test d isa DeploymentInvalid && d.parameter === :algorithm
     end
 
     @testset "convergence order: each backend is itself — 4 and 2 (§10.2)" begin
@@ -60,24 +60,24 @@ function test_stepper()
         stamp_error(h) = begin
             mr = Group((; src = Rotor(; ω = 1.0, r₀ = SVector(-1.0, 0.0)), s = Stamper(-0.5));
                        wires = ("src/c" => "s/sig",))
-            simr = Simulation(mr; h, algorithm = Heun)
-            init!(simr)
-            run!(simr; t_end = 1.5)
-            @test modes(simr, "s").count == 1
-            abs(modes(simr, "s").t_fired - π / 3)
+            rotor_sim = Simulation(mr; h, algorithm = Heun)
+            init!(rotor_sim)
+            run!(rotor_sim; t_end = 1.5)
+            @test modes(rotor_sim, "s").count == 1
+            abs(modes(rotor_sim, "s").t_fired - π / 3)
         end
-        e10, e40 = stamp_error(1//10), stamp_error(1//40)
-        @test e10 < 5e-3
-        @test 10 < e10 / e40 < 24                               # h²: ×16 over two halvings
+        coarse_error, fine_error = stamp_error(1//10), stamp_error(1//40)
+        @test coarse_error < 5e-3
+        @test 10 < coarse_error / fine_error < 24               # h²: ×16 over two halvings
 
         # The frame-top claims never depended on the method: an epoch-caused edge
         # falls through to fire at the indexed grid time bitwise under Heun too.
-        simf = Simulation(fed(Stamper(0.5), "sig"); h = 1//10, algorithm = Heun)
-        init!(simf, fragment(inputs = (in = 0.0,)))
-        step!(simf; t_plus = 0.3)
-        stage!(simf, "in" => 1.0)                   # frame 4's drain, at its frame top
-        step!(simf; t_plus = 0.3)
-        @test modes(simf, "c").t_fired == 4 * simf.deployment.h
+        fed_sim = Simulation(fed(Stamper(0.5), "sig"); h = 1//10, algorithm = Heun)
+        init!(fed_sim, fragment(inputs = (in = 0.0,)))
+        step!(fed_sim; t_plus = 0.3)
+        stage!(fed_sim, "in" => 1.0)                   # frame 4's drain, at its frame top
+        step!(fed_sim; t_plus = 0.3)
+        @test modes(fed_sim, "c").t_fired == 4 * fed_sim.deployment.h
     end
 
     @testset "gate 4: the second backend holds the §7.5 invariant" begin
@@ -87,11 +87,11 @@ function test_stepper()
         @test @ballocated(step!($sim, 1e-3)) == 0
         # The localizing frame allocates exactly its t* boundary's publication —
         # the framework-side carve-out (§7.5, §11.2) — as under RK4 (gate 3).
-        siml = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10, algorithm = Heun)
-        init!(siml; log = false)
-        pub = @ballocated publish!($siml)
-        nopol, noaddrs = StopPolicy(Inf, Symbol[]), Any[]   # the advance's arguments (D-260, D-261)
-        @test @ballocated(frame!($siml, 1, $nopol, $noaddrs), setup = (init!($siml; log = false)), evals = 1) == pub
+        bouncer_sim = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10, algorithm = Heun)
+        init!(bouncer_sim; log = false)
+        pub = @ballocated publish!($bouncer_sim)
+        stop_policy, addrs = StopPolicy(Inf, Symbol[]), Any[]   # the advance's arguments (D-260, D-261)
+        @test @ballocated(frame!($bouncer_sim, 1, $stop_policy, $addrs), setup = (init!($bouncer_sim; log = false)), evals = 1) == pub
     end
 
     @testset "the second backend is generic over the scalar (§7.2)" begin
