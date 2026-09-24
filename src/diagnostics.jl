@@ -573,15 +573,15 @@ end
 path(d::DeclarationOnWrongTier) = d.path
 message(d::DeclarationOnWrongTier) =
     d.reason === :continuous_only ?
-    "`$(d.path)` declares `$(d.declaration)`, which is continuous-only — projection " *
+    "$(_at_path(d.path)) declares `$(d.declaration)`, which is continuous-only — projection " *
     "normalizes continuous state (§5.2)" :
     d.reason === :no_manifold ?
-    "`$(d.path)` declares `$(d.declaration)` but no `init_x` — there is no state " *
+    "$(_at_path(d.path)) declares `$(d.declaration)` but no `init_x` — there is no state " *
     "manifold to project onto (§5.2)" :
     d.reason === :pinned_entry ?
     "$(_at_path(d.path)): entry `$(d.entry)` is declared `Pinned` in `$(d.declaration)`, " *
     "but this leaf is discrete, where every leaf is pinned — drop the marker (§8.2, §8.5)" :
-    "`$(d.path)`: `$(d.declaration)` is declared in the $(d.found)-tier form, but this " *
+    "$(_at_path(d.path)): `$(d.declaration)` is declared in the $(d.found)-tier form, but this " *
     "component's other declarations announce the $(d.announced) tier (§8.2)"
 
 "§8.6: a face name holding `/`, the separator reserved for structural paths."

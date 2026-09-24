@@ -64,7 +64,7 @@ function store_mixed_cell()
         step!(sim, 1e-2)
         @test @ballocated(step!($sim, 1e-2)) == 0
 
-        # The pinned leaf inside a declared struct (D-166): homogeneous at nominal
+        # The pinned leaf inside a declared struct (D-263): homogeneous at nominal
         # (K = 1), mixed off it — same declaration, and at `Dual` the `T` half
         # walks while `ref` stays a pinned `Float64` in its own buffer.
         sim = Simulation(single(PinnedInside()); h = 1//100)
