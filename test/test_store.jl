@@ -122,9 +122,9 @@ function store_workspace()
 
         # Allocation is what the idiom is for: in-place math on scratch, an isbits
         # snapshot into the store, and nothing on the measured path.
-        b = phase_bodies(sim)
+        bodies = phase_bodies(sim)
         for name in (:sweep_1, :sweep_2, :rhs, :ticks)
-            body = b[name]
+            body = bodies[name]
             body(); body(1)
             @test @ballocated($body()) == 0
             @test @ballocated($body(1)) == 0
@@ -195,17 +195,17 @@ function store_opaque_leaf()
 
         # The handle's declaration carries no `T`, so its cell is the same type
         # at every activation while the numeric ports follow the scalar.
-        simd = Simulation(build(handle_model()), D8; h = 1//10)
-        init!(simd)
-        @test _cell_key(HeightField) in keys(simd.exec.store.stores)
-        @test port(simd, "src", :terrain) isa HeightField
-        @test port(simd, "q", :h) isa D8
+        sim_d8 = Simulation(build(handle_model()), D8; h = 1//10)
+        init!(sim_d8)
+        @test _cell_key(HeightField) in keys(sim_d8.exec.store.stores)
+        @test port(sim_d8, "src", :terrain) isa HeightField
+        @test port(sim_d8, "q", :h) isa D8
 
         # One load and one store: the sweep that gathers and scatters a handle
         # allocates nothing (§9.7's canary, `test_executor.jl`).
-        b = phase_bodies(sim)
+        bodies = phase_bodies(sim)
         for name in (:sweep_1, :sweep_2, :rhs, :ticks)
-            body = b[name]
+            body = bodies[name]
             body(); body(0)
             @test @ballocated($body()) == 0
             @test @ballocated($body(1)) == 0
@@ -222,11 +222,11 @@ function store_opaque_leaf()
         @test port(twin, "q", :h) == 3.0
 
         # The abstract entry admits the handle by the bound clause (D-236).
-        absm = Group((; src = Terrain(), q = AbstractTerrainQuery());
-                     wires = ("src/terrain" => "q/terrain",))
-        sima = Simulation(absm; h = 1//10)
-        init!(sima)
-        @test port(sima, "q", :h) == 3.0
+        abstract_model = Group((; src = Terrain(), q = AbstractTerrainQuery());
+                               wires = ("src/terrain" => "q/terrain",))
+        abs_sim = Simulation(abstract_model; h = 1//10)
+        init!(abs_sim)
+        @test port(abs_sim, "q", :h) == 3.0
     end
 end
 
