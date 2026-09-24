@@ -54,7 +54,7 @@ init_s(::ProjectOnDiscrete) = (n = 0,)
 output_types(::ProjectOnDiscrete) = (n = Int,)
 output_state(::ProjectOnDiscrete, (; s)) = (n = s.n,)
 state_update(::ProjectOnDiscrete, (; s)) = (n = s.n + 1,)
-state_projection(::ProjectOnDiscrete, s) = s
+state_projection(::ProjectOnDiscrete, x) = x
 
 struct ProjectNoState <: AbstractComponent end   # nothing to project onto
 output_types(::ProjectNoState, ::Type{T}) where {T <: Real} = (o = T,)
@@ -183,9 +183,10 @@ function test_events()
         # lands, so the boundary recursion stays the exact reference — and the
         # second wrap crosses inside an *off-tick* frame under N_base = 2, which must
         # fire it all the same.
-        q_ref(N) = (q = 0.0; for _ in 1:N; q += 0.03; q ≥ 1 && (q -= 1); end; q)
-        for n in (1, 2)
-            sim = Simulation(single(Sawtooth(0.3)); h = 1//10, N_base = n)
+        q_ref(n_steps) = (q = 0.0;
+                          for _ in 1:n_steps; q += 0.03; q ≥ 1 && (q -= 1); end; q)
+        for n_base in (1, 2)
+            sim = Simulation(single(Sawtooth(0.3)); h = 1//10, N_base = n_base)
             init!(sim)
             step!(sim; t_plus = 6.7)                 # boundary 67: the off-tick wrap
             @test state(sim, "c").q ≈ q_ref(67) rtol = 1e-9
@@ -200,9 +201,9 @@ function test_events()
         # post-wrap value, and only then does the integrator's `state_update` read it: an
         # update-before-quiescence would accumulate 1.02 where the reference has
         # 0.02.
-        m = Group((; saw = Sawtooth(0.3), ctl = DiscreteIntegrator(1.0));
+        model = Group((; saw = Sawtooth(0.3), ctl = DiscreteIntegrator(1.0));
                   wires = ("saw/q" => "ctl/e",))
-        sim = Simulation(m; h = 1//10)
+        sim = Simulation(model; h = 1//10)
         init!(sim)
         run!(sim; t_end = 4.0)
         q, acc = 0.0, 0.0
@@ -225,16 +226,17 @@ function test_events()
         # next frame top: boundary zero's snapshot shows nothing yet.
         @test writer_status(latest(sim), "loop").totals.firing == 0
         step!(sim; t_plus = 0.1)                             # one frame: its snapshot carries the delta
-        lw = writer_status(latest(sim), "loop")
-        fb = only(lw.recent)
-        @test fb isa FiringBudget
-        @test fb.path == "chat" && fb.event == :up
-        @test fb.budget == 4 && fb.count == 4 && fb.t == 0.0
-        @test lw.totals.firing == 1
+        loop_status = writer_status(latest(sim), "loop")
+        firing_report = only(loop_status.recent)
+        @test firing_report isa FiringBudget
+        @test firing_report.path == "chat" && firing_report.event == :up
+        @test firing_report.budget == 4 && firing_report.count == 4 &&
+              firing_report.t == 0.0
+        @test loop_status.totals.firing == 1
         step!(sim; t_plus = 0.2)                             # the exhausted boundary's samples
         @test modes(sim, "chat").flips == 8         # became honest priors: quiescent now
-        lw = writer_status(latest(sim), "loop")              # quiescent frames: the delta has
-        @test isempty(lw.recent) && lw.totals.firing == 1    # passed, the session's totals stand
+        loop_status = writer_status(latest(sim), "loop")     # quiescent frames: the delta has
+        @test isempty(loop_status.recent) && loop_status.totals.firing == 1    # passed, the session's totals stand
 
         # Totals count since the run began (§11.8): the warm restart re-exhausts
         # its own boundary zero — the stores restart from the declared defaults
@@ -250,8 +252,9 @@ function test_events()
         init!(sim2, fragment(inputs = (in = 1.0,)))
         @test modes(sim2, "chat").flips == 4
         run!(sim2; t_end = 0.1)
-        fb2 = only(writer_status(latest(sim2), "loop").recent)
-        @test fb2 isa FiringBudget && fb2.budget == 2 && fb2.count == 2
+        firing_report = only(writer_status(latest(sim2), "loop").recent)
+        @test firing_report isa FiringBudget && firing_report.budget == 2 &&
+              firing_report.count == 2
         d = only(diagnostics(failure(() -> Simulation(chatty(); h = 1//10, firing_budget = 0))))
         @test d isa DeploymentInvalid && d.parameter === :firing_budget
     end
@@ -277,9 +280,9 @@ function test_events()
         @test modes(sim, "c").count == 0            # the guard never ran
 
         # Projection is continuous machinery, inside every executable set.
-        simr = Simulation(single(Rotor(; r₀ = SVector(2.0, 0.0))), D8; h = 1//100)
-        init!(simr)
-        @test ForwardDiff.value(state(simr, "c").r[1]) ≈ 1.0 atol = 1e-15
+        rotor_sim = Simulation(single(Rotor(; r₀ = SVector(2.0, 0.0))), D8; h = 1//100)
+        init!(rotor_sim)
+        @test ForwardDiff.value(state(rotor_sim, "c").r[1]) ≈ 1.0 atol = 1e-15
     end
 
     @testset "gate 3: a quiet boundary with events does not allocate (§7.5)" begin
@@ -292,10 +295,10 @@ function test_events()
         @test @ballocated(offtick_boundary!($sim)) == 0
         @test @ballocated(step!($sim, 0.1)) == 0
 
-        simr = Simulation(single(Rotor()); h = 1//100)       # projection on the measured path
-        init!(simr)
-        boundary!(simr, 1)
-        @test @ballocated(boundary!($simr, 1)) == 0
+        rotor_sim = Simulation(single(Rotor()); h = 1//100)  # projection on the measured path
+        init!(rotor_sim)
+        boundary!(rotor_sim, 1)
+        @test @ballocated(boundary!($rotor_sim, 1)) == 0
     end
 
     @testset "a handler's mode flip reaches its cell through the next sweep (§5.3, D-154)" begin
@@ -308,9 +311,9 @@ function test_events()
         init!(sim)
         @test port(sim, "mon", :tripped) === false       # before the crossing
         run!(sim; t_end = 5.0, stop_on = ("tripped",))
-        t = termination(sim)
-        @test t.source === ModelRequestedStop(:tripped)
-        @test t.t ≈ 0.315 atol = 1e-6                    # the localized crossing
+        record = termination(sim)
+        @test record.source === ModelRequestedStop(:tripped)
+        @test record.t ≈ 0.315 atol = 1e-6               # the localized crossing
         @test modes(sim, "mon").tripped === true
         @test port(sim, "mon", :tripped) === true
         @test port(latest(sim), "mon", :tripped) === true
