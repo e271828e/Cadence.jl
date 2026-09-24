@@ -7,8 +7,10 @@ mounting), [§9.6][s9-6], and decision [D-139][d-139], which settled all of it o
 2026-08-05 during the round-4 dry-run adjudication (commit `daf3298d`). This
 document records the discussion that produced that row — the alternatives,
 the arguments, and the two shapes that were kept as legitimate options rather
-than decided between. If this document and the spec ever disagree, the spec
-wins.*
+than decided between. Part II, added 2026-09-24 after decision [D-262][d-262]
+landed the post-commit checks, takes the same problem up again from the
+other end: what a check should check, and how the problem would be posed
+from scratch. If this document and the spec ever disagree, the spec wins.*
 
 Everything here answers one question: **the aircraft's trim assignment needs
 to know the air density and the wind before anything has been evaluated —
@@ -577,6 +579,319 @@ For the record, commit `daf3298d`, decision [D-139][d-139]:
 
 Landed later: the post-commit read-back, as the trim problem's `checks`
 ([D-262][d-262]).
+
+
+---
+
+## Part II: the checks, and the problem posed from scratch
+
+Part I ended with a deferral: the post-commit read-back was recorded as a
+report-level nicety and left for `pending.md`. It has since landed as the
+trim problem's `checks` ([§14.7][s14-7], [§14.8][s14-8], [D-262][d-262]).
+Building it raised two questions Part I did not answer. How does an author
+decide what a check should check? And, with the checks in hand, which
+posing of the problem would one choose without a migration to preserve?
+This part answers both, and along the way records a posing Part I's
+spectrum did not contain.
+
+### The checks, as the spec has them
+
+A `TrimProblem` carries a second, optional equation set beside its residuals:
+`checks`, a function of the gathered reads and the decisions returning a
+NamedTuple of named equations, and `check_tolerances`, same-named with that
+return. The service never solves the checks. After the commit it gathers
+them once, from the boundary-zero sweep the committed-state residuals already
+gather from, and reports them as `committed_checks`. A check outside its
+tolerance raises `TrimCommitChecks`, a logged warning that rides the report.
+Both fields default to empty. Setup observes the return's shape at the guess
+evaluation, exactly as it observes the residuals', so a malformed check is
+refused before any solve.
+
+**Checks never affect the outcome of the solve.** They are not in the
+residual vector and the solver never sees them. A correctly posed problem
+passes every one of its checks without having done anything to earn it, and
+a failed check changes nothing about the committed state; it is a warning
+on the report. Checks are an insurance policy. They cost one gather from a
+sweep the service has already run, and they pay out only when a belief the
+problem holds about the world turns out to be wrong. An author can be
+generous with them: a redundant check is free, and a missing one is the one
+that would have caught the mismatch.
+
+The reason the mechanism is user-supplied equations rather than a
+service-side read-back of EAS, γ and β is that the service has no idea what
+the targets are. Under elimination they live inside the condition closure,
+as numbers the framework never sees. The problem has to state the requested
+point in a form the service can evaluate, and the committed state is the
+one place where a world measurement and a request meet on the same line.
+The alternative of folding the targets into the residuals was rejected: it
+makes the square problem overdetermined, and under a mismatch the
+least-squares backend compromises between the equilibrium rows and the
+target rows, so the answer is neither trimmed nor on target ([D-262][d-262]).
+
+For the elimination problem of Part I, the check is the read-back Part I
+asked for, spelled as one line:
+
+```julia
+    reads            = reads(…, EAS = get_face("airflow.EAS"), γ = get_face("kinematics.γ")),
+    checks           = (r, d) -> (EAS = r.EAS - params.EAS, γ = r.γ - params.γ),
+    check_tolerances = (EAS = 0.1, γ = 1e-3))
+```
+
+Walk the mismatch of Part I through it. The solve converges at 60 knots in
+the world's air, reported as 50. The check reads the world's EAS at the
+committed state, 60, subtracts the request, 50, and reports 10 against a
+tolerance of 0.1. The equilibrium is real, the point is wrong, and the
+report says so.
+
+The same script could have read the atmosphere itself back instead, or as
+well, and that would have named the cause rather than the symptom. Which
+quantities a check should read is one question, asked while writing
+`trim_condition`; the section on choosing checks below states it.
+
+### Enlargement in the spherical chart
+
+Part I placed two enlargement shapes on the spectrum: the full Cartesian
+switch, which frees the earth-relative velocity components, and the 8×8
+middle point, which frees the magnitude alone. There is a third, and it is
+the one that keeps elimination's strongest asset.
+
+Keep the aerodynamic spherical coordinates as decisions, free all three, and
+enforce the targets as residuals:
+
+```
+d = (TAS, α, β, θ, φ, n_eng, throttle, aileron, elevator, rudder)      # 10
+r = (fx, fy, fz, mx, my, mz, eng, eas, beta, gamma)                    # 10
+```
+
+Against Part I's ledger, every row reads as under Cartesian enlargement,
+except that the velocity's three degrees of freedom are named by the chart
+the aero tables use rather than by the frame the kinematics stores:
+
+| DOF | elimination | spherical enlargement | paid by |
+|---|---|---|---|
+| ψ (heading) | analytic state write | analytic state write | — |
+| φ (bank) | decision variable | decision variable | — |
+| θ (pitch) | closed form from the γ target | decision variable | γ residual |
+| velocity magnitude | pinned: `EAS2TAS(EAS; ρ)` | decision variable `TAS` | EAS residual |
+| β (sideslip) | pinned by construction | decision variable `β` | β residual |
+| α (incidence) | decision variable | decision variable `α` | — |
+
+The condition builds the wind-relative velocity from the first three
+decisions, rotates it with the attitude, adds the wind, and writes the
+earth-relative state. No density query, because no EAS conversion happens
+in the condition; `TAS` is a decision and EAS is measured by the sweep. No
+`θ_constraint`, because θ is free and γ is a residual. The bounds sit on
+`TAS`, `α` and `β` directly, which is the envelope box Part I's verdict
+weighed most heavily.
+
+The wind still enters the condition, for the chart change and nothing else.
+What matters is what a mismatch does to it now. Suppose the params record
+says zero wind and the world has a ten-knot headwind. The sweep measures ten
+knots more airspeed than the condition assumed, the `eas` residual is off by
+ten knots, and the solver lowers the `TAS` decision until the world's EAS
+reads fifty. The solution is at the requested point, in the world's air. What
+is wrong is the label: the decision named `TAS` holds forty, and the bound on
+it was applied to that mislabeled value. The lie has shrunk from a wrong
+answer to a slightly misplaced envelope box. And it is detectable exactly,
+which the next section is about.
+
+What elimination still buys over this shape is small. Seven unknowns against
+ten, and the θ constraint solved in closed form rather than discovered
+numerically. With exact Jacobians from the seeded sweep and a least-squares
+backend, neither is measurable. What it costs is Part I's whole mismatch
+class, the closed-form work every aircraft author has to reproduce, and
+rigidity: level flight at an EAS, a climb at a rate, a turn at a bank angle
+and a trim at fixed throttle with the airspeed free are four eliminations
+under the first posing and four residual lines under this one.
+
+### The script, with one source for the wind
+
+The spherical enlargement needs one environment fact in the condition, the
+wind. The script should state it once and derive both uses from that one
+statement, rather than writing two literals that have to agree. Illustrative
+spellings, as in Part I:
+
+```julia
+world = design_world(ac)
+sim   = Simulation(world; h = 0.02)
+
+# One record, the single source. The baseline is derived from it; the
+# condition closes over one of its fields. No second wind literal exists.
+env = (T_sl = 288.15, p_sl = 101325.0, wind = WindVector(-10.0, 0.0, 0.0),
+       elevation = 0.0)
+
+environment(env) = condition("atmosphere.T_sl" => env.T_sl,
+                             "atmosphere.p_sl" => env.p_sl,
+                             "atmosphere.wind" => env.wind,
+                             "terrain.elevation" => env.elevation)
+
+baseline = override(ready_for_taxi(ac), environment(env))
+targets  = (EAS = 50.0, β = 0.0, γ = 0.0)
+params   = (; Ob, ψ = 0.0, wind = env.wind)          # no handle, no density
+
+function trim_condition(ac, params, d)
+    q_nb   = attitude(params.ψ, d.θ, d.φ)
+    v_wb_b = velocity_vector(d.TAS, d.α, d.β)        # wind-relative, body axes
+    v_eb_n = params.wind + q_nb * v_wb_b             # the one environment use
+    combine(at("vehicle/kinematics",
+               fragment(x = (q_nb = q_nb, v_eb_n = v_eb_n, r_eb = params.Ob))),
+            at("pwp/engine", fragment(x = (ω = d.n_eng,))),
+            fragment(inputs = (throttle = d.throttle, aileron = d.aileron,
+                               elevator = d.elevator, rudder = d.rudder)))
+end
+
+cruise = TrimProblem(
+    guess      = spherical_guess(targets, env; α = 0.06),   # a rough elimination, guess only
+    lower      = (TAS = 30.0, α = -0.09, β = -0.2, θ = -0.5, φ = -0.5, …),
+    upper      = (TAS = 80.0, α =  0.26, β =  0.2, θ =  0.5, φ =  0.5, …),
+    condition  = d -> trim_condition(ac, params, d),
+    reads      = reads(v̇ = get_deriv("vehicle/dynamics", :v_eb_b),
+                       ω̇ = get_deriv("vehicle/dynamics", :ω_eb_b),
+                       ω̇_eng = get_face("pwp.ω_dot"),
+                       EAS = get_face("airflow.EAS"), TAS = get_face("airflow.TAS"),
+                       α = get_face("airflow.α"), β = get_face("airflow.β"),
+                       γ = get_face("kinematics.γ"),
+                       wind = get_face("atmosphere.wind")),
+    residuals  = (r, d) -> (fx = r.v̇[1], fy = r.v̇[2], fz = r.v̇[3],
+                            mx = r.ω̇[1], my = r.ω̇[2], mz = r.ω̇[3], eng = r.ω̇_eng,
+                            eas = r.EAS - targets.EAS, beta = r.β - targets.β,
+                            gamma = r.γ - targets.γ),
+    tolerances = (fx = 1e-3, fy = 1e-3, fz = 1e-3, mx = 1e-4, my = 1e-4, mz = 1e-4,
+                  eng = 1e-4, eas = 1e-2, beta = 1e-4, gamma = 1e-4),
+    checks           = (r, d) -> (wind = norm(r.wind - params.wind),      # the cause
+                                  TAS = r.TAS - d.TAS, α = r.α - d.α,     # its consequence
+                                  β = r.β - d.β),
+    check_tolerances = (wind = 1e-6, TAS = 1e-3, α = 1e-5, β = 1e-5))
+
+report = trim!(sim, at("aircraft", cruise); baseline)
+```
+
+Two things make this safer than Part I's elimination script, even though
+the wind is still stated once and used twice.
+
+The first is `environment(env)`. Part I's redundancy was two literals that
+had to agree. Here there is one literal, and the baseline entry is computed
+from it. A copy-paste cannot desynchronize a value that exists once. It is
+the same move [D-139][d-139] makes with the value-level constructor, applied one level
+up, and it is the strongest discipline a script can have short of the
+framework doing it, which Part I's rejected shape explains it cannot.
+
+The second is the check set, and why it has four lines is the subject of
+the next section.
+
+### What a check should check
+
+Every check in this part came from one question, asked while writing
+`trim_condition`, of each quantity the model needs and the condition
+touches: **where does the model get this from?** Does the condition being
+written supply it, directly or indirectly, or does the model have its own,
+independent source for it? The three answers sort every quantity, and only
+the third calls for a check.
+
+**The condition writes it directly.** The engine speed, θ, φ and the
+controls, under every posing. The condition takes a decision and stores it
+verbatim, and the model has no other source, so nothing can disagree. A
+check here compares a number with itself and is always zero. (The first
+draft of the increment's tests made exactly this mistake, with a check on
+θ that passed at every point because the condition writes θ from the
+decision.)
+
+**The condition writes it indirectly.** The heading, through the attitude
+quaternion. The velocity, through the chart change. The model derives the
+quantity from what the condition wrote, so again nothing can disagree,
+unless the derivation itself consumed something from the third class. The
+heading did not: the quaternion is built from three angles the condition
+owns. The velocity did: the chart change added the wind.
+
+**The model has its own, independent source for it.** The wind, published
+by the atmosphere component. The density, derived from the sea-level
+conditions the baseline wrote. When the condition uses one of these, it is
+using a copy of something the world owns, and the copy is a belief. Every
+such input is a check candidate, and the check is the simplest possible
+one: read the world's value back and compare it with the copy. These are
+the primary checks, and they name the cause.
+
+Two corollaries finish the rule. A quantity the condition wrote indirectly
+earns a check of its own when its derivation consumed a third-class input,
+because that is where a wrong belief surfaces as a wrong state. Such a
+check compares the world's measurement with what the decisions describe,
+and it catches anything that breaks the derivation, a bug in the
+condition's own math included, whatever the cause. It is a consequence
+check, and since checks are free the script carries both forms. And a
+quantity the solver enforces as a residual needs no check at all; the
+residual is the guarantee, and the report already carries the achieved
+value beside its tolerance.
+
+Applied to each posing, cause first:
+
+- **Elimination.** The condition uses the density and the wind, both owned
+  by the world. Read them back. The airspeed, β and θ were written
+  indirectly through them, and the world measures EAS, β and γ, so the
+  targets read back are the consequence checks.
+- **Spherical enlargement with wind.** The condition uses the wind. Read
+  it back. The velocity was written indirectly through it, and the world
+  measures true airspeed, α and β from that velocity and its own wind, so
+  swept minus decision on those three is the consequence check. They agree
+  exactly when the winds agree.
+- **Still air**, below. The condition uses nothing the world owns. What it
+  holds instead is an assumption, that the wind is zero, and the check
+  reads the world's wind to test it.
+
+### Still air: the redundancy becomes a precondition
+
+Fix the wind at zero and the chart change is `v_eb_n = q_nb * v_wb_b`. The
+condition then touches no environment fact at all. There is no `params.wind`
+to go stale because there is none, and the `environment(env)` discipline has
+nothing left to protect. What remains is not a duplicated value but an
+assumption: the problem is valid over baselines whose wind is zero. An
+assumption about the world is exactly what a check expresses:
+
+```julia
+    reads            = reads(…, wind = get_face("atmosphere.wind")),
+    checks           = (r, d) -> (still_air = norm(r.wind),),   # the problem assumes no wind
+    check_tolerances = (still_air = 1e-6,))
+```
+
+Apply the problem over a windy baseline and the solve still converges to the
+requested EAS in the world's air, because enlargement enforces the targets
+on swept values. The decision labels are off by the wind, the `still_air`
+check fails, and the report says why. Nothing lies and nothing is
+duplicated.
+
+The price is a restriction on what can be posed, and it is worth being
+exact about it. A steady uniform wind does not change the aerodynamic
+equilibrium: the attitude, controls, airspeed, α and β that trim the
+aircraft in still air trim it in any steady wind. What changes is the
+earth-relative side, the ground speed, the ground track and the
+earth-relative flight path angle. So a still-air problem serves every task
+that is about the aircraft, which is most of them: linearization, stability
+derivatives, control design, envelope sweeps. It cannot pose a task about
+the aircraft relative to the ground in wind, such as an approach at a given
+earth-relative descent angle in a crosswind. For those the wind belongs in
+the chart change, and the windy script above is the shape.
+
+### The from-scratch verdict
+
+Part I's verdict stands for what it was about. A migration that preserves
+FlightCore's 7×7 formulation verbatim as user math is the right first move,
+and elimination remains a legitimate posing with the checks as its backstop.
+
+For an aircraft posed fresh in Cadence, this part reverses the default.
+Pose the trim as enlargement in the spherical chart, and ship it as two
+problems rather than one with a switch: a still-air problem with no
+environment dependence anywhere and a one-line precondition check, and a
+windy problem whose one dependence is stated once, derived into the
+baseline, and detected by the checks when the discipline lapses. The
+closed-form knowledge an aircraft author has is not wasted under either. It
+moves from defining the solution to seeding it, as the rough elimination
+that computes the guess, where a stale atmosphere costs iterations and
+nothing else.
+
+The framework is agnostic throughout. It sees a `TrimProblem` either way,
+and nothing in the spec prefers one posing. What this part adds is a rule
+for the checks and a posing that keeps elimination's bounds without its
+two-path structure, so that the choice, which stays the author's, is made
+with the whole spectrum in view.
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-008]: ../decisions.md#d-008--function-valued-environment-signals-with-the-handle-pattern
