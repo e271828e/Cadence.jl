@@ -8098,8 +8098,8 @@ join. Nothing in the argument of [D-084][d-084] applies to it. That decision is
 about what the *build* warns on.
 
 **A stopped-sim service returns an artifact, so its warnings live on it.**
-`trim!` returns a `TrimReport`, and `TrimCommitEvents` and
-`TrimCommitResiduals` are that report's fields ([§14.8][s14-8]). The line the
+`trim!` returns a `TrimReport`, and `TrimCommitEvents`, `TrimCommitResiduals`
+and `TrimCommitChecks` are that report's fields ([§14.8][s14-8]). The line the
 call prints at return is presentation. `attach!` is the other side of the
 criterion. It mutates the roster, so `EmptyGreedyClaim` lands in
 the roster entry's cell ([§11.3][s11-3]). The committed
@@ -9329,6 +9329,8 @@ field-by-field, so this list is closed.
 - `residuals` is the residual function.
 - `tolerances` is an all-`Float64` NamedTuple, same-named as the residual
   function's return.
+- `checks` is the check function, and `check_tolerances` an all-`Float64`
+  NamedTuple same-named as its return. Both default to empty.
 
 `tolerances` is carried *in the problem* because a relocated problem must carry
 its own convergence test. `at` passes it through untouched.
@@ -9344,11 +9346,14 @@ cruise = TrimProblem(
     upper      = (throttle = 1.0, elevator =  1.0,  α =  0.3),
     condition  = d -> trim_condition(ac, params, d),    #params closed over (§14.2)
     reads      = reads(v̇_b = get_deriv("vehicle/dynamics", :v_eb_b),
-                       ω̇_b = get_deriv("vehicle/dynamics", :ω_eb_b)),
+                       ω̇_b = get_deriv("vehicle/dynamics", :ω_eb_b),
+                       EAS = get_output("vehicle/airdata", :EAS)),
     residuals  = (r, d) -> (axial_force  = r.v̇_b[1],
                             normal_force = r.v̇_b[3],
                             pitch_moment = r.ω̇_b[2]),
-    tolerances = (axial_force = 1e-3, normal_force = 1e-3, pitch_moment = 1e-4))
+    tolerances = (axial_force = 1e-3, normal_force = 1e-3, pitch_moment = 1e-4),
+    checks           = (r, d) -> (EAS = r.EAS - params.EAS,),  # read back after the commit
+    check_tolerances = (EAS = 0.1,))
 ```
 
 The rest of the section takes what the author ships one piece at a time,
@@ -9400,6 +9405,21 @@ against today's `c172.jl`.
   again, and the residual return is canonicalized to it. The decisions rule
   holds symmetrically on both ends of the seam. Names pair, and order never
   does.
+- **Checks are equations the service evaluates once, at the committed state,
+  and never solves.** `checks` has the residual function's signature, and
+  `check_tolerances` pairs with its return as `tolerances` pairs with the
+  residuals'. The service gathers the checks after the commit, from the
+  boundary-zero sweep, and reports them ([§14.8][s14-8]). Their reads join the
+  problem's one read set. *Why.* Under analytic elimination the condition
+  math pins the airspeed and the flight-path angle from the targets and the
+  atmosphere the user's `params` record holds, while the world measures
+  against the atmosphere the baseline wrote. If the two disagree, the
+  residuals vanish at a true equilibrium that is not the requested point,
+  and nothing in the residual system can tell ([D-139][d-139]). A check reading EAS
+  from the world's airdata at the committed state and subtracting the
+  requested value is where a world measurement meets the request, so any
+  mismatch moves it. The checks stay out of the solve because they carry no
+  information for it ([D-262][d-262]).
 - **The FlightCore formulation's core is correct and survives verbatim as user
   math.** That core is analytic elimination: `θ_constraint` substituting the
   pitch constraint, filter and actuator equilibria imposed by construction, and
@@ -9676,6 +9696,9 @@ Field by field:
   numbers the verdict is read off, gathered at the backend's returned point.
 - The **committed-state residuals** are the same residuals re-gathered from
   the boundary-zero world after the commit.
+- The **committed-state checks** are the check function's return at the
+  committed state, gathered beside the committed-state residuals and empty
+  when the problem declares none ([§14.7][s14-7]).
 - The backend's returned status comes with its iteration and evaluation
   counts. These are diagnostic throughout, informative about *how* the solve
   went and decisive about nothing.
@@ -9703,13 +9726,25 @@ a commit-fired handler ([§14.5][s14-5]), is surfaced rather than left silent.
 The verdict itself is not re-litigated. It gated the commit, at the solved
 point, and the numbers ([D-150][d-150]) stand as reported.
 
+The committed-state checks audit the point rather than the move. A
+converged solve whose committed-state checks leave their tolerances raises
+`TrimCommitChecks` ([Appendix C][sC]), naming the offending checks with their
+committed values and tolerances. The equilibrium is real. The operating
+point is not the one the problem asked for, which is what a params-vs-world
+atmosphere mismatch produces under elimination ([§14.7][s14-7], [D-139][d-139]). The checks
+are gathered from the same boundary-zero sweep, so they cost no evaluation
+of their own. No commit means no checks, exactly as for the committed-state
+residuals.
+
 Non-convergence never throws. It is an expected *outcome*, per the
 exceptions-are-broken-machinery line ([§13][s13]). In an envelope sweep,
 hitting the infeasible edge is information. A malformed problem is a different
 case. It is a `DiagnosticError`-class failure at setup, `TrimProblemInvalid`
 ([Appendix C][sC]). The malformed cases are a guess/bounds key-set or
-field-type disagreement, an unknown `reads` [selector](#g-selector), and a
-`tolerances`/residual key-set mismatch observed at the setup guess evaluation.
+field-type disagreement, an unknown `reads` [selector](#g-selector), a
+`tolerances`/residual key-set mismatch observed at the setup guess evaluation,
+and a `check_tolerances`/check key-set mismatch observed at the same
+evaluation.
 The error carries the offending field with the names or types in hand,
 collected, mirroring linearization's `TapResolution`. A permuted spelling is
 none of these ([§14.7][s14-7]).
@@ -10880,6 +10915,9 @@ activation):
 - **`TrimCommitResiduals`** ([§14.8][s14-8]). Warning · service · logged. The
   offending residual names with committed-state values and tolerances. A
   converged solve whose committed-state residuals violate the box test.
+- **`TrimCommitChecks`** ([§14.8][s14-8]). Warning · service · logged. The offending
+  check names with committed-state values and tolerances. A converged solve
+  whose committed-state checks leave their tolerances.
 - **`ConditionShapeDrift`** ([§14.4][s14-4]). Error · service · fail-fast.
   The compiled tree type and the observed one; for a prefix mismatch, the
   node position and both strings; the remedy, which is that a condition
@@ -11904,8 +11942,8 @@ linearization seeds and reports, with an optional component index so a
 vector leaf yields named scalars. They are validated at resolution
 (`TapResolution`) and relocatable via `at` ([§14.10][s14-10]).
 
-<a id="g-trimproblem"></a>**`TrimProblem`** — the closed seven-field value
-`guess`/`lower`/`upper`/`condition`/`reads`/`residuals`/`tolerances`: an
+<a id="g-trimproblem"></a>**`TrimProblem`** — the closed nine-field value
+`guess`/`lower`/`upper`/`condition`/`reads`/`residuals`/`tolerances`/`checks`/`check_tolerances`: an
 *implicitly specified* condition, solved as a square root-find over named
 residuals and committed as an `init!` of `override(baseline, solution)`
 ([§14.7][s14-7], [§14.8][s14-8]).
@@ -12121,6 +12159,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-133]: decisions.md#d-133--split-spec-invoked-numeric-constants-into-deployment-parameters-vs-owning-section-defaults
 [d-136]: decisions.md#d-136--unify-diagnostics-and-liveness-heartbeat-into-one-per-writer-diagnostic-cell
 [d-137]: decisions.md#d-137--bound-snapshot-log-retention-by-count-with-amortized-doubling-stride
+[d-139]: decisions.md#d-139--give-environment-field-handles-a-value-level-constructor-to-prevent-drift
 [d-141]: decisions.md#d-141--continuous-state-resets-are-events-owned-by-the-reimplemented-pivector
 [d-142]: decisions.md#d-142--stage-code-must-be-total-over-type-valid-inputs
 [d-144]: decisions.md#d-144--rename-the-computed-exports-helper-faces-to-passthrough
@@ -12214,6 +12253,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-259]: decisions.md#d-259--retire-the-strata-the-build-is-three-steps-named-by-their-products
 [d-260]: decisions.md#d-260--trim-the-run-to-what-lasts-it-and-retire-the-trace-register
 [d-261]: decisions.md#d-261--three-ownership-rules-for-fields-with-the-placements-they-settle
+[d-262]: decisions.md#d-262--post-commit-checks-on-the-trim-problem
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

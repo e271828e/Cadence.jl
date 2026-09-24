@@ -68,13 +68,6 @@ retires or the code conforms. Currently empty.
 
 Not a code deviation: what the design documents owe their reader.
 
-- **The trim post-commit target read-back.** Under elimination, a
-  params-vs-world handle mismatch converges to a true equilibrium at an
-  unintended operating point, and nothing complains (D-139). One evaluation
-  of the sweep after the commit, comparing the achieved targets against the
-  requested ones, catches the whole class. It belongs on `TrimReport`, beside
-  the unbalanced equations and saturated decision variables it already names
-  (`companions/trim_environment_walkthrough.md`).
 - **Stop candidates.** §13.5 has two omissions with unequal loudness: a
   level that fails to re-export a stop face is refused at the next advance
   that names it, and an advance that names no face integrates a terminal

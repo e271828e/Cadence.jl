@@ -286,6 +286,7 @@ were derived.
 | [D-259][d-259] | Retire the strata: the build is three steps named by their products | ratified |
 | [D-260][d-260] | Trim the run to what lasts it and retire the trace register | ratified |
 | [D-261][d-261] | Three ownership rules for fields, with the placements they settle | ratified |
+| [D-262][d-262] | Post-commit checks on the trim problem | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -4382,7 +4383,7 @@ condition-side copy is **solution-defining** and must agree with the world's,
 whereas under enlargement a handle can at most inform the initial guess —
 convergence-relevant, solution-irrelevant. The second axis is a rig-shape
 choice and never touches trim doctrine. **Residual risk, mitigation deferred to
-`pending.md`**: under elimination a params-vs-world handle mismatch
+`pending.md`** (landed as [D-262][d-262]): under elimination a params-vs-world handle mismatch
 converges to a *true* equilibrium at an *unintended operating point* — the
 eliminated targets are never residual-checked, so nothing complains — and a
 cheap post-commit read-back of EAS/γ/β against the requested targets catches
@@ -9907,6 +9908,79 @@ compile was the one reason the run had to be built ahead of the plane.
 
 ---
 
+### D-262 — Post-commit checks on the trim problem
+
+**Status.** ratified
+
+**Position.** A `TrimProblem` carries a second, optional equation set,
+`checks` with `check_tolerances`, shaped as `residuals` and `tolerances`
+are: a function of the gathered reads and the decisions returning a
+NamedTuple of named equations, and an all-`Float64` NamedTuple same-named
+with that return. The service never solves them. It evaluates them once, at
+the committed state, on the reads the committed-state residuals gather, and
+the `TrimReport` carries the values as `committed_checks`. A check outside
+its tolerance raises `TrimCommitChecks`, a logged warning that rides the
+report. Both fields default to empty, and the empty problem runs them as any
+other ([§14.7][s14-7], [§14.8][s14-8], [Appendix C][sC]).
+
+**Spec.** [§14.7][s14-7], [§14.8][s14-8], [Appendix C][sC]
+
+**Rationale.** [D-139][d-139]'s residual risk. Under elimination the condition math
+pins the velocity magnitude from the EAS target and the density the user's
+params record holds, and converts the wind-relative velocity to the
+earth-relative state with the wind that record holds. The world's
+environment component holds its own density and wind, fed by the baseline.
+When the two disagree, every candidate the solver proposes has the magnitude
+the params record computed, the sweep measures a different airspeed against
+the world's wind, and the residuals vanish at an equilibrium that is real
+and not the one asked for. The residuals only demand that the derivatives
+vanish; nothing in the problem says at which operating point. The service
+cannot detect this on its own, because the targets exist only inside the
+condition closure. The problem must state the requested point in a form the
+service can evaluate, and the committed state is the one place where a
+world measurement and a request meet. A check reading EAS from the airdata
+output at the committed state and subtracting the requested value compares
+a world value with the request, so a mismatch in either atmosphere, in any
+variable, moves it. The evaluation is the one the committed-state residuals
+already pay for; the checks gather from the same boundary-zero sweep and add
+no `Dual` rows and no solver work. The fields mirror the residual pair
+because a check is an equation with a tolerance and nothing else, and
+mirroring keeps the setup validation, the pairing rule (names pair, order
+never does) and the `at` lift identical. The checks read through the
+problem's one read set: their selectors are gathered on every solver
+evaluation as stack-only NamedTuple fields the residual function ignores,
+which costs nothing measurable and keeps one read mechanism ([§14.4][s14-4]).
+`TrimCommitChecks` is distinct from `TrimCommitResiduals` because it means
+something different: residuals leaving the box mean the commit moved the
+point; a failed check means the point is not the requested one. Setup
+evaluates the checks once at the guess, on the establishment round's reads,
+so a key-set or field-type mismatch is `TrimProblemInvalid` before any solve
+and never after the simulation has been mutated.
+
+**Rejected.**
+- *Folding the targets into the residuals:* three more rows against seven
+  decisions makes the square problem overdetermined. When the atmospheres
+  agree the rows are identically zero and cost Jacobian width; when they
+  disagree the least-squares backend compromises between the equilibrium
+  rows and the target rows, and the answer is neither trimmed nor on target,
+  the mismatch smeared across the report. Under elimination the targets
+  carry no information for the solver, only against the world at the
+  committed state.
+- *A separate `check_reads` set gathered at commit only:* cleaner in cost,
+  messier in surface, and the saving is a few stack-only fields per
+  evaluation.
+- *A service-side read-back of EAS, γ and β by name:* the service has no
+  notion of which outputs are the targets, and naming them would bind the
+  service to one aircraft's vocabulary.
+- *Single-sourcing the atmosphere by passing the world's handle to the
+  condition math:* [D-139][d-139]'s rejections stand. The handle is a sweep product
+  in a full world, so the condition cannot read it before the sweep it
+  precedes; reading it from the establishment round is exact only for a
+  state-independent environment and silently stale otherwise. No framework
+  route makes elimination environment-blind, because elimination is defined
+  by its environment queries. The check makes the exposure loud whichever
+  route the author takes.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -10169,6 +10243,7 @@ compile was the one reason the run had to be built ahead of the plane.
 [d-259]: #d-259--retire-the-strata-the-build-is-three-steps-named-by-their-products
 [d-260]: #d-260--trim-the-run-to-what-lasts-it-and-retire-the-trace-register
 [d-261]: #d-261--three-ownership-rules-for-fields-with-the-placements-they-settle
+[d-262]: #d-262--post-commit-checks-on-the-trim-problem
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
