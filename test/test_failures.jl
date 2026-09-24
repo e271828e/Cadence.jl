@@ -20,8 +20,8 @@ struct HookedInterrupter <: AbstractComponent
 end
 HookedInterrupter() = HookedInterrupter(Ref{Any}(nothing))
 init_x(::HookedInterrupter) = (q = 0.0,)
-input_types(::HookedInterrupter, ::Type{T}) where {T <: Real} = (arm = Bool,)
-output_types(::HookedInterrupter, ::Type{T}) where {T <: Real} = (q = T,)
+input_types(::HookedInterrupter) = (arm = Bool,)
+output_types(::HookedInterrupter) = (q = Float64,)
 output_state(::HookedInterrupter, (; x)) = (q = x.q,)
 state_derivative(c::HookedInterrupter, (; x, u)) =
     u.arm ? (c.hook[](); throw(InterruptException())) : (q = one(x.q),)
@@ -40,43 +40,48 @@ diverging() = Group((div = Diverger(), con = Consumer());
 # the generated write refuses.
 
 struct LateInteger <: AbstractComponent end
-output_types(::LateInteger, ::Type{T}) where {T <: Real} = (q = T,)
+init_x(::LateInteger) = (;)
+output_types(::LateInteger) = (q = Float64,)
 output_state(::LateInteger, (; t)) = (q = t < 0.05 ? 1.0 : 0,)
 
 # An array's mutability is a type parameter, not a leaf (D-238): the leafwise
 # relation converted this write silently.
 struct LateMutable <: AbstractComponent end
-output_types(::LateMutable, ::Type{T}) where {T <: Real} = (v = SVector{2,T},)
+init_x(::LateMutable) = (;)
+output_types(::LateMutable) = (v = SVector{2,Float64},)
 output_state(::LateMutable, (; t)) = (v = t < 0.05 ? SVector(1.0, 2.0) : MVector(1.0, 2.0),)
 
 struct LateExtraPort <: AbstractComponent end
-output_types(::LateExtraPort, ::Type{T}) where {T <: Real} = (q = T,)
+init_x(::LateExtraPort) = (;)
+output_types(::LateExtraPort) = (q = Float64,)
 output_state(::LateExtraPort, (; t)) = t < 0.05 ? (q = 1.0,) : (q = 1.0, extra = 2.0)
 
 struct LateMissingPort <: AbstractComponent end
-output_types(::LateMissingPort, ::Type{T}) where {T <: Real} = (a = T, b = T)
+init_x(::LateMissingPort) = (;)
+output_types(::LateMissingPort) = (a = Float64, b = Float64)
 output_state(::LateMissingPort, (; t)) = t < 0.05 ? (a = 1.0, b = 2.0) : (a = 1.0,)
 
 # The names are the pairing: the same return in another order, at both seams.
 struct ScrambledPorts <: AbstractComponent end
-output_types(::ScrambledPorts, ::Type{T}) where {T <: Real} = (a = T, b = T)
+init_x(::ScrambledPorts) = (;)
+output_types(::ScrambledPorts) = (a = Float64, b = Float64)
 output_state(::ScrambledPorts, (; t)) = (b = 2.0, a = 1.0)
 
 struct ScrambledRate <: AbstractComponent end
 init_x(::ScrambledRate) = (a = 1.0, b = 2.0)
-output_types(::ScrambledRate, ::Type{T}) where {T <: Real} = (pa = T, pb = T)
+output_types(::ScrambledRate) = (pa = Float64, pb = Float64)
 output_state(::ScrambledRate, (; x)) = (pa = x.a, pb = x.b)
 state_derivative(::ScrambledRate, (; x)) = (b = 0.0, a = 1.0)
 
 struct LateIntegerRate <: AbstractComponent end
 init_x(::LateIntegerRate) = (a = 1.0,)
-output_types(::LateIntegerRate, ::Type{T}) where {T <: Real} = (q = T,)
+output_types(::LateIntegerRate) = (q = Float64,)
 output_state(::LateIntegerRate, (; x)) = (q = x.a,)
 state_derivative(::LateIntegerRate, (; t)) = (a = t < 0.05 ? -1.0 : 0,)
 
 struct LateIntegerProjection <: AbstractComponent end
 init_x(::LateIntegerProjection) = (a = 1.0,)
-output_types(::LateIntegerProjection, ::Type{T}) where {T <: Real} = (q = T,)
+output_types(::LateIntegerProjection) = (q = Float64,)
 output_state(::LateIntegerProjection, (; x)) = (q = x.a,)
 state_derivative(::LateIntegerProjection, (; x)) = (a = -10.0 * x.a,)
 state_projection(::LateIntegerProjection, x) = x.a > 0.5 ? (a = x.a,) : (a = 0,)
@@ -85,7 +90,7 @@ state_projection(::LateIntegerProjection, x) = x.a > 0.5 ? (a = x.a,) : (a = 0,)
 # the write embeds as a zero-partial rather than refusing (§9.5, D-166).
 struct DecayingBranch <: AbstractComponent end
 init_x(::DecayingBranch) = (a = 1.0,)
-output_types(::DecayingBranch, ::Type{T}) where {T <: Real} = (q = T,)
+output_types(::DecayingBranch) = (q = Float64,)
 output_state(::DecayingBranch, (; x)) = (q = x.a > 0.5 ? 2.0 * x.a : 0.0,)
 state_derivative(::DecayingBranch, (; x)) = (a = -10.0 * x.a,)
 
@@ -98,7 +103,8 @@ state_update(::LateSuccessor, (; s, t)) = (n = t < 0.05 ? s.n + 1.0 : 0,)
 # The probe sees the first firing; the second writes `k` at another type.
 struct LateMode <: AbstractComponent end
 init_m(::LateMode) = (k = 0,)
-output_types(::LateMode, ::Type{T}) where {T <: Real} = (k = Int,)
+init_x(::LateMode) = (;)
+output_types(::LateMode) = (k = Int,)
 output_state(::LateMode, (; m)) = (k = m.k,)
 late_mode_guard(::LateMode, (; m, t)) = t - 0.05 * (m.k + 1)
 late_mode_handler(::LateMode, (; m)) = m.k == 0 ? (m = (k = m.k + 1,),) : (m = (k = 1.5,),)
@@ -107,7 +113,8 @@ state_events(::LateMode) = (fire = StateEvent(late_mode_guard, late_mode_handler
 # The probe sees the first firing; the second writes `m` as a scalar, not a NamedTuple.
 struct LateModeScalar <: AbstractComponent end
 init_m(::LateModeScalar) = (k = 0,)
-output_types(::LateModeScalar, ::Type{T}) where {T <: Real} = (k = Int,)
+init_x(::LateModeScalar) = (;)
+output_types(::LateModeScalar) = (k = Int,)
 output_state(::LateModeScalar, (; m)) = (k = m.k,)
 late_mode_guard(::LateModeScalar, (; m, t)) = t - 0.05 * (m.k + 1)
 late_mode_scalar_handler(::LateModeScalar, (; m)) = m.k == 0 ? (m = (k = m.k + 1,),) : (m = 5,)

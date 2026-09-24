@@ -302,15 +302,13 @@ function diagnostics_kind_set()
                            types = ["Int64", "Float64"]),
             ContainerNested(path = "a", field = :kids, keys = Any[1, :b],
                             types = ["Tuple{Gain, Gain}", "NamedTuple{(:c,), Tuple{Gain}}"]),
-            DeclarationOnWrongTier(path = "a/b", declaration = :init_workspace, reason = :tier_form,
+            DeclarationOnWrongTier(path = "a/b", declaration = :init_x, reason = :tier_form,
                                    found = :continuous, announced = :discrete),
             DeclarationOnWrongTier(path = "a/b", declaration = :state_projection, reason = :continuous_only,
                                    found = :discrete),
             DeclarationOnWrongTier(path = "a/b", declaration = :state_projection, reason = :no_manifold),
-            TierSignatureMismatch(path = "a/b", declaration = :output_types, tier = :continuous,
-                                  reason = :bound, found = AbstractFloat, mandated = Real),
-            TierSignatureMismatch(path = "a/b", declaration = :input_types, tier = :discrete,
-                                  reason = :arity, found = :two_argument, mandated = :plain),
+            DeclarationOnWrongTier(path = "a/b", declaration = :output_types, reason = :pinned_entry,
+                                   entry = :a, announced = :discrete),
             FaceNameIllegal(path = "a", face = "u/v", invariant = :contains_slash),
             FaceNameCollision(path = "a", faces = ["u"], site = :assembly),
             FaceNameCollision(path = "", faces = ["u"], site = :root),
@@ -342,8 +340,8 @@ function diagnostics_kind_set()
                                         candidates = [:units]),
             TransparentContainerUnknown(path = "a", field = :kids, component = "Group",
                                         candidates = Symbol[]),
-            TierUnreadable(path = "a/b", type = "Inert", family = [:init_x, :output_types],
-                           declarations = [:init_m]),
+            TierUnreadable(path = "a/b", type = "Inert", declarations = [:init_m]),
+            StatelessWithoutOutputs(path = "a/b", type = "Inert", declarations = [:init_x]),
             IllegalPortType(path = "a/b", site = :port, name = :y, declared = Nothing),
             IllegalPortType(path = "a/b", site = :port, name = :y, declared = Vector{Float64},
                             reason = :mutable, position = ""),
@@ -793,13 +791,13 @@ function diagnostics_kind_set()
                                                declared = Int))
         @test occursin("init_m(::C) = (; phase = :idle)", rendered)
 
-        # The forgotten-`T` hint on the input side (§6.1, §8.2, D-236) states the
-        # fix by name.
+        # The walk clause's hint on the input side (§6.1, §8.2, D-236, D-263)
+        # states the fix by name.
         rendered = message(WalkingFaceAtFrozenEntry(path = "c", face = :u,
                                                      producer_path = "src",
                                                      producer_port = :val, leaf = "",
                                                      declared = Float64, observed = Marker))
-        @test occursin("declare the entry `T`", rendered)
+        @test occursin("remove the entry's `Pinned`", rendered)
 
         # The cycle's three forms (§5.5, §5.6, D-245), over constructed values: the
         # cluster's wires read as one loop, and the classification, where there is

@@ -40,6 +40,11 @@ function test_declare()
         @test bundle_names(state_derivative, Plant(), CONTINUOUS, (:y,)) === (:x, :u, :y, :t)
         @test bundle_names(output_direct, Gain(1.0), CONTINUOUS, ()) === (:u, :t)
 
+        # A declared empty store puts no letter in the bundle (§5.2, D-263):
+        # `Gain` declares `init_x(::Gain) = (;)`, and no bundle of it carries `x`.
+        @test :init_x in leaf_declarations(Gain(1.0))
+        @test bundle_names(output_state, Gain(1.0), CONTINUOUS, ()) === (:t,)
+
         # The discrete sets against them: `Δt` is a discrete-tier fact, `m` a
         # continuous one, and each tier's state letters are its own (D-195).
         @test bundle_names(output_state, DiscreteCounter(), DISCRETE, ()) === (:s, :t, :Δt)

@@ -104,32 +104,32 @@ end
 """The tier's own state register: exactly one of the two is ever populated."""
 state_decls(decl::Decls, tier::Tier) = tier === CONTINUOUS ? decl.x : decl.s
 
-# The two declaration kinds split by D-166's criterion: `init_x` is by value
-# and its types are *walked*; `input_types`/`output_types` are functions of the
-# activation scalar on the continuous tier and are *evaluated*. There is no
-# output-side leaf walk — the cell types at an activation are literally what the
-# declaration returns at that `T`. On the discrete tier the plain forms declare
-# the pinned world, so `init_s` does not walk and nothing is evaluated at `T`.
+# One walk on the continuous tier (D-263): `init_x` by value and the contracts by
+# type are all retyped at the activation scalar, every `Float64` position
+# following it, a `Pinned` contract leaf the one exception. On the discrete tier
+# the same declarations pin wholesale, so `init_s` does not walk and the
+# contracts are read as written.
 function declarations(comp, tier::Tier, ::Type{T}) where {T}
     tier === CONTINUOUS ?
         Decls(retype_value(T, invoke_declaration(init_x, comp)), NamedTuple(),
-              invoke_declaration(input_types, comp, T), invoke_declaration(output_types, comp, T)) :
+              declared_at(input_types, comp, tier, T), declared_at(output_types, comp, tier, T)) :
         Decls(NamedTuple(), invoke_declaration(init_s, comp),
               declared_at(input_types, comp, tier), declared_at(output_types, comp, tier))
 end
 
 # --- tier classification (§8.2) -----------------------------------------------
-# Tier is read off the declaration shape, never announced. For a **stateful**
-# leaf `init_x`/`state_derivative` carry it continuous against
-# `init_s`/`state_update` discrete, the two disjoint (D-195), with the update
-# law the decider — the output stages are one pair of names shared by both
-# tiers (D-220) and no longer vote. A **stateless** leaf has no update law, so
-# its contract arities decide, `output_types` being mandatory and therefore the
-# decider: the two-argument forms declare cells at the activation scalar, the
-# plain forms the pinned discrete world (D-166/D-167). Every other tier-implying
-# declaration must then agree, and disagreement names the offending one —
-# including the wrong-tier cases the split state letters make visible, an
-# `init_x` on a leaf whose update law is `state_update` and the converse.
+# Tier is declared by the store every leaf declares, `init_x` continuous against
+# `init_s` discrete, the two disjoint (D-195), and empty on a stateless leaf
+# (D-263). The declaration is asked for by method existence, never by
+# emptiness: a declared `(;)` and the fallback are the same value. A stateful
+# leaf announces its tier in the update law as well, and the update law decides
+# where there is one; the output stages are one pair of names shared by both
+# tiers (D-220) and cast no vote, and no arity carries a tier. Every other
+# tier-implying declaration must then agree, and disagreement names the
+# offending one — including the wrong-tier cases the split state letters make
+# visible, an `init_x` on a leaf whose update law is `state_update`, the
+# converse, both stores on one leaf, and a `Pinned` contract entry on a
+# discrete leaf.
 #
 # The classifier sees primitives only: a component that declares nothing at all
 # has no *class* to read, which §8.5 settles before this runs.
@@ -174,14 +174,6 @@ function check_stores(path::String, comp, diags::Vector{Diagnostic})
     end
 end
 
-# The tier-announcing family (§8.2, §8.5): the names the vote loop below reads,
-# in vote order — the list-in-hand a `TierUnreadable` carries.
-const TIER_FAMILY = (:state_derivative, :state_update, :init_x, :init_s, :init_m,
-                     :state_events, :output_types, :input_types, :init_workspace)
-
-# §8.5's two contract signature forms, as the tier mandates them.
-_form(tier::Tier) = tier === CONTINUOUS ? :two_argument : :plain
-
 """
 The tier the primitive at `path` announces, or `nothing` with what disagrees
 recorded in `diags` (§13.1).
@@ -190,54 +182,57 @@ function classify_tier(path::String, comp, diags::Vector{Diagnostic})
     votes = Tuple{Symbol,Tier}[]
     has_stage(state_derivative, comp) && push!(votes, (:state_derivative, CONTINUOUS))
     has_stage(state_update, comp) && push!(votes, (:state_update, DISCRETE))
-    !isempty(invoke_declaration(init_x, comp)) && push!(votes, (:init_x, CONTINUOUS))
-    !isempty(invoke_declaration(init_s, comp)) && push!(votes, (:init_s, DISCRETE))
+    _declares(init_x, comp) && push!(votes, (:init_x, CONTINUOUS))
+    _declares(init_s, comp) && push!(votes, (:init_s, DISCRETE))
     !isempty(invoke_declaration(init_m, comp)) && push!(votes, (:init_m, CONTINUOUS))
     !isempty(invoke_declaration(state_events, comp)) && push!(votes, (:state_events, CONTINUOUS))
-    for (name, fn) in ((:output_types, output_types), (:input_types, input_types),
-                       (:init_workspace, init_workspace))
-        _declares(fn, comp, Type{Float64}) && push!(votes, (name, CONTINUOUS))
-        _declares(fn, comp) && push!(votes, (name, DISCRETE))
-    end
 
-    # The decider, by §8.2's two cases.
+    # The store is mandatory, empty when stateless (§8.2, D-263).
+    if !_declares(init_x, comp) && !_declares(init_s, comp)
+        push!(diags, TierUnreadable(path = path, type = _typename(comp),
+                                   declarations = leaf_declarations(comp)))
+        return nothing
+    end
     state_store = !isempty(invoke_declaration(init_x, comp)) ? :init_x :
                   !isempty(invoke_declaration(init_s, comp)) ? :init_s : nothing
-    if state_store !== nothing
-        decider = findfirst(v -> first(v) === :state_derivative || first(v) === :state_update,
+    update_vote = findfirst(v -> first(v) === :state_derivative || first(v) === :state_update,
                             votes)
-        if decider === nothing
-            push!(diags, StoreWithoutUpdate(path = path, store = state_store))
-            return nothing
-        end
-    else
-        decider = findfirst(v -> first(v) === :output_types, votes)
-        if decider === nothing
-            push!(diags, TierUnreadable(path = path, type = _typename(comp),
-                                       family = collect(TIER_FAMILY),
-                                       declarations = Symbol[first(v) for v in votes]))
-            return nothing
-        end
+    if state_store !== nothing && update_vote === nothing
+        push!(diags, StoreWithoutUpdate(path = path, store = state_store))
+        return nothing
     end
+
+    # The decider: the update law where there is one, the store otherwise. Of two
+    # stores `init_x` decides, and `init_s` is reported against it.
+    decider = something(update_vote, findfirst(v -> first(v) === :init_x || first(v) === :init_s,
+                                               votes))
+    tier = last(votes[decider])
+    recorded = length(diags)
+    state_store === nothing && !_declares(output_types, comp) &&
+        push!(diags, StatelessWithoutOutputs(path = path, type = _typename(comp),
+                                            declarations = leaf_declarations(comp)))
 
     # The vote loop collects (§13.1): a leaf written half in each tier's spelling
     # names every declaration that disagrees, not the first one found. The tier
-    # is announced only if none does. A contract arity against the announced tier
-    # is the contract's own kind, on a stateful leaf and a stateless one alike
-    # (§8.5, D-249); every other name is `DeclarationOnWrongTier`'s.
-    tier = last(votes[decider])
-    recorded = length(diags)
+    # is announced only if none does.
     for (name, vote_tier) in votes
         vote_tier === tier && continue
-        if name === :input_types || name === :output_types
-            push!(diags, TierSignatureMismatch(path = path, declaration = name,
-                                               tier = Symbol(tier_word(tier)), reason = :arity,
-                                               found = _form(vote_tier), mandated = _form(tier)))
-        else
-            push!(diags, DeclarationOnWrongTier(path = path, declaration = name,
-                                               reason = :tier_form,
-                                               found = Symbol(tier_word(vote_tier)),
-                                               announced = Symbol(tier_word(tier))))
+        push!(diags, DeclarationOnWrongTier(path = path, declaration = name,
+                                           reason = :tier_form,
+                                           found = Symbol(tier_word(vote_tier)),
+                                           announced = Symbol(tier_word(tier))))
+    end
+    # A `Pinned` entry says nothing where every leaf pins (§8.2, §8.5), read on
+    # the declaration as written, one report per entry.
+    if tier === DISCRETE
+        for (name, fn) in ((:input_types, input_types), (:output_types, output_types))
+            _declares(fn, comp) || continue
+            for (entry, P) in pairs(invoke_declaration(fn, comp))
+                P isa DataType && P.name === Base.typename(Pinned) &&
+                    push!(diags, DeclarationOnWrongTier(path = path, declaration = name,
+                                                       reason = :pinned_entry, entry = entry,
+                                                       announced = :discrete))
+            end
         end
     end
     length(diags) == recorded ? tier : nothing
@@ -806,51 +801,24 @@ end
 # --- The structure step's wire pass (§6.1, §9.1, D-236) -----------------------
 
 """
-The marker scalar (§6.1, §9.1): the continuous contracts are evaluated at it to
+The marker scalar (§6.1, §9.1): the continuous contracts are retyped at it to
 tell a walking leaf from a pinned one — a leaf typed `Marker` walks with the
 activation, anything else is pinned. It never enters arithmetic.
 """
 struct Marker <: Real end
 Base.show(io::IO, ::Type{Marker}) = print(io, "T")   # a declaration at the marker prints as written
 
-# The bound a two-argument contract puts on its `T`, read off the method matched
-# at `Float64` (§8.5): the type variable's upper bound, or the argument type
-# itself when the second argument is not `Type{…}`. Throwing path only.
-function _contract_bound(fn, comp)
-    argument_type =
-        Base.unwrap_unionall(which(fn, Tuple{typeof(comp),Type{Float64}}).sig).parameters[3]
-    unwrapped = Base.unwrap_unionall(argument_type)
-    (unwrapped isa DataType && unwrapped.name === Base.typename(Type)) || return argument_type
-    parameter = unwrapped.parameters[1]
-    parameter isa TypeVar ? parameter.ub : parameter
-end
-
-# The contract-bound check, the two type clauses on every resolved wire, and the
-# root-input type with its two refusals. Pure declaration reading — the
-# contracts are evaluated at `Float64` for the bound clause and at the marker for
-# the walk clause; no stage runs. The pass collects (§13.1): every wire is
-# checked, and the barrier throws once. Runs on the clean draft and the `conns`
-# `wire!` derived, ahead of the `Structure`, and returns the root-input types
-# the artifact takes at construction (D-236, D-261). The list holds `nothing`
-# only on the two refusal arms below, each of which records a diagnostic, so
-# the barrier throws before the `Structure` narrows it.
+# The two type clauses on every resolved wire, and the root-input type with its
+# two refusals. Pure declaration reading — the contracts are retyped at
+# `Float64` for the bound clause and at the marker for the walk clause; no stage
+# runs. The pass collects (§13.1): every wire is checked, and the barrier throws
+# once. Runs on the clean draft and the `conns` `wire!` derived, ahead of the
+# `Structure`, and returns the root-input types the artifact takes at
+# construction (D-236, D-261). The list holds `nothing` only on the
+# abstract-at-root arm below, which records a diagnostic, so the barrier throws
+# before the `Structure` narrows it.
 function _check_wires(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}},
                       diags::Vector{Diagnostic})
-    # A continuous contract bounded narrower than `Real` (§8.5) has no method at
-    # the marker, so its marker declaration is the `::Any` fallback's empty
-    # `NamedTuple` — refuse the component and skip every wire and root entry that
-    # touches it, rather than index that emptiness by face.
-    refused = falses(length(draft.paths))
-    for (ci, (comp, tier)) in enumerate(zip(draft.instances, draft.tiers))
-        tier === CONTINUOUS || continue
-        for fn in (input_types, output_types)
-            (_declares(fn, comp, Type{Float64}) && !_declares(fn, comp, Type{Marker})) || continue
-            push!(diags, TierSignatureMismatch(path = draft.paths[ci], declaration = nameof(fn),
-                                               tier = :continuous, reason = :bound,
-                                               found = _contract_bound(fn, comp), mandated = Real))
-            refused[ci] = true
-        end
-    end
     contracts_at(fn, scalar) = [at_component(() -> declared_at(fn, draft.instances[ci],
                                                                draft.tiers[ci], scalar),
                                              draft.paths[ci])
@@ -861,7 +829,6 @@ function _check_wires(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tu
         (face, (producer_path, producer_port)) in consumer_conns
         isempty(producer_path) && continue           # a root input: typed below
         producer_ci = index_of(draft, producer_path)
-        (refused[ci] || refused[producer_ci]) && continue
         P_F, V_F = ins_F[ci][face], outs_F[producer_ci][producer_port]
         if !_accepts_wire(P_F, V_F, Float64)
             push!(diags, WireTypeMismatch(path = draft.paths[ci], face = face, declared = P_F,
@@ -885,15 +852,10 @@ function _check_wires(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tu
         for (ci, consumer_conns) in enumerate(conns), (consumer_face, producer) in consumer_conns
             producer === ("", face) || continue
             routed = true
-            refused[ci] && continue
             push!(paths, draft.paths[ci]); push!(faces, consumer_face)
             push!(consumer_types, ins_F[ci][consumer_face])
         end
         routed || throw(InternalInvariant("root input face `$face` routes to no input"))
-        if isempty(paths)                   # every consumer refused; the barrier throws
-            push!(root_types, nothing)
-            continue
-        end
         concrete = findall(isconcretetype, consumer_types)
         if isempty(concrete)
             push!(diags, AbstractAtRoot(face = face, paths = paths, declared = consumer_types))
@@ -1025,8 +987,7 @@ _workspaces(structure::Structure, ::Type{T}) where {T} =
 _workspace(path::String, comp, tier::Tier, ::Type{T}) where {T} =
     at_component(path) do
         _declares_workspace(comp, tier) || return nothing
-        tier === CONTINUOUS ? invoke_declaration(init_workspace, comp, T) :
-                           invoke_declaration(init_workspace, comp)
+        invoke_declaration(init_workspace, comp, tier === CONTINUOUS ? T : Float64)
     end
 
 # A discrete component's stages never run at a non-nominal activation: its

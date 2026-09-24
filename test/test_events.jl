@@ -3,7 +3,8 @@
 # Malformed event and projection declarations, at top level per D-164.
 struct HalfEvent <: AbstractComponent end
 init_m(::HalfEvent) = (s = :a,)
-output_types(::HalfEvent, ::Type{T}) where {T <: Real} = (o = T,)
+init_x(::HalfEvent) = (;)
+output_types(::HalfEvent) = (o = Float64,)
 output_state(::HalfEvent, (; m)) = (o = 1.0,)
 halfevent_guard(::HalfEvent, (; m)) = m.s === :a
 function halfevent_handler end                   # a name with no method: the missing half
@@ -11,13 +12,15 @@ state_events(::HalfEvent) = (go = StateEvent(halfevent_guard, halfevent_handler)
 
 struct NotAnEvent <: AbstractComponent end
 init_m(::NotAnEvent) = (s = :a,)
-output_types(::NotAnEvent, ::Type{T}) where {T <: Real} = (o = T,)
+init_x(::NotAnEvent) = (;)
+output_types(::NotAnEvent) = (o = Float64,)
 output_state(::NotAnEvent, (; m)) = (o = 1.0,)
 state_events(::NotAnEvent) = (go = 5,)
 
 struct BadGuardForm <: AbstractComponent end
 init_m(::BadGuardForm) = (s = :a,)
-output_types(::BadGuardForm, ::Type{T}) where {T <: Real} = (o = T,)
+init_x(::BadGuardForm) = (;)
+output_types(::BadGuardForm) = (o = Float64,)
 output_state(::BadGuardForm, (; m)) = (o = 1.0,)
 badguard_guard(::BadGuardForm, (; m)) = "high"
 badguard_handler(::BadGuardForm, (; m)) = (m = (; s = :b),)
@@ -25,7 +28,8 @@ state_events(::BadGuardForm) = (go = StateEvent(badguard_guard, badguard_handler
 
 struct BadHandlerKey <: AbstractComponent end    # writes `x`, owns only modes
 init_m(::BadHandlerKey) = (s = :a,)
-output_types(::BadHandlerKey, ::Type{T}) where {T <: Real} = (o = T,)
+init_x(::BadHandlerKey) = (;)
+output_types(::BadHandlerKey) = (o = Float64,)
 output_state(::BadHandlerKey, (; m)) = (o = 1.0,)
 badkey_guard(::BadHandlerKey, (; m)) = m.s === :a
 badkey_handler(::BadHandlerKey, (; m)) = (x = (q = 1.0,),)
@@ -33,7 +37,7 @@ state_events(::BadHandlerKey) = (go = StateEvent(badkey_guard, badkey_handler),)
 
 struct PartialX <: AbstractComponent end         # an incomplete `x` write-back
 init_x(::PartialX) = (a = 0.0, b = 0.0)
-output_types(::PartialX, ::Type{T}) where {T <: Real} = (a = T,)
+output_types(::PartialX) = (a = Float64,)
 output_state(::PartialX, (; x)) = (a = x.a,)
 state_derivative(::PartialX, (; x)) = (a = 1.0, b = 1.0)
 partialx_guard(::PartialX, (; x)) = x.a ≥ 1.0
@@ -57,13 +61,14 @@ state_update(::ProjectOnDiscrete, (; s)) = (n = s.n + 1,)
 state_projection(::ProjectOnDiscrete, x) = x
 
 struct ProjectNoState <: AbstractComponent end   # nothing to project onto
-output_types(::ProjectNoState, ::Type{T}) where {T <: Real} = (o = T,)
+init_x(::ProjectNoState) = (;)
+output_types(::ProjectNoState) = (o = Float64,)
 output_state(::ProjectNoState, (; t)) = (o = 1.0,)
 state_projection(::ProjectNoState, x) = x
 
 struct BadProjectShape <: AbstractComponent end  # wrong fields back
 init_x(::BadProjectShape) = (q = 1.0,)
-output_types(::BadProjectShape, ::Type{T}) where {T <: Real} = (q = T,)
+output_types(::BadProjectShape) = (q = Float64,)
 output_state(::BadProjectShape, (; x)) = (q = x.q,)
 state_derivative(::BadProjectShape, (; x)) = (q = 0.0,)
 state_projection(::BadProjectShape, x) = (v = x.q,)

@@ -469,7 +469,7 @@ function _undeclared(entry::CEntry, comp, tier::Tier, declared::NamedTuple,
 end
 
 _declared_workspace(comp, tier::Tier, ::Type{T}) where {T} =
-    tier === CONTINUOUS ? init_workspace(comp, T) : init_workspace(comp)
+    init_workspace(comp, tier === CONTINUOUS ? T : Float64)
 
 # The one refusal §14.3's converter table cannot bake around. Its second clause
 # is the non-nominal case: at a seeded activation the leaves a decision descends

@@ -227,18 +227,26 @@ end
 # Declarations are written at concrete `Float64`; cell and view types per
 # activation come from this walk over them, never from inference through user
 # code. `Float64` leaves and `Float64` type parameters follow the activation
-# scalar; everything else (`Int`, `Bool`, sizes) is pinned and passes through.
+# scalar; everything else (`Int`, `Bool`, sizes) is pinned and passes through,
+# and so is a leaf wrapped in `Pinned` and a mutable type's parameters (D-263).
+
+# The contract marker, documented with the declarations (`declare.jl`); defined
+# here because the walk dispatches on it.
+struct Pinned{P} end
 
 """
     retype(T, P)
 
 `P` with every `Float64` position replaced by `T`; a position already at `T`
-stays, so the walk is idempotent. Build time only.
+stays, so the walk is idempotent on a type free of the marker. `Pinned{P}`
+yields `P`, which is also how the marker is stripped at nominal; a mutable
+type's parameters pin by rule (D-263). Build time only.
 """
 retype(::Type{T}, ::Type{Float64}) where {T} = T
+retype(::Type{T}, ::Type{Pinned{P}}) where {T,P} = P
 function retype(::Type{T}, ::Type{P}) where {T,P}
     P === T && return P
-    P isa DataType && !isempty(P.parameters) || return P
+    P isa DataType && !isempty(P.parameters) && !ismutabletype(P) || return P
     P.name.wrapper{(p isa Type ? retype(T, p) : p for p in P.parameters)...}
 end
 
@@ -293,10 +301,10 @@ function _accepts(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T}
         for (declared, observed) in zip(P.parameters, V.parameters))
 end
 
-# The one honest cause of a `Dual` at a leaf declared `Float64`, per D-166.
+# The one honest cause of a `Dual` at a pinned leaf (§8.2, D-263).
 _pin_hint(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T} =
     T === Float64 || P === T ? "" :
-    " — if this leaf participates in differentiation, declare it `T`"
+    " — if this leaf participates in differentiation, remove its `Pinned`"
 
 """
     _accepts_wire(P, V, T)

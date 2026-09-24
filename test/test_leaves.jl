@@ -278,6 +278,20 @@ function leaves_retype()
         @test retype(D8, Tagged{D8}) === Tagged{D8}
         @test retype(D8, AbstractVector) == AbstractVector
         @test retype(D8, Union{Float64,Int}) === Union{Float64,Int}
+
+        # The contract marker and the mutable rule (D-263): `Pinned{P}` yields `P`
+        # at any scalar, which is also how it is stripped at nominal; a mutable
+        # type's parameters pin; an immutable handle's scalar parameter walks.
+        @test retype(Marker, Pinned{Float64}) === Float64
+        @test retype(Float64, Pinned{SVector{3,Float64}}) === SVector{3,Float64}
+        @test retype(Marker, Vector{Float64}) === Vector{Float64}
+        @test retype(Marker, OffsetField{Float64}) === OffsetField{Marker}
+        for P in (Vector{Float64}, OffsetField{Float64})
+            @test retype(Marker, retype(Marker, P)) === retype(Marker, P)
+        end
+        # A stripped pin is a plain `Float64` again, so a second pass walks it:
+        # that is the wire relation's lifted candidate (§6.1, D-236).
+        @test retype(Marker, retype(Marker, Pinned{Float64})) === Marker
     end
 end
 

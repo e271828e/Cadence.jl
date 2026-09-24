@@ -384,9 +384,9 @@ message(d::WalkingFaceAtFrozenEntry) =
     "`$(d.path)`.$(d.face)" *
     (d.leaf === nothing || isempty(d.leaf) ? "" : " at leaf `$(d.leaf)`") *
     " is declared $(d.declared), frozen, but `$(d.producer_path)`.$(d.producer_port) " *
-    "declares $(d.observed) there, which walks with the activation — declare the entry " *
-    "`T` if the consumer promotes; feed it from a non-walking source if the freeze is " *
-    "genuine (§6.1, §8.2)"
+    "declares $(d.observed) there, which walks with the activation — remove the entry's " *
+    "`Pinned` if the consumer promotes; feed it from a non-walking source if the freeze " *
+    "is genuine (§6.1, §8.2)"
 
 "§8.2: a root input whose consumers all declare abstract entries, so no type determines it."
 Base.@kwdef struct AbstractAtRoot <: Diagnostic
@@ -561,13 +561,14 @@ message(d::ContainerNested) =
     "$(_namelist(d.keys)) ($(_plainlist(d.types))) — containers of containers are " *
     "rejected in the first cut; deeper grouping is an assembly (§8.5)"
 
-"§5.2, §8.2, §8.5: a declaration written in the other tier's form, or `state_projection` off the continuous tier."
+"§5.2, §8.2, §8.5, D-263: a declaration written in the other tier's form, a `Pinned` entry on a discrete leaf, or `state_projection` off the continuous tier."
 Base.@kwdef struct DeclarationOnWrongTier <: Diagnostic
     path::String
     declaration::Symbol                      # the offending declaration
-    reason::Symbol                           # :tier_form | :continuous_only | :no_manifold
+    reason::Symbol                           # :tier_form | :pinned_entry | :continuous_only | :no_manifold
     found::Union{Nothing,Symbol} = nothing   # the tier the declaration is written in
     announced::Union{Nothing,Symbol} = nothing  # the tier the other declarations announce
+    entry::Union{Nothing,Symbol} = nothing   # the `Pinned` entry, on the `:pinned_entry` arm
 end
 path(d::DeclarationOnWrongTier) = d.path
 message(d::DeclarationOnWrongTier) =
@@ -577,31 +578,11 @@ message(d::DeclarationOnWrongTier) =
     d.reason === :no_manifold ?
     "`$(d.path)` declares `$(d.declaration)` but no `init_x` — there is no state " *
     "manifold to project onto (§5.2)" :
+    d.reason === :pinned_entry ?
+    "`$(d.path)`: entry `$(d.entry)` is declared `Pinned` in `$(d.declaration)`, but this " *
+    "leaf is discrete, where every leaf is pinned — drop the marker (§8.2, §8.5)" :
     "`$(d.path)`: `$(d.declaration)` is declared in the $(d.found)-tier form, but this " *
     "component's other declarations announce the $(d.announced) tier (§8.2)"
-
-"§6.1, §8.2, §8.5, D-249: a contract signature whose form is not the one its tier mandates — the arity arm, and the bound arm, a `T` narrower than `Real`."
-Base.@kwdef struct TierSignatureMismatch <: Diagnostic
-    path::String
-    declaration::Symbol                      # :input_types | :output_types
-    tier::Symbol                             # :continuous | :discrete
-    reason::Symbol                           # :bound | :arity
-    found::Any                               # the bound the method puts on `T`, or the form declared
-    mandated::Any                            # the mandated bound, or the form the tier mandates
-end
-path(d::TierSignatureMismatch) = d.path
-# §8.5's two spellings, the form symbols the `:arity` arm carries rendered as the
-# section writes them.
-_signature(form::Symbol) =
-    form === :two_argument ? "(::C, ::Type{T}) where {T <: Real}" : "(::C)"
-message(d::TierSignatureMismatch) =
-    d.reason === :arity ?
-    "$(_at_path(d.path)): `$(d.declaration)` is declared `$(_signature(d.found))`, but " *
-    "this component's other declarations announce the $(d.tier) tier, whose contract " *
-    "signatures are `$(_signature(d.mandated))` — declare it that way (§8.5)" :
-    "$(_at_path(d.path)): `$(d.declaration)` bounds its `T` by $(d.found), but a " *
-    "continuous contract is a function of every activation scalar — declare it " *
-    "`where {T <: Real}` (§8.5)"
 
 "§8.6: a face name holding `/`, the separator reserved for structural paths."
 Base.@kwdef struct FaceNameIllegal <: Diagnostic
@@ -781,19 +762,30 @@ message(d::TransparentContainerUnknown) =
     "or `NamedTuple` field whose elements are all components, the empty one included " *
     "(§8.5, D-211)"
 
-"§5.2, §8.2, §8.5, D-215: the tier twin of `ClassUnreadable` — no `output_types` and no state."
+"§8.2, §8.5, D-263: a primitive declaring neither `init_x` nor `init_s`, the store every leaf declares its tier by."
 Base.@kwdef struct TierUnreadable <: Diagnostic
     path::String
     type::String                             # the component type's name
-    family::Vector{Symbol}                   # the tier-announcing family, the list-in-hand
-    declarations::Vector{Symbol} = Symbol[]  # the tier-announcing declarations found
+    declarations::Vector{Symbol} = Symbol[]  # the leaf declarations found
 end
 path(d::TierUnreadable) = d.path
 message(d::TierUnreadable) =
-    "`$(d.path)`::`$(d.type)` declares no `output_types` and owns no state — there is " *
-    "nothing for the tier to be read off: declare `output_types`, or give the component " *
-    "an `init_x`/`init_s` store with the update law that drives it. Its tier-announcing " *
-    "declarations are $(_namelist(d.declarations)), out of $(_namelist(d.family)) (§8.2)"
+    "`$(d.path)`::`$(d.type)` declares no store — every leaf declares its tier by its " *
+    "store, mandatory even when empty: a stateless leaf writes `init_x(::C) = (;)` or " *
+    "`init_s(::C) = (;)`. Its leaf declarations are $(_namelist(d.declarations)) (§8.2)"
+
+"§8.2, §8.5, D-263: a leaf with an empty store and no `output_types`, which produces nothing and stores nothing."
+Base.@kwdef struct StatelessWithoutOutputs <: Diagnostic
+    path::String
+    type::String                             # the component type's name
+    declarations::Vector{Symbol} = Symbol[]  # the leaf declarations found
+end
+path(d::StatelessWithoutOutputs) = d.path
+message(d::StatelessWithoutOutputs) =
+    "`$(d.path)`::`$(d.type)` has an empty store and declares no `output_types`, so it " *
+    "produces nothing and stores nothing — declare `output_types`, or give the store " *
+    "fields and the update law that drives them. Its leaf declarations are " *
+    "$(_namelist(d.declarations)) (§8.2)"
 
 "§4.3, §7.1, §8.2, D-215, D-237, D-243: a port type the leaf walk cannot lay out — no leaves, a mutable type on the walk, or an opaque leaf at a root input."
 Base.@kwdef struct IllegalPortType <: Diagnostic

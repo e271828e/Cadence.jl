@@ -15,17 +15,19 @@ abstract type AbstractComponent end
 
 """
 Continuous state, **by value**, at nominal `Float64`; leaves drawn from §7.1's
-closed vocabulary. One argument, and the criterion is D-166's: a by-value
-declaration states nominal physics, and its *types* walk by rule — §7.1 admits
-no pinned state leaf, so there is no choice for a `T` to record.
+closed vocabulary, and its *types* walk by rule. Mandatory on every continuous
+leaf, `init_x(::C) = (;)` when stateless: the store is the tier marker, as
+`child_connections` is the class marker (§8.2, §8.5, D-263). The fallback
+serves the value readers; the classifier asks whether the method is declared.
 """
 init_x(::Any) = NamedTuple()
 
 """
 Discrete state, **by value**, and the discrete tier's own letter (D-195): every
-field isbits or a `Symbol` (D-231), pinned wholesale — nothing here walks with
-the activation, which is why the declaration takes no `T`. Disjoint from
-`init_x` by construction, so a state declaration always carries its tier (§8.2).
+field isbits or a `Symbol` (D-231), pinned wholesale. Mandatory on every
+discrete leaf, `init_s(::C) = (;)` when stateless: the store is the tier
+marker, and it is disjoint from `init_x` (§8.2, D-263). The fallback serves the
+value readers; the classifier asks whether the method is declared.
 """
 init_s(::Any) = NamedTuple()
 
@@ -39,34 +41,49 @@ init_m(::Any) = NamedTuple()
 
 """
 Mutable scratch, instantiated by the framework and arriving as the bundle's
-`ws` field (§7.3). Declaration *is* allocation, and the arity splits the tiers:
-`init_workspace(::C, ::Type{T})` continuous — sizes from the instance, eltypes
-from the activation — against plain `init_workspace(::C)` on the discrete
-tier. No fallback: absence is how a component declares no scratch.
+`ws` field (§7.3). Declaration *is* allocation, so it is the one declaration
+taking the scalar, `init_workspace(::C, ::Type{T})`, on both tiers: sizes from
+the instance, eltypes from the activation, and a discrete allocator always
+receives `Float64` (D-077, D-263). No fallback: absence is how a component
+declares no scratch.
 """
 function init_workspace end
 
 """
-Input faces: name => type, **as a function of the activation scalar** (D-167)
-on the continuous tier; plain `input_types(::C)` on the discrete tier, where
-the declared types are pinned. Entries are read permissively — they state per
-leaf what the consumer allows: `T` is tolerant, a literal `Float64` demands a
-frozen arrival.
+Input faces: name => type, at nominal `Float64`, taking the component alone on
+both tiers (D-263). On a continuous consumer the declaration is walked: every
+`Float64` position follows the activation scalar, a `Pinned` leaf does not. On
+a discrete consumer it pins wholesale. Entries are read permissively (D-167):
+an unpinned leaf is tolerant, a `Pinned` one demands a frozen arrival.
 """
-input_types(::Any, ::Type{T}) where {T <: Real} = NamedTuple()
+input_types(::Any) = NamedTuple()
 
 """
-Output ports: name => type, **as a function of the activation scalar** (D-166).
-Semantics are literal — a cell's type at an activation *is* this declaration
-evaluated at that activation's `T`, with no leaf walk behind it: `T` (alone or
-as a parameter) participates, a literal `Float64` is a deliberately pinned
-leaf.
+Output ports: name => type, at nominal `Float64`, taking the component alone on
+both tiers (D-263). Semantics are literal — a continuous producer's cell type at
+an activation *is* this declaration walked at that activation's `T`: a
+`Float64` leaf (alone or as a parameter) participates, a `Pinned` leaf is
+deliberately pinned. A discrete producer's declaration pins wholesale.
 
 One declaration for both stages — there are no stage tags anywhere (§8.2);
 which stage produces a port is *discovered* by the build probe (§9.3), and the
 declaration is what the probe checks against.
 """
-output_types(::Any, ::Type{T}) where {T <: Real} = NamedTuple()
+output_types(::Any) = NamedTuple()
+
+"""
+    Pinned{P}
+
+The contract marker (§8.2, D-263): wraps one leaf type in an `input_types` or
+`output_types` entry, `Pinned{Float64}` or `Pinned{SVector{3,Float64}}`, to say
+the leaf never follows the activation scalar. On an output the cell is `P` at
+every activation; on an input the entry demands a frozen arrival. The walk
+strips it at nominal, so no layout, probe or message sees it. Continuous-only:
+the discrete tier pins wholesale, and a `Pinned` entry there is
+`DeclarationOnWrongTier`. A type-level marker, never instantiated; defined in
+`leaves.jl` beside the walk that dispatches on it.
+"""
+Pinned
 
 # --- what an assembly declares (§8.6) -----------------------------------------
 # All three are ordered collections of `Pair`s of strings, and every arrow reads
@@ -271,14 +288,16 @@ _declares(fn, comp, extra...) =
 tier_word(tier::Tier) = tier === CONTINUOUS ? "continuous" : "discrete"
 
 """
-The tier form of `fn`'s arity: two-argument continuous, plain discrete. The
-scalar `S` is the one a continuous declaration is evaluated at — `Float64` for
-every reader but the structure step's wire pass, which also reads it at the marker.
+A contract declaration `fn` as the tier reads it (D-263): on the continuous tier
+walked at `S`, a `Pinned` leaf yielding its type; on the discrete tier as
+written. `S` is `Float64` for every reader but the structure step's wire pass,
+which also reads it at the marker.
 """
-declared_at(fn, comp, tier::Tier, ::Type{S} = Float64) where {S} =
-    tier === CONTINUOUS ?
-        (_declares(fn, comp, Type{Float64}) ? invoke_declaration(fn, comp, S) : NamedTuple()) :
-        (_declares(fn, comp) ? invoke_declaration(fn, comp) : NamedTuple())
+function declared_at(fn, comp, tier::Tier, ::Type{S} = Float64) where {S}
+    _declares(fn, comp) || return NamedTuple()
+    decl = invoke_declaration(fn, comp)
+    tier === CONTINUOUS ? map(P -> retype(S, P), decl) : decl
+end
 
 # The tier's own update law (D-195). Everything downstream asks for it
 # *through* the tier, so no code path ever holds a name that serves both; the
@@ -327,9 +346,7 @@ function bundle_names(fn, comp, tier::Tier, stage1_ports::Tuple)
     tuple(bundle_fields...)
 end
 
-_declares_workspace(comp, tier::Tier) =
-    tier === CONTINUOUS ? _declares(init_workspace, comp, Type{Float64}) :
-                          _declares(init_workspace, comp)
+_declares_workspace(comp, tier::Tier) = _declares(init_workspace, comp, Type{Float64})
 
 """
 Bundle field names for a guard or handler (§5.2): the update law's view of the

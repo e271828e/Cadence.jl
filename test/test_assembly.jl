@@ -30,14 +30,24 @@ struct BothFamilies <: AbstractComponent         # assembly marker beside a cont
     inner::Gain
 end
 child_connections(::BothFamilies) = ()
-output_types(::BothFamilies, ::Type{T}) where {T <: Real} = (a = T,)
+init_x(::BothFamilies) = (;)
+output_types(::BothFamilies) = (a = Float64,)
 output_state(::BothFamilies, (; t)) = (a = 1.0,)
+
+struct EmptyStoreOnly <: AbstractComponent end     # an empty store and nothing else
+init_x(::EmptyStoreOnly) = (;)
 
 function assembly_class()
     @testset "class is read off the declaration shape (§8.5)" begin
         @test classify("c", Gain(1.0)) === PRIMITIVE
         @test classify("c", feedback_model()) === ASSEMBLY
         @test classify("c", Vehicle()) === ASSEMBLY
+
+        # An empty store alone is a leaf declaration, so it makes a primitive
+        # (§8.5, D-263): the fallback and a declared `(;)` are one value, and
+        # method existence is what tells them apart.
+        @test leaf_declarations(EmptyStoreOnly()) == [:init_x]
+        @test classify("c", EmptyStoreOnly()) === PRIMITIVE
 
         # A component that declares nothing and defines no stage cannot be
         # intentional (D-164) — and now says so as a missing class, naming both
@@ -442,8 +452,9 @@ output_connections(::SlashedFace) = ("a/out" => "sensors/out",)
 
 struct RootCollision <: AbstractComponent        # one key in both contracts
 end
-input_types(::RootCollision, ::Type{T}) where {T <: Real} = (u = T,)
-output_types(::RootCollision, ::Type{T}) where {T <: Real} = (u = T, v = T)
+init_x(::RootCollision) = (;)
+input_types(::RootCollision) = (u = Float64,)
+output_types(::RootCollision) = (u = Float64, v = Float64)
 output_direct(::RootCollision, (; u)) = (u = 2u.u, v = 1.0)
 
 struct DeadFace <: AbstractComponent             # a face routed to nothing at all
@@ -846,9 +857,10 @@ under the first feed list — an unconnected output, and legal (§6.1, D-084).
 """
 struct Actuator <: AbstractComponent end
 
-input_types(::Actuator, ::Type{T}) where {T <: Real} = (cmd = T,)
-output_types(::Actuator, ::Type{T}) where {T <: Real} =
-    (e = T, a = T, r = T, brake_left = T, brake_right = T)
+init_x(::Actuator) = (;)
+input_types(::Actuator) = (cmd = Float64,)
+output_types(::Actuator) =
+    (e = Float64, a = Float64, r = Float64, brake_left = Float64, brake_right = Float64)
 output_direct(::Actuator, (; u)) = (e = u.cmd, a = 2 * u.cmd, r = 3 * u.cmd,
                                     brake_left = 4 * u.cmd, brake_right = 5 * u.cmd)
 
@@ -859,8 +871,9 @@ input face surface.
 """
 struct Aero <: AbstractComponent end
 
-input_types(::Aero, ::Type{T}) where {T <: Real} = (e = T, a = T, r = T, alpha = T)
-output_types(::Aero, ::Type{T}) where {T <: Real} = (wrench = T,)
+init_x(::Aero) = (;)
+input_types(::Aero) = (e = Float64, a = Float64, r = Float64, alpha = Float64)
+output_types(::Aero) = (wrench = Float64,)
 output_direct(::Aero, (; u)) = (wrench = u.e + u.a + u.r + u.alpha,)
 
 # The landing gear, an assembly and not a leaf, so its faces carry the dotted

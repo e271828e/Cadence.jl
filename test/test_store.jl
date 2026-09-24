@@ -7,10 +7,11 @@
 # of one component type share one compiled body. §7.3's third register is here
 # too, by contrast: the workspace is the one that is deliberately *not* a store.
 
-# A deliberately pinned leaf (D-166): `frozen` is declared `Float64` rather than
-# `T`, so it must not follow the activation scalar.
+# A deliberately pinned leaf (D-263): `frozen` is declared `Pinned{Float64}`, so
+# it must not follow the activation scalar.
 struct PinnedLeaf <: AbstractComponent end
-output_types(::PinnedLeaf, ::Type{T}) where {T <: Real} = (a = T, frozen = Float64)
+init_x(::PinnedLeaf) = (;)
+output_types(::PinnedLeaf) = (a = Float64, frozen = Pinned{Float64})
 output_state(::PinnedLeaf, (; t)) = (a = t, frozen = 2.0)
 
 function store_pinned_leaf()
@@ -38,7 +39,8 @@ struct TaggedValue{T}
     n::Int
 end
 struct MixedCell <: AbstractComponent end
-output_types(::MixedCell, ::Type{T}) where {T <: Real} = (out = TaggedValue{T},)
+init_x(::MixedCell) = (;)
+output_types(::MixedCell) = (out = TaggedValue{Float64},)
 output_state(::MixedCell, (; t)) = (out = TaggedValue(t, 1),)
 
 struct PinnedPair{T}
@@ -46,7 +48,8 @@ struct PinnedPair{T}
     ref::Float64
 end
 struct PinnedInside <: AbstractComponent end
-output_types(::PinnedInside, ::Type{T}) where {T <: Real} = (out = PinnedPair{T},)
+init_x(::PinnedInside) = (;)
+output_types(::PinnedInside) = (out = PinnedPair{Float64},)
 output_state(::PinnedInside, (; t)) = (out = PinnedPair(t, 2.0),)
 
 function store_mixed_cell()

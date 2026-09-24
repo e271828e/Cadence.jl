@@ -70,8 +70,8 @@ struct Snapback <: AbstractComponent
 end
 
 init_x(::Snapback) = (θ = 0.0, ω = 0.0)
-input_types(::Snapback, ::Type{T}) where {T <: Real} = (u = T,)
-output_types(::Snapback, ::Type{T}) where {T <: Real} = (θ = T, ω = T)
+input_types(::Snapback) = (u = Float64,)
+output_types(::Snapback) = (θ = Float64, ω = Float64)
 output_state(::Snapback, (; x)) = (θ = x.θ, ω = x.ω)
 state_derivative(::Snapback, (; x, u)) = (θ = x.ω, ω = -PEND_G_L * sin(x.θ) - PEND_C * x.ω + u.u)
 snapback_guard(c::Snapback, (; x)) = x.θ > c.level

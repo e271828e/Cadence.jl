@@ -29,11 +29,9 @@ function leaf_declarations(comp)
     for (name, fn) in ((:init_x, init_x), (:init_s, init_s), (:init_m, init_m))
         _declares(fn, comp) && push!(found, name)
     end
-    # Either arity is a leaf declaration; which one is lawful is the tier's
-    # question, settled by the classifier (§8.2), not this one.
-    for (name, fn) in ((:init_workspace, init_workspace), (:input_types, input_types),
-                       (:output_types, output_types))
-        (_declares(fn, comp) || _declares(fn, comp, Type{Float64})) && push!(found, name)
+    _declares(init_workspace, comp, Type{Float64}) && push!(found, :init_workspace)
+    for (name, fn) in ((:input_types, input_types), (:output_types, output_types))
+        _declares(fn, comp) && push!(found, name)
     end
     _declares(state_events, comp) && push!(found, :state_events)
     for (name, fn) in ((:output_state, output_state), (:output_direct, output_direct),
@@ -486,10 +484,10 @@ function resolve_terminal(assembly, path::AbstractString)
     comp, String(name)
 end
 
-# The key set of a contract declaration, whichever arity declares it: the keys are
-# a tier-independent fact, and §8.2's classifier is what settles a disagreement.
-_contract(fn, comp) = _declares(fn, comp, Type{Float64}) ? invoke_declaration(fn, comp, Float64) :
-                   _declares(fn, comp) ? invoke_declaration(fn, comp) : NamedTuple()
+# A contract declaration at nominal, whatever the tier: the keys are a
+# tier-independent fact, and the walk at `Float64` strips every `Pinned` (D-263).
+_contract(fn, comp) =
+    _declares(fn, comp) ? map(P -> retype(Float64, P), invoke_declaration(fn, comp)) : NamedTuple()
 
 """
     input_faces(comp) → Vector{String}
