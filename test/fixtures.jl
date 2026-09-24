@@ -977,8 +977,8 @@ fragment under `at("loop", …)` — deep paths are compiled derivatives of this
 nesting, never written by hand — and authors the root input its own contract
 declares.
 """
-condition(veh::Vehicle; ref = 0.0, kw...) =
-    combine(at("loop", condition(veh.loop; kw...)), fragment(inputs = (ref = ref,)))
+condition(vehicle::Vehicle; ref = 0.0, kw...) =
+    combine(at("loop", condition(vehicle.loop; kw...)), fragment(inputs = (ref = ref,)))
 
 # --- the multi-rate coverage set (§10.5) ----------------------------------------
 
@@ -1307,7 +1307,7 @@ its own `map_output` does with the same NamedTuple.
 struct Readout{R<:NamedTuple} <: AbstractBinding
     r::R
 end
-Readout(; sel...) = Readout(NamedTuple(sel))
+Readout(; kw...) = Readout(NamedTuple(kw))
 is_output(::Readout) = true
 reads(b::Readout) = b.r
 map_output(nt, ::Readout) = nt
