@@ -2,76 +2,76 @@
 
 # Malformed event and projection declarations, at top level per D-164.
 struct HalfEvent <: AbstractComponent end
-init_m(::HalfEvent) = (s = :a,)
-init_x(::HalfEvent) = (;)
-output_types(::HalfEvent) = (o = Float64,)
-output_state(::HalfEvent, (; m)) = (o = 1.0,)
+m_init(::HalfEvent) = (s = :a,)
+x_init(::HalfEvent) = (;)
+y_types(::HalfEvent) = (o = Float64,)
+y_state(::HalfEvent, (; m)) = (o = 1.0,)
 halfevent_guard(::HalfEvent, (; m)) = m.s === :a
 function halfevent_handler end                   # a name with no method: the missing half
 state_events(::HalfEvent) = (go = StateEvent(halfevent_guard, halfevent_handler),)
 
 struct NotAnEvent <: AbstractComponent end
-init_m(::NotAnEvent) = (s = :a,)
-init_x(::NotAnEvent) = (;)
-output_types(::NotAnEvent) = (o = Float64,)
-output_state(::NotAnEvent, (; m)) = (o = 1.0,)
+m_init(::NotAnEvent) = (s = :a,)
+x_init(::NotAnEvent) = (;)
+y_types(::NotAnEvent) = (o = Float64,)
+y_state(::NotAnEvent, (; m)) = (o = 1.0,)
 state_events(::NotAnEvent) = (go = 5,)
 
 struct BadGuardForm <: AbstractComponent end
-init_m(::BadGuardForm) = (s = :a,)
-init_x(::BadGuardForm) = (;)
-output_types(::BadGuardForm) = (o = Float64,)
-output_state(::BadGuardForm, (; m)) = (o = 1.0,)
+m_init(::BadGuardForm) = (s = :a,)
+x_init(::BadGuardForm) = (;)
+y_types(::BadGuardForm) = (o = Float64,)
+y_state(::BadGuardForm, (; m)) = (o = 1.0,)
 badguard_guard(::BadGuardForm, (; m)) = "high"
 badguard_handler(::BadGuardForm, (; m)) = (m = (; s = :b),)
 state_events(::BadGuardForm) = (go = StateEvent(badguard_guard, badguard_handler),)
 
 struct BadHandlerKey <: AbstractComponent end    # writes `x`, owns only modes
-init_m(::BadHandlerKey) = (s = :a,)
-init_x(::BadHandlerKey) = (;)
-output_types(::BadHandlerKey) = (o = Float64,)
-output_state(::BadHandlerKey, (; m)) = (o = 1.0,)
+m_init(::BadHandlerKey) = (s = :a,)
+x_init(::BadHandlerKey) = (;)
+y_types(::BadHandlerKey) = (o = Float64,)
+y_state(::BadHandlerKey, (; m)) = (o = 1.0,)
 badkey_guard(::BadHandlerKey, (; m)) = m.s === :a
 badkey_handler(::BadHandlerKey, (; m)) = (x = (q = 1.0,),)
 state_events(::BadHandlerKey) = (go = StateEvent(badkey_guard, badkey_handler),)
 
 struct PartialX <: AbstractComponent end         # an incomplete `x` write-back
-init_x(::PartialX) = (a = 0.0, b = 0.0)
-output_types(::PartialX) = (a = Float64,)
-output_state(::PartialX, (; x)) = (a = x.a,)
-state_derivative(::PartialX, (; x)) = (a = 1.0, b = 1.0)
+x_init(::PartialX) = (a = 0.0, b = 0.0)
+y_types(::PartialX) = (a = Float64,)
+y_state(::PartialX, (; x)) = (a = x.a,)
+x_derivative(::PartialX, (; x)) = (a = 1.0, b = 1.0)
 partialx_guard(::PartialX, (; x)) = x.a ≥ 1.0
 partialx_handler(::PartialX, (; x)) = (x = (; a = 0.0),)
 state_events(::PartialX) = (reset = StateEvent(partialx_guard, partialx_handler),)
 
 struct EventsOnDiscrete <: AbstractComponent end # `state_events` is continuous-only
-init_s(::EventsOnDiscrete) = (n = 0,)
-output_types(::EventsOnDiscrete) = (n = Int,)
-output_state(::EventsOnDiscrete, (; s)) = (n = s.n,)
-state_update(::EventsOnDiscrete, (; s)) = (n = s.n + 1,)
+s_init(::EventsOnDiscrete) = (n = 0,)
+y_types(::EventsOnDiscrete) = (n = Int,)
+y_state(::EventsOnDiscrete, (; s)) = (n = s.n,)
+s_update(::EventsOnDiscrete, (; s)) = (n = s.n + 1,)
 eod_guard(::EventsOnDiscrete, (; s)) = s.n > 0
 eod_handler(::EventsOnDiscrete, (; s)) = (;)
 state_events(::EventsOnDiscrete) = (go = StateEvent(eod_guard, eod_handler),)
 
 struct ProjectOnDiscrete <: AbstractComponent end
-init_s(::ProjectOnDiscrete) = (n = 0,)
-output_types(::ProjectOnDiscrete) = (n = Int,)
-output_state(::ProjectOnDiscrete, (; s)) = (n = s.n,)
-state_update(::ProjectOnDiscrete, (; s)) = (n = s.n + 1,)
-state_projection(::ProjectOnDiscrete, x) = x
+s_init(::ProjectOnDiscrete) = (n = 0,)
+y_types(::ProjectOnDiscrete) = (n = Int,)
+y_state(::ProjectOnDiscrete, (; s)) = (n = s.n,)
+s_update(::ProjectOnDiscrete, (; s)) = (n = s.n + 1,)
+x_projection(::ProjectOnDiscrete, x) = x
 
 struct ProjectNoState <: AbstractComponent end   # nothing to project onto
-init_x(::ProjectNoState) = (;)
-output_types(::ProjectNoState) = (o = Float64,)
-output_state(::ProjectNoState, (; t)) = (o = 1.0,)
-state_projection(::ProjectNoState, x) = x
+x_init(::ProjectNoState) = (;)
+y_types(::ProjectNoState) = (o = Float64,)
+y_state(::ProjectNoState, (; t)) = (o = 1.0,)
+x_projection(::ProjectNoState, x) = x
 
 struct BadProjectShape <: AbstractComponent end  # wrong fields back
-init_x(::BadProjectShape) = (q = 1.0,)
-output_types(::BadProjectShape) = (q = Float64,)
-output_state(::BadProjectShape, (; x)) = (q = x.q,)
-state_derivative(::BadProjectShape, (; x)) = (q = 0.0,)
-state_projection(::BadProjectShape, x) = (v = x.q,)
+x_init(::BadProjectShape) = (q = 1.0,)
+y_types(::BadProjectShape) = (q = Float64,)
+y_state(::BadProjectShape, (; x)) = (q = x.q,)
+x_derivative(::BadProjectShape, (; x)) = (q = 0.0,)
+x_projection(::BadProjectShape, x) = (v = x.q,)
 
 function test_events()
     @testset "the declaration layer and probe reject malformed events (§8.2, §9.3)" begin
@@ -96,19 +96,19 @@ function test_events()
         # function alone, and the two compose in the message.
         @test d.event === :reset && d.what == "handler `x`"
 
-        # `state_events` is continuous-only, beside `init_m` in the tier-agreement check.
+        # `state_events` is continuous-only, beside `m_init` in the tier-agreement check.
         diags = Diagnostic[]
         @test classify_tier("c", EventsOnDiscrete(), diags) === nothing
         @test :state_events in [d.declaration for d in diags]
         @test all(d -> d isa DeclarationOnWrongTier, diags)
 
         d = only(diagnostics(failure(() -> build(single(ProjectOnDiscrete())))))
-        @test d isa DeclarationOnWrongTier && d.declaration === :state_projection &&
+        @test d isa DeclarationOnWrongTier && d.declaration === :x_projection &&
               d.reason === :continuous_only
         d = only(diagnostics(failure(() -> build(single(ProjectNoState())))))
         @test d isa DeclarationOnWrongTier && d.reason === :no_manifold
         d = only(diagnostics(failure(() -> build(single(BadProjectShape())))))
-        @test d isa ConformanceFailure && d.what == "state_projection" && d.reason === :field_set &&
+        @test d isa ConformanceFailure && d.what == "x_projection" && d.reason === :field_set &&
               d.observed_fields == [:v] && d.declared_fields == [:q]
         @test d.event === nothing                 # no handler, no event
     end
@@ -203,7 +203,7 @@ function test_events()
 
     @testset "due updates run after quiescence, from post-transition values (§10.6)" begin
         # At the wrap boundary the handler resets `q`, the re-sweep publishes the
-        # post-wrap value, and only then does the integrator's `state_update` read it: an
+        # post-wrap value, and only then does the integrator's `s_update` read it: an
         # update-before-quiescence would accumulate 1.02 where the reference has
         # 0.02.
         model = Group((; saw = Sawtooth(0.3), ctl = DiscreteIntegrator(1.0));

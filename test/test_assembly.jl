@@ -30,12 +30,12 @@ struct BothFamilies <: AbstractComponent         # assembly marker beside a cont
     inner::Gain
 end
 child_connections(::BothFamilies) = ()
-init_x(::BothFamilies) = (;)
-output_types(::BothFamilies) = (a = Float64,)
-output_state(::BothFamilies, (; t)) = (a = 1.0,)
+x_init(::BothFamilies) = (;)
+y_types(::BothFamilies) = (a = Float64,)
+y_state(::BothFamilies, (; t)) = (a = 1.0,)
 
 struct EmptyStoreOnly <: AbstractComponent end     # an empty store and nothing else
-init_x(::EmptyStoreOnly) = (;)
+x_init(::EmptyStoreOnly) = (;)
 
 function assembly_class()
     @testset "class is read off the declaration shape (§8.5)" begin
@@ -46,7 +46,7 @@ function assembly_class()
         # An empty store alone is a leaf declaration, so it makes a primitive
         # (§8.5, D-263): the fallback and a declared `(;)` are one value, and
         # method existence is what tells them apart.
-        @test leaf_declarations(EmptyStoreOnly()) == [:init_x]
+        @test leaf_declarations(EmptyStoreOnly()) == [:x_init]
         @test classify("c", EmptyStoreOnly()) === PRIMITIVE
 
         # A component that declares nothing and defines no stage cannot be
@@ -55,7 +55,7 @@ function assembly_class()
         d = carried(@test_throws DiagnosticError{ClassUnreadable} classify("c", Inert()))
         @test d.path == "c" && !d.holds_components && d.type == "Inert"
         @test d.assembly_family == [:child_connections]   # both family lists, in hand
-        @test :output_types in d.leaf_family && :state_projection in d.leaf_family
+        @test :y_types in d.leaf_family && :x_projection in d.leaf_family
         @test isempty(d.found)                            # and it declares none of them
 
         # Sharpened when the type holds components: the likely omission, named.
@@ -65,14 +65,14 @@ function assembly_class()
         # Both families on one type: an assembly owns no state and no contract of
         # its own, so this is a build error too.
         d = carried(@test_throws DiagnosticError{ClassMixed} classify("c", BothFamilies(Gain(1.0))))
-        @test d.path == "c" && :output_types in d.declarations
+        @test d.path == "c" && :y_types in d.declarations
 
         # D-229: a structural failure is fail-fast; nothing downstream of it can run.
         @test_throws DiagnosticError{ClassUnreadable} build(TypoWithInert(Gain(1.0), Sum(),
                                                                          Inert()))
 
         # Any component may be the root (D-208): a primitive one flattens to the
-        # single leaf at the root path, its `input_types` keys the root inputs.
+        # single leaf at the root path, its `u_types` keys the root inputs.
         leaf_build = build(Plant())
         @test paths(leaf_build.structure) == [""]
         @test leaf_build.structure.root_inputs == [:u]
@@ -111,13 +111,13 @@ function assembly_class()
         # family order and, through the message, the import line that fixes them.
         d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(ForgottenImport.Inventory.Leaf()))
         @test d.path == ""
-        @test d.names == [:init_x, :output_types, :output_state, :state_derivative]
+        @test d.names == [:x_init, :y_types, :y_state, :x_derivative]
         @test d.parent_module == string(ForgottenImport.Inventory)
 
         # One bare definition on an otherwise sound leaf: the modeling diagnostic
         # this used to raise, `StoreWithoutUpdate`, is not what throws.
         d = carried(@test_throws DiagnosticError{DeclarationShadowed} build(single(ForgottenImport.Update.Leaf())))
-        @test d.path == "c" && d.names == [:state_derivative]
+        @test d.path == "c" && d.names == [:x_derivative]
         @test d.parent_module == string(ForgottenImport.Update)
 
         # The optional declarations are the reason the check runs on every
@@ -452,10 +452,10 @@ output_connections(::SlashedFace) = ("a/out" => "sensors/out",)
 
 struct RootCollision <: AbstractComponent        # one key in both contracts
 end
-init_x(::RootCollision) = (;)
-input_types(::RootCollision) = (u = Float64,)
-output_types(::RootCollision) = (u = Float64, v = Float64)
-output_direct(::RootCollision, (; u)) = (u = 2u.u, v = 1.0)
+x_init(::RootCollision) = (;)
+u_types(::RootCollision) = (u = Float64,)
+y_types(::RootCollision) = (u = Float64, v = Float64)
+y_direct(::RootCollision, (; u)) = (u = 2u.u, v = 1.0)
 
 struct DeadFace <: AbstractComponent             # a face routed to nothing at all
     g::Gain
@@ -857,11 +857,11 @@ under the first feed list — an unconnected output, and legal (§6.1, D-084).
 """
 struct Actuator <: AbstractComponent end
 
-init_x(::Actuator) = (;)
-input_types(::Actuator) = (cmd = Float64,)
-output_types(::Actuator) =
+x_init(::Actuator) = (;)
+u_types(::Actuator) = (cmd = Float64,)
+y_types(::Actuator) =
     (e = Float64, a = Float64, r = Float64, brake_left = Float64, brake_right = Float64)
-output_direct(::Actuator, (; u)) = (e = u.cmd, a = 2 * u.cmd, r = 3 * u.cmd,
+y_direct(::Actuator, (; u)) = (e = u.cmd, a = 2 * u.cmd, r = 3 * u.cmd,
                                     brake_left = 4 * u.cmd, brake_right = 5 * u.cmd)
 
 """
@@ -871,10 +871,10 @@ input face surface.
 """
 struct Aero <: AbstractComponent end
 
-init_x(::Aero) = (;)
-input_types(::Aero) = (e = Float64, a = Float64, r = Float64, alpha = Float64)
-output_types(::Aero) = (wrench = Float64,)
-output_direct(::Aero, (; u)) = (wrench = u.e + u.a + u.r + u.alpha,)
+x_init(::Aero) = (;)
+u_types(::Aero) = (e = Float64, a = Float64, r = Float64, alpha = Float64)
+y_types(::Aero) = (wrench = Float64,)
+y_direct(::Aero, (; u)) = (wrench = u.e + u.a + u.r + u.alpha,)
 
 # The landing gear, an assembly and not a leaf, so its faces carry the dotted
 # names the sketch's destinations use (`"ldg/left.brake"`): a face name with a

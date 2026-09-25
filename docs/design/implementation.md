@@ -65,7 +65,7 @@ single consumer to own it.
 Traps the code does not warn about, each hit more than once while building:
 
 - **declarations in a local scope never reach the framework.** Inside a
-  `let`, a function body or a `@testset`, `output_state(::MyComp, (; x)) = …`
+  `let`, a function body or a `@testset`, `y_state(::MyComp, (; x)) = …`
   binds a new local function, not a method of the global one, and the build
   sees a component that declares nothing. The periphery's traits, the device
   contract's four functions and the mapping conventions hit it identically; a
@@ -75,11 +75,11 @@ Traps the code does not warn about, each hit more than once while building:
   `DeadStage` does not reach it — a method the framework never sees is not a
   method returning `(;)` (§5.2, §9.3);
 - **extending a declaration without importing it is silent on 1.12.** After
-  `using Cadence`, a bare `output_state(::MyComp, …)` creates a local generic
+  `using Cadence`, a bare `y_state(::MyComp, …)` creates a local generic
   with no error or warning, exported or not (Julia ≤1.11 raised; only `using
-  Cadence: output_state` still errors). The build sees the same
+  Cadence: y_state` still errors). The build sees the same
   declares-nothing component, and an optional declaration (`state_events`,
-  `state_projection`, `init_m`, `init_workspace`, `sample_times`, the
+  `x_projection`, `m_init`, `ws_init`, `sample_times`, the
   connection declarations) silently drops its feature. The diagnostic that
   catches it is D-246's fail-fast `DeclarationShadowed`, raised by the walk
   before the class is read, off a foreign binding of a D-220 name in

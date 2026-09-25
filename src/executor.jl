@@ -15,8 +15,8 @@ stop hit is `frame!`'s return value, never a field here (§13.5, D-261).
 """
 mutable struct ExecutionCursor
     comp::Int        # the component's index in the flat, 0 = none
-    fn::Symbol       # :output_state | :output_direct | :state_derivative | :state_update |
-                     # :guard | :handler | :state_projection | :none
+    fn::Symbol       # :y_state | :y_direct | :x_derivative | :s_update |
+                     # :guard | :handler | :x_projection | :none
     phase::Symbol    # :drain | :integrate | :arrival | :validation | :trial | :project | :round | :ticks
     index::Int       # the RK stage, the event round, the trial ordinal; 0 where none applies
 end
@@ -62,7 +62,7 @@ end
 struct RHSEntry{Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
     comp::Comp
     inputs::IA
-    y::YA           # every own port — `state_derivative` reads the complete fresh table (§5.3)
+    y::YA           # every own port — `x_derivative` reads the complete fresh table (§5.3)
     x_off::Int
     clock::CL
     mstore::MS
@@ -75,7 +75,7 @@ end
 struct UpdateEntry{Comp,BN,IA<:NamedTuple,YA<:NamedTuple,CL,SS,WS}
     comp::Comp
     inputs::IA
-    y::YA           # every own port — `state_update` reads the complete fresh table too
+    y::YA           # every own port — `s_update` reads the complete fresh table too
     clock::CL
     sstore::SS      # written by this entry, and by nothing else
     ws::WS
@@ -155,20 +155,20 @@ end
 end
 
 @inline function run_entry!(entry::RHSEntry{Comp,XT}, store, xbuf, ẋbuf) where {Comp,XT}
-    entry.cursor.comp = entry.ci; entry.cursor.fn = :state_derivative
-    ẋ = state_derivative(entry.comp, make_bundle(entry, store, xbuf))
+    entry.cursor.comp = entry.ci; entry.cursor.fn = :x_derivative
+    ẋ = x_derivative(entry.comp, make_bundle(entry, store, xbuf))
     flatten_state!(ẋbuf, entry.x_off, ẋ, XT, activation_scalar(entry.clock), entry.path,
-                   :state_derivative, :init_x, nothing)
+                   :x_derivative, :x_init, nothing)
     nothing
 end
 
-# The jump map: `state_update` reads the fresh table and writes only its own
+# The jump map: `s_update` reads the fresh table and writes only its own
 # store, which is what makes the update block order-free with disjoint writes
 # (§9.7).
 @inline function run_entry!(entry::UpdateEntry, store, xbuf, ẋbuf)
-    entry.cursor.comp = entry.ci; entry.cursor.fn = :state_update
-    _store_successor!(entry.sstore, state_update(entry.comp, make_bundle(entry, store, xbuf)),
-                      entry.path, :state_update)
+    entry.cursor.comp = entry.ci; entry.cursor.fn = :s_update
+    _store_successor!(entry.sstore, s_update(entry.comp, make_bundle(entry, store, xbuf)),
+                      entry.path, :s_update)
     nothing
 end
 
@@ -176,7 +176,7 @@ end
 # Not sweep entries: guards and handlers are driven by the boundary iteration in
 # `sim.jl`, against per-event registers, so their entries live in their own
 # compiled set. One entry per declared event, carrying both halves plus its
-# component's `state_projection` (or `nothing`), and a global index into the register
+# component's `x_projection` (or `nothing`), and a global index into the register
 # vectors — global order is executor component order, then declaration order
 # within a component, which is what makes the §13.4-style dispatch order
 # deterministic. Bundles are built exactly like every other entry's, from the
@@ -185,7 +185,7 @@ end
 struct EventEntry{G,H,P,Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
     guard::G
     handler::H
-    projection::P   # the component's `state_projection`, or nothing
+    projection::P   # the component's `x_projection`, or nothing
     comp::Comp
     event_index::Int # global event index into the register vectors
     inputs::IA
@@ -232,10 +232,10 @@ ProjectEntry{XT}(comp, x_off, clock, path, ci, cursor) where {XT} =
     ProjectEntry{typeof(comp),XT,typeof(clock)}(comp, x_off, clock, path, ci, cursor)
 
 @inline function run_project!(entry::ProjectEntry{Comp,XT}, xbuf) where {Comp,XT}
-    entry.cursor.comp = entry.ci; entry.cursor.fn = :state_projection
+    entry.cursor.comp = entry.ci; entry.cursor.fn = :x_projection
     flatten_state!(xbuf, entry.x_off,
-                   state_projection(entry.comp, reconstruct(XT, xbuf, entry.x_off)),
-                   XT, activation_scalar(entry.clock), entry.path, :state_projection,
+                   x_projection(entry.comp, reconstruct(XT, xbuf, entry.x_off)),
+                   XT, activation_scalar(entry.clock), entry.path, :x_projection,
                    :state, nothing)
     nothing
 end
@@ -290,7 +290,7 @@ end
 # The three walks the iteration drives, each the compile-time-unrolled tuple
 # recursion of the phase bodies, over the executor's buffers the caller hands
 # them (D-261). Guard evaluation writes each predicate sample into `now` by
-# global index; the fire walk runs `handler → state_projection` for exactly the
+# global index; the fire walk runs `handler → x_projection` for exactly the
 # masked entries, latching the returned stores — `x` into the flat buffer, `m`
 # merged into the mode store, per the return law's iff shape (§5.2).
 
@@ -346,7 +346,7 @@ end
 _store_successor!(sstore::Base.RefValue{S}, s⁺, path, what) where {S} =
     throw(DiagnosticError(ConformanceFailure(path = path, what = String(what),
                                              reason = s⁺ isa NamedTuple ? :field_set : :return_type,
-                                             shape = :init_s, observed = typeof(s⁺),
+                                             shape = :s_init, observed = typeof(s⁺),
                                              declared = S)))
 
 # §9.5's partial-`m` predicate at the write: every written mode exists and keeps
@@ -378,10 +378,10 @@ _merge_modes!(mstore::Base.RefValue{M}, m, path, what, event) where {M} =
 
 @inline function _fire_project!(entry::EventEntry{G,H,P,Comp,XT}, xbuf) where {G,H,P,Comp,XT}
     P === Nothing && return nothing
-    entry.cursor.fn = :state_projection # the component is the handler's own
+    entry.cursor.fn = :x_projection # the component is the handler's own
     flatten_state!(xbuf, entry.x_off,
                    entry.projection(entry.comp, reconstruct(XT, xbuf, entry.x_off)), XT,
-                   activation_scalar(entry.clock), entry.path, :state_projection, :state, nothing)
+                   activation_scalar(entry.clock), entry.path, :x_projection, :state, nothing)
     nothing
 end
 
@@ -420,7 +420,7 @@ published cell holds the probe's synthesized values.
 
 It is a *marker*, not an index, precisely so the measured path keeps its
 shape: `run_at!` against an `Int` is the method the frame loop compiles and
-nothing was added to it. The `state_update` updates are not walked this way —
+nothing was added to it. The `s_update` updates are not walked this way —
 they take the ordinary index 0 and stay gated by `Φ`, an offset component's
 first consumed sample remaining its `Φ·Δt_base` tick's.
 """
@@ -443,7 +443,7 @@ const ESTABLISH = Establish()
 end
 
 # Establishment admits every gated entry (§14.5, D-205). Dueness at boundary
-# zero governs the `state_update` updates alone.
+# zero governs the `s_update` updates alone.
 @inline run_at!(entry::Gated, store, xbuf, ẋbuf, ::Establish) =
     (run_entry!(entry.entry, store, xbuf, ẋbuf); nothing)
 

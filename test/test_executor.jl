@@ -22,7 +22,7 @@ function test_executor()
         end
 
         # One stage-1 return over both homes (§5.3): `Motor` returns `ω` from
-        # `x` and `running` from `m` in a single `output_state`, so its stage-1
+        # `x` and `running` from `m` in a single `y_state`, so its stage-1
         # block is one `StageEntry` and the canary holds over it.
         motor_sim = Simulation(fed(Motor(1.0), "M_load"); h = 1//100)
         bodies = phase_bodies(motor_sim)

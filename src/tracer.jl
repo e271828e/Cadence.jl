@@ -173,7 +173,7 @@ end
 # --- the per-member trace ------------------------------------------------------
 
 """
-One member's evaluation (§5.6): `output_direct` once, in isolation, at the
+One member's evaluation (§5.6): `y_direct` once, in isolation, at the
 probe point. The in-cluster faces of `faces` are seeded with their tags, every
 other bundle field untagged — only inputs are seeded, so a branch on state,
 modes, parameters or time never interferes (§5.6's boundaries). Returns
@@ -196,9 +196,9 @@ function _trace_direct(ci::Int, traced_decl::Decls, faces::Vector{Symbol},
     evaluation_decl = rng === nothing ? traced_decl :
         Decls(_sample(rng, T, decl.x, UInt64(0)), traced_decl.s, traced_decl.ins,
               traced_decl.outs)
-    bundle_fields = bundle_names(output_direct, comp, CONTINUOUS, tuple(keys(stage1[ci])...))
-    workspace = _declares_workspace(comp) ? init_workspace(comp, T) : nothing
-    y2 = output_direct(comp, _bundle_values(bundle_fields, evaluation_decl, u,
+    bundle_fields = bundle_names(y_direct, comp, CONTINUOUS, tuple(keys(stage1[ci])...))
+    workspace = _declares_workspace(comp) ? ws_init(comp, T) : nothing
+    y2 = y_direct(comp, _bundle_values(bundle_fields, evaluation_decl, u,
                                             _lift(T, stage1[ci]), T;
                                             ws = workspace, m = mstores[ci], Δt = 1.0))
     Dict{Symbol,UInt64}(q => _depset(y2[q]) for q in ports)

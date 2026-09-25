@@ -19,11 +19,11 @@ struct HookedInterrupter <: AbstractComponent
     hook::Base.RefValue{Any}
 end
 HookedInterrupter() = HookedInterrupter(Ref{Any}(nothing))
-init_x(::HookedInterrupter) = (q = 0.0,)
-input_types(::HookedInterrupter) = (arm = Bool,)
-output_types(::HookedInterrupter) = (q = Float64,)
-output_state(::HookedInterrupter, (; x)) = (q = x.q,)
-state_derivative(c::HookedInterrupter, (; x, u)) =
+x_init(::HookedInterrupter) = (q = 0.0,)
+u_types(::HookedInterrupter) = (arm = Bool,)
+y_types(::HookedInterrupter) = (q = Float64,)
+y_state(::HookedInterrupter, (; x)) = (q = x.q,)
+x_derivative(c::HookedInterrupter, (; x, u)) =
     u.arm ? (c.hook[](); throw(InterruptException())) : (q = one(x.q),)
 hooked_interrupted(c) = Group((c = c, trig = Trigger(0.15));
                               wires = ("c/q" => "trig/sig", "trig/on" => "c/arm"))
@@ -40,82 +40,82 @@ diverging() = Group((div = Diverger(), con = Consumer());
 # the generated write refuses.
 
 struct LateInteger <: AbstractComponent end
-init_x(::LateInteger) = (;)
-output_types(::LateInteger) = (q = Float64,)
-output_state(::LateInteger, (; t)) = (q = t < 0.05 ? 1.0 : 0,)
+x_init(::LateInteger) = (;)
+y_types(::LateInteger) = (q = Float64,)
+y_state(::LateInteger, (; t)) = (q = t < 0.05 ? 1.0 : 0,)
 
 # An array's mutability is a type parameter, not a leaf (D-238): the leafwise
 # relation converted this write silently.
 struct LateMutable <: AbstractComponent end
-init_x(::LateMutable) = (;)
-output_types(::LateMutable) = (v = SVector{2,Float64},)
-output_state(::LateMutable, (; t)) = (v = t < 0.05 ? SVector(1.0, 2.0) : MVector(1.0, 2.0),)
+x_init(::LateMutable) = (;)
+y_types(::LateMutable) = (v = SVector{2,Float64},)
+y_state(::LateMutable, (; t)) = (v = t < 0.05 ? SVector(1.0, 2.0) : MVector(1.0, 2.0),)
 
 struct LateExtraPort <: AbstractComponent end
-init_x(::LateExtraPort) = (;)
-output_types(::LateExtraPort) = (q = Float64,)
-output_state(::LateExtraPort, (; t)) = t < 0.05 ? (q = 1.0,) : (q = 1.0, extra = 2.0)
+x_init(::LateExtraPort) = (;)
+y_types(::LateExtraPort) = (q = Float64,)
+y_state(::LateExtraPort, (; t)) = t < 0.05 ? (q = 1.0,) : (q = 1.0, extra = 2.0)
 
 struct LateMissingPort <: AbstractComponent end
-init_x(::LateMissingPort) = (;)
-output_types(::LateMissingPort) = (a = Float64, b = Float64)
-output_state(::LateMissingPort, (; t)) = t < 0.05 ? (a = 1.0, b = 2.0) : (a = 1.0,)
+x_init(::LateMissingPort) = (;)
+y_types(::LateMissingPort) = (a = Float64, b = Float64)
+y_state(::LateMissingPort, (; t)) = t < 0.05 ? (a = 1.0, b = 2.0) : (a = 1.0,)
 
 # The names are the pairing: the same return in another order, at both seams.
 struct ScrambledPorts <: AbstractComponent end
-init_x(::ScrambledPorts) = (;)
-output_types(::ScrambledPorts) = (a = Float64, b = Float64)
-output_state(::ScrambledPorts, (; t)) = (b = 2.0, a = 1.0)
+x_init(::ScrambledPorts) = (;)
+y_types(::ScrambledPorts) = (a = Float64, b = Float64)
+y_state(::ScrambledPorts, (; t)) = (b = 2.0, a = 1.0)
 
 struct ScrambledRate <: AbstractComponent end
-init_x(::ScrambledRate) = (a = 1.0, b = 2.0)
-output_types(::ScrambledRate) = (pa = Float64, pb = Float64)
-output_state(::ScrambledRate, (; x)) = (pa = x.a, pb = x.b)
-state_derivative(::ScrambledRate, (; x)) = (b = 0.0, a = 1.0)
+x_init(::ScrambledRate) = (a = 1.0, b = 2.0)
+y_types(::ScrambledRate) = (pa = Float64, pb = Float64)
+y_state(::ScrambledRate, (; x)) = (pa = x.a, pb = x.b)
+x_derivative(::ScrambledRate, (; x)) = (b = 0.0, a = 1.0)
 
 struct LateIntegerRate <: AbstractComponent end
-init_x(::LateIntegerRate) = (a = 1.0,)
-output_types(::LateIntegerRate) = (q = Float64,)
-output_state(::LateIntegerRate, (; x)) = (q = x.a,)
-state_derivative(::LateIntegerRate, (; t)) = (a = t < 0.05 ? -1.0 : 0,)
+x_init(::LateIntegerRate) = (a = 1.0,)
+y_types(::LateIntegerRate) = (q = Float64,)
+y_state(::LateIntegerRate, (; x)) = (q = x.a,)
+x_derivative(::LateIntegerRate, (; t)) = (a = t < 0.05 ? -1.0 : 0,)
 
 struct LateIntegerProjection <: AbstractComponent end
-init_x(::LateIntegerProjection) = (a = 1.0,)
-output_types(::LateIntegerProjection) = (q = Float64,)
-output_state(::LateIntegerProjection, (; x)) = (q = x.a,)
-state_derivative(::LateIntegerProjection, (; x)) = (a = -10.0 * x.a,)
-state_projection(::LateIntegerProjection, x) = x.a > 0.5 ? (a = x.a,) : (a = 0,)
+x_init(::LateIntegerProjection) = (a = 1.0,)
+y_types(::LateIntegerProjection) = (q = Float64,)
+y_state(::LateIntegerProjection, (; x)) = (q = x.a,)
+x_derivative(::LateIntegerProjection, (; x)) = (a = -10.0 * x.a,)
+x_projection(::LateIntegerProjection, x) = x.a > 0.5 ? (a = x.a,) : (a = 0,)
 
 # The lawful late `Float64`: the constant branch under a `Dual` activation, which
 # the write embeds as a zero-partial rather than refusing (§9.5, D-166).
 struct DecayingBranch <: AbstractComponent end
-init_x(::DecayingBranch) = (a = 1.0,)
-output_types(::DecayingBranch) = (q = Float64,)
-output_state(::DecayingBranch, (; x)) = (q = x.a > 0.5 ? 2.0 * x.a : 0.0,)
-state_derivative(::DecayingBranch, (; x)) = (a = -10.0 * x.a,)
+x_init(::DecayingBranch) = (a = 1.0,)
+y_types(::DecayingBranch) = (q = Float64,)
+y_state(::DecayingBranch, (; x)) = (q = x.a > 0.5 ? 2.0 * x.a : 0.0,)
+x_derivative(::DecayingBranch, (; x)) = (a = -10.0 * x.a,)
 
 struct LateSuccessor <: AbstractComponent end
-init_s(::LateSuccessor) = (n = 0.0,)
-output_types(::LateSuccessor) = (u = Float64,)
-output_state(::LateSuccessor, (; s)) = (u = s.n,)
-state_update(::LateSuccessor, (; s, t)) = (n = t < 0.05 ? s.n + 1.0 : 0,)
+s_init(::LateSuccessor) = (n = 0.0,)
+y_types(::LateSuccessor) = (u = Float64,)
+y_state(::LateSuccessor, (; s)) = (u = s.n,)
+s_update(::LateSuccessor, (; s, t)) = (n = t < 0.05 ? s.n + 1.0 : 0,)
 
 # The probe sees the first firing; the second writes `k` at another type.
 struct LateMode <: AbstractComponent end
-init_m(::LateMode) = (k = 0,)
-init_x(::LateMode) = (;)
-output_types(::LateMode) = (k = Int,)
-output_state(::LateMode, (; m)) = (k = m.k,)
+m_init(::LateMode) = (k = 0,)
+x_init(::LateMode) = (;)
+y_types(::LateMode) = (k = Int,)
+y_state(::LateMode, (; m)) = (k = m.k,)
 late_mode_guard(::LateMode, (; m, t)) = t - 0.05 * (m.k + 1)
 late_mode_handler(::LateMode, (; m)) = m.k == 0 ? (m = (k = m.k + 1,),) : (m = (k = 1.5,),)
 state_events(::LateMode) = (fire = StateEvent(late_mode_guard, late_mode_handler),)
 
 # The probe sees the first firing; the second writes `m` as a scalar, not a NamedTuple.
 struct LateModeScalar <: AbstractComponent end
-init_m(::LateModeScalar) = (k = 0,)
-init_x(::LateModeScalar) = (;)
-output_types(::LateModeScalar) = (k = Int,)
-output_state(::LateModeScalar, (; m)) = (k = m.k,)
+m_init(::LateModeScalar) = (k = 0,)
+x_init(::LateModeScalar) = (;)
+y_types(::LateModeScalar) = (k = Int,)
+y_state(::LateModeScalar, (; m)) = (k = m.k,)
 late_mode_guard(::LateModeScalar, (; m, t)) = t - 0.05 * (m.k + 1)
 late_mode_scalar_handler(::LateModeScalar, (; m)) = m.k == 0 ? (m = (k = m.k + 1,),) : (m = 5,)
 state_events(::LateModeScalar) = (fire = StateEvent(late_mode_guard, late_mode_scalar_handler),)
@@ -127,16 +127,16 @@ function failures_runtime()
         step!(sim; t_end = 1.0)
         cursor = sim.exec.cursor
         @test cursor.phase === :ticks                    # the sequence's last block, empty here
-        @test cursor.fn === :output_direct              # the last dispatch the sweep walked
+        @test cursor.fn === :y_direct              # the last dispatch the sweep walked
         @test cursor.comp == index_of(sim.deployment.build.structure, "plant")
     end
 
-    @testset "a throw mid-integration names the component, `state_derivative` and the stage (§13.4)" begin
+    @testset "a throw mid-integration names the component, `x_derivative` and the stage (§13.4)" begin
         sim = Simulation(fed(Tripwire(0.05), "arm"); h = 1//10)
         init!(sim, fragment(inputs = (in = true,)))
         err = failure(() -> run!(sim; t_end = 5.0))
         @test err isa StepError
-        @test err.frame == CursorFrame("c", :state_derivative, :integrate, 2)   # RK4's half-step evaluation
+        @test err.frame == CursorFrame("c", :x_derivative, :integrate, 2)   # RK4's half-step evaluation
         @test err.boundary == 0 && err.t == 0.05
         @test err.cause isa Tripped
         @test lifecycle(sim) === :errored
@@ -168,7 +168,7 @@ function failures_runtime()
         init!(sim)
         err = failure(() -> run!(sim; t_end = 0.2))
         @test err isa StepError{BundleFieldError}
-        @test err.frame.fn === :output_state
+        @test err.frame.fn === :y_state
         d = diagnostic(err)
         @test d.reason === :undeclared && d.field === :m && d.legal == [:x, :t]
         @test lifecycle(sim) === :errored
@@ -261,19 +261,19 @@ function failures_runtime()
         @test err.boundary == 0 && err.t == 0.1         # the frame top the integrate landed on
     end
 
-    @testset "a throw in `state_update` or in `state_projection` names its own block (§13.4)" begin
+    @testset "a throw in `s_update` or in `x_projection` names its own block (§13.4)" begin
         sim = Simulation(fed(Sapper(), "sig"); h = 1//10)
         init!(sim, fragment(inputs = (in = false,)))
         stage!(sim, "in" => true)
         err = failure(() -> step!(sim; t_end = 5.0))
         @test err isa StepError{Detonated}
-        @test err.frame.path == "c" && err.frame.fn === :state_update && err.frame.phase === :ticks
+        @test err.frame.path == "c" && err.frame.fn === :s_update && err.frame.phase === :ticks
 
         projection_sim = Simulation(single(Primer(0.15)); h = 1//10)
         init!(projection_sim)
         err = failure(() -> run!(projection_sim; t_end = 5.0))
         @test err isa StepError{Detonated}
-        @test err.frame.path == "c" && err.frame.fn === :state_projection && err.frame.phase === :project
+        @test err.frame.path == "c" && err.frame.fn === :x_projection && err.frame.phase === :project
         @test err.boundary == 1                         # `q` reaches the level in frame 2
     end
 
@@ -322,7 +322,7 @@ function failures_runtime()
         init!(sim, fragment(inputs = (in = true,)))
         err = failure(() -> run!(sim; t_end = 5.0))
         rendered = sprint(showerror, err)
-        @test occursin("`c`", rendered) && occursin("state_derivative", rendered) &&
+        @test occursin("`c`", rendered) && occursin("x_derivative", rendered) &&
               occursin("stage 2", rendered)
         # The pointer degenerates at zero (D-223): the replay alone reproduces it.
         @test occursin("replay!(sim2, trc) reproduces it", rendered) &&
@@ -352,7 +352,7 @@ function failures_runtime()
         @test !occursin("root component", none_rendered) && !occursin(" in ", none_rendered)
 
         # An unrecognized phase renders as itself, never as another phase's spelling.
-        odd = StepError(CursorFrame("c", :state_derivative, :nowhere, 0), 0.3, 3, Tripped())
+        odd = StepError(CursorFrame("c", :x_derivative, :nowhere, 0), 0.3, 3, Tripped())
         @test occursin("nowhere of the frame", sprint(showerror, odd))
 
         # D-225's bound: a bare value is no cause the carrier admits.
@@ -367,7 +367,7 @@ function failures_runtime()
         init!(sim, fragment(inputs = (in = true,)))
         err = failure(() -> run!(sim; t_end = 5.0))
         @test err isa StepError{Tripped}
-        @test err.frame == CursorFrame("c", :state_derivative, :integrate, 2)
+        @test err.frame == CursorFrame("c", :x_derivative, :integrate, 2)
         @test err.t == 0.05 && err.boundary == 0
         @test lifecycle(sim) === :errored
 
@@ -399,7 +399,7 @@ function failures_runtime()
         @test err.boundary == 1 && err.t ≈ 0.2          # the frame from boundary 1, at its top
         # The sweep is the boundary's first act: the cursor is still the integrate's,
         # named at the block's owner and at no function, and neither `div`'s own
-        # `state_projection` nor `con`'s lookup has run on the NaN.
+        # `x_projection` nor `con`'s lookup has run on the NaN.
         @test err.frame.path == "div" && err.frame.fn === :none &&
               err.frame.phase === :integrate
         @test err.frame.index == 0                      # the sweep is no stage, so no ordinal
@@ -456,7 +456,7 @@ function failures_pointer_twin()
         # frame's own drain.
         err = reproduction(fed(Tripwire(0.35), "arm"), 3)
         @test err.cause isa Tripped && err.boundary == 3
-        @test err.frame == CursorFrame("c", :state_derivative, :integrate, 2)
+        @test err.frame == CursorFrame("c", :x_derivative, :integrate, 2)
 
         # And the nonfinite species, which the sweep raises rather than model code.
         err = reproduction(diverging(), 1)
@@ -509,11 +509,11 @@ function failures_conformance()
         init!(sim)
         err = failure(() -> run!(sim; t_end = 0.2))
         @test err isa StepError{ConformanceFailure}
-        @test err.cause.path == "c" && err.cause.what == "output_state"
+        @test err.cause.path == "c" && err.cause.what == "y_state"
         @test err.cause.reason === :field_type && err.cause.shape === :ports
         @test err.cause.field === :q
         @test err.cause.observed === Int64 && err.cause.declared === Float64
-        @test err.frame.fn === :output_state
+        @test err.frame.fn === :y_state
         @test lifecycle(sim) === :errored
         @test occursin("zero(", message(err.cause))    # §9.5's didactic hint
     end
@@ -523,7 +523,7 @@ function failures_conformance()
         init!(sim)
         err = failure(() -> run!(sim; t_end = 0.2))
         @test err isa StepError{ConformanceFailure}
-        @test err.cause.path == "c" && err.cause.what == "output_state"
+        @test err.cause.path == "c" && err.cause.what == "y_state"
         @test err.cause.reason === :field_type && err.cause.shape === :ports
         @test err.cause.field === :v
         @test err.cause.observed === MVector{2,Float64}
@@ -568,10 +568,10 @@ function failures_conformance()
         init!(sim)
         err = failure(() -> run!(sim; t_end = 0.2))
         @test err isa StepError{ConformanceFailure}
-        @test err.cause.what == "state_derivative" && err.cause.shape === :init_x
+        @test err.cause.what == "x_derivative" && err.cause.shape === :x_init
         @test err.cause.reason === :field_type && err.cause.field === :a
         @test err.cause.observed === Int64 && err.cause.declared === Float64
-        @test err.frame.fn === :state_derivative
+        @test err.frame.fn === :x_derivative
         @test lifecycle(sim) === :errored
     end
 
@@ -580,11 +580,11 @@ function failures_conformance()
         init!(sim)
         err = failure(() -> run!(sim; t_end = 0.2))
         @test err isa StepError{ConformanceFailure}
-        @test err.cause.what == "state_projection" && err.cause.shape === :state
+        @test err.cause.what == "x_projection" && err.cause.shape === :state
         @test err.cause.event === nothing    # a projection is the component's, not an event's
         @test err.cause.reason === :field_type && err.cause.field === :a
         @test err.cause.observed === Int64 && err.cause.declared === Float64
-        @test err.frame.fn === :state_projection
+        @test err.frame.fn === :x_projection
         @test lifecycle(sim) === :errored
     end
 
@@ -603,10 +603,10 @@ function failures_conformance()
         init!(sim)
         err = failure(() -> run!(sim; t_end = 0.2))
         @test err isa StepError{ConformanceFailure}
-        @test err.cause.what == "state_update" && err.cause.shape === :init_s
+        @test err.cause.what == "s_update" && err.cause.shape === :s_init
         @test err.cause.observed === typeof((n = 0,))
         @test err.cause.declared === typeof((n = 0.0,))
-        @test err.frame.fn === :state_update
+        @test err.frame.fn === :s_update
         @test lifecycle(sim) === :errored
     end
 

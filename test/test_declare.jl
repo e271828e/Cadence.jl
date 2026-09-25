@@ -35,22 +35,22 @@ function test_declare()
     @testset "the bundle law (§5.2)" begin
         # A name appears iff the store or fact exists: the stateless gain sees no
         # `x`, the no-feedthrough stage sees no `u`, `t` is always there.
-        @test bundle_names(output_state, Plant(), CONTINUOUS, ()) === (:x, :t)
-        @test bundle_names(output_direct, Plant(), CONTINUOUS, (:y,)) === (:x, :u, :y_x, :t)
-        @test bundle_names(state_derivative, Plant(), CONTINUOUS, (:y,)) === (:x, :u, :y, :t)
-        @test bundle_names(output_direct, Gain(1.0), CONTINUOUS, ()) === (:u, :t)
+        @test bundle_names(y_state, Plant(), CONTINUOUS, ()) === (:x, :t)
+        @test bundle_names(y_direct, Plant(), CONTINUOUS, (:y,)) === (:x, :u, :y_x, :t)
+        @test bundle_names(x_derivative, Plant(), CONTINUOUS, (:y,)) === (:x, :u, :y, :t)
+        @test bundle_names(y_direct, Gain(1.0), CONTINUOUS, ()) === (:u, :t)
 
         # A declared empty store puts no letter in the bundle (§5.2, D-263):
-        # `Gain` declares `init_x(::Gain) = (;)`, and no bundle of it carries `x`.
-        @test :init_x in leaf_declarations(Gain(1.0))
-        @test bundle_names(output_state, Gain(1.0), CONTINUOUS, ()) === (:t,)
+        # `Gain` declares `x_init(::Gain) = (;)`, and no bundle of it carries `x`.
+        @test :x_init in leaf_declarations(Gain(1.0))
+        @test bundle_names(y_state, Gain(1.0), CONTINUOUS, ()) === (:t,)
 
         # The discrete sets against them: `Δt` is a discrete-tier fact, `m` a
         # continuous one, and each tier's state letters are its own (D-195).
-        @test bundle_names(output_state, DiscreteCounter(), DISCRETE, ()) === (:s, :t, :Δt)
-        @test bundle_names(state_update, DiscreteCounter(), DISCRETE, (:n,)) === (:s, :y, :t, :Δt)
-        @test bundle_names(output_direct, DiscreteMap(), DISCRETE, ()) === (:u, :t, :Δt)
-        @test bundle_names(output_direct, DiscreteCounter(), DISCRETE, (:n,)) === (:s, :y_s, :t, :Δt)
+        @test bundle_names(y_state, DiscreteCounter(), DISCRETE, ()) === (:s, :t, :Δt)
+        @test bundle_names(s_update, DiscreteCounter(), DISCRETE, (:n,)) === (:s, :y, :t, :Δt)
+        @test bundle_names(y_direct, DiscreteMap(), DISCRETE, ()) === (:u, :t, :Δt)
+        @test bundle_names(y_direct, DiscreteCounter(), DISCRETE, (:n,)) === (:s, :y_s, :t, :Δt)
     end
 
     @testset "a foreign binding of a family name is the forgotten import (§8.1, D-246)" begin
@@ -59,8 +59,8 @@ function test_declare()
         # listed in family order. `using Cadence` alone leaves the name undefined
         # (the family is unexported, D-117), so only the bare definition shows.
         @test foreign_declarations(ForgottenImport.Inventory.Leaf()) ==
-              [:init_x, :output_types, :output_state, :state_derivative]
-        @test foreign_declarations(ForgottenImport.Update.Leaf()) == [:state_derivative]
+              [:x_init, :y_types, :y_state, :x_derivative]
+        @test foreign_declarations(ForgottenImport.Update.Leaf()) == [:x_derivative]
         @test foreign_declarations(ForgottenImport.Events.Leaf()) == [:state_events]
         @test foreign_declarations(ForgottenImport.Rates.Assembly(ForgottenImport.Rates.Leaf())) ==
               [:sample_times]

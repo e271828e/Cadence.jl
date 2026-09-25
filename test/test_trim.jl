@@ -69,11 +69,11 @@ struct Snapback <: AbstractComponent
     level::Float64
 end
 
-init_x(::Snapback) = (θ = 0.0, ω = 0.0)
-input_types(::Snapback) = (u = Float64,)
-output_types(::Snapback) = (θ = Float64, ω = Float64)
-output_state(::Snapback, (; x)) = (θ = x.θ, ω = x.ω)
-state_derivative(::Snapback, (; x, u)) = (θ = x.ω, ω = -PEND_G_L * sin(x.θ) - PEND_C * x.ω + u.u)
+x_init(::Snapback) = (θ = 0.0, ω = 0.0)
+u_types(::Snapback) = (u = Float64,)
+y_types(::Snapback) = (θ = Float64, ω = Float64)
+y_state(::Snapback, (; x)) = (θ = x.θ, ω = x.ω)
+x_derivative(::Snapback, (; x, u)) = (θ = x.ω, ω = -PEND_G_L * sin(x.θ) - PEND_C * x.ω + u.u)
 snapback_guard(c::Snapback, (; x)) = x.θ > c.level
 snapback_handler(::Snapback, (; x)) = (x = (θ = 0.0, ω = x.ω),)
 state_events(::Snapback) = (snap = StateEvent(snapback_guard, snapback_handler),)

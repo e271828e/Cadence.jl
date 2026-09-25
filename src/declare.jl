@@ -16,38 +16,38 @@ abstract type AbstractComponent end
 """
 Continuous state, **by value**, at nominal `Float64`; leaves drawn from §7.1's
 closed vocabulary, and its *types* walk by rule. Mandatory on every continuous
-leaf, `init_x(::C) = (;)` when stateless: the store is the tier marker, as
+leaf, `x_init(::C) = (;)` when stateless: the store is the tier marker, as
 `child_connections` is the class marker (§8.2, §8.5, D-263). The fallback
 serves the value readers; the classifier asks whether the method is declared.
 """
-init_x(::Any) = NamedTuple()
+x_init(::Any) = NamedTuple()
 
 """
 Discrete state, **by value**, and the discrete tier's own letter (D-195): every
 field isbits or a `Symbol` (D-231), pinned wholesale. Mandatory on every
-discrete leaf, `init_s(::C) = (;)` when stateless: the store is the tier
-marker, and it is disjoint from `init_x` (§8.2, D-263). The fallback serves the
+discrete leaf, `s_init(::C) = (;)` when stateless: the store is the tier
+marker, and it is disjoint from `x_init` (§8.2, D-263). The fallback serves the
 value readers; the classifier asks whether the method is declared.
 """
-init_s(::Any) = NamedTuple()
+s_init(::Any) = NamedTuple()
 
 """
 Modes, **by value**, continuous-only: the event system is continuous-side only,
-so declaring `init_m` announces the continuous tier (§8.2). Fields isbits or
-`Symbol`, as for `init_s` (D-231). Mode stores are written by handlers; nothing
+so declaring `m_init` announces the continuous tier (§8.2). Fields isbits or
+`Symbol`, as for `s_init` (D-231). Mode stores are written by handlers; nothing
 else may.
 """
-init_m(::Any) = NamedTuple()
+m_init(::Any) = NamedTuple()
 
 """
 Mutable scratch, instantiated by the framework and arriving as the bundle's
 `ws` field (§7.3). Declaration *is* allocation, so it is the one declaration
-taking the scalar, `init_workspace(::C, ::Type{T})`, on both tiers: sizes from
+taking the scalar, `ws_init(::C, ::Type{T})`, on both tiers: sizes from
 the instance, eltypes from the activation, and a discrete allocator always
 receives `Float64` (D-077, D-263). No fallback: absence is how a component
 declares no scratch.
 """
-function init_workspace end
+function ws_init end
 
 """
 Input faces: name => type, at nominal `Float64`, taking the component alone on
@@ -56,7 +56,7 @@ both tiers (D-263). On a continuous consumer the declaration is walked: every
 a discrete consumer it pins wholesale. Entries are read permissively (D-167):
 an unpinned leaf is tolerant, a `Pinned` one demands a frozen arrival.
 """
-input_types(::Any) = NamedTuple()
+u_types(::Any) = NamedTuple()
 
 """
 Output ports: name => type, at nominal `Float64`, taking the component alone on
@@ -69,13 +69,13 @@ One declaration for both stages — there are no stage tags anywhere (§8.2);
 which stage produces a port is *discovered* by the build probe (§9.3), and the
 declaration is what the probe checks against.
 """
-output_types(::Any) = NamedTuple()
+y_types(::Any) = NamedTuple()
 
 """
     Pinned{P}
 
-The contract marker (§8.2, D-263): wraps one leaf type in an `input_types` or
-`output_types` entry, `Pinned{Float64}` or `Pinned{SVector{3,Float64}}`, to say
+The contract marker (§8.2, D-263): wraps one leaf type in an `u_types` or
+`y_types` entry, `Pinned{Float64}` or `Pinned{SVector{3,Float64}}`, to say
 the leaf never follows the activation scalar. On an output the cell is `P` at
 every activation; on an input the entry demands a frozen arrival. The walk
 strips it at nominal, so no layout, probe or message sees it. It wraps the
@@ -207,7 +207,7 @@ end
 """
 The ordered, named guard/handler collection (§8.2): `name = StateEvent(guard,
 handler)` entries. Order is semantics — declaration order is priority with
-re-decision at the boundary iteration (§10.6). Continuous-only, like `init_m`:
+re-decision at the boundary iteration (§10.6). Continuous-only, like `m_init`:
 the event system is continuous-side only (§5.2). Nothing here is inferrable.
 """
 state_events(::Any) = (;)
@@ -219,7 +219,7 @@ integration and after each handler firing (§5.3) — and its return is written
 back to the buffer wholesale, so the probe holds it complete against the state
 shape (§9.3).
 """
-function state_projection end
+function x_projection end
 
 """The §2.1 predicate of a guard's return: the `Bool` form itself, or `σ ≥ 0`."""
 _holding(σ::Bool) = σ
@@ -227,12 +227,12 @@ _holding(σ) = σ ≥ 0
 
 # --- what an author defines (the §5.2 signatures) -----------------------------
 # Every stage takes the component and exactly one NamedTuple bundle of views,
-# destructured by name: `output_direct(c::MyComp, (; x, u)) = ...`. The
+# destructured by name: `y_direct(c::MyComp, (; x, u)) = ...`. The
 # framework's call is one fixed shape; the bundle law (below) decides what the
 # tuple carries.
 #
 # The two output stages are one pair of names shared by both tiers (D-220):
-# `output_state`/`output_direct`, whose legal bundle set is tier-dependent —
+# `y_state`/`y_direct`, whose legal bundle set is tier-dependent —
 # `x, m, t [, ws]`/`x, m, u, y_x, t [, ws]` continuous, `s, t, Δt [, ws]`/
 # `s, u, y_s, t, Δt [, ws]` discrete. "No `direct` in the name" is the
 # no-feedthrough marker within either tier's pair.
@@ -241,19 +241,19 @@ _holding(σ) = σ ≥ 0
 # and it is a question about method existence, not a declaration the author
 # repeats — the definition site is the single source of truth.
 
-function output_state end
-function output_direct end
-function state_derivative end
-function state_update end
+function y_state end
+function y_direct end
+function x_derivative end
+function s_update end
 
 # --- the family, and the forgotten import (§8.1, D-246) -----------------------
 # The declaration and stage family, in §8.1's import-list order. Every name here
 # is a generic function this module owns, which is what makes the check below a
 # comparison against `Cadence`'s own object.
 
-const DECLARATION_FAMILY = (:init_x, :init_s, :init_m, :init_workspace,
-    :input_types, :output_types, :state_events, :output_state, :output_direct,
-    :state_derivative, :state_update, :state_projection, :child_connections,
+const DECLARATION_FAMILY = (:x_init, :s_init, :m_init, :ws_init,
+    :u_types, :y_types, :state_events, :y_state, :y_direct,
+    :x_derivative, :s_update, :x_projection, :child_connections,
     :input_connections, :output_connections, :sample_times,
     :transparent_container)
 
@@ -305,7 +305,7 @@ end
 # *through* the tier, so no code path ever holds a name that serves both; the
 # output stages are one pair of names shared by both tiers (D-220), so every
 # caller names them directly instead.
-update_of(tier::Tier) = tier === CONTINUOUS ? state_derivative : state_update
+update_of(tier::Tier) = tier === CONTINUOUS ? x_derivative : s_update
 
 # --- the bundle law (§5.2) ----------------------------------------------------
 # A name appears in a component's bundle iff the corresponding store or fact
@@ -329,18 +329,18 @@ function bundle_names(fn, comp, tier::Tier, stage1_ports::Tuple)
     update = update_of(tier)
     bundle_fields = Symbol[]
     if tier === CONTINUOUS
-        !isempty(invoke_declaration(init_x, comp)) && push!(bundle_fields, :x)
-        !isempty(invoke_declaration(init_m, comp)) && push!(bundle_fields, :m)
+        !isempty(invoke_declaration(x_init, comp)) && push!(bundle_fields, :x)
+        !isempty(invoke_declaration(m_init, comp)) && push!(bundle_fields, :m)
     else
-        !isempty(invoke_declaration(init_s, comp)) && push!(bundle_fields, :s)
+        !isempty(invoke_declaration(s_init, comp)) && push!(bundle_fields, :s)
     end
-    if fn === output_direct || fn === update
-        !isempty(declared_at(input_types, comp, tier)) && push!(bundle_fields, :u)
+    if fn === y_direct || fn === update
+        !isempty(declared_at(u_types, comp, tier)) && push!(bundle_fields, :u)
     end
-    if fn === output_direct
+    if fn === y_direct
         !isempty(stage1_ports) && push!(bundle_fields, tier === CONTINUOUS ? :y_x : :y_s)
     elseif fn === update
-        !isempty(declared_at(output_types, comp, tier)) && push!(bundle_fields, :y)
+        !isempty(declared_at(y_types, comp, tier)) && push!(bundle_fields, :y)
     end
     _declares_workspace(comp) && push!(bundle_fields, :ws)
     push!(bundle_fields, :t)
@@ -348,7 +348,7 @@ function bundle_names(fn, comp, tier::Tier, stage1_ports::Tuple)
     tuple(bundle_fields...)
 end
 
-_declares_workspace(comp) = _declares(init_workspace, comp, Type{Float64})
+_declares_workspace(comp) = _declares(ws_init, comp, Type{Float64})
 
 """
 Bundle field names for a guard or handler (§5.2): the update law's view of the
@@ -358,10 +358,10 @@ distinction: guards and handlers run against the complete fresh table.
 """
 function event_bundle_names(comp)
     bundle_fields = Symbol[]
-    !isempty(invoke_declaration(init_x, comp)) && push!(bundle_fields, :x)
-    !isempty(invoke_declaration(init_m, comp)) && push!(bundle_fields, :m)
-    !isempty(declared_at(input_types, comp, CONTINUOUS)) && push!(bundle_fields, :u)
-    !isempty(declared_at(output_types, comp, CONTINUOUS)) && push!(bundle_fields, :y)
+    !isempty(invoke_declaration(x_init, comp)) && push!(bundle_fields, :x)
+    !isempty(invoke_declaration(m_init, comp)) && push!(bundle_fields, :m)
+    !isempty(declared_at(u_types, comp, CONTINUOUS)) && push!(bundle_fields, :u)
+    !isempty(declared_at(y_types, comp, CONTINUOUS)) && push!(bundle_fields, :y)
     _declares_workspace(comp) && push!(bundle_fields, :ws)
     push!(bundle_fields, :t)
     tuple(bundle_fields...)
@@ -370,12 +370,12 @@ end
 # The maximal legal sets (§5.2, Appendix B), keyed by family and tier. A
 # component's bundle narrows one of these to declared reality.
 const LEGAL_BUNDLE = Dict(
-    (:output_state, CONTINUOUS)     => (:x, :m, :t, :ws),
-    (:output_direct, CONTINUOUS)    => (:x, :m, :u, :y_x, :t, :ws),
-    (:state_derivative, CONTINUOUS) => (:x, :m, :y, :u, :t, :ws),
-    (:output_state, DISCRETE)       => (:s, :t, :Δt, :ws),
-    (:output_direct, DISCRETE)      => (:s, :u, :y_s, :t, :Δt, :ws),
-    (:state_update, DISCRETE)       => (:s, :y, :u, :t, :Δt, :ws),
+    (:y_state, CONTINUOUS)     => (:x, :m, :t, :ws),
+    (:y_direct, CONTINUOUS)    => (:x, :m, :u, :y_x, :t, :ws),
+    (:x_derivative, CONTINUOUS) => (:x, :m, :y, :u, :t, :ws),
+    (:y_state, DISCRETE)       => (:s, :t, :Δt, :ws),
+    (:y_direct, DISCRETE)      => (:s, :u, :y_s, :t, :Δt, :ws),
+    (:s_update, DISCRETE)       => (:s, :y, :u, :t, :Δt, :ws),
     (:guard, CONTINUOUS)            => (:x, :m, :y, :u, :t, :ws),
     (:handler, CONTINUOUS)          => (:x, :m, :y, :u, :t, :ws))
 

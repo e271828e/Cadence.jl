@@ -11,9 +11,9 @@
 @enum Class PRIMITIVE ASSEMBLY
 
 const ASSEMBLY_FAMILY = (:child_connections,)
-const LEAF_FAMILY = (:init_x, :init_s, :init_m, :init_workspace, :input_types,
-                     :output_types, :state_events, :output_state, :output_direct,
-                     :state_derivative, :state_update, :state_projection)
+const LEAF_FAMILY = (:x_init, :s_init, :m_init, :ws_init, :u_types,
+                     :y_types, :state_events, :y_state, :y_direct,
+                     :x_derivative, :s_update, :x_projection)
 
 # The five `DECLARATION_FAMILY` names no leaf declaration covers: the assembly
 # marker, the two boundary declarations and the two sugars.
@@ -26,17 +26,17 @@ const _OTHER_FAMILY = ((:child_connections, child_connections),
 """The leaf declarations `comp` defines, in inventory order (§8.2, §8.5)."""
 function leaf_declarations(comp)
     found = Symbol[]
-    for (name, fn) in ((:init_x, init_x), (:init_s, init_s), (:init_m, init_m))
+    for (name, fn) in ((:x_init, x_init), (:s_init, s_init), (:m_init, m_init))
         _declares(fn, comp) && push!(found, name)
     end
-    _declares(init_workspace, comp, Type{Float64}) && push!(found, :init_workspace)
-    for (name, fn) in ((:input_types, input_types), (:output_types, output_types))
+    _declares(ws_init, comp, Type{Float64}) && push!(found, :ws_init)
+    for (name, fn) in ((:u_types, u_types), (:y_types, y_types))
         _declares(fn, comp) && push!(found, name)
     end
     _declares(state_events, comp) && push!(found, :state_events)
-    for (name, fn) in ((:output_state, output_state), (:output_direct, output_direct),
-                       (:state_derivative, state_derivative), (:state_update, state_update),
-                       (:state_projection, state_projection))
+    for (name, fn) in ((:y_state, y_state), (:y_direct, y_direct),
+                       (:x_derivative, x_derivative), (:s_update, s_update),
+                       (:x_projection, x_projection))
         has_stage(fn, comp) && push!(found, name)
     end
     found
@@ -492,7 +492,7 @@ _contract(fn, comp) =
 """
     input_faces(comp) → Vector{String}
 
-A leaf's `input_types` keys — asked at the nominal `Float64`, the key set being
+A leaf's `u_types` keys — asked at the nominal `Float64`, the key set being
 `T`-independent — or an assembly's `input_connections` face names. Declaration
 order is preserved: deterministic printouts, stable diagnostics (§13.3). Inside a
 walk the walk has already evaluated the body once and this primitive does not
@@ -500,20 +500,20 @@ evaluate it again (Appendix C); standalone the primitive evaluates it. Either wa
 the list returned is a fresh vector, the caller's to mutate.
 """
 input_faces(comp) = classify("", comp) === PRIMITIVE ?
-                 String[String(k) for k in keys(_contract(input_types, comp))] :
+                 String[String(k) for k in keys(_contract(u_types, comp))] :
                  _walked_faces(comp, 1, input_connections, first)
 
 """
     output_faces(comp) → Vector{String}
 
-`input_faces`' mirror: a leaf's `output_types` keys, or an assembly's
+`input_faces`' mirror: a leaf's `y_types` keys, or an assembly's
 `output_connections` face names, in declaration order (§13.3). Inside a walk the
 walk has already evaluated the body once and this primitive does not evaluate it
 again (Appendix C); standalone the primitive evaluates it. Either way the list
 returned is a fresh vector, the caller's to mutate.
 """
 output_faces(comp) = classify("", comp) === PRIMITIVE ?
-                  String[String(k) for k in keys(_contract(output_types, comp))] :
+                  String[String(k) for k in keys(_contract(y_types, comp))] :
                   _walked_faces(comp, 2, output_connections, last)
 
 # The walk's list when the walk evaluated this assembly, the one body asked for
@@ -649,7 +649,7 @@ function resolve_source(draft, entry::String, base::String, assembly, path::Abst
     resolved === nothing && return nothing
     comp, comp_path, name = resolved
     if classify(comp_path, comp) === PRIMITIVE
-        haskey(_contract(output_types, comp), name) && return (comp_path, name)
+        haskey(_contract(y_types, comp), name) && return (comp_path, name)
     else
         # Children are walked before wires, so the child's faces are already
         # resolved: an output face's producer is its recorded row, and a face
@@ -673,7 +673,7 @@ function resolve_dest(draft, entry::String, base::String, assembly, path::Abstra
     resolved === nothing && return Tuple{String,Symbol}[]
     comp, comp_path, name = resolved
     if classify(comp_path, comp) === PRIMITIVE
-        haskey(_contract(input_types, comp), name) && return [(comp_path, name)]
+        haskey(_contract(u_types, comp), name) && return [(comp_path, name)]
     else
         # Children are walked before wires, so the child's faces are already
         # resolved: a face's consumers are its recorded route, and a face whose
@@ -957,12 +957,12 @@ tiers read, wiring resolved to absolute leaf terminals, sample times folded to
 rules checked. Violations are recorded in `diags` and the walk runs on; the
 throw is `build`'s, at the step barrier. Any component may be the root
 (D-208) — a primitive one flattens to the single leaf at the root path, its
-`input_types` keys the model's root inputs.
+`u_types` keys the model's root inputs.
 """
 function flatten!(draft::StructureDraft, root, diags::Vector{Diagnostic})
     # the root scope: anchor 0, the base grid itself; no link above it and none of its own.
     # The face memo is the walk's own and is bound around it alone: the obligation
-    # loop below reads `input_types`, never a face list.
+    # loop below reads `u_types`, never a face list.
     with(WALK_FACES => draft.faces) do
         _walk!(draft, "", root, Timing((0, 1, 0)), RateLink[], nothing, diags)
     end
@@ -975,7 +975,7 @@ function flatten!(draft::StructureDraft, root, diags::Vector{Diagnostic})
     # here beside the refusal itself.
     for (path, instance) in zip(draft.paths, draft.instances)
         at_component(path) do
-            for (face, declared) in pairs(_contract(input_types, instance))
+            for (face, declared) in pairs(_contract(u_types, instance))
                 haskey(draft.feeds, (path, face)) ||
                     push!(diags, UnconnectedInput(path = path, face = face,
                                                  declared = declared,
@@ -1013,7 +1013,7 @@ function wire!(draft::StructureDraft)
     in_faces = Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[]
     for (path, instance) in zip(draft.paths, draft.instances)
         push!(conns, [face => draft.feeds[(path, face)]
-                      for face in keys(_contract(input_types, instance))])
+                      for face in keys(_contract(u_types, instance))])
     end
     for (path, face, consumers) in draft.routes
         push!(in_faces, (path, face) => draft.feeds[first(consumers)])
@@ -1076,15 +1076,15 @@ function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
                 tier = nothing                      # D-247: read no further
             end
             push!(draft.tiers, tier)
-            # A primitive at the root: its `input_types` keys are the model's root
+            # A primitive at the root: its `u_types` keys are the model's root
             # inputs, each face its own consuming entry (§8.6, §11.3, D-208), fed by
             # the same pseudo-producer an assembly root's faces get.
             if isempty(path)
                 _check_root_faces(comp, diags)
-                for face in keys(_contract(input_types, comp))
+                for face in keys(_contract(u_types, comp))
                     push!(draft.root_inputs, face)
                     _claim!(draft, (path, face), ("", face),
-                            "the root component's `input_types` entry `$face`", diags)
+                            "the root component's `u_types` entry `$face`", diags)
                 end
             end
             tier
@@ -1214,8 +1214,8 @@ end
 # primitive's input faces alias their producers' cells and place nothing — and
 # non-root leaves are left alone.
 function _check_root_faces(comp, diags::Vector{Diagnostic})
-    output_names = String.(keys(_contract(output_types, comp)))
-    duplicates = [n for n in String.(keys(_contract(input_types, comp))) if n in output_names]
+    output_names = String.(keys(_contract(y_types, comp)))
+    duplicates = [n for n in String.(keys(_contract(u_types, comp))) if n in output_names]
     isempty(duplicates) ||
         push!(diags, FaceNameCollision(path = "", faces = duplicates, site = :root))
     nothing

@@ -66,7 +66,7 @@ function continuous_state_return()
         # Non-default stores first, because the probe seed already wrote the
         # declared initials into these cells: only a value the seed could not
         # have left shows that boundary zero's `ESTABLISH` round ran
-        # `output_state` over the authored stores.
+        # `y_state` over the authored stores.
         seeded = Simulation(fed(Motor(1.0), "M_load"); h = 1//100)
         init!(seeded, combine(at("c", fragment(x = (ω = 3.0,), m = (running = true,))),
                               fragment(inputs = (in = 0.0,))))
@@ -77,7 +77,7 @@ function continuous_state_return()
         # A root input must be covered at `init!` (§14.6, `UninitializedInputs`),
         # and `M_load = 0` is what makes the closed form below exact.
         init!(sim, fragment(inputs = (in = 0.0,)))
-        # Boundary zero's `ESTABLISH` round ran `output_state` over the
+        # Boundary zero's `ESTABLISH` round ran `y_state` over the
         # authored stores.
         @test port(sim, "c", :ω) == 0.0
         @test port(sim, "c", :running) === false

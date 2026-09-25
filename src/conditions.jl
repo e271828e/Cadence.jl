@@ -275,7 +275,7 @@ collecting form — full list, violations collected, one `DiagnosticError` — a
 compile what survives to a plan.
 
 The checks are §14.3's: the path resolves to a component, the field is
-declared in that component's `init_x`/`init_s`/`init_m`, the value converts to
+declared in that component's `x_init`/`s_init`/`m_init`, the value converts to
 the declared leaf type, an input face resolves through the export chain to a
 root input, and no leaf is written twice — an input entry's leaf being the
 *root input* it resolves to, so two spellings of one root input are one leaf.
@@ -333,7 +333,7 @@ struct Resolved
 end
 
 # §14.3's list, run once: the path resolves to a component, the field is
-# declared in that component's `init_x`/`init_s`/`init_m`, the value converts to
+# declared in that component's `x_init`/`s_init`/`m_init`, the value converts to
 # the declared leaf type, an input face resolves through the export chain to a
 # root input, and no leaf is written twice. Violations are collected (§13.1) and
 # handed back with the survivors, so a service that owns its own setup
@@ -361,7 +361,7 @@ function _resolve_entries(node::ConditionNode, build::Build, ::Type{T}) where {T
         ci === nothing && continue
         comp_entry = structure.components[ci]
         comp, tier, decl = comp_entry.instance, comp_entry.tier, decls[ci]
-        declared = entry.store === :x ? decl.x : entry.store === :s ? decl.s : init_m(comp)
+        declared = entry.store === :x ? decl.x : entry.store === :s ? decl.s : m_init(comp)
         if isempty(declared)
             push!(diags, _no_store(entry, tier))
             continue
@@ -382,7 +382,7 @@ end
 # The merge bases, in one order both walk: per component, the discrete
 # store's declared defaults and then the mode store's (§14.3's fork).
 _store_bases(build::Build, act::Activation) =
-    [(store, ci, store === :s ? act.decls[ci].s : init_m(comp_entry.instance))
+    [(store, ci, store === :s ? act.decls[ci].s : m_init(comp_entry.instance))
      for (ci, comp_entry) in enumerate(build.structure.components) for store in (:s, :m)]
 
 # Anything that is not a node reaching a service entry point is the §14.2
@@ -461,15 +461,15 @@ _no_store(entry::CEntry, tier::Tier) =
 # which are derived data, and never workspace (§14.1).
 function _undeclared(entry::CEntry, comp, tier::Tier, declared::NamedTuple,
                      ::Type{T}) where {T}
-    role = haskey(declared_at(output_types, comp, tier), entry.field) ? :output_port :
-           haskey(declared_at(input_types, comp, tier), entry.field) ? :input_face :
+    role = haskey(declared_at(y_types, comp, tier), entry.field) ? :output_port :
+           haskey(declared_at(u_types, comp, tier), entry.field) ? :input_face :
            (_declares_workspace(comp) &&
             haskey(_declared_workspace(comp, tier, T), entry.field)) ? :workspace : nothing
     _condition_violation(entry, :undeclared_field; candidates = collect(keys(declared)), role = role)
 end
 
 _declared_workspace(comp, tier::Tier, ::Type{T}) where {T} =
-    init_workspace(comp, tier === CONTINUOUS ? T : Float64)
+    ws_init(comp, tier === CONTINUOUS ? T : Float64)
 
 # The one refusal §14.3's converter table cannot bake around. Its second clause
 # is the non-nominal case: at a seeded activation the leaves a decision descends
@@ -828,7 +828,7 @@ and `running` and `errored` are the ordinary service refusals (§14, §11.3,
 
 Re-applying reproduces the captured world bit for bit, with one caveat that is
 boundary zero's rather than capture's: the re-application runs the sequence
-(§14.5), so `state_projection` and any guard already holding in the captured state fire
+(§14.5), so `x_projection` and any guard already holding in the captured state fire
 again there — which is exactly what makes a warm restart a *fresh run from
 these values* rather than a resumption.
 """

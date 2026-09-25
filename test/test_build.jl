@@ -10,49 +10,49 @@
 # would dispatch on the untouched global and silently see the fallback
 # declarations instead.
 struct Undeclared <: AbstractComponent end
-init_x(::Undeclared) = (;)
-output_types(::Undeclared) = (a = Float64,)
-output_state(::Undeclared, (; t)) = (a = 1.0, b = 2.0)
+x_init(::Undeclared) = (;)
+y_types(::Undeclared) = (a = Float64,)
+y_state(::Undeclared, (; t)) = (a = 1.0, b = 2.0)
 
 struct Unproduced <: AbstractComponent end
-init_x(::Unproduced) = (;)
-output_types(::Unproduced) = (a = Float64, b = Float64)
-output_state(::Unproduced, (; t)) = (a = 1.0,)
+x_init(::Unproduced) = (;)
+y_types(::Unproduced) = (a = Float64, b = Float64)
+y_state(::Unproduced, (; t)) = (a = 1.0,)
 
 struct BadDerivative <: AbstractComponent end
-init_x(::BadDerivative) = (q = SVector(0.0, 0.0),)
-state_derivative(::BadDerivative, (; x)) = (q = 0.0,)
+x_init(::BadDerivative) = (q = SVector(0.0, 0.0),)
+x_derivative(::BadDerivative, (; x)) = (q = 0.0,)
 
 # The same law at the leaf: an `Int` rate for a `Float64` state, which the leaf
 # count the probe used to compare could not see (§9.5, D-235).
 struct IntegerRate <: AbstractComponent end
-init_x(::IntegerRate) = (q = 0.0,)
-state_derivative(::IntegerRate, (; x)) = (q = 0,)
+x_init(::IntegerRate) = (q = 0.0,)
+x_derivative(::IntegerRate, (; x)) = (q = 0,)
 
 # And the permutation that is no error at all: names are the pairing (§9.5).
 struct ScrambledDerivative <: AbstractComponent end
-init_x(::ScrambledDerivative) = (a = 1.0, b = 2.0)
-state_derivative(::ScrambledDerivative, (; x)) = (b = 0.0, a = 1.0)
+x_init(::ScrambledDerivative) = (a = 1.0, b = 2.0)
+x_derivative(::ScrambledDerivative, (; x)) = (b = 0.0, a = 1.0)
 
 struct NoFlow <: AbstractComponent end
-init_x(::NoFlow) = (q = 1.0,)
+x_init(::NoFlow) = (q = 1.0,)
 
 # A stage that returns bare `(;)` (§5.2, §9.3), one per position. Each produces
 # every declared port from the *other* stage, so nothing else is wrong:
 # `DeclaredNotProduced` stays silent, and only the dead-stage rule sees it.
 struct DeadStateStage <: AbstractComponent end
-init_x(::DeadStateStage) = (; a = 0.0)
-output_types(::DeadStateStage) = (p = Float64,)
-output_state(::DeadStateStage, (; x)) = (;)
-output_direct(::DeadStateStage, (; x)) = (p = x.a,)
-state_derivative(::DeadStateStage, (; x)) = (; a = 0.0)
+x_init(::DeadStateStage) = (; a = 0.0)
+y_types(::DeadStateStage) = (p = Float64,)
+y_state(::DeadStateStage, (; x)) = (;)
+y_direct(::DeadStateStage, (; x)) = (p = x.a,)
+x_derivative(::DeadStateStage, (; x)) = (; a = 0.0)
 
 struct DeadDirectStage <: AbstractComponent end
-init_x(::DeadDirectStage) = (; a = 0.0)
-output_types(::DeadDirectStage) = (p = Float64,)
-output_state(::DeadDirectStage, (; x)) = (p = x.a,)
-output_direct(::DeadDirectStage, (; x)) = (;)
-state_derivative(::DeadDirectStage, (; x)) = (; a = 0.0)
+x_init(::DeadDirectStage) = (; a = 0.0)
+y_types(::DeadDirectStage) = (p = Float64,)
+y_state(::DeadDirectStage, (; x)) = (p = x.a,)
+y_direct(::DeadDirectStage, (; x)) = (;)
+x_derivative(::DeadDirectStage, (; x)) = (; a = 0.0)
 
 function build_probe_refusals()
     @testset "the probe rejects malformed components (§9.3)" begin
@@ -62,16 +62,16 @@ function build_probe_refusals()
         @test d isa DeclaredNotProduced && d.ports == [:b] && d.products == [:a] &&
               d.state_fields == Symbol[]
         d = only(diagnostics(failure(() -> build(single(BadDerivative())))))
-        @test d isa ConformanceFailure && d.what == "state_derivative" && d.reason === :field_type &&
+        @test d isa ConformanceFailure && d.what == "x_derivative" && d.reason === :field_type &&
               d.field === :q && d.observed === Float64
         d = only(diagnostics(failure(() -> build(single(IntegerRate())))))
-        @test d isa ConformanceFailure && d.what == "state_derivative" &&
+        @test d isa ConformanceFailure && d.what == "x_derivative" &&
               d.reason === :field_type && d.observed === Int64 && d.declared === Float64
         @test failure(() -> build(single(ScrambledDerivative()))) === nothing
         sim = Simulation(single(ScrambledDerivative()); h = 1//100)
         @test failure(() -> (init!(sim); run!(sim; t_end = 0.05))) === nothing
         d = only(diagnostics(failure(() -> build(single(NoFlow())))))
-        @test d isa StoreWithoutUpdate && d.store === :init_x
+        @test d isa StoreWithoutUpdate && d.store === :x_init
     end
 
     @testset "a stage returning bare `(;)` is dead, whichever position (§5.2, §9.3)" begin
@@ -80,11 +80,11 @@ function build_probe_refusals()
         err = failure(() -> build(single(DeadStateStage())))
         @test err isa DiagnosticError{DeadStage}
         d = diagnostic(err)
-        @test path(d) == "c" && d.stage == "output_state"
+        @test path(d) == "c" && d.stage == "y_state"
         err = failure(() -> build(single(DeadDirectStage())))
         @test err isa DiagnosticError{DeadStage}
         d = diagnostic(err)
-        @test path(d) == "c" && d.stage == "output_direct"
+        @test path(d) == "c" && d.stage == "y_direct"
     end
 end
 
@@ -93,10 +93,10 @@ end
 # Stage 1 returns its two ports in the reverse of the declared order: the product
 # is addressed by name, so the `Outputs`' two name lists differ here on purpose.
 struct SwappedPorts <: AbstractComponent end
-init_x(::SwappedPorts) = (p = 1.0, q = 2.0)
-output_types(::SwappedPorts) = (p = Float64, q = Float64)
-output_state(::SwappedPorts, (; x)) = (q = x.q, p = x.p)
-state_derivative(::SwappedPorts, (; x)) = (p = -x.p, q = -x.q)
+x_init(::SwappedPorts) = (p = 1.0, q = 2.0)
+y_types(::SwappedPorts) = (p = Float64, q = Float64)
+y_state(::SwappedPorts, (; x)) = (q = x.q, p = x.p)
+x_derivative(::SwappedPorts, (; x)) = (p = -x.p, q = -x.q)
 
 function build_schedule()
     @testset "the schedule follows the feedthrough graph (§5.3)" begin
@@ -216,7 +216,7 @@ function build_algebraic_cycles()
     end
 
     @testset "a hop stage 2 does not route makes the loop artificial (§5.4, §5.6)" begin
-        # `DerivativeFed` consumes `b` in `state_derivative` alone, so the wire
+        # `DerivativeFed` consumes `b` in `x_derivative` alone, so the wire
         # closing the loop through `b` is §5.4's false dependency.
         d = only(diagnostics(failure(() -> build(
             Group((d = DerivativeFed(), g = Gain(1.0));
@@ -300,7 +300,7 @@ function build_algebraic_cycles()
         @test d.classification === :real
         @test d.traced == ["m" => :sampled, "g1" => :global, "g2" => :global]
         # `v` rides the positive arm's arithmetic, so its hop lives on the sampled
-        # paths; `g` is consumed in `state_derivative` alone and stays dead, a
+        # paths; `g` is consumed in `x_derivative` alone and stays dead, a
         # chord the real verdict lists anyway.
         @test d.dead == [("m", :g, :F)]
 
@@ -363,8 +363,8 @@ end
 
 function build_port_classes()
     @testset "a state or mode field is exposed by returning it from stage 1 (§5.3, D-252)" begin
-        # §8.2's own worked engine: `ω` from `init_x` and `running` from
-        # `init_m`, both returned by `output_state`, `M_shaft` the one stage-2
+        # §8.2's own worked engine: `ω` from `x_init` and `running` from
+        # `m_init`, both returned by `y_state`, `M_shaft` the one stage-2
         # product. The products' order is the invariant every downstream reader
         # takes its stage-2 tail off — stage 1, then stage 2.
         motor_build = build(fed(Motor(1.0), "M_load"))
@@ -374,7 +374,7 @@ function build_port_classes()
               (:ω, :running, :M_shaft)
         # The hand-down carries the stage-1 return, so `y_x` is now in stage 2's
         # bundle.
-        @test bundle_names(output_direct, Motor(1.0), CONTINUOUS,
+        @test bundle_names(y_direct, Motor(1.0), CONTINUOUS,
                            tuple(motor_build.outputs.components[ci].stage1...)) ===
               (:x, :m, :u, :y_x, :t)
     end
@@ -418,7 +418,7 @@ function build_port_classes()
         # stop-gradient the author never wrote.
         pinned_build = build(single(PinnedState()))
         d = only(diagnostics(failure(() -> activation(pinned_build, D8))))
-        @test d isa ConformanceFailure && d.what == "output_state" &&
+        @test d isa ConformanceFailure && d.what == "y_state" &&
               d.reason === :field_type && d.field === :q &&
               d.observed === D8 && d.declared === Float64
     end
@@ -431,24 +431,24 @@ end
 
 struct RealEntry <: AbstractComponent            # an unpinned entry: follows the activation
 end
-init_x(::RealEntry) = (;)
-input_types(::RealEntry) = (u = Float64,)
-output_types(::RealEntry) = (y = Float64,)
-output_direct(::RealEntry, (; u)) = (y = u.u,)
+x_init(::RealEntry) = (;)
+u_types(::RealEntry) = (u = Float64,)
+y_types(::RealEntry) = (y = Float64,)
+y_direct(::RealEntry, (; u)) = (y = u.u,)
 
 struct BoolEntry <: AbstractComponent            # ...against a `Bool` at the same face
 end
-init_x(::BoolEntry) = (;)
-input_types(::BoolEntry) = (u = Bool,)
-output_types(::BoolEntry) = (y = Float64,)
-output_direct(::BoolEntry, (; u)) = (y = u.u ? 1.0 : 0.0,)
+x_init(::BoolEntry) = (;)
+u_types(::BoolEntry) = (u = Bool,)
+y_types(::BoolEntry) = (y = Float64,)
+y_direct(::BoolEntry, (; u)) = (y = u.u ? 1.0 : 0.0,)
 
 struct PinnedEntry <: AbstractComponent          # ...against a pinned `Float64`
 end
-init_x(::PinnedEntry) = (;)
-input_types(::PinnedEntry) = (u = Pinned{Float64},)
-output_types(::PinnedEntry) = (y = Float64,)
-output_direct(::PinnedEntry, (; u)) = (y = u.u,)
+x_init(::PinnedEntry) = (;)
+u_types(::PinnedEntry) = (u = Pinned{Float64},)
+y_types(::PinnedEntry) = (y = Float64,)
+y_direct(::PinnedEntry, (; u)) = (y = u.u,)
 
 _fanned_root(a, b) = Group((a = a, b = b);
                            inputs = ("in" => ("a/u", "b/u"),), outputs = ("a/y" => "y",))
@@ -511,65 +511,65 @@ field_scalar(f::FieldB) = sum(f.b)
 # Stage-1 sources naming the concrete type. The value is a constant: a `Dual`
 # `t` would not convert into the pinned field.
 struct FieldSourceA <: AbstractComponent end
-init_x(::FieldSourceA) = (;)
-output_types(::FieldSourceA) = (fld = FieldA,)
-output_state(::FieldSourceA, (; t)) = (fld = FieldA(2.0),)
+x_init(::FieldSourceA) = (;)
+y_types(::FieldSourceA) = (fld = FieldA,)
+y_state(::FieldSourceA, (; t)) = (fld = FieldA(2.0),)
 
 struct FieldSourceB <: AbstractComponent end
-init_x(::FieldSourceB) = (;)
-output_types(::FieldSourceB) = (fld = FieldB,)
-output_state(::FieldSourceB, (; t)) = (fld = FieldB(SVector(1.0, 2.0)),)
+x_init(::FieldSourceB) = (;)
+y_types(::FieldSourceB) = (fld = FieldB,)
+y_state(::FieldSourceB, (; t)) = (fld = FieldB(SVector(1.0, 2.0)),)
 
 struct FieldReader <: AbstractComponent end
-init_x(::FieldReader) = (;)
-input_types(::FieldReader) = (f = AbstractField,)
-output_types(::FieldReader) = (out = Float64,)
-output_direct(::FieldReader, (; u)) = (out = field_scalar(u.f),)
+x_init(::FieldReader) = (;)
+u_types(::FieldReader) = (f = AbstractField,)
+y_types(::FieldReader) = (out = Float64,)
+y_direct(::FieldReader, (; u)) = (out = field_scalar(u.f),)
 
 # An abstract *numeric* entry: `Real` admits the activation scalar and a frozen
 # `Float64` alike, and it has no leaves to enumerate.
 struct RealReader <: AbstractComponent end
-init_x(::RealReader) = (;)
-input_types(::RealReader) = (u = Real,)
-output_types(::RealReader) = (out = Float64,)
-output_direct(::RealReader, (; u)) = (out = 2 * u.u,)
+x_init(::RealReader) = (;)
+u_types(::RealReader) = (u = Real,)
+y_types(::RealReader) = (out = Float64,)
+y_direct(::RealReader, (; u)) = (out = 2 * u.u,)
 
 # An abstract container entry against a walking and a pinned producer.
 struct VecReader <: AbstractComponent end
-init_x(::VecReader) = (;)
-input_types(::VecReader) = (v = AbstractVector{Float64},)
-output_types(::VecReader) = (n = Float64,)
-output_direct(::VecReader, (; u)) = (n = sum(u.v),)
+x_init(::VecReader) = (;)
+u_types(::VecReader) = (v = AbstractVector{Float64},)
+y_types(::VecReader) = (n = Float64,)
+y_direct(::VecReader, (; u)) = (n = sum(u.v),)
 
 struct VecSource <: AbstractComponent end
-init_x(::VecSource) = (;)
-output_types(::VecSource) = (v = SVector{3,Float64},)
-output_state(::VecSource, (; t)) = (v = SVector(1.0, 2.0, 3.0),)
+x_init(::VecSource) = (;)
+y_types(::VecSource) = (v = SVector{3,Float64},)
+y_state(::VecSource, (; t)) = (v = SVector(1.0, 2.0, 3.0),)
 
 struct PinnedVecSource <: AbstractComponent end
-init_x(::PinnedVecSource) = (;)
-output_types(::PinnedVecSource) = (v = Pinned{SVector{3,Float64}},)
-output_state(::PinnedVecSource, (; t)) = (v = SVector(1.0, 2.0, 3.0),)
+x_init(::PinnedVecSource) = (;)
+y_types(::PinnedVecSource) = (v = Pinned{SVector{3,Float64}},)
+y_state(::PinnedVecSource, (; t)) = (v = SVector(1.0, 2.0, 3.0),)
 
 # The concrete co-consumers the abstract container entry fans out beside.
 struct SVecEntry <: AbstractComponent end
-init_x(::SVecEntry) = (;)
-input_types(::SVecEntry) = (v = SVector{3,Float64},)
-output_types(::SVecEntry) = (y = Float64,)
-output_direct(::SVecEntry, (; u)) = (y = sum(u.v),)
+x_init(::SVecEntry) = (;)
+u_types(::SVecEntry) = (v = SVector{3,Float64},)
+y_types(::SVecEntry) = (y = Float64,)
+y_direct(::SVecEntry, (; u)) = (y = sum(u.v),)
 
 struct PinnedSVecEntry <: AbstractComponent end
-init_x(::PinnedSVecEntry) = (;)
-input_types(::PinnedSVecEntry) = (v = Pinned{SVector{3,Float64}},)
-output_types(::PinnedSVecEntry) = (y = Float64,)
-output_direct(::PinnedSVecEntry, (; u)) = (y = sum(u.v),)
+x_init(::PinnedSVecEntry) = (;)
+u_types(::PinnedSVecEntry) = (v = Pinned{SVector{3,Float64}},)
+y_types(::PinnedSVecEntry) = (y = Float64,)
+y_direct(::PinnedSVecEntry, (; u)) = (y = sum(u.v),)
 
 # A pin written at an entry its producer walks (§6.1's failure asymmetry).
 struct FrozenEntry <: AbstractComponent end
-init_x(::FrozenEntry) = (;)
-input_types(::FrozenEntry) = (u = Pinned{Float64},)
-output_types(::FrozenEntry) = (y = Float64,)
-output_direct(::FrozenEntry, (; u)) = (y = u.u,)
+x_init(::FrozenEntry) = (;)
+u_types(::FrozenEntry) = (u = Pinned{Float64},)
+y_types(::FrozenEntry) = (y = Float64,)
+y_direct(::FrozenEntry, (; u)) = (y = u.u,)
 
 # The same one leaf deep. Only type parameters walk, so a walking struct leaf has
 # to be parametric; `Pinned{Frame{Float64}}` freezes what `Frame{Float64}` walks to.
@@ -579,30 +579,30 @@ struct Frame{T}
 end
 
 struct FrameSource <: AbstractComponent end
-init_x(::FrameSource) = (;)
-output_types(::FrameSource) = (f = Frame{Float64},)
-output_state(::FrameSource, (; t)) = (f = Frame(SVector(1.0, 2.0, 3.0), 7),)
+x_init(::FrameSource) = (;)
+y_types(::FrameSource) = (f = Frame{Float64},)
+y_state(::FrameSource, (; t)) = (f = Frame(SVector(1.0, 2.0, 3.0), 7),)
 
 struct FrameReader <: AbstractComponent end
-init_x(::FrameReader) = (;)
-input_types(::FrameReader) = (f = Pinned{Frame{Float64}},)
-output_types(::FrameReader) = (y = Float64,)
-output_direct(::FrameReader, (; u)) = (y = sum(u.f.p),)
+x_init(::FrameReader) = (;)
+u_types(::FrameReader) = (f = Pinned{Frame{Float64}},)
+y_types(::FrameReader) = (y = Float64,)
+y_direct(::FrameReader, (; u)) = (y = sum(u.f.p),)
 
 _fanned_v(a, b) = Group((a = a, b = b); inputs = ("in" => ("a/v", "b/v"),))
 
 # A bundle's field names are type parameters, not leaves (D-238): these two
 # declarations carry one `T` leaf each and name it differently.
 struct BundleB <: AbstractComponent end
-init_x(::BundleB) = (;)
-output_types(::BundleB) = (q = @NamedTuple{b::Float64},)
-output_state(::BundleB, (; t)) = (q = (b = 1.0 + t,),)
+x_init(::BundleB) = (;)
+y_types(::BundleB) = (q = @NamedTuple{b::Float64},)
+y_state(::BundleB, (; t)) = (q = (b = 1.0 + t,),)
 
 struct BundleA <: AbstractComponent end
-init_x(::BundleA) = (;)
-input_types(::BundleA) = (q = @NamedTuple{a::Float64},)
-output_types(::BundleA) = (y = Float64,)
-output_direct(::BundleA, (; u)) = (y = u.q.a,)
+x_init(::BundleA) = (;)
+u_types(::BundleA) = (q = @NamedTuple{a::Float64},)
+y_types(::BundleA) = (y = Float64,)
+y_direct(::BundleA, (; u)) = (y = u.q.a,)
 
 function build_wire_clauses()
     @testset "an abstract entry takes any concrete producer below it (§4.4, §8.2, D-236)" begin
@@ -784,10 +784,10 @@ struct NoDefault{T}
     b::T
 end
 struct Unsynthesized <: AbstractComponent end
-init_x(::Unsynthesized) = (;)
-input_types(::Unsynthesized) = (q = NoDefault{Float64},)
-output_types(::Unsynthesized) = (s = Float64,)
-output_direct(::Unsynthesized, (; u)) = (s = u.q.a + u.q.b,)
+x_init(::Unsynthesized) = (;)
+u_types(::Unsynthesized) = (q = NoDefault{Float64},)
+y_types(::Unsynthesized) = (s = Float64,)
+y_direct(::Unsynthesized, (; u)) = (s = u.q.a + u.q.b,)
 
 struct WithProbe{T}
     a::T
@@ -795,10 +795,10 @@ struct WithProbe{T}
 end
 probe_value(::Type{WithProbe{T}}) where {T} = WithProbe(zero(T), one(T))
 struct Synthesized <: AbstractComponent end
-init_x(::Synthesized) = (;)
-input_types(::Synthesized) = (q = WithProbe{Float64},)
-output_types(::Synthesized) = (s = Float64,)
-output_direct(::Synthesized, (; u)) = (s = u.q.a + u.q.b,)
+x_init(::Synthesized) = (;)
+u_types(::Synthesized) = (q = WithProbe{Float64},)
+y_types(::Synthesized) = (s = Float64,)
+y_direct(::Synthesized, (; u)) = (s = u.q.a + u.q.b,)
 
 # An override that is itself broken: its `MethodError` is the author's, not a
 # missing synthesis, and propagates as itself.
@@ -807,10 +807,10 @@ struct BrokenProbe{T}
 end
 probe_value(::Type{BrokenProbe{T}}) where {T} = BrokenProbe(sqrt("one"))
 struct Misprobed <: AbstractComponent end
-init_x(::Misprobed) = (;)
-input_types(::Misprobed) = (q = BrokenProbe{Float64},)
-output_types(::Misprobed) = (s = Float64,)
-output_direct(::Misprobed, (; u)) = (s = u.q.a,)
+x_init(::Misprobed) = (;)
+u_types(::Misprobed) = (q = BrokenProbe{Float64},)
+y_types(::Misprobed) = (s = Float64,)
+y_direct(::Misprobed, (; u)) = (s = u.q.a,)
 
 function build_port_type_refusals()
     @testset "a mutable port and a handle at root are refused (§4.4, D-237)" begin
@@ -902,72 +902,72 @@ end
 # A stage that throws: the plain frame names the method, the bundle and the
 # probe's inputs.
 struct Thrower <: AbstractComponent end
-init_x(::Thrower) = (; a = 0.0)
-output_types(::Thrower) = (p = Float64,)
-output_state(::Thrower, (; x)) = error("boom")
-state_derivative(::Thrower, (; x)) = (; a = 0.0)
+x_init(::Thrower) = (; a = 0.0)
+y_types(::Thrower) = (p = Float64,)
+y_state(::Thrower, (; x)) = error("boom")
+x_derivative(::Thrower, (; x)) = (; a = 0.0)
 
 # The same throw with a non-empty `u`: one input face, fed from a root input, so
 # the frame carries the synthesized inputs as a spelling.
 struct ThrowingDirect <: AbstractComponent end
-init_x(::ThrowingDirect) = (;)
-input_types(::ThrowingDirect) = (in = Float64,)
-output_types(::ThrowingDirect) = (p = Float64,)
-output_direct(::ThrowingDirect, (; u)) = error("direct boom")
+x_init(::ThrowingDirect) = (;)
+u_types(::ThrowingDirect) = (in = Float64,)
+y_types(::ThrowingDirect) = (p = Float64,)
+y_direct(::ThrowingDirect, (; u)) = error("direct boom")
 
 # A throw out of each other probed function, one fixture each.
 struct ThrowingDerivative <: AbstractComponent end
-init_x(::ThrowingDerivative) = (; a = 0.0)
-output_types(::ThrowingDerivative) = (p = Float64,)
-output_state(::ThrowingDerivative, (; x)) = (p = x.a,)
-state_derivative(::ThrowingDerivative, (; x)) = error("derivative boom")
+x_init(::ThrowingDerivative) = (; a = 0.0)
+y_types(::ThrowingDerivative) = (p = Float64,)
+y_state(::ThrowingDerivative, (; x)) = (p = x.a,)
+x_derivative(::ThrowingDerivative, (; x)) = error("derivative boom")
 
 struct ThrowingGuard <: AbstractComponent end
-init_x(::ThrowingGuard) = (; a = 0.0)
-output_types(::ThrowingGuard) = (p = Float64,)
-output_state(::ThrowingGuard, (; x)) = (p = x.a,)
-state_derivative(::ThrowingGuard, (; x)) = (; a = 0.0)
+x_init(::ThrowingGuard) = (; a = 0.0)
+y_types(::ThrowingGuard) = (p = Float64,)
+y_state(::ThrowingGuard, (; x)) = (p = x.a,)
+x_derivative(::ThrowingGuard, (; x)) = (; a = 0.0)
 throwing_guard(::ThrowingGuard, (; x)) = error("guard boom")
 throwing_guard_handler(::ThrowingGuard, (; x)) = (x = (; a = 0.0),)
 state_events(::ThrowingGuard) = (e = StateEvent(throwing_guard, throwing_guard_handler),)
 
 struct ThrowingHandler <: AbstractComponent end
-init_x(::ThrowingHandler) = (; a = 0.0)
-output_types(::ThrowingHandler) = (p = Float64,)
-output_state(::ThrowingHandler, (; x)) = (p = x.a,)
-state_derivative(::ThrowingHandler, (; x)) = (; a = 0.0)
+x_init(::ThrowingHandler) = (; a = 0.0)
+y_types(::ThrowingHandler) = (p = Float64,)
+y_state(::ThrowingHandler, (; x)) = (p = x.a,)
+x_derivative(::ThrowingHandler, (; x)) = (; a = 0.0)
 # A sign-form guard, so the probe reaches the handler with a policy in hand.
 throwing_handler_guard(::ThrowingHandler, (; x)) = x.a - 1.0
 throwing_handler(::ThrowingHandler, (; x)) = error("handler boom")
 state_events(::ThrowingHandler) = (e = StateEvent(throwing_handler_guard, throwing_handler),)
 
 struct ThrowingProjection <: AbstractComponent end
-init_x(::ThrowingProjection) = (; a = 0.0)
-output_types(::ThrowingProjection) = (p = Float64,)
-output_state(::ThrowingProjection, (; x)) = (p = x.a,)
-state_derivative(::ThrowingProjection, (; x)) = (; a = 0.0)
-state_projection(::ThrowingProjection, x) = error("projection boom")
+x_init(::ThrowingProjection) = (; a = 0.0)
+y_types(::ThrowingProjection) = (p = Float64,)
+y_state(::ThrowingProjection, (; x)) = (p = x.a,)
+x_derivative(::ThrowingProjection, (; x)) = (; a = 0.0)
+x_projection(::ThrowingProjection, x) = error("projection boom")
 
 # Declarations that throw: the frame names the declaration and the walk's path.
 # One by value, one by type, one by allocation, one assembly declaration.
 # `BadInit` is taken (`test_devices.jl`), so the four read `Throwing*`.
 struct ThrowingInit <: AbstractComponent end
-init_x(::ThrowingInit) = error("init boom")
-state_derivative(::ThrowingInit, (; x)) = (; a = 0.0)
+x_init(::ThrowingInit) = error("init boom")
+x_derivative(::ThrowingInit, (; x)) = (; a = 0.0)
 
 struct ThrowingInputTypes <: AbstractComponent end
-init_x(::ThrowingInputTypes) = (; a = 0.0)
-input_types(::ThrowingInputTypes) = error("input_types boom")
-output_types(::ThrowingInputTypes) = (p = Float64,)
-output_state(::ThrowingInputTypes, (; x)) = (p = x.a,)
-state_derivative(::ThrowingInputTypes, (; x)) = (; a = 0.0)
+x_init(::ThrowingInputTypes) = (; a = 0.0)
+u_types(::ThrowingInputTypes) = error("u_types boom")
+y_types(::ThrowingInputTypes) = (p = Float64,)
+y_state(::ThrowingInputTypes, (; x)) = (p = x.a,)
+x_derivative(::ThrowingInputTypes, (; x)) = (; a = 0.0)
 
 struct ThrowingWorkspace <: AbstractComponent end
-init_x(::ThrowingWorkspace) = (; a = 0.0)
-init_workspace(::ThrowingWorkspace, ::Type{T}) where {T <: Real} = error("workspace boom")
-output_types(::ThrowingWorkspace) = (p = Float64,)
-output_state(::ThrowingWorkspace, (; x)) = (p = x.a,)
-state_derivative(::ThrowingWorkspace, (; x)) = (; a = 0.0)
+x_init(::ThrowingWorkspace) = (; a = 0.0)
+ws_init(::ThrowingWorkspace, ::Type{T}) where {T <: Real} = error("workspace boom")
+y_types(::ThrowingWorkspace) = (p = Float64,)
+y_state(::ThrowingWorkspace, (; x)) = (p = x.a,)
+x_derivative(::ThrowingWorkspace, (; x)) = (; a = 0.0)
 
 struct ThrowingChildren <: AbstractComponent
     inner::ScrambledDerivative
@@ -976,51 +976,51 @@ ThrowingChildren() = ThrowingChildren(ScrambledDerivative())
 child_connections(::ThrowingChildren) = error("child_connections boom")
 
 # Bundle-law misses, one per class and per direction (§5.2): the continuous
-# `output_state` reading `m` with no `init_m` (undeclared), `u` (illegal for
-# the family), `s` (wrong tier); a discrete `output_state` reading `x` (wrong
-# tier); a `state_derivative` reading `y_x` (illegal: that is `output_direct`'s
+# `y_state` reading `m` with no `m_init` (undeclared), `u` (illegal for
+# the family), `s` (wrong tier); a discrete `y_state` reading `x` (wrong
+# tier); a `x_derivative` reading `y_x` (illegal: that is `y_direct`'s
 # name) and `foo` (illegal, a name from nowhere); a guard reading `s`.
 struct ReadsM <: AbstractComponent end
-init_x(::ReadsM) = (; a = 0.0)
-output_types(::ReadsM) = (p = Float64,)
-output_state(::ReadsM, (; x, m)) = (p = x.a,)
-state_derivative(::ReadsM, (; x)) = (; a = 0.0)
+x_init(::ReadsM) = (; a = 0.0)
+y_types(::ReadsM) = (p = Float64,)
+y_state(::ReadsM, (; x, m)) = (p = x.a,)
+x_derivative(::ReadsM, (; x)) = (; a = 0.0)
 
 struct ReadsU <: AbstractComponent end
-init_x(::ReadsU) = (; a = 0.0)
-output_types(::ReadsU) = (p = Float64,)
-output_state(::ReadsU, (; x, u)) = (p = x.a,)
-state_derivative(::ReadsU, (; x)) = (; a = 0.0)
+x_init(::ReadsU) = (; a = 0.0)
+y_types(::ReadsU) = (p = Float64,)
+y_state(::ReadsU, (; x, u)) = (p = x.a,)
+x_derivative(::ReadsU, (; x)) = (; a = 0.0)
 
 struct ReadsS <: AbstractComponent end
-init_x(::ReadsS) = (; a = 0.0)
-output_types(::ReadsS) = (p = Float64,)
-output_state(::ReadsS, (; x, s)) = (p = x.a,)
-state_derivative(::ReadsS, (; x)) = (; a = 0.0)
+x_init(::ReadsS) = (; a = 0.0)
+y_types(::ReadsS) = (p = Float64,)
+y_state(::ReadsS, (; x, s)) = (p = x.a,)
+x_derivative(::ReadsS, (; x)) = (; a = 0.0)
 
 struct DiscreteReadsX <: AbstractComponent end
-init_s(::DiscreteReadsX) = (n = 0,)
-output_types(::DiscreteReadsX) = (p = Int,)
-output_state(::DiscreteReadsX, (; s, x)) = (p = s.n,)
-state_update(::DiscreteReadsX, (; s)) = (n = s.n + 1,)
+s_init(::DiscreteReadsX) = (n = 0,)
+y_types(::DiscreteReadsX) = (p = Int,)
+y_state(::DiscreteReadsX, (; s, x)) = (p = s.n,)
+s_update(::DiscreteReadsX, (; s)) = (n = s.n + 1,)
 
 struct DerivativeReadsYx <: AbstractComponent end
-init_x(::DerivativeReadsYx) = (; a = 0.0)
-output_types(::DerivativeReadsYx) = (p = Float64,)
-output_state(::DerivativeReadsYx, (; x)) = (p = x.a,)
-state_derivative(::DerivativeReadsYx, (; x, y_x)) = (; a = 0.0)
+x_init(::DerivativeReadsYx) = (; a = 0.0)
+y_types(::DerivativeReadsYx) = (p = Float64,)
+y_state(::DerivativeReadsYx, (; x)) = (p = x.a,)
+x_derivative(::DerivativeReadsYx, (; x, y_x)) = (; a = 0.0)
 
 struct ReadsFoo <: AbstractComponent end
-init_x(::ReadsFoo) = (; a = 0.0)
-output_types(::ReadsFoo) = (p = Float64,)
-output_state(::ReadsFoo, (; x)) = (p = x.a,)
-state_derivative(::ReadsFoo, (; x, foo)) = (; a = 0.0)
+x_init(::ReadsFoo) = (; a = 0.0)
+y_types(::ReadsFoo) = (p = Float64,)
+y_state(::ReadsFoo, (; x)) = (p = x.a,)
+x_derivative(::ReadsFoo, (; x, foo)) = (; a = 0.0)
 
 struct GuardReadsS <: AbstractComponent end
-init_x(::GuardReadsS) = (; a = 0.0)
-output_types(::GuardReadsS) = (p = Float64,)
-output_state(::GuardReadsS, (; x)) = (p = x.a,)
-state_derivative(::GuardReadsS, (; x)) = (; a = 0.0)
+x_init(::GuardReadsS) = (; a = 0.0)
+y_types(::GuardReadsS) = (p = Float64,)
+y_state(::GuardReadsS, (; x)) = (p = x.a,)
+x_derivative(::GuardReadsS, (; x)) = (; a = 0.0)
 guard_reads_s(::GuardReadsS, (; s)) = s.n > 0
 guard_reads_s_handler(::GuardReadsS, (; x)) = (x = (; a = 0.0),)
 state_events(::GuardReadsS) = (e = StateEvent(guard_reads_s, guard_reads_s_handler),)
@@ -1030,24 +1030,24 @@ state_events(::GuardReadsS) = (e = StateEvent(guard_reads_s, guard_reads_s_handl
 # `FieldError` as cause.
 struct Own; a::Float64; end
 struct OwnFieldMiss <: AbstractComponent end
-init_x(::OwnFieldMiss) = (; a = 0.0)
-output_types(::OwnFieldMiss) = (p = Float64,)
-output_state(::OwnFieldMiss, (; x)) = (p = Own(x.a).b,)
-state_derivative(::OwnFieldMiss, (; x)) = (; a = 0.0)
+x_init(::OwnFieldMiss) = (; a = 0.0)
+y_types(::OwnFieldMiss) = (p = Float64,)
+y_state(::OwnFieldMiss, (; x)) = (p = Own(x.a).b,)
+x_derivative(::OwnFieldMiss, (; x)) = (; a = 0.0)
 
 # The pass-through: a carrier a framework call inside the stage threw, and an
 # interrupt, both leave the frame unwrapped.
 struct CarrierInside <: AbstractComponent end
-init_x(::CarrierInside) = (; a = 0.0)
-output_types(::CarrierInside) = (p = Float64,)
-output_state(::CarrierInside, (; x)) = (fragment(x = 1.0); (p = x.a,))
-state_derivative(::CarrierInside, (; x)) = (; a = 0.0)
+x_init(::CarrierInside) = (; a = 0.0)
+y_types(::CarrierInside) = (p = Float64,)
+y_state(::CarrierInside, (; x)) = (fragment(x = 1.0); (p = x.a,))
+x_derivative(::CarrierInside, (; x)) = (; a = 0.0)
 
 struct InterruptInside <: AbstractComponent end
-init_x(::InterruptInside) = (; a = 0.0)
-output_types(::InterruptInside) = (p = Float64,)
-output_state(::InterruptInside, (; x)) = throw(InterruptException())
-state_derivative(::InterruptInside, (; x)) = (; a = 0.0)
+x_init(::InterruptInside) = (; a = 0.0)
+y_types(::InterruptInside) = (p = Float64,)
+y_state(::InterruptInside, (; x)) = throw(InterruptException())
+x_derivative(::InterruptInside, (; x)) = (; a = 0.0)
 
 # The lateness pair for the runtime arm (§13.4, exercised in `test_failures.jl`):
 # the probe only ever takes the early branch, so the build passes and the miss
@@ -1055,55 +1055,55 @@ state_derivative(::InterruptInside, (; x)) = (; a = 0.0)
 
 # A destructure the probe never sees: `m` is read only past t = 0.05.
 struct LateRead <: AbstractComponent end
-init_x(::LateRead) = (; a = 0.0)
-output_types(::LateRead) = (p = Float64,)
-output_state(::LateRead, bundle) =
+x_init(::LateRead) = (; a = 0.0)
+y_types(::LateRead) = (p = Float64,)
+y_state(::LateRead, bundle) =
     bundle.t > 0.05 ? (p = bundle.m.phase,) : (p = bundle.x.a,)
-state_derivative(::LateRead, (; x)) = (; a = 1.0)
+x_derivative(::LateRead, (; x)) = (; a = 1.0)
 
 # The same lateness on the author's own struct: stays a raw `FieldError`.
 struct LateOwnMiss <: AbstractComponent end
-init_x(::LateOwnMiss) = (; a = 0.0)
-output_types(::LateOwnMiss) = (p = Float64,)
-output_state(::LateOwnMiss, bundle) =
+x_init(::LateOwnMiss) = (; a = 0.0)
+y_types(::LateOwnMiss) = (p = Float64,)
+y_state(::LateOwnMiss, bundle) =
     bundle.t > 0.05 ? (p = Own(bundle.x.a).b,) : (p = bundle.x.a,)
-state_derivative(::LateOwnMiss, (; x)) = (; a = 1.0)
+x_derivative(::LateOwnMiss, (; x)) = (; a = 1.0)
 
 function build_user_code_framing()
     @testset "a throw out of a probed function is framed with the method, the bundle and the inputs (§13.2, D-248)" begin
         err = failure(() -> build(single(Thrower())))
         @test err isa DiagnosticError{UserCodeFraming}
         d = diagnostic(err)
-        @test path(d) == "c" && d.fn == "output_state"
+        @test path(d) == "c" && d.fn == "y_state"
         @test d.bundle == [:x, :t] && d.inputs == ""
         @test d.cause isa ErrorException
 
         # A fed face puts the synthesized inputs in the frame.
         d = diagnostic(failure(() -> build(fed(ThrowingDirect(), :in))))
-        @test d.fn == "output_direct" && :u in d.bundle
+        @test d.fn == "y_direct" && :u in d.bundle
         @test d.inputs == sprint(show, (in = 0.0,); context = :compact => true)
 
         @test diagnostic(failure(() -> build(single(ThrowingDerivative())))).fn ==
-              "state_derivative"
+              "x_derivative"
         # The event bundle is the update law's view (§5.2): `x`, the table `y`, `t`.
         d = diagnostic(failure(() -> build(single(ThrowingGuard()))))
         @test d.fn == "guard" && d.bundle == [:x, :y, :t]
         d = diagnostic(failure(() -> build(single(ThrowingHandler()))))
         @test d.fn == "handler" && d.bundle == [:x, :y, :t]
-        # `state_projection` takes `x` positionally, so it frames as a declaration.
+        # `x_projection` takes `x` positionally, so it frames as a declaration.
         @test diagnostic(failure(() -> build(single(ThrowingProjection())))).fn ==
-              "state_projection"
+              "x_projection"
     end
 
     @testset "a throw out of a declaration is framed with the walk's path (§13.2, D-248)" begin
         err = failure(() -> build(single(ThrowingInit())))
         @test err isa DiagnosticError{UserCodeFraming}
         d = diagnostic(err)
-        @test d.fn == "init_x" && path(d) == "c" && isempty(d.bundle)
+        @test d.fn == "x_init" && path(d) == "c" && isempty(d.bundle)
         d = diagnostic(failure(() -> build(single(ThrowingInputTypes()))))
-        @test d.fn == "input_types" && path(d) == "c"
+        @test d.fn == "u_types" && path(d) == "c"
         d = diagnostic(failure(() -> build(single(ThrowingWorkspace()))))
-        @test d.fn == "init_workspace" && path(d) == "c"
+        @test d.fn == "ws_init" && path(d) == "c"
         d = diagnostic(failure(() -> build(Group((; a = ThrowingChildren())))))
         @test d.fn == "child_connections" && path(d) == "a"
     end
@@ -1112,13 +1112,13 @@ function build_user_code_framing()
         err = failure(() -> build(single(ReadsM())))
         @test err isa DiagnosticError{BundleFieldError}
         d = diagnostic(err)
-        @test (d.family, d.field, d.reason) == ("output_state", :m, :undeclared)
+        @test (d.family, d.field, d.reason) == ("y_state", :m, :undeclared)
         @test d.legal == [:x, :t] && path(d) == "c" && d.tier === :continuous
         for (c, family, field, reason) in
-                ((ReadsU(), "output_state", :u, :illegal_for_family),
-                 (ReadsS(), "output_state", :s, :wrong_tier),
-                 (DerivativeReadsYx(), "state_derivative", :y_x, :illegal_for_family),
-                 (ReadsFoo(), "state_derivative", :foo, :illegal_for_family),
+                ((ReadsU(), "y_state", :u, :illegal_for_family),
+                 (ReadsS(), "y_state", :s, :wrong_tier),
+                 (DerivativeReadsYx(), "x_derivative", :y_x, :illegal_for_family),
+                 (ReadsFoo(), "x_derivative", :foo, :illegal_for_family),
                  (GuardReadsS(), "guard", :s, :wrong_tier))
             err = failure(() -> build(single(c)))
             @test err isa DiagnosticError{BundleFieldError}
@@ -1128,7 +1128,7 @@ function build_user_code_framing()
         err = failure(() -> build(single(DiscreteReadsX())))
         @test err isa DiagnosticError{BundleFieldError}
         d = diagnostic(err)
-        @test (d.family, d.field, d.reason) == ("output_state", :x, :wrong_tier)
+        @test (d.family, d.field, d.reason) == ("y_state", :x, :wrong_tier)
         @test d.tier === :discrete
     end
 
@@ -1145,10 +1145,10 @@ function build_user_code_framing()
     end
 
     @testset "`classify_bundle_field`'s three classes (§5.2, Appendix B)" begin
-        @test classify_bundle_field(:output_state, CONTINUOUS, :m) === :undeclared
-        @test classify_bundle_field(:output_state, CONTINUOUS, :u) === :illegal_for_family
-        @test classify_bundle_field(:output_state, CONTINUOUS, :Δt) === :wrong_tier
-        @test classify_bundle_field(:state_update, DISCRETE, :x) === :wrong_tier
+        @test classify_bundle_field(:y_state, CONTINUOUS, :m) === :undeclared
+        @test classify_bundle_field(:y_state, CONTINUOUS, :u) === :illegal_for_family
+        @test classify_bundle_field(:y_state, CONTINUOUS, :Δt) === :wrong_tier
+        @test classify_bundle_field(:s_update, DISCRETE, :x) === :wrong_tier
         @test classify_bundle_field(:guard, CONTINUOUS, :foo) === :illegal_for_family
     end
 
@@ -1163,56 +1163,56 @@ end
 # shared with the bundle law in `test_declare.jl`); these are the ways a
 # declaration set can disagree or leave the tier unread.
 
-struct BothUpdates <: AbstractComponent       # `state_derivative` and `state_update` on one component
+struct BothUpdates <: AbstractComponent       # `x_derivative` and `s_update` on one component
 end
-init_x(::BothUpdates) = (q = 1.0,)
-output_types(::BothUpdates) = (a = Float64,)
-output_state(::BothUpdates, (; x)) = (a = x.q,)
-state_derivative(::BothUpdates, (; x)) = (q = 0.0,)
-state_update(::BothUpdates, (; x)) = (q = x.q,)
+x_init(::BothUpdates) = (q = 1.0,)
+y_types(::BothUpdates) = (a = Float64,)
+y_state(::BothUpdates, (; x)) = (a = x.q,)
+x_derivative(::BothUpdates, (; x)) = (q = 0.0,)
+s_update(::BothUpdates, (; x)) = (q = x.q,)
 
-struct BothStores <: AbstractComponent        # an empty `init_x` beside `init_s` and `state_update`
+struct BothStores <: AbstractComponent        # an empty `x_init` beside `s_init` and `s_update`
 end
-init_x(::BothStores) = (;)
-init_s(::BothStores) = (n = 0,)
-output_types(::BothStores) = (a = Float64,)
-output_state(::BothStores, (; s)) = (a = 1.0,)
-state_update(::BothStores, (; s)) = (n = s.n,)
+x_init(::BothStores) = (;)
+s_init(::BothStores) = (n = 0,)
+y_types(::BothStores) = (a = Float64,)
+y_state(::BothStores, (; s)) = (a = 1.0,)
+s_update(::BothStores, (; s)) = (n = s.n,)
 
-struct ModesOnDiscrete <: AbstractComponent   # `init_m` is continuous-only
+struct ModesOnDiscrete <: AbstractComponent   # `m_init` is continuous-only
 end
-init_s(::ModesOnDiscrete) = (n = 0,)
-init_m(::ModesOnDiscrete) = (phase = :idle,)
-output_types(::ModesOnDiscrete) = (a = Int,)
-output_state(::ModesOnDiscrete, (; s)) = (a = s.n,)
-state_update(::ModesOnDiscrete, (; s)) = (n = s.n,)
+s_init(::ModesOnDiscrete) = (n = 0,)
+m_init(::ModesOnDiscrete) = (phase = :idle,)
+y_types(::ModesOnDiscrete) = (a = Int,)
+y_state(::ModesOnDiscrete, (; s)) = (a = s.n,)
+s_update(::ModesOnDiscrete, (; s)) = (n = s.n,)
 
 struct PinnedOnDiscrete <: AbstractComponent  # `Pinned` where every leaf pins
 end
-init_s(::PinnedOnDiscrete) = (;)
-output_types(::PinnedOnDiscrete) = (a = Pinned{Float64},)
-output_state(::PinnedOnDiscrete, (; t)) = (a = 1.0,)
+s_init(::PinnedOnDiscrete) = (;)
+y_types(::PinnedOnDiscrete) = (a = Pinned{Float64},)
+y_state(::PinnedOnDiscrete, (; t)) = (a = 1.0,)
 
 # The marker below the top of an entry (D-265): under an output, under an input,
 # on a discrete leaf, and as the parameter-position pin D-263 rejected.
 struct NestedPinSource <: AbstractComponent
 end
-init_x(::NestedPinSource) = (;)
-output_types(::NestedPinSource) = (v = SVector{2,Pinned{Float64}},)
-output_state(::NestedPinSource, (; t)) = (v = SVector(1.0, 2.0),)
+x_init(::NestedPinSource) = (;)
+y_types(::NestedPinSource) = (v = SVector{2,Pinned{Float64}},)
+y_state(::NestedPinSource, (; t)) = (v = SVector(1.0, 2.0),)
 
 struct NestedPinEntry <: AbstractComponent
 end
-init_x(::NestedPinEntry) = (;)
-input_types(::NestedPinEntry) = (v = SVector{2,Pinned{Float64}},)
-output_types(::NestedPinEntry) = (s = Float64,)
-output_direct(::NestedPinEntry, (; u)) = (s = sum(u.v),)
+x_init(::NestedPinEntry) = (;)
+u_types(::NestedPinEntry) = (v = SVector{2,Pinned{Float64}},)
+y_types(::NestedPinEntry) = (s = Float64,)
+y_direct(::NestedPinEntry, (; u)) = (s = sum(u.v),)
 
 struct DiscreteNestedPin <: AbstractComponent
 end
-init_s(::DiscreteNestedPin) = (;)
-output_types(::DiscreteNestedPin) = (v = SVector{2,Pinned{Float64}},)
-output_state(::DiscreteNestedPin, (; t)) = (v = SVector(1.0, 2.0),)
+s_init(::DiscreteNestedPin) = (;)
+y_types(::DiscreteNestedPin) = (v = SVector{2,Pinned{Float64}},)
+y_state(::DiscreteNestedPin, (; t)) = (v = SVector(1.0, 2.0),)
 
 struct MixedParams{A,B}
     a::A
@@ -1221,14 +1221,14 @@ end
 
 struct MixedPinSource <: AbstractComponent
 end
-init_x(::MixedPinSource) = (;)
-output_types(::MixedPinSource) = (m = MixedParams{Float64,Pinned{Float64}},)
-output_state(::MixedPinSource, (; t)) = (m = MixedParams(1.0, 2.0),)
+x_init(::MixedPinSource) = (;)
+y_types(::MixedPinSource) = (m = MixedParams{Float64,Pinned{Float64}},)
+y_state(::MixedPinSource, (; t)) = (m = MixedParams(1.0, 2.0),)
 
 struct EmptyNoOutputs <: AbstractComponent    # an empty store and no contract
 end
-init_x(::EmptyNoOutputs) = (;)
-output_state(::EmptyNoOutputs, (; t)) = (;)
+x_init(::EmptyNoOutputs) = (;)
+y_state(::EmptyNoOutputs, (; t)) = (;)
 
 # --- enum- and Symbol-valued ports (§4.1, §4.3, §8.2, §9.3) --------------------
 # The fixtures are in `fixtures.jl`: a discrete producer, a consumer and a
@@ -1313,7 +1313,7 @@ function build_tier()
         @test isempty(diags)
 
         # A stateless leaf's empty store decides alone, and owes no update law:
-        # `Gain` declares no `state_derivative` and records nothing (D-263).
+        # `Gain` declares no `x_derivative` and records nothing (D-263).
         diags = Diagnostic[]
         @test classify_tier("c", Gain(1.0), diags) === CONTINUOUS
         @test classify_tier("c", ZOH(), diags) === DISCRETE
@@ -1322,7 +1322,7 @@ function build_tier()
 
         # Disagreement names the offending declaration and the tier the rest
         # announce (§8.2). The classifier records and returns no tier.
-        for (c, offender) in ((BothUpdates(), :state_update), (ModesOnDiscrete(), :init_m))
+        for (c, offender) in ((BothUpdates(), :s_update), (ModesOnDiscrete(), :m_init))
             diags = Diagnostic[]
             @test classify_tier("c", c, diags) === nothing
             # The vote loop collects: every declaration off the announced tier is
@@ -1332,19 +1332,19 @@ function build_tier()
         end
 
         # Both stores on one leaf: the update law announces discrete, and the
-        # empty `init_x` beside it is the one declaration off that tier.
+        # empty `x_init` beside it is the one declaration off that tier.
         diags = Diagnostic[]
         @test classify_tier("c", BothStores(), diags) === nothing
         d = only(diags)
         @test d isa DeclarationOnWrongTier && d.reason === :tier_form
-        @test d.declaration === :init_x && d.announced === :discrete
+        @test d.declaration === :x_init && d.announced === :discrete
 
         # A `Pinned` entry on a discrete leaf says nothing there (§8.2, §8.5, D-263).
         diags = Diagnostic[]
         @test classify_tier("c", PinnedOnDiscrete(), diags) === nothing
         d = only(diags)
         @test d isa DeclarationOnWrongTier && d.reason === :pinned_entry && d.entry === :a
-        @test d.declaration === :output_types && d.announced === :discrete
+        @test d.declaration === :y_types && d.announced === :discrete
 
         # Below the top of an entry the marker is `IllegalPortType` on both tiers
         # (§8.2, D-265), named with the declaration's site and the entry; a
@@ -1356,7 +1356,7 @@ function build_tier()
             d = only(diags)
             @test d isa IllegalPortType && d.reason === :nested_marker
             @test d.site === site && d.name === entry
-            @test d.declared === (site === :face ? input_types(comp) : output_types(comp))[entry]
+            @test d.declared === (site === :face ? u_types(comp) : y_types(comp))[entry]
         end
         # The walk collects it and the barrier throws before any wire is read.
         err = failure(() -> build(Group((; src = NestedPinSource(), c = NestedPinEntry());
@@ -1370,21 +1370,21 @@ function build_tier()
         @test only(diags) isa StoreWithoutUpdate
 
         # The tier twin of `ClassUnreadable` (§8.2, D-263): a primitive declaring
-        # neither store. `init_m` is no store, so the payload carries what the
+        # neither store. `m_init` is no store, so the payload carries what the
         # component does declare, in inventory order.
         diags = Diagnostic[]
         @test classify_tier("c", ModesNoContract(), diags) === nothing
         d = only(diags)
         @test d isa TierUnreadable && path(d) == "c" && d.type == "ModesNoContract"
-        @test d.declarations == [:init_m, :state_derivative]
+        @test d.declarations == [:m_init, :x_derivative]
 
-        # An empty store and no `output_types`: a leaf that produces nothing and
+        # An empty store and no `y_types`: a leaf that produces nothing and
         # stores nothing (§8.2, D-263).
         diags = Diagnostic[]
         @test classify_tier("c", EmptyNoOutputs(), diags) === nothing
         d = only(diags)
         @test d isa StatelessWithoutOutputs && path(d) == "c" && d.type == "EmptyNoOutputs"
-        @test d.declarations == [:init_x, :output_state]
+        @test d.declarations == [:x_init, :y_state]
 
         # The base tick period is deployment's, not the build's: the same `Build`
         # deploys at any admissible grid, and the executor cannot exist before one
@@ -1416,38 +1416,38 @@ merged_failures() = Group((; g = Gain(1.0), s = Sum(), n = NoFlow(), h = HalfEve
 # in its other store: the only finding is still the form, because the field
 # checks do not read a primitive the form check refused.
 struct BareState <: AbstractComponent end
-init_x(::BareState) = zeros(SVector{3})
-state_derivative(::BareState, (; x)) = zeros(SVector{3})
+x_init(::BareState) = zeros(SVector{3})
+x_derivative(::BareState, (; x)) = zeros(SVector{3})
 
 struct BareVector <: AbstractComponent end
-init_x(::BareVector) = [1.0]
-state_derivative(::BareVector, (; x)) = [0.0]
+x_init(::BareVector) = [1.0]
+x_derivative(::BareVector, (; x)) = [0.0]
 
 struct BareDiscrete <: AbstractComponent end
-init_s(::BareDiscrete) = 0.0
-output_types(::BareDiscrete) = (a = Float64,)
-output_state(::BareDiscrete, (; s)) = (a = s,)
-state_update(::BareDiscrete, (; s)) = s
+s_init(::BareDiscrete) = 0.0
+y_types(::BareDiscrete) = (a = Float64,)
+y_state(::BareDiscrete, (; s)) = (a = s,)
+s_update(::BareDiscrete, (; s)) = s
 
 struct BareModes <: AbstractComponent end
-init_x(::BareModes) = (gear_count = 3,)      # `IllegalStateLeaf`, were it read
-init_m(::BareModes) = 1
-state_derivative(::BareModes, (; x)) = (gear_count = 0,)
+x_init(::BareModes) = (gear_count = 3,)      # `IllegalStateLeaf`, were it read
+m_init(::BareModes) = 1
+x_derivative(::BareModes, (; x)) = (gear_count = 0,)
 
-struct LabelInStore <: AbstractComponent end   # a `String` in `init_s` (D-231)
-init_s(::LabelInStore) = (n = 0, phase = :armed, label = "armed")
-output_types(::LabelInStore) = (a = Int,)
-output_state(::LabelInStore, (; s)) = (a = s.n,)
-state_update(::LabelInStore, (; s)) = (n = s.n, phase = s.phase, label = s.label)
+struct LabelInStore <: AbstractComponent end   # a `String` in `s_init` (D-231)
+s_init(::LabelInStore) = (n = 0, phase = :armed, label = "armed")
+y_types(::LabelInStore) = (a = Int,)
+y_state(::LabelInStore, (; s)) = (a = s.n,)
+s_update(::LabelInStore, (; s)) = (n = s.n, phase = s.phase, label = s.label)
 
-struct LabelInModes <: AbstractComponent end   # a `String` in `init_m`
-init_x(::LabelInModes) = (q = 1.0,)
-init_m(::LabelInModes) = (phase = :idle, label = "x")
-output_types(::LabelInModes) = (a = Float64,)
-output_state(::LabelInModes, (; x)) = (a = x.q,)
-state_derivative(::LabelInModes, (; x)) = (q = 0.0,)
+struct LabelInModes <: AbstractComponent end   # a `String` in `m_init`
+x_init(::LabelInModes) = (q = 1.0,)
+m_init(::LabelInModes) = (phase = :idle, label = "x")
+y_types(::LabelInModes) = (a = Float64,)
+y_state(::LabelInModes, (; x)) = (a = x.q,)
+x_derivative(::LabelInModes, (; x)) = (q = 0.0,)
 
-# `init_x` fields outside §7.1's closed vocabulary, one per arm. `UnitVec` is
+# `x_init` fields outside §7.1's closed vocabulary, one per arm. `UnitVec` is
 # D-094's rejected shape: a normalizing inner constructor that would run on
 # every view. The derivatives exist so the tier reads clean and the vocabulary
 # check is the only finding.
@@ -1457,19 +1457,19 @@ struct UnitVec
 end
 
 struct ModeInState <: AbstractComponent end
-init_x(::ModeInState) = (gear_count = 3, armed = true, ω = 0.0)
-state_derivative(::ModeInState, (; x)) = (gear_count = 0, armed = false, ω = 0.0)
+x_init(::ModeInState) = (gear_count = 3, armed = true, ω = 0.0)
+x_derivative(::ModeInState, (; x)) = (gear_count = 0, armed = false, ω = 0.0)
 
 struct NarrowState <: AbstractComponent end
-init_x(::NarrowState) = (q = 1.0f0, v = SVector{2,Int}(1, 2))
-state_derivative(::NarrowState, (; x)) = (q = 0.0f0, v = SVector{2,Int}(0, 0))
+x_init(::NarrowState) = (q = 1.0f0, v = SVector{2,Int}(1, 2))
+x_derivative(::NarrowState, (; x)) = (q = 0.0f0, v = SVector{2,Int}(0, 0))
 
 struct ShapedState <: AbstractComponent end
-init_x(::ShapedState) = (pose = (x = 0.0, v = 0.0), u = UnitVec(SVector(3.0, 4.0)), ω = 0.0)
-state_derivative(::ShapedState, (; x)) = (pose = (x = 0.0, v = 0.0), u = x.u, ω = 0.0)
+x_init(::ShapedState) = (pose = (x = 0.0, v = 0.0), u = UnitVec(SVector(3.0, 4.0)), ω = 0.0)
+x_derivative(::ShapedState, (; x)) = (pose = (x = 0.0, v = 0.0), u = x.u, ω = 0.0)
 
 function build_state_leaves()
-    @testset "an init_x field is a Float64 or an SArray of them, flat (§7.1, §8.2, D-094)" begin
+    @testset "an x_init field is a Float64 or an SArray of them, flat (§7.1, §8.2, D-094)" begin
         # One throw for the whole model, every offending field named with the
         # arm that says where the value belongs; the `Float64` leaves pass.
         err = failure(() -> build(Group((; a = ModeInState(), b = NarrowState(),
@@ -1492,7 +1492,7 @@ function build_store_values()
         diags = diagnostics(err)
         @test all(d -> d isa IllegalStoreField, diags)
         @test Set((d.path, d.store, d.name, d.declared) for d in diags) ==
-              Set([("a", :init_s, :label, String), ("b", :init_m, :label, String)])
+              Set([("a", :s_init, :label, String), ("b", :m_init, :label, String)])
     end
 end
 
@@ -1508,8 +1508,8 @@ function build_store_form()
         @test all(d -> d isa StoreNotNamedTuple, diags)
         @test Set(kinds(err)) == Set([StoreNotNamedTuple])
         @test Set((d.path, d.store, d.declared) for d in diags) ==
-              Set([("a", :init_x, SVector{3,Float64}), ("b", :init_x, Vector{Float64}),
-                   ("c", :init_s, Float64), ("d", :init_m, Int)])
+              Set([("a", :x_init, SVector{3,Float64}), ("b", :x_init, Vector{Float64}),
+                   ("c", :s_init, Float64), ("d", :m_init, Int)])
     end
 end
 
@@ -1532,17 +1532,17 @@ end
 # A `Dual` arriving at a deliberately pinned leaf: the one honest cause, and the
 # one that earns the didactic hint.
 struct PinnedGetsDual <: AbstractComponent end
-init_x(::PinnedGetsDual) = (;)
-output_types(::PinnedGetsDual) = (frozen = Pinned{Float64},)
-output_state(::PinnedGetsDual, (; t)) = (frozen = t,)
+x_init(::PinnedGetsDual) = (;)
+y_types(::PinnedGetsDual) = (frozen = Pinned{Float64},)
+y_state(::PinnedGetsDual, (; t)) = (frozen = t,)
 
 # The constant-branch idiom (D-166): a literal `Float64` returned into a
 # walking port is a lawful arrival, embedded as a zero-partial.
 struct ConstantBranch <: AbstractComponent end
-init_x(::ConstantBranch) = (;)
-input_types(::ConstantBranch) = (in = Float64,)
-output_types(::ConstantBranch) = (out = Float64, vec = SVector{2,Float64})
-output_direct(::ConstantBranch, (; u)) = (out = u.in > 0 ? u.in : 0.0, vec = SVector(0.0, 1.0))
+x_init(::ConstantBranch) = (;)
+u_types(::ConstantBranch) = (in = Float64,)
+y_types(::ConstantBranch) = (out = Float64, vec = SVector{2,Float64})
+y_direct(::ConstantBranch, (; u)) = (out = u.in > 0 ? u.in : 0.0, vec = SVector(0.0, 1.0))
 
 function build_embed_accept()
     @testset "a mixed-leaf port embeds leaf by leaf (§4.1, §9.4, D-166)" begin
@@ -1582,29 +1582,29 @@ end
 # component's products are carried across from the nominal activation rather
 # than probed or synthesized.
 struct NomSource <: AbstractComponent end
-init_x(::NomSource) = (;)
-output_types(::NomSource) = (val = Float64,)
-output_state(::NomSource, (; t)) = (val = 3.0 + t,)
+x_init(::NomSource) = (;)
+y_types(::NomSource) = (val = Float64,)
+y_state(::NomSource, (; t)) = (val = 3.0 + t,)
 
 struct FrozenReader <: AbstractComponent end
-init_s(::FrozenReader) = (;)
-input_types(::FrozenReader) = (in = Float64,)
-output_types(::FrozenReader) = (out = Float64,)
-output_direct(::FrozenReader, (; u)) = (out = 2.0 * u.in,)
+s_init(::FrozenReader) = (;)
+u_types(::FrozenReader) = (in = Float64,)
+y_types(::FrozenReader) = (out = Float64,)
+y_direct(::FrozenReader, (; u)) = (out = 2.0 * u.in,)
 
 struct ClockStamp <: AbstractComponent end
-init_s(::ClockStamp) = (;)
-output_types(::ClockStamp) = (stamp = Float64,)
-output_state(::ClockStamp, (; t)) = (stamp = t,)
+s_init(::ClockStamp) = (;)
+y_types(::ClockStamp) = (stamp = Float64,)
+y_state(::ClockStamp, (; t)) = (stamp = t,)
 
 # A discrete allocator recording the scalar it receives (§7.3, D-263).
 const DISCRETE_SCRATCH_SCALAR = Ref{Any}(nothing)
 struct DiscreteScratch <: AbstractComponent end
-init_s(::DiscreteScratch) = (;)
-output_types(::DiscreteScratch) = (y = Float64,)
-init_workspace(::DiscreteScratch, ::Type{T}) where {T} =
+s_init(::DiscreteScratch) = (;)
+y_types(::DiscreteScratch) = (y = Float64,)
+ws_init(::DiscreteScratch, ::Type{T}) where {T} =
     (DISCRETE_SCRATCH_SCALAR[] = T; (tmp = Vector{T}(undef, 1),))
-output_state(::DiscreteScratch, (; ws)) = (ws.tmp[1] = 1.0; (y = ws.tmp[1],))
+y_state(::DiscreteScratch, (; ws)) = (ws.tmp[1] = 1.0; (y = ws.tmp[1],))
 
 function build_activations()
     @testset "a non-nominal activation is derived from the nominal one; frozen products carry (§9.4)" begin

@@ -411,7 +411,7 @@ with no discrete components still gets `ticks`, empty, compiling to a no-op
 whose `@ballocated` assertion passes vacuously, so consumers iterate uniformly
 with no per-model branching. Beside the four blocks ride `events`, the guard
 and handler per event keyed by `(path, name)`, and `projections`, the
-`state_projection` call per component keyed by path — each a zero-argument
+`x_projection` call per component keyed by path — each a zero-argument
 callable over the same buffers.
 """
 phase_bodies(sim::Simulation) = sim.exec.bodies
@@ -420,7 +420,7 @@ phase_bodies(sim::Simulation) = sim.exec.bodies
 
 """
 One RHS evaluation: *evaluating the RHS means running the sweep* (§5.3). The
-interior variant of each sweep block, then the `state_derivative` block
+interior variant of each sweep block, then the `x_derivative` block
 against the complete fresh table. Leaves `ẋbuf` holding the derivative of
 whatever `xbuf` holds.
 """
@@ -438,14 +438,14 @@ end
 The boundary macro-sequence at a base tick, final form (§5.3, §10.6):
 
 > integrate → project → [sweep → guards → handlers] iterated to quiescence
-> (under the firing budget) → all due `state_update` calls
+> (under the firing budget) → all due `s_update` calls
 
 Integration has just written the state, so projection runs first — between the
 write and its decode; the event phase then iterates with the due set fixed for
 the whole boundary, and the due updates run last, after quiescence, reading
 post-transition values off the settled table. Output stages before updates, so
 a discrete component's cells carry `y[k]` computed from `s[k]` while
-`state_update` produces `s[k+1]` — the sampled-data recursion, ordered by
+`s_update` produces `s[k+1]` — the sampled-data recursion, ordered by
 construction rather than by convention.
 """
 @inline function boundary!(sim::Simulation, tick::Int)
@@ -482,7 +482,7 @@ walk — so the `t₀` snapshot carries the authored world fully evaluated and n
 published cell holds the probe's synthesized values (§14.6's barrier extended
 from the root inputs to the whole table).
 
-The `state_update` calls keep the ordinary gate at index 0, which under the
+The `s_update` calls keep the ordinary gate at index 0, which under the
 canonical residue admits exactly `Φ = 0` (§10.5): that evaluation is
 establishment, not a scheduled sample, and an offset component's first
 *consumed* sample stays its `Φ·Δt_base` tick's. A component frozen at a
@@ -698,7 +698,7 @@ four keywords.
 
 The condition is §14.1's path-addressed sparse overlay, and the overlay base
 is **always the declared defaults**: `init!` re-establishes the three state
-homes — `xbuf` and the `s`/`m` stores, from `init_x`/`init_s`/`init_m` —
+homes — `xbuf` and the `s`/`m` stores, from `x_init`/`s_init`/`m_init` —
 before applying anything, so applying a condition means "fresh run from the
 declared defaults, with these overrides" (D-063) and warm restart needs no
 second semantics. Nothing re-seeds the cells, and nothing needs to: boundary
@@ -715,7 +715,7 @@ scalar — so a `Dual` simulation takes `t0 = 0.25` like any other.
 
 Boundary zero is an ordinary boundary with an empty integrate (§10.5, §14.5),
 run with the sweep's one amendment: every discrete output stage publishes,
-due or not (D-205, `boundary_zero!`), while the `state_update` calls keep
+due or not (D-205, `boundary_zero!`), while the `s_update` calls keep
 the gate at index 0 — which admits exactly the components with `Φ = 0`,
 implemented by nothing.
 
@@ -1294,11 +1294,11 @@ function _species(sim::Simulation, err::FieldError)
     legal_names = try
         family === :guard || family === :handler ?
             event_bundle_names(comp) :
-        family === :output_state ?
-            bundle_names(output_state, comp, tier, stage1_ports) :
-        family === :output_direct ?
-            bundle_names(output_direct, comp, tier, stage1_ports) :
-        family === :state_derivative || family === :state_update ?
+        family === :y_state ?
+            bundle_names(y_state, comp, tier, stage1_ports) :
+        family === :y_direct ?
+            bundle_names(y_direct, comp, tier, stage1_ports) :
+        family === :x_derivative || family === :s_update ?
             bundle_names(update_of(tier), comp, tier, stage1_ports) :
         return err
     catch lookup_err

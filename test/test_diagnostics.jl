@@ -286,28 +286,28 @@ function diagnostics_kind_set()
                            owner = "the root component", segment = "a", level = "a",
                            declared = TypeVar(:L, AbstractComponent)),
             PathResolution(entry = "`resolve` on `Group`", spelling = "", reason = :empty_path),
-            StoreWithoutUpdate(path = "a/b", store = :init_x),
+            StoreWithoutUpdate(path = "a/b", store = :x_init),
             EventHalfMissing(path = "a/b", event = :snap, reason = :guard, found = "Latch"),
             EventHalfMissing(path = "a/b", event = :snap, reason = :not_an_event, found = "Int64"),
             DeclarationShadowed(path = "a/b", parent_module = "Main.MyModel",
-                                names = [:init_x, :output_types]),
+                                names = [:x_init, :y_types]),
             ClassUnreadable(path = "a", type = "Inert", found = Symbol[],
                             assembly_family = [:child_connections],
-                            leaf_family = [:init_x, :output_types], holds_components = true),
+                            leaf_family = [:x_init, :y_types], holds_components = true),
             ClassUnreadable(path = "a", type = "Inert", found = [:sample_times],
                             assembly_family = [:child_connections],
-                            leaf_family = [:init_x, :output_types]),
-            ClassMixed(path = "a", declarations = [:init_x, :output_types]),
+                            leaf_family = [:x_init, :y_types]),
+            ClassMixed(path = "a", declarations = [:x_init, :y_types]),
             ContainerMixed(path = "a", field = :kids, keys = Any[1, :b],
                            types = ["Int64", "Float64"]),
             ContainerNested(path = "a", field = :kids, keys = Any[1, :b],
                             types = ["Tuple{Gain, Gain}", "NamedTuple{(:c,), Tuple{Gain}}"]),
-            DeclarationOnWrongTier(path = "a/b", declaration = :init_x, reason = :tier_form,
+            DeclarationOnWrongTier(path = "a/b", declaration = :x_init, reason = :tier_form,
                                    found = :continuous, announced = :discrete),
-            DeclarationOnWrongTier(path = "a/b", declaration = :state_projection, reason = :continuous_only,
+            DeclarationOnWrongTier(path = "a/b", declaration = :x_projection, reason = :continuous_only,
                                    found = :discrete),
-            DeclarationOnWrongTier(path = "a/b", declaration = :state_projection, reason = :no_manifold),
-            DeclarationOnWrongTier(path = "a/b", declaration = :output_types, reason = :pinned_entry,
+            DeclarationOnWrongTier(path = "a/b", declaration = :x_projection, reason = :no_manifold),
+            DeclarationOnWrongTier(path = "a/b", declaration = :y_types, reason = :pinned_entry,
                                    entry = :a, announced = :discrete),
             FaceNameIllegal(path = "a", face = "u/v", invariant = :contains_slash),
             FaceNameCollision(path = "a", faces = ["u"], site = :assembly),
@@ -340,8 +340,8 @@ function diagnostics_kind_set()
                                         candidates = [:units]),
             TransparentContainerUnknown(path = "a", field = :kids, component = "Group",
                                         candidates = Symbol[]),
-            TierUnreadable(path = "a/b", type = "Inert", declarations = [:init_m]),
-            StatelessWithoutOutputs(path = "a/b", type = "Inert", declarations = [:init_x]),
+            TierUnreadable(path = "a/b", type = "Inert", declarations = [:m_init]),
+            StatelessWithoutOutputs(path = "a/b", type = "Inert", declarations = [:x_init]),
             IllegalPortType(path = "a/b", site = :port, name = :y, declared = Nothing),
             IllegalPortType(path = "a/b", site = :port, name = :y, declared = Vector{Float64},
                             reason = :mutable, position = ""),
@@ -351,8 +351,8 @@ function diagnostics_kind_set()
                             reason = :handle_at_root),
             IllegalPortType(path = "a/b", site = :face, name = :v, declared = SVector{2,Pinned{Float64}},
                             reason = :nested_marker),
-            StoreNotNamedTuple(path = "a/b", store = :init_x, declared = Float64),
-            IllegalStoreField(path = "a/b", store = :init_s, name = :label, declared = String),
+            StoreNotNamedTuple(path = "a/b", store = :x_init, declared = Float64),
+            IllegalStoreField(path = "a/b", store = :s_init, name = :label, declared = String),
             IllegalStateLeaf(path = "a/b", name = :gear_count, declared = Int, reason = :mode_value),
             IllegalStateLeaf(path = "a/b", name = :q, declared = Float32, reason = :eltype),
             IllegalStateLeaf(path = "a/b", name = :pose, declared = NamedTuple, reason = :nested),
@@ -371,21 +371,21 @@ function diagnostics_kind_set()
             ProducedByTwoStages(path = "a/b", ports = [:y, :z]),
             DeclaredNotProduced(path = "a/b", ports = [:y], products = [:z],
                                 state_fields = [:q]),
-            UndeclaredReturnField(path = "a/b", stage = "output_state", name = :q, candidates = [:y]),
-            DeadStage(path = "a/b", stage = "output_state"),
-            ConformanceFailure(path = "a/b", what = "output_state", reason = :return_type, shape = :ports,
+            UndeclaredReturnField(path = "a/b", stage = "y_state", name = :q, candidates = [:y]),
+            DeadStage(path = "a/b", stage = "y_state"),
+            ConformanceFailure(path = "a/b", what = "y_state", reason = :return_type, shape = :ports,
                                observed = Int),
-            ConformanceFailure(path = "a/b", what = "state_projection", reason = :field_set, shape = :state,
+            ConformanceFailure(path = "a/b", what = "x_projection", reason = :field_set, shape = :state,
                                observed_fields = [:p], declared_fields = [:q]),
-            ConformanceFailure(path = "a/b", what = "state_derivative", reason = :field_type, shape = :init_x,
+            ConformanceFailure(path = "a/b", what = "x_derivative", reason = :field_type, shape = :x_init,
                                field = :q, observed = Float64, declared = Bool),
-            ConformanceFailure(path = "a/b", what = "output_state", reason = :field_type, shape = :ports,
+            ConformanceFailure(path = "a/b", what = "y_state", reason = :field_type, shape = :ports,
                                field = :y, observed = Int, declared = Float64,
                                activation = Float64),
-            ConformanceFailure(path = "a/b", what = "output_state", reason = :field_type,
+            ConformanceFailure(path = "a/b", what = "y_state", reason = :field_type,
                                shape = :ports, field = :q, observed = D8,
                                declared = Float64, activation = D8),
-            ConformanceFailure(path = "a/b", what = "state_update", reason = :field_set, shape = :init_s,
+            ConformanceFailure(path = "a/b", what = "s_update", reason = :field_set, shape = :s_init,
                                observed = NamedTuple{(:q,),Tuple{Int}},
                                declared = NamedTuple{(:q,),Tuple{Float64}}),
             ConformanceFailure(path = "a/b", what = "handler", event = :e, reason = :field_set,
@@ -394,10 +394,10 @@ function diagnostics_kind_set()
                                reason = :field_set, shape = :state,
                                observed_fields = [:p], declared_fields = [:q]),
             GuardForm(path = "a/b", event = :snap, observed = Int),
-            BundleFieldError(path = "a/b", family = "output_state", tier = :continuous,
+            BundleFieldError(path = "a/b", family = "y_state", tier = :continuous,
                              field = :m, legal = [:x, :t], reason = :undeclared),
             HandlerReturnKey(path = "a/b", event = :snap, key = :s, stores = [:x, :m]),
-            UserCodeFraming(path = "a/b", fn = "output_state", bundle = [:x, :t],
+            UserCodeFraming(path = "a/b", fn = "y_state", bundle = [:x, :t],
                             inputs = "", cause = ErrorException("boom")),
             # Deployment, periphery and services
             MissingInit(op = :run!, status = :built),
@@ -725,46 +725,46 @@ function diagnostics_kind_set()
         @test occursin("AbstractVector{Float64}", rendered) && occursin("`a/b`", rendered)
 
         # The port classification's two refusals, in D-252's words: the kind's own
-        # two stage names, and the remedy that names `output_state`.
+        # two stage names, and the remedy that names `y_state`.
         rendered = message(ProducedByTwoStages(path = "a/b", ports = [:y]))
-        @test occursin("`y` by `output_state` and by `output_direct`", rendered)
+        @test occursin("`y` by `y_state` and by `y_direct`", rendered)
         rendered = message(DeclaredNotProduced(path = "a/b", ports = [:y], products = [:z],
                                                state_fields = [:q]))
-        @test occursin("`output_state` returns them", rendered) &&
+        @test occursin("`y_state` returns them", rendered) &&
               occursin("the stages return `z`", rendered)
 
         # The dead stage names the return it got and the stage it got it from.
-        rendered = message(DeadStage(path = "a/b", stage = "output_state"))
-        @test occursin("`(;)`", rendered) && occursin("output_state", rendered)
+        rendered = message(DeadStage(path = "a/b", stage = "y_state"))
+        @test occursin("`(;)`", rendered) && occursin("y_state", rendered)
 
         # The bundle law's three classes (§5.2, §13.2): each names what would have
         # put the field in the bundle, and all three print the list in hand.
-        bundle_field_message(field, reason; family = "output_state", tier = :continuous) =
+        bundle_field_message(field, reason; family = "y_state", tier = :continuous) =
             message(BundleFieldError(path = "a/b", family = family, tier = tier,
                                      field = field, legal = [:x, :t], reason = reason))
         rendered = bundle_field_message(:m, :undeclared)
-        @test occursin("init_m", rendered) && occursin("{x, t}", rendered)
+        @test occursin("m_init", rendered) && occursin("{x, t}", rendered)
         rendered = bundle_field_message(:s, :wrong_tier)
         @test occursin("discrete-tier fact", rendered) && occursin("{x, t}", rendered)
         rendered = bundle_field_message(:u, :illegal_for_family)
-        @test occursin("no `output_state` bundle carries", rendered) &&
+        @test occursin("no `y_state` bundle carries", rendered) &&
               occursin("{x, t}", rendered)
         # A stage-1 port names no declaration at all, so that arm says so.
         @test occursin("produces no stage-1 port",
-                       bundle_field_message(:y_x, :undeclared, family = "output_direct"))
+                       bundle_field_message(:y_x, :undeclared, family = "y_direct"))
 
         # The frame first, the raw throw second (§13.2, D-248).
-        rendered = message(UserCodeFraming(path = "a/b", fn = "output_state",
+        rendered = message(UserCodeFraming(path = "a/b", fn = "y_state",
                                            bundle = [:x, :t],
                                            cause = ErrorException("boom")))
-        @test occursin("output_state", rendered) && occursin("{x, t}", rendered)
+        @test occursin("y_state", rendered) && occursin("{x, t}", rendered)
         @test occursin("boom", split(rendered, "cause:")[2])
         @test occursin("read its declarations",
-                       message(UserCodeFraming(path = "a/b", fn = "init_x",
+                       message(UserCodeFraming(path = "a/b", fn = "x_init",
                                                cause = ErrorException("boom"))))
         # A non-empty `u` prints the synthesized inputs beside the bundle.
         @test occursin("inputs (in = 0.0,)",
-                       message(UserCodeFraming(path = "a/b", fn = "output_direct",
+                       message(UserCodeFraming(path = "a/b", fn = "y_direct",
                                                bundle = [:u, :t], inputs = "(in = 0.0,)",
                                                cause = ErrorException("boom"))))
 
@@ -779,19 +779,19 @@ function diagnostics_kind_set()
         # The forgotten import (§8.1, D-246) states its fix as the line to paste,
         # spelled for exactly the names the module shadowed.
         rendered = message(DeclarationShadowed(path = "a/b", parent_module = "Main.MyModel",
-                                               names = [:init_x, :output_types]))
-        @test occursin("import Cadence: init_x, output_types", rendered)
+                                               names = [:x_init, :y_types]))
+        @test occursin("import Cadence: x_init, y_types", rendered)
 
         # A bare store value (§8.2, D-247) spells the wrap for the store at fault.
-        rendered = message(StoreNotNamedTuple(path = "a/b", store = :init_x,
+        rendered = message(StoreNotNamedTuple(path = "a/b", store = :x_init,
                                                declared = Float64))
-        @test occursin("init_x(::C) = (; ω = 0.0)", rendered)
-        rendered = message(StoreNotNamedTuple(path = "a/b", store = :init_s,
+        @test occursin("x_init(::C) = (; ω = 0.0)", rendered)
+        rendered = message(StoreNotNamedTuple(path = "a/b", store = :s_init,
                                                declared = Float64))
-        @test occursin("init_s(::C) = (; n = 0)", rendered)
-        rendered = message(StoreNotNamedTuple(path = "a/b", store = :init_m,
+        @test occursin("s_init(::C) = (; n = 0)", rendered)
+        rendered = message(StoreNotNamedTuple(path = "a/b", store = :m_init,
                                                declared = Int))
-        @test occursin("init_m(::C) = (; phase = :idle)", rendered)
+        @test occursin("m_init(::C) = (; phase = :idle)", rendered)
 
         # The walk clause's hint on the input side (§6.1, §8.2, D-236, D-263)
         # states the fix by name.

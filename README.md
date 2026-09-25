@@ -43,8 +43,8 @@ A continuous plant under a discrete PI controller running at 50 Hz:
 
 ```julia
 using Cadence
-import Cadence: AbstractComponent, init_x, init_s, input_types, output_types,
-    output_state, output_direct, state_derivative, state_update,
+import Cadence: AbstractComponent, x_init, s_init, u_types, y_types,
+    y_state, y_direct, x_derivative, s_update,
     Group, Absolute, Hz, Simulation, init!, run!, fragment, port, state, build
 
 struct Plant <: AbstractComponent
@@ -52,13 +52,13 @@ struct Plant <: AbstractComponent
     ζ::Float64
 end
 
-init_x(::Plant) = (q = 0.0, v = 0.0)
-input_types(::Plant) = (u = Float64,)
-output_types(::Plant) = (y = Float64, power = Float64)
+x_init(::Plant) = (q = 0.0, v = 0.0)
+u_types(::Plant) = (u = Float64,)
+y_types(::Plant) = (y = Float64, power = Float64)
 
-output_state(::Plant, (; x)) = (y = x.q,)                 # stage 1: state only
-output_direct(::Plant, (; x, u)) = (power = u.u * x.v,)   # stage 2: reads inputs
-state_derivative(p::Plant, (; x, u)) =
+y_state(::Plant, (; x)) = (y = x.q,)                 # stage 1: state only
+y_direct(::Plant, (; x, u)) = (power = u.u * x.v,)   # stage 2: reads inputs
+x_derivative(p::Plant, (; x, u)) =
     (q = x.v, v = -p.ω^2 * x.q - 2p.ζ * p.ω * x.v + u.u)
 
 struct PI <: AbstractComponent
@@ -66,12 +66,12 @@ struct PI <: AbstractComponent
     k_i::Float64
 end
 
-init_s(::PI) = (integral = 0.0,)
-input_types(::PI) = (ref = Float64, y = Float64)
-output_types(::PI) = (u = Float64,)
+s_init(::PI) = (integral = 0.0,)
+u_types(::PI) = (ref = Float64, y = Float64)
+y_types(::PI) = (u = Float64,)
 
-output_direct(c::PI, (; s, u)) = (u = c.k_p * (u.ref - u.y) + s.integral,)
-state_update(c::PI, (; s, u, Δt)) = (integral = s.integral + c.k_i * Δt * (u.ref - u.y),)
+y_direct(c::PI, (; s, u)) = (u = c.k_p * (u.ref - u.y) + s.integral,)
+s_update(c::PI, (; s, u, Δt)) = (integral = s.integral + c.k_i * Δt * (u.ref - u.y),)
 
 loop(feedback) = Group((plant = Plant(2.0, 0.3), ctl = PI(3.0, 2.0));
     wires = ("ctl/u" => "plant/u", "plant/$feedback" => "ctl/y"),
@@ -91,15 +91,15 @@ The `import` list is part of authoring. A component extends the framework's
 functions rather than calling them, and Julia allows that only for names
 imported explicitly.
 
-Each component has two output stages. `output_state` sees only the state, and
-`output_direct` also sees the inputs. The build derives the execution order
+Each component has two output stages. `y_state` sees only the state, and
+`y_direct` also sees the inputs. The build derives the execution order
 from that split. Feeding back the plant's stage-2 `power` port instead of `y`
 closes an algebraic loop, and the build refuses the model:
 
 ```
 julia> build(loop("power"))
 ERROR: DiagnosticError: 1 diagnostics
-  AlgebraicCycle: algebraic loop among `plant`, `ctl`: plant/power → ctl/y, ctl/u → plant/u — real: a loop survives the trace (`ctl` structurally, the rest globally); break it with a state, a unit delay or a stage-1 (`output_state`) port (§5.5)
+  AlgebraicCycle: algebraic loop among `plant`, `ctl`: plant/power → ctl/y, ctl/u → plant/u — real: a loop survives the trace (`ctl` structurally, the rest globally); break it with a state, a unit delay or a stage-1 (`y_state`) port (§5.5)
 ```
 
 ## Documentation

@@ -21,9 +21,9 @@ scratchy() = Group((; sm = Smoother(0.5));
                    inputs = ("a" => "sm/a", "b" => "sm/b"))
 
 # An offset pair, one stage shape each, both at `Relative(2, 1)` so neither is
-# due at boundary zero: `hold` samples the root input through `output_direct`,
-# `off` publishes its own `s` through `output_state` and accumulates in
-# `state_update`. What D-205 rules on is exactly what these two read at `t₀`.
+# due at boundary zero: `hold` samples the root input through `y_direct`,
+# `off` publishes its own `s` through `y_state` and accumulates in
+# `s_update`. What D-205 rules on is exactly what these two read at `t₀`.
 offset_pair() = Group((; hold = ZOH(), off = DiscreteIntegrator(1.0));
                       wires = ("hold/out" => "off/e",),
                       inputs = ("in" => "hold/in",),
@@ -286,7 +286,7 @@ function conditions_algebra()
                            fragment(inputs = (u = 1.0, e = 0.0))))
         # Authored fields land; the fields no fragment named hold their declared
         # defaults, the overlay being `merge(defaults, overlay)` and nothing more.
-        @test port(sim, "ctl", :u) === 4.0              # `s`, published before `state_update`
+        @test port(sim, "ctl", :u) === 4.0              # `s`, published before `s_update`
         @test state(sim, "plant").q === SVector(0.0, 0.0)
         @test modes(sim, "trig") === (state = :armed, count = 7)
         @test port(sim, "", :u) === 1.0
@@ -302,7 +302,7 @@ function conditions_algebra()
         @test modes(sim, "trig").state === :fired        # the run moved every store
 
         # The overlay base is always the declared defaults, never the last
-        # trajectory's final state: bitwise the `init_*` values again.
+        # trajectory's final state: bitwise the `*_init` values again.
         init!(sim, fragment(inputs = (u = 0.0, e = 0.0)))
         @test state(sim, "plant").q === SVector(0.0, 0.0)
         @test port(sim, "ctl", :u) === 0.0
@@ -323,7 +323,7 @@ function conditions_algebra()
         @test port(latest(sim), "", :held) === 3.0     # and the t₀ snapshot carries both
         @test port(latest(sim), "", :acc) === 7.0
 
-        # `state_update` stays gated by Φ (§10.5): the evaluation above is establishment, not a
+        # `s_update` stays gated by Φ (§10.5): the evaluation above is establishment, not a
         # scheduled sample, so the authored `s` survives boundary zero untouched and
         # the first sample `off` *consumes* is its own tick's, at Φ·Δt_base.
         @test state(sim, "off").acc === 7.0
@@ -465,11 +465,11 @@ end
 # its own last-wins.
 struct Ledger <: AbstractComponent end
 
-init_s(::Ledger) = (a = 0.0, b = 0.0)
-output_types(::Ledger) = (total = Float64,)
+s_init(::Ledger) = (a = 0.0, b = 0.0)
+y_types(::Ledger) = (total = Float64,)
 
-output_state(::Ledger, (; s)) = (total = s.a + s.b,)
-state_update(::Ledger, (; s)) = (a = s.a, b = s.b)
+y_state(::Ledger, (; s)) = (total = s.a + s.b,)
+s_update(::Ledger, (; s)) = (a = s.a, b = s.b)
 
 # One shape over `tri()`'s four homes, its values the parameters: the `at`
 # literals sit at one source location, which is what makes the `===` prefix

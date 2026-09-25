@@ -2,7 +2,7 @@
 # executor out. Three jobs, in order, because each needs the previous one's
 # answer:
 #
-#   1. probe stage 1 — needs no wiring at all (an `output_state` bundle carries
+#   1. probe stage 1 — needs no wiring at all (an `y_state` bundle carries
 #      no `u`), which is what makes it the fixed point the rest of the build
 #      stands on;
 #   2. derive the feedthrough graph and schedule stage 2 topologically, since a
@@ -104,22 +104,22 @@ end
 """The tier's own state register: exactly one of the two is ever populated."""
 state_decls(decl::Decls, tier::Tier) = tier === CONTINUOUS ? decl.x : decl.s
 
-# One walk on the continuous tier (D-263): `init_x` by value and the contracts by
+# One walk on the continuous tier (D-263): `x_init` by value and the contracts by
 # type are all retyped at the activation scalar, every `Float64` position
 # following it, a `Pinned` contract leaf the one exception. On the discrete tier
-# the same declarations pin wholesale, so `init_s` does not walk and the
+# the same declarations pin wholesale, so `s_init` does not walk and the
 # contracts are read as written.
 function declarations(comp, tier::Tier, ::Type{T}) where {T}
     tier === CONTINUOUS ?
-        Decls(retype_value(T, invoke_declaration(init_x, comp)), NamedTuple(),
-              declared_at(input_types, comp, tier, T), declared_at(output_types, comp, tier, T)) :
-        Decls(NamedTuple(), invoke_declaration(init_s, comp),
-              declared_at(input_types, comp, tier), declared_at(output_types, comp, tier))
+        Decls(retype_value(T, invoke_declaration(x_init, comp)), NamedTuple(),
+              declared_at(u_types, comp, tier, T), declared_at(y_types, comp, tier, T)) :
+        Decls(NamedTuple(), invoke_declaration(s_init, comp),
+              declared_at(u_types, comp, tier), declared_at(y_types, comp, tier))
 end
 
 # --- tier classification (§8.2) -----------------------------------------------
-# Tier is declared by the store every leaf declares, `init_x` continuous against
-# `init_s` discrete, the two disjoint (D-195), and empty on a stateless leaf
+# Tier is declared by the store every leaf declares, `x_init` continuous against
+# `s_init` discrete, the two disjoint (D-195), and empty on a stateless leaf
 # (D-263). The declaration is asked for by method existence, never by
 # emptiness: a declared `(;)` and the fallback are the same value. A stateful
 # leaf announces its tier in the update law as well, and the update law decides
@@ -127,17 +127,17 @@ end
 # tiers (D-220) and cast no vote, and no arity carries a tier. Every other
 # tier-implying declaration must then agree, and disagreement names the
 # offending one — including the wrong-tier cases the split state letters make
-# visible, an `init_x` on a leaf whose update law is `state_update`, the
+# visible, an `x_init` on a leaf whose update law is `s_update`, the
 # converse, both stores on one leaf, and a `Pinned` contract entry on a
 # discrete leaf.
 #
 # The classifier sees primitives only: a component that declares nothing at all
 # has no *class* to read, which §8.5 settles before this runs.
 
-# §7.1, §8.2, D-094: every `init_x` field is a `Float64` or an `SArray` of them,
+# §7.1, §8.2, D-094: every `x_init` field is a `Float64` or an `SArray` of them,
 # and the declaration is flat. The arm names where the value belongs instead.
 function check_state_leaves(path::String, comp, diags::Vector{Diagnostic})
-    for (name, value) in pairs(invoke_declaration(init_x, comp))
+    for (name, value) in pairs(invoke_declaration(x_init, comp))
         leaf_eltype = value isa SArray ? eltype(value) : typeof(value)
         leaf_eltype === Float64 && continue
         reason = value isa NamedTuple ? :nested :
@@ -153,7 +153,7 @@ end
 # can be read further; the fallbacks return `NamedTuple()` and pass.
 function check_store_form(path::String, comp, diags::Vector{Diagnostic})
     readable = true
-    for (name, fn) in ((:init_x, init_x), (:init_s, init_s), (:init_m, init_m))
+    for (name, fn) in ((:x_init, x_init), (:s_init, s_init), (:m_init, m_init))
         contents = invoke_declaration(fn, comp)
         contents isa NamedTuple && continue
         push!(diags, StoreNotNamedTuple(path = path, store = name, declared = typeof(contents)))
@@ -164,8 +164,8 @@ end
 
 # §7.3, D-231: every store field is isbits or a `Symbol`, checked on both stores.
 function check_stores(path::String, comp, diags::Vector{Diagnostic})
-    for (store, contents) in ((:init_s, invoke_declaration(init_s, comp)),
-                              (:init_m, invoke_declaration(init_m, comp)))
+    for (store, contents) in ((:s_init, invoke_declaration(s_init, comp)),
+                              (:m_init, invoke_declaration(m_init, comp)))
         for (name, value) in pairs(contents)
             isbits(value) || value isa Symbol ||
                 push!(diags, IllegalStoreField(path = path, store = store,
@@ -180,22 +180,22 @@ recorded in `diags` (§13.1).
 """
 function classify_tier(path::String, comp, diags::Vector{Diagnostic})
     votes = Tuple{Symbol,Tier}[]
-    has_stage(state_derivative, comp) && push!(votes, (:state_derivative, CONTINUOUS))
-    has_stage(state_update, comp) && push!(votes, (:state_update, DISCRETE))
-    _declares(init_x, comp) && push!(votes, (:init_x, CONTINUOUS))
-    _declares(init_s, comp) && push!(votes, (:init_s, DISCRETE))
-    !isempty(invoke_declaration(init_m, comp)) && push!(votes, (:init_m, CONTINUOUS))
+    has_stage(x_derivative, comp) && push!(votes, (:x_derivative, CONTINUOUS))
+    has_stage(s_update, comp) && push!(votes, (:s_update, DISCRETE))
+    _declares(x_init, comp) && push!(votes, (:x_init, CONTINUOUS))
+    _declares(s_init, comp) && push!(votes, (:s_init, DISCRETE))
+    !isempty(invoke_declaration(m_init, comp)) && push!(votes, (:m_init, CONTINUOUS))
     !isempty(invoke_declaration(state_events, comp)) && push!(votes, (:state_events, CONTINUOUS))
 
     # The store is mandatory, empty when stateless (§8.2, D-263).
-    if !_declares(init_x, comp) && !_declares(init_s, comp)
+    if !_declares(x_init, comp) && !_declares(s_init, comp)
         push!(diags, TierUnreadable(path = path, type = _typename(comp),
                                    declarations = leaf_declarations(comp)))
         return nothing
     end
-    state_store = !isempty(invoke_declaration(init_x, comp)) ? :init_x :
-                  !isempty(invoke_declaration(init_s, comp)) ? :init_s : nothing
-    update_vote = findfirst(v -> first(v) === :state_derivative || first(v) === :state_update,
+    state_store = !isempty(invoke_declaration(x_init, comp)) ? :x_init :
+                  !isempty(invoke_declaration(s_init, comp)) ? :s_init : nothing
+    update_vote = findfirst(v -> first(v) === :x_derivative || first(v) === :s_update,
                             votes)
     if state_store !== nothing && update_vote === nothing
         push!(diags, StoreWithoutUpdate(path = path, store = state_store))
@@ -203,12 +203,12 @@ function classify_tier(path::String, comp, diags::Vector{Diagnostic})
     end
 
     # The decider: the update law where there is one, the store otherwise. Of two
-    # stores `init_x` decides, and `init_s` is reported against it.
-    decider = something(update_vote, findfirst(v -> first(v) === :init_x || first(v) === :init_s,
+    # stores `x_init` decides, and `s_init` is reported against it.
+    decider = something(update_vote, findfirst(v -> first(v) === :x_init || first(v) === :s_init,
                                                votes))
     tier = last(votes[decider])
     recorded = length(diags)
-    state_store === nothing && !_declares(output_types, comp) &&
+    state_store === nothing && !_declares(y_types, comp) &&
         push!(diags, StatelessWithoutOutputs(path = path, type = _typename(comp),
                                             declarations = leaf_declarations(comp)))
 
@@ -225,11 +225,11 @@ function classify_tier(path::String, comp, diags::Vector{Diagnostic})
     # Both contracts read on the declaration as written, one report per entry:
     # the marker below the top of an entry is refused on both tiers (§8.2,
     # D-265), and a top marker says nothing where every leaf pins (§8.5, D-263).
-    for (name, fn) in ((:input_types, input_types), (:output_types, output_types))
+    for (name, fn) in ((:u_types, u_types), (:y_types, y_types))
         _declares(fn, comp) || continue
         for (entry_name, P) in pairs(invoke_declaration(fn, comp))
             _holds_marker(P) &&
-                push!(diags, IllegalPortType(path = path, site = name === :input_types ? :face : :port,
+                push!(diags, IllegalPortType(path = path, site = name === :u_types ? :face : :port,
                                              name = entry_name, declared = P,
                                              reason = :nested_marker))
             tier === DISCRETE && _is_marker(P) &&
@@ -244,7 +244,7 @@ end
 # --- 2. probing ---------------------------------------------------------------
 
 """
-Probe the stage-1 function — `output_state`, on either tier (D-220) — for
+Probe the stage-1 function — `y_state`, on either tier (D-220) — for
 every component in this activation's executable set: no wiring
 is needed, so this runs first and tells the rest of the build which ports are
 stage-1 — the ones that carry no dependence on inputs and therefore break loops
@@ -262,10 +262,10 @@ function probe_stage1(structure::Structure, decls::Vector{Decls},
         path, comp, decl = entry.path, entry.instance, decls[ci]
         at_component(path) do
             _frozen(entry.tier, T) && return NamedTuple()
-            has_stage(output_state, comp) || return NamedTuple()
-            stage = String(nameof(output_state))
-            bundle_fields = bundle_names(output_state, comp, entry.tier, ())
-            y = invoke_probed(output_state, :output_state, path, comp, entry.tier,
+            has_stage(y_state, comp) || return NamedTuple()
+            stage = String(nameof(y_state))
+            bundle_fields = bundle_names(y_state, comp, entry.tier, ())
+            y = invoke_probed(y_state, :y_state, path, comp, entry.tier,
                               _bundle_values(bundle_fields, decl, NamedTuple(), NamedTuple(), T;
                                              ws = workspaces[ci], m = mstores[ci], Δt = 1.0))
             y isa NamedTuple ||
@@ -373,7 +373,7 @@ function _outputs(structure::Structure, decls::Vector{Decls},
     # per consumer: (producer, port, face)
     edges = [Tuple{Int,Symbol,Symbol}[] for _ in 1:n_components]
     for (ci, entry) in enumerate(structure.components)
-        has_stage(output_direct, entry.instance) || continue
+        has_stage(y_direct, entry.instance) || continue
         for (face, (producer_path, producer_port)) in entry.conns
             isempty(producer_path) && continue           # a root input: no producer to wait for
             producer_ci = index_of(structure, producer_path)
@@ -632,7 +632,7 @@ end
 
 """
 One component's outputs (§9.1): the port names each stage produces, `stage1`
-in the return's order, `stage2` the declared remainder in `output_types`
+in the return's order, `stage2` the declared remainder in `y_types`
 order. Their concatenation is the products' order, stage 1 then stage 2.
 """
 struct ComponentOutputs
@@ -826,8 +826,8 @@ function _check_wires(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tu
                                                                draft.tiers[ci], scalar),
                                              draft.paths[ci])
                                 for ci in eachindex(draft.paths)]
-    ins_F, outs_F = contracts_at(input_types, Float64), contracts_at(output_types, Float64)
-    ins_M, outs_M = contracts_at(input_types, Marker), contracts_at(output_types, Marker)
+    ins_F, outs_F = contracts_at(u_types, Float64), contracts_at(y_types, Float64)
+    ins_M, outs_M = contracts_at(u_types, Marker), contracts_at(y_types, Marker)
     for (ci, consumer_conns) in enumerate(conns),
         (face, (producer_path, producer_port)) in consumer_conns
         isempty(producer_path) && continue           # a root input: typed below
@@ -980,10 +980,10 @@ function _activate(structure::Structure, outputs::Outputs, nominal::Activation{F
     Activation{T}(decls, products, layout)
 end
 
-# Probe-scoped mode stores (§9.3). One read of `init_m` per component, under the
+# Probe-scoped mode stores (§9.3). One read of `m_init` per component, under the
 # component frame (§13.2, D-248).
 _mstores(structure::Structure) =
-    Any[at_component(() -> (m = invoke_declaration(init_m, entry.instance);
+    Any[at_component(() -> (m = invoke_declaration(m_init, entry.instance);
                             isempty(m) ? nothing : Ref(m)), entry.path)
         for entry in structure.components]
 
@@ -995,7 +995,7 @@ _workspaces(structure::Structure, ::Type{T}) where {T} =
 _workspace(path::String, comp, tier::Tier, ::Type{T}) where {T} =
     at_component(path) do
         _declares_workspace(comp) || return nothing
-        invoke_declaration(init_workspace, comp, tier === CONTINUOUS ? T : Float64)
+        invoke_declaration(ws_init, comp, tier === CONTINUOUS ? T : Float64)
     end
 
 # A discrete component's stages never run at a non-nominal activation: its
@@ -1057,9 +1057,9 @@ function probe_stage2(structure::Structure, decls::Vector{Decls},
     end
     isempty(diags) || throw(DiagnosticError(diags))
 
-    # The update laws, probed against the now-complete table: `state_derivative`
-    # for shape, `state_update` for the store's own type. A frozen component's
-    # `state_update` is outside the executable set like its output stages (§9.4).
+    # The update laws, probed against the now-complete table: `x_derivative`
+    # for shape, `s_update` for the store's own type. A frozen component's
+    # `s_update` is outside the executable set like its output stages (§9.4).
     empty!(diags)
     for (ci, entry) in enumerate(structure.components)
         comp, path, decl, tier = entry.instance, entry.path, decls[ci], entry.tier
@@ -1072,35 +1072,35 @@ function probe_stage2(structure::Structure, decls::Vector{Decls},
                                     Δt = 1.0)
             append!(diags, tier === CONTINUOUS ?
                 _check_derivative(path,
-                    invoke_probed(state_derivative, :state_derivative, path, comp, tier, bundle),
+                    invoke_probed(x_derivative, :x_derivative, path, comp, tier, bundle),
                     decl.x, T) :
                 _check_update(path,
-                    invoke_probed(state_update, :state_update, path, comp, tier, bundle), decl.s))
+                    invoke_probed(s_update, :s_update, path, comp, tier, bundle), decl.s))
         end
     end
     isempty(diags) || throw(DiagnosticError(diags))
 
-    # `state_projection`, probed at every activation it runs at — its result is
+    # `x_projection`, probed at every activation it runs at — its result is
     # written back to the buffer wholesale at both schedule positions (§5.3), so
     # the check holds it *complete* against `X`'s own shape at `T` (§9.3).
     empty!(diags)
     for (ci, entry) in enumerate(structure.components)
         comp = entry.instance
-        has_stage(state_projection, comp) || continue
+        has_stage(x_projection, comp) || continue
         path, decl = entry.path, decls[ci]
         if entry.tier !== CONTINUOUS
-            push!(diags, DeclarationOnWrongTier(path = path, declaration = :state_projection,
+            push!(diags, DeclarationOnWrongTier(path = path, declaration = :x_projection,
                                                reason = :continuous_only))
             continue                               # no manifold to run it against
         end
         if isempty(decl.x)
-            push!(diags, DeclarationOnWrongTier(path = path, declaration = :state_projection,
+            push!(diags, DeclarationOnWrongTier(path = path, declaration = :x_projection,
                                                reason = :no_manifold))
             continue
         end
         append!(diags, at_component(path) do
-            _check_state_write(path, "state_projection",
-                               invoke_declaration(state_projection, comp, decl.x), decl.x, T)
+            _check_state_write(path, "x_projection",
+                               invoke_declaration(x_projection, comp, decl.x), decl.x, T)
         end)
     end
     isempty(diags) || throw(DiagnosticError(diags))
@@ -1111,21 +1111,21 @@ end
 One component's stage-2 probe, writing its complete product into `products[ci]`:
 the body of `probe_stage2`'s topological loop, factored so the cycle classifier
 can run the same chain over the acyclic prefix Kahn did place (§5.6). A
-component with no `output_direct`, and a frozen one, is a no-op.
+component with no `y_direct`, and a frozen one, is a no-op.
 """
 function _probe_direct!(products::Vector{NamedTuple}, ci::Int, structure::Structure,
                         decls::Vector{Decls}, stage1,
                         layout::Layout, workspaces::Vector, mstores::Vector, ::Type{T}) where {T}
     entry = structure.components[ci]
     comp, path, decl, s1 = entry.instance, entry.path, decls[ci], stage1[ci]
-    (has_stage(output_direct, comp) && !_frozen(entry.tier, T)) || return nothing
+    (has_stage(y_direct, comp) && !_frozen(entry.tier, T)) || return nothing
     at_component(path) do
-        stage = String(nameof(output_direct))
-        bundle_fields = bundle_names(output_direct, comp, entry.tier, tuple(keys(s1)...))
+        stage = String(nameof(y_direct))
+        bundle_fields = bundle_names(y_direct, comp, entry.tier, tuple(keys(s1)...))
         u = NamedTuple{tuple(keys(decl.ins)...)}(tuple(
             (_probe_input(structure, layout, products, ci, face, decl.ins[face], T)
              for face in keys(decl.ins))...))
-        y2 = invoke_probed(output_direct, :output_direct, path, comp, entry.tier,
+        y2 = invoke_probed(y_direct, :y_direct, path, comp, entry.tier,
                            _bundle_values(bundle_fields, decl, u, s1, T;
                                           ws = workspaces[ci], m = mstores[ci], Δt = 1.0))
         y2 isa NamedTuple ||
@@ -1145,11 +1145,11 @@ function _probe_direct!(products::Vector{NamedTuple}, ci::Int, structure::Struct
 end
 
 # The complete state write-back (§9.3): the same predicate for
-# `state_projection`'s return and a handler's `x` key, both written to the flat
+# `x_projection`'s return and a handler's `x` key, both written to the flat
 # buffer wholesale.
 #
 # It returns its violation list rather than throwing, so its two callers — the
-# `state_projection` pass and the handler check — can put it under their own
+# `x_projection` pass and the handler check — can put it under their own
 # barrier (§13.1). The two shape checks are sequential: neither later one is
 # meaningful once an earlier one fails.
 function _check_state_write(path, what, x⁺, x::NamedTuple, ::Type{T};
@@ -1235,7 +1235,7 @@ function _check_handler(path, name, returned, decl::Decls, comp)
         throw(DiagnosticError(ConformanceFailure(path = path, what = what, event = name,
                                             reason = :return_type,
                                             shape = :stores, observed = typeof(returned))))
-    m₀ = invoke_declaration(init_m, comp)
+    m₀ = invoke_declaration(m_init, comp)
     stores = Symbol[]
     isempty(decl.x) || push!(stores, :x)
     isempty(m₀) || push!(stores, :m)
@@ -1290,7 +1290,7 @@ component stores they were allocated for. The stores' *types* are fixed by
 their allocation; this only ever writes values into them.
 
 Construction and `init!` share this one path, which is what makes an
-application "fresh run from the `init_*` defaults, with these overrides"
+application "fresh run from the `*_init` defaults, with these overrides"
 (D-063) rather than an overlay on whatever the last trajectory left behind.
 """
 function establish_defaults!(xbuf::Vector{T}, sstores::Vector, mstores::Vector,
@@ -1304,7 +1304,7 @@ function establish_defaults!(xbuf::Vector{T}, sstores::Vector, mstores::Vector,
             end
         end
         sstores[ci] === nothing || (sstores[ci][] = decl.s)
-        mstores[ci] === nothing || (mstores[ci][] = init_m(entry.instance))
+        mstores[ci] === nothing || (mstores[ci][] = m_init(entry.instance))
     end
     nothing
 end
@@ -1426,11 +1426,11 @@ function compile(build::Build, act::Activation{T}, schedule; chunk_size::Int = 1
 
     for (ci, entry) in enumerate(components)
         comp, path = entry.instance, entry.path
-        (has_stage(output_state, comp) && !frozen(ci)) || continue
+        (has_stage(y_state, comp) && !frozen(ci)) || continue
         decl = decls[ci]
-        bundle_fields = bundle_names(output_state, comp, entry.tier, ())
+        bundle_fields = bundle_names(y_state, comp, entry.tier, ())
         push!(stage1_entries, StageEntry{typeof(decl.x),bundle_fields}(
-            output_state, comp, NamedTuple(), NamedTuple(),
+            y_state, comp, NamedTuple(), NamedTuple(),
             addr_group(path, outputs.components[ci].stage1),
             x_offs[ci], clock, sstores[ci], mstores[ci], workspaces[ci], Δt_c[ci],
             path, ci, cursor))
@@ -1440,18 +1440,18 @@ function compile(build::Build, act::Activation{T}, schedule; chunk_size::Int = 1
     for ci in outputs.order
         entry = components[ci]
         comp, path, decl = entry.instance, entry.path, decls[ci]
-        (has_stage(output_direct, comp) && !frozen(ci)) || continue
+        (has_stage(y_direct, comp) && !frozen(ci)) || continue
         stage1_names = outputs.components[ci].stage1
-        bundle_fields = bundle_names(output_direct, comp, entry.tier, tuple(stage1_names...))
+        bundle_fields = bundle_names(y_direct, comp, entry.tier, tuple(stage1_names...))
         push!(stage2_entries, StageEntry{typeof(decl.x),bundle_fields}(
-            output_direct, comp, in_group(ci, decl), addr_group(path, stage1_names),
+            y_direct, comp, in_group(ci, decl), addr_group(path, stage1_names),
             addr_group(path, outputs.components[ci].stage2), x_offs[ci], clock,
             sstores[ci], mstores[ci], workspaces[ci], Δt_c[ci], path, ci, cursor))
         push!(stage2_gates, gate(ci))
     end
 
-    # The update law, one block per tier: `state_derivative` into the flat
-    # derivative buffer, `state_update` into the component's own store. Both
+    # The update law, one block per tier: `x_derivative` into the flat
+    # derivative buffer, `s_update` into the component's own store. Both
     # read the complete fresh table.
     for (ci, entry) in enumerate(components)
         comp, path, decl, tier = entry.instance, entry.path, decls[ci], entry.tier
@@ -1493,7 +1493,7 @@ function compile(build::Build, act::Activation{T}, schedule; chunk_size::Int = 1
             # The names, the policies and the bundle are the product's; the guard
             # and handler are functions, which no product carries.
             declared_events = at_component(() -> invoke_declaration(state_events, comp), path)
-            projection = has_stage(state_projection, comp) ? state_projection : nothing
+            projection = has_stage(x_projection, comp) ? x_projection : nothing
             for name in keys(policies)
                 push!(event_entries, EventEntry{typeof(decl.x),bundle_fields}(
                     declared_events[name].guard, declared_events[name].handler, projection, comp,
@@ -1514,7 +1514,7 @@ function compile(build::Build, act::Activation{T}, schedule; chunk_size::Int = 1
                                                                entry.path, ci, cursor)
                              for (ci, entry) in enumerate(components)
                              if entry.tier === CONTINUOUS &&
-                                has_stage(state_projection, entry.instance)]
+                                has_stage(x_projection, entry.instance)]
 
     body(entries, gates) = chunked_body(entries, gates, store, xbuf, ẋbuf; chunk_size)
     # Beside the four blocks ride the per-event and per-projection callables,
@@ -1575,21 +1575,21 @@ end
 # structurally here so the runtime `flatten!` into the derivative block is safe.
 function _check_derivative(path, ẋ, x::NamedTuple, ::Type{T}) where {T}
     ẋ isa NamedTuple ||
-        return Diagnostic[ConformanceFailure(path = path, what = "state_derivative",
+        return Diagnostic[ConformanceFailure(path = path, what = "x_derivative",
                                              reason = :return_type,
-                                             shape = :init_x, observed = typeof(ẋ))]
+                                             shape = :x_init, observed = typeof(ẋ))]
     Set(keys(ẋ)) == Set(keys(x)) ||
-        return Diagnostic[ConformanceFailure(path = path, what = "state_derivative",
+        return Diagnostic[ConformanceFailure(path = path, what = "x_derivative",
                                              reason = :field_set,
-                                             shape = :init_x,
+                                             shape = :x_init,
                                              observed_fields = collect(keys(ẋ)),
                                              declared_fields = collect(keys(x)))]
     diags = Diagnostic[]
     for field in keys(x)
         _accepts(typeof(x[field]), typeof(ẋ[field]), T) ||
-            push!(diags, ConformanceFailure(path = path, what = "state_derivative",
+            push!(diags, ConformanceFailure(path = path, what = "x_derivative",
                                            reason = :field_type,
-                                           shape = :init_x, field = field,
+                                           shape = :x_init, field = field,
                                            observed = typeof(ẋ[field]),
                                            declared = typeof(x[field]),
                                            activation = T))
@@ -1597,19 +1597,19 @@ function _check_derivative(path, ẋ, x::NamedTuple, ::Type{T}) where {T}
     diags
 end
 
-# §7.3: a discrete store is overwritten wholesale with what `state_update`
+# §7.3: a discrete store is overwritten wholesale with what `s_update`
 # returns, so the successor must be the store's own type exactly. The discrete
 # world is pinned — no walk, no embedding — which makes the store assignment
 # type-stable and the ban on arithmetic over stores enforceable by construction.
 function _check_update(path, s⁺, s::NamedTuple)
     s⁺ isa NamedTuple ||
-        return Diagnostic[ConformanceFailure(path = path, what = "state_update",
+        return Diagnostic[ConformanceFailure(path = path, what = "s_update",
                                              reason = :return_type,
-                                             shape = :init_s, observed = typeof(s⁺))]
+                                             shape = :s_init, observed = typeof(s⁺))]
     typeof(s⁺) === typeof(s) ||
-        return Diagnostic[ConformanceFailure(path = path, what = "state_update",
+        return Diagnostic[ConformanceFailure(path = path, what = "s_update",
                                              reason = :field_set,
-                                             shape = :init_s, observed = typeof(s⁺),
+                                             shape = :s_init, observed = typeof(s⁺),
                                              declared = typeof(s))]
     Diagnostic[]
 end

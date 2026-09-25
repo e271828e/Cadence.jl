@@ -271,7 +271,7 @@ end
 """
 A nonfinite continuous-state leaf found by the boundary's first act (§13.4,
 D-157): the sweep over `x` immediately after integrate returns, before
-`state_projection` and before the boundary sweep, so the component whose own block
+`x_projection` and before the boundary sweep, so the component whose own block
 diverged is the one named — not the innocent downstream one the NaN would
 reach next. Thrown as a fail-fast `DiagnosticError`, and the frame loop's
 catch site makes it a `StepError` species.
@@ -468,15 +468,15 @@ function message(d::PathResolution)
      "segment where the child is a container element, and nothing further (§6.1, §13.3)")
 end
 
-"§8.2: a declared store with no update — `init_x` without `state_derivative`, `init_s` without `state_update`."
+"§8.2: a declared store with no update — `x_init` without `x_derivative`, `s_init` without `s_update`."
 Base.@kwdef struct StoreWithoutUpdate <: Diagnostic
     path::String
-    store::Symbol                            # :init_x | :init_s
+    store::Symbol                            # :x_init | :s_init
 end
 path(d::StoreWithoutUpdate) = d.path
 message(d::StoreWithoutUpdate) =
-    "`$(d.path)` declares `$(d.store)` but defines neither `state_derivative` nor " *
-    "`state_update` — a store needs its update (§8.2)"
+    "`$(d.path)` declares `$(d.store)` but defines neither `x_derivative` nor " *
+    "`s_update` — a store needs its update (§8.2)"
 
 "§8.2: an event declared with one half, or a `state_events` entry that is not a `StateEvent` (D-215)."
 Base.@kwdef struct EventHalfMissing <: Diagnostic
@@ -561,7 +561,7 @@ message(d::ContainerNested) =
     "$(_namelist(d.keys)) ($(_plainlist(d.types))) — containers of containers are " *
     "rejected in the first cut; deeper grouping is an assembly (§8.5)"
 
-"§5.2, §8.2, §8.5, D-263: a declaration written in the other tier's form, a `Pinned` entry on a discrete leaf, or `state_projection` off the continuous tier."
+"§5.2, §8.2, §8.5, D-263: a declaration written in the other tier's form, a `Pinned` entry on a discrete leaf, or `x_projection` off the continuous tier."
 Base.@kwdef struct DeclarationOnWrongTier <: Diagnostic
     path::String
     declaration::Symbol                      # the offending declaration
@@ -576,7 +576,7 @@ message(d::DeclarationOnWrongTier) =
     "$(_at_path(d.path)) declares `$(d.declaration)`, which is continuous-only — projection " *
     "normalizes continuous state (§5.2)" :
     d.reason === :no_manifold ?
-    "$(_at_path(d.path)) declares `$(d.declaration)` but no `init_x` — there is no state " *
+    "$(_at_path(d.path)) declares `$(d.declaration)` but no `x_init` — there is no state " *
     "manifold to project onto (§5.2)" :
     d.reason === :pinned_entry ?
     "$(_at_path(d.path)): entry `$(d.entry)` is declared `Pinned` in `$(d.declaration)`, " *
@@ -607,7 +607,7 @@ path(d::FaceNameCollision) = d.path
 message(d::FaceNameCollision) =
     d.site === :root ?
     "$(_at_path("")): face name(s) $(_plainlist(d.faces)) appear twice — at the root a " *
-    "primitive's faces are its `input_types` and `output_types` keys together, and a key " *
+    "primitive's faces are its `u_types` and `y_types` keys together, and a key " *
     "declared in both is the same build error a duplicate assembly face name is (§8.6)" :
     "$(_at_path(d.path)): face name(s) $(_plainlist(d.faces)) appear twice — face names " *
     "are unique across `input_connections` and `output_connections` together; to route " *
@@ -762,7 +762,7 @@ message(d::TransparentContainerUnknown) =
     "or `NamedTuple` field whose elements are all components, the empty one included " *
     "(§8.5, D-211)"
 
-"§8.2, §8.5, D-263: a primitive declaring neither `init_x` nor `init_s`, the store every leaf declares its tier by."
+"§8.2, §8.5, D-263: a primitive declaring neither `x_init` nor `s_init`, the store every leaf declares its tier by."
 Base.@kwdef struct TierUnreadable <: Diagnostic
     path::String
     type::String                             # the component type's name
@@ -771,10 +771,10 @@ end
 path(d::TierUnreadable) = d.path
 message(d::TierUnreadable) =
     "$(_at_path(d.path)) (`$(d.type)`) declares no store — every leaf declares its tier by its " *
-    "store, mandatory even when empty: a stateless leaf writes `init_x(::C) = (;)` or " *
-    "`init_s(::C) = (;)`. Its leaf declarations are $(_namelist(d.declarations)) (§8.2)"
+    "store, mandatory even when empty: a stateless leaf writes `x_init(::C) = (;)` or " *
+    "`s_init(::C) = (;)`. Its leaf declarations are $(_namelist(d.declarations)) (§8.2)"
 
-"§8.2, §8.5, D-263: a leaf with an empty store and no `output_types`, which produces nothing and stores nothing."
+"§8.2, §8.5, D-263: a leaf with an empty store and no `y_types`, which produces nothing and stores nothing."
 Base.@kwdef struct StatelessWithoutOutputs <: Diagnostic
     path::String
     type::String                             # the component type's name
@@ -782,8 +782,8 @@ Base.@kwdef struct StatelessWithoutOutputs <: Diagnostic
 end
 path(d::StatelessWithoutOutputs) = d.path
 message(d::StatelessWithoutOutputs) =
-    "$(_at_path(d.path)) (`$(d.type)`) has an empty store and declares no `output_types`, so it " *
-    "produces nothing and stores nothing — declare `output_types`, or give the store " *
+    "$(_at_path(d.path)) (`$(d.type)`) has an empty store and declares no `y_types`, so it " *
+    "produces nothing and stores nothing — declare `y_types`, or give the store " *
     "fields and the update law that drives them. Its leaf declarations are " *
     "$(_namelist(d.declarations)) (§8.2)"
 
@@ -817,19 +817,19 @@ end
 "§8.2, D-247: a store declaration returning something other than a `NamedTuple`, the one admitted form."
 Base.@kwdef struct StoreNotNamedTuple <: Diagnostic
     path::String
-    store::Symbol                            # :init_x | :init_s | :init_m
+    store::Symbol                            # :x_init | :s_init | :m_init
     declared::Any                            # the observed type
 end
 path(d::StoreNotNamedTuple) = d.path
 function message(d::StoreNotNamedTuple)
-    wrap = d.store === :init_x ? "(; ω = 0.0)" :
-           d.store === :init_s ? "(; n = 0)" : "(; phase = :idle)"
+    wrap = d.store === :x_init ? "(; ω = 0.0)" :
+           d.store === :s_init ? "(; n = 0)" : "(; phase = :idle)"
     "$(_at_path(d.path)): `$(d.store)` returns `$(d.declared)`, not a `NamedTuple` — a " *
     "store is declared by initial value as named fields, one leaf per field, " *
     "`$(d.store)(::C) = $wrap` (§8.2)"
 end
 
-"§7.1, §8.2, D-094: an `init_x` field outside the closed vocabulary — a mode value, a real off the common eltype, a nested `NamedTuple`, or a wrapper type."
+"§7.1, §8.2, D-094: an `x_init` field outside the closed vocabulary — a mode value, a real off the common eltype, a nested `NamedTuple`, or a wrapper type."
 Base.@kwdef struct IllegalStateLeaf <: Diagnostic
     path::String
     name::Symbol
@@ -838,10 +838,10 @@ Base.@kwdef struct IllegalStateLeaf <: Diagnostic
 end
 path(d::IllegalStateLeaf) = d.path
 function message(d::IllegalStateLeaf)
-    head = "$(_at_path(d.path)): `init_x` field `$(d.name)::$(d.declared)`"
+    head = "$(_at_path(d.path)): `x_init` field `$(d.name)::$(d.declared)`"
     d.reason === :mode_value &&
         return "$head is not a continuous state — integers, `Bool`s and enums belong in " *
-               "`init_m` (§7.1, §8.2)"
+               "`m_init` (§7.1, §8.2)"
     d.reason === :eltype &&
         return "$head is not at the common eltype — state leaves are written at `Float64` " *
                "and walked to the activation scalar (§7.1, §7.2)"
@@ -855,7 +855,7 @@ end
 "§7.3, §8.2, D-231: a store field that is neither isbits nor a `Symbol`."
 Base.@kwdef struct IllegalStoreField <: Diagnostic
     path::String
-    store::Symbol                            # :init_s | :init_m
+    store::Symbol                            # :s_init | :m_init
     name::Symbol
     declared::Any                            # the offending field type
 end
@@ -910,7 +910,7 @@ _cycle_hint(dead) =
               " consumed only in a fallback branch"
           end for member in unique(first.(dead))), "; ") * " (§5.4)"
 
-const _BREAK_CYCLE = "break it with a state, a unit delay or a stage-1 (`output_state`) port (§5.5)"
+const _BREAK_CYCLE = "break it with a state, a unit delay or a stage-1 (`y_state`) port (§5.5)"
 
 function message(d::AlgebraicCycle)
     head = "algebraic loop among $(_namelist(d.members)): $(_wirelist(d.wires))"
@@ -938,8 +938,8 @@ end
 path(d::ProducedByTwoStages) = d.path
 message(d::ProducedByTwoStages) =
     "`$(d.path)`: " *
-    join(("`$p` by `output_state` and by `output_direct`" for p in d.ports), ", ") *
-    " — a port is produced once: drop it from `output_direct`, or from its stage-1 " *
+    join(("`$p` by `y_state` and by `y_direct`" for p in d.ports), ", ") *
+    " — a port is produced once: drop it from `y_direct`, or from its stage-1 " *
     "producer (§5.3, §8.3)"
 
 "§8.3: a declared port no stage writes — a cell no one fills, reading as a silent zero."
@@ -952,25 +952,25 @@ end
 path(d::DeclaredNotProduced) = d.path
 message(d::DeclaredNotProduced) =
     "`$(d.path)`: declared port(s) $(_plainlist(d.ports)) produced by no stage — " *
-    "`output_state` returns them, or `output_types` drops them (§5.3, §8.3); the stages " *
+    "`y_state` returns them, or `y_types` drops them (§5.3, §8.3); the stages " *
     "return $(_namelist(d.products)); the state fields are $(_namelist(d.state_fields))"
 
-"§8.3, §8.4 w5: a stage returning a field `output_types` does not declare."
+"§8.3, §8.4 w5: a stage returning a field `y_types` does not declare."
 Base.@kwdef struct UndeclaredReturnField <: Diagnostic
     path::String
     stage::String
     name::Symbol
-    candidates::Vector{Symbol} = Symbol[]    # `output_types`' keys
+    candidates::Vector{Symbol} = Symbol[]    # `y_types`' keys
 end
 path(d::UndeclaredReturnField) = d.path
 message(d::UndeclaredReturnField) =
-    "`$(d.path)`: $(d.stage) returns `$(d.name)`, which `output_types` does not declare — " *
+    "`$(d.path)`: $(d.stage) returns `$(d.name)`, which `y_types` does not declare — " *
     "declare it, or drop it from the return; the declared ports are $(_namelist(d.candidates))"
 
 "§5.2, §9.3: a stage method that returned bare `(;)`, producing no ports."
 Base.@kwdef struct DeadStage <: Diagnostic
     path::String
-    stage::String                            # "output_state" | "output_direct"
+    stage::String                            # "y_state" | "y_direct"
 end
 path(d::DeadStage) = d.path
 message(d::DeadStage) =
@@ -989,7 +989,7 @@ Base.@kwdef struct ConformanceFailure <: Diagnostic
     path::String
     what::String                             # the function or stage at fault
     reason::Symbol                           # :return_type | :field_set | :field_type
-    shape::Symbol                            # :ports|:namedtuple|:state|:init_x|:init_s|:stores|:mode
+    shape::Symbol                            # :ports|:namedtuple|:state|:x_init|:s_init|:stores|:mode
     observed::Any = nothing
     declared::Any = nothing
     field::Union{Nothing,Symbol} = nothing
@@ -1009,8 +1009,8 @@ _conformance_what(d::ConformanceFailure) =
 _conformance_expect(shape::Symbol) =
     shape === :ports      ? "must return a NamedTuple of port values" :
     shape === :state      ? "must return a NamedTuple shaped like the state" :
-    shape === :init_x     ? "must return a NamedTuple shaped like `init_x`" :
-    shape === :init_s     ? "must return a NamedTuple shaped like `init_s`" :
+    shape === :x_init     ? "must return a NamedTuple shaped like `x_init`" :
+    shape === :s_init     ? "must return a NamedTuple shaped like `s_init`" :
     shape === :stores     ? "must return a NamedTuple of the stores it writes" :
     shape === :mode       ? "must be a NamedTuple" :
                         "must return a NamedTuple"
@@ -1032,12 +1032,12 @@ function message(d::ConformanceFailure)
                _conformance_section(d.shape)
     if d.reason === :field_set
         d.shape === :mode &&
-            return "`$(d.path)`: $(_conformance_what(d)) writes mode `$(d.field)`, and `init_m` declares " *
+            return "`$(d.path)`: $(_conformance_what(d)) writes mode `$(d.field)`, and `m_init` declares " *
                    "$(_symtuple(d.declared_fields)) — `m` is a names-subset write (§5.2)"
-        d.shape === :init_s &&
+        d.shape === :s_init &&
             return "`$(d.path)`: $(_conformance_what(d)) returns $(d.observed), state store is " *
                    "$(d.declared) — a discrete successor is the store's own type exactly (§7.3)"
-        d.shape === :init_x &&
+        d.shape === :x_init &&
             return "`$(d.path)`: $(_conformance_what(d)) returns fields $(_symtuple(d.observed_fields)), " *
                    "state has $(_symtuple(d.declared_fields)) — derivative completeness is " *
                    "structural (§7.1)"
@@ -1051,7 +1051,7 @@ function message(d::ConformanceFailure)
     d.shape === :mode &&
         return "`$(d.path)`: $(_conformance_what(d)) mode `$(d.field)` is $(d.observed), declared " *
                "$(d.declared) (§5.2)"
-    d.shape === :init_x &&
+    d.shape === :x_init &&
         return "`$(d.path)`: derivative field `$(d.field)` is $(d.observed), state field " *
                "is $(d.declared)" * _pin(d)
     "`$(d.path)`: $(_conformance_what(d)) field `$(d.field)` is $(d.observed), state field is " *
@@ -1073,7 +1073,7 @@ message(d::GuardForm) =
 "§5.2, §13.2: a bundle field a component function destructured that its bundle does not carry, classified against the legal sets."
 Base.@kwdef struct BundleFieldError <: Diagnostic
     path::String
-    family::String                           # "output_state" | "output_direct" | "state_derivative" | "state_update" | "guard" | "handler"
+    family::String                           # "y_state" | "y_direct" | "x_derivative" | "s_update" | "guard" | "handler"
     tier::Symbol                             # :continuous | :discrete
     field::Symbol                            # the requested field
     legal::Vector{Symbol}                    # the bundle's own field names, the list in hand
@@ -1085,9 +1085,9 @@ path(d::BundleFieldError) = d.path
 # table). `y_x`/`y_s` name no declaration at all, a stage-1 port being a probe
 # discovery. That arm gets its own sentence below.
 _bundle_declaration(field::Symbol) =
-    field === :x  ? "init_x"  : field === :s ? "init_s" : field === :m ? "init_m" :
-    field === :ws ? "init_workspace" : field === :u ? "input_types" :
-    field === :y  ? "output_types" : ""
+    field === :x  ? "x_init"  : field === :s ? "s_init" : field === :m ? "m_init" :
+    field === :ws ? "ws_init" : field === :u ? "u_types" :
+    field === :y  ? "y_types" : ""
 
 function message(d::BundleFieldError)
     head = "$(_at_path(d.path)): `$(d.family)` destructures `$(d.field)`"
@@ -1560,16 +1560,16 @@ function message(d::ConditionResolution)
     d.reason === :no_store &&
         return "$(_cleaf(d)) — $(_at_path(d.path)) is a $(d.tier) " *
                "component and declares " *
-               "no `init_$(d.store)`" *
+               "no `$(d.store)_init`" *
                (d.store === :x && d.tier === :discrete ?
                 "; the discrete tier's state is `s` (D-195)" :
                 d.store === :s && d.tier === :continuous ?
                 "; the continuous tier's state is `x` (D-195)" :
                 d.store === :m ?
-                "; modes are declared by `init_m`, continuous-only (§3.2)" : "") *
+                "; modes are declared by `m_init`, continuous-only (§3.2)" : "") *
                _ctail(d)
     d.reason === :undeclared_field &&
-        return "$(_cleaf(d)) is not declared — `init_$(d.store)` at " *
+        return "$(_cleaf(d)) is not declared — `$(d.store)_init` at " *
                "$(_at_path(d.path)) " *
                "declares $(_namelist(d.candidates))" *
                (d.role === nothing ? "" :
@@ -1774,7 +1774,7 @@ message(d::TrimCommitResiduals) =
     "this solve converged, and the residuals re-gathered after the commit leave the box: " *
     join(("`$k` = $v against $tolerance" for (k, v, tolerance) in d.residuals), ", ") *
     " — the mover is " *
-    "boundary zero's `state_projection` or a commit-fired handler, and the verdict is not " *
+    "boundary zero's `x_projection` or a commit-fired handler, and the verdict is not " *
     "re-litigated: it gated the commit, at the solved point (§14.5, §14.8)"
 
 "§14.8: a converged solve whose committed-state checks leave their tolerances."
