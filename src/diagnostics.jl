@@ -770,7 +770,7 @@ Base.@kwdef struct TierUnreadable <: Diagnostic
 end
 path(d::TierUnreadable) = d.path
 message(d::TierUnreadable) =
-    "$(_at_path(d.path))::`$(d.type)` declares no store — every leaf declares its tier by its " *
+    "$(_at_path(d.path)) (`$(d.type)`) declares no store — every leaf declares its tier by its " *
     "store, mandatory even when empty: a stateless leaf writes `init_x(::C) = (;)` or " *
     "`init_s(::C) = (;)`. Its leaf declarations are $(_namelist(d.declarations)) (§8.2)"
 
@@ -782,7 +782,7 @@ Base.@kwdef struct StatelessWithoutOutputs <: Diagnostic
 end
 path(d::StatelessWithoutOutputs) = d.path
 message(d::StatelessWithoutOutputs) =
-    "$(_at_path(d.path))::`$(d.type)` has an empty store and declares no `output_types`, so it " *
+    "$(_at_path(d.path)) (`$(d.type)`) has an empty store and declares no `output_types`, so it " *
     "produces nothing and stores nothing — declare `output_types`, or give the store " *
     "fields and the update law that drives them. Its leaf declarations are " *
     "$(_namelist(d.declarations)) (§8.2)"

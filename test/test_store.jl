@@ -32,8 +32,9 @@ end
 
 # Mixed-leaf cells (§7.2's per-leaf table): the ordinary route, an `Int` leaf
 # beside `T` leaves, and a pinned `Float64` a declared struct fixes as a field
-# type, which the walk never reaches (D-263). The cell spans one buffer per leaf eltype; its address carries one
-# cursor per eltype as an `NTuple` field (D-162's C2M point).
+# type, which the walk never reaches (D-263). The cell spans one buffer per
+# leaf eltype; its address carries one cursor per eltype as an `NTuple` field
+# (D-162's C2M point).
 struct TaggedValue{T}
     v::T
     n::Int
