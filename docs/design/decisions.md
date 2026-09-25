@@ -288,6 +288,9 @@ were derived.
 | [D-261][d-261] | Three ownership rules for fields, with the placements they settle | ratified |
 | [D-262][d-262] | Post-commit checks on the trim problem | ratified |
 | [D-263][d-263] | One arity on both tiers: plain contracts, the `Pinned` marker and the mandatory store | ratified |
+| [D-264][d-264] | Admit a frozen opaque leaf at a tolerant entry | ratified |
+| [D-265][d-265] | Read the `Pinned` marker at the top of an entry alone | ratified |
+| [D-266][d-266] | Two doors for an AD-opaque implementation: the local rule and the `Freeze` block | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -8638,6 +8641,11 @@ stop of their own; a handle with a scalar parameter walks, and "pin the
 parameter in the declaration" is spelled `Pinned{Handle{Float64}}`. A
 mutable type's parameters pin by rule ([D-263][d-263]).
 
+Annotation (2026-09-25): the identity rule governs a store and the producer's
+own conformance check. At a wire the entry is a bound, and a frozen opaque
+arrival, from a `Pinned` producer or a discrete one, is admitted at an
+unpinned entry as the producer's cell ([D-264][d-264]).
+
 **Rejected.**
 - *An author-declared trait marking handle types:* a second place for the
   boundary [§4.4][s4-4] already states, and one that can drift from it.
@@ -10133,6 +10141,12 @@ parameters pin by rule because no stage can produce a `Vector{Dual}` inside a
 handle without copying the grid at every evaluation, so no choice exists
 there for a marker to record.
 
+Annotation (2026-09-25): the marker is read at the top of an entry alone, and
+one below it is `IllegalPortType` on both tiers ([D-265][d-265]); a frozen opaque leaf
+is admitted at a tolerant entry ([D-264][d-264]); the marker's meaning is "carries no
+partials", and an AD-opaque implementation that must participate supplies a
+local rule under a tolerant entry ([D-266][d-266]).
+
 **Rejected.**
 - *Superseded position — the mandated two-argument forms on the continuous
   tier ([D-166][d-166], [D-167][d-167]):* ceremony on every continuous leaf for a per-leaf
@@ -10168,6 +10182,196 @@ there for a marker to record.
   that produces nothing and stores nothing.
 - *Accepting `Pinned` silently on a discrete leaf:* a spelling that says
   nothing is the class the declaration layer refuses.
+
+### D-264 — Admit a frozen opaque leaf at a tolerant entry
+
+**Status.** ratified
+
+**Position.** The wire relation admits a pinned or discrete producer of an
+opaque leaf at an unpinned entry of that leaf's type, as the producer's cell.
+The identity rule for an opaque leaf ([D-237][d-237]) governs a store and the
+producer's own conformance check alone, never a wire.
+
+**Spec.** [§6.1][s6-1], [§8.2][s8-2], [§9.5][s9-5], [Appendix C][sC]
+
+**Rationale.** The refusal came from one predicate serving two questions.
+`_accepts` decides both the store's conformance check and the wire relation,
+and at a store its opaque short-circuit is essential: a producer's output
+cell at a `Dual` activation is a `Vector{Handle{Dual}}` when the declaration
+walks, and a `Handle{Float64}` cannot be placed there without the framework
+constructing a handle, which it refuses to do. At a wire nothing is
+constructed. The entry is a bound, and the consumer gathers the producer's
+cell as stored. Embedding at a tolerant scalar entry is a type-level
+admission plus Julia's promotion inside the consumer's math, and a handle
+behaves identically: the consumer reads `u.terrain.h0::Float64` beside `Dual`
+state and its arithmetic promotes. The derivative through the handle is zero
+along every seeded direction, and that is the true derivative, because the
+producer declared that no partials enter it. [§9.5][s9-5]'s argument for why a
+`Float64` at a walking leaf is honest applies unchanged. [D-238][d-238]'s parameter
+walk already gives the right answer once the short-circuit is lifted: lifting
+`Handle{Float64}` at the parameter position where the entry has `T` yields
+`Handle{Dual}`, the entry itself.
+
+The positive ground is [§8.2][s8-2]'s substitution promise, that a walking producer,
+a frozen discrete producer and a root input are all admissible behind a
+tolerant entry. For handles that promise was broken in both frozen forms. A
+library's landing gear declaring `terrain = TerrainField{Float64}` could not
+be fed by a static terrain source at all, and its author could not repair it
+without pinning the entry, which would then refuse a moving deck instead.
+The wire pass reported the direction under `WalkingFaceAtFrozenEntry` with
+the endpoints reversed, calling the entry frozen and the producer walking.
+
+Two risks are specific to handles, and both fail loudly at the `Dual` probe.
+For numbers Julia promotes a `Float64` and a `Dual` in any expression; for a
+handle there is no such machinery, so a consumer signature that ties the
+handle's parameter to another argument's (`height(f::H{T}, p::SVector{3,T})
+where {T}`) fails with a `MethodError` whenever the handle is frozen and the
+position is not. That is the genericity obligation a tolerant entry already
+claims, checked by the probe as [§8.2][s8-2] says. And pass-through is refused where
+scalar pass-through is embedded: a consumer that re-emits a frozen handle
+under an unpinned output hits the store's identity rule, so a handle's pin is
+a property of its chain, and every component that forwards it pins that
+output too. No silent wrong Jacobian was found. The misplaced-pin class is
+covered identically: a pinned producer that builds `Handle(x.h + 1.0, z)` at
+a `Dual` activation produces `Handle{Dual}`, the identity check refuses it,
+and the pin hint fires. `companions/handle_walk_walkthrough.md` works the
+example through.
+
+**Rejected.**
+- *A named, collected refusal for the direction (a frozen face at a walking
+  entry), with remedies to pin the entry or build the handle at `T`:* breaks
+  the substitution promise for every frozen handle producer, discrete ones
+  included, and asks a library consumer to choose between pinning its entry
+  and refusing every static source; the refusal was the store's identity rule
+  applied to a question it was not written for.
+- *An embedding for opaque leaves (constructing the handle at the entry):*
+  the framework never builds handles; a cross-eltype construction can be a
+  grid copy per evaluation, which [D-237][d-237]'s identity rule exists to refuse.
+
+### D-265 — Read the `Pinned` marker at the top of an entry alone
+
+**Status.** ratified
+
+**Position.** `Pinned{P}` is read at the top of a contract entry and nowhere
+else. A marker below the top, in a type parameter (`SVector{2,
+Pinned{Float64}}`, `Mixed{Float64, Pinned{Float64}}`), is `IllegalPortType`
+on both tiers. A field that must not follow the scalar is typed concretely in
+its struct (`b::Float64` beside `a::T`), which freezes it for every user of
+the type; a whole leaf is pinned with the marker.
+
+**Spec.** [§8.2][s8-2], [Appendix C][sC]
+
+**Rationale.** `retype`'s recursion into type parameters fired the marker's
+arm at any depth, so a nested marker was stripped and acted as the
+parameter-position pin [D-263][d-263] rejected: `Mixed{Float64, Pinned{Float64}}`
+retyped to `Mixed{T, Float64}`. [D-263][d-263]'s ground stands. The spelling is
+half-working, because the marker is not `<: Real`, so `Bounded{T<:Real}`
+raises a `TypeError` on the same marker `SVector` accepts, and a form that
+works on some types and not others is worse than none. It also gave two
+spellings for one meaning, `SVector{2, Pinned{Float64}}` beside
+`Pinned{SVector{2, Float64}}`. On the discrete tier the declaration is read
+as written and the wrong-tier check looks at the top constructor only, so a
+nested marker slipped past it, reached the wire pass as a literal type and
+failed as a `WireTypeMismatch` that misnamed the fault; unwired, the literal
+`Pinned{Float64}` is an empty isbits struct with zero leaves.
+
+The recorded limit is per-type against per-declaration freezing. The
+parameter-position pin would have made the freeze a per-declaration choice,
+the same struct with `b` walking in one component's contract and pinned in
+another's. The concrete field makes it a per-type choice. That is the right
+home for the fact: a field that must not walk is almost always frozen by
+nature, a count, a mode flag, a calibration constant, a reference to
+build-time data, and the struct definition is where a reader expects to
+learn it. The struct's own constructor enforces the freeze on the producer
+side, since a stage that hands a `Dual` for a `Float64` field dies in
+`convert`, and the wire relation admits `MixedRight{Float64}` at
+`MixedRight{Dual}` by embedding at the parameter. One consequence for the
+reader's rule: "every `Float64` position follows the scalar" reads the
+declaration as written, so a concretely typed field is frozen without
+appearing in the contract, the mild reader-opacity [D-263][d-263] accepted for one
+walk rule instead of two. `IllegalPortType` is the kind because the offending
+type is outside the leaf vocabulary as written, which is what its other arms
+name.
+
+**Rejected.**
+- *Admitting the nested spelling as a second legal form:* reopens [D-263][d-263]'s
+  rejected item, with the `<: Real` failure and the duplicate spelling it
+  recorded.
+- *A kind of its own for the nested marker:* `IllegalPortType` already names
+  a declared type the vocabulary does not admit, with the declaration and the
+  port in its payload.
+- *Refusing the nested marker while leaving `retype`'s arm in place:* the
+  refusal would guard a walk that still strips at any depth, a latent trap;
+  the top-only read removes the arm.
+
+### D-266 — Two doors for an AD-opaque implementation: the local rule and the `Freeze` block
+
+**Status.** ratified
+
+**Position.** `Pinned` records that a leaf carries no partials, not that an
+implementation cannot take them. An AD-opaque implementation has two doors
+and linearization keeps its one mechanism.
+
+- A component that must participate in differentiation keeps its entry
+  tolerant and supplies its own local derivative inside the stage,
+  dispatching on the `Dual` type and rebuilding the output by the chain
+  rule ([§14.10][s14-10]).
+- A walking producer feeds a pinned entry through the `Freeze{V}` library
+  block ([§13.7][s13-7]), a stateless continuous leaf with a tolerant input and a
+  `Pinned` output that strips with `ForwardDiff.value`; the wire then
+  declares a zero coupling in every Jacobian along that path.
+- Linearization has the seeded `Dual` pass alone ([§14.10][s14-10]) and no
+  perturbation-based fallback.
+
+**Spec.** [§6.1][s6-1], [§8.2][s8-2], [§13.7][s13-7], [§14.10][s14-10]
+
+**Rationale.** A `Dual` can never become a `Float64` without discarding its
+partials, and [§9.5][s9-5] rules that no lossy cast exists inside the framework. The
+framework does not do the discard at a wire, on purpose, because dropping
+partials is a modelling decision the design wants on the page. The `Freeze`
+block is that page: at nominal `value` is the identity, so it costs one
+gather and one scatter; under a `Dual` activation it strips, and its output
+satisfies the pinned entry. A sampler is the other non-walking source, and it
+changes the model, holding the value between ticks and delivering it one
+sample late, which is right for a sampled consumer and wrong for a continuous
+value the consumer merely cannot differentiate through.
+
+Where the coupling through the opaque component matters to the Jacobian, no
+adapter fixes it, and the local rule is the answer. Every stage is a pure map
+from its bundle to its outputs, so any such map, however opaque inside,
+admits a rule of one shape: evaluate at the value, obtain a local Jacobian by
+whatever means the component has, a finite difference at a step its own grid
+suggests or an analytic slope, and chain it onto the incoming partials. The
+stripping happens mid-expression, which [§9.5][s9-5] leaves legal at an unpinned
+leaf, and the seeded pass sees an ordinary differentiable component. The
+derivative is finite-difference in quality on that one component and exact
+everywhere else.
+
+Trim keeps its derivative-free fallback ([§14.8][s14-8]) and linearization gets none,
+and the asymmetry is principled. Trim's fallback exists for problems with no
+Jacobian columns at all, the closed-loop sampled-data door where a frozen
+`state_update` gives the residual nothing to seed, and to keep the old
+algorithm reachable. Linearization has no analogous case: the discrete tier
+is frozen by definition and the continuous tier is always seedable.
+
+**Rejected.**
+- *A perturbation-based linearization backend beside the seeded pass:* adds
+  no reach, since the local rule covers every opaque leaf; degrades every
+  linearization of every model containing one opaque component, silently
+  once the keyword is flipped, where the local rule puts the cost on that
+  component alone; reintroduces the global step-size heuristics the seeded
+  pass retired, with a perturbation that may cross a guard where a seed
+  cannot and attitude states that need a manifold-aware rule the seeded pass
+  gets for free. The one argument for it, a legacy model with a dozen opaque
+  tables linearizing on day one, loses because the rule is written once per
+  opaque type and a model that linearizes with silently degraded couplings is
+  the failure class the marker exists to prevent.
+- *The framework stripping partials at a walking-into-pinned wire:* the
+  discard is a modelling decision, and an invisible one is the class [§9.5][s9-5]
+  calls the silent zero in the Jacobian.
+- *Reading a pinned entry as the only door for an AD-opaque implementation:*
+  conflates "cannot take `Dual`s" with "carries no partials", and makes a
+  coupling that matters unreachable.
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
@@ -10433,6 +10637,9 @@ there for a marker to record.
 [d-261]: #d-261--three-ownership-rules-for-fields-with-the-placements-they-settle
 [d-262]: #d-262--post-commit-checks-on-the-trim-problem
 [d-263]: #d-263--one-arity-on-both-tiers-plain-contracts-the-pinned-marker-and-the-mandatory-store
+[d-264]: #d-264--admit-a-frozen-opaque-leaf-at-a-tolerant-entry
+[d-265]: #d-265--read-the-pinned-marker-at-the-top-of-an-entry-alone
+[d-266]: #d-266--two-doors-for-an-ad-opaque-implementation-the-local-rule-and-the-freeze-block
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

@@ -1279,12 +1279,23 @@ unpinned, requires an unpinned entry. A [pinned](#g-walked) producer leaf, one d
 `Pinned`, satisfies either entry, because frozen values embed upward under any
 [activation](#g-activation) (the build's typed products at a given scalar type).
 
+**An opaque leaf is admitted on the same terms.** An opaque leaf ([§4.3][s4-3]), a
+handle stored whole, has no scalar position to embed through, and the clause
+does not need one. A frozen handle arriving at an unpinned entry is the
+producer's cell, gathered as stored, and the consumer's own arithmetic
+promotes whatever it reads from it ([D-264][d-264]). A discrete producer of a handle,
+which pins wholesale, is admitted the same way. The identity rule for an
+opaque leaf ([§9.5][s9-5]) governs a store, never a wire. One consequence follows
+from that rule: a component that re-emits a frozen handle pins that output
+too, so a handle's pin is a property of its chain.
+
 Both sides are plain declarations the walk retypes, so the clause is decided in
 the structure step by retyping them at a marker scalar. That is declaration
 reading, and no user stage code runs ([§9.1][s9-1]). A violation is `WalkingFaceAtFrozenEntry`, naming both
 endpoints, the leaf and both declared leaf types. The message carries both
 remedies. Remove the entry's `Pinned` if the consumer promotes, or feed it from
-a non-walking source if the freeze is genuine.
+a non-walking source if the freeze is genuine, for which the `Freeze` block
+([§13.7][s13-7]) is the one-line spelling.
 
 For an abstract entry, whose leaves cannot be enumerated, the clause is decided
 on the whole declaration. The producer's declaration at the marker, or the same
@@ -2212,7 +2223,8 @@ An `input_types` declaration is a bare `NamedTuple` of types, written at
 nominal `Float64` and taking the component alone on both [tiers](#g-tier). The one
 piece of framework vocabulary it admits is the `Pinned{P}` marker, which
 wraps a leaf type to say that the leaf never follows the activation scalar.
-On a continuous consumer the declaration is [walked](#g-walked): every `Float64`
+It wraps the whole entry, and a marker below the top of an entry is
+`IllegalPortType` ([D-265][d-265]). On a continuous consumer the declaration is [walked](#g-walked): every `Float64`
 position follows the scalar, and a `Pinned` leaf stays `Float64`. On a
 discrete consumer it pins wholesale, and a `Pinned` entry there says nothing
 and is `DeclarationOnWrongTier` ([§8.5][s8-5]).
@@ -2260,7 +2272,8 @@ equality for a concrete entry, because concrete types are final. Beside it sits
 the **tier-scoped walk-compatibility clause**. For a *continuous* consumer, a
 walking producer leaf (one the producer left unpinned) requires an unpinned
 entry, while a [pinned](#g-walked) producer leaf satisfies either, because frozen values
-embed upward. Both sides are plain declarations the walk retypes, so the clause
+embed upward. An opaque leaf embeds nothing and is admitted at an unpinned
+entry as the producer's cell ([D-264][d-264]). Both sides are plain declarations the walk retypes, so the clause
 is decidable in the structure step (the build's first step, declaration reading
 only) by retyping them at a marker scalar. No user stage code runs ([§9.1][s9-1]),
 and a violation is `WalkingFaceAtFrozenEntry`.
@@ -2362,7 +2375,8 @@ leaf** and legible on the page:
   conformance-checked. That is the recorded freeze door ([§14.10][s14-10]) delivered.
   Declare `Pinned{Float64}` and strip with `ForwardDiff.value` inside the
   stage, so the stop-gradient is stated in the contract instead of buried
-  mid-expression.
+  mid-expression. The marker sits at the top of the entry and nowhere below
+  it ([D-265][d-265]).
 - **`Int`/`Bool`/enum leaves and reference-typed fields** pin as they always
   did. A [§4.4][s4-4] bulk-data handle's grid is frozen build-time data, never
   activation-dependent, and the walk never reaches it, because references are
@@ -2372,6 +2386,35 @@ leaf** and legible on the page:
 - **A mutable type's parameters** pin by rule. No stage can produce a
   `Vector{Dual}` inside a handle without copying the grid at every evaluation,
   so there is no choice for a marker to record.
+
+**A handle keeps its bulk at `Float64` and its activation-dependent part in
+the parameter.** The rule reads off the shape. References are fields, so a
+grid typed `Matrix{Float64}` stays frozen at every activation, and a pose
+typed `T` follows the scalar:
+
+```julia
+struct DeckField{T}
+    heave::T                 # pose: follows the activation scalar
+    pitch::T
+    grid::Matrix{Float64}    # geometry: frozen build-time data, never re-typed
+end
+```
+
+Inside a query nothing converts the grid. Each product of a grid entry and a
+`Dual` weight promotes on its own, so the query's result carries the pose's
+partials and the interpolant's slope while the grid is read as it was loaded.
+A `Matrix{T}` grid would give the same numbers at the cost of a copy per
+evaluation, which is the copy the mutable-parameter rule above refuses. The
+producer pins the handle when it is built from build-time data alone, a
+static terrain, and leaves it walking when its parameters come from state, a
+moving deck. A field that must never follow the scalar is typed concretely in
+its struct, `b::Float64` beside `a::T`, which freezes it for every user of
+the type; the marker pins a whole leaf, and a pin on one parameter of one
+declaration is not offered ([D-265][d-265]). The rule "every `Float64` position
+follows the scalar" reads the declaration as written, so a concretely typed
+field is frozen without appearing in the contract.
+`handle_walk_walkthrough.md` works a static terrain and a moving deck
+through one consumer.
 
 The companion obligation is **constructibility at `T`**. A declared type must
 be buildable at the activation scalar. The `Dual` [probe](#g-probe) enforces it by
@@ -4001,7 +4044,9 @@ unpinned, accepts exactly two types, the activation scalar or
 `Float64` the executor **embeds** as a zero-partial constant (`convert`
 through the leaf). Struct-valued [ports](#g-port) use the standard cross-eltype
 constructor, and a missing one fails loudly with both types named. An opaque
-leaf ([§4.3][s4-3], [D-237][d-237]) embeds nothing. It is accepted by identity alone.
+leaf ([§4.3][s4-3], [D-237][d-237]) embeds nothing into a store. It is accepted there
+by identity alone. At a wire the entry is a bound, and a frozen opaque
+arrival is admitted as the producer's cell ([§6.1][s6-1], [D-264][d-264]).
 Nothing else is accepted. The check is decided on the type, not leaf by leaf.
 The arrival with its `Float64` positions lifted to the scalar wherever the
 declaration has one must be the declaration itself, so a field name, a
@@ -8662,8 +8707,9 @@ promise ([§6.2][s6-2]).** That promise rests on explicit junctions being
 
 The starting inventory comes strictly from demonstrated need. It holds wrench
 and scalar summing junctions, the Bool gates the termination chains use,
-`UnitDelay`, and `Constant{V}`. `UnitDelay` is the spelling the second
+`UnitDelay`, `Constant{V}` and `Freeze{V}`. `UnitDelay` is the spelling the second
 loop-breaking remedy ([§5.5][s5-5]) needs. `Constant{V}` is the source block.
+`Freeze{V}` is the declared stop-gradient ([D-266][d-266]).
 The library stays minimal and general-purpose, and it grows only by
 demonstrated need. Domain components, such as aerodynamics, engines or
 sensors, belong in separate packages built on the framework. Simulink's
@@ -8728,6 +8774,27 @@ output *is* its stored value, so the leaf is **deliberately
 a `Float64` port and means it. The embedding ([§8.2][s8-2]) turns it into the
 zero-partial constant it already was under any `Dual` activation. The honest
 pin is spelled rather than inferred.
+
+`Freeze{V}` is the **declared stop-gradient**. It feeds a walking producer
+into a pinned entry, which the walk clause ([§6.1][s6-1]) otherwise refuses.
+
+```julia
+# Freeze{V} — a stateless continuous leaf; tolerant in, pinned out
+init_x(::Freeze) = (;)
+input_types(::Freeze{V}) where {V} = (in = V,)
+output_types(::Freeze{V}) where {V} = (out = Pinned{V},)
+output_direct(::Freeze, (; u)) = (; out = ForwardDiff.value.(u.in))   # leafwise strip
+```
+
+At nominal the strip is the identity, so the block costs one gather and one
+scatter. Under a `Dual` activation it drops the partials, and its output
+satisfies the pinned entry. What the wire then declares is a zero coupling in
+every Jacobian along that path, the modelling decision [§14.10][s14-10] asks an
+author to state on the page rather than bury mid-expression. A sampler is the
+other non-walking source, and it changes the model, holding the value between
+[ticks](#g-tick) ([§10.5][s10-5]); the block is for a continuous value the consumer cannot
+differentiate through. Where the coupling matters to the Jacobian, the local
+rule ([§14.10][s14-10]) is the answer, not this block.
 
 Two demonstrated needs admit `Constant` under the inventory's demonstrated-need
 charter. The zero-contributor configurations ([§6.2][s6-2]) are one. There, a
@@ -9979,7 +10046,7 @@ knowing which leaf froze the root input. Seeded and frozen, side by side:
 | any other state leaf | sits constant at the operating point | per-invocation seeding |
 | a root input named by a `u` tap | seeded, one direction | per-invocation seeding |
 | any other seedable root input | constant, its `Float64` value embedded as a zero-partial constant | per-invocation seeding |
-| a root input whose entry is declared `Float64` | frozen at every activation, and rejected as a `B`-matrix tap | the schema: a declaration |
+| a root input whose entry is declared `Pinned` | frozen at every activation, and rejected as a `B`-matrix tap | the schema: a declaration |
 | any discrete-tier leaf | frozen, zero partials | the tier |
 
 **A pure query, and the shape of `capture`.** Linearization is the first
@@ -10075,14 +10142,44 @@ schema, instead of showing up in Jacobians as unexplained zero rows. The
 conformance check holds them to it at every activation.
 
 The input half is [D-167][d-167]. A consumer's entries are per-leaf too, so a
-`Float64` entry declares "never hand me partials". That is the AD-incompatible
+`Pinned` entry declares "never hand me partials". That is the AD-incompatible
 component's own statement, enforced at the wire ([§6.1][s6-1]). At a root
 input, such an entry *is* the forbid-seeding marker itself. That marker
 carries semantics rather than mere protection, because it types the
 root-input cell at every activation. An unseeded root input is therefore a
-*choice*, where a `Float64`-entry root input is a *declaration*. Tap
+*choice*, where a `Pinned`-entry root input is a *declaration*. Tap
 resolution rejects the latter with the offending entry in hand instead of
 returning a silent zero column.
+
+**An implementation that cannot take `Dual`s has a third move.** The marker
+records that a leaf carries no partials, not that an implementation cannot
+propagate them. A component that must participate, a C table or an FMU whose
+coupling matters to the Jacobian, keeps its entry tolerant and supplies its
+own local derivative inside the stage. It evaluates at the value, obtains a
+local Jacobian by whatever means it has, a finite difference at a step its
+own grid suggests or the table's analytic slope, and chains it onto the
+incoming partials ([D-266][d-266]):
+
+```julia
+lookup(tb, u::Float64) = c_lookup(tb, u)                      # nominal: straight to the table
+
+function lookup(tb, u::ForwardDiff.Dual{Tag}) where {Tag}      # Dual: the local rule
+    u0 = ForwardDiff.value(u)
+    y0 = c_lookup(tb, u0)
+    h  = sqrt(eps(u0))                                         # or a step the table's grid suggests
+    dy = (c_lookup(tb, u0 + h) - y0) / h
+    return ForwardDiff.Dual{Tag}(y0, dy * ForwardDiff.partials(u))
+end
+```
+
+The stripping happens mid-expression, which [§9.5][s9-5] leaves legal at an
+unpinned leaf, and the seeded pass sees the component as an ordinary
+differentiable one. The derivative is finite-difference in quality on this
+one component and exact everywhere else. Linearization keeps this one
+mechanism and no perturbation-based fallback ([D-266][d-266]). The derivative-free
+trim fallback ([§14.8][s14-8]) exists for problems with no Jacobian columns, a
+case linearization does not have. `handle_walk_walkthrough.md` places the
+rule beside the `Freeze` block ([§13.7][s13-7]) and the pinned entry.
 
 What stays recorded is only the remaining **tooling** over that visibility.
 One piece is pinned-face validation by the tap declaration, where selecting a
@@ -10802,8 +10899,9 @@ collection ([§13.2][s13-2], [D-250][d-250]).
 - **`IllegalPortType`** ([§7.1][s7-1], [§8.2][s8-2]). Error · build ·
   collected. Component path, the declaration at fault
   (`input_types`/`output_types`, or a root input), port name, the offending
-  type (one with no leaves, a mutable one, or an opaque leaf at a root
-  input), the leaf vocabulary ([§4.3][s4-3]).
+  type (one with no leaves, a mutable one, an opaque leaf at a root input,
+  or a `Pinned` marker below the top of the entry, [D-265][d-265]), the leaf
+  vocabulary ([§4.3][s4-3]).
 - **`IllegalStoreField`** ([§7.3][s7-3], [§8.2][s8-2], [§9.1][s9-1]). Error ·
   build · collected. Component path, the store at fault (`init_s`/`init_m`),
   field name, the offending type (one neither isbits nor `Symbol`), the fix
@@ -12275,6 +12373,9 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-261]: decisions.md#d-261--three-ownership-rules-for-fields-with-the-placements-they-settle
 [d-262]: decisions.md#d-262--post-commit-checks-on-the-trim-problem
 [d-263]: decisions.md#d-263--one-arity-on-both-tiers-plain-contracts-the-pinned-marker-and-the-mandatory-store
+[d-264]: decisions.md#d-264--admit-a-frozen-opaque-leaf-at-a-tolerant-entry
+[d-265]: decisions.md#d-265--read-the-pinned-marker-at-the-top-of-an-entry-alone
+[d-266]: decisions.md#d-266--two-doors-for-an-ad-opaque-implementation-the-local-rule-and-the-freeze-block
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

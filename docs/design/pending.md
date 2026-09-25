@@ -52,7 +52,18 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-Currently empty.
+- **The wire relation refuses a frozen opaque leaf at a tolerant entry.**
+  `_accepts_wire` short-circuits on an opaque entry as the store's check
+  does, so a `Pinned{Handle{Float64}}` or a discrete producer wired to an
+  unpinned `Handle{Float64}` entry is reported as `WalkingFaceAtFrozenEntry`
+  with the endpoints reversed. D-264 admits the wire as the producer's cell
+  (§6.1, §9.5).
+- **`retype` strips the marker at any depth.** `SVector{2, Pinned{Float64}}`
+  and `Mixed{Float64, Pinned{Float64}}` are accepted and act as the
+  parameter-position pin; on a discrete leaf the nested marker passes the
+  top-level check and fails later as a `WireTypeMismatch`. D-265 reads the
+  marker at the top of an entry alone and refuses it below as
+  `IllegalPortType` (§8.2, Appendix C).
 
 ### Retire with a feature or a pass
 
@@ -64,21 +75,7 @@ Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
 retires or the code conforms.
 
-- **A pinned handle producer at an unpinned handle entry.** A
-  `Pinned{Handle{Float64}}` producer wired to an unpinned `Handle{Float64}`
-  entry throws `InternalInvariant` in the structure step's wire pass (§9.1).
-  §6.1 admits a pinned producer at any entry only because frozen values embed
-  upward; D-237 and §9.5 have an opaque leaf embed nothing. The two rules
-  together require a named, collected refusal at the wire naming both
-  endpoints, whose remedies are to pin the entry or to build the handle at
-  `T`. Appendix C has no kind for that direction. The gap predates
-  `c5c6986`.
-- **A `Pinned` below the top of an entry.** `retype`'s parameter recursion
-  admits a nested marker (`SVector{2, Pinned{Float64}}`), which then acts as
-  the parameter-position pin D-263 rejected; on a discrete leaf it passes the
-  top-level pinned-entry check (§8.2). The fix strips the marker at the top of
-  an entry only and refuses it below. Appendix C names no kind for the
-  refusal; an arm of `IllegalPortType` is the candidate.
+Currently empty.
 
 ## Pending on the spec itself
 
