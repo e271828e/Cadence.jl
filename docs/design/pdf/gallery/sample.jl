@@ -1,9 +1,9 @@
 # a continuous leaf: one bundle port, hot field loose
-output_types(::Kinematics, ::Type{T}) where {T <: Real} =
+y_types(::Kinematics, ::Type{T}) where {T <: Real} =
     (pose = KinPose{T}, q_eb = RQuat{T})
 
-function state_derivative(comp::Aircraft, args)
-    y_x = output_state(comp, args)      # x, m, u, t
+function x_derivative(comp::Aircraft, args)
+    y_x = y_state(comp, args)      # x, m, u, t
     ẋ = y_x.v * 2.5 + args.t
     isnan(ẋ) && return nothing
     @assert ẋ > 0 "bad $ẋ"

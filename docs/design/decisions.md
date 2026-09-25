@@ -291,6 +291,7 @@ were derived.
 | [D-264][d-264] | Admit a frozen opaque leaf at a tolerant entry | ratified |
 | [D-265][d-265] | Read the `Pinned` marker at the top of an entry alone | ratified |
 | [D-266][d-266] | Two doors for an AD-opaque implementation: the local rule and the `Freeze` block | ratified |
+| [D-267][d-267] | Name the leaf declarations by the bundle field they define | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -2146,6 +2147,8 @@ the inventory becomes self-classifying by convention (by value `init_*`, by type
 **Rationale.** The `input_types`-vs-`input_faces` types/names near-collision
 dissolves; tier comes from declaration shape ([D-079][d-079]), not from the method
 signature.
+
+Annotation (2026-09-25): `input_types`/`output_types` are `u_types`/`y_types`, the family being named by the bundle field it defines ([D-267][d-267]); the `_types` suffix and the separation from `input_faces` stand.
 
 **Rejected.**
 - *`*_ports`:* the methods type ports, not just enumerate them.
@@ -4740,6 +4743,8 @@ a generation of export pairs. `passthrough` names the helper's purpose in
 assembly hands a child's unfed requirements up one level"), reads as an
 operation rather than a declaration, and stays accurate if [§8.8][s8-8]'s guarded
 output-direction addition ever lands.
+
+Annotation (2026-09-25): class 1 reads from [D-267][d-267] as a noun phrase naming what the declaration returns, prefixed by the bundle field it defines where one exists; the four classes stand.
 
 **Rejected.**
 - *`get_children_faces`:* `get_` is reserved for value selectors, so the name
@@ -7920,6 +7925,8 @@ Annotation (2026-09-24): `init_workspace` takes the scalar on both tiers and
 the contract arities are gone, so the tier is determined by the store every
 leaf now declares and the update laws alone ([D-263][d-263]).
 
+Annotation (2026-09-25): the words moved from prefix to qualifier when the family was renamed by the bundle field it defines, `x_derivative`, `s_update`, `y_state`, `y_direct`, `x_projection` and `ws_init` ([D-267][d-267]); the shadowing ground and the tier-neutral output stages stand.
+
 **Rejected.**
 - *Keeping the letters and adding a shadowing diagnostic instead:* the
   diagnostic cannot distinguish a user's own `f` from a forgotten import, which
@@ -10373,6 +10380,113 @@ is frozen by definition and the continuous tier is always seedable.
   conflates "cannot take `Dual`s" with "carries no partials", and makes a
   coupling that matters unreachable.
 
+### D-267 — Name the leaf declarations by the bundle field they define
+
+**Status.** ratified
+
+**Position.** Every leaf declaration that fills a bundle field is named by
+that field's letter and then a qualifier saying how. A declaration that
+defines no bundle field keeps its noun phrase.
+
+- The renames: `init_x` → `x_init`, `init_s` → `s_init`, `init_m` → `m_init`,
+  `init_workspace` → `ws_init`, `input_types` → `u_types`, `output_types` →
+  `y_types`, `state_derivative` → `x_derivative`, `state_update` →
+  `s_update`, `state_projection` → `x_projection`, `output_state` →
+  `y_state`, `output_direct` → `y_direct`. Arities, signatures, bundle sets
+  and semantics are unchanged.
+- What stays: `state_events`, `sample_times`, `child_connections`,
+  `input_connections`/`output_connections`, `probe_value`, the binding and
+  device contracts, every bundle field, every `get_` selector and every
+  diagnostic kind name. The spec's formulas keep `f`, `g` and `h`, and prose
+  keeps "the state derivative", "the update law" and "the output stages".
+- [§8.1][s8-1]'s class 1 reads from here: a declaration is a noun phrase naming what
+  it returns, prefixed by the bundle field it defines where one exists.
+- No aliases and no deprecation shims, on [D-220][d-220]'s terms. The log keeps the
+  old spellings under `decisions_style.md`'s rule 2.
+
+**Spec.** [§3.4][s3-4], [§4.1][s4-1], [§4.3][s4-3], [§4.4][s4-4], [§5.2][s5-2], [§5.3][s5-3], [§5.4][s5-4], [§6.2][s6-2], [§7.1][s7-1], [§7.2][s7-2], [§7.3][s7-3],
+[§7.4][s7-4], [§7.5][s7-5], [§8.1][s8-1], [§8.2][s8-2], [§8.3][s8-3], [§8.4][s8-4], [§8.5][s8-5], [§8.6][s8-6], [§8.8][s8-8], [§9.1][s9-1], [§9.3][s9-3], [§9.4][s9-4], [§9.5][s9-5],
+[§9.7][s9-7], [§10.5][s10-5], [§10.6][s10-6], [§11.2][s11-2], [§11.3][s11-3], [§12.5][s12-5], [§13.1][s13-1], [§13.3][s13-3], [§13.4][s13-4], [§13.5][s13-5], [§13.7][s13-7],
+[§14.3][s14-3], [§14.4][s14-4], [§14.5][s14-5], [§14.7][s14-7], [§14.8][s14-8], [§14.10][s14-10], [Appendix A][sA], [Appendix B][sB],
+[Appendix C][sC], [Appendix D][sD]
+
+**Rationale.** [D-263][d-263] left the tier with two signals, the store and the update
+law, and the old roster spelled them in different vocabularies: a letter in
+`init_s`, a word pair in `state_update`. A reader deciding a leaf's tier had
+to decode which state "state" meant. Under this entry a continuous leaf reads
+`x_init` and `x_derivative`, a discrete leaf reads `s_init` and `s_update`,
+and the tier is one letter repeated. A tier-disagreement diagnostic shows the
+disagreement in two letters, `s_init` beside `x_derivative`, where the old
+spelling made the reader decode it.
+
+The old roster used three conventions for one idea. Stores took a verb and a
+letter, contracts took an English word and `_types`, laws and stages took the
+word prefixes `state_` and `output_`. One rule replaces them. Each
+declaration is named by the bundle field it defines, which is the left-hand
+side of its formula: ẋ gives `x_derivative`, s⁺ gives `s_update`, y gives
+`y_state` and `y_direct`, and the initial values give `x_init`, `s_init` and
+`m_init`. The rule is the subscript convention `implementation.md` already
+codifies for locals, symbol first and qualifier after, as in `n_x`, `t_seg`
+and `y_x`. Tab completion then groups by what an author is writing, `x_`
+listing init, derivative and projection together.
+
+The grammar improves with it. A declaration is defined by the author and
+called by the framework, the class of `Base.size` and `eltype`, and those
+are nouns for what they return. `init_x` was an imperative, the grammar of
+`init!`. `x_init` reads "initial x", and every other name on the list reads
+the same way. [D-144][d-144]'s class 1 is stated as that noun rule from here rather
+than by enumerating prefixes.
+
+The output stages take the shortest spelling of [§5.3][s5-3]'s own nouns, the
+"state-only output" and "direct feedthrough", and [§5.3][s5-3]'s reading that the
+absence of `direct` in the name is the no-feedthrough property survives
+unchanged. The pair stays tier-neutral, as [D-220][d-220] ruled, since the stages are
+machinery shared by both tiers. The "a state named y" misreading of `y_state`
+was weighed and accepted: `output_state` carried the same defect, and it
+fades once a reader knows `y` is never a store.
+
+[D-220][d-220]'s grounds hold. Its shadowing argument needs the names to be
+distinctive as function bindings, and they are; `x_init` is common as a
+variable, but a module holding a value under that name refuses the method
+definition at its own line, loudly, so `DeclarationShadowed` gains no false
+positive. The one cost is a taken idiom: `x_init = x_init(c)` is a scoping
+error in a body that calls the declaration, and the suite names such locals
+`x0`. [D-220][d-220]'s objection to underscored suffixes was to variable suffixes,
+`h_x` and `h_xu`, which read as partial derivatives; a word qualifier carries
+no such reading. `ws_init` takes the bundle field because the rule says so,
+and `x_derivative` spells its word in full beside `x_projection`, under
+`implementation.md`'s full-word rule.
+
+[D-076][d-076], [D-144][d-144] and [D-220][d-220] are annotated, not superseded. [D-076][d-076]'s `_types` suffix
+and its separation from `input_faces` survive, further apart than before.
+[D-144][d-144]'s four classes stand with class 1 restated. [D-220][d-220]'s choice of words
+over letters survives in the qualifiers, and its distinctiveness ground is
+preserved. [D-263][d-263] is untouched: the store is still the tier marker, under its
+new name.
+
+**Rejected.**
+- *Keeping the verb-first stores beside letter-first laws:* the same
+  inconsistency in miniature, and an imperative is the wrong grammatical
+  class for a value declaration.
+- *`x_deriv`:* `get_deriv` is precedent, but the family otherwise spells its
+  words in full, and `x_deriv` beside `x_projection` is uneven.
+- *`x_dot`:* names the symbol rather than the quantity and reads as a value.
+  *`x_rate`:* collides with [§8.7][s8-7]'s rate scopes.
+- *`s_next`:* parallel to `x_derivative` in naming the result s⁺, but
+  "update law" is the spec's term throughout and `s_next` reads as a value.
+- *`u_contract`/`y_contract`:* the spec's word for the declarations, but
+  `_types` states the form the author must write, a NamedTuple of types.
+  [D-076][d-076] stands.
+- *`y_stage1`/`y_stage2`, `y_state_only`, `y_free`:* numbers state order,
+  not the dependence class [D-220][d-220] chose to name; the longer and vaguer
+  spellings lose more than the misreading they remove.
+- *Keeping `output_state`/`output_direct` as the one word-prefixed pair:*
+  leaves `y` the only bundle field whose declarations split between a letter
+  and a word.
+- *Renaming `state_events`:* the events define no single bundle field, and
+  "state" there names the detection class against time events ([D-220][d-220]).
+- *Aliases or deprecation shims:* [D-220][d-220]'s grounds.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -10640,6 +10754,7 @@ is frozen by definition and the continuous tier is always seedable.
 [d-264]: #d-264--admit-a-frozen-opaque-leaf-at-a-tolerant-entry
 [d-265]: #d-265--read-the-pinned-marker-at-the-top-of-an-entry-alone
 [d-266]: #d-266--two-doors-for-an-ad-opaque-implementation-the-local-rule-and-the-freeze-block
+[d-267]: #d-267--name-the-leaf-declarations-by-the-bundle-field-they-define
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

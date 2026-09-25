@@ -32,9 +32,9 @@ The gear leaves its entry tolerant, because its math promotes and because
 several producers should be able to stand behind one face ([§8.2][s8-2]):
 
 ```julia
-input_types(::Gear)  = (terrain = DeckField{Float64},)    # tolerant: any arrival
-output_types(::Gear) = (clearance = Float64,)
-output_direct(g::Gear, (; x, u)) = (; clearance = x.p[3] - height(u.terrain, x.p))
+u_types(::Gear)  = (terrain = DeckField{Float64},)    # tolerant: any arrival
+y_types(::Gear) = (clearance = Float64,)
+y_direct(g::Gear, (; x, u)) = (; clearance = x.p[3] - height(u.terrain, x.p))
 ```
 
 **Static terrain pins.** Its handle is built from the instance's grid and a
@@ -45,8 +45,8 @@ every evaluation, wrapping numbers that never carry partials. The author says
 what is true instead:
 
 ```julia
-output_types(::StaticTerrain) = (terrain = Pinned{DeckField{Float64}},)
-output_direct(c::StaticTerrain, _) = (; terrain = DeckField(c.datum, 0.0, c.grid))
+y_types(::StaticTerrain) = (terrain = Pinned{DeckField{Float64}},)
+y_direct(c::StaticTerrain, _) = (; terrain = DeckField(c.datum, 0.0, c.grid))
 ```
 
 **A moving deck walks.** Replace the ground with a ship deck whose heave and
@@ -57,8 +57,8 @@ touchdown. The author leaves the output unpinned and builds the handle at
 `T`, which is cheap because only the pose is `T`:
 
 ```julia
-output_types(::SeaMotion) = (terrain = DeckField{Float64},)
-output_state(c::SeaMotion, (; x)) = (; terrain = DeckField(x.heave, x.pitch, c.grid))
+y_types(::SeaMotion) = (terrain = DeckField{Float64},)
+y_state(c::SeaMotion, (; x)) = (; terrain = DeckField(x.heave, x.pitch, c.grid))
 ```
 
 **Both wire into the same gear.** The walk clause ([§6.1][s6-1]) admits the moving
@@ -144,7 +144,7 @@ height(f::DeckField, p::SVector{3}) = ...
 ```
 
 **Writing into a `Float64` buffer.** A scratch array from `zeros(n)` inside
-the stage, or a workspace allocated without the `T` that `init_workspace(c,
+the stage, or a workspace allocated without the `T` that `ws_init(c,
 T)` hands over, cannot receive a `Dual`.
 
 **Casting to `Float64`.** `Float64(x)` on a `Dual` has no method. The one
@@ -165,7 +165,7 @@ the terrain as a raw pointer. It cannot take partials, and it says so at the
 leaf:
 
 ```julia
-input_types(::LegacyGround) = (terrain = Pinned{DeckField{Float64}},)
+u_types(::LegacyGround) = (terrain = Pinned{DeckField{Float64}},)
 ```
 
 Wire the moving deck into it and `WalkingFaceAtFrozenEntry` fires with the
@@ -204,10 +204,10 @@ keeps its entry tolerant and supplies its own local derivative inside the
 stage ([§14.10][s14-10], [D-266][d-266]):
 
 ```julia
-input_types(::Table)  = (u = Float64,)      # tolerant: this entry participates
-output_types(::Table) = (y = Float64,)
+u_types(::Table)  = (u = Float64,)      # tolerant: this entry participates
+y_types(::Table) = (y = Float64,)
 
-output_direct(tb::Table, (; u)) = (; y = lookup(tb, u.u))
+y_direct(tb::Table, (; u)) = (; y = lookup(tb, u.u))
 
 lookup(tb, u::Float64) = c_lookup(tb, u)                       # nominal: straight to the table
 

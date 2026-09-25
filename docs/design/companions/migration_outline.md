@@ -57,7 +57,7 @@ face**. `PIVector(; reset = true)` adds a `Bool` input face plus the event.
 The default omits both. Declarations are ordinary functions of the instance
 ([§8.5][s8-5]), which is what makes this the honest version of Simulink's
 checkbox. One fixed policy governs the face: a rising edge resets to the
-declared `init_x` values. The implementation is internal, an ordinary
+declared `x_init` values. The implementation is internal, an ordinary
 guard/handler event. It is the continuous-reset contract in its
 worked instance ([Appendix A][sA]).
 

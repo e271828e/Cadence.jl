@@ -62,7 +62,7 @@ to.
   distinct wire styles.
 - **Port stages** (axis 4). Whether stage 1 and stage 2 ports (D-252) are
   visually distinct on a block, and how an exposed state field returned from
-  `output_state` appears.
+  `y_state` appears.
 - **An `errored` simulation** (axis 1). Whether `inspect` accepts one, and if
   so what its surface section shows, given that an errored simulation has no
   next run.

@@ -25,7 +25,7 @@ machinery specified here:
 | Hand-ordered `f_ode!` body (kinematics → airdata → systems → route five `dynamics.u` assignments → dynamics last) | Build-time topological sort; wrong wiring = build error naming the cycle or dangling port |
 | Velocity state duplicated in `dynamics.x` and `kinematics.u`, kept in sync by hand | One state, one owner; consumers wire to `dyn.vel` |
 | `get_wr_b`/`get_mp_b`/`get_hr_b` generated tree-walk sums | Summing junctions at ownership boundaries, one explicit wire per contributor, exported totals ([§6.2][s6-2]) |
-| `f_step!` quaternion renorm + engine-phase/stall-latch checks | `state_projection` hook + boundary-detected events with defined semantics |
+| `f_step!` quaternion renorm + engine-phase/stall-latch checks | `x_projection` hook + boundary-detected events with defined semantics |
 | `Aircraft.f_ode!` runs avionics before the vehicle → continuous avionics reads one-stage-stale `vehicle.y` (implicit delay) | Avionics ordered inside the sweep, after the stage-1 outputs avionics consumes — no delay. Or avionics declared periodic, sampling post-step by stated semantics |
 | `atmosphere`/`terrain` threaded as arguments through every signature | Field-handle signals through ordinary ports ([§4.4][s4-4]) |
 
@@ -69,11 +69,11 @@ each of those features under the decoder interfaces.
 
 - The compensator paths (`idle`, `frc`) are pure functions of the engine's own
   state `ω`. Their complete PI laws, outputs and state derivatives alike,
-  therefore evaluate in `output_state`. The alternative factoring, with the
+  therefore evaluate in `y_state`. The alternative factoring, with the
   compensators as child components of an engine assembly, also
   orders cleanly from the core's stage-1 ports.
-- `output_direct` runs the lookup chain and the mode branch once.
-  `state_derivative` is a three-field copy (`ω̇`, `ẋ_idle`, `ẋ_frc`). Under
+- `y_direct` runs the lookup chain and the mode branch once.
+  `x_derivative` is a three-field copy (`ω̇`, `ẋ_idle`, `ẋ_frc`). Under
   the orthodox split, `f(x, u, t)` would reproduce essentially the whole
   `f_ode!` body, four lookups and the mode branch, at each of the four RK
   stages per step ([D-015][d-015]).
@@ -82,7 +82,7 @@ each of those features under the decoder interfaces.
   ([§2.1][s2-1]).
 - `fuel_available` becomes an ordinary port. It is state-derived at the fuel
   system, hence a stage-1 port, so it closes no loop.
-- Forced publications: none. Everything `state_derivative` reads was already
+- Forced publications: none. Everything `x_derivative` reads was already
   in `PistonEngineY`.
 
 ### `PID` and the C172X FCS: the discrete side
@@ -93,8 +93,8 @@ side.
 - The current update entangles outputs and next state by construction. The
   spelling is `y_i = s_i`: this tick's integral-path output *is*
   the updated integrator state.
-- Under [§5.3][s5-3] the law runs once in `output_direct`, publishing paths,
-  saturation and the updated states. `state_update` is a three-field copy.
+- Under [§5.3][s5-3] the law runs once in `y_direct`, publishing paths,
+  saturation and the updated states. `s_update` is a three-field copy.
 - Under the orthodox split, `g(s, u, t)` would reproduce the entire law per
   compensator per tick ([D-015][d-015]).
 
@@ -117,7 +117,7 @@ nowhere in the code, only in statement ordering.
 Under this design the fix is one visible wire. Connect `outer.sat_ext` to the
 inner compensator's stage-1 port for the previous saturation, `sat_out_0`.
 That port is an `s` field declared in the LQR's output contract
-and returned from its `output_state`, so it sits at stage-1 position
+and returned from its `y_state`, so it sits at stage-1 position
 ([§5.3][s5-3]). The delay becomes an
 explicit property of the wiring. The loop and its fix do not depend on the
 formalism. The framework's contribution is that it refuses to let the
@@ -156,12 +156,12 @@ compensator sits topologically after the supervisor and honors them **this
 tick**:
 
 ```julia
-output_direct(c::PI, (; s, u)) = (; u_cmd = u.engage ? u.u_latch : c.k_p*u.e + s.s_i)
-state_update(c::PI, (; s, u, Δt)) = (; s_i = u.engage ? u.u_latch - c.k_p*u.e
+y_direct(c::PI, (; s, u)) = (; u_cmd = u.engage ? u.u_latch : c.k_p*u.e + s.s_i)
+s_update(c::PI, (; s, u, Δt)) = (; s_i = u.engage ? u.u_latch - c.k_p*u.e
                                                       : s.s_i + c.k_i*Δt*u.e)
 ```
 
-Honoring the reset only in `state_update` is legal, and it means something
+Honoring the reset only in `s_update` is legal, and it means something
 else. The state still lands correctly at the next tick. But the *output at the
 engagement tick* was already published from the stale state during the
 sweep, and under ZOH the plant integrates a full step under that

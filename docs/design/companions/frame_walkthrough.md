@@ -90,9 +90,9 @@ running the sweep ([§5.3][s5-3]):
 
 ```julia
 ex.cursor.index += 1
-ex.bodies.sweep_1()      # output_state block, interior variant
-ex.bodies.sweep_2()      # output_direct block, interior variant
-ex.bodies.rhs()          # state_derivative block
+ex.bodies.sweep_1()      # y_state block, interior variant
+ex.bodies.sweep_2()      # y_direct block, interior variant
+ex.bodies.rhs()          # x_derivative block
 ```
 
 The zero-argument call on a `PhaseBody` in `executor.jl` walks the interior
@@ -173,7 +173,7 @@ event_phase!(sim, nothing)
 
 Projection first. `_projects!` walks every `ProjectEntry`, and `run_project!`
 reconstructs each component's `x` from the buffer, applies
-`state_projection`, and writes it back wholesale ([§5.3][s5-3]). Authority over the
+`x_projection`, and writes it back wholesale ([§5.3][s5-3]). Authority over the
 state rests here, not with the raw trials.
 
 Then `event_phase!` ([§10.6][s10-6]). Round one is the boundary sweep,
@@ -240,14 +240,14 @@ entry wears a `Gated` wrapper whose `run_at!` is the [§10.5][s10-5] gate:
 ```
 
 With `tick = 2` and `(D, Φ) = (1, 0)` the controller is due. Its
-`output_state` runs in the stage-1 walk from the current `s`, its
-`output_direct` in the stage-2 walk from the freshly swept inputs, and its
+`y_state` runs in the stage-1 walk from the current `s`, its
+`y_direct` in the stage-2 walk from the freshly swept inputs, and its
 cells now carry `y[k]` computed from `s[k]`. The event iteration proceeds as
 at `t*`, and every re-sweep of the iteration uses the same due set, since the
 tick index is the boundary's and does not change between rounds.
 
 After quiescence, `bodies.ticks(tick)` walks the update block through the
-same gate. `run_entry!(::UpdateEntry)` computes `state_update` off the settled table
+same gate. `run_entry!(::UpdateEntry)` computes `s_update` off the settled table
 and writes `s[k+1]` into the component's store. Updates run last, so they read
 post-transition values, and they run after the output stages, so the
 sampled-data recursion holds by construction: outputs from `s[k]`, then the

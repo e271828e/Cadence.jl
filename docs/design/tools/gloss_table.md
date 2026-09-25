@@ -13,13 +13,13 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 
 | term | anchor | n | class | gloss |
 |---|---|---|---|---|
-| abstract entry | g-abstract-entry | 4 | A | an `input_types` entry admitting any concrete producer face |
+| abstract entry | g-abstract-entry | 4 | A | an `u_types` entry admitting any concrete producer face |
 | assembly | g-assembly | 21 | B | a component that only composes children, with no dynamics |
 | class | g-class | 7 | A | a component's primitive-vs-assembly status, read off its declarations |
 | component | g-component | 65 | B | a leaf primitive or an assembly of components |
 | container children | g-container-children | 3 | A | a tuple field contributing its component elements as children |
 | continuous component | g-continuous-component | 6 | B | the hybrid primitive: state, modes, flow, stages, events |
-| contract | g-contract | 32 | B | a component's declared `input_types` and `output_types` |
+| contract | g-contract | 32 | B | a component's declared `u_types` and `y_types` |
 | declaration inventory | g-declaration-inventory | 0 | — | the closed set of well-known functions a component defines |
 | derived contract | g-derived-contract | 0 | — | the checkable surface an assembly or the `Build` derives instead of declaring |
 | function family | g-function-family | 1 | A | which bundle fields a given function may legally receive |
@@ -29,7 +29,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | periodic discrete component | g-periodic-discrete-component | 0 | — | a leaf updating at a declared rate, holding between ticks |
 | rate scope | g-rate-scope | 4 | A | an assembly's `sample_times` declaration against the enclosing scope |
 | schema authority | g-schema-authority | 2 | A | declarations define structure; evaluation only checks conformance |
-| stage function / two-stage outputs | g-stage-function | 5 | A | `output_state` or `output_direct`, the two output stages every component provides |
+| stage function / two-stage outputs | g-stage-function | 5 | A | `y_state` or `y_direct`, the two output stages every component provides |
 | workspace | g-workspace | 7 | A | component-declared mutable scratch arriving as the `ws` bundle field |
 
 ## D.2 Signals and data homes
@@ -61,9 +61,9 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 |---|---|---|---|---|
 | algebraic loop | g-algebraic-loop | 2 | B | a genuine cycle in the instantaneous dependency graph |
 | execution order | g-execution-order | 17 | B | the order in which the stage functions run, fixed at build time from the feedthrough graph |
-| flow / RHS | g-flow | 11 | B | `state_derivative`, the continuous derivative function, `f` in the formulas |
+| flow / RHS | g-flow | 11 | B | `x_derivative`, the continuous derivative function, `f` in the formulas |
 | frame | g-frame | 7 | A | one iteration of the loop: drain, integrate, boundary, publication |
-| projection | g-projection | 11 | B | the optional per-component hook `x ← state_projection(x)` |
+| projection | g-projection | 11 | B | the optional per-component hook `x ← x_projection(x)` |
 | sweep | g-sweep | 39 | B | one pass through the execution order against the current state |
 
 ## D.4 Time and events

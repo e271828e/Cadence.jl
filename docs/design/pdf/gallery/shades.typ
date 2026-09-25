@@ -10,8 +10,8 @@
 #let sample(c) = [
   Physically #text(fill: c, raw("y")) is reconstructed per call from cells:
   one declared port, one cell (#text(fill: c, raw("pose")) = KinPose{T}).
-  The stage functions #text(fill: c, raw("output_state"))/#text(fill: c, raw("output_direct"))
-  read #text(fill: c, raw("x, m, t [, ws]")); see #text(fill: c, raw("state_derivative")).
+  The stage functions #text(fill: c, raw("y_state"))/#text(fill: c, raw("y_direct"))
+  read #text(fill: c, raw("x, m, t [, ws]")); see #text(fill: c, raw("x_derivative")).
 ]
 
 #for s in steps {

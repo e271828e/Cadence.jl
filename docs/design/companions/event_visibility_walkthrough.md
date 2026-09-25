@@ -60,15 +60,15 @@ At a step boundary the event phase iterates ([§10.6][s10-6]): rounds of
 with each declared event firing at most `firing_budget` times per boundary
 ([§10.6][s10-6], default 4, eligibility read against its last-observed sample), and declaration
 order ([§8.2][s8-2]) picking among a component's simultaneously-eligible events.
-Firing an event means `handler → state_projection`. That is all.
+Firing an event means `handler → x_projection`. That is all.
 
 Now the structural fact the whole design leans on: **the signal table has a
 single writer, and it is the sweep.** A handler is pure like every other user
 function: it returns `(; x, m)` as immutable values, and the *framework*
 latches them into the component's state stores immediately after the return,
-before `state_projection`. Latching writes *stores*, not cells;
-`state_projection` normalizes
-those stores; the next sweep's `output_state` reads those stores like any other
+before `x_projection`. Latching writes *stores*, not cells;
+`x_projection` normalizes
+those stores; the next sweep's `y_state` reads those stores like any other
 stage-1 act ([§5.3][s5-3]). Nothing — no user code, no framework step — writes
 the table between the sweep that opened a round and the sweep that opens the
 next.
@@ -104,7 +104,7 @@ Two components, wired together:
 
 ```julia
 # Battery: publishes the bus voltage; trips its breaker on overload
-output_state(b::Battery, (; m)) = (; bus_voltage = m.tripped ? 0.0 : 24.0)
+y_state(b::Battery, (; m)) = (; bus_voltage = m.tripped ? 0.0 : 24.0)
 guard_ovld(b::Battery, (; u))   = u.i_load > b.i_max          # wired load current
 handler_ovld(b::Battery, (; m)) = (; m = (; m..., tripped = true))
 
@@ -128,21 +128,21 @@ boundary.
    so both fire this round.
 3. *Battery fires* (canonical order — see [§4](#4-why-cross-component-order-dissolves); it doesn't matter): the
    handler returns `(; m = (; m..., tripped = true))`, the framework latches
-   it into the mode store, `state_projection` normalizes. The table is untouched:
+   it into the mode store, `x_projection` normalizes. The table is untouched:
    `battery/bus_voltage` still holds `24.0`.
 4. *Avionics fires*: `handler_cap` reads `u.bus_voltage` from that same
    round-1 table and gets `24.0`. So `v_at_capture = 24.0`: the avionics
    latched the world *as it stood at the boundary*, which is what "two
    simultaneous events" ought to mean.
 
-**Round 2:** full re-sweep against post-transition state — `output_state` now decodes
+**Round 2:** full re-sweep against post-transition state — `y_state` now decodes
 `tripped = true`, so `bus_voltage = 0.0` propagates everywhere. Guards
 re-evaluate; if the avionics also declares a low-voltage guard
 (`u.bus_voltage < 18`), it is *newly* enabled and fires now, seeing `0.0`.
 Cross-component causality is quantized into rounds, and a genuine cascade
 takes one round per causal link.
 
-**Round 3:** re-sweep, nothing new fires → quiescence → due `state_update`
+**Round 3:** re-sweep, nothing new fires → quiescence → due `s_update`
 calls →
 publication.
 
