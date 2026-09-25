@@ -487,7 +487,7 @@ end
 # A contract declaration at nominal, whatever the tier: the keys are a
 # tier-independent fact, and the walk at `Float64` strips every `Pinned` (D-263).
 _contract(fn, comp) =
-    _declares(fn, comp) ? map(P -> retype(Float64, P), invoke_declaration(fn, comp)) : NamedTuple()
+    _declares(fn, comp) ? map(P -> retype_entry(Float64, P), invoke_declaration(fn, comp)) : NamedTuple()
 
 """
     input_faces(comp) → Vector{String}

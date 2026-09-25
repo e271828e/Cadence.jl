@@ -78,10 +78,12 @@ The contract marker (§8.2, D-263): wraps one leaf type in an `input_types` or
 `output_types` entry, `Pinned{Float64}` or `Pinned{SVector{3,Float64}}`, to say
 the leaf never follows the activation scalar. On an output the cell is `P` at
 every activation; on an input the entry demands a frozen arrival. The walk
-strips it at nominal, so no layout, probe or message sees it. Continuous-only:
-the discrete tier pins wholesale, and a `Pinned` entry there is
-`DeclarationOnWrongTier`. A type-level marker, never instantiated; defined in
-`leaves.jl` beside the walk that dispatches on it.
+strips it at nominal, so no layout, probe or message sees it. It wraps the
+whole entry: a marker below the top, in a type parameter, is `IllegalPortType`
+on both tiers (D-265). Continuous-only: the discrete tier pins wholesale, and
+a `Pinned` entry there is `DeclarationOnWrongTier`. A type-level marker, never
+instantiated; defined in `leaves.jl` beside the entry walk that dispatches on
+it.
 """
 Pinned
 
@@ -289,14 +291,14 @@ tier_word(tier::Tier) = tier === CONTINUOUS ? "continuous" : "discrete"
 
 """
 A contract declaration `fn` as the tier reads it (D-263): on the continuous tier
-walked at `S`, a `Pinned` leaf yielding its type; on the discrete tier as
-written. `S` is `Float64` for every reader but the structure step's wire pass,
-which also reads it at the marker.
+walked at `S`, a `Pinned` entry yielding its type (D-265); on the discrete
+tier as written. `S` is `Float64` for every reader but the structure step's
+wire pass, which also reads it at the marker.
 """
 function declared_at(fn, comp, tier::Tier, ::Type{S} = Float64) where {S}
     _declares(fn, comp) || return NamedTuple()
     decl = invoke_declaration(fn, comp)
-    tier === CONTINUOUS ? map(P -> retype(S, P), decl) : decl
+    tier === CONTINUOUS ? map(P -> retype_entry(S, P), decl) : decl
 end
 
 # The tier's own update law (D-195). Everything downstream asks for it

@@ -349,6 +349,8 @@ function diagnostics_kind_set()
                             reason = :mutable, position = "p.z"),
             IllegalPortType(path = "", site = :root_input, name = :terrain, declared = Nothing,
                             reason = :handle_at_root),
+            IllegalPortType(path = "a/b", site = :face, name = :v, declared = SVector{2,Pinned{Float64}},
+                            reason = :nested_marker),
             StoreNotNamedTuple(path = "a/b", store = :init_x, declared = Float64),
             IllegalStoreField(path = "a/b", store = :init_s, name = :label, declared = String),
             IllegalStateLeaf(path = "a/b", name = :gear_count, declared = Int, reason = :mode_value),

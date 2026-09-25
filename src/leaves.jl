@@ -228,27 +228,46 @@ end
 # activation come from this walk over them, never from inference through user
 # code. `Float64` leaves and `Float64` type parameters follow the activation
 # scalar; everything else (`Int`, `Bool`, sizes) is pinned and passes through,
-# and so is a leaf wrapped in `Pinned` and a mutable type's parameters (D-263).
+# and so is a mutable type's parameters (D-263) and a whole entry wrapped in
+# `Pinned`, which `retype_entry` strips at the top alone (D-265).
 
 # The contract marker, documented with the declarations (`declare.jl`); defined
-# here because the walk dispatches on it.
+# here because the entry walk dispatches on it.
 struct Pinned{P} end
+
+_is_marker(::Type{P}) where {P} = P isa DataType && P.name === Base.typename(Pinned)
+
+# The marker below the top of an entry, in a type parameter at any depth: the
+# parameter-position pin D-263 rejected, refused as `IllegalPortType` (D-265).
+# Read on the declaration as written, so a top `Pinned{Q}` is checked on `Q`.
+_holds_marker(::Type{P}) where {P} =
+    P isa DataType && any(p isa Type && (_is_marker(p) || _holds_marker(p)) for p in P.parameters)
 
 """
     retype(T, P)
 
 `P` with every `Float64` position replaced by `T`; a position already at `T`
-stays, so the walk is idempotent on a type free of the marker. `Pinned{P}`
-yields `P`, which is also how the marker is stripped at nominal; a mutable
-type's parameters pin by rule (D-263). Build time only.
+stays, so the walk is idempotent. A mutable type's parameters pin by rule
+(D-263). The marker is not this walk's business: `retype_entry` strips it at
+the top of an entry, and one below the top never reaches a walk (D-265).
+Build time only.
 """
 retype(::Type{T}, ::Type{Float64}) where {T} = T
-retype(::Type{T}, ::Type{Pinned{P}}) where {T,P} = P
 function retype(::Type{T}, ::Type{P}) where {T,P}
     P === T && return P
     P isa DataType && !isempty(P.parameters) && !ismutabletype(P) || return P
     P.name.wrapper{(p isa Type ? retype(T, p) : p for p in P.parameters)...}
 end
+
+"""
+    retype_entry(T, P)
+
+A contract entry at `T`: a `Pinned{P}` at its top yields `P`, which is also
+how the marker is stripped at nominal, and any other entry is `retype`
+(D-263, D-265).
+"""
+retype_entry(::Type{T}, ::Type{Pinned{P}}) where {T,P} = P
+retype_entry(::Type{T}, ::Type{P}) where {T,P} = retype(T, P)
 
 """
 Value counterpart: the same value with its `Float64` leaves converted to `T`.
@@ -281,22 +300,25 @@ _leaf_values(value) = isbits(value) ? Iterators.flatten(map(_leaf_values,
 # constant-branch idiom (`flow > 0 ? f(x) : 0.0`) legal as written at a `Dual`
 # activation. A deliberately pinned `Float64`, an `Int`, a `Bool` lift nowhere,
 # so an observed `Dual` at a pinned leaf is an error with a hint rather than a
-# silent narrowing. An opaque leaf (D-237) is accepted by identity alone: the
-# cell holds it whole, so the lift never enters it, and a handle built from
-# literals at a `Dual` activation is refused rather than converted.
+# silent narrowing. An opaque leaf (D-237) is accepted by identity alone at a
+# store: the cell holds it whole, so the lift never enters it, and a handle
+# built from literals at a `Dual` activation is refused rather than converted.
+# At a wire the entry is a bound and nothing is stored, so a frozen opaque
+# arrival is admitted as the producer's cell (D-264).
 
 """
 Is a value of type `V` a lawful arrival at a cell declared `P`, at activation
 `T` (D-238)? Lift `V`'s `Float64` positions to `T` wherever `P` has `T`, and
-ask whether the result is `P` itself.
+ask whether the result is `P` itself. At a store an opaque leaf is identity
+alone; `at_wire` lets the lift enter it (D-237, D-264).
 """
-function _accepts(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T}
+function _accepts(::Type{P}, ::Type{V}, ::Type{T}, at_wire::Bool = false) where {P,V,T}
     P === V && return true
     V === Float64 && P === T && return true          # the one embedding
-    _opaque(P) && return false                       # an opaque leaf embeds nothing (D-237)
+    _opaque(P) && !at_wire && return false           # a store holds an opaque leaf whole (D-237)
     (P isa DataType && V isa DataType && P.name === V.name &&
      length(P.parameters) == length(V.parameters)) || return false
-    all(declared isa Type && observed isa Type ? _accepts(declared, observed, T) :
+    all(declared isa Type && observed isa Type ? _accepts(declared, observed, T, at_wire) :
                                                  declared === observed
         for (declared, observed) in zip(P.parameters, V.parameters))
 end
@@ -311,14 +333,15 @@ _pin_hint(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T} =
 
 Is a producer declaring `V` a lawful feed for an entry declaring `P`, both
 retyped at activation `T` (§6.1, D-236, D-263)? A concrete entry is `_accepts`,
-decided on the type. An abstract entry has no leaves to walk, so it is decided
-on the whole declaration: `V` as declared, or `V` with every pinned leaf lifted
+decided on the type, with a frozen opaque arrival admitted as the producer's
+cell (D-264). An abstract entry has no leaves to walk, so it is decided on
+the whole declaration: `V` as declared, or `V` with every pinned leaf lifted
 to `T`, must be `<:` `P`. The two candidates are exact whenever `P`'s
 parameters are uniformly `T` or uniformly pinned; the mixed case is D-236's
 recorded limit.
 """
 _accepts_wire(::Type{P}, ::Type{V}, ::Type{T}) where {P,V,T} =
-    isconcretetype(P) ? _accepts(P, V, T) : (V <: P || retype(T, V) <: P)
+    isconcretetype(P) ? _accepts(P, V, T, true) : (V <: P || retype(T, V) <: P)
 
 """
     flatten!(buffer, offset, value)

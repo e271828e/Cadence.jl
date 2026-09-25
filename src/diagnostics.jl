@@ -787,18 +787,22 @@ message(d::StatelessWithoutOutputs) =
     "fields and the update law that drives them. Its leaf declarations are " *
     "$(_namelist(d.declarations)) (§8.2)"
 
-"§4.3, §7.1, §8.2, D-215, D-237, D-243: a port type the leaf walk cannot lay out — no leaves, a mutable type on the walk, or an opaque leaf at a root input."
+"§4.3, §7.1, §8.2, D-215, D-237, D-243, D-265: a port type the leaf walk cannot lay out — no leaves, a mutable type on the walk, an opaque leaf at a root input, or the `Pinned` marker below the top of an entry."
 Base.@kwdef struct IllegalPortType <: Diagnostic
     path::String
-    site::Symbol                             # :port | :root_input
+    site::Symbol                             # :port | :face | :root_input
     name::Symbol
     declared::Any                            # the offending type
-    reason::Symbol = :no_leaves              # :no_leaves | :mutable | :handle_at_root
+    reason::Symbol = :no_leaves              # :no_leaves | :mutable | :handle_at_root | :nested_marker
     position::Any = nothing                  # :mutable — the dotted position of the mutable type, "" for the port itself
 end
 path(d::IllegalPortType) = d.path
 function message(d::IllegalPortType)
-    site = d.site === :root_input ? "root input" : "port"
+    site = d.site === :root_input ? "root input" : d.site === :face ? "input face" : "port"
+    d.reason === :nested_marker &&
+        return "$(_at_path(d.path)): $site `$(d.name)` declares $(d.declared), with the `Pinned` " *
+               "marker below the top of the entry — the marker wraps a whole entry, and a field " *
+               "that never follows the scalar is typed concretely in its struct (§8.2, D-265)"
     d.reason === :mutable &&
         return "$(_at_path(d.path)): $site `$(d.name)` declares $(d.declared), which is " *
                "mutable$(d.position == "" ? "" : " at `$(d.position)`") — a port value is " *

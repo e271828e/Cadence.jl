@@ -279,11 +279,13 @@ function leaves_retype()
         @test retype(D8, AbstractVector) == AbstractVector
         @test retype(D8, Union{Float64,Int}) === Union{Float64,Int}
 
-        # The contract marker and the mutable rule (D-263): `Pinned{P}` yields `P`
-        # at any scalar, which is also how it is stripped at nominal; a mutable
-        # type's parameters pin; an immutable handle's scalar parameter walks.
-        @test retype(Marker, Pinned{Float64}) === Float64
-        @test retype(Float64, Pinned{SVector{3,Float64}}) === SVector{3,Float64}
+        # The contract marker and the mutable rule (D-263, D-265): `Pinned{P}` at
+        # the top of an entry yields `P` at any scalar, which is also how it is
+        # stripped at nominal; a mutable type's parameters pin; an immutable
+        # handle's scalar parameter walks.
+        @test retype_entry(Marker, Pinned{Float64}) === Float64
+        @test retype_entry(Float64, Pinned{SVector{3,Float64}}) === SVector{3,Float64}
+        @test retype_entry(Marker, OffsetField{Float64}) === OffsetField{Marker}
         @test retype(Marker, Vector{Float64}) === Vector{Float64}
         @test retype(Marker, OffsetField{Float64}) === OffsetField{Marker}
         for P in (Vector{Float64}, OffsetField{Float64})
@@ -291,7 +293,14 @@ function leaves_retype()
         end
         # A stripped pin is a plain `Float64` again, so a second pass walks it:
         # that is the wire relation's lifted candidate (§6.1, D-236).
-        @test retype(Marker, retype(Marker, Pinned{Float64})) === Marker
+        @test retype(Marker, retype_entry(Marker, Pinned{Float64})) === Marker
+        # The marker is read at the top alone (D-265): `retype` has no arm for
+        # it, and `_holds_marker` finds one below the top under either spelling.
+        @test _holds_marker(SVector{2,Pinned{Float64}})
+        @test _holds_marker(Pinned{SVector{2,Pinned{Float64}}})
+        @test !_holds_marker(Pinned{SVector{2,Float64}})
+        @test !_holds_marker(OffsetField{Float64})
+        @test !_holds_marker(Float64)
     end
 end
 
@@ -339,6 +348,14 @@ function leaves_wire_relation()
         @test _accepts_wire(Int, Int, Marker)
         @test !_accepts_wire(AbstractVector{Float64}, SVector{3,Marker}, Marker)
         @test _accepts_wire(AbstractVector{Marker}, SVector{3,Float64}, Marker)
+
+        # An opaque leaf is identity at a store and the producer's cell at a wire
+        # (D-237, D-264): a frozen handle is admitted at a tolerant handle entry,
+        # and a walking one is still refused at a pinned entry.
+        @test !_accepts(OffsetField{D8}, OffsetField{Float64}, D8)
+        @test _accepts_wire(OffsetField{D8}, OffsetField{Float64}, D8)
+        @test _accepts_wire(OffsetField{Marker}, OffsetField{Float64}, Marker)
+        @test !_accepts_wire(OffsetField{Float64}, OffsetField{Marker}, Marker)
 
         # A declaration at the marker prints as its author wrote it, which is what
         # a `WalkingFaceAtFrozenEntry` message shows; the payload keeps the type.

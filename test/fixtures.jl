@@ -1168,6 +1168,26 @@ init_x(::OffsetAtLiteral) = (;)
 output_types(::OffsetAtLiteral) = (terrain = OffsetField{Float64},)
 output_direct(c::OffsetAtLiteral, (; t)) = (terrain = OffsetField(1.0, c.z),)
 
+"""The same handle from build-time data, declared frozen (D-264's admitted producer)."""
+struct PinnedOffsetSource <: AbstractComponent
+    z::Matrix{Float64}
+end
+PinnedOffsetSource() = PinnedOffsetSource(zeros(2, 2))
+
+init_x(::PinnedOffsetSource) = (;)
+output_types(::PinnedOffsetSource) = (terrain = Pinned{OffsetField{Float64}},)
+output_direct(c::PinnedOffsetSource, (; t)) = (terrain = OffsetField(1.0, c.z),)
+
+"""The same handle from a discrete producer, which pins wholesale with no marker."""
+struct DiscreteOffsetSource <: AbstractComponent
+    z::Matrix{Float64}
+end
+DiscreteOffsetSource() = DiscreteOffsetSource(zeros(2, 2))
+
+init_s(::DiscreteOffsetSource) = (;)
+output_types(::DiscreteOffsetSource) = (terrain = OffsetField{Float64},)
+output_direct(c::DiscreteOffsetSource, (; t)) = (terrain = OffsetField(1.0, c.z),)
+
 struct OffsetQuery <: AbstractComponent end
 
 init_x(::OffsetQuery) = (;)

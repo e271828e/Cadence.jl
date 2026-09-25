@@ -222,17 +222,20 @@ function classify_tier(path::String, comp, diags::Vector{Diagnostic})
                                            found = Symbol(tier_word(vote_tier)),
                                            announced = Symbol(tier_word(tier))))
     end
-    # A `Pinned` entry says nothing where every leaf pins (§8.2, §8.5), read on
-    # the declaration as written, one report per entry.
-    if tier === DISCRETE
-        for (name, fn) in ((:input_types, input_types), (:output_types, output_types))
-            _declares(fn, comp) || continue
-            for (entry_name, P) in pairs(invoke_declaration(fn, comp))
-                P isa DataType && P.name === Base.typename(Pinned) &&
-                    push!(diags, DeclarationOnWrongTier(path = path, declaration = name,
-                                                       reason = :pinned_entry, entry = entry_name,
-                                                       announced = :discrete))
-            end
+    # Both contracts read on the declaration as written, one report per entry:
+    # the marker below the top of an entry is refused on both tiers (§8.2,
+    # D-265), and a top marker says nothing where every leaf pins (§8.5, D-263).
+    for (name, fn) in ((:input_types, input_types), (:output_types, output_types))
+        _declares(fn, comp) || continue
+        for (entry_name, P) in pairs(invoke_declaration(fn, comp))
+            _holds_marker(P) &&
+                push!(diags, IllegalPortType(path = path, site = name === :input_types ? :face : :port,
+                                             name = entry_name, declared = P,
+                                             reason = :nested_marker))
+            tier === DISCRETE && _is_marker(P) &&
+                push!(diags, DeclarationOnWrongTier(path = path, declaration = name,
+                                                   reason = :pinned_entry, entry = entry_name,
+                                                   announced = :discrete))
         end
     end
     length(diags) == recorded ? tier : nothing

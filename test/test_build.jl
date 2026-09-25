@@ -701,6 +701,17 @@ function build_wire_clauses()
         @test d.leaf == "" && d.declared === OffsetField{Float64}
         @test d.observed === OffsetField{Marker}
 
+        # The other direction is admitted (D-264): a frozen handle, from a `Pinned`
+        # producer or a discrete one, arrives at a tolerant handle entry as the
+        # producer's cell, and the consumer's own arithmetic promotes what it reads.
+        for src in (PinnedOffsetSource(), DiscreteOffsetSource())
+            frozen_build = build(offset_model(src))
+            @test frozen_build isa Build
+            frozen_sim = Simulation(frozen_build, D8; h = 1//100)
+            @test port(frozen_sim, "src", :terrain) isa OffsetField{Float64}
+            @test port(frozen_sim, "q", :h) isa D8
+        end
+
         # The habit that used to fail now walks: a bare `Float64` entry fed by a
         # walking producer builds clean, and its cell follows the activation (D-263).
         walked_build = build(Group((; src = NomSource(), c = RealEntry());
@@ -1182,6 +1193,38 @@ init_s(::PinnedOnDiscrete) = (;)
 output_types(::PinnedOnDiscrete) = (a = Pinned{Float64},)
 output_state(::PinnedOnDiscrete, (; t)) = (a = 1.0,)
 
+# The marker below the top of an entry (D-265): under an output, under an input,
+# on a discrete leaf, and as the parameter-position pin D-263 rejected.
+struct NestedPinSource <: AbstractComponent
+end
+init_x(::NestedPinSource) = (;)
+output_types(::NestedPinSource) = (v = SVector{2,Pinned{Float64}},)
+output_state(::NestedPinSource, (; t)) = (v = SVector(1.0, 2.0),)
+
+struct NestedPinEntry <: AbstractComponent
+end
+init_x(::NestedPinEntry) = (;)
+input_types(::NestedPinEntry) = (v = SVector{2,Pinned{Float64}},)
+output_types(::NestedPinEntry) = (s = Float64,)
+output_direct(::NestedPinEntry, (; u)) = (s = sum(u.v),)
+
+struct DiscreteNestedPin <: AbstractComponent
+end
+init_s(::DiscreteNestedPin) = (;)
+output_types(::DiscreteNestedPin) = (v = SVector{2,Pinned{Float64}},)
+output_state(::DiscreteNestedPin, (; t)) = (v = SVector(1.0, 2.0),)
+
+struct MixedParams{A,B}
+    a::A
+    b::B
+end
+
+struct MixedPinSource <: AbstractComponent
+end
+init_x(::MixedPinSource) = (;)
+output_types(::MixedPinSource) = (m = MixedParams{Float64,Pinned{Float64}},)
+output_state(::MixedPinSource, (; t)) = (m = MixedParams(1.0, 2.0),)
+
 struct EmptyNoOutputs <: AbstractComponent    # an empty store and no contract
 end
 init_x(::EmptyNoOutputs) = (;)
@@ -1302,6 +1345,24 @@ function build_tier()
         d = only(diags)
         @test d isa DeclarationOnWrongTier && d.reason === :pinned_entry && d.entry === :a
         @test d.declaration === :output_types && d.announced === :discrete
+
+        # Below the top of an entry the marker is `IllegalPortType` on both tiers
+        # (§8.2, D-265), named with the declaration's site and the entry; a
+        # discrete leaf reports that kind alone, since its top carries no marker.
+        for (comp, site, entry) in ((NestedPinSource(), :port, :v), (NestedPinEntry(), :face, :v),
+                                    (DiscreteNestedPin(), :port, :v), (MixedPinSource(), :port, :m))
+            diags = Diagnostic[]
+            @test classify_tier("c", comp, diags) === nothing
+            d = only(diags)
+            @test d isa IllegalPortType && d.reason === :nested_marker
+            @test d.site === site && d.name === entry
+            @test d.declared === (site === :face ? input_types(comp) : output_types(comp))[entry]
+        end
+        # The walk collects it and the barrier throws before any wire is read.
+        err = failure(() -> build(Group((; src = NestedPinSource(), c = NestedPinEntry());
+                                        wires = ("src/v" => "c/v",))))
+        @test Set(kinds(err)) == Set([IllegalPortType])
+        @test length(diagnostics(err)) == 2
 
         # A store with no update law is §8.2's sibling of the classless component.
         diags = Diagnostic[]

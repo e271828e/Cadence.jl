@@ -41,7 +41,8 @@ Where the reason is not given here, the cited decision carries it:
   once-per-frame `ReplayDiscardedStaging` noise from a live device during
   replay is unpresented (§11.8).
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
-  `Or{N}`, `UnitDelay{V}`, `Constant{V}`, the rig; §6.2's spellings) (M-B22).
+  `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
+  spellings) (M-B22).
 
 ## Built in a shape the spec's is not
 
@@ -52,18 +53,7 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-- **The wire relation refuses a frozen opaque leaf at a tolerant entry.**
-  `_accepts_wire` short-circuits on an opaque entry as the store's check
-  does, so a `Pinned{Handle{Float64}}` or a discrete producer wired to an
-  unpinned `Handle{Float64}` entry is reported as `WalkingFaceAtFrozenEntry`
-  with the endpoints reversed. D-264 admits the wire as the producer's cell
-  (§6.1, §9.5).
-- **`retype` strips the marker at any depth.** `SVector{2, Pinned{Float64}}`
-  and `Mixed{Float64, Pinned{Float64}}` are accepted and act as the
-  parameter-position pin; on a discrete leaf the nested marker passes the
-  top-level check and fails later as a `WireTypeMismatch`. D-265 reads the
-  marker at the top of an entry alone and refuses it below as
-  `IllegalPortType` (§8.2, Appendix C).
+Currently empty.
 
 ### Retire with a feature or a pass
 
