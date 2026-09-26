@@ -156,6 +156,33 @@ function loop(dev::Inline, handle)
     nothing
 end
 
+# A ramp whose derivative records the task it runs on past `t₀`: the frame
+# loop's, which a calling-task device moves to a spawned task (§11.1). Once
+# `hold` is set, the next evaluation marks `held` and keeps its frame in flight
+# for up to a second, so the loop cannot end before then.
+struct LoopRecorder <: AbstractComponent
+    task::Base.RefValue{Union{Nothing,Task}}
+    hold::Threads.Atomic{Bool}
+    held::Threads.Atomic{Bool}
+end
+LoopRecorder() = LoopRecorder(Ref{Union{Nothing,Task}}(nothing), Threads.Atomic{Bool}(false),
+                              Threads.Atomic{Bool}(false))
+x_init(::LoopRecorder) = (q = 0.0,)
+y_types(::LoopRecorder) = (q = Float64,)
+y_state(::LoopRecorder, (; x)) = (q = x.q,)
+function x_derivative(c::LoopRecorder, (; x, t))
+    t > 0 && (c.task[] = current_task())
+    if c.hold[]
+        c.held[] = true
+        deadline = time() + 1.0
+        while c.hold[] && time() < deadline
+            sleep(0.001)
+        end
+        c.hold[] = false
+    end
+    (q = one(x.q),)
+end
+
 # A device with no loop method at all: the error-throwing fallback's customer.
 mutable struct Loopless <: AbstractDevice end
 mutable struct NarrowLoop <: AbstractDevice end   # `loop` on the handle type itself
@@ -174,23 +201,25 @@ end
 # One `pause!`/`resume!` round, the flag read back through `paused` after each.
 pause_round(sim) = (pause!(sim); set = paused(sim); resume!(sim); (set, paused(sim)))
 
-# Is `task` parked in `condition`'s wait? Read under the lock, which a notify
+# Is `task` parked in `waited_on`'s wait? Read under the lock, which a notify
 # needs, so the answer holds while the caller keeps the lock.
-parked_in(task, condition) =
-    (lock(condition); try task.queue === condition.waitq finally unlock(condition) end)
+parked_in(task, waited_on) =
+    (lock(waited_on); try task.queue === waited_on.waitq finally unlock(waited_on) end)
 
-# Throw the operator's interrupt into `task` once it is parked on `condition`,
+# Throw the operator's interrupt into `task` once it is parked on `waited_on`,
 # as Ctrl-C lands in a blocked wait (§12.4): `true` when thrown, `false` when
 # the task never parked. The lock held across the check and the throw is what
-# confines the throw to a parked task; no timing is involved.
-function interrupt_parked(task, condition)
-    timedwait(() -> parked_in(task, condition), 10.0) === :ok || return false
-    lock(condition)
+# confines the throw to a parked task; no timing is involved. The check under
+# it reads the queue directly, since a task's own condition takes a
+# non-reentrant lock.
+function interrupt_parked(task, waited_on)
+    timedwait(() -> parked_in(task, waited_on), 10.0) === :ok || return false
+    lock(waited_on)
     try
-        parked_in(task, condition) || return false
+        task.queue === waited_on.waitq || return false
         schedule(task, InterruptException(); error = true)
     finally
-        unlock(condition)
+        unlock(waited_on)
     end
     true
 end
@@ -274,24 +303,28 @@ function test_devices()
         sim = Simulation(two_root_inputs(); h = 1//10)
         attach!(sim, Pad("p"), Enumerated("a"))  # a rostered device keeps the loop yielding (§12.2)
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        loop_task = current_task()               # a rostered device keeps the loop here (§11.1)
         observer = Threads.@spawn begin
-            sleep(0.05)
+            timedwait(() -> latest(sim).frame > 0, 10.0)   # the run under way
             pause!(sim)
-            sleep(0.2)                           # the frame in flight completes, then the loop parks
+            # the frame in flight completes, then the loop parks at the frame top
+            parked = timedwait(() -> parked_in(loop_task, sim.control.wake), 10.0) === :ok
             first_read = latest(sim)
             # the parked frame top's last publication is its own boundary
             consistent = first_read.frame == sim.exec.clock.step && first_read.t == sim.exec.clock.t
             state_read = (paused(sim), lifecycle(sim))
-            sleep(0.2)
             second_read = latest(sim)
+            still_parked = parked_in(loop_task, sim.control.wake)
             resume!(sim)
             advanced = timedwait(() -> latest(sim).frame > second_read.frame, 10.0) === :ok
             stop!(sim)
-            (first_read.frame, second_read.frame, consistent, state_read, advanced)
+            (parked && still_parked, first_read.frame, second_read.frame, consistent, state_read,
+             advanced)
         end
         run!(sim; t_end = 1.0e6)
-        (first_frame, second_frame, consistent, state_read, advanced) = fetch(observer)
-        @test first_frame > 0 && second_frame == first_frame   # frozen across the sleep
+        (parked, first_frame, second_frame, consistent, state_read, advanced) = fetch(observer)
+        @test parked                             # parked in the pause block across both reads
+        @test first_frame > 0 && second_frame == first_frame
         @test consistent
         @test state_read == (true, :running)     # read, and set, while the run holds the freeze
         @test advanced
@@ -302,18 +335,19 @@ function test_devices()
     @testset "a stop issued while paused ends the run at that frame top, with no further frame (§12.1, §12.4(2))" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         handle = attach!(sim, Pad("p"), Enumerated("a"))
+        loop_task = current_task()               # a rostered device keeps the loop here (§11.1)
         for (request, issuer) in ((() -> stop!(sim), :code), (() -> stop!(handle), "device 1 (Pad)"))
             init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
             observer = Threads.@spawn begin
-                sleep(0.05)
+                timedwait(() -> latest(sim).frame > 0, 10.0)   # the run under way
                 pause!(sim)
-                sleep(0.2)
+                parked = timedwait(() -> parked_in(loop_task, sim.control.wake), 10.0) === :ok
                 frozen = latest(sim).frame
-                (frozen, stop_while_paused(sim, request))
+                (parked, frozen, stop_while_paused(sim, request))
             end
             run!(sim; t_end = 1.0e6)
-            (frozen, ended) = fetch(observer)
-            @test ended
+            (parked, frozen, ended) = fetch(observer)
+            @test parked && ended
             @test frozen > 0 && sim.exec.clock.step == frozen && latest(sim).frame == frozen
             @test termination(sim).source === ControlRequestedStop(issuer)
             @test !paused(sim)                   # the tail cleared the flag
@@ -325,13 +359,14 @@ function test_devices()
         attach!(sim, Pad("p"), Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         pause!(sim)
+        loop_task = current_task()               # a rostered device keeps the loop here (§11.1)
         observer = Threads.@spawn begin
-            sleep(0.2)
-            (latest(sim).frame, stop_while_paused(sim, () -> stop!(sim)))
+            parked = timedwait(() -> parked_in(loop_task, sim.control.wake), 10.0) === :ok
+            (parked, latest(sim).frame, stop_while_paused(sim, () -> stop!(sim)))
         end
         run!(sim; t_end = 1.0)                   # ten frames, were the flag ignored
-        (first_top, ended) = fetch(observer)
-        @test first_top == 0 && ended
+        (parked, first_top, ended) = fetch(observer)
+        @test parked && first_top == 0 && ended
         @test sim.exec.clock.step == 0
         @test termination(sim).source === ControlRequestedStop(:code)
         @test !paused(sim)
@@ -358,6 +393,9 @@ function test_devices()
     end
 
     @testset "an interrupt in the pause wait ends the run stopped at that frame top (§12.1, §12.4, D-268)" begin
+        # Delivered through `schedule`, which the mask does not see: this
+        # exercises the frame top's interrupt arm. A real signal's delivery
+        # into the pause is covered by the review's probe, not here.
         sim = Simulation(two_root_inputs(); h = 1//10)
         attach!(sim, Pad("p"), Enumerated("a"))
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
@@ -374,6 +412,28 @@ function test_devices()
         @test termination(sim).source === ControlRequestedStop(:interrupt)
         @test sim.exec.clock.step == 0 && latest(sim).frame == 0   # no frame in flight
         @test !paused(sim)                       # the tail cleared the flag
+    end
+
+    @testset "an interrupt while run! awaits the spawned loop ends the loop inside run! (§11.1, §12.4, D-268)" begin
+        recorder = LoopRecorder()
+        sim = Simulation(single(recorder); h = 1//10)
+        attach!(sim, Panel("p"), Enumerated())   # returns at once: run! goes on to await the loop
+        init!(sim)
+        caller = current_task()
+        observer = Threads.@spawn begin
+            recorded = timedwait(() -> recorder.task[] !== nothing, 10.0) === :ok
+            recorder.hold[] = true               # a frame in flight when the interrupt lands
+            held = recorded && timedwait(() -> recorder.held[], 10.0) === :ok
+            sent = held && interrupt_parked(caller, recorder.task[].donenotify)
+            sent || stop!(sim)                   # a regression fails below rather than hangs
+            sent
+        end
+        run!(sim; t_end = 1.0e6)
+        @test fetch(observer)
+        @test istaskdone(recorder.task[])        # the loop ended inside run!, not after it
+        @test lifecycle(sim) === :stopped
+        @test termination(sim).source === ControlRequestedStop(:interrupt)
+        @test latest(sim).t == termination(sim).t   # no frame published past the record
     end
 
     @testset "paused reads the flag in every lifecycle state, and the verbs refuse none (§12.1, D-268)" begin
@@ -478,7 +538,7 @@ function test_devices()
         status = writer_status(latest(sim), "device 1 (InitInterrupted)")
         @test status.totals.crash == 0 && status.task_state === :none
         @test !any(d isa DeviceCrash for residue in termination(sim).residue for d in residue.recent)
-        @test !any(occursin("DeviceCrash", string(l.message)) for l in logs)
+        @test all(l -> l.level < Base.CoreLogging.Warn, logs)   # no crash presented, nor any warning
     end
 
     @testset "a body ignoring the predicate is abandoned under join_timeout, by name (§12.4(5))" begin
@@ -527,7 +587,9 @@ function test_devices()
         @test fetch(observer)
         @test time() - t0 < 15.0                 # the collapse, not the 30 s cap
         @test lifecycle(sim) === :stopped        # escalation never reclassifies the run
-        @test !any(occursin("unblock! of", string(l.message)) for l in logs)   # not warned past
+        # one warning, the residue's own: the interrupt was not warned past as
+        # an `unblock!` throw
+        @test count(l -> l.level == Base.CoreLogging.Warn, logs) == 1
         writer_residue = only(residue for residue in termination(sim).residue
                               if residue.writer == "loop")
         timeout = only(d for d in writer_residue.recent if d isa DeviceJoinTimeout)

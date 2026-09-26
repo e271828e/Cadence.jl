@@ -340,13 +340,20 @@ end
 # --- the wrapper and the run's bracket (§11.6, §12.4) --------------------------
 
 # The guarded release: `shutdown!` is guaranteed on every exit path, and a
-# throw out of it must not wreck the bracket or the tail around it (§11.6).
+# throw out of it must not wreck the bracket or the tail around it (§11.6). An
+# interrupt cutting it short is the operator's stop, forwarded through the stop
+# word as the wrapper forwards one (§12.4, D-268).
 function _shutdown!(entry::RosterEntry)
     try
         shutdown!(entry.dev)
     catch err
-        @warn "shutdown! of $(_who(entry)) threw; its resources may leak (§11.6)" #=
-            =# exception = (err, catch_backtrace())
+        if err isa InterruptException
+            @warn "shutdown! of $(_who(entry)) was interrupted; its resources may leak (§11.6, §12.4)"
+            _request_stop!(entry.handle.control, :interrupt)
+        else
+            @warn "shutdown! of $(_who(entry)) threw; its resources may leak (§11.6)" #=
+                =# exception = (err, catch_backtrace())
+        end
     end
     nothing
 end

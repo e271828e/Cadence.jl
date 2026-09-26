@@ -33,6 +33,30 @@ hooked_interrupted(c) = Group((c = c, trig = Trigger(0.15));
 interrupter_watched() = Group((c = SelfInterrupter(0.22), trig = Trigger(0.25));
                               wires = ("c/q" => "trig/sig",), outputs = ("trig/on" => "hit",))
 
+# A frame failing on a bundle field its law does not give: the species rule's
+# lookup (§13.2, D-248) re-invokes `x_init`, which, armed by that failing
+# evaluation, sends a real SIGINT while the catch builds the `StepError`
+# (§12.4, D-268). One signal per instance.
+struct LateSignal <: AbstractComponent
+    armed::Base.RefValue{Bool}
+    sent::Base.RefValue{Bool}
+end
+LateSignal() = LateSignal(Ref(false), Ref(false))
+function x_init(c::LateSignal)
+    if c.armed[] && !c.sent[]
+        c.sent[] = true
+        interrupt_self()
+    end
+    (q = 0.0,)
+end
+y_types(::LateSignal) = (q = Float64,)
+y_state(::LateSignal, (; x)) = (q = x.q,)
+function x_derivative(c::LateSignal, bundle)
+    bundle.t ≥ 0.2 || return (q = one(bundle.x.q),)
+    c.armed[] = true
+    (q = bundle.nope,)
+end
+
 # A test sending a real SIGINT runs under this: the signal raises rather than
 # kills the process, and the default comes back after, the kill for a script
 # and the prompt for a REPL.
@@ -382,6 +406,23 @@ function failures_runtime()
                   termination(sim).source.exception isa StepError{Exploded}
             @test latest(sim).frame == 2                # the failed frame published nothing
             @test !sigint_pending()                     # consumed at the catch, never raised
+        end
+    end
+
+    @testset "a signal while the failed frame's StepError is built still ends errored under it (§12.4, §13.4, D-268)" begin
+        sigint_raising() do
+            for advance in (sim -> run!(sim; t_end = 5.0), sim -> step!(sim; frames = 50))
+                comp = LateSignal()
+                sim = Simulation(single(comp); h = 1//10)
+                init!(sim)
+                err = failure(() -> advance(sim))
+                @test comp.sent[]                       # sent inside the frame's catch
+                @test err isa StepError{BundleFieldError}
+                @test lifecycle(sim) === :errored
+                @test termination(sim).source isa LoopError &&
+                      termination(sim).source.exception === err
+                @test !sigint_pending()                 # consumed, never raised past the record
+            end
         end
     end
 

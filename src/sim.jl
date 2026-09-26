@@ -1029,8 +1029,11 @@ the record. §13.4's disposition is then read off the roster (D-268): with no
 device rostered the run is unattended and `run!` rethrows after the tail
 completes; with one or more it logs the rendered error and returns, the
 lifecycle `errored`. A Ctrl-C is a stop, never a failure: caught at a frame
-top, in the pause or inside the tail, the run ends `stopped` with
-`ControlRequestedStop(:interrupt)` (§12.4).
+top, in the pause or while the calling task awaits the spawned loop, the run
+ends `stopped` with `ControlRequestedStop(:interrupt)` (§12.4). One inside the
+tail collapses the joins and leaves the loop's source standing. One deferred
+to the end of the masked bookkeeping propagates out of `run!` raw, the
+simulation already terminal (D-268).
 
 The run's shape, in order: the policy is built and the §11.3 freeze rises (the
 lifecycle's `:running`, spanning the tail); the stop word is cleared (a fresh
@@ -1072,7 +1075,7 @@ function run!(sim::Simulation; t_end = Inf, stop_on = ())
         _run_body!(sim, policy, addrs, typemax(Int), _t_end_frame(sim, policy.t_end))
     catch err
         # §13.4's disposition, by the roster (D-268): unattended, CI fails
-        # honestly; a raise deferred past the masked bookkeeping propagates raw
+        # honestly; a raise deferred to the masked bookkeeping's end propagates raw
         (isempty(sim.plane.roster) || err isa InterruptException) && rethrow()
         @error "run! ended errored; the cause is retained on termination(sim) (§13.4, §13.6)" *
                " and the simulation refuses every advance (§12.6)" exception = (err, catch_backtrace())
@@ -1123,10 +1126,12 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
     upto = _replay_bound(sim, upto)             # §12.7: the recording bounds a replaying run
     @atomic :release control.lifecycle = :running   # the §11.3 freeze: the roster is fixed for the run
     source, error_source = nothing, nothing
+    live, tasks = RosterEntry[], nothing      # the interrupt arm below reads both
+    returned, tail_ran = false, false
     try
         @atomic control.stop_issuer = nothing
         _reset_accounts!(sim)                 # §11.8: totals count since the run began
-        live = _init_devices!(sim)            # §12.4's pre-spawn bracket, attachment order
+        append!(live, _init_devices!(sim))    # §12.4's pre-spawn bracket, attachment order
         @atomic control.stopped = false
         inline_index = findfirst(e -> needs_calling_task(e.dev), live)
         if inline_index === nothing                     # the unattended mode (§11.1)
@@ -1134,8 +1139,10 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             _register_tasks!(plane, live, tasks)
             try
                 source = _advance!(sim, policy, addrs, upto, t_end_frame)[1]
+                returned = true
             finally
                 _finish!(sim)                 # tail (1)–(2), even off a loop-side throw
+                tail_ran = true
                 _tail!(sim, live, tasks)      # tail (3)–(5)
             end
         else                                  # the loop is the movable piece (§11.1)
@@ -1152,20 +1159,35 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             end
             _wrap(inline_entry)                       # the identical wrapper, inline (§11.6)
             try
-                source = fetch(loop_task)       # run! blocks until the run ends (§11.1)
+                source = _await_loop(control, loop_task)   # run! blocks until the run ends (§11.1)
+                returned = true
             finally
+                tail_ran = true
                 _tail!(sim, others, tasks)    # the calling-task device sits outside the join
             end
         end
     catch err
         if err isa InterruptException
             # The operator's stop landing outside the loop's own unmask points —
-            # the bracket's edges, the microseconds between the loop's return
-            # and the tail — is a stop, never a `LoopError` (§12.4, D-268). The
-            # inner `finally` has run the tail; a source the loop already
-            # returned fired first and keeps the record.
-            _request_stop!(control, :interrupt)
-            source === nothing && (source = ControlRequestedStop(something(@atomic control.stop_issuer)))
+            # the bracket's edges, the spawn, the moments between the loop's
+            # return and the tail — is a stop, never a `LoopError` (§12.4,
+            # D-268). A loop that returned keeps its outcome, a source or a
+            # budget halt alike; `:interrupt` is the source only where it had
+            # not. Where the interrupt came before the tail, the tail runs here,
+            # unmasked so a second interrupt still collapses it: an entry
+            # initialized but never spawned is released directly, a spawned one
+            # through its wrapper once the tail wakes it. No test reaches these
+            # windows; they are covered by reading.
+            returned || _request_stop!(control, :interrupt)
+            if !tail_ran
+                _finish!(sim)
+                if tasks === nothing
+                    foreach(_shutdown!, live)
+                else                          # the calling-task holder sits outside the join
+                    _tail!(sim, filter(entry -> !needs_calling_task(entry.dev), live), tasks)
+                end
+            end
+            returned || (source = ControlRequestedStop(something(@atomic control.stop_issuer)))
         else
             # §13.6's abnormal entry: the failed boundary is discarded by
             # construction — publication is a boundary's last act, so it
@@ -1244,10 +1266,11 @@ _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{T
 # the pause block and the yield among them; one `try` per iteration holds
 # both, entered unmasked. Caught there, the interrupt yields to a face the
 # publication found holding (§13.5's order) and otherwise sets the
-# `:interrupt` stop. A frame that throws takes a pending interrupt before it
-# wraps its cause: its throw is the disposition, and the run ends `errored`
-# (§12.4, §13.4). Every `try` exit, normal or not, restores the sigatomic count
-# its entry saw, so the mask's two ends sit outside the frame's `try`.
+# `:interrupt` stop. A frame that throws wraps its cause still masked, then
+# unmasks: its throw is the disposition, a pending interrupt is consumed, and
+# the run ends `errored` (§12.4, §13.4). Every `try` exit, normal or not,
+# restores the sigatomic count its entry saw, so the mask's two ends sit
+# outside the frame's `try`.
 function _advance!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto::Int,
                    t_end_frame::Int)
     plane, control = sim.plane, sim.control
@@ -1256,6 +1279,7 @@ function _advance!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto
     face = _stop_hit(sim, policy, addrs)
     face === nothing || return (ModelRequestedStop(face), advanced)
     while true
+        failure = nothing                     # the failed frame's `StepError`, once built
         try
             wait_resume!(control)             # the pause block: an unmask point (§12.4)
             issuer = @atomic control.stop_issuer
@@ -1282,29 +1306,45 @@ function _advance!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto
                 # value out
                 advanced += 1
             catch err
-                # The frame failed, so its throw is the disposition and a pending
-                # interrupt is moot: taken here, the only raise this end can make,
-                # and never raised past this catch (§12.4, §13.4).
-                try
-                    Base.sigatomic_end()
-                catch
-                end
-                # §13.4's one exception never wrapped, kept defensively: a
+                # The frame failed, so its throw is the disposition (§12.4, §13.4).
+                # The `StepError` is built still masked, since the species rule
+                # runs declarations, and carried in `failure` across the unmask:
+                # a pending raise lands in the arm below, which throws it.
+                # §13.4's one exception never wrapped is kept defensively: a
                 # synchronous throw from model code, the mask deferring only a
                 # signal. The frame is abandoned unpublished, the stores possibly
                 # mid-boundary, and the run takes the stop path (§12.4).
-                err isa InterruptException &&
-                    return (_interrupt_source(control, nothing), advanced)
-                rethrow(_wrap_step(sim, entry_boundary, err))
+                err isa InterruptException || (failure = _wrap_step(sim, entry_boundary, err))
+                Base.sigatomic_end()
+                failure === nothing && return (_interrupt_source(control, nothing), advanced)
+                rethrow(failure)                   # the model's backtrace kept
             end
             Base.sigatomic_end()                   # the mask's end: a deferred raise lands here
         catch err
             err isa InterruptException || rethrow()
+            # a frame that failed with the interrupt pending ends errored under
+            # its own `StepError`, the interrupt consumed (§12.4, §13.4, D-268)
+            failure === nothing || throw(failure)
             # `face` is this frame's where the raise came at the mask's end, and
             # `nothing` at the frame top, a holding face having returned
             return (_interrupt_source(control, face), advanced)
         end
         face === nothing || return (ModelRequestedStop(face), advanced)
+    end
+end
+
+# The spawned loop's outcome, awaited on the calling task (§11.1). An interrupt
+# landing in the wait is the operator's stop for the loop, which is still
+# running: requested through the stop word, the wait resumed, and the loop ends
+# at its next frame top through its own `_finish!` (§12.4, D-268).
+function _await_loop(control::Control, loop_task::Task)
+    while true
+        try
+            return fetch(loop_task)
+        catch err
+            err isa InterruptException || rethrow()
+            _request_stop!(control, :interrupt)
+        end
     end
 end
 
@@ -1456,15 +1496,28 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
     t_end_frame = _t_end_frame(sim, policy.t_end)
     @atomic :release control.lifecycle = :running   # the freeze holds within the call
     source, advanced, error_source = nothing, 0, nothing
+    returned = false
     try
         # §12.7: in `:replay` the recording is the bound, so a `step!` past its
         # end advances only to the last recorded frame and returns fewer frames
         # than asked — the truncation the caller reads (D-218)
         upto = _replay_bound(sim, sim.exec.clock.step + frame_count)
         (source, advanced) = _advance!(sim, policy, addrs, upto, t_end_frame)
+        returned = true
     catch err
-        error_source = LoopError(err)              # the record is assembled below,
-        rethrow()                             # after the sweep (D-203)
+        if err isa InterruptException
+            # The operator's stop landing outside the loop's unmask points is a
+            # stop, as in `_run_body!` (§12.4, D-268): a loop that returned
+            # keeps its outcome, and `:interrupt` is the source only where it
+            # had not. The `finally` lands it `stopped`.
+            if !returned
+                _request_stop!(control, :interrupt)
+                source = ControlRequestedStop(something(@atomic control.stop_issuer))
+            end
+        else
+            error_source = LoopError(err)          # the record is assembled below,
+            rethrow()                         # after the sweep (D-203)
+        end
     finally
         Base.sigatomic_begin()                # masked bookkeeping, as `run!`'s (§12.4, D-268)
         if error_source !== nothing                # §13.6, the stepped entry: same tail,
