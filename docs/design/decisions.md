@@ -10553,6 +10553,13 @@ the mechanism the entries rely on: a signal inside `disable_sigint` is held
 through a `sleep` and raises at the unmask, and one inside a `wait` on a
 `Threads.Condition` raises in the wait with the lock released.
 
+Annotation (2026-09-26): a frame that throws while an interrupt is pending
+ends `errored` under its own `StepError`, the pending interrupt consumed at
+the catch before the cause is wrapped ([§12.4][s12-4], [§13.4][s13-4]). Building the mask
+showed that both naive shapes, the mask begun outside the frame's `try` and
+the unmask in a `finally`, lose the frame's error to the deferred raise and
+would end the run `stopped` over a half-written boundary.
+
 **Rejected.**
 - *`pause!(sim, flag::Bool)` as one verb:* two verbs read at the call site
   and match `stop!`; a Boolean argument spells the un-pause as a negation.

@@ -7488,6 +7488,13 @@ recorded source and the interrupt is satisfied by the run ending. Where none
 held, the interrupt sets the stop word and the source is
 `ControlRequestedStop(:interrupt)`.
 
+**A frame that throws with an interrupt pending ends `errored`**
+([D-268][d-268]). The frame's own throw is the disposition ([§13.4][s13-4]).
+The catch consumes the pending interrupt before it wraps the cause, and the
+run takes the abnormal entry under that `StepError` ([§13.6][s13-6]). The
+alternative, `stopped` over a half-written boundary, is what the masking
+exists to prevent. The interrupt is satisfied by the run ending.
+
 **Rule.** The tail's bookkeeping is masked too ([D-268][d-268]).
 
 After the joins, the run's-end sweep, the termination record and the
