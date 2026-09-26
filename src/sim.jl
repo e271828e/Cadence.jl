@@ -1204,6 +1204,9 @@ _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{T
 # hit arrives as `frame!`'s return value with the frame's remainder already
 # abandoned (D-261: never a field of the policy or the cursor). `addrs` is the
 # policy's faces compiled, bound beside it and carried to the sampling read.
+# The frame top opens with the pause block, ahead of the stop word: the loop
+# parks there while paused, and a stop wakes it onto the word's read, so a
+# stop issued while paused ends the run with no further frame (§12.1, D-268).
 # With devices rostered every frame yields at least once (§12.2, the unpaced
 # case): the explicit yield is the co-resident device tasks' scheduling slot.
 function _advance!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto::Int,
@@ -1216,6 +1219,7 @@ function _advance!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto
     entry_boundary = 0             # the frame-entry boundary index, read at the frame top
     try                           # before the drain, so the catch has it wherever the
         while true                # throw came from (§13.4)
+            wait_resume!(control)
             issuer = @atomic control.stop_issuer
             issuer === nothing || return (ControlRequestedStop(issuer), advanced)
             sim.exec.clock.step < t_end_frame || return (EndTimeReached(), advanced)
@@ -1424,10 +1428,48 @@ Request a control-plane stop from any task (§12.1) — the calling code's
 spelling of the stop a device handle issues with `stop!(handle)`, `:code`
 riding as its issuer into the termination record (D-203). The loop observes
 the word at the next frame top, completes that boundary, publishes, and
-enters the tail (§12.4). Idempotent — a later issuer loses the first-wins
-CAS; inert while stopped, the word being cleared at the top of the next run.
+enters the tail (§12.4). A loop parked in the pause block is woken and ends
+at that frame top with no further frame (§12.4(2)). Idempotent — a later
+issuer loses the first-wins CAS; inert while stopped, the word being cleared
+at the top of the next run.
 """
 stop!(sim::Simulation) = _request_stop!(sim.control, :code)
+
+"""
+    pause!(sim)
+
+Set §12.1's pause flag, from any task and in any lifecycle state (D-268).
+The loop consults it at frame top and parks there, the frame in flight
+completed and published, until `resume!(sim)` or a stop. A `pause!` before
+`run!` starts the run paused at its first frame top; `step!` blocks the same
+way. The tail clears the flag, so a run never hands its pause to the next.
+"""
+pause!(sim::Simulation) = (@atomic sim.control.paused = true; nothing)
+
+"""
+    resume!(sim)
+
+Clear §12.1's pause flag and wake the loop parked at frame top, from any task
+and in any lifecycle state (D-268). Inert while not paused.
+"""
+function resume!(sim::Simulation)
+    control = sim.control
+    @atomic control.paused = false
+    lock(control.wake)
+    try
+        notify(control.wake)
+    finally
+        unlock(control.wake)
+    end
+    nothing
+end
+
+"""
+    paused(sim) -> Bool
+
+Read §12.1's pause flag, legal in every lifecycle state (D-268).
+"""
+paused(sim::Simulation) = @atomic sim.control.paused
 
 # --- the roster (§11.3): stopped-sim configuration -----------------------------
 

@@ -2,8 +2,8 @@
 # lifecycle slice: the handle every attached device receives, the authoring
 # contract's four functions, the framework wrapper around the author-owned
 # loop body, the pre-spawn init bracket and the tail. The control surface here
-# is §12.1's stop word, §12.3's counter-plus-condition wait and §12.6's
-# lifecycle: pause, pacing and the operator interrupt are absent
+# is §12.1's stop word and pause flag, §12.3's counter-plus-condition wait
+# and §12.6's lifecycle: pacing and the operator interrupt are absent
 # (`pending.md`). A device
 # failure reports as `DeviceCrash` into the device's own diagnostic cell
 # (§11.8, §12.4); what the tail alone produces — the join timeout, and
@@ -41,6 +41,14 @@ is §12.4(1)'s sticky status: set only after the final snapshot is published,
 and read by `running(handle)`, which is how loop bodies observe the run's
 end.
 
+`paused` is §12.1's pause flag (D-268): set by `pause!(sim)` and cleared by
+`resume!(sim)`, from any task in any lifecycle state. The loop consults it at
+frame top, before the stop word, and parks on `wake` while it holds and no
+stop is pending: `resume!` and every stop request notify `wake`, so a stop
+issued while paused ends the run at that frame top (§12.4(2)). The tail
+clears it beside `stopped`; a run's start never does, which is what lets a
+`pause!` before `run!` start the run paused.
+
 `lifecycle` is §12.6's five-state machine: `:built`, `:initialized`,
 `:running`, and terminally `:stopped` or `:errored` (§13.6). `:running` is
 the §11.3 freeze, and it deliberately spans the whole of `run!` — tail
@@ -65,19 +73,45 @@ the parameter it waits under is `Control`'s (§12.1, D-256).
 mutable struct Control
     @atomic stop_issuer::Union{Nothing,Symbol,String}
     @atomic stopped::Bool
+    @atomic paused::Bool
     wake::Threads.Condition
     counter::Int
     @atomic lifecycle::Symbol
     join_timeout::Float64
 end
 Control(join_timeout::Float64) =
-    Control(nothing, true, Threads.Condition(), 0, :built, join_timeout)
+    Control(nothing, true, false, Threads.Condition(), 0, :built, join_timeout)
 
 # The stop word's one write path (§12.1, D-203): first CAS from empty wins —
 # the same arbitration as the loop reacting to the first holding stop face —
-# and a later issuer is dropped, the tail already having its initiator.
-_request_stop!(control::Control, issuer::Union{Symbol,String}) =
-    (@atomicreplace control.stop_issuer nothing => issuer; nothing)
+# and a later issuer is dropped, the tail already having its initiator. The
+# notify wakes a loop parked in the pause block (§12.4(2)); no caller holds
+# the lock.
+function _request_stop!(control::Control, issuer::Union{Symbol,String})
+    @atomicreplace control.stop_issuer nothing => issuer
+    lock(control.wake)
+    try
+        notify(control.wake)
+    finally
+        unlock(control.wake)
+    end
+    nothing
+end
+
+# The pause block (§12.1): the loop parks here at frame top while the flag is
+# set and no stop is pending, woken by `resume!` or a stop request.
+function wait_resume!(control::Control)
+    (@atomic control.paused) || return nothing
+    lock(control.wake)
+    try
+        while (@atomic control.paused) && (@atomic control.stop_issuer) === nothing
+            wait(control.wake)
+        end
+    finally
+        unlock(control.wake)
+    end
+    nothing
+end
 
 """
 The §11.3 freeze, keyed on the lifecycle (§12.6), as two gates. The readers'
@@ -404,13 +438,14 @@ function _spawn!(entries::Vector{RosterEntry})
 end
 
 # Tail steps (1)'s close and (2) (§12.4): the final snapshot is whatever the
-# loop last published; the sticky status flips only after it, and the notify
-# under the lock wakes every §12.3 waiter, whose predicate routes it out.
-# Idempotent, and run even when the loop leaves by a throw — the §13.6 catch
-# path is absent (`pending.md`), but device tasks must never be left parked.
+# loop last published; the sticky status flips only after it, the pause flag
+# clears beside it (§12.1, D-268), and the notify under the lock wakes every
+# §12.3 waiter, whose predicate routes it out. Idempotent, and run on §13.6's
+# catch path too, so no device task is left parked when the loop throws.
 function _finish!(sim)
     control = sim.control
     @atomic control.stopped = true
+    @atomic control.paused = false
     lock(control.wake)
     try
         notify(control.wake)

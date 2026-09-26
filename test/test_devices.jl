@@ -132,6 +132,19 @@ mutable struct Loopless <: AbstractDevice end
 mutable struct NarrowLoop <: AbstractDevice end   # `loop` on the handle type itself
 loop(::NarrowLoop, ::DeviceHandle) = nothing
 
+# Issue a stop against a paused run and wait for the run to leave `:running`
+# (§12.1). A stop that fails to wake the pause is followed by a `resume!`, so
+# the regression fails the assertion rather than hanging the suite.
+function stop_while_paused(sim, request)
+    request()
+    ended = timedwait(() -> lifecycle(sim) !== :running, 10.0) === :ok
+    ended || resume!(sim)
+    ended
+end
+
+# One `pause!`/`resume!` round, the flag read back through `paused` after each.
+pause_round(sim) = (pause!(sim); set = paused(sim); resume!(sim); (set, paused(sim)))
+
 function test_devices()
     @testset "a device stages through its handle from its own task, and departure consults should_abort (§11.6, §12.4)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
@@ -205,6 +218,107 @@ function test_devices()
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         @test step!(sim; frames = 3) == 3
         @test sim.exec.clock.step == 3
+    end
+
+    @testset "pause! from another task parks the loop at a frame top, and resume! lets it advance (§12.1)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        attach!(sim, Pad("p"), Enumerated("a"))  # a rostered device keeps the loop yielding (§12.2)
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        observer = Threads.@spawn begin
+            sleep(0.05)
+            pause!(sim)
+            sleep(0.2)                           # the frame in flight completes, then the loop parks
+            first_read = latest(sim)
+            # the parked frame top's last publication is its own boundary
+            consistent = first_read.frame == sim.exec.clock.step && first_read.t == sim.exec.clock.t
+            state_read = (paused(sim), lifecycle(sim))
+            sleep(0.2)
+            second_read = latest(sim)
+            resume!(sim)
+            advanced = timedwait(() -> latest(sim).frame > second_read.frame, 10.0) === :ok
+            stop!(sim)
+            (first_read.frame, second_read.frame, consistent, state_read, advanced)
+        end
+        run!(sim; t_end = 1.0e6)
+        (first_frame, second_frame, consistent, state_read, advanced) = fetch(observer)
+        @test first_frame > 0 && second_frame == first_frame   # frozen across the sleep
+        @test consistent
+        @test state_read == (true, :running)     # read, and set, while the run holds the freeze
+        @test advanced
+        @test termination(sim).source === ControlRequestedStop(:code)
+        @test !paused(sim)
+    end
+
+    @testset "a stop issued while paused ends the run at that frame top, with no further frame (§12.1, §12.4(2))" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        handle = attach!(sim, Pad("p"), Enumerated("a"))
+        for (request, issuer) in ((() -> stop!(sim), :code), (() -> stop!(handle), "device 1 (Pad)"))
+            init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+            observer = Threads.@spawn begin
+                sleep(0.05)
+                pause!(sim)
+                sleep(0.2)
+                frozen = latest(sim).frame
+                (frozen, stop_while_paused(sim, request))
+            end
+            run!(sim; t_end = 1.0e6)
+            (frozen, ended) = fetch(observer)
+            @test ended
+            @test frozen > 0 && sim.exec.clock.step == frozen && latest(sim).frame == frozen
+            @test termination(sim).source === ControlRequestedStop(issuer)
+            @test !paused(sim)                   # the tail cleared the flag
+        end
+    end
+
+    @testset "pause! before run! starts the run paused at its first frame top, and the tail clears the flag (§12.1)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        attach!(sim, Pad("p"), Enumerated("a"))
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        pause!(sim)
+        observer = Threads.@spawn begin
+            sleep(0.2)
+            (latest(sim).frame, stop_while_paused(sim, () -> stop!(sim)))
+        end
+        run!(sim; t_end = 1.0)                   # ten frames, were the flag ignored
+        (first_top, ended) = fetch(observer)
+        @test first_top == 0 && ended
+        @test sim.exec.clock.step == 0
+        @test termination(sim).source === ControlRequestedStop(:code)
+        @test !paused(sim)
+        # No run start clears the flag, and the tail left none: the next
+        # trajectory advances without a resume!.
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        @test step!(sim; frames = 3) == 3
+    end
+
+    @testset "step! blocks while paused until a resume! from another task, then advances in full (§12.1)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        pause!(sim)
+        resumer = Threads.@spawn begin
+            sleep(0.2)
+            parked_at = latest(sim).frame        # step! is parked at its first frame top
+            resume!(sim)
+            parked_at
+        end
+        @test step!(sim; frames = 5) == 5
+        @test fetch(resumer) == 0
+        @test sim.exec.clock.step == 5 && !paused(sim)
+        @test lifecycle(sim) === :initialized
+    end
+
+    @testset "paused reads the flag in every lifecycle state, and the verbs refuse none (§12.1, D-268)" begin
+        # `:running` is read, and both verbs issued, from another task above.
+        sim = Simulation(fed(Exploder(), "arm"); h = 1//10)
+        @test lifecycle(sim) === :built && pause_round(sim) == (true, false)
+        init!(sim, fragment(inputs = (in = false,)))
+        @test lifecycle(sim) === :initialized && pause_round(sim) == (true, false)
+        step!(sim; frames = 1, t_end = 0.1)
+        @test lifecycle(sim) === :stopped && pause_round(sim) == (true, false)
+        init!(sim, fragment(inputs = (in = false,)))
+        stage!(sim, "in" => true)                # armed: frame 1 throws (§13.6)
+        @test_throws StepError step!(sim; t_end = 5.0)
+        @test lifecycle(sim) === :errored && pause_round(sim) == (true, false)
     end
 
     @testset "a crash is caught, shutdown! runs, the run continues, claims persist (§12.4(6))" begin
