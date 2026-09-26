@@ -7019,6 +7019,27 @@ execute, never what they compute, and stop merely truncates the trajectory.
 While paused the loop blocks on a condition (notified on un-pause and stop),
 not a spin.
 
+**The pause is two verbs on the simulation** ([D-268][d-268]). `pause!(sim)`
+sets the pause flag and `resume!(sim)` clears it, from any task and in any
+lifecycle state; `paused(sim)` reads it. The loop consults the flag at frame
+top, so a `pause!` issued before `run!` starts the run paused at its first
+frame top. A stop issued while paused wakes the loop, which observes the stop
+word and enters the tail with no further frame ([§12.4][s12-4]). `step!`
+shares the frame top and blocks the same way, until `resume!` or a stop from
+another task.
+
+**Rule.** The tail clears the pause flag beside the sticky stopped status.
+The flag is never cleared at a run's start.
+
+**Why.** The stop word is cleared at the top of each run because a stop
+belongs to the run it ended. A pause left set by a run that stopped while
+paused would instead hold the next run at its first frame top, on a flag
+nobody remembers setting. Clearing it in the tail removes that trap and keeps
+the start-paused spelling above.
+
+The handle carries no pause ([§11.6][s11-6]). The GUI's pause button waits
+on the GUI's authoring surface ([§11.7][s11-7]).
+
 ### 12.2 Loop scheduling: wait primitive, yields, thread budget
 
 [§10.7][s10-7] fixed the shape of the pacer's wait, hybrid sleep-then-spin,
@@ -7335,9 +7356,13 @@ for entry in roster                       # attachment order, calling task
         init!(entry.device)
     catch e
         shutdown!(entry.device)           # release, unconditionally (§11.6)
-        report!(entry, DeviceCrash(e))    # pre-spawn: the entry is the address, no handle yet
+        if e isa InterruptException       # the operator's stop, never a crash (below)
+            stop!(control, :interrupt)
+        else
+            report!(entry, DeviceCrash(e))    # pre-spawn: the entry is the address, no handle yet
+            entry.should_abort && stop!(control)
+        end
         mark_dead!(entry)                 # from boundary zero; no task is spawned
-        entry.should_abort && stop!(control)
     end
 end
 ```
@@ -7407,6 +7432,17 @@ the loop body of a device that does not exist. The shipped GUI attaches with
 `should_abort = true`, so in practice that run ends at `t₀` anyway. The rule
 is stated generally because it costs nothing.
 
+**Rule.** An `InterruptException` inside a device's `init!` is the operator's
+stop, not that device's crash ([D-268][d-268]).
+
+The bracket releases the device through `shutdown!` as for any throw and
+spawns no task for it. In place of the `DeviceCrash` report it sets the
+`:interrupt` stop through the stop word, so the run's `should_abort` split
+above does not arise. The remaining entries still initialize, and the run
+ends at its first frame top with zero frames advanced, through the
+pending-stop path above. The device wrapper makes the same discrimination
+for a raise inside a loop body ([§11.6][s11-6]).
+
 #### The operator interrupt
 
 **The operator interrupt is a stop, not a failure.** Ctrl-C in an
@@ -7443,6 +7479,23 @@ where it already consults the control plane ([§12.1][s12-1]), and inside its
 wait and pause blocks. All of those points are boundary-consistent. Caught
 at one of them, the interrupt sets the control-plane stop and enters this
 tail. The catch site ([§13.4][s13-4]) therefore never sees it.
+
+**A deferred interrupt yields to the frame's own stop face** ([D-268][d-268]).
+The stop faces are consulted at each publication and the stop word at the
+next frame top ([§13.5][s13-5]), and the deferred raise lands between the
+two. Where the frame's publication found a face holding, that face is the
+recorded source and the interrupt is satisfied by the run ending. Where none
+held, the interrupt sets the stop word and the source is
+`ControlRequestedStop(:interrupt)`.
+
+**Rule.** The tail's bookkeeping is masked too ([D-268][d-268]).
+
+After the joins, the run's-end sweep, the termination record and the
+terminal lifecycle state are written under the same mask. An interrupt
+landing there would otherwise abort the sequence half-way and leave the
+lifecycle `running`, every service refusing. A raise deferred to the end of
+that bookkeeping propagates out of `run!` raw, the simulation already
+terminal.
 
 **A second interrupt during the tail** collapses the remaining joins
 immediately. That is (5)'s abandonment path taken at once, with devices
@@ -8425,7 +8478,12 @@ place of a clean stop.
 [unattended run](#g-unattended-run) (a run with empty staging and no snapshot
 readers) rethrows after the shutdown tail completes, so CI fails honestly. An
 interactive session logs the rendered error and surfaces the status through
-the control plane and GUI.
+the control plane and GUI. `run!` discriminates the two by the
+[roster](#g-roster) ([D-268][d-268]). With no device rostered the run is
+unattended and rethrows. With one or more it logs the rendered error through
+the logging backend and returns, the lifecycle reading `errored` and
+`termination(sim)` retaining the cause. `step!` is deviceless by construction
+([§12.6][s12-6]) and always rethrows.
 
 **The nonfinite check.** Divergence is not termination. Dynamics that blow up
 (ground penetration, an unstable gain) produce NaNs that defeat guards. NaN
@@ -10684,6 +10742,10 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 - Control plane. Pause/un-pause, pace and `margin` changes, and stop all
   sit on a separate atomic surface, never staged ([§12.1][s12-1]). Pacing sits
   outside the semantics, so pace and `margin` are both safe to change live.
+  `pause!(sim)`, `resume!(sim)` and `stop!(sim)` are the calling code's
+  spellings and `paused(sim)` the read; a device stops through
+  `stop!(handle)` ([§11.6][s11-6]). The tail clears the pause, never a run's
+  start ([D-268][d-268]).
 - Termination. Model state ends a run via `stop_on` faces read at every
   published boundary ([§13.5][s13-5]). Shutdown completes a boundary,
   publishes the final snapshot, then joins ([§12.4][s12-4]).
@@ -12378,6 +12440,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-265]: decisions.md#d-265--read-the-pinned-marker-at-the-top-of-an-entry-alone
 [d-266]: decisions.md#d-266--two-doors-for-an-ad-opaque-implementation-the-local-rule-and-the-freeze-block
 [d-267]: decisions.md#d-267--name-the-leaf-declarations-by-the-bundle-field-they-define
+[d-268]: decisions.md#d-268--pause-verbs-on-the-simulation-and-the-interrupts-remaining-windows
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

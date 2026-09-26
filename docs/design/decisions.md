@@ -292,6 +292,7 @@ were derived.
 | [D-265][d-265] | Read the `Pinned` marker at the top of an entry alone | ratified |
 | [D-266][d-266] | Two doors for an AD-opaque implementation: the local rule and the `Freeze` block | ratified |
 | [D-267][d-267] | Name the leaf declarations by the bundle field they define | ratified |
+| [D-268][d-268] | Pause verbs on the simulation, and the interrupt's remaining windows | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -10487,6 +10488,96 @@ new name.
   "state" there names the detection class against time events ([D-220][d-220]).
 - *Aliases or deprecation shims:* [D-220][d-220]'s grounds.
 
+### D-268 — Pause verbs on the simulation, and the interrupt's remaining windows
+
+**Status.** ratified
+
+**Position.** The pause is spelled `pause!(sim)`, `resume!(sim)` and
+`paused(sim)`, and the operator interrupt is settled at the four places
+[§12.4][s12-4]'s masking left open.
+
+- `pause!` and `resume!` are legal from any task in any lifecycle state; the
+  loop consults the flag at frame top and inside its wait and pause blocks;
+  `step!` blocks while paused. The tail clears the flag beside the sticky
+  stopped status, and no run start clears it. The handle carries no pause.
+- A deferred interrupt raised at the unmask point yields to a stop face the
+  frame's publication found holding: the face is the recorded source, and
+  the interrupt sets the stop word only where none held.
+- An `InterruptException` inside a device's `init!` is the operator's stop,
+  not that device's crash: the bracket runs `shutdown!`, sets the
+  `:interrupt` stop, reports no `DeviceCrash` and spawns no task; the other
+  entries still initialize and the run ends at its first frame top.
+- The tail's bookkeeping after the joins runs under the mask; a raise
+  deferred to its end propagates raw out of `run!`, the simulation already
+  terminal.
+- `run!` discriminates [§13.4][s13-4]'s two dispositions by the roster: empty is
+  unattended and rethrows, non-empty logs the rendered error and returns
+  with the lifecycle `errored`. `step!` always rethrows.
+
+**Spec.** [§12.1][s12-1], [§12.4][s12-4], [§13.4][s13-4], [Appendix B][sB]
+
+**Rationale.** [§12.1][s12-1] named the pause as a control-plane field and [§12.4][s12-4] built
+the interrupt on masking, but neither spelled the verbs, and the code built
+the stop word and the two defensive discriminations of [D-132][d-132] without the
+pause or the mask. Building them raised four questions the text did not
+answer, each small and each a trap if answered by default.
+
+The verbs follow the stop's grammar, `stop!(sim)` beside `stop!(handle)`,
+and the reader follows `running` and `closed`, bare predicates the API
+already spells. The pause stays off the handle because [§11.6][s11-6] lists the
+handle's control access as observe-running and request-stop, and the one
+device that presses pause is the GUI, whose authoring surface [§11.7][s11-7] defers.
+
+Clearing the flag in the tail rather than at a run's start is the one
+disposition that both removes the trap and keeps a `pause!` before `run!`
+meaningful. A run that stopped while paused, under the alternative, would
+hand the next run a first frame top it never leaves.
+
+The face-before-interrupt order is [§13.5][s13-5]'s consultation order applied to the
+raise's actual position: the deferred raise lands after the frame's
+publication, where the stop faces are read, and before the next frame top,
+where the stop word is. Recording the face keeps the order one rule.
+
+The init bracket's arm mirrors the wrapper's ([D-132][d-132]). Without it a Ctrl-C
+during a slow `init!` would land the run `errored`, since the bracket sits
+outside the frame loop's catch and its throw would reach `run!`'s outer
+catch as a loop failure. The masked bookkeeping closes the last window: a
+raise inside the outermost `finally` would leave the lifecycle `running`
+with no run behind it, and every service refuses that state.
+
+The roster is the discriminator because [§12.6][s12-6] defines the unattended run as
+the deviceless one and [§13.4][s13-4]'s rethrow presupposes it. The discrimination
+sits in `run!` alone since `step!` is deviceless by construction. A probe
+under `Base.exit_on_sigint(false)` with `kill(getpid(), SIGINT)` confirmed
+the mechanism the entries rely on: a signal inside `disable_sigint` is held
+through a `sleep` and raises at the unmask, and one inside a `wait` on a
+`Threads.Condition` raises in the wait with the lock released.
+
+**Rejected.**
+- *`pause!(sim, flag::Bool)` as one verb:* two verbs read at the call site
+  and match `stop!`; a Boolean argument spells the un-pause as a negation.
+- *A pause on the handle now:* [§11.6][s11-6]'s handle contract does not carry it,
+  and the only issuer is the deferred GUI; adding it later costs one method.
+- *Clearing the pause at a run's start, as the stop word is:* removes the
+  start-paused spelling without removing anything the tail's clearing does
+  not.
+- *`step!` ignoring the pause:* a second consultation rule for one frame
+  loop, and [§12.6][s12-6]'s bit-identity claim rests on the loop being one code.
+- *Recording the interrupt over a holding face:* contradicts [§13.5][s13-5]'s order,
+  under which the face was consulted first.
+- *Reporting an interrupt inside `init!` as `DeviceCrash`:* [D-132][d-132]'s grounds;
+  and with `should_abort` clear the run would start with the device dead and
+  the operator's stop lost.
+- *Leaving the tail's bookkeeping unmasked:* a lifecycle stuck at `running`
+  with every service refusing is a bricked session, the outcome [D-132][d-132] exists
+  to prevent.
+- *Swallowing a raise deferred past the bookkeeping:* the operator asked,
+  and the simulation being terminal costs the raise nothing.
+- *`isinteractive()` as the discriminator:* a deviceless run in the REPL
+  would then hide its failure behind a log line, and a rostered device in a
+  script would rethrow past the tail the devices already took; the roster
+  states what the glossary defines.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -10755,6 +10846,7 @@ new name.
 [d-265]: #d-265--read-the-pinned-marker-at-the-top-of-an-entry-alone
 [d-266]: #d-266--two-doors-for-an-ad-opaque-implementation-the-local-rule-and-the-freeze-block
 [d-267]: #d-267--name-the-leaf-declarations-by-the-bundle-field-they-define
+[d-268]: #d-268--pause-verbs-on-the-simulation-and-the-interrupts-remaining-windows
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
