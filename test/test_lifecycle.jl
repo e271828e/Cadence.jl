@@ -428,6 +428,29 @@ function test_lifecycle()
         @test lifecycle(stepped) === :errored
     end
 
+    @testset "replay! reads §13.4's disposition off the roster as run! does (§13.4, §12.7, D-268)" begin
+        # The recording: frame 1's drain applies the armed batch, and the frame throws.
+        recorded = Simulation(fed(Exploder(), "arm"); h = 1//10)
+        init!(recorded, fragment(inputs = (in = false,)))
+        stage!(recorded, "in" => true)
+        @test_throws StepError{Exploded} run!(recorded; t_end = 5.0)
+        recording = trace(recorded)                      # a copy, the failed frame's batch in it
+        # Interactive: a rostered reader makes the replay's failure logged, and returned.
+        sim = Simulation(fed(Exploder(), "arm"); h = 1//10)
+        attach!(sim, TailProbe(), NoClaim())
+        logs, _ = Test.collect_test_logs() do
+            replay!(sim, recording)
+        end
+        @test lifecycle(sim) === :errored
+        source = termination(sim).source
+        @test source isa LoopError && source.exception isa StepError{Exploded}
+        @test count(l -> l.level == Base.CoreLogging.Error, logs) == 1
+        # Unattended: the deviceless reproduction still reaches the caller.
+        unattended = Simulation(fed(Exploder(), "arm"); h = 1//10)
+        @test_throws StepError{Exploded} replay!(unattended, recording)
+        @test lifecycle(unattended) === :errored
+    end
+
     @testset "a throw inside boundary zero returns a warm simulation to `built` (§12.6, D-223)" begin
         sim = Simulation(fed(Mine(), "sig"); h = 1//10)
         init!(sim, fragment(inputs = (in = false,)))

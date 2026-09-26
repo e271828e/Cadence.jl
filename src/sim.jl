@@ -869,7 +869,9 @@ Budget exhausted, the replay ends
 **`initialized`**, never `stopped` (§12.7): boundary-consistent and ready to
 advance, which is what makes replay-to-inspect, replay-to-`k−1`-then-`step!`
 and `run!`-continuation real. A §13.5 source firing first ends it `stopped`
-like any run, and a loop-side throw `errored`.
+like any run, and a loop-side throw `errored`, disposed of by the roster as
+under `run!` (§13.4, D-268): rethrown with no device rostered, logged and
+returned with one or more.
 
 The recording and the **input mode** it enters outlive the call (§12.6, D-218):
 a partial replay is a resumable position, not the end of an operation, and the
@@ -1071,15 +1073,7 @@ function run!(sim::Simulation; t_end = Inf, stop_on = ())
         report_cell!(sim.plane.loop_diag, UnboundedRun(policy.t_end, copy(policy.faces)))
     # a live run owes its end to a §13.5 source alone, so its frame budget is
     # unbounded here; in `:replay` the recording binds it (`_run_body!`, D-218)
-    try
-        _run_body!(sim, policy, addrs, typemax(Int), _t_end_frame(sim, policy.t_end))
-    catch err
-        # §13.4's disposition, by the roster (D-268): unattended, CI fails
-        # honestly; a raise deferred to the masked bookkeeping's end propagates raw
-        (isempty(sim.plane.roster) || err isa InterruptException) && rethrow()
-        @error "run! ended errored; the cause is retained on termination(sim) (§13.4, §13.6)" *
-               " and the simulation refuses every advance (§12.6)" exception = (err, catch_backtrace())
-    end
+    _run_body!(sim, policy, addrs, typemax(Int), _t_end_frame(sim, policy.t_end))
     nothing
 end
 
@@ -1119,13 +1113,17 @@ end
 # `replay!`, or any run in `:replay`, where the recording is the bound (D-218) —
 # and it lands `initialized` at a frame top, §12.7's promise. A §13.5 source is
 # `stopped` with the record, a throw `errored` with the cause retained. The mode
-# settles here too, on every exit but the errored one.
+# settles here too, on every exit but the errored one. §13.4's disposition of
+# that throw is read off the roster here, so both doors share it (D-268):
+# with no device rostered it is rethrown; with one or more it is logged once
+# the record is written, and the call returns.
 function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto::Int,
                     t_end_frame::Int)
     plane, control = sim.plane, sim.control
     upto = _replay_bound(sim, upto)             # §12.7: the recording bounds a replaying run
     @atomic :release control.lifecycle = :running   # the §11.3 freeze: the roster is fixed for the run
     source, error_source = nothing, nothing
+    logged_cause = nothing                    # the cause and its backtrace, when not rethrown
     live, tasks = RosterEntry[], nothing      # the interrupt arm below reads both
     returned, tail_ran = false, false
     try
@@ -1197,7 +1195,9 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             # the spawned loop's task failure where the topology moved it; the
             # record itself is assembled below, after the sweep (D-203).
             error_source = LoopError(err isa TaskFailedException ? err.task.exception : err)
-            rethrow()
+            # §13.4's disposition, by the roster (D-268): unattended, CI fails honestly
+            isempty(plane.roster) && rethrow()
+            logged_cause = (err, catch_backtrace())
         end
     finally
         # The bookkeeping lands whatever arrives: masked, a raise deferred to
@@ -1220,6 +1220,9 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
         end
         Base.sigatomic_end()
     end
+    logged_cause === nothing ||
+        @error "the run ended errored; the cause is retained on termination(sim) (§13.4, §13.6)" *
+               " and the simulation refuses every advance (§12.6)" exception = logged_cause
     nothing
 end
 
