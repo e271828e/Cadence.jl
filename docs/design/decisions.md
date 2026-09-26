@@ -10554,11 +10554,20 @@ through a `sleep` and raises at the unmask, and one inside a `wait` on a
 `Threads.Condition` raises in the wait with the lock released.
 
 Annotation (2026-09-26): a frame that throws while an interrupt is pending
-ends `errored` under its own `StepError`, the pending interrupt consumed at
-the catch before the cause is wrapped ([§12.4][s12-4], [§13.4][s13-4]). Building the mask
+ends `errored` under its own `StepError`, the cause wrapped under the mask
+and the pending interrupt consumed at the catch on its way out ([§12.4][s12-4], [§13.4][s13-4]). Building the mask
 showed that both naive shapes, the mask begun outside the frame's `try` and
 the unmask in a `finally`, lose the frame's error to the deferred raise and
 would end the run `stopped` over a half-written boundary.
+
+Annotation (2026-09-26): two rulings the cold review raised. Julia's forced
+throw after repeated SIGINTs reaches [§13.4][s13-4]'s defensive arm inside the mask,
+so the arm is reachable; its disposition is `stopped` with the frame
+abandoned, the published record consistent and the stores possibly
+mid-boundary until the next `init!`, on boundary zero's precedent ([§12.4][s12-4]).
+And `replay!` discriminates the two dispositions by the roster as `run!`
+does: the reasoning against `isinteractive()` applies unchanged, and the
+deviceless reproduction still rethrows ([§13.4][s13-4]).
 
 **Rejected.**
 - *`pause!(sim, flag::Bool)` as one verb:* two verbs read at the call site

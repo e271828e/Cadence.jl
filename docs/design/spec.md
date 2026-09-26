@@ -7490,8 +7490,9 @@ held, the interrupt sets the stop word and the source is
 
 **A frame that throws with an interrupt pending ends `errored`**
 ([D-268][d-268]). The frame's own throw is the disposition ([§13.4][s13-4]).
-The catch consumes the pending interrupt before it wraps the cause, and the
-run takes the abnormal entry under that `StepError` ([§13.6][s13-6]). The
+The catch wraps the cause under the mask and consumes the pending interrupt
+on its way out, and the run takes the abnormal entry under that `StepError`
+([§13.6][s13-6]). The
 alternative, `stopped` over a half-written boundary, is what the masking
 exists to prevent. The interrupt is satisfied by the run ending.
 
@@ -7503,6 +7504,17 @@ landing there would otherwise abort the sequence half-way and leave the
 lifecycle `running`, every service refusing. A raise deferred to the end of
 that bookkeeping propagates out of `run!` raw, the simulation already
 terminal.
+
+**A forced throw reaches the defensive arm** ([D-268][d-268]). Julia stops
+deferring after repeated SIGINTs in a short window, warns that it is forcing
+the throw, and raises inside the mask. That is the one way the branch
+[§13.4][s13-4] keeps is reached. The arm abandons the frame unpublished and
+the run ends `stopped`, the source `ControlRequestedStop(:interrupt)`. The
+published record is consistent, since the frame published nothing. The
+stores may hold mid-boundary values until the next `init!` resets them, as
+after a throw inside boundary zero ([§13.4][s13-4]), so a `capture` of such a
+run reads a half-written boundary. The trace is the reproduction
+([§12.7][s12-7]).
 
 **A second interrupt during the tail** collapses the remaining joins
 immediately. That is (5)'s abandonment path taken at once, with devices
@@ -8474,18 +8486,20 @@ simulation's are ([§13.6][s13-6]). `trim!`'s commit is an `init!`
 failing. It is the operator's stop command ([§12.4][s12-4]). So the catch site
 discriminates it and routes it to the stop path. The run takes the ordinary
 graceful tail and ends `stopped`, never `errored` under a `StepError`. With the
-boundary masking in force ([§12.4][s12-4]) the branch is unreachable in
-practice. The interrupt is deferred to a frame-top or wait unmask point, and
-never raises inside the guarded sequence. The branch is kept defensively,
-because the cost of being wrong about that is a terminally errored session in
-place of a clean stop.
+boundary masking in force ([§12.4][s12-4]) a single interrupt never reaches
+the branch. It is deferred to a frame-top or wait unmask point, and never
+raises inside the guarded sequence. Julia's forced throw after repeated
+interrupts does reach it, and the branch's disposition is `stopped` with the
+frame abandoned ([§12.4][s12-4], [D-268][d-268]). The branch is kept for that
+case and defensively, because the cost of being wrong about the masking is a
+terminally errored session in place of a clean stop.
 
 **Disposition.** The `Simulation` ends in a terminal status, `stopped` or
 `errored`, with the exception retrievable. A synchronous
 [unattended run](#g-unattended-run) (a run with empty staging and no snapshot
 readers) rethrows after the shutdown tail completes, so CI fails honestly. An
 interactive session logs the rendered error and surfaces the status through
-the control plane and GUI. `run!` discriminates the two by the
+the control plane and GUI. `run!` and `replay!` discriminate the two by the
 [roster](#g-roster) ([D-268][d-268]). With no device rostered the run is
 unattended and rethrows. With one or more it logs the rendered error through
 the logging backend and returns, the lifecycle reading `errored` and
