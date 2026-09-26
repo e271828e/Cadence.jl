@@ -10,11 +10,12 @@ joining Appendix C's diagnostic set, the record being outcome, not warning.
 configured bound lives with the policy. `ModelRequestedStop` carries the
 first named `stop_on` face observed holding, in declaration order.
 `ControlRequestedStop` carries its issuer — `:code` from `stop!(sim)`, the
-requesting device's name from `stop!(handle)`, or `:interrupt`, requested by
-§13.4's carve-out when an `InterruptException` reaches the catch site or by
-§11.6's wrapper when one leaves a device loop body — through the same
-first-writer-wins word, so an earlier issuer keeps it (§12.4's masking and the
-operator-interrupt entry itself are still absent, `pending.md`). `LoopError` is §13.6's abnormal entry, `exception` the retained
+requesting device's name from `stop!(handle)`, or `:interrupt`, the operator's
+stop (§12.4, D-268), requested at one of the frame loop's unmask points, by the
+init bracket or §11.6's wrapper when one leaves a device's `init!` or loop
+body, or by §13.4's defensive carve-out when one reaches the catch site —
+through the same first-writer-wins word, so an earlier issuer keeps it.
+`LoopError` is §13.6's abnormal entry, `exception` the retained
 cause — a `StepError` from the frame loop's one catch site (§13.4), which
 carries the raw cause in turn.
 """
@@ -1023,9 +1024,13 @@ an `initialized` simulation runs (`init!` is mandatory, §12.6), and the run
 leaves it terminally `stopped` — the §13.5 record readable through
 `termination(sim)` — or `errored` on a loop-side failure (§13.6): the failed
 boundary published nothing, so the last published snapshot is already the
-promoted final one; the tail runs identically, the cause is retained on the
-record, and `run!` rethrows after the tail completes (§13.4's synchronous
-rule).
+promoted final one; the tail runs identically and the cause is retained on
+the record. §13.4's disposition is then read off the roster (D-268): with no
+device rostered the run is unattended and `run!` rethrows after the tail
+completes; with one or more it logs the rendered error and returns, the
+lifecycle `errored`. A Ctrl-C is a stop, never a failure: caught at a frame
+top, in the pause or inside the tail, the run ends `stopped` with
+`ControlRequestedStop(:interrupt)` (§12.4).
 
 The run's shape, in order: the policy is built and the §11.3 freeze rises (the
 lifecycle's `:running`, spanning the tail); the stop word is cleared (a fresh
@@ -1063,7 +1068,15 @@ function run!(sim::Simulation; t_end = Inf, stop_on = ())
         report_cell!(sim.plane.loop_diag, UnboundedRun(policy.t_end, copy(policy.faces)))
     # a live run owes its end to a §13.5 source alone, so its frame budget is
     # unbounded here; in `:replay` the recording binds it (`_run_body!`, D-218)
-    _run_body!(sim, policy, addrs, typemax(Int), _t_end_frame(sim, policy.t_end))
+    try
+        _run_body!(sim, policy, addrs, typemax(Int), _t_end_frame(sim, policy.t_end))
+    catch err
+        # §13.4's disposition, by the roster (D-268): unattended, CI fails
+        # honestly; a raise deferred past the masked bookkeeping propagates raw
+        (isempty(sim.plane.roster) || err isa InterruptException) && rethrow()
+        @error "run! ended errored; the cause is retained on termination(sim) (§13.4, §13.6)" *
+               " and the simulation refuses every advance (§12.6)" exception = (err, catch_backtrace())
+    end
     nothing
 end
 
@@ -1145,16 +1158,29 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             end
         end
     catch err
-        # §13.6's abnormal entry: the failed boundary is discarded by
-        # construction — publication is a boundary's last act, so it published
-        # nothing and the previous snapshot is already final. The source
-        # retains the cause as the frame loop wrapped it — a `StepError`
-        # against the execution cursor (§13.4) — unwrapped from the spawned
-        # loop's task failure where the topology moved it; the record itself is
-        # assembled below, after the sweep (D-203).
-        error_source = LoopError(err isa TaskFailedException ? err.task.exception : err)
-        rethrow()
+        if err isa InterruptException
+            # The operator's stop landing outside the loop's own unmask points —
+            # the bracket's edges, the microseconds between the loop's return
+            # and the tail — is a stop, never a `LoopError` (§12.4, D-268). The
+            # inner `finally` has run the tail; a source the loop already
+            # returned fired first and keeps the record.
+            _request_stop!(control, :interrupt)
+            source === nothing && (source = ControlRequestedStop(something(@atomic control.stop_issuer)))
+        else
+            # §13.6's abnormal entry: the failed boundary is discarded by
+            # construction — publication is a boundary's last act, so it
+            # published nothing and the previous snapshot is already final. The
+            # source retains the cause as the frame loop wrapped it — a
+            # `StepError` against the execution cursor (§13.4) — unwrapped from
+            # the spawned loop's task failure where the topology moved it; the
+            # record itself is assembled below, after the sweep (D-203).
+            error_source = LoopError(err isa TaskFailedException ? err.task.exception : err)
+            rethrow()
+        end
     finally
+        # The bookkeeping lands whatever arrives: masked, a raise deferred to
+        # its end propagating raw, the simulation already terminal (§12.4, D-268).
+        Base.sigatomic_begin()
         @atomic control.stopped = true
         residue = _sweep_tail!(sim)           # the run's last take (§11.8): what landed past
         empty!(plane.run_tasks)               # the final frame top — recorded and presented,
@@ -1170,6 +1196,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
                 @atomic :release control.lifecycle = :stopped
             end
         end
+        Base.sigatomic_end()
     end
     nothing
 end
@@ -1209,6 +1236,18 @@ _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{T
 # stop issued while paused ends the run with no further frame (§12.1, D-268).
 # With devices rostered every frame yields at least once (§12.2, the unpaced
 # case): the explicit yield is the co-resident device tasks' scheduling slot.
+#
+# §12.4's mask (D-268): delivery is deferred from the drain through the
+# frame's last publication, the frame's `try` inside the mask, so an operator
+# interrupt never lands mid-boundary. The unmask points are the mask's end,
+# after the frame counted and its face was read, and the unmasked frame top,
+# the pause block and the yield among them; one `try` per iteration holds
+# both, entered unmasked. Caught there, the interrupt yields to a face the
+# publication found holding (§13.5's order) and otherwise sets the
+# `:interrupt` stop. A frame that throws takes a pending interrupt before it
+# wraps its cause: its throw is the disposition, and the run ends `errored`
+# (§12.4, §13.4). Every `try` exit, normal or not, restores the sigatomic count
+# its entry saw, so the mask's two ends sit outside the frame's `try`.
 function _advance!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto::Int,
                    t_end_frame::Int)
     plane, control = sim.plane, sim.control
@@ -1216,44 +1255,67 @@ function _advance!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto
     advanced = 0
     face = _stop_hit(sim, policy, addrs)
     face === nothing || return (ModelRequestedStop(face), advanced)
-    entry_boundary = 0             # the frame-entry boundary index, read at the frame top
-    try                           # before the drain, so the catch has it wherever the
-        while true                # throw came from (§13.4)
-            wait_resume!(control)
+    while true
+        try
+            wait_resume!(control)             # the pause block: an unmask point (§12.4)
             issuer = @atomic control.stop_issuer
             issuer === nothing || return (ControlRequestedStop(issuer), advanced)
             sim.exec.clock.step < t_end_frame || return (EndTimeReached(), advanced)
             sim.exec.clock.step < upto || return (nothing, advanced)
             isempty(plane.roster) || yield()
-            entry_boundary = sim.exec.clock.step
-            drain!(sim)
-            k = (sim.exec.clock.step += 1)
-            hit = frame!(sim, k, policy, addrs)
-            if hit === nothing
-                k % N_base == 0 ? boundary!(sim, k ÷ N_base) : offtick_boundary!(sim)
-                publish!(sim)
-                face = _stop_hit(sim, policy, addrs)
-            else
-                face = hit        # a t* publication hit (§13.5): that snapshot is final
+            entry_boundary = sim.exec.clock.step   # the frame-entry boundary index (§13.4)
+            Base.sigatomic_begin()                 # §12.4: masked across the boundary sequence
+            try
+                drain!(sim)
+                k = (sim.exec.clock.step += 1)
+                hit = frame!(sim, k, policy, addrs)
+                if hit === nothing
+                    k % N_base == 0 ? boundary!(sim, k ÷ N_base) : offtick_boundary!(sim)
+                    publish!(sim)
+                    face = _stop_hit(sim, policy, addrs)
+                else
+                    face = hit    # a t* publication hit (§13.5): that snapshot is final
+                end
+                # a frame counts once it has published a boundary — which a `t*`
+                # stop hit has done, its remainder abandoned; the carve-out below
+                # is what makes the count observable, a throw carrying no return
+                # value out
+                advanced += 1
+            catch err
+                # The frame failed, so its throw is the disposition and a pending
+                # interrupt is moot: taken here, the only raise this end can make,
+                # and never raised past this catch (§12.4, §13.4).
+                try
+                    Base.sigatomic_end()
+                catch
+                end
+                # §13.4's one exception never wrapped, kept defensively: a
+                # synchronous throw from model code, the mask deferring only a
+                # signal. The frame is abandoned unpublished, the stores possibly
+                # mid-boundary, and the run takes the stop path (§12.4).
+                err isa InterruptException &&
+                    return (_interrupt_source(control, nothing), advanced)
+                rethrow(_wrap_step(sim, entry_boundary, err))
             end
-            # a frame counts once it has published a boundary — which a `t*` stop
-            # hit has done, its remainder abandoned; the carve-out below is what
-            # makes the count observable, a throw carrying no return value out
-            advanced += 1
-            face === nothing || return (ModelRequestedStop(face), advanced)
+            Base.sigatomic_end()                   # the mask's end: a deferred raise lands here
+        catch err
+            err isa InterruptException || rethrow()
+            # `face` is this frame's where the raise came at the mask's end, and
+            # `nothing` at the frame top, a holding face having returned
+            return (_interrupt_source(control, face), advanced)
         end
-    catch err
-        # §13.4's one exception never wrapped: the operator's stop command, not
-        # model code failing, so it routes to the stop path (§12.4). The frame is
-        # abandoned unpublished and the stores may be mid-boundary — this is the
-        # masked guarantee without the masking, the defensive branch §13.4 keeps.
-        if err isa InterruptException
-            _request_stop!(control, :interrupt)   # through the stop word, so an earlier issuer keeps it
-            issuer = @atomic control.stop_issuer
-            return (ControlRequestedStop(something(issuer)), advanced)
-        end
-        rethrow(_wrap_step(sim, entry_boundary, err))
+        face === nothing || return (ModelRequestedStop(face), advanced)
     end
+end
+
+# The source an operator interrupt caught in the frame loop records (§12.4,
+# D-268): a face the frame's publication found holding was consulted first
+# and wins; otherwise the `:interrupt` stop, through the stop word so an
+# earlier issuer keeps it.
+function _interrupt_source(control::Control, face::Union{Nothing,Symbol})
+    face === nothing || return ModelRequestedStop(face)
+    _request_stop!(control, :interrupt)
+    ControlRequestedStop(something(@atomic control.stop_issuer))
 end
 
 # The one `StepError` constructor (§13.4, D-059): the frame from the cursor, the
@@ -1363,7 +1425,8 @@ stop ends the run *inside* the call through the deviceless §12.4 tail,
 leaves the simulation terminally `stopped` with the §13.5 record set, and
 returns the frames advanced before the stop — fewer than requested, which is
 how a harness detects the truncation without inspecting the clock. A
-loop-side failure ends it `errored` exactly as under `run!` (§13.6).
+loop-side failure ends it `errored` as under `run!` (§13.6), and `step!`
+always rethrows it, being deviceless by construction (§13.4, D-268).
 
 In `:replay` the frames come from the recording rather than the cells and the
 recording is the bound (§12.7, D-218): a `step!` past its end advances only to
@@ -1403,6 +1466,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         error_source = LoopError(err)              # the record is assembled below,
         rethrow()                             # after the sweep (D-203)
     finally
+        Base.sigatomic_begin()                # masked bookkeeping, as `run!`'s (§12.4, D-268)
         if error_source !== nothing                # §13.6, the stepped entry: same tail,
             _finish!(sim)                     # deviceless — waits woken, accounts swept
             sim.run.termination = _record(sim, policy, error_source, _sweep_tail!(sim))
@@ -1417,6 +1481,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
                 @atomic :release control.lifecycle = :stopped
             end
         end
+        Base.sigatomic_end()
     end
     advanced
 end

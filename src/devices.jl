@@ -3,8 +3,7 @@
 # contract's four functions, the framework wrapper around the author-owned
 # loop body, the pre-spawn init bracket and the tail. The control surface here
 # is §12.1's stop word and pause flag, §12.3's counter-plus-condition wait
-# and §12.6's lifecycle: pacing and the operator interrupt are absent
-# (`pending.md`). A device
+# and §12.6's lifecycle: pacing alone is absent (`pending.md`). A device
 # failure reports as `DeviceCrash` into the device's own diagnostic cell
 # (§11.8, §12.4); what the tail alone produces — the join timeout, and
 # whatever landed past the final frame top — is folded into the termination
@@ -99,7 +98,9 @@ function _request_stop!(control::Control, issuer::Union{Symbol,String})
 end
 
 # The pause block (§12.1): the loop parks here at frame top while the flag is
-# set and no stop is pending, woken by `resume!` or a stop request.
+# set and no stop is pending, woken by `resume!` or a stop request. An unmask
+# point (§12.4): an interrupt delivered inside the wait raises out of it, the
+# lock released.
 function wait_resume!(control::Control)
     (@atomic control.paused) || return nothing
     lock(control.wake)
@@ -406,8 +407,12 @@ claims persisting to run end and the orphaned root inputs holding their values.
 With `should_abort` set the failure requests a stop, already pending when
 the loop would start: the run advances zero frames and ends through the same
 tail, every remaining entry still getting its `init!`/`shutdown!` pair
-uniformly. Returns the live entries, from which §11.1's topology is derived
-— derived *after* initialization, never from the roster alone.
+uniformly. An `InterruptException` is the operator's stop, not a crash, as in
+the wrapper (D-268): the device is released and spawns no task, the
+`:interrupt` stop is set in place of the report, and the run ends at its
+first frame top the same way. Returns the live entries, from which §11.1's
+topology is derived — derived *after* initialization, never from the roster
+alone.
 """
 function _init_devices!(sim)
     live = RosterEntry[]
@@ -417,9 +422,13 @@ function _init_devices!(sim)
             true
         catch err
             _shutdown!(entry)
-            # addressed by the entry: no task holds a handle yet (§12.4)
-            report_cell!(_handle(entry).diag_cell, DeviceCrash(err, entry.should_abort))
-            entry.should_abort && stop!(entry.handle)
+            if err isa InterruptException
+                _request_stop!(entry.handle.control, :interrupt)   # the operator's stop (§12.4, D-268)
+            else
+                # addressed by the entry: no task holds a handle yet (§12.4)
+                report_cell!(_handle(entry).diag_cell, DeviceCrash(err, entry.should_abort))
+                entry.should_abort && stop!(entry.handle)
+            end
             false
         end
         initialized && push!(live, entry)
@@ -467,30 +476,48 @@ snapshot precedes the join by construction, so the run's-end sweep — not a
 drain — is what collects it, into the termination record and the logging
 backend. The calling-task device sits outside the join: nothing can abandon
 the task `run!` stands on.
+
+An interrupt reaching the tail, in the `unblock!` loop or the join, collapses
+it (§12.4, D-268): the remaining joins are abandoned at once, every entry
+whose task is not done reported by name exactly as the cap's path reports
+it, and nothing propagates. The run still ends `stopped`.
 """
 function _tail!(sim, entries::Vector{RosterEntry}, tasks::Vector{Task})
-    for entry in entries
-        try
-            unblock!(entry.dev)
-        catch err
-            @warn "unblock! of $(_who(entry)) threw; its task can now exit only " *
-                  "through the join timeout (§12.4)" exception = (err, catch_backtrace())
+    settled = 0                                 # entries the join has joined or reported
+    try
+        for entry in entries
+            try
+                unblock!(entry.dev)
+            catch err
+                err isa InterruptException && rethrow()
+                @warn "unblock! of $(_who(entry)) threw; its task can now exit only " *
+                      "through the join timeout (§12.4)" exception = (err, catch_backtrace())
+            end
         end
-    end
-    deadline = time() + sim.control.join_timeout
-    for (entry, task) in zip(entries, tasks)
-        remaining = deadline - time()
-        joined = istaskdone(task) ||
-            (remaining > 0 &&
-             timedwait(() -> istaskdone(task), remaining; pollint = min(0.01, remaining)) === :ok)
-        if !joined
-            snapshot = latest(sim)                  # after init!, never nothing (§14.5)
-            report_cell!(sim.plane.loop_diag,
-                         DeviceJoinTimeout(_who(entry), sim.control.join_timeout,
-                                           _seconds(snapshot.t), snapshot.boundary))
+        deadline = time() + sim.control.join_timeout
+        for (i, (entry, task)) in enumerate(zip(entries, tasks))
+            remaining = deadline - time()
+            joined = istaskdone(task) ||
+                (remaining > 0 &&
+                 timedwait(() -> istaskdone(task), remaining; pollint = min(0.01, remaining)) === :ok)
+            joined || _report_join_timeout!(sim, entry)
+            settled = i
+        end
+    catch err
+        err isa InterruptException || rethrow()
+        for i in settled+1:length(tasks)        # (5)'s abandonment, taken at once
+            istaskdone(tasks[i]) || _report_join_timeout!(sim, entries[i])
         end
     end
     nothing
+end
+
+# Tail step (5)'s abandonment report, into the loop's own cell (D-203).
+function _report_join_timeout!(sim, entry::RosterEntry)
+    snapshot = latest(sim)                      # after init!, never nothing (§14.5)
+    report_cell!(sim.plane.loop_diag,
+                 DeviceJoinTimeout(_who(entry), sim.control.join_timeout,
+                                   _seconds(snapshot.t), snapshot.boundary))
 end
 
 """

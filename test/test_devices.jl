@@ -110,6 +110,35 @@ Interrupting() = Interrupting(Symbol[])
 shutdown!(dev::Interrupting) = (push!(dev.log, :shutdown); nothing)
 loop(dev::Interrupting, handle) = (push!(dev.log, :loop); throw(InterruptException()))
 
+# The operator's Ctrl-C landing inside init!: the bracket's discrimination
+# (§12.4, D-268) — a stop, never a crash.
+mutable struct InitInterrupted <: AbstractDevice
+    log::Vector{Symbol}
+end
+InitInterrupted() = InitInterrupted(Symbol[])
+init!(dev::InitInterrupted) = (push!(dev.log, :init); throw(InterruptException()))
+shutdown!(dev::InitInterrupted) = (push!(dev.log, :shutdown); nothing)
+loop(dev::InitInterrupted, handle) = (push!(dev.log, :loop); nothing)
+
+# A body ignoring the predicate, blocked until the test releases it, whose
+# unblock! hangs on a condition the test holds: the tail parks the calling task
+# there, where the operator's second interrupt finds it (§12.4, D-268).
+mutable struct Wedged <: AbstractDevice
+    release::Channel{Int}
+    hook::Threads.Condition
+    task::Union{Nothing,Task}
+    log::Vector{Symbol}
+end
+Wedged() = Wedged(Channel{Int}(1), Threads.Condition(), nothing, Symbol[])
+shutdown!(dev::Wedged) = (push!(dev.log, :shutdown); nothing)
+function loop(dev::Wedged, handle)
+    dev.task = current_task()
+    take!(dev.release)
+    push!(dev.log, :released)
+    nothing
+end
+unblock!(dev::Wedged) = (lock(dev.hook); try wait(dev.hook) finally unlock(dev.hook) end; nothing)
+
 # A calling-task device: records which task ran its body (§11.1's pinning),
 # polling between running checks and never blocking across them (§12.4).
 mutable struct Inline <: AbstractDevice
@@ -144,6 +173,27 @@ end
 
 # One `pause!`/`resume!` round, the flag read back through `paused` after each.
 pause_round(sim) = (pause!(sim); set = paused(sim); resume!(sim); (set, paused(sim)))
+
+# Is `task` parked in `condition`'s wait? Read under the lock, which a notify
+# needs, so the answer holds while the caller keeps the lock.
+parked_in(task, condition) =
+    (lock(condition); try task.queue === condition.waitq finally unlock(condition) end)
+
+# Throw the operator's interrupt into `task` once it is parked on `condition`,
+# as Ctrl-C lands in a blocked wait (§12.4): `true` when thrown, `false` when
+# the task never parked. The lock held across the check and the throw is what
+# confines the throw to a parked task; no timing is involved.
+function interrupt_parked(task, condition)
+    timedwait(() -> parked_in(task, condition), 10.0) === :ok || return false
+    lock(condition)
+    try
+        parked_in(task, condition) || return false
+        schedule(task, InterruptException(); error = true)
+    finally
+        unlock(condition)
+    end
+    true
+end
 
 function test_devices()
     @testset "a device stages through its handle from its own task, and departure consults should_abort (§11.6, §12.4)" begin
@@ -307,6 +357,25 @@ function test_devices()
         @test lifecycle(sim) === :initialized
     end
 
+    @testset "an interrupt in the pause wait ends the run stopped at that frame top (§12.1, §12.4, D-268)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        attach!(sim, Pad("p"), Enumerated("a"))
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        pause!(sim)                              # the run parks at its first frame top
+        loop_task = current_task()               # a rostered device keeps the loop here (§11.1)
+        observer = Threads.@spawn begin
+            sent = interrupt_parked(loop_task, sim.control.wake)
+            sent || stop!(sim)                   # a regression fails below rather than hangs
+            sent
+        end
+        run!(sim; t_end = 1.0e6)
+        @test fetch(observer)
+        @test lifecycle(sim) === :stopped
+        @test termination(sim).source === ControlRequestedStop(:interrupt)
+        @test sim.exec.clock.step == 0 && latest(sim).frame == 0   # no frame in flight
+        @test !paused(sim)                       # the tail cleared the flag
+    end
+
     @testset "paused reads the flag in every lifecycle state, and the verbs refuse none (§12.1, D-268)" begin
         # `:running` is read, and both verbs issued, from another task above.
         sim = Simulation(fed(Exploder(), "arm"); h = 1//10)
@@ -391,6 +460,27 @@ function test_devices()
         @test only(writer_residue.recent) isa DeviceCrash
     end
 
+    @testset "an interrupt inside init! is the operator's stop: released, no crash, no task (§12.4, D-268)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        dev = InitInterrupted()
+        probe = TailProbe()
+        attach!(sim, dev, Enumerated("a"))
+        attach!(sim, probe, Enumerated())
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        logs, _ = Test.collect_test_logs() do
+            run!(sim; t_end = 0.5)
+        end
+        @test dev.log == [:init, :shutdown]      # released; no task, so its loop never ran
+        @test probe.log == [:init, :shutdown]    # the other entry still initialized, then the tail
+        @test sim.exec.clock.step == 0           # the stop was pending at the first frame top
+        @test lifecycle(sim) === :stopped
+        @test termination(sim).source === ControlRequestedStop(:interrupt)
+        status = writer_status(latest(sim), "device 1 (InitInterrupted)")
+        @test status.totals.crash == 0 && status.task_state === :none
+        @test !any(d isa DeviceCrash for residue in termination(sim).residue for d in residue.recent)
+        @test !any(occursin("DeviceCrash", string(l.message)) for l in logs)
+    end
+
     @testset "a body ignoring the predicate is abandoned under join_timeout, by name (§12.4(5))" begin
         sim = Simulation(two_root_inputs(); h = 1//10, join_timeout = 0.2)
         dev = Stubborn()
@@ -416,6 +506,38 @@ function test_devices()
         # timer wheel across process teardown.
         sleep(1.0)
         @test dev.log == [:woke, :shutdown]
+    end
+
+    @testset "an interrupt during the tail collapses the joins, the device named (§12.4, D-268)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10, join_timeout = 30.0)
+        dev = Wedged()
+        attach!(sim, dev, Enumerated())
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        tail_task = current_task()               # the tail runs on the calling task
+        observer = Threads.@spawn begin
+            sent = interrupt_parked(tail_task, dev.hook)
+            # a regression fails below rather than hangs
+            sent || (lock(dev.hook); try notify(dev.hook) finally unlock(dev.hook) end)
+            sent
+        end
+        t0 = time()
+        logs, _ = Test.collect_test_logs() do
+            run!(sim; t_end = 0.3)
+        end
+        @test fetch(observer)
+        @test time() - t0 < 15.0                 # the collapse, not the 30 s cap
+        @test lifecycle(sim) === :stopped        # escalation never reclassifies the run
+        @test !any(occursin("unblock! of", string(l.message)) for l in logs)   # not warned past
+        writer_residue = only(residue for residue in termination(sim).residue
+                              if residue.writer == "loop")
+        timeout = only(d for d in writer_residue.recent if d isa DeviceJoinTimeout)
+        @test timeout.who == "device 1 (Wedged)" && timeout.timeout == 30.0
+        @test :released ∉ dev.log                # abandoned, still blocked, when run! returned
+        # Abandonment is not a kill: release the straggler inside this testset.
+        @test timedwait(() -> dev.task !== nothing, 10.0) === :ok
+        put!(dev.release, 1)
+        wait(dev.task)
+        @test dev.log == [:released, :shutdown]
     end
 
     @testset "unblock! makes the blocking call return: a clean exit, no timeout (§12.4(3))" begin

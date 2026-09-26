@@ -709,9 +709,9 @@ x_derivative(::Primer, (; x)) = (q = one(x.q),)
 x_projection(c::Primer, x) = x.q ≥ c.level ? throw(Detonated()) : (q = x.q,)
 
 """
-Interrupter: `q̇ = 1` whose RHS raises an `InterruptException` when armed — the
-operator's stop reaching §13.4's catch site, which is the only way to exercise
-the carve-out with §12.4's masking absent.
+Interrupter: `q̇ = 1` whose RHS raises an `InterruptException` when armed — a
+synchronous throw from model code, which §12.4's mask does not defer, so it is
+the only way to reach §13.4's defensive carve-out.
 """
 struct Interrupter <: AbstractComponent end
 
@@ -721,6 +721,48 @@ y_types(::Interrupter) = (q = Float64,)
 
 y_state(::Interrupter, (; x)) = (q = x.q,)
 x_derivative(::Interrupter, (; x, u)) = u.arm ? throw(InterruptException()) : (q = one(x.q),)
+
+# The runtime's pending-SIGINT word: nonzero from the signal's delivery until
+# an unmask raises it (§12.4).
+sigint_pending() = unsafe_load(cglobal(:jl_signal_pending, Cint)) != 0
+
+# The operator's Ctrl-C, sent by the process to itself: SIGINT, then a wait
+# until the runtime holds it, so the caller's code runs on with it pending
+# rather than in flight. Needs `Base.exit_on_sigint(false)`.
+function interrupt_self()
+    ccall(:kill, Cint, (Cint, Cint), getpid(), Cint(2))
+    deadline = time() + 10.0
+    while !sigint_pending() && time() < deadline
+    end
+    nothing
+end
+
+"""
+SelfInterrupter: `q̇ = 1` whose RHS, at its first evaluation at or past
+`t_signal`, sends the process a real SIGINT and returns with it pending — Ctrl-C
+landing mid-frame, which §12.4's mask defers to the frame's unmask. With
+`throws` set the same evaluation then throws `Exploded`: a frame failing with
+an interrupt pending (D-268). One signal per instance.
+"""
+struct SelfInterrupter <: AbstractComponent
+    t_signal::Float64
+    throws::Bool
+    sent::Base.RefValue{Bool}
+end
+SelfInterrupter(t_signal; throws = false) = SelfInterrupter(t_signal, throws, Ref(false))
+
+x_init(::SelfInterrupter) = (q = 0.0,)
+y_types(::SelfInterrupter) = (q = Float64,)
+
+y_state(::SelfInterrupter, (; x)) = (q = x.q,)
+function x_derivative(c::SelfInterrupter, (; x, t))
+    if !c.sent[] && t ≥ c.t_signal
+        c.sent[] = true
+        interrupt_self()
+        c.throws && throw(Exploded())
+    end
+    (q = one(x.q),)
+end
 
 """
 Diverger: `q̇ = 1` until armed, then `q̇ = NaN` — the model that blows up. Its

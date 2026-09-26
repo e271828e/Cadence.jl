@@ -18,11 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the standard component library last.
 Where the reason is not given here, the cited decision carries it:
 
-- **§12 beyond its built slices**: pause and the control plane's surface; the
-  operator interrupt — §13.4's carve-out exists, the masking and the entry do
-  not, so a stopped run can hold mid-boundary stores here; §13.4's
-  interactive-session behaviour (log and surface the status rather than
-  rethrow) has no discrimination in `run!`.
 - **§10.7 pacing and its diagnostics**: the pacer wait is a loop unmask
   point (§12.1, §12.4), and un-pause clears its debt.
 - **The §11.8 remainder**: `DebtReanchor`, `ThreadBudget`, the maxlog

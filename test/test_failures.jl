@@ -28,6 +28,23 @@ x_derivative(c::HookedInterrupter, (; x, u)) =
 hooked_interrupted(c) = Group((c = c, trig = Trigger(0.15));
                               wires = ("c/q" => "trig/sig", "trig/on" => "c/arm"))
 
+# The self-interrupter under a stop face on its own ramp: the face holds at
+# frame 3's publication, the frame whose integration sent the signal.
+interrupter_watched() = Group((c = SelfInterrupter(0.22), trig = Trigger(0.25));
+                              wires = ("c/q" => "trig/sig",), outputs = ("trig/on" => "hit",))
+
+# A test sending a real SIGINT runs under this: the signal raises rather than
+# kills the process, and the default comes back after, the kill for a script
+# and the prompt for a REPL.
+function sigint_raising(f)
+    Base.exit_on_sigint(false)
+    try
+        f()
+    finally
+        Base.exit_on_sigint(!isinteractive())
+    end
+end
+
 # The diverger and the innocent component downstream of it: `con` reads `div`'s
 # state through the ordinary signal path, so a sweep running later than the
 # integrate would blame the lookup rather than the block that blew up.
@@ -315,6 +332,57 @@ function failures_runtime()
         run!(sim; t_end = 5.0)
         @test lifecycle(sim) === :stopped
         @test termination(sim).source === ControlRequestedStop(:code)
+    end
+
+    @testset "a signal inside a frame is deferred to its unmask: the frame publishes and counts (§12.4, D-268)" begin
+        sigint_raising() do
+            sim = Simulation(single(SelfInterrupter(0.22)); h = 1//10)
+            init!(sim)
+            run!(sim; t_end = 5.0)                      # returns normally: a stop, not a failure
+            @test lifecycle(sim) === :stopped
+            @test termination(sim).source === ControlRequestedStop(:interrupt)
+            # Sent in frame 3's integration, raised only after its publication:
+            # the interrupted frame's own boundary is final, not its predecessor.
+            @test latest(sim).frame == 3 && termination(sim).t == latest(sim).t ≈ 0.3
+            @test !sigint_pending()                     # taken at the unmask, nothing left
+            # The count, against the synchronous carve-out's above: the
+            # interrupted frame is one advanced.
+            sim2 = Simulation(single(SelfInterrupter(0.22)); h = 1//10)
+            init!(sim2)
+            @test step!(sim2; frames = 5, t_end = 5.0) == 3
+            @test termination(sim2).source === ControlRequestedStop(:interrupt)
+            @test !sigint_pending()
+        end
+    end
+
+    @testset "a deferred interrupt yields to a stop face holding at the same publication (§12.4, §13.5, D-268)" begin
+        sigint_raising() do
+            sim = Simulation(interrupter_watched(); h = 1//10)
+            init!(sim)
+            run!(sim; t_end = 5.0, stop_on = ("hit",))
+            @test termination(sim).source === ModelRequestedStop(:hit)
+            @test latest(sim).frame == 3 && !sigint_pending()
+            # Without the face the same frame ends on the interrupt.
+            unwatched = Simulation(interrupter_watched(); h = 1//10)
+            init!(unwatched)
+            run!(unwatched; t_end = 5.0)
+            @test termination(unwatched).source === ControlRequestedStop(:interrupt)
+            @test latest(unwatched).frame == 3 && !sigint_pending()
+        end
+    end
+
+    @testset "a frame that throws with a signal pending ends errored under its own StepError (§12.4, §13.4, D-268)" begin
+        sigint_raising() do
+            sim = Simulation(single(SelfInterrupter(0.22; throws = true)); h = 1//10)
+            init!(sim)
+            err = failure(() -> run!(sim; t_end = 5.0))
+            @test err isa StepError{Exploded} && err.boundary == 2
+            @test lifecycle(sim) === :errored
+            @test termination(sim).source isa LoopError &&
+                  termination(sim).source.exception isa StepError{Exploded}
+            @test latest(sim).frame == 2                # the failed frame published nothing
+            @test !sigint_pending()                     # consumed at the catch, never raised
+        end
     end
 
     @testset "the rendering states the frame and the reproduction (§13.4, §13.2)" begin

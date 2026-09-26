@@ -359,8 +359,12 @@ function test_lifecycle()
         attach!(sim, probe, NoClaim())
         init!(sim, fragment(inputs = (in = 0.0,)))
         stage!(sim, "in" => true)                        # armed: frame 1's drain applies it,
-        # frame 1's integration throws (§13.4's synchronous rethrow, after the tail)
-        @test_throws StepError run!(sim; t_end = 5.0)
+        # frame 1's integration throws; the rostered probe makes the session
+        # interactive, so `run!` logs the rendered error and returns (§13.4, D-268)
+        logs, _ = Test.collect_test_logs() do
+            run!(sim; t_end = 5.0)
+        end
+        @test count(l -> l.level == Base.CoreLogging.Error, logs) == 1
         @test lifecycle(sim) === :errored && closed(sim.run)
         record = termination(sim)
         # the loop's one catch site wrapped it, and the cause is one level down
@@ -390,6 +394,38 @@ function test_lifecycle()
         @test d.legal == [:built, :initialized, :stopped]   # §11.3, D-232: no next run
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} detach!(sim, probe))
         @test d.op === :detach! && d.status === :errored
+    end
+
+    @testset "run! reads §13.4's disposition off the roster, and step! always rethrows (§13.4, D-268)" begin
+        # Interactive: a rostered device, in either topology — the loop on the
+        # calling task, or spawned beside a calling-task device (§11.1).
+        for dev in (TailProbe(), Panel("p"))
+            sim = Simulation(fed(Exploder(), "arm"); h = 1//10)
+            attach!(sim, dev, NoClaim())
+            init!(sim, fragment(inputs = (in = false,)))
+            stage!(sim, "in" => true)                    # armed: frame 1 throws
+            logs, _ = Test.collect_test_logs() do
+                run!(sim; t_end = 5.0)                   # logged, and returned
+            end
+            @test lifecycle(sim) === :errored
+            source = termination(sim).source
+            @test source isa LoopError && source.exception isa StepError{Exploded}
+            @test count(l -> l.level == Base.CoreLogging.Error, logs) == 1
+        end
+        # Unattended: nothing rostered, so the failure reaches the caller and CI
+        # fails honestly.
+        sim = Simulation(fed(Exploder(), "arm"); h = 1//10)
+        init!(sim, fragment(inputs = (in = false,)))
+        stage!(sim, "in" => true)
+        @test_throws StepError{Exploded} run!(sim; t_end = 5.0)
+        @test lifecycle(sim) === :errored
+        # `step!` is deviceless by construction, a rostered device or not (§12.6).
+        stepped = Simulation(fed(Exploder(), "arm"); h = 1//10)
+        attach!(stepped, TailProbe(), NoClaim())
+        init!(stepped, fragment(inputs = (in = false,)))
+        stage!(stepped, "in" => true)
+        @test_throws StepError{Exploded} step!(stepped; t_end = 5.0)
+        @test lifecycle(stepped) === :errored
     end
 
     @testset "a throw inside boundary zero returns a warm simulation to `built` (§12.6, D-223)" begin
