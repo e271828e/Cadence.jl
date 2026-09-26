@@ -212,8 +212,10 @@ function test_roster()
         attach!(sim, dev, Enumerated("u"))               # also warms both compile paths, so
         @test sim.plane.roster[end].id == 1              # the mid-run checks below race no JIT
         detach!(sim, dev)
+        attach!(sim, TailProbe(), NoClaim())   # a rostered device makes the loop yield every
+                                               # frame (§12.2), so the spin gets its turn on one thread
         task = Threads.@spawn run!(sim; t_end = 1.0)                # 100k frames: alive throughout the checks
-        while lifecycle(sim) !== :running
+        while lifecycle(sim) !== :running && !istaskdone(task)   # a missed start fails below, never hangs
             yield()
         end
         # Inline try/catch rather than `failure`: a fresh closure would JIT-compile
@@ -225,7 +227,7 @@ function test_roster()
         @test detach_err isa DiagnosticError && diagnostic(detach_err) isa ServiceLifecycle
         # The freeze lifts with the run: the same operations are legal again.
         attach!(sim, dev, Enumerated("u"))
-        @test sim.plane.roster[end].id == 2
+        @test sim.plane.roster[end].id == 3              # the probe took 2: ids are never reused
         detach!(sim, dev)
     end
 

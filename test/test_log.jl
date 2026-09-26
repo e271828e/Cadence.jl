@@ -131,8 +131,10 @@ function test_log()
         init!(sim, fragment(inputs = (in = 0.0,)); log_max = 16)
         logged(sim)                                          # warms the compile path, so the
                                                              # mid-run check below races no JIT
+        attach!(sim, TailProbe(), NoClaim())   # a rostered device makes the loop yield every
+                                               # frame (§12.2), so the spin gets its turn on one thread
         task = Threads.@spawn run!(sim; t_end = 1.0)
-        while lifecycle(sim) !== :running
+        while lifecycle(sim) !== :running && !istaskdone(task)   # a missed start fails below, never hangs
             yield()
         end
         err = try logged(sim) catch err; err end

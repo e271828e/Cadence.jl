@@ -235,7 +235,7 @@ To check a refactor for test loss, compare the suite's own assertion total;
 
 **The gate** is the full suite under the sandbox flags:
 
-    JULIA_LOAD_PATH="@" julia --startup-file=no --check-bounds=yes --warn-overwrite=yes --depwarn=yes --project=test test/runtests.jl
+    JULIA_LOAD_PATH="@" julia -t auto --startup-file=no --check-bounds=yes --warn-overwrite=yes --depwarn=yes --project=test test/runtests.jl
 
 A stage commit inside an increment runs its routed subset under the same
 flags and no more. The gate runs once per increment, by the cold reviewer,
@@ -253,3 +253,10 @@ the parent's setting). Run `julia --project=. -e 'using Pkg; Pkg.test()'`
 only after a change to `Project.toml`, `test/Project.toml` or the workspace
 stanza: it proves the conventional entry point still resolves, and nothing
 else the gate does not.
+
+`-t auto` names the gate's thread count rather than inheriting it from
+`JULIA_NUM_THREADS`. The suite passes under `-t 1` as well. A deviceless
+loop never yields (§12.2), so a test that spawns an advance and waits on it
+from its own task rosters a device first, `TailProbe` under `NoClaim()`. On
+one thread the spawned loop would otherwise hold the thread until its run
+ends, and the waiting task would never observe it running.

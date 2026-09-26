@@ -101,8 +101,10 @@ function test_lifecycle()
         sim = Simulation(armed(); h = 1//100)
         total = fragment(inputs = (in = 0.0,))           # below the trigger: the run holds
         init!(sim, total)
+        attach!(sim, TailProbe(), NoClaim())   # a rostered device makes the loop yield every
+                                               # frame (§12.2), so the spin gets its turn on one thread
         task = Threads.@spawn run!(sim; t_end = 3.0e5, stop_on = ("stop",))
-        while lifecycle(sim) !== :running
+        while lifecycle(sim) !== :running && !istaskdone(task)   # a missed start fails below, never hangs
             yield()
         end
         init_diagnostic = carried(@test_throws DiagnosticError{ServiceLifecycle} init!(

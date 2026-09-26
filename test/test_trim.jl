@@ -638,8 +638,10 @@ function test_trim()
         # of the run are test-controlled, exactly as in test_readers.
         live = Simulation(armed(); h = 1//100)
         init!(live, fragment(inputs = (in = 0.0,)))
+        attach!(live, TailProbe(), NoClaim())   # a rostered device makes the loop yield every
+                                                # frame (§12.2), so the spin gets its turn on one thread
         task = Threads.@spawn run!(live; t_end = 3.0e5, stop_on = ("stop",))
-        while lifecycle(live) !== :running
+        while lifecycle(live) !== :running && !istaskdone(task)   # a missed start fails below, never hangs
             yield()
         end
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} trim!(live, u_problem(); baseline = pend_base()))
