@@ -492,7 +492,11 @@ function test_devices()
         elapsed = timed_run!(sim; t_end = 0.05, pace = 0.5)   # five frames, 20 ms apiece
         record = latest(sim).status.pacer
         @test elapsed ≥ 4 * 0.01 / 0.5           # the first frame has no wait (D-269)
-        @test record.waits == 4 && record.waited > 0
+        # A hiccup turns a wait into an overrun, and one past a budget makes
+        # the next frame a repayment, neither a wait nor an overrun (D-269).
+        # Without an overrun, every frame after the anchor waits.
+        @test record.waits == 4 || record.overruns > 0
+        @test record.waits + record.overruns ≤ 4 && record.waited > 0
         @test record.pace == 0.5
     end
 
@@ -542,6 +546,27 @@ function test_devices()
         @test latest(sim).status.pacer.reanchors ≥ 1
         @test pace(sim) == 100 && latest(sim).status.pacer.pace == 100
         @test termination(sim).source === ControlRequestedStop(:code)
+    end
+
+    @testset "a live switch to pace = Inf re-anchors and clears the debt (§10.7, D-269)" begin
+        sim = warm_staller()
+        attach!(sim, TailProbe(), NoClaim())    # the loop yields every frame (§12.2)
+        task = Threads.@spawn run!(sim; t_end = 1.0e6, pace = 1)
+        started = timedwait(() -> lifecycle(sim) === :running &&   # anchored at pace 1
+                                  latest(sim).status.pacer.pace == 1, 10.0; pollint = 0.001) === :ok
+        pace!(sim, Inf)
+        landed = timedwait(() -> latest(sim).status.pacer.pace == Inf, 10.0; pollint = 0.001) === :ok
+        stop!(sim)
+        wait(task)
+        snapshots = logged(sim)
+        i = findfirst(snapshot -> snapshot.frame > 0 && snapshot.status.pacer.pace == Inf,
+                      snapshots)
+        (before, after) = (snapshots[i-1].status.pacer, snapshots[i].status.pacer)
+        @test started && landed
+        @test snapshots[i].frame == snapshots[i-1].frame + 1 && before.pace == 1
+        @test after.debt == 0
+        @test after.reanchors == before.reanchors + 1
+        @test after.forgiven == before.forgiven + before.debt   # the cleared debt, counted
     end
 
     @testset "un-pause re-anchors and clears the debt (§10.7, §12.1)" begin

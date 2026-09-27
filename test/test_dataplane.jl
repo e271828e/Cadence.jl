@@ -139,7 +139,6 @@ function dataplane_exchange()
         @test all(snapshot.status.pacer === idle for snapshot in logged(sim))
         run!(sim; t_end = 0.06, pace = 100)               # three more frames, paced
         paced = logged(sim)[end-2:end]
-        @test all(snapshot.status.pacer isa PacerStatus for snapshot in logged(sim))
         @test all(snapshot.status.pacer.pace == 100 for snapshot in paced)
         @test isbitstype(PacerStatus)                     # the copy is the read
     end

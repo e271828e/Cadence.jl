@@ -157,18 +157,21 @@ end
 # the next frame top. The frame after an anchor has no wait, its deadline
 # being the anchor itself. The `sleep` is the coarse phase's one primitive
 # (§12.2, D-027), task-yielding and an unmask point (§12.4); the spin never
-# yields.
+# yields, and its safepoint lets a collection or a signal through.
 function wait_deadline!(control::Control, pacer::Pacer, loop_diag::DiagCell, t::Float64,
                         h::Float64)
     p = @atomic control.pace
-    isinf(p) && (pacer.pace = Inf; return nothing)      # pacer-off: no deadline, no debt (§10.7)
-    p == pacer.pace || reanchor!(pacer, t, p)           # a live pace change: forward only (D-021)
+    p == pacer.pace || reanchor!(pacer, t, p)           # a live pace change, Inf too (D-021, D-269)
+    isinf(p) && return nothing                          # pacer-off: no deadline, no debt (§10.7)
     t == pacer.t_anchor && return nothing               # the anchor is this frame's deadline
     deadline = pacer.τ_anchor + (t - pacer.t_anchor) / p
     now = _wall_now()
-    if now > deadline                                   # an overrun: debt, no wait
-        pacer.debt = now - deadline
-        pacer.overruns += 1
+    if now > deadline                                   # late: debt, no wait
+        # An overrun grows the debt; a frame that merely repays debt is not
+        # one (§10.7, D-269).
+        debt = now - deadline
+        debt > pacer.debt && (pacer.overruns += 1)
+        pacer.debt = debt
         pacer.peak_debt = max(pacer.peak_debt, pacer.debt)
         if pacer.debt > 5 * h / p                       # forgiven: re-anchor plus warning
             forgiven = pacer.debt
@@ -180,7 +183,9 @@ function wait_deadline!(control::Control, pacer::Pacer, loop_diag::DiagCell, t::
     pacer.debt = 0.0
     remaining = deadline - (@atomic control.margin) - now
     remaining > 0 && sleep(remaining)                   # the coarse phase: yields, an unmask point
-    while _wall_now() < deadline end                    # the spin phase: never yields (§12.2)
+    while _wall_now() < deadline                        # the spin phase: never yields
+        GC.safepoint()                                  # a safepoint, not a yield (§12.2, D-027)
+    end
     pacer.waits += 1
     pacer.waited += _wall_now() - now
     nothing

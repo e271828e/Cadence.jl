@@ -122,8 +122,8 @@ one of them.
   stepper, arrival buffers and `chunk_size`.
 - `plane`: the §11.3 roster, the harness and loop writers and §11.2's
   published holder.
-- `control`: §12.1's stop word, §12.4's sticky status and join cap, §12.3's
-  wait (devices.jl).
+- `control`: §12.1's stop word, pause flag and two knobs, `pace` and
+  `margin`, §12.4's sticky status and join cap, §12.3's wait (devices.jl).
 - `run`: §12.6's run state, the one field a door rebinds (D-255, D-260).
 """
 mutable struct Simulation{T,E}
@@ -243,9 +243,9 @@ _t_bound(t_end, call::Symbol) = (t_end isa Real && t_end ≥ 0) ? Float64(t_end)
 _pace_value(p, call::Symbol) = (p isa Real && p > 0) ? Float64(p) :
     throw(DiagnosticError(ArgumentInvalid(call = call, reason = :range,
                                           argument = :pace, value = p)))
-_margin_value(m, call::Symbol) = (m isa Real && m ≥ 0) ? Float64(m) :
+_margin_value(value, call::Symbol) = (value isa Real && value ≥ 0) ? Float64(value) :
     throw(DiagnosticError(ArgumentInvalid(call = call, reason = :range,
-                                          argument = :margin, value = m)))
+                                          argument = :margin, value = value)))
 
 # Whole frames from the origin `t₀` until the grid boundary `t₀ + k·h` first
 # reaches the bound `t` (§12.4, §12.6), and its floor sibling, the last
@@ -1080,8 +1080,8 @@ frames from `t₀` (§12.4).
 `pace` and `margin` are §10.7's two knobs, validated per call and written to
 the control plane at entry, where `pace!` and `margin!` retune them live
 (§12.1, D-269). `pace = Inf`, the default, is pacer-off: no frame waits.
-Under a finite pace the run creates its pacer, anchors it as the loop starts
-and waits at each frame top, after the control plane is consulted, for the
+Every run creates its pacer and anchors it as the loop starts. Under a finite
+pace it waits at each frame top, after the control plane is consulted, for the
 frame's deadline off the anchor; the frame after an anchor runs at once. An
 overrun leaves debt that later frames repay, and debt past five frames'
 budget is forgiven by a re-anchor and `DebtReanchor`, on the loop's own cell.
