@@ -6004,8 +6004,8 @@ tap. Attaching one mid-run would therefore move no writer's surface. A
 dynamic reader list would touch only [§12.3][s12-3] wakeups, the heartbeat
 and the shutdown join, never the drain, and it is cleanly severable from the
 freeze should the join-a-running-session workflow find a customer. The
-[§12.2][s12-2] thread-budget warning runs once per `run!`, against the frozen
-population.
+[§12.2][s12-2] thread-budget warning runs once per run, at either door,
+against the frozen population.
 
 ### 11.4 Inbound: per-device staging, representation and the drain
 
@@ -7123,11 +7123,14 @@ then, the window keeps rendering and the stop button keeps working.
 Undersized sessions degrade to laggy inputs and stale snapshots, which are
 visible, recoverable states.
 
-`run!` warns when `Threads.nthreads()` is tight for the attached population,
-naming the `julia -t` remedy. That is one check per run, against the frozen
-[roster](#g-roster) ([§11.3][s11-3]). The sizing guidance behind it is one
-thread for the loop, the main thread for the GUI, and headroom for
-compute-heavy or blocking-ccall devices. libuv-backed I/O yields. Raw
+A run warns, at `run!` or `replay!`, when `Threads.nthreads()` is tight for
+the attached population, naming the `julia -t` remedy. That is one check per
+run, against the frozen [roster](#g-roster) ([§11.3][s11-3]). Tight means
+fewer threads than the roster plus one. Every rostered device is a task, and
+the calling task hosts the loop or the one device that needs it, so a run
+occupies one task more than its roster. The sizing guidance behind the
+remedy is one thread for the loop, the main thread for the GUI, and headroom
+for compute-heavy or blocking-ccall devices. libuv-backed I/O yields. Raw
 blocking ccalls pin their thread for the duration. There is no pinning and
 there are no sticky tasks.
 
@@ -8303,8 +8306,8 @@ runtime warnings, in one place, are these.
 - **Staging discarded during [replay](#g-replay)** ([§12.7][s12-7]).
   `ReplayDiscardedStaging` reports a live batch found staged while the
   [trace](#g-trace) feeds the drain.
-- **Thread-budget tightness** ([§12.2][s12-2]). Raised once per `run!`, against
-  the frozen [roster](#g-roster).
+- **Thread-budget tightness** ([§12.2][s12-2]). Raised once per run, at
+  `run!` or `replay!`, against the frozen [roster](#g-roster).
 - **Device join timeout** ([§12.4][s12-4]). A device task exceeds the shutdown
   join timeout and is abandoned by name rather than hanging `run!`. It arises
   after the terminal snapshot. It is therefore collected into the
@@ -11229,8 +11232,8 @@ activation):
 - **`OutOfClaimEntry`** ([§11.3][s11-3]). Warning · runtime · rate-limited.
   Face name, the discarded value, the device's claim set, and the incumbent's
   device id when the face is claimed elsewhere.
-- **`ThreadBudget`** ([§12.2][s12-2]). Warning · runtime, at `run!` ·
-  rate-limited. Thread count, device-task count.
+- **`ThreadBudget`** ([§12.2][s12-2]). Warning · runtime, at `run!` or
+  `replay!` · rate-limited. Thread count, device-task count.
 - **`DeviceJoinTimeout`** ([§12.4][s12-4]). Warning · runtime, at the
   shutdown tail · rate-limited. It is written to the loop's cell, collected
   by the run's-end sweep into the termination record and presented through
