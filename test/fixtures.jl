@@ -1371,6 +1371,27 @@ needs_calling_task(::Panel) = true
 loop(::Panel, handle) = nothing
 
 """
+    TailProbe()
+
+A resource-bracket witness: `init!` and `shutdown!` append to `log`, and its
+loop body waits on each snapshot until the run ends (§12.3, §12.4). Rostered
+under `NoClaim()` it writes nothing, so it also makes a run yield every frame
+(§12.2), which a test spawning a run and waiting on it needs on one thread.
+"""
+mutable struct TailProbe <: AbstractDevice
+    log::Vector{Symbol}
+end
+TailProbe() = TailProbe(Symbol[])
+init!(dev::TailProbe) = (push!(dev.log, :init); nothing)
+shutdown!(dev::TailProbe) = (push!(dev.log, :shutdown); nothing)
+function loop(dev::TailProbe, handle)
+    while running(handle)
+        wait_next_snapshot(handle)
+    end
+    nothing
+end
+
+"""
     Enumerated(faces...)
 
 The returned claim source (§11.3): an input-side binding whose `claims` names
@@ -1395,6 +1416,16 @@ the shipped GUI binding's shape (§11.6, §11.7).
 struct Greedy <: AbstractBinding end
 is_input(::Greedy) = true
 is_greedy(::Greedy) = true
+
+"""
+    NoClaim()
+
+The empty claim (§11.3): an input-side binding that may write nothing, for a
+device rostered only for what it observes.
+"""
+struct NoClaim <: AbstractBinding end
+is_input(::NoClaim) = true
+claims(::NoClaim) = ()
 
 """
     Readout(; label = selector, ...)

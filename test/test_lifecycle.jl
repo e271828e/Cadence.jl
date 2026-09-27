@@ -1,8 +1,7 @@
 # --- run lifecycle and termination (§12.6, §13.5, §13.6; increment 16) ----------
 # The five-state machine behind `lifecycle(sim)`, the stop policy each advance
 # declares and binds, partial advance, the §13.5 termination record and
-# §13.6's abnormal entry. The devices below live at top level for `implementation.md`'s
-# local-scope reason.
+# §13.6's abnormal entry.
 
 # A monitored ramp: `hit` goes true at the first boundary whose sweep sees the
 # ramp at the trigger's level — the boundary-detected stop face.
@@ -13,24 +12,6 @@ monitored() = Group((; src = Ramp(0.0), trig = Trigger(0.35));
 # A root-input-fed trigger exporting its flag: the boundary-zero stop's model.
 armed() = Group((; c = Trigger(0.5)); inputs = ("in" => "c/sig",),
                 outputs = ("c/on" => "stop",))
-
-# A resource-bracket witness for the abnormal tail, and the empty-claim binding
-# that rosters it.
-mutable struct TailProbe <: AbstractDevice
-    log::Vector{Symbol}
-end
-TailProbe() = TailProbe(Symbol[])
-init!(dev::TailProbe) = (push!(dev.log, :init); nothing)
-shutdown!(dev::TailProbe) = (push!(dev.log, :shutdown); nothing)
-function loop(dev::TailProbe, handle)
-    while running(handle)
-        wait_next_snapshot(handle)
-    end
-    nothing
-end
-struct NoClaim <: AbstractBinding end
-is_input(::NoClaim) = true
-claims(::NoClaim) = ()
 
 function test_lifecycle()
     @testset "the five states, and the gates between them (§12.6)" begin
