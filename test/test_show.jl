@@ -38,8 +38,8 @@ end
 quiet_record(who::String) = WriterStatus(who, MalformedDatum[], KindCounts(), KindCounts(),
                                          nothing, nothing)
 
-hand_status(device::WriterStatus; pacer = PacerStatus(nothing)) =
-    FrameworkStatus([device, quiet_record("harness"), quiet_record("loop")], pacer)
+hand_status(device_record::WriterStatus; pacer = PacerStatus(nothing)) =
+    FrameworkStatus([device_record, quiet_record("harness"), quiet_record("loop")], pacer)
 
 const QUIET_STATUS = """
 FrameworkStatus: 3 writers, no occurrences, unpaced

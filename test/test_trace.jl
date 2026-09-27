@@ -772,14 +772,20 @@ function trace_replay_loop()
 
     @testset "the replay door checks the thread budget too (§12.2, §11.3)" begin
         # `replay!` shares the run body, so it checks once against the frozen
-        # roster as `run!` does: one device and the loop need two threads.
+        # roster as `run!` does. One claimless probe per thread makes the run
+        # tight on every layout.
         (_, trc) = recorded_run()
         sim2 = replay_twin()
-        attach!(sim2, TailProbe(), NoClaim())
+        for _ in 1:Threads.nthreads()
+            attach!(sim2, TailProbe(), NoClaim())
+        end
         replay!(sim2, trc)
         @test lifecycle(sim2) === :initialized
-        tight = Threads.nthreads() < 2
-        @test writer_status(latest(sim2), "loop").totals.thread_budget == Int(tight)
+        records = [writer_status(snapshot, "loop") for snapshot in logged(sim2)[2:end]]
+        @test all(record.totals.thread_budget == 1 for record in records)
+        @test [length(record.recent) for record in records] ==
+              [1; zeros(Int, length(records) - 1)]
+        @test only(records[1].recent) == ThreadBudget(Threads.nthreads(), Threads.nthreads())
     end
 end
 

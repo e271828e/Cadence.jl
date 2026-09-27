@@ -266,7 +266,7 @@ alone. Presentation, never channel policy: the channel's own bound is
 """
 const STATUS_MAXLOG = 25
 
-_pace_label(pace::Float64) = isinf(pace) ? "unpaced" : "pace = $pace"
+_pace_label(p::Float64) = isinf(p) ? "unpaced" : "pace = $p"
 
 # The writer count, the cumulative occurrences over every writer's totals, the pace.
 _status_counts(status::FrameworkStatus) =

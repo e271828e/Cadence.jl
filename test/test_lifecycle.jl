@@ -307,18 +307,19 @@ function test_lifecycle()
     end
 
     @testset "a run checks once, at its top, and the delta rides the first frame's snapshot (§12.2, §11.8)" begin
-        # Exact on every thread layout: `tight` reads the machine's count, and the
-        # warning is there or absent accordingly, once.
+        # One claimless probe per thread makes the run tight on every layout:
+        # the roster and the loop need one thread more than the machine has.
         sim = Simulation(two_root_inputs(); h = 1//10)
-        attach!(sim, TailProbe(), NoClaim())
+        for _ in 1:Threads.nthreads()
+            attach!(sim, TailProbe(), NoClaim())
+        end
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
         run!(sim; t_end = 0.5)
-        tight = Threads.nthreads() < 2
         records = [writer_status(snapshot, "loop") for snapshot in logged(sim)[2:end]]
         @test length(records) == 5                   # frames 1..5 after boundary zero
-        @test all(record.totals.thread_budget == Int(tight) for record in records)
-        @test [length(record.recent) for record in records] == [Int(tight), 0, 0, 0, 0]
-        @test all(==(ThreadBudget(Threads.nthreads(), 1)), records[1].recent)
+        @test all(record.totals.thread_budget == 1 for record in records)
+        @test [length(record.recent) for record in records] == [1, 0, 0, 0, 0]
+        @test only(records[1].recent) == ThreadBudget(Threads.nthreads(), Threads.nthreads())
     end
 
     @testset "a deviceless run never warns of the thread budget (§12.2)" begin

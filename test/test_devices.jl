@@ -386,12 +386,20 @@ function test_devices()
             parked = timedwait(() -> parked_in(loop_task, sim.control.wake), 10.0) === :ok
             (parked, latest(sim).frame, stop_while_paused(sim, () -> stop!(sim)))
         end
-        run!(sim; t_end = 1.0)                   # ten frames, were the flag ignored
+        logs, _ = Test.collect_test_logs() do
+            run!(sim; t_end = 1.0)               # ten frames, were the flag ignored
+        end
         (parked, first_top, ended) = fetch(observer)
         @test parked && first_top == 0 && ended
         @test sim.exec.clock.step == 0
         @test termination(sim).source === ControlRequestedStop(:code)
         @test !paused(sim)
+        # No frame top drained the thread budget's warning where one device and
+        # the loop are tight, so the run's-end sweep presents it (§12.2, §11.8).
+        tight = Threads.nthreads() < 2
+        @test count(l -> l.level ≥ Base.CoreLogging.Warn, logs) == Int(tight)
+        @test count(d isa ThreadBudget for residue in termination(sim).residue
+                    for d in residue.recent) == Int(tight)
         # No run start clears the flag, and the tail left none: the next
         # trajectory advances without a resume!.
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
@@ -428,12 +436,20 @@ function test_devices()
             sent || stop!(sim)                   # a regression fails below rather than hangs
             sent
         end
-        run!(sim; t_end = 1.0e6)
+        logs, _ = Test.collect_test_logs() do
+            run!(sim; t_end = 1.0e6)
+        end
         @test fetch(observer)
         @test lifecycle(sim) === :stopped
         @test termination(sim).source === ControlRequestedStop(:interrupt)
         @test sim.exec.clock.step == 0 && latest(sim).frame == 0   # no frame in flight
         @test !paused(sim)                       # the tail cleared the flag
+        # No frame top drained the thread budget's warning where one device and
+        # the loop are tight, so the run's-end sweep presents it (§12.2, §11.8).
+        tight = Threads.nthreads() < 2
+        @test count(l -> l.level ≥ Base.CoreLogging.Warn, logs) == Int(tight)
+        @test count(d isa ThreadBudget for residue in termination(sim).residue
+                    for d in residue.recent) == Int(tight)
     end
 
     @testset "an interrupt while run! awaits the spawned loop ends the loop inside run! (§11.1, §12.4, D-268)" begin
