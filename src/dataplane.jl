@@ -4,8 +4,8 @@
 # publication, plane 3, and the log riding behind it (§11.2). The cells'
 # owners — the roster's device entries and the harness writer beside them —
 # live in roster.jl, the device tasks that stage into them in devices.jl,
-# the trace the drain feeds in trace.jl. The pacer's schedule and its frozen
-# record are here too (§10.7); its wait is devices.jl's.
+# the trace the drain feeds in trace.jl. The pacer's frozen record is here
+# beside the status it rides in (§10.7); the pacer itself is control.jl's.
 #
 # This file holds the types and the pure mechanics; the `Simulation`-facing
 # surface — `stage!`, `drain!`, `publish!`, `latest` — lives in sim.jl, beside
@@ -399,26 +399,6 @@ struct WriterStatus
 end
 
 """
-§10.7's schedule and counters for one `run!` (D-269): the anchor pair and
-the pace it was set under, the debt, and the account the status freezes.
-Created by the run body, handed to the loop and to every publication as
-the stop policy is, never a field of anything.
-"""
-mutable struct Pacer
-    pace::Float64        # the pace the anchor was set under; Inf while no frame waits
-    t_anchor::Float64
-    τ_anchor::Float64
-    debt::Float64
-    peak_debt::Float64
-    overruns::Int
-    reanchors::Int
-    forgiven::Float64
-    waits::Int
-    waited::Float64
-end
-Pacer() = Pacer(Inf, 0.0, 0.0, 0.0, 0.0, 0, 0, 0.0, 0, 0.0)
-
-"""
 The pacer's record in the published framework status (§10.7, D-269): `pace`,
 the pace the loop's frames run under (`Inf` where no frame waits); `debt`
 and `peak_debt` in seconds; `overruns`, the frames that exceeded their
@@ -426,7 +406,7 @@ budget; `reanchors`, every re-anchor after the run's first, and `forgiven`,
 the seconds of debt they cleared; `waits` and `waited`, the frames that
 waited and their total wall time. Isbits, so the copy is the read, as
 `KindCounts`. `step!` and boundary zero carry no pacer, and their record
-reads `Inf` and zeros.
+reads `Inf` and zeros. The copy off a live `Pacer` is control.jl's.
 """
 struct PacerStatus
     pace::Float64
@@ -438,9 +418,6 @@ struct PacerStatus
     waits::Int
     waited::Float64
 end
-PacerStatus(pacer::Pacer) =
-    PacerStatus(pacer.pace, pacer.debt, pacer.peak_debt, pacer.overruns, pacer.reanchors,
-                pacer.forgiven, pacer.waits, pacer.waited)
 PacerStatus(::Nothing) = PacerStatus(Inf, 0.0, 0.0, 0, 0, 0.0, 0, 0.0)
 
 """
