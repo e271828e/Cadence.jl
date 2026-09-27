@@ -293,6 +293,7 @@ were derived.
 | [D-266][d-266] | Two doors for an AD-opaque implementation: the local rule and the `Freeze` block | ratified |
 | [D-267][d-267] | Name the leaf declarations by the bundle field they define | ratified |
 | [D-268][d-268] | Pause verbs on the simulation, and the interrupt's remaining windows | ratified |
+| [D-269][d-269] | Pacing's spellings and default, the wait's consultation and the pacer's home | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -10594,6 +10595,89 @@ deviceless reproduction still rethrows ([§13.4][s13-4]).
   script would rethrow past the tail the devices already took; the roster
   states what the glossary defines.
 
+### D-269 — Pacing's spellings and default, the wait's consultation and the pacer's home
+
+**Status.** ratified
+
+**Position.** [§10.7][s10-7]'s pacer is built under six rulings the text left open.
+
+- `pace!(sim, p)` and `margin!(sim, m)` set the two knobs from any task in
+  any lifecycle state; `pace(sim)` and `margin(sim)` read them. `run!` and
+  `replay!` take both as keywords and write them at entry; `step!` takes
+  neither and never waits. `pace` is a positive real and `margin` a
+  non-negative real, `Inf` admitted by both, anything else refused under
+  `ArgumentInvalid`.
+- `pace` defaults to `Inf`, pacer-off, for `run!` and `replay!` alike.
+- The loop consults the control plane at frame top alone. A change issued
+  during a frame's wait lands at the next frame top, at most one budget
+  `h/p` later; the pause block stays the one wait woken at once ([D-268][d-268]).
+- The frame that follows an anchor has no wait, its deadline being the
+  anchor itself; the run's first anchor is taken when its loop starts.
+- The pacer's schedule and counters are `run!`'s own, created per call and
+  passed to the loop and to publication as the stop policy is ([D-261][d-261]); no
+  field on the plane, the run or the control holds them.
+- The published record carries `pace`, `debt`, `peak_debt`, `overruns`,
+  `reanchors`, `forgiven`, `waits` and `waited`; `DebtReanchor` carries the
+  forgiven debt and the new anchor's `t` and `τ`.
+
+**Spec.** [§10.7][s10-7], [§12.1][s12-1], [§12.6][s12-6], [§12.7][s12-7], [Appendix B][sB], [Appendix C][sC]
+
+**Rationale.** [D-021][d-021] and [D-027][d-027] settled the map, the debt and the primitive,
+and [Appendix B][sB] listed `pace` and `margin` among `run!`'s keywords, but
+nothing named the live setters, the default was `1`, and the sentence that
+had the loop consult control "inside its wait" had no rationale behind it.
+Building the wait showed what each silence cost.
+
+The verbs follow the pause's grammar ([D-268][d-268]), and the readers are bare nouns
+as `paused` is. `step!` stays unpaced because a stepping session is the
+harness mode ([§12.6][s12-6]) and the trajectory is pace-independent by [§10.7][s10-7]'s
+invariant, so a pace there would change when a test runs and nothing it
+asserts.
+
+`Inf` is the default because a deviceless run is the harness and CI mode,
+where a real-time default would slow every existing trajectory test to wall
+time for nothing they assert, and because real time is one keyword away
+where it is wanted. FlightCore's headless default was `Inf` as well.
+
+The consultation sentence read as a description of a busy-wait loop, where
+a flag check per spin iteration is free, rather than a ruling. Under a
+sleep-then-spin wait, honouring it literally means parking the coarse phase
+on the control plane's condition with a timer to wake it, a predicate over
+stop, pause and pace, and a second route back into the pause block. That
+buys immediacy at ordinary paces of milliseconds, and at slow-motion paces
+a fraction of a second nobody asked for. The operator interrupt loses
+nothing, since a signal raises out of `sleep` itself.
+
+The pacer's home follows [§12.6][s12-6]'s own rule that a callee takes what it reads
+as an argument. Its state is scoped to one `run!` call. `Run{T}` spans every
+advance between doors, so it is the wrong owner, and the plane would hold
+it only to let `publish!` reach it without an argument, the trap the
+authoring caveats name. Threading it as `policy` and `addrs` are threaded
+gives the per-call reset for free and leaves `step!`'s record at `Inf` and
+zeros by construction.
+
+The record's fields make [Appendix C][sC]'s row and [§10.7][s10-7]'s "overrun count,
+current and peak debt, forgiven-debt events and wait statistics" concrete,
+replacing a pointer at FlightCore's `SimControl` with nothing behind it
+here. Measured at the tip, `sleep(0.002)` overshoots by 1.41 ms median on
+the dev machine, the figure [§10.7][s10-7] records, so the 2 ms default stands.
+
+**Rejected.**
+- *`pace = 1` as the default:* every deviceless run, the suite's hundreds
+  of `run!` calls among them, would pace against wall clock for nothing
+  they assert.
+- *Waking the coarse phase from the control plane:* a timer, a predicate
+  loop and a second parking site to shave a frame budget off a stop or
+  pause that the next frame top observes anyway.
+- *The pacer on the data plane beside the loop's account:* a field added so
+  a callee can reach a value without an argument, against [§12.6][s12-6]'s rule.
+- *The pacer on `Run{T}`:* the run spans every advance between doors, and
+  the pacer's counters are one `run!` call's.
+- *`step!` taking `pace`:* a second pacing entry for the harness mode,
+  where the wait changes only when a test finishes.
+- *Keeping the `SimControl` precedent sentence:* a FlightCore field list the
+  reader cannot consult, standing where the record's fields belong.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -10863,6 +10947,7 @@ deviceless reproduction still rethrows ([§13.4][s13-4]).
 [d-266]: #d-266--two-doors-for-an-ad-opaque-implementation-the-local-rule-and-the-freeze-block
 [d-267]: #d-267--name-the-leaf-declarations-by-the-bundle-field-they-define
 [d-268]: #d-268--pause-verbs-on-the-simulation-and-the-interrupts-remaining-windows
+[d-269]: #d-269--pacings-spellings-and-default-the-waits-consultation-and-the-pacers-home
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

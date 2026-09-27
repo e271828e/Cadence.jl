@@ -5353,7 +5353,9 @@ anchor pair as its reference point. A live pace change re-establishes the
 anchor at the current `(t, τ)`, so the new slope applies only forward
 ([D-021][d-021]). Un-pause re-anchors for the same reason. Debt is cleared at
 re-anchor. A deliberate user action is a natural sync point, and the counters
-record what was forgiven.
+record what was forgiven. The frame that follows an anchor has no wait, its
+deadline being the anchor itself. The run's first anchor is taken when its
+loop starts, so the first frame runs at once ([D-269][d-269]).
 
 **Deadline law: an absolute schedule with bounded [debt](#g-pacing)**
 ([D-021][d-021]). Frame deadlines come from the map. A frame that exceeds its
@@ -5412,10 +5414,23 @@ Which primitive the coarse phase uses, task-yielding `sleep` or
 thread-blocking `Libc.systemsleep`, is settled in [§12.2][s12-2]. The coarse
 phase uses task-yielding `sleep`, with `margin` absorbing its overshoot.
 
+**The wait sits at the frame top, after the control plane is consulted.** A
+control change issued during a wait is observed at the next frame top, at
+most one frame budget `h/p` later ([§12.1][s12-1], [D-269][d-269]). The wait is an
+unmask point for the [operator interrupt](#g-operator-interrupt)
+([§12.4][s12-4]), which raises out of the coarse phase's `sleep`.
+
 **Diagnostics.** Overrun count, current and peak debt, forgiven-debt events
 and wait statistics are published as [framework status](#g-framework-status)
 (the frozen diagnostics value each snapshot carries beside the table) for GUI
-and logs. Today's `SimControl` fields are the precedent.
+and logs. The record carries `pace`, the pace the loop's frames run under
+(`Inf` where no frame waits); `debt` and `peak_debt`, in seconds;
+`overruns`, the frames that exceeded their budget; `reanchors`, every
+re-anchor after the run's first, and `forgiven`, the seconds of debt those
+re-anchors cleared; and `waits` and `waited`, the frames that waited and
+their total wall time ([D-269][d-269]). A deliberate re-anchor counts and warns
+nothing. The forgiveness re-anchor counts and reports `DebtReanchor`
+([Appendix C][sC]).
 
 **Forward pointers.** The wait interval is the natural staging slot for
 externally injected inputs, applied at the next boundary. The staging rules
@@ -6983,8 +6998,10 @@ primitives, the shutdown protocol, and the run lifecycle from `init!` through
 ### 12.1 Control plane
 
 Pause, un-pause, pace changes, `margin` changes and stop are a few scalar
-fields on a separate atomic surface. The loop consults them at frame top and
-inside its wait and pause states. `margin` ([§10.7][s10-7]) rides here for
+fields on a separate atomic surface. The loop consults them at frame top. A
+change issued while a frame runs or waits is observed at the next frame top,
+at most one frame budget `h/p` later ([D-269][d-269]). The pause block is the one wait
+that wakes at once (below). `margin` ([§10.7][s10-7]) rides here for
 the same reason `pace` does. It tunes the wait, never the arithmetic, so
 retuning the coarse/spin split mid-run is safe by construction. The stop's
 issuers are the operator's channels (GUI button, [device](#g-device) handle,
@@ -7039,6 +7056,17 @@ the start-paused spelling above.
 
 The handle carries no pause ([§11.6][s11-6]). The GUI's pause button waits
 on the GUI's authoring surface ([§11.7][s11-7]).
+
+**Pace and `margin` are two more verbs and two readers** ([D-269][d-269]).
+`pace!(sim, p)` and `margin!(sim, m)` set them from any task in any
+lifecycle state, and `pace(sim)` and `margin(sim)` read them. `run!` and
+`replay!` take both as keywords and write them at entry, the advance's
+declaration as `t_end` is, `Inf` and 2 ms by default ([Appendix B][sB]).
+`step!` takes neither and never waits. A stepping session is the harness
+mode ([§12.6][s12-6]), and its frames are bit-identical to `run!`'s by
+[§10.7][s10-7]'s invariant. `pace` is a positive real, `Inf` admitted, and
+`margin` a non-negative real, `Inf` admitted. Each of the four calls refuses
+anything else under `ArgumentInvalid` ([Appendix C][sC]).
 
 ### 12.2 Loop scheduling: wait primitive, yields, thread budget
 
@@ -7638,7 +7666,9 @@ are the executor's. `join_timeout` is `Control`'s ([§12.1][s12-1]). The loop's
 are the plane's ([§11.8][s11-8]). The log and the trace are the run's. The
 stop policy, with its `t_end` and stop faces, is the advance's argument, and
 the [termination record](#g-termination-record) keeps the terminating one
-([D-260][d-260]).
+([D-260][d-260]). The pacer's schedule and counters are `run!`'s own, created
+per call and passed to the loop and its publications as the policy is, and
+each snapshot's status carries their frozen record ([§10.7][s10-7], [D-269][d-269]).
 
 **Rule.** A struct holds what it owns or what it must retain across calls. A
 callee takes what it reads as an argument, never off a field added to the
@@ -7682,7 +7712,8 @@ empty staging ([§11.1][s11-1]). It is also what the synchronous rethrow presupp
 **Partial advance.** `step!(sim; frames = 1)` advances whole frames
 synchronously through the ordinary frame sequence ([drain](#g-drain),
 integrate, boundaries, publication) and returns. A stepped simulation is
-bit-identical to the same frames under `run!`. `step!(sim; t_plus = 10.0)`
+bit-identical to the same frames under `run!`, and it never waits, whatever
+pace the control plane holds ([D-269][d-269]). `step!(sim; t_plus = 10.0)`
 is the duration spelling, mutually exclusive with `frames`. It advances
 whole frames until the boundary time first covers the duration, which is
 the migration suite's advance-by-duration idiom.
@@ -7933,7 +7964,8 @@ Everything else is the loop as already specified:
   unchanged** ([§10.7][s10-7], [§12.1][s12-1]). Pacing (waits inserted
   between completed frames, never altering the boundary sequence) sits
   outside the semantics, so paused, slow-motion or real-time replay is free.
-  Paced replay with an attached visualizer *is* session playback. Stop
+  Paced replay with an attached visualizer *is* session playback, and
+  `replay!` takes `pace` and `margin` as `run!` does ([D-269][d-269]). Stop
   truncates, as anywhere.
 - **[Devices](#g-device) are readers.** Rostered devices init and spawn
   normally ([§11.1][s11-1]) and consume [snapshots](#g-snapshot)
@@ -10700,7 +10732,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 
 **Running.**
 
-- `run!(sim; gui = false, pace = 1, margin = 0.002, t_end = Inf,
+- `run!(sim; gui = false, pace = Inf, margin = 0.002, t_end = Inf,
   stop_on = ())`. `run!` blocks until the run ends. Deviceless, it
   is fully synchronous on the calling task. `init!` is required first
   ([§12.6][s12-6]). Paced and unpaced runs are bit-identical ([§10.7][s10-7]).
@@ -10708,7 +10740,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   | keyword | default | meaning | owning section |
   |---|---|---|---|
   | `gui` | `false` | **run-scoped attachment**. At run entry it attaches the standard GUI device under the standard greedy binding, with `should_abort = true`, **iff no GUI is already rostered** | [§12.4][s12-4], [§11.6][s11-6], [§11.7][s11-7] |
-  | `pace` | `1` | the run's pacing rate | [§10.7][s10-7] |
+  | `pace` | `Inf` | the run's pacing rate; `Inf` is pacer-off, `1` real time | [§10.7][s10-7] |
   | `margin` | `0.002` | the single pacing knob, in seconds | [§10.7][s10-7] |
   | `t_end` | `Inf` | the run's end time, declared for **this advance**, validated per call | [§13.5][s13-5] |
   | `stop_on` | `()` | root-exported `Bool` output faces, OR-combined, declared for **this advance** and validated against the `Build` per call | [§13.5][s13-5] |
@@ -10723,9 +10755,11 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   the loop to a spawned task for as long as it is rostered ([§11.1][s11-1],
   [§12.6][s12-6]). Sugar never activates by default.
 
-  `margin` defaults to 2 ms, the sleep primitive's granularity plus its
-  measured overshoot. The values `0`, 2 ms and `∞` span the design space
-  ([§10.7][s10-7]). Each advance builds a [`StopPolicy`](#g-stop-policy) (the
+  `pace` defaults to `Inf`, pacer-off. A deviceless run is the harness and
+  CI mode, and real time is `pace = 1` away ([D-269][d-269]). `margin` defaults to 2
+  ms, the sleep primitive's granularity plus its measured overshoot. The
+  values `0`, 2 ms and `∞` span the design space ([§10.7][s10-7]). Each
+  advance builds a [`StopPolicy`](#g-stop-policy) (the
   immutable `t_end`-plus-stop-faces value an advance declares) from its
   `t_end` and `stop_on`. It passes that policy to the loop, and the value
   lives as long as the call. The termination record carries the policy that
@@ -10734,7 +10768,8 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   loop's diagnostic cell ([§11.8][s11-8]).
 - `step!(sim; frames = 1, t_end = Inf, stop_on = ()) → frames_advanced`. A
   synchronous partial advance through the ordinary frame sequence,
-  bit-identical to the same frames under `run!`. `t_plus = <duration>` is the
+  bit-identical to the same frames under `run!`. It never waits ([D-269][d-269]).
+  `t_plus = <duration>` is the
   mutually exclusive duration spelling
   (whole frames until the boundary time covers that duration). It returns the
   frames *actually* advanced, fewer than requested when `t_end` or a
@@ -10764,16 +10799,18 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   sit on a separate atomic surface, never staged ([§12.1][s12-1]). Pacing sits
   outside the semantics, so pace and `margin` are both safe to change live.
   `pause!(sim)`, `resume!(sim)` and `stop!(sim)` are the calling code's
-  spellings and `paused(sim)` the read; a device stops through
-  `stop!(handle)` ([§11.6][s11-6]). The tail clears the pause, never a run's
-  start ([D-268][d-268]).
+  spellings and `paused(sim)` the read; `pace!(sim, p)` and
+  `margin!(sim, m)` set the two knobs and `pace(sim)` and `margin(sim)` read
+  them ([D-269][d-269]); a device stops through `stop!(handle)` ([§11.6][s11-6]). The
+  tail clears the pause, never a run's start ([D-268][d-268]).
 - Termination. Model state ends a run via `stop_on` faces read at every
   published boundary ([§13.5][s13-5]). Shutdown completes a boundary,
   publishes the final snapshot, then joins ([§12.4][s12-4]).
 - Post-run. The log is the retained snapshots. `trace(sim) → trc` retrieves
   the always-on input trace.
-  `replay!(sim2, trc; to_boundary = k, t_end = Inf, stop_on = ())`, taking
-  `init!`'s four recording keywords as well ([D-261][d-261]), re-drives
+  `replay!(sim2, trc; to_boundary = k, pace = Inf, margin = 0.002,
+  t_end = Inf, stop_on = ())`, taking `init!`'s four recording keywords as
+  well ([D-261][d-261]), re-drives
   a fresh `Simulation(world)` bit-identically through the ordinary loop, with
   boundary zero from the trace header and the drain fed by frame ordinal, and
   ends `initialized`. `to_time = t` is the mutually exclusive time spelling
@@ -11177,7 +11214,8 @@ activation):
   Component path, event name, boundary time, the exhausted `firing_budget`
   and the boundary's firing count.
 - **`DebtReanchor`** ([§10.7][s10-7]). Warning · runtime · rate-limited.
-  Forgiven debt, the new schedule anchor, boundary time.
+  Forgiven debt in seconds, and the new anchor's `t` (the boundary time)
+  and `τ`.
 - **`ClaimedFaceEntry`** ([§11.3][s11-3], [§11.4][s11-4]). Warning · runtime
   · rate-limited. Face name, the incumbent (claiming) device id, the
   discarded value, the site (staging, or a stopped-sim attach's
@@ -11856,8 +11894,8 @@ per-face ZOH). Its outbound mirror is newest-wins snapshot delivery
 
 <a id="g-control-plane"></a>**control plane** — the separate few-word atomic surface carrying pause,
 un-pause, pace, `margin`, the stop word, the lifecycle state, the wait and
-`join_timeout`, consulted at frame top and inside the loop's wait and pause
-states. A run's outcome is the `Run`'s, not its. It is structurally not
+`join_timeout`, consulted at frame top, a change during a wait landing at
+the next one. A run's outcome is the `Run`'s, not its. It is structurally not
 staging, since a paused loop drains nothing ([§12.1][s12-1]).
 
 <a id="g-derived-liveness"></a>**derived liveness** — the rule that a GUI widget is live iff its port's
@@ -12462,6 +12500,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-266]: decisions.md#d-266--two-doors-for-an-ad-opaque-implementation-the-local-rule-and-the-freeze-block
 [d-267]: decisions.md#d-267--name-the-leaf-declarations-by-the-bundle-field-they-define
 [d-268]: decisions.md#d-268--pause-verbs-on-the-simulation-and-the-interrupts-remaining-windows
+[d-269]: decisions.md#d-269--pacings-spellings-and-default-the-waits-consultation-and-the-pacers-home
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
