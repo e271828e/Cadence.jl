@@ -5386,7 +5386,9 @@ remainder:
 ```julia
 remaining = deadline - margin - τ()
 remaining > 0 && sleep(remaining)   # coarse phase: cheap, lower-bound-only (runs at most once)
-while τ() < deadline end            # spin phase: µs-precise, CPU cost bounded by margin
+while τ() < deadline                # spin phase: µs-precise, CPU cost bounded by margin
+    GC.safepoint()                  # a safepoint, never a yield: GC and signals get through
+end
 ```
 
 `margin` is a single constant calibrated to cover the primitive's granularity
@@ -5428,9 +5430,11 @@ and logs. The record carries `pace`, the pace the loop's frames run under
 `overruns`, the frames that exceeded their budget; `reanchors`, every
 re-anchor after the run's first, and `forgiven`, the seconds of debt those
 re-anchors cleared; and `waits` and `waited`, the frames that waited and
-their total wall time ([D-269][d-269]). A deliberate re-anchor counts and warns
-nothing. The forgiveness re-anchor counts and reports `DebtReanchor`
-([Appendix C][sC]).
+their total wall time ([D-269][d-269]). A deliberate re-anchor, a pace change
+or an un-pause, is counted and raises no warning. The forgiveness re-anchor
+is counted and reports `DebtReanchor` ([Appendix C][sC]). A live switch to
+`p = ∞` is a pace change like any other: it re-anchors, and the debt it
+clears is counted as forgiven ([D-269][d-269]).
 
 **Forward pointers.** The wait interval is the natural staging slot for
 externally injected inputs, applied at the next boundary. The staging rules
@@ -11184,12 +11188,13 @@ activation):
 - **`ReplayUnknownFace`** ([§12.7][s12-7]). Error · service · collected. Face
   name, or the bare position where the writer's schema has no name for it;
   frame ordinal, the trace's device tag, the root input-face list.
-- **`ArgumentInvalid`** ([§8.7][s8-7], [§11.6][s11-6], [§12.4][s12-4], [§12.6][s12-6],
-  [§14.7][s14-7]). Error · service, or build in a `sample_times` declaration
-  · fail-fast, but collected over a `TableBinding`'s entry table and over the
-  materialization's keywords ([§9.2][s9-2]). The call
-  (`Simulation`, `step!`, `trim!`, `TableBinding`, a period constructor), the
-  argument, the value in hand, the violated constraint. The twin of
+- **`ArgumentInvalid`** ([§8.7][s8-7], [§11.6][s11-6], [§12.1][s12-1], [§12.4][s12-4],
+  [§12.6][s12-6], [§14.7][s14-7]). Error · service, or build in a `sample_times`
+  declaration · fail-fast, but collected over a `TableBinding`'s entry table
+  and over the materialization's keywords ([§9.2][s9-2]). The call
+  (`Simulation`, `run!`, `step!`, `replay!`, `pace!`, `margin!`, `trim!`,
+  `TableBinding`, a period constructor), the argument, the value in hand,
+  the violated constraint. The twin of
   `DeploymentInvalid` for arguments that are not deployment parameters.
 - **`ReadSetMisuse`** ([§14.4][s14-4]). Error · service · fail-fast. The
   offending argument's type, the selector kinds in hand. The read side's
