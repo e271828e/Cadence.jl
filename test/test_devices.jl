@@ -569,6 +569,26 @@ function test_devices()
         @test after.forgiven == before.forgiven + before.debt   # the cleared debt, counted
     end
 
+    # The switch with debt outstanding, which the spawned run above cannot
+    # time: the wait driven directly, the stall landing between two frame tops.
+    @testset "the switch to pace = Inf forgives outstanding debt, counted (§10.7, D-269)" begin
+        control, pacer, cell = Control(5.0), Pacer(), DiagCell(EMPTY_DIAG)
+        h = 0.01
+        @atomic control.pace = 1.0
+        anchor!(pacer, 0.0, 1.0)
+        Libc.systemsleep(0.03)                   # frame 1 took 30 ms against a 10 ms budget
+        wait_deadline!(control, pacer, cell, h, h)
+        @test pacer.overruns == 1 && pacer.debt ≥ 0.02 && pacer.forgiven == 0
+        @atomic control.pace = Inf
+        wait_deadline!(control, pacer, cell, 2h, h)
+        @test pacer.pace == Inf && pacer.debt == 0
+        @test pacer.reanchors == 1 && pacer.forgiven == pacer.peak_debt
+        @test pacer.overruns == 1 && pacer.waits == 0
+        wait_deadline!(control, pacer, cell, 3h, h)   # pacer-off: nothing moves
+        @test pacer.reanchors == 1 && pacer.debt == 0
+        @test isempty(_take!(cell).ring)              # a deliberate re-anchor warns nothing
+    end
+
     @testset "un-pause re-anchors and clears the debt (§10.7, §12.1)" begin
         sim = warm_staller()
         attach!(sim, TailProbe(), NoClaim())
