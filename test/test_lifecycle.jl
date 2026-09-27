@@ -291,6 +291,43 @@ function test_lifecycle()
         @test writer_status(latest(stepped), "loop").totals.unbounded == 0
     end
 
+    @testset "the thread-budget check reports below the roster plus one (§12.2)" begin
+        # The thread count is the check's argument, so the test drives it below
+        # the machine's count: one device and the loop need two threads.
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        attach!(sim, Pad("p"), Enumerated())
+        report_thread_budget!(sim.plane, 1)
+        @test only(_take!(sim.plane.loop_diag).ring) == ThreadBudget(1, 1)
+        report_thread_budget!(sim.plane, 2)
+        @test _take!(sim.plane.loop_diag) === EMPTY_DIAG
+        # A deviceless run occupies the loop's task alone, which any thread hosts.
+        bare = Simulation(two_root_inputs(); h = 1//10)
+        report_thread_budget!(bare.plane, 1)
+        @test _take!(bare.plane.loop_diag) === EMPTY_DIAG
+    end
+
+    @testset "a run checks once, at its top, and the delta rides the first frame's snapshot (§12.2, §11.8)" begin
+        # Exact on every thread layout: `tight` reads the machine's count, and the
+        # warning is there or absent accordingly, once.
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        attach!(sim, TailProbe(), NoClaim())
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        run!(sim; t_end = 0.5)
+        tight = Threads.nthreads() < 2
+        records = [writer_status(snapshot, "loop") for snapshot in logged(sim)[2:end]]
+        @test length(records) == 5                   # frames 1..5 after boundary zero
+        @test all(record.totals.thread_budget == Int(tight) for record in records)
+        @test [length(record.recent) for record in records] == [Int(tight), 0, 0, 0, 0]
+        @test all(==(ThreadBudget(Threads.nthreads(), 1)), records[1].recent)
+    end
+
+    @testset "a deviceless run never warns of the thread budget (§12.2)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        run!(sim; t_end = 0.3)
+        @test writer_status(latest(sim), "loop").totals.thread_budget == 0
+    end
+
     @testset "step! advances whole frames and returns the count actually advanced (§12.6)" begin
         sim = Simulation(feedback_model(); h = 1//50)
         init!(sim, fragment(inputs = (ref = 0.0,)))

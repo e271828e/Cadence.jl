@@ -769,6 +769,18 @@ function trace_replay_loop()
         # and reaching it needs `test_lifecycle.jl`'s spawned-run idiom; it is
         # asserted there, for those two entries, and not here.)
     end
+
+    @testset "the replay door checks the thread budget too (§12.2, §11.3)" begin
+        # `replay!` shares the run body, so it checks once against the frozen
+        # roster as `run!` does: one device and the loop need two threads.
+        (_, trc) = recorded_run()
+        sim2 = replay_twin()
+        attach!(sim2, TailProbe(), NoClaim())
+        replay!(sim2, trc)
+        @test lifecycle(sim2) === :initialized
+        tight = Threads.nthreads() < 2
+        @test writer_status(latest(sim2), "loop").totals.thread_budget == Int(tight)
+    end
 end
 
 # Every discard this writer's account carried, rendered: off a published

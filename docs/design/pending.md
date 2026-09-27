@@ -18,7 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the standard component library last.
 Where the reason is not given here, the cited decision carries it:
 
-- **The §11.8 remainder**: `ThreadBudget`, the maxlog renderer.
 - **§11.7's GUI write path**; its calling convention is deferred under
   "Pending on the spec itself".
 - **§14**: `linearize` (§14.10) and its tap register (`TapResolution` reads

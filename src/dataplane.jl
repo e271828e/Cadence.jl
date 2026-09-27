@@ -34,8 +34,7 @@ plain data — paths and names as strings and symbols, never component
 instances; the declared/observed *port* types are the payload exception, and
 they are small. Most are built here; `EmptyGreedyClaim` is declared with the
 service kinds (`diagnostics.jl`) and raised by `attach!` into the roster
-entry's own cell (§11.3, D-250), and `ThreadBudget`, whose feature is
-absent, is absent altogether (`pending.md`).
+entry's own cell (§11.3, D-250).
 Writer attribution is never a payload field: the channel is per-writer, so
 the cell supplies it (§11.8, §12.4: no call passes a device id).
 `DeviceJoinTimeout`'s `who` is not that attribution — it is the payload's
@@ -118,6 +117,17 @@ struct UnboundedRun <: Diagnostic
     stop_on::Vector{Symbol}   # empty
 end
 
+"""
+§12.2's thread-budget tightness: fewer threads than the roster plus one,
+the loop's own task. Raised once per run into the loop's cell, at `run!`
+or `replay!`, against the frozen roster. A warning and a sizing rule,
+never a hard error (D-027).
+"""
+struct ThreadBudget <: Diagnostic
+    threads::Int        # `Threads.nthreads()` at the run's top
+    device_tasks::Int   # the frozen roster's size, one task each
+end
+
 "§12.4's device failure — the wrapper's catch, or the init bracket's; `abort` is the attachment's `should_abort`."
 struct DeviceCrash <: Diagnostic
     cause::Any
@@ -151,11 +161,17 @@ struct ReplayDiscardedStaging <: Diagnostic
     frame::Int
 end
 
+"""
+The closed set's one home (§11.8, Appendix C): the union below is built from
+it, `KindCounts` keeps one field per member in its order, and a renderer walks
+it to name a kind no retained value carries.
+"""
+const KINDS = (MalformedDatum, OutOfClaimEntry, ClaimedFaceEntry, EntryTypeMismatch,
+               ChatteringBudget, FiringBudget, DebtReanchor, UnboundedRun, ThreadBudget,
+               DeviceCrash, DeviceJoinTimeout, ReplayDiscardedStaging, EmptyGreedyClaim)
+
 "The closed set as a union: what a ring holds, and what `report_cell!` admits."
-const DiagValue = Union{MalformedDatum,OutOfClaimEntry,ClaimedFaceEntry,
-                        EntryTypeMismatch,ChatteringBudget,FiringBudget,
-                        DebtReanchor,UnboundedRun,DeviceCrash,DeviceJoinTimeout,
-                        ReplayDiscardedStaging,EmptyGreedyClaim}
+const DiagValue = Union{KINDS...}
 
 # The ones declared here ride `src/diagnostics.jl`'s root so `severity` covers
 # them (§13.2, D-214): the channel *is* the warning stream, so every member is a
@@ -171,6 +187,7 @@ severity(::ChatteringBudget) = :warning
 severity(::FiringBudget) = :warning
 severity(::DebtReanchor) = :warning
 severity(::UnboundedRun) = :warning
+severity(::ThreadBudget) = :warning
 severity(::DeviceCrash) = :warning
 severity(::DeviceJoinTimeout) = :warning
 severity(::ReplayDiscardedStaging) = :warning
@@ -207,6 +224,10 @@ message(d::UnboundedRun) =
     "control-plane stop: `stop!(sim)`, a device's stop button, or the operator " *
     "interrupt, which is the sanctioned escape from this configuration. Give " *
     "`run!` a finite `t_end`, or a `stop_on` face, to bound it (§13.5, §12.4)"
+message(d::ThreadBudget) =
+    "the run occupies $(d.device_tasks + 1) tasks, the loop and one per rostered device, " *
+    "on $(d.threads) thread$(d.threads == 1 ? "" : "s"), so co-resident tasks share a " *
+    "thread and inputs lag — start Julia with `julia -t $(d.device_tasks + 1)` or more (§12.2)"
 message(d::DeviceCrash) =
     "the device task failed with $(d.cause)" *
     (d.abort ? " and `should_abort` was set" : ", and the simulation continues without it") *
@@ -223,7 +244,7 @@ message(d::ReplayDiscardedStaging) =
 """
 The per-kind counter record (§11.8): a **fixed-shape isbits record, never a
 `Dict`** — licensed by the closed kind set, which makes the counter layout a
-type rather than a lookup. One field per kind, in `DiagValue`'s order; the same
+type rather than a lookup. One field per kind, in `KINDS`'s order; the same
 shape serves a batch's suppressed counts and the loop's cumulative totals, and
 `+` is the fold between them.
 """
@@ -236,25 +257,30 @@ struct KindCounts
     firing::Int
     reanchor::Int
     unbounded::Int
+    thread_budget::Int
     crash::Int
     join_timeout::Int
     replay_discarded::Int
     empty_greedy::Int
 end
-KindCounts() = KindCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+KindCounts() = KindCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
-_kind(::MalformedDatum)   = :malformed
-_kind(::OutOfClaimEntry)  = :out_of_claim
-_kind(::ClaimedFaceEntry) = :claimed_face
-_kind(::EntryTypeMismatch) = :type_mismatch
-_kind(::ChatteringBudget) = :chattering
-_kind(::FiringBudget)     = :firing
-_kind(::DebtReanchor)     = :reanchor
-_kind(::UnboundedRun)     = :unbounded
-_kind(::DeviceCrash)      = :crash
-_kind(::DeviceJoinTimeout) = :join_timeout
-_kind(::ReplayDiscardedStaging) = :replay_discarded
-_kind(::EmptyGreedyClaim) = :empty_greedy
+# A kind's `KindCounts` field, defined on the type so a renderer names a kind
+# no retained value carries; an occurrence forwards to its type.
+_kind(::Type{MalformedDatum})   = :malformed
+_kind(::Type{OutOfClaimEntry})  = :out_of_claim
+_kind(::Type{ClaimedFaceEntry}) = :claimed_face
+_kind(::Type{EntryTypeMismatch}) = :type_mismatch
+_kind(::Type{ChatteringBudget}) = :chattering
+_kind(::Type{FiringBudget})     = :firing
+_kind(::Type{DebtReanchor})     = :reanchor
+_kind(::Type{UnboundedRun})     = :unbounded
+_kind(::Type{ThreadBudget})     = :thread_budget
+_kind(::Type{DeviceCrash})      = :crash
+_kind(::Type{DeviceJoinTimeout}) = :join_timeout
+_kind(::Type{ReplayDiscardedStaging}) = :replay_discarded
+_kind(::Type{EmptyGreedyClaim}) = :empty_greedy
+_kind(d::DiagValue) = _kind(typeof(d))
 
 _bump(counts::KindCounts, kind::Symbol) =
     KindCounts((getfield(counts, f) + (f === kind) for f in fieldnames(KindCounts))...)
@@ -387,7 +413,9 @@ never *how many*); and, for a rostered device, the liveness `heartbeat`
 publication (D-193) — `:none` when no task exists (a failed `init!`, or a
 stopped sim), `:running`, `:done`, or `:failed`. The harness writer's and
 the loop's own records carry `nothing` for both: no task of their own to be
-alive or dead.
+alive or dead. The records render inside their `FrameworkStatus`'s `show`
+(show.jl), each kind in full up to `STATUS_MAXLOG` cumulative occurrences and
+count-only past it (§11.8).
 """
 struct WriterStatus
     who::String

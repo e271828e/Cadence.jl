@@ -189,6 +189,9 @@ function diagnostics_channel()
         @test (left + right).malformed == 2 && (left + right).crash == 1
         @test _total(left + right) == 3
         @test _bump(KindCounts(), :reanchor).reanchor == 1   # the pacer's kind has its field (§10.7)
+        @test _bump(KindCounts(), :thread_budget).thread_budget == 1   # and the budget's (§12.2)
+        # `KINDS` is the set's one home: the counter record keeps its order.
+        @test fieldnames(KindCounts) == map(_kind, KINDS)
 
         # A raw cell takes any kind of the set; the ring preserves arrival order
         # across kinds, earliest-in-frame retained.
@@ -576,6 +579,7 @@ function diagnostics_kind_set()
             FiringBudget("a/b", :snap, 1.0, 4, 5),
             DebtReanchor(0.05, 1.0, 12345.0),
             UnboundedRun(Inf, Symbol[]),
+            ThreadBudget(1, 2),
             DeviceCrash(ArgumentError("bad"), false),
             DeviceJoinTimeout("device 1 (Pad)", 5.0, 1.0, 10),
             ReplayDiscardedStaging([:a, :b], 3),
@@ -587,8 +591,8 @@ function diagnostics_kind_set()
                                       TrimCommitEvents, TrimCommitResiduals, TrimCommitChecks,
                                       MalformedDatum, OutOfClaimEntry, ClaimedFaceEntry,
                                       EntryTypeMismatch, ChatteringBudget, FiringBudget,
-                                      DebtReanchor, UnboundedRun, DeviceCrash, DeviceJoinTimeout,
-                                      GridUtilization, ReplayDiscardedStaging])
+                                      DebtReanchor, UnboundedRun, ThreadBudget, DeviceCrash,
+                                      DeviceJoinTimeout, GridUtilization, ReplayDiscardedStaging])
         for d in occurrences
             @test severity(d) === (typeof(d) in warning_kinds ? :warning : :error)
             @test path(d) isa String
@@ -734,6 +738,11 @@ function diagnostics_kind_set()
                                                state_fields = [:q]))
         @test occursin("`y_state` returns them", rendered) &&
               occursin("the stages return `z`", rendered)
+
+        # The thread budget names the remedy: the roster plus the loop's own task
+        # (§12.2).
+        rendered = message(ThreadBudget(1, 2))
+        @test occursin("`julia -t 3`", rendered) && occursin("(§12.2)", rendered)
 
         # The dead stage names the return it got and the stage it got it from.
         rendered = message(DeadStage(path = "a/b", stage = "y_state"))

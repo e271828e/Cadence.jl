@@ -1054,7 +1054,10 @@ simulation already terminal (D-268).
 
 The run's shape, in order: the policy is built and the §11.3 freeze rises (the
 lifecycle's `:running`, spanning the tail); the stop word is cleared (a fresh
-run owes nothing to the last one's stop); the §12.4 init bracket runs per
+run owes nothing to the last one's stop); the thread budget is checked once
+against the frozen roster, `ThreadBudget` into the loop's own cell when there
+are fewer threads than the roster plus one, `replay!` checking the same way
+(§12.2); the §12.4 init bracket runs per
 roster entry on the calling task; the topology is derived from the *live*
 entries — with a `needs_calling_task` holder among them the loop moves to a
 spawned task and the calling task runs that device's loop body inline,
@@ -1138,7 +1141,8 @@ end
 # replay *is* this loop. `addrs` is the policy's faces compiled, the loop's own
 # argument (D-261); `upto` is the frame budget, `t_end_frame` the `t_end` frame.
 # The pacer is created here, one per call, and handed to the loop as the policy
-# is (§10.7, §12.6, D-269).
+# is (§10.7, §12.6, D-269). The §12.2 thread-budget check runs here too, after
+# the freeze, so either door checks once per run against the frozen roster.
 #
 # The terminal mapping is `step!`'s. `source === nothing` means the budget ran
 # out rather than a source firing, which only a bounded advance can reach — a
@@ -1162,6 +1166,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
     try
         @atomic control.stop_issuer = nothing
         _reset_accounts!(sim)                 # §11.8: totals count since the run began
+        report_thread_budget!(plane, Threads.nthreads())   # §12.2: one check per run, either door
         append!(live, _init_devices!(sim))    # §12.4's pre-spawn bracket, attachment order
         @atomic control.stopped = false
         inline_index = findfirst(e -> needs_calling_task(e.dev), live)
@@ -1269,6 +1274,19 @@ function _reset_accounts!(sim::Simulation)
     end
     _reset!(sim.plane.harness_account)
     _reset!(sim.plane.loop_account)
+    nothing
+end
+
+# §12.2's one check per run, against the frozen roster: the run occupies
+# one task per rostered device plus the loop, whichever task hosts which,
+# and tight is fewer threads than that. Reported into the loop's own cell,
+# so the first frame top drains it into the first snapshot's status; a
+# deviceless run never warns. The thread count is an argument for the test
+# that drives the check below the machine's count.
+function report_thread_budget!(plane::DataPlane, threads::Int)
+    device_tasks = length(plane.roster)
+    threads < device_tasks + 1 &&
+        report_cell!(plane.loop_diag, ThreadBudget(threads, device_tasks))
     nothing
 end
 

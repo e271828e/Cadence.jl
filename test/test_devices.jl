@@ -776,7 +776,13 @@ function test_devices()
         status = writer_status(latest(sim), "device 1 (InitInterrupted)")
         @test status.totals.crash == 0 && status.task_state === :none
         @test !any(d isa DeviceCrash for residue in termination(sim).residue for d in residue.recent)
-        @test all(l -> l.level < Base.CoreLogging.Warn, logs)   # no crash presented, nor any warning
+        # No crash presented, nor any warning but the thread budget's where two
+        # devices and the loop are tight: no frame top drained it, so the
+        # run's-end sweep presents it (§12.2, §11.8).
+        tight = Threads.nthreads() < 3
+        @test count(l -> l.level ≥ Base.CoreLogging.Warn, logs) == Int(tight)
+        @test count(d isa ThreadBudget for residue in termination(sim).residue
+                    for d in residue.recent) == Int(tight)
     end
 
     @testset "a body ignoring the predicate is abandoned under join_timeout, by name (§12.4(5))" begin

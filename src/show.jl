@@ -7,7 +7,9 @@
 # over `textwidth` and two spaces between columns, as `_grid_block` does, each
 # block indented two spaces under its heading, and a nested artifact's lines two
 # spaces further in. The grid block itself stays in `diagnostics.jl`, since the
-# messages use it; the `Deployment` sets its lines under `grid:` here.
+# messages use it; the `Deployment` sets its lines under `grid:` here. The
+# published `FrameworkStatus` renders here too, under the same conventions, with
+# §11.8's `maxlog` cap its presentation policy.
 
 const _SUBSCRIPTS = collect("₀₁₂₃₄₅₆₇₈₉")
 
@@ -254,9 +256,77 @@ function _lines(deployment::Deployment)
          _indented(_warning_lines(deployment.warnings)))
 end
 
+# --- FrameworkStatus (§11.8) ------------------------------------------------------
+
+"""
+§11.8's presentation policy, the `maxlog` successor: a writer × kind prints
+its occurrences in full up to this many cumulative ones, then as a count
+alone. Presentation, never channel policy: the channel's own bound is
+`DIAG_RING`, and the counts accumulate regardless.
+"""
+const STATUS_MAXLOG = 25
+
+_pace_label(pace::Float64) = isinf(pace) ? "unpaced" : "pace = $pace"
+
+# The writer count, the cumulative occurrences over every writer's totals, the pace.
+_status_counts(status::FrameworkStatus) =
+    join((_count(length(status.writers), "writer"),
+          _count(sum(record -> _total(record.totals), status.writers; init = 0), "occurrence"),
+          _pace_label(status.pacer.pace)), ", ")
+
+Base.show(io::IO, status::FrameworkStatus) =
+    print(io, "FrameworkStatus(", _status_counts(status), ")")
+
+# One kind's group under its writer: the count-only line, then the retained
+# occurrences within the cap, then this boundary's suppressed count. The cap
+# needs no state across snapshots: the occurrences before this boundary are the
+# total less this boundary's retained and suppressed ones, so a reader sampling
+# every snapshot sees each of the first `STATUS_MAXLOG` exactly once.
+function _kind_lines(record::WriterStatus, kind_type::Type)
+    field = _kind(kind_type)
+    total = getfield(record.totals, field)
+    total == 0 && return String[]
+    retained = [occurrence for occurrence in record.recent if occurrence isa kind_type]
+    suppressed_count = getfield(record.suppressed, field)
+    earlier = total - length(retained) - suppressed_count
+    lines = ["$(nameof(kind_type)): $(_count(total, "occurrence"))"]
+    for (i, occurrence) in enumerate(retained)
+        earlier + i ≤ STATUS_MAXLOG && append!(lines, _indented(split(logline(occurrence), '\n')))
+    end
+    suppressed_count > 0 && push!(lines, "  $suppressed_count suppressed this boundary")
+    lines
+end
+
+# One writer's block: its name, the task state and the raw heartbeat where the
+# record carries them, then a group per kind with a nonzero total in `KINDS`'s
+# order. No staleness verdict: read after the run, every heartbeat is stale
+# against the wall clock, and `stale(record)` stays the GUI's question.
+function _writer_lines(record::WriterStatus)
+    facts = String[]
+    record.task_state === nothing || push!(facts, string(record.task_state))
+    record.heartbeat === nothing || push!(facts, "heartbeat $(record.heartbeat)")
+    _total(record.totals) == 0 && push!(facts, "no occurrences")
+    heading = isempty(facts) ? record.who * ":" : record.who * ": " * join(facts, ", ")
+    vcat([heading],
+         _indented(mapreduce(kind_type -> _kind_lines(record, kind_type), vcat, KINDS;
+                             init = String[])))
+end
+
+_pacer_line(pacer::PacerStatus) =
+    "pacer: " * join((_pace_label(pacer.pace), "debt $(pacer.debt) s",
+                      "peak $(pacer.peak_debt) s", _count(pacer.overruns, "overrun"),
+                      _count(pacer.reanchors, "reanchor"), "$(pacer.forgiven) s forgiven",
+                      _count(pacer.waits, "wait"), "$(pacer.waited) s waited"), ", ")
+
+# The writers in the status's order, the pacer's line last (§11.8, §10.7).
+_lines(status::FrameworkStatus) =
+    vcat(["FrameworkStatus: " * _status_counts(status)],
+         _indented(mapreduce(_writer_lines, vcat, status.writers; init = String[])),
+         ["  " * _pacer_line(status.pacer)])
+
 # --- the REPL forms ---------------------------------------------------------------
 
-for Artifact in (Structure, Outputs, Events, Schedule, Build, Deployment)
+for Artifact in (Structure, Outputs, Events, Schedule, Build, Deployment, FrameworkStatus)
     @eval Base.show(io::IO, ::MIME"text/plain", artifact::$Artifact) =
         join(io, _lines(artifact), "\n")
 end

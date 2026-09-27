@@ -19,6 +19,35 @@ function anchored_group()
         build(comp); h = 1//1500, Δt_base = :derive)
 end
 
+# The framework status built by hand (§11.8), no run needed: a counter record
+# holding `number` `MalformedDatum`s and nothing else.
+malformed_counts(number::Int) =
+    KindCounts((f === :malformed ? number : 0 for f in fieldnames(KindCounts))...)
+
+# A device's record with `total` occurrences in all, the last ones this
+# boundary's: `retained` in the ring, then `suppressed` refused past it. The
+# retained ones are numbered by their place in the run's account.
+function malformed_record(total::Int, retained::Int, suppressed::Int)
+    first_retained = total - suppressed - retained + 1
+    WriterStatus("device 1 (Parser)",
+                 [MalformedDatum("datum $k") for k in first_retained:first_retained + retained - 1],
+                 malformed_counts(suppressed), malformed_counts(total), 1.0e9, :running)
+end
+
+# A writer with no task and no occurrences: the harness's and the loop's shape.
+quiet_record(who::String) = WriterStatus(who, MalformedDatum[], KindCounts(), KindCounts(),
+                                         nothing, nothing)
+
+hand_status(device::WriterStatus; pacer = PacerStatus(nothing)) =
+    FrameworkStatus([device, quiet_record("harness"), quiet_record("loop")], pacer)
+
+const QUIET_STATUS = """
+FrameworkStatus: 3 writers, no occurrences, unpaced
+  device 1 (Parser): running, heartbeat 1.0e9, no occurrences
+  harness: no occurrences
+  loop: no occurrences
+  pacer: unpaced, debt 0.0 s, peak 0.0 s, no overruns, no reanchors, 0.0 s forgiven, no waits, 0.0 s waited"""
+
 const MULTIRATE_STRUCTURE = """
 Structure: 4 components, 1 anchor, 1 rate scope; root inputs: none
   components:
@@ -188,10 +217,73 @@ function test_show()
                        "  grid: no constraint\n  warnings: none", text)
     end
 
+    @testset "the status's compact form is one line with the counts (§11.8, D-257)" begin
+        @test compact(hand_status(malformed_record(0, 0, 0))) ==
+              "FrameworkStatus(3 writers, no occurrences, unpaced)"
+        @test compact(hand_status(malformed_record(21, 16, 5))) ==
+              "FrameworkStatus(3 writers, 21 occurrences, unpaced)"
+        paced = hand_status(malformed_record(0, 0, 0);
+                            pacer = PacerStatus(2.0, 0.0, 0.0, 0, 0, 0.0, 3, 0.25))
+        @test compact(paced) == "FrameworkStatus(3 writers, no occurrences, pace = 2.0)"
+        for x in (hand_status(malformed_record(21, 16, 5)), paced)
+            @test !occursin('\n', compact(x))
+            @test repr(x) == compact(x)
+        end
+    end
+
+    @testset "the status renders each writer, the pacer's line last (§11.8, §10.7)" begin
+        # A quiet status: every writer's heading says so, and the device's alone
+        # carries a task state and a heartbeat, the raw value and no verdict.
+        @test plain(hand_status(malformed_record(0, 0, 0))) == QUIET_STATUS
+        paced = hand_status(malformed_record(0, 0, 0);
+                            pacer = PacerStatus(2.0, 0.5, 0.75, 1, 1, 0.5, 3, 0.25))
+        @test last(split(plain(paced), '\n')) ==
+              "  pacer: pace = 2.0, debt 0.5 s, peak 0.75 s, 1 overrun, 1 reanchor, " *
+              "0.5 s forgiven, 3 waits, 0.25 s waited"
+
+        # Under the cap, the kind's count line and every retained occurrence.
+        lines = split(plain(hand_status(malformed_record(3, 3, 0))), '\n')
+        @test lines[2] == "  device 1 (Parser): running, heartbeat 1.0e9"
+        @test lines[3] == "    MalformedDatum: 3 occurrences"
+        @test lines[4:6] == ["      " * logline(MalformedDatum("datum $k")) for k in 1:3]
+        @test lines[7] == "  harness: no occurrences"
+    end
+
+    @testset "a writer × kind prints in full up to 25 occurrences, then count-only (§11.8, D-136)" begin
+        @test STATUS_MAXLOG == 25
+        # Total 30 with ten retained and none suppressed: occurrences 21–30 are
+        # this boundary's, and the first five of them fill the cap.
+        lines = split(plain(hand_status(malformed_record(30, 10, 0))), '\n')
+        @test lines[3] == "    MalformedDatum: 30 occurrences"
+        @test lines[4:8] == ["      " * logline(MalformedDatum("datum $k")) for k in 21:25]
+        @test lines[9] == "  harness: no occurrences"
+
+        # Far past the cap: the count line and this boundary's suppressed count
+        # alone, no occurrence printed.
+        lines = split(plain(hand_status(malformed_record(1482, 16, 100))), '\n')
+        @test lines[3:5] == ["    MalformedDatum: 1482 occurrences",
+                             "      100 suppressed this boundary",
+                             "  harness: no occurrences"]
+
+        # A live status renders the same way: the occurrence in full on the
+        # snapshot whose delta carries it, its count line on every later one.
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        handle = attach!(sim, Pad("p"), Enumerated("a"))
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        report!(handle, MalformedDatum("one"))       # folded at frame 1's top
+        run!(sim; t_end = 0.5)
+        first_frame, final = plain(logged(sim)[2].status), plain(latest(sim).status)
+        rendered = logline(MalformedDatum("one"))
+        @test occursin("\n    MalformedDatum: 1 occurrence\n      $rendered\n", first_frame)
+        @test occursin("\n    MalformedDatum: 1 occurrence\n", final) && !occursin(rendered, final)
+    end
+
     @testset "every REPL form ends without a newline and carries no trailing whitespace (D-257)" begin
         for x in (multirate.structure, multirate.outputs, multirate.events, deployed.schedule,
                   multirate, deployed, pendulum.structure, pendulum_deployed.schedule, pendulum,
-                  pendulum_deployed, group.schedule, group, build(Motor(1.0)).events)
+                  pendulum_deployed, group.schedule, group, build(Motor(1.0)).events,
+                  hand_status(malformed_record(0, 0, 0)), hand_status(malformed_record(30, 10, 0)),
+                  hand_status(malformed_record(1482, 16, 100)))
             text = plain(x)
             @test !endswith(text, '\n')
             @test all(line == rstrip(line) for line in split(text, '\n'))
