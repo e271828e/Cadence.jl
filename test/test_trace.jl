@@ -476,6 +476,21 @@ function trace_replay_loop()
         @test same_trajectory(logged(raw), logged(sim))
     end
 
+    @testset "replay! paces, bit-identical to the unpaced replay (§12.7, §10.7)" begin
+        (sim, trc) = recorded_run()
+        unpaced = replay_twin()
+        replay!(unpaced, trc)
+        paced = replay_twin()
+        start = time_ns()
+        replay!(paced, trc; pace = 10)                 # 10 ms budgets at h = 0.1
+        elapsed = (time_ns() - start) / 1.0e9
+        @test elapsed ≥ (trc.frames - 1) * 0.1 / 10     # the first frame has no wait (D-269)
+        @test pace(paced) == 10 && latest(paced).status.pacer.pace == 10
+        @test latest(paced).status.pacer.waits > 0
+        @test same_trajectory(logged(paced), logged(unpaced))
+        @test same_trajectory(logged(paced), logged(sim))
+    end
+
     @testset "a device's recorded batches replay on a deviceless twin (§12.7)" begin
         sim = Simulation(replay_model(); h = 1//10)
         attach!(sim, Nudge("rate", 3.0), Enumerated("rate"))

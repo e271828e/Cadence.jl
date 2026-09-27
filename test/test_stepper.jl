@@ -91,7 +91,7 @@ function test_stepper()
         init!(bouncer_sim; log = false)
         publish_bytes = @ballocated publish!($bouncer_sim)
         no_policy, no_addrs = StopPolicy(Inf, Symbol[]), Any[]   # the advance's arguments (D-260, D-261)
-        @test @ballocated(frame!($bouncer_sim, 1, $no_policy, $no_addrs), setup = (init!($bouncer_sim; log = false)), evals = 1) == publish_bytes
+        @test @ballocated(frame!($bouncer_sim, 1, $no_policy, $no_addrs, nothing), setup = (init!($bouncer_sim; log = false)), evals = 1) == publish_bytes
     end
 
     @testset "the second backend is generic over the scalar (§7.2)" begin

@@ -224,6 +224,28 @@ function interrupt_parked(task, waited_on)
     true
 end
 
+# A `Staller` under the root input `in`, its paced loop compiled by a short
+# fast-paced run and then re-initialized, so a pacing test measures the wait and
+# never the JIT (§10.7). Staging `in` afterwards arms the stall for frame 1.
+function warm_staller()
+    sim = Simulation(fed(Staller(), "stall"); h = 1//100)
+    init!(sim, fragment(inputs = (in = 0.0,)))
+    run!(sim; t_end = 0.03, pace = 1.0e6)
+    init!(sim, fragment(inputs = (in = 0.0,)))
+    sim
+end
+
+# Wall seconds `run!` takes under the keywords given.
+timed_run!(sim; kw...) = (start = time_ns(); run!(sim; kw...); (time_ns() - start) / 1.0e9)
+
+# The `DebtReanchor`s the loop's own records carried across a run's snapshots.
+loop_reanchors(sim) =
+    [d for snapshot in logged(sim) for d in writer_status(snapshot, "loop").recent
+     if d isa DebtReanchor]
+
+# One round of the pacing knobs, each read back after its write.
+knob_round(sim) = (pace!(sim, 2.0); margin!(sim, 0.01); (pace(sim), margin(sim)))
+
 function test_devices()
     @testset "a device stages through its handle from its own task, and departure consults should_abort (§11.6, §12.4)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
@@ -448,6 +470,177 @@ function test_devices()
         stage!(sim, "in" => true)                # armed: frame 1 throws (§13.6)
         @test_throws StepError step!(sim; t_end = 5.0)
         @test lifecycle(sim) === :errored && pause_round(sim) == (true, false)
+    end
+
+    @testset "paced and unpaced runs are bit-identical (§10.7)" begin
+        runs = map((Inf, 50)) do p
+            sim = Simulation(feedback_model(); h = 1//100)
+            init!(sim, fragment(inputs = (ref = 1.0,)))
+            stage!(sim, "ref" => 2.0)            # a traced batch, so the traces carry one
+            run!(sim; t_end = 0.2, pace = p)     # twenty frames
+            sim
+        end
+        (unpaced, paced) = runs
+        @test latest(paced).status.pacer.pace == 50 && latest(paced).status.pacer.waits > 0
+        @test same_trajectory(logged(paced), logged(unpaced))
+        @test trace(paced).frames == trace(unpaced).frames == 20
+        @test trace(paced).batches == trace(unpaced).batches
+    end
+
+    @testset "the deadline law's long-run rate: every frame after the anchor waits for its deadline (§10.7)" begin
+        sim = warm_staller()
+        elapsed = timed_run!(sim; t_end = 0.05, pace = 0.5)   # five frames, 20 ms apiece
+        record = latest(sim).status.pacer
+        @test elapsed ≥ 4 * 0.01 / 0.5           # the first frame has no wait (D-269)
+        @test record.waits == 4 && record.waited > 0
+        @test record.pace == 0.5
+    end
+
+    @testset "pace = Inf is pacer-off: no deadline, no debt, no warning however long a frame stalls (§10.7)" begin
+        sim = warm_staller()
+        stage!(sim, "in" => 0.06)                # past five 10 ms budgets at pace 1
+        run!(sim; t_end = 0.1)
+        @test all(snapshot.status.pacer === PacerStatus(nothing) for snapshot in logged(sim))
+        @test latest(sim).status.pacer.pace == Inf
+        @test isempty(loop_reanchors(sim))
+        @test writer_status(latest(sim), "loop").totals.reanchor == 0
+    end
+
+    @testset "an overrun leaves debt that later frames repay (§10.7)" begin
+        sim = warm_staller()
+        stage!(sim, "in" => 0.03)                # frame 1 stalls 30 ms against a 10 ms budget
+        run!(sim; t_end = 0.21, pace = 1)        # then twenty quiet frames
+        record = latest(sim).status.pacer
+        @test record.overruns ≥ 1 && record.peak_debt ≥ 0.019
+        @test record.debt < record.peak_debt     # repaid, not forgiven
+        @test record.reanchors == 0 && record.forgiven == 0
+        @test writer_status(latest(sim), "loop").totals.reanchor == 0
+    end
+
+    @testset "debt past five budgets is forgiven by a re-anchor and a warning (§10.7, §11.8)" begin
+        sim = warm_staller()
+        stage!(sim, "in" => 0.1)                 # frame 1 stalls 100 ms against a 10 ms budget
+        run!(sim; t_end = 0.1, pace = 1)
+        record = latest(sim).status.pacer
+        warning = only(loop_reanchors(sim))
+        @test writer_status(latest(sim), "loop").totals.reanchor == 1
+        @test warning.forgiven > 0.05 && warning.t == 0.01   # the frame top that saw it
+        @test record.reanchors ≥ 1 && record.forgiven ≥ warning.forgiven
+        @test record.waits > 0                   # the remaining frames wait normally
+    end
+
+    @testset "a live pace! re-anchors and applies forward (§10.7, §12.1)" begin
+        sim = warm_staller()
+        attach!(sim, TailProbe(), NoClaim())    # the loop yields every frame (§12.2)
+        task = Threads.@spawn run!(sim; t_end = 1.0e6, pace = 1)
+        started = timedwait(() -> latest(sim).frame ≥ 2, 10.0; pollint = 0.001) === :ok
+        pace!(sim, 100)
+        landed = timedwait(() -> latest(sim).status.pacer.pace == 100, 10.0; pollint = 0.001) === :ok
+        stop!(sim)
+        wait(task)
+        @test started && landed
+        @test latest(sim).status.pacer.reanchors ≥ 1
+        @test pace(sim) == 100 && latest(sim).status.pacer.pace == 100
+        @test termination(sim).source === ControlRequestedStop(:code)
+    end
+
+    @testset "un-pause re-anchors and clears the debt (§10.7, §12.1)" begin
+        sim = warm_staller()
+        attach!(sim, TailProbe(), NoClaim())
+        task = Threads.@spawn run!(sim; t_end = 1.0e6, pace = 1)
+        started = timedwait(() -> latest(sim).frame ≥ 2, 10.0; pollint = 0.001) === :ok
+        pause!(sim)
+        parked = timedwait(() -> parked_in(task, sim.control.wake), 10.0; pollint = 0.001) === :ok
+        before = latest(sim)                     # the parked frame top's last publication
+        resume!(sim)
+        advanced = timedwait(() -> latest(sim).frame > before.frame, 10.0; pollint = 0.001) === :ok
+        stop!(sim)
+        wait(task)
+        after = first(snapshot for snapshot in logged(sim) if snapshot.frame == before.frame + 1)
+        @test started && parked && advanced
+        @test after.status.pacer.reanchors == before.status.pacer.reanchors + 1
+        @test after.status.pacer.debt == 0
+    end
+
+    @testset "a stop issued during a wait lands at the next frame top (§12.1, D-269)" begin
+        sim = warm_staller()
+        attach!(sim, TailProbe(), NoClaim())
+        task = Threads.@spawn run!(sim; t_end = 1.0e6, pace = 0.1)   # 100 ms budgets
+        started = timedwait(() -> latest(sim).frame ≥ 1, 10.0; pollint = 0.001) === :ok
+        seen = latest(sim).frame
+        stop!(sim)
+        wait(task)
+        @test started
+        @test lifecycle(sim) === :stopped
+        @test termination(sim).source === ControlRequestedStop(:code)
+        @test latest(sim).frame ≤ seen + 1       # at most the frame the wait held
+    end
+
+    @testset "margin tunes the wait, never the arithmetic (§10.7, §12.1)" begin
+        sim = warm_staller()
+        logs = map((Inf, 0.0)) do seconds           # pure spin, then pure sleep
+            init!(sim, fragment(inputs = (in = 0.0,)))
+            @test timed_run!(sim; t_end = 0.05, pace = 1, margin = seconds) ≥ 4 * 0.01
+            @test margin(sim) == seconds
+            logged(sim)
+        end
+        @test same_trajectory(logs[1], logs[2])
+
+        # retuned mid-run: legal, and no re-anchor
+        init!(sim, fragment(inputs = (in = 0.0,)))
+        attach!(sim, TailProbe(), NoClaim())
+        task = Threads.@spawn run!(sim; t_end = 1.0e6, pace = 1)
+        started = timedwait(() -> latest(sim).frame ≥ 2, 10.0; pollint = 0.001) === :ok
+        margin!(sim, 0.0)
+        frame = latest(sim).frame
+        advanced = timedwait(() -> latest(sim).frame ≥ frame + 2, 10.0; pollint = 0.001) === :ok
+        margin!(sim, Inf)
+        stop!(sim)
+        wait(task)
+        @test started && advanced
+        @test margin(sim) == Inf
+        @test latest(sim).status.pacer.reanchors == 0
+    end
+
+    @testset "step! never waits, whatever pace the control plane holds (§12.6, D-269)" begin
+        sim = warm_staller()
+        pace!(sim, 1.0e-3)                       # a 10 s budget, were step! paced
+        @test step!(sim; frames = 3) == 3
+        @test pace(sim) == 1.0e-3
+        @test all(snapshot.status.pacer === PacerStatus(nothing) for snapshot in logged(sim))
+    end
+
+    @testset "the pacing keywords and verbs validate, and every lifecycle state admits the verbs (§12.1, D-269)" begin
+        sim = Simulation(fed(Exploder(), "arm"); h = 1//10)
+        @test (pace(sim), margin(sim)) == (Inf, 0.002)   # the control plane's defaults
+        @test lifecycle(sim) === :built && knob_round(sim) == (2.0, 0.01)
+        init!(sim, fragment(inputs = (in = false,)))
+        @test lifecycle(sim) === :initialized && knob_round(sim) == (2.0, 0.01)
+        step!(sim; frames = 2)
+        trc = trace(sim)
+        refusals = Any[(:pace, p) for p in (0, -1, NaN, "1")]
+        push!(refusals, (:margin, -1))
+        target = Simulation(fed(Exploder(), "arm"); h = 1//10)
+        for (argument, value) in refusals
+            calls = ((:run!, () -> run!(sim; t_end = 0.2, argument => value)),
+                     (:replay!, () -> replay!(target, trc; argument => value)),
+                     argument === :pace ? (:pace!, () -> pace!(sim, value)) :
+                                          (:margin!, () -> margin!(sim, value)))
+            for (call, attempt) in calls
+                d = carried(@test_throws DiagnosticError{ArgumentInvalid} attempt())
+                @test d.call === call && d.reason === :range
+                @test d.argument === argument && isequal(d.value, value)
+            end
+        end
+        @test (pace(sim), margin(sim)) == (2.0, 0.01)    # every refusal precedes the write
+        @test lifecycle(sim) === :initialized && lifecycle(target) === :built
+        @test pace!(sim, Inf) === nothing && margin!(sim, Inf) === nothing   # Inf admitted by both
+        step!(sim; frames = 1, t_end = 0.1)
+        @test lifecycle(sim) === :stopped && knob_round(sim) == (2.0, 0.01)
+        init!(sim, fragment(inputs = (in = false,)))
+        stage!(sim, "in" => true)                # armed: frame 1 throws (§13.6)
+        @test_throws StepError step!(sim; t_end = 5.0)
+        @test lifecycle(sim) === :errored && knob_round(sim) == (2.0, 0.01)
     end
 
     @testset "a crash is caught, shutdown! runs, the run continues, claims persist (§12.4(6))" begin

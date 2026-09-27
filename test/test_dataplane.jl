@@ -130,6 +130,20 @@ function dataplane_exchange()
         @test latest(offtick_sim).frame == 1
     end
 
+    @testset "every snapshot's status carries the pacer's record, Inf and zeros where no pacer runs (§10.7, §11.8)" begin
+        idle = PacerStatus(Inf, 0.0, 0.0, 0, 0, 0.0, 0, 0.0)
+        sim = Simulation(chain3(); h = 1//100)
+        init!(sim, fragment(inputs = (u = 1.0,)))
+        @test latest(sim).status.pacer === idle          # boundary zero runs no pacer
+        step!(sim; frames = 3)                            # nor does step! (D-269)
+        @test all(snapshot.status.pacer === idle for snapshot in logged(sim))
+        run!(sim; t_end = 0.06, pace = 100)               # three more frames, paced
+        paced = logged(sim)[end-2:end]
+        @test all(snapshot.status.pacer isa PacerStatus for snapshot in logged(sim))
+        @test all(snapshot.status.pacer.pace == 100 for snapshot in paced)
+        @test isbitstype(PacerStatus)                     # the copy is the read
+    end
+
     @testset "the exchange is wait-free and coherent: no reader ever sees a torn world (§11.2)" begin
         sim = Simulation(chain3(); h = 1//1000)
         init!(sim, fragment(inputs = (u = 1.0,)))

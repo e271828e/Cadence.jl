@@ -1816,7 +1816,7 @@ message(d::ConditionShapeDrift) =
 
 "§8.7, §11.6, §12.4, §12.6, §14.7, D-215: an argument outside its constraint — `DeploymentInvalid`'s twin off the deployment surface."
 Base.@kwdef struct ArgumentInvalid <: Diagnostic
-    call::Symbol                             # :Simulation|:init!|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:trim!|:trace|:TableBinding|:selector
+    call::Symbol                             # :Simulation|:init!|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:pace!|:margin!|:trim!|:trace|:TableBinding|:selector
     reason::Symbol
     argument::Union{Nothing,Symbol} = nothing
     value::Any = nothing
@@ -1898,6 +1898,12 @@ function message(d::ArgumentInvalid)
     d.argument === :log_max &&
         return "`log_max` must be an integer ≥ 1, or Inf as the explicit opt-out, got " *
                "$(repr(d.value)) (§11.2)"
+    d.argument === :pace &&
+        return "`pace` must be a positive real — simulated seconds per wall-clock second, " *
+               "Inf the pacer-off default — got $(repr(d.value)) (§10.7, §12.1)"
+    d.argument === :margin &&
+        return "`margin` must be a real ≥ 0 — the wait's spin share in seconds, 0 pure " *
+               "sleep and Inf pure spin — got $(repr(d.value)) (§10.7, §12.1)"
     d.argument === :t_end &&
         return "`t_end` must be a real ≥ 0 — the run's clock bound, taken to the nearest " *
                "frame top, Inf the unbounded default, got $(repr(d.value)) (§13.5)"

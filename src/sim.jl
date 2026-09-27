@@ -237,6 +237,16 @@ _t_bound(t_end, call::Symbol) = (t_end isa Real && t_end ≥ 0) ? Float64(t_end)
     throw(DiagnosticError(ArgumentInvalid(call = call, reason = :range,
                                           argument = :t_end, value = t_end)))
 
+# §12.1's two knobs (D-269), validated identically at the four calls that take
+# them, `run!`, `replay!`, `pace!` and `margin!`: the pace a positive real and
+# the margin a non-negative one, `Inf` admitted by both.
+_pace_value(p, call::Symbol) = (p isa Real && p > 0) ? Float64(p) :
+    throw(DiagnosticError(ArgumentInvalid(call = call, reason = :range,
+                                          argument = :pace, value = p)))
+_margin_value(m, call::Symbol) = (m isa Real && m ≥ 0) ? Float64(m) :
+    throw(DiagnosticError(ArgumentInvalid(call = call, reason = :range,
+                                          argument = :margin, value = m)))
+
 # Whole frames from the origin `t₀` until the grid boundary `t₀ + k·h` first
 # reaches the bound `t` (§12.4, §12.6), and its floor sibling, the last
 # boundary at or before `t`. Both carry a slack of a few ulps of `t` in frame
@@ -830,8 +840,8 @@ _compile_feed(sim::Simulation{Ts}, trc::Trace{Tt}) where {Ts,Tt} =
     throw(DiagnosticError(ReplayHeaderMismatch(what = :scalar, expected = Tt, found = Ts)))
 
 """
-    replay!(sim, trc; to_boundary = nothing, t_end = Inf, stop_on = (),
-            trace = true, log = true, log_every = 1, log_max = 65536)
+    replay!(sim, trc; to_boundary = nothing, pace = Inf, margin = 0.002, t_end = Inf,
+            stop_on = (), trace = true, log = true, log_every = 1, log_max = 65536)
     replay!(sim, trc; to_time)
 
 Re-drive a recorded session (§12.7) — **the ordinary loop with exactly two
@@ -864,7 +874,9 @@ tops floors onto the earlier one. The rounding is the deliberate opposite of
 positions an inspection, and the point of halting is to stand *before* the
 anomaly. `t_end`
 and `stop_on` bind for this replay exactly as at `run!`, `Inf` and no faces by
-default, the recording bounding an unbounded pair.
+default, the recording bounding an unbounded pair. `pace` and `margin` are
+`run!`'s too (§12.7, D-269): paced replay is session playback, bit-identical to
+the unpaced one.
 Budget exhausted, the replay ends
 **`initialized`**, never `stopped` (§12.7): boundary-consistent and ready to
 advance, which is what makes replay-to-inspect, replay-to-`k−1`-then-`step!`
@@ -900,8 +912,8 @@ boundary zero arrives as a `StepError` with pointer 0 and leaves the simulation
 `built`, `init!` and `replay!` legal again (§13.4, D-223).
 """
 function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
-                 to_time = nothing, t_end = Inf, stop_on = (), trace = true,
-                 log = true, log_every = 1, log_max = 65536) where {T}
+                 to_time = nothing, pace = Inf, margin = 0.002, t_end = Inf, stop_on = (),
+                 trace = true, log = true, log_every = 1, log_max = 65536) where {T}
     exec, control = sim.exec, sim.control
     lifecycle_state = @atomic control.lifecycle
     lifecycle_state === :running && throw(DiagnosticError(
@@ -909,6 +921,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     lifecycle_state === :errored && throw(DiagnosticError(
         ServiceLifecycle(op = :replay!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
     _check_recording(:replay!, trace, log, log_every, log_max)   # the run's keywords (D-261)
+    p, margin_seconds = _pace_value(pace, :replay!), _margin_value(margin, :replay!)   # D-269
     to_boundary === nothing || to_time === nothing ||     # two spellings of one halt (D-219)
         throw(DiagnosticError(ArgumentInvalid(call = :replay!, reason = :both_given)))
     # §13.4's pointer, in grid boundaries: whole and non-negative, and no further
@@ -969,6 +982,8 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     _host_boundary_zero!(sim)
     publish!(sim)                               # the boundary-zero snapshot (§11.2, §14.5)
     upto = to_boundary === nothing ? trc.frames : Int(to_boundary)
+    @atomic control.pace = p                    # the advance's knobs, written at entry (§12.1)
+    @atomic control.margin = margin_seconds
     _run_body!(sim, policy, addrs, upto, _t_end_frame(sim, policy.t_end))
     nothing
 end
@@ -1011,7 +1026,7 @@ function live!(sim::Simulation)
 end
 
 """
-    run!(sim; t_end = Inf, stop_on = ())
+    run!(sim; pace = Inf, margin = 0.002, t_end = Inf, stop_on = ())
 
 Advance one frame at a time, each frame §11.1's anatomy — drain, integrate,
 boundary sequence, publication — under §11.1's task topology and §12.4's
@@ -1061,9 +1076,22 @@ every publication is a stop-face sampling point (§13.5), a `t*` hit ending
 the run with the `t*` snapshot final. The grid is driven by the step counter,
 so the run ends at the first frame top reaching or exceeding `t_end`, whole
 frames from `t₀` (§12.4).
+
+`pace` and `margin` are §10.7's two knobs, validated per call and written to
+the control plane at entry, where `pace!` and `margin!` retune them live
+(§12.1, D-269). `pace = Inf`, the default, is pacer-off: no frame waits.
+Under a finite pace the run creates its pacer, anchors it as the loop starts
+and waits at each frame top, after the control plane is consulted, for the
+frame's deadline off the anchor; the frame after an anchor runs at once. An
+overrun leaves debt that later frames repay, and debt past five frames'
+budget is forgiven by a re-anchor and `DebtReanchor`, on the loop's own cell.
+The wait inserts wall time between frames and nothing else, so a paced run
+is bit-identical to an unpaced one; every snapshot's status carries the
+pacer's record.
 """
-function run!(sim::Simulation; t_end = Inf, stop_on = ())
+function run!(sim::Simulation; pace = Inf, margin = 0.002, t_end = Inf, stop_on = ())
     _assert_advanceable(sim, :run!)
+    p, margin_seconds = _pace_value(pace, :run!), _margin_value(margin, :run!)   # D-269
     (policy, addrs) = _bind_policy(sim, t_end, stop_on, :run!)   # this advance's, carried (D-260)
     # §13.5's advisory (D-255): a live run bounded by neither clock nor face
     # ends only by the operator interrupt, so the loop says so once, into its
@@ -1071,6 +1099,8 @@ function run!(sim::Simulation; t_end = Inf, stop_on = ())
     # warning would be false there.
     mode(sim) === :live && isinf(policy.t_end) && isempty(policy.faces) &&
         report_cell!(sim.plane.loop_diag, UnboundedRun(policy.t_end, copy(policy.faces)))
+    @atomic sim.control.pace = p                # the advance's knobs, written at entry (§12.1)
+    @atomic sim.control.margin = margin_seconds
     # a live run owes its end to a §13.5 source alone, so its frame budget is
     # unbounded here; in `:replay` the recording binds it (`_run_body!`, D-218)
     _run_body!(sim, policy, addrs, typemax(Int), _t_end_frame(sim, policy.t_end))
@@ -1107,6 +1137,8 @@ end
 # store, shared verbatim by `run!` and `replay!` because D-101's claim is that
 # replay *is* this loop. `addrs` is the policy's faces compiled, the loop's own
 # argument (D-261); `upto` is the frame budget, `t_end_frame` the `t_end` frame.
+# The pacer is created here, one per call, and handed to the loop as the policy
+# is (§10.7, §12.6, D-269).
 #
 # The terminal mapping is `step!`'s. `source === nothing` means the budget ran
 # out rather than a source firing, which only a bounded advance can reach — a
@@ -1126,6 +1158,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
     logged_cause = nothing                    # the cause and its backtrace, when not rethrown
     live, tasks = RosterEntry[], nothing      # the interrupt arm below reads both
     returned, tail_ran = false, false
+    pacer = Pacer()                           # this call's schedule and counters (D-269)
     try
         @atomic control.stop_issuer = nothing
         _reset_accounts!(sim)                 # §11.8: totals count since the run began
@@ -1136,7 +1169,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             tasks = _spawn!(live)
             _register_tasks!(plane, live, tasks)
             try
-                source = _advance!(sim, policy, addrs, upto, t_end_frame)[1]
+                source = _advance!(sim, policy, addrs, upto, t_end_frame, pacer)[1]
                 returned = true
             finally
                 _finish!(sim)                 # tail (1)–(2), even off a loop-side throw
@@ -1151,7 +1184,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             plane.run_tasks[inline_entry.id] = current_task()   # the inline body's task (§11.1)
             inline_entry.handle.last_seen = control.counter
             loop_task = Threads.@spawn try
-                _advance!(sim, policy, addrs, upto, t_end_frame)[1]
+                _advance!(sim, policy, addrs, upto, t_end_frame, pacer)[1]
             finally
                 _finish!(sim)                 # the spawned loop wakes the inline body too
             end
@@ -1261,44 +1294,56 @@ _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{T
 # stop issued while paused ends the run with no further frame (§12.1, D-268).
 # With devices rostered every frame yields at least once (§12.2, the unpaced
 # case): the explicit yield is the co-resident device tasks' scheduling slot.
+# The pacer (§10.7, D-269), `nothing` from `step!`, which never waits, is
+# anchored as the loop starts, re-anchored when the pause block parked (the
+# un-pause clears its debt), and waits after the yield for the frame's
+# deadline, the coarse phase's `sleep` a further unmask point. It reads the
+# control plane at frame top alone, so a stop or pause issued during its wait
+# lands at the next frame top.
 #
 # §12.4's mask (D-268): delivery is deferred from the drain through the
 # frame's last publication, the frame's `try` inside the mask, so an operator
 # interrupt never lands mid-boundary. The unmask points are the mask's end,
 # after the frame counted and its face was read, and the unmasked frame top,
-# the pause block and the yield among them; one `try` per iteration holds
-# both, entered unmasked. Caught there, the interrupt yields to a face the
-# publication found holding (§13.5's order) and otherwise sets the
-# `:interrupt` stop. A frame that throws wraps its cause still masked, then
+# the pause block, the yield and the pacer's wait among them; one `try` per
+# iteration holds both, entered unmasked. Caught there, the interrupt yields
+# to a face the publication found holding (§13.5's order) and otherwise sets
+# the `:interrupt` stop. A frame that throws wraps its cause still masked, then
 # unmasks: its throw is the disposition, a pending interrupt is consumed, and
 # the run ends `errored` (§12.4, §13.4). Every `try` exit, normal or not,
 # restores the sigatomic count its entry saw, so the mask's two ends sit
 # outside the frame's `try`.
 function _advance!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto::Int,
-                   t_end_frame::Int)
-    plane, control = sim.plane, sim.control
+                   t_end_frame::Int, pacer::Union{Nothing,Pacer})
+    plane, control, clock = sim.plane, sim.control, sim.exec.clock
     N_base = sim.deployment.N_base
+    h = sim.deployment.h
     advanced = 0
     face = _stop_hit(sim, policy, addrs)
     face === nothing || return (ModelRequestedStop(face), advanced)
+    pacer === nothing || anchor!(pacer, _seconds(clock.t), @atomic control.pace)   # the run's first
     while true
         failure = nothing                     # the failed frame's `StepError`, once built
         try
-            wait_resume!(control)             # the pause block: an unmask point (§12.4)
+            parked = wait_resume!(control)    # the pause block: an unmask point (§12.4)
+            pacer === nothing || !parked || isinf(pacer.pace) ||   # un-pause re-anchors (§10.7)
+                reanchor!(pacer, _seconds(clock.t), @atomic control.pace)
             issuer = @atomic control.stop_issuer
             issuer === nothing || return (ControlRequestedStop(issuer), advanced)
             sim.exec.clock.step < t_end_frame || return (EndTimeReached(), advanced)
             sim.exec.clock.step < upto || return (nothing, advanced)
             isempty(plane.roster) || yield()
+            pacer === nothing ||              # the pacer's wait: an unmask point (§12.4)
+                wait_deadline!(control, pacer, plane.loop_diag, _seconds(clock.t), h)
             entry_boundary = sim.exec.clock.step   # the frame-entry boundary index (§13.4)
             Base.sigatomic_begin()                 # §12.4: masked across the boundary sequence
             try
                 drain!(sim)
                 k = (sim.exec.clock.step += 1)
-                hit = frame!(sim, k, policy, addrs)
+                hit = frame!(sim, k, policy, addrs, pacer)
                 if hit === nothing
                     k % N_base == 0 ? boundary!(sim, k ÷ N_base) : offtick_boundary!(sim)
-                    publish!(sim)
+                    publish!(sim, pacer)
                     face = _stop_hit(sim, policy, addrs)
                 else
                     face = hit    # a t* publication hit (§13.5): that snapshot is final
@@ -1451,6 +1496,8 @@ return the number of frames **actually advanced**. A stepped simulation is
 bit-identical to the same frames under `run!`: the two entries share the one
 frame loop. `t_plus` is the duration spelling, mutually exclusive with
 `frames`: whole frames until the boundary time first covers the duration.
+`step!` never waits, whatever pace the control plane holds: it runs no pacer,
+and its snapshots' pacer record reads `Inf` and zeros (§12.6, D-269).
 
 A stepping session is deviceless by construction (§12.6): no task is spawned
 and no bracket runs — device tasks are per-`run!` artifacts — while the
@@ -1505,7 +1552,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         # end advances only to the last recorded frame and returns fewer frames
         # than asked — the truncation the caller reads (D-218)
         upto = _replay_bound(sim, sim.exec.clock.step + frame_count)
-        (source, advanced) = _advance!(sim, policy, addrs, upto, t_end_frame)
+        (source, advanced) = _advance!(sim, policy, addrs, upto, t_end_frame, nothing)
         returned = true
     catch err
         if err isa InterruptException
@@ -1591,6 +1638,44 @@ end
 Read §12.1's pause flag, legal in every lifecycle state (D-268).
 """
 paused(sim::Simulation) = @atomic sim.control.paused
+
+"""
+    pace!(sim, p)
+
+Set §10.7's pace `p`, simulated seconds per wall-clock second, from any task
+and in any lifecycle state (§12.1, D-269): a positive real, `Inf` being
+pacer-off, anything else refused under `ArgumentInvalid`. The loop reads it at
+frame top, re-anchors and applies it forward, so a change issued during a
+frame's wait lands at the next frame top. `run!` and `replay!` write their own
+`pace` keyword at entry; `step!` never waits, whatever it holds.
+"""
+pace!(sim::Simulation, p) = (@atomic sim.control.pace = _pace_value(p, :pace!); nothing)
+
+"""
+    margin!(sim, m)
+
+Set §10.7's `margin`, the seconds of each wait spent spinning rather than
+sleeping, from any task and in any lifecycle state (§12.1, D-269): a
+non-negative real, `0` pure sleep and `Inf` pure spin, anything else refused
+under `ArgumentInvalid`. It tunes the wait, never the arithmetic, so a change
+mid-run re-anchors nothing.
+"""
+margin!(sim::Simulation, m) =
+    (@atomic sim.control.margin = _margin_value(m, :margin!); nothing)
+
+"""
+    pace(sim) -> Float64
+
+Read §10.7's pace off the control plane, legal in every lifecycle state (D-269).
+"""
+pace(sim::Simulation) = @atomic sim.control.pace
+
+"""
+    margin(sim) -> Float64
+
+Read §10.7's `margin` off the control plane, legal in every lifecycle state (D-269).
+"""
+margin(sim::Simulation) = @atomic sim.control.margin
 
 # --- the roster (§11.3): stopped-sim configuration -----------------------------
 
@@ -1873,11 +1958,11 @@ the new count finds at least this boundary in `latest`. The snapshot's
 ordinal is the trajectory's, off the clock (D-230); the counter is the wait
 predicate's alone.
 """
-function publish!(sim::Simulation)
+function publish!(sim::Simulation, pacer::Union{Nothing,Pacer} = nothing)
     control = sim.control
     clock = sim.exec.clock
     snapshot = Snapshot(clock.t, clock.step, clock.boundary, capture_stores(sim.exec.store),
-                        sim.exec.act.layout, _status(sim))
+                        sim.exec.act.layout, _status(sim, pacer))
     clock.boundary += 1
     @atomic :release sim.plane.published.latest = snapshot
     log!(sim.run.log, snapshot)
@@ -1905,8 +1990,9 @@ end
 
 # The status assembly (§11.8, §11.2), on the publishing task: per-writer
 # records in the drain's order — devices in attachment order, then the
-# harness writer, then the loop itself.
-function _status(sim::Simulation)
+# harness writer, then the loop itself — and the pacer's record beside them,
+# `Inf` and zeros where no pacer runs (§10.7).
+function _status(sim::Simulation, pacer::Union{Nothing,Pacer})
     plane = sim.plane
     statuses = Vector{WriterStatus}(undef, length(plane.roster) + 2)
     for (i, entry) in enumerate(plane.roster)
@@ -1916,7 +2002,7 @@ function _status(sim::Simulation)
     end
     statuses[end-1] = _writer_status("harness", plane.harness_account, nothing, nothing)
     statuses[end] = _writer_status("loop", sim.plane.loop_account, nothing, nothing)
-    FrameworkStatus(statuses)
+    FrameworkStatus(statuses, PacerStatus(pacer))
 end
 
 """

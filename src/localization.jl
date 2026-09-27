@@ -9,7 +9,8 @@
 # Frame ≠ boundary (§10.4): the frame `[tₙ, tₙ₊₁]` is the unit of scheduling —
 # tick eligibility keys to it, and `t*` is never a tick — while a boundary is a
 # published consistency point. Every `t*` produced here is a boundary that is
-# not a frame top.
+# not a frame top, and its publication carries the run's pacer record as the
+# frame top's does (§10.7).
 
 """Frame top `k`, computed from the index and `t₀` — never accumulated (§10.4).
 The origin and the stride are both `Float64`, so the top is one too, and the
@@ -17,7 +18,7 @@ clock write below converts it into the deployment's scalar (D-260)."""
 _grid_time(sim::Simulation, k::Int) = sim.exec.clock.t₀ + k * sim.deployment.h
 
 """
-    frame!(sim, k, policy, addrs)
+    frame!(sim, k, policy, addrs, pacer)
 
 Advance through the frame `[tₖ₋₁, tₖ]`, leaving the clock at the indexed frame
 top with the state and table at their arrival values — the frame-top boundary
@@ -29,10 +30,13 @@ remainder was abandoned, so the clock stays at `t*` — where the stores are —
 and the frame top is never stamped. Returns the holding face then, `nothing`
 otherwise (D-261). `policy` is the advance's stop policy and `addrs` its faces'
 compiled addresses, carried here for exactly that sampling read (D-260, D-261).
+`pacer` is the run's, `nothing` under `step!`, carried to the `t*`
+publication for its record (§10.7, D-269).
 """
-function frame!(sim::Simulation{T}, k::Int, policy::StopPolicy, addrs::Vector{Any}) where {T}
+function frame!(sim::Simulation{T}, k::Int, policy::StopPolicy, addrs::Vector{Any},
+                pacer::Union{Nothing,Pacer}) where {T}
     t_to = _grid_time(sim, k)
-    hit = sim.exec.has_localized ? _localized_frame!(sim, t_to, policy, addrs) :
+    hit = sim.exec.has_localized ? _localized_frame!(sim, t_to, policy, addrs, pacer) :
                                    (step!(sim, T(sim.deployment.h)); nothing)
     hit === nothing && (sim.exec.clock.t = t_to)
     hit
@@ -45,7 +49,8 @@ end
 # are already structurally bounded (at most one per declared event), while the
 # segment count is the quantity chattering inflates without bound. Returns
 # `nothing` at the frame top and the holding face at a `t*` stop (D-261).
-function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::Vector{Any}) where {T}
+function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::Vector{Any},
+                           pacer::Union{Nothing,Pacer}) where {T}
     events, cursor = sim.exec.events, sim.exec.cursor
     n_events = length(events.prior)
     (x₀, _) = startpoint(sim.exec.stepper)         # the seam's retained pair (§10.2):
@@ -153,7 +158,7 @@ function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::
         dense!(sim.exec.stepper, sim.exec.xbuf, sim.exec.xnext, sim.exec.ẋnext, θ★, h′)
         sim.exec.clock.t = t_seg + θ★ * h′
         offtick_boundary!(sim)
-        publish!(sim)
+        publish!(sim, pacer)
 
         # Every publication is a stop-face sampling point (§13.5): a face
         # holding in the t* snapshot makes it the final one — the frame's

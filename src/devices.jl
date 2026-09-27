@@ -2,8 +2,9 @@
 # lifecycle slice: the handle every attached device receives, the authoring
 # contract's four functions, the framework wrapper around the author-owned
 # loop body, the pre-spawn init bracket and the tail. The control surface here
-# is §12.1's stop word and pause flag, §12.3's counter-plus-condition wait
-# and §12.6's lifecycle: pacing alone is absent (`pending.md`). A device
+# is §12.1's stop word, pause flag and the two pacing knobs, §12.3's
+# counter-plus-condition wait and §12.6's lifecycle; the pacer's wait sits
+# beside the pause block (§10.7, §12.2). A device
 # failure reports as `DeviceCrash` into the device's own diagnostic cell
 # (§11.8, §12.4); what the tail alone produces — the join timeout, and
 # whatever landed past the final frame top — is folded into the termination
@@ -65,6 +66,14 @@ counter is monotonic across runs and never re-armed: its absolute value is
 nowhere normative, and monotonicity keeps the predicate sound with no
 per-run reset.
 
+`pace` and `margin` are §10.7's two knobs (D-269): the pace `p`, `Inf` being
+pacer-off rather than a limit value, and the wait's coarse/spin split in
+seconds, 2 ms by default. `pace!(sim, p)` and `margin!(sim, m)` write them
+from any task in any lifecycle state, and `run!` and `replay!` write their
+keywords at entry. The loop reads them at frame top alone, `pace` for the
+anchor and both in the wait, so a change issued while a frame runs or waits
+lands at the next frame top; nothing notifies, since nothing waits on them.
+
 `join_timeout` is §12.4's shutdown cap in seconds, validated at
 materialization and fixed for the simulation's life: the tail runs here, so
 the parameter it waits under is `Control`'s (§12.1, D-256).
@@ -73,13 +82,15 @@ mutable struct Control
     @atomic stop_issuer::Union{Nothing,Symbol,String}
     @atomic stopped::Bool
     @atomic paused::Bool
+    @atomic pace::Float64     # §10.7's p; Inf is pacer-off, never a limit value
+    @atomic margin::Float64   # §10.7's one knob, seconds
     wake::Threads.Condition
     counter::Int
     @atomic lifecycle::Symbol
     join_timeout::Float64
 end
 Control(join_timeout::Float64) =
-    Control(nothing, true, false, Threads.Condition(), 0, :built, join_timeout)
+    Control(nothing, true, false, Inf, 0.002, Threads.Condition(), 0, :built, join_timeout)
 
 # The stop word's one write path (§12.1, D-203): first CAS from empty wins —
 # the same arbitration as the loop reacting to the first holding stop face —
@@ -98,19 +109,80 @@ function _request_stop!(control::Control, issuer::Union{Symbol,String})
 end
 
 # The pause block (§12.1): the loop parks here at frame top while the flag is
-# set and no stop is pending, woken by `resume!` or a stop request. An unmask
-# point (§12.4): an interrupt delivered inside the wait raises out of it, the
-# lock released.
+# set and no stop is pending, woken by `resume!` or a stop request. Returns
+# whether it parked, the un-pause being a re-anchor (§10.7). An unmask point
+# (§12.4): an interrupt delivered inside the wait raises out of it, the lock
+# released.
 function wait_resume!(control::Control)
-    (@atomic control.paused) || return nothing
+    (@atomic control.paused) || return false
+    parked = false
     lock(control.wake)
     try
         while (@atomic control.paused) && (@atomic control.stop_issuer) === nothing
+            parked = true
             wait(control.wake)
         end
     finally
         unlock(control.wake)
     end
+    parked
+end
+
+"τ(): the pacer's wall clock, monotonic, in seconds (§10.7)."
+_wall_now() = time_ns() / 1.0e9
+
+# §10.7's anchor: the map's reference pair set to `(t, τ())` under the pace
+# `p`, the debt cleared. The run's first is taken as its loop starts (D-269).
+function anchor!(pacer::Pacer, t::Float64, p::Float64)
+    pacer.pace = p
+    pacer.t_anchor = t
+    pacer.τ_anchor = _wall_now()
+    pacer.debt = 0.0
+    nothing
+end
+
+# Every anchor after the run's first: a pace change, an un-pause or the
+# forgiveness, the debt it clears counted as forgiven (§10.7, D-021).
+function reanchor!(pacer::Pacer, t::Float64, p::Float64)
+    pacer.forgiven += pacer.debt
+    pacer.reanchors += 1
+    anchor!(pacer, t, p)
+end
+
+# §10.7's wait, at the frame top after the yield and before the mask (D-269):
+# the deadline off the piecewise-affine map, an overrun left as debt and
+# forgiven past `5·h/p` with `DebtReanchor` on the loop's own cell, otherwise
+# the hybrid sleep-then-spin toward it. It reads the two knobs once each and
+# nothing else on the control plane: a stop or pause issued during it lands at
+# the next frame top. The frame after an anchor has no wait, its deadline
+# being the anchor itself. The `sleep` is the coarse phase's one primitive
+# (§12.2, D-027), task-yielding and an unmask point (§12.4); the spin never
+# yields.
+function wait_deadline!(control::Control, pacer::Pacer, loop_diag::DiagCell, t::Float64,
+                        h::Float64)
+    p = @atomic control.pace
+    isinf(p) && (pacer.pace = Inf; return nothing)      # pacer-off: no deadline, no debt (§10.7)
+    p == pacer.pace || reanchor!(pacer, t, p)           # a live pace change: forward only (D-021)
+    t == pacer.t_anchor && return nothing               # the anchor is this frame's deadline
+    deadline = pacer.τ_anchor + (t - pacer.t_anchor) / p
+    now = _wall_now()
+    if now > deadline                                   # an overrun: debt, no wait
+        pacer.debt = now - deadline
+        pacer.overruns += 1
+        pacer.peak_debt = max(pacer.peak_debt, pacer.debt)
+        if pacer.debt > 5 * h / p                       # forgiven: re-anchor plus warning
+            forgiven = pacer.debt
+            reanchor!(pacer, t, p)
+            report_cell!(loop_diag, DebtReanchor(forgiven, t, pacer.τ_anchor))
+        end
+        return nothing
+    end
+    pacer.debt = 0.0
+    remaining = deadline - (@atomic control.margin) - now
+    remaining > 0 && sleep(remaining)                   # the coarse phase: yields, an unmask point
+    while _wall_now() < deadline end                    # the spin phase: never yields (§12.2)
+    pacer.waits += 1
+    pacer.waited += _wall_now() - now
     nothing
 end
 

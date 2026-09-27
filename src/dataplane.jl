@@ -4,8 +4,8 @@
 # publication, plane 3, and the log riding behind it (§11.2). The cells'
 # owners — the roster's device entries and the harness writer beside them —
 # live in roster.jl, the device tasks that stage into them in devices.jl,
-# the trace the drain feeds in trace.jl; what stands further out in the spec —
-# the pacer diagnostics — is deliberately absent (`pending.md`).
+# the trace the drain feeds in trace.jl. The pacer's schedule and its frozen
+# record are here too (§10.7); its wait is devices.jl's.
 #
 # This file holds the types and the pure mechanics; the `Simulation`-facing
 # surface — `stage!`, `drain!`, `publish!`, `latest` — lives in sim.jl, beside
@@ -34,8 +34,8 @@ plain data — paths and names as strings and symbols, never component
 instances; the declared/observed *port* types are the payload exception, and
 they are small. Most are built here; `EmptyGreedyClaim` is declared with the
 service kinds (`diagnostics.jl`) and raised by `attach!` into the roster
-entry's own cell (§11.3, D-250), and the two whose features are absent —
-`DebtReanchor` and `ThreadBudget` — are absent altogether (`pending.md`).
+entry's own cell (§11.3, D-250), and `ThreadBudget`, whose feature is
+absent, is absent altogether (`pending.md`).
 Writer attribution is never a payload field: the channel is per-writer, so
 the cell supplies it (§11.8, §12.4: no call passes a device id).
 `DeviceJoinTimeout`'s `who` is not that attribution — it is the payload's
@@ -51,7 +51,8 @@ author's — only they know their parser — and any *other* exception
 propagates to the wrapper as the `DeviceCrash` it is. The rest are the
 framework's: the three staging kinds (§11.4 — the write-surface and entry
 violations, every check at staging), the two budget degradations (§10.4,
-§10.6, on the loop's own cell), and the device crash (§12.4, from the
+§10.6, on the loop's own cell), the pacer's forgiveness (§10.7, on the loop's
+own cell too), and the device crash (§12.4, from the
 wrapper on the device's task, or from the calling task at the init bracket).
 """
 struct MalformedDatum <: Diagnostic
@@ -97,6 +98,13 @@ struct FiringBudget <: Diagnostic
     t::Float64
     budget::Int
     count::Int
+end
+
+"§10.7's forgiveness: debt past `5·h/p` cleared by a re-anchor, on the loop's own cell."
+struct DebtReanchor <: Diagnostic
+    forgiven::Float64   # seconds of debt cleared
+    t::Float64          # the new anchor's boundary time
+    τ::Float64          # the new anchor's wall clock
 end
 
 """
@@ -146,7 +154,7 @@ end
 "The closed set as a union: what a ring holds, and what `report_cell!` admits."
 const DiagValue = Union{MalformedDatum,OutOfClaimEntry,ClaimedFaceEntry,
                         EntryTypeMismatch,ChatteringBudget,FiringBudget,
-                        UnboundedRun,DeviceCrash,DeviceJoinTimeout,
+                        DebtReanchor,UnboundedRun,DeviceCrash,DeviceJoinTimeout,
                         ReplayDiscardedStaging,EmptyGreedyClaim}
 
 # The ones declared here ride `src/diagnostics.jl`'s root so `severity` covers
@@ -161,6 +169,7 @@ severity(::ClaimedFaceEntry) = :warning
 severity(::EntryTypeMismatch) = :warning
 severity(::ChatteringBudget) = :warning
 severity(::FiringBudget) = :warning
+severity(::DebtReanchor) = :warning
 severity(::UnboundedRun) = :warning
 severity(::DeviceCrash) = :warning
 severity(::DeviceJoinTimeout) = :warning
@@ -188,6 +197,9 @@ message(d::ChatteringBudget) =
 message(d::FiringBudget) =
     "`$(d.path)`.$(d.event) exhausted its firing budget $(d.budget) at t = $(d.t) after " *
     "$(d.count) firings — its further edges at this boundary are lost (§10.6)"
+message(d::DebtReanchor) =
+    "the pacer forgave $(d.forgiven) s of debt past five frames' budget and re-anchored at " *
+    "t = $(d.t) (τ = $(d.τ)) rather than catch up in a burst (§10.7)"
 message(d::UnboundedRun) =
     "this `run!` declared `t_end = $(d.t_end)` and " *
     (isempty(d.stop_on) ? "no stop face" : "the stop faces $(_faceset(d.stop_on))") *
@@ -222,13 +234,14 @@ struct KindCounts
     type_mismatch::Int
     chattering::Int
     firing::Int
+    reanchor::Int
     unbounded::Int
     crash::Int
     join_timeout::Int
     replay_discarded::Int
     empty_greedy::Int
 end
-KindCounts() = KindCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+KindCounts() = KindCounts(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 _kind(::MalformedDatum)   = :malformed
 _kind(::OutOfClaimEntry)  = :out_of_claim
@@ -236,6 +249,7 @@ _kind(::ClaimedFaceEntry) = :claimed_face
 _kind(::EntryTypeMismatch) = :type_mismatch
 _kind(::ChatteringBudget) = :chattering
 _kind(::FiringBudget)     = :firing
+_kind(::DebtReanchor)     = :reanchor
 _kind(::UnboundedRun)     = :unbounded
 _kind(::DeviceCrash)      = :crash
 _kind(::DeviceJoinTimeout) = :join_timeout
@@ -385,15 +399,62 @@ struct WriterStatus
 end
 
 """
+§10.7's schedule and counters for one `run!` (D-269): the anchor pair and
+the pace it was set under, the debt, and the account the status freezes.
+Created by the run body, handed to the loop and to every publication as
+the stop policy is, never a field of anything.
+"""
+mutable struct Pacer
+    pace::Float64        # the pace the anchor was set under; Inf while no frame waits
+    t_anchor::Float64
+    τ_anchor::Float64
+    debt::Float64
+    peak_debt::Float64
+    overruns::Int
+    reanchors::Int
+    forgiven::Float64
+    waits::Int
+    waited::Float64
+end
+Pacer() = Pacer(Inf, 0.0, 0.0, 0.0, 0.0, 0, 0, 0.0, 0, 0.0)
+
+"""
+The pacer's record in the published framework status (§10.7, D-269): `pace`,
+the pace the loop's frames run under (`Inf` where no frame waits); `debt`
+and `peak_debt` in seconds; `overruns`, the frames that exceeded their
+budget; `reanchors`, every re-anchor after the run's first, and `forgiven`,
+the seconds of debt they cleared; `waits` and `waited`, the frames that
+waited and their total wall time. Isbits, so the copy is the read, as
+`KindCounts`. `step!` and boundary zero carry no pacer, and their record
+reads `Inf` and zeros.
+"""
+struct PacerStatus
+    pace::Float64
+    debt::Float64
+    peak_debt::Float64
+    overruns::Int
+    reanchors::Int
+    forgiven::Float64
+    waits::Int
+    waited::Float64
+end
+PacerStatus(pacer::Pacer) =
+    PacerStatus(pacer.pace, pacer.debt, pacer.peak_debt, pacer.overruns, pacer.reanchors,
+                pacer.forgiven, pacer.waits, pacer.waited)
+PacerStatus(::Nothing) = PacerStatus(Inf, 0.0, 0.0, 0, 0, 0.0, 0, 0.0)
+
+"""
 The published framework status (§11.8, §11.2): a concrete frozen value, never
 a window onto live bookkeeping — per-writer records in the drain's own order,
 each rostered device in attachment order, then the harness writer, then the
-loop itself. Built fresh in `publish!` and frozen into the snapshot; the
-binding rule holds because everything here is either immutable, a copy, or a
-vector the account has released.
+loop itself, and beside them the pacer's record (§10.7). Built fresh in
+`publish!` and frozen into the snapshot; the binding rule holds because
+everything here is either immutable, a copy, or a vector the account has
+released.
 """
 struct FrameworkStatus
     writers::Vector{WriterStatus}
+    pacer::PacerStatus
 end
 
 "§12.2's staleness threshold, in seconds of wall clock: advisory, a display rule, never a kill trigger."

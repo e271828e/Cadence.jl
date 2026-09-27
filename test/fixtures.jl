@@ -765,6 +765,31 @@ function x_derivative(c::SelfInterrupter, (; x, t))
 end
 
 """
+Staller: `q̇ = 1` whose RHS, at its first evaluation with its input `stall`
+positive, blocks its thread for that many seconds with `Libc.systemsleep` — a
+frame overrunning its pacing budget (§10.7). Armed by a staged root input, so
+the stall lands inside the frame whose drain applies it. One stall per
+instance.
+"""
+struct Staller <: AbstractComponent
+    fired::Base.RefValue{Bool}
+end
+Staller() = Staller(Ref(false))
+
+x_init(::Staller) = (q = 0.0,)
+u_types(::Staller) = (stall = Float64,)
+y_types(::Staller) = (q = Float64,)
+
+y_state(::Staller, (; x)) = (q = x.q,)
+function x_derivative(c::Staller, (; x, u))
+    if !c.fired[] && u.stall > 0
+        c.fired[] = true
+        Libc.systemsleep(u.stall)
+    end
+    (q = one(x.q),)
+end
+
+"""
 Diverger: `q̇ = 1` until armed, then `q̇ = NaN` — the model that blows up. Its
 `x_projection` refuses a nonfinite `q`, so a sweep running later than the integrate
 would be beaten by the projection; the declared default `q = 0` passes it, which
