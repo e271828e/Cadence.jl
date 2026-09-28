@@ -246,6 +246,25 @@ loop_reanchors(sim) =
 # One round of the pacing knobs, each read back after its write.
 knob_round(sim) = (pace!(sim, 2.0); margin!(sim, 0.01); (pace(sim), margin(sim)))
 
+# --- the panel kit (§11.7, D-270; increment 53) ----------------------------------
+# A two-level model whose ports resolve three ways: `ctl/e` to the root input
+# `in`, `inner/g/e` through `inner`'s face to `gain_in`, and `inner/c/u` to
+# `ctl`'s output across the wire.
+panel_model() = Group((; inner = Group((; c = Pendulum(), g = Gain(2.0));
+                                       inputs = ("u" => "c/u", "e" => "g/e"),
+                                       outputs = ("c/θ" => "θ",)),
+                         ctl = DiscreteIntegrator(1.0));
+                      wires = ("ctl/u" => "inner/u",),
+                      inputs = ("in" => "ctl/e", "gain_in" => "inner/e"))
+
+# One root input fanned out to two ports.
+fanned_gains() = Group((; a = Gain(1.0), b = Gain(1.0)); inputs = ("in" => ("a/e", "b/e"),))
+
+# The incumbent's record off the latest snapshot once its task has returned or
+# crashed, else `nothing`.
+orphan_record(sim, view) =
+    (record = incumbent_status(view, latest(sim)); orphaned(record) ? record : nothing)
+
 function test_devices()
     @testset "a device stages through its handle from its own task, and departure consults should_abort (§11.6, §12.4)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
@@ -988,5 +1007,150 @@ function test_devices()
             port(sim, "s", :e)
         end
         @test trajectories[1] === trajectories[2]
+    end
+
+    @testset "port views resolve every port across levels, and liveness follows the claim (§11.7)" begin
+        sim = Simulation(panel_model(); h = 1//10)
+        handle1 = attach!(sim, Pad("a"), Enumerated("in"))
+        alone_views = port_views(handle1)             # before the second claim exists
+        handle2 = attach!(sim, Pad("b"), Greedy())
+        views = port_views(handle1)
+        @test length(views) == 8
+        @test !haskey(views, ("", :in)) && !haskey(views, ("", :gain_in))
+        view = views[("ctl", :e)]
+        @test view.live && view.slot == 1 && view.source == ("", :in) &&
+              view.incumbent == "device 1 (Pad)"
+        view = views[("inner/g", :e)]
+        @test !view.live && view.slot == 0 && view.source == ("", :gain_in) &&
+              view.incumbent == "device 2 (Pad)"
+        view = views[("inner/c", :u)]
+        @test !view.live && view.slot == 0 && view.source == ("ctl", :u) && view.incumbent == ""
+        produced = [("ctl", :u), ("inner", :θ), ("inner/c", :θ), ("inner/c", :ω), ("inner/g", :out)]
+        @test all(k -> !views[k].live && views[k].source == k && views[k].incumbent == "", produced)
+        greedy_views = port_views(handle2)
+        @test greedy_views[("inner/g", :e)].live && greedy_views[("inner/g", :e)].slot == 1
+        @test greedy_views[("ctl", :e)].incumbent == "device 1 (Pad)"
+        # Baked before the second attach, the incumbent is the harness (D-270).
+        @test alone_views[("inner/g", :e)].incumbent == "harness"
+        # Fan-out: two ports on one root input share slot and address.
+        fan_sim = Simulation(fanned_gains(); h = 1//10)
+        fan_views = port_views(attach!(fan_sim, Pad("f"), Greedy()))
+        @test (fan_views[("a", :e)].slot, fan_views[("a", :e)].addr) ==
+              (fan_views[("b", :e)].slot, fan_views[("b", :e)].addr)
+    end
+
+    @testset "pending reads the cell without taking it, and the peek composes it with the snapshot (§11.7, §11.4)" begin
+        sim = Simulation(panel_model(); h = 1//10)
+        dev = Pad("a")
+        handle1 = attach!(sim, dev, Enumerated("in"))
+        handle2 = attach!(sim, Pad("b"), Greedy())
+        init!(sim, fragment(inputs = (in = 1.0, gain_in = 2.0)))
+        views = port_views(handle1)
+        @test pending(handle1, 1) === nothing
+        stage!(handle1, "in" => 3)                    # converted at staging
+        @test pending(handle1, 1) === Some(3.0)
+        @test (@atomic handle1.writer.cell.pending) !== nothing   # a read, never a take
+        @test pending(handle2, 1) === nothing         # another device's write is invisible
+        snapshot = latest(sim)
+        @test peek_port(views[("ctl", :e)], handle1, snapshot) === 3.0
+        @test port(snapshot, "", :in) === 1.0
+        @test peek_port(views[("inner/g", :e)], handle1, snapshot) === 2.0
+        @test peek_port(views[("inner/g", :out)], handle1, snapshot) === 4.0
+        stage!(handle1, "in" => 4.0)
+        @test pending(handle1, 1) === Some(4.0)       # newest wins
+        run!(sim; t_end = 0.3)
+        @test pending(handle1, 1) === nothing         # the drain took it
+        @test port(latest(sim), "", :in) === 4.0
+        detach!(sim, dev)
+        @test pending(handle1, 1) === nothing         # a read, legal on a retired handle
+    end
+
+    @testset "an edge widget counts multi-click through the pending peek (§11.7)" begin
+        sim = Simulation(panel_model(); h = 1//10)
+        handle = attach!(sim, Pad("a"), Enumerated("in"))
+        init!(sim, fragment(inputs = (in = 1.0, gain_in = 2.0)))
+        view = port_views(handle)[("ctl", :e)]
+        snapshot = latest(sim)
+        for _ in 1:3
+            stage!(handle, "in" => peek_port(view, handle, snapshot) + 1.0)
+        end
+        @test pending(handle, 1) === Some(4.0)
+        @test port(latest(sim), "", :in) === 1.0
+    end
+
+    @testset "a staged edit shows through the peek while paused, and through the snapshot after the un-pause drain (§11.7, §12.1)" begin
+        sim = Simulation(panel_model(); h = 1//10)
+        handle = attach!(sim, Pad("a"), Enumerated("in"))
+        init!(sim, fragment(inputs = (in = 1.0, gain_in = 2.0)))
+        view = port_views(handle)[("ctl", :e)]
+        loop_task = current_task()               # a rostered device keeps the loop here (§11.1)
+        observer = Threads.@spawn begin
+            timedwait(() -> latest(sim).frame > 0, 10.0)
+            pause!(sim)
+            parked = timedwait(() -> parked_in(loop_task, sim.control.wake), 10.0) === :ok
+            stage!(handle, "in" => 7.0)
+            peeked = peek_port(view, handle, latest(sim))
+            held_back = port(latest(sim), "", :in)
+            resume!(sim)
+            applied = timedwait(() -> port(latest(sim), "", :in) == 7.0, 10.0) === :ok
+            after = pending(handle, 1)
+            stop!(sim)
+            (parked, peeked, held_back, applied, after)
+        end
+        run!(sim; t_end = 1.0e6)
+        (parked, peeked, held_back, applied, after) = fetch(observer)
+        @test parked
+        @test peeked === 7.0
+        @test held_back === 1.0                  # the snapshot waits for the drain
+        @test applied
+        @test after === nothing
+    end
+
+    @testset "incumbent_status joins the view to the writer record, and orphaned reads the task state (§11.7, §12.2)" begin
+        sim = Simulation(panel_model(); h = 1//10)
+        handle = attach!(sim, Pad("a"), Enumerated("in"))
+        attach!(sim, Pad("b"), Greedy())
+        init!(sim, fragment(inputs = (in = 1.0, gain_in = 2.0)))
+        views = port_views(handle)
+        record = incumbent_status(views[("inner/g", :e)], latest(sim))
+        @test record.who == "device 2 (Pad)" && record.task_state === :none
+        @test !orphaned(record)                       # a stopped sim, not a dead task
+        @test incumbent_status(views[("inner/c", :u)], latest(sim)) === nothing
+        alone_sim = Simulation(panel_model(); h = 1//10)
+        alone_handle = attach!(alone_sim, Pad("a"), Enumerated("in"))
+        init!(alone_sim, fragment(inputs = (in = 1.0, gain_in = 2.0)))
+        harness_record = incumbent_status(port_views(alone_handle)[("inner/g", :e)], latest(alone_sim))
+        @test harness_record.who == "harness" && !orphaned(harness_record)
+
+        # During a run: the Pad's loop returns at once, the Crasher's throws. The
+        # wrapper catches the crash, so both tasks end `:done`, and the crash
+        # count tells them apart.
+        run_sim = Simulation(panel_model(); h = 1//10)
+        run_handle = attach!(run_sim, Pad("a"), Enumerated("in"))
+        attach!(run_sim, Crasher(), Enumerated("gain_in"))
+        init!(run_sim, fragment(inputs = (in = 1.0, gain_in = 2.0)))
+        run_views = port_views(run_handle)
+        observer = Threads.@spawn begin
+            returned = timedwait(() -> orphan_record(run_sim, run_views[("ctl", :e)]) !== nothing,
+                                 10.0) === :ok
+            crashed = timedwait(10.0) do
+                latest_record = orphan_record(run_sim, run_views[("inner/g", :e)])
+                latest_record !== nothing && latest_record.totals.crash ≥ 1
+            end === :ok
+            records = (orphan_record(run_sim, run_views[("ctl", :e)]),
+                       orphan_record(run_sim, run_views[("inner/g", :e)]))
+            stop!(run_sim)
+            (returned && crashed, records)
+        end
+        Test.collect_test_logs() do
+            run!(run_sim; t_end = 1.0e6)
+        end
+        (seen, (pad_record, crasher_record)) = fetch(observer)
+        @test seen
+        @test pad_record.who == "device 1 (Pad)" && pad_record.task_state === :done
+        @test pad_record.totals.crash == 0
+        @test crasher_record.who == "device 2 (Crasher)" && crasher_record.task_state === :done
+        @test crasher_record.totals.crash == 1
+        @test stale(crasher_record; now = crasher_record.heartbeat + 3.0)
     end
 end

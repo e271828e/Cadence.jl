@@ -1769,7 +1769,8 @@ function attach!(sim::Simulation, dev::AbstractDevice, new_binding::AbstractBind
     diag_cell = DiagCell(EMPTY_DIAG)                    # the device's diagnostic cell (§11.8)
     handle = DeviceHandle("device $device_id ($(_typename(dev)))", new_binding, writer,
                           plane.claimedby, sim.control, sim.plane.published, diag_cell,
-                          gatherer, sim.control.counter, false)
+                          gatherer, sim.deployment.build.structure, sim.exec.act.layout,
+                          sim.control.counter, false)
     push!(plane.roster,
           RosterEntry(dev, device_id, _no_drain, should_abort, WriterAccount(), handle))
     # the thunk above is the sentinel: `reclaim!` appends the new writer set to

@@ -18,11 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the standard component library last.
 Where the reason is not given here, the cited decision carries it:
 
-- **§11.7's GUI write path**, the framework's half (D-270): the port views
-  and `port_views(handle)`, `pending` and `peek_port`, `incumbent_status`
-  with `orphaned`, and the `Structure` and `Layout` on the handle. The GUI
-  package's
-  half is deferred under "Pending on the spec itself".
 - **§14**: `linearize` (§14.10) and its tap register (`TapResolution` reads
   the read register alone today), mounting (§14.9), the NLopt fallback and the
   nominal-activation loop it would run on; sub-port-field addressing; index

@@ -10,9 +10,11 @@
 # record and presented through the logging backend, the last snapshot having
 # already been published (D-201, D-203).
 #
-# This file holds the handle, the contract and the per-run task mechanics;
-# `run!`'s frame anatomy and the Simulation-typed surface (`attach!`,
-# `stop!(sim)`) live in sim.jl. The helpers here take `sim` untyped for
+# This file holds the handle, the contract, the per-run task mechanics and
+# §11.7's panel kit, the framework's half of the panel convention: the baked
+# port views, the peek and the orphan fact, all reads off the handle and a
+# snapshot (D-270). `run!`'s frame anatomy and the Simulation-typed surface
+# (`attach!`, `stop!(sim)`) live in sim.jl. The helpers here take `sim` untyped for
 # include order only — they run once per run, never inside a frame.
 
 """
@@ -45,7 +47,9 @@ that run's boundaries. `detached` is D-244's flag: the handle outlives its
 roster entry as an object only, and `detach!` sets the flag so that the two
 write primitives, `stage!` and `report!`, refuse by name instead of landing
 in a cell no drain reads — one atomic load per stage, no roster scan. The
-reads stay legal.
+reads stay legal. It holds the build's `Structure` and the nominal `Layout`
+by reference, like the index, for the panel kit's bake alone: `port_views`
+reads the wiring, the claim and the addresses off the handle (§11.7, D-270).
 """
 mutable struct DeviceHandle
     const who::String
@@ -56,6 +60,8 @@ mutable struct DeviceHandle
     const published::Published
     const diag_cell::DiagCell
     const gatherer::Union{Nothing,ReadGather}   # the compiled reads; nothing without an output side
+    const structure::Structure                  # the build's rows, for the panel kit's bake (§11.7, D-270)
+    const layout::Layout                        # the nominal activation's addresses, likewise
     last_seen::Int
     @atomic detached::Bool                      # set by detach! (D-244), read by the write primitives
 end
@@ -101,10 +107,10 @@ may still read a complete final world. The author's loop obligation is to
 check it between blocking points (§11.6).
 
 Every handle primitive that a loop pass touches — this one, `latest`,
-`stage!`, `wait_next_snapshot`, `gather`, `report!` — stores the liveness
-heartbeat on its way through (§11.8, §12.2): the framework observes activity
-without owning the loop body, and there is no separate liveness channel to
-remember to feed.
+`pending`, `stage!`, `wait_next_snapshot`, `gather`, `report!` — stores the
+liveness heartbeat on its way through (§11.8, §12.2): the framework observes
+activity without owning the loop body, and there is no separate liveness
+channel to remember to feed.
 """
 running(handle::DeviceHandle) =
     (_beat!(handle.diag_cell); !(@atomic handle.control.stopped))
@@ -139,6 +145,23 @@ The handle's primitive read (§11.6): acquire-load the most recently published
 snapshot — exactly `latest(sim)`, through the capability the handle carries.
 """
 latest(handle::DeviceHandle) = (_beat!(handle.diag_cell); @atomic :acquire handle.published.latest)
+
+"""
+    pending(handle, slot) → Some(value) | nothing
+
+The handle's own staged value at `slot`, a position in its schema (§11.7):
+one acquire load of the staging cell, never a take. A batch is never mutated
+after it is published into the cell — the CAS merge builds a new one — so
+the load sees a complete batch or none. `Some` keeps "nothing pending" apart
+from a pending `nothing`. A read, so it stays legal on a detached handle
+(D-244).
+"""
+function pending(handle::DeviceHandle, slot::Int)
+    _beat!(handle.diag_cell)
+    held = @atomic :acquire handle.writer.cell.pending
+    held === nothing && return nothing
+    held[].mask[slot] ? Some(held[].staged[slot]) : nothing
+end
 
 """
     stage!(handle, "face" => value, ...)
@@ -226,6 +249,106 @@ function wait_next_snapshot(handle::DeviceHandle)
     end
     latest(handle)
 end
+
+# --- the panel kit (§11.7, D-270) ----------------------------------------------
+
+"""
+§11.7's baked verdict for one port: the port's terminal producer (`("",
+face)` when root-driven), whether this handle commands it, the position in
+the handle's schema when it does (`0` otherwise), the producer's cell address
+for the snapshot read, and the incumbent writer of a root-driven port the
+handle does not command — another device's `who`, `"harness"` for a face no
+device claims, `""` for a port no device writes. Built by `port_views`, once
+per run; nothing here resolves a name at render.
+"""
+struct PortView
+    path::String
+    port::Symbol
+    source::Tuple{String,Symbol}
+    live::Bool
+    slot::Int
+    addr::CellAddr
+    incumbent::String
+end
+
+"""
+    port_views(handle) → Dict{Tuple{String,Symbol},PortView}
+
+§11.7's port table, keyed by `(path, port)`: one view per input port of every
+primitive, its producer the build's terminal one, and one per produced cell —
+each primitive's outputs and every exported output face, the root's included
+— with itself as producer. A root input is a source, not a port, and gets
+none. A port is live when its producer is a root input inside the handle's
+claim, and its slot is that face's position in the handle's schema.
+
+The GUI's loop body calls it once, at its top (§11.7). That point is after
+the roster freeze, so the incumbents read off the exclusivity index are the
+run's; at `attach!` a face a later attach claims would still name the
+harness, and repairing that at render means reading the index at render,
+which §11.7 forbids (D-270).
+"""
+function port_views(handle::DeviceHandle)
+    faces = handle.writer.faces
+    addr = handle.layout.addr
+    function view_of(path, port_name, source)
+        (producer_path, face) = source
+        live = producer_path == "" && face in faces
+        incumbent = live ? handle.who :
+                    producer_path == "" ? get(handle.claimedby, face, "harness") : ""
+        PortView(path, port_name, source, live, live ? findfirst(==(face), faces) : 0,
+                 addr[source], incumbent)
+    end
+    views = Dict{Tuple{String,Symbol},PortView}()
+    for entry in handle.structure.components, (port_name, source) in entry.conns
+        views[(entry.path, port_name)] = view_of(entry.path, port_name, source)
+    end
+    root_inputs = _root_input_names(handle.layout)
+    for key in keys(addr)
+        (path, port_name) = key
+        path == "" && port_name in root_inputs && continue
+        views[key] = view_of(path, port_name, key)
+    end
+    views
+end
+
+"""
+    peek_port(view, handle, snapshot)
+
+§11.7's peek rule: a live view's own pending value when one is touched, else
+the producer's cell off `snapshot`; a read-only view reads the cell alone.
+The window between a frame's drain and its publication shows the previous
+snapshot's value, the rule's own consequence (D-270).
+"""
+function peek_port(view::PortView, handle::DeviceHandle, snapshot::Snapshot)
+    if view.live
+        staged = pending(handle, view.slot)
+        staged === nothing || return something(staged)
+    end
+    gather_cell(snapshot.store, view.addr)
+end
+
+"""
+    incumbent_status(view, snapshot) → WriterStatus | nothing
+
+The incumbent's record in `snapshot`'s status, by `who`, or `nothing` for a
+port no device writes (§11.7, §11.8). `orphaned` on the record is a task
+that returned or crashed; `stale` is §12.2's silent heartbeat.
+"""
+function incumbent_status(view::PortView, snapshot::Snapshot)
+    isempty(view.incumbent) && return nothing
+    i = findfirst(w -> w.who == view.incumbent, snapshot.status.writers)
+    i === nothing ? nothing : snapshot.status.writers[i]
+end
+
+"""
+    orphaned(record::WriterStatus)
+
+§11.7's orphan fact: the writer's task has ended, `:done` or `:failed`. The
+wrapper catches a crash, so a crashed loop's task ends `:done` too, and the
+record's `DeviceCrash` count is what tells it from a returned one. A stopped
+run's `:none` is not orphaned, nor the harness's or the loop's `nothing`.
+"""
+orphaned(record::WriterStatus) = record.task_state in (:done, :failed)
 
 # --- the wrapper and the run's bracket (§11.6, §12.4) --------------------------
 

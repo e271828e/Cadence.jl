@@ -261,13 +261,13 @@ function reclaim!(plane::DataPlane, layout::Layout, store, trc)
         plane.claimedby[face] = _who(entry)
     end
     old = plane.harness
-    pending = @atomicswap old.cell.pending = nothing
+    taken = @atomicswap old.cell.pending = nothing
     harness = Writer(layout, Symbol[f for (f, _) in layout.root_inputs
                                     if !haskey(plane.claimedby, f)])
     plane.harness = harness
     _install_writers!(plane, store, trc)   # §11.5: the schema list grows, the thunks follow
-    if pending !== nothing
-        batch = pending[]
+    if taken !== nothing
+        batch = taken[]
         entries = [old.faces[i] => batch.staged[i] for i in 1:length(old.faces) if batch.mask[i]]
         renormalized = _normalize(plane.harness, entries, plane.claimedby, plane.harness_diag;
                                   site = :renormalization)

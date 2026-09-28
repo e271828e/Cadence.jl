@@ -590,10 +590,10 @@ end
 # Positional and mask-driven, unrolled by generation: both arguments share the
 # writer's one concrete batch type, and the unroll leans on no small-tuple
 # heuristic, so width does not degrade it (D-202).
-@generated function _merge(pending::Batch{V,M}, incoming::Batch{V,M}) where {V,M}
-    value_exprs = [:(incoming.mask[$i] ? incoming.staged[$i] : pending.staged[$i])
+@generated function _merge(held::Batch{V,M}, incoming::Batch{V,M}) where {V,M}
+    value_exprs = [:(incoming.mask[$i] ? incoming.staged[$i] : held.staged[$i])
                    for i in 1:fieldcount(M)]
-    mask_exprs = [:(pending.mask[$i] | incoming.mask[$i]) for i in 1:fieldcount(M)]
+    mask_exprs = [:(held.mask[$i] | incoming.mask[$i]) for i in 1:fieldcount(M)]
     :(Batch{V,M}(($(value_exprs...),), ($(mask_exprs...),)))
 end
 
@@ -601,9 +601,9 @@ end
 function stage_batch!(writer::Writer{B}, batch::B) where {B}
     cell = writer.cell
     while true
-        pending = @atomic cell.pending
-        merged = pending === nothing ? batch : _merge(pending[], batch)
-        (; success) = @atomicreplace cell.pending pending => Base.RefValue{B}(merged)
+        held = @atomic cell.pending
+        merged = held === nothing ? batch : _merge(held[], batch)
+        (; success) = @atomicreplace cell.pending held => Base.RefValue{B}(merged)
         success && return nothing
     end
 end
@@ -630,9 +630,9 @@ end
 # the run's trace (trace.jl, `trc` untyped for include order alone). Under the
 # kill switch that capture is `nothing` and the branch below folds (D-260).
 function _drain!(store, writer::Writer, trc, writer_index::Int)
-    pending = @atomicswap writer.cell.pending = nothing
-    pending === nothing && return nothing
-    batch = pending[]
+    taken = @atomicswap writer.cell.pending = nothing
+    taken === nothing && return nothing
+    batch = taken[]
     _apply!(store, writer.addrs, batch)
     trc === nothing || _record!(trc, writer_index, batch)
     nothing
