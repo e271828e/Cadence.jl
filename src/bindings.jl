@@ -134,8 +134,8 @@ Resolve one attachment's `reads` against the build and compile the gather —
 binding that drifted from its model fails there, not with silent garbage on
 the wire. The shape is fixed: `reads` returns a NamedTuple of labeled
 selectors, `(; label = get_output(...), ...)`, and the labels are the
-NamedTuple `map_output` receives. Every failure names the selector at fault;
-the did-you-mean candidate lists are absent (`pending.md`).
+NamedTuple `map_output` receives. Every failure names the selector at fault,
+and the two name-shaped misses carry candidate lists (§14.4).
 """
 function _compile_gather(layout::Layout, selectors, binding_type::Type, device::String)
     selectors isa NamedTuple || throw(DiagnosticError(
