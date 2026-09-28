@@ -49,7 +49,8 @@ write primitives, `stage!` and `report!`, refuse by name instead of landing
 in a cell no drain reads — one atomic load per stage, no roster scan. The
 reads stay legal. It holds the build's `Structure` and the nominal `Layout`
 by reference, like the index, for the panel kit's bake alone: `port_views`
-reads the wiring, the claim and the addresses off the handle (§11.7, D-270).
+reads the wiring, the claim, the exclusivity index and the addresses off the
+handle (§11.7, D-270).
 """
 mutable struct DeviceHandle
     const who::String
@@ -274,12 +275,14 @@ end
 """
     port_views(handle) → Dict{Tuple{String,Symbol},PortView}
 
-§11.7's port table, keyed by `(path, port)`: one view per input port of every
-primitive, its producer the build's terminal one, and one per produced cell —
-each primitive's outputs and every exported output face, the root's included
-— with itself as producer. A root input is a source, not a port, and gets
-none. A port is live when its producer is a root input inside the handle's
-claim, and its slot is that face's position in the handle's schema.
+§11.7's port table, keyed by `(path, port)`: one view per input face at
+every level, off the build's `in_faces`, its producer the terminal one, and
+one per produced cell — each primitive's outputs and every exported output
+face, the root's included — with itself as producer. An assembly's input face
+shares its producer with the ports behind it, and a root input's own view has
+itself as producer. A port is live when its producer is a root input inside
+the handle's claim, and its slot is that face's position in the handle's
+schema.
 
 The GUI's loop body calls it once, at its top (§11.7). That point is after
 the roster freeze, so the incumbents read off the exclusivity index are the
@@ -299,8 +302,8 @@ function port_views(handle::DeviceHandle)
                  addr[source], incumbent)
     end
     views = Dict{Tuple{String,Symbol},PortView}()
-    for entry in handle.structure.components, (port_name, source) in entry.conns
-        views[(entry.path, port_name)] = view_of(entry.path, port_name, source)
+    for ((path, port_name), source) in handle.structure.in_faces
+        views[(path, port_name)] = view_of(path, port_name, source)
     end
     root_inputs = _root_input_names(handle.layout)
     for key in keys(addr)
@@ -343,12 +346,13 @@ end
 """
     orphaned(record::WriterStatus)
 
-§11.7's orphan fact: the writer's task has ended, `:done` or `:failed`. The
-wrapper catches a crash, so a crashed loop's task ends `:done` too, and the
-record's `DeviceCrash` count is what tells it from a returned one. A stopped
-run's `:none` is not orphaned, nor the harness's or the loop's `nothing`.
+§11.7's orphan fact: the record reads `:done`, a device with no live task
+inside a run (§12.2) — its loop returned or crashed, its `init!` threw, or
+its inline body returned. The record's `DeviceCrash` count tells a crash from
+a return. `:none` outside a run is not orphaned, nor the harness's or the
+loop's `nothing`.
 """
-orphaned(record::WriterStatus) = record.task_state in (:done, :failed)
+orphaned(record::WriterStatus) = record.task_state === :done
 
 # --- the wrapper and the run's bracket (§11.6, §12.4) --------------------------
 

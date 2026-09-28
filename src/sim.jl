@@ -1193,7 +1193,13 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             finally
                 _finish!(sim)                 # the spawned loop wakes the inline body too
             end
-            _wrap(inline_entry)                       # the identical wrapper, inline (§11.6)
+            try
+                _wrap(inline_entry)                   # the identical wrapper, inline (§11.6)
+            finally
+                # the body has returned, so its record reads `:done` (§12.2); the
+                # lock because the spawned loop reads the registry as it publishes
+                @lock control.wake delete!(plane.run_tasks, inline_entry.id)
+            end
             try
                 source = _await_loop(control, loop_task)   # run! blocks until the run ends (§11.1)
                 returned = true
@@ -2010,14 +2016,17 @@ end
 # The status assembly (§11.8, §11.2), on the publishing task: per-writer
 # records in the drain's order — devices in attachment order, then the
 # harness writer, then the loop itself — and the pacer's record beside them,
-# `Inf` and zeros where no pacer runs (§10.7).
+# `Inf` and zeros where no pacer runs (§10.7). A device with no registered task
+# reads `:done` inside a run and `:none` outside one (§12.2); the sticky status
+# is what tells the two apart, since `step!` holds `:running` with no task.
 function _status(sim::Simulation, pacer::Union{Nothing,Pacer})
-    plane = sim.plane
+    plane, control = sim.plane, sim.control
+    no_task_state = (@atomic control.stopped) ? :none : :done
     statuses = Vector{WriterStatus}(undef, length(plane.roster) + 2)
     for (i, entry) in enumerate(plane.roster)
-        task = get(plane.run_tasks, entry.id, nothing)
+        task = @lock control.wake get(plane.run_tasks, entry.id, nothing)
         statuses[i] = _writer_status(_who(entry), entry.account, _heartbeat(_handle(entry).diag_cell),
-                                     _task_state(task))
+                                     task === nothing ? no_task_state : _task_state(task))
     end
     statuses[end-1] = _writer_status("harness", plane.harness_account, nothing, nothing)
     statuses[end] = _writer_status("loop", sim.plane.loop_account, nothing, nothing)

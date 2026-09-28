@@ -176,9 +176,11 @@ Unlike the writer, the cell
 survives roster changes: its diagnostics are the harness's, whatever surface
 it speaks for. `run_tasks` is the run's device-id → `Task` registry, filled
 at spawn and emptied at run end, which is what lets `publish!` read
-`task_state` off the handles the loop owns (D-193); while stopped it is
-empty, and every device reads `:none` — device tasks are run-scoped
-observables (§12.4).
+`task_state` off the handles the loop owns (D-193); the inline body's entry
+leaves when that body returns, under `wake`'s lock, since the loop reads the
+registry as it publishes. A device absent from it reads `:done` inside a run
+and `:none` outside one — device tasks are run-scoped observables (§12.2,
+§12.4).
 
 The trace the drain writes into is the run's (§11.5, D-260) and the store it
 scatters into is the executor's: both are closed into every thunk rather than

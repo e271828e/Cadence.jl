@@ -321,6 +321,10 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253.
   top after the freeze, so either door checks once against the frozen roster
   and `step!` never does (D-027).
 - Staging/drain/publication, with the drain's replay substitution.
+- Publication reads each device's `task_state` off `run_tasks` (§12.2,
+  D-270). A device with no registered task reads `:done` inside a run and
+  `:none` outside one, by the sticky status. The inline wrapper removes its
+  entry when its body returns, under `wake`'s lock.
 - §12.6's input mode (D-260):
   - `mode(sim)`, `to_time` and `live!`;
   - the mode is read off the run's `feed`, so a change of mode is a write to
@@ -545,16 +549,18 @@ D-256, D-268, D-269.
   - the handle's stable id is the roster entry's.
 - The handle primitives read the control plane that control.jl defines.
   `running` reads the sticky status, and `wait_next_snapshot` reads the
-  counter and the condition. `pending` reads the handle's own staging cell
+  counter and the condition.
+- The primitive `pending` reads the handle's own staging cell, dataplane.jl's,
   with one acquire load and never takes it (§11.7).
 - The panel kit, §11.7's framework half (D-270):
   - `PortView`, one port's baked verdict, its address field abstract;
   - `port_views(handle)`, the `Dict` of views keyed by `(path, port)`, one
-    per input port of every primitive and one per produced cell;
+    per input face at every level, off `Structure.in_faces`, and one per
+    produced cell;
   - `peek_port`, the peek rule over `pending` and the snapshot;
   - `incumbent_status`, the incumbent's `WriterStatus` by `who`, and
-    `orphaned` on it. A crashed loop's task ends `:done`, since the wrapper
-    catches the crash.
+    `orphaned` on it, exactly `task_state === :done` (§12.2). A crashed
+    loop's task ends `:done`, since the wrapper catches the crash.
 - The task wrapper.
 - The init bracket, with its interrupt arm. An `InterruptException` in `init!`
   sets the `:interrupt` stop in place of `DeviceCrash`.

@@ -410,10 +410,11 @@ snapshot; `suppressed` — the per-kind counts the ring refused alongside them;
 snapshots (so log decimation loses *which* boundary an occurrence fell on,
 never *how many*); and, for a rostered device, the liveness `heartbeat`
 (§12.2) beside the `task_state` the loop reads off the run's `Task` handle at
-publication (D-193) — `:none` when no task exists (a failed `init!`, or a
-stopped sim), `:running`, `:done`, or `:failed`. The harness writer's and
-the loop's own records carry `nothing` for both: no task of their own to be
-alive or dead. The records render inside their `FrameworkStatus`'s `show`
+publication (D-193) — `:none` outside a run; inside one `:running` while the
+device's task lives and `:done` once it has ended, or when the device has no
+live task of its own (a failed `init!`, a returned inline body). The harness
+writer's and the loop's own records carry `nothing` for both: no task of
+their own to be alive or dead. The records render inside their `FrameworkStatus`'s `show`
 (show.jl), each kind in full up to `STATUS_MAXLOG` cumulative occurrences and
 count-only past it (§11.8).
 """
@@ -478,8 +479,8 @@ the harness's and the loop's records, which have no heartbeat to judge.
 stale(record::WriterStatus; now::Float64 = time()) =
     record.heartbeat !== nothing && now - record.heartbeat > STALE_S
 
-_task_state(::Nothing) = :none
-_task_state(task::Task) = istaskfailed(task) ? :failed : istaskdone(task) ? :done : :running
+# The wrapper catches every non-interrupt throw, so a device task never fails.
+_task_state(task::Task) = istaskdone(task) ? :done : :running
 
 """
 The batch (§11.4, D-202): a pair of positional tuples over one writer's

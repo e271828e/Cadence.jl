@@ -260,8 +260,8 @@ panel_model() = Group((; inner = Group((; c = Pendulum(), g = Gain(2.0));
 # One root input fanned out to two ports.
 fanned_gains() = Group((; a = Gain(1.0), b = Gain(1.0)); inputs = ("in" => ("a/e", "b/e"),))
 
-# The incumbent's record off the latest snapshot once its task has returned or
-# crashed, else `nothing`.
+# The incumbent's record off the latest snapshot once it reads `:done`, else
+# `nothing`.
 orphan_record(sim, view) =
     (record = incumbent_status(view, latest(sim)); orphaned(record) ? record : nothing)
 
@@ -768,8 +768,9 @@ function test_devices()
         @test crash isa DeviceCrash && crash.cause isa ErrorException &&
               crash.abort === false
         # Dead from boundary zero, with no marking machinery (§12.4): the cell was
-        # never heartbeated — stale against any clock — and no task ever existed.
-        @test stale(status) && status.task_state === :none
+        # never heartbeated — stale against any clock — and with no task of its
+        # own inside the run it reads `:done` (§12.2).
+        @test stale(status) && status.task_state === :done
         stage!(sim, "a" => 9.0)                  # claims persist: death is not detach
         @test only((@atomic sim.plane.harness_diag.batch).ring) isa ClaimedFaceEntry
         # With should_abort set the stop is already pending at the loop's start:
@@ -1011,30 +1012,42 @@ function test_devices()
 
     @testset "port views resolve every port across levels, and liveness follows the claim (§11.7)" begin
         sim = Simulation(panel_model(); h = 1//10)
-        handle1 = attach!(sim, Pad("a"), Enumerated("in"))
-        alone_views = port_views(handle1)             # before the second claim exists
-        handle2 = attach!(sim, Pad("b"), Greedy())
-        views = port_views(handle1)
-        @test length(views) == 8
-        @test !haskey(views, ("", :in)) && !haskey(views, ("", :gain_in))
+        enumerated_handle = attach!(sim, Pad("a"), Enumerated("in"))
+        alone_views = port_views(enumerated_handle)   # before the second claim exists
+        greedy_handle = attach!(sim, Pad("b"), Greedy())
+        views = port_views(enumerated_handle)
+        # Three primitive inputs, `inner`'s two faces, the root's two, five produced cells.
+        @test length(views) == 12
         view = views[("ctl", :e)]
         @test view.live && view.slot == 1 && view.source == ("", :in) &&
               view.incumbent == "device 1 (Pad)"
         view = views[("inner/g", :e)]
         @test !view.live && view.slot == 0 && view.source == ("", :gain_in) &&
               view.incumbent == "device 2 (Pad)"
+        # An assembly's face shares the producer and the verdict of the port behind it.
+        face_view = views[("inner", :e)]
+        @test (face_view.source, face_view.live, face_view.slot, face_view.addr,
+               face_view.incumbent) ==
+              (view.source, view.live, view.slot, view.addr, view.incumbent)
+        @test views[("inner", :u)].source == ("ctl", :u) && !views[("inner", :u)].live
+        # A root input's own view is its source, live for the handle claiming it.
+        view = views[("", :in)]
+        @test view.live && view.slot == 1 && view.source == ("", :in) &&
+              view.incumbent == "device 1 (Pad)"
+        @test !views[("", :gain_in)].live && views[("", :gain_in)].incumbent == "device 2 (Pad)"
         view = views[("inner/c", :u)]
         @test !view.live && view.slot == 0 && view.source == ("ctl", :u) && view.incumbent == ""
         produced = [("ctl", :u), ("inner", :θ), ("inner/c", :θ), ("inner/c", :ω), ("inner/g", :out)]
         @test all(k -> !views[k].live && views[k].source == k && views[k].incumbent == "", produced)
-        greedy_views = port_views(handle2)
+        greedy_views = port_views(greedy_handle)
         @test greedy_views[("inner/g", :e)].live && greedy_views[("inner/g", :e)].slot == 1
         @test greedy_views[("ctl", :e)].incumbent == "device 1 (Pad)"
         # Baked before the second attach, the incumbent is the harness (D-270).
         @test alone_views[("inner/g", :e)].incumbent == "harness"
-        # Fan-out: two ports on one root input share slot and address.
+        # Fan-out: two ports on one root input share liveness, slot and address.
         fan_sim = Simulation(fanned_gains(); h = 1//10)
         fan_views = port_views(attach!(fan_sim, Pad("f"), Greedy()))
+        @test fan_views[("a", :e)].live && fan_views[("b", :e)].live
         @test (fan_views[("a", :e)].slot, fan_views[("a", :e)].addr) ==
               (fan_views[("b", :e)].slot, fan_views[("b", :e)].addr)
     end
@@ -1042,27 +1055,27 @@ function test_devices()
     @testset "pending reads the cell without taking it, and the peek composes it with the snapshot (§11.7, §11.4)" begin
         sim = Simulation(panel_model(); h = 1//10)
         dev = Pad("a")
-        handle1 = attach!(sim, dev, Enumerated("in"))
-        handle2 = attach!(sim, Pad("b"), Greedy())
+        enumerated_handle = attach!(sim, dev, Enumerated("in"))
+        greedy_handle = attach!(sim, Pad("b"), Greedy())
         init!(sim, fragment(inputs = (in = 1.0, gain_in = 2.0)))
-        views = port_views(handle1)
-        @test pending(handle1, 1) === nothing
-        stage!(handle1, "in" => 3)                    # converted at staging
-        @test pending(handle1, 1) === Some(3.0)
-        @test (@atomic handle1.writer.cell.pending) !== nothing   # a read, never a take
-        @test pending(handle2, 1) === nothing         # another device's write is invisible
+        views = port_views(enumerated_handle)
+        @test pending(enumerated_handle, 1) === nothing
+        stage!(enumerated_handle, "in" => 3)             # converted at staging
+        @test pending(enumerated_handle, 1) === Some(3.0)
+        @test (@atomic enumerated_handle.writer.cell.pending) !== nothing   # a read, never a take
+        @test pending(greedy_handle, 1) === nothing       # another device's write is invisible
         snapshot = latest(sim)
-        @test peek_port(views[("ctl", :e)], handle1, snapshot) === 3.0
+        @test peek_port(views[("ctl", :e)], enumerated_handle, snapshot) === 3.0
         @test port(snapshot, "", :in) === 1.0
-        @test peek_port(views[("inner/g", :e)], handle1, snapshot) === 2.0
-        @test peek_port(views[("inner/g", :out)], handle1, snapshot) === 4.0
-        stage!(handle1, "in" => 4.0)
-        @test pending(handle1, 1) === Some(4.0)       # newest wins
+        @test peek_port(views[("inner/g", :e)], enumerated_handle, snapshot) === 2.0
+        @test peek_port(views[("inner/g", :out)], enumerated_handle, snapshot) === 4.0
+        stage!(enumerated_handle, "in" => 4.0)
+        @test pending(enumerated_handle, 1) === Some(4.0) # newest wins
         run!(sim; t_end = 0.3)
-        @test pending(handle1, 1) === nothing         # the drain took it
+        @test pending(enumerated_handle, 1) === nothing   # the drain took it
         @test port(latest(sim), "", :in) === 4.0
         detach!(sim, dev)
-        @test pending(handle1, 1) === nothing         # a read, legal on a retired handle
+        @test pending(enumerated_handle, 1) === nothing   # a read, legal on a retired handle
     end
 
     @testset "an edge widget counts multi-click through the pending peek (§11.7)" begin
@@ -1114,8 +1127,12 @@ function test_devices()
         views = port_views(handle)
         record = incumbent_status(views[("inner/g", :e)], latest(sim))
         @test record.who == "device 2 (Pad)" && record.task_state === :none
-        @test !orphaned(record)                       # a stopped sim, not a dead task
+        @test !orphaned(record)                       # outside a run, not a dead task
         @test incumbent_status(views[("inner/c", :u)], latest(sim)) === nothing
+        # A stepped frame spawns no task and is no run (§12.6): still `:none`.
+        step!(sim)
+        record = incumbent_status(views[("inner/g", :e)], latest(sim))
+        @test latest(sim).frame == 1 && record.task_state === :none && !orphaned(record)
         alone_sim = Simulation(panel_model(); h = 1//10)
         alone_handle = attach!(alone_sim, Pad("a"), Enumerated("in"))
         init!(alone_sim, fragment(inputs = (in = 1.0, gain_in = 2.0)))
@@ -1152,5 +1169,35 @@ function test_devices()
         @test crasher_record.who == "device 2 (Crasher)" && crasher_record.task_state === :done
         @test crasher_record.totals.crash == 1
         @test stale(crasher_record; now = crasher_record.heartbeat + 3.0)
+        @test !stale(crasher_record; now = crasher_record.heartbeat + 1.0)
+
+        # No live task of its own inside a run reads `:done` too (§12.2): the
+        # Panel's inline body returns at once, and the BadInit's `init!` throws
+        # so no task is spawned. The Panel moves the loop to a spawned task, and
+        # `run!` returns only when it ends, so the observer stops the sim.
+        dead_sim = Simulation(panel_model(); h = 1//10)
+        panel_handle = attach!(dead_sim, Panel("p"), Enumerated("in"))
+        attach!(dead_sim, BadInit(), Enumerated("gain_in"))
+        init!(dead_sim, fragment(inputs = (in = 1.0, gain_in = 2.0)))
+        dead_views = port_views(panel_handle)
+        observer = Threads.@spawn begin
+            seen = timedwait(10.0) do
+                orphan_record(dead_sim, dead_views[("ctl", :e)]) !== nothing &&
+                    orphan_record(dead_sim, dead_views[("inner/g", :e)]) !== nothing
+            end === :ok
+            records = (orphan_record(dead_sim, dead_views[("ctl", :e)]),
+                       orphan_record(dead_sim, dead_views[("inner/g", :e)]))
+            stop!(dead_sim)
+            (seen, records)
+        end
+        Test.collect_test_logs() do
+            run!(dead_sim; t_end = 1.0e6)
+        end
+        (seen, (panel_record, init_record)) = fetch(observer)
+        @test seen
+        @test panel_record.who == "device 1 (Panel)" && panel_record.task_state === :done
+        @test panel_record.totals.crash == 0
+        @test init_record.who == "device 2 (BadInit)" && init_record.task_state === :done
+        @test init_record.totals.crash == 1 && orphaned(init_record)
     end
 end
