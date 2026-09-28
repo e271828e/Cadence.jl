@@ -10204,7 +10204,8 @@ activation through `activations` ([§9.7][s9-7]) and a tap set of any size
 then linearizes with no compile at the keyboard ([D-272][d-272]). Value
 parts give `ẋ₀` and `y₀`. Partials give `A` and `B` against the `x`- and
 `u`-seeds, and `C` and `D` against the same seeds read at `y`. All four come
-out simultaneously, exact to machine precision.
+out simultaneously, exact to machine precision. `linearization_walkthrough.md`
+runs the pass on a two-state model, seed by seed.
 
 ```
   x-taps ─┐                                         ┌─ value parts → ẋ₀, y₀
