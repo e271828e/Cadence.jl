@@ -10167,8 +10167,11 @@ label control design slices by.
 
 **Rule.** A tap names one scalar. Every member carries the optional
 [component](#g-component) index, so a vector leaf yields *named scalars*, one
-tap per component ([D-271][d-271]). A tap naming a vector leaf without an index is
-rejected at resolution, and so is a member in the wrong list.
+tap per component ([D-271][d-271]). A tap naming a vector leaf without an
+index is rejected at resolution, and so is a member in the wrong list. Two
+taps resolving to one site are rejected together, both labels in hand: one
+site is one column, and a second seed there would overwrite the first
+([D-272][d-272]).
 
 ```julia
 taps(x = (p = get_state("vehicle/dynamics", :ω_eb_b, 1),
@@ -10231,7 +10234,12 @@ names the **pinning consumer**, not the face alone. A root input is unseedable
 whenever any one of its consumers demands frozen, which is the fan-out meet
 ([§8.2][s8-2]; [D-168][d-168]). The author's next move is to promote that leaf
 to a tolerant entry, or to route the tap around it. Either move depends on
-knowing which leaf froze the root input. Seeded and frozen, side by side:
+knowing which leaf froze the root input. A discrete consumer pins its entry
+by tier, not by declaration ([§8.2][s8-2]), so a root input it reads is
+unseedable at every activation with nothing to promote. The rejection then
+names the tier, and the next move is to tap the continuous cell that
+consumer drives, or the recorded step map below ([D-272][d-272]). Seeded and frozen,
+side by side:
 
 | leaf | in the one pass | what fixes it |
 |---|---|---|
@@ -10240,6 +10248,7 @@ knowing which leaf froze the root input. Seeded and frozen, side by side:
 | a root input named by a `u` tap | seeded, one direction | per-invocation seeding |
 | any other seedable root input | constant, its `Float64` value embedded as a zero-partial constant | per-invocation seeding |
 | a root input whose entry is declared `Pinned` | frozen at every activation, and rejected as a `B`-matrix tap | the schema: a declaration |
+| a root input a discrete consumer reads | frozen at every activation, and rejected as a `B`-matrix tap | the tier |
 | any discrete-tier leaf | frozen, zero partials | the tier |
 
 **A pure query, and the shape of `capture`.** Linearization is the first
@@ -10811,10 +10820,12 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   [§14.8][s14-8]).
 - `capture(sim) → (condition, t)`. A full-store gather including root inputs.
   Warm restart is capture, tweak, apply ([§14.1][s14-1], [§14.10][s14-10]).
-- `linearize(sim, taps; about, t0 = 0.0, width = 8) → Linearization`. A pure
+- `linearize(sim, taps; about, t0, width = 8) → Linearization`. A pure
   query, seeded Dual passes on scratch, `width` directions per pass. The
-  operating point defaults to `capture(sim)`, and `about` with `t0` places it
-  anywhere else. `taps(x = (…), u = (…), y = (…))` builds the tap set, three
+  operating point defaults to `capture(sim)`, which carries its own time, and
+  `about` with `t0` (default `0.0`) places it anywhere else. `t0` is admitted
+  only beside `about`, never silently ignored.
+  `taps(x = (…), u = (…), y = (…))` builds the tap set, three
   labeled selector lists with closed membership (`x`: `get_state`; `u`:
   `get_input`; `y`: `get_output`, `get_face`), every tap one scalar, indexed
   on a vector leaf ([§14.10][s14-10], [D-271][d-271], [D-272][d-272]).
