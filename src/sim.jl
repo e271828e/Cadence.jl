@@ -1249,8 +1249,13 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
         Base.sigatomic_begin()
         @atomic control.stopped = true
         residue = _sweep_tail!(sim)           # the run's last take (§11.8): what landed past
-        empty!(plane.run_tasks)               # the final frame top — recorded and presented,
-        if error_source !== nothing                # never published (D-201, D-203)
+                                              # the final frame top — recorded and presented,
+                                              # never published (D-201, D-203)
+        # Under the lock because the calling-task topology's interrupt arm can
+        # reach here with its spawned loop still publishing, and `_status`
+        # reads the registry under the same lock (§12.2).
+        @lock control.wake empty!(plane.run_tasks)
+        if error_source !== nothing
             sim.run.termination = _record(sim, policy, error_source, residue)
             @atomic :release control.lifecycle = :errored
         else
