@@ -7198,6 +7198,15 @@ timestamp. The loop reads `task_state` off those handles where it publishes
 ([D-193][d-193]). A starved, blocked or crashed device task shows in the GUI
 as a stale heartbeat with a name on it, not as mysteriously frozen physics.
 
+**Rule.** `task_state` has three values. Outside a run every device reads
+`:none`. Inside a run a device reads `:running` while its task lives and
+`:done` once that task has ended, whether the body returned or the wrapper
+caught its crash ([§11.6][s11-6]). A device with no live task of its own
+inside a run reads `:done` as well: one whose `init!` threw and so spawned
+no task, and a calling-task device whose inline body has returned. The
+record's crash count tells a crash from a return. `orphaned` on a record is
+exactly `:done` ([§11.7][s11-7], [D-270][d-270]).
+
 **Stale means a liveness timestamp more than 2 s behind wall clock.** The
 threshold is deliberately loose, because the heartbeat is advisory. It is a
 liveness display and a record, never a kill trigger, never a
