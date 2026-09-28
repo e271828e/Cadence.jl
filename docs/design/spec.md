@@ -9347,8 +9347,11 @@ plans nor readers are user values.
 
 **The read-[selector](#g-selector) family is closed.** Its members are
 `get_state(path, field[, i])`, `get_deriv(path, field[, i])`,
-`get_output(path, field[, i])`, `get_input(face)` and `get_face(name)`. They
-form one address space for every reader of the model.
+`get_output(path, field[, i])`, `get_input(face[, i])` and
+`get_face(name[, i])`. They form one address space for every reader of the
+model. `i` is the optional component index, admitted on every member. The
+read is then the leaf's `i`-th component, so a vector leaf yields named
+scalars ([D-271][d-271]).
 
 The names carry a deliberate `get_` prefix. A selector is a *deferred read*, a
 value describing the read the compiled gather will perform. The prefix names
@@ -9416,8 +9419,8 @@ The five selectors, their sources, and their clients:
 | `get_state(path, field[, i])` | live stores | named in the contract | only clients that hold stores |
 | `get_deriv(path, field[, i])` | live stores | named in the contract | only clients that hold stores |
 | `get_output(path, field[, i])` | a table source | named in the contract | admitted |
-| `get_input(face)` | a table source | named in the contract | admitted |
-| `get_face(name)` | a table source | named in the contract | admitted |
+| `get_input(face[, i])` | a table source | named in the contract | admitted |
+| `get_face(name[, i])` | a table source | named in the contract | admitted |
 
 **Compiled readers are the gather twin** over this family and the layout
 tables. Trim's cost read (`ẋ` and output fields), linearization's Jacobian
@@ -10156,17 +10159,23 @@ worked-out extension deliberately left unimplemented, its seams named).
 `XStateSpace`/`UStateSpace`/`YStateSpace` structs, plus the
 `get_*_ss`/`assign_*_ss!` shuttle methods, run to ~150 lines of bookkeeping
 per variant. All of it becomes three [selector](#g-selector) lists (the closed
-family of deferred reads resolving against a source). Three members of the
-read-selector family supply them: `get_state`, `get_input` and `get_output`
-([§14.4][s14-4]). The lists carry the optional [component](#g-component)
-index, so a vector leaf yields *named scalars*. The NamedTuple key is the
+family of deferred reads resolving against a source), declared together as
+one tap set, `taps(x = …, u = …, y = …)` ([D-272][d-272]). Membership is closed per
+list. The `x` list takes `get_state`, the `u` list `get_input`, and the `y`
+list `get_output` and `get_face` ([§14.4][s14-4]). The NamedTuple key is the
 label control design slices by.
 
+**Rule.** A tap names one scalar. Every member carries the optional
+[component](#g-component) index, so a vector leaf yields *named scalars*, one
+tap per component ([D-271][d-271]). A tap naming a vector leaf without an index is
+rejected at resolution, and so is a member in the wrong list.
+
 ```julia
-x = (p = get_state("vehicle/dynamics", :ω_eb_b, 1),
-     θ = get_state("vehicle/kinematics", :θ_nb), …)
-u = (throttle_cmd = get_input("throttle"), …)
-y = (EAS = get_output("vehicle/airflow", :EAS), …)
+taps(x = (p = get_state("vehicle/dynamics", :ω_eb_b, 1),
+          θ = get_state("vehicle/kinematics", :θ_nb), …),
+     u = (throttle_cmd = get_input("throttle"),
+          wind_n = get_input("wind", 1), …),
+     y = (EAS = get_output("vehicle/airflow", :EAS), …))
 ```
 
 The three lists are validated at resolution, with
@@ -10184,8 +10193,12 @@ is that compiled writer/reader pair, and the promised `get_x_ss` deletion
 
 **The evaluation.** Each invocation instantiates its own scratch store set, the
 trim service's mechanism verbatim ([§14.8][s14-8]), and applies the
-operating-point condition. It then runs **one** Dual evaluation, seeded with
-one direction per `x`-tap and per `u`-tap entry (chunked internally). Value
+operating-point condition. It then runs the seeded Dual evaluation, one
+direction per `x`-tap and per `u`-tap entry, in groups of `width` directions
+per pass. **Rule.** `width` is a keyword of `linearize`, default 8, and the
+default width's scalar type is public, so a build can pre-materialize its
+activation through `activations` ([§9.7][s9-7]) and a tap set of any size
+then linearizes with no compile at the keyboard ([D-272][d-272]). Value
 parts give `ẋ₀` and `y₀`. Partials give `A` and `B` against the `x`- and
 `u`-seeds, and `C` and `D` against the same seeds read at `y`. All four come
 out simultaneously, exact to machine precision.
@@ -10196,7 +10209,7 @@ out simultaneously, exact to machine precision.
   u-taps ─┘          (chunked internally)           └─ partials    → A, B, C, D
 ```
 
-That single pass replaces four `FiniteDiff` jacobians, their step-size
+That seeded evaluation replaces four `FiniteDiff` jacobians, their step-size
 heuristics and ~4n perturbed evaluations.
 
 **What the pass seeds, and what it holds frozen.** Unseeded states sit
@@ -10240,12 +10253,14 @@ is the sim's current committed state, taken through
 in full. Root-input totality ([§14.6][s14-6]) makes root-input coverage
 mandatory for capture → apply. After a `trim!` commit, `linearize(sim, taps)`
 is about the trim point with nothing re-specified. An `about = <condition>`
-keyword linearizes anywhere else without touching the sim.
+keyword, with `t0` beside it as in `trim!`, linearizes anywhere else without
+touching the sim.
 
-**The returned object and `LinearizedSS`.** `linearize` returns labeled data,
-`(ẋ₀, x₀, u₀, y₀, A, B, C, D)`, carrying the label sets of the
+**The returned object and `LinearizedSS`.** `linearize` returns a
+`Linearization` value: `ẋ₀`, `x₀`, `u₀` and `y₀` as NamedTuples under the tap
+labels, `A`, `B`, `C` and `D` as matrices, and the three label sets of the
 [taps](#g-taps) (the three selector lists declaring what linearization seeds
-and reports). On that data, `subsystem`/`delete_vars` survive as pure
+and reports) ([D-272][d-272]). On that data, `subsystem`/`delete_vars` survive as pure
 label-indexed matrix slicing, with no model involvement. The `c172x_ctl` LQR
 pipeline consumes it with cosmetic changes. `LinearizedSS` the *component*
 survives separately, as an ordinary
@@ -10796,10 +10811,13 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   [§14.8][s14-8]).
 - `capture(sim) → (condition, t)`. A full-store gather including root inputs.
   Warm restart is capture, tweak, apply ([§14.1][s14-1], [§14.10][s14-10]).
-- `linearize(sim, taps) → labeled (ẋ₀, x₀, u₀, y₀, A, B, C, D)`. A pure
-  query, one seeded Dual pass on scratch. The operating point defaults to
-  `capture(sim)`. The taps are `get_state`/`get_input`/`get_output` selector
-  lists with control-design labels ([§14.10][s14-10]).
+- `linearize(sim, taps; about, t0 = 0.0, width = 8) → Linearization`. A pure
+  query, seeded Dual passes on scratch, `width` directions per pass. The
+  operating point defaults to `capture(sim)`, and `about` with `t0` places it
+  anywhere else. `taps(x = (…), u = (…), y = (…))` builds the tap set, three
+  labeled selector lists with closed membership (`x`: `get_state`; `u`:
+  `get_input`; `y`: `get_output`, `get_face`), every tap one scalar, indexed
+  on a vector leaf ([§14.10][s14-10], [D-271][d-271], [D-272][d-272]).
 
 **Running.**
 
@@ -12249,9 +12267,9 @@ declaration-ordered, leaving the simulation untouched ([§14.6][s14-6]).
 legality against them. A violation is `ServiceLifecycle`, and `errored` is
 terminal for all four services ([§14][s14]).
 
-<a id="g-taps"></a>**taps** — the three selector lists (`x`, `u`, `y`) declaring what
-linearization seeds and reports, with an optional component index so a
-vector leaf yields named scalars. They are validated at resolution
+<a id="g-taps"></a>**taps** — the three selector lists (`x`, `u`, `y`), built by `taps`,
+declaring what linearization seeds and reports. Every tap names one scalar,
+by component index on a vector leaf. They are validated at resolution
 (`TapResolution`) and relocatable via `at` ([§14.10][s14-10]).
 
 <a id="g-trimproblem"></a>**`TrimProblem`** — the closed nine-field value
@@ -12574,6 +12592,8 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-268]: decisions.md#d-268--pause-verbs-on-the-simulation-and-the-interrupts-remaining-windows
 [d-269]: decisions.md#d-269--pacings-spellings-and-default-the-waits-consultation-and-the-pacers-home
 [d-270]: decisions.md#d-270--fix-the-frameworks-half-of-the-panel-convention-port-views-the-peek-the-orphan-fact
+[d-271]: decisions.md#d-271--admit-the-component-index-on-get_input-and-get_face
+[d-272]: decisions.md#d-272--fix-linearizes-surface-the-tap-set-the-chunk-width-the-operating-point-and-the-return
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

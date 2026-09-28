@@ -295,6 +295,8 @@ were derived.
 | [D-268][d-268] | Pause verbs on the simulation, and the interrupt's remaining windows | ratified |
 | [D-269][d-269] | Pacing's spellings and default, the wait's consultation and the pacer's home | ratified |
 | [D-270][d-270] | Fix the framework's half of the panel convention: port views, the peek, the orphan fact | ratified |
+| [D-271][d-271] | Admit the component index on `get_input` and `get_face` | ratified |
+| [D-272][d-272] | Fix `linearize`'s surface: the tap set, the chunk width, the operating point and the return | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -10803,6 +10805,97 @@ outside a run and, inside one, `:done` for any device without a live task
 of its own, so `orphaned` is exactly `:done` and the crash count tells a
 crash from a return.
 
+### D-271 — Admit the component index on `get_input` and `get_face`
+
+**Status.** ratified
+
+**Position.** The two table selectors take the optional component index
+their three siblings carry: `get_input(face[, i])` and `get_face(name[, i])`.
+The family stays closed at five members, and every member addresses a
+component of a vector leaf the same way.
+
+**Spec.** [§14.4][s14-4], [§14.10][s14-10], [Appendix B][sB]
+
+**Rationale.** A linearization tap is one Jacobian column, so it names one
+scalar ([D-272][d-272]). A vector-typed root input therefore had no tap spelling at
+all: not whole, since a tap is one direction, and not per component, since
+`get_input` carried no index. A vector-typed face had only the detour
+through `get_output` on the aliased port's path, an inspection read where an
+integration read was wanted ([§11.2][s11-2]). Giving the two selectors the index the
+other three already have closes the gap with no new member and no new
+resolution mechanism. The index is checked against the resolved leaf's type
+exactly as it is for `get_state`, and the read is the compiled gather's
+`getindex`.
+
+**Rejected.**
+- *Expanding an unindexed vector tap into one column per component with
+  generated labels:* trades the designer-chosen label [§14.10][s14-10] is built around
+  for a spelling accident, and leaves `get_input` a special case.
+- *Leaving the gap recorded:* rarely reached on an aircraft whose root
+  inputs are scalars, but a vector wind input is a realistic tap and the
+  fix is two signatures.
+
+### D-272 — Fix `linearize`'s surface: the tap set, the chunk width, the operating point and the return
+
+**Status.** ratified
+
+**Position.** [§14.10][s14-10]'s linearization gets its calling convention.
+
+- `taps(x = …, u = …, y = …)` builds the tap set, a value holding three
+  labeled selector lists with closed membership: `x` takes `get_state`, `u`
+  takes `get_input`, `y` takes `get_output` and `get_face`. A member in the
+  wrong list is a `TapResolution`.
+- A tap names one scalar. A tap on a vector leaf carries the component
+  index, and an unindexed one is rejected at resolution.
+- The seeded evaluation runs in groups of `width` directions per pass,
+  `width` a keyword of `linearize` with a fixed default of 8. The default
+  width's scalar type is public, so a build can pre-materialize its
+  activation through `activations` ([§9.7][s9-7]).
+- The operating point is `capture(sim)` by default. `about = <condition>`,
+  with `t0` beside it, places it anywhere else under `init!`'s legality.
+- The return is a `Linearization` value: `ẋ₀`, `x₀`, `u₀` and `y₀` as
+  NamedTuples under the tap labels, `A`, `B`, `C` and `D` as `Float64`
+  matrices, and the three label tuples.
+- Seeds are written at the resolved tap's own site, the state's buffer
+  offset or the root input's cell, after the operating-point condition is
+  applied at the seeded activation.
+
+**Spec.** [§14.4][s14-4], [§14.10][s14-10], [Appendix B][sB]
+
+**Rationale.** The section fixed the semantics, one seeded evaluation over
+a frozen discrete tier with the two no-silent-zeros rejections, and left the
+calling convention to the increment. A tap-set value gives a bare NamedTuple
+the directive refusal `reads` gives ([§14.2][s14-2]'s misuse pattern) and gives
+mounting ([§14.9][s14-9]) a value to lift.
+
+The width choice is the compile-cost trade. The Dual width is part of the
+scalar type, so a full-width pass compiles the continuous chain once per
+distinct tap count, while a fixed width compiles once per model and can be
+paid ahead of time. The arithmetic is not the deciding factor: a pass at
+width $C$ costs about $(1 + C)$ nominal evaluations, so $N$ directions cost
+about $(N + N/C)$ whatever the grouping, at most a factor of two between the
+extremes. Predictable latency at the keyboard and behind a GUI is what the
+fixed width buys.
+
+Writing seeds at the resolved site reuses tap resolution as the addressing
+step. A `StateRead` bakes the `xbuf` offset and a `CellRead` the cell
+address, and both are write sites as much as read sites, so the pass needs
+no addressing code of its own.
+
+**Rejected.**
+- *One pass at the full width $n_x + n_u$, chunking recorded as a
+  deviation:* one compile per distinct tap count per session, seconds of
+  latency the user cannot predict, and nothing to pre-materialize.
+- *Width 1, sharing `ProbeDual`'s activation:* ties the probe's width,
+  documented as arbitrary, to a service's, and the two carry different tags
+  on purpose.
+- *Bare NamedTuples for the three lists:* a mistyped list reaches resolution
+  as a `MethodError`, and `at` has nothing typed to lift.
+- *Seeding through a condition, as trim does:* trim's seeds ride on the
+  user's decision vector through the problem's `condition(d)`; a tap has no
+  such tree, and building one per tap set duplicates the addressing that tap
+  resolution already performs.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -11074,6 +11167,8 @@ crash from a return.
 [d-268]: #d-268--pause-verbs-on-the-simulation-and-the-interrupts-remaining-windows
 [d-269]: #d-269--pacings-spellings-and-default-the-waits-consultation-and-the-pacers-home
 [d-270]: #d-270--fix-the-frameworks-half-of-the-panel-convention-port-views-the-peek-the-orphan-fact
+[d-271]: #d-271--admit-the-component-index-on-get_input-and-get_face
+[d-272]: #d-272--fix-linearizes-surface-the-tap-set-the-chunk-width-the-operating-point-and-the-return
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
