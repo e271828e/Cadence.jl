@@ -294,6 +294,7 @@ were derived.
 | [D-267][d-267] | Name the leaf declarations by the bundle field they define | ratified |
 | [D-268][d-268] | Pause verbs on the simulation, and the interrupt's remaining windows | ratified |
 | [D-269][d-269] | Pacing's spellings and default, the wait's consultation and the pacer's home | ratified |
+| [D-270][d-270] | Fix the framework's half of the panel convention: port views, the peek, the orphan fact | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -10689,6 +10690,106 @@ safepoint is not a yield, so [D-027][d-027]'s spin stays non-yielding, while a
 stop-the-world collection on another thread and a pending signal both get
 through instead of waiting out the spin.
 
+### D-270 — Fix the framework's half of the panel convention: port views, the peek, the orphan fact
+
+**Status.** ratified
+
+**Position.** [§11.7][s11-7]'s panel-authoring convention splits into a framework
+half, fixed now and independent of any GUI library, and a GUI-package half
+that stays deferred. A panel reads the framework through three values, a
+port view, the device handle and a snapshot, and nothing else.
+
+- `port_views(handle)` bakes one `PortView` per declared port of every
+  component, input and output, keyed by `(path, port)`: the terminal
+  producer, the liveness verdict, the staging slot when live, the producer's
+  cell address and the incumbent writer of a root-driven port the GUI does
+  not command. The GUI's loop body builds it once at its top, after the
+  freeze. The handle carries the build's `Structure` and the nominal
+  `Layout` by reference for it.
+- `pending(handle, slot)` reads the handle's own staging cell with one
+  acquire load and never takes it, `Some(value)` when the slot is touched
+  and `nothing` otherwise. `peek_port(view, handle, snapshot)` is [§11.7][s11-7]'s
+  peek rule composed over that read and the snapshot.
+- `incumbent_status(view, snapshot)` returns the incumbent's `WriterStatus`
+  from the snapshot's status, or `nothing` for a port no device writes.
+  `orphaned(record)` is a `:done` or `:failed` task; `stale` is unchanged.
+- The window between the frame-top drain and that frame's publication, in
+  which a live widget shows the previous snapshot's value, is recorded as
+  the rule's own consequence, harmless under the levels doctrine.
+- `PortView` holds its cell address in an abstract field, and the table is
+  a `Dict`.
+
+**Spec.** [§11.7][s11-7], [Appendix B][sB]
+
+**Rationale.** The deferred convention had two owners hiding in one
+sentence. What the drawing context carries and how widgets are drawn
+depends on the library, and the GUI package (separate, never a dependency
+of the core) decides it. What a widget *knows* about its port does not
+depend on the library at all: the wiring is the build's, the claim
+partition is frozen at `run!`, the staging cell and the snapshot are the
+core's. Fixing that half now retires the `pending.md` bullet against a
+concrete API and hands the GUI package fixed inputs.
+
+Three pieces are new, and each is a read of state the core already holds.
+The port view assembles `ComponentEntry.conns` (the terminal producer,
+walked across every level at build), `writer.faces` (the claim, whose
+position is the staging slot), the exclusivity index and `layout.addr`.
+Baking at the loop's top rather than at `attach!` is what keeps the
+incumbents honest: a handle's own claim never changes after its attach, but
+the incumbent of a face another device claims later does, and reading the
+index at render is what [§11.7][s11-7] forbids. The bake is plain runtime data, a few
+hundred `Dict` operations once per run, and no new compilation: the one
+`@generated` reader on the path, `gather_cell`, is already specialized for
+every address in the model.
+
+The peek pays for itself in three places. While paused there is no frame
+top and so no drain, and a snapshot-only widget shows the pre-pause value
+whatever the user stages, so paused editing is blind; the same holds for a
+hand-attached GUI staging before `run!`. An edge widget computing "current
+plus one" from the snapshot loses every click after the first inside one
+drain window, which is every click while paused. And an immediate-mode
+slider passed the snapshot value while dragged jumps back each pass until
+the drain catches up. The peek reads the one place the design already keeps
+"what I staged that has not applied", so it adds no state; widget-local
+shadow copies would add one per widget, disagree across fan-out and need
+their own invalidation on drain.
+
+The orphan fact needs no new channel. The writer record in the snapshot's
+status carries `task_state` off the run's task registry and the heartbeat
+off the handle primitives, so a widget joins its view's incumbent to that
+record by name. Dead and stale are different axes: dead is a fact that
+will not change this run, stale is a silence that may clear, and the record
+distinguishes an exited loop from a crashed one. Only the dead case is on
+the widget label by rule; the GUI package may show the silence and its
+age beside it, since the record is in hand.
+
+The abstract address field costs one dynamic dispatch per widget per render
+pass, tens of microseconds per second over a cockpit, and a parametric
+`PortView` would still sit in a `Dict` typed on the abstract type. Output
+ports join the table so a generated panel is one loop over the component's
+faces with no branch on kind; they roughly double a table of a few hundred
+entries.
+
+**Rejected.**
+- *A snapshot-only widget, no peek:* blind while paused and before `run!`,
+  lost clicks on edge widgets inside a drain window, and a slider that
+  fights the hand under immediate-mode rendering.
+- *Widget-local shadow state in place of the peek:* a second copy of the
+  staging cell's content per widget, inconsistent across fan-out and in
+  need of its own invalidation on drain.
+- *Baking the views at `attach!`:* correct for the handle's own claim and
+  slots, stale for the incumbent of a face claimed by a later attach, and
+  repairing that at render means consulting the index at render.
+- *A parametric `PortView{A<:CellAddr}`:* buys a specialized `peek_port`
+  only where a panel captures views into concretely typed fields, on a
+  render path where the dispatch is noise.
+- *A framework-owned drawing context:* what the context bundles beyond the
+  three values is the library's question, and the core would be guessing
+  at a widget model it does not ship.
+- *`peek` as the API spelling:* `Base.peek` exists for streams and
+  iterators; the naming rule appends the target where the spec's verb is
+  the right verb, hence `peek_port`.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -10959,6 +11060,7 @@ through instead of waiting out the spin.
 [d-267]: #d-267--name-the-leaf-declarations-by-the-bundle-field-they-define
 [d-268]: #d-268--pause-verbs-on-the-simulation-and-the-interrupts-remaining-windows
 [d-269]: #d-269--pacings-spellings-and-default-the-waits-consultation-and-the-pacers-home
+[d-270]: #d-270--fix-the-frameworks-half-of-the-panel-convention-port-views-the-peek-the-orphan-fact
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

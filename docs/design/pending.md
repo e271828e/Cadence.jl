@@ -18,8 +18,11 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the standard component library last.
 Where the reason is not given here, the cited decision carries it:
 
-- **§11.7's GUI write path**; its calling convention is deferred under
-  "Pending on the spec itself".
+- **§11.7's GUI write path**, the framework's half (D-270): the port views
+  and `port_views(handle)`, `pending` and `peek_port`, `incumbent_status`
+  with `orphaned`, and the `Structure` and `Layout` on the handle. The GUI
+  package's
+  half is deferred under "Pending on the spec itself".
 - **§14**: `linearize` (§14.10) and its tap register (`TapResolution` reads
   the read register alone today), mounting (§14.9), the NLopt fallback and the
   nominal-activation loop it would run on; sub-port-field addressing; index
@@ -123,9 +126,13 @@ Not a code deviation: what the design documents owe their reader.
     (`is_greedy`, `needs_calling_task`).
 - **The GUI panel authoring API.** The semantics are settled (§11.7): derived
   liveness, first-class read-only rendering, own-pending-else-snapshot peek,
-  stage-on-interaction, orphan display. The calling convention is deferred:
-  context contents, port naming, child composition, to be co-designed
-  against the GUI library under §11.7's four constraints.
+  stage-on-interaction, orphan display. The framework's half of the calling
+  convention is fixed too (D-270): the port view, the handle and a snapshot
+  are the three values a panel reads. What stays deferred is the GUI
+  package's half: what the drawing context bundles beside them, how it
+  scopes to a child, and the widgets, to be co-designed against the GUI
+  library under §11.7's four constraints. `gui = true` (§12.6, Appendix B)
+  attaches that package's device, so the flag waits on it.
 - **Log and trace persistence.** The in-memory artifacts are settled and
   nothing on-disk is. The log is the retained boundary snapshots (§11.2); the
   input trace is always on and device-tagged, with its header of initial

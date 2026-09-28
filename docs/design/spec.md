@@ -6843,15 +6843,67 @@ level. An orphan widget is a read-only rendering like any other, never a
 blanked one. An orphaned root input is therefore visible where the user is
 looking, not only in the status panel.
 
-The panel-authoring calling convention is deferred, to be co-designed against
-the GUI library (`pending.md`). It covers what
-the drawing context carries, how widgets name their component's ports, and
-how an assembly's panel composes its children's. Its constraints are fixed
-here. Panels name their own ports by face-name string. Resolution to root
-inputs and the liveness verdict are baked at run start, never performed at
-render. Liveness and peek arrive through the framework-supplied context,
-never by reaching into the loop. And assembly panels compose children by
-path.
+**The panel convention has two halves. The framework's half is fixed here,
+and the GUI package's half is deferred.** A panel reaches the framework
+through three values: a port view, the device handle and a snapshot. The
+port view is this section's baked verdict, one per declared port of every
+component, input and output. The handle supplies the two reads the peek
+composes and the one write, `stage!`. The snapshot supplies every driven
+value and the writer status the orphan label reads. Nothing a panel needs
+reaches into the loop ([D-270][d-270]).
+
+**Rule. The port view.** `port_views(handle)` builds one view per port of
+every component, keyed by `(path, port)`, from the build's wiring, the
+handle's claim and the exclusivity index. A view carries the port's terminal
+producer (`("", face)` when root-driven), the liveness verdict, the port's
+position in the handle's staging schema when live, the producer's cell
+address, and the incumbent writer of a root-driven port the GUI does not
+command. The GUI's loop body builds the table once at its top. That point
+is after the roster freeze, so the incumbents are the run's, and nothing at
+render resolves a name. The handle carries the build's `Structure` and the
+nominal `Layout` by reference for this, the two things the bake needs that
+the handle did not hold. An output port's view is read-only with itself as
+producer, so a generated panel reads every face through one lookup.
+
+| the port resolves to | live | slot | incumbent |
+|---|---|---|---|
+| a root input inside the GUI's claim | yes | its position | the GUI |
+| a root input in another device's claim | no | none | that device |
+| a root input no device claims | no | none | the harness |
+| another component's port, or its own output | no | none | none |
+
+**Rule. The peek.** `pending(handle, slot)` reads the handle's own staging
+cell with one acquire load and never takes it: `Some(value)` when the slot
+is touched, else `nothing`. A staged batch is never mutated after it is
+published into the cell, so the load sees a complete batch or none.
+`peek_port(view, handle, snapshot)` composes that read with the snapshot. A
+live view returns its own pending value when one is touched, and the
+producer's cell off the snapshot otherwise. A read-only view skips the cell
+and reads the producer's cell. Two ports resolving to one root input share
+slot and address, which is the fan-out consistency above.
+
+The rule has one visible consequence, and it is the rule's own. Between the
+frame-top drain that takes the cell and the publication of that frame's
+snapshot, a live widget finds nothing pending and shows the previous
+snapshot's value, for at most one frame's compute. A click inside that
+window peeks the old level and stages a level already drained, which the
+levels doctrine makes idempotent. No device task reads the loop's store, so
+no reading is more current than this one.
+
+**Rule. The orphan fact.** `incumbent_status(view, snapshot)` returns the
+incumbent's writer record from the snapshot's status ([§11.8][s11-8]), or `nothing`
+for a port no device writes. On that record, `orphaned` is a task that
+returned or crashed, and `stale` is [§12.2][s12-2]'s silent heartbeat. The record
+tells an exited loop from a crashed one, and the label may. The label text
+is the GUI package's.
+
+**What stays deferred is the GUI package's half** (`pending.md`): what the
+drawing context bundles beside the three values, how it scopes to a child
+component, and the widgets. Its constraints are fixed here. Panels name
+their own ports by face-name string. Resolution to root inputs and the
+liveness verdict are baked at run start, never performed at render.
+Liveness and peek arrive through the framework-supplied context, never by
+reaching into the loop. And assembly panels compose children by path.
 
 ### 11.8 Diagnostics and liveness: the per-writer cell
 
@@ -10669,7 +10721,10 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   wrapper, and voluntary exit is returning ([§11.6][s11-6], [§12.4][s12-4]).
 - The device handle. One type, with capabilities rather than a taxonomy:
   `running`, `latest`, `wait_next_snapshot` ([§12.3][s12-3]), `stage!`,
-  `binding`, `gather`, `report!` ([§11.6][s11-6]).
+  `binding`, `gather`, `report!` ([§11.6][s11-6]), and `pending` ([§11.7][s11-7]).
+- The panel kit ([§11.7][s11-7]). `port_views(handle)`, the baked table of port
+  views; `peek_port(view, handle, snapshot)`; `incumbent_status(view,
+  snapshot)`, with `orphaned` and `stale` on the record it returns.
 
 **Condition algebra** ([§14.1][s14-1]–[§14.6][s14-6]).
 
@@ -12509,6 +12564,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-267]: decisions.md#d-267--name-the-leaf-declarations-by-the-bundle-field-they-define
 [d-268]: decisions.md#d-268--pause-verbs-on-the-simulation-and-the-interrupts-remaining-windows
 [d-269]: decisions.md#d-269--pacings-spellings-and-default-the-waits-consultation-and-the-pacers-home
+[d-270]: decisions.md#d-270--fix-the-frameworks-half-of-the-panel-convention-port-views-the-peek-the-orphan-fact
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
