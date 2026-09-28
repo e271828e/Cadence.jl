@@ -452,7 +452,7 @@ function _residue!(residue::Vector{ResidueRecord}, who::String, account::WriterA
     push!(residue, record)
     for occurrence in record.recent
         @warn "$(nameof(typeof(occurrence))) from $who, past the final snapshot's " *
-              "account: $occurrence (§11.8)"
+              "account: $(message(occurrence))"
     end
     suppressed_count = _total(record.suppressed)
     suppressed_count > 0 &&

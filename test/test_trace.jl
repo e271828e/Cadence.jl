@@ -795,7 +795,7 @@ end
 # top (§12.4) — a replay ends `initialized`, so the sweep has no termination
 # record to file its residue in and the log is where it surfaces.
 discard_reports(sim, logs, who::String) =
-    vcat(String[string(d) for snapshot in logged(sim) for w in snapshot.status.writers
+    vcat(String[message(d) for snapshot in logged(sim) for w in snapshot.status.writers
                 if w.who == who for d in w.recent if d isa ReplayDiscardedStaging],
          String[string(l.message) for l in logs
                 if occursin("ReplayDiscardedStaging from $who, past the final",
@@ -824,7 +824,7 @@ function trace_discarded_staging()
         who = "device 1 (Nudge)"
         @test accounted(sim2, logs, who, :replay_discarded, "ReplayDiscardedStaging")
         report = only(discard_reports(sim2, logs, who))
-        @test occursin("[:rate]", report)
+        @test occursin("{rate}", report)
         seen = [d for snapshot in logged(sim2) for w in snapshot.status.writers
                   if w.who == who for d in w.recent if d isa ReplayDiscardedStaging]
         @test all(d -> d.faces == [:rate] && 1 ≤ d.frame ≤ trc.frames, seen)

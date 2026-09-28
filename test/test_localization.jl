@@ -149,7 +149,7 @@ function test_localization()
         # presents it through the logging backend instead, the tail's renderer of
         # last resort (§11.8, D-201).
         @test_logs (:warn, r"ChatteringBudget from loop, past the final snapshot's " *
-                           r"account.*ChatteringBudget\(\"c\"") #=
+                           r"account: `c`\.") #=
             =# run!(sim; t_end = 0.1)
         @test modes(sim, "c").count == 9               # 8 at t*, 1 at the frame top
         @test state(sim, "c").q ≈ 0.049 atol = 1e-12   # the frame-top firing re-armed it
