@@ -10,44 +10,449 @@ testset name states its property and cites the section it answers to.
 
 ## What is real here
 
-One line per file: which constructs live where, and the sections they answer
-to. For more than a line, read the file itself and the sections it cites.
+One entry per file: which constructs live where, and the sections they answer
+to. For more, read the file itself and the sections it cites.
 
-| file | implements | spec |
-| --- | --- | --- |
-| `src/Cadence.jl` | the package module: the dependencies and the include order the other files load in | — |
-| `src/leaves.jl` | the leaf walk (with the enum leaf, D-237's opaque leaf, `Symbol` among them by D-243, and `mutable_position`): flatten / reconstruct / the activation retype — `Pinned`, the contract marker, defined here because the walk dispatches on it, and `retype_entry` stripping the marker at the top of an entry alone (D-265) over `retype`, whose one rule pins a mutable type's parameters (D-263), and `_holds_marker` finding a marker below the top —, and `leaf_names`' dotted spelling of a flat position, embed-accept's relation `_accepts` (D-166, decided on the type per D-238, an opaque leaf by identity at a store per D-237 and admitted as the producer's cell at a wire per D-264) and the wire relation `_accepts_wire` with its abstract arm (D-236) and the checked state write `flatten_state!` (D-235) | §4.1, §4.3, §4.4, §6.1, §7.1, §7.2, §8.2, §9.5, §13.4, D-166, D-235, D-236, D-237, D-238, D-243, D-263 |
-| `src/diagnostics.jl` | the diagnostic kinds with `severity`/`path`/`message`, `_typename` (a user type's name for a payload field or a label), the `DiagnosticError` carrier, parametric on policy, with `diagnostic`/`diagnostics`/`kinds`, the build's `warnings` beside the `carried` collection — a warning joins no collection, and both renderings end with one line apiece (D-250) — and its two renderings, `logline`, the build's warning channel `BUILD_WARNINGS` with `_warn!` appending to the bound list or logging outside any build (D-250), the grid records `GridEntry` and `GridReport` — deployment substrate, defined here because the payloads naming them are; `GridEntry` carries the anchor's declaring scope and key, and `_anchor_label` renders them as every grid consumer names the entry — with `DeploymentInvalid`'s `grid` payload and `GridUtilization`'s, both rendered by `_grid_block` as the structured block every grid consumer appends to its first line, the pool table with each entry's refinement factor and a driving offset's repair, then the prime attribution with its suppliers (D-187), `ArgumentInvalid`'s arms off the deployment surface — the materialization's `join_timeout`, the doors' `trace`, `log`, `log_every` and `log_max` (D-261) and `t_end` carry the constraint text and section they carried on `DeploymentInvalid`, whose parameter set is now Appendix C's row (D-256) —, the `Trim*` kinds, `TrimCommitChecks` among them (D-262), `TierUnreadable` for a primitive declaring no store beside `StatelessWithoutOutputs`, `TierSignatureMismatch` retired (D-263), `InternalInvariant`, §13.4's runtime trio — `CursorFrame`, `StepError` (parametric on its cause, `diagnostic` defined on the species) and `NonfiniteState` — and §12.7's replay trio, `ReplayHeaderMismatch`/`ReplaySchemaMismatch`/`ReplayUnknownFace`, whose `face` carries a bare position where no schema resolves it and the name where one does and whose deployment arm has a second rendering for a schedule row, named by the component path and the column (D-255) | §9.1, §13.1, §13.2, §13.4, §14.8, Appendix C, D-058, D-059, D-157, D-214, D-215, D-222, D-225, D-250, D-261, D-262, D-263 |
-| `src/declare.jl` | the declaration layer: both tiers' name families, `Pinned`'s docstring and the one-arity `declared_at`, a continuous contract walked at its scalar and a discrete one read as written (D-263), the bundle law with the legal bundle sets and `classify_bundle_field` (§5.2, Appendix B), `probe_value` with its enum arm (D-051), the connection declarations beside `transparent_container`, the rate forms with `sample_times`, the event surface, the declaration family `DECLARATION_FAMILY` and `foreign_declarations` | §2.1, §5.2, §8.1, §8.2, §8.5–§8.7, §9.3, D-179, D-185, D-195, D-211, D-246, D-248, D-263 |
-| `src/assembly.jl` | class by declaration shape, `_contract` reading a contract at nominal with its pins stripped (D-263); children and containers with their collision family; `Group`, the anonymous assembly, kernel material by decision where the rest of the old `library.jl` became fixtures; paths and §6.1's one-level rule; endpoint and face resolution with the root's face invariants; the flatten pass under one structure-step barrier (`StructureDraft` accumulating the per-component columns the `Structure` is built from, the tiers, the rate chains and the fold's `Timing`s among them, resolvers recording into the step's list, `wire!` deriving the two-sided face graph after the barrier, `Structure.root_types` holding the root-input types the wire pass fixes ahead of construction, the artifact built complete as rows at the barrier — one `ComponentEntry` per component, one `Anchor` per `Absolute` entry — as the step's last act, D-261) and the sample-time fold; §13.3's `resolve`/`resolve_terminal`/face-list primitives, the walk recording each assembly's evaluated face lists in `StructureDraft.faces` and binding them as `WALK_FACES` so the primitives read them once per call (Appendix C) and evaluate a body only outside a walk, and the service walk `resolve_authored` over the `Structure`'s retained root, declared holdings read off the type definition (D-061, D-130), and `authored_chain`, the child names along an absolute path that `capture` spells level by level, and §8.8's `input_passthrough`/`output_passthrough` with the three exclusive selectors and `EmptyFaceSelection` through the channel (D-251); the shadowing check ahead of `classify` in the walk (D-246); the store-form gate ahead of the classifier in the walk (D-247); the component frame around the walk's two branches (D-248) | §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §13.3, §14.2, D-061, D-130, D-171, D-207–D-212, D-229, D-236, D-246, D-247, D-248, D-251, D-253, D-261, D-263 |
-| `src/store.jl` | per-eltype cell stores (a handle type is its own eltype, D-237), the `StoreBundle`, gather and the checked scatter (§9.5's always-on check decided at generation, D-235), `_cell_key`, the `Clock` — its `t` in the deployment's scalar and its origin `t₀` a `Float64`, taken by the constructor and converted into `t` (D-260) | §9.5, §9.7, D-162, D-235, D-237, D-260 |
-| `src/executor.jl` | entries (each carrying its component's path, for the write's diagnostic, an event entry its event name beside it (D-249)), the chunked unrolled walk, the interior/boundary split, the `(tick − Φ) % D` gate and boundary zero's `ESTABLISH` beside it, the event set with its registers and the guard/fire/project walks over the executor's buffers the caller hands them (D-261), and the execution cursor every entry stores into, its dispatch fields alone, the loop's stop hit being `frame!`'s return value (§13.5, D-261) | §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §13.5, §14.5, D-059, D-205, D-235, D-249, D-255, D-261 |
-| `src/build.jl` | the user-code frame — `invoke_declaration`, `invoke_probed`, `at_component` (§13.2, D-248); tier classification (recording, the tier read in the walk beside the class and decided by the store, with `StatelessWithoutOutputs`, the pinned-entry check (D-263) and `IllegalPortType`'s nested-marker arm on both tiers (D-265)), `build` owning the structure step's one throw, the wire pass (both type clauses at `Float64` and at the marker scalar, the contracts retyped at each with no bound arm (D-263), the root-input type and its two refusals; D-236), the store-form check `check_store_form` (§8.2, D-247), the store isbits check (§7.3, D-231) and the state-leaf vocabulary check (§7.1, D-094), the probe and the event probe, the dead-stage rule at both stage probes and `MissingProbeValue` in `cell_layout` (§9.3), the feedthrough graph with each edge's port and face as the builder's scratch, Kahn's execution order into the `Outputs` — one `ComponentOutputs` row per component in walk order, its path and the two stage name lists, the order beside the rows as `ci`s, and `_ports` concatenating a row into the products' order (D-261) — and, at a stall, the SCC decomposition into one `AlgebraicCycle` per cluster (§5.6, D-012), `_probe_direct!` shared with the classifier's prefix probe, the layout with the root-input meet (D-168, D-236), `IllegalPortType`'s three layout arms (D-237) and the flat `x` ranges every offset is read from (D-261), the probe's embedding of products (`_embed`), the nominal evaluation `_nominal` returning the `Outputs`, the `Events` (one `ComponentEvents` row per component, its path, policies and bundle) and the nominal activation, `_activate` for every other scalar, the `Build` as structure, outputs, events, one activation dictionary and `warnings`, `activation` over that dictionary and `warnings(::Build)` beside it, `build` binding the warning channel once around its three steps — a throw leaving it rewrapped with the list, a completed build logging each warning once at return (D-250) —, `ProbeTag`/`ProbeDual`, the canonical probe scalar (§9.4), and `compile` over the deployment's `Schedule`, the per-component gates derived from its rows (D-261), → `Executor{T}`, its name lists off the products — one activation's buffer set with the bodies closed over it, one owner per set, `evaluate!`/`_round!`/`apply!` on it, the executor owning its stepper (built here from the `algorithm` keyword), its arrival buffers, the `chunk_size` it was compiled at and the localized-event key (D-256) | §5.3, §5.5, §5.6, §6.1, §8.2, §9.1–§9.4, §9.7, §10.4, §13.2, D-012, D-051, D-166, D-179, D-208, D-210, D-229, D-235, D-236, D-237, D-247, D-248, D-250, D-252, D-253, D-256, D-261, D-263 |
-| `src/tracer.jl` | §5.6's set-propagation scalar `Tracer{S}` (global on `true`, local on `false`, `Undecidable` the marker between them), the leaf-wise lift and tag walks, and `_classify` — the schedule-free per-member trace at the probe point, its prefix probe, D-245's port-graph verdict and the sampled fallback at a fixed seed | §5.4, §5.6, §9.3, D-012, D-140, D-245 |
-| `src/readers.jl` | the closed read-selector family, `reads`, its path selectors walked from the root (§13.3), the internal `_compile_reads` → `Reader{T}`, `gather_reads` as `apply!`'s twin over an executor, the output-port candidates read off the `Outputs`; activation identity on readers and plans as an internal invariant | §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253 |
-| `src/sim.jl` | §13.5's block — the four termination sources, `StopPolicy`, the immutable value each advance declares, `t_end` and the stop faces alone, and the termination record carrying the terminating advance's policy beside its source and the tail's residue (D-203, D-255) — then `Run{T}` — §12.6's run state in four fields, the log and the trace fixed by the door that built it (the trace `nothing` under §11.5's switch, which rides here) and the two the run evolves, the attached recording and the termination record the tail writes, with `closed(run)` beside it; the origin, the stop policy and the mode are not fields of it, the clock holding `t₀` as a `Float64`, each advance carrying its own policy and `mode(sim)` reading the feed (D-255, D-260) — and the mutable `Simulation` of five fields — the deployment, the executor, the run, the plane and the control, every other value belonging to one of them (D-256, §12.1) —, the materialization `Simulation(deployment, T)` with `join_timeout` and `chunk_size` alone under `ArgumentInvalid`, its placeholder run an empty log and no trace that carries no configuration, the four recording keywords being `init!`'s and `replay!`'s for the run each builds — validated there under `ArgumentInvalid` at the door's `call`, `_check_recording`, and handed to `_open_run!`, which reads nothing off the run the last door left — with `trace(sim)` refusing on the lifecycle before it reads the switch, and the plane built without the run, no drain thunk compiled before a door (D-261), and the two sugar forms defined as the composition (D-254), `warnings(::Simulation)` as the concatenation (D-250), the boundary macro-sequence and the §10.6 event phase with its `FiringBudget` degradation, `init!`, `run!`/`step!`, `replay!` over the one shared run body — the three doors that build a run, `_open_trajectory!` and `_open_run!` shared by the two that open a trajectory —, `attach!`/`detach!`, the pause verbs `pause!`/`resume!`/`paused` beside `stop!(sim)` (§12.1, D-268), the pacing verbs `pace!`/`margin!` and readers `pace`/`margin` beside them, `run!` and `replay!` taking both as keywords, validated per call under `ArgumentInvalid` and written at entry, and the `Pacer` created per `run!` call in the run body and threaded as the policy is — anchored as the loop starts, re-anchored at un-pause, waiting at the frame top after the yield, carried to every publication — `step!` passing none and never waiting (§10.7, §12.1, D-269), §12.2's thread-budget check `report_thread_budget!` at the run body's top after the freeze, so either door checks once against the frozen roster and `step!` never does (D-027), staging/drain/publication with the drain's replay substitution, §12.6's input mode (`mode(sim)`, `to_time`, `live!`, the mode read off the run's `feed` so a change of mode is a write to the run, never a change of run, D-260), the `StopPolicy` each advance builds and validates per call and then carries as an argument, the faces' compiled addresses beside it as the loop's own, from the call through the frame loop to `_record`'s assembly and the `t*` hit back as `frame!`'s return value — `t_end` and `stop_on` are keywords of `run!`/`replay!`/`step!`, never of the constructor, and the unbounded run's advisory is raised at `run!` (D-255, D-260, D-261) —, the lifecycle and termination record, the frame loop's one catch site with the species rule — the runtime bundle-field match in it (§13.2, §13.4, D-248), its stage-1 names off the `Outputs` — and the interrupt carve-out and its second host around boundary zero, §12.4's mask across each frame's boundary sequence with the frame's `try` inside it, the unmask points at its end and at the frame top, the pause block among them, a deferred interrupt yielding to a holding face and a frame throwing with one pending ending `errored`, the masked bookkeeping in `run!`'s and `step!`'s outermost `finally`, `run!`'s outer catch taking a stray interrupt as the stop, and §13.4's disposition read off the roster in `run!`, `step!` always rethrowing (D-268), the seam's `isfinite` sweep over `x` as the boundary's first act, the accessors | §10.2–§10.7, §11.1–§11.4, §11.8, §12.1–§12.7, §13.2, §13.4–§13.6, §14.5, §14.6, D-027, D-059, D-101, D-157, D-203, D-218, D-219, D-221, D-223, D-232, D-233, D-248, D-253, D-255, D-256, D-260, D-261, D-268, D-269 |
-| `src/stepper.jl` | the seam's backend side: RK4 and Heun, the retained `startpoint`, dense output | §10.2, D-017 |
-| `src/deployment.jl` | deployment binding and its two artifacts (D-254): `bind_schedule` with `_exact`/`_as_int`, the typed `Schedule` over `ScheduleEntry` and `ScopeEntry` — the anchor and rates columns beside `(D, Φ, Δt)` and the rate-scope rows, with `_gates` deriving the per-component triple the executor compiles over from the rows at `compile` (D-261) — and the `Deployment` itself: the build plus the grid parameters, the algorithm and the three event parameters, scalar-free, with one throw per call, `==`/`hash` by value over everything but the build, the grid and the waControlrnings (§12.7), and `warnings(::Deployment)`; the grid attribution `_grid_report` (D-187) — the constraint pool with each entry's leave-one-out refinement factor, the prime attribution of `gcd(pool)`'s denominator and a driving offset's nearest non-refining neighbours — computed once per call ahead of the `Δt_base` branch, carried on the artifact and handed to the three refusals whose remedy is a `Δt_base` the pool admits, and the derivation path's info line, the derived value over the same block with both attribution forms, with the `GridUtilization` advisory at `min_i Dᵢ > 1` | §9.1, §9.2, §10.5, §12.7, Appendix B, Appendix C, D-187, D-227, D-229, D-250, D-254, D-256, D-261 |
-| `src/localization.jl` | the frame loop: arrival sweep, θ = 0 validation, ITP bracketing, `t*` boundaries, the localization budget and the `ChatteringBudget` degradation; the cursor's arrival/validation/trial phases; §13.5's stop-face read at every `t*` publication, off the policy and the addresses `frame!` carries, the frame's remainder abandoned and the face returned when one holds (D-261), and the run's pacer carried beside them to that publication for its record (§10.7, D-269) | §10.2, §10.4, §10.7, §13.4, §13.5, D-018, D-059, D-133, D-255, D-260, D-261, D-269 |
-| `src/dataplane.jl` | the compiled writer and staging cells, the drain, snapshots and the log with re-decimation, the typed diagnostic kinds and cells — `UnboundedRun` among them, the loop's own advisory (§13.5, D-255), and `EmptyGreedyClaim`, declared with the service kinds and reported by `attach!` into the roster entry's own cell (§11.3, D-250), and `DebtReanchor`, the pacer's forgiveness on the loop's own cell (§10.7), and `ThreadBudget`, the run-top tightness warning on the loop's own cell (§12.2, D-027) — with `KINDS`, the closed set's one home, from which the union and `KindCounts`' field order are built, and the published `FrameworkStatus` every snapshot carries, its per-writer records and beside them the pacer's frozen `PacerStatus`, `Inf` and zeros where no pacer runs, the copy off a live `Pacer` being control.jl's (D-269) | §10.7, §11.1–§11.4, §11.8, §12.2, §12.4, §12.6, §13.2, §13.5, D-023, D-027, D-038, D-137, D-250, D-255, D-269 |
-| `src/trace.jl` | the input trace: `TraceHeader` captured at `init!` (resolved stores, root inputs, the run's `Deployment` and its `t₀`, a `Float64` like `h`, D-260) and the mutable `Trace{T}` behind it — the header plus two lists that grow in place, the writers' schemas and one sparse record per drained batch, and the length a replay reads its bound off, which is also the ordinal each record carries, advanced at the top of the drain (D-255, D-260) —, `_install_writers!`'s growth rule, the one site a drain thunk is compiled at, against the executor's store and the run's trace it takes as arguments, with the appended range as a local (D-261), `trace(sim)` handing back a detached value, and replay's up-front entry pass (`_compile_feed`) validating header, schemas and records, both stages collecting since D-217, into the `ReplayFeed` the drain reads — the header's deployment half being one `==` with `_walk_deployment!` naming what it refused, the schedule's rows and scopes by path and column (§12.7) | §11.5, §12.6, §12.7, §14.5, D-029, D-038, D-101, D-176, D-217, D-218, D-254, D-255, D-260, D-261 |
-| `src/roster.jl` | device/binding traits and conformance, the roster — each entry keeping the device, its stable id, its thunk, its abort policy, its account and its handle, and reading its binding, writer and diagnostic cell through the handle by `_handle`'s typeassert (D-261) — both claim sources, the harness writer, and §11.5's drain thunks beside them — `DataPlane(layout)` compiling none, its harness thunk the `_no_drain` sentinel until a door, and `reclaim!` taking the store and the run's trace from `attach!` and `detach!` rather than reading either off the plane (D-260, D-261); the loop is a writer too, so the plane holds its diagnostic cell and account, and §11.2's published holder with them (D-256) | §11.2, §11.3, §11.4, §11.5, §11.6, §11.8, §12.4, D-255, D-256, D-260, D-261 |
-| `src/bindings.jl` | `TableBinding`, `map_input` and the conditioning helper, binding reads resolved at attach (`ReadBindingUnresolved`, the source rule), the candidates on the two name-shaped read misses (§14.4) | §11.2, §11.4, §11.6, §14.4 |
-| `src/control.jl` | the control plane (§12.1) and the pacer riding on it (§10.7): `Control` keeping the stop word, the pause flag beside it, the two pacing knobs `pace` and `margin` read at frame top alone (D-269), the lifecycle, §12.3's counter-plus-condition wait and the shutdown cap `join_timeout` (D-256), the termination record having left it for the `Run` (D-255); the stop word's one write path `_request_stop!`, first CAS from empty wins and the notify waking a paused loop (D-203); the pause block `wait_resume!`, woken by `resume!` and by every stop request, the tail clearing the flag and the block returning whether it parked (§12.1, D-268); the two lifecycle gates, the readers' and the roster's (§11.3, D-232); the `Pacer`, one `run!` call's schedule and counters, never a field of anything, with `anchor!`, `reanchor!` and the monotonic wall clock `_wall_now`; §10.7's pacer wait `wait_deadline!`, the hybrid sleep-then-spin toward the deadline off the anchor with `margin` its one knob, the coarse phase a task-yielding `sleep` and an unmask point, the spin never yielding but taking a safepoint (§12.2, D-027), an overrun left as debt, counted where the debt grew, and forgiven past `5·h/p` by a re-anchor reporting `DebtReanchor` into the loop's cell, a live pace change re-anchoring forward, `Inf` included (D-021, D-269); and the copy `PacerStatus(::Pacer)` | §10.7, §11.3, §12.1–§12.4, §12.6, D-021, D-027, D-203, D-232, D-255, D-256, D-268, D-269 |
-| `src/devices.jl` | the device contract, the handle — the binding, the writer, the diagnostic cell, the compiled gather and the plane's exclusivity index by reference, never the plane, its stable id being the roster entry's (D-261) —, the task wrapper, the init bracket with its interrupt arm, an `InterruptException` in `init!` setting the `:interrupt` stop in place of `DeviceCrash`, and the tail under `join_timeout`, which `Control` carries (D-256), an interrupt reaching it collapsing the remaining joins into `DeviceJoinTimeout` by name (D-268); `ResidueRecord`, the tail's product, beside the sweep that builds it (§13.5, D-203); the handle primitives reading the control plane control.jl defines, `running` off the sticky status and `wait_next_snapshot` off the counter and the condition | §11.1, §11.3, §11.6, §12.1–§12.4, §13.5, §13.6, D-198, D-233, D-244, D-256, D-261, D-268 |
-| `src/conditions.jl` | `condition`, the fragment function's generic (§14.2, Appendix B); the condition algebra, one collecting pass behind both ways of applying a plan, each `at` prefix walked from its authoring level (§13.3) — `resolve_condition` (values) and `compile_plan` (`Getter{P}` lenses, `SpecializedPlan`, `ConditionShapeDrift`) — root-input totality, `capture` | §9.5, §13.1, §13.3, §14.1–§14.6, D-063–D-068, D-117, D-130, D-204, D-205, D-207, D-226 |
-| `src/trim.jl` | `TrimProblem` with its `checks` and `check_tolerances` defaulting to empty (D-262), the `solve` seam with `LevenbergMarquardt`, `trim!` over D-213's two-half scratch world, the frozen copy over the `Outputs`' port list, `TrimReport` with its `committed_checks` (D-262) | §9.6, §13.1, §14.5–§14.8, D-070, D-158, D-213, D-224, D-253, D-262 |
-| `src/show.jl` | the artifacts' renderings, each through `show` with no accessor beside it: for `Structure`, `Outputs`, `Events`, `Schedule`, `Build` and `Deployment` the compact one-line form and the `MIME"text/plain"` tables, twelve methods over one `_lines` per artifact — the `Outputs` and `Events` tables printing each row's path, with no label function, and the `Build` setting a `feedthrough:` line between them, its edges derived by `_feedthrough` from the structure's connections and the producers' stage-2 names (D-261) —, the `Schedule`'s hyperperiod chart over `lcm(Dᵢ)` base ticks with its binary guard at 100, and the `Deployment` setting `_grid_block`'s lines under `grid:`; and the published `FrameworkStatus`'s two forms, one block per writer and the pacer's line last, each writer × kind printed in full up to `STATUS_MAXLOG` cumulative occurrences and count-only past it, the `maxlog` successor | §9.2, §11.8, §13.7, D-136, D-257 |
-| `test/fixtures.jl` | the suite's fixtures: the coverage component set, the named assemblies, the devices and bindings, the `condition` methods (the fragment-function idiom over the framework's generic, `src/conditions.jl`), `Pendulum`, the `ForgottenImport` module, the forgotten-import fixtures, importing nothing — user material, and no name here is known to `src/` | — |
-| `test/imports.jl` | the suite's `import Cadence:` list, shared with `repl.jl` — the one place a framework name the tests call or extend is admitted | — |
-| `test/repl.jl` | the REPL bootstrap: `julia --project=test -L test/repl.jl` loads the list and the fixtures into `Main` | — |
+### `src/Cadence.jl`
+
+The package module: the dependencies and the include order the other files load
+in.
+
+### `src/leaves.jl`
+
+The leaf walk (with the enum leaf, D-237's opaque leaf, `Symbol` among them by
+D-243, and `mutable_position`): flatten / reconstruct / the activation retype —
+`Pinned`, the contract marker, defined here because the walk dispatches on it,
+and `retype_entry` stripping the marker at the top of an entry alone (D-265)
+over `retype`, whose one rule pins a mutable type's parameters (D-263), and
+`_holds_marker` finding a marker below the top —, and `leaf_names`' dotted
+spelling of a flat position, embed-accept's relation `_accepts` (D-166, decided
+on the type per D-238, an opaque leaf by identity at a store per D-237 and
+admitted as the producer's cell at a wire per D-264) and the wire relation
+`_accepts_wire` with its abstract arm (D-236) and the checked state write
+`flatten_state!` (D-235).
+
+Spec: §4.1, §4.3, §4.4, §6.1, §7.1, §7.2, §8.2, §9.5, §13.4, D-166, D-235,
+D-236, D-237, D-238, D-243, D-263.
+
+### `src/diagnostics.jl`
+
+The diagnostic kinds with `severity`/`path`/`message`, `_typename` (a user
+type's name for a payload field or a label), the `DiagnosticError` carrier,
+parametric on policy, with `diagnostic`/`diagnostics`/`kinds`, the build's
+`warnings` beside the `carried` collection — a warning joins no collection, and
+both renderings end with one line apiece (D-250) — and its two renderings,
+`logline`, the build's warning channel `BUILD_WARNINGS` with `_warn!` appending
+to the bound list or logging outside any build (D-250), the grid records
+`GridEntry` and `GridReport` — deployment substrate, defined here because the
+payloads naming them are; `GridEntry` carries the anchor's declaring scope and
+key, and `_anchor_label` renders them as every grid consumer names the entry —
+with `DeploymentInvalid`'s `grid` payload and `GridUtilization`'s, both rendered
+by `_grid_block` as the structured block every grid consumer appends to its
+first line, the pool table with each entry's refinement factor and a driving
+offset's repair, then the prime attribution with its suppliers (D-187),
+`ArgumentInvalid`'s arms off the deployment surface — the materialization's
+`join_timeout`, the doors' `trace`, `log`, `log_every` and `log_max` (D-261) and
+`t_end` carry the constraint text and section they carried on
+`DeploymentInvalid`, whose parameter set is now Appendix C's row (D-256) —, the
+`Trim*` kinds, `TrimCommitChecks` among them (D-262), `TierUnreadable` for a
+primitive declaring no store beside `StatelessWithoutOutputs`,
+`TierSignatureMismatch` retired (D-263), `InternalInvariant`, §13.4's runtime
+trio — `CursorFrame`, `StepError` (parametric on its cause, `diagnostic` defined
+on the species) and `NonfiniteState` — and §12.7's replay trio,
+`ReplayHeaderMismatch`/`ReplaySchemaMismatch`/`ReplayUnknownFace`, whose `face`
+carries a bare position where no schema resolves it and the name where one does
+and whose deployment arm has a second rendering for a schedule row, named by the
+component path and the column (D-255).
+
+Spec: §9.1, §13.1, §13.2, §13.4, §14.8, Appendix C, D-058, D-059, D-157, D-214,
+D-215, D-222, D-225, D-250, D-261, D-262, D-263.
+
+### `src/declare.jl`
+
+The declaration layer: both tiers' name families, `Pinned`'s docstring and the
+one-arity `declared_at`, a continuous contract walked at its scalar and a
+discrete one read as written (D-263), the bundle law with the legal bundle sets
+and `classify_bundle_field` (§5.2, Appendix B), `probe_value` with its enum arm
+(D-051), the connection declarations beside `transparent_container`, the rate
+forms with `sample_times`, the event surface, the declaration family
+`DECLARATION_FAMILY` and `foreign_declarations`.
+
+Spec: §2.1, §5.2, §8.1, §8.2, §8.5–§8.7, §9.3, D-179, D-185, D-195, D-211,
+D-246, D-248, D-263.
+
+### `src/assembly.jl`
+
+Class by declaration shape, `_contract` reading a contract at nominal with its
+pins stripped (D-263); children and containers with their collision family;
+`Group`, the anonymous assembly, kernel material by decision where the rest of
+the old `library.jl` became fixtures; paths and §6.1's one-level rule; endpoint
+and face resolution with the root's face invariants; the flatten pass under one
+structure-step barrier (`StructureDraft` accumulating the per-component columns
+the `Structure` is built from, the tiers, the rate chains and the fold's
+`Timing`s among them, resolvers recording into the step's list, `wire!` deriving
+the two-sided face graph after the barrier, `Structure.root_types` holding the
+root-input types the wire pass fixes ahead of construction, the artifact built
+complete as rows at the barrier — one `ComponentEntry` per component, one
+`Anchor` per `Absolute` entry — as the step's last act, D-261) and the
+sample-time fold; §13.3's `resolve`/`resolve_terminal`/face-list primitives, the
+walk recording each assembly's evaluated face lists in `StructureDraft.faces`
+and binding them as `WALK_FACES` so the primitives read them once per call
+(Appendix C) and evaluate a body only outside a walk, and the service walk
+`resolve_authored` over the `Structure`'s retained root, declared holdings read
+off the type definition (D-061, D-130), and `authored_chain`, the child names
+along an absolute path that `capture` spells level by level, and §8.8's
+`input_passthrough`/`output_passthrough` with the three exclusive selectors and
+`EmptyFaceSelection` through the channel (D-251); the shadowing check ahead of
+`classify` in the walk (D-246); the store-form gate ahead of the classifier in
+the walk (D-247); the component frame around the walk's two branches (D-248).
+
+Spec: §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §13.3, §14.2, D-061, D-130, D-171,
+D-207–D-212, D-229, D-236, D-246, D-247, D-248, D-251, D-253, D-261, D-263.
+
+### `src/store.jl`
+
+Per-eltype cell stores (a handle type is its own eltype, D-237), the
+`StoreBundle`, gather and the checked scatter (§9.5's always-on check decided at
+generation, D-235), `_cell_key`, the `Clock` — its `t` in the deployment's
+scalar and its origin `t₀` a `Float64`, taken by the constructor and converted
+into `t` (D-260).
+
+Spec: §9.5, §9.7, D-162, D-235, D-237, D-260.
+
+### `src/executor.jl`
+
+Entries (each carrying its component's path, for the write's diagnostic, an
+event entry its event name beside it (D-249)), the chunked unrolled walk, the
+interior/boundary split, the `(tick − Φ) % D` gate and boundary zero's
+`ESTABLISH` beside it, the event set with its registers and the
+guard/fire/project walks over the executor's buffers the caller hands them
+(D-261), and the execution cursor every entry stores into, its dispatch fields
+alone, the loop's stop hit being `frame!`'s return value (§13.5, D-261).
+
+Spec: §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §13.5, §14.5, D-059, D-205, D-235,
+D-249, D-255, D-261.
+
+### `src/build.jl`
+
+The user-code frame — `invoke_declaration`, `invoke_probed`, `at_component`
+(§13.2, D-248); tier classification (recording, the tier read in the walk beside
+the class and decided by the store, with `StatelessWithoutOutputs`, the
+pinned-entry check (D-263) and `IllegalPortType`'s nested-marker arm on both
+tiers (D-265)), `build` owning the structure step's one throw, the wire pass
+(both type clauses at `Float64` and at the marker scalar, the contracts retyped
+at each with no bound arm (D-263), the root-input type and its two refusals;
+D-236), the store-form check `check_store_form` (§8.2, D-247), the store isbits
+check (§7.3, D-231) and the state-leaf vocabulary check (§7.1, D-094), the probe
+and the event probe, the dead-stage rule at both stage probes and
+`MissingProbeValue` in `cell_layout` (§9.3), the feedthrough graph with each
+edge's port and face as the builder's scratch, Kahn's execution order into the
+`Outputs` — one `ComponentOutputs` row per component in walk order, its path and
+the two stage name lists, the order beside the rows as `ci`s, and `_ports`
+concatenating a row into the products' order (D-261) — and, at a stall, the SCC
+decomposition into one `AlgebraicCycle` per cluster (§5.6, D-012),
+`_probe_direct!` shared with the classifier's prefix probe, the layout with the
+root-input meet (D-168, D-236), `IllegalPortType`'s three layout arms (D-237)
+and the flat `x` ranges every offset is read from (D-261), the probe's embedding
+of products (`_embed`), the nominal evaluation `_nominal` returning the
+`Outputs`, the `Events` (one `ComponentEvents` row per component, its path,
+policies and bundle) and the nominal activation, `_activate` for every other
+scalar, the `Build` as structure, outputs, events, one activation dictionary and
+`warnings`, `activation` over that dictionary and `warnings(::Build)` beside it,
+`build` binding the warning channel once around its three steps — a throw
+leaving it rewrapped with the list, a completed build logging each warning once
+at return (D-250) —, `ProbeTag`/`ProbeDual`, the canonical probe scalar (§9.4),
+and `compile` over the deployment's `Schedule`, the per-component gates derived
+from its rows (D-261), → `Executor{T}`, its name lists off the products — one
+activation's buffer set with the bodies closed over it, one owner per set,
+`evaluate!`/`_round!`/`apply!` on it, the executor owning its stepper (built
+here from the `algorithm` keyword), its arrival buffers, the `chunk_size` it was
+compiled at and the localized-event key (D-256).
+
+Spec: §5.3, §5.5, §5.6, §6.1, §8.2, §9.1–§9.4, §9.7, §10.4, §13.2, D-012, D-051,
+D-166, D-179, D-208, D-210, D-229, D-235, D-236, D-237, D-247, D-248, D-250,
+D-252, D-253, D-256, D-261, D-263.
+
+### `src/tracer.jl`
+
+§5.6's set-propagation scalar `Tracer{S}` (global on `true`, local on `false`,
+`Undecidable` the marker between them), the leaf-wise lift and tag walks, and
+`_classify` — the schedule-free per-member trace at the probe point, its prefix
+probe, D-245's port-graph verdict and the sampled fallback at a fixed seed.
+
+Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
+
+### `src/readers.jl`
+
+The closed read-selector family, `reads`, its path selectors walked from the
+root (§13.3), the internal `_compile_reads` → `Reader{T}`, `gather_reads` as
+`apply!`'s twin over an executor, the output-port candidates read off the
+`Outputs`; activation identity on readers and plans as an internal invariant.
+
+Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253.
+
+### `src/sim.jl`
+
+§13.5's block — the four termination sources, `StopPolicy`, the immutable value
+each advance declares, `t_end` and the stop faces alone, and the termination
+record carrying the terminating advance's policy beside its source and the
+tail's residue (D-203, D-255) — then `Run{T}` — §12.6's run state in four
+fields, the log and the trace fixed by the door that built it (the trace
+`nothing` under §11.5's switch, which rides here) and the two the run evolves,
+the attached recording and the termination record the tail writes, with
+`closed(run)` beside it; the origin, the stop policy and the mode are not fields
+of it, the clock holding `t₀` as a `Float64`, each advance carrying its own
+policy and `mode(sim)` reading the feed (D-255, D-260) — and the mutable
+`Simulation` of five fields — the deployment, the executor, the run, the plane
+and the control, every other value belonging to one of them (D-256, §12.1) —,
+the materialization `Simulation(deployment, T)` with `join_timeout` and
+`chunk_size` alone under `ArgumentInvalid`, its placeholder run an empty log and
+no trace that carries no configuration, the four recording keywords being
+`init!`'s and `replay!`'s for the run each builds — validated there under
+`ArgumentInvalid` at the door's `call`, `_check_recording`, and handed to
+`_open_run!`, which reads nothing off the run the last door left — with
+`trace(sim)` refusing on the lifecycle before it reads the switch, and the plane
+built without the run, no drain thunk compiled before a door (D-261), and the
+two sugar forms defined as the composition (D-254), `warnings(::Simulation)` as
+the concatenation (D-250), the boundary macro-sequence and the §10.6 event phase
+with its `FiringBudget` degradation, `init!`, `run!`/`step!`, `replay!` over the
+one shared run body — the three doors that build a run, `_open_trajectory!` and
+`_open_run!` shared by the two that open a trajectory —, `attach!`/`detach!`,
+the pause verbs `pause!`/`resume!`/`paused` beside `stop!(sim)` (§12.1, D-268),
+the pacing verbs `pace!`/`margin!` and readers `pace`/`margin` beside them,
+`run!` and `replay!` taking both as keywords, validated per call under
+`ArgumentInvalid` and written at entry, and the `Pacer` created per `run!` call
+in the run body and threaded as the policy is — anchored as the loop starts,
+re-anchored at un-pause, waiting at the frame top after the yield, carried to
+every publication — `step!` passing none and never waiting (§10.7, §12.1,
+D-269), §12.2's thread-budget check `report_thread_budget!` at the run body's
+top after the freeze, so either door checks once against the frozen roster and
+`step!` never does (D-027), staging/drain/publication with the drain's replay
+substitution, §12.6's input mode (`mode(sim)`, `to_time`, `live!`, the mode read
+off the run's `feed` so a change of mode is a write to the run, never a change
+of run, D-260), the `StopPolicy` each advance builds and validates per call and
+then carries as an argument, the faces' compiled addresses beside it as the
+loop's own, from the call through the frame loop to `_record`'s assembly and the
+`t*` hit back as `frame!`'s return value — `t_end` and `stop_on` are keywords of
+`run!`/`replay!`/`step!`, never of the constructor, and the unbounded run's
+advisory is raised at `run!` (D-255, D-260, D-261) —, the lifecycle and
+termination record, the frame loop's one catch site with the species rule — the
+runtime bundle-field match in it (§13.2, §13.4, D-248), its stage-1 names off
+the `Outputs` — and the interrupt carve-out and its second host around boundary
+zero, §12.4's mask across each frame's boundary sequence with the frame's `try`
+inside it, the unmask points at its end and at the frame top, the pause block
+among them, a deferred interrupt yielding to a holding face and a frame throwing
+with one pending ending `errored`, the masked bookkeeping in `run!`'s and
+`step!`'s outermost `finally`, `run!`'s outer catch taking a stray interrupt as
+the stop, and §13.4's disposition read off the roster in `run!`, `step!` always
+rethrowing (D-268), the seam's `isfinite` sweep over `x` as the boundary's first
+act, the accessors.
+
+Spec: §10.2–§10.7, §11.1–§11.4, §11.8, §12.1–§12.7, §13.2, §13.4–§13.6, §14.5,
+§14.6, D-027, D-059, D-101, D-157, D-203, D-218, D-219, D-221, D-223, D-232,
+D-233, D-248, D-253, D-255, D-256, D-260, D-261, D-268, D-269.
+
+### `src/stepper.jl`
+
+The seam's backend side: RK4 and Heun, the retained `startpoint`, dense output.
+
+Spec: §10.2, D-017.
+
+### `src/deployment.jl`
+
+Deployment binding and its two artifacts (D-254): `bind_schedule` with
+`_exact`/`_as_int`, the typed `Schedule` over `ScheduleEntry` and `ScopeEntry` —
+the anchor and rates columns beside `(D, Φ, Δt)` and the rate-scope rows, with
+`_gates` deriving the per-component triple the executor compiles over from the
+rows at `compile` (D-261) — and the `Deployment` itself: the build plus the grid
+parameters, the algorithm and the three event parameters, scalar-free, with one
+throw per call, `==`/`hash` by value over everything but the build, the grid and
+the warnings (§12.7), and `warnings(::Deployment)`; the grid attribution
+`_grid_report` (D-187) — the constraint pool with each entry's leave-one-out
+refinement factor, the prime attribution of `gcd(pool)`'s denominator and a
+driving offset's nearest non-refining neighbours — computed once per call ahead
+of the `Δt_base` branch, carried on the artifact and handed to the three
+refusals whose remedy is a `Δt_base` the pool admits, and the derivation path's
+info line, the derived value over the same block with both attribution forms,
+with the `GridUtilization` advisory at `min_i Dᵢ > 1`.
+
+Spec: §9.1, §9.2, §10.5, §12.7, Appendix B, Appendix C, D-187, D-227, D-229,
+D-250, D-254, D-256, D-261.
+
+### `src/localization.jl`
+
+The frame loop: arrival sweep, θ = 0 validation, ITP bracketing, `t*`
+boundaries, the localization budget and the `ChatteringBudget` degradation; the
+cursor's arrival/validation/trial phases; §13.5's stop-face read at every `t*`
+publication, off the policy and the addresses `frame!` carries, the frame's
+remainder abandoned and the face returned when one holds (D-261), and the run's
+pacer carried beside them to that publication for its record (§10.7, D-269).
+
+Spec: §10.2, §10.4, §10.7, §13.4, §13.5, D-018, D-059, D-133, D-255, D-260,
+D-261, D-269.
+
+### `src/dataplane.jl`
+
+The compiled writer and staging cells, the drain, snapshots and the log with
+re-decimation, the typed diagnostic kinds and cells — `UnboundedRun` among them,
+the loop's own advisory (§13.5, D-255), and `EmptyGreedyClaim`, declared with
+the service kinds and reported by `attach!` into the roster entry's own cell
+(§11.3, D-250), and `DebtReanchor`, the pacer's forgiveness on the loop's own
+cell (§10.7), and `ThreadBudget`, the run-top tightness warning on the loop's
+own cell (§12.2, D-027) — with `KINDS`, the closed set's one home, from which
+the union and `KindCounts`' field order are built, and the published
+`FrameworkStatus` every snapshot carries, its per-writer records and beside them
+the pacer's frozen `PacerStatus`, `Inf` and zeros where no pacer runs, the copy
+off a live `Pacer` being control.jl's (D-269).
+
+Spec: §10.7, §11.1–§11.4, §11.8, §12.2, §12.4, §12.6, §13.2, §13.5, D-023,
+D-027, D-038, D-137, D-250, D-255, D-269.
+
+### `src/trace.jl`
+
+The input trace: `TraceHeader` captured at `init!` (resolved stores, root
+inputs, the run's `Deployment` and its `t₀`, a `Float64` like `h`, D-260) and
+the mutable `Trace{T}` behind it — the header plus two lists that grow in place,
+the writers' schemas and one sparse record per drained batch, and the length a
+replay reads its bound off, which is also the ordinal each record carries,
+advanced at the top of the drain (D-255, D-260) —, `_install_writers!`'s growth
+rule, the one site a drain thunk is compiled at, against the executor's store
+and the run's trace it takes as arguments, with the appended range as a local
+(D-261), `trace(sim)` handing back a detached value, and replay's up-front entry
+pass (`_compile_feed`) validating header, schemas and records, both stages
+collecting since D-217, into the `ReplayFeed` the drain reads — the header's
+deployment half being one `==` with `_walk_deployment!` naming what it refused,
+the schedule's rows and scopes by path and column (§12.7).
+
+Spec: §11.5, §12.6, §12.7, §14.5, D-029, D-038, D-101, D-176, D-217, D-218,
+D-254, D-255, D-260, D-261.
+
+### `src/roster.jl`
+
+Device/binding traits and conformance, the roster — each entry keeping the
+device, its stable id, its thunk, its abort policy, its account and its handle,
+and reading its binding, writer and diagnostic cell through the handle by
+`_handle`'s typeassert (D-261) — both claim sources, the harness writer, and
+§11.5's drain thunks beside them — `DataPlane(layout)` compiling none, its
+harness thunk the `_no_drain` sentinel until a door, and `reclaim!` taking the
+store and the run's trace from `attach!` and `detach!` rather than reading
+either off the plane (D-260, D-261); the loop is a writer too, so the plane
+holds its diagnostic cell and account, and §11.2's published holder with them
+(D-256).
+
+Spec: §11.2, §11.3, §11.4, §11.5, §11.6, §11.8, §12.4, D-255, D-256, D-260,
+D-261.
+
+### `src/bindings.jl`
+
+`TableBinding`, `map_input` and the conditioning helper, binding reads resolved
+at attach (`ReadBindingUnresolved`, the source rule), the candidates on the two
+name-shaped read misses (§14.4).
+
+Spec: §11.2, §11.4, §11.6, §14.4.
+
+### `src/control.jl`
+
+The control plane (§12.1) and the pacer riding on it (§10.7): `Control` keeping
+the stop word, the pause flag beside it, the two pacing knobs `pace` and
+`margin` read at frame top alone (D-269), the lifecycle, §12.3's
+counter-plus-condition wait and the shutdown cap `join_timeout` (D-256), the
+termination record having left it for the `Run` (D-255); the stop word's one
+write path `_request_stop!`, first CAS from empty wins and the notify waking a
+paused loop (D-203); the pause block `wait_resume!`, woken by `resume!` and by
+every stop request, the tail clearing the flag and the block returning whether
+it parked (§12.1, D-268); the two lifecycle gates, the readers' and the roster's
+(§11.3, D-232); the `Pacer`, one `run!` call's schedule and counters, never a
+field of anything, with `anchor!`, `reanchor!` and the monotonic wall clock
+`_wall_now`; §10.7's pacer wait `wait_deadline!`, the hybrid sleep-then-spin
+toward the deadline off the anchor with `margin` its one knob, the coarse phase
+a task-yielding `sleep` and an unmask point, the spin never yielding but taking
+a safepoint (§12.2, D-027), an overrun left as debt, counted where the debt
+grew, and forgiven past `5·h/p` by a re-anchor reporting `DebtReanchor` into the
+loop's cell, a live pace change re-anchoring forward, `Inf` included (D-021,
+D-269); and the copy `PacerStatus(::Pacer)`.
+
+Spec: §10.7, §11.3, §12.1–§12.4, §12.6, D-021, D-027, D-203, D-232, D-255,
+D-256, D-268, D-269.
+
+### `src/devices.jl`
+
+The device contract, the handle — the binding, the writer, the diagnostic cell,
+the compiled gather and the plane's exclusivity index by reference, never the
+plane, its stable id being the roster entry's (D-261) —, the task wrapper, the
+init bracket with its interrupt arm, an `InterruptException` in `init!` setting
+the `:interrupt` stop in place of `DeviceCrash`, and the tail under
+`join_timeout`, which `Control` carries (D-256), an interrupt reaching it
+collapsing the remaining joins into `DeviceJoinTimeout` by name (D-268);
+`ResidueRecord`, the tail's product, beside the sweep that builds it (§13.5,
+D-203); the handle primitives reading the control plane control.jl defines,
+`running` off the sticky status and `wait_next_snapshot` off the counter and the
+condition.
+
+Spec: §11.1, §11.3, §11.6, §12.1–§12.4, §13.5, §13.6, D-198, D-233, D-244,
+D-256, D-261, D-268.
+
+### `src/conditions.jl`
+
+`condition`, the fragment function's generic (§14.2, Appendix B); the condition
+algebra, one collecting pass behind both ways of applying a plan, each `at`
+prefix walked from its authoring level (§13.3) — `resolve_condition` (values)
+and `compile_plan` (`Getter{P}` lenses, `SpecializedPlan`,
+`ConditionShapeDrift`) — root-input totality, `capture`.
+
+Spec: §9.5, §13.1, §13.3, §14.1–§14.6, D-063–D-068, D-117, D-130, D-204, D-205,
+D-207, D-226.
+
+### `src/trim.jl`
+
+`TrimProblem` with its `checks` and `check_tolerances` defaulting to empty
+(D-262), the `solve` seam with `LevenbergMarquardt`, `trim!` over D-213's
+two-half scratch world, the frozen copy over the `Outputs`' port list,
+`TrimReport` with its `committed_checks` (D-262).
+
+Spec: §9.6, §13.1, §14.5–§14.8, D-070, D-158, D-213, D-224, D-253, D-262.
+
+### `src/show.jl`
+
+The artifacts' renderings, each through `show` with no accessor beside it: for
+`Structure`, `Outputs`, `Events`, `Schedule`, `Build` and `Deployment` the
+compact one-line form and the `MIME"text/plain"` tables, twelve methods over one
+`_lines` per artifact — the `Outputs` and `Events` tables printing each row's
+path, with no label function, and the `Build` setting a `feedthrough:` line
+between them, its edges derived by `_feedthrough` from the structure's
+connections and the producers' stage-2 names (D-261) —, the `Schedule`'s
+hyperperiod chart over `lcm(Dᵢ)` base ticks with its binary guard at 100, and
+the `Deployment` setting `_grid_block`'s lines under `grid:`; and the published
+`FrameworkStatus`'s two forms, one block per writer and the pacer's line last,
+each writer × kind printed in full up to `STATUS_MAXLOG` cumulative occurrences
+and count-only past it, the `maxlog` successor.
+
+Spec: §9.2, §11.8, §13.7, D-136, D-257.
+
+### `test/fixtures.jl`
+
+The suite's fixtures: the coverage component set, the named assemblies, the
+devices and bindings, the `condition` methods (the fragment-function idiom over
+the framework's generic, `src/conditions.jl`), `Pendulum`, the `ForgottenImport`
+module, the forgotten-import fixtures, importing nothing — user material, and no
+name here is known to `src/`.
+
+### `test/imports.jl`
+
+The suite's `import Cadence:` list, shared with `repl.jl` — the one place a
+framework name the tests call or extend is admitted.
+
+### `test/repl.jl`
+
+The REPL bootstrap: `julia --project=test -L test/repl.jl` loads the list and
+the fixtures into `Main`.
 
 Correctness is checked against analytically integrated references with a
 tolerance, never `==` (D-163) — except the frame-top stamps, asserted bitwise
 against the indexed grid time because that is the claim.
 
 **Rule: nothing deviates silently.** Every construct a reader could mistake
-for the design's is in exactly one of three places: the table above, or
+for the design's is in exactly one of three places: the entries above, or
 `pending.md`'s absence list or deviation list, the latter naming the spec
 shape it replaces. The rule itself is unenforceable — no tool can see a
 deviation nobody wrote down — and `src/` and `test/` sit outside every
