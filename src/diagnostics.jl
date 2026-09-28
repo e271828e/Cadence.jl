@@ -1715,9 +1715,9 @@ end
 # the discrete tier pins by tier, with nothing to promote (§8.2, D-272).
 function _unseedable_clause(d::TapResolution)
     isempty(d.pinning) &&
-        return ("the leaf it names is declared $(d.declared), and a seed is a `Float64` " *
-                "direction — only a `Float64` leaf, or one component of an `SVector` of " *
-                "them, can be seeded", "§14.10")
+        return ("the leaf it names is declared $(d.declared), which no seed enters — a " *
+                "seed is a `Float64` direction, and only a `Float64` leaf, or one component " *
+                "of an `SVector` of them, takes one", "§14.10")
     by_entry = [(consumer, entry) for (consumer, tier, entry) in d.pinning if tier === :continuous]
     by_tier = [consumer for (consumer, tier, _) in d.pinning if tier === :discrete]
     clauses, citation = String[], ["§14.10"]
