@@ -73,7 +73,15 @@ Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
 retires or the code conforms.
 
-Currently empty.
+- **Capture then apply is not the identity for a held discrete output**
+  (§14.5, D-205, D-213): on a sampled model, `capture` reads each discrete
+  store after the last boundary's `s_update`, and the establishing round
+  republishes every discrete output stage from that store. A held output
+  then reads one update ahead of the live cell, in `linearize`'s default
+  form and in `trim!`'s setup evaluation alike. Probed on a
+  `DiscreteIntegrator` driving the pendulum at `h = 1//10`, `in = 1.0`, run
+  to `0.35`: the live `ctl/u` reads `4.4`, `linearize`'s `y₀` over
+  `get_output("ctl", :u)` reads `4.5`.
 
 ## Pending on the spec itself
 

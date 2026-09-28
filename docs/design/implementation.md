@@ -70,10 +70,13 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265.
 - The `Trim*` kinds `TrimProblemInvalid`, `TrimCommitEvents`,
   `TrimCommitResiduals` and `TrimCommitChecks` (D-262).
 - `TapResolution`'s tap-set reasons `:tap_kind`, `:discrete_state`,
-  `:vector_tap` and `:unseedable`, with the `list` and `pinning` fields;
-  `ReadSetMisuse`'s `:not_a_tap_list`; `ArgumentInvalid`'s `:not_a_tap_set`,
-  `:t0_without_about` and `:nonpositive_width`, and its `:non_nominal` arm
-  naming the service (D-272).
+  `:vector_tap`, `:unseedable` and `:duplicate_site`, with the `list`,
+  `pinning` and `duplicate_of` fields; `ReadSetMisuse`'s `:not_a_tap_list`;
+  `ArgumentInvalid`'s `:not_a_tap_set`, `:t0_without_about` and
+  `:nonpositive_width`, and its `:non_nominal` arm naming the service
+  (D-272). A pinning consumer carries its tier, and a discrete one renders
+  as unseedable by tier. Each `TapResolution` reason renders one citation
+  group, its own.
 - `TierUnreadable`, for a primitive declaring no store, sits beside
   `StatelessWithoutOutputs` (D-263).
 - `InternalInvariant`.
@@ -617,8 +620,9 @@ Spec: §9.6, §13.1, §14.5–§14.8, D-070, D-158, D-213, D-224, D-253, D-262.
 - `linearize`, over D-213's two-half scratch world in passes of `width`
   directions, the seeds written at the resolved taps' own sites.
 - The collecting tap resolution, with the discrete store, the unindexed
-  vector leaf, the member in the wrong list and the unseedable root input
-  refused, the last naming its pinning consumers.
+  vector leaf, the member in the wrong list, the unseedable root input and
+  a second seed at one site refused. The unseedable root input names its
+  pinning consumers with their tiers, the duplicate the earlier label.
 
 Spec: §9.7, §14.4, §14.10, D-167, D-168, D-197, D-213, D-271, D-272.
 

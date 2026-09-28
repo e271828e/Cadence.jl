@@ -7,7 +7,7 @@
 # read site, so the seeds go where the reads come from (D-272). The world is
 # trim's: D-213's two-half scratch set, a nominal half established for the
 # frozen discrete cells and a seeded half at the service's own `Dual` scalar
-# (trim.jl). What this file adds is the tap resolution with its four refusals,
+# (trim.jl). What this file adds is the tap resolution with its five refusals,
 # the passes of `width` directions, and the split of values from partials.
 # Nothing here writes the simulation: both executors are locals and die with
 # the call, which is what makes linearization a pure query.
@@ -79,12 +79,13 @@ end
 §14.10's linearization, a pure query on scratch buffers:
 
 1. The operating point is `capture(sim)` by default, legal in `initialized` and
-   `stopped`; `about = <condition>` with `t0` beside it places it anywhere else,
-   legal wherever `init!` is (§14).
+   `stopped`, and it carries its own time; `about = <condition>` with `t0` beside
+   it places it anywhere else, legal wherever `init!` is (§14). `t0` is admitted
+   only beside `about`, never silently ignored (Appendix B).
 2. The tap set resolves in §13.1's collecting form: closed membership per list,
-   one scalar per tap, no discrete store in `x` (D-197), no declaredly
-   unseedable root input in `u` (D-167, D-168). Every violation is one
-   `TapResolution` in one `DiagnosticError`.
+   one scalar per tap, no discrete store in `x` (D-197), no unseedable root
+   input in `u` (D-167, D-168), no two seeds at one site (D-272). Every
+   violation is one `TapResolution` in one `DiagnosticError`.
 3. The nominal half: a `Float64` scratch executor, the operating point applied
    and checked total over the root inputs (§14.6), one establishment round.
 4. The seeded half, at `Dual{LinearizeTag,Float64,width}`: a scratch executor,
@@ -200,11 +201,14 @@ Resolve the three lists in §13.1's collecting form, one `DiagnosticError` with
 every violation. The checks run at the nominal activation, so every payload
 carries nominal types; the entries returned are the seeded activation's. An `x`
 entry is its `xbuf` site paired with the `DerivRead` its row is read through,
-a `u` entry the root input's `CellRead`, a `y` entry its cell's.
+a `u` entry the root input's `CellRead`, a `y` entry its cell's. A second `x`
+or `u` tap at a site already seeded is refused naming the earlier label, since
+its seed would overwrite the first; `y` taps are reads and may repeat.
 """
 function _resolve_taps(tap_set::Taps, build::Build, ::Type{T}) where {T}
     nominal_act, act = activation(build, Float64), activation(build, T)
     diags = Diagnostic[]
+    seeded_by = Dict{Any,Symbol}()       # seed site => the label that seeds it
     entries = map((:x, :u, :y)) do list
         resolved = Any[]
         for (label, selector) in pairs(getfield(tap_set, list).selectors)
@@ -215,13 +219,27 @@ function _resolve_taps(tap_set::Taps, build::Build, ::Type{T}) where {T}
             nominal_entry = _resolve_selector(selector, label, build, nominal_act, diags)
             nominal_entry === nothing && continue
             entry = _seeded_tap(Val(list), nominal_entry, selector, label, build, act, diags)
-            entry === nothing || push!(resolved, entry)
+            entry === nothing && continue
+            site = _site_key(Val(list), entry)
+            if site !== nothing && haskey(seeded_by, site)
+                push!(diags, _reader_violation(label, selector, :duplicate_site;
+                                               duplicate_of = seeded_by[site]))
+                continue
+            end
+            site === nothing || (seeded_by[site] = label)
+            push!(resolved, entry)
         end
         resolved
     end
     isempty(diags) || throw(DiagnosticError(diags))
     entries
 end
+
+# A seed site's identity (D-272): an `x` entry's `xbuf` slot, a `u` entry's cell
+# and component. A `y` entry is a read, not a seed, and has none.
+_site_key(::Val{:x}, entry::Tuple{Int,DerivRead}) = first(entry)
+_site_key(::Val{:u}, entry::CellRead) = (entry.addr, entry.i)
+_site_key(::Val{:y}, ::CellRead) = nothing
 
 # A seed is a `Float64` direction: a `Float64` leaf whole, or one component of
 # an `SVector` of them. A non-`Real` leaf without an index is the vector tap,
@@ -253,7 +271,8 @@ end
 
 # The `u` list: the root input's cell follows the seeded scalar only when every
 # consumer tolerates it, D-168's meet. A consumer whose entry refuses the walked
-# type is a pinning consumer, named with its declared entry (D-167).
+# type is a pinning consumer, named with its tier and its declared entry: a
+# continuous one pins by declaration (D-167), a discrete one by tier (§8.2).
 function _seeded_tap(::Val{:u}, entry::CellRead, selector::GetInput, label::Symbol,
                      build::Build, act::Activation{T}, diags::Vector{Diagnostic}) where {T}
     _check_seedable(selector, label, _port_type(entry.addr), selector.face, diags) ||
@@ -261,8 +280,9 @@ function _seeded_tap(::Val{:u}, entry::CellRead, selector::GetInput, label::Symb
     structure, face = build.structure, selector.face
     root_type = structure.root_types[findfirst(==(face), structure.root_inputs)]
     walked_type = retype(T, root_type)
-    pinning = Pair{String,Any}[
-        consumer.path => invoke_declaration(u_types, consumer.instance)[consumer_face]
+    pinning = Tuple{String,Symbol,Any}[
+        (consumer.path, Symbol(tier_word(consumer.tier)),
+         invoke_declaration(u_types, consumer.instance)[consumer_face])
         for (ci, consumer) in enumerate(structure.components)
         for (consumer_face, producer) in consumer.conns
         if producer === ("", face) &&
@@ -297,8 +317,8 @@ _site_value(exec::Executor, site::CellRead) = ForwardDiff.value(_read(site, exec
 
 # One seed: the site's value with the unit partial in slot `pos`, or all-zero
 # partials when `pos` is zero and the site is outside the pass's group.
-_seed(::Type{ForwardDiff.Dual{TG,Float64,N}}, site_value::Float64, pos::Int) where {TG,N} =
-    ForwardDiff.Dual{TG}(site_value, ntuple(j -> Float64(j == pos), Val(N))...)
+_seed(::Type{ForwardDiff.Dual{TG,Float64,W}}, site_value::Float64, pos::Int) where {TG,W} =
+    ForwardDiff.Dual{TG}(site_value, ntuple(j -> Float64(j == pos), Val(W))...)
 
 _seed_site!(exec::Executor, site::Int, seed) = (exec.xbuf[site] = seed; nothing)
 _seed_site!(exec::Executor, site::CellRead{A,Nothing}, seed) where {A} =

@@ -118,7 +118,7 @@ function test_linearize()
         @test by_about.status === :running && by_about.legal == [:built, :initialized, :stopped]
     end
 
-    @testset "the width groups the directions and never changes the answer (D-272)" begin
+    @testset "the width groups the directions and never changes the answer (§14.10, D-272)" begin
         sim = Simulation(lin_pend(); h = 1//10)
         init!(sim, lin_point())
         results = [linearize(sim, lin_taps(); width = w) for w in (1, 3, LINEARIZE_WIDTH)]
@@ -175,16 +175,17 @@ function test_linearize()
 
         # A root input read by the discrete tier alone pins by the meet: a
         # discrete consumer's entries pin wholesale (§6.1, §8.2), so its cell is
-        # `Float64` at every activation and a seed has nowhere to go.
+        # `Float64` at every activation and a seed has nowhere to go. The
+        # consumer is named with its tier, since there is no entry to promote.
         d = only(diagnostics(failure(() -> linearize(sim, taps(x = state_taps, u = (in = get_input(:in),)); about = lin_sampled_point()))))
-        @test d isa TapResolution && d.reason === :unseedable && d.pinning == ["ctl" => Float64]
+        @test d isa TapResolution && d.reason === :unseedable && d.pinning == [("ctl", :discrete, Float64)]
     end
 
     @testset "the pinned root input is refused naming its consumer (§14.10, D-167, D-168)" begin
         sim = Simulation(lin_pinned(); h = 1//10)
         d = only(diagnostics(failure(() -> linearize(sim, taps(u = (τ = get_input(:τ),)); about = fragment(inputs = (τ = 0.0,))))))
         @test d isa TapResolution && d.reason === :unseedable && d.field === :τ && d.tap === :u
-        @test d.pinning == ["g" => Pinned{Float64}] && d.declared === Float64
+        @test d.pinning == [("g", :continuous, Pinned{Float64})] && d.declared === Float64
     end
 
     @testset "resolution collects every tap violation into one refusal (§14.10, §13.1)" begin
@@ -194,8 +195,8 @@ function test_linearize()
                                                 u = (c = get_face(:q, 1), d = get_input(:nope)),
                                                 y = (e = get_state("p", :q, 1), f = get_face(:q)))))
         @test err isa DiagnosticError && length(diagnostics(err)) == 6            # the full list, one throw
-        @test all(x -> x isa TapResolution, diagnostics(err))
-        by_label = Dict(x.label => x for x in diagnostics(err))
+        @test all(d -> d isa TapResolution, diagnostics(err))
+        by_label = Dict(d.label => d for d in diagnostics(err))
         @test sort(collect(keys(by_label))) == [:a, :b, :c, :d, :e, :f]
         @test by_label[:a].reason === :vector_tap && by_label[:a].declared == SVector{2,Float64}
         @test by_label[:b].reason === :tap_kind && by_label[:b].list === :x && by_label[:b].tap === :x
@@ -207,6 +208,30 @@ function test_linearize()
         # An index on a `Float64` state is the read side's own refusal, unchanged.
         d = only(diagnostics(failure(() -> linearize(lin_pend_sim(), taps(x = (θ = get_state("c", :θ, 1),))))))
         @test d isa TapResolution && d.reason === :scalar_index && d.declared === Float64
+    end
+
+    @testset "two seeds at one site are refused naming the earlier label, and a y tap may repeat (§14.10)" begin
+        sim = lin_pend_sim()
+        err = failure(() -> linearize(sim, taps(x = (a = get_state("c", :ω), b = get_state("c", :ω)),
+                                                u = (τ = get_input(:τ), again = get_input(:τ)))))
+        by_label = Dict(d.label => d for d in diagnostics(err))
+        @test sort(collect(keys(by_label))) == [:again, :b]                    # the later tap, each list
+        @test by_label[:b].reason === :duplicate_site && by_label[:b].duplicate_of === :a &&
+              by_label[:b].tap === :x
+        @test by_label[:again].reason === :duplicate_site && by_label[:again].duplicate_of === :τ &&
+              by_label[:again].tap === :u
+
+        # A vector leaf's site is its component: two components are two sites.
+        vector_sim = Simulation(lin_vector(); h = 1//10)
+        init!(vector_sim, lin_vector_point())
+        d = only(diagnostics(failure(() -> linearize(vector_sim, taps(
+            x = (q1 = get_state("p", :q, 1), q2 = get_state("p", :q, 2), again = get_state("p", :q, 1)))))))
+        @test d.reason === :duplicate_site && d.label === :again && d.duplicate_of === :q1 && d.index == 1
+
+        # A `y` row is a read, not a seed.
+        linearization = linearize(sim, taps(x = (θ = get_state("c", :θ),), y = (a = get_face(:θ), b = get_face(:θ))))
+        @test linearization.C[1, :] == linearization.C[2, :] && isapprox(linearization.C, [1.0; 1.0;;]; atol = 1e-12)
+        @test linearization.y₀ == (a = 0.3, b = 0.3)
     end
 
     @testset "the tap set is a type, and the misuses are directives (§14.2, D-272)" begin

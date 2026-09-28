@@ -1635,7 +1635,8 @@ Base.@kwdef struct TapResolution <: Diagnostic
     selector::String                         # the selector as authored
     reason::Symbol   # :assembly_path|:scalar_index|:undeclared|:discrete_deriv|
                      # :unknown_root_input|:root_input_not_face|:unknown_output_face|
-                     # the tap set's (§14.10): :tap_kind|:discrete_state|:vector_tap|:unseedable
+                     # the tap set's (§14.10): :tap_kind|:discrete_state|:vector_tap|:unseedable|
+                     # :duplicate_site
     tap::Union{Nothing,Symbol} = nothing     # :x | :u | :y
     path::String = ""
     field::Union{Nothing,Symbol} = nothing
@@ -1644,7 +1645,8 @@ Base.@kwdef struct TapResolution <: Diagnostic
     declared::Any = nothing
     candidates::Vector{Symbol} = Symbol[]
     list::Union{Nothing,Symbol} = nothing          # :tap_kind — the list the selector sat in
-    pinning::Vector{Pair{String,Any}} = Pair{String,Any}[]   # :unseedable — consumer path => its declared entry
+    pinning::Vector{Tuple{String,Symbol,Any}} = Tuple{String,Symbol,Any}[]  # :unseedable — (consumer path, its tier, its declared entry)
+    duplicate_of::Union{Nothing,Symbol} = nothing  # :duplicate_site — the earlier tap's label
 end
 path(d::TapResolution) = d.path
 
@@ -1656,12 +1658,13 @@ _tap_list_kinds(list) = list === :x ? "`get_state` alone" :
 
 # The tap set and the index come off the selector's own kind, so every arm has
 # them and the shared prefix shows them: which of `x`/`u`/`y` the read addresses
-# is §14.10's payload, and the index is the coordinate the author wrote.
-_tap_violation(d, what) =
+# is §14.10's payload, and the index is the coordinate the author wrote. The
+# citation is the clause's own, one group per message.
+_tap_violation(d, what, citation = "§14.4") =
     "the read labeled `$(d.label)` is $(d.selector)" *
     (d.tap === nothing ? "" :
      " (tap `$(d.tap)`" * (d.index === nothing ? "" : ", index $(d.index)") * ")") *
-    ", and $what (§14.4)"
+    ", and $what ($citation)"
 
 function message(d::TapResolution)
     d.reason === :assembly_path &&
@@ -1673,34 +1676,29 @@ function message(d::TapResolution)
                            "index, and `i` addresses a component of a vector leaf")
     d.reason === :discrete_deriv &&
         return _tap_violation(d, "$(_at_path(d.path)) is a discrete component — a discrete `s` " *
-                           "has no derivative, and `ẋ` exists on the continuous tier alone " *
-                           "(§7.1, D-195)")
+                           "has no derivative, and `ẋ` exists on the continuous tier alone",
+                           "§7.1, §14.4, D-195")
     d.reason === :undeclared &&
         return _tap_violation(d, "$(_at_path(d.path)) declares no $(_tap_noun(d.declares)) " *
                            "`$(d.field)` — its $(_tap_noun(d.declares)) names are " *
                            "$(_namelist(d.candidates))")
     d.reason === :tap_kind &&
         return _tap_violation(d, "it sits in the tap list `$(d.list)`, which takes " *
-                           "$(_tap_list_kinds(d.list)) — membership is closed per list " *
-                           "(§14.10, D-272)")
+                           "$(_tap_list_kinds(d.list)) — membership is closed per list",
+                           "§14.10, D-272")
     d.reason === :discrete_state &&
         return _tap_violation(d, "$(_at_path(d.path)) is a discrete component — the pass " *
                            "holds the discrete tier frozen, so a tap on its store `$(d.field)` " *
                            "could only yield a zero row and column; the recorded next move is " *
-                           "the sampled-data step map Φ (§14.10, D-197)")
+                           "the sampled-data step map Φ", "§14.10, D-197")
     d.reason === :vector_tap &&
         return _tap_violation(d, "the leaf it names is declared $(d.declared) — a tap is one " *
-                           "scalar, so write one indexed tap per component (§14.10, D-271)")
-    d.reason === :unseedable &&
-        return _tap_violation(d, isempty(d.pinning) ?
-                           "the leaf it names is declared $(d.declared), and a seed is a " *
-                           "`Float64` direction — only a `Float64` leaf, or one component of " *
-                           "an `SVector` of them, can be seeded (§14.10)" :
-                           "root input `$(d.field)` is declaredly unseedable: " *
-                           join(("consumer `$consumer` declares `$entry`" for
-                                 (consumer, entry) in d.pinning), ", ") *
-                           " — promote that entry to a tolerant one, or route the tap " *
-                           "around it (§14.10, D-167, D-168)")
+                           "scalar, so write one indexed tap per component", "§14.10, D-271")
+    d.reason === :unseedable && return _tap_violation(d, _unseedable_clause(d)...)
+    d.reason === :duplicate_site &&
+        return _tap_violation(d, "it resolves to the site the tap labeled `$(d.duplicate_of)` " *
+                           "already seeds — one site is one column, and a second seed there " *
+                           "would overwrite the first", "§14.10, D-272")
     d.reason === :unknown_root_input &&
         return _tap_violation(d, "`$(d.field)` is no root input face — the root's inputs are " *
                            "$(_namelist(d.candidates))")
@@ -1710,6 +1708,36 @@ function message(d::TapResolution)
                            "back with `get_input`")
     _tap_violation(d, "`$(d.field)` is no root-exported output face — the root exports " *
                 "$(_namelist(d.candidates))")
+end
+
+# `:unseedable`'s clause and citation. A pinning consumer on the continuous tier
+# pins by its declared entry, which the author can promote (D-167, D-168); one on
+# the discrete tier pins by tier, with nothing to promote (§8.2, D-272).
+function _unseedable_clause(d::TapResolution)
+    isempty(d.pinning) &&
+        return ("the leaf it names is declared $(d.declared), and a seed is a `Float64` " *
+                "direction — only a `Float64` leaf, or one component of an `SVector` of " *
+                "them, can be seeded", "§14.10")
+    by_entry = [(consumer, entry) for (consumer, tier, entry) in d.pinning if tier === :continuous]
+    by_tier = [consumer for (consumer, tier, _) in d.pinning if tier === :discrete]
+    clauses, citation = String[], ["§14.10"]
+    if !isempty(by_entry)
+        push!(clauses, "root input `$(d.field)` is declaredly unseedable: " *
+                       join(("consumer `$consumer` declares `$entry`" for
+                             (consumer, entry) in by_entry), ", ") *
+                       " — promote that entry to a tolerant one, or route the tap around it")
+        append!(citation, ["D-167", "D-168"])
+    end
+    if !isempty(by_tier)
+        push!(clauses, "root input `$(d.field)` is unseedable by tier: " *
+                       join(("consumer `$consumer` is on the discrete tier" for
+                             consumer in by_tier), ", ") *
+                       ", which the pass holds, so the cell carries no partials at any " *
+                       "activation — tap the continuous cell that consumer drives, or take " *
+                       "the recorded step map Φ")
+        push!(citation, "D-272")
+    end
+    (join(clauses, "; and "), join(citation, ", "))
 end
 
 "§14.7, §14.8: a `TrimProblem` field that does not meet the problem's closed shape."
