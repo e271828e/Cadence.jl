@@ -111,7 +111,8 @@ end
 # curated, meaning-stable under substitution (§11.2). `get_input` reads a root
 # input back, the source cell it is. What these reads do not take is depth
 # *inside* a cell: a binding read is a whole cell, as every reader of the
-# published table is (`pending.md`).
+# published table is (`pending.md`), so the three table members refuse the
+# component index alike.
 
 """
 The compiled gather (§11.2, §14.4): one attachment's `reads`, resolved and
@@ -190,6 +191,10 @@ function _resolve_read(layout::Layout, selector::GetOutput, binding_type::Type, 
 end
 
 function _resolve_read(layout::Layout, selector::GetInput, binding_type::Type, device::String)
+    selector.i === nothing || throw(DiagnosticError(
+        ReadBindingUnresolved(device = device, binding = _typename(binding_type),
+                               selector = _spell(selector), reason = :indexed,
+                               field = selector.face)))
     selector.face in _root_input_names(layout) || throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :unknown_root_input,
@@ -198,6 +203,10 @@ function _resolve_read(layout::Layout, selector::GetInput, binding_type::Type, d
 end
 
 function _resolve_read(layout::Layout, selector::GetFace, binding_type::Type, device::String)
+    selector.i === nothing || throw(DiagnosticError(
+        ReadBindingUnresolved(device = device, binding = _typename(binding_type),
+                               selector = _spell(selector), reason = :indexed,
+                               field = selector.name)))
     selector.name in _root_input_names(layout) && throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :root_input_not_output,

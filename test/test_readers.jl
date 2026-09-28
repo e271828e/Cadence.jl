@@ -98,14 +98,18 @@ function test_readers()
         # and a state field the component does not declare.
         err = failure(() -> _compile_reads(reads(a = get_output("", :y), b = get_face(:u),
                                                  c = get_output("plant", :y, 1),
-                                                 d = get_state("plant", :ω)),
+                                                 d = get_state("plant", :ω),
+                                                 e = get_input(:u, 1), f = get_face(:y, 1)),
                                      readable_build))
-        (a, b_, c, d) = diagnostics(err)
+        (a, b_, c, d, e, f) = diagnostics(err)
         @test a.reason === :assembly_path && a.path == "" && a.tap === :y
         @test b_.reason === :root_input_not_face && b_.field === :u
         @test c.reason === :scalar_index && c.index == 1 && c.declared === Float64
         @test d.reason === :undeclared && d.declares === :state_field && d.field === :ω &&
               d.candidates == [:q]
+        # The two table selectors check their index as the others do (D-271).
+        @test e.reason === :scalar_index && e.index == 1 && e.declared === Float64 && e.tap === :u
+        @test f.reason === :scalar_index && f.index == 1 && f.declared === Float64 && f.tap === :y
 
         # The read set is a type, not a NamedTuple: the bare spelling is refused
         # with a directive, not a `MethodError` (§14.2's rule, one case over).
@@ -157,6 +161,11 @@ function test_readers()
               d.selector == "get_state(\"plant\", :q)"
         d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(y = get_output("plant", :y, 1))))
         @test d.reason === :indexed
+        # Every table member refuses the index alike (§11.2, D-271).
+        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(u = get_input(:u, 1))))
+        @test d.reason === :indexed && d.selector == "get_input(:u, 1)"
+        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(y = get_face(:y, 1))))
+        @test d.reason === :indexed && d.selector == "get_face(:y, 1)"
         @test isempty(sim.plane.roster)              # every rejection left the roster untouched
     end
 

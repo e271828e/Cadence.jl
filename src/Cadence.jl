@@ -24,6 +24,7 @@ include("stepper.jl")
 include("sim.jl")
 include("conditions.jl")
 include("trim.jl")
+include("linearize.jl")
 include("localization.jl")
 include("show.jl")
 

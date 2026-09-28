@@ -18,10 +18,20 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the standard component library last.
 Where the reason is not given here, the cited decision carries it:
 
-- **§14**: `linearize` (§14.10) and its tap register (`TapResolution` reads
-  the read register alone today), mounting (§14.9), the NLopt fallback and the
-  nominal-activation loop it would run on; sub-port-field addressing; index
-  addressing in the binding register; the `check` entry point (M-B23).
+- **Mounting** (§14.9, I 4.12): `at(prefix, ::TrimProblem)` and
+  `at(prefix, ::Taps)`, and the read side's resolution from a mount point;
+  `readers.jl`'s `_read_component` walks every selector path from the root.
+- **The NLopt fallback** (§14.8, H 4.5): `NLoptBackend(:LN_BOBYQA)` as a
+  package extension, the squared and normalized objective at `stopval = 1`,
+  and the nominal-activation loop it would run on.
+- **Sub-port-field addressing** (§4.2, A 4.3): no selector drills into a
+  nested field of a bundle port; a ruling on the spelling comes first.
+- **Index addressing in the binding register** (§14.4, M-B23): a binding
+  read refuses the component index on every table member
+  (`ReadBindingUnresolved`, `:indexed`), where §14.4's table admits it for
+  inspection readers.
+- **The `check` entry point** (M-B23): §9.7 names it once, in a
+  parenthetical; whether it is a rule is a ruling to raise.
 - **Smaller** (M-B26): no `report!(entry, d)` addressed by roster entry, only
   the internal `report_cell!(cell, d)`; the face table keeps the resolved endpoint
   and discards §9.1's routing chain that §13.7's face-route printer would print;

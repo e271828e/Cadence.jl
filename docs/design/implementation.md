@@ -69,6 +69,11 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265.
   - `DeploymentInvalid`'s parameter set is Appendix C's row.
 - The `Trim*` kinds `TrimProblemInvalid`, `TrimCommitEvents`,
   `TrimCommitResiduals` and `TrimCommitChecks` (D-262).
+- `TapResolution`'s tap-set reasons `:tap_kind`, `:discrete_state`,
+  `:vector_tap` and `:unseedable`, with the `list` and `pinning` fields;
+  `ReadSetMisuse`'s `:not_a_tap_list`; `ArgumentInvalid`'s `:not_a_tap_set`,
+  `:t0_without_about` and `:nonpositive_width`, and its `:non_nominal` arm
+  naming the service (D-272).
 - `TierUnreadable`, for a primitive declaring no store, sits beside
   `StatelessWithoutOutputs` (D-263).
 - `InternalInvariant`.
@@ -81,8 +86,9 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265.
   `ReplayHeaderMismatch`'s deployment arm has five renderings. The one for a
   schedule row names the component path and the column (D-255).
 
-Spec: §9.1, §12.7, §13.1, §13.2, §13.4, §14.8, Appendix C, D-058, D-059, D-157,
-D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256, D-261, D-262, D-263.
+Spec: §9.1, §12.7, §13.1, §13.2, §13.4, §14.8, §14.10, Appendix C, D-058, D-059,
+D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256, D-261, D-262, D-263,
+D-272.
 
 ### `src/declare.jl`
 
@@ -251,8 +257,9 @@ Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
 ### `src/readers.jl`
 
 - The closed read-selector family `get_state`, `get_deriv`, `get_output`,
-  `get_input` and `get_face`. The family's path selectors are walked from the
-  root (§13.3).
+  `get_input` and `get_face`, each with the optional component index, checked
+  against the resolved leaf's type (D-271). The family's path selectors are
+  walked from the root (§13.3).
 - `reads` and `Reads`.
 - The internal `_compile_reads`, which yields a `Reader{T}`.
 - `gather_reads`, `apply!`'s twin over an executor.
@@ -260,7 +267,7 @@ Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
 - Activation identity on readers, checked as an internal invariant. The same
   check on plans sits in conditions.jl's `apply!`.
 
-Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253.
+Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-271.
 
 ### `src/sim.jl`
 
@@ -496,9 +503,10 @@ D-261.
 - `map_input` and the conditioning helper `_condition`.
 - Binding reads `ReadGather`, resolved at attach by `_compile_gather`.
   Resolution raises `ReadBindingUnresolved` and enforces the source rule.
+- The component index refused on all three table members alike (§14.4).
 - The candidates on the two name-shaped read misses (§14.4).
 
-Spec: §11.2, §11.4, §11.6, §14.4.
+Spec: §11.2, §11.4, §11.6, §14.4, D-271.
 
 ### `src/control.jl`
 
@@ -598,6 +606,21 @@ D-204, D-205, D-207, D-226.
 - `TrimReport`, with its `committed_checks` (D-262).
 
 Spec: §9.6, §13.1, §14.5–§14.8, D-070, D-158, D-213, D-224, D-253, D-262.
+
+### `src/linearize.jl`
+
+- `Taps` and `taps`, three labeled selector lists with closed membership.
+- `LinearizeTag`, `LINEARIZE_WIDTH` and `LinearizeDual`, the default width's
+  pre-materializable scalar.
+- `Linearization`, the operating point and the four matrices under the tap
+  labels.
+- `linearize`, over D-213's two-half scratch world in passes of `width`
+  directions, the seeds written at the resolved taps' own sites.
+- The collecting tap resolution, with the discrete store, the unindexed
+  vector leaf, the member in the wrong list and the unseedable root input
+  refused, the last naming its pinning consumers.
+
+Spec: §9.7, §14.4, §14.10, D-167, D-168, D-197, D-213, D-271, D-272.
 
 ### `src/show.jl`
 
@@ -833,7 +856,7 @@ override:
 | `declare`, `assembly`, `build`, `tracer`, or a new kind in `diagnostics.jl` | `declare assembly build diagnostics leaves show`; a change in `build.jl`'s `compile` half adds the next row |
 | `executor`, `stepper`, `localization` | `executor stepper continuous discrete events localization failures` |
 | `dataplane`, `roster`, `bindings`, `control`, `devices`, `trace` | `dataplane roster bindings devices trace lifecycle log` |
-| `readers`, `conditions`, `trim` | `readers conditions trim` |
+| `readers`, `conditions`, `trim`, `linearize` | `readers conditions trim linearize` |
 | `show` | `show` |
 | `sim`, `deployment`, `store`, `leaves`, `Cadence`, or `diagnostics.jl` beyond a new kind | all of it |
 

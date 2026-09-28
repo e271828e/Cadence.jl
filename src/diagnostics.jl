@@ -1634,7 +1634,8 @@ Base.@kwdef struct TapResolution <: Diagnostic
     label::Symbol                            # the read's label in the set
     selector::String                         # the selector as authored
     reason::Symbol   # :assembly_path|:scalar_index|:undeclared|:discrete_deriv|
-                     # :unknown_root_input|:root_input_not_face|:unknown_output_face
+                     # :unknown_root_input|:root_input_not_face|:unknown_output_face|
+                     # the tap set's (§14.10): :tap_kind|:discrete_state|:vector_tap|:unseedable
     tap::Union{Nothing,Symbol} = nothing     # :x | :u | :y
     path::String = ""
     field::Union{Nothing,Symbol} = nothing
@@ -1642,10 +1643,16 @@ Base.@kwdef struct TapResolution <: Diagnostic
     declares::Union{Nothing,Symbol} = nothing  # :state_field | :output_port
     declared::Any = nothing
     candidates::Vector{Symbol} = Symbol[]
+    list::Union{Nothing,Symbol} = nothing          # :tap_kind — the list the selector sat in
+    pinning::Vector{Pair{String,Any}} = Pair{String,Any}[]   # :unseedable — consumer path => its declared entry
 end
 path(d::TapResolution) = d.path
 
 _tap_noun(declares) = declares === :output_port ? "output port" : "state field"
+
+# What each tap list admits (§14.10, D-272).
+_tap_list_kinds(list) = list === :x ? "`get_state` alone" :
+                        list === :u ? "`get_input` alone" : "`get_output` and `get_face`"
 
 # The tap set and the index come off the selector's own kind, so every arm has
 # them and the shared prefix shows them: which of `x`/`u`/`y` the read addresses
@@ -1672,6 +1679,28 @@ function message(d::TapResolution)
         return _tap_violation(d, "$(_at_path(d.path)) declares no $(_tap_noun(d.declares)) " *
                            "`$(d.field)` — its $(_tap_noun(d.declares)) names are " *
                            "$(_namelist(d.candidates))")
+    d.reason === :tap_kind &&
+        return _tap_violation(d, "it sits in the tap list `$(d.list)`, which takes " *
+                           "$(_tap_list_kinds(d.list)) — membership is closed per list " *
+                           "(§14.10, D-272)")
+    d.reason === :discrete_state &&
+        return _tap_violation(d, "$(_at_path(d.path)) is a discrete component — the pass " *
+                           "holds the discrete tier frozen, so a tap on its store `$(d.field)` " *
+                           "could only yield a zero row and column; the recorded next move is " *
+                           "the sampled-data step map Φ (§14.10, D-197)")
+    d.reason === :vector_tap &&
+        return _tap_violation(d, "the leaf it names is declared $(d.declared) — a tap is one " *
+                           "scalar, so write one indexed tap per component (§14.10, D-271)")
+    d.reason === :unseedable &&
+        return _tap_violation(d, isempty(d.pinning) ?
+                           "the leaf it names is declared $(d.declared), and a seed is a " *
+                           "`Float64` direction — only a `Float64` leaf, or one component of " *
+                           "an `SVector` of them, can be seeded (§14.10)" :
+                           "root input `$(d.field)` is declaredly unseedable: " *
+                           join(("consumer `$consumer` declares `$entry`" for
+                                 (consumer, entry) in d.pinning), ", ") *
+                           " — promote that entry to a tolerant one, or route the tap " *
+                           "around it (§14.10, D-167, D-168)")
     d.reason === :unknown_root_input &&
         return _tap_violation(d, "`$(d.field)` is no root input face — the root's inputs are " *
                            "$(_namelist(d.candidates))")
@@ -1816,7 +1845,7 @@ message(d::ConditionShapeDrift) =
 
 "§8.7, §11.6, §12.4, §12.6, §14.7, D-215: an argument outside its constraint — `DeploymentInvalid`'s twin off the deployment surface."
 Base.@kwdef struct ArgumentInvalid <: Diagnostic
-    call::Symbol                             # :Simulation|:init!|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:pace!|:margin!|:trim!|:trace|:TableBinding|:selector
+    call::Symbol                             # :Simulation|:init!|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:pace!|:margin!|:trim!|:linearize|:trace|:TableBinding|:selector
     reason::Symbol
     argument::Union{Nothing,Symbol} = nothing
     value::Any = nothing
@@ -1848,10 +1877,25 @@ function message(d::ArgumentInvalid)
                "recording to drop, and a silent no-op would let a caller believe one was " *
                "attached (§12.7, D-219)"
     d.reason === :non_nominal &&
-        return "`trim!` needs a nominal `Simulation{Float64}` and this one is $(d.value) — " *
-               "trim commits through the nominal world, and the seeded activation it " *
-               "iterates on is the service's own scratch, instantiated per invocation " *
-               "(§14.8, §9.4)"
+        return "`$(d.call)` needs a nominal `Simulation{Float64}` and this one is " *
+               "$(d.value) — " *
+               (d.call === :trim! ?
+                "trim commits through the nominal world, and the seeded activation it " *
+                "iterates on is the service's own scratch, instantiated per invocation " *
+                "(§14.8, §9.4)" :
+                "the operating point is a nominal world's, and the seeded activation the " *
+                "pass runs on is the service's own scratch, instantiated per invocation " *
+                "(§14.10, §9.4)")
+    d.reason === :not_a_tap_set &&
+        return "`linearize` takes a tap set and was given $(d.value) — the three lists are " *
+               "one value: taps(x = (…), u = (…), y = (…)) (§14.10, D-272)"
+    d.reason === :t0_without_about &&
+        return "`linearize` was given `t0` without `about` — the default operating point is " *
+               "`capture(sim)`, which carries its own time, and `t0` places an explicit " *
+               "`about` (§14.10)"
+    d.reason === :nonpositive_width &&
+        return "`width` must be an integer ≥ 1 — the seeded directions per pass — got " *
+               "$(repr(d.value)) (§14.10, D-272)"
     d.reason === :not_a_problem &&
         return "`trim!` takes a `TrimProblem` and was given $(d.value) — the problem is " *
                "one value with a closed field set: TrimProblem(; guess, lower, upper, " *
@@ -1918,14 +1962,17 @@ function message(d::ArgumentInvalid)
         "t_plus must be a finite real > 0 — the duration spelling — got $(d.value) (§12.6)"
 end
 
-"§14.4, D-215: a non-selector in a read set, or a non-`Reads` where one is expected — `ConditionNodeMisuse`'s twin."
+"§14.4, §14.10, D-215, D-272: a non-selector in a read set or a tap list, a tap list that is no NamedTuple, or a non-`Reads` where one is expected — `ConditionNodeMisuse`'s twin."
 Base.@kwdef struct ReadSetMisuse <: Diagnostic
     observed::Any                            # the offending argument's type
-    reason::Symbol = :not_a_read_set         # :not_a_selector | :not_a_read_set
-    label::Union{Nothing,Symbol} = nothing
+    reason::Symbol = :not_a_read_set         # :not_a_selector | :not_a_read_set | :not_a_tap_list
+    label::Union{Nothing,Symbol} = nothing   # the read's label, or the tap list's (`x`/`u`/`y`)
     in_hand::Vector{Symbol} = Symbol[]       # the selector kinds in hand
 end
 message(d::ReadSetMisuse) =
+    d.reason === :not_a_tap_list ?
+    "the tap list `$(d.label)` is $(d.observed) — a tap list is a NamedTuple of labeled " *
+    "selectors: taps(x = (θ = get_state(\"path\", :θ),), u = (…), y = (…)) (§14.10)" :
     d.reason === :not_a_selector ?
     "the read labeled `$(d.label)` is $(d.observed)" *
     (isempty(d.in_hand) ? "" :

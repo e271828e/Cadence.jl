@@ -13,6 +13,10 @@
 # (§9.2's one-owner rule, §14.8's scratch-store paragraph), so a solve that
 # does not converge leaves the simulation bit-for-bit untouched — "never
 # initialized" included.
+#
+# The seeded-half machinery below — `_scratch`, `_establish_frozen!` — has a
+# second client, linearize.jl, which runs the same two-half scratch world
+# (D-213) without a commit.
 
 # --- the problem (§14.7) --------------------------------------------------------
 

@@ -12,18 +12,20 @@
 #
 # This file sits above the data plane because the selectors are its vocabulary
 # too: an output binding's `reads` (§11.2, bindings.jl) names the three table
-# members of the family declared here. What it needs from the condition algebra
-# — the `x`-offset walk and the "is this path a level of the build at all"
-# predicate — it calls at resolution time, which is long after conditions.jl
-# has been read.
+# members of the family declared here. Every member carries the optional
+# component index (§14.4, D-271): a linearization tap on a vector leaf needs it
+# (linearize.jl), and a binding read refuses it. What it needs from the
+# condition algebra — the `x`-offset walk and the "is this path a level of the
+# build at all" predicate — it calls at resolution time, which is long after
+# conditions.jl has been read.
 
 # --- the selector family (§14.4), closed --------------------------------------
 
 """
 §14.4's read-selector family, closed: `get_state(path, field[, i])`,
 `get_deriv(path, field[, i])`, `get_output(path, field[, i])`,
-`get_input(face)` and `get_face(name)` — one address space for every reader of
-the model.
+`get_input(face[, i])` and `get_face(name[, i])` — one address space for every
+reader of the model.
 
 The names carry a deliberate `get_` prefix. A selector is a *deferred read*: a
 value describing the read the compiled gather will perform, inert until it is
@@ -47,8 +49,9 @@ and stores are addressable: there is no selector for a value a component
 computes without declaring it, and the remedy is the same in every case —
 the component exports it (§5.2, §8.3).
 
-`i` is the optional component index (§14.10): the read is `v[i]`, so a vector
-leaf yields named scalars. Absent, the whole value is read.
+`i` is the optional component index, admitted on every member (§14.4, D-271):
+the read is `v[i]`, so a vector leaf yields named scalars. Absent, the whole
+value is read.
 """
 struct GetState
     path::String
@@ -70,10 +73,12 @@ end
 
 struct GetInput
     face::Symbol
+    i::Union{Nothing,Int}
 end
 
 struct GetFace
     name::Symbol
+    i::Union{Nothing,Int}
 end
 
 const ReadSelector = Union{GetState,GetDeriv,GetOutput,GetInput,GetFace}
@@ -90,8 +95,8 @@ get_deriv(path::AbstractString, field::Union{Symbol,AbstractString}, i = nothing
     GetDeriv(String(path), Symbol(field), _index_arg(i))
 get_output(path::AbstractString, name::Union{Symbol,AbstractString}, i = nothing) =
     GetOutput(String(path), Symbol(name), _index_arg(i))
-get_input(face::Union{Symbol,AbstractString}) = GetInput(Symbol(face))
-get_face(name::Union{Symbol,AbstractString}) = GetFace(Symbol(name))
+get_input(face::Union{Symbol,AbstractString}, i = nothing) = GetInput(Symbol(face), _index_arg(i))
+get_face(name::Union{Symbol,AbstractString}, i = nothing) = GetFace(Symbol(name), _index_arg(i))
 
 # The selector as authored, for the diagnostics: a refusal names the read the
 # way its author wrote it, which is what makes a collected list readable.
@@ -102,8 +107,8 @@ _spell(selector::GetDeriv) =
     "get_deriv(\"$(selector.path)\", :$(selector.field)$(_ipart(selector.i)))"
 _spell(selector::GetOutput) =
     "get_output(\"$(selector.path)\", :$(selector.name)$(_ipart(selector.i)))"
-_spell(selector::GetInput) = "get_input(:$(selector.face))"
-_spell(selector::GetFace) = "get_face(:$(selector.name))"
+_spell(selector::GetInput) = "get_input(:$(selector.face)$(_ipart(selector.i)))"
+_spell(selector::GetFace) = "get_face(:$(selector.name)$(_ipart(selector.i)))"
 
 # --- the declared read set (§14.7) ---------------------------------------------
 
@@ -284,8 +289,7 @@ _tap(::GetInput) = :u
 
 _selpath(selector::Union{GetState,GetDeriv,GetOutput}) = selector.path
 _selpath(::Union{GetInput,GetFace}) = ""
-_selindex(selector::Union{GetState,GetDeriv,GetOutput}) = selector.i
-_selindex(::Union{GetInput,GetFace}) = nothing
+_selindex(selector) = selector.i
 
 # `i` is checked against the resolved leaf's declared type in exactly one
 # respect: `getindex` has to mean something there. A scalar leaf is refused;
@@ -372,7 +376,8 @@ function _resolve_selector(selector::GetInput, label::Symbol, build::Build,
         return nothing
     end
     addr = act.layout.addr[("", selector.face)]
-    CellRead{typeof(addr),Nothing}(addr, nothing)
+    _check_index(selector, label, _port_type(addr), diags) || return nothing
+    CellRead{typeof(addr),typeof(selector.i)}(addr, selector.i)
 end
 
 function _resolve_selector(selector::GetFace, label::Symbol, build::Build,
@@ -388,5 +393,6 @@ function _resolve_selector(selector::GetFace, label::Symbol, build::Build,
         return nothing
     end
     addr = act.layout.addr[("", selector.name)]
-    CellRead{typeof(addr),Nothing}(addr, nothing)
+    _check_index(selector, label, _port_type(addr), diags) || return nothing
+    CellRead{typeof(addr),typeof(selector.i)}(addr, selector.i)
 end

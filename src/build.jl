@@ -712,7 +712,8 @@ The framework's public canonical probe scalar (§9.4, D-166): the one concrete
 `Dual` a CI activation list spells, `build(world; activations = (Float64,
 ProbeDual))`. An activation is keyed by a concrete scalar, and the bare `Dual`
 `UnionAll` can key none. The width is one because what CI pins is genericity,
-not any particular Jacobian; §14.10 chunks at whatever widths it needs.
+not any particular Jacobian; §14.10's width is `linearize`'s own keyword, and
+`LinearizeDual` is its default's scalar (D-272).
 """
 const ProbeDual = ForwardDiff.Dual{ProbeTag,Float64,1}
 
