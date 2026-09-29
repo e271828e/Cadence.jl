@@ -758,11 +758,11 @@ end
 # holds continuously and a generation's thinning completes exactly when its
 # refill does; compaction then runs, once per generation, restoring the
 # index-by-ordinal invariant for the next fill.
-function _retain!(snapshot_log::SnapshotLog, snapshot::Snapshot, boundary::Int)
+function _retain!(snapshot_log::SnapshotLog, snapshot::Snapshot, ordinal::Int)
     if snapshot_log.cursor == 0 && snapshot_log.live == snapshot_log.log_max
         snapshot_log.stride *= 2
         snapshot_log.cursor = 1
-        boundary % snapshot_log.stride == 0 || return nothing
+        ordinal % snapshot_log.stride == 0 || return nothing
     end
     if snapshot_log.cursor > 0
         snapshot_log.snaps[snapshot_log.cursor] = nothing

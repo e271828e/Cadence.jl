@@ -85,7 +85,7 @@ attached and `:live` otherwise, so the two can never disagree. The trace is
 `nothing` under §11.5's kill switch, which is where that switch now rides.
 
 The origin and the stop policy are not fields here (D-260). The clock holds
-`t₀`, the doors apply it and the trace header records it; the policy is the
+`t₀`, which `init!` sets and a checkpoint carries; the policy is the
 advance's argument, carried from the call to the record's assembly and dropped
 there.
 
@@ -375,7 +375,7 @@ termination(sim::Simulation) = sim.run.termination
 # The record's assembly (§13.5, D-203), once per advance entry in its
 # outermost `finally`, after the sweep has the residue in hand. `t` is the
 # final snapshot's boundary time in the deployment's own scalar: both entries
-# refuse a `built` simulation and boundary zero published, so the snapshot
+# refuse a `built` simulation and every door publishes, so the snapshot
 # exists (D-233). `policy` is this advance's, arriving as the argument the call
 # built — the terminating one, the one that explains the stop, and this is
 # where it stops travelling (D-255, D-260).
@@ -670,10 +670,12 @@ function _reset_periphery!(sim::Simulation)
     nothing
 end
 
-# The four recording keywords, validated as the door's own `ArgumentInvalid`s
-# and collected into one throw (§9.1, D-229, D-261). Called after the door's
-# lifecycle gate and before its first write, so a refused keyword writes nothing.
-function _check_recording(call::Symbol, trace_switch, log_switch, log_every, log_max)
+# The four recording keywords, and `replay!`'s `restore` beside them, validated
+# as the door's own `ArgumentInvalid`s and collected into one throw (§9.1,
+# D-229, D-261). Called after the door's lifecycle gate and before its first
+# write, so a refused keyword writes nothing.
+function _check_recording(call::Symbol, trace_switch, log_switch, log_every, log_max,
+                          restore = true)
     diags = Diagnostic[]
     _arg(argument, v) = push!(diags, ArgumentInvalid(call = call, reason = :range,
                                                      argument = argument, value = v))
@@ -681,6 +683,7 @@ function _check_recording(call::Symbol, trace_switch, log_switch, log_every, log
     log_switch isa Bool || _arg(:log, log_switch)
     log_every isa Integer && log_every ≥ 1 || _arg(:log_every, log_every)
     (log_max isa Integer && log_max ≥ 1) || log_max === Inf || _arg(:log_max, log_max)
+    restore isa Bool || _arg(:restore, restore)
     isempty(diags) || throw(DiagnosticError(diags))
     nothing
 end
@@ -840,10 +843,12 @@ function checkpoint(sim::Simulation)
     status = lifecycle(sim)
     status in (:initialized, :stopped) || throw(DiagnosticError(ServiceLifecycle(
         op = :checkpoint, status = status, legal = [:initialized, :stopped])))
-    clock, h = sim.exec.clock, sim.deployment.h
-    t = _seconds(clock.t)
-    abs((t - clock.t₀) / h - clock.step) ≤ _frame_slack(t, h) ||
-        throw(DiagnosticError(CheckpointMidFrame(t = t, t_frame = clock.t₀ + clock.step * h,
+    # a frame top is exactly the time the loop writes there, `_grid_time` in the
+    # clock's scalar, whatever the origin; a `t*` stop leaves the clock short of it
+    clock = sim.exec.clock
+    t_frame = _grid_time(sim, clock.step)
+    clock.t == oftype(clock.t, t_frame) ||
+        throw(DiagnosticError(CheckpointMidFrame(t = _seconds(clock.t), t_frame = t_frame,
                                                  step = clock.step)))
     _take_checkpoint(sim)
 end
@@ -972,7 +977,9 @@ length, or `to_boundary = k` frames — §13.4's replay pointer, defined as
 running *through* the frame that publishes boundary `k`, and every frame top is
 a grid boundary (§10.4), so the halt is exactly at `clock.step == k` and a
 replay always halts at a frame top; a `t*` boundary inside a frame is
-reproduced but is not stoppable-at (§10.4 keeps the two indices apart).
+reproduced but is not stoppable-at (§10.4 keeps the two indices apart). `k`
+runs from the frame the feed starts at, the header's or under `restore = false`
+the simulation's own, through the recording's length.
 `to_time` is that same halt addressed by time (D-219), mutually exclusive with
 `to_boundary`: it halts at the **last frame top at or before** the time given,
 `k = ⌊(to_time − t₀)/h⌋` against the header's `t₀`, so a time between two frame
@@ -1022,7 +1029,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
                  trace = true, log = true, log_every = 1, log_max = 65536,
                  restore = true) where {T}
     control = sim.control
-    if restore
+    if restore !== false     # a non-`Bool` is refused with the keywords below
         lifecycle_state = @atomic control.lifecycle
         lifecycle_state === :running && throw(DiagnosticError(
             ServiceLifecycle(op = :replay!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
@@ -1031,13 +1038,16 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     else
         _assert_advanceable(sim, :replay!)   # the feed joins a trajectory in progress (§12.7)
     end
-    _check_recording(:replay!, trace, log, log_every, log_max)   # the run's keywords (D-261)
+    _check_recording(:replay!, trace, log, log_every, log_max, restore)   # the run's keywords (D-261)
     p, margin_seconds = _pace_value(pace, :replay!), _margin_value(margin, :replay!)   # D-269
     to_boundary === nothing || to_time === nothing ||     # two spellings of one halt (D-219)
         throw(DiagnosticError(ArgumentInvalid(call = :replay!, reason = :both_given)))
-    # §13.4's pointer, in grid boundaries: whole and non-negative, and no further
-    # than the recording reaches — every frame top is one, so it counts frames
-    to_boundary === nothing || (to_boundary isa Integer && to_boundary ≥ 0 &&
+    # §13.4's pointer, in grid boundaries: whole, no earlier than the frame the
+    # feed starts from — the header's, or the simulation's own under `restore =
+    # false` — and no further than the recording reaches; every frame top is
+    # one, so it counts frames
+    first_frame = restore ? trc.header.step : sim.exec.clock.step
+    to_boundary === nothing || (to_boundary isa Integer && to_boundary ≥ first_frame &&
         to_boundary ≤ trc.frames) || throw(DiagnosticError(
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_boundary,
                             value = to_boundary)))
@@ -1056,7 +1066,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
                             value = to_time)))
         to_boundary = _frame_at(Float64(to_time), t₀, trc.header.deployment.h)
-        to_boundary ≤ trc.frames || throw(DiagnosticError(     # a time the recording never reached
+        first_frame ≤ to_boundary ≤ trc.frames || throw(DiagnosticError(   # outside the feed
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time,
                             value = to_time)))
     end
@@ -2196,7 +2206,7 @@ function trace(sim::Simulation{T}) where {T}
         throw(DiagnosticError(MissingInit(op = :trace, status = lifecycle_state)))
     trc === nothing &&        # §11.5's kill switch, which rides on the run's trace (D-260)
         throw(DiagnosticError(ArgumentInvalid(call = :trace, reason = :disabled)))
-    Trace{T}(trc.header, copy(trc.schemas), copy(trc.batches), trc.frames)
+    Trace{T}(_detach(trc.header), copy(trc.schemas), copy(trc.batches), trc.frames)
 end
 
 # --- reading and writing the table outside the loop ---------------------------

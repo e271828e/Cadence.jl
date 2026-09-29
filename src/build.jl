@@ -30,8 +30,8 @@ not known here; `at_component` fills it.
 A few reads stay bare because the build already invoked the same declaration
 through this accessor and it returned: `conditions.jl`'s `_resolve_entries`,
 `_store_bases` and `_declared_workspace`, `establish_defaults!` below,
-`children`, `resolve_authored` and `authored_chain` reaching `assembly.jl`'s
-`_children`, and `tracer.jl`'s sampled `_trace_direct`.
+`children` and `resolve_authored` reaching `assembly.jl`'s `_children`, and
+`tracer.jl`'s sampled `_trace_direct`.
 """
 function invoke_declaration(fn, comp, args...)
     try

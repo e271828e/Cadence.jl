@@ -107,6 +107,13 @@ function trace_recording()
         # (§11.5, D-255): a restore compares both, and restores the clock.
         @test header.deployment == sim.deployment
         @test header.layout.paths == ["t", "d"] && header.layout.root_faces == [:sig, :e]
+
+        # `trace(sim)` hands the header out detached: a write to the copy never
+        # reaches the run's own.
+        @test header !== sim.run.trace.header
+        header.s[2] = (acc = 9.0,)
+        header.prior[1] = false
+        @test trace(sim).header.s[2] == (acc = 0.2,) && trace(sim).header.prior == [true]
     end
 
     @testset "the kill switch, and the clearing at `init!` (§11.5, D-029)" begin
@@ -354,6 +361,23 @@ function trace_entry_pass()
         d = only(diagnostics(failure(() -> _compile_feed(replay_target(),
                     rebatch(trc, [TraceBatch(0, 9, Pair{Int,Any}[1 => 9.0])], 2)))))
         @test d isa CheckpointMismatch && d.what === :frame && d.name === Symbol("writer #9")
+
+        # A trace a restore opened starts at the checkpoint's frame: a record
+        # stamped at or before it is behind the feed and never comes round either.
+        replayed = replay_target()
+        replay!(replayed, trc)
+        opened = Simulation(three_root_inputs(); h = 1//10)
+        restore!(opened, checkpoint(replayed))
+        late = trace(opened)
+        @test late.header.step == 2
+        bad = rebatch(late, [TraceBatch(1, 1, Pair{Int,Any}[1 => 9.0]),
+                             TraceBatch(2, 1, Pair{Int,Any}[1 => 9.0]),
+                             TraceBatch(3, 1, Pair{Int,Any}[1 => 9.0])], 3)
+        err = failure(() -> _compile_feed(replay_target(), bad))
+        @test err isa DiagnosticError &&
+              all(d -> d isa CheckpointMismatch && d.what === :frame && d.expected == 3:3,
+                  diagnostics(err))
+        @test [d.found for d in diagnostics(err)] == [1, 2]
     end
 
     @testset "a valid trace normalizes to compiled scatters, in drain order (§12.7, D-101)" begin
@@ -367,7 +391,7 @@ function trace_entry_pass()
         @test [record.record for record in feed.records] == trc.batches
 
         # The thunks *are* the recording, applied to this build's cells: sparse, so
-        # an untouched face keeps whatever the target's own header put there.
+        # an untouched face keeps whatever the target's own `init!` put there.
         cells() = (port(target, "", :a), port(target, "", :b), port(target, "", :c))
         @test cells() == (0.0, 0.0, 0.0)
         feed.records[1].thunk()
@@ -390,9 +414,10 @@ function trace_entry_pass()
 end
 
 # --- replay as the ordinary loop (§12.7, increment 23 stage 3) -------------------
-# D-101's two substitutions, and the properties they exist to buy: bit-identity
-# against the identical build, partial replay and the reproduction it opens,
-# continuation, the discard of live staging, and the what-if replay.
+# The restore from the header and the drain reading the trace (D-274), and the
+# properties they exist to buy: bit-identity against the identical build, partial
+# replay and the reproduction it opens, continuation, the discard of live
+# staging, and the what-if replay.
 
 # One model reaching all three state homes with a localized event in the middle:
 # the reference-fed plant of `feedback_model` (continuous state, a feedback
@@ -953,6 +978,16 @@ function trace_discarded_harness()
         end
         @test lifecycle(replay_twin()) === :initialized      # a rejected replay wrote nothing
 
+        # `restore` is a door keyword like the recording four, collected with them.
+        target = replay_twin()
+        err = failure(() -> replay!(target, trc; restore = nothing, log_every = 0))
+        @test err isa DiagnosticError && all(d isa ArgumentInvalid && d.call === :replay! &&
+                                             d.reason === :range for d in diagnostics(err))
+        @test [(d.argument, d.value) for d in diagnostics(err)] ==
+              [(:log_every, 0), (:restore, nothing)]
+        @test lifecycle(target) === :initialized && target.exec.clock.step == 0 &&
+              mode(target) === :live
+
         # `errored` is terminal (§13.6): never resumable, never re-initialized, and
         # `replay!` is refused there exactly as `init!` is — reproduction is
         # replaying the trace on a *fresh* simulation, which is the arm above.
@@ -998,6 +1033,25 @@ function long_recorded_run()
     step!(sim; frames = 3)
     (sim, trace(sim))
 end
+
+# The pendulum with a third continuous state, its ports unchanged, and with its
+# two ports declared in the other order: each agrees with `Pendulum` on every
+# path, cell size and store type, and a restore that copies by position has to
+# refuse it all the same.
+struct ClockedPendulum <: AbstractComponent end
+x_init(::ClockedPendulum) = (θ = 0.0, ω = 0.0, e = 0.0)
+u_types(::ClockedPendulum) = (u = Float64,)
+y_types(::ClockedPendulum) = (θ = Float64, ω = Float64)
+y_state(::ClockedPendulum, (; x)) = (θ = x.θ, ω = x.ω)
+x_derivative(::ClockedPendulum, (; x, u)) =
+    (θ = x.ω, ω = -9.81 * sin(x.θ) - 0.5 * x.ω + u.u, e = 1.0)
+
+struct SwappedPendulum <: AbstractComponent end
+x_init(::SwappedPendulum) = (θ = 0.0, ω = 0.0)
+u_types(::SwappedPendulum) = (u = Float64,)
+y_types(::SwappedPendulum) = (ω = Float64, θ = Float64)
+y_state(::SwappedPendulum, (; x)) = (ω = x.ω, θ = x.θ)
+x_derivative(::SwappedPendulum, (; x, u)) = (θ = x.ω, ω = -9.81 * sin(x.θ) - 0.5 * x.ω + u.u)
 
 function trace_checkpoints()
     @testset "`restore!` is a door: a fresh run from the checkpoint, one snapshot (§12.6, D-274)" begin
@@ -1100,6 +1154,19 @@ function trace_checkpoints()
         run!(at_top; t_end = 0.3)
         @test lifecycle(at_top) === :stopped && checkpoint(at_top).step == 3
 
+        # A frame top is the time the loop writes there, at any origin: near zero,
+        # where `t` has few ulps to spare, and far from it.
+        for (t0, frames) in ((-0.3, 3), (-0.30000000000000004, 3), (1.0e9, 5))
+            anchored = Simulation(fed(Plant(), "u"); h = 1//10)
+            init!(anchored, fragment(inputs = (in = 0.0,)); t0 = t0)
+            step!(anchored; frames = frames)
+            @test checkpoint(anchored).step == frames
+        end
+        anchored = Simulation(fed(Plant(), "u"); h = 1//10)
+        init!(anchored, fragment(inputs = (in = 0.0,)); t0 = -0.3)
+        run!(anchored; t_end = 0.0)
+        @test lifecycle(anchored) === :stopped && checkpoint(anchored).step == 3
+
         # Another deployment is a fingerprint mismatch, collected before any write.
         (recorded, _) = recorded_run()
         cp = checkpoint(recorded)
@@ -1143,6 +1210,92 @@ function trace_checkpoints()
         @test state(seeker, "acc") === state(sim, "acc")
         # the re-recorded trace holds the records from frame 6 on
         @test trace(seeker).batches == [b for b in trc.batches if b.frame > 5]
+    end
+
+    @testset "a halt before the feed's first frame is refused (§12.7, D-274)" begin
+        (_, trc) = long_recorded_run()
+        halted = replay_twin()
+        replay!(halted, trc; to_boundary = 5)
+        cp = checkpoint(halted)
+        opened = Simulation(replay_model(); h = 1//10)
+        restore!(opened, cp)
+        step!(opened; frames = 3)
+        late = trace(opened)
+        @test late.header.step == 5 && late.frames == 8
+
+        # The trace opens at frame 5, so a halt short of it names a frame the
+        # replay never stands at, by either spelling, refused before any write.
+        for (argument, bad) in ((:to_boundary, 0), (:to_boundary, 4), (:to_time, 0.2),
+                                (:to_time, 0.45))
+            target = Simulation(replay_model(); h = 1//10)
+            d = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(target, late; argument => bad))
+            @test d.call === :replay! && d.reason === :range
+            @test d.argument === argument && d.value === bad
+            @test lifecycle(target) === :built
+        end
+        # …and the frame itself halts at once, where the restore left it.
+        for halt in ((to_boundary = 5,), (to_time = 0.5,))
+            target = Simulation(replay_model(); h = 1//10)
+            replay!(target, late; halt...)
+            @test lifecycle(target) === :initialized && target.exec.clock.step == 5
+            @test mode(target) === :replay
+        end
+
+        # Under `restore = false` the feed starts from the simulation's own frame.
+        ahead = Simulation(replay_model(); h = 1//10)
+        restore!(ahead, cp)
+        step!(ahead)
+        d = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(ahead, trc; restore = false, to_boundary = 5))
+        @test d.argument === :to_boundary && d.value == 5
+        @test lifecycle(ahead) === :initialized && ahead.exec.clock.step == 6 &&
+              mode(ahead) === :live
+        replay!(ahead, trc; restore = false, to_boundary = 6)
+        @test ahead.exec.clock.step == 6 && mode(ahead) === :replay
+    end
+
+    @testset "the fingerprint covers what the restore copies by position (§12.6, §12.7, D-274)" begin
+        source = Simulation(fed(Pendulum(), "u"); h = 1//10)
+        init!(source, combine(at("c", condition(Pendulum(); θ = 0.3)),
+                              fragment(inputs = (in = 0.0,))))
+        step!(source; frames = 2)
+        cp = checkpoint(source)
+
+        # One continuous state more: the component's block in the flat buffer
+        # moves, and the refusal names it before any write, at both doors.
+        wider = Simulation(fed(ClockedPendulum(), "u"); h = 1//10)
+        init!(wider, fragment(inputs = (in = 0.0,)))
+        d = only(diagnostics(failure(() -> restore!(wider, cp))))
+        @test d isa CheckpointMismatch && d.what === :store
+        @test d.path == "c" && d.name === :x && d.expected == 1:2 && d.found == 1:3
+        @test wider.exec.xbuf == [0.0, 0.0, 0.0] && wider.exec.clock.step == 0
+        replayed = Simulation(fed(ClockedPendulum(), "u"); h = 1//10)
+        d = only(diagnostics(failure(() -> replay!(replayed, trace(source)))))
+        @test d isa CheckpointMismatch && d.name === :x && lifecycle(replayed) === :built
+        # …and one fewer is the same refusal, never a copy out of bounds
+        d = only(diagnostics(failure(() -> restore!(source, checkpoint(wider)))))
+        @test d isa CheckpointMismatch && d.name === :x && d.expected == 1:3 && d.found == 1:2
+        @test source.exec.clock.step == 2
+
+        # The same ports in another order: every cell has its type, not its place.
+        swapped = Simulation(fed(SwappedPendulum(), "u"); h = 1//10)
+        init!(swapped, fragment(inputs = (in = 0.0,)))
+        err = failure(() -> restore!(swapped, cp))
+        @test err isa DiagnosticError &&
+              all(d -> d isa CheckpointMismatch && d.what === :store && d.path == "c",
+                  diagnostics(err))
+        @test [d.name for d in diagnostics(err)] == [Symbol("port.θ"), Symbol("port.ω")]
+        @test diagnostics(err)[1].expected == (Float64, (0,)) &&
+              diagnostics(err)[1].found == (Float64, (1,))
+        @test swapped.exec.clock.step == 0 && lifecycle(swapped) === :initialized
+
+        # Other ports altogether, one leaf wider: the cells that differ are named,
+        # and the root input they shift is not reported, having kept its type.
+        err = failure(() -> restore!(Simulation(fed(VectorPlant(), "u"); h = 1//10), cp))
+        ports = [d.name for d in diagnostics(err)
+                 if d isa CheckpointMismatch && startswith(String(d.name), "port.")]
+        @test ports == [Symbol("port.power"), Symbol("port.q"), Symbol("port.θ"), Symbol("port.ω")]
+        d = only(d for d in diagnostics(err) if d.name === Symbol("port.q"))
+        @test d.path == "c" && d.expected === nothing && d.found == (SVector{2,Float64}, (0,))
     end
 end
 

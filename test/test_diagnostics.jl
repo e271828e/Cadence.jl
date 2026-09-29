@@ -549,6 +549,7 @@ function diagnostics_kind_set()
             ArgumentInvalid(call = :replay!, reason = :both_given),
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_boundary, value = 9),
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_time, value = 9.0),
+            ArgumentInvalid(call = :replay!, reason = :range, argument = :restore, value = nothing),
             ArgumentInvalid(call = :live!, reason = :not_replaying),
             ArgumentInvalid(call = :trim!, reason = :non_nominal, value = "Simulation{Dual}"),
             ArgumentInvalid(call = :trim!, argument = :problem, reason = :not_a_problem,
@@ -577,6 +578,9 @@ function diagnostics_kind_set()
                                found = ["a", "b"]),
             CheckpointMismatch(what = :store, path = "a", name = :s, expected = NamedTuple,
                                found = nothing),
+            CheckpointMismatch(what = :store, path = "a", name = :x, expected = 1:2, found = 1:3),
+            CheckpointMismatch(what = :store, path = "a", name = Symbol("port.q"),
+                               expected = (Float64, (0,)), found = nothing),
             CheckpointMismatch(what = :root_input, expected = [:a], found = [:a, :b]),
             CheckpointMismatch(what = :root_input, name = :a, expected = Float64, found = "x"),
             CheckpointMismatch(what = :deployment, name = :h, expected = 0.1, found = 0.05),
@@ -905,6 +909,20 @@ function diagnostics_kind_set()
                                               found = ["a", "b"]))
         @test occursin("when the checkpoint was taken", rendered)
         @test !occursin("boundary zero", rendered)
+        # The positional copy's two facts: a component's block in the flat buffer,
+        # and a port's cell, its type and offsets or its absence.
+        rendered = message(CheckpointMismatch(what = :store, path = "a", name = :x,
+                                              expected = 1:2, found = 1:3))
+        @test startswith(rendered, "the `a`'s block in the flat buffer was 1:2 when the " *
+                                   "checkpoint was taken and is 1:3 here")
+        rendered = message(CheckpointMismatch(what = :store, path = "a", name = Symbol("port.q"),
+                                              expected = (Float64, (0,)), found = nothing))
+        @test startswith(rendered, "the cell of `a`'s port `q` was a Float64 cell at offsets " *
+                                   "(0,) when the checkpoint was taken and is absent here")
+        rendered = message(ArgumentInvalid(call = :replay!, reason = :range, argument = :restore,
+                                           value = nothing))
+        @test startswith(rendered, "`restore` must be true or false")
+        @test occursin("got nothing", rendered)
         # A `t*` stop's refusal names the clock, the top it fell short of, the
         # frame, and the three ways to stop at a top.
         rendered = message(CheckpointMidFrame(t = 0.315, t_frame = 0.4, step = 4))

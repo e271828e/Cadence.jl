@@ -409,33 +409,6 @@ function resolve_authored(entry::String, base::String, level, path::AbstractStri
     here
 end
 
-"""
-The child names an absolute `path` traverses, outermost first, as `_children`
-names them — so a D-211 container pair such as `"units/1"` is one name, not two
-segments. The same greedy match `resolve_authored` runs, over a path the build
-compiled and which therefore always resolves. A service that authors a
-condition back out of the flattened list spells it level by level from this, the
-one spelling the service walk admits across a generic seam (§14.2, §13.3).
-"""
-function authored_chain(root, path::AbstractString)
-    isempty(path) && return String[]
-    segments = String.(split(path, '/'))
-    chain, here, here_path, i = String[], root, "", 1
-    while i ≤ length(segments)
-        kids, = _children(here_path, here)
-        child_index = findfirst(kid -> first(kid) == segments[i], kids)
-        child_index === nothing && i < length(segments) &&
-            (child_index =
-                 findfirst(kid -> first(kid) == segments[i] * "/" * segments[i + 1], kids))
-        child_index === nothing && throw(InternalInvariant("no child of `$here_path` at `$path`"))
-        segment, kid = kids[child_index]
-        push!(chain, segment)
-        i += count(==('/'), segment) + 1
-        here, here_path = kid, _join(here_path, segment)
-    end
-    chain
-end
-
 # --- §13.3's build primitives -------------------------------------------------
 # The four the declaration surface calls: `resolve` and `resolve_terminal` in
 # their public, entry-less forms, plus the two face-list accessors. Those are the

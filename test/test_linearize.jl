@@ -42,6 +42,15 @@ lin_sampled_point() = combine(at("ctl", fragment(s = (acc = 4.0,))),
 # The pendulum's closed form at θ₀, the walkthrough's section 2.
 lin_closed_A(θ = 0.3) = [0 1; -PEND_G_L*cos(θ) -PEND_C]
 
+# A continuous component whose derivative reads the clock, `q̇ = -t·q² + u`, so
+# a linearization at the wrong time reads another slope.
+struct TimedDecay <: AbstractComponent end
+x_init(::TimedDecay) = (q = 1.0,)
+u_types(::TimedDecay) = (u = Float64,)
+y_types(::TimedDecay) = (q = Float64,)
+y_state(::TimedDecay, (; x)) = (q = x.q,)
+x_derivative(::TimedDecay, (; x, u, t)) = (q = -t * x.q^2 + u.u,)
+
 # Two linearizations field for field: the value holds matrices, so `==` on the
 # struct would compare them by identity.
 same_linearization(left, right) =
@@ -98,6 +107,16 @@ function test_linearize()
         linearization = linearize(sim, taps(x = (θ = get_state("c", :θ), ω = get_state("c", :ω)),
                                             y = (u = get_output("ctl", :u),)))
         @test linearization.y₀.u === port(sim, "ctl", :u)
+    end
+
+    @testset "the default form linearizes at the checkpoint's own time (§14.10, D-274)" begin
+        sim = Simulation(fed(TimedDecay(), "u"); h = 1//10)
+        init!(sim, fragment(inputs = (in = 0.0,)); t0 = 0.2)
+        step!(sim; frames = 3)
+        t, q = sim.exec.clock.t, state(sim, "c").q
+        @test t ≈ 0.5
+        linearization = linearize(sim, taps(x = (q = get_state("c", :q),)))
+        @test linearization.ẋ₀.q ≈ -t * q^2 && linearization.A ≈ [-2t * q;;]
     end
 
     @testset "`about` is legal in built and mid-frame, where the default form is refused (§14, D-274)" begin

@@ -126,6 +126,17 @@ function test_log()
               [0]          # the new boundary zero, alone
     end
 
+    @testset "a restored run counts its stride from its first endpoint (§11.2, D-274)" begin
+        sim = Simulation(fed(Plant(), "u"); h = 1//10)
+        init!(sim, fragment(inputs = (in = 0.0,)))
+        step!(sim; frames = 4)
+        restored = Simulation(fed(Plant(), "u"); h = 1//10)
+        restore!(restored, checkpoint(sim); log_every = 3)
+        step!(restored; frames = 9)
+        # the first endpoint re-publishes boundary 4, and every third past it is kept
+        @test [snapshot.boundary for snapshot in logged(restored)] == [4, 7, 10, 13]
+    end
+
     @testset "logged is a stopped-sim read behind the §11.3 gate" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//100000)
         init!(sim, fragment(inputs = (in = 0.0,)); log_max = 16)

@@ -570,6 +570,23 @@ function test_trim()
         @test lifecycle(twin) === lifecycle(sim)
     end
 
+    @testset "a stopped simulation trims from an authored baseline at a new anchor (§14.8, §12.6)" begin
+        sim = Simulation(fed(Pendulum(), :u); h = 1//10)
+        init!(sim, combine(at("c", condition(Pendulum(); θ = 0.2)),
+                           fragment(inputs = (in = 1.0,))))
+        run!(sim; t_end = 0.4)
+        @test lifecycle(sim) === :stopped && sim.exec.clock.step == 4
+
+        # The commit is an `init!`: `t0` re-anchors the clock and the origin
+        # together, and the frame count starts over.
+        report = trim!(sim, u_problem(); baseline = pend_base(), t0 = 0.4)
+        @test report.converged && report.committed_residuals !== nothing
+        @test lifecycle(sim) === :initialized
+        @test sim.exec.clock.t === 0.4 && sim.exec.clock.t₀ === 0.4 && sim.exec.clock.step == 0
+        @test state(sim, "c") === (θ = 0.5, ω = 0.0)      # the problem's condition won
+        @test port(sim, "", :in) === report.solution.u
+    end
+
     @testset "the per-iteration write and read are free at the seeded activation (§7.5)" begin
         # The iteration is a raw write → sweep → read cycle (§14.5), and both ends
         # of it are compiled: the shape-compiled plan and the compiled reader, at
@@ -617,7 +634,7 @@ function test_trim()
               occursin("NamedTuple", d.value)
 
         # `running` is the §11.3 freeze, as for every other §14 service. Both ends
-        # of the run are test-controlled, exactly as in test_readers.
+        # of the run are test-controlled, exactly as in test_lifecycle.
         live = Simulation(armed(); h = 1//100)
         init!(live, fragment(inputs = (in = 0.0,)))
         attach!(live, TailProbe(), NoClaim())   # a rostered device makes the loop yield every

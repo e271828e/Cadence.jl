@@ -134,7 +134,7 @@ run, `init!`, `restore!` and `replay!`, and `reclaim!`'s two callers, `attach!` 
 `detach!`. With no trace to write into, under the door's `trace = false` or at
 a roster change before the first door, whose placeholder run has no trace
 (D-261), nothing is appended and the indices are provisional. No drain runs
-before boundary zero has, so nothing reads either.
+before a door has, so nothing reads either.
 
 The appended range is a local (D-260): the thunks are compiled against it here
 and nothing reads it afterwards. `store` is the executor's and `trc` the run's

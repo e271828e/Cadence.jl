@@ -7,8 +7,12 @@
 
 """
 The structural fingerprint (§11.5, §12.7): the layout's cell sizes, the root
-input-face list, the flat's component paths and each component store's value
-type. A checkpoint carries it, and a restore compares it against the target's.
+input-face list, the flat's component paths, each component store's value
+type, each component's block in the flat buffer, and every address of the
+table, `(path, name) => (type, offsets)` sorted by key. A checkpoint carries it,
+and a restore compares it against the target's: the restore copies `x` and the
+table by position, and the blocks and the addresses are what make the
+positions mean the same thing.
 """
 struct Fingerprint
     sizes::Vector{Pair{DataType,Int}}
@@ -16,6 +20,8 @@ struct Fingerprint
     paths::Vector{String}
     stypes::Vector{Any}
     mtypes::Vector{Any}
+    xblocks::Vector{UnitRange{Int}}
+    addrs::Vector{Pair{Tuple{String,Symbol},Tuple{Any,Tuple}}}
 end
 
 """
@@ -54,7 +60,11 @@ function _fingerprint(sim)
                 Symbol[f for (f, _) in layout.root_inputs],
                 String[entry.path for entry in sim.deployment.build.structure.components],
                 Any[st === nothing ? nothing : typeof(st[]) for st in exec.sstores],
-                Any[st === nothing ? nothing : typeof(st[]) for st in exec.mstores])
+                Any[st === nothing ? nothing : typeof(st[]) for st in exec.mstores],
+                copy(layout.xblocks),
+                sort!(Pair{Tuple{String,Symbol},Tuple{Any,Tuple}}[
+                          key => (_port_type(addr), addr.offsets) for (key, addr) in layout.addr];
+                      by = first))
 end
 
 # The one read, behind `checkpoint(sim)` and the trace header `init!` takes.
@@ -138,9 +148,37 @@ function _check_checkpoint!(diags::Vector{Diagnostic}, sim, cp::Checkpoint)
                 push!(diags, CheckpointMismatch(what = :store, path = path, name = :m,
                                                 expected = recorded.mtypes[i],
                                                 found = target.mtypes[i]))
+            # by width: the blocks are consecutive, so one component's width
+            # moves every later block, and only the first is at fault
+            length(recorded.xblocks[i]) == length(target.xblocks[i]) ||
+                push!(diags, CheckpointMismatch(what = :store, path = path, name = :x,
+                                                expected = recorded.xblocks[i],
+                                                found = target.xblocks[i]))
         end
+        recorded.addrs == target.addrs || _check_addresses!(diags, recorded.addrs, target.addrs)
     end
     cp.deployment == sim.deployment ||
         _walk_deployment!(diags, cp.deployment, sim.deployment)
+    nothing
+end
+
+# The table's addresses key by key, each named `port.<name>` at its path, with
+# `nothing` for a side that lacks the key: first the cells present and their
+# types, then, only where those all agree, the offsets. A cell more or less
+# shifts every later offset of its type, and the ports behind it are not at fault.
+function _check_addresses!(diags::Vector{Diagnostic}, recorded, target)
+    recorded_addrs, target_addrs = Dict(recorded), Dict(target)
+    port_keys = sort!(collect(union(keys(recorded_addrs), keys(target_addrs))))
+    reported = length(diags)
+    for differs in (((a, b) -> a === nothing || b === nothing || a[1] != b[1]), !=)
+        for key in port_keys
+            expected, found = get(recorded_addrs, key, nothing), get(target_addrs, key, nothing)
+            differs(expected, found) &&
+                push!(diags, CheckpointMismatch(what = :store, path = first(key),
+                                                name = Symbol("port.", last(key)),
+                                                expected = expected, found = found))
+        end
+        length(diags) > reported && break
+    end
     nothing
 end

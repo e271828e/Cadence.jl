@@ -1978,14 +1978,17 @@ function message(d::ArgumentInvalid)
     d.argument === :margin &&
         return "`margin` must be a real ≥ 0 — the wait's spin share in seconds, 0 pure " *
                "sleep and Inf pure spin — got $(repr(d.value)) (§10.7, §12.1)"
+    d.argument === :restore &&
+        return "`restore` must be true or false — whether `replay!` restores the trace's " *
+               "header or feeds the simulation as it stands, got $(repr(d.value)) (§12.7)"
     d.argument === :t_end &&
         return "`t_end` must be a real ≥ 0 — the run's clock bound, taken to the nearest " *
                "frame top, Inf the unbounded default, got $(repr(d.value)) (§13.5)"
     d.argument === :frames ?
         "frames must be an integer ≥ 1, got $(d.value) (§12.6)" :
         d.argument === :to_boundary ?
-        "to_boundary must be a whole grid boundary the recording covers — 0 through its " *
-        "own length — got $(repr(d.value)) (§12.7, §13.4)" :
+        "to_boundary must be a whole grid boundary the recording covers — from the frame " *
+        "the feed starts at through its own length — got $(repr(d.value)) (§12.7, §13.4)" :
         d.argument === :to_time ?
         "to_time must be a finite real at or after the recording's `t₀`, naming a time the " *
         "recording covers — got $(repr(d.value)) (§12.7, D-219)" :
@@ -2035,9 +2038,10 @@ Base.@kwdef struct CheckpointMismatch <: Diagnostic
     what::Symbol                             # :store | :root_input | :deployment | :scalar | :frame
     path::String = ""                        # the component path: the per-component :store arms,
                                              # a :deployment schedule row and a rate scope (§12.7)
-    name::Symbol = Symbol("")                # :sizes|:paths|:s|:m, the root-input face, the
-                                             # deployment parameter, a schedule or `scope.` column,
-                                             # or a list name: :schedule, `scope.key`
+    name::Symbol = Symbol("")                # :sizes|:paths|:s|:m|:x or `port.name`, the
+                                             # root-input face, the deployment parameter, a
+                                             # schedule or `scope.` column, or a list name:
+                                             # :schedule, `scope.key`
     expected::Any = nothing                  # the checkpoint's value
     found::Any = nothing                     # the target's
 end
@@ -2046,7 +2050,15 @@ path(d::CheckpointMismatch) = d.path
 _checkpoint_subject(d::CheckpointMismatch) =
     d.name === :paths ? "component-path list" :
     d.name === :sizes ? "cell-size list" :
+    d.name === :x ? "$(_at_path(d.path))'s block in the flat buffer" :
+    startswith(String(d.name), "port.") ?
+    "cell of $(_at_path(d.path))'s port `$(chopprefix(String(d.name), "port."))`" :
     "$(_at_path(d.path))'s $(d.name) store type"
+
+# A port's cell as the fingerprint holds it, `(type, offsets)`, or its absence.
+_checkpoint_value(d::CheckpointMismatch, value) =
+    !startswith(String(d.name), "port.") ? repr(value) :
+    value === nothing ? "absent" : "a $(value[1]) cell at offsets $(value[2])"
 
 _checkpoint_paths(paths) = isempty(paths) ? "none" : join((_at_path(p) for p in paths), ", ")
 
@@ -2102,10 +2114,10 @@ message(d::CheckpointMismatch) =
      "replay: the value $(repr(d.found)) recorded for the root input `$(d.name)` does not " *
      "convert to its declared type $(d.expected) — a record is replayed through the " *
      "target's own compiled scatter (§11.4, §12.7)") :
-    "the $(_checkpoint_subject(d)) was $(repr(d.expected)) when the checkpoint was taken " *
-    "and is $(repr(d.found)) here — the store layout is compared against the `Build`, " *
-    "structural mismatch being an error and only *parametric* difference the what-if " *
-    "replay (§12.7)"
+    "the $(_checkpoint_subject(d)) was $(_checkpoint_value(d, d.expected)) when the " *
+    "checkpoint was taken and is $(_checkpoint_value(d, d.found)) here — the store layout " *
+    "is compared against the `Build`, structural mismatch being an error and only " *
+    "*parametric* difference the what-if replay (§12.7)"
 
 "§12.6, §14: `checkpoint` on a simulation whose clock stands inside a frame, short of its top — the state a `t*` stop leaves."
 Base.@kwdef struct CheckpointMidFrame <: Diagnostic
