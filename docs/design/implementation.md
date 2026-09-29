@@ -83,15 +83,23 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265.
 - §13.4's runtime trio is `CursorFrame`, `StepError` and `NonfiniteState`.
   `StepError` is parametric on its cause, and `diagnostic` is defined on the
   species.
-- §12.7's replay trio is `ReplayHeaderMismatch`, `ReplaySchemaMismatch` and
+- §12.7's replay trio is `CheckpointMismatch`, `ReplaySchemaMismatch` and
   `ReplayUnknownFace`. `ReplayUnknownFace`'s `face` carries a bare position
   where no schema resolves it, and the name where one does.
-  `ReplayHeaderMismatch`'s deployment arm has five renderings. The one for a
-  schedule row names the component path and the column (D-255).
+  `CheckpointMismatch` is one kind for replay's entry pass and `restore!`,
+  with no root-input arm (D-274). Its deployment arm has five renderings. The
+  one for a schedule row names the component path and the column (D-255).
+- `CheckpointMidFrame`, `checkpoint`'s refusal after a `t*` stop, carrying
+  the clock's `t`, the frame top `t_frame` and the frame index `step`
+  (D-274).
+- `StepError`'s rendered recipe names `init!` at pointer 0, where a
+  boundary-zero throw leaves no trace, and replay to the pointer then
+  `step!` elsewhere (§13.4, D-274). `ArgumentInvalid`'s `:t0_without_about`
+  names the checkpoint as the default operating point.
 
-Spec: §9.1, §12.7, §13.1, §13.2, §13.4, §14.8, §14.10, Appendix C, D-058, D-059,
-D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256, D-261, D-262, D-263,
-D-272.
+Spec: §9.1, §12.6, §12.7, §13.1, §13.2, §13.4, §14.8, §14.10, Appendix C, D-058,
+D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256, D-261,
+D-262, D-263, D-272, D-274.
 
 ### `src/declare.jl`
 
@@ -143,8 +151,7 @@ D-195, D-211, D-246, D-248, D-263.
   body only outside a walk.
 - The service walk `resolve_authored` runs over the `Structure`'s retained
   root and reads declared holdings off the type definition (D-061, D-130).
-- `authored_chain` returns the child names along an absolute path. `capture`
-  spells that path level by level.
+- `authored_chain` returns the child names along an absolute path.
 - §8.8's `input_passthrough`/`output_passthrough`, with the three exclusive
   selectors `except`, `only` and `select`, and `EmptyFaceSelection` through the
   channel (D-251).
@@ -297,10 +304,10 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
   `chunk_size` alone, and checks `join_timeout` under `ArgumentInvalid`. Its
   placeholder run is an empty log and no trace. The placeholder run carries no
   configuration.
-- The four recording keywords belong to `init!` and `replay!`, for the run each
-  builds. There `_check_recording` validates them under `ArgumentInvalid` at
-  the door's `call`. The door hands them to `_open_run!`, which reads nothing
-  off the run the last door left.
+- The four recording keywords belong to `init!`, `restore!` and `replay!`,
+  for the run each builds. There `_check_recording` validates them under
+  `ArgumentInvalid` at the door's `call`. The door hands them to
+  `_open_run!`, which reads nothing off the run the last door left.
 - `trace(sim)` refuses on the lifecycle before it reads the switch.
 - The materialization builds the plane without the run, and no drain thunk is
   compiled before a door or a roster change (D-261).
@@ -309,10 +316,20 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
 - `warnings(::Simulation)`, as the concatenation (D-250).
 - The boundary macro-sequence.
 - The §10.6 event phase, with its `FiringBudget` degradation.
-- `init!`, `run!`/`step!` and `replay!`. `run!` and `replay!` share the one run
-  body, and `init!` and `replay!` are the two doors that build a run.
-- `_open_trajectory!` and `_open_run!`, shared by the two doors that open a
-  trajectory.
+- `init!`, `restore!`, `run!`/`step!` and `replay!`. `run!` and `replay!`
+  share the one run body, and `init!`, `restore!` and `replay!` are the three
+  doors that build a run (D-274):
+  - `init!` takes the trace header after boundary zero's first publication;
+  - `restore!` checks the fingerprint, restores the state and publishes one
+    snapshot, with no boundary zero;
+  - `replay!` is a restore of the trace's header plus the feed, the loop's
+    one substitution; its `restore = false` form attaches the feed to the
+    simulation as it stands.
+- `checkpoint(sim)`, the stopped-sim service, refused mid-frame after a `t*`
+  stop.
+- `_open_trajectory!` and `_open_run!`. `init!` opens the trajectory whole;
+  `restore!` and `replay!` take the parts that are neither the clock nor the
+  priors.
 - `attach!`/`detach!`. `attach!` builds the handle with the build's
   `Structure` and the nominal `Layout` (D-270).
 - The pause verbs `pause!`/`resume!`/`paused`, beside `stop!(sim)` (§12.1,
@@ -368,9 +385,9 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
   `trace`, `port`, `state`, `modes` and `phase_bodies`.
 
 Spec: §10.2–§10.7, §11.1–§11.5, §11.8, §12.1–§12.7, §13.2, §13.4–§13.6,
-§14.5, §14.6, D-027, D-059, D-101, D-157, D-203, D-218, D-219, D-221, D-223,
-D-232, D-233, D-248, D-250, D-253, D-254, D-255, D-256, D-260, D-261, D-268,
-D-269, D-270.
+§14, §14.5, §14.6, D-027, D-059, D-101, D-157, D-203, D-218, D-219, D-221,
+D-223, D-232, D-233, D-248, D-250, D-253, D-254, D-255, D-256, D-260, D-261,
+D-268, D-269, D-270, D-274.
 
 ### `src/stepper.jl`
 
@@ -450,33 +467,53 @@ D-261, D-269.
 Spec: §10.7, §11.1–§11.4, §11.8, §12.2, §12.4, §12.6, §13.2, §13.5, D-023,
 D-027, D-038, D-137, D-250, D-255, D-269.
 
+### `src/checkpoint.jl`
+
+- `Checkpoint{T}`, the executor's state at a frame top (D-274): the flat
+  buffer, the `s` and `m` stores, the signal table with every cell buffer
+  copied, the guard priors, the clock in full (`t`, the frame index, the
+  boundary ordinal and `t₀`, a `Float64` like `h`), and the fingerprint, the
+  run's `Deployment` and the structural layout `Fingerprint`.
+- What stays out: the derivative buffer, the arrival pair and the
+  localization samples, which every frame rewrites before reading them, the
+  cursor and the periphery.
+- `_take_checkpoint`, the one read, behind `checkpoint(sim)` and the trace
+  header `init!` takes. `_restore_state!`, its inverse, behind `restore!`,
+  `replay!` and `linearize`'s default operating point.
+- `_check_checkpoint!`, the fingerprint check `restore!` and replay's entry
+  pass share, collecting `CheckpointMismatch`.
+
+Spec: §11.5, §12.6, §12.7, §14.10, D-038, D-254, D-273, D-274.
+
 ### `src/trace.jl`
 
 - The input trace:
-  - `TraceHeader`, captured at `init!` by `_capture_header` and holding the
-    resolved stores, the root inputs, the run's `Deployment` and its `t₀`, a
-    `Float64` like `h` (D-260);
-  - the mutable `Trace{T}` behind the header, holding the header, two lists
-    that grow in place, namely the writers' schemas and one sparse record per
-    drained batch, and the length a replay reads its bound off, which is also
-    the ordinal each record carries and which the drain advances at its top
-    (D-255, D-260).
+  - the mutable `Trace{T}`, holding its header, two lists that grow in
+    place, namely the writers' schemas and one sparse record per drained
+    batch, and the length a replay reads its bound off, which is also the
+    ordinal each record carries and which the drain advances at its top
+    (D-255, D-260);
+  - the header is a `Checkpoint{T}` written once. `init!` writes it after
+    boundary zero's first publication, and `restore!` and `replay!` open
+    their run with the checkpoint they restore. It is `nothing` only between
+    `init!`'s opening of the run and that publication (D-274).
 - `_install_writers!` (D-261):
   - the growth rule;
   - the one site a drain thunk is compiled at, against the executor's store
     and the run's trace that `_install_writers!` takes as arguments, with the
     appended range as a local (D-260).
-- `trace(sim)`, defined in sim.jl, which hands back a detached value.
+- `trace(sim)`, defined in sim.jl, which hands back a detached value, the
+  checkpoint copied.
 - Replay's up-front entry pass, run by `_compile_feed` in sim.jl. It validates
-  the header, the schemas and the records. Both stages, `_check_header!` with
-  `_check_schemas!` and then `_compile_records!`, collect (D-217). The pass
-  builds the `ReplayFeed` the drain reads.
-- The entry pass checks the header's deployment half with one `==`, and
+  the header, the schemas and the records. Both stages, `_check_checkpoint!`
+  with `_check_schemas!` and then `_compile_records!`, collect (D-217). The
+  pass builds the `ReplayFeed` the drain reads.
+- The entry pass checks the checkpoint's deployment with one `==`, and
   `_walk_deployment!` names what the `==` refused, the schedule's rows and
   scopes by path and column (§12.7).
 
 Spec: §11.5, §12.6, §12.7, §14.5, D-029, D-038, D-101, D-176, D-217, D-218,
-D-254, D-255, D-260, D-261.
+D-254, D-255, D-260, D-261, D-274.
 
 ### `src/roster.jl`
 
@@ -594,7 +631,6 @@ D-233, D-244, D-256, D-261, D-268, D-270.
   - `compile_plan`, with `Getter{P}` lenses, `SpecializedPlan` and
     `ConditionShapeDrift`.
 - Root-input totality `assert_total`.
-- `capture`.
 
 Spec: §9.5, §13.1, §13.3, §14.1–§14.6, Appendix B, D-063–D-068, D-117, D-130,
 D-204, D-205, D-207, D-226.
@@ -619,12 +655,16 @@ Spec: §9.6, §13.1, §14.5–§14.8, D-070, D-158, D-213, D-224, D-253, D-262.
   labels.
 - `linearize`, over D-213's two-half scratch world in passes of `width`
   directions, the seeds written at the resolved taps' own sites.
+- The default operating point is `checkpoint(sim)`, restored into the
+  nominal half with no resolve, no `apply!` and no establishment round, so
+  the frozen cells are the checkpoint's held cells. The `about` form keeps
+  the resolve, the `apply!` and D-213's round (D-274).
 - The collecting tap resolution, with the discrete store, the unindexed
   vector leaf, the member in the wrong list, the unseedable root input and
   a second seed at one site refused. The unseedable root input names its
   pinning consumers with their tiers, the duplicate the earlier label.
 
-Spec: §9.7, §14.4, §14.10, D-167, D-168, D-197, D-213, D-271, D-272.
+Spec: §9.7, §14.4, §14.10, D-167, D-168, D-197, D-213, D-271, D-272, D-274.
 
 ### `src/show.jl`
 
@@ -754,7 +794,10 @@ Traps the code does not warn about, each hit more than once while building:
   compiled form stored beside its declared one (the schedule's vectors
   beside its rows, a policy's addresses beside its faces) is a second home
   with no enforcer but the constructor. `Layout` is the one home for
-  address facts (§9.2, D-261).
+  address facts (§9.2, D-261);
+- **`checkpoint` is refused after a `t*` stop.** A test that checkpoints a
+  stopped run stops it at a frame top: `t_end`, a stop face read at a grid
+  boundary, or `stop!` (§12.6, D-274).
 
 ## Naming
 
@@ -859,7 +902,7 @@ override:
 | --- | --- |
 | `declare`, `assembly`, `build`, `tracer`, or a new kind in `diagnostics.jl` | `declare assembly build diagnostics leaves show`; a change in `build.jl`'s `compile` half adds the next row |
 | `executor`, `stepper`, `localization` | `executor stepper continuous discrete events localization failures` |
-| `dataplane`, `roster`, `bindings`, `control`, `devices`, `trace` | `dataplane roster bindings devices trace lifecycle log` |
+| `dataplane`, `roster`, `bindings`, `control`, `devices`, `checkpoint`, `trace` | `dataplane roster bindings devices trace lifecycle log` |
 | `readers`, `conditions`, `trim`, `linearize` | `readers conditions trim linearize` |
 | `show` | `show` |
 | `sim`, `deployment`, `store`, `leaves`, `Cadence`, or `diagnostics.jl` beyond a new kind | all of it |

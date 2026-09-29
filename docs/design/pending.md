@@ -18,20 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the standard component library last.
 Where the reason is not given here, the cited decision carries it:
 
-- **Checkpoints** (D-273, D-274): `Checkpoint{T}`, `checkpoint(sim)` and
-  `restore!(sim, cp)`; the trace header retiring into the checkpoint `init!`
-  takes at the end of boundary zero; `replay!` as a restore plus the feed;
-  `capture` leaving the condition algebra, with `linearize`'s default
-  operating point and the warm restart moving to the checkpoint and the
-  mid-run trim baseline retiring. Until it lands, `capture` then `init!`
-  is not the identity on a model with a discrete tier: the store at rest
-  holds `s_{k+1}` beside `y_k`, the priors reset, and a resume re-anchors
-  the lattice at `t0`. Probed on a `DiscreteIntegrator(1.0)` driving the
-  pendulum at `h = 1//10`, `in = 0.5`, `acc0 = 4.0`, `θ0 = 0.2`, `ω0 = 0`:
-  stopped at `0.3`, `ctl/u` reads `4.15` with `acc` `4.20`; after
-  `capture` and `init!` at `t0 = 0.3` they read `4.20` and `4.25`; at `0.6`
-  the uninterrupted run has `ctl/u` `4.30` and `θ` `0.462815`, the resumed
-  one `4.35` and `0.464816`.
 - **Mounting** (§14.9, I 4.12): `at(prefix, ::TrimProblem)` and
   `at(prefix, ::Taps)`, and the read side's resolution from a mount point;
   `readers.jl`'s `_read_component` walks every selector path from the root.
@@ -49,8 +35,7 @@ Where the reason is not given here, the cited decision carries it:
 - **Smaller** (M-B26): no `report!(entry, d)` addressed by roster entry, only
   the internal `report_cell!(cell, d)`; the face table keeps the resolved endpoint
   and discards §9.1's routing chain that §13.7's face-route printer would print;
-  `capture`, the trace header and the compiled `Reader` are three walks over the
-  same stores against §14.1/§14.4's "one mechanism"; no `sizehint!`, and
+  no `sizehint!`, and
   the log is a `Vector` of snapshot references, not inline records; the
   roster is a mutable `Vector` re-read every frame, frozen by
   `assert_stopped`'s policy rather than by type; the suite has no
@@ -109,9 +94,10 @@ Not a code deviation: what the design documents owe their reader.
   for a model of roughly 200–400 entries are extrapolated from synthetic
   bodies; re-measure them on a real model of that scale early, before the
   executor's shape hardens.
-- **The trace header's deployment half.** `TraceHeader.deployment` carries
-  the whole `Deployment`, and through it the `Build` with the component
-  instances, into an artifact §11.5 calls primary data; the deployment's
+- **The trace header's deployment half.** The checkpoint's `deployment`,
+  which the trace header carries, holds the whole `Deployment`, and through
+  it the `Build` with the component instances, into an artifact §11.5 calls
+  primary data; the deployment's
   `==` excludes the build, so replay never compares it. Whether the header
   should hold the build-free half is a D-254 question, to be ruled when the
   persistence deferral above lifts.
@@ -128,8 +114,8 @@ Not a code deviation: what the design documents owe their reader.
   outside the question as loop-idiom conventions the framework never calls;
   and the device contract `init!`/`loop`/`shutdown!`/`unblock!`/
   `needs_calling_task`, extended by `import` or qualified name,
-  `Base.show`-style. On the operator side, `condition`, `fragment`, `at`,
-  `capture` and `combine` (§14.2) are generic names that share a namespace
+  `Base.show`-style. On the operator side, `condition`, `fragment`, `at`
+  and `combine` (§14.2) are generic names that share a namespace
   with user domain code; the `Base.merge` piracy surface is retired with the
   combinator's rename (D-204), the mixed-argument methods staying error
   methods; the `get_` prefix settles the readers (§14.4); and whether the
@@ -159,9 +145,9 @@ Not a code deviation: what the design documents owe their reader.
   attaches that package's device, so the flag waits on it.
 - **Log and trace persistence.** The in-memory artifacts are settled and
   nothing on-disk is. The log is the retained boundary snapshots (§11.2); the
-  input trace is always on and device-tagged, with its header of initial
-  stores and root input values (§11.5, §14.5, §14.6); the log is recomputable
-  from the trace, never the reverse. The on-disk questions wait for real users
+  input trace is always on and device-tagged, with its header, the
+  checkpoint `init!` takes after boundary zero (§11.5, §12.6); the log is
+  recomputable from the trace, never the reverse. The on-disk questions wait for real users
   to ground them: the HDF5 export scope (the whole snapshot log, or selected
   subtrees); field-handle summarization over retained snapshots, the
   post-processing entry point, as `getproperty`-style navigation of a run's

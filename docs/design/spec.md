@@ -5184,15 +5184,19 @@ discriminator ([§10.4][s10-4]) conclusive. The [frame-top drain](#g-drain) is t
 source of disagreement between the prior and the left-end trial evaluation.
 
 All three registers are detection bookkeeping, not model memory. They are
-correctly absent from every state store. They are not captured, not traced, and
-reconstructed deterministically. Beyond the prior, the cost is one `Bool` and
-one small counter per event.
+correctly absent from every state store. They are not traced, and they are
+reconstructed deterministically. A [checkpoint](#g-checkpoint) (the executor's
+state at a frame top, as one value) carries the prior, the one register that
+crosses a boundary ([§12.6][s12-6], [D-274][d-274]). Beyond the prior, the cost
+is one `Bool` and one small counter per event.
 
 **[Boundary zero](#g-boundary-zero) sets every prior to not-holding.** A predicate already holding
 in the authored state therefore fires at `t₀`. That behavior ([§14.5][s14-5]) is derived
-rather than asserted. A warm restart resets all three registers from scratch,
+rather than asserted. A re-run from a condition resets all three registers from scratch,
 because `init!` re-runs boundary zero ([§14.5][s14-5]). Predicates holding in the newly
-applied state fire again at the new `t₀`.
+applied state fire again at the new `t₀`. A `restore!` keeps the checkpoint's
+priors and runs no boundary zero, so nothing holding re-fires
+([§12.6][s12-6]).
 
 **Why iterate.** Under a single pass, a cascade of N logically simultaneous
 transitions (supervisor FSM → subordinate FSM → …) takes N steps to complete, at
@@ -5644,8 +5648,10 @@ cost of one cell per [sweep](#g-sweep) ([§5.3][s5-3]). Post-run
 continuation reads the live stores directly.
 Periodic full-state checkpoints, which would allow warm restart without replay
 from zero, are a [guarded addition](#g-guarded-addition) shaped as an opt-in
-log policy. A dev-mode flag that reads every state field out of the stores is a
-possible future diagnostic. It would be a reader over the stores, never a port
+log policy. Each would retain a [checkpoint](#g-checkpoint) (the executor's
+state at a frame top, as one value), the value `checkpoint(sim)` returns
+([§12.6][s12-6]). A dev-mode flag that reads every state field out of the
+stores is a possible future diagnostic. It would be a reader over the stores, never a port
 class ([D-252][d-252]).
 
 #### The log: retained snapshots under a bound
@@ -6302,39 +6308,38 @@ per-entry storage optimization if a marathon-session measurement ever asks
 for it. Such a return would leave the record semantics, the header and the
 replay path exactly as they are.
 
-**The [trace header](#g-trace-header) captures the full initial state**
-`(x, s, m)` **plus the initial [root-input](#g-root-input) values** at
-`init!`. The capture happens **after `apply!` and the root-input writes,
-before the boundary-zero sequence runs** ([§14.5][s14-5]). Both halves of
-that placement matter:
-
-- The header holds the *resolved* stores and root inputs as values, never
-  the sparse authored overlay. Replay must survive edits to declared
-  defaults, the primary-data doctrine ([D-038][d-038]).
-- The header never holds the post-transition result, since
-  [boundary zero](#g-boundary-zero) is re-executed under replay
-  ([§12.7][s12-7]). A post-sequence capture would re-fire authored-condition
-  events on top of already-latched state.
+**The [trace header](#g-trace-header) is the checkpoint `init!` takes at the
+end of [boundary zero](#g-boundary-zero)**, after the first
+[snapshot](#g-snapshot) is published ([§12.6][s12-6], [D-274][d-274]). A
+[checkpoint](#g-checkpoint) (the executor's state at a frame top, as one
+value) holds the flat buffer `x`, the `s` and `m` stores, the whole signal
+table, the guard [priors](#g-prior), the clock in full and the fingerprint.
+The clock is `t`, the frame index, the boundary ordinal and `t₀`. The header
+holds the stores and the [root-input](#g-root-input) cells as values, never
+the sparse authored overlay. Replay must survive edits to declared defaults,
+the primary-data doctrine ([D-038][d-038]).
 
 An unfed `mixture = 0.5` never appears in any batch, so replay is broken
 without the root inputs. The init/trim services own root-input
-initialization ([§14.6][s14-6]), and the header capture extends naturally.
-The header carries one further thing.
+initialization ([§14.6][s14-6]), and the checkpoint's table holds the values
+they wrote. The fingerprint is the part of the header replay compares
+rather than restores ([§12.7][s12-7]).
 
-- **The run's `Deployment` and `t₀`.** The [deployment](#g-deployment) (the
-  scalar-free artifact the grid parameters fix) comes from [§9.1][s9-1], and it
-  carries `Δt_base`, `h`, `N_base`, the algorithm identifier,
-  `localization_tol`, `localization_budget` ([§10.4][s10-4]) and
-  `firing_budget` ([§10.6][s10-6]). It is captured at the same instant as the
-  stores. It holds no policy ([D-255][d-255]). `t_end` and `stop_on` are
-  keywords of each advance ([§13.5][s13-5]), and only the terminating advance's
-  policy explains the stop, so the [termination record](#g-termination-record)
-  carries that one.
+- **The run's `Deployment` and the structural layout.** The
+  [deployment](#g-deployment) (the scalar-free artifact the grid parameters
+  fix) comes from [§9.1][s9-1], and it carries `Δt_base`, `h`, `N_base`, the
+  algorithm identifier, `localization_tol`, `localization_budget`
+  ([§10.4][s10-4]) and `firing_budget` ([§10.6][s10-6]). The layout is the
+  store layout and the root-input faces the `Build` fixes. Both are taken at
+  the same instant as the state. The deployment holds no policy
+  ([D-255][d-255]). `t_end` and `stop_on` are keywords of each advance
+  ([§13.5][s13-5]), and only the terminating advance's policy explains the
+  stop, so the [termination record](#g-termination-record) carries that one.
 
 **`Trace{T}` is that fixed header plus two append-only lists**, `schemas` and
-`batches`, and its length ([D-255][d-255]). The header is written once at
-`init!` and never again, which is what makes it an artifact. The lists grow
-in place, the batches at every drain and the schemas at every roster change.
+`batches`, and its length ([D-255][d-255]). The header is written once, by
+the door that builds the run, and never again, which is what makes it an
+artifact. The lists grow in place, the batches at every drain and the schemas at every roster change.
 The length is the drain's count on the live trace, frozen into the value
 `trace(sim)` hands back. It advances at the top of each drain, and the frame
 ordinal every record of that drain carries is this count ([D-260][d-260]).
@@ -6349,16 +6354,18 @@ resolves only through its own schema entry.
 
 The trajectory depends on the deployment exactly as it depends on the
 stores. The `Deployment` constructor ([§9.1][s9-1]) sits outside the `Build`,
-and `t₀` post-dates even deployment ([§14.5][s14-5]). A header without them could
-therefore not back the bit-identity claim ([§12.7][s12-7]). The header is
-also what the artifact's [run metadata](#g-run-metadata) names ([§13.5][s13-5],
-[Appendix B][sB]). The header capture is the one full-state capture in a
-normal run, and the other half of what "given the initial state and the
-trace, the log is recomputable" requires. Header plus batches are the
-*primary* record. Everything else, the state trajectory included, is derived
+and the checkpoint carries the clock, `t₀` included ([§14.5][s14-5]). A header
+without them could therefore not back the bit-identity claim
+([§12.7][s12-7]). The header is also what the artifact's
+[run metadata](#g-run-metadata) names ([§13.5][s13-5], [Appendix B][sB]). A
+checkpoint is the one full-state capture, taken by `init!` for the header
+and by `checkpoint(sim)` on demand ([§12.6][s12-6]). The header is the other
+half of what "given the initial state and the trace, the log is
+recomputable" requires. Header plus batches are the *primary* record.
+Everything else, the state trajectory included, is derived
 ([§11.2][s11-2]). The trace also carries its length, the number of drains
-since the capture ([D-217][d-217]). A recording whose last frames drained
-nothing still ran them, and every advance in `:replay` is capped at that
+since the header was taken ([D-217][d-217]). A recording whose last frames
+drained nothing still ran them, and every advance in `:replay` is capped at that
 count ([§12.7][s12-7], [D-218][d-218]).
 
 **Trace recording is on by default.** `init!` builds a fresh trace with the
@@ -7608,8 +7615,8 @@ the throw, and raises inside the mask. That is the one way the branch
 the run ends `stopped`, the source `ControlRequestedStop(:interrupt)`. The
 published record is consistent, since the frame published nothing. The
 stores may hold mid-boundary values until the next `init!` resets them, as
-after a throw inside boundary zero ([§13.4][s13-4]), so a `capture` of such a
-run reads a half-written boundary. The trace is the reproduction
+after a throw inside boundary zero ([§13.4][s13-4]), so a `checkpoint` of
+such a run copies a half-written boundary. The trace is the reproduction
 ([§12.7][s12-7]).
 
 **A second interrupt during the tail** collapses the remaining joins
@@ -7706,17 +7713,20 @@ The door that builds the run takes the four recording keywords, `trace`,
 run's recording is that door's declaration and the next door may declare
 otherwise.
 Two evolve during it, `feed`, the recording `replay!` attached or `nothing`,
-and `termination`. `init!` and `replay!` construct one, and nothing else
-rebinds it. `live!` and the halt at a recording's end write `feed`. The loop's
-tail writes `termination` once, and `closed(run)` is `termination !== nothing`.
-The origin `t₀` is not a run field. The doors apply it to the clock
-([§14.5][s14-5]) and the trace header records it ([§11.5][s11-5]). It is a
-`Float64`, as `h` and `t_end` are.
+and `termination`. `init!`, `restore!` and `replay!` construct one, and
+nothing else rebinds it. `live!` and the halt at a recording's end write
+`feed`. The loop's tail writes `termination` once, and `closed(run)` is
+`termination !== nothing`.
+The origin `t₀` is not a run field. `init!` sets it on the clock before
+boundary zero ([§14.5][s14-5]), and a [checkpoint](#g-checkpoint) (the
+executor's state at a frame top, as one value) carries it with the clock
+([§11.5][s11-5], [D-273][d-273]). It is a `Float64`, as `h` and `t_end`
+are.
 
 A `Simulation{T}` is constructed with a **placeholder run**, an empty log, no
-trace, no feed and no termination, which `init!` and `replay!` replace
-([D-255][d-255]). The field is always a `Run{T}` and never `nothing`, so every
-accessor has a run to read, and the lifecycle state below says whether that
+trace, no feed and no termination, which `init!`, `restore!` and `replay!`
+replace ([D-255][d-255]). The field is always a `Run{T}` and never
+`nothing`, so every accessor has a run to read, and the lifecycle state below says whether that
 run ever started. The placeholder carries no configuration and no compiled
 state ([D-261][d-261]). `init!` allocates fresh objects rather than clearing
 them.
@@ -7749,7 +7759,8 @@ A `Simulation` moves through five states: **built**, **initialized**,
 completed. It is the cold state, and the state a throw inside boundary zero
 returns the simulation to ([§13.4][s13-4]). **Initialized** means `init!`
 has completed boundary zero, the initialization boundary run as the ordinary
-macro-sequence with an empty integrate ([§14.5][s14-5]).
+macro-sequence with an empty integrate ([§14.5][s14-5]), or `restore!` or
+`replay!` has restored a checkpoint.
 
 Beside the state, the run carries an **[input mode](#g-input-mode)**,
 `:live` or `:replay`, read as `mode(sim)`. It is read off the run's `feed`:
@@ -7764,10 +7775,11 @@ will advance on.
 `run!` or `step!` on a simulation whose [boundary](#g-boundary) zero has not
 completed is an error in the kind set ([§13.2][s13-2]) naming `init!`. That
 is distinct from `UninitializedInputs`, which fires *inside* `init!`
-([§14.6][s14-6]). `replay!` is the one alternative entry. It runs boundary
-zero from a [trace header](#g-trace-header) ([§12.7][s12-7]). A throw inside
-boundary zero, under either entry, leaves the simulation `built`
-([§13.4][s13-4]), so the next `run!` or `step!` meets the same refusal.
+([§14.6][s14-6]). `restore!` and `replay!` are the two alternative entries.
+Each restores a checkpoint and runs no boundary zero ([§12.7][s12-7],
+[D-274][d-274]). A throw inside boundary zero, which only `init!` runs, leaves
+the simulation `built` ([§13.4][s13-4]), so the next `run!` or `step!` meets
+the same refusal.
 
 **Where the loop runs.** The loop runs on the [calling task](#g-calling-task),
 the task that invoked `run!`, unless a calling-task [device](#g-device) is
@@ -7830,20 +7842,37 @@ requested count in the ordinary case, and fewer when the run terminated
 inside the call. That return is how a harness detects the truncation without
 inspecting the clock.
 
-**Re-running: `stopped → init! → run!` is the supported cycle.** `init!`
-re-runs boundary zero from its condition. The warm restart is `capture` →
-tweak → `init!` ([§14.1][s14-1]). `init!` builds a fresh run, so the trace, the
-log and the [termination record](#g-termination-record) ([§13.5][s13-5]) are new
-objects rather than cleared ones, and it clears
-any batches still in [staging cells](#g-staging-cell). The
-[recorders](#g-recorders) restart with the run they record, and no stale
-batch survives to clobber the boundary zero it predates. `init!` also
-returns the input mode to `:live`, and a fresh `replay!` sets the mode
-exactly as it sets the trajectory. `live!` is the third door, and the only
-one that moves the mode alone. It takes a replaying simulation live where it
-stands ([§12.7][s12-7]). A terminal state makes the mode moot. Nothing
-advances until one of those three doors is taken ([D-218][d-218],
-[D-219][d-219]).
+**Re-running: `stopped → init! → run!` remains the authored re-run.**
+`init!` re-runs boundary zero from its condition. The warm restart is
+`checkpoint` → `restore!` → `run!` ([§12.7][s12-7], [D-274][d-274]).
+`restore!` is a door like `init!`, and it runs no boundary zero. Each builds
+a fresh run, so the trace, the log and the
+[termination record](#g-termination-record) ([§13.5][s13-5]) are new objects
+rather than cleared ones, and each clears any batches still in
+[staging cells](#g-staging-cell). The [recorders](#g-recorders) restart with
+the run they record, and no stale batch survives to clobber the frame it
+predates. `init!` and `restore!` also return the input mode to `:live`, and a
+fresh `replay!` sets the mode exactly as it sets the trajectory. `live!` is
+the fourth door, and the only one that moves the mode alone. It takes a
+replaying simulation live where it stands ([§12.7][s12-7]). A terminal state
+makes the mode moot. Nothing advances until one of those doors is taken
+([D-218][d-218], [D-219][d-219]).
+
+**`checkpoint(sim)` takes the executor's state at a frame top, and
+`restore!(sim, cp)` puts it back** ([D-274][d-274]). `checkpoint` is a
+stopped-sim service, legal in `initialized` and `stopped` ([§14][s14]). It
+is refused mid-frame, where a `t*` stop leaves the clock with the frame's
+remainder abandoned (`CheckpointMidFrame`, [Appendix C][sC]). `restore!`
+takes the four recording keywords `init!` takes. It checks the checkpoint's
+fingerprint against the simulation as replay checks the trace header, and a
+mismatch is `CheckpointMismatch` ([§12.7][s12-7]). It then copies the state
+back, opens a fresh run with the checkpoint as its trace header, and
+publishes one snapshot at the checkpoint's `t`. It runs no sweep, evaluates
+no guard, runs no update and resets no prior. The next frame is the original
+lattice's next frame, because the clock came with the checkpoint. The
+boundary ordinal continues, being the trajectory's ([§12.3][s12-3],
+[D-230][d-230]). A checkpoint taken on another activation is refused by
+dispatch with the same `CheckpointMismatch`, as a trace is.
 
 **Device attachments persist across re-initialization**, because attachment
 is orthogonal to the run lifecycle ([§11.3][s11-3]). Persistence means
@@ -7896,25 +7925,28 @@ The entry point the [§11.5][s11-5] [trace](#g-trace) exists for:
 ```julia
 trc  = trace(sim)                     # the recorded session: header + per-frame batches
 sim2 = Simulation(world)              # the same build
-replay!(sim2, trc)                    # header-init, then re-drive every recorded frame
+replay!(sim2, trc)                    # restore the header, then re-drive every recorded frame
 replay!(sim2, trc; to_boundary = k)   # partial: the §13.4 replay-pointer idiom
 replay!(sim2, trc; to_time = 100.0)   # partial: the same halt addressed by time
+cp   = checkpoint(sim)                # the state at a frame-top rest
+restore!(sim2, cp)                    # that state alone: a warm restart, no feed
 ```
 
-`replay!` is **the ordinary loop with exactly two substitutions**, not a
+`replay!` is **the ordinary loop with exactly one substitution**, not a
 second loop. That is what keeps every property proved of the loop true of
-[replay](#g-replay):
+[replay](#g-replay). The loop starts from a restored state, and its drain
+reads the trace:
 
-- **[Boundary zero](#g-boundary-zero) from the header.** Boundary zero is
-  the initialization boundary, the ordinary macro-sequence with an empty
-  integrate. `replay!` stands in the `init!` position of the lifecycle
-  ([§12.6][s12-6]). It applies the header's resolved stores and
-  [root input](#g-root-input) values directly. There is no condition
-  resolution, and the totality ([§14.6][s14-6]) holds by capture. It then
-  executes the ordinary [boundary](#g-boundary)-zero sequence
-  ([§14.5][s14-5]). Authored-condition events re-fire identically. The
-  header predates the sequence (the capture placement, [§11.5][s11-5]), so
-  nothing is applied twice and nothing is skipped.
+- **Restore from the header.** `replay!` restores the trace's
+  [checkpoint](#g-checkpoint) (the executor's state at a frame top, as one
+  value), the state the recording opened from. It runs no
+  [boundary zero](#g-boundary-zero). The drain then reads the trace.
+  `replay!` stands in the `init!` position of the lifecycle
+  ([§12.6][s12-6]) and does what `restore!` does, with the trace header as
+  the checkpoint. There is no condition resolution, and the totality
+  ([§14.6][s14-6]) held when the recording's `init!` ran. Whatever fired at
+  `t₀` is part of the restored state, so nothing is applied twice and
+  nothing is skipped ([D-274][d-274]).
 - **The [drain](#g-drain) reads the trace.** Each frame top applies the
   recording's batches for that **[frame ordinal](#g-frame-ordinal)**, the
   frame index a batch replays at. It does not swap the [roster](#g-roster)'s
@@ -7942,6 +7974,14 @@ what lets the reproduction workflow of [§13.4][s13-4] run through the
 ordinary entry points, with no replay-only spelling of `step!`. That
 workflow halts at the frame top the error names, then `step!`s the failing
 frame on its recorded inputs.
+
+**Rule.** `replay!(sim, trc; restore = false)` attaches the feed to the
+simulation as it stands and restores nothing. The simulation must be
+`initialized`, and the drain applies the records from the frame after its
+own. That form serves the what-if of a modified model initialized under the
+authored condition (below). It also serves a seek, `restore!` of a
+checkpoint the recording passed through followed by the feed from the next
+frame ([D-274][d-274]).
 
 Everything else is the loop as already specified:
 
@@ -7975,7 +8015,7 @@ Everything else is the loop as already specified:
 
   Validation is the other keywords'. The value must be real, finite and at
   least `t₀`, and it must name a time the recording covers. The checks run
-  before the replay writes anything, boundary zero included.
+  before the replay writes anything, the restore included.
 - **The halt flips the mode only at the recording's end.** A frame budget
   that runs out halts the loop at a frame top, leaving the simulation
   `initialized` ([§12.6][s12-6]). The mode becomes `:live` exactly when that
@@ -8043,18 +8083,20 @@ Everything else is the loop as already specified:
   (`ReplayDiscardedStaging`, [Appendix C][sC]). Mixing live writes into a
   replay would destroy the property replay exists to provide. A session that
   wants live input is a continuation (`run!` after replay), not a replay.
-- **Validation is loud and up front.** Before the first frame, the header is
-  validated against the `Build` (store layout, root input
-  [faces](#g-face)), the trace's batch entries against the root input-face
-  list, and each batch's frame ordinal against the recording's length
+- **Validation is loud and up front.** Before the first frame, the
+  checkpoint's fingerprint is validated against the target, its layout
+  against the `Build` (store layout, root input [faces](#g-face)). The
+  trace's batch entries are validated against the root input-face list, and
+  each batch's frame ordinal against the recording's length
   ([D-217][d-217]). Each writer's face-name → position schema, on the trace's
   `schemas` list ([§11.5][s11-5]), is **validated** in the same pass. A
   recorded schema that disagrees with the target model's own root-input faces
   is a replay error.
   The checks are attach-style, and a failure reports
   [did-you-mean](#g-did-you-mean): the offending name plus the list-in-hand
-  it should have matched. The kinds are `ReplayHeaderMismatch`,
-  `ReplaySchemaMismatch` and `ReplayUnknownFace` ([Appendix C][sC]).
+  it should have matched. The kinds are `CheckpointMismatch`,
+  `ReplaySchemaMismatch` and `ReplayUnknownFace` ([Appendix C][sC]). The
+  pass runs under both forms of `replay!`.
 
   The same pass pays the trace-record conversion in reverse. Every writer's
   sparse records ([§11.5][s11-5]) are normalized to positional batches
@@ -8066,12 +8108,16 @@ Everything else is the loop as already specified:
   *Structural* mismatch is an error. *Parametric* difference is not.
   Replaying against the same structure with changed parameters is the
   **[what-if replay](#g-what-if-replay)**, the deterministic re-driving
-  of the recorded inputs through a modified model. Bit-identity is promised
-  only against the identical build. What-if replay promises
-  determinism, never reproduction.
+  of the recorded inputs through a modified model. It is spelled as `init!`
+  of the modified model under the authored condition, then
+  `replay!(sim, trc; restore = false)`. The trace is not self-sufficient for
+  it. Its checkpoint holds the recording model's state after boundary zero,
+  so the authored condition comes from outside ([D-274][d-274]).
+  Bit-identity is promised only against the identical build. What-if replay
+  promises determinism, never reproduction.
 
-  **The header check compares two deployments as values** ([D-254][d-254]).
-  The header carries the recorded run's [`Deployment`](#g-deployment) (the
+  **The checkpoint check compares two deployments as values** ([D-254][d-254]).
+  The checkpoint carries the recorded run's [`Deployment`](#g-deployment) (the
   scalar-free artifact the grid parameters fix), the target `Simulation`
   carries its own, and the check is their comparison, on the *structural* side
   of that line ([§11.5][s11-5]). The value covers the trajectory-determining
@@ -8084,7 +8130,7 @@ Everything else is the loop as already specified:
   replay is refused. The refusal costs one re-recording in a rare case, and
   it keeps the equality a plain value equality rather than one that ignores
   two of a row's columns. Mismatch is
-  `ReplayHeaderMismatch` with a deployment-parameter discriminator, never a
+  `CheckpointMismatch` with a deployment-parameter discriminator, never a
   what-if. A deployment change moves the times at which the frame-ordinal
   batches apply. That is different inputs, not a modified model. The event
   trio (the localization pair and `firing_budget`) is compared for exactly
@@ -8093,8 +8139,8 @@ Everything else is the loop as already specified:
   value is what makes the check one expression rather than a field-by-field
   walk.
 
-  `t₀` is *applied*, not compared. Replay stands in the `init!` position and
-  owns the anchor, so `replay!` takes no `t0` argument. The header holds no
+  The clock is *restored*, not compared. Replay restores `t₀` with the rest
+  of the clock, so `replay!` takes no `t0` argument. The checkpoint holds no
   policy ([D-255][d-255]). `t_end` and `stop_on` are keywords of this
   `replay!` call, validated per call as at `run!`.
 
@@ -8102,16 +8148,16 @@ The dispositions, by trace content:
 
 | trace content | disposition |
 |---|---|
-| store layout, root-input faces | compared against the `Build` |
+| the checkpoint's layout: store layout, root-input faces | compared against the `Build` |
 | the recorded `Deployment`, carrying `Δt_base`, `h`, `N_base`, the algorithm, `localization_tol`, `localization_budget`, `firing_budget` | compared as a value against the target `Simulation`'s own deployment |
 | each writer's face-name → position schema (on the trace's `schemas` list) | validated against the target model's root-input faces: disagreement is a replay error |
-| resolved stores, root-input values | applied directly at boundary zero |
-| `t₀` | applied; `replay!` takes no `t0` argument |
-| `t_end`, `stop_on` | absent from the header; each `replay!` call declares its own ([§13.5][s13-5]) |
+| the checkpoint's state | restored; no boundary zero |
+| the clock | restored, `replay!` takes no `t0` |
+| `t_end`, `stop_on` | absent from the checkpoint; each `replay!` call declares its own ([§13.5][s13-5]) |
 
 Rejected shapes, for the record ([D-101][d-101]): a `run!(sim; replay = trc)`
 flag, a synthetic playback device staging the recorded batches, and replay
-ending `stopped`. The input mode clarifies that decision's second
+ending `stopped`. The input mode clarifies that decision's drain
 substitution rather than replacing it, and carries its own rejected shapes
 ([D-218][d-218]).
 
@@ -8556,28 +8602,28 @@ step!(sim2; frames = 1)               # re-execute the failing frame, instrument
 ```
 
 **Boundary zero is caught too, under the service's disposition.** Boundary zero
-runs inside `init!` and `replay!`, which are stopped-sim services, not inside
-the loop. Its macro-sequence executes the same user-code surfaces the loop's
-does, with the cursor maintained through them, so the service hosts the same
-catch. A throw inside boundary zero arrives as a `StepError` from the one
+runs inside `init!`, a stopped-sim service, not inside the loop. Its
+macro-sequence executes the same user-code surfaces the loop's does, with the
+cursor maintained through them, so the service hosts the same catch. A throw inside boundary zero arrives as a `StepError` from the one
 constructor. Its frame comes from the cursor, its time is `t₀`, and the species
 rule applies. An `InterruptException` inside boundary zero is not model code
 failing, and it has no stop path to take in a service. The host therefore moves
 the lifecycle to `built` and lets it propagate raw. The pointer is `0`, and at
-zero the recipe degenerates. Boundary zero is frame one's entry boundary too. A
-pointer of `0` therefore names either boundary zero itself or frame one as the
-failing frame, and `replay!(sim2, trc)` reproduces both. It re-runs boundary
-zero from the captured header and, where that completes, frame one from the
-record. The rendered recipe therefore names the bare replay at zero and the
-halt-then-`step!` form elsewhere. The header is captured before boundary zero
-runs ([§14.5][s14-5]), so the trace already holds the reproduction. What
-differs is the disposition. Nothing was published and no run was open, so there
-is no tail to take and no snapshot to promote. The simulation returns to
-`built`. `run!` and `step!` refuse it and name `init!` ([§12.6][s12-6]), while
-`init!` and `replay!` remain legal. The remedy for a condition that fails at
-`t₀` is a corrected condition, and `init!` re-establishes every store before it
-applies one ([§14.1][s14-1]). No [termination record](#g-termination-record)
-is written. The stores may hold the half-transitioned `t₀` state until the next
+zero the recipe degenerates. A throw inside boundary zero leaves no run, no
+trace and no [checkpoint](#g-checkpoint) (the executor's state at a frame
+top, as one value). `init!` takes the trace header only after boundary zero
+publishes ([§11.5][s11-5]). Its reproduction is `init!` under the same
+condition, and the rendered recipe names it at zero ([D-274][d-274]). Boundary zero is frame one's entry boundary too, so a
+frame-one failure shares the pointer. Its run has a trace, and
+`replay!(sim2, trc)` reproduces it, restoring the header and then re-driving
+frame one from the record. The halt-then-`step!` form is the recipe from
+pointer `1` on. What differs is the disposition. Nothing was published and no
+run was open, so there is no tail to take and no snapshot to promote. The
+simulation returns to `built`. `run!` and `step!` refuse it and name `init!`
+([§12.6][s12-6]), while `init!`, `restore!` and `replay!` remain legal. The
+remedy for a condition that fails at `t₀` is a corrected condition, and
+`init!` re-establishes every store before it applies one ([§14.1][s14-1]).
+No [termination record](#g-termination-record) is written. The stores may hold the half-transitioned `t₀` state until the next
 `init!` resets them. They are retained for inspection, as an errored
 simulation's are ([§13.6][s13-6]). `trim!`'s commit is an `init!`
 ([§14.8][s14-8]) and inherits the rule ([D-223][d-223]).
@@ -9039,8 +9085,7 @@ library blocks, a standing ergonomics test of the declaration rules.
 ## 14. Stopped-sim services
 
 [§9.6][s9-6] previewed the services as activation clients. They
-are initialization, trim, linearization and [capture](#g-capture) (reading the
-current stores and root inputs back as a condition). Everything they share
+are initialization, trim and linearization. Everything they share
 reduces to one artifact, the **[condition](#g-condition) value**. A condition
 is the datum that says "set this build to this state."
 [§14.1][s14-1]–[§14.4][s14-4] settle its representation, composition and
@@ -9048,7 +9093,10 @@ application. [§14.5][s14-5]–[§14.6][s14-6] cover the [boundary](#g-boundary)
 sequence and [root-input totality](#g-root-input-totality) (the requirement
 that an application establishing a complete world cover every root input).
 [§14.7][s14-7]–[§14.9][s14-9] cover the trim service in full.
-[§14.10][s14-10] covers linearization and `capture`.
+[§14.10][s14-10] covers linearization. A fourth stopped-sim service,
+`checkpoint`, returns a [checkpoint](#g-checkpoint) (the executor's state at
+a frame top, as one value). A checkpoint is not a condition and has no
+algebra, and `restore!` puts it back ([§12.6][s12-6], [D-273][d-273]).
 
 **Lifecycle preconditions.** Every service requires a non-running simulation.
 While a run exists the loop owns the [stores](#g-store) between
@@ -9062,15 +9110,16 @@ Within the stopped-sim states, legality follows each service's inputs.
 
 | service | `built` | `initialized` | `stopped` | its inputs |
 |---|---|---|---|---|
-| `capture` | error | legal | legal | committed, boundary-consistent stores |
+| `checkpoint` | error | legal | legal | a frame-top rest; refused mid-frame after a `t*` stop |
 | `init!` | legal | legal | legal | authored conditions |
+| `restore!` | legal | legal | legal | a checkpoint whose fingerprint matches the simulation's ([§12.6][s12-6]) |
 | `trim!` | legal | legal | legal | authored conditions; the scratch world is [`override`](#g-override)`(baseline, condition(guess))` ([§14.8][s14-8]), never the sim's stores |
-| `linearize`, operating point defaulted to `capture(sim)` | error | legal | legal | inherits `capture`'s precondition |
+| `linearize`, operating point defaulted to `checkpoint(sim)` | error | legal | legal | inherits `checkpoint`'s precondition, the mid-frame refusal included |
 | `linearize`, explicit `about` ([§14.10][s14-10]) | legal | legal | legal | inherits `init!`'s legality — legal wherever `init!` is |
 
-**`errored` is terminal for all four** ([D-059][d-059], [D-108][d-108]).
+**`errored` is terminal for every row** ([D-059][d-059], [D-108][d-108]).
 Post-mortem inspection of an errored sim's stores, log and [trace](#g-trace)
-stays available as a diagnostic read. It may not become a condition value.
+stays available as a diagnostic read. It may not become a checkpoint.
 
 A violation is `ServiceLifecycle` ([Appendix C][sC]). Its payload is the
 operation, the current status and the legal statuses. It is the same kind
@@ -9094,13 +9143,11 @@ form. The full list is checked, violations are collected, and one
 **The overlay base is always the declared defaults.** Every [store](#g-store)
 has a declared initial value (declaration-by-initial-value, [§8.2][s8-2]), so
 conditions are naturally sparse. Applying one means "fresh run from the
-`init_*` defaults, with these overrides" ([D-063][d-063]). Warm restart needs
-no second semantics. A `capture` service reads the current stores **and root
-inputs** back *as a condition value*, so the cycle is capture, tweak, apply.
-Root input coverage is what makes the captured condition total, and hence
-re-applicable under [§14.6][s14-6]. That gather is the one the
-[trace header](#g-trace-header) already needs. It is one mechanism with two
-uses.
+`init_*` defaults, with these overrides" ([D-063][d-063]). A condition is an
+initial condition and nothing else ([D-273][d-273]). A simulation's state
+past its initial instant is a [checkpoint](#g-checkpoint) (the executor's
+state at a frame top, as one value), not a condition, and it has no algebra
+([§12.6][s12-6], [D-274][d-274]).
 
 **Doctrine.** Addressing conditions by path does not reopen the
 observation-by-path rejection ([§13.5][s13-5]). That rejection was about
@@ -9298,8 +9345,8 @@ decision-free ([§14.10][s14-10]).
 
 The selection is a one-time boundary decision, and it leaves the nominal
 exact-match doctrine for table [cells](#g-cell) ([§9.5][s9-5]) untouched.
-Converters run here and in `capture`'s gather ([§14.10][s14-10]), which are
-the write paths. They never run on state [views](#g-view) ([§7.1][s7-1]).
+Converters run here, on the write path. They never run on state
+[views](#g-view) ([§7.1][s7-1]).
 
 Overlay partiality for the `s` and `m` stores is baked the same way. The
 writer holds `merge(init_m_defaults, overlay)`, with the base resolved at
@@ -9375,7 +9422,7 @@ instantiates ([§14.8][s14-8]). The store selectors (`get_state`, `get_deriv`)
 resolve only against live stores. The table/store axis separates table-borne
 values from store-borne ones, not snapshots from services.
 
-Only stopped-sim service evaluations, `capture`, and post-run inspection of
+Only stopped-sim service evaluations, `checkpoint`, and post-run inspection of
 the live stores (the [replay](#g-replay)-to-inspect, [§11.2][s11-2]) ever hold
 live stores. The snapshot deliberately carries no state stores
 ([§11.2][s11-2]), and `ẋ` [buffers](#g-buffer) are integrator scratch, not
@@ -9405,7 +9452,7 @@ sides restated as a resolver property.
 - **Inspection readers admit the whole family, within the source rule.**
   Output-[device](#g-device) bindings, GUI panels and log inspection take deep
   paths and `get_face` names alike. The store selectors reach only the
-  inspection clients that actually hold stores (`capture`, post-run
+  inspection clients that actually hold stores (`checkpoint`, post-run
   inspection). A snapshot-bound reader is barred from them by source, not by
   client.
 - **`stop_on` is not a family client.** It names root-exported `Bool` output
@@ -9423,8 +9470,8 @@ The five selectors, their sources, and their clients:
 | `get_face(name[, i])` | a table source | named in the contract | admitted |
 
 **Compiled readers are the gather twin** over this family and the layout
-tables. Trim's cost read (`ẋ` and output fields), linearization's Jacobian
-gather, and `capture`'s full-store readback are one primitive run in reverse.
+tables. Trim's cost read (`ẋ` and output fields) and linearization's
+Jacobian gather are one primitive run in reverse.
 It is one machinery, in both directions, in the `Build`'s client kit.
 
 The per-iteration ledger for trim has four terms. They are the user fragment
@@ -9437,15 +9484,15 @@ macro-sequence with an empty integrate), [§14.5][s14-5].
 
 ### 14.5 Boundary zero: an ordinary boundary with authored incoming transitions
 
-`apply!` establishes the stores at `t₀`. The [trace header](#g-trace-header)
-captures those stores, together with the [root input](#g-root-input) values,
-*before anything below runs* (the capture placement, [§11.5][s11-5]). A
-post-sequence capture would hand [replay](#g-replay) already-transitioned
-state. The init service then completes the [§10.6][s10-6] macro-sequence with
-an empty integrate. The sequence is project → [[sweep](#g-sweep) →
-[guards](#g-guard) → handlers]\* → [due](#g-due) `s_update` calls → first
-[snapshot](#g-snapshot). The parity with an ordinary boundary is exact, not
-approximate. The pieces follow one by one.
+`apply!` establishes the stores at `t₀`. The init service then completes the
+[§10.6][s10-6] macro-sequence with an empty integrate. The sequence is
+project → [[sweep](#g-sweep) → [guards](#g-guard) → handlers]\* →
+[due](#g-due) `s_update` calls → first [snapshot](#g-snapshot). After the
+first snapshot `init!` takes the [trace header](#g-trace-header), the
+[checkpoint](#g-checkpoint) (the executor's state at a frame top, as one
+value) of the state the sequence leaves ([§11.5][s11-5], [D-274][d-274]).
+The parity with an ordinary boundary is exact, not approximate. The pieces
+follow one by one.
 
 - **Project runs.** Authored `x` can sit off-manifold. A hand-assembled
   quaternion may be ulps off unit norm, or a [condition](#g-condition) (the
@@ -9477,11 +9524,12 @@ approximate. The pieces follow one by one.
   the [stage-on-interaction](#g-stage-on-interaction) lesson of
   [§11.7][s11-7] (widgets stage on edit or activation, never per render pass).
   Insurance that masks invariant violations is anti-diagnostic
-  ([D-026][d-026]). The header records the *resolved pre-sequence* stores and
-  root inputs ([§11.5][s11-5]). Replay therefore re-executes
-  [boundary](#g-boundary) zero from the same starting point, and whatever
-  fires at `t₀` fires again identically ([§12.7][s12-7]). The firings are
-  recomputed, never recorded. A `stop_on` [face](#g-face) already `true` is a
+  ([D-026][d-026]). The trace header is taken after the sequence
+  ([§11.5][s11-5]). [Replay](#g-replay) restores it and runs no
+  [boundary](#g-boundary) zero, so whatever fired at `t₀` comes back as
+  part of the restored state and never fires twice ([§12.7][s12-7]). The
+  checkpoint records the post-firing state faithfully and suppresses
+  nothing. A `stop_on` [face](#g-face) already `true` is a
   different category. Nothing *fires*. The face simply reads `true` in the
   published `t₀` snapshot and the loop reacts ([§13.5][s13-5]).
 - **Due `s_update` calls run.** This follows from an interval-alignment
@@ -9514,8 +9562,8 @@ approximate. The pieces follow one by one.
   init-service entry points carry the argument, with the same default. They
   are `init!(sim, condition; t0)` and `trim!`'s commit
   (`trim!(sim, problem; baseline, t0, backend)`, [§14.8][s14-8]). Conditions
-  are time-free. `capture` returns condition and time separately for
-  resume-at-time, and the returned `t` is passed back as `t0`.
+  are time-free. Nothing after boundary zero sets the origin. A restore
+  inherits the clock and takes no `t0` ([D-273][d-273]).
 - **Trim is untouched by all of this.** Optimizer iterations are raw
   write → sweep → read cycles on the activation, with no boundaries, no events
   and no `s_update`. Only the committed solution executes boundary zero.
@@ -9544,7 +9592,7 @@ follow.
 
 **Totality is a precondition of starting, checked by the service.** A
 condition value is legitimately partial. [Fragments](#g-fragment) compose,
-trim iterations write subsets, and capture-then-tweak patches leaves. So
+and trim iterations write subsets. So
 "every root input covered" is not a property of conditions. It is a property
 of *every application that establishes a complete world over virgin stores*.
 That principle, not an enumeration, names the sites. They are `init!`, trim's
@@ -9566,9 +9614,9 @@ probe input and a terrible flight condition. A silently zeroed `mixture` kills
 the engine and sends the user debugging aerodynamics. The services path simply
 contains no call to it. A root input gets a condition value or the application
 errors, with no third branch. [Replay](#g-replay) likewise never synthesizes.
-The [trace header](#g-trace-header) records every root-input value, and with
-totality enforced its root-input capture is complete by construction (the
-requirement discharged, [§11.3][s11-3]).
+The [trace header](#g-trace-header) holds every root-input cell as boundary
+zero left it, and with totality enforced that record is complete by
+construction (the requirement discharged, [§11.3][s11-3]).
 
 **[Baselines](#g-baseline) are aircraft-shipped [condition](#g-condition)
 functions, layered by `override`.** Nobody hand-writes ~20 root-input values
@@ -9944,9 +9992,11 @@ both init-service entry points ([§14.5][s14-5]). The
 device's pending write batch waits between drains).
 
 A fresh recording starting at its own anchor is unattended mode's
-natural shape. Fly-then-retrim keeps continuity explicitly. The resumed
-spelling is `trim!(sim, problem; baseline = c, t0 = t)`, with `(condition, t)`
-coming from a `capture` ([§14.1][s14-1]).
+natural shape. A trim at a point reached by flying is not offered. Trim
+takes an authored baseline. Fly-then-retrim is `checkpoint` the flight,
+then author the trim's baseline from what the [checkpoint](#g-checkpoint)
+(the executor's state at a frame top, as one value) shows
+([D-273][d-273]).
 
 #### The report, not an exception
 
@@ -9986,11 +10036,11 @@ is no offset caveat to carry. Every output stage publishes at boundary zero
 ([D-205][d-205], [§14.5][s14-5]), so a residual reading an offset
 [component](#g-component)'s [port](#g-port) reads a commit-refreshed cell like
 any other. Those committed-state residuals are the numbers describing the
-state the simulation is actually *in*, which is the point a
-`capture`-defaulted `linearize` reads. A non-empty fired-event set also raises
+state the simulation is actually *in*, which is the point a `linearize` at
+its default operating point reads. A non-empty fired-event set also raises
 `TrimCommitEvents` ([Appendix C][sC]). The committed stores then sit at the
-post-handler point, not the reported solution, and a `capture`-defaulted
-`linearize` ([§14.10][s14-10]) reads that point.
+post-handler point, not the reported solution, and a `linearize` at its
+default operating point ([§14.10][s14-10]) reads that point.
 
 The two residual sets are what make the moved point auditable. A converged
 solve whose *committed-state* residuals violate the box test raises
@@ -10077,8 +10127,8 @@ implicit condition explicit. The commit is then literally an init,
 `override(baseline, condition(d*))` through [boundary zero](#g-boundary-zero)
 (the initialization boundary: the ordinary macro-sequence with an empty
 integrate). The services unify as clients of one condition algebra. `init!`
-applies an explicit condition, `capture` produces one, and `trim!` searches a
-family for the member satisfying its equations.
+applies an explicit condition, and `trim!` searches a family for the member
+satisfying its equations.
 
 **`at` lifts to problems in five lines.** Every field of a problem is either
 condition-producing (path-relative) or path-free. The rule that residual math
@@ -10140,9 +10190,8 @@ input. That is the test-rig idiom. It is the function-valued sibling of a
 [constant source](#g-constant-source) (a library component publishing a value
 its instance holds), with zero ceremony for a frozen environment. For design
 tasks the shipped rig stays `design_world(ac)`. That keeps the environment's
-tunables in the root-input vocabulary that conditions, `capture`,
-linearization's input surface and the [trace header](#g-trace-header) already
-speak.
+tunables in the root-input vocabulary that conditions, linearization's
+input surface and the [trace header](#g-trace-header) already speak.
 
 **Swarm doctrine.** The service solves *one problem at a time*. Sequential
 independent trims (trim lead, commit, trim wing against the committed world)
@@ -10195,8 +10244,8 @@ is that compiled writer/reader pair, and the promised `get_x_ss` deletion
 ([§7.1][s7-1]) is discharged.
 
 **The evaluation.** Each invocation instantiates its own scratch store set, the
-trim service's mechanism verbatim ([§14.8][s14-8]), and applies the
-operating-point condition. It then runs the seeded Dual evaluation, one
+trim service's mechanism verbatim ([§14.8][s14-8]), and establishes the
+operating point in it (below). It then runs the seeded Dual evaluation, one
 direction per `x`-tap and per `u`-tap entry, in groups of `width` directions
 per pass. **Rule.** `width` is a keyword of `linearize`, default 8, and the
 default width's scalar type is public, so a build can pre-materialize its
@@ -10218,9 +10267,9 @@ heuristics and ~4n perturbed evaluations.
 
 **What the pass seeds, and what it holds frozen.** Unseeded states sit
 constant at the operating point, and so do unseeded
-[root inputs](#g-root-input). The condition apply embeds their `Float64`
-values as zero-partial constants. A root-input [cell](#g-cell) follows the
-[activation](#g-activation) scalar (the build's typed products at a given
+[root inputs](#g-root-input). Establishing the operating point embeds their
+`Float64` values as zero-partial constants. A root-input [cell](#g-cell)
+follows the [activation](#g-activation) scalar (the build's typed products at a given
 scalar type) by *walking* its consuming `u_types` entry at that scalar
 ([§8.2][s8-2]). The discrete [tier](#g-tier) is frozen with zero partials,
 which is precisely "linearize with the discrete state held" ([§8.2][s8-2]).
@@ -10252,19 +10301,19 @@ side by side:
 | a root input a discrete consumer reads | frozen at every activation, and rejected as a `B`-matrix tap | the tier |
 | any discrete-tier leaf | frozen, zero partials | the tier |
 
-**A pure query, and the shape of `capture`.** Linearization is the first
-service with no commit and no [boundary zero](#g-boundary-zero) (the
+**A pure query, and the default operating point.** Linearization is the
+first service with no commit and no [boundary zero](#g-boundary-zero) (the
 initialization boundary: the ordinary macro-sequence with an empty integrate).
 It works on scratch buffers only, and nothing it computes becomes
 authoritative. Today's restore-the-trim dance, the re-`assign!` after
 `FiniteDiff` dirtied the model, has no successor. The default operating point
-is the sim's current committed state, taken through
-`capture(sim) → (condition, t)`. That gather covers stores *and root inputs*
-in full. Root-input totality ([§14.6][s14-6]) makes root-input coverage
-mandatory for capture → apply. After a `trim!` commit, `linearize(sim, taps)`
-is about the trim point with nothing re-specified. An `about = <condition>`
-keyword, with `t0` beside it as in `trim!`, linearizes anywhere else without
-touching the sim.
+is the [checkpoint](#g-checkpoint) (the executor's state at a frame top, as
+one value) of the simulation as it stands. It is `checkpoint(sim)`
+([§12.6][s12-6], [D-274][d-274]), restored into the scratch world with no
+boundary zero. The frozen tier's cells are the checkpoint's held cells.
+After a `trim!` commit, `linearize(sim, taps)` is about the trim point with
+nothing re-specified. `about = <condition>`, with `t0` beside it as in
+`trim!`, linearizes anywhere else without touching the sim.
 
 **The returned object and `LinearizedSS`.** `linearize` returns a
 `Linearization` value: `ẋ₀`, `x₀`, `u₀` and `y₀` as NamedTuples under the tap
@@ -10687,7 +10736,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   `join_timeout`, the shutdown tail's join cap, lives on `Control` rather than
   the deployment ([§12.1][s12-1]). It moves no trajectory, so replay neither
   records nor compares it ([§12.4][s12-4]). The four recording keywords are
-  `init!`'s and `replay!`'s, the doors that build a run (below,
+  `init!`'s, `restore!`'s and `replay!`'s, the doors that build a run (below,
   [D-261][d-261]).
 - `Simulation(build; kw...)` and `Simulation(world; kw...)`. The two
   convenience forms. The first composes the `Deployment` constructor with the
@@ -10782,8 +10831,8 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   log_max = 65536)`. `t0` is any real, held as a `Float64`
   origin ([D-260][d-260]). Root-input totality is checked
   pre-write ([§14.6][s14-6]). Then boundary zero runs: project, sweep, events,
-  the due `s_update` calls, then the header and first snapshot
-  ([§14.5][s14-5]).
+  the due `s_update` calls, then the first snapshot, and the checkpoint that
+  is the run's trace header ([§11.5][s11-5], [§14.5][s14-5]).
 
   | keyword | default | meaning | owning section |
   |---|---|---|---|
@@ -10793,9 +10842,9 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   | `log_max` | `65536` | the maximum number of retained snapshots, finite by default with `Inf` the opt-out | [§11.2][s11-2] |
 
   Recording. The four keywords configure the run this call builds, with its
-  log and trace ([§12.6][s12-6], [D-261][d-261]); `replay!` takes the same
-  four. `log_every` is admissible on the derived artifact only, never on the
-  trace ([§11.2][s11-2], [§11.5][s11-5], [D-029][d-029]). When the log fills,
+  log and trace ([§12.6][s12-6], [D-261][d-261]); `restore!` and `replay!`
+  take the same four. `log_every` is admissible on the derived artifact
+  only, never on the trace ([§11.2][s11-2], [§11.5][s11-5], [D-029][d-029]). When the log fills,
   the retention stride doubles, so the whole run stays covered at coarsening
   density. The boundary-zero and terminal snapshots are retained
   unconditionally and outside the bound ([§11.2][s11-2]). All four are view
@@ -10809,9 +10858,8 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   seven fields ([§14.7][s14-7]). Setup and commit both carry the
   root-input-totality check ([§14.6][s14-6]). The commit is `init!` with
   `override(baseline, solution)`, boundary zero anchored at `t0` and
-  recordings cleared ([§12.6][s12-6]). Resume-at-time passes `capture`'s
-  returned `t` as `t0`. `converged` is the service's per-residual box test at
-  the backend's returned point. It is backend-independent and the commit's
+  recordings cleared ([§12.6][s12-6]). `converged` is the service's
+  per-residual box test at the backend's returned point. It is backend-independent and the commit's
   gate, and the backend's status and counts are recorded diagnostically. The
   backend seam is a pinned one-method signature,
   `solve(backend, eval!, d0, lower, upper, tol) → (; d, status, n_evaluations, n_iterations)`.
@@ -10819,13 +10867,25 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   packed vectors are in the declared orders, and `status` is an open `Symbol`
   recorded verbatim. Non-convergence reports, never throws ([§14.7][s14-7],
   [§14.8][s14-8]).
-- `capture(sim) → (condition, t)`. A full-store gather including root inputs.
-  Warm restart is capture, tweak, apply ([§14.1][s14-1], [§14.10][s14-10]).
+- `checkpoint(sim) → Checkpoint`. The executor's state at a frame top as one
+  value: the flat buffer, the `s` and `m` stores, the whole signal table,
+  the guard priors, the clock in full and the fingerprint. Legal in
+  `initialized` and `stopped`, refused mid-frame after a `t*` stop
+  (`CheckpointMidFrame`). A checkpoint is not a condition and has no algebra
+  ([§12.6][s12-6], [§14.1][s14-1], [D-274][d-274]).
+- `restore!(sim, cp; trace = true, log = true, log_every = 1,
+  log_max = 65536)`. A door beside `init!` and `replay!`, legal where `init!`
+  is. It checks the checkpoint's fingerprint (`CheckpointMismatch`), copies
+  the state back, builds a fresh run with the checkpoint as its trace header
+  and publishes one snapshot at the checkpoint's `t`. It runs no boundary
+  zero, and the boundary ordinal continues. The warm restart is
+  `checkpoint` → `restore!` → `run!` ([§12.6][s12-6], [D-274][d-274]).
 - `linearize(sim, taps; about, t0, width = 8) → Linearization`. A pure
   query, seeded Dual passes on scratch, `width` directions per pass. The
-  operating point defaults to `capture(sim)`, which carries its own time, and
-  `about` with `t0` (default `0.0`) places it anywhere else. `t0` is admitted
-  only beside `about`, never silently ignored.
+  operating point defaults to the checkpoint of the simulation, restored
+  with no boundary zero, and `about` with `t0` (default `0.0`) places it
+  anywhere else. `t0` is admitted only beside `about`, never silently
+  ignored.
   `taps(x = (…), u = (…), y = (…))` builds the tap set, three
   labeled selector lists with closed membership (`x`: `get_state`; `u`:
   `get_input`; `y`: `get_output`, `get_face`), every tap one scalar, indexed
@@ -10910,11 +10970,12 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 - Post-run. The log is the retained snapshots. `trace(sim) → trc` retrieves
   the always-on input trace.
   `replay!(sim2, trc; to_boundary = k, pace = Inf, margin = 0.002,
-  t_end = Inf, stop_on = ())`, taking `init!`'s four recording keywords as
-  well ([D-261][d-261]), re-drives
-  a fresh `Simulation(world)` bit-identically through the ordinary loop, with
-  boundary zero from the trace header and the drain fed by frame ordinal, and
-  ends `initialized`. `to_time = t` is the mutually exclusive time spelling
+  t_end = Inf, stop_on = (), restore = true)`, taking `init!`'s four
+  recording keywords as well ([D-261][d-261]), re-drives
+  a fresh `Simulation(world)` bit-identically through the ordinary loop. It
+  restores the trace's checkpoint and feeds the drain by frame ordinal from
+  frame 1; `restore = false` feeds the simulation as it stands. It ends
+  `initialized`. `to_time = t` is the mutually exclusive time spelling
   of the halt, floored to the last frame top at or before `t`. Inspect via
   `latest` or the live stores, advance via `step!`, continue via `run!`.
   Replay is the state-trajectory inspector and the `StepError` reproduction
@@ -11181,8 +11242,8 @@ activation):
   simulation's status, the entry point called (`run!`/`step!`).
 - **`ServiceLifecycle`** ([§11.3][s11-3], [§14][s14]). Error · service ·
   fail-fast. The operation
-  (`attach!`/`detach!`/`init!`/`trim!`/`capture`/`linearize`), the current
-  status, the legal statuses.
+  (`attach!`/`detach!`/`init!`/`restore!`/`trim!`/`checkpoint`/`linearize`),
+  the current status, the legal statuses.
 - **`StopFaceInvalid`** ([§13.5][s13-5]). Error · service · collected, over
   the given faces. Face name, reason (unknown / not root-exported / not
   `Bool`), the root output-face list, the binding site (`run!`, `replay!` or
@@ -11267,10 +11328,12 @@ activation):
   attribution (the pool with each entry's anchor and refinement factor,
   the coarsest admissible `Δt_base`, the prime attribution) and `min_i Dᵢ`,
   the grid rendered as "N× finer than the fastest declared work".
-- **`ReplayHeaderMismatch`** ([§11.5][s11-5], [§12.7][s12-7]). Error ·
-  service · collected. The mismatch, discriminated. It is a store or root
-  input (component path, store, expected vs. found layout/type), a
-  deployment parameter
+- **`CheckpointMismatch`** ([§11.5][s11-5], [§12.6][s12-6], [§12.7][s12-7]).
+  Error · service · collected. One kind for the replay entry pass and for
+  `restore!`, raised when a checkpoint's fingerprint disagrees with the
+  target simulation. The mismatch, discriminated. It is a store (component
+  path, store, expected vs. found layout/type), the scalar type (the
+  recorded one vs. the simulation's), a deployment parameter
   (`Δt_base`/`h`/`N_base`/algorithm/`localization_tol`/`localization_budget`/`firing_budget`,
   recorded vs. bound value), a [schedule](#g-schedule) row whose column
   differs (the component path, the column, recorded vs. bound value), a rate
@@ -11278,6 +11341,10 @@ activation):
   value), a schedule whose row list, scope list or per-component vector
   differs (the name, the two lists), or a frame ordinal outside the
   recording's length (the writer, the ordinal, the legal range).
+- **`CheckpointMidFrame`** ([§12.6][s12-6], [§14][s14]). Error · service ·
+  fail-fast. `checkpoint` on a stopped simulation whose clock is past a frame
+  top, the state a `t*` stop leaves. The clock's `t`, the frame top `t_frame`
+  it passed, the frame index `step`.
 - **`ReplaySchemaMismatch`** ([§11.5][s11-5], [§12.7][s12-7]). Error ·
   service · collected. The trace's device tag, its recorded face-name →
   position schema, the disagreeing face names, the target's root input-face
@@ -12087,9 +12154,10 @@ once at `run!`, since `attach!`/`detach!` are stopped-sim operations
 
 <a id="g-run"></a>**`Run`** — the state one run owns, a `Simulation` field beside the control
 plane. Two `const` fields, the log and the trace; two writable ones, `feed`
-and `termination`. `init!` and `replay!` construct one, the flips write
-`feed`, the loop's tail writes `termination` once, and `closed(run)` is
-`termination !== nothing` ([§12.6][s12-6], [D-255][d-255], [D-260][d-260]).
+and `termination`. `init!`, `restore!` and `replay!` construct one, the
+flips write `feed`, the loop's tail writes `termination` once, and
+`closed(run)` is `termination !== nothing` ([§12.6][s12-6], [D-255][d-255],
+[D-260][d-260]).
 
 <a id="g-scenario-component"></a>**scenario component** — the home of a sim-time script under the mid-run
 mutation doctrine: an ordinary periodic discrete component executed
@@ -12143,6 +12211,13 @@ unclaimed complement. It is static per run and enforced entirely at staging,
 
 ### D.7 Recording and replay
 
+<a id="g-checkpoint"></a>**checkpoint** — the executor's state at a frame top, taken by
+`checkpoint(sim)` and by `init!`, restored by `restore!` with no boundary
+zero; the trace's header. It holds the flat buffer, the `s` and `m` stores,
+the whole signal table, the guard priors, the clock in full and the
+fingerprint. It is not a condition and has no algebra ([§11.5][s11-5],
+[§12.6][s12-6], [D-274][d-274]).
+
 <a id="g-decimation"></a>**decimation** — the log's keep-every-kth retention policy (`log_every`),
 admissible on the log alone because it is derived data. Every boundary still
 runs, publishes to live readers and enters the trace. The log is bounded by
@@ -12170,14 +12245,14 @@ copies), with a plain kill switch and `log_every` decimation. It is derived
 data, recomputable from the trace by replay ([§11.2][s11-2]).
 
 <a id="g-recorders"></a>**recorders** — the trace and the log jointly. They are cleared together at
-`init!` and at a trim commit, so they restart with the run they record
-([§12.6][s12-6], [§14.8][s14-8]).
+`init!`, at `restore!` and at a trim commit, so they restart with the run
+they record ([§12.6][s12-6], [§14.8][s14-8]).
 
-<a id="g-replay"></a>**replay** — the ordinary loop with exactly two substitutions: boundary zero
-from the trace header, and a drain reading the trace by frame ordinal. It
-re-records, ends `initialized`, and validates the header (stores, root-input
-faces and the `Deployment`) up front, applying the header's `t₀`
-([§12.7][s12-7]).
+<a id="g-replay"></a>**replay** — the ordinary loop with one substitution: the drain reads the
+trace by frame ordinal, after the trace's checkpoint is restored. It
+re-records, ends `initialized`, and validates the checkpoint's fingerprint
+(stores, root-input faces and the `Deployment`) up front, restoring the
+clock with the rest of the state ([§12.7][s12-7]).
 
 <a id="g-run-metadata"></a>**run metadata** — the trace header's `Deployment` and `t₀`, hence
 `Δt_base`, `h`, `N_base`, the algorithm identifier, `localization_tol`,
@@ -12189,11 +12264,11 @@ device-tagged batches per frame, plus its header. It is on by default,
 because the log is recomputable from the trace and never the reverse
 ([§11.5][s11-5]).
 
-<a id="g-trace-header"></a>**trace header** — the trace's fixed preamble: the resolved initial state
-`(x, s, m)`, the initial root-input values, the run's `Deployment` and `t₀`.
-It holds no stop policy and no schema list, both of which live elsewhere. It
-is captured after `apply!` and the root-input writes, before the
-boundary-zero sequence runs ([§11.5][s11-5], [§14.5][s14-5]).
+<a id="g-trace-header"></a>**trace header** — the trace's fixed preamble: the checkpoint `init!` takes
+at the end of boundary zero, after the first snapshot. It carries the run's
+`Deployment` and `t₀` with the rest of the state. It holds no stop policy
+and no schema list, both of which live elsewhere ([§11.5][s11-5],
+[§14.5][s14-5], [D-274][d-274]).
 
 <a id="g-trace-record"></a>**trace record** — the retained form of a drained batch, uniform for every
 writer: (position ⇒ value) pairs for the masked (touched) entries, converted
@@ -12203,8 +12278,9 @@ one replay path ([§11.5][s11-5], [D-176][d-176]).
 
 <a id="g-what-if-replay"></a>**what-if replay** — replaying a trace against the same structure with
 changed parameters: deterministic re-driving of the recorded inputs through
-a modified model. It promises determinism but never bit-identical
-reproduction ([§12.7][s12-7]).
+a modified model, initialized by `init!` under the authored condition and
+fed by `replay!` with `restore = false`. It promises determinism but never
+bit-identical reproduction ([§12.7][s12-7]).
 
 ### D.8 Stopped-sim services and the condition algebra
 
@@ -12221,13 +12297,8 @@ linearization tap sets ([§14.2][s14-2], [§14.9][s14-9]).
 <a id="g-boundary-zero"></a>**boundary zero** — the initialization boundary: the ordinary
 macro-sequence with an empty integrate, run at `t₀` once `apply!` has
 established the stores. The sequence is project → [sweep → guards →
-handlers]\* → due `s_update` calls → header and first snapshot
-([§14.5][s14-5]).
-
-<a id="g-capture"></a>**capture** — the service reading the current committed stores *and* root
-inputs back as a condition value, returning `(condition, t)`. It is the
-gather twin of `apply!`, and what makes warm restart need no second
-semantics ([§14.1][s14-1], [§14.10][s14-10]).
+handlers]\* → due `s_update` calls → first snapshot, after which `init!`
+takes the trace header ([§14.5][s14-5]).
 
 <a id="g-combine"></a>**combine** — the symmetric, collision-intolerant combinator over condition
 nodes. A duplicate leaf is an error naming both origins, and
@@ -12606,6 +12677,8 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-270]: decisions.md#d-270--fix-the-frameworks-half-of-the-panel-convention-port-views-the-peek-the-orphan-fact
 [d-271]: decisions.md#d-271--admit-the-component-index-on-get_input-and-get_face
 [d-272]: decisions.md#d-272--fix-linearizes-surface-the-tap-set-the-chunk-width-the-operating-point-and-the-return
+[d-273]: decisions.md#d-273--a-condition-is-an-initial-condition-capture-leaves-the-algebra
+[d-274]: decisions.md#d-274--checkpoints-the-executors-state-as-one-value-restored-without-boundary-zero
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
