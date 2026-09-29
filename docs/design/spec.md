@@ -8619,23 +8619,26 @@ frame comes from the cursor, its time is `t₀`, and the species rule applies. A
 `InterruptException` inside boundary zero is not model code failing, and it has
 no stop path to take in a service. The host therefore moves the lifecycle to
 `built` and lets it propagate raw. The pointer is `0`, and at zero the recipe
-degenerates. A throw inside boundary zero leaves no run, no trace and no
-[checkpoint](#g-checkpoint) (the executor's state at a frame top, as one value). `init!` takes
-the trace header only after boundary zero publishes ([§11.5][s11-5]). Its reproduction is
-`init!` under the same condition, and the rendered recipe names it at zero
-([D-274][d-274]). Boundary zero is frame one's entry boundary too, so a frame-one failure
-shares the pointer. Its run has a trace, and `replay!(sim2, trc)` reproduces it,
-restoring the header and then re-driving frame one from the record. The
-halt-then-`step!` form is the recipe from pointer `1` on. What differs is the
-disposition. Nothing was published and no run was open, so there is no tail to
-take and no snapshot to promote. The simulation returns to `built`. `run!` and
-`step!` refuse it and name `init!` ([§12.6][s12-6]), while `init!`, `restore!` and
-`replay!` remain legal. The remedy for a condition that fails at `t₀` is a
-corrected condition, and `init!` re-establishes every store before it applies
-one ([§14.1][s14-1]). No [termination record](#g-termination-record) is written. The stores may hold the
-half-transitioned `t₀` state until the next `init!` resets them. They are
-retained for inspection, as an errored simulation's are ([§13.6][s13-6]). `trim!`'s
-commit is an `init!` ([§14.8][s14-8]) and inherits the rule ([D-223][d-223]).
+degenerates. A throw inside boundary zero leaves no trace and no [checkpoint](#g-checkpoint) (the
+executor's state at a frame top, as one value). The run `init!` opened stays
+behind, empty and with no trace header, and the run before it is gone. Nothing
+can use it, since `trace(sim)` and the advances refuse a `built` simulation.
+`init!` takes the trace header only after boundary zero publishes ([§11.5][s11-5]). Its
+reproduction is `init!` under the same condition, and the rendered recipe names
+it at zero ([D-274][d-274]). Boundary zero is frame one's entry boundary too, so a
+frame-one failure shares the pointer. Its run has a trace, and
+`replay!(sim2, trc)` reproduces it, restoring the header and then re-driving
+frame one from the record. The halt-then-`step!` form is the recipe from pointer
+`1` on. What differs is the disposition. Nothing was published and no advance
+was under way, so there is no tail to take and no snapshot to promote. The
+simulation returns to `built`. `run!` and `step!` refuse it and name `init!`
+([§12.6][s12-6]), while `init!`, `restore!` and `replay!` remain legal. The remedy for a
+condition that fails at `t₀` is a corrected condition, and `init!`
+re-establishes every store before it applies one ([§14.1][s14-1]). No [termination record](#g-termination-record)
+is written. The stores may hold the half-transitioned `t₀` state until the next
+`init!` resets them. They are retained for inspection, as an errored
+simulation's are ([§13.6][s13-6]). `trim!`'s commit is an `init!` ([§14.8][s14-8]) and inherits
+the rule ([D-223][d-223]).
 
 **The one exception never wrapped.** An `InterruptException` is not model code
 failing. It is the operator's stop command ([§12.4][s12-4]). So the catch site
