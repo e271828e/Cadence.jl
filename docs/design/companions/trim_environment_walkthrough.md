@@ -142,7 +142,7 @@ wired — today's `AbstractTerrain` polymorphism moved to the declaration
 layer. The environment's tunables — sea-level temperature and pressure, the
 wind vector, terrain elevation — are the *atmosphere component's* root inputs,
 which is the vocabulary everything else already speaks: conditions write them,
-`capture` reads them back, linearization can take them as inputs, and the
+a checkpoint carries them, linearization can take them as inputs, and the
 trace header records them. This is what `design_world(ac)` ships, and it is
 the blessed default for design tasks.
 

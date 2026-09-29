@@ -310,8 +310,10 @@ executable set (`_frozen` in `src/build.jl`): its output cells are pinned
 `Float64` constants, zero partials, holding whatever the nominal world last
 published. That is "linearize the continuous dynamics with the discrete state
 held" ([§8.2][s8-2]), and [D-213][d-213]'s copy in trim (`_establish_frozen!`) is what fills
-those cells from a nominal establishment round before the seeded pass reads
-them. Our model has no discrete component, so the copy is a no-op here, but
+those cells from the nominal half before the seeded pass reads them. Trim and
+`linearize`'s `about` form establish them there with one round. In
+`linearize`'s default form they are the checkpoint's held cells
+([D-274][d-274]). Our model has no discrete component, so the copy is a no-op here, but
 `linearize` runs it for the same reason trim does.
 
 ### 4.5 Trim's seeded half is already a Jacobian pass
@@ -459,27 +461,36 @@ names the existing function it reuses. The seeds are shown at width 4 for
 legibility; the default width is 8 (section 7), and the same four directions
 then occupy four of eight slots.
 
-**Step 1: the operating point.** With no `about` keyword, `capture(sim)`
-gathers the committed state and every root input into a condition, and
-returns it with the clock time. For our trimmed sim that condition is the
-combine of `at("c", fragment(x = (θ = 0.3, ω = 0.0)))` and
-`fragment(inputs = (τ = 2.899, d = 0.0))`. `capture` is legal in
-`initialized` and `stopped`, so the default form inherits that; `about =
-<condition>` bypasses it, takes `t0` beside it, and is legal wherever `init!`
-is.
+**Step 1: the operating point.** With no `about` keyword it is
+`checkpoint(sim)`, the executor's state at a frame top as one value: the flat
+buffer, the stores, the whole signal table, the guard priors and the clock
+([§12.6][s12-6], [D-274][d-274]). For our trimmed sim it holds `x = [0.3,
+0.0]` and the root-input cells `τ = 2.899` and `d = 0.0`. A checkpoint is
+not a condition, so nothing is resolved from it. `checkpoint` is legal in
+`initialized` and `stopped`, and it is refused mid-frame after a `t*` stop.
+The default form inherits both. `about = <condition>` bypasses the
+checkpoint, takes `t0` beside it, and is legal wherever `init!` is.
 
-**Step 2: the nominal half.** A scratch executor at `Float64` (`_scratch`),
-the condition applied by the dynamic walk, root-input totality checked
-(`assert_total`, so an `about` that forgets a root input fails before any
-evaluation), and one establishment round. This half exists for the discrete
-cells [D-213][d-213]'s copy needs. It is cheap, and it keeps one code path for every
-model.
+**Step 2: the nominal half.** A scratch executor at `Float64` (`_scratch`).
+In the default form `_restore_state!` copies the checkpoint into it, and that
+is all. No condition is applied and no establishment round runs, because the
+checkpoint's table already holds every cell, the discrete ones included. In
+the `about` form the condition is applied by the dynamic walk, root-input
+totality is checked (`assert_total`, so an `about` that forgets a root input
+fails before any evaluation), and one establishment round runs. In both
+forms this half exists for the discrete cells [D-213][d-213]'s copy needs. It is
+cheap, and it keeps one code path for every model.
 
 **Step 3: the seeded half.** `T = Dual{LinearizeTag,Float64,width}`, `act =
-activation(build, T)` (cached after the first call at this width), a scratch
-executor at `T`, the same condition applied at `T` (every value a
-zero-partial constant, section 4.3), and `_establish_frozen!` copying the
-discrete cells across. At this moment every state leaf and every root input
+activation(build, T)` (cached after the first call at this width), and a
+scratch executor at `T`. The checkpoint cannot be restored into it: its table
+has `Dual` buffers where the checkpoint's has `Float64` ones. The default
+form writes it by hand instead. It copies `x` with a conversion, writes the
+`s` and `m` stores by value, gathers each root-input cell from the nominal
+half and converts it to its declared type at `T`, and sets the clock. The
+`about` form applies the same condition at `T`. In both forms every value
+written is a zero-partial constant (section 4.3), and `_establish_frozen!`
+then copies the discrete cells across. At this moment every state leaf and every root input
 holds its operating-point value with an all-zero partials vector.
 
 **Step 4: the seeds.** The four writes of section 5.2's last table. After
@@ -573,8 +584,8 @@ width 15. Trim has the same property today, once per decision count.
 keyword defaulting to 8: the $N$ directions are split into $\lceil N /
 \text{width} \rceil$ groups, and each group is one evaluation at the single
 activation `Dual{LinearizeTag,Float64,width}`, filling that many columns of
-each matrix per pass. The setup, the condition apply and the frozen-cell copy
-happen once; only the seed writes and `evaluate!` repeat.
+each matrix per pass. The setup, the operating point's writes and the
+frozen-cell copy happen once; only the seed writes and `evaluate!` repeat.
 
 The arithmetic does not decide the width. A pass at width $C$ costs about
 $(1 + C)$ nominal evaluations, so $N$ directions cost about $(N + N/C)$
@@ -589,7 +600,7 @@ what the fixed width buys ([D-272][d-272]).
 
 **The frozen discrete tier, concretely.** Take a `DiscreteIntegrator` `ctl`
 driving the pendulum's torque. At the seeded activation `ctl` never runs; its
-output cell holds the `Float64` the nominal half established, zero partials.
+output cell holds the `Float64` the nominal half carries, zero partials.
 Seeding $\theta$ and $\omega$ therefore gives the open-loop $A$ of the
 pendulum alone, with the controller's contribution held constant. That is
 the intended answer ([§14.10][s14-10]'s frozen-exact doctrine), and the reason an `x`
@@ -642,7 +653,7 @@ build.
 | seeding by direct write at the resolved read entry's site | section 5.2, section 6 step 4 |
 | the two-half scratch world, nominal then seeded | section 6 steps 2–3, section 4.4 |
 | the unseedable root input, by declaration and by tier | section 4.2, section 5.3, section 8 |
-| `about` and `t0`, `capture` as the default | section 6 step 1 |
+| `about` and `t0`, the checkpoint as the default | section 6 step 1 |
 | `Linearization` return with labels | section 6 step 7 |
 | groups of `width` directions per pass, default 8 ([D-272][d-272]) | section 7 |
 | pure query, sim untouched | section 6 step 7, section 9 |
@@ -655,6 +666,8 @@ build.
 [d-266]: ../decisions.md#d-266--two-doors-for-an-ad-opaque-implementation-the-local-rule-and-the-freeze-block
 [d-271]: ../decisions.md#d-271--admit-the-component-index-on-get_input-and-get_face
 [d-272]: ../decisions.md#d-272--fix-linearizes-surface-the-tap-set-the-chunk-width-the-operating-point-and-the-return
+[d-274]: ../decisions.md#d-274--checkpoints-the-executors-state-as-one-value-restored-without-boundary-zero
+[s12-6]: ../spec.md#126-run-lifecycle-and-partial-advance
 [s13-1]: ../spec.md#131-reporting-policy-collect-the-checks-fail-the-evaluations-fast
 [s14-1]: ../spec.md#141-conditions-are-path-addressed-overlays-on-the-declared-defaults
 [s14-10]: ../spec.md#1410-linearization-tap-selectors-one-seeded-pass-a-pure-query
