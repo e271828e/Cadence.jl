@@ -921,7 +921,7 @@ function diagnostics_kind_set()
         rendered = message(CheckpointMismatch(what = :store, path = "a", name = :x,
                                               expected = @NamedTuple{θ::Float64, ω::Float64},
                                               found = @NamedTuple{ω::Float64, θ::Float64}))
-        @test startswith(rendered, "the `a`'s x store type was " *
+        @test startswith(rendered, "the `a`'s `x` type was " *
                                    "@NamedTuple{θ::Float64, ω::Float64} when the checkpoint " *
                                    "was taken and is @NamedTuple{ω::Float64, θ::Float64} here")
         rendered = message(CheckpointMismatch(what = :store, path = "a", name = Symbol("port.q"),

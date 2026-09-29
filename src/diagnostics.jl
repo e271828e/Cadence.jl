@@ -2054,6 +2054,7 @@ _checkpoint_subject(d::CheckpointMismatch) =
     d.name === :events ? "event list, `(path, name)` in the priors' order," :
     startswith(String(d.name), "port.") ?
     "cell of $(_at_path(d.path))'s port `$(chopprefix(String(d.name), "port."))`" :
+    d.name === :x ? "$(_at_path(d.path))'s `x` type" :
     "$(_at_path(d.path))'s $(d.name) store type"
 
 # A port's cell as the fingerprint holds it, `(type, offsets)`, or its absence.

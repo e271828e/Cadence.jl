@@ -1475,6 +1475,19 @@ function trace_checkpoints()
             @test trace(inside).header.step == frame
         end
 
+        # The clock's refusal precedes the halt's, which reads the clock: a halt
+        # beside a simulation off the recording's clock is refused for the clock.
+        shifted = replay_twin(; t0 = 1.0)
+        d = only(diagnostics(failure(() -> replay!(shifted, trc; restore = false,
+                                                   to_time = 1.5))))
+        @test d isa CheckpointMismatch && d.what === :clock && d.name === :t₀
+        past = replay_twin()
+        replay!(past, long_trc; to_boundary = 9)
+        d = only(diagnostics(failure(() -> replay!(past, trc; restore = false,
+                                                   to_boundary = 8))))
+        @test d isa CheckpointMismatch && d.what === :clock && d.name === :step
+        @test d.expected == 0:7 && d.found == 9
+
         # Both refusals collect in one pass, with the fingerprint's.
         both = Simulation(replay_model(); h = 1//20)
         init!(both, fragment(inputs = (ref = 1.0, rate = 0.0)); t0 = 0.05)

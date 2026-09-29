@@ -1062,6 +1062,10 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     p, margin_seconds = _pace_value(pace, :replay!), _margin_value(margin, :replay!)   # D-269
     to_boundary === nothing || to_time === nothing ||     # two spellings of one halt (D-219)
         throw(DiagnosticError(ArgumentInvalid(call = :replay!, reason = :both_given)))
+    # The entry pass, every refusal of which precedes every write. It runs ahead
+    # of the halt's range checks, which read the two clocks it compares: a halt
+    # beside a simulation off the recording's clock is refused for the clock.
+    feed = _compile_feed(sim, trc, restore)
     # §13.4's pointer, in grid boundaries: whole, no earlier than the frame the
     # feed starts from — the header's, or the simulation's own under `restore =
     # false` — and no further than the recording reaches; every frame top is
@@ -1076,8 +1080,8 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
         # top at or before it: the *header's* `t₀` as the origin and the
         # *header's* `h` as the stride — the recording's own grid, so
         # `k ≤ trc.frames` names a boundary of the recording, and a target
-        # bound at a different `h` falls through to the entry pass below,
-        # which refuses it honestly (`CheckpointMismatch`, never a false
+        # bound at a different `h` never gets here, the entry pass above
+        # having refused it honestly (`CheckpointMismatch`, never a false
         # word about a time the recording covers). `_frame_at` carries the
         # slack: without it the plain floor would halt one boundary short of
         # the one named.
@@ -1091,7 +1095,6 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
                             value = to_time)))
     end
     (policy, addrs) = _bind_policy(sim, t_end, stop_on, :replay!)   # this advance's policy, validated
-    feed = _compile_feed(sim, trc, restore)   # the entry pass: every refusal precedes every write
     # The restore, and the new run with the substitution in it: the recording
     # goes in at construction and the mode is read off it, so entering `:replay`
     # *is* constructing this run with a feed (§12.6, D-260). It outlives this
