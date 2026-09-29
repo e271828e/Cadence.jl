@@ -93,10 +93,14 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265.
 - `CheckpointMidFrame`, `checkpoint`'s refusal after a `t*` stop, carrying
   the clock's `t`, the frame top `t_frame` and the frame index `step`
   (D-274).
-- `StepError`'s rendered recipe names `init!` at pointer 0, where a
-  boundary-zero throw leaves no trace, and replay to the pointer then
-  `step!` elsewhere (§13.4, D-274). `ArgumentInvalid`'s `:t0_without_about`
-  names the checkpoint as the default operating point.
+- `StepError`'s rendered recipe names two reproductions at pointer 0, which
+  boundary zero and frame one share: `init!` where `init!` threw and left no
+  trace, the replay of the trace where frame one did. Elsewhere it names
+  replay to the pointer then `step!` (§13.4, D-274).
+- `CheckpointMismatch`'s store arm also names a component's block in the
+  flat buffer (`:x`) and a cell (`port.<name>`). `ArgumentInvalid` covers
+  `replay!`'s `restore` and a halt before the feed's first frame, and its
+  `:t0_without_about` names the checkpoint as the default operating point.
 
 Spec: §9.1, §12.6, §12.7, §13.1, §13.2, §13.4, §14.8, §14.10, Appendix C, D-058,
 D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256, D-261,
@@ -152,7 +156,6 @@ D-195, D-211, D-246, D-248, D-263.
   body only outside a walk.
 - The service walk `resolve_authored` runs over the `Structure`'s retained
   root and reads declared holdings off the type definition (D-061, D-130).
-- `authored_chain` returns the child names along an absolute path.
 - §8.8's `input_passthrough`/`output_passthrough`, with the three exclusive
   selectors `except`, `only` and `select`, and `EmptyFaceSelection` through the
   channel (D-251).
@@ -393,6 +396,8 @@ D-268, D-269, D-270, D-274.
 ### `src/stepper.jl`
 
 The seam's backend side: RK4 and Heun, the retained `startpoint`, dense output.
+`checkpoint_stepper` and `restore_stepper!` are the checkpoint's hook pair,
+empty for both methods, which hold nothing across a frame top (D-274).
 
 Spec: §10.2, D-017.
 
@@ -475,12 +480,18 @@ D-027, D-038, D-137, D-250, D-255, D-269.
   copied, the guard priors, the clock in full (`t`, the frame index, the
   boundary ordinal and `t₀`, a `Float64` like `h`), and the fingerprint, the
   run's `Deployment` and the structural layout `Fingerprint`.
+- `Fingerprint` holds the cell sizes, the root-input faces, the component
+  paths and the store types, and what a copy by position relies on: each
+  component's block in the flat buffer and every cell's address with its
+  type and offsets.
 - What stays out: the derivative buffer, the arrival pair and the
   localization samples, which every frame rewrites before reading them, the
   cursor and the periphery.
 - `_take_checkpoint`, the one read, behind `checkpoint(sim)` and the trace
   header `init!` takes. `_restore_state!`, its inverse, behind `restore!`,
-  `replay!` and `linearize`'s default operating point.
+  `replay!` and `linearize`'s default operating point. It is strict about
+  the scalar. `_restore_stores!` is the part of it that writes the `s` and
+  `m` stores, shared with `linearize`'s seeded half.
 - `_check_checkpoint!`, the fingerprint check `restore!` and replay's entry
   pass share, collecting `CheckpointMismatch`.
 
@@ -827,7 +838,8 @@ rulings behind them are `docs/reports/20260923_naming_inventory/README.md`.
   `diags`, `conns`, `addr`/`addrs`, `ci`, `act` (activation), `fn` (a
   declaration, stage, guard or handler passed by value), `io`, `err` (a
   caught exception, always `catch err`), `dev` (a device; `device` is its
-  id string), `trc` (a trace; `trace` is the API's keyword flag), `op` (a
+  id string), `trc` (a trace; `trace` is the API's keyword flag), `cp` (a checkpoint;
+  `checkpoint` is the API's function), `op` (a
   lifecycle payload's operation), `rng`, `kw`, `scc`/`sccs`, and
   `ins`/`outs` for a `Decls` row's declared faces and ports only. A frequent
   name earns a place by being added here, never by being coined in place.
@@ -903,7 +915,8 @@ override:
 | --- | --- |
 | `declare`, `assembly`, `build`, `tracer`, or a new kind in `diagnostics.jl` | `declare assembly build diagnostics leaves show`; a change in `build.jl`'s `compile` half adds the next row |
 | `executor`, `stepper`, `localization` | `executor stepper continuous discrete events localization failures` |
-| `dataplane`, `roster`, `bindings`, `control`, `devices`, `checkpoint`, `trace` | `dataplane roster bindings devices trace lifecycle log` |
+| `dataplane`, `roster`, `bindings`, `control`, `devices`, `trace` | `dataplane roster bindings devices trace lifecycle log` |
+| `checkpoint` | the row above, plus `discrete events linearize` |
 | `readers`, `conditions`, `trim`, `linearize` | `readers conditions trim linearize` |
 | `show` | `show` |
 | `sim`, `deployment`, `store`, `leaves`, `Cadence`, or `diagnostics.jl` beyond a new kind | all of it |
