@@ -479,3 +479,42 @@ Under 500 words per stage: the commit hash, the gate's result verbatim
 (pass/fail counts, before and after; stages 2 and 3), every file touched
 with one line each, any place the brief was wrong about the tree, and
 anything left undone with the reason.
+
+## Amendments at launch
+
+Rulings and corrections made while the stages ran, 2026-09-29. Where one
+disagrees with the text above, the amendment holds.
+
+1. **The scalar refusal is one refusal for both doors** (user ruling). A
+   restore into a simulation of another activation throws
+   `CheckpointMismatch`, `:scalar` arm, from a fallback method, as
+   `_compile_feed`'s fallback does for a trace. It is not a `MethodError`.
+   D-274's "refused by dispatch" stands.
+2. **The `:root_input` arm stays.** It covers the fingerprint's root-face
+   list and a recorded value that does not convert to its declared type.
+   Both checks survive the checkpoint.
+3. **`restore!`'s snapshot is a re-publication.** `publish!` stamps the
+   clock's ordinal and then increments it, so the door steps the ordinal back
+   by one before it publishes. The resumed run's ordinals are the original's.
+4. **Pointer 0 names both reproductions.** Boundary zero is frame one's entry
+   boundary too. The renderer names `init!` for a throw inside `init!` and
+   `replay!(sim2, trc)` for a throw inside frame one. `StepError` gains no
+   field. The text is asserted in `test_failures.jl`'s `StepError` rendering
+   testset, its existing home.
+5. **A trace counts frames by the trajectory's index.** It opens with
+   `frames = clock.step`, so a trace that a restore opens keeps the
+   trajectory's own frame indices.
+6. **The seek needs a cursor skip.** `replay!` starts the feed's cursor at the
+   first record past the checkpoint's frame.
+7. **The log's first endpoint is the run's first publication.** Retention
+   counts boundaries from it.
+8. **`restore = false` is a door too.** It builds a fresh run under the
+   recording keywords, with the simulation's own checkpoint as the header,
+   and publishes once. The whole entry pass runs under both forms.
+9. **`linearize`'s seeded half** (user ruling). `_restore_state!` stays strict
+   about the scalar. The nominal scratch takes the checkpoint through it. The
+   seeded scratch takes four writes: `x` by a converting copy, the `s` and `m`
+   stores by value, each root-input cell gathered from the nominal scratch
+   and converted, and the frozen cells through `_establish_frozen!`.
+10. **The table of stopped-sim services** sits in §14's preamble, not in
+    §13.7.
