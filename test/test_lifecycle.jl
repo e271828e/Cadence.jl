@@ -13,6 +13,15 @@ monitored() = Group((; src = Ramp(0.0), trig = Trigger(0.35));
 armed() = Group((; c = Trigger(0.5)); inputs = ("in" => "c/sig",),
                 outputs = ("c/on" => "stop",))
 
+# The pendulum's torque held by a discrete integrator, and the condition D-273's
+# probe authored: a sampled model, where a resume from the stores alone ran one
+# tick ahead on the discrete tier.
+resume_pend() = Group((; ctl = DiscreteIntegrator(1.0), c = Pendulum());
+                      wires = ("ctl/u" => "c/u",), inputs = ("in" => "ctl/e",))
+resume_condition() = combine(at("ctl", fragment(s = (acc = 4.0,))),
+                             at("c", condition(Pendulum(); θ = 0.2)),
+                             fragment(inputs = (in = 0.5,)))
+
 function test_lifecycle()
     @testset "the five states, and the gates between them (§12.6)" begin
         sim = Simulation(feedback_model(); h = 1//50)
@@ -472,6 +481,29 @@ function test_lifecycle()
         @test lifecycle(unattended) === :errored
     end
 
+    @testset "the resume identity: `restore!` continues a sampled trajectory bitwise (§12.6, D-274)" begin
+        sim = Simulation(resume_pend(); h = 1//10)
+        init!(sim, resume_condition())
+        step!(sim; frames = 3)
+        # at rest the store holds the state the next tick decodes, the cell the
+        # sample the last tick published (D-273)
+        @test port(sim, "ctl", :u) ≈ 4.15 && state(sim, "ctl").acc ≈ 4.20
+        cp = checkpoint(sim)
+
+        twin = Simulation(resume_pend(); h = 1//10)
+        restore!(twin, cp)
+        run!(sim; t_end = 0.6)
+        run!(twin; t_end = 0.6)
+        @test termination(twin).t === termination(sim).t && termination(sim).t ≈ 0.6
+        @test state(twin, "c") === state(sim, "c") && state(twin, "ctl") === state(sim, "ctl")
+        @test snap_cells(latest(twin)) == snap_cells(latest(sim))
+        # the logged trajectory from 0.3, ordinals included
+        from_checkpoint = [x for x in logged(sim) if x.boundary ≥ cp.boundary - 1]
+        @test same_trajectory(logged(twin), from_checkpoint)
+        @test [x.boundary for x in logged(twin)] == [x.boundary for x in from_checkpoint]
+        @test port(sim, "ctl", :u) ≈ 4.30 && port(twin, "ctl", :u) === port(sim, "ctl", :u)
+    end
+
     @testset "a throw inside boundary zero returns a warm simulation to `built` (§12.6, D-223)" begin
         sim = Simulation(fed(Mine(), "sig"); h = 1//10)
         init!(sim, fragment(inputs = (in = false,)))
@@ -486,7 +518,9 @@ function test_lifecycle()
         @test d.op === :step! && d.status === :built
         @test termination(sim) === nothing
         @test latest(sim).t == 0.2                       # the last published snapshot stands
-        @test trace(sim).frames == 0                     # the trace is the failed init!'s
+        # the header is taken after boundary zero publishes, so the throw left none
+        d = carried(@test_throws DiagnosticError{MissingInit} trace(sim))
+        @test d.op === :trace && d.status === :built
 
         init!(sim, fragment(inputs = (in = false,)))     # `built` is re-initializable
         @test lifecycle(sim) === :initialized

@@ -31,6 +31,19 @@ reads the state half directly, and the generic `dense!` builds on both halves.
 function startpoint end
 
 """
+    checkpoint_stepper(stepper)
+    restore_stepper!(stepper, cp)
+
+The seam's checkpoint pair (D-274): what a backend carries across a frame top,
+read when a checkpoint is taken and written back when one is restored. A
+one-step method carries nothing, its `startpoint` being rewritten by every step
+before anything reads it, so both first-cut backends take this empty pair and
+a checkpoint has no field for it; a multistep backend would add one.
+"""
+checkpoint_stepper(::AbstractStepper) = nothing
+restore_stepper!(::AbstractStepper, cp) = nothing
+
+"""
     RK4(T, n_x)
 
 The classical fourth-order Runge–Kutta method over a flat buffer of `n_x`

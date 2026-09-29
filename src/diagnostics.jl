@@ -254,12 +254,14 @@ function Base.showerror(io::IO, carrier::StepError)
     end
     print(io, _phase_text(frame), " of the frame from boundary ", carrier.boundary,
           " (t = ", carrier.t, "):\n  ")
-    # The pointer degenerates at zero (§13.4, D-223): boundary zero and frame
-    # one share it, and the replay of the captured header reproduces either —
-    # the `step!` the general recipe names is what a boundary-zero failure
-    # would refuse.
+    # The pointer degenerates at zero (§13.4, D-274): boundary zero and frame
+    # one share it and the carrier cannot tell them apart, so both recipes are
+    # named — a boundary-zero throw leaves no trace and `init!` reproduces it,
+    # a frame-one throw leaves one and its replay does. The `step!` the general
+    # recipe names is what a boundary-zero failure would refuse.
     carrier.boundary == 0 ?
-        print(io, "replay!(sim2, trc) reproduces it") :
+        print(io, "if `init!` threw, init!(sim2, condition) under the same condition " *
+                  "reproduces it; if frame one did, replay!(sim2, trc) does") :
         print(io, "replay!(sim2, trc; to_boundary = ", carrier.boundary,
               ") then step!(sim2) reproduces it")
     print(io, "\n  cause: ")
@@ -1873,7 +1875,7 @@ message(d::ConditionShapeDrift) =
 
 "§8.7, §11.6, §12.4, §12.6, §14.7, D-215: an argument outside its constraint — `DeploymentInvalid`'s twin off the deployment surface."
 Base.@kwdef struct ArgumentInvalid <: Diagnostic
-    call::Symbol                             # :Simulation|:init!|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:pace!|:margin!|:trim!|:linearize|:trace|:TableBinding|:selector
+    call::Symbol                             # :Simulation|:init!|:restore!|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:pace!|:margin!|:trim!|:linearize|:trace|:TableBinding|:selector
     reason::Symbol
     argument::Union{Nothing,Symbol} = nothing
     value::Any = nothing
@@ -2020,87 +2022,102 @@ message(d::NotAttached) =
     "attachment, and the roster holds " *
     (isempty(d.roster) ? "no device" : join(("`$(r)`" for r in d.roster), ", ")) * " (§11.3)"
 
-# --- replay's entry validation (§12.7) -----------------------------------------
-# The up-front pass a trace is admitted through, before any state is touched:
-# the header against the target `Build` and its deployment binding, each
-# writer's schema against the target's root-input faces, and every record's
-# positions against the schema they were written under. The line the three
-# kinds draw is §12.7's: *structural* mismatch is an error, *parametric*
+# --- the checkpoint check and replay's entry validation (§12.6, §12.7) ----------
+# The fingerprint check `restore!` and replay's entry pass share, before any
+# state is touched: the checkpoint against the target `Build` and its deployment
+# binding. Replay adds each writer's schema against the target's root-input faces
+# and every record's positions against the schema they were written under. The
+# line the kinds draw is §12.7's: *structural* mismatch is an error, *parametric*
 # difference is the what-if replay and no error at all.
 
-"§11.5, §12.7: the trace's header disagrees with the target build, its scalar or its deployment binding."
-Base.@kwdef struct ReplayHeaderMismatch <: Diagnostic
+"§11.5, §12.6, §12.7: a checkpoint, a trace's header included, disagrees with the target build, its scalar or its deployment binding."
+Base.@kwdef struct CheckpointMismatch <: Diagnostic
     what::Symbol                             # :store | :root_input | :deployment | :scalar | :frame
     path::String = ""                        # the component path: the per-component :store arms,
                                              # a :deployment schedule row and a rate scope (§12.7)
     name::Symbol = Symbol("")                # :sizes|:paths|:s|:m, the root-input face, the
                                              # deployment parameter, a schedule or `scope.` column,
                                              # or a list name: :schedule, `scope.key`
-    expected::Any = nothing                  # the trace's value
+    expected::Any = nothing                  # the checkpoint's value
     found::Any = nothing                     # the target's
 end
-path(d::ReplayHeaderMismatch) = d.path
+path(d::CheckpointMismatch) = d.path
 
-_replay_subject(d::ReplayHeaderMismatch) =
+_checkpoint_subject(d::CheckpointMismatch) =
     d.name === :paths ? "component-path list" :
     d.name === :sizes ? "cell-size list" :
     "$(_at_path(d.path))'s $(d.name) store type"
 
-_replay_paths(paths) = isempty(paths) ? "none" : join((_at_path(p) for p in paths), ", ")
+_checkpoint_paths(paths) = isempty(paths) ? "none" : join((_at_path(p) for p in paths), ", ")
 
 # The `:deployment` arms, one per case the walk in `trace.jl` emits: the seven
 # parameters and the two lists carry no path, a schedule row and a rate scope
 # carry theirs, and a scope column rides in `name` behind its prefix.
-_replay_deployment(d::ReplayHeaderMismatch) =
+_checkpoint_deployment(d::CheckpointMismatch) =
     isempty(d.path) ?
     (d.name === :schedule ?
-     "replay: the recording's schedule covers $(_replay_paths(d.expected)) and " *
-     "this deployment's covers $(_replay_paths(d.found)) — the rows are compared " *
+     "the checkpoint's schedule covers $(_checkpoint_paths(d.expected)) and " *
+     "this deployment's covers $(_checkpoint_paths(d.found)) — the rows are compared " *
      "by component path, so a differing component list is reported whole: past the first " *
      "difference the rows name different components (§12.7)" :
      d.name === Symbol("scope.key") ?
-     "replay: the recording opened the rate scopes $(_namelist(d.expected)) and " *
+     "the checkpoint's deployment opened the rate scopes $(_namelist(d.expected)) and " *
      "this deployment opens $(_namelist(d.found)) — a scope is identified by its " *
      "path and its key, so a differing scope list is reported whole rather than column by " *
      "column (§12.7)" :
-     "replay: the recording ran at `$(d.name)` = $(d.expected) and this " *
+     "the checkpoint was taken at `$(d.name)` = $(d.expected) and this " *
      "simulation is bound at $(d.found) — the seven trajectory-determining " *
      "deployment parameters are compared, the schedule with them, never taken as a " *
-     "what-if: a deployment change moves the times the frame-ordinal batches apply at, " *
-     "which is different inputs rather than a modified model (§12.7)") :
+     "what-if: a deployment change moves the lattice the state continues on and the times " *
+     "a trace's batches apply at, which is different inputs rather than a modified model " *
+     "(§12.7)") :
     startswith(String(d.name), "scope.") ?
-    "replay: the rate scope at $(_at_path(d.path)) recorded " *
+    "the rate scope at $(_at_path(d.path)) was taken with " *
     "`$(chopprefix(String(d.name), "scope."))` = $(repr(d.expected)) and " *
     "this deployment binds $(repr(d.found)) — a scope is compared with every " *
     "column, the anchor included, because it is what the rates under it were declared " *
     "through (§12.7)" :
-    "replay: the schedule row for $(_at_path(d.path)) recorded " *
+    "the schedule row for $(_at_path(d.path)) was taken with " *
     "`$(d.name)` = $(repr(d.expected)) and this deployment binds " *
     "$(repr(d.found)) — the schedule is " *
     "compared with every column, the anchor and rate chain included, so a rate re-declared " *
     "through a different anchor at the same tick table is a different deployment (§12.7)"
 
-message(d::ReplayHeaderMismatch) =
+message(d::CheckpointMismatch) =
     d.what === :scalar ?
-    "replay: the trace was recorded on a `Simulation{$(d.expected)}` and this one is a " *
+    "the checkpoint was taken on a `Simulation{$(d.expected)}` and this one is a " *
     "`Simulation{$(d.found)}` — the scalar is a structural fact of the deployment, and a " *
-    "trace re-drives the build it was recorded on (§12.7)" :
-    d.what === :deployment ? _replay_deployment(d) :
+    "checkpoint, a trace's header included, goes back into the activation it was taken " *
+    "on (§12.6, §12.7)" :
+    d.what === :deployment ? _checkpoint_deployment(d) :
     d.what === :frame ?
     "replay: $(d.name)'s record is stamped frame $(d.found), which is outside the " *
     "recording's own $(d.expected) — a batch replays at the frame ordinal it was drained " *
-    "at, and the trace's `frames` is how long the recording ran (§11.5, §12.7)" :
+    "at, and the trace's `frames` is how far the recording ran (§11.5, §12.7)" :
     d.what === :root_input ?
     (d.name === Symbol("") ?
-     "replay: the trace records the root input-face list $(_faceset(d.expected)) and this " *
-     "build's is $(_faceset(d.found)) — the header's root-input values are applied face by " *
-     "face at boundary zero, so the two lists have to agree (§11.5, §12.7)" :
+     "the checkpoint records the root input-face list $(_faceset(d.expected)) and this " *
+     "build's is $(_faceset(d.found)) — the checkpoint's table holds a cell per face, so " *
+     "the two lists have to agree (§11.5, §12.7)" :
      "replay: the value $(repr(d.found)) recorded for the root input `$(d.name)` does not " *
      "convert to its declared type $(d.expected) — a record is replayed through the " *
      "target's own compiled scatter (§11.4, §12.7)") :
-    "replay: the $(_replay_subject(d)) was $(repr(d.expected)) at the recording and is " *
-    "$(repr(d.found)) here — the store layout is compared against the `Build`, structural " *
-    "mismatch being a replay error and only *parametric* difference the what-if replay (§12.7)"
+    "the $(_checkpoint_subject(d)) was $(repr(d.expected)) when the checkpoint was taken " *
+    "and is $(repr(d.found)) here — the store layout is compared against the `Build`, " *
+    "structural mismatch being an error and only *parametric* difference the what-if " *
+    "replay (§12.7)"
+
+"§12.6, §14: `checkpoint` on a simulation whose clock stands inside a frame, short of its top — the state a `t*` stop leaves."
+Base.@kwdef struct CheckpointMidFrame <: Diagnostic
+    t::Float64                               # the clock
+    t_frame::Float64                         # the top of the frame it stands in
+    step::Int                                # the frame index
+end
+message(d::CheckpointMidFrame) =
+    "`checkpoint` with the clock at t = $(d.t), inside frame $(d.step) and short of its top " *
+    "at t = $(d.t_frame) — a `t*` stop abandons the frame's remainder, and a checkpoint is " *
+    "taken at a frame top only; stop the run at one: `t_end`, a stop face read at a grid " *
+    "boundary, or `stop!` (§12.6, D-274)"
 
 "§11.5, §12.7: a recorded writer schema naming faces the target model does not export as root inputs."
 Base.@kwdef struct ReplaySchemaMismatch <: Diagnostic

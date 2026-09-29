@@ -5,7 +5,7 @@
 # exact — GCD over `Rational{Int}` — and floats are refused at the door.
 #
 # The file sits after `build.jl` and `readers.jl` because the binding consumes the
-# `Build`, and before `trace.jl` because `TraceHeader.deployment` is a typed field.
+# `Build`, and before `checkpoint.jl` because `Checkpoint.deployment` is a typed field.
 # The `AbstractStepper` check at the constructor and the `RK4` default resolve at
 # call time, so `stepper.jl` may come later.
 

@@ -152,6 +152,30 @@ function test_events()
         @test modes(sim2, "c").count == 1
     end
 
+    @testset "the priors survive a restore: a holding guard does not fire again (§12.6, D-274)" begin
+        sim = Simulation(fed(Trigger(0.5), "sig"); h = 1//10)
+        init!(sim, fragment(inputs = (in = 0.0,)))
+        stage!(sim, "in" => 1.0)
+        step!(sim; frames = 3)                       # fired at frame 1, holding since
+        @test modes(sim, "c") === (state = :fired, count = 1)
+        cp = checkpoint(sim)
+        @test cp.prior == [true]
+
+        # The restore resets no prior, so the next boundary sees no edge.
+        twin = Simulation(fed(Trigger(0.5), "sig"); h = 1//10)
+        restore!(twin, cp)
+        @test twin.exec.events.prior == [true] && twin.exec.events.last == [true]
+        step!(twin)
+        @test modes(twin, "c") === (state = :fired, count = 1)
+
+        # `init!` from the same stores establishes the prior as not-holding, so
+        # boundary zero fires the holding guard again (§10.6).
+        fresh = Simulation(fed(Trigger(0.5), "sig"); h = 1//10)
+        init!(fresh, combine(at("c", fragment(m = (state = :fired, count = 1))),
+                             fragment(inputs = (in = 1.0,))))
+        @test modes(fresh, "c") === (state = :fired, count = 2)
+    end
+
     @testset "a cascade settles within one boundary, independently of h (§10.6)" begin
         chain() = Group((; trig = Trigger(0.5), f1 = Follower(), f2 = Follower());
                         wires = ("trig/on" => "f1/go",

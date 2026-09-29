@@ -76,8 +76,8 @@ The state one run owns (§12.6, D-255, D-260): what lasts from one door to the
 next and the state that evolves in between, and nothing else — the log and the
 trace, fixed by the constructing entry point, and two fields that evolve, the
 attached recording and the termination record the loop's tail writes once.
-`init!` and `replay!` construct one and rebind `sim.run`; nothing else rebinds
-it. A change of mode is a *write* to the run, not a change of run — `live!`,
+`init!`, `restore!` and `replay!` construct one and rebind `sim.run`; nothing
+else rebinds it. A change of mode is a *write* to the run, not a change of run — `live!`,
 and the flip at a recording's end, both clear `feed` (D-218, D-260).
 
 The input mode is read, never stored: `mode(sim)` is `:replay` while a feed is
@@ -180,8 +180,8 @@ call building and validating the `StopPolicy` it passes to the loop (D-260).
 
 The four recording keywords, `trace`, `log`, `log_every` and `log_max`, are
 no keywords here either: they configure the run's log and trace, which the
-doors build, so `init!` and `replay!` take them, each for the run it opens
-(§12.6, Appendix B, D-261).
+doors build, so `init!`, `restore!` and `replay!` take them, each for the run it
+opens (§12.6, Appendix B, D-261).
 """
 function Simulation(deployment::Deployment, ::Type{T} = Float64; join_timeout = 5.0,
                     chunk_size::Int = 16) where {T}
@@ -367,8 +367,8 @@ the face, `ControlRequestedStop` with its issuer, or `LoopError` with the
 cause retained), and the tail residue the run's-end sweep collected.
 
 `nothing` until the loop's tail writes it, which is `closed(sim.run)`. No
-lifecycle gate is needed for that: `init!` and `replay!` each build a *fresh*
-run (§12.6, D-255), so no record of a previous one is reachable here.
+lifecycle gate is needed for that: `init!`, `restore!` and `replay!` each build
+a *fresh* run (§12.6, D-255), so no record of a previous one is reachable here.
 """
 termination(sim::Simulation) = sim.run.termination
 
@@ -501,8 +501,8 @@ non-nominal activation has no entries here at all (§9.4's executable set), so
 its pinned cells keep the carried nominal products — at boundary zero as
 everywhere.
 
-Never called bare: `_host_boundary_zero!` below hosts it for both services,
-wrapping a throw as §13.4's catch does (D-223).
+Never called bare: `_host_boundary_zero!` below hosts it for `init!`, the one
+door that runs it (D-274), wrapping a throw as §13.4's catch does (D-223).
 """
 @inline function boundary_zero!(sim::Simulation)
     cursor = sim.exec.cursor
@@ -640,23 +640,27 @@ end
         boundary = exec.clock.step - 1)))   # the frame-entry index: this frame's own top
 end
 
-# The trajectory's opening, shared by the two entries that own one (§12.6):
-# `init!` below and `replay!` (§12.7), whose difference is *how the state is
-# established* — a resolved condition against the header's recorded values —
-# and nothing else. Everything here is the wholesale opening §12.6 describes:
-# the clock anchored at `t₀`, every event prior cleared (§10.6), the §11.8
-# accounts reset, every staged batch dropped so none survives into the
-# trajectory it predates (§11.4), and the stop word cleared. The log, the trace,
-# the feed and the termination record are *not* cleared here: each door builds a
-# fresh `Run` behind this call, and a fresh run is all four at once (D-255). The
-# diagnostic *cells* are deliberately untouched at both entries: a rejection
-# recorded while stopped is a fact about what happened.
+# The trajectory's opening at `init!` (§12.6): the clock anchored at `t₀` and
+# every event prior cleared (§10.6), then the opening every door shares.
 function _open_trajectory!(sim::Simulation, t₀::Float64)
     sim.exec.clock.t = t₀         # into the deployment's scalar (D-260)
     sim.exec.clock.t₀ = t₀        # exact: the clock's origin is a `Float64` too
     sim.exec.clock.step = 0
     sim.exec.clock.boundary = 0
     fill!(sim.exec.events.prior, false)
+    _reset_periphery!(sim)
+    nothing
+end
+
+# What every door opens wholesale beside the state (§12.6): the §11.8 accounts
+# reset, every staged batch dropped so none survives into the trajectory it
+# predates (§11.4), and the stop word cleared. `restore!` and `replay!` take
+# this alone, the clock and the priors coming with the checkpoint (D-274). The
+# log, the trace, the feed and the termination record are *not* cleared here:
+# each door builds a fresh `Run` behind this call, and a fresh run is all four at
+# once (D-255). The diagnostic *cells* are deliberately untouched: a rejection
+# recorded while stopped is a fact about what happened.
+function _reset_periphery!(sim::Simulation)
     _reset_accounts!(sim)         # a new trajectory opens a fresh account (§11.8)
     for entry in sim.plane.roster     # §12.6: no staged batch survives into the
         @atomic _handle(entry).writer.cell.pending = nothing   # trajectory it predates
@@ -686,12 +690,17 @@ end
 # so the fresh run gets a log and a trace of its own rather than cleared ones
 # and the next door may declare otherwise. Under the switch the trace is
 # `nothing`, nothing is recorded and `trace(sim)` refuses for the switch.
-# `feed` goes in at construction: `nothing` from `init!`, the compiled
-# recording from `replay!`. `_install_writers!` then compiles the drain's thunks
-# against the new trace for the trajectory about to open.
+# `header` is the checkpoint the run opens from, `nothing` from `init!`, which
+# writes it after boundary zero's first publication (D-274). The trace's length
+# starts at the clock's frame index, so its records carry the trajectory's own
+# frame ordinals. `feed` goes in at construction: `nothing` from `init!` and
+# `restore!`, the compiled recording from `replay!`. `_install_writers!` then
+# compiles the drain's thunks against the new trace for the trajectory about to
+# open.
 function _open_run!(sim::Simulation{T}, header, schemas, feed,
                     trace_switch::Bool, log_switch::Bool, log_every::Int, log_max) where {T}
-    trc = trace_switch ? Trace{T}(header, schemas, TraceBatch[], 0) : nothing
+    trc = trace_switch ? Trace{T}(header, schemas, TraceBatch[], sim.exec.clock.step) :
+                         nothing
     sim.run = Run{T}(SnapshotLog(log_switch, log_every,
                                  log_max === Inf ? typemax(Int) : Int(log_max)),
                      trc, feed, nothing)
@@ -711,17 +720,16 @@ The condition is §14.1's path-addressed sparse overlay, and the overlay base
 is **always the declared defaults**: `init!` re-establishes the three state
 homes — `xbuf` and the `s`/`m` stores, from `x_init`/`s_init`/`m_init` —
 before applying anything, so applying a condition means "fresh run from the
-declared defaults, with these overrides" (D-063) and warm restart needs no
-second semantics. Nothing re-seeds the cells, and nothing needs to: boundary
-zero *derives* every one of them below (D-205). Root inputs have no declared
+declared defaults, with these overrides" (D-063). Nothing re-seeds the cells,
+and nothing needs to: boundary zero *derives* every one of them below (D-205). Root inputs have no declared
 default at all, and the condition's totality is what supplies them (§14.6). It
 resolves first (§14.3), then checks root-input totality against the build's
 root input faces (§14.6), and only then writes: a rejected `init!` leaves the
 simulation exactly as it was, and a root input gets a condition value or the
 call errors — the services path contains no call to `probe_value`. `t0` is a
 service argument, never a condition entry: time is not a store of any
-component (§14.5). It is any real, held as a `Float64` origin on the clock and
-in the trace header (D-260), while the clock's `t` stays in the deployment's
+component (§14.5). It is any real, held as a `Float64` origin on the clock
+(D-260), while the clock's `t` stays in the deployment's
 scalar — so a `Dual` simulation takes `t0 = 0.25` like any other.
 
 Boundary zero is an ordinary boundary with an empty integrate (§10.5, §14.5),
@@ -732,20 +740,21 @@ implemented by nothing.
 
 Boundary zero also establishes every event prior as not-holding (§10.6), so a
 predicate already holding in the authored state fires at `t₀` — derived, not
-asserted — and a warm restart (`init!` again) resets all three registers from
-scratch: such predicates fire again at the new `t₀`. A warm restart is a new
+asserted — and a re-run (`init!` again) resets all three registers from
+scratch: such predicates fire again at the new `t₀`. A re-run is a new
 trajectory and therefore a new `Run` (§12.6, D-255): the log and the
 trace are fresh *objects* rather than cleared ones, and the log's boundary zero
-lands as a first endpoint of its own (§11.2). The trace's header is captured
-*here* — after `apply!` and the clock writes, before the sequence runs — which
-is §14.5's placement, essential on both sides: the header holds the resolved
-stores and root inputs rather than the authored overlay (D-038), and it never
-holds the post-transition result, boundary zero being re-executed under replay
-(§12.7).
+lands as a first endpoint of its own (§11.2). The trace's header is the
+checkpoint taken *last*, after boundary zero's snapshot is published (§11.5,
+D-274): it holds the state boundary zero left, the resolved stores and the
+root-input cells as values rather than the authored overlay (D-038), and replay
+restores it rather than re-running boundary zero (§12.7). The warm restart is
+`checkpoint` → `restore!` → `run!`, and `init!` is the only door that runs
+boundary zero.
 
-The four recording keywords configure the run this call builds, and `replay!`
-takes the same four for the run it builds (§12.6, Appendix B, D-261). `trace`
-is §11.5's kill switch (default `true`): the input trace is on by default
+The four recording keywords configure the run this call builds, and `restore!`
+and `replay!` take the same four for the runs they build (§12.6, Appendix B,
+D-261). `trace` is §11.5's kill switch (default `true`): the input trace is on by default
 because it is **primary** data and the log derived — given the initial state
 and the trace the log is recomputable, never the reverse, and an untraced
 interactive session is unreproducible permanently (D-029). The switch covers
@@ -765,9 +774,9 @@ whatever the next door declares.
 
 `init!` is §12.6's door into `initialized` from an *authored* condition, and
 some door is mandatory: `run!` and `step!` refuse a simulation whose boundary
-zero has not completed. `replay!` (§12.7) is the one alternative — it stands
-in the same lifecycle position with the trace header in the condition's place
-(D-101), and the trajectory-opening tail below is literally shared with it. It
+zero has not completed. `restore!` and `replay!` (§12.7) are the alternatives —
+they stand in the same lifecycle position with a checkpoint in the condition's
+place (D-274), and share the periphery's opening with it. It
 opens the fresh trajectory wholesale — the stop word and *every staged batch
 still in a staging cell* clear, while the §13.5 termination record and the
 input mode's return to `:live` (§12.6, D-218) are the new run itself (§12.6: no stale batch
@@ -780,7 +789,9 @@ status (§11.8). `init!` is itself a stopped-sim operation: refused while
 `running`, and refused on an `errored` simulation, which is terminally
 stopped (§13.6) — reproduction is trace replay, not resurrection. A throw
 inside boundary zero arrives as a `StepError` with pointer 0 and leaves the
-simulation `built`, `init!` and `replay!` legal again (§13.4, D-223).
+simulation `built`, with no trace and no checkpoint, `init!`, `restore!` and
+`replay!` legal again (§13.4, D-223, D-274). `init!` under the same condition
+reproduces it.
 """
 function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace = true,
                log = true, log_every = 1, log_max = 65536) where {T}
@@ -798,15 +809,102 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace
                         activation(sim.deployment.build, T).decls)   # D-063's reset
     apply!(sim, plan)
     _open_trajectory!(sim, Float64(t0))   # the origin at the door (D-260)
-    # §11.5's capture, at §14.5's placement — after `apply!` and the clock
-    # writes, before the sequence — and the fresh run it opens (§12.6)
-    _open_run!(sim, trace ? _capture_header(sim) : nothing, Pair{String,Vector{Symbol}}[],
-               nothing, trace, log, Int(log_every), log_max)
+    _open_run!(sim, nothing, Pair{String,Vector{Symbol}}[], nothing, trace, log,
+               Int(log_every), log_max)   # the fresh run, its header not yet taken (§12.6)
     _host_boundary_zero!(sim)
     publish!(sim)                 # the boundary-zero snapshot (§11.2, §14.5)
+    # §11.5's header: the checkpoint at the end of boundary zero, so a throw
+    # inside it leaves no header and no trace to hand back (D-274)
+    trc = sim.run.trace
+    trc === nothing || (trc.header = _take_checkpoint(sim))
     @atomic :release control.lifecycle = :initialized
     nothing
 end
+
+"""
+    checkpoint(sim) → Checkpoint
+
+The executor's state at a frame top as one value (§12.6, D-274): the flat
+buffer, the `s` and `m` stores, the whole signal table, the guard priors, the
+clock in full and the fingerprint. A stopped-sim service, legal in
+`initialized` and `stopped`, whose stores are committed and boundary-consistent;
+`built`, `running` and `errored` are one `ServiceLifecycle`. A stopped
+simulation whose clock stands inside a frame is refused too: a `t*` stop
+abandons the frame's remainder, and the loop integrates whole frames, so a
+checkpoint there would have no next frame to continue on (`CheckpointMidFrame`).
+
+A checkpoint is not a condition and has no algebra (D-273). `restore!` puts
+it back.
+"""
+function checkpoint(sim::Simulation)
+    status = lifecycle(sim)
+    status in (:initialized, :stopped) || throw(DiagnosticError(ServiceLifecycle(
+        op = :checkpoint, status = status, legal = [:initialized, :stopped])))
+    clock, h = sim.exec.clock, sim.deployment.h
+    t = _seconds(clock.t)
+    abs((t - clock.t₀) / h - clock.step) ≤ _frame_slack(t, h) ||
+        throw(DiagnosticError(CheckpointMidFrame(t = t, t_frame = clock.t₀ + clock.step * h,
+                                                 step = clock.step)))
+    _take_checkpoint(sim)
+end
+
+# The door body `restore!` and `replay!` share (§12.6, §12.7, D-274): the
+# checkpoint's state copied back, the periphery's opening, a fresh run with the
+# checkpoint detached as its header, and one snapshot. No boundary zero, no
+# sweep, no guard, no update, no prior reset. A checkpoint is taken after the
+# publication of its boundary, so its ordinal is one past that boundary's; the
+# snapshot re-publishes it under the same ordinal, and the trajectory's
+# ordinals continue as the original's did (§12.3, D-230).
+function _enter_checkpoint!(sim::Simulation{T}, cp::Checkpoint{T}, schemas, feed,
+                            trace_switch::Bool, log_switch::Bool, log_every::Int,
+                            log_max) where {T}
+    _restore_state!(sim.exec, cp)
+    _reset_periphery!(sim)
+    _open_run!(sim, trace_switch ? _detach(cp) : nothing, schemas, feed, trace_switch,
+               log_switch, log_every, log_max)
+    sim.exec.clock.boundary -= 1
+    publish!(sim)
+    nothing
+end
+
+"""
+    restore!(sim, cp; trace = true, log = true, log_every = 1, log_max = 65536)
+
+§12.6's warm restart: put a checkpoint back and open a fresh run from it. A
+door beside `init!` and `replay!`, legal where `init!` is and taking its four
+recording keywords for the run it builds (D-261). The checkpoint's fingerprint
+is checked against this simulation as replay checks a trace's header, the
+mismatches collected into one `CheckpointMismatch` throw before any write; a
+checkpoint taken on another activation is refused by dispatch with the same
+kind. Then the state is copied back, the staged batches dropped, the run built
+with the checkpoint as its trace header, and one snapshot published at the
+checkpoint's `t` (D-274).
+
+No boundary zero runs: no sweep, no guard, no update, and no prior reset, so a
+guard holding at the checkpoint does not fire again. The clock came with the
+checkpoint, so the next frame is the original lattice's next frame, and the
+boundary ordinal continues (§12.3, D-230). The mode returns to `:live`.
+"""
+function restore!(sim::Simulation{T}, cp::Checkpoint{T}; trace = true, log = true,
+                  log_every = 1, log_max = 65536) where {T}
+    control = sim.control
+    lifecycle_state = @atomic control.lifecycle
+    lifecycle_state === :running && throw(DiagnosticError(
+        ServiceLifecycle(op = :restore!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
+    lifecycle_state === :errored && throw(DiagnosticError(
+        ServiceLifecycle(op = :restore!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
+    _check_recording(:restore!, trace, log, log_every, log_max)   # the run's keywords (D-261)
+    diags = Diagnostic[]
+    _check_checkpoint!(diags, sim, cp)
+    isempty(diags) || throw(DiagnosticError(diags))
+    _enter_checkpoint!(sim, cp, Pair{String,Vector{Symbol}}[], nothing, trace, log,
+                       Int(log_every), log_max)
+    @atomic :release control.lifecycle = :initialized
+    nothing
+end
+
+restore!(sim::Simulation{S}, cp::Checkpoint{T}; kw...) where {S,T} =
+    throw(DiagnosticError(CheckpointMismatch(what = :scalar, expected = T, found = S)))
 
 """
 Replay's entry pass (§12.7), called by `replay!` below before any state is
@@ -823,12 +921,12 @@ layout — the conversion paid once, off the loop (D-101).
 The scalar is the outermost structural fact, and it is dispatch rather than a
 comparison: the method below takes a `Trace{T}` against a `Simulation{T}`, and
 the fallback beside it is what a `Trace{Float64}` offered to a
-`Simulation{Dual}` reaches. `replay!` carries exactly the same pair.
+`Simulation{Dual}` reaches. `restore!` carries exactly the same pair.
 """
 function _compile_feed(sim::Simulation{T}, trc::Trace{T}) where {T}
     faces = Symbol[f for (f, _) in sim.exec.act.layout.root_inputs]
     diags = Diagnostic[]
-    _check_header!(diags, sim, trc.header)
+    _check_checkpoint!(diags, sim, trc.header)
     _check_schemas!(diags, faces, trc.schemas)
     isempty(diags) || throw(DiagnosticError(diags))     # the header before the entries
     records = _compile_records!(diags, sim, trc, faces)
@@ -837,28 +935,37 @@ function _compile_feed(sim::Simulation{T}, trc::Trace{T}) where {T}
 end
 
 _compile_feed(sim::Simulation{Ts}, trc::Trace{Tt}) where {Ts,Tt} =
-    throw(DiagnosticError(ReplayHeaderMismatch(what = :scalar, expected = Tt, found = Ts)))
+    throw(DiagnosticError(CheckpointMismatch(what = :scalar, expected = Tt, found = Ts)))
 
 """
     replay!(sim, trc; to_boundary = nothing, pace = Inf, margin = 0.002, t_end = Inf,
-            stop_on = (), trace = true, log = true, log_every = 1, log_max = 65536)
+            stop_on = (), trace = true, log = true, log_every = 1, log_max = 65536,
+            restore = true)
     replay!(sim, trc; to_time)
 
-Re-drive a recorded session (§12.7) — **the ordinary loop with exactly two
-substitutions** (D-101), not a separate execution mode, which is what keeps
-every property proved of the loop true of a replay:
+Re-drive a recorded session (§12.7) — **the ordinary loop with exactly one
+substitution**, not a separate execution mode, which is what keeps every
+property proved of the loop true of a replay. The loop starts from a restored
+state, and its drain reads the trace:
 
-1. *Boundary zero comes from the header.* `replay!` stands in `init!`'s
-   lifecycle position: it applies the recorded stores and root-input values
-   directly — no condition resolution, and §14.6's totality holding by capture
-   — then opens the trajectory and runs the ordinary boundary-zero sequence.
-   The header predates that sequence (§14.5's placement, §11.5), so authored
-   events re-fire identically: nothing is applied twice and nothing skipped.
-2. *The drain reads the trace.* Each frame top applies the recording's batches
-   for that frame ordinal, verbatim and with no surface re-check — the
-   write-surface rule ran at recording time — while every live staging cell is
-   taken and dropped under `ReplayDiscardedStaging` (`drain!`). Ordinal keying
-   is exact because the frame sequence is itself deterministic.
+- *Restore from the header.* `replay!` stands in `init!`'s lifecycle position
+  and does what `restore!` does, with the trace's header as the checkpoint:
+  the state the recording opened from, boundary zero's results included, so
+  nothing is applied twice and nothing skipped, and no boundary zero runs
+  (D-274).
+- *The drain reads the trace.* Each frame top applies the recording's batches
+  for that frame ordinal, verbatim and with no surface re-check — the
+  write-surface rule ran at recording time — while every live staging cell is
+  taken and dropped under `ReplayDiscardedStaging` (`drain!`). Ordinal keying
+  is exact because the frame sequence is itself deterministic.
+
+`restore = false` attaches the feed to the simulation as it stands and
+restores nothing (§12.7): the simulation must be `initialized`, and the drain
+applies the records from the frame after its own. That form is the what-if of
+a modified model initialized under the authored condition, and the seek:
+`restore!` of a checkpoint the recording passed through, then the feed from the
+next frame. The entry pass runs under both forms, since a deployment mismatch
+is never a what-if.
 
 Everything else is the loop as specified. The frame budget is the recording's
 length, or `to_boundary = k` frames — §13.4's replay pointer, defined as
@@ -898,28 +1005,32 @@ Replay re-records: the drain records normally and **the new trace
 inherits the old header** (§12.7), this simulation's writers appended under
 §11.5's growth rule, so the re-drained batches keep the recording's own writer
 indices — a bit-identical prefix — while a continuation's live drains record
-under this session's own. The run this call builds records under its own four
-keywords, `init!`'s exactly, with the same defaults (D-261): under
-`trace = false` nothing is re-recorded. Rostered devices init, spawn and
-consume snapshots normally (§11.1): they are readers here, and a session that
-wants live input is a continuation, not a replay.
+under this session's own. Under `restore = false` the new trace's header is
+this simulation's own checkpoint, the state the feed starts from. The run this
+call builds records under its own four keywords, `init!`'s exactly, with the
+same defaults (D-261): under `trace = false` nothing is re-recorded. Rostered
+devices init, spawn and consume snapshots normally (§11.1): they are readers
+here, and a session that wants live input is a continuation, not a replay.
 
-Refused while `running` and on an `errored` simulation, as `init!` is. Every
-refusal — the lifecycle gate, the recording keywords, `to_boundary`'s range,
-`to_time`'s, the policy's validation and the whole entry pass — precedes
-every write. A throw inside
-boundary zero arrives as a `StepError` with pointer 0 and leaves the simulation
-`built`, `init!` and `replay!` legal again (§13.4, D-223).
+Refused while `running` and on an `errored` simulation, as `init!` is, and
+anywhere but `initialized` under `restore = false`. Every refusal — the
+lifecycle gate, the recording keywords, `to_boundary`'s range, `to_time`'s, the
+policy's validation and the whole entry pass — precedes every write.
 """
 function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
                  to_time = nothing, pace = Inf, margin = 0.002, t_end = Inf, stop_on = (),
-                 trace = true, log = true, log_every = 1, log_max = 65536) where {T}
-    exec, control = sim.exec, sim.control
-    lifecycle_state = @atomic control.lifecycle
-    lifecycle_state === :running && throw(DiagnosticError(
-        ServiceLifecycle(op = :replay!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
-    lifecycle_state === :errored && throw(DiagnosticError(
-        ServiceLifecycle(op = :replay!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
+                 trace = true, log = true, log_every = 1, log_max = 65536,
+                 restore = true) where {T}
+    control = sim.control
+    if restore
+        lifecycle_state = @atomic control.lifecycle
+        lifecycle_state === :running && throw(DiagnosticError(
+            ServiceLifecycle(op = :replay!, status = :running, legal = collect(STOPPED_SIM_LEGAL))))
+        lifecycle_state === :errored && throw(DiagnosticError(
+            ServiceLifecycle(op = :replay!, status = :errored, legal = collect(STOPPED_SIM_LEGAL))))
+    else
+        _assert_advanceable(sim, :replay!)   # the feed joins a trajectory in progress (§12.7)
+    end
     _check_recording(:replay!, trace, log, log_every, log_max)   # the run's keywords (D-261)
     p, margin_seconds = _pace_value(pace, :replay!), _margin_value(margin, :replay!)   # D-269
     to_boundary === nothing || to_time === nothing ||     # two spellings of one halt (D-219)
@@ -936,7 +1047,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
         # *header's* `h` as the stride — the recording's own grid, so
         # `k ≤ trc.frames` names a boundary of the recording, and a target
         # bound at a different `h` falls through to the entry pass below,
-        # which refuses it honestly (`ReplayHeaderMismatch`, never a false
+        # which refuses it honestly (`CheckpointMismatch`, never a false
         # word about a time the recording covers). `_frame_at` carries the
         # slack: without it the plain floor would halt one boundary short of
         # the one named.
@@ -951,36 +1062,22 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     end
     (policy, addrs) = _bind_policy(sim, t_end, stop_on, :replay!)   # this advance's policy, validated
     feed = _compile_feed(sim, trc)        # the entry pass: every refusal precedes every write
-    # substitution (1): the header applied where `establish_defaults!` + `apply!`
-    # stand in `init!`. The recorded values are already resolved (D-038), so
-    # there is nothing to resolve and nothing to check for totality.
-    header = trc.header
-    exec.xbuf .= header.x
-    for ci in eachindex(header.s)
-        header.s[ci] === nothing || (exec.sstores[ci][] = header.s[ci])
-    end
-    for ci in eachindex(header.m)
-        header.m[ci] === nothing || (exec.mstores[ci][] = header.m[ci])
-    end
-    for (f, v) in header.root_inputs
-        scatter_cell!(exec.store, exec.act.layout.addr[("", f)], v)
-    end
-    _open_trajectory!(sim, header.t₀)                # `t₀` is applied, never compared (§12.7)
-    # The new run, and substitution (2) with it: the recording goes in at
-    # construction and the mode is read off it, so entering `:replay` *is*
-    # constructing this run with a feed (§12.6, D-260). It outlives this call —
-    # the halt below detaches it only where it lands at the recording's last
-    # frame (§12.7, D-218). The policy is not the run's either: it is this
+    # The restore, and the new run with the substitution in it: the recording
+    # goes in at construction and the mode is read off it, so entering `:replay`
+    # *is* constructing this run with a feed (§12.6, D-260). It outlives this
+    # call — the halt below detaches it only where it lands at the recording's
+    # last frame (§12.7, D-218). The policy is not the run's either: it is this
     # call's argument, carried to the loop and to the record (§13.5, D-260).
-    # Under this call's `trace`, the new trace inherits the old header, detached
-    # — every mutable field of it copied — and the recording's own schema
-    # entries, so neither the growth below nor a continuation's writes ever
-    # reach the `Trace` the caller holds.
-    _open_run!(sim, trace ? _detach(header) : nothing,
-               trace ? copy(trc.schemas) : Pair{String,Vector{Symbol}}[], feed,
-               trace, log, Int(log_every), log_max)
-    _host_boundary_zero!(sim)
-    publish!(sim)                               # the boundary-zero snapshot (§11.2, §14.5)
+    # Under this call's `trace`, the new trace inherits the checkpoint detached
+    # and the recording's own schema entries, so neither the growth below nor a
+    # continuation's writes ever reach the `Trace` the caller holds.
+    cp = restore ? trc.header : _take_checkpoint(sim)
+    _enter_checkpoint!(sim, cp, trace ? copy(trc.schemas) : Pair{String,Vector{Symbol}}[],
+                       feed, trace, log, Int(log_every), log_max)
+    # the records at or before the frame the feed starts from are behind it: a
+    # seek skips them, and the cursor only advances from here
+    feed.next = something(findfirst(record -> record.frame > cp.step, feed.records),
+                          length(feed.records) + 1)
     upto = to_boundary === nothing ? trc.frames : Int(to_boundary)
     @atomic control.pace = p                    # the advance's knobs, written at entry (§12.1)
     @atomic control.margin = margin_seconds
@@ -1870,7 +1967,7 @@ its writer's schema on the way through — inside the thunk, where the writer's
 index is closed over — and the trace's own drain count, which is that ordinal,
 is advanced here, once, before any thunk runs.
 
-And it is the site of D-101's second substitution: in `:replay` the drain reads
+And it is the site of replay's one substitution (D-274): in `:replay` the drain reads
 the *trace* instead of the cells (`_replay_drain!` below). The branch is the
 whole of the substitution — the live path underneath is untouched, which is
 what "the ordinary loop" means (§12.7) — and what selects it is the attached
@@ -1902,7 +1999,7 @@ function drain!(sim::Simulation)
 end
 
 """
-D-101's second substitution: the frame's inputs come from the recording, and
+Replay's one substitution (D-274): the frame's inputs come from the recording, and
 the live cells are drained only to be *dropped*.
 
 Every cell is still taken — the same indivisible swap, in the same order — so
@@ -1937,9 +2034,10 @@ function _replay_drain!(sim::Simulation, feed::ReplayFeed)
     _fold!(sim.plane.loop_account, sim.plane.loop_diag)
     i, record_count = feed.next, length(feed.records)
     # keyed exactly: the records are stably sorted by `(frame, writer)`, the entry
-    # pass has validated every ordinal into `1:frames`, and the loop visits each
-    # frame in `[1, upto]` once — so `==` cannot strand the cursor, and the
-    # records past a `to_boundary` truncation are correctly left unapplied
+    # pass has validated every ordinal into the recording's frames, `replay!` has
+    # started the cursor past the frame the feed starts from, and the loop visits
+    # each frame after it up to `upto` once — so `==` cannot strand the cursor, and
+    # the records past a `to_boundary` truncation are correctly left unapplied
     while i ≤ record_count && feed.records[i].frame == frame
         replay_record = feed.records[i]
         replay_record.thunk()
@@ -2077,24 +2175,24 @@ end
 """
     trace(sim)
 
-§11.5's recording, as a value detached from the run's live one: the header captured
-at the last `init!`, the sparse records of every batch drained since, and the
-number of frames drained behind them. Header plus batches are the run's
+§11.5's recording, as a value detached from the run's live one: the header, the
+checkpoint the run opened from (D-274), the sparse records of every batch drained
+since, and the frame ordinal of the last drain. Header plus batches are the run's
 *primary* record — the state trajectory, the log included, is derived from it
 (D-038) — and what consumes it is `replay!` (§12.7).
 
 Refused before the first door, where no run has recorded and `MissingInit`
 names the way out exactly as an advance entry's refusal does (§12.6), and
 under the door's `trace = false`, §11.5's kill switch (D-029, D-261). The
-lifecycle is read first: no trace at `built` is the placeholder run, or a door
-that never completed, and never the switch. A door that threw inside boundary
-zero leaves its trace behind, header captured, and that is the reproduction
-§13.4 promises (D-223).
+lifecycle is read first: `built` is the placeholder run, or an `init!` whose
+boundary zero threw before the header was taken, and never the switch. That
+throw leaves no trace, and `init!` under the same condition is its
+reproduction (§13.4, D-274).
 """
 function trace(sim::Simulation{T}) where {T}
     lifecycle_state = lifecycle(sim)
     trc = sim.run.trace
-    lifecycle_state === :built && trc === nothing &&
+    lifecycle_state === :built &&
         throw(DiagnosticError(MissingInit(op = :trace, status = lifecycle_state)))
     trc === nothing &&        # §11.5's kill switch, which rides on the run's trace (D-260)
         throw(DiagnosticError(ArgumentInvalid(call = :trace, reason = :disabled)))

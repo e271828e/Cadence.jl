@@ -572,23 +572,24 @@ function diagnostics_kind_set()
             ReadSetMisuse(observed = NamedTuple, reason = :not_a_read_set),
             ReadSetMisuse(observed = Float64, reason = :not_a_tap_list, label = :x),
             NotAttached(device = "Pad", roster = ["device 1 (Pad)"]),
-            ReplayHeaderMismatch(what = :scalar, expected = Float64, found = D8),
-            ReplayHeaderMismatch(what = :store, name = :paths, expected = ["a"],
-                                 found = ["a", "b"]),
-            ReplayHeaderMismatch(what = :store, path = "a", name = :s, expected = NamedTuple,
-                                 found = nothing),
-            ReplayHeaderMismatch(what = :root_input, expected = [:a], found = [:a, :b]),
-            ReplayHeaderMismatch(what = :root_input, name = :a, expected = Float64, found = "x"),
-            ReplayHeaderMismatch(what = :deployment, name = :h, expected = 0.1, found = 0.05),
-            ReplayHeaderMismatch(what = :deployment, path = "m/fcs", name = :D,
-                                 expected = 5, found = 10),
-            ReplayHeaderMismatch(what = :deployment, path = "m/fcs", name = Symbol("scope.anchor"),
-                                 expected = 0, found = 1),
-            ReplayHeaderMismatch(what = :deployment, name = :schedule,
-                                 expected = ["m/fcs"], found = ["m/fcs", "m/act"]),
-            ReplayHeaderMismatch(what = :deployment, name = Symbol("scope.key"),
-                                 expected = ["m/fcs:fast"], found = ["m/fcs:slow"]),
-            ReplayHeaderMismatch(what = :frame, name = :harness, expected = 1:8, found = 99),
+            CheckpointMismatch(what = :scalar, expected = Float64, found = D8),
+            CheckpointMismatch(what = :store, name = :paths, expected = ["a"],
+                               found = ["a", "b"]),
+            CheckpointMismatch(what = :store, path = "a", name = :s, expected = NamedTuple,
+                               found = nothing),
+            CheckpointMismatch(what = :root_input, expected = [:a], found = [:a, :b]),
+            CheckpointMismatch(what = :root_input, name = :a, expected = Float64, found = "x"),
+            CheckpointMismatch(what = :deployment, name = :h, expected = 0.1, found = 0.05),
+            CheckpointMismatch(what = :deployment, path = "m/fcs", name = :D,
+                               expected = 5, found = 10),
+            CheckpointMismatch(what = :deployment, path = "m/fcs", name = Symbol("scope.anchor"),
+                               expected = 0, found = 1),
+            CheckpointMismatch(what = :deployment, name = :schedule,
+                               expected = ["m/fcs"], found = ["m/fcs", "m/act"]),
+            CheckpointMismatch(what = :deployment, name = Symbol("scope.key"),
+                               expected = ["m/fcs:fast"], found = ["m/fcs:slow"]),
+            CheckpointMismatch(what = :frame, name = :harness, expected = 1:8, found = 99),
+            CheckpointMidFrame(t = 0.315, t_frame = 0.4, step = 4),
             ReplaySchemaMismatch(writer = "harness", schema = [:a, :z], unknown = [:z],
                                  faces = [:a, :b]),
             ReplayUnknownFace(face = 7, frame = 1, writer = "harness", faces = [:a, :b]),
@@ -885,6 +886,30 @@ function diagnostics_kind_set()
                                           traced = ["m" => :sampled, "g2" => :global]))
         @test occursin("on the sampled paths; an untaken branch may still route it",
                        rendered)
+
+        # The checkpoint's kinds read for both doors, `restore!` and replay's entry
+        # pass, since the kind carries no operation (D-274): the checkpoint, never
+        # the replay, is the subject of every arm both doors raise.
+        rendered = message(CheckpointMismatch(what = :scalar, expected = Float64, found = D8))
+        @test startswith(rendered, "the checkpoint was taken on a `Simulation{Float64}`")
+        @test occursin("a trace's header included", rendered) && !occursin("replay:", rendered)
+        rendered = message(CheckpointMismatch(what = :deployment, name = :h, expected = 0.1,
+                                              found = 0.05))
+        @test startswith(rendered, "the checkpoint was taken at `h` = 0.1 and this " *
+                                   "simulation is bound at 0.05")
+        rendered = message(CheckpointMismatch(what = :root_input, expected = [:a],
+                                              found = [:a, :b]))
+        @test occursin("the checkpoint's table holds a cell per face", rendered)
+        @test !occursin("boundary zero", rendered)
+        rendered = message(CheckpointMismatch(what = :store, name = :paths, expected = ["a"],
+                                              found = ["a", "b"]))
+        @test occursin("when the checkpoint was taken", rendered)
+        @test !occursin("boundary zero", rendered)
+        # A `t*` stop's refusal names the clock, the top it fell short of, the
+        # frame, and the three ways to stop at a top.
+        rendered = message(CheckpointMidFrame(t = 0.315, t_frame = 0.4, step = 4))
+        @test occursin("t = 0.315, inside frame 4 and short of its top at t = 0.4", rendered)
+        @test occursin("`t_end`, a stop face read at a grid boundary, or `stop!`", rendered)
 
         # The remedy form: the shortfall, then the fix, with the list in hand.
         rendered = message(UninitializedInputs(op = :init!, faces = [:u, :e]))

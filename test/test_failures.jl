@@ -220,7 +220,7 @@ function failures_runtime()
         @test failure(() -> run!(own; t_end = 0.2)) isa StepError{FieldError}
     end
 
-    @testset "a throw inside boundary zero takes the catch with pointer 0 (§13.4, D-223)" begin
+    @testset "a throw inside boundary zero takes the catch with pointer 0 (§13.4, D-223, D-274)" begin
         # The same mine, armed by the *authored* condition: the guard holds against
         # the not-holding prior boundary zero establishes, so the handler fires
         # inside `init!` rather than inside the loop.
@@ -242,32 +242,18 @@ function failures_runtime()
             carried(@test_throws DiagnosticError{MissingInit} run!(sim; t_end = 5.0))
         @test d.op === :run! && d.status === :built
 
-        # The reproduction: the header is captured before boundary zero runs, so
-        # the trace already holds it — and at zero it needs no `step!` after.
-        trc = trace(sim)
-        @test trc.frames == 0
-        @test occursin("replay!(sim2, trc) reproduces it", sprint(showerror, err))
-        @test !occursin("step!", sprint(showerror, err)) # which a `step!` after would be refused
+        # No trace: the header is the checkpoint taken after boundary zero
+        # publishes, so the throw left none, and `trace` refuses as at `built`.
+        d = carried(@test_throws DiagnosticError{MissingInit} trace(sim))
+        @test d.op === :trace && d.status === :built
 
-        # The twin is put in `:replay` first, by a partial replay of a good
-        # recording, so the run below is one the failed replay replaced.
-        ok = Simulation(fed(Mine(), "sig"); h = 1//10)
-        init!(ok, fragment(inputs = (in = false,)))
-        @test step!(ok; frames = 2, t_end = 5.0) == 2
-        trc_ok = trace(ok)
+        # The reproduction is `init!` under the same condition (D-274): the same
+        # frame, the same pointer, the same cause.
         sim2 = Simulation(fed(Mine(), "sig"); h = 1//10)
-        replay!(sim2, trc_ok; to_boundary = 1, t_end = 5.0)
-        @test lifecycle(sim2) === :initialized && mode(sim2) === :replay
-
-        replay_err = failure(() -> replay!(sim2, trc; t_end = 5.0))
-        @test replay_err isa StepError{Detonated}
-        @test replay_err.frame == err.frame && replay_err.boundary == 0
+        reproduced = failure(() -> init!(sim2, fragment(inputs = (in = true,))))
+        @test reproduced isa StepError{Detonated}
+        @test reproduced.frame == err.frame && reproduced.boundary == 0 && reproduced.t == err.t
         @test lifecycle(sim2) === :built
-        # The failed `replay!`'s own run, built ahead of the boundary, is what
-        # stands, and it carries the feed, so the mode reads `:replay` (§12.6, D-260).
-        # `built` is what governs: nothing advances on it, and the next door
-        # replaces the run wholesale.
-        @test mode(sim2) === :replay
 
         # The remedy is a corrected condition, and `init!` re-establishes first.
         init!(sim, fragment(inputs = (in = false,)))
@@ -433,8 +419,11 @@ function failures_runtime()
         rendered = sprint(showerror, err)
         @test occursin("`c`", rendered) && occursin("x_derivative", rendered) &&
               occursin("stage 2", rendered)
-        # The pointer degenerates at zero (D-223): the replay alone reproduces it.
-        @test occursin("replay!(sim2, trc) reproduces it", rendered) &&
+        # The pointer degenerates at zero (D-223, D-274): boundary zero and frame
+        # one share it, so both recipes are named, each with the call that threw,
+        # and the `step!` a boundary-zero failure would refuse is not.
+        @test occursin("if `init!` threw, init!(sim2, condition) under the same condition " *
+                       "reproduces it; if frame one did, replay!(sim2, trc) does", rendered) &&
               !occursin("step!", rendered)
 
         # A `Diagnostic` cause renders as its logline: the kind name leads, and the

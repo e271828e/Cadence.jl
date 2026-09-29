@@ -697,24 +697,25 @@ bound is respected *continuously*, the retained count never exceeding
 `k` generations; and the two endpoints are kept unconditionally.
 
 The endpoints ride outside the bounded middle — two extra references, never
-counted against it. `first` is the boundary-zero snapshot (§14.5); `last` is
-the latest published boundary — which at any stopped moment is the tail's
-final snapshot, published before the sticky status was set (§12.4), the
-terminal snapshot the spec retains unconditionally.
+counted against it. `first` is the run's first publication, the boundary-zero
+snapshot under `init!` (§14.5) and the restored one under `restore!` and
+`replay!` (D-274); `last` is the latest published boundary — which at any
+stopped moment is the tail's final snapshot, published before the sticky
+status was set (§12.4), the terminal snapshot the spec retains unconditionally.
 
 The middle re-decimates progressively (D-137: a rolling window was rejected —
 what coarsens is density, never extent), amortized: `snaps` holds one
 generation's retained snapshots, `nothing` marking a released slot until the
 once-per-generation compaction. The arithmetic rests on one invariant — at
 each generation's start the compacted vector holds the boundaries at ordinals
-`stride · (1..log_max)`, index by index — so the entries the doubled stride
-abandons are exactly the odd indices, and `cursor` walks them.
+`stride · (1..log_max)` past `first`'s, index by index — so the entries the
+doubled stride abandons are exactly the odd indices, and `cursor` walks them.
 """
 mutable struct SnapshotLog
     enabled::Bool
     log_max::Int                    # what bounds `live`, never the endpoints
     stride::Int                     # the effective stride, log_every · 2^generation
-    first::Union{Nothing,Snapshot}  # the boundary-zero endpoint (§14.5)
+    first::Union{Nothing,Snapshot}  # the run's first publication (§14.5, D-274)
     last::Union{Nothing,Snapshot}   # the terminal endpoint: the latest published boundary
     snaps::Vector{Union{Nothing,Snapshot}}   # the bounded middle; `nothing` = released
     live::Int                       # retained middles: the count `log_max` bounds
@@ -727,18 +728,22 @@ SnapshotLog(enabled::Bool, log_every::Int, log_max::Int) =
 
 """
 One published boundary enters the log (§11.2), on the loop task, right behind
-the release-store: boundary zero lands in `first`, a stride multiple is
-retained into the middle, and every snapshot re-points `last` — one field
-store, which is all the terminal endpoint costs. Off, the switch retains
-nothing at all: retention is what it gates, publication being upstream of it.
+the release-store: the run's first publication lands in `first`, a stride
+multiple of the ordinals past it is retained into the middle, and every
+snapshot re-points `last` — one field store, which is all the terminal endpoint
+costs. Off, the switch retains nothing at all: retention is what it gates,
+publication being upstream of it.
 """
 function log!(snapshot_log::SnapshotLog, snapshot::Snapshot)
     snapshot_log.enabled || return nothing
-    boundary = snapshot.boundary        # the trajectory's ordinal rides in the snapshot (D-230)
-    if boundary == 0
+    if snapshot_log.first === nothing
         snapshot_log.first = snapshot
-    elseif boundary % snapshot_log.stride == 0
-        _retain!(snapshot_log, snapshot, boundary)
+    else
+        # the trajectory's ordinal rides in the snapshot (D-230), counted here
+        # from the first endpoint's, which a restore places past zero (D-274);
+        # one run's snapshots share one concrete type
+        ordinal = snapshot.boundary - (snapshot_log.first::typeof(snapshot)).boundary
+        ordinal % snapshot_log.stride == 0 && _retain!(snapshot_log, snapshot, ordinal)
     end
     snapshot_log.last = snapshot
     nothing

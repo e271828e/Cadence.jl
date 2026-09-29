@@ -581,6 +581,32 @@ function discrete_deployment()
         @test port(sim, "ctl", :u) ≈ s rtol = 1e-6
     end
 
+    @testset "a restore continues the controller on the original lattice (§10.5, §12.6, D-274)" begin
+        # The loop above: the controller ticks every fourth frame from `t₀`. The
+        # checkpoint is taken at frame 6, a base tick where the controller is not
+        # due, so its store holds the state its next tick decodes beside the cell
+        # it published at frame 4 (D-273).
+        sim = Simulation(SampledLoop(; ctl_rate = Relative(2)); h = 1//200, N_base = 2)
+        init!(sim, fragment(inputs = (ref = 0.7,)))
+        step!(sim; frames = 6)
+        cp = checkpoint(sim)
+        twin = Simulation(SampledLoop(; ctl_rate = Relative(2)); h = 1//200, N_base = 2)
+        restore!(twin, cp)
+        @test step!(sim; frames = 34) == step!(twin; frames = 34) == 34
+
+        @test state(twin, "plant").q === state(sim, "plant").q
+        @test state(twin, "ctl") === state(sim, "ctl")
+        from_checkpoint = [x for x in logged(sim) if x.boundary ≥ cp.boundary - 1]
+        @test same_trajectory(logged(twin), from_checkpoint)
+        @test [x.boundary for x in logged(twin)] == [x.boundary for x in from_checkpoint]
+        # the held output moves at the controller's own ticks alone: the lattice
+        # came with the checkpoint, never re-anchored at the restore
+        snapshots = logged(twin)
+        moves = [later.frame for (earlier, later) in zip(snapshots, snapshots[2:end])
+                 if port(later, "ctl", :u) != port(earlier, "ctl", :u)]
+        @test moves == collect(8:4:40)
+    end
+
     @testset "the gated boundary walk does not allocate (§7.5)" begin
         sim = Simulation(MultiRate(); h = 1//500)
         init!(sim)
