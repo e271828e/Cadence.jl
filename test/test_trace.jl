@@ -1053,6 +1053,54 @@ y_types(::SwappedPendulum) = (ω = Float64, θ = Float64)
 y_state(::SwappedPendulum, (; x)) = (ω = x.ω, θ = x.θ)
 x_derivative(::SwappedPendulum, (; x, u)) = (θ = x.ω, ω = -9.81 * sin(x.θ) - 0.5 * x.ω + u.u)
 
+# The pendulum with its two states declared in the other order, its ports
+# unchanged: the same block width, each position holding the other state.
+struct ReorderedPendulum <: AbstractComponent end
+x_init(::ReorderedPendulum) = (ω = 0.0, θ = 0.0)
+u_types(::ReorderedPendulum) = (u = Float64,)
+y_types(::ReorderedPendulum) = (θ = Float64, ω = Float64)
+y_state(::ReorderedPendulum, (; x)) = (θ = x.θ, ω = x.ω)
+x_derivative(::ReorderedPendulum, (; x, u)) =
+    (ω = -9.81 * sin(x.θ) - 0.5 * x.ω + u.u, θ = x.ω)
+
+# A ramp `q̇ = 1` counting its firings in `n`, declaring the guards `names` in
+# that order: `low` holds from q = 0.25 on, `high` never within a test. Every
+# other declaration is shared, so two ramps agree on everything the fingerprint
+# holds but the events.
+struct GuardedRamp{names} <: AbstractComponent end
+x_init(::GuardedRamp) = (q = 0.0,)
+m_init(::GuardedRamp) = (n = 0,)
+y_types(::GuardedRamp) = (q = Float64, n = Int)
+y_state(::GuardedRamp, (; x, m)) = (q = x.q, n = m.n)
+x_derivative(::GuardedRamp, (; x)) = (q = one(x.q),)
+ramp_low(::GuardedRamp, (; x)) = x.q ≥ 0.25
+ramp_high(::GuardedRamp, (; x)) = x.q ≥ 10.0
+ramp_count(::GuardedRamp, (; m)) = (m = (n = m.n + 1,),)
+state_events(::GuardedRamp{names}) where {names} =
+    NamedTuple{names}(Tuple(StateEvent(name === :low ? ramp_low : ramp_high, ramp_count)
+                            for name in names))
+
+# A tick that raises an `InterruptException` when armed: a synchronous throw from
+# a boundary phase, after the frame's integration and before its publication, so
+# the frame is abandoned with the clock at its top (§12.4).
+struct TickInterrupter <: AbstractComponent end
+s_init(::TickInterrupter) = (n = 0,)
+u_types(::TickInterrupter) = (arm = Bool,)
+y_types(::TickInterrupter) = (n = Int,)
+y_state(::TickInterrupter, (; s)) = (n = s.n,)
+s_update(::TickInterrupter, (; s, u)) = u.arm ? throw(InterruptException()) : (n = s.n + 1,)
+
+# A refused call writes nothing: the simulation against a checkpoint taken
+# before it, field by field.
+function assert_unwritten(sim, before::Checkpoint)
+    after = checkpoint(sim)
+    @test after.x == before.x && after.s == before.s && after.m == before.m
+    @test after.prior == before.prior && sim.exec.events.last == before.prior
+    @test same_table(after.table, before.table)
+    @test (after.t, after.step, after.boundary, after.t₀) ==
+          (before.t, before.step, before.boundary, before.t₀)
+end
+
 function trace_checkpoints()
     @testset "`restore!` is a door: a fresh run from the checkpoint, one snapshot (§12.6, D-274)" begin
         (sim, _) = recorded_run()
@@ -1153,6 +1201,29 @@ function trace_checkpoints()
         init!(at_top)
         run!(at_top; t_end = 0.3)
         @test lifecycle(at_top) === :stopped && checkpoint(at_top).step == 3
+
+        # An interrupt from model code abandons its frame unpublished and ends the
+        # run `stopped`. Thrown from a boundary phase it leaves the clock at the
+        # frame top, the stores possibly mid-boundary: refused all the same, and
+        # `linearize`'s default form with it. Thrown mid-integration it leaves the
+        # clock inside the frame.
+        for (model, at_frame_top) in ((fed(TickInterrupter(), "arm"), true),
+                                      (fed(Interrupter(), "arm"), false))
+            abandoned = Simulation(model; h = 1//10)
+            init!(abandoned, fragment(inputs = (in = false,)))
+            step!(abandoned; frames = 2)
+            stage!(abandoned, "in" => true)
+            run!(abandoned; t_end = 5.0)
+            @test lifecycle(abandoned) === :stopped
+            @test termination(abandoned).source === ControlRequestedStop(:interrupt)
+            @test abandoned.exec.clock.step == 3 && latest(abandoned).frame == 2
+            @test (abandoned.exec.clock.t == 3 * 0.1) == at_frame_top    # frame 3's top
+            d = carried(@test_throws DiagnosticError{CheckpointMidFrame} checkpoint(abandoned))
+            @test d.step == 3 && d.t_frame == 3 * 0.1
+            @test d.t == abandoned.exec.clock.t
+            d = carried(@test_throws DiagnosticError{CheckpointMidFrame} linearize(abandoned, taps()))
+            @test d.step == 3 && d.t == abandoned.exec.clock.t
+        end
 
         # A frame top is the time the loop writes there, at any origin: near zero,
         # where `t` has few ulps to spare, and far from it.
@@ -1260,21 +1331,38 @@ function trace_checkpoints()
         step!(source; frames = 2)
         cp = checkpoint(source)
 
-        # One continuous state more: the component's block in the flat buffer
-        # moves, and the refusal names it before any write, at both doors.
+        # One continuous state more: the component's `x` type, which fixes its
+        # block in the flat buffer, and the refusal names it before any write,
+        # at both doors.
+        pendulum_x = @NamedTuple{θ::Float64, ω::Float64}
+        clocked_x = @NamedTuple{θ::Float64, ω::Float64, e::Float64}
         wider = Simulation(fed(ClockedPendulum(), "u"); h = 1//10)
         init!(wider, fragment(inputs = (in = 0.0,)))
         d = only(diagnostics(failure(() -> restore!(wider, cp))))
         @test d isa CheckpointMismatch && d.what === :store
-        @test d.path == "c" && d.name === :x && d.expected == 1:2 && d.found == 1:3
+        @test d.path == "c" && d.name === :x && d.expected === pendulum_x && d.found === clocked_x
         @test wider.exec.xbuf == [0.0, 0.0, 0.0] && wider.exec.clock.step == 0
         replayed = Simulation(fed(ClockedPendulum(), "u"); h = 1//10)
         d = only(diagnostics(failure(() -> replay!(replayed, trace(source)))))
         @test d isa CheckpointMismatch && d.name === :x && lifecycle(replayed) === :built
         # …and one fewer is the same refusal, never a copy out of bounds
         d = only(diagnostics(failure(() -> restore!(source, checkpoint(wider)))))
-        @test d isa CheckpointMismatch && d.name === :x && d.expected == 1:3 && d.found == 1:2
+        @test d isa CheckpointMismatch && d.name === :x
+        @test d.expected === clocked_x && d.found === pendulum_x
         @test source.exec.clock.step == 2
+
+        # The same width with the states in the other order: each position would
+        # take the other state, so the type is compared, not the width.
+        reordered = Simulation(fed(ReorderedPendulum(), "u"); h = 1//10)
+        init!(reordered, fragment(inputs = (in = 0.0,)))
+        before = checkpoint(reordered)
+        d = only(diagnostics(failure(() -> restore!(reordered, cp))))
+        @test d isa CheckpointMismatch && d.what === :store && d.path == "c" && d.name === :x
+        @test d.expected === pendulum_x && d.found === @NamedTuple{ω::Float64, θ::Float64}
+        assert_unwritten(reordered, before)
+        d = only(diagnostics(failure(() -> replay!(reordered, trace(source)))))
+        @test d isa CheckpointMismatch && d.name === :x
+        assert_unwritten(reordered, before)
 
         # The same ports in another order: every cell has its type, not its place.
         swapped = Simulation(fed(SwappedPendulum(), "u"); h = 1//10)
@@ -1296,6 +1384,107 @@ function trace_checkpoints()
         @test ports == [Symbol("port.power"), Symbol("port.q"), Symbol("port.θ"), Symbol("port.ω")]
         d = only(d for d in diagnostics(err) if d.name === Symbol("port.q"))
         @test d.path == "c" && d.expected === nothing && d.found == (SVector{2,Float64}, (0,))
+    end
+
+    @testset "the fingerprint covers the guards: the priors are copied by position (§12.6, D-274)" begin
+        # Five frames in, `low` has fired at frame 3 and holds: its prior is set.
+        ramp(names; T = Float64) =
+            (sim = Simulation(single(GuardedRamp{names}()), T; h = 1//10);
+             init!(sim); step!(sim; frames = 5); sim)
+        low_high = ramp((:low, :high))
+        cp = checkpoint(low_high)
+        @test cp.prior == [true, false]
+        @test cp.layout.events == [("c", :low), ("c", :high)]
+
+        # A guard more, a guard fewer, the same guards in the other order: each
+        # refused before any write, never a stale prior, a `BoundsError` or a
+        # holding guard firing again.
+        for (names, found) in (((:low,), [("c", :low)]),
+                               ((:high, :low), [("c", :high), ("c", :low)]))
+            target = ramp(names)
+            before = checkpoint(target)
+            d = only(diagnostics(failure(() -> restore!(target, cp))))
+            @test d isa CheckpointMismatch && d.what === :store && d.name === :events
+            @test d.path == "" && d.expected == cp.layout.events && d.found == found
+            assert_unwritten(target, before)
+        end
+        target = ramp((:low, :high))
+        low_only = checkpoint(ramp((:low,)))
+        before = checkpoint(target)
+        d = only(diagnostics(failure(() -> restore!(target, low_only))))
+        @test d.name === :events && d.expected == [("c", :low)] && d.found == cp.layout.events
+        assert_unwritten(target, before)
+        # …at replay's entry pass too
+        target = ramp((:high, :low))
+        before = checkpoint(target)
+        d = only(diagnostics(failure(() -> replay!(target, trace(low_high)))))
+        @test d isa CheckpointMismatch && d.name === :events
+        assert_unwritten(target, before)
+
+        # Off the nominal activation the events compile out, so the list is
+        # empty, and a checkpoint goes back into its twin.
+        dual = ramp((:low, :high); T = D8)
+        dual_cp = checkpoint(dual)
+        @test isempty(dual_cp.layout.events) && isempty(dual_cp.prior)
+        twin = Simulation(single(GuardedRamp{(:low, :high)}()), D8; h = 1//10)
+        init!(twin)
+        restore!(twin, dual_cp)
+        @test twin.exec.clock.step == 5 && state(twin, "c") == state(dual, "c")
+    end
+
+    @testset "`restore = false` feeds on the recording's clock (§12.7, D-274)" begin
+        (_, trc) = recorded_run()        # t₀ = 0, eight frames
+
+        # Another origin: the records' frames would name other times.
+        shifted = replay_twin(; t0 = 0.05)
+        before, old_run = checkpoint(shifted), shifted.run
+        d = only(diagnostics(failure(() -> replay!(shifted, trc; restore = false))))
+        @test d isa CheckpointMismatch && d.what === :clock && d.name === :t₀
+        @test d.expected === 0.0 && d.found === 0.05
+        assert_unwritten(shifted, before)
+        @test shifted.run === old_run
+
+        # The simulation's frame runs from the header's to one short of the
+        # recording's last: before the header the feed would run frames the
+        # recording never covered, and at the last nothing is left to feed. A
+        # refusal keeps the run and its log. The trace below opens at frame 5
+        # and ends at 8.
+        (_, long_trc) = long_recorded_run()
+        halted = replay_twin()
+        replay!(halted, long_trc; to_boundary = 5)
+        opened = Simulation(replay_model(); h = 1//10)
+        restore!(opened, checkpoint(halted))
+        step!(opened; frames = 3)
+        late = trace(opened)
+        @test late.header.step == 5 && late.frames == 8
+        for frame in (4, 8, 9)
+            outside = replay_twin()
+            replay!(outside, long_trc; to_boundary = frame)
+            before, old_run, old_log = checkpoint(outside), outside.run, logged(outside)
+            d = only(diagnostics(failure(() -> replay!(outside, late; restore = false))))
+            @test d isa CheckpointMismatch && d.what === :clock && d.name === :step
+            @test d.expected == 5:7 && d.found == frame
+            assert_unwritten(outside, before)
+            @test outside.run === old_run && logged(outside) == old_log
+        end
+        for frame in (5, 7)
+            inside = replay_twin()
+            replay!(inside, long_trc; to_boundary = frame)
+            replay!(inside, late; restore = false)
+            @test inside.exec.clock.step == 8 && mode(inside) === :live
+            @test trace(inside).header.step == frame
+        end
+
+        # Both refusals collect in one pass, with the fingerprint's.
+        both = Simulation(replay_model(); h = 1//20)
+        init!(both, fragment(inputs = (ref = 1.0, rate = 0.0)); t0 = 0.05)
+        step!(both; frames = 9)
+        before = checkpoint(both)
+        err = failure(() -> replay!(both, trc; restore = false))
+        @test err isa DiagnosticError && all(d isa CheckpointMismatch for d in diagnostics(err))
+        @test [d.name for d in diagnostics(err) if d.what === :clock] == [:t₀, :step]
+        @test any(d.what === :deployment && d.name === :h for d in diagnostics(err))
+        assert_unwritten(both, before)
     end
 end
 

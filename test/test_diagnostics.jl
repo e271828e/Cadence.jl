@@ -578,7 +578,11 @@ function diagnostics_kind_set()
                                found = ["a", "b"]),
             CheckpointMismatch(what = :store, path = "a", name = :s, expected = NamedTuple,
                                found = nothing),
-            CheckpointMismatch(what = :store, path = "a", name = :x, expected = 1:2, found = 1:3),
+            CheckpointMismatch(what = :store, path = "a", name = :x,
+                               expected = @NamedTuple{θ::Float64, ω::Float64},
+                               found = @NamedTuple{ω::Float64, θ::Float64}),
+            CheckpointMismatch(what = :store, name = :events, expected = [("a", :low)],
+                               found = [("a", :low), ("a", :high)]),
             CheckpointMismatch(what = :store, path = "a", name = Symbol("port.q"),
                                expected = (Float64, (0,)), found = nothing),
             CheckpointMismatch(what = :root_input, expected = [:a], found = [:a, :b]),
@@ -593,6 +597,8 @@ function diagnostics_kind_set()
             CheckpointMismatch(what = :deployment, name = Symbol("scope.key"),
                                expected = ["m/fcs:fast"], found = ["m/fcs:slow"]),
             CheckpointMismatch(what = :frame, name = :harness, expected = 1:8, found = 99),
+            CheckpointMismatch(what = :clock, name = :t₀, expected = 0.0, found = 0.05),
+            CheckpointMismatch(what = :clock, name = :step, expected = 0:7, found = 8),
             CheckpointMidFrame(t = 0.315, t_frame = 0.4, step = 4),
             ReplaySchemaMismatch(writer = "harness", schema = [:a, :z], unknown = [:z],
                                  faces = [:a, :b]),
@@ -909,16 +915,36 @@ function diagnostics_kind_set()
                                               found = ["a", "b"]))
         @test occursin("when the checkpoint was taken", rendered)
         @test !occursin("boundary zero", rendered)
-        # The positional copy's two facts: a component's block in the flat buffer,
-        # and a port's cell, its type and offsets or its absence.
+        # The positional copy's three facts: a component's `x` type, a port's
+        # cell, its type and offsets or its absence, and the events in the
+        # priors' order.
         rendered = message(CheckpointMismatch(what = :store, path = "a", name = :x,
-                                              expected = 1:2, found = 1:3))
-        @test startswith(rendered, "the `a`'s block in the flat buffer was 1:2 when the " *
-                                   "checkpoint was taken and is 1:3 here")
+                                              expected = @NamedTuple{θ::Float64, ω::Float64},
+                                              found = @NamedTuple{ω::Float64, θ::Float64}))
+        @test startswith(rendered, "the `a`'s x store type was " *
+                                   "@NamedTuple{θ::Float64, ω::Float64} when the checkpoint " *
+                                   "was taken and is @NamedTuple{ω::Float64, θ::Float64} here")
         rendered = message(CheckpointMismatch(what = :store, path = "a", name = Symbol("port.q"),
                                               expected = (Float64, (0,)), found = nothing))
         @test startswith(rendered, "the cell of `a`'s port `q` was a Float64 cell at offsets " *
                                    "(0,) when the checkpoint was taken and is absent here")
+        rendered = message(CheckpointMismatch(what = :store, name = :events,
+                                              expected = [("a", :low)],
+                                              found = [("a", :high), ("a", :low)]))
+        @test startswith(rendered, "the event list, `(path, name)` in the priors' order, was " *
+                                   "[(\"a\", :low)] when the checkpoint was taken and is " *
+                                   "[(\"a\", :high), (\"a\", :low)] here")
+        # `restore = false` feeds on the recording's clock: its origin, and a frame
+        # short of its last.
+        rendered = message(CheckpointMismatch(what = :clock, name = :t₀, expected = 0.0,
+                                              found = 0.05))
+        @test startswith(rendered, "replay: the recording's origin is t₀ = 0.0 and this " *
+                                   "simulation's is 0.05")
+        @test occursin("the one grid both share", rendered)
+        rendered = message(CheckpointMismatch(what = :clock, name = :step, expected = 0:7,
+                                              found = 8))
+        @test startswith(rendered, "replay: this simulation stands at frame 8, outside 0:7, " *
+                                   "the frames a `restore = false` feed can start from")
         rendered = message(ArgumentInvalid(call = :replay!, reason = :range, argument = :restore,
                                            value = nothing))
         @test startswith(rendered, "`restore` must be true or false")
@@ -928,6 +954,12 @@ function diagnostics_kind_set()
         rendered = message(CheckpointMidFrame(t = 0.315, t_frame = 0.4, step = 4))
         @test occursin("t = 0.315, inside frame 4 and short of its top at t = 0.4", rendered)
         @test occursin("`t_end`, a stop face read at a grid boundary, or `stop!`", rendered)
+        # A frame an interrupt abandoned at its top reads as never published.
+        rendered = message(CheckpointMidFrame(t = 0.4, t_frame = 0.4, step = 4))
+        @test startswith(rendered, "`checkpoint` with the clock at frame 4's top, t = 0.4, " *
+                                   "which was never published")
+        @test occursin("an interrupt thrown from model code abandons the frame unpublished",
+                       rendered)
 
         # The remedy form: the shortfall, then the fix, with the list in hand.
         rendered = message(UninitializedInputs(op = :init!, faces = [:u, :e]))

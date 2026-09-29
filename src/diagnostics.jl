@@ -2036,13 +2036,14 @@ message(d::NotAttached) =
 "§11.5, §12.6, §12.7: a checkpoint, a trace's header included, disagrees with the target build, its scalar or its deployment binding."
 Base.@kwdef struct CheckpointMismatch <: Diagnostic
     what::Symbol                             # :store | :root_input | :deployment | :scalar | :frame
+                                             # | :clock
     path::String = ""                        # the component path: the per-component :store arms,
                                              # a :deployment schedule row and a rate scope (§12.7)
-    name::Symbol = Symbol("")                # :sizes|:paths|:s|:m|:x or `port.name`, the
+    name::Symbol = Symbol("")                # :sizes|:paths|:events|:s|:m|:x or `port.name`, the
                                              # root-input face, the deployment parameter, a
-                                             # schedule or `scope.` column, or a list name:
-                                             # :schedule, `scope.key`
-    expected::Any = nothing                  # the checkpoint's value
+                                             # schedule or `scope.` column, a list name:
+                                             # :schedule, `scope.key`, or :clock's :t₀|:step
+    expected::Any = nothing                  # the checkpoint's value; :clock's, the recording's
     found::Any = nothing                     # the target's
 end
 path(d::CheckpointMismatch) = d.path
@@ -2050,7 +2051,7 @@ path(d::CheckpointMismatch) = d.path
 _checkpoint_subject(d::CheckpointMismatch) =
     d.name === :paths ? "component-path list" :
     d.name === :sizes ? "cell-size list" :
-    d.name === :x ? "$(_at_path(d.path))'s block in the flat buffer" :
+    d.name === :events ? "event list, `(path, name)` in the priors' order," :
     startswith(String(d.name), "port.") ?
     "cell of $(_at_path(d.path))'s port `$(chopprefix(String(d.name), "port."))`" :
     "$(_at_path(d.path))'s $(d.name) store type"
@@ -2102,6 +2103,14 @@ message(d::CheckpointMismatch) =
     "checkpoint, a trace's header included, goes back into the activation it was taken " *
     "on (§12.6, §12.7)" :
     d.what === :deployment ? _checkpoint_deployment(d) :
+    d.what === :clock ?
+    (d.name === :t₀ ?
+     "replay: the recording's origin is t₀ = $(d.expected) and this simulation's is " *
+     "$(d.found) — `restore = false` feeds the simulation as it stands, and a record " *
+     "applies at its frame on the one grid both share (§12.7)" :
+     "replay: this simulation stands at frame $(d.found), outside $(d.expected), the " *
+     "frames a `restore = false` feed can start from — the records apply from the frame " *
+     "after the simulation's own, and the recording has none past its last (§12.7)") :
     d.what === :frame ?
     "replay: $(d.name)'s record is stamped frame $(d.found), which is outside the " *
     "recording's own $(d.expected) — a batch replays at the frame ordinal it was drained " *
@@ -2119,17 +2128,20 @@ message(d::CheckpointMismatch) =
     "is compared against the `Build`, structural mismatch being an error and only " *
     "*parametric* difference the what-if replay (§12.7)"
 
-"§12.6, §14: `checkpoint` on a simulation whose clock stands inside a frame, short of its top — the state a `t*` stop leaves."
+"§12.4, §12.6, §14: `checkpoint` on a simulation not at the rest a published frame top leaves — the state a `t*` stop leaves, or a frame an interrupt from model code abandoned."
 Base.@kwdef struct CheckpointMidFrame <: Diagnostic
     t::Float64                               # the clock
     t_frame::Float64                         # the top of the frame it stands in
     step::Int                                # the frame index
 end
 message(d::CheckpointMidFrame) =
-    "`checkpoint` with the clock at t = $(d.t), inside frame $(d.step) and short of its top " *
-    "at t = $(d.t_frame) — a `t*` stop abandons the frame's remainder, and a checkpoint is " *
-    "taken at a frame top only; stop the run at one: `t_end`, a stop face read at a grid " *
-    "boundary, or `stop!` (§12.6, D-274)"
+    "`checkpoint` with the clock " *
+    (d.t == d.t_frame ? "at frame $(d.step)'s top, t = $(d.t), which was never published" :
+     "at t = $(d.t), inside frame $(d.step) and short of its top at t = $(d.t_frame)") *
+    " — a `t*` stop abandons the frame's remainder, an interrupt thrown from model code " *
+    "abandons the frame unpublished with its stores possibly mid-boundary, and a checkpoint " *
+    "is taken at the rest a published frame top leaves only; stop the run at one: `t_end`, " *
+    "a stop face read at a grid boundary, or `stop!` (§12.4, §12.6, D-274)"
 
 "§11.5, §12.7: a recorded writer schema naming faces the target model does not export as root inputs."
 Base.@kwdef struct ReplaySchemaMismatch <: Diagnostic

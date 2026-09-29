@@ -7,21 +7,22 @@
 
 """
 The structural fingerprint (§11.5, §12.7): the layout's cell sizes, the root
-input-face list, the flat's component paths, each component store's value
-type, each component's block in the flat buffer, and every address of the
-table, `(path, name) => (type, offsets)` sorted by key. A checkpoint carries it,
-and a restore compares it against the target's: the restore copies `x` and the
-table by position, and the blocks and the addresses are what make the
-positions mean the same thing.
+input-face list, the flat's component paths, each component's `x`, `s` and `m`
+store types, every address of the table, `(path, name) => (type, offsets)`
+sorted by key, and the events in the priors' order, `(path, name)` each. A
+checkpoint carries it, and a restore compares it against the target's: the
+restore copies `x`, the table and the priors by position, and the store types,
+the addresses and the events are what make the positions mean the same thing.
 """
 struct Fingerprint
     sizes::Vector{Pair{DataType,Int}}
     root_faces::Vector{Symbol}
     paths::Vector{String}
+    xtypes::Vector{Any}
     stypes::Vector{Any}
     mtypes::Vector{Any}
-    xblocks::Vector{UnitRange{Int}}
     addrs::Vector{Pair{Tuple{String,Symbol},Tuple{Any,Tuple}}}
+    events::Vector{Tuple{String,Symbol}}
 end
 
 """
@@ -59,12 +60,13 @@ function _fingerprint(sim)
     Fingerprint(copy(layout.sizes),
                 Symbol[f for (f, _) in layout.root_inputs],
                 String[entry.path for entry in sim.deployment.build.structure.components],
+                Any[isempty(decl.x) ? nothing : typeof(decl.x) for decl in exec.act.decls],
                 Any[st === nothing ? nothing : typeof(st[]) for st in exec.sstores],
                 Any[st === nothing ? nothing : typeof(st[]) for st in exec.mstores],
-                copy(layout.xblocks),
                 sort!(Pair{Tuple{String,Symbol},Tuple{Any,Tuple}}[
                           key => (_port_type(addr), addr.offsets) for (key, addr) in layout.addr];
-                      by = first))
+                      by = first),
+                copy(exec.events.names))   # the priors' own index, empty off the nominal activation
 end
 
 # The one read, behind `checkpoint(sim)` and the trace header `init!` takes.
@@ -140,6 +142,11 @@ function _check_checkpoint!(diags::Vector{Diagnostic}, sim, cp::Checkpoint)
     # between two different models, and the path mismatch above is the honest fact
     if recorded.paths == target.paths
         for (i, path) in enumerate(target.paths)
+            # the `x` type fixes the block's width and what each position holds
+            recorded.xtypes[i] === target.xtypes[i] ||
+                push!(diags, CheckpointMismatch(what = :store, path = path, name = :x,
+                                                expected = recorded.xtypes[i],
+                                                found = target.xtypes[i]))
             recorded.stypes[i] === target.stypes[i] ||
                 push!(diags, CheckpointMismatch(what = :store, path = path, name = :s,
                                                 expected = recorded.stypes[i],
@@ -148,14 +155,11 @@ function _check_checkpoint!(diags::Vector{Diagnostic}, sim, cp::Checkpoint)
                 push!(diags, CheckpointMismatch(what = :store, path = path, name = :m,
                                                 expected = recorded.mtypes[i],
                                                 found = target.mtypes[i]))
-            # by width: the blocks are consecutive, so one component's width
-            # moves every later block, and only the first is at fault
-            length(recorded.xblocks[i]) == length(target.xblocks[i]) ||
-                push!(diags, CheckpointMismatch(what = :store, path = path, name = :x,
-                                                expected = recorded.xblocks[i],
-                                                found = target.xblocks[i]))
         end
         recorded.addrs == target.addrs || _check_addresses!(diags, recorded.addrs, target.addrs)
+        recorded.events == target.events ||
+            push!(diags, CheckpointMismatch(what = :store, name = :events,
+                                            expected = recorded.events, found = target.events))
     end
     cp.deployment == sim.deployment ||
         _walk_deployment!(diags, cp.deployment, sim.deployment)

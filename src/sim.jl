@@ -832,9 +832,12 @@ buffer, the `s` and `m` stores, the whole signal table, the guard priors, the
 clock in full and the fingerprint. A stopped-sim service, legal in
 `initialized` and `stopped`, whose stores are committed and boundary-consistent;
 `built`, `running` and `errored` are one `ServiceLifecycle`. A stopped
-simulation whose clock stands inside a frame is refused too: a `t*` stop
-abandons the frame's remainder, and the loop integrates whole frames, so a
-checkpoint there would have no next frame to continue on (`CheckpointMidFrame`).
+simulation not at the rest a published frame top leaves is refused too
+(`CheckpointMidFrame`). A `t*` stop abandons the frame's remainder with the clock
+inside the frame, and the loop integrates whole frames, so a checkpoint there
+would have no next frame to continue on. A frame an interrupt from model code
+abandoned published nothing, its stores possibly mid-boundary, whatever the
+clock reads (§12.4).
 
 A checkpoint is not a condition and has no algebra (D-273). `restore!` puts
 it back.
@@ -844,10 +847,14 @@ function checkpoint(sim::Simulation)
     status in (:initialized, :stopped) || throw(DiagnosticError(ServiceLifecycle(
         op = :checkpoint, status = status, legal = [:initialized, :stopped])))
     # a frame top is exactly the time the loop writes there, `_grid_time` in the
-    # clock's scalar, whatever the origin; a `t*` stop leaves the clock short of it
+    # clock's scalar, whatever the origin; a `t*` stop leaves the clock short of it.
+    # At rest the latest snapshot is that top's, which an abandoned frame never
+    # published, a `t*` boundary it did publish included.
     clock = sim.exec.clock
     t_frame = _grid_time(sim, clock.step)
-    clock.t == oftype(clock.t, t_frame) ||
+    published = latest(sim)
+    clock.t == oftype(clock.t, t_frame) && published.frame == clock.step &&
+        published.t == clock.t ||
         throw(DiagnosticError(CheckpointMidFrame(t = _seconds(clock.t), t_frame = t_frame,
                                                  step = clock.step)))
     _take_checkpoint(sim)
@@ -927,11 +934,23 @@ The scalar is the outermost structural fact, and it is dispatch rather than a
 comparison: the method below takes a `Trace{T}` against a `Simulation{T}`, and
 the fallback beside it is what a `Trace{Float64}` offered to a
 `Simulation{Dual}` reaches. `restore!` carries exactly the same pair.
+
+Under `restore = false` the clock joins the header's stage: the feed runs on
+the simulation's own clock, so its origin must be the recording's, and its
+frame one the recording can feed from.
 """
-function _compile_feed(sim::Simulation{T}, trc::Trace{T}) where {T}
+function _compile_feed(sim::Simulation{T}, trc::Trace{T}, restore::Bool = true) where {T}
     faces = Symbol[f for (f, _) in sim.exec.act.layout.root_inputs]
     diags = Diagnostic[]
     _check_checkpoint!(diags, sim, trc.header)
+    if !restore
+        clock = sim.exec.clock
+        trc.header.t₀ == clock.t₀ || push!(diags, CheckpointMismatch(
+            what = :clock, name = :t₀, expected = trc.header.t₀, found = clock.t₀))
+        feedable = trc.header.step:(trc.frames - 1)   # the frames the simulation may stand at
+        clock.step in feedable || push!(diags, CheckpointMismatch(
+            what = :clock, name = :step, expected = feedable, found = clock.step))
+    end
     _check_schemas!(diags, faces, trc.schemas)
     isempty(diags) || throw(DiagnosticError(diags))     # the header before the entries
     records = _compile_records!(diags, sim, trc, faces)
@@ -939,7 +958,7 @@ function _compile_feed(sim::Simulation{T}, trc::Trace{T}) where {T}
     ReplayFeed(records, 1, trc.frames)
 end
 
-_compile_feed(sim::Simulation{Ts}, trc::Trace{Tt}) where {Ts,Tt} =
+_compile_feed(sim::Simulation{Ts}, trc::Trace{Tt}, restore::Bool = true) where {Ts,Tt} =
     throw(DiagnosticError(CheckpointMismatch(what = :scalar, expected = Tt, found = Ts)))
 
 """
@@ -965,12 +984,13 @@ state, and its drain reads the trace:
   is exact because the frame sequence is itself deterministic.
 
 `restore = false` attaches the feed to the simulation as it stands and
-restores nothing (§12.7): the simulation must be `initialized`, and the drain
-applies the records from the frame after its own. That form is the what-if of
-a modified model initialized under the authored condition, and the seek:
-`restore!` of a checkpoint the recording passed through, then the feed from the
-next frame. The entry pass runs under both forms, since a deployment mismatch
-is never a what-if.
+restores nothing (§12.7): the simulation must be `initialized`, at the
+recording's `t₀`, and at a frame from the header's up to one short of the
+recording's last; the drain applies the records from the frame after its own.
+That form is the what-if of a modified model initialized under the authored
+condition, and the seek: `restore!` of a checkpoint the recording passed
+through, then the feed from the next frame. The entry pass runs under both
+forms, since a deployment mismatch is never a what-if.
 
 Everything else is the loop as specified. The frame budget is the recording's
 length, or `to_boundary = k` frames — §13.4's replay pointer, defined as
@@ -1071,7 +1091,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
                             value = to_time)))
     end
     (policy, addrs) = _bind_policy(sim, t_end, stop_on, :replay!)   # this advance's policy, validated
-    feed = _compile_feed(sim, trc)        # the entry pass: every refusal precedes every write
+    feed = _compile_feed(sim, trc, restore)   # the entry pass: every refusal precedes every write
     # The restore, and the new run with the substitution in it: the recording
     # goes in at construction and the mode is read off it, so entering `:replay`
     # *is* constructing this run with a feed (§12.6, D-260). It outlives this
