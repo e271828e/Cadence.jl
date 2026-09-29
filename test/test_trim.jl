@@ -570,24 +570,6 @@ function test_trim()
         @test lifecycle(twin) === lifecycle(sim)
     end
 
-    @testset "a warm restart trims from a capture at its own time (§14.1, §14.8)" begin
-        sim = Simulation(fed(Pendulum(), :u); h = 1//10)
-        init!(sim, combine(at("c", condition(Pendulum(); θ = 0.2)),
-                           fragment(inputs = (in = 1.0,))))
-        run!(sim; t_end = 0.4)
-        (captured, t) = capture(sim)
-        @test lifecycle(sim) === :stopped && t === 0.4
-
-        # `trim!(sim, problem; baseline = captured, t0 = t)` is §14.8's resumed spelling:
-        # continuity is explicit, and the anchor comes back from the capture.
-        report = trim!(sim, u_problem(); baseline = captured, t0 = t)
-        @test report.converged && report.committed_residuals !== nothing
-        @test lifecycle(sim) === :initialized
-        @test sim.exec.clock.t === 0.4 && sim.exec.clock.t₀ === 0.4
-        @test state(sim, "c") === (θ = 0.5, ω = 0.0)      # the problem's condition won
-        @test port(sim, "", :in) === report.solution.u
-    end
-
     @testset "the per-iteration write and read are free at the seeded activation (§7.5)" begin
         # The iteration is a raw write → sweep → read cycle (§14.5), and both ends
         # of it are compiled: the shape-compiled plan and the compiled reader, at

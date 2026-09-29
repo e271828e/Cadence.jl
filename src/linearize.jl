@@ -5,8 +5,8 @@
 # a resolved tap is a compiled read entry (readers.jl), and a `StateRead`'s
 # `xbuf` offset or a `CellRead`'s cell address is a write site as much as a
 # read site, so the seeds go where the reads come from (D-272). The world is
-# trim's: D-213's two-half scratch set, a nominal half established for the
-# frozen discrete cells and a seeded half at the service's own `Dual` scalar
+# trim's: D-213's two-half scratch set, a nominal half that holds the frozen
+# discrete cells and a seeded half at the service's own `Dual` scalar
 # (trim.jl). What this file adds is the tap resolution with its five refusals,
 # the passes of `width` directions, and the split of values from partials.
 # Nothing here writes the simulation: both executors are locals and die with
@@ -78,18 +78,21 @@ end
 
 §14.10's linearization, a pure query on scratch buffers:
 
-1. The operating point is `capture(sim)` by default, legal in `initialized` and
-   `stopped`, and it carries its own time; `about = <condition>` with `t0` beside
-   it places it anywhere else, legal wherever `init!` is (§14). `t0` is admitted
-   only beside `about`, never silently ignored (Appendix B).
+1. The operating point is `checkpoint(sim)` by default, legal in `initialized`
+   and `stopped` and refused mid-frame, and it carries its own clock;
+   `about = <condition>` with `t0` beside it places it anywhere else, legal
+   wherever `init!` is (§14). `t0` is admitted only beside `about`, never
+   silently ignored (Appendix B).
 2. The tap set resolves in §13.1's collecting form: closed membership per list,
    one scalar per tap, no discrete store in `x` (D-197), no unseedable root
    input in `u` (D-167, D-168), no two seeds at one site (D-272). Every
    violation is one `TapResolution` in one `DiagnosticError`.
-3. The nominal half: a `Float64` scratch executor, the operating point applied
-   and checked total over the root inputs (§14.6), one establishment round.
+3. The nominal half: a `Float64` scratch executor. By default the checkpoint
+   restored, whose held cells are the frozen tier's (D-274); under `about`, the
+   condition applied and checked total over the root inputs (§14.6), then one
+   establishment round (D-213).
 4. The seeded half, at `Dual{LinearizeTag,Float64,width}`: a scratch executor,
-   the operating point applied as zero-partial constants, the frozen discrete
+   the operating point written as zero-partial constants, the frozen discrete
    cells copied from the nominal half (D-213).
 5. The seeds: one direction per `x` tap and per `u` tap, `x` first, each
    written at its resolved site, the state's `xbuf` slot or the root input's
@@ -111,31 +114,49 @@ function linearize(sim::Simulation{Float64}, tap_set::Taps; about = nothing,
     about === nothing && t0 !== nothing && throw(DiagnosticError(ArgumentInvalid(
         call = :linearize, argument = :t0, reason = :t0_without_about)))
 
-    # §14's two rows: the default form inherits `capture`'s precondition, the
-    # explicit one `init!`'s legality. Both before any resolution.
+    # §14's two rows: the default form inherits `checkpoint`'s precondition, the
+    # explicit one `init!`'s legality. Both before any resolution. The gate names
+    # `linearize` for both forms, so `checkpoint` is left the mid-frame refusal.
     status = lifecycle(sim)
     legal = about === nothing ? [:initialized, :stopped] : collect(STOPPED_SIM_LEGAL)
     status in legal ||
         throw(DiagnosticError(ServiceLifecycle(op = :linearize, status = status, legal = legal)))
-
-    (operating_point, t) = about === nothing ? capture(sim) : (about, Float64(something(t0, 0.0)))
+    cp = about === nothing ? checkpoint(sim) : nothing
     build = sim.deployment.build
     T = ForwardDiff.Dual{LinearizeTag,Float64,width}
     (x_entries, u_entries, y_entries) = _resolve_taps(tap_set, build, T)
 
     # --- the nominal half (D-213) ------------------------------------------------
     nominal_exec = _scratch(sim, Float64)
-    _set_clock!(nominal_exec, t)
-    plan = resolve_condition(operating_point, build, Float64)
-    assert_total(plan, build.structure, :linearize)   # (§14.6): before any evaluation
-    apply!(nominal_exec, plan)
-    _round!(nominal_exec, ESTABLISH)                 # every discrete output stage, due or not
+    if about === nothing
+        _restore_state!(nominal_exec, cp)            # the held cells are the frozen tier's (D-274)
+    else
+        t = Float64(something(t0, 0.0))
+        _set_clock!(nominal_exec, t, t)
+        plan = resolve_condition(about, build, Float64)
+        assert_total(plan, build.structure, :linearize)   # (§14.6): before any evaluation
+        apply!(nominal_exec, plan)
+        _round!(nominal_exec, ESTABLISH)             # every discrete output stage, due or not
+    end
 
     # --- the seeded half ---------------------------------------------------------
     act = activation(build, T)
     seeded_exec = _scratch(sim, T, act)
-    _set_clock!(seeded_exec, t)
-    apply!(seeded_exec, resolve_condition(operating_point, build, T))
+    if about === nothing
+        copyto!(seeded_exec.xbuf, cp.x)              # zero partials throughout
+        _restore_stores!(seeded_exec, cp)
+        # each root input converted to its seeded cell's type, as an authored
+        # value is at resolution (conditions.jl)
+        for face in build.structure.root_inputs
+            addr = act.layout.addr[("", face)]
+            scatter_cell!(seeded_exec.store, addr, convert(_port_type(addr),
+                gather_cell(nominal_exec.store, nominal_exec.act.layout.addr[("", face)])))
+        end
+        _set_clock!(seeded_exec, cp.t, cp.t₀)
+    else
+        _set_clock!(seeded_exec, t, t)
+        apply!(seeded_exec, resolve_condition(about, build, T))
+    end
     _establish_frozen!(seeded_exec, act, nominal_exec, build)
 
     # --- the passes --------------------------------------------------------------
@@ -183,9 +204,9 @@ linearize(::Simulation, other; kw...) = throw(DiagnosticError(
 
 # The scratch clock at the operating point: `t` in the executor's scalar, the
 # origin a `Float64` as everywhere (§12.6).
-function _set_clock!(exec::Executor{T}, t::Float64) where {T}
+function _set_clock!(exec::Executor{T}, t::Float64, t₀::Float64) where {T}
     exec.clock.t = T(t)
-    exec.clock.t₀ = t
+    exec.clock.t₀ = t₀
     nothing
 end
 

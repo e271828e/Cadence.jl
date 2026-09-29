@@ -40,11 +40,6 @@ table_inputs(sim, cp::Checkpoint) =
     Pair{Symbol,Any}[f => gather_cell(cp.table, sim.exec.act.layout.addr[("", f)])
                      for (f, _) in sim.exec.act.layout.root_inputs]
 
-# Two signal tables buffer by buffer: a `StoreBundle` defines no `==`, and a
-# checkpoint's `==` is identity.
-same_table(a::StoreBundle, b::StoreBundle) =
-    all(x.buffer == y.buffer for (x, y) in zip(values(a.stores), values(b.stores)))
-
 function trace_recording()
     @testset "one sparse record per drained batch, against the writer's schema (§11.5, D-176)" begin
         sim = Simulation(three_root_inputs(); h = 1//10)

@@ -76,12 +76,7 @@ end
 # caller that publishes owns the ordinal.
 function _restore_state!(exec::Executor{T}, cp::Checkpoint{T}) where {T}
     copyto!(exec.xbuf, cp.x)
-    for ci in eachindex(cp.s)
-        cp.s[ci] === nothing || (exec.sstores[ci][] = cp.s[ci])
-    end
-    for ci in eachindex(cp.m)
-        cp.m[ci] === nothing || (exec.mstores[ci][] = cp.m[ci])
-    end
+    _restore_stores!(exec, cp)
     foreach((cell_store, saved) -> copyto!(cell_store.buffer, saved.buffer),
             values(exec.store.stores), values(cp.table.stores))
     copyto!(exec.events.prior, cp.prior)
@@ -89,6 +84,19 @@ function _restore_state!(exec::Executor{T}, cp::Checkpoint{T}) where {T}
     clock = exec.clock
     clock.t, clock.step, clock.boundary, clock.t₀ = cp.t, cp.step, cp.boundary, cp.t₀
     restore_stepper!(exec.stepper, cp)
+    nothing
+end
+
+# The `s` and `m` stores by value. A store's type is the same at every
+# activation (build.jl's `declarations`, `_mstores`), so `linearize`'s seeded
+# scratch takes this write as it is.
+function _restore_stores!(exec::Executor, cp::Checkpoint)
+    for ci in eachindex(cp.s)
+        cp.s[ci] === nothing || (exec.sstores[ci][] = cp.s[ci])
+    end
+    for ci in eachindex(cp.m)
+        cp.m[ci] === nothing || (exec.mstores[ci][] = cp.m[ci])
+    end
     nothing
 end
 

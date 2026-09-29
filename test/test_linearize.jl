@@ -3,7 +3,7 @@
 # passes of `width` directions over D-213's two-half scratch world, and the
 # returned value checked against the closed forms. The fixtures live at top
 # level for `implementation.md`'s local-scope reason; `PEND_G_L` and `PEND_C` are
-# test_trim.jl's.
+# test_trim.jl's, `resume_condition` test_lifecycle.jl's.
 
 # The walkthrough's model: a sum of two root inputs drives the pendulum's
 # torque, and two faces leave the root, one of them the sum's feedthrough.
@@ -65,24 +65,42 @@ function test_linearize()
               size(linearization.C) == (2, 2) && size(linearization.D) == (2, 2)
     end
 
-    @testset "the default operating point is the capture, and the sim is untouched (§14.10, §14.1)" begin
+    @testset "the default operating point is the checkpoint, and the sim is untouched (§14.10, D-274)" begin
         sim = Simulation(lin_pend(); h = 1//10)
         init!(sim, lin_point())
         run!(sim; t_end = 0.3)
-        xbuf = copy(sim.exec.xbuf)
-        inputs = [port(sim, "", f) for f in sim.deployment.build.structure.root_inputs]
-        snapshot, t = latest(sim), sim.exec.clock.t
-        (captured, t_captured) = capture(sim)
+        before, snapshot = checkpoint(sim), latest(sim)
 
+        # On a continuous model nothing is held, so a point authored from what
+        # the checkpoint shows agrees with it.
+        at_rest = combine(at("c", fragment(x = state(sim, "c"))),
+                          fragment(inputs = (τ = port(sim, "", :τ), d = port(sim, "", :d))))
         linearization = linearize(sim, lin_taps())
-        @test same_linearization(linearization, linearize(sim, lin_taps(); about = captured, t0 = t_captured))
-        @test sim.exec.xbuf == xbuf
-        @test [port(sim, "", f) for f in sim.deployment.build.structure.root_inputs] == inputs
-        @test latest(sim) === snapshot && sim.exec.clock.t === t
-        @test lifecycle(sim) === :stopped
+        @test same_linearization(linearization, linearize(sim, lin_taps(); about = at_rest, t0 = before.t))
+
+        after = checkpoint(sim)
+        @test after.x == before.x && after.s == before.s && after.m == before.m &&
+              after.prior == before.prior && same_table(after.table, before.table)
+        @test (after.t, after.step, after.boundary, after.t₀) ==
+              (before.t, before.step, before.boundary, before.t₀)
+        @test after.deployment === before.deployment &&
+              all(getfield(after.layout, f) == getfield(before.layout, f)
+                  for f in fieldnames(typeof(before.layout)))
+        @test latest(sim) === snapshot && lifecycle(sim) === :stopped
     end
 
-    @testset "`about` is legal in built, where the default form is refused (§14)" begin
+    @testset "the default form's frozen cells are the checkpoint's held cells (§14.10, D-213, D-274)" begin
+        sim = Simulation(lin_sampled(); h = 1//10)
+        init!(sim, resume_condition())
+        step!(sim; frames = 3)
+        # at rest the store is one tick ahead of the cell it publishes (D-273)
+        @test state(sim, "ctl").acc != port(sim, "ctl", :u)
+        linearization = linearize(sim, taps(x = (θ = get_state("c", :θ), ω = get_state("c", :ω)),
+                                            y = (u = get_output("ctl", :u),)))
+        @test linearization.y₀.u === port(sim, "ctl", :u)
+    end
+
+    @testset "`about` is legal in built and mid-frame, where the default form is refused (§14, D-274)" begin
         sim = Simulation(lin_pend(); h = 1//10)
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} linearize(sim, lin_taps()))
         @test d.op === :linearize && d.status === :built && d.legal == [:initialized, :stopped]
@@ -114,8 +132,18 @@ function test_linearize()
         by_about = carried(@test_throws DiagnosticError{ServiceLifecycle} linearize(running_sim, taps(); about = fragment()))
         stage!(running_sim, "in" => 1.0)
         wait(task)
-        @test by_default.status === :running && by_default.legal == [:initialized, :stopped]
+        @test by_default.op === :linearize && by_default.status === :running &&
+              by_default.legal == [:initialized, :stopped]
         @test by_about.status === :running && by_about.legal == [:built, :initialized, :stopped]
+
+        # A `t*` stop leaves the clock inside the frame: the default form inherits
+        # `checkpoint`'s refusal, and `about` is legal there as anywhere `init!` is.
+        tripped = Simulation(overloaded(); h = 1//10)
+        init!(tripped)
+        run!(tripped; t_end = 5.0, stop_on = ("tripped",))
+        d = carried(@test_throws DiagnosticError{CheckpointMidFrame} linearize(tripped, taps()))
+        @test d.t_frame == 0.4 && d.step == 4
+        @test linearize(tripped, taps(); about = fragment()) isa Linearization
     end
 
     @testset "the width groups the directions and never changes the answer (§14.10, D-272)" begin

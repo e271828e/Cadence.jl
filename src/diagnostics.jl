@@ -1155,9 +1155,9 @@ message(d::MissingInit) =
 # §12.6's legality table and §11.3's sentence, as the lists a refusal carries.
 # The advance entries admit `:initialized` alone; a reader admits every status
 # but `:running`; a stopped-sim operation adds `:errored` to the refusals
-# (D-232). `capture` narrows further and names its own list at the site. Each is
-# an immutable tuple and every site fills the payload through `collect`, so no
-# two refusals share one mutable list.
+# (D-232). `checkpoint` and `linearize`'s default form narrow further and name
+# their own list at the site. Each is an immutable tuple and every site fills
+# the payload through `collect`, so no two refusals share one mutable list.
 const ADVANCE_LEGAL = (:initialized,)
 const READER_LEGAL = (:built, :initialized, :stopped, :errored)
 const STOPPED_SIM_LEGAL = (:built, :initialized, :stopped)
@@ -1921,8 +1921,8 @@ function message(d::ArgumentInvalid)
                "one value: taps(x = (…), u = (…), y = (…)) (§14.10, D-272)"
     d.reason === :t0_without_about &&
         return "`linearize` was given `t0` without `about` — the default operating point is " *
-               "`capture(sim)`, which carries its own time, and `t0` places an explicit " *
-               "`about` (§14.10)"
+               "`checkpoint(sim)`, which carries its own clock, and `t0` places an " *
+               "explicit `about` (§14.10)"
     d.reason === :nonpositive_width &&
         return "`width` must be an integer ≥ 1 — the seeded directions per pass — got " *
                "$(repr(d.value)) (§14.10, D-272)"

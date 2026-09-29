@@ -406,9 +406,9 @@ function diagnostics_kind_set()
             # Deployment, periphery and services
             MissingInit(op = :run!, status = :built),
             ServiceLifecycle(op = :attach!, status = :running, legal = [:built, :initialized]),
-            ServiceLifecycle(op = :capture, status = :errored, legal = [:initialized, :stopped]),
+            ServiceLifecycle(op = :checkpoint, status = :errored, legal = [:initialized, :stopped]),
             ServiceLifecycle(op = :run!, status = :stopped, legal = [:initialized]),
-            ServiceLifecycle(op = :capture, status = :built, legal = [:initialized, :stopped]),
+            ServiceLifecycle(op = :checkpoint, status = :built, legal = [:initialized, :stopped]),
             StopFaceInvalid(face = :done, reason = :unknown, site = :step!,
                             candidates = [:hit]),
             StopFaceInvalid(face = :done, reason = :root_input, site = :run!),
