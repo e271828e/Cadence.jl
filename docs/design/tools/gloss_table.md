@@ -7,7 +7,9 @@ domain-standard vocabulary, or core Part-I terms the spec teaches head-on and
 repeats on nearly every page); **—** = entry carries no body link (whitelisted
 in `check_glossary.jl`), gloss recorded for completeness only.
 *n* = body link count, recounted 2026-09-15 at the end of the plain-style rewrite: the
-count of `](#g-…)` links to the anchor in chapters 1–16.
+count of `](#g-…)` links to the anchor in chapters 1–16. The `checkpoint` row
+was counted on 2026-09-29, when increment 55 added it and retired `capture`
+(D-273, D-274). No other row was recounted then.
 
 ## D.1 Component model and declaration layer
 
@@ -161,6 +163,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 
 | term | anchor | n | class | gloss |
 |---|---|---|---|---|
+| checkpoint | g-checkpoint | 11 | A | the executor's state at a frame top, as one value |
 | decimation | g-decimation | 2 | A | the log's keep-every-kth retention policy |
 | frame ordinal | g-frame-ordinal | 1 | A | the trace's key, the frame index a batch replays at |
 | log | g-log | 1 | B | the retained sequence of published snapshots |
@@ -168,7 +171,7 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | replay | g-replay | 23 | B | the ordinary loop re-driven from the trace |
 | run metadata | g-run-metadata | 1 | B | the trace header's `Deployment` and `t₀`, carrying no stop policy |
 | trace | g-trace | 27 | B | the primary record: drained, device-tagged batches per frame |
-| trace header | g-trace-header | 13 | B | the trace's fixed preamble: initial stores, root-input values, the `Deployment` and `t₀` |
+| trace header | g-trace-header | 13 | B | the trace's fixed preamble: the checkpoint `init!` takes after the first snapshot |
 | trace record | g-trace-record | 0 | — | the retained form of a drained batch |
 | what-if replay | g-what-if-replay | 2 | A | replaying a trace against the same structure with changed parameters |
 
@@ -179,7 +182,6 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 | `at` / `Scoped` | g-at | 1 | A | the scoping combinator storing a path prefix beside a node |
 | baseline | g-baseline | 3 | B | an aircraft-shipped, full-coverage condition function |
 | boundary zero | g-boundary-zero | 18 | A | the initialization boundary: the ordinary macro-sequence with an empty integrate |
-| capture | g-capture | 1 | A | reading the current stores and root inputs back as a condition |
 | combine | g-combine | 1 | B | the symmetric, collision-intolerant combinator over condition nodes |
 | component test rig | g-component-test-rig | 2 | B | a one-child assembly exporting the child's whole input face set |
 | condition | g-condition | 13 | A | the path-addressed sparse overlay that sets a build's state |
@@ -228,6 +230,11 @@ count of `](#g-…)` links to the anchor in chapters 1–16.
 178 inline gloss applications standing in the body (chapters 1-16): Part I 27,
 Part II 34, Part III 60, Part IV 51, Part V 6. 64 of the 81 class-A terms are
 applied at least once. The Part IV figure lost one site to the trim-commit dedup, which deleted the `harmonic grid` gloss in §14.8.
+
+Increment 55 (2026-09-29) moved two rows and recounted nothing else. `capture`
+left with its one site in §14. `checkpoint` entered with eleven, five in Part
+III and six in Part IV. By those two rows alone the figures read 188
+applications, Part III 65 and Part IV 56, with 64 of 81 class-A terms applied.
 
 An *application* is a gloss parenthetical or appositive (comma, dash or colon)
 attached to the term, carrying the gloss above or a close derivative of it. A
@@ -284,11 +291,11 @@ Appendix D grouping above.
 | stage-on-interaction | §14.5 |
 | unattended run | §7.5, §11.8, §12.4, §13.4 |
 | write surface | §11.3, §8.6 |
+| checkpoint | §10.6, §11.2, §11.5, §12.6, §12.7, §13.4, §14, §14.1, §14.5, §14.8, §14.10 |
 | decimation | §11.8 |
 | frame ordinal | §12.7 |
 | what-if replay | §11.5, §12.7 |
 | boundary zero | §10.4, §10.5, §12.4, §12.6, §12.7, §13.4, §14.4, §14.6, §14.8, §14.9, §14.10, §16 |
-| capture | §14 |
 | condition | §8.2, §13.3, §13.5, §14.4, §14.5 |
 | mounting | §8.5, §14.4 |
 | root-input totality | §14 |
