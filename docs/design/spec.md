@@ -6330,8 +6330,9 @@ rather than restores ([§12.7][s12-7]).
   algorithm identifier, `localization_tol`, `localization_budget`
   ([§10.4][s10-4]) and `firing_budget` ([§10.6][s10-6]). The layout is the
   store layout and the root-input faces the `Build` fixes. It also holds what
-  a copy by position relies on: each component's block in the flat buffer,
-  and every cell's address with its type. Both are taken at the same instant
+  a copy by position relies on: each component's `x` type, every cell's
+  address with its type, and the event list in the order of the priors. Both
+  are taken at the same instant
   as the state. The deployment holds no policy
   ([D-255][d-255]). `t_end` and `stop_on` are keywords of each advance
   ([§13.5][s13-5]), and only the terminating advance's policy explains the
@@ -7618,10 +7619,11 @@ the throw, and raises inside the mask. That is the one way the branch
 [§13.4][s13-4] keeps is reached. The arm abandons the frame unpublished and
 the run ends `stopped`, the source `ControlRequestedStop(:interrupt)`. The
 published record is consistent, since the frame published nothing. The
-stores may hold mid-boundary values until the next `init!` resets them, as
-after a throw inside boundary zero ([§13.4][s13-4]), so a `checkpoint` of
-such a run copies a half-written boundary. The trace is the reproduction
-([§12.7][s12-7]).
+stores may hold mid-boundary values until the next `init!` or `restore!`
+resets them, as after a throw inside boundary zero ([§13.4][s13-4]).
+`checkpoint` refuses such a run, since the executor no longer rests where
+its last snapshot was published ([§12.6][s12-6]). The trace is the
+reproduction ([§12.7][s12-7]).
 
 **A second interrupt during the tail** collapses the remaining joins
 immediately. That is (5)'s abandonment path taken at once, with devices
@@ -7862,23 +7864,24 @@ makes the mode moot. Nothing advances until one of those doors is taken
 ([D-218][d-218], [D-219][d-219]).
 
 **`checkpoint(sim)` takes the executor's state at a frame top, and
-`restore!(sim, cp)` puts it back** ([D-274][d-274]). `checkpoint` is a
-stopped-sim service, legal in `initialized` and `stopped` ([§14][s14]). It
-is refused mid-frame, where a `t*` stop leaves the clock with the frame's
-remainder abandoned (`CheckpointMidFrame`, [Appendix C][sC]). `restore!`
-takes the four recording keywords `init!` takes. It checks the checkpoint's
-fingerprint against the simulation as replay checks the trace header, and a
-mismatch is `CheckpointMismatch` ([§12.7][s12-7]). It then copies the state
-back, opens a fresh run with the checkpoint as its trace header, and
-publishes one snapshot at the checkpoint's `t`. It runs no sweep, evaluates
-no guard, runs no update and resets no prior. The next frame is the original
-lattice's next frame, because the clock came with the checkpoint. The
-boundary ordinal continues, being the trajectory's ([§12.3][s12-3],
-[D-230][d-230]). The snapshot `restore!` publishes is a re-publication. It
-carries the ordinal of the boundary the checkpoint was taken at, and the next
-frame publishes under the next ordinal, as it did in the original run. A
-checkpoint taken on another activation is refused by
-dispatch with the same `CheckpointMismatch`, as a trace is.
+`restore!(sim, cp)` puts it back** ([D-274][d-274]). `checkpoint` is a stopped-sim
+service, legal in `initialized` and `stopped` ([§14][s14]). It is refused wherever the
+executor is not at the rest a published frame top leaves (`CheckpointMidFrame`,
+[Appendix C][sC]). That is after a `t*` stop, which leaves the clock mid-frame with
+the remainder abandoned, and after a frame abandoned unpublished ([§12.4][s12-4]). The
+test is that the clock sits on a grid time and that the latest snapshot is of
+that very boundary. `restore!` takes the four recording keywords `init!` takes.
+It checks the checkpoint's fingerprint against the simulation as replay checks
+the trace header, and a mismatch is `CheckpointMismatch` ([§12.7][s12-7]). It then copies
+the state back, opens a fresh run with the checkpoint as its trace header, and
+publishes one snapshot at the checkpoint's `t`. It runs no sweep, evaluates no
+guard, runs no update and resets no prior. The next frame is the original
+lattice's next frame, because the clock came with the checkpoint. The boundary
+ordinal continues, being the trajectory's ([§12.3][s12-3], [D-230][d-230]). The snapshot
+`restore!` publishes is a re-publication. It carries the ordinal of the boundary
+the checkpoint was taken at, and the next frame publishes under the next
+ordinal, as it did in the original run. A checkpoint taken on another activation
+is refused by dispatch with the same `CheckpointMismatch`, as a trace is.
 
 **Device attachments persist across re-initialization**, because attachment
 is orthogonal to the run lifecycle ([§11.3][s11-3]). Persistence means
@@ -7983,7 +7986,11 @@ frame on its recorded inputs.
 
 **Rule.** `replay!(sim, trc; restore = false)` attaches the feed to the
 simulation as it stands and restores nothing. The simulation must be
-`initialized`, and the drain applies the records from the frame after its own.
+`initialized`, at the recording's `t₀`, and at a frame from the header's to
+one short of the recording's last. Anything else is refused before any write
+(`CheckpointMismatch`, its clock arm). One grid is thus an invariant of every
+replay, and `to_time` has one meaning. The drain applies the records from the
+frame after the simulation's own.
 This form is a door like the default one. It builds a fresh run under the
 recording keywords, takes the simulation's own checkpoint as the new trace's
 header, and publishes one snapshot. That form serves the what-if of a modified
@@ -9122,11 +9129,11 @@ Within the stopped-sim states, legality follows each service's inputs.
 
 | service | `built` | `initialized` | `stopped` | its inputs |
 |---|---|---|---|---|
-| `checkpoint` | error | legal | legal | a frame-top rest; refused mid-frame after a `t*` stop |
+| `checkpoint` | error | legal | legal | a frame-top rest; refused after a `t*` stop and after an abandoned frame |
 | `init!` | legal | legal | legal | authored conditions |
 | `restore!` | legal | legal | legal | a checkpoint whose fingerprint matches the simulation's ([§12.6][s12-6]) |
 | `trim!` | legal | legal | legal | authored conditions; the scratch world is [`override`](#g-override)`(baseline, condition(guess))` ([§14.8][s14-8]), never the sim's stores |
-| `linearize`, operating point defaulted to `checkpoint(sim)` | error | legal | legal | inherits `checkpoint`'s precondition, the mid-frame refusal included |
+| `linearize`, operating point defaulted to `checkpoint(sim)` | error | legal | legal | inherits `checkpoint`'s precondition, its refusals included |
 | `linearize`, explicit `about` ([§14.10][s14-10]) | legal | legal | legal | inherits `init!`'s legality — legal wherever `init!` is |
 
 **`errored` is terminal for every row** ([D-059][d-059], [D-108][d-108]).
@@ -10879,9 +10886,9 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   packed vectors are in the declared orders, and `status` is an open `Symbol`
   recorded verbatim. Non-convergence reports, never throws ([§14.7][s14-7], [§14.8][s14-8]).
 - `checkpoint(sim) → Checkpoint`. The executor's state at a frame top as one
-  value: the flat buffer, the `s` and `m` stores, the whole signal table,
-  the guard priors, the clock in full and the fingerprint. Legal in
-  `initialized` and `stopped`, refused mid-frame after a `t*` stop
+  value: the flat buffer, the `s` and `m` stores, the whole signal table, the
+  guard priors, the clock in full and the fingerprint. Legal in `initialized`
+  and `stopped`, refused after a `t*` stop and after an abandoned frame
   (`CheckpointMidFrame`). A checkpoint is not a condition and has no algebra
   ([§12.6][s12-6], [§14.1][s14-1], [D-274][d-274]).
 - `restore!(sim, cp; trace = true, log = true, log_every = 1,
@@ -11345,7 +11352,7 @@ activation):
   `restore!`, raised when a checkpoint's fingerprint disagrees with the
   target simulation. The mismatch, discriminated. It is a store or root
   input (component path, store, expected vs. found layout/type), a
-  component's block in the flat buffer, a cell's address or type, a recorded
+  component's `x` type, a cell's address or type, the event list, a recorded
   root-input value that does not convert to its declared type, the scalar
   type (the
   recorded one vs. the simulation's), a deployment parameter
@@ -11354,12 +11361,15 @@ activation):
   differs (the component path, the column, recorded vs. bound value), a rate
   scope whose column differs (its path, the column, recorded vs. bound
   value), a schedule whose row list, scope list or per-component vector
-  differs (the name, the two lists), or a frame ordinal outside the
-  recording's frames (the writer, the ordinal, the legal range).
+  differs (the name, the two lists), a frame ordinal outside the
+  recording's frames (the writer, the ordinal, the legal range), or, under
+  `restore = false`, the simulation's clock off the recording's (the `t₀` or
+  the frame, the recording's value or legal range, the simulation's).
 - **`CheckpointMidFrame`** ([§12.6][s12-6], [§14][s14]). Error · service ·
-  fail-fast. `checkpoint` on a stopped simulation whose clock is past a frame
-  top, the state a `t*` stop leaves. The clock's `t`, the frame top `t_frame`
-  it passed, the frame index `step`.
+  fail-fast. `checkpoint` on a simulation that is not at the rest a published
+  frame top leaves. Either the clock is past a frame top after a `t*` stop,
+  or a frame was abandoned unpublished ([§12.4][s12-4]). The clock's `t`, the
+  frame top `t_frame`, the frame index `step`.
 - **`ReplaySchemaMismatch`** ([§11.5][s11-5], [§12.7][s12-7]). Error ·
   service · collected. The trace's device tag, its recorded face-name →
   position schema, the disagreeing face names, the target's root input-face

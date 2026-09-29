@@ -90,15 +90,18 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265.
   It keeps the root-input arm, for the fingerprint's face list and for a
   recorded value that does not convert (D-274). Its deployment arm has five renderings. The
   one for a schedule row names the component path and the column (D-255).
-- `CheckpointMidFrame`, `checkpoint`'s refusal after a `t*` stop, carrying
-  the clock's `t`, the frame top `t_frame` and the frame index `step`
-  (D-274).
+- `CheckpointMidFrame`, `checkpoint`'s refusal after a `t*` stop and after
+  an abandoned frame, carrying the clock's `t`, the frame top `t_frame` and
+  the frame index `step` (D-274). Its message branches on whether the two
+  times are equal.
 - `StepError`'s rendered recipe names two reproductions at pointer 0, which
   boundary zero and frame one share: `init!` where `init!` threw and left no
   trace, the replay of the trace where frame one did. Elsewhere it names
   replay to the pointer then `step!` (§13.4, D-274).
-- `CheckpointMismatch`'s store arm also names a component's block in the
-  flat buffer (`:x`) and a cell (`port.<name>`). `ArgumentInvalid` covers
+- `CheckpointMismatch`'s store arm also names a component's `x` type
+  (`:x`), a cell (`port.<name>`) and the event list (`:events`). Its clock
+  arm is `restore = false`'s own: the recording's `t₀` (`:t₀`) and the frame
+  range the feed covers (`:step`). `ArgumentInvalid` covers
   `replay!`'s `restore` and a halt before the feed's first frame, and its
   `:t0_without_about` names the checkpoint as the default operating point.
 
@@ -328,9 +331,11 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
     snapshot, with no boundary zero;
   - `replay!` is a restore of the trace's header plus the feed, the loop's
     one substitution; its `restore = false` form attaches the feed to the
-    simulation as it stands.
-- `checkpoint(sim)`, the stopped-sim service, refused mid-frame after a `t*`
-  stop.
+    simulation as it stands, and its entry pass also checks the simulation's
+    clock against the recording's.
+- `checkpoint(sim)`, the stopped-sim service. It is refused unless the clock
+  sits on a grid time and the latest snapshot is of that boundary, which
+  excludes a `t*` stop and an abandoned frame.
 - `_open_trajectory!` and `_open_run!`. `init!` opens the trajectory whole;
   `restore!` and `replay!` take the parts that are neither the clock nor the
   priors.
@@ -482,8 +487,8 @@ D-027, D-038, D-137, D-250, D-255, D-269.
   run's `Deployment` and the structural layout `Fingerprint`.
 - `Fingerprint` holds the cell sizes, the root-input faces, the component
   paths and the store types, and what a copy by position relies on: each
-  component's block in the flat buffer and every cell's address with its
-  type and offsets.
+  component's `x` type, every cell's address with its type and offsets, and
+  the event list, taken from the list that sizes the priors.
 - What stays out: the derivative buffer, the arrival pair and the
   localization samples, which every frame rewrites before reading them, the
   cursor and the periphery.
@@ -807,9 +812,9 @@ Traps the code does not warn about, each hit more than once while building:
   beside its rows, a policy's addresses beside its faces) is a second home
   with no enforcer but the constructor. `Layout` is the one home for
   address facts (§9.2, D-261);
-- **`checkpoint` is refused after a `t*` stop.** A test that checkpoints a
-  stopped run stops it at a frame top: `t_end`, a stop face read at a grid
-  boundary, or `stop!` (§12.6, D-274).
+- **`checkpoint` is refused after a `t*` stop and after an abandoned
+  frame.** A test that checkpoints a stopped run stops it at a frame top:
+  `t_end`, a stop face read at a grid boundary, or `stop!` (§12.6, D-274).
 
 ## Naming
 
