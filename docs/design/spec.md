@@ -5735,10 +5735,12 @@ work is pointer bookkeeping, microseconds either way and on the framework
 side of the scope ([§7.5][s7-5]). Publication stays wait-free and readers
 never block. A reader holding a released snapshot simply keeps it alive.
 
-**The endpoints are retained unconditionally.** The boundary-zero snapshot
-([§14.5][s14-5]) and the terminal snapshot ([§12.4][s12-4], [§13.5][s13-5])
-survive any `log_every` and any `log_max`, and they do not count against the
-bound. They are two extra references. The terminal snapshot's status carries
+**The endpoints are retained unconditionally.** The run's first snapshot and its
+terminal snapshot ([§12.4][s12-4], [§13.5][s13-5]) survive any `log_every`
+and any `log_max`, and they do not count against the bound. The first is the
+boundary-zero snapshot under `init!` ([§14.5][s14-5]), and the snapshot the
+door publishes under `restore!` and `replay!` ([§12.6][s12-6]). The stride
+counts boundaries from it. They are two extra references. The terminal snapshot's status carries
 the run's final cumulative diagnostic counters ([§11.8][s11-8]). A run's two
 endpoints and its diagnostic account, complete to the final frame top
 ([D-201][d-201]), therefore always outlive whatever retention did to the
@@ -6363,10 +6365,13 @@ and by `checkpoint(sim)` on demand ([§12.6][s12-6]). The header is the other
 half of what "given the initial state and the trace, the log is
 recomputable" requires. Header plus batches are the *primary* record.
 Everything else, the state trajectory included, is derived
-([§11.2][s11-2]). The trace also carries its length, the number of drains
-since the header was taken ([D-217][d-217]). A recording whose last frames
-drained nothing still ran them, and every advance in `:replay` is capped at that
-count ([§12.7][s12-7], [D-218][d-218]).
+([§11.2][s11-2]). The trace also carries its length, the frame index of its last
+drain ([D-217][d-217]). Under `init!` that is the number of drains since the
+header was taken. A trace that `restore!` opens starts at the checkpoint's
+frame, so its records keep the trajectory's own frame indices
+([D-274][d-274]). A recording whose last frames drained nothing still ran
+them, and every advance in `:replay` is capped at that frame
+([§12.7][s12-7], [D-218][d-218]).
 
 **Trace recording is on by default.** `init!` builds a fresh trace with the
 run under its `trace` keyword ([§12.6][s12-6], [Appendix B][sB]), the trace
@@ -7871,7 +7876,10 @@ publishes one snapshot at the checkpoint's `t`. It runs no sweep, evaluates
 no guard, runs no update and resets no prior. The next frame is the original
 lattice's next frame, because the clock came with the checkpoint. The
 boundary ordinal continues, being the trajectory's ([§12.3][s12-3],
-[D-230][d-230]). A checkpoint taken on another activation is refused by
+[D-230][d-230]). The snapshot `restore!` publishes is a re-publication. It
+carries the ordinal of the boundary the checkpoint was taken at, and the next
+frame publishes under the next ordinal, as it did in the original run. A
+checkpoint taken on another activation is refused by
 dispatch with the same `CheckpointMismatch`, as a trace is.
 
 **Device attachments persist across re-initialization**, because attachment
@@ -7978,7 +7986,9 @@ frame on its recorded inputs.
 **Rule.** `replay!(sim, trc; restore = false)` attaches the feed to the
 simulation as it stands and restores nothing. The simulation must be
 `initialized`, and the drain applies the records from the frame after its
-own. That form serves the what-if of a modified model initialized under the
+own. This form is a door like the default one. It builds a fresh run under
+the recording keywords, takes the simulation's own checkpoint as the new
+trace's header, and publishes one snapshot. That form serves the what-if of a modified model initialized under the
 authored condition (below). It also serves a seek, `restore!` of a
 checkpoint the recording passed through followed by the feed from the next
 frame ([D-274][d-274]).
@@ -10846,7 +10856,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   take the same four. `log_every` is admissible on the derived artifact
   only, never on the trace ([§11.2][s11-2], [§11.5][s11-5], [D-029][d-029]). When the log fills,
   the retention stride doubles, so the whole run stays covered at coarsening
-  density. The boundary-zero and terminal snapshots are retained
+  density. The run's first and terminal snapshots are retained
   unconditionally and outside the bound ([§11.2][s11-2]). All four are view
   policies, not trajectory-determining. Replay neither records nor compares
   them.
@@ -11331,8 +11341,10 @@ activation):
 - **`CheckpointMismatch`** ([§11.5][s11-5], [§12.6][s12-6], [§12.7][s12-7]).
   Error · service · collected. One kind for the replay entry pass and for
   `restore!`, raised when a checkpoint's fingerprint disagrees with the
-  target simulation. The mismatch, discriminated. It is a store (component
-  path, store, expected vs. found layout/type), the scalar type (the
+  target simulation. The mismatch, discriminated. It is a store or root
+  input (component path, store, expected vs. found layout/type), a recorded
+  root-input value that does not convert to its declared type, the scalar
+  type (the
   recorded one vs. the simulation's), a deployment parameter
   (`Δt_base`/`h`/`N_base`/algorithm/`localization_tol`/`localization_budget`/`firing_budget`,
   recorded vs. bound value), a [schedule](#g-schedule) row whose column
@@ -12225,8 +12237,8 @@ runs, publishes to live readers and enters the trace. The log is bounded by
 finite, `Inf` the opt-out). When the log fills, the effective stride
 doubles. That is *progressive re-decimation*, so coverage stays global at
 `log_every · 2^k` instead of collapsing to a rolling window. The
-boundary-zero and terminal snapshots are retained unconditionally and
-outside the bound. Decimation is a view policy throughout, never
+run's first and terminal snapshots are retained unconditionally and outside
+the bound. Decimation is a view policy throughout, never
 trajectory-determining ([§11.2][s11-2]).
 
 <a id="g-frame-ordinal"></a>**frame ordinal** — the trace's key. Replay applies the recording's batches

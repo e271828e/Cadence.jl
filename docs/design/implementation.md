@@ -86,8 +86,9 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265.
 - §12.7's replay trio is `CheckpointMismatch`, `ReplaySchemaMismatch` and
   `ReplayUnknownFace`. `ReplayUnknownFace`'s `face` carries a bare position
   where no schema resolves it, and the name where one does.
-  `CheckpointMismatch` is one kind for replay's entry pass and `restore!`,
-  with no root-input arm (D-274). Its deployment arm has five renderings. The
+  `CheckpointMismatch` is one kind for replay's entry pass and `restore!`.
+  It keeps the root-input arm, for the fingerprint's face list and for a
+  recorded value that does not convert (D-274). Its deployment arm has five renderings. The
   one for a schedule row names the component path and the column (D-255).
 - `CheckpointMidFrame`, `checkpoint`'s refusal after a `t*` stop, carrying
   the clock's `t`, the frame top `t_frame` and the frame index `step`
