@@ -518,3 +518,32 @@ disagrees with the text above, the amendment holds.
    and converted, and the frozen cells through `_establish_frozen!`.
 10. **The table of stopped-sim services** sits in §14's preamble, not in
     §13.7.
+
+## Rulings after the review
+
+Made on 2026-09-30, after the cold review. Where one disagrees with the text
+above, the ruling holds.
+
+1. **The fingerprint covers what a copy by position relies on.** Beside the
+   cell sizes, root faces, paths and store types, it holds each component's
+   `x` type, every cell's address with its type and offsets, and the event
+   list in the order of the priors.
+2. **`checkpoint` compares the clock exactly** against the loop's own grid
+   time. A slack of `eps(t)` collapses near `t = 0`.
+3. **`checkpoint` refuses an abandoned frame** (user ruling). The latest
+   snapshot must be of the boundary the clock rests at. No flag is kept.
+   `CheckpointMidFrame` carries both refusals.
+4. **`restore = false` shares the recording's clock** (user ruling). The
+   recording's `t₀` must equal the simulation's, and the simulation's frame
+   must lie from the header's to one short of the last. Both are
+   `CheckpointMismatch`, `:clock` arm.
+5. **A halt names a frame the feed covers.** `to_boundary` and `to_time`
+   below the feed's first frame are refused.
+6. **`trace(sim)` detaches the header.**
+7. **The carrier will tell boundary zero from frame one** (user ruling,
+   option B). It is a standalone update after this increment, entered in
+   `pending.md`. Until then the pointer-0 text names both reproductions.
+8. **A throw inside boundary zero leaves an empty run behind** (user
+   ruling). The wording moved in §13.4 and in D-274, the code did not.
+9. **The frame index of a typed time near `t = 0`** is older than this
+   increment. It is entered in `pending.md` and not fixed here.
