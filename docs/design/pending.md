@@ -18,6 +18,12 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the standard component library last.
 Where the reason is not given here, the cited decision carries it:
 
+- **The carrier tells boundary zero from frame one** (§13.4, D-223, D-274):
+  the two share pointer 0 and need different reproductions, `init!` under
+  the same condition and the replay of the trace. `StepError` gains a field
+  that says which one threw, set by `_wrap_step`'s two callers, and the
+  rendered recipe reads it. Today the text names both. Ruled 2026-09-30, as
+  a standalone update; §13.4 and D-274's sentence on pointer 0 move with it.
 - **Mounting** (§14.9, I 4.12): `at(prefix, ::TrimProblem)` and
   `at(prefix, ::Taps)`, and the read side's resolution from a mount point;
   `readers.jl`'s `_read_component` walks every selector path from the root.
@@ -60,7 +66,13 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-Currently empty.
+- **The frame index of a typed time near `t = 0`** (§12.7, D-219):
+  `_frame_at` and `_frames_to` add a slack of `4·eps(t)/h`, which collapses
+  where `t` is near zero and `t₀` is not. At `t₀ = -0.3`, `to_time = 0.0`
+  resolves to frame 2 where the frame is 3, and `_frames_to` of the loop's
+  own frame-3 time returns 4. Older than increment 55, whose review found
+  it. `checkpoint`'s own check compares against `_grid_time` exactly and is
+  not affected.
 
 ### Retire with a feature or a pass
 

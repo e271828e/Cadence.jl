@@ -7,9 +7,10 @@ domain-standard vocabulary, or core Part-I terms the spec teaches head-on and
 repeats on nearly every page); **—** = entry carries no body link (whitelisted
 in `check_glossary.jl`), gloss recorded for completeness only.
 *n* = body link count, recounted 2026-09-15 at the end of the plain-style rewrite: the
-count of `](#g-…)` links to the anchor in chapters 1–16. The `checkpoint` row
-was counted on 2026-09-29, when increment 55 added it and retired `capture`
-(D-273, D-274). No other row was recounted then.
+count of `](#g-…)` links to the anchor in chapters 1–16. The `checkpoint` and
+`trace header` rows were counted on 2026-09-30, after increment 55 added the
+first, rewrote the second and retired `capture` (D-273, D-274). No other row
+was recounted then.
 
 ## D.1 Component model and declaration layer
 
@@ -171,7 +172,7 @@ was counted on 2026-09-29, when increment 55 added it and retired `capture`
 | replay | g-replay | 23 | B | the ordinary loop re-driven from the trace |
 | run metadata | g-run-metadata | 1 | B | the trace header's `Deployment` and `t₀`, carrying no stop policy |
 | trace | g-trace | 27 | B | the primary record: drained, device-tagged batches per frame |
-| trace header | g-trace-header | 13 | B | the trace's fixed preamble: the checkpoint `init!` takes after the first snapshot |
+| trace header | g-trace-header | 10 | B | the trace's fixed preamble: the checkpoint `init!` takes after the first snapshot |
 | trace record | g-trace-record | 0 | — | the retained form of a drained batch |
 | what-if replay | g-what-if-replay | 2 | A | replaying a trace against the same structure with changed parameters |
 
