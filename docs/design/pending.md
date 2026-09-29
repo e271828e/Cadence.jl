@@ -18,6 +18,20 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the standard component library last.
 Where the reason is not given here, the cited decision carries it:
 
+- **Checkpoints** (D-273, D-274): `Checkpoint{T}`, `checkpoint(sim)` and
+  `restore!(sim, cp)`; the trace header retiring into the checkpoint `init!`
+  takes at the end of boundary zero; `replay!` as a restore plus the feed;
+  `capture` leaving the condition algebra, with `linearize`'s default
+  operating point and the warm restart moving to the checkpoint and the
+  mid-run trim baseline retiring. Until it lands, `capture` then `init!`
+  is not the identity on a model with a discrete tier: the store at rest
+  holds `s_{k+1}` beside `y_k`, the priors reset, and a resume re-anchors
+  the lattice at `t0`. Probed on a `DiscreteIntegrator(1.0)` driving the
+  pendulum at `h = 1//10`, `in = 0.5`, `acc0 = 4.0`, `θ0 = 0.2`, `ω0 = 0`:
+  stopped at `0.3`, `ctl/u` reads `4.15` with `acc` `4.20`; after
+  `capture` and `init!` at `t0 = 0.3` they read `4.20` and `4.25`; at `0.6`
+  the uninterrupted run has `ctl/u` `4.30` and `θ` `0.462815`, the resumed
+  one `4.35` and `0.464816`.
 - **Mounting** (§14.9, I 4.12): `at(prefix, ::TrimProblem)` and
   `at(prefix, ::Taps)`, and the read side's resolution from a mount point;
   `readers.jl`'s `_read_component` walks every selector path from the root.
@@ -73,31 +87,7 @@ Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
 retires or the code conforms.
 
-- **Capture then apply is not the identity on a sampled model** (§10.6,
-  §14.1, §14.5, D-067, D-205, D-213). An ordinary boundary at `t_k`
-  publishes a discrete component's outputs from `s_k` and then runs
-  `s_update`, so the executor at rest holds `s_{k+1}` beside `y_k`.
-  `capture` reads the store, and boundary zero then treats `s_{k+1}` as an
-  authored state: it publishes `f(s_{k+1})` and runs the due updates, leaving
-  `s_{k+2}`. The resumed trajectory is one tick ahead on the discrete tier
-  for the rest of the run, not merely offset at the restart instant. Probed
-  on a `DiscreteIntegrator(1.0)` driving the pendulum at `h = 1//10`,
-  `in = 0.5`: stopped at `0.3`, the live `ctl/u` reads `4.15` with `acc`
-  `4.20`; after `capture` and `init!` at `t0 = 0.3` they read `4.20` and
-  `4.25`; at `0.6` the uninterrupted run has `ctl/u` `4.30` and `θ`
-  `0.462815`, the resumed one `4.35` and `0.464816`. Every client of
-  `capture` on a model with a discrete tier is reached: the warm restart,
-  `linearize`'s default form and `trim!` from a capture at its own time.
-  Replay and purely continuous models are not. The candidate ruling is to
-  run each boundary's due updates at the top of the next frame, before the
-  drain, from the table that boundary settled: the same arithmetic, the
-  same samples consumed, the `z⁻¹` argument of §10.6 and the `t₀`
-  alignment of §14.5 intact, and the executor at rest holding the state
-  whose outputs it publishes. It costs the loop the previous boundary's due
-  set, carried across the frame top and across a stop. The same ruling
-  should say whether boundary zero's re-established guard priors, which
-  re-fire a holding guard's handler on a fresh `init!` (§14.5), are meant
-  to on a resume from a capture.
+Currently empty.
 
 ## Pending on the spec itself
 

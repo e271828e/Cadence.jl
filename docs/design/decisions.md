@@ -297,6 +297,8 @@ were derived.
 | [D-270][d-270] | Fix the framework's half of the panel convention: port views, the peek, the orphan fact | ratified |
 | [D-271][d-271] | Admit the component index on `get_input` and `get_face` | ratified |
 | [D-272][d-272] | Fix `linearize`'s surface: the tap set, the chunk width, the operating point and the return | ratified |
+| [D-273][d-273] | A condition is an initial condition: `capture` leaves the algebra | ratified |
+| [D-274][d-274] | Checkpoints: the executor's state as one value, restored without boundary zero | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -10909,6 +10911,181 @@ effect" where the effect is temporal and held. `t0` is admitted only
 beside `about`, and passed without it is refused rather than silently
 ignored, the default operating point carrying the capture's own time.
 
+### D-273 — A condition is an initial condition: `capture` leaves the algebra
+
+**Status.** ratified
+
+**Position.** A condition specifies the initial condition of the problem
+and nothing else. The condition algebra stays as it is, `capture` no longer
+produces a condition, and the state of a simulation past its initial
+instant is carried by a checkpoint ([D-274][d-274]), a distinct value with no
+algebra.
+
+- The due `s_update` calls keep running at the end of their own boundary,
+  after quiescence ([§10.6][s10-6], [D-067][d-067]). The executor at rest has one reading
+  for every discrete component: the store holds the state its next tick
+  decodes, the cells hold the sample its last tick published.
+- Boundary zero keeps [D-205][d-205]'s rule, every discrete output stage publishing
+  from the authored `s`, and [D-067][d-067]'s, every guard prior established as
+  not-holding. Both are the right rules for an authored starting point,
+  and an authored starting point is the only thing a condition describes.
+- The origin `t₀` is set by `init!` before boundary zero and by nothing
+  after it. A restore inherits the clock ([D-274][d-274]) and takes no origin.
+- The cycle capture → tweak → apply retires with `capture`'s condition
+  form. What it served is spelled otherwise: a resume is a checkpoint and a
+  restore; an input what-if is a restore followed by `stage!`; a scenario
+  from a chosen instant is an authored condition, which a checkpoint's
+  read-only view lets the author copy from.
+
+**Spec.** [§12.6][s12-6], [§14.1][s14-1], [§14.5][s14-5], [§14.9][s14-9], [§14.10][s14-10], [Appendix B][sB]
+
+**Rationale.** Capture then apply was not the identity on a sampled model.
+An ordinary boundary at `t_k` publishes a discrete component's outputs
+from `s_k` and then runs `s_update`, so the executor at rest holds
+`s_{k+1}` beside `y_k`. `capture` read the store and `init!` from the
+capture treated `s_{k+1}` as an authored state: boundary zero published
+`f(s_{k+1})` and ran the due updates, and the resumed trajectory stayed one
+tick ahead on the discrete tier for the rest of the run. `init!` alone
+followed by `capture` already returned `s(1)`. Three more obstacles stood
+behind the first, each a piece of state a condition does not carry.
+Boundary zero re-establishes every guard prior as not-holding, so a
+resume re-fired every holding guard, and [D-191][d-191]'s blocked edge shows the
+prior is no function of the stores. A component not due at the capture
+boundary holds a store one update ahead of the cell it still publishes,
+so its held output is state the stores no longer contain. And `init!`'s
+one time argument is both the origin of the sampling lattice and the
+instant the stores are established at, so a resume re-anchored every
+multi-rate component's ticks at the capture instant.
+
+Each obstacle had a remedy inside the condition machinery, a captured-only
+entry with a default that kept the authored behaviour, and their number is
+what decided the question. A condition was being asked to describe a
+simulation's complete state at an arbitrary instant, which is a second task
+with different content: registers, held outputs and a clock beside the
+stores. Its name says what it is for. The friction came from repurposing
+it, and it goes when the two tasks get two values.
+
+The store's uniform reading at rest is what the deferral below broke. With
+the update paid at the next frame top, a component due at the rest boundary
+held the state its last tick had already decoded while every other held
+the state its next tick would decode, so the store meant two things
+depending on where the run stopped. Under the placement kept here the
+reading is one, and a checkpoint copies it without interpreting it.
+
+What retires with the condition form is accepted: a captured state can no
+longer be tweaked, `trim!` no longer takes a mid-run capture as its
+baseline, and `capture` is no longer the third client of the condition
+algebra beside `init!` and `trim!` ([§14.9][s14-9]). A tweak of a discrete store
+apart from its held output is the inconsistency this entry removes, a
+mid-run trim has no use in practice where trimming is done at an authored
+condition, and the algebra's unification never reached `capture`'s content.
+
+**Rejected.**
+- *Running each boundary's due updates at the top of the next frame,
+  before the drain:* it made the store consistent with the cells for a
+  component due at the rest boundary, and only for it, at the cost of the
+  store's uniform reading; it left the priors, the held outputs and the
+  origin untouched; and a throw inside an update moved to the following
+  frame. Built and reviewed once, kept on the branch
+  `deadend-update-placement`, and withdrawn.
+- *Captured-only condition entries, the priors, the held outputs and the
+  instant, each with a default that keeps the authored behaviour:* three
+  additions of one kind, each with its own rules under `at`, `combine` and
+  `override`, all serving a task the condition was not made for.
+- *A shadow copy of the pre-update stores that `capture` alone reads:* it
+  hides the tick-ahead store rather than removing it, and every reader of
+  the executor at rest would pick a buffer.
+- *`capture` inverting the last update:* `s_update` is not invertible in
+  general.
+
+### D-274 — Checkpoints: the executor's state as one value, restored without boundary zero
+
+**Status.** ratified
+
+**Position.** A `Checkpoint{T}` is the executor's state at a frame top,
+taken by `checkpoint(sim)` and by `init!`, and put back by `restore!`. It
+is the trace's header, and replay is a restore followed by the feed.
+
+- A checkpoint holds the flat buffer `x`, the `s` and `m` stores, the whole
+  signal table, the guard priors, the one event register that crosses a
+  boundary, the clock in full (`t`, the frame index, the boundary ordinal,
+  `t₀`), and the fingerprint, the deployment and the structural layout the
+  trace header carries today. The derivative buffer, the arrival pair, the
+  localization samples, which every frame rewrites before reading, the
+  cursor and the periphery stay out. The stepper seam gets a checkpoint
+  hook, empty for a single-step method.
+- `checkpoint(sim)` is a stopped-sim service ([§13.7][s13-7]): legal in
+  `initialized` and `stopped`, refused while running, and refused when the
+  executor sits mid-frame after a `t*` stop, the clock being past the frame
+  top with the remainder abandoned.
+- `restore!(sim, cp)` is a door beside `init!` and `replay!`: it checks the
+  fingerprint as replay checks the header, copies the state back, opens a
+  fresh run, publishes one snapshot, and runs no boundary zero. No sweep, no
+  guard evaluation, no update, no prior reset. The next frame is the
+  original lattice's next frame, since the clock came with the checkpoint;
+  the boundary ordinal continues, being the trajectory's ([§12.3][s12-3], [D-230][d-230]).
+- The trace header is the checkpoint `init!` takes at the end of boundary
+  zero, after the first publication. `TraceHeader` retires into it; the
+  header's resolved stores and root inputs are values still ([D-038][d-038]), the
+  checkpoint's. Replay restores it and feeds the batches from frame 1, so
+  [D-101][d-101]'s two substitutions become one, and `init!` is the only door that
+  runs boundary zero.
+- The parametric what-if of [§12.7][s12-7] is spelled as `init!` of the modified
+  model under the authored condition, followed by the trace's batches with
+  its header set aside. The trace is no longer self-sufficient for it: the
+  authored condition comes from outside. The edited-inputs what-if of
+  [§11.5][s11-5] is unchanged.
+- `linearize`'s default operating point is the checkpoint of the
+  simulation as it stands ([D-272][d-272]), restored into the scratch world; the
+  frozen tier's cells are the checkpoint's held cells, which is what [D-213][d-213]'s
+  establishment round approximated. `about = <condition>` stays for an
+  authored point.
+- A restore into a simulation of another activation is refused by
+  dispatch, as a reader or a trace is.
+- A throw inside boundary zero leaves no run, no trace and no checkpoint,
+  the simulation returning to `built` ([D-223][d-223]). Its reproduction is
+  `init!` under the same condition, which the `StepError` names at pointer
+  0; the general recipe, restore to the pointer then `step!`, starts at
+  pointer 1.
+
+**Spec.** [§11.5][s11-5], [§12.6][s12-6], [§12.7][s12-7], [§13.7][s13-7], [§14.8][s14-8], [§14.10][s14-10], [Appendix B][sB]
+
+**Rationale.** Once the state past the initial instant is a value of its
+own, restoring it is a copy, and nothing can be one tick ahead: the held
+cells, the priors and the clock are simply there. The identity of a
+resume holds on any model by construction, multi-rate included, and no
+component owes anything at a restore. Unifying the trace header with the
+checkpoint follows from the shape: the header already held the stores, the
+root inputs, the deployment and the layout, five of the checkpoint's
+fields, and lacked only what boundary zero would derive. Taking it after
+boundary zero instead of before hands replay a state to copy rather than a
+condition to establish. The price is the parametric what-if's start: a
+post-sequence header carries the recording model's held cells and priors
+until each component's next tick and the next boundary, where the
+pre-sequence header re-derived them under the modified model. Spelling
+that what-if around `init!` under the authored condition is the more honest
+form, [§12.7][s12-7] promising determinism and never reproduction, and it costs the
+user the condition they authored anyway. [§14.5][s14-5]'s line that boundary zero's
+firings are recomputed and never recorded loses its force without harm: the
+checkpoint records the post-firing state faithfully and suppresses nothing,
+which is all [D-026][d-026]'s rule against masking insurance asks. The checkpoint is
+also the on-disk unit the persistence deferral of [§11.5][s11-5] waited for, and a
+long run becomes seekable, a checkpoint at boundary `k` plus the batches
+from frame `k+1`.
+
+**Rejected.**
+- *Two header kinds, the pre-sequence resolved condition for an authored
+  opening and the checkpoint for a restored one:* one fingerprint, but a
+  union type, two replay dispositions and two openings to keep in step,
+  bought only for the parametric what-if's exactness at `t₀`.
+- *A checkpoint that can be overridden like a condition:* the danger lives
+  in the discrete tier, where a store and its held output move together;
+  a narrow override of `x` and the root inputs is safe and is the one
+  extension a mid-run trim would need, deferred until wanted.
+- *A partial first frame after a `t*` checkpoint:* the loop integrates
+  whole frames; refusing the mid-frame checkpoint keeps the lattice, and the
+  extension waits for a use.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -11182,6 +11359,8 @@ ignored, the default operating point carrying the capture's own time.
 [d-270]: #d-270--fix-the-frameworks-half-of-the-panel-convention-port-views-the-peek-the-orphan-fact
 [d-271]: #d-271--admit-the-component-index-on-get_input-and-get_face
 [d-272]: #d-272--fix-linearizes-surface-the-tap-set-the-chunk-width-the-operating-point-and-the-return
+[d-273]: #d-273--a-condition-is-an-initial-condition-capture-leaves-the-algebra
+[d-274]: #d-274--checkpoints-the-executors-state-as-one-value-restored-without-boundary-zero
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
