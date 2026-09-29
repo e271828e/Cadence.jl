@@ -66,6 +66,13 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
+- **The frame index has two names** (§10.4): `Clock`, `Checkpoint` and
+  `CheckpointMidFrame` call it `step`, and `CheckpointMismatch`'s clock arm
+  carries `name = :step`, where `Snapshot`, the trace and its records call
+  it `frame`, the spec's word. A pure rename to `frame`, as a standalone fix
+  after increment 55. `StepError.frame` holds a `CursorFrame`, a second
+  meaning of the word on another struct; whether it moves is decided with
+  the rename in hand.
 - **The frame index of a typed time near `t = 0`** (§12.7, D-219):
   `_frame_at` and `_frames_to` add a slack of `4·eps(t)/h`, which collapses
   where `t` is near zero and `t₀` is not. At `t₀ = -0.3`, `to_time = 0.0`
