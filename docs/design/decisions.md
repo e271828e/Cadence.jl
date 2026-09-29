@@ -11042,8 +11042,9 @@ is the trace's header, and replay is a restore followed by the feed.
   authored point.
 - A restore into a simulation of another activation is refused by
   dispatch, as a reader or a trace is.
-- A throw inside boundary zero leaves no run, no trace and no checkpoint,
-  the simulation returning to `built` ([D-223][d-223]). Its reproduction is
+- A throw inside boundary zero leaves no trace and no checkpoint, the
+  simulation returning to `built` ([D-223][d-223]). The run `init!` opened
+  stays behind, empty. Its reproduction is
   `init!` under the same condition, which the `StepError` names at pointer
   0; the general recipe, restore to the pointer then `step!`, starts at
   pointer 1.
