@@ -133,3 +133,75 @@ Left for the user:
   origin. The agent corrected the sentence with the fix.
 - No test drove `step!(; t_plus)` on a `Dual` activation before. One does
   now.
+
+## The "Smaller" bullet
+
+Taken item by item after the three entries, on the user's instruction, with
+a context check before each one.
+
+16. **`report!(entry, DeviceCrash(…))`** (commit `5174126`, gate green,
+    3999). One method beside the handle's, admitting `DeviceCrash` alone.
+    It asserts no attachment and beats no heartbeat, since a beat would
+    claim life for a device that did not run or has just died. Both
+    framework sites file through it, the pre-spawn bracket §12.4 names and
+    the wrapper, which holds the entry and writes the same cell. No handle
+    method for `DeviceCrash` was added: the handle's docstring says a
+    device's author may file `MalformedDatum` alone, and a handle method
+    would open the crash to the author.
+17. **The log's `sizehint!`** (commit `7464639`, gate green, 4002). The
+    constructor hints the middle's capacity to `log_max` when the log is
+    enabled and the bound is finite. Since D-255 moved `t_end` to the
+    advances, `init!` knows no duration, so the bound alone sets the hint.
+    At the default `65536` that is 512 kB of references per `init!`.
+
+Left for the user, with a recommendation each:
+
+- **§11.6's wrapper sketch** writes `report!(handle, DeviceCrash(e))`.
+  The code files by entry, and a handle method would let an author file a
+  crash. Recommendation: the sketch reads `report!(entry, DeviceCrash(e))`.
+- **The routing chain** (item 2) is a feature, not a loose fix, and it
+  needs a ruling on shape. §13.7's one example,
+  `"crashed" → aircraft/monitor/out ← systems/ldg/{left,right,nose}/damaged`,
+  reads as more than a chain of aliased faces: the `←` half lists the
+  producing component's own inputs, a dataflow view. The chain `Structure`
+  records and the printer's format both follow from that reading. The
+  coordinator's proposal: `resolve_source` records the hops
+  `(path, face)` from a face to its producing terminal in the face table's
+  row, one chain per output face and one per consumer for an input face
+  that fans out; the printer prints the hops joined by `→` and stops at the
+  terminal, with no `←` half. The user rules whether the `←` half is owed.
+- **The log's inline records** (item 3, second half). §7.5 says snapshots
+  are records stored inline in a `Vector`. `Snapshot{T,S}` is immutable
+  and concrete per run, so a `Vector{Snapshot{T,S}}` would store the
+  records inline. The log's middle is `Vector{Union{Nothing,Snapshot}}`,
+  abstract and with `nothing` marking a released slot, so it holds boxed
+  references. Inline storage needs a per-run concrete log type and another
+  way to mark a released slot, which touches the thinning algorithm
+  (D-137). Recommendation: leave the shape and soften §7.5's sentence to
+  the claim it makes in its next sentence, that the snapshot's fields ride
+  as references to frozen data with no per-boundary garbage.
+- **The roster's freeze** (item 4). §11.3 says the roster is "a plain
+  immutable value the loop reads once at `run!`". The code re-reads
+  `plane.roster` every frame and the freeze is `assert_stopped`'s gate.
+  The audit itself grades this a stand-in, the guarantee holding. The two
+  ways to conform: the run takes a copy of the roster at `run!` and the
+  loop iterates that, or the sentence softens to the gate. Recommendation:
+  the copy, since `_init_devices!` already derives `live` from the roster
+  at run start and the loop could iterate it.
+- **`ReplayDiscardedStaging`'s presentation** (item 6). The coordinator
+  could not determine what "unpresented" was meant to say. The audit's
+  tables grade the kind accurate and rate-limited, and note only that its
+  payload has no device id, which the cell's attribution supplies. The
+  clause stays until the user says what is owed.
+18. **The every-component `Dual` sweep** (commit `4297ca7`, gate green,
+    4007). The sweep reads the concrete component types off the live suite
+    module, covers those with a zero-argument constructor and a nominal
+    build, and requires the `ProbeDual` activation of each. Four fixtures
+    are pinned on purpose and listed by name; the test asserts the refusers
+    equal that list. Two fixtures throw past the diagnostic channel on
+    purpose and are listed too. The covered count is a floor, the skipped
+    count exact, so a new argument-taking fixture is classified on purpose.
+    The sweep costs about 36 s inside the gate, which grew from about 5:00
+    to 5:19. The coordinator added one guard after the agent's commit: a
+    real interrupt during a nominal build stops the sweep instead of being
+    counted as a pass-through.
