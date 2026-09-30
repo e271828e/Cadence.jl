@@ -26,6 +26,26 @@ claims(::Drifted) = ("a",)
 struct Unwritten <: AbstractBinding end              # output side only: absent here
 is_output(::Unwritten) = true
 
+# Empties the roster from its loop body and reports one datum, then stops the
+# run once a frame top has drained the report. The write reaches past §11.3's
+# gate, which refuses `detach!` while running; `shutdown!` is logged.
+mutable struct RosterEmptier <: AbstractDevice
+    sim::Simulation
+    log::Vector{Symbol}
+end
+RosterEmptier(sim) = RosterEmptier(sim, Symbol[])
+shutdown!(dev::RosterEmptier) = (push!(dev.log, :shutdown); nothing)
+function loop(dev::RosterEmptier, handle)
+    empty!(dev.sim.plane.roster)
+    report!(handle, MalformedDatum("past the gate"))
+    # the third publication from here is past a frame top that followed the report
+    for _ in 1:3
+        wait_next_snapshot(handle)
+    end
+    stop!(handle)
+    nothing
+end
+
 function test_roster()
     @testset "the binding conformance check names every drift at the attach point (§11.6)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
@@ -231,6 +251,24 @@ function test_roster()
         detach!(sim, dev)
     end
 
+    @testset "the run drains and reports the roster it read at run!, not the plane's (§11.3)" begin
+        sim = Simulation(chain3(); h = 1//100)
+        emptier = RosterEmptier(sim)
+        rostered = [attach!(sim, emptier, NoClaim()).who, attach!(sim, TailProbe(), NoClaim()).who]
+        init!(sim, fragment(inputs = (u = 0.0,)))
+        # The gate refuses a mid-run `detach!`, so the copy is invisible through
+        # the API; the emptier writes the plane's roster directly instead.
+        run!(sim; t_end = 1000.0)                        # the emptier's stop ends it
+        @test isempty(sim.plane.roster)                  # the write landed mid-run
+        @test lifecycle(sim) === :stopped
+        @test termination(sim).source isa ControlRequestedStop
+        @test :shutdown in emptier.log
+        @test length(logged(sim)) > 1
+        @test all([w.who for w in snapshot.status.writers] == [rostered; "harness"; "loop"]
+                  for snapshot in logged(sim))
+        @test writer_status(latest(sim), rostered[1]).totals.malformed == 1   # drained
+    end
+
     @testset "the frame's outcome is a pure function of the drained batches, whoever staged them (§11.4)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         dev_a, dev_b = Pad("da"), Pad("db")
@@ -256,7 +294,7 @@ function test_roster()
         attach!(sim, Pad("da"), Enumerated("a"))
         attach!(sim, Pad("gui"), Greedy())
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
-        @test @ballocated(drain!($sim)) == 0
+        @test @ballocated(drain!($sim, $(sim.plane.roster))) == 0
     end
 
     @testset "a populated device drain is as free as an empty one (§11.4, D-202)" begin
@@ -267,10 +305,10 @@ function test_roster()
         greedy_handle = attach!(sim, Pad("gui"), Greedy())
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)); trace = false)
         # warm both scatters
-        stage!(handle_a, "a" => 1.0); stage!(greedy_handle, "b" => 1.0); drain!(sim)
-        @test @ballocated(drain!($sim), setup = (stage!($handle_a, "a" => 2.0)),
+        stage!(handle_a, "a" => 1.0); stage!(greedy_handle, "b" => 1.0); drain!(sim, sim.plane.roster)
+        @test @ballocated(drain!($sim, $(sim.plane.roster)), setup = (stage!($handle_a, "a" => 2.0)),
                            evals = 1) == 0
-        @test @ballocated(drain!($sim), setup = (stage!($greedy_handle, "b" => 2.0)),
+        @test @ballocated(drain!($sim, $(sim.plane.roster)), setup = (stage!($greedy_handle, "b" => 2.0)),
                            evals = 1) == 0
     end
 end

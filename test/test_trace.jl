@@ -75,7 +75,7 @@ function trace_recording()
 
         # The quiet frame stays free: the trace's drain count is one field write,
         # and nothing is recorded where nothing was drained (§11.1, D-260).
-        @test @ballocated(drain!($sim)) == 0
+        @test @ballocated(drain!($sim, $(sim.plane.roster))) == 0
     end
 
     @testset "the header is the post-sequence checkpoint (§11.5, §12.6, D-274)" begin

@@ -450,9 +450,9 @@ first frame top the same way. Returns the live entries, from which §11.1's
 topology is derived — derived *after* initialization, never from the roster
 alone.
 """
-function _init_devices!(sim)
+function _init_devices!(sim, roster)
     live = RosterEntry[]
-    for entry in sim.plane.roster
+    for entry in roster
         initialized = try
             init!(entry.dev)
             true
@@ -568,10 +568,10 @@ presented through the logging backend, the record's renderer (D-201, D-203).
 The terminal status's account is therefore complete up to its own frame top,
 and the tail's remainder is loud *and* recorded, still never published.
 """
-function _sweep_tail!(sim)
+function _sweep_tail!(sim, roster)
     plane = sim.plane
     residue = ResidueRecord[]
-    for entry in plane.roster
+    for entry in roster
         _fold!(entry.account, _handle(entry).diag_cell)
         _residue!(residue, _who(entry), entry.account)
     end

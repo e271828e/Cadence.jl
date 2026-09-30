@@ -224,7 +224,7 @@ function test_localization()
         init!(quiet_sim)
         run!(quiet_sim; t_end = 0.2)
         no_policy, no_addrs = StopPolicy(Inf, Symbol[]), Any[]   # the advance's arguments (D-260, D-261)
-        @test @ballocated(frame!($quiet_sim, 3, $no_policy, $no_addrs, nothing)) == 0
+        @test @ballocated(frame!($quiet_sim, 3, $no_policy, $no_addrs, $(quiet_sim.plane.roster), nothing)) == 0
 
         # A localizing frame: one crossing, θ = 0 validation, ẋₙ₊₁, the bracketing
         # trials, the t* boundary and the remainder — all against preallocated
@@ -233,7 +233,7 @@ function test_localization()
         # §11.2) — and nothing of the localization machinery's.
         localizing_sim = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10)
         init!(localizing_sim; log = false)
-        publish_bytes = @ballocated publish!($localizing_sim)
-        @test @ballocated(frame!($localizing_sim, 1, $no_policy, $no_addrs, nothing), setup = (init!($localizing_sim; log = false)), evals = 1) == publish_bytes
+        publish_bytes = @ballocated publish!($localizing_sim, $(localizing_sim.plane.roster))
+        @test @ballocated(frame!($localizing_sim, 1, $no_policy, $no_addrs, $(localizing_sim.plane.roster), nothing), setup = (init!($localizing_sim; log = false)), evals = 1) == publish_bytes
     end
 end

@@ -45,12 +45,6 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-- **The roster is read once per run** (§11.3, E 4.4, M-B26): the loop
-  re-reads `plane.roster` every frame, and the freeze is `assert_stopped`'s
-  gate, where §11.3 makes the roster a plain immutable value the loop reads
-  once at `run!`. Ruled 2026-09-30: the run takes a copy at `run!`, and the
-  drain and the status iterate that. `_init_devices!` already derives `live`
-  from the roster at run start.
 - **The log boxes each snapshot again** (§7.5, §11.2, M-B26): `publish!`
   boxes the snapshot once for `latest`, and `log!`, called with the concrete
   value, boxes it twice more, for `last` and for the middle. That is 288 B a

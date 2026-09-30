@@ -660,7 +660,7 @@ end
 # once (D-255). The diagnostic *cells* are deliberately untouched: a rejection
 # recorded while stopped is a fact about what happened.
 function _reset_periphery!(sim::Simulation)
-    _reset_accounts!(sim)         # a new trajectory opens a fresh account (§11.8)
+    _reset_accounts!(sim, sim.plane.roster)   # a new trajectory opens a fresh account (§11.8)
     for entry in sim.plane.roster     # §12.6: no staged batch survives into the
         @atomic _handle(entry).writer.cell.pending = nothing   # trajectory it predates
     end
@@ -814,7 +814,7 @@ function init!(sim::Simulation{T}, condition = fragment(); t0::Real = 0.0, trace
     _open_run!(sim, nothing, Pair{String,Vector{Symbol}}[], nothing, trace, log,
                Int(log_every), log_max)   # the fresh run, its header not yet taken (§12.6)
     _host_boundary_zero!(sim)
-    publish!(sim)                 # the boundary-zero snapshot (§11.2, §14.5)
+    publish!(sim, sim.plane.roster)   # the boundary-zero snapshot (§11.2, §14.5)
     # §11.5's header: the checkpoint at the end of boundary zero, so a throw
     # inside it leaves no header and no trace to hand back (D-274)
     trc = sim.run.trace
@@ -874,7 +874,7 @@ function _enter_checkpoint!(sim::Simulation{T}, cp::Checkpoint{T}, schemas, feed
     _open_run!(sim, trace_switch ? _detach(cp) : nothing, schemas, feed, trace_switch,
                log_switch, log_every, log_max)
     sim.exec.clock.boundary -= 1
-    publish!(sim)
+    publish!(sim, sim.plane.roster)
     nothing
 end
 
@@ -1270,8 +1270,10 @@ end
 # replay *is* this loop. `addrs` is the policy's faces compiled, the loop's own
 # argument (D-261); `upto` is the frame budget, `t_end_frame` the `t_end` frame.
 # The pacer is created here, one per call, and handed to the loop as the policy
-# is (§10.7, §12.6, D-269). The §12.2 thread-budget check runs here too, after
-# the freeze, so either door checks once per run against the frozen roster.
+# is (§10.7, §12.6, D-269). So is the roster, copied at the freeze and read by
+# the run alone, never off the plane (§11.3). The §12.2 thread-budget check runs
+# here too, after the freeze, so either door checks once per run against the
+# frozen roster.
 #
 # The terminal mapping is `step!`'s. `source === nothing` means the budget ran
 # out rather than a source firing, which only a bounded advance can reach — a
@@ -1287,6 +1289,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
     plane, control = sim.plane, sim.control
     upto = _replay_bound(sim, upto)             # §12.7: the recording bounds a replaying run
     @atomic :release control.lifecycle = :running   # the §11.3 freeze: the roster is fixed for the run
+    roster = copy(plane.roster)               # the run's roster, read once (§11.3)
     source, error_source = nothing, nothing
     logged_cause = nothing                    # the cause and its backtrace, when not rethrown
     # the interrupt arm below reads these five
@@ -1296,16 +1299,16 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
     pacer = Pacer()                           # this call's schedule and counters (D-269)
     try
         @atomic control.stop_issuer = nothing
-        _reset_accounts!(sim)                 # §11.8: totals count since the run began
-        report_thread_budget!(plane, Threads.nthreads())   # §12.2: one check per run, either door
-        append!(live, _init_devices!(sim))    # §12.4's pre-spawn bracket, attachment order
+        _reset_accounts!(sim, roster)         # §11.8: totals count since the run began
+        report_thread_budget!(plane, roster, Threads.nthreads())  # §12.2: one check per run, either door
+        append!(live, _init_devices!(sim, roster))   # §12.4's pre-spawn bracket, attachment order
         @atomic control.stopped = false
         inline_index = findfirst(e -> needs_calling_task(e.dev), live)
         if inline_index === nothing                     # the unattended mode (§11.1)
             tasks = _spawn!(live)
             _register_tasks!(plane, live, tasks)
             try
-                source = _advance!(sim, policy, addrs, upto, t_end_frame, pacer)[1]
+                source = _advance!(sim, policy, addrs, upto, t_end_frame, roster, pacer)[1]
                 returned = true
             finally
                 _finish!(sim)                 # tail (1)–(2), even off a loop-side throw
@@ -1323,7 +1326,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             # the unmask with `loop_task` bound, and the arm can await it (§12.4).
             Base.sigatomic_begin()
             loop_task = Threads.@spawn try
-                _advance!(sim, policy, addrs, upto, t_end_frame, pacer)[1]
+                _advance!(sim, policy, addrs, upto, t_end_frame, roster, pacer)[1]
             finally
                 _finish!(sim)                 # the spawned loop wakes the inline body too
             end
@@ -1410,7 +1413,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             cause = first(loop_failure)
             error_source = LoopError(cause isa TaskFailedException ? cause.task.exception : cause)
             # §13.4's disposition, by the roster (D-268): unattended, CI fails honestly
-            isempty(plane.roster) && rethrow(cause)
+            isempty(roster) && rethrow(cause)
             logged_cause = loop_failure
         end
     finally
@@ -1418,7 +1421,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
         # its end propagating raw, the simulation already terminal (§12.4, D-268).
         Base.sigatomic_begin()
         @atomic control.stopped = true
-        residue = _sweep_tail!(sim)           # the run's last take (§11.8): what landed past
+        residue = _sweep_tail!(sim, roster)   # the run's last take (§11.8): what landed past
                                               # the final frame top — recorded and presented,
                                               # never published (D-201, D-203)
         # Under the lock because the calling-task topology's interrupt arm can
@@ -1449,8 +1452,8 @@ end
 # init!, the trajectory — at zero. The cells are deliberately not touched: a
 # batch reported or staged while stopped waits for the first frame top's
 # drain, exactly as a staged input batch waits (§11.4).
-function _reset_accounts!(sim::Simulation)
-    for entry in sim.plane.roster
+function _reset_accounts!(sim::Simulation, roster::Vector{RosterEntry})
+    for entry in roster
         _reset!(entry.account)
     end
     _reset!(sim.plane.harness_account)
@@ -1464,8 +1467,8 @@ end
 # so the first frame top drains it into the first snapshot's status; a
 # deviceless run never warns. The thread count is an argument for the test
 # that drives the check below the machine's count.
-function report_thread_budget!(plane::DataPlane, threads::Int)
-    device_tasks = length(plane.roster)
+function report_thread_budget!(plane::DataPlane, roster::Vector{RosterEntry}, threads::Int)
+    device_tasks = length(roster)
     threads < device_tasks + 1 &&
         report_cell!(plane.loop_diag, ThreadBudget(threads, device_tasks))
     nothing
@@ -1513,7 +1516,7 @@ _register_tasks!(plane::DataPlane, entries::Vector{RosterEntry}, tasks::Vector{T
 # restores the sigatomic count its entry saw, so the mask's two ends sit
 # outside the frame's `try`.
 function _advance!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto::Int,
-                   t_end_frame::Int, pacer::Union{Nothing,Pacer})
+                   t_end_frame::Int, roster::Vector{RosterEntry}, pacer::Union{Nothing,Pacer})
     plane, control, clock = sim.plane, sim.control, sim.exec.clock
     N_base = sim.deployment.N_base
     h = sim.deployment.h
@@ -1531,18 +1534,18 @@ function _advance!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto
             issuer === nothing || return (ControlRequestedStop(issuer), advanced)
             sim.exec.clock.frame < t_end_frame || return (EndTimeReached(), advanced)
             sim.exec.clock.frame < upto || return (nothing, advanced)
-            isempty(plane.roster) || yield()
+            isempty(roster) || yield()
             pacer === nothing ||              # the pacer's wait: an unmask point (§12.4)
                 wait_deadline!(control, pacer, plane.loop_diag, _seconds(clock.t), h)
             entry_boundary = sim.exec.clock.frame  # the frame-entry boundary index (§13.4)
             Base.sigatomic_begin()                 # §12.4: masked across the boundary sequence
             try
-                drain!(sim)
+                drain!(sim, roster)
                 k = (sim.exec.clock.frame += 1)
-                hit = frame!(sim, k, policy, addrs, pacer)
+                hit = frame!(sim, k, policy, addrs, roster, pacer)
                 if hit === nothing
                     k % N_base == 0 ? boundary!(sim, k ÷ N_base) : offtick_boundary!(sim)
-                    publish!(sim, pacer)
+                    publish!(sim, roster, pacer)
                     face = _stop_hit(sim, policy, addrs)
                 else
                     face = hit    # a t* publication hit (§13.5): that snapshot is final
@@ -1761,6 +1764,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
     (policy, addrs) = _bind_policy(sim, t_end, stop_on, :step!)   # this advance's policy (§13.5, D-255)
     t_end_frame = _t_end_frame(sim, policy.t_end)
     @atomic :release control.lifecycle = :running   # the freeze holds within the call
+    roster = copy(sim.plane.roster)           # the call's roster, read once (§11.3)
     source, advanced, error_source = nothing, 0, nothing
     returned = false
     try
@@ -1768,7 +1772,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         # end advances only to the last recorded frame and returns fewer frames
         # than asked — the truncation the caller reads (D-218)
         upto = _replay_bound(sim, sim.exec.clock.frame + frame_count)
-        (source, advanced) = _advance!(sim, policy, addrs, upto, t_end_frame, nothing)
+        (source, advanced) = _advance!(sim, policy, addrs, upto, t_end_frame, roster, nothing)
         returned = true
     catch err
         if err isa InterruptException
@@ -1788,7 +1792,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         Base.sigatomic_begin()                # masked bookkeeping, as `run!`'s (§12.4, D-268)
         if error_source !== nothing                # §13.6, the stepped entry: same tail,
             _finish!(sim)                     # deviceless — waits woken, accounts swept
-            sim.run.termination = _record(sim, policy, error_source, _sweep_tail!(sim))
+            sim.run.termination = _record(sim, policy, error_source, _sweep_tail!(sim, roster))
             @atomic :release control.lifecycle = :errored
         else
             _settle_mode!(sim)                # §12.7's flip, at the halt (D-218)
@@ -1796,7 +1800,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
                 @atomic :release control.lifecycle = :initialized
             else                              # a §13.5 source fired inside the call:
                 _finish!(sim)                 # the deviceless §12.4 tail, then terminal
-                sim.run.termination = _record(sim, policy, source, _sweep_tail!(sim))
+                sim.run.termination = _record(sim, policy, source, _sweep_tail!(sim, roster))
                 @atomic :release control.lifecycle = :stopped
             end
         end
@@ -2063,7 +2067,7 @@ whole of the substitution — the live path underneath is untouched, which is
 what "the ordinary loop" means (§12.7) — and what selects it is the attached
 recording, which is what the input mode the caller reads *is* (§12.6, D-260).
 """
-function drain!(sim::Simulation)
+function drain!(sim::Simulation, roster::Vector{RosterEntry})
     plane = sim.plane
     cursor = sim.exec.cursor         # the one store per frame that keeps a stale frame from
     cursor.comp = 0; cursor.fn = :none  # being reported for a drain-side throw (§13.4)
@@ -2075,10 +2079,10 @@ function drain!(sim::Simulation)
     trc = sim.run.trace
     trc === nothing || (trc.frames += 1)
     feed = sim.run.feed
-    feed === nothing || return _replay_drain!(sim, feed)
+    feed === nothing || return _replay_drain!(sim, roster, feed)
     # The diagnostic cells drain at the same point (§11.8): retained values into the
     # pending delta, every occurrence into the totals.
-    for entry in plane.roster
+    for entry in roster
         entry.drain()
         _fold!(entry.account, _handle(entry).diag_cell)
     end
@@ -2111,10 +2115,10 @@ The frame ordinal is computed from the clock here rather than read off the
 trace: the records are keyed by it and the discard reports name it, and under
 the kill switch there is no trace to read it from (D-260).
 """
-function _replay_drain!(sim::Simulation, feed::ReplayFeed)
+function _replay_drain!(sim::Simulation, roster::Vector{RosterEntry}, feed::ReplayFeed)
     plane = sim.plane
     frame = sim.exec.clock.frame + 1
-    for entry in plane.roster
+    for entry in roster
         handle = _handle(entry)
         _discard_staged!(handle.writer, handle.diag_cell, frame)
         _fold!(entry.account, handle.diag_cell)        # the diagnostic fold is the live path's, unchanged
@@ -2176,11 +2180,12 @@ the new count finds at least this boundary in `latest`. The snapshot's
 ordinal is the trajectory's, off the clock (D-230); the counter is the wait
 predicate's alone.
 """
-function publish!(sim::Simulation, pacer::Union{Nothing,Pacer} = nothing)
+function publish!(sim::Simulation, roster::Vector{RosterEntry},
+                  pacer::Union{Nothing,Pacer} = nothing)
     control = sim.control
     clock = sim.exec.clock
     snapshot = Snapshot(clock.t, clock.frame, clock.boundary, capture_stores(sim.exec.store),
-                        sim.exec.act.layout, _status(sim, pacer))
+                        sim.exec.act.layout, _status(sim, roster, pacer))
     clock.boundary += 1
     @atomic :release sim.plane.published.latest = snapshot
     log!(sim.run.log, snapshot)
@@ -2212,11 +2217,11 @@ end
 # `Inf` and zeros where no pacer runs (§10.7). A device with no registered task
 # reads `:done` inside a run and `:none` outside one (§12.2); the sticky status
 # is what tells the two apart, since `step!` holds `:running` with no task.
-function _status(sim::Simulation, pacer::Union{Nothing,Pacer})
+function _status(sim::Simulation, roster::Vector{RosterEntry}, pacer::Union{Nothing,Pacer})
     plane, control = sim.plane, sim.control
     no_task_state = (@atomic control.stopped) ? :none : :done
-    statuses = Vector{WriterStatus}(undef, length(plane.roster) + 2)
-    for (i, entry) in enumerate(plane.roster)
+    statuses = Vector{WriterStatus}(undef, length(roster) + 2)
+    for (i, entry) in enumerate(roster)
         task = @lock control.wake get(plane.run_tasks, entry.id, nothing)
         statuses[i] = _writer_status(_who(entry), entry.account, _heartbeat(_handle(entry).diag_cell),
                                      task === nothing ? no_task_state : _task_state(task))

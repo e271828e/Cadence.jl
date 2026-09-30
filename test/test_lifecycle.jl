@@ -340,13 +340,13 @@ function test_lifecycle()
         # the machine's count: one device and the loop need two threads.
         sim = Simulation(two_root_inputs(); h = 1//10)
         attach!(sim, Pad("p"), Enumerated())
-        report_thread_budget!(sim.plane, 1)
+        report_thread_budget!(sim.plane, sim.plane.roster, 1)
         @test only(_take!(sim.plane.loop_diag).ring) == ThreadBudget(1, 1)
-        report_thread_budget!(sim.plane, 2)
+        report_thread_budget!(sim.plane, sim.plane.roster, 2)
         @test _take!(sim.plane.loop_diag) === EMPTY_DIAG
         # A deviceless run occupies the loop's task alone, which any thread hosts.
         bare = Simulation(two_root_inputs(); h = 1//10)
-        report_thread_budget!(bare.plane, 1)
+        report_thread_budget!(bare.plane, bare.plane.roster, 1)
         @test _take!(bare.plane.loop_diag) === EMPTY_DIAG
     end
 

@@ -362,7 +362,14 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
 - §12.2's thread-budget check `report_thread_budget!` runs at the run body's
   top after the freeze, so either door checks once against the frozen roster
   and `step!` never does (D-027).
-- Staging/drain/publication, with the drain's replay substitution.
+- Staging/drain/publication, with the drain's replay substitution, and the
+  run's roster (§11.3):
+  - the run body and `step!` copy the roster after the freeze, and thread the
+    copy the way the policy and the pacer are threaded;
+  - the drain, the status, the account reset, the thread-budget check, the
+    init bracket and the tail's sweep read the copy, never the plane's;
+  - the doors pass the plane's roster to their publication, and every
+    stopped-sim reader reads the plane's.
 - Publication reads each device's `task_state` off `run_tasks` (§12.2,
   D-270). A device with no registered task reads `:done` inside a run and
   `:none` outside one, by the sticky status. `_run_body!`'s `finally`

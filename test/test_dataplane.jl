@@ -192,7 +192,7 @@ function dataplane_exchange()
     @testset "an empty drain is free: the frame top adds no work to a quiet loop (§11.1)" begin
         sim = Simulation(chain3(); h = 1//10)
         init!(sim, fragment(inputs = (u = 0.0,)))
-        @test @ballocated(drain!($sim)) == 0
+        @test @ballocated(drain!($sim, $(sim.plane.roster))) == 0
     end
 
     @testset "a populated drain is as free as an empty one, whatever the batch touches (§11.4, D-202)" begin
@@ -202,12 +202,12 @@ function dataplane_exchange()
         # D-202's claim.
         sim = Simulation(two_root_inputs(); h = 1//10)
         init!(sim, fragment(inputs = (a = 0.0, b = 0.0)); trace = false)
-        stage!(sim, "a" => 1.0); drain!(sim)             # warm the writer's one scatter
-        @test @ballocated(drain!($sim), setup = (stage!($sim, "a" => 1.0)), evals = 1) == 0
+        stage!(sim, "a" => 1.0); drain!(sim, sim.plane.roster)  # warm the writer's one scatter
+        @test @ballocated(drain!($sim, $(sim.plane.roster)), setup = (stage!($sim, "a" => 1.0)), evals = 1) == 0
         # A never-drained sparsity pattern costs the same nothing: the scatter is
         # one specialization per writer, never one per touched-face combination.
-        @test @ballocated(drain!($sim), setup = (stage!($sim, "b" => 1.0)), evals = 1) == 0
-        @test @ballocated(drain!($sim), setup = (stage!($sim, "a" => 1.0, "b" => 2.0)),
+        @test @ballocated(drain!($sim, $(sim.plane.roster)), setup = (stage!($sim, "b" => 1.0)), evals = 1) == 0
+        @test @ballocated(drain!($sim, $(sim.plane.roster)), setup = (stage!($sim, "a" => 1.0, "b" => 2.0)),
                           evals = 1) == 0
     end
 end
@@ -231,16 +231,16 @@ function dataplane_wide_surface()
         init!(sim, wide_zero(17); trace = false)
         stage!(sim, "a3" => 1.5)
         stage!(sim, "b9" => -2.0, "a3" => 2.5)           # merge: newest wins, untouched survive
-        drain!(sim)
+        drain!(sim, sim.plane.roster)
         @test port(sim, "", :a3) === 2.5
         @test port(sim, "", :b9) === -2.0
         @test port(sim, "", :a1) === 0.0                 # never staged, never touched
         dense = () -> stage!(sim, ("a$i" => Float64(i) for i in 1:17)...,
                                   ("b$i" => -Float64(i) for i in 1:17)...)
-        dense(); drain!(sim)                             # warm the wide scatter
+        dense(); drain!(sim, sim.plane.roster)            # warm the wide scatter
         @test port(sim, "", :b17) === -17.0
-        @test @ballocated(drain!($sim), setup = (stage!($sim, "a7" => 1.0)), evals = 1) == 0
-        @test @ballocated(drain!($sim), setup = ($dense()), evals = 1) == 0
+        @test @ballocated(drain!($sim, $(sim.plane.roster)), setup = (stage!($sim, "a7" => 1.0)), evals = 1) == 0
+        @test @ballocated(drain!($sim, $(sim.plane.roster)), setup = ($dense()), evals = 1) == 0
     end
 end
 

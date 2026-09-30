@@ -89,9 +89,9 @@ function test_stepper()
         # the framework-side carve-out (§7.5, §11.2) — as under RK4 (gate 3).
         bouncer_sim = Simulation(single(Bouncer(1.0, 0.07)); h = 1//10, algorithm = Heun)
         init!(bouncer_sim; log = false)
-        publish_bytes = @ballocated publish!($bouncer_sim)
+        publish_bytes = @ballocated publish!($bouncer_sim, $(bouncer_sim.plane.roster))
         no_policy, no_addrs = StopPolicy(Inf, Symbol[]), Any[]   # the advance's arguments (D-260, D-261)
-        @test @ballocated(frame!($bouncer_sim, 1, $no_policy, $no_addrs, nothing), setup = (init!($bouncer_sim; log = false)), evals = 1) == publish_bytes
+        @test @ballocated(frame!($bouncer_sim, 1, $no_policy, $no_addrs, $(bouncer_sim.plane.roster), nothing), setup = (init!($bouncer_sim; log = false)), evals = 1) == publish_bytes
     end
 
     @testset "the second backend is generic over the scalar (§7.2)" begin
