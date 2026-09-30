@@ -90,6 +90,10 @@ is stored, and flattening at resolution is the one place path strings ever
 join (§14.3).
 """
 at(prefix::AbstractString, node::ConditionNode) = Scoped(String(prefix), node)
+# A read set is no condition node, and `Scoped` never wraps one: the prefix joins
+# the set's own mount chain, walked at resolution (§14.9, D-277).
+at(prefix::AbstractString, read_set::Reads) =
+    Reads((String(prefix), read_set.prefixes...), read_set.selectors)
 at(::AbstractString, other) = _node_misuse(other, ())
 
 """
@@ -432,22 +436,34 @@ end
 # reaches none — writing it would be meaningless, because the first sweep
 # overwrites it.
 function _root_input(structure::Structure, entry::CEntry, diags::Vector{Diagnostic})
-    if isempty(entry.path)
-        entry.field in structure.root_inputs && return entry.field
-        push!(diags, _condition_violation(entry, :unexported_face; candidates = structure.root_inputs))
+    producer = _face_producer(structure, entry.path, entry.field)
+    if producer === nothing
+        push!(diags, isempty(entry.path) ?
+                     _condition_violation(entry, :unexported_face; candidates = structure.root_inputs) :
+                     _condition_violation(entry, :no_input_face;
+                                          candidates = _input_faces_at(structure, entry.path)))
         return nothing
     end
-    row = findfirst(p -> first(p) === (entry.path, entry.field), structure.in_faces)
-    if row === nothing
-        here = [f for ((p, f), _) in structure.in_faces if p == entry.path]
-        push!(diags, _condition_violation(entry, :no_input_face; candidates = here))
-        return nothing
-    end
-    (producer_path, producer_port) = last(structure.in_faces[row])
-    isempty(producer_path) && return producer_port
-    push!(diags, _condition_violation(entry, :internally_wired;
-                                      producer = (producer_path, producer_port)))
+    isempty(first(producer)) && return last(producer)
+    push!(diags, _condition_violation(entry, :internally_wired; producer = producer))
     nothing
+end
+
+# The export chain's lookup, shared with the read side's mount step (readers.jl,
+# D-277), each side pushing its own kind. The graph has a row for every input
+# face at every level, the root's and the primitives' included (§9.2, D-207).
+
+# The input faces of the level at `path`: the root inputs at the root.
+_input_faces_at(structure::Structure, path::String) =
+    isempty(path) ? structure.root_inputs :
+                    Symbol[face for ((face_path, face), _) in structure.in_faces if face_path == path]
+
+# The producer the input face `face` of the level at `path` lands on, `("", root
+# input)` when the chain reaches the root, or `nothing` when the level has no
+# such face.
+function _face_producer(structure::Structure, path::String, face::Symbol)
+    row = findfirst(pair -> first(pair) == (path, face), structure.in_faces)
+    row === nothing ? nothing : last(structure.in_faces[row])
 end
 
 # The store a condition names has to exist on the component at all: `x` is the

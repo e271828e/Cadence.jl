@@ -225,29 +225,43 @@ entry is its `xbuf` site paired with the `DerivRead` its row is read through,
 a `u` entry the root input's `CellRead`, a `y` entry its cell's. A second `x`
 or `u` tap at a site already seeded is refused naming the earlier label, since
 its seed would overwrite the first; `y` taps are reads and may repeat.
+
+Each list is mounted (§14.9, D-277). The kind check reads the selector as
+authored and runs before the rebase, and everything after it reads the rebased
+selector: a `get_face` in the `y` list is admitted, and seeded, as the
+`get_output` of its producer. A mount chain that fails is reported once, for
+every list that carries it.
 """
 function _resolve_taps(tap_set::Taps, build::Build, ::Type{T}) where {T}
     nominal_act, act = activation(build, Float64), activation(build, T)
     diags = Diagnostic[]
     seeded_by = Dict{Any,Symbol}()       # seed site => the label that seeds it
+    failed_prefixes = Set{Tuple{Vararg{String}}}()
     entries = map((:x, :u, :y)) do list
         resolved = Any[]
-        for (label, selector) in pairs(getfield(tap_set, list).selectors)
-            if !(selector isa _tap_kind(Val(list)))
-                push!(diags, _reader_violation(label, selector, :tap_kind; list = list))
+        read_set = getfield(tap_set, list)
+        read_set.prefixes in failed_prefixes && return resolved
+        mount_point = _mount(read_set, build, diags)
+        mount_point === nothing && (push!(failed_prefixes, read_set.prefixes); return resolved)
+        for (label, authored) in pairs(read_set.selectors)
+            if !(authored isa _tap_kind(Val(list)))
+                push!(diags, _reader_violation(label, authored, first(mount_point), :tap_kind;
+                                               list = list))
                 continue
             end
-            nominal_entry = _resolve_selector(selector, label, build, nominal_act, diags)
+            read = _rebase(authored, label, mount_point..., build, diags)
+            read === nothing && continue
+            nominal_entry = _resolve_selector(read.selector, read, build, nominal_act, diags)
             nominal_entry === nothing && continue
-            entry = _seeded_tap(Val(list), nominal_entry, selector, label, build, act, diags)
+            entry = _seeded_tap(Val(list), nominal_entry, read.selector, read, build, act, diags)
             entry === nothing && continue
             site = _site_key(Val(list), entry)
             if site !== nothing && haskey(seeded_by, site)
-                push!(diags, _reader_violation(label, selector, :duplicate_site;
+                push!(diags, _reader_violation(read, :duplicate_site;
                                                duplicate_of = seeded_by[site]))
                 continue
             end
-            site === nothing || (seeded_by[site] = label)
+            site === nothing || (seeded_by[site] = read.label)
             push!(resolved, entry)
         end
         resolved
@@ -272,19 +286,16 @@ _resolved_type(::Type{P}, chain::Tuple) where {P} = last(resolve_leaf(P, chain))
 # and never a `.name` step: there is no lens into a struct's slots (D-036,
 # D-276). A non-`Real` leaf is the vector tap, checked before the leaf's type
 # so that an unindexed `SVector` reads as one.
-function _check_seedable(selector, label::Symbol, ::Type{P}, chain::Tuple, leaf_type::Type,
-                         field::Symbol, diags::Vector{Diagnostic}) where {P}
+function _check_seedable(read::MountedRead, ::Type{P}, chain::Tuple, leaf_type::Type,
+                         diags::Vector{Diagnostic}) where {P}
     offending = findfirst(k -> chain[k] isa Symbol || k > 1, eachindex(chain))
     offending === nothing ||
-        return (push!(diags, _reader_violation(label, selector, :unseedable; declared = P,
-                                               field = field,
+        return (push!(diags, _reader_violation(read, :unseedable; declared = P,
                                                step = _step_string(chain[offending]))); false)
     leaf_type <: Real ||
-        return (push!(diags, _reader_violation(label, selector, :vector_tap;
-                                               declared = leaf_type, field = field)); false)
+        return (push!(diags, _reader_violation(read, :vector_tap; declared = leaf_type)); false)
     leaf_type === Float64 ||
-        return (push!(diags, _reader_violation(label, selector, :unseedable;
-                                               declared = leaf_type, field = field)); false)
+        return (push!(diags, _reader_violation(read, :unseedable; declared = leaf_type)); false)
     true
 end
 
@@ -293,18 +304,16 @@ end
 _linear_index(::Type{P}, index::Tuple{Vararg{Int}}) where {P} = LinearIndices(size(P))[index...]
 
 # The `x` list: a discrete store is refused with its tier in hand (D-197).
-_seeded_tap(::Val{:x}, ::StoreRead, selector::GetState, label::Symbol, ::Build, ::Activation,
+_seeded_tap(::Val{:x}, ::StoreRead, ::GetState, read::MountedRead, ::Build, ::Activation,
             diags::Vector{Diagnostic}) =
-    (push!(diags, _reader_violation(label, selector, :discrete_state; field = _field(selector)));
-     nothing)
+    (push!(diags, _reader_violation(read, :discrete_state)); nothing)
 
 # The `x` list's continuous leaf: the offset is `T`-independent (§9.2), so the
 # seeded entries are the nominal one retyped. The seed site is the leaf's slot
 # in `xbuf`, the field's offset plus the index step's linear position.
-function _seeded_tap(::Val{:x}, entry::StateRead{P,C}, selector::GetState, label::Symbol,
+function _seeded_tap(::Val{:x}, entry::StateRead{P,C}, ::GetState, read::MountedRead,
                      ::Build, ::Activation{T}, diags::Vector{Diagnostic}) where {P,C,T}
-    _check_seedable(selector, label, P, C, _resolved_type(P, C), _field(selector), diags) ||
-        return nothing
+    _check_seedable(read, P, C, _resolved_type(P, C), diags) || return nothing
     linear = isempty(C) ? 1 : _linear_index(P, only(C))
     (entry.offset + linear, DerivRead{retype(T, P),C}(entry.offset))
 end
@@ -312,13 +321,15 @@ end
 # The `u` list: the root input's cell follows the seeded scalar only when every
 # consumer tolerates it, D-168's meet. A consumer whose entry refuses the walked
 # type is a pinning consumer, named with its tier and its declared entry: a
-# continuous one pins by declaration (D-167), a discrete one by tier (§8.2).
-function _seeded_tap(::Val{:u}, entry::CellRead{A,C}, selector::GetInput, label::Symbol,
+# continuous one pins by declaration (D-167), a discrete one by tier (§8.2). The
+# face is the root input the mount step landed on, so the meet is right at a
+# mount (D-277).
+function _seeded_tap(::Val{:u}, entry::CellRead{A,C}, ::GetInput, read::MountedRead,
                      build::Build, act::Activation{T}, diags::Vector{Diagnostic}) where {A,C,T}
     structure = build.structure
-    face = _field(selector, structure.root_inputs)
+    face = read.head
     P = _port_type(entry.addr)
-    _check_seedable(selector, label, P, C, _resolved_type(P, C), face, diags) || return nothing
+    _check_seedable(read, P, C, _resolved_type(P, C), diags) || return nothing
     root_type = structure.root_types[findfirst(==(face), structure.root_inputs)]
     walked_type = retype(T, root_type)
     pinning = Tuple{String,Symbol,Any}[
@@ -334,25 +345,21 @@ function _seeded_tap(::Val{:u}, entry::CellRead{A,C}, selector::GetInput, label:
         "root input `$face`: the meet names $(length(pinning)) pinning consumer(s) and the " *
         "seeded cell is $(_port_type(addr)), against the walked $walked_type"))
     isempty(pinning) ||
-        return (push!(diags, _reader_violation(label, selector, :unseedable; field = face,
-                                               declared = root_type, pinning = pinning));
+        return (push!(diags, _reader_violation(read, :unseedable; declared = root_type,
+                                               pinning = pinning));
                 nothing)
     CellRead{typeof(addr),C}(addr)
 end
 
 # The `y` list: any `Real` leaf is readable, `Float64` or not, since a row is a
-# read and not a seed.
-function _seeded_tap(::Val{:y}, entry::CellRead{A,C}, selector::Union{GetOutput,GetFace},
-                     label::Symbol, build::Build, act::Activation,
-                     diags::Vector{Diagnostic}) where {A,C}
-    head = selector isa GetFace ? _field(selector, _exported_faces(build.structure)) :
-                                  _field(selector)
+# read and not a seed. A `get_face` arrives rebased to its producer's port.
+function _seeded_tap(::Val{:y}, entry::CellRead{A,C}, selector::GetOutput, read::MountedRead,
+                     ::Build, act::Activation, diags::Vector{Diagnostic}) where {A,C}
     leaf_type = _resolved_type(_port_type(entry.addr), C)
     leaf_type <: Real ||
-        return (push!(diags, _reader_violation(label, selector, :vector_tap;
-                                               declared = leaf_type, field = head));
+        return (push!(diags, _reader_violation(read, :vector_tap; declared = leaf_type));
                 nothing)
-    addr = act.layout.addr[(_selpath(selector), head)]
+    addr = act.layout.addr[(selector.path, read.head)]
     CellRead{typeof(addr),C}(addr)
 end
 

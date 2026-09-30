@@ -273,9 +273,11 @@ end
 The declared read set (§14.7): the labeled selectors in one type, so that a
 bare NamedTuple of selectors reaching a service is refused with a directive
 rather than a `MethodError`, exactly as `combine` refuses one in the condition
-algebra (§14.2).
+algebra (§14.2). `prefixes` is the mount chain `at` builds, outermost first and
+empty at the root: nothing is joined until the mount step walks it (§14.9, D-277).
 """
 struct Reads{NT<:NamedTuple}
+    prefixes::Tuple{Vararg{String}}
     selectors::NT
 end
 
@@ -296,7 +298,7 @@ function _reads(selectors::NamedTuple)
             in_hand = Symbol[nameof(typeof(v)) for v in values(selectors)
                              if v isa ReadSelector])))
     end
-    Reads(selectors)
+    Reads((), selectors)
 end
 
 # --- the compiled reader (§14.4) ------------------------------------------------
@@ -400,49 +402,194 @@ _compile_reads(other, ::Build, ::Type = Float64) = throw(DiagnosticError(
 """
 The collecting half of `_compile_reads`, shared with the services that own their
 own setup diagnostic (§14.8): returns the compiled reader and the violation
-list, the reader being `nothing` when anything failed.
+list, the reader being `nothing` when anything failed. The mount step runs
+first, and the resolvers read what it rebased (§14.9, D-277).
 """
 function _resolve_reads(read_set::Reads, build::Build, ::Type{T}) where {T}
     act = activation(build, T)
     diags = Diagnostic[]
     entries = Any[]
-    for (label, selector) in pairs(read_set.selectors)
-        entry = _resolve_selector(selector, label, build, act, diags)
+    mount_point = _mount(read_set, build, diags)
+    mount_point === nothing && return (nothing, diags)
+    for (label, authored) in pairs(read_set.selectors)
+        read = _rebase(authored, label, mount_point..., build, diags)
+        read === nothing && continue
+        entry = _resolve_selector(read.selector, read, build, act, diags)
         entry === nothing || push!(entries, entry)
     end
     (isempty(diags) ? Reader{T,keys(read_set.selectors)}(Tuple(entries)) : nothing, diags)
 end
 
-# The component a path-addressed selector names. No mounting exists, so every
-# selector path is authored at the root and walked from it in full (§13.3): the
-# walk owns the unknown-segment refusal and its candidates, and the past-generic
-# one with them. What stays here is `_component`'s residue, one case over —
-# a level the walk admitted that owns no state of its own.
-function _read_component(selector, label::Symbol, structure::Structure,
-                         diags::Vector{Diagnostic})
-    description = "the read labeled `$label`, $(_spell(selector))"
-    resolve_authored(description, "", structure.root, selector.path, diags) === nothing &&
+# --- the mount step (§14.9, D-277) ----------------------------------------------
+# §14.3's flattening on the read side. The chain a read set carries is walked
+# here, and every selector is rebased into the root-authored selector it
+# denotes, so the resolvers and linearization's seeding see root-authored
+# selectors only. The mount step answers where a selector reads and owns the
+# face-level checks; the resolvers answer what is declared there.
+
+"""
+One read after §14.3's flattening on the read side: the selector rebased to
+the root with its leaf parsed or matched, beside the selector as authored
+and the mount it was authored at, which is what a refusal spells (D-277).
+"""
+struct MountedRead
+    label::Symbol
+    authored::ReadSelector   # as written
+    mount::String            # the joined mount path; "" at the root
+    selector::ReadSelector   # root-authored: the path joined, the face resolved
+    head::Symbol             # the field, port or root input the read names
+    steps::Vector{LeafStep}  # the leaf's steps after the head
+end
+
+"""
+    _mount(read_set, build, diags) → (mount, level) | nothing
+
+Walk the read set's mount chain from the root, each prefix from the level the
+previous one reached (§13.3): the joined mount path and the component at it,
+or `nothing` when the chain fails, the chain being the one offender, reported
+once. `_rebase` then rebases each selector there, the one place a leaf address
+is parsed or matched. Its callers run it read by read, each read resolved
+before the next is rebased, so the collected list keeps the authored order
+(§13.1); a selector that fails is skipped and the others go on.
+"""
+function _mount(read_set::Reads, build::Build, diags::Vector{Diagnostic})
+    mount, level, description = "", build.structure.root, ""
+    for (i, prefix) in enumerate(read_set.prefixes)
+        description = (i == 1 ? "the read set" : description * " →") * " at(\"$prefix\")"
+        level = resolve_authored(description, mount, level, prefix, diags)
+        level === nothing && return nothing
+        mount = _join(mount, prefix)
+    end
+    (mount, level)
+end
+
+# A path below the mount; the empty path names the mount level itself.
+_mounted_path(mount::String, path::String) = isempty(path) ? mount : _join(mount, path)
+
+# A path selector: its path is walked from the mount level (§13.3), the walk
+# owning the unknown-segment and past-generic refusals, and its address is
+# parsed. The rebased selector is the same kind at the joined path, the leaf
+# address as authored.
+function _rebase(authored::Union{GetState,GetDeriv,GetOutput}, label::Symbol, mount::String,
+                 level, build::Build, diags::Vector{Diagnostic})
+    description = "the read labeled `$label`, $(_spell(authored))" *
+                  (isempty(mount) ? "" : ", mounted at `$mount`")
+    resolve_authored(description, mount, level, authored.path, diags) === nothing &&
         return nothing
-    ci = findfirst(component -> component.path == selector.path, structure.components)
+    parsed = parse_leaf(authored.leaf)
+    parsed isa LeafRefusal &&
+        return (push!(diags, _leaf_violation(label, authored, mount, parsed)); nothing)
+    head, steps = parsed
+    MountedRead(label, authored, mount,
+                typeof(authored)(_mounted_path(mount, authored.path), authored.leaf), head, steps)
+end
+
+# `get_input` names an input face of the mount level and follows the export
+# chain to the root input it lands on, the matched steps after that input's
+# name (§14.9, D-277). A face fed by a component is refused with the producer,
+# as a condition's `inputs` entry is (§14.2).
+function _rebase(authored::GetInput, label::Symbol, mount::String, level, build::Build,
+                 diags::Vector{Diagnostic})
+    structure = build.structure
+    faces = _input_faces_at(structure, mount)
+    matched = match_leaf(authored.leaf, faces)
+    if matched isa LeafRefusal
+        push!(diags, _leaf_violation(label, authored, mount, matched;
+                                     field = _field(authored, faces)))
+        return nothing
+    elseif matched === nothing
+        push!(diags, _reader_violation(label, authored, mount,
+                                       isempty(mount) ? :unknown_root_input : :no_input_face;
+                                       field = _field(authored, faces), candidates = faces))
+        return nothing
+    end
+    face, steps = matched
+    producer = _face_producer(structure, mount, face)
+    isempty(first(producer)) ||
+        return (push!(diags, _reader_violation(label, authored, mount, :internally_wired;
+                                               field = face, producer = producer)); nothing)
+    MountedRead(label, authored, mount, GetInput(last(producer)), last(producer), steps)
+end
+
+# `get_face` names an output face of the mount level and reads its producer's
+# port (§14.9, D-277): an assembly's face through its row of the output-side
+# face graph, whose producer is a primitive's port, and a primitive's own port
+# directly. At the root the faces are the root-exported ones, as ever.
+function _rebase(authored::GetFace, label::Symbol, mount::String, level, build::Build,
+                 diags::Vector{Diagnostic})
+    structure = build.structure
+    ci = isempty(mount) ? nothing :
+         findfirst(component -> component.path == mount, structure.components)
+    faces = ci === nothing ? _exported_faces(structure, mount) :
+                             _ports(build.outputs.components[ci])
+    matched = match_leaf(authored.leaf, faces)
+    if matched isa LeafRefusal
+        push!(diags, _leaf_violation(label, authored, mount, matched;
+                                     field = _field(authored, faces)))
+        return nothing
+    elseif matched === nothing
+        inputs = _input_faces_at(structure, mount)
+        push!(diags, match_face(authored.leaf, inputs) === nothing ?
+                     _reader_violation(label, authored, mount, :unknown_output_face;
+                                       field = _field(authored, faces), candidates = faces) :
+                     _reader_violation(label, authored, mount, :input_face_not_output;
+                                       field = _field(authored, inputs)))
+        return nothing
+    end
+    face, steps = matched
+    producer = ci === nothing ?
+               last(structure.out_faces[findfirst(row -> first(row) == (mount, face),
+                                                  structure.out_faces)]) :
+               (mount, face)
+    MountedRead(label, authored, mount, GetOutput(first(producer), last(producer)),
+                last(producer), steps)
+end
+
+# The output faces the assembly at `path` exports, the names a `get_face` may
+# take there; at the root, the root-exported faces.
+_exported_faces(structure::Structure, path::String) =
+    Symbol[face for ((face_path, face), _) in structure.out_faces if face_path == path]
+
+# --- the resolvers (§14.4) ------------------------------------------------------
+
+# The component a path-addressed read names. The mount step walked its path from
+# the mount level (§13.3, D-277), and the walk owns the unknown-segment refusal
+# and its candidates, and the past-generic one with them. What stays here is
+# `_component`'s residue, one case over — a level the walk admitted that owns
+# no state of its own.
+function _read_component(read::MountedRead, structure::Structure, diags::Vector{Diagnostic})
+    ci = findfirst(component -> component.path == read.selector.path, structure.components)
     ci === nothing || return ci
-    push!(diags, _reader_violation(label, selector, :assembly_path))
+    push!(diags, _reader_violation(read, :assembly_path))
     nothing
 end
 
-# One `TapResolution` off a selector: the label and the selector as authored are
-# what makes a collected list readable, and the tap set, path and leaf address
-# come off the selector itself (§14.10's payload); each arm adds what it observed.
-_reader_violation(label::Symbol, selector, reason::Symbol; kw...) =
-    TapResolution(; label = label, selector = _spell(selector), reason = reason,
-                  tap = _tap(selector), path = _selpath(selector),
-                  leaf = _leaf_string(selector), kw...)
+# One `TapResolution` off a read: the label, the selector as authored and its
+# mount are what makes a collected list readable (D-277), the tap set and the
+# path come off the rebased selector, the path joined, and the leaf address off
+# the authored one (§14.10's payload); each arm adds what it observed.
+_reader_violation(read::MountedRead, reason::Symbol; kw...) =
+    _reader_violation(read.label, read.authored, read.mount, reason;
+                      tap = _tap(read.selector), path = _selpath(read.selector),
+                      field = read.head, kw...)
+
+# The mount step's form, before the selector is rebased: a path selector's path
+# below the mount, a face selector's the mount level itself.
+_reader_violation(label::Symbol, authored, mount::String, reason::Symbol; kw...) =
+    TapResolution(; label = label, selector = _spell(authored), reason = reason,
+                  mount = mount, tap = _tap(authored),
+                  path = _mounted_path(mount, _selpath(authored)),
+                  leaf = _leaf_string(authored), kw...)
 
 # A step the leaf address cannot take, with what `resolve_leaf` or `parse_leaf`
 # had in hand (§14.4, D-276). A face selector passes its matched face.
-_leaf_violation(label::Symbol, selector, refusal::LeafRefusal; field = _field(selector)) =
-    _reader_violation(label, selector, refusal.reason; field = field,
-                      step = refusal.step, declared = refusal.declared,
-                      candidates = refusal.candidates)
+_leaf_violation(label::Symbol, authored, mount::String, refusal::LeafRefusal; kw...) =
+    _reader_violation(label, authored, mount, refusal.reason; step = refusal.step,
+                      declared = refusal.declared, candidates = refusal.candidates, kw...)
+
+_leaf_violation(read::MountedRead, refusal::LeafRefusal) =
+    _reader_violation(read, refusal.reason; step = refusal.step,
+                      declared = refusal.declared, candidates = refusal.candidates)
 
 _tap(::Union{GetState,GetDeriv}) = :x
 _tap(::Union{GetOutput,GetFace}) = :y
@@ -463,146 +610,89 @@ end
 _field(selector::Union{GetInput,GetFace}, faces) =
     something(match_face(selector.leaf, faces), Symbol(selector.leaf))
 
-# The root-exported output faces, the names a `get_face` may take.
-_exported_faces(structure::Structure) =
-    Symbol[face for ((face_path, face), _) in structure.out_faces if isempty(face_path)]
-
-# A path selector's parsed address, or `nothing` with its refusal collected;
-# a face selector's is matched instead (`_matched_leaf`).
-function _parsed_leaf(selector, label::Symbol, diags::Vector{Diagnostic})
-    parsed = parse_leaf(selector.leaf)
-    parsed isa LeafRefusal || return parsed
-    push!(diags, _leaf_violation(label, selector, parsed))
-    nothing
-end
-
-# A face selector's address matched against `faces`: the head and steps,
-# `nothing` on a miss the caller refuses, or the refusal of a step, collected.
-function _matched_leaf(selector, label::Symbol, faces, diags::Vector{Diagnostic})
-    matched = match_leaf(selector.leaf, faces)
-    matched isa LeafRefusal &&
-        push!(diags, _leaf_violation(label, selector, matched; field = _field(selector, faces)))
-    matched
-end
-
-# The chain the steps resolve to under the declared type `P`, or `nothing` with
-# the refusal collected. The schema's types decide everything (§14.4).
-function _leaf_chain(selector, label::Symbol, ::Type{P}, steps,
-                     diags::Vector{Diagnostic}; field = _field(selector)) where {P}
-    resolved = resolve_leaf(P, steps)
+# The chain the read's steps resolve to under the declared type `P`, or
+# `nothing` with the refusal collected. The schema's types decide everything (§14.4).
+function _leaf_chain(read::MountedRead, ::Type{P}, diags::Vector{Diagnostic}) where {P}
+    resolved = resolve_leaf(P, read.steps)
     resolved isa LeafRefusal || return first(resolved)
-    push!(diags, _leaf_violation(label, selector, resolved; field = field))
+    push!(diags, _leaf_violation(read, resolved))
     nothing
 end
 
-_undeclared_violation(label::Symbol, selector, declares::Symbol, declared::NamedTuple) =
-    _reader_violation(label, selector, :undeclared; declares = declares, field = _field(selector),
+_undeclared_violation(read::MountedRead, declares::Symbol, declared::NamedTuple) =
+    _reader_violation(read, :undeclared; declares = declares,
                       candidates = collect(keys(declared)))
 
 # The port list in hand is the `Outputs`' row concatenated by `_ports`, a fresh
 # vector the payload is free to hold (D-253).
-_undeclared_violation(label::Symbol, selector, declares::Symbol, declared::Vector{Symbol}) =
-    _reader_violation(label, selector, :undeclared; declares = declares, field = _field(selector),
-                      candidates = declared)
+_undeclared_violation(read::MountedRead, declares::Symbol, declared::Vector{Symbol}) =
+    _reader_violation(read, :undeclared; declares = declares, candidates = declared)
 
-function _resolve_selector(selector::GetState, label::Symbol, build::Build,
+function _resolve_selector(selector::GetState, read::MountedRead, build::Build,
                            act::Activation, diags::Vector{Diagnostic})
-    ci = _read_component(selector, label, build.structure, diags)
+    ci = _read_component(read, build.structure, diags)
     ci === nothing && return nothing
-    parsed = _parsed_leaf(selector, label, diags)
-    parsed === nothing && return nothing
-    head, steps = parsed
+    head = read.head
     decl, tier = act.decls[ci], build.structure.components[ci].tier
     declared = state_decls(decl, tier)
     haskey(declared, head) ||
-        (push!(diags, _undeclared_violation(label, selector, :state_field, declared));
+        (push!(diags, _undeclared_violation(read, :state_field, declared));
          return nothing)
     # A continuous field is flat, a scalar or an `SArray` (§7.1), so a `.name`
     # step falls out of the walk as `:no_such_field`. A discrete `s` field is any
     # isbits value and takes the full chain (§14.4, D-276).
     field_type = typeof(declared[head])
-    chain = _leaf_chain(selector, label, field_type, steps, diags)
+    chain = _leaf_chain(read, field_type, diags)
     chain === nothing && return nothing
     tier === CONTINUOUS ?
         StateRead{field_type,chain}(first(act.layout.xblocks[ci]) - 1 + _leaf_offset(decl.x, head)) :
         StoreRead{typeof(decl.s),head,chain}(ci)
 end
 
-function _resolve_selector(selector::GetDeriv, label::Symbol, build::Build,
+function _resolve_selector(selector::GetDeriv, read::MountedRead, build::Build,
                            act::Activation, diags::Vector{Diagnostic})
-    ci = _read_component(selector, label, build.structure, diags)
+    ci = _read_component(read, build.structure, diags)
     ci === nothing && return nothing
-    parsed = _parsed_leaf(selector, label, diags)
-    parsed === nothing && return nothing
-    head, steps = parsed
+    head = read.head
     decl, tier = act.decls[ci], build.structure.components[ci].tier
     if tier !== CONTINUOUS
-        push!(diags, _reader_violation(label, selector, :discrete_deriv; field = head))
+        push!(diags, _reader_violation(read, :discrete_deriv))
         return nothing
     end
     haskey(decl.x, head) ||
-        (push!(diags, _undeclared_violation(label, selector, :state_field, decl.x));
+        (push!(diags, _undeclared_violation(read, :state_field, decl.x));
          return nothing)
     field_type = typeof(decl.x[head])
-    chain = _leaf_chain(selector, label, field_type, steps, diags)
+    chain = _leaf_chain(read, field_type, diags)
     chain === nothing && return nothing
     # `ẋ` has `x`'s shape at the activation scalar (§7.1), so the derivative of
     # a state field sits at the state field's own offset in the other buffer.
     DerivRead{field_type,chain}(first(act.layout.xblocks[ci]) - 1 + _leaf_offset(decl.x, head))
 end
 
-function _resolve_selector(selector::GetOutput, label::Symbol, build::Build,
+function _resolve_selector(selector::GetOutput, read::MountedRead, build::Build,
                            act::Activation, diags::Vector{Diagnostic})
-    ci = _read_component(selector, label, build.structure, diags)
+    ci = _read_component(read, build.structure, diags)
     ci === nothing && return nothing
-    parsed = _parsed_leaf(selector, label, diags)
-    parsed === nothing && return nothing
-    head, steps = parsed
+    head = read.head
     decl = act.decls[ci]
     ports = _ports(build.outputs.components[ci])
     head in ports ||
-        (push!(diags, _undeclared_violation(label, selector, :output_port, ports));
+        (push!(diags, _undeclared_violation(read, :output_port, ports));
          return nothing)
     # The port's *type* is the activation's, a type being no name list (D-253).
-    chain = _leaf_chain(selector, label, decl.outs[head], steps, diags)
+    chain = _leaf_chain(read, decl.outs[head], diags)
     chain === nothing && return nothing
     addr = act.layout.addr[(selector.path, head)]
     CellRead{typeof(addr),chain}(addr)
 end
 
-function _resolve_selector(selector::GetInput, label::Symbol, build::Build,
+# The mount step matched the face and followed its chain, so the head is a root
+# input and what is left is the address's steps against its cell.
+function _resolve_selector(::GetInput, read::MountedRead, build::Build,
                            act::Activation, diags::Vector{Diagnostic})
-    inputs = build.structure.root_inputs
-    matched = _matched_leaf(selector, label, inputs, diags)
-    if matched === nothing
-        push!(diags, _reader_violation(label, selector, :unknown_root_input;
-                                       field = _field(selector, inputs), candidates = inputs))
-        return nothing
-    end
-    matched isa LeafRefusal && return nothing
-    head, steps = matched
-    addr = act.layout.addr[("", head)]
-    chain = _leaf_chain(selector, label, _port_type(addr), steps, diags; field = head)
-    chain === nothing && return nothing
-    CellRead{typeof(addr),chain}(addr)
-end
-
-function _resolve_selector(selector::GetFace, label::Symbol, build::Build,
-                           act::Activation, diags::Vector{Diagnostic})
-    exported, inputs = _exported_faces(build.structure), build.structure.root_inputs
-    matched = _matched_leaf(selector, label, exported, diags)
-    if matched === nothing
-        push!(diags, match_face(selector.leaf, inputs) === nothing ?
-                    _reader_violation(label, selector, :unknown_output_face;
-                                      field = _field(selector, exported), candidates = exported) :
-                    _reader_violation(label, selector, :root_input_not_face;
-                                      field = _field(selector, inputs)))
-        return nothing
-    end
-    matched isa LeafRefusal && return nothing
-    head, steps = matched
-    addr = act.layout.addr[("", head)]
-    chain = _leaf_chain(selector, label, _port_type(addr), steps, diags; field = head)
+    addr = act.layout.addr[("", read.head)]
+    chain = _leaf_chain(read, _port_type(addr), diags)
     chain === nothing && return nothing
     CellRead{typeof(addr),chain}(addr)
 end

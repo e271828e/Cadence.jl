@@ -77,6 +77,31 @@ dotted_model() = Group((; c = DottedFaces()); inputs = ("left.brake" => "c/u",),
                        outputs = ("c/θ" => "att.theta", "c/pose" => "pose", "c/v" => "pose.v"))
 dotted_condition() = fragment(inputs = (var"left.brake" = SVector(1.5, 2.5),))
 
+# `readable()` one level down, its two root inputs and its face re-exported under
+# the holder's own names, so a mounted read crosses a renaming export chain
+# (§14.9, D-277). The field is declared concretely, as `ConcreteHold`'s is
+# (test_assembly.jl): a `Group` holds its children generically, and the
+# root-authored twin's `inner/plant` would reach past one (§13.3).
+struct ReadableHold <: AbstractComponent
+    inner::typeof(readable())
+end
+child_connections(::ReadableHold) = ()
+input_connections(::ReadableHold) = ("drive" => "inner/u", "gap" => "inner/e")
+output_connections(::ReadableHold) = ("inner/y" => "lift",)
+
+wrapped_readable() = ReadableHold(readable())
+
+# `dotted_model()` one level down: its root input re-exported under a longer
+# dotted name, and its faces `pose` and `pose.v` under their own.
+wrapped_dotted() = Group((; inner = dotted_model());
+                         inputs = ("outer.left.brake" => "inner/left.brake",),
+                         outputs = ("inner/pose" => "pose", "inner/pose.v" => "pose.v"))
+
+# `tri()`'s shape (test_conditions.jl): `trig/sig` is fed by its sibling's
+# `plant/y`, so no root input holds it.
+sibling_fed() = Group((; plant = Plant(), trig = Trigger(0.5));
+                      wires = ("plant/y" => "trig/sig",), inputs = ("u" => "plant/u",))
+
 # Every store, the root inputs and the clock, read straight out of an executor.
 world(sim) = (copy(sim.exec.xbuf),
               [s === nothing ? nothing : s[] for s in sim.exec.sstores],
@@ -177,7 +202,7 @@ function test_readers()
                                      readable_build))
         (a, b_, c, d, e, f) = diagnostics(err)
         @test a.reason === :assembly_path && a.path == "" && a.tap === :y
-        @test b_.reason === :root_input_not_face && b_.field === :u
+        @test b_.reason === :input_face_not_output && b_.field === :u
         @test c.reason === :not_indexable && c.step == "[1]" && c.declared === Float64 &&
               c.leaf == "y[1]" && c.field === :y
         @test d.reason === :undeclared && d.declares === :state_field && d.field === :ω &&
@@ -229,10 +254,11 @@ function test_readers()
     end
 
     @testset "a read selector's path stays within a concretely declared subtree (§13.3, §14.7, D-125)" begin
-        # No mounting exists, so every selector path is authored at the root and
-        # walked from it in full: the first segment may be generically held, a
-        # segment past one may not. `ConcreteHold`/`GenericHold` hold the same
-        # instance two ways (`test_assembly.jl`).
+        # A root-authored selector path is walked from the root in full: the first
+        # segment may be generically held, a segment past one may not. A mounted
+        # one is walked from its mount level, below.
+        # `ConcreteHold`/`GenericHold` hold the same instance two ways
+        # (`test_assembly.jl`).
         deep = reads(q = get_state("inner/plant", :q))
         d = only(diagnostics(failure(() -> _compile_reads(deep,
                                               build(GenericHold(SampledLoop()))))))
@@ -261,6 +287,126 @@ function test_readers()
         @test d isa PathResolution && d.reason === :unknown_child
         @test d.segment == "hidden" && d.owner == "`c`" && d.candidates == String[]
         @test startswith(d.entry, "the read labeled `z`")
+
+        # A mount *to* a generic child is legal, and the authored path below it
+        # is walked from the mount level: the read `deep` names, refused above,
+        # resolves mounted at `inner` (§13.3, D-277).
+        generic_sim = Simulation(GenericHold(SampledLoop()); h = 1//50)
+        init!(generic_sim, combine(at("inner", at("plant", fragment(x = (q = SVector(0.3, 0.1),)))),
+                                   fragment(inputs = (ref = 1.0,))))
+        evaluate!(generic_sim.exec)
+        generic_build = generic_sim.deployment.build
+        @test gather_reads(_compile_reads(at("inner", reads(q = get_state("plant", :q))), generic_build),
+                           generic_sim.exec).q == SVector(0.3, 0.1)
+        # Each prefix is walked from the level the one before it reached, so a
+        # chain of two is legal where the joined prefix walks past the child.
+        @test gather_reads(_compile_reads(at("inner", at("plant", reads(q = get_state("", :q)))),
+                                          generic_build), generic_sim.exec).q == SVector(0.3, 0.1)
+        d = only(diagnostics(failure(() ->
+                _compile_reads(at("inner/plant", reads(q = get_state("", :q))), generic_build))))
+        @test d isa PathResolution && d.reason === :past_generic && d.segment == "inner" &&
+              d.entry == "the read set at(\"inner/plant\")"
+        # An unknown prefix is the walk's refusal at the level it was walked from,
+        # with that level's children in hand.
+        d = only(diagnostics(failure(() ->
+                _compile_reads(at("inner", at("nope", reads(q = get_state("plant", :q)))),
+                               generic_build))))
+        @test d isa PathResolution && d.reason === :unknown_child && d.segment == "nope" &&
+              d.candidates == ["plant", "ctl", "sum"] &&
+              d.entry == "the read set at(\"inner\") → at(\"nope\")"
+    end
+
+    @testset "a mounted read set reads what its root-authored twin reads (§14.9, D-277)" begin
+        # Composition is inert: `at` prepends to the set's own chain, joins no
+        # string and wraps nothing, since a read set is no condition node.
+        root_set = reads(q = get_state("p", :q))
+        mounted_set = at("a", at("b", root_set))
+        @test root_set.prefixes == () && mounted_set.prefixes == ("a", "b")
+        @test mounted_set isa Reads && mounted_set.selectors === root_set.selectors
+        @test mounted_set.selectors.q.path == "p"
+
+        for T in (Float64, D8)
+            sim = Simulation(wrapped_readable(), T; h = 1//10)
+            init!(sim, at("inner", readable_condition()))
+            evaluate!(sim.exec)
+            wrapped_build = sim.deployment.build
+            mounted = gather_reads(_compile_reads(at("inner", readable_reads()), wrapped_build, T),
+                                   sim.exec)
+            # Every path carries `inner/`, `get_input(:u)` is the root input the
+            # chain lands on, and `get_face(:y)` the face the root re-exports.
+            twin = gather_reads(_compile_reads(
+                reads(q = get_state("inner/plant", :q), v = get_state("inner/plant", "q[2]"),
+                      acc = get_state("inner/ctl", :acc), q̇ = get_deriv("inner/plant", :q),
+                      a = get_deriv("inner/plant", "q[2]"), y = get_output("inner/plant", :y),
+                      u = get_input(:drive), face = get_face(:lift)), wrapped_build, T), sim.exec)
+            @test mounted === twin                                # field by field, labels included
+            @test mounted.q == SVector{2,T}(0.3, -0.2) && mounted.u === T(1.5)
+            @test mounted.v === mounted.q[2]                      # the leaf address carried through
+            @test mounted.face === mounted.y                      # the producer's cell
+
+            # A primitive as the mount: the empty path is the plant itself, its
+            # face its own port, its input the root input feeding it.
+            at_plant = gather_reads(_compile_reads(
+                at("inner/plant", reads(q = get_state("", :q), y = get_face(:y), u = get_input(:u))),
+                wrapped_build, T), sim.exec)
+            @test at_plant === (q = twin.q, y = twin.y, u = twin.u)
+        end
+
+        # Dotted faces behind a mount: the longest face wins at the mount level as
+        # at the root, and the steps ride through the rebase to a dotted root input.
+        dotted_sim = Simulation(wrapped_dotted(); h = 1//10)
+        init!(dotted_sim, at("inner", dotted_condition()))
+        dotted_build = dotted_sim.deployment.build
+        dotted = gather_reads(_compile_reads(at("inner", reads(b = get_input("left.brake[2]"),
+                                                               v = get_face("pose.v[2]"),
+                                                               m = get_face("pose.m[1,2]"))),
+                                             dotted_build), dotted_sim.exec)
+        @test dotted === (b = 2.5, v = 8.0, m = 3.0)
+        @test gather_reads(_compile_reads(reads(b = get_input("outer.left.brake[2]")), dotted_build),
+                           dotted_sim.exec).b === dotted.b
+    end
+
+    @testset "a refusal at a mount spells the read as authored and names the mount (§14.9, D-277)" begin
+        # The chain at a mount: a face its sibling feeds reaches no root input and
+        # is refused with the producer, as a condition's `inputs` entry is (§14.2).
+        fed_build = build(sibling_fed())
+        d = only(diagnostics(failure(() ->
+                _compile_reads(at("trig", reads(s = get_input(:sig))), fed_build))))
+        @test d isa TapResolution && d.reason === :internally_wired && d.mount == "trig" &&
+              d.producer == ("plant", :y) && d.field === :sig && d.selector == "get_input(:sig)"
+        d = only(diagnostics(failure(() ->
+                _compile_reads(at("plant", reads(n = get_input(:nope))), fed_build))))
+        @test d isa TapResolution && d.reason === :no_input_face && d.mount == "plant" &&
+              d.field === :nope && d.candidates == [:u]
+        d = only(diagnostics(failure(() -> _compile_reads(reads(n = get_input(:nope)), fed_build))))
+        @test d isa TapResolution && d.reason === :unknown_root_input && d.mount == "" &&
+              d.field === :nope && d.candidates == [:u]
+
+        # The faces at a mount are the level's own, and an input face read as an
+        # output one is refused at every level as at the root.
+        wrapped_build = build(wrapped_readable())
+        d = only(diagnostics(failure(() ->
+                _compile_reads(at("inner", reads(f = get_face(:nope))), wrapped_build))))
+        @test d isa TapResolution && d.reason === :unknown_output_face && d.mount == "inner" &&
+              d.field === :nope && d.candidates == [:y]
+        d = only(diagnostics(failure(() ->
+                _compile_reads(at("inner", reads(f = get_face(:u))), wrapped_build))))
+        @test d isa TapResolution && d.reason === :input_face_not_output && d.mount == "inner" &&
+              d.field === :u
+
+        # Collecting: a bad path, a wired input and an unknown face in one mounted
+        # set are one refusal with three diagnostics, each naming the mount.
+        err = failure(() -> _compile_reads(at("trig", reads(a = get_state("nope", :q),
+                                                            b = get_input(:sig),
+                                                            c = get_face(:nope))), fed_build))
+        @test err isa DiagnosticError && length(diagnostics(err)) == 3
+        (a, b_, c) = diagnostics(err)
+        @test a isa PathResolution && a.reason === :unknown_child && a.segment == "nope" &&
+              a.entry == "the read labeled `a`, get_state(\"nope\", :q), mounted at `trig`"
+        @test b_ isa TapResolution && b_.reason === :internally_wired && b_.mount == "trig" &&
+              b_.producer == ("plant", :y)
+        @test c isa TapResolution && c.reason === :unknown_output_face && c.mount == "trig" &&
+              c.candidates == [:on]
     end
 
     @testset "the source rule: a snapshot-bound reader may not name a store selector (§14.4)" begin
