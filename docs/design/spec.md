@@ -3730,8 +3730,10 @@ and the component table with the rate-scope rows. `show(::Outputs)` prints the
 execution order with each port's class. `show(::Schedule)` prints the rows and
 the **hyperperiod chart**. `show(::Build)` and `show(::Deployment)` print a
 summary and their parts. A REPL user gets each table by evaluating the value.
-The face-route printer joins `Structure` when the routing chain is
-recorded ([§13.7][s13-7]).
+The structure step records each face's routing chain at every level.
+`show(::Structure)` prints the root's routes, one line per chain, its hops
+joined with `→` and ending at the terminal ([§13.7][s13-7]). An input face that
+fans out prints one line per consumer.
 
 The chart's pattern repeats with period `lcm(Dᵢ)` base ticks, and the gate is
 pure modulo arithmetic, so one hyperperiod is the complete truth, not a sample.
@@ -8942,12 +8944,15 @@ and [`Deployment`](#g-deployment) (the scalar-free artifact the grid parameters 
 accessor functions returning the tables alongside.
 
 **`show(::Structure)` owes [face](#g-face) routes.** For every root face,
-that means the resolved chain down to the producing terminal (`"crashed" →
-aircraft/monitor/out ← systems/ldg/{left,right,nose}/damaged`). Once faces are
-computed rather than hand-listed, "what does this face actually reach" is a
-question the artifact must answer, not the reader. The printer joins
-`Structure` when the routing chain is recorded ([D-257][d-257]). The same
-rendering serves the wiring diagnostics, which already carry endpoint paths.
+that means the resolved chain down to the producing terminal, printed as one
+line per chain (`crashed → aircraft/crashed → aircraft/monitor/out`). Once
+faces are computed rather than hand-listed, "what does this face actually
+reach" is a question the artifact must answer, not the reader. The structure
+step records the routing chain at every level, and `show(::Structure)` prints
+the root's routes ([D-257][d-257]). Each line joins the hops with `→` and ends
+at the terminal. An input face that fans out prints one line per consumer. The
+same rendering serves the wiring diagnostics, which already carry endpoint
+paths.
 
 #### The standard component library
 

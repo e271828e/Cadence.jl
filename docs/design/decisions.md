@@ -9641,7 +9641,10 @@ methods, with no accessors.
   most 100 base ticks, and otherwise the hyperperiod's length with "chart
   omitted".
 - The face-route printer joins `Structure` when the routing chain is
-  recorded; that is `pending.md`'s "Smaller" bullet, unchanged.
+  recorded; that is `pending.md`'s "Smaller" bullet, unchanged. (Amended
+  2026-09-30: the printer is built. The structure step records each face's
+  routing chain at every level, `show(::Structure)` prints the root's routes
+  one line per chain, and the `pending.md` bullet is retired.)
 
 **Spec.** [§9.2][s9-2], [§13.7][s13-7]
 
