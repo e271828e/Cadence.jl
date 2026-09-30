@@ -6456,7 +6456,7 @@ init!(dev)                                   # its own bracket, pre-spawn (§12.
 task = Threads.@spawn try
     loop(dev, handle)
 catch e
-    report!(handle, DeviceCrash(e))          # §12.4(6): sim continues, device absent
+    report!(entry, DeviceCrash(e))           # §12.4(6): sim continues, device absent
 finally
     shutdown!(dev)                           # any exit path: OS resources released
     mark_dead!(...)                          # heartbeat only — claims stay, §11.3

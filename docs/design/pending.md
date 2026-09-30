@@ -63,10 +63,6 @@ Currently empty.
 
 Not a code deviation: what the design documents owe their reader.
 
-- **§11.6's wrapper sketch** writes `report!(handle, DeviceCrash(e))`,
-  where the code files a crash by roster entry and the handle admits
-  `MalformedDatum` alone. Ruled 2026-09-30: the sketch reads
-  `report!(entry, DeviceCrash(e))`.
 - **Publication's garbage and when it is collected** (§7.5, §10.7, §11.2,
   D-269). With the log and the trace off, a frame of `feedback_model` still
   allocates 816 B, all of it publication's: `_status` 656 B, the store copy
