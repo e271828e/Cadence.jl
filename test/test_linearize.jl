@@ -68,6 +68,15 @@ y_types(::PoseConsumer) = (q = Float64,)
 y_state(::PoseConsumer, (; x)) = (q = x.q,)
 x_derivative(::PoseConsumer, (; x, u)) = (q = u.pose.v[1] - x.q,)
 
+# A consumer of a matrix root input, `q̇ = 2·w[1,2] + 5·w[2,1] − q`, so a tap's
+# `B` column shows which entry it seeded.
+struct MatrixConsumer <: AbstractComponent end
+x_init(::MatrixConsumer) = (q = 0.0,)
+u_types(::MatrixConsumer) = (w = SMatrix{2,2,Float64,4},)
+y_types(::MatrixConsumer) = (q = Float64,)
+y_state(::MatrixConsumer, (; x)) = (q = x.q,)
+x_derivative(::MatrixConsumer, (; x, u)) = (q = 2.0 * u.w[1, 2] + 5.0 * u.w[2, 1] - x.q,)
+
 # Two linearizations field for field: the value holds matrices, so `==` on the
 # struct would compare them by identity.
 same_linearization(left, right) =
@@ -239,6 +248,18 @@ function test_linearize()
         d = only(diagnostics(failure(() -> linearize(sim, taps(
             x = (a = get_state("c", "m[1,2]"), b = get_state("c", "m[3]")))))))
         @test d.reason === :duplicate_site && d.label === :b && d.duplicate_of === :a
+    end
+
+    @testset "a matrix root input's `[k,l]` and linear `[k]` taps name one seed site (§14.10, D-276)" begin
+        sim = Simulation(fed(MatrixConsumer(), "w"); h = 1//10)
+        about = fragment(inputs = (in = SMatrix{2,2}(1.0, 2.0, 3.0, 4.0),))
+        state_taps = (q = get_state("c", :q),)
+        d = only(diagnostics(failure(() -> linearize(sim, taps(
+            x = state_taps, u = (a = get_input("in[1,2]"), b = get_input("in[3]"))); about = about))))
+        @test d.reason === :duplicate_site && d.label === :b && d.duplicate_of === :a
+        linearization = linearize(sim, taps(x = state_taps, u = (a = get_input("in[1,2]"),
+                                                                  b = get_input("in[2,1]"))); about = about)
+        @test isapprox(linearization.B, [2.0 5.0]; atol = 1e-12)
     end
 
     @testset "a seed follows index steps alone: a `.name` step is unseedable (§14.10, D-036, D-276)" begin

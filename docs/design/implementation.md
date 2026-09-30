@@ -740,7 +740,8 @@ Spec: §9.6, §13.1, §14.5–§14.8, D-070, D-158, D-213, D-224, D-253, D-262.
   with their tiers, the duplicate the earlier label.
 - A seeded tap reaches its scalar through one index step at most, and a
   `.name` step is unseedable (D-036). The seed site is the leaf's linear
-  place, so `[k,l]` seeds the entry its linear `[k]` names (D-276).
+  place on the `x` and `u` lists alike, so `[k,l]` seeds the entry its
+  linear `[k]` names and the two spellings are one site (D-276).
 
 Spec: §9.7, §14.4, §14.10, D-036, D-167, D-168, D-197, D-213, D-272, D-274,
 D-276.

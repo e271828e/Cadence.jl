@@ -188,7 +188,7 @@ _leaf_unresolved(selector, refusal::LeafRefusal, binding_type::Type, device::Str
                           declared = refusal.declared, candidates = refusal.candidates)
 
 # The leaf address parsed into its head and steps, or refused.
-function _parsed_read(selector, binding_type::Type, device::String)
+function _parsed_binding_leaf(selector, binding_type::Type, device::String)
     parsed = parse_leaf(selector.leaf)
     parsed isa LeafRefusal &&
         throw(DiagnosticError(_leaf_unresolved(selector, parsed, binding_type, device)))
@@ -205,7 +205,7 @@ function _cell_read(addr::CellAddr, selector, steps, binding_type::Type, device:
 end
 
 function _resolve_read(layout::Layout, selector::GetOutput, binding_type::Type, device::String)
-    head, steps = _parsed_read(selector, binding_type, device)
+    head, steps = _parsed_binding_leaf(selector, binding_type, device)
     haskey(layout.addr, (selector.path, head)) || throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :unknown_cell,
@@ -215,7 +215,7 @@ function _resolve_read(layout::Layout, selector::GetOutput, binding_type::Type, 
 end
 
 function _resolve_read(layout::Layout, selector::GetInput, binding_type::Type, device::String)
-    head, steps = _parsed_read(selector, binding_type, device)
+    head, steps = _parsed_binding_leaf(selector, binding_type, device)
     head in _root_input_names(layout) || throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :unknown_root_input,
@@ -224,7 +224,7 @@ function _resolve_read(layout::Layout, selector::GetInput, binding_type::Type, d
 end
 
 function _resolve_read(layout::Layout, selector::GetFace, binding_type::Type, device::String)
-    head, steps = _parsed_read(selector, binding_type, device)
+    head, steps = _parsed_binding_leaf(selector, binding_type, device)
     head in _root_input_names(layout) && throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :root_input_not_output,

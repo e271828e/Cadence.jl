@@ -1728,8 +1728,7 @@ function message(d::TapResolution)
                            "the sampled-data step map Φ", "§14.10, D-197")
     d.reason === :vector_tap &&
         return _tap_violation(d, "the leaf it names is declared $(d.declared) — a tap is one " *
-                           "scalar, so write one tap per component, each with an index step",
-                           "§14.10, D-276")
+                           "scalar" * _vector_tap_remedy(d), "§14.10, D-276")
     d.reason === :unseedable && return _tap_violation(d, _unseedable_clause(d)...)
     d.reason === :duplicate_site &&
         return _tap_violation(d, "it resolves to the site the tap labeled `$(d.duplicate_of)` " *
@@ -1745,6 +1744,16 @@ function message(d::TapResolution)
     _tap_violation(d, "`$(d.field)` is no root-exported output face — the root exports " *
                 "$(_namelist(d.candidates))")
 end
+
+# `:vector_tap`'s remedy. An `SArray` leaf splits by index steps; a struct leaf
+# is read down to a scalar field on the `y` list, and a seed enters no struct.
+_vector_tap_remedy(d::TapResolution) =
+    d.declared <: StaticArray ?
+        ", so write one tap per component, each with an index step" :
+    d.tap === :y ?
+        ", so step to a scalar field with `.name` and index steps, one tap per scalar" :
+        ", and a seeded tap reaches its scalar through index steps alone, which a struct " *
+        "does not take, so that leaf has no tap"
 
 # `:unseedable`'s clause and citation. A pinning consumer on the continuous tier
 # pins by its declared entry, which the author can promote (D-167, D-168); one on

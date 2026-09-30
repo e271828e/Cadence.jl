@@ -462,8 +462,9 @@ function _resolve_selector(selector::GetState, label::Symbol, build::Build,
     haskey(declared, head) ||
         (push!(diags, _undeclared_violation(label, selector, :state_field, declared));
          return nothing)
-    # A state field is a scalar or an `SArray` (§7.1), so a `.name` step falls
-    # out of the walk as a field the leaf does not have.
+    # A continuous field is flat, a scalar or an `SArray` (§7.1), so a `.name`
+    # step falls out of the walk as `:no_such_field`. A discrete `s` field is any
+    # isbits value and takes the full chain (§14.4, D-276).
     field_type = typeof(declared[head])
     chain = _leaf_chain(selector, label, field_type, steps, diags)
     chain === nothing && return nothing

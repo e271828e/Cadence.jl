@@ -165,6 +165,7 @@ function leaves_shape()
         # field is not a position the walk visits.
         @test mutable_position(Matrix{Float64}) == ("", Matrix{Float64})
         @test mutable_position(SVector{2,Matrix{Float64}}) == ("[1]", Matrix{Float64})
+        @test mutable_position(SMatrix{2,2,Matrix{Float64},4}) == ("[1,1]", Matrix{Float64})
         @test mutable_position(HeightField) === nothing
         @test mutable_position(Float64) === nothing
     end

@@ -191,7 +191,7 @@ The output side's read (§11.2, §11.6): run the attachment's compiled gather �
 NamedTuple `map_output` receives. The loop idiom is
 `send(dev.socket, map_output(gather(handle, snapshot), binding(handle)))`, on the
 device's own task, against the snapshot §12.3's wait handed it: the compiled
-addresses read the frozen store, so no name is resolved per datum and nothing
+reads run over the frozen store, so no name is resolved per datum and nothing
 here touches the running loop. On a handle whose binding declares no output
 side the call is a contract misuse, and throws by name.
 """

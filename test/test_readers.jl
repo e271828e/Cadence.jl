@@ -52,6 +52,15 @@ pose_reads() = reads(v2 = get_output("c", "pose.v[2]"), m12 = get_output("c", "p
                      m3 = get_output("c", "pose.m[3]"), whole = get_output("c", "pose"),
                      short = get_output("c", :pose), q2 = get_state("c", "q[2]"))
 
+# A discrete store holding a struct and a nested vector. Only the continuous
+# tier is flat, so `get_state` on an `s` field takes the full address (§14.4, D-276).
+struct PoseStore <: AbstractComponent end
+s_init(::PoseStore) = (pose = LeafPose(SVector(1.0, 2.0, 3.0), SMatrix{2,2}(5.0, 6.0, 7.0, 8.0)),
+                       w = SVector(SVector(1.0, 2.0), SVector(3.0, 4.0)))
+y_types(::PoseStore) = (v1 = Float64,)
+y_state(::PoseStore, (; s)) = (v1 = s.pose.v[1],)
+s_update(::PoseStore, (; s)) = s
+
 # Every store, the root inputs and the clock, read straight out of an executor.
 world(sim) = (copy(sim.exec.xbuf),
               [s === nothing ? nothing : s[] for s in sim.exec.sstores],
@@ -94,6 +103,14 @@ function test_readers()
             @test pose.m3 === pose.m12                                        # `[3]` is `[1,2]`, column-major
             @test pose.q2 === T(-0.25)
         end
+
+        # A discrete `s` field takes a `.name` step and a chain of two index steps.
+        store_sim = Simulation(single(PoseStore()); h = 1//10)
+        init!(store_sim)
+        stored = gather_reads(_compile_reads(reads(m12 = get_state("c", "pose.m[1,2]"),
+                                                   w21 = get_state("c", "w[2][1]")),
+                                             store_sim.deployment.build), store_sim.exec)
+        @test stored.m12 === 7.0 && stored.w21 === 3.0
     end
 
     @testset "the reader is the gather twin: allocation-free over an executor (§14.4, §7.5)" begin
@@ -165,8 +182,8 @@ function test_readers()
                                                  f = get_output("c", "pose.v[4]"),
                                                  g = get_state("c", "q.x")),
                                            build(pose_model())))
-        by_label = Dict(x.label => x for x in diagnostics(err))
-        @test length(by_label) == 7 && all(x -> x isa TapResolution, values(by_label))
+        by_label = Dict(d.label => d for d in diagnostics(err))
+        @test length(by_label) == 7 && all(d -> d isa TapResolution, values(by_label))
         @test by_label[:a].reason === :leaf_syntax && by_label[:a].step == "[" &&
               by_label[:a].declared === nothing && by_label[:a].leaf == "pose.v["
         @test by_label[:b].reason === :no_such_field && by_label[:b].step == ".q" &&
@@ -258,6 +275,8 @@ function test_readers()
         snapshot = latest(pose_sim)
         pose = port(snapshot, "c", :pose)
         @test gather(handle, snapshot) === (v = pose.v, m12 = pose.m[1, 2])
+        gatherer = handle.gatherer
+        @test @ballocated(gather_snapshot($gatherer, $snapshot)) == 0      # `pose.m[1,2]` is two steps
 
         # A step the address cannot take is refused at attach with the family's
         # reason, the step named as spelled.

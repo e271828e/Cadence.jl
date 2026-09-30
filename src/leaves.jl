@@ -100,7 +100,8 @@ function _mutable_position(::Type{P}, prefix) where {P}
     P <: Real && return nothing                  # `BigFloat` is a mutable `Real`, and a leaf
     P === Symbol && return nothing               # an opaque leaf by ruling (D-243)
     ismutabletype(P) && return (prefix, P)
-    P <: StaticArray && return _mutable_position(eltype(P), string(prefix, "[1]"))
+    P <: StaticArray &&
+        return _mutable_position(eltype(P), string(prefix, "[", join(ones(Int, ndims(P)), ","), "]"))
     _opaque(P) && return nothing                 # the walk never looks inside a handle
     for (name, field_type) in zip(fieldnames(P), fieldtypes(P))
         position = _mutable_position(

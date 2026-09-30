@@ -257,9 +257,11 @@ function _resolve_taps(tap_set::Taps, build::Build, ::Type{T}) where {T}
 end
 
 # A seed site's identity (D-272): an `x` entry's `xbuf` slot, a `u` entry's cell
-# and chain. A `y` entry is a read, not a seed, and has none.
+# and the linear place its index step names, 0 for the whole cell, so `[3]` and
+# `[1,2]` on one matrix are one site. A `y` entry is a read, not a seed, and has none.
 _site_key(::Val{:x}, entry::Tuple{Int,DerivRead}) = first(entry)
-_site_key(::Val{:u}, entry::CellRead{A,C}) where {A,C} = (entry.addr, C)
+_site_key(::Val{:u}, entry::CellRead{A,C}) where {A,C} =
+    (entry.addr, isempty(C) ? 0 : _linear_index(_port_type(entry.addr), only(C)))
 _site_key(::Val{:y}, ::CellRead) = nothing
 
 # The type a resolved chain lands on under `P`.
