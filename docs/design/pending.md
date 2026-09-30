@@ -18,12 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the standard component library last.
 Where the reason is not given here, the cited decision carries it:
 
-- **The carrier tells boundary zero from frame one** (§13.4, D-223, D-274):
-  the two share pointer 0 and need different reproductions, `init!` under
-  the same condition and the replay of the trace. `StepError` gains a field
-  that says which one threw, set by `_wrap_step`'s two callers, and the
-  rendered recipe reads it. Today the text names both. Ruled 2026-09-30, as
-  a standalone update; §13.4 and D-274's sentence on pointer 0 move with it.
 - **Mounting** (§14.9, I 4.12): `at(prefix, ::TrimProblem)` and
   `at(prefix, ::Taps)`, and the read side's resolution from a mount point;
   `readers.jl`'s `_read_component` walks every selector path from the root.

@@ -1521,7 +1521,8 @@ function _advance!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto
                 # synchronous throw from model code, the mask deferring only a
                 # signal. The frame is abandoned unpublished, the stores possibly
                 # mid-boundary, and the run takes the stop path (§12.4).
-                err isa InterruptException || (failure = _wrap_step(sim, entry_boundary, err))
+                err isa InterruptException ||
+                    (failure = _wrap_step(sim, entry_boundary, :loop, err))
                 Base.sigatomic_end()
                 failure === nothing && return (_interrupt_source(control, nothing), advanced)
                 rethrow(failure)                   # the model's backtrace kept
@@ -1566,12 +1567,13 @@ function _interrupt_source(control::Control, face::Union{Nothing,Symbol})
 end
 
 # The one `StepError` constructor (§13.4, D-059): the frame from the cursor, the
-# clock at the failure, the frame-entry boundary as the replay pointer, and the
-# cause under the species rule below. Nothing inside the sequence throws a
-# `StepError`, so one arriving here is an invariant firing, not a re-wrap. Two
-# callers reach it — the frame loop above and the boundary-zero host below
-# (D-223) — and it stays the only constructor.
-function _wrap_step(sim::Simulation, entry_boundary::Int, err)
+# clock at the failure, the frame-entry boundary as the replay pointer, the host
+# its caller names, and the cause under the species rule below. Nothing inside
+# the sequence throws a `StepError`, so one arriving here is an invariant firing,
+# not a re-wrap. Two callers reach it — the frame loop above, as `:loop`, and the
+# boundary-zero host below (D-223), as `:boundary_zero` — and it stays the only
+# constructor.
+function _wrap_step(sim::Simulation, entry_boundary::Int, host::Symbol, err)
     err isa StepError && throw(InternalInvariant(
         "a StepError reached the catch site (§13.4), which is its only constructor — " *
         "something inside the boundary sequence wrapped one"))
@@ -1579,7 +1581,7 @@ function _wrap_step(sim::Simulation, entry_boundary::Int, err)
     StepError(CursorFrame(cursor.comp == 0 ? nothing :
                               sim.deployment.build.structure.components[cursor.comp].path,
                           cursor.fn, cursor.phase, cursor.index),
-              _seconds(sim.exec.clock.t), entry_boundary, _species(sim, err))
+              _seconds(sim.exec.clock.t), entry_boundary, host, _species(sim, err))
 end
 
 # The species rule (§13.4, D-221): a fail-fast carrier thrown inside the
@@ -1631,17 +1633,17 @@ end
 # The second host of §13.4's catch (D-223): boundary zero runs the loop's
 # user-code surfaces with the cursor maintained through them, so a throw inside
 # it takes the one `StepError` constructor — frame from the cursor, `t₀`,
-# pointer 0, the species rule — under the service's disposition: the simulation
-# returns to `built`, nothing published, no record written. An interrupt is not
-# model code failing and has no stop path to route to here, so it moves the
-# lifecycle and propagates raw.
+# pointer 0, host `:boundary_zero`, the species rule — under the service's
+# disposition: the simulation returns to `built`, nothing published, no record
+# written. An interrupt is not model code failing and has no stop path to route
+# to here, so it moves the lifecycle and propagates raw.
 function _host_boundary_zero!(sim::Simulation)
     try
         boundary_zero!(sim)
     catch err
         @atomic :release sim.control.lifecycle = :built
         err isa InterruptException && rethrow()
-        rethrow(_wrap_step(sim, 0, err))
+        rethrow(_wrap_step(sim, 0, :boundary_zero, err))
     end
 end
 

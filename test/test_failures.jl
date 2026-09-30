@@ -179,6 +179,7 @@ function failures_runtime()
         @test err isa StepError
         @test err.cursor == CursorFrame("c", :x_derivative, :integrate, 2)  # RK4's half-step evaluation
         @test err.boundary == 0 && err.t == 0.05
+        @test err.host === :loop                        # frame one, not boundary zero
         @test err.cause isa Tripped
         @test lifecycle(sim) === :errored
         record = termination(sim)
@@ -228,7 +229,8 @@ function failures_runtime()
         err = failure(() -> init!(sim, fragment(inputs = (in = true,))))
         @test err isa StepError
         @test err.cursor == CursorFrame("c", :handler, :round, 1)
-        @test err.boundary == 0 && err.t == 0.0         # the pointer degenerates at zero
+        @test err.boundary == 0 && err.t == 0.0         # frame one's pointer too…
+        @test err.host === :boundary_zero               # …so the host tells them apart
         @test err.cause isa Detonated
 
         # The service's disposition: back to `built`, no termination record, and
@@ -248,11 +250,12 @@ function failures_runtime()
         @test d.op === :trace && d.status === :built
 
         # The reproduction is `init!` under the same condition (D-274): the same
-        # frame, the same pointer, the same cause.
+        # frame, the same pointer, the same host, the same cause.
         sim2 = Simulation(fed(Mine(), "sig"); h = 1//10)
         reproduced = failure(() -> init!(sim2, fragment(inputs = (in = true,))))
         @test reproduced isa StepError{Detonated}
         @test reproduced.cursor == err.cursor && reproduced.boundary == 0 && reproduced.t == err.t
+        @test reproduced.host === :boundary_zero
         @test lifecycle(sim2) === :built
 
         # The remedy is a corrected condition, and `init!` re-establishes first.
@@ -419,12 +422,18 @@ function failures_runtime()
         rendered = sprint(showerror, err)
         @test occursin("`c`", rendered) && occursin("x_derivative", rendered) &&
               occursin("stage 2", rendered)
-        # The pointer degenerates at zero (D-223, D-274): boundary zero and frame
-        # one share it, so both recipes are named, each with the call that threw,
-        # and the `step!` a boundary-zero failure would refuse is not.
-        @test occursin("if `init!` threw, init!(sim2, condition) under the same condition " *
-                       "reproduces it; if frame one did, replay!(sim2, trc) does", rendered) &&
-              !occursin("step!", rendered)
+        # The recipe follows the host (D-223, D-274). Frame one's failure takes the
+        # general recipe at pointer 0, the halt restoring the header…
+        @test occursin("replay!(sim2, trc; to_boundary = 0) then step!(sim2) reproduces it",
+                       rendered) && !occursin("init!", rendered)
+        # …and boundary zero's, on the same pointer, takes `init!`: no trace to
+        # replay, and the `step!` it would refuse is not named.
+        zero_sim = Simulation(fed(Mine(), "sig"); h = 1//10)
+        zero_rendered =
+            sprint(showerror, failure(() -> init!(zero_sim, fragment(inputs = (in = true,)))))
+        @test occursin("init!(sim2, condition) under the same condition reproduces it",
+                       zero_rendered)
+        @test !occursin("replay!", zero_rendered) && !occursin("step!", zero_rendered)
 
         # A `Diagnostic` cause renders as its logline: the kind name leads, and the
         # leaf the sweep named is in the line.
@@ -441,7 +450,7 @@ function failures_runtime()
         # A frame whose cursor named no component drops the clause entirely: `""` is
         # a bare-leaf build's *own* root component, and "the root component" would
         # name a component where the cursor named none.
-        none = StepError(CursorFrame(nothing, :none, :drain, 0), 0.3, 3, Tripped())
+        none = StepError(CursorFrame(nothing, :none, :drain, 0), 0.3, 3, :loop, Tripped())
         none_rendered = sprint(showerror, none)
         @test occursin("StepError: drain of the frame from boundary 3", none_rendered)
         # …and away from zero the recipe is the general one, halt then step.
@@ -450,11 +459,12 @@ function failures_runtime()
         @test !occursin("root component", none_rendered) && !occursin(" in ", none_rendered)
 
         # An unrecognized phase renders as itself, never as another phase's spelling.
-        odd = StepError(CursorFrame("c", :x_derivative, :nowhere, 0), 0.3, 3, Tripped())
+        odd = StepError(CursorFrame("c", :x_derivative, :nowhere, 0), 0.3, 3, :loop, Tripped())
         @test occursin("nowhere of the frame", sprint(showerror, odd))
 
         # D-225's bound: a bare value is no cause the carrier admits.
-        @test_throws MethodError StepError(CursorFrame(nothing, :none, :drain, 0), 0.3, 3, "oops")
+        @test_throws MethodError StepError(CursorFrame(nothing, :none, :drain, 0), 0.3, 3, :loop,
+                                           "oops")
     end
 
     @testset "the `Dual` activations reach the same carrier and cause (§13.4, §9.4)" begin
@@ -481,6 +491,7 @@ function failures_runtime()
               isnan(err.cause.value)
         @test err.t == 0.1 && err.cause.t == 0.1 &&
               err.cause.boundary == 0
+        @test err.boundary == 0 && err.host === :loop   # frame one's sweep, from the loop
         @test diagnostic(err) === err.cause
     end
 
@@ -528,7 +539,7 @@ end
 function reproduction(model, quiet::Int)
     sim = Simulation(model; h = 1//10)
     init!(sim, fragment(inputs = (in = false,)))
-    step!(sim; frames = quiet, t_end = 5.0)         # the quiet frames before it
+    quiet > 0 && step!(sim; frames = quiet, t_end = 5.0)   # the quiet frames before it
     stage!(sim, "in" => true)                       # drained at the failing frame's top
     failure(() -> step!(sim; t_end = 5.0))
     err = termination(sim).source.exception
@@ -542,6 +553,7 @@ function reproduction(model, quiet::Int)
     @test twin_err isa StepError
     @test twin_err.cursor == err.cursor && twin_err.t == err.t &&
           twin_err.boundary == err.boundary
+    @test twin_err.host == err.host
     @test typeof(twin_err.cause) === typeof(err.cause)
     @test lifecycle(sim2) === :errored
     @test latest(sim2).t == latest(sim).t
@@ -560,6 +572,17 @@ function failures_pointer_twin()
         err = reproduction(diverging(), 1)
         @test err.cause isa NonfiniteState && err.cause.path == "div"
         @test err.boundary == 1               # frame 2's own drain armed it
+
+        # Frame one, at the pointer boundary zero shares (D-274): the halt at 0
+        # restores the header and runs no boundary zero, so frame one's record is
+        # still ahead and `step!` re-executes that frame.
+        err = reproduction(fed(Tripwire(0.05), "arm"), 0)
+        @test err.cause isa Tripped && err.boundary == 0 && err.host === :loop
+        @test err.cursor == CursorFrame("c", :x_derivative, :integrate, 2)
+        @test err.t == 0.05                   # inside frame one
+        err = reproduction(diverging(), 0)
+        @test err.cause isa NonfiniteState && err.boundary == 0 && err.host === :loop
+        @test err.t == 0.1                    # frame one's own top
     end
 
     @testset "`to_boundary` counts grid boundaries, not base ticks (§12.7, §13.4)" begin

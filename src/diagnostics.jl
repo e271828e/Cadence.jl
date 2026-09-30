@@ -206,8 +206,8 @@ Base.:(==)(a::CursorFrame, b::CursorFrame) =
 
 """
 §13.4's runtime carrier, `DiagnosticError`'s counterpart: the cursor's frame, the
-clock at the failure, the frame-entry boundary index — the replay pointer — and
-the cause. The parameter is the cause's type (D-225): the diagnostic's kind when
+clock at the failure, the frame-entry boundary index — the replay pointer — the
+host of the catch, and the cause. The parameter is the cause's type (D-225): the diagnostic's kind when
 the cause is one, the exception model code threw otherwise. A *species* is a
 `StepError` whose `cause` is a typed diagnostic, which is what lets a runtime
 check throw its kind and reach the one catch site as a plain thrower.
@@ -217,6 +217,8 @@ struct StepError{C <: Union{Diagnostic, Exception}} <: Exception
     t::Float64       # `_seconds(clock.t)` at the catch: the boundary time in a boundary
                      # phase, the stage or trial time mid-integration
     boundary::Int    # the frame-entry boundary index: replay!(…; to_boundary = boundary)
+    host::Symbol     # the catch that took the throw: :boundary_zero under init!,
+                     # :loop inside a frame
     cause::C
 end
 
@@ -254,14 +256,12 @@ function Base.showerror(io::IO, carrier::StepError)
     end
     print(io, _phase_text(cursor), " of the frame from boundary ", carrier.boundary,
           " (t = ", carrier.t, "):\n  ")
-    # The pointer degenerates at zero (§13.4, D-274): boundary zero and frame
-    # one share it and the carrier cannot tell them apart, so both recipes are
-    # named — a boundary-zero throw leaves no trace and `init!` reproduces it,
-    # a frame-one throw leaves one and its replay does. The `step!` the general
-    # recipe names is what a boundary-zero failure would refuse.
-    carrier.boundary == 0 ?
-        print(io, "if `init!` threw, init!(sim2, condition) under the same condition " *
-                  "reproduces it; if frame one did, replay!(sim2, trc) does") :
+    # The recipe follows the host (§13.4, D-274). A boundary-zero throw leaves
+    # no trace, so `init!` reproduces it. A frame's throw takes the halt then
+    # `step!` at every pointer, 0 included: the halt restores the header and
+    # runs no boundary zero, so frame one's record is still ahead.
+    carrier.host === :boundary_zero ?
+        print(io, "init!(sim2, condition) under the same condition reproduces it") :
         print(io, "replay!(sim2, trc; to_boundary = ", carrier.boundary,
               ") then step!(sim2) reproduces it")
     print(io, "\n  cause: ")

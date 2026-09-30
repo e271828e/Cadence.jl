@@ -94,10 +94,11 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265.
   an abandoned frame, carrying the clock's `t`, the frame top `t_frame` and
   the frame index `frame` (D-274). Its message branches on whether the two
   times are equal.
-- `StepError`'s rendered recipe names two reproductions at pointer 0, which
-  boundary zero and frame one share: `init!` where `init!` threw and left no
-  trace, the replay of the trace where frame one did. Elsewhere it names
-  replay to the pointer then `step!` (§13.4, D-274).
+- `StepError`'s `host` records which catch took the throw, `:boundary_zero`
+  or `:loop`, since boundary zero and frame one share pointer 0. Its
+  rendered recipe reads the host alone: `init!` under the same condition for
+  a boundary-zero throw, and replay to the pointer then `step!` for a frame's
+  throw at every pointer, 0 included (§13.4, D-274).
 - `CheckpointMismatch`'s store arm also names a component's `x` type
   (`:x`), a cell (`port.<name>`) and the event list (`:events`). Its clock
   arm is `restore = false`'s own: the recording's `t₀` (`:t₀`) and the frame
@@ -377,7 +378,9 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
   holds the runtime bundle-field match (§13.2, §13.4, D-248). The match reads
   its stage-1 names off the `Outputs`. The catch site also holds the interrupt
   carve-out. The catch site's second host `_host_boundary_zero!` sits around
-  boundary zero.
+  boundary zero. Both hosts reach the one constructor `_wrap_step` and set
+  the carrier's `host`, the frame loop to `:loop` and `_host_boundary_zero!`
+  to `:boundary_zero`.
 - §12.4's mask and the handling around it (D-268):
   - the mask spans each frame's boundary sequence, with the frame's `try`
     inside it;
