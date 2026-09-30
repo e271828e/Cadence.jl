@@ -110,8 +110,9 @@ end
 # and `get_face` an integration read: a root-exported output face, named,
 # curated, meaning-stable under substitution (§11.2). `get_input` reads a root
 # input back, the source cell it is. All three take a leaf address, checked
-# here by the family's own parse and per-step resolution against the port's
-# declared type (§14.4, D-276). A binding gather is the family's baked read,
+# here by the family's own parse (a path selector) or face-list match (a face
+# selector, whose name may hold a dot) and per-step resolution against the
+# port's declared type (§14.4, D-276). A binding gather is the family's baked read,
 # `CellRead`, run over a snapshot's store where an inspection reader runs it
 # over an executor's.
 
@@ -188,7 +189,8 @@ _leaf_unresolved(selector, refusal::LeafRefusal, binding_type::Type, device::Str
                           leaf = _leaf_string(selector), step = refusal.step,
                           declared = refusal.declared, candidates = refusal.candidates)
 
-# The leaf address parsed into its head and steps, or refused.
+# A path selector's leaf address parsed into its head and steps, or refused;
+# a face selector's is matched instead (`_matched_binding_leaf`).
 function _parsed_binding_leaf(selector, binding_type::Type, device::String)
     parsed = parse_leaf(selector.leaf)
     parsed isa LeafRefusal &&

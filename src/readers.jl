@@ -467,7 +467,8 @@ _field(selector::Union{GetInput,GetFace}, faces) =
 _exported_faces(structure::Structure) =
     Symbol[face for ((face_path, face), _) in structure.out_faces if isempty(face_path)]
 
-# The parsed address, or `nothing` with its refusal collected.
+# A path selector's parsed address, or `nothing` with its refusal collected;
+# a face selector's is matched instead (`_matched_leaf`).
 function _parsed_leaf(selector, label::Symbol, diags::Vector{Diagnostic})
     parsed = parse_leaf(selector.leaf)
     parsed isa LeafRefusal || return parsed
