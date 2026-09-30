@@ -32,12 +32,13 @@ Where the reason is not given here, the cited decision carries it:
   inspection readers.
 - **The `check` entry point** (M-B23): §9.7 names it once, in a
   parenthetical; whether it is a rule is a ruling to raise.
-- **Smaller** (M-B26): the face table keeps the resolved endpoint and discards
-  §9.1's routing chain that §13.7's face-route printer would print; the log is
-  a `Vector` of snapshot references, not inline records; the roster is a
-  mutable `Vector` re-read every frame, frozen by `assert_stopped`'s policy
-  rather than by type; the once-per-frame `ReplayDiscardedStaging` noise from
-  a live device during replay is unpresented (§11.8).
+- **Face routes** (§9.1, §13.7, D-257, M-B26): the face table keeps the
+  resolved endpoint and discards the routing chain `show(::Structure)` owes.
+  Ruled 2026-09-30: `resolve_source` records the hops `(path, face)` from a
+  face to its producing terminal, one chain per output face and one per
+  consumer of an input face that fans out. The printer joins the hops with
+  `→` and stops at the terminal. §13.7's example drops its `←` half, the
+  producer's own inputs, docs-commit-first.
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
   spellings) (M-B22).
@@ -51,7 +52,49 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-Currently empty.
+- **Three interrupt windows around `run!`'s arm** (§11.6, §12.4, D-268):
+  the cold review of the arm's await (`e2df80f`, `0376fd2`) found three
+  older windows. Ruled 2026-09-30 as one fix, with a cold review after it.
+  - An interrupt inside the arm's own lines (the stop request, the
+    deregistration, `_finish!`, the direct shutdowns) escapes with `source`
+    unset. The outer `finally` then lands `initialized` with no record, and
+    in the calling-task topology the loop may still be running. The
+    fallback source moves to the arm's top, so an escape lands `stopped`,
+    and the stop request and the deregistration move inside
+    `_await_loop`'s `try`.
+  - An interrupt after `Threads.@spawn` schedules the loop but before
+    `loop_task` is bound leaves the arm nothing to await. The spawn line is
+    masked, so the interrupt is deferred until the task is bound.
+  - An interrupt between the other devices' spawn and the inline wrapper's
+    `try` never shuts the inline entry down, against §11.6's every exit
+    path. The arm shuts it down when its wrapper never started.
+
+  With it, `implementation.md`'s "The inline wrapper removes its entry"
+  names `_run_body!`'s `finally` instead. A non-interrupt throw before the
+  tail runs no tail and stays so: only a framework fault reaches it.
+- **The roster is read once per run** (§11.3, E 4.4, M-B26): the loop
+  re-reads `plane.roster` every frame, and the freeze is `assert_stopped`'s
+  gate, where §11.3 makes the roster a plain immutable value the loop reads
+  once at `run!`. Ruled 2026-09-30: the run takes a copy at `run!`, and the
+  drain and the status iterate that. `_init_devices!` already derives `live`
+  from the roster at run start.
+- **The log boxes each snapshot again** (§7.5, §11.2, M-B26): `publish!`
+  boxes the snapshot once for `latest`, and `log!`, called with the concrete
+  value, boxes it twice more, for `last` and for the middle. That is 288 B a
+  frame on `feedback_model`, where §7.5 makes logging amortized-zero.
+  Ruled 2026-09-30:
+  - `log!` takes the box `latest` already holds, reloaded from the atomic
+    field and passed `@nospecialize`;
+  - `logged(sim)` returns a vector typed by the run's concrete snapshot
+    type, since reading a `Vector{Snapshot}` costs a dynamic dispatch per
+    element (24 ns against 1 ns);
+  - the storage stays a vector of references. Inline records would
+    preallocate 136 B a slot at every `init!` and would save nothing the
+    reuse does not. §7.5's sentence on inline records softens to match,
+    docs-commit-first.
+
+  The check: a full run allocates the same bytes a frame with the log on as
+  with it off.
 
 ### Retire with a feature or a pass
 
@@ -69,6 +112,38 @@ Currently empty.
 
 Not a code deviation: what the design documents owe their reader.
 
+- **§11.6's wrapper sketch** writes `report!(handle, DeviceCrash(e))`,
+  where the code files a crash by roster entry and the handle admits
+  `MalformedDatum` alone. Ruled 2026-09-30: the sketch reads
+  `report!(entry, DeviceCrash(e))`.
+- **Publication's garbage and when it is collected** (§7.5, §10.7, §11.2,
+  D-269). With the log and the trace off, a frame of `feedback_model` still
+  allocates 816 B, all of it publication's: `_status` 656 B, the store copy
+  112 B, and the snapshot object `latest` holds. §11.2 makes the GC the
+  reclamation of published snapshots, so a new snapshot and table copy per
+  frame are by design, and a run never avoids the GC. Two levers remain:
+  - **The status records.** `_status` builds a fresh vector of writer
+    records at every publication, two of them with no device attached.
+    Published values never change, so an unchanged record could be shared
+    with the previous snapshot. A device's heartbeat changes every frame,
+    which makes this a design question.
+  - **A scheduled collection.** §7.5 names `GC.gc(false)` at frame
+    boundaries as a lever, and nothing in `src/` builds it. Measured on
+    2026-09-30 at `h = 1 ms`, 10 threads: a young collection after up to
+    about 1 MB of garbage pauses about 200 µs (p99 under 240 µs), against
+    3.4 ms after 8 MB, the size the automatic collector waited for. The
+    proposal: the pacer's wait collects when the bytes allocated since the
+    last collection pass a budget of about 1 MB and the time to the next
+    deadline exceeds the recent p99 pause with a margin, and skips
+    otherwise. Unpaced runs and `step!` skip it. `PacerStatus` reports the
+    pauses. Open: the knob's name and default, and whether it is on by
+    default. Caveats: the trigger is process-wide, so a device that
+    allocates can still start a collection mid-frame; with the log on,
+    thinned snapshots die in the old generation and only a full collection
+    reclaims them, unmeasured; the fixed cost grows with tasks, live heap
+    and GC threads, so re-measure on a model of real size.
+
+  A ruling and a decision entry beside D-269 come first, then the build.
 - **Stop candidates.** §13.5 has two omissions with unequal loudness: a
   level that fails to re-export a stop face is refused at the next advance
   that names it, and an advance that names no face integrates a terminal
