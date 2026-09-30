@@ -103,10 +103,20 @@ Not a code deviation: what the design documents owe their reader.
   (D-060, D-255). It replaces the root-declared default D-060 kept on
   record, which does not compose: the default is the root type's, and a
   wrapped root has none.
-- **The executor compile-cost re-measurement.** §9.7's compile-time anchors
-  for a model of roughly 200–400 entries are extrapolated from synthetic
-  bodies; re-measure them on a real model of that scale early, before the
-  executor's shape hardens.
+- **The executor compile cost.** Re-measured on 2026-09-30 at `82c23d5`
+  (`docs/reports/20260930_compile_cost/`). §9.7's anchors do not hold: at
+  about 380 entries the walks compile in about 2 s and the machinery around
+  them in 10 s, the walks inlining into every loop method and
+  `Simulation{T,E}` carrying the executor's type and its 48 KB inline
+  value; each distinct component type costs about 0.5 s more in the
+  declaration layer; and the `Dual` activation costs about what the
+  nominal one does. The report's roadmap is ordered by yield: `@noinline`
+  at the phase-body call, `@nospecialize` through the declaration layer,
+  the executor type out of `Simulation`, chunks or entries behind pointers.
+  What the spec owes is §9.7's anchor table and mitigation ladder, and
+  D-086's rejection of type-erased call tables, which one opaque closure
+  per entry matched at runtime with zero allocation. A ruling and a
+  decision entry come first, then the build.
 - **The trace header's deployment half.** The checkpoint's `deployment`,
   which the trace header carries, holds the whole `Deployment`, and through
   it the `Build` with the component instances, into an artifact §11.5 calls
