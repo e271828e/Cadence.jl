@@ -24,6 +24,14 @@ Where the reason is not given here, the cited decision carries it:
 - **The NLopt fallback** (§14.8, H 4.5): `NLoptBackend(:LN_BOBYQA)` as a
   package extension, the squared and normalized objective at `stopval = 1`,
   and the nominal-activation loop it would run on.
+- **Compile time** (§9.7, D-086): the roadmap of
+  `docs/reports/20260930_compile_cost/`, in order of yield: `@noinline` at
+  the phase-body call, `@nospecialize` through the declaration layer, the
+  executor type out of `Simulation`, chunks or entries behind pointers.
+  §9.7's anchors do not hold, and a ruling on its anchor table and
+  mitigation ladder, and on D-086's rejection of type-erased call tables,
+  comes first. It stands ahead of the library because each component type
+  adds about 0.5 s.
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
   spellings) (M-B22).
@@ -95,20 +103,6 @@ Not a code deviation: what the design documents owe their reader.
   (D-060, D-255). It replaces the root-declared default D-060 kept on
   record, which does not compose: the default is the root type's, and a
   wrapped root has none.
-- **The executor compile cost.** Re-measured on 2026-09-30 at `82c23d5`
-  (`docs/reports/20260930_compile_cost/`). §9.7's anchors do not hold: at
-  about 380 entries the walks compile in about 2 s and the machinery around
-  them in 10 s, the walks inlining into every loop method and
-  `Simulation{T,E}` carrying the executor's type and its 48 KB inline
-  value; each distinct component type costs about 0.5 s more in the
-  declaration layer; and the `Dual` activation costs about what the
-  nominal one does. The report's roadmap is ordered by yield: `@noinline`
-  at the phase-body call, `@nospecialize` through the declaration layer,
-  the executor type out of `Simulation`, chunks or entries behind pointers.
-  What the spec owes is §9.7's anchor table and mitigation ladder, and
-  D-086's rejection of type-erased call tables, which one opaque closure
-  per entry matched at runtime with zero allocation. A ruling and a
-  decision entry come first, then the build.
 - **The trace header's deployment half.** The checkpoint's `deployment`,
   which the trace header carries, holds the whole `Deployment`, and through
   it the `Build` with the component instances, into an artifact §11.5 calls
