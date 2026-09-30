@@ -45,26 +45,6 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-- **Three interrupt windows around `run!`'s arm** (§11.6, §12.4, D-268):
-  the cold review of the arm's await (`e2df80f`, `0376fd2`) found three
-  older windows. Ruled 2026-09-30 as one fix, with a cold review after it.
-  - An interrupt inside the arm's own lines (the stop request, the
-    deregistration, `_finish!`, the direct shutdowns) escapes with `source`
-    unset. The outer `finally` then lands `initialized` with no record, and
-    in the calling-task topology the loop may still be running. The
-    fallback source moves to the arm's top, so an escape lands `stopped`,
-    and the stop request and the deregistration move inside
-    `_await_loop`'s `try`.
-  - An interrupt after `Threads.@spawn` schedules the loop but before
-    `loop_task` is bound leaves the arm nothing to await. The spawn line is
-    masked, so the interrupt is deferred until the task is bound.
-  - An interrupt between the other devices' spawn and the inline wrapper's
-    `try` never shuts the inline entry down, against §11.6's every exit
-    path. The arm shuts it down when its wrapper never started.
-
-  With it, `implementation.md`'s "The inline wrapper removes its entry"
-  names `_run_body!`'s `finally` instead. A non-interrupt throw before the
-  tail runs no tail and stays so: only a framework fault reaches it.
 - **The roster is read once per run** (§11.3, E 4.4, M-B26): the loop
   re-reads `plane.roster` every frame, and the freeze is `assert_stopped`'s
   gate, where §11.3 makes the roster a plain immutable value the loop reads

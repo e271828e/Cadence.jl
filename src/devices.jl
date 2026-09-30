@@ -405,7 +405,7 @@ stale (§12.2).
 _unblocks(dev::AbstractDevice) =
     which(unblock!, Tuple{typeof(dev)}) !== which(unblock!, Tuple{AbstractDevice})
 
-function _wrap(entry::RosterEntry)
+function _wrap(entry::RosterEntry, released::Base.RefValue{Bool} = Ref(false))
     try
         loop(entry.dev, entry.handle)
     catch err
@@ -426,6 +426,7 @@ function _wrap(entry::RosterEntry)
         end
     finally
         _shutdown!(entry)
+        released[] = true                    # read by `run!`'s interrupt arm for the inline entry
         entry.should_abort && stop!(entry.handle)
     end
     nothing

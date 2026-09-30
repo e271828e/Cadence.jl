@@ -365,10 +365,10 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
 - Staging/drain/publication, with the drain's replay substitution.
 - Publication reads each device's `task_state` off `run_tasks` (§12.2,
   D-270). A device with no registered task reads `:done` inside a run and
-  `:none` outside one, by the sticky status. The inline wrapper removes its
-  entry when its body returns, under `wake`'s lock. `run!`'s interrupt arm
-  removes it again before it awaits the loop, since an interrupt can cut the
-  wrapper's removal short.
+  `:none` outside one, by the sticky status. `_run_body!`'s `finally`
+  removes the inline entry when its body returns, under `wake`'s lock, and
+  `_await_loop` removes it again inside its `try` on the arm's call, since an
+  interrupt can cut the first removal short.
 - §12.6's input mode (D-260):
   - `mode(sim)`, `to_time` and `live!`;
   - the mode is read off the run's `feed`, so a change of mode is a write to
@@ -396,12 +396,19 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
   - a deferred interrupt yields to a holding face;
   - a frame that throws with an interrupt pending ends `errored`;
   - the masked bookkeeping sits in `run!`'s and `step!`'s outermost `finally`;
-  - `run!`'s outer catch takes a stray interrupt as the stop. Where the
-    loop was spawned and has not returned, the arm awaits it through
-    `_await_loop`, so `run!` returns only after the loop ends, and a loop
-    failure found there takes the failure arm's one handling. `_await_loop`
-    issues its stop request inside its `try` and retries it when an interrupt
-    cuts it short, so a later interrupt never reads as the loop's failure;
+  - the spawn of the calling-task topology's loop is masked, so a deferred
+    interrupt raises with the loop's task bound;
+  - `run!`'s outer catch takes a stray interrupt as the stop. Its first act
+    is the fallback source, so an interrupt escaping the arm lands the run
+    `stopped`. Where the loop was spawned and has not returned, the arm
+    awaits it through `_await_loop`, so `run!` returns only after the loop
+    ends, and a loop failure found there takes the failure arm's one
+    handling. `_await_loop` issues its stop request inside its `try` and
+    retries it when an interrupt cuts it short, so a later interrupt never
+    reads as the loop's failure. On the arm's call it first removes the
+    inline body's record the same way, then requests the stop without
+    waiting for an interrupt. The arm shuts the inline entry down when its
+    wrapper never ran `shutdown!`;
   - `run!` reads §13.4's disposition off the roster, and `step!` always
     rethrows.
 - The seam's `isfinite` sweep over `x`, the boundary's first act.

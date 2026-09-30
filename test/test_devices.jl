@@ -506,10 +506,12 @@ function test_devices()
         @test latest(sim).t == termination(sim).t   # no frame published past the record
     end
 
-    @testset "an interrupt past the inline body and outside the await still ends the loop inside run! (§11.1, §12.4)" begin
-        # Twice: with no stop face, and with one the held frame's publication
-        # reaches, whose `ModelRequestedStop` only the awaited loop reports.
-        for stop_on in ((), ("held",))
+    @testset "an interrupt past the inline body and outside the await, and a second in the arm's deregistration, still end the loop inside run! (§11.1, §12.4)" begin
+        # With no stop face, and with one the held frame's publication reaches,
+        # whose `ModelRequestedStop` only the awaited loop reports. Each with one
+        # interrupt, and with a second landing in the arm's own deregistration,
+        # inside `_await_loop`'s `try`, which retries it.
+        for stop_on in ((), ("held",)), interrupts in (1, 2)
             recorder = LoopRecorder()
             model = Group((; c = recorder); outputs = ("c/held" => "held",))
             sim = Simulation(model; h = 1//10)
@@ -524,11 +526,12 @@ function test_devices()
                 held = recorded && timedwait(() -> recorder.held[], 10.0) === :ok
                 # Holding the control plane's lock parks the calling task on it once
                 # the body returns, where the inline entry is deregistered: outside
-                # the wrapper's catch and before the await's.
+                # the wrapper's catch and before the await's. Still held, it parks
+                # the arm on it again, in `_await_loop`'s deregistration.
                 lock(wake)
                 sent = try
                     put!(dev.release, 1)
-                    held && interrupt_parked(caller, wake.lock.cond_wait)
+                    held && all(_ -> interrupt_parked(caller, wake.lock.cond_wait), 1:interrupts)
                 finally
                     unlock(wake)
                 end

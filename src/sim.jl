@@ -1289,7 +1289,9 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
     @atomic :release control.lifecycle = :running   # the §11.3 freeze: the roster is fixed for the run
     source, error_source = nothing, nothing
     logged_cause = nothing                    # the cause and its backtrace, when not rethrown
-    live, tasks, loop_task = RosterEntry[], nothing, nothing   # the interrupt arm below reads all three
+    # the interrupt arm below reads these five
+    live, tasks, loop_task, inline_entry = RosterEntry[], nothing, nothing, nothing
+    released = Ref(false)                     # set once the inline wrapper has run its `shutdown!`
     returned, tail_ran = false, false
     pacer = Pacer()                           # this call's schedule and counters (D-269)
     try
@@ -1317,13 +1319,17 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             _register_tasks!(plane, others, tasks)
             plane.run_tasks[inline_entry.id] = current_task()   # the inline body's task (§11.1)
             inline_entry.handle.last_seen = control.counter
+            # Masked, so an interrupt landing once the loop is scheduled raises at
+            # the unmask with `loop_task` bound, and the arm can await it (§12.4).
+            Base.sigatomic_begin()
             loop_task = Threads.@spawn try
                 _advance!(sim, policy, addrs, upto, t_end_frame, pacer)[1]
             finally
                 _finish!(sim)                 # the spawned loop wakes the inline body too
             end
+            Base.sigatomic_end()
             try
-                _wrap(inline_entry)                   # the identical wrapper, inline (§11.6)
+                _wrap(inline_entry, released)         # the identical wrapper, inline (§11.6)
             finally
                 # the body has returned, so its record reads `:done` (§12.2); the
                 # lock because the spawned loop reads the registry as it publishes
@@ -1343,27 +1349,32 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             # The operator's stop landing outside the loop's own unmask points —
             # the bracket's edges, the spawn, the inline wrapper's edges, the
             # moments between the loop's return and the tail — is a stop, never
-            # a `LoopError` (§12.4, D-268). A loop that returned keeps its
-            # outcome, a source or a budget halt alike. A spawned loop whose
-            # outcome was not taken may still be running, and `run!` never returns
-            # before its loop ends (§11.1): the arm requests the stop and awaits
-            # the loop as the ordinary path does. The loop's outcome is then the
-            # source, the `:interrupt` stop at its next frame top or a face or
-            # halt it had already reached, and its throw is handled below as
-            # the other arm's is. `:interrupt` is the source only where no loop
-            # returned. Where the interrupt came before the tail, the tail runs
+            # a `LoopError` (§12.4, D-268). The arm's first act is the fallback
+            # source, the `:interrupt` stop unless an earlier issuer holds the
+            # stop word, so an interrupt escaping any later line of the arm still
+            # lands the run `stopped`. A loop that returned keeps its outcome, a
+            # source or a budget halt alike. A spawned loop whose outcome was not
+            # taken may still be running, and `run!` never returns before its
+            # loop ends (§11.1): `_await_loop` removes the inline body's record,
+            # requests the stop and awaits the loop, the first two inside its
+            # `try` and retried when an interrupt cuts them short. The loop's
+            # outcome then replaces the fallback, the `:interrupt` stop at its
+            # next frame top or a face or halt it had already reached, and its
+            # throw is handled below as the other arm's is. An unattended loop
+            # runs on this task, so none is running here and no stop is
+            # requested. Where the interrupt came before the tail, the tail runs
             # here, unmasked so a second interrupt still collapses it; `_finish!`
             # is idempotent, so running it after the loop's own is harmless. An
             # entry initialized but never spawned is released directly, a
-            # spawned one through its wrapper once the tail wakes it. One test
-            # reaches the inline body's deregistration; the other windows are
-            # covered by reading.
-            returned || _request_stop!(control, :interrupt)
+            # spawned one through its wrapper once the tail wakes it, and the
+            # inline entry here when its wrapper never ran its `shutdown!`. The
+            # tests reach an interrupt in the inline body's deregistration and a
+            # second one in the arm's, inside `_await_loop`; the masked spawn and
+            # the inline release are covered by reading.
+            returned || (source = ControlRequestedStop(something((@atomic control.stop_issuer), :interrupt)))
             if !returned && loop_task !== nothing
-                # the calling task has left the inline body, whose record reads `:done` (§12.2)
-                @lock control.wake filter!(pair -> pair.second !== current_task(), plane.run_tasks)
                 try
-                    source = _await_loop(control, loop_task)
+                    source = _await_loop(control, loop_task, plane)
                     returned = true
                 catch err                     # rebinds the outer `err`; nothing below reads it
                     loop_failure = (err, catch_backtrace())   # `_await_loop` rethrows the loop's failure
@@ -1376,9 +1387,12 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
                 else                          # the calling-task holder sits outside the join
                     _tail!(sim, filter(entry -> !needs_calling_task(entry.dev), live), tasks)
                 end
+                # The wrapper stores `released` just after its `shutdown!` returns,
+                # a window the size of `_await_loop`'s: an interrupt there shuts
+                # the entry down a second time, which beats leaking it (§11.6).
+                inline_entry === nothing || tasks === nothing || released[] ||
+                    _shutdown!(inline_entry)
             end
-            returned || loop_failure !== nothing ||
-                (source = ControlRequestedStop(something(@atomic control.stop_issuer)))
         else
             loop_failure = (err, catch_backtrace())
         end
@@ -1570,12 +1584,21 @@ end
 # at its next frame top through its own `_finish!` (§12.4, D-268). The request
 # runs inside the `try`, ahead of the wait, so an interrupt landing in it leaves
 # the stop pending for the next pass and never escapes as the loop's failure.
-# The one window left open is the few instructions between the `catch` and the
-# next `try`.
-function _await_loop(control::Control, loop_task::Task)
-    stop_pending = false
+# `run!`'s interrupt arm passes the plane: its call owes the stop from the
+# start and first removes the inline body's record from the registry, the
+# calling task having left that body (§12.2). The removal is retried as the
+# request is. The one window left open is the few instructions between the
+# `catch` and the next `try`.
+function _await_loop(control::Control, loop_task::Task,
+                     plane::Union{Nothing,DataPlane} = nothing)
+    stop_pending = plane !== nothing
+    registered = plane !== nothing            # the inline body's record is still in the registry
     while true
         try
+            if registered                     # it reads `:done` once removed (§12.2)
+                @lock control.wake filter!(pair -> pair.second !== current_task(), plane.run_tasks)
+                registered = false
+            end
             stop_pending && (_request_stop!(control, :interrupt); stop_pending = false)
             return fetch(loop_task)
         catch err
