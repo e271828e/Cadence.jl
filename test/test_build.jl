@@ -1725,6 +1725,8 @@ function build_dual_sweep()
                 try
                     build(comp)
                 catch err
+                    # a real interrupt stops the sweep; only the fixture's own passes
+                    err isa InterruptException && name !== :InterruptInside && rethrow()
                     push!(err isa DiagnosticError ? refused : passed_through, name)
                     continue
                 end
