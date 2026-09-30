@@ -342,3 +342,49 @@ went beyond the bullets' text are listed here.
 
 Nothing pushed. The arc from `7b69c23` is the user's to diff-review; the
 cold review covered the interrupt fix alone, as ruled.
+
+## The older windows, ruled fixed 2026-09-30
+
+The user ruled the three windows the first cold review left out of scope
+fixed as one increment (`brief_interrupt_windows_2.md`), and settled two of
+its leftovers first: §11.6 and D-268 now say `shutdown!` may run twice
+(`83f7a3d`), and the frame walkthrough's loop calls carry the roster copy
+(`4a64096`). The log's 1–3 KB per run with a finite `log_max` is left alone
+as not worth a commit.
+
+6. **The older windows** (`7cb9f37`; gate green, 4065; `devices` at `-t 1`
+   green). Shapes: the spawns and registrations masked in both arms, one
+   mask in the calling-task arm from `_spawn!(others)` through the loop
+   spawn; the arm's head masked; the tail block a retry loop with a cursor
+   for the direct release and a flag for the joins. The fixer's deviation,
+   accepted: a deferred interrupt raises at the head's `sigatomic_end`,
+   outside every `try`, so the head sits in a retry of its own with both
+   mask ends inside one `try`. No test: no deterministic park exists in the
+   retrying tail, by the fixer's reading; the evidence is an injection probe
+   table over both topologies and layouts. Left: a forced raise between the
+   outer `catch` and the head's `try` still lands `initialized` with a
+   calling-task loop running; a forced raise inside the spawn mask
+   reproduces the original window 1; `_tail!` can run twice on an interrupt
+   between its return and the flag's store.
+   The cold review (gate green; its own injection probes over both
+   topologies and layouts) found the fixer's "no deterministic park" claim
+   wrong: user `shutdown!` on a condition, then the `_request_stop!` that
+   `_shutdown!`'s catch arm calls, parks the calling task twice on demand.
+   Its findings landed as `1d979c5`: that test (`HookedInline`, five
+   interrupts, three `shutdown!` calls); the arm's await returns a loop
+   failure as a value built inside `_await_loop`'s `try`, since the old
+   `catch_backtrace()` allocation outside every `try` let an ordinary
+   interrupt escape with the failure lost; `_tail!`'s collapse retries its
+   reports so it lets no interrupt out; D-268 and §11.6 say `shutdown!` may
+   run more than once; the arm's comment names the forced-raise residue in
+   full. Open, for the user, both deterministic and neither in the ruling:
+   an interrupt escaping the init bracket (through `_shutdown!`'s catch arm
+   or the gap after `push!`) leaks every device already initialized, since
+   `live` is still empty in `_run_body!`; the failure arm's
+   `loop_failure = (err, catch_backtrace())` allocates outside any `try`,
+   so an interrupt there lands the run `initialized` with the failure lost.
+   Forced-raise residue stays as the comment lists it.
+   The reviewer verified the delta on a fresh copy: all four fixed, nothing
+   broken, the recorded `LoopError` and the logged backtrace on the arm's
+   failure path acceptable. Nothing pushed; the arc from `fffa9d4` awaits
+   the user's diff review.
