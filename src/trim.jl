@@ -83,6 +83,21 @@ TrimProblem(; guess, lower, upper, condition, reads, residuals, tolerances,
                 check_tolerances)
 
 """
+    at(prefix, problem::TrimProblem)
+
+Mount a problem under `prefix` (§14.9, D-277), field by field: `condition` is
+post-composed so each tree it returns is scoped, `reads` joins the prefix to
+its mount chain, and every path-free field passes through, the two check
+fields included. A `reads` that is no read set passes through untouched, so
+`trim!`'s setup names it; the lift never raises.
+"""
+at(prefix::AbstractString, problem::TrimProblem) = TrimProblem(
+    problem.guess, problem.lower, problem.upper,
+    d -> at(prefix, problem.condition(d)),
+    problem.reads isa Reads ? at(prefix, problem.reads) : problem.reads,
+    problem.residuals, problem.tolerances, problem.checks, problem.check_tolerances)
+
+"""
 The service's own seeding tag (§9.4): an activation is keyed by a *concrete*
 scalar, and `Dual{TrimTag,Float64,N}` is the one trim seeds its decisions
 through. Owning the tag is what keeps a trim activation distinguishable from a

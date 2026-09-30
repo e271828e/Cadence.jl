@@ -82,6 +82,11 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276.
   `:leaf_syntax`, `:no_such_field`, `:opaque_leaf`, `:not_indexable`,
   `:index_arity` and `:index_bounds`, with the `leaf` and `step` fields.
   `_leaf_clause` renders the six for either kind (D-276).
+- `TapResolution`'s `mount` field, which a mounted read's message names
+  after the selector, and its `producer` field. The mount step's reasons
+  `:no_input_face` and `:internally_wired`, the second naming the producer,
+  and `:input_face_not_output`, formerly `:root_input_not_face`, at every
+  level (D-277).
 - `TierUnreadable`, for a primitive declaring no store, sits beside
   `StatelessWithoutOutputs` (D-263).
 - `InternalInvariant`.
@@ -111,9 +116,9 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276.
   `replay!`'s `restore` and a halt before the feed's first frame, and its
   `:t0_without_about` names the checkpoint as the default operating point.
 
-Spec: §9.1, §12.6, §12.7, §13.1, §13.2, §13.4, §14.8, §14.10, Appendix C, D-058,
-D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256, D-261,
-D-262, D-263, D-272, D-274, D-276.
+Spec: §9.1, §12.6, §12.7, §13.1, §13.2, §13.4, §14.8, §14.9, §14.10, Appendix C,
+D-058, D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256,
+D-261, D-262, D-263, D-272, D-274, D-276, D-277.
 
 ### `src/declare.jl`
 
@@ -286,8 +291,19 @@ Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
 
 - The closed read-selector family `get_state`, `get_deriv`, `get_output`,
   `get_input` and `get_face`, each taking a leaf address as its `leaf`, a
-  `Symbol` the short form of a plain name (D-276). The family's path selectors
-  are walked from the root (§13.3).
+  `Symbol` the short form of a plain name (D-276).
+- The mount step (§14.9, D-277). `Reads` carries its mount chain as
+  `prefixes`, and `_mount` walks it from the root, each prefix from the
+  level the previous one reached (§13.3), to the mount path and the level
+  there, reporting a failed chain once. `_rebase` then turns each selector
+  into a `MountedRead`: the selector as authored, the mount, the
+  root-authored selector and the head and steps of its leaf. A path
+  selector's path is walked from the mount level and joined to the mount.
+  `get_input` matches an input face of the mount level and follows the
+  export chain to its root input. `get_face` matches an output face of the
+  mount level and becomes `get_output` of the port behind it. The callers
+  rebase and resolve one selector at a time, so the collected list keeps the
+  authored order, and the resolvers read the rebased selector.
 - The leaf address (D-276). `parse_leaf` splits it at resolution. On a face
   selector `match_leaf` matches the head against the face list instead, since
   a face name may hold a dot. `resolve_leaf` checks each step against the declared type and returns the
@@ -302,7 +318,8 @@ Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
 - Activation identity on readers, checked as an internal invariant. The same
   check on plans sits in conditions.jl's `apply!`.
 
-Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-276.
+Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.9, §14.10, D-125, D-130, D-253,
+D-276, D-277.
 
 ### `src/sim.jl`
 
@@ -701,7 +718,11 @@ D-233, D-244, D-256, D-261, D-268, D-270.
 ### `src/conditions.jl`
 
 - `condition`, the fragment function's generic (§14.2, Appendix B).
-- The condition algebra `fragment`, `at`, `combine` and `override`.
+- The condition algebra `fragment`, `at`, `combine` and `override`. `at`
+  also lifts read sets, joining the prefix to their mount chain; trim.jl
+  and linearize.jl add its methods for problems and tap sets (D-277).
+- The export chain's lookup, `_input_faces_at` and `_face_producer`, shared
+  by a condition's `inputs` entry and the read side's `get_input` (D-277).
 - One collecting pass behind both ways of applying a plan. Each `at` prefix is
   walked from its authoring level (§13.3). The two ways are:
   - `resolve_condition`, for values;
@@ -709,23 +730,28 @@ D-233, D-244, D-256, D-261, D-268, D-270.
     `ConditionShapeDrift`.
 - Root-input totality `assert_total`.
 
-Spec: §9.5, §13.1, §13.3, §14.1–§14.6, Appendix B, D-063–D-068, D-117, D-130,
-D-204, D-205, D-207, D-226.
+Spec: §9.5, §13.1, §13.3, §14.1–§14.6, §14.9, Appendix B, D-063–D-068, D-117,
+D-130, D-204, D-205, D-207, D-226, D-277.
 
 ### `src/trim.jl`
 
 - `TrimProblem`, with its `checks` and `check_tolerances` defaulting to
   empty (D-262).
+- `at` on a `TrimProblem`, field by field: the condition post-composed, the
+  read set mounted, the path-free fields and a `reads` that is no read set
+  passed through (§14.9, D-277).
 - The `solve` seam, with `LevenbergMarquardt`.
 - `trim!`, over D-213's two-half scratch world.
 - The frozen copy, over the `Outputs`' port list.
 - `TrimReport`, with its `committed_checks` (D-262).
 
-Spec: §9.6, §13.1, §14.5–§14.8, D-070, D-158, D-213, D-224, D-253, D-262.
+Spec: §9.6, §13.1, §14.5–§14.9, D-070, D-158, D-213, D-224, D-253, D-262,
+D-277.
 
 ### `src/linearize.jl`
 
 - `Taps` and `taps`, three labeled selector lists with closed membership.
+  `at` on a `Taps` mounts the three lists (D-277).
 - `LinearizeTag`, `LINEARIZE_WIDTH` and `LinearizeDual`, the default width's
   pre-materializable scalar.
 - `Linearization`, the operating point and the four matrices under the tap
@@ -746,7 +772,7 @@ Spec: §9.6, §13.1, §14.5–§14.8, D-070, D-158, D-213, D-224, D-253, D-262.
   linear `[k]` names and the two spellings are one site (D-276).
 
 Spec: §9.7, §14.4, §14.10, D-036, D-167, D-168, D-197, D-213, D-272, D-274,
-D-276.
+D-276, D-277.
 
 ### `src/show.jl`
 

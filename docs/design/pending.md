@@ -18,9 +18,6 @@ diagnostics, diagnostics before ergonomics, rulings early because they change
 the kinds later sweeps fill, and the standard component library last.
 Where the reason is not given here, the cited decision carries it:
 
-- **Mounting** (§14.9, I 4.12): `at(prefix, ::TrimProblem)` and
-  `at(prefix, ::Taps)`, and the read side's resolution from a mount point;
-  `readers.jl`'s `_read_component` walks every selector path from the root.
 - **The NLopt fallback** (§14.8, H 4.5): `NLoptBackend(:LN_BOBYQA)` as a
   package extension, the squared and normalized objective at `stopval = 1`,
   and the nominal-activation loop it would run on.

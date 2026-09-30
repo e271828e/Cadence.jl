@@ -82,6 +82,11 @@ x_derivative(::MatrixConsumer, (; x, u)) = (q = 2.0 * u.w[1, 2] + 5.0 * u.w[2, 1
 same_linearization(left, right) =
     all(getfield(left, f) == getfield(right, f) for f in fieldnames(Linearization))
 
+# The walkthrough's model wrapped at `rig`, its two root inputs and its two faces
+# handed through, for the tap set mounted with `at` (§14.10).
+rig_lin_pend() = Group((; rig = lin_pend()); inputs = ("τ" => "rig/τ", "d" => "rig/d"),
+                       outputs = ("rig/θ" => "θ", "rig/u_eff" => "u_eff"))
+
 function test_linearize()
     @testset "the pendulum linearizes to its closed form, exact to round-off (§14.10)" begin
         sim = Simulation(lin_pend(); h = 1//10)
@@ -370,5 +375,32 @@ function test_linearize()
         @test gather_reads(reader, sim.exec) === (a = 0.0, b = 0.1)
         # The trailing index is retired: no selector takes a third argument.
         @test_throws MethodError get_input(:qin, 1)
+    end
+
+    @testset "a mounted tap set linearizes what the flat world does (§14.10, D-277)" begin
+        flat = linearize(Simulation(lin_pend(); h = 1//10), lin_taps(); about = lin_point())
+        mounted = linearize(Simulation(rig_lin_pend(); h = 1//10), at("rig", lin_taps());
+                            about = at("rig", lin_point()))
+        @test same_linearization(mounted, flat)                  # the labels included
+    end
+
+    @testset "the tap refusals at a mount: the pinning meet, the wired face, the kind (§14.10, D-277)" begin
+        # The meet sees the root input the chain landed on, and the consumer it
+        # names is the mount itself.
+        sim = Simulation(lin_pinned(); h = 1//10)
+        d = only(diagnostics(failure(() -> linearize(sim, at("g", taps(u = (e = get_input(:e),)));
+                                                     about = fragment(inputs = (τ = 0.0,))))))
+        @test d isa TapResolution && d.reason === :unseedable && d.mount == "g"
+        @test d.field === :τ && d.pinning == [("g", :continuous, Pinned{Float64})]
+
+        # A face fed by a component holds no root input to seed.
+        d = only(diagnostics(failure(() -> linearize(lin_pend_sim(), at("c", taps(u = (u = get_input(:u),)))))))
+        @test d isa TapResolution && d.reason === :internally_wired && d.mount == "c"
+        @test d.field === :u && d.producer == ("s", :e)
+
+        # The kind check reads the selector as authored.
+        d = only(diagnostics(failure(() -> linearize(lin_pend_sim(), at("c", taps(x = (f = get_face(:θ),)))))))
+        @test d isa TapResolution && d.reason === :tap_kind && d.mount == "c"
+        @test d.list === :x && d.tap === :y
     end
 end

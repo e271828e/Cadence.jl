@@ -88,6 +88,19 @@ snap_decide_u(d) = combine(at("c", condition(Snapback(0.3); θ = 0.5)),
 # handed — user machinery no shape check can anticipate.
 eltype_split(r, d) = r.ω̇ isa Float64 ? (torque = r.ω̇,) : (wrong = r.ω̇,)
 
+# The pendulum rig wrapped once and twice more, each level handing its face `in`
+# up to the root input `in`, for the problems mounted with `at` (§14.9).
+rig_pend() = Group((; rig = fed(Pendulum(), :u)); inputs = ("in" => "rig/in",))
+outer_pend() = Group((; outer = rig_pend()); inputs = ("in" => "outer/in",))
+
+# A problem authored against the pendulum alone: its paths and its input face are
+# the component's own, so it means something only once mounted.
+decide_pendulum_u(d) = combine(condition(Pendulum(); θ = 0.5), fragment(inputs = (u = d.u,)))
+pendulum_problem() = TrimProblem(guess = (u = 0.0,), lower = (u = -Inf,), upper = (u = Inf,),
+                                 condition = decide_pendulum_u,
+                                 reads = reads(ω̇ = get_deriv("", :ω)),
+                                 residuals = torque_only, tolerances = (torque = 1e-9,))
+
 function test_trim()
     @testset "a one-step linear problem solves, commits and reads back (§14.7, §14.8)" begin
         sim = Simulation(fed(Pendulum(), :u); h = 1//10)
@@ -649,5 +662,75 @@ function test_trim()
         @test d.op === :trim!
         @test d.status === :running
         @test d.legal == [:built, :initialized, :stopped]   # §12.6's row for `trim!`
+    end
+
+    @testset "a mounted problem solves what the flat world solves (§14.9, D-277)" begin
+        # The decision's `inputs` entry reaches the root input through `rig`'s
+        # face, and the read's path is joined below the mount.
+        flat = Simulation(fed(Pendulum(), :u); h = 1//10)
+        flat_report = trim!(flat, θ_problem(); baseline = pend_base())
+        wrapped = Simulation(rig_pend(); h = 1//10)
+        wrapped_report = trim!(wrapped, at("rig", θ_problem()); baseline = pend_base())
+        @test flat_report.converged
+        for f in (:converged, :solution, :residuals, :status, :n_evaluations, :n_iterations)
+            @test getfield(wrapped_report, f) == getfield(flat_report, f)
+        end
+        @test state(wrapped, "rig/c") == state(flat, "c")
+
+        # Mounted twice, the chain walked a level at a time.
+        deep = Simulation(outer_pend(); h = 1//10)
+        deep_report = trim!(deep, at("outer", at("rig", θ_problem())); baseline = pend_base())
+        for f in (:converged, :solution, :residuals, :status, :n_evaluations, :n_iterations)
+            @test getfield(deep_report, f) == getfield(flat_report, f)
+        end
+        @test state(deep, "outer/rig/c") == state(flat, "c")
+    end
+
+    @testset "a problem with checks relocates, the check fields passing through (§14.9, D-262, D-277)" begin
+        problem = TrimProblem(guess = (θ = 0.1,), lower = (θ = -π/2,), upper = (θ = π/2,),
+                              condition = decide_θ, reads = both_reads(),
+                              residuals = torque_only, tolerances = (torque = 1e-9,),
+                              checks = (r, d) -> (θ = r.θ - d.θ,),
+                              check_tolerances = (θ = 1e-12,))
+        mounted_problem = at("rig", problem)
+        @test mounted_problem.checks === problem.checks &&
+              mounted_problem.check_tolerances === problem.check_tolerances
+        flat_report = @test_logs trim!(Simulation(fed(Pendulum(), :u); h = 1//10), problem;
+                                       baseline = pend_base())
+        wrapped_report = @test_logs trim!(Simulation(rig_pend(); h = 1//10), mounted_problem;
+                                          baseline = pend_base())
+        @test wrapped_report.converged
+        @test wrapped_report.committed_checks == flat_report.committed_checks
+        @test abs(wrapped_report.committed_checks.θ) ≤ 1e-12
+    end
+
+    @testset "a face the world computes is untrimmable from outside (§14.9)" begin
+        # Mounted where its input face is a root input's, the problem solves.
+        sim = Simulation(fed(Pendulum(), :u); h = 1//10)
+        report = trim!(sim, at("c", pendulum_problem()); baseline = pend_base())
+        @test report.converged && report.solution.u ≈ PEND_G_L * sin(0.5)
+        @test port(sim, "", :in) === report.solution.u
+
+        # Mounted where a discrete producer feeds that face, the condition's entry
+        # is refused naming the producer, and nothing is written.
+        refused = Simulation(sampled_pend(); h = 1//10)
+        err = failure(() -> trim!(refused, at("c", pendulum_problem()); baseline = sampled_base()))
+        d = only(diagnostics(err))
+        @test err isa DiagnosticError && d isa ConditionResolution && d.reason === :internally_wired
+        @test d.path == "c" && d.field === :u && d.producer == ("ctl", :u)
+        @test lifecycle(refused) === :built
+    end
+
+    @testset "a malformed `reads` passes through the lift, and setup names it (§14.7, §14.9)" begin
+        problem = TrimProblem(guess = (u = 0.0,), lower = (u = -Inf,), upper = (u = Inf,),
+                              condition = decide_u, reads = (;), residuals = torque_only,
+                              tolerances = (torque = 1e-9,))
+        mounted_problem = at("rig", problem)                  # the lift never raises
+        @test mounted_problem.reads === (;)
+        err = failure(() -> trim!(Simulation(rig_pend(); h = 1//10), mounted_problem;
+                                  baseline = pend_base()))
+        d = only(diagnostics(err))
+        @test err isa DiagnosticError && d isa TrimProblemInvalid && d.reason === :not_a_read_set
+        @test d.field === :reads && d.observed === typeof((;))
     end
 end

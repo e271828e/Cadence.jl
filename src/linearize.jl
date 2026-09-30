@@ -31,6 +31,15 @@ end
 
 taps(; x = (;), u = (;), y = (;)) = Taps(_tap_list(:x, x), _tap_list(:u, u), _tap_list(:y, y))
 
+"""
+    at(prefix, tap_set::Taps)
+
+Mount a tap set under `prefix` (§14.10, D-277): each of the three lists joins
+the prefix to its mount chain, and the labels are unchanged.
+"""
+at(prefix::AbstractString, tap_set::Taps) =
+    Taps(at(prefix, tap_set.x), at(prefix, tap_set.u), at(prefix, tap_set.y))
+
 _tap_list(::Symbol, selectors::NamedTuple) = _reads(selectors)
 _tap_list(list::Symbol, other) = throw(DiagnosticError(
     ReadSetMisuse(observed = typeof(other), reason = :not_a_tap_list, label = list)))
