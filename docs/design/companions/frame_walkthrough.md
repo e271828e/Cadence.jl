@@ -30,16 +30,20 @@ boundary, publishes, and samples the stop faces:
 
 ```julia
 entry = sim.exec.clock.frame
-drain!(sim)
+drain!(sim, roster)
 k = (sim.exec.clock.frame += 1)
-frame!(sim, k)
+frame!(sim, k, pol, addrs, roster, pacer)
 if pol.hit === nothing
     k % sim.N_base == 0 ? boundary!(sim, k ÷ sim.N_base) : offtick_boundary!(sim)
-    publish!(sim)
+    publish!(sim, roster, pacer)
     face = _stop_hit(sim, pol)
 ```
 
-Three things happen in order. `drain!` applies the device writes, `frame!`
+`roster` is the run's copy of the roster, bound once at `run!` ([§11.3][s11-3]),
+`pol` and `addrs` the advance's stop policy with its compiled face addresses
+([§13.5][s13-5]), and `pacer` the run's pacer ([§10.7][s10-7]), all threaded
+through the loop as arguments. Three things happen in order. `drain!`
+applies the device writes, `frame!`
 carries the continuous state across `[t₇, t₈]` and fires any localized event
 inside it, and one of two boundary entries runs at the frame top. For `k = 8`
 the selector picks `boundary!(sim, 2)`, the tick index being `k ÷ N_base`. For
@@ -64,7 +68,7 @@ never by accumulation, and picks the path:
 
 ```julia
 t_to = _grid_time(sim, k)                      # t₀ + k·h
-sim.has_localized ? _localized_frame!(sim, t_to) : step!(sim, T(sim.h))
+sim.has_localized ? _localized_frame!(sim, t_to, pol, addrs, roster, pacer) : step!(sim, T(sim.h))
 sim.policy.hit === nothing && (sim.exec.clock.t = t_to)
 ```
 
@@ -160,7 +164,7 @@ moves to `t* = t_seg + θ★·h′`, and the boundary runs as an off-tick bounda
 dense!(sim.stepper, sim.exec.xbuf, sim.xnext, sim.ẋnext, θ★, h′)
 sim.exec.clock.t = t_seg + θ★ * h′
 offtick_boundary!(sim)
-publish!(sim)
+publish!(sim, roster, pacer)
 ```
 
 `offtick_boundary!` in `sim.jl` is projection followed by the event phase,
@@ -300,7 +304,9 @@ no drain.
 [s10-4]: ../spec.md#104-localization-mechanics
 [s10-5]: ../spec.md#105-multi-rate-tick-scheduling
 [s10-6]: ../spec.md#106-event-iteration-at-boundaries-to-quiescence-budgeted
+[s10-7]: ../spec.md#107-real-time-pacing
 [s11-2]: ../spec.md#112-outbound-snapshot-publication
+[s11-3]: ../spec.md#113-inbound-root-inputs-claims-and-the-frozen-roster
 [s11-5]: ../spec.md#115-inbound-the-input-trace
 [s11-8]: ../spec.md#118-diagnostics-and-liveness-the-per-writer-cell
 [s13-4]: ../spec.md#134-runtime-failures-one-catch-site-an-execution-cursor
