@@ -10523,11 +10523,12 @@ new name.
   unattended and rethrows, non-empty logs the rendered error and returns
   with the lifecycle `errored`. `step!` always rethrows.
 - (Amended 2026-09-30, with the three windows around `run!`'s interrupt
-  arm.) `shutdown!` may run twice. The arm releases the calling-task entry
-  itself when its wrapper never recorded the release, and an interrupt
-  landing between the wrapper's `shutdown!` and that record runs it again.
-  [§11.6][s11-6]'s "close only what is open" makes the second call harmless,
-  and a leaked device would not be.
+  arm.) `shutdown!` may run more than once. The arm releases the
+  calling-task entry itself when its wrapper never recorded the release, and
+  an interrupt landing between the wrapper's `shutdown!` and that record runs
+  it again. The arm's own release can be cut the same way, so each such
+  interrupt adds one call. [§11.6][s11-6]'s "close only what is open" makes a
+  repeated call harmless, and a leaked device would not be.
 
 **Spec.** [§12.1][s12-1], [§12.4][s12-4], [§13.4][s13-4], [Appendix B][sB]
 

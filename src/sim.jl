@@ -1355,26 +1355,33 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
         loop_failure = nothing                # the loop's throw and its backtrace, from either arm
         if err isa InterruptException
             # The operator's stop landing outside the loop's own unmask points —
-            # the bracket's edges, the inline wrapper's edges, the moments
-            # between the loop's return and the tail — is a stop, never a
-            # `LoopError` (§12.4, D-268). The arm's head runs masked: the
-            # fallback source, the `:interrupt` stop unless an earlier issuer
-            # holds the stop word, and with no loop to await the stop request,
-            # which ends a loop a forced raise left scheduled and unbound. A
-            # loop that returned keeps its outcome, a source or a budget halt
-            # alike. A spawned loop whose outcome was not taken may still be
-            # running, and `run!` never returns before its loop ends (§11.1):
-            # `_await_loop` removes the inline body's record, requests the stop
-            # and awaits the loop, retrying the first two when an interrupt cuts
-            # them short. The loop's outcome then replaces the fallback, and its
-            # throw is handled below as the other arm's is. Where the interrupt
-            # came before the tail, the tail runs here, unmasked so a later
-            # interrupt collapses its joins, and retried from where an interrupt
-            # cut it. An entry never spawned is released directly, a
-            # spawned one through its wrapper once the tail wakes it, and the
-            # inline entry here when its wrapper never ran its `shutdown!`. The
-            # one window left is the few instructions between a `catch` and its
-            # next `try`, which only a forced raise reaches.
+            # the bracket's edges, the spawn mask's end, the inline wrapper's
+            # edges, the moments between the loop's return and the tail — is a
+            # stop, never a `LoopError` (§12.4, D-268). The arm's head runs
+            # masked: the fallback source, the `:interrupt` stop unless an
+            # earlier issuer holds the stop word, and with no loop to await the
+            # stop request, which ends a loop a forced raise left scheduled and
+            # unbound. A loop that returned keeps its outcome, a source or a
+            # budget halt alike. A spawned loop whose outcome was not taken may
+            # still be running, and `run!` never returns before its loop ends
+            # (§11.1): `_await_loop` removes the inline body's record, requests
+            # the stop and awaits the loop, retrying the first two when an
+            # interrupt cuts them short. The loop's outcome then replaces the
+            # fallback; its throw comes back as a value, built inside
+            # `_await_loop`'s `try`, and is handled below as the other arm's is.
+            # Where the interrupt came before the tail, the tail runs here,
+            # unmasked so a later interrupt collapses its joins, and retried
+            # from where an interrupt cut it. An entry never spawned is released
+            # directly, a spawned one through its wrapper once the tail wakes
+            # it, and the inline entry here when its wrapper never ran its
+            # `shutdown!`. What is left only a forced raise reaches. One inside
+            # a spawn mask reopens that window: a spawned wrapper's `shutdown!`
+            # also runs in the direct release, concurrently, its task never
+            # registered or joined, and later entries are never spawned. One
+            # between `_tail!`'s return and the flag's store reruns `_tail!`;
+            # one between a `shutdown!`'s return and its cursor or record
+            # repeats that call. The rest are the few instructions between a
+            # `catch` and its next `try`.
             while true                        # an interrupt arriving within the head
                 try                           # raises at its unmask: the head reruns
                     Base.sigatomic_begin()
@@ -1387,37 +1394,38 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
                 end
             end
             if !returned && loop_task !== nothing
-                try
-                    source = _await_loop(control, loop_task, plane)
+                outcome = _await_loop(control, loop_task, plane)
+                if outcome isa Tuple          # the loop's throw and its backtrace
+                    loop_failure = outcome
+                else
+                    source = outcome
                     returned = true
-                catch err                     # rebinds the outer `err`; nothing below reads it
-                    loop_failure = (err, catch_backtrace())   # `_await_loop` rethrows the loop's failure
                 end
             end
             if !tail_ran
                 # §12.4 lets no interrupt out of the tail, and `_tail!`'s own
                 # collapse covers only its lines: a retry resumes the steps
                 # where an interrupt cut them, `_finish!` being idempotent.
-                directly_released = 0         # entries of `live` the direct release shut down
+                direct_releases = 0           # entries of `live` the direct release shut down
                 joins_settled = false         # `_tail!` returned: every join done or reported
                 while true
                     try
                         _finish!(sim)
                         if tasks === nothing  # nothing was spawned: release each entry here
-                            for i in directly_released+1:length(live)
+                            for i in direct_releases+1:length(live)
                                 _shutdown!(live[i])
-                                directly_released = i
+                                direct_releases = i
                             end
                         elseif !joins_settled # the calling-task holder sits outside the join
                             _tail!(sim, filter(entry -> !needs_calling_task(entry.dev), live), tasks)
                             joins_settled = true
                         end
                         # An interrupt between a `shutdown!`'s return and its record
-                        # runs it a second time, which beats leaking the device (§11.6).
+                        # runs it once more, which beats leaking the device (§11.6).
                         inline_entry === nothing || tasks === nothing || released[] ||
                             (_shutdown!(inline_entry); released[] = true)
                         break
-                    catch err
+                    catch err                 # rebinds the outer `err`; nothing below reads it
                         err isa InterruptException || rethrow()
                     end
                 end
@@ -1616,8 +1624,11 @@ end
 # `run!`'s interrupt arm passes the plane: its call owes the stop from the
 # start and first removes the inline body's record from the registry, which
 # was registered before the spawn whether or not the body ran (§12.2). The
-# removal is retried as the request is. The one window left open is the few
-# instructions between the `catch` and the next `try`.
+# removal is retried as the request is. The arm's call also gets a loop
+# failure back as a value, the task's `TaskFailedException` and a backtrace,
+# built inside the `try` so an interrupt cutting the build retries it; the
+# ordinary call's `fetch` rethrows it, as before. The one window left open is
+# the few instructions between the `catch` and the next `try`.
 function _await_loop(control::Control, loop_task::Task,
                      plane::Union{Nothing,DataPlane} = nothing)
     stop_pending = plane !== nothing
@@ -1629,7 +1640,10 @@ function _await_loop(control::Control, loop_task::Task,
                 registered = false
             end
             stop_pending && (_request_stop!(control, :interrupt); stop_pending = false)
-            return fetch(loop_task)
+            plane === nothing && return fetch(loop_task)
+            wait(loop_task; throw = false)
+            istaskfailed(loop_task) || return fetch(loop_task)
+            return (TaskFailedException(loop_task), backtrace())
         catch err
             err isa InterruptException || rethrow()
             stop_pending = true

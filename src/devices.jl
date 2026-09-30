@@ -541,8 +541,18 @@ function _tail!(sim, entries::Vector{RosterEntry}, tasks::Vector{Task})
         end
     catch err
         err isa InterruptException || rethrow()
-        for i in settled+1:length(tasks)        # (5)'s abandonment, taken at once
-            istaskdone(tasks[i]) || _report_join_timeout!(sim, entries[i])
+        # (5)'s abandonment, taken at once. A further interrupt cuts one report
+        # short and the loop resumes past the entries settled, so none leaves.
+        while true
+            try
+                for i in settled+1:length(tasks)
+                    istaskdone(tasks[i]) || _report_join_timeout!(sim, entries[i])
+                    settled = i
+                end
+                break
+            catch err                           # rebinds the outer `err`; nothing below reads it
+                err isa InterruptException || rethrow()
+            end
         end
     end
     nothing

@@ -416,11 +416,14 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
     retries it when an interrupt cuts it short, so a later interrupt never
     reads as the loop's failure. On the arm's call it first removes the
     inline body's record the same way, then requests the stop without
-    waiting for an interrupt. Where the tail had not run, the arm runs it
+    waiting for an interrupt, and it returns a loop failure as a value
+    built inside the `try`. Where the tail had not run, the arm runs it
     unmasked and retries it from where an interrupt cut it, so none leaves
-    the tail: the direct release advances a cursor per entry, and a flag
-    keeps `_tail!` from running twice. The arm shuts the inline entry down
-    when its wrapper never ran `shutdown!`;
+    the tail: the direct release advances a cursor per entry, `_tail!`
+    retries its collapse's reports past the entries settled and lets no
+    interrupt out, and a flag keeps a later step's retry from running
+    `_tail!` again. The arm shuts the inline entry down when its wrapper
+    never ran `shutdown!`;
   - `run!` reads §13.4's disposition off the roster, and `step!` always
     rethrows.
 - The seam's `isfinite` sweep over `x`, the boundary's first act.

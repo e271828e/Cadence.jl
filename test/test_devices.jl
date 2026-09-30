@@ -167,6 +167,31 @@ needs_calling_task(::HeldInline) = true
 loop(dev::HeldInline, handle) = (take!(dev.release); nothing)
 shutdown!(dev::HeldInline) = (dev.shutdowns += 1; nothing)
 
+# A calling-task device whose first `held_calls` `shutdown!` calls park on a
+# hook until an interrupt cuts them short, so the test can land interrupts
+# inside the inline entry's release (§11.6, §12.4). Zeroing `held_calls` under
+# the hook's lock and notifying frees the caller when a regression leaves it
+# parked.
+mutable struct HookedInline <: AbstractDevice
+    release::Channel{Int}
+    hook::Threads.Condition
+    held_calls::Int
+    shutdowns::Int
+end
+HookedInline() = HookedInline(Channel{Int}(1), Threads.Condition(), 2, 0)
+needs_calling_task(::HookedInline) = true
+loop(dev::HookedInline, handle) = (take!(dev.release); nothing)
+function shutdown!(dev::HookedInline)
+    dev.shutdowns += 1
+    lock(dev.hook)
+    try
+        dev.shutdowns <= dev.held_calls && wait(dev.hook)
+    finally
+        unlock(dev.hook)
+    end
+    nothing
+end
+
 # A ramp whose derivative records the task it runs on past `t₀`: the frame
 # loop's, which a calling-task device moves to a spawned task (§11.1). Once
 # `hold` is set, the next evaluation marks `held` and keeps its frame in flight
@@ -557,6 +582,74 @@ function test_devices()
             @test writer_status(latest(sim), "device 1 (HeldInline)").task_state === :done
             @test dev.shutdowns == 1             # the wrapper's; the arm's release saw it (§11.6)
         end
+    end
+
+    @testset "interrupts escaping the inline entry's release, in its wrapper and in the arm's tail, are retried to the end (§12.4, D-268)" begin
+        # Each `shutdown!` parks on the hook; an interrupt there is caught by
+        # `_shutdown!`, whose stop request then parks on `wake`, which the
+        # observer holds: a second interrupt there escapes the release
+        # unrecorded. First in the wrapper's `finally`, then in the arm's tail,
+        # where the escape reaches the tail's retry and a fifth interrupt lands
+        # in the retry's `_finish!`.
+        recorder = LoopRecorder()
+        sim = Simulation(single(recorder); h = 1//10)
+        dev = HookedInline()
+        attach!(sim, dev, Enumerated())
+        init!(sim)
+        caller = current_task()
+        wake = sim.control.wake
+        observer = Threads.@spawn begin
+            sent = 0
+            send(waited_on) = interrupt_parked(caller, waited_on) && (sent += 1; true)
+            ok = timedwait(() -> recorder.task[] !== nothing, 10.0) === :ok
+            put!(dev.release, 1)                 # the inline body returns
+            # the wrapper's `finally`: the first `shutdown!` parks on the hook
+            ok = ok && timedwait(() -> parked_in(caller, dev.hook), 10.0) === :ok
+            lock(wake)
+            try
+                ok = ok && send(dev.hook) && send(wake.lock.cond_wait)
+            finally
+                unlock(wake)
+            end
+            # the arm awaits the loop and runs the tail, whose inline release
+            # calls `shutdown!` a second time: the same two cuts, then the retry's
+            # `_finish!` parks on `wake`, still held
+            ok = ok && timedwait(() -> parked_in(caller, dev.hook), 10.0) === :ok
+            lock(wake)
+            try
+                ok = ok && send(dev.hook) && send(wake.lock.cond_wait) &&
+                     send(wake.lock.cond_wait)
+            finally
+                unlock(wake)
+            end
+            if !ok                               # a regression fails below rather than hangs
+                lock(dev.hook)
+                try
+                    dev.held_calls = 0
+                    notify(dev.hook)
+                finally
+                    unlock(dev.hook)
+                end
+                stop!(sim)
+            end
+            sent
+        end
+        _, thrown = Test.collect_test_logs() do
+            try
+                run!(sim; t_end = 1.0e6)
+                nothing
+            catch err
+                err
+            end
+        end
+        loop_done = istaskdone(recorder.task[])   # read before anything else can let it end
+        @test fetch(observer) == 5
+        @test thrown === nothing                 # no interrupt left the tail
+        @test loop_done                          # the loop ended inside run!, not after it
+        @test lifecycle(sim) === :stopped
+        @test termination(sim).source === ControlRequestedStop(:interrupt)
+        @test dev.shutdowns == 3                 # each cut release runs `shutdown!` once more (§11.6)
+        @test latest(sim).t == termination(sim).t   # no frame published past the record
     end
 
     @testset "paused reads the flag in every lifecycle state, and the verbs refuse none (§12.1, D-268)" begin
