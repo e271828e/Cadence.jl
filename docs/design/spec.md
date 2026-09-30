@@ -11345,9 +11345,10 @@ activation):
   twin of `BindingContractMismatch`.
 - **`ReadBindingUnresolved`** ([§11.2][s11-2], [§14.4][s14-4]). Error ·
   service · fail-fast. The device (by type, since its roster id is assigned
-  only at admission), the selector, path and field, candidates, and a
-  `reason` distinguishing an unresolved path from a store selector in a
-  snapshot binding (the source rule, [§14.4][s14-4]).
+  only at admission), the selector, path and field, the leaf address and
+  the offending step, candidates, and a `reason` distinguishing an
+  unresolved name, a step the leaf address cannot take, and a store selector
+  in a snapshot binding (the source rule, [§14.4][s14-4]).
 - **`ConditionResolution`** ([§14.2][s14-2], [§14.3][s14-3]). Error · service
   · collected. Entry path, store and field (or the root-input face the entry
   addresses), offending value type and declared leaf type, the leaf's tier
@@ -11364,7 +11365,8 @@ activation):
 - **`UninitializedInputs`** ([§14.6][s14-6]). Error · service, pre-write ·
   collected. Every uncovered root face, in declaration order.
 - **`TapResolution`** ([§14.10][s14-10]). Error · service · collected. Tap
-  set (`x`/`u`/`y`), selector kind, path, field, optional index, candidates.
+  set (`x`/`u`/`y`), selector kind, path, field, the leaf address and the
+  offending step, candidates.
   For a declaredly unseedable root input, the pinning consumer's path and its
   `u_types` entry.
 - **`TrimProblemInvalid`** ([§14.7][s14-7], [§14.8][s14-8]). Error · service
