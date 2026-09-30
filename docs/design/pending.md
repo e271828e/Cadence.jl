@@ -45,7 +45,14 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-Currently empty.
+- **Two generated walks over one step grammar** (§14.3, §14.4, D-276):
+  `readers.jl`'s `walk_leaf` unrolls a leaf address's chain into `getfield`
+  and `getindex`, and `conditions.jl`'s lens `Getter{P}` unrolls a
+  condition entry's steps the same way, its index steps bare `Int`s where
+  the chain's are tuples. §14.4 makes the reader the gather twin of
+  `apply!`, one machinery in both directions. One walk serves both once
+  the lens's steps are normalized to the chain's form; a local refactor,
+  no ruling.
 
 ### Retire with a feature or a pass
 
@@ -142,7 +149,14 @@ Not a code deviation: what the design documents owe their reader.
     accessor `trace(sim)` being one name in two senses, the overload pattern
     D-122 and D-144 retire;
   - whether class (1) needs an explicit exemption for predicate traits
-    (`is_greedy`, `needs_calling_task`).
+    (`is_greedy`, `needs_calling_task`);
+  - whether `.` joins `/` as a reserved character in face names (§8.6). A
+    face selector's head is matched against the face list because the
+    house style groups faces with dots (`input_passthrough`'s `sep`, §8.8;
+    §14.9's `"wing.throttle"`), the longest match settling `a` beside
+    `a.b` (§14.4, D-276). Reserving the dot would make the head a parse
+    with no schema lookup and no ambiguity, at the cost of a new default
+    separator and a sweep of every dotted face in the spec and the suite.
 - **The GUI panel authoring API.** The semantics are settled (§11.7): derived
   liveness, first-class read-only rendering, own-pending-else-snapshot peek,
   stage-on-interaction, orphan display. The framework's half of the calling
