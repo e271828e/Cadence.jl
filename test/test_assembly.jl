@@ -588,6 +588,33 @@ function assembly_two_level()
         @test port(dual_sim, "", :y) isa D8
         @test port(dual_sim, "", :cmd) isa Float64
     end
+
+    @testset "each face records its routes down to the terminal, at every level (§9.1, §9.2, §13.7, D-257)" begin
+        structure = build(routed_pair()).structure
+        # An output face's route: one hop per level, each through the next level's
+        # own face, ending at the producing port.
+        @test structure.out_routes == [("pair", :y) => [("pair/a", :out)],
+                                       ("", :y) => [("pair", :y), ("pair/a", :out)]]
+        # An input face fanning out through a sub-assembly: one route per consumer,
+        # the sub-assembly's face its first hop. Children record theirs first.
+        @test structure.in_routes == [("pair", :u) => [("pair/a", :e)],
+                                      ("pair", :u) => [("pair/b", :e)],
+                                      ("", :u) => [("pair", :u), ("pair/a", :e)],
+                                      ("", :u) => [("pair", :u), ("pair/b", :e)]]
+        # The tables are the routes' ends: an output face's entry is its route's
+        # last hop, and an input route ends at a consumer of the face's producer,
+        # inside the face's assembly.
+        for ((path, face), route) in structure.out_routes
+            @test ((path, face) => last(route)) in structure.out_faces
+        end
+        for ((path, face), route) in structure.in_routes
+            producer = last(only(filter(p -> first(p) == (path, face), structure.in_faces)))
+            (consumer_path, consumer_face) = last(route)
+            @test isempty(path) || startswith(consumer_path, path * "/")
+            conns = structure.components[index_of(structure, consumer_path)].conns
+            @test (consumer_face => producer) in conns
+        end
+    end
 end
 
 # --- the structure's rate tables (§9.1, §9.2, D-253, D-261) --------------------

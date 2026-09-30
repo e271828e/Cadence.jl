@@ -62,7 +62,11 @@ Structure: 4 components, 1 anchor, 1 rate scope; root inputs: none
   anchors:
     anchor  T        τ     scope  key
     A₀      Δt_base  0//1  —      —
-    A₁      1//50    0//1  root   gnss"""
+    A₁      1//50    0//1  root   gnss
+  output routes:
+    inner → fcs/y_inner → fcs/inner/out
+    outer → fcs/y_outer → fcs/outer/out
+    gnss → gnss/out"""
 
 const MULTIRATE_OUTPUTS = """
 Outputs: execution order over 4 components
@@ -133,6 +137,25 @@ function test_show()
         @test !occursin("rate scopes:", text)
         @test occursin("\n  anchors:\n    anchor  T        τ     scope  key\n    A₀      Δt_base  0//1  —      —", text)
         @test count('\n', text) == 6
+    end
+
+    @testset "Structure: the root faces' routes, one line per route (§9.2, §13.7, D-257)" begin
+        # After the anchors, each side's block: the face's bare name, then every
+        # hop as `path/name`, ending at the terminal. The root input fans out
+        # through `pair`'s face, so it prints one line per consumer; `pair`'s own
+        # routes print nowhere.
+        text = plain(build(routed_pair()).structure)
+        @test endswith(text, "\n  anchors:\n" *
+                             "    anchor  T        τ     scope  key\n" *
+                             "    A₀      Δt_base  0//1  —      —\n" *
+                             "  input routes:\n" *
+                             "    u → pair/u → pair/a/e\n" *
+                             "    u → pair/u → pair/b/e\n" *
+                             "  output routes:\n" *
+                             "    y → pair/y → pair/a/out")
+        # A side with no root face prints no block.
+        @test !occursin("input routes:", plain(multirate.structure))
+        @test !occursin("routes:", plain(pendulum.structure))
     end
 
     @testset "Outputs: the execution order with each stage's ports (§9.2, D-257, D-261)" begin

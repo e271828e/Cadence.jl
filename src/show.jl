@@ -63,10 +63,25 @@ _structure_counts(structure::Structure) =
 
 Base.show(io::IO, structure::Structure) = print(io, "Structure(", _structure_counts(structure), ")")
 
+# A root face's route: its bare name, then each hop as `path/name`, joined with
+# ` → ` and ending at the terminal (§13.7).
+_route_label(face::Symbol, route::Vector{Tuple{String,Symbol}}) =
+    join([String(face); ["$path/$name" for (path, name) in route]], " → ")
+
+# One side's block: one line per route of a root face, in table order, or no
+# block when the side has no root face.
+function _route_lines(heading::String,
+                      routes::Vector{Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}})
+    lines = ["    " * _route_label(face, route) for ((path, face), route) in routes
+             if isempty(path)]
+    isempty(lines) ? String[] : vcat(["  " * heading], lines)
+end
+
 # The component table with its timing against the anchors, the rate-scope rows
-# when any keyed scope exists, and the anchor table with the `A₀` row always
+# when any keyed scope exists, the anchor table with the `A₀` row always
 # present: `Δt_base` symbolic in its `T` column and dashes where no scope
-# declares it (§9.2). Faces and wires are fields, printed by no method here.
+# declares it (§9.2), and the root faces' routes. The face tables and wires are
+# fields, printed by no method here.
 function _lines(structure::Structure)
     lines = ["Structure: " * _structure_counts(structure) * "; root inputs: " *
              (isempty(structure.root_inputs) ? "none" : join(structure.root_inputs, ", ")),
@@ -90,6 +105,8 @@ function _lines(structure::Structure)
                                [[_anchor_name(k), string(anchor.T), string(anchor.τ),
                                  _path_label(anchor.scope), string(anchor.key)]
                                 for (k, anchor) in enumerate(structure.anchors)])))
+    append!(lines, _route_lines("input routes:", structure.in_routes))
+    append!(lines, _route_lines("output routes:", structure.out_routes))
     lines
 end
 

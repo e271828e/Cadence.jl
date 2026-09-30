@@ -32,13 +32,6 @@ Where the reason is not given here, the cited decision carries it:
   inspection readers.
 - **The `check` entry point** (M-B23): §9.7 names it once, in a
   parenthetical; whether it is a rule is a ruling to raise.
-- **Face routes** (§9.1, §13.7, D-257, M-B26): the face table keeps the
-  resolved endpoint and discards the routing chain `show(::Structure)` owes.
-  Ruled 2026-09-30: `resolve_source` records the hops `(path, face)` from a
-  face to its producing terminal, one chain per output face and one per
-  consumer of an input face that fans out. The printer joins the hops with
-  `→` and stops at the terminal. §13.7's example drops its `←` half, the
-  producer's own inputs, docs-commit-first.
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
   spellings) (M-B22).

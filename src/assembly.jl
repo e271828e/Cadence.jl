@@ -612,7 +612,8 @@ end
 # derived — they are its ultimate internal endpoint's — never declared.
 
 """
-The primitive port a producing endpoint ultimately names, as `(path, port)`, or
+The route from a producing endpoint to the primitive port it ultimately names:
+its hops `(path, face)` in order, the last being the producer `(path, port)`. Or
 `nothing` with the refusal recorded in `diags` — the endpoint then claims nothing
 and the obligation pass reports what it left unfed (§13.1).
 """
@@ -622,13 +623,13 @@ function resolve_source(draft, entry::String, base::String, assembly, path::Abst
     resolved === nothing && return nothing
     comp, comp_path, name = resolved
     if classify(comp_path, comp) === PRIMITIVE
-        haskey(_contract(y_types, comp), name) && return (comp_path, name)
+        haskey(_contract(y_types, comp), name) && return Tuple{String,Symbol}[(comp_path, name)]
     else
         # Children are walked before wires, so the child's faces are already
-        # resolved: an output face's producer is its recorded row, and a face
-        # whose source was refused was refused there, once (D-229).
+        # resolved: an output face's route is its recorded row behind this hop, and
+        # a face whose source was refused was refused there, once (D-229).
         row = findfirst(pr -> first(pr) == (comp_path, name), draft.out_faces)
-        row === nothing || return last(draft.out_faces[row])
+        row === nothing || return pushfirst!(copy(last(draft.out_faces[row])), (comp_path, name))
         String(name) in output_faces(comp) && return nothing   # declared, refused at the child
     end
     # the parent's own typo
@@ -636,38 +637,41 @@ function resolve_source(draft, entry::String, base::String, assembly, path::Abst
 end
 
 """
-The primitive inputs a consuming endpoint ultimately names, as `(path, face)`.
-Several, when the endpoint is a sub-assembly's input face fanning out through the
-boundary; none, when the endpoint failed to resolve and the refusal was recorded.
+The routes from a consuming endpoint to the primitive inputs it ultimately names,
+one per consumer, each its hops `(path, face)` in order, the last being the
+consumer. Several, when the endpoint is a sub-assembly's input face fanning out
+through the boundary; none, when the endpoint failed to resolve and the refusal
+was recorded.
 """
 function resolve_dest(draft, entry::String, base::String, assembly, path::AbstractString,
                       diags::Vector{Diagnostic})
     resolved = resolve_terminal(entry, base, assembly, path, diags)
-    resolved === nothing && return Tuple{String,Symbol}[]
+    resolved === nothing && return Vector{Tuple{String,Symbol}}[]
     comp, comp_path, name = resolved
     if classify(comp_path, comp) === PRIMITIVE
-        haskey(_contract(u_types, comp), name) && return [(comp_path, name)]
+        haskey(_contract(u_types, comp), name) && return [Tuple{String,Symbol}[(comp_path, name)]]
     else
         # Children are walked before wires, so the child's faces are already
-        # resolved: a face's consumers are its recorded route, and a face whose
-        # route was refused was refused there, once (D-229).
+        # resolved: a face's routes are its recorded ones behind this hop, and a
+        # face whose route was refused was refused there, once (D-229).
         row = findfirst(rt -> rt[1] == comp_path && rt[2] === name, draft.routes)
-        row === nothing || return copy(draft.routes[row][3])
-        String(name) in input_faces(comp) && return Tuple{String,Symbol}[]   # refused at the child
+        row === nothing ||
+            return [pushfirst!(copy(route), (comp_path, name)) for route in draft.routes[row][3]]
+        String(name) in input_faces(comp) && return Vector{Tuple{String,Symbol}}[]   # refused at the child
     end
     # the parent's own typo
     _wrong_direction(entry, path, comp_path, name, comp, "consumer", diags)
-    Tuple{String,Symbol}[]
+    Vector{Tuple{String,Symbol}}[]
 end
 
 _endpoints(inner::AbstractString) = (inner,)
 _endpoints(inner::Tuple) = inner
 
 # Called by the declaring level alone, on its own children's endpoints: a parent
-# reading the face reads the route this built.
+# reading the face reads the routes this built.
 _fanout(draft, entry, base, comp, inner, diags) =
     reduce(vcat, (resolve_dest(draft, entry, base, comp, p, diags) for p in _endpoints(inner));
-           init = Tuple{String,Symbol}[])
+           init = Vector{Tuple{String,Symbol}}[])
 
 # Direction is declared by the method; the resolved endpoint only cross-checks it.
 # The mismatch is recorded, never thrown: the wire simply resolves to nothing.
@@ -742,11 +746,14 @@ face table — the assembly faces the periphery may read, aliased onto the cells
 they derive from, and beside them every input face at every level with the
 producer it routes to. The input side is total: one-level routing gives every
 signal crossing a boundary a declared face there (D-207), so a fragment's
-`inputs` payload resolves from any authoring level (§14.2). The root itself is
-retained, because the service walk resolves against the tree the paths index
-rather than against the compiled list (§13.3). The component index `ci` is the
-position in `components`; nothing pushes into a `Structure`'s vectors after
-construction.
+`inputs` payload resolves from any authoring level (§14.2). Beside the tables,
+each assembly face's routes at every level, root included (§9.1, §13.7): the
+hops `(path, face)` down to the terminal, one row per output face and one per
+consumer of an input face, the last hop being the face's table entry or one of
+its consumers. The root itself is retained, because the service walk resolves
+against the tree the paths index rather than against the compiled list (§13.3).
+The component index `ci` is the position in `components`; nothing pushes into a
+`Structure`'s vectors after construction.
 """
 struct Structure
     root::AbstractComponent                # the tree the paths index (§13.3's service walk)
@@ -757,6 +764,8 @@ struct Structure
     root_types::Vector{Type}               # per root input: the type the wire pass fixed (D-236, D-261)
     in_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}   # (path, face) => producer
     out_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}  # (path, face) => producer
+    in_routes::Vector{Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}}    # (path, face) => hops, one per consumer
+    out_routes::Vector{Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}}   # (path, face) => hops to the producer
 end
 
 # The structure step's accumulator, disposable: the per-component columns the
@@ -778,10 +787,10 @@ struct StructureDraft
     anchors::Vector{Anchor}
     scopes::Vector{RateScope}
     root_inputs::Vector{Symbol}
-    out_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}
+    out_faces::Vector{Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}}   # (path, face) => route
     feeds::Dict{Tuple{String,Symbol},Tuple{String,Symbol}}
     claims::Dict{Tuple{String,Symbol},String}                  # who claimed it, for the message
-    routes::Vector{Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}}   # (path, face, consumers)
+    routes::Vector{Tuple{String,Symbol,Vector{Vector{Tuple{String,Symbol}}}}}   # (path, face, one route per consumer)
     faces::IdDict{Any,Tuple{Vector{String},Vector{String}}}   # per assembly instance, (inputs, outputs)
 end
 
@@ -791,10 +800,10 @@ StructureDraft(root::AbstractComponent) =
                    Vector{RateLink}[], Timing[],
                    Anchor[], RateScope[],
                    Symbol[],
-                   Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[],
+                   Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}[],
                    Dict{Tuple{String,Symbol},Tuple{String,Symbol}}(),
                    Dict{Tuple{String,Symbol},String}(),
-                   Tuple{String,Symbol,Vector{Tuple{String,Symbol}}}[],
+                   Tuple{String,Symbol,Vector{Vector{Tuple{String,Symbol}}}}[],
                    IdDict{Any,Tuple{Vector{String},Vector{String}}}())
 
 function index_of(structure::Structure, path::String)
@@ -966,8 +975,9 @@ end
 # consumers, so an entry nobody handed up has no row.
 function _last_level(draft::StructureDraft, path::String, face::Symbol)
     level = path
-    for (route_path, _, consumers) in draft.routes
-        (path, face) in consumers && length(route_path) < length(level) && (level = route_path)
+    for (route_path, _, routes) in draft.routes
+        any(route -> last(route) == (path, face), routes) &&
+            length(route_path) < length(level) && (level = route_path)
     end
     level
 end
@@ -988,8 +998,8 @@ function wire!(draft::StructureDraft)
         push!(conns, [face => draft.feeds[(path, face)]
                       for face in keys(_contract(u_types, instance))])
     end
-    for (path, face, consumers) in draft.routes
-        push!(in_faces, (path, face) => draft.feeds[first(consumers)])
+    for (path, face, routes) in draft.routes
+        push!(in_faces, (path, face) => draft.feeds[last(first(routes))])
     end
     for (path, comp_conns) in zip(draft.paths, conns), (face, producer) in comp_conns
         push!(in_faces, (path, face) => producer)
@@ -999,7 +1009,8 @@ end
 
 # The structure step's last act (D-261): the artifact, complete at construction,
 # its rows built from the draft's columns, what `wire!` derived and the
-# root-input types the wire pass fixed. The walk is clean, so no recorded
+# root-input types the wire pass fixed. The routes are the draft's, and
+# `out_faces` is their last hops. The walk is clean, so no recorded
 # failure is left and the tiers and root types narrow (§13.1, D-229). No code
 # pushes into a `Structure`'s vector after this call.
 Structure(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tuple{String,Symbol}}}},
@@ -1011,7 +1022,12 @@ Structure(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tuple{String,S
                    zip(draft.paths, draft.instances, Vector{Tier}(draft.tiers),
                        draft.rates, draft.timings, conns)],
               draft.anchors, draft.scopes, draft.root_inputs, Vector{Type}(root_types),
-              in_faces, draft.out_faces)
+              in_faces,
+              Pair{Tuple{String,Symbol},Tuple{String,Symbol}}[
+                  (path, face) => last(route) for ((path, face), route) in draft.out_faces],
+              Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}[
+                  (path, face) => route for (path, face, routes) in draft.routes for route in routes],
+              draft.out_faces)
 
 # `chain` is the links above `comp`, outermost first, and `link` its own — the
 # entry the enclosing assembly's `sample_times` named it under, or `nothing`.
@@ -1101,9 +1117,10 @@ function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
 
         for pair in invoke_declaration(child_connections, comp)
             entry = _entry("child_connections", path, pair)
-            producer = resolve_source(draft, entry, path, comp, first(pair), diags)
-            producer === nothing && continue   # recorded; the destination stays unfed
-            for consumer in resolve_dest(draft, entry, path, comp, last(pair), diags)
+            route = resolve_source(draft, entry, path, comp, first(pair), diags)
+            route === nothing && continue      # recorded; the destination stays unfed
+            producer = last(route)
+            for consumer in last.(resolve_dest(draft, entry, path, comp, last(pair), diags))
                 _claim!(draft, consumer, producer, entry, diags)
             end
         end
@@ -1113,31 +1130,31 @@ function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
         # anything, there being no parent above them to claim the obligation.
         for (face, inner) in input_entries
             entry = _entry("input_connections", path, face => inner)
-            consumers = _fanout(draft, entry, path, comp, inner, diags)
+            routes = _fanout(draft, entry, path, comp, inner, diags)
             # Every entry routes to at least one internal endpoint, at every level
             # (D-210): a face feeding nothing declares nothing, and the empty tuple
             # would otherwise reach no consumer, leave no row in §9.2's face graph,
             # and let a condition addressing it misdiagnose as a bare typo. Declared
             # empty is the refusal; empty because every endpoint failed to resolve is
             # already recorded, and registers nothing more.
-            if isempty(consumers)
+            if isempty(routes)
                 isempty(_endpoints(inner)) &&
                     push!(diags, UnknownPort(entry = entry, endpoint = :connection,
                                             path = path, port = Symbol(face)))
                 continue                       # a route with no consumer registers nothing
             end
-            push!(draft.routes, (path, Symbol(face), consumers))
+            push!(draft.routes, (path, Symbol(face), routes))
             isempty(path) || continue
             push!(draft.root_inputs, Symbol(face))
-            for consumer in consumers
+            for consumer in last.(routes)
                 _claim!(draft, consumer, ("", Symbol(face)), entry, diags)
             end
         end
         for (source, face) in output_entries
             entry = _entry("output_connections", path, source => face)
-            producer = resolve_source(draft, entry, path, comp, source, diags)
-            producer === nothing && continue   # recorded; the face registers no row
-            push!(draft.out_faces, (path, Symbol(face)) => producer)
+            route = resolve_source(draft, entry, path, comp, source, diags)
+            route === nothing && continue      # recorded; the face registers no row
+            push!(draft.out_faces, (path, Symbol(face)) => route)
         end
     end
     nothing

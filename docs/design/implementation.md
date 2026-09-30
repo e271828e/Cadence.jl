@@ -137,13 +137,18 @@ D-195, D-211, D-246, D-248, D-263.
 - Children and containers, with their collision family.
 - The anonymous assembly `Group`, kernel material by decision.
 - Paths and §6.1's one-level rule.
-- Endpoint and face resolution, with the root's face invariants.
+- Endpoint and face resolution, with the root's face invariants. The
+  resolvers return routes, the hops `(path, face)` from an endpoint down to
+  its terminal: one for a producer, one per consumer (§13.7).
 - The flatten pass runs under one structure-step barrier (D-261):
   - `StructureDraft` accumulates the per-component columns the `Structure` is
     built from, among them the tiers, the rate chains and the fold's `Timing`s;
   - resolvers record into the step's list;
   - `wire!` derives the face graph's input side after the barrier, and the
     walk records the output side;
+  - the `Structure` carries `in_routes` and `out_routes` beside the two face
+    tables, one row per route at every level, and `out_faces` is their last
+    hops;
   - `Structure.root_types` holds the root-input types the wire pass fixes
     ahead of construction;
   - as the step's last act, the artifact is built complete as rows at the
@@ -164,7 +169,7 @@ D-195, D-211, D-246, D-248, D-263.
   selectors `except`, `only` and `select`, and `EmptyFaceSelection` through the
   channel (D-251).
 
-Spec: §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §13.3, §14.2, Appendix C, D-061, D-130,
+Spec: §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §13.3, §13.7, §14.2, Appendix C, D-061, D-130,
 D-171, D-207–D-212, D-229, D-236, D-246, D-247, D-248, D-251, D-253, D-261,
 D-263.
 
@@ -709,6 +714,9 @@ Spec: §9.7, §14.4, §14.10, D-167, D-168, D-197, D-213, D-271, D-272, D-274.
     `Events` table holds only the components that declare an event;
   - `_feedthrough` derives the line's edges from the structure's connections
     and the producers' stage-2 names.
+- The `Structure`'s `input routes:` and `output routes:` blocks after the
+  anchors, one line per route of a root face, its hops joined with ` → `
+  (§13.7). A side with no root face prints no block.
 - The `Schedule`'s hyperperiod chart, over `lcm(Dᵢ)` base ticks, with its
   binary guard at 100.
 - The `Deployment` sets `_grid_block`'s lines under `grid:`.

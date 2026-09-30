@@ -1016,6 +1016,19 @@ input_connections(::Vehicle) = ("ref" => "trim/e",)
 output_connections(::Vehicle) =
     ("loop/y" => "y", "loop/cmd" => "cmd", "loop/power" => "power")
 
+"""
+    routed_pair()
+
+Two levels, for the face routes (§9.2, §13.7): the root's `"u"` face hands the
+signal to `pair`'s own `"u"` face, which fans out to both gains, and the root
+re-exports `a`'s output through `pair`'s `"y"` face, one level at a time
+(§6.1, D-207).
+"""
+routed_pair() =
+    Group((; pair = Group((a = Gain(2.0), b = Gain(3.0));
+                          inputs = "u" => ("a/e", "b/e"), outputs = "a/out" => "y"));
+          inputs = "u" => "pair/u", outputs = "pair/y" => "y")
+
 """A primitive that also holds a component, a field the flatten pass never descends into (§8.5)."""
 struct OpaqueLeaf <: AbstractComponent
     hidden::Gain
