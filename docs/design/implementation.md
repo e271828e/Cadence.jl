@@ -389,7 +389,10 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
   - a deferred interrupt yields to a holding face;
   - a frame that throws with an interrupt pending ends `errored`;
   - the masked bookkeeping sits in `run!`'s and `step!`'s outermost `finally`;
-  - `run!`'s outer catch takes a stray interrupt as the stop;
+  - `run!`'s outer catch takes a stray interrupt as the stop. Where the
+    loop was spawned and has not returned, the arm awaits it through
+    `_await_loop`, so `run!` returns only after the loop ends, and a loop
+    failure found there takes the failure arm's one handling;
   - `run!` reads §13.4's disposition off the roster, and `step!` always
     rethrows.
 - The seam's `isfinite` sweep over `x`, the boundary's first act.

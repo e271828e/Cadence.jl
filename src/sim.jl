@@ -1289,7 +1289,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
     @atomic :release control.lifecycle = :running   # the §11.3 freeze: the roster is fixed for the run
     source, error_source = nothing, nothing
     logged_cause = nothing                    # the cause and its backtrace, when not rethrown
-    live, tasks = RosterEntry[], nothing      # the interrupt arm below reads both
+    live, tasks, loop_task = RosterEntry[], nothing, nothing   # the interrupt arm below reads all three
     returned, tail_ran = false, false
     pacer = Pacer()                           # this call's schedule and counters (D-269)
     try
@@ -1338,18 +1338,35 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             end
         end
     catch err
+        loop_failure = nothing                # the loop's throw and its backtrace, from either arm
         if err isa InterruptException
             # The operator's stop landing outside the loop's own unmask points —
-            # the bracket's edges, the spawn, the moments between the loop's
-            # return and the tail — is a stop, never a `LoopError` (§12.4,
-            # D-268). A loop that returned keeps its outcome, a source or a
-            # budget halt alike; `:interrupt` is the source only where it had
-            # not. Where the interrupt came before the tail, the tail runs here,
-            # unmasked so a second interrupt still collapses it: an entry
-            # initialized but never spawned is released directly, a spawned one
-            # through its wrapper once the tail wakes it. No test reaches these
-            # windows; they are covered by reading.
+            # the bracket's edges, the spawn, the inline wrapper's edges, the
+            # moments between the loop's return and the tail — is a stop, never
+            # a `LoopError` (§12.4, D-268). A loop that returned keeps its
+            # outcome, a source or a budget halt alike. A spawned loop whose
+            # outcome was not taken is still running, and `run!` never returns
+            # before its loop ends (§11.1): the arm requests the stop and awaits
+            # the loop as the ordinary path does. The loop's outcome is then the
+            # source, the `:interrupt` stop at its next frame top or a face or
+            # halt it had already reached, and its throw is handled below as
+            # the other arm's is. `:interrupt` is the source only where no loop
+            # returned. Where the interrupt came before the tail, the tail runs
+            # here, unmasked so a second interrupt still collapses it; `_finish!`
+            # is idempotent, so running it after the loop's own is harmless. An
+            # entry initialized but never spawned is released directly, a
+            # spawned one through its wrapper once the tail wakes it. One test
+            # reaches the inline body's deregistration; the other windows are
+            # covered by reading.
             returned || _request_stop!(control, :interrupt)
+            if !returned && loop_task !== nothing
+                try
+                    source = _await_loop(control, loop_task)
+                    returned = true
+                catch err
+                    loop_failure = (err, catch_backtrace())   # `_await_loop` rethrows the loop's failure
+                end
+            end
             if !tail_ran
                 _finish!(sim)
                 if tasks === nothing
@@ -1358,8 +1375,12 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
                     _tail!(sim, filter(entry -> !needs_calling_task(entry.dev), live), tasks)
                 end
             end
-            returned || (source = ControlRequestedStop(something(@atomic control.stop_issuer)))
+            returned || loop_failure !== nothing ||
+                (source = ControlRequestedStop(something(@atomic control.stop_issuer)))
         else
+            loop_failure = (err, catch_backtrace())
+        end
+        if loop_failure !== nothing
             # §13.6's abnormal entry: the failed boundary is discarded by
             # construction — publication is a boundary's last act, so it
             # published nothing and the previous snapshot is already final. The
@@ -1367,10 +1388,11 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             # `StepError` against the execution cursor (§13.4) — unwrapped from
             # the spawned loop's task failure where the topology moved it; the
             # record itself is assembled below, after the sweep (D-203).
-            error_source = LoopError(err isa TaskFailedException ? err.task.exception : err)
+            cause = first(loop_failure)
+            error_source = LoopError(cause isa TaskFailedException ? cause.task.exception : cause)
             # §13.4's disposition, by the roster (D-268): unattended, CI fails honestly
-            isempty(plane.roster) && rethrow()
-            logged_cause = (err, catch_backtrace())
+            isempty(plane.roster) && rethrow(cause)
+            logged_cause = loop_failure
         end
     finally
         # The bookkeeping lands whatever arrives: masked, a raise deferred to

@@ -37,12 +37,7 @@ Where the reason is not given here, the cited decision carries it:
   a `Vector` of snapshot references, not inline records; the roster is a
   mutable `Vector` re-read every frame, frozen by `assert_stopped`'s policy
   rather than by type; the once-per-frame `ReplayDiscardedStaging` noise from
-  a live device during replay is unpresented (§11.8); in the calling-task
-  topology an interrupt landing in the gaps around the inline wrapper reaches
-  `run!`'s interrupt arm with the spawned loop still running, so `run!`
-  returns before its loop ends (§11.1, §12.4), the tail joining the other
-  devices only; the arm should await the loop as `_await_loop` does, with the
-  loop's failure handled there as the outer catch handles it.
+  a live device during replay is unpresented (§11.8).
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
   spellings) (M-B22).

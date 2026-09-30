@@ -156,6 +156,15 @@ function loop(dev::Inline, handle)
     nothing
 end
 
+# A calling-task device whose body returns only when the test releases it, so
+# the test picks the moment the calling task leaves the wrapper (§11.1).
+mutable struct HeldInline <: AbstractDevice
+    release::Channel{Int}
+end
+HeldInline() = HeldInline(Channel{Int}(1))
+needs_calling_task(::HeldInline) = true
+loop(dev::HeldInline, handle) = (take!(dev.release); nothing)
+
 # A ramp whose derivative records the task it runs on past `t₀`: the frame
 # loop's, which a calling-task device moves to a spawned task (§11.1). Once
 # `hold` is set, the next evaluation marks `held` and keeps its frame in flight
@@ -490,6 +499,45 @@ function test_devices()
         @test istaskdone(recorder.task[])        # the loop ended inside run!, not after it
         @test lifecycle(sim) === :stopped
         @test termination(sim).source === ControlRequestedStop(:interrupt)
+        @test latest(sim).t == termination(sim).t   # no frame published past the record
+    end
+
+    @testset "an interrupt past the inline body and outside the await still ends the loop inside run! (§11.1, §12.4)" begin
+        recorder = LoopRecorder()
+        sim = Simulation(single(recorder); h = 1//10)
+        dev = HeldInline()
+        attach!(sim, dev, Enumerated())
+        init!(sim)
+        caller = current_task()
+        wake = sim.control.wake
+        observer = Threads.@spawn begin
+            recorded = timedwait(() -> recorder.task[] !== nothing, 10.0) === :ok
+            recorder.hold[] = true               # a frame in flight when the interrupt lands
+            held = recorded && timedwait(() -> recorder.held[], 10.0) === :ok
+            # Holding the plane's lock parks the calling task on it once the body
+            # returns, where the inline entry is deregistered: outside the
+            # wrapper's catch and before the await's.
+            lock(wake)
+            sent = try
+                put!(dev.release, 1)
+                held && interrupt_parked(caller, wake.lock.cond_wait)
+            finally
+                unlock(wake)
+            end
+            # the loop is released once run! awaits it, or at the hold's own cap
+            sent && timedwait(() -> parked_in(caller, recorder.task[].donenotify), 10.0)
+            recorder.hold[] = false
+            sent || stop!(sim)                   # a regression fails below rather than hangs
+            sent
+        end
+        run!(sim; t_end = 1.0e6)
+        loop_done = istaskdone(recorder.task[])  # read before anything else can let it end
+        @test fetch(observer)
+        @test loop_done                          # the loop ended inside run!, not after it
+        @test lifecycle(sim) === :stopped
+        @test termination(sim).source === ControlRequestedStop(:interrupt)
+        clock = sim.exec.clock
+        @test latest(sim).frame == clock.frame && latest(sim).t == clock.t   # at a frame top
         @test latest(sim).t == termination(sim).t   # no frame published past the record
     end
 
