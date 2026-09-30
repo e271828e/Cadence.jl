@@ -60,13 +60,7 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-- **The frame index of a typed time near `t = 0`** (§12.7, D-219):
-  `_frame_at` and `_frames_to` add a slack of `4·eps(t)/h`, which collapses
-  where `t` is near zero and `t₀` is not. At `t₀ = -0.3`, `to_time = 0.0`
-  resolves to frame 2 where the frame is 3, and `_frames_to` of the loop's
-  own frame-3 time returns 4. Older than increment 55, whose review found
-  it. `checkpoint`'s own check compares against `_grid_time` exactly and is
-  not affected.
+Currently empty.
 
 ### Retire with a feature or a pass
 

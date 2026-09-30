@@ -126,7 +126,8 @@ function test_lifecycle()
         # less than `h`, an offset origin counts from itself, a bound at or
         # before the origin advances nothing, and a large clock still lands a
         # grid-aligned bound on its own frame (`_frames_to`'s slack scales
-        # with the time's magnitude; `step!`'s `t_plus` is the same rule)
+        # with the larger magnitude of the time and the origin; `step!`'s
+        # `t_plus` is the same rule)
         init!(sim, fragment(inputs = (ref = 0.0,)))
         run!(sim; t_end = 0.99)
         @test termination(sim).t == 1.0 && sim.exec.clock.frame == 50
@@ -142,6 +143,40 @@ function test_lifecycle()
         @test step!(late; t_plus = 1.0) == 50
         run!(late; t_end = 86402.0)
         @test termination(late).t == 86402.0 && late.exec.clock.frame == 100
+
+        # An origin far from zero and a bound near it: at `t0 = -0.3` the loop
+        # writes frame 3's time as `-0.3 + 3 * 0.1`, about `5.6e-17`. That time
+        # as the bound ends at frame 3, not 4; so does a `t_plus` of three steps,
+        # and the next `t_plus` counts from that frame top.
+        shifted = Simulation(feedback_model(); h = 1//10)
+        init!(shifted, fragment(inputs = (ref = 0.0,)); t0 = -0.3)
+        step!(shifted; frames = 3)
+        t_three = shifted.exec.clock.t
+        init!(shifted, fragment(inputs = (ref = 0.0,)); t0 = -0.3)
+        run!(shifted; t_end = t_three)
+        @test termination(shifted).t == t_three && shifted.exec.clock.frame == 3
+        init!(shifted, fragment(inputs = (ref = 0.0,)); t0 = -0.3)
+        @test step!(shifted; t_plus = 3 * shifted.deployment.h) == 3
+        @test shifted.exec.clock.t == t_three
+        @test step!(shifted; t_plus = 0.3) == 3
+        # The same at a `Dual` activation, whose clock is a `Dual` (D-260).
+        dual_sim = Simulation(feedback_model(), D8; h = 1//10)
+        init!(dual_sim, fragment(inputs = (ref = D8(0.0),)); t0 = -0.3)
+        @test step!(dual_sim; t_plus = 3 * dual_sim.deployment.h) == 3
+        @test dual_sim.exec.clock.t isa D8
+        @test step!(dual_sim; t_plus = 0.3) == 3
+
+        # Both helpers against the grid the loop writes, `t₀ + k * h`: every
+        # frame top resolves to its own frame, and every midpoint floors onto
+        # its frame and ceils onto the next. The origins take both signs, and
+        # `k` runs through zero's neighborhood where the origin is negative.
+        grid = [(t₀, h, k) for h in (1e-3, 0.02, 0.1, 0.25, 1/3)
+                for t₀ in (-86400.0, -1000.0, -3.0, -1.3, -0.7, -0.3, 0.0, 0.3, 1.3, 86400.0)
+                for k in unique(vcat(0:100, max(0, round(Int, -t₀ / h)) .+ (-100:100))) if k ≥ 0]
+        @test all(_frame_at(t₀ + k * h, t₀, h) == k for (t₀, h, k) in grid)
+        @test all(_frames_to(t₀ + k * h, t₀, h) == k for (t₀, h, k) in grid)
+        @test all(_frame_at(t₀ + (k + 0.5) * h, t₀, h) == k for (t₀, h, k) in grid)
+        @test all(_frames_to(t₀ + (k + 0.5) * h, t₀, h) == k + 1 for (t₀, h, k) in grid)
 
         init!(sim, fragment(inputs = (ref = 0.0,)))
         run!(sim; t_end = 0.5)                           # this advance only

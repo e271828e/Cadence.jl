@@ -613,6 +613,16 @@ function trace_replay_loop()
         replay!(zero, trc; to_time = trc.header.t₀)
         @test zero.exec.clock.frame == 0 && lifecycle(zero) === :initialized
         @test trace(zero).frames == 0
+
+        # An origin far from zero: at `t₀ = -0.3`, `to_time = 0.0` is boundary 3.
+        # `0.3 / 0.1` falls short of 3 by more than an ulp of zero, so the floor's
+        # slack measures the origin's magnitude, not the time's.
+        shifted = Simulation(replay_model(); h = 1//10)
+        init!(shifted, fragment(inputs = (ref = 1.0, rate = 0.0)); t0 = -0.3)
+        step!(shifted; frames = 5)
+        near_zero = replay_twin()
+        replay!(near_zero, trace(shifted); to_time = 0.0)
+        @test near_zero.exec.clock.frame == 3
     end
 
     @testset "`to_time`'s refusals precede every write (§12.7, D-219)" begin
