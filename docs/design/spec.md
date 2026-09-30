@@ -9452,8 +9452,10 @@ Each step is checked at resolution against the type resolved so far. A
 `.name` step needs an isbits struct with that field. An index step needs an
 `SArray`, with one index or one per dimension, and a vector leaf thereby
 yields named scalars. A step never enters an opaque leaf (a field handle or
-a `Symbol`), which is read whole. A store selector takes at most an index
-step, since the state is flat ([§7.1][s7-1]). The address is checked once and baked,
+a `Symbol`), which is read whole. A continuous state field is flat
+([§7.1][s7-1]), so `get_deriv`, and `get_state` on the continuous tier, take
+at most an index step. A discrete `s` field is any isbits value ([§3.2][s3-2]), and
+`get_state` on it takes the full address. The address is checked once and baked,
 and the read runs as field loads and indexing unrolled at compile time
 ([D-276][d-276]).
 

@@ -11154,6 +11154,12 @@ followed by `.name` and `[k]` or `[k,l]` steps in any order.
   it as `getfield` and `getindex` calls unrolled at compile time.
 - A store selector takes a field name with at most an index step, since the
   state is flat ([§7.1][s7-1]).
+
+  Annotation (2026-09-30): the flatness is the continuous tier's. `get_deriv`,
+  and `get_state` on a continuous field, take at most an index step; a
+  discrete `s` field is any isbits value ([§3.2][s3-2]), and `get_state` on it takes
+  the full address, the cold review of increment 57 having found the walk
+  already sound there.
 - A binding read admits the leaf address as every inspection reader does,
   and the binding register's gather is the family's baked read. The index
   refusal on binding reads goes.
