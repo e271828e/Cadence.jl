@@ -168,8 +168,10 @@ loop(dev::HeldInline, handle) = (take!(dev.release); nothing)
 # A ramp whose derivative records the task it runs on past `t₀`: the frame
 # loop's, which a calling-task device moves to a spawned task (§11.1). Once
 # `hold` is set, the next evaluation marks `held` and keeps its frame in flight
-# for up to a second, so the loop cannot end before then. The `held` face reads
-# the mark, so a stop face on it holds from the held frame's publication on.
+# until the observer clears `hold`, so the loop cannot end before then; the 30 s
+# cap is a safety net past the observers' own waits, never what releases the
+# frame. The `held` face reads the mark, so a stop face on it holds from the
+# held frame's publication on.
 struct LoopRecorder <: AbstractComponent
     task::Base.RefValue{Union{Nothing,Task}}
     hold::Threads.Atomic{Bool}
@@ -184,7 +186,7 @@ function x_derivative(c::LoopRecorder, (; x, t))
     t > 0 && (c.task[] = current_task())
     if c.hold[]
         c.held[] = true
-        deadline = time() + 1.0
+        deadline = time() + 30.0
         while c.hold[] && time() < deadline
             sleep(0.001)
         end
@@ -492,6 +494,7 @@ function test_devices()
             recorder.hold[] = true               # a frame in flight when the interrupt lands
             held = recorded && timedwait(() -> recorder.held[], 10.0) === :ok
             sent = held && interrupt_parked(caller, recorder.task[].donenotify)
+            recorder.hold[] = false              # the stop is requested; the loop may now end
             sent || stop!(sim)                   # a regression fails below rather than hangs
             sent
         end
@@ -529,7 +532,7 @@ function test_devices()
                 finally
                     unlock(wake)
                 end
-                # the loop is released once run! awaits it, or at the hold's own cap
+                # the loop is released once run! awaits it
                 sent && timedwait(() -> parked_in(caller, recorder.task[].donenotify), 10.0)
                 recorder.hold[] = false
                 sent || stop!(sim)               # a regression fails below rather than hangs
