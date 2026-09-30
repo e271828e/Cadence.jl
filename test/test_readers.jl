@@ -69,8 +69,8 @@ x_init(::DottedFaces) = (q = SVector(0.5, -0.25),)
 u_types(::DottedFaces) = (u = SVector{2,Float64},)
 y_types(::DottedFaces) = (θ = Float64, pose = LeafPose{Float64}, v = SVector{3,Float64})
 y_state(::DottedFaces, (; x)) =
-    (θ = x.q[1], pose = LeafPose(SVector(x.q[1], x.q[2], 3.0), SMatrix{2,2}(1.0, 2.0, 3.0, 4.0)),
-     v = SVector(7.0, 8.0, 9.0))
+    (θ = x.q[1], pose = LeafPose(SVector(x.q[1], x.q[2], 3.0), SMatrix{2,2}(1.0, 2.0, x.q[1] + 2.5, 4.0)),
+     v = SVector(7.0, 8.0, 9.0))   # the matrix follows `T` too, so the build's Dual sweep admits it
 x_derivative(::DottedFaces, (; x, u)) = (q = u.u - x.q,)
 
 dotted_model() = Group((; c = DottedFaces()); inputs = ("left.brake" => "c/u",),
