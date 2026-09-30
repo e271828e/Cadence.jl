@@ -394,6 +394,19 @@ function test_readers()
         @test d isa TapResolution && d.reason === :input_face_not_output && d.mount == "inner" &&
               d.field === :u
 
+        # A refusal raised after the rebase still describes the read as authored:
+        # the path is the mount, the field the matched face, never the producer's
+        # path and port (`inner/c`, `θ`) or the root input (`outer.left.brake`).
+        dotted_build = build(wrapped_dotted())
+        d = only(diagnostics(failure(() ->
+                _compile_reads(at("inner", reads(a = get_face("att.theta[1]"))), dotted_build))))
+        @test d isa TapResolution && d.reason === :not_indexable && d.mount == "inner" &&
+              d.path == "inner" && d.field === Symbol("att.theta") && d.tap === :y
+        d = only(diagnostics(failure(() ->
+                _compile_reads(at("inner", reads(b = get_input("left.brake[3]"))), dotted_build))))
+        @test d isa TapResolution && d.reason === :index_bounds && d.mount == "inner" &&
+              d.path == "inner" && d.field === Symbol("left.brake") && d.tap === :u
+
         # Collecting: a bad path, a wired input and an unknown face in one mounted
         # set are one refusal with three diagnostics, each naming the mount.
         err = failure(() -> _compile_reads(at("trig", reads(a = get_state("nope", :q),

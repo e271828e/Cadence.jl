@@ -83,9 +83,11 @@ same_linearization(left, right) =
     all(getfield(left, f) == getfield(right, f) for f in fieldnames(Linearization))
 
 # The walkthrough's model wrapped at `rig`, its two root inputs and its two faces
-# handed through, for the tap set mounted with `at` (§14.10).
-rig_lin_pend() = Group((; rig = lin_pend()); inputs = ("τ" => "rig/τ", "d" => "rig/d"),
-                       outputs = ("rig/θ" => "θ", "rig/u_eff" => "u_eff"))
+# handed through under names of the wrapper's own, for the tap set mounted with
+# `at` (§14.10): a rebase that skipped the export chain would name a face the
+# root does not have.
+rig_lin_pend() = Group((; rig = lin_pend()); inputs = ("torque" => "rig/τ", "gust" => "rig/d"),
+                       outputs = ("rig/θ" => "angle", "rig/u_eff" => "drive"))
 
 function test_linearize()
     @testset "the pendulum linearizes to its closed form, exact to round-off (§14.10)" begin

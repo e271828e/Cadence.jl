@@ -88,10 +88,15 @@ snap_decide_u(d) = combine(at("c", condition(Snapback(0.3); θ = 0.5)),
 # handed — user machinery no shape check can anticipate.
 eltype_split(r, d) = r.ω̇ isa Float64 ? (torque = r.ω̇,) : (wrong = r.ω̇,)
 
-# The pendulum rig wrapped once and twice more, each level handing its face `in`
-# up to the root input `in`, for the problems mounted with `at` (§14.9).
-rig_pend() = Group((; rig = fed(Pendulum(), :u)); inputs = ("in" => "rig/in",))
-outer_pend() = Group((; outer = rig_pend()); inputs = ("in" => "outer/in",))
+# The pendulum rig wrapped once and twice more, for the problems mounted with
+# `at` (§14.9). Each level hands the face below it up under a name of its own,
+# `rig/in` as `torque` and `outer/torque` as `drive`, so a rebase that skipped
+# the export chain would name a root input that does not exist. The baselines
+# cover each world's own root input.
+rig_pend() = Group((; rig = fed(Pendulum(), :u)); inputs = ("torque" => "rig/in",))
+outer_pend() = Group((; outer = rig_pend()); inputs = ("drive" => "outer/torque",))
+rig_base() = fragment(inputs = (torque = 0.0,))
+outer_base() = fragment(inputs = (drive = 0.0,))
 
 # A problem authored against the pendulum alone: its paths and its input face are
 # the component's own, so it means something only once mounted.
@@ -670,7 +675,7 @@ function test_trim()
         flat = Simulation(fed(Pendulum(), :u); h = 1//10)
         flat_report = trim!(flat, θ_problem(); baseline = pend_base())
         wrapped = Simulation(rig_pend(); h = 1//10)
-        wrapped_report = trim!(wrapped, at("rig", θ_problem()); baseline = pend_base())
+        wrapped_report = trim!(wrapped, at("rig", θ_problem()); baseline = rig_base())
         @test flat_report.converged
         for f in (:converged, :solution, :residuals, :status, :n_evaluations, :n_iterations)
             @test getfield(wrapped_report, f) == getfield(flat_report, f)
@@ -679,7 +684,7 @@ function test_trim()
 
         # Mounted twice, the chain walked a level at a time.
         deep = Simulation(outer_pend(); h = 1//10)
-        deep_report = trim!(deep, at("outer", at("rig", θ_problem())); baseline = pend_base())
+        deep_report = trim!(deep, at("outer", at("rig", θ_problem())); baseline = outer_base())
         for f in (:converged, :solution, :residuals, :status, :n_evaluations, :n_iterations)
             @test getfield(deep_report, f) == getfield(flat_report, f)
         end
@@ -698,7 +703,7 @@ function test_trim()
         flat_report = @test_logs trim!(Simulation(fed(Pendulum(), :u); h = 1//10), problem;
                                        baseline = pend_base())
         wrapped_report = @test_logs trim!(Simulation(rig_pend(); h = 1//10), mounted_problem;
-                                          baseline = pend_base())
+                                          baseline = rig_base())
         @test wrapped_report.converged
         @test wrapped_report.committed_checks == flat_report.committed_checks
         @test abs(wrapped_report.committed_checks.θ) ≤ 1e-12
@@ -728,7 +733,7 @@ function test_trim()
         mounted_problem = at("rig", problem)                  # the lift never raises
         @test mounted_problem.reads === (;)
         err = failure(() -> trim!(Simulation(rig_pend(); h = 1//10), mounted_problem;
-                                  baseline = pend_base()))
+                                  baseline = rig_base()))
         d = only(diagnostics(err))
         @test err isa DiagnosticError && d isa TrimProblemInvalid && d.reason === :not_a_read_set
         @test d.field === :reads && d.observed === typeof((;))

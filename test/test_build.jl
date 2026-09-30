@@ -1749,9 +1749,9 @@ function build_dual_sweep()
         # 90 covered on 2026-09-30, the 4 pinned fixtures among them; a floor, so
         # a new zero-argument fixture joins without an edit.
         @test length(covered) ≥ 90
-        # 58 argument-taking fixtures on 2026-09-30: a new one is classified here
+        # 59 argument-taking fixtures on 2026-09-30: a new one is classified here
         # on purpose, by raising the count.
-        @test length(skipped) == 58
+        @test length(skipped) == 59
     end
 end
 

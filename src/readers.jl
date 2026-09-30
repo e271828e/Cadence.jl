@@ -437,6 +437,7 @@ struct MountedRead
     authored::ReadSelector   # as written
     mount::String            # the joined mount path; "" at the root
     selector::ReadSelector   # root-authored: the path joined, the face resolved
+    face::Union{Nothing,Symbol}  # the face a face selector matched; `nothing` for a path selector
     head::Symbol             # the field, port or root input the read names
     steps::Vector{LeafStep}  # the leaf's steps after the head
 end
@@ -481,7 +482,8 @@ function _rebase(authored::Union{GetState,GetDeriv,GetOutput}, label::Symbol, mo
         return (push!(diags, _leaf_violation(label, authored, mount, parsed)); nothing)
     head, steps = parsed
     MountedRead(label, authored, mount,
-                typeof(authored)(_mounted_path(mount, authored.path), authored.leaf), head, steps)
+                typeof(authored)(_mounted_path(mount, authored.path), authored.leaf), nothing,
+                head, steps)
 end
 
 # `get_input` names an input face of the mount level and follows the export
@@ -508,7 +510,7 @@ function _rebase(authored::GetInput, label::Symbol, mount::String, level, build:
     isempty(first(producer)) ||
         return (push!(diags, _reader_violation(label, authored, mount, :internally_wired;
                                                field = face, producer = producer)); nothing)
-    MountedRead(label, authored, mount, GetInput(last(producer)), last(producer), steps)
+    MountedRead(label, authored, mount, GetInput(last(producer)), face, last(producer), steps)
 end
 
 # `get_face` names an output face of the mount level and reads its producer's
@@ -541,7 +543,7 @@ function _rebase(authored::GetFace, label::Symbol, mount::String, level, build::
                last(structure.out_faces[findfirst(row -> first(row) == (mount, face),
                                                   structure.out_faces)]) :
                (mount, face)
-    MountedRead(label, authored, mount, GetOutput(first(producer), last(producer)),
+    MountedRead(label, authored, mount, GetOutput(first(producer), last(producer)), face,
                 last(producer), steps)
 end
 
@@ -564,14 +566,14 @@ function _read_component(read::MountedRead, structure::Structure, diags::Vector{
     nothing
 end
 
-# One `TapResolution` off a read: the label, the selector as authored and its
-# mount are what makes a collected list readable (D-277), the tap set and the
-# path come off the rebased selector, the path joined, and the leaf address off
-# the authored one (§14.10's payload); each arm adds what it observed.
+# One `TapResolution` off a read, describing the read as authored (D-277): the
+# label, the selector and its mount make a collected list readable, and the tap
+# set, the path below the mount and the leaf address are the authored
+# selector's (§14.10's payload). `field` is a face selector's matched face and a
+# path selector's head; each arm adds what it observed.
 _reader_violation(read::MountedRead, reason::Symbol; kw...) =
     _reader_violation(read.label, read.authored, read.mount, reason;
-                      tap = _tap(read.selector), path = _selpath(read.selector),
-                      field = read.head, kw...)
+                      field = something(read.face, read.head), kw...)
 
 # The mount step's form, before the selector is rebased: a path selector's path
 # below the mount, a face selector's the mount level itself.

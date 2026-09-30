@@ -1648,7 +1648,13 @@ Base.@kwdef struct TapResolution <: Diagnostic
                      # :opaque_leaf|:not_indexable|:index_arity|:index_bounds|
                      # the tap set's (§14.10): :tap_kind|:discrete_state|:vector_tap|:unseedable|
                      # :duplicate_site
+                     # A missing input face is :unknown_root_input at the root
+                     # and :no_input_face at a mount.
     tap::Union{Nothing,Symbol} = nothing     # :x | :u | :y
+    # Both describe the read as authored, at a mount too. `path` is the mount
+    # path joined to the selector's own path, the mount itself for a face
+    # selector. `field` is a face selector's matched face and a path selector's
+    # head; the pinning meet's `:unseedable` names the root input instead.
     path::String = ""
     field::Union{Nothing,Symbol} = nothing
     leaf::String = ""                        # the leaf address as authored
@@ -1711,7 +1717,7 @@ _count_word(n::Int) = n ≤ 4 ? ("one", "two", "three", "four")[n] : string(n)
 function message(d::TapResolution)
     d.reason === :assembly_path &&
         return _tap_violation(d, "$(_at_path(d.path)) is an assembly — a path selector addresses " *
-                           "a component's own declarations, and a root-exported face is " *
+                           "a component's own declarations, and a level's exported face is " *
                            "read with `get_face`")
     d.reason in LEAF_REASONS && return _tap_violation(d, _leaf_clause(d), "§14.4, D-276")
     d.reason === :discrete_deriv &&
@@ -1748,7 +1754,7 @@ function message(d::TapResolution)
     d.reason === :internally_wired &&
         return _tap_violation(d, "`$(d.field)` is fed by `$(first(d.producer))/" *
                            "$(last(d.producer))`, so no root input holds it — a mounted " *
-                           "problem reads and writes its level's faces through the export " *
+                           "problem or tap set reads and writes its level's faces through the export " *
                            "chain, and a face the world computes is not free", "§14.9")
     d.reason === :input_face_not_output &&
         return _tap_violation(d, "`$(d.field)` is an *input* face of $(_at_path(d.mount)) — " *

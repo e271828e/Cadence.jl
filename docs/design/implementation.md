@@ -85,8 +85,7 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276.
 - `TapResolution`'s `mount` field, which a mounted read's message names
   after the selector, and its `producer` field. The mount step's reasons
   `:no_input_face` and `:internally_wired`, the second naming the producer,
-  and `:input_face_not_output`, formerly `:root_input_not_face`, at every
-  level (D-277).
+  and `:input_face_not_output` at every level (D-277).
 - `TierUnreadable`, for a primitive declaring no store, sits beside
   `StatelessWithoutOutputs` (D-263).
 - `InternalInvariant`.
@@ -766,6 +765,11 @@ D-277.
   the member in the wrong list, the unseedable root input and a second seed
   at one site refused. The unseedable root input names its pinning consumers
   with their tiers, the duplicate the earlier label.
+- At a mount the collecting tap resolution mounts each list. The kind check
+  reads the selector as authored, and a chain that fails is reported once
+  across the three lists. The pinning meet sees the root input the chain
+  landed on, and `:no_input_face` and `:internally_wired` join the refusals
+  (D-277).
 - A seeded tap reaches its scalar through one index step at most, and a
   `.name` step is unseedable (D-036). The seed site is the leaf's linear
   place on the `x` and `u` lists alike, so `[k,l]` seeds the entry its
@@ -1020,6 +1024,7 @@ override:
 | `dataplane`, `roster`, `bindings`, `control`, `devices`, `trace` | `dataplane roster bindings devices trace lifecycle log` |
 | `checkpoint` | the row above, plus `discrete events linearize` |
 | `readers`, `conditions`, `trim`, `linearize` | `readers conditions trim linearize` |
+| a new `AbstractComponent` fixture in any test file | add `build`, since `test_build.jl`'s Dual-activation sweep pins the skipped count |
 | `show` | `show` |
 | `sim`, `deployment`, `store`, `leaves`, `Cadence`, or `diagnostics.jl` beyond a new kind | all of it |
 

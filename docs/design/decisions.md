@@ -301,7 +301,7 @@ were derived.
 | [D-274][d-274] | Checkpoints: the executor's state as one value, restored without boundary zero | ratified |
 | [D-275][d-275] | Spell the exhaustive activation mode as the `activations` keyword alone | ratified |
 | [D-276][d-276] | Address a leaf inside a port value by a dotted leaf address | ratified |
-| [D-277][d-277] | A read set carries its mount chain, and resolution rebases every selector to the root | ratified |
+| [D-277][d-277] | Carry a read set's mount chain and rebase every selector to the root | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -11242,7 +11242,7 @@ is the true one.
 - *A linear index only, `[k,l]` as a later extension:* the grammar prints a
   matrix leaf either way, and deciding it once is cheaper than revisiting.
 
-### D-277 — A read set carries its mount chain, and resolution rebases every selector to the root
+### D-277 — Carry a read set's mount chain and rebase every selector to the root
 
 **Status.** ratified
 
@@ -11572,7 +11572,7 @@ the chain landed on.
 [d-274]: #d-274--checkpoints-the-executors-state-as-one-value-restored-without-boundary-zero
 [d-275]: #d-275--spell-the-exhaustive-activation-mode-as-the-activations-keyword-alone
 [d-276]: #d-276--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
-[d-277]: #d-277--a-read-set-carries-its-mount-chain-and-resolution-rebases-every-selector-to-the-root
+[d-277]: #d-277--carry-a-read-sets-mount-chain-and-rebase-every-selector-to-the-root
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

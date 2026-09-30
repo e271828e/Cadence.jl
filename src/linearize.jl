@@ -353,9 +353,11 @@ function _seeded_tap(::Val{:u}, entry::CellRead{A,C}, ::GetInput, read::MountedR
     isempty(pinning) == (_port_type(addr) === walked_type) || throw(InternalInvariant(
         "root input `$face`: the meet names $(length(pinning)) pinning consumer(s) and the " *
         "seeded cell is $(_port_type(addr)), against the walked $walked_type"))
+    # The refusal names the root input the pinning consumers read, not the face
+    # the read was authored against.
     isempty(pinning) ||
-        return (push!(diags, _reader_violation(read, :unseedable; declared = root_type,
-                                               pinning = pinning));
+        return (push!(diags, _reader_violation(read, :unseedable; field = read.head,
+                                               declared = root_type, pinning = pinning));
                 nothing)
     CellRead{typeof(addr),C}(addr)
 end

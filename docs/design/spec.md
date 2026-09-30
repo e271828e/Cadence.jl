@@ -9474,9 +9474,10 @@ declarations share with domain code.
 There is no selector for a value a [component](#g-component) computes without
 declaring it, and there cannot be one, because only [cells](#g-cell) are
 addressable ([§5.2][s5-2]). So a reader that wants one is asking the producing
-component to declare it an output ([§8.3][s8-3]). `get_face` addresses a
-root-exported output [face](#g-face), which is an *integration* read
-([§11.2][s11-2]).
+component to declare it an output ([§8.3][s8-3]). `get_face` addresses an
+output [face](#g-face) of the mount level, the level its read set is mounted
+at ([§14.9][s14-9]). At the root that face is root-exported. Either way the
+read is an *integration* read ([§11.2][s11-2]).
 
 **Rule.** A selector resolves against a source, before any client policy
 applies.
@@ -10198,9 +10199,12 @@ integrate). The services unify as clients of one condition algebra. `init!`
 applies an explicit condition, and `trim!` searches a family for the member
 satisfying its equations.
 
-**`at` lifts to problems in five lines.** Every field of a problem is either
-condition-producing (path-relative) or path-free. The rule that residual math
-sees only the gathered NamedTuple ([§14.7][s14-7]) pays off here.
+**`at` lifts a problem field by field, and each field falls in one of three
+cases.** The `condition` field is condition-producing (path-relative), so the
+lift post-composes it. The `reads` field is a read set, and the lift prepends
+the prefix to the set's mount chain. Every other field is path-free and passes
+through. The rule that residual math sees only the gathered NamedTuple
+([§14.7][s14-7]) pays off here.
 
 ```julia
 at(prefix::String, p::TrimProblem) = TrimProblem(
@@ -12437,8 +12441,9 @@ are references to the author's literals, so rebuilding it per trim
 iteration allocates nothing and does no path work ([§14.2][s14-2]).
 
 <a id="g-mounting"></a>**mounting** — relocating a whole problem or tap set with `at(prefix, …)`.
-Every field is either condition-producing (path-relative, post-composed) or
-path-free, so the service never knows where its paths sit ([§14.9][s14-9]).
+Each field is condition-producing (path-relative, post-composed), a read set
+carrying its mount chain, or path-free, so the service never knows where its
+paths sit ([§14.9][s14-9]).
 The read side rebases every selector to the root at resolution
 ([§14.9][s14-9]).
 
@@ -12787,7 +12792,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-274]: decisions.md#d-274--checkpoints-the-executors-state-as-one-value-restored-without-boundary-zero
 [d-275]: decisions.md#d-275--spell-the-exhaustive-activation-mode-as-the-activations-keyword-alone
 [d-276]: decisions.md#d-276--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
-[d-277]: decisions.md#d-277--a-read-set-carries-its-mount-chain-and-resolution-rebases-every-selector-to-the-root
+[d-277]: decisions.md#d-277--carry-a-read-sets-mount-chain-and-rebase-every-selector-to-the-root
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
