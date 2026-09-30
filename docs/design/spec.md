@@ -10208,17 +10208,34 @@ at(prefix::String, p::TrimProblem) = TrimProblem(
     lower      = p.lower,
     upper      = p.upper,
     condition  = d -> at(prefix, p.condition(d)),  #post-compose: wrap each returned tree
-    reads      = at(prefix, p.reads),              #inert selector data: same Scoped node
+    reads      = at(prefix, p.reads),              #inert selector data: the prefix joins the read set's mount chain
     residuals  = p.residuals,                      #path-free: pass through
-    tolerances = p.tolerances)
+    tolerances = p.tolerances,
+    checks     = p.checks,
+    check_tolerances = p.check_tolerances)
 ```
 
-Resolution then needs nothing new. The flattening accumulator of
-[§14.3][s14-3] enters the `Scoped` wrapper and prefixes every entry
-(`"vehicle/dynamics"` → `"wing/vehicle/dynamics"`).
-[Root input](#g-root-input) entries authored in the aircraft's [face](#g-face)
-vocabulary resolve through the export chain *from the mount point* (`throttle`
-at `"wing"` → root input `"wing.throttle"`). An unexported face fails
+The condition side needs nothing new at resolution. The flattening
+accumulator of [§14.3][s14-3] enters each `Scoped` wrapper and prefixes every
+entry below it.
+
+**Rule.** A read set carries its mount chain as data. `at(prefix, read_set)`
+prepends the prefix to that chain and joins nothing. A `Reads` value is no
+condition node, so `Scoped` never wraps one. Resolution walks the chain from
+the root, each prefix from the level the previous one reached
+([§13.3][s13-3]). It then rebases every [selector](#g-selector) (one of the
+closed family of deferred reads) to the root before the selector resolves. A
+path selector's path is joined to the mount (`"vehicle/dynamics"` →
+`"wing/vehicle/dynamics"`). `get_input` names an input [face](#g-face) (the
+name a port wears on its component's boundary) of the mount level. It follows
+the export chain to the [root input](#g-root-input) it lands on. `get_face`
+names an output face of the mount level and reads its producer's port
+([D-277][d-277]). A refusal spells the selector as authored and names the
+mount.
+
+Root input entries authored in the aircraft's face vocabulary resolve through
+the export chain *from the mount point* (`throttle` at `"wing"` → root input
+`"wing.throttle"`). An unexported face fails
 resolution by name, and correctly so. An internally wired input (a
 [scenario component](#g-scenario-component) driving the wingman's throttle) is
 untrimmable from outside, and the build says so. The service compiles the
@@ -11375,7 +11392,8 @@ activation):
   collected. Every uncovered root face, in declaration order.
 - **`TapResolution`** ([§14.10][s14-10]). Error · service · collected. Tap
   set (`x`/`u`/`y`), selector kind, path, field, the leaf address and the
-  offending step, candidates.
+  offending step, candidates, the mount path.
+  For an internally wired face at a mount, the producer.
   For a declaredly unseedable root input, the pinning consumer's path and its
   `u_types` entry.
 - **`TrimProblemInvalid`** ([§14.7][s14-7], [§14.8][s14-8]). Error · service
@@ -12373,7 +12391,8 @@ bit-identical reproduction ([§12.7][s12-7]).
 <a id="g-at"></a>**`at` / `Scoped`** — the scoping combinator. `at(prefix, node)` stores a
 prefix beside a condition node and applies nothing. Path concatenation
 happens once, at resolution. It also lifts whole `TrimProblem`s and
-linearization tap sets ([§14.2][s14-2], [§14.9][s14-9]).
+linearization tap sets ([§14.2][s14-2], [§14.9][s14-9]). A read set keeps its
+prefixes as a chain and is not a condition node ([D-277][d-277]).
 
 <a id="g-baseline"></a>**baseline** — an aircraft-shipped, full-coverage condition function
 (`ready_for_taxi(ac)`, `cold_and_dark(ac)`), layered under tweaks by
@@ -12420,6 +12439,8 @@ iteration allocates nothing and does no path work ([§14.2][s14-2]).
 <a id="g-mounting"></a>**mounting** — relocating a whole problem or tap set with `at(prefix, …)`.
 Every field is either condition-producing (path-relative, post-composed) or
 path-free, so the service never knows where its paths sit ([§14.9][s14-9]).
+The read side rebases every selector to the root at resolution
+([§14.9][s14-9]).
 
 <a id="g-override"></a>**override** — the ordered, asymmetric layering combinator. On a shared leaf
 the patch wins and the origin records both layers, while collisions *within*
@@ -12766,6 +12787,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-274]: decisions.md#d-274--checkpoints-the-executors-state-as-one-value-restored-without-boundary-zero
 [d-275]: decisions.md#d-275--spell-the-exhaustive-activation-mode-as-the-activations-keyword-alone
 [d-276]: decisions.md#d-276--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
+[d-277]: decisions.md#d-277--a-read-set-carries-its-mount-chain-and-resolution-rebases-every-selector-to-the-root
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
