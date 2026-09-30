@@ -6479,6 +6479,13 @@ own life. `init!` is correspondingly *not* asked to clean up after itself.
 The bracket does once, for every device, what would otherwise be duplicated
 in each and enforced in none.
 
+**The same tolerance covers a second call.** The wrapper runs `shutdown!`
+once on every exit path and records the release just after it returns. An
+operator interrupt landing between the two makes the run's tail run
+`shutdown!` again rather than leak the device ([§12.4][s12-4],
+[D-268][d-268]). A `shutdown!` that closes only what is open is idempotent
+by construction, so the second call costs nothing and is never reported.
+
 The wrapper makes one discrimination. **An `InterruptException` is never a
 `DeviceCrash`.** Under the spawned-loop topology the calling task is the one
 running a device loop body inline, the GUI's ([§11.1][s11-1]). An operator
