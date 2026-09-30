@@ -241,3 +241,104 @@ Left for the user, from the cold review, all older than these commits:
 - The non-interrupt arm runs no tail for a throw that came before it.
 - `implementation.md` says "The inline wrapper removes its entry"; the
   removal is `_run_body!`'s `finally`.
+
+## The leftovers, 2026-09-30 (second session)
+
+The five `pending.md` entries the user ruled at the end of the first session,
+worked in order, one Opus agent each, nothing pushed. Briefs
+`brief_face_routes.md`, `brief_interrupt_windows.md`, `brief_roster_copy.md`
+and `brief_log_boxes.md` carry the coordinator's shapes; the rulings that
+went beyond the bullets' text are listed here.
+
+1. **Face routes** (`6df9c95` docs, `b36fd54` code; subset green, 2257).
+   Shapes ruled by the coordinator: the resolvers return the route (the hops
+   below a face, ending at the terminal) and the draft stores it; `Structure`
+   keeps `in_faces`/`out_faces` unchanged for their five readers and gains
+   `in_routes`/`out_routes`, one row per route at every level; the printer
+   adds `input routes:`/`output routes:` blocks after the anchors, root faces
+   only, one line per route, a side with no root face printing no block.
+   §13.7's example gained the intermediate hop (`crashed → aircraft/crashed →
+   aircraft/monitor/out`): under §6.1's one-level rule a root face reaches a
+   grandchild's port only through the child's face, so the two-hop form is
+   the only one the printer can produce. The agent found no amendment
+   template in `decisions_style.md` and used the in-log "(Amended date: …)"
+   parenthetical. Left: `src/assembly.jl`'s pre-existing comments near lines
+   944–965 say "chain" for the obligation chain, beside the new route
+   vocabulary; D-257's amended bullet still calls the item the "Smaller"
+   bullet.
+2. **Three interrupt windows** (`aca2e50`; gate green, 4050; `devices` at
+   `-t 1` green). Shapes ruled by the coordinator: the fallback source is the
+   arm's first statement, `ControlRequestedStop(something(stop_issuer,
+   :interrupt))`; `_await_loop` takes the plane on the arm's call and does
+   the deregistration and the stop request inside its `try`, each retried
+   after an interrupt; the spawn is masked with both ends on one level; the
+   inline release rides a `Ref{Bool}` the wrapper's `finally` sets after
+   `_shutdown!`, the arm releasing the entry when it is unset. The fixer put
+   the deregistration ahead of the request inside `_await_loop`, so the
+   test's second interrupt lands in the deregistration; the order is
+   neutral. The fixer's caveats, for the user: a few instructions between
+   the `catch` and the fallback, and between the fallback and the await's
+   `try`, still escape (the run landed `stopped`); in the unattended
+   topology the arm no longer writes the stop word, so a device's `stop!`
+   after the fallback read can leave the word and the record differing,
+   with no reader of the word after a run found; an interrupt inside
+   `_spawn!` itself stays open, out of the ruling's scope.
+   The cold review (gate green, 4050; mask probed on every exit path at
+   `-t 1` and `-t 4`) found no medium or high defect. Its two low findings
+   and the nits were landed by the coordinator in the fix commit after it:
+   with no loop to await the arm requests the stop again, since a forced
+   raise inside the spawn's mask can leave a loop scheduled and unbound and
+   at HEAD such an orphan ran unbounded where the parent stopped it within a
+   frame; `HeldInline` counts its `shutdown!`s and the test pins one, which
+   is what makes the `released` guard testable (a mutant without it passed);
+   two comments corrected; the test local `interrupts` renamed
+   `interrupt_count`. The reviewer judged the stop word and the record
+   differing after a run not a defect (no reader of the word after a run,
+   cleared at every door and run start). Out of scope, registered for the
+   user: an interrupt escaping the arm's own tail lines skips the remaining
+   shutdowns and joins with the run landed `stopped`; the gap between the
+   outer `catch` and the fallback store (the `ControlRequestedStop`
+   allocation is a safepoint) still lands `initialized`; an interrupt inside
+   `_spawn!` between spawns leaves `tasks` unbound, so the direct release
+   shuts down entries whose wrappers already run and never joins them. The
+   reviewer also noted §11.6 never says `shutdown!` may run twice, which the
+   `released` window can cause; one sentence there or in D-268 would settle
+   it.
+3. **The roster is read once per run** (`093012b`; gate green, 4061). Shape
+   ruled by the coordinator: no new field, since D-260 puts the drain's
+   bookkeeping off the `Run` and makes the stop policy the advance's
+   argument; the copy is bound at the top of `_run_body!` and `step!` after
+   the freeze and threaded as the pacer is, through `_advance!`, `frame!`,
+   `_localized_frame!`, `publish!`, `_status`, `drain!`, `_replay_drain!`,
+   `_reset_accounts!`, `report_thread_budget!`, `_init_devices!` and
+   `_sweep_tail!`; the doors pass `sim.plane.roster`. The test reaches past
+   the gate: a device empties `plane.roster` from its loop body, and every
+   snapshot's status still names the two devices rostered at `run!`, with a
+   datum report drained off the copy. Seven test files' direct calls of
+   `drain!`/`publish!`/`frame!`/`report_thread_budget!` now pass the roster.
+   Left: `companions/frame_walkthrough.md` still writes `drain!(sim)`,
+   `publish!(sim)` and `frame!(sim, k)`, schematic already (no policy, no
+   pacer). A rewrap of `_await_loop`'s comment landed as `078c4bf`.
+4. **The log boxes each snapshot again** (`d5bb42d` docs, `d09f4cb` code;
+   gate green, 4065). One deviation from the brief, the agent's, accepted:
+   `@nospecialize` alone fails the ruling's check on a run past 511
+   boundaries, since a dynamic read of an `Int` field returns a boxed `Int`
+   that Julia caches only in -512..511 (16 B a frame from boundary 512 on,
+   measured). `log!` therefore takes a third argument, the concrete snapshot
+   type `publish!` knows statically, and reads the ordinal through it; the
+   stores still reuse publication's box. `publish!` reloads `latest` with a
+   monotonic load. `logged` is `Snapshot{T,typeof(sim.exec.store)}[]`, one
+   spelling for the empty and the filled case, proven equal to
+   `typeof(latest(sim))` by a test. The allocation test saw 816752 B on and
+   off over 1000 frames of `feedback_model`. Left: the test costs about 9 s
+   under BenchmarkTools' default budget; with a finite `log_max` in a run
+   long enough to thin, a run allocates 1–3 KB more with the log on,
+   probably the released slots growing the middle past its `sizehint!`
+   before compaction, not investigated.
+5. **§11.6's wrapper sketch** (`f8dafc7`). One line: the crash report is
+   addressed by `entry`, as the code files it; the sketch still binds only
+   `dev` and `handle`, so `entry` reads unbound there, as the ruling's own
+   spelling has it. No prose sentence moved.
+
+Nothing pushed. The arc from `7b69c23` is the user's to diff-review; the
+cold review covered the interrupt fix alone, as ruled.
