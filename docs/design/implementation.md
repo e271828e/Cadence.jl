@@ -30,7 +30,8 @@ in.
     sits over `retype`, which replaces each `Float64` position by the scalar
     and pins a mutable type's parameters (D-263).
   - `_holds_marker` finds a marker below the top.
-- `leaf_names`' dotted spelling of a flat position.
+- `leaf_names`' dotted spelling of a flat position, a matrix leaf by its
+  indices.
 - Embed-accept's relation `_accepts` (D-166). The relation is decided on the
   type (D-238). At a store it accepts an opaque leaf by identity (D-237). At a
   wire it admits an opaque leaf as the producer's cell (D-264).
@@ -38,7 +39,7 @@ in.
 - The checked state write `flatten_state!` (D-235).
 
 Spec: §4.1, §4.3, §4.4, §6.1, §7.1, §7.2, §8.2, §9.5, §13.4, D-166, D-235,
-D-236, D-237, D-238, D-243, D-263, D-264, D-265.
+D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276.
 
 ### `src/diagnostics.jl`
 

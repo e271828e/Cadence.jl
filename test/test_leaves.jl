@@ -173,10 +173,11 @@ end
 function leaves_names()
     @testset "the dotted spelling of a flat position (§7.1, §13.4)" begin
         # One name per leaf in the flat order: a nested field dotted, a static
-        # array's elements indexed, the matrix's linearly.
+        # array's elements indexed, the matrix's by its indices in column-major
+        # order, as a selector's index step spells them (D-276).
         @test leaf_names(Pose) == ["x", "y"]
         @test leaf_names(Body) == ["pose.x", "pose.y", "v[1]", "v[2]", "v[3]",
-                                   "m[1]", "m[2]", "m[3]", "m[4]"]
+                                   "m[1,1]", "m[2,1]", "m[1,2]", "m[2,2]"]
         @test leaf_names(StateNT) == ["q", "v[1]", "v[2]", "v[3]"]
         @test length(leaf_names(Body)) == nleaves(Body)
     end
