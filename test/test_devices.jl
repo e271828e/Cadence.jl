@@ -794,6 +794,24 @@ function test_devices()
         @test only(writer_residue.recent) isa DeviceCrash
     end
 
+    @testset "report! by roster entry files a crash in that entry's cell alone, with no beat (§12.4)" begin
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        attach!(sim, Pad("p"), Enumerated("a"))
+        attach!(sim, Pad("q"), Enumerated("b"))
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        run!(sim; t_end = 0.2)
+        @test lifecycle(sim) === :stopped
+        entry, bystander = sim.plane.roster
+        heartbeat = _heartbeat(entry.handle.diag_cell)
+        report!(entry, DeviceCrash(ErrorException("x"), false))
+        crash = only((@atomic entry.handle.diag_cell.batch).ring)
+        @test crash isa DeviceCrash && crash.cause isa ErrorException && crash.abort === false
+        @test _heartbeat(entry.handle.diag_cell) == heartbeat   # a beat would claim life
+        @test (@atomic bystander.handle.diag_cell.batch) === EMPTY_DIAG
+        # DeviceCrash is the one kind the framework files by entry.
+        @test_throws MethodError report!(entry, MalformedDatum("x"))
+    end
+
     @testset "an interrupt inside init! is the operator's stop: released, no crash, no task (§12.4, D-268)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         dev = InitInterrupted()

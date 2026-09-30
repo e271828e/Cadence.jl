@@ -224,6 +224,18 @@ report!(handle::DeviceHandle, occurrence::MalformedDatum) =
      report_cell!(handle.diag_cell, occurrence))
 
 """
+    report!(entry, DeviceCrash(cause, abort))
+
+The framework's crash report, addressed by the roster entry (§12.4). The
+pre-spawn bracket holds no handle, and the wrapper writes the same cell. The
+report lands in the entry's own diagnostic cell. It asserts no attachment and
+beats no heartbeat: the device did not run or has just died, and a beat would
+claim life. `DeviceCrash` is the one kind filed this way.
+"""
+report!(entry::RosterEntry, occurrence::DeviceCrash) =
+    report_cell!(_handle(entry).diag_cell, occurrence)
+
+"""
     wait_next_snapshot(handle)
 
 §12.3's next-snapshot wait: block until a boundary this waiter has not seen
@@ -410,8 +422,7 @@ function _wrap(entry::RosterEntry)
             # no override has nothing to provoke it, so its raise is a crash
             # whenever it lands.
             unblocked = (@atomic entry.handle.control.stopped) && _unblocks(entry.dev)
-            unblocked || report_cell!(_handle(entry).diag_cell,
-                                      DeviceCrash(err, entry.should_abort))
+            unblocked || report!(entry, DeviceCrash(err, entry.should_abort))
         end
     finally
         _shutdown!(entry)
@@ -450,7 +461,7 @@ function _init_devices!(sim)
                 _request_stop!(entry.handle.control, :interrupt)   # the operator's stop (§12.4, D-268)
             else
                 # addressed by the entry: no task holds a handle yet (§12.4)
-                report_cell!(_handle(entry).diag_cell, DeviceCrash(err, entry.should_abort))
+                report!(entry, DeviceCrash(err, entry.should_abort))
                 entry.should_abort && stop!(entry.handle)
             end
             false

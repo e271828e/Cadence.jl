@@ -632,6 +632,9 @@ D-256, D-268, D-269.
 - The task wrapper.
 - The init bracket, with its interrupt arm. An `InterruptException` in `init!`
   sets the `:interrupt` stop in place of `DeviceCrash`.
+- `report!(entry, DeviceCrash(…))`, the crash report addressed by the roster
+  entry (§12.4). The wrapper and the init bracket both file through it. It
+  writes the entry's cell with no attachment check and no heartbeat.
 - The tail under `join_timeout`, which `Control` carries (D-256). An interrupt
   reaching the tail collapses the remaining joins into `DeviceJoinTimeout` by
   name (D-268).
