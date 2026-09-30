@@ -33,8 +33,8 @@ Where the reason is not given here, the cited decision carries it:
 - **The `check` entry point** (M-B23): §9.7 names it once, in a
   parenthetical; whether it is a rule is a ruling to raise.
 - **Smaller** (M-B26): the face table keeps the resolved endpoint and discards
-  §9.1's routing chain that §13.7's face-route printer would print; no
-  `sizehint!`, and the log is a `Vector` of snapshot references, not inline
+  §9.1's routing chain that §13.7's face-route printer would print;
+  the log is a `Vector` of snapshot references, not inline
   records; the roster is a mutable `Vector` re-read every frame, frozen by
   `assert_stopped`'s policy rather than by type; the suite has no
   every-component `Dual` sweep, so D-263's CI policy is one fixture; the

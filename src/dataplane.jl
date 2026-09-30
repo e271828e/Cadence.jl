@@ -722,9 +722,14 @@ mutable struct SnapshotLog
     cursor::Int                     # the thinning cursor over odd indices; 0 = inactive
 end
 
-SnapshotLog(enabled::Bool, log_every::Int, log_max::Int) =
-    SnapshotLog(enabled, log_max, log_every, nothing, nothing,
-                Union{Nothing,Snapshot}[], 0, 0)
+# A finite bound hints the middle's capacity, so regrowth is a non-event (§7.5,
+# §11.2). `init!` knows no duration (D-255), so the bound alone sets the hint;
+# a disabled or unbounded log gets none.
+function SnapshotLog(enabled::Bool, log_every::Int, log_max::Int)
+    snaps = Union{Nothing,Snapshot}[]
+    enabled && log_max != typemax(Int) && sizehint!(snaps, log_max)
+    SnapshotLog(enabled, log_max, log_every, nothing, nothing, snaps, 0, 0)
+end
 
 """
 One published boundary enters the log (§11.2), on the loop task, right behind

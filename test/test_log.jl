@@ -171,7 +171,12 @@ function test_log()
         @test d isa ArgumentInvalid && d.argument === :log_max
         @test lifecycle(sim) === :built
         init!(sim, authored; log_max = Inf)                         # the explicit opt-out
+        @test length(sim.run.log.snaps.ref.mem) < 1024              # no bound, no hint
         run!(sim; t_end = 1.0)
         @test length(logged(sim)) == 11
+        # A finite bound hints the middle's capacity at `init!` (§7.5, §11.2).
+        init!(sim, authored; log_max = 4096)
+        @test isempty(sim.run.log.snaps)
+        @test length(sim.run.log.snaps.ref.mem) ≥ 4096
     end
 end
