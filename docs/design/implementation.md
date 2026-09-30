@@ -288,8 +288,9 @@ Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
   `get_input` and `get_face`, each taking a leaf address as its `leaf`, a
   `Symbol` the short form of a plain name (D-276). The family's path selectors
   are walked from the root (§13.3).
-- The leaf address (D-276). `parse_leaf` splits it at resolution.
-  `resolve_leaf` checks each step against the declared type and returns the
+- The leaf address (D-276). `parse_leaf` splits it at resolution. On a face
+  selector `match_leaf` matches the head against the face list instead, since
+  a face name may hold a dot. `resolve_leaf` checks each step against the declared type and returns the
   chain or a `LeafRefusal`, the six leaf reasons any kind wraps. `walk_leaf`
   runs the chain as `getfield` and `getindex` calls unrolled at generation.
 - `reads` and `Reads`.
@@ -613,7 +614,8 @@ D-261.
 - Binding reads `ReadGather`, resolved at attach by `_compile_gather`.
   Resolution raises `ReadBindingUnresolved` and enforces the source rule.
 - The three table members take a leaf address, parsed and resolved by the
-  family's `parse_leaf` and `resolve_leaf`. `ReadGather` holds the family's
+  family's `parse_leaf` and `resolve_leaf`, a face selector's head matched
+  by `match_leaf`. `ReadGather` holds the family's
   `CellRead` entries, and `gather_snapshot` runs `_read` over the
   snapshot's store (D-276).
 - The candidates on the two name-shaped read misses (§14.4).

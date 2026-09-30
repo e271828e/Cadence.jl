@@ -150,8 +150,14 @@ function parse_leaf(leaf::String)
     head = leaf[1:prevind(leaf, stop)]
     Base.isidentifier(head) || return LeafRefusal(:leaf_syntax,
         isempty(head) ? leaf[1:min(stop, ncodeunits(leaf))] : head)
+    steps = parse_steps(leaf, stop)
+    steps isa LeafRefusal ? steps : (Symbol(head), steps)
+end
+
+# The steps from `start` to the end of the address, as `parse_leaf` reads them
+# after the head, or the refusal of the first that does not parse.
+function parse_steps(leaf::String, start::Int)
     steps = LeafStep[]
-    start = stop
     while start <= ncodeunits(leaf)
         if leaf[start] == '.'
             stop = _name_end(leaf, start + 1)
@@ -174,7 +180,37 @@ function parse_leaf(leaf::String)
         end
         start = stop
     end
-    (Symbol(head), steps)
+    steps
+end
+
+"""
+    match_leaf(leaf, faces) → (head, steps) | LeafRefusal | nothing
+
+Match a face selector's address against the faces it may name (§14.4, D-276). A
+face name is an arbitrary string and may hold a dot (§8.6), so the head is not
+parsed: it is the longest name in `faces` the address starts with, followed by
+the end, a `.` or a `[`, and the steps after it parse as `parse_leaf`'s. A
+`Symbol` names a face whole, with no steps. `nothing` where no face matches.
+"""
+function match_leaf(leaf::Union{Symbol,String}, faces)
+    head = match_face(leaf, faces)
+    head === nothing && return nothing
+    leaf isa Symbol && return (head, LeafStep[])
+    steps = parse_steps(leaf, ncodeunits(String(head)) + 1)
+    steps isa LeafRefusal ? steps : (head, steps)
+end
+
+# The face `match_leaf` takes for the head, or `nothing`.
+match_face(leaf::Symbol, faces) = leaf in faces ? leaf : nothing
+function match_face(leaf::String, faces)
+    matched = ""
+    for face in faces
+        name = String(face)
+        stop = ncodeunits(name) + 1
+        ncodeunits(name) > ncodeunits(matched) && startswith(leaf, name) &&
+            (stop > ncodeunits(leaf) || leaf[stop] in ('.', '[')) && (matched = name)
+    end
+    isempty(matched) ? nothing : Symbol(matched)
 end
 
 """
@@ -402,9 +438,9 @@ _reader_violation(label::Symbol, selector, reason::Symbol; kw...) =
                   leaf = _leaf_string(selector), kw...)
 
 # A step the leaf address cannot take, with what `resolve_leaf` or `parse_leaf`
-# had in hand (§14.4, D-276).
-_leaf_violation(label::Symbol, selector, refusal::LeafRefusal) =
-    _reader_violation(label, selector, refusal.reason; field = _field(selector),
+# had in hand (§14.4, D-276). A face selector passes its matched face.
+_leaf_violation(label::Symbol, selector, refusal::LeafRefusal; field = _field(selector)) =
+    _reader_violation(label, selector, refusal.reason; field = field,
                       step = refusal.step, declared = refusal.declared,
                       candidates = refusal.candidates)
 
@@ -417,10 +453,19 @@ _selpath(::Union{GetInput,GetFace}) = ""
 
 # The head name the leaf address starts with, the payloads' `field`; `nothing`
 # when the address does not parse.
-function _field(selector)
+function _field(selector::Union{GetState,GetDeriv,GetOutput})
     parsed = parse_leaf(selector.leaf)
     parsed isa LeafRefusal ? nothing : first(parsed)
 end
+
+# A face selector's head is matched against the faces it may name (§14.4,
+# D-276): the face its address names, or the whole address where none matches.
+_field(selector::Union{GetInput,GetFace}, faces) =
+    something(match_face(selector.leaf, faces), Symbol(selector.leaf))
+
+# The root-exported output faces, the names a `get_face` may take.
+_exported_faces(structure::Structure) =
+    Symbol[face for ((face_path, face), _) in structure.out_faces if isempty(face_path)]
 
 # The parsed address, or `nothing` with its refusal collected.
 function _parsed_leaf(selector, label::Symbol, diags::Vector{Diagnostic})
@@ -430,13 +475,22 @@ function _parsed_leaf(selector, label::Symbol, diags::Vector{Diagnostic})
     nothing
 end
 
+# A face selector's address matched against `faces`: the head and steps,
+# `nothing` on a miss the caller refuses, or the refusal of a step, collected.
+function _matched_leaf(selector, label::Symbol, faces, diags::Vector{Diagnostic})
+    matched = match_leaf(selector.leaf, faces)
+    matched isa LeafRefusal &&
+        push!(diags, _leaf_violation(label, selector, matched; field = _field(selector, faces)))
+    matched
+end
+
 # The chain the steps resolve to under the declared type `P`, or `nothing` with
 # the refusal collected. The schema's types decide everything (§14.4).
 function _leaf_chain(selector, label::Symbol, ::Type{P}, steps,
-                     diags::Vector{Diagnostic}) where {P}
+                     diags::Vector{Diagnostic}; field = _field(selector)) where {P}
     resolved = resolve_leaf(P, steps)
     resolved isa LeafRefusal || return first(resolved)
-    push!(diags, _leaf_violation(label, selector, resolved))
+    push!(diags, _leaf_violation(label, selector, resolved; field = field))
     nothing
 end
 
@@ -517,36 +571,37 @@ end
 
 function _resolve_selector(selector::GetInput, label::Symbol, build::Build,
                            act::Activation, diags::Vector{Diagnostic})
-    parsed = _parsed_leaf(selector, label, diags)
-    parsed === nothing && return nothing
-    head, steps = parsed
-    if !(head in build.structure.root_inputs)
-        push!(diags, _reader_violation(label, selector, :unknown_root_input; field = head,
-                                       candidates = build.structure.root_inputs))
+    inputs = build.structure.root_inputs
+    matched = _matched_leaf(selector, label, inputs, diags)
+    if matched === nothing
+        push!(diags, _reader_violation(label, selector, :unknown_root_input;
+                                       field = _field(selector, inputs), candidates = inputs))
         return nothing
     end
+    matched isa LeafRefusal && return nothing
+    head, steps = matched
     addr = act.layout.addr[("", head)]
-    chain = _leaf_chain(selector, label, _port_type(addr), steps, diags)
+    chain = _leaf_chain(selector, label, _port_type(addr), steps, diags; field = head)
     chain === nothing && return nothing
     CellRead{typeof(addr),chain}(addr)
 end
 
 function _resolve_selector(selector::GetFace, label::Symbol, build::Build,
                            act::Activation, diags::Vector{Diagnostic})
-    parsed = _parsed_leaf(selector, label, diags)
-    parsed === nothing && return nothing
-    head, steps = parsed
-    exported = Symbol[face for ((face_path, face), _) in build.structure.out_faces
-                      if isempty(face_path)]
-    if !(head in exported)
-        push!(diags, head in build.structure.root_inputs ?
-                    _reader_violation(label, selector, :root_input_not_face; field = head) :
-                    _reader_violation(label, selector, :unknown_output_face; field = head,
-                                      candidates = exported))
+    exported, inputs = _exported_faces(build.structure), build.structure.root_inputs
+    matched = _matched_leaf(selector, label, exported, diags)
+    if matched === nothing
+        push!(diags, match_face(selector.leaf, inputs) === nothing ?
+                    _reader_violation(label, selector, :unknown_output_face;
+                                      field = _field(selector, exported), candidates = exported) :
+                    _reader_violation(label, selector, :root_input_not_face;
+                                      field = _field(selector, inputs)))
         return nothing
     end
+    matched isa LeafRefusal && return nothing
+    head, steps = matched
     addr = act.layout.addr[("", head)]
-    chain = _leaf_chain(selector, label, _port_type(addr), steps, diags)
+    chain = _leaf_chain(selector, label, _port_type(addr), steps, diags; field = head)
     chain === nothing && return nothing
     CellRead{typeof(addr),chain}(addr)
 end

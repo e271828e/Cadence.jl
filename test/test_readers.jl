@@ -61,6 +61,22 @@ y_types(::PoseStore) = (v1 = Float64,)
 y_state(::PoseStore, (; s)) = (v1 = s.pose.v[1],)
 s_update(::PoseStore, (; s)) = s
 
+# Faces whose names hold a dot (§8.6), and `pose` exported beside `pose.v`, a
+# struct face beside a face named like its field: a face selector matches its
+# head against the face list, the longest name first (§14.4, D-276).
+struct DottedFaces <: AbstractComponent end
+x_init(::DottedFaces) = (q = SVector(0.5, -0.25),)
+u_types(::DottedFaces) = (u = SVector{2,Float64},)
+y_types(::DottedFaces) = (θ = Float64, pose = LeafPose{Float64}, v = SVector{3,Float64})
+y_state(::DottedFaces, (; x)) =
+    (θ = x.q[1], pose = LeafPose(SVector(x.q[1], x.q[2], 3.0), SMatrix{2,2}(1.0, 2.0, 3.0, 4.0)),
+     v = SVector(7.0, 8.0, 9.0))
+x_derivative(::DottedFaces, (; x, u)) = (q = u.u - x.q,)
+
+dotted_model() = Group((; c = DottedFaces()); inputs = ("left.brake" => "c/u",),
+                       outputs = ("c/θ" => "att.theta", "c/pose" => "pose", "c/v" => "pose.v"))
+dotted_condition() = fragment(inputs = (var"left.brake" = SVector(1.5, 2.5),))
+
 # Every store, the root inputs and the clock, read straight out of an executor.
 world(sim) = (copy(sim.exec.xbuf),
               [s === nothing ? nothing : s[] for s in sim.exec.sstores],
@@ -286,6 +302,50 @@ function test_readers()
         d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(pose_sim, Pad("t"), Readout(v = get_output("c", "pose.v[4]"))))
         @test d.reason === :index_bounds && d.step == "[4]" && d.declared === SVector{3,Float64}
         @test length(pose_sim.plane.roster) == 1     # the two rejections left the roster as it was
+    end
+
+    @testset "a face name may hold a dot: a face selector's head is matched (§14.4, D-276)" begin
+        sim = Simulation(dotted_model(); h = 1//10)
+        init!(sim, dotted_condition())
+        v = gather_reads(_compile_reads(reads(brake = get_input("left.brake"),
+                                              short = get_input(:var"left.brake"),
+                                              brake2 = get_input("left.brake[2]"),
+                                              theta = get_face("att.theta"),
+                                              pose_v = get_face("pose.v"),
+                                              pose_v2 = get_face("pose.v[2]"),
+                                              m12 = get_face("pose.m[1,2]")),
+                                        sim.deployment.build), sim.exec)
+        @test v.brake === v.short === SVector(1.5, 2.5)   # a `Symbol` names the face whole
+        @test v.brake2 === 2.5
+        @test v.theta === 0.5
+        # The longest face wins: `pose.v` is the face, not `pose`'s field `v`.
+        @test v.pose_v === SVector(7.0, 8.0, 9.0) && v.pose_v2 === 8.0
+        @test v.m12 === 3.0                                # `pose`, then `.m[1,2]`
+
+        # A binding read matches the same way (§11.2).
+        bound_sim = Simulation(dotted_model(); h = 1//10)
+        handle = attach!(bound_sim, Pad("t"), Readout(brake = get_input("left.brake"),
+                                                      theta = get_face("att.theta"),
+                                                      pose_v = get_face("pose.v")))
+        init!(bound_sim, dotted_condition())
+        snapshot = latest(bound_sim)
+        @test gather(handle, snapshot) === (brake = SVector(1.5, 2.5), theta = 0.5,
+                                            pose_v = SVector(7.0, 8.0, 9.0))
+
+        # Where no face matches, `field` is the whole address, the candidates the list.
+        err = failure(() -> _compile_reads(reads(a = get_input("left.brakes"),
+                                                 b = get_face("att")), sim.deployment.build))
+        (a, b_) = diagnostics(err)
+        @test a.reason === :unknown_root_input && a.field === Symbol("left.brakes") &&
+              a.candidates == [Symbol("left.brake")]
+        @test b_.reason === :unknown_output_face && b_.field === :att &&
+              b_.candidates == [Symbol("att.theta"), :pose, Symbol("pose.v")]
+        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(v = get_face("att.th"))))
+        @test d.reason === :unknown_output_face && d.field === Symbol("att.th") &&
+              d.candidates == [Symbol("att.theta"), :pose, Symbol("pose.v")]
+        # A matched face refuses its steps under the face's own name.
+        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(v = get_face("att.theta.x"))))
+        @test d.reason === :no_such_field && d.field === Symbol("att.theta") && d.step == ".x"
     end
 
     @testset "a reader and a plan belong to one activation, by dispatch (§9.4, §14.4)" begin

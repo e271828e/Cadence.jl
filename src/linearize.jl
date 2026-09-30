@@ -315,7 +315,8 @@ end
 # continuous one pins by declaration (D-167), a discrete one by tier (§8.2).
 function _seeded_tap(::Val{:u}, entry::CellRead{A,C}, selector::GetInput, label::Symbol,
                      build::Build, act::Activation{T}, diags::Vector{Diagnostic}) where {A,C,T}
-    structure, face = build.structure, _field(selector)
+    structure = build.structure
+    face = _field(selector, structure.root_inputs)
     P = _port_type(entry.addr)
     _check_seedable(selector, label, P, C, _resolved_type(P, C), face, diags) || return nothing
     root_type = structure.root_types[findfirst(==(face), structure.root_inputs)]
@@ -342,9 +343,10 @@ end
 # The `y` list: any `Real` leaf is readable, `Float64` or not, since a row is a
 # read and not a seed.
 function _seeded_tap(::Val{:y}, entry::CellRead{A,C}, selector::Union{GetOutput,GetFace},
-                     label::Symbol, ::Build, act::Activation,
+                     label::Symbol, build::Build, act::Activation,
                      diags::Vector{Diagnostic}) where {A,C}
-    head = _field(selector)
+    head = selector isa GetFace ? _field(selector, _exported_faces(build.structure)) :
+                                  _field(selector)
     leaf_type = _resolved_type(_port_type(entry.addr), C)
     leaf_type <: Real ||
         return (push!(diags, _reader_violation(label, selector, :vector_tap;

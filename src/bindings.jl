@@ -179,11 +179,12 @@ _resolve_read(::Layout, selector::StoreSelector, binding_type::Type, device::Str
                                path = _selpath(selector), field = _field(selector))))
 
 # A step the leaf address cannot take, with what `parse_leaf` or `resolve_leaf`
-# had in hand (§14.4, D-276).
-_leaf_unresolved(selector, refusal::LeafRefusal, binding_type::Type, device::String) =
+# had in hand (§14.4, D-276). A face selector passes its matched face.
+_leaf_unresolved(selector, refusal::LeafRefusal, binding_type::Type, device::String;
+                 field = _field(selector)) =
     ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                           selector = _spell(selector), reason = refusal.reason,
-                          path = _selpath(selector), field = _field(selector),
+                          path = _selpath(selector), field = field,
                           leaf = _leaf_string(selector), step = refusal.step,
                           declared = refusal.declared, candidates = refusal.candidates)
 
@@ -195,12 +196,22 @@ function _parsed_binding_leaf(selector, binding_type::Type, device::String)
     parsed
 end
 
+# A face selector's address matched against `faces`: the head and steps, or
+# `nothing` on a miss the caller refuses; a step that does not parse is refused.
+function _matched_binding_leaf(selector, faces, binding_type::Type, device::String)
+    matched = match_leaf(selector.leaf, faces)
+    matched isa LeafRefusal && throw(DiagnosticError(
+        _leaf_unresolved(selector, matched, binding_type, device; field = _field(selector, faces))))
+    matched
+end
+
 # The baked read of one cell: the steps resolved against the port's declared
 # type, the chain in the entry's type (§14.4, D-276).
-function _cell_read(addr::CellAddr, selector, steps, binding_type::Type, device::String)
+function _cell_read(addr::CellAddr, selector, steps, binding_type::Type, device::String;
+                    field = _field(selector))
     resolved = resolve_leaf(_port_type(addr), steps)
-    resolved isa LeafRefusal &&
-        throw(DiagnosticError(_leaf_unresolved(selector, resolved, binding_type, device)))
+    resolved isa LeafRefusal && throw(DiagnosticError(
+        _leaf_unresolved(selector, resolved, binding_type, device; field = field)))
     CellRead{typeof(addr),first(resolved)}(addr)
 end
 
@@ -215,25 +226,31 @@ function _resolve_read(layout::Layout, selector::GetOutput, binding_type::Type, 
 end
 
 function _resolve_read(layout::Layout, selector::GetInput, binding_type::Type, device::String)
-    head, steps = _parsed_binding_leaf(selector, binding_type, device)
-    head in _root_input_names(layout) || throw(DiagnosticError(
+    inputs = _root_input_names(layout)
+    matched = _matched_binding_leaf(selector, inputs, binding_type, device)
+    matched === nothing && throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :unknown_root_input,
-                               field = head, candidates = _root_input_names(layout))))
-    _cell_read(layout.addr[("", head)], selector, steps, binding_type, device)
+                               field = _field(selector, inputs), candidates = inputs)))
+    head, steps = matched
+    _cell_read(layout.addr[("", head)], selector, steps, binding_type, device; field = head)
 end
 
 function _resolve_read(layout::Layout, selector::GetFace, binding_type::Type, device::String)
-    head, steps = _parsed_binding_leaf(selector, binding_type, device)
-    head in _root_input_names(layout) && throw(DiagnosticError(
-        ReadBindingUnresolved(device = device, binding = _typename(binding_type),
-                               selector = _spell(selector), reason = :root_input_not_output,
-                               field = head)))
-    haskey(layout.addr, ("", head)) || throw(DiagnosticError(
-        ReadBindingUnresolved(device = device, binding = _typename(binding_type),
-                               selector = _spell(selector), reason = :unknown_output_face,
-                               field = head, candidates = _root_output_faces(layout))))
-    _cell_read(layout.addr[("", head)], selector, steps, binding_type, device)
+    faces, inputs = _root_output_faces(layout), _root_input_names(layout)
+    matched = _matched_binding_leaf(selector, faces, binding_type, device)
+    if matched === nothing
+        match_face(selector.leaf, inputs) === nothing || throw(DiagnosticError(
+            ReadBindingUnresolved(device = device, binding = _typename(binding_type),
+                                   selector = _spell(selector), reason = :root_input_not_output,
+                                   field = _field(selector, inputs))))
+        throw(DiagnosticError(
+            ReadBindingUnresolved(device = device, binding = _typename(binding_type),
+                                   selector = _spell(selector), reason = :unknown_output_face,
+                                   field = _field(selector, faces), candidates = faces)))
+    end
+    head, steps = matched
+    _cell_read(layout.addr[("", head)], selector, steps, binding_type, device; field = head)
 end
 
 """
