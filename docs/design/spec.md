@@ -8595,7 +8595,7 @@ not handle that throw ([D-225][d-225]).
 # the runtime carrier: its parameter the cause's type — a diagnostic's kind
 # for a species, the exception model code threw otherwise
 struct StepError{C <: Union{Diagnostic, Exception}} <: Exception
-    frame          # the cursor's frame at the catch
+    cursor         # the cursor's frame at the catch
     t::Float64     # the boundary time
     boundary::Int  # the frame-entry boundary index: the replay pointer
     cause::C
@@ -11369,7 +11369,7 @@ activation):
   fail-fast. `checkpoint` on a simulation that is not at the rest a published
   frame top leaves. Either the clock is past a frame top after a `t*` stop,
   or a frame was abandoned unpublished ([§12.4][s12-4]). The clock's `t`, the
-  frame top `t_frame`, the frame index `step`.
+  frame top `t_frame`, the frame index `frame`.
 - **`ReplaySchemaMismatch`** ([§11.5][s11-5], [§12.7][s12-7]). Error ·
   service · collected. The trace's device tag, its recorded face-name →
   position schema, the disagreeing face names, the target's root input-face
