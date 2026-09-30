@@ -1345,7 +1345,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             # moments between the loop's return and the tail — is a stop, never
             # a `LoopError` (§12.4, D-268). A loop that returned keeps its
             # outcome, a source or a budget halt alike. A spawned loop whose
-            # outcome was not taken is still running, and `run!` never returns
+            # outcome was not taken may still be running, and `run!` never returns
             # before its loop ends (§11.1): the arm requests the stop and awaits
             # the loop as the ordinary path does. The loop's outcome is then the
             # source, the `:interrupt` stop at its next frame top or a face or
@@ -1360,10 +1360,12 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             # covered by reading.
             returned || _request_stop!(control, :interrupt)
             if !returned && loop_task !== nothing
+                # the calling task has left the inline body, whose record reads `:done` (§12.2)
+                @lock control.wake filter!(pair -> pair.second !== current_task(), plane.run_tasks)
                 try
                     source = _await_loop(control, loop_task)
                     returned = true
-                catch err
+                catch err                     # rebinds the outer `err`; nothing below reads it
                     loop_failure = (err, catch_backtrace())   # `_await_loop` rethrows the loop's failure
                 end
             end
@@ -1565,14 +1567,20 @@ end
 # The spawned loop's outcome, awaited on the calling task (§11.1). An interrupt
 # landing in the wait is the operator's stop for the loop, which is still
 # running: requested through the stop word, the wait resumed, and the loop ends
-# at its next frame top through its own `_finish!` (§12.4, D-268).
+# at its next frame top through its own `_finish!` (§12.4, D-268). The request
+# runs inside the `try`, ahead of the wait, so an interrupt landing in it leaves
+# the stop pending for the next pass and never escapes as the loop's failure.
+# The one window left open is the few instructions between the `catch` and the
+# next `try`.
 function _await_loop(control::Control, loop_task::Task)
+    stop_pending = false
     while true
         try
+            stop_pending && (_request_stop!(control, :interrupt); stop_pending = false)
             return fetch(loop_task)
         catch err
             err isa InterruptException || rethrow()
-            _request_stop!(control, :interrupt)
+            stop_pending = true
         end
     end
 end

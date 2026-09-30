@@ -361,7 +361,9 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
 - Publication reads each device's `task_state` off `run_tasks` (§12.2,
   D-270). A device with no registered task reads `:done` inside a run and
   `:none` outside one, by the sticky status. The inline wrapper removes its
-  entry when its body returns, under `wake`'s lock.
+  entry when its body returns, under `wake`'s lock. `run!`'s interrupt arm
+  removes it again before it awaits the loop, since an interrupt can cut the
+  wrapper's removal short.
 - §12.6's input mode (D-260):
   - `mode(sim)`, `to_time` and `live!`;
   - the mode is read off the run's `feed`, so a change of mode is a write to
@@ -392,7 +394,9 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
   - `run!`'s outer catch takes a stray interrupt as the stop. Where the
     loop was spawned and has not returned, the arm awaits it through
     `_await_loop`, so `run!` returns only after the loop ends, and a loop
-    failure found there takes the failure arm's one handling;
+    failure found there takes the failure arm's one handling. `_await_loop`
+    issues its stop request inside its `try` and retries it when an interrupt
+    cuts it short, so a later interrupt never reads as the loop's failure;
   - `run!` reads §13.4's disposition off the roster, and `step!` always
     rethrows.
 - The seam's `isfinite` sweep over `x`, the boundary's first act.

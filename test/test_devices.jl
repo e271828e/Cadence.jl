@@ -168,7 +168,8 @@ loop(dev::HeldInline, handle) = (take!(dev.release); nothing)
 # A ramp whose derivative records the task it runs on past `t₀`: the frame
 # loop's, which a calling-task device moves to a spawned task (§11.1). Once
 # `hold` is set, the next evaluation marks `held` and keeps its frame in flight
-# for up to a second, so the loop cannot end before then.
+# for up to a second, so the loop cannot end before then. The `held` face reads
+# the mark, so a stop face on it holds from the held frame's publication on.
 struct LoopRecorder <: AbstractComponent
     task::Base.RefValue{Union{Nothing,Task}}
     hold::Threads.Atomic{Bool}
@@ -177,8 +178,8 @@ end
 LoopRecorder() = LoopRecorder(Ref{Union{Nothing,Task}}(nothing), Threads.Atomic{Bool}(false),
                               Threads.Atomic{Bool}(false))
 x_init(::LoopRecorder) = (q = 0.0,)
-y_types(::LoopRecorder) = (q = Float64,)
-y_state(::LoopRecorder, (; x)) = (q = x.q,)
+y_types(::LoopRecorder) = (q = Float64, held = Bool)
+y_state(c::LoopRecorder, (; x)) = (q = x.q, held = c.held[])
 function x_derivative(c::LoopRecorder, (; x, t))
     t > 0 && (c.task[] = current_task())
     if c.hold[]
@@ -503,42 +504,50 @@ function test_devices()
     end
 
     @testset "an interrupt past the inline body and outside the await still ends the loop inside run! (§11.1, §12.4)" begin
-        recorder = LoopRecorder()
-        sim = Simulation(single(recorder); h = 1//10)
-        dev = HeldInline()
-        attach!(sim, dev, Enumerated())
-        init!(sim)
-        caller = current_task()
-        wake = sim.control.wake
-        observer = Threads.@spawn begin
-            recorded = timedwait(() -> recorder.task[] !== nothing, 10.0) === :ok
-            recorder.hold[] = true               # a frame in flight when the interrupt lands
-            held = recorded && timedwait(() -> recorder.held[], 10.0) === :ok
-            # Holding the plane's lock parks the calling task on it once the body
-            # returns, where the inline entry is deregistered: outside the
-            # wrapper's catch and before the await's.
-            lock(wake)
-            sent = try
-                put!(dev.release, 1)
-                held && interrupt_parked(caller, wake.lock.cond_wait)
-            finally
-                unlock(wake)
+        # Twice: with no stop face, and with one the held frame's publication
+        # reaches, whose `ModelRequestedStop` only the awaited loop reports.
+        for stop_on in ((), ("held",))
+            recorder = LoopRecorder()
+            model = Group((; c = recorder); outputs = ("c/held" => "held",))
+            sim = Simulation(model; h = 1//10)
+            dev = HeldInline()
+            attach!(sim, dev, Enumerated())
+            init!(sim)
+            caller = current_task()
+            wake = sim.control.wake
+            observer = Threads.@spawn begin
+                recorded = timedwait(() -> recorder.task[] !== nothing, 10.0) === :ok
+                recorder.hold[] = true           # a frame in flight when the interrupt lands
+                held = recorded && timedwait(() -> recorder.held[], 10.0) === :ok
+                # Holding the control plane's lock parks the calling task on it once
+                # the body returns, where the inline entry is deregistered: outside
+                # the wrapper's catch and before the await's.
+                lock(wake)
+                sent = try
+                    put!(dev.release, 1)
+                    held && interrupt_parked(caller, wake.lock.cond_wait)
+                finally
+                    unlock(wake)
+                end
+                # the loop is released once run! awaits it, or at the hold's own cap
+                sent && timedwait(() -> parked_in(caller, recorder.task[].donenotify), 10.0)
+                recorder.hold[] = false
+                sent || stop!(sim)               # a regression fails below rather than hangs
+                sent
             end
-            # the loop is released once run! awaits it, or at the hold's own cap
-            sent && timedwait(() -> parked_in(caller, recorder.task[].donenotify), 10.0)
-            recorder.hold[] = false
-            sent || stop!(sim)                   # a regression fails below rather than hangs
-            sent
+            run!(sim; t_end = 1.0e6, stop_on)
+            loop_done = istaskdone(recorder.task[])   # read before anything else can let it end
+            @test fetch(observer)
+            @test loop_done                      # the loop ended inside run!, not after it
+            @test lifecycle(sim) === :stopped
+            @test termination(sim).source ===
+                  (isempty(stop_on) ? ControlRequestedStop(:interrupt) : ModelRequestedStop(:held))
+            clock = sim.exec.clock
+            @test latest(sim).frame == clock.frame && latest(sim).t == clock.t   # at a frame top
+            @test latest(sim).t == termination(sim).t   # no frame published past the record
+            # the body returned before the last publication read the registry (§12.2)
+            @test writer_status(latest(sim), "device 1 (HeldInline)").task_state === :done
         end
-        run!(sim; t_end = 1.0e6)
-        loop_done = istaskdone(recorder.task[])  # read before anything else can let it end
-        @test fetch(observer)
-        @test loop_done                          # the loop ended inside run!, not after it
-        @test lifecycle(sim) === :stopped
-        @test termination(sim).source === ControlRequestedStop(:interrupt)
-        clock = sim.exec.clock
-        @test latest(sim).frame == clock.frame && latest(sim).t == clock.t   # at a frame top
-        @test latest(sim).t == termination(sim).t   # no frame published past the record
     end
 
     @testset "paused reads the flag in every lifecycle state, and the verbs refuse none (§12.1, D-268)" begin
