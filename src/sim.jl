@@ -1356,13 +1356,15 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             # source or a budget halt alike. A spawned loop whose outcome was not
             # taken may still be running, and `run!` never returns before its
             # loop ends (§11.1): `_await_loop` removes the inline body's record,
-            # requests the stop and awaits the loop, the first two inside its
-            # `try` and retried when an interrupt cuts them short. The loop's
+            # requests the stop and awaits the loop, all inside its `try`, the
+            # first two retried when an interrupt cuts them short. The loop's
             # outcome then replaces the fallback, the `:interrupt` stop at its
             # next frame top or a face or halt it had already reached, and its
-            # throw is handled below as the other arm's is. An unattended loop
-            # runs on this task, so none is running here and no stop is
-            # requested. Where the interrupt came before the tail, the tail runs
+            # throw is handled below as the other arm's is. With no loop to
+            # await, the stop is still requested: an unattended loop ran on this
+            # task and is done, but a forced raise inside the spawn's mask can
+            # leave a loop scheduled and unbound, and the request is what ends
+            # it. Where the interrupt came before the tail, the tail runs
             # here, unmasked so a second interrupt still collapses it; `_finish!`
             # is idempotent, so running it after the loop's own is harmless. An
             # entry initialized but never spawned is released directly, a
@@ -1372,6 +1374,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             # second one in the arm's, inside `_await_loop`; the masked spawn and
             # the inline release are covered by reading.
             returned || (source = ControlRequestedStop(something((@atomic control.stop_issuer), :interrupt)))
+            returned || loop_task !== nothing || _request_stop!(control, :interrupt)
             if !returned && loop_task !== nothing
                 try
                     source = _await_loop(control, loop_task, plane)
@@ -1585,9 +1588,9 @@ end
 # runs inside the `try`, ahead of the wait, so an interrupt landing in it leaves
 # the stop pending for the next pass and never escapes as the loop's failure.
 # `run!`'s interrupt arm passes the plane: its call owes the stop from the
-# start and first removes the inline body's record from the registry, the
-# calling task having left that body (§12.2). The removal is retried as the
-# request is. The one window left open is the few instructions between the
+# start and first removes the inline body's record from the registry, which
+# was registered before the spawn whether or not the body ran (§12.2). The
+# removal is retried as the request is. The one window left open is the few instructions between the
 # `catch` and the next `try`.
 function _await_loop(control::Control, loop_task::Task,
                      plane::Union{Nothing,DataPlane} = nothing)

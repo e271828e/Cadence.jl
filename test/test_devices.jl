@@ -160,10 +160,12 @@ end
 # the test picks the moment the calling task leaves the wrapper (§11.1).
 mutable struct HeldInline <: AbstractDevice
     release::Channel{Int}
+    shutdowns::Int                           # the arm's release must not double the wrapper's
 end
-HeldInline() = HeldInline(Channel{Int}(1))
+HeldInline() = HeldInline(Channel{Int}(1), 0)
 needs_calling_task(::HeldInline) = true
 loop(dev::HeldInline, handle) = (take!(dev.release); nothing)
+shutdown!(dev::HeldInline) = (dev.shutdowns += 1; nothing)
 
 # A ramp whose derivative records the task it runs on past `t₀`: the frame
 # loop's, which a calling-task device moves to a spawned task (§11.1). Once
@@ -511,7 +513,7 @@ function test_devices()
         # whose `ModelRequestedStop` only the awaited loop reports. Each with one
         # interrupt, and with a second landing in the arm's own deregistration,
         # inside `_await_loop`'s `try`, which retries it.
-        for stop_on in ((), ("held",)), interrupts in (1, 2)
+        for stop_on in ((), ("held",)), interrupt_count in (1, 2)
             recorder = LoopRecorder()
             model = Group((; c = recorder); outputs = ("c/held" => "held",))
             sim = Simulation(model; h = 1//10)
@@ -531,7 +533,7 @@ function test_devices()
                 lock(wake)
                 sent = try
                     put!(dev.release, 1)
-                    held && all(_ -> interrupt_parked(caller, wake.lock.cond_wait), 1:interrupts)
+                    held && all(_ -> interrupt_parked(caller, wake.lock.cond_wait), 1:interrupt_count)
                 finally
                     unlock(wake)
                 end
@@ -553,6 +555,7 @@ function test_devices()
             @test latest(sim).t == termination(sim).t   # no frame published past the record
             # the body returned before the last publication read the registry (§12.2)
             @test writer_status(latest(sim), "device 1 (HeldInline)").task_state === :done
+            @test dev.shutdowns == 1             # the wrapper's; the arm's release saw it (§11.6)
         end
     end
 
