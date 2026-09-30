@@ -8559,14 +8559,16 @@ end
 
 **How handled.** The catch site wraps the original exception in `StepError`,
 the runtime counterpart of the `DiagnosticError` carrier. A `StepError` carries
-four things: the cursor's frame, the boundary time, the **frame-entry boundary
-index**, and the original exception as `cause`. The frame-entry boundary index
-is the [replay](#g-replay) pointer. It names the frame-top boundary at which
-the failing frame began. That frame top is a grid boundary or
-[boundary zero](#g-boundary-zero) (the initialization boundary: the ordinary
-macro-sequence with an empty integrate), and it is always a legal replay halt
-([§12.7][s12-7]). A `StepError` is rendered with compact frames per the
-doctrine ([§13.2][s13-2]).
+five things: the cursor's frame, the boundary time, the **frame-entry boundary
+index**, the host of the catch, and the original exception as `cause`. The
+frame-entry boundary index is the [replay](#g-replay) pointer. It names the
+frame-top boundary at which the failing frame began. That frame top is a grid
+boundary or [boundary zero](#g-boundary-zero) (the initialization boundary: the
+ordinary macro-sequence with an empty integrate), and it is always a legal
+replay halt ([§12.7][s12-7]). The host names the catch that took the throw. It
+is `:loop` for a throw inside a frame, and `:boundary_zero` for a throw inside
+the boundary zero that `init!` runs. A `StepError` is rendered with compact
+frames per the doctrine ([§13.2][s13-2]).
 
 Conformance failure ([§9.5][s9-5]) needs no separate path. At the table-write
 point it throws as every fail-fast site does, a `DiagnosticError` holding the
@@ -8598,6 +8600,7 @@ struct StepError{C <: Union{Diagnostic, Exception}} <: Exception
     cursor         # the cursor's frame at the catch
     t::Float64     # the boundary time
     boundary::Int  # the frame-entry boundary index: the replay pointer
+    host::Symbol   # :boundary_zero under init!, :loop inside a frame
     cause::C
 end
 ```
@@ -8625,19 +8628,21 @@ inside boundary zero arrives as a `StepError` from the one constructor. Its
 frame comes from the cursor, its time is `t₀`, and the species rule applies. An
 `InterruptException` inside boundary zero is not model code failing, and it has
 no stop path to take in a service. The host therefore moves the lifecycle to
-`built` and lets it propagate raw. The pointer is `0`, and at zero the recipe
-degenerates. A throw inside boundary zero leaves no trace and no [checkpoint](#g-checkpoint) (the
-executor's state at a frame top, as one value). The run `init!` opened stays
+`built` and lets it propagate raw. The pointer is `0`. A throw inside boundary
+zero leaves no trace and no [checkpoint](#g-checkpoint) (the executor's state
+at a frame top, as one value). The run `init!` opened stays
 behind, empty and with no trace header, and the run before it is gone. Nothing
 can use it, since `trace(sim)` and the advances refuse a `built` simulation.
-`init!` takes the trace header only after boundary zero publishes ([§11.5][s11-5]). Its
-reproduction is `init!` under the same condition, and the rendered recipe names
-it at zero ([D-274][d-274]). Boundary zero is frame one's entry boundary too, so a
-frame-one failure shares the pointer. Its run has a trace, and
-`replay!(sim2, trc)` reproduces it, restoring the header and then re-driving
-frame one from the record. The halt-then-`step!` form is the recipe from pointer
-`1` on. What differs is the disposition. Nothing was published and no advance
-was under way, so there is no tail to take and no snapshot to promote. The
+`init!` takes the trace header only after boundary zero publishes ([§11.5][s11-5]). The
+reproduction of a boundary-zero failure is `init!` under the same condition
+([D-274][d-274]). Boundary zero is frame one's entry boundary too, so a
+frame-one failure carries the same pointer. The carrier's `host` tells the two
+apart, and the rendered recipe reads it. A frame-one failure has a trace, and
+the halt-then-`step!` recipe above holds for it at pointer `0`. The halt
+restores the header and stops there, and `step!` re-executes frame one from
+the record. Boundary zero's disposition differs from the loop's as well.
+Nothing was published and no advance was under way, so there is no tail to
+take and no snapshot to promote. The
 simulation returns to `built`. `run!` and `step!` refuse it and name `init!`
 ([§12.6][s12-6]), while `init!`, `restore!` and `replay!` remain legal. The remedy for a
 condition that fails at `t₀` is a corrected condition, and `init!`
@@ -11396,9 +11401,9 @@ activation):
 - **`StepError`** ([§13.4][s13-4]). Error · runtime · fail-fast. The carrier.
   Cursor frame (component path, function, and the boundary phase, which is
   an RK stage, an event round, a localization trial evaluation or a tick),
-  boundary time, frame-entry boundary index (the replay pointer), and the
-  `cause`, a species' diagnostic or the original exception, its type the
-  parameter.
+  boundary time, frame-entry boundary index (the replay pointer), the host of
+  the catch (`:loop` or `:boundary_zero`), and the `cause`, a species'
+  diagnostic or the original exception, its type the parameter.
 - **`NonfiniteState`** ([§13.4][s13-4]). Error · runtime · fail-fast.
   Component path, the offending state block, boundary time and index.
 - **`ChatteringBudget`** ([§10.4][s10-4]). Warning · runtime · rate-limited.

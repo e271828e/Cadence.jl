@@ -11044,10 +11044,14 @@ is the trace's header, and replay is a restore followed by the feed.
   dispatch, as a reader or a trace is.
 - A throw inside boundary zero leaves no trace and no checkpoint, the
   simulation returning to `built` ([D-223][d-223]). The run `init!` opened
-  stays behind, empty. Its reproduction is
-  `init!` under the same condition, which the `StepError` names at pointer
-  0; the general recipe, restore to the pointer then `step!`, starts at
-  pointer 1.
+  stays behind, empty. Its reproduction is `init!` under the same
+  condition. Frame one shares pointer 0, and the `StepError`'s `host` tells
+  the two apart. The general recipe, restore to the pointer then `step!`,
+  holds from pointer 0 for a frame's failure. (Amended 2026-09-30: the
+  bullet started the general recipe at pointer 1, from the time one
+  rendered text served both failures at pointer 0. The halt at pointer 0
+  restores the header and runs no boundary zero, so frame one's record is
+  still ahead of it and `step!` re-executes that frame.)
 
 **Spec.** [§11.5][s11-5], [§12.6][s12-6], [§12.7][s12-7], [§13.7][s13-7], [§14.8][s14-8], [§14.10][s14-10], [Appendix B][sB]
 
