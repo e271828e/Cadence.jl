@@ -295,10 +295,12 @@ were derived.
 | [D-268][d-268] | Pause verbs on the simulation, and the interrupt's remaining windows | ratified |
 | [D-269][d-269] | Pacing's spellings and default, the wait's consultation and the pacer's home | ratified |
 | [D-270][d-270] | Fix the framework's half of the panel convention: port views, the peek, the orphan fact | ratified |
-| [D-271][d-271] | Admit the component index on `get_input` and `get_face` | ratified |
+| [D-271][d-271] | Admit the component index on `get_input` and `get_face` | superseded → [D-275][d-275] |
 | [D-272][d-272] | Fix `linearize`'s surface: the tap set, the chunk width, the operating point and the return | ratified |
 | [D-273][d-273] | A condition is an initial condition: `capture` leaves the algebra | ratified |
 | [D-274][d-274] | Checkpoints: the executor's state as one value, restored without boundary zero | ratified |
+| [D-275][d-275] | Spell the exhaustive activation mode as the `activations` keyword alone | ratified |
+| [D-275][d-275] | Address a leaf inside a port value by a dotted leaf address | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -10819,7 +10821,7 @@ crash from a return.
 
 ### D-271 — Admit the component index on `get_input` and `get_face`
 
-**Status.** ratified
+**Status.** superseded → [D-275][d-275]
 
 **Position.** The two table selectors take the optional component index
 their three siblings carry: `get_input(face[, i])` and `get_face(name[, i])`.
@@ -10920,6 +10922,11 @@ column was considered and rejected, because the column reads as "no
 effect" where the effect is temporal and held. `t0` is admitted only
 beside `about`, and passed without it is refused rather than silently
 ignored, the default operating point carrying the capture's own time.
+
+Annotation (2026-09-30): the component index is spelled inside [D-275][d-275]'s leaf
+address, `get_state("p", "q[1]")`, and the tap rule reads "a tap's leaf
+address resolves to one scalar"; a tap resolving to a vector or a bundle is
+what resolution refuses.
 
 ### D-273 — A condition is an initial condition: `capture` leaves the algebra
 
@@ -11100,6 +11107,119 @@ from frame `k+1`.
 - *A partial first frame after a `t*` checkpoint:* the loop integrates
   whole frames; refusing the mid-frame checkpoint keeps the lattice, and the
   extension waits for a use.
+
+### D-275 — Spell the exhaustive activation mode as the `activations` keyword alone
+
+**Status.** ratified
+
+**Position.** [§9.4][s9-4]'s exhaustive mode is `build(root; activations = …)`, and
+the framework ships no separate `check` entry point.
+
+**Spec.** [§9.4][s9-4]
+
+**Rationale.** The keyword already runs the exhaustive set that the CI
+policy of [D-166][d-166] and [D-263][d-263] asks for. A user's CI test spells the call inside
+a `@test`, as the repository's own sweep does. [§9.4][s9-4] once offered "a `check`
+entry" as a second spelling, with no body, no contract and no other
+reference, so the ruling removes a name rather than a mechanism.
+
+**Rejected.**
+- *A `check(root)` wrapper over the keyword:* its body would be one call to
+  `build`. The name is as generic as an identifier gets and would share a
+  namespace with user domain code, the concern the exported-name audit
+  already carries for `condition`, `at` and `combine`. Its failure contract,
+  throwing at the first refusal or collecting across a component set, is
+  test policy, which the suite owns.
+
+### D-275 — Address a leaf inside a port value by a dotted leaf address
+
+**Status.** ratified
+
+**Position.** The second argument of every read selector is a *leaf address*,
+a string naming one leaf of the addressed field: the field or face name,
+followed by `.name` and `[k]` or `[k,l]` steps in any order.
+`get_output("kin", "pose.q_eb[2]")`, `get_state("dyn", "ω_eb_b[1]")` and
+`get_input("wind[1]")` are the spellings. The trailing component index of
+[D-271][d-271] retires.
+
+- A bare `Symbol` is the short form of a plain field or face name:
+  `get_state("kin", :θ)` is `get_state("kin", "θ")`.
+- Each step is checked at resolution against the type resolved so far. A
+  `.name` step needs an isbits struct with that field. An index step needs an
+  `SArray`, with one index (linear) or one per dimension. A step never enters
+  an opaque leaf (a field handle, a `Symbol`), which is read whole or not at
+  all.
+- The address is a field of the selector value, never a type parameter. The
+  baked read carries the resolved step chain as a type parameter and executes
+  it as `getfield` and `getindex` calls unrolled at compile time.
+- A store selector takes a field name with at most an index step, since the
+  state is flat ([§7.1][s7-1]).
+- A binding read admits the leaf address as every inspection reader does,
+  and the binding register's gather is the family's baked read. The index
+  refusal on binding reads goes.
+- Diagnostics spell a matrix leaf `m[i,j]`, so an error names a leaf in the
+  spelling a selector takes.
+- Wiring stays port-granular ([§4.3][s4-3]). A consumer wanting less than a bundle
+  destructures it, in its own stage or through an unbundling component that
+  takes the bundle and publishes its fields, a candidate for [§13.7][s13-7]'s library.
+
+**Spec.** [§4.2][s4-2], [§4.3][s4-3], [§14.4][s14-4], [§14.7][s14-7], [§14.10][s14-10], [Appendix B][sB]
+
+**Rationale.** A bundle port such as `pose = KinPose{T}` is one cell ([D-036][d-036]),
+and the family addressed a port whole or by one index into a vector leaf.
+[§4.2][s4-2]'s flat namespace and [§4.3][s4-3]'s lazy drilling described a GUI affordance and
+promised no addressing surface, and the 2026-09-04 audit read them as one
+(`docs/reports/20260904_conformance/a_foundations.md`, 4.3). The remedy [§4.3][s4-3]
+offered, publishing a hot field loose beside the bundle, asks the author to
+foresee every consumer, which a reusable component cannot. An unbundling
+component answers that for wired consumers with no new rule. It does not
+answer it for a query. A linearization tap names one scalar, and adding a
+component to a model in order to ask a question of it is model surgery. The
+leaf address serves the query side alone.
+
+The state needs none of it. [§7.1][s7-1] keeps it flat, so a store selector takes at
+most an index step. [D-094][d-094]'s flatness annotation cited the readers addressing
+a field as one leaf; that reason no longer holds, and the state stays flat on
+its other grounds. Lifting it is a separate ruling with a write-side question
+of its own, how a fragment setting `pose.q` composes with one setting `pose`.
+
+The spelling is the one the framework already prints. The leaf walk's
+diagnostic names are dotted with bracketed indices, so a user pastes an
+error's leaf into a selector unchanged. The address lives in the selector
+value, so a `reads` or `taps` value is one concrete type however its members
+are spelled, and the compiled read specializes once per distinct address,
+exactly as it did per distinct index. Folding the index into the string
+leaves the family one grammar. A matrix leaf takes `[k,l]` because the
+grammar has to print one either way, and the linear `[k]` stays legal as
+Julia's own convention. [D-040][d-040] rejected dotted *paths* because a path's last
+segment is a port, not a field. The leaf address begins after the port, and
+every segment of it is a Julia field or index, so the affordance it suggests
+is the true one.
+
+**Rejected.**
+- *Publishing the wanted field loose beside the bundle ([§4.3][s4-3]'s fan-out) as
+  the general remedy:* the author must foresee the consumer; kept as an
+  optimization for a known hot field.
+- *An unbundling component in place of the leaf address:* right for wiring,
+  wrong for a query, and unable to reach a root input or a face without
+  changing the model.
+- *Sub-field wiring:* the port stops being the atomic unit ([D-036][d-036],
+  unchanged).
+- *A symbol chain before the index, `get_output(path, :pose, :q_eb, 2)`:*
+  readable at depth one, noisy below, and it keeps the trailing integer that
+  reads as a field at a glance.
+- *A keyword path beside the field:* reads worst of the three, and leaves two
+  ways to spell one read.
+- *Keeping the integer index beside the string:* two grammars in one family,
+  where the family's point is one address space.
+- *The address as a type parameter of the selector:* every `reads` and `taps`
+  value a distinct type, resolution specialized per selector, no runtime
+  gain.
+- *Nested `NamedTuple`s in the state:* nothing unsound bars them, but nothing
+  asks for them either; the tree and flat names serve the cases found, and
+  the write side owes a composition rule first.
+- *A linear index only, `[k,l]` as a later extension:* the grammar prints a
+  matrix leaf either way, and deciding it once is cheaper than revisiting.
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
@@ -11376,6 +11496,7 @@ from frame `k+1`.
 [d-272]: #d-272--fix-linearizes-surface-the-tap-set-the-chunk-width-the-operating-point-and-the-return
 [d-273]: #d-273--a-condition-is-an-initial-condition-capture-leaves-the-algebra
 [d-274]: #d-274--checkpoints-the-executors-state-as-one-value-restored-without-boundary-zero
+[d-275]: #d-275--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

@@ -24,14 +24,17 @@ Where the reason is not given here, the cited decision carries it:
 - **The NLopt fallback** (§14.8, H 4.5): `NLoptBackend(:LN_BOBYQA)` as a
   package extension, the squared and normalized objective at `stopval = 1`,
   and the nominal-activation loop it would run on.
-- **Sub-port-field addressing** (§4.2, A 4.3): no selector drills into a
-  nested field of a bundle port; a ruling on the spelling comes first.
-- **Index addressing in the binding register** (§14.4, M-B23): a binding
+- **The leaf address** (§14.4, D-275, A 4.3): every selector still takes
+  `(path, field[, i])`. Unbuilt: the dotted address with the index absorbed,
+  the bare-`Symbol` short form, the per-step checks, the `[k,l]` matrix step,
+  the baked step chain in the compiled read, the matrix spelling in
+  `leaf_names`, and the retirement of `i` (D-271 superseded).
+- **The leaf address in the binding register** (§14.4, D-275): a binding
   read refuses the component index on every table member
-  (`ReadBindingUnresolved`, `:indexed`), where §14.4's table admits it for
-  inspection readers.
-- **The `check` entry point** (M-B23): §9.7 names it once, in a
-  parenthetical; whether it is a rule is a ruling to raise.
+  (`ReadBindingUnresolved`, `:indexed`) and `ReadGather` holds bare cell
+  addresses. D-275 moves the binding gather onto the family's baked read.
+  The 2026-09-04 audit did not reach this item (`01_merge.md`, the §14
+  paragraph).
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
   spellings) (M-B22).

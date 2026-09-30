@@ -471,8 +471,10 @@ This requirement has four consequences.
 ### 4.2 Consumers see ports, not stages
 
 The [port](#g-port) is the addressable unit. A [component](#g-component)'s outputs appear to consumers, the
-GUI and logs as one flat namespace (`dyn.vel`, `dyn.f_c_c`), which can be
-materialized lazily as a view. Which output stage computes which port is an
+GUI and logs as one flat namespace of ports (`dyn.vel`, `dyn.f_c_c`). A
+reader reaches a leaf inside a port value through the port's
+[leaf address](#g-leaf-address) (the field name with dotted and bracketed
+steps below it, [§14.4][s14-4]). Which output stage computes which port is an
 ordering annotation, invisible outside the component. Moving an output between
 stages is non-breaking *for consumers*. No wire, log or panel sees it. The build
 does see it, because the [feedthrough](#g-feedthrough) graph and stage membership change ([§9.1][s9-1]).
@@ -527,8 +529,10 @@ Name collisions across a component's stages are a build error.
 **Stage returns are named tuples of port values, period.** A custom struct is a
 first-class port *value*. It is one field of the returned tuple, one declared
 port, one cell (`pose = KinPose{T}`). Nested fields get no cells of their own.
-GUI and logs drill into them lazily (the view clause, [§4.2][s4-2]). Bare-struct returns
-are rejected ([D-036][d-036]).
+A reader reaches one through the port's [leaf address](#g-leaf-address) (the
+field name with dotted and bracketed steps below it), `"pose.q_eb"`
+([§14.4][s14-4], [D-275][d-275]), and a wired consumer takes the bundle whole. Bare-struct
+returns are rejected ([D-036][d-036]).
 
 A port value's leaves are what the leaf walk reaches through `Real`s, static
 arrays and isbits structs. An enum is one leaf, pinned ([§8.2][s8-2]). The walk
@@ -544,8 +548,11 @@ opaque leaf surfacing as a root input, which has no synthesis
 #### Granularity, read side
 
 **Rule.** Wiring is port-granular. There are no sub-field connections. A
-consumer that wants less than a bundle asks the producer for a loose port, or
-takes the bundle and destructures. A field-projection connector is a [guarded
+consumer that wants less than a bundle takes the bundle and destructures it,
+in its own stage or through an unbundling component (a `y_direct` leaf that
+takes the bundle and publishes its fields, a candidate for the standard
+library of [§13.7][s13-7]), or asks the producer for a loose port ([D-275][d-275]). A
+field-projection connector is a [guarded
 addition](#g-guarded-addition) (a capability the design admits but does not
 build). Its shape is obvious, and it is not built.
 
@@ -3944,9 +3951,10 @@ or declared `Pinned` at a leaf that really participates (the misplaced pin,
 detonates it at the probe, naming the offending constructor or leaf. The
 repository's test suite pins the invariant instead, as policy rather than
 advice ([D-166][d-166]). **Every component gets a `Dual` activation built in CI.**
-`build(world; activations = (Float64, ProbeDual))` (or a `check` entry) runs
-the exhaustive set, catching both genericity violations and misplaced pins
-at PR time, at the cost of an activation per component. The same
+`build(world; activations = (Float64, ProbeDual))` runs the exhaustive set,
+catching both genericity violations and misplaced pins at PR time, at the
+cost of an activation per component. The keyword is the whole entry point,
+and no separate check function exists ([D-275][d-275]). The same
 keyword is also recommended for the parallel-sweep idiom ([§11.1][s11-1]).
 Pre-materialize the activations the sweep will need, and the shared `Build`
 is a fully immutable artifact, with no synchronization on any path.
@@ -9432,12 +9440,22 @@ plans nor readers are user values.
 #### The read-selector family
 
 **The read-[selector](#g-selector) family is closed.** Its members are
-`get_state(path, field[, i])`, `get_deriv(path, field[, i])`,
-`get_output(path, field[, i])`, `get_input(face[, i])` and
-`get_face(name[, i])`. They form one address space for every reader of the
-model. `i` is the optional component index, admitted on every member. The
-read is then the leaf's `i`-th component, so a vector leaf yields named
-scalars ([D-271][d-271]).
+`get_state(path, leaf)`, `get_deriv(path, leaf)`, `get_output(path, leaf)`,
+`get_input(leaf)` and `get_face(leaf)`. They form one address space for every
+reader of the model.
+
+**Rule.** `leaf` is a [leaf address](#g-leaf-address): the field or face
+name, followed by `.name` and `[k]` or `[k,l]` steps in any order, as in
+`"pose.q_eb[2]"`, `"ω_eb_b[1]"` or `"J[1,3]"`. A bare `Symbol` is the short
+form of a plain name, so `get_state("kin", :θ)` reads `get_state("kin", "θ")`.
+Each step is checked at resolution against the type resolved so far. A
+`.name` step needs an isbits struct with that field. An index step needs an
+`SArray`, with one index or one per dimension, and a vector leaf thereby
+yields named scalars. A step never enters an opaque leaf (a field handle or
+a `Symbol`), which is read whole. A store selector takes at most an index
+step, since the state is flat ([§7.1][s7-1]). The address is checked once and baked,
+and the read runs as field loads and indexing unrolled at compile time
+([D-275][d-275]).
 
 The names carry a deliberate `get_` prefix. A selector is a *deferred read*, a
 value describing the read the compiled gather will perform. The prefix names
@@ -9490,7 +9508,7 @@ sides restated as a resolver property.
   every client. The component exports it ([§14.7][s14-7]).
 - **Inspection readers admit the whole family, within the source rule.**
   Output-[device](#g-device) bindings, GUI panels and log inspection take deep
-  paths and `get_face` names alike. The store selectors reach only the
+  paths, `get_face` names and leaf addresses alike. The store selectors reach only the
   inspection clients that actually hold stores (`checkpoint`, post-run
   inspection). A snapshot-bound reader is barred from them by source, not by
   client.
@@ -9502,11 +9520,11 @@ The five selectors, their sources, and their clients:
 
 | selector | resolves against | service reads | inspection readers |
 |---|---|---|---|
-| `get_state(path, field[, i])` | live stores | named in the contract | only clients that hold stores |
-| `get_deriv(path, field[, i])` | live stores | named in the contract | only clients that hold stores |
-| `get_output(path, field[, i])` | a table source | named in the contract | admitted |
-| `get_input(face[, i])` | a table source | named in the contract | admitted |
-| `get_face(name[, i])` | a table source | named in the contract | admitted |
+| `get_state(path, leaf)` | live stores | named in the contract | only clients that hold stores |
+| `get_deriv(path, leaf)` | live stores | named in the contract | only clients that hold stores |
+| `get_output(path, leaf)` | a table source | named in the contract | admitted |
+| `get_input(leaf)` | a table source | named in the contract | admitted |
+| `get_face(leaf)` | a table source | named in the contract | admitted |
 
 **Compiled readers are the gather twin** over this family and the layout
 tables. Trim's cost read (`ẋ` and output fields) and linearization's
@@ -9739,14 +9757,16 @@ against today's `c172.jl`.
   function ([§14.2][s14-2]), applied per iteration by the compiled plan
   ([§14.4][s14-4]).
 - **The read side is declared, then compiled.** The spelling is
-  `reads(name = get_state(path, field) | get_deriv(path, field) |
-  get_output(path, field) | get_input([face](#g-face)) | get_face(name),
-  ...)`, the service read set ([§14.4][s14-4]). `get_state` and `get_deriv`
+  `reads(name = get_state(path, leaf) | get_deriv(path, leaf) |
+  get_output(path, leaf) | get_input(leaf) | get_face(leaf), ...)`, the
+  service read set ([§14.4][s14-4]), each `leaf` a
+  [leaf address](#g-leaf-address) (the field name with dotted and bracketed
+  steps below it). `get_state` and `get_deriv`
   address a declared state field and its derivative (validated against
   `x_init`/`s_init`). `get_output` addresses a declared output
   [port](#g-port) (validated against `y_types`). `get_input` and
-  `get_face` address a root input and an output face (validated against the
-  root face lists). The path [selectors](#g-selector) (the closed family of
+  `get_face` address a root input [face](#g-face) and an output face
+  (validated against the root face lists). The path [selectors](#g-selector) (the closed family of
   deferred reads resolving against a source) reach only through the locality
   scopes ([§6.1][s6-1]). An equilibrium equation crossing a generic seam
   reads a face. A value a [component](#g-component) computes without
@@ -10253,19 +10273,20 @@ list. The `x` list takes `get_state`, the `u` list `get_input`, and the `y`
 list `get_output` and `get_face` ([§14.4][s14-4]). The NamedTuple key is the
 label control design slices by.
 
-**Rule.** A tap names one scalar. Every member carries the optional
-[component](#g-component) index, so a vector leaf yields *named scalars*, one
-tap per component ([D-271][d-271]). A tap naming a vector leaf without an
-index is rejected at resolution, and so is a member in the wrong list. Two
+**Rule.** A tap names one scalar. Its [leaf address](#g-leaf-address) (the
+field name with dotted and bracketed steps below it, [§14.4][s14-4], [D-275][d-275])
+resolves to one scalar leaf, so a vector leaf yields *named scalars*, one
+tap per [component](#g-component). A tap resolving to a vector or a bundle is
+rejected at resolution, and so is a member in the wrong list. Two
 taps resolving to one site are rejected together, both labels in hand: one
 site is one column, and a second seed there would overwrite the first
 ([D-272][d-272]).
 
 ```julia
-taps(x = (p = get_state("vehicle/dynamics", :ω_eb_b, 1),
+taps(x = (p = get_state("vehicle/dynamics", "ω_eb_b[1]"),
           θ = get_state("vehicle/kinematics", :θ_nb), …),
-     u = (throttle_cmd = get_input("throttle"),
-          wind_n = get_input("wind", 1), …),
+     u = (throttle_cmd = get_input(:throttle),
+          wind_n = get_input("wind[1]"), …),
      y = (EAS = get_output("vehicle/airflow", :EAS), …))
 ```
 
@@ -10926,8 +10947,9 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   ignored.
   `taps(x = (…), u = (…), y = (…))` builds the tap set, three
   labeled selector lists with closed membership (`x`: `get_state`; `u`:
-  `get_input`; `y`: `get_output`, `get_face`), every tap one scalar, indexed
-  on a vector leaf ([§14.10][s14-10], [D-271][d-271], [D-272][d-272]).
+  `get_input`; `y`: `get_output`, `get_face`), every tap a
+  [leaf address](#g-leaf-address) resolving to one scalar
+  ([§14.4][s14-4], [§14.10][s14-10], [D-272][d-272], [D-275][d-275]).
 
 **Running.**
 
@@ -12211,10 +12233,18 @@ recomputation. The clock is the criterion. Wall-clock interactions are
 devices ([§12.5][s12-5]).
 
 <a id="g-selector"></a>**selector (read-selector family)** — the closed set of deferred reads
-`get_state`/`get_deriv`/`get_output`/`get_input`/`get_face`. Each resolves
+`get_state`/`get_deriv`/`get_output`/`get_input`/`get_face`, each naming one
+leaf by its leaf address. Each resolves
 against a source before any client policy applies. Table sources are a
 boundary snapshot or a service evaluation's scratch tables; the other source
 is the live stores ([§14.4][s14-4]).
+
+<a id="g-leaf-address"></a>**leaf address** — a selector's second argument: the field or face
+name followed by `.name` and `[k]` or `[k,l]` steps in any order, naming one
+leaf of a port value or one component of a state leaf (`"pose.q_eb[2]"`,
+`"J[1,3]"`). A bare `Symbol` is the short form of a plain name. Each step is
+checked at resolution and the chain is baked into the compiled read
+([§14.4][s14-4], [D-275][d-275]).
 
 <a id="g-should_abort"></a>**`should_abort`** — the per-attachment failure policy, an `attach!` keyword
 defaulting to `false`. Set, a device's departure (loop body returning,
@@ -12397,7 +12427,7 @@ terminal for all four services ([§14][s14]).
 
 <a id="g-taps"></a>**taps** — the three selector lists (`x`, `u`, `y`), built by `taps`,
 declaring what linearization seeds and reports. Every tap names one scalar,
-by component index on a vector leaf. They are validated at resolution
+by a leaf address resolving to one scalar leaf. They are validated at resolution
 (`TapResolution`) and relocatable via `at` ([§14.10][s14-10]).
 
 <a id="g-trimproblem"></a>**`TrimProblem`** — the closed nine-field value
@@ -12720,10 +12750,10 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-268]: decisions.md#d-268--pause-verbs-on-the-simulation-and-the-interrupts-remaining-windows
 [d-269]: decisions.md#d-269--pacings-spellings-and-default-the-waits-consultation-and-the-pacers-home
 [d-270]: decisions.md#d-270--fix-the-frameworks-half-of-the-panel-convention-port-views-the-peek-the-orphan-fact
-[d-271]: decisions.md#d-271--admit-the-component-index-on-get_input-and-get_face
 [d-272]: decisions.md#d-272--fix-linearizes-surface-the-tap-set-the-chunk-width-the-operating-point-and-the-return
 [d-273]: decisions.md#d-273--a-condition-is-an-initial-condition-capture-leaves-the-algebra
 [d-274]: decisions.md#d-274--checkpoints-the-executors-state-as-one-value-restored-without-boundary-zero
+[d-275]: decisions.md#d-275--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

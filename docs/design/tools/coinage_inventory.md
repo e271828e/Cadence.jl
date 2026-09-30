@@ -55,6 +55,7 @@ context wants.
 | `Schedule` | — | D-254's typed tick timing; folded into the existing `g-schedule` entry rather than given one of its own |
 | `Run` | — | D-255's run state; Appendix D entry `g-run`, bucket A from here on |
 | `StopPolicy` | — | D-255's per-advance policy value; Appendix D entry `g-stop-policy`, bucket A |
+| leaf address | 7 | D-275's selector argument; §4.2, §4.3, §14.4, §14.7, §14.10, Appendix B; Appendix D entry `g-leaf-address`, bucket A from here on |
 | artifact | — | D-250's criterion word; Appendix D entry `g-artifact` in D.10, bucket A |
 | state | — | D-250's other criterion word; Appendix D entry `g-state-single-owner` in D.10, bucket A |
 
