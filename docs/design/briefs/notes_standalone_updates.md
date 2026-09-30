@@ -205,3 +205,39 @@ Left for the user, with a recommendation each:
     to 5:19. The coordinator added one guard after the agent's commit: a
     real interrupt during a nominal build stops the sweep instead of being
     counted as a pass-through.
+19. **`run!`'s interrupt arm awaits the spawned loop** (commits `e2df80f`,
+    `0376fd2` and one test commit after them; gate green, 4021). The ruling
+    was the bullet's own text. The arm requests the stop, awaits the loop
+    with `_await_loop`, takes the loop's outcome as the source, and feeds a
+    loop failure into one block shared with the other arm. The agent found
+    a deterministic test: the observer holds the control plane's lock, so
+    the calling task parks in the deregistration `finally`, outside every
+    catch, and takes the interrupt there. A cold reviewer then ran over
+    the change. Its one real finding: a third interrupt landing inside
+    `_await_loop`'s own stop request escaped as the loop's failure and
+    ended the run `errored`. The coordinator ruled the fix into
+    `_await_loop` itself, a pending flag with the request inside the `try`,
+    so the ordinary path is covered by the same change. The reviewer's
+    other findings, the inline body's stale registration, a rebound `err`,
+    a test that could not tell the loop's outcome from the arm's fallback,
+    and two wordings, were fixed too; the reviewer verified the delta. The
+    coordinator then removed a timing dependence the verification found:
+    the hold cap is now a 30 s safety net and the observers release the
+    held frame themselves. That commit ran `devices` on both thread
+    layouts and not the full gate, since it touches that file's tests
+    alone.
+
+Left for the user, from the cold review, all older than these commits:
+
+- An interrupt landing in the arm's own first lines, before the await's
+  `try` (the stop request, and now the registration's removal), escapes
+  the arm: no tail runs, the loop is not awaited, and the lifecycle lands
+  `initialized`. The reviewer suggests guarding the removal with a `try`
+  that swallows the interrupt, or naming the window in the arm's comment.
+- An interrupt after `Threads.@spawn` schedules the loop but before
+  `loop_task` is assigned reaches the arm with no loop to await.
+- The inline entry is never `shutdown!` when the interrupt lands between
+  the others' spawn and the wrapper's `try`, since the tail filters it out.
+- The non-interrupt arm runs no tail for a throw that came before it.
+- `implementation.md` says "The inline wrapper removes its entry"; the
+  removal is `_run_body!`'s `finally`.
