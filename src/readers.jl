@@ -12,9 +12,9 @@
 #
 # This file sits above the data plane because the selectors are its vocabulary
 # too: an output binding's `reads` (§11.2, bindings.jl) names the three table
-# members of the family declared here. Every member carries the optional
-# component index (§14.4, D-271): a linearization tap on a vector leaf needs it
-# (linearize.jl), and a binding read refuses it. What it needs from the
+# members of the family declared here. Every member takes a leaf address
+# (§14.4, D-276): a linearization tap on a vector leaf needs it (linearize.jl),
+# and a binding read refuses a step for now. What it needs from the
 # condition algebra — the `x`-offset walk and the "is this path a level of the
 # build at all" predicate — it calls at resolution time, which is long after
 # conditions.jl has been read.
@@ -22,10 +22,9 @@
 # --- the selector family (§14.4), closed --------------------------------------
 
 """
-§14.4's read-selector family, closed: `get_state(path, field[, i])`,
-`get_deriv(path, field[, i])`, `get_output(path, field[, i])`,
-`get_input(face[, i])` and `get_face(name[, i])` — one address space for every
-reader of the model.
+§14.4's read-selector family, closed: `get_state(path, leaf)`,
+`get_deriv(path, leaf)`, `get_output(path, leaf)`, `get_input(leaf)` and
+`get_face(leaf)` — one address space for every reader of the model.
 
 The names carry a deliberate `get_` prefix. A selector is a *deferred read*: a
 value describing the read the compiled gather will perform, inert until it is
@@ -49,66 +48,188 @@ and stores are addressable: there is no selector for a value a component
 computes without declaring it, and the remedy is the same in every case —
 the component exports it (§5.2, §8.3).
 
-`i` is the optional component index, admitted on every member (§14.4, D-271):
-the read is `v[i]`, so a vector leaf yields named scalars. Absent, the whole
-value is read.
+`leaf` is a leaf address (§14.4, D-276): the field or face name, then `.name`
+and `[k]` or `[k,l]` steps in any order, `"pose.q_eb[2]"`. A bare `Symbol` is
+the short form of a plain name. The address is kept as authored and parsed at
+resolution, where each step is checked against the declared type.
 """
 struct GetState
     path::String
-    field::Symbol
-    i::Union{Nothing,Int}
+    leaf::Union{Symbol,String}
 end
 
 struct GetDeriv
     path::String
-    field::Symbol
-    i::Union{Nothing,Int}
+    leaf::Union{Symbol,String}
 end
 
 struct GetOutput
     path::String
-    name::Symbol
-    i::Union{Nothing,Int}
+    leaf::Union{Symbol,String}
 end
 
 struct GetInput
-    face::Symbol
-    i::Union{Nothing,Int}
+    leaf::Union{Symbol,String}
 end
 
 struct GetFace
-    name::Symbol
-    i::Union{Nothing,Int}
+    leaf::Union{Symbol,String}
 end
 
 const ReadSelector = Union{GetState,GetDeriv,GetOutput,GetInput,GetFace}
 const StoreSelector = Union{GetState,GetDeriv}
 
-_index_arg(::Nothing) = nothing
-_index_arg(index::Integer) = Int(index)
-_index_arg(index) = throw(DiagnosticError(
-    ArgumentInvalid(call = :selector, reason = :index_not_integer, value = index)))
+_authored_leaf(leaf::Symbol) = leaf
+_authored_leaf(leaf::AbstractString) = String(leaf)
 
-get_state(path::AbstractString, field::Union{Symbol,AbstractString}, i = nothing) =
-    GetState(String(path), Symbol(field), _index_arg(i))
-get_deriv(path::AbstractString, field::Union{Symbol,AbstractString}, i = nothing) =
-    GetDeriv(String(path), Symbol(field), _index_arg(i))
-get_output(path::AbstractString, name::Union{Symbol,AbstractString}, i = nothing) =
-    GetOutput(String(path), Symbol(name), _index_arg(i))
-get_input(face::Union{Symbol,AbstractString}, i = nothing) = GetInput(Symbol(face), _index_arg(i))
-get_face(name::Union{Symbol,AbstractString}, i = nothing) = GetFace(Symbol(name), _index_arg(i))
+get_state(path::AbstractString, leaf::Union{Symbol,AbstractString}) =
+    GetState(String(path), _authored_leaf(leaf))
+get_deriv(path::AbstractString, leaf::Union{Symbol,AbstractString}) =
+    GetDeriv(String(path), _authored_leaf(leaf))
+get_output(path::AbstractString, leaf::Union{Symbol,AbstractString}) =
+    GetOutput(String(path), _authored_leaf(leaf))
+get_input(leaf::Union{Symbol,AbstractString}) = GetInput(_authored_leaf(leaf))
+get_face(leaf::Union{Symbol,AbstractString}) = GetFace(_authored_leaf(leaf))
 
 # The selector as authored, for the diagnostics: a refusal names the read the
-# way its author wrote it, which is what makes a collected list readable.
-_ipart(index) = index === nothing ? "" : ", $index"
-_spell(selector::GetState) =
-    "get_state(\"$(selector.path)\", :$(selector.field)$(_ipart(selector.i)))"
-_spell(selector::GetDeriv) =
-    "get_deriv(\"$(selector.path)\", :$(selector.field)$(_ipart(selector.i)))"
-_spell(selector::GetOutput) =
-    "get_output(\"$(selector.path)\", :$(selector.name)$(_ipart(selector.i)))"
-_spell(selector::GetInput) = "get_input(:$(selector.face)$(_ipart(selector.i)))"
-_spell(selector::GetFace) = "get_face(:$(selector.name)$(_ipart(selector.i)))"
+# way its author wrote it, which is what makes a collected list readable. A
+# `Symbol` leaf prints as `:θ`, a string one in quotes.
+_spell(selector::GetState) = "get_state(\"$(selector.path)\", $(repr(selector.leaf)))"
+_spell(selector::GetDeriv) = "get_deriv(\"$(selector.path)\", $(repr(selector.leaf)))"
+_spell(selector::GetOutput) = "get_output(\"$(selector.path)\", $(repr(selector.leaf)))"
+_spell(selector::GetInput) = "get_input($(repr(selector.leaf)))"
+_spell(selector::GetFace) = "get_face($(repr(selector.leaf)))"
+
+# The address as authored, without the quotes: the payloads' `leaf`.
+_leaf_string(selector) = String(selector.leaf)
+
+# --- the leaf address (§14.4, D-276) --------------------------------------------
+# Parsed and resolved once, in the collecting form; nothing here runs per read.
+# A step is a `Symbol` for `.name` and an `Int` tuple for `[k]` or `[k,l]`, so a
+# resolved chain of steps is a legal type parameter.
+
+const LeafStep = Union{Symbol,Tuple{Vararg{Int}}}
+
+"""
+One step a leaf address cannot take (§14.4, D-276): the reason, the step as
+spelled (`".q"`, `"[2,3]"`), the type in hand at that step, and the field
+names in hand where a `.name` step missed. Not a diagnostic: each caller wraps
+it in its own kind.
+"""
+struct LeafRefusal
+    reason::Symbol   # :leaf_syntax|:no_such_field|:opaque_leaf|:not_indexable|
+                     # :index_arity|:index_bounds
+    step::String
+    declared::Any
+    candidates::Vector{Symbol}
+end
+
+LeafRefusal(reason::Symbol, step::AbstractString, declared = nothing) =
+    LeafRefusal(reason, String(step), declared, Symbol[])
+
+_step_string(name::Symbol) = ".$name"
+_step_string(index::Tuple{Vararg{Int}}) = "[" * join(index, ",") * "]"
+
+# Where a name run starting at `start` ends: the first `.` or `[`, or past the end.
+_name_end(leaf::String, start::Int) =
+    something(findnext(c -> c == '.' || c == '[', leaf, start), ncodeunits(leaf) + 1)
+
+"""
+    parse_leaf(leaf) → (head, steps) | LeafRefusal
+
+Split a leaf address into its head name and its steps, `"pose.q_eb[2,3]"` into
+`(:pose, [:q_eb, (2, 3)])`. A `Symbol` is its string. A name is a Julia
+identifier; an index step is one or more decimal integers of at least one,
+separated by `,`. Anything else is `:leaf_syntax` with the fragment it stopped
+at.
+"""
+parse_leaf(leaf::Symbol) = parse_leaf(String(leaf))
+
+function parse_leaf(leaf::String)
+    stop = _name_end(leaf, 1)
+    head = leaf[1:prevind(leaf, stop)]
+    Base.isidentifier(head) || return LeafRefusal(:leaf_syntax,
+        isempty(head) ? leaf[1:min(stop, ncodeunits(leaf))] : head)
+    steps = LeafStep[]
+    start = stop
+    while start <= ncodeunits(leaf)
+        if leaf[start] == '.'
+            stop = _name_end(leaf, start + 1)
+            name = leaf[start+1:prevind(leaf, stop)]
+            Base.isidentifier(name) ||
+                return LeafRefusal(:leaf_syntax, leaf[start:prevind(leaf, stop)])
+            push!(steps, Symbol(name))
+        elseif leaf[start] == '['
+            closing = findnext(==(']'), leaf, start)
+            closing === nothing && return LeafRefusal(:leaf_syntax, leaf[start:end])
+            index = map(split(leaf[start+1:prevind(leaf, closing)], ',')) do digits
+                all(isdigit, digits) ? something(tryparse(Int, digits), 0) : 0
+            end
+            all(≥(1), index) || return LeafRefusal(:leaf_syntax, leaf[start:closing])
+            push!(steps, Tuple(index))
+            stop = closing + 1
+        else
+            return LeafRefusal(:leaf_syntax,
+                               leaf[start:prevind(leaf, _name_end(leaf, start))])
+        end
+        start = stop
+    end
+    (Symbol(head), steps)
+end
+
+"""
+    resolve_leaf(P, steps) → (chain, leaf_type) | LeafRefusal
+
+Walk the declared type `P` through the steps (§14.4, D-276). A `.name` step
+needs an isbits struct with that field and never enters an opaque leaf; an
+index step needs a static array, one index or one per dimension, within its
+size. The chain is the steps as a tuple, the baked read's type parameter;
+nothing is checked against a value.
+"""
+function resolve_leaf(::Type{P}, steps) where {P}
+    in_hand = P
+    for step in steps
+        if step isa Symbol
+            if in_hand <: Union{Real,Enum,StaticArray} || !(in_hand isa DataType) ||
+               isabstracttype(in_hand)
+                return LeafRefusal(:no_such_field, _step_string(step), in_hand)
+            end
+            _opaque(in_hand) && return LeafRefusal(:opaque_leaf, _step_string(step), in_hand)
+            field_names = Symbol[name for name in fieldnames(in_hand) if name isa Symbol]
+            step in field_names ||
+                return LeafRefusal(:no_such_field, _step_string(step), in_hand, field_names)
+            in_hand = fieldtype(in_hand, step)
+        else
+            in_hand <: StaticArray ||
+                return LeafRefusal(:not_indexable, _step_string(step), in_hand)
+            length(step) == 1 || length(step) == ndims(in_hand) ||
+                return LeafRefusal(:index_arity, _step_string(step), in_hand)
+            checkbounds(Bool, LinearIndices(size(in_hand)), step...) ||
+                return LeafRefusal(:index_bounds, _step_string(step), in_hand)
+            in_hand = eltype(in_hand)
+        end
+    end
+    (Tuple(steps), in_hand)
+end
+
+"""
+    walk_leaf(value, Val(chain))
+
+Run a resolved chain on a value: a `Symbol` step is `getfield`, an index step
+`getindex`, unrolled at generation so the read carries no loop and no branch.
+The empty chain is the value itself.
+"""
+@generated function walk_leaf(value, ::Val{C}) where {C}
+    expr = :value
+    for step in C
+        expr = step isa Symbol ? :(getfield($expr, $(QuoteNode(step)))) :
+                                 :(getindex($expr, $(step...)))
+    end
+    quote
+        $(Expr(:meta, :inline))
+        $expr
+    end
+end
 
 # --- the declared read set (§14.7) ---------------------------------------------
 
@@ -143,47 +264,44 @@ function _reads(selectors::NamedTuple)
 end
 
 # --- the compiled reader (§14.4) ------------------------------------------------
-# One entry per selector, its leaf type and its index in the entry's *type*, so
-# the gather is a tuple walk the compiler unrolls: no dictionary, no address
-# arithmetic and no branch survives resolution. The four entry kinds are the
-# four homes a read can come from — the flat state buffer, the derivative
-# buffer beside it, a discrete component's own store, and the signal table.
+# One entry per selector, its leaf type and its resolved chain in the entry's
+# *type*, so the gather is a tuple walk the compiler unrolls: no dictionary, no
+# address arithmetic and no branch survives resolution. The four entry kinds
+# are the four homes a read can come from — the flat state buffer, the
+# derivative buffer beside it, a discrete component's own store, and the
+# signal table. `C` is the chain `walk_leaf` runs on the value read there; the
+# empty chain reads it whole.
 
-struct StateRead{P,I}
+struct StateRead{P,C}
     offset::Int
-    i::I
 end
 
-struct DerivRead{P,I}
+struct DerivRead{P,C}
     offset::Int
-    i::I
 end
 
-struct StoreRead{S,F,I}
+struct StoreRead{S,F,C}
     ci::Int
-    i::I
 end
 
-struct CellRead{A,I}
+struct CellRead{A,C}
     addr::A
-    i::I
 end
 
-_take(value, ::Nothing) = value
-_take(value, index::Int) = value[index]
-
-@inline _read(entry::StateRead{P}, exec::Executor) where {P} =
-    _take(reconstruct(P, exec.xbuf, entry.offset), entry.i)
-@inline _read(entry::DerivRead{P}, exec::Executor) where {P} =
-    _take(reconstruct(P, exec.ẋbuf, entry.offset), entry.i)
+@inline _read(entry::StateRead{P,C}, exec::Executor) where {P,C} =
+    walk_leaf(reconstruct(P, exec.xbuf, entry.offset), Val(C))
+@inline _read(entry::DerivRead{P,C}, exec::Executor) where {P,C} =
+    walk_leaf(reconstruct(P, exec.ẋbuf, entry.offset), Val(C))
 # The `s` stores are held by component index in a `Vector{Any}` — one store
 # type per component type, not per model — so the baked store type is what
 # keeps the read inferable. The assertion goes on the *reference*: asserting
 # the dereferenced value instead leaves the `[]` a dynamic call, which boxes.
-@inline _read(entry::StoreRead{S,F}, exec::Executor) where {S,F} =
-    _take(getfield((exec.sstores[entry.ci]::Base.RefValue{S})[], F), entry.i)
-@inline _read(entry::CellRead, exec::Executor) =
-    _take(gather_cell(exec.store, entry.addr), entry.i)
+@inline _read(entry::StoreRead{S,F,C}, exec::Executor) where {S,F,C} =
+    walk_leaf(getfield((exec.sstores[entry.ci]::Base.RefValue{S})[], F), Val(C))
+# The signal table's read is store-level, so every gather over a table shares it.
+@inline _read(entry::CellRead{A,C}, store::StoreBundle) where {A,C} =
+    walk_leaf(gather_cell(store, entry.addr), Val(C))
+@inline _read(entry::CellRead, exec::Executor) = _read(entry, exec.store)
 
 """
 One compiled read set (§14.4): the labels as a type parameter, the resolved
@@ -276,12 +394,19 @@ function _read_component(selector, label::Symbol, structure::Structure,
 end
 
 # One `TapResolution` off a selector: the label and the selector as authored are
-# what makes a collected list readable, and the tap set, path and index come off
-# the selector's own kind (§14.10's payload); each arm adds what it observed.
+# what makes a collected list readable, and the tap set, path and leaf address
+# come off the selector itself (§14.10's payload); each arm adds what it observed.
 _reader_violation(label::Symbol, selector, reason::Symbol; kw...) =
     TapResolution(; label = label, selector = _spell(selector), reason = reason,
                   tap = _tap(selector), path = _selpath(selector),
-                  index = _selindex(selector), kw...)
+                  leaf = _leaf_string(selector), kw...)
+
+# A step the leaf address cannot take, with what `resolve_leaf` or `parse_leaf`
+# had in hand (§14.4, D-276).
+_leaf_violation(label::Symbol, selector, refusal::LeafRefusal) =
+    _reader_violation(label, selector, refusal.reason; field = _field(selector),
+                      step = refusal.step, declared = refusal.declared,
+                      candidates = refusal.candidates)
 
 _tap(::Union{GetState,GetDeriv}) = :x
 _tap(::Union{GetOutput,GetFace}) = :y
@@ -289,17 +414,30 @@ _tap(::GetInput) = :u
 
 _selpath(selector::Union{GetState,GetDeriv,GetOutput}) = selector.path
 _selpath(::Union{GetInput,GetFace}) = ""
-_selindex(selector) = selector.i
 
-# `i` is checked against the resolved leaf's declared type in exactly one
-# respect: `getindex` has to mean something there. A scalar leaf is refused;
-# nothing further is checked, the index being the author's own coordinate
-# choice over a value whose length the schema does not fix everywhere.
-function _check_index(selector, label::Symbol, ::Type{P},
-                      diags::Vector{Diagnostic}) where {P}
-    (selector.i === nothing || !(P <: Real)) && return true
-    push!(diags, _reader_violation(label, selector, :scalar_index; declared = P))
-    false
+# The head name the leaf address starts with, the payloads' `field`; `nothing`
+# when the address does not parse.
+function _field(selector)
+    parsed = parse_leaf(selector.leaf)
+    parsed isa LeafRefusal ? nothing : first(parsed)
+end
+
+# The parsed address, or `nothing` with its refusal collected.
+function _parsed_leaf(selector, label::Symbol, diags::Vector{Diagnostic})
+    parsed = parse_leaf(selector.leaf)
+    parsed isa LeafRefusal || return parsed
+    push!(diags, _leaf_violation(label, selector, parsed))
+    nothing
+end
+
+# The chain the steps resolve to under the declared type `P`, or `nothing` with
+# the refusal collected. The schema's types decide everything (§14.4).
+function _leaf_chain(selector, label::Symbol, ::Type{P}, steps,
+                     diags::Vector{Diagnostic}) where {P}
+    resolved = resolve_leaf(P, steps)
+    resolved isa LeafRefusal || return first(resolved)
+    push!(diags, _leaf_violation(label, selector, resolved))
+    nothing
 end
 
 _undeclared_violation(label::Symbol, selector, declares::Symbol, declared::NamedTuple) =
@@ -312,87 +450,102 @@ _undeclared_violation(label::Symbol, selector, declares::Symbol, declared::Vecto
     _reader_violation(label, selector, :undeclared; declares = declares, field = _field(selector),
                       candidates = declared)
 
-_field(selector::Union{GetState,GetDeriv}) = selector.field
-_field(selector::GetOutput) = selector.name
-
 function _resolve_selector(selector::GetState, label::Symbol, build::Build,
                            act::Activation, diags::Vector{Diagnostic})
     ci = _read_component(selector, label, build.structure, diags)
     ci === nothing && return nothing
+    parsed = _parsed_leaf(selector, label, diags)
+    parsed === nothing && return nothing
+    head, steps = parsed
     decl, tier = act.decls[ci], build.structure.components[ci].tier
     declared = state_decls(decl, tier)
-    haskey(declared, selector.field) ||
+    haskey(declared, head) ||
         (push!(diags, _undeclared_violation(label, selector, :state_field, declared));
          return nothing)
-    field_type = typeof(declared[selector.field])
-    _check_index(selector, label, field_type, diags) || return nothing
+    # A state field is a scalar or an `SArray` (§7.1), so a `.name` step falls
+    # out of the walk as a field the leaf does not have.
+    field_type = typeof(declared[head])
+    chain = _leaf_chain(selector, label, field_type, steps, diags)
+    chain === nothing && return nothing
     tier === CONTINUOUS ?
-        StateRead{field_type,typeof(selector.i)}(
-            first(act.layout.xblocks[ci]) - 1 + _leaf_offset(decl.x, selector.field), selector.i) :
-        StoreRead{typeof(decl.s),selector.field,typeof(selector.i)}(ci, selector.i)
+        StateRead{field_type,chain}(first(act.layout.xblocks[ci]) - 1 + _leaf_offset(decl.x, head)) :
+        StoreRead{typeof(decl.s),head,chain}(ci)
 end
 
 function _resolve_selector(selector::GetDeriv, label::Symbol, build::Build,
                            act::Activation, diags::Vector{Diagnostic})
     ci = _read_component(selector, label, build.structure, diags)
     ci === nothing && return nothing
+    parsed = _parsed_leaf(selector, label, diags)
+    parsed === nothing && return nothing
+    head, steps = parsed
     decl, tier = act.decls[ci], build.structure.components[ci].tier
     if tier !== CONTINUOUS
-        push!(diags, _reader_violation(label, selector, :discrete_deriv; field = selector.field))
+        push!(diags, _reader_violation(label, selector, :discrete_deriv; field = head))
         return nothing
     end
-    haskey(decl.x, selector.field) ||
+    haskey(decl.x, head) ||
         (push!(diags, _undeclared_violation(label, selector, :state_field, decl.x));
          return nothing)
-    field_type = typeof(decl.x[selector.field])
-    _check_index(selector, label, field_type, diags) || return nothing
+    field_type = typeof(decl.x[head])
+    chain = _leaf_chain(selector, label, field_type, steps, diags)
+    chain === nothing && return nothing
     # `ẋ` has `x`'s shape at the activation scalar (§7.1), so the derivative of
     # a state field sits at the state field's own offset in the other buffer.
-    DerivRead{field_type,typeof(selector.i)}(
-        first(act.layout.xblocks[ci]) - 1 + _leaf_offset(decl.x, selector.field),
-        selector.i)
+    DerivRead{field_type,chain}(first(act.layout.xblocks[ci]) - 1 + _leaf_offset(decl.x, head))
 end
 
 function _resolve_selector(selector::GetOutput, label::Symbol, build::Build,
                            act::Activation, diags::Vector{Diagnostic})
     ci = _read_component(selector, label, build.structure, diags)
     ci === nothing && return nothing
+    parsed = _parsed_leaf(selector, label, diags)
+    parsed === nothing && return nothing
+    head, steps = parsed
     decl = act.decls[ci]
     ports = _ports(build.outputs.components[ci])
-    selector.name in ports ||
+    head in ports ||
         (push!(diags, _undeclared_violation(label, selector, :output_port, ports));
          return nothing)
     # The port's *type* is the activation's, a type being no name list (D-253).
-    _check_index(selector, label, decl.outs[selector.name], diags) || return nothing
-    addr = act.layout.addr[(selector.path, selector.name)]
-    CellRead{typeof(addr),typeof(selector.i)}(addr, selector.i)
+    chain = _leaf_chain(selector, label, decl.outs[head], steps, diags)
+    chain === nothing && return nothing
+    addr = act.layout.addr[(selector.path, head)]
+    CellRead{typeof(addr),chain}(addr)
 end
 
 function _resolve_selector(selector::GetInput, label::Symbol, build::Build,
                            act::Activation, diags::Vector{Diagnostic})
-    if !(selector.face in build.structure.root_inputs)
-        push!(diags, _reader_violation(label, selector, :unknown_root_input; field = selector.face,
+    parsed = _parsed_leaf(selector, label, diags)
+    parsed === nothing && return nothing
+    head, steps = parsed
+    if !(head in build.structure.root_inputs)
+        push!(diags, _reader_violation(label, selector, :unknown_root_input; field = head,
                                        candidates = build.structure.root_inputs))
         return nothing
     end
-    addr = act.layout.addr[("", selector.face)]
-    _check_index(selector, label, _port_type(addr), diags) || return nothing
-    CellRead{typeof(addr),typeof(selector.i)}(addr, selector.i)
+    addr = act.layout.addr[("", head)]
+    chain = _leaf_chain(selector, label, _port_type(addr), steps, diags)
+    chain === nothing && return nothing
+    CellRead{typeof(addr),chain}(addr)
 end
 
 function _resolve_selector(selector::GetFace, label::Symbol, build::Build,
                            act::Activation, diags::Vector{Diagnostic})
+    parsed = _parsed_leaf(selector, label, diags)
+    parsed === nothing && return nothing
+    head, steps = parsed
     exported = Symbol[face for ((face_path, face), _) in build.structure.out_faces
                       if isempty(face_path)]
-    if !(selector.name in exported)
-        push!(diags, selector.name in build.structure.root_inputs ?
-                    _reader_violation(label, selector, :root_input_not_face;
-                                      field = selector.name) :
-                    _reader_violation(label, selector, :unknown_output_face; field = selector.name,
+    if !(head in exported)
+        push!(diags, head in build.structure.root_inputs ?
+                    _reader_violation(label, selector, :root_input_not_face; field = head) :
+                    _reader_violation(label, selector, :unknown_output_face; field = head,
                                       candidates = exported))
         return nothing
     end
-    addr = act.layout.addr[("", selector.name)]
-    _check_index(selector, label, _port_type(addr), diags) || return nothing
-    CellRead{typeof(addr),typeof(selector.i)}(addr, selector.i)
+    addr = act.layout.addr[("", head)]
+    chain = _leaf_chain(selector, label, _port_type(addr), steps, diags)
+    chain === nothing && return nothing
+    CellRead{typeof(addr),chain}(addr)
 end

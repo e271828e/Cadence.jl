@@ -3,7 +3,8 @@
 # passes of `width` directions over D-213's two-half scratch world, and the
 # returned value checked against the closed forms. The fixtures live at top
 # level for `implementation.md`'s local-scope reason; `PEND_G_L` and `PEND_C` are
-# test_trim.jl's, `resume_condition` test_lifecycle.jl's.
+# test_trim.jl's, `resume_condition` test_lifecycle.jl's, `LeafPose`
+# test_readers.jl's.
 
 # The walkthrough's model: a sum of two root inputs drives the pendulum's
 # torque, and two faces leave the root, one of them the sum's feedthrough.
@@ -50,6 +51,22 @@ u_types(::TimedDecay) = (u = Float64,)
 y_types(::TimedDecay) = (q = Float64,)
 y_state(::TimedDecay, (; x)) = (q = x.q,)
 x_derivative(::TimedDecay, (; x, u, t)) = (q = -t * x.q^2 + u.u,)
+
+# A matrix state, `ṁ = M·m` with `M = [-1 0; 0.5 -2]`, so
+# `∂ṁ[i,j]/∂m[k,l] = M[i,k]·δ(j,l)`: a tap's column shows which entry it seeded.
+struct MatrixDecay <: AbstractComponent end
+x_init(::MatrixDecay) = (m = SMatrix{2,2}(1.0, 2.0, 3.0, 4.0),)
+y_types(::MatrixDecay) = (m11 = Float64,)
+y_state(::MatrixDecay, (; x)) = (m11 = x.m[1, 1],)
+x_derivative(::MatrixDecay, (; x)) = (m = SMatrix{2,2}(-1.0, 0.5, 0.0, -2.0) * x.m,)
+
+# A consumer of a struct-typed root input, for the `u` list's `.name` step.
+struct PoseConsumer <: AbstractComponent end
+x_init(::PoseConsumer) = (q = 0.0,)
+u_types(::PoseConsumer) = (pose = LeafPose{Float64},)
+y_types(::PoseConsumer) = (q = Float64,)
+y_state(::PoseConsumer, (; x)) = (q = x.q,)
+x_derivative(::PoseConsumer, (; x, u)) = (q = u.pose.v[1] - x.q,)
 
 # Two linearizations field for field: the value holds matrices, so `==` on the
 # struct would compare them by identity.
@@ -190,14 +207,14 @@ function test_linearize()
         @test setdiff(Set(keys(materialized.activations)), before) == Set([ForwardDiff.Dual{LinearizeTag,Float64,3}])
     end
 
-    @testset "indexed taps on vector leaves, on both sides (§14.10, D-271)" begin
+    @testset "indexed taps on vector leaves, on both sides (§14.10, D-276)" begin
         # ω = 2, ζ = 0.1, k = 2: `u = -k·qin₁ = -1`, `power = u·q₂`, so
         # ∂power/∂q₂ = u and ∂power/∂qin₁ = -k·q₂.
         sim = Simulation(lin_vector(); h = 1//10)
         init!(sim, lin_vector_point())
-        linearization = linearize(sim, taps(x = (q1 = get_state("p", :q, 1), q2 = get_state("p", :q, 2)),
-                                u = (qin1 = get_input(:qin, 1), qin2 = get_input(:qin, 2)),
-                                y = (q1 = get_face(:q, 1), q2 = get_face(:q, 2),
+        linearization = linearize(sim, taps(x = (q1 = get_state("p", "q[1]"), q2 = get_state("p", "q[2]")),
+                                u = (qin1 = get_input("qin[1]"), qin2 = get_input("qin[2]")),
+                                y = (q1 = get_face("q[1]"), q2 = get_face("q[2]"),
                                      power = get_face(:power))))
         @test isapprox(linearization.A, [0 1; -4 -0.4]; atol = 1e-12)
         @test isapprox(linearization.B, [0 0; -2 0]; atol = 1e-12)
@@ -205,6 +222,35 @@ function test_linearize()
         @test isapprox(linearization.D, [0 0; 0 0; -0.4 0]; atol = 1e-12)
         @test linearization.x₀ == (q1 = 0.1, q2 = 0.2) && linearization.u₀ == (qin1 = 0.5, qin2 = 0.0)
         @test linearization.y₀.power == -0.2
+    end
+
+    @testset "a matrix leaf's `[k,l]` tap seeds the entry its linear `[k]` names (§14.10, D-276)" begin
+        sim = Simulation(single(MatrixDecay()); h = 1//10)
+        init!(sim)
+        by_indices = linearize(sim, taps(x = (m11 = get_state("c", "m[1,1]"), m21 = get_state("c", "m[2,1]"),
+                                              m12 = get_state("c", "m[1,2]"), m22 = get_state("c", "m[2,2]"))))
+        by_linear = linearize(sim, taps(x = (m1 = get_state("c", "m[1]"), m2 = get_state("c", "m[2]"),
+                                             m3 = get_state("c", "m[3]"), m4 = get_state("c", "m[4]"))))
+        @test isapprox(by_indices.A, kron(Matrix(1.0I, 2, 2), [-1 0; 0.5 -2]); atol = 1e-12)
+        @test isapprox(by_indices.A[:, 3], [0, 0, -1, 0.5]; atol = 1e-12)     # `m[1,2]`'s column
+        @test by_indices.A == by_linear.A                                    # column for column
+        @test by_indices.x₀ == (m11 = 1.0, m21 = 2.0, m12 = 3.0, m22 = 4.0)
+        # One entry is one site, whichever spelling names it.
+        d = only(diagnostics(failure(() -> linearize(sim, taps(
+            x = (a = get_state("c", "m[1,2]"), b = get_state("c", "m[3]")))))))
+        @test d.reason === :duplicate_site && d.label === :b && d.duplicate_of === :a
+    end
+
+    @testset "a seed follows index steps alone: a `.name` step is unseedable (§14.10, D-036, D-276)" begin
+        # A seed writes a whole cell or one `SArray` component, and there is no
+        # lens into a struct's slots, so the step is refused before any seed.
+        sim = Simulation(fed(PoseConsumer(), "pose"); h = 1//10)
+        about = fragment(inputs = (in = LeafPose(SVector(1.0, 0.0, 0.0),
+                                                 SMatrix{2,2}(1.0, 0.0, 0.0, 1.0)),))
+        d = only(diagnostics(failure(() -> linearize(sim, taps(u = (v1 = get_input("in.v[1]"),));
+                                                     about = about))))
+        @test d isa TapResolution && d.reason === :unseedable && d.tap === :u && d.field === :in
+        @test d.step == ".v" && d.declared === LeafPose{Float64} && isempty(d.pinning)
     end
 
     @testset "the frozen discrete tier holds, and its cell is the established one (§14.10, D-213, D-197)" begin
@@ -238,9 +284,9 @@ function test_linearize()
     @testset "resolution collects every tap violation into one refusal (§14.10, §13.1)" begin
         sim = Simulation(lin_vector(); h = 1//10)
         init!(sim, lin_vector_point())
-        err = failure(() -> linearize(sim, taps(x = (a = get_state("p", :q), b = get_deriv("p", :q, 1)),
-                                                u = (c = get_face(:q, 1), d = get_input(:nope)),
-                                                y = (e = get_state("p", :q, 1), f = get_face(:q)))))
+        err = failure(() -> linearize(sim, taps(x = (a = get_state("p", :q), b = get_deriv("p", "q[1]")),
+                                                u = (c = get_face("q[1]"), d = get_input(:nope)),
+                                                y = (e = get_state("p", "q[1]"), f = get_face(:q)))))
         @test err isa DiagnosticError && length(diagnostics(err)) == 6            # the full list, one throw
         @test all(d -> d isa TapResolution, diagnostics(err))
         by_label = Dict(d.label => d for d in diagnostics(err))
@@ -252,9 +298,10 @@ function test_linearize()
         @test by_label[:e].reason === :tap_kind && by_label[:e].list === :y
         @test by_label[:f].reason === :vector_tap
 
-        # An index on a `Float64` state is the read side's own refusal, unchanged.
-        d = only(diagnostics(failure(() -> linearize(lin_pend_sim(), taps(x = (θ = get_state("c", :θ, 1),))))))
-        @test d isa TapResolution && d.reason === :scalar_index && d.declared === Float64
+        # An index on a `Float64` state is the read side's own refusal (D-276).
+        d = only(diagnostics(failure(() -> linearize(lin_pend_sim(), taps(x = (θ = get_state("c", "θ[1]"),))))))
+        @test d isa TapResolution && d.reason === :not_indexable && d.declared === Float64 &&
+              d.step == "[1]"
     end
 
     @testset "two seeds at one site are refused naming the earlier label, and a y tap may repeat (§14.10)" begin
@@ -272,8 +319,8 @@ function test_linearize()
         vector_sim = Simulation(lin_vector(); h = 1//10)
         init!(vector_sim, lin_vector_point())
         d = only(diagnostics(failure(() -> linearize(vector_sim, taps(
-            x = (q1 = get_state("p", :q, 1), q2 = get_state("p", :q, 2), again = get_state("p", :q, 1)))))))
-        @test d.reason === :duplicate_site && d.label === :again && d.duplicate_of === :q1 && d.index == 1
+            x = (q1 = get_state("p", "q[1]"), q2 = get_state("p", "q[2]"), again = get_state("p", "q[1]")))))))
+        @test d.reason === :duplicate_site && d.label === :again && d.duplicate_of === :q1 && d.leaf == "q[1]"
 
         # A `y` row is a read, not a seed.
         linearization = linearize(sim, taps(x = (θ = get_state("c", :θ),), y = (a = get_face(:θ), b = get_face(:θ))))
@@ -295,12 +342,12 @@ function test_linearize()
         @test d.call === :linearize && d.reason === :non_nominal && occursin("Dual", d.value)
     end
 
-    @testset "the two indexed table selectors read a component (§14.4, D-271)" begin
+    @testset "the two table selectors read a component through the leaf address (§14.4, D-276)" begin
         sim = Simulation(lin_vector(); h = 1//10)
         init!(sim, lin_vector_point())
-        reader = _compile_reads(reads(a = get_input(:qin, 2), b = get_face(:q, 1)), sim.deployment.build)
+        reader = _compile_reads(reads(a = get_input("qin[2]"), b = get_face("q[1]")), sim.deployment.build)
         @test gather_reads(reader, sim.exec) === (a = 0.0, b = 0.1)
-        d = carried(@test_throws DiagnosticError{ArgumentInvalid} get_input(:qin, "1"))
-        @test d.reason === :index_not_integer
+        # The trailing index is retired: no selector takes a third argument.
+        @test_throws MethodError get_input(:qin, 1)
     end
 end

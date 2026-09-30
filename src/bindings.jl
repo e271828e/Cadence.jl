@@ -177,45 +177,48 @@ _resolve_read(::Layout, selector::StoreSelector, binding_type::Type, device::Str
                                selector = _spell(selector), reason = :store_selector,
                                path = _selpath(selector), field = _field(selector))))
 
-function _resolve_read(layout::Layout, selector::GetOutput, binding_type::Type, device::String)
-    selector.i === nothing || throw(DiagnosticError(
+# The name a binding read takes: a plain name alone, an address with steps or
+# one that does not parse refused alike, until the binding register takes the
+# leaf address (§14.4, docs/design/pending.md).
+function _plain_name(selector, binding_type::Type, device::String)
+    parsed = parse_leaf(selector.leaf)
+    (parsed isa LeafRefusal || !isempty(last(parsed))) && throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :indexed,
-                               path = selector.path, field = selector.name)))
-    haskey(layout.addr, (selector.path, selector.name)) || throw(DiagnosticError(
+                               path = _selpath(selector), field = _field(selector))))
+    first(parsed)
+end
+
+function _resolve_read(layout::Layout, selector::GetOutput, binding_type::Type, device::String)
+    name = _plain_name(selector, binding_type, device)
+    haskey(layout.addr, (selector.path, name)) || throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :unknown_cell,
-                               path = selector.path, field = selector.name,
+                               path = selector.path, field = name,
                                candidates = _cells_at(layout, selector.path))))
-    layout.addr[(selector.path, selector.name)]
+    layout.addr[(selector.path, name)]
 end
 
 function _resolve_read(layout::Layout, selector::GetInput, binding_type::Type, device::String)
-    selector.i === nothing || throw(DiagnosticError(
-        ReadBindingUnresolved(device = device, binding = _typename(binding_type),
-                               selector = _spell(selector), reason = :indexed,
-                               field = selector.face)))
-    selector.face in _root_input_names(layout) || throw(DiagnosticError(
+    face = _plain_name(selector, binding_type, device)
+    face in _root_input_names(layout) || throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :unknown_root_input,
-                               field = selector.face, candidates = _root_input_names(layout))))
-    layout.addr[("", selector.face)]
+                               field = face, candidates = _root_input_names(layout))))
+    layout.addr[("", face)]
 end
 
 function _resolve_read(layout::Layout, selector::GetFace, binding_type::Type, device::String)
-    selector.i === nothing || throw(DiagnosticError(
-        ReadBindingUnresolved(device = device, binding = _typename(binding_type),
-                               selector = _spell(selector), reason = :indexed,
-                               field = selector.name)))
-    selector.name in _root_input_names(layout) && throw(DiagnosticError(
+    name = _plain_name(selector, binding_type, device)
+    name in _root_input_names(layout) && throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :root_input_not_output,
-                               field = selector.name)))
-    haskey(layout.addr, ("", selector.name)) || throw(DiagnosticError(
+                               field = name)))
+    haskey(layout.addr, ("", name)) || throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :unknown_output_face,
-                               field = selector.name, candidates = _root_output_faces(layout))))
-    layout.addr[("", selector.name)]
+                               field = name, candidates = _root_output_faces(layout))))
+    layout.addr[("", name)]
 end
 
 """

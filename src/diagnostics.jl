@@ -1636,14 +1636,17 @@ message(d::UninitializedInputs) =
 Base.@kwdef struct TapResolution <: Diagnostic
     label::Symbol                            # the read's label in the set
     selector::String                         # the selector as authored
-    reason::Symbol   # :assembly_path|:scalar_index|:undeclared|:discrete_deriv|
+    reason::Symbol   # :assembly_path|:undeclared|:discrete_deriv|
                      # :unknown_root_input|:root_input_not_face|:unknown_output_face|
+                     # the leaf address's (§14.4, D-276): :leaf_syntax|:no_such_field|
+                     # :opaque_leaf|:not_indexable|:index_arity|:index_bounds|
                      # the tap set's (§14.10): :tap_kind|:discrete_state|:vector_tap|:unseedable|
                      # :duplicate_site
     tap::Union{Nothing,Symbol} = nothing     # :x | :u | :y
     path::String = ""
     field::Union{Nothing,Symbol} = nothing
-    index::Union{Nothing,Int} = nothing
+    leaf::String = ""                        # the leaf address as authored
+    step::String = ""                        # the step at fault, as spelled
     declares::Union{Nothing,Symbol} = nothing  # :state_field | :output_port
     declared::Any = nothing
     candidates::Vector{Symbol} = Symbol[]
@@ -1659,24 +1662,49 @@ _tap_noun(declares) = declares === :output_port ? "output port" : "state field"
 _tap_list_kinds(list) = list === :x ? "`get_state` alone" :
                         list === :u ? "`get_input` alone" : "`get_output` and `get_face`"
 
-# The tap set and the index come off the selector's own kind, so every arm has
-# them and the shared prefix shows them: which of `x`/`u`/`y` the read addresses
-# is §14.10's payload, and the index is the coordinate the author wrote. The
-# citation is the clause's own, one group per message.
+# The tap set comes off the selector's own kind, so every arm has it and the
+# shared prefix shows it: which of `x`/`u`/`y` the read addresses is §14.10's
+# payload. The citation is the clause's own, one group per message.
 _tap_violation(d, what, citation = "§14.4") =
     "the read labeled `$(d.label)` is $(d.selector)" *
-    (d.tap === nothing ? "" :
-     " (tap `$(d.tap)`" * (d.index === nothing ? "" : ", index $(d.index)") * ")") *
-    ", and $what ($citation)"
+    (d.tap === nothing ? "" : " (tap `$(d.tap)`)") * ", and $what ($citation)"
+
+const LEAF_REASONS = (:leaf_syntax, :no_such_field, :opaque_leaf, :not_indexable,
+                      :index_arity, :index_bounds)
+
+# The six leaf-address refusals, one clause each naming the step at fault
+# (§14.4, D-276). Shared by every kind that carries `leaf`, `step`, `declared`
+# and `candidates`; the caller adds its prefix and the citation.
+function _leaf_clause(d)
+    d.reason === :leaf_syntax &&
+        return (isempty(d.leaf) ? "its leaf address is empty" :
+                "its leaf address `$(d.leaf)` cannot be read at `$(d.step)`") *
+               " — an address is a name followed by `.name` and `[k]` or `[k,l]` steps"
+    d.reason === :no_such_field &&
+        return "`$(d.step)` steps into `$(d.declared)`, which has no " *
+               (isempty(d.candidates) ? "fields" :
+                "field `$(d.step[2:end])` — its fields are $(_namelist(d.candidates))")
+    d.reason === :opaque_leaf &&
+        return "`$(d.step)` steps into `$(d.declared)`, an opaque leaf the walk stops at " *
+               "— it is read whole"
+    d.reason === :not_indexable &&
+        return "`$(d.step)` indexes `$(d.declared)`, which has no components — an index " *
+               "step takes an `SArray`"
+    d.reason === :index_arity &&
+        return "`$(d.step)` gives $(_count_word(count(==(','), d.step) + 1)) indices to " *
+               "`$(d.declared)`, which takes " *
+               (ndims(d.declared) == 1 ? "one" : "one or $(_count_word(ndims(d.declared)))")
+    "`$(d.step)` is outside `$(d.declared)`"
+end
+
+_count_word(n::Int) = n ≤ 4 ? ("one", "two", "three", "four")[n] : string(n)
 
 function message(d::TapResolution)
     d.reason === :assembly_path &&
         return _tap_violation(d, "$(_at_path(d.path)) is an assembly — a path selector addresses " *
                            "a component's own declarations, and a root-exported face is " *
                            "read with `get_face`")
-    d.reason === :scalar_index &&
-        return _tap_violation(d, "the leaf it names is declared $(d.declared) — a scalar has no " *
-                           "index, and `i` addresses a component of a vector leaf")
+    d.reason in LEAF_REASONS && return _tap_violation(d, _leaf_clause(d), "§14.4, D-276")
     d.reason === :discrete_deriv &&
         return _tap_violation(d, "$(_at_path(d.path)) is a discrete component — a discrete `s` " *
                            "has no derivative, and `ẋ` exists on the continuous tier alone",
@@ -1696,7 +1724,8 @@ function message(d::TapResolution)
                            "the sampled-data step map Φ", "§14.10, D-197")
     d.reason === :vector_tap &&
         return _tap_violation(d, "the leaf it names is declared $(d.declared) — a tap is one " *
-                           "scalar, so write one indexed tap per component", "§14.10, D-271")
+                           "scalar, so write one tap per component, each with an index step",
+                           "§14.10, D-276")
     d.reason === :unseedable && return _tap_violation(d, _unseedable_clause(d)...)
     d.reason === :duplicate_site &&
         return _tap_violation(d, "it resolves to the site the tap labeled `$(d.duplicate_of)` " *
@@ -1717,10 +1746,15 @@ end
 # pins by its declared entry, which the author can promote (D-167, D-168); one on
 # the discrete tier pins by tier, with nothing to promote (§8.2, D-272).
 function _unseedable_clause(d::TapResolution)
+    isempty(d.pinning) && !isempty(d.step) &&
+        return ("`$(d.step)` steps below `$(d.declared)`, where no seed enters — a seed " *
+                "writes a whole cell or one `SArray` component, and there is no lens into " *
+                "a struct's slots, so a seeded tap reaches its scalar through one index " *
+                "step at most", "§14.10, D-036, D-276")
     isempty(d.pinning) &&
         return ("the leaf it names is declared $(d.declared), which no seed enters — a " *
                 "seed is a `Float64` direction, and only a `Float64` leaf, or one component " *
-                "of an `SVector` of them, takes one", "§14.10")
+                "of an `SArray` of them, takes one", "§14.10")
     by_entry = [(consumer, entry) for (consumer, tier, entry) in d.pinning if tier === :continuous]
     by_tier = [consumer for (consumer, tier, _) in d.pinning if tier === :discrete]
     clauses, citation = String[], ["§14.10"]
@@ -1876,7 +1910,7 @@ message(d::ConditionShapeDrift) =
 
 "§8.7, §11.6, §12.4, §12.6, §14.7, D-215: an argument outside its constraint — `DeploymentInvalid`'s twin off the deployment surface."
 Base.@kwdef struct ArgumentInvalid <: Diagnostic
-    call::Symbol                             # :Simulation|:init!|:restore!|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:pace!|:margin!|:trim!|:linearize|:trace|:TableBinding|:selector
+    call::Symbol                             # :Simulation|:init!|:restore!|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:pace!|:margin!|:trim!|:linearize|:trace|:TableBinding
     reason::Symbol
     argument::Union{Nothing,Symbol} = nothing
     value::Any = nothing
@@ -1936,9 +1970,6 @@ function message(d::ArgumentInvalid)
         return "this simulation was initialized with `trace = false`, so there is no " *
                "recording to hand back — the switch is §11.5's plain kill switch for the " *
                "memory-constrained marathon session, the door's keyword (D-029, D-261)"
-    d.reason === :index_not_integer &&
-        return "a selector's index must be an integer — the component index of §14.10, " *
-               "applied to the read value — got $(repr(d.value)) (§14.4)"
     d.reason === :entry_shape &&
         return "TableBinding: entry `$(d.entry)` must be a NamedTuple — " *
                "(face = ..., deadzone = ..., expo = ...) (§11.6)"

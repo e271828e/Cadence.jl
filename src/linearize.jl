@@ -257,48 +257,65 @@ function _resolve_taps(tap_set::Taps, build::Build, ::Type{T}) where {T}
 end
 
 # A seed site's identity (D-272): an `x` entry's `xbuf` slot, a `u` entry's cell
-# and component. A `y` entry is a read, not a seed, and has none.
+# and chain. A `y` entry is a read, not a seed, and has none.
 _site_key(::Val{:x}, entry::Tuple{Int,DerivRead}) = first(entry)
-_site_key(::Val{:u}, entry::CellRead) = (entry.addr, entry.i)
+_site_key(::Val{:u}, entry::CellRead{A,C}) where {A,C} = (entry.addr, C)
 _site_key(::Val{:y}, ::CellRead) = nothing
 
-# A seed is a `Float64` direction: a `Float64` leaf whole, or one component of
-# an `SVector` of them. A non-`Real` leaf without an index is the vector tap,
-# checked first so that an unindexed `SVector` reads as one.
-function _check_seedable(selector, label::Symbol, ::Type{P}, field::Symbol,
-                         diags::Vector{Diagnostic}) where {P}
-    selector.i === nothing && !(P <: Real) &&
-        return (push!(diags, _reader_violation(label, selector, :vector_tap; declared = P,
-                                               field = field)); false)
-    (selector.i === nothing ? P === Float64 : P <: (SVector{n,Float64} where {n})) ||
+# The type a resolved chain lands on under `P`.
+_resolved_type(::Type{P}, chain::Tuple) where {P} = last(resolve_leaf(P, chain))
+
+# A seed is a `Float64` direction written into a whole cell or one `SArray`
+# component, so a seeded tap reaches its scalar through one index step at most
+# and never a `.name` step: there is no lens into a struct's slots (D-036,
+# D-276). A non-`Real` leaf is the vector tap, checked before the leaf's type
+# so that an unindexed `SVector` reads as one.
+function _check_seedable(selector, label::Symbol, ::Type{P}, chain::Tuple, leaf_type::Type,
+                         field::Symbol, diags::Vector{Diagnostic}) where {P}
+    offending = findfirst(k -> chain[k] isa Symbol || k > 1, eachindex(chain))
+    offending === nothing ||
         return (push!(diags, _reader_violation(label, selector, :unseedable; declared = P,
-                                               field = field)); false)
+                                               field = field,
+                                               step = _step_string(chain[offending]))); false)
+    leaf_type <: Real ||
+        return (push!(diags, _reader_violation(label, selector, :vector_tap;
+                                               declared = leaf_type, field = field)); false)
+    leaf_type === Float64 ||
+        return (push!(diags, _reader_violation(label, selector, :unseedable;
+                                               declared = leaf_type, field = field)); false)
     true
 end
+
+# The linear position of an index step in an `SArray` of type `P`: `[k]` is
+# itself, `[k,l]` its column-major place (§14.4).
+_linear_index(::Type{P}, index::Tuple{Vararg{Int}}) where {P} = LinearIndices(size(P))[index...]
 
 # The `x` list: a discrete store is refused with its tier in hand (D-197).
 _seeded_tap(::Val{:x}, ::StoreRead, selector::GetState, label::Symbol, ::Build, ::Activation,
             diags::Vector{Diagnostic}) =
-    (push!(diags, _reader_violation(label, selector, :discrete_state; field = selector.field));
+    (push!(diags, _reader_violation(label, selector, :discrete_state; field = _field(selector)));
      nothing)
 
 # The `x` list's continuous leaf: the offset is `T`-independent (§9.2), so the
-# seeded entries are the nominal one retyped.
-function _seeded_tap(::Val{:x}, entry::StateRead{P,I}, selector::GetState, label::Symbol,
-                     ::Build, ::Activation{T}, diags::Vector{Diagnostic}) where {P,I,T}
-    _check_seedable(selector, label, P, selector.field, diags) || return nothing
-    (entry.offset + something(entry.i, 1), DerivRead{retype(T, P),I}(entry.offset, entry.i))
+# seeded entries are the nominal one retyped. The seed site is the leaf's slot
+# in `xbuf`, the field's offset plus the index step's linear position.
+function _seeded_tap(::Val{:x}, entry::StateRead{P,C}, selector::GetState, label::Symbol,
+                     ::Build, ::Activation{T}, diags::Vector{Diagnostic}) where {P,C,T}
+    _check_seedable(selector, label, P, C, _resolved_type(P, C), _field(selector), diags) ||
+        return nothing
+    linear = isempty(C) ? 1 : _linear_index(P, only(C))
+    (entry.offset + linear, DerivRead{retype(T, P),C}(entry.offset))
 end
 
 # The `u` list: the root input's cell follows the seeded scalar only when every
 # consumer tolerates it, D-168's meet. A consumer whose entry refuses the walked
 # type is a pinning consumer, named with its tier and its declared entry: a
 # continuous one pins by declaration (D-167), a discrete one by tier (§8.2).
-function _seeded_tap(::Val{:u}, entry::CellRead, selector::GetInput, label::Symbol,
-                     build::Build, act::Activation{T}, diags::Vector{Diagnostic}) where {T}
-    _check_seedable(selector, label, _port_type(entry.addr), selector.face, diags) ||
-        return nothing
-    structure, face = build.structure, selector.face
+function _seeded_tap(::Val{:u}, entry::CellRead{A,C}, selector::GetInput, label::Symbol,
+                     build::Build, act::Activation{T}, diags::Vector{Diagnostic}) where {A,C,T}
+    structure, face = build.structure, _field(selector)
+    P = _port_type(entry.addr)
+    _check_seedable(selector, label, P, C, _resolved_type(P, C), face, diags) || return nothing
     root_type = structure.root_types[findfirst(==(face), structure.root_inputs)]
     walked_type = retype(T, root_type)
     pinning = Tuple{String,Symbol,Any}[
@@ -317,19 +334,22 @@ function _seeded_tap(::Val{:u}, entry::CellRead, selector::GetInput, label::Symb
         return (push!(diags, _reader_violation(label, selector, :unseedable; field = face,
                                                declared = root_type, pinning = pinning));
                 nothing)
-    CellRead(addr, selector.i)
+    CellRead{typeof(addr),C}(addr)
 end
 
 # The `y` list: any `Real` leaf is readable, `Float64` or not, since a row is a
 # read and not a seed.
-function _seeded_tap(::Val{:y}, entry::CellRead, selector::Union{GetOutput,GetFace},
-                     label::Symbol, ::Build, act::Activation, diags::Vector{Diagnostic})
-    P = _port_type(entry.addr)
-    selector.i === nothing && !(P <: Real) &&
-        return (push!(diags, _reader_violation(label, selector, :vector_tap; declared = P,
-                                               field = selector.name));
+function _seeded_tap(::Val{:y}, entry::CellRead{A,C}, selector::Union{GetOutput,GetFace},
+                     label::Symbol, ::Build, act::Activation,
+                     diags::Vector{Diagnostic}) where {A,C}
+    head = _field(selector)
+    leaf_type = _resolved_type(_port_type(entry.addr), C)
+    leaf_type <: Real ||
+        return (push!(diags, _reader_violation(label, selector, :vector_tap;
+                                               declared = leaf_type, field = head));
                 nothing)
-    CellRead(act.layout.addr[(_selpath(selector), selector.name)], selector.i)
+    addr = act.layout.addr[(_selpath(selector), head)]
+    CellRead{typeof(addr),C}(addr)
 end
 
 # The value at a seed site before any seed is written.
@@ -342,11 +362,14 @@ _seed(::Type{ForwardDiff.Dual{TG,Float64,W}}, site_value::Float64, pos::Int) whe
     ForwardDiff.Dual{TG}(site_value, ntuple(j -> Float64(j == pos), Val(W))...)
 
 _seed_site!(exec::Executor, site::Int, seed) = (exec.xbuf[site] = seed; nothing)
-_seed_site!(exec::Executor, site::CellRead{A,Nothing}, seed) where {A} =
+_seed_site!(exec::Executor, site::CellRead{A,()}, seed) where {A} =
     scatter_cell!(exec.store, site.addr, seed)
-_seed_site!(exec::Executor, site::CellRead{A,Int}, seed) where {A} =
+# A one-step index chain, the only other a seeded tap resolves to: one component.
+function _seed_site!(exec::Executor, site::CellRead{A,C}, seed) where {A,C}
+    cell = gather_cell(exec.store, site.addr)
     scatter_cell!(exec.store, site.addr,
-                  Base.setindex(gather_cell(exec.store, site.addr), seed, site.i))
+                  Base.setindex(cell, seed, _linear_index(typeof(cell), only(C))))
+end
 
 # One row of a matrix pair out of one read: the group's partials into the `x`
 # matrix's or the `u` matrix's column, the value returned. A frozen `Float64`

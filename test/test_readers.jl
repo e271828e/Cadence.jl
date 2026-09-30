@@ -21,10 +21,35 @@ readable_condition(q = SVector(0.3, -0.2), acc = 4.0) =
             fragment(inputs = (u = 1.5, e = 0.0)))
 
 # The read set the two activations share.
-readable_reads() = reads(q = get_state("plant", :q), v = get_state("plant", :q, 2),
+readable_reads() = reads(q = get_state("plant", :q), v = get_state("plant", "q[2]"),
                          acc = get_state("ctl", :acc), q̇ = get_deriv("plant", :q),
-                         a = get_deriv("plant", :q, 2), y = get_output("plant", :y),
+                         a = get_deriv("plant", "q[2]"), y = get_output("plant", :y),
                          u = get_input(:u), face = get_face(:y))
+
+# A struct port holding a vector and a matrix, over a vector state: the leaf
+# address's `.name`, `[k]` and `[k,l]` steps (§14.4, D-276). Every leaf is
+# distinct, so a read of the wrong one shows.
+struct LeafPose{T}
+    v::SVector{3,T}
+    m::SMatrix{2,2,T,4}
+end
+# The probe a root input of this type takes (§9.3), for test_linearize.jl's
+# struct-typed root input.
+probe_value(::Type{LeafPose{T}}) where {T} = LeafPose(zero(SVector{3,T}), zero(SMatrix{2,2,T,4}))
+
+struct PoseSource <: AbstractComponent end
+x_init(::PoseSource) = (q = SVector(0.5, -0.25),)
+y_types(::PoseSource) = (pose = LeafPose{Float64},)
+y_state(::PoseSource, (; x)) =
+    (pose = LeafPose(SVector(x.q[1], x.q[2], 3.0), SMatrix{2,2}(1.0, 2.0, x.q[1], 4.0)),)
+x_derivative(::PoseSource, (; x)) = (q = -x.q,)
+
+pose_model() = single(PoseSource())
+
+# Each step kind, the port whole in both spellings, and an index on the state.
+pose_reads() = reads(v2 = get_output("c", "pose.v[2]"), m12 = get_output("c", "pose.m[1,2]"),
+                     m3 = get_output("c", "pose.m[3]"), whole = get_output("c", "pose"),
+                     short = get_output("c", :pose), q2 = get_state("c", "q[2]"))
 
 # Every store, the root inputs and the clock, read straight out of an executor.
 world(sim) = (copy(sim.exec.xbuf),
@@ -44,7 +69,7 @@ function test_readers()
 
             @test keys(v) === (:q, :v, :acc, :q̇, :a, :y, :u, :face)
             @test v.q == SVector{2,T}(0.3, -0.2)     # the whole leaf, out of `xbuf`
-            @test v.v === v.q[2]                     # `i` indexes the read value
+            @test v.v === v.q[2]                     # an index step reads one component
             @test v.acc === 4.0                      # the discrete store, pinned Float64
             @test v.q̇[1] === v.q[2]                  # `x_derivative`'s own output, out of `ẋbuf`
             @test v.a === v.q̇[2]
@@ -56,6 +81,17 @@ function test_readers()
             # and the frozen discrete store stays pinned (§9.4, D-166).
             @test v.q isa SVector{2,T} && v.q̇ isa SVector{2,T} && v.y isa T
             @test v.acc isa Float64
+
+            # The leaf address steps into a struct port (§14.4, D-276): a field and
+            # a component, a matrix entry by its indices and by its linear place.
+            pose_sim = Simulation(pose_model(), T; h = 1//10)
+            init!(pose_sim)
+            pose = gather_reads(_compile_reads(pose_reads(), pose_sim.deployment.build, T), pose_sim.exec)
+            @test pose.whole isa LeafPose{T} && pose.short === pose.whole  # `:pose` is `"pose"`
+            @test pose.v2 === pose.whole.v[2] === T(-0.25)
+            @test pose.m12 === pose.whole.m[1, 2] === T(0.5)
+            @test pose.m3 === pose.m12                                        # `[3]` is `[1,2]`, column-major
+            @test pose.q2 === T(-0.25)
         end
     end
 
@@ -68,6 +104,14 @@ function test_readers()
         @test @ballocated(gather_reads($reader, $exec)) == 0
         @test @inferred(gather_reads(reader, exec)) isa NamedTuple
         @test gather_reads(_compile_reads(reads(), sim.deployment.build), exec) === (;)   # the empty set reads nothing
+
+        # A two-step address is unrolled at compile time, so it allocates nothing.
+        pose_sim = Simulation(pose_model(); h = 1//10)
+        init!(pose_sim)
+        pose_reader, pose_exec = _compile_reads(pose_reads(), pose_sim.deployment.build), pose_sim.exec
+        gather_reads(pose_reader, pose_exec)
+        @test @ballocated(gather_reads($pose_reader, $pose_exec)) == 0
+        @test @inferred(gather_reads(pose_reader, pose_exec)) isa NamedTuple
     end
 
     @testset "resolution collects every violation into one refusal (§14.4, §13.1)" begin
@@ -93,19 +137,54 @@ function test_readers()
         # An assembly path, a root input read as a face, an index on a scalar leaf,
         # and a state field the component does not declare.
         err = failure(() -> _compile_reads(reads(a = get_output("", :y), b = get_face(:u),
-                                                 c = get_output("plant", :y, 1),
+                                                 c = get_output("plant", "y[1]"),
                                                  d = get_state("plant", :ω),
-                                                 e = get_input(:u, 1), f = get_face(:y, 1)),
+                                                 e = get_input("u[1]"), f = get_face("y[1]")),
                                      readable_build))
         (a, b_, c, d, e, f) = diagnostics(err)
         @test a.reason === :assembly_path && a.path == "" && a.tap === :y
         @test b_.reason === :root_input_not_face && b_.field === :u
-        @test c.reason === :scalar_index && c.index == 1 && c.declared === Float64
+        @test c.reason === :not_indexable && c.step == "[1]" && c.declared === Float64 &&
+              c.leaf == "y[1]" && c.field === :y
         @test d.reason === :undeclared && d.declares === :state_field && d.field === :ω &&
               d.candidates == [:q]
-        # The two table selectors check their index as the others do (D-271).
-        @test e.reason === :scalar_index && e.index == 1 && e.declared === Float64 && e.tap === :u
-        @test f.reason === :scalar_index && f.index == 1 && f.declared === Float64 && f.tap === :y
+        # The two table selectors check their steps as the others do (D-276).
+        @test e.reason === :not_indexable && e.step == "[1]" && e.declared === Float64 && e.tap === :u
+        @test f.reason === :not_indexable && f.step == "[1]" && f.declared === Float64 && f.tap === :y
+        # The selector as authored: a `Symbol` leaf with its colon, a string one quoted.
+        @test b_.selector == "get_face(:u)" && c.selector == "get_output(\"plant\", \"y[1]\")"
+
+        # Every step the leaf address cannot take, each checked against the type
+        # resolved so far and named as spelled (§14.4, D-276).
+        err = failure(() -> _compile_reads(reads(a = get_output("c", "pose.v["),
+                                                 b = get_output("c", "pose.q"),
+                                                 c = get_output("c", "pose.v.x"),
+                                                 d = get_output("c", "pose[2]"),
+                                                 e = get_output("c", "pose.m[1,2,1]"),
+                                                 f = get_output("c", "pose.v[4]"),
+                                                 g = get_state("c", "q.x")),
+                                           build(pose_model())))
+        by_label = Dict(x.label => x for x in diagnostics(err))
+        @test length(by_label) == 7 && all(x -> x isa TapResolution, values(by_label))
+        @test by_label[:a].reason === :leaf_syntax && by_label[:a].step == "[" &&
+              by_label[:a].declared === nothing && by_label[:a].leaf == "pose.v["
+        @test by_label[:b].reason === :no_such_field && by_label[:b].step == ".q" &&
+              by_label[:b].declared === LeafPose{Float64} && by_label[:b].candidates == [:v, :m]
+        @test by_label[:c].reason === :no_such_field && by_label[:c].step == ".x" &&
+              by_label[:c].declared === SVector{3,Float64} && isempty(by_label[:c].candidates)
+        @test by_label[:d].reason === :not_indexable && by_label[:d].step == "[2]" &&
+              by_label[:d].declared === LeafPose{Float64}
+        @test by_label[:e].reason === :index_arity && by_label[:e].step == "[1,2,1]" &&
+              by_label[:e].declared === SMatrix{2,2,Float64,4}
+        @test by_label[:f].reason === :index_bounds && by_label[:f].step == "[4]" &&
+              by_label[:f].declared === SVector{3,Float64}
+        # The state is flat (§7.1): a `.name` step on a store selector finds no field.
+        @test by_label[:g].reason === :no_such_field && by_label[:g].step == ".x" &&
+              by_label[:g].declared === SVector{2,Float64} && isempty(by_label[:g].candidates)
+        # A step never enters an opaque leaf, which is read whole (§4.3).
+        d = only(diagnostics(failure(() -> _compile_reads(reads(h = get_output("c", "terrain.h0")),
+                                                          build(single(OffsetAtT()))))))
+        @test d.reason === :opaque_leaf && d.step == ".h0" && d.declared === OffsetField{Float64}
 
         # The read set is a type, not a NamedTuple: the bare spelling is refused
         # with a directive, not a `MethodError` (§14.2's rule, one case over).
@@ -155,13 +234,13 @@ function test_readers()
         d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(q = get_state("plant", :q))))
         @test d.reason === :store_selector &&
               d.selector == "get_state(\"plant\", :q)"
-        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(y = get_output("plant", :y, 1))))
+        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(y = get_output("plant", "y[1]"))))
         @test d.reason === :indexed
-        # Every table member refuses the index alike (§11.2, D-271).
-        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(u = get_input(:u, 1))))
-        @test d.reason === :indexed && d.selector == "get_input(:u, 1)"
-        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(y = get_face(:y, 1))))
-        @test d.reason === :indexed && d.selector == "get_face(:y, 1)"
+        # Every table member refuses a step alike (§11.2, docs/design/pending.md).
+        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(u = get_input("u[1]"))))
+        @test d.reason === :indexed && d.selector == "get_input(\"u[1]\")"
+        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(y = get_face("y[1]"))))
+        @test d.reason === :indexed && d.selector == "get_face(\"y[1]\")"
         @test isempty(sim.plane.roster)              # every rejection left the roster untouched
     end
 

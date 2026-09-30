@@ -78,6 +78,10 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276.
   (D-272). A pinning consumer carries its tier, and a discrete one renders
   as unseedable by tier. Each `TapResolution` reason renders one citation
   group, its own.
+- `TapResolution`'s leaf reasons `:leaf_syntax`, `:no_such_field`,
+  `:opaque_leaf`, `:not_indexable`, `:index_arity` and `:index_bounds`, with
+  the `leaf` and `step` fields. `_leaf_clause` renders the six for any kind
+  carrying the address (D-276).
 - `TierUnreadable`, for a primitive declaring no store, sits beside
   `StatelessWithoutOutputs` (D-263).
 - `InternalInvariant`.
@@ -109,7 +113,7 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276.
 
 Spec: §9.1, §12.6, §12.7, §13.1, §13.2, §13.4, §14.8, §14.10, Appendix C, D-058,
 D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256, D-261,
-D-262, D-263, D-272, D-274.
+D-262, D-263, D-272, D-274, D-276.
 
 ### `src/declare.jl`
 
@@ -281,17 +285,23 @@ Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
 ### `src/readers.jl`
 
 - The closed read-selector family `get_state`, `get_deriv`, `get_output`,
-  `get_input` and `get_face`, each with the optional component index, checked
-  against the resolved leaf's type (D-271). The family's path selectors are
-  walked from the root (§13.3).
+  `get_input` and `get_face`, each taking a leaf address as its `leaf`, a
+  `Symbol` the short form of a plain name (D-276). The family's path selectors
+  are walked from the root (§13.3).
+- The leaf address (D-276). `parse_leaf` splits it at resolution.
+  `resolve_leaf` checks each step against the declared type and returns the
+  chain or a `LeafRefusal`, the six leaf reasons any kind wraps. `walk_leaf`
+  runs the chain as `getfield` and `getindex` calls unrolled at generation.
 - `reads` and `Reads`.
-- The internal `_compile_reads`, which yields a `Reader{T}`.
+- The internal `_compile_reads`, which yields a `Reader{T}`. Each entry carries
+  its chain as a type parameter, and the `CellRead` core reads a store bundle,
+  so every gather over a table shares it.
 - `gather_reads`, `apply!`'s twin over an executor.
 - The output-port candidates, read off the `Outputs`.
 - Activation identity on readers, checked as an internal invariant. The same
   check on plans sits in conditions.jl's `apply!`.
 
-Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-271.
+Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-276.
 
 ### `src/sim.jl`
 
@@ -721,12 +731,16 @@ Spec: §9.6, §13.1, §14.5–§14.8, D-070, D-158, D-213, D-224, D-253, D-262.
   nominal half with no resolve, no `apply!` and no establishment round, so
   the frozen cells are the checkpoint's held cells. The `about` form keeps
   the resolve, the `apply!` and D-213's round (D-274).
-- The collecting tap resolution, with the discrete store, the unindexed
-  vector leaf, the member in the wrong list, the unseedable root input and
-  a second seed at one site refused. The unseedable root input names its
-  pinning consumers with their tiers, the duplicate the earlier label.
+- The collecting tap resolution, with the discrete store, the vector leaf,
+  the member in the wrong list, the unseedable root input and a second seed
+  at one site refused. The unseedable root input names its pinning consumers
+  with their tiers, the duplicate the earlier label.
+- A seeded tap reaches its scalar through one index step at most, and a
+  `.name` step is unseedable (D-036). The seed site is the leaf's linear
+  place, so `[k,l]` seeds the entry its linear `[k]` names (D-276).
 
-Spec: §9.7, §14.4, §14.10, D-167, D-168, D-197, D-213, D-271, D-272, D-274.
+Spec: §9.7, §14.4, §14.10, D-036, D-167, D-168, D-197, D-213, D-272, D-274,
+D-276.
 
 ### `src/show.jl`
 
@@ -933,7 +947,7 @@ rulings behind them are `docs/reports/20260923_naming_inventory/README.md`.
   where no scope holding one calls the function;
 - **out of the rules' reach**: a parameter of a public signature keeps the
   spec's spelling (`trace`, `log`, `condition`, `reads`, `sep`, `maxiter`,
-  the selectors' `i`); a name the code generators emit and read back
+  the selectors' `leaf`); a name the code generators emit and read back
   (`buffer`, `offset`, `offsets`, `statements`, `_bundle_expr`'s `entry`)
   changes only with its builder; a parameter mirroring a struct field keeps
   the field's spelling;

@@ -192,7 +192,7 @@ function test_bindings()
         sim = Simulation(outfaced(); h = 1//10)
         d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(alt = get_output("q", "y"))))
         @test d.reason === :unknown_cell &&
-              d.selector == "get_output(\"q\", :y)" &&
+              d.selector == "get_output(\"q\", \"y\")" &&
               d.candidates == Symbol[]            # no such path: no list to offer
         # The device is named by type (Appendix C): admission assigns no id yet.
         @test d.device == "Pad" && d.binding == "Readout"

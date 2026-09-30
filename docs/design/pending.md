@@ -24,11 +24,6 @@ Where the reason is not given here, the cited decision carries it:
 - **The NLopt fallback** (§14.8, H 4.5): `NLoptBackend(:LN_BOBYQA)` as a
   package extension, the squared and normalized objective at `stopval = 1`,
   and the nominal-activation loop it would run on.
-- **The leaf address** (§14.4, D-276, A 4.3): every selector still takes
-  `(path, field[, i])`. Unbuilt: the dotted address with the index absorbed,
-  the bare-`Symbol` short form, the per-step checks, the `[k,l]` matrix step,
-  the baked step chain in the compiled read, the matrix spelling in
-  `leaf_names`, and the retirement of `i` (D-271 superseded).
 - **The leaf address in the binding register** (§14.4, D-276): a binding
   read refuses the component index on every table member
   (`ReadBindingUnresolved`, `:indexed`) and `ReadGather` holds bare cell
