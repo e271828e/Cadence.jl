@@ -420,7 +420,9 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
     rethrows.
 - The seam's `isfinite` sweep over `x`, the boundary's first act.
 - The accessors `lifecycle`, `mode`, `termination`, `latest`, `logged`,
-  `trace`, `port`, `state`, `modes` and `phase_bodies`.
+  `trace`, `port`, `state`, `modes` and `phase_bodies`. `logged` returns a
+  vector typed by the run's concrete snapshot type,
+  `Snapshot{T,typeof(sim.exec.store)}`, empty or not.
 
 Spec: §10.2–§10.7, §11.1–§11.5, §11.8, §12.1–§12.7, §13.2, §13.4–§13.6,
 §14, §14.5, §14.6, D-027, D-059, D-101, D-157, D-203, D-218, D-219, D-221,
@@ -497,7 +499,9 @@ D-261, D-269.
   - `DebtReanchor`, the pacer's forgiveness on the loop's own cell (§10.7);
   - `ThreadBudget`, the run-top tightness warning on the loop's own cell
     (§12.2, D-027).
-- Snapshots, and the log with re-decimation.
+- Snapshots, and the log with re-decimation. The log stores the box
+  publication made, which `log!` takes `@nospecialize`d beside its concrete
+  type, so the two `boundary` reads stay static (§7.5).
 - The published `FrameworkStatus`, which every snapshot carries. It holds the
   per-writer records `WriterStatus` and, beside them, the pacer's frozen
   `PacerStatus` (D-269):

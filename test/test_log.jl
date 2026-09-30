@@ -41,6 +41,35 @@ function test_log()
         @test length(logged(sim)) == 21                      # the session accumulates: one trajectory, one log
     end
 
+    @testset "the log allocates nothing beyond publication (§7.5, §11.2)" begin
+        # Equal, not zero: §11.2 builds a snapshot and a table copy per frame
+        # by design, log or no log. The log stores the box publication made.
+        # 1000 frames carry the ordinal past 511, where a dynamic `Int` read boxes.
+        sim = Simulation(feedback_model(); h = 1//100)
+        authored = fragment(inputs = (ref = 0.0,))
+        for log in (true, false)                             # compilation out of the number
+            init!(sim, authored; log)
+            run!(sim; t_end = 10.0)
+        end
+        logged_bytes = @ballocated(run!($sim; t_end = 10.0),
+                                   setup = (init!($sim, $authored; log = true)), evals = 1)
+        unlogged_bytes = @ballocated(run!($sim; t_end = 10.0),
+                                     setup = (init!($sim, $authored; log = false)), evals = 1)
+        @test logged_bytes == unlogged_bytes
+    end
+
+    @testset "logged is typed by the run's snapshot type, empty or not (§11.2)" begin
+        sim = Simulation(fed(Plant(), "u"); h = 1//10)
+        unpublished = eltype(logged(sim))                    # before the first `init!`
+        init!(sim, fragment(inputs = (in = 0.0,)))
+        run!(sim; t_end = 0.5)
+        @test eltype(logged(sim)) === typeof(latest(sim))
+        @test unpublished === typeof(latest(sim))
+        init!(sim, fragment(inputs = (in = 0.0,)); log = false)
+        run!(sim; t_end = 0.5)
+        @test isempty(logged(sim)) && eltype(logged(sim)) === typeof(latest(sim))
+    end
+
     @testset "log_every thins retention, never publication (§11.2)" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
         init!(sim, fragment(inputs = (in = 0.0,)); log_every = 3)

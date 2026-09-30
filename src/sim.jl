@@ -2188,7 +2188,9 @@ function publish!(sim::Simulation, roster::Vector{RosterEntry},
                         sim.exec.act.layout, _status(sim, roster, pacer))
     clock.boundary += 1
     @atomic :release sim.plane.published.latest = snapshot
-    log!(sim.run.log, snapshot)
+    # reloaded, so the log stores the box the release-store made (§7.5)
+    log!(sim.run.log, (@atomic :monotonic sim.plane.published.latest)::Snapshot,
+         typeof(snapshot))
     lock(control.wake)
     try
         control.counter += 1
@@ -2252,12 +2254,14 @@ loop-task bookkeeping, so reading it beside a running loop is the same
 hazard class as a mid-run `attach!`; a concurrent reader's inspection read is
 `latest(sim)`, and it holds snapshots or loses them (§11.2). Empty before
 the first `init!`, and empty under `log = false` — the switch gates
-retention wholesale.
+retention wholesale. The element type is the run's concrete snapshot type,
+`Snapshot{T,typeof(sim.exec.store)}`, the type of what `latest(sim)` holds,
+empty or not.
 """
-function logged(sim::Simulation)
+function logged(sim::Simulation{T}) where {T}
     assert_stopped(sim.control, :logged)
     snapshot_log = sim.run.log
-    retained = Snapshot[]
+    retained = Snapshot{T,typeof(sim.exec.store)}[]
     snapshot_log.first === nothing && return retained
     push!(retained, snapshot_log.first)
     for snapshot in snapshot_log.snaps

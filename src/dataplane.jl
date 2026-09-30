@@ -737,9 +737,13 @@ the release-store: the run's first publication lands in `first`, a stride
 multiple of the ordinals past it is retained into the middle, and every
 snapshot re-points `last` — one field store, which is all the terminal endpoint
 costs. Off, the switch retains nothing at all: retention is what it gates,
-publication being upstream of it.
+publication being upstream of it. The snapshot is the box `latest` holds,
+taken unspecialized, so every store here reuses publication's one allocation
+(§7.5). Its concrete type rides beside it and keeps the two `boundary` reads
+static, since a dynamic read boxes an `Int` past 511.
 """
-function log!(snapshot_log::SnapshotLog, snapshot::Snapshot)
+function log!(snapshot_log::SnapshotLog, @nospecialize(snapshot::Snapshot),
+              snapshot_type::Type{<:Snapshot})
     snapshot_log.enabled || return nothing
     if snapshot_log.first === nothing
         snapshot_log.first = snapshot
@@ -747,7 +751,8 @@ function log!(snapshot_log::SnapshotLog, snapshot::Snapshot)
         # the trajectory's ordinal rides in the snapshot (D-230), counted here
         # from the first endpoint's, which a restore places past zero (D-274);
         # one run's snapshots share one concrete type
-        ordinal = snapshot.boundary - (snapshot_log.first::typeof(snapshot)).boundary
+        ordinal = (snapshot::snapshot_type).boundary -
+                  (snapshot_log.first::snapshot_type).boundary
         ordinal % snapshot_log.stride == 0 && _retain!(snapshot_log, snapshot, ordinal)
     end
     snapshot_log.last = snapshot
@@ -763,7 +768,7 @@ end
 # holds continuously and a generation's thinning completes exactly when its
 # refill does; compaction then runs, once per generation, restoring the
 # index-by-ordinal invariant for the next fill.
-function _retain!(snapshot_log::SnapshotLog, snapshot::Snapshot, ordinal::Int)
+function _retain!(snapshot_log::SnapshotLog, @nospecialize(snapshot::Snapshot), ordinal::Int)
     if snapshot_log.cursor == 0 && snapshot_log.live == snapshot_log.log_max
         snapshot_log.stride *= 2
         snapshot_log.cursor = 1

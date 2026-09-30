@@ -45,23 +45,7 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-- **The log boxes each snapshot again** (§7.5, §11.2, M-B26): `publish!`
-  boxes the snapshot once for `latest`, and `log!`, called with the concrete
-  value, boxes it twice more, for `last` and for the middle. That is 288 B a
-  frame on `feedback_model`, where §7.5 makes logging amortized-zero.
-  Ruled 2026-09-30:
-  - `log!` takes the box `latest` already holds, reloaded from the atomic
-    field and passed `@nospecialize`;
-  - `logged(sim)` returns a vector typed by the run's concrete snapshot
-    type, since reading a `Vector{Snapshot}` costs a dynamic dispatch per
-    element (24 ns against 1 ns);
-  - the storage stays a vector of references. Inline records would
-    preallocate 136 B a slot at every `init!` and would save nothing the
-    reuse does not. §7.5's sentence on inline records softens to match,
-    docs-commit-first.
-
-  The check: a full run allocates the same bytes a frame with the log on as
-  with it off.
+Currently empty.
 
 ### Retire with a feature or a pass
 
