@@ -1294,7 +1294,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
     logged_cause = nothing                    # the cause and its backtrace, when not rethrown
     # the interrupt arm below reads these five
     live, tasks, loop_task, inline_entry = RosterEntry[], nothing, nothing, nothing
-    released = Ref(false)                     # set once the inline wrapper has run its `shutdown!`
+    released = Ref(false)                     # set once the inline entry's `shutdown!` has run
     returned, tail_ran = false, false
     pacer = Pacer()                           # this call's schedule and counters (D-269)
     try
@@ -1305,8 +1305,12 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
         @atomic control.stopped = false
         inline_index = findfirst(e -> needs_calling_task(e.dev), live)
         if inline_index === nothing                     # the unattended mode (§11.1)
+            # Masked, so a deferred interrupt raises with every task spawned
+            # and registered, and the tail can join them (§12.4).
+            Base.sigatomic_begin()
             tasks = _spawn!(live)
             _register_tasks!(plane, live, tasks)
+            Base.sigatomic_end()
             try
                 source = _advance!(sim, policy, addrs, upto, t_end_frame, roster, pacer)[1]
                 returned = true
@@ -1318,13 +1322,14 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
         else                                  # the loop is the movable piece (§11.1)
             inline_entry = live[inline_index]
             others = [live[i] for i in eachindex(live) if i != inline_index]
+            # Masked from the first spawn through the loop's, so a deferred
+            # interrupt raises with `tasks` and `loop_task` bound and every task
+            # registered: the arm can await the loop and join the rest (§12.4).
+            Base.sigatomic_begin()
             tasks = _spawn!(others)
             _register_tasks!(plane, others, tasks)
             plane.run_tasks[inline_entry.id] = current_task()   # the inline body's task (§11.1)
             inline_entry.handle.last_seen = control.counter
-            # Masked, so an interrupt landing once the loop is scheduled raises at
-            # the unmask with `loop_task` bound, and the arm can await it (§12.4).
-            Base.sigatomic_begin()
             loop_task = Threads.@spawn try
                 _advance!(sim, policy, addrs, upto, t_end_frame, roster, pacer)[1]
             finally
@@ -1350,34 +1355,37 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
         loop_failure = nothing                # the loop's throw and its backtrace, from either arm
         if err isa InterruptException
             # The operator's stop landing outside the loop's own unmask points —
-            # the bracket's edges, the spawn, the inline wrapper's edges, the
-            # moments between the loop's return and the tail — is a stop, never
-            # a `LoopError` (§12.4, D-268). The arm's first act is the fallback
-            # source, the `:interrupt` stop unless an earlier issuer holds the
-            # stop word, so an interrupt escaping any later line of the arm still
-            # lands the run `stopped`. A loop that returned keeps its outcome, a
-            # source or a budget halt alike. A spawned loop whose outcome was not
-            # taken may still be running, and `run!` never returns before its
-            # loop ends (§11.1): `_await_loop` removes the inline body's record,
-            # requests the stop and awaits the loop, all inside its `try`, the
-            # first two retried when an interrupt cuts them short. The loop's
-            # outcome then replaces the fallback, the `:interrupt` stop at its
-            # next frame top or a face or halt it had already reached, and its
-            # throw is handled below as the other arm's is. With no loop to
-            # await, the stop is still requested: an unattended loop ran on this
-            # task and is done, but a forced raise inside the spawn's mask can
-            # leave a loop scheduled and unbound, and the request is what ends
-            # it. Where the interrupt came before the tail, the tail runs
-            # here, unmasked so a second interrupt still collapses it; `_finish!`
-            # is idempotent, so running it after the loop's own is harmless. An
-            # entry initialized but never spawned is released directly, a
+            # the bracket's edges, the inline wrapper's edges, the moments
+            # between the loop's return and the tail — is a stop, never a
+            # `LoopError` (§12.4, D-268). The arm's head runs masked: the
+            # fallback source, the `:interrupt` stop unless an earlier issuer
+            # holds the stop word, and with no loop to await the stop request,
+            # which ends a loop a forced raise left scheduled and unbound. A
+            # loop that returned keeps its outcome, a source or a budget halt
+            # alike. A spawned loop whose outcome was not taken may still be
+            # running, and `run!` never returns before its loop ends (§11.1):
+            # `_await_loop` removes the inline body's record, requests the stop
+            # and awaits the loop, retrying the first two when an interrupt cuts
+            # them short. The loop's outcome then replaces the fallback, and its
+            # throw is handled below as the other arm's is. Where the interrupt
+            # came before the tail, the tail runs here, unmasked so a later
+            # interrupt collapses its joins, and retried from where an interrupt
+            # cut it. An entry never spawned is released directly, a
             # spawned one through its wrapper once the tail wakes it, and the
             # inline entry here when its wrapper never ran its `shutdown!`. The
-            # tests reach an interrupt in the inline body's deregistration and a
-            # second one in the arm's, inside `_await_loop`; the masked spawn and
-            # the inline release are covered by reading.
-            returned || (source = ControlRequestedStop(something((@atomic control.stop_issuer), :interrupt)))
-            returned || loop_task !== nothing || _request_stop!(control, :interrupt)
+            # one window left is the few instructions between a `catch` and its
+            # next `try`, which only a forced raise reaches.
+            while true                        # an interrupt arriving within the head
+                try                           # raises at its unmask: the head reruns
+                    Base.sigatomic_begin()
+                    returned || (source = ControlRequestedStop(something((@atomic control.stop_issuer), :interrupt)))
+                    returned || loop_task !== nothing || _request_stop!(control, :interrupt)
+                    Base.sigatomic_end()
+                    break
+                catch err                     # rebinds the outer `err`; nothing below reads it
+                    err isa InterruptException || rethrow()
+                end
+            end
             if !returned && loop_task !== nothing
                 try
                     source = _await_loop(control, loop_task, plane)
@@ -1387,17 +1395,32 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
                 end
             end
             if !tail_ran
-                _finish!(sim)
-                if tasks === nothing
-                    foreach(_shutdown!, live)
-                else                          # the calling-task holder sits outside the join
-                    _tail!(sim, filter(entry -> !needs_calling_task(entry.dev), live), tasks)
+                # §12.4 lets no interrupt out of the tail, and `_tail!`'s own
+                # collapse covers only its lines: a retry resumes the steps
+                # where an interrupt cut them, `_finish!` being idempotent.
+                directly_released = 0         # entries of `live` the direct release shut down
+                joins_settled = false         # `_tail!` returned: every join done or reported
+                while true
+                    try
+                        _finish!(sim)
+                        if tasks === nothing  # nothing was spawned: release each entry here
+                            for i in directly_released+1:length(live)
+                                _shutdown!(live[i])
+                                directly_released = i
+                            end
+                        elseif !joins_settled # the calling-task holder sits outside the join
+                            _tail!(sim, filter(entry -> !needs_calling_task(entry.dev), live), tasks)
+                            joins_settled = true
+                        end
+                        # An interrupt between a `shutdown!`'s return and its record
+                        # runs it a second time, which beats leaking the device (§11.6).
+                        inline_entry === nothing || tasks === nothing || released[] ||
+                            (_shutdown!(inline_entry); released[] = true)
+                        break
+                    catch err
+                        err isa InterruptException || rethrow()
+                    end
                 end
-                # The wrapper stores `released` just after its `shutdown!` returns,
-                # a window the size of `_await_loop`'s: an interrupt there shuts
-                # the entry down a second time, which beats leaking it (§11.6).
-                inline_entry === nothing || tasks === nothing || released[] ||
-                    _shutdown!(inline_entry)
             end
         else
             loop_failure = (err, catch_backtrace())

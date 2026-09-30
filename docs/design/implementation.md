@@ -403,19 +403,24 @@ Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.10, D-125, D-130, D-253, D-27
   - a deferred interrupt yields to a holding face;
   - a frame that throws with an interrupt pending ends `errored`;
   - the masked bookkeeping sits in `run!`'s and `step!`'s outermost `finally`;
-  - the spawn of the calling-task topology's loop is masked, so a deferred
-    interrupt raises with the loop's task bound;
-  - `run!`'s outer catch takes a stray interrupt as the stop. Its first act
-    is the fallback source, so an interrupt escaping the arm lands the run
-    `stopped`. Where the loop was spawned and has not returned, the arm
+  - the spawns and their registrations are masked, in the calling-task
+    topology through the loop's spawn, so a deferred interrupt raises with
+    every task bound and registered;
+  - `run!`'s outer catch takes a stray interrupt as the stop. Its head runs
+    masked: the fallback source, and with no loop to await the stop request.
+    An interrupt arriving within the head raises at its unmask and the head
+    reruns. Where the loop was spawned and has not returned, the arm
     awaits it through `_await_loop`, so `run!` returns only after the loop
     ends, and a loop failure found there takes the failure arm's one
     handling. `_await_loop` issues its stop request inside its `try` and
     retries it when an interrupt cuts it short, so a later interrupt never
     reads as the loop's failure. On the arm's call it first removes the
     inline body's record the same way, then requests the stop without
-    waiting for an interrupt. The arm shuts the inline entry down when its
-    wrapper never ran `shutdown!`;
+    waiting for an interrupt. Where the tail had not run, the arm runs it
+    unmasked and retries it from where an interrupt cut it, so none leaves
+    the tail: the direct release advances a cursor per entry, and a flag
+    keeps `_tail!` from running twice. The arm shuts the inline entry down
+    when its wrapper never ran `shutdown!`;
   - `run!` reads §13.4's disposition off the roster, and `step!` always
     rethrows.
 - The seam's `isfinite` sweep over `x`, the boundary's first act.
