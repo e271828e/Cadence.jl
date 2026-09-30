@@ -575,14 +575,14 @@ function test_trim()
         init!(sim, combine(at("c", condition(Pendulum(); θ = 0.2)),
                            fragment(inputs = (in = 1.0,))))
         run!(sim; t_end = 0.4)
-        @test lifecycle(sim) === :stopped && sim.exec.clock.step == 4
+        @test lifecycle(sim) === :stopped && sim.exec.clock.frame == 4
 
         # The commit is an `init!`: `t0` re-anchors the clock and the origin
         # together, and the frame count starts over.
         report = trim!(sim, u_problem(); baseline = pend_base(), t0 = 0.4)
         @test report.converged && report.committed_residuals !== nothing
         @test lifecycle(sim) === :initialized
-        @test sim.exec.clock.t === 0.4 && sim.exec.clock.t₀ === 0.4 && sim.exec.clock.step == 0
+        @test sim.exec.clock.t === 0.4 && sim.exec.clock.t₀ === 0.4 && sim.exec.clock.frame == 0
         @test state(sim, "c") === (θ = 0.5, ω = 0.0)      # the problem's condition won
         @test port(sim, "", :in) === report.solution.u
     end

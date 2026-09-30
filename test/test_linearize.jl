@@ -90,8 +90,8 @@ function test_linearize()
         after = checkpoint(sim)
         @test after.x == before.x && after.s == before.s && after.m == before.m &&
               after.prior == before.prior && same_table(after.table, before.table)
-        @test (after.t, after.step, after.boundary, after.t₀) ==
-              (before.t, before.step, before.boundary, before.t₀)
+        @test (after.t, after.frame, after.boundary, after.t₀) ==
+              (before.t, before.frame, before.boundary, before.t₀)
         @test after.deployment === before.deployment &&
               all(getfield(after.layout, f) == getfield(before.layout, f)
                   for f in fieldnames(typeof(before.layout)))
@@ -161,7 +161,7 @@ function test_linearize()
         init!(tripped)
         run!(tripped; t_end = 5.0, stop_on = ("tripped",))
         d = carried(@test_throws DiagnosticError{CheckpointMidFrame} linearize(tripped, taps()))
-        @test d.t_frame == 0.4 && d.step == 4
+        @test d.t_frame == 0.4 && d.frame == 4
         @test linearize(tripped, taps(); about = fragment()) isa Linearization
     end
 

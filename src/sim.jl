@@ -637,7 +637,7 @@ end
         leaf = x_leaf_names[flat_index - first(xblocks[owner]) + 1],
         value = exec.xbuf[flat_index],
         t = _seconds(exec.clock.t),
-        boundary = exec.clock.step - 1)))   # the frame-entry index: this frame's own top
+        boundary = exec.clock.frame - 1)))  # the frame-entry index: this frame's own top
 end
 
 # The trajectory's opening at `init!` (§12.6): the clock anchored at `t₀` and
@@ -645,7 +645,7 @@ end
 function _open_trajectory!(sim::Simulation, t₀::Float64)
     sim.exec.clock.t = t₀         # into the deployment's scalar (D-260)
     sim.exec.clock.t₀ = t₀        # exact: the clock's origin is a `Float64` too
-    sim.exec.clock.step = 0
+    sim.exec.clock.frame = 0
     sim.exec.clock.boundary = 0
     fill!(sim.exec.events.prior, false)
     _reset_periphery!(sim)
@@ -702,7 +702,7 @@ end
 # open.
 function _open_run!(sim::Simulation{T}, header, schemas, feed,
                     trace_switch::Bool, log_switch::Bool, log_every::Int, log_max) where {T}
-    trc = trace_switch ? Trace{T}(header, schemas, TraceBatch[], sim.exec.clock.step) :
+    trc = trace_switch ? Trace{T}(header, schemas, TraceBatch[], sim.exec.clock.frame) :
                          nothing
     sim.run = Run{T}(SnapshotLog(log_switch, log_every,
                                  log_max === Inf ? typemax(Int) : Int(log_max)),
@@ -851,12 +851,12 @@ function checkpoint(sim::Simulation)
     # At rest the latest snapshot is that top's, which an abandoned frame never
     # published, a `t*` boundary it did publish included.
     clock = sim.exec.clock
-    t_frame = _grid_time(sim, clock.step)
+    t_frame = _grid_time(sim, clock.frame)
     published = latest(sim)
-    clock.t == oftype(clock.t, t_frame) && published.frame == clock.step &&
+    clock.t == oftype(clock.t, t_frame) && published.frame == clock.frame &&
         published.t == clock.t ||
         throw(DiagnosticError(CheckpointMidFrame(t = _seconds(clock.t), t_frame = t_frame,
-                                                 step = clock.step)))
+                                                 frame = clock.frame)))
     _take_checkpoint(sim)
 end
 
@@ -947,9 +947,9 @@ function _compile_feed(sim::Simulation{T}, trc::Trace{T}, restore::Bool = true) 
         clock = sim.exec.clock
         trc.header.t₀ == clock.t₀ || push!(diags, CheckpointMismatch(
             what = :clock, name = :t₀, expected = trc.header.t₀, found = clock.t₀))
-        feedable = trc.header.step:(trc.frames - 1)   # the frames the simulation may stand at
-        clock.step in feedable || push!(diags, CheckpointMismatch(
-            what = :clock, name = :step, expected = feedable, found = clock.step))
+        feedable = trc.header.frame:(trc.frames - 1)  # the frames the simulation may stand at
+        clock.frame in feedable || push!(diags, CheckpointMismatch(
+            what = :clock, name = :frame, expected = feedable, found = clock.frame))
     end
     _check_schemas!(diags, faces, trc.schemas)
     isempty(diags) || throw(DiagnosticError(diags))     # the header before the entries
@@ -995,7 +995,7 @@ forms, since a deployment mismatch is never a what-if.
 Everything else is the loop as specified. The frame budget is the recording's
 length, or `to_boundary = k` frames — §13.4's replay pointer, defined as
 running *through* the frame that publishes boundary `k`, and every frame top is
-a grid boundary (§10.4), so the halt is exactly at `clock.step == k` and a
+a grid boundary (§10.4), so the halt is exactly at `clock.frame == k` and a
 replay always halts at a frame top; a `t*` boundary inside a frame is
 reproduced but is not stoppable-at (§10.4 keeps the two indices apart). `k`
 runs from the frame the feed starts at, the header's or under `restore = false`
@@ -1070,7 +1070,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
     # feed starts from — the header's, or the simulation's own under `restore =
     # false` — and no further than the recording reaches; every frame top is
     # one, so it counts frames
-    first_frame = restore ? trc.header.step : sim.exec.clock.step
+    first_frame = restore ? trc.header.frame : sim.exec.clock.frame
     to_boundary === nothing || (to_boundary isa Integer && to_boundary ≥ first_frame &&
         to_boundary ≤ trc.frames) || throw(DiagnosticError(
             ArgumentInvalid(call = :replay!, reason = :range, argument = :to_boundary,
@@ -1109,7 +1109,7 @@ function replay!(sim::Simulation{T}, trc::Trace{T}; to_boundary = nothing,
                        feed, trace, log, Int(log_every), log_max)
     # the records at or before the frame the feed starts from are behind it: a
     # seek skips them, and the cursor only advances from here
-    feed.next = something(findfirst(record -> record.frame > cp.step, feed.records),
+    feed.next = something(findfirst(record -> record.frame > cp.frame, feed.records),
                           length(feed.records) + 1)
     upto = to_boundary === nothing ? trc.frames : Int(to_boundary)
     @atomic control.pace = p                    # the advance's knobs, written at entry (§12.1)
@@ -1206,7 +1206,7 @@ drain runs at the frame top only, never at a `t*` boundary (§10.4), while
 publication follows *every* boundary sequence (§11.2) — the frame top's here,
 a `t*` boundary's inside the frame loop, before integration resumes — and
 every publication is a stop-face sampling point (§13.5), a `t*` hit ending
-the run with the `t*` snapshot final. The grid is driven by the step counter,
+the run with the `t*` snapshot final. The grid is driven by the frame index,
 so the run ends at the first frame top reaching or exceeding `t_end`, whole
 frames from `t₀` (§12.4).
 
@@ -1261,7 +1261,7 @@ function _settle_mode!(sim::Simulation)
     feed = run.feed
     feed === nothing && return nothing
     # the detach is the flip: the mode is the feed's absence (§12.6, D-260)
-    sim.exec.clock.step ≥ feed.frames && (run.feed = nothing)
+    sim.exec.clock.frame ≥ feed.frames && (run.feed = nothing)
     nothing
 end
 
@@ -1489,16 +1489,16 @@ function _advance!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upto
                 reanchor!(pacer, _seconds(clock.t), @atomic control.pace)
             issuer = @atomic control.stop_issuer
             issuer === nothing || return (ControlRequestedStop(issuer), advanced)
-            sim.exec.clock.step < t_end_frame || return (EndTimeReached(), advanced)
-            sim.exec.clock.step < upto || return (nothing, advanced)
+            sim.exec.clock.frame < t_end_frame || return (EndTimeReached(), advanced)
+            sim.exec.clock.frame < upto || return (nothing, advanced)
             isempty(plane.roster) || yield()
             pacer === nothing ||              # the pacer's wait: an unmask point (§12.4)
                 wait_deadline!(control, pacer, plane.loop_diag, _seconds(clock.t), h)
-            entry_boundary = sim.exec.clock.step   # the frame-entry boundary index (§13.4)
+            entry_boundary = sim.exec.clock.frame  # the frame-entry boundary index (§13.4)
             Base.sigatomic_begin()                 # §12.4: masked across the boundary sequence
             try
                 drain!(sim)
-                k = (sim.exec.clock.step += 1)
+                k = (sim.exec.clock.frame += 1)
                 hit = frame!(sim, k, policy, addrs, pacer)
                 if hit === nothing
                     k % N_base == 0 ? boundary!(sim, k ÷ N_base) : offtick_boundary!(sim)
@@ -1576,10 +1576,10 @@ function _wrap_step(sim::Simulation, entry_boundary::Int, err)
         "a StepError reached the catch site (§13.4), which is its only constructor — " *
         "something inside the boundary sequence wrapped one"))
     cursor = sim.exec.cursor
-    frame = CursorFrame(cursor.comp == 0 ? nothing :
-                            sim.deployment.build.structure.components[cursor.comp].path,
-                        cursor.fn, cursor.phase, cursor.index)
-    StepError(frame, _seconds(sim.exec.clock.t), entry_boundary, _species(sim, err))
+    StepError(CursorFrame(cursor.comp == 0 ? nothing :
+                              sim.deployment.build.structure.components[cursor.comp].path,
+                          cursor.fn, cursor.phase, cursor.index),
+              _seconds(sim.exec.clock.t), entry_boundary, _species(sim, err))
 end
 
 # The species rule (§13.4, D-221): a fail-fast carrier thrown inside the
@@ -1710,7 +1710,7 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
         # §12.7: in `:replay` the recording is the bound, so a `step!` past its
         # end advances only to the last recorded frame and returns fewer frames
         # than asked — the truncation the caller reads (D-218)
-        upto = _replay_bound(sim, sim.exec.clock.step + frame_count)
+        upto = _replay_bound(sim, sim.exec.clock.frame + frame_count)
         (source, advanced) = _advance!(sim, policy, addrs, upto, t_end_frame, nothing)
         returned = true
     catch err
@@ -2013,7 +2013,7 @@ function drain!(sim::Simulation)
     _phase!(cursor, :drain)
     # one drain per frame, counted before any thunk runs, on both paths: the
     # count is the recording's length (§11.5) *and* the ordinal each record
-    # takes (D-260). The drain runs before the clock's step increments, so a
+    # takes (D-260). The drain runs before the clock's frame increments, so a
     # batch taken at the top of frame `k` is recorded — and replayed — at `k`.
     trc = sim.run.trace
     trc === nothing || (trc.frames += 1)
@@ -2056,7 +2056,7 @@ the kill switch there is no trace to read it from (D-260).
 """
 function _replay_drain!(sim::Simulation, feed::ReplayFeed)
     plane = sim.plane
-    frame = sim.exec.clock.step + 1
+    frame = sim.exec.clock.frame + 1
     for entry in plane.roster
         handle = _handle(entry)
         _discard_staged!(handle.writer, handle.diag_cell, frame)
@@ -2122,7 +2122,7 @@ predicate's alone.
 function publish!(sim::Simulation, pacer::Union{Nothing,Pacer} = nothing)
     control = sim.control
     clock = sim.exec.clock
-    snapshot = Snapshot(clock.t, clock.step, clock.boundary, capture_stores(sim.exec.store),
+    snapshot = Snapshot(clock.t, clock.frame, clock.boundary, capture_stores(sim.exec.store),
                         sim.exec.act.layout, _status(sim, pacer))
     clock.boundary += 1
     @atomic :release sim.plane.published.latest = snapshot

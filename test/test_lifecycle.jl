@@ -119,7 +119,7 @@ function test_lifecycle()
         @test record isa TerminationRecord{Float64}           # the deployment's own scalar (§7.2, D-203)
         @test record.source === EndTimeReached() && record.t == 1.0
         @test isempty(record.residue)                         # a quiet tail contributes no record
-        @test sim.exec.clock.step == 50
+        @test sim.exec.clock.frame == 50
 
         # §12.4: the run ends at the first frame top reaching or exceeding
         # `t_end`, whole frames from `t₀` — an off-grid bound overshoots by
@@ -129,19 +129,19 @@ function test_lifecycle()
         # with the time's magnitude; `step!`'s `t_plus` is the same rule)
         init!(sim, fragment(inputs = (ref = 0.0,)))
         run!(sim; t_end = 0.99)
-        @test termination(sim).t == 1.0 && sim.exec.clock.step == 50
+        @test termination(sim).t == 1.0 && sim.exec.clock.frame == 50
         init!(sim, fragment(inputs = (ref = 0.0,)); t0 = 10.0)
         run!(sim; t_end = 12.0)
-        @test termination(sim).t == 12.0 && sim.exec.clock.step == 100
+        @test termination(sim).t == 12.0 && sim.exec.clock.frame == 100
         init!(sim, fragment(inputs = (ref = 0.0,)); t0 = 10.0)
         run!(sim; t_end = 5.0)
-        @test termination(sim).source === EndTimeReached() && sim.exec.clock.step == 0
+        @test termination(sim).source === EndTimeReached() && sim.exec.clock.frame == 0
         late = Simulation(feedback_model(); h = 1//50)   # the advance below carries the bound:
                                                         # one before `t0` advances nothing
         init!(late, fragment(inputs = (ref = 0.0,)); t0 = 86400.0)
         @test step!(late; t_plus = 1.0) == 50
         run!(late; t_end = 86402.0)
-        @test termination(late).t == 86402.0 && late.exec.clock.step == 100
+        @test termination(late).t == 86402.0 && late.exec.clock.frame == 100
 
         init!(sim, fragment(inputs = (ref = 0.0,)))
         run!(sim; t_end = 0.5)                           # this advance only
@@ -221,7 +221,7 @@ function test_lifecycle()
         record = termination(sim)
         @test record.source === ModelRequestedStop(:hit)      # kind + payload, one typed value (D-203)
         @test record.t == 4 * sim.deployment.h                # the sweep at boundary 4 saw 0.4 ≥ 0.35
-        @test sim.exec.clock.step == 4                        # the run ended there, not at t_end
+        @test sim.exec.clock.frame == 4                       # the run ended there, not at t_end
         # that snapshot is the final one
         @test latest(sim).t === record.t
     end
@@ -233,7 +233,7 @@ function test_lifecycle()
         run!(sim; t_end = 5.0, stop_on = ("stop",))
         record = termination(sim)
         @test record.source === ModelRequestedStop(:stop) && record.t == 0.0
-        @test sim.exec.clock.step == 0              # zero frames: the check precedes the first step
+        @test sim.exec.clock.frame == 0             # zero frames: the check precedes the first step
     end
 
     @testset "a localized stop ends the run at t*, the crossing state final (§13.5, §10.4)" begin

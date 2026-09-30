@@ -44,7 +44,7 @@ struct Checkpoint{T}
     table::StoreBundle               # the signal table, every cell buffer copied
     prior::Vector{Bool}              # the guard priors
     t::T                             # the clock, in full
-    step::Int
+    frame::Int
     boundary::Int
     t₀::Float64
     deployment::Deployment           # compared as a value at restore (§12.7)
@@ -79,7 +79,7 @@ function _take_checkpoint(sim)
     m = Any[st === nothing ? nothing : st[] for st in exec.mstores]
     checkpoint_stepper(exec.stepper)   # empty for a one-step method (stepper.jl)
     Checkpoint{T}(copy(exec.xbuf), s, m, capture_stores(exec.store), copy(exec.events.prior),
-                  clock.t, clock.step, clock.boundary, clock.t₀, sim.deployment,
+                  clock.t, clock.frame, clock.boundary, clock.t₀, sim.deployment,
                   _fingerprint(sim))
 end
 
@@ -94,7 +94,7 @@ function _restore_state!(exec::Executor{T}, cp::Checkpoint{T}) where {T}
     copyto!(exec.events.prior, cp.prior)
     copyto!(exec.events.last, cp.prior)
     clock = exec.clock
-    clock.t, clock.step, clock.boundary, clock.t₀ = cp.t, cp.step, cp.boundary, cp.t₀
+    clock.t, clock.frame, clock.boundary, clock.t₀ = cp.t, cp.frame, cp.boundary, cp.t₀
     restore_stepper!(exec.stepper, cp)
     nothing
 end
@@ -118,7 +118,7 @@ end
 # they are.
 _detach(cp::Checkpoint{T}) where {T} =
     Checkpoint{T}(copy(cp.x), copy(cp.s), copy(cp.m), capture_stores(cp.table), copy(cp.prior),
-                  cp.t, cp.step, cp.boundary, cp.t₀, cp.deployment, cp.layout)
+                  cp.t, cp.frame, cp.boundary, cp.t₀, cp.deployment, cp.layout)
 
 # The fingerprint check `restore!` and replay's entry pass share (§12.6, §12.7):
 # the structural fingerprint compared field for field, then the two deployments

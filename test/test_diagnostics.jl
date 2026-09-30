@@ -598,8 +598,8 @@ function diagnostics_kind_set()
                                expected = ["m/fcs:fast"], found = ["m/fcs:slow"]),
             CheckpointMismatch(what = :frame, name = :harness, expected = 1:8, found = 99),
             CheckpointMismatch(what = :clock, name = :t₀, expected = 0.0, found = 0.05),
-            CheckpointMismatch(what = :clock, name = :step, expected = 0:7, found = 8),
-            CheckpointMidFrame(t = 0.315, t_frame = 0.4, step = 4),
+            CheckpointMismatch(what = :clock, name = :frame, expected = 0:7, found = 8),
+            CheckpointMidFrame(t = 0.315, t_frame = 0.4, frame = 4),
             ReplaySchemaMismatch(writer = "harness", schema = [:a, :z], unknown = [:z],
                                  faces = [:a, :b]),
             ReplayUnknownFace(face = 7, frame = 1, writer = "harness", faces = [:a, :b]),
@@ -941,7 +941,7 @@ function diagnostics_kind_set()
         @test startswith(rendered, "replay: the recording's origin is t₀ = 0.0 and this " *
                                    "simulation's is 0.05")
         @test occursin("the one grid both share", rendered)
-        rendered = message(CheckpointMismatch(what = :clock, name = :step, expected = 0:7,
+        rendered = message(CheckpointMismatch(what = :clock, name = :frame, expected = 0:7,
                                               found = 8))
         @test startswith(rendered, "replay: this simulation stands at frame 8, outside 0:7, " *
                                    "the frames a `restore = false` feed can start from")
@@ -951,11 +951,11 @@ function diagnostics_kind_set()
         @test occursin("got nothing", rendered)
         # A `t*` stop's refusal names the clock, the top it fell short of, the
         # frame, and the three ways to stop at a top.
-        rendered = message(CheckpointMidFrame(t = 0.315, t_frame = 0.4, step = 4))
+        rendered = message(CheckpointMidFrame(t = 0.315, t_frame = 0.4, frame = 4))
         @test occursin("t = 0.315, inside frame 4 and short of its top at t = 0.4", rendered)
         @test occursin("`t_end`, a stop face read at a grid boundary, or `stop!`", rendered)
         # A frame an interrupt abandoned at its top reads as never published.
-        rendered = message(CheckpointMidFrame(t = 0.4, t_frame = 0.4, step = 4))
+        rendered = message(CheckpointMidFrame(t = 0.4, t_frame = 0.4, frame = 4))
         @test startswith(rendered, "`checkpoint` with the clock at frame 4's top, t = 0.4, " *
                                    "which was never published")
         @test occursin("an interrupt thrown from model code abandons the frame unpublished",

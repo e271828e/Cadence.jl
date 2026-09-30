@@ -177,7 +177,7 @@ function failures_runtime()
         init!(sim, fragment(inputs = (in = true,)))
         err = failure(() -> run!(sim; t_end = 5.0))
         @test err isa StepError
-        @test err.frame == CursorFrame("c", :x_derivative, :integrate, 2)   # RK4's half-step evaluation
+        @test err.cursor == CursorFrame("c", :x_derivative, :integrate, 2)  # RK4's half-step evaluation
         @test err.boundary == 0 && err.t == 0.05
         @test err.cause isa Tripped
         @test lifecycle(sim) === :errored
@@ -192,7 +192,7 @@ function failures_runtime()
         stage!(sim, "in" => true)                       # frame 1's drain arms the guard
         err = failure(() -> step!(sim; t_end = 5.0))
         @test err isa StepError{Detonated}
-        @test err.frame == CursorFrame("c", :handler, :round, 1)
+        @test err.cursor == CursorFrame("c", :handler, :round, 1)
         @test err.boundary == 0
 
         # The pointer is the frame-entry index actually recorded, not a constant.
@@ -209,7 +209,7 @@ function failures_runtime()
         init!(sim)
         err = failure(() -> run!(sim; t_end = 0.2))
         @test err isa StepError{BundleFieldError}
-        @test err.frame.fn === :y_state
+        @test err.cursor.fn === :y_state
         d = diagnostic(err)
         @test d.reason === :undeclared && d.field === :m && d.legal == [:x, :t]
         @test lifecycle(sim) === :errored
@@ -227,7 +227,7 @@ function failures_runtime()
         sim = Simulation(fed(Mine(), "sig"); h = 1//10)
         err = failure(() -> init!(sim, fragment(inputs = (in = true,))))
         @test err isa StepError
-        @test err.frame == CursorFrame("c", :handler, :round, 1)
+        @test err.cursor == CursorFrame("c", :handler, :round, 1)
         @test err.boundary == 0 && err.t == 0.0         # the pointer degenerates at zero
         @test err.cause isa Detonated
 
@@ -252,7 +252,7 @@ function failures_runtime()
         sim2 = Simulation(fed(Mine(), "sig"); h = 1//10)
         reproduced = failure(() -> init!(sim2, fragment(inputs = (in = true,))))
         @test reproduced isa StepError{Detonated}
-        @test reproduced.frame == err.frame && reproduced.boundary == 0 && reproduced.t == err.t
+        @test reproduced.cursor == err.cursor && reproduced.boundary == 0 && reproduced.t == err.t
         @test lifecycle(sim2) === :built
 
         # The remedy is a corrected condition, and `init!` re-establishes first.
@@ -268,8 +268,8 @@ function failures_runtime()
         init!(sim)
         err = failure(() -> run!(sim; t_end = 5.0))
         @test err isa StepError{Detonated}
-        @test err.frame.path == "c" && err.frame.fn === :guard && err.frame.phase === :trial
-        @test err.frame.index ≥ 1
+        @test err.cursor.path == "c" && err.cursor.fn === :guard && err.cursor.phase === :trial
+        @test err.cursor.index ≥ 1
         @test err.boundary == 3 && 0.3 < err.t < 0.4    # strictly inside the frame
     end
 
@@ -283,8 +283,8 @@ function failures_runtime()
         init!(sim)
         err = failure(() -> run!(sim; t_end = 5.0))
         @test err isa StepError{Detonated}
-        @test err.frame.path == "c" && err.frame.fn === :guard &&
-              err.frame.phase === :arrival
+        @test err.cursor.path == "c" && err.cursor.fn === :guard &&
+              err.cursor.phase === :arrival
         @test err.boundary == 0 && err.t == 0.1         # the frame top the integrate landed on
     end
 
@@ -294,13 +294,13 @@ function failures_runtime()
         stage!(sim, "in" => true)
         err = failure(() -> step!(sim; t_end = 5.0))
         @test err isa StepError{Detonated}
-        @test err.frame.path == "c" && err.frame.fn === :s_update && err.frame.phase === :ticks
+        @test err.cursor.path == "c" && err.cursor.fn === :s_update && err.cursor.phase === :ticks
 
         projection_sim = Simulation(single(Primer(0.15)); h = 1//10)
         init!(projection_sim)
         err = failure(() -> run!(projection_sim; t_end = 5.0))
         @test err isa StepError{Detonated}
-        @test err.frame.path == "c" && err.frame.fn === :x_projection && err.frame.phase === :project
+        @test err.cursor.path == "c" && err.cursor.fn === :x_projection && err.cursor.phase === :project
         @test err.boundary == 1                         # `q` reaches the level in frame 2
     end
 
@@ -465,7 +465,7 @@ function failures_runtime()
         init!(sim, fragment(inputs = (in = true,)))
         err = failure(() -> run!(sim; t_end = 5.0))
         @test err isa StepError{Tripped}
-        @test err.frame == CursorFrame("c", :x_derivative, :integrate, 2)
+        @test err.cursor == CursorFrame("c", :x_derivative, :integrate, 2)
         @test err.t == 0.05 && err.boundary == 0
         @test lifecycle(sim) === :errored
 
@@ -498,9 +498,9 @@ function failures_runtime()
         # The sweep is the boundary's first act: the cursor is still the integrate's,
         # named at the block's owner and at no function, and neither `div`'s own
         # `x_projection` nor `con`'s lookup has run on the NaN.
-        @test err.frame.path == "div" && err.frame.fn === :none &&
-              err.frame.phase === :integrate
-        @test err.frame.index == 0                      # the sweep is no stage, so no ordinal
+        @test err.cursor.path == "div" && err.cursor.fn === :none &&
+              err.cursor.phase === :integrate
+        @test err.cursor.index == 0                     # the sweep is no stage, so no ordinal
         @test !(err.cause isa DomainError) && d.path != "con"
         @test lifecycle(sim) === :errored
     end
@@ -513,7 +513,7 @@ function failures_runtime()
         err = failure(() -> run!(sim; t_end = 5.0))
         @test err isa StepError{NonfiniteState}
         @test err.cause.path == "c" && err.cause.leaf == "q" && isnan(err.cause.value)
-        @test err.frame.phase === :integrate && err.frame.path == "c"
+        @test err.cursor.phase === :integrate && err.cursor.path == "c"
         @test err.boundary == 1 && err.t ≈ 0.2          # the frame top, past the t* at 0.15
         @test err.cause.t ≈ 0.2 && err.cause.boundary == 1
     end
@@ -537,10 +537,10 @@ function reproduction(model, quiet::Int)
     replay!(sim2, trace(sim); to_boundary = err.boundary, t_end = 5.0)
     @test lifecycle(sim2) === :initialized          # the pointer is always a legal halt
     @test mode(sim2) === :replay                    # …with the recording still ahead of it
-    @test sim2.exec.clock.step == err.boundary
+    @test sim2.exec.clock.frame == err.boundary
     twin_err = failure(() -> step!(sim2; t_end = 5.0))
     @test twin_err isa StepError
-    @test twin_err.frame == err.frame && twin_err.t == err.t &&
+    @test twin_err.cursor == err.cursor && twin_err.t == err.t &&
           twin_err.boundary == err.boundary
     @test typeof(twin_err.cause) === typeof(err.cause)
     @test lifecycle(sim2) === :errored
@@ -554,7 +554,7 @@ function failures_pointer_twin()
         # frame's own drain.
         err = reproduction(fed(Tripwire(0.35), "arm"), 3)
         @test err.cause isa Tripped && err.boundary == 3
-        @test err.frame == CursorFrame("c", :x_derivative, :integrate, 2)
+        @test err.cursor == CursorFrame("c", :x_derivative, :integrate, 2)
 
         # And the nonfinite species, which the sweep raises rather than model code.
         err = reproduction(diverging(), 1)
@@ -575,8 +575,8 @@ function failures_pointer_twin()
         init!(sim2, fragment(inputs = (ref = 0.0,)))
         replay!(sim2, trc; to_boundary = 3, t_end = 5.0)
         @test lifecycle(sim2) === :initialized
-        @test sim2.exec.clock.step == 3                 # the halt is at `k`, never at `k · n`
-        @test sim2.exec.clock.step % sim2.deployment.N_base == 1        # and 3 is an off-tick frame top here
+        @test sim2.exec.clock.frame == 3                # the halt is at `k`, never at `k · n`
+        @test sim2.exec.clock.frame % sim2.deployment.N_base == 1       # and 3 is an off-tick frame top here
         @test same_trajectory(logged(sim2), [s for s in logged(sim) if s.frame ≤ 3])
 
         # `to_time` counts the same boundaries: 0.3 is boundary 3's own time here,
@@ -584,7 +584,7 @@ function failures_pointer_twin()
         sim4 = grid()
         init!(sim4, fragment(inputs = (ref = 0.0,)))
         replay!(sim4, trc; to_time = 0.3)
-        @test sim4.exec.clock.step == 3
+        @test sim4.exec.clock.frame == 3
 
         # The range is the recording's frame count, so one past it refuses.
         bad = trc.frames + 1
@@ -611,7 +611,7 @@ function failures_conformance()
         @test err.cause.reason === :field_type && err.cause.shape === :ports
         @test err.cause.field === :q
         @test err.cause.observed === Int64 && err.cause.declared === Float64
-        @test err.frame.fn === :y_state
+        @test err.cursor.fn === :y_state
         @test lifecycle(sim) === :errored
         @test occursin("zero(", message(err.cause))    # §9.5's didactic hint
     end
@@ -669,7 +669,7 @@ function failures_conformance()
         @test err.cause.what == "x_derivative" && err.cause.shape === :x_init
         @test err.cause.reason === :field_type && err.cause.field === :a
         @test err.cause.observed === Int64 && err.cause.declared === Float64
-        @test err.frame.fn === :x_derivative
+        @test err.cursor.fn === :x_derivative
         @test lifecycle(sim) === :errored
     end
 
@@ -682,7 +682,7 @@ function failures_conformance()
         @test err.cause.event === nothing    # a projection is the component's, not an event's
         @test err.cause.reason === :field_type && err.cause.field === :a
         @test err.cause.observed === Int64 && err.cause.declared === Float64
-        @test err.frame.fn === :x_projection
+        @test err.cursor.fn === :x_projection
         @test lifecycle(sim) === :errored
     end
 
@@ -704,7 +704,7 @@ function failures_conformance()
         @test err.cause.what == "s_update" && err.cause.shape === :s_init
         @test err.cause.observed === typeof((n = 0,))
         @test err.cause.declared === typeof((n = 0.0,))
-        @test err.frame.fn === :s_update
+        @test err.cursor.fn === :s_update
         @test lifecycle(sim) === :errored
     end
 
@@ -717,7 +717,7 @@ function failures_conformance()
         @test err.cause.event === :fire      # the event name, at run time too (§9.5, D-249)
         @test err.cause.reason === :field_type && err.cause.field === :k
         @test err.cause.observed === Float64 && err.cause.declared === Int
-        @test err.frame.fn === :handler
+        @test err.cursor.fn === :handler
         @test lifecycle(sim) === :errored
     end
 
@@ -730,7 +730,7 @@ function failures_conformance()
         @test err.cause.event === :fire
         @test err.cause.reason === :return_type && err.cause.observed === Int
         @test occursin("NamedTuple", message(err.cause))
-        @test err.frame.fn === :handler
+        @test err.cursor.fn === :handler
         @test lifecycle(sim) === :errored
     end
 end

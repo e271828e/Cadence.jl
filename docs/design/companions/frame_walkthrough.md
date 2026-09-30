@@ -29,9 +29,9 @@ checks the stop word and the frame bound, drains, integrates, runs the
 boundary, publishes, and samples the stop faces:
 
 ```julia
-entry = sim.exec.clock.step
+entry = sim.exec.clock.frame
 drain!(sim)
-k = (sim.exec.clock.step += 1)
+k = (sim.exec.clock.frame += 1)
 frame!(sim, k)
 if pol.hit === nothing
     k % sim.N_base == 0 ? boundary!(sim, k ÷ sim.N_base) : offtick_boundary!(sim)

@@ -213,7 +213,7 @@ the cause is one, the exception model code threw otherwise. A *species* is a
 check throw its kind and reach the one catch site as a plain thrower.
 """
 struct StepError{C <: Union{Diagnostic, Exception}} <: Exception
-    frame::CursorFrame
+    cursor::CursorFrame
     t::Float64       # `_seconds(clock.t)` at the catch: the boundary time in a boundary
                      # phase, the stage or trial time mid-integration
     boundary::Int    # the frame-entry boundary index: replay!(…; to_boundary = boundary)
@@ -227,16 +227,16 @@ diagnostic(carrier::StepError{<:Diagnostic}) = carrier.cause
 # an `:integrate` frame at index 0 is the framework's own act inside the
 # integrate — the nonfinite sweep — and not a stage. A phase this list does not
 # know renders as its own symbol, never as another phase's spelling.
-_phase_text(frame::CursorFrame) =
-    frame.phase === :integrate  ? (frame.index == 0 ? "integration" :
-                                                "integration stage $(frame.index)") :
-    frame.phase === :arrival    ? "arrival sweep" :
-    frame.phase === :validation ? "θ = 0 validation" :
-    frame.phase === :trial      ? "localization trial $(frame.index)" :
-    frame.phase === :project    ? "projection" :
-    frame.phase === :round      ? "event round $(frame.index)" :
-    frame.phase === :ticks      ? "tick updates" :
-    frame.phase === :drain      ? "drain" : string(frame.phase)
+_phase_text(cursor::CursorFrame) =
+    cursor.phase === :integrate  ? (cursor.index == 0 ? "integration" :
+                                                  "integration stage $(cursor.index)") :
+    cursor.phase === :arrival    ? "arrival sweep" :
+    cursor.phase === :validation ? "θ = 0 validation" :
+    cursor.phase === :trial      ? "localization trial $(cursor.index)" :
+    cursor.phase === :project    ? "projection" :
+    cursor.phase === :round      ? "event round $(cursor.index)" :
+    cursor.phase === :ticks      ? "tick updates" :
+    cursor.phase === :drain      ? "drain" : string(cursor.phase)
 
 # §13.2's doctrine: the didactic frame first, the raw throw second. The frame
 # line names the path, the function, the phase, the time and the pointer, and
@@ -245,14 +245,14 @@ _phase_text(frame::CursorFrame) =
 # spells the empty path as "the root component", which is a *component* of a
 # bare-leaf build and not "nowhere".
 function Base.showerror(io::IO, carrier::StepError)
-    frame = carrier.frame
+    cursor = carrier.cursor
     print(io, "StepError: ")
-    if frame.path !== nothing
-        print(io, "in ", _at_path(frame.path))
-        frame.fn === :none || print(io, " ", frame.fn)
+    if cursor.path !== nothing
+        print(io, "in ", _at_path(cursor.path))
+        cursor.fn === :none || print(io, " ", cursor.fn)
         print(io, ", ")
     end
-    print(io, _phase_text(frame), " of the frame from boundary ", carrier.boundary,
+    print(io, _phase_text(cursor), " of the frame from boundary ", carrier.boundary,
           " (t = ", carrier.t, "):\n  ")
     # The pointer degenerates at zero (§13.4, D-274): boundary zero and frame
     # one share it and the carrier cannot tell them apart, so both recipes are
@@ -2042,7 +2042,7 @@ Base.@kwdef struct CheckpointMismatch <: Diagnostic
     name::Symbol = Symbol("")                # :sizes|:paths|:events|:s|:m|:x or `port.name`, the
                                              # root-input face, the deployment parameter, a
                                              # schedule or `scope.` column, a list name:
-                                             # :schedule, `scope.key`, or :clock's :t₀|:step
+                                             # :schedule, `scope.key`, or :clock's :t₀|:frame
     expected::Any = nothing                  # the checkpoint's value; :clock's, the recording's
     found::Any = nothing                     # the target's
 end
@@ -2133,12 +2133,12 @@ message(d::CheckpointMismatch) =
 Base.@kwdef struct CheckpointMidFrame <: Diagnostic
     t::Float64                               # the clock
     t_frame::Float64                         # the top of the frame it stands in
-    step::Int                                # the frame index
+    frame::Int                               # the frame index
 end
 message(d::CheckpointMidFrame) =
     "`checkpoint` with the clock " *
-    (d.t == d.t_frame ? "at frame $(d.step)'s top, t = $(d.t), which was never published" :
-     "at t = $(d.t), inside frame $(d.step) and short of its top at t = $(d.t_frame)") *
+    (d.t == d.t_frame ? "at frame $(d.frame)'s top, t = $(d.t), which was never published" :
+     "at t = $(d.t), inside frame $(d.frame) and short of its top at t = $(d.t_frame)") *
     " — a `t*` stop abandons the frame's remainder, an interrupt thrown from model code " *
     "abandons the frame unpublished with its stores possibly mid-boundary, and a checkpoint " *
     "is taken at the rest a published frame top leaves only; stop the run at one: `t_end`, " *

@@ -17,7 +17,7 @@
 One drained batch, retained sparse (§11.5, D-176): the masked (touched)
 positions as `position ⇒ value` pairs against the writer's schema, which is
 `trace.schemas[writer]`. `frame` is the frame ordinal the batch was drained
-at the top of — the drain runs before the clock's step increments, so a batch
+at the top of — the drain runs before the clock's frame increments, so a batch
 drained at the top of frame `k` carries `frame = k` and replays there.
 """
 struct TraceBatch
@@ -276,7 +276,7 @@ function _compile_records!(diags::Vector{Diagnostic}, sim, trc::Trace, faces::Ve
     layout, store, schemas = sim.exec.act.layout, sim.exec.store, trc.schemas
     writers = Dict{Int,Writer}()
     replay_records = ReplayRecord[]
-    recorded_frames = (trc.header.step + 1):trc.frames
+    recorded_frames = (trc.header.frame + 1):trc.frames
     for record in trc.batches
         if !(record.frame in recorded_frames)
             # the batch disagrees with the trace's *own* frames: the drain visits

@@ -110,8 +110,8 @@ end
 """
 The clock, in its own mutable cell so the zero-arg phase bodies can close over
 it. `t` is a bundle field for every stage (§5.2's bundle law) and varies within
-a step — RK stages evaluate at internal times. `step` counts completed
-continuous steps since `t₀`; every `N_base`-th step boundary is a base tick (§10.5),
+a step — RK stages evaluate at internal times. `frame` is the frame index, the
+count of completed continuous steps since `t₀`; every `N_base`-th step boundary is a base tick (§10.5),
 and no entry reads it — it is the loop's, not the bundle's. `t₀` anchors the
 indexed grid: frame tops are `t₀ + k·h`, computed from the index and never
 accumulated, so a remainder step's float arithmetic cannot drift the grid
@@ -123,7 +123,7 @@ it into `t`.
 """
 mutable struct Clock{T}
     t::T
-    step::Int
+    frame::Int
     boundary::Int   # the trajectory's published-boundary ordinal (§12.3, D-230); boundary zero = 0
     t₀::Float64
 end
