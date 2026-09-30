@@ -24,12 +24,6 @@ Where the reason is not given here, the cited decision carries it:
 - **The NLopt fallback** (§14.8, H 4.5): `NLoptBackend(:LN_BOBYQA)` as a
   package extension, the squared and normalized objective at `stopval = 1`,
   and the nominal-activation loop it would run on.
-- **The leaf address in the binding register** (§14.4, D-276): a binding
-  read refuses the component index on every table member
-  (`ReadBindingUnresolved`, `:indexed`) and `ReadGather` holds bare cell
-  addresses. D-276 moves the binding gather onto the family's baked read.
-  The 2026-09-04 audit did not reach this item (`01_merge.md`, the §14
-  paragraph).
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
   spellings) (M-B22).

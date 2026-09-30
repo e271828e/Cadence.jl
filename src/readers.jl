@@ -14,7 +14,7 @@
 # too: an output binding's `reads` (§11.2, bindings.jl) names the three table
 # members of the family declared here. Every member takes a leaf address
 # (§14.4, D-276): a linearization tap on a vector leaf needs it (linearize.jl),
-# and a binding read refuses a step for now. What it needs from the
+# and a binding read takes it as every reader does. What it needs from the
 # condition algebra — the `x`-offset walk and the "is this path a level of the
 # build at all" predicate — it calls at resolution time, which is long after
 # conditions.jl has been read.

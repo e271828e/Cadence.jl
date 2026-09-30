@@ -78,10 +78,10 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276.
   (D-272). A pinning consumer carries its tier, and a discrete one renders
   as unseedable by tier. Each `TapResolution` reason renders one citation
   group, its own.
-- `TapResolution`'s leaf reasons `:leaf_syntax`, `:no_such_field`,
-  `:opaque_leaf`, `:not_indexable`, `:index_arity` and `:index_bounds`, with
-  the `leaf` and `step` fields. `_leaf_clause` renders the six for any kind
-  carrying the address (D-276).
+- `TapResolution`'s and `ReadBindingUnresolved`'s leaf reasons
+  `:leaf_syntax`, `:no_such_field`, `:opaque_leaf`, `:not_indexable`,
+  `:index_arity` and `:index_bounds`, with the `leaf` and `step` fields.
+  `_leaf_clause` renders the six for either kind (D-276).
 - `TierUnreadable`, for a primitive declaring no store, sits beside
   `StatelessWithoutOutputs` (D-263).
 - `InternalInvariant`.
@@ -612,10 +612,13 @@ D-261.
 - `map_input` and the conditioning helper `_condition`.
 - Binding reads `ReadGather`, resolved at attach by `_compile_gather`.
   Resolution raises `ReadBindingUnresolved` and enforces the source rule.
-- The component index refused on all three table members alike (§14.4).
+- The three table members take a leaf address, parsed and resolved by the
+  family's `parse_leaf` and `resolve_leaf`. `ReadGather` holds the family's
+  `CellRead` entries, and `gather_snapshot` runs `_read` over the
+  snapshot's store (D-276).
 - The candidates on the two name-shaped read misses (§14.4).
 
-Spec: §11.2, §11.4, §11.6, §14.4, D-271.
+Spec: §11.2, §11.4, §11.6, §14.4, D-276.
 
 ### `src/control.jl`
 

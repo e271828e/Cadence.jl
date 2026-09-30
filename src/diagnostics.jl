@@ -1481,10 +1481,15 @@ Base.@kwdef struct ReadBindingUnresolved <: Diagnostic
     device::String                           # the device type, admission not yet reached
     binding::String                          # the binding type, by name (§13.2)
     selector::String                         # the selector as authored
-    reason::Symbol   # :store_selector|:indexed|:unknown_cell|:unknown_root_input|
-                     # :root_input_not_output|:unknown_output_face
+    reason::Symbol   # :store_selector|:unknown_cell|:unknown_root_input|
+                     # :root_input_not_output|:unknown_output_face|
+                     # the leaf address's (§14.4, D-276): :leaf_syntax|:no_such_field|
+                     # :opaque_leaf|:not_indexable|:index_arity|:index_bounds
     path::String = ""
     field::Union{Nothing,Symbol} = nothing
+    leaf::String = ""                        # the leaf address as authored
+    step::String = ""                        # the step at fault, as spelled
+    declared::Any = nothing
     candidates::Vector{Symbol} = Symbol[]
 end
 path(d::ReadBindingUnresolved) = d.path
@@ -1494,10 +1499,9 @@ function message(d::ReadBindingUnresolved)
                "store selectors resolve only against live stores, and a binding reads a " *
                "published snapshot, which deliberately carries none (§14.4, §11.2). The " *
                "remedy is to declare the field public and read the port published from it"
-    d.reason === :indexed &&
-        return "$(d.device)'s $(d.binding) reads $(d.selector) — a binding read is a whole " *
-               "cell, and sub-cell index addressing is absent in a binding read " *
-               "(§14.4, docs/design/pending.md)"
+    d.reason in LEAF_REASONS &&
+        return "$(d.device)'s $(d.binding) reads $(d.selector), and $(_leaf_clause(d)) " *
+               "(§14.4, D-276)"
     d.reason === :unknown_cell &&
         return "$(d.device)'s $(d.binding) reads $(d.selector), which names no cell — " *
                (isempty(d.candidates) ?

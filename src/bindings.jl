@@ -109,25 +109,26 @@ end
 # deep paths, zero promises, free access, right for looking at *this* build —
 # and `get_face` an integration read: a root-exported output face, named,
 # curated, meaning-stable under substitution (§11.2). `get_input` reads a root
-# input back, the source cell it is. What these reads do not take is depth
-# *inside* a cell: a binding read is a whole cell, as every reader of the
-# published table is (`pending.md`), so the three table members refuse the
-# component index alike.
+# input back, the source cell it is. All three take a leaf address, checked
+# here by the family's own parse and per-step resolution against the port's
+# declared type (§14.4, D-276). A binding gather is the family's baked read,
+# `CellRead`, run over a snapshot's store where an inspection reader runs it
+# over an executor's.
 
 """
 The compiled gather (§11.2, §14.4): one attachment's `reads`, resolved and
-frozen — the labels as a type parameter, the cell addresses as a tuple — so
-`gather(handle, snapshot)` builds its labeled NamedTuple with no name resolved
-per read. The exact mirror of the compiled scatter the drain applies
-(§11.4), run in the other direction over a published snapshot.
+frozen — the labels as a type parameter, the baked `CellRead` entries as a
+tuple — so `gather(handle, snapshot)` builds its labeled NamedTuple with no
+name resolved per read. The exact mirror of the compiled scatter the drain
+applies (§11.4), run in the other direction over a published snapshot.
 """
-struct ReadGather{L,A<:Tuple}
-    addrs::A
+struct ReadGather{L,E<:Tuple}
+    entries::E
 end
-ReadGather{L}(addrs::A) where {L,A<:Tuple} = ReadGather{L,A}(addrs)
+ReadGather{L}(entries::E) where {L,E<:Tuple} = ReadGather{L,E}(entries)
 
 gather_snapshot(read_gather::ReadGather{L}, snapshot::Snapshot) where {L} =
-    NamedTuple{L}(map(a -> gather_cell(snapshot.store, a), read_gather.addrs))
+    NamedTuple{L}(map(entry -> _read(entry, snapshot.store), read_gather.entries))
 
 """
 Resolve one attachment's `reads` against the build and compile the gather —
@@ -143,14 +144,14 @@ function _compile_gather(layout::Layout, selectors, binding_type::Type, device::
         BindingContractMismatch(binding = _typename(binding_type),
                                  reason = :reads_not_namedtuple,
                                  observed = typeof(selectors))))
-    addrs = map(values(selectors)) do selector
+    entries = map(values(selectors)) do selector
         selector isa ReadSelector || throw(DiagnosticError(
             BindingContractMismatch(binding = _typename(binding_type),
                                      reason = :reads_not_selectors,
                                      observed = typeof(selector))))
         _resolve_read(layout, selector, binding_type, device)
     end
-    ReadGather{keys(selectors)}(addrs)
+    ReadGather{keys(selectors)}(entries)
 end
 
 _root_input_names(layout::Layout) = Symbol[f for (f, _) in layout.root_inputs]
@@ -177,48 +178,62 @@ _resolve_read(::Layout, selector::StoreSelector, binding_type::Type, device::Str
                                selector = _spell(selector), reason = :store_selector,
                                path = _selpath(selector), field = _field(selector))))
 
-# The name a binding read takes: a plain name alone, an address with steps or
-# one that does not parse refused alike, until the binding register takes the
-# leaf address (§14.4, docs/design/pending.md).
-function _plain_name(selector, binding_type::Type, device::String)
+# A step the leaf address cannot take, with what `parse_leaf` or `resolve_leaf`
+# had in hand (§14.4, D-276).
+_leaf_unresolved(selector, refusal::LeafRefusal, binding_type::Type, device::String) =
+    ReadBindingUnresolved(device = device, binding = _typename(binding_type),
+                          selector = _spell(selector), reason = refusal.reason,
+                          path = _selpath(selector), field = _field(selector),
+                          leaf = _leaf_string(selector), step = refusal.step,
+                          declared = refusal.declared, candidates = refusal.candidates)
+
+# The leaf address parsed into its head and steps, or refused.
+function _parsed_read(selector, binding_type::Type, device::String)
     parsed = parse_leaf(selector.leaf)
-    (parsed isa LeafRefusal || !isempty(last(parsed))) && throw(DiagnosticError(
-        ReadBindingUnresolved(device = device, binding = _typename(binding_type),
-                               selector = _spell(selector), reason = :indexed,
-                               path = _selpath(selector), field = _field(selector))))
-    first(parsed)
+    parsed isa LeafRefusal &&
+        throw(DiagnosticError(_leaf_unresolved(selector, parsed, binding_type, device)))
+    parsed
+end
+
+# The baked read of one cell: the steps resolved against the port's declared
+# type, the chain in the entry's type (§14.4, D-276).
+function _cell_read(addr::CellAddr, selector, steps, binding_type::Type, device::String)
+    resolved = resolve_leaf(_port_type(addr), steps)
+    resolved isa LeafRefusal &&
+        throw(DiagnosticError(_leaf_unresolved(selector, resolved, binding_type, device)))
+    CellRead{typeof(addr),first(resolved)}(addr)
 end
 
 function _resolve_read(layout::Layout, selector::GetOutput, binding_type::Type, device::String)
-    name = _plain_name(selector, binding_type, device)
-    haskey(layout.addr, (selector.path, name)) || throw(DiagnosticError(
+    head, steps = _parsed_read(selector, binding_type, device)
+    haskey(layout.addr, (selector.path, head)) || throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :unknown_cell,
-                               path = selector.path, field = name,
+                               path = selector.path, field = head,
                                candidates = _cells_at(layout, selector.path))))
-    layout.addr[(selector.path, name)]
+    _cell_read(layout.addr[(selector.path, head)], selector, steps, binding_type, device)
 end
 
 function _resolve_read(layout::Layout, selector::GetInput, binding_type::Type, device::String)
-    face = _plain_name(selector, binding_type, device)
-    face in _root_input_names(layout) || throw(DiagnosticError(
+    head, steps = _parsed_read(selector, binding_type, device)
+    head in _root_input_names(layout) || throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :unknown_root_input,
-                               field = face, candidates = _root_input_names(layout))))
-    layout.addr[("", face)]
+                               field = head, candidates = _root_input_names(layout))))
+    _cell_read(layout.addr[("", head)], selector, steps, binding_type, device)
 end
 
 function _resolve_read(layout::Layout, selector::GetFace, binding_type::Type, device::String)
-    name = _plain_name(selector, binding_type, device)
-    name in _root_input_names(layout) && throw(DiagnosticError(
+    head, steps = _parsed_read(selector, binding_type, device)
+    head in _root_input_names(layout) && throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :root_input_not_output,
-                               field = name)))
-    haskey(layout.addr, ("", name)) || throw(DiagnosticError(
+                               field = head)))
+    haskey(layout.addr, ("", head)) || throw(DiagnosticError(
         ReadBindingUnresolved(device = device, binding = _typename(binding_type),
                                selector = _spell(selector), reason = :unknown_output_face,
-                               field = name, candidates = _root_output_faces(layout))))
-    layout.addr[("", name)]
+                               field = head, candidates = _root_output_faces(layout))))
+    _cell_read(layout.addr[("", head)], selector, steps, binding_type, device)
 end
 
 """

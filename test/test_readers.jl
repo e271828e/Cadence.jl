@@ -1,7 +1,8 @@
 # --- the read-selector family and the compiled reader (§14.4; increment 21) ------
 # The five deferred reads, their resolution against a build in §13.1's
 # collecting form, and the gather twin of `apply!` over an executor. The fixtures
-# live at top level for `implementation.md`'s local-scope reason.
+# live at top level for `implementation.md`'s local-scope reason; `lin_vector`
+# and `lin_vector_point` are test_linearize.jl's.
 
 # Every home a read can come from, and nothing that fires: a continuous `x`
 # (the plant's `q`) with its derivative, a discrete `s` (the integrator's
@@ -234,14 +235,38 @@ function test_readers()
         d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(q = get_state("plant", :q))))
         @test d.reason === :store_selector &&
               d.selector == "get_state(\"plant\", :q)"
-        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(y = get_output("plant", "y[1]"))))
-        @test d.reason === :indexed
-        # Every table member refuses a step alike (§11.2, docs/design/pending.md).
-        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(u = get_input("u[1]"))))
-        @test d.reason === :indexed && d.selector == "get_input(\"u[1]\")"
-        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(sim, Pad("t"), Readout(y = get_face("y[1]"))))
-        @test d.reason === :indexed && d.selector == "get_face(\"y[1]\")"
-        @test isempty(sim.plane.roster)              # every rejection left the roster untouched
+        @test isempty(sim.plane.roster)              # the rejection left the roster untouched
+
+        # Every table member takes a leaf address, and a binding gather is the
+        # family's baked read over the snapshot (§14.4, D-276).
+        vector_sim = Simulation(lin_vector(); h = 1//10)
+        handle = attach!(vector_sim, Pad("t"), Readout(q2 = get_output("p", "q[2]"),
+                                                       qin1 = get_input("qin[1]"),
+                                                       face2 = get_face("q[2]")))
+        init!(vector_sim, lin_vector_point())
+        snapshot = latest(vector_sim)
+        @test gather(handle, snapshot) === (q2 = port(snapshot, "p", :q)[2],
+                                            qin1 = port(snapshot, "", :qin)[1],
+                                            face2 = port(snapshot, "", :q)[2])
+        @test gather(handle, snapshot) === (q2 = 0.2, qin1 = 0.5, face2 = 0.2)
+
+        # A `.name` step into a struct port, and a matrix entry by its indices.
+        pose_sim = Simulation(pose_model(); h = 1//10)
+        handle = attach!(pose_sim, Pad("t"), Readout(v = get_output("c", "pose.v"),
+                                                     m12 = get_output("c", "pose.m[1,2]")))
+        init!(pose_sim)
+        snapshot = latest(pose_sim)
+        pose = port(snapshot, "c", :pose)
+        @test gather(handle, snapshot) === (v = pose.v, m12 = pose.m[1, 2])
+
+        # A step the address cannot take is refused at attach with the family's
+        # reason, the step named as spelled.
+        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(pose_sim, Pad("t"), Readout(q = get_output("c", "pose.q"))))
+        @test d.reason === :no_such_field && d.step == ".q" && d.candidates == [:v, :m] &&
+              d.declared === LeafPose{Float64} && d.leaf == "pose.q" && d.field === :pose
+        d = carried(@test_throws DiagnosticError{ReadBindingUnresolved} attach!(pose_sim, Pad("t"), Readout(v = get_output("c", "pose.v[4]"))))
+        @test d.reason === :index_bounds && d.step == "[4]" && d.declared === SVector{3,Float64}
+        @test length(pose_sim.plane.roster) == 1     # the two rejections left the roster as it was
     end
 
     @testset "a reader and a plan belong to one activation, by dispatch (§9.4, §14.4)" begin
