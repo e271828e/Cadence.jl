@@ -1845,10 +1845,11 @@ commit.
   bundle field) and snapshot pattern, plus immutable-value returns. The rare
   exception has a documented tolerance, scoped per body by the seam's
   granularity so it never loosens the continuous assertions.
-- **Logging** is amortized-zero. Snapshots are records stored *inline* in a
-  `Vector`, and `sizehint!` for the expected duration makes regrowth a
-  non-event. The inline-storage claim is about the snapshot record's *fields*,
-  not about everything reachable from them. A model carrying [§4.4][s4-4] [field handles](#g-field-handle)
+- **Logging** is amortized-zero. The [log](#g-log) retains the published
+  snapshot objects themselves, by reference, one slot per retained boundary
+  and no copy ([§11.2][s11-2]). `sizehint!` to the retention bound makes
+  regrowth a non-event. The allocation claim is about the snapshot's
+  *fields*, not about everything reachable from them. A model carrying [§4.4][s4-4] [field handles](#g-field-handle)
   (immutable query objects consumers evaluate at their own arguments, such as
   heightmap terrain or wind grids) has a snapshot type with reference fields.
   Those fields ride as references to build-time-frozen data, with no copy and no
