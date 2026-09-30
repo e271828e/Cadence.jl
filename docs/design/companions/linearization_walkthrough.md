@@ -445,7 +445,7 @@ reader's own. The tap set adds five:
   direction. `get_state("plant", :q)` on an `SVector{2}` state is refused; the
   author writes `get_state("plant", "q[1]")` and `get_state("plant", "q[2]")`
   as two labeled taps, and likewise `get_input("wind[1]")` for a vector root
-  input (the leaf address, [§14.4][s14-4], [D-275][d-275]).
+  input (the leaf address, [§14.4][s14-4], [D-276][d-276]).
 - **A selector of the wrong kind in a list**, such as `get_deriv` in `x` or
   `get_state` in `y`.
 - **Two taps resolving to one site**, in `x`, in `u`, or one in each: a
@@ -667,7 +667,7 @@ build.
 [d-271]: ../decisions.md#d-271--admit-the-component-index-on-get_input-and-get_face
 [d-272]: ../decisions.md#d-272--fix-linearizes-surface-the-tap-set-the-chunk-width-the-operating-point-and-the-return
 [d-274]: ../decisions.md#d-274--checkpoints-the-executors-state-as-one-value-restored-without-boundary-zero
-[d-275]: ../decisions.md#d-275--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
+[d-276]: ../decisions.md#d-276--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
 [s12-6]: ../spec.md#126-run-lifecycle-and-partial-advance
 [s13-1]: ../spec.md#131-reporting-policy-collect-the-checks-fail-the-evaluations-fast
 [s14-1]: ../spec.md#141-conditions-are-path-addressed-overlays-on-the-declared-defaults

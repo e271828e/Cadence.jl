@@ -295,12 +295,12 @@ were derived.
 | [D-268][d-268] | Pause verbs on the simulation, and the interrupt's remaining windows | ratified |
 | [D-269][d-269] | Pacing's spellings and default, the wait's consultation and the pacer's home | ratified |
 | [D-270][d-270] | Fix the framework's half of the panel convention: port views, the peek, the orphan fact | ratified |
-| [D-271][d-271] | Admit the component index on `get_input` and `get_face` | superseded → [D-275][d-275] |
+| [D-271][d-271] | Admit the component index on `get_input` and `get_face` | superseded → [D-276][d-276] |
 | [D-272][d-272] | Fix `linearize`'s surface: the tap set, the chunk width, the operating point and the return | ratified |
 | [D-273][d-273] | A condition is an initial condition: `capture` leaves the algebra | ratified |
 | [D-274][d-274] | Checkpoints: the executor's state as one value, restored without boundary zero | ratified |
 | [D-275][d-275] | Spell the exhaustive activation mode as the `activations` keyword alone | ratified |
-| [D-275][d-275] | Address a leaf inside a port value by a dotted leaf address | ratified |
+| [D-276][d-276] | Address a leaf inside a port value by a dotted leaf address | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -10821,7 +10821,7 @@ crash from a return.
 
 ### D-271 — Admit the component index on `get_input` and `get_face`
 
-**Status.** superseded → [D-275][d-275]
+**Status.** superseded → [D-276][d-276]
 
 **Position.** The two table selectors take the optional component index
 their three siblings carry: `get_input(face[, i])` and `get_face(name[, i])`.
@@ -10923,7 +10923,7 @@ effect" where the effect is temporal and held. `t0` is admitted only
 beside `about`, and passed without it is refused rather than silently
 ignored, the default operating point carrying the capture's own time.
 
-Annotation (2026-09-30): the component index is spelled inside [D-275][d-275]'s leaf
+Annotation (2026-09-30): the component index is spelled inside [D-276][d-276]'s leaf
 address, `get_state("p", "q[1]")`, and the tap rule reads "a tap's leaf
 address resolves to one scalar"; a tap resolving to a vector or a bundle is
 what resolution refuses.
@@ -11131,7 +11131,7 @@ reference, so the ruling removes a name rather than a mechanism.
   throwing at the first refusal or collecting across a component set, is
   test policy, which the suite owns.
 
-### D-275 — Address a leaf inside a port value by a dotted leaf address
+### D-276 — Address a leaf inside a port value by a dotted leaf address
 
 **Status.** ratified
 
@@ -11496,7 +11496,8 @@ is the true one.
 [d-272]: #d-272--fix-linearizes-surface-the-tap-set-the-chunk-width-the-operating-point-and-the-return
 [d-273]: #d-273--a-condition-is-an-initial-condition-capture-leaves-the-algebra
 [d-274]: #d-274--checkpoints-the-executors-state-as-one-value-restored-without-boundary-zero
-[d-275]: #d-275--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
+[d-275]: #d-275--spell-the-exhaustive-activation-mode-as-the-activations-keyword-alone
+[d-276]: #d-276--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

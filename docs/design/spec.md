@@ -531,7 +531,7 @@ first-class port *value*. It is one field of the returned tuple, one declared
 port, one cell (`pose = KinPose{T}`). Nested fields get no cells of their own.
 A reader reaches one through the port's [leaf address](#g-leaf-address) (the
 field name with dotted and bracketed steps below it), `"pose.q_eb"`
-([§14.4][s14-4], [D-275][d-275]), and a wired consumer takes the bundle whole. Bare-struct
+([§14.4][s14-4], [D-276][d-276]), and a wired consumer takes the bundle whole. Bare-struct
 returns are rejected ([D-036][d-036]).
 
 A port value's leaves are what the leaf walk reaches through `Real`s, static
@@ -551,7 +551,7 @@ opaque leaf surfacing as a root input, which has no synthesis
 consumer that wants less than a bundle takes the bundle and destructures it,
 in its own stage or through an unbundling component (a `y_direct` leaf that
 takes the bundle and publishes its fields, a candidate for the standard
-library of [§13.7][s13-7]), or asks the producer for a loose port ([D-275][d-275]). A
+library of [§13.7][s13-7]), or asks the producer for a loose port ([D-276][d-276]). A
 field-projection connector is a [guarded
 addition](#g-guarded-addition) (a capability the design admits but does not
 build). Its shape is obvious, and it is not built.
@@ -9455,7 +9455,7 @@ yields named scalars. A step never enters an opaque leaf (a field handle or
 a `Symbol`), which is read whole. A store selector takes at most an index
 step, since the state is flat ([§7.1][s7-1]). The address is checked once and baked,
 and the read runs as field loads and indexing unrolled at compile time
-([D-275][d-275]).
+([D-276][d-276]).
 
 The names carry a deliberate `get_` prefix. A selector is a *deferred read*, a
 value describing the read the compiled gather will perform. The prefix names
@@ -10274,7 +10274,7 @@ list `get_output` and `get_face` ([§14.4][s14-4]). The NamedTuple key is the
 label control design slices by.
 
 **Rule.** A tap names one scalar. Its [leaf address](#g-leaf-address) (the
-field name with dotted and bracketed steps below it, [§14.4][s14-4], [D-275][d-275])
+field name with dotted and bracketed steps below it, [§14.4][s14-4], [D-276][d-276])
 resolves to one scalar leaf, so a vector leaf yields *named scalars*, one
 tap per [component](#g-component). A tap resolving to a vector or a bundle is
 rejected at resolution, and so is a member in the wrong list. Two
@@ -10949,7 +10949,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   labeled selector lists with closed membership (`x`: `get_state`; `u`:
   `get_input`; `y`: `get_output`, `get_face`), every tap a
   [leaf address](#g-leaf-address) resolving to one scalar
-  ([§14.4][s14-4], [§14.10][s14-10], [D-272][d-272], [D-275][d-275]).
+  ([§14.4][s14-4], [§14.10][s14-10], [D-272][d-272], [D-276][d-276]).
 
 **Running.**
 
@@ -12244,7 +12244,7 @@ name followed by `.name` and `[k]` or `[k,l]` steps in any order, naming one
 leaf of a port value or one component of a state leaf (`"pose.q_eb[2]"`,
 `"J[1,3]"`). A bare `Symbol` is the short form of a plain name. Each step is
 checked at resolution and the chain is baked into the compiled read
-([§14.4][s14-4], [D-275][d-275]).
+([§14.4][s14-4], [D-276][d-276]).
 
 <a id="g-should_abort"></a>**`should_abort`** — the per-attachment failure policy, an `attach!` keyword
 defaulting to `false`. Set, a device's departure (loop body returning,
@@ -12753,7 +12753,8 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-272]: decisions.md#d-272--fix-linearizes-surface-the-tap-set-the-chunk-width-the-operating-point-and-the-return
 [d-273]: decisions.md#d-273--a-condition-is-an-initial-condition-capture-leaves-the-algebra
 [d-274]: decisions.md#d-274--checkpoints-the-executors-state-as-one-value-restored-without-boundary-zero
-[d-275]: decisions.md#d-275--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
+[d-275]: decisions.md#d-275--spell-the-exhaustive-activation-mode-as-the-activations-keyword-alone
+[d-276]: decisions.md#d-276--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
