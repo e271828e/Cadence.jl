@@ -1593,8 +1593,8 @@ end
 # `run!`'s interrupt arm passes the plane: its call owes the stop from the
 # start and first removes the inline body's record from the registry, which
 # was registered before the spawn whether or not the body ran (§12.2). The
-# removal is retried as the request is. The one window left open is the few instructions between the
-# `catch` and the next `try`.
+# removal is retried as the request is. The one window left open is the few
+# instructions between the `catch` and the next `try`.
 function _await_loop(control::Control, loop_task::Task,
                      plane::Union{Nothing,DataPlane} = nothing)
     stop_pending = plane !== nothing
