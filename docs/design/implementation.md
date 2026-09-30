@@ -727,6 +727,9 @@ The suite's fixtures:
   `PassthroughOverForgotten`.
 
 All of them are user material, and no name here is known to `src/`.
+`test_build.jl`'s `Dual` sweep builds every fixture with a zero-argument
+constructor at `ProbeDual` (§9.4, D-166), and `DUAL_PINNED` lists the four
+pinned on purpose, which it must refuse.
 
 ### `test/imports.jl`
 

@@ -1673,6 +1673,86 @@ function build_activations()
     end
 end
 
+# --- every component at `ProbeDual` (§9.4, D-166) -----------------------------
+# The CI policy: every component the suite defines gets a `Dual` activation. The
+# sweep reads the types off the live module, never off the files, so a fixture
+# a test file rebinds is swept as the suite sees it.
+
+# The fixtures pinned on purpose, which `ProbeDual` must refuse (D-263).
+const DUAL_PINNED = (:OffsetAtLiteral, :PinnedGetsDual, :PinnedState, :TypedGain)
+
+# The fixtures whose nominal build throws past the diagnostic channel on
+# purpose: an interrupt and an author's own `MethodError` pass through
+# unwrapped (§13.2).
+const NOMINAL_PASSTHROUGH = (:InterruptInside, :Misprobed)
+
+# The refusal a pinned leaf earns at the probe scalar, or a non-generic leaf
+# whose own math rejects the `Dual` (§9.4, D-263).
+dual_refusal(d::ConformanceFailure) = d.activation === ProbeDual
+dual_refusal(d::UserCodeFraming) = d.cause isa Union{TypeError,MethodError}
+dual_refusal(::Diagnostic) = false
+
+carried_diagnostics(err::DiagnosticError{Vector{Diagnostic}}) = diagnostics(err)
+carried_diagnostics(err::DiagnosticError) = [diagnostic(err)]
+
+function build_dual_sweep()
+    @testset "every component gets a `Dual` activation in CI (§9.4, D-166)" begin
+        suite = @__MODULE__
+        component_types = DataType[]
+        for name in sort(names(suite; all = true))
+            isdefined(suite, name) || continue
+            T = getfield(suite, name)
+            T isa DataType && isconcretetype(T) && T <: AbstractComponent &&
+                parentmodule(T) === suite && nameof(T) === name &&
+                push!(component_types, T)
+        end
+
+        covered = Symbol[]         # zero-argument constructor, nominal build succeeds
+        skipped = Symbol[]         # the constructor takes arguments
+        refused = Symbol[]         # a diagnostic at nominal, tested elsewhere
+        passed_through = Symbol[]  # a non-diagnostic throw at nominal
+        dual_refusals = Pair{Symbol,Vector{Diagnostic}}[]  # name => what `ProbeDual` raised
+        sweep_seconds = @elapsed Test.collect_test_logs() do
+            for T in component_types
+                name = nameof(T)
+                comp = try
+                    T()
+                catch err
+                    err isa MethodError || rethrow()
+                    push!(skipped, name)
+                    continue
+                end
+                try
+                    build(comp)
+                catch err
+                    push!(err isa DiagnosticError ? refused : passed_through, name)
+                    continue
+                end
+                push!(covered, name)
+                try
+                    build(comp; activations = (Float64, ProbeDual))
+                catch err
+                    err isa DiagnosticError || rethrow()
+                    push!(dual_refusals, name => carried_diagnostics(err))
+                end
+            end
+        end
+        println("  Dual sweep: $(length(covered)) covered, $(length(skipped)) skipped, ",
+                "$(length(refused)) refused at nominal, in ", round(sweep_seconds; digits = 1), " s")
+
+        # The refusers are the pinned list exactly, each refused as a pin.
+        @test Tuple(first.(dual_refusals)) == DUAL_PINNED
+        @test all(diags -> !isempty(diags) && all(dual_refusal, diags), last.(dual_refusals))
+        @test Tuple(passed_through) == NOMINAL_PASSTHROUGH
+        # 90 covered on 2026-09-30, the 4 pinned fixtures among them; a floor, so
+        # a new zero-argument fixture joins without an edit.
+        @test length(covered) ≥ 90
+        # 58 argument-taking fixtures on 2026-09-30: a new one is classified here
+        # on purpose, by raising the count.
+        @test length(skipped) == 58
+    end
+end
+
 # --- the build's warnings (§9.1, §13.2, D-250) --------------------------------
 # The channel is exercised by a test-local warning kind and two assemblies whose
 # declaration bodies raise it: a synthetic kind tests the channel without the
@@ -1884,5 +1964,6 @@ function test_build()
     build_barrier()
     build_embed_accept()
     build_activations()
+    build_dual_sweep()
     build_warnings()
 end
