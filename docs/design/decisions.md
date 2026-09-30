@@ -11144,6 +11144,17 @@ followed by `.name` and `[k]` or `[k,l]` steps in any order.
 
 - A bare `Symbol` is the short form of a plain field or face name:
   `get_state("kin", :θ)` is `get_state("kin", "θ")`.
+
+  Annotation (2026-09-30): a face name may contain a dot ([§8.6][s8-6], the house
+  style of [§8.8][s8-8]), which the head parse split. On `get_input`, `get_face` and
+  a binding read the head is therefore matched against the level's face
+  list, the longest face name that is a prefix of the address followed by
+  the end, a `.` or a `[`, and a `Symbol` leaf names the face whole. The
+  path selectors parse as before, a field name being an identifier.
+  Reserving `.` in face names instead was considered and declined for now:
+  the cleaner grammar, but a change to the house style (`input_passthrough`'s
+  `sep`, [§14.9][s14-9]'s `"wing.throttle"`, some eighty test faces) that belongs
+  with the exported-name audit, not with a fix on an unpushed increment.
 - Each step is checked at resolution against the type resolved so far. A
   `.name` step needs an isbits struct with that field. An index step needs an
   `SArray`, with one index (linear) or one per dimension. A step never enters

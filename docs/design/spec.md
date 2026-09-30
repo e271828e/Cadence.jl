@@ -9448,6 +9448,13 @@ reader of the model.
 name, followed by `.name` and `[k]` or `[k,l]` steps in any order, as in
 `"pose.q_eb[2]"`, `"ω_eb_b[1]"` or `"J[1,3]"`. A bare `Symbol` is the short
 form of a plain name, so `get_state("kin", :θ)` reads `get_state("kin", "θ")`.
+A face name is an arbitrary string and may contain a dot ([§8.6][s8-6]), so on
+`get_input`, `get_face` and a binding read the head is matched rather than
+parsed: it is the longest declared face name that is a prefix of the
+address and is followed by the end, a `.` or a `[`, and a `Symbol` leaf
+names the face whole, with no steps. So `get_input("wing.throttle")` and
+`get_input("wind[1]")` both resolve, and where faces `a` and `a.b` both
+exist, `"a.b"` names the face `a.b`.
 Each step is checked at resolution against the type resolved so far. A
 `.name` step needs an isbits struct with that field. An index step needs an
 `SArray`, with one index or one per dimension, and a vector leaf thereby
