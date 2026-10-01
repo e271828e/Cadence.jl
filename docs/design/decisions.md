@@ -10539,7 +10539,8 @@ new name.
 - (Amended 2026-10-01, with the init bracket's escape.) `shutdown!` may run
   on a device whose `init!` never began. The bracket lists each entry for
   release before its `init!`, so an interrupt that escapes the bracket finds
-  every device that began initializing. One landing between the listing and
+  every device that began initializing and that the bracket has not itself
+  released. One landing between the listing and
   the `init!` releases a device that opened nothing. [§11.6][s11-6]'s "close only
   what is open" makes that call harmless, and listing after `init!` would
   leak the device whose `init!` had just returned.

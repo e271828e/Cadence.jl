@@ -7513,10 +7513,10 @@ rule [§11.6][s11-6] teaches.
 
 **The entry is listed for release before its `init!` begins** ([D-268][d-268]). The
 bracket unlists it once its own `shutdown!` has returned. An operator
-interrupt that escapes the bracket therefore finds every device whose `init!`
-began still listed, and the run releases each before it ends. A device listed
-and not yet initialized can be released having opened nothing, which
-`shutdown!` tolerates ([§11.6][s11-6]).
+interrupt that escapes the bracket therefore finds listed every device whose
+`init!` began and that the bracket has not released, and the run releases
+each before it ends. A device listed and not yet initialized can be released
+having opened nothing, which `shutdown!` tolerates ([§11.6][s11-6]).
 
 **The report is the ordinary `DeviceCrash`, not a kind of its own**
 ([Appendix C][sC]). Its [payload](#g-payload) already carries everything an
@@ -7641,8 +7641,8 @@ alternative, `stopped` over a half-written boundary, is what the masking
 exists to prevent. The interrupt is satisfied by the run ending.
 
 **An interrupt after a frame's throw does not displace it** ([D-268][d-268]). `run!`,
-`replay!` and `step!` store the loop's throw before they do anything else
-with it, and the masked bookkeeping below builds the record from that store.
+`replay!` and `step!` store the loop's throw before an interrupt can displace
+it, and the masked bookkeeping below builds the record from that store.
 The run therefore ends `errored` under its `StepError` wherever a later
 interrupt lands. An interrupt that cuts the handling of the throw itself
 propagates out of the call raw, and the disposition of the failure is skipped
