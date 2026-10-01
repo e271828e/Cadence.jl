@@ -112,7 +112,7 @@ was recounted then.
 | executable set | g-executable-set | 1 | A | the function set an activation can actually run, hence probes |
 | executor | g-executor | 10 | A | the compiled form of the stage execution order |
 | leaf walk | g-leaf-walk | 1 | A | the derivation of per-activation types from a declared nominal type |
-| lens (`Getter`) | g-lens | 1 | A | the compiled navigation step of a condition entry |
+| lens | g-lens | 1 | A | the compiled navigation step of a condition entry |
 | measurement seam / phase bodies | g-measurement-seam | 2 | A | `phase_bodies(sim)`, the compiled bodies bound over the simulation's buffers |
 | nominal | g-nominal | 2 | A | the `Float64` activation, and a declaration's `Float64` face |
 | `Outputs` | g-outputs | 1 | A | the nominal evaluation's product: per component the output names each stage produces, and the execution order |

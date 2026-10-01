@@ -9362,10 +9362,10 @@ scalar type). The names and the face chains come from
 and tiers), never from an activation, since no activation fixes them
 ([§9.1][s9-1], [D-253][d-253]).
 
-A valid list compiles to a plan. Per leaf, the plan holds a `Getter{P}`
-[lens](#g-lens) (the compiled navigation step of a condition entry), a
-destination offset, and a converter. The lens is the position tuple lifted to a
-type parameter, so navigation of the fixed tree type is type-stable.
+A valid list compiles to a plan. Per leaf, the plan holds a [lens](#g-lens)
+(the compiled navigation step of a condition entry), a destination offset, and
+a converter. The lens is the position tuple lifted to a type parameter, so
+navigation of the fixed tree type is type-stable.
 
 **Rule.** The converter is baked now, selected per leaf from that leaf's type
 in the resolved shape.
@@ -12065,7 +12065,7 @@ consuming entry's, so participation and tolerance are authored per leaf by
 the marker's absence or presence ([§8.2][s8-2], [D-263][d-263]; applied at
 activation, [§9.1][s9-1]).
 
-<a id="g-lens"></a>**lens (`Getter`)** — the compiled navigation step of a condition entry. Its
+<a id="g-lens"></a>**lens** — the compiled navigation step of a condition entry. Its
 tree position tuple is lifted to a type parameter, giving type-stable access
 to the authored value at apply time ([§14.3][s14-3]).
 
