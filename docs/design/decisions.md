@@ -10543,6 +10543,12 @@ new name.
   the `init!` releases a device that opened nothing. [§11.6][s11-6]'s "close only
   what is open" makes that call harmless, and listing after `init!` would
   leak the device whose `init!` had just returned.
+- (Amended 2026-10-01, with the lost loop failure.) An interrupt after a
+  frame's throw never displaces it. `run!`, `replay!` and `step!` store the
+  loop's throw before anything can cut its handling, and the masked
+  bookkeeping builds the `LoopError` from the store, so the run ends
+  `errored`. An interrupt that cuts the handling itself propagates raw,
+  [§13.4][s13-4]'s disposition skipped and the record written.
 
 **Spec.** [§11.6][s11-6], [§12.1][s12-1], [§12.4][s12-4], [§13.4][s13-4], [Appendix B][sB]
 
@@ -10623,6 +10629,10 @@ deviceless reproduction still rethrows ([§13.4][s13-4]).
   would then hide its failure behind a log line, and a rostered device in a
   script would rethrow past the tail the devices already took; the roster
   states what the glossary defines.
+- *Retrying the failure's handling so that an interrupt cutting it is
+  swallowed (2026-10-01):* the run is already `errored` with the cause on its
+  record, so the raw raise costs the log line or the rethrow alone, and a
+  retrying `try` there is machinery for that alone.
 
 ### D-269 — Pacing's spellings and default, the wait's consultation and the pacer's home
 

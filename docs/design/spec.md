@@ -7487,10 +7487,12 @@ bracket.
 
 ```julia
 for entry in roster                       # attachment order, calling task
+    push!(live, entry)                    # listed for release before `init!` begins
     try
         init!(entry.device)
     catch e
         shutdown!(entry.device)           # release, unconditionally (§11.6)
+        pop!(live)                        # released, so unlisted
         if e isa InterruptException       # the operator's stop, never a crash (below)
             stop!(control, :interrupt)
         else
@@ -7508,6 +7510,13 @@ half-way through acquisition is handed back to `shutdown!` right there, so
 its partially acquired OS resources are released rather than leaked. That is
 exactly why `shutdown!` owes tolerance of a partially initialized device, a
 rule [§11.6][s11-6] teaches.
+
+**The entry is listed for release before its `init!` begins** ([D-268][d-268]). The
+bracket unlists it once its own `shutdown!` has returned. An operator
+interrupt that escapes the bracket therefore finds every device whose `init!`
+began still listed, and the run releases each before it ends. A device listed
+and not yet initialized can be released having opened nothing, which
+`shutdown!` tolerates ([§11.6][s11-6]).
 
 **The report is the ordinary `DeviceCrash`, not a kind of its own**
 ([Appendix C][sC]). Its [payload](#g-payload) already carries everything an
@@ -7630,6 +7639,14 @@ on its way out, and the run takes the abnormal entry under that `StepError`
 ([§13.6][s13-6]). The
 alternative, `stopped` over a half-written boundary, is what the masking
 exists to prevent. The interrupt is satisfied by the run ending.
+
+**An interrupt after a frame's throw does not displace it** ([D-268][d-268]). `run!`,
+`replay!` and `step!` store the loop's throw before they do anything else
+with it, and the masked bookkeeping below builds the record from that store.
+The run therefore ends `errored` under its `StepError` wherever a later
+interrupt lands. An interrupt that cuts the handling of the throw itself
+propagates out of the call raw, and the disposition of the failure is skipped
+([§13.4][s13-4]). The record is still written and the lifecycle is still `errored`.
 
 **Rule.** The tail's bookkeeping is masked too ([D-268][d-268]).
 
