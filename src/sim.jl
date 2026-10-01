@@ -1367,27 +1367,27 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             # word, and with no loop to await the stop request, which ends a
             # loop a forced raise left scheduled and unbound. A loop that
             # returned keeps its outcome, a source or a budget halt alike. A
-            # spawned loop whose outcome was not taken may
-            # still be running, and `run!` never returns before its loop ends
-            # (§11.1): `_await_loop` removes the inline body's record, requests
-            # the stop and awaits the loop, retrying the first two when an
-            # interrupt cuts them short. The loop's outcome then replaces the
-            # fallback; its throw comes back as a value, built inside
-            # `_await_loop`'s `try`, and is handled below as the other arm's is.
-            # Where the interrupt came before the tail, the tail runs here,
-            # unmasked so a later interrupt collapses its joins, and retried
-            # from where an interrupt cut it. An entry never spawned is released
-            # directly, which finds every entry whose `init!` began, since the
-            # bracket lists each first; a spawned one through its wrapper once
-            # the tail wakes it, and the inline entry here when its wrapper
-            # never ran its `shutdown!`. What is left only a forced raise
-            # reaches. One inside a spawn mask reopens that window: a spawned
-            # wrapper's `shutdown!` also runs in the direct release,
-            # concurrently, its task never registered or joined, and later
-            # entries are never spawned. One between `_tail!`'s return and the
-            # flag's store reruns `_tail!`; one between a `shutdown!`'s return
-            # and its cursor or record repeats that call. The rest are the few
-            # instructions between a `catch` and its next `try`.
+            # spawned loop whose outcome was not taken may still be running, and
+            # `run!` never returns before its loop ends (§11.1): `_await_loop`
+            # removes the inline body's record, requests the stop and awaits the
+            # loop, retrying the first two when an interrupt cuts them short.
+            # The loop's outcome then replaces the fallback; its throw comes
+            # back as a value, built inside `_await_loop`'s `try`, and is
+            # handled below as the other arm's is. Where the interrupt came
+            # before the tail, the tail runs here, unmasked so a later interrupt
+            # collapses its joins, and retried from where an interrupt cut it.
+            # An entry never spawned is released directly, which finds every
+            # entry whose `init!` began, since the bracket lists each first; a
+            # spawned one through its wrapper once the tail wakes it, and the
+            # inline entry here when its wrapper never ran its `shutdown!`. What
+            # is left only a forced raise reaches. One inside a spawn mask
+            # reopens that window: a spawned wrapper's `shutdown!` also runs in
+            # the direct release, concurrently, its task never registered or
+            # joined, and later entries are never spawned. One between
+            # `_tail!`'s return and the flag's store reruns `_tail!`; one
+            # between a `shutdown!`'s return and its cursor or record repeats
+            # that call. The rest are the few instructions between a `catch` and
+            # its next `try`.
             while true                        # an interrupt arriving within the head
                 try                           # raises at its unmask: the head reruns
                     Base.sigatomic_begin()
@@ -1438,6 +1438,8 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
                 end
             end
         else
+            # an interrupt after this store propagates raw out of `run!`, the run
+            # landed `errored` with its record written, the disposition skipped
             cause = err                       # first: the backtrace allocates, a safepoint
             loop_failure = (err, catch_backtrace())
         end
@@ -1827,6 +1829,8 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
             # had not. The `finally` lands it `stopped`. A second interrupt in
             # the stop request leaves `source` unset and lands `initialized` at
             # a consistent frame top, the stop word set: no loop is left running.
+            # `step!` never clears the word, so the next `step!` ends at once,
+            # no frame advanced, the lifecycle `stopped`.
             if !returned
                 _request_stop!(control, :interrupt)
                 source = ControlRequestedStop(something(@atomic control.stop_issuer))

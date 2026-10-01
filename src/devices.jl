@@ -446,13 +446,13 @@ tail, every remaining entry still getting its `init!`/`shutdown!` pair
 uniformly. An `InterruptException` is the operator's stop, not a crash, as in
 the wrapper (D-268): the device is released and spawns no task, the
 `:interrupt` stop is set in place of the report, and the run ends at its
-first frame top the same way. Fills and returns the run's `live`, the entries
-from which §11.1's topology is derived — derived *after* initialization, never
-from the roster alone. Each entry is listed before its `init!` begins, and
-removed after a throw once the bracket has released it, so an interrupt
-escaping the bracket leaves every entry whose `init!` began in `live`, where
-`run!`'s arm releases it. Listing after `init!` would leak the device whose
-`init!` had just returned (§11.6, D-268).
+first frame top the same way. Fills the run's `live`, the entries from which
+§11.1's topology is derived — derived *after* initialization, never from the
+roster alone. Each entry is listed before its `init!` begins, and removed on a
+throw right after the bracket releases it, ahead of the arms, so an interrupt
+escaping the bracket leaves in `live` every entry whose `init!` began and that
+the bracket has not released, where `run!`'s arm releases it. Listing after
+`init!` would leak the device whose `init!` had just returned (§11.6, D-268).
 """
 function _init_devices!(sim, roster, live)
     for entry in roster
@@ -461,6 +461,7 @@ function _init_devices!(sim, roster, live)
             init!(entry.dev)
         catch err
             _shutdown!(entry)
+            pop!(live)                        # released, so an interrupt in an arm can't repeat it
             if err isa InterruptException
                 _request_stop!(entry.handle.control, :interrupt)   # the operator's stop (§12.4, D-268)
             else
@@ -468,10 +469,9 @@ function _init_devices!(sim, roster, live)
                 report!(entry, DeviceCrash(err, entry.should_abort))
                 entry.should_abort && stop!(entry.handle)
             end
-            pop!(live)                        # released above, and it spawns no task
         end
     end
-    live
+    nothing
 end
 
 # Spawn the wrapper, one run-scoped task per entry (§11.1): inside `run!`

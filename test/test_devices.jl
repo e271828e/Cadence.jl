@@ -122,11 +122,11 @@ loop(dev::InitInterrupted, handle) = (push!(dev.log, :loop); nothing)
 
 # A device whose `init!` parks on a hook until an interrupt cuts it short, its
 # calls counted, so the test can land one interrupt inside the bracket and a
-# second escaping it (§11.6, §12.4). Clearing `held` under the hook's lock and
+# second escaping it (§11.6, §12.4). Clearing `hold` under the hook's lock and
 # notifying frees the caller when a regression leaves it parked.
 mutable struct HookedInit <: AbstractDevice
     hook::Threads.Condition
-    held::Bool
+    hold::Bool
     inits::Int
     shutdowns::Int
 end
@@ -135,7 +135,7 @@ function init!(dev::HookedInit)
     dev.inits += 1
     lock(dev.hook)
     try
-        dev.held && wait(dev.hook)
+        dev.hold && wait(dev.hook)
     finally
         unlock(dev.hook)
     end
@@ -734,6 +734,47 @@ function test_devices()
         end
     end
 
+    @testset "an interrupt in the inline entry's `finally` over a failed spawned loop keeps its StepError (§12.4, §13.4, D-268)" begin
+        # The spawned loop waits at its gate while the observer holds `wake` and
+        # releases the inline body: the entry's deregistration parks on `wake`,
+        # and the interrupt lands there. The arm then awaits the loop, whose throw
+        # comes back as a value once the observer sends the go.
+        comp = GatedExploder()
+        dev = HeldInline()
+        sim = Simulation(single(comp); h = 1//10)
+        attach!(sim, dev, NoClaim())
+        init!(sim)
+        caller = current_task()
+        wake = sim.control.wake
+        observer = Threads.@spawn begin
+            armed = timedwait(() -> comp.armed[], 10.0) === :ok
+            lock(wake)
+            sent = try
+                put!(dev.release, 1)
+                armed && interrupt_parked(caller, wake.lock.cond_wait)
+            finally
+                put!(comp.go, nothing)           # always, so a regression fails rather than hangs
+                unlock(wake)
+            end
+            sent
+        end
+        logs, thrown = Test.collect_test_logs() do
+            try
+                run!(sim; t_end = 5.0)
+                nothing
+            catch err
+                err
+            end
+        end
+        @test fetch(observer)
+        @test thrown === nothing
+        @test lifecycle(sim) === :errored
+        source = termination(sim).source
+        @test source isa LoopError && source.exception isa StepError{Exploded}
+        @test count(l -> l.level == Base.CoreLogging.Error, logs) == 1
+        @test dev.shutdowns == 1                 # the wrapper's; the arm's release saw it (§11.6)
+    end
+
     @testset "paused reads the flag in every lifecycle state, and the verbs refuse none (§12.1, D-268)" begin
         # `:running` is read, and both verbs issued, from another task above.
         sim = Simulation(fed(Exploder(), "arm"); h = 1//10)
@@ -1081,9 +1122,10 @@ function test_devices()
     end
 
     @testset "an interrupt escaping the init bracket still releases every device whose init! began (§11.6, §12.4, D-268)" begin
-        # The first interrupt cuts the hooked `init!`, and the bracket catches it;
-        # its stop request then parks on `wake`, which the observer holds, and a
-        # second interrupt there escapes the bracket into `run!`'s arm.
+        # The first interrupt cuts the hooked `init!`, and the bracket catches it,
+        # releases the device and drops it from `live`; its stop request then
+        # parks on `wake`, which the observer holds, and a second interrupt there
+        # escapes the bracket into `run!`'s arm.
         sim = Simulation(two_root_inputs(); h = 1//10)
         probe = TailProbe()
         dev = HookedInit()
@@ -1105,7 +1147,7 @@ function test_devices()
             if !ok                               # a regression fails below rather than hangs
                 lock(dev.hook)
                 try
-                    dev.held = false
+                    dev.hold = false
                     notify(dev.hook)
                 finally
                     unlock(dev.hook)
@@ -1125,7 +1167,7 @@ function test_devices()
         @test fetch(observer) == 2
         @test thrown === nothing
         @test probe.log == [:init, :shutdown]    # listed before the escape, so the arm released it
-        @test dev.inits == 1 && dev.shutdowns == 2   # the bracket's release and the arm's (§11.6)
+        @test dev.inits == 1 && dev.shutdowns == 1   # the bracket's release alone: dropped before the arms
         @test lifecycle(sim) === :stopped
         @test termination(sim).source === ControlRequestedStop(:interrupt)
     end
