@@ -4481,9 +4481,11 @@ no discrete entries ([§10.5][s10-5]).
 **These bodies communicate only through the stores and the table**
 ([D-194][d-194]). No value crosses a [seam](#g-seam), whether between passes,
 between the blocks of one pass, or between [chunks](#g-chunking). The seams
-therefore cost nothing, and the executor's decomposition stays free. Fusing a
-step's sweep with its `x_deriv` block, or an event round's sweep with its guards
-and fired handlers ([§10.6][s10-6]), is an optimization it may take or decline.
+therefore cost nothing. A chunk barrier copies nothing either, because it
+takes its chunk by reference, as the compile-cost rules below require. The
+executor's decomposition stays free. Fusing a step's sweep with its
+`x_deriv` block, or an event round's sweep with its guards and fired
+handlers ([§10.6][s10-6]), is an optimization it may take or decline.
 
 Two options this structure opens for free are recorded, not committed.
 
@@ -4516,40 +4518,93 @@ one consumer, the unrolled walk.
 
 #### Compile cost
 
-[Chunking](#g-chunking) bounds the compile cost. Within a large block the tuple splits
-into chunks behind non-inlined but statically-typed function barriers.
-Inside a chunk everything the design relies on survives: static dispatch,
-inlining, view SROA, check folding, zero allocation. At the seams only
-cross-entry fusion is lost, which a table-mediated signal flow barely had.
-Chunk size is the implementation's *only* representation freedom (fully
-fused and chunk-of-one are its endpoints), and it converts the compile cost
-from superlinear in the largest body to linear in entry count.
+**Chunking bounds the compile cost** ([D-086][d-086]). Within a large block the tuple
+splits into chunks behind non-inlined, statically typed function barriers.
+Inside a chunk, static dispatch, inlining, scalar replacement of the views,
+check folding and zero allocation all survive, which is everything the
+design relies on. At the barriers only cross-entry fusion is lost, which a
+table-mediated signal flow barely had. The executor's event set holds the
+per-component [projections](#g-projection) and the per-event guards and
+handlers. **Its projection, guard and handler walks chunk the same way**
+([D-289][d-289]).
 
-Measured anchors, taken 2026-07 over synthetic ~15-op bodies on Apple
-Silicon, with the last two rows extrapolated to a full aircraft model of
-roughly 200–400 entries with larger bodies. Those two rows
-assume the chunked mode, the one whose cost is linear in entry count:
+A chunk's type is its entries' types in order. Chunking buys two things,
+the larger first. Chunks of one type share one compiled function. On 128
+components of 2 types the walks compile in 23.2 s unchunked and in 2.8 s at
+chunk size 16. And a function's compile cost grows faster than its entry
+count. On 64 components of 64 types the walks compile in 6.4 s unchunked,
+3.7 s at chunk size 16 and 2.7 s at 4.
 
-| case | activation | compile time |
-|---|---|---|
-| 400-entry sweep, fused | `Float64` | ~0.8 s |
-| 400-entry sweep, chunked | `Float64` | ~0.34 s |
-| 400-entry sweep, chunked | 8-partial `Dual` | ~9 s |
-| Aircraft-scale model, extrapolated | nominal | seconds |
-| Aircraft-scale model, extrapolated | `Dual` | tens of seconds, before mitigation |
+Chunking also costs a recompilation. A topology change that shifts the
+entry order changes the type of every shifted chunk, and each compiles
+again. That takes 2.4 s on the 64-type model at chunk size 16, and 1.3 s
+at 4.
 
-The fused curve is visibly superlinear. An 8-partial `Dual` activation
-multiplies instruction count ~20×, and its chunked curve is linear,
-instruction-bound rather than structure-bound. Re-measurement on a real
-model of that scale is pending (`pending.md`).
+Chunk size is the implementation's *only* representation freedom, with
+fully fused and chunk-of-one as its endpoints. It converts the compile cost
+from superlinear in the largest body to linear in entry count. It trades the
+recompilation of shifted chunks against runtime, since chunk size 4 runs 3
+to 9 % slower than 16. The default is 16.
 
-The mitigation ladder, in order. Activations are lazy ([§9.4][s9-4]), so a
-session that never linearizes never compiles `Dual`. Non-nominal activations
-may compile at reduced optimizer level, because their sweeps run inside
-service loops where microseconds are irrelevant, a one-line per-module
-policy. And activations bake into package images via ordinary precompile
-workloads. An aircraft package exercising build-plus-one-sweep per
-activation turns TTFX from a session tax into a CI artifact.
+**Every walk over an entry tuple or a chunk tuple is a generated unroll**,
+one statement per element ([D-289][d-289]). A recursion on the tuple's tail is
+inferred only up to 32 elements. Past that its calls dispatch dynamically
+and allocate at every call. On a model with 64 projecting components such a
+walk allocated 595 KB per boundary and made the loop 5 times slower.
+
+**A barrier takes its chunk by reference** ([D-289][d-289]). The executor holds one
+pointer per chunk, and it holds the event set by reference too. A chunk
+stored inline in the executor would be copied at every call site, with a
+garbage-collector root per pointer it holds. At 128 components, `init!` and
+the first `run!` cost 16.9 s per new topology with chunks stored inline, and
+0.5 s with the generated unroll and the references in place. The copies
+were also a fifth to a third of the loop's runtime.
+
+**The declaration layer takes components unspecialized** ([D-289][d-289]). Code that
+runs once per build does not compile again per component type or per root
+type. A closure created per component reads the instance from an
+unspecialized binding, because a closure that captured a typed local would
+compile once per component type. That code has no performance requirement,
+so specializing it buys nothing. `build` of 64 components of 64 new types
+takes 0.86 s, against 40.5 s with the layer specialized. `build` of a new
+root of 128 components over known types takes 0.08 s, against 12.1 s.
+
+The figures below were measured in 2026-10 on Julia 1.13.0 and Apple
+Silicon, as were those above (`docs/reports/20261001_compile_cost_reeval/`).
+The components carry real arithmetic. Each figure is the minimum of three
+runs, from constructing the model to the end of its first `run!`. A cold
+process runs the model first in a fresh session. A new topology follows a
+model of the same component types in a warm one.
+
+| model | situation | `-O2` | `-O0` |
+|---|---|---|---|
+| 10 components, 5 types | cold process | 8.6 s | 3.7 s |
+| | new topology, types known | 0.85 s | 0.34 s |
+| 128 components, 2 types | cold process | 9.4 s | 4.4 s |
+| | new topology, types known | 0.96 s | 0.30 s |
+| 64 components, 64 types | cold process | 13.5 s | 6.6 s |
+| | new topology, types known | 3.6 s | 2.3 s |
+
+About 9 s of a cold process is generic machinery, the same for every model.
+A new component type adds about 0.01 s to `build`, plus the compilation of
+its own stage methods. A new topology pays for the chunks whose content
+changed. The figures are the nominal activation's. A `Dual` activation
+compiled in about the nominal time when it was last measured, before the
+rules above were built (`docs/reports/20260930_compile_cost/report.md`,
+section 4).
+
+**Three measures mitigate what remains** ([D-289][d-289]).
+
+- Activations are lazy ([§9.4][s9-4]), so a session that never linearizes never
+  compiles `Dual`.
+- Precompile workloads bake the generic machinery into the package image. A
+  component package's workload does the same for its types. That turns the
+  time to first execution from a session tax into a CI artifact.
+- The optimization level is a knob for an iteration session. `-O0` about
+  halves what remains, for a loop 2.3 to 2.8 times slower, and the
+  allocation invariant ([§7.5][s7-5]) holds. Its trajectories differ from `-O2`'s by
+  round-off, so a trace recorded at one level does not replay bit for bit
+  at the other.
 
 #### The measurement seam
 
@@ -12337,7 +12392,9 @@ what `attach!`, `stop_on`, replay and condition resolution all validate
 against ([§9.2][s9-2]).
 
 <a id="g-chunking"></a>**chunking** — splitting a large phase body's entry tuple into statically
-typed chunks behind non-inlined function barriers. It is the
+typed chunks behind non-inlined function barriers. Each barrier takes its
+chunk by reference, and the event set's projection, guard and handler walks
+chunk the same way. It is the
 implementation's only representation freedom, and it converts compile cost
 from superlinear in body size to linear in entry count ([§9.7][s9-7]).
 
@@ -13135,6 +13192,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-286]: decisions.md#d-286--hold-a-pinned-leaf-to-the-exact-check-as-the-schema-visible-freeze
 [d-287]: decisions.md#d-287--handler-return-keys-struct-valued-port-embedding-and-the-branchless-payload
 [d-288]: decisions.md#d-288--the-executors-structure-phase-bodies-views-construction-the-gate-and-publication
+[d-289]: decisions.md#d-289--compile-cost-generated-unrolls-chunks-by-reference-an-unspecialized-declaration-layer
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

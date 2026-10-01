@@ -313,6 +313,7 @@ were derived.
 | [D-286][d-286] | Hold a pinned leaf to the exact check as the schema-visible freeze | ratified |
 | [D-287][d-287] | Handler-return keys, struct-valued port embedding and the branchless payload | ratified |
 | [D-288][d-288] | The executor's structure: phase bodies, views, construction, the gate and publication | ratified |
+| [D-289][d-289] | Compile cost: generated unrolls, chunks by reference, an unspecialized declaration layer | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -2484,6 +2485,11 @@ non-nominal activations, precompile-workload caching (TTFX a CI artifact);
 views rebuild-per-call (hoisting = compiler CSE, whose legality condition is
 the staleness rule); schedule tuples constructed type-opaquely, consumed only
 by the walk.
+
+Annotation (2026-10-02): amended by [D-289][d-289]. [D-289][d-289] restates the compile-cost
+figures and the mitigation ladder, and the ladder drops the reduced
+optimizer level for non-nominal activations. The rejection of type-erased
+call tables stands, now measured.
 
 **Rejected.**
 - *Vector-of-abstract entries:* per-entry dynamic dispatch boxes stage returns
@@ -11846,6 +11852,112 @@ re-`init!` continues (as recorded in [D-116][d-116]).
 - *None recorded for type-opaque construction or the two uncommitted
   options.*
 
+### D-289 — Compile cost: generated unrolls, chunks by reference, an unspecialized declaration layer
+
+**Status.** ratified
+
+**Position.** Four rules bound what a model costs to compile, beside
+[D-086][d-086]'s chunking, and three measures mitigate the rest.
+
+- Every walk over an entry tuple or a chunk tuple is a generated unroll, one
+  statement per element.
+- The event set's projection, guard and handler walks chunk as a phase body
+  does.
+- A barrier takes its chunk by reference. The executor holds one pointer per
+  chunk, and it holds the event set by reference.
+- The declaration layer takes components unspecialized. Code that runs once
+  per build does not compile again per component type or per root type, and
+  a closure created per component reads the instance from an unspecialized
+  binding.
+- The mitigations are lazy activations, precompile workloads, and the
+  optimization level as an iteration session's knob. A workload bakes the
+  generic machinery into the package image, and a component package's
+  workload bakes its own types.
+
+**Spec.** [§9.7][s9-7]
+
+**Rationale.** Each rule removes a cost measured at `2556df4` by
+`docs/reports/20261001_compile_cost_reeval/report.md` (the report below), on
+Julia 1.13.0 and Apple Silicon, components with real arithmetic, the minimum
+of three runs. With all four in place the trajectories are bit-identical and
+every allocation check reads zero.
+
+Julia infers a recursion on `Base.tail` exactly up to 32 elements. Past that
+the calls dispatch dynamically and each allocates. That reached a chunk of
+more than 32 entries, a body of more than 32 chunks (512 entries at chunk
+size 16), and an event set with more than 32 projections, guards or
+handlers. On a model with 64 projecting components it allocated 595 KB per
+boundary and made the loop 5 times slower (the report's section 9). A
+generated body with one statement per element has no such limit and
+compiles faster. The event set's walks were the ones left unchunked, and
+chunking them bounds a wide event set's compile cost as it bounds a phase
+body's.
+
+`Chunk`, `PhaseBody` and `EventSet` were immutable and stored inline in the
+executor, itself stored inline in the `Simulation`. Each call that passes
+one to a non-inlined function emits a copy and a GC root per pointer. On
+128 components `evaluate!` compiled to 6 330 LLVM lines with 192 `memcpy`
+calls, and to 47 lines with the chunks behind pointers (sections 4.2 and
+4.3). Those copies were most of what `init!` and the first `run!` compile per
+topology, 16.9 s against 0.5 s with the unroll and the references in place,
+and a fifth to a third of the loop's runtime. The rule keeps [D-086][d-086]'s barrier
+and makes it hand over a pointer.
+
+The declaration layer runs once per build and has no performance
+requirement. Specialized, it compiled `_walk!`, its closures and the probes
+once per component type, and once per root type, because a root's type
+spells out its subtree. A closure that captures a typed local is itself
+parameterized by that type, so it compiles once per component type even
+inside an unspecialized function. Unspecialized, `build` of 64 components of
+64 new types falls from 40.5 s to 0.86 s, `build` of a new root of 128
+components over known types from 12.1 s to 0.08 s, and the compile per new
+component type from 0.42 s to 0.013 s, nearly all of it the component's own
+stage methods (section 4.4).
+
+Chunking keeps [D-086][d-086]'s reason, measured. Chunks of one type share one
+compiled function: on 128 components of 2 types the walks compile in 23.2 s
+unchunked and 2.8 s at chunk size 16. A function's compile cost grows faster
+than its entry count: on 64 components of 64 types the walks compile in
+6.4 s unchunked, 3.7 s at 16 and 2.7 s at 4. A topology change that shifts
+the entry order compiles every shifted chunk again, 2.4 s on that model at
+16 and 1.3 s at 4 (section 4.1). The 2026-07 figures [§9.7][s9-7] carried came from
+synthetic bodies, two of them extrapolated to aircraft scale, and their 9 s
+`Dual` figure did not reproduce: a `Dual` activation compiled in about the
+nominal time (`docs/reports/20260930_compile_cost/report.md`, section 4).
+
+About 9 s of a cold process is generic machinery, the same for every model,
+which a precompile workload moves into the package image. `-O0` about halves
+what remains, for a loop 2.3 to 2.8 times slower with the allocation
+invariant intact. Its trajectories differ from `-O2`'s by round-off, so a
+trace does not replay bit for bit across levels (sections 5 and 10). Lazy
+activations stand as [D-086][d-086] had them.
+
+[D-086][d-086]'s rejection of type-erased call tables stands. The two closure forms
+below are its measured instances.
+
+**Rejected.**
+- *`@noinline` at the phase-body call, over a body stored inline:* each call
+  site then copies the whole body, larger than the chunks it copied before,
+  and the first `run!` on 128 components goes from 12 s to 46 s (the
+  report's section 4.2).
+- *Phase bodies and the event set behind opaque closures:* 0.5 s per
+  topology, for a dependence on an experimental interface and a live
+  simulation that no longer sees a redefined method. The FunctionWrappers
+  form avoids both and runs 6 to 22 % slower (section 4.5).
+- *One opaque closure per entry, walked by a loop:* it removes the
+  per-topology compile, but the loop runs 70 % slower on distinct types, and
+  the form that does not allocate on Julia 1.13 calls an internal field, the
+  internal-ABI dependence [D-086][d-086] rejects (section 4.6).
+- *A `Group` without type parameters:* 0.2 to 0.75 s per root once the
+  declaration layer is unspecialized, and it changes which service paths
+  [D-130][d-130] refuses, because a field declared `::Group` would then pin no
+  subtree (section 6).
+- *A default chunk size of 4:* about 1 s per topology change on the large
+  models, against 3 to 9 % of runtime (section 7).
+- *Superseded position — a reduced optimizer level for non-nominal
+  activations ([D-086][d-086]'s mitigation ladder):* no measured gain
+  (`docs/reports/20260930_compile_cost/report.md`, section 7).
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -12135,6 +12247,7 @@ re-`init!` continues (as recorded in [D-116][d-116]).
 [d-286]: #d-286--hold-a-pinned-leaf-to-the-exact-check-as-the-schema-visible-freeze
 [d-287]: #d-287--handler-return-keys-struct-valued-port-embedding-and-the-branchless-payload
 [d-288]: #d-288--the-executors-structure-phase-bodies-views-construction-the-gate-and-publication
+[d-289]: #d-289--compile-cost-generated-unrolls-chunks-by-reference-an-unspecialized-declaration-layer
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

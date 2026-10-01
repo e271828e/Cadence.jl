@@ -14,14 +14,11 @@ the ruling ahead of it, which sets what a component type costs to compile.
 The GUI's design runs in parallel with both. The audit comes last, because
 it sweeps the whole surface and the library and the GUI both add names.
 
-- **Compile time** (§9.7, D-086): the roadmap of
-  `docs/reports/20260930_compile_cost/`, in order of yield: `@noinline` at
-  the phase-body call, `@nospecialize` through the declaration layer, the
-  executor type out of `Simulation`, chunks or entries behind pointers.
-  §9.7's anchors do not hold, and a ruling on its anchor table and
-  mitigation ladder, and on D-086's rejection of type-erased call tables,
-  comes first. It stands ahead of the library because each component type
-  adds about 0.5 s.
+- **Compile time** (§9.7, D-086, D-289): §9.7's compile-cost rules are
+  ruled and not yet built. Increment 58 builds them
+  (`briefs/brief_increment_58_compile_cost.md`): the generated unroll,
+  chunks and the event set by reference, the walk's child-list cache,
+  and the unspecialized declaration layer.
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
   spellings).
@@ -79,8 +76,7 @@ what the spec says, the spec edit is part of the item.
 - **The spec's readability rewrite.** Chapter 9 is done, and the other
   chapters follow its recipe, `docs/reports/20261001_chapter9_rewrite/report.md`.
   First the convention goes into `tools/spec_style.md` and its bold check into
-  the battery; until a chapter's turn comes, it keeps the old markers. §9.7's
-  compile-cost block waits on the compile-time ruling above.
+  the battery; until a chapter's turn comes, it keeps the old markers.
 - **Package registration.**
 
 ## After the first release
