@@ -204,7 +204,9 @@ Spec: §9.5, §9.7, D-162, D-235, D-237, D-260.
   `ProjectEntry`. Each carries its component's path, for the write's
   diagnostic, and an event entry carries its event name beside the path
   (D-249).
-- The chunked unrolled walk `Chunk` and `chunked_body`.
+- The chunked walk `Chunk` and `chunked_body`. Every tuple walk, over a
+  chunk's entries, a body's chunks or the event set's entries, unrolls
+  through one generated body, `_unrolled`.
 - The interior/boundary split `PhaseBody`.
 - The `(tick − Φ) % D` gate `Gated`, with boundary zero's `ESTABLISH` beside
   it.
@@ -216,7 +218,7 @@ Spec: §9.5, §9.7, D-162, D-235, D-237, D-260.
   (§13.5, D-261).
 
 Spec: §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §13.5, §14.5, D-059, D-205, D-235,
-D-249, D-255, D-261.
+D-249, D-255, D-261, D-289.
 
 ### `src/build.jl`
 
@@ -912,6 +914,10 @@ Traps the code does not warn about, each hit more than once while building:
 - the init-service keyword is `t0` (the spec's signatures, D-110) while the
   *concept* and `Clock`'s field stay `t₀` — `clock.t₀ = t0` inside `init!`
   is that split, not a typo; don't unify them;
+- **a tuple walk by `Base.tail` recursion stops inferring past 32
+  elements**, and from there it allocates at every call. A walk over an entry
+  or chunk tuple is therefore a generated unroll, `_unrolled` in
+  `executor.jl` (§9.7, D-289);
 - **a callee that needs one more value takes it as an argument.** Never add
   a field to a container the callee already holds so the value can be
   reached without one: that is how the plane came to hold the executor's

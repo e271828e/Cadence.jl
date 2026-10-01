@@ -51,6 +51,37 @@ function test_executor()
             @test @ballocated($body()) == 0
             @test @ballocated($body(1)) == 0
         end
+
+        # Past 32 elements, where a `Base.tail` recursion stops inferring and
+        # allocates at every call. Forty loops at chunk_size = 1 give sweep_2 a
+        # tuple of 120 chunks; at chunk_size = 40 one chunk holds 40 entries.
+        forty = Group(NamedTuple{ntuple(i -> Symbol(:m, i), 40)}(ntuple(_ -> feedback_model(), 40));
+                      inputs = ("ref" => ntuple(i -> "m$(i)/ref", 40),))
+        for chunk_size in (1, 40)
+            sim = Simulation(forty; h = 1//100, chunk_size)
+            sweep_2 = sim.exec.bodies.sweep_2
+            @test length(sweep_2.interior) == 120 ÷ chunk_size
+            @test length(first(sweep_2.interior).entries) == chunk_size
+            for name in BLOCKS
+                body = phase_bodies(sim)[name]
+                body(); body(0)
+                @test @ballocated($body()) == 0
+                @test @ballocated($body(1)) == 0
+            end
+        end
+
+        # The event set's three walks, at 40 projections and 40 events.
+        rotors = Group(NamedTuple{ntuple(i -> Symbol(:p, i), 40)}(
+            ntuple(_ -> Group((; rot = Rotor(), saw = Sawtooth(1.0))), 40)))
+        sim = Simulation(rotors; h = 1//100)
+        init!(sim)
+        @test length(phase_bodies(sim).projections) == 40
+        @test length(phase_bodies(sim).events) == 40
+        events, store, xbuf = sim.exec.events, sim.exec.store, sim.exec.xbuf
+        _projects!(events, xbuf); _guards!(events, store, xbuf); _fire!(events, store, xbuf)
+        @test @ballocated(_projects!($events, $xbuf)) == 0
+        @test @ballocated(_guards!($events, $store, $xbuf)) == 0
+        @test @ballocated(_fire!($events, $store, $xbuf)) == 0
     end
 
     @testset "the event and projection callables ride with the four blocks (§9.7)" begin
