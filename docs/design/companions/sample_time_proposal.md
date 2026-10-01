@@ -301,7 +301,7 @@ is one multiply-add per component, not a second composition walk.
 ### 5.3 Deployment binding: the pool, the rule, the resolution
 
 At `Simulation` construction, where `Δt_base`, `h`, `N_base` already bind and validate
-([§9.1][s9-1]), three new steps slot in.
+([§9.2][s9-2]), three new steps slot in.
 
 **The pool.** Collect every anchor's period and every nonzero offset — the
 **constraint pool**. A `Δt_base` is admissible **iff it divides every pool entry,
@@ -332,7 +332,7 @@ Action at a distance of exactly the kind the design refuses elsewhere. The rule:
 
 The refusal is not a dead end: the engine has everything needed to make it
 constructive — section 8 specifies the suggestion. Either way, validation failures
-are collected `DeploymentInvalid`s in [§9.1][s9-1]'s style, and with anchors the diagnostic
+are collected `DeploymentInvalid`s in [§9.2][s9-2]'s style, and with anchors the diagnostic
 gains error locality: "period `1//500` does not divide declared `Δt_base` — declared
 `Absolute(Hz(500))` at `Avionics`, for `sensors`," straight from the rate-chain
 column.
@@ -768,7 +768,7 @@ All small, all honest; collected so a future increment can check them off:
   acknowledging that offset components are not due there.
 - **[§9.1][s9-1].** Stratum A's "compilation of relative multipliers into absolute
   divisors" becomes compilation into `(anchor, m, c)` triples; deployment binding
-  gains the pool, the derive-vs-declare rule, and anchor resolution.
+  ([§9.2][s9-2]) gains the pool, the derive-vs-declare rule, and anchor resolution.
 - **[§9.2][s9-2].** The `Build` gains the anchor table and the rate columns of section
   5.2; the bound schedule becomes a named printable artifact on the `Simulation`
   (section 5.3).

@@ -3,7 +3,7 @@
 *A companion explainer, not normative text. The ground truth is
 `spec.md` [§4.4][s4-4] (field handles and the value-level constructor),
 [§14.1][s14-1] (the pre-sweep doctrine), [§14.7][s14-7] and [§14.9][s14-9] (the trim problem and its
-mounting), [§9.6][s9-6], and decision [D-139][d-139], which settled all of it on
+mounting), `flight_case_studies.md` section 4, and decision [D-139][d-139], which settled all of it on
 2026-08-05 during the round-4 dry-run adjudication (commit `daf3298d`). This
 document records the discussion that produced that row — the alternatives,
 the arguments, and the two shapes that were kept as legitimate options rather
@@ -499,8 +499,8 @@ lying. What it pays is exactly what elimination banks: guess and bounds
 ergonomics, plus a longer residual vector of mixed units (accelerations,
 angular accelerations, a speed, two angles). The mixed units are a
 non-problem in practice — [§14.7][s14-7]'s per-residual physical tolerances are
-per-equation numbers already, and [§9.6][s9-6] keeps per-residual scalings
-aircraft-side where they belong. And with the `Dual` activation seeding exact
+per-equation numbers already, and `flight_case_studies.md` section 4 keeps
+per-residual scalings aircraft-side where they belong. And with the `Dual` activation seeding exact
 Jacobians ([§14.7][s14-7], [§14.8][s14-8]), a 10×10 nonlinear least-squares problem is
 unremarkable: the extra three columns are three more seeded directions
 through the same sweep.
@@ -573,7 +573,7 @@ For the record, commit `daf3298d`, decision [D-139][d-139]:
   doctrine to default, admitting the unconnected environment face as the
   test-rig idiom while keeping `design_world(ac)` as the shipped rig for
   design tasks.
-- **[§9.6][s9-6]**'s claim that `Kinematics.Initializer` "survives untouched,
+- **`flight_case_studies.md` section 4**'s claim that `Kinematics.Initializer` "survives untouched,
   aircraft-side" is corrected: it survives aircraft-side with its
   `atmosphere::Model` argument respelled as a field handle.
 
@@ -904,6 +904,5 @@ with the whole spectrum in view.
 [s14-9]: ../spec.md#149-mounting-problems-as-relocatable-values
 [s4-4]: ../spec.md#44-function-valued-signals-environment-access
 [s5-3]: ../spec.md#53-structural-feedthrough-stage-roles-execution-order-and-step-boundaries
-[s9-6]: ../spec.md#96-stopped-sim-services-as-activation-clients
 [sA]: ../spec.md#appendix-a-taught-contracts-the-author-facing-index
 [sD]: ../spec.md#appendix-d-glossary

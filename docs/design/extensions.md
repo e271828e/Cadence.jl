@@ -187,8 +187,9 @@ topologies and rate maps as data, interactively or programmatically. Serving the
 second persona requires no change to the execution semantics and no reversal of any
 recorded rejection: a `Group` library type (Addendum A), the rate-declaration
 extensions of `sample_time_proposal.md`, and item 7 of section 1.2 would cover it. The decisive observation
-throughout: **Stratum A flattens whatever was declared into the same `Build`
-artifact** ([§9.1][s9-1]–[§9.2][s9-2]) — resolved wires, absolute divisors, schedule — so the
+throughout: **the structure step flattens whatever was declared into the same `Build`
+artifact** ([§9.1][s9-1]–[§9.2][s9-2]) — resolved wires and anchor-relative rate
+triples, whose final divisors and schedule wait for `Δt_base` at deployment — so the
 sweep, the cell store and the executor never see how the model was written down.
 These are authoring-surface increments, not execution-model changes.
 

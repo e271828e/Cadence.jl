@@ -108,8 +108,9 @@ flag it for discussion instead of guessing.
   unchecked. Membership is about being checked, never about living in
   `companions/`: `decisions.md`, `extensions.md` and `implementation.md` are
   all members. `linkify.jl` keeps a third roster, also `ROSTER`, naming the
-  files it rewrites; a file checked but not linkified keeps plain citations,
-  as `decisions.md` and `implementation.md` do.
+  files it rewrites besides `spec.md`: `decisions.md`, `extensions.md` and
+  the companions. A file checked but not linkified keeps plain citations, as
+  `implementation.md` and `pending.md` do.
 - **The `.jl` sketches under `prototypes/` sit outside the rosters.** Every `§`
   in them is hand-verified prose that rots silently at each renumbering. A
   sketch carries its verification state in its own header; a renumbering that

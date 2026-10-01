@@ -307,6 +307,12 @@ were derived.
 | [D-280][d-280] | Build a `Dual` activation of every component in CI | ratified |
 | [D-281][d-281] | Guarantee torn-state-free lazy materialization | ratified |
 | [D-282][d-282] | Give every buffer set exactly one owner | ratified |
+| [D-283][d-283] | Bind `Δt_base` against anchor-relative rate triples | ratified |
+| [D-284][d-284] | Attribute grid refinement to every driver, against the actual pool | ratified |
+| [D-285][d-285] | Probe return checks, hand-down and placeholder sources, and totality's two homes | ratified |
+| [D-286][d-286] | Hold a pinned leaf to the exact check as the schema-visible freeze | ratified |
+| [D-287][d-287] | Handler-return keys, struct-valued port embedding and the branchless payload | ratified |
+| [D-288][d-288] | The executor's structure: phase bodies, views, construction, the gate and publication | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -990,7 +996,7 @@ both tiers, per-activation cell types from the framework leaf walk ([D-079][d-07
 `localize` flag (`true` = Tier 2, default `false` = Tier 1); stage membership
 derived (inputless `h_x` probes first, remainder is stage 2), no stage tags.
 
-**Spec.** [§4.2][s4-2], [§8.1][s8-1], [§8.2][s8-2], [§9.7][s9-7]
+**Spec.** [§4.2][s4-2], [§8.1][s8-1], [§8.2][s8-2]
 
 **Rationale.** The inventory is self-classifying by convention: by value
 `init_*`, by type `*_types`, by allocation `workspace` ([D-076][d-076]). Contract
@@ -1391,7 +1397,12 @@ C activation — with deployment binding at `Simulation` construction only.
   topo/cycle.
 - C, activation: per-`T` slot typing + probe chain + layouts.
 
+**Spec.** [§9.1][s9-1]
+
 **Rationale.** Recorded only through the rejections below.
+
+Annotation (2026-10-02): amended by [D-254][d-254]. Deployment binding moved from
+`Simulation` construction to the `Deployment` constructor.
 
 **Rejected.**
 - *Single-pass tree walk with per-level validation:* obligation/two-producers
@@ -1421,6 +1432,8 @@ list/face table/schedule/root slots; `Simulation(world; ...)` wraps it.
 
 **Position.** All user functions — the `h_*` stages, `f`, `g`, guards, handlers
 and `project` — are probed once, at the initial state and nominal `T`.
+
+**Spec.** [§9.3][s9-3]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -1494,6 +1507,9 @@ activations accept `{T, Float64}` with zero-partial embedding ([D-079][d-079]).
 
 Annotation (2026-09-08): realized at the generated write, against the cell
 type, per [D-235][d-235].
+
+Annotation (2026-10-02): amended by [D-249][d-249]. The payload carries no simulation
+time; the `StepError` carrier's frame holds the boundary time.
 
 **Rejected.**
 - *Field-assignment `convert` semantics:* `Float64 → Dual` silently zeroes
@@ -1670,7 +1686,7 @@ faces at `Simulation` construction (OR-combined, `Build`-validated,
 metadata-recorded, sampled at completed boundaries); exceptions from model code
 always abnormal; no `SimulationTermination` exception type.
 
-**Spec.** [§13.5][s13-5], [§14.4][s14-4]
+**Spec.** [§9.3][s9-3], [§13.5][s13-5], [§14.4][s14-4]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -1960,6 +1976,8 @@ optimizer deps.
 - The C172 audit is Interpolations tables (prefer cubic knots), saturation
   rank-deficiency (LM-tolerated, reported), gear zero airborne.
 
+**Spec.** [§14.8][s14-8]
+
 **Rationale.** Recorded only through the rejections below.
 
 **Rejected.**
@@ -2221,7 +2239,7 @@ in the signature at all ([D-263][d-263]).
 <: entry` at nominal faces — one uniform rule, exact equality the concrete
 degenerate.
 
-**Spec.** [§4.4][s4-4]
+**Spec.** [§4.4][s4-4], [§9.1][s9-1]
 
 **Rationale.** Abstract entries = structural substitutability ([§4.4][s4-4] field
 handles), never needed for eltype genericity (an eltype-generic producer's
@@ -2255,7 +2273,7 @@ leaves, reference-typed fields and non-type (value) parameters pin, with the
 companion obligation that a Tier-1 type be constructible at the walked type —
 enforced by construction at the `Dual` probe.
 
-**Spec.** [§7.1][s7-1], [§8.5][s8-5], [§14.10][s14-10]
+**Spec.** [§7.1][s7-1], [§8.5][s8-5], [§9.4][s9-4], [§9.5][s9-5], [§14.10][s14-10]
 
 **Rationale.** The type derived from `init_x` walks like a continuous
 producer's ([§7.1][s7-1]'s all-real-leaves rule checked in Stratum A, didactic
@@ -2822,7 +2840,7 @@ identically spelled.
 concrete probe scalar: `const ProbeDual = ForwardDiff.Dual{ProbeTag, Float64,
 1}`, so the pin reads `build(world; activations = (Float64, ProbeDual))`.
 
-**Spec.** [§14.10][s14-10]
+**Spec.** [§9.4][s9-4], [§14.10][s14-10]
 
 **Rationale.** Activations are keyed by concrete scalar types ([D-052][d-052]) and a
 bare `Dual` `UnionAll` cannot key one, be walked to, or answer `zero(T)`; the
@@ -3047,7 +3065,7 @@ face set into per-writer surfaces plus the interactive remainder are static,
 inspectable facts of each run; attach has one semantics (register; tasks appear
 at `run!`, [D-093][d-093]).
 
-**Spec.** [§11.3][s11-3], [§12.3][s12-3], [§12.5][s12-5], [§12.7][s12-7], [§9.7][s9-7]
+**Spec.** [§11.3][s11-3], [§12.3][s12-3], [§12.5][s12-5], [§12.7][s12-7]
 
 **Rationale.** All write-surface checks move to staging and the drain is pure
 application, fully compilable against the frozen roster (specialization an
@@ -3491,6 +3509,9 @@ route-printed — is the one deployed; computed `exports` bodies are
 ordinary user code re-evaluated per build, so equality between two builds of
 one world is an assumption the factorization removes; deployment binding is
 unchanged, only at `Simulation` construction ([D-048][d-048]).
+
+Annotation (2026-10-02): amended by [D-254][d-254]. Deployment binding moved from
+`Simulation` construction to the `Deployment` constructor.
 
 **Rejected.**
 - *Declining as pure convenience:* the review's own tag — but [D-049][d-049] made
@@ -5160,7 +5181,7 @@ the framework rewriting the firing component's auto-published cells from the
 just-latched state stores, so a later handler of the same component reads `y`
 coherent with the live `x`/`m`.
 
-**Spec.** [§5.3][s5-3], [§10.6][s10-6], [§9.5][s9-5]
+**Spec.** [§5.3][s5-3], [§10.6][s10-6]
 
 **Rationale.** A round-5 kernel dry-run finding (finding 5), amending [D-016][d-016].
 Auto-published cells belong to no stage ([§9.5][s9-5]), so [D-016][d-016]'s stages-only
@@ -5327,7 +5348,7 @@ the next boundary is the same detection with identical component attribution,
 and `ẋ` buffers are integrator scratch, not boundary-consistent ([D-098][d-098]'s
 source axis).
 
-**Spec.** [§8.4][s8-4], [§13.4][s13-4]
+**Spec.** [§8.4][s8-4], [§9.5][s9-5], [§13.4][s13-4]
 
 **Rationale.** A round-5 kernel dry-run finding (finding 13).
 
@@ -5478,7 +5499,7 @@ evaluator, a hand-rolled per-component check, today's FlightCore path in `migrat
 comparison) does not, and along a dependency chain the last-ulp difference
 accumulates.
 
-**Spec.** [§6.2][s6-2], [§7.5][s7-5], [§9.7][s9-7]
+**Spec.** [§6.2][s6-2], [§7.5][s7-5]
 
 **Rationale.** Increment-1 observation promoted to doctrine; measured in
 `prototypes/cellstore_bench`'s `check.jl`, same class as the main line's
@@ -5814,7 +5835,7 @@ a tolerance difference is not a type conflict, `SVector{3,T}` and
 cells **pin at every activation if any consumer entry pins** and follow the
 activation scalar only when every consumer tolerates.
 
-**Spec.** [§6.1][s6-1], [§11.3][s11-3], [§8.2][s8-2], [§9.5][s9-5], [§14.10][s14-10]
+**Spec.** [§6.1][s6-1], [§11.3][s11-3], [§8.2][s8-2], [§14.10][s14-10]
 
 **Rationale.** Mixed tolerance is a legitimate configuration rather than a
 mistake — one command consumed by a promoting aerodynamics leaf and by an
@@ -6584,6 +6605,9 @@ scold, a scope deliberately declared finer than its fastest member to buy
 stagger room legitimately inflating the metric; no new error kinds,
 `DeploymentInvalid` covering refusal and non-dividing anchors.
 
+Annotation (2026-10-02): amended by [D-254][d-254]. The bound schedule is the
+`Schedule`, and it lives on the `Deployment`, not on the `Simulation`.
+
 **Rejected.**
 - *The simple-fraction-of-its-period offset test as the engine's warning:*
   authoring guidance only — demand is relational: `τ = T/10` can cost nothing
@@ -6859,7 +6883,7 @@ operator `z⁻¹`.
 erasing a real distinction: the discrete state is a different object — no
 derivative, any isbits type (pinned, eltype-generic or mixed), latched between
 ticks, stored in per-component state stores where the continuous state lives in
-the flat buffer ([§9.1][s9-1]) — and one letter made leaf declarations and framework
+the flat buffer ([§9.4][s9-4]) — and one letter made leaf declarations and framework
 prose read as one mechanism where the engine holds two.
 
 [D-173][d-173]'s "every candidate letter is taken" premise has since emptied for `s`:
@@ -8294,7 +8318,7 @@ the next stratum. What that rule yields, pass by pass:
 - A check whose subject a later user-code evaluation consumes fails fast
   with the chain: stage-2 conformance, the wire bound check, two-stage
   production.
-- Outside the strata the unit is the call. Deployment validation ([§9.1][s9-1]) runs
+- Outside the strata the unit is the call. Deployment validation ([§9.2][s9-2]) runs
   every check whose premise holds and throws once.
 
 **Spec.** [§9.1][s9-1], [§9.2][s9-2], [§13.1][s13-1], [Appendix C][sC]
@@ -8332,7 +8356,7 @@ keeps stage-2 conformance and two-stage production.
   the class and the children list, and one cascaded `UnconnectedInput` per
   wire routed through the broken component, for a co-occurrence that is
   singular in practice.
-- *Deployment fail-fast under the service policy:* [§9.1][s9-1] and [§10.4][s10-4] both
+- *Deployment fail-fast under the service policy:* [§9.2][s9-2] and [§10.4][s10-4] both
   spell deployment validation collected, the keyword pass already collects,
   and the dependency rule covers the dependent `bind_schedule` arms without
   a new concept.
@@ -8547,6 +8571,9 @@ The expected type is stated against the cell rather than against
 Today the two coincide, a cell's type being its producer's declaration
 evaluated at the activation; the phrasing survives any later widening of
 acceptance.
+
+Annotation (2026-10-02): [D-166][d-166] is superseded by [D-263][d-263], under which [D-166][d-166]'s
+embed-accept relation survives. [D-238][d-238] states it, decided on the type.
 
 **Rejected.**
 - *A runtime `isa` against the declaration's `NamedTuple` type:* refuses the
@@ -9411,13 +9438,20 @@ stage write.
 - `Build` is structure, dataflow, events and the activations, the nominal
   and the cache merged into one dictionary keyed by scalar type under the
   existing lock.
+
+  Annotation (2026-10-02): "under the existing lock" defers to [D-135][d-135] and
+  [D-281][d-281]. The mechanism is unspecified, and a lock is one that suffices.
 - Structural consumers read the products, not the `Activation`: readers,
   trim, the tracer, `compile`'s key slicing and the runtime field-error
   species take their name lists from `Structure` and `Dataflow`.
 - [§9.1][s9-1] says Stratum B is the nominal evaluation's structural half, and the
   nominal activation is B's products plus C's typing.
 
-**Spec.** [§9.1][s9-1], [§9.2][s9-2], [§9.3][s9-3], [§9.4][s9-4], [§13.3][s13-3], [§13.4][s13-4], [§13.7][s13-7], [§14.1][s14-1], [§14.4][s14-4]
+  Annotation (2026-10-02): superseded by [D-259][d-259]. The nominal evaluation
+  fixes both the structure and the `Float64` typing, and no activation step
+  runs at `Float64`.
+
+**Spec.** [§9.1][s9-1], [§9.2][s9-2], [§9.3][s9-3], [§9.4][s9-4], [§9.7][s9-7], [§13.3][s13-3], [§13.4][s13-4], [§13.7][s13-7], [§14.1][s14-1], [§14.4][s14-4]
 
 **Rationale.** A step is well-defined when it consumes one new piece of
 information and fixes everything that piece determines. Stratum A consumes
@@ -9924,7 +9958,7 @@ stands. The rename of `Dataflow` to `Outputs` supersedes [D-253][d-253]'s clause
 the `Dataflow` name and [D-258][d-258]'s rejection of renaming it: both rested on the
 artifact carrying the graph, and it no longer does.
 
-**Spec.** [§9.2][s9-2], [§11.2][s11-2], [§11.3][s11-3], [§11.5][s11-5], [§12.6][s12-6], [§13.5][s13-5], [Appendix B][sB]
+**Spec.** [§9.1][s9-1], [§9.2][s9-2], [§11.2][s11-2], [§11.3][s11-3], [§11.5][s11-5], [§12.6][s12-6], [§13.5][s13-5], [Appendix B][sB]
 
 **Rationale.** A survey of every struct in `src/` (104 structs, 22
 findings, `docs/reports/20260921_data_survey/`) found no field with two
@@ -10895,7 +10929,7 @@ exactly as it is for `get_state`, and the read is the compiled gather's
 - The seeded evaluation runs in groups of `width` directions per pass,
   `width` a keyword of `linearize` with a fixed default of 8. The default
   width's scalar type is public, so a build can pre-materialize its
-  activation through `activations` ([§9.7][s9-7]).
+  activation through `activations` ([§9.4][s9-4]).
 - The operating point is `capture(sim)` by default. `about = <condition>`,
   with `t0` beside it, places it anywhere else under `init!`'s legality.
 - The return is a `Linearization` value: `ẋ₀`, `x₀`, `u₀` and `y₀` as
@@ -11507,6 +11541,9 @@ cached.
   the cached layouts at construction.
 - Every service invocation owns the scratch set it instantiates from those
   same layouts.
+- The `Build` is immutable apart from its lazily filled activation
+  dictionary, and may back any number of deployments and `Simulation`s
+  concurrently.
 
 **Spec.** [§9.2][s9-2], [§9.4][s9-4], [§11.1][s11-1], [§14.8][s14-8], [§14.10][s14-10]
 
@@ -11519,6 +11556,295 @@ back any number of `Simulation`s concurrently ([D-135][d-135]).
 - *Cached shared buffers:* [D-070][d-070]'s aliasing — warn-but-assign reborn — and it
   makes the `Build` mutable in exactly the way multi-`Simulation` sharing
   forbids. (As recorded in [D-135][d-135].)
+
+### D-283 — Bind `Δt_base` against anchor-relative rate triples
+
+**Status.** ratified
+
+**Position.** The structure step compiles every rate into an anchor-relative
+triple, and deployment binds `Δt_base` against the anchors by exact
+arithmetic.
+
+- `sample_times` compiles by a fold down the tree into `(anchor, m, c)`
+  triples. The root seeds `(A₀, 1, 0)`, anchor 0 being the symbolic base
+  grid. `Relative(K, φ)` under a scope at `(a, mₛ, cₛ)` steps to
+  `(a, K·mₛ, cₛ + φ·mₛ)`. `Absolute` severs and re-seeds `(Aₖ, 1, 0)`, and a
+  nested anchor seeds again.
+- `Structure`'s timing tables are anchor-relative: the anchor table and the
+  component table with its rate chain. Final divisors for anchored entries
+  wait for `Δt_base`, which deployment binds.
+- `Δt_base` binds from exactly one of three sources, cross-validated: the
+  explicit keyword (a `Rational`, `Period` or `Hz` value, with `N_base`
+  derived and validated an integer ≥ 1), the `N_base·h` product, or
+  derivation at the pool's GCD.
+- If any unanchored discrete component exists, deployment must declare
+  `Δt_base`, and the refusal is constructive.
+- Derivation is permitted only when every discrete component is anchored,
+  and only when requested explicitly as `Δt_base = :derive`. It is never the
+  default.
+- Admissibility is exact GCD arithmetic over the constraint pool, every
+  anchor period plus every nonzero anchor offset. A `Δt_base` is admissible
+  iff it divides the pool's GCD.
+- Per anchor, `Dₖ = Tₖ/Δt_base` and `Φₖ = τₖ/Δt_base` must come out exact
+  integers, or deployment raises `DeploymentInvalid` naming the anchor's
+  declaring scope and key. Per component, one multiply-add gives the bound
+  `(D, Φ, Δt)`.
+
+**Spec.** [§9.1][s9-1], [§9.2][s9-2], [Appendix B][sB]
+
+**Rationale.** All but the explicit request are recorded in [D-186][d-186]'s
+Rationale. The fold and the tables: final divisors for anchored entries do
+not exist until `Δt_base` does, and one build backs many deployments, so the
+structure carries triples and binding resolves them (as recorded in [D-186][d-186]).
+The declare rule: an unanchored period is `m·Δt_base`, and silent derivation
+would let an anchor edit anywhere rescale it, which is action at a distance
+(as recorded in [D-186][d-186]). Resolution is one exact division pair per anchor and
+one multiply-add per component, the residue invariant surviving into the
+bound `(D, Φ, Δt)` (as recorded in [D-186][d-186]). Exactness is structural because
+periods and offsets are `Rational` (as recorded in [D-185][d-185]).
+
+The explicit request has no prior entry. [§9.2][s9-2] and [Appendix B][sB] state it, and
+[§9.2][s9-2] gives its reason: derivation is never entered by default, so the
+`N_base·h` path stays what silence means.
+
+**Rejected.**
+- *Silent `Δt_base` derivation with unanchored components present:* the
+  logger-rescaled-by-an-offset-edit case. (As recorded in [D-186][d-186].)
+- *The schedule on the `Build`:* it does not exist until `Δt_base` binds,
+  and one build backs deployments with different `Δt_base`. (As recorded in
+  [D-254][d-254].)
+- *Floats in periods or offsets:* GCD derivation over floats is ill-defined;
+  `Rational{Int}` fields make exactness structural. (As recorded in [D-185][d-185].)
+- *None recorded for the explicit `:derive` request.*
+
+### D-284 — Attribute grid refinement to every driver, against the actual pool
+
+**Status.** ratified
+
+**Position.** The grid diagnostics attribute refinement to every entry that
+drives it, measured against what is declared.
+
+- Every leave-one-out refinement factor `r_p > 1` is listed, and no single
+  culprit is crowned.
+- Blame is computed against the actual constraint pool. The
+  simple-fraction-of-its-period offset test is authoring guidance and never
+  the engine's.
+
+**Spec.** [§9.2][s9-2]
+
+**Rationale.** Joint responsibility is the honest answer, so every factor
+above 1 is listed (as recorded in [D-187][d-187]). Demand is relational: `τ = T/10`
+can cost nothing and `τ = T/15` cost 3× against the same pool, so blame is
+computed against what is actually declared (as recorded in [D-187][d-187]).
+
+**Rejected.**
+- *The simple-fraction-of-its-period offset test as the engine's warning:*
+  authoring guidance only — demand is relational: `τ = T/10` can cost nothing
+  and `τ = T/15` cost 3× against the same pool, so blame is computed against
+  what is actually declared. (As recorded in [D-187][d-187].)
+- *Crowning the single largest refinement factor:* leave-one-out honestly
+  fingers *joint* drivers — in the companion's worked case the
+  innocent-looking anchor, not the offset, is the larger marginal one. (As
+  recorded in [D-187][d-187].)
+
+### D-285 — Probe return checks, hand-down and placeholder sources, and totality's two homes
+
+**Status.** ratified
+
+**Position.** The probe checks a stage return's shape, sources the hand-down
+and the period from what the build holds, and two habits that totality
+forbids in stage code have homes outside it.
+
+- A stage returning anything other than a `NamedTuple` fails at the probe.
+- A stage returning bare `(;)` produces no ports and is `DeadStage`,
+  fail-fast.
+- The stage-1 hand-down, `y_x` on the continuous tier and `y_s` on the
+  discrete, is sourced from the stage-1 probes' returns.
+- Discrete-tier probes supply a placeholder period, `1.0`, in the bundle. It
+  is a fabricated, probe-scoped value like `t`.
+- A plausibility check meaning "stop the run" is a published `Bool` output
+  face plus `stop_on`.
+- A self-consistency assert is a regression test, and its home is the test
+  suite.
+
+**Spec.** [§5.2][s5-2], [§9.3][s9-3], [Appendix C][sC]
+
+**Rationale.** [D-036][d-036] rules that stage returns are `NamedTuple`s. That the
+probe is where any other return fails has no prior entry; [§9.3][s9-3] states it.
+
+[D-165][d-165] made a stage producing nothing a dead-stage build error, `DeadStage`
+(as recorded in [D-165][d-165]). [D-194][d-194], which superseded it, simplified the ground to
+a stage returning `(;)` and did not restate the error. Its fail-fast policy
+is [Appendix C][sC]'s: the probe is user-code evaluation, which fails fast under
+[§13.1][s13-1].
+
+The stage-1 probe's return is what [§9.3][s9-3] already sourced the hand-down from
+(as recorded in [D-169][d-169]). [D-252][d-252], which superseded [D-169][d-169], removed the
+auto-published names the hand-down had to exclude and did not restate the
+sourcing.
+
+[D-115][d-115] calls the `Δt = 1.0` placeholder settled, and no entry settling it was
+found. [§9.3][s9-3] states it, with its reason: `Δt` in seconds does not exist until
+the `Deployment` constructor binds `Δt_base`, and deployment post-dates the
+build.
+
+Three patterns in shipped landing-gear code get three dispositions (as
+recorded in [D-142][d-142]). Plausibility termination migrates to a published `Bool`
+output face plus `stop_on`, [§13.5][s13-5]'s existing machinery. A numerical
+self-consistency assert is a regression test living in stage code, and its
+legitimate home is the test suite. It is also the most probe-fragile of the
+three, since a near-degenerate synthesized geometry keeps the cancellation
+algebraically exact while missing an absolute tolerance in floating point.
+The third, defensive exhaustiveness, is [D-142][d-142]'s Position.
+
+**Rejected.**
+- *Doing nothing beyond [§13.5][s13-5]'s termination mapping:* it covers the
+  termination half and covers it well, but leaves the non-terminating assert
+  classes — self-consistency and exhaustiveness — with no stated rule at
+  all. (As recorded in [D-142][d-142].)
+- *None recorded for the return-shape, dead-stage, hand-down and placeholder
+  rulings.*
+
+### D-286 — Hold a pinned leaf to the exact check as the schema-visible freeze
+
+**Status.** ratified
+
+**Position.** A pinned leaf is the schema-visible freeze, and the
+conformance check holds it to its word at every activation.
+
+- A pinned leaf, one wrapped as `Pinned` or an `Int`, `Bool` or enum leaf
+  that never walks, takes the nominal-style exact check at every activation.
+- An observed `Dual` at a pinned leaf is the misplaced-pin error, with the
+  didactic hint "if `F` participates in differentiation, remove its
+  `Pinned`".
+- An author who means to strip partials declares the leaf `Pinned{Float64}`
+  and strips inside the stage.
+- Stripping mid-expression at an unpinned leaf remains legal.
+
+**Spec.** [§8.2][s8-2], [§9.5][s9-5]
+
+**Rationale.** [D-238][d-238]'s relation lifts a `Float64` position only where the
+declaration has `T`, so every other leaf is exact (as recorded in [D-238][d-238]),
+and a `Pinned` leaf is pinned at every activation ([D-263][d-263]'s first bullet).
+An observed `Dual` at a declared-pinned leaf has one honest cause, so the
+error can name the fix (as recorded in [D-166][d-166]). The hint's present wording
+has no prior entry; [§8.2][s8-2] and [§9.5][s9-5] state it.
+
+The marker is on the page, per leaf, schema-visible and conformance-checked,
+so [§14.10][s14-10]'s freeze door and the FFI door survive as declared doors (as
+recorded in [D-263][d-263]). Deliberate `value()` stripping is the stop-gradient, a
+deliberate-lie class (as recorded in [D-079][d-079]). The `T`-signature's two real
+losses, schema-visible participation and whole-leaf stripping detection, were
+both equally blind to mid-expression stripping (as recorded in [D-079][d-079]), and a
+local derivative rule strips
+mid-expression, which [§9.5][s9-5] leaves legal at an unpinned leaf (as recorded in
+[D-266][d-266]).
+
+**Rejected.**
+- *Superseded position — the mandated two-argument forms on the continuous
+  tier ([D-166][d-166], [D-167][d-167]):* ceremony on every continuous leaf for a per-leaf
+  choice made on few; reader honesty bought at the price of a second typing
+  convention beside the state side's walk. (As recorded in [D-263][d-263].)
+- *The framework stripping partials at a walking-into-pinned wire:* the
+  discard is a modelling decision, and an invisible one is the class [§9.5][s9-5]
+  calls the silent zero in the Jacobian. (As recorded in [D-266][d-266].)
+
+### D-287 — Handler-return keys, struct-valued port embedding and the branchless payload
+
+**Status.** ratified
+
+**Position.** The always-on check reads handler returns by key, embeds a
+struct-valued port by its constructor, and reports no branch.
+
+- A handler return's key set is checked first. An unknown key, or one
+  naming a store the component does not declare, is a build error with
+  did-you-mean against `{x, m}` narrowed to the declared stores.
+- A present `x` is complete against the state field set.
+- A struct-valued port's embedding uses the standard cross-eltype
+  constructor, and a missing one fails loudly with both types named.
+- The conformance failure payload omits the source branch.
+
+**Spec.** [§5.2][s5-2], [§9.5][s9-5]
+
+**Rationale.** Checks per key: `x` present ⇒ complete against the state
+field set, `m` present ⇒ names-subset, unknown key ⇒ did-you-mean against
+`{x, m}` narrowed to the declared stores — the argument-side `FieldError`
+machinery run in both directions (as recorded in [D-090][d-090]). [§9.5][s9-5] states the key
+set's place first.
+
+The constructor rule has no prior entry; [§9.5][s9-5] states it.
+
+A value does not say which branch produced it, and the diff and replay
+suffice (as recorded in [D-053][d-053]).
+
+**Rejected.**
+- *Positional pair `(x⁺, m⁺)`:* reintroduces the padding [D-074][d-074] bans on
+  arguments — `((;), m⁺)` / `(x⁺, (;))` for single-store components — and
+  lets the two stores swap with a diff-shaped rather than name-shaped error.
+  (As recorded in [D-090][d-090].)
+- *Branch identification in the error:* a value does not say which branch
+  produced it — the diff + replay suffice. (As recorded in [D-053][d-053].)
+- *None recorded for the constructor rule.*
+
+### D-288 — The executor's structure: phase bodies, views, construction, the gate and publication
+
+**Status.** ratified
+
+**Position.** The executor's structure is fixed in five parts, and two
+options it opens stay uncommitted.
+
+- Phase bodies are the outer decomposition, and they are semantically
+  forced: the order-free stage-1, `x_deriv` and `s_update` blocks, the
+  topologically ordered stage-2 block, and the event callables.
+- Views are rebuilt per call. Hoisting is the code generator's
+  common-subexpression elimination, and the framework maintains none.
+- Construction is type-opaque. Entry tuples are built from untyped buffers,
+  and the compiled tuple's type has one consumer, the unrolled walk.
+- Two options are recorded, not committed: deterministic parallel
+  evaluation of the order-free blocks, and finer recompilation granularity.
+  Editing a discrete component already invalidates the boundary body, not
+  the RHS body, under the two-arity split.
+- One gate serves the three tick-sensitive blocks, because due-ness is per
+  component, per boundary, never per stage. At a localized event time `t*`
+  the empty due set is arity selection.
+- Publication is not a phase body. Invoking phase bodies in isolation leaves
+  the buffers valid but off-trajectory, and continuing takes `init!`.
+
+**Spec.** [§9.7][s9-7]
+
+**Rationale.** The phase bodies are the semantically forced outer
+decomposition, and their seams cost nothing; views rebuild per call, hoisting
+being compiler CSE, whose legality condition is the staleness rule; schedule
+tuples are constructed type-opaquely and consumed only by the walk; and the
+parallel-evaluation and incremental-recompile doors are recorded (as recorded
+in [D-086][d-086]). [D-086][d-086]'s chunking and mitigation ladder are not restated here: they
+wait on the compile-time ruling in `pending.md`. That a discrete edit
+invalidates the boundary body and not the RHS body is an implicit commitment
+the two-body split makes true (as recorded in [D-147][d-147]).
+
+The boundary gate is one gate for all three tick-sensitive blocks, due-ness
+per component per boundary and never per stage, and `t*` emptiness remains
+arity selection, with no sentinel index failing every gate (as recorded in
+[D-185][d-185]). [D-147][d-147] rules the due set empty at `t*` and the two arities.
+
+Publication is not a phase body, which is the [§7.5][s7-5] carve-out made
+structural; isolated invocation leaves buffers valid but off-trajectory, and
+re-`init!` continues (as recorded in [D-116][d-116]).
+
+**Rejected.**
+- *Framework-maintained view hoisting:* manual cache-invalidation duty for
+  loads the compiler hoists exactly where legal; mis-scoping = silent
+  stale-state reads. (As recorded in [D-086][d-086].)
+- *A single parameterized body taking a sentinel "no ticks due" index on
+  mid-step calls:* it pays a dead runtime test per discrete entry in the
+  framework's hottest path; it puts discrete entries back into the RHS-side
+  body, falsifying [§9.7][s9-7]'s recompilation-granularity claim; and it conflates
+  two execution contexts inside one measured body. (As recorded in [D-147][d-147].)
+- *A no-publish advance mode on `step!`:* forks execution semantics for CI's
+  benefit and breaks [§10.3][s10-3]'s publication-after-every-boundary property. (As
+  recorded in [D-116][d-116].)
+- *None recorded for type-opaque construction or the two uncommitted
+  options.*
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
@@ -11803,6 +12129,12 @@ back any number of `Simulation`s concurrently ([D-135][d-135]).
 [d-280]: #d-280--build-a-dual-activation-of-every-component-in-ci
 [d-281]: #d-281--guarantee-torn-state-free-lazy-materialization
 [d-282]: #d-282--give-every-buffer-set-exactly-one-owner
+[d-283]: #d-283--bind-δt_base-against-anchor-relative-rate-triples
+[d-284]: #d-284--attribute-grid-refinement-to-every-driver-against-the-actual-pool
+[d-285]: #d-285--probe-return-checks-hand-down-and-placeholder-sources-and-totalitys-two-homes
+[d-286]: #d-286--hold-a-pinned-leaf-to-the-exact-check-as-the-schema-visible-freeze
+[d-287]: #d-287--handler-return-keys-struct-valued-port-embedding-and-the-branchless-payload
+[d-288]: #d-288--the-executors-structure-phase-bodies-views-construction-the-gate-and-publication
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

@@ -3193,7 +3193,7 @@ legal key, and the bare field name applies one declaration to every element.
 A `sample_times` key on a continuous child is a build error (the
 Δt-on-continuous error at declaration time, [§10.5][s10-5]). `Δt_base`, `h` and
 `N_base` appear in no declaration. They are deployment decisions fixed at
-`Simulation` construction (the three sources for `Δt_base`, [§9.2][s9-2]). The
+deployment (the three sources for `Δt_base`, [§9.2][s9-2]). The
 declaration belongs to the [assembly](#g-assembly) type, not to the child instance,
 because a sample time is a design ratio or a modeled instrument's intrinsic
 rate ([§10.5][s10-5]), never a per-instance value. The FlightCore-`Subsampled`-style
@@ -3511,7 +3511,7 @@ violations are collected with path attribution. The second is compilation into
 exact `(T, τ)` pair an `Absolute` entry establishes.
 
 The compilation is a fold down the tree, one rule per case
-([D-186][d-186]):
+([D-186][d-186], [D-283][d-283]):
 
 | the fold meets | the triple it produces |
 |---|---|
@@ -3640,7 +3640,7 @@ of the same world is an assumption the factorization removes.
 
 The `Build` is immutable apart from its lazily filled activation dictionary,
 and may back any number of `Deployment`s and `Simulation`s, concurrently
-([D-135][d-135]). Insertion into that dictionary is torn-state-free.
+([D-282][d-282]). Insertion into that dictionary is torn-state-free.
 [§9.4][s9-4] states the ownership rule, the keying and the guarantee.
 
 The `Build` is the inspectable derived contract of the instantiation that
@@ -3670,7 +3670,7 @@ payload resolves against from any authoring level ([§14.2][s14-2],
 [§14.3][s14-3]).
 
 **`Structure`'s timing tables are anchor-relative**, and the `Deployment` binds
-them ([D-186][d-186]). From the structure step the artifact gains two
+them ([D-283][d-283]). From the structure step the artifact gains two
 printable tables:
 
 - The [anchor](#g-anchor) table holds each anchor's exact `(T, τ)` rationals
@@ -3700,7 +3700,7 @@ own `warnings`. `Simulation` materializes it at a scalar type `T`. Two
 ([§12.7][s12-7]).
 
 **`Δt_base` has exactly one of three sources**, cross-validated
-([D-186][d-186]):
+([D-283][d-283]):
 
 - the explicit keyword, a `Rational`, `Period` or `Hz` value, from which
   `N_base` is derived as `Δt_base/h` and validated an integer ≥ 1;
@@ -3719,7 +3719,7 @@ It is never entered by default, so the `N_base·h` path stays what silence
 means.
 
 **If any unanchored component exists, deployment must declare `Δt_base`**
-([D-186][d-186]). The refusal is constructive, carrying the suggestion message
+([D-283][d-283]). The refusal is constructive, carrying the suggestion message
 of the grid diagnostics below. Under the anchored-only restriction, `Δt_base`
 is pure bookkeeping that no component's period depends on. An unanchored
 component's period is `m·Δt_base`. Deriving with one present would let an
@@ -3824,7 +3824,7 @@ hyperperiod is the complete truth, not a sample. The chart guard is binary.
 #### Grid diagnostics
 
 **The grid diagnostics live on the `Deployment`** and print from the pool,
-exactly ([D-254][d-254]). The refusal path's suggestion message and the
+exactly ([D-187][d-187], [D-254][d-254]). The refusal path's suggestion message and the
 derivation path's info line share one substrate. That substrate is the
 coarsest admissible `Δt_base` with the admissible set `gcd(pool)/k`, and
 per-entry attribution. Attribution has two forms:
@@ -3832,7 +3832,7 @@ per-entry attribution. Attribution has two forms:
 - Leave-one-out refinement factors are the first form.
   `r_p = gcd(pool ∖ p)/gcd(pool)` is an integer ≥ 1 read as "how much coarser
   the grid would be without this entry". **Every `r_p > 1` is listed** rather
-  than one culprit crowned ([D-187][d-187]). That is because joint
+  than one culprit crowned ([D-284][d-284]). That is because joint
   responsibility is the honest answer.
 - Prime attribution is the second form. Each prime power of `1/Δt_base` is
   traced to the pool entries whose denominators supply it. That pinpoints what
@@ -3842,7 +3842,7 @@ When an offset is a driver, the message adds the nearest non-refining
 alternatives, the admissible offsets on the grid the rest of the pool
 supports. That turns the diagnostic into a repair.
 
-**Blame is computed against the actual pool** ([D-187][d-187]). A
+**Blame is computed against the actual pool** ([D-284][d-284]). A
 simple-fraction-of-its-period test stays authoring guidance and never becomes
 the engine's.
 
@@ -3918,7 +3918,7 @@ layouts.
 Two checks ride the same pass. The first is the return's shape. A stage
 returning something other than a `NamedTuple` fails here. The second is the
 dead-stage rule. **A stage returning bare `(;)` produces no ports at all, and
-is `DeadStage`**, fail-fast ([D-194][d-194]).
+is `DeadStage`**, fail-fast ([D-194][d-194], [D-285][d-285]).
 
 Exactly one kind of terminal has no producer, the
 [root inputs](#g-root-input). **The build
@@ -3994,13 +3994,13 @@ Exceptions from model code are always abnormal ([§13.5][s13-5],
 Three habits of shipped landing-gear code have sanctioned spellings:
 
 - A *plausibility* check meaning "stop the run" is a published `Bool` output
-  face plus `stop_on` ([§13.5][s13-5], [D-060][d-060]). A landing-gear strut
-  model that throws on a touchdown overload is one such check. The face and
+  face plus `stop_on` ([§13.5][s13-5], [D-060][d-060], [D-285][d-285]).
+  A landing-gear strut model that throws on a touchdown overload is one such check. The face and
   `stop_on` are machinery already there.
 - A *self-consistency* assert, such as an author checking that their own
   contact algebra cancels a velocity component to a hard tolerance, is a
   regression test about that algebra. Its home is the test suite
-  ([D-142][d-142]). It is also the most probe-fragile of the three,
+  ([D-285][d-285]). It is also the most probe-fragile of the three,
   since a near-degenerate synthesized geometry can keep the cancellation
   algebraically exact while missing an absolute tolerance in floating point.
 - A *defensive exhaustiveness* branch is the third habit. Examples are an
@@ -4262,7 +4262,7 @@ So a field name, a non-numeric type parameter or an array's mutability that
 differs is refused like any other mismatch.
 
 A [pinned](#g-walked) leaf takes the nominal-style exact check at *every*
-activation ([D-238][d-238], [D-263][d-263]). A pinned leaf is one the author
+activation ([D-286][d-286]). A pinned leaf is one the author
 wrapped as `Pinned`, or an `Int`, `Bool` or enum leaf that never walks. It takes
 that check because its declaration said the leaf never carries partials. An
 observed `Dual` there is the misplaced-pin error, that being the one honest
@@ -4289,7 +4289,7 @@ and opaque non-Julia wrappers. Applied mid-expression it is equally invisible
 to a strict exact-match rule, so the leniency costs nothing.
 
 But stripping need not be invisible to the schema. **The pinned leaf is
-the schema-visible freeze** ([D-263][d-263]). An author who means to strip
+the schema-visible freeze** ([D-286][d-286]). An author who means to strip
 declares the leaf `Pinned{Float64}` and strips inside the stage. The check
 above holds the freeze to its word at every activation. Stripping
 mid-expression at a leaf left unpinned remains legal and remains unseen, as
@@ -4318,14 +4318,14 @@ function is checked against its own predicate.
 
 #### Handler returns
 
-**The returned NamedTuple's key set is checked first** ([D-090][d-090]). An
+**The returned NamedTuple's key set is checked first** ([D-287][d-287]). An
 unknown key, or a key naming a store the component does not declare, is a
 build error with [did-you-mean](#g-did-you-mean) against `{x, m}` narrowed to
 the stores that exist. That is the [bundle law](#g-bundle)'s classification
 running in the return direction.
 
 Then, per present key, `x` must be complete against the state field set,
-while `m` may be partial ([D-053][d-053], [D-090][d-090]). `x` must also
+while `m` may be partial ([D-053][d-053], [D-287][d-287]). `x` must also
 be conformant at `T` like any state value. `m` is checked against a
 names-subset-with-matching-types predicate, still a type-level computation
 that folds when inferred. An absent key is not an error and not a no-op to
@@ -4359,7 +4359,7 @@ and the replay index. A build-time occurrence has no time to carry
 ([D-249][d-249]).
 
 **The source branch is deliberately absent from the payload**
-([D-053][d-053]). A value does not say which branch produced it, and the diff
+([D-287][d-287]). A value does not say which branch produced it, and the diff
 identifies it.
 
 The always-on input [trace](#g-trace) makes every such failure reproducible
@@ -4445,7 +4445,7 @@ store type with the model. The choice was measured rather than argued
 #### Phase bodies, arities and seams
 
 **[Phase bodies](#g-measurement-seam) are the outer decomposition**, and they
-are semantically forced ([D-086][d-086]). The blocks are as follows.
+are semantically forced ([D-288][d-288]). The blocks are as follows.
 
 - The [boundary sweep](#g-sweep)'s stage-1 block, both tiers' `y_state`
   entries alike, is order-free by definition, because the
@@ -4474,7 +4474,7 @@ are semantically forced ([D-086][d-086]). The blocks are as follows.
 `rhs` takes no index. One gate serves all three tick-sensitive blocks,
 because due-ness is per component, per boundary, never per stage. **At a
 localized event time `t*` ([§10.4][s10-4]), the empty due set is arity
-selection**, not an index trick ([D-147][d-147], [D-185][d-185]). The `t*`
+selection**, not an index trick ([D-147][d-147], [D-288][d-288]). The `t*`
 iteration therefore runs the zero-arg arities, whose compiled bodies contain
 no discrete entries ([§10.5][s10-5]).
 
@@ -4497,7 +4497,7 @@ Two options this structure opens for free are recorded, not committed.
 
 #### Views and construction
 
-**[Views](#g-view) are spelled rebuild-per-call** ([D-086][d-086]). Every entry
+**[Views](#g-view) are spelled rebuild-per-call** ([D-288][d-288]). Every entry
 constructs its bundle at its own position. There is no framework-maintained
 hoisting and therefore no cache-invalidation obligation. Hoisting belongs to the
 code generator. Common-subexpression elimination (CSE) merges repeated loads
@@ -4507,7 +4507,7 @@ fields (`u`, `y_x`/`y_s`) are per-call by topological necessity either way
 ([§7.1][s7-1]).
 
 **Construction is type-opaque**, and only the executor
-specializes ([D-086][d-086]). Entry tuples are built from untyped buffers
+specializes ([D-288][d-288]). Entry tuples are built from untyped buffers
 and splatted once. Generic tuple utilities (range indexing, long `ntuple`
 closures, naive recursion) are inference traps at the entry list's length,
 since a 400-entry heterogeneous tuple can send generic `getindex` inference
@@ -4598,7 +4598,7 @@ It asserts at per-body granularity, each sweep arity in its own right
 ([D-147][d-147]), with the interior call bare and the boundary call at a due
 index. So a documented [§7.5][s7-5] tolerance loosens exactly one assertion.
 
-**Publication is not a phase body** ([D-116][d-116]). That is the
+**Publication is not a phase body** ([D-288][d-288]). That is the
 [§7.5][s7-5] carve-out made structural. What the accessor exposes is exactly
 what the invariant claims is zero. Invoking bodies in isolation mutates the
 simulation's buffers outside any [frame](#g-frame) sequence (a tick entry
@@ -4932,8 +4932,8 @@ not-holding/holding bracket is an unconditional convergence certificate. Newton
 and AD localization are rejected ([D-018][d-018]).
 
 **Convergence is a relative bracket width.** Localization stops once the bracket
-is narrower than `localization_tol · h`. `localization_tol` is a `Simulation`
-deployment keyword defaulting to `1e-6`. The tolerance is relative because an
+is narrower than `localization_tol · h`. `localization_tol` is a `Deployment`
+constructor keyword defaulting to `1e-6`. The tolerance is relative because an
 absolute tolerance in `t` is not scale-free ([D-133][d-133]). The default is `1e-6`
 because the event time can never be more accurate than the interpolant, which is
 `O(h⁴)` as stated above. At practical `h`, anything tighter buys nothing, while
@@ -5064,8 +5064,9 @@ iteration.
 
 #### Both constants are deployment, not implementation
 
-`localization_tol` and `localization_budget` are `Simulation` keywords. They
-stand beside `h`, `N_base` and the algorithm ([§9.2][s9-2], [Appendix B][sB]). They are
+`localization_tol` and `localization_budget` are `Deployment` constructor
+keywords. They stand beside `h`, `N_base` and the algorithm ([§9.2][s9-2],
+[Appendix B][sB]). They are
 validated with their siblings, as a positive tolerance and an integer budget ≥
 1, and failures are collected into `DeploymentInvalid` ([Appendix C][sC]). The
 `firing_budget` ([§10.6][s10-6]) stands beside them in every one of these lists. It gets
@@ -8545,7 +8546,8 @@ the policy that fits it.
 - **User-code evaluation fails fast.** User code runs in three places. The first
   is the interface-connection bodies in the structure step (the build's first
   step, declaration reading only). The other two are the stage-1
-  [probes](#g-probe) in B and the probe chain in C. When user code throws, there is no
+  [probes](#g-probe) and the probe chain of the nominal evaluation
+  ([§9.1][s9-1]). When user code throws, there is no
   meaningful rest of the collection to report. A failed `u_connections`
   leaves the parent's face derivation undefined. A failed stage-2 probe starves
   every downstream probe of its wired inputs, because [probe values](#g-probe-value) flow
@@ -9254,16 +9256,22 @@ down the *rule* and the build evaluates it into inspectable data.
 **Every artifact renders itself through `show`** ([§9.2][s9-2], [D-257][d-257]). [`Structure`](#g-structure) (the
 structure step's product, the components, wires, faces and tiers) has one. So
 does [`Outputs`](#g-outputs) (the nominal evaluation's product, the port classes and the execution order).
+So does [`Events`](#g-events) (the nominal evaluation's event tables), which
+prints each component's event names with their policies.
 So does [`Schedule`](#g-schedule) (the typed per-component `(D, Φ, Δt)` tick table). So do `Build`
 and [`Deployment`](#g-deployment) (the scalar-free artifact the grid parameters fix). There are no
-accessor functions returning the tables alongside.
+accessor functions returning the tables alongside. `show(::Build)`'s parts
+include the events. Between the outputs table and the events table it prints a
+line of the [feedthrough](#g-feedthrough) edges (instantaneous input→output
+dependences). The edges are derived from the structure's connections and the
+producers' stage-2 names ([D-261][d-261]).
 
 **`show(::Structure)` owes [face](#g-face) routes.** For every root face,
 that means the resolved chain down to the producing terminal, printed as one
 line per chain (`crashed → aircraft/crashed → aircraft/monitor/out`). Once
 faces are computed rather than hand-listed, "what does this face actually
 reach" is a question the artifact must answer, not the reader. The structure
-step records the routing chain at every level, and `show(::Structure)` prints
+step records each face's routing chain at every level, and `show(::Structure)` prints
 the root's routes ([D-257][d-257]). Each line joins the hops with `→` and ends
 at the terminal. An input face that fans out prints one line per consumer. The
 same rendering serves the wiring diagnostics, which already carry endpoint
@@ -10133,7 +10141,7 @@ against today's `c172.jl`.
   `Dual`-typed there and takes the structural conversion, while the
   zero-partial embedding stays on the held `Float64` leaves. The *default* is
   nonlinear least squares on $r(d)$ with exact AD Jacobians, in the
-  trust-region/Levenberg–Marquardt family ([§9.6][s9-6]). Convergence is
+  trust-region/Levenberg–Marquardt family ([§14.8][s14-8]). Convergence is
   quadratic (~5–15 evaluations), the tolerances are per-residual and
   physical, and failure reports name the unbalanced equations with
   magnitudes. The convergence verdict itself is service-owned and
@@ -10646,7 +10654,7 @@ operating point in it (below). It then runs the seeded Dual evaluation, one
 direction per `x`-tap and per `u`-tap entry, in groups of `width` directions
 per pass. **Rule.** `width` is a keyword of `linearize`, default 8, and the
 default width's scalar type is public, so a build can pre-materialize its
-activation through `activations` ([§9.7][s9-7]) and a tap set of any size
+activation through `activations` ([§9.4][s9-4]) and a tap set of any size
 then linearizes with no compile at the keyboard ([D-272][d-272]). Value
 parts give `ẋ₀` and `y₀`. Partials give `A` and `B` against the `x`- and
 `u`-seeds, and `C` and `D` against the same seeds read at `y`. All four come
@@ -11103,9 +11111,10 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   `Δt_base` binds from exactly one of three sources ([§9.2][s9-2]). The first
   is the `Δt_base` keyword, a `Rational`, `Period` or `Hz` value; `N_base` is
   then derived and validated an integer ≥ 1. The second is the `N_base·h`
-  product when the keyword is absent (the default path). The third, in a
-  fully anchored model omitting both, is derivation from the constraint pool
-  at the coarsest admissible value, printed with its drivers ([§9.2][s9-2]).
+  product when the keyword is absent (the default path). The third,
+  requested with `Δt_base = :derive` in a fully anchored model, is derivation
+  from the constraint pool at the coarsest admissible value, printed with its
+  drivers ([§9.2][s9-2]).
 
   The [deployment](#g-deployment) (the scalar-free artifact the grid parameters
   fix) binds no stop policy. `t_end` and `stop_on` are keywords of each advance
@@ -11763,7 +11772,7 @@ activation):
 - **`ArgumentInvalid`** ([§8.7][s8-7], [§11.6][s11-6], [§12.1][s12-1], [§12.4][s12-4],
   [§12.6][s12-6], [§14.7][s14-7]). Error · service, or build in a `sample_times`
   declaration · fail-fast, but collected over a `TableBinding`'s entry table
-  and over the materialization's keywords ([§9.2][s9-2]). The call
+  and over the materialization's keywords. The call
   (`Simulation`, `run!`, `step!`, `replay!`, `pace!`, `margin!`, `trim!`,
   `TableBinding`, a period constructor), the argument, the value in hand,
   the violated constraint. The twin of
@@ -12048,7 +12057,7 @@ No boundary-consistent fact of the simulation is read from it. There are
 three kinds: a component's workspace (`ws`, [§7.3][s7-3]); the integrator's
 buffers and the mid-step table ([§7.5][s7-5], [§10.4][s10-4]); and the store
 set a service invocation instantiates from the activation's layout and
-discards with the call ([§9.2][s9-2], [§14.8][s14-8]). Not to be confused
+discards with the call ([§9.4][s9-4], [§14.8][s14-8]). Not to be confused
 with the simulation's own buffer set, which has the same shape and is the
 authoritative one. Scratch names the role, not the type.
 
@@ -12099,7 +12108,7 @@ build time from wiring edges plus intra-component feedthrough: all stage-1
 functions in any order, stage 2 in topological order, then `x_deriv`.
 It is carried by the `Outputs` artifact, and "ordering" names the activity
 ([D-258][d-258]). The hot loop runs a flat list of `(component, stage)`
-entries, with zero runtime graph logic ([§5.1][s5-1], [§9.1][s9-1]).
+entries, with zero runtime graph logic ([§5.1][s5-1], [§9.7][s9-7]).
 
 <a id="g-flow"></a>**flow / RHS** — `x_deriv`, the continuous derivative function, `f` in
 the spec's formulas ([D-220][d-220]). Evaluating the RHS means running the
@@ -12162,7 +12171,7 @@ boundary, under a `ChatteringBudget` warning naming the event
 ([§10.4][s10-4]).
 
 <a id="g-dt_base"></a>**`Δt_base`** — the base tick period, an integer multiple `N_base·h` of the
-continuous step. It is bound at `Simulation` construction from one of three
+continuous step. It is bound at the `Deployment` constructor from one of three
 sources: an explicit keyword, `N_base·h`, or derivation from the constraint
 pool (fully anchored models only). Every discrete component's period is an
 integer multiple of it ([§10.5][s10-5], [§9.2][s9-2]).
@@ -13120,6 +13129,12 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-280]: decisions.md#d-280--build-a-dual-activation-of-every-component-in-ci
 [d-281]: decisions.md#d-281--guarantee-torn-state-free-lazy-materialization
 [d-282]: decisions.md#d-282--give-every-buffer-set-exactly-one-owner
+[d-283]: decisions.md#d-283--bind-δt_base-against-anchor-relative-rate-triples
+[d-284]: decisions.md#d-284--attribute-grid-refinement-to-every-driver-against-the-actual-pool
+[d-285]: decisions.md#d-285--probe-return-checks-hand-down-and-placeholder-sources-and-totalitys-two-homes
+[d-286]: decisions.md#d-286--hold-a-pinned-leaf-to-the-exact-check-as-the-schema-visible-freeze
+[d-287]: decisions.md#d-287--handler-return-keys-struct-valued-port-embedding-and-the-branchless-payload
+[d-288]: decisions.md#d-288--the-executors-structure-phase-bodies-views-construction-the-gate-and-publication
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

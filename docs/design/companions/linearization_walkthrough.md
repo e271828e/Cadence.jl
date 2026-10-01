@@ -592,7 +592,7 @@ $(1 + C)$ nominal evaluations, so $N$ directions cost about $(N + N/C)$
 whatever the grouping, at most a factor of two between $C = 1$ and $C = N$.
 The compile cost does: a fixed width compiles once per model and can be paid
 ahead of time through `build(m; activations = (Float64, LinearizeDual))`
-([§9.7][s9-7]), where a full-width pass compiles once per distinct tap count and
+([§9.4][s9-4]), where a full-width pass compiles once per distinct tap count and
 never ahead of time. Predictable latency at the keyboard and behind a GUI is
 what the fixed width buys ([D-272][d-272]).
 
@@ -675,4 +675,3 @@ build.
 [s14-4]: ../spec.md#144-one-plan-two-ways-to-apply-it
 [s8-2]: ../spec.md#82-the-declaration-inventory
 [s9-4]: ../spec.md#94-activations-executable-sets-laziness-caching
-[s9-7]: ../spec.md#97-the-compiled-executor

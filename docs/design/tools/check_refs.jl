@@ -58,7 +58,8 @@ const ROSTER = [DECISIONS,
                 "extensions.md",
                 # The implementation's register, both halves. Checked here
                 # and in check_rows.jl, but deliberately out of linkify.jl's
-                # roster: their citations stay plain, as decisions.md's do.
+                # roster, which rewrites decisions.md, extensions.md and the
+                # companions besides spec.md: their citations stay plain.
                 "implementation.md",
                 "pending.md",
                 "companions/event_visibility_walkthrough.md",
