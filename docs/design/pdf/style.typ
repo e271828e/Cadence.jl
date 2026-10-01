@@ -15,3 +15,9 @@
 // A nested list is a block inside its parent item, and Typst puts paragraph
 // spacing above it; match the tight list leading instead.
 #show list.item: set block(above: 0.65em)
+// Typst sets level 3 and deeper at body size, so a section heading reads as a
+// bold sentence; give each of the top three levels its own size step.
+#show heading.where(level: 1): set text(size: 1.7em)
+#show heading.where(level: 2): set text(size: 1.4em)
+#show heading.where(level: 3): set text(size: 1.2em)
+#show heading: set block(above: 1.8em, below: 1em)
