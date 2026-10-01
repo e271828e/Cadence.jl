@@ -106,9 +106,10 @@ _leaf_string(selector) = String(selector.leaf)
 # --- the leaf address (§14.4, D-276) --------------------------------------------
 # Parsed and resolved once, in the collecting form; nothing here runs per read.
 # A step is a `Symbol` for `.name` and an `Int` tuple for `[k]` or `[k,l]`, so a
-# resolved chain of steps is a legal type parameter.
+# resolved chain of steps is a legal type parameter. A condition's tree position
+# is a tuple of the same steps (conditions.jl).
 
-const LeafStep = Union{Symbol,Tuple{Vararg{Int}}}
+const AccessStep = Union{Symbol,Tuple{Vararg{Int}}}
 
 """
 One step a leaf address cannot take (§14.4, D-276): the reason, the step as
@@ -157,7 +158,7 @@ end
 # The steps from `start` to the end of the address, as `parse_leaf` reads them
 # after the head, or the refusal of the first that does not parse.
 function parse_steps(leaf::String, start::Int)
-    steps = LeafStep[]
+    steps = AccessStep[]
     while start <= ncodeunits(leaf)
         if leaf[start] == '.'
             stop = _name_end(leaf, start + 1)
@@ -195,7 +196,7 @@ the end, a `.` or a `[`, and the steps after it parse as `parse_leaf`'s. A
 function match_leaf(leaf::Union{Symbol,String}, faces)
     head = match_face(leaf, faces)
     head === nothing && return nothing
-    leaf isa Symbol && return (head, LeafStep[])
+    leaf isa Symbol && return (head, AccessStep[])
     steps = parse_steps(leaf, ncodeunits(String(head)) + 1)
     steps isa LeafRefusal ? steps : (head, steps)
 end
@@ -249,13 +250,14 @@ function resolve_leaf(::Type{P}, steps) where {P}
 end
 
 """
-    walk_leaf(value, Val(chain))
+    walk_steps(value, Val(chain))
 
 Run a resolved chain on a value: a `Symbol` step is `getfield`, an index step
 `getindex`, unrolled at generation so the read carries no loop and no branch.
-The empty chain is the value itself.
+The empty chain is the value itself. The specialized `apply!` runs a condition
+entry's tree position through it too (conditions.jl, §14.4).
 """
-@generated function walk_leaf(value, ::Val{C}) where {C}
+@generated function walk_steps(value, ::Val{C}) where {C}
     expr = :value
     for step in C
         expr = step isa Symbol ? :(getfield($expr, $(QuoteNode(step)))) :
@@ -307,7 +309,7 @@ end
 # address arithmetic and no branch survives resolution. The four entry kinds
 # are the four homes a read can come from — the flat state buffer, the
 # derivative buffer beside it, a discrete component's own store, and the
-# signal table. `C` is the chain `walk_leaf` runs on the value read there; the
+# signal table. `C` is the chain `walk_steps` runs on the value read there; the
 # empty chain reads it whole.
 
 struct StateRead{P,C}
@@ -327,18 +329,18 @@ struct CellRead{A,C}
 end
 
 @inline _read(entry::StateRead{P,C}, exec::Executor) where {P,C} =
-    walk_leaf(reconstruct(P, exec.xbuf, entry.offset), Val(C))
+    walk_steps(reconstruct(P, exec.xbuf, entry.offset), Val(C))
 @inline _read(entry::DerivRead{P,C}, exec::Executor) where {P,C} =
-    walk_leaf(reconstruct(P, exec.ẋbuf, entry.offset), Val(C))
+    walk_steps(reconstruct(P, exec.ẋbuf, entry.offset), Val(C))
 # The `s` stores are held by component index in a `Vector{Any}` — one store
 # type per component type, not per model — so the baked store type is what
 # keeps the read inferable. The assertion goes on the *reference*: asserting
 # the dereferenced value instead leaves the `[]` a dynamic call, which boxes.
 @inline _read(entry::StoreRead{S,F,C}, exec::Executor) where {S,F,C} =
-    walk_leaf(getfield((exec.sstores[entry.ci]::Base.RefValue{S})[], F), Val(C))
+    walk_steps(getfield((exec.sstores[entry.ci]::Base.RefValue{S})[], F), Val(C))
 # The signal table's read is store-level, so every gather over a table shares it.
 @inline _read(entry::CellRead{A,C}, store::StoreBundle) where {A,C} =
-    walk_leaf(gather_cell(store, entry.addr), Val(C))
+    walk_steps(gather_cell(store, entry.addr), Val(C))
 @inline _read(entry::CellRead, exec::Executor) = _read(entry, exec.store)
 
 """
@@ -439,7 +441,7 @@ struct MountedRead
     selector::ReadSelector   # root-authored: the path joined, the face resolved
     face::Union{Nothing,Symbol}  # the face a face selector matched; `nothing` for a path selector
     head::Symbol             # the field, port or root input the read names
-    steps::Vector{LeafStep}  # the leaf's steps after the head
+    steps::Vector{AccessStep}  # the leaf's steps after the head
 end
 
 """

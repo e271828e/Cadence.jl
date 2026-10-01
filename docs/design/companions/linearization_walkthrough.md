@@ -292,7 +292,7 @@ destinations, each with the destination leaf's type at that activation as its
 converter (`Authored{P,L}` in `src/conditions.jl`):
 
 ```julia
-@inline (::Authored{P,L})(tree) where {P,L} = convert(L, Getter{P}()(tree))
+@inline (::Authored{P,L})(tree) where {P,L} = convert(L, walk_steps(tree, Val(P)))
 ```
 
 At `T = Float64` the convert is the identity. At a `Dual` activation, `L` is

@@ -520,7 +520,7 @@ function conditions_specialized_apply()
         # The tree type is the plan's own type parameter, and the positions the
         # flattening recorded are the step tuples down to the authored values.
         @test plan isa SpecializedPlan{Float64,typeof(later)}   # activation, then shape
-        @test only(plan.xs).authored isa Authored{(:nodes, 1, :node, :x, :q),SVector{2,Float64}}
+        @test only(plan.xs).authored isa Authored{(:nodes, (1,), :node, :x, :q),SVector{2,Float64}}
     end
 
     @testset "the specialized `apply!` writes without allocating (§14.4, §7.5)" begin
@@ -566,7 +566,7 @@ function conditions_specialized_apply()
                           fragment(inputs = (u = 6.0, e = 5.5)))
         d = carried(@test_throws DiagnosticError{ConditionShapeDrift} apply!(sim.exec, plan, drifted))
         @test d.reason === :prefix
-        @test d.position == (:nodes, 2, :prefix)           # the position, as a tree-step tuple
+        @test d.position == (:nodes, (2,), :prefix)           # the position, as a tree-step tuple
         @test d.compiled == "ctl" && d.observed == "plant"
         @test landed(sim) == before
     end

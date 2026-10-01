@@ -306,8 +306,10 @@ Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
 - The leaf address (D-276). `parse_leaf` splits it at resolution. On a face
   selector `match_leaf` matches the head against the face list instead, since
   a face name may hold a dot. `resolve_leaf` checks each step against the declared type and returns the
-  chain or a `LeafRefusal`, the six leaf reasons any kind wraps. `walk_leaf`
+  chain or a `LeafRefusal`, the six leaf reasons any kind wraps. `walk_steps`
   runs the chain as `getfield` and `getindex` calls unrolled at generation.
+  A step is an `AccessStep`, and a condition's tree position is a tuple of
+  the same steps, so the specialized `apply!` runs on the same walk.
 - `reads` and `Reads`.
 - The internal `_compile_reads`, which yields a `Reader{T}`. Each entry carries
   its chain as a type parameter, and the `CellRead` core reads a store bundle,
@@ -725,8 +727,8 @@ D-233, D-244, D-256, D-261, D-268, D-270.
 - One collecting pass behind both ways of applying a plan. Each `at` prefix is
   walked from its authoring level (§13.3). The two ways are:
   - `resolve_condition`, for values;
-  - `compile_plan`, with `Getter{P}` lenses, `SpecializedPlan` and
-    `ConditionShapeDrift`.
+  - `compile_plan`, with lenses run by `walk_steps` (readers.jl),
+    `SpecializedPlan` and `ConditionShapeDrift`.
 - Root-input totality `assert_total`.
 
 Spec: §9.5, §13.1, §13.3, §14.1–§14.6, §14.9, Appendix B, D-063–D-068, D-117,

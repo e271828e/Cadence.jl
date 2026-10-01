@@ -1930,8 +1930,7 @@ Base.@kwdef struct ConditionShapeDrift <: Diagnostic
 end
 
 _drift_position(node_position::Tuple) =
-    "(" * join((segment isa Symbol ? ".$segment" : "[$segment]" for segment in node_position), "") *
-    ")"
+    "(" * join(_step_string(step) for step in node_position) * ")"
 
 message(d::ConditionShapeDrift) =
     d.reason === :prefix ?

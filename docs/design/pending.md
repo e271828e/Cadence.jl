@@ -42,14 +42,7 @@ ruling; the second waits on the feature or the pass its bullet names.
 
 ### Retire alone
 
-- **Two generated walks over one step grammar** (§14.3, §14.4, D-276):
-  `readers.jl`'s `walk_leaf` unrolls a leaf address's chain into `getfield`
-  and `getindex`, and `conditions.jl`'s lens `Getter{P}` unrolls a
-  condition entry's steps the same way, its index steps bare `Int`s where
-  the chain's are tuples. §14.4 makes the reader the gather twin of
-  `apply!`, one machinery in both directions. One walk serves both once
-  the lens's steps are normalized to the chain's form; a local refactor,
-  no ruling.
+Currently empty.
 
 ### Retire with a feature or a pass
 

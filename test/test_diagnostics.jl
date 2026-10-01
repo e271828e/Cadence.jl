@@ -593,7 +593,7 @@ function diagnostics_kind_set()
             TrimCommitChecks(checks = [(:EAS, 0.3, 0.1)]),
             ConditionShapeDrift(reason = :tree_type, compiled = Int, observed = Float64),
             ConditionShapeDrift(reason = :prefix, compiled = "a", observed = "b",
-                                position = (:x, 1)),
+                                position = (:x, (1,))),
             ArgumentInvalid(call = :Simulation, reason = :range, argument = :join_timeout, value = 0),
             ArgumentInvalid(call = :init!, reason = :range, argument = :trace, value = 1),
             ArgumentInvalid(call = :init!, reason = :range, argument = :log, value = 1),

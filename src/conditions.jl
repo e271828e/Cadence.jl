@@ -157,9 +157,10 @@ _node_misuse(v, in_hand) = throw(DiagnosticError(ConditionNodeMisuse(
 #
 # The recursion carries a third accumulator, the entry's **tree position**
 # (§14.3): the `getfield`/`getindex` step tuple from the root node down to the
-# authored value. The dynamic walk ignores it — it bakes the value itself —
-# and the specialized `apply!` lifts it to a `Getter{P}` lens, which is what
-# lets one compiled plan be applied to every later tree of the same shape.
+# authored value, in the step form the reader's chains take (`AccessStep`,
+# readers.jl). The dynamic walk ignores it — it bakes the value itself — and
+# the specialized `apply!` lifts it to a type parameter, the lens, which is
+# what lets one compiled plan be applied to every later tree of the same shape.
 
 struct CEntry
     path::String
@@ -168,7 +169,7 @@ struct CEntry
     value::Any
     origin::String
     face::Union{Nothing,Symbol}   # input entries: the root input the chain lands on
-    position::Tuple               # the tree position: the step tuple to this value
+    position::Tuple{Vararg{AccessStep}}   # the tree position: the step tuple to this value
 end
 
 _key(entry::CEntry) = entry.face === nothing ? (entry.path, entry.store, entry.field) :
@@ -204,7 +205,7 @@ end
 _flat(node::Combined, path::String, level, origin::String, tree_position::Tuple,
       structure::Structure, diags::Vector{Diagnostic}) =
     reduce(vcat, (_flat(child, path, level, _step(origin, "combine[$i]"),
-                        (tree_position..., :nodes, i), structure, diags)
+                        (tree_position..., :nodes, (i,)), structure, diags)
                   for (i, child) in enumerate(node.nodes)); init = CEntry[])
 
 # Layering (§14.6): each layer is flattened and checked on its own — a
@@ -216,7 +217,7 @@ function _flat(node::Override, path::String, level, origin::String, tree_positio
     layered = CEntry[]
     for (i, layer) in enumerate(node.layers)
         label = i == 1 ? "override[base]" : "override[patch $(i - 1)]"
-        layer_entries = _flat(layer, path, level, _step(origin, label), (tree_position..., :layers, i),
+        layer_entries = _flat(layer, path, level, _step(origin, label), (tree_position..., :layers, (i,)),
                               structure, diags)
         _check_duplicates!(layer_entries, diags)
         for entry in layer_entries
@@ -577,30 +578,11 @@ apply!(sim::Simulation, plan::ConditionPlan) = apply!(sim.exec, plan)
 # writes and a tuple of prefix compares.
 
 """
-The lens (§14.3, glossary): a condition entry's tree position lifted to a type
-parameter, callable on any tree of the shape it was compiled from. Navigation is
-generated from `P`, so the access is a chain of static `getfield`/`getindex`
-steps the compiler folds into offsets — the authored value reached with no
-search and no runtime fact consulted.
-"""
-struct Getter{P} end
-
-@generated function (::Getter{P})(tree) where {P}
-    access = :tree
-    for step in P
-        access = step isa Symbol ? :(getfield($access, $(QuoteNode(step)))) :
-                                   :(getindex($access, $step))
-    end
-    quote
-        $(Expr(:meta, :inline))
-        $access
-    end
-end
-
-"""
-One leaf's compiled read half: the lens that finds the authored value in the
-tree, and `L`, the destination leaf type at this activation — which *is*
-§14.3's converter, selected once at resolution and never consulted again.
+One leaf's compiled read half. `P` is the lens (§14.3, glossary): the entry's
+tree position lifted to a type parameter, which `walk_steps` unrolls into
+static `getfield`/`getindex` steps on any tree of the compiled shape. `L` is
+the destination leaf type at this activation — which *is* §14.3's converter,
+selected once at resolution and never consulted again.
 
 Both of §14.3's cases are this one call. A leaf already at the activation's
 scalar takes the type's own methods, partials flowing through untouched; a
@@ -610,7 +592,7 @@ held at the operating point and in no other case.
 """
 struct Authored{P,L} end
 
-@inline (::Authored{P,L})(tree) where {P,L} = convert(L, Getter{P}()(tree))
+@inline (::Authored{P,L})(tree) where {P,L} = convert(L, walk_steps(tree, Val(P)))
 
 # The three destinations, one write each: the flat state buffer at a baked
 # offset, a component's own store as one whole value, and a root input's cell.
@@ -741,7 +723,7 @@ compile_plan(other, ::Build, ::Type = Float64) = _node_misuse(other, ())
 # from `_flat`'s: a prefix belongs to a *node*, not to a leaf, and a scope
 # wrapping no payload at all still has a prefix that can drift.
 function _scoped_prefixes(node::ConditionNode)
-    out = Tuple{Tuple,String}[]
+    out = Tuple{Tuple{Vararg{AccessStep}},String}[]
     _scoped!(node, (), out)
     out
 end
@@ -752,11 +734,11 @@ _scoped!(node::Scoped, tree_position::Tuple, out::Vector) =
      _scoped!(node.node, (tree_position..., :node), out))
 _scoped!(node::Combined, tree_position::Tuple, out::Vector) =
     for (i, child) in enumerate(node.nodes)
-        _scoped!(child, (tree_position..., :nodes, i), out)
+        _scoped!(child, (tree_position..., :nodes, (i,)), out)
     end
 _scoped!(node::Override, tree_position::Tuple, out::Vector) =
     for (i, child) in enumerate(node.layers)
-        _scoped!(child, (tree_position..., :layers, i), out)
+        _scoped!(child, (tree_position..., :layers, (i,)), out)
     end
 
 """
@@ -805,7 +787,7 @@ end
 end
 
 @inline function _compare(prefix::Prefix{P}, tree) where {P}
-    observed = Getter{P}()(tree)
+    observed = walk_steps(tree, Val(P))
     observed === prefix.expected || _prefix_drift(P, prefix.expected, observed)
     nothing
 end
