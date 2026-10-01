@@ -198,8 +198,9 @@ and the runtime periphery, and Part IV failure handling and the stopped-sim
 services. The appendices index the author-facing contracts, the API, the
 diagnostic kinds and the vocabulary. `pending.md` registers what the
 implementation still owes this document and the questions the design leaves
-open. The explainers in `companions/` are not normative, and this document
-wins wherever they disagree.
+open. It also lists the release work this document does not ask for. The
+explainers in `companions/` are not normative, and this document wins
+wherever they disagree.
 
 Decision rationale lives in `decisions.md`, including the alternatives
 considered and the reasons they were rejected. This document cites it throughout

@@ -1,7 +1,8 @@
-# Pending against the spec
+# Pending
 
 What `src/` and `test/` still owe the design, and the questions the design
-leaves open, split by whether the first release waits on them. Every item
+leaves open, split by whether the first release waits on them. The first
+section also lists the release work the spec does not ask for. Every item
 here is known and recorded; none is abandoned. `check_refs.jl` and
 `check_rows.jl` read this file, so every `§N` and `D-nnn` below resolves or
 the tools go red.
@@ -58,8 +59,10 @@ surface and the library and the GUI both add names.
     packaging question.
   - **Four boundary cases** the convention does not settle are flagged for
     the sweep, none a defect of its list:
-    - `input_faces`/`output_faces`, noun accessors that pun on the `_types`
-      declarations, mitigated by being framework-facing;
+    - `input_faces`/`output_faces` (§13.3), build primitives named by nouns
+      where class (4) asks for plain verbs, mitigated by being
+      framework-facing; the pun on the `_types` declarations that D-144
+      flagged went with their rename to `u_types`/`y_types` (D-267);
     - `loop` (§11.6), a mutating task body spelled as a bare noun among its
       verb-`!` siblings `init!`/`shutdown!`/`unblock!`; with `run!` taken
       and the "loop body" prose entrenched, it needs the whole-surface view;
@@ -70,6 +73,17 @@ surface and the library and the GUI both add names.
       two senses, the overload pattern D-122 and D-144 retire;
     - whether class (1) needs an explicit exemption for predicate traits
       (`is_greedy`, `needs_calling_task`).
+
+### Outside the spec
+
+Release work the spec does not ask for, in no order. Where an item changes
+what the spec says, the spec edit is part of the item.
+
+- **An example model**, large enough to measure on. It gives the
+  compile-time and garbage measurements a model to run on, and the GUI one
+  to drive.
+- **A tutorial** that takes a newcomer from a component to a run and a plot.
+- **Package registration.**
 
 ## After the first release
 
@@ -102,10 +116,11 @@ Each is additive, so it can land later without breaking user code.
     deadline exceeds the recent p99 pause with a margin. Unpaced runs and
     `step!` skip it, and `PacerStatus` reports the pauses.
   - **What limits a scheduled collection.** The trigger is process-wide, so
-    a device that allocates can still start a collection mid-frame. With the
-    log on, thinned snapshots die in the old generation, where only a full
-    collection reclaims them. The fixed cost grows with tasks, live heap and
-    GC threads.
+    a device that allocates can still start a collection mid-frame. The GUI
+    will be the main such device, so the analysis runs with it attached.
+    With the log on, thinned snapshots die in the old generation, where only
+    a full collection reclaims them. The fixed cost grows with tasks, live
+    heap and GC threads.
 - **The NLopt fallback** (§14.8, H 4.5): `NLoptBackend(:LN_BOBYQA)` as a
   package extension, the squared and normalized objective at `stopval = 1`,
   and the nominal-activation loop it would run on.
