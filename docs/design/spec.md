@@ -9272,10 +9272,18 @@ struct Combined{T<:Tuple}  nodes::T  end                   #combine(ns...): coll
 
 Every node is isbits except the prefix strings, and a prefix is a reference to
 the author's own literal. So **rebuilding the tree per trim iteration
-allocates nothing**. There is no path arithmetic, no validation and no copy of
-the payloads. The zero-alloc property of today's `assign!` loop holds of the
+allocates nothing**. There is no path arithmetic and no copy of the payloads.
+The one validation is the empty-prefix check below, which reads a length and
+allocates nothing. The zero-alloc property of today's `assign!` loop holds of the
 construction and of the walk that *applies* the tree ([§14.4][s14-4]) alike. An
 evaluation's cost is therefore the sweep it feeds.
+
+**Rule.** `at` refuses an empty prefix when it is called. An empty prefix
+names no child, and a node meant for the level where it is authored stays
+unwrapped. The refusal holds at the root too, because `at` builds an inert
+tree and cannot know where it will be mounted. On a condition node it raises
+`ConditionNodeMisuse` ([Appendix C][sC]) before any resolution pass runs.
+The read side's lifts refuse the same way ([§14.9][s14-9], [D-278][d-278]).
 
 `fragment`'s payloads speak only about the component at the authoring point.
 Addressing children is exclusively `at`'s job, so there is one way to say
@@ -10235,7 +10243,9 @@ name a port wears on its component's boundary) of the mount level. It follows
 the export chain to the [root input](#g-root-input) it lands on. `get_face`
 names an output face of the mount level and reads its producer's port
 ([D-277][d-277]). A refusal spells the selector as authored and names the
-mount.
+mount. `at` refuses an empty prefix on a read set, as it does on a condition
+node ([§14.2][s14-2]), and raises `ReadSetMisuse`. A problem's lift and a tap
+set's lift reach that refusal through `at` on their read sets ([D-278][d-278]).
 
 Root input entries authored in the aircraft's face vocabulary resolve through
 the export chain *from the mount point* (`throttle` at `"wing"` → root input
@@ -10905,7 +10915,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   level. `inputs` names faces of that level's contract.
 - `at(prefix, node)`. Scoping. It stores, never applies. It also lifts whole
   `TrimProblem`s and linearization tap sets ([§14.9][s14-9],
-  [§14.10][s14-10]).
+  [§14.10][s14-10]). An empty prefix is refused ([§14.2][s14-2]).
 - `combine(nodes...)`. Symmetric collection. Duplicate leaves error with both
   origins. Blending a node with a bare NamedTuple is a directive error
   method ([§14.2][s14-2]).
@@ -11391,7 +11401,8 @@ activation):
   collected. The leaf `(path, store, field)`, both origins, the
   `override` advice.
 - **`ConditionNodeMisuse`** ([§14.2][s14-2]). Error · service · fail-fast.
-  The offending argument's type, the node kinds in hand.
+  The offending argument's type, the node kinds in hand. Or an empty prefix
+  handed to `at`.
 - **`UninitializedInputs`** ([§14.6][s14-6]). Error · service, pre-write ·
   collected. Every uncovered root face, in declaration order.
 - **`TapResolution`** ([§14.10][s14-10]). Error · service · collected. Tap
@@ -11461,8 +11472,9 @@ activation):
   the violated constraint. The twin of
   `DeploymentInvalid` for arguments that are not deployment parameters.
 - **`ReadSetMisuse`** ([§14.4][s14-4]). Error · service · fail-fast. The
-  offending argument's type, the selector kinds in hand. The read side's
-  twin of `ConditionNodeMisuse`.
+  offending argument's type, the selector kinds in hand. Or an empty prefix
+  handed to `at` on a read set ([§14.9][s14-9]). The read side's twin of
+  `ConditionNodeMisuse`.
 - **`NotAttached`** ([§11.3][s11-3]). Error · service · fail-fast. The device
   id or handle offered to `detach!`, the roster's device ids.
 
@@ -12396,7 +12408,8 @@ bit-identical reproduction ([§12.7][s12-7]).
 prefix beside a condition node and applies nothing. Path concatenation
 happens once, at resolution. It also lifts whole `TrimProblem`s and
 linearization tap sets ([§14.2][s14-2], [§14.9][s14-9]). A read set keeps its
-prefixes as a chain and is not a condition node ([D-277][d-277]).
+prefixes as a chain and is not a condition node ([D-277][d-277]). An empty
+prefix is refused when `at` is called ([D-278][d-278]).
 
 <a id="g-baseline"></a>**baseline** — an aircraft-shipped, full-coverage condition function
 (`ready_for_taxi(ac)`, `cold_and_dark(ac)`), layered under tweaks by
@@ -12793,6 +12806,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-275]: decisions.md#d-275--spell-the-exhaustive-activation-mode-as-the-activations-keyword-alone
 [d-276]: decisions.md#d-276--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
 [d-277]: decisions.md#d-277--carry-a-read-sets-mount-chain-and-rebase-every-selector-to-the-root
+[d-278]: decisions.md#d-278--refuse-an-empty-at-prefix-at-composition
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
