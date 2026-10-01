@@ -1608,14 +1608,17 @@ message(d::DuplicateConditionLeaf) =
     "$(_origin(d, 2)). `combine` " *
     "is collision-intolerant by design — use `override(base, patch)` to layer (§14.2, §14.6)"
 
-"§14.2: a value handed to a condition combinator that is not a condition node."
+"§14.2, D-278: a value handed to a condition combinator that is not a condition node, or an empty `at` prefix."
 Base.@kwdef struct ConditionNodeMisuse <: Diagnostic
     observed::Any                            # the offending argument's type
-    reason::Symbol = :not_a_node             # :not_a_node | :fragment_payload
+    reason::Symbol = :not_a_node             # :not_a_node | :fragment_payload | :empty_prefix
     payload::Union{Nothing,Symbol} = nothing # which `fragment` payload, for :fragment_payload
     in_hand::Vector{Symbol} = Symbol[]       # the node kinds in hand
 end
 message(d::ConditionNodeMisuse) =
+    d.reason === :empty_prefix ?
+    "`at` was given an empty prefix, which names no child — a node meant for the level " *
+    "where it is authored stays unwrapped (§14.2)" :
     d.reason === :fragment_payload ?
     "`fragment`'s `$(d.payload)` payload is $(d.observed) — every payload is a NamedTuple " *
     "of the authoring level's own names (§14.2)" :
@@ -2062,14 +2065,17 @@ function message(d::ArgumentInvalid)
         "t_plus must be a finite real > 0 — the duration spelling — got $(d.value) (§12.6)"
 end
 
-"§14.4, §14.10, D-215, D-272: a non-selector in a read set or a tap list, a tap list that is no NamedTuple, or a non-`Reads` where one is expected — `ConditionNodeMisuse`'s twin."
+"§14.4, §14.10, D-215, D-272, D-278: a non-selector in a read set or a tap list, a tap list that is no NamedTuple, a non-`Reads` where one is expected, or an empty `at` prefix on a read set — `ConditionNodeMisuse`'s twin."
 Base.@kwdef struct ReadSetMisuse <: Diagnostic
     observed::Any                            # the offending argument's type
-    reason::Symbol = :not_a_read_set         # :not_a_selector | :not_a_read_set | :not_a_tap_list
+    reason::Symbol = :not_a_read_set         # :not_a_selector | :not_a_read_set | :not_a_tap_list | :empty_prefix
     label::Union{Nothing,Symbol} = nothing   # the read's label, or the tap list's (`x`/`u`/`y`)
     in_hand::Vector{Symbol} = Symbol[]       # the selector kinds in hand
 end
 message(d::ReadSetMisuse) =
+    d.reason === :empty_prefix ?
+    "`at` was given an empty prefix for a read set, which names no child — a read set " *
+    "meant for the level where it is authored stays unwrapped (§14.9)" :
     d.reason === :not_a_tap_list ?
     "the tap list `$(d.label)` is $(d.observed) — a tap list is a NamedTuple of labeled " *
     "selectors: taps(x = (θ = get_state(\"path\", :θ),), u = (…), y = (…)) (§14.10)" :

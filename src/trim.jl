@@ -89,7 +89,8 @@ Mount a problem under `prefix` (§14.9, D-277), field by field: `condition` is
 post-composed so each tree it returns is scoped, `reads` joins the prefix to
 its mount chain, and every path-free field passes through, the two check
 fields included. A `reads` that is no read set passes through untouched, so
-`trim!`'s setup names it; the lift never raises.
+`trim!`'s setup names it; the lift raises only on an empty prefix, through the
+read set's own `at` (D-278).
 """
 at(prefix::AbstractString, problem::TrimProblem) = TrimProblem(
     problem.guess, problem.lower, problem.upper,

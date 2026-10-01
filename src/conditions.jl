@@ -87,12 +87,16 @@ _payload(name, p) = p isa NamedTuple || throw(DiagnosticError(ConditionNodeMisus
 
 Scope `node` under `prefix` (§14.2). Nothing is concatenated here: the prefix
 is stored, and flattening at resolution is the one place path strings ever
-join (§14.3).
+join (§14.3). An empty prefix names no child and is refused (D-278).
 """
-at(prefix::AbstractString, node::ConditionNode) = Scoped(String(prefix), node)
+at(prefix::AbstractString, node::ConditionNode) =
+    isempty(prefix) ? throw(DiagnosticError(ConditionNodeMisuse(
+        observed = typeof(prefix), reason = :empty_prefix))) : Scoped(String(prefix), node)
 # A read set is no condition node, and `Scoped` never wraps one: the prefix joins
 # the set's own mount chain, walked at resolution (§14.9, D-277).
 at(prefix::AbstractString, read_set::Reads) =
+    isempty(prefix) ? throw(DiagnosticError(ReadSetMisuse(
+        observed = typeof(prefix), reason = :empty_prefix))) :
     Reads((String(prefix), read_set.prefixes...), read_set.selectors)
 at(::AbstractString, other) = _node_misuse(other, ())
 

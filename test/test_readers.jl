@@ -324,6 +324,11 @@ function test_readers()
         @test root_set.prefixes == () && mounted_set.prefixes == ("a", "b")
         @test mounted_set isa Reads && mounted_set.selectors === root_set.selectors
         @test mounted_set.selectors.q.path == "p"
+        # An empty prefix names no child, and `at` refuses it (D-278).
+        for refused in (() -> at("", root_set), () -> at("a", at("", root_set)))
+            d = diagnostic(failure(refused))
+            @test d isa ReadSetMisuse && d.reason === :empty_prefix
+        end
 
         for T in (Float64, D8)
             sim = Simulation(wrapped_readable(), T; h = 1//10)

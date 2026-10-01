@@ -709,6 +709,11 @@ function test_trim()
         @test abs(wrapped_report.committed_checks.θ) ≤ 1e-12
     end
 
+    @testset "an empty prefix is refused when the problem is mounted (§14.9, D-278)" begin
+        d = carried(@test_throws DiagnosticError{ReadSetMisuse} at("", pendulum_problem()))
+        @test d.reason === :empty_prefix
+    end
+
     @testset "a face the world computes is untrimmable from outside (§14.9)" begin
         # Mounted where its input face is a root input's, the problem solves.
         sim = Simulation(fed(Pendulum(), :u); h = 1//10)

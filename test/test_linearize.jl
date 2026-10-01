@@ -362,6 +362,8 @@ function test_linearize()
         d = carried(@test_throws DiagnosticError{ReadSetMisuse} taps(x = (a = 2.0,)))
         @test d.reason === :not_a_selector && d.label === :a
         @test taps() isa Taps                                 # every list may be empty
+        d = carried(@test_throws DiagnosticError{ReadSetMisuse} at("", taps(x = (θ = get_state("c", :θ),))))
+        @test d.reason === :empty_prefix                      # through the read sets' lift (D-278)
 
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} linearize(lin_pend_sim(), (x = (;),)))
         @test d.call === :linearize && d.reason === :not_a_tap_set && d.argument === :taps

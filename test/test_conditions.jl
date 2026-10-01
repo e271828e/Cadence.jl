@@ -32,7 +32,7 @@ offset_pair() = Group((; hold = ZOH(), off = DiscreteIntegrator(1.0));
                                  off = Relative(2, 1)))
 
 function conditions_algebra()
-    @testset "composition is inert and lazy: no path arithmetic, no validation (§14.2)" begin
+    @testset "composition is inert and lazy: no path arithmetic, no lookup (§14.2)" begin
         # A deep tree over a path that resolves against nothing. Constructing it
         # performs no lookup, concatenates no string and checks no field.
         composition = combine(at("nowhere", fragment(x = (q = 1.0,))),
@@ -148,6 +148,13 @@ function conditions_algebra()
         # And the service entry point itself: a bare NamedTuple where a condition
         # belongs gets the directive, never a `MethodError`.
         @test_throws DiagnosticError{ConditionNodeMisuse} init!(Simulation(tri(); h = 1//10), (u = 1.0, e = 2.0))
+    end
+
+    @testset "an empty `at` prefix is refused at composition, at the root and below (§14.2, D-278)" begin
+        d = carried(@test_throws DiagnosticError{ConditionNodeMisuse} at("", fragment()))
+        @test d.reason === :empty_prefix
+        d = carried(@test_throws DiagnosticError{ConditionNodeMisuse} at("inner", at("", fragment(x = (q = 1.0,)))))
+        @test d.reason === :empty_prefix
     end
 
     @testset "resolution collects every violation into one throw (§14.3, §13.1)" begin

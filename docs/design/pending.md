@@ -61,12 +61,7 @@ Where the code's shape is coherent and the spec may be what moves. Each is
 the user's call; a ruling lands docs-commit-first, then the bullet above it
 retires or the code conforms.
 
-- **An empty `at` prefix below the root** (§14.2, §14.9):
-  `at("inner", at("", …))` joins to `inner/` with a trailing slash, and
-  every entry or read below it is refused with a doubled-slash path. The
-  condition side's `_flat(::Scoped)` and the read side's `_mount` behave
-  alike, both through `_join` (`src/assembly.jl`). The ruling is whether an
-  empty prefix is a no-op or a misuse refused at composition.
+Currently empty.
 
 ## Pending on the spec itself
 
