@@ -120,6 +120,30 @@ init!(dev::InitInterrupted) = (push!(dev.log, :init); throw(InterruptException()
 shutdown!(dev::InitInterrupted) = (push!(dev.log, :shutdown); nothing)
 loop(dev::InitInterrupted, handle) = (push!(dev.log, :loop); nothing)
 
+# A device whose `init!` parks on a hook until an interrupt cuts it short, its
+# calls counted, so the test can land one interrupt inside the bracket and a
+# second escaping it (§11.6, §12.4). Clearing `held` under the hook's lock and
+# notifying frees the caller when a regression leaves it parked.
+mutable struct HookedInit <: AbstractDevice
+    hook::Threads.Condition
+    held::Bool
+    inits::Int
+    shutdowns::Int
+end
+HookedInit() = HookedInit(Threads.Condition(), true, 0, 0)
+function init!(dev::HookedInit)
+    dev.inits += 1
+    lock(dev.hook)
+    try
+        dev.held && wait(dev.hook)
+    finally
+        unlock(dev.hook)
+    end
+    nothing
+end
+shutdown!(dev::HookedInit) = (dev.shutdowns += 1; nothing)
+loop(dev::HookedInit, handle) = nothing
+
 # A body ignoring the predicate, blocked until the test releases it, whose
 # unblock! hangs on a condition the test holds: the tail parks the calling task
 # there, where the operator's second interrupt finds it (§12.4, D-268).
@@ -220,6 +244,25 @@ function x_derivative(c::LoopRecorder, (; x, t))
         c.hold[] = false
     end
     (q = one(x.q),)
+end
+
+# `Exploder`'s throw held at a gate: from `t = 0.2` on, past the build's probe
+# and boundary zero, the evaluation marks `armed`, waits for the observer's
+# `go`, then throws, so the observer picks what the calling task meets on the
+# failing frame's way out (§12.4, §13.6).
+struct GatedExploder <: AbstractComponent
+    armed::Threads.Atomic{Bool}
+    go::Channel{Nothing}
+end
+GatedExploder() = GatedExploder(Threads.Atomic{Bool}(false), Channel{Nothing}(1))
+x_init(::GatedExploder) = (q = 0.0,)
+y_types(::GatedExploder) = (q = Float64,)
+y_state(::GatedExploder, (; x)) = (q = x.q,)
+function x_derivative(c::GatedExploder, (; x, t))
+    t ≥ 0.2 || return (q = one(x.q),)
+    c.armed[] = true
+    take!(c.go)
+    throw(Exploded())
 end
 
 # A device with no loop method at all: the error-throwing fallback's customer.
@@ -652,6 +695,45 @@ function test_devices()
         @test latest(sim).t == termination(sim).t   # no frame published past the record
     end
 
+    @testset "an interrupt in the failed frame's `_finish!` on the calling task keeps its StepError (§12.4, §13.4, D-268)" begin
+        # The armed frame waits at its gate until the observer holds `wake`, so
+        # the throw's `_finish!` parks on it and the interrupt lands there.
+        # Rostered, the failure is logged and `run!` returns; deviceless, rethrown.
+        for rostered in (true, false)
+            comp = GatedExploder()
+            sim = Simulation(single(comp); h = 1//10)
+            rostered && attach!(sim, TailProbe(), NoClaim())
+            init!(sim)
+            caller = current_task()
+            wake = sim.control.wake
+            observer = Threads.@spawn begin
+                armed = timedwait(() -> comp.armed[], 10.0) === :ok
+                lock(wake)
+                try
+                    put!(comp.go, nothing)       # always, so a regression fails rather than hangs
+                    armed && interrupt_parked(caller, wake.lock.cond_wait)
+                finally
+                    unlock(wake)
+                end
+            end
+            logs, thrown = Test.collect_test_logs() do
+                try
+                    run!(sim; t_end = 5.0)
+                    nothing
+                catch err
+                    err
+                end
+            end
+            @test fetch(observer)
+            @test rostered ? thrown === nothing : thrown isa StepError{Exploded}
+            @test lifecycle(sim) === :errored
+            source = termination(sim).source
+            @test source isa LoopError && source.exception isa StepError{Exploded}
+            rostered || @test source isa LoopError && source.exception === thrown
+            @test count(l -> l.level == Base.CoreLogging.Error, logs) == Int(rostered)
+        end
+    end
+
     @testset "paused reads the flag in every lifecycle state, and the verbs refuse none (§12.1, D-268)" begin
         # `:running` is read, and both verbs issued, from another task above.
         sim = Simulation(fed(Exploder(), "arm"); h = 1//10)
@@ -996,6 +1078,56 @@ function test_devices()
         @test count(l -> l.level ≥ Base.CoreLogging.Warn, logs) == Int(tight)
         @test count(d isa ThreadBudget for residue in termination(sim).residue
                     for d in residue.recent) == Int(tight)
+    end
+
+    @testset "an interrupt escaping the init bracket still releases every device whose init! began (§11.6, §12.4, D-268)" begin
+        # The first interrupt cuts the hooked `init!`, and the bracket catches it;
+        # its stop request then parks on `wake`, which the observer holds, and a
+        # second interrupt there escapes the bracket into `run!`'s arm.
+        sim = Simulation(two_root_inputs(); h = 1//10)
+        probe = TailProbe()
+        dev = HookedInit()
+        attach!(sim, probe, Enumerated())
+        attach!(sim, dev, Enumerated())
+        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        caller = current_task()
+        wake = sim.control.wake
+        observer = Threads.@spawn begin
+            sent = 0
+            send(waited_on) = interrupt_parked(caller, waited_on) && (sent += 1; true)
+            ok = timedwait(() -> parked_in(caller, dev.hook), 10.0) === :ok
+            lock(wake)
+            try
+                ok = ok && send(dev.hook) && send(wake.lock.cond_wait)
+            finally
+                unlock(wake)
+            end
+            if !ok                               # a regression fails below rather than hangs
+                lock(dev.hook)
+                try
+                    dev.held = false
+                    notify(dev.hook)
+                finally
+                    unlock(dev.hook)
+                end
+                stop!(sim)
+            end
+            sent
+        end
+        _, thrown = Test.collect_test_logs() do
+            try
+                run!(sim; t_end = 0.5)
+                nothing
+            catch err
+                err
+            end
+        end
+        @test fetch(observer) == 2
+        @test thrown === nothing
+        @test probe.log == [:init, :shutdown]    # listed before the escape, so the arm released it
+        @test dev.inits == 1 && dev.shutdowns == 2   # the bracket's release and the arm's (§11.6)
+        @test lifecycle(sim) === :stopped
+        @test termination(sim).source === ControlRequestedStop(:interrupt)
     end
 
     @testset "a body ignoring the predicate is abandoned under join_timeout, by name (§12.4(5))" begin

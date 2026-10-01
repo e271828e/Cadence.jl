@@ -446,16 +446,19 @@ tail, every remaining entry still getting its `init!`/`shutdown!` pair
 uniformly. An `InterruptException` is the operator's stop, not a crash, as in
 the wrapper (D-268): the device is released and spawns no task, the
 `:interrupt` stop is set in place of the report, and the run ends at its
-first frame top the same way. Returns the live entries, from which §11.1's
-topology is derived — derived *after* initialization, never from the roster
-alone.
+first frame top the same way. Fills and returns the run's `live`, the entries
+from which §11.1's topology is derived — derived *after* initialization, never
+from the roster alone. Each entry is listed before its `init!` begins, and
+removed after a throw once the bracket has released it, so an interrupt
+escaping the bracket leaves every entry whose `init!` began in `live`, where
+`run!`'s arm releases it. Listing after `init!` would leak the device whose
+`init!` had just returned (§11.6, D-268).
 """
-function _init_devices!(sim, roster)
-    live = RosterEntry[]
+function _init_devices!(sim, roster, live)
     for entry in roster
-        initialized = try
+        push!(live, entry)
+        try
             init!(entry.dev)
-            true
         catch err
             _shutdown!(entry)
             if err isa InterruptException
@@ -465,9 +468,8 @@ function _init_devices!(sim, roster)
                 report!(entry, DeviceCrash(err, entry.should_abort))
                 entry.should_abort && stop!(entry.handle)
             end
-            false
+            pop!(live)                        # released above, and it spawns no task
         end
-        initialized && push!(live, entry)
     end
     live
 end

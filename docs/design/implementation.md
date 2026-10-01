@@ -433,6 +433,9 @@ D-276, D-277.
   - a deferred interrupt yields to a holding face;
   - a frame that throws with an interrupt pending ends `errored`;
   - the masked bookkeeping sits in `run!`'s and `step!`'s outermost `finally`;
+  - the loop's throw is stored before anything can cut the failure arm, and
+    the masked bookkeeping builds the `LoopError` from it, in `run!` and
+    `step!` alike;
   - the spawns and their registrations are masked, in the calling-task
     topology through the loop's spawn, so a deferred interrupt raises with
     every task bound and registered;
@@ -703,7 +706,9 @@ D-256, D-268, D-269.
     loop's task ends `:done`, since the wrapper catches the crash.
 - The task wrapper.
 - The init bracket, with its interrupt arm. An `InterruptException` in `init!`
-  sets the `:interrupt` stop in place of `DeviceCrash`.
+  sets the `:interrupt` stop in place of `DeviceCrash`. The bracket lists each
+  entry in the run's own list before its `init!`, so an interrupt escaping the
+  bracket leaves no initialized device unreleased.
 - `report!(entry, DeviceCrash(…))`, the crash report addressed by the roster
   entry (§12.4). The wrapper and the init bracket both file through it. It
   writes the entry's cell with no attachment check and no heartbeat.
