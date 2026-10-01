@@ -14,7 +14,7 @@ Julia 1.13.0, Apple Silicon, one cold process per script unless stated.
 The repository at `82c23d5` was exported with `git archive` into a scratch
 directory with the workspace `Manifest.toml` copied beside it, because the
 working tree was being edited during the measurements. Nothing in the
-repository changed for this report; the one source experiment (§3) patched
+repository changed for this report; the source experiments (§3) patched
 the scratch export only.
 
 Two fixtures:
@@ -181,6 +181,36 @@ What remains per type after the second round is the probe closures under
 patch is `probes/nospecialize_patch.sh`; the suite was not run on the
 patched export.
 
+The `Group` row holds at 32 loops only. Under the patch a `Group` root still
+grows with its size, and a root with an abstract children field does not.
+Measured 2026-10-01 at the same tip, one fresh root per process, two runs
+agreeing within 0.2 s (`probes/rootentry.jl`, variants by
+`probes/rootentry_patch.sh`):
+
+| `build` at `-O2`, 21 signatures and | `Group`, 32 loops | `Group`, 64 loops | abstract field, 64 loops |
+|---|---|---|---|
+| nothing more | 1.54 s | 3.63 s | 0.76 s |
+| the root reaching `_walk!` by dynamic dispatch | 1.53 s | 3.60 s | 0.75 s |
+| `@nospecializeinfer` on `flatten!` and `_walk!`, `flatten!`'s root unspecialized | 1.29 s | 3.02 s | 0.77 s |
+| the same on `build` | 0.86 s | 2.06 s | not run |
+
+How the root reaches the walk makes no difference. Traced at 64 loops
+(`probes/roottrace.jl`, `probes/trace_root.py`), the 3.6 s splits in two.
+About 1.6 s is `build` and `flatten!` compiled for the root's type, their
+closures included; the annotations in the table remove it. The other 1.8 s
+is dynamic dispatch on the root's concrete type into code that still
+specializes:
+
+| compile for the 64-loop root | seconds |
+|---|---|
+| `resolve_terminal` | 0.72 |
+| `Base.count` over the children, from `_children` | 0.68 |
+| the `StructureDraft` constructor, once `build` stops specializing | 0.27 |
+| `_declares`, twice | 0.16 |
+
+The `count` compile is Base code reached through an untyped field read, so
+no annotation in Cadence removes it.
+
 ## 4. The `Dual` activation
 
 §9.7's anchor of about 9 s for an 8-partial `Dual` executor did not
@@ -239,7 +269,7 @@ types, `-O2`, from the tables above.
 2. **`@nospecialize(comp)` through the declaration layer** (assembly.jl,
    build.jl, declare.jl; then the `at_component` probe closures and
    `resolve_terminal`). Per distinct type 0.55 s → about 0.2 s, and a
-   `Group` root 11 s → 1.5 s. No runtime relevance. The suite decides
+   32-loop `Group` root 11 s → 1.5 s. No runtime relevance. The suite decides
    whether every diagnostic still names its site.
 3. **Phase bodies behind opaque closures, or `FunctionWrapper`s**, so
    `Simulation{T}` carries no executor type and the loop compiles once per
@@ -254,8 +284,14 @@ types, `-O2`, from the tables above.
    repeated types and could replace the unrolled tuple outright, since it
    lost nothing at runtime. This is where §9.7's representation paragraph
    and D-086's rejected list move.
-5. **`Group` with an abstract children field.** Covered by 2 if 2 lands;
-   otherwise the same 11 s → 1.5 s on the build side for `Group` roots.
+5. **`Group` with an abstract children field.** Partly covered by 2. After
+   the 21 signatures a 64-loop `Group` root still builds in 3.6 s against
+   0.76 s for an abstract one (§3). The same annotations on `build` and
+   `flatten!` bring it to 2.1 s. The rest is `resolve_terminal`, `_declares`
+   and Base's `count` over the children, which only this item or a
+   `_children` free of generic tuple operations removes. Without 2, this
+   item alone takes a 64-loop `Group` build from 11.3 s to the 0.75 s of
+   §2.3.
 6. **A `PrecompileTools` workload in the package**, building and stepping
    one representative model. Estimated saving about 3 s of the 5 s first
    model, the generic part; the per-topology and per-type terms stay.
