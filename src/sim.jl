@@ -1301,8 +1301,8 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
         # statement, so an interrupt past it meets the masked bookkeeping and
         # never leaves the lifecycle `running` (§12.4).
         @atomic :release control.lifecycle = :running
+        @atomic control.stop_issuer = nothing # ahead of any safepoint: the arm reads the word
         append!(roster, plane.roster)         # read once (§11.3)
-        @atomic control.stop_issuer = nothing
         _reset_accounts!(sim, roster)         # §11.8: totals count since the run began
         report_thread_budget!(plane, roster, Threads.nthreads())  # §12.2: one check per run, either door
         _init_devices!(sim, roster, live)     # §12.4's pre-spawn bracket, attachment order
@@ -1381,17 +1381,17 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
             # before the tail, the tail runs here, unmasked so a later interrupt
             # collapses its joins, and retried from where an interrupt cut it.
             # An entry never spawned is released directly, which finds every
-            # entry whose `init!` began, since the bracket lists each first; a
-            # spawned one through its wrapper once the tail wakes it, and the
-            # inline entry here when its wrapper never ran its `shutdown!`. What
-            # is left only a forced raise reaches. One inside a spawn mask
-            # reopens that window: a spawned wrapper's `shutdown!` also runs in
-            # the direct release, concurrently, its task never registered or
-            # joined, and later entries are never spawned. One between
-            # `_tail!`'s return and the flag's store reruns `_tail!`; one
-            # between a `shutdown!`'s return and its cursor or record repeats
-            # that call. The rest are the few instructions between a `catch` and
-            # its next `try`.
+            # entry whose `init!` began and that the bracket has not released,
+            # since the bracket lists each first; a spawned one through its
+            # wrapper once the tail wakes it, and the inline entry here when its
+            # wrapper never ran its `shutdown!`. What is left only a forced
+            # raise reaches. One inside a spawn mask reopens that window: a
+            # spawned wrapper's `shutdown!` also runs in the direct release,
+            # concurrently, its task never registered or joined, and later
+            # entries are never spawned. One between `_tail!`'s return and the
+            # flag's store reruns `_tail!`; one between a `shutdown!`'s return
+            # and its cursor or record repeats that call. The rest are the few
+            # instructions between a `catch` and its next `try`.
             while true                        # an interrupt arriving within the head
                 try                           # raises at its unmask: the head reruns
                     Base.sigatomic_begin()
