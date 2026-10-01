@@ -76,6 +76,11 @@ what the spec says, the spec edit is part of the item.
   compile-time and garbage measurements a model to run on, and the GUI one
   to drive.
 - **A tutorial** that takes a newcomer from a component to a run and a plot.
+- **The spec's readability rewrite.** Chapter 9 is done, and the other
+  chapters follow its recipe, `docs/reports/20261001_chapter9_rewrite/report.md`.
+  First the convention goes into `tools/spec_style.md` and its bold check into
+  the battery; until a chapter's turn comes, it keeps the old markers. §9.7's
+  compile-cost block waits on the compile-time ruling above.
 - **Package registration.**
 
 ## After the first release

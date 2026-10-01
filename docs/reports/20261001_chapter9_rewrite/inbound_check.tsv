@@ -1,0 +1,275 @@
+file	line	cited	status	new_target	fact
+spec.md	170	§9.7	OK		CI asserts the stepping loop allocates nothing
+spec.md	481	§9.1	OK		the nominal evaluation builds the feedthrough graph and the port classes
+spec.md	698	§9.5	OK		handler returns checked key by key against the return law
+spec.md	740	§9.3	OK		the stage-1 hand-down comes from the stage-1 probe's return
+spec.md	785	§9.3	OK		a stage returning (;) is DeadStage at the probe
+spec.md	805	§9.5	OK		the bundle law's classification runs in the return direction
+spec.md	1149	§9.3	OK		probe_value synthesizes values for terminals with no producer
+spec.md	1167	§9.4	OK		the tracer activation is the global set-tracer, an ordinary activation
+spec.md	1296	§9.5	OK		an opaque leaf is accepted at a store by identity alone
+spec.md	1302	§9.1	OK		the structure step reads declarations and runs no stage code
+spec.md	1317	§9.4	OK		discrete stages never run at a Dual activation
+spec.md	1529	§9.5	OK		x_deriv's predicate: every field scatters into its block at T
+spec.md	1546	§9.7	OK		CSE legality is the staleness rule
+spec.md	1615	§9.5	OK		the embedding is exact (Float64 embeds as a zero-partial constant)
+spec.md	1677	§9.1	OK		the structure step checks s_init and m_init field by field against the isbits rule
+spec.md	1718	§9.4	OK		a discrete component's allocator is invoked at Float64 at every activation
+spec.md	1848	§9.7	OK		zero allocation asserted per phase body through phase_bodies
+spec.md	1899	§9.7	OK		the executor is built in §9.7
+spec.md	1979	§9.1	OK		the structural walk reads class off declaration shape (location only; §9.1 never listed the shadowing check, old or new)
+spec.md	2089	§9.7	OK		entry typing: code-selecting facts in type parameters, data in fields
+spec.md	2095	§9.7	OK		chunking and its compile-cost model
+spec.md	2099	§9.5	OK		the conformance test folds away under full specialization
+spec.md	2166	§9.1	OK		the store form (NamedTuple) is checked in the structure step
+spec.md	2202	§9.3	OK		probe_value synthesizes probe inputs
+spec.md	2290	§9.1	OK		the walk-compatibility clause runs no user stage code
+spec.md	2298	§9.4	OK		Dual cells exist only in activations discrete stages never run in
+spec.md	2303	§9.1	RETARGET	§9.4	cells are retyped by walking the producer's output declaration per activation; §9.1 now only says it retypes cells, as §9.4 details
+spec.md	2351	§9.5	OK		a frozen value embeds upward as a zero-partial constant
+spec.md	2443	§9.5	OK		the embedding guarantee, keyed on walking leaves
+spec.md	2464	§9.4	OK		a misplaced pin fails at the first Dual activation, not at build
+spec.md	2469	§9.5	OK		identity comparison on an opaque leaf
+spec.md	2472	§9.4	OK		CI builds a Dual activation of every component, the exhaustive set
+spec.md	2489	§9.1	OK		the structure step checks the closed leaf vocabulary and the isbits rule
+spec.md	2543	§9.1	OK		the declaration-completeness rules are checked in the structure step
+spec.md	2639	§9.1	OK		ports are classified over y_types alone
+spec.md	2659	§9.5	OK		no lossy Dual-to-Float64 cast; embedding protects partials
+spec.md	2818	§9.7	OK		the executor is the compiled form of the execution order
+spec.md	3196	§9.1	RETARGET	§9.2	Δt_base has exactly one of three sources
+spec.md	3233	§9.1	RETARGET	§9.2	the scoped warning channel the build binds around its steps
+spec.md	3272	§9.1	RETARGET	§9.2	EmptyFaceSelection reaches the Build's warning list
+spec.md	4357	§9.7	OK		the executor is built in §9.7
+spec.md	4435	§9.2	OK		the Deployment binds the algorithm; Simulation materializes it
+spec.md	4524	§9.3	OK		the nominal activation probes guards
+spec.md	4798	§9.1	RETARGET	§9.2	event parameters bind beside h, N_base and the algorithm
+spec.md	4884	§9.7	OK		interior bodies take no argument, boundary bodies take the tick
+spec.md	4919	§9.3	OK		probe values are probe-scoped and reach no published cell
+spec.md	4950	§9.2	OK		the Schedule and its hyperperiod chart
+spec.md	4993	§9.1	OK		sample_times validation is the structure step's, collected with path attribution
+spec.md	5039	§9.2	OK		the Schedule answers when what runs
+spec.md	5043	§9.1	OK		the fold severs and re-seeds at an Absolute entry
+spec.md	5046	§9.1	RETARGET	§9.2	the deployment-time constraint pool
+spec.md	5049	§9.2	OK		blame is computed against the actual pool by the engine
+spec.md	5054	§9.1	RETARGET	§9.2	a deployment binds Δt_base (the worked example is in §9.2 too)
+spec.md	5068	§9.2	OK		one hyperperiod is the complete truth
+spec.md	5548	§9.2	OK		one immutable Build shared; each Simulation materializes its own buffers
+spec.md	5551	§9.4	OK		pre-materializing activations through the activations keyword
+spec.md	6179	§9.7	OK		the executor compiles per configuration
+spec.md	6343	§9.1	RETARGET	§9.2	where the Deployment comes from and what it carries
+spec.md	6372	§9.1	RETARGET	§9.2	the Deployment constructor sits after the build
+spec.md	7793	§9.1	RETARGET	§9.2	grid parameters, schedule and event parameters are the Deployment's
+spec.md	8242	§9.1	VAGUE		§9.1 fixes when each check runs (the deployment checks now sit in §9.2)
+spec.md	8244	§9.4	OK		the Dual activation trim and linearization run on
+spec.md	8282	§9.3	OK		stage-2 probes run in topological order on upstream products
+spec.md	8304	§9.1	RETARGET	§9.2	deployment validation is collected; 'throws once' is implicit there, as it was in old §9.1
+spec.md	8378	§9.3	OK		the probed functions
+spec.md	8424	§9.1	RETARGET	§9.2	warnings live on the artifacts; warnings(x) reads the list (drop §9.1)
+spec.md	8425	§9.2	OK		warnings live on the artifacts; warnings(x) reads the list
+spec.md	8620	§9.5	OK		the failure travels as a StepError species
+spec.md	8984	§9.2	OK		each artifact renders itself through show
+spec.md	9161	§9.6	OK		§9.6 sketches the services as activation clients
+spec.md	9322	§9.2	OK		the Build's face table records every level's routing chain
+spec.md	9390	§9.1	OK		names and face chains sit on Structure, which no activation changes
+spec.md	9429	§9.5	OK		exact match at the nominal activation
+spec.md	9450	§9.5	OK		the shape check mechanism
+spec.md	9713	§9.3	OK		probe_value methods: zero, false, first enum, T()
+spec.md	9788	§9.5	OK		names are the pairing; order carries no semantics
+spec.md	9866	§9.6	MISSING PREEXISTING		nonlinear least squares in the LM family as trim's default; never in §9.6 (PREEXISTING; §14.8 names the LM default)
+spec.md	10041	§9.4	OK		the discrete tier is frozen at a Dual activation
+spec.md	10379	§9.7	RETARGET	§9.4	the activations keyword pre-materializes an activation; never in §9.7 (preexisting)
+spec.md	10495	§9.4	VAGUE		a new activation in §9.4's sense (deferred extension)
+spec.md	10520	§9.5	OK		declare Pinned{Float64} and strip inside the stage
+spec.md	10556	§9.5	OK		mid-expression stripping stays legal at an unpinned leaf
+spec.md	10668	§9.3	OK		stage code must be total over type-valid inputs
+spec.md	10795	§9.2	OK		what the Build holds and where the wire list, face table and order sit
+spec.md	10798	§9.4	OK		ProbeDual is the canonical probe scalar
+spec.md	10799	§9.4	OK		pre-materialized activations make the shared Build fully immutable
+spec.md	10821	§9.1	RETARGET	§9.2	the Deployment carries Schedule, grid diagnostics and warnings (drop §9.1)
+spec.md	10821	§9.2	OK		the Deployment carries Schedule, grid diagnostics and warnings
+spec.md	10827	§9.1	RETARGET	§9.2	N_base derived from Δt_base and validated an integer ≥ 1
+spec.md	10828	§9.1	RETARGET	§9.2	the Δt_base keyword and its three sources
+spec.md	10833	§9.1	RETARGET	§9.2	Δt_base binds from exactly one of three sources
+spec.md	10838	§9.2	OK		derivation at the coarsest admissible value, printed with drivers (Appendix B's 'omitting both' contradicts §9.2's explicit :derive; preexisting)
+spec.md	10861	§9.7	OK		chunk size is the executor's representation freedom
+spec.md	10871	§9.2	OK		the Simulation sugar forms take deployment and materialization keywords
+spec.md	11085	§9.7	OK		re-run init! after invoking bodies in isolation
+spec.md	11114	§9.2	OK		warnings(x) on Build, Deployment, and Simulation as concatenation
+spec.md	11160	§9.1	OK		the build's three steps
+spec.md	11186	§9.2	OK		a completing step carries warnings on the artifact and logs once at return
+spec.md	11240	§9.1	OK		the store form check (StoreNotNamedTuple)
+spec.md	11294	§9.3	OK		no probe_value method is a build error
+spec.md	11316	§9.1	OK		the isbits check on s_init and m_init fields
+spec.md	11343	§9.3	OK		the dead-stage rule
+spec.md	11346	§9.5	OK		the always-on conformance check and its payload
+spec.md	11351	§9.5	OK		the form-aware guard check
+spec.md	11358	§9.5	OK		the handler key-set check
+spec.md	11379	§9.1	RETARGET	§9.2	DeploymentInvalid and its violation list
+spec.md	11457	§9.1	RETARGET	§9.2	GridUtilization (drop §9.1)
+spec.md	11457	§9.2	OK		GridUtilization advisory, a deployment warning
+spec.md	11496	§9.2	MISSING PREEXISTING		collection over the materialization's keywords; never in §9.2 or §9.1 (PREEXISTING)
+spec.md	11641	§9.2	OK		the renderings §9.2 names
+spec.md	11644	§9.2	VAGUE		the derived contract (the generic-holding constraint is §8.6/§8.8's)
+spec.md	11734	§9.7	OK		executor entry
+spec.md	11781	§9.2	RETARGET	§9.4	a service invocation instantiates its store set from the layouts; old §9.2 never said it either (preexisting)
+spec.md	11832	§9.1	RETARGET	§9.7	flat entry list with zero runtime graph logic; old §9.1 never said it either (preexisting)
+spec.md	11868	§9.1	RETARGET	§9.2	anchors join the deployment constraint pool
+spec.md	11898	§9.1	RETARGET	§9.2	every discrete period is an integer multiple of Δt_base (harmonic grid)
+spec.md	11974	§9.5	OK		the structural conformance predicates
+spec.md	11997	§9.2	OK		the Schedule is the single source of truth for Δt and the diagnostics' substrate
+spec.md	12043	§9.1	OK		non-nominal activations derive from Structure, Outputs and the nominal activation
+spec.md	12045	§9.4	OK		lazy activations with an opt-in exhaustive set
+spec.md	12052	§9.5	OK		a conformant return generates straight stores only
+spec.md	12058	§9.2	OK		the Build is the inspectable derived contract attach! validates against
+spec.md	12063	§9.7	OK		chunk size converts compile cost to linear
+spec.md	12069	§9.1	RETARGET	§9.2	Deployment scalar-free, compared as a value, materialized by Simulation (drop §9.1)
+spec.md	12069	§9.2	OK		Deployment scalar-free, compared as a value, materialized by Simulation
+spec.md	12074	§9.1	OK		Events kept apart so the order's consumer never carries event tables
+spec.md	12079	§9.4	OK		a Dual activation probes only continuous output stages and x_deriv
+spec.md	12084	§9.7	OK		the executor's definition
+spec.md	12095	§9.1	RETARGET	§9.4	the per-leaf walk applied at activation; §9.1 now defers the detail to §9.4
+spec.md	12107	§9.7	OK		phase_bodies' one promise: the bodies the loop runs
+spec.md	12113	§9.4	VAGUE		the nominal activation; 'runs in real time' and exact match are §9.5's, which the sentence also cites
+spec.md	12113	§9.5	OK		the only real-time activation; exact match there
+spec.md	12119	§9.1	OK		the feedthrough graph is derived, never carried
+spec.md	12124	§9.3	OK		probes see only the initial state's branch
+spec.md	12132	§9.3	OK		probe values are strictly probe-scoped
+spec.md	12137	§9.4	OK		ProbeDual's width is arbitrary
+spec.md	12150	§9.1	OK		nothing in Structure depends on a scalar type
+spec.md	12587	§9.2	OK		an artifact holds declared facts; one home for compiled ones
+spec.md	12592	§9.1	OK		the one blessed spot where evaluation feeds structure
+spec.md	12629	§9.7	OK		the measurement seam
+spec.md	12630	§9.7	OK		the phase-body seams
+decisions.md	996	§9.7	OK		entry typing selects code by component type
+decisions.md	1643	§9.5	OK		conformance failure is a StepError species
+decisions.md	1812	§9.5	OK		the shape-check mechanism
+decisions.md	1828	§9.5	OK		no convert-on-write for table cells
+decisions.md	1892	§9.3	OK		probe values are probe-scoped
+decisions.md	2449	§9.7	OK		the compiled executor
+decisions.md	2451	§9.5	OK		the fold-away check needs full specialization
+decisions.md	2469	§9.5	OK		the check folds only under specialization
+decisions.md	2564	§9.5	OK		handler returns under the return law
+decisions.md	2830	§9.4	VAGUE		history about an old §9.4 contradiction
+decisions.md	3051	§9.7	OK		the per-configuration compile trade
+decisions.md	3357	§9.4	OK		allocators are re-invoked at activation, not introduced
+decisions.md	3365	§9.2	OK		deployment and t₀ post-date the standalone build
+decisions.md	3619	§9.1	VAGUE		history: a 'kind' straggler swept in §9.1
+decisions.md	3859	§9.5	OK		guards' probe-derived predicate form
+decisions.md	3865	§9.5	OK		guards' probe-derived predicate form
+decisions.md	4097	§9.4	OK		an activation is a pure function of build and scalar
+decisions.md	4115	§9.2	OK		the Build is immutable, true by construction once buffers are single-owner
+decisions.md	4116	§9.2	OK		the Build is immutable; the Simulation(build) factorization
+decisions.md	4130	§9.2	OK		the artifact factorization shares activations
+decisions.md	4400	§9.6	COMPANION	flight_case_studies.md §4	the Kinematics.Initializer respelling (log history)
+decisions.md	4620	§9.3	OK		§9.3 cross-references the stop_on spelling
+decisions.md	4632	§9.3	OK		the totality statement in §9.3 (now several paragraphs)
+decisions.md	4928	§9.7	OK		the recompilation-granularity sentence
+decisions.md	4948	§9.7	OK		the recompilation-granularity claim
+decisions.md	4989	§9.5	OK		nominal exact match for table cells
+decisions.md	5031	§9.3	VAGUE		history: §9.3 swept
+decisions.md	5120	§9.5	OK		no per-field check instruction; the fold
+decisions.md	5163	§9.5	MISSING PREEXISTING		auto-published cells belong to no stage; never in §9.5 (PREEXISTING)
+decisions.md	5436	§9.7	OK		per-eltype cell storage
+decisions.md	5453	§9.7	OK		the mitigation ladder
+decisions.md	5482	§9.7	OK		chunk size is an implementation freedom
+decisions.md	5585	§9.7	OK		the §9.7 cell store
+decisions.md	5649	§9.5	OK		embed-accept at walking leaves
+decisions.md	5821	§9.5	OK		a pinned cell feeds a T entry by zero-partial embedding
+decisions.md	5862	§9.3	OK		the stage-1 hand-down is sourced from the probe's return
+decisions.md	6278	§9.3	OK		the probe observes the guard's form
+decisions.md	6651	§9.5	OK		x_deriv's scatter predicate
+decisions.md	6770	§9.7	OK		bodies communicate only through stores and table
+decisions.md	6776	§9.5	OK		the check covers every activation
+decisions.md	6779	§9.3	OK		DeadStage: (;) produces no ports
+decisions.md	6801	§9.7	OK		the phase-body roster's call signatures
+decisions.md	6859	§9.1	RETARGET	§9.5	continuous state in the flat buffer vs per-field stores; old §9.1's 'flat x buffer' line is gone (§9.5 Handler returns states it; log history)
+decisions.md	7220	§9.3	OK		§9.3's synthesized values
+decisions.md	7239	§9.3	OK		§9.3's synthesized values
+decisions.md	7410	§9.2	OK		the face table is total
+decisions.md	7542	§9.4	OK		discrete stages gated off holding Float64 values
+decisions.md	7555	§9.4	OK		the executable-set rule
+decisions.md	8182	§9.4	OK		ProbeDual
+decisions.md	8294	§9.1	RETARGET	§9.2	deployment validation
+decisions.md	8332	§9.1	RETARGET	§9.2	deployment validation is collected
+decisions.md	8530	§9.5	OK		zero-partial embedding at a T cell
+decisions.md	8703	§9.5	OK		exact match at nominal; embedding as the asymmetry
+decisions.md	9079	§9.5	OK		return laws pair by name
+decisions.md	9107	§9.5	OK		§9.5's probed, fail-fast return law
+decisions.md	9120	§9.3	OK		the probed functions
+decisions.md	9177	§9.5	OK		the carrier's frame holds time and replay index
+decisions.md	9414	§9.1	MISSING PREEXISTING		'Stratum B is the nominal evaluation's structural half; nominal activation = B plus C's typing'; superseded by D-259, old §9.1 did not say it (PREEXISTING)
+decisions.md	9661	§9.2	OK		§9.2 owes anchor table, component table and chart
+decisions.md	9722	§9.1	OK		§9.1 opens with the steps table
+decisions.md	9730	§9.6	OK		§9.6's heading uses the activation gloss
+decisions.md	9746	§9.1	OK		the nominal activation is never a separate pass
+decisions.md	9754	§9.2	OK		deploying and materializing are steps
+decisions.md	9847	§9.2	OK		a compiled form beside its declared one has no enforcer
+decisions.md	10127	§9.5	OK		the embedding guarantee
+decisions.md	10236	§9.5	OK		why a Float64 at a walking leaf is honest
+decisions.md	10356	§9.5	OK		no lossy cast
+decisions.md	10372	§9.5	OK		mid-expression stripping legal at an unpinned leaf
+decisions.md	10397	§9.5	OK		the silent zero in the Jacobian
+decisions.md	10895	§9.7	RETARGET	§9.4	pre-materializing an activation through the activations keyword; never in §9.7 (preexisting)
+decisions.md	11143	§9.4	OK		the exhaustive mode is the activations keyword
+decisions.md	11150	§9.4	VAGUE		history: §9.4 once offered a check entry
+companions/frozen_discrete_walkthrough.md	5	§9.5	OK		the embedding guarantee
+companions/frozen_discrete_walkthrough.md	62	§9.5	OK		a frozen cell embeds as a zero-partial constant
+companions/handle_walk_walkthrough.md	5	§9.5	OK		the embedding guarantee
+companions/handle_walk_walkthrough.md	98	§9.5	OK		the embedding
+companions/handle_walk_walkthrough.md	178	§9.5	OK		no lossy cast
+companions/handle_walk_walkthrough.md	223	§9.5	OK		mid-expression stripping legal at an unpinned leaf
+companions/linearization_walkthrough.md	232	§9.4	OK		what an activation is
+companions/linearization_walkthrough.md	595	§9.7	RETARGET	§9.4	pre-materializing through the activations keyword; §9.7 states only the compile cost (preexisting)
+companions/migration_outline.md	19	§9.7	OK		the FlightCore comparison measured through the seam
+companions/migration_outline.md	39	§9.7	OK		zero-alloc measured through phase_bodies
+companions/sample_time_proposal.md	9	§9.1	VAGUE		history: sections amended at adoption
+companions/sample_time_proposal.md	9	§9.2	VAGUE		history: sections amended at adoption
+companions/sample_time_proposal.md	9	§9.7	VAGUE		history: sections amended at adoption
+companions/sample_time_proposal.md	134	§9.1	OK		the structure step collects declaration defects with path attribution
+companions/sample_time_proposal.md	266	§9.1	OK		everything except binding Δt_base happens in the structure step
+companions/sample_time_proposal.md	270	§9.1	OK		sample_times entries validated and collected with path attribution
+companions/sample_time_proposal.md	286	§9.2	OK		the Build holds anchor and component tables
+companions/sample_time_proposal.md	304	§9.1	RETARGET	§9.2	Δt_base, h and N_base bind and validate at deployment
+companions/sample_time_proposal.md	335	§9.1	RETARGET	§9.2	collected DeploymentInvalid
+companions/sample_time_proposal.md	360	§9.7	OK		an entry carries code-selecting facts in type parameters, data in fields
+companions/sample_time_proposal.md	412	§9.3	MISSING PREEXISTING		cells hold the probe's values until first tick; superseded by D-205, never in §9.3 (PREEXISTING)
+companions/sample_time_proposal.md	421	§9.7	OK		the two-arity structure
+companions/sample_time_proposal.md	769	§9.1	RETARGET	§9.2	the deployment-binding half (pool, derive-vs-declare, anchor resolution); the triples half stays §9.1
+companions/sample_time_proposal.md	772	§9.2	MISSING PREEXISTING		the bound schedule on the Simulation; superseded by D-254, old §9.2 already put it on the Deployment (PREEXISTING)
+companions/sample_time_proposal.md	775	§9.7	OK		entry fields carry Φ; the gate
+companions/trim_environment_walkthrough.md	6	§9.6	COMPANION	flight_case_studies.md §4	§9.6 as ground truth for the trim respelling
+companions/trim_environment_walkthrough.md	502	§9.6	COMPANION	flight_case_studies.md §4	per-residual scalings stay aircraft-side
+companions/trim_environment_walkthrough.md	576	§9.6	COMPANION	flight_case_studies.md §4	the Kinematics.Initializer claim and its correction
+implementation.md	41	§9.5	OK		section list (conformance relation)
+implementation.md	118	§9.1	RETARGET	§9.2	section list of src/diagnostics.jl: the warning channel, DeploymentInvalid and GridUtilization are now §9.2's
+implementation.md	139	§9.3	OK		section list (probing)
+implementation.md	181	§9.1	OK		section list (structure step; §9.2 already listed for the channel)
+implementation.md	181	§9.2	OK		section list (Build, face table)
+implementation.md	191	§9.5	OK		the scatter's check is the always-on check
+implementation.md	199	§9.5	OK		section list
+implementation.md	199	§9.7	OK		section list
+implementation.md	218	§9.5	OK		section list
+implementation.md	218	§9.7	OK		section list
+implementation.md	242	§9.3	OK		dead-stage rule and the missing-probe_value error
+implementation.md	243	§9.4	OK		ProbeDual
+implementation.md	274	§9.1	OK		section list §9.1–§9.4
+implementation.md	274	§9.4	OK		section list §9.1–§9.4
+implementation.md	274	§9.7	OK		section list
+implementation.md	287	§9.3	OK		section list
+implementation.md	495	§9.1	RETARGET	§9.2	the Deployment constructor's collected validation
+implementation.md	511	§9.1	VAGUE		section list of src/deployment.jl; §9.1 now holds only the steps-table row, §9.2 already listed
+implementation.md	511	§9.2	OK		section list of src/deployment.jl
+implementation.md	741	§9.5	OK		section list
+implementation.md	756	§9.6	OK		section list (services as activation clients)
+implementation.md	787	§9.7	OK		section list
+implementation.md	814	§9.2	OK		section list (rendering)
+implementation.md	832	§9.4	OK		the Dual sweep at ProbeDual (cites D-166; §9.4 now cites draft D-280)
+implementation.md	877	§9.3	OK		DeadStage needs a method returning (;)
+implementation.md	924	§9.2	OK		the layout is the one home for address facts
+pending.md	17	§9.7	OK		§9.7's compile-time anchors and ladder
+pending.md	21	§9.7	OK		§9.7's compile-time anchors and ladder
+pending.md	90	§9.1	RETARGET	§9.2	a build warning lives on the artifact
+extensions.md	122	§9.7	OK		the executor is sized at build
+extensions.md	191	§9.1	VAGUE		the structure step flattens into the Build (§9.1–§9.2)
+extensions.md	191	§9.2	VAGUE		the structure step flattens into the Build (§9.1–§9.2)
+extensions.md	289	§9.4	OK		the probe's loud failure

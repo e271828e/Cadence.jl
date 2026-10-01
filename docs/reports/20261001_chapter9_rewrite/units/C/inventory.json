@@ -1,0 +1,1116 @@
+{
+ "claims": [
+  {
+   "id": "C-001",
+   "old": "### 9.5 The always-on conformance check",
+   "new": "### 9.5 The always-on conformance check",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "C-002",
+   "old": "The probe validates each function once, on the initial state's branch.",
+   "new": "The probe validates each function once, on the initial state's branch.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-003",
+   "old": "The schema-authority bargain's second clause (\"at first execution otherwise\", §8.1) is discharged by leaving the probe's comparison permanently in place.",
+   "new": "The schema-authority bargain's second clause (\"at first execution otherwise\", §8.1) is discharged by leaving the probe's comparison permanently in place.",
+   "where": "new",
+   "cites": [
+    "§8.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-004",
+   "old": "At the point where the executor (the compiled form of the stage execution order) stores a stage return into the table, it holds the complete expected return type at this activation.",
+   "new": "At the point where the executor (the compiled form of the stage execution order) stores a stage return into the table, it holds the complete expected return type at this activation.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-005",
+   "old": "That type is the type of the cells this stage writes, as the probe fixed them at this activation.",
+   "new": "The expected type is the type of the cells this stage writes, as the probe fixed them at this activation.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-006",
+   "old": "It is one concrete `NamedTuple` type per (component, stage), the stage's declared names at the types their cells hold (§8.2).",
+   "new": "It is one concrete `NamedTuple` type per (component, stage), the stage's declared names at the types their cells hold (§8.2).",
+   "where": "new",
+   "cites": [
+    "§8.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-007",
+   "old": "The write is generated over that type and the return's type,",
+   "new": "The write is generated over that type and the return's type (D-235).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-235"
+   ]
+  },
+  {
+   "id": "C-008",
+   "old": "so the test is decided when the write's method is specialized, and no per-field instruction reaches the conformant path (D-235).",
+   "new": "So the test is decided when the write's method is specialized, and no per-field instruction reaches the conformant path.",
+   "where": "new",
+   "cites": [
+    "D-235"
+   ],
+   "tag": "C",
+   "newcites": []
+  },
+  {
+   "id": "C-009",
+   "old": "When the write's method is generated, the return's key set is compared with the expected type's,",
+   "new": "When the write's method is generated, the return's key set is compared with the expected type's.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-010",
+   "old": "and each returned field is held to its cell's type under the relation below.",
+   "new": "At the same point, each returned field is held to its cell's type under the relation below.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-011",
+   "old": "A conformant return type generates the straight stores and nothing else.",
+   "new": "A conformant return type generates the straight stores and nothing else.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-012",
+   "old": "A non-conformant one generates a throw of the failure payload, raised the first time that branch executes.",
+   "new": "A non-conformant one generates a throw of the failure payload, raised the first time that branch executes.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-013",
+   "old": "For type-stable conformant code, the compiler proves the return type, one method is generated, and no check instruction exists to delete.",
+   "new": "For type-stable conformant code, the compiler proves the return type, one method is generated, and no check instruction exists to delete.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-014",
+   "old": "For branch-divergent code, each return type the stage can produce gets its own method, the union split the code already pays,",
+   "new": "For branch-divergent code, each return type the stage can produce gets its own method, the union split the code already pays.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-015",
+   "old": "and the check is absent from every conformant one.",
+   "new": "The check is absent from every conformant one.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-016",
+   "old": "The divergent branch's method is the loud located error at its first execution.",
+   "new": "The divergent branch's method is the loud located error at its first execution.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-017",
+   "old": "Type-unstable-but-conformant code pays the dynamic dispatch it already bought, and nothing on top.",
+   "new": "Type-unstable-but-conformant code pays the dynamic dispatch it already bought, and nothing on top.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-018",
+   "old": "The names are the pairing, and field order carries no semantics.",
+   "new": "The names are the pairing, and field order carries no semantics (D-151).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-151"
+   ]
+  },
+  {
+   "id": "C-019",
+   "old": "`Expected`'s order is an internal fact.",
+   "new": "The expected type's order is an internal fact.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-020",
+   "old": "It is derived from `y_types`, stage-filtered, an order no single declaration shows the author.",
+   "new": "It is derived from `y_types`, stage-filtered, an order no single declaration shows the author.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-021",
+   "old": "The author never reproduces it.",
+   "new": "The author never reproduces it.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-022",
+   "old": "A return spelling the right names at the right types conforms in any order.",
+   "new": "A return spelling the right names at the right types conforms in any order.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-023",
+   "old": "`(; P = Mω, M_shaft = M)` and `(; M_shaft = M, P = Mω)`",
+   "new": "`(; P = Mω, M_shaft = M) (; M_shaft = M, P = Mω)`",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-024",
+   "old": "are the same return.",
+   "new": "two are the same return, of a shaft's power `P` and torque `M_shaft`.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R53"
+  },
+  {
+   "id": "C-025",
+   "old": "This is the general rule at every `NamedTuple` seam between author and framework",
+   "new": "This is the general rule at every `NamedTuple` seam between author and framework.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-026",
+   "old": "(§14.7 states it for the trim problem's decisions and residuals).",
+   "new": "§14.7 states it for the trim problem's decisions and residuals.",
+   "where": "new",
+   "cites": [
+    "§14.7"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-027",
+   "old": "It is also what downstream consumption already assumes.",
+   "new": "It is also what downstream consumption already assumes.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-028",
+   "old": "The scatter writes each returned field into its own named cell (§4.3).",
+   "new": "The scatter writes each returned field into its own named cell (§4.3).",
+   "where": "new",
+   "cites": [
+    "§4.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-029",
+   "old": "Order-sensitivity in the check would therefore be incidental strictness rather than protection.",
+   "new": "Order-sensitivity in the check would therefore be incidental strictness rather than protection.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-030",
+   "old": "Pairing by name costs nothing.",
+   "new": "Pairing by name costs nothing.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-031",
+   "old": "The generated write reads each returned field by name and stores it into its cell, so no permutation of the value exists at runtime.",
+   "new": "The generated write reads each returned field by name and stores it into its cell, so no permutation of the value exists at runtime.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-032",
+   "old": "The per-field reasoning happens on types at generation and emits no per-field instruction, which is how the economics (D-053) hold.",
+   "new": "The per-field reasoning happens on types at generation and emits no per-field instruction, which is how the check's economics (D-053) hold.",
+   "where": "new",
+   "cites": [
+    "D-053"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-033",
+   "old": "Its one baked type test is resolved by dispatch rather than executed (D-235).",
+   "new": "The check's one baked type test is resolved by dispatch rather than executed (D-235).",
+   "where": "new",
+   "cites": [
+    "D-235"
+   ],
+   "tag": "R",
+   "ruling": "R26"
+  },
+  {
+   "id": "C-034",
+   "old": "The canary (§7.5) verifies the fold empirically rather than by assertion.",
+   "new": "The canary (§7.5) verifies empirically that the check folds away, rather than by assertion.",
+   "where": "new",
+   "cites": [
+    "§7.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-035",
+   "old": "What is an error is a key-set mismatch or a per-field type mismatch, reported by the payload below.",
+   "new": "What is an error is a key-set mismatch or a per-field type mismatch, reported by the payload below.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-036",
+   "old": "A permutation is not an error at all,",
+   "new": "A permutation is not an error at all.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-037",
+   "old": "which is equally why that diff never has to express one.",
+   "new": "That is equally why the payload's diff never has to express one.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-038",
+   "old": "Exact match at nominal, embed-accept at walking leaves.",
+   "new": "#### Exact match and embed-accept",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "C-039",
+   "old": "At the nominal activation, the only one that ever runs in real time, the check is an exact type match, with no convert-on-write,",
+   "new": "At the nominal activation, the only one that ever runs in real time, the check is an exact type match, with no convert-on-write (D-053).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-053"
+   ]
+  },
+  {
+   "id": "C-040",
+   "old": "decided at generation and absent from the conformant path (D-053, D-235).",
+   "new": "It is decided at generation and absent from the conformant path (D-235).",
+   "where": "new",
+   "cites": [
+    "D-053",
+    "D-235"
+   ],
+   "tag": "C",
+   "newcites": [
+    "D-053",
+    "D-235"
+   ]
+  },
+  {
+   "id": "C-041",
+   "old": "The error can afford to be didactic:",
+   "new": "The error can afford to be didactic, as in",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-042",
+   "old": "\"field `M_shaft`: expected `Float64`, got `Int64` — return `zero(x.ω)`, not `0`\".",
+   "new": "\"field `M_shaft`: expected `Float64`, got `Int64` — return `zero(x.ω)`, not `0`\".",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-043",
+   "old": "Under a non-nominal activation",
+   "new": "Under a non-nominal activation",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-044",
+   "old": "(the build's typed products at a given scalar type)",
+   "new": "(the build's typed products at a given scalar type)",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "C-045",
+   "old": "the two leaf kinds the declaration (§8.2) distinguishes are checked differently.",
+   "new": "the two leaf kinds the declaration (§8.2) distinguishes, walking and pinned, are checked differently.",
+   "where": "new",
+   "cites": [
+    "§8.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-046",
+   "old": "A walking leaf, one the author left unpinned, accepts exactly two types, the activation scalar or `Float64`.",
+   "new": "A walking leaf, one the author left unpinned, accepts exactly two types, the activation scalar or `Float64` (D-053).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-053"
+   ]
+  },
+  {
+   "id": "C-047",
+   "old": "The activation scalar is the fast path, the straight store.",
+   "new": "The activation scalar is the fast path, the straight store.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-048",
+   "old": "A `Float64` the executor embeds as a zero-partial constant (`convert` through the leaf).",
+   "new": "The executor embeds a `Float64` as a zero-partial constant (`convert` through the leaf).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-049",
+   "old": "Struct-valued ports use the standard cross-eltype constructor, and a missing one fails loudly with both types named.",
+   "new": "Struct-valued ports use the standard cross-eltype constructor, and a missing one fails loudly with both types named.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-050",
+   "old": "An opaque leaf (§4.3, D-237) embeds nothing into a store.",
+   "new": "An opaque leaf (§4.3) embeds nothing into a store,",
+   "where": "new",
+   "cites": [
+    "§4.3",
+    "D-237"
+   ],
+   "tag": "C",
+   "newcites": [
+    "§4.3",
+    "D-237"
+   ]
+  },
+  {
+   "id": "C-051",
+   "old": "It is accepted there by identity alone.",
+   "new": "and it is accepted there by identity alone (D-237).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-237"
+   ]
+  },
+  {
+   "id": "C-052",
+   "old": "At a wire the entry is a bound, and a frozen opaque arrival is admitted as the producer's cell (§6.1, D-264).",
+   "new": "At a wire the entry is a bound, and a frozen opaque arrival is admitted as the producer's cell (§6.1, D-264).",
+   "where": "new",
+   "cites": [
+    "§6.1",
+    "D-264"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-053",
+   "old": "Nothing else is accepted.",
+   "new": "Nothing else is accepted.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-054",
+   "old": "The check is decided on the type, not leaf by leaf.",
+   "new": "The check is decided on the type, not leaf by leaf (D-238).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-238"
+   ]
+  },
+  {
+   "id": "C-055",
+   "old": "The arrival with its `Float64` positions lifted to the scalar wherever the declaration has one must be the declaration itself,",
+   "new": "The arrival with its `Float64` positions lifted to the scalar wherever the declaration has one must be the declaration itself.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-056",
+   "old": "so a field name, a non-numeric type parameter or an array's mutability that differs is refused like any other mismatch (D-238).",
+   "new": "So a field name, a non-numeric type parameter or an array's mutability that differs is refused like any other mismatch.",
+   "where": "new",
+   "cites": [
+    "D-238"
+   ],
+   "tag": "C",
+   "newcites": [
+    "D-238"
+   ]
+  },
+  {
+   "id": "C-057",
+   "old": "A pinned leaf,",
+   "new": "A pinned leaf takes the nominal-style exact check at every activation (D-238, D-263).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-238",
+    "D-263"
+   ]
+  },
+  {
+   "id": "C-058",
+   "old": "one the author wrapped as `Pinned`, or an `Int`, `Bool` or enum leaf that never walks,",
+   "new": "A pinned leaf is one the author wrapped as `Pinned`, or an `Int`, `Bool` or enum leaf that never walks.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-059",
+   "old": "takes the nominal-style exact check at every activation,",
+   "new": "A pinned leaf takes the nominal-style exact check at every activation (D-238, D-263).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-238",
+    "D-263"
+   ]
+  },
+  {
+   "id": "C-060",
+   "old": "because its declaration said the leaf never carries partials.",
+   "new": "It takes that check because its declaration said the leaf never carries partials.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-061",
+   "old": "An observed `Dual` there is the misplaced-pin error, that being the one honest cause.",
+   "new": "An observed `Dual` there is the misplaced-pin error, that being the one honest cause.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-062",
+   "old": "The didactic hint is attached: \"if `F` participates in differentiation, remove its `Pinned`\".",
+   "new": "The didactic hint is attached, \"if `F` participates in differentiation, remove its `Pinned`\".",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-063",
+   "old": "The embedding is exact, not lenient.",
+   "new": "The embedding is exact, not lenient.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-064",
+   "old": "Promotion is airtight and there is no lossy `Dual → Float64` cast,",
+   "new": "Promotion is airtight and there is no lossy `Dual → Float64` cast.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-065",
+   "old": "so a `Float64` observed at a walking leaf means no `Dual` entered its computation.",
+   "new": "So a `Float64` observed at a walking leaf means no `Dual` entered its computation.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-066",
+   "old": "Its true derivative along every seeded direction is zero, which is precisely what the embedded constant says.",
+   "new": "Its true derivative along every seeded direction is zero, which is precisely what the embedded constant says.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-067",
+   "old": "This scopes the blanket convert-on-write rejection to the nominal check (D-053).",
+   "new": "This scopes the blanket convert-on-write rejection to the nominal check (D-053).",
+   "where": "new",
+   "cites": [
+    "D-053"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-068",
+   "old": "The bug that rejection guards against, silently zeroed partials, cannot arise from honest code,",
+   "new": "The bug the convert-on-write rejection guards against, silently zeroed partials, cannot arise from honest code.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-069",
+   "old": "because accidental `Float64`s from `Dual` operands are impossible (`MethodError` at the operation site).",
+   "new": "The reason is that accidental `Float64`s from `Dual` operands are impossible (`MethodError` at the operation site).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-070",
+   "old": "The residual is deliberate stripping (`ForwardDiff.value`), a stated intent to discard partials, producing a silent zero in the Jacobian.",
+   "new": "The residual is deliberate stripping (`ForwardDiff.value`), a stated intent to discard partials, producing a silent zero in the Jacobian.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-071",
+   "old": "That is the stop-gradient idiom,",
+   "new": "That is the stop-gradient idiom.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-072",
+   "old": "occasionally legitimate, as with deliberately frozen couplings and opaque non-Julia wrappers.",
+   "new": "It is occasionally legitimate, as with deliberately frozen couplings and opaque non-Julia wrappers.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-073",
+   "old": "Applied mid-expression it is equally invisible to a strict exact-match rule, so the leniency costs nothing.",
+   "new": "Applied mid-expression it is equally invisible to a strict exact-match rule, so the leniency costs nothing.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-074",
+   "old": "What it need not be is invisible to the schema.",
+   "new": "But stripping need not be invisible to the schema.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-075",
+   "old": "The pinned leaf is the schema-visible freeze.",
+   "new": "The pinned leaf is the schema-visible freeze (D-263).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-263"
+   ]
+  },
+  {
+   "id": "C-076",
+   "old": "An author who means to strip declares the leaf `Pinned{Float64}` and strips inside the stage,",
+   "new": "An author who means to strip declares the leaf `Pinned{Float64}` and strips inside the stage.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-077",
+   "old": "and the check above holds the freeze to its word at every activation.",
+   "new": "The check above holds the freeze to its word at every activation.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-078",
+   "old": "Stripping mid-expression at a leaf left unpinned remains legal and remains unseen, as the sharp tool it is.",
+   "new": "Stripping mid-expression at a leaf left unpinned remains legal and remains unseen, as the sharp tool it is.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-079",
+   "old": "Uniform across all probed functions.",
+   "new": "The check is uniform across all probed functions (D-053).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-053"
+   ]
+  },
+  {
+   "id": "C-080",
+   "old": "`x_deriv` checks against `X`'s own shape at the activation's `T`",
+   "new": "`x_deriv` checks against `X`'s own shape at the activation's `T` (D-190).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-190"
+   ]
+  },
+  {
+   "id": "C-081",
+   "old": "(§7.1: a scalar leaf expects a `T`, an `SArray` leaf the same `SArray` at `T`).",
+   "new": "A scalar leaf expects a `T`, and an `SArray` leaf the same `SArray` at `T` (§7.1).",
+   "where": "new",
+   "cites": [
+    "§7.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-082",
+   "old": "Its predicate is \"every field scatters into its field's block at `T`\",",
+   "new": "Its predicate is \"every field scatters into its field's block at `T`\".",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-083",
+   "old": "which is what makes derivative completeness structural rather than a matter of author discipline.",
+   "new": "That predicate is what makes derivative completeness structural rather than a matter of author discipline.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-084",
+   "old": "Guards check against their probe-derived predicate form (below),",
+   "new": "Guards check against their probe-derived predicate form (below).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-085",
+   "old": "`s_update` against its leaf's `s` shape,",
+   "new": "`s_update` checks against its leaf's `s` shape.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-086",
+   "old": "and handlers against the §5.2 return law, key by key.",
+   "new": "Handlers check against the §5.2 return law, key by key.",
+   "where": "new",
+   "cites": [
+    "§5.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-087",
+   "old": "`x_projection` checks against `X`'s own shape at `T`, complete,",
+   "new": "`x_projection` checks against `X`'s own shape at `T`, complete (D-111).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-111"
+   ]
+  },
+  {
+   "id": "C-088",
+   "old": "since its result is written back to the buffer wholesale at both of the positions in the execution order (§5.3)",
+   "new": "It is complete because its result is written back to the buffer wholesale at both of the positions in the execution order (§5.3),",
+   "where": "new",
+   "cites": [
+    "§5.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-089",
+   "old": "and a projection with a mode-dependent branch first executes its second branch at run time.",
+   "new": "and because a projection with a mode-dependent branch first executes its second branch at run time.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-090",
+   "old": "That is the same predicate as a handler's `x` key.",
+   "new": "That is the same predicate as a handler's `x` key.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-091",
+   "old": "Handler returns, key by key.",
+   "new": "#### Handler returns",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "C-092",
+   "old": "The returned NamedTuple's key set is checked first.",
+   "new": "The returned NamedTuple's key set is checked first (D-090).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-090"
+   ]
+  },
+  {
+   "id": "C-093",
+   "old": "An unknown key, or a key naming a store the component does not declare, is a build error with did-you-mean against `{x, m}` narrowed to the stores that exist.",
+   "new": "An unknown key, or a key naming a store the component does not declare, is a build error with did-you-mean against `{x, m}` narrowed to the stores that exist.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-094",
+   "old": "That is the bundle law's classification running in the return direction.",
+   "new": "That is the bundle law's classification running in the return direction.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-095",
+   "old": "Then, per present key, `x` must be complete against the state field set",
+   "new": "Then, per present key, `x` must be complete against the state field set,",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-090"
+   ]
+  },
+  {
+   "id": "C-096",
+   "old": "(and conformant at `T` like any state value),",
+   "new": "`x` must also be conformant at `T` like any state value.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-097",
+   "old": "while `m` may be partial,",
+   "new": "while `m` may be partial (D-053, D-090).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-053",
+    "D-090"
+   ]
+  },
+  {
+   "id": "C-098",
+   "old": "checked against a names-subset-with-matching-types predicate, still a type-level computation that folds when inferred.",
+   "new": "`m` is checked against a names-subset-with-matching-types predicate, still a type-level computation that folds when inferred.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-099",
+   "old": "An absent key is not an error and not a no-op to diagnose.",
+   "new": "An absent key is not an error and not a no-op to diagnose.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-100",
+   "old": "It is the handler saying it does not touch that store.",
+   "new": "It is the handler saying it does not touch that store.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-101",
+   "old": "The completeness asymmetry is storage-shaped.",
+   "new": "The completeness asymmetry is storage-shaped.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-102",
+   "old": "`x` must be complete because it lives in a flat buffer written back wholesale,",
+   "new": "`x` must be complete because it lives in a flat buffer written back wholesale.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-103",
+   "old": "while `m` may be partial because `m` lives in per-field stores where a partial merge is the natural write.",
+   "new": "`m` may be partial because `m` lives in per-field stores where a partial merge is the natural write.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-104",
+   "old": "Guards have two admissible forms (§2.1),",
+   "new": "The reason is that guards have two admissible forms (§2.1).",
+   "where": "new",
+   "cites": [
+    "§2.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-105",
+   "old": "so their check is form-aware rather than a flat `isa Bool`.",
+   "new": "The guard check is form-aware rather than a flat `isa Bool` (D-053).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-053"
+   ]
+  },
+  {
+   "id": "C-106",
+   "old": "A `Bool`-form guard's probed return is `Bool`, and a sign-form guard's is the nominal scalar.",
+   "new": "A `Bool`-form guard's probed return is `Bool`, and a sign-form guard's is the nominal scalar.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-107",
+   "old": "Guards run only at the nominal activation (D-052), so no parametrized-leaf case arises here.",
+   "new": "Guards run only at the nominal activation (D-052), so no parametrized-leaf case arises here.",
+   "where": "new",
+   "cites": [
+    "D-052"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-108",
+   "old": "Any other probed return type is a build error naming both admissible forms.",
+   "new": "Any other probed return type is a build error naming both admissible forms.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-109",
+   "old": "There is nothing further to check.",
+   "new": "There is nothing further to check.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-110",
+   "old": "The probed form is the detection policy (§10.4, D-179), so no form/policy mismatch can be declared.",
+   "new": "The probed form is the detection policy (§10.4, D-179), so no form/policy mismatch can be declared.",
+   "where": "new",
+   "cites": [
+    "§10.4",
+    "D-179"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-111",
+   "old": "Failure payload.",
+   "new": "#### The failure payload",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "C-112",
+   "old": "The payload carries the component path, the function, the event name on a handler's occurrence, and the field-level diff (missing / unexpected / per-field expected-vs-observed).",
+   "new": "The payload carries the component path, the function, the event name on a handler's occurrence, and the field-level diff (missing / unexpected / per-field expected-vs-observed) (D-053, D-249).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-053",
+    "D-249"
+   ]
+  },
+  {
+   "id": "C-113",
+   "old": "Simulation time is the carrier's, not the diagnostic's.",
+   "new": "Simulation time is the carrier's, not the diagnostic's.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-114",
+   "old": "At run time the failure travels as a species of `StepError` through the single catch site (§13.4),",
+   "new": "At run time the failure travels as a species of `StepError` through the single catch site (§13.4, D-059).",
+   "where": "new",
+   "cites": [
+    "§13.4"
+   ],
+   "tag": "C",
+   "newcites": [
+    "§13.4",
+    "D-059"
+   ]
+  },
+  {
+   "id": "C-115",
+   "old": "whose frame holds the boundary time and the replay index,",
+   "new": "That site's frame holds the boundary time and the replay index.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-116",
+   "old": "and a build-time occurrence has no time to carry (D-249).",
+   "new": "A build-time occurrence has no time to carry (D-249).",
+   "where": "new",
+   "cites": [
+    "D-249"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-117",
+   "old": "Deliberately absent is the source branch.",
+   "new": "The source branch is deliberately absent from the payload (D-053).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-053"
+   ]
+  },
+  {
+   "id": "C-118",
+   "old": "A value does not say which branch produced it, and the diff identifies it.",
+   "new": "A value does not say which branch produced it, and the diff identifies it.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-119",
+   "old": "The always-on input trace makes every such failure reproducible by replay.",
+   "new": "The always-on input trace makes every such failure reproducible by replay (D-053).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-053"
+   ]
+  },
+  {
+   "id": "C-120",
+   "old": "The error names the boundary to replay to (`to_boundary`, §12.7).",
+   "new": "The error names the boundary to replay to (`to_boundary`, §12.7).",
+   "where": "new",
+   "cites": [
+    "§12.7"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-121",
+   "old": "The catch site adds the loop-level nonfinite-state check as the failure's divergence sibling.",
+   "new": "The catch site adds the loop-level nonfinite-state check as the failure's divergence sibling (D-157).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-157"
+   ]
+  }
+ ],
+ "added": [
+  "#### The generated write",
+  "How the stage's code is typed decides what the check costs it:",
+  "#### Pairing by name",
+  "The following",
+  "#### Deliberate stripping",
+  "#### Per-function predicates",
+  "Each function is checked against its own predicate.",
+  "#### Guard forms",
+  "An opaque leaf has a rule of its own.",
+  "of a shaft's power `P` and torque `M_shaft`"
+ ]
+}

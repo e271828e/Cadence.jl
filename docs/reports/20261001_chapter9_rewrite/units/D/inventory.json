@@ -1,0 +1,239 @@
+{
+ "claims": [
+  {
+   "id": "D-001",
+   "old": "### 9.6 Stopped-sim services as activation clients",
+   "new": "### 9.6 Stopped-sim services as activation clients",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "D-002",
+   "old": "This section is sketched here because it grounds the build's steps.",
+   "new": "This section is only a sketch, kept here because it grounds the build's steps.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "D-003",
+   "old": "The services themselves are §14.",
+   "new": "The services themselves are §14.",
+   "where": "new",
+   "cites": [
+    "§14"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "D-004",
+   "old": "The C172 trim problem (`c172.jl`: `TrimState`, `TrimParameters`, `θ_constraint`, the `ẋ`-reading cost) transfers near-verbatim",
+   "new": "The C172 trim problem (`c172.jl`: `TrimState`, `TrimParameters`, `θ_constraint`, the `ẋ`-reading cost) transfers near-verbatim.",
+   "where": "units/D/companion_addition.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "D-005",
+   "old": "- Trim is a loop that writes a condition, runs a sweep and reads the result, on an activation.",
+   "new": "Trim is a loop that writes a condition, runs a sweep and reads the result, on an activation.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "D-006",
+   "old": "By default that is the `Dual` activation, with decision variables seeded for exact residual Jacobians (§14.7).",
+   "new": "By default trim is gradient-based and runs on the `Dual` activation, with its decision variables seeded through the `T`-generic assignment (the user's function from decision variables to a condition) for exact residual Jacobians (§14.7).",
+   "where": "new",
+   "cites": [
+    "§14.7"
+   ],
+   "tag": "R",
+   "ruling": "R51"
+  },
+  {
+   "id": "D-007",
+   "old": "The derivative-free fallback runs the same loop on the nominal `Float64` activation",
+   "new": "The derivative-free fallback runs the same loop on the nominal `Float64` activation",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "D-008",
+   "old": "(the build's typed products at a given scalar type)",
+   "new": "an activation (the build's typed products at a given scalar type)",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "D-009",
+   "old": "with no new activation needed, and the always-on checks ride along either way.",
+   "new": "with no new activation needed. The always-on checks ride along either way.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "D-010",
+   "old": "Decision variables stay opaque to the framework, and only the assignment's output is framework vocabulary.",
+   "new": "Decision variables stay opaque to the framework, and only the assignment's output is framework vocabulary.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "D-011",
+   "old": "`assign!` inverts from in-place mutation plus self-invoked `f_ode!` to a pure function returning a condition value (state by path, modes, root inputs by face) that the service writes and evaluates.",
+   "new": "`assign!` inverts from in-place mutation plus self-invoked `f_ode!` to a pure function. That function returns a condition value (state by path, modes, root inputs by face), which the service writes and evaluates (§14.7).",
+   "where": "units/D/companion_addition.md",
+   "cites": [],
+   "newcites": [
+    "§14.7"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "D-012",
+   "old": "Domain math survives aircraft-side, namely the pitch constraint, `Kinematics.Initializer`, per-residual scalings and the equilibrium-subset choice, with one respelling.",
+   "new": "Domain math survives aircraft-side, with one respelling. That math is the pitch constraint, `Kinematics.Initializer`, the per-residual scalings and the equilibrium-subset choice.",
+   "where": "units/D/companion_addition.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "D-013",
+   "old": "The initializer's `atmosphere::Model` argument becomes a field handle (§4.4),",
+   "new": "The respelling is the initializer's. Its `atmosphere::Model` argument becomes a field handle (§4.4, D-139).",
+   "where": "units/D/companion_addition.md",
+   "cites": [
+    "§4.4"
+   ],
+   "newcites": [
+    "§4.4",
+    "D-139"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "D-014",
+   "old": "built at value level by the atmosphere's value-level constructor or held directly as a rig root-input value (§14.1, §14.9).",
+   "new": "The handle is built at value level by the atmosphere's value-level constructor, or held directly as a rig root-input value (§14.1, §14.9).",
+   "where": "units/D/companion_addition.md",
+   "cites": [
+    "§14.1",
+    "§14.9"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "D-015",
+   "old": "- Linearization is a `Dual` activation plus seeded sweeps.",
+   "new": "Linearization is a `Dual` activation plus seeded sweeps (§14.10).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "§14.10"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "D-016",
+   "old": "Gather and scatter over the canonical layout replace the hand-written `get_x_ss`/`assign_x_ss!` layer (the deletion discharged, §7.1).",
+   "new": "Gather and scatter over the canonical layout replace the hand-written per-aircraft state-space mapping layer. That replacement discharges the layer's deletion (§7.1).",
+   "where": "new",
+   "cites": [
+    "§7.1"
+   ],
+   "tag": "R",
+   "ruling": "R47"
+  },
+  {
+   "id": "D-017",
+   "old": "Root inputs are the input surface.",
+   "new": "Root inputs are the input surface.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "D-018",
+   "old": "Frozen discrete outputs are constants with zero partials, which is exactly \"linearize with the discrete state held\" (§8.2).",
+   "new": "Frozen discrete outputs are constants with zero partials, which is exactly \"linearize with the discrete state held\" (§8.2).",
+   "where": "new",
+   "cites": [
+    "§8.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "D-019",
+   "old": "Gradient-based trim, with decision variables seeded through the `T`-generic assignment math, is the default (§14.7).",
+   "new": "By default trim is gradient-based and runs on the `Dual` activation, with its decision variables seeded through the `T`-generic assignment (the user's function from decision variables to a condition) for exact residual Jacobians (§14.7).",
+   "where": "new",
+   "cites": [
+    "§14.7"
+   ],
+   "tag": "R",
+   "ruling": "R51"
+  },
+  {
+   "id": "D-020",
+   "old": "- The generic service loop (vectorization, optimizer setup, bounds packing, solved-condition write-back including root inputs",
+   "new": "The generic service loop handles vectorization, optimizer setup, bounds packing and the solved-condition write-back, root inputs included (§14.8).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "§14.8"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "D-021",
+   "old": "and the trace header taken after it)",
+   "new": "It takes the trace header after the write-back.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "D-022",
+   "old": "replaces today's per-aircraft NLopt plumbing.",
+   "new": "The generic service loop replaces today's per-aircraft NLopt plumbing (§14.8).",
+   "where": "units/D/companion_addition.md",
+   "cites": [],
+   "newcites": [
+    "§14.8"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "D-023",
+   "old": "A failed trim leaves the simulation's stores untouched,",
+   "new": "A failed trim leaves the simulation's stores untouched (D-070).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-070"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "D-024",
+   "old": "an improvement over today's warn-but-assign `f_init!`.",
+   "new": "That is an improvement over today's warn-but-assign `f_init!`.",
+   "where": "units/D/companion_addition.md",
+   "cites": [],
+   "tag": "M"
+  }
+ ],
+ "added": [
+  "Trim and linearization are stopped-sim services, and each is a client of",
+  "The bullets take trim, the generic service loop and linearization in turn.",
+  "(the user's function from decision variables to a condition)",
+  "per-aircraft state-space mapping"
+ ]
+}

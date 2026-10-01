@@ -1,0 +1,1144 @@
+{
+ "claims": [
+  {
+   "id": "A1-001",
+   "old": "## 9. The build pipeline",
+   "new": "## 9. The build pipeline",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A1-002",
+   "old": "The build consumes a root component instance and produces the runnable artifact:",
+   "new": "The build consumes a root component instance and produces the runnable artifact.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-003",
+   "old": "resolved wires, typed signal table, execution order, absolute rate divisors, flat state layout, root inputs.",
+   "new": "It consists of the resolved wires, the execution order, the anchor-relative rate triples and the root inputs, plus the nominal activation's typed signal table and flat state layout.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R13; F6 (final_verify) applied 2026-10-01"
+  },
+  {
+   "id": "A1-004",
+   "old": "§8 states what is declared and what must hold.",
+   "new": "§8 states what is declared and what must hold.",
+   "where": "new",
+   "cites": [
+    "§8"
+   ],
+   "tag": "X"
+  },
+  {
+   "id": "A1-005",
+   "old": "This chapter states when each fact is checked, against what, and with which failure.",
+   "new": "This chapter states when each fact is checked, against what, and with which failure.",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A1-006",
+   "old": "The §8.4 walkthroughs plus the error rules (§6.1) are its acceptance tests.",
+   "new": "The §8.4 walkthroughs plus the error rules (§6.1) are its acceptance tests.",
+   "where": "new",
+   "cites": [
+    "§8.4",
+    "§6.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-007",
+   "old": "Error-reporting policy is settled in §13.1. Declarative checking passes collect, user-code evaluation fails fast,",
+   "new": "Error-reporting policy is settled in §13.1, under which declarative checking passes collect and user-code evaluation fails fast.",
+   "where": "new",
+   "cites": [
+    "§13.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-008",
+   "old": "and the build's steps are barriers,",
+   "new": "each a barrier (D-259). A step that produced any error throws before the next begins (§13.1).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-259",
+    "§13.1"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A1-009",
+   "old": "so the only partial results carried past failures are violation lists from pure checks.",
+   "new": "The only partial results ever carried past a failure are violation lists and a claim table with the failed wires absent.",
+   "where": "docs/design/spec.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A1-010",
+   "old": "### 9.1 The build's three steps",
+   "new": "### 9.1 The build's three steps",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A1-011",
+   "old": "Three ordering constraints are forced by settled decisions.",
+   "new": "Three ordering constraints are forced by settled decisions.",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A1-012",
+   "old": "Face derivation is bottom-up, because an assembly's interface connections evaluate against child contracts (§8.8).",
+   "new": "Face derivation is bottom-up, because an assembly's interface connections evaluate against child contracts (§8.8).",
+   "where": "new",
+   "cites": [
+    "§8.8"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-013",
+   "old": "The unconnected-input obligation check and cross-level two-producers detection are global, decidable only at the root, after every assembly's wires and faces are in hand (§6.1).",
+   "new": "The unconnected-input obligation check and cross-level two-producers detection are global. They are decidable only at the root, after every assembly's wires and faces are in hand (§6.1).",
+   "where": "new",
+   "cites": [
+    "§6.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-014",
+   "old": "And stage membership is derived by probing the stage-1 functions (§8.2), so evaluation interleaves with graph construction at exactly one blessed spot.",
+   "new": "And stage membership is derived by probing the stage-1 functions (§8.2), so evaluation interleaves with graph construction at exactly one blessed spot.",
+   "where": "new",
+   "cites": [
+    "§8.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-015",
+   "old": "The pipeline is therefore inherently heterogeneous.",
+   "new": "The pipeline is therefore inherently heterogeneous.",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A1-016",
+   "old": "It runs as the steps below, each consuming one artifact and producing the next, and each a barrier (§13.1): a step that produced any error throws before the next begins.",
+   "new": "The pipeline runs as the steps below, each consuming one artifact and producing the next, and each a barrier (D-259). A step that produced any error throws before the next begins (§13.1).",
+   "where": "new",
+   "cites": [
+    "§13.1"
+   ],
+   "newcites": [
+    "§13.1",
+    "D-259"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A1-017",
+   "old": "| step | consumes | produces | user code it runs | |---|---|---|---| | the structure step | the root instance | `Structure` | declaration bodies only |",
+   "new": "| step | consumes | produces | user code it runs | |---|---|---|---| | the structure step | the root instance | `Structure` | declaration bodies only |",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-018",
+   "old": "| the nominal evaluation | `Structure` | `Outputs`, `Events`, the nominal `Float64` activation | the stage functions, guards and handlers, at `Float64` |",
+   "new": "| the nominal evaluation | `Structure` | `Outputs`, `Events`, the nominal `Float64` activation | every user function once, at `Float64` (§9.3) |",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R10",
+   "newcites": [
+    "§9.3"
+   ]
+  },
+  {
+   "id": "A1-019",
+   "old": "| activation at `T` | `Structure`, `Outputs`, the nominal activation, a scalar `T` | `Activation{T}` | the continuous tier's functions at `T` |",
+   "new": "| activation at `T` | `Structure`, `Outputs`, the nominal activation, a scalar `T` | `Activation{T}` | the continuous tier's functions at `T` |",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-020",
+   "old": "| deployment | the `Build`, the grid parameters | `Deployment` with its `Schedule` | none |",
+   "new": "| deployment | the `Build`, the grid parameters | `Deployment` with its `Schedule` | none |",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-021",
+   "old": "| materialization | the `Deployment`, a scalar `T` | `Simulation{T}` | none |",
+   "new": "| materialization | the `Deployment`, a scalar `T` | `Simulation{T}` | none |",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-022",
+   "old": "The first three are the build, and `build(world)` runs them;",
+   "new": "The first three are the build, and `build(world)` runs them.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-023",
+   "old": "the `Build` bundles their products (§9.2).",
+   "new": "The `Build` bundles their products (§9.2).",
+   "where": "new",
+   "cites": [
+    "§9.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-024",
+   "old": "The last two are the `Deployment` constructor below and the `Simulation` constructor (§9.2).",
+   "new": "The last two are the `Deployment` constructor and the `Simulation` constructor, both in §9.2.",
+   "where": "new",
+   "cites": [
+    "§9.2"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A1-025",
+   "old": "#### The structure step",
+   "new": "#### The structure step",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A1-026",
+   "old": "The structure step is pure declaration reading.",
+   "new": "The structure step is pure declaration reading (D-048).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-048"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A1-027",
+   "old": "No user stage code executes in it.",
+   "new": "No user stage code executes in it (D-259).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-259"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A1-028",
+   "old": "The `u_connections`/`y_connections`/`input_passthrough` bodies are declaration code (§8.8).",
+   "new": "The `u_connections`, `y_connections` and `input_passthrough` bodies are declaration code (§8.8).",
+   "where": "new",
+   "cites": [
+    "§8.8"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-029",
+   "old": "The step is a tree walk from the root instance, in this order:",
+   "new": "The step is a tree walk from the root instance, in this order:",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-030",
+   "old": "1. Components are collected by path.",
+   "new": "1. Components are collected by path.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-031",
+   "old": "2. Each component's class (its primitive-vs-assembly status) is read off declaration shape (§8.5).",
+   "new": "2. Each component's class (its primitive-vs-assembly status) is read off declaration shape (§8.5).",
+   "where": "new",
+   "cites": [
+    "§8.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-032",
+   "old": "3. Leaf contracts are collected: `u_types`, `y_types`, `init_` values, `state_events`.",
+   "new": "3. Leaf contracts are collected: `u_types`, `y_types`, `init_` values, `state_events`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-033",
+   "old": "4. Face derivation runs bottom-up, recording at every level the input and output faces it declares and the chain each one routes through.",
+   "new": "4. Face derivation runs bottom-up. It records at every level the input and output faces it declares and the chain each one routes through.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-034",
+   "old": "5. Global wiring resolution then runs, resolving wires to absolute leaf terminals.",
+   "new": "5. Global wiring resolution then runs, resolving wires to absolute leaf terminals.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-035",
+   "old": "Resolution runs these checks:",
+   "new": "Resolution runs these checks:",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-036",
+   "old": "- one-writer-per-input;",
+   "new": "- one-writer-per-input;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-037",
+   "old": "- the typo did-you-mean (the offending name plus the list-in-hand it should have matched) against the destination's input list;",
+   "new": "- the typo did-you-mean (the offending name plus the list-in-hand it should have matched) against the destination's input list;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-038",
+   "old": "- the two wiring type clauses (§6.1, §8.2), stated below;",
+   "new": "- the two wiring type clauses (§6.1, §8.2), stated below;",
+   "where": "new",
+   "cites": [
+    "§6.1",
+    "§8.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-039",
+   "old": "- the whole-tree obligation check;",
+   "new": "- the whole-tree (unconnected-input) obligation check;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-040",
+   "old": "- the store form (§8.2):",
+   "new": "- the store form (§8.2);",
+   "where": "new",
+   "cites": [
+    "§8.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-041",
+   "old": "every `x_init`, `s_init` and `m_init` value is a `NamedTuple`.",
+   "new": "The store form is that every `x_init`, `s_init` and `m_init` value is a `NamedTuple`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-042",
+   "old": "It is checked before the classifier and the vocabulary checks read the value,",
+   "new": "The store form is checked before the tier classifier and the vocabulary checks read the value (D-247).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-247"
+   ],
+   "tag": "R",
+   "ruling": "R60"
+  },
+  {
+   "id": "A1-043",
+   "old": "and a primitive failing it is read no further in this step;",
+   "new": "A primitive failing it is read no further in this step.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-044",
+   "old": "- the closed leaf vocabulary (§7.1),",
+   "new": "- the closed leaf vocabulary (§7.1).",
+   "where": "new",
+   "cites": [
+    "§7.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-045",
+   "old": "checked on every `x_init` because the walk in §8.2 rests on it.",
+   "new": "The closed leaf vocabulary is checked on every `x_init`, because the walk in §8.2 rests on it.",
+   "where": "new",
+   "cites": [
+    "§8.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-046",
+   "old": "`s_init` pins wholesale and answers to the isbits rule of §7.3 instead,",
+   "new": "`s_init` pins wholesale and answers to the isbits rule of §7.3 instead.",
+   "where": "new",
+   "cites": [
+    "§7.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-047",
+   "old": "checked with `m_init` field by field.",
+   "new": "The isbits rule is checked on `s_init` and `m_init` field by field (D-231).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-231"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A1-048",
+   "old": "Root inputs fall out here too, as the root component's input faces (§8.2).",
+   "new": "Root inputs fall out here too, as the root component's input faces (D-208, §8.2).",
+   "where": "new",
+   "cites": [
+    "§8.2"
+   ],
+   "newcites": [
+    "§8.2",
+    "D-208"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A1-049",
+   "old": "The bound check is the first type clause, and it applies at nominal faces.",
+   "new": "The bound check is the first type clause, and it applies at nominal faces.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-050",
+   "old": "The producer's declaration at `Float64` must be `<:` the entry at `Float64`.",
+   "new": "The producer's declaration at `Float64` must be `<:` the entry at `Float64` (D-078).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-078"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A1-051",
+   "old": "Equality is the concrete degenerate case.",
+   "new": "Equality is the concrete degenerate case.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-052",
+   "old": "Abstract-at-root is detected here.",
+   "new": "Abstract-at-root is detected here (D-236).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-236"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A1-053",
+   "old": "The walk-compatibility clause is the second, and it applies to continuous consumers only.",
+   "new": "The walk-compatibility clause is the second, and it applies to continuous consumers only.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-054",
+   "old": "It is decided by retyping both declarations at a marker scalar and comparing per leaf,",
+   "new": "The walk-compatibility clause is decided by retyping both declarations at a marker scalar and comparing per leaf at a concrete entry, or on the whole declaration at an abstract one (D-263, D-236).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-263",
+    "D-236"
+   ],
+   "tag": "R",
+   "ruling": "R15"
+  },
+  {
+   "id": "A1-055",
+   "old": "and its diagnostic is `WalkingFaceAtFrozenEntry`.",
+   "new": "Its diagnostic is `WalkingFaceAtFrozenEntry`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-056",
+   "old": "It stays inside this step's charter because both sides are plain declarations the walk retypes.",
+   "new": "The clause stays inside this step's charter because both sides are plain declarations the walk retypes.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-057",
+   "old": "Declarations are read, and no user stage code runs.",
+   "new": "Declarations are read, and no user stage code runs.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-058",
+   "old": "The step also checks the declaration-completeness rules (§8.2):",
+   "new": "The step also checks the declaration-completeness rules (§8.2):",
+   "where": "new",
+   "cites": [
+    "§8.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-059",
+   "old": "a store without its update,",
+   "new": "- a store without its update;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-060",
+   "old": "a leaf declaring no store,",
+   "new": "- a leaf declaring no store;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-061",
+   "old": "an event missing a guard or handler method,",
+   "new": "- an event missing a guard or handler method;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-062",
+   "old": "a leaf mixing tier families,",
+   "new": "- a leaf mixing tier families;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-063",
+   "old": "and a stateless leaf with no output contract.",
+   "new": "- a stateless leaf with no output contract.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-064",
+   "old": "`sample_times` validation is the structure step's too, and it has two parts.",
+   "new": "`sample_times` validation is the structure step's too (D-185). It has two parts.",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-185"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A1-065",
+   "old": "The first is per-entry validity against the constraints of §10.5: wrapper-typed values, `K ≥ 1`, `0 ≤ Φ < K`, `T > 0`, `0 ≤ τ < T`, and keys naming discrete or scope children.",
+   "new": "The first is per-entry validity against the constraints of §10.5. They require wrapper-typed values, `K ≥ 1`, `0 ≤ Φ < K`, `T > 0`, `0 ≤ τ < T`, and keys naming discrete or scope children.",
+   "where": "new",
+   "cites": [
+    "§10.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-066",
+   "old": "Those violations are collected with path attribution.",
+   "new": "Those violations are collected with path attribution.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-067",
+   "old": "The second is compilation into `(anchor, m, c)` triples.",
+   "new": "The second is compilation into `(anchor, m, c)` triples.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-068",
+   "old": "A triple carries a discrete component's divisor and phase in the tick units of its anchor, the exact `(T, τ)` pair an `Absolute` entry establishes.",
+   "new": "A triple carries a discrete component's divisor and phase in the tick units of its anchor, the exact `(T, τ)` pair an `Absolute` entry establishes.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-069",
+   "old": "The compilation is a fold down the tree, one rule per case:",
+   "new": "The compilation is a fold down the tree, one rule per case (D-186):",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-186"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A1-070",
+   "old": "| the fold meets | the triple it produces | |---|---| | the root scope | `(A₀, 1, 0)`, anchor 0 being the base grid itself: `(T, τ) = (Δt_base, 0)` |",
+   "new": "| the fold meets | the triple it produces | |---|---| | the root scope | `(A₀, 1, 0)`, anchor 0 being the base grid itself: `(T, τ) = (Δt_base, 0)` |",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-071",
+   "old": "| `Relative(K, φ)` under a scope at `(a, mₛ, cₛ)` | `(a, K·mₛ, cₛ + φ·mₛ)` |",
+   "new": "| `Relative(K, φ)` under a scope at `(a, mₛ, cₛ)` | `(a, K·mₛ, cₛ + φ·mₛ)` |",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-072",
+   "old": "| `Absolute(q, τ)` under any scope | severs and re-seeds: a fresh anchor `Aₖ = (period(q), τ)`, its subtree continuing at `(Aₖ, 1, 0)` |",
+   "new": "| `Absolute(q, τ)` under any scope | severs and re-seeds: a fresh anchor `Aₖ = (period(q), τ)`, its subtree continuing at `(Aₖ, 1, 0)` |",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-073",
+   "old": "Anchor 0 is symbolic until deployment.",
+   "new": "Anchor 0 is symbolic until deployment.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-074",
+   "old": "The `Relative` case is the affine law (§10.5) in anchor-tick units.",
+   "new": "The `Relative` case is the affine law (§10.5) in anchor-tick units.",
+   "where": "new",
+   "cites": [
+    "§10.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-075",
+   "old": "The canonical residue (`c < m`) holds within each anchor's subtree by the same induction.",
+   "new": "The canonical residue (`c < m`) holds within each anchor's subtree by the same induction.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-076",
+   "old": "Everything except binding `Δt_base`, which is deployment's, happens in the structure step.",
+   "new": "Everything except binding `Δt_base`, which is deployment's, happens in the structure step.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-077",
+   "old": "Final divisors for anchored entries genuinely cannot exist until `Δt_base` binds.",
+   "new": "When anchors exist, final divisors cannot live here. They do not exist until `Δt_base` binds",
+   "where": "units/A2/new.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R44"
+  },
+  {
+   "id": "A1-078",
+   "old": "The structure step returns `Structure` (the artifact holding everything the instance alone fixes), and that is its whole product (D-253).",
+   "new": "The structure step returns `Structure` (the artifact holding everything the instance alone fixes), and that is its whole product (D-253).",
+   "where": "new",
+   "cites": [
+    "D-253"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-079",
+   "old": "`Structure` carries the component instances by path,",
+   "new": "`Structure` carries the following:",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-080",
+   "old": "the component instances by path,",
+   "new": "- the component instances by path;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-081",
+   "old": "the tier each one sits on,",
+   "new": "- the tier each one sits on;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-082",
+   "old": "the resolved wires,",
+   "new": "- the resolved wires;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-083",
+   "old": "the two-sided face table with each face's routing chain,",
+   "new": "- the two-sided face table, with each face's routing chain;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-084",
+   "old": "the root inputs,",
+   "new": "- the root inputs;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-085",
+   "old": "per component its rate chain of `Relative`/`Absolute` links,",
+   "new": "- per component, its rate chain of `Relative`/`Absolute` links;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-086",
+   "old": "and, for each assembly an explicit `sample_times` key names, the scope triple that key gives it.",
+   "new": "- for each assembly an explicit `sample_times` key names, the scope triple that key gives it.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-087",
+   "old": "Class and contracts are read off the instance on demand.",
+   "new": "Class and contracts are read off the instance on demand.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-088",
+   "old": "Nothing in it depends on a scalar type.",
+   "new": "Nothing in `Structure` depends on a scalar type.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-089",
+   "old": "#### The nominal evaluation",
+   "new": "#### The nominal evaluation",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A1-090",
+   "old": "The nominal evaluation is a function of the `Structure`, and it returns three artifacts, `Outputs`, `Events` and the nominal `Float64` activation (D-253, D-259).",
+   "new": "The nominal evaluation is a function of the `Structure`, and it returns three artifacts, `Outputs`, `Events` and the nominal `Float64` activation (D-253, D-259).",
+   "where": "new",
+   "cites": [
+    "D-253",
+    "D-259"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-091",
+   "old": "It is the single evaluation-feeds-structure step.",
+   "new": "It is the single evaluation-feeds-structure step.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-092",
+   "old": "`Outputs` (the artifact holding the port classification and the order over it) carries per component the stage-1 and stage-2 output names,",
+   "new": "`Outputs` (the artifact holding the port classification and the order over it) carries per component the stage-1 and stage-2 output names.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-093",
+   "old": "and the execution order over the components.",
+   "new": "It also carries the execution order over the components.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-094",
+   "old": "The feedthrough graph the order is computed over is not carried.",
+   "new": "The feedthrough graph the order is computed over is not carried (D-261).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-261"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A1-095",
+   "old": "It is derived from the `Structure`'s connections and the producers' stage-2 names wherever it is shown (D-261).",
+   "new": "It is derived from the `Structure`'s connections and the producers' stage-2 names wherever it is shown.",
+   "where": "new",
+   "cites": [
+    "D-261"
+   ],
+   "newcites": [
+    "D-261"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-096",
+   "old": "`Events` (the artifact holding the event tables) carries per component the event names, their detection policies and the bundle names.",
+   "new": "`Events` (the artifact holding the event tables) carries per component the event names, their detection policies and the bundle names.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-097",
+   "old": "It computes them in this order:",
+   "new": "The nominal evaluation does its work in this order:",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-098",
+   "old": "- Workspace (component-declared mutable scratch arriving as the `ws` bundle field) is allocated at the probing scalar.",
+   "new": "- Workspace (component-declared mutable scratch arriving as the `ws` bundle field) is allocated at the probing scalar, `Float64` (§9.3).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "§9.3"
+   ],
+   "tag": "R",
+   "ruling": "R60"
+  },
+  {
+   "id": "A1-099",
+   "old": "That is sound this early because the allocator reads only the instance and the scalar (D-077), so there is no layout dependence.",
+   "new": "That allocator reads only the instance and the scalar (D-077) and derives nothing from layouts, so it runs before the nominal evaluation's probes that need it.",
+   "where": "units/B/old.md",
+   "cites": [
+    "D-077"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A1-100",
+   "old": "- Stage-1 probes run at `Float64`, on `x_init`/`s_init`/`m_init` values.",
+   "new": "- Stage-1 probes run at `Float64`, on `x_init`/`s_init`/`m_init` values.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-101",
+   "old": "They are well-founded, because the no-feedthrough stage takes no inputs.",
+   "new": "They are well-founded, because the no-feedthrough stage takes no inputs.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-102",
+   "old": "- Ports are classified over `y_types` alone, into two classes: the stage-1 names and the stage-2 remainder (§8.3, D-252).",
+   "new": "- Ports are classified over `y_types` alone, into two classes, the stage-1 names and the stage-2 remainder (§8.3, D-252).",
+   "where": "new",
+   "cites": [
+    "§8.3",
+    "D-252"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-103",
+   "old": "- The feedthrough graph is built from the wires carrying stage-2 ports, and a topological order over it follows.",
+   "new": "- The feedthrough graph is built from the wires carrying stage-2 ports, and a topological order over it follows.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-104",
+   "old": "§5.5 cycle rejection applies.",
+   "new": "§5.5 cycle rejection applies.",
+   "where": "new",
+   "cites": [
+    "§5.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-105",
+   "old": "- The event declarations are read last, after the stage probes, and they become `Events`.",
+   "new": "- The event declarations are read last, after the stage probes, and they become `Events`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-106",
+   "old": "A consumer of the execution order therefore never carries the event tables (D-253).",
+   "new": "A consumer of the execution order therefore never carries the event tables (D-253).",
+   "where": "new",
+   "cites": [
+    "D-253"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-107",
+   "old": "Both products are structural.",
+   "new": "`Outputs` and `Events` are structural.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R11"
+  },
+  {
+   "id": "A1-108",
+   "old": "They are names only, `T`-independent, branch-protected by the branch-shape rule plus the always-on check (§9.5).",
+   "new": "They are names only, `T`-independent, and branch-protected by the branch-shape rule plus the always-on check (§9.5).",
+   "where": "new",
+   "cites": [
+    "§9.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-109",
+   "old": "The nominal evaluation fixes the structure and the `Float64` typing at once.",
+   "new": "The nominal evaluation fixes the structure and the `Float64` typing at once (D-253, D-259).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-253",
+    "D-259"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A1-110",
+   "old": "The nominal activation is its product beside `Outputs` and `Events`, assembled from the same probe chain, never a separate pass (D-253, D-259).",
+   "new": "The nominal activation is its product beside `Outputs` and `Events`. It is assembled from the same probe chain, never in a separate pass.",
+   "where": "new",
+   "cites": [
+    "D-253",
+    "D-259"
+   ],
+   "newcites": [
+    "D-253",
+    "D-259"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-111",
+   "old": "That is why no product of this step changes across activations.",
+   "new": "That is why no product of this step changes across activations.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-112",
+   "old": "#### Activation, parametric in `T`",
+   "new": "#### Activation, parametric in `T`",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A1-113",
+   "old": "Activation at a scalar `T` takes the `Structure`, the `Outputs` and the nominal activation, and completes an `Activation{T}` (D-253, D-259).",
+   "new": "Activation at a scalar `T` takes the `Structure`, the `Outputs` and the nominal activation, and completes an `Activation{T}` (D-253, D-259).",
+   "where": "new",
+   "cites": [
+    "D-253",
+    "D-259"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-114",
+   "old": "The step holds everything type-shaped:",
+   "new": "The step holds everything type-shaped.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A1-115",
+   "old": "- The producers' output declarations are retyped at the activation's `T` to type the cells.",
+   "new": "Producer-fed cells are re-typed by walking the producing component's output declaration at `T` (§8.2).",
+   "where": "docs/reports/20261001_spec_rewrite_sample/versions/v4_flat.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A1-116",
+   "old": "A continuous producer's declaration is walked at `T`, its `Pinned` leaves excepted,",
+   "new": "A continuous producer's declaration follows the scalar at every unpinned leaf.",
+   "where": "docs/reports/20261001_spec_rewrite_sample/versions/v4_flat.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A1-117",
+   "old": "and a discrete producer's is read once and pinned (§8.2).",
+   "new": "A discrete producer's declaration pins.",
+   "where": "docs/reports/20261001_spec_rewrite_sample/versions/v4_flat.md",
+   "cites": [
+    "§8.2"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A1-118",
+   "old": "- The `x_init`-derived state type is walked by the leaf-walk rule (§8.2),",
+   "new": "The state type derived from `x_init` is re-derived by the leaf walk.",
+   "where": "docs/reports/20261001_spec_rewrite_sample/versions/v4_flat.md",
+   "cites": [
+    "§8.2"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A1-119",
+   "old": "and the `s_init`- and `m_init`-derived store types pin.",
+   "new": "`m_init` and `s_init` pin wholesale, mirroring the discrete-producer rule.",
+   "where": "docs/design/spec.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A1-120",
+   "old": "- The probe chain runs in topological order (§9.3), and observed is compared against declared.",
+   "new": "The probe chain runs in topological order (§9.3), and observed is compared against declared.",
+   "where": "new",
+   "cites": [
+    "§9.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A1-121",
+   "old": "- The flat `x` buffer and the table are laid out.",
+   "new": "The table and state buffers are laid out again.",
+   "where": "docs/reports/20261001_spec_rewrite_sample/versions/v4_flat.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A1-122",
+   "old": "The nominal `Float64` activation runs at build.",
+   "new": "The nominal evaluation produces the `Float64` activation at build.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R12"
+  },
+  {
+   "id": "A1-123",
+   "old": "Other activations re-run only this step (§9.4).",
+   "new": "Every other activation re-runs only this step (§9.4).",
+   "where": "new",
+   "cites": [
+    "§9.4"
+   ],
+   "tag": "R",
+   "ruling": "R12"
+  }
+ ],
+ "added": [
+  "§9.1 covers the build's three steps, §9.2 the `Build` and `Deployment` artifacts, §9.3 probing and input synthesis, §9.4 activations, §9.5 the always-on conformance check, §9.6 stopped-sim services as activation clients, and §9.7 the compiled executor.",
+  "It retypes the cells and the walked state type at `T` and lays out the buffers, as §9.4 details.",
+  "This section states the build's steps, what each consumes and produces, and what each checks.",
+  "§9.2 states why final divisors wait for that binding.",
+  "Before a component's class is read, the walk runs the shadowing check (§8.1, D-246)."
+ ],
+ "ruled_additions": [
+  {
+   "span": "Before a component's class is read, the walk runs the shadowing check (§8.1, D-246).",
+   "ruling": "R14"
+  }
+ ]
+}

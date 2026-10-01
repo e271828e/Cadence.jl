@@ -1,0 +1,390 @@
+file	line	cited	entry	field	sentence
+spec.md	170	§9.7			- **Zero-allocation stepping and type stability.** The inner loop allocates nothing, and the test suite asserts it (§7.5, §9.7).
+spec.md	481	§9.1			The build does see it, because the feedthrough graph and stage membership change (§9.1).
+spec.md	698	§9.5			σ = guard(comp, args) # x, m, y, u, t [, ws] — Bool or scalar sign value (§2.1) (; x, m) = handler(comp, args) # x, m, y, u, t [, ws] — keys by the return law below (§9.5) x⁺ = x_projection(comp, x) # manifold projection; positional (below)
+spec.md	740	§9.3			§9.3 already sources the rule.
+spec.md	785	§9.3			An empty `y = (;)` is a `DeadStage` build error at the probe (§9.3).
+spec.md	805	§9.5			This is the same `FieldError`-shaped machinery §13.2 builds for bundles, now running in both directions (§9.5).
+spec.md	1149	§9.3			That evaluation reads state views from `init_*`, out-of-cycle cells from the acyclic prefix's probe values, and in-cycle cells synthesized through `probe_value` (§9.3) under tracer tags.
+spec.md	1167	§9.4			The "tracer activation" (§9.4) names the other variant (D-012), the global set-tracer run as an ordinary activation.
+spec.md	1296	§9.5			The identity rule for an opaque leaf (§9.5) governs a store, never a wire.
+spec.md	1302	§9.1			That is declaration reading, and no user stage code runs (§9.1).
+spec.md	1317	§9.4			A `Dual`-carrying cell exists only inside activations the discrete tier never runs in (§9.4).
+spec.md	1529	§9.5			*Each field of `x_deriv`'s return scatters into its field's block at `T`* (§9.5 states the check).
+spec.md	1546	§9.7			The legality condition of that CSE is exactly the buffer-unchanged-within-a-sweep rule (§9.7).
+spec.md	1615	§9.5			Safety of the substitution rests on the embedding guarantee stated in §9.5.
+spec.md	1677	§9.1			The structure step checks every `s_init` and `m_init` field and reports a violation as `IllegalStoreField` (§9.1, Appendix C, D-231).
+spec.md	1718	§9.4			A discrete allocator receives `Float64` at every activation, because the discrete tier never runs at another scalar (§9.4).
+spec.md	1848	§9.7			The budget is exactly zero, CI-enforced at the §9.7 phase-body seam (`phase_bodies`).
+spec.md	1899	§9.7			Nothing here runs: the executor built in §9.7 is not dispatched until §10.
+spec.md	1979	§9.1			The second is a **shadowing check** in the structural walk (§9.1), run on every component before its class is read (D-246).
+spec.md	2089	§9.7			**Why.** The entry typing decides it (§9.7).
+spec.md	2095	§9.7			It could climb into the type parameters anyway, multiplying specialization and changing the cost model (§9.7) of chunking, the splitting of a large phase body into statically typed chunks.
+spec.md	2099	§9.5			Or it could sit in fields, dissolving the static typing that the zero runtime graph logic (§5.1), the allocation invariant (§7.5) and the fold-away conformance test (§9.5) all rest on.
+spec.md	2166	§9.1			The structure step reports it as `StoreNotNamedTuple`, and the message spells the wrap (§9.1, Appendix C, D-247).
+spec.md	2202	§9.3			Declaring types here too, `u_types`-style, with `probe_value` (§9.3) synthesizing the initial values, was rejected (D-073).
+spec.md	2290	§9.1			No user stage code runs (§9.1), and a violation is `WalkingFaceAtFrozenEntry`.
+spec.md	2298	§9.4			**Why.** A discrete stage reads exclusively at real ticks in the nominal world, and a `Dual`-carrying cell exists only inside activations discrete stages never run in (§9.4).
+spec.md	2303	§9.1			Cell types are single-sourced from the producer side per activation (§9.1), and a `Dual`-carrying cell behind an unpinned entry is the design working, not a promise broken.
+spec.md	2351	§9.5			A pinned root-input cell feeds an unpinned entry lawfully, because frozen values embed upward as zero-partial constants (§9.5).
+spec.md	2443	§9.5			What makes the mixing safe is the **embedding guarantee** (§9.5), keyed on **walking leaves** (D-033).
+spec.md	2464	§9.4			It fails at that activation's own lazy compile (§9.4), not at `build(world)`.
+spec.md	2469	§9.5			The second fails at the same activation, inside the stage where the frozen internals meet a `Dual`, or at the identity comparison on an opaque leaf built from build-time data (§9.5).
+spec.md	2472	§9.4			**The test suite builds a `Dual` activation of every component**, which is the exhaustive set §9.4 defines.
+spec.md	2489	§9.1			The structure step checks both vocabularies (§9.1) and reports a failure in the didactic style:
+spec.md	2543	§9.1			Four rules the build checks in the structure step (§9.1), stated here because they are properties of the declarations, not of the wiring.
+spec.md	2639	§9.1			Stage membership is derived over `y_types` alone (§9.1).
+spec.md	2659	§9.5			Protection against silently dropped partials rests on the embedding guarantee (§9.5).
+spec.md	2818	§9.7			So is the executor, the compiled form of the stage execution order (§9.7).
+spec.md	3196	§9.1			They are deployment decisions fixed at `Simulation` construction (the three sources for `Δt_base`, §9.1).
+spec.md	3233	§9.1			# through §9.1's channel; a bare call over a faceless child is silent label(n) = isempty(prefix) ? n : string(prefix, sep, n) return Tuple(label(n) => string(child_path, "/", n) for n in wanted) end
+spec.md	3272	§9.1			**Rule.** A call that gives a selector and keeps nothing raises `EmptyFaceSelection`, a warning on the `Build`'s list (§9.1, D-251).
+spec.md	4357	§9.7			The boundary sequence it dispatches is fixed in §5.3, the executor it dispatches through is built in §9.7, and the root inputs the periphery writes into are the root component's input faces (§8.6).
+spec.md	4435	§9.2			The `algorithm` keyword selects the backend by type on the `Deployment` (the scalar-free artifact the grid parameters fix), and materialization at `Simulation` construction binds the stepper against the state buffer, on the executor (Appendix B, §9.2, D-227).
+spec.md	4524	§9.3			The build reads the policy off the probe it already runs (§9.3, nominal activation).
+spec.md	4798	§9.1			They stand beside `h`, `N_base` and the algorithm (§9.1, Appendix B).
+spec.md	4884	§9.7			The two sweep variants surface in the phase-body signatures: interior bodies take no arguments, boundary bodies take the tick index (§9.7).
+spec.md	4919	§9.3			The probe's synthesized values (§9.3) reach no published cell.
+spec.md	4950	§9.2			The schedule (the per-component `(D, Φ, Δt)` table the `Deployment` carries) and its hyperperiod chart (§9.2) are how a user audits which pattern a model actually has.
+spec.md	4993	§9.1			**Validation belongs to the structure step**, the build's declaration-reading step, and is collected with path attribution (§9.1, §13.1).
+spec.md	5039	§9.2			That is the question the deployment's `Schedule` (§9.2) exists to answer.
+spec.md	5043	§9.1			A nested anchor simply severs again (the fold, §9.1).
+spec.md	5046	§9.1			**Absolute periods and nonzero offsets jointly constrain the base grid.** They join the deployment-time constraint pool (§9.1).
+spec.md	5049	§9.2			That is why attribution is the engine's job (§9.2).
+spec.md	5054	§9.1			Three discrete components sit under two scopes, at a deployment that binds `Δt_base = 2 ms` (§9.1):
+spec.md	5068	§9.2			Because the gate is pure modulo arithmetic, that one hyperperiod is the complete truth rather than a sample (§9.2):
+spec.md	5548	§9.2			One immutable `Build` is shared across the workers (§9.2), and each `Simulation` owns its own buffers.
+spec.md	5551	§9.4			Pre-materializing the sweep's activations, its per-eltype executable sets via `build(world; activations = …)` (§9.4), then leaves no worker synchronizing on anything.
+spec.md	6179	§9.7			That is the same per-configuration compile trade the executor (§9.7) already makes, now incurred only at stopped-sim attach points.
+spec.md	6343	§9.1			- **The run's `Deployment` and the structural layout.** The deployment (the scalar-free artifact the grid parameters fix) comes from §9.1, and it carries `Δt_base`, `h`, `N_base`, the algorithm identifier, `localization_tol`, `localization_budget` (§10.4) and `firing_budget` (§10.6).
+spec.md	6372	§9.1			The `Deployment` constructor (§9.1) sits outside the `Build`, and the checkpoint carries the clock, `t₀` included (§14.5).
+spec.md	7793	§9.1			The grid parameters, the schedule (the typed per-component `(D, Φ, Δt)` tick table) and the event parameters are the deployment's (§9.1).
+spec.md	8242	§9.1			§9.1 already fixed when each check runs, so §13 fixes only how a failure is reported once it happens.
+spec.md	8244	§9.4			§9.4 supplies the activations trim and linearization run on.
+spec.md	8282	§9.3			A failed stage-2 probe starves every downstream probe of its wired inputs, because probe values flow topologically (§9.3).
+spec.md	8304	§9.1			Deployment validation (§9.1) runs every check whose premise holds and throws once.
+spec.md	8378	§9.3			The declarations of §8.2 and the probed functions of §9.3 are framed alike, each reached through one framing accessor rather than a bare call.
+spec.md	8424	§9.1			**The build produces artifacts, so its warnings live on them.** `Build` and `Deployment` (the scalar-free artifact the grid parameters fix) carry `warnings`, and `warnings(x)` reads the list (§9.1, §9.2).
+spec.md	8425	§9.2			**The build produces artifacts, so its warnings live on them.** `Build` and `Deployment` (the scalar-free artifact the grid parameters fix) carry `warnings`, and `warnings(x)` reads the list (§9.1, §9.2).
+spec.md	8620	§9.5			Conformance failure (§9.5) needs no separate path.
+spec.md	8984	§9.2			**Every artifact renders itself through `show`** (§9.2, D-257).
+spec.md	9161	§9.6			§9.6 previewed the services as activation clients.
+spec.md	9322	§9.2			One-level routing gives every level a declared face for every signal crossing its boundary, so the chain a sub-assembly's face routes through is in the `Build` (§6.1, §9.2).
+spec.md	9390	§9.1			The names and the face chains come from `Structure` (the structure step's product, the components, wires, faces and tiers), never from an activation, since no activation fixes them (§9.1, D-253).
+spec.md	9429	§9.5			The selection is a one-time boundary decision, and it leaves the nominal exact-match doctrine for table cells (§9.5) untouched.
+spec.md	9450	§9.5			The per-iteration shape check is the mechanism of §9.5 transferred.
+spec.md	9713	§9.3			**The probe-value barrier is structural.** The `probe_value` synthesis (§9.3; zero/false/first-enum/`T()`) exists so build-time probes can exercise code with fabricated inputs.
+spec.md	9788	§9.5			§9.5 states the rule this seam runs on: **the names are the pairing, order carries no semantics**.
+spec.md	9866	§9.6			The *default* is nonlinear least squares on $r(d)$ with exact AD Jacobians, in the trust-region/Levenberg–Marquardt family (§9.6).
+spec.md	10041	§9.4			**The frozen cells are established, not probe-seeded.** At the seeded activation the discrete tier is frozen (§9.4).
+spec.md	10379	§9.7			**Rule.** `width` is a keyword of `linearize`, default 8, and the default width's scalar type is public, so a build can pre-materialize its activation through `activations` (§9.7) and a tap set of any size then linearizes with no compile at the keyboard (D-272).
+spec.md	10495	§9.4			- **One new activation** (§9.4): "continuous chain + `x_deriv` + the discrete tier's output stages + `s_update`".
+spec.md	10520	§9.5			Declare the leaf `Pinned{Float64}`, and strip with `ForwardDiff.value` inside the stage (§8.2, §9.5).
+spec.md	10556	§9.5			The stripping happens mid-expression, which §9.5 leaves legal at an unpinned leaf, and the seeded pass sees the component as an ordinary differentiable one.
+spec.md	10668	§9.3			- **Stage totality** (§9.3; §13.4, §13.5).
+spec.md	10795	§9.2			It yields the inspectable derived-contract artifact, `Structure` (the structure step's product, the components, wires, faces and tiers), `Outputs` (the nominal evaluation's product, the port classes and the execution order), `Events` (the nominal evaluation's other product, the event names and policies), the activations and `warnings`; the wire list, face table with routes and root inputs are `Str …
+spec.md	10798	§9.4			`build(world; activations = (Float64, ProbeDual))` additionally pins activation invariants for CI (`ProbeDual` is the public canonical concrete probe scalar, §9.4), and pre-materializes activations so a parallel sweep shares a fully immutable `Build` (§11.1, §9.4).
+spec.md	10799	§9.4			`build(world; activations = (Float64, ProbeDual))` additionally pins activation invariants for CI (`ProbeDual` is the public canonical concrete probe scalar, §9.4), and pre-materializes activations so a parallel sweep shares a fully immutable `Build` (§11.1, §9.4).
+spec.md	10821	§9.1			The artifact the grid parameters fix, scalar-free, carrying the `Schedule` (the typed per-component `(D, Φ, Δt)` tick table), the grid diagnostics and its `warnings` (§9.1, §9.2).
+spec.md	10821	§9.2			The artifact the grid parameters fix, scalar-free, carrying the `Schedule` (the typed per-component `(D, Φ, Δt)` tick table), the grid diagnostics and its `warnings` (§9.1, §9.2).
+spec.md	10827	§9.1			Given it, `N_base` is instead derived and validated an integer ≥ 1 | §9.1 |
+spec.md	10828	§9.1			| `Δt_base` | `nothing` | the base tick period as a `Rational`, `Period` or `Hz` value, or `:derive` to request GCD derivation (all-anchored models only); one of three binding sources | §9.1 |
+spec.md	10833	§9.1			`Δt_base` binds from exactly one of three sources (§9.1).
+spec.md	10838	§9.2			The third, in a fully anchored model omitting both, is derivation from the constraint pool at the coarsest admissible value, printed with its drivers (§9.2).
+spec.md	10861	§9.7			| `chunk_size` | `16` | the executor's unroll width, a performance knob that never moves the trajectory | §9.7, §12.6 |
+spec.md	10871	§9.2			They take the deployment keywords and the materialization keywords above (§9.2).
+spec.md	11085	§9.7			Re-run `init!` to continue (§9.7).
+spec.md	11114	§9.2			The artifact's warning list, on `Build` and `Deployment`, and on `Simulation` as the concatenation of its artifacts' lists (§9.2, §13.2).
+spec.md	11160	§9.1			During one of the build's three steps (§9.1), whether in a declarative pass or while *user code* runs (an interface-connection body, a probe).
+spec.md	11186	§9.2			A warning about the artifact itself fires at most once per call, and its payload is drawn from the artifact the call returns (§9.2, §13.2, §14.8).
+spec.md	11240	§9.1			- **`StoreNotNamedTuple`** (§8.2, §9.1, D-247).
+spec.md	11294	§9.3			- **`MissingProbeValue`** (§9.3).
+spec.md	11316	§9.1			- **`IllegalStoreField`** (§7.3, §8.2, §9.1).
+spec.md	11343	§9.3			- **`DeadStage`** (§5.2, §9.3).
+spec.md	11346	§9.5			- **`ConformanceFailure`** (§9.5).
+spec.md	11351	§9.5			- **`GuardForm`** (§9.5).
+spec.md	11358	§9.5			- **`HandlerReturnKey`** (§5.2, §9.5).
+spec.md	11379	§9.1			- **`DeploymentInvalid`** (§9.1).
+spec.md	11457	§9.1			- **`GridUtilization`** (§9.1, §9.2).
+spec.md	11457	§9.2			- **`GridUtilization`** (§9.1, §9.2).
+spec.md	11496	§9.2			Error · service, or build in a `sample_times` declaration · fail-fast, but collected over a `TableBinding`'s entry table and over the materialization's keywords (§9.2).
+spec.md	11641	§9.2			It is plain printable data (paths, names and rationals), inspectable as fields, with no rendering implied beyond the ones §9.2 names.
+spec.md	11644	§9.2			On a generic holding it is the constraint the referencing wires and interface connections impose on whatever concrete child is plugged in (§8.6, §8.8, §9.2).
+spec.md	11734	§9.7			The spec's compounds are table entry (a cell), input entry (§8.2), executor entry (§9.7), roster entry (§11.3), batch entry (§11.3) and condition entry (§14.3), each a different thing.
+spec.md	11781	§9.2			There are three kinds: a component's workspace (`ws`, §7.3); the integrator's buffers and the mid-step table (§7.5, §10.4); and the store set a service invocation instantiates from the activation's layout and discards with the call (§9.2, §14.8).
+spec.md	11832	§9.1			The hot loop runs a flat list of `(component, stage)` entries, with zero runtime graph logic (§5.1, §9.1).
+spec.md	11868	§9.1			Anchors join the deployment constraint pool, and relative declarations below one compose against it exactly as against the root grid (§10.5, §9.1).
+spec.md	11898	§9.1			Every discrete component's period is an integer multiple of it (§10.5, §9.1).
+spec.md	11974	§9.5			The device loop's running check (§11.6, §12.3) and structural conformance predicates (§9.5) are distinct usages, never linked here.
+spec.md	11997	§9.2			It is the single source of truth for `Δt` and the substrate of the grid diagnostics and the hyperperiod chart (§9.2, §10.5, D-261).
+spec.md	12043	§9.1			The nominal `Float64` activation is the nominal evaluation's product; any other is derived on request from it, the `Structure` and the `Outputs` (§9.1).
+spec.md	12045	§9.4			Non-nominal activations are lazy, with an opt-in exhaustive set for CI (§9.4).
+spec.md	12052	§9.5			A conformant return type generates the straight stores and no check instruction (§9.5, D-235).
+spec.md	12058	§9.2			It is the inspectable contract of the instantiation, and what `attach!`, `stop_on`, replay and condition resolution all validate against (§9.2).
+spec.md	12063	§9.7			It is the implementation's only representation freedom, and it converts compile cost from superlinear in body size to linear in entry count (§9.7).
+spec.md	12069	§9.1			It is scalar-free, it compares as a value, and a `Simulation` materializes it at a scalar type (§9.1, §9.2, D-254).
+spec.md	12069	§9.2			It is scalar-free, it compares as a value, and a `Simulation` materializes it at a scalar type (§9.1, §9.2, D-254).
+spec.md	12074	§9.1			It is separate from `Outputs` because a consumer of the execution order should not carry the event tables (§9.1, D-253).
+spec.md	12079	§9.4			A `Dual` activation sees only the continuous output stages and `x_deriv`, never the discrete stages, `s_update`, guards or handlers (§9.4).
+spec.md	12084	§9.7			<a id="g-executor"></a>**executor** — the compiled form of the stage execution order: a concretely typed tuple of entries over statically typed cell storage, traversed by a compile-time-unrolled walk, with code-selecting facts in type parameters and plain data in fields (§9.7).
+spec.md	12095	§9.1			An output cell is the producer's walked declaration and a root-input cell the consuming entry's, so participation and tolerance are authored per leaf by the marker's absence or presence (§8.2, D-263; applied at activation, §9.1).
+spec.md	12107	§9.7			Its one promise is identity with what the loop runs, which is what makes the allocation assertions (§7.5) honest (§9.7).
+spec.md	12113	§9.4			It is the only activation that runs in real time, and the one where the conformance check demands exact type match (§8.2, §9.4, §9.5).
+spec.md	12113	§9.5			It is the only activation that runs in real time, and the one where the conformance check demands exact type match (§8.2, §9.4, §9.5).
+spec.md	12119	§9.1			The feedthrough graph the order was computed over is derived from the `Structure`'s connections and the stage-2 names where it is shown, never carried (§9.1, D-253, D-261).
+spec.md	12124	§9.3			Probes see only that state's branch (§9.3).
+spec.md	12132	§9.3			They are strictly probe-scoped, never an initial root-input value, which §14.6 makes a structural barrier (§9.3).
+spec.md	12137	§9.4			Its width is arbitrary, since what CI pins is genericity, not a particular Jacobian (§9.4).
+spec.md	12150	§9.1			Nothing in it depends on a scalar type (§9.1, D-253).
+spec.md	12587	§9.2			It holds declared facts, and a consumer compiles what it needs from them at one home (§9.2, D-261).
+spec.md	12592	§9.1			<a id="g-blessed"></a>**blessed** — the spec's marker for a practice it explicitly sanctions where a neighboring one is forbidden: derivation from other declarations (§8.2), the one spot where evaluation feeds structure (§9.1), the workspace-plus-snapshot idiom for zero-allocation ticks (§7.3).
+spec.md	12629	§9.7			<a id="g-seam"></a>**seam** — a narrow, named interface kept deliberately thin so what sits behind it can be replaced or measured: the stepper seam (§10.2), the backend seam (§14.8), the measurement seam (§9.7), the phase-body seams of the compiled executor (§9.7).
+spec.md	12630	§9.7			<a id="g-seam"></a>**seam** — a narrow, named interface kept deliberately thin so what sits behind it can be replaced or measured: the stepper seam (§10.2), the backend seam (§14.8), the measurement seam (§9.7), the phase-body seams of the compiled executor (§9.7).
+decisions.md	496	§9.4	D-012	Spec	**Spec.** §5.6, §9.4
+decisions.md	990	§9.7	D-033	Spec	**Spec.** §4.2, §8.1, §8.2, §9.7
+decisions.md	996	§9.7	D-033	Rationale	Contract declarations are functions of the component's *type*, parameters included (`SumJunction{W,N}`, `Or{N}`), never of field values — `workspace` explicitly exempt (by-allocation, D-077) — because §9.7's entry typing derives the bundle key set from the type; a rule authors keep, not a check the build can run (§8.1).
+decisions.md	1406	§9.2	D-049	Spec	**Spec.** §9.2
+decisions.md	1439	§9.3	D-051	Spec	**Spec.** §6.1, §9.3
+decisions.md	1463	§9.5	D-052	Spec	**Spec.** §9.5
+decisions.md	1488	§9.5	D-053	Spec	**Spec.** §2.1, §9.5
+decisions.md	1643	§9.5	D-059	Position	- §9.5's conformance failure is a species of it.
+decisions.md	1648	§9.5	D-059	Spec	**Spec.** §12.6, §9.5, §13.4, §14
+decisions.md	1812	§9.5	D-066	Position	**Position.** Two ways to apply one compiled plan: specialized `apply!` (`Getter{P}` lenses, unrolled baked stores, zero-alloc; §9.5-style shape check via tree type + literal `===` sweep; ~10–50 ms codegen once per shape) for iterating services; dynamic entry-list walk (microseconds, no per-shape codegen, allocation fine per §7.5) for one-shot init; compiled readers as the gather twin (cost reads, …
+decisions.md	1819	§9.5	D-066	Spec	**Spec.** §7.5, §9.5
+decisions.md	1828	§9.5	D-066	Rejected	- *Per-write convert decisions:* the converter is a resolution-time fact; §9.5's no-convert-on-write stands for table cells.
+decisions.md	1892	§9.3	D-068	Rejected	- *Silent zero-fill of uncovered slots:* the §9.3 probe-value leak — a fabricated zero is a fine probe input and a terrible flight condition.
+decisions.md	2182	§9.1	D-077	Spec	**Spec.** §7.3, §8.1, §8.2, §9.1, §9.3
+decisions.md	2182	§9.3	D-077	Spec	**Spec.** §7.3, §8.1, §8.2, §9.1, §9.3
+decisions.md	2449	§9.7	D-086	Position	**Position.** The compiled executor (§9.7): schedule data compiled per activation into a concretely-typed entry tuple over statically typed storage, walked by compile-time unrolling — §7.5/§9.5/§5.1 are reachable only under full specialization.
+decisions.md	2451	§9.5	D-086	Position	**Position.** The compiled executor (§9.7): schedule data compiled per activation into a concretely-typed entry tuple over statically typed storage, walked by compile-time unrolling — §7.5/§9.5/§5.1 are reachable only under full specialization.
+decisions.md	2454	§9.5	D-086	Spec	**Spec.** §5.1, §7.5, §9.5, §9.7
+decisions.md	2454	§9.7	D-086	Spec	**Spec.** §5.1, §7.5, §9.5, §9.7
+decisions.md	2469	§9.5	D-086	Rejected	- *Vector-of-abstract entries:* per-entry dynamic dispatch boxes stage returns — kills §7.5 and its canary role, unfolds §9.5's check; union splitting rescues only toy scale and cannot close an open method set.
+decisions.md	2564	§9.5	D-090	Position	**Position.** Handler returns are NamedTuples under the bundle law (§5.2, §9.5): `(; x, m)`, a key present iff the store exists AND the handler updates it — a pure FSM returns `(; m = …)`, a reset map `(; x = …)`.
+decisions.md	2567	§9.5	D-090	Spec	**Spec.** §5.2, §9.5
+decisions.md	2830	§9.4	D-099	Rejected	- *Bare `Dual` in the invariant:* §9.4 contradicted its own caching paragraph twelve lines down.
+decisions.md	3047	§9.7	D-106	Spec	**Spec.** §11.3, §12.3, §12.5, §12.7, §9.7
+decisions.md	3051	§9.7	D-106	Rationale	**Rationale.** All write-surface checks move to staging and the drain is pure application, fully compilable against the frozen roster (specialization an implementation freedom, not an obligation — the §9.7 per-configuration compile trade); device death mid-run is not detach — the task dies, the heartbeat reports it, claims and roster entry persist to run end (**reversal of D-087's zombie-claims re …
+decisions.md	3235	§9.5	D-111	Spec	**Spec.** §7.1, §9.5, §13.4, Appendix C
+decisions.md	3298	§9.1	D-113	Spec	**Spec.** §6.1, §8.4, §8.8, §9.1, §14.2, §14.8, Appendix C
+decisions.md	3355	§9.1	D-115	Spec	**Spec.** §9.1, §9.3, §9.4
+decisions.md	3355	§9.3	D-115	Spec	**Spec.** §9.1, §9.3, §9.4
+decisions.md	3355	§9.4	D-115	Spec	**Spec.** §9.1, §9.3, §9.4
+decisions.md	3357	§9.4	D-115	Rationale	**Rationale.** §9.4's activation-time allocator invocation clarified as a re-invocation, not an introduction.
+decisions.md	3365	§9.2	D-115	Rejected	- *Sourcing `t` from deployment or `t₀`:* both post-date the standalone build, §9.2.
+decisions.md	3384	§9.7	D-116	Spec	**Spec.** §7.5, §9.7, Appendix B
+decisions.md	3484	§9.2	D-119	Spec	**Spec.** §9.2, Appendix B
+decisions.md	3611	§9.1	D-123	Spec	**Spec.** §3, §11.1, §11.3–§11.6, §8.1, §8.2, §8.6, §9.1, §13.7, §3.4, Appendix D
+decisions.md	3619	§9.1	D-123	Rationale	Drafting doubled as an audit and closed D-122's application stragglers (component-sense "kind" residue in §3, §11.3–§11.6, §8.2/§8.6, §9.1, §13.7, §3.4, §8.6, `flight_case_studies.md`; `KindMixed` → `ClassMixed`, completing the diagnostic-name half).
+decisions.md	3852	§9.5	D-131	Spec	**Spec.** §5.3, §6.2, §7, §7.1, §7.5, §11.4, §11.7, §12, §12.6, §9.5, §13.4, §14, §14.6, Appendix B, §D.3, §D.6, §D.8
+decisions.md	3859	§9.5	D-131	Rationale	**Rationale.** `pending.md`'s GUI panel entry lists orphan display among the settled semantics, not the deleted claim-transition policy (D-047, D-106); §11.7's closing constraint bakes port resolution *and* the liveness verdict at run start, matching its own mid-text, the C172X case study (`flight_case_studies.md`) and §D.6; three D-122 stragglers renamed (§9.5's probe-derived *predicate* form, Ap …
+decisions.md	3865	§9.5	D-131	Rationale	**Rationale.** `pending.md`'s GUI panel entry lists orphan display among the settled semantics, not the deleted claim-transition policy (D-047, D-106); §11.7's closing constraint bakes port resolution *and* the liveness verdict at run start, matching its own mid-text, the C172X case study (`flight_case_studies.md`) and §D.6; three D-122 stragglers renamed (§9.5's probe-derived *predicate* form, Ap …
+decisions.md	3981	§9.1	D-133	Spec	**Spec.** §10.4, §10.5, §10.7, §11.5, §12.2, §12.4, §12.4(1), §12.4(5), §12.6, §12.7, §9.1, §13.2, §13.5, Appendix B, Appendix C, Appendix D
+decisions.md	4097	§9.4	D-135	Position	**Position.** Amending D-052, the activation cache is scoped to **immutable compiled artifacts** — layouts, compiled plans, the validated flag — keyed by concrete scalar type and living on the **`Build`**, since an activation is a pure function of the build and the scalar (§9.4's own words).
+decisions.md	4099	§9.2	D-135	Spec	**Spec.** §7.5, §11.1, §9.2, §9.4, §14.8
+decisions.md	4099	§9.4	D-135	Spec	**Spec.** §7.5, §11.1, §9.2, §9.4, §14.8
+decisions.md	4115	§9.2	D-135	Rationale	Two consequences stated where they belong: the `Build` is an **immutable artifact that may back any number of `Simulation`s, concurrently** (§9.2 — true by construction once buffers are single-owner, which is what §9.2's `Simulation(build::Build; …)` factorization plus §11.1's inline-`run!` parallel sweeps were already inviting), and **lazy materialization is torn-state-free under concurrent first …
+decisions.md	4116	§9.2	D-135	Rationale	Two consequences stated where they belong: the `Build` is an **immutable artifact that may back any number of `Simulation`s, concurrently** (§9.2 — true by construction once buffers are single-owner, which is what §9.2's `Simulation(build::Build; …)` factorization plus §11.1's inline-`run!` parallel sweeps were already inviting), and **lazy materialization is torn-state-free under concurrent first …
+decisions.md	4130	§9.2	D-135	Rejected	- *Per-`Simulation` activation caches:* defeats the sharing §9.2's artifact factorization bought: every worker re-probes and re-compiles.
+decisions.md	4371	§9.6	D-139	Spec	**Spec.** §4.4, §5.3, §9.6, §14.1, §14.2, §14.7, §14.9, Appendices A/D
+decisions.md	4400	§9.6	D-139	Rationale	§9.6's "`Kinematics.Initializer` … survives untouched, aircraft-side" is **corrected**: it survives aircraft-side with its `atmosphere::Model` argument respelled as a field handle (built at value level per §4.4, or held as a rig slot value).
+decisions.md	4614	§9.3	D-142	Spec	**Spec.** §9.3, §13.1, §13.4, §13.5, Appendix A
+decisions.md	4620	§9.3	D-142	Rationale	Three patterns in shipped `landinggear.jl`, all walked by the dry run, get three distinct dispositions: (i) plausibility termination — `GroundCrash` thrown on `α_ts`/`ξ_dot` thresholds (`:330-346`) — migrates to a published `Bool` output face plus `stop_on`, §13.5's existing machinery, so §9.3 only cross-references it; (ii) numerical self-consistency asserts — `@assert abs(v_ec_c[3]) < 1e-8` (`:32 …
+decisions.md	4632	§9.3	D-142	Rationale	The statement lands as one §9.3 paragraph, written as the dual of "physically silly values are acceptable by construction" (they are acceptable because the author is obliged to accept them), plus one Appendix A recall line.
+decisions.md	4748	§9.1	D-144	Spec	**Spec.** §11.6, §8.1, §8.6, §8.8, §9.1, §13.3, §13.7, §14.4, Appendix B (swept)
+decisions.md	4926	§9.7	D-147	Spec	**Spec.** §5.3, §10.3, §10.4, §10.5, §10.6, §9.7, §14.5, Appendix D
+decisions.md	4928	§9.7	D-147	Rationale	**Rationale.** The split also recovers an implicit commitment: §9.7's recompilation-granularity sentence — editing a discrete component invalidates the boundary body, not the RHS body — is true only under a two-body split, and was quietly falsified by the single-mechanism reading.
+decisions.md	4948	§9.7	D-147	Rejected	- *A single parameterized body taking a sentinel "no ticks due" index* on mid-step calls: identical semantics, rejected on three counts — it pays a dead runtime test per discrete entry in the framework's hottest path, where the static split pays nothing at all; it puts discrete entries back into the RHS-side body, falsifying §9.7's recompilation-granularity claim; and it conflates two execution co …
+decisions.md	4975	§9.5	D-148	Spec	**Spec.** §9.5, §14.3, §14.4, §14.7, §14.10
+decisions.md	4989	§9.5	D-148	Rationale	**§14.10 needs no amendment** — a linearization operating-point condition is authored decision-free, so all its leaves are `Float64`-typed and case (ii) reproduces its behavior by construction — and the surrounding commitments are intact: §9.5's nominal exact-match doctrine for table cells is untouched (at the nominal activation the activation scalar *is* `Float64`, so case (i) is the ordinary con …
+decisions.md	5029	§9.3	D-149	Spec	**Spec.** §11.3, §9.3, §14.6, §14.8, Appendix B, §D.8
+decisions.md	5031	§9.3	D-149	Rationale	**Rationale.** A round-5 kernel dry-run finding (finding 4; §11.3, §9.3, Appendix B and §D.8 swept), amending D-068's two-site placement.
+decisions.md	5120	§9.5	D-151	Position	At each seam the framework canonicalizes by a **type-level reorder** (`NamedTuple{canonical_names}(y)`), a compile-time permutation of an already-typed value that SROA folds away exactly where the existing test folds — so §9.5 keeps one whole-type `isa` (never per-field checks) and §7.5's canary verifies the fold empirically.
+decisions.md	5123	§9.5	D-151	Spec	**Spec.** §7.5, §9.5, §14.7, §14.8, Appendices B/C/D (as touched)
+decisions.md	5160	§9.5	D-152	Spec	**Spec.** §5.3, §10.6, §9.5
+decisions.md	5163	§9.5	D-152	Rationale	Auto-published cells belong to no stage (§9.5), so D-016's stages-only spelling left them stale between same-component events (a second handler reading its own auto-published mode/state port — the Engine's `ω`, the LQR's `sat_out_0` — would latch a pre-transition value silently, the next round's re-sweep repairing the cell but not the latched value).
+decisions.md	5300	§9.7	D-156	Spec	**Spec.** §10.1, §10.2, §9.7, §14.8
+decisions.md	5436	§9.7	D-162	Position	**Position.** **C2 adopted — per-eltype homogeneous cell stores: cells flattened by §7.1's leaf walk into one contiguous buffer per element type, build-time offsets carried in entry fields, the port type in the address token's parameter** (§9.7 amended).
+decisions.md	5438	§9.7	D-162	Spec	**Spec.** §7.1, §9.7
+decisions.md	5453	§9.7	D-162	Rationale	On the 8-partial `Dual` activation the ratio narrows (3.5× at N = 200) but the shape is what counts: C2's compile *saturates* at ~9 s from N ≈ 50, bounded by chunk-type count rather than model size — which demotes §9.7's mitigation ladder to optional — while C1's climbs unbounded (0.83 → 35.1 s at N = 200, still rising).
+decisions.md	5478	§9.7	D-163	Spec	**Spec.** §6.2, §7.5, §9.7
+decisions.md	5482	§9.7	D-163	Rationale	Two consequences past test hygiene: §9.7's chunk size remains a genuine implementation freedom only while no test asserts bit-exactness across chunk sizes, and the FlightCore value comparison in `migration_outline.md` is a tolerance comparison by construction, not by concession.
+decisions.md	5538	§9.5	D-165	Spec	**Spec.** §5.2, §5.4, §7.5, §11.2, §8.3, §9.5, §9.7, §13.2, §14.4
+decisions.md	5538	§9.7	D-165	Spec	**Spec.** §5.2, §5.4, §7.5, §11.2, §8.3, §9.5, §9.7, §13.2, §14.4
+decisions.md	5585	§9.7	D-165	Rationale	`local_types` is deleted with its satellites: stage membership derives over `output_types` alone; `ContractNameCollision` retired; `UndeclaredReturnField` candidates = `output_types`; `get_local` retired from the §14.4 selector family and §11.2's read bindings — the inspection path for intermediates is *promote to output* (FlightCore precedent: intermediates were only ever inspected by inclusion i …
+decisions.md	5637	§9.4	D-166	Spec	**Spec.** §7.1, §7.3, §8.1, §8.2, §8.5, §9.4, §9.5, §14.10, Appendix D
+decisions.md	5637	§9.5	D-166	Spec	**Spec.** §7.1, §7.3, §8.1, §8.2, §8.5, §9.4, §9.5, §14.10, Appendix D
+decisions.md	5649	§9.5	D-166	Rationale	§9.5's embed-accept is re-keyed on declared-`T` leaves: a `T` leaf accepts exactly {activation scalar, `Float64`-embedded-as-zero-partial}; the constant-branch idiom (`flow > 0 ? f(x) : 0.0`) stays legal as written.
+decisions.md	5814	§9.5	D-168	Spec	**Spec.** §6.1, §11.3, §8.2, §9.5, §14.10
+decisions.md	5821	§9.5	D-168	Rationale	**Rationale.** Mixed tolerance is a legitimate configuration rather than a mistake — one command consumed by a promoting aerodynamics leaf and by an AD-opaque table is §8.2's FFI door in use — and the meet is the only assignment satisfying every consumer at once, forced by the direction of embedding: a pinned cell feeds a `T` entry lawfully (zero-partial embedding, §9.5) while a `Dual` arriving at …
+decisions.md	5860	§9.3	D-169	Spec	**Spec.** §5.2, §5.3, §5.6, §7.4, §9.3, §13.2, Appendix B, Appendix D
+decisions.md	5862	§9.3	D-169	Rationale	**Rationale.** It is also what §9.3 already sources (the stage-1 *probe's return*), so the clause records existing machinery rather than changing it; corollary, stated because it is the case a reader will hit: a component whose only stage-1 ports are auto-published has no `y_x` in its stage-2 bundle at all, and a stage-2 function destructuring one meets §13.2's framing diagnostic.
+decisions.md	5991	§9.3	D-173	Spec	**Spec.** §3.2, §5.2, §5.3, §7.3, §8.2, §8.7, §9.3, §9.5, §13.7, §14.1, §5.3, §3.4, §8.6, Appendix C (all companions swept), Appendix D
+decisions.md	5991	§9.5	D-173	Spec	**Spec.** §3.2, §5.2, §5.3, §7.3, §8.2, §8.7, §9.3, §9.5, §13.7, §14.1, §5.3, §3.4, §8.6, Appendix C (all companions swept), Appendix D
+decisions.md	6267	§9.3	D-179	Spec	**Spec.** §2.1, §10.4, §8.1, §9.3, §9.5
+decisions.md	6267	§9.5	D-179	Spec	**Spec.** §2.1, §10.4, §8.1, §9.3, §9.5
+decisions.md	6278	§9.3	D-179	Rejected	- *The `localize` keyword, the prior design:* redundant with the probed form — the §9.3 probe already observes it; every policy flip touches two sites, manufacturing the desync mistake the build check then polices.
+decisions.md	6461	§9.7	D-185	Spec	**Spec.** §10.5, §8.7, §9.7, §13.1, §14.5, §14.8
+decisions.md	6512	§9.1	D-186	Spec	**Spec.** §10.5, §9.1, §9.2, Appendix B
+decisions.md	6512	§9.2	D-186	Spec	**Spec.** §10.5, §9.1, §9.2, Appendix B
+decisions.md	6566	§9.1	D-187	Spec	**Spec.** §9.1, §9.2, Appendices B/C
+decisions.md	6566	§9.2	D-187	Spec	**Spec.** §9.1, §9.2, Appendices B/C
+decisions.md	6647	§9.5	D-190	Spec	**Spec.** §7.1, §9.5
+decisions.md	6651	§9.5	D-190	Rationale	**Rationale.** Derived from the closed leaf vocabulary (D-094) and the build-time flat layout — derivative completeness is a property of the layout, checked structurally at §9.5 (each field of `f`'s return scatters into its field's block at `T`), never of author discipline.
+decisions.md	6770	§9.7	D-194	Position	- Round fusion ceases to be a design constraint on the executor (§9.7): passes communicate only through the table and the stores, no value crosses a phase-body or chunk seam, and the phase-body arities carry the tick index alone.
+decisions.md	6776	§9.5	D-194	Position	- `w`'s nominal-only conformance carve-out is retired with it: promoted intermediates carry declared types (D-166), embed-accept keeps the constant-branch idiom legal, and the §9.5 check covers them at every activation.
+decisions.md	6779	§9.3	D-194	Position	- `DeadStage`'s ground simplifies: a stage returning `(;)` produces no ports and is dead (§9.3).
+decisions.md	6787	§9.1	D-194	Spec	**Spec.** §4.2, §4.3, §5.2, §5.3, §5.4, §8.3, §9.1, §9.3, §9.5, §9.7, Appendix B, Appendix C, Appendix D
+decisions.md	6787	§9.3	D-194	Spec	**Spec.** §4.2, §4.3, §5.2, §5.3, §5.4, §8.3, §9.1, §9.3, §9.5, §9.7, Appendix B, Appendix C, Appendix D
+decisions.md	6787	§9.5	D-194	Spec	**Spec.** §4.2, §4.3, §5.2, §5.3, §5.4, §8.3, §9.1, §9.3, §9.5, §9.7, Appendix B, Appendix C, Appendix D
+decisions.md	6787	§9.7	D-194	Spec	**Spec.** §4.2, §4.3, §5.2, §5.3, §5.4, §8.3, §9.1, §9.3, §9.5, §9.7, Appendix B, Appendix C, Appendix D
+decisions.md	6801	§9.7	D-194	Rationale	What D-165 could not see, and the kernel prototype's increment-3 design work surfaced, is where the SSA hand-off lands: the one-hop pairs span phase bodies, so `w` must thread through the §9.7 roster's call signatures and every chunk seam between producer and consumer, round fusion hardens from optimization into obligation, and under §10.5's gating a not-due producer forces `Union`-shaped slots in …
+decisions.md	6852	§9.3	D-195	Spec	**Spec.** §3.2, §5.2, §5.3, §7.3, §8.2, §8.7, §9.3, §9.5, §12.5, §13.7, §14.1, §3.4, §8.6, Appendix A, Appendix B, Appendix C, Appendix D (all companions swept)
+decisions.md	6852	§9.5	D-195	Spec	**Spec.** §3.2, §5.2, §5.3, §7.3, §8.2, §8.7, §9.3, §9.5, §12.5, §13.7, §14.1, §3.4, §8.6, Appendix A, Appendix B, Appendix C, Appendix D (all companions swept)
+decisions.md	6859	§9.1	D-195	Rationale	**Rationale.** D-173 correctly retired `z` but recycled the continuous letter, erasing a real distinction: the discrete state is a different object — no derivative, any isbits type (pinned, eltype-generic or mixed), latched between ticks, stored in per-component state stores where the continuous state lives in the flat buffer (§9.1) — and one letter made leaf declarations and framework prose read  …
+decisions.md	6898	§9.7	D-196	Spec	**Spec.** §9.7, Appendix B, Appendix D
+decisions.md	7220	§9.3	D-205	Rationale	**Rationale.** The probe-seed residue was mechanism economy, not a modeling claim: D-185's gate at index 0, "implemented by nothing", left non-due output cells holding §9.3's synthesized values, and the spec carried the consequence as a caveat at both sites (§14.5's sweep bullet, §14.8's committed-residual read-back).
+decisions.md	7239	§9.3	D-205	Rejected	- *Probe-seed residue — the prior position:* non-due cells holding §9.3's synthesized values until first tick.
+decisions.md	7306	§9.2	D-207	Spec	**Spec.** §6.1, §8.6, §8.8, §9.2, §13.3, §14.2, §14.3
+decisions.md	7353	§9.1	D-208	Spec	**Spec.** §8.2, §8.6, §9.1, §9.3, §11.3, §13.7
+decisions.md	7353	§9.3	D-208	Spec	**Spec.** §8.2, §8.6, §9.1, §9.3, §11.3, §13.7
+decisions.md	7410	§9.2	D-210	Rationale	The empty routing tuple is the same class of silence one level down: it contributes no consumer, so it is invisible to the total face graph D-207 requires (§9.2), and a condition addressing that face at a non-root level misdiagnoses as "declares no input face" — byte-identical to the diagnostic a bare typo earns.
+decisions.md	7542	§9.4	D-213	Rationale	D-205 removed that class from the published world, but its "no published cell holds probe values" carried an unstated frozen-component asterisk, and §9.4's "gated off holding `Float64` values" never said which values.
+decisions.md	7555	§9.4	D-213	Rejected	- *Running the discrete output stages at the seeded activation:* they would see a `Dual`, against §9.4's executable-set rule and §8.2's frozen-constant semantics; and it would invite discrete `s` decision variables whose partials the frozen tier cannot carry.
+decisions.md	7888	§9.3	D-220	Spec	**Spec.** §2.1, §3.2, §4.3, §4.4, §5.2, §5.3, §5.4, §6.2, §7.1, §7.3, §7.4, §7.5, §8.1, §8.2, §8.5, §9.3, §9.4, §9.5, §9.7, §10.4, §10.5, §10.6, §12.5, §13.4, §13.5, §13.6, §13.7, §14.5, §14.7, §14.8, §14.10, §3.4, §8.6, Appendix A, Appendix B, Appendix C, Appendix D
+decisions.md	7888	§9.4	D-220	Spec	**Spec.** §2.1, §3.2, §4.3, §4.4, §5.2, §5.3, §5.4, §6.2, §7.1, §7.3, §7.4, §7.5, §8.1, §8.2, §8.5, §9.3, §9.4, §9.5, §9.7, §10.4, §10.5, §10.6, §12.5, §13.4, §13.5, §13.6, §13.7, §14.5, §14.7, §14.8, §14.10, §3.4, §8.6, Appendix A, Appendix B, Appendix C, Appendix D
+decisions.md	7888	§9.5	D-220	Spec	**Spec.** §2.1, §3.2, §4.3, §4.4, §5.2, §5.3, §5.4, §6.2, §7.1, §7.3, §7.4, §7.5, §8.1, §8.2, §8.5, §9.3, §9.4, §9.5, §9.7, §10.4, §10.5, §10.6, §12.5, §13.4, §13.5, §13.6, §13.7, §14.5, §14.7, §14.8, §14.10, §3.4, §8.6, Appendix A, Appendix B, Appendix C, Appendix D
+decisions.md	7888	§9.7	D-220	Spec	**Spec.** §2.1, §3.2, §4.3, §4.4, §5.2, §5.3, §5.4, §6.2, §7.1, §7.3, §7.4, §7.5, §8.1, §8.2, §8.5, §9.3, §9.4, §9.5, §9.7, §10.4, §10.5, §10.6, §12.5, §13.4, §13.5, §13.6, §13.7, §14.5, §14.7, §14.8, §14.10, §3.4, §8.6, Appendix A, Appendix B, Appendix C, Appendix D
+decisions.md	7986	§9.5	D-221	Spec	**Spec.** §9.5, §13.2, §13.4, Appendix C, Appendix D
+decisions.md	8176	§9.4	D-226	Spec	**Spec.** §4.4, §9.4, Appendix B, Appendix D
+decisions.md	8182	§9.4	D-226	Rationale	§4.4's value-level constructor is a function a model package must expose so condition math can call it outside any sweep; §9.4's `ProbeDual` is a name a CI activation list spells.
+decisions.md	8215	§9.1	D-227	Spec	**Spec.** §9.1, §10.2, §11.5, Appendix B, Appendix C
+decisions.md	8294	§9.1	D-229	Position	Deployment validation (§9.1) runs every check whose premise holds and throws once.
+decisions.md	8297	§9.1	D-229	Spec	**Spec.** §9.1, §13.1, Appendix C
+decisions.md	8332	§9.1	D-229	Rejected	- *Deployment fail-fast under the service policy:* §9.1 and §10.4 both spell deployment validation collected, the keyword pass already collects, and the dependency rule covers the dependent `bind_schedule` arms without a new concept.
+decisions.md	8381	§9.1	D-231	Spec	**Spec.** §3.2, §7.3, §8.2, §9.1, Appendix C, Appendix D
+decisions.md	8489	§9.1	D-234	Spec	**Spec.** §9.1, §10.5, Appendix B, Appendix D
+decisions.md	8525	§9.5	D-235	Spec	**Spec.** §7.1, §9.5, Appendix C
+decisions.md	8530	§9.5	D-235	Rationale	D-166's embed-accept makes "types equal or refuse" impossible at the write: a `Float64` at a declared-`T` cell under a non-nominal activation is lawful, and storing it into the `T` buffer is the zero-partial embedding §9.5 describes.
+decisions.md	8582	§9.1	D-236	Spec	**Spec.** §6.1, §8.2, §9.1, Appendix C
+decisions.md	8636	§9.5	D-237	Spec	**Spec.** §4.3, §4.4, §9.5, Appendix C
+decisions.md	8691	§9.5	D-238	Spec	**Spec.** §6.1, §9.5
+decisions.md	8703	§9.5	D-238	Rationale	A parallel walk over the two types' parameters, lifting a `Float64` in `V` where `P` has `T` and leaving every other position as written, is D-166's statement decided on the type: §9.5's exact match at nominal is the case where nothing lifts and the relation is `===`, and the embedding is the one asymmetry.
+decisions.md	9058	§9.1	D-247	Spec	**Spec.** §7.1, §8.2, §9.1, Appendix C
+decisions.md	9079	§9.5	D-247	Rationale	Every service reaches a leaf by its field name: the condition overlay is a `NamedTuple` merge keyed on it (§14.1), readers and the trace header spell `plant/x.q` (§11.5, §14.4), the trim problem's decisions and residuals name it (§14.7), auto-publication publishes a state field as the port of the same name (§5.3), the return laws pair by it (§9.5), and the payloads of `IllegalStateLeaf` and `Confo …
+decisions.md	9107	§9.5	D-247	Rejected	- *A `:return_type` arm on `ConformanceFailure`:* a declaration-reading failure filed under §9.5's probed, fail-fast return law.
+decisions.md	9120	§9.3	D-248	Position	- The framed set is the declarations of §8.2 and the probed functions of §9.3 alike.
+decisions.md	9132	§9.3	D-248	Spec	**Spec.** §5.2, §9.3, §13.2, §13.4, Appendix C
+decisions.md	9177	§9.5	D-249	Position	The `StepError` carrier's frame holds the boundary time and the replay index, and that satisfies §9.5.
+decisions.md	9184	§9.5	D-249	Spec	**Spec.** §8.5, §8.6, §9.5, §12.7, §13.5, Appendix C
+decisions.md	9257	§9.1	D-250	Spec	**Spec.** §9.1, §9.2, §11.3, §11.8, §13.2, Appendix C
+decisions.md	9257	§9.2	D-250	Spec	**Spec.** §9.1, §9.2, §11.3, §11.8, §13.2, Appendix C
+decisions.md	9351	§9.1	D-252	Spec	**Spec.** §5.2, §5.3, §7.5, §8.3, §9.1, §9.3, §10.6, §13.2, Appendix B, Appendix C, Appendix D
+decisions.md	9351	§9.3	D-252	Spec	**Spec.** §5.2, §5.3, §7.5, §8.3, §9.1, §9.3, §10.6, §13.2, Appendix B, Appendix C, Appendix D
+decisions.md	9414	§9.1	D-253	Position	- §9.1 says Stratum B is the nominal evaluation's structural half, and the nominal activation is B's products plus C's typing.
+decisions.md	9417	§9.1	D-253	Spec	**Spec.** §9.1, §9.2, §9.3, §9.4, §13.3, §13.4, §13.7, §14.1, §14.4
+decisions.md	9417	§9.2	D-253	Spec	**Spec.** §9.1, §9.2, §9.3, §9.4, §13.3, §13.4, §13.7, §14.1, §14.4
+decisions.md	9417	§9.3	D-253	Spec	**Spec.** §9.1, §9.2, §9.3, §9.4, §13.3, §13.4, §13.7, §14.1, §14.4
+decisions.md	9417	§9.4	D-253	Spec	**Spec.** §9.1, §9.2, §9.3, §9.4, §13.3, §13.4, §13.7, §14.1, §14.4
+decisions.md	9472	§9.1	D-254	Spec	**Spec.** §9.1, §9.2, §10.5, §11.5, §12.7, Appendix C
+decisions.md	9472	§9.2	D-254	Spec	**Spec.** §9.1, §9.2, §10.5, §11.5, §12.7, Appendix C
+decisions.md	9610	§9.7	D-256	Spec	**Spec.** §9.7, §11.2, §11.8, §12.1, §12.4, Appendix B, Appendix C
+decisions.md	9659	§9.2	D-257	Spec	**Spec.** §9.2, §13.7
+decisions.md	9661	§9.2	D-257	Rationale	**Rationale.** §9.2 owes the anchor table, the component table and the hyperperiod chart, and D-187 gave the chart a guard "against absurd hyperperiods" without saying what the guard does.
+decisions.md	9690	§9.1	D-258	Spec	**Spec.** §5.1, §5.3, §9.1, §9.2, §10.5, Appendix D
+decisions.md	9690	§9.2	D-258	Spec	**Spec.** §5.1, §5.3, §9.1, §9.2, §10.5, Appendix D
+decisions.md	9722	§9.1	D-259	Position	§9.1 opens with a table of what each step consumes and produces, with the deployment and the materialization on it as the steps after the build.
+decisions.md	9730	§9.6	D-259	Position	- The activation gloss is "the build's typed products at a given scalar type". "Stratum A" reads "the structure step", "Stratum B" "the nominal evaluation", "Stratum C" "activation"; Appendix C's group headings, §9.6's heading and the glossary follow.
+decisions.md	9736	§9.1	D-259	Spec	**Spec.** §5.6, §6.1, §8.2, §8.5, §9.1, §9.2, §9.4, §9.6, §13.1, §13.2, §13.3, §14.3, Appendix C, Appendix D
+decisions.md	9736	§9.2	D-259	Spec	**Spec.** §5.6, §6.1, §8.2, §8.5, §9.1, §9.2, §9.4, §9.6, §13.1, §13.2, §13.3, §14.3, Appendix C, Appendix D
+decisions.md	9736	§9.4	D-259	Spec	**Spec.** §5.6, §6.1, §8.2, §8.5, §9.1, §9.2, §9.4, §9.6, §13.1, §13.2, §13.3, §14.3, Appendix C, Appendix D
+decisions.md	9736	§9.6	D-259	Spec	**Spec.** §5.6, §6.1, §8.2, §8.5, §9.1, §9.2, §9.4, §9.6, §13.1, §13.2, §13.3, §14.3, Appendix C, Appendix D
+decisions.md	9746	§9.1	D-259	Rationale	D-253 as first written had Stratum C complete the nominal activation from B's stage-1 products, but `Events` is probed against every component's complete nominal product and the layout, so B runs the whole nominal chain, and a C run at `Float64` would be the separate pass §9.1 forbade.
+decisions.md	9754	§9.2	D-259	Rationale	Everything the strata carried survives without the word: the barrier rule, the line between declaration reading and evaluation, and the line between structural and typed products. "Step" is the noun because the spec already uses it for deploying and materializing (§9.2), and the integration step is always qualified ("integration step", "step boundary", `step!`).
+decisions.md	9847	§9.2	D-260	Rejected	- *The `Run` holding the `Simulation`:* every run would be a live handle to the executor's buffers, so a stale run after a warm restart would advance the new trajectory under the old run's name, an invariant with no enforcer (§9.2).
+decisions.md	9924	§9.2	D-261	Spec	**Spec.** §9.2, §11.2, §11.3, §11.5, §12.6, §13.5, Appendix B
+decisions.md	10092	§9.1	D-263	Spec	**Spec.** §4.3, §6.1, §6.2, §7.2, §7.3, §8.1, §8.2, §8.3, §8.5, §8.6, §9.1, §9.4, §9.5, §13.7, §14.10, Appendix A, Appendix C, Appendix D
+decisions.md	10093	§9.4	D-263	Spec	**Spec.** §4.3, §6.1, §6.2, §7.2, §7.3, §8.1, §8.2, §8.3, §8.5, §8.6, §9.1, §9.4, §9.5, §13.7, §14.10, Appendix A, Appendix C, Appendix D
+decisions.md	10093	§9.5	D-263	Spec	**Spec.** §4.3, §6.1, §6.2, §7.2, §7.3, §8.1, §8.2, §8.3, §8.5, §8.6, §9.1, §9.4, §9.5, §13.7, §14.10, Appendix A, Appendix C, Appendix D
+decisions.md	10127	§9.5	D-263	Rationale	The embedding guarantee (§9.5) is untouched.
+decisions.md	10222	§9.5	D-264	Spec	**Spec.** §6.1, §8.2, §9.5, Appendix C
+decisions.md	10236	§9.5	D-264	Rationale	§9.5's argument for why a `Float64` at a walking leaf is honest applies unchanged.
+decisions.md	10356	§9.5	D-266	Rationale	**Rationale.** A `Dual` can never become a `Float64` without discarding its partials, and §9.5 rules that no lossy cast exists inside the framework.
+decisions.md	10372	§9.5	D-266	Rationale	The stripping happens mid-expression, which §9.5 leaves legal at an unpinned leaf, and the seeded pass sees an ordinary differentiable component.
+decisions.md	10397	§9.5	D-266	Rejected	- *The framework stripping partials at a walking-into-pinned wire:* the discard is a modelling decision, and an invisible one is the class §9.5 calls the silent zero in the Jacobian.
+decisions.md	10428	§9.1	D-267	Spec	**Spec.** §3.4, §4.1, §4.3, §4.4, §5.2, §5.3, §5.4, §6.2, §7.1, §7.2, §7.3, §7.4, §7.5, §8.1, §8.2, §8.3, §8.4, §8.5, §8.6, §8.8, §9.1, §9.3, §9.4, §9.5, §9.7, §10.5, §10.6, §11.2, §11.3, §12.5, §13.1, §13.3, §13.4, §13.5, §13.7, §14.3, §14.4, §14.5, §14.7, §14.8, §14.10, Appendix A, Appendix B, Appendix C, Appendix D
+decisions.md	10428	§9.3	D-267	Spec	**Spec.** §3.4, §4.1, §4.3, §4.4, §5.2, §5.3, §5.4, §6.2, §7.1, §7.2, §7.3, §7.4, §7.5, §8.1, §8.2, §8.3, §8.4, §8.5, §8.6, §8.8, §9.1, §9.3, §9.4, §9.5, §9.7, §10.5, §10.6, §11.2, §11.3, §12.5, §13.1, §13.3, §13.4, §13.5, §13.7, §14.3, §14.4, §14.5, §14.7, §14.8, §14.10, Appendix A, Appendix B, Appendix C, Appendix D
+decisions.md	10428	§9.4	D-267	Spec	**Spec.** §3.4, §4.1, §4.3, §4.4, §5.2, §5.3, §5.4, §6.2, §7.1, §7.2, §7.3, §7.4, §7.5, §8.1, §8.2, §8.3, §8.4, §8.5, §8.6, §8.8, §9.1, §9.3, §9.4, §9.5, §9.7, §10.5, §10.6, §11.2, §11.3, §12.5, §13.1, §13.3, §13.4, §13.5, §13.7, §14.3, §14.4, §14.5, §14.7, §14.8, §14.10, Appendix A, Appendix B, Appendix C, Appendix D
+decisions.md	10428	§9.5	D-267	Spec	**Spec.** §3.4, §4.1, §4.3, §4.4, §5.2, §5.3, §5.4, §6.2, §7.1, §7.2, §7.3, §7.4, §7.5, §8.1, §8.2, §8.3, §8.4, §8.5, §8.6, §8.8, §9.1, §9.3, §9.4, §9.5, §9.7, §10.5, §10.6, §11.2, §11.3, §12.5, §13.1, §13.3, §13.4, §13.5, §13.7, §14.3, §14.4, §14.5, §14.7, §14.8, §14.10, Appendix A, Appendix B, Appendix C, Appendix D
+decisions.md	10429	§9.7	D-267	Spec	**Spec.** §3.4, §4.1, §4.3, §4.4, §5.2, §5.3, §5.4, §6.2, §7.1, §7.2, §7.3, §7.4, §7.5, §8.1, §8.2, §8.3, §8.4, §8.5, §8.6, §8.8, §9.1, §9.3, §9.4, §9.5, §9.7, §10.5, §10.6, §11.2, §11.3, §12.5, §13.1, §13.3, §13.4, §13.5, §13.7, §14.3, §14.4, §14.5, §14.7, §14.8, §14.10, Appendix A, Appendix B, Appendix C, Appendix D
+decisions.md	10895	§9.7	D-272	Position	The default width's scalar type is public, so a build can pre-materialize its activation through `activations` (§9.7).
+decisions.md	11143	§9.4	D-275	Position	**Position.** §9.4's exhaustive mode is `build(root; activations = …)`, and the framework ships no separate `check` entry point.
+decisions.md	11146	§9.4	D-275	Spec	**Spec.** §9.4
+decisions.md	11150	§9.4	D-275	Rationale	§9.4 once offered "a `check` entry" as a second spelling, with no body, no contract and no other reference, so the ruling removes a name rather than a mechanism.
+decisions.md	11394	§9.1	D-279	Spec	**Spec.** §3.3, §3.4, §4.3, §5.2, §5.3, §5.4, §6.1, §6.2, §7.1, §7.4, §8.1, §8.2, §8.5, §8.6, §8.8, §9.1, §9.2, §9.3, §9.4, §9.5, §9.7, §11.3, §13.1, §13.3, §13.4, §13.5, §13.7, §14.1, §14.2, §14.7, §14.8, §14.10, Appendix B, Appendix C, Appendix D
+decisions.md	11394	§9.2	D-279	Spec	**Spec.** §3.3, §3.4, §4.3, §5.2, §5.3, §5.4, §6.1, §6.2, §7.1, §7.4, §8.1, §8.2, §8.5, §8.6, §8.8, §9.1, §9.2, §9.3, §9.4, §9.5, §9.7, §11.3, §13.1, §13.3, §13.4, §13.5, §13.7, §14.1, §14.2, §14.7, §14.8, §14.10, Appendix B, Appendix C, Appendix D
+decisions.md	11394	§9.3	D-279	Spec	**Spec.** §3.3, §3.4, §4.3, §5.2, §5.3, §5.4, §6.1, §6.2, §7.1, §7.4, §8.1, §8.2, §8.5, §8.6, §8.8, §9.1, §9.2, §9.3, §9.4, §9.5, §9.7, §11.3, §13.1, §13.3, §13.4, §13.5, §13.7, §14.1, §14.2, §14.7, §14.8, §14.10, Appendix B, Appendix C, Appendix D
+decisions.md	11394	§9.4	D-279	Spec	**Spec.** §3.3, §3.4, §4.3, §5.2, §5.3, §5.4, §6.1, §6.2, §7.1, §7.4, §8.1, §8.2, §8.5, §8.6, §8.8, §9.1, §9.2, §9.3, §9.4, §9.5, §9.7, §11.3, §13.1, §13.3, §13.4, §13.5, §13.7, §14.1, §14.2, §14.7, §14.8, §14.10, Appendix B, Appendix C, Appendix D
+decisions.md	11394	§9.5	D-279	Spec	**Spec.** §3.3, §3.4, §4.3, §5.2, §5.3, §5.4, §6.1, §6.2, §7.1, §7.4, §8.1, §8.2, §8.5, §8.6, §8.8, §9.1, §9.2, §9.3, §9.4, §9.5, §9.7, §11.3, §13.1, §13.3, §13.4, §13.5, §13.7, §14.1, §14.2, §14.7, §14.8, §14.10, Appendix B, Appendix C, Appendix D
+decisions.md	11394	§9.7	D-279	Spec	**Spec.** §3.3, §3.4, §4.3, §5.2, §5.3, §5.4, §6.1, §6.2, §7.1, §7.4, §8.1, §8.2, §8.5, §8.6, §8.8, §9.1, §9.2, §9.3, §9.4, §9.5, §9.7, §11.3, §13.1, §13.3, §13.4, §13.5, §13.7, §14.1, §14.2, §14.7, §14.8, §14.10, Appendix B, Appendix C, Appendix D
+companions/frozen_discrete_walkthrough.md	5	§9.5			The ground truth is `spec.md` §7.2 (genericity scoping), §10.5 (gated tick scheduling), §8.2 (the frozen-exact typing rule), §9.5 (the embedding guarantee) and §14.10 (linearization and the sampled-data door), with decision D-070 and D-072 scoping the AD consumers.
+companions/frozen_discrete_walkthrough.md	62	§9.5			So the `Dual` sweep that runs only the continuous chain, with B's cell embedding as a zero-partial constant (§9.5), is not skipping part of the chain — it is computing the exact derivative of a dependence structure in which B contributes *no dependence at this instant*.
+companions/handle_walk_walkthrough.md	5	§9.5			The ground truth is `spec.md` §4.4 (field handles), §6.1 (the two wire clauses), §8.2 (the `Pinned` marker and the handle shape rule), §9.5 (the embedding guarantee), §13.7 (the `Freeze` block) and §14.10 (the local rule), with decisions D-237, D-263, D-264, D-265 and D-266.
+companions/handle_walk_walkthrough.md	98	§9.5			This is the embedding §9.5 describes, happening inside the author's expression rather than at a store.
+companions/handle_walk_walkthrough.md	178	§9.5			A `Dual` can never become a `Float64` without discarding its partials, and no lossy cast exists inside the framework (§9.5).
+companions/handle_walk_walkthrough.md	223	§9.5			The stripping happens mid-expression, which §9.5 leaves legal at an unpinned leaf, and the partials are rebuilt by the chain rule, so the seeded pass sees the component as an ordinary differentiable one.
+companions/linearization_walkthrough.md	232	§9.4			An *activation* (§9.4) is the build's typed products at one concrete scalar type `T`: every declaration retyped with `Float64` replaced by `T`, the probe run at `T`, the cell layout at `T`.
+companions/linearization_walkthrough.md	595	§9.7			The compile cost does: a fixed width compiles once per model and can be paid ahead of time through `build(m; activations = (Float64, LinearizeDual))` (§9.7), where a full-width pass compiles once per distinct tap count and never ahead of time.
+companions/migration_outline.md	19	§9.7			| Comparison criteria against FlightCore's demonstrated strengths | three strengths to compare against: zero-alloc stepping, flexibility, interactive operation | §9.7 | — |
+companions/migration_outline.md	39	§9.7			Zero-alloc stepping is measured through the `phase_bodies` seam (§9.7), apples-to-apples with today's `@ballocated f_ode!` suites.
+companions/sample_time_proposal.md	9	§9.1			**Adopted 2026-08-12 as decision D-185–D-187**, with the section 9 amendments applied (§10.5, §8.7, §9.1, §9.2, §9.7, §14.5, §14.8, Appendices B/C — the spec wins on any conflict) and two deltas from the proposal as written: the `ratespec` normalization of section 2 was **dropped** — the wrappers are the whole value vocabulary, a bare integer or bare quantity is a declaration error, and an unliste …
+companions/sample_time_proposal.md	9	§9.2			**Adopted 2026-08-12 as decision D-185–D-187**, with the section 9 amendments applied (§10.5, §8.7, §9.1, §9.2, §9.7, §14.5, §14.8, Appendices B/C — the spec wins on any conflict) and two deltas from the proposal as written: the `ratespec` normalization of section 2 was **dropped** — the wrappers are the whole value vocabulary, a bare integer or bare quantity is a declaration error, and an unliste …
+companions/sample_time_proposal.md	9	§9.7			**Adopted 2026-08-12 as decision D-185–D-187**, with the section 9 amendments applied (§10.5, §8.7, §9.1, §9.2, §9.7, §14.5, §14.8, Appendices B/C — the spec wins on any conflict) and two deltas from the proposal as written: the `ratespec` normalization of section 2 was **dropped** — the wrappers are the whole value vocabulary, a bare integer or bare quantity is a declaration error, and an unliste …
+companions/sample_time_proposal.md	134	§9.1			- **Range validation belongs to Stratum A, not the constructors.** Constructor-side checks give instant REPL feedback but fail the *evaluation* of a `sample_times` body with a raw exception, whereas Stratum A's charter (§9.1, §13.1) is to *collect* declaration defects with path attribution ("`gnss` in `sample_times(::Sensors)`: phase 20 not in `0 ≤ Φ < K = 20`").
+companions/sample_time_proposal.md	266	§9.1			Stratum A already does "rates validation and compilation of relative multipliers into absolute divisors — everything except binding `Δt_base`" (§9.1).
+companions/sample_time_proposal.md	270	§9.1			During the tree walk, each scope's `sample_times` NamedTuple is read, normalized through `ratespec`, and validated per entry — `K ≥ 1`, `0 ≤ Φ < K`, `T > 0`, `0 ≤ τ < T`, keys matching the discrete/scope children — all collected with path attribution, per §9.1's usual convention.
+companions/sample_time_proposal.md	286	§9.2			The output, stored in the `Build` artifact as plain printable data (§9.2): an **anchor table** — each anchor's exact `(T, τ)` rationals plus the declaring scope's path — and a **component table** of `(anchor, m, c)` triples with their rate chain (the `Relative`/`Absolute` chain down the tree).
+companions/sample_time_proposal.md	304	§9.1			At `Simulation` construction, where `Δt_base`, `h`, `N_base` already bind and validate (§9.1), three new steps slot in.
+companions/sample_time_proposal.md	335	§9.1			Either way, validation failures are collected `DeploymentInvalid`s in §9.1's style, and with anchors the diagnostic gains error locality: "period `1//500` does not divide declared `Δt_base` — declared `Absolute(Hz(500))` at `Avionics`, for `sensors`," straight from the rate-chain column.
+companions/sample_time_proposal.md	360	§9.7			At activation compile, the bound schedule bakes into the compiled executor, and §9.7 has already made the decisive choice: *"an entry carries what selects code — component type, stage — in type parameters, and what is plain data — tick divisor, layout offsets — in fields."* `D`, `Φ` and `Δt` are exactly the second kind.
+companions/sample_time_proposal.md	412	§9.3			An offset component's first tick is at `Φ·Δt_base`; until then its cells hold the values the build probe populated from `s_init` (§9.3) — a coherent ZOH story, since those are exactly the values a tick at `t₀⁻` would have produced.
+companions/sample_time_proposal.md	421	§9.7			The two-arity structure §9.7 already commits to is the mechanism that implements the emptiness.
+companions/sample_time_proposal.md	769	§9.1			- **§9.1.** Stratum A's "compilation of relative multipliers into absolute divisors" becomes compilation into `(anchor, m, c)` triples; deployment binding gains the pool, the derive-vs-declare rule, and anchor resolution.
+companions/sample_time_proposal.md	772	§9.2			- **§9.2.** The `Build` gains the anchor table and the rate columns of section 5.2; the bound schedule becomes a named printable artifact on the `Simulation` (section 5.3).
+companions/sample_time_proposal.md	775	§9.7			- **§9.7.** Entry fields gain `Φ`; the gating sentence becomes `(idx − Φ) % D == 0`.
+companions/trim_environment_walkthrough.md	6	§9.6			The ground truth is `spec.md` §4.4 (field handles and the value-level constructor), §14.1 (the pre-sweep doctrine), §14.7 and §14.9 (the trim problem and its mounting), §9.6, and decision D-139, which settled all of it on 2026-08-05 during the round-4 dry-run adjudication (commit `daf3298d`).
+companions/trim_environment_walkthrough.md	502	§9.6			The mixed units are a non-problem in practice — §14.7's per-residual physical tolerances are per-equation numbers already, and §9.6 keeps per-residual scalings aircraft-side where they belong.
+companions/trim_environment_walkthrough.md	576	§9.6			- **§9.6**'s claim that `Kinematics.Initializer` "survives untouched, aircraft-side" is corrected: it survives aircraft-side with its `atmosphere::Model` argument respelled as a field handle.
+implementation.md	41	§9.5			Spec: §4.1, §4.3, §4.4, §6.1, §7.1, §7.2, §8.2, §9.5, §13.4, D-166, D-235, D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276.
+implementation.md	118	§9.1			Spec: §9.1, §12.6, §12.7, §13.1, §13.2, §13.4, §14.8, §14.9, §14.10, Appendix C, D-058, D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256, D-261, D-262, D-263, D-272, D-274, D-276, D-277.
+implementation.md	139	§9.3			Spec: §2.1, §5.2, §8.1, §8.2, §8.5–§8.7, §9.3, Appendix B, D-051, D-179, D-185, D-195, D-211, D-246, D-248, D-263.
+implementation.md	181	§9.1			Spec: §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §13.3, §13.7, §14.2, Appendix C, D-061, D-130, D-171, D-207–D-212, D-229, D-236, D-246, D-247, D-248, D-251, D-253, D-261, D-263.
+implementation.md	181	§9.2			Spec: §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §13.3, §13.7, §14.2, Appendix C, D-061, D-130, D-171, D-207–D-212, D-229, D-236, D-246, D-247, D-248, D-251, D-253, D-261, D-263.
+implementation.md	191	§9.5			The scatter's check is §9.5's always-on check, decided at generation (D-235).
+implementation.md	199	§9.5			Spec: §9.5, §9.7, D-162, D-235, D-237, D-260.
+implementation.md	199	§9.7			Spec: §9.5, §9.7, D-162, D-235, D-237, D-260.
+implementation.md	218	§9.5			Spec: §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §13.5, §14.5, D-059, D-205, D-235, D-249, D-255, D-261.
+implementation.md	218	§9.7			Spec: §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §13.5, §14.5, D-059, D-205, D-235, D-249, D-255, D-261.
+implementation.md	242	§9.3			The dead-stage rule applies at both stage probes, and `cell_layout` raises `MissingProbeValue` (§9.3).
+implementation.md	243	§9.4			- `ProbeTag`/`ProbeDual`, the canonical probe scalar (§9.4).
+implementation.md	274	§9.1			Spec: §5.3, §5.5, §5.6, §6.1, §7.1, §7.3, §8.2, §9.1–§9.4, §9.7, §10.4, §13.2, D-012, D-051, D-094, D-166, D-179, D-208, D-210, D-229, D-231, D-235, D-236, D-237, D-247, D-248, D-250, D-252, D-253, D-256, D-261, D-263, D-265.
+implementation.md	274	§9.4			Spec: §5.3, §5.5, §5.6, §6.1, §7.1, §7.3, §8.2, §9.1–§9.4, §9.7, §10.4, §13.2, D-012, D-051, D-094, D-166, D-179, D-208, D-210, D-229, D-231, D-235, D-236, D-237, D-247, D-248, D-250, D-252, D-253, D-256, D-261, D-263, D-265.
+implementation.md	274	§9.7			Spec: §5.3, §5.5, §5.6, §6.1, §7.1, §7.3, §8.2, §9.1–§9.4, §9.7, §10.4, §13.2, D-012, D-051, D-094, D-166, D-179, D-208, D-210, D-229, D-231, D-235, D-236, D-237, D-247, D-248, D-250, D-252, D-253, D-256, D-261, D-263, D-265.
+implementation.md	287	§9.3			Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
+implementation.md	495	§9.1			The `Deployment` constructor has one throw per call (§9.1, D-229).
+implementation.md	511	§9.1			Spec: §9.1, §9.2, §10.5, §12.7, Appendix B, Appendix C, D-187, D-227, D-229, D-250, D-254, D-256, D-261.
+implementation.md	511	§9.2			Spec: §9.1, §9.2, §10.5, §12.7, Appendix B, Appendix C, D-187, D-227, D-229, D-250, D-254, D-256, D-261.
+implementation.md	741	§9.5			Spec: §9.5, §13.1, §13.3, §14.1–§14.6, §14.9, Appendix B, D-063–D-068, D-117, D-130, D-204, D-205, D-207, D-226, D-277.
+implementation.md	756	§9.6			Spec: §9.6, §13.1, §14.5–§14.9, D-070, D-158, D-213, D-224, D-253, D-262, D-277.
+implementation.md	787	§9.7			Spec: §9.7, §14.4, §14.10, D-036, D-167, D-168, D-197, D-213, D-272, D-274, D-276, D-277.
+implementation.md	814	§9.2			Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261.
+implementation.md	832	§9.4			`test_build.jl`'s `Dual` sweep builds every fixture with a zero-argument constructor at `ProbeDual` (§9.4, D-166), and `DUAL_PINNED` lists the four pinned on purpose, which it must refuse.
+implementation.md	877	§9.3			Nothing names the trap: the build refuses the component as having no class to read (§8.5), and `DeadStage` does not reach it — a method the framework never sees is not a method returning `(;)` (§5.2, §9.3);
+implementation.md	924	§9.2			`Layout` is the one home for address facts (§9.2, D-261);
+pending.md	17	§9.7			- **Compile time** (§9.7, D-086): the roadmap of `docs/reports/20260930_compile_cost/`, in order of yield: `@noinline` at the phase-body call, `@nospecialize` through the declaration layer, the executor type out of `Simulation`, chunks or entries behind pointers. §9.7's anchors do not hold, and a ruling on its anchor table and mitigation ladder, and on D-086's rejection of type-erased call tables, …
+pending.md	21	§9.7			- **Compile time** (§9.7, D-086): the roadmap of `docs/reports/20260930_compile_cost/`, in order of yield: `@noinline` at the phase-body call, `@nospecialize` through the declaration layer, the executor type out of `Simulation`, chunks or entries behind pointers. §9.7's anchors do not hold, and a ruling on its anchor table and mitigation ladder, and on D-086's rejection of type-erased call tables, …
+pending.md	90	§9.1			A component flags its own `Bool` output faces as stop candidates, an annotation the framework diagnoses and never honours: a build warning (§9.1, D-250) where a flagged face is not re-exported to the root, naming the level that dropped it, and a `run!` advisory beside `UnboundedRun` (§11.8) where the root carries flagged faces and the policy names none.
+extensions.md	122	§9.7			- **Variable-size signals / dynamic structure.** Fundamental conflict with the cell store, the flat state backing (§7.1) and the compiled executor (§9.7) — all sized at build — and with the zero-allocation invariant.
+extensions.md	191	§9.1			The decisive observation throughout: **Stratum A flattens whatever was declared into the same `Build` artifact** (§9.1–§9.2) — resolved wires, absolute divisors, schedule — so the sweep, the cell store and the executor never see how the model was written down.
+extensions.md	191	§9.2			The decisive observation throughout: **Stratum A flattens whatever was declared into the same `Build` artifact** (§9.1–§9.2) — resolved wires, absolute divisors, schedule — so the sweep, the cell store and the executor never see how the model was written down.
+extensions.md	289	§9.4			Under the nominal `Float64` activation the first `Dual` product to reach a `Float64` cell throws — the same loud-failure channel as §9.4's probe.

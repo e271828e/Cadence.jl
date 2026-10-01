@@ -1,0 +1,741 @@
+{
+ "claims": [
+  {
+   "id": "B-001",
+   "old": "### 9.3 Probing and input synthesis",
+   "new": "### 9.3 Probing and input synthesis",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "B-002",
+   "old": "Probe-everything scope.",
+   "new": "the probe-everything scope",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "B-003",
+   "old": "The nominal activation probes every user function once, at the initial state, with real values.",
+   "new": "The nominal evaluation probes every user function once, at the initial state, with real values (D-050).",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "newcites": [
+    "D-050"
+   ],
+   "ruling": "R23"
+  },
+  {
+   "id": "B-004",
+   "old": "The set is the stages, `x_deriv`, `s_update`, guards, handlers and `x_projection`.",
+   "new": "The set is the stages, `x_deriv`, `s_update`, guards, handlers and `x_projection`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-005",
+   "old": "The probe checks shape and type conformance and discards the results.",
+   "new": "The probe checks shape and type conformance and discards the results.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-006",
+   "old": "All are pure, and the cost is one evaluation each.",
+   "new": "All are pure, and the cost is one evaluation each.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-007",
+   "old": "\"Fails loudly at build time where possible\" (§8.1) decides this.",
+   "new": "\"Fails loudly at build time where possible\" (§8.1) decides this.",
+   "where": "new",
+   "cites": [
+    "§8.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B-008",
+   "old": "A malformed `x_deriv` return must not wait for the first integrator step.",
+   "new": "A malformed `x_deriv` return must not wait for the first integrator step.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-009",
+   "old": "Probes see only the initial state's branch, so the marginal coverage is earliness, not completeness.",
+   "new": "Probes see only the initial state's branch, so the marginal coverage is earliness, not completeness.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-010",
+   "old": "The always-on check (§9.5) remains the completeness backstop.",
+   "new": "The always-on check (§9.5) remains the completeness backstop.",
+   "where": "new",
+   "cites": [
+    "§9.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B-011",
+   "old": "Probe argument sourcing.",
+   "new": "probe argument sourcing",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "B-012",
+   "old": "`x`/`s`/`m` come from `init_` declarations, which declare by value.",
+   "new": "`x`/`s`/`m` come from `init_` declarations, which declare by value.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-013",
+   "old": "The stage-1 hand-down, `y_x` and `y_s` on the discrete tier, comes from the stage-1 probes' returns, which is every stage-1 port there is (§5.2).",
+   "new": "The stage-1 hand-down, `y_x` on the continuous tier and `y_s` on the discrete, comes from the stage-1 probes' returns. That hand-down is every stage-1 port there is (§5.2).",
+   "where": "new",
+   "cites": [
+    "§5.2"
+   ],
+   "tag": "R",
+   "ruling": "R25"
+  },
+  {
+   "id": "B-014",
+   "old": "Wired inputs come from upstream products.",
+   "new": "Wired inputs come from upstream products.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-015",
+   "old": "Real values are available because the stage-2 chain is probed in topological order, so every consumer is probed against the same value it will receive at run time.",
+   "new": "Real values are available because the stage-2 chain is probed in topological order. So every consumer is probed against the same value it will receive at run time.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-016",
+   "old": "Two checks ride the same pass.",
+   "new": "Two checks ride the same pass.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-017",
+   "old": "The first is the return's shape. A stage returning something other than a `NamedTuple` fails here.",
+   "new": "The first is the return's shape. A stage returning something other than a `NamedTuple` fails here.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-018",
+   "old": "The second is the dead-stage rule.",
+   "new": "The second is the dead-stage rule.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-019",
+   "old": "A stage returning bare `(;)` produces no ports at all, and is `DeadStage`, fail-fast.",
+   "new": "A stage returning bare `(;)` produces no ports at all, and is `DeadStage`, fail-fast (D-194).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-194"
+   ]
+  },
+  {
+   "id": "B-020",
+   "old": "The bundle law's two remaining fields (§5.2) are sourced as follows.",
+   "new": "The bundle law's two remaining fields (§5.2) are `ws`, the workspace, and `t`.",
+   "where": "new",
+   "cites": [
+    "§5.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B-021",
+   "old": "`t` is probe-scoped `0.0`.",
+   "new": "`t` is probe-scoped `0.0` (D-115).",
+   "where": "new",
+   "cites": [],
+   "tag": "M",
+   "newcites": [
+    "D-115"
+   ]
+  },
+  {
+   "id": "B-022",
+   "old": "Deployment binds no clock and `t₀` post-dates even deployment (§14.5), so like `Δt` below it is a fabricated, probe-scoped value.",
+   "new": "Deployment binds no clock and `t₀` post-dates even deployment (§14.5), so `t` is a fabricated value.",
+   "where": "new",
+   "cites": [
+    "§14.5"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "B-023",
+   "old": "`ws` comes from invoking the component's `ws_init` allocator at the probing scalar.",
+   "new": "`ws` comes from invoking the component's `ws_init` allocator at the probing scalar (`Float64` at build),",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "newcites": [
+    "D-115"
+   ],
+   "ruling": "R60"
+  },
+  {
+   "id": "B-024",
+   "old": "That allocator reads only the instance and the scalar (D-077) and derives nothing from layouts, so it runs before the nominal evaluation's probes that need it.",
+   "new": "before the nominal evaluation's probes that need it (D-115). The allocator runs that early because it reads only the instance and the scalar (D-077) and derives nothing from layouts.",
+   "where": "new",
+   "cites": [
+    "D-077"
+   ],
+   "tag": "F",
+   "newcites": [
+    "D-077",
+    "D-115"
+   ]
+  },
+  {
+   "id": "B-025",
+   "old": "Exactly one kind of terminal has no producer: root inputs.",
+   "new": "Exactly one kind of terminal has no producer, the root inputs.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-026",
+   "old": "The build synthesizes their values via `probe_value(::Type)`.",
+   "new": "The build synthesizes their values via `probe_value(::Type)` (D-051).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-051"
+   ]
+  },
+  {
+   "id": "B-027",
+   "old": "Framework methods cover",
+   "new": "Framework methods cover three kinds of type:",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "B-028",
+   "old": "`Real` (`zero(T)`),",
+   "new": "`Real`, with `zero(T)`;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-029",
+   "old": "`Bool` (`false`)",
+   "new": "`Bool`, with `false`;",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-030",
+   "old": "and enums (first instance),",
+   "new": "enums, with their first instance.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-031",
+   "old": "and the ultimate fallback is the zero-argument constructor `T()`.",
+   "new": "The ultimate fallback is the zero-argument constructor `T()`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-032",
+   "old": "That is where well-behaved constrained types already put their valid default (`RQuat()` is the identity, and the `@kwdef` convention supplies it broadly).",
+   "new": "That is where well-behaved constrained types already put their valid default. For the rotation-quaternion type, `RQuat()` is the identity. The `@kwdef` convention supplies such a default broadly.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R60; F2 (final_verify) applied 2026-10-01"
+  },
+  {
+   "id": "B-033",
+   "old": "`probe_value` is overridable.",
+   "new": "`probe_value` is overridable.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-034",
+   "old": "A type whose valid default is not reachable that way declares its own method, which is also the seam a walked type uses to state a constrained default.",
+   "new": "A type whose valid default is not reachable that way declares its own method. That method is also the seam a walked type uses to state a constrained default.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-035",
+   "old": "No method is a build error, in the didactic style.",
+   "new": "No method is a build error, in the didactic style.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-036",
+   "old": "It names the face and the type, and asks for one of the two fixes (\"no `probe_value` for `Ranged{Float64, -1, 1}` at face `pilot.elevator_axis` — define `probe_value(::Type{Ranged{Float64, -1, 1}})` or a zero-argument constructor\").",
+   "new": "It names the face and the type, and asks for one of the two fixes. An example is \"no `probe_value` for `Ranged{Float64, -1, 1}` at face `pilot.elevator_axis` — define `probe_value(::Type{Ranged{Float64, -1, 1}})` or a zero-argument constructor\".",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-037",
+   "old": "Synthesis never meets an abstract type.",
+   "new": "Synthesis never meets an abstract type.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-038",
+   "old": "Root inputs are concrete by the tight-bound rule (§8.2; the root-input type is the consuming entry evaluated at `Float64`),",
+   "new": "Root inputs are concrete by the tight-bound rule, and the root-input type is the consuming entry evaluated at `Float64` (§8.2).",
+   "where": "new",
+   "cites": [
+    "§8.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B-039",
+   "old": "and abstract entries only occur on component-fed inputs, which the probe sources from upstream products.",
+   "new": "Abstract entries only occur on component-fed inputs, which the probe sources from upstream products.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-040",
+   "old": "Physically silly values are acceptable by construction.",
+   "new": "Physically silly values are acceptable by construction.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-041",
+   "old": "The probe checks types, and return types that depend on input values are type instabilities, banned by the branch-shape rule.",
+   "new": "The probe checks types, and return types that depend on input values are type instabilities, banned by the branch-shape rule (§8.3).",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R60",
+   "newcites": [
+    "§8.3"
+   ]
+  },
+  {
+   "id": "B-042",
+   "old": "The §4.3 write-side granularity rule keeps root inputs predominantly scalar, so the surface is small.",
+   "new": "The §4.3 write-side granularity rule keeps root inputs predominantly scalar, so the surface is small.",
+   "where": "new",
+   "cites": [
+    "§4.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B-043",
+   "old": "Three alternatives were rejected (D-051):",
+   "new": "never initial slot values). Spec. §6.1, §9.3 Rationale. Recorded only through the rejections below. Rejected.",
+   "where": "docs/design/decisions.md",
+   "cites": [
+    "D-051"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "B-044",
+   "old": "inputs declared by value à la `x_init`,",
+   "new": "Rejected. - Inputs declared by value à la `init_x`: reads as an unwired-input default",
+   "where": "docs/design/decisions.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "B-045",
+   "old": "NaN poison values,",
+   "new": "- NaN poison probes: `Bool`/enums unpoisonable; probe values are meant to be read.",
+   "where": "docs/design/decisions.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "B-046",
+   "old": "and init-service values.",
+   "new": "- Init-service values: build is standalone; services post-date it.",
+   "where": "docs/design/decisions.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "B-047",
+   "old": "Probe values are strictly probe-scoped.",
+   "new": "Probe values are strictly probe-scoped (D-051).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-051"
+   ]
+  },
+  {
+   "id": "B-048",
+   "old": "Everything the probe writes is garbage once the build finishes.",
+   "new": "Everything the probe writes is garbage once the build finishes.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-049",
+   "old": "Probe values never double as initial root-input values, because that would smuggle in the default semantics rejected above.",
+   "new": "Probe values never double as initial root-input values, because that would smuggle in the default semantics that D-051 rejects.",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-051"
+   ]
+  },
+  {
+   "id": "B-050",
+   "old": "The same doctrine covers the clock.",
+   "new": "The same doctrine covers the clock.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "B-051",
+   "old": "`Δt` in seconds does not exist until `Simulation` binds `Δt_base`, since deployment post-dates the build, so discrete-tier probes supply a placeholder period (`1.0`) in the bundle.",
+   "new": "`Δt` in seconds does not exist until the `Deployment` constructor binds `Δt_base`, since deployment post-dates the build. Discrete-tier probes therefore supply a placeholder period (`1.0`) in the bundle.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R24"
+  },
+  {
+   "id": "B-052",
+   "old": "It is a fabricated, probe-scoped value like any synthesized input.",
+   "new": "It is a fabricated, probe-scoped value like `t` and like any synthesized input.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "B-053",
+   "old": "The probe checks types, not physics.",
+   "new": "The probe checks types, not physics.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-054",
+   "old": "`Simulation` must not reach its first boundary with uninitialized root inputs.",
+   "new": "`Simulation` must not reach its first boundary with uninitialized root inputs.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-055",
+   "old": "Enforcement is the pre-write `UninitializedInputs` check carried by every complete-world application, namely `init!`, trim setup and trim commit (§14.6).",
+   "new": "Every complete-world application, namely `init!`, trim setup and trim commit, carries the pre-write `UninitializedInputs` check (§14.6, D-149).",
+   "where": "new",
+   "cites": [
+    "§14.6"
+   ],
+   "tag": "R",
+   "newcites": [
+    "§14.6",
+    "D-149"
+   ],
+   "ruling": "R3"
+  },
+  {
+   "id": "B-056",
+   "old": "The author's side of that bargain.",
+   "new": "That obligation is the author's side of the bargain.",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "B-057",
+   "old": "Silly values are acceptable because the author is obliged to accept them.",
+   "new": "Silly values are acceptable because the author is obliged to accept them.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-058",
+   "old": "Stage code must be total over type-valid inputs.",
+   "new": "Stage code must be total over type-valid inputs (D-142).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-142"
+   ]
+  },
+  {
+   "id": "B-059",
+   "old": "Every probed user function (stages, `x_deriv`, `s_update`, guards, handlers, `x_projection`) evaluates without throwing on any input satisfying its declared types.",
+   "new": "Every probed user function (stages, `x_deriv`, `s_update`, guards, handlers, `x_projection`) evaluates without throwing on any input satisfying its declared types.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-060",
+   "old": "The domain is type-validity, not the probe's particular synthesized values.",
+   "new": "The domain is type-validity, not the probe's particular synthesized values.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-061",
+   "old": "The branch-shape rule already bans value-dependent return types, so types are the only domain the framework can speak of, and the probe is the enforcement moment, not the reason (D-142).",
+   "new": "The branch-shape rule already bans value-dependent return types. So types are the only domain the framework can speak of, and the probe is the enforcement moment, not the reason.",
+   "where": "new",
+   "cites": [
+    "D-142"
+   ],
+   "tag": "C",
+   "newcites": []
+  },
+  {
+   "id": "B-062",
+   "old": "There are two consequence sites, with the same throw at both.",
+   "new": "There are two consequence sites, with the same throw at both.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-063",
+   "old": "At build it is a `UserCodeFraming`-wrapped build failure (§13.1) whose diagnostic points at code that is \"correct\" on every trajectory it has ever seen.",
+   "new": "At build it is a `UserCodeFraming`-wrapped build failure (§13.1). Its diagnostic points at code that is \"correct\" on every trajectory it has ever seen.",
+   "where": "new",
+   "cites": [
+    "§13.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B-064",
+   "old": "At runtime it is a `StepError` and the run ends `errored` (§13.4).",
+   "new": "At runtime it is a `StepError` and the run ends `errored` (§13.4).",
+   "where": "new",
+   "cites": [
+    "§13.4"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B-065",
+   "old": "Exceptions from model code are always abnormal (§13.5).",
+   "new": "Exceptions from model code are always abnormal (§13.5, D-060).",
+   "where": "new",
+   "cites": [
+    "§13.5"
+   ],
+   "tag": "C",
+   "newcites": [
+    "§13.5",
+    "D-060"
+   ]
+  },
+  {
+   "id": "B-066",
+   "old": "Three habits of shipped code have sanctioned spellings.",
+   "new": "Three habits of shipped landing-gear code have sanctioned spellings:",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R49"
+  },
+  {
+   "id": "B-067",
+   "old": "A plausibility check meaning \"stop the run\",",
+   "new": "A plausibility check meaning \"stop the run\"",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-068",
+   "old": "such as a strut throwing on a touchdown overload,",
+   "new": "A landing-gear strut model that throws on a touchdown overload is one such check.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R52"
+  },
+  {
+   "id": "B-069",
+   "old": "is a published `Bool` output face plus `stop_on` (§13.5),",
+   "new": "is a published `Bool` output face plus `stop_on` (§13.5, D-060).",
+   "where": "new",
+   "cites": [
+    "§13.5"
+   ],
+   "tag": "C",
+   "newcites": [
+    "§13.5",
+    "D-060"
+   ]
+  },
+  {
+   "id": "B-070",
+   "old": "machinery already there.",
+   "new": "The face and `stop_on` are machinery already there.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-071",
+   "old": "A self-consistency assert, such as an author checking that their own contact algebra cancels a velocity component to a hard tolerance,",
+   "new": "A self-consistency assert, such as an author checking that their own contact algebra cancels a velocity component to a hard tolerance,",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-072",
+   "old": "is a regression test about that algebra, and its home is the test suite.",
+   "new": "is a regression test about that algebra. Its home is the test suite (D-142).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-142"
+   ]
+  },
+  {
+   "id": "B-073",
+   "old": "It is also the most probe-fragile of the three, since a near-degenerate synthesized geometry can keep the cancellation algebraically exact while missing an absolute tolerance in floating point.",
+   "new": "It is also the most probe-fragile of the three, since a near-degenerate synthesized geometry can keep the cancellation algebraically exact while missing an absolute tolerance in floating point.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-074",
+   "old": "And there is the defensive exhaustiveness branch,",
+   "new": "A defensive exhaustiveness branch is the third habit.",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "B-075",
+   "old": "an `else error(\"unrecognized surface type\")` over a closed enum, or a coefficient constructor asserting an ordering of its arguments when that constructor runs per step inside a stage.",
+   "new": "Examples are an `else error(\"unrecognized surface type\")` over a closed enum of ground-surface kinds, or a friction-coefficient constructor asserting an ordering of its arguments (static ≥ dynamic) when that constructor runs per step inside a stage.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R52"
+  },
+  {
+   "id": "B-076",
+   "old": "Such a branch is not banned validation but mislocated validation.",
+   "new": "A defensive-exhaustiveness branch is not banned validation but mislocated validation.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-077",
+   "old": "Totality over a closed enum means handling every instance, and an `else error` is an admission that the function is partial.",
+   "new": "Totality over a closed enum means handling every instance, and an `else error` is an admission that the function is partial.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B-078",
+   "old": "Parameter validation belongs where user-controlled data enters, in the constructors of parameter and instance values, which run before the build, where asserts are perfectly legitimate.",
+   "new": "Parameter validation belongs where user-controlled data enters (D-142). That place is the constructors of parameter and instance values. They run before the build, where asserts are perfectly legitimate.",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-142"
+   ]
+  },
+  {
+   "id": "B-079",
+   "old": "It never belongs inside a stage, on probe-fed data.",
+   "new": "Parameter validation never belongs inside a stage, on probe-fed data.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  }
+ ],
+ "added": [
+  "The build calls each user function once, as a probe, to catch malformed code early.",
+  "Each call needs argument values, and not every argument has a producer.",
+  "This section covers, in order, the probe-everything scope, probe argument sourcing and its two checks, root-input synthesis, probe scoping, and the totality that stage code owes in return.",
+  "Probe arguments are sourced as follows:",
+  "`t` is a clock value, sourced below with `Δt`.",
+  "(`Float64` at build)",
+  "For the rotation-quaternion type,",
+  "(§8.3)",
+  "landing-gear",
+  "landing-gear strut model that throws",
+  "of ground-surface kinds",
+  "friction-coefficient",
+  "(static ≥ dynamic)"
+ ]
+}

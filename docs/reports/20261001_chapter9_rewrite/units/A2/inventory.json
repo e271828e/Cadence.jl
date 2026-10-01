@@ -1,0 +1,1426 @@
+{
+ "claims": [
+  {
+   "id": "A2-001",
+   "old": "#### The `Deployment` constructor",
+   "new": "#### The `Deployment`",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A2-002",
+   "old": "The `Deployment` constructor sits after the build's three steps.",
+   "new": "Its constructor sits after the build's three steps",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-003",
+   "old": "It consumes the `Build` and the grid parameters,",
+   "new": "The constructor consumes the `Build` and the grid parameters.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-004",
+   "old": "and it returns a `Deployment`, the artifact that carries everything those parameters fix (D-254).",
+   "new": "It carries everything the grid parameters fix.",
+   "where": "new",
+   "cites": [
+    "D-254"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A2-005",
+   "old": "It binds the grid parameters, the algorithm, the three event parameters, runs harmonic-grid validation, and builds the schedule.",
+   "new": "It binds the grid parameters, the algorithm and the three event parameters, runs harmonic-grid validation, and builds the `Schedule`.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-006",
+   "old": "Nothing in the build's three steps depends on it.",
+   "new": "and nothing in them depends on it.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-007",
+   "old": "A `Deployment` is scalar-free.",
+   "new": "A `Deployment` is scalar-free (D-254).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-254"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A2-008",
+   "old": "It holds the build, the grid parameters, the algorithm, the three event parameters, the `Schedule`, the grid diagnostics below and its own `warnings`.",
+   "new": "The `Deployment` it returns holds the build, the grid parameters, the algorithm, the three event parameters, the `Schedule`, the grid diagnostics below and its own `warnings`.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-009",
+   "old": "`Simulation` materializes it at a scalar type `T` (§9.2).",
+   "new": "`Simulation` materializes it at a scalar type `T`.",
+   "where": "new",
+   "cites": [
+    "§9.2"
+   ],
+   "newcites": [],
+   "tag": "C"
+  },
+  {
+   "id": "A2-010",
+   "old": "Two deployments compare as values, which is what replay's header check reads (§12.7).",
+   "new": "Two `Deployment`s compare as values, which is what replay's header check reads (§12.7).",
+   "where": "new",
+   "cites": [
+    "§12.7"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A2-011",
+   "old": "`Δt_base` has exactly one of three sources, cross-validated:",
+   "new": "`Δt_base` has exactly one of three sources, cross-validated (D-186):",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-186"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A2-012",
+   "old": "- the explicit keyword, a `Rational`, `Period` or `Hz` value, from which `N_base` is derived as `Δt_base/h` and validated an integer ≥ 1;",
+   "new": "- the explicit keyword, a `Rational`, `Period` or `Hz` value, from which `N_base` is derived as `Δt_base/h` and validated an integer ≥ 1;",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-013",
+   "old": "- the `N_base·h` product when only `N_base` is given, today's rule, with the default `N_base = 1`;",
+   "new": "- the `N_base·h` product when only `N_base` is given, with the default `N_base = 1`;",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R19"
+  },
+  {
+   "id": "A2-014",
+   "old": "- derivation,",
+   "new": "- derivation,",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-015",
+   "old": "requested explicitly as",
+   "new": "Derivation is requested explicitly:",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-016",
+   "old": "`Δt_base = :derive`.",
+   "new": "`Δt_base = :derive`",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-017",
+   "old": "It is never entered by default, so the `N_base·h` path stays what silence means,",
+   "new": "It is never entered by default, so the `N_base·h` path stays what silence means.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-018",
+   "old": "and it is permitted only when every discrete component is anchored, that is, with anchor 0 unpopulated.",
+   "new": "permitted only when every discrete component is anchored, that is, with anchor 0 unpopulated.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-019",
+   "old": "Why. Under that restriction `Δt_base` is pure bookkeeping that no component's period depends on.",
+   "new": "Under the anchored-only restriction, `Δt_base` is pure bookkeeping that no component's period depends on.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-020",
+   "old": "An unanchored component's period is `m·Δt_base`,",
+   "new": "An unanchored component's period is `m·Δt_base`.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-021",
+   "old": "and deriving with one present would let an anchor edit anywhere in the tree silently rescale it, which is action at a distance.",
+   "new": "Deriving with one present would let an anchor edit anywhere in the tree silently rescale it, which is action at a distance.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-022",
+   "old": "Rule. If any unanchored component exists, deployment must declare `Δt_base`.",
+   "new": "If any unanchored component exists, deployment must declare `Δt_base` (D-186).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-186"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A2-023",
+   "old": "The refusal is constructive, carrying the suggestion message (§9.2).",
+   "new": "The refusal is constructive, carrying the suggestion message of the grid diagnostics below.",
+   "where": "new",
+   "cites": [
+    "§9.2"
+   ],
+   "newcites": [],
+   "tag": "C"
+  },
+  {
+   "id": "A2-024",
+   "old": "Admissibility is exact GCD arithmetic over the constraint pool:",
+   "new": "Admissibility is exact GCD arithmetic over the constraint pool:",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-025",
+   "old": "| quantity | value | |---|---| | the constraint pool | every anchor's period and every nonzero anchor offset `τ` | | an admissible `Δt_base` | one dividing every pool entry, equivalently one dividing `gcd(pool)` | | the admissible set | `gcd(pool)/k`, for integer `k ≥ 1` | | the derived `Δt_base` | `gcd(pool)` itself, the coarsest admissible value | | per anchor `k` | `Dₖ = Tₖ/Δt_base`, `Φₖ = τₖ/Δt_base` | | per component | `D = m·Dₖ`, `Φ = Φₖ + c·Dₖ`, `Δt = D·Δt_base` |",
+   "new": "| quantity | value | |---|---| | the constraint pool | every anchor's period and every nonzero anchor offset `τ` | | an admissible `Δt_base` | one dividing every pool entry, equivalently one dividing `gcd(pool)` | | the admissible set | `gcd(pool)/k`, for integer `k ≥ 1` | | the derived `Δt_base` | `gcd(pool)` itself, the coarsest admissible value | | per anchor `k` | `Dₖ = Tₖ/Δt_base`, `Φₖ = τₖ/Δt_base` | | per component | `D = m·Dₖ`, `Φ = Φₖ + c·Dₖ`, `Δt = D·Δt_base` |",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-026",
+   "old": "Resolution is therefore one division pair per anchor and one multiply-add per component.",
+   "new": "Resolution is therefore one division pair per anchor and one multiply-add per component.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-027",
+   "old": "`Dₖ` and `Φₖ` must both come out exact integers.",
+   "new": "`Dₖ` and `Φₖ` must both come out exact integers.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-028",
+   "old": "Otherwise the result is a `DeploymentInvalid`, naming the anchor with its declaring scope and key from the rate-chain column.",
+   "new": "Otherwise the result is a `DeploymentInvalid`, naming the anchor with its declaring scope and key from the rate-chain column.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-029",
+   "old": "The per-component triples are the schedule, the `Schedule` the constructor builds and the `Deployment` carries (§9.2).",
+   "new": "The per-component triples are the content of the `Schedule`, which the constructor builds and the `Deployment` carries.",
+   "where": "new",
+   "cites": [
+    "§9.2"
+   ],
+   "newcites": [],
+   "tag": "C"
+  },
+  {
+   "id": "A2-030",
+   "old": "Deployment validation is collected like its declarative siblings (§13.1).",
+   "new": "Deployment validation is collected like its declarative siblings (§13.1, D-229).",
+   "where": "new",
+   "cites": [
+    "§13.1"
+   ],
+   "newcites": [
+    "§13.1",
+    "D-229"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A2-031",
+   "old": "Violations are collected and reported as `DeploymentInvalid` (Appendix C), carrying parameter, value and the violated constraint:",
+   "new": "Violations are collected and reported as `DeploymentInvalid` (Appendix C), carrying parameter, value and the violated constraint:",
+   "where": "new",
+   "cites": [
+    "Appendix C"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A2-032",
+   "old": "- a nonpositive `h`;",
+   "new": "- a nonpositive `h`;",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-033",
+   "old": "- an `N_base < 1`;",
+   "new": "- an `N_base < 1`;",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-034",
+   "old": "- a harmonic-grid violation;",
+   "new": "- a harmonic-grid violation;",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-035",
+   "old": "- a non-dividing anchor period or offset;",
+   "new": "- a non-dividing anchor period or offset;",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-036",
+   "old": "- a declared `Δt_base` disagreeing with a declared `N_base`;",
+   "new": "- a declared `Δt_base` disagreeing with a declared `N_base`;",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-037",
+   "old": "- an algorithm the stepper seam does not know;",
+   "new": "- an algorithm the stepper seam does not know;",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-038",
+   "old": "- a nonpositive `localization_tol`;",
+   "new": "- a nonpositive `localization_tol`;",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-039",
+   "old": "- a `localization_budget` or a `firing_budget` that is not an integer ≥ 1.",
+   "new": "- a `localization_budget` or a `firing_budget` that is not an integer ≥ 1.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-040",
+   "old": "The event parameters validate on their own terms only.",
+   "new": "The event parameters validate on their own terms only.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-041",
+   "old": "They are grid-independent, so they take no part in the harmonic-grid check (§10.4, §10.6).",
+   "new": "They are grid-independent, so they take no part in the harmonic-grid check (§10.4, §10.6).",
+   "where": "new",
+   "cites": [
+    "§10.4",
+    "§10.6"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A2-042",
+   "old": "#### Where a build warning lives",
+   "new": "#### Warnings",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A2-043",
+   "old": "Rule. A step that throws renders its warnings with the collection it throws.",
+   "new": "A step that throws renders its warnings with the collection it throws.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-044",
+   "old": "A step that completes carries its warnings on the artifact, and the entry point logs each one once at return (D-250).",
+   "new": "A step that completes carries its warnings on the artifact, and the entry point logs each one once at return (D-250).",
+   "where": "new",
+   "cites": [
+    "D-250"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A2-045",
+   "old": "Logging is presentation and never a home (§13.2).",
+   "new": "Logging is presentation and never a home (§13.2).",
+   "where": "new",
+   "cites": [
+    "§13.2"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A2-046",
+   "old": "A warning raised inside a declaration body has no artifact in hand.",
+   "new": "A warning raised inside a declaration body has no artifact in hand.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-047",
+   "old": "The build binds a scoped channel around its three steps, and the helper appends to it without knowing the build.",
+   "new": "The build binds a scoped channel around its three steps, and the helper appends to it without knowing the build.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-048",
+   "old": "The same helper called standalone, outside any build, logs directly.",
+   "new": "The same helper called standalone, outside any build, logs directly.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-049",
+   "old": "That is how `EmptyFaceSelection` (§8.8) reaches the `Build`'s list.",
+   "new": "That is how `EmptyFaceSelection` (§8.8) reaches the `Build`'s list.",
+   "where": "new",
+   "cites": [
+    "§8.8"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A2-050",
+   "old": "### 9.2 The `Build` artifact",
+   "new": "### 9.2 The `Build` and `Deployment` artifacts",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A2-051",
+   "old": "`build(world) → Build` is a standalone entry point.",
+   "new": "`build(world) → Build` is a standalone entry point (D-049).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-049"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A2-052",
+   "old": "A `Build` is structure, outputs, events, the activations and `warnings` (D-253).",
+   "new": "A `Build` is structure, outputs, events, the activations and `warnings` (D-253).",
+   "where": "new",
+   "cites": [
+    "D-253"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-053",
+   "old": "The first three are the products of §9.1's three steps.",
+   "new": "The first three are the products of the structure step and the nominal evaluation (§9.1).",
+   "where": "new",
+   "cites": [
+    "§9.1"
+   ],
+   "tag": "R",
+   "ruling": "R18"
+  },
+  {
+   "id": "A2-054",
+   "old": "The activations are one dictionary keyed by scalar type,",
+   "new": "The cache is one activation dictionary, keyed by concrete scalar type.",
+   "where": "docs/reports/20261001_spec_rewrite_sample/versions/v4_flat.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-055",
+   "old": "the nominal `Float64` entry included,",
+   "new": "The nominal `Float64` entry is one key in the activation dictionary like any other (D-253).",
+   "where": "docs/reports/20261001_spec_rewrite_sample/versions/v4_flat.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-056",
+   "old": "under the lock that makes insertion torn-state-free (§9.4).",
+   "new": "Insertion into that dictionary is torn-state-free.",
+   "where": "new",
+   "cites": [
+    "§9.4"
+   ],
+   "tag": "R",
+   "ruling": "F6, ruled by the user 2026-10-01; F1 (final_verify) applied 2026-10-01"
+  },
+  {
+   "id": "A2-057",
+   "old": "Deploying and materializing are two steps, with two sugar forms over them.",
+   "new": "Deploying and materializing are two steps, with two sugar forms over them (D-254).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-254"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A2-058",
+   "old": "The constructor of a `Deployment`",
+   "new": "The constructor consumes the `Build` and the grid parameters.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R45"
+  },
+  {
+   "id": "A2-059",
+   "old": "(the scalar-free artifact the grid parameters fix)",
+   "new": "the `Deployment` (the scalar-free artifact the grid parameters fix).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-060",
+   "old": "takes a `Build` and the grid parameters (§9.1).",
+   "new": "The constructor consumes the `Build` and the grid parameters.",
+   "where": "new",
+   "cites": [
+    "§9.1"
+   ],
+   "newcites": [],
+   "tag": "R",
+   "ruling": "R45"
+  },
+  {
+   "id": "A2-061",
+   "old": "`Simulation(deployment, T)` materializes a deployment at a scalar type.",
+   "new": "Simulation(deployment, T) # materializes a deployment at a scalar type",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-062",
+   "old": "`Simulation(build; kw...)` composes those two,",
+   "new": "Simulation(build; kw...) # composes the two steps",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-063",
+   "old": "and `Simulation(world; kw...)` calls `build` first (D-254).",
+   "new": "Simulation(world; kw...) # calls build first",
+   "where": "new",
+   "cites": [
+    "D-254"
+   ],
+   "newcites": [],
+   "tag": "C"
+  },
+  {
+   "id": "A2-064",
+   "old": "The artifact deployed is the very build that CI checked, that an acceptance test targeted, and that a face-route table was printed from, never an assumed-equal reconstruction.",
+   "new": "The artifact deployed is the very build that CI checked, that an acceptance test targeted, and that a face-route table was printed from, never an assumed-equal reconstruction.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-065",
+   "old": "Why. Computed interface-connection bodies are ordinary user code re-evaluated on every build, so equality between two builds of the same world is an assumption the factorization removes.",
+   "new": "Computed interface-connection bodies are ordinary user code re-evaluated on every build, so equality between two builds of the same world is an assumption the factorization removes.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-066",
+   "old": "The `Build` is immutable and may back any number of deployments and `Simulation`s, concurrently.",
+   "new": "The `Build` is immutable apart from its lazily filled activation dictionary, and may back any number of `Deployment`s and `Simulation`s, concurrently (D-135).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-135"
+   ],
+   "tag": "R",
+   "ruling": "R16"
+  },
+  {
+   "id": "A2-067",
+   "old": "That is true by construction once buffers are single-owner (§9.4).",
+   "new": "Every buffer set has exactly one owner (D-282).",
+   "where": "units/S94/new.md",
+   "cites": [
+    "§9.4"
+   ],
+   "tag": "R",
+   "ruling": "R36"
+  },
+  {
+   "id": "A2-068",
+   "old": "Each `Simulation` materializes its own from the shared layouts,",
+   "new": "The `Simulation` owns its nominal activation's buffers. They are materialized from the cached layouts at construction.",
+   "where": "units/S94/new.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R36"
+  },
+  {
+   "id": "A2-069",
+   "old": "so nothing writable is shared.",
+   "new": "An entry is immutable once constructed, and so it is freely shareable.",
+   "where": "units/S94/new.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R36"
+  },
+  {
+   "id": "A2-070",
+   "old": "The one mutable thing on the artifact is the lazily populated activation dictionary,",
+   "new": "The `Build` is immutable apart from its lazily filled activation dictionary",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "F1 (final_verify) applied 2026-10-01; R16 holds the fact"
+  },
+  {
+   "id": "A2-071",
+   "old": "whose insertion §9.4 makes torn-state-free.",
+   "new": "§9.4 states the ownership rule, the keying and the guarantee.",
+   "where": "new",
+   "cites": [
+    "§9.4"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-072",
+   "old": "The `Build` is the inspectable derived contract of the instantiation that §8.8 gestures at.",
+   "new": "The `Build` is the inspectable derived contract of the instantiation that §8.8 gestures at.",
+   "where": "new",
+   "cites": [
+    "§8.8"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-073",
+   "old": "Its parts hold the wire list, face table, root inputs and execution order as plain printable data.",
+   "new": "Its parts hold the wire list, face table, root inputs and execution order as plain printable data.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-074",
+   "old": "The first three sit on `Structure` (the structure step's product, the components, wires, faces and tiers).",
+   "new": "The first three sit on `Structure` (the structure step's product, the components, wires, faces and tiers).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-075",
+   "old": "The last sits on `Outputs` (the nominal evaluation's product, the port classes and the execution order).",
+   "new": "The last sits on `Outputs` (the nominal evaluation's product, the port classes and the execution order).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-076",
+   "old": "\"Printable\" names the representation.",
+   "new": "\"Printable\" names the representation.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-077",
+   "old": "Paths, names and rationals are inspectable as fields and printed by any REPL without a method of their own,",
+   "new": "Paths, names and rationals are inspectable as fields, and any REPL prints them without a method of their own.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-078",
+   "old": "the diagnostic form set against the compiled form (§9.7).",
+   "new": "That is the diagnostic form, set against the compiled form (§9.7).",
+   "where": "new",
+   "cites": [
+    "§9.7"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-079",
+   "old": "The face table on `Structure` is two-sided.",
+   "new": "The face table on `Structure` is two-sided (D-207).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-207"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A2-080",
+   "old": "Beside each level's output faces and their routes it retains that level's input faces,",
+   "new": "Beside each level's output faces and their routes, it retains that level's input faces.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-081",
+   "old": "each resolved producer-ward to the one feed its consumers share, either a root input or a producer inside the model.",
+   "new": "Each is resolved producer-ward to the one feed its consumers share, either a root input or a producer inside the model.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-082",
+   "old": "The record is total, because one-level routing gives every signal a declared face at every boundary it crosses (§6.1, D-207).",
+   "new": "The record is total, because one-level routing gives every signal a declared face at every boundary it crosses (§6.1).",
+   "where": "new",
+   "cites": [
+    "§6.1",
+    "D-207"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A2-083",
+   "old": "The input side is what a fragment's `u` payload resolves against from any authoring level (§14.2, §14.3).",
+   "new": "The input side is what a fragment's `u` payload resolves against from any authoring level (§14.2, §14.3).",
+   "where": "new",
+   "cites": [
+    "§14.2",
+    "§14.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-084",
+   "old": "CI checks a model by calling `build`, the acceptance tests target `build` errors directly, and `attach!` validates device bindings against it.",
+   "new": "CI checks a model by calling `build`, the acceptance tests target `build` errors directly, and `attach!` validates device bindings against the `Build`.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R17"
+  },
+  {
+   "id": "A2-085",
+   "old": "Build living only inside the `Simulation` constructor was rejected (D-049).",
+   "new": "Build living only inside the `Simulation` constructor was rejected.",
+   "where": "new",
+   "cites": [
+    "D-049"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A2-086",
+   "old": "`Structure`'s timing tables are anchor-relative, and the `Deployment` binds them.",
+   "new": "`Structure`'s timing tables are anchor-relative, and the `Deployment` binds them (D-186).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-186"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A2-087",
+   "old": "From the structure step the artifact gains two printable tables.",
+   "new": "From the structure step the artifact gains two printable tables:",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-088",
+   "old": "The anchor table holds each anchor's exact `(T, τ)` rationals with the declaring scope's path and key.",
+   "new": "- The anchor table holds each anchor's exact `(T, τ)` rationals with the declaring scope's path and key.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-089",
+   "old": "The component table holds the `(anchor, m, c)` triples with their rate chain, the `Relative`/`Absolute` chain down the tree.",
+   "new": "- The component table holds the `(anchor, m, c)` triples with their rate chain, the `Relative`/`Absolute` chain down the tree.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-090",
+   "old": "The base grid `A₀` takes an anchor-table row of its own, with a dash in the scope and key columns, because no scope declares it.",
+   "new": "The base grid `A₀` takes an anchor-table row of its own, with a dash in the scope and key columns, because no scope declares it.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-091",
+   "old": "Its `(T, τ)` stays symbolic there until `Δt_base` binds.",
+   "new": "Its `(T, τ)` stays symbolic there until `Δt_base` binds.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-092",
+   "old": "For a fully relative model the only anchor is `A₀` and the triples are the final base-tick `(D, Φ)` pairs.",
+   "new": "For a fully relative model the only anchor is `A₀`, and the triples are the final base-tick `(D, Φ)` pairs.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-093",
+   "old": "When anchors exist, final divisors cannot live here.",
+   "new": "When anchors exist, final divisors cannot live here.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-094",
+   "old": "They do not exist until `Δt_base` binds, and the same `Build` already backs many deployments with different grid parameters.",
+   "new": "They do not exist until `Δt_base` binds, and the same `Build` already backs many `Deployment`s with different grid parameters.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-095",
+   "old": "The `Schedule` (the typed per-component `(D, Φ, Δt)` tick table)",
+   "new": "The `Deployment` carries the `Schedule` (the typed per-component `(D, Φ, Δt)` tick table).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-096",
+   "old": "lives on the `Deployment` (D-254).",
+   "new": "The `Schedule` lives on the `Deployment` (D-254).",
+   "where": "new",
+   "cites": [
+    "D-254"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-097",
+   "old": "The `Deployment` constructor (§9.1) builds it from the structure's triples and anchors.",
+   "new": "The constructor builds it from the structure's triples and anchors.",
+   "where": "new",
+   "cites": [
+    "§9.1"
+   ],
+   "newcites": [],
+   "tag": "C"
+  },
+  {
+   "id": "A2-098",
+   "old": "It is the typed schedule:",
+   "new": "It is typed.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-099",
+   "old": "one row per discrete component carrying `(D, Φ, Δt)` with the anchor and rate-chain columns,",
+   "new": "It has one row per discrete component, carrying `(D, Φ, Δt)` with the anchor and rate-chain columns.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-100",
+   "old": "the rate-scope rows (an assembly's `sample_times` declaration against the enclosing scope)",
+   "new": "the component table with the rate-scope rows (an assembly's `sample_times` declaration against the enclosing scope).",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-101",
+   "old": "each with its own `(Dₛ, Φₛ)`.",
+   "new": "It also has the rate-scope rows, each with its own `(Dₛ, Φₛ)`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-102",
+   "old": "The per-component `(D, Φ, Δt)` the executor compiles over are derived from the rows at `compile`, never stored beside them (D-261).",
+   "new": "The per-component `(D, Φ, Δt)` the executor compiles over are derived from the rows at `compile`, never stored beside them (D-261).",
+   "where": "new",
+   "cites": [
+    "D-261"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-103",
+   "old": "The schedule is the single source of truth for `Δt` (§10.5),",
+   "new": "The `Schedule` is the single source of truth for `Δt` (§10.5).",
+   "where": "new",
+   "cites": [
+    "§10.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-104",
+   "old": "the substrate of the grid diagnostics below, and the table that answers \"when does what run, and what coincides with what\".",
+   "new": "It is also the substrate of the grid diagnostics below, and the table that answers \"when does what run, and what coincides with what\".",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-105",
+   "old": "Rule. An artifact holds declared facts.",
+   "new": "An artifact holds declared facts, and a consumer compiles what it needs from them once, at one home (D-261).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-261"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A2-106",
+   "old": "A consumer compiles what it needs from them once, at one home,",
+   "new": "An artifact holds declared facts, and a consumer compiles what it needs from them once, at one home (D-261).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-107",
+   "old": "and the activation's cell layout is that home for address facts (D-261).",
+   "new": "The activation's cell layout is that home for address facts.",
+   "where": "new",
+   "cites": [
+    "D-261"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-108",
+   "old": "A compiled form stored beside its declared one is a second home, with no enforcer but the constructor that filled both.",
+   "new": "A compiled form stored beside its declared one is a second home, with no enforcer but the constructor that filled both.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-109",
+   "old": "Each artifact renders itself through `show`, with no accessors (D-257).",
+   "new": "Each artifact renders itself through `show`, with no accessors (D-257):",
+   "where": "new",
+   "cites": [
+    "D-257"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-110",
+   "old": "`show(::Structure)` prints the anchor table with the `A₀` row and the component table with the rate-scope rows.",
+   "new": "- `show(::Structure)` prints the anchor table with the `A₀` row and the component table with the rate-scope rows",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-111",
+   "old": "`show(::Outputs)` prints the execution order with each port's class.",
+   "new": "- `show(::Outputs)` prints the execution order with each port's class.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-112",
+   "old": "`show(::Schedule)` prints the rows and the hyperperiod chart.",
+   "new": "- `show(::Schedule)` prints the rows and the hyperperiod chart.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-113",
+   "old": "`show(::Build)` and `show(::Deployment)` print a summary and their parts.",
+   "new": "- `show(::Build)` and `show(::Deployment)` print a summary and their parts.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-114",
+   "old": "A REPL user gets each table by evaluating the value.",
+   "new": "A REPL user gets each table by evaluating the value.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-115",
+   "old": "The structure step records each face's routing chain at every level.",
+   "new": "The structure step records each face's routing chain at every level,",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-116",
+   "old": "`show(::Structure)` prints the root's routes, one line per chain,",
+   "new": "and `show(::Structure)` prints the root's routes, one line per chain (§13.7).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "§13.7"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A2-117",
+   "old": "its hops joined with `→` and ending at the terminal (§13.7).",
+   "new": "Each line joins the hops with `→` and ends at the terminal.",
+   "where": "docs/design/spec.md",
+   "cites": [
+    "§13.7"
+   ],
+   "tag": "M"
+  },
+  {
+   "id": "A2-118",
+   "old": "An input face that fans out prints one line per consumer.",
+   "new": "An input face that fans out prints one line per consumer. The same rendering serves the wiring diagnostics",
+   "where": "docs/design/spec.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-119",
+   "old": "The chart's pattern repeats with period `lcm(Dᵢ)` base ticks, and the gate is pure modulo arithmetic,",
+   "new": "The chart's pattern repeats with period `lcm(Dᵢ)` base ticks, and the gate (`(tick − Φ) % D == 0`, §9.7) is pure modulo arithmetic.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R59",
+   "newcites": [
+    "§9.7"
+   ]
+  },
+  {
+   "id": "A2-120",
+   "old": "so one hyperperiod is the complete truth, not a sample.",
+   "new": "So one hyperperiod is the complete truth, not a sample.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-121",
+   "old": "Rule. The chart guard is binary.",
+   "new": "The chart guard is binary.",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-257"
+   ],
+   "tag": "R",
+   "ruling": "R3"
+  },
+  {
+   "id": "A2-122",
+   "old": "The chart prints whole, as a tick chart over `k = 0 … lcm(Dᵢ) − 1`, when `lcm(Dᵢ)` is at most 100 base ticks.",
+   "new": "The chart prints whole, as a tick chart over `k = 0 … lcm(Dᵢ) − 1`, when `lcm(Dᵢ)` is at most 100 base ticks (D-257).",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R3"
+  },
+  {
+   "id": "A2-123",
+   "old": "Otherwise `show` prints the hyperperiod's length and \"chart omitted\" (D-257).",
+   "new": "Otherwise `show` prints the hyperperiod's length and \"chart omitted\".",
+   "where": "new",
+   "cites": [
+    "D-257"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-124",
+   "old": "Example. The model worked in §10.5 has three discrete components under two scopes.",
+   "new": "The model worked in §10.5 has three discrete components under two scopes",
+   "where": "new",
+   "cites": [
+    "§10.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-125",
+   "old": "`sample_times` declares `fcs = Relative(1)` and `gnss = Absolute(Hz(50))` at the root,",
+   "new": "The root holds a flight-control scope `fcs` and a discrete GNSS component `gnss`, declared as `fcs = Relative(1)` and `gnss = Absolute(Hz(50))`.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R50"
+  },
+  {
+   "id": "A2-126",
+   "old": "and `inner = Relative(1)` and `outer = Relative(5, 2)` under `fcs`.",
+   "new": "sample_times(::FCS) = (inner = Relative(1), # → (1, 0) outer = Relative(5, 2))",
+   "where": "docs/design/spec.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "A2-127",
+   "old": "Deploy it at `Δt_base = 2 ms`.",
+   "new": "Deploy it at `Δt_base = 2 ms`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-128",
+   "old": "The `Absolute` entry seeds the anchor `A₁ = (1//50, 0)` and the rest of the tree stays on anchor 0,",
+   "new": "The `Absolute` entry seeds the anchor `A₁ = (1//50, 0)`, and the rest of the tree stays on anchor 0.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-129",
+   "old": "so the three components carry these values through binding:",
+   "new": "So the three components carry these values through binding:",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-130",
+   "old": "| | `inner` | `outer` | `gnss` | |---|---|---|---| | declaration | `Relative(1)` under `fcs` | `Relative(5, 2)` under `fcs` | `Absolute(Hz(50))` at the root | | anchor | `A₀` | `A₀` | `A₁` | | triple `(m, c)` | `(1, 0)` | `(5, 2)` | `(1, 0)` | | bound `(D, Φ)` | `(1, 0)` | `(5, 2)` | `(10, 0)` | | bound `Δt` | 2 ms | 10 ms | 20 ms |",
+   "new": "| | `inner` | `outer` | `gnss` | |---|---|---|---| | declaration | `Relative(1)` under `fcs` | `Relative(5, 2)` under `fcs` | `Absolute(Hz(50))` at the root | | anchor | `A₀` | `A₀` | `A₁` | | triple `(m, c)` | `(1, 0)` | `(5, 2)` | `(1, 0)` | | bound `(D, Φ)` | `(1, 0)` | `(5, 2)` | `(10, 0)` | | bound `Δt` | 2 ms | 10 ms | 20 ms |",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-131",
+   "old": "`gnss` is the entry whose divisor could not exist before `Δt_base` bound.",
+   "new": "`gnss` is the entry whose divisor could not exist before `Δt_base` bound.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-132",
+   "old": "Its divisor is `D = m·D₁`, with `D₁ = T₁/Δt_base = (1//50)/(1//500) = 10`.",
+   "new": "Its divisor is `D = m·D₁`, with `D₁ = T₁/Δt_base = (1//50)/(1//500) = 10`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-133",
+   "old": "The grid diagnostics live on the `Deployment` and print from the pool, exactly (D-254).",
+   "new": "The grid diagnostics live on the `Deployment` and print from the pool, exactly (D-254).",
+   "where": "new",
+   "cites": [
+    "D-254"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-134",
+   "old": "The refusal path's suggestion message and the derivation path's info line share one substrate:",
+   "new": "The refusal path's suggestion message and the derivation path's info line share one substrate.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-135",
+   "old": "the coarsest admissible `Δt_base` with the admissible set `gcd(pool)/k`, and per-entry attribution.",
+   "new": "That substrate is the coarsest admissible `Δt_base` with the admissible set `gcd(pool)/k`, and per-entry attribution.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-136",
+   "old": "Attribution has two forms.",
+   "new": "Attribution has two forms:",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-137",
+   "old": "Leave-one-out refinement factors are the first form.",
+   "new": "- Leave-one-out refinement factors are the first form.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-138",
+   "old": "`r_p = gcd(pool ∖ p)/gcd(pool)` is an integer ≥ 1 read as \"how much coarser the grid would be without this entry\".",
+   "new": "`r_p = gcd(pool ∖ p)/gcd(pool)` is an integer ≥ 1 read as \"how much coarser the grid would be without this entry\".",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-139",
+   "old": "Every `r_p > 1` is listed rather than one culprit crowned,",
+   "new": "Every `r_p > 1` is listed rather than one culprit crowned (D-187).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-187"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A2-140",
+   "old": "because joint responsibility is the honest answer.",
+   "new": "That is because joint responsibility is the honest answer.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-141",
+   "old": "Prime attribution is the second form.",
+   "new": "- Prime attribution is the second form.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-142",
+   "old": "Each prime power of `1/Δt_base` is traced to the pool entries whose denominators supply it.",
+   "new": "Each prime power of `1/Δt_base` is traced to the pool entries whose denominators supply it.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-143",
+   "old": "That pinpoints what an edit changed.",
+   "new": "That pinpoints what an edit changed.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-144",
+   "old": "When an offset is a driver, the message adds the nearest non-refining alternatives, the admissible offsets on the grid the rest of the pool supports.",
+   "new": "When an offset is a driver, the message adds the nearest non-refining alternatives, the admissible offsets on the grid the rest of the pool supports.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-145",
+   "old": "That turns the diagnostic into a repair.",
+   "new": "That turns the diagnostic into a repair.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-146",
+   "old": "Blame is computed against the actual pool.",
+   "new": "Blame is computed against the actual pool (D-187).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-187"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A2-147",
+   "old": "A simple-fraction-of-its-period test stays authoring guidance and never becomes the engine's (D-187).",
+   "new": "A simple-fraction-of-its-period test stays authoring guidance and never becomes the engine's.",
+   "where": "new",
+   "cites": [
+    "D-187"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-148",
+   "old": "The derivation path is the one place refinement happens silently.",
+   "new": "The derivation path is the one place refinement happens silently.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-149",
+   "old": "It always prints the derived value with its drivers, and it carries the one advisory, `GridUtilization` (Appendix C).",
+   "new": "It always prints the derived value with its drivers, and it carries the one advisory, `GridUtilization` (Appendix C).",
+   "where": "new",
+   "cites": [
+    "Appendix C"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-150",
+   "old": "The advisory reports `min_i Dᵢ`, the base ticks between the fastest component's ticks, as \"grid is N× finer than the fastest declared work\" with the drivers named.",
+   "new": "The advisory reports `min_i Dᵢ`, the base ticks between the fastest component's ticks, as \"grid is N× finer than the fastest declared work\" with the drivers named.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-151",
+   "old": "It is information rather than scolding, since a scope deliberately declared finer than its fastest member to buy stagger room (§10.5) legitimately inflates the metric.",
+   "new": "It is information rather than scolding, since a scope deliberately declared finer than its fastest member to buy stagger room (§10.5) legitimately inflates the metric.",
+   "where": "new",
+   "cites": [
+    "§10.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-152",
+   "old": "`GridUtilization` is a deployment warning, so it lives on the `Deployment`'s list and the constructor logs it once at return (D-250).",
+   "new": "The `GridUtilization` advisory is a deployment warning, so it lives on the `Deployment`'s list and the constructor logs it once at return (D-250).",
+   "where": "new",
+   "cites": [
+    "D-250"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-153",
+   "old": "`warnings(x)` reads the list.",
+   "new": "It reads the list.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A2-154",
+   "old": "It is defined on `Build` and `Deployment`, and on `Simulation` as the concatenation of its artifacts' lists (D-250).",
+   "new": "`warnings(x)` is defined on `Build` and `Deployment`, and on `Simulation` as the concatenation of its artifacts' lists (D-250).",
+   "where": "new",
+   "cites": [
+    "D-250"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A2-155",
+   "old": "Warnings raised while mutating state stay in that state's status record (§11.8), never here.",
+   "new": "Warnings raised while mutating state stay in that state's status record (§11.8), never here.",
+   "where": "new",
+   "cites": [
+    "§11.8"
+   ],
+   "tag": "F"
+  }
+ ],
+ "added": [
+  "The build's three steps (§9.1) leave their products on a `Build`.",
+  "Deploying a build at grid parameters leaves a second artifact, the `Deployment` (the scalar-free artifact the grid parameters fix).",
+  "A `Simulation` then materializes a `Deployment` at a scalar type.",
+  "This section states what each artifact holds, how a `Deployment` binds, how each artifact prints, how a `Deployment` explains its grid, and where the warnings raised on the way live.",
+  "#### The `Build`",
+  "#### Rendering",
+  "#### Grid diagnostics",
+  "The `Simulation` constructor has three forms, the materialization step and the two sugar forms:",
+  "and that section's code block gives their `sample_times`.",
+  "The `Deployment` constructor (below) is the first step.",
+  "Every check whose premise holds runs, and the constructor throws once.",
+  "- `show(::Events)` prints each component's event names with their policies.",
+  "`show(::Build)`'s parts include the events, and a line of the feedthrough edges between the outputs table and the events table.",
+  "The edges are derived from the structure's connections and the producers' stage-2 names."
+ ],
+ "ruled_additions": [
+  {
+   "span": "Every check whose premise holds runs, and the constructor throws once.",
+   "ruling": "R20"
+  },
+  {
+   "span": "- `show(::Events)` prints each component's event names with their policies.",
+   "ruling": "R22"
+  },
+  {
+   "span": "`show(::Build)`'s parts include the events, and a line of the feedthrough edges between the outputs table and the events table.",
+   "ruling": "R22"
+  },
+  {
+   "span": "The edges are derived from the structure's connections and the producers' stage-2 names.",
+   "ruling": "R22"
+  }
+ ]
+}
