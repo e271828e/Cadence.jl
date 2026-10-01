@@ -115,7 +115,7 @@ D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276.
   `replay!`'s `restore` and a halt before the feed's first frame, and its
   `:t0_without_about` names the checkpoint as the default operating point.
 
-Spec: §9.1, §12.6, §12.7, §13.1, §13.2, §13.4, §14.8, §14.9, §14.10, Appendix C,
+Spec: §9.1, §9.2, §12.6, §12.7, §13.1, §13.2, §13.4, §14.8, §14.9, §14.10, Appendix C,
 D-058, D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256,
 D-261, D-262, D-263, D-272, D-274, D-276, D-277.
 
@@ -492,7 +492,7 @@ Spec: §10.2, D-017.
 - The `Deployment` holds the build plus the grid parameters `h`, `N_base` and
   `Δt_base`, the algorithm and the three event parameters `firing_budget`,
   `localization_tol` and `localization_budget`. It is scalar-free. The
-  `Deployment` constructor has one throw per call (§9.1, D-229).
+  `Deployment` constructor has one throw per call (§9.2, D-229).
 - `==`/`hash` on a `Deployment` compare by value over everything but the
   build, the grid attribution and the warnings (§12.7).
 - `warnings(::Deployment)`.
@@ -508,7 +508,7 @@ Spec: §10.2, D-017.
   with both attribution forms. The derivation path also raises the
   `GridUtilization` advisory at `min_i Dᵢ > 1`.
 
-Spec: §9.1, §9.2, §10.5, §12.7, Appendix B, Appendix C, D-187, D-227, D-229,
+Spec: §9.2, §10.5, §12.7, Appendix B, Appendix C, D-187, D-227, D-229,
 D-250, D-254, D-256, D-261.
 
 ### `src/localization.jl`
@@ -829,7 +829,7 @@ The suite's fixtures:
 
 All of them are user material, and no name here is known to `src/`.
 `test_build.jl`'s `Dual` sweep builds every fixture with a zero-argument
-constructor at `ProbeDual` (§9.4, D-166), and `DUAL_PINNED` lists the four
+constructor at `ProbeDual` (§9.4, D-280), and `DUAL_PINNED` lists the four
 pinned on purpose, which it must refuse.
 
 ### `test/imports.jl`

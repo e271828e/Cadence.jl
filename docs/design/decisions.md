@@ -304,6 +304,9 @@ were derived.
 | [D-277][d-277] | Carry a read set's mount chain and rebase every selector to the root | ratified |
 | [D-278][d-278] | Refuse an empty `at` prefix at composition | ratified |
 | [D-279][d-279] | Name the assembly's boundary declarations by `u` and `y`, and shorten `x_derivative` | ratified |
+| [D-280][d-280] | Build a `Dual` activation of every component in CI | ratified |
+| [D-281][d-281] | Guarantee torn-state-free lazy materialization | ratified |
+| [D-282][d-282] | Give every buffer set exactly one owner | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -1460,7 +1463,7 @@ by concrete scalar type; Julia caches the compilation — the buffer clause
 rescinded by [D-135][d-135]: the cache holds immutable artifacts only and lives on the
 `Build`, buffers being single-owner).
 
-**Spec.** [§9.5][s9-5]
+**Spec.** [§9.4][s9-4], [§9.5][s9-5]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -3295,7 +3298,7 @@ honest:
   `declaration_error`, and `UnknownFaceSelection` gains a reason field (unknown
   names / both selectors given).
 
-**Spec.** [§6.1][s6-1], [§8.4][s8-4], [§8.8][s8-8], [§9.1][s9-1], [§14.2][s14-2], [§14.8][s14-8], [Appendix C][sC]
+**Spec.** [§6.1][s6-1], [§8.4][s8-4], [§8.8][s8-8], [§9.2][s9-2], [§14.2][s14-2], [§14.8][s14-8], [Appendix C][sC]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -3978,7 +3981,7 @@ whole frames only, overshooting by up to `h`, with the termination record
 carrying the actual final `t` ([§13.5][s13-5]). This amends [D-127][d-127].
 
 **Spec.** [§10.4][s10-4], [§10.5][s10-5], [§10.7][s10-7], [§11.5][s11-5], [§12.2][s12-2], [§12.4][s12-4], [§12.4][s12-4](1), [§12.4][s12-4](5), [§12.6][s12-6],
-[§12.7][s12-7], [§9.1][s9-1], [§13.2][s13-2], [§13.5][s13-5], [Appendix B][sB], [Appendix C][sC], [Appendix D][sD]
+[§12.7][s12-7], [§9.2][s9-2], [§13.2][s13-2], [§13.5][s13-5], [Appendix B][sB], [Appendix C][sC], [Appendix D][sD]
 
 **Rationale.** Semantic constants: `event_budget`'s default 8 covers a
 legitimate multi-event frame — three landing-gear struts touching down inside
@@ -4368,7 +4371,7 @@ author can write it: the real component composes sub-models, and anyone else
 reconstructing the map has re-created the silent-drift class [§5.3][s5-3] exists to
 kill.
 
-**Spec.** [§4.4][s4-4], [§5.3][s5-3], [§9.6][s9-6], [§14.1][s14-1], [§14.2][s14-2], [§14.7][s14-7], [§14.9][s14-9], Appendices A/D
+**Spec.** [§4.4][s4-4], [§5.3][s5-3], [§14.1][s14-1], [§14.2][s14-2], [§14.7][s14-7], [§14.9][s14-9], Appendices A/D
 
 **Rationale.** Bulk-data components owe only that the query math be *reachable*
 as a plain function; building a handle outside a build may then cost a resource
@@ -6458,7 +6461,7 @@ construction; float arguments throw a teaching error naming the exact spelling)
 defaulting to `Relative(1)`, validation Stratum A's with path attribution and
 the constructors plain data carriers.
 
-**Spec.** [§10.5][s10-5], [§8.7][s8-7], [§9.7][s9-7], [§13.1][s13-1], [§14.5][s14-5], [§14.8][s14-8]
+**Spec.** [§10.5][s10-5], [§8.7][s8-7], [§9.1][s9-1], [§9.7][s9-7], [§13.1][s13-1], [§14.5][s14-5], [§14.8][s14-8]
 
 **Rationale.** Composition: multipliers multiplicative, phases affine (`D =
 K·Dₛ`, `Φ = Φₛ + φ·Dₛ`), preserving the canonical residue `0 ≤ Φ < D` with no
@@ -6563,7 +6566,7 @@ the gate is pure modulo arithmetic (the pattern repeats with `lcm(Dᵢ)` base
 ticks — one hyperperiod is the complete truth, not a sample), guarded against
 absurd hyperperiods.
 
-**Spec.** [§9.1][s9-1], [§9.2][s9-2], Appendices B/C
+**Spec.** [§9.2][s9-2], Appendices B/C
 
 **Rationale.** The refusal path's suggestion message and the derivation path's
 info line share one substrate: coarsest admissible `Δt_base`, the admissible
@@ -8212,7 +8215,7 @@ materializes against the flat state buffer. The name reaches every surface
 that records the choice: the trace header's deployment block, the replay
 comparison and the `DeploymentInvalid` parameter.
 
-**Spec.** [§9.1][s9-1], [§10.2][s10-2], [§11.5][s11-5], [Appendix B][sB], [Appendix C][sC]
+**Spec.** [§9.2][s9-2], [§10.2][s10-2], [§11.5][s11-5], [Appendix B][sB], [Appendix C][sC]
 
 **Rationale.** The code took `method = RK4` and [Appendix B][sB] spelled
 `algorithm = RK4()`, with no ruling behind either. The two spellings differ
@@ -8294,7 +8297,7 @@ the next stratum. What that rule yields, pass by pass:
 - Outside the strata the unit is the call. Deployment validation ([§9.1][s9-1]) runs
   every check whose premise holds and throws once.
 
-**Spec.** [§9.1][s9-1], [§13.1][s13-1], [Appendix C][sC]
+**Spec.** [§9.1][s9-1], [§9.2][s9-2], [§13.1][s13-1], [Appendix C][sC]
 
 **Rationale.** [§13.1][s13-1] fixed that declarative passes collect and strata are
 barriers, and left unsaid what a pass does with a violation inside itself
@@ -8486,7 +8489,7 @@ unaffected, there being no absence left to spell.
 field, the spec's prose and equations. The step subscript `tₙ` and the stepper
 seam's state count `N` keep their letters.
 
-**Spec.** [§9.1][s9-1], [§10.5][s10-5], [Appendix B][sB], [Appendix D][sD]
+**Spec.** [§9.2][s9-2], [§10.5][s10-5], [Appendix B][sB], [Appendix D][sD]
 
 **Rationale.** `n` denoted a fixed integer factor while the spec's own
 convention gives lowercase letters to changing indices — the frame
@@ -9254,7 +9257,7 @@ status. Logging is presentation, never a home.
   cell, since `attach!` mutates the roster, and surfaces through the status
   record. The log line at return stays as presentation.
 
-**Spec.** [§9.1][s9-1], [§9.2][s9-2], [§11.3][s11-3], [§11.8][s11-8], [§13.2][s13-2], [Appendix C][sC]
+**Spec.** [§9.2][s9-2], [§11.3][s11-3], [§11.8][s11-8], [§13.2][s13-2], [Appendix C][sC]
 
 **Rationale.** [§13.2][s13-2] placed warnings by where they were raised: the build's
 collection, the runtime's per-writer cells, and a third home for service
@@ -9469,7 +9472,7 @@ materializes it.
 - `Simulation(build; kw...)` and `Simulation(root; kw...)` stay as sugar
   composing the deployment constructor.
 
-**Spec.** [§9.1][s9-1], [§9.2][s9-2], [§10.5][s10-5], [§11.5][s11-5], [§12.7][s12-7], [Appendix C][sC]
+**Spec.** [§9.2][s9-2], [§10.5][s10-5], [§11.5][s11-5], [§12.7][s12-7], [Appendix C][sC]
 
 **Rationale.** Deployment consumes the grid parameters and fixes everything
 they determine, the bound schedule and the grid diagnostics among them, and
@@ -11450,6 +11453,73 @@ had fixed its meaning before this entry.
 - *Letters on the helpers and selectors:* [D-267][d-267] separates declarations from
   these, and [D-076][d-076]'s separation of `u_types` from `input_faces` stands.
 
+### D-280 — Build a `Dual` activation of every component in CI
+
+**Status.** ratified
+
+**Position.** The repository's test suite builds a `Dual` activation of every
+component, with `build(world; activations = (Float64, ProbeDual))`.
+Linearizability is an invariant held by this policy.
+
+**Spec.** [§8.2][s8-2], [§9.4][s9-4], [Appendix B][sB]
+
+**Rationale.** Activations are lazy ([D-052][d-052]), so a successful `build` does not
+certify the model linearizable. A pinned `Float64` hidden in a constructor, or
+a misplaced `Pinned` leaf, lurks until the first `Dual` activation. The policy
+moves that first activation into CI. An activation is a re-run of the
+activation step alone, cheap per the kernel prototype ([D-166][d-166]). [D-166][d-166]'s annotation records
+that the policy survived [D-166][d-166]'s supersession by [D-263][d-263]. [D-099][d-099] spells the probe
+scalar, and [D-275][d-275] makes the keyword the whole entry point.
+
+**Rejected.**
+- *Eager `Dual` at every build:* doubles compile latency for a CI-only
+  guarantee. (As recorded in [D-052][d-052].)
+
+### D-281 — Guarantee torn-state-free lazy materialization
+
+**Status.** ratified
+
+**Position.** Lazy materialization of an activation is torn-state-free under
+concurrent first requests, as a normative guarantee. The mechanism is
+unspecified, and a guard around insertion suffices, paid at service time and
+never on the hot path.
+
+**Spec.** [§9.2][s9-2], [§9.4][s9-4]
+
+**Rationale.** An activation is a pure function of the build and the scalar,
+so the worst benign race is duplicated work. The lock under which [D-253][d-253] merges
+the activations into one dictionary is one mechanism that suffices.
+
+**Rejected.**
+- *Requiring explicit pre-materialization for any concurrent use:* turns a
+  safety property into a user obligation — the guard is cheap and off the hot
+  path, and a sweep that forgets the keyword would get corruption rather than a
+  slower first request. (As recorded in [D-135][d-135].)
+
+### D-282 — Give every buffer set exactly one owner
+
+**Status.** ratified
+
+**Position.** Every buffer set has exactly one owner, so buffers are never
+cached.
+
+- The `Simulation` owns its nominal activation's buffers, materialized from
+  the cached layouts at construction.
+- Every service invocation owns the scratch set it instantiates from those
+  same layouts.
+
+**Spec.** [§9.2][s9-2], [§9.4][s9-4], [§11.1][s11-1], [§14.8][s14-8], [§14.10][s14-10]
+
+**Rationale.** [§14.8][s14-8]'s per-invocation rule for `trim!` is the general one.
+[D-070][d-070] forced it: iterating on shared buffers aliases the sim's authoritative
+stores, warn-but-assign reborn. Single ownership is also what lets the `Build`
+back any number of `Simulation`s concurrently ([D-135][d-135]).
+
+**Rejected.**
+- *Cached shared buffers:* [D-070][d-070]'s aliasing — warn-but-assign reborn — and it
+  makes the `Build` mutable in exactly the way multi-`Simulation` sharing
+  forbids. (As recorded in [D-135][d-135].)
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -11730,6 +11800,9 @@ had fixed its meaning before this entry.
 [d-277]: #d-277--carry-a-read-sets-mount-chain-and-rebase-every-selector-to-the-root
 [d-278]: #d-278--refuse-an-empty-at-prefix-at-composition
 [d-279]: #d-279--name-the-assemblys-boundary-declarations-by-u-and-y-and-shorten-x_derivative
+[d-280]: #d-280--build-a-dual-activation-of-every-component-in-ci
+[d-281]: #d-281--guarantee-torn-state-free-lazy-materialization
+[d-282]: #d-282--give-every-buffer-set-exactly-one-owner
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
@@ -11809,7 +11882,7 @@ had fixed its meaning before this entry.
 [s8-8]: spec.md#88-computed-connections-and-generic-holding
 [s9]: spec.md#9-the-build-pipeline
 [s9-1]: spec.md#91-the-builds-three-steps
-[s9-2]: spec.md#92-the-build-artifact
+[s9-2]: spec.md#92-the-build-and-deployment-artifacts
 [s9-3]: spec.md#93-probing-and-input-synthesis
 [s9-4]: spec.md#94-activations-executable-sets-laziness-caching
 [s9-5]: spec.md#95-the-always-on-conformance-check

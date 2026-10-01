@@ -87,7 +87,7 @@ Each is additive, so it can land later without breaking user code.
   that names it, and an advance that names no face integrates a terminal
   state to `t_end` and nothing complains. A component flags its own `Bool`
   output faces as stop candidates, an annotation the framework diagnoses and
-  never honours: a build warning (§9.1, D-250) where a flagged face is not
+  never honours: a build warning (§9.2, D-250) where a flagged face is not
   re-exported to the root, naming the level that dropped it, and a `run!`
   advisory beside `UnboundedRun` (§11.8) where the root carries flagged
   faces and the policy names none. Who decides stays with the advance

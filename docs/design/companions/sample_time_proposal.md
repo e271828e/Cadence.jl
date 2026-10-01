@@ -799,7 +799,7 @@ All small, all honest; collected so a future increment can check them off:
 [s5-6]: ../spec.md#56-diagnostics-feedthrough-tracing
 [s8-7]: ../spec.md#87-rate-scopes
 [s9-1]: ../spec.md#91-the-builds-three-steps
-[s9-2]: ../spec.md#92-the-build-artifact
+[s9-2]: ../spec.md#92-the-build-and-deployment-artifacts
 [s9-3]: ../spec.md#93-probing-and-input-synthesis
 [s9-7]: ../spec.md#97-the-compiled-executor
 [sC]: ../spec.md#appendix-c-the-diagnostic-kind-set

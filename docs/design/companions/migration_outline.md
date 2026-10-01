@@ -35,9 +35,11 @@ among those survival sites. The state-declaration conversion below turns each
 `Ranged` state field into a plain scalar.
 
 **Comparison criteria.** FlightCore's demonstrated strengths are three:
-zero-alloc stepping, flexibility, interactive operation. Zero-alloc stepping
-is measured through the `phase_bodies` seam ([§9.7][s9-7]),
-apples-to-apples with today's `@ballocated f_ode!` suites.
+zero-alloc stepping, flexibility, interactive operation. Zero-alloc stepping is
+measured through the `phase_bodies` seam ([§9.7][s9-7]), apples-to-apples with
+today's `@ballocated f_ode!` suites. The per-body CI assertion over the
+`phase_bodies` roster ([§9.7][s9-7]) is the successor of the migration suite's
+`@ballocated f_ode!`/`f_step!`/`f_periodic!` idiom.
 
 **The conventional exported aircraft surface.** Generic
 periphery consumers read the integration
