@@ -1288,8 +1288,7 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
                     t_end_frame::Int)
     plane, control = sim.plane, sim.control
     upto = _replay_bound(sim, upto)             # §12.7: the recording bounds a replaying run
-    @atomic :release control.lifecycle = :running   # the §11.3 freeze: the roster is fixed for the run
-    roster = copy(plane.roster)               # the run's roster, read once (§11.3)
+    roster = RosterEntry[]                    # the run's roster, filled at the freeze below
     source, cause = nothing, nothing          # `cause`: the loop's throw, stored first
     logged_cause = nothing                    # the cause, its backtrace if taken, when not rethrown
     # the interrupt arm below reads these five
@@ -1298,6 +1297,11 @@ function _run_body!(sim::Simulation, policy::StopPolicy, addrs::Vector{Any}, upt
     returned, tail_ran = false, false
     pacer = Pacer()                           # this call's schedule and counters (D-269)
     try
+        # The §11.3 freeze: the roster is fixed for the run. The `try`'s first
+        # statement, so an interrupt past it meets the masked bookkeeping and
+        # never leaves the lifecycle `running` (§12.4).
+        @atomic :release control.lifecycle = :running
+        append!(roster, plane.roster)         # read once (§11.3)
         @atomic control.stop_issuer = nothing
         _reset_accounts!(sim, roster)         # §11.8: totals count since the run began
         report_thread_budget!(plane, roster, Threads.nthreads())  # §12.2: one check per run, either door
@@ -1810,11 +1814,13 @@ function step!(sim::Simulation; frames = nothing, t_plus = nothing,
     end
     (policy, addrs) = _bind_policy(sim, t_end, stop_on, :step!)   # this advance's policy (§13.5, D-255)
     t_end_frame = _t_end_frame(sim, policy.t_end)
-    @atomic :release control.lifecycle = :running   # the freeze holds within the call
-    roster = copy(sim.plane.roster)           # the call's roster, read once (§11.3)
+    roster = RosterEntry[]                    # the call's roster, filled at the freeze below
     source, advanced, cause = nothing, 0, nothing
     returned = false
     try
+        # the freeze holds within the call; first in the `try`, as in `_run_body!`
+        @atomic :release control.lifecycle = :running
+        append!(roster, sim.plane.roster)     # read once (§11.3)
         # §12.7: in `:replay` the recording is the bound, so a `step!` past its
         # end advances only to the last recorded frame and returns fewer frames
         # than asked — the truncation the caller reads (D-218)

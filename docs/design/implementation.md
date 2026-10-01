@@ -433,6 +433,8 @@ D-276, D-277.
   - a deferred interrupt yields to a holding face;
   - a frame that throws with an interrupt pending ends `errored`;
   - the masked bookkeeping sits in `run!`'s and `step!`'s outermost `finally`;
+  - the `running` store is the first statement of the `try` that `finally`
+    closes, so no interrupt leaves the lifecycle `running`;
   - the loop's throw is stored before anything can cut the failure arm, and
     the masked bookkeeping builds the `LoopError` from it, in `run!` and
     `step!` alike;
