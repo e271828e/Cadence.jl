@@ -22,58 +22,54 @@ surface and the library and the GUI both add names.
   mitigation ladder, and on D-086's rejection of type-erased call tables,
   comes first. It stands ahead of the library because each component type
   adds about 0.5 s.
-- **The dot in face names.** Whether `.` joins `/` as a reserved character
-  in face names (§8.6). A face selector's head is matched against the face
-  list because the house style groups faces with dots (`input_passthrough`'s
-  `sep`, §8.8; §14.9's `"wing.throttle"`), the longest match settling `a`
-  beside `a.b` (§14.4, D-276). Reserving the dot would make the head a parse
-  with no schema lookup and no ambiguity, at the cost of a new default
-  separator and a sweep of every dotted face in the spec and the suite.
+- **The dot in face names** (§8.6, D-276). Whether `.` joins `/` as a
+  reserved character in face names. Reserving it would make a face
+  selector's head a parse with no schema lookup and no ambiguity, at the
+  cost of a new default separator and a sweep of every dotted face in the
+  spec and the suite. D-276's annotation on face names has why the head is
+  matched against the face list today.
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
   spellings).
-- **The GUI panel authoring API.** The semantics are settled (§11.7): derived
-  liveness, first-class read-only rendering, own-pending-else-snapshot peek,
-  stage-on-interaction, orphan display. The framework's half of the calling
-  convention is fixed too (D-270): the port view, the handle and a snapshot
-  are the three values a panel reads. What stays deferred is the GUI
-  package's half: what the drawing context bundles beside them, how it
-  scopes to a child, and the widgets, to be co-designed against the GUI
-  library under §11.7's four constraints. `gui = true` (§12.6, Appendix B)
-  attaches that package's device, so the flag waits on it.
+- **The GUI panel authoring API.** The semantics are settled (§11.7), and
+  so is the framework's half of the calling convention, the three values a
+  panel reads (D-270). What is still to design is the GUI package's half:
+  what the drawing context bundles beside them, how it scopes to a child,
+  and the widgets, to be co-designed against the GUI library under §11.7's
+  four constraints. `gui = true` (§12.6, Appendix B) attaches that package's
+  device, so the flag waits on it.
 - **The exported-name audit.** The export list is to be decided deliberately
-  rather than by accident; until the audit runs the module exports nothing,
-  and a public name is reached by qualified name or per-name `import`
-  (D-226). The audit is a full-surface sweep under the four-class naming
-  convention (§8.1, D-144): every API name is exported, renamed or left
-  unexported, and *unexported* is preferred for extension-only surface. That
-  surface has three parts: the declaration and stage family of the import
-  list (§8.1), the larger half, settled on every component file's first line;
-  the binding interface `claims`/`reads` (§11.6) with the side traits
-  `is_input`/`is_output`/`is_greedy`, `map_input`/`map_output` sitting
-  outside the question as loop-idiom conventions the framework never calls;
-  and the device contract `init!`/`loop`/`shutdown!`/`unblock!`/
-  `needs_calling_task`, extended by `import` or qualified name,
-  `Base.show`-style. On the operator side, `condition`, `fragment`, `at`
-  and `combine` (§14.2) are generic names that share a namespace
-  with user domain code; the `Base.merge` piracy surface is retired with the
-  combinator's rename (D-204), the mixed-argument methods staying error
-  methods; the `get_` prefix settles the readers (§14.4); and whether the
-  condition algebra ships behind a submodule is the packaging question. Four
-  boundary cases the convention does not settle are flagged for the sweep,
-  none a defect of its list:
-  - `input_faces`/`output_faces`, noun accessors that pun on the `_types`
-    declarations, mitigated by being framework-facing;
-  - `loop` (§11.6), a mutating task body spelled as a bare noun among its
-    verb-`!` siblings `init!`/`shutdown!`/`unblock!`; with `run!` taken and
-    the "loop body" prose entrenched, it needs the whole-surface view;
-  - the bare-noun accessors `trace(sim)`, `latest(sim)`, `binding(handle)`,
-    `phase_bodies(sim)`, value selectors outside class (2)'s `get_` rule;
-    `trace` is the sharpest, its kill-switch `trace = false` and post-run
-    accessor `trace(sim)` being one name in two senses, the overload pattern
-    D-122 and D-144 retire;
-  - whether class (1) needs an explicit exemption for predicate traits
-    (`is_greedy`, `needs_calling_task`).
+  rather than by accident, and until the audit runs the module exports
+  nothing (D-226). The audit is a full-surface sweep under the four-class
+  naming convention (§8.1, D-144): every API name is exported, renamed or
+  left unexported.
+  - **The extension-only surface**, where *unexported* is preferred. It has
+    three parts: the declaration and stage family of the import list (§8.1),
+    the larger half, settled on every component file's first line; the
+    binding interface `claims`/`reads` (§11.6) with the side traits
+    `is_input`/`is_output`/`is_greedy`, `map_input`/`map_output` sitting
+    outside the question as loop-idiom conventions the framework never
+    calls; and the device contract `init!`/`loop`/`shutdown!`/`unblock!`/
+    `needs_calling_task`, extended by `import` or qualified name,
+    `Base.show`-style.
+  - **The operator side.** `condition`, `fragment`, `at` and `combine`
+    (§14.2) are generic names that share a namespace with user domain code,
+    and whether the condition algebra ships behind a submodule is the
+    packaging question.
+  - **Four boundary cases** the convention does not settle are flagged for
+    the sweep, none a defect of its list:
+    - `input_faces`/`output_faces`, noun accessors that pun on the `_types`
+      declarations, mitigated by being framework-facing;
+    - `loop` (§11.6), a mutating task body spelled as a bare noun among its
+      verb-`!` siblings `init!`/`shutdown!`/`unblock!`; with `run!` taken
+      and the "loop body" prose entrenched, it needs the whole-surface view;
+    - the bare-noun accessors `trace(sim)`, `latest(sim)`,
+      `binding(handle)`, `phase_bodies(sim)`, value selectors outside class
+      (2)'s `get_` rule; `trace` is the sharpest, its kill-switch
+      `trace = false` and post-run accessor `trace(sim)` being one name in
+      two senses, the overload pattern D-122 and D-144 retire;
+    - whether class (1) needs an explicit exemption for predicate traits
+      (`is_greedy`, `needs_calling_task`).
 
 ## After the first release
 
@@ -91,48 +87,35 @@ Each is additive, so it can land later without breaking user code.
   (D-060, D-255). It replaces the root-declared default D-060 kept on
   record, which does not compose: the default is the root type's, and a
   wrapped root has none. A ruling comes first, then the build.
-- **Publication's garbage and when it is collected** (§7.5, §10.7, §11.2,
-  D-269). With the log and the trace off, a frame of `feedback_model` still
-  allocates 816 B, all of it publication's: `_status` 656 B, the store copy
-  112 B, and the snapshot object `latest` holds. §11.2 makes the GC the
-  reclamation of published snapshots, so a new snapshot and table copy per
-  frame are by design, and a run never avoids the GC. Two levers remain:
-  - **The status records.** `_status` builds a fresh vector of writer
-    records at every publication, two of them with no device attached.
-    Published values never change, so an unchanged record could be shared
-    with the previous snapshot. A device's heartbeat changes every frame,
-    which makes this a design question.
-  - **A scheduled collection.** §7.5 names `GC.gc(false)` at frame
-    boundaries as a lever, and nothing in `src/` builds it. Measured on
-    2026-09-30 at `h = 1 ms`, 10 threads: a young collection after up to
-    about 1 MB of garbage pauses about 200 µs (p99 under 240 µs), against
-    3.4 ms after 8 MB, the size the automatic collector waited for. The
-    proposal: the pacer's wait collects when the bytes allocated since the
-    last collection pass a budget of about 1 MB and the time to the next
-    deadline exceeds the recent p99 pause with a margin, and skips
-    otherwise. Unpaced runs and `step!` skip it. `PacerStatus` reports the
-    pauses. Open: the knob's name and default, and whether it is on by
-    default. Caveats: the trigger is process-wide, so a device that
-    allocates can still start a collection mid-frame; with the log on,
-    thinned snapshots die in the old generation and only a full collection
-    reclaims them, unmeasured; the fixed cost grows with tasks, live heap
-    and GC threads, so re-measure on a model of real size.
-
-  A ruling and a decision entry beside D-269 come first, then the build.
+- **Publication's garbage** (§7.5, §10.7, §11.2, D-269). A new snapshot and
+  table copy per frame are by design: §11.2 leaves published snapshots to
+  the GC, so a run never avoids it. A proper analysis on a model of real
+  size comes first, then a ruling beside D-269, then the build. The analysis
+  should assess:
+  - **Sharing status records.** `_status` builds a fresh vector of writer
+    records at every publication. An unchanged record could be shared with
+    the previous snapshot. A device's heartbeat changes every frame, which
+    makes this a design question.
+  - **A scheduled young collection.** §7.5 names `GC.gc(false)` at frame
+    boundaries, and nothing in `src/` builds it. The candidate: the pacer's
+    wait collects when enough garbage has built up and the time to the next
+    deadline exceeds the recent p99 pause with a margin. Unpaced runs and
+    `step!` skip it, and `PacerStatus` reports the pauses.
+  - **What limits a scheduled collection.** The trigger is process-wide, so
+    a device that allocates can still start a collection mid-frame. With the
+    log on, thinned snapshots die in the old generation, where only a full
+    collection reclaims them. The fixed cost grows with tasks, live heap and
+    GC threads.
 - **The NLopt fallback** (§14.8, H 4.5): `NLoptBackend(:LN_BOBYQA)` as a
   package extension, the squared and normalized objective at `stopval = 1`,
   and the nominal-activation loop it would run on.
-- **Log and trace persistence.** The in-memory artifacts are settled and
-  nothing on-disk is. The log is the retained boundary snapshots (§11.2); the
-  input trace is always on and device-tagged, with its header, the
-  checkpoint `init!` takes after boundary zero (§11.5, §12.6); the log is
-  recomputable from the trace, never the reverse. The on-disk questions wait
-  for real users to ground them: the HDF5 export scope (the whole snapshot
-  log, or selected subtrees); field-handle summarization over retained
-  snapshots, the post-processing entry point, as `getproperty`-style
-  navigation of a run's history; and the trace file format, which doubles as
-  the reproducibility carrier and whose positions the replay pointers name
-  (§13.4).
+- **Log and trace persistence.** The in-memory artifacts are settled (§11.2,
+  §11.5) and nothing on-disk is. The on-disk questions wait for real users
+  to ground them: the HDF5 export scope (the whole snapshot log, or selected
+  subtrees); field-handle summarization over retained snapshots, the
+  post-processing entry point, as `getproperty`-style navigation of a run's
+  history; and the trace file format, which doubles as the reproducibility
+  carrier and whose positions the replay pointers name (§13.4).
   - **The trace header's deployment half.** The checkpoint's `deployment`,
     which the trace header carries, holds the whole `Deployment`, and through
     it the `Build` with the component instances, into an artifact §11.5 calls
