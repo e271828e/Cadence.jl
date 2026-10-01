@@ -39,7 +39,7 @@ x_init(::Pendulum) = (θ = 0.0, ω = 0.0)
 u_types(::Pendulum) = (u = Float64,)
 y_types(::Pendulum) = (θ = Float64, ω = Float64)
 y_state(::Pendulum, (; x)) = (θ = x.θ, ω = x.ω)
-x_derivative(c::Pendulum, (; x, u)) = (θ = x.ω, ω = -c.g_l * sin(x.θ) - c.c * x.ω + u.u)
+x_deriv(c::Pendulum, (; x, u)) = (θ = x.ω, ω = -c.g_l * sin(x.θ) - c.c * x.ω + u.u)
 ```
 
 with $g/l = 9.81$ and $c = 0.5$. Two root inputs, $\tau$ (torque) and $d$
@@ -252,7 +252,7 @@ buffers at that scalar: `xbuf::Vector{T}` for the flat continuous state,
 `ẋbuf::Vector{T}` for its derivative, and a signal-table `store` with one
 homogeneous buffer per leaf element type. At a `Dual` activation, `xbuf` is a
 `Vector{Dual{...}}` and the cells whose types follow `T` live in a
-`Dual`-typed buffer. The component code never knows: `x_derivative(::Pendulum,
+`Dual`-typed buffer. The component code never knows: `x_deriv(::Pendulum,
 (; x, u))` runs on whatever scalars the bundle carries.
 
 ### 4.2 The flat state and the layout
@@ -286,7 +286,7 @@ be written there. This is the input-side no-silent-zeros rule ([D-167][d-167]) a
 ### 4.3 Conditions at a seeded activation: the zero-partial embedding
 
 A condition ([§14.1][s14-1]) is the path-addressed overlay that sets a build's state:
-`at("c", fragment(x = (θ = 0.3, ω = 0.0)))` combined with `fragment(inputs =
+`at("c", fragment(x = (θ = 0.3, ω = 0.0)))` combined with `fragment(u =
 (τ = 2.899, d = 0.0))`. Resolving it against a build yields a plan of baked
 destinations, each with the destination leaf's type at that activation as its
 converter (`Authored{P,L}` in `src/conditions.jl`):
@@ -514,7 +514,7 @@ order:
    reads its two input cells and publishes `("s", :e)` $= \tau - d$ =
    `Dual(2.899, 0,0,1,-1)`. That partials vector is already the second row
    of $D$.
-3. `rhs`, the derivative stages. `Pendulum.x_derivative` reads `x` off `xbuf`
+3. `rhs`, the derivative stages. `Pendulum.x_deriv` reads `x` off `xbuf`
    and `u.u` off the wire, which is the cell `("s", :e)`, and writes
    `ẋbuf[1]` = `Dual(0, 0,1,0,0)` and `ẋbuf[2]` = `Dual(0, -9.372,-0.5,1,-1)`,
    the hand computation of section 3.2 done by the model's own code.

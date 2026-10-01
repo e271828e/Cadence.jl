@@ -736,8 +736,8 @@ function trim_condition(ac, params, d)
     combine(at("vehicle/kinematics",
                fragment(x = (q_nb = q_nb, v_eb_n = v_eb_n, r_eb = params.Ob))),
             at("pwp/engine", fragment(x = (ω = d.n_eng,))),
-            fragment(inputs = (throttle = d.throttle, aileron = d.aileron,
-                               elevator = d.elevator, rudder = d.rudder)))
+            fragment(u = (throttle = d.throttle, aileron = d.aileron,
+                          elevator = d.elevator, rudder = d.rudder)))
 end
 
 cruise = TrimProblem(

@@ -96,7 +96,7 @@ running the sweep ([§5.3][s5-3]):
 ex.cursor.index += 1
 ex.bodies.sweep_1()      # y_state block, interior variant
 ex.bodies.sweep_2()      # y_direct block, interior variant
-ex.bodies.rhs()          # x_derivative block
+ex.bodies.rhs()          # x_deriv block
 ```
 
 The zero-argument call on a `PhaseBody` in `executor.jl` walks the interior

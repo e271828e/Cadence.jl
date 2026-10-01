@@ -96,7 +96,7 @@ and differentiating $\Phi$ is exactly where "call `y_direct` between A and C"
 becomes correct: the `Dual`s must flow through B's stages *at tick position
 in the step*, with the real leaves of B's `s` walked. That is verbatim [§14.10][s14-10]'s
 recorded door — the sampled-data `Dual` activation, executable set
-"continuous chain + `x_derivative` + the discrete tier's output stages +
+"continuous chain + `x_deriv` + the discrete tier's output stages +
 `s_update`", with its honest
 boundary ($\Phi$ is differentiable only where the event pattern is locally
 constant; exactness across a firing needs saltation corrections).

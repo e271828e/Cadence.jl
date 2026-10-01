@@ -180,7 +180,7 @@ purpose, because dropping partials is a modelling decision the design wants
 on the page. The `Freeze` block ([§13.7][s13-7]) is that page:
 
 ```julia
-child_connections(::Rig) = (
+inner_connections(::Rig) = (
     "deck/terrain" => "freeze/in",
     "freeze/out"   => "legacy/terrain",     # legacy declares Pinned{DeckField{Float64}}
 )

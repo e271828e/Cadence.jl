@@ -351,7 +351,7 @@ duplicate the discrete tier's own state semantics under another name.
 
 ### 3.3 Assembly
 
-An assembly is pure composition. It holds submodels, child connections and
+An assembly is pure composition. It holds submodels, inner connections and
 boundary [faces](#g-face). **It has no dynamics of its own.** Hybridness emerges at the
 [assembly](#g-assembly) level. An aircraft is continuous vehicle parts plus discrete avionics
 parts. The two-leaf split was upheld against the integrate-and-dump challenge
@@ -362,7 +362,7 @@ as declaration-level [rate scopes](#g-rate-scope) ([§10.5][s10-5]).
 ### 3.4 Why two leaf classes, not one hybrid primitive
 
 Why two leaf classes at all? One all-in-one primitive could carry continuous
-state, modes *and* discrete state, with `x_derivative`, events *and*
+state, modes *and* discrete state, with `x_deriv`, events *and*
 `s_update`. A purely continuous or discrete [component](#g-component)
 would then fall out of whichever facets an author declares.
 [Class](#g-class) is already read off declaration shape ([§8.5][s8-5]), so the
@@ -375,7 +375,7 @@ primitive is already hybrid, with `m`, [guards](#g-guard) and handlers
 [tick](#g-tick)-driven execution. And the settled rules force a merged
 [component](#g-component)'s two halves to communicate exactly as two siblings
 do. There is [one home per datum](#g-one-home-per-datum) ([§5.2][s5-2]),
-`x_derivative` sees only the continuous state and `s_update` only the
+`x_deriv` sees only the continuous state and `s_update` only the
 discrete one, and `s⁺` is decoded only at the owner's next tick, because
 `s_update` runs last. That deferred decode is what makes ticks→events
 structurally impossible and what terminates the [boundary](#g-boundary)
@@ -513,7 +513,7 @@ and one GUI liveness verdict ([§11.7][s11-7]).
 (`y_state`/`y_direct`, on either [tier](#g-tier)) returns a named tuple. The
 framework scatters each field into that port's concretely typed cell. Every
 reader gathers views from cells. The readers are the next stage,
-`x_derivative`/`s_update`, [guards](#g-guard), wired consumers and [snapshot](#g-snapshot) capture.
+`x_deriv`/`s_update`, [guards](#g-guard), wired consumers and [snapshot](#g-snapshot) capture.
 
 **The aggregate `y` is a merge semantically and virtual physically.**
 Semantically, a component's `y` is the merge of its stage products, `merge(y_x,
@@ -572,7 +572,7 @@ aliasing an interior port, in declaration form.
 y_types(::Kinematics) = (pose = KinPose{Float64}, q_eb = RQuat{Float64})
 
 #the enclosing assembly: each face aliases an interior port, creating no endpoint
-output_connections(::Vehicle) = ("kin/pose" => "pose", "kin/q_eb" => "q_eb")
+y_connections(::Vehicle) = ("kin/pose" => "pose", "kin/q_eb" => "q_eb")
 ```
 
 #### Granularity, write side
@@ -683,7 +683,7 @@ anywhere in the design.
 # continuous component — maximal legal view set of each bundle in comments
 y_x  = y_state(comp, args)       # x, m, t [, ws] — no-feedthrough stage
 y_xu = y_direct(comp, args)      # x, m, u, y_x, t [, ws]
-ẋ    = x_derivative(comp, args)   # x, m, y, u, t [, ws]
+ẋ    = x_deriv(comp, args)       # x, m, y, u, t [, ws]
 
 # discrete component — the same two stage names over its own state letter
 y_s  = y_state(comp, args)       # s, t, Δt [, ws]
@@ -706,7 +706,7 @@ handler returns.
 
 **Rule.** Every function receives exactly two arguments, the component and one
 NamedTuple [bundle](#g-bundle) of zero-copy views. From that bundle the author **destructures
-by name** only what the body reads, as in `x_derivative(c::LowPassFilter, (;
+by name** only what the body reads, as in `x_deriv(c::LowPassFilter, (;
 x, u)) = …` and `y_direct(c::PID, (; s, u, Δt)) = …`.
 
 **Why.** The [executor](#g-executor) (the compiled form of the stage execution order) issues
@@ -743,7 +743,7 @@ Undeclared stores are *absent*, never `nothing`-filled. Destructuring a field
 that does not exist for the component fails at the probe, inside the [§13.2][s13-2]
 framing diagnostic. The diagnostic carries [did-you-mean](#g-did-you-mean) (the offending name plus
 the list-in-hand it should have matched) against the legal field set. An example
-is "`x_derivative` of `Foo` destructures `m`, but `Foo` declares no
+is "`x_deriv` of `Foo` destructures `m`, but `Foo` declares no
 `m_init`". One law covers tier facts, stage legality and declarations alike.
 
 The mechanism is structured, not textual. Destructuring an absent field throws a
@@ -760,7 +760,7 @@ continuous-only, and `s` and `Δt` are discrete-only, so destructuring any of th
 four on the wrong tier lands in that bucket.
 
 The per-function name sets are **closed**, one set per function per [tier](#g-tier). The
-update laws carry their tier in the name, so `x_derivative` and
+update laws carry their tier in the name, so `x_deriv` and
 `s_update` have one set each. The two output stages are shared machinery
 over both tiers ([D-220][d-220]), so `y_state` and `y_direct` have one set per
 tier. On the continuous tier the sets are `x, m, t [, ws]` and `x, m, u, y_x, t
@@ -841,7 +841,7 @@ correspondence is one to one.
 
 | symbol | declaration |
 |---|---|
-| `f`, the flow | `x_derivative` |
+| `f`, the flow | `x_deriv` |
 | `g`, the jump | `s_update` |
 | `y = h(x)` | `y_state` |
 | `y = h(x, u)` | `y_direct` |
@@ -855,7 +855,7 @@ The names are deliberately non-exhaustive. Modes fold under the state. `m` is
 state, and the name states the [feedthrough](#g-feedthrough) split rather than an argument
 inventory ([D-075][d-075]). Ambient facts (`t`, `Δt`) and scratch (`ws`) ride unnamed.
 
-The update law carries the [tier](#g-tier) in its name, `x_derivative` versus
+The update law carries the [tier](#g-tier) in its name, `x_deriv` versus
 `s_update`. The two output stages do not. One pair of names serves both
 tiers, over each tier's own state letter ([D-220][d-220]). A stateful leaf's declarations
 must agree on one tier throughout ([§8.2][s8-2]). A leaf mixing the update laws, or
@@ -888,10 +888,10 @@ re-derived. Stage 1 declares it as a port, and stage 2 finds it in `y_x`, or
 `y_s` on the discrete tier. Stage 2 receives the [state views](#g-view) too.
 Conservatively, every stage-2 output is presumed dependent on every wired input.
 
-**`x_derivative` and `s_update` run after the sweep**, when the full
+**`x_deriv` and `s_update` run after the sweep**, when the full
 [signal table](#g-signal-table) is complete and fresh, the component's own stage-2 ports included.
 The fused idiom stands. Compute each law once, in a stage. Publish it. Let
-`x_derivative`/`s_update` copy from `y`.
+`x_deriv`/`s_update` copy from `y`.
 
 **Why.** The interfaces *reward* single-source-of-truth rather than making
 duplication unwritable. Nothing ever needs computing twice ([D-015][d-015], [D-035][d-035]).
@@ -902,11 +902,11 @@ impossible anyway ([§7][s7]).
 #### The execution order
 
 **Rule.** Execution runs all stage-1 functions in any order, then stage 2 in
-topological order, then all `x_derivative` calls against the now-consistent
+topological order, then all `x_deriv` calls against the now-consistent
 signal table.
 
 The systemic consequence is that *evaluating the [RHS](#g-flow) means running the sweep*.
-There is no incremental `x_derivative`-only re-evaluation. Nothing is lost
+There is no incremental `x_deriv`-only re-evaluation. Nothing is lost
 by that, because implicit solvers, linearization and trim already work this way.
 They seed `x` and run the composite. [§10.3][s10-3] and [§10.4][s10-4] restate that consequence as
 a property of the execution model. RHS evaluations and guard trial evaluations
@@ -1027,7 +1027,7 @@ split expensive here ([D-015][d-015]). FlightCore's fused `f_ode!` already embod
 same economics. This design keeps them while adding checked ordering.
 
 **Shared expensive computations** are thereby solved uniformly. Compute once in
-stage 2, publish, and let `x_derivative`/`s_update` consume the ports.
+stage 2, publish, and let `x_deriv`/`s_update` consume the ports.
 External consumers read the same ports, as an accelerometer model reads `f_c_c`.
 The **computer/integrator split** remains fully expressible without framework
 support. [§7.4][s7-4] carries the full statement, including when the factoring earns its
@@ -1098,7 +1098,7 @@ re-factoring absorbs the false wires. What is left for the split is cycles whose
 halves really are one component's own work.
 
 One consequence of stage-2 conservatism is worth recording. An input consumed
-only by `x_derivative`, never by `y_direct`, still creates a
+only by `x_deriv`, never by `y_direct`, still creates a
 feedthrough edge if the component has stage-2 outputs. In practice such
 components are integrator-shaped and have no stage-2 outputs. The remedy, if
 ever needed, is the same ladder.
@@ -1230,10 +1230,10 @@ left unconnected.
 #### How far a path may reach
 
 **Rule.** Every connection endpoint names an **immediate child and one of its
-[faces](#g-face)** ([D-207][d-207]). The rule covers all three wiring declarations ([§8.6][s8-6]). A
-`child_connections` pair wires one child's face to another's. An
-`input_connections` entry routes a face to an immediate child's face. An
-`output_connections` entry sources a face from an immediate child's face.
+[faces](#g-face)** ([D-207][d-207]). The rule covers all three wiring declarations ([§8.6][s8-6]). An
+`inner_connections` pair wires one child's face to another's. A
+`u_connections` entry routes a face to an immediate child's face. A
+`y_connections` entry sources a face from an immediate child's face.
 [Container children](#g-container-children) ([§8.5][s8-5]) keep their key segment, so `"aircraft/2/face"` is one
 level and not two. A container declared name-transparent ([§8.5][s8-5]) is the
 exception. Its elements go by bare key, so `"ctl/face"` reads exactly as a plain
@@ -1245,10 +1245,10 @@ assembly speaking only of its own children. `Cessna172` hands its `trn` input to
 The fan-out is declared at the level where the paths diverge.
 
 ```julia
-input_connections(::Cessna172) = ("trn" => "systems/trn", …)
-input_connections(::Systems)   = ("trn" => "ldg/trn", …)
-input_connections(::Ldg)       = ("trn" => ("left/trn_field", "right/trn_field",
-                                            "nose/trn_field"), …)
+u_connections(::Cessna172) = ("trn" => "systems/trn", …)
+u_connections(::Systems)   = ("trn" => "ldg/trn", …)
+u_connections(::Ldg)       = ("trn" => ("left/trn_field", "right/trn_field",
+                                        "nose/trn_field"), …)
 ```
 
 **Why.** [Faces](#g-face) become the only currency crossing an assembly boundary, so
@@ -1331,7 +1331,7 @@ Fan-out is free. One producer may feed many consumers. The converse is strict.
 Aggregation is done by junctions ([§6.2][s6-2]).
 
 The rule spans levels. A child input fed by a sibling wire at its own level
-*and* handed up through its parent's `input_connections` is a two-producers
+*and* handed up through its parent's `u_connections` is a two-producers
 build error. Routing a face upward cannot silently double-feed.
 
 #### Unconnected ports
@@ -1342,7 +1342,7 @@ ports are a build error, with no silent defaults.
 
 **The check is a whole-tree property, not a per-declaration one.** Within a
 single assembly declaration an unfed child input is simply *awaiting a claim
-from above*, either a sibling wire or an `input_connections` entry handing the
+from above*, either a sibling wire or a `u_connections` entry handing the
 obligation up one level ([§8.6][s8-6]). The error fires at the root build for any input
 whose obligation chain never terminates. The one legitimate terminus fed by no
 [component](#g-component) is the root component's own input face, a root input ([§11.3][s11-3]).
@@ -1387,7 +1387,7 @@ Wired at an ownership boundary, the junction is ordinary structure.
 ([§8.5][s8-5]).
 
 ```julia
-child_connections(::Systems) = (
+inner_connections(::Systems) = (
     "aero/wrench" => "wr_sum/in1",
     "pwp/wrench"  => "wr_sum/in2",
     "ldg/wrench"  => "wr_sum/in3",
@@ -1524,7 +1524,7 @@ a `T`, and an `SArray` leaf's is the same `SArray` at `T`. This is the
 vocabulary rule paying rent. An invariant-carrying leaf like a unit quaternion
 has a derivative off its own type, and `Ẋ` would need a separate derivation.
 Here the attitude leaf is an `SVector{4,T}` and so is its rate. The conformance
-predicate is structural. *Each field of `x_derivative`'s return scatters
+predicate is structural. *Each field of `x_deriv`'s return scatters
 into its field's block at `T`* ([§9.5][s9-5] states the check). That makes derivative
 completeness a property of the layout rather than of author discipline. There is
 deliberately **no `derivative_type` hook** ([D-190][d-190]).
@@ -1796,7 +1796,7 @@ is recorded here because each step replaced a mechanism with something smaller.
 1. **N output groups → exactly two** ([D-006][d-006]), at the price of an occasional
    [component](#g-component) split ([§5.4][s5-4]).
 2. **Derivative binding → own-output access** ([D-015][d-015]). Passing the fresh [signal
-   table](#g-signal-table) to `x_derivative`/`s_update` subsumes the
+   table](#g-signal-table) to `x_deriv`/`s_update` subsumes the
    declaration feature, and the "binding" becomes a one-line function body.
 3. **Separate state arguments → the state decoder** ([D-016][d-016], [D-035][d-035]). Step 4 later
    reversed the second half of this step.
@@ -1817,7 +1817,7 @@ diagrams** make integrators explicit blocks. Derivatives are ordinary wires into
 and FMUs** use sanctioned *mutable caches*, DWork vectors and FMI's
 lazy-evaluation caching, between their `mdlDerivatives`/`mdlOutputs`-style
 callback pairs. **Modelica/MTK** write `der(x) = expr` natively with symbolic
-CSE. The fused [sweep](#g-sweep) plus signal-consuming `x_derivative`/`s_update` is
+CSE. The fused [sweep](#g-sweep) plus signal-consuming `x_deriv`/`s_update` is
 the cache-free formulation that fits this design's purity rules. It is also what
 FlightCore's fused `f_ode!` did economically, minus the checked ordering.
 
@@ -1949,24 +1949,24 @@ Authoring a component means adding methods to framework-owned generic
 functions.
 
 Julia admits that only through an explicit per-name `import`, or through a
-qualified `Cadence.x_derivative(…) = …` definition. The latter is the
+qualified `Cadence.x_deriv(…) = …` definition. The latter is the
 `Base.show` idiom that the exported-name audit in `pending.md` records for the
 extension-only periphery surface. A component module therefore opens with
 
 ```julia
 import Cadence: x_init, s_init, m_init, ws_init, u_types,
-    y_types, state_events, y_state, y_direct, x_derivative,
-    s_update, x_projection, child_connections, input_connections,
-    output_connections, sample_times, transparent_container
+    y_types, state_events, y_state, y_direct, x_deriv,
+    s_update, x_projection, inner_connections, u_connections,
+    y_connections, sample_times, transparent_container
 ```
 
 **The explicit list is needed because `using Cadence` alone is a silent trap.**
-After a bare `using`, `x_derivative(eng::Engine, …) = …` defines a new,
-unrelated `MyModule.x_derivative`, with no error and no warning. The
+After a bare `using`, `x_deriv(eng::Engine, …) = …` defines a new,
+unrelated `MyModule.x_deriv`, with no error and no warning. The
 declarations are deliberately unexported ([D-117][d-117]). A bare `using` therefore
 brings no name into scope for the definition to clash with, so there is nothing
 for the language to detect. Left alone, the build would see a component with
-no `x_derivative` method and report a *modeling* diagnostic,
+no `x_deriv` method and report a *modeling* diagnostic,
 `StoreWithoutUpdate`, or `ClassUnreadable` when the whole inventory was
 shadowed. A one-line namespace mistake would be reported far from the line
 that caused it. That is the [§8.4][s8-4] inversion of [error locality](#g-error-locality) (the
@@ -1980,8 +1980,8 @@ component before its class is read ([D-246][d-246]). If the component's parent
 module holds a binding of a family name distinct from the framework's
 function, the build throws `DeclarationShadowed`, alone, naming the module,
 the foreign names and the missing import: "`MyEngine`'s module defines its
-own `x_derivative`, distinct from `Cadence.x_derivative`; add
-`import Cadence: x_derivative`". The check is a two-line `isdefined`/`!==`
+own `x_deriv`, distinct from `Cadence.x_deriv`; add
+`import Cadence: x_deriv`". The check is a two-line `isdefined`/`!==`
 test on the family's names. Those names are distinctive by design
 ([D-220][d-220]), so a foreign binding of one of them in a component's module
 is evidence of the missing import, not a coincidence. The check throws alone
@@ -2034,10 +2034,12 @@ rather than as a component with nothing to say.
 classes, and its class fixes its grammatical shape ([D-144][d-144]).
 
 1. **Declarations** are noun phrases naming what they return, prefixed by
-   the bundle field they define where one exists ([D-267][d-267]). The author defines
-   them and the framework calls them: `child_connections`,
-   `input_connections`/`output_connections`, `state_events`, `u_types`,
-   `ws_init`, the stage and update-law names ([D-220][d-220]), and `claims(b)`
+   the bundle field they define where one exists ([D-267][d-267]). An assembly's
+   boundary declarations take `u` and `y` too. There the letter names a side
+   of the contract, which on a leaf is also a bundle field ([D-279][d-279]). The
+   author defines them and the framework calls them: `inner_connections`,
+   `u_connections`/`y_connections`, `state_events`, `u_types`, `ws_init`,
+   the stage and update-law names ([D-220][d-220]), and `claims(b)`
    from the [binding](#g-binding) interface ([§11.6][s11-6]).
 2. **Value selectors** carry `get_`. They are called against `reads` and
    against [snapshots](#g-snapshot) ([§14.4][s14-4]).
@@ -2133,7 +2135,7 @@ function y_direct(eng::Engine, (; x, m, u))
     return (; M_shaft, P = M_shaft * x.ω)
 end
 
-x_derivative(eng::Engine, (; x, y, u)) = (ω = (y.M_shaft - u.M_load) / eng.J,)
+x_deriv(eng::Engine, (; x, y, u)) = (ω = (y.M_shaft - u.M_load) / eng.J,)
 
 #events: ordered and named — order matters (§5.3, §10.6); detection policy by the guard's return type (§2.1)
 state_events(::Engine) = (
@@ -2166,7 +2168,7 @@ admitted. A bare leaf such as `x_init(::C) = 0.0` or
 **Rule.** Every leaf declares exactly one of `x_init` and `s_init`, and a
 stateless leaf declares it empty, `x_init(::Gain) = (;)` or
 `s_init(::Sampler) = (;)`. The store is the tier marker, so it is mandatory
-even when empty, exactly as `child_connections` is mandatory even when empty
+even when empty, exactly as `inner_connections` is mandatory even when empty
 because it is the class marker ([§8.5][s8-5], [D-263][d-263]). A primitive
 declaring neither store is `TierUnreadable`, and its message spells the empty
 form. An empty store owes no update law, since it has nothing to integrate or
@@ -2541,7 +2543,7 @@ Four rules the build checks in the structure step ([§9.1][s9-1]), stated here b
 they are properties of the declarations, not of the wiring.
 
 **A non-empty store needs its update.** `x_init` with fields and no
-`x_derivative` method, or `s_init` with fields and no `s_update`
+`x_deriv` method, or `s_init` with fields and no `s_update`
 method, is a build error. An empty store is a stateless leaf's tier marker
 (above) and owes nothing. The first is
 continuous state with no [flow](#g-flow), the second a discrete store nothing updates.
@@ -2560,7 +2562,7 @@ hide the omission indefinitely.
 **[Tier](#g-tier) is declared by the store.** Every leaf declares `x_init` or
 `s_init`, the two are disjoint, and so every leaf announces its tier in one
 place ([D-195][d-195], [D-263][d-263]). A stateful leaf announces it in the update law as
-well, `x_derivative` beside `x_init` and `s_update` beside `s_init`.
+well, `x_deriv` beside `x_init` and `s_update` beside `s_init`.
 The two output stages are one pair of names shared by both tiers, so they
 announce nothing and cast no vote ([D-220][d-220]). The remaining tier-implying
 declarations must agree. `m_init`, `state_events` and `x_projection` are
@@ -2572,10 +2574,10 @@ carries a tier. Every declaration takes the component alone, and
 `ws_init` takes the scalar on both tiers ([D-263][d-263]). Disagreement is
 `DeclarationOnWrongTier` ([Appendix C][sC]), reported as the offending declaration
 with the tier the leaf's other declarations announce. It covers declaring both
-`x_derivative` and `s_update`, a `Pinned` entry on a discrete leaf, and
+`x_deriv` and `s_update`, a `Pinned` entry on a discrete leaf, and
 the mixed-store cases the split state letters restore, namely both stores on
 one leaf, an `x_init` on a leaf whose update law is `s_update` and an
-`s_init` on one whose update law is `x_derivative`.
+`s_init` on one whose update law is `x_deriv`.
 
 A **stateless** leaf is a leaf whose store is empty, and it declares its tier
 the same way. `x_init(::C) = (;)` makes it continuous, the tier [§13.7][s13-7]
@@ -2593,7 +2595,7 @@ class errors.
 
 **Any component may be the root of a build, and the model's [root inputs](#g-root-input) are
 the root's own input [faces](#g-face)** ([D-208][d-208]). For an [assembly](#g-assembly) those are the
-faces declared through `input_connections`, each traced through the face
+faces declared through `u_connections`, each traced through the face
 chain ([§6.1][s6-1], [§11.3][s11-3]) to the leaf entries consuming it. For a primitive they
 are its `u_types` keys directly, because a leaf's faces are its own [port](#g-port)
 names ([§8.6][s8-6]). Each is then its own consuming entry. The type derivation is
@@ -2696,8 +2698,8 @@ parameters.
 
 Field names are path segments. Substitutability and variants use ordinary
 parametric fields, exactly today's `Cessna172X{K, A}` shape. Alongside the
-struct come the well-known declarations: `child_connections(::A)`, mandatory
-even when empty, plus `input_connections(::A)`, `output_connections(::A)` and
+struct come the well-known declarations: `inner_connections(::A)`, mandatory
+even when empty, plus `u_connections(::A)`, `y_connections(::A)` and
 `sample_times(::A)`. One more is optional, `transparent_container(::A)`,
 default `nothing`. Naming a container field there drops that field's segment
 from its children's names, the rule the next subsection states.
@@ -2710,9 +2712,9 @@ from its children's names, the rule the next subsection states.
 They are path-named `"field/1"…"field/N"` (tuples) or `"field/key"`
 (NamedTuples), and declaration order governs layout. Containers are
 **transparent grouping, not assemblies**. They have no [contract](#g-contract), no
-`child_connections`, no [rate scope](#g-rate-scope) and no existence beyond the path
-segment. The elements are children *of the parent*, whose `child_connections`/
-`input_connections`/`output_connections`/`sample_times` address them by element
+`inner_connections`, no [rate scope](#g-rate-scope) and no existence beyond the path
+segment. The elements are children *of the parent*, whose `inner_connections`/
+`u_connections`/`y_connections`/`sample_times` address them by element
 name. Anything wanting its own wiring or [faces](#g-face) declares itself an
 assembly.
 
@@ -2733,7 +2735,7 @@ paths, `at` prefixes, diagnostics.
 
 Naming is the only thing the declaration changes. The elements are the parent's
 children exactly as before, laid out in declaration order, and the container
-keeps its transparency of contract, with no `child_connections`, no faces and
+keeps its transparency of contract, with no `inner_connections`, no faces and
 no rate scope.
 
 The edges of the container form are fixed by rule:
@@ -2795,9 +2797,9 @@ struct Group{C <: NamedTuple, W, I, O} <: AbstractComponent
     inputs::I
     outputs::O
 end
-child_connections(g::Group)    = g.wires
-input_connections(g::Group)    = g.inputs
-output_connections(g::Group)   = g.outputs
+inner_connections(g::Group)    = g.wires
+u_connections(g::Group)        = g.inputs
+y_connections(g::Group)        = g.outputs
 transparent_container(::Group) = :children
 
 Group(children; wires = (), inputs = (), outputs = ()) =
@@ -2840,18 +2842,18 @@ primitive `PistonEngine` and a composite turbofan assembly alike. And class is
 implementation detail behind the contract ([§8.3][s8-3]).
 
 [Class](#g-class) (a component's primitive-vs-assembly status) is declared instead by
-*which* well-known declarations a type defines. `child_connections` is the
+*which* well-known declarations a type defines. `inner_connections` is the
 marker, mandatory even when empty (the `LowPassFilter` precedent), and
 defining it makes an **assembly**. Any leaf declaration makes a **primitive**:
 `x_init`/`s_init`/`m_init`, `ws_init`, `u_types`/`y_types`,
-`state_events`, or any stage, `x_derivative`, `s_update` or
+`state_events`, or any stage, `x_deriv`, `s_update` or
 `x_projection` method.
 
 The rule is total. A `<: AbstractComponent` type declaring neither family has
 no class to read. It is a build error naming both families rather than a
 silence that fails later and elsewhere. That error sharpens into a
 did-you-mean when the type has component-typed fields ("holds components but
-declares no `child_connections`"). `child_connections` plus any leaf
+declares no `inner_connections`"). `inner_connections` plus any leaf
 declaration on one type is a build error as well. Assemblies have no state of
 their own, which is the no-atomic-assemblies rule at declaration time
 ([§10.5][s10-5]). They have no contract of their own either. An assembly's faces
@@ -2893,18 +2895,18 @@ adjudication is relied on downstream. Symmetric immutable siblings are
 `===`-identical, so a path is unrecoverable from an instance. That is why the
 helpers ([§8.8][s8-8]) name the child by path.
 
-**`child_connections(::A)`** is an ordered collection of `"src/face" => "dst/face"`
+**`inner_connections(::A)`** is an ordered collection of `"src/face" => "dst/face"`
 pairs, strictly from a child face to a child face. The rules ([§6.1][s6-1]) apply:
 one wire per input, and every endpoint an immediate child and one of its
 [faces](#g-face), container key segments included. The assembly's **boundary** is
-declared by two further methods, one per direction. **`input_connections(::A)`**
+declared by two further methods, one per direction. **`u_connections(::A)`**
 is an ordered collection of pairs, face name => internal endpoint path, or a
 tuple of paths for an input face routed to several immediate children
 (fan-out through the boundary), as in
 `"trn" => ("left/trn_field", "right/trn_field", …)`. Every entry routes to
 **at least one** internal endpoint. An empty tuple is a declaration error,
 because a face feeding nothing declares nothing ([D-210][d-210]).
-**`output_connections(::A)`** runs the other way, internal source path => face
+**`y_connections(::A)`** runs the other way, internal source path => face
 name (`"aircraft/pose" => "view_pose"`), so that its pairs, like every other
 pair in the three declarations, read along the flow.
 
@@ -2952,15 +2954,15 @@ continuous-sourced and discrete-sourced ports side by side, and a face's
 [activation](#g-activation) scalar on the continuous tier and [pinned](#g-walked) on the discrete. Three
 alternative spellings are rejected ([D-041][d-041], [D-170][d-170]): routing values under the
 leaf names `u_types`/`y_types`, leaf-style *typed* faces with face
-wires inside `child_connections`, and routing-as-wires with derived types and
+wires inside `inner_connections`, and routing-as-wires with derived types and
 no face list. Publicity is never implicit ([§8.3][s8-3]).
 
 **[Root inputs](#g-root-input) fall out with no vocabulary.** At every non-root level an input
-face declared through `input_connections` is fed by the parent's wire. At the
+face declared through `u_connections` is fed by the parent's wire. At the
 root there is no parent, and the root component's input faces *are* the
 [write surface](#g-write-surface), the set of faces a writer's batch entries may reach ([§11.3][s11-3]).
 Which declaration supplies them follows the root's [class](#g-class),
-`input_connections` keys for an assembly and `u_types` keys for a
+`u_connections` keys for an assembly and `u_types` keys for a
 primitive ([§8.2][s8-2]), and nothing downstream distinguishes the two. The
 whole-tree obligation model ([§6.1][s6-1]) states the complementary error rule. An
 assembly never declares its external connections. Those live in the parent
@@ -2976,17 +2978,17 @@ struct IMU <: AbstractComponent
     errors::IMUErrorModel      # discrete — scale/bias/noise on the sample
 end
 
-child_connections(::IMU) = (
+inner_connections(::IMU) = (
     "integrals/Θ" => "sampler/Θ", "integrals/q" => "sampler/q",
     "integrals/Υ" => "sampler/Υ", "integrals/V" => "sampler/V",
     "sampler/sample" => "errors/sample",
 )
 
-input_connections(imu::IMU) = (
+u_connections(imu::IMU) = (
     input_passthrough(imu, "integrals")...,       # kinematic-truth inputs pass through
 )
 
-output_connections(::IMU) = (
+y_connections(::IMU) = (
     "sampler/sample"     => "sample",             # ideal increments
     "errors/sample_meas" => "sample_meas",        # measured increments (the error
                                                   # model's output port)
@@ -3001,8 +3003,8 @@ pass-through of the integrals' kinematic-truth inputs (`q_eb`, `r_eb_e`,
 `ω_eb_b`, `a_ib_b`, `α_ib_b`) is a bare splat with nothing to say
 about direction. And the measured-increment face sources `errors/sample_meas`,
 the error model's *output* port, not the `errors/sample` input the sampler
-already feeds. Listing `errors/sample` in `output_connections` would fail the
-direction cross-check, and listing it in `input_connections` while it is wired
+already feeds. Listing `errors/sample` in `y_connections` would fail the
+direction cross-check, and listing it in `u_connections` while it is wired
 is the two-producers error of [§8.8][s8-8].
 
 Three facts the example carries. The assembly is tier-neutral. Every face's
@@ -3011,7 +3013,7 @@ type and tier derive from its internal endpoint, and a `sample_times` key on
 discrete children default to `Relative(1)` anyway, so this `sample_times`
 declaration is declaratory, and their absolute rate arrives from the enclosing
 scope at deployment ([§8.7][s8-7]). And the latch-back wire (below), where the
-integrals consume the sampler's published latch, joins `child_connections` as
+integrals consume the sampler's published latch, joins `inner_connections` as
 one more ordinary pair.
 
 #### The IMU's leaves: integrate-and-difference
@@ -3090,7 +3092,7 @@ y_types(::IMUIntegrals) =
 y_state(::IMUIntegrals, (; x)) = (; x.Θ, x.q, x.Υ, x.V)
 
 # y_direct: strapdown kinematics (lever arm, gravity, Earth rate) → (; ω_ic_c, f_c_c)
-function x_derivative(imu::IMUIntegrals, (; x, y))
+function x_deriv(imu::IMUIntegrals, (; x, y))
     q = RQuat(x.q, normalization = false)              # [§7.1][s7-1]'s explicit cast
     (Θ = y.ω_ic_c, q = SVector{4}(Attitude.dt(q, y.ω_ic_c)), Υ = y.f_c_c, V = q(y.f_c_c))
 end
@@ -3163,13 +3165,13 @@ IMU's coupling is one-directional, from integrals to sampler. Suppose the
 [flow](#g-flow) itself needed the interval-relative value, say for integrator
 saturation within the sampling interval. Then the sampler publishes the
 sample-instant values from its *[feedthrough](#g-feedthrough)* stage, and the
-continuous `x_derivative` computes `x − u.latch`. The feedthrough stage is
+continuous `x_deriv` computes `x − u.latch`. The feedthrough stage is
 the right one because `y_direct` reads `u`, so the latch [port](#g-port)
 carries the current tick's values, ZOH until the next. An
 `y_state`-published latch would be one period stale. Both cross-wires
 consume the other side's ports, and the [feedthrough](#g-feedthrough) graph stays acyclic.
 The integrals' stage 1 feeds the sampler's `y_direct`, and the sampler's
-`y_direct` feeds the integrals' `x_derivative` edge ([§5.4][s5-4]).
+`y_direct` feeds the integrals' `x_deriv` edge ([§5.4][s5-4]).
 The "reset" becomes a visible [tier](#g-tier)-crossing feedback loop, which is
 what it always was, physically.
 
@@ -3198,7 +3200,7 @@ instance wrapper is rejected in [D-042][d-042].
 
 ### 8.8 Computed connections and generic holding
 
-`input_connections` and `output_connections` are ordinary functions evaluated
+`u_connections` and `y_connections` are ordinary functions evaluated
 at build against the concrete instance, so they may *compute* entries from
 child [contracts](#g-contract). That is derivation from declarations, which [§8.2][s8-2]
 blesses. The framework helper, sketched:
@@ -3217,7 +3219,7 @@ function input_passthrough(assembly, child_path::AbstractString;
 
     child = resolve(assembly, child_path)      # getfield walk along "/" segments
     names = input_faces(child)            # the leaf's u_types keys,
-                                          # entries of input_connections(c) for an assembly
+                                          # entries of u_connections(c) for an assembly
     given = !isempty(except) + !isempty(only) + (select !== nothing)
     given ≤ 1 ||
         declaration_error(child_path, :multiple_selectors)  # exclusivity enforced, not documented
@@ -3232,12 +3234,12 @@ function input_passthrough(assembly, child_path::AbstractString;
     return Tuple(label(n) => string(child_path, "/", n) for n in wanted)
 end
 
-input_connections(w::World) = (
+u_connections(w::World) = (
     input_passthrough(w, "aircraft"; except = ("atm", "trn"))...,   # "aircraft.pilot.throttle_axis"
     input_passthrough(w, "atmosphere"; prefix = "env", sep = "_")..., # "env_wind_N"
 )
 
-output_connections(w::World) = (
+y_connections(w::World) = (
     "aircraft/pose" => "view_pose",
 )
 ```
@@ -3292,12 +3294,12 @@ evaluated at build.
 *face names* within that set. The helper exists for the pass-through case,
 where an assembly hands a child's unfed requirements up one level.
 **`output_passthrough` is its sibling** ([D-209][d-209]). It is splatted into
-`output_connections`, reads `output_faces(child)`, and has the same
+`y_connections`, reads `output_faces(child)`, and has the same
 `prefix`/`sep` surface, the same three exclusive selectors and the same
 declaration-time error set.
 
 ```julia
-output_connections(sys::Systems) = (
+y_connections(sys::Systems) = (
     output_passthrough(sys, "ldg"; only = ("damaged",))...,   # "ldg.damaged"
     "aero/wrench" => "wrench",
 )
@@ -3320,7 +3322,7 @@ generic [seam](#g-seam), and an assembly that feeds some of a child's input face
 passing the rest up must name the fed ones in `except`. At C172X scale that is
 four seams and roughly ten names at the innermost one, restating in each
 `except` tuple the wire list sitting in the same assembly's
-`child_connections`. That is "structure kept in two artifacts" ([§8.1][s8-1];
+`inner_connections`. That is "structure kept in two artifacts" ([§8.1][s8-1];
 [D-039][d-039]), the shape this design refuses elsewhere. It needs no vocabulary.
 Declaration bodies are ordinary code ([§8.5][s8-5]), so the author writes the feed
 list *once* and both declarations compute their share of it.
@@ -3340,13 +3342,13 @@ fed_faces(feeds, child) = Tuple(chopprefix(dst, child * "/")
                                 for (_, dst) in feeds
                                 if startswith(dst, child * "/"))
 
-child_connections(::Systems) = (
+inner_connections(::Systems) = (
     (("act/" * src) => dst for (src, dst) in ACT_FEEDS)...,
     "aero/wrench" => "wr_sum/in1",               # non-feed wires unchanged
     …
 )
 
-input_connections(sys::Systems) = (
+u_connections(sys::Systems) = (
     input_passthrough(sys, "aero"; except = fed_faces(ACT_FEEDS, "aero"))...,
     input_passthrough(sys, "ldg";  except = fed_faces(ACT_FEEDS, "ldg"))...,
     …
@@ -3367,7 +3369,7 @@ the helper below surrenders, is that the feed statement exists to be
 reviewed. An omission is legible in one authored artifact, not defined away
 as the complement of the wire list.
 
-**The line not to cross** is deriving `except` from `child_connections` itself,
+**The line not to cross** is deriving `except` from `inner_connections` itself,
 for instance a helper spelled `except = fed(sys, "aero")` that reads the
 assembly's own wire list. That is auto-bubbling under another name ([D-043][d-043],
 [D-145][d-145]). The single source must be **authored data, never inferred
@@ -3427,7 +3429,7 @@ the `Deployment` constructor below and the `Simulation` constructor
 #### The structure step
 
 The structure step is pure declaration reading. No user stage code executes in
-it. The `input_connections`/`output_connections`/`input_passthrough` bodies are
+it. The `u_connections`/`y_connections`/`input_passthrough` bodies are
 declaration code ([§8.8][s8-8]).
 
 The step is a tree walk from the root instance, in this order:
@@ -3694,7 +3696,7 @@ producer-ward
 to the one feed its consumers share, either a root input or a producer inside
 the model. The record is total, because one-level routing gives every signal
 a declared face at every boundary it crosses ([§6.1][s6-1], [D-207][d-207]). The input
-side is what a [fragment](#g-fragment)'s `inputs` payload resolves against from any
+side is what a [fragment](#g-fragment)'s `u` payload resolves against from any
 authoring level ([§14.2][s14-2], [§14.3][s14-3]). CI checks a model by calling `build`, the
 acceptance tests target `build` errors directly, and `attach!` validates
 [device](#g-device) [bindings](#g-binding) against it. Build living only inside the `Simulation`
@@ -3810,11 +3812,11 @@ Warnings raised while mutating state stay in that state's status record
 
 **[Probe](#g-probe)-everything scope.** The nominal [activation](#g-activation) probes every user
 function once, at the initial state, with real values. The set is the stages,
-`x_derivative`, `s_update`, [guards](#g-guard), handlers and
+`x_deriv`, `s_update`, [guards](#g-guard), handlers and
 `x_projection`. The probe checks shape and type conformance and discards
 the results. All are pure, and the cost is one evaluation each. "Fails loudly
 at build time where possible" ([§8.1][s8-1]) decides this. A malformed
-`x_derivative` return must not wait for the first integrator step. Probes
+`x_deriv` return must not wait for the first integrator step. Probes
 see only the initial state's branch, so the marginal coverage is earliness,
 not completeness. The always-on check ([§9.5][s9-5]) remains the completeness
 backstop.
@@ -3873,7 +3875,7 @@ namely `init!`, trim setup and trim commit ([§14.6][s14-6]).
 
 **The author's side of that bargain.** Silly values are acceptable *because*
 the author is obliged to accept them. **Stage code must be total over
-type-valid inputs.** Every probed user function (stages, `x_derivative`,
+type-valid inputs.** Every probed user function (stages, `x_deriv`,
 `s_update`, guards, handlers, `x_projection`) evaluates without
 throwing on any input satisfying its declared types. The domain is
 type-validity, not the probe's particular synthesized values. The
@@ -3932,7 +3934,7 @@ instant. Discrete stages are gated off holding `Float64` values (the [§8.2][s8-
 frozen-constant semantics), and [guards](#g-guard) and handlers never run, because
 event localization is `Float64` [sweeps](#g-sweep) by design ([§10.4][s10-4]). Only the
 continuous output stages (`y_state`/`y_direct`) and
-`x_derivative` ever see a `Dual`, so only they are probed. Probing the
+`x_deriv` ever see a `Dual`, so only they are probed. Probing the
 discrete stages, `s_update`, or guards at `Dual` would check code against
 a number type it cannot receive. It is one rule with no special cases, and the
 [§5.6][s5-6] tracer activation follows it identically. "Tracer activation" names the
@@ -4088,7 +4090,7 @@ inside the stage, and the check above holds the freeze to its word at every
 activation. Stripping mid-expression at a leaf left unpinned remains legal and
 remains unseen, as the sharp tool it is.
 
-**Uniform across all probed functions.** `x_derivative` checks against
+**Uniform across all probed functions.** `x_deriv` checks against
 `X`'s own shape at the activation's `T` ([§7.1][s7-1]: a scalar leaf expects a
 `T`, an `SArray` leaf the same `SArray` at `T`). Its predicate is "every field
 scatters into its field's block at `T`", which is what makes derivative
@@ -4208,7 +4210,7 @@ forced.** The [boundary sweep](#g-sweep)'s stage-1 block, both tiers' `y_state`
 entries alike, is order-free by definition, because the no-[feedthrough](#g-feedthrough)
 stage reads no `u`. The stage-2 block gates in the [due](#g-due) discrete stages,
 those whose components this boundary admits by their compiled `(D, Φ)` pair.
-It is the only topologically ordered one. The `x_derivative` block (the
+It is the only topologically ordered one. The `x_deriv` block (the
 [RHS](#g-flow) body the stepper calls per stage evaluation) and the `s_update`
 block are order-free with disjoint writes. [Guards](#g-guard) and handlers are their
 own small callables inside the [§10.6][s10-6] iteration.
@@ -4230,7 +4232,7 @@ bodies contain no discrete entries ([§10.5][s10-5]).
 These bodies communicate only through the stores and the table. No value
 crosses a [seam](#g-seam), whether between passes, between the blocks of one pass, or
 between chunks. The seams therefore cost nothing, and the executor's
-decomposition stays free. Fusing a step's sweep with its `x_derivative`
+decomposition stays free. Fusing a step's sweep with its `x_deriv`
 block, or an event round's sweep with its guards and fired handlers
 ([§10.6][s10-6]), is an optimization it may take or decline ([D-194][d-194]). Two doors
 this structure opens for free are recorded, not committed. The first is
@@ -4295,7 +4297,7 @@ compiled tuple's type therefore has exactly one consumer, the unrolled walk.
 `phase_bodies(sim)` returns the compiled bodies of the nominal activation as
 named callables bound over the simulation's own buffers. The four blocks:
 
-- `rhs`, the `x_derivative` block.
+- `rhs`, the `x_deriv` block.
 - `sweep_1`, in both arities.
 - `sweep_2`, in both arities.
 - `ticks`, which takes the tick index its entries gate on.
@@ -5814,7 +5816,7 @@ deliberate lie, not a drift.
 **The [write surface](#g-write-surface) (the set of faces a writer's batch
 entries may reach) is [root inputs](#g-root-input).** A root input *is* the
 root [component](#g-component)'s own input [face](#g-face), an assembly's
-`input_connections` key or a primitive's `u_types` key ([§8.2][s8-2],
+`u_connections` key or a primitive's `u_types` key ([§8.2][s8-2],
 [§8.6][s8-6]). It is routed inward to consumers and produced by no component.
 At every non-root level an input face is fed by the parent's wire, and at the
 root there is no parent. No dedicated vocabulary is needed.
@@ -8273,7 +8275,7 @@ the policy that fits it.
   is the interface-connection bodies in the structure step (the build's first
   step, declaration reading only). The other two are the stage-1
   [probes](#g-probe) in B and the probe chain in C. When user code throws, there is no
-  meaningful rest of the collection to report. A failed `input_connections`
+  meaningful rest of the collection to report. A failed `u_connections`
   leaves the parent's face derivation undefined. A failed stage-2 probe starves
   every downstream probe of its wired inputs, because [probe values](#g-probe-value) flow
   topologically ([§9.3][s9-3]). The first
@@ -8499,7 +8501,7 @@ without defining them. All three are normative in the forms given here.
 - `input_faces(c)` / `output_faces(c) → Vector{String}` return the stringified
   keys of a leaf's `u_types` / `y_types` (the key set is
   `T`-independent). For an [assembly](#g-assembly) they return the entries of
-  `input_connections(c)` / `output_connections(c)`. Declaration order is
+  `u_connections(c)` / `y_connections(c)`. Declaration order is
   preserved, which gives deterministic printouts and stable diagnostics.
 - `resolve_terminal(assembly, path) → (component, name)` splits off a terminal
   path's final segment and resolves the prefix through `resolve`. The split is
@@ -8584,7 +8586,7 @@ form of the stage [execution order](#g-execution-order)) maintains an
 state recording where execution stands in the compiled order. The cursor records three facts. The first is the component path, an index into
 the execution order that [`Outputs`](#g-outputs) (the nominal evaluation's product, the port
 classes and the execution order) carries ([D-253][d-253]). The second is which function is running:
-`y_state`, `y_direct`, `x_derivative`, `s_update`, a [guard](#g-guard), a handler,
+`y_state`, `y_direct`, `x_deriv`, `s_update`, a [guard](#g-guard), a handler,
 or `x_projection`. The third is the boundary phase: integration stage *k*,
 event round *r*, a localization evaluation at trial time, or tick. Maintaining
 the cursor costs one cheap store per dispatch on a single-tasked executor, with
@@ -8773,7 +8775,7 @@ loop through declared machinery.
   block. `Ldg` ORs its three legs through a junction (the ownership idiom,
   [§6.2][s6-2]; the library, [§13.7][s13-7]) and exports one `damaged` face.
   Each [assembly](#g-assembly) above it re-exports that single face. That
-  takes one `output_connections` entry per level ([§6.1][s6-1]), or
+  takes one `y_connections` entry per level ([§6.1][s6-1]), or
   `output_passthrough` where a level re-exports a child's surface wholesale
   ([§8.8][s8-8]). That hop is the substitutability [contract](#g-contract)
   doing its job, not plumbing (the imposed derived contract, [§8.8][s8-8]).
@@ -8878,7 +8880,7 @@ Post-terminal dynamics are the model's job, and that is a feature. Today
 `robot2d` *throws* when it falls, because it has no other way to say "my
 dynamics are no longer meaningful". Here it declares the fall as an event,
 switches to a frozen mode, and exports `fallen`. The frozen mode is a
-mode-dependent `x_derivative`, machinery the model already has. Wired, the
+mode-dependent `x_deriv`, machinery the model already has. Wired, the
 sim ends at the fall. Unwired, it integrates a frozen robot, which is
 well-defined, unlike an uncaught throw. The discipline forces models to have
 well-defined terminal states, which is better modeling.
@@ -9110,7 +9112,7 @@ the root of a build, and its input [faces](#g-face) then become the model's
 root inputs ([§8.2][s8-2], [D-208][d-208]). Ordinary conditions and
 [devices](#g-device) feed them, and every output is observable in the
 [snapshot](#g-snapshot) table. The rig is a one-child assembly whose
-`input_connections` surface the child's entire input face set, as
+`u_connections` surface the child's entire input face set, as
 `input_passthrough(rig, "child")` verbatim ([§8.8][s8-8]). What it buys is a
 place to wire something *beside* the component under test.
 
@@ -9128,8 +9130,8 @@ struct StrutRig <: AbstractComponent    # the rig: component under test + stub
     stub::Constant{SampleTerrainField}  # the test handle, held as instance data
 end
 
-child_connections(::StrutRig) = ("stub/out" => "strut/terrain",)
-input_connections(rig::StrutRig) =
+inner_connections(::StrutRig) = ("stub/out" => "strut/terrain",)
+u_connections(rig::StrutRig) =
     (input_passthrough(rig, "strut"; except = ("terrain",))...,)
 ```
 
@@ -9225,7 +9227,7 @@ observation-by-path rejection ([§13.5][s13-5]). That rejection was about
 *runtime* coupling, where a root-authored predicate reaches through generic
 [seams](#g-seam) the root does not own and breaks on substitution. A condition
 is a *design-time statement about a concrete build*. It is authored in the
-same vocabulary as `child_connections`, which also speaks paths, about children
+same vocabulary as `inner_connections`, which also speaks paths, about children
 its author owns. The composition law ([§14.2][s14-2]) makes the parallel
 exact.
 
@@ -9289,7 +9291,7 @@ costs no upstream edits. The three combinators are constructors of an
 **inert, lazy tree**. No path arithmetic happens at composition.
 
 ```julia
-struct Fragment{X,S,M,L}  x::X; s::S; m::M; inputs::L  end  #self-vocabulary payloads; no paths
+struct Fragment{X,S,M,L}  x::X; s::S; m::M; u::L  end      #self-vocabulary payloads; no paths
 struct Scoped{N}  prefix::String; node::N  end             #at(prefix, node): stores, never applies
 struct Combined{T<:Tuple}  nodes::T  end                   #combine(ns...): collects; order = diagnostics only
 ```
@@ -9311,7 +9313,7 @@ The read side's lifts refuse the same way ([§14.9][s14-9], [D-278][d-278]).
 
 `fragment`'s payloads speak only about the component at the authoring point.
 Addressing children is exclusively `at`'s job, so there is one way to say
-everything. An `inputs` payload names faces *of the authoring level's
+everything. A `u` payload names faces *of the authoring level's
 [contract](#g-contract)*. Resolution walks the export chain to the root input
 and errors if the face never surfaces. That walk always has a name to follow.
 One-level routing gives every level a declared face for every signal crossing
@@ -9322,7 +9324,7 @@ overwrites it. Unexported stays unpokeable for init exactly as it does for the
 GUI ([§11.7][s11-7]).
 
 **The locality law** here is the one [§6.1][s6-1] states for connections, now
-in its third instance. The three instances are child connections, computed
+in its third instance. The three instances are inner connections, computed
 interface connections and conditions. Each level speaks its own fields, its
 declared children's names, and its own faces. Delegation runs by dispatch at
 every genericity [seam](#g-seam). An `at` prefix may stop at *any* child's
@@ -9331,7 +9333,7 @@ faces, owned or generically held, because the face graph is total
 where a deep [condition](#g-condition) path is, within an owned concrete
 subtree ([§13.3][s13-3]). Absolute paths exist only in the flattened entry
 list, a *compiled derivative* of the composition, as cell offsets are of
-`child_connections`. Substituting a component invalidates precisely the
+`inner_connections`. Substituting a component invalidates precisely the
 fragments its owner shipped, nothing else. The enforcement status carries over
 from [§6.1][s6-1] as well. The law is convention. Ownership is a fact about
 who maintains the code, and the build cannot see it, so the law is available
@@ -9854,7 +9856,7 @@ against today's `c172.jl`.
   ([D-069][d-069]).
 - **Nonlinear least squares with exact AD Jacobians is the default.** The
   `Dual` [activation](#g-activation) seeds the decision variables through the
-  `T`-generic assignment, [sweep](#g-sweep) and `x_derivative`. The seeds
+  `T`-generic assignment, [sweep](#g-sweep) and `x_deriv`. The seeds
   survive the condition write boundary because [§14.3][s14-3] selects the
   baked converter per leaf from the shape. A decision-descended leaf is
   `Dual`-typed there and takes the structural conversion, while the
@@ -10052,7 +10054,7 @@ holds the [probe](#g-probe)'s synthesized values. That is the [§14.6][s14-6]
 barrier reaching the scratch world, as [D-205][d-205] made it reach the
 published one. The iterations are untouched. They are raw write → sweep → read
 cycles at the seeded activation, over the continuous chain and
-`x_derivative` alone ([§14.5][s14-5]). The zero-decision problem (below)
+`x_deriv` alone ([§14.5][s14-5]). The zero-decision problem (below)
 is the nominal half alone, and its one evaluation is that establishment round
 ([D-213][d-213]).
 
@@ -10192,7 +10194,7 @@ which is useful in its own right and free.
 #### The AD obligation, scoped
 
 The default formulation requires `Dual` genericity of exactly the continuous
-output-stage chains and `x_derivative`, plus the user's assignment and
+output-stage chains and `x_deriv`, plus the user's assignment and
 residual math. The discrete [tier](#g-tier)'s stages and `s_update`, and
 the event system's guards and handlers, never see a `Dual`. They are frozen
 constants with zero partials, semantically exact ([§8.2][s8-2]).
@@ -10449,7 +10451,7 @@ pipeline consumes it with cosmetic changes. `LinearizedSS` the *component*
 survives separately, as an ordinary
 [continuous component](#g-continuous-component) in the migrated library. Its
 `x_init` is the state vector, its faces are labeled, and the affine update
-lives in `y_direct`/`x_derivative`. It has no privileges, and its
+lives in `y_direct`/`x_deriv`. It has no privileges, and its
 schema is everyone else's.
 
 **Recorded guidance.** Linearization taps should select minimal-coordinate
@@ -10489,7 +10491,7 @@ extension is additive along existing [seams](#g-seam).
   continuous tier ([§8.2][s8-2]). Participation therefore stays authored per
   leaf on that tier too, and no declaration changes shape, which gives
   graceful migration with no flag day.
-- **One new activation** ([§9.4][s9-4]): "continuous chain + `x_derivative`
+- **One new activation** ([§9.4][s9-4]): "continuous chain + `x_deriv`
   + the discrete tier's output stages + `s_update`".
 - **Forward sensitivities** through the in-house RK steppers, for free. That
   is a payoff of owning the loop ([§10.1][s10-1]).
@@ -10741,15 +10743,15 @@ lifecycle.
   `m_init` (by value), `ws_init(::C, ::Type{T})` (by allocation), `u_types` and
   `y_types` (by type, walked, `Pinned{P}` marking a frozen leaf), and
   `state_events`. Its stage and event functions are `y_state`,
-  `y_direct` and `x_derivative`, guard/handler pairs
+  `y_direct` and `x_deriv`, guard/handler pairs
   (`StateEvent(guard, handler)`; the detection policy comes from the guard's
   return type, [§10.4][s10-4]) and `x_projection`.
 - Discrete leaf. `s_init` (by value, mandatory, `(;)` when stateless),
   `ws_init(::C, ::Type{T})` (always called at `Float64`) and
   `u_types`/`y_types` (pinned wholesale). Its stages are
   `y_state`, `y_direct` and `s_update`.
-- Assembly. `child_connections` (mandatory, the class marker),
-  `input_connections`, `output_connections`, `sample_times` and
+- Assembly. `inner_connections` (mandatory, the class marker),
+  `u_connections`, `y_connections`, `sample_times` and
   `transparent_container` (optional, default `nothing`).
 - Shipped conditions. `condition(::C; kw)` fragment functions, methods of
   the framework's `condition` generic ([§14.2][s14-2]).
@@ -10761,7 +10763,7 @@ signatures destructure less at will):
 |---|---|---|
 | `y_state` | continuous | `x, m, t [, ws]` |
 | `y_direct` | continuous | `x, m, u, y_x, t [, ws]` |
-| `x_derivative` | continuous | `x, m, y, u, t [, ws]` |
+| `x_deriv` | continuous | `x, m, y, u, t [, ws]` |
 | `y_state` | discrete | `s, t, Δt [, ws]` |
 | `y_direct` | discrete | `s, u, y_s, t, Δt [, ws]` |
 | `s_update` | discrete | `s, y, u, t, Δt [, ws]` |
@@ -10776,7 +10778,7 @@ declares `u_types`. `y` is present iff the component declares
 declared. `y_x`/`y_s` are present iff the stage-1 *return* is non-empty
 ([§5.2][s5-2], [D-252][d-252]). `Δt` is present
 on the discrete tier only. Returns follow three rules. A stage returns a
-NamedTuple of port values ([§4.3][s4-3], [§5.2][s5-2]). `x_derivative`
+NamedTuple of port values ([§4.3][s4-3], [§5.2][s5-2]). `x_deriv`
 returns the layout image of `X` ([§7.1][s7-1]). A **handler returns `(; x, m)`
 with each key present iff that store exists and the handler updates it** (the
 return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
@@ -10935,8 +10937,8 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 
 **Condition algebra** ([§14.1][s14-1]–[§14.6][s14-6]).
 
-- `fragment(; x, s, m, inputs)`. Self-vocabulary payloads at the authoring
-  level. `inputs` names faces of that level's contract.
+- `fragment(; x, s, m, u)`. Self-vocabulary payloads at the authoring
+  level. `u` names faces of that level's contract.
 - `at(prefix, node)`. Scoping. It stores, never applies. It also lifts whole
   `TrimProblem`s and linearization tap sets ([§14.9][s14-9],
   [§14.10][s14-10]). An empty prefix is refused ([§14.2][s14-2]).
@@ -11243,7 +11245,7 @@ collection ([§13.2][s13-2], [D-250][d-250]).
   vocabulary (scalar / `SArray` at the common eltype).
 - **`StoreWithoutUpdate`** ([§8.2][s8-2]). Error · build · collected.
   Component path, the `x_init` or `s_init` store, the missing update (no
-  `x_derivative` for the one, no `s_update` for the other). A
+  `x_deriv` for the one, no `s_update` for the other). A
   non-empty store only; an empty store owes no update ([D-263][d-263]).
 - **`EventHalfMissing`** ([§8.2][s8-2]). Error · build · collected. Component
   path, event name, reason (guard half missing / handler half missing / the
@@ -11257,7 +11259,7 @@ collection ([§13.2][s13-2], [D-250][d-250]).
   path, type, declarations found, both family lists; did-you-mean when the
   type holds component-typed fields.
 - **`ClassMixed`** ([§8.5][s8-5]). Error · build · fail-fast. Component path,
-  the `child_connections` declaration and the offending leaf declarations.
+  the `inner_connections` declaration and the offending leaf declarations.
 - **`ContainerMixed`** ([§8.5][s8-5]). Error · build · fail-fast. Container
   field path, offending element keys/indices, their types.
 - **`ContainerNested`** ([§8.5][s8-5]). Error · build · fail-fast. Container
@@ -11266,7 +11268,7 @@ collection ([§13.2][s13-2], [D-250][d-250]).
 - **`DeclarationOnWrongTier`** ([§5.2][s5-2], [§8.2][s8-2], [§8.5][s8-5]).
   Error · build · collected. Component path, the offending declaration, the
   tier the leaf's other declarations announce. The offending declaration is
-  `x_derivative`/`s_update`, a store from the wrong family (`x_init`
+  `x_deriv`/`s_update`, a store from the wrong family (`x_init`
   against `s_init`, [D-195][d-195]), `state_events`, `m_init`,
   `x_projection`, or a `Pinned` entry on a discrete leaf, named with its
   contract ([D-263][d-263]).
@@ -11580,14 +11582,14 @@ client). It is never needed for eltype genericity, and it is illegal where
 the face surfaces as a root input (`AbstractAtRoot`) ([§8.2][s8-2]).
 
 <a id="g-assembly"></a>**assembly** — pure composition. Its component-typed fields are its children,
-and it declares `child_connections` (mandatory, the class marker),
-`input_connections`, `output_connections`, `sample_times` and the optional
+and it declares `inner_connections` (mandatory, the class marker),
+`u_connections`, `y_connections`, `sample_times` and the optional
 `transparent_container`. It has no dynamics of its own. It is flattened away
 for ordering, and retained as the navigation hierarchy and as
 declaration-level rate scopes ([§3.3][s3-3], [§8.5][s8-5]).
 
 <a id="g-class"></a>**class** — a component's primitive-vs-assembly status, read off *which*
-well-known declarations its type defines. `child_connections` means assembly,
+well-known declarations its type defines. `inner_connections` means assembly,
 any leaf declaration means primitive, and neither is `ClassUnreadable`
 ([§8.5][s8-5]). Not to be confused with *tier* (continuous vs. discrete,
 [§D.4][sD-4]), nor with a diagnostic *kind* ([§D.9][sD-9]). "Class" in
@@ -11602,11 +11604,11 @@ interchangeably for the non-assembly classes ([§3][s3]).
 components. It contributes them as children path-named `"field/1"` or
 `"field/key"`, or by bare key (`"1"` or `"key"`) where the field is declared
 name-transparent via `transparent_container`. It is transparent grouping, not
-an assembly: no contract, no `child_connections`, no rate scope
+an assembly: no contract, no `inner_connections`, no rate scope
 ([§8.5][s8-5]).
 
 <a id="g-continuous-component"></a>**continuous component** — the hybrid primitive: continuous state `x`, modes
-`m`, flow `x_derivative`, two output stages, events (guards + handlers)
+`m`, flow `x_deriv`, two output stages, events (guards + handlers)
 and optional `x_projection`. Any facet may be empty, so a state-free
 instance is an FSM ([§3.1][s3-1]).
 
@@ -11627,8 +11629,8 @@ step-boundary contract ([§10.6][s10-6]) and the *derived contract*
 or assembly defines, each declared in a stated source of authority: by
 value, by type, by allocation ([§8.2][s8-2]). The set is
 `x_init`/`s_init`/`m_init`, `ws_init`, `u_types`/`y_types`,
-`state_events`, the stages, `x_derivative`/`s_update`/
-`x_projection`, and `child_connections`/`input_connections`/`output_connections`/`sample_times`/`transparent_container`.
+`state_events`, the stages, `x_deriv`/`s_update`/
+`x_projection`, and `inner_connections`/`u_connections`/`y_connections`/`sample_times`/`transparent_container`.
 
 <a id="g-derived-contract"></a>**derived contract** — the checkable surface an assembly or the `Build`
 derives from its children's declarations and its own wiring instead of
@@ -11642,7 +11644,7 @@ whatever concrete child is plugged in ([§8.6][s8-6], [§8.8][s8-8],
 
 <a id="g-function-family"></a>**function family** — which bundle fields a given function may legally
 receive. The families are
-`y_state`/`y_direct`/`x_derivative`/`s_update`/guard/handler/`x_projection`,
+`y_state`/`y_direct`/`x_deriv`/`s_update`/guard/handler/`x_projection`,
 one closed set per name per tier, the shared output stages taking one set on
 each ([§5.2][s5-2], [D-220][d-220]). The comment block ([§5.2][s5-2]) states
 each family's maximal legal set, and `BundleFieldError` classifies a read as
@@ -11661,12 +11663,14 @@ events, post-step manifold projection, and externally injected inputs
 
 <a id="g-the-letters"></a>**the letters** — the mathematical symbols the spec's formulas keep, against
 the words the API spells them as ([D-220][d-220]). `f` is the continuous flow
-(`x_derivative`), `g` the discrete update (`s_update`), and `y = h(x)`
+(`x_deriv`), `g` the discrete update (`s_update`), and `y = h(x)`
 and `y = h(x, u)` the two output stages (`y_state` and
 `y_direct`). The bundle letters are API in their own right. `x` is the
 continuous state and `m` the continuous-only mode store, `s` the discrete
 state ([D-195][d-195]), `u` wired inputs, `y` own published signals, `ws` the
-workspace. Bare `h` means the integration step size only ([§10][s10]). Bare
+workspace. An assembly has no bundle, and there `u` and `y` name the two
+sides of its boundary, in `u_connections` and `y_connections` ([D-279][d-279]).
+Bare `h` means the integration step size only ([§10][s10]). Bare
 `z` means only the shift operator `z⁻¹`. [D-173][d-173] retired it as a
 state letter, and it was never reclaimed, since the discrete state has its
 own.
@@ -11732,7 +11736,7 @@ input entry ([§8.2][s8-2]), executor entry ([§9.7][s9-7]), roster entry
 
 <a id="g-face"></a>**face** — the name a port wears on its component's boundary. For a leaf it is
 the port's own name. For an assembly it is a name declared in
-`input_connections` or `output_connections`, aliasing an interior port. It
+`u_connections` or `y_connections`, aliasing an interior port. It
 is an opaque token with two build-checked invariants (no `/`, unique within
 the assembly). Its type derives from its internal endpoint, and its direction
 is declared by the method that names it. The periphery's write side speaks
@@ -11764,7 +11768,7 @@ liveness verdict. Wiring is port-granular, and which stage computes a port is
 invisible outside the component ([§4.2][s4-2], [§4.3][s4-3]).
 
 <a id="g-root-input"></a>**root input** — the root component's own input face, which is an assembly's
-`input_connections` key or a primitive's `u_types` key. It is produced by
+`u_connections` key or a primitive's `u_types` key. It is produced by
 no component, constant within a frame, and the only thing the periphery may
 write ([§11.3][s11-3], [§8.2][s8-2], [§8.6][s8-6]).
 
@@ -11821,15 +11825,15 @@ two-stage split, contract re-factoring, and as residual a component split
 
 <a id="g-execution-order"></a>**execution order** — the order in which the stage functions run, fixed once at
 build time from wiring edges plus intra-component feedthrough: all stage-1
-functions in any order, stage 2 in topological order, then `x_derivative`.
+functions in any order, stage 2 in topological order, then `x_deriv`.
 It is carried by the `Outputs` artifact, and "ordering" names the activity
 ([D-258][d-258]). The hot loop runs a flat list of `(component, stage)`
 entries, with zero runtime graph logic ([§5.1][s5-1], [§9.1][s9-1]).
 
-<a id="g-flow"></a>**flow / RHS** — `x_derivative`, the continuous derivative function, `f` in
+<a id="g-flow"></a>**flow / RHS** — `x_deriv`, the continuous derivative function, `f` in
 the spec's formulas ([D-220][d-220]). Evaluating the RHS means running the
-whole sweep, since `x_derivative` reads the fresh table. There is no
-incremental `x_derivative`-only re-evaluation ([§3.1][s3-1],
+whole sweep, since `x_deriv` reads the fresh table. There is no
+incremental `x_deriv`-only re-evaluation ([§3.1][s3-1],
 [§5.3][s5-3]).
 
 <a id="g-frame"></a>**frame** — one iteration of the loop (drain, integrate, boundary sequence,
@@ -12070,7 +12074,7 @@ order should not carry the event tables ([§9.1][s9-1], [D-253][d-253]).
 
 <a id="g-executable-set"></a>**executable set** — the function set an activation can actually run, hence
 exactly what it probes. A `Dual` activation sees only the continuous output
-stages and `x_derivative`, never the discrete stages, `s_update`,
+stages and `x_deriv`, never the discrete stages, `s_update`,
 guards or handlers ([§9.4][s9-4]).
 
 <a id="g-executor"></a>**executor** — the compiled form of the stage execution order: a concretely
@@ -12468,7 +12472,7 @@ aircraft for trim and linearization. "Aircraft as root" is the shallowest
 world, not a special case ([§14.9][s14-9]).
 
 <a id="g-fragment"></a>**fragment** — the leaf node of the condition algebra. `fragment(; x, s, m,
-inputs)` payloads speak only about the component at the authoring point
+u)` payloads speak only about the component at the authoring point
 (**self-vocabulary**), with addressing left entirely to `at`
 ([§14.2][s14-2]).
 
@@ -12831,6 +12835,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-276]: decisions.md#d-276--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
 [d-277]: decisions.md#d-277--carry-a-read-sets-mount-chain-and-rebase-every-selector-to-the-root
 [d-278]: decisions.md#d-278--refuse-an-empty-at-prefix-at-composition
+[d-279]: decisions.md#d-279--name-the-assemblys-boundary-declarations-by-u-and-y-and-shorten-x_derivative
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

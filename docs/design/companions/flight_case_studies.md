@@ -73,7 +73,7 @@ each of those features under the decoder interfaces.
   compensators as child components of an engine assembly, also
   orders cleanly from the core's stage-1 ports.
 - `y_direct` runs the lookup chain and the mode branch once.
-  `x_derivative` is a three-field copy (`ω̇`, `ẋ_idle`, `ẋ_frc`). Under
+  `x_deriv` is a three-field copy (`ω̇`, `ẋ_idle`, `ẋ_frc`). Under
   the orthodox split, `f(x, u, t)` would reproduce essentially the whole
   `f_ode!` body, four lookups and the mode branch, at each of the four RK
   stages per step ([D-015][d-015]).
@@ -82,7 +82,7 @@ each of those features under the decoder interfaces.
   ([§2.1][s2-1]).
 - `fuel_available` becomes an ordinary port. It is state-derived at the fuel
   system, hence a stage-1 port, so it closes no loop.
-- Forced publications: none. Everything `x_derivative` reads was already
+- Forced publications: none. Everything `x_deriv` reads was already
   in `PistonEngineY`.
 
 ### `PID` and the C172X FCS: the discrete side
@@ -271,7 +271,7 @@ The demo, line by line:
   build). `HorizontalTerrain`'s elevation is a plain field (a parameter) and
   its surface type an input port. The parameter/port split that
   FlightCore kept implicit in its `U()`-vs-field convention is now the
-  declaration itself. The aircraft's `input_connections` block carries the
+  declaration itself. The aircraft's `u_connections` block carries the
   `pilot.*` face group in one place, hands it one level down to
   avionics and systems, and re-routes it at each level below ([§6.1][s6-1]).
   Today's mapping writes flaps/brakes directly into `act`, bypassing avionics.

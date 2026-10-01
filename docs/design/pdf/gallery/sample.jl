@@ -2,7 +2,7 @@
 y_types(::Kinematics, ::Type{T}) where {T <: Real} =
     (pose = KinPose{T}, q_eb = RQuat{T})
 
-function x_derivative(comp::Aircraft, args)
+function x_deriv(comp::Aircraft, args)
     y_x = y_state(comp, args)      # x, m, u, t
     ẋ = y_x.v * 2.5 + args.t
     isnan(ẋ) && return nothing

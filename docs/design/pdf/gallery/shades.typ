@@ -11,7 +11,7 @@
   Physically #text(fill: c, raw("y")) is reconstructed per call from cells:
   one declared port, one cell (#text(fill: c, raw("pose")) = KinPose{T}).
   The stage functions #text(fill: c, raw("y_state"))/#text(fill: c, raw("y_direct"))
-  read #text(fill: c, raw("x, m, t [, ws]")); see #text(fill: c, raw("x_derivative")).
+  read #text(fill: c, raw("x, m, t [, ws]")); see #text(fill: c, raw("x_deriv")).
 ]
 
 #for s in steps {

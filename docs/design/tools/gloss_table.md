@@ -64,7 +64,7 @@ was recounted then.
 |---|---|---|---|---|
 | algebraic loop | g-algebraic-loop | 2 | B | a genuine cycle in the instantaneous dependency graph |
 | execution order | g-execution-order | 17 | B | the order in which the stage functions run, fixed at build time from the feedthrough graph |
-| flow / RHS | g-flow | 11 | B | `x_derivative`, the continuous derivative function, `f` in the formulas |
+| flow / RHS | g-flow | 11 | B | `x_deriv`, the continuous derivative function, `f` in the formulas |
 | frame | g-frame | 7 | A | one iteration of the loop: drain, integrate, boundary, publication |
 | projection | g-projection | 11 | B | the optional per-component hook `x ← x_projection(x)` |
 | sweep | g-sweep | 39 | B | one pass through the execution order against the current state |

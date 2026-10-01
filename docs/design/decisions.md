@@ -303,6 +303,7 @@ were derived.
 | [D-276][d-276] | Address a leaf inside a port value by a dotted leaf address | ratified |
 | [D-277][d-277] | Carry a read set's mount chain and rebase every selector to the root | ratified |
 | [D-278][d-278] | Refuse an empty `at` prefix at composition | ratified |
+| [D-279][d-279] | Name the assembly's boundary declarations by `u` and `y`, and shorten `x_derivative` | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -5908,6 +5909,8 @@ transfers. Motivation: the old `exports` held two opposite flow directions in
 one list — spelling-uniform (face on left) at the price of flow-uniformity, and
 any single mixed-direction list must sacrifice one.
 
+Annotation (2026-10-01): the three declarations are `inner_connections`, `u_connections` and `y_connections` ([D-279][d-279]); the near-collision that rejected `inner_connections` went away with `input_connections`. The split by direction, the flow-ordered pairs and the marker role stand.
+
 **Rejected.**
 - *Status quo (the sacrifice above — the output entries read against the
   signal).*
@@ -10481,6 +10484,8 @@ over letters survives in the qualifiers, and its distinctiveness ground is
 preserved. [D-263][d-263] is untouched: the store is still the tier marker, under its
 new name.
 
+Annotation (2026-10-01): `x_derivative` is `x_deriv`, and the assembly's connection declarations leave the "what stays" list as `inner_connections`, `u_connections` and `y_connections` ([D-279][d-279]). The rule stands for leaves, and `u` and `y` also name the two sides of an assembly's contract. `x_projection` stays in full.
+
 **Rejected.**
 - *Keeping the verb-first stores beside letter-first laws:* the same
   inconsistency in miniature, and an imperative is the wrong grammatical
@@ -11349,6 +11354,90 @@ construction still allocates nothing.
   set or a tap set would name the wrong algebra; the twin kinds already split
   the two sides.
 
+### D-279 — Name the assembly's boundary declarations by `u` and `y`, and shorten `x_derivative`
+
+**Status.** ratified
+
+**Position.** The letters `u` and `y` name the two sides of a component's
+contract at either class, and four declarations and one keyword are renamed
+on that ground or beside it.
+
+- The renames: `input_connections` → `u_connections`, `output_connections` →
+  `y_connections`, `child_connections` → `inner_connections`, `x_derivative`
+  → `x_deriv`, and `fragment`'s `inputs` keyword → `u`. Signatures, entry
+  spellings and semantics are unchanged.
+- [D-267][d-267]'s rule is widened, not replaced. A leaf declaration is still named
+  by the bundle field it defines. An assembly has no bundle, and its boundary
+  declarations take the letter of the contract side they declare.
+- What stays: `x_projection`, `state_events`, `sample_times`, `Group`'s
+  keywords `wires`, `inputs` and `outputs`, `input_faces`/`output_faces`,
+  `input_passthrough`/`output_passthrough`, every `get_` selector and every
+  diagnostic kind name. Prose keeps "root input", "the state derivative" and
+  "the projection".
+- `deriv` joins `implementation.md`'s abbreviation roster.
+- No aliases and no deprecation shims, on [D-220][d-220]'s terms. The log keeps the
+  old spellings under `decisions_style.md`'s rule 2.
+
+**Spec.** [§3.3][s3-3], [§3.4][s3-4], [§4.3][s4-3], [§5.2][s5-2], [§5.3][s5-3], [§5.4][s5-4], [§6.1][s6-1], [§6.2][s6-2], [§7.1][s7-1], [§7.4][s7-4], [§8.1][s8-1],
+[§8.2][s8-2], [§8.5][s8-5], [§8.6][s8-6], [§8.8][s8-8], [§9.1][s9-1], [§9.2][s9-2], [§9.3][s9-3], [§9.4][s9-4], [§9.5][s9-5], [§9.7][s9-7], [§11.3][s11-3], [§13.1][s13-1],
+[§13.3][s13-3], [§13.4][s13-4], [§13.5][s13-5], [§13.7][s13-7], [§14.1][s14-1], [§14.2][s14-2], [§14.7][s14-7], [§14.8][s14-8], [§14.10][s14-10], [Appendix B][sB],
+[Appendix C][sC], [Appendix D][sD]
+
+**Rationale.** [§8.6][s8-6] already says that the root's input faces come from the
+assembly's boundary declaration or from `u_types`, following the root's
+class, and that nothing downstream distinguishes the two ([D-208][d-208]). Two
+declarations that fill one role at the two classes were spelled in two
+vocabularies. Under this entry `u_types` and `u_connections` read as the two
+ways a component declares its input side, and `u_` lists both under tab
+completion. Control convention gives a composite system a `u` and a `y` as
+it gives them to a block. [D-267][d-267] kept the three connection names because an
+assembly defines no bundle field. That is still true. The letter names the
+contract side, which on a leaf is also the bundle field. The suffix keeps
+the difference [D-041][d-041] and [D-170][d-170] drew: `_types` declares typed faces, and
+`_connections` routes faces whose types derive from the internal endpoints.
+
+`fragment` took three letters and one word. Its fourth payload holds values
+for the fields of `u`, so the letter fits. `x`, `s` and `m` resolve only at a
+leaf, while this payload resolves at any level, assemblies included. The
+keyword is therefore clean only because the boundary rename makes `u` mean
+something on an assembly.
+
+[D-170][d-170] rejected `inner_connections` for its visual near-collision with
+`input_connections`. That neighbour is gone. Every entry of all three
+declarations names a child face, so "child" told none of them apart. "Inner"
+says that both ends sit inside the boundary, against one end on it. The trio
+is uneven in form, one word and two letters, and the form is accurate: the
+first is the class marker with no leaf counterpart, and the other two mirror
+`u_types` and `y_types`.
+
+[D-267][d-267] rejected `x_deriv` on two grounds, and neither holds. The family does
+not spell its words in full: `x_init`, `s_init`, `m_init` and `ws_init`
+abbreviate already. `x_deriv` beside `x_projection` is no more uneven than
+`x_init` beside it. The read side already says `get_deriv`, so the
+declaration and its selector now spell one word one way. It is also the
+declaration authors write most, once per continuous leaf. "Deriv" could be
+misread as "derived", a word the spec uses for contracts, but `get_deriv`
+had fixed its meaning before this entry.
+
+**Rejected.**
+- *`sibling_connections`:* [§6.1][s6-1]'s own adjective for these wires, but a child
+  wired to itself is expressible (`"plant/power" => "plant/u"`), and a child
+  is not its own sibling.
+- *`wires`:* the spec's everyday noun and `Group`'s field, but it drops the
+  `_connections` suffix that ties the three declarations, and a package
+  function of that name would take it from every `wires` local and from the
+  `Group` field under `implementation.md`'s naming rules.
+- *Keeping `child_connections` beside `u_connections` and `y_connections`:*
+  the name discriminates nothing, since all three declarations connect child
+  faces.
+- *`x_proj`:* `proj` is neither frequent nor established. Few leaves write a
+  projection, tab completion spares the writer, and a reader who meets the
+  name rarely is better served by the full word.
+- *`u` and `y` as `Group`'s keywords:* they hold connection entries, not
+  values, and `u = ("in" => "c/e",)` would read as a value of `u`.
+- *Letters on the helpers and selectors:* [D-267][d-267] separates declarations from
+  these, and [D-076][d-076]'s separation of `u_types` from `input_faces` stands.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -11628,6 +11717,7 @@ construction still allocates nothing.
 [d-276]: #d-276--address-a-leaf-inside-a-port-value-by-a-dotted-leaf-address
 [d-277]: #d-277--carry-a-read-sets-mount-chain-and-rebase-every-selector-to-the-root
 [d-278]: #d-278--refuse-an-empty-at-prefix-at-composition
+[d-279]: #d-279--name-the-assemblys-boundary-declarations-by-u-and-y-and-shorten-x_derivative
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
