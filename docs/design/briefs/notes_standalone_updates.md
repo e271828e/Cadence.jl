@@ -388,3 +388,56 @@ as not worth a commit.
    broken, the recorded `LoopError` and the logged backtrace on the arm's
    failure path acceptable. Nothing pushed; the arc from `fffa9d4` awaits
    the user's diff review.
+
+## The two open gaps, ruled fixed 2026-10-01
+
+The user ruled both gaps left open above fixed as one increment
+(`brief_interrupt_windows_3.md`), with two relatives found while probing
+them. Every shape was probed by injection on a scratch copy before the
+brief was written.
+
+7. **The four windows** (`13e8801`; gate green, 4272; `devices failures` at
+   `-t 1` green). Docs first, as `cc42741` and `ee732ae`: §11.6 and D-268
+   say `shutdown!` may run on a device whose `init!` never began, and §11.6
+   joins D-268's Spec field.
+   - The init bracket fills the run's own `live` and lists each entry before
+     its `init!`, so the arm's direct release finds it.
+   - `_run_body!` stores the loop's throw in `cause` as the failure arm's
+     first statement, and the masked `finally` builds the `LoopError` from
+     it. The inner `try` on the calling task stores it too, since an
+     interrupt in the inner `finally`'s `_finish!` replaced the `StepError`
+     and landed the run `stopped`. That relative was not in the notes above.
+   - The disposition keys on `cause`, so a deviceless run still rethrows on
+     that path (user ruling).
+   - `step!` takes the same store. Its interrupt arm stays (user ruling): a
+     second interrupt in its stop request lands `initialized` at a
+     consistent frame top, and the stop word left set ends the next `step!`.
+   - An interrupt cutting the failure arm after the store propagates raw,
+     the run `errored` and the record written (user ruling).
+   Two tests park deterministically, the bracket's escape and the inner
+   `finally`; the two store windows have no park and rest on the probe table.
+   The cold review (gate green; mutants over every fix) found no medium or
+   high defect in the code. Landed from it as `cbf46f4`: a test for the
+   arm's `cause = first(outcome)`, which no test guarded; the bracket's
+   `pop!` moved to right after its `shutdown!`, so an interrupt in the stop
+   request no longer repeats the release; `_init_devices!` returning
+   `nothing`; two comments; a fixture field renamed.
+8. **The review's rulings, all the user's.**
+   - Fixed, as `fed83fb`: `_run_body!` and `step!` stored `running` and then
+     allocated before their `try`, so an interrupt there left the lifecycle
+     `running` with every service refusing. The store is now the `try`'s
+     first statement and the roster is filled right after it. No park
+     exists; the evidence is the injection probe.
+   - Written down, as `67e352c`: §12.4's sketch shows the listing, and
+     §12.4 and D-268 say an interrupt after a frame's throw never displaces
+     it and that one cutting its handling propagates raw.
+   - Left alone: the log carries no backtrace on the inner-`finally` path,
+     and the deviceless rethrow there carries the interrupt's backtrace; an
+     interrupt landing at a `DeviceCrash` report's allocation loses that
+     report, in the bracket and in the wrapper, the device still released.
+   The reviewer verified the delta and found two low items, landed as
+   `06b6040` and `ede2b1d`: the stop word is cleared ahead of the roster
+   copy, since the arm reads it; and the docs and the arm's comment say the
+   escape finds the devices the bracket has not itself released. Gate green
+   at `ede2b1d`, 4278. Nothing pushed; the arc from `cc42741` awaits the
+   user's diff review.
