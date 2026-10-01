@@ -1,26 +1,19 @@
 # Pending against the spec
 
-What `src/` and `test/` still owe the design: the constructs not yet built,
-the ones built in a shape the spec's is not, and the ones awaiting a ruling.
-Every item here is known and recorded; none is abandoned. `check_refs.jl` and
+What `src/` and `test/` still owe the design, and the questions the design
+leaves open, split by whether the first release waits on them. Every item
+here is known and recorded; none is abandoned. `check_refs.jl` and
 `check_rows.jl` read this file, so every `§N` and `D-nnn` below resolves or
 the tools go red.
 
-The 2026-09-04 conformance audit (`docs/reports/20260904_conformance/`, tip
-`70672d1`) is folded in. Its merge, `01_merge.md`, is cited as `M-A1`, `M-B3`
-and so on; the entry carries the argument, the probe and the line numbers at
-that tip. The reports are frozen evidence; this file is the register.
+## Before the first release
 
-## Not yet built
+The bullets stand in working order, the first one next. The library waits on
+the two rulings ahead of it: the first sets what a component type costs to
+compile, the second how its faces are spelled. The GUI's design runs in
+parallel with them. The audit comes last, because it sweeps the whole
+surface and the library and the GUI both add names.
 
-The bullets stand in working order, the first one next: correctness before
-diagnostics, diagnostics before ergonomics, rulings early because they change
-the kinds later sweeps fill, and the standard component library last.
-Where the reason is not given here, the cited decision carries it:
-
-- **The NLopt fallback** (§14.8, H 4.5): `NLoptBackend(:LN_BOBYQA)` as a
-  package extension, the squared and normalized objective at `stopval = 1`,
-  and the nominal-activation loop it would run on.
 - **Compile time** (§9.7, D-086): the roadmap of
   `docs/reports/20260930_compile_cost/`, in order of yield: `@noinline` at
   the phase-body call, `@nospecialize` through the declaration layer, the
@@ -29,84 +22,25 @@ Where the reason is not given here, the cited decision carries it:
   mitigation ladder, and on D-086's rejection of type-erased call tables,
   comes first. It stands ahead of the library because each component type
   adds about 0.5 s.
+- **The dot in face names.** Whether `.` joins `/` as a reserved character
+  in face names (§8.6). A face selector's head is matched against the face
+  list because the house style groups faces with dots (`input_passthrough`'s
+  `sep`, §8.8; §14.9's `"wing.throttle"`), the longest match settling `a`
+  beside `a.b` (§14.4, D-276). Reserving the dot would make the head a parse
+  with no schema lookup and no ambiguity, at the cost of a new default
+  separator and a sweep of every dotted face in the spec and the suite.
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
-  spellings) (M-B22).
-
-## Built in a shape the spec's is not
-
-Transactional: the commit introducing a deviation adds its bullet, the one
-retiring it deletes it, and the merge entry has the probe where the audit
-found it. The first list retires bullet by bullet, each a local fix owing no
-ruling; the second waits on the feature or the pass its bullet names.
-
-### Retire alone
-
-Currently empty.
-
-### Retire with a feature or a pass
-
-Currently empty.
-
-## Awaiting a ruling
-
-Where the code's shape is coherent and the spec may be what moves. Each is
-the user's call; a ruling lands docs-commit-first, then the bullet above it
-retires or the code conforms.
-
-Currently empty.
-
-## Pending on the spec itself
-
-Not a code deviation: what the design documents owe their reader.
-
-- **Publication's garbage and when it is collected** (§7.5, §10.7, §11.2,
-  D-269). With the log and the trace off, a frame of `feedback_model` still
-  allocates 816 B, all of it publication's: `_status` 656 B, the store copy
-  112 B, and the snapshot object `latest` holds. §11.2 makes the GC the
-  reclamation of published snapshots, so a new snapshot and table copy per
-  frame are by design, and a run never avoids the GC. Two levers remain:
-  - **The status records.** `_status` builds a fresh vector of writer
-    records at every publication, two of them with no device attached.
-    Published values never change, so an unchanged record could be shared
-    with the previous snapshot. A device's heartbeat changes every frame,
-    which makes this a design question.
-  - **A scheduled collection.** §7.5 names `GC.gc(false)` at frame
-    boundaries as a lever, and nothing in `src/` builds it. Measured on
-    2026-09-30 at `h = 1 ms`, 10 threads: a young collection after up to
-    about 1 MB of garbage pauses about 200 µs (p99 under 240 µs), against
-    3.4 ms after 8 MB, the size the automatic collector waited for. The
-    proposal: the pacer's wait collects when the bytes allocated since the
-    last collection pass a budget of about 1 MB and the time to the next
-    deadline exceeds the recent p99 pause with a margin, and skips
-    otherwise. Unpaced runs and `step!` skip it. `PacerStatus` reports the
-    pauses. Open: the knob's name and default, and whether it is on by
-    default. Caveats: the trigger is process-wide, so a device that
-    allocates can still start a collection mid-frame; with the log on,
-    thinned snapshots die in the old generation and only a full collection
-    reclaims them, unmeasured; the fixed cost grows with tasks, live heap
-    and GC threads, so re-measure on a model of real size.
-
-  A ruling and a decision entry beside D-269 come first, then the build.
-- **Stop candidates.** §13.5 has two omissions with unequal loudness: a
-  level that fails to re-export a stop face is refused at the next advance
-  that names it, and an advance that names no face integrates a terminal
-  state to `t_end` and nothing complains. A component flags its own `Bool`
-  output faces as stop candidates, an annotation the framework diagnoses and
-  never honours: a build warning (§9.1, D-250) where a flagged face is not
-  re-exported to the root, naming the level that dropped it, and a `run!`
-  advisory beside `UnboundedRun` (§11.8) where the root carries flagged
-  faces and the policy names none. Who decides stays with the advance
-  (D-060, D-255). It replaces the root-declared default D-060 kept on
-  record, which does not compose: the default is the root type's, and a
-  wrapped root has none.
-- **The trace header's deployment half.** The checkpoint's `deployment`,
-  which the trace header carries, holds the whole `Deployment`, and through
-  it the `Build` with the component instances, into an artifact §11.5 calls
-  primary data; the deployment's
-  `==` excludes the build, so replay never compares it. Whether the header
-  should hold the build-free half is a D-254 question, to be ruled when the
-  persistence deferral above lifts.
+  spellings).
+- **The GUI panel authoring API.** The semantics are settled (§11.7): derived
+  liveness, first-class read-only rendering, own-pending-else-snapshot peek,
+  stage-on-interaction, orphan display. The framework's half of the calling
+  convention is fixed too (D-270): the port view, the handle and a snapshot
+  are the three values a panel reads. What stays deferred is the GUI
+  package's half: what the drawing context bundles beside them, how it
+  scopes to a child, and the widgets, to be co-designed against the GUI
+  library under §11.7's four constraints. `gui = true` (§12.6, Appendix B)
+  attaches that package's device, so the flag waits on it.
 - **The exported-name audit.** The export list is to be decided deliberately
   rather than by accident; until the audit runs the module exports nothing,
   and a public name is reached by qualified name or per-name `import`
@@ -139,30 +73,79 @@ Not a code deviation: what the design documents owe their reader.
     accessor `trace(sim)` being one name in two senses, the overload pattern
     D-122 and D-144 retire;
   - whether class (1) needs an explicit exemption for predicate traits
-    (`is_greedy`, `needs_calling_task`);
-  - whether `.` joins `/` as a reserved character in face names (§8.6). A
-    face selector's head is matched against the face list because the
-    house style groups faces with dots (`input_passthrough`'s `sep`, §8.8;
-    §14.9's `"wing.throttle"`), the longest match settling `a` beside
-    `a.b` (§14.4, D-276). Reserving the dot would make the head a parse
-    with no schema lookup and no ambiguity, at the cost of a new default
-    separator and a sweep of every dotted face in the spec and the suite.
-- **The GUI panel authoring API.** The semantics are settled (§11.7): derived
-  liveness, first-class read-only rendering, own-pending-else-snapshot peek,
-  stage-on-interaction, orphan display. The framework's half of the calling
-  convention is fixed too (D-270): the port view, the handle and a snapshot
-  are the three values a panel reads. What stays deferred is the GUI
-  package's half: what the drawing context bundles beside them, how it
-  scopes to a child, and the widgets, to be co-designed against the GUI
-  library under §11.7's four constraints. `gui = true` (§12.6, Appendix B)
-  attaches that package's device, so the flag waits on it.
+    (`is_greedy`, `needs_calling_task`).
+
+## After the first release
+
+Each is additive, so it can land later without breaking user code.
+
+- **Stop candidates.** §13.5 has two omissions with unequal loudness: a
+  level that fails to re-export a stop face is refused at the next advance
+  that names it, and an advance that names no face integrates a terminal
+  state to `t_end` and nothing complains. A component flags its own `Bool`
+  output faces as stop candidates, an annotation the framework diagnoses and
+  never honours: a build warning (§9.1, D-250) where a flagged face is not
+  re-exported to the root, naming the level that dropped it, and a `run!`
+  advisory beside `UnboundedRun` (§11.8) where the root carries flagged
+  faces and the policy names none. Who decides stays with the advance
+  (D-060, D-255). It replaces the root-declared default D-060 kept on
+  record, which does not compose: the default is the root type's, and a
+  wrapped root has none. A ruling comes first, then the build.
+- **Publication's garbage and when it is collected** (§7.5, §10.7, §11.2,
+  D-269). With the log and the trace off, a frame of `feedback_model` still
+  allocates 816 B, all of it publication's: `_status` 656 B, the store copy
+  112 B, and the snapshot object `latest` holds. §11.2 makes the GC the
+  reclamation of published snapshots, so a new snapshot and table copy per
+  frame are by design, and a run never avoids the GC. Two levers remain:
+  - **The status records.** `_status` builds a fresh vector of writer
+    records at every publication, two of them with no device attached.
+    Published values never change, so an unchanged record could be shared
+    with the previous snapshot. A device's heartbeat changes every frame,
+    which makes this a design question.
+  - **A scheduled collection.** §7.5 names `GC.gc(false)` at frame
+    boundaries as a lever, and nothing in `src/` builds it. Measured on
+    2026-09-30 at `h = 1 ms`, 10 threads: a young collection after up to
+    about 1 MB of garbage pauses about 200 µs (p99 under 240 µs), against
+    3.4 ms after 8 MB, the size the automatic collector waited for. The
+    proposal: the pacer's wait collects when the bytes allocated since the
+    last collection pass a budget of about 1 MB and the time to the next
+    deadline exceeds the recent p99 pause with a margin, and skips
+    otherwise. Unpaced runs and `step!` skip it. `PacerStatus` reports the
+    pauses. Open: the knob's name and default, and whether it is on by
+    default. Caveats: the trigger is process-wide, so a device that
+    allocates can still start a collection mid-frame; with the log on,
+    thinned snapshots die in the old generation and only a full collection
+    reclaims them, unmeasured; the fixed cost grows with tasks, live heap
+    and GC threads, so re-measure on a model of real size.
+
+  A ruling and a decision entry beside D-269 come first, then the build.
+- **The NLopt fallback** (§14.8, H 4.5): `NLoptBackend(:LN_BOBYQA)` as a
+  package extension, the squared and normalized objective at `stopval = 1`,
+  and the nominal-activation loop it would run on.
 - **Log and trace persistence.** The in-memory artifacts are settled and
   nothing on-disk is. The log is the retained boundary snapshots (§11.2); the
   input trace is always on and device-tagged, with its header, the
   checkpoint `init!` takes after boundary zero (§11.5, §12.6); the log is
-  recomputable from the trace, never the reverse. The on-disk questions wait for real users
-  to ground them: the HDF5 export scope (the whole snapshot log, or selected
-  subtrees); field-handle summarization over retained snapshots, the
-  post-processing entry point, as `getproperty`-style navigation of a run's
-  history; and the trace file format, which doubles as the reproducibility
-  carrier and whose positions the replay pointers name (§13.4).
+  recomputable from the trace, never the reverse. The on-disk questions wait
+  for real users to ground them: the HDF5 export scope (the whole snapshot
+  log, or selected subtrees); field-handle summarization over retained
+  snapshots, the post-processing entry point, as `getproperty`-style
+  navigation of a run's history; and the trace file format, which doubles as
+  the reproducibility carrier and whose positions the replay pointers name
+  (§13.4).
+  - **The trace header's deployment half.** The checkpoint's `deployment`,
+    which the trace header carries, holds the whole `Deployment`, and through
+    it the `Build` with the component instances, into an artifact §11.5 calls
+    primary data; the deployment's `==` excludes the build, so replay never
+    compares it. Whether the header should hold the build-free half is a
+    D-254 question, to be ruled when this deferral lifts.
+
+## Deviations
+
+What is built in a shape the spec's is not. Transactional: the commit
+introducing a deviation adds its bullet, and the one retiring it deletes it.
+Where the code's shape is coherent and the spec may be what moves, the call
+is the user's; a ruling lands docs-commit-first, then the bullet retires or
+the code conforms.
+
+Currently empty.
