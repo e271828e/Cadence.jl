@@ -1,0 +1,931 @@
+{
+ "claims": [
+  {
+   "id": "K1",
+   "type": "FACT",
+   "claim": "By default, the build types the model only at the scalar type `Float64`.",
+   "cites": [],
+   "span": "By default, the build types the model only at `Float64`."
+  },
+  {
+   "id": "K2",
+   "type": "FACT",
+   "claim": "Linearization and gradient trim need the same model typed at a scalar type other than `Float64`, namely a `Dual`.",
+   "cites": [],
+   "span": "Linearization and gradient trim need the same model at another scalar type, a `Dual`."
+  },
+  {
+   "id": "K3",
+   "type": "DEFINITION",
+   "claim": "An activation is the build's typed products at a given scalar type.",
+   "cites": [],
+   "span": "An activation (the build's typed products at a given scalar type)"
+  },
+  {
+   "id": "K4",
+   "type": "FACT",
+   "claim": "An activation supplies the typing at another scalar type (a `Dual`) that linearization and gradient trim need.",
+   "cites": [],
+   "span": "An activation (the build's typed products at a given scalar type) supplies that typing."
+  },
+  {
+   "id": "K5",
+   "type": "POINTER",
+   "claim": "The section covers four topics: what an activation re-runs, which functions an activation probes, when an activation runs, and what the `Build` caches.",
+   "cites": [],
+   "span": "This section states what an activation re-runs, which functions it probes, when it runs, and what the `Build` caches."
+  },
+  {
+   "id": "K6",
+   "type": "RULE",
+   "claim": "For a new scalar type, only the activation step re-runs.",
+   "cites": [
+    "D-259"
+   ],
+   "span": "Only the activation step re-runs for a new scalar (D-259)."
+  },
+  {
+   "id": "K7",
+   "type": "FACT",
+   "claim": "An activation at scalar type `T` re-runs the activation step with a different scalar, and it redoes five things (listed in the following claims).",
+   "cites": [],
+   "span": "An activation at `T` re-runs it with a different scalar and redoes five things:"
+  },
+  {
+   "id": "K8",
+   "type": "FACT",
+   "claim": "(Redone item 1) An activation at `T` re-types producer-fed cells by walking the producing component's output declaration at `T`.",
+   "cites": [
+    "§8.2"
+   ],
+   "span": "Producer-fed cells are re-typed by walking the producing component's output declaration at `T` (§8.2)."
+  },
+  {
+   "id": "K9",
+   "type": "FACT",
+   "claim": "A continuous producer's output declaration follows the activation scalar at every unpinned leaf.",
+   "cites": [],
+   "span": "A continuous producer's declaration follows the scalar at every unpinned leaf."
+  },
+  {
+   "id": "K10",
+   "type": "FACT",
+   "claim": "A discrete producer's output declaration pins (does not follow the activation scalar).",
+   "cites": [],
+   "span": "A discrete producer's declaration pins."
+  },
+  {
+   "id": "K11",
+   "type": "FACT",
+   "claim": "(Redone item 2) An activation at `T` re-types root-input cells by walking the consuming component's `u_types` entry at `T`.",
+   "cites": [],
+   "span": "Root-input cells are re-typed by walking the consuming `u_types` entry at `T`."
+  },
+  {
+   "id": "K12",
+   "type": "FACT",
+   "claim": "§8.2 reads the consuming `u_types` entry permissively.",
+   "cites": [
+    "§8.2"
+   ],
+   "span": "§8.2 reads that entry permissively."
+  },
+  {
+   "id": "K13",
+   "type": "FACT",
+   "claim": "An unpinned `u_types` entry follows the activation's scalar.",
+   "cites": [],
+   "span": "An unpinned entry follows the activation"
+  },
+  {
+   "id": "K14",
+   "type": "FACT",
+   "claim": "A `Pinned` `u_types` entry stays frozen across activations.",
+   "cites": [],
+   "span": ", and a `Pinned` entry stays frozen."
+  },
+  {
+   "id": "K15",
+   "type": "FACT",
+   "claim": "(Redone item 3) The state type derived from `x_init` is re-derived by the leaf walk in an activation.",
+   "cites": [],
+   "span": "The state type derived from `x_init` is re-derived by the leaf walk."
+  },
+  {
+   "id": "K16",
+   "type": "FACT",
+   "claim": "In an activation, the table buffers and the state buffers are laid out again.",
+   "cites": [],
+   "span": "The table and state buffers are laid out again."
+  },
+  {
+   "id": "K17",
+   "type": "FACT",
+   "claim": "(Redone item 4) In an activation, workspace allocators are invoked again; a continuous component's workspace allocator is invoked at `T`.",
+   "cites": [
+    "D-263"
+   ],
+   "span": "Workspace allocators are invoked again, a continuous component's at `T`"
+  },
+  {
+   "id": "K18",
+   "type": "FACT",
+   "claim": "In an activation, a discrete component's workspace allocator is invoked at `Float64`, not at `T`.",
+   "cites": [
+    "D-263"
+   ],
+   "span": "and a discrete component's at `Float64` (D-263)."
+  },
+  {
+   "id": "K19",
+   "type": "FACT",
+   "claim": "The activation does not introduce workspace allocators; they exist before it.",
+   "cites": [],
+   "span": "The activation does not introduce them."
+  },
+  {
+   "id": "K20",
+   "type": "FACT",
+   "claim": "The first invocation of workspace allocators happens before the nominal evaluation's probes.",
+   "cites": [
+    "§9.1/§9.3"
+   ],
+   "span": "Their first invocation precedes the nominal evaluation's probes (§9.1/§9.3)."
+  },
+  {
+   "id": "K21",
+   "type": "FACT",
+   "claim": "A continuous component's scratch carries the activation's scalar type.",
+   "cites": [
+    "§7.3"
+   ],
+   "span": "A continuous component's scratch carries the activation's scalar (§7.3)."
+  },
+  {
+   "id": "K22",
+   "type": "FACT",
+   "claim": "(Redone item 5) In an activation, the probe chain runs again.",
+   "cites": [],
+   "span": "The probe chain runs again."
+  },
+  {
+   "id": "K23",
+   "type": "RULE",
+   "claim": "Across activations, the execution order never changes and no name list changes.",
+   "cites": [
+    "D-253"
+   ],
+   "span": "No execution order and no name list changes across activations (D-253)."
+  },
+  {
+   "id": "K24",
+   "type": "FACT",
+   "claim": "`Structure` is the product of the structure step.",
+   "cites": [],
+   "span": "`Structure` is the structure step's product"
+  },
+  {
+   "id": "K25",
+   "type": "FACT",
+   "claim": "`Outputs` is the product of the nominal evaluation.",
+   "cites": [],
+   "span": ", and `Outputs` is the nominal evaluation's."
+  },
+  {
+   "id": "K26",
+   "type": "REASON",
+   "claim": "Neither `Structure` nor `Outputs` depends on the scalar type `T`, by construction; this is why execution order and name lists do not change across activations.",
+   "cites": [],
+   "span": "Neither depends on `T`, by construction."
+  },
+  {
+   "id": "K27",
+   "type": "RULE",
+   "claim": "Each activation probes exactly the set of functions that activation can execute (no more, no fewer).",
+   "cites": [
+    "D-052"
+   ],
+   "span": "Each activation probes exactly the set of functions it can execute (D-052)."
+  },
+  {
+   "id": "K28",
+   "type": "FACT",
+   "claim": "A `Dual` activation, of the kind linearization and gradient trim use, evaluates the model at a frozen instant.",
+   "cites": [],
+   "span": "A `Dual` activation, as linearization and gradient trim use, evaluates the model at a frozen instant."
+  },
+  {
+   "id": "K29",
+   "type": "FACT",
+   "claim": "In a `Dual` activation, discrete stages are gated off and hold `Float64` values.",
+   "cites": [],
+   "span": "Discrete stages are gated off and hold `Float64` values."
+  },
+  {
+   "id": "K30",
+   "type": "FACT",
+   "claim": "Gating discrete stages off with `Float64` values in a `Dual` activation is the frozen-constant semantics of §8.2.",
+   "cites": [
+    "§8.2"
+   ],
+   "span": "This is the frozen-constant semantics of §8.2."
+  },
+  {
+   "id": "K31",
+   "type": "FACT",
+   "claim": "In a `Dual` activation, guards and handlers never run.",
+   "cites": [],
+   "span": "Guards and handlers never run"
+  },
+  {
+   "id": "K32",
+   "type": "REASON",
+   "claim": "Guards and handlers never run in a `Dual` activation because event localization runs as `Float64` sweeps by design.",
+   "cites": [
+    "§10.4"
+   ],
+   "span": "because event localization runs as `Float64` sweeps by design (§10.4)."
+  },
+  {
+   "id": "K33",
+   "type": "FACT",
+   "claim": "Only the continuous output stages (`y_state`/`y_direct`) and `x_deriv` ever see a `Dual`.",
+   "cites": [],
+   "span": "Only the continuous output stages (`y_state`/`y_direct`) and `x_deriv` ever see a `Dual`."
+  },
+  {
+   "id": "K34",
+   "type": "CONSEQUENCE",
+   "claim": "Because only `y_state`/`y_direct` and `x_deriv` ever see a `Dual`, only those are probed at `Dual`.",
+   "cites": [],
+   "span": "So only they are probed at it."
+  },
+  {
+   "id": "K35",
+   "type": "REASON",
+   "claim": "Probing the discrete stages, `s_update`, or the guards at `Dual` would check code against a number type that code cannot receive.",
+   "cites": [],
+   "span": "Probing the discrete stages, `s_update` or the guards at `Dual` would check code against a number type it cannot receive."
+  },
+  {
+   "id": "K36",
+   "type": "FACT",
+   "claim": "The rule that each activation probes exactly what it can execute has no special cases.",
+   "cites": [],
+   "span": "The rule has no special cases."
+  },
+  {
+   "id": "K37",
+   "type": "FACT",
+   "claim": "The §5.6 tracer activation follows the probe-what-it-can-execute rule identically.",
+   "cites": [
+    "§5.6"
+   ],
+   "span": "The §5.6 tracer activation follows it identically."
+  },
+  {
+   "id": "K38",
+   "type": "DEFINITION",
+   "claim": "The term \"tracer activation\" names the global set-tracer.",
+   "cites": [
+    "D-012"
+   ],
+   "span": "\"Tracer activation\" names the global set-tracer (D-012)."
+  },
+  {
+   "id": "K39",
+   "type": "FACT",
+   "claim": "The tracer activation is a whole-model run at the tracer scalar, an activation like any other.",
+   "cites": [],
+   "span": "It is a whole-model run at the tracer scalar, an activation like any other."
+  },
+  {
+   "id": "K40",
+   "type": "FACT",
+   "claim": "The cycle classifier (§5.6) is the other tracer variant, besides the global set-tracer.",
+   "cites": [
+    "§5.6",
+    "D-012"
+   ],
+   "span": "The cycle classifier (§5.6) is the other tracer variant (D-012)."
+  },
+  {
+   "id": "K41",
+   "type": "FACT",
+   "claim": "The cycle classifier traces each member of a cycle locally.",
+   "cites": [],
+   "span": "It traces each member of a cycle locally"
+  },
+  {
+   "id": "K42",
+   "type": "FACT",
+   "claim": "The cycle classifier needs no execution order.",
+   "cites": [],
+   "span": "and needs no execution order."
+  },
+  {
+   "id": "K43",
+   "type": "FACT",
+   "claim": "The cycle classifier runs in the nominal evaluation's failure path.",
+   "cites": [],
+   "span": "It runs in the nominal evaluation's failure path"
+  },
+  {
+   "id": "K44",
+   "type": "FACT",
+   "claim": "The cycle classifier is not an activation at all.",
+   "cites": [],
+   "span": "and is not an activation at all."
+  },
+  {
+   "id": "K45",
+   "type": "RULE",
+   "claim": "Non-nominal activations run at first request, not at build.",
+   "cites": [
+    "D-052"
+   ],
+   "span": "Non-nominal activations run at first request, not at build (D-052)."
+  },
+  {
+   "id": "K46",
+   "type": "FACT",
+   "claim": "The dominant cost of a non-nominal activation is compiling the continuous chain a second time, at `Dual`.",
+   "cites": [],
+   "span": "Their dominant cost is compiling the continuous chain a second time, at `Dual`,"
+  },
+  {
+   "id": "K47",
+   "type": "REASON",
+   "claim": "Non-nominal activations are lazy because, for interactive fly-around use, the cost of compiling the continuous chain at `Dual` is pure waste.",
+   "cites": [],
+   "span": "and for interactive fly-around use that cost is pure waste."
+  },
+  {
+   "id": "K48",
+   "type": "FACT",
+   "claim": "Laziness of activations has a price, and the spec states that price openly.",
+   "cites": [],
+   "span": "Laziness has a price, and the spec states it openly."
+  },
+  {
+   "id": "K49",
+   "type": "CONSEQUENCE",
+   "claim": "A successful `build` does not certify that the model is linearizable.",
+   "cites": [],
+   "span": "A successful `build` does not certify that the model is linearizable."
+  },
+  {
+   "id": "K50",
+   "type": "FACT",
+   "claim": "A pinned `Float64` (§7.2) can appear in two places that break linearizability.",
+   "cites": [
+    "§7.2"
+   ],
+   "span": "A pinned `Float64` (§7.2) can appear in two places."
+  },
+  {
+   "id": "K51",
+   "type": "EXAMPLE",
+   "claim": "First place: a pinned `Float64` may hide in a constructor.",
+   "cites": [],
+   "span": "It may hide in a constructor."
+  },
+  {
+   "id": "K52",
+   "type": "EXAMPLE",
+   "claim": "Second place: a `Float64` may be declared `Pinned` at a leaf that really participates; this is the misplaced pin of §8.2.",
+   "cites": [
+    "§8.2"
+   ],
+   "span": "Or it may be declared `Pinned` at a leaf that really participates, which is the misplaced pin of §8.2."
+  },
+  {
+   "id": "K53",
+   "type": "FACT",
+   "claim": "Either kind of pinned `Float64` (in a constructor, or misplaced pin) lurks undetected until the first `Dual` activation.",
+   "cites": [],
+   "span": "Either one lurks until the first `Dual` activation."
+  },
+  {
+   "id": "K54",
+   "type": "FACT",
+   "claim": "At the first `Dual` activation, the probe fails and names the offending constructor or leaf.",
+   "cites": [],
+   "span": "The probe then fails and names the offending constructor or leaf."
+  },
+  {
+   "id": "K55",
+   "type": "FACT",
+   "claim": "To compensate for build not certifying linearizability, the repository's test suite makes linearizability an invariant, held by policy rather than by advice.",
+   "cites": [],
+   "span": "Instead, the repository's test suite makes linearizability an invariant, held by policy rather than advice."
+  },
+  {
+   "id": "K56",
+   "type": "RULE",
+   "claim": "Every component gets a `Dual` activation built in CI.",
+   "cites": [
+    "D-280"
+   ],
+   "span": "Every component gets a `Dual` activation built in CI (D-280)."
+  },
+  {
+   "id": "K57",
+   "type": "FACT",
+   "claim": "An opt-in exhaustive mode builds the `Dual` activation for every component, invoked as `build(world; activations = (Float64, ProbeDual))`.",
+   "cites": [],
+   "span": "An opt-in exhaustive mode does it: `build(world; activations = (Float64, ProbeDual))`"
+  },
+  {
+   "id": "K58",
+   "type": "FACT",
+   "claim": "The call `build(world; activations = (Float64, ProbeDual))` runs the exhaustive set.",
+   "cites": [],
+   "span": "This call runs the exhaustive set."
+  },
+  {
+   "id": "K59",
+   "type": "FACT",
+   "claim": "The exhaustive mode catches both genericity violations and misplaced pins at PR time.",
+   "cites": [],
+   "span": "It catches both genericity violations and misplaced pins at PR time,"
+  },
+  {
+   "id": "K60",
+   "type": "FACT",
+   "claim": "The cost of the exhaustive mode is one activation per component.",
+   "cites": [],
+   "span": "at the cost of one activation per component."
+  },
+  {
+   "id": "K61",
+   "type": "RULE",
+   "claim": "The `activations` keyword of `build` is the whole entry point for this check.",
+   "cites": [
+    "D-275"
+   ],
+   "span": "The keyword is the whole entry point,"
+  },
+  {
+   "id": "K62",
+   "type": "RULE",
+   "claim": "No separate check function exists.",
+   "cites": [
+    "D-275"
+   ],
+   "span": "and no separate check function exists (D-275)."
+  },
+  {
+   "id": "K63",
+   "type": "RECOMMENDATION",
+   "claim": "The same `activations` keyword is also recommended for the parallel-sweep idiom.",
+   "cites": [
+    "§11.1"
+   ],
+   "span": "The same keyword is also recommended for the parallel-sweep idiom (§11.1)."
+  },
+  {
+   "id": "K64",
+   "type": "RECOMMENDATION",
+   "claim": "For a parallel sweep, pre-materialize the activations the sweep will need.",
+   "cites": [],
+   "span": "Pre-materialize the activations the sweep will need."
+  },
+  {
+   "id": "K65",
+   "type": "CONSEQUENCE",
+   "claim": "With the needed activations pre-materialized, the shared `Build` is a fully immutable artifact, with no synchronization on any path.",
+   "cites": [],
+   "span": "The shared `Build` is then a fully immutable artifact, with no synchronization on any path."
+  },
+  {
+   "id": "K66",
+   "type": "RULE",
+   "claim": "`ProbeDual` is the framework's public canonical probe scalar.",
+   "cites": [
+    "D-099"
+   ],
+   "span": "`ProbeDual` is the framework's public canonical probe scalar (D-099)."
+  },
+  {
+   "id": "K67",
+   "type": "DEFINITION",
+   "claim": "`ProbeDual` is defined as `const ProbeDual = ForwardDiff.Dual{ProbeTag, Float64, 1}`.",
+   "cites": [],
+   "span": "`const ProbeDual = ForwardDiff.Dual{ProbeTag, Float64, 1}`"
+  },
+  {
+   "id": "K68",
+   "type": "REASON",
+   "claim": "`ProbeDual` exists because an activation is keyed by a concrete scalar type.",
+   "cites": [],
+   "span": "It exists because an activation is keyed by a concrete scalar type."
+  },
+  {
+   "id": "K69",
+   "type": "FACT",
+   "claim": "The bare `Dual` is a `UnionAll`.",
+   "cites": [],
+   "span": "The bare `Dual` is a `UnionAll`."
+  },
+  {
+   "id": "K70",
+   "type": "CONSEQUENCE",
+   "claim": "The bare `Dual` cannot key an activation.",
+   "cites": [],
+   "span": "It cannot key an activation,"
+  },
+  {
+   "id": "K71",
+   "type": "CONSEQUENCE",
+   "claim": "The bare `Dual` cannot be walked to.",
+   "cites": [],
+   "span": "be walked to,"
+  },
+  {
+   "id": "K72",
+   "type": "CONSEQUENCE",
+   "claim": "The bare `Dual` cannot answer `zero(T)`.",
+   "cites": [],
+   "span": "or answer `zero(T)`."
+  },
+  {
+   "id": "K73",
+   "type": "FACT",
+   "claim": "The width of `ProbeDual` is arbitrary.",
+   "cites": [],
+   "span": "The width of `ProbeDual` is arbitrary."
+  },
+  {
+   "id": "K74",
+   "type": "REASON",
+   "claim": "CI pins genericity, not any particular Jacobian.",
+   "cites": [],
+   "span": "CI pins genericity, not any particular Jacobian."
+  },
+  {
+   "id": "K75",
+   "type": "CONSEQUENCE",
+   "claim": "Because CI pins only genericity, one canonical `ProbeDual` width suffices.",
+   "cites": [],
+   "span": "So one canonical width suffices,"
+  },
+  {
+   "id": "K76",
+   "type": "FACT",
+   "claim": "§14.10 chunks at whatever widths it needs, which does not contradict one canonical probe width.",
+   "cites": [
+    "§14.10"
+   ],
+   "span": "even though §14.10 chunks at whatever widths it needs."
+  },
+  {
+   "id": "K77",
+   "type": "RULE",
+   "claim": "The activation cache lives on the `Build`.",
+   "cites": [
+    "D-135"
+   ],
+   "span": "The activation cache lives on the `Build`"
+  },
+  {
+   "id": "K78",
+   "type": "RULE",
+   "claim": "The activation cache holds only immutable compiled artifacts.",
+   "cites": [
+    "D-135"
+   ],
+   "span": "and holds only immutable compiled artifacts (D-135)."
+  },
+  {
+   "id": "K79",
+   "type": "REASON",
+   "claim": "The activation cache lives on the `Build` because an activation is a pure function of the build and the concrete scalar type.",
+   "cites": [],
+   "span": "It lives there because an activation is a pure function of the build and the concrete scalar type."
+  },
+  {
+   "id": "K80",
+   "type": "FACT",
+   "claim": "The activation cache is one activation dictionary, keyed by concrete scalar type.",
+   "cites": [],
+   "span": "The cache is one activation dictionary, keyed by concrete scalar type."
+  },
+  {
+   "id": "K81",
+   "type": "FACT",
+   "claim": "Each activation-cache entry holds layouts, compiled plans and a validated flag.",
+   "cites": [],
+   "span": "Each entry holds layouts, compiled plans and a validated flag."
+  },
+  {
+   "id": "K82",
+   "type": "FACT",
+   "claim": "An activation-cache entry is immutable once constructed.",
+   "cites": [],
+   "span": "An entry is immutable once constructed,"
+  },
+  {
+   "id": "K83",
+   "type": "CONSEQUENCE",
+   "claim": "Because it is immutable, an activation-cache entry is freely shareable.",
+   "cites": [],
+   "span": "and so it is freely shareable."
+  },
+  {
+   "id": "K84",
+   "type": "RULE",
+   "claim": "The nominal `Float64` entry is one key in the activation dictionary, like any other key.",
+   "cites": [
+    "D-253"
+   ],
+   "span": "The nominal `Float64` entry is one key in the activation dictionary like any other (D-253)."
+  },
+  {
+   "id": "K85",
+   "type": "RULE",
+   "claim": "Whether an activation is cached never changes a result.",
+   "cites": [
+    "D-052"
+   ],
+   "span": "Whether an activation is cached never changes a result (D-052)."
+  },
+  {
+   "id": "K86",
+   "type": "RULE",
+   "claim": "Every buffer set has exactly one owner.",
+   "cites": [
+    "D-282"
+   ],
+   "span": "Every buffer set has exactly one owner (D-282)."
+  },
+  {
+   "id": "K87",
+   "type": "FACT",
+   "claim": "The `Simulation` owns its nominal activation's buffers.",
+   "cites": [],
+   "span": "The `Simulation` owns its nominal activation's buffers."
+  },
+  {
+   "id": "K88",
+   "type": "FACT",
+   "claim": "The `Simulation`'s nominal-activation buffers are materialized from the cached layouts at `Simulation` construction.",
+   "cites": [],
+   "span": "They are materialized from the cached layouts at construction."
+  },
+  {
+   "id": "K89",
+   "type": "FACT",
+   "claim": "The loop's zero-allocation stepping runs on the `Simulation`'s nominal-activation buffers.",
+   "cites": [],
+   "span": "The loop's zero-allocation stepping runs on them."
+  },
+  {
+   "id": "K90",
+   "type": "FACT",
+   "claim": "Every service invocation owns the scratch set it instantiates from the same cached layouts.",
+   "cites": [],
+   "span": "Every service invocation owns the scratch set it instantiates from those same layouts."
+  },
+  {
+   "id": "K91",
+   "type": "POINTER",
+   "claim": "§14.8 states the service-owns-its-scratch rule for `trim!`.",
+   "cites": [
+    "§14.8"
+   ],
+   "span": "§14.8 states this for `trim!`."
+  },
+  {
+   "id": "K92",
+   "type": "FACT",
+   "claim": "Service invocations owning their scratch set is the general rule, not one local to trim.",
+   "cites": [],
+   "span": "It is the general rule, not one local to trim."
+  },
+  {
+   "id": "K93",
+   "type": "CONSEQUENCE",
+   "claim": "Because every buffer set has one owner (Simulation or service invocation), buffers are never cached.",
+   "cites": [],
+   "span": "So buffers are never cached."
+  },
+  {
+   "id": "K94",
+   "type": "FACT",
+   "claim": "Julia itself caches compiled code, process-wide.",
+   "cites": [],
+   "span": "Julia itself caches compiled code, process-wide."
+  },
+  {
+   "id": "K95",
+   "type": "FACT",
+   "claim": "The framework's activation cache saves the expensive part: probe re-runs, layout construction, and Julia's compilation of the `Dual` chain.",
+   "cites": [],
+   "span": "The framework cache saves the expensive part, namely probe re-runs, layout construction, and Julia's compilation of the `Dual` chain."
+  },
+  {
+   "id": "K96",
+   "type": "FACT",
+   "claim": "The activation-cache savings amortize in loops that reuse an activation.",
+   "cites": [],
+   "span": "These savings amortize in loops that reuse an activation."
+  },
+  {
+   "id": "K97",
+   "type": "EXAMPLE",
+   "claim": "In the envelope-grid gain-schedule case, hundreds of trim-then-linearize points pay the cached costs once.",
+   "cites": [],
+   "span": "In the envelope-grid gain-schedule case, hundreds of trim-then-linearize points pay those costs once."
+  },
+  {
+   "id": "K98",
+   "type": "FACT",
+   "claim": "The per-point allocation of a working store set does not amortize.",
+   "cites": [],
+   "span": "The per-point allocation of a working store set does not amortize."
+  },
+  {
+   "id": "K99",
+   "type": "FACT",
+   "claim": "The per-point allocation of a working store set is O(model size).",
+   "cites": [],
+   "span": "It is O(model size),"
+  },
+  {
+   "id": "K100",
+   "type": "FACT",
+   "claim": "The per-point allocation of a working store set is trivial against the solve it feeds.",
+   "cites": [],
+   "span": "and trivial against the solve it feeds."
+  },
+  {
+   "id": "K101",
+   "type": "FACT",
+   "claim": "The zero-allocation invariant (§7.5) covers only the stepping loop.",
+   "cites": [
+    "§7.5"
+   ],
+   "span": "The zero-allocation invariant (§7.5) covers only the stepping loop,"
+  },
+  {
+   "id": "K102",
+   "type": "FACT",
+   "claim": "The services were always allocation-tolerant.",
+   "cites": [],
+   "span": "and the services were always allocation-tolerant."
+  },
+  {
+   "id": "K103",
+   "type": "FACT",
+   "claim": "Nothing numerical is ever cached.",
+   "cites": [],
+   "span": "Nothing numerical is ever cached."
+  },
+  {
+   "id": "K104",
+   "type": "FACT",
+   "claim": "The type `Dual{Tag,V,N}` carries the partial count.",
+   "cites": [],
+   "span": "`Dual{Tag,V,N}` carries the partial count."
+  },
+  {
+   "id": "K105",
+   "type": "CONSEQUENCE",
+   "claim": "Because `Dual{Tag,V,N}` carries the partial count, a different seeding width is a different scalar type.",
+   "cites": [],
+   "span": "A different seeding width is therefore a different scalar type."
+  },
+  {
+   "id": "K106",
+   "type": "CONSEQUENCE",
+   "claim": "A different seeding width gets a separate activation-cache entry and a separate Julia compile.",
+   "cites": [],
+   "span": "It gets a separate entry and a separate Julia compile."
+  },
+  {
+   "id": "K107",
+   "type": "RULE",
+   "claim": "Lazy materialization of activations is torn-state-free.",
+   "cites": [
+    "D-281"
+   ],
+   "span": "Lazy materialization is torn-state-free (D-281)."
+  },
+  {
+   "id": "K108",
+   "type": "FACT",
+   "claim": "Concurrent first requests for the same activation must never expose partially populated cache state.",
+   "cites": [],
+   "span": "Concurrent first requests for the same activation must never expose partially populated cache state."
+  },
+  {
+   "id": "K109",
+   "type": "FACT",
+   "claim": "Torn state is excluded by contract, not by luck.",
+   "cites": [],
+   "span": "Torn state is excluded by contract, not by luck."
+  },
+  {
+   "id": "K110",
+   "type": "FACT",
+   "claim": "The mechanism that excludes torn state is unspecified.",
+   "cites": [],
+   "span": "The mechanism is unspecified."
+  },
+  {
+   "id": "K111",
+   "type": "FACT",
+   "claim": "A guard around cache insertion suffices to exclude torn state.",
+   "cites": [],
+   "span": "A guard around insertion suffices,"
+  },
+  {
+   "id": "K112",
+   "type": "FACT",
+   "claim": "The insertion guard's cost is paid at service time and never on the hot path.",
+   "cites": [],
+   "span": "paid at service time and never on the hot path."
+  },
+  {
+   "id": "K113",
+   "type": "REASON",
+   "claim": "An activation is a pure function of build and scalar.",
+   "cites": [],
+   "span": "An activation is a pure function of build and scalar,"
+  },
+  {
+   "id": "K114",
+   "type": "CONSEQUENCE",
+   "claim": "Because an activation is a pure function of build and scalar, the worst benign race on concurrent first requests is duplicated work.",
+   "cites": [],
+   "span": "so the worst benign race is duplicated work."
+  }
+ ],
+ "glossary": [
+  {
+   "text": "activation",
+   "anchor": "g-activation"
+  },
+  {
+   "text": "cells",
+   "anchor": "g-cell"
+  },
+  {
+   "text": "component",
+   "anchor": "g-component"
+  },
+  {
+   "text": "Root-input",
+   "anchor": "g-root-input"
+  },
+  {
+   "text": "buffers",
+   "anchor": "g-buffer"
+  },
+  {
+   "text": "Workspace",
+   "anchor": "g-workspace"
+  },
+  {
+   "text": "probes",
+   "anchor": "g-probe"
+  },
+  {
+   "text": "continuous component",
+   "anchor": "g-continuous-component"
+  },
+  {
+   "text": "execution order",
+   "anchor": "g-execution-order"
+  },
+  {
+   "text": "`Structure`",
+   "anchor": "g-structure"
+  },
+  {
+   "text": "`Outputs`",
+   "anchor": "g-outputs"
+  },
+  {
+   "text": "Guards",
+   "anchor": "g-guard"
+  },
+  {
+   "text": "sweeps",
+   "anchor": "g-sweep"
+  },
+  {
+   "text": "pinned",
+   "anchor": "g-walked"
+  },
+  {
+   "text": "`ProbeDual`",
+   "anchor": "g-probedual"
+  },
+  {
+   "text": "walked",
+   "anchor": "g-walked"
+  }
+ ]
+}

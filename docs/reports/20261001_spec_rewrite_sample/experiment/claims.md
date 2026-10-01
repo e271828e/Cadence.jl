@@ -1,0 +1,118 @@
+# Claims for §9.4 "Activations: executable sets, laziness, caching"
+
+One line per claim: id, type, citations, claim. Types: RULE (a decision rule; bold it), FACT, REASON, CONSEQUENCE, DEFINITION, EXAMPLE, RECOMMENDATION, POINTER.
+
+- K1 [FACT] By default, the build types the model only at the scalar type `Float64`.
+- K2 [FACT] Linearization and gradient trim need the same model typed at a scalar type other than `Float64`, namely a `Dual`.
+- K3 [DEFINITION] An activation is the build's typed products at a given scalar type.
+- K4 [FACT] An activation supplies the typing at another scalar type (a `Dual`) that linearization and gradient trim need.
+- K5 [POINTER] The section covers four topics: what an activation re-runs, which functions an activation probes, when an activation runs, and what the `Build` caches.
+- K6 [RULE] (D-259) For a new scalar type, only the activation step re-runs.
+- K7 [FACT] An activation at scalar type `T` re-runs the activation step with a different scalar, and it redoes five things (listed in the following claims).
+- K8 [FACT] (§8.2) (Redone item 1) An activation at `T` re-types producer-fed cells by walking the producing component's output declaration at `T`.
+- K9 [FACT] A continuous producer's output declaration follows the activation scalar at every unpinned leaf.
+- K10 [FACT] A discrete producer's output declaration pins (does not follow the activation scalar).
+- K11 [FACT] (Redone item 2) An activation at `T` re-types root-input cells by walking the consuming component's `u_types` entry at `T`.
+- K12 [FACT] (§8.2) §8.2 reads the consuming `u_types` entry permissively.
+- K13 [FACT] An unpinned `u_types` entry follows the activation's scalar.
+- K14 [FACT] A `Pinned` `u_types` entry stays frozen across activations.
+- K15 [FACT] (Redone item 3) The state type derived from `x_init` is re-derived by the leaf walk in an activation.
+- K16 [FACT] In an activation, the table buffers and the state buffers are laid out again.
+- K17 [FACT] (D-263) (Redone item 4) In an activation, workspace allocators are invoked again; a continuous component's workspace allocator is invoked at `T`.
+- K18 [FACT] (D-263) In an activation, a discrete component's workspace allocator is invoked at `Float64`, not at `T`.
+- K19 [FACT] The activation does not introduce workspace allocators; they exist before it.
+- K20 [FACT] (§9.1/§9.3) The first invocation of workspace allocators happens before the nominal evaluation's probes.
+- K21 [FACT] (§7.3) A continuous component's scratch carries the activation's scalar type.
+- K22 [FACT] (Redone item 5) In an activation, the probe chain runs again.
+- K23 [RULE] (D-253) Across activations, the execution order never changes and no name list changes.
+- K24 [FACT] `Structure` is the product of the structure step.
+- K25 [FACT] `Outputs` is the product of the nominal evaluation.
+- K26 [REASON] Neither `Structure` nor `Outputs` depends on the scalar type `T`, by construction; this is why execution order and name lists do not change across activations.
+- K27 [RULE] (D-052) Each activation probes exactly the set of functions that activation can execute (no more, no fewer).
+- K28 [FACT] A `Dual` activation, of the kind linearization and gradient trim use, evaluates the model at a frozen instant.
+- K29 [FACT] In a `Dual` activation, discrete stages are gated off and hold `Float64` values.
+- K30 [FACT] (§8.2) Gating discrete stages off with `Float64` values in a `Dual` activation is the frozen-constant semantics of §8.2.
+- K31 [FACT] In a `Dual` activation, guards and handlers never run.
+- K32 [REASON] (§10.4) Guards and handlers never run in a `Dual` activation because event localization runs as `Float64` sweeps by design.
+- K33 [FACT] Only the continuous output stages (`y_state`/`y_direct`) and `x_deriv` ever see a `Dual`.
+- K34 [CONSEQUENCE] Because only `y_state`/`y_direct` and `x_deriv` ever see a `Dual`, only those are probed at `Dual`.
+- K35 [REASON] Probing the discrete stages, `s_update`, or the guards at `Dual` would check code against a number type that code cannot receive.
+- K36 [FACT] The rule that each activation probes exactly what it can execute has no special cases.
+- K37 [FACT] (§5.6) The §5.6 tracer activation follows the probe-what-it-can-execute rule identically.
+- K38 [DEFINITION] (D-012) The term "tracer activation" names the global set-tracer.
+- K39 [FACT] The tracer activation is a whole-model run at the tracer scalar, an activation like any other.
+- K40 [FACT] (§5.6, D-012) The cycle classifier (§5.6) is the other tracer variant, besides the global set-tracer.
+- K41 [FACT] The cycle classifier traces each member of a cycle locally.
+- K42 [FACT] The cycle classifier needs no execution order.
+- K43 [FACT] The cycle classifier runs in the nominal evaluation's failure path.
+- K44 [FACT] The cycle classifier is not an activation at all.
+- K45 [RULE] (D-052) Non-nominal activations run at first request, not at build.
+- K46 [FACT] The dominant cost of a non-nominal activation is compiling the continuous chain a second time, at `Dual`.
+- K47 [REASON] Non-nominal activations are lazy because, for interactive fly-around use, the cost of compiling the continuous chain at `Dual` is pure waste.
+- K48 [FACT] Laziness of activations has a price, and the spec states that price openly.
+- K49 [CONSEQUENCE] A successful `build` does not certify that the model is linearizable.
+- K50 [FACT] (§7.2) A pinned `Float64` (§7.2) can appear in two places that break linearizability.
+- K51 [EXAMPLE] First place: a pinned `Float64` may hide in a constructor.
+- K52 [EXAMPLE] (§8.2) Second place: a `Float64` may be declared `Pinned` at a leaf that really participates; this is the misplaced pin of §8.2.
+- K53 [FACT] Either kind of pinned `Float64` (in a constructor, or misplaced pin) lurks undetected until the first `Dual` activation.
+- K54 [FACT] At the first `Dual` activation, the probe fails and names the offending constructor or leaf.
+- K55 [FACT] To compensate for build not certifying linearizability, the repository's test suite makes linearizability an invariant, held by policy rather than by advice.
+- K56 [RULE] (D-280) Every component gets a `Dual` activation built in CI.
+- K57 [FACT] An opt-in exhaustive mode builds the `Dual` activation for every component, invoked as `build(world; activations = (Float64, ProbeDual))`.
+- K58 [FACT] The call `build(world; activations = (Float64, ProbeDual))` runs the exhaustive set.
+- K59 [FACT] The exhaustive mode catches both genericity violations and misplaced pins at PR time.
+- K60 [FACT] The cost of the exhaustive mode is one activation per component.
+- K61 [RULE] (D-275) The `activations` keyword of `build` is the whole entry point for this check.
+- K62 [RULE] (D-275) No separate check function exists.
+- K63 [RECOMMENDATION] (§11.1) The same `activations` keyword is also recommended for the parallel-sweep idiom.
+- K64 [RECOMMENDATION] For a parallel sweep, pre-materialize the activations the sweep will need.
+- K65 [CONSEQUENCE] With the needed activations pre-materialized, the shared `Build` is a fully immutable artifact, with no synchronization on any path.
+- K66 [RULE] (D-099) `ProbeDual` is the framework's public canonical probe scalar.
+- K67 [DEFINITION] `ProbeDual` is defined as `const ProbeDual = ForwardDiff.Dual{ProbeTag, Float64, 1}`.
+- K68 [REASON] `ProbeDual` exists because an activation is keyed by a concrete scalar type.
+- K69 [FACT] The bare `Dual` is a `UnionAll`.
+- K70 [CONSEQUENCE] The bare `Dual` cannot key an activation.
+- K71 [CONSEQUENCE] The bare `Dual` cannot be walked to.
+- K72 [CONSEQUENCE] The bare `Dual` cannot answer `zero(T)`.
+- K73 [FACT] The width of `ProbeDual` is arbitrary.
+- K74 [REASON] CI pins genericity, not any particular Jacobian.
+- K75 [CONSEQUENCE] Because CI pins only genericity, one canonical `ProbeDual` width suffices.
+- K76 [FACT] (§14.10) §14.10 chunks at whatever widths it needs, which does not contradict one canonical probe width.
+- K77 [RULE] (D-135) The activation cache lives on the `Build`.
+- K78 [RULE] (D-135) The activation cache holds only immutable compiled artifacts.
+- K79 [REASON] The activation cache lives on the `Build` because an activation is a pure function of the build and the concrete scalar type.
+- K80 [FACT] The activation cache is one activation dictionary, keyed by concrete scalar type.
+- K81 [FACT] Each activation-cache entry holds layouts, compiled plans and a validated flag.
+- K82 [FACT] An activation-cache entry is immutable once constructed.
+- K83 [CONSEQUENCE] Because it is immutable, an activation-cache entry is freely shareable.
+- K84 [RULE] (D-253) The nominal `Float64` entry is one key in the activation dictionary, like any other key.
+- K85 [RULE] (D-052) Whether an activation is cached never changes a result.
+- K86 [RULE] (D-282) Every buffer set has exactly one owner.
+- K87 [FACT] The `Simulation` owns its nominal activation's buffers.
+- K88 [FACT] The `Simulation`'s nominal-activation buffers are materialized from the cached layouts at `Simulation` construction.
+- K89 [FACT] The loop's zero-allocation stepping runs on the `Simulation`'s nominal-activation buffers.
+- K90 [FACT] Every service invocation owns the scratch set it instantiates from the same cached layouts.
+- K91 [POINTER] (§14.8) §14.8 states the service-owns-its-scratch rule for `trim!`.
+- K92 [FACT] Service invocations owning their scratch set is the general rule, not one local to trim.
+- K93 [CONSEQUENCE] Because every buffer set has one owner (Simulation or service invocation), buffers are never cached.
+- K94 [FACT] Julia itself caches compiled code, process-wide.
+- K95 [FACT] The framework's activation cache saves the expensive part: probe re-runs, layout construction, and Julia's compilation of the `Dual` chain.
+- K96 [FACT] The activation-cache savings amortize in loops that reuse an activation.
+- K97 [EXAMPLE] In the envelope-grid gain-schedule case, hundreds of trim-then-linearize points pay the cached costs once.
+- K98 [FACT] The per-point allocation of a working store set does not amortize.
+- K99 [FACT] The per-point allocation of a working store set is O(model size).
+- K100 [FACT] The per-point allocation of a working store set is trivial against the solve it feeds.
+- K101 [FACT] (§7.5) The zero-allocation invariant (§7.5) covers only the stepping loop.
+- K102 [FACT] The services were always allocation-tolerant.
+- K103 [FACT] Nothing numerical is ever cached.
+- K104 [FACT] The type `Dual{Tag,V,N}` carries the partial count.
+- K105 [CONSEQUENCE] Because `Dual{Tag,V,N}` carries the partial count, a different seeding width is a different scalar type.
+- K106 [CONSEQUENCE] A different seeding width gets a separate activation-cache entry and a separate Julia compile.
+- K107 [RULE] (D-281) Lazy materialization of activations is torn-state-free.
+- K108 [FACT] Concurrent first requests for the same activation must never expose partially populated cache state.
+- K109 [FACT] Torn state is excluded by contract, not by luck.
+- K110 [FACT] The mechanism that excludes torn state is unspecified.
+- K111 [FACT] A guard around cache insertion suffices to exclude torn state.
+- K112 [FACT] The insertion guard's cost is paid at service time and never on the hot path.
+- K113 [REASON] An activation is a pure function of build and scalar.
+- K114 [CONSEQUENCE] Because an activation is a pure function of build and scalar, the worst benign race on concurrent first requests is duplicated work.
