@@ -1,0 +1,45 @@
+diff -ru nospec/src/assembly.jl grouperased/src/assembly.jl
+--- nospec/src/assembly.jl	2026-10-01 16:46:15
++++ grouperased/src/assembly.jl	2026-10-01 17:11:28
+@@ -252,16 +252,20 @@
+ declaration's field-name sugar, keying on the field rather than on a path
+ segment, keeps working as `(children = Relative(2),)` for the uniform case.
+ 
+-The type parameters carry the children's concrete types, so specialization is
+-unchanged; what is given up against a named type is dispatch, which exploratory
+-composition does not want.
++The type has no parameters, so every `Group` is one type whatever its
++topology: the walk reads the instance, and the executor is built from the
++primitives, so nothing needs the subtree's types. What is given up against a
++named type is dispatch, which exploratory composition does not want.
+ """
+-struct Group{C <: NamedTuple, W, I, O, R <: NamedTuple} <: AbstractComponent
+-    children::C      # component-typed elements → children by the container rule
+-    wires::W         # inert parameter data
+-    inputs::I
+-    outputs::O
+-    rates::R         # the ad-hoc rate scope, keyed by bare element name (§8.7)
++struct Group <: AbstractComponent
++    children::NamedTuple   # component-typed elements → children by the container rule
++    wires::Any             # inert parameter data
++    inputs::Any
++    outputs::Any
++    rates::NamedTuple      # the ad-hoc rate scope, keyed by bare element name (§8.7)
++    Group(@nospecialize(children::NamedTuple), @nospecialize(wires), @nospecialize(inputs),
++          @nospecialize(outputs), @nospecialize(rates::NamedTuple)) =
++        new(children, wires, inputs, outputs, rates)
+ end
+ 
+ """
+@@ -271,8 +275,10 @@
+ the one-entry tuple — the declarations are ordered collections of pairs, and a
+ single wire should not have to be written `("a/x" => "b/y",)`.
+ """
+-Group(children; wires = (), inputs = (), outputs = (), rates = (;)) =
++function Group(@nospecialize(children); wires = (), inputs = (), outputs = (), rates = (;))
++    @nospecialize
+     Group(children, _entries(wires), _entries(inputs), _entries(outputs), rates)
++end
+ 
+ _entries(connections::Pair) = (connections,)
+ _entries(connections) = connections

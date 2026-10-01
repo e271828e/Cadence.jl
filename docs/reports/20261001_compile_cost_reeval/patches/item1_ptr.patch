@@ -1,0 +1,20 @@
+diff -ru base/src/executor.jl item1_ptr/src/executor.jl
+--- a/src/executor.jl	2026-10-01 13:40:10
++++ b/src/executor.jl	2026-10-01 16:21:31
+@@ -487,13 +487,13 @@
+ dispatch differs, so boundary zero's wide walk costs the measured path
+ nothing.
+ """
+-struct PhaseBody{I<:Tuple,B<:Tuple}
++mutable struct PhaseBody{I<:Tuple,B<:Tuple}
+     interior::I
+     boundary::B
+ end
+ 
+-@inline (body::PhaseBody)() = _walkchunks(body.interior)
+-@inline (body::PhaseBody)(tick) = _walkchunks(body.boundary, tick)
++@noinline (body::PhaseBody)() = _walkchunks(body.interior)
++@noinline (body::PhaseBody)(tick) = _walkchunks(body.boundary, tick)
+ 
+ @inline _walkchunks(::Tuple{}) = nothing
+ @inline function _walkchunks(chunks::Tuple)

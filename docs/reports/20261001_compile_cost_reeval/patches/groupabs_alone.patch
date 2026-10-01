@@ -1,0 +1,41 @@
+diff -ru base/src/assembly.jl groupabs_alone/src/assembly.jl
+--- base/src/assembly.jl	2026-10-01 13:40:10
++++ groupabs_alone/src/assembly.jl	2026-10-01 17:11:28
+@@ -244,16 +244,21 @@
+ declaration's field-name sugar, keying on the field rather than on a path
+ segment, keeps working as `(children = Relative(2),)` for the uniform case.
+ 
+-The type parameters carry the children's concrete types, so specialization is
+-unchanged; what is given up against a named type is dispatch, which exploratory
+-composition does not want.
++The `children` field is typed abstractly, so a `Group`'s type never spells its
++subtree: the walk reads the instance, and the executor is built from the
++primitives, so nothing needs the children's types. The boundary declarations
++and the rate scope keep their types as parameters; what is given up against a
++named type is dispatch, which exploratory composition does not want.
+ """
+-struct Group{C <: NamedTuple, W, I, O, R <: NamedTuple} <: AbstractComponent
+-    children::C      # component-typed elements → children by the container rule
+-    wires::W         # inert parameter data
++struct Group{W, I, O, R <: NamedTuple} <: AbstractComponent
++    children::NamedTuple   # component-typed elements → children by the container rule
++    wires::W               # inert parameter data
+     inputs::I
+     outputs::O
+-    rates::R         # the ad-hoc rate scope, keyed by bare element name (§8.7)
++    rates::R               # the ad-hoc rate scope, keyed by bare element name (§8.7)
++    Group(@nospecialize(children::NamedTuple), wires::W, inputs::I, outputs::O,
++          rates::R) where {W, I, O, R <: NamedTuple} =
++        new{W, I, O, R}(children, wires, inputs, outputs, rates)
+ end
+ 
+ """
+@@ -263,7 +268,7 @@
+ the one-entry tuple — the declarations are ordered collections of pairs, and a
+ single wire should not have to be written `("a/x" => "b/y",)`.
+ """
+-Group(children; wires = (), inputs = (), outputs = (), rates = (;)) =
++Group(@nospecialize(children); wires = (), inputs = (), outputs = (), rates = (;)) =
+     Group(children, _entries(wires), _entries(inputs), _entries(outputs), rates)
+ 
+ _entries(connections::Pair) = (connections,)

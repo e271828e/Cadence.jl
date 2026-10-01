@@ -1,0 +1,53 @@
+Test Summary: | Pass  Total  Time
+leaves        |  142    142  0.6s
+Test Summary: | Pass  Total  Time
+declare       |   31     31  0.0s
+Test Summary: | Pass  Total   Time
+assembly      |  255    255  12.6s
+Test Summary: | Pass  Total  Time
+store         |   57     57  8.7s
+  Dual sweep: 97 covered, 59 skipped, 74 refused at nominal, in 25.5 s
+Test Summary: | Pass  Total   Time
+build         |  352    352  44.9s
+Test Summary: | Pass  Total  Time
+executor      |   36     36  3.6s
+Test Summary: | Pass  Total  Time
+continuous    |   24     24  3.7s
+Test Summary: | Pass  Total  Time
+discrete      |  166    166  5.6s
+Test Summary: | Pass  Total  Time
+stepper       |   16     16  7.1s
+Test Summary: | Pass  Total  Time
+events        |   79     79  7.6s
+Test Summary: | Pass  Total  Time
+localization  |   50     50  9.4s
+Test Summary: | Pass  Total  Time
+dataplane     |   47     47  4.0s
+Test Summary: | Pass  Total  Time
+roster        |   75     75  1.9s
+Test Summary: | Pass  Total  Time
+bindings      |   63     63  0.8s
+Test Summary: | Pass  Total   Time
+devices       |  368    368  12.9s
+Test Summary: | Pass  Total  Time
+log           |   47     47  9.1s
+Test Summary: | Pass  Total   Time
+trace         |  469    469  16.1s
+Test Summary: | Pass  Total  Time
+readers       |  136    136  6.3s
+Test Summary: | Pass  Total  Time
+conditions    |  154    154  5.3s
+Test Summary: | Pass  Total   Time
+trim          |  183    183  14.6s
+Test Summary: | Pass  Total   Time
+linearize     |   99     99  12.7s
+Test Summary: | Pass  Total  Time
+diagnostics   |  879    879  1.6s
+Test Summary: | Pass  Total   Time
+failures      |  243    243  19.4s
+Test Summary: | Pass  Total  Time
+lifecycle     |  184    184  1.8s
+Test Summary: | Pass  Total  Time
+show          |  123    123  0.9s
+Test Summary: | Pass  Total     Time
+Cadence       | 4278   4278  3m31.3s

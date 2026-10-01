@@ -1,0 +1,1008 @@
+diff -ru base/src/assembly.jl stackC/src/assembly.jl
+--- a/src/assembly.jl	2026-10-01 13:40:10
++++ b/src/assembly.jl	2026-10-01 17:15:01
+@@ -24,7 +24,7 @@
+                        (:transparent_container, transparent_container))
+ 
+ """The leaf declarations `comp` defines, in inventory order (§8.2, §8.5)."""
+-function leaf_declarations(comp)
++function leaf_declarations(@nospecialize(comp))
+     found = Symbol[]
+     for (name, fn) in ((:x_init, x_init), (:s_init, s_init), (:m_init, m_init))
+         _declares(fn, comp) && push!(found, name)
+@@ -43,7 +43,7 @@
+ end
+ 
+ """The `DECLARATION_FAMILY` names `comp` defines, in family order (§8.1, §8.5)."""
+-function declarations_found(comp)
++function declarations_found(@nospecialize(comp))
+     found = leaf_declarations(comp)
+     for (name, fn) in _OTHER_FAMILY
+         _declares(fn, comp) && push!(found, name)
+@@ -52,7 +52,7 @@
+ end
+ 
+ """The class of `comp` at `path`, or a `DiagnosticError` naming what makes it unreadable."""
+-function classify(path::String, comp)
++function classify(path::String, @nospecialize(comp))
+     leaves = leaf_declarations(comp)
+     if _declares(inner_connections, comp)
+         isempty(leaves) ||
+@@ -101,7 +101,7 @@
+ # children (whose `"field/key"` segment grammar it would shadow).
+ 
+ """`segment => instance` for every child of `comp`, in field order."""
+-children(path::String, comp) = first(_children(path, comp))
++children(path::String, @nospecialize(comp)) = first(_children(path, comp))
+ 
+ """
+ `(kids, fields)`: the children of `comp` as `segment => instance` pairs, and per
+@@ -110,7 +110,7 @@
+ (§8.7). The sugar keys on the *field*, so a name-transparent container keeps it
+ unchanged.
+ """
+-function _children(path::String, comp)
++function _children(path::String, @nospecialize(comp))
+     transparent_field = invoke_declaration(transparent_container, comp)
+     kids = Pair{String,Any}[]
+     fields = Symbol[]
+@@ -132,33 +132,36 @@
+     # after the transparent one.
+     shadowable = String[String(name) for name in fieldnames(typeof(comp))
+                         if name !== transparent_field && _is_container(getfield(comp, name)) &&
+-                           !isempty(getfield(comp, name))]
++                           nfields(getfield(comp, name)) > 0]
+     for name in fieldnames(typeof(comp))
+         value = getfield(comp, name)
+         if value isa AbstractComponent
+-            push!(kids, string(name) => value)
++            push!(kids, Pair{String,Any}(string(name), value))
+             push!(fields, name)
+             push!(contributors, "field `$name`")
+         elseif value isa NamedTuple || value isa Tuple
+-            n_components = count(e -> e isa AbstractComponent, value)
++            # Elements and keys as vectors: a generic walk over the tuple itself
++            # compiles once per container type.
++            elements, element_keys = _elements(value), _element_keys(value)
++            n_components = count(e -> e isa AbstractComponent, elements)
+             if n_components == 0
+                 # Inert data, an empty container too — unless an element is
+                 # itself a container bearing components, the nesting §8.5
+                 # refuses in the first cut.
+-                nested = [k for k in keys(value) if _bears_component(value[k])]
++                nested = [i for i in eachindex(elements) if _bears_component(elements[i])]
+                 isempty(nested) ||
+-                    push!(diags, ContainerNested(path = path, field = name, keys = nested,
+-                                                types = [_typespell(typeof(value[k])) for k in nested]))
++                    push!(diags, ContainerNested(path = path, field = name, keys = element_keys[nested],
++                                                types = [_typespell(typeof(elements[i])) for i in nested]))
+                 continue
+             end
+-            if n_components != length(value)
+-                mixed = [k for k in keys(value) if !(value[k] isa AbstractComponent)]
+-                push!(diags, ContainerMixed(path = path, field = name, keys = mixed,
+-                                           types = unique([_typespell(typeof(value[k])) for k in mixed])))
++            if n_components != length(elements)
++                mixed = [i for i in eachindex(elements) if !(elements[i] isa AbstractComponent)]
++                push!(diags, ContainerMixed(path = path, field = name, keys = element_keys[mixed],
++                                           types = unique([_typespell(typeof(elements[i])) for i in mixed])))
+                 continue
+             end
+             bare = name === transparent_field
+-            for key in keys(value)
++            for (key, element) in zip(element_keys, elements)
+                 contributor = "$(bare ? "name-transparent " : "")container field `$name`, element `$key`"
+                 # The collision family's other two arms, both reachable only by a
+                 # bare key and neither of them a duplicate *child* name, so
+@@ -177,7 +180,7 @@
+                     hit = true
+                 end
+                 hit && continue                    # a shadowed key names no child
+-                push!(kids, (bare ? string(key) : string(name, "/", key)) => value[key])
++                push!(kids, Pair{String,Any}(bare ? string(key) : string(name, "/", key), element))
+                 push!(fields, name)
+                 push!(contributors, contributor)
+             end
+@@ -191,19 +194,24 @@
+ 
+ # The container form, the empty one included — it contributes zero children, and
+ # parametric code then needs no special case (§8.5).
+-_is_container(v) = (v isa NamedTuple || v isa Tuple) && all(e -> e isa AbstractComponent, v)
++_is_container(@nospecialize(v)) =
++    (v isa NamedTuple || v isa Tuple) && all(e -> e isa AbstractComponent, _elements(v))
+ 
++# A container's elements and keys (`Symbol`s or indices), as untyped vectors.
++_elements(@nospecialize(v)) = Any[getfield(v, i) for i in 1:nfields(v)]
++_element_keys(@nospecialize(v)) = Any[fieldname(typeof(v), i) for i in 1:nfields(v)]
++
+ # The container fields of `comp`'s type: what a name-transparent declaration may name.
+ _container_fields(comp) =
+     Symbol[n for n in fieldnames(typeof(comp)) if _is_container(getfield(comp, n))]
+ 
+ # A container holding a component at any depth: the shape `ContainerNested` names.
+-_bears_component(v) = (v isa NamedTuple || v isa Tuple) &&
+-                      any(e -> e isa AbstractComponent || _bears_component(e), v)
++_bears_component(@nospecialize(v)) = (v isa NamedTuple || v isa Tuple) &&
++                      any(e -> e isa AbstractComponent || _bears_component(e), _elements(v))
+ 
+ # The declaration is checked after the walk, so a mixed container reports as one
+ # rather than as a bad transparency declaration.
+-function _check_transparent(path::String, comp, transparent_field, diags::Vector{Diagnostic})
++function _check_transparent(path::String, @nospecialize(comp), transparent_field, diags::Vector{Diagnostic})
+     transparent_field === nothing && return nothing
+     ok = transparent_field in fieldnames(typeof(comp)) &&
+         _is_container(getfield(comp, transparent_field))
+@@ -297,7 +305,7 @@
+ several levels is declared level by level, each assembly speaking of its own
+ children alone.
+ """
+-function resolve_terminal(entry::String, base::String, assembly, path::AbstractString,
++function resolve_terminal(entry::String, base::String, @nospecialize(assembly), path::AbstractString,
+                           diags::Vector{Diagnostic}; owner::String = _at_path(base))
+     segments = String.(split(path, '/'))
+     if length(segments) ≤ 1
+@@ -317,7 +325,7 @@
+ # D-211 naming, which is what the two-segment lookahead serves: an undeclared
+ # container's element spends two segments on the child, a transparent one's
+ # spends one, and neither is "deeper".
+-function _one_level(entry::String, base::String, assembly, path::AbstractString,
++function _one_level(entry::String, base::String, @nospecialize(assembly), path::AbstractString,
+                     segments::Vector{String}, tail::Int, diags::Vector{Diagnostic};
+                     owner::String = _at_path(base))
+     kids = children(base, assembly)
+@@ -447,7 +455,7 @@
+ resolves through `resolve`. The split is unambiguous because face names may
+ contain dots, never slashes (§8.6).
+ """
+-function resolve_terminal(assembly, path::AbstractString)
++function resolve_terminal(@nospecialize(assembly), path::AbstractString)
+     diags = Diagnostic[]
+     resolved = resolve_terminal("`resolve_terminal` on `$(nameof(typeof(assembly)))`",
+                                 "", assembly, path, diags;
+@@ -459,7 +467,7 @@
+ 
+ # A contract declaration at nominal, whatever the tier: the keys are a
+ # tier-independent fact, and the walk at `Float64` strips every `Pinned` (D-263).
+-_contract(fn, comp) =
++_contract(fn, @nospecialize(comp)) =
+     _declares(fn, comp) ? map(P -> retype_entry(Float64, P), invoke_declaration(fn, comp)) : NamedTuple()
+ 
+ """
+@@ -497,7 +505,7 @@
+ # is correctness, not a path. The hit is copied on the way out: the memo is the
+ # walk's own record, and a caller sorting or emptying what a primitive handed it
+ # would otherwise reorder the boundary the walk goes on to compute.
+-function _walked_faces(comp, side::Int, fn, face_of)
++function _walked_faces(@nospecialize(comp), side::Int, fn, face_of)
+     memo = WALK_FACES[]
+     memo !== nothing && haskey(memo, comp) && return copy(memo[comp][side])
+     String[String(face_of(pair)) for pair in invoke_declaration(fn, comp)]
+@@ -617,7 +625,7 @@
+ `nothing` with the refusal recorded in `diags` — the endpoint then claims nothing
+ and the obligation pass reports what it left unfed (§13.1).
+ """
+-function resolve_source(draft, entry::String, base::String, assembly, path::AbstractString,
++function resolve_source(draft, entry::String, base::String, @nospecialize(assembly), path::AbstractString,
+                         diags::Vector{Diagnostic})
+     resolved = resolve_terminal(entry, base, assembly, path, diags)
+     resolved === nothing && return nothing
+@@ -643,7 +651,7 @@
+ through the boundary; none, when the endpoint failed to resolve and the refusal
+ was recorded.
+ """
+-function resolve_dest(draft, entry::String, base::String, assembly, path::AbstractString,
++function resolve_dest(draft, entry::String, base::String, @nospecialize(assembly), path::AbstractString,
+                       diags::Vector{Diagnostic})
+     resolved = resolve_terminal(entry, base, assembly, path, diags)
+     resolved === nothing && return Vector{Tuple{String,Symbol}}[]
+@@ -669,7 +677,7 @@
+ 
+ # Called by the declaring level alone, on its own children's endpoints: a parent
+ # reading the face reads the routes this built.
+-_fanout(draft, entry, base, comp, inner, diags) =
++_fanout(draft, entry, base, @nospecialize(comp), inner, diags) =
+     reduce(vcat, (resolve_dest(draft, entry, base, comp, p, diags) for p in _endpoints(inner));
+            init = Vector{Tuple{String,Symbol}}[])
+ 
+@@ -794,7 +802,7 @@
+     faces::IdDict{Any,Tuple{Vector{String},Vector{String}}}   # per assembly instance, (inputs, outputs)
+ end
+ 
+-StructureDraft(root::AbstractComponent) =
++StructureDraft(@nospecialize(root::AbstractComponent)) =
+     StructureDraft(root, String[], AbstractComponent[],
+                    Union{Nothing,Tier}[],
+                    Vector{RateLink}[], Timing[],
+@@ -941,7 +949,7 @@
+ (D-208) — a primitive one flattens to the single leaf at the root path, its
+ `u_types` keys the model's root inputs.
+ """
+-function flatten!(draft::StructureDraft, root, diags::Vector{Diagnostic})
++Base.@nospecializeinfer function flatten!(draft::StructureDraft, @nospecialize(root), diags::Vector{Diagnostic})
+     # the root scope: anchor 0, the base grid itself; no link above it and none of its own.
+     # The face memo is the walk's own and is bound around it alone: the obligation
+     # loop below reads `u_types`, never a face list.
+@@ -955,9 +963,10 @@
+     # legitimate unfed terminus is the root's own input face. A wire that failed
+     # to resolve claimed nothing, so the input it should have fed is reported
+     # here beside the refusal itself.
+-    for (path, instance) in zip(draft.paths, draft.instances)
++    # By index: a closure capturing the instance would be a type per component type.
++    for (ci, path) in enumerate(draft.paths)
+         at_component(path) do
+-            for (face, declared) in pairs(_contract(u_types, instance))
++            for (face, declared) in pairs(_contract(u_types, draft.instances[ci]))
+                 haskey(draft.feeds, (path, face)) ||
+                     push!(diags, UnconnectedInput(path = path, face = face,
+                                                  declared = declared,
+@@ -1031,7 +1040,7 @@
+ 
+ # `chain` is the links above `comp`, outermost first, and `link` its own — the
+ # entry the enclosing assembly's `sample_times` named it under, or `nothing`.
+-function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
++Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String, @nospecialize(comp), scope::Timing,
+                 chain::Vector{RateLink}, link::Union{Nothing,RateLink},
+                 diags::Vector{Diagnostic})
+     # The forgotten import (§8.1, D-246), first and alone: a module holding a
+diff -ru base/src/build.jl stackC/src/build.jl
+--- a/src/build.jl	2026-10-01 13:40:10
++++ b/src/build.jl	2026-10-01 17:15:01
+@@ -33,7 +33,7 @@
+ `children` and `resolve_authored` reaching `assembly.jl`'s `_children`, and
+ `tracer.jl`'s sampled `_trace_direct`.
+ """
+-function invoke_declaration(fn, comp, args...)
++function invoke_declaration(fn, @nospecialize(comp), args...)
+     try
+         fn(comp, args...)
+     catch err
+@@ -48,7 +48,8 @@
+ bundle-law diagnostic, classified (§5.2); any other throw is the plain frame,
+ carrying the bundle's names and the synthesized inputs as a spelling.
+ """
+-function invoke_probed(fn, family::Symbol, path::String, comp, tier::Tier, bundle::NamedTuple)
++function invoke_probed(fn, family::Symbol, path::String, @nospecialize(comp), tier::Tier,
++                       @nospecialize(bundle::NamedTuple))
+     try
+         fn(comp, bundle)
+     catch err
+@@ -109,7 +110,7 @@
+ # following it, a `Pinned` contract leaf the one exception. On the discrete tier
+ # the same declarations pin wholesale, so `s_init` does not walk and the
+ # contracts are read as written.
+-function declarations(comp, tier::Tier, ::Type{T}) where {T}
++function declarations(@nospecialize(comp), tier::Tier, ::Type{T}) where {T}
+     tier === CONTINUOUS ?
+         Decls(retype_value(T, invoke_declaration(x_init, comp)), NamedTuple(),
+               declared_at(u_types, comp, tier, T), declared_at(y_types, comp, tier, T)) :
+@@ -136,7 +137,7 @@
+ 
+ # §7.1, §8.2, D-094: every `x_init` field is a `Float64` or an `SArray` of them,
+ # and the declaration is flat. The arm names where the value belongs instead.
+-function check_state_leaves(path::String, comp, diags::Vector{Diagnostic})
++function check_state_leaves(path::String, @nospecialize(comp), diags::Vector{Diagnostic})
+     for (name, value) in pairs(invoke_declaration(x_init, comp))
+         leaf_eltype = value isa SArray ? eltype(value) : typeof(value)
+         leaf_eltype === Float64 && continue
+@@ -151,7 +152,7 @@
+ # §8.2, D-247: every by-value store is a `NamedTuple`, and the classifier and
+ # the two field checks below read it as one. Returns whether this primitive
+ # can be read further; the fallbacks return `NamedTuple()` and pass.
+-function check_store_form(path::String, comp, diags::Vector{Diagnostic})
++function check_store_form(path::String, @nospecialize(comp), diags::Vector{Diagnostic})
+     readable = true
+     for (name, fn) in ((:x_init, x_init), (:s_init, s_init), (:m_init, m_init))
+         contents = invoke_declaration(fn, comp)
+@@ -163,7 +164,7 @@
+ end
+ 
+ # §7.3, D-231: every store field is isbits or a `Symbol`, checked on both stores.
+-function check_stores(path::String, comp, diags::Vector{Diagnostic})
++function check_stores(path::String, @nospecialize(comp), diags::Vector{Diagnostic})
+     for (store, contents) in ((:s_init, invoke_declaration(s_init, comp)),
+                               (:m_init, invoke_declaration(m_init, comp)))
+         for (name, value) in pairs(contents)
+@@ -178,7 +179,7 @@
+ The tier the primitive at `path` announces, or `nothing` with what disagrees
+ recorded in `diags` (§13.1).
+ """
+-function classify_tier(path::String, comp, diags::Vector{Diagnostic})
++function classify_tier(path::String, @nospecialize(comp), diags::Vector{Diagnostic})
+     votes = Tuple{Symbol,Tier}[]
+     has_stage(x_deriv, comp) && push!(votes, (:x_deriv, CONTINUOUS))
+     has_stage(s_update, comp) && push!(votes, (:s_update, DISCRETE))
+@@ -258,9 +259,12 @@
+ """
+ function probe_stage1(structure::Structure, decls::Vector{Decls},
+                       workspaces::Vector, mstores::Vector, ::Type{T}) where {T}
++    # The instance is read inside the frame, never captured: a closure capturing it
++    # would be a type, and a compile, per component type.
+     map(enumerate(structure.components)) do (ci, entry)
+-        path, comp, decl = entry.path, entry.instance, decls[ci]
++        path, decl = entry.path, decls[ci]
+         at_component(path) do
++            comp = entry.instance
+             _frozen(entry.tier, T) && return NamedTuple()
+             has_stage(y_state, comp) || return NamedTuple()
+             stage = String(nameof(y_state))
+@@ -729,7 +733,7 @@
+ mode: each listed scalar's activation is materialized eagerly instead of at first
+ request.
+ """
+-function build(root::AbstractComponent; activations::Tuple = ())
++Base.@nospecializeinfer function build(@nospecialize(root::AbstractComponent); activations::Tuple = ())
+     # One binding around all three steps, and one list (§9.1, D-250): a helper
+     # inside a declaration body appends to it without knowing the build, the
+     # completed `Build` carries it, and a throw leaving the build takes it along.
+@@ -783,8 +787,10 @@
+     # The pass runs before `wire!` derives the `Structure`, so it reads the draft's
+     # own columns. It collects (§13.1): every malformed entry in the model is
+     # named, not the first one the walk reaches, and the list merges into the step's.
+-    for (path, comp) in zip(draft.paths, draft.instances)
++    # By index: a closure capturing the instance would be a type per component type.
++    for (ci, path) in enumerate(draft.paths)
+         at_component(path) do
++            comp = draft.instances[ci]
+             for (name, event) in pairs(invoke_declaration(state_events, comp))
+                 if !(event isa StateEvent)
+                     push!(diags, EventHalfMissing(path = path, event = name,
+@@ -993,7 +999,7 @@
+ _workspaces(structure::Structure, ::Type{T}) where {T} =
+     Any[_workspace(entry.path, entry.instance, entry.tier, T) for entry in structure.components]
+ 
+-_workspace(path::String, comp, tier::Tier, ::Type{T}) where {T} =
++_workspace(path::String, @nospecialize(comp), tier::Tier, ::Type{T}) where {T} =
+     at_component(path) do
+         _declares_workspace(comp) || return nothing
+         invoke_declaration(ws_init, comp, tier === CONTINUOUS ? T : Float64)
+@@ -1063,9 +1069,10 @@
+     # `s_update` is outside the executable set like its output stages (§9.4).
+     empty!(diags)
+     for (ci, entry) in enumerate(structure.components)
+-        comp, path, decl, tier = entry.instance, entry.path, decls[ci], entry.tier
++        path, decl, tier = entry.path, decls[ci], entry.tier
+         (isempty(state_decls(decl, tier)) || _frozen(tier, T)) && continue
+         at_component(path) do
++            comp = entry.instance                  # read here, not captured: see `probe_stage1`
+             update = update_of(tier)
+             bundle_fields = bundle_names(update, comp, tier, tuple(keys(stage1[ci])...))
+             bundle = _bundle_values(bundle_fields, decl, in_values(ci, decl), stage1[ci], T;
+@@ -1101,7 +1108,7 @@
+         end
+         append!(diags, at_component(path) do
+             _check_state_write(path, "x_projection",
+-                               invoke_declaration(x_projection, comp, decl.x), decl.x, T)
++                               invoke_declaration(x_projection, entry.instance, decl.x), decl.x, T)
+         end)
+     end
+     isempty(diags) || throw(DiagnosticError(diags))
+@@ -1118,9 +1125,10 @@
+                         decls::Vector{Decls}, stage1,
+                         layout::Layout, workspaces::Vector, mstores::Vector, ::Type{T}) where {T}
+     entry = structure.components[ci]
+-    comp, path, decl, s1 = entry.instance, entry.path, decls[ci], stage1[ci]
+-    (has_stage(y_direct, comp) && !_frozen(entry.tier, T)) || return nothing
++    path, decl = entry.path, decls[ci]
++    (has_stage(y_direct, entry.instance) && !_frozen(entry.tier, T)) || return nothing
+     at_component(path) do
++        comp, s1 = entry.instance, stage1[ci]      # read here, not captured: see `probe_stage1`
+         stage = String(nameof(y_direct))
+         bundle_fields = bundle_names(y_direct, comp, entry.tier, tuple(keys(s1)...))
+         u = NamedTuple{tuple(keys(decl.ins)...)}(tuple(
+@@ -1193,8 +1201,9 @@
+     workspaces = _workspaces(structure, Float64)
+     rows = ComponentEvents[]
+     for (ci, entry) in enumerate(structure.components)
+-        comp, path, decl = entry.instance, entry.path, decls[ci]
++        path, decl = entry.path, decls[ci]
+         policies, bundle_fields = at_component(path) do
++            comp = entry.instance                  # read here, not captured: see `probe_stage1`
+             declared_events = invoke_declaration(state_events, comp)
+             isempty(declared_events) && return NamedTuple(), ()
+             bundle_fields = event_bundle_names(comp)
+@@ -1312,8 +1321,9 @@
+ 
+ """
+ One executor (§9.7, glossary): the compiled execution form of the schedule over
+-its own buffers, at one scalar — the entries' concretely-typed tuples closed
+-into the phase bodies, beside the store set they read and write.
++its own buffers, at one scalar — one opaque closure per entry, gathered into
++the phase bodies, beside the store set they read and write. No parameter
++carries the topology: `B` and `EV` are the same for every model.
+ 
+ Buffers are never cached, because every buffer set has exactly one owner
+ (§9.2): a `Simulation` owns its nominal executor, and every service invocation
+@@ -1335,8 +1345,8 @@
+     bodies::B              # the phase bodies, closed over the buffers above
+     events::EV             # the compiled event set, likewise (nominal only)
+     cursor::ExecutionCursor          # §13.4: where execution is, written per dispatch
+-    chunk_size::Int        # the unroll width it was compiled at, retained so a service
+-                           # can compile one of its own exactly as this was
++    chunk_size::Int        # accepted and ignored: the walks hold one closure per entry,
++                           # so there is no unroll width; retained for the services' calls
+     stepper::M             # the seam's backend (§10.2), with its own scratch
+     xnext::Vector{T}       # the retained arrival pair (§10.4), xₙ₊₁ saved
+     ẋnext::Vector{T}       # ẋₙ₊₁, paid only past a validated trigger
+@@ -1517,7 +1527,7 @@
+                              if entry.tier === CONTINUOUS &&
+                                 has_stage(x_projection, entry.instance)]
+ 
+-    body(entries, gates) = chunked_body(entries, gates, store, xbuf, ẋbuf; chunk_size)
++    body(entries, gates) = phase_body(entries, gates, store, xbuf, ẋbuf)
+     # Beside the four blocks ride the per-event and per-projection callables,
+     # keyed by the roster (§9.7): (path, event name) and path.
+     event_bodies = Dict{Tuple{String,Symbol},NamedTuple}(
+@@ -1533,7 +1543,7 @@
+               events = event_bodies, projections = projection_bodies)
+ 
+     event_set = EventSet(event_entries, projection_entries, event_owner, event_names,
+-                         event_localized, length(components))
++                         event_localized, length(components), store, xbuf)
+     # The seam's backend and the arrival pair are this buffer set's, so they are
+     # built here rather than by the caller (§12.6, D-256).
+     Executor(act, store, xbuf, ẋbuf, sstores, mstores, clock, bodies, event_set, cursor,
+diff -ru base/src/declare.jl stackC/src/declare.jl
+--- a/src/declare.jl	2026-10-01 13:40:10
++++ b/src/declare.jl	2026-10-01 17:15:01
+@@ -262,14 +262,14 @@
+ framework's function, in family order — the forgotten-import evidence of
+ §8.1 (D-246). Empty for a module that imported what it extends.
+ """
+-function foreign_declarations(comp)
++function foreign_declarations(@nospecialize(comp))
+     author_module = parentmodule(typeof(comp))
+     Symbol[name for name in DECLARATION_FAMILY
+            if isdefined(author_module, name) &&
+               getfield(author_module, name) !== getfield(@__MODULE__, name)]
+ end
+ 
+-has_stage(fn, comp) = hasmethod(fn, Tuple{typeof(comp),NamedTuple})
++has_stage(fn, @nospecialize(comp)) = hasmethod(fn, Tuple{typeof(comp),NamedTuple})
+ 
+ """
+ Is `fn` declared *for this component* in the arity `extra` names, as against
+@@ -277,7 +277,7 @@
+ matched method's own signature is what answers: a fallback carries `Any` in the
+ component position.
+ """
+-_declares(fn, comp, extra...) =
++_declares(fn, @nospecialize(comp), extra...) =
+     hasmethod(fn, Tuple{typeof(comp),extra...}) &&
+     Base.unwrap_unionall(which(fn, Tuple{typeof(comp),extra...}).sig).parameters[2] !== Any
+ 
+@@ -295,7 +295,7 @@
+ tier as written. `S` is `Float64` for every reader but the structure step's
+ wire pass, which also reads it at the marker.
+ """
+-function declared_at(fn, comp, tier::Tier, ::Type{S} = Float64) where {S}
++function declared_at(fn, @nospecialize(comp), tier::Tier, ::Type{S} = Float64) where {S}
+     _declares(fn, comp) || return NamedTuple()
+     decl = invoke_declaration(fn, comp)
+     tier === CONTINUOUS ? map(P -> retype_entry(S, P), decl) : decl
+@@ -325,7 +325,7 @@
+ `x`/`y_x` with `m` on the continuous tier, `s`/`y_s` with `Δt` on the discrete
+ (D-195).
+ """
+-function bundle_names(fn, comp, tier::Tier, stage1_ports::Tuple)
++function bundle_names(fn, @nospecialize(comp), tier::Tier, stage1_ports::Tuple)
+     update = update_of(tier)
+     bundle_fields = Symbol[]
+     if tier === CONTINUOUS
+@@ -348,7 +348,7 @@
+     tuple(bundle_fields...)
+ end
+ 
+-_declares_workspace(comp) = _declares(ws_init, comp, Type{Float64})
++_declares_workspace(@nospecialize(comp)) = _declares(ws_init, comp, Type{Float64})
+ 
+ """
+ Bundle field names for a guard or handler (§5.2): the update law's view of the
+@@ -356,7 +356,7 @@
+ continuous tier only. The same iff rule as `bundle_names`, without a stage-1
+ distinction: guards and handlers run against the complete fresh table.
+ """
+-function event_bundle_names(comp)
++function event_bundle_names(@nospecialize(comp))
+     bundle_fields = Symbol[]
+     !isempty(invoke_declaration(x_init, comp)) && push!(bundle_fields, :x)
+     !isempty(invoke_declaration(m_init, comp)) && push!(bundle_fields, :m)
+diff -ru base/src/executor.jl stackC/src/executor.jl
+--- a/src/executor.jl	2026-10-01 13:40:10
++++ b/src/executor.jl	2026-10-01 17:15:01
+@@ -1,7 +1,6 @@
+ # The compiled executor (§9.7): schedule entries carrying what selects code in
+-# type parameters and what is plain data in fields, gathered into chunked
+-# statically-typed tuples behind non-inlined barriers, traversed by a
+-# compile-time-unrolled walk.
++# type parameters and what is plain data in fields, each closed into one opaque
++# closure over the executor's buffers, walked by a plain loop over a vector.
+ 
+ # --- the execution cursor (§13.4, D-059) ---------------------------------------
+ 
+@@ -172,6 +171,34 @@
+     nothing
+ end
+ 
++# --- one opaque closure per entry ---------------------------------------------
++# An entry and the buffers it runs over are closed into an opaque closure, so a
++# walk is a loop over a vector whose type carries nothing of the model. The
++# closure's body compiles once per entry *type*: a second instance of a known
++# type reuses it, and the executor's type no longer depends on the topology.
++#
++# Opaque closures run in the world they were created in: a method redefined
++# after compilation reaches a simulation only when it is built again.
++
++using Base.Experimental: @opaque
++
++const Thunk = Core.OpaqueClosure{Tuple{},Nothing}
++
++# Boxed on purpose: the vector's eltype is abstract, so each element is a heap
++# object `_invoke` hands over as is. A concretely typed `Vector{Thunk}` stores
++# the closures inline, and on Julia 1.13 every call of an inline closure goes
++# through a `specptr` adapter that boxes it again, 48 bytes per call.
++const AnyThunk = Core.OpaqueClosure{Tuple{}}
++const Thunks = Vector{AnyThunk}
++
++# The closure's own entry point, `jl_fptr_args` with no arguments: the
++# allocation-free call of a boxed closure, without dynamic dispatch.
++@inline _invoke(f) =
++    (ccall((f::Thunk).invoke, Any, (Any, Ptr{Any}, UInt32), f, C_NULL, 0); nothing)
++
++_entry_thunk(entry, store, xbuf, ẋbuf) =
++    @opaque Tuple{} -> Nothing () -> (run_entry!(entry, store, xbuf, ẋbuf); nothing)
++
+ # --- the event machinery (§10.6, §5.3) ------------------------------------------
+ # Not sweep entries: guards and handlers are driven by the boundary iteration in
+ # `sim.jl`, against per-event registers, so their entries live in their own
+@@ -241,13 +268,13 @@
+ end
+ 
+ """
+-The per-`Simulation` compiled event set: the entry tuples plus the §10.6
+-registers. The three normative registers — prior, last-observed sample, firing
+-count — are detection bookkeeping, not model memory: plain vectors indexed by
+-the global event index, in no state store, reconstructed deterministically.
+-`now`, `fire` and `comp_fired` are the iteration's round-scoped scratch, and
+-`warned` implements "at most once per event per boundary" for the
+-`FiringBudget` degradation.
++The per-`Simulation` compiled event set: one opaque closure per event and per
++projection, plus the §10.6 registers. The three normative registers — prior,
++last-observed sample, firing count — are detection bookkeeping, not model
++memory: plain vectors indexed by the global event index, in no state store,
++reconstructed deterministically. `now`, `fire` and `comp_fired` are the
++iteration's round-scoped scratch, and `warned` implements "at most once per
++event per boundary" for the `FiringBudget` degradation.
+ 
+ The localization registers (§10.4) sit beside them: `localized` is the
+ runtime's read, fixed at compilation, of the policies the `Events` rows carry;
+@@ -255,79 +282,99 @@
+ holds its predicate, `σ ≥ 0`); `σ0`/`σ1` retain the θ = 0 validation and arrival
+ samples across the trials that clobber `σ`; `triggered` is the frame's triggered set
+ and `loc_warned` the `ChatteringBudget` once-per-event-per-frame latch.
++
++Its type carries nothing of the model: the entries live in the closures, and
++`entries` keeps them for inspection only. Mutable, so the walks take a pointer.
+ """
+-struct EventSet{E<:Tuple,P<:Tuple}
+-    entries::E
+-    projects::P
+-    owner::Vector{Int}                   # component index per event
+-    names::Vector{Tuple{String,Symbol}}  # (path, event name), for the degradation warnings
+-    localized::Vector{Bool}              # detection policy per event (§10.4)
+-    now::Vector{Bool}
+-    prior::Vector{Bool}
+-    last::Vector{Bool}
+-    fire::Vector{Bool}
+-    count::Vector{Int}
+-    warned::Vector{Bool}
+-    comp_fired::Vector{Bool}             # per component, round-scoped
+-    σ::Vector{Float64}
+-    σ0::Vector{Float64}
+-    σ1::Vector{Float64}
+-    triggered::Vector{Bool}
+-    loc_warned::Vector{Bool}
++mutable struct EventSet
++    const entries::Vector{Any}            # the event entries, by global index; never walked
++    const guards::Thunks                  # per event: guard, then `now` (and `σ`) written
++    const handlers::Thunks                # per event: handler → latch → `x_projection`
++    const projects::Thunks                # per projecting component: `x_projection`
++    const owner::Vector{Int}                   # component index per event
++    const names::Vector{Tuple{String,Symbol}}  # (path, event name), for the degradation warnings
++    const localized::Vector{Bool}              # detection policy per event (§10.4)
++    const now::Vector{Bool}
++    const prior::Vector{Bool}
++    const last::Vector{Bool}
++    const fire::Vector{Bool}
++    const count::Vector{Int}
++    const warned::Vector{Bool}
++    const comp_fired::Vector{Bool}             # per component, round-scoped
++    const σ::Vector{Float64}
++    const σ0::Vector{Float64}
++    const σ1::Vector{Float64}
++    const triggered::Vector{Bool}
++    const loc_warned::Vector{Bool}
+ end
+ 
+ function EventSet(entries::Vector, projects::Vector,
+                   owner::Vector{Int}, names::Vector{Tuple{String,Symbol}},
+-                  localized::Vector{Bool}, n_components::Int)
++                  localized::Vector{Bool}, n_components::Int, store, xbuf)
+     n_events = length(entries)
+-    EventSet(tuple(entries...), tuple(projects...), owner, names, localized,
+-             fill(false, n_events), fill(false, n_events), fill(false, n_events),
++    now, σ = fill(false, n_events), zeros(n_events)
++    EventSet(collect(Any, entries),
++             AnyThunk[_guard_thunk(e, store, xbuf, now, σ) for e in entries],
++             AnyThunk[_handler_thunk(e, store, xbuf) for e in entries],
++             AnyThunk[_project_thunk(p, xbuf) for p in projects],
++             owner, names, localized,
++             now, fill(false, n_events), fill(false, n_events),
+              fill(false, n_events), zeros(Int, n_events), fill(false, n_events),
+-             fill(false, n_components), zeros(n_events), zeros(n_events),
++             fill(false, n_components), σ, zeros(n_events),
+              zeros(n_events), fill(false, n_events), fill(false, n_events))
+ end
+ 
+-# The three walks the iteration drives, each the compile-time-unrolled tuple
+-# recursion of the phase bodies, over the executor's buffers the caller hands
+-# them (D-261). Guard evaluation writes each predicate sample into `now` by
+-# global index; the fire walk runs `handler → x_projection` for exactly the
+-# masked entries, latching the returned stores — `x` into the flat buffer, `m`
+-# merged into the mode store, per the return law's iff shape (§5.2).
++# The three walks the iteration drives, each a plain loop over its closures,
++# which captured the executor's buffers at compilation (D-261). Guard evaluation
++# writes each predicate sample into `now` by global index; the fire walk runs
++# `handler → x_projection` for exactly the masked entries, latching the
++# returned stores — `x` into the flat buffer, `m` merged into the mode store,
++# per the return law's iff shape (§5.2).
+ 
+-@noinline _projects!(event_set::EventSet, xbuf) = _proj_walk(event_set.projects, xbuf)
+-@inline _proj_walk(::Tuple{}, xbuf) = nothing
+-@inline function _proj_walk(projects::Tuple, xbuf)
+-    run_project!(projects[1], xbuf)
+-    _proj_walk(Base.tail(projects), xbuf)
++@noinline function _projects!(event_set::EventSet)
++    for f in event_set.projects
++        _invoke(f)
++    end
++    nothing
+ end
+ 
+-@noinline _guards!(event_set::EventSet, store, xbuf) =
+-    _guard_walk(event_set.entries, store, xbuf, event_set.now, event_set.σ)
+-@inline _guard_walk(::Tuple{}, store, xbuf, now, σs) = nothing
+-@inline function _guard_walk(entries::Tuple, store, xbuf, now, σs)
+-    entry = entries[1]
+-    entry.cursor.comp = entry.ci; entry.cursor.fn = :guard
+-    σ = entry.guard(entry.comp, make_bundle(entry, store, xbuf))
+-    now[entry.event_index] = _holding(σ)
+-    # The numeric sample, for the localization brackets (§10.4). The guard's
+-    # return type is in the entry's type, so the branch folds per entry: a
+-    # `Bool` guard never touches the register.
+-    σ isa Bool || (σs[entry.event_index] = σ)
+-    _guard_walk(Base.tail(entries), store, xbuf, now, σs)
++@noinline function _guards!(event_set::EventSet)
++    for f in event_set.guards
++        _invoke(f)
++    end
++    nothing
+ end
+ 
+-@noinline _fire!(event_set::EventSet, store, xbuf) =
+-    _fire_walk(event_set.entries, store, xbuf, event_set.fire)
+-@inline _fire_walk(::Tuple{}, store, xbuf, fire) = nothing
+-@inline function _fire_walk(entries::Tuple, store, xbuf, fire)
+-    entry = entries[1]
+-    if fire[entry.event_index]
++@noinline function _fire!(event_set::EventSet)
++    fire, handlers = event_set.fire, event_set.handlers
++    for i in eachindex(handlers)
++        fire[i] && _invoke(handlers[i])
++    end
++    nothing
++end
++
++_project_thunk(entry::ProjectEntry, xbuf) =
++    @opaque Tuple{} -> Nothing () -> run_project!(entry, xbuf)
++
++_guard_thunk(entry::EventEntry, store, xbuf, now, σs) =
++    @opaque Tuple{} -> Nothing () -> begin
++        entry.cursor.comp = entry.ci; entry.cursor.fn = :guard
++        σ = entry.guard(entry.comp, make_bundle(entry, store, xbuf))
++        now[entry.event_index] = _holding(σ)
++        # The numeric sample, for the localization brackets (§10.4). The guard's
++        # return type is in the entry's type, so the branch folds per entry
++        # type: a `Bool` guard never touches the register.
++        σ isa Bool || (σs[entry.event_index] = σ)
++        nothing
++    end
++
++_handler_thunk(entry::EventEntry, store, xbuf) =
++    @opaque Tuple{} -> Nothing () -> begin
+         entry.cursor.comp = entry.ci; entry.cursor.fn = :handler
+         _latch!(entry, entry.handler(entry.comp, make_bundle(entry, store, xbuf)), xbuf)
+         _fire_project!(entry, xbuf)
++        nothing
+     end
+-    _fire_walk(Base.tail(entries), store, xbuf, fire)
+-end
+ 
+ @inline function _latch!(entry::EventEntry{G,H,P,Comp,XT}, returned::NamedTuple,
+                          xbuf) where {G,H,P,Comp,XT}
+@@ -400,18 +447,12 @@
+ _project_body(entry::ProjectEntry, xbuf) = () -> run_project!(entry, xbuf)
+ 
+ # --- the gate (§10.5, D-185, D-205) ---------------------------------------------
+-# The boundary sweep walks the full list with *discrete* entries gated by
+-# `(tick − Φ) % D == 0`. The gate is a wrapper only discrete entries wear, so a
+-# continuous entry pays nothing at a boundary, and the interior walk — compiled
+-# from continuous entries alone — never meets an index at all: an empty due set
+-# is arity selection, never a sentinel index failing every gate (D-185).
++# The boundary walk runs the full list with *discrete* entries gated by
++# `(tick − Φ) % D == 0`, `D` and `Φ` held beside the closures; a continuous
++# entry carries `D = 0` and is never tested. The interior walk, built from
++# continuous entries alone, never meets an index at all: an empty due set is
++# arity selection, never a sentinel index failing every gate (D-185).
+ 
+-struct Gated{E}
+-    entry::E
+-    D::Int
+-    Φ::Int
+-end
+-
+ """
+ Boundary zero's wide gate (§14.5, D-205), spelled as the marker the boundary
+ walk takes in place of a tick index: every discrete output stage runs there,
+@@ -419,106 +460,80 @@
+ published cell holds the probe's synthesized values.
+ 
+ It is a *marker*, not an index, precisely so the measured path keeps its
+-shape: `run_at!` against an `Int` is the method the frame loop compiles and
+-nothing was added to it. The `s_update` updates are not walked this way —
+-they take the ordinary index 0 and stay gated by `Φ`, an offset component's
+-first consumed sample remaining its `Φ·Δt_base` tick's.
++shape: the `Int` walk is the one the frame loop runs and nothing was added to
++it. The `s_update` updates are not walked this way — they take the ordinary
++index 0 and stay gated by `Φ`, an offset component's first consumed sample
++remaining its `Φ·Δt_base` tick's.
+ """
+ struct Establish end
+ const ESTABLISH = Establish()
+ 
+-# The walk's index parameter is unconstrained from here down: `run_at!` is the
+-# one site that reads it, and dispatch there is what separates the two gates.
+-# Every caller passes a concrete `Int` or `ESTABLISH`, so each specializes
+-# exactly as it did when the annotation was `::Int`.
+-@inline run_at!(entry, store, xbuf, ẋbuf, tick) = run_entry!(entry, store, xbuf, ẋbuf)
+-
+-@inline function run_at!(entry::Gated, store, xbuf, ẋbuf, tick::Int)
+-    # Under the canonical residue 0 ≤ Φ < D, truncated rem is never 0 on the
+-    # negative pre-first-tick differences, so one subtraction and one remainder
+-    # are the whole admission test — and "everything with Φ = 0" is this same
+-    # gate at index 0, implemented by nothing (§10.5).
+-    (tick - entry.Φ) % entry.D == 0 && run_entry!(entry.entry, store, xbuf, ẋbuf)
+-    nothing
+-end
+-
+-# Establishment admits every gated entry (§14.5, D-205). Dueness at boundary
+-# zero governs the `s_update` updates alone.
+-@inline run_at!(entry::Gated, store, xbuf, ẋbuf, ::Establish) =
+-    (run_entry!(entry.entry, store, xbuf, ẋbuf); nothing)
+-
+ # --- the walk -----------------------------------------------------------------
+ 
+-struct Chunk{E<:Tuple,S,X}
+-    entries::E
+-    store::S
+-    xbuf::X
+-    ẋbuf::X
+-end
+-
+-@noinline (chunk::Chunk)() = _walk(chunk.entries, chunk.store, chunk.xbuf, chunk.ẋbuf)
+-@noinline (chunk::Chunk)(tick) = _walk_at(chunk.entries, chunk.store, chunk.xbuf, chunk.ẋbuf, tick)
+-
+-@inline _walk(::Tuple{}, store, xbuf, ẋbuf) = nothing
+-@inline function _walk(entries::Tuple, store, xbuf, ẋbuf)
+-    run_entry!(entries[1], store, xbuf, ẋbuf)
+-    _walk(Base.tail(entries), store, xbuf, ẋbuf)
+-end
+-
+-@inline _walk_at(::Tuple{}, store, xbuf, ẋbuf, tick) = nothing
+-@inline function _walk_at(entries::Tuple, store, xbuf, ẋbuf, tick)
+-    run_at!(entries[1], store, xbuf, ẋbuf, tick)
+-    _walk_at(Base.tail(entries), store, xbuf, ẋbuf, tick)
+-end
+-
+ """
+-A phase body: **two chunk tuples compiled from one entry list** (§9.7, §10.5).
++A phase body: **two closure vectors built from one entry list** (§9.7, §10.5).
+ 
+ The zero-arg call is the *interior* variant, walking continuous entries only —
+ what RK stage evaluations and guard trial evaluations run, and what
+ `@ballocated(body()) == 0` measures. The ZOH therefore holds mid-step **by
+ construction**: discrete entries are not gated out at runtime, they are absent
+-from the compiled walk, and the hot path carries no gating test at all.
++from the interior vector, and the hot path carries no gating test at all.
+ 
+ The one-arg call is the *boundary* variant, walking the full list with each
+ discrete entry gated by `(tick - Φ) % D` against the index it takes (§10.5,
+ D-185) — or admitted outright, when the argument is `ESTABLISH` rather than an
+-index (§14.5, D-205). Both take the one compiled tuple; only `run_at!`'s
+-dispatch differs, so boundary zero's wide walk costs the measured path
+-nothing.
++index (§14.5, D-205). Both share the closures; only the loop differs.
++
++`entries` runs parallel to `boundary` and is never walked: it keeps the entries
++for inspection.
+ """
+-struct PhaseBody{I<:Tuple,B<:Tuple}
+-    interior::I
+-    boundary::B
++mutable struct PhaseBody
++    const interior::Thunks       # the continuous entries' closures, in order
++    const boundary::Thunks       # every entry's closure, in order
++    const D::Vector{Int}         # per boundary closure: the divisor, 0 when ungated
++    const Φ::Vector{Int}         # per boundary closure: the phase
++    const entries::Vector{Any}
+ end
+ 
+-@inline (body::PhaseBody)() = _walkchunks(body.interior)
+-@inline (body::PhaseBody)(tick) = _walkchunks(body.boundary, tick)
++@noinline function (body::PhaseBody)()
++    for f in body.interior
++        _invoke(f)
++    end
++    nothing
++end
+ 
+-@inline _walkchunks(::Tuple{}) = nothing
+-@inline function _walkchunks(chunks::Tuple)
+-    chunks[1]()
+-    _walkchunks(Base.tail(chunks))
++@noinline function (body::PhaseBody)(tick::Int)
++    fs, D, Φ = body.boundary, body.D, body.Φ
++    # Under the canonical residue 0 ≤ Φ < D, truncated rem is never 0 on the
++    # negative pre-first-tick differences, so one subtraction and one remainder
++    # are the whole admission test — and "everything with Φ = 0" is this same
++    # gate at index 0, implemented by nothing (§10.5).
++    @inbounds for i in eachindex(fs, D, Φ)
++        d = D[i]
++        (d == 0 || (tick - Φ[i]) % d == 0) && _invoke(fs[i])
++    end
++    nothing
+ end
+ 
+-@inline _walkchunks(::Tuple{}, tick) = nothing
+-@inline function _walkchunks(chunks::Tuple, tick)
+-    chunks[1](tick)
+-    _walkchunks(Base.tail(chunks), tick)
++# Establishment admits every gated entry (§14.5, D-205). Dueness at boundary
++# zero governs the `s_update` updates alone.
++@noinline function (body::PhaseBody)(::Establish)
++    for f in body.boundary
++        _invoke(f)
++    end
++    nothing
+ end
+ 
+-# Construction is type-opaque: entries are built into untyped buffers and
+-# splatted once per chunk; the compiled tuple's only consumer is the walk.
+-# `gates` runs parallel to `entries`: `nothing` for a continuous entry, the
+-# compiled `(D, Φ)` pair for a discrete one — which is also what selects the
+-# interior subset, discreteness being a build-time fact (§10.5, D-147).
+-function chunked_body(entries::Vector, gates::Vector, store, xbuf, ẋbuf;
+-                      chunk_size::Int = 16)
+-    chunks(walk_entries) =
+-        tuple((Chunk(tuple(walk_entries[lo:min(lo + chunk_size - 1, length(walk_entries))]...),
+-                    store, xbuf, ẋbuf)
+-              for lo in 1:chunk_size:length(walk_entries))...)
+-    PhaseBody(chunks([e for (e, gt) in zip(entries, gates) if gt === nothing]),
+-              chunks([gt === nothing ? e : Gated(e, gt[1], gt[2])
+-                      for (e, gt) in zip(entries, gates)]))
++# Construction is type-opaque: each entry reaches its closure's factory by
++# dynamic dispatch, which specializes the factory once per entry type. `gates`
++# runs parallel to `entries`: `nothing` for a continuous entry, the compiled
++# `(D, Φ)` pair for a discrete one — which is also what selects the interior
++# subset, discreteness being a build-time fact (§10.5, D-147).
++function phase_body(entries::Vector, gates::Vector, store, xbuf, ẋbuf)
++    thunks = AnyThunk[_entry_thunk(e, store, xbuf, ẋbuf) for e in entries]
++    continuous = [gt === nothing for gt in gates]
++    PhaseBody(thunks[continuous], thunks,
++              Int[gt === nothing ? 0 : gt[1] for gt in gates],
++              Int[gt === nothing ? 0 : gt[2] for gt in gates],
++              collect(Any, entries))
+ end
+diff -ru base/src/localization.jl stackC/src/localization.jl
+--- a/src/localization.jl	2026-10-01 13:40:10
++++ b/src/localization.jl	2026-10-01 17:15:01
+@@ -67,7 +67,7 @@
+         # sweep that closes the integration step is what raises the trigger.
+         _phase!(cursor, :arrival)
+         sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
+-        _guards!(events, sim.exec.store, sim.exec.xbuf)
++        _guards!(events)
+         copyto!(events.σ1, events.σ)
+ 
+         # The trigger (§10.4): localized policy, prior not-holding at the last
+@@ -109,7 +109,7 @@
+         sim.exec.clock.t = t_seg
+         _phase!(cursor, :validation)
+         sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
+-        _guards!(events, sim.exec.store, sim.exec.xbuf)
++        _guards!(events)
+         copyto!(events.σ0, events.σ)
+         remaining = false
+         for i in 1:n_events
+@@ -182,7 +182,7 @@
+     dense!(sim.exec.stepper, sim.exec.xbuf, sim.exec.xnext, sim.exec.ẋnext, θ, h′)
+     sim.exec.clock.t = t_seg + θ * h′
+     sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
+-    _guards!(sim.exec.events, sim.exec.store, sim.exec.xbuf)
++    _guards!(sim.exec.events)
+     nothing
+ end
+ 
+diff -ru base/src/sim.jl stackC/src/sim.jl
+--- a/src/sim.jl	2026-10-01 13:40:10
++++ b/src/sim.jl	2026-10-01 17:15:01
+@@ -461,7 +461,7 @@
+ @inline function boundary!(sim::Simulation, tick::Int)
+     cursor = sim.exec.cursor
+     _phase!(cursor, :project)
+-    _projects!(sim.exec.events, sim.exec.xbuf)
++    _projects!(sim.exec.events)
+     event_phase!(sim, tick)
+     _phase!(cursor, :ticks)
+     sim.exec.bodies.ticks(tick)
+@@ -479,7 +479,7 @@
+ """
+ @inline function offtick_boundary!(sim::Simulation)
+     _phase!(sim.exec.cursor, :project)
+-    _projects!(sim.exec.events, sim.exec.xbuf)
++    _projects!(sim.exec.events)
+     event_phase!(sim, nothing)
+     nothing
+ end
+@@ -506,7 +506,7 @@
+ @inline function boundary_zero!(sim::Simulation)
+     cursor = sim.exec.cursor
+     _phase!(cursor, :project)
+-    _projects!(sim.exec.events, sim.exec.xbuf)
++    _projects!(sim.exec.events)
+     event_phase!(sim, ESTABLISH)
+     _phase!(cursor, :ticks)
+     sim.exec.bodies.ticks(0)
+@@ -553,7 +553,7 @@
+     fill!(events.warned, false)
+     budget = sim.deployment.firing_budget
+     while true
+-        _guards!(events, sim.exec.store, sim.exec.xbuf)
++        _guards!(events)
+         fill!(events.comp_fired, false)
+         any_fired = false
+         for i in 1:n_events
+@@ -579,7 +579,7 @@
+             (eligible && !firing) || (events.last[i] = events.now[i])
+         end
+         any_fired || break
+-        _fire!(events, sim.exec.store, sim.exec.xbuf)
++        _fire!(events)
+         cursor.index += 1
+         _round!(sim, tick)
+     end
+diff -ru base/src/store.jl stackC/src/store.jl
+--- a/src/store.jl	2026-10-01 13:40:10
++++ b/src/store.jl	2026-10-01 17:15:01
+@@ -19,9 +19,9 @@
+ """
+ The store bundle: one homogeneous `CellStore` per element type present in the
+ model's cells, keyed by the eltype's name — the *plural* in §9.7's "per-eltype
+-stores". One concrete bundle type per model, so `Chunk`'s store parameter stays
+-a single type: chunk-type count, not model size, is what bounds the compile
+-curve D-162 measured. Selection is static — the address's port type names its
++stores". One concrete bundle type per model, so each entry type's closure
++compiles once over it: entry-type count, not model size, is what bounds the
++compile curve D-162 measured. Selection is static — the address's port type names its
+ leaf eltypes at compile time, so a gather binds exactly the buffers `P`'s
+ leaves live in, with no runtime lookup — and each of an address's offsets is
+ relative to its own eltype's buffer, `leaf_eltypes` fixing the order.

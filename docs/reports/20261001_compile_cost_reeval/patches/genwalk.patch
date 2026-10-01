@@ -1,0 +1,99 @@
+diff -ru base/src/executor.jl genwalk/src/executor.jl
+--- a/src/executor.jl	2026-10-01 13:40:10
++++ b/src/executor.jl	2026-10-01 16:22:09
+@@ -294,18 +294,19 @@
+ # masked entries, latching the returned stores — `x` into the flat buffer, `m`
+ # merged into the mode store, per the return law's iff shape (§5.2).
+ 
++# Every walk unrolls by a generated body, one statement per element: a
++# `Base.tail` recursion stops inferring past 32 elements.
++_unrolled(call, n::Int) = Expr(:block, Expr(:meta, :inline), map(call, 1:n)..., :nothing)
++
+ @noinline _projects!(event_set::EventSet, xbuf) = _proj_walk(event_set.projects, xbuf)
+-@inline _proj_walk(::Tuple{}, xbuf) = nothing
+-@inline function _proj_walk(projects::Tuple, xbuf)
+-    run_project!(projects[1], xbuf)
+-    _proj_walk(Base.tail(projects), xbuf)
+-end
++@generated _proj_walk(projects::Tuple, xbuf) =
++    _unrolled(i -> :(run_project!(projects[$i], xbuf)), fieldcount(projects))
+ 
+ @noinline _guards!(event_set::EventSet, store, xbuf) =
+     _guard_walk(event_set.entries, store, xbuf, event_set.now, event_set.σ)
+-@inline _guard_walk(::Tuple{}, store, xbuf, now, σs) = nothing
+-@inline function _guard_walk(entries::Tuple, store, xbuf, now, σs)
+-    entry = entries[1]
++@generated _guard_walk(entries::Tuple, store, xbuf, now, σs) =
++    _unrolled(i -> :(_guard_entry!(entries[$i], store, xbuf, now, σs)), fieldcount(entries))
++@inline function _guard_entry!(entry, store, xbuf, now, σs)
+     entry.cursor.comp = entry.ci; entry.cursor.fn = :guard
+     σ = entry.guard(entry.comp, make_bundle(entry, store, xbuf))
+     now[entry.event_index] = _holding(σ)
+@@ -313,20 +314,20 @@
+     # return type is in the entry's type, so the branch folds per entry: a
+     # `Bool` guard never touches the register.
+     σ isa Bool || (σs[entry.event_index] = σ)
+-    _guard_walk(Base.tail(entries), store, xbuf, now, σs)
++    nothing
+ end
+ 
+ @noinline _fire!(event_set::EventSet, store, xbuf) =
+     _fire_walk(event_set.entries, store, xbuf, event_set.fire)
+-@inline _fire_walk(::Tuple{}, store, xbuf, fire) = nothing
+-@inline function _fire_walk(entries::Tuple, store, xbuf, fire)
+-    entry = entries[1]
++@generated _fire_walk(entries::Tuple, store, xbuf, fire) =
++    _unrolled(i -> :(_fire_entry!(entries[$i], store, xbuf, fire)), fieldcount(entries))
++@inline function _fire_entry!(entry, store, xbuf, fire)
+     if fire[entry.event_index]
+         entry.cursor.comp = entry.ci; entry.cursor.fn = :handler
+         _latch!(entry, entry.handler(entry.comp, make_bundle(entry, store, xbuf)), xbuf)
+         _fire_project!(entry, xbuf)
+     end
+-    _fire_walk(Base.tail(entries), store, xbuf, fire)
++    nothing
+ end
+ 
+ @inline function _latch!(entry::EventEntry{G,H,P,Comp,XT}, returned::NamedTuple,
+@@ -459,17 +460,11 @@
+ @noinline (chunk::Chunk)() = _walk(chunk.entries, chunk.store, chunk.xbuf, chunk.ẋbuf)
+ @noinline (chunk::Chunk)(tick) = _walk_at(chunk.entries, chunk.store, chunk.xbuf, chunk.ẋbuf, tick)
+ 
+-@inline _walk(::Tuple{}, store, xbuf, ẋbuf) = nothing
+-@inline function _walk(entries::Tuple, store, xbuf, ẋbuf)
+-    run_entry!(entries[1], store, xbuf, ẋbuf)
+-    _walk(Base.tail(entries), store, xbuf, ẋbuf)
+-end
++@generated _walk(entries::Tuple, store, xbuf, ẋbuf) =
++    _unrolled(i -> :(run_entry!(entries[$i], store, xbuf, ẋbuf)), fieldcount(entries))
+ 
+-@inline _walk_at(::Tuple{}, store, xbuf, ẋbuf, tick) = nothing
+-@inline function _walk_at(entries::Tuple, store, xbuf, ẋbuf, tick)
+-    run_at!(entries[1], store, xbuf, ẋbuf, tick)
+-    _walk_at(Base.tail(entries), store, xbuf, ẋbuf, tick)
+-end
++@generated _walk_at(entries::Tuple, store, xbuf, ẋbuf, tick) =
++    _unrolled(i -> :(run_at!(entries[$i], store, xbuf, ẋbuf, tick)), fieldcount(entries))
+ 
+ """
+ A phase body: **two chunk tuples compiled from one entry list** (§9.7, §10.5).
+@@ -495,17 +490,8 @@
+ @inline (body::PhaseBody)() = _walkchunks(body.interior)
+ @inline (body::PhaseBody)(tick) = _walkchunks(body.boundary, tick)
+ 
+-@inline _walkchunks(::Tuple{}) = nothing
+-@inline function _walkchunks(chunks::Tuple)
+-    chunks[1]()
+-    _walkchunks(Base.tail(chunks))
+-end
+-
+-@inline _walkchunks(::Tuple{}, tick) = nothing
+-@inline function _walkchunks(chunks::Tuple, tick)
+-    chunks[1](tick)
+-    _walkchunks(Base.tail(chunks), tick)
+-end
++@generated _walkchunks(chunks::Tuple) = _unrolled(i -> :(chunks[$i]()), fieldcount(chunks))
++@generated _walkchunks(chunks::Tuple, tick) = _unrolled(i -> :(chunks[$i](tick)), fieldcount(chunks))
+ 
+ # Construction is type-opaque: entries are built into untyped buffers and
+ # splatted once per chunk; the compiled tuple's only consumer is the walk.

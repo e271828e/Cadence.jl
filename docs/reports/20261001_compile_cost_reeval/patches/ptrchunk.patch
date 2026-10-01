@@ -1,0 +1,12 @@
+diff -ru base/src/executor.jl ptrchunk/src/executor.jl
+--- a/src/executor.jl	2026-10-01 13:40:10
++++ b/src/executor.jl	2026-10-01 16:21:31
+@@ -449,7 +449,7 @@
+ 
+ # --- the walk -----------------------------------------------------------------
+ 
+-struct Chunk{E<:Tuple,S,X}
++mutable struct Chunk{E<:Tuple,S,X}
+     entries::E
+     store::S
+     xbuf::X

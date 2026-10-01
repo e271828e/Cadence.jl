@@ -1,0 +1,577 @@
+diff -ru base/src/build.jl entryclosures/src/build.jl
+--- a/src/build.jl	2026-10-01 13:40:10
++++ b/src/build.jl	2026-10-01 16:30:10
+@@ -1312,8 +1312,9 @@
+ 
+ """
+ One executor (§9.7, glossary): the compiled execution form of the schedule over
+-its own buffers, at one scalar — the entries' concretely-typed tuples closed
+-into the phase bodies, beside the store set they read and write.
++its own buffers, at one scalar — one opaque closure per entry, gathered into
++the phase bodies, beside the store set they read and write. No parameter
++carries the topology: `B` and `EV` are the same for every model.
+ 
+ Buffers are never cached, because every buffer set has exactly one owner
+ (§9.2): a `Simulation` owns its nominal executor, and every service invocation
+@@ -1335,8 +1336,8 @@
+     bodies::B              # the phase bodies, closed over the buffers above
+     events::EV             # the compiled event set, likewise (nominal only)
+     cursor::ExecutionCursor          # §13.4: where execution is, written per dispatch
+-    chunk_size::Int        # the unroll width it was compiled at, retained so a service
+-                           # can compile one of its own exactly as this was
++    chunk_size::Int        # accepted and ignored: the walks hold one closure per entry,
++                           # so there is no unroll width; retained for the services' calls
+     stepper::M             # the seam's backend (§10.2), with its own scratch
+     xnext::Vector{T}       # the retained arrival pair (§10.4), xₙ₊₁ saved
+     ẋnext::Vector{T}       # ẋₙ₊₁, paid only past a validated trigger
+@@ -1517,7 +1518,7 @@
+                              if entry.tier === CONTINUOUS &&
+                                 has_stage(x_projection, entry.instance)]
+ 
+-    body(entries, gates) = chunked_body(entries, gates, store, xbuf, ẋbuf; chunk_size)
++    body(entries, gates) = phase_body(entries, gates, store, xbuf, ẋbuf)
+     # Beside the four blocks ride the per-event and per-projection callables,
+     # keyed by the roster (§9.7): (path, event name) and path.
+     event_bodies = Dict{Tuple{String,Symbol},NamedTuple}(
+@@ -1533,7 +1534,7 @@
+               events = event_bodies, projections = projection_bodies)
+ 
+     event_set = EventSet(event_entries, projection_entries, event_owner, event_names,
+-                         event_localized, length(components))
++                         event_localized, length(components), store, xbuf)
+     # The seam's backend and the arrival pair are this buffer set's, so they are
+     # built here rather than by the caller (§12.6, D-256).
+     Executor(act, store, xbuf, ẋbuf, sstores, mstores, clock, bodies, event_set, cursor,
+diff -ru base/src/executor.jl entryclosures/src/executor.jl
+--- a/src/executor.jl	2026-10-01 13:40:10
++++ b/src/executor.jl	2026-10-01 16:29:59
+@@ -1,7 +1,6 @@
+ # The compiled executor (§9.7): schedule entries carrying what selects code in
+-# type parameters and what is plain data in fields, gathered into chunked
+-# statically-typed tuples behind non-inlined barriers, traversed by a
+-# compile-time-unrolled walk.
++# type parameters and what is plain data in fields, each closed into one opaque
++# closure over the executor's buffers, walked by a plain loop over a vector.
+ 
+ # --- the execution cursor (§13.4, D-059) ---------------------------------------
+ 
+@@ -172,6 +171,34 @@
+     nothing
+ end
+ 
++# --- one opaque closure per entry ---------------------------------------------
++# An entry and the buffers it runs over are closed into an opaque closure, so a
++# walk is a loop over a vector whose type carries nothing of the model. The
++# closure's body compiles once per entry *type*: a second instance of a known
++# type reuses it, and the executor's type no longer depends on the topology.
++#
++# Opaque closures run in the world they were created in: a method redefined
++# after compilation reaches a simulation only when it is built again.
++
++using Base.Experimental: @opaque
++
++const Thunk = Core.OpaqueClosure{Tuple{},Nothing}
++
++# Boxed on purpose: the vector's eltype is abstract, so each element is a heap
++# object `_invoke` hands over as is. A concretely typed `Vector{Thunk}` stores
++# the closures inline, and on Julia 1.13 every call of an inline closure goes
++# through a `specptr` adapter that boxes it again, 48 bytes per call.
++const AnyThunk = Core.OpaqueClosure{Tuple{}}
++const Thunks = Vector{AnyThunk}
++
++# The closure's own entry point, `jl_fptr_args` with no arguments: the
++# allocation-free call of a boxed closure, without dynamic dispatch.
++@inline _invoke(f) =
++    (ccall((f::Thunk).invoke, Any, (Any, Ptr{Any}, UInt32), f, C_NULL, 0); nothing)
++
++_entry_thunk(entry, store, xbuf, ẋbuf) =
++    @opaque Tuple{} -> Nothing () -> (run_entry!(entry, store, xbuf, ẋbuf); nothing)
++
+ # --- the event machinery (§10.6, §5.3) ------------------------------------------
+ # Not sweep entries: guards and handlers are driven by the boundary iteration in
+ # `sim.jl`, against per-event registers, so their entries live in their own
+@@ -241,13 +268,13 @@
+ end
+ 
+ """
+-The per-`Simulation` compiled event set: the entry tuples plus the §10.6
+-registers. The three normative registers — prior, last-observed sample, firing
+-count — are detection bookkeeping, not model memory: plain vectors indexed by
+-the global event index, in no state store, reconstructed deterministically.
+-`now`, `fire` and `comp_fired` are the iteration's round-scoped scratch, and
+-`warned` implements "at most once per event per boundary" for the
+-`FiringBudget` degradation.
++The per-`Simulation` compiled event set: one opaque closure per event and per
++projection, plus the §10.6 registers. The three normative registers — prior,
++last-observed sample, firing count — are detection bookkeeping, not model
++memory: plain vectors indexed by the global event index, in no state store,
++reconstructed deterministically. `now`, `fire` and `comp_fired` are the
++iteration's round-scoped scratch, and `warned` implements "at most once per
++event per boundary" for the `FiringBudget` degradation.
+ 
+ The localization registers (§10.4) sit beside them: `localized` is the
+ runtime's read, fixed at compilation, of the policies the `Events` rows carry;
+@@ -255,79 +282,99 @@
+ holds its predicate, `σ ≥ 0`); `σ0`/`σ1` retain the θ = 0 validation and arrival
+ samples across the trials that clobber `σ`; `triggered` is the frame's triggered set
+ and `loc_warned` the `ChatteringBudget` once-per-event-per-frame latch.
++
++Its type carries nothing of the model: the entries live in the closures, and
++`entries` keeps them for inspection only. Mutable, so the walks take a pointer.
+ """
+-struct EventSet{E<:Tuple,P<:Tuple}
+-    entries::E
+-    projects::P
+-    owner::Vector{Int}                   # component index per event
+-    names::Vector{Tuple{String,Symbol}}  # (path, event name), for the degradation warnings
+-    localized::Vector{Bool}              # detection policy per event (§10.4)
+-    now::Vector{Bool}
+-    prior::Vector{Bool}
+-    last::Vector{Bool}
+-    fire::Vector{Bool}
+-    count::Vector{Int}
+-    warned::Vector{Bool}
+-    comp_fired::Vector{Bool}             # per component, round-scoped
+-    σ::Vector{Float64}
+-    σ0::Vector{Float64}
+-    σ1::Vector{Float64}
+-    triggered::Vector{Bool}
+-    loc_warned::Vector{Bool}
++mutable struct EventSet
++    const entries::Vector{Any}            # the event entries, by global index; never walked
++    const guards::Thunks                  # per event: guard, then `now` (and `σ`) written
++    const handlers::Thunks                # per event: handler → latch → `x_projection`
++    const projects::Thunks                # per projecting component: `x_projection`
++    const owner::Vector{Int}                   # component index per event
++    const names::Vector{Tuple{String,Symbol}}  # (path, event name), for the degradation warnings
++    const localized::Vector{Bool}              # detection policy per event (§10.4)
++    const now::Vector{Bool}
++    const prior::Vector{Bool}
++    const last::Vector{Bool}
++    const fire::Vector{Bool}
++    const count::Vector{Int}
++    const warned::Vector{Bool}
++    const comp_fired::Vector{Bool}             # per component, round-scoped
++    const σ::Vector{Float64}
++    const σ0::Vector{Float64}
++    const σ1::Vector{Float64}
++    const triggered::Vector{Bool}
++    const loc_warned::Vector{Bool}
+ end
+ 
+ function EventSet(entries::Vector, projects::Vector,
+                   owner::Vector{Int}, names::Vector{Tuple{String,Symbol}},
+-                  localized::Vector{Bool}, n_components::Int)
++                  localized::Vector{Bool}, n_components::Int, store, xbuf)
+     n_events = length(entries)
+-    EventSet(tuple(entries...), tuple(projects...), owner, names, localized,
+-             fill(false, n_events), fill(false, n_events), fill(false, n_events),
++    now, σ = fill(false, n_events), zeros(n_events)
++    EventSet(collect(Any, entries),
++             AnyThunk[_guard_thunk(e, store, xbuf, now, σ) for e in entries],
++             AnyThunk[_handler_thunk(e, store, xbuf) for e in entries],
++             AnyThunk[_project_thunk(p, xbuf) for p in projects],
++             owner, names, localized,
++             now, fill(false, n_events), fill(false, n_events),
+              fill(false, n_events), zeros(Int, n_events), fill(false, n_events),
+-             fill(false, n_components), zeros(n_events), zeros(n_events),
++             fill(false, n_components), σ, zeros(n_events),
+              zeros(n_events), fill(false, n_events), fill(false, n_events))
+ end
+ 
+-# The three walks the iteration drives, each the compile-time-unrolled tuple
+-# recursion of the phase bodies, over the executor's buffers the caller hands
+-# them (D-261). Guard evaluation writes each predicate sample into `now` by
+-# global index; the fire walk runs `handler → x_projection` for exactly the
+-# masked entries, latching the returned stores — `x` into the flat buffer, `m`
+-# merged into the mode store, per the return law's iff shape (§5.2).
++# The three walks the iteration drives, each a plain loop over its closures,
++# which captured the executor's buffers at compilation (D-261). Guard evaluation
++# writes each predicate sample into `now` by global index; the fire walk runs
++# `handler → x_projection` for exactly the masked entries, latching the
++# returned stores — `x` into the flat buffer, `m` merged into the mode store,
++# per the return law's iff shape (§5.2).
+ 
+-@noinline _projects!(event_set::EventSet, xbuf) = _proj_walk(event_set.projects, xbuf)
+-@inline _proj_walk(::Tuple{}, xbuf) = nothing
+-@inline function _proj_walk(projects::Tuple, xbuf)
+-    run_project!(projects[1], xbuf)
+-    _proj_walk(Base.tail(projects), xbuf)
++@noinline function _projects!(event_set::EventSet)
++    for f in event_set.projects
++        _invoke(f)
++    end
++    nothing
+ end
+ 
+-@noinline _guards!(event_set::EventSet, store, xbuf) =
+-    _guard_walk(event_set.entries, store, xbuf, event_set.now, event_set.σ)
+-@inline _guard_walk(::Tuple{}, store, xbuf, now, σs) = nothing
+-@inline function _guard_walk(entries::Tuple, store, xbuf, now, σs)
+-    entry = entries[1]
+-    entry.cursor.comp = entry.ci; entry.cursor.fn = :guard
+-    σ = entry.guard(entry.comp, make_bundle(entry, store, xbuf))
+-    now[entry.event_index] = _holding(σ)
+-    # The numeric sample, for the localization brackets (§10.4). The guard's
+-    # return type is in the entry's type, so the branch folds per entry: a
+-    # `Bool` guard never touches the register.
+-    σ isa Bool || (σs[entry.event_index] = σ)
+-    _guard_walk(Base.tail(entries), store, xbuf, now, σs)
++@noinline function _guards!(event_set::EventSet)
++    for f in event_set.guards
++        _invoke(f)
++    end
++    nothing
+ end
+ 
+-@noinline _fire!(event_set::EventSet, store, xbuf) =
+-    _fire_walk(event_set.entries, store, xbuf, event_set.fire)
+-@inline _fire_walk(::Tuple{}, store, xbuf, fire) = nothing
+-@inline function _fire_walk(entries::Tuple, store, xbuf, fire)
+-    entry = entries[1]
+-    if fire[entry.event_index]
++@noinline function _fire!(event_set::EventSet)
++    fire, handlers = event_set.fire, event_set.handlers
++    for i in eachindex(handlers)
++        fire[i] && _invoke(handlers[i])
++    end
++    nothing
++end
++
++_project_thunk(entry::ProjectEntry, xbuf) =
++    @opaque Tuple{} -> Nothing () -> run_project!(entry, xbuf)
++
++_guard_thunk(entry::EventEntry, store, xbuf, now, σs) =
++    @opaque Tuple{} -> Nothing () -> begin
++        entry.cursor.comp = entry.ci; entry.cursor.fn = :guard
++        σ = entry.guard(entry.comp, make_bundle(entry, store, xbuf))
++        now[entry.event_index] = _holding(σ)
++        # The numeric sample, for the localization brackets (§10.4). The guard's
++        # return type is in the entry's type, so the branch folds per entry
++        # type: a `Bool` guard never touches the register.
++        σ isa Bool || (σs[entry.event_index] = σ)
++        nothing
++    end
++
++_handler_thunk(entry::EventEntry, store, xbuf) =
++    @opaque Tuple{} -> Nothing () -> begin
+         entry.cursor.comp = entry.ci; entry.cursor.fn = :handler
+         _latch!(entry, entry.handler(entry.comp, make_bundle(entry, store, xbuf)), xbuf)
+         _fire_project!(entry, xbuf)
++        nothing
+     end
+-    _fire_walk(Base.tail(entries), store, xbuf, fire)
+-end
+ 
+ @inline function _latch!(entry::EventEntry{G,H,P,Comp,XT}, returned::NamedTuple,
+                          xbuf) where {G,H,P,Comp,XT}
+@@ -400,18 +447,12 @@
+ _project_body(entry::ProjectEntry, xbuf) = () -> run_project!(entry, xbuf)
+ 
+ # --- the gate (§10.5, D-185, D-205) ---------------------------------------------
+-# The boundary sweep walks the full list with *discrete* entries gated by
+-# `(tick − Φ) % D == 0`. The gate is a wrapper only discrete entries wear, so a
+-# continuous entry pays nothing at a boundary, and the interior walk — compiled
+-# from continuous entries alone — never meets an index at all: an empty due set
+-# is arity selection, never a sentinel index failing every gate (D-185).
++# The boundary walk runs the full list with *discrete* entries gated by
++# `(tick − Φ) % D == 0`, `D` and `Φ` held beside the closures; a continuous
++# entry carries `D = 0` and is never tested. The interior walk, built from
++# continuous entries alone, never meets an index at all: an empty due set is
++# arity selection, never a sentinel index failing every gate (D-185).
+ 
+-struct Gated{E}
+-    entry::E
+-    D::Int
+-    Φ::Int
+-end
+-
+ """
+ Boundary zero's wide gate (§14.5, D-205), spelled as the marker the boundary
+ walk takes in place of a tick index: every discrete output stage runs there,
+@@ -419,106 +460,80 @@
+ published cell holds the probe's synthesized values.
+ 
+ It is a *marker*, not an index, precisely so the measured path keeps its
+-shape: `run_at!` against an `Int` is the method the frame loop compiles and
+-nothing was added to it. The `s_update` updates are not walked this way —
+-they take the ordinary index 0 and stay gated by `Φ`, an offset component's
+-first consumed sample remaining its `Φ·Δt_base` tick's.
++shape: the `Int` walk is the one the frame loop runs and nothing was added to
++it. The `s_update` updates are not walked this way — they take the ordinary
++index 0 and stay gated by `Φ`, an offset component's first consumed sample
++remaining its `Φ·Δt_base` tick's.
+ """
+ struct Establish end
+ const ESTABLISH = Establish()
+ 
+-# The walk's index parameter is unconstrained from here down: `run_at!` is the
+-# one site that reads it, and dispatch there is what separates the two gates.
+-# Every caller passes a concrete `Int` or `ESTABLISH`, so each specializes
+-# exactly as it did when the annotation was `::Int`.
+-@inline run_at!(entry, store, xbuf, ẋbuf, tick) = run_entry!(entry, store, xbuf, ẋbuf)
+-
+-@inline function run_at!(entry::Gated, store, xbuf, ẋbuf, tick::Int)
+-    # Under the canonical residue 0 ≤ Φ < D, truncated rem is never 0 on the
+-    # negative pre-first-tick differences, so one subtraction and one remainder
+-    # are the whole admission test — and "everything with Φ = 0" is this same
+-    # gate at index 0, implemented by nothing (§10.5).
+-    (tick - entry.Φ) % entry.D == 0 && run_entry!(entry.entry, store, xbuf, ẋbuf)
+-    nothing
+-end
+-
+-# Establishment admits every gated entry (§14.5, D-205). Dueness at boundary
+-# zero governs the `s_update` updates alone.
+-@inline run_at!(entry::Gated, store, xbuf, ẋbuf, ::Establish) =
+-    (run_entry!(entry.entry, store, xbuf, ẋbuf); nothing)
+-
+ # --- the walk -----------------------------------------------------------------
+ 
+-struct Chunk{E<:Tuple,S,X}
+-    entries::E
+-    store::S
+-    xbuf::X
+-    ẋbuf::X
+-end
+-
+-@noinline (chunk::Chunk)() = _walk(chunk.entries, chunk.store, chunk.xbuf, chunk.ẋbuf)
+-@noinline (chunk::Chunk)(tick) = _walk_at(chunk.entries, chunk.store, chunk.xbuf, chunk.ẋbuf, tick)
+-
+-@inline _walk(::Tuple{}, store, xbuf, ẋbuf) = nothing
+-@inline function _walk(entries::Tuple, store, xbuf, ẋbuf)
+-    run_entry!(entries[1], store, xbuf, ẋbuf)
+-    _walk(Base.tail(entries), store, xbuf, ẋbuf)
+-end
+-
+-@inline _walk_at(::Tuple{}, store, xbuf, ẋbuf, tick) = nothing
+-@inline function _walk_at(entries::Tuple, store, xbuf, ẋbuf, tick)
+-    run_at!(entries[1], store, xbuf, ẋbuf, tick)
+-    _walk_at(Base.tail(entries), store, xbuf, ẋbuf, tick)
+-end
+-
+ """
+-A phase body: **two chunk tuples compiled from one entry list** (§9.7, §10.5).
++A phase body: **two closure vectors built from one entry list** (§9.7, §10.5).
+ 
+ The zero-arg call is the *interior* variant, walking continuous entries only —
+ what RK stage evaluations and guard trial evaluations run, and what
+ `@ballocated(body()) == 0` measures. The ZOH therefore holds mid-step **by
+ construction**: discrete entries are not gated out at runtime, they are absent
+-from the compiled walk, and the hot path carries no gating test at all.
++from the interior vector, and the hot path carries no gating test at all.
+ 
+ The one-arg call is the *boundary* variant, walking the full list with each
+ discrete entry gated by `(tick - Φ) % D` against the index it takes (§10.5,
+ D-185) — or admitted outright, when the argument is `ESTABLISH` rather than an
+-index (§14.5, D-205). Both take the one compiled tuple; only `run_at!`'s
+-dispatch differs, so boundary zero's wide walk costs the measured path
+-nothing.
++index (§14.5, D-205). Both share the closures; only the loop differs.
++
++`entries` runs parallel to `boundary` and is never walked: it keeps the entries
++for inspection.
+ """
+-struct PhaseBody{I<:Tuple,B<:Tuple}
+-    interior::I
+-    boundary::B
++mutable struct PhaseBody
++    const interior::Thunks       # the continuous entries' closures, in order
++    const boundary::Thunks       # every entry's closure, in order
++    const D::Vector{Int}         # per boundary closure: the divisor, 0 when ungated
++    const Φ::Vector{Int}         # per boundary closure: the phase
++    const entries::Vector{Any}
+ end
+ 
+-@inline (body::PhaseBody)() = _walkchunks(body.interior)
+-@inline (body::PhaseBody)(tick) = _walkchunks(body.boundary, tick)
++@noinline function (body::PhaseBody)()
++    for f in body.interior
++        _invoke(f)
++    end
++    nothing
++end
+ 
+-@inline _walkchunks(::Tuple{}) = nothing
+-@inline function _walkchunks(chunks::Tuple)
+-    chunks[1]()
+-    _walkchunks(Base.tail(chunks))
++@noinline function (body::PhaseBody)(tick::Int)
++    fs, D, Φ = body.boundary, body.D, body.Φ
++    # Under the canonical residue 0 ≤ Φ < D, truncated rem is never 0 on the
++    # negative pre-first-tick differences, so one subtraction and one remainder
++    # are the whole admission test — and "everything with Φ = 0" is this same
++    # gate at index 0, implemented by nothing (§10.5).
++    @inbounds for i in eachindex(fs, D, Φ)
++        d = D[i]
++        (d == 0 || (tick - Φ[i]) % d == 0) && _invoke(fs[i])
++    end
++    nothing
+ end
+ 
+-@inline _walkchunks(::Tuple{}, tick) = nothing
+-@inline function _walkchunks(chunks::Tuple, tick)
+-    chunks[1](tick)
+-    _walkchunks(Base.tail(chunks), tick)
++# Establishment admits every gated entry (§14.5, D-205). Dueness at boundary
++# zero governs the `s_update` updates alone.
++@noinline function (body::PhaseBody)(::Establish)
++    for f in body.boundary
++        _invoke(f)
++    end
++    nothing
+ end
+ 
+-# Construction is type-opaque: entries are built into untyped buffers and
+-# splatted once per chunk; the compiled tuple's only consumer is the walk.
+-# `gates` runs parallel to `entries`: `nothing` for a continuous entry, the
+-# compiled `(D, Φ)` pair for a discrete one — which is also what selects the
+-# interior subset, discreteness being a build-time fact (§10.5, D-147).
+-function chunked_body(entries::Vector, gates::Vector, store, xbuf, ẋbuf;
+-                      chunk_size::Int = 16)
+-    chunks(walk_entries) =
+-        tuple((Chunk(tuple(walk_entries[lo:min(lo + chunk_size - 1, length(walk_entries))]...),
+-                    store, xbuf, ẋbuf)
+-              for lo in 1:chunk_size:length(walk_entries))...)
+-    PhaseBody(chunks([e for (e, gt) in zip(entries, gates) if gt === nothing]),
+-              chunks([gt === nothing ? e : Gated(e, gt[1], gt[2])
+-                      for (e, gt) in zip(entries, gates)]))
++# Construction is type-opaque: each entry reaches its closure's factory by
++# dynamic dispatch, which specializes the factory once per entry type. `gates`
++# runs parallel to `entries`: `nothing` for a continuous entry, the compiled
++# `(D, Φ)` pair for a discrete one — which is also what selects the interior
++# subset, discreteness being a build-time fact (§10.5, D-147).
++function phase_body(entries::Vector, gates::Vector, store, xbuf, ẋbuf)
++    thunks = AnyThunk[_entry_thunk(e, store, xbuf, ẋbuf) for e in entries]
++    continuous = [gt === nothing for gt in gates]
++    PhaseBody(thunks[continuous], thunks,
++              Int[gt === nothing ? 0 : gt[1] for gt in gates],
++              Int[gt === nothing ? 0 : gt[2] for gt in gates],
++              collect(Any, entries))
+ end
+diff -ru base/src/localization.jl entryclosures/src/localization.jl
+--- a/src/localization.jl	2026-10-01 13:40:10
++++ b/src/localization.jl	2026-10-01 16:30:10
+@@ -67,7 +67,7 @@
+         # sweep that closes the integration step is what raises the trigger.
+         _phase!(cursor, :arrival)
+         sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
+-        _guards!(events, sim.exec.store, sim.exec.xbuf)
++        _guards!(events)
+         copyto!(events.σ1, events.σ)
+ 
+         # The trigger (§10.4): localized policy, prior not-holding at the last
+@@ -109,7 +109,7 @@
+         sim.exec.clock.t = t_seg
+         _phase!(cursor, :validation)
+         sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
+-        _guards!(events, sim.exec.store, sim.exec.xbuf)
++        _guards!(events)
+         copyto!(events.σ0, events.σ)
+         remaining = false
+         for i in 1:n_events
+@@ -182,7 +182,7 @@
+     dense!(sim.exec.stepper, sim.exec.xbuf, sim.exec.xnext, sim.exec.ẋnext, θ, h′)
+     sim.exec.clock.t = t_seg + θ * h′
+     sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
+-    _guards!(sim.exec.events, sim.exec.store, sim.exec.xbuf)
++    _guards!(sim.exec.events)
+     nothing
+ end
+ 
+diff -ru base/src/sim.jl entryclosures/src/sim.jl
+--- a/src/sim.jl	2026-10-01 13:40:10
++++ b/src/sim.jl	2026-10-01 16:30:10
+@@ -461,7 +461,7 @@
+ @inline function boundary!(sim::Simulation, tick::Int)
+     cursor = sim.exec.cursor
+     _phase!(cursor, :project)
+-    _projects!(sim.exec.events, sim.exec.xbuf)
++    _projects!(sim.exec.events)
+     event_phase!(sim, tick)
+     _phase!(cursor, :ticks)
+     sim.exec.bodies.ticks(tick)
+@@ -479,7 +479,7 @@
+ """
+ @inline function offtick_boundary!(sim::Simulation)
+     _phase!(sim.exec.cursor, :project)
+-    _projects!(sim.exec.events, sim.exec.xbuf)
++    _projects!(sim.exec.events)
+     event_phase!(sim, nothing)
+     nothing
+ end
+@@ -506,7 +506,7 @@
+ @inline function boundary_zero!(sim::Simulation)
+     cursor = sim.exec.cursor
+     _phase!(cursor, :project)
+-    _projects!(sim.exec.events, sim.exec.xbuf)
++    _projects!(sim.exec.events)
+     event_phase!(sim, ESTABLISH)
+     _phase!(cursor, :ticks)
+     sim.exec.bodies.ticks(0)
+@@ -553,7 +553,7 @@
+     fill!(events.warned, false)
+     budget = sim.deployment.firing_budget
+     while true
+-        _guards!(events, sim.exec.store, sim.exec.xbuf)
++        _guards!(events)
+         fill!(events.comp_fired, false)
+         any_fired = false
+         for i in 1:n_events
+@@ -579,7 +579,7 @@
+             (eligible && !firing) || (events.last[i] = events.now[i])
+         end
+         any_fired || break
+-        _fire!(events, sim.exec.store, sim.exec.xbuf)
++        _fire!(events)
+         cursor.index += 1
+         _round!(sim, tick)
+     end
+diff -ru base/src/store.jl entryclosures/src/store.jl
+--- a/src/store.jl	2026-10-01 13:40:10
++++ b/src/store.jl	2026-10-01 16:30:26
+@@ -19,9 +19,9 @@
+ """
+ The store bundle: one homogeneous `CellStore` per element type present in the
+ model's cells, keyed by the eltype's name — the *plural* in §9.7's "per-eltype
+-stores". One concrete bundle type per model, so `Chunk`'s store parameter stays
+-a single type: chunk-type count, not model size, is what bounds the compile
+-curve D-162 measured. Selection is static — the address's port type names its
++stores". One concrete bundle type per model, so each entry type's closure
++compiles once over it: entry-type count, not model size, is what bounds the
++compile curve D-162 measured. Selection is static — the address's port type names its
+ leaf eltypes at compile time, so a gather binds exactly the buffers `P`'s
+ leaves live in, with no runtime lookup — and each of an address's offsets is
+ relative to its own eltype's buffer, `leaf_eltypes` fixing the order.
+diff -ru base/test/imports.jl entryclosures/test/imports.jl
+--- a/test/imports.jl	2026-10-01 13:40:10
++++ b/test/imports.jl	2026-10-01 16:30:26
+@@ -19,7 +19,7 @@
+     DuplicateConditionLeaf, EMPTY_DIAG, EmptyFaceSelection, EmptyGreedyClaim,
+     EndTimeReached, EntryTypeMismatch, EventHalfMissing, Events,
+     Executor, FaceDirectionConflict, FaceNameCollision, FaceNameIllegal,
+-    FiringBudget, Fragment, FrameworkStatus, Gated, GetDeriv, GridEntry, GridReport, GridUtilization,
++    FiringBudget, Fragment, FrameworkStatus, GetDeriv, GridEntry, GridReport, GridUtilization,
+     Group, GuardForm,
+     HandlerReturnKey, Heun, Hz, IllegalPortType, IllegalStateLeaf, IllegalStoreField, InternalInvariant,
+     KINDS, KindCounts, LEGAL_BUNDLE, LINEARIZE_WIDTH, Linearization, LinearizeDual,
+diff -ru base/test/utils.jl entryclosures/test/utils.jl
+--- a/test/utils.jl	2026-10-01 13:40:10
++++ b/test/utils.jl	2026-10-01 16:30:26
+@@ -3,13 +3,13 @@
+ const D8 = ForwardDiff.Dual{Nothing,Float64,8}
+ 
+ # The entries a phase body walks, per variant (§10.5): the boundary variant is
+-# the full list — its discrete entries wearing their `Gated` wrapper, unwrapped
+-# here — the interior one the continuous entries alone.
++# the full list, the interior one the continuous entries alone — those with no
++# divisor beside their closure.
+ walked(body, variant = :boundary) =
+-    [e isa Gated ? e.entry : e for c in getfield(body, variant) for e in c.entries]
++    variant === :boundary ? body.entries : body.entries[body.D .== 0]
+ 
+ # The gated entries of a body's boundary variant.
+-gated(body) = count(e isa Gated for c in body.boundary for e in c.entries)
++gated(body) = count(!=(0), body.D)
+ 
+ # A model of one component under a wrapper assembly — kept where a fixture wants
+ # a named face; a bare leaf builds too (D-208).

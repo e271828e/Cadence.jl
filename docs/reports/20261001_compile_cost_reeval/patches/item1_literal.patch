@@ -1,0 +1,14 @@
+diff -ru base/src/executor.jl item1_literal/src/executor.jl
+--- a/src/executor.jl	2026-10-01 13:40:10
++++ b/src/executor.jl	2026-10-01 16:21:31
+@@ -492,8 +492,8 @@
+     boundary::B
+ end
+ 
+-@inline (body::PhaseBody)() = _walkchunks(body.interior)
+-@inline (body::PhaseBody)(tick) = _walkchunks(body.boundary, tick)
++@noinline (body::PhaseBody)() = _walkchunks(body.interior)
++@noinline (body::PhaseBody)(tick) = _walkchunks(body.boundary, tick)
+ 
+ @inline _walkchunks(::Tuple{}) = nothing
+ @inline function _walkchunks(chunks::Tuple)

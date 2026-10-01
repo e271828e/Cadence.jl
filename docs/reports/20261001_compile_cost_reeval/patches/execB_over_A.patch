@@ -1,0 +1,384 @@
+diff -ru execA/src/Cadence.jl execB/src/Cadence.jl
+--- a/src/Cadence.jl	2026-10-01 16:24:02
++++ b/src/Cadence.jl	2026-10-01 16:34:04
+@@ -3,6 +3,7 @@
+ using StaticArrays, LinearAlgebra, ForwardDiff
+ using Random: Xoshiro, randn
+ using Base.ScopedValues: ScopedValue, with
++using Base.Experimental: @opaque
+ 
+ include("leaves.jl")
+ include("diagnostics.jl")
+diff -ru execA/src/build.jl execB/src/build.jl
+--- a/src/build.jl	2026-10-01 16:24:11
++++ b/src/build.jl	2026-10-01 17:11:07
+@@ -1324,7 +1324,14 @@
+ stepper's type is the parameter `M` because `stepper.jl` is included after this
+ file, which a call tolerates and a field type would not.
+ """
+-struct Executor{T,S,B,CL,EV,M}
++# The phase bodies and the event set are one type for every topology, their
++# walks behind opaque closures, so `Executor` carries the scalar, the store's
++# eltype set and the stepper, never the schedule.
++const Bodies = NamedTuple{(:sweep_1, :sweep_2, :rhs, :ticks, :events, :projections),
++                          Tuple{PhaseBody,PhaseBody,PhaseBody,PhaseBody,
++                                Dict{Tuple{String,Symbol},NamedTuple},Dict{String,Function}}}
++
++struct Executor{T,S,CL,M}
+     act::Activation{T}     # the layout and probe products it was materialized from
+     store::S               # the signal table: cells and root inputs
+     xbuf::Vector{T}        # continuous state, the flat buffer (§7.1)
+@@ -1332,8 +1339,8 @@
+     sstores::Vector{Any}   # discrete state stores, by component index
+     mstores::Vector{Any}   # mode stores, by component index
+     clock::CL
+-    bodies::B              # the phase bodies, closed over the buffers above
+-    events::EV             # the compiled event set, likewise (nominal only)
++    bodies::Bodies         # the phase bodies, closed over the buffers above
++    events::EventSet       # the compiled event set, likewise (nominal only)
+     cursor::ExecutionCursor          # §13.4: where execution is, written per dispatch
+     chunk_size::Int        # the unroll width it was compiled at, retained so a service
+                            # can compile one of its own exactly as this was
+@@ -1517,7 +1524,8 @@
+                              if entry.tier === CONTINUOUS &&
+                                 has_stage(x_projection, entry.instance)]
+ 
+-    body(entries, gates) = chunked_body(entries, gates, store, xbuf, ẋbuf; chunk_size)
++    body(entries, gates; establishes = true) =
++        chunked_body(entries, gates, store, xbuf, ẋbuf; chunk_size, establishes)
+     # Beside the four blocks ride the per-event and per-projection callables,
+     # keyed by the roster (§9.7): (path, event name) and path.
+     event_bodies = Dict{Tuple{String,Symbol},NamedTuple}(
+@@ -1529,11 +1537,11 @@
+     bodies = (sweep_1 = body(stage1_entries, stage1_gates),
+               sweep_2 = body(stage2_entries, stage2_gates),
+               rhs = body(rhs_entries, rhs_gates),
+-              ticks = body(tick_entries, tick_gates),
++              ticks = body(tick_entries, tick_gates; establishes = false),
+               events = event_bodies, projections = projection_bodies)
+ 
+     event_set = EventSet(event_entries, projection_entries, event_owner, event_names,
+-                         event_localized, length(components); chunk_size)
++                         event_localized, length(components), store, xbuf; chunk_size)
+     # The seam's backend and the arrival pair are this buffer set's, so they are
+     # built here rather than by the caller (§12.6, D-256).
+     Executor(act, store, xbuf, ẋbuf, sstores, mstores, clock, bodies, event_set, cursor,
+diff -ru execA/src/conditions.jl execB/src/conditions.jl
+--- a/src/conditions.jl	2026-10-01 16:24:02
++++ b/src/conditions.jl	2026-10-01 17:01:34
+@@ -176,7 +176,7 @@
+                                                ("", :input, entry.face)
+ _step(origin::String, label::String) = isempty(origin) ? label : origin * " → " * label
+ 
+-function _flat(node::Fragment, path::String, level, origin::String, tree_position::Tuple,
++function _flat(node::Fragment, path::String, @nospecialize(level), origin::String, tree_position::Tuple,
+                structure::Structure, diags::Vector{Diagnostic})
+     out = CEntry[]
+     for (store, name, payload) in ((:x, :x, node.x), (:s, :s, node.s),
+@@ -193,7 +193,7 @@
+     out
+ end
+ 
+-function _flat(node::Scoped, path::String, level, origin::String, tree_position::Tuple,
++function _flat(node::Scoped, path::String, @nospecialize(level), origin::String, tree_position::Tuple,
+                structure::Structure, diags::Vector{Diagnostic})
+     scoped_origin = _step(origin, "at(\"$(node.prefix)\")")
+     child = resolve_authored(scoped_origin, path, level, node.prefix, diags)
+@@ -202,7 +202,7 @@
+           (tree_position..., :node), structure, diags)
+ end
+ 
+-_flat(node::Combined, path::String, level, origin::String, tree_position::Tuple,
++_flat(node::Combined, path::String, @nospecialize(level), origin::String, tree_position::Tuple,
+       structure::Structure, diags::Vector{Diagnostic}) =
+     reduce(vcat, (_flat(child, path, level, _step(origin, "combine[$i]"),
+                         (tree_position..., :nodes, (i,)), structure, diags)
+@@ -212,7 +212,7 @@
+ # within-layer collision is still an error — and then folded onto the
+ # accumulator, the patch replacing the leaf it overrode and inheriting its
+ # origin beside its own.
+-function _flat(node::Override, path::String, level, origin::String, tree_position::Tuple,
++function _flat(node::Override, path::String, @nospecialize(level), origin::String, tree_position::Tuple,
+                structure::Structure, diags::Vector{Diagnostic})
+     layered = CEntry[]
+     for (i, layer) in enumerate(node.layers)
+diff -ru execA/src/executor.jl execB/src/executor.jl
+--- a/src/executor.jl	2026-10-01 16:24:02
++++ b/src/executor.jl	2026-10-01 17:10:55
+@@ -240,6 +240,25 @@
+     nothing
+ end
+ 
++# A walk behind an opaque closure: a concrete type for every topology, so the
++# loop compiles once per scalar. Each closure is compiled for its captured
++# chunks when it is created, and it runs in the world it was created in.
++const Walk0 = Core.OpaqueClosure{Tuple{},Nothing}
++const WalkAt = Core.OpaqueClosure{Tuple{Int},Nothing}
++# An empty walk compiles to a constant return, and calling an opaque closure
++# with a constant return allocates (Julia 1.13). Keeping the chunks alive emits
++# no code and keeps the call real.
++@inline _kept(chunks) = Base.donotdelete(chunks)
++
++# A chunk of an event-set walk: its entries behind a pointer and a non-inlined
++# call, as the phase bodies' `Chunk` (§9.7).
++mutable struct EventChunk{E<:Tuple}
++    entries::E
++end
++_event_chunks(entries::Vector, chunk_size::Int) =
++    tuple((EventChunk(tuple(entries[lo:min(lo + chunk_size - 1, length(entries))]...))
++           for lo in 1:chunk_size:length(entries))...)
++
+ """
+ The per-`Simulation` compiled event set: the entry tuples plus the §10.6
+ registers. The three normative registers — prior, last-observed sample, firing
+@@ -256,18 +275,12 @@
+ samples across the trials that clobber `σ`; `triggered` is the frame's triggered set
+ and `loc_warned` the `ChatteringBudget` once-per-event-per-frame latch.
+ """
+-# A chunk of an event-set walk: its entries behind a pointer and a non-inlined
+-# call, as the phase bodies' `Chunk` (§9.7).
+-mutable struct EventChunk{E<:Tuple}
+-    entries::E
+-end
+-_event_chunks(entries::Vector, chunk_size::Int) =
+-    tuple((EventChunk(tuple(entries[lo:min(lo + chunk_size - 1, length(entries))]...))
+-           for lo in 1:chunk_size:length(entries))...)
+-
+-mutable struct EventSet{E<:Tuple,P<:Tuple}
+-    entries::E
+-    projects::P
++mutable struct EventSet
++    entries::Tuple                       # the chunks, for inspection; the walks hold them typed
++    projects::Tuple
++    project::Walk0                       # the three walks, closed over the chunks, the
++    guards::Walk0                        # buffers and the registers they write
++    fire_walk::Walk0
+     owner::Vector{Int}                   # component index per event
+     names::Vector{Tuple{String,Symbol}}  # (path, event name), for the degradation warnings
+     localized::Vector{Bool}              # detection policy per event (§10.4)
+@@ -287,36 +300,46 @@
+ 
+ function EventSet(entries::Vector, projects::Vector,
+                   owner::Vector{Int}, names::Vector{Tuple{String,Symbol}},
+-                  localized::Vector{Bool}, n_components::Int; chunk_size::Int = 16)
++                  localized::Vector{Bool}, n_components::Int, store, xbuf;
++                  chunk_size::Int = 16)
+     n_events = length(entries)
+-    EventSet(_event_chunks(entries, chunk_size), _event_chunks(projects, chunk_size),
++    entry_chunks = _event_chunks(entries, chunk_size)
++    project_chunks = _event_chunks(projects, chunk_size)
++    now, fire, σ = fill(false, n_events), fill(false, n_events), zeros(n_events)
++    EventSet(entry_chunks, project_chunks,
++             @opaque(Tuple{} -> Nothing,
++                     () -> (_proj_chunks(project_chunks, xbuf); _kept(project_chunks))),
++             @opaque(Tuple{} -> Nothing,
++                     () -> (_guard_chunks(entry_chunks, store, xbuf, now, σ); _kept(entry_chunks))),
++             @opaque(Tuple{} -> Nothing,
++                     () -> (_fire_chunks(entry_chunks, store, xbuf, fire); _kept(entry_chunks))),
+              owner, names, localized,
+-             fill(false, n_events), fill(false, n_events), fill(false, n_events),
+-             fill(false, n_events), zeros(Int, n_events), fill(false, n_events),
+-             fill(false, n_components), zeros(n_events), zeros(n_events),
++             now, fill(false, n_events), fill(false, n_events),
++             fire, zeros(Int, n_events), fill(false, n_events),
++             fill(false, n_components), σ, zeros(n_events),
+              zeros(n_events), fill(false, n_events), fill(false, n_events))
+ end
+ 
+ # The three walks the iteration drives, each the compile-time-unrolled tuple
+-# recursion of the phase bodies, over the executor's buffers the caller hands
+-# them (D-261). Guard evaluation writes each predicate sample into `now` by
+-# global index; the fire walk runs `handler → x_projection` for exactly the
+-# masked entries, latching the returned stores — `x` into the flat buffer, `m`
+-# merged into the mode store, per the return law's iff shape (§5.2).
++# recursion of the phase bodies, closed over the executor's buffers behind an
++# opaque closure, as the phase bodies are. Guard evaluation writes each
++# predicate sample into `now` by global index; the fire walk runs
++# `handler → x_projection` for exactly the masked entries, latching the
++# returned stores — `x` into the flat buffer, `m` merged into the mode store,
++# per the return law's iff shape (§5.2).
+ 
+ # Every walk unrolls by a generated body, one statement per element: a
+ # `Base.tail` recursion stops inferring past 32 elements.
+ _unrolled(call, n::Int) = Expr(:block, Expr(:meta, :inline), map(call, 1:n)..., :nothing)
+ 
+-_projects!(event_set::EventSet, xbuf) = _proj_chunks(event_set.projects, xbuf)
++_projects!(event_set::EventSet) = event_set.project()
+ @generated _proj_chunks(chunks::Tuple, xbuf) =
+     _unrolled(i -> :(_proj_chunk!(chunks[$i], xbuf)), fieldcount(chunks))
+ @noinline _proj_chunk!(chunk::EventChunk, xbuf) = _proj_walk(chunk.entries, xbuf)
+ @generated _proj_walk(projects::Tuple, xbuf) =
+     _unrolled(i -> :(run_project!(projects[$i], xbuf)), fieldcount(projects))
+ 
+-_guards!(event_set::EventSet, store, xbuf) =
+-    _guard_chunks(event_set.entries, store, xbuf, event_set.now, event_set.σ)
++_guards!(event_set::EventSet) = event_set.guards()
+ @generated _guard_chunks(chunks::Tuple, store, xbuf, now, σs) =
+     _unrolled(i -> :(_guard_chunk!(chunks[$i], store, xbuf, now, σs)), fieldcount(chunks))
+ @noinline _guard_chunk!(chunk::EventChunk, store, xbuf, now, σs) =
+@@ -334,8 +357,7 @@
+     nothing
+ end
+ 
+-_fire!(event_set::EventSet, store, xbuf) =
+-    _fire_chunks(event_set.entries, store, xbuf, event_set.fire)
++_fire!(event_set::EventSet) = event_set.fire_walk()
+ @generated _fire_chunks(chunks::Tuple, store, xbuf, fire) =
+     _unrolled(i -> :(_fire_chunk!(chunks[$i], store, xbuf, fire)), fieldcount(chunks))
+ @noinline _fire_chunk!(chunk::EventChunk, store, xbuf, fire) =
+@@ -502,15 +524,52 @@
+ index (§14.5, D-205). Both take the one compiled tuple; only `run_at!`'s
+ dispatch differs, so boundary zero's wide walk costs the measured path
+ nothing.
++
++Each arity is an opaque closure over its chunk tuple, so a body has one type
++for every topology and the loop around it compiles once per scalar.
+ """
+-struct PhaseBody{I<:Tuple,B<:Tuple}
+-    interior::I
+-    boundary::B
++struct PhaseBody
++    interior::Tuple       # the chunks, for inspection; the closures hold them typed
++    boundary::Tuple
++    walk::Walk0
++    walk_at::WalkAt
++    establish::Walk0
+ end
+ 
+-@inline (body::PhaseBody)() = _walkchunks(body.interior)
+-@inline (body::PhaseBody)(tick) = _walkchunks(body.boundary, tick)
++# The closures are created here, outside any specialization on the chunks: each
++# compiles for its captured chunk tuple at creation, and the body's type is one
++# type for every topology. Creation compiles every arity at once, so a body
++# compiles only the walks the loop runs: a body with no gated entry walks its
++# interior at every arity, and only the two sweeps establish (§14.5, D-205).
++function PhaseBody(@nospecialize(interior::Tuple))
++    walk = @opaque(Tuple{} -> Nothing, () -> (_walkchunks(interior); _kept(interior)))
++    # A closure calling a captured closure allocates, so the index arity walks
++    # the chunks itself; it compiles only the calls, the chunks being compiled.
++    PhaseBody(interior, interior, walk,
++              @opaque(Tuple{Int} -> Nothing, tick -> (_walkchunks(interior); _kept(interior))),
++              walk)
++end
+ 
++function PhaseBody(@nospecialize(interior::Tuple), @nospecialize(boundary::Tuple);
++                   establishes::Bool)
++    PhaseBody(interior, boundary,
++              @opaque(Tuple{} -> Nothing, () -> (_walkchunks(interior); _kept(interior))),
++              @opaque(Tuple{Int} -> Nothing,
++                      tick -> (_walkchunks(boundary, tick); _kept(boundary))),
++              establishes ?
++                  @opaque(Tuple{} -> Nothing,
++                          () -> (_walkchunks(boundary, ESTABLISH); _kept(boundary))) :
++                  @opaque(Tuple{} -> Nothing, () -> _no_establishment()))
++end
++
++@noinline _no_establishment() =
++    throw(InternalInvariant("only the two sweeps walk boundary zero's wide gate; the " *
++                            "`s_update` updates take index 0 (§14.5, D-205)"))
++
++@inline (body::PhaseBody)() = body.walk()
++@inline (body::PhaseBody)(tick::Int) = body.walk_at(tick)
++@inline (body::PhaseBody)(::Establish) = body.establish()
++
+ @generated _walkchunks(chunks::Tuple) = _unrolled(i -> :(chunks[$i]()), fieldcount(chunks))
+ @generated _walkchunks(chunks::Tuple, tick) = _unrolled(i -> :(chunks[$i](tick)), fieldcount(chunks))
+ 
+@@ -520,12 +579,15 @@
+ # compiled `(D, Φ)` pair for a discrete one — which is also what selects the
+ # interior subset, discreteness being a build-time fact (§10.5, D-147).
+ function chunked_body(entries::Vector, gates::Vector, store, xbuf, ẋbuf;
+-                      chunk_size::Int = 16)
++                      chunk_size::Int = 16, establishes::Bool = true)
+     chunks(walk_entries) =
+         tuple((Chunk(tuple(walk_entries[lo:min(lo + chunk_size - 1, length(walk_entries))]...),
+                     store, xbuf, ẋbuf)
+               for lo in 1:chunk_size:length(walk_entries))...)
+-    PhaseBody(chunks([e for (e, gt) in zip(entries, gates) if gt === nothing]),
+-              chunks([gt === nothing ? e : Gated(e, gt[1], gt[2])
+-                      for (e, gt) in zip(entries, gates)]))
++    # `Any[...]`: an untyped comprehension widens from its first element's type,
++    # compiling Base's widening path for whichever entry type comes first.
++    interior = chunks(Any[e for (e, gt) in zip(entries, gates) if gt === nothing])
++    all(gt -> gt === nothing, gates) && return PhaseBody(interior)
++    PhaseBody(interior, chunks(Any[gt === nothing ? e : Gated(e, gt[1], gt[2])
++                                   for (e, gt) in zip(entries, gates)]); establishes)
+ end
+diff -ru execA/src/localization.jl execB/src/localization.jl
+--- a/src/localization.jl	2026-10-01 16:24:02
++++ b/src/localization.jl	2026-10-01 16:34:04
+@@ -67,7 +67,7 @@
+         # sweep that closes the integration step is what raises the trigger.
+         _phase!(cursor, :arrival)
+         sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
+-        _guards!(events, sim.exec.store, sim.exec.xbuf)
++        _guards!(events)
+         copyto!(events.σ1, events.σ)
+ 
+         # The trigger (§10.4): localized policy, prior not-holding at the last
+@@ -109,7 +109,7 @@
+         sim.exec.clock.t = t_seg
+         _phase!(cursor, :validation)
+         sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
+-        _guards!(events, sim.exec.store, sim.exec.xbuf)
++        _guards!(events)
+         copyto!(events.σ0, events.σ)
+         remaining = false
+         for i in 1:n_events
+@@ -182,7 +182,7 @@
+     dense!(sim.exec.stepper, sim.exec.xbuf, sim.exec.xnext, sim.exec.ẋnext, θ, h′)
+     sim.exec.clock.t = t_seg + θ * h′
+     sim.exec.bodies.sweep_1(); sim.exec.bodies.sweep_2()
+-    _guards!(sim.exec.events, sim.exec.store, sim.exec.xbuf)
++    _guards!(sim.exec.events)
+     nothing
+ end
+ 
+diff -ru execA/src/sim.jl execB/src/sim.jl
+--- a/src/sim.jl	2026-10-01 16:24:02
++++ b/src/sim.jl	2026-10-01 16:34:04
+@@ -461,7 +461,7 @@
+ @inline function boundary!(sim::Simulation, tick::Int)
+     cursor = sim.exec.cursor
+     _phase!(cursor, :project)
+-    _projects!(sim.exec.events, sim.exec.xbuf)
++    _projects!(sim.exec.events)
+     event_phase!(sim, tick)
+     _phase!(cursor, :ticks)
+     sim.exec.bodies.ticks(tick)
+@@ -479,7 +479,7 @@
+ """
+ @inline function offtick_boundary!(sim::Simulation)
+     _phase!(sim.exec.cursor, :project)
+-    _projects!(sim.exec.events, sim.exec.xbuf)
++    _projects!(sim.exec.events)
+     event_phase!(sim, nothing)
+     nothing
+ end
+@@ -506,7 +506,7 @@
+ @inline function boundary_zero!(sim::Simulation)
+     cursor = sim.exec.cursor
+     _phase!(cursor, :project)
+-    _projects!(sim.exec.events, sim.exec.xbuf)
++    _projects!(sim.exec.events)
+     event_phase!(sim, ESTABLISH)
+     _phase!(cursor, :ticks)
+     sim.exec.bodies.ticks(0)
+@@ -553,7 +553,7 @@
+     fill!(events.warned, false)
+     budget = sim.deployment.firing_budget
+     while true
+-        _guards!(events, sim.exec.store, sim.exec.xbuf)
++        _guards!(events)
+         fill!(events.comp_fired, false)
+         any_fired = false
+         for i in 1:n_events
+@@ -579,7 +579,7 @@
+             (eligible && !firing) || (events.last[i] = events.now[i])
+         end
+         any_fired || break
+-        _fire!(events, sim.exec.store, sim.exec.xbuf)
++        _fire!(events)
+         cursor.index += 1
+         _round!(sim, tick)
+     end

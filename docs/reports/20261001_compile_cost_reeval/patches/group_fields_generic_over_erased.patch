@@ -1,0 +1,15 @@
+diff -ru recommended/src/assembly.jl recommended_r1/src/assembly.jl
+--- a/src/assembly.jl	2026-10-01 19:43:27
++++ b/src/assembly.jl	2026-10-01 22:37:27
+@@ -361,8 +361,10 @@
+ # container's declared type.
+ _declared_holding(comp, field::Symbol) =
+     fieldtype(Base.unwrap_unionall(typeof(comp).name.wrapper), field)
++# A `Group` pins nothing below it, whatever its type says: one concrete type
++# holds every topology, so a field declared `::Group` is generically held.
+ _held_concretely(comp, field::Symbol) =
+-    (ft = _declared_holding(comp, field); !(ft isa TypeVar) && isconcretetype(ft))
++    (ft = _declared_holding(comp, field); !(ft isa TypeVar) && isconcretetype(ft) && ft !== Group)
+ 
+ """
+ The service walk (§13.3, D-130): `path`'s segments from

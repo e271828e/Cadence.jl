@@ -1,0 +1,113 @@
+diff -ru s1/src/build.jl s2/src/build.jl
+--- a/src/build.jl	2026-10-01 23:48:34
++++ b/src/build.jl	2026-10-01 23:48:34
+@@ -1533,7 +1533,7 @@
+               events = event_bodies, projections = projection_bodies)
+ 
+     event_set = EventSet(event_entries, projection_entries, event_owner, event_names,
+-                         event_localized, length(components))
++                         event_localized, length(components); chunk_size)
+     # The seam's backend and the arrival pair are this buffer set's, so they are
+     # built here rather than by the caller (§12.6, D-256).
+     Executor(act, store, xbuf, ẋbuf, sstores, mstores, clock, bodies, event_set, cursor,
+diff -ru s1/src/executor.jl s2/src/executor.jl
+--- a/src/executor.jl	2026-10-01 23:48:34
++++ b/src/executor.jl	2026-10-01 23:48:34
+@@ -256,8 +256,17 @@
+ samples across the trials that clobber `σ`; `triggered` is the frame's triggered set
+ and `loc_warned` the `ChatteringBudget` once-per-event-per-frame latch.
+ """
+-struct EventSet{E<:Tuple,P<:Tuple}
++# A chunk of an event-set walk: its entries behind a pointer and a non-inlined
++# call, as the phase bodies' `Chunk` (§9.7).
++mutable struct EventChunk{E<:Tuple}
+     entries::E
++end
++_event_chunks(entries::Vector, chunk_size::Int) =
++    tuple((EventChunk(tuple(entries[lo:min(lo + chunk_size - 1, length(entries))]...))
++           for lo in 1:chunk_size:length(entries))...)
++
++mutable struct EventSet{E<:Tuple,P<:Tuple}
++    entries::E
+     projects::P
+     owner::Vector{Int}                   # component index per event
+     names::Vector{Tuple{String,Symbol}}  # (path, event name), for the degradation warnings
+@@ -278,9 +287,10 @@
+ 
+ function EventSet(entries::Vector, projects::Vector,
+                   owner::Vector{Int}, names::Vector{Tuple{String,Symbol}},
+-                  localized::Vector{Bool}, n_components::Int)
++                  localized::Vector{Bool}, n_components::Int; chunk_size::Int = 16)
+     n_events = length(entries)
+-    EventSet(tuple(entries...), tuple(projects...), owner, names, localized,
++    EventSet(_event_chunks(entries, chunk_size), _event_chunks(projects, chunk_size),
++             owner, names, localized,
+              fill(false, n_events), fill(false, n_events), fill(false, n_events),
+              fill(false, n_events), zeros(Int, n_events), fill(false, n_events),
+              fill(false, n_components), zeros(n_events), zeros(n_events),
+@@ -298,12 +308,19 @@
+ # `Base.tail` recursion stops inferring past 32 elements.
+ _unrolled(call, n::Int) = Expr(:block, Expr(:meta, :inline), map(call, 1:n)..., :nothing)
+ 
+-@noinline _projects!(event_set::EventSet, xbuf) = _proj_walk(event_set.projects, xbuf)
++_projects!(event_set::EventSet, xbuf) = _proj_chunks(event_set.projects, xbuf)
++@generated _proj_chunks(chunks::Tuple, xbuf) =
++    _unrolled(i -> :(_proj_chunk!(chunks[$i], xbuf)), fieldcount(chunks))
++@noinline _proj_chunk!(chunk::EventChunk, xbuf) = _proj_walk(chunk.entries, xbuf)
+ @generated _proj_walk(projects::Tuple, xbuf) =
+     _unrolled(i -> :(run_project!(projects[$i], xbuf)), fieldcount(projects))
+ 
+-@noinline _guards!(event_set::EventSet, store, xbuf) =
+-    _guard_walk(event_set.entries, store, xbuf, event_set.now, event_set.σ)
++_guards!(event_set::EventSet, store, xbuf) =
++    _guard_chunks(event_set.entries, store, xbuf, event_set.now, event_set.σ)
++@generated _guard_chunks(chunks::Tuple, store, xbuf, now, σs) =
++    _unrolled(i -> :(_guard_chunk!(chunks[$i], store, xbuf, now, σs)), fieldcount(chunks))
++@noinline _guard_chunk!(chunk::EventChunk, store, xbuf, now, σs) =
++    _guard_walk(chunk.entries, store, xbuf, now, σs)
+ @generated _guard_walk(entries::Tuple, store, xbuf, now, σs) =
+     _unrolled(i -> :(_guard_entry!(entries[$i], store, xbuf, now, σs)), fieldcount(entries))
+ @inline function _guard_entry!(entry, store, xbuf, now, σs)
+@@ -317,8 +334,12 @@
+     nothing
+ end
+ 
+-@noinline _fire!(event_set::EventSet, store, xbuf) =
+-    _fire_walk(event_set.entries, store, xbuf, event_set.fire)
++_fire!(event_set::EventSet, store, xbuf) =
++    _fire_chunks(event_set.entries, store, xbuf, event_set.fire)
++@generated _fire_chunks(chunks::Tuple, store, xbuf, fire) =
++    _unrolled(i -> :(_fire_chunk!(chunks[$i], store, xbuf, fire)), fieldcount(chunks))
++@noinline _fire_chunk!(chunk::EventChunk, store, xbuf, fire) =
++    _fire_walk(chunk.entries, store, xbuf, fire)
+ @generated _fire_walk(entries::Tuple, store, xbuf, fire) =
+     _unrolled(i -> :(_fire_entry!(entries[$i], store, xbuf, fire)), fieldcount(entries))
+ @inline function _fire_entry!(entry, store, xbuf, fire)
+@@ -450,7 +471,7 @@
+ 
+ # --- the walk -----------------------------------------------------------------
+ 
+-struct Chunk{E<:Tuple,S,X}
++mutable struct Chunk{E<:Tuple,S,X}
+     entries::E
+     store::S
+     xbuf::X
+@@ -489,6 +510,7 @@
+ 
+ @inline (body::PhaseBody)() = _walkchunks(body.interior)
+ @inline (body::PhaseBody)(tick) = _walkchunks(body.boundary, tick)
++@inline (body::PhaseBody{I,I})(tick) where {I<:Tuple} = _walkchunks(body.interior)
+ 
+ @generated _walkchunks(chunks::Tuple) = _unrolled(i -> :(chunks[$i]()), fieldcount(chunks))
+ @generated _walkchunks(chunks::Tuple, tick) = _unrolled(i -> :(chunks[$i](tick)), fieldcount(chunks))
+@@ -504,7 +526,7 @@
+         tuple((Chunk(tuple(walk_entries[lo:min(lo + chunk_size - 1, length(walk_entries))]...),
+                     store, xbuf, ẋbuf)
+               for lo in 1:chunk_size:length(walk_entries))...)
+-    PhaseBody(chunks([e for (e, gt) in zip(entries, gates) if gt === nothing]),
+-              chunks([gt === nothing ? e : Gated(e, gt[1], gt[2])
+-                      for (e, gt) in zip(entries, gates)]))
++    PhaseBody(chunks(Any[e for (e, gt) in zip(entries, gates) if gt === nothing]),
++              chunks(Any[gt === nothing ? e : Gated(e, gt[1], gt[2])
++                         for (e, gt) in zip(entries, gates)]))
+ end
