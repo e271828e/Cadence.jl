@@ -10544,7 +10544,7 @@ new name.
   what is open" makes that call harmless, and listing after `init!` would
   leak the device whose `init!` had just returned.
 
-**Spec.** [§12.1][s12-1], [§12.4][s12-4], [§13.4][s13-4], [Appendix B][sB]
+**Spec.** [§11.6][s11-6], [§12.1][s12-1], [§12.4][s12-4], [§13.4][s13-4], [Appendix B][sB]
 
 **Rationale.** [§12.1][s12-1] named the pause as a control-plane field and [§12.4][s12-4] built
 the interrupt on masking, but neither spelled the verbs, and the code built
