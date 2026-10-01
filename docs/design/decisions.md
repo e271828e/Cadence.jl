@@ -10536,6 +10536,13 @@ new name.
   it again. The arm's own release can be cut the same way, so each such
   interrupt adds one call. [§11.6][s11-6]'s "close only what is open" makes a
   repeated call harmless, and a leaked device would not be.
+- (Amended 2026-10-01, with the init bracket's escape.) `shutdown!` may run
+  on a device whose `init!` never began. The bracket lists each entry for
+  release before its `init!`, so an interrupt that escapes the bracket finds
+  every device that began initializing. One landing between the listing and
+  the `init!` releases a device that opened nothing. [§11.6][s11-6]'s "close only
+  what is open" makes that call harmless, and listing after `init!` would
+  leak the device whose `init!` had just returned.
 
 **Spec.** [§12.1][s12-1], [§12.4][s12-4], [§13.4][s13-4], [Appendix B][sB]
 

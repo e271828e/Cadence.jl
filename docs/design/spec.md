@@ -6496,6 +6496,13 @@ interrupt adds one call. A `shutdown!` that closes only what is open is
 idempotent by construction, so a repeated call costs nothing and is never
 reported.
 
+**The tolerance also covers a call with no `init!` before it.** The
+initialization step lists each device for release before its `init!` begins,
+so that no interrupt can leave an initialized device unlisted ([§12.4][s12-4], [D-268][d-268]).
+An operator interrupt landing between the listing and the `init!` therefore
+releases a device that opened nothing. A `shutdown!` that closes only what is
+open does nothing there, and the call is never reported.
+
 The wrapper makes one discrimination. **An `InterruptException` is never a
 `DeviceCrash`.** Under the spawned-loop topology the calling task is the one
 running a device loop body inline, the GUI's ([§11.1][s11-1]). An operator
