@@ -204,15 +204,21 @@ Spec: §9.5, §9.7, D-162, D-235, D-237, D-260.
   `ProjectEntry`. Each carries its component's path, for the write's
   diagnostic, and an event entry carries its event name beside the path
   (D-249).
-- The chunked walk `Chunk` and `chunked_body`. Every tuple walk, over a
-  chunk's entries, a body's chunks or the event set's entries, unrolls
-  through one generated body, `_unrolled`.
-- The interior/boundary split `PhaseBody`.
+- The chunked walk `Chunk` and `chunked_body`. `Chunk` is mutable, so a
+  phase body holds one pointer per chunk and a barrier call loads one
+  pointer. Every tuple walk, over a chunk's entries, a body's chunks, or the
+  event set's chunks and their entries, unrolls through one generated body,
+  `_unrolled`.
+- The interior/boundary split `PhaseBody`. A body with no gated entry has two
+  tuples of one type and walks its interior at a boundary.
 - The `(tick − Φ) % D` gate `Gated`, with boundary zero's `ESTABLISH` beside
   it.
-- The event set, with its registers.
-- The guard/fire/project walks `_guards!`, `_fire!` and `_projects!`, over the
-  executor's buffers the caller hands them (D-261).
+- The event set, with its registers. It is mutable, so the executor holds it
+  by reference. Its `entries` and `projects` hold `EventChunk`s, each a
+  mutable chunk of entries, so their `length` counts chunks.
+- The guard/fire/project walks `_guards!`, `_fire!` and `_projects!`, each one
+  non-inlined call per `EventChunk`, over the executor's buffers the caller
+  hands them (D-261).
 - The execution cursor, which every entry stores into. The cursor holds its
   dispatch fields alone, and the loop's stop hit is `frame!`'s return value
   (§13.5, D-261).
@@ -272,10 +278,11 @@ D-249, D-255, D-261, D-289.
   - The executor owns its stepper, its arrival buffers, the `chunk_size` it
     was compiled at and the localized-event key (D-256). `compile` builds the
     stepper from the `algorithm` keyword.
+  - The event set takes the phase bodies' chunk size (D-289).
 
 Spec: §5.3, §5.5, §5.6, §6.1, §7.1, §7.3, §8.2, §9.1–§9.4, §9.7, §10.4, §13.2,
 D-012, D-051, D-094, D-166, D-179, D-208, D-210, D-229, D-231, D-235, D-236,
-D-237, D-247, D-248, D-250, D-252, D-253, D-256, D-261, D-263, D-265.
+D-237, D-247, D-248, D-250, D-252, D-253, D-256, D-261, D-263, D-265, D-289.
 
 ### `src/tracer.jl`
 

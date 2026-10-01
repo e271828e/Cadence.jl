@@ -240,9 +240,26 @@ ProjectEntry{XT}(comp, x_off, clock, path, ci, cursor) where {XT} =
     nothing
 end
 
+# A chunk of an event-set walk: its entries behind a pointer and a non-inlined
+# call, as the phase bodies' `Chunk` (§9.7).
+mutable struct EventChunk{E<:Tuple}
+    entries::E
+end
+
+# An entry list in chunks of `chunk_size`, the last one shorter, as
+# `chunked_body` splits a phase body's.
+_event_chunks(entries::Vector, chunk_size::Int) =
+    tuple((EventChunk(tuple(entries[lo:min(lo + chunk_size - 1, length(entries))]...))
+           for lo in 1:chunk_size:length(entries))...)
+
 """
-The per-`Simulation` compiled event set: the entry tuples plus the §10.6
-registers. The three normative registers — prior, last-observed sample, firing
+The per-`Simulation` compiled event set: the entry chunks plus the §10.6
+registers. The executor holds it by reference, as it holds each chunk, so no
+walk's call site copies it (§9.7). `entries` and `projects` hold the event and
+projection entries in `EventChunk`s, so `length` of either counts chunks; the
+event count is `length(prior)`.
+
+The three normative registers — prior, last-observed sample, firing
 count — are detection bookkeeping, not model memory: plain vectors indexed by
 the global event index, in no state store, reconstructed deterministically.
 `now`, `fire` and `comp_fired` are the iteration's round-scoped scratch, and
@@ -256,9 +273,9 @@ holds its predicate, `σ ≥ 0`); `σ0`/`σ1` retain the θ = 0 validation and a
 samples across the trials that clobber `σ`; `triggered` is the frame's triggered set
 and `loc_warned` the `ChatteringBudget` once-per-event-per-frame latch.
 """
-struct EventSet{E<:Tuple,P<:Tuple}
-    entries::E
-    projects::P
+mutable struct EventSet{E<:Tuple,P<:Tuple}
+    entries::E                           # event entries, chunked: `length` counts chunks
+    projects::P                          # projection entries, chunked likewise
     owner::Vector{Int}                   # component index per event
     names::Vector{Tuple{String,Symbol}}  # (path, event name), for the degradation warnings
     localized::Vector{Bool}              # detection policy per event (§10.4)
@@ -278,21 +295,23 @@ end
 
 function EventSet(entries::Vector, projects::Vector,
                   owner::Vector{Int}, names::Vector{Tuple{String,Symbol}},
-                  localized::Vector{Bool}, n_components::Int)
+                  localized::Vector{Bool}, n_components::Int; chunk_size::Int = 16)
     n_events = length(entries)
-    EventSet(tuple(entries...), tuple(projects...), owner, names, localized,
+    EventSet(_event_chunks(entries, chunk_size), _event_chunks(projects, chunk_size),
+             owner, names, localized,
              fill(false, n_events), fill(false, n_events), fill(false, n_events),
              fill(false, n_events), zeros(Int, n_events), fill(false, n_events),
              fill(false, n_components), zeros(n_events), zeros(n_events),
              zeros(n_events), fill(false, n_events), fill(false, n_events))
 end
 
-# The three walks the iteration drives, each unrolled like the phase bodies'
-# walks, over the executor's buffers the caller hands them (D-261). Guard
-# evaluation writes each predicate sample into `now` by global index; the fire
-# walk runs `handler → x_projection` for exactly the masked entries, latching
-# the returned stores — `x` into the flat buffer, `m` merged into the mode
-# store, per the return law's iff shape (§5.2).
+# The three walks the iteration drives, chunked like the phase bodies' walks:
+# an unrolled sequence of non-inlined calls, one per `EventChunk`, each running
+# an unrolled walk over its entries. They run over the executor's buffers the
+# caller hands them (D-261). Guard evaluation writes each predicate sample into
+# `now` by global index; the fire walk runs `handler → x_projection` for
+# exactly the masked entries, latching the returned stores — `x` into the flat
+# buffer, `m` merged into the mode store, per the return law's iff shape (§5.2).
 
 # The body of every tuple walk in this file: inlined into its caller, one
 # statement per element, then `nothing`. A `Base.tail` recursion would stop
@@ -301,12 +320,19 @@ end
 _unrolled(statement, n::Int) =
     Expr(:block, Expr(:meta, :inline), map(statement, 1:n)..., :nothing)
 
-@noinline _projects!(event_set::EventSet, xbuf) = _project_walk(event_set.projects, xbuf)
+_projects!(event_set::EventSet, xbuf) = _project_chunks(event_set.projects, xbuf)
+@generated _project_chunks(chunks::Tuple, xbuf) =
+    _unrolled(i -> :(_project_chunk!(chunks[$i], xbuf)), fieldcount(chunks))
+@noinline _project_chunk!(chunk::EventChunk, xbuf) = _project_walk(chunk.entries, xbuf)
 @generated _project_walk(projects::Tuple, xbuf) =
     _unrolled(i -> :(run_project!(projects[$i], xbuf)), fieldcount(projects))
 
-@noinline _guards!(event_set::EventSet, store, xbuf) =
-    _guard_walk(event_set.entries, store, xbuf, event_set.now, event_set.σ)
+_guards!(event_set::EventSet, store, xbuf) =
+    _guard_chunks(event_set.entries, store, xbuf, event_set.now, event_set.σ)
+@generated _guard_chunks(chunks::Tuple, store, xbuf, now, σs) =
+    _unrolled(i -> :(_guard_chunk!(chunks[$i], store, xbuf, now, σs)), fieldcount(chunks))
+@noinline _guard_chunk!(chunk::EventChunk, store, xbuf, now, σs) =
+    _guard_walk(chunk.entries, store, xbuf, now, σs)
 @generated _guard_walk(entries::Tuple, store, xbuf, now, σs) =
     _unrolled(i -> :(_guard_entry!(entries[$i], store, xbuf, now, σs)), fieldcount(entries))
 @inline function _guard_entry!(entry, store, xbuf, now, σs)
@@ -320,8 +346,12 @@ _unrolled(statement, n::Int) =
     nothing
 end
 
-@noinline _fire!(event_set::EventSet, store, xbuf) =
-    _fire_walk(event_set.entries, store, xbuf, event_set.fire)
+_fire!(event_set::EventSet, store, xbuf) =
+    _fire_chunks(event_set.entries, store, xbuf, event_set.fire)
+@generated _fire_chunks(chunks::Tuple, store, xbuf, fire) =
+    _unrolled(i -> :(_fire_chunk!(chunks[$i], store, xbuf, fire)), fieldcount(chunks))
+@noinline _fire_chunk!(chunk::EventChunk, store, xbuf, fire) =
+    _fire_walk(chunk.entries, store, xbuf, fire)
 @generated _fire_walk(entries::Tuple, store, xbuf, fire) =
     _unrolled(i -> :(_fire_entry!(entries[$i], store, xbuf, fire)), fieldcount(entries))
 @inline function _fire_entry!(entry, store, xbuf, fire)
@@ -453,7 +483,9 @@ end
 
 # --- the walk -----------------------------------------------------------------
 
-struct Chunk{E<:Tuple,S,X}
+# Mutable so a phase body holds it by reference: a barrier call loads one
+# pointer, where a chunk stored inline would be copied at every call site (§9.7).
+mutable struct Chunk{E<:Tuple,S,X}
     entries::E
     store::S
     xbuf::X
@@ -484,6 +516,10 @@ D-185) — or admitted outright, when the argument is `ESTABLISH` rather than an
 index (§14.5, D-205). Both take the one compiled tuple; only `run_at!`'s
 dispatch differs, so boundary zero's wide walk costs the measured path
 nothing.
+
+Each tuple holds its chunks by reference, one pointer per chunk (§9.7). A body
+with no discrete entry has two tuples of one type, and its boundary call walks
+the interior tuple.
 """
 struct PhaseBody{I<:Tuple,B<:Tuple}
     interior::I
@@ -492,6 +528,11 @@ end
 
 @inline (body::PhaseBody)() = _walk_chunks(body.interior)
 @inline (body::PhaseBody)(tick) = _walk_chunks(body.boundary, tick)
+# Equal tuple types mean equal entry lists only because `chunked_body` is the
+# one constructor and wraps every discrete entry in `Gated`: a body without a
+# gated entry walks the same list in both variants, so the boundary reuses the
+# interior's compiled walk.
+@inline (body::PhaseBody{I,I})(tick) where {I<:Tuple} = _walk_chunks(body.interior)
 
 @generated _walk_chunks(chunks::Tuple) = _unrolled(i -> :(chunks[$i]()), fieldcount(chunks))
 @generated _walk_chunks(chunks::Tuple, tick) = _unrolled(i -> :(chunks[$i](tick)), fieldcount(chunks))
@@ -507,7 +548,7 @@ function chunked_body(entries::Vector, gates::Vector, store, xbuf, ẋbuf;
         tuple((Chunk(tuple(walk_entries[lo:min(lo + chunk_size - 1, length(walk_entries))]...),
                     store, xbuf, ẋbuf)
               for lo in 1:chunk_size:length(walk_entries))...)
-    PhaseBody(chunks([e for (e, gt) in zip(entries, gates) if gt === nothing]),
-              chunks([gt === nothing ? e : Gated(e, gt[1], gt[2])
-                      for (e, gt) in zip(entries, gates)]))
+    PhaseBody(chunks(Any[e for (e, gt) in zip(entries, gates) if gt === nothing]),
+              chunks(Any[gt === nothing ? e : Gated(e, gt[1], gt[2])
+                         for (e, gt) in zip(entries, gates)]))
 end

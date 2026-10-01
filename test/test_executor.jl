@@ -84,6 +84,48 @@ function test_executor()
         @test @ballocated(_fire!($events, $store, $xbuf)) == 0
     end
 
+    @testset "chunks and the event set are held by reference (§9.7)" begin
+        # The executor holds one pointer per chunk, so its inline size grows by
+        # one word per chunk whatever the chunk holds. The count spans the four
+        # bodies in both variants and the event set's two tuples.
+        count_chunks(sim) =
+            sum(length(getfield(sim.exec.bodies[name], variant))
+                for name in BLOCKS for variant in (:interior, :boundary)) +
+            length(sim.exec.events.entries) + length(sim.exec.events.projects)
+        loops(n) = Group(NamedTuple{ntuple(i -> Symbol(:m, i), n)}(ntuple(_ -> feedback_model(), n));
+                         inputs = ("ref" => ntuple(i -> "m$(i)/ref", n),))
+        small, big = Simulation(loops(6); h = 1//100), Simulation(loops(40); h = 1//100)
+        @test sizeof(big.exec) - sizeof(small.exec) ==
+              sizeof(Int) * (count_chunks(big) - count_chunks(small))
+
+        # The event-set walks cross chunk borders: forty events and forty
+        # projections at chunk size 4 sit in ten chunks each, and the run past
+        # three wraps is the run at 16 and at 64.
+        rotors = Group(NamedTuple{ntuple(i -> Symbol(:p, i), 40)}(
+            ntuple(_ -> Group((; rot = Rotor(), saw = Sawtooth(1.0))), 40)))
+        runs = map((4, 16, 64)) do chunk_size
+            sim = Simulation(rotors; h = 1//100, chunk_size)
+            init!(sim)
+            run!(sim; t_end = 3.5)
+            sim
+        end
+        @test length(runs[1].exec.events.entries) == 10
+        @test length(runs[1].exec.events.projects) == 10
+        @test all(state(runs[1], "p$(i)/saw").q < 1 for i in 1:40)   # every saw wrapped
+        @test runs[1].exec.xbuf == runs[2].exec.xbuf == runs[3].exec.xbuf
+
+        # A body with no gated entry walks its interior at a boundary: its two
+        # tuples have one type, and the boundary call writes what the interior does.
+        sim = Simulation(feedback_model(); h = 1//100)
+        init!(sim, fragment(u = (ref = 0.5,)))
+        run!(sim; t_end = 0.1)
+        rhs = phase_bodies(sim).rhs
+        @test fieldtype(typeof(rhs), :interior) === fieldtype(typeof(rhs), :boundary)
+        rhs(); ẋ_interior = copy(sim.exec.ẋbuf)
+        fill!(sim.exec.ẋbuf, NaN); rhs(3)
+        @test sim.exec.ẋbuf == ẋ_interior
+    end
+
     @testset "the event and projection callables ride with the four blocks (§9.7)" begin
         sim = Simulation(Group((; rot = Rotor(), saw = Sawtooth(1.0))); h = 1//100)
         init!(sim)

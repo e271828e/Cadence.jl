@@ -1533,7 +1533,7 @@ function compile(build::Build, act::Activation{T}, schedule; chunk_size::Int = 1
               events = event_bodies, projections = projection_bodies)
 
     event_set = EventSet(event_entries, projection_entries, event_owner, event_names,
-                         event_localized, length(components))
+                         event_localized, length(components); chunk_size)
     # The seam's backend and the arrival pair are this buffer set's, so they are
     # built here rather than by the caller (§12.6, D-256).
     Executor(act, store, xbuf, ẋbuf, sstores, mstores, clock, bodies, event_set, cursor,
