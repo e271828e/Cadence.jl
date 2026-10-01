@@ -95,7 +95,7 @@ function test_roster()
         dev_a, dev_b = Pad("da"), Pad("db")
         handle_a = attach!(sim, dev_a, Enumerated("a"))           # the handle is the write capability (§11.6)
         handle_b = attach!(sim, dev_b, Enumerated("b"))
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         stage!(handle_a, "a" => 1.0)
         stage!(handle_b, "b" => 2)                       # the shim converts to the root input's Float64
         @test port(sim, "", :a) === 0.0                  # staged is pending, never applied (§11.1)
@@ -132,7 +132,7 @@ function test_roster()
         # greedy last: exactly what is left
         greedy_handle = attach!(sim, greedy, Greedy())
         @test sim.plane.roster[2].handle.writer.faces == [:b]
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         stage!(greedy_handle, "b" => 5.0)
         run!(sim; t_end = 0.1)
         @test port(sim, "", :b) === 5.0
@@ -158,7 +158,7 @@ function test_roster()
         # The line is presentation; the warning's home is the new entry's own
         # cell (§11.8, D-250), so the next run's status carries it.
         @test only((@atomic sim.plane.roster[3].handle.diag_cell.batch).ring) isa EmptyGreedyClaim
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))   # cells survive a fresh trajectory
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))   # cells survive a fresh trajectory
         step!(sim; frames = 1)
         @test writer_status(latest(sim), "device 3 (Pad)").totals.empty_greedy == 1
     end
@@ -169,7 +169,7 @@ function test_roster()
         dev = Pad("d")
         attach!(sim, dev, Enumerated("a"))
         @test sim.plane.harness.faces == [:b]
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         stage!(sim, "a" => 1.0)                          # claimed: rejected into the harness cell
         stage!(sim, "b" => 2.0)
         step!(sim; frames = 1)
@@ -188,7 +188,7 @@ function test_roster()
 
     @testset "the recompilation seam: a pending harness batch is renormalized at attach (§11.4)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))  # first: a pre-init! batch would clear (§12.6)
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))  # first: a pre-init! batch would clear (§12.6)
         stage!(sim, "a" => 1.0, "b" => 2.0)              # staged while stopped, roster still empty
         # The attach reshapes the pending batch through the new schema, discarding
         # the newly claimed face into the harness cell with the incumbent and the
@@ -202,7 +202,7 @@ function test_roster()
         @test entry.incumbent == "device 1 (Pad)" && entry.site === :renormalization
         # At detach the surface only broadens: every pending entry survives.
         sim2 = Simulation(two_root_inputs(); h = 1//10)
-        init!(sim2, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim2, fragment(u = (a = 0.0, b = 0.0)))
         dev = Pad("d2")
         attach!(sim2, dev, Enumerated("a"))
         stage!(sim2, "b" => 4.0)
@@ -227,7 +227,7 @@ function test_roster()
 
     @testset "the roster is frozen per run: attach and detach are stopped-sim operations (§11.3)" begin
         sim = Simulation(chain3(); h = 1//100000)
-        init!(sim, fragment(inputs = (u = 0.0,)))
+        init!(sim, fragment(u = (u = 0.0,)))
         dev = Pad("d")
         attach!(sim, dev, Enumerated("u"))               # also warms both compile paths, so
         @test sim.plane.roster[end].id == 1              # the mid-run checks below race no JIT
@@ -255,7 +255,7 @@ function test_roster()
         sim = Simulation(chain3(); h = 1//100)
         emptier = RosterEmptier(sim)
         rostered = [attach!(sim, emptier, NoClaim()).who, attach!(sim, TailProbe(), NoClaim()).who]
-        init!(sim, fragment(inputs = (u = 0.0,)))
+        init!(sim, fragment(u = (u = 0.0,)))
         # The gate refuses a mid-run `detach!`, so the copy is invisible through
         # the API; the emptier writes the plane's roster directly instead.
         run!(sim; t_end = 1000.0)                        # the emptier's stop ends it
@@ -274,13 +274,13 @@ function test_roster()
         dev_a, dev_b = Pad("da"), Pad("db")
         handle_a = attach!(sim, dev_a, Enumerated("a"))
         handle_b = attach!(sim, dev_b, Enumerated("b"))
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         step!(sim; t_plus = 0.3)
         stage!(handle_a, "a" => 0.7)
         stage!(handle_b, "b" => -1.3)
         step!(sim; t_plus = 0.5)
         reference = Simulation(two_root_inputs(); h = 1//10)
-        init!(reference, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(reference, fragment(u = (a = 0.0, b = 0.0)))
         step!(reference; t_plus = 0.3)
         # the counterfactual, under the data plane
         poke!(reference, "a", 0.7)
@@ -293,7 +293,7 @@ function test_roster()
         sim = Simulation(two_root_inputs(); h = 1//10)
         attach!(sim, Pad("da"), Enumerated("a"))
         attach!(sim, Pad("gui"), Greedy())
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         @test @ballocated(drain!($sim, $(sim.plane.roster))) == 0
     end
 
@@ -303,7 +303,7 @@ function test_roster()
         sim = Simulation(two_root_inputs(); h = 1//10)
         handle_a = attach!(sim, Pad("da"), Enumerated("a"))
         greedy_handle = attach!(sim, Pad("gui"), Greedy())
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)); trace = false)
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)); trace = false)
         # warm both scatters
         stage!(handle_a, "a" => 1.0); stage!(greedy_handle, "b" => 1.0); drain!(sim, sim.plane.roster)
         @test @ballocated(drain!($sim, $(sim.plane.roster)), setup = (stage!($handle_a, "a" => 2.0)),

@@ -29,7 +29,7 @@ function test_log()
 
     @testset "the log is the publications themselves: full density, zero copies (§11.2)" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
-        init!(sim, fragment(inputs = (in = 1.0,)))
+        init!(sim, fragment(u = (in = 1.0,)))
         step!(sim; t_plus = 1.0)
         snapshots = logged(sim)
         @test [snapshot.frame for snapshot in snapshots] == collect(0:10)      # boundary zero + every frame top
@@ -46,7 +46,7 @@ function test_log()
         # by design, log or no log. The log stores the box publication made.
         # 1000 frames carry the ordinal past 511, where a dynamic `Int` read boxes.
         sim = Simulation(feedback_model(); h = 1//100)
-        authored = fragment(inputs = (ref = 0.0,))
+        authored = fragment(u = (ref = 0.0,))
         for log in (true, false)                             # compilation out of the number
             init!(sim, authored; log)
             run!(sim; t_end = 10.0)
@@ -61,18 +61,18 @@ function test_log()
     @testset "logged is typed by the run's snapshot type, empty or not (§11.2)" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
         unpublished = eltype(logged(sim))                    # before the first `init!`
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        init!(sim, fragment(u = (in = 0.0,)))
         run!(sim; t_end = 0.5)
         @test eltype(logged(sim)) === typeof(latest(sim))
         @test unpublished === typeof(latest(sim))
-        init!(sim, fragment(inputs = (in = 0.0,)); log = false)
+        init!(sim, fragment(u = (in = 0.0,)); log = false)
         run!(sim; t_end = 0.5)
         @test isempty(logged(sim)) && eltype(logged(sim)) === typeof(latest(sim))
     end
 
     @testset "log_every thins retention, never publication (§11.2)" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
-        init!(sim, fragment(inputs = (in = 0.0,)); log_every = 3)
+        init!(sim, fragment(u = (in = 0.0,)); log_every = 3)
         step!(sim; frames = 1)
         @test latest(sim).frame == 1                         # published to live readers…
         @test [snapshot.frame for snapshot in logged(sim)] == [0, 1]       # …not retained: `last` alone holds it
@@ -82,7 +82,7 @@ function test_log()
 
     @testset "the endpoints are unconditional and outside the bound (§11.2)" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
-        init!(sim, fragment(inputs = (in = 0.0,)); log_every = 4, log_max = 2)
+        init!(sim, fragment(u = (in = 0.0,)); log_every = 4, log_max = 2)
         run!(sim; t_end = 4.0)
         snapshots = logged(sim)
         @test [snapshot.frame for snapshot in snapshots] ==
@@ -92,7 +92,7 @@ function test_log()
 
     @testset "re-decimation: stride doubles, coverage stays global, the bound holds continuously (§11.2, D-137)" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
-        init!(sim, fragment(inputs = (in = 0.0,)); log_max = 8)
+        init!(sim, fragment(u = (in = 0.0,)); log_max = 8)
         ok_bound = ok_ends = ok_sorted = true
         for k in 1:128                                       # one frame at a time: every
             step!(sim; frames = 1)                           # intermediate state is checked
@@ -112,7 +112,7 @@ function test_log()
 
         # The effective stride composes with the authored one: log_every · 2^k.
         sim2 = Simulation(fed(Plant(), "u"); h = 1//10)
-        init!(sim2, fragment(inputs = (in = 0.0,)); log_every = 2, log_max = 4)
+        init!(sim2, fragment(u = (in = 0.0,)); log_every = 2, log_max = 4)
         run!(sim2; t_end = 4.0)
         @test [snapshot.frame for snapshot in logged(sim2)] == [0, 8, 16, 24, 32, 40]
         @test sim2.run.log.stride == 16                          # 2 · 2³
@@ -120,7 +120,7 @@ function test_log()
 
     @testset "log = false retains nothing; publication is upstream of the switch (§11.2)" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
-        init!(sim, fragment(inputs = (in = 0.0,)); log = false)
+        init!(sim, fragment(u = (in = 0.0,)); log = false)
         run!(sim; t_end = 0.5)
         @test isempty(logged(sim))
         @test latest(sim).frame == 5
@@ -147,17 +147,17 @@ function test_log()
 
     @testset "a warm restart is a new trajectory: the log starts over (§11.2)" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        init!(sim, fragment(u = (in = 0.0,)))
         run!(sim; t_end = 1.0)
         @test length(logged(sim)) == 11
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        init!(sim, fragment(u = (in = 0.0,)))
         @test [snapshot.frame for snapshot in logged(sim)] ==
               [0]          # the new boundary zero, alone
     end
 
     @testset "a restored run counts its stride from its first endpoint (§11.2, D-274)" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        init!(sim, fragment(u = (in = 0.0,)))
         step!(sim; frames = 4)
         restored = Simulation(fed(Plant(), "u"); h = 1//10)
         restore!(restored, checkpoint(sim); log_every = 3)
@@ -168,7 +168,7 @@ function test_log()
 
     @testset "logged is a stopped-sim read behind the §11.3 gate" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//100000)
-        init!(sim, fragment(inputs = (in = 0.0,)); log_max = 16)
+        init!(sim, fragment(u = (in = 0.0,)); log_max = 16)
         logged(sim)                                          # warms the compile path, so the
                                                              # mid-run check below races no JIT
         attach!(sim, TailProbe(), NoClaim())   # a rostered device makes the loop yield every
@@ -187,7 +187,7 @@ function test_log()
 
     @testset "the retention keywords are validated with their siblings (§11.2)" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
-        authored = fragment(inputs = (in = 0.0,))
+        authored = fragment(u = (in = 0.0,))
         # View policies are the door's keywords, so they are `ArgumentInvalid`s
         # at `call = :init!` (D-261), refused before any write.
         d = only(diagnostics(failure(() -> init!(sim, authored; log = 1))))

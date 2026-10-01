@@ -52,7 +52,7 @@ function test_localization()
         # u holds, and not localizing is the action — the event falls through to
         # the frame top's ordinary iteration and stamps the indexed grid time.
         sim = Simulation(fed(Stamper(0.5), "sig"); h = 1//10)
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        init!(sim, fragment(u = (in = 0.0,)))
         step!(sim; t_plus = 0.3)
         @test modes(sim, "c").count == 0
         stage!(sim, "in" => 1.0)                     # staged, drained at the next frame top (§11.4)
@@ -165,7 +165,7 @@ function test_localization()
         # Gate true from the start: the Bool factor is constant over the bracket
         # and the continuous atom localizes as such.
         sim = Simulation(gated_model(); h = 1//10)
-        init!(sim, fragment(inputs = (gate = true,)))
+        init!(sim, fragment(u = (gate = true,)))
         run!(sim; t_end = 0.5)
         @test modes(sim, "s").t_fired ≈ 0.315 atol = 1e-6
 
@@ -173,7 +173,7 @@ function test_localization()
         # the u seam's, σ₀ holds under the frame's own u, and the event fires at
         # the frame top exactly — epoch-caused, never root-found.
         sim2 = Simulation(gated_model(); h = 1//10)
-        init!(sim2, fragment(inputs = (gate = false,)))
+        init!(sim2, fragment(u = (gate = false,)))
         step!(sim2; t_plus = 0.5)
         @test modes(sim2, "s").count == 0              # gate down: -one(σ) throughout
         stage!(sim2, "gate" => true)                            # the u seam, through the drain (§11.4)

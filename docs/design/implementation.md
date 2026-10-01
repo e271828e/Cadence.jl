@@ -130,8 +130,8 @@ The declaration layer:
 - The bundle law, with the legal bundle sets `LEGAL_BUNDLE` and
   `classify_bundle_field` (§5.2, Appendix B).
 - `probe_value`, with its enum arm (D-051).
-- The connection declarations `child_connections`, `input_connections` and
-  `output_connections`, beside `transparent_container`.
+- The connection declarations `inner_connections`, `u_connections` and
+  `y_connections`, beside `transparent_container`.
 - The rate forms `Period`, `Relative` and `Absolute`, with `sample_times`.
 - The event surface `StateEvent`, `state_events` and `x_projection`.
 - The declaration family `DECLARATION_FAMILY` and `foreign_declarations`.
@@ -730,7 +730,7 @@ D-233, D-244, D-256, D-261, D-268, D-270.
   also lifts read sets, joining the prefix to their mount chain; trim.jl
   and linearize.jl add its methods for problems and tap sets (D-277).
 - The export chain's lookup, `_input_faces_at` and `_face_producer`, shared
-  by a condition's `inputs` entry and the read side's `get_input` (D-277).
+  by a condition's `u` entry and the read side's `get_input` (D-277).
 - One collecting pass behind both ways of applying a plan. Each `at` prefix is
   walked from its authoring level (§13.3). The two ways are:
   - `resolve_condition`, for values;
@@ -955,7 +955,8 @@ rulings behind them are `docs/reports/20260923_naming_inventory/README.md`.
   caught exception, always `catch err`), `dev` (a device; `device` is its
   id string), `trc` (a trace; `trace` is the API's keyword flag), `cp` (a checkpoint;
   `checkpoint` is the API's function), `op` (a
-  lifecycle payload's operation), `rng`, `kw`, `scc`/`sccs`, and
+  lifecycle payload's operation), `rng`, `kw`, `scc`/`sccs`, `deriv`
+  (a derivative, as in `x_deriv` and `get_deriv`), and
   `ins`/`outs` for a `Decls` row's declared faces and ports only. A frequent
   name earns a place by being added here, never by being coined in place.
   `diag` in the singular never joins: it shadows `LinearAlgebra.diag`, live

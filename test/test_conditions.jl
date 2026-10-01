@@ -47,7 +47,7 @@ function conditions_algebra()
         # Every node is isbits but for the prefix strings (§14.2), and a prefix
         # is a reference to the author's literal, so rebuilding the tree per
         # trim iteration allocates nothing.
-        @test isbits(fragment(x = (q = 1.0,), inputs = (u = 2.0,)))
+        @test isbits(fragment(x = (q = 1.0,), u = (u = 2.0,)))
         @test isbits(combine(fragment(), fragment()))
         @test (@ballocated tri_tree(SVector(9.0, 8.0), 7.0, :armed, 6.0, 5.5)) == 0
         @test (@ballocated ledger_tree(3.0, 4.0)) == 0
@@ -84,47 +84,47 @@ function conditions_algebra()
     @testset "`override` layers: the patch wins, untouched leaves pass through (§14.6)" begin
         tri_build = build(tri())
         base = combine(at("plant", fragment(x = (q = SVector(1.0, 2.0),))),
-                       fragment(inputs = (u = 1.0, e = 2.0)))
+                       fragment(u = (u = 1.0, e = 2.0)))
         input(p, f) = only(v for (face, (_, v)) in zip(p.faces, p.inputs) if face === f)
 
-        plan = resolve_condition(override(base, fragment(inputs = (u = 9.0,))), tri_build)
+        plan = resolve_condition(override(base, fragment(u = (u = 9.0,))), tri_build)
         @test input(plan, :u) === 9.0                  # the patch wins on the shared leaf
         @test input(plan, :e) === 2.0                  # untouched leaves pass through
         @test only(v for (_, v) in plan.xs) === SVector(1.0, 2.0)
         @test length(plan.inputs) == 2                  # the overridden leaf is replaced, not doubled
 
         # Layering is variadic, and the last layer wins.
-        plan = resolve_condition(override(base, fragment(inputs = (u = 9.0,)),
-                                       fragment(inputs = (u = 7.0,))), tri_build)
+        plan = resolve_condition(override(base, fragment(u = (u = 9.0,)),
+                                       fragment(u = (u = 7.0,))), tri_build)
         @test input(plan, :u) === 7.0
 
         # The origin records both layers: the patch's own chain, and the base's
         # beside it — surfaced here through a violation on the overridden leaf.
-        err = failure(() -> resolve_condition(override(fragment(inputs = (u = 1.0,)),
-                                           fragment(inputs = (u = "high",))), tri_build))
+        err = failure(() -> resolve_condition(override(fragment(u = (u = 1.0,)),
+                                           fragment(u = (u = "high",))), tri_build))
         @test only(diagnostics(err)).origin ==
-              "override[patch 1] → fragment(inputs).u (overrode override[base] → fragment(inputs).u)"
+              "override[patch 1] → fragment(u).u (overrode override[base] → fragment(u).u)"
 
         # A collision *within* one layer is still an error (§14.6).
         err = failure(() -> resolve_condition(
-                  override(combine(fragment(inputs = (u = 1.0,)),
-                                   fragment(inputs = (u = 2.0,))),
-                           fragment(inputs = (u = 3.0,))), tri_build))
+                  override(combine(fragment(u = (u = 1.0,)),
+                                   fragment(u = (u = 2.0,))),
+                           fragment(u = (u = 3.0,))), tri_build))
         @test any(d -> d isa DuplicateConditionLeaf, diagnostics(err))
 
         # §14.6's central use case: a full-coverage baseline authored at the root,
         # under a patch a component's own `condition` method ships against its own
         # face. Two spellings of one root input are one leaf, so they layer.
-        plan = resolve_condition(override(fragment(inputs = (u = 1.0, e = 2.0)),
-                              at("plant", fragment(inputs = (u = 9.0,)))), tri_build)
+        plan = resolve_condition(override(fragment(u = (u = 1.0, e = 2.0)),
+                              at("plant", fragment(u = (u = 9.0,)))), tri_build)
         @test input(plan, :u) === 9.0 && input(plan, :e) === 2.0
         @test length(plan.inputs) == 2
 
         # The same two spellings under `combine` still collide — and with layering
         # no longer reaching this branch, its directive is advice that works.
-        err = failure(() -> resolve_condition(combine(fragment(inputs = (u = 1.0,)),
+        err = failure(() -> resolve_condition(combine(fragment(u = (u = 1.0,)),
                                           at("plant",
-                                             fragment(inputs = (u = 9.0,)))), tri_build))
+                                             fragment(u = (u = 9.0,)))), tri_build))
         d = only(diagnostics(err))
         @test d isa DuplicateConditionLeaf && d.face === :u   # the resolved root input is the leaf
     end
@@ -162,9 +162,9 @@ function conditions_algebra()
         bad = combine(at("nope", fragment(x = (q = 1.0,))),         # unknown segment
                       at("plant", fragment(x = (nope = 1.0,))),     # undeclared field
                       at("ctl", fragment(s = (acc = "high",))),     # unconvertible
-                      at("trig", fragment(inputs = (sig = 1.0,))),  # never a root input
-                      fragment(inputs = (u = 1.0,)),
-                      at("plant", fragment(inputs = (u = 2.0,))))   # one root input, twice
+                      at("trig", fragment(u = (sig = 1.0,))),       # never a root input
+                      fragment(u = (u = 1.0,)),
+                      at("plant", fragment(u = (u = 2.0,))))        # one root input, twice
         err = failure(() -> resolve_condition(bad, tri_build))
         @test err isa DiagnosticError
         @test length(diagnostics(err)) == 5                     # the full list, one throw
@@ -205,24 +205,24 @@ function conditions_algebra()
         tri_build = build(tri())
         # The authoring level names a face of its own contract; resolution walks
         # the chain and lands on the root input the obligation ends at.
-        p = resolve_condition(combine(at("plant", fragment(inputs = (u = 1.0,))),
-                            fragment(inputs = (e = 2.0,))), tri_build)
+        p = resolve_condition(combine(at("plant", fragment(u = (u = 1.0,))),
+                            fragment(u = (e = 2.0,))), tri_build)
         @test Set(p.faces) == Set([:u, :e])
         # An internally wired input reaches no root input: writing it would be
         # meaningless, the first sweep overwriting it. Unexported stays unpokeable.
         @test only(diagnostics(failure(() -> resolve_condition(at("trig",
-                           fragment(inputs = (sig = 1.0,))), tri_build)))).reason ===
+                           fragment(u = (sig = 1.0,))), tri_build)))).reason ===
               :internally_wired
         @test only(diagnostics(failure(() -> resolve_condition(at("plant",
-                           fragment(inputs = (nope = 1.0,))), tri_build)))).reason ===
+                           fragment(u = (nope = 1.0,))), tri_build)))).reason ===
               :no_input_face
         # A prefix naming no level of this build never reaches the face lookup: the
         # `at` is walked at its authoring level first, so the refusal is the walk's
         # and carries the sibling list the face-typo arm above has no use for (§13.3).
         d = only(diagnostics(failure(() -> resolve_condition(at("nope",
-                           fragment(inputs = (dead = 1.0,))), tri_build))))
+                           fragment(u = (dead = 1.0,))), tri_build))))
         @test d isa PathResolution && d.reason === :unknown_child && d.segment == "nope"
-        @test only(diagnostics(failure(() -> resolve_condition(fragment(inputs = (nope = 1.0,)),
+        @test only(diagnostics(failure(() -> resolve_condition(fragment(u = (nope = 1.0,)),
                                                    tri_build)))).reason === :unexported_face
     end
 
@@ -232,24 +232,24 @@ function conditions_algebra()
         # sub-assembly's own `ref` is looked up at that level and followed to the
         # root input the chain ends at. The plan is the one the root spelling
         # produces, entry for entry — two spellings of one root input.
-        nested_plan = resolve_condition(at("loop", fragment(inputs = (ref = 1.0,))),
+        nested_plan = resolve_condition(at("loop", fragment(u = (ref = 1.0,))),
                                         nested_build)
-        direct_plan = resolve_condition(fragment(inputs = (in = 1.0,)), nested_build)
+        direct_plan = resolve_condition(fragment(u = (in = 1.0,)), nested_build)
         @test nested_plan.inputs == direct_plan.inputs &&
               nested_plan.faces == direct_plan.faces == [:in]
 
         # A component-fed face is still unpokeable, at an assembly prefix as at a
         # primitive's: `Vehicle` feeds the loop's `ref` from its own `trim`.
-        @test only(diagnostics(failure(() -> resolve_condition(at("loop", fragment(inputs = (ref = 1.0,))),
+        @test only(diagnostics(failure(() -> resolve_condition(at("loop", fragment(u = (ref = 1.0,))),
                            build(Vehicle()))))).reason === :internally_wired
 
         # A face the level does not declare, with the level's face list in hand.
         d = only(diagnostics(failure(() -> resolve_condition(at("loop",
-                           fragment(inputs = (nope = 1.0,))), nested_build))))
+                           fragment(u = (nope = 1.0,))), nested_build))))
         @test d.reason === :no_input_face && d.field === :nope && d.candidates == [:ref]
 
         # State at an assembly prefix stays refused: assemblies own no state, and
-        # only the `inputs` payload gained a level to resolve at.
+        # only the `u` payload gained a level to resolve at.
         d = only(diagnostics(failure(() -> resolve_condition(at("loop",
                            fragment(x = (q = 1.0,))), nested_build))))
         @test d.reason === :assembly_path && d.path == "loop"
@@ -257,13 +257,13 @@ function conditions_algebra()
 
     @testset "root-input totality is checked pre-write, and a rejection changes nothing (§14.6, D-068)" begin
         sim = Simulation(tri(); h = 1//10)
-        init!(sim, fragment(inputs = (u = 1.0, e = 2.0)))
+        init!(sim, fragment(u = (u = 1.0, e = 2.0)))
         snapshot, q = latest(sim), state(sim, "plant").q
         acc, initial_lifecycle = state(sim, "ctl").acc, lifecycle(sim)
 
         d = carried(@test_throws DiagnosticError{UninitializedInputs} init!(sim, combine(at("plant",
                                                 fragment(x = (q = SVector(5.0, 5.0),))),
-                                             fragment(inputs = (u = 3.0,)))))
+                                             fragment(u = (u = 3.0,)))))
         @test d.op === :init!
         @test d.faces == [:e]                                     # only the uncovered face
         # All-or-nothing: the plan's x write and its root-input write both stayed home.
@@ -290,7 +290,7 @@ function conditions_algebra()
         sim = Simulation(tri(); h = 1//10)
         init!(sim, combine(at("ctl", fragment(s = (acc = 4.0,))),
                            at("trig", fragment(m = (count = 7,))),
-                           fragment(inputs = (u = 1.0, e = 0.0))))
+                           fragment(u = (u = 1.0, e = 0.0))))
         # Authored fields land; the fields no fragment named hold their declared
         # defaults, the overlay being `merge(defaults, overlay)` and nothing more.
         @test port(sim, "ctl", :u) === 4.0              # `s`, published before `s_update`
@@ -301,7 +301,7 @@ function conditions_algebra()
 
     @testset "fresh run: `init!` restarts from the declared defaults, not the trajectory (D-063)" begin
         sim = Simulation(tri(); h = 1//10)
-        init!(sim, fragment(inputs = (u = 4.0, e = 1.0)))
+        init!(sim, fragment(u = (u = 4.0, e = 1.0)))
         run!(sim; t_end = 2.0)
         @test lifecycle(sim) === :stopped
         @test state(sim, "plant").q !== SVector(0.0, 0.0)
@@ -310,7 +310,7 @@ function conditions_algebra()
 
         # The overlay base is always the declared defaults, never the last
         # trajectory's final state: bitwise the `*_init` values again.
-        init!(sim, fragment(inputs = (u = 0.0, e = 0.0)))
+        init!(sim, fragment(u = (u = 0.0, e = 0.0)))
         @test state(sim, "plant").q === SVector(0.0, 0.0)
         @test port(sim, "ctl", :u) === 0.0
         @test modes(sim, "trig") === (state = :armed, count = 0)
@@ -322,7 +322,7 @@ function conditions_algebra()
         # ZOH from the condition's root-input value, the integrator from its authored `s`.
         # The probe's synthesized 0.0 reaches no published cell.
         total = combine(at("off", fragment(s = (acc = 7.0,))),
-                        fragment(inputs = (in = 3.0,)))
+                        fragment(u = (in = 3.0,)))
         sim = Simulation(offset_pair(); h = 1//100)
         init!(sim, total)
         @test port(sim, "", :held) === 3.0             # u(t₀), not the probe's 0.0
@@ -353,7 +353,7 @@ function conditions_algebra()
         model = tri()
         sim = Simulation(model; h = 1//10)
         init!(sim, combine(at("plant", condition(model.children.plant; y = 1.0)),
-                           fragment(inputs = (u = 0.0, e = 0.0))))
+                           fragment(u = (u = 0.0, e = 0.0))))
         @test modes(sim, "trig") === (state = :fired, count = 1)
         @test port(sim, "trig", :on) === true
         @test latest(sim).t == 0.0 && sim.exec.clock.frame == 0
@@ -370,7 +370,7 @@ function conditions_algebra()
         @test port(sim, "", :ref) === 1.0
 
         # And the baseline-plus-tweak spelling the same function supports (§14.6).
-        init!(sim, override(condition(vehicle; ref = 1.0), fragment(inputs = (ref = 5.0,))))
+        init!(sim, override(condition(vehicle; ref = 1.0), fragment(u = (ref = 5.0,))))
         @test port(sim, "", :ref) === 5.0
         @test state(sim, "loop/plant").q === SVector(0.0, 0.0)   # the baseline's own defaults
     end
@@ -393,7 +393,7 @@ function conditions_service_walk()
         concrete_build = build(ConcreteHold(SampledLoop()))
         @test resolve_condition(deep, concrete_build) isa ConditionPlan
         concrete_sim = Simulation(ConcreteHold(SampledLoop()); h = 1//50)
-        init!(concrete_sim, combine(deep, fragment(inputs = (ref = 1.0,))))
+        init!(concrete_sim, combine(deep, fragment(u = (ref = 1.0,))))
         @test state(concrete_sim, "inner/plant").q == q
 
         # The identical instance held through a type parameter: the declaration
@@ -412,7 +412,7 @@ function conditions_service_walk()
         nest = at("inner", at("plant", fragment(x = (q = q,))))
         @test resolve_condition(nest, generic_build) isa ConditionPlan
         generic_sim = Simulation(GenericHold(SampledLoop()); h = 1//50)
-        init!(generic_sim, combine(nest, fragment(inputs = (ref = 1.0,))))
+        init!(generic_sim, combine(nest, fragment(u = (ref = 1.0,))))
         @test state(generic_sim, "inner/plant").q === state(concrete_sim, "inner/plant").q
 
         # One refusal per node, not per leaf: the offender is the path, and the
@@ -485,7 +485,7 @@ tri_tree(q, acc, trig_state, u, e) =
     combine(at("plant", fragment(x = (q = q,))),
             at("ctl", fragment(s = (acc = acc,))),
             at("trig", fragment(m = (state = trig_state,))),
-            fragment(inputs = (u = u, e = e)))
+            fragment(u = (u = u, e = e)))
 
 # The composite a service compiles from: a baseline authoring one field of the
 # store and the per-iteration layer authoring the other (§14.3's fork).
@@ -563,7 +563,7 @@ function conditions_specialized_apply()
         drifted = combine(at("plant", fragment(x = (q = SVector(9.0, 8.0),))),
                           at("plant", fragment(s = (acc = 7.0,))),   # was "ctl"
                           at("trig", fragment(m = (state = :armed,))),
-                          fragment(inputs = (u = 6.0, e = 5.5)))
+                          fragment(u = (u = 6.0, e = 5.5)))
         d = carried(@test_throws DiagnosticError{ConditionShapeDrift} apply!(sim.exec, plan, drifted))
         @test d.reason === :prefix
         @test d.position == (:nodes, (2,), :prefix)           # the position, as a tree-step tuple
@@ -588,7 +588,7 @@ function conditions_specialized_apply()
         computed = combine(at(fresh(1), fragment(x = (q = SVector(9.0, 8.0),))),
                            at(fresh(2), fragment(s = (acc = 7.0,))),
                            at(fresh(3), fragment(m = (state = :armed,))),
-                           fragment(inputs = (u = 6.0, e = 5.5)))
+                           fragment(u = (u = 6.0, e = 5.5)))
         apply!(sim.exec, plan, computed)             # other objects, same paths: the sweep passes
         @test sim.exec.xbuf == [9.0, 8.0]
         @test state(sim, "ctl") === (acc = 7.0,)

@@ -28,7 +28,7 @@ function discrete_one_rate()
         snext = s + kI * Δt * (r - q[1])   # the update boundary n_samples itself performs
 
         sim = Simulation(sampled_loop(; kI, ω, ζ); h = 1//50)   # h = Δt: one rate, N_base = 1
-        init!(sim, fragment(inputs = (ref = r,)))
+        init!(sim, fragment(u = (ref = r,)))
         run!(sim; t_end = n_samples * Δt)
 
         # The tolerance is RK4's, not the semantics': the reference integrates
@@ -45,7 +45,7 @@ function discrete_one_rate()
 
     @testset "the ZOH holds by compile-time absence (§10.5)" begin
         sim = Simulation(sampled_loop(); h = 1//50)
-        init!(sim, fragment(inputs = (ref = 1.0,)))    # excite the loop, or nothing moves at all
+        init!(sim, fragment(u = (ref = 1.0,)))    # excite the loop, or nothing moves at all
 
         # Structural: the interior variants carry continuous entries only, so there
         # is no gating test on the hot path — the hold is not implemented, it is
@@ -82,7 +82,7 @@ function discrete_frozen_activation()
         @test length(walked(dual_sim.exec.bodies.sweep_1)) == 1          # plant only; ctl frozen
         @test port(dual_sim, "ctl", :u) isa Float64
 
-        init!(dual_sim, fragment(inputs = (ref = 0.0,)))
+        init!(dual_sim, fragment(u = (ref = 0.0,)))
         run!(dual_sim; t_end = 0.04)
         @test state(dual_sim, "plant").q isa SVector{2,D8}
         @test port(dual_sim, "ctl", :u) == 0.0              # held, never recomputed
@@ -98,7 +98,7 @@ struct OpaqueRoster{K <: NamedTuple, R <: NamedTuple} <: AbstractComponent
     kids::K
     rates::R
 end
-child_connections(::OpaqueRoster) = ()
+inner_connections(::OpaqueRoster) = ()
 sample_times(comp::OpaqueRoster) = comp.rates
 
 # A bare container key over a tuple of elements: one `Absolute` entry, applied
@@ -107,7 +107,7 @@ struct AnchoredBank <: AbstractComponent
     units::NTuple{2,TickCounter}
     clock::TickCounter
 end
-child_connections(::AnchoredBank) = ()
+inner_connections(::AnchoredBank) = ()
 sample_times(::AnchoredBank) = (units = Absolute(Hz(10), 1//150), clock = Absolute(Hz(500)))
 
 function discrete_rate_fold()
@@ -575,7 +575,7 @@ function discrete_deployment()
         sim = Simulation(SampledLoop(; kI, ω, ζ, ctl_rate = Relative(2)); h = 1//200, N_base = 2)
         @test [(e.path, e.D, e.Φ) for e in sim.deployment.schedule.rows] == [("ctl", 2, 0)]
         @test sim.deployment.schedule.rows[1].Δt ≈ Δt_ctl
-        init!(sim, fragment(inputs = (ref = r,)))
+        init!(sim, fragment(u = (ref = r,)))
         run!(sim; t_end = n_samples * Δt_ctl)
         @test state(sim, "plant").q ≈ q rtol = 1e-6
         @test port(sim, "ctl", :u) ≈ s rtol = 1e-6
@@ -587,7 +587,7 @@ function discrete_deployment()
         # due, so its store holds the state its next tick decodes beside the cell
         # it published at frame 4 (D-273).
         sim = Simulation(SampledLoop(; ctl_rate = Relative(2)); h = 1//200, N_base = 2)
-        init!(sim, fragment(inputs = (ref = 0.7,)))
+        init!(sim, fragment(u = (ref = 0.7,)))
         step!(sim; frames = 6)
         cp = checkpoint(sim)
         twin = Simulation(SampledLoop(; ctl_rate = Relative(2)); h = 1//200, N_base = 2)
@@ -618,7 +618,7 @@ function discrete_deployment()
             @test @ballocated($body(2)) == 0             # a boundary where gates split
         end
         sim2 = Simulation(SampledLoop(; ctl_rate = Relative(2)); h = 1//200, N_base = 2)
-        init!(sim2, fragment(inputs = (ref = 0.0,)))
+        init!(sim2, fragment(u = (ref = 0.0,)))
         @test @ballocated(step!($sim2, 0.005)) == 0
         @test @ballocated(offtick_boundary!($sim2)) == 0
         @test @ballocated(boundary!($sim2, 3)) == 0

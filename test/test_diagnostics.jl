@@ -60,7 +60,7 @@ function diagnostics_channel()
         sim = Simulation(two_root_inputs(); h = 1//10)
         dev = Parser(0.7, "garbage", 0.9)
         handle = attach!(sim, dev, Enumerated("a"))
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         logs, _ = Test.collect_test_logs() do
             run!(sim; t_end = 1000.0)                        # ends by the device's stop
         end
@@ -86,7 +86,7 @@ function diagnostics_channel()
     @testset "the ring's bound is the rate limit: 16 retained, excess to the counts (§11.8)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         handle = attach!(sim, Pad("p"), Enumerated("a"))
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         for k in 1:20                                # one frame's flood, pending in the cell
             report!(handle, MalformedDatum("datum $k"))
         end
@@ -103,7 +103,7 @@ function diagnostics_channel()
     @testset "a quiet publication allocates the capture, the status vector and the snapshot (§11.8, D-241)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         attach!(sim, Pad("p"), Enumerated("a"))
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)); log = false)
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)); log = false)
         publish!(sim, sim.plane.roster); capture_stores(sim.exec.store)  # warm
         # Nothing scales with diagnostic activity: the store capture's own
         # allocations, the status vector (object and memory), and the snapshot
@@ -115,7 +115,7 @@ function diagnostics_channel()
     @testset "the status: the delta rides one snapshot, totals ride every one (§11.8, §11.2)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         handle = attach!(sim, Pad("p"), Enumerated("a"))
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         # Boundary zero's status: the writers in the drain's order — devices in
         # attachment order, the harness writer, the loop — every account zero,
         # and no run task to be alive: device tasks are run-scoped observables.
@@ -147,7 +147,7 @@ function diagnostics_channel()
         sim = Simulation(two_root_inputs(); h = 1//10)
         dev = Ticker()
         attach!(sim, dev, Enumerated())
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         run!(sim; t_end = 1000.0)                            # ends by the device's stop, ≥ 3 boundaries in
         @test dev.n ≥ 3
         writer = writer_status(latest(sim), "device 1 (Ticker)")
@@ -164,7 +164,7 @@ function diagnostics_channel()
         sim = Simulation(two_root_inputs(); h = 1//10)
         dev = LateReporter()
         attach!(sim, dev, Enumerated())
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         logs, _ = Test.collect_test_logs() do
             run!(sim; t_end = 1000.0)
         end
@@ -175,7 +175,7 @@ function diagnostics_channel()
         # A fresh trajectory opens a fresh account (§11.8): init! resets the
         # totals, and the stepped frames — deviceless, the reporter never respawns —
         # publish a zeroed record for it.
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         step!(sim; frames = 2)
         @test writer_status(latest(sim), "device 1 (LateReporter)").totals.malformed == 0
     end
@@ -263,10 +263,10 @@ function diagnostics_kind_set()
                            (prime = 5, power = 2, suppliers = [2])])
         occurrences = Diagnostic[
             # the structure step
-            UnknownPort(entry = "child_connections at `a`, entry `x => y`", endpoint = :destination,
+            UnknownPort(entry = "inner_connections at `a`, entry `x => y`", endpoint = :destination,
                         path = "a/b", spelling = "b/throtle", port = :throtle,
                         candidates = [:throttle, :mixture]),
-            UnknownPort(entry = "input_connections at `a`, entry `:u => ()`", endpoint = :connection,
+            UnknownPort(entry = "u_connections at `a`, entry `:u => ()`", endpoint = :connection,
                         path = "a", port = :u),
             UnconnectedInput(path = "a/b", face = :u, declared = Float64, level = "a/b"),
             UnconnectedInput(path = "a/b", face = :u, declared = Float64, level = "a"),
@@ -296,10 +296,10 @@ function diagnostics_kind_set()
             DeclarationShadowed(path = "a/b", parent_module = "Main.MyModel",
                                 names = [:x_init, :y_types]),
             ClassUnreadable(path = "a", type = "Inert", found = Symbol[],
-                            assembly_family = [:child_connections],
+                            assembly_family = [:inner_connections],
                             leaf_family = [:x_init, :y_types], holds_components = true),
             ClassUnreadable(path = "a", type = "Inert", found = [:sample_times],
-                            assembly_family = [:child_connections],
+                            assembly_family = [:inner_connections],
                             leaf_family = [:x_init, :y_types]),
             ClassMixed(path = "a", declarations = [:x_init, :y_types]),
             ContainerMixed(path = "a", field = :kids, keys = Any[1, :b],
@@ -316,7 +316,7 @@ function diagnostics_kind_set()
             FaceNameIllegal(path = "a", face = "u/v", invariant = :contains_slash),
             FaceNameCollision(path = "a", faces = ["u"], site = :assembly),
             FaceNameCollision(path = "", faces = ["u"], site = :root),
-            FaceDirectionConflict(entry = "child_connections at `a`", path = "a/b",
+            FaceDirectionConflict(entry = "inner_connections at `a`", path = "a/b",
                                   spelling = "b/u", found = :input, wanted = :producer),
             UnknownFaceSelection(who = "input_passthrough", path = "a/b",
                                  reason = :multiple_selectors, names = ["except", "only"]),
@@ -381,7 +381,7 @@ function diagnostics_kind_set()
                                observed = Int),
             ConformanceFailure(path = "a/b", what = "x_projection", reason = :field_set, shape = :state,
                                observed_fields = [:p], declared_fields = [:q]),
-            ConformanceFailure(path = "a/b", what = "x_derivative", reason = :field_type, shape = :x_init,
+            ConformanceFailure(path = "a/b", what = "x_deriv", reason = :field_type, shape = :x_init,
                                field = :q, observed = Float64, declared = Bool),
             ConformanceFailure(path = "a/b", what = "y_state", reason = :field_type, shape = :ports,
                                field = :y, observed = Int, declared = Float64,

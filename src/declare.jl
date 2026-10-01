@@ -17,7 +17,7 @@ abstract type AbstractComponent end
 Continuous state, **by value**, at nominal `Float64`; leaves drawn from §7.1's
 closed vocabulary, and its *types* walk by rule. Mandatory on every continuous
 leaf, `x_init(::C) = (;)` when stateless: the store is the tier marker, as
-`child_connections` is the class marker (§8.2, §8.5, D-263). The fallback
+`inner_connections` is the class marker (§8.2, §8.5, D-263). The fallback
 serves the value readers; the classifier asks whether the method is declared.
 """
 x_init(::Any) = NamedTuple()
@@ -99,20 +99,20 @@ endpoint, relative to the declaring assembly.
 **Mandatory even when empty**, because defining it *is* the assembly class
 marker (§8.5) — which is why it has no fallback to match.
 """
-function child_connections end
+function inner_connections end
 
 """
 The boundary, inward: face name => internal endpoint path, or a tuple of paths
 for an input face fanning out through the boundary. Absence declares no input
 face.
 """
-input_connections(::Any) = ()
+u_connections(::Any) = ()
 
 """
 The boundary, outward: internal source path => face name, so that its pairs, like
 every other pair in the three declarations, read along the flow.
 """
-output_connections(::Any) = ()
+y_connections(::Any) = ()
 
 """
 The one optional declaration (§8.5, D-211): a component may declare **at most
@@ -243,7 +243,7 @@ _holding(σ) = σ ≥ 0
 
 function y_state end
 function y_direct end
-function x_derivative end
+function x_deriv end
 function s_update end
 
 # --- the family, and the forgotten import (§8.1, D-246) -----------------------
@@ -253,8 +253,8 @@ function s_update end
 
 const DECLARATION_FAMILY = (:x_init, :s_init, :m_init, :ws_init,
     :u_types, :y_types, :state_events, :y_state, :y_direct,
-    :x_derivative, :s_update, :x_projection, :child_connections,
-    :input_connections, :output_connections, :sample_times,
+    :x_deriv, :s_update, :x_projection, :inner_connections,
+    :u_connections, :y_connections, :sample_times,
     :transparent_container)
 
 """
@@ -305,7 +305,7 @@ end
 # *through* the tier, so no code path ever holds a name that serves both; the
 # output stages are one pair of names shared by both tiers (D-220), so every
 # caller names them directly instead.
-update_of(tier::Tier) = tier === CONTINUOUS ? x_derivative : s_update
+update_of(tier::Tier) = tier === CONTINUOUS ? x_deriv : s_update
 
 # --- the bundle law (§5.2) ----------------------------------------------------
 # A name appears in a component's bundle iff the corresponding store or fact
@@ -372,7 +372,7 @@ end
 const LEGAL_BUNDLE = Dict(
     (:y_state, CONTINUOUS)     => (:x, :m, :t, :ws),
     (:y_direct, CONTINUOUS)    => (:x, :m, :u, :y_x, :t, :ws),
-    (:x_derivative, CONTINUOUS) => (:x, :m, :y, :u, :t, :ws),
+    (:x_deriv, CONTINUOUS) => (:x, :m, :y, :u, :t, :ws),
     (:y_state, DISCRETE)       => (:s, :t, :Δt, :ws),
     (:y_direct, DISCRETE)      => (:s, :u, :y_s, :t, :Δt, :ws),
     (:s_update, DISCRETE)       => (:s, :y, :u, :t, :Δt, :ws),

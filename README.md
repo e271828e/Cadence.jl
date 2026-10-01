@@ -44,7 +44,7 @@ A continuous plant under a discrete PI controller running at 50 Hz:
 ```julia
 using Cadence
 import Cadence: AbstractComponent, x_init, s_init, u_types, y_types,
-    y_state, y_direct, x_derivative, s_update,
+    y_state, y_direct, x_deriv, s_update,
     Group, Absolute, Hz, Simulation, init!, run!, fragment, port, state, build
 
 struct Plant <: AbstractComponent
@@ -58,7 +58,7 @@ y_types(::Plant) = (y = Float64, power = Float64)
 
 y_state(::Plant, (; x)) = (y = x.q,)                 # stage 1: state only
 y_direct(::Plant, (; x, u)) = (power = u.u * x.v,)   # stage 2: reads inputs
-x_derivative(p::Plant, (; x, u)) =
+x_deriv(p::Plant, (; x, u)) =
     (q = x.v, v = -p.ω^2 * x.q - 2p.ζ * p.ω * x.v + u.u)
 
 struct PI <: AbstractComponent
@@ -80,7 +80,7 @@ loop(feedback) = Group((plant = Plant(2.0, 0.3), ctl = PI(3.0, 2.0));
     rates = (ctl = Absolute(Hz(50)),))
 
 sim = Simulation(loop("y"); h = 1//1000)
-init!(sim, fragment(inputs = (ref = 1.0,)))
+init!(sim, fragment(u = (ref = 1.0,)))
 run!(sim; t_end = 10.0)
 
 port(sim, "plant", :y)    # 0.9654…

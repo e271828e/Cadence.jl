@@ -180,7 +180,7 @@ recorded in `diags` (§13.1).
 """
 function classify_tier(path::String, comp, diags::Vector{Diagnostic})
     votes = Tuple{Symbol,Tier}[]
-    has_stage(x_derivative, comp) && push!(votes, (:x_derivative, CONTINUOUS))
+    has_stage(x_deriv, comp) && push!(votes, (:x_deriv, CONTINUOUS))
     has_stage(s_update, comp) && push!(votes, (:s_update, DISCRETE))
     _declares(x_init, comp) && push!(votes, (:x_init, CONTINUOUS))
     _declares(s_init, comp) && push!(votes, (:s_init, DISCRETE))
@@ -195,7 +195,7 @@ function classify_tier(path::String, comp, diags::Vector{Diagnostic})
     end
     state_store = !isempty(invoke_declaration(x_init, comp)) ? :x_init :
                   !isempty(invoke_declaration(s_init, comp)) ? :s_init : nothing
-    update_vote = findfirst(v -> first(v) === :x_derivative || first(v) === :s_update,
+    update_vote = findfirst(v -> first(v) === :x_deriv || first(v) === :s_update,
                             votes)
     if state_store !== nothing && update_vote === nothing
         push!(diags, StoreWithoutUpdate(path = path, store = state_store))
@@ -1058,7 +1058,7 @@ function probe_stage2(structure::Structure, decls::Vector{Decls},
     end
     isempty(diags) || throw(DiagnosticError(diags))
 
-    # The update laws, probed against the now-complete table: `x_derivative`
+    # The update laws, probed against the now-complete table: `x_deriv`
     # for shape, `s_update` for the store's own type. A frozen component's
     # `s_update` is outside the executable set like its output stages (§9.4).
     empty!(diags)
@@ -1073,7 +1073,7 @@ function probe_stage2(structure::Structure, decls::Vector{Decls},
                                     Δt = 1.0)
             append!(diags, tier === CONTINUOUS ?
                 _check_derivative(path,
-                    invoke_probed(x_derivative, :x_derivative, path, comp, tier, bundle),
+                    invoke_probed(x_deriv, :x_deriv, path, comp, tier, bundle),
                     decl.x, T) :
                 _check_update(path,
                     invoke_probed(s_update, :s_update, path, comp, tier, bundle), decl.s))
@@ -1451,7 +1451,7 @@ function compile(build::Build, act::Activation{T}, schedule; chunk_size::Int = 1
         push!(stage2_gates, gate(ci))
     end
 
-    # The update law, one block per tier: `x_derivative` into the flat
+    # The update law, one block per tier: `x_deriv` into the flat
     # derivative buffer, `s_update` into the component's own store. Both
     # read the complete fresh table.
     for (ci, entry) in enumerate(components)
@@ -1576,11 +1576,11 @@ end
 # structurally here so the runtime `flatten!` into the derivative block is safe.
 function _check_derivative(path, ẋ, x::NamedTuple, ::Type{T}) where {T}
     ẋ isa NamedTuple ||
-        return Diagnostic[ConformanceFailure(path = path, what = "x_derivative",
+        return Diagnostic[ConformanceFailure(path = path, what = "x_deriv",
                                              reason = :return_type,
                                              shape = :x_init, observed = typeof(ẋ))]
     Set(keys(ẋ)) == Set(keys(x)) ||
-        return Diagnostic[ConformanceFailure(path = path, what = "x_derivative",
+        return Diagnostic[ConformanceFailure(path = path, what = "x_deriv",
                                              reason = :field_set,
                                              shape = :x_init,
                                              observed_fields = collect(keys(ẋ)),
@@ -1588,7 +1588,7 @@ function _check_derivative(path, ẋ, x::NamedTuple, ::Type{T}) where {T}
     diags = Diagnostic[]
     for field in keys(x)
         _accepts(typeof(x[field]), typeof(ẋ[field]), T) ||
-            push!(diags, ConformanceFailure(path = path, what = "x_derivative",
+            push!(diags, ConformanceFailure(path = path, what = "x_deriv",
                                            reason = :field_type,
                                            shape = :x_init, field = field,
                                            observed = typeof(ẋ[field]),

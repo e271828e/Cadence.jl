@@ -20,7 +20,7 @@ resume_pend() = Group((; ctl = DiscreteIntegrator(1.0), c = Pendulum());
                       wires = ("ctl/u" => "c/u",), inputs = ("in" => "ctl/e",))
 resume_condition() = combine(at("ctl", fragment(s = (acc = 4.0,))),
                              at("c", condition(Pendulum(); θ = 0.2)),
-                             fragment(inputs = (in = 0.5,)))
+                             fragment(u = (in = 0.5,)))
 
 function test_lifecycle()
     @testset "the five states, and the gates between them (§12.6)" begin
@@ -32,9 +32,9 @@ function test_lifecycle()
         d = carried(@test_throws DiagnosticError{MissingInit} step!(sim; t_end = 1.0))
         @test d.op === :step!
 
-        init!(sim, fragment(inputs = (ref = 0.0,)))
+        init!(sim, fragment(u = (ref = 0.0,)))
         @test lifecycle(sim) === :initialized
-        init!(sim, fragment(inputs = (ref = 0.0,)))  # a warm restart from initialized is legal
+        init!(sim, fragment(u = (ref = 0.0,)))  # a warm restart from initialized is legal
         run!(sim; t_end = 1.0)
         @test lifecycle(sim) === :stopped && closed(sim.run)
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} run!(sim; t_end = 1.0))
@@ -42,7 +42,7 @@ function test_lifecycle()
         @test d.legal == [:initialized]               # §12.6: the advance entries' one state
         d = carried(@test_throws DiagnosticError{ServiceLifecycle} step!(sim; t_end = 1.0))
         @test d.op === :step! && d.status === :stopped
-        init!(sim, fragment(inputs = (ref = 0.0,)))  # the supported cycle reopens it
+        init!(sim, fragment(u = (ref = 0.0,)))  # the supported cycle reopens it
         @test lifecycle(sim) === :initialized
         @test termination(sim) === nothing && !closed(sim.run)   # a fresh run, not a cleared one
     end
@@ -64,7 +64,7 @@ function test_lifecycle()
 
         # `init!` allocates a fresh run rather than clearing this one (§12.6), and
         # the loop's tail writes the termination onto the run it ran.
-        init!(sim, fragment(inputs = (ref = 0.0,)))
+        init!(sim, fragment(u = (ref = 0.0,)))
         run = sim.run
         @test run !== placeholder && run.feed === nothing && !closed(run)
         run!(sim; t_end = 0.1)
@@ -73,11 +73,11 @@ function test_lifecycle()
 
         # Recording is per run (D-261): the door's keyword configures the run it
         # builds and the next door may declare otherwise.
-        init!(sim, fragment(inputs = (ref = 0.0,)); trace = false)
+        init!(sim, fragment(u = (ref = 0.0,)); trace = false)
         @test sim.run.trace === nothing
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} trace(sim))
         @test d.call === :trace && d.reason === :disabled
-        init!(sim, fragment(inputs = (ref = 0.0,)))
+        init!(sim, fragment(u = (ref = 0.0,)))
         @test sim.run.trace !== nothing && trace(sim).frames == 0
     end
 
@@ -89,7 +89,7 @@ function test_lifecycle()
         # expected end — 30M frames, twenty times what the probes' own compilation
         # costs — and reaching it fails the source assertion instead of hanging.
         sim = Simulation(armed(); h = 1//100)
-        total = fragment(inputs = (in = 0.0,))           # below the trigger: the run holds
+        total = fragment(u = (in = 0.0,))           # below the trigger: the run holds
         init!(sim, total)
         attach!(sim, TailProbe(), NoClaim())   # a rostered device makes the loop yield every
                                                # frame (§12.2), so the spin gets its turn on one thread
@@ -113,7 +113,7 @@ function test_lifecycle()
 
     @testset "t_end is the advance's own bound, validated per call (§13.5)" begin
         sim = Simulation(feedback_model(); h = 1//50)
-        init!(sim, fragment(inputs = (ref = 0.0,)))
+        init!(sim, fragment(u = (ref = 0.0,)))
         run!(sim; t_end = 1.0)                           # this advance's bound
         record = termination(sim)
         @test record isa TerminationRecord{Float64}           # the deployment's own scalar (§7.2, D-203)
@@ -128,18 +128,18 @@ function test_lifecycle()
         # grid-aligned bound on its own frame (`_frames_to`'s slack scales
         # with the larger magnitude of the time and the origin; `step!`'s
         # `t_plus` is the same rule)
-        init!(sim, fragment(inputs = (ref = 0.0,)))
+        init!(sim, fragment(u = (ref = 0.0,)))
         run!(sim; t_end = 0.99)
         @test termination(sim).t == 1.0 && sim.exec.clock.frame == 50
-        init!(sim, fragment(inputs = (ref = 0.0,)); t0 = 10.0)
+        init!(sim, fragment(u = (ref = 0.0,)); t0 = 10.0)
         run!(sim; t_end = 12.0)
         @test termination(sim).t == 12.0 && sim.exec.clock.frame == 100
-        init!(sim, fragment(inputs = (ref = 0.0,)); t0 = 10.0)
+        init!(sim, fragment(u = (ref = 0.0,)); t0 = 10.0)
         run!(sim; t_end = 5.0)
         @test termination(sim).source === EndTimeReached() && sim.exec.clock.frame == 0
         late = Simulation(feedback_model(); h = 1//50)   # the advance below carries the bound:
                                                         # one before `t0` advances nothing
-        init!(late, fragment(inputs = (ref = 0.0,)); t0 = 86400.0)
+        init!(late, fragment(u = (ref = 0.0,)); t0 = 86400.0)
         @test step!(late; t_plus = 1.0) == 50
         run!(late; t_end = 86402.0)
         @test termination(late).t == 86402.0 && late.exec.clock.frame == 100
@@ -149,19 +149,19 @@ function test_lifecycle()
         # as the bound ends at frame 3, not 4; so does a `t_plus` of three steps,
         # and the next `t_plus` counts from that frame top.
         shifted = Simulation(feedback_model(); h = 1//10)
-        init!(shifted, fragment(inputs = (ref = 0.0,)); t0 = -0.3)
+        init!(shifted, fragment(u = (ref = 0.0,)); t0 = -0.3)
         step!(shifted; frames = 3)
         t_three = shifted.exec.clock.t
-        init!(shifted, fragment(inputs = (ref = 0.0,)); t0 = -0.3)
+        init!(shifted, fragment(u = (ref = 0.0,)); t0 = -0.3)
         run!(shifted; t_end = t_three)
         @test termination(shifted).t == t_three && shifted.exec.clock.frame == 3
-        init!(shifted, fragment(inputs = (ref = 0.0,)); t0 = -0.3)
+        init!(shifted, fragment(u = (ref = 0.0,)); t0 = -0.3)
         @test step!(shifted; t_plus = 3 * shifted.deployment.h) == 3
         @test shifted.exec.clock.t == t_three
         @test step!(shifted; t_plus = 0.3) == 3
         # The same at a `Dual` activation, whose clock is a `Dual` (D-260).
         dual_sim = Simulation(feedback_model(), D8; h = 1//10)
-        init!(dual_sim, fragment(inputs = (ref = D8(0.0),)); t0 = -0.3)
+        init!(dual_sim, fragment(u = (ref = D8(0.0),)); t0 = -0.3)
         @test step!(dual_sim; t_plus = 3 * dual_sim.deployment.h) == 3
         @test dual_sim.exec.clock.t isa D8
         @test step!(dual_sim; t_plus = 0.3) == 3
@@ -178,10 +178,10 @@ function test_lifecycle()
         @test all(_frame_at(t₀ + (k + 0.5) * h, t₀, h) == k for (t₀, h, k) in grid)
         @test all(_frames_to(t₀ + (k + 0.5) * h, t₀, h) == k + 1 for (t₀, h, k) in grid)
 
-        init!(sim, fragment(inputs = (ref = 0.0,)))
+        init!(sim, fragment(u = (ref = 0.0,)))
         run!(sim; t_end = 0.5)                           # this advance only
         @test termination(sim).t == 0.5
-        init!(sim, fragment(inputs = (ref = 0.0,)))
+        init!(sim, fragment(u = (ref = 0.0,)))
         run!(sim; t_end = 1.0)                           # a different bound, no rebuild (§12.6)
         @test termination(sim).t == 1.0
 
@@ -199,7 +199,7 @@ function test_lifecycle()
         run!(lifted; t_end = Inf, stop_on = ("hit",))
         @test termination(lifted).t == 4 * lifted.deployment.h
         unbound = Simulation(feedback_model(); h = 1//50)
-        init!(unbound, fragment(inputs = (ref = 0.0,)))
+        init!(unbound, fragment(u = (ref = 0.0,)))
         # The bound is validated identically at the three binding sites: the same
         # payload — argument, reason and offending value — with the naming call the
         # one field that differs (§13.5, D-255, D-249).
@@ -219,7 +219,7 @@ function test_lifecycle()
     @testset "stop_on names root-exported Bool output faces, validated at all three sites (§13.5)" begin
         model = feedback_model()                    # "ref" a root input, "y" a Float64 export
         sim = Simulation(model; h = 1//50)
-        init!(sim, fragment(inputs = (ref = 0.0,)))
+        init!(sim, fragment(u = (ref = 0.0,)))
         trc = trace(sim)                            # the header alone: `replay!` binds as `run!` does
         for (bad, reason) in (("nope", :unknown), ("ref", :root_input), ("y", :not_bool))
             run_err = failure(() -> run!(sim; t_end = 1.0, stop_on = (bad,)))
@@ -263,7 +263,7 @@ function test_lifecycle()
 
     @testset "an authored condition already terminal ends the run at t₀, integrating nothing (§13.5)" begin
         sim = Simulation(armed(); h = 1//10)
-        init!(sim, fragment(inputs = (in = 1.0,)))        # holds in the authored state:
+        init!(sim, fragment(u = (in = 1.0,)))        # holds in the authored state:
         #                                                boundary zero derives the firing (§10.6)
         run!(sim; t_end = 5.0, stop_on = ("stop",))
         record = termination(sim)
@@ -357,7 +357,7 @@ function test_lifecycle()
         for _ in 1:Threads.nthreads()
             attach!(sim, TailProbe(), NoClaim())
         end
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         run!(sim; t_end = 0.5)
         records = [writer_status(snapshot, "loop") for snapshot in logged(sim)[2:end]]
         @test length(records) == 5                   # frames 1..5 after boundary zero
@@ -368,14 +368,14 @@ function test_lifecycle()
 
     @testset "a deviceless run never warns of the thread budget (§12.2)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         run!(sim; t_end = 0.3)
         @test writer_status(latest(sim), "loop").totals.thread_budget == 0
     end
 
     @testset "step! advances whole frames and returns the count actually advanced (§12.6)" begin
         sim = Simulation(feedback_model(); h = 1//50)
-        init!(sim, fragment(inputs = (ref = 0.0,)))
+        init!(sim, fragment(u = (ref = 0.0,)))
         @test step!(sim; t_end = 1.0) == 1               # the frames = 1 default
         @test step!(sim; frames = 4, t_end = 1.0) == 4
         @test step!(sim; t_plus = 0.5, t_end = 1.0) == 25   # the duration spelling
@@ -386,13 +386,13 @@ function test_lifecycle()
 
         # A stepped trajectory is bit-identical to the same frames under run!.
         reference = Simulation(feedback_model(); h = 1//50)
-        init!(reference, fragment(inputs = (ref = 0.0,)))
+        init!(reference, fragment(u = (ref = 0.0,)))
         run!(reference; t_end = 1.0)
         @test port(sim, "plant", :y) === port(reference, "plant", :y)
         @test state(sim, "plant").q === state(reference, "plant").q
 
         sim2 = Simulation(feedback_model(); h = 1//50)
-        init!(sim2, fragment(inputs = (ref = 0.0,)))
+        init!(sim2, fragment(u = (ref = 0.0,)))
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(sim2; frames = 1, t_plus = 0.1))
         @test d.call === :step! && d.reason === :both_given
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} step!(sim2; frames = 0))
@@ -422,7 +422,7 @@ function test_lifecycle()
         sim = Simulation(fed(Exploder(), "arm"); h = 1//10)
         probe = TailProbe()
         attach!(sim, probe, NoClaim())
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        init!(sim, fragment(u = (in = 0.0,)))
         stage!(sim, "in" => true)                        # armed: frame 1's drain applies it,
         # frame 1's integration throws; the rostered probe makes the session
         # interactive, so `run!` logs the rendered error and returns (§13.4, D-268)
@@ -467,7 +467,7 @@ function test_lifecycle()
         for dev in (TailProbe(), Panel("p"))
             sim = Simulation(fed(Exploder(), "arm"); h = 1//10)
             attach!(sim, dev, NoClaim())
-            init!(sim, fragment(inputs = (in = false,)))
+            init!(sim, fragment(u = (in = false,)))
             stage!(sim, "in" => true)                    # armed: frame 1 throws
             logs, _ = Test.collect_test_logs() do
                 run!(sim; t_end = 5.0)                   # logged, and returned
@@ -480,14 +480,14 @@ function test_lifecycle()
         # Unattended: nothing rostered, so the failure reaches the caller and CI
         # fails honestly.
         sim = Simulation(fed(Exploder(), "arm"); h = 1//10)
-        init!(sim, fragment(inputs = (in = false,)))
+        init!(sim, fragment(u = (in = false,)))
         stage!(sim, "in" => true)
         @test_throws StepError{Exploded} run!(sim; t_end = 5.0)
         @test lifecycle(sim) === :errored
         # `step!` is deviceless by construction, a rostered device or not (§12.6).
         stepped = Simulation(fed(Exploder(), "arm"); h = 1//10)
         attach!(stepped, TailProbe(), NoClaim())
-        init!(stepped, fragment(inputs = (in = false,)))
+        init!(stepped, fragment(u = (in = false,)))
         stage!(stepped, "in" => true)
         @test_throws StepError{Exploded} step!(stepped; t_end = 5.0)
         @test lifecycle(stepped) === :errored
@@ -496,7 +496,7 @@ function test_lifecycle()
     @testset "replay! reads §13.4's disposition off the roster as run! does (§13.4, §12.7, D-268)" begin
         # The recording: frame 1's drain applies the armed batch, and the frame throws.
         recorded = Simulation(fed(Exploder(), "arm"); h = 1//10)
-        init!(recorded, fragment(inputs = (in = false,)))
+        init!(recorded, fragment(u = (in = false,)))
         stage!(recorded, "in" => true)
         @test_throws StepError{Exploded} run!(recorded; t_end = 5.0)
         recording = trace(recorded)                      # a copy, the failed frame's batch in it
@@ -541,13 +541,13 @@ function test_lifecycle()
 
     @testset "a throw inside boundary zero returns a warm simulation to `built` (§12.6, D-223)" begin
         sim = Simulation(fed(Mine(), "sig"); h = 1//10)
-        init!(sim, fragment(inputs = (in = false,)))
+        init!(sim, fragment(u = (in = false,)))
         @test step!(sim; frames = 2, t_end = 5.0) == 2
         @test latest(sim).t == 0.2
 
         # The re-`init!` throws at boundary zero: the word moves before the throw
         # leaves, so no advance runs on the half-transitioned stores.
-        @test failure(() -> init!(sim, fragment(inputs = (in = true,)))) isa StepError
+        @test failure(() -> init!(sim, fragment(u = (in = true,)))) isa StepError
         @test lifecycle(sim) === :built
         d = carried(@test_throws DiagnosticError{MissingInit} step!(sim; t_end = 5.0))
         @test d.op === :step! && d.status === :built
@@ -557,7 +557,7 @@ function test_lifecycle()
         d = carried(@test_throws DiagnosticError{MissingInit} trace(sim))
         @test d.op === :trace && d.status === :built
 
-        init!(sim, fragment(inputs = (in = false,)))     # `built` is re-initializable
+        init!(sim, fragment(u = (in = false,)))     # `built` is re-initializable
         @test lifecycle(sim) === :initialized
         @test step!(sim; t_end = 5.0) == 1
     end

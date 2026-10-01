@@ -321,12 +321,12 @@ end
 path(d::UnknownPort) = d.path
 message(d::UnknownPort) =
     d.endpoint === :connection ?
-    "$(d.entry): the entry routes to no internal endpoint — every `input_connections` " *
+    "$(d.entry): the entry routes to no internal endpoint — every `u_connections` " *
     "entry routes to at least one, a face feeding nothing declaring nothing (§8.6)" :
     "$(d.entry): `$(d.spelling)` names no `$(d.port)` on $(_at_path(d.path)) — its " *
     "faces are $(_plainlist(d.candidates))"
 
-"§6.1, §8.4 w2: an input no wire and no `input_connections` chain feeds."
+"§6.1, §8.4 w2: an input no wire and no `u_connections` chain feeds."
 Base.@kwdef struct UnconnectedInput <: Diagnostic
     path::String
     face::Symbol
@@ -338,7 +338,7 @@ message(d::UnconnectedInput) =
     "`$(d.path)`.$(d.face) declared $(d.declared) is fed by nothing" *
     (d.level == d.path ? "" :
      ", handed up to $(_at_path(d.level)) and fed by nothing there") *
-    " — every input is fed exactly once, by a wire or by an `input_connections` chain " *
+    " — every input is fed exactly once, by a wire or by a `u_connections` chain " *
     "ending at a root input face (§6.1)"
 
 "§6.1, §8.8: an input claimed twice, both producers named with their declarations."
@@ -471,14 +471,14 @@ function message(d::PathResolution)
      "segment where the child is a container element, and nothing further (§6.1, §13.3)")
 end
 
-"§8.2: a declared store with no update — `x_init` without `x_derivative`, `s_init` without `s_update`."
+"§8.2: a declared store with no update — `x_init` without `x_deriv`, `s_init` without `s_update`."
 Base.@kwdef struct StoreWithoutUpdate <: Diagnostic
     path::String
     store::Symbol                            # :x_init | :s_init
 end
 path(d::StoreWithoutUpdate) = d.path
 message(d::StoreWithoutUpdate) =
-    "`$(d.path)` declares `$(d.store)` but defines neither `x_derivative` nor " *
+    "`$(d.path)` declares `$(d.store)` but defines neither `x_deriv` nor " *
     "`s_update` — a store needs its update (§8.2)"
 
 "§8.2: an event declared with one half, or a `state_events` entry that is not a `StateEvent` (D-215)."
@@ -525,7 +525,7 @@ message(d::ClassUnreadable) =
     "$(_namelist(d.leaf_family)) a primitive (§8.5)" *
     (isempty(d.found) ? "" : " — it declares $(_namelist(d.found))") *
     (d.holds_components ?
-     " — it holds components but declares no `child_connections`" : "")
+     " — it holds components but declares no `inner_connections`" : "")
 
 "§8.5: a component declaring both families — an assembly owns no state and no contract."
 Base.@kwdef struct ClassMixed <: Diagnostic
@@ -534,7 +534,7 @@ Base.@kwdef struct ClassMixed <: Diagnostic
 end
 path(d::ClassMixed) = d.path
 message(d::ClassMixed) =
-    "$(_at_path(d.path)) declares `child_connections` and the leaf declaration(s) " *
+    "$(_at_path(d.path)) declares `inner_connections` and the leaf declaration(s) " *
     "$(_plainlist(d.declarations)) — an assembly owns no state and no contract of its " *
     "own (§8.5)"
 
@@ -613,7 +613,7 @@ message(d::FaceNameCollision) =
     "primitive's faces are its `u_types` and `y_types` keys together, and a key " *
     "declared in both is the same build error a duplicate assembly face name is (§8.6)" :
     "$(_at_path(d.path)): face name(s) $(_plainlist(d.faces)) appear twice — face names " *
-    "are unique across `input_connections` and `output_connections` together; to route " *
+    "are unique across `u_connections` and `y_connections` together; to route " *
     "one input face to several children, write `name => (path, path, …)` (§8.6)"
 
 "§8.6: an entry whose endpoint resolves to a port of the opposite direction."
@@ -1076,7 +1076,7 @@ message(d::GuardForm) =
 "§5.2, §13.2: a bundle field a component function destructured that its bundle does not carry, classified against the legal sets."
 Base.@kwdef struct BundleFieldError <: Diagnostic
     path::String
-    family::String                           # "y_state" | "y_direct" | "x_derivative" | "s_update" | "guard" | "handler"
+    family::String                           # "y_state" | "y_direct" | "x_deriv" | "s_update" | "guard" | "handler"
     tier::Symbol                             # :continuous | :discrete
     field::Symbol                            # the requested field
     legal::Vector{Symbol}                    # the bundle's own field names, the list in hand

@@ -15,7 +15,7 @@ stop hit is `frame!`'s return value, never a field here (§13.5, D-261).
 """
 mutable struct ExecutionCursor
     comp::Int        # the component's index in the flat, 0 = none
-    fn::Symbol       # :y_state | :y_direct | :x_derivative | :s_update |
+    fn::Symbol       # :y_state | :y_direct | :x_deriv | :s_update |
                      # :guard | :handler | :x_projection | :none
     phase::Symbol    # :drain | :integrate | :arrival | :validation | :trial | :project | :round | :ticks
     index::Int       # the RK stage, the event round, the trial ordinal; 0 where none applies
@@ -62,7 +62,7 @@ end
 struct RHSEntry{Comp,XT,BN,IA<:NamedTuple,YA<:NamedTuple,CL,MS,WS}
     comp::Comp
     inputs::IA
-    y::YA           # every own port — `x_derivative` reads the complete fresh table (§5.3)
+    y::YA           # every own port — `x_deriv` reads the complete fresh table (§5.3)
     x_off::Int
     clock::CL
     mstore::MS
@@ -155,10 +155,10 @@ end
 end
 
 @inline function run_entry!(entry::RHSEntry{Comp,XT}, store, xbuf, ẋbuf) where {Comp,XT}
-    entry.cursor.comp = entry.ci; entry.cursor.fn = :x_derivative
-    ẋ = x_derivative(entry.comp, make_bundle(entry, store, xbuf))
+    entry.cursor.comp = entry.ci; entry.cursor.fn = :x_deriv
+    ẋ = x_deriv(entry.comp, make_bundle(entry, store, xbuf))
     flatten_state!(ẋbuf, entry.x_off, ẋ, XT, activation_scalar(entry.clock), entry.path,
-                   :x_derivative, :x_init, nothing)
+                   :x_deriv, :x_init, nothing)
     nothing
 end
 

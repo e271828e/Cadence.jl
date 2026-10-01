@@ -4,22 +4,22 @@
 # resolved producer per input, and nothing downstream knows the tree existed.
 
 # --- class (§8.5) -------------------------------------------------------------
-# Class is not announced either: `child_connections` is the assembly marker, any
+# Class is not announced either: `inner_connections` is the assembly marker, any
 # leaf declaration a primitive's, and the rule is total — a component-typed
 # struct declaring neither family has no class to read.
 
 @enum Class PRIMITIVE ASSEMBLY
 
-const ASSEMBLY_FAMILY = (:child_connections,)
+const ASSEMBLY_FAMILY = (:inner_connections,)
 const LEAF_FAMILY = (:x_init, :s_init, :m_init, :ws_init, :u_types,
                      :y_types, :state_events, :y_state, :y_direct,
-                     :x_derivative, :s_update, :x_projection)
+                     :x_deriv, :s_update, :x_projection)
 
 # The five `DECLARATION_FAMILY` names no leaf declaration covers: the assembly
 # marker, the two boundary declarations and the two sugars.
-const _OTHER_FAMILY = ((:child_connections, child_connections),
-                       (:input_connections, input_connections),
-                       (:output_connections, output_connections),
+const _OTHER_FAMILY = ((:inner_connections, inner_connections),
+                       (:u_connections, u_connections),
+                       (:y_connections, y_connections),
                        (:sample_times, sample_times),
                        (:transparent_container, transparent_container))
 
@@ -35,7 +35,7 @@ function leaf_declarations(comp)
     end
     _declares(state_events, comp) && push!(found, :state_events)
     for (name, fn) in ((:y_state, y_state), (:y_direct, y_direct),
-                       (:x_derivative, x_derivative), (:s_update, s_update),
+                       (:x_deriv, x_deriv), (:s_update, s_update),
                        (:x_projection, x_projection))
         has_stage(fn, comp) && push!(found, name)
     end
@@ -54,7 +54,7 @@ end
 """The class of `comp` at `path`, or a `DiagnosticError` naming what makes it unreadable."""
 function classify(path::String, comp)
     leaves = leaf_declarations(comp)
-    if _declares(child_connections, comp)
+    if _declares(inner_connections, comp)
         isempty(leaves) ||
             throw(DiagnosticError(ClassMixed(path = path, declarations = leaves)))
         return ASSEMBLY
@@ -269,9 +269,9 @@ Group(children; wires = (), inputs = (), outputs = (), rates = (;)) =
 _entries(connections::Pair) = (connections,)
 _entries(connections) = connections
 
-child_connections(g::Group) = g.wires
-input_connections(g::Group) = g.inputs
-output_connections(g::Group) = g.outputs
+inner_connections(g::Group) = g.wires
+u_connections(g::Group) = g.inputs
+y_connections(g::Group) = g.outputs
 sample_times(g::Group) = g.rates
 transparent_container(::Group) = :children
 
@@ -466,7 +466,7 @@ _contract(fn, comp) =
     input_faces(comp) → Vector{String}
 
 A leaf's `u_types` keys — asked at the nominal `Float64`, the key set being
-`T`-independent — or an assembly's `input_connections` face names. Declaration
+`T`-independent — or an assembly's `u_connections` face names. Declaration
 order is preserved: deterministic printouts, stable diagnostics (§13.3). Inside a
 walk the walk has already evaluated the body once and this primitive does not
 evaluate it again (Appendix C); standalone the primitive evaluates it. Either way
@@ -474,20 +474,20 @@ the list returned is a fresh vector, the caller's to mutate.
 """
 input_faces(comp) = classify("", comp) === PRIMITIVE ?
                  String[String(k) for k in keys(_contract(u_types, comp))] :
-                 _walked_faces(comp, 1, input_connections, first)
+                 _walked_faces(comp, 1, u_connections, first)
 
 """
     output_faces(comp) → Vector{String}
 
 `input_faces`' mirror: a leaf's `y_types` keys, or an assembly's
-`output_connections` face names, in declaration order (§13.3). Inside a walk the
+`y_connections` face names, in declaration order (§13.3). Inside a walk the
 walk has already evaluated the body once and this primitive does not evaluate it
 again (Appendix C); standalone the primitive evaluates it. Either way the list
 returned is a fresh vector, the caller's to mutate.
 """
 output_faces(comp) = classify("", comp) === PRIMITIVE ?
                   String[String(k) for k in keys(_contract(y_types, comp))] :
-                  _walked_faces(comp, 2, output_connections, last)
+                  _walked_faces(comp, 2, y_connections, last)
 
 # The walk's list when the walk evaluated this assembly, the one body asked for
 # otherwise — one side per primitive, so that a miss evaluates only the body
@@ -504,7 +504,7 @@ function _walked_faces(comp, side::Int, fn, face_of)
 end
 
 # --- §8.8's passthrough helpers -----------------------------------------------
-# `input_connections` and `output_connections` are ordinary functions evaluated
+# `u_connections` and `y_connections` are ordinary functions evaluated
 # at build against the concrete instance, so they may *compute* entries from
 # child contracts. These two are the framework's own sugar over the primitives
 # above — the pass-through case, where an assembly re-exports the faces of a
@@ -520,7 +520,7 @@ end
                       except = (), only = (), select = nothing)
 
 Every input face of `child_path` the assembly does not feed, exposed on its own
-boundary under `prefix * sep * face` — splatted into `input_connections` (§8.8).
+boundary under `prefix * sep * face` — splatted into `u_connections` (§8.8).
 The default `prefix` folds the path's slash into `sep`, so an undeclared
 container element (`"units/1"`) labels its faces `"units.1.…"` — a legal face
 name — by default; an explicit `prefix` is used verbatim, and `prefix = ""`
@@ -548,7 +548,7 @@ end
                        except = (), only = (), select = nothing)
 
 `input_passthrough`'s sibling on the outward boundary (D-209), splatted into
-`output_connections`: the same surface over `output_faces` — the same folded
+`y_connections`: the same surface over `output_faces` — the same folded
 default `prefix` included, and the same three exclusive selectors, one per
 call, `select` accepting face names and an empty selection warning
 `EmptyFaceSelection` (§8.8, D-251) — its pairs reading along the flow —
@@ -746,7 +746,7 @@ face table — the assembly faces the periphery may read, aliased onto the cells
 they derive from, and beside them every input face at every level with the
 producer it routes to. The input side is total: one-level routing gives every
 signal crossing a boundary a declared face there (D-207), so a fragment's
-`inputs` payload resolves from any authoring level (§14.2). Beside the tables,
+`u` payload resolves from any authoring level (§14.2). Beside the tables,
 each assembly face's routes at every level, root included (§9.1, §13.7): the
 hops `(path, face)` down to the terminal, one row per output face and one per
 consumer of an input face, the last hop being the face's table entry or one of
@@ -950,7 +950,7 @@ function flatten!(draft::StructureDraft, root, diags::Vector{Diagnostic})
     end
 
     # The obligation model (§6.1): an input is fed by a wire in some ancestor's
-    # `child_connections` or by an `input_connections` chain handing it up level
+    # `inner_connections` or by a `u_connections` chain handing it up level
     # by level, and the chain that never terminates is the error. The one
     # legitimate unfed terminus is the root's own input face. A wire that failed
     # to resolve claimed nothing, so the input it should have fed is reported
@@ -968,8 +968,8 @@ function flatten!(draft::StructureDraft, root, diags::Vector{Diagnostic})
     nothing
 end
 
-# The obligation chain's last level (§6.1): the topmost face an
-# `input_connections` chain handed `(path, face)` up to — the shortest route path
+# The obligation chain's last level (§6.1): the topmost face a
+# `u_connections` chain handed `(path, face)` up to — the shortest route path
 # naming it as a consumer, an ancestor's path being a prefix of the leaf's. The
 # leaf's own path when no route names it: `draft.routes` records only routes with
 # consumers, so an entry nobody handed up has no row.
@@ -1106,8 +1106,8 @@ function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
         # (D-246). Each body is evaluated exactly once and its entries reused by
         # the name check and by the face loop below: a warning raised inside one
         # fires once per call (Appendix C).
-        input_entries = invoke_declaration(input_connections, comp)
-        output_entries = invoke_declaration(output_connections, comp)
+        input_entries = invoke_declaration(u_connections, comp)
+        output_entries = invoke_declaration(y_connections, comp)
         # The evaluated lists, recorded for the primitives (`WALK_FACES`): the
         # readers are a parent's own body and its wire resolution, both later, so
         # nothing below this line reads the row just written.
@@ -1115,8 +1115,8 @@ function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
                              String[String(f) for (_, f) in output_entries])
         _check_face_names(path, input_entries, output_entries, diags)
 
-        for pair in invoke_declaration(child_connections, comp)
-            entry = _entry("child_connections", path, pair)
+        for pair in invoke_declaration(inner_connections, comp)
+            entry = _entry("inner_connections", path, pair)
             route = resolve_source(draft, entry, path, comp, first(pair), diags)
             route === nothing && continue      # recorded; the destination stays unfed
             producer = last(route)
@@ -1129,7 +1129,7 @@ function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
         # entries are checked at every level; only the root's input faces *feed*
         # anything, there being no parent above them to claim the obligation.
         for (face, inner) in input_entries
-            entry = _entry("input_connections", path, face => inner)
+            entry = _entry("u_connections", path, face => inner)
             routes = _fanout(draft, entry, path, comp, inner, diags)
             # Every entry routes to at least one internal endpoint, at every level
             # (D-210): a face feeding nothing declares nothing, and the empty tuple
@@ -1151,7 +1151,7 @@ function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
             end
         end
         for (source, face) in output_entries
-            entry = _entry("output_connections", path, source => face)
+            entry = _entry("y_connections", path, source => face)
             route = resolve_source(draft, entry, path, comp, source, diags)
             route === nothing && continue      # recorded; the face registers no row
             push!(draft.out_faces, (path, Symbol(face)) => route)

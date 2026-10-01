@@ -23,7 +23,7 @@ x_init(::HookedInterrupter) = (q = 0.0,)
 u_types(::HookedInterrupter) = (arm = Bool,)
 y_types(::HookedInterrupter) = (q = Float64,)
 y_state(::HookedInterrupter, (; x)) = (q = x.q,)
-x_derivative(c::HookedInterrupter, (; x, u)) =
+x_deriv(c::HookedInterrupter, (; x, u)) =
     u.arm ? (c.hook[](); throw(InterruptException())) : (q = one(x.q),)
 hooked_interrupted(c) = Group((c = c, trig = Trigger(0.15));
                               wires = ("c/q" => "trig/sig", "trig/on" => "c/arm"))
@@ -51,7 +51,7 @@ function x_init(c::LateSignal)
 end
 y_types(::LateSignal) = (q = Float64,)
 y_state(::LateSignal, (; x)) = (q = x.q,)
-function x_derivative(c::LateSignal, bundle)
+function x_deriv(c::LateSignal, bundle)
     bundle.t ≥ 0.2 || return (q = one(bundle.x.q),)
     c.armed[] = true
     (q = bundle.nope,)
@@ -112,19 +112,19 @@ struct ScrambledRate <: AbstractComponent end
 x_init(::ScrambledRate) = (a = 1.0, b = 2.0)
 y_types(::ScrambledRate) = (pa = Float64, pb = Float64)
 y_state(::ScrambledRate, (; x)) = (pa = x.a, pb = x.b)
-x_derivative(::ScrambledRate, (; x)) = (b = 0.0, a = 1.0)
+x_deriv(::ScrambledRate, (; x)) = (b = 0.0, a = 1.0)
 
 struct LateIntegerRate <: AbstractComponent end
 x_init(::LateIntegerRate) = (a = 1.0,)
 y_types(::LateIntegerRate) = (q = Float64,)
 y_state(::LateIntegerRate, (; x)) = (q = x.a,)
-x_derivative(::LateIntegerRate, (; t)) = (a = t < 0.05 ? -1.0 : 0,)
+x_deriv(::LateIntegerRate, (; t)) = (a = t < 0.05 ? -1.0 : 0,)
 
 struct LateIntegerProjection <: AbstractComponent end
 x_init(::LateIntegerProjection) = (a = 1.0,)
 y_types(::LateIntegerProjection) = (q = Float64,)
 y_state(::LateIntegerProjection, (; x)) = (q = x.a,)
-x_derivative(::LateIntegerProjection, (; x)) = (a = -10.0 * x.a,)
+x_deriv(::LateIntegerProjection, (; x)) = (a = -10.0 * x.a,)
 x_projection(::LateIntegerProjection, x) = x.a > 0.5 ? (a = x.a,) : (a = 0,)
 
 # The lawful late `Float64`: the constant branch under a `Dual` activation, which
@@ -133,7 +133,7 @@ struct DecayingBranch <: AbstractComponent end
 x_init(::DecayingBranch) = (a = 1.0,)
 y_types(::DecayingBranch) = (q = Float64,)
 y_state(::DecayingBranch, (; x)) = (q = x.a > 0.5 ? 2.0 * x.a : 0.0,)
-x_derivative(::DecayingBranch, (; x)) = (a = -10.0 * x.a,)
+x_deriv(::DecayingBranch, (; x)) = (a = -10.0 * x.a,)
 
 struct LateSuccessor <: AbstractComponent end
 s_init(::LateSuccessor) = (n = 0.0,)
@@ -164,7 +164,7 @@ state_events(::LateModeScalar) = (fire = StateEvent(late_mode_guard, late_mode_s
 function failures_runtime()
     @testset "the cursor names where execution was after a quiet frame (§13.4)" begin
         sim = Simulation(feedback_model(); h = 1//50)
-        init!(sim, fragment(inputs = (ref = 0.0,)))
+        init!(sim, fragment(u = (ref = 0.0,)))
         step!(sim; t_end = 1.0)
         cursor = sim.exec.cursor
         @test cursor.phase === :ticks                    # the sequence's last block, empty here
@@ -172,12 +172,12 @@ function failures_runtime()
         @test cursor.comp == index_of(sim.deployment.build.structure, "plant")
     end
 
-    @testset "a throw mid-integration names the component, `x_derivative` and the stage (§13.4)" begin
+    @testset "a throw mid-integration names the component, `x_deriv` and the stage (§13.4)" begin
         sim = Simulation(fed(Tripwire(0.05), "arm"); h = 1//10)
-        init!(sim, fragment(inputs = (in = true,)))
+        init!(sim, fragment(u = (in = true,)))
         err = failure(() -> run!(sim; t_end = 5.0))
         @test err isa StepError
-        @test err.cursor == CursorFrame("c", :x_derivative, :integrate, 2)  # RK4's half-step evaluation
+        @test err.cursor == CursorFrame("c", :x_deriv, :integrate, 2)  # RK4's half-step evaluation
         @test err.boundary == 0 && err.t == 0.05
         @test err.host === :loop                        # frame one, not boundary zero
         @test err.cause isa Tripped
@@ -189,7 +189,7 @@ function failures_runtime()
 
     @testset "a throw in a handler names the event round (§13.4)" begin
         sim = Simulation(fed(Mine(), "sig"); h = 1//10)
-        init!(sim, fragment(inputs = (in = false,)))
+        init!(sim, fragment(u = (in = false,)))
         stage!(sim, "in" => true)                       # frame 1's drain arms the guard
         err = failure(() -> step!(sim; t_end = 5.0))
         @test err isa StepError{Detonated}
@@ -198,7 +198,7 @@ function failures_runtime()
 
         # The pointer is the frame-entry index actually recorded, not a constant.
         sim2 = Simulation(fed(Mine(), "sig"); h = 1//10)
-        init!(sim2, fragment(inputs = (in = false,)))
+        init!(sim2, fragment(u = (in = false,)))
         @test step!(sim2; frames = 3, t_end = 5.0) == 3
         stage!(sim2, "in" => true)
         err = failure(() -> step!(sim2; t_end = 5.0))
@@ -226,7 +226,7 @@ function failures_runtime()
         # the not-holding prior boundary zero establishes, so the handler fires
         # inside `init!` rather than inside the loop.
         sim = Simulation(fed(Mine(), "sig"); h = 1//10)
-        err = failure(() -> init!(sim, fragment(inputs = (in = true,))))
+        err = failure(() -> init!(sim, fragment(u = (in = true,))))
         @test err isa StepError
         @test err.cursor == CursorFrame("c", :handler, :round, 1)
         @test err.boundary == 0 && err.t == 0.0         # frame one's pointer too…
@@ -252,14 +252,14 @@ function failures_runtime()
         # The reproduction is `init!` under the same condition (D-274): the same
         # frame, the same pointer, the same host, the same cause.
         sim2 = Simulation(fed(Mine(), "sig"); h = 1//10)
-        reproduced = failure(() -> init!(sim2, fragment(inputs = (in = true,))))
+        reproduced = failure(() -> init!(sim2, fragment(u = (in = true,))))
         @test reproduced isa StepError{Detonated}
         @test reproduced.cursor == err.cursor && reproduced.boundary == 0 && reproduced.t == err.t
         @test reproduced.host === :boundary_zero
         @test lifecycle(sim2) === :built
 
         # The remedy is a corrected condition, and `init!` re-establishes first.
-        init!(sim, fragment(inputs = (in = false,)))
+        init!(sim, fragment(u = (in = false,)))
         @test lifecycle(sim) === :initialized
         @test step!(sim; t_end = 5.0) == 1
     end
@@ -293,7 +293,7 @@ function failures_runtime()
 
     @testset "a throw in `s_update` or in `x_projection` names its own block (§13.4)" begin
         sim = Simulation(fed(Sapper(), "sig"); h = 1//10)
-        init!(sim, fragment(inputs = (in = false,)))
+        init!(sim, fragment(u = (in = false,)))
         stage!(sim, "in" => true)
         err = failure(() -> step!(sim; t_end = 5.0))
         @test err isa StepError{Detonated}
@@ -309,7 +309,7 @@ function failures_runtime()
 
     @testset "a failed frame is not counted, and the record ends at the last one (§13.4)" begin
         sim = Simulation(fed(Tripwire(0.25), "arm"); h = 1//10)
-        init!(sim, fragment(inputs = (in = true,)))
+        init!(sim, fragment(u = (in = true,)))
         err = failure(() -> step!(sim; frames = 5, t_end = 5.0))
         @test err isa StepError && err.boundary == 2    # frame 3 throws at its half step
         @test latest(sim).t == 0.2 && termination(sim).t == 0.2
@@ -417,10 +417,10 @@ function failures_runtime()
 
     @testset "the rendering states the frame and the reproduction (§13.4, §13.2)" begin
         sim = Simulation(fed(Tripwire(0.05), "arm"); h = 1//10)
-        init!(sim, fragment(inputs = (in = true,)))
+        init!(sim, fragment(u = (in = true,)))
         err = failure(() -> run!(sim; t_end = 5.0))
         rendered = sprint(showerror, err)
-        @test occursin("`c`", rendered) && occursin("x_derivative", rendered) &&
+        @test occursin("`c`", rendered) && occursin("x_deriv", rendered) &&
               occursin("stage 2", rendered)
         # The recipe follows the host (D-223, D-274). Frame one's failure takes the
         # general recipe at pointer 0, the halt restoring the header…
@@ -430,7 +430,7 @@ function failures_runtime()
         # replay, and the `step!` it would refuse is not named.
         zero_sim = Simulation(fed(Mine(), "sig"); h = 1//10)
         zero_rendered =
-            sprint(showerror, failure(() -> init!(zero_sim, fragment(inputs = (in = true,)))))
+            sprint(showerror, failure(() -> init!(zero_sim, fragment(u = (in = true,)))))
         @test occursin("init!(sim2, condition) under the same condition reproduces it",
                        zero_rendered)
         @test !occursin("replay!", zero_rendered) && !occursin("step!", zero_rendered)
@@ -438,7 +438,7 @@ function failures_runtime()
         # A `Diagnostic` cause renders as its logline: the kind name leads, and the
         # leaf the sweep named is in the line.
         diverging_sim = Simulation(diverging(); h = 1//10)
-        init!(diverging_sim, fragment(inputs = (in = true,)))
+        init!(diverging_sim, fragment(u = (in = true,)))
         diverging_rendered =
             sprint(showerror, failure(() -> step!(diverging_sim; t_end = 5.0)))
         @test occursin("NonfiniteState", diverging_rendered) &&
@@ -459,7 +459,7 @@ function failures_runtime()
         @test !occursin("root component", none_rendered) && !occursin(" in ", none_rendered)
 
         # An unrecognized phase renders as itself, never as another phase's spelling.
-        odd = StepError(CursorFrame("c", :x_derivative, :nowhere, 0), 0.3, 3, :loop, Tripped())
+        odd = StepError(CursorFrame("c", :x_deriv, :nowhere, 0), 0.3, 3, :loop, Tripped())
         @test occursin("nowhere of the frame", sprint(showerror, odd))
 
         # D-225's bound: a bare value is no cause the carrier admits.
@@ -472,17 +472,17 @@ function failures_runtime()
         # is a `Dual`, which `Float64` has no method for: the framing is what would
         # throw a `MethodError` over the model's own failure, losing the cause.
         sim = Simulation(fed(Tripwire(0.05), "arm"), D8; h = 1//10)
-        init!(sim, fragment(inputs = (in = true,)))
+        init!(sim, fragment(u = (in = true,)))
         err = failure(() -> run!(sim; t_end = 5.0))
         @test err isa StepError{Tripped}
-        @test err.cursor == CursorFrame("c", :x_derivative, :integrate, 2)
+        @test err.cursor == CursorFrame("c", :x_deriv, :integrate, 2)
         @test err.t == 0.05 && err.boundary == 0
         @test lifecycle(sim) === :errored
 
         # The sweep's own species too: `isfinite` is defined on a `Dual`, the value
         # rides as the `Dual` it is, and the payload times are seconds either way.
         diverging_sim = Simulation(diverging(), D8; h = 1//10)
-        init!(diverging_sim, fragment(inputs = (in = true,)))
+        init!(diverging_sim, fragment(u = (in = true,)))
         err = failure(() -> step!(diverging_sim; t_end = 5.0))
         @test err isa StepError{NonfiniteState}
         # the species rule unwrapped the carrier
@@ -497,7 +497,7 @@ function failures_runtime()
 
     @testset "the sweep names the diverging block, never its downstream (§13.4, D-157)" begin
         sim = Simulation(diverging(); h = 1//10)
-        init!(sim, fragment(inputs = (in = false,)))
+        init!(sim, fragment(u = (in = false,)))
         @test step!(sim; t_end = 5.0) == 1
         stage!(sim, "in" => true)                       # frame 2's drain arms the RHS
         err = failure(() -> step!(sim; t_end = 5.0))
@@ -538,13 +538,13 @@ end
 # consumer for (§12.7, D-218).
 function reproduction(model, quiet::Int)
     sim = Simulation(model; h = 1//10)
-    init!(sim, fragment(inputs = (in = false,)))
+    init!(sim, fragment(u = (in = false,)))
     quiet > 0 && step!(sim; frames = quiet, t_end = 5.0)   # the quiet frames before it
     stage!(sim, "in" => true)                       # drained at the failing frame's top
     failure(() -> step!(sim; t_end = 5.0))
     err = termination(sim).source.exception
     sim2 = Simulation(model; h = 1//10)
-    init!(sim2, fragment(inputs = (in = false,)))
+    init!(sim2, fragment(u = (in = false,)))
     replay!(sim2, trace(sim); to_boundary = err.boundary, t_end = 5.0)
     @test lifecycle(sim2) === :initialized          # the pointer is always a legal halt
     @test mode(sim2) === :replay                    # …with the recording still ahead of it
@@ -566,7 +566,7 @@ function failures_pointer_twin()
         # frame's own drain.
         err = reproduction(fed(Tripwire(0.35), "arm"), 3)
         @test err.cause isa Tripped && err.boundary == 3
-        @test err.cursor == CursorFrame("c", :x_derivative, :integrate, 2)
+        @test err.cursor == CursorFrame("c", :x_deriv, :integrate, 2)
 
         # And the nonfinite species, which the sweep raises rather than model code.
         err = reproduction(diverging(), 1)
@@ -578,7 +578,7 @@ function failures_pointer_twin()
         # still ahead and `step!` re-executes that frame.
         err = reproduction(fed(Tripwire(0.05), "arm"), 0)
         @test err.cause isa Tripped && err.boundary == 0 && err.host === :loop
-        @test err.cursor == CursorFrame("c", :x_derivative, :integrate, 2)
+        @test err.cursor == CursorFrame("c", :x_deriv, :integrate, 2)
         @test err.t == 0.05                   # inside frame one
         err = reproduction(diverging(), 0)
         @test err.cause isa NonfiniteState && err.boundary == 0 && err.host === :loop
@@ -588,14 +588,14 @@ function failures_pointer_twin()
     @testset "`to_boundary` counts grid boundaries, not base ticks (§12.7, §13.4)" begin
         grid() = Simulation(feedback_model(); h = 1//10, N_base = 2)
         sim = grid()
-        init!(sim, fragment(inputs = (ref = 1.0,)))
+        init!(sim, fragment(u = (ref = 1.0,)))
         stage!(sim, "ref" => 2.0)
         @test step!(sim; frames = 6, t_end = 5.0) == 6
         trc = trace(sim)
         @test trc.frames == 6
 
         sim2 = grid()
-        init!(sim2, fragment(inputs = (ref = 0.0,)))
+        init!(sim2, fragment(u = (ref = 0.0,)))
         replay!(sim2, trc; to_boundary = 3, t_end = 5.0)
         @test lifecycle(sim2) === :initialized
         @test sim2.exec.clock.frame == 3                # the halt is at `k`, never at `k · n`
@@ -605,14 +605,14 @@ function failures_pointer_twin()
         # `to_time` counts the same boundaries: 0.3 is boundary 3's own time here,
         # off-tick and three grid steps in, not the base tick three ticks in (D-219).
         sim4 = grid()
-        init!(sim4, fragment(inputs = (ref = 0.0,)))
+        init!(sim4, fragment(u = (ref = 0.0,)))
         replay!(sim4, trc; to_time = 0.3)
         @test sim4.exec.clock.frame == 3
 
         # The range is the recording's frame count, so one past it refuses.
         bad = trc.frames + 1
         sim3 = grid()
-        init!(sim3, fragment(inputs = (ref = 0.0,)))
+        init!(sim3, fragment(u = (ref = 0.0,)))
         d = carried(@test_throws DiagnosticError{ArgumentInvalid} replay!(sim3, trc; to_boundary = bad))
         @test d.call === :replay! && d.reason === :range
         @test d.argument === :to_boundary && d.value == bad
@@ -689,10 +689,10 @@ function failures_conformance()
         init!(sim)
         err = failure(() -> run!(sim; t_end = 0.2))
         @test err isa StepError{ConformanceFailure}
-        @test err.cause.what == "x_derivative" && err.cause.shape === :x_init
+        @test err.cause.what == "x_deriv" && err.cause.shape === :x_init
         @test err.cause.reason === :field_type && err.cause.field === :a
         @test err.cause.observed === Int64 && err.cause.declared === Float64
-        @test err.cursor.fn === :x_derivative
+        @test err.cursor.fn === :x_deriv
         @test lifecycle(sim) === :errored
     end
 

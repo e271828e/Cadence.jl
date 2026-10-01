@@ -16,7 +16,7 @@ chain3() = Group((; p = Plant(), g1 = Gain(2.0), g2 = Gain(2.0));
 function dataplane_exchange()
     @testset "a staged batch lands at its frame top, and nowhere earlier (§11.1, §11.4)" begin
         sim = Simulation(fed(Plant(), "u"); h = 1//10)
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        init!(sim, fragment(u = (in = 0.0,)))
         step!(sim; t_plus = 0.3)
         stage!(sim, "in" => 1.0)
         @test port(sim, "", :in) === 0.0    # staging never touches a live root input (§11.1)
@@ -27,7 +27,7 @@ function dataplane_exchange()
         # write applied directly at the same stopped point is the same trajectory,
         # bitwise.
         reference = Simulation(fed(Plant(), "u"); h = 1//10)
-        init!(reference, fragment(inputs = (in = 0.0,)))
+        init!(reference, fragment(u = (in = 0.0,)))
         step!(reference; t_plus = 0.3)
         # the counterfactual, under the data plane
         poke!(reference, "in", 1.0)
@@ -45,7 +45,7 @@ function dataplane_exchange()
         # frame 1's drain, never at boundary zero.
         sim = Simulation(fed(Trigger(0.5), "sig"); h = 1//10)
         stage!(sim, "in" => 1.0)                 # predates boundary zero: cleared by init!
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        init!(sim, fragment(u = (in = 0.0,)))
         @test (@atomic sim.plane.harness.cell.pending) === nothing
         @test modes(sim, "c").count == 0
         stage!(sim, "in" => 1.0)                 # the pre-run sequence: init! → stage! → run!
@@ -56,7 +56,7 @@ function dataplane_exchange()
 
     @testset "coalescing: merge only — newest wins per face, untouched faces survive (§11.4)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         stage!(sim, "a" => 1.0)
         stage!(sim, "b" => 2.0)                  # sparse: must not clobber the pending `a`
         stage!(sim, "a" => 3.0)                  # re-staged: the newest level, the per-face ZOH
@@ -68,7 +68,7 @@ function dataplane_exchange()
 
     @testset "every check runs at staging, on the writer's side; the drain is pure (§11.4)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         # Each rejection is written into the harness writer's diagnostic cell on
         # the staging task (§11.8) — a stopped-sim staging waits there exactly as
         # its surviving entries wait in the staging cell, both drained at the next
@@ -94,7 +94,7 @@ function dataplane_exchange()
 
     @testset "the shim converts to the activation's root-input types (§11.4)" begin
         sim = Simulation(fed(Plant(), "u"), D8; h = 1//10)
-        init!(sim, fragment(inputs = (in = 0.0,)))
+        init!(sim, fragment(u = (in = 0.0,)))
         stage!(sim, "in" => 1.0)            # convert to the root input's declared type: D8
         run!(sim; t_end = 0.1)
         @test port(sim, "", :in) === D8(1.0)
@@ -103,7 +103,7 @@ function dataplane_exchange()
     @testset "publication: one immutable value per frame-top boundary (§11.2)" begin
         sim = Simulation(chain3(); h = 1//10)
         @test latest(sim) === nothing            # nothing is published before init!
-        init!(sim, fragment(inputs = (u = 1.0,)))
+        init!(sim, fragment(u = (u = 1.0,)))
         snap0 = latest(sim)
         @test snap0.t == 0.0 && snap0.frame == 0 # the boundary-zero snapshot (§14.5)
 
@@ -125,7 +125,7 @@ function dataplane_exchange()
 
         # Every frame top publishes, the off-tick boundary included.
         offtick_sim = Simulation(chain3(); h = 1//20, N_base = 2)
-        init!(offtick_sim, fragment(inputs = (u = 0.0,)))
+        init!(offtick_sim, fragment(u = (u = 0.0,)))
         run!(offtick_sim; t_end = 0.05)                         # one frame, not a base tick
         @test latest(offtick_sim).frame == 1
     end
@@ -133,7 +133,7 @@ function dataplane_exchange()
     @testset "every snapshot's status carries the pacer's record, Inf and zeros where no pacer runs (§10.7, §11.8)" begin
         idle = PacerStatus(Inf, 0.0, 0.0, 0, 0, 0.0, 0, 0.0)
         sim = Simulation(chain3(); h = 1//100)
-        init!(sim, fragment(inputs = (u = 1.0,)))
+        init!(sim, fragment(u = (u = 1.0,)))
         @test latest(sim).status.pacer === idle          # boundary zero runs no pacer
         step!(sim; frames = 3)                            # nor does step! (D-269)
         @test all(snapshot.status.pacer === idle for snapshot in logged(sim))
@@ -145,7 +145,7 @@ function dataplane_exchange()
 
     @testset "the exchange is wait-free and coherent: no reader ever sees a torn world (§11.2)" begin
         sim = Simulation(chain3(); h = 1//1000)
-        init!(sim, fragment(inputs = (u = 1.0,)))
+        init!(sim, fragment(u = (u = 1.0,)))
         stop = Threads.Atomic{Bool}(false)
         reader = Threads.@spawn begin
             seen, bad, tprev, mono = 0, 0, -1.0, true
@@ -174,7 +174,7 @@ function dataplane_exchange()
 
     @testset "staging from another task: the CAS merge loses nothing it shouldn't (§11.4)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)))
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         writer = Threads.@spawn for i in 1:1000
             stage!(sim, "a" => Float64(i))
             yield()
@@ -191,7 +191,7 @@ function dataplane_exchange()
 
     @testset "an empty drain is free: the frame top adds no work to a quiet loop (§11.1)" begin
         sim = Simulation(chain3(); h = 1//10)
-        init!(sim, fragment(inputs = (u = 0.0,)))
+        init!(sim, fragment(u = (u = 0.0,)))
         @test @ballocated(drain!($sim, $(sim.plane.roster))) == 0
     end
 
@@ -201,7 +201,7 @@ function dataplane_exchange()
         # test_trace.jl) — it would otherwise stand between the measurement and
         # D-202's claim.
         sim = Simulation(two_root_inputs(); h = 1//10)
-        init!(sim, fragment(inputs = (a = 0.0, b = 0.0)); trace = false)
+        init!(sim, fragment(u = (a = 0.0, b = 0.0)); trace = false)
         stage!(sim, "a" => 1.0); drain!(sim, sim.plane.roster)  # warm the writer's one scatter
         @test @ballocated(drain!($sim, $(sim.plane.roster)), setup = (stage!($sim, "a" => 1.0)), evals = 1) == 0
         # A never-drained sparsity pattern costs the same nothing: the scatter is
@@ -221,8 +221,8 @@ wide_root_inputs(n) = Group(NamedTuple(Symbol(:s, i) => Sum(sa = 1.0, sb = 1.0) 
 # Its baseline (§14.6): a generated fixture's full-coverage condition, generated
 # beside it. Totality is a precondition of `init!`, and 34 hand-written root-input
 # values is exactly the case baselines exist for.
-wide_zero(n) = fragment(inputs = NamedTuple(Symbol(p, i) => 0.0
-                                           for p in ("a", "b") for i in 1:n))
+wide_zero(n) = fragment(u = NamedTuple(Symbol(p, i) => 0.0
+                                      for p in ("a", "b") for i in 1:n))
 
 function dataplane_wide_surface()
     @testset "a wide surface stages, merges and drains like a narrow one (§11.4, D-202)" begin

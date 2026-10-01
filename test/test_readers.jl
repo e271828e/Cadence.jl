@@ -19,7 +19,7 @@ readable_condition(q = SVector(0.3, -0.2), acc = 4.0) =
     combine(at("plant", fragment(x = (q = q,))),
             at("ctl", fragment(s = (acc = acc,))),
             at("src", fragment(m = (phase = :running,))),
-            fragment(inputs = (u = 1.5, e = 0.0)))
+            fragment(u = (u = 1.5, e = 0.0)))
 
 # The read set the two activations share.
 readable_reads() = reads(q = get_state("plant", :q), v = get_state("plant", "q[2]"),
@@ -43,7 +43,7 @@ x_init(::PoseSource) = (q = SVector(0.5, -0.25),)
 y_types(::PoseSource) = (pose = LeafPose{Float64},)
 y_state(::PoseSource, (; x)) =
     (pose = LeafPose(SVector(x.q[1], x.q[2], 3.0), SMatrix{2,2}(1.0, 2.0, x.q[1], 4.0)),)
-x_derivative(::PoseSource, (; x)) = (q = -x.q,)
+x_deriv(::PoseSource, (; x)) = (q = -x.q,)
 
 pose_model() = single(PoseSource())
 
@@ -71,11 +71,11 @@ y_types(::DottedFaces) = (θ = Float64, pose = LeafPose{Float64}, v = SVector{3,
 y_state(::DottedFaces, (; x)) =
     (θ = x.q[1], pose = LeafPose(SVector(x.q[1], x.q[2], 3.0), SMatrix{2,2}(1.0, 2.0, x.q[1] + 2.5, 4.0)),
      v = SVector(7.0, 8.0, 9.0))   # the matrix follows `T` too, so the build's Dual sweep admits it
-x_derivative(::DottedFaces, (; x, u)) = (q = u.u - x.q,)
+x_deriv(::DottedFaces, (; x, u)) = (q = u.u - x.q,)
 
 dotted_model() = Group((; c = DottedFaces()); inputs = ("left.brake" => "c/u",),
                        outputs = ("c/θ" => "att.theta", "c/pose" => "pose", "c/v" => "pose.v"))
-dotted_condition() = fragment(inputs = (var"left.brake" = SVector(1.5, 2.5),))
+dotted_condition() = fragment(u = (var"left.brake" = SVector(1.5, 2.5),))
 
 # `readable()` one level down, its two root inputs and its face re-exported under
 # the holder's own names, so a mounted read crosses a renaming export chain
@@ -85,9 +85,9 @@ dotted_condition() = fragment(inputs = (var"left.brake" = SVector(1.5, 2.5),))
 struct ReadableHold <: AbstractComponent
     inner::typeof(readable())
 end
-child_connections(::ReadableHold) = ()
-input_connections(::ReadableHold) = ("drive" => "inner/u", "gap" => "inner/e")
-output_connections(::ReadableHold) = ("inner/y" => "lift",)
+inner_connections(::ReadableHold) = ()
+u_connections(::ReadableHold) = ("drive" => "inner/u", "gap" => "inner/e")
+y_connections(::ReadableHold) = ("inner/y" => "lift",)
 
 wrapped_readable() = ReadableHold(readable())
 
@@ -122,7 +122,7 @@ function test_readers()
             @test v.q == SVector{2,T}(0.3, -0.2)     # the whole leaf, out of `xbuf`
             @test v.v === v.q[2]                     # an index step reads one component
             @test v.acc === 4.0                      # the discrete store, pinned Float64
-            @test v.q̇[1] === v.q[2]                  # `x_derivative`'s own output, out of `ẋbuf`
+            @test v.q̇[1] === v.q[2]                  # `x_deriv`'s own output, out of `ẋbuf`
             @test v.a === v.q̇[2]
             @test v.y === v.q[1]                     # the stage-1 port's cell
             @test v.u === T(1.5)                     # the root input cell
@@ -268,7 +268,7 @@ function test_readers()
         # the hard-coding visible in the declaration itself (§13.3).
         sim = Simulation(ConcreteHold(SampledLoop()); h = 1//50)
         init!(sim, combine(at("inner/plant", fragment(x = (q = SVector(0.3, 0.1),))),
-                           fragment(inputs = (ref = 1.0,))))
+                           fragment(u = (ref = 1.0,))))
         evaluate!(sim.exec)
         @test gather_reads(_compile_reads(deep, sim.deployment.build), sim.exec).q == SVector(0.3, 0.1)
 
@@ -293,7 +293,7 @@ function test_readers()
         # resolves mounted at `inner` (§13.3, D-277).
         generic_sim = Simulation(GenericHold(SampledLoop()); h = 1//50)
         init!(generic_sim, combine(at("inner", at("plant", fragment(x = (q = SVector(0.3, 0.1),)))),
-                                   fragment(inputs = (ref = 1.0,))))
+                                   fragment(u = (ref = 1.0,))))
         evaluate!(generic_sim.exec)
         generic_build = generic_sim.deployment.build
         @test gather_reads(_compile_reads(at("inner", reads(q = get_state("plant", :q))), generic_build),
@@ -373,7 +373,7 @@ function test_readers()
 
     @testset "a refusal at a mount spells the read as authored and names the mount (§14.9, D-277)" begin
         # The chain at a mount: a face its sibling feeds reaches no root input and
-        # is refused with the producer, as a condition's `inputs` entry is (§14.2).
+        # is refused with the producer, as a condition's `u` entry is (§14.2).
         fed_build = build(sibling_fed())
         d = only(diagnostics(failure(() ->
                 _compile_reads(at("trig", reads(s = get_input(:sig))), fed_build))))

@@ -430,7 +430,7 @@ phase_bodies(sim::Simulation) = sim.exec.bodies
 
 """
 One RHS evaluation: *evaluating the RHS means running the sweep* (§5.3). The
-interior variant of each sweep block, then the `x_derivative` block
+interior variant of each sweep block, then the `x_deriv` block
 against the complete fresh table. Leaves `ẋbuf` holding the derivative of
 whatever `xbuf` holds.
 """
@@ -1722,7 +1722,7 @@ function _species(sim::Simulation, err::FieldError)
             bundle_names(y_state, comp, tier, stage1_ports) :
         family === :y_direct ?
             bundle_names(y_direct, comp, tier, stage1_ports) :
-        family === :x_derivative || family === :s_update ?
+        family === :x_deriv || family === :s_update ?
             bundle_names(update_of(tier), comp, tier, stage1_ports) :
         return err
     catch lookup_err

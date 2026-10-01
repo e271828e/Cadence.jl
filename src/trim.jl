@@ -410,7 +410,7 @@ cells would hold the build probe's synthesized values — a fabricated zero bein
 a fine probe input and a terrible flight condition (§14.6's barrier, reaching
 the scratch world). The iterations themselves are untouched: raw write → sweep
 → read cycles at the seeded activation, the continuous chain and
-`x_derivative` alone, no boundaries and no events (§14.5).
+`x_deriv` alone, no boundaries and no events (§14.5).
 
 **The verdict is the service's, uniformly.** After the backend returns, the
 service evaluates once more at the returned point and reads `converged` off the

@@ -491,7 +491,7 @@ end
 # `get_input` names an input face of the mount level and follows the export
 # chain to the root input it lands on, the matched steps after that input's
 # name (§14.9, D-277). A face fed by a component is refused with the producer,
-# as a condition's `inputs` entry is (§14.2).
+# as a condition's `u` entry is (§14.2).
 function _rebase(authored::GetInput, label::Symbol, mount::String, level, build::Build,
                  diags::Vector{Diagnostic})
     structure = build.structure

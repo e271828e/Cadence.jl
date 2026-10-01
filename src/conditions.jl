@@ -14,14 +14,14 @@
 
 """
 Self-vocabulary payloads at one authoring level (§14.2): `x`, `s` and `m`
-fields of the component addressed there, and `inputs` naming faces of *that
+fields of the component addressed there, and `u` naming faces of *that
 level's* contract. No paths — addressing children is exclusively `at`'s job.
 """
 struct Fragment{X,S,M,L}
     x::X
     s::S
     m::M
-    inputs::L
+    u::L
 end
 
 """`at(prefix, node)`: scoping. Stores the prefix, never applies it (§14.2)."""
@@ -64,16 +64,16 @@ fragment written to a foreign `condition` fails the same way.
 function condition end
 
 """
-    fragment(; x = (;), s = (;), m = (;), inputs = (;))
+    fragment(; x = (;), s = (;), m = (;), u = (;))
 
 The leaf constructor of the condition tree (§14.2, Appendix B). Payloads are
 NamedTuples in the authoring level's own vocabulary; a condition speaks state
 (`x`, `s`), modes (`m`) and root inputs, never outputs and never workspace
 (§14.1).
 """
-function fragment(; x = (;), s = (;), m = (;), inputs = (;))
-    _payload(:x, x); _payload(:s, s); _payload(:m, m); _payload(:inputs, inputs)
-    Fragment(x, s, m, inputs)
+function fragment(; x = (;), s = (;), m = (;), u = (;))
+    _payload(:x, x); _payload(:s, s); _payload(:m, m); _payload(:u, u)
+    Fragment(x, s, m, u)
 end
 
 # One call per payload rather than a loop over the four: a loop over a
@@ -180,7 +180,7 @@ function _flat(node::Fragment, path::String, level, origin::String, tree_positio
                structure::Structure, diags::Vector{Diagnostic})
     out = CEntry[]
     for (store, name, payload) in ((:x, :x, node.x), (:s, :s, node.s),
-                                   (:m, :m, node.m), (:input, :inputs, node.inputs))
+                                   (:m, :m, node.m), (:input, :u, node.u))
         for (field, v) in pairs(payload)
             entry = CEntry(path, store, field, v, _step(origin, "fragment($name).$field"),
                            nothing, (tree_position..., name, field))
@@ -433,7 +433,7 @@ function _component(structure::Structure, entry::CEntry, diags::Vector{Diagnosti
     nothing
 end
 
-# An `inputs` payload names a face of the authoring level's contract, whatever
+# A `u` payload names a face of the authoring level's contract, whatever
 # that level's class; resolution walks the export chain to the root input and
 # errors if the face never surfaces (§14.2). The chain is the `Build`'s own
 # input-side face graph, total under one-level routing (§9.2, D-207): a face's

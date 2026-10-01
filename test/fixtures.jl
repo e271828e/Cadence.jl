@@ -10,7 +10,7 @@
 """
 Damped second-order plant. Carries state, publishes a **stage-1** port (`y`,
 state-derived, no feedthrough — the port that lets a feedback loop close
-legally) and a **stage-2** port (`power`, input-dependent), and defines `x_derivative`.
+legally) and a **stage-2** port (`power`, input-dependent), and defines `x_deriv`.
 """
 struct Plant <: AbstractComponent
     ω::Float64
@@ -27,7 +27,7 @@ y_types(::Plant) = (y = Float64, power = Float64)
 y_state(::Plant, (; x)) = (y = x.q[1],)
 y_direct(::Plant, (; x, u)) = (power = u.u * x.q[2],)
 
-function x_derivative(c::Plant, (; x, u))
+function x_deriv(c::Plant, (; x, u))
     q, ω, ζ = x.q, c.ω, c.ζ
     (q = SVector(q[2], -ω^2 * q[1] - 2ζ * ω * q[2] + u.u),)
 end
@@ -54,7 +54,7 @@ y_types(::Motor) = (M_shaft = Float64, ω = Float64, running = Bool)
 
 y_state(::Motor, (; x, m)) = (ω = x.ω, running = m.running)
 y_direct(::Motor, (; x, m, u)) = (M_shaft = m.running ? one(x.ω) : zero(x.ω),)
-x_derivative(c::Motor, (; x, y, u)) = (ω = (y.M_shaft - u.M_load) / c.J,)
+x_deriv(c::Motor, (; x, y, u)) = (ω = (y.M_shaft - u.M_load) / c.J,)
 
 motor_start_guard(::Motor, (; m, t)) = !m.running && t ≥ 0.1
 motor_start_handler(::Motor, (; m)) = (m = (running = true,),)
@@ -80,7 +80,7 @@ y_types(::VectorPlant) = (q = SVector{2,Float64}, power = Float64)
 y_state(::VectorPlant, (; x)) = (q = x.q,)
 y_direct(::VectorPlant, (; x, u)) = (power = u.u * x.q[2],)
 
-function x_derivative(c::VectorPlant, (; x, u))
+function x_deriv(c::VectorPlant, (; x, u))
     q, ω, ζ = x.q, c.ω, c.ζ
     (q = SVector(q[2], -ω^2 * q[1] - 2ζ * ω * q[2] + u.u),)
 end
@@ -113,7 +113,7 @@ struct PinnedState <: AbstractComponent end
 x_init(::PinnedState) = (q = 0.0,)
 y_types(::PinnedState) = (q = Pinned{Float64},)
 y_state(::PinnedState, (; x)) = (q = x.q,)
-x_derivative(::PinnedState, (; x)) = (q = 0.0,)
+x_deriv(::PinnedState, (; x)) = (q = 0.0,)
 
 """One port returned from both stages: two writers of one cell (§8.3)."""
 struct Twice <: AbstractComponent end
@@ -122,7 +122,7 @@ x_init(::Twice) = (q = 0.0,)
 y_types(::Twice) = (q = Float64,)
 y_state(::Twice, (; x)) = (q = x.q,)
 y_direct(::Twice, (; x)) = (q = x.q,)
-x_derivative(::Twice, (; x)) = (q = 0.0,)
+x_deriv(::Twice, (; x)) = (q = 0.0,)
 
 """
 A stage-2 product named after a mode field the store holds at *another* type,
@@ -136,7 +136,7 @@ x_init(::ModeNamedProduct) = (q = 0.0,)
 m_init(::ModeNamedProduct) = (flag = 0,)
 y_types(::ModeNamedProduct) = (flag = Float64, q = Float64)
 y_direct(::ModeNamedProduct, (; x, m)) = (flag = m.flag * one(x.q),)
-x_derivative(::ModeNamedProduct, (; x)) = (q = 0.0,)
+x_deriv(::ModeNamedProduct, (; x)) = (q = 0.0,)
 
 """
 Proportional gain: **stateless**, stage 2 only. The three-level funnel of §5.2
@@ -293,7 +293,7 @@ declares a tier — §8.2's `TierUnreadable`.
 struct ModesNoContract <: AbstractComponent end
 
 m_init(::ModesNoContract) = (phase = :idle,)
-x_derivative(::ModesNoContract, (; m)) = (;)
+x_deriv(::ModesNoContract, (; m)) = (;)
 
 # --- the event coverage set (§2.1, §10.6) -------------------------------------
 # Guards and handlers are ordinary named functions referenced by `state_events` —
@@ -355,7 +355,7 @@ x_init(::Sawtooth) = (q = 0.0,)
 y_types(::Sawtooth) = (q = Float64,)
 
 y_state(::Sawtooth, (; x)) = (q = x.q,)
-x_derivative(c::Sawtooth, (; x)) = (q = c.rate,)
+x_deriv(c::Sawtooth, (; x)) = (q = c.rate,)
 
 sawtooth_guard(::Sawtooth, (; x)) = x.q - 1.0
 sawtooth_handler(::Sawtooth, (; x)) = (x = (q = x.q - 1.0,),)
@@ -377,7 +377,7 @@ x_init(c::Rotor) = (r = c.r₀,)
 y_types(::Rotor) = (c = Float64,)
 
 y_state(::Rotor, (; x)) = (c = x.r[1],)
-x_derivative(c::Rotor, (; x)) = (r = SVector(-c.ω * x.r[2], c.ω * x.r[1]),)
+x_deriv(c::Rotor, (; x)) = (r = SVector(-c.ω * x.r[2], c.ω * x.r[1]),)
 x_projection(::Rotor, x) = (r = x.r / sqrt(x.r[1]^2 + x.r[2]^2),)
 
 """
@@ -510,7 +510,7 @@ m_init(::Bouncer) = (count = 0,)
 y_types(::Bouncer) = (q = Float64,)
 
 y_state(::Bouncer, (; x)) = (q = x.q,)
-x_derivative(c::Bouncer, (; x)) = (q = c.rate,)
+x_deriv(c::Bouncer, (; x)) = (q = c.rate,)
 
 bouncer_guard(c::Bouncer, (; x)) = x.q - c.level
 bouncer_handler(::Bouncer, (; x, m)) = (x = (q = 0.0,), m = (count = m.count + 1,))
@@ -534,7 +534,7 @@ m_init(::Relaxer) = (count = 0,)
 y_types(::Relaxer) = (q = Float64,)
 
 y_state(::Relaxer, (; x)) = (q = x.q,)
-x_derivative(c::Relaxer, (; x)) = (q = c.rate,)
+x_deriv(c::Relaxer, (; x)) = (q = c.rate,)
 
 relaxer_guard(c::Relaxer, (; x)) = x.q - c.level
 relaxer_handler(c::Relaxer, (; x, m)) =
@@ -606,7 +606,7 @@ u_types(::Exploder) = (arm = Bool,)
 y_types(::Exploder) = (q = Float64,)
 
 y_state(::Exploder, (; x)) = (q = x.q,)
-x_derivative(::Exploder, (; x, u)) = u.arm ? throw(Exploded()) : (q = one(x.q),)
+x_deriv(::Exploder, (; x, u)) = u.arm ? throw(Exploded()) : (q = one(x.q),)
 
 # --- the runtime-failure coverage set (§13.4) ----------------------------------
 # One component per user-code surface the execution cursor names, each failing
@@ -634,7 +634,7 @@ u_types(::Tripwire) = (arm = Bool,)
 y_types(::Tripwire) = (q = Float64,)
 
 y_state(::Tripwire, (; x)) = (q = x.q,)
-x_derivative(c::Tripwire, (; x, u, t)) = (u.arm && t ≥ c.t_trip) ? throw(Tripped()) : (q = one(x.q),)
+x_deriv(c::Tripwire, (; x, u, t)) = (u.arm && t ≥ c.t_trip) ? throw(Tripped()) : (q = one(x.q),)
 
 """
 Mine: a `Bool` input and a predicate-form event whose handler throws
@@ -670,7 +670,7 @@ m_init(::Landmine) = (count = 0,)
 y_types(::Landmine) = (q = Float64,)
 
 y_state(::Landmine, (; x)) = (q = x.q,)
-x_derivative(c::Landmine, (; x)) = (q = c.rate,)
+x_deriv(c::Landmine, (; x)) = (q = c.rate,)
 
 function landmine_guard(c::Landmine, (; x, t))
     abs(t - round(t / c.h) * c.h) > 1e-9 && throw(Detonated())
@@ -705,7 +705,7 @@ x_init(::Primer) = (q = 0.0,)
 y_types(::Primer) = (q = Float64,)
 
 y_state(::Primer, (; x)) = (q = x.q,)
-x_derivative(::Primer, (; x)) = (q = one(x.q),)
+x_deriv(::Primer, (; x)) = (q = one(x.q),)
 x_projection(c::Primer, x) = x.q ≥ c.level ? throw(Detonated()) : (q = x.q,)
 
 """
@@ -720,7 +720,7 @@ u_types(::Interrupter) = (arm = Bool,)
 y_types(::Interrupter) = (q = Float64,)
 
 y_state(::Interrupter, (; x)) = (q = x.q,)
-x_derivative(::Interrupter, (; x, u)) = u.arm ? throw(InterruptException()) : (q = one(x.q),)
+x_deriv(::Interrupter, (; x, u)) = u.arm ? throw(InterruptException()) : (q = one(x.q),)
 
 # The runtime's pending-SIGINT word: nonzero from the signal's delivery until
 # an unmask raises it (§12.4).
@@ -755,7 +755,7 @@ x_init(::SelfInterrupter) = (q = 0.0,)
 y_types(::SelfInterrupter) = (q = Float64,)
 
 y_state(::SelfInterrupter, (; x)) = (q = x.q,)
-function x_derivative(c::SelfInterrupter, (; x, t))
+function x_deriv(c::SelfInterrupter, (; x, t))
     if !c.sent[] && t ≥ c.t_signal
         c.sent[] = true
         interrupt_self()
@@ -781,7 +781,7 @@ u_types(::Staller) = (stall = Float64,)
 y_types(::Staller) = (q = Float64,)
 
 y_state(::Staller, (; x)) = (q = x.q,)
-function x_derivative(c::Staller, (; x, u))
+function x_deriv(c::Staller, (; x, u))
     if !c.fired[] && u.stall > 0
         c.fired[] = true
         Libc.systemsleep(u.stall)
@@ -802,7 +802,7 @@ u_types(::Diverger) = (arm = Bool,)
 y_types(::Diverger) = (q = Float64,)
 
 y_state(::Diverger, (; x)) = (q = x.q,)
-x_derivative(::Diverger, (; u)) = (q = u.arm ? NaN : 1.0,)
+x_deriv(::Diverger, (; u)) = (q = u.arm ? NaN : 1.0,)
 x_projection(::Diverger, x) = isfinite(x.q) ? x : throw(DomainError(x.q, "diverged"))
 
 """
@@ -819,7 +819,7 @@ u_types(::Consumer) = (in = Float64,)
 y_types(::Consumer) = (r = Float64,)
 
 y_direct(::Consumer, (; u)) = (r = sqrt(u.in),)
-x_derivative(::Consumer, (; x)) = (p = zero(x.p),)
+x_deriv(::Consumer, (; x)) = (p = zero(x.p),)
 
 """
 LateDiverger: a `Bouncer` that diverges only *after* its own reset. The
@@ -838,7 +838,7 @@ m_init(::LateDiverger) = (blown = false,)
 y_types(::LateDiverger) = (q = Float64,)
 
 y_state(::LateDiverger, (; x)) = (q = x.q,)
-x_derivative(c::LateDiverger, (; m)) = (q = m.blown ? NaN : c.rate,)
+x_deriv(c::LateDiverger, (; m)) = (q = m.blown ? NaN : c.rate,)
 
 late_diverger_guard(c::LateDiverger, (; x)) = x.q - c.level
 late_diverger_handler(::LateDiverger, (; m)) = (m = (blown = true,),)
@@ -849,7 +849,7 @@ state_events(::LateDiverger) = (blow = StateEvent(late_diverger_guard, late_dive
 # declaration no tracer scalar can enter, and a member whose evaluation throws.
 
 """
-Consumes `b` in `x_derivative` only: stage 2 routes `a` and not `b`, so a
+Consumes `b` in `x_deriv` only: stage 2 routes `a` and not `b`, so a
 loop closed through `b` is §5.4's last paragraph, artificial at port level.
 """
 struct DerivativeFed <: AbstractComponent end
@@ -858,7 +858,7 @@ x_init(::DerivativeFed) = (q = 0.0,)
 u_types(::DerivativeFed) = (a = Float64, b = Float64)
 y_types(::DerivativeFed) = (y = Float64,)
 y_direct(::DerivativeFed, (; u)) = (y = 2u.a,)
-x_derivative(::DerivativeFed, (; u)) = (q = u.b,)
+x_deriv(::DerivativeFed, (; u)) = (q = u.b,)
 
 """`Gain` with both ends pinned `Float64`: no tracer scalar can enter, so its hops trace structurally."""
 struct PinnedGain <: AbstractComponent end
@@ -889,7 +889,7 @@ x_init(::Piecewise) = (q = 0.0,)
 u_types(::Piecewise) = (v = Float64, f = Float64, g = Float64)
 y_types(::Piecewise) = (F = Float64,)
 y_direct(::Piecewise, (; u)) = (F = u.v > 0 ? u.f + u.v : -u.f,)
-x_derivative(::Piecewise, (; u)) = (q = u.g,)
+x_deriv(::Piecewise, (; u)) = (q = u.g,)
 
 # --- the reference models -----------------------------------------------------
 
@@ -961,7 +961,7 @@ function sampled_loop(; kI = 3.0, ω = 2.0, ζ = 0.1)
 end
 
 # --- the named two-level assembly ---------------------------------------------
-# Class by declaration shape (§8.5): `child_connections` and nothing else, on a
+# Class by declaration shape (§8.5): `inner_connections` and nothing else, on a
 # plain struct whose component-typed fields are its children.
 
 """
@@ -985,10 +985,10 @@ end
 SampledLoop(; kI = 3.0, ω = 2.0, ζ = 0.1, ctl_rate = Relative(1)) =
     SampledLoop(Plant(; ω, ζ), DiscreteIntegrator(kI), Sum(), ctl_rate)
 
-child_connections(::SampledLoop) =
+inner_connections(::SampledLoop) =
     ("ctl/u" => "plant/u", "sum/e" => "ctl/e", "plant/y" => "sum/b")
-input_connections(::SampledLoop) = ("ref" => "sum/a",)
-output_connections(::SampledLoop) =
+u_connections(::SampledLoop) = ("ref" => "sum/a",)
+y_connections(::SampledLoop) =
     ("plant/y" => "y", "ctl/u" => "cmd", "plant/power" => "power")
 sample_times(l::SampledLoop) = (ctl = l.ctl_rate,)
 
@@ -1011,9 +1011,9 @@ end
 
 Vehicle(; k = 1.0, kI = 3.0, ω = 2.0, ζ = 0.1) = Vehicle(SampledLoop(; kI, ω, ζ), Gain(k))
 
-child_connections(::Vehicle) = ("trim/out" => "loop/ref",)
-input_connections(::Vehicle) = ("ref" => "trim/e",)
-output_connections(::Vehicle) =
+inner_connections(::Vehicle) = ("trim/out" => "loop/ref",)
+u_connections(::Vehicle) = ("ref" => "trim/e",)
+y_connections(::Vehicle) =
     ("loop/y" => "y", "loop/cmd" => "cmd", "loop/power" => "power")
 
 """
@@ -1035,14 +1035,14 @@ struct OpaqueLeaf <: AbstractComponent
 end
 
 x_init(::OpaqueLeaf) = (z = 0.0,)
-x_derivative(::OpaqueLeaf, (; x)) = (z = -x.z,)
+x_deriv(::OpaqueLeaf, (; x)) = (z = -x.z,)
 
 """One `OpaqueLeaf` in a concretely declared field, so a path reaches the primitive with a segment to spare (§13.3)."""
 struct OpaqueHold <: AbstractComponent
     c::OpaqueLeaf
 end
 
-child_connections(::OpaqueHold) = ()
+inner_connections(::OpaqueHold) = ()
 
 # --- the fragment-function idiom (§14.2) ----------------------------------------
 # Methods of the framework's `condition` generic, one per component, shipped
@@ -1074,7 +1074,7 @@ nesting, never written by hand — and authors the root input its own contract
 declares.
 """
 condition(vehicle::Vehicle; ref = 0.0, kw...) =
-    combine(at("loop", condition(vehicle.loop; kw...)), fragment(inputs = (ref = ref,)))
+    combine(at("loop", condition(vehicle.loop; kw...)), fragment(u = (ref = ref,)))
 
 # --- the multi-rate coverage set (§10.5) ----------------------------------------
 
@@ -1110,9 +1110,9 @@ struct FCS <: AbstractComponent
     outer::ZOH
 end
 
-child_connections(::FCS) = ()
-input_connections(::FCS) = ("in" => "inner/in", "g" => "outer/in")
-output_connections(::FCS) = ("inner/out" => "y_inner", "outer/out" => "y_outer")
+inner_connections(::FCS) = ()
+u_connections(::FCS) = ("in" => "inner/in", "g" => "outer/in")
+y_connections(::FCS) = ("inner/out" => "y_inner", "outer/out" => "y_outer")
 sample_times(::FCS) = (inner = Relative(1), outer = Relative(5, 2))
 
 """
@@ -1133,9 +1133,9 @@ end
 
 MultiRate(; c₀ = 1.0) = MultiRate(Ramp(c₀), FCS(ZOH(), ZOH()), ZOH())
 
-child_connections(::MultiRate) =
+inner_connections(::MultiRate) =
     ("src/out" => "fcs/in", "src/out" => "gnss/in", "gnss/out" => "fcs/g")
-output_connections(::MultiRate) =
+y_connections(::MultiRate) =
     ("fcs/y_inner" => "inner", "fcs/y_outer" => "outer", "gnss/out" => "gnss")
 sample_times(::MultiRate) = (fcs = Relative(1), gnss = Absolute(Hz(50)))
 
@@ -1502,7 +1502,7 @@ u_types(::Pendulum) = (u = Float64,)
 y_types(::Pendulum) = (θ = Float64, ω = Float64)
 
 y_state(::Pendulum, (; x)) = (θ = x.θ, ω = x.ω)
-x_derivative(c::Pendulum, (; x, u)) = (θ = x.ω, ω = -c.g_l * sin(x.θ) - c.c * x.ω + u.u)
+x_deriv(c::Pendulum, (; x, u)) = (θ = x.ω, ω = -c.g_l * sin(x.θ) - c.c * x.ω + u.u)
 
 """The pendulum's own vocabulary, in the fragment-function idiom (§14.2)."""
 condition(::Pendulum; θ = 0.0, ω = 0.0) = fragment(x = (θ = θ, ω = ω))
@@ -1510,7 +1510,7 @@ condition(::Pendulum; θ = 0.0, ω = 0.0) = fragment(x = (θ = θ, ω = ω))
 """A component that ships no fragment function: the owner's pull fails on it by name."""
 struct Voiceless <: AbstractComponent end
 x_init(::Voiceless) = (; a = 0.0)
-x_derivative(::Voiceless, (; x)) = (; a = 0.0)
+x_deriv(::Voiceless, (; x)) = (; a = 0.0)
 
 # --- the forgotten-import fixtures (§8.1, D-246) --------------------------------
 
@@ -1529,7 +1529,7 @@ struct Leaf <: Cadence.AbstractComponent end
 x_init(::Leaf) = (q = 0.0,)
 y_types(::Leaf) = (y = Float64,)
 y_state(::Leaf, (; x)) = (y = x.q,)
-x_derivative(::Leaf, (; x)) = (q = -x.q,)
+x_deriv(::Leaf, (; x)) = (q = -x.q,)
 end
 
 "A sound leaf whose update alone is bare: would have read as `StoreWithoutUpdate`."
@@ -1539,7 +1539,7 @@ struct Leaf <: Cadence.AbstractComponent end
 Cadence.x_init(::Leaf) = (q = 0.0,)
 Cadence.y_types(::Leaf) = (y = Float64,)
 Cadence.y_state(::Leaf, (; x)) = (y = x.q,)
-x_derivative(::Leaf, (; x)) = (q = -x.q,)
+x_deriv(::Leaf, (; x)) = (q = -x.q,)
 end
 
 "A sound leaf whose events alone are bare: builds today with no events."
@@ -1549,7 +1549,7 @@ struct Leaf <: Cadence.AbstractComponent end
 Cadence.x_init(::Leaf) = (q = 1.0,)
 Cadence.y_types(::Leaf) = (y = Float64,)
 Cadence.y_state(::Leaf, (; x)) = (y = x.q,)
-Cadence.x_derivative(::Leaf, (; x)) = (q = -x.q,)
+Cadence.x_deriv(::Leaf, (; x)) = (q = -x.q,)
 state_events(::Leaf) = (;)
 end
 
@@ -1560,11 +1560,11 @@ struct Leaf <: Cadence.AbstractComponent end
 Cadence.x_init(::Leaf) = (q = 1.0,)
 Cadence.y_types(::Leaf) = (y = Float64,)
 Cadence.y_state(::Leaf, (; x)) = (y = x.q,)
-Cadence.x_derivative(::Leaf, (; x)) = (q = -x.q,)
+Cadence.x_deriv(::Leaf, (; x)) = (q = -x.q,)
 struct Assembly <: Cadence.AbstractComponent
     kid::Leaf
 end
-Cadence.child_connections(::Assembly) = ()
+Cadence.inner_connections(::Assembly) = ()
 sample_times(::Assembly) = (kid = Cadence.Relative(2),)
 end
 
@@ -1578,5 +1578,5 @@ declarations must not be read before the child is walked (D-246).
 struct PassthroughOverForgotten <: AbstractComponent
     kid::ForgottenImport.Inventory.Leaf
 end
-child_connections(::PassthroughOverForgotten) = ()
-input_connections(a::PassthroughOverForgotten) = input_passthrough(a, "kid")
+inner_connections(::PassthroughOverForgotten) = ()
+u_connections(a::PassthroughOverForgotten) = input_passthrough(a, "kid")

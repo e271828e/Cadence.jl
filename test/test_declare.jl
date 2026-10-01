@@ -37,7 +37,7 @@ function test_declare()
         # `x`, the no-feedthrough stage sees no `u`, `t` is always there.
         @test bundle_names(y_state, Plant(), CONTINUOUS, ()) === (:x, :t)
         @test bundle_names(y_direct, Plant(), CONTINUOUS, (:y,)) === (:x, :u, :y_x, :t)
-        @test bundle_names(x_derivative, Plant(), CONTINUOUS, (:y,)) === (:x, :u, :y, :t)
+        @test bundle_names(x_deriv, Plant(), CONTINUOUS, (:y,)) === (:x, :u, :y, :t)
         @test bundle_names(y_direct, Gain(1.0), CONTINUOUS, ()) === (:u, :t)
 
         # A declared empty store puts no letter in the bundle (§5.2, D-263):
@@ -59,8 +59,8 @@ function test_declare()
         # listed in family order. `using Cadence` alone leaves the name undefined
         # (the family is unexported, D-117), so only the bare definition shows.
         @test foreign_declarations(ForgottenImport.Inventory.Leaf()) ==
-              [:x_init, :y_types, :y_state, :x_derivative]
-        @test foreign_declarations(ForgottenImport.Update.Leaf()) == [:x_derivative]
+              [:x_init, :y_types, :y_state, :x_deriv]
+        @test foreign_declarations(ForgottenImport.Update.Leaf()) == [:x_deriv]
         @test foreign_declarations(ForgottenImport.Events.Leaf()) == [:state_events]
         @test foreign_declarations(ForgottenImport.Rates.Assembly(ForgottenImport.Rates.Leaf())) ==
               [:sample_times]

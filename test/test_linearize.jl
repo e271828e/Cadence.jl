@@ -12,7 +12,7 @@ lin_pend() = Group((; s = Sum(), c = Pendulum()); wires = ("s/e" => "c/u",),
                    inputs = ("τ" => "s/a", "d" => "s/b"),
                    outputs = ("c/θ" => "θ", "s/e" => "u_eff"))
 lin_point(θ = 0.3) = combine(at("c", condition(Pendulum(); θ = θ)),
-                             fragment(inputs = (τ = PEND_G_L * sin(θ), d = 0.0)))
+                             fragment(u = (τ = PEND_G_L * sin(θ), d = 0.0)))
 lin_taps() = taps(x = (θ = get_state("c", :θ), ω = get_state("c", :ω)),
                   u = (τ = get_input(:τ), d = get_input(:d)),
                   y = (θ = get_face(:θ), u_eff = get_face(:u_eff)))
@@ -27,7 +27,7 @@ lin_vector() = Group((; p = VectorPlant(), fb = StateFeedback(2.0));
                      wires = ("fb/u" => "p/u",), inputs = ("qin" => "fb/q",),
                      outputs = ("p/q" => "q", "p/power" => "power"))
 lin_vector_point() = combine(at("p", fragment(x = (q = SVector(0.1, 0.2),))),
-                             fragment(inputs = (qin = SVector(0.5, 0.0),)))
+                             fragment(u = (qin = SVector(0.5, 0.0),)))
 
 # A root input whose one consumer declares its entry `Pinned`.
 lin_pinned() = Group((; g = PinnedGain(), c = Pendulum());
@@ -38,7 +38,7 @@ lin_sampled() = Group((; ctl = DiscreteIntegrator(1.0), c = Pendulum());
                       wires = ("ctl/u" => "c/u",), inputs = ("in" => "ctl/e",))
 lin_sampled_point() = combine(at("ctl", fragment(s = (acc = 4.0,))),
                               at("c", condition(Pendulum(); θ = asin(4.0 / PEND_G_L))),
-                              fragment(inputs = (in = 0.0,)))
+                              fragment(u = (in = 0.0,)))
 
 # The pendulum's closed form at θ₀, the walkthrough's section 2.
 lin_closed_A(θ = 0.3) = [0 1; -PEND_G_L*cos(θ) -PEND_C]
@@ -50,7 +50,7 @@ x_init(::TimedDecay) = (q = 1.0,)
 u_types(::TimedDecay) = (u = Float64,)
 y_types(::TimedDecay) = (q = Float64,)
 y_state(::TimedDecay, (; x)) = (q = x.q,)
-x_derivative(::TimedDecay, (; x, u, t)) = (q = -t * x.q^2 + u.u,)
+x_deriv(::TimedDecay, (; x, u, t)) = (q = -t * x.q^2 + u.u,)
 
 # A matrix state, `ṁ = M·m` with `M = [-1 0; 0.5 -2]`, so
 # `∂ṁ[i,j]/∂m[k,l] = M[i,k]·δ(j,l)`: a tap's column shows which entry it seeded.
@@ -58,7 +58,7 @@ struct MatrixDecay <: AbstractComponent end
 x_init(::MatrixDecay) = (m = SMatrix{2,2}(1.0, 2.0, 3.0, 4.0),)
 y_types(::MatrixDecay) = (m11 = Float64,)
 y_state(::MatrixDecay, (; x)) = (m11 = x.m[1, 1],)
-x_derivative(::MatrixDecay, (; x)) = (m = SMatrix{2,2}(-1.0, 0.5, 0.0, -2.0) * x.m,)
+x_deriv(::MatrixDecay, (; x)) = (m = SMatrix{2,2}(-1.0, 0.5, 0.0, -2.0) * x.m,)
 
 # A consumer of a struct-typed root input, for the `u` list's `.name` step.
 struct PoseConsumer <: AbstractComponent end
@@ -66,7 +66,7 @@ x_init(::PoseConsumer) = (q = 0.0,)
 u_types(::PoseConsumer) = (pose = LeafPose{Float64},)
 y_types(::PoseConsumer) = (q = Float64,)
 y_state(::PoseConsumer, (; x)) = (q = x.q,)
-x_derivative(::PoseConsumer, (; x, u)) = (q = u.pose.v[1] - x.q,)
+x_deriv(::PoseConsumer, (; x, u)) = (q = u.pose.v[1] - x.q,)
 
 # A consumer of a matrix root input, `q̇ = 2·w[1,2] + 5·w[2,1] − q`, so a tap's
 # `B` column shows which entry it seeded.
@@ -75,7 +75,7 @@ x_init(::MatrixConsumer) = (q = 0.0,)
 u_types(::MatrixConsumer) = (w = SMatrix{2,2,Float64,4},)
 y_types(::MatrixConsumer) = (q = Float64,)
 y_state(::MatrixConsumer, (; x)) = (q = x.q,)
-x_derivative(::MatrixConsumer, (; x, u)) = (q = 2.0 * u.w[1, 2] + 5.0 * u.w[2, 1] - x.q,)
+x_deriv(::MatrixConsumer, (; x, u)) = (q = 2.0 * u.w[1, 2] + 5.0 * u.w[2, 1] - x.q,)
 
 # Two linearizations field for field: the value holds matrices, so `==` on the
 # struct would compare them by identity.
@@ -116,7 +116,7 @@ function test_linearize()
         # On a continuous model nothing is held, so a point authored from what
         # the checkpoint shows agrees with it.
         at_rest = combine(at("c", fragment(x = state(sim, "c"))),
-                          fragment(inputs = (τ = port(sim, "", :τ), d = port(sim, "", :d))))
+                          fragment(u = (τ = port(sim, "", :τ), d = port(sim, "", :d))))
         linearization = linearize(sim, lin_taps())
         @test same_linearization(linearization, linearize(sim, lin_taps(); about = at_rest, t0 = before.t))
 
@@ -144,7 +144,7 @@ function test_linearize()
 
     @testset "the default form linearizes at the checkpoint's own time (§14.10, D-274)" begin
         sim = Simulation(fed(TimedDecay(), "u"); h = 1//10)
-        init!(sim, fragment(inputs = (in = 0.0,)); t0 = 0.2)
+        init!(sim, fragment(u = (in = 0.0,)); t0 = 0.2)
         step!(sim; frames = 3)
         t, q = sim.exec.clock.t, state(sim, "c").q
         @test t ≈ 0.5
@@ -173,7 +173,7 @@ function test_linearize()
         # `running` is the §11.3 freeze for both forms, as in test_trim. Both ends
         # of the run are test-controlled.
         running_sim = Simulation(armed(); h = 1//100)
-        init!(running_sim, fragment(inputs = (in = 0.0,)))
+        init!(running_sim, fragment(u = (in = 0.0,)))
         attach!(running_sim, TailProbe(), NoClaim())   # a rostered device makes the loop yield every
                                                 # frame (§12.2), so the spin gets its turn on one thread
         task = Threads.@spawn run!(running_sim; t_end = 3.0e5, stop_on = ("stop",))
@@ -259,7 +259,7 @@ function test_linearize()
 
     @testset "a matrix root input's `[k,l]` and linear `[k]` taps name one seed site (§14.10, D-276)" begin
         sim = Simulation(fed(MatrixConsumer(), "w"); h = 1//10)
-        about = fragment(inputs = (in = SMatrix{2,2}(1.0, 2.0, 3.0, 4.0),))
+        about = fragment(u = (in = SMatrix{2,2}(1.0, 2.0, 3.0, 4.0),))
         state_taps = (q = get_state("c", :q),)
         d = only(diagnostics(failure(() -> linearize(sim, taps(
             x = state_taps, u = (a = get_input("in[1,2]"), b = get_input("in[3]"))); about = about))))
@@ -273,8 +273,8 @@ function test_linearize()
         # A seed writes a whole cell or one `SArray` component, and there is no
         # lens into a struct's slots, so the step is refused before any seed.
         sim = Simulation(fed(PoseConsumer(), "pose"); h = 1//10)
-        about = fragment(inputs = (in = LeafPose(SVector(1.0, 0.0, 0.0),
-                                                 SMatrix{2,2}(1.0, 0.0, 0.0, 1.0)),))
+        about = fragment(u = (in = LeafPose(SVector(1.0, 0.0, 0.0),
+                                            SMatrix{2,2}(1.0, 0.0, 0.0, 1.0)),))
         d = only(diagnostics(failure(() -> linearize(sim, taps(u = (v1 = get_input("in.v[1]"),));
                                                      about = about))))
         @test d isa TapResolution && d.reason === :unseedable && d.tap === :u && d.field === :in
@@ -304,7 +304,7 @@ function test_linearize()
 
     @testset "the pinned root input is refused naming its consumer (§14.10, D-167, D-168)" begin
         sim = Simulation(lin_pinned(); h = 1//10)
-        d = only(diagnostics(failure(() -> linearize(sim, taps(u = (τ = get_input(:τ),)); about = fragment(inputs = (τ = 0.0,))))))
+        d = only(diagnostics(failure(() -> linearize(sim, taps(u = (τ = get_input(:τ),)); about = fragment(u = (τ = 0.0,))))))
         @test d isa TapResolution && d.reason === :unseedable && d.field === :τ && d.tap === :u
         @test d.pinning == [("g", :continuous, Pinned{Float64})] && d.declared === Float64
     end
@@ -393,7 +393,7 @@ function test_linearize()
         # names is the mount itself.
         sim = Simulation(lin_pinned(); h = 1//10)
         d = only(diagnostics(failure(() -> linearize(sim, at("g", taps(u = (e = get_input(:e),)));
-                                                     about = fragment(inputs = (τ = 0.0,))))))
+                                                     about = fragment(u = (τ = 0.0,))))))
         @test d isa TapResolution && d.reason === :unseedable && d.mount == "g"
         @test d.field === :τ && d.pinning == [("g", :continuous, Pinned{Float64})]
 
