@@ -10,10 +10,9 @@ the tools go red.
 ## Before the first release
 
 The bullets stand in working order, the first one next. The library waits on
-the two rulings ahead of it: the first sets what a component type costs to
-compile, the second how its faces are spelled. The GUI's design runs in
-parallel with them. The audit comes last, because it sweeps the whole
-surface and the library and the GUI both add names.
+the ruling ahead of it, which sets what a component type costs to compile.
+The GUI's design runs in parallel with both. The audit comes last, because
+it sweeps the whole surface and the library and the GUI both add names.
 
 - **Compile time** (§9.7, D-086): the roadmap of
   `docs/reports/20260930_compile_cost/`, in order of yield: `@noinline` at
@@ -23,12 +22,6 @@ surface and the library and the GUI both add names.
   mitigation ladder, and on D-086's rejection of type-erased call tables,
   comes first. It stands ahead of the library because each component type
   adds about 0.5 s.
-- **The dot in face names** (§8.6, D-276). Whether `.` joins `/` as a
-  reserved character in face names. Reserving it would make a face
-  selector's head a parse with no schema lookup and no ambiguity, at the
-  cost of a new default separator and a sweep of every dotted face in the
-  spec and the suite. D-276's annotation on face names has why the head is
-  matched against the face list today.
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
   spellings).

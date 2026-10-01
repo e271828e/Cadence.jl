@@ -11183,6 +11183,18 @@ followed by `.name` and `[k]` or `[k,l]` steps in any order.
   the cleaner grammar, but a change to the house style (`input_passthrough`'s
   `sep`, [§14.9][s14-9]'s `"wing.throttle"`, some eighty test faces) that belongs
   with the exported-name audit, not with a fix on an unpushed increment.
+
+  Annotation (2026-10-01): the decline is final, and the question leaves the
+  exported-name audit. Reserving `.` alone would not make the head a parse.
+  [§8.6][s8-6] bars only `/`, so a face `gear[1]` beside a vector face `gear` gives
+  `"gear[1]"` the two readings `"a.b"` has, and a parsed head needs face
+  names to be identifiers, which reverses [D-046][d-046]. The match costs nothing:
+  resolution needs the face list for the face's type anyway, and every
+  reader resolves its address against a build. No other separator marks
+  grouping as the dot does beside an identifier's underscores. Where faces
+  `a` and `a.b` both exist the longest wins, and a build warning for a face
+  name that is also an address into another face stays addable after a
+  release, which a reservation does not.
 - Each step is checked at resolution against the type resolved so far. A
   `.name` step needs an isbits struct with that field. An index step needs an
   `SArray`, with one index (linear) or one per dimension. A step never enters
