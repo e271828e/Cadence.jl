@@ -30,7 +30,7 @@ C = [
  (r"The physical intra-interval rotation, the thing sculling corrections are about, stays inside the integrand via $q(t)$.",
   r"The physical intra-interval rotation stays inside the integrand via $q(t)$. That rotation is what sculling corrections are about.", "F", None, None),
  (r"Every RHS evaluation, RK stages included, applies the current cumulative attitude,",
-  r"Every evaluation of the RHS (`x_deriv`, the continuous derivative function) applies the current cumulative attitude, RK stages included.", "F", None, None),
+  r"Every evaluation of the flow (`x_deriv`, the continuous derivative function) applies the current cumulative attitude, RK stages included.", "F", None, None),
  (r"exactly as the direct formulation applies its current `q_c_cc`.",
   r"The direct formulation applies its current `q_c_cc`, its coning attitude increment, in exactly the same way.", "F", None, None),
  (r"#### Exactness condition, stated once", r"#### The exactness condition", "R", None, "R6"),

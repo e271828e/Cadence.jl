@@ -147,7 +147,7 @@
   {
    "id": "B4-017",
    "old": "The \"decoder takes no inputs\" property is exactly what makes the derivation well-founded.",
-   "new": "The property that stage 1 takes no inputs is exactly what makes the derivation well-founded.",
+   "new": "The \"decoder takes no inputs\" property is exactly what makes the derivation well-founded.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -210,34 +210,21 @@
   {
    "id": "B4-024",
    "old": "`x_init` with fields and no `x_deriv` method, or `s_init` with fields and no `s_update` method, is a build error.",
-   "new": "`x_init` with fields and no `x_deriv` method, or `s_init` with fields and no `s_update` method, is a build error, `StoreWithoutUpdate`.",
+   "new": "`x_init` with fields and no `x_deriv` method, or `s_init` with fields and no `s_update` method, is a build error.",
    "where": "new",
    "cites": [],
-   "tag": "R",
-   "ruling": "P48",
-   "note": "names the kind; Appendix C cites §8.2 for StoreWithoutUpdate"
+   "tag": "F"
   },
   {
    "id": "B4-025",
-   "old": "An empty store is a stateless leaf's tier marker (above)",
-   "new": "The store (the model's memory, declared by initial value) is the tier marker. It is therefore mandatory even when empty",
-   "where": "units/B1/new.md",
+   "old": "An empty store is a stateless leaf's tier marker (above) and owes nothing.",
+   "new": "An empty store is a stateless leaf's tier marker (above) and owes nothing.",
+   "where": "new",
    "cites": [],
-   "tag": "R",
-   "ruling": "P44"
+   "tag": "F"
   },
   {
    "id": "B4-026",
-   "old": "and owes nothing.",
-   "new": "An empty store owes nothing (above).",
-   "where": "new",
-   "cites": [],
-   "tag": "R",
-   "ruling": "P44",
-   "note": "kept as a pointer; B1 holds 'An empty store owes no update law'"
-  },
-  {
-   "id": "B4-027",
    "old": "The first is continuous state with no flow, the second a discrete store nothing updates.",
    "new": "The first case is continuous state with no flow (the continuous derivative function, `x_deriv`), the second a discrete store nothing updates.",
    "where": "new",
@@ -245,7 +232,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-028",
+   "id": "B4-027",
    "old": "The framework will not silently supply `ẋ = 0`, which is a model, not a default.",
    "new": "The framework will not silently supply `ẋ = 0`, which is a model, not a default.",
    "where": "new",
@@ -253,7 +240,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-029",
+   "id": "B4-028",
    "old": "An unupdated discrete store is a parameter in disguise, and parameters are plain struct fields.",
    "new": "An unupdated discrete store is a parameter in disguise, and parameters are plain struct fields.",
    "where": "new",
@@ -261,7 +248,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-030",
+   "id": "B4-029",
    "old": "The didactic style says exactly that.",
    "new": "The didactic style says exactly that.",
    "where": "new",
@@ -269,7 +256,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-031",
+   "id": "B4-030",
    "old": "`m_init` carries no such obligation.",
    "new": "`m_init` carries no such obligation either.",
    "where": "new",
@@ -277,7 +264,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-032",
+   "id": "B4-031",
    "old": "Modes are written by handlers, and a component may legitimately declare modes no event of its own transitions.",
    "new": "Modes are written by handlers, and a component may legitimately declare modes no event of its own transitions.",
    "where": "new",
@@ -285,7 +272,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-033",
+   "id": "B4-032",
    "old": "An event needs both halves.",
    "new": "An event needs both halves.",
    "where": "new",
@@ -293,17 +280,15 @@
    "tag": "F"
   },
   {
-   "id": "B4-034",
+   "id": "B4-033",
    "old": "A `state_events` entry whose guard or handler has no method for the component type is a build error",
-   "new": "A `state_events` entry whose guard or handler has no method for the component type is a build error, `EventHalfMissing`.",
+   "new": "A `state_events` entry whose guard or handler has no method for the component type is a build error",
    "where": "new",
    "cites": [],
-   "tag": "R",
-   "ruling": "P48",
-   "note": "names the kind; its third arm, a non-StateEvent entry, is not stated in §8.2"
+   "tag": "F"
   },
   {
-   "id": "B4-035",
+   "id": "B4-034",
    "old": "caught by method lookup at declaration-reading time rather than as a `MethodError` at the first firing.",
    "new": "Method lookup catches it at declaration-reading time, rather than as a `MethodError` at the first firing.",
    "where": "new",
@@ -311,7 +296,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-036",
+   "id": "B4-035",
    "old": "An event that fires only in a corner of the envelope would otherwise hide the omission indefinitely.",
    "new": "An event that fires only in a corner of the envelope would otherwise hide the omission indefinitely.",
    "where": "new",
@@ -319,42 +304,26 @@
    "tag": "F"
   },
   {
-   "id": "B4-037",
+   "id": "B4-036",
    "old": "Tier is declared by the store.",
-   "new": "Tier is declared by the store, as \"The stores\" above states (D-195, D-263).",
+   "new": "Tier is declared by the store.",
    "where": "new",
    "cites": [],
-   "newcites": [
-    "D-195",
-    "D-263"
-   ],
-   "tag": "R",
-   "ruling": "P44"
+   "tag": "F"
   },
   {
-   "id": "B4-038",
-   "old": "Every leaf declares `x_init` or `s_init`, the two are disjoint,",
-   "new": "Every leaf declares exactly one of `x_init` and `s_init`, and a stateless leaf declares it empty (D-263):",
-   "where": "units/B1/new.md",
-   "cites": [],
-   "tag": "R",
-   "ruling": "P44"
-  },
-  {
-   "id": "B4-039",
-   "old": "and so every leaf announces its tier in one place (D-195, D-263).",
-   "new": "Spelling that out puts every leaf's tier on the page in one place, stateful or not, with no tier by omission.",
-   "where": "units/B1/new.md",
+   "id": "B4-037",
+   "old": "Every leaf declares `x_init` or `s_init`, the two are disjoint, and so every leaf announces its tier in one place (D-195, D-263).",
+   "new": "Every leaf declares `x_init` or `s_init`, and the two are disjoint, so every leaf announces its tier in one place (D-195, D-263).",
+   "where": "new",
    "cites": [
     "D-195",
     "D-263"
    ],
-   "tag": "R",
-   "ruling": "P44",
-   "note": "the citations stay on the pointer sentence"
+   "tag": "F"
   },
   {
-   "id": "B4-040",
+   "id": "B4-038",
    "old": "A stateful leaf announces it in the update law as well, `x_deriv` beside `x_init` and `s_update` beside `s_init`.",
    "new": "A stateful leaf announces it in the update law as well, `x_deriv` beside `x_init` and `s_update` beside `s_init`.",
    "where": "new",
@@ -362,7 +331,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-041",
+   "id": "B4-039",
    "old": "The two output stages are one pair of names shared by both tiers, so they announce nothing and cast no vote (D-220).",
    "new": "The two output stages are one pair of names shared by both tiers, so they announce nothing and cast no vote (D-220).",
    "where": "new",
@@ -372,7 +341,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-042",
+   "id": "B4-040",
    "old": "The remaining tier-implying declarations must agree.",
    "new": "The remaining tier-implying declarations must agree (D-112, D-249).",
    "where": "new",
@@ -384,7 +353,7 @@
    "tag": "C"
   },
   {
-   "id": "B4-043",
+   "id": "B4-041",
    "old": "`m_init`, `state_events` and `x_projection` are continuous-only, because the event system is continuous-side only (§5.2, §3.2, §14.1) and projection's one manifold is the continuous state's (§2.2).",
    "new": "`m_init`, `state_events` and `x_projection` are continuous-only, because the event system is continuous-side only (§5.2, §3.2, §14.1) and projection's one manifold is the continuous state's (§2.2).",
    "where": "new",
@@ -397,7 +366,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-044",
+   "id": "B4-042",
    "old": "A `Pinned` entry in a contract is continuous-only, because the discrete tier pins wholesale and the marker there says nothing.",
    "new": "A `Pinned` entry in a contract is continuous-only, because the discrete tier pins wholesale and the marker there says nothing.",
    "where": "new",
@@ -405,38 +374,27 @@
    "tag": "F"
   },
   {
-   "id": "B4-045",
+   "id": "B4-043",
    "old": "No arity carries a tier.",
-   "new": "No arity carries a tier (above).",
+   "new": "No arity carries a tier.",
    "where": "new",
    "cites": [],
-   "tag": "R",
-   "ruling": "P43"
+   "tag": "F"
   },
   {
-   "id": "B4-046",
-   "old": "Every declaration takes the component alone,",
-   "new": "Every declaration of a structural fact but the allocator takes the component alone (D-263).",
-   "where": "units/B1/new.md",
-   "cites": [],
-   "tag": "R",
-   "ruling": "P43",
-   "note": "R13's wording, held by B1's criterion paragraph"
-  },
-  {
-   "id": "B4-047",
-   "old": "and `ws_init` takes the scalar on both tiers (D-263).",
-   "new": "`ws_init(c, T)` takes it on both tiers, the continuous and the discrete (D-077).",
-   "where": "units/B1/new.md",
+   "id": "B4-044",
+   "old": "Every declaration takes the component alone, and `ws_init` takes the scalar on both tiers (D-263).",
+   "new": "Every declaration of a structural fact takes the component alone, except `ws_init`, which takes the scalar on both tiers (D-263).",
+   "where": "new",
    "cites": [
     "D-263"
    ],
    "tag": "R",
-   "ruling": "P43",
-   "note": "B1's bold headline above cites D-263"
+   "ruling": "R13",
+   "note": "R13 extends R7's F22 to old 2574; same words as units B1 and D"
   },
   {
-   "id": "B4-048",
+   "id": "B4-045",
    "old": "Disagreement is `DeclarationOnWrongTier` (Appendix C)",
    "new": "Disagreement is `DeclarationOnWrongTier` (Appendix C)",
    "where": "new",
@@ -446,7 +404,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-049",
+   "id": "B4-046",
    "old": "reported as the offending declaration with the tier the leaf's other declarations announce.",
    "new": "It is reported as the offending declaration, with the tier the leaf's other declarations announce.",
    "where": "new",
@@ -454,18 +412,15 @@
    "tag": "F"
   },
   {
-   "id": "B4-050",
+   "id": "B4-047",
    "old": "It covers declaring both `x_deriv` and `s_update`, a `Pinned` entry on a discrete leaf, and the mixed-store cases the split state letters restore",
-   "new": "It covers declaring both `x_deriv` and `s_update`, a `Pinned` entry on a discrete leaf, and the mixed-store cases that the split state letters (`x` for continuous state, `s` for discrete, D-195) restore.",
+   "new": "It covers declaring both `x_deriv` and `s_update`, a `Pinned` entry on a discrete leaf, and the mixed-store cases the split state letters restore",
    "where": "new",
    "cites": [],
-   "newcites": [
-    "D-195"
-   ],
    "tag": "F"
   },
   {
-   "id": "B4-051",
+   "id": "B4-048",
    "old": "namely both stores on one leaf, an `x_init` on a leaf whose update law is `s_update` and an `s_init` on one whose update law is `x_deriv`.",
    "new": "Those are both stores on one leaf, an `x_init` on a leaf whose update law is `s_update`, and an `s_init` on one whose update law is `x_deriv`.",
    "where": "new",
@@ -473,7 +428,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-052",
+   "id": "B4-049",
    "old": "A stateless leaf is a leaf whose store is empty, and it declares its tier the same way.",
    "new": "A stateless leaf is a leaf whose store is empty, and it declares its tier the same way.",
    "where": "new",
@@ -481,7 +436,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-053",
+   "id": "B4-050",
    "old": "`x_init(::C) = (;)` makes it continuous, the tier §13.7 steers stateless leaves to",
    "new": "`x_init(::C) = (;)` makes it continuous, the tier §13.7 steers stateless leaves to",
    "where": "new",
@@ -491,7 +446,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-054",
+   "id": "B4-051",
    "old": "`s_init(::C) = (;)` makes it discrete, one that runs at its ticks and holds its outputs between them.",
    "new": "`s_init(::C) = (;)` makes it discrete, one that runs at its ticks and holds its outputs between them.",
    "where": "new",
@@ -499,18 +454,17 @@
    "tag": "F"
   },
   {
-   "id": "B4-055",
+   "id": "B4-052",
    "old": "A primitive declaring neither store is `TierUnreadable` (Appendix C).",
-   "new": "A primitive declaring neither store is `TierUnreadable`, and its message spells the empty form.",
-   "where": "units/B1/new.md",
+   "new": "A primitive declaring neither store is `TierUnreadable` (Appendix C).",
+   "where": "new",
    "cites": [
     "Appendix C"
    ],
-   "tag": "R",
-   "ruling": "P44"
+   "tag": "F"
   },
   {
-   "id": "B4-056",
+   "id": "B4-053",
    "old": "`y_types` stays mandatory on a stateless leaf.",
    "new": "`y_types` stays mandatory on a stateless leaf.",
    "where": "new",
@@ -518,7 +472,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-057",
+   "id": "B4-054",
    "old": "A leaf with an empty store and no output contract produces nothing and stores nothing, and it is refused as `StatelessWithoutOutputs` (Appendix C).",
    "new": "A leaf with an empty store and no output contract produces nothing and stores nothing, and it is refused as `StatelessWithoutOutputs` (Appendix C, D-263).",
    "where": "new",
@@ -532,7 +486,7 @@
    "tag": "C"
   },
   {
-   "id": "B4-058",
+   "id": "B4-055",
    "old": "The stage bundles follow the tier like any other leaf's, with no `x` or `s` field, because the bundle law puts a store's letter in the bundle only when the store is non-empty (§5.2).",
    "new": "The stage bundles follow the tier like any other leaf's, with no `x` or `s` field, because the bundle law puts a store's letter in the bundle only when the store is non-empty (§5.2).",
    "where": "new",
@@ -542,7 +496,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-059",
+   "id": "B4-056",
    "old": "§13.7 records why one stateless continuous leaf already serves consumers on both tiers.",
    "new": "§13.7 records why one stateless continuous leaf already serves consumers on both tiers.",
    "where": "new",
@@ -552,9 +506,9 @@
    "tag": "F"
   },
   {
-   "id": "B4-060",
+   "id": "B4-057",
    "old": "Members of both families, or of neither, are the §8.5 class errors.",
-   "new": "A type declaring both the leaf and the assembly families of declarations, or neither, meets the class errors of §8.5.",
+   "new": "Members of both families, or of neither, are the §8.5 class errors.",
    "where": "new",
    "cites": [
     "§8.5"
@@ -562,7 +516,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-061",
+   "id": "B4-058",
    "old": "### 8.3 Visibility: the contract is the interface",
    "new": "### 8.3 Visibility: the contract is the interface",
    "where": "new",
@@ -570,7 +524,7 @@
    "tag": "X"
   },
   {
-   "id": "B4-062",
+   "id": "B4-059",
    "old": "Rule. Visibility is decided by where the value goes:",
    "new": "Visibility is decided by where the value goes (D-034):",
    "where": "new",
@@ -582,7 +536,7 @@
    "note": "the Rule. label goes; the headline is bold"
   },
   {
-   "id": "B4-063",
+   "id": "B4-060",
    "old": "a field declared in `y_types` is public;",
    "new": "a field declared in `y_types` is public;",
    "where": "new",
@@ -590,7 +544,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-064",
+   "id": "B4-061",
    "old": "a field returned in `y` (a stage's own published signals) and declared nowhere is a build error;",
    "new": "a field returned in `y` (a stage's own published signals) and declared nowhere is a build error;",
    "where": "new",
@@ -598,7 +552,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-065",
+   "id": "B4-062",
    "old": "a component with no `y_types()` method has no outputs.",
    "new": "a component with no `y_types(::C)` method has no outputs, and a stateless leaf without one is refused as `StatelessWithoutOutputs` (§8.2, D-263).",
    "where": "new",
@@ -611,7 +565,7 @@
    "ruling": "R7"
   },
   {
-   "id": "B4-066",
+   "id": "B4-063",
    "old": "That is the same move as class-by-declaration-shape.",
    "new": "That is the same move as class-by-declaration-shape (§8.5).",
    "where": "new",
@@ -622,7 +576,7 @@
    "tag": "C"
   },
   {
-   "id": "B4-067",
+   "id": "B4-064",
    "old": "Ports in the contract are connectable, GUI-listed, snapshot-carried and log-exported.",
    "new": "Ports in the contract (a component's declared interface) are connectable, GUI-listed, snapshot-carried and log-exported.",
    "where": "new",
@@ -630,7 +584,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-068",
+   "id": "B4-065",
    "old": "The table is public throughout, with every cell a declared port, so nothing anywhere needs a presentation filter.",
    "new": "The table is public throughout, with every cell a declared port, so nothing anywhere needs a presentation filter.",
    "where": "new",
@@ -638,7 +592,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-069",
+   "id": "B4-066",
    "old": "Visibility is binary, with no third class between the two.",
    "new": "Visibility is binary, with no third class between the two.",
    "where": "new",
@@ -646,7 +600,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-070",
+   "id": "B4-067",
    "old": "A value a later function reads travels as a declared port like any other (§5.2).",
    "new": "A value a later function reads travels as a declared port like any other (§5.2).",
    "where": "new",
@@ -656,7 +610,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-071",
+   "id": "B4-068",
    "old": "The inspection path for an intermediate is therefore declaration.",
    "new": "The inspection path for an intermediate is declaration (D-194). That follows from the visibility rule above.",
    "where": "new",
@@ -668,7 +622,7 @@
    "note": "D-194 moves one sentence earlier; unbolded, as the next sentence makes it a consequence"
   },
   {
-   "id": "B4-072",
+   "id": "B4-069",
    "old": "One line in `y_types` makes it public, checked and visible everywhere at once (D-194).",
    "new": "One line in `y_types` makes it public, checked and visible everywhere at once.",
    "where": "new",
@@ -679,15 +633,15 @@
    "tag": "F"
   },
   {
-   "id": "B4-073",
+   "id": "B4-070",
    "old": "FlightCore is the precedent, where an intermediate was inspected by putting it in the `Model` output and no other way.",
-   "new": "FlightCore is the precedent. There an intermediate could be inspected only by putting it in the model's output.",
+   "new": "FlightCore is the precedent, where an intermediate was inspected by putting it in FlightCore's model output and no other way.",
    "where": "new",
    "cites": [],
    "tag": "F"
   },
   {
-   "id": "B4-074",
+   "id": "B4-071",
    "old": "Publicity is never implicit.",
    "new": "Publicity is never implicit.",
    "where": "new",
@@ -695,7 +649,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-075",
+   "id": "B4-072",
    "old": "Even the minimal component writes `y_types(::LowPassFilter) = (x = Float64,)`, one line, in exchange for \"public\" always meaning someone wrote it down.",
    "new": "Even the minimal component writes `y_types(::LowPassFilter) = (x = Float64,)`, one line, in exchange for \"public\" always meaning someone wrote it down.",
    "where": "new",
@@ -703,7 +657,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-076",
+   "id": "B4-073",
    "old": "- Conformance. A declared port must be produced by exactly one stage, stage 1 or stage 2 (D-252).",
    "new": "A declared port must be produced by exactly one stage, stage 1 or stage 2 (D-252).",
    "where": "new",
@@ -714,7 +668,7 @@
    "note": "bold lead-in 'Conformance.' becomes a bold headline clause"
   },
   {
-   "id": "B4-077",
+   "id": "B4-074",
    "old": "Those two classes are the whole classification, and the framework produces no port of its own.",
    "new": "Those two classes are the whole classification, and the framework produces no port of its own.",
    "where": "new",
@@ -722,7 +676,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-078",
+   "id": "B4-075",
    "old": "Stage membership is derived over `y_types` alone (§9.1).",
    "new": "Stage membership is derived over `y_types` alone (§9.1).",
    "where": "new",
@@ -732,7 +686,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-079",
+   "id": "B4-076",
    "old": "Declared-but-unproduced and produced-by-two-stages are build errors.",
    "new": "Declared-but-unproduced and produced-by-two-stages are build errors.",
    "where": "new",
@@ -740,7 +694,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-080",
+   "id": "B4-077",
    "old": "A declared port no stage produces is `DeclaredNotProduced`, which names the port, the stage products and the store fields; the remedy is returning the name from `y_state` (§5.3).",
    "new": "A declared port no stage produces is `DeclaredNotProduced`, which names the port, the stage products and the store fields. Its remedy is returning the name from `y_state` (§5.3).",
    "where": "new",
@@ -750,7 +704,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-081",
+   "id": "B4-078",
    "old": "A returned port field declared nowhere is a build error at probe, with did-you-mean (the offending name plus the list-in-hand it should have matched) against `y_types`.",
    "new": "A returned port field declared nowhere is a build error at probe (the build's single evaluation of a user function). The error carries a did-you-mean (the offending name plus the list-in-hand it should have matched) against `y_types`.",
    "where": "new",
@@ -758,7 +712,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-082",
+   "id": "B4-079",
    "old": "That is the return-side analogue of §8.4 walkthrough 1 (D-034, D-055).",
    "new": "That is the return-side analogue of §8.4 walkthrough 1 (D-034, D-239).",
    "where": "new",
@@ -776,18 +730,15 @@
    "ruling": "R9"
   },
   {
-   "id": "B4-083",
+   "id": "B4-080",
    "old": "The forgotten-branch walkthrough holds.",
-   "new": "Walkthrough 3 of §8.4, the forgotten branch field, holds.",
+   "new": "The forgotten-branch walkthrough holds.",
    "where": "new",
    "cites": [],
-   "newcites": [
-    "§8.4"
-   ],
    "tag": "F"
   },
   {
-   "id": "B4-084",
+   "id": "B4-081",
    "old": "A declared `P` missing from the taken branch's return fails at probe.",
    "new": "A declared `P` missing from the taken branch's return fails at probe.",
    "where": "new",
@@ -795,7 +746,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-085",
+   "id": "B4-082",
    "old": "Missing from an untaken branch, it fails loudly at that branch's first execution via the always-on check.",
    "new": "Missing from an untaken branch, it fails loudly at that branch's first execution via the always-on check.",
    "where": "new",
@@ -803,7 +754,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-086",
+   "id": "B4-083",
    "old": "- Branch-shape rule. Stage returns must have the same `NamedTuple` shape on every branch.",
    "new": "Stage returns must have the same `NamedTuple` shape on every branch, the branch-shape rule (D-034).",
    "where": "new",
@@ -815,7 +766,7 @@
    "note": "bold lead-in becomes a bold headline clause; the term stays"
   },
   {
-   "id": "B4-087",
+   "id": "B4-084",
    "old": "Julia's type-stability discipline already demands that for performance.",
    "new": "Julia's type-stability discipline already demands that for performance.",
    "where": "new",
@@ -823,7 +774,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-088",
+   "id": "B4-085",
    "old": "The framework merely makes it a stated rule with a good error.",
    "new": "The framework merely makes it a stated rule with a good error.",
    "where": "new",
@@ -831,7 +782,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-089",
+   "id": "B4-086",
    "old": "- Schema authority is total over the table",
    "new": "Schema authority is total over the table (D-032, D-034)",
    "where": "new",
@@ -845,7 +796,7 @@
    "note": "R9 puts D-034 and D-239 where 2660 cited D-055; D-034 Position carries the headline"
   },
   {
-   "id": "B4-090",
+   "id": "B4-087",
    "old": "(declarations define structure; evaluation only checks conformance).",
    "new": "Schema authority means declarations define structure and evaluation only checks conformance.",
    "where": "new",
@@ -853,7 +804,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-091",
+   "id": "B4-088",
    "old": "Every cell traces to an authored declaration, the always-on check's expected type for `y` is fully declaration-derived",
    "new": "Every cell traces to an authored declaration, and the always-on check's expected type for `y` is fully declaration-derived.",
    "where": "new",
@@ -861,7 +812,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-092",
+   "id": "B4-089",
    "old": "and return typos cannot silently define new cells.",
    "new": "Return typos cannot silently define new cells (D-239).",
    "where": "new",
@@ -873,7 +824,7 @@
    "ruling": "R9"
   },
   {
-   "id": "B4-093",
+   "id": "B4-090",
    "old": "Protection against silently dropped partials rests on the embedding guarantee (§9.5).",
    "new": "Protection against silently dropped partials rests on the embedding guarantee (§9.5).",
    "where": "new",
@@ -883,7 +834,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-094",
+   "id": "B4-091",
    "old": "Promotion is airtight, so an observed `Float64` is a true constant.",
    "new": "Promotion is airtight, so an observed `Float64` is a true constant.",
    "where": "new",
@@ -891,7 +842,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-095",
+   "id": "B4-092",
    "old": "Probe-observed expected types remain rejected (D-034, D-055, D-194).",
    "new": "Probe-observed expected types remain rejected (D-034, D-194).",
    "where": "new",
@@ -908,7 +859,7 @@
    "ruling": "R9"
   },
   {
-   "id": "B4-096",
+   "id": "B4-093",
    "old": "- What this rules out (D-016, D-034, D-055, D-194).",
    "new": "This section's rules exclude several designs the log rejects (D-016, D-034, D-055, D-194)",
    "where": "new",
@@ -922,7 +873,7 @@
    "ruling": "R4"
   },
   {
-   "id": "B4-097",
+   "id": "B4-094",
    "old": "The `unlisted` flag (§4.2) and its satellite-function representation;",
    "new": "among them the `unlisted` flag (§4.2) and its satellite-function representation.",
    "where": "new",
@@ -934,7 +885,7 @@
    "note": "kept: the log carries the unlisted flag (D-016, D-034 Rejected) but not its satellite-function representation"
   },
   {
-   "id": "B4-098",
+   "id": "B4-095",
    "old": "identity publication by default (§7.4 step 4);",
    "new": "Superseded position — identity publication of state and modes as the default",
    "where": "docs/design/decisions.md",
@@ -946,7 +897,7 @@
    "note": "D-016 Rejected, log 591-592; D-034 Rejected log 1070 'Identity-public on missing outputs()'"
   },
   {
-   "id": "B4-099",
+   "id": "B4-096",
    "old": "probe-observed private cells;",
    "new": "private intermediates recognized by probe observation",
    "where": "docs/design/decisions.md",
@@ -956,7 +907,7 @@
    "note": "D-034 Rejected, log 1063; also D-194 Rejected 'Cells with probe-observed types', log 6925"
   },
   {
-   "id": "B4-100",
+   "id": "B4-097",
    "old": "the `Private(T)` fallback;",
    "new": "`Private(T)` contract entries: ceremony without a demonstrated customer — fallback on record.",
    "where": "docs/design/decisions.md",
@@ -966,7 +917,7 @@
    "note": "D-034 Rejected, log 1071-1072; D-194 Rejected log 6928-6931"
   },
   {
-   "id": "B4-101",
+   "id": "B4-098",
    "old": "and the opt-in variant with a `Float64`-under-`Dual` diagnostic.",
    "new": "Opt-in `locals` + `Float64`-under-`Dual` diagnostic: legislates an ambiguity strictness dissolves.",
    "where": "docs/design/decisions.md",
@@ -976,7 +927,7 @@
    "note": "D-055 Rejected, log 1584-1585"
   },
   {
-   "id": "B4-102",
+   "id": "B4-099",
    "old": "### 8.4 Failure walkthroughs (the error-locality grounding)",
    "new": "### 8.4 Failure walkthroughs (the error-locality grounding)",
    "where": "new",
@@ -984,18 +935,15 @@
    "tag": "X"
   },
   {
-   "id": "B4-103",
+   "id": "B4-100",
    "old": "The five mistakes that decided declaration-vs-inference, with their failure sites under this layer.",
-   "new": "The five mistakes below decided the choice between declaration and inference-by-evaluation as the schema authority (§8.1). They ground error locality (the property that a mistake fails at the site of the mistake). The list gives each with its failure site under this layer.",
+   "new": "The five mistakes below decided declaration-vs-inference. The list gives each with its failure site under this layer.",
    "where": "new",
    "cites": [],
-   "newcites": [
-    "§8.1"
-   ],
    "tag": "F"
   },
   {
-   "id": "B4-104",
+   "id": "B4-101",
    "old": "Each was traced under inference-by-evaluation too, and in every case the failure surfaced inside correct code, later, or never.",
    "new": "Each was traced under inference-by-evaluation too, and in every case the failure surfaced inside correct code, later, or never.",
    "where": "new",
@@ -1003,7 +951,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-105",
+   "id": "B4-102",
    "old": "D-032 carries the traces.",
    "new": "D-032 carries the traces.",
    "where": "new",
@@ -1013,7 +961,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-106",
+   "id": "B4-103",
    "old": "1. Typo'd wire (`:throtle`). A build error at the connection, \"no input `throtle`; did you mean `throttle`?\"",
    "new": "1. A typo'd wire (`:throtle`) is a build error at the connection, \"no input `throtle`; did you mean `throttle`?\"",
    "where": "new",
@@ -1021,7 +969,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-107",
+   "id": "B4-104",
    "old": "2. Forgotten wire (`fuel_available`, read only by a guard). The §6.1 unconnected-input error at build.",
    "new": "2. A forgotten wire, such as `fuel_available` read only by a guard (the declared function defining an event's predicate), fails as the §6.1 unconnected-input error at build.",
    "where": "new",
@@ -1031,15 +979,15 @@
    "tag": "F"
   },
   {
-   "id": "B4-108",
+   "id": "B4-105",
    "old": "3. Forgotten branch field (`P` returned by one branch only). A probe or first-execution error naming the declared port.",
-   "new": "3. A forgotten branch field, such as `P` returned by one branch only, fails as a probe or first-execution error naming the declared port (one declared input or output). A probe is the build's single evaluation of a user function.",
+   "new": "3. A forgotten branch field, such as `P` returned by one branch only, fails as a probe or first-execution error naming the declared port.",
    "where": "new",
    "cites": [],
    "tag": "F"
   },
   {
-   "id": "B4-109",
+   "id": "B4-106",
    "old": "4. Type mismatch (a `Float64` fraction wired into a `Bool` input). A wiring-time error naming both endpoints and both faces.",
    "new": "4. A type mismatch, such as a `Float64` fraction wired into a `Bool` input, fails as a wiring-time error naming both endpoints and both faces (the names ports wear on their component's boundary).",
    "where": "new",
@@ -1047,7 +995,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-110",
+   "id": "B4-107",
    "old": "5. Typo'd return field (`P_shft = …` for a declared `P_shaft`). A probe error with did-you-mean (the offending name plus the list-in-hand it should have matched) against `y_types`.",
    "new": "5. A typo'd return field, such as `P_shft = …` for a declared shaft power `P_shaft`, fails as a probe error with did-you-mean (the offending name plus the list-in-hand it should have matched) against `y_types`.",
    "where": "new",
@@ -1055,7 +1003,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-111",
+   "id": "B4-108",
    "old": "That one error is the whole report.",
    "new": "That one error is the whole report.",
    "where": "new",
@@ -1063,7 +1011,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-112",
+   "id": "B4-109",
    "old": "The probe chain stops at the port check (§13.1, D-239), and an unproduced-`P_shaft` error would only restate it from the other side, since renaming the field produces the port.",
    "new": "The probe chain stops at the port check (§13.1, D-239), and an unproduced-`P_shaft` error would only restate it from the other side, since renaming the field produces the port.",
    "where": "new",
@@ -1074,9 +1022,9 @@
    "tag": "F"
   },
   {
-   "id": "B4-113",
+   "id": "B4-110",
    "old": "A declared port no stage returns, on a component whose returns are all declared, is the completeness pass's error, with the stage-product and state-field lists in hand (§8.3).",
-   "new": "A declared port no stage returns, on a component whose returns are all declared, is `DeclaredNotProduced`, with the stage-product and state-field lists in hand (§8.3).",
+   "new": "A declared port no stage returns, on a component whose returns are all declared, is the completeness pass's error, with the stage-product and state-field lists in hand (§8.3).",
    "where": "new",
    "cites": [
     "§8.3"
@@ -1084,7 +1032,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-114",
+   "id": "B4-111",
    "old": "Every returned field is a declared port, so this one error form is the whole case.",
    "new": "Every returned field is a declared port, so this one error form is the whole case.",
    "where": "new",
@@ -1092,7 +1040,7 @@
    "tag": "F"
   },
   {
-   "id": "B4-115",
+   "id": "B4-112",
    "old": "An intermediate a later function reads is declared like any other output and typo'd like any other output (§8.3).",
    "new": "An intermediate a later function reads is declared like any other output and typo'd like any other output (§8.3).",
    "where": "new",
@@ -1108,13 +1056,6 @@
   "This section decides which of a component's values are public.",
   "It states the visibility rule, then the inspection path for an intermediate, then the checks that hold stage returns and declarations to each other.",
   "A snapshot is the immutable per-boundary publication.",
-  "The return side is checked too.",
-  "`StoreWithoutUpdate`",
-  "`EventHalfMissing`",
-  "(`x` for continuous state, `s` for discrete, D-195)",
-  "the choice between declaration and inference-by-evaluation as the schema authority (§8.1)",
-  "They ground error locality (the property that a mistake fails at the site of the mistake).",
-  "(one declared input or output)",
-  "A probe is the build's single evaluation of a user function."
+  "The return side is checked too."
  ]
 }

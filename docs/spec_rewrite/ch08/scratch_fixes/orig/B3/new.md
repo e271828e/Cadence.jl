@@ -24,11 +24,11 @@ declaration, with nothing inferred. Participation is therefore authored per
 leaf and legible on the page. The leaf forms read as follows.
 
 - `Float64`, alone or as a type parameter (`SVector{3, Float64}`,
-  `RQuat{Float64}`, `MyStruct{Float64}`), means the leaf participates ([D-263][d-263]).
-  Its cell carries the activation scalar. Value parameters are structure rather
-  than number, and they never take it ([D-079][d-079]). The bounds in
-  `Ranged{Float64, -1, 1}` are not scalars to re-type. `Ranged` is a domain
-  wrapper type too ([§7.1][s7-1]).
+  `RQuat{Float64}`, `MyStruct{Float64}`), means the leaf participates
+  ([D-263][d-263]). Its cell carries the activation scalar. Value parameters
+  are structure rather than number, and they never take it ([D-079][d-079]).
+  The bounds in `Ranged{Float64, -1, 1}` are not scalars to re-type. `RQuat`
+  and `Ranged` are domain wrapper types ([§7.1][s7-1]).
 - `Pinned{P}` means the leaf is deliberately pinned, and the pin is
   schema-visible. The wrapper is stripped at nominal, so the cell is `P` at
   every activation. It is whole-leaf freezing, declared and
@@ -79,17 +79,18 @@ concretely typed field is frozen without appearing in the contract
 terrain and a moving deck through one consumer.
 
 A custom struct is a first-class port type, as in
-`contact = GearContact{Float64}`, under the scoping that [§7.2][s7-2] establishes. Here
-`GearContact` is a landing-gear contact. That scoping requires a struct
-parametric in its real-scalar leaves, with constructors inferring the scalar. A
-participating struct leaf is declared with `Float64` in its parameter position,
-`GearContact{Float64}`. The walk retypes it there, recursively for nested
-parameters ([D-263][d-263]). A struct with a hardcoded `Float64` field offers no such
-position. The walk therefore leaves it as written, a pinned leaf by shape, and
-`Pinned{GearContact}` says so on the page. Any `Dual`-carrying construction then
-fails inside the stage with an `InexactError` naming the offending constructor.
-That is the CI invariant of [§7.2][s7-2], reached through the declaration layer with
-no extra machinery.
+`contact = GearContact{Float64}`, under the scoping that [§7.2][s7-2]
+establishes. Here `GearContact` is a landing-gear contact. That scoping
+requires a struct parametric in its real-scalar leaves, with constructors
+inferring the scalar. A participating struct leaf is declared with `Float64`
+in its parameter position, `GearContact{Float64}`. The walk retypes it there,
+recursively for nested parameters ([D-263][d-263]). A struct with a
+hardcoded `Float64` field offers no such position. The walk therefore leaves
+it as written, a pinned leaf by shape, and `Pinned{GearContact}` says so on
+the page. Any `Dual`-carrying construction then fails inside the stage with
+an `InexactError` naming the offending constructor. That is the CI invariant
+of [§7.2][s7-2], reached through the declaration layer with no extra
+machinery.
 
 The companion obligation is constructibility at `T`. **A declared type must
 be buildable at the activation scalar** ([D-079][d-079]). The `Dual` probe
@@ -119,21 +120,21 @@ partials is still chosen by seeding ([§14.10][s14-10]), never by typing
 ([D-079][d-079]). The declaration says which leaves *can* carry them, and the
 seed says which directions do.
 
-The misplaced-pin account is stated openly here. A leaf that really participates
-cannot be declared frozen by habit, because the habitual spelling, a bare
-`Float64`, walks ([D-263][d-263]). What remains is deliberate, and it comes in two
-bugs. The first is writing `Pinned` at a leaf that really participates. The
-second is omitting it at one that really does not.
+The misplaced-pin account is stated openly here. A leaf that really
+participates cannot be declared frozen by habit, because the habitual
+spelling, a bare `Float64`, walks ([D-263][d-263]). What remains is
+deliberate. An author writes `Pinned` at a leaf that really participates, or
+omits it at one that really does not.
 
-**The first bug lurks, but is never silent** ([D-286][d-286]). No lossy `Dual → Float64`
-cast exists, so the first `Dual` activation of that component fails. It fails at
-that activation's own lazy compile ([§9.4][s9-4]), not at `build(world)`. The message
-carries the didactic hint ("if `F` participates in differentiation, remove its
-`Pinned`"), because an observed `Dual` at a pinned leaf has exactly one honest
-cause. A didactic diagnostic is one that states its fix ([§13.2][s13-2]). The second
-bug fails at the same activation. It fails inside the stage where the frozen
-internals meet a `Dual`, or at the identity comparison on an opaque leaf built
-from build-time data ([§9.5][s9-5]).
+**The first bug lurks, but is never silent** ([D-286][d-286]). No lossy
+`Dual → Float64` cast exists, so the first `Dual` activation of that
+component fails. It fails at that activation's own lazy compile
+([§9.4][s9-4]), not at `build(world)`. The message carries the didactic hint
+("if `F` participates in differentiation, remove its `Pinned`"), because an
+observed `Dual` at a pinned leaf has exactly one honest cause. The second bug
+fails at the same activation. It fails inside the stage where the frozen
+internals meet a `Dual`, or at the identity comparison on an opaque leaf
+built from build-time data ([§9.5][s9-5]).
 
 Both lurks are contained by policy rather than machinery. The test suite
 builds a `Dual` activation of every component ([D-280][d-280]). That is the

@@ -158,16 +158,15 @@
   {
    "id": "D-019",
    "old": "It is a build error naming both families rather than a silence that fails later and elsewhere.",
-   "new": "It is a build error, `ClassUnreadable`, naming both families, rather than a silence that fails later and elsewhere.",
+   "new": "It is a build error naming both families, rather than a silence that fails later and elsewhere.",
    "where": "new",
    "cites": [],
-   "tag": "R",
-   "ruling": "P46"
+   "tag": "F"
   },
   {
    "id": "D-020",
    "old": "That error sharpens into a did-you-mean when the type has component-typed fields (\"holds components but declares no `inner_connections`\").",
-   "new": "When the type has component-typed fields, that error sharpens into a did-you-mean (the offending name plus the list-in-hand it should have matched). Its message reads \"holds components but declares no `inner_connections`\".",
+   "new": "When the type has component-typed fields, that error sharpens into a did-you-mean (a name-shaped failure that carries the list-in-hand). Its message reads \"holds components but declares no `inner_connections`\".",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -434,7 +433,7 @@
   {
    "id": "D-049",
    "old": ":field`, default `nothing`.",
-   "new": "One more is optional, `transparent_container(::A)`, with default `nothing`.",
+   "new": "and its default is `nothing`.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -475,8 +474,8 @@
   },
   {
    "id": "D-054",
-   "old": "- A container mixing component and non-component elements is a build error in this section's did-you-mean family",
-   "new": "- A container mixing component and non-component elements is a build error in this section's did-you-mean family (D-085).",
+   "old": "- A container mixing component and non-component elements is a build error in this section's did-you-mean family (the offending name plus the list-in-hand it should have matched).",
+   "new": "- A container mixing component and non-component elements is a build error in this section's did-you-mean family (D-085). The error carries the offending name plus the list-in-hand it should have matched.",
    "where": "new",
    "cites": [],
    "tag": "C",
@@ -486,14 +485,6 @@
   },
   {
    "id": "D-055",
-   "old": "(the offending name plus the list-in-hand it should have matched).",
-   "new": "a did-you-mean (the offending name plus the list-in-hand it should have matched)",
-   "where": "new",
-   "cites": [],
-   "tag": "F"
-  },
-  {
-   "id": "D-056",
    "old": "All-component elements are children, and zero-component elements are inert parameter data.",
    "new": "All-component elements are children, and zero-component elements are inert parameter data.",
    "where": "new",
@@ -501,7 +492,7 @@
    "tag": "F"
   },
   {
-   "id": "D-057",
+   "id": "D-056",
    "old": "- Containers of containers are rejected in the first cut, because deeper grouping is what assemblies are for.",
    "new": "- Containers of containers are rejected in the first cut, because deeper grouping is what assemblies are for (D-085).",
    "where": "new",
@@ -512,7 +503,7 @@
    ]
   },
   {
-   "id": "D-058",
+   "id": "D-057",
    "old": "The element whose value is itself a component-bearing container is named, with its type (`ContainerNested`).",
    "new": "The element whose value is itself a component-bearing container is named, with its type (`ContainerNested`).",
    "where": "new",
@@ -520,7 +511,7 @@
    "tag": "F"
   },
   {
-   "id": "D-059",
+   "id": "D-058",
    "old": "- Empty containers are legal and contribute zero children, so parametric code needs no special case.",
    "new": "- Empty containers are legal and contribute zero children, so parametric code needs no special case (D-085).",
    "where": "new",
@@ -531,7 +522,7 @@
    ]
   },
   {
-   "id": "D-060",
+   "id": "D-059",
    "old": "- Abstract element types follow the same concreteness discipline as plain fields. They are directly concrete, or concrete through type-parameter bounds.",
    "new": "- Abstract element types follow the same concreteness discipline as plain fields. They are directly concrete, or concrete through type-parameter bounds.",
    "where": "new",
@@ -539,7 +530,7 @@
    "tag": "F"
   },
   {
-   "id": "D-061",
+   "id": "D-060",
    "old": "That is the generic holding (a parent holding a child through a non-concrete field type) that §8.8 allows.",
    "new": "That is the generic holding (a parent holding a child through a non-concrete field type) that §8.8 allows.",
    "where": "new",
@@ -549,19 +540,18 @@
    "tag": "F"
   },
   {
-   "id": "D-062",
+   "id": "D-061",
    "old": "- A bare key from a name-transparent container colliding with any sibling child name is a build error naming both.",
-   "new": "- A bare key from a name-transparent container colliding with any sibling child name is a build error naming both (D-211). The error is `ChildNameCollision`.",
+   "new": "- A bare key from a name-transparent container colliding with any sibling child name is a build error naming both (D-211).",
    "where": "new",
    "cites": [],
-   "tag": "R",
+   "tag": "C",
    "newcites": [
     "D-211"
-   ],
-   "ruling": "P46"
+   ]
   },
   {
-   "id": "D-063",
+   "id": "D-062",
    "old": "A bare key equal to the name of a sibling container field that contributes children is refused the same way.",
    "new": "A bare key equal to the name of a sibling container field that contributes children is refused the same way (D-212).",
    "where": "new",
@@ -572,7 +562,7 @@
    ]
   },
   {
-   "id": "D-064",
+   "id": "D-063",
    "old": "No child bears that name, but the key would shadow the container's `\"field/key\"` segment grammar (§6.1), leaving its elements unreachable behind a diagnostic that blames the wrong child.",
    "new": "No child bears that name, but the key would shadow the container's `\"field/key\"` segment grammar (§6.1). Its elements would be unreachable behind a diagnostic that blames the wrong child.",
    "where": "new",
@@ -582,7 +572,7 @@
    "tag": "F"
   },
   {
-   "id": "D-065",
+   "id": "D-064",
    "old": "An empty field reserves nothing, because it reaches no children and its value cannot be told from empty inert parameter data.",
    "new": "An empty field reserves nothing (D-212), because it reaches no children and its value cannot be told from empty inert parameter data.",
    "where": "new",
@@ -593,7 +583,7 @@
    ]
   },
   {
-   "id": "D-066",
+   "id": "D-065",
    "old": "The judgment is therefore per-instantiation, like every wiring judgment (D-212).",
    "new": "The judgment is therefore per-instantiation, like every wiring judgment.",
    "where": "new",
@@ -606,7 +596,7 @@
    ]
   },
   {
-   "id": "D-067",
+   "id": "D-066",
    "old": "`transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error.",
    "new": "- `transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error (D-211, D-215).",
    "where": "new",
@@ -618,7 +608,7 @@
    ]
   },
   {
-   "id": "D-068",
+   "id": "D-067",
    "old": "The one ambiguity this leaves, a transparent element's bare key equal to its own field's name, joins the bare-key collision error above.",
    "new": "The `sample_times` sugar of §8.7, where a container's bare field name keys one declaration for all its elements, leaves only one ambiguity. A transparent element's bare key equal to its own field's name joins this collision error (D-215).",
    "where": "new",
@@ -630,7 +620,7 @@
    ]
   },
   {
-   "id": "D-069",
+   "id": "D-068",
    "old": "#### The builder is rejected",
    "new": "The builder (`Assembly()` plus `add!`/`connect!`) is rejected (D-039).",
    "where": "new",
@@ -638,7 +628,7 @@
    "tag": "M"
   },
   {
-   "id": "D-070",
+   "id": "D-069",
    "old": "The builder (`Assembly()` plus `add!`/`connect!`) is rejected (D-039).",
    "new": "The builder (`Assembly()` plus `add!`/`connect!`) is rejected (D-039).",
    "where": "new",
@@ -648,7 +638,7 @@
    "tag": "M"
   },
   {
-   "id": "D-071",
+   "id": "D-070",
    "old": "Its one real advantage, programmatic generation, survives intact in the type-based form. A declaration is an ordinary function body, and loops and comprehensions build the returned tuple.",
    "new": "Its one real advantage, programmatic generation, survives intact in the type-based form. A declaration is an ordinary function body, and loops and comprehensions build the returned tuple.",
    "where": "new",
@@ -656,7 +646,7 @@
    "tag": "M"
   },
   {
-   "id": "D-072",
+   "id": "D-071",
    "old": "#### `Group`: the on-the-fly assembly",
    "new": "#### `Group`: the on-the-fly assembly",
    "where": "new",
@@ -664,15 +654,15 @@
    "tag": "X"
   },
   {
-   "id": "D-073",
+   "id": "D-072",
    "old": "The immutable version of \"grouping components by plain calls\" needs no builder.",
-   "new": "The immutable version of grouping components by plain calls needs no builder (`Assembly()` plus `add!`/`connect!`, rejected below).",
+   "new": "The immutable version of \"grouping components by plain calls\" needs no builder (`Assembly()` plus `add!`/`connect!`, rejected below).",
    "where": "new",
    "cites": [],
    "tag": "F"
   },
   {
-   "id": "D-074",
+   "id": "D-073",
    "old": "It is already expressible under this section's rules as a single library component (the starting inventory, §13.7).",
    "new": "It is already expressible under this section's rules. `Group` expresses it as a single library component, part of the starting inventory (§13.7, D-184).",
    "where": "new",
@@ -686,7 +676,7 @@
    ]
   },
   {
-   "id": "D-075",
+   "id": "D-074",
    "old": "A `NamedTuple` field's elements are its children by the container rule, name-transparent so they go by bare key (D-211),",
    "new": "A `NamedTuple` field's elements are its children by the container rule, name-transparent so they go by bare key (D-211).",
    "where": "new",
@@ -696,7 +686,7 @@
    "tag": "F"
   },
   {
-   "id": "D-076",
+   "id": "D-075",
    "old": "and declarations are ordinary functions of the instance, free to read its fields:",
    "new": "Its declarations are ordinary functions of the instance, free to read its fields.",
    "where": "new",
@@ -704,7 +694,7 @@
    "tag": "F"
   },
   {
-   "id": "D-077",
+   "id": "D-076",
    "old": "struct Group{C <: NamedTuple, W, I, O} <: AbstractComponent children::C # component-typed elements → children by the container rule wires::W # inert parameter data inputs::I outputs::O end inner_connections(g::Group) = g.wires u_connections(g::Group) = g.inputs y_connections(g::Group) = g.outputs transparent_container(::Group) = :children",
    "new": "struct Group{C <: NamedTuple, W, I, O} <: AbstractComponent children::C # component-typed elements → children by the container rule wires::W # inert parameter data inputs::I outputs::O end inner_connections(g::Group) = g.wires u_connections(g::Group) = g.inputs y_connections(g::Group) = g.outputs transparent_container(::Group) = :children",
    "where": "new",
@@ -713,7 +703,7 @@
    "ruling": "R1"
   },
   {
-   "id": "D-078",
+   "id": "D-077",
    "old": "Group(children; wires = (), inputs = (), outputs = ()) = Group(children, wires, inputs, outputs)",
    "new": "Group(children; wires = (), inputs = (), outputs = ()) = Group(children, wires, inputs, outputs)",
    "where": "new",
@@ -722,7 +712,7 @@
    "ruling": "R1"
   },
   {
-   "id": "D-079",
+   "id": "D-078",
    "old": "world = Group( (; plant = Plant(), ctrl = PID(kp = 2.0)); wires = (\"ctrl/u\" => \"plant/u\", \"plant/y\" => \"ctrl/y\"), )",
    "new": "world = Group( (; plant = Plant(), ctrl = PID(kp = 2.0)); wires = (\"ctrl/u\" => \"plant/u\", \"plant/y\" => \"ctrl/y\"), )",
    "where": "new",
@@ -731,7 +721,7 @@
    "ruling": "R1"
   },
   {
-   "id": "D-080",
+   "id": "D-079",
    "old": "One type, defined once, and every ad-hoc topology is a value of it.",
    "new": "`Group` is one type, defined once, and every ad-hoc topology is a value of it.",
    "where": "new",
@@ -739,7 +729,7 @@
    "tag": "F"
   },
   {
-   "id": "D-081",
+   "id": "D-080",
    "old": "The type parameters still carry the children's concrete types, so activation is unchanged.",
    "new": "The type parameters still carry the children's concrete types, so activation is unchanged.",
    "where": "new",
@@ -747,7 +737,7 @@
    "tag": "F"
   },
   {
-   "id": "D-082",
+   "id": "D-081",
    "old": "So is the executor, the compiled form of the stage execution order (§9.7).",
    "new": "So is the executor, the compiled form of the stage execution order (§9.7).",
    "where": "new",
@@ -757,15 +747,15 @@
    "tag": "F"
   },
   {
-   "id": "D-083",
+   "id": "D-082",
    "old": "Wiring validation, did-you-mean errors and the two-producer check all run at build against the instance exactly as for a named assembly.",
-   "new": "Wiring validation, did-you-mean errors and the two-producers error all run at build against the instance exactly as for a named assembly.",
+   "new": "Wiring validation, did-you-mean errors and the two-producer check all run at build against the instance exactly as for a named assembly.",
    "where": "new",
    "cites": [],
    "tag": "F"
   },
   {
-   "id": "D-084",
+   "id": "D-083",
    "old": "What is given up relative to a named type is exactly what named types are for, namely dispatching domain code on `::Cessna172X` and a reusable identity for the topology.",
    "new": "What is given up relative to a named type is exactly what named types are for. That is dispatching domain code on `::Cessna172X`, and a reusable identity for the topology.",
    "where": "new",
@@ -773,7 +763,7 @@
    "tag": "F"
   },
   {
-   "id": "D-085",
+   "id": "D-084",
    "old": "The exploratory and programmatic composition `Group` serves does not want it anyway.",
    "new": "The exploratory and programmatic composition `Group` serves does not want it anyway.",
    "where": "new",
@@ -781,7 +771,7 @@
    "tag": "F"
   },
   {
-   "id": "D-086",
+   "id": "D-085",
    "old": "The reach of the builder rejection is fixed by D-184.",
    "new": "The reach of the builder rejection is fixed by D-184.",
    "where": "new",
@@ -791,7 +781,7 @@
    "tag": "F"
   },
   {
-   "id": "D-087",
+   "id": "D-086",
    "old": "It targets mutable recipes, not type-based semantics.",
    "new": "It targets mutable recipes, not type-based semantics.",
    "where": "new",
@@ -799,7 +789,7 @@
    "tag": "F"
   },
   {
-   "id": "D-088",
+   "id": "D-087",
    "old": "`Group` is the library's anonymous assembly form beside the named types, shipped the way Julia ships anonymous functions alongside named ones.",
    "new": "`Group` is the library's anonymous assembly form beside the named types, shipped the way Julia ships anonymous functions alongside named ones.",
    "where": "new",
@@ -807,7 +797,7 @@
    "tag": "F"
   },
   {
-   "id": "D-089",
+   "id": "D-088",
    "old": "It serves the model assembler with a library addition riding one opt-in declaration, `transparent_container` (D-211).",
    "new": "It serves the model assembler (the persona for whom topology is data rather than a named type, §13.7) with a library addition that rests on one opt-in declaration, `transparent_container` (D-211).",
    "where": "new",
@@ -821,7 +811,7 @@
    ]
   },
   {
-   "id": "D-090",
+   "id": "D-089",
    "old": "What that declaration buys is that a `Group`'s wiring and rate declarations read exactly like a named assembly's, child and face, with no `children/` boilerplate.",
    "new": "With that declaration, a `Group`'s wiring and rate declarations read exactly like a named assembly's, child and face, with no `children/` boilerplate.",
    "where": "new",
@@ -830,9 +820,7 @@
   }
  ],
  "added": [
-  "This section states how an assembly (a component of pure composition) is declared, how a type's declarations mark it as an assembly or a primitive, what arity those declarations take, how container fields contribute children, and how `Group` assembles components on the fly.",
-  "`ClassUnreadable`,",
-  "The error is `ChildNameCollision`.",
+  "This section states how an assembly is declared, how a type's declarations mark it as an assembly or a primitive, how container fields contribute children, and how `Group` assembles components on the fly.",
   "Two reasons rule out a supertype for class (a component's primitive-vs-assembly status).",
   "That section states the arity rule and tier agreement in full."
  ]

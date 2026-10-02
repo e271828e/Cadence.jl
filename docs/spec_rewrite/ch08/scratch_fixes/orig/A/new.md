@@ -1,17 +1,18 @@
 ## 8. The declaration layer: components and assemblies
 
-This chapter says how an author spells a [component](#g-component). It covers where the
-structural facts live, what the build takes as authoritative, and what is
-checked against what. The first four sections cover the component side.
-[§8.1][s8-1] lays the foundations of the declaration layer, [§8.2][s8-2] lists the
-declaration inventory, [§8.3][s8-3] says what a contract makes visible, and [§8.4][s8-4]
-gives the five failure walkthroughs that ground error locality. The last four
-cover the [assembly](#g-assembly) side. [§8.5][s8-5] covers assembly declaration, how a type's
-class is read, container children and `Group`. [§8.6][s8-6] covers paths, wiring
+This chapter says how an author spells a [component](#g-component). It covers
+where the structural facts live, what the build takes as authoritative, and
+what is checked against what. [§8.1][s8-1]–[§8.4][s8-4] cover the component
+side, and [§8.5][s8-5]–[§8.8][s8-8] the [assembly](#g-assembly) side. On the
+component side, [§8.1][s8-1] lays the foundations of the declaration layer,
+[§8.2][s8-2] lists the declaration inventory, [§8.3][s8-3] says what a
+contract makes visible, and [§8.4][s8-4] gives the five failure walkthroughs
+that ground error locality. On the assembly side, [§8.5][s8-5] covers assembly
+declaration and how a type's class is read. [§8.6][s8-6] covers paths, wiring
 and faces, works them through the strapdown IMU, and ends with the
-boundary-sampling contract. [§8.7][s8-7] covers rate scopes, and [§8.8][s8-8] covers
-computed connections and generic holding. The build pipeline is [§9][s9], and
-the stopped-sim service spellings are [§14][s14]. The concrete syntax below is
+boundary-sampling contract. [§8.7][s8-7] covers rate scopes, and [§8.8][s8-8]
+covers computed connections and generic holding. The build pipeline is [§9][s9], and the
+stopped-sim service spellings are [§14][s14]. The concrete syntax below is
 near-final in shape but still illustrative in spelling.
 
 ### 8.1 Position: a declarative trait layer in plain Julia, no macros
@@ -58,16 +59,14 @@ semantics.
 **Declarations *define* the model's structure** ([D-032][d-032]). Evaluation
 *checks* conformance against them, never the reverse.
 
-The build [probes](#g-probe) user functions with real values (a single evaluation of
-each, its result discarded), with no reliance on compiler inference, and
-compares observed against declared. The same comparison then runs on every
-subsequent evaluation for free, as a `NamedTuple`-type check that constant-folds
-away when conformant.
+The build [probes](#g-probe) user functions with real values, with no reliance
+on compiler inference, and compares observed against declared. The same
+comparison then runs on every subsequent evaluation for free, as a
+`NamedTuple`-type check that constant-folds away when conformant.
 
-Inference-by-evaluation as [schema authority](#g-schema-authority) (the source that defines
-structure) is rejected on three counts, established by walkthrough
-([§8.4][s8-4]) and litigated in [D-032][d-032]. Types come by declaration, values by
-execution, and conformance by comparison.
+Inference-by-evaluation as schema authority is rejected on three counts,
+established by walkthrough ([§8.4][s8-4]) and litigated in [D-032][d-032].
+Types come by declaration, values by execution, and conformance by comparison.
 
 #### Contracts are functions of the type
 
@@ -77,22 +76,23 @@ type**, its type parameters included, and never by its field *values*
 `state_events`, and the shapes of `x_init`/`s_init`/`m_init`.
 
 The value-discarding signature `u_types(::Engine)` is the visible form of the
-rule (`Engine` is the example component of [§8.2][s8-2]). The idiom for a
-contract that genuinely varies is the type parameter, not the field, as in
-`SumJunction{Wrench, 3}` ([§6.2][s6-2]) and `Or{N}` ([§13.7][s13-7]). Arity is spelled in
-the type, at the price [§6.2][s6-2] states openly.
+rule (`Engine` is the example component of [§8.2][s8-2]). The idiom for a contract that genuinely varies is the type parameter,
+not the field, as in `SumJunction{Wrench, 3}` ([§6.2][s6-2]) and `Or{N}`
+([§13.7][s13-7]). Arity is spelled in the type, at the price [§6.2][s6-2]
+states openly.
 
-The reason is how executor entries are typed ([§9.7][s9-7]). A component's
-[bundle](#g-bundle) is the `NamedTuple` of zero-copy views a component function
-receives, and its key set *is* its contract's. An entry of the [executor](#g-executor),
-the compiled form of the stage execution order, carries what selects code in
-type parameters and what is plain data in fields. A key set derivable only from
-field values would therefore have to go one of two ways. It could climb into the
-type parameters anyway, multiplying specialization and changing the cost model
-([§9.7][s9-7]) of [chunking](#g-chunking), the splitting of a large phase body into statically
-typed chunks. Or it could sit in fields, dissolving the static typing that the
-zero runtime graph logic ([§5.1][s5-1]), the allocation invariant ([§7.5][s7-5]) and the
-fold-away conformance test ([§9.5][s9-5]) all rest on.
+The entry typing decides it ([§9.7][s9-7]). A component's
+[bundle](#g-bundle) is the `NamedTuple` of zero-copy views a component
+function receives, and its key set *is* its contract's. An entry of the
+[executor](#g-executor), the compiled form of the stage execution order,
+carries what selects code in type parameters and what is plain data in fields.
+A key set derivable only from field values would therefore have to go one of
+two ways. It could climb into the type parameters anyway, multiplying
+specialization and changing the cost model ([§9.7][s9-7]) of
+[chunking](#g-chunking), the splitting of a large phase body into statically
+typed chunks. Or it could sit in fields, dissolving the static typing that
+the zero runtime graph logic ([§5.1][s5-1]), the allocation invariant
+([§7.5][s7-5]) and the fold-away conformance test ([§9.5][s9-5]) all rest on.
 
 The build reads each declaration once, against the concrete instance, so a
 value-dependent contract does not announce itself. This is a rule authors keep,
@@ -130,13 +130,13 @@ name into scope for the definition to clash with, so there is nothing for the
 language to detect.
 
 Left alone, the build would see a component with no `x_deriv` method. It would
-report a *modeling* diagnostic, `StoreWithoutUpdate` (a non-empty [store](#g-store)
-without its update law, [§8.2][s8-2]). When the whole inventory was shadowed, it
-would report `ClassUnreadable` (no declaration to read a [class](#g-class) from,
-[§8.5][s8-5]). A one-line namespace mistake would be reported far from the line
-that caused it. That is the inversion of [error locality](#g-error-locality) (the property
-that a mistake fails at the site of the mistake) that [§8.4][s8-4] traces,
-arriving through the namespace.
+report a *modeling* diagnostic, `StoreWithoutUpdate` (a non-empty store
+without its update law, [§8.2][s8-2]). When the whole inventory was shadowed,
+it would report `ClassUnreadable` (no declaration to read a class from,
+[§8.5][s8-5]). A one-line namespace mistake would be reported far from the
+line that caused it. That is the inversion of
+[error locality](#g-error-locality) (the property that a mistake fails at the
+site of the mistake) that [§8.4][s8-4] traces, arriving through the namespace.
 
 Two mitigations apply, both normative. The first is that the import list above
 is authoring surface, stated wherever a component file is first shown
@@ -144,22 +144,22 @@ is authoring surface, stated wherever a component file is first shown
 runs the shadowing check on every component before its class is read**
 ([§9.1][s9-1], [D-246][d-246]).
 
-The check looks for a binding of a declaration name (a name in the import list
+The check looks for a binding of a family name (a name in the import list
 above) in the component's parent module. If the module holds one distinct from
 the framework's function, **the build throws `DeclarationShadowed` alone**
 ([D-246][d-246]). The diagnostic names the module, the foreign names and the
 missing import. Its message reads "`MyEngine`'s module defines its own
 `x_deriv`, distinct from `Cadence.x_deriv`; add `import Cadence: x_deriv`".
 
-The check is a two-line `isdefined`/`!==` test on those names. Those names are
-distinctive by design ([D-220][d-220]), so a foreign binding of one of them in a
-component's module is evidence of the missing import, not a coincidence. The
-check throws alone because nothing the module declares can be trusted. Every
-declaration it holds may have gone to a foreign function, and a walk past it
-would only report cascades of the one cause. It runs on every component rather
-than only where an absence is noticed, because an optional declaration such as
-`state_events` or `sample_times` has no absence to notice. Shadowed, it would
-drop its feature silently.
+The check is a two-line `isdefined`/`!==` test on the family's names. Those
+names are distinctive by design ([D-220][d-220]), so a foreign binding of one
+of them in a component's module is evidence of the missing import, not a
+coincidence. The check throws alone because nothing the module declares can be
+trusted. Every declaration it holds may have gone to a foreign function, and a
+walk past it would only report cascades of the one cause. It runs on every
+component rather than only where an absence is noticed, because an optional
+declaration such as `state_events` or `sample_times` has no absence to notice.
+Shadowed, it would drop its feature silently.
 
 A convenience macro expanding to the import list remains addable a posteriori
 as sugar, per this section's macro doctrine. A re-export submodule is not an
@@ -204,15 +204,16 @@ to say. An optional declaration shadowed in a local scope, such as
 **Every name on the framework's surface belongs to one of four classes**, and
 its class fixes its grammatical shape ([D-144][d-144]).
 
-1. Declarations are noun phrases naming what they return, prefixed by the bundle
-   field they define where one exists ([D-267][d-267]). An [assembly](#g-assembly)'s boundary
-   declarations take `u` and `y` too. There the letter names a side of the
-   contract, which on a leaf is also a bundle field ([D-279][d-279]). The author
-   defines them and the framework calls them. They include `inner_connections`,
-   `u_connections`/`y_connections`, `state_events`, `u_types`, `ws_init`, the
-   stage and update-law names ([D-220][d-220]), and `claims(b)` from the [binding](#g-binding)
-   interface ([§11.6][s11-6]). A binding is the value passed at `attach!` that
-   makes a device framework-legible.
+1. Declarations are noun phrases naming what they return, prefixed by the
+   bundle field they define where one exists ([D-267][d-267]). An assembly's
+   boundary declarations take `u` and `y` too. There the letter names a side
+   of the contract, which on a leaf is also a bundle field ([D-279][d-279]).
+   The author defines them and the framework calls them. They include
+   `inner_connections`, `u_connections`/`y_connections`, `state_events`,
+   `u_types`, `ws_init`, the stage and update-law names ([D-220][d-220]), and
+   `claims(b)` from the [binding](#g-binding) interface ([§11.6][s11-6]). A
+   binding is the value passed at `attach!` that makes a device
+   framework-legible.
 2. Value selectors carry `get_`. They are called against `reads` and against
    [snapshots](#g-snapshot), the immutable per-boundary publications
    ([§14.4][s14-4]).

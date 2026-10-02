@@ -1,9 +1,10 @@
 #### Input contracts: `u_types`
 
-A `u_types` declaration is a bare `NamedTuple` of types, written at nominal
-`Float64` and taking the component alone on both tiers ([D-263][d-263]). The one
-piece of framework vocabulary it admits is the `Pinned{P}` marker (above). It
-wraps the whole entry, and **a marker below the top of an entry is
+An `u_types` declaration is a bare `NamedTuple` of types, written at nominal
+`Float64` and taking the component alone on both tiers ([D-263][d-263]). The
+one piece of framework vocabulary it admits is the `Pinned{P}` marker. The
+marker wraps a leaf type to say that the leaf never follows the activation
+scalar. It wraps the whole entry, and **a marker below the top of an entry is
 `IllegalPortType`** ([D-265][d-265]).
 
 On a continuous consumer the declaration is [walked](#g-walked), which means
@@ -11,18 +12,17 @@ that every `Float64` position follows the scalar and a `Pinned` leaf stays
 `Float64`. On a discrete consumer it pins wholesale. A `Pinned` entry there
 says nothing and is `DeclarationOnWrongTier` ([§8.5][s8-5], [D-263][d-263]).
 
-**Entries are [face](#g-face) bounds, not cell types, and the reading is permissive**
-([D-263][d-263], [D-078][d-078]). A face is the name a port wears on its component's
-boundary. An entry states, per leaf, what the consumer *allows* to arrive there.
-Entries come in three forms.
+**Entries are [face](#g-face) bounds, not cell types, and the reading is
+permissive** ([D-263][d-263], [D-078][d-078]). A face is the name a
+[port](#g-port) (one declared input or output) wears on its component's
+boundary. An entry states, per leaf, what the consumer *allows* to arrive
+there. Entries come in three forms.
 
 | entry | the leaf is | what may lawfully arrive |
 |---|---|---|
-| `Float64`, alone or as a type parameter (`SVector{3, Float64}`, `RQuat{Float64}`) | tolerant | the activation scalar or a frozen `Float64` |
+| `Float64`, alone or as a type parameter (`SVector{3, Float64}`, `RQuat{Float64}`) | tolerant | the [activation](#g-activation) scalar or a frozen `Float64` |
 | `Pinned{Float64}`, or `Pinned{P}` around any leaf type | demanding frozen | never partials |
 | `Int`/`Bool`/enum leaves, abstract reference-typed entries | as it always was | what the declared bound admits |
-
-`RQuat` is a domain wrapper type ([§7.1][s7-1]).
 
 An unpinned entry is what a promoting consumer writes, and it is the
 overwhelmingly common case. A walking producer, a frozen discrete producer and
@@ -43,13 +43,14 @@ local derivative rule ([§14.10][s14-10]). A walking producer feeds a pinned
 entry through the `Freeze` block ([§13.7][s13-7]).
 
 `Int`/`Bool`/enum leaves and abstract reference-typed entries stand as they
-always were, admitting what their declared bound admits. **[Abstract entries](#g-abstract-entry)
-state structural substitutability** ([D-078][d-078]). Several concrete producer types are
-admissible behind one stable face. The field handles ([§4.4][s4-4]) are the
-demonstrated client, as in `terrain = AbstractTerrainField`. They carry no
-scalar position, because they are references rather than numbers. They are still
-never the tool for eltype genericity. That tool is exactly an unpinned entry, a
-promoting consumer writing `SVector{3, Float64}` rather than an abstract bound.
+always were, admitting what their declared bound admits. **[Abstract entries](#g-abstract-entry) state
+structural substitutability** ([D-078][d-078]). Several concrete producer
+types are admissible behind one stable face. The field handles ([§4.4][s4-4])
+are the demonstrated client, as in `terrain = AbstractTerrainField`. They
+carry no scalar position, because they are references rather than numbers.
+They are still never the tool for eltype genericity. That tool is exactly an
+unpinned entry, a promoting consumer writing `SVector{3, Float64}` rather than
+an abstract bound.
 
 Inputs are the component's *requirements*. Only against them are the
 unconnected-input error ([§6.1][s6-1]), over-wiring detection and
@@ -66,12 +67,13 @@ to exact equality for a concrete entry, because concrete types are final.
 Beside it sits the tier-scoped walk-compatibility clause. For a *continuous*
 consumer, a walking producer leaf (one the producer left unpinned) requires an
 unpinned entry. A pinned producer leaf satisfies either, because frozen values
-embed upward. An opaque leaf embeds nothing and is admitted at an unpinned entry
-as the producer's cell ([D-264][d-264]). Both sides are plain declarations the
-walk retypes. The clause is therefore decidable in the structure step by
-retyping them at a marker scalar. No user stage code runs ([§9.1][s9-1]). A
-violation is `WalkingFaceAtFrozenEntry`. [§6.1][s6-1] names the bound check's
-kind too, and gives the remedies this violation's message carries.
+embed upward. An opaque leaf embeds nothing and is admitted at an unpinned
+entry as the producer's cell ([D-264][d-264]). Both sides are plain
+declarations the walk retypes. The clause is therefore decidable in the
+structure step (the build's first step, declaration reading only) by retyping
+them at a marker scalar. No user stage code runs ([§9.1][s9-1]). A violation
+is `WalkingFaceAtFrozenEntry`. [§6.1][s6-1] names the bound check's kind too,
+and gives the remedies this violation's message carries.
 
 **Discrete consumers take the bound check only** ([D-263][d-263]). That scope
 is a correctness rule rather than tidiness. A discrete stage reads exclusively
@@ -112,13 +114,15 @@ input must therefore resolve to a concrete declaration, which
 `probe_value` all need. Staging cells hold each device's pending writes, and
 the trace header is the trace's fixed preamble.
 
-**Abstract-at-root is a build error** ([D-236][d-236]). The uniform root doctrine
-below does not relax it ([D-208][d-208]). A leaf declaring an abstract entry
-(`terrain = AbstractTerrainField`) still cannot be built bare. `AbstractAtRoot`
+**Abstract-at-root is a build error** ([D-236][d-236]). The uniform root
+doctrine below does not relax it ([D-208][d-208]). A leaf declaring an
+abstract entry (`terrain = AbstractTerrainField`) still cannot be built bare,
+because a root input must resolve to a concrete declaration. `AbstractAtRoot`
 names the face and the remedy, which is to wire a concrete producer, or a stub
-child in a test rig. The [component test rig](#g-component-test-rig) (a one-child wrapper
-exporting its child's whole input face set, [§13.7][s13-7]) is the idiom for that
-case. It satisfies the entry with a stub child *inside* the rig ([D-120][d-120]).
+child in a test rig. The [component test rig](#g-component-test-rig) (a
+one-child wrapper exporting its child's whole input face set, [§13.7][s13-7])
+is the idiom for that case. It satisfies the entry with a stub child *inside*
+the rig ([D-120][d-120]).
 
 Under fan-out the root-input type is the unique concrete declaration among its
 consumers, and abstract co-consumers are checked against it ([D-236][d-236]).

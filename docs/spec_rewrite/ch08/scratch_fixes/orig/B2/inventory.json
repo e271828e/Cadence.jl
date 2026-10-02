@@ -12,7 +12,7 @@
   {
    "id": "B2-002",
    "old": "An `u_types` declaration is a bare `NamedTuple` of types, written at nominal `Float64` and taking the component alone on both tiers.",
-   "new": "A `u_types` declaration is a bare `NamedTuple` of types, written at nominal `Float64` and taking the component alone on both tiers (D-263).",
+   "new": "An `u_types` declaration is a bare `NamedTuple` of types, written at nominal `Float64` and taking the component alone on both tiers (D-263).",
    "where": "new",
    "cites": [],
    "newcites": [
@@ -22,22 +22,14 @@
   },
   {
    "id": "B2-003",
-   "old": "The one piece of framework vocabulary it admits is the `Pinned{P}` marker,",
-   "new": "The one piece of framework vocabulary it admits is the `Pinned{P}` marker (above).",
+   "old": "The one piece of framework vocabulary it admits is the `Pinned{P}` marker, which wraps a leaf type to say that the leaf never follows the activation scalar.",
+   "new": "The one piece of framework vocabulary it admits is the `Pinned{P}` marker. The marker wraps a leaf type to say that the leaf never follows the activation scalar.",
    "where": "new",
    "cites": [],
    "tag": "F"
   },
   {
    "id": "B2-004",
-   "old": "which wraps a leaf type to say that the leaf never follows the activation scalar.",
-   "new": "Where a leaf must not follow the scalar, the author says so at the leaf with `Pinned` (the leaf marker `Pinned{P}`, which yields `P` at every activation).",
-   "where": "units/B1/new.md",
-   "cites": [],
-   "tag": "M"
-  },
-  {
-   "id": "B2-005",
    "old": "It wraps the whole entry, and a marker below the top of an entry is `IllegalPortType` (D-265).",
    "new": "It wraps the whole entry, and a marker below the top of an entry is `IllegalPortType` (D-265).",
    "where": "new",
@@ -47,7 +39,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-006",
+   "id": "B2-005",
    "old": "On a continuous consumer the declaration is walked: every `Float64` position follows the scalar, and a `Pinned` leaf stays `Float64`.",
    "new": "On a continuous consumer the declaration is walked, which means that every `Float64` position follows the scalar and a `Pinned` leaf stays `Float64`.",
    "where": "new",
@@ -55,7 +47,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-007",
+   "id": "B2-006",
    "old": "On a discrete consumer it pins wholesale, and a `Pinned` entry there says nothing and is `DeclarationOnWrongTier` (§8.5).",
    "new": "On a discrete consumer it pins wholesale. A `Pinned` entry there says nothing and is `DeclarationOnWrongTier` (§8.5, D-263).",
    "where": "new",
@@ -69,7 +61,7 @@
    "tag": "C"
   },
   {
-   "id": "B2-008",
+   "id": "B2-007",
    "old": "Entries are face bounds, not cell types, and the reading is permissive (D-167).",
    "new": "Entries are face bounds, not cell types, and the reading is permissive (D-263, D-078).",
    "where": "new",
@@ -84,7 +76,7 @@
    "ruling": "R9"
   },
   {
-   "id": "B2-009",
+   "id": "B2-008",
    "old": "An entry states, per leaf, what the consumer allows to arrive there.",
    "new": "An entry states, per leaf, what the consumer allows to arrive there.",
    "where": "new",
@@ -92,7 +84,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-010",
+   "id": "B2-009",
    "old": "Entries come in three forms:",
    "new": "Entries come in three forms.",
    "where": "new",
@@ -100,7 +92,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-011",
+   "id": "B2-010",
    "old": "| entry | the leaf is | what may lawfully arrive | |---|---|---| | `Float64`, alone or as a type parameter (`SVector{3, Float64}`, `RQuat{Float64}`) | tolerant | the activation scalar or a frozen `Float64` | | `Pinned{Float64}`, or `Pinned{P}` around any leaf type | demanding frozen | never partials | | `Int`/`Bool`/enum leaves, abstract reference-typed entries | as it always was | what the declared bound admits |",
    "new": "| entry | the leaf is | what may lawfully arrive | |---|---|---| | `Float64`, alone or as a type parameter (`SVector{3, Float64}`, `RQuat{Float64}`) | tolerant | the activation scalar or a frozen `Float64` | | `Pinned{Float64}`, or `Pinned{P}` around any leaf type | demanding frozen | never partials | | `Int`/`Bool`/enum leaves, abstract reference-typed entries | as it always was | what the declared bound admits |",
    "where": "new",
@@ -108,7 +100,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-012",
+   "id": "B2-011",
    "old": "An unpinned entry is what a promoting consumer writes, and it is the overwhelmingly common case.",
    "new": "An unpinned entry is what a promoting consumer writes, and it is the overwhelmingly common case.",
    "where": "new",
@@ -116,7 +108,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-013",
+   "id": "B2-012",
    "old": "A walking producer, a frozen discrete producer and a root input are all admissible behind it, so substitution stays intact.",
    "new": "A walking producer, a frozen discrete producer and a root input (the root component's own input face, produced by no component) are all admissible behind it. Substitution therefore stays intact.",
    "where": "new",
@@ -124,7 +116,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-014",
+   "id": "B2-013",
    "old": "A `Pinned` entry is the FFI door.",
    "new": "A `Pinned` entry is the FFI door.",
    "where": "new",
@@ -132,7 +124,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-015",
+   "id": "B2-014",
    "old": "This input must never carry partials.",
    "new": "This input must never carry partials.",
    "where": "new",
@@ -140,7 +132,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-016",
+   "id": "B2-015",
    "old": "A component whose internals cannot propagate `Dual`s (an opaque wrapper, a C table, a hand-rolled solver) declares it, and its AD-incompatibility becomes schema-visible instead of folklore.",
    "new": "A component whose internals cannot propagate `Dual`s (an opaque wrapper, a C table, a hand-rolled solver) declares it. Its AD-incompatibility then becomes schema-visible instead of folklore.",
    "where": "new",
@@ -148,7 +140,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-017",
+   "id": "B2-016",
    "old": "The failure then moves from a `MethodError` inside user math at the first `Dual` probe to a named wiring error at build (§6.1).",
    "new": "The failure moves from a `MethodError` inside user math at the first `Dual` probe (the build's checking evaluation of a user function) to a named wiring error at build (§6.1).",
    "where": "new",
@@ -158,7 +150,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-018",
+   "id": "B2-017",
    "old": "`Int`/`Bool`/enum leaves and abstract reference-typed entries stand as they always were.",
    "new": "`Int`/`Bool`/enum leaves and abstract reference-typed entries stand as they always were, admitting what their declared bound admits.",
    "where": "new",
@@ -166,7 +158,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-019",
+   "id": "B2-018",
    "old": "Abstract entries state structural substitutability, several concrete producer types admissible behind one stable face.",
    "new": "Abstract entries state structural substitutability (D-078). Several concrete producer types are admissible behind one stable face.",
    "where": "new",
@@ -177,7 +169,7 @@
    "tag": "C"
   },
   {
-   "id": "B2-020",
+   "id": "B2-019",
    "old": "The field handles (§4.4) are the demonstrated client, as in `terrain = AbstractTerrainField`.",
    "new": "The field handles (§4.4) are the demonstrated client, as in `terrain = AbstractTerrainField`.",
    "where": "new",
@@ -187,7 +179,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-021",
+   "id": "B2-020",
    "old": "They carry no scalar position, because they are references rather than numbers.",
    "new": "They carry no scalar position, because they are references rather than numbers.",
    "where": "new",
@@ -195,7 +187,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-022",
+   "id": "B2-021",
    "old": "They are still never the tool for eltype genericity.",
    "new": "They are still never the tool for eltype genericity.",
    "where": "new",
@@ -203,7 +195,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-023",
+   "id": "B2-022",
    "old": "That is exactly what an unpinned entry is, a promoting consumer writing `SVector{3, Float64}` rather than an abstract bound.",
    "new": "That tool is exactly an unpinned entry, a promoting consumer writing `SVector{3, Float64}` rather than an abstract bound.",
    "where": "new",
@@ -211,7 +203,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-024",
+   "id": "B2-023",
    "old": "Names-only contracts were rejected (D-033).",
    "new": "- Names-only input contracts: lose wiring-time type errors and standalone checkability.",
    "where": "docs/design/decisions.md",
@@ -222,7 +214,7 @@
    "ruling": "R4"
   },
   {
-   "id": "B2-025",
+   "id": "B2-024",
    "old": "Inputs are the component's requirements.",
    "new": "Inputs are the component's requirements.",
    "where": "new",
@@ -230,7 +222,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-026",
+   "id": "B2-025",
    "old": "Only against them are the unconnected-input error (§6.1), over-wiring detection and did-you-mean typo messages definable at all.",
    "new": "Only against them are the unconnected-input error (§6.1), over-wiring detection and did-you-mean typo messages definable at all.",
    "where": "new",
@@ -240,7 +232,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-027",
+   "id": "B2-026",
    "old": "A did-you-mean message is the offending name plus the list-in-hand it should have matched.",
    "new": "A did-you-mean message is the offending name plus the list-in-hand it should have matched.",
    "where": "new",
@@ -248,7 +240,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-028",
+   "id": "B2-027",
    "old": "Two clauses check a wire (§6.1).",
    "new": "Two clauses check a wire (§6.1, D-263, D-236).",
    "where": "new",
@@ -264,7 +256,7 @@
    "ruling": "R2"
   },
   {
-   "id": "B2-029",
+   "id": "B2-028",
    "old": "The nominal bound check is stated at nominal.",
    "new": "The first is the nominal bound check, stated at nominal.",
    "where": "new",
@@ -272,7 +264,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-030",
+   "id": "B2-029",
    "old": "The producer's declaration at `Float64`, markers stripped, must be `<:` the entry at `Float64`.",
    "new": "The producer's declaration at `Float64`, markers stripped, must be `<:` the entry at `Float64` (D-078).",
    "where": "new",
@@ -283,7 +275,7 @@
    "tag": "C"
   },
   {
-   "id": "B2-031",
+   "id": "B2-030",
    "old": "It is one uniform rule, and it degenerates to exact equality for a concrete entry, because concrete types are final.",
    "new": "It is one uniform rule. It degenerates to exact equality for a concrete entry, because concrete types are final.",
    "where": "new",
@@ -291,7 +283,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-032",
+   "id": "B2-031",
    "old": "Beside it sits the tier-scoped walk-compatibility clause.",
    "new": "Beside it sits the tier-scoped walk-compatibility clause.",
    "where": "new",
@@ -299,7 +291,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-033",
+   "id": "B2-032",
    "old": "For a continuous consumer, a walking producer leaf (one the producer left unpinned) requires an unpinned entry, while a pinned producer leaf satisfies either, because frozen values embed upward.",
    "new": "For a continuous consumer, a walking producer leaf (one the producer left unpinned) requires an unpinned entry. A pinned producer leaf satisfies either, because frozen values embed upward.",
    "where": "new",
@@ -307,7 +299,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-034",
+   "id": "B2-033",
    "old": "An opaque leaf embeds nothing and is admitted at an unpinned entry as the producer's cell (D-264).",
    "new": "An opaque leaf embeds nothing and is admitted at an unpinned entry as the producer's cell (D-264).",
    "where": "new",
@@ -317,23 +309,15 @@
    "tag": "F"
   },
   {
-   "id": "B2-035",
+   "id": "B2-034",
    "old": "Both sides are plain declarations the walk retypes, so the clause is decidable in the structure step (the build's first step, declaration reading only) by retyping them at a marker scalar.",
-   "new": "Both sides are plain declarations the walk retypes. The clause is therefore decidable in the structure step by retyping them at a marker scalar.",
+   "new": "Both sides are plain declarations the walk retypes. The clause is therefore decidable in the structure step (the build's first step, declaration reading only) by retyping them at a marker scalar.",
    "where": "new",
    "cites": [],
    "tag": "F"
   },
   {
-   "id": "B2-036",
-   "old": "(the build's first step, declaration reading only)",
-   "new": "The structure step (the build's first step, declaration reading only)",
-   "where": "units/B1/new.md",
-   "cites": [],
-   "tag": "M"
-  },
-  {
-   "id": "B2-037",
+   "id": "B2-035",
    "old": "No user stage code runs (§9.1), and a violation is `WalkingFaceAtFrozenEntry`.",
    "new": "No user stage code runs (§9.1). A violation is `WalkingFaceAtFrozenEntry`.",
    "where": "new",
@@ -343,7 +327,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-038",
+   "id": "B2-036",
    "old": "Discrete consumers take the bound check only, and that scope is a correctness rule rather than tidiness.",
    "new": "Discrete consumers take the bound check only (D-263). That scope is a correctness rule rather than tidiness.",
    "where": "new",
@@ -355,7 +339,7 @@
    "ruling": "R9"
   },
   {
-   "id": "B2-039",
+   "id": "B2-037",
    "old": "Why. A discrete stage reads exclusively at real ticks in the nominal world, and a `Dual`-carrying cell exists only inside activations discrete stages never run in (§9.4).",
    "new": "A discrete stage reads exclusively at real ticks (the instants a discrete component runs) in the nominal world. A `Dual`-carrying cell exists only inside activations discrete stages never run in (§9.4).",
    "where": "new",
@@ -365,7 +349,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-040",
+   "id": "B2-038",
    "old": "Wires from a continuous producer to a discrete consumer are therefore unconditionally legal.",
    "new": "Wires from a continuous producer to a discrete consumer are therefore unconditionally legal.",
    "where": "new",
@@ -373,7 +357,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-041",
+   "id": "B2-039",
    "old": "The unscoped variant is rejected in D-167.",
    "new": "The unscoped variant is rejected.",
    "where": "new",
@@ -385,7 +369,7 @@
    "ruling": "R9"
   },
   {
-   "id": "B2-042",
+   "id": "B2-040",
    "old": "Because entries are bounds, nothing is ever \"overwritten\".",
    "new": "Because entries are bounds, nothing is ever \"overwritten\".",
    "where": "new",
@@ -393,7 +377,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-043",
+   "id": "B2-041",
    "old": "Cell types are single-sourced from the producer side per activation (§9.4), and a `Dual`-carrying cell behind an unpinned entry is the design working, not a promise broken.",
    "new": "Cell types are single-sourced from the producer side per activation (§9.4, D-054). A `Dual`-carrying cell behind an unpinned entry is the design working, not a promise broken.",
    "where": "new",
@@ -407,7 +391,7 @@
    "tag": "C"
   },
   {
-   "id": "B2-044",
+   "id": "B2-042",
    "old": "The code-level complement is the genericity obligation, which says that whatever scalars the wiring delivers, the consumer's math promotes.",
    "new": "The code-level complement is the genericity obligation. It says that whatever scalars the wiring delivers, the consumer's math promotes.",
    "where": "new",
@@ -415,7 +399,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-045",
+   "id": "B2-043",
    "old": "The obligation is still checked by the `Dual` probe, never declared, and it is scoped to the unpinned entries.",
    "new": "It is still checked by the `Dual` probe, never declared (D-054). The obligation is scoped to the unpinned entries (D-263).",
    "where": "new",
@@ -428,7 +412,7 @@
    "ruling": "R9"
   },
   {
-   "id": "B2-046",
+   "id": "B2-044",
    "old": "A `Pinned` input imposes no such obligation, which is its point.",
    "new": "A `Pinned` input imposes no such obligation, which is its point.",
    "where": "new",
@@ -436,7 +420,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-047",
+   "id": "B2-045",
    "old": "So declarations record choices, and obligations are checked.",
    "new": "Declarations record choices, and obligations are checked (D-078).",
    "where": "new",
@@ -447,7 +431,7 @@
    "tag": "C"
   },
   {
-   "id": "B2-048",
+   "id": "B2-046",
    "old": "The marker's absence records the tolerance choice, and the probe checks the promotion.",
    "new": "The marker's absence records the tolerance choice, and the probe checks the promotion.",
    "where": "new",
@@ -455,7 +439,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-049",
+   "id": "B2-047",
    "old": "The permissive reading is the operative one,",
    "new": "The permissive reading is the operative one (D-263).",
    "where": "new",
@@ -466,7 +450,7 @@
    "tag": "C"
   },
   {
-   "id": "B2-050",
+   "id": "B2-048",
    "old": "and the two readings it escapes are rejected (D-033, D-054, D-167, D-263).",
    "new": "- Symmetric `T` as genericity envelope: a per-leaf marking that is a constant function across components — zero information, wrong granularity, false-affordance pins; the predictive reading remains impossible per D-054.",
    "where": "docs/design/decisions.md",
@@ -480,7 +464,7 @@
    "ruling": "R4"
   },
   {
-   "id": "B2-051",
+   "id": "B2-049",
    "old": "The predictive reading has the entry saying what will arrive.",
    "new": "The predictive reading has the entry saying what will arrive.",
    "where": "new",
@@ -488,7 +472,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-052",
+   "id": "B2-050",
    "old": "The envelope reading has it as a promise to promote.",
    "new": "The envelope reading has it as a promise to promote.",
    "where": "new",
@@ -496,7 +480,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-053",
+   "id": "B2-051",
    "old": "The permissive reading predicts nothing, and it is not constant, because pinned entries are rare but real.",
    "new": "The permissive reading predicts nothing, and it is not constant, because pinned entries are rare but real.",
    "where": "new",
@@ -504,7 +488,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-054",
+   "id": "B2-052",
    "old": "That is what makes the marker carry information here.",
    "new": "That is what makes the marker carry information here.",
    "where": "new",
@@ -512,7 +496,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-055",
+   "id": "B2-053",
    "old": "Root inputs are the one place an entry types a cell.",
    "new": "Root inputs are the one place an entry types a cell.",
    "where": "new",
@@ -520,7 +504,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-056",
+   "id": "B2-054",
    "old": "A root input is produced by no component, so it has only the consumer declaration to take a type from.",
    "new": "A root input is produced by no component, so it has only the consumer declaration to take a type from.",
    "where": "new",
@@ -528,7 +512,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-057",
+   "id": "B2-055",
    "old": "The root-input type is the entry at `Float64`, markers stripped, and only a tight bound determines one.",
    "new": "The root-input type is the entry at `Float64`, markers stripped, and only a tight bound determines one (D-078).",
    "where": "new",
@@ -539,7 +523,7 @@
    "tag": "C"
   },
   {
-   "id": "B2-058",
+   "id": "B2-056",
    "old": "A face surfacing as a root input must therefore resolve to a concrete declaration, which staging cells, the trace header and `probe_value` all need.",
    "new": "A face surfacing as a root input must therefore resolve to a concrete declaration, which staging cells, the trace header and `probe_value` all need.",
    "where": "new",
@@ -547,7 +531,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-059",
+   "id": "B2-057",
    "old": "Abstract-at-root is a build error,",
    "new": "Abstract-at-root is a build error (D-236).",
    "where": "new",
@@ -558,7 +542,7 @@
    "tag": "C"
   },
   {
-   "id": "B2-060",
+   "id": "B2-058",
    "old": "and `AbstractAtRoot` names the face and the remedy, which is to wire a concrete producer, or a stub child in a test rig (§13.7).",
    "new": "`AbstractAtRoot` names the face and the remedy, which is to wire a concrete producer, or a stub child in a test rig.",
    "where": "new",
@@ -572,7 +556,7 @@
    "tag": "C"
   },
   {
-   "id": "B2-061",
+   "id": "B2-059",
    "old": "Under fan-out the root-input type is the unique concrete declaration among its consumers, and abstract co-consumers are checked against it.",
    "new": "Under fan-out the root-input type is the unique concrete declaration among its consumers, and abstract co-consumers are checked against it (D-236).",
    "where": "new",
@@ -583,7 +567,7 @@
    "tag": "C"
   },
   {
-   "id": "B2-062",
+   "id": "B2-060",
    "old": "Two different concrete declarations remain an error.",
    "new": "Two different concrete declarations remain an error, `RootInputTypeConflict` (D-236).",
    "where": "new",
@@ -595,7 +579,7 @@
    "ruling": "R14"
   },
   {
-   "id": "B2-063",
+   "id": "B2-061",
    "old": "The root-input cells at an activation follow the root-input type by retyping that same entry at the activation's `T`.",
    "new": "The root-input cells at an activation follow the root-input type by retyping that same entry at the activation's `T`.",
    "where": "new",
@@ -603,7 +587,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-064",
+   "id": "B2-062",
    "old": "This makes seedability schema-visible.",
    "new": "That retyping makes seedability schema-visible (D-263).",
    "where": "new",
@@ -615,7 +599,7 @@
    "ruling": "R9"
   },
   {
-   "id": "B2-065",
+   "id": "B2-063",
    "old": "An unpinned root input is a lawful linearization `B`-matrix tap, and a `Pinned` root input is declaredly unseedable (§14.10).",
    "new": "An unpinned root input is a lawful linearization `B`-matrix tap, and a `Pinned` root input is declaredly unseedable (§14.10).",
    "where": "new",
@@ -625,7 +609,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-066",
+   "id": "B2-064",
    "old": "Fan-out combines tolerance by a meet, not by agreement (D-168).",
    "new": "Fan-out combines tolerance by a meet, not by agreement (D-168).",
    "where": "new",
@@ -635,7 +619,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-067",
+   "id": "B2-065",
    "old": "The root input pins at every activation if any consumer's entry pins, and follows the scalar only when every consumer tolerates.",
    "new": "The root input pins at every activation if any consumer's entry pins. It follows the scalar only when every consumer tolerates.",
    "where": "new",
@@ -643,7 +627,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-068",
+   "id": "B2-066",
    "old": "Concretely, the root-input cells at an activation are the root-input type with every leaf following the scalar when every consumer's entry admits that type, and the root-input type itself otherwise.",
    "new": "Concretely, the root-input cells at an activation are the root-input type with every leaf following the scalar when every consumer's entry admits that type, and the root-input type itself otherwise.",
    "where": "new",
@@ -651,7 +635,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-069",
+   "id": "B2-067",
    "old": "A mixture of pins across leaves therefore pins the whole root input (D-236).",
    "new": "A mixture of pins across leaves therefore pins the whole root input (D-236).",
    "where": "new",
@@ -661,7 +645,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-070",
+   "id": "B2-068",
    "old": "Two consumers of one root input may agree at nominal and still differ in tolerance.",
    "new": "Two consumers of one root input may agree at nominal and still differ in tolerance.",
    "where": "new",
@@ -669,7 +653,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-071",
+   "id": "B2-069",
    "old": "`SVector{3, Float64}` and `Pinned{SVector{3, Float64}}` are one type at nominal, so the root input type is unambiguous while the entries disagree about partials.",
    "new": "`SVector{3, Float64}` and `Pinned{SVector{3, Float64}}` are one type at nominal. The root input type is therefore unambiguous while the entries disagree about partials.",
    "where": "new",
@@ -677,7 +661,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-072",
+   "id": "B2-070",
    "old": "That mixture is a legitimate model rather than a mistake.",
    "new": "That mixture is a legitimate model rather than a mistake.",
    "where": "new",
@@ -685,7 +669,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-073",
+   "id": "B2-071",
    "old": "A command consumed by a promoting aerodynamics leaf and by an AD-opaque table is the FFI door in use.",
    "new": "A command consumed by a promoting aerodynamics leaf and by an AD-opaque table is the FFI door in use.",
    "where": "new",
@@ -693,7 +677,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-074",
+   "id": "B2-072",
    "old": "Why. The direction of the meet is forced by embedding.",
    "new": "The direction of the meet is forced by embedding.",
    "where": "new",
@@ -701,7 +685,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-075",
+   "id": "B2-073",
    "old": "A pinned root-input cell feeds an unpinned entry lawfully, because frozen values embed upward as zero-partial constants (§9.5).",
    "new": "A pinned root-input cell feeds an unpinned entry lawfully, because frozen values embed upward as zero-partial constants (§9.5).",
    "where": "new",
@@ -711,7 +695,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-076",
+   "id": "B2-074",
    "old": "A `Dual`-carrying cell arriving at a `Pinned` entry is precisely what that entry forbids.",
    "new": "A `Dual`-carrying cell arriving at a `Pinned` entry is precisely what that entry forbids.",
    "where": "new",
@@ -719,7 +703,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-077",
+   "id": "B2-075",
    "old": "The meet is therefore the only assignment satisfying every consumer at once.",
    "new": "The meet is therefore the only assignment satisfying every consumer at once.",
    "where": "new",
@@ -727,7 +711,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-078",
+   "id": "B2-076",
    "old": "It mirrors the walk-compatibility clause (§6.1) on the producer side.",
    "new": "It mirrors the walk-compatibility clause (§6.1) on the producer side.",
    "where": "new",
@@ -737,7 +721,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-079",
+   "id": "B2-077",
    "old": "What the mixture costs is stated where it is paid.",
    "new": "What the mixture costs is stated where it is paid.",
    "where": "new",
@@ -745,7 +729,7 @@
    "tag": "F"
   },
   {
-   "id": "B2-080",
+   "id": "B2-078",
    "old": "Such a root input is unseedable, and a tap selecting it is rejected naming the pinning consumer rather than the face alone (§14.10).",
    "new": "Such a root input is unseedable. A tap selecting it is rejected naming the pinning consumer rather than the face alone (§14.10, D-168).",
    "where": "new",
@@ -759,7 +743,7 @@
    "tag": "C"
   },
   {
-   "id": "B2-081",
+   "id": "B2-079",
    "old": "Any component may be the root of a build, and the model's root inputs are the root's own input faces (D-208).",
    "new": "Any component may be the root of a build, and the model's root inputs are the root's own input faces (D-208).",
    "where": "new",
@@ -769,7 +753,7 @@
    "tag": "M"
   },
   {
-   "id": "B2-082",
+   "id": "B2-080",
    "old": "For an assembly those are the faces declared through `u_connections`, each traced through the face chain (§6.1, §11.3) to the leaf entries consuming it.",
    "new": "For an assembly (a component of pure composition) those are the faces declared through `u_connections`, each traced through the face chain (§6.1, §11.3) to the leaf entries consuming it.",
    "where": "new",
@@ -780,7 +764,7 @@
    "tag": "M"
   },
   {
-   "id": "B2-083",
+   "id": "B2-081",
    "old": "For a primitive they are its `u_types` keys directly, because a leaf's faces are its own port names (§8.6).",
    "new": "For a primitive they are its `u_types` keys directly, because a leaf's faces are its own port names (§8.6).",
    "where": "new",
@@ -790,7 +774,7 @@
    "tag": "M"
   },
   {
-   "id": "B2-084",
+   "id": "B2-082",
    "old": "Each is then its own consuming entry.",
    "new": "Each is then its own consuming entry.",
    "where": "new",
@@ -798,7 +782,7 @@
    "tag": "M"
   },
   {
-   "id": "B2-085",
+   "id": "B2-083",
    "old": "The type derivation is one rule across both cases, the tight bound at the ultimate consuming entry, above.",
    "new": "The type derivation is one rule across both cases, the tight bound at the ultimate consuming entry, above.",
    "where": "new",
@@ -806,7 +790,7 @@
    "tag": "M"
   },
   {
-   "id": "B2-086",
+   "id": "B2-084",
    "old": "At the root the two contract declarations share one face namespace, so a key declared in both is a build error (§8.6).",
    "new": "At the root the two contract declarations share one face namespace, so a key declared in both is a build error (§8.6, D-210).",
    "where": "new",
@@ -820,7 +804,7 @@
    "tag": "M"
   },
   {
-   "id": "B2-087",
+   "id": "B2-085",
    "old": "Abstract-at-root is what the uniform doctrine does not relax.",
    "new": "The uniform root doctrine below does not relax it (D-208).",
    "where": "new",
@@ -831,23 +815,15 @@
    "tag": "M"
   },
   {
-   "id": "B2-088",
-   "old": "A leaf declaring an abstract entry (`terrain = AbstractTerrainField`) still cannot be built bare,",
-   "new": "A leaf declaring an abstract entry (`terrain = AbstractTerrainField`) still cannot be built bare.",
+   "id": "B2-086",
+   "old": "A leaf declaring an abstract entry (`terrain = AbstractTerrainField`) still cannot be built bare, because a root input must resolve to a concrete declaration.",
+   "new": "A leaf declaring an abstract entry (`terrain = AbstractTerrainField`) still cannot be built bare, because a root input must resolve to a concrete declaration.",
    "where": "new",
    "cites": [],
    "tag": "M"
   },
   {
-   "id": "B2-089",
-   "old": "because a root input must resolve to a concrete declaration.",
-   "new": "A face surfacing as a root input must therefore resolve to a concrete declaration",
-   "where": "new",
-   "cites": [],
-   "tag": "M"
-  },
-  {
-   "id": "B2-090",
+   "id": "B2-087",
    "old": "The component test rig (§13.7) is the idiom for that case.",
    "new": "The component test rig (a one-child wrapper exporting its child's whole input face set, §13.7) is the idiom for that case.",
    "where": "new",
@@ -857,7 +833,7 @@
    "tag": "M"
   },
   {
-   "id": "B2-091",
+   "id": "B2-088",
    "old": "It satisfies the entry with a stub child inside the rig.",
    "new": "It satisfies the entry with a stub child inside the rig (D-120).",
    "where": "new",
@@ -869,8 +845,7 @@
   }
  ],
  "added": [
-  "A face is the name a port wears on its component's boundary.",
-  "`RQuat` is a domain wrapper type (§7.1).",
+  "A face is the name a port (one declared input or output) wears on its component's boundary.",
   "the root component's own input face, produced by no component",
   "the build's checking evaluation of a user function",
   "`Pinned` records that a leaf carries no partials, not that an implementation cannot take them (D-266).",

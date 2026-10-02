@@ -1,9 +1,8 @@
 ### 8.5 Assembly declaration: type-based, class by declaration shape
 
-This section states how an [assembly](#g-assembly) (a component of pure composition) is
-declared, how a type's declarations mark it as an assembly or a primitive, what
-arity those declarations take, how container fields contribute children, and how
-`Group` assembles [components](#g-component) on the fly.
+This section states how an [assembly](#g-assembly) is declared, how a type's
+declarations mark it as an assembly or a primitive, how container fields
+contribute children, and how `Group` assembles components on the fly.
 
 **An assembly is a plain struct** ([D-039][d-039]). Its fields whose type is
 `<: AbstractComponent` are its children, and all its other fields are inert
@@ -20,13 +19,14 @@ names, as "Container children" below states.
 
 #### Class by declaration shape
 
-**There is no `AbstractAssembly`, only one root `AbstractComponent`** ([D-039][d-039]). Two
-reasons rule out a supertype for [class](#g-class) (a component's primitive-vs-assembly
+**There is no `AbstractAssembly`, only one root `AbstractComponent`**
+([D-039][d-039]). Two reasons rule out a supertype for
+[class](#g-class) (a [component](#g-component)'s primitive-vs-assembly
 status). First, the domain hierarchies have to carry both classes. In an
 aircraft library, for example, these are `AbstractAircraft` and the engine
 families. A field declared `E <: AbstractEngine` must accept a primitive
-`PistonEngine` and a composite turbofan assembly alike. Second, class is
-implementation detail behind the [contract](#g-contract) (a component's declared interface,
+`PistonEngine` and a composite turbofan assembly alike. Second, class is implementation
+detail behind the [contract](#g-contract) (a component's declared interface,
 [§8.3][s8-3]).
 
 Class is declared instead by *which* well-known declarations a type defines.
@@ -36,13 +36,13 @@ The leaf declarations are `x_init`/`s_init`/`m_init`, `ws_init`,
 `u_types`/`y_types`, `state_events`, and any stage, `x_deriv`, `s_update` or
 `x_projection` method.
 
-The rule is total. A `<: AbstractComponent` type declaring neither family has no
-class to read. It is a build error, `ClassUnreadable`, naming both families,
-rather than a silence that fails later and elsewhere. When the type has
-component-typed fields, that error sharpens into a [did-you-mean](#g-did-you-mean) (the offending
-name plus the list-in-hand it should have matched). Its message reads "holds
-components but declares no `inner_connections`". `inner_connections` plus any leaf
-declaration on one type is a build error as well.
+The rule is total. A `<: AbstractComponent` type declaring neither family has
+no class to read. It is a build error naming both families, rather than a
+silence that fails later and elsewhere. When the type has component-typed
+fields, that error sharpens into a [did-you-mean](#g-did-you-mean) (a
+name-shaped failure that carries the list-in-hand). Its message reads "holds
+components but declares no `inner_connections`". `inner_connections` plus any
+leaf declaration on one type is a build error as well.
 
 Assemblies have no state of their own, which is the no-atomic-assemblies rule
 at declaration time ([§10.5][s10-5]). They have no contract of their own
@@ -67,8 +67,9 @@ in full. A declaration on the wrong tier is `DeclarationOnWrongTier`
 #### Container children
 
 **A field whose type is a `Tuple` or `NamedTuple` with *every* element
-`<: AbstractComponent` contributes its elements as [container children](#g-container-children)** ([D-085][d-085]).
-They are path-named `"field/1"…"field/N"` for a tuple and `"field/key"` for a
+`<: AbstractComponent` contributes its elements as
+[container children](#g-container-children)** ([D-085][d-085]). They are
+path-named `"field/1"…"field/N"` for a tuple and `"field/key"` for a
 NamedTuple, and declaration order governs layout.
 
 **Containers are transparent grouping, not assemblies** ([D-085][d-085]). They
@@ -84,8 +85,9 @@ aircraft::NT; … end` holds any roster per instantiation, of any size, with any
 names and mixed aircraft types. Its declaration bodies generate wires by
 comprehension over the keys. That is the arity-via-computed-contracts pattern
 [§6.2][s6-2] uses for `SumJunction{W, N}`, here at structure scale. The swarm
-worlds ([§14.9][s14-9]) consume it directly. So does [mounting](#g-mounting), the relocation of a
-whole problem or tap set with [`at`](#g-at)`("aircraft/red", problem)`.
+worlds ([§14.9][s14-9]) consume it directly. So does
+[mounting](#g-mounting), the relocation of a whole problem or tap set with
+[`at`](#g-at)`("aircraft/red", problem)`.
 
 **A component may declare at most one of its container fields
 name-transparent** ([D-211][d-211]). The declaration is
@@ -94,10 +96,11 @@ name-transparent** ([D-211][d-211]). The declaration is
 transparent_container(::MyType) = :field
 ```
 
-That field's elements are then contributed under their bare keys, `"key"` and
-`"1"` in place of `"field/key"` and `"field/1"`. The bare keys apply everywhere a
-child name appears, namely in wiring endpoints, `sample_times` keys, read paths,
-`at` prefixes and diagnostics ([D-211][d-211]).
+and its default is `nothing`. That field's elements are then contributed under
+their bare keys, `"key"` and `"1"` in place of `"field/key"` and `"field/1"`.
+The bare keys apply everywhere a child name appears, namely in wiring
+endpoints, `sample_times` keys, read paths, `at` prefixes and diagnostics
+([D-211][d-211]).
 
 Naming is the only thing the declaration changes. The elements are the
 parent's children exactly as before, laid out in declaration order. The
@@ -107,8 +110,9 @@ faces and no rate scope.
 The edges of the container form are fixed by rule.
 
 - A container mixing component and non-component elements is a build error in
-  this section's did-you-mean family ([D-085][d-085]). All-component elements are
-  children, and zero-component elements are inert parameter data.
+  this section's did-you-mean family ([D-085][d-085]). The error carries the
+  offending name plus the list-in-hand it should have matched. All-component
+  elements are children, and zero-component elements are inert parameter data.
 - Containers of containers are rejected in the first cut, because deeper
   grouping is what assemblies are for ([D-085][d-085]). The element whose
   value is itself a component-bearing container is named, with its type
@@ -120,11 +124,11 @@ The edges of the container form are fixed by rule.
   bounds. That is the [generic holding](#g-generic-holding) (a parent holding
   a child through a non-concrete field type) that [§8.8][s8-8] allows.
 - **A bare key from a name-transparent container colliding with any sibling
-  child name is a build error naming both** ([D-211][d-211]). The error is
-  `ChildNameCollision`. The `sample_times` sugar of [§8.7][s8-7], where a container's bare
-  field name keys one declaration for all its elements, leaves only one
-  ambiguity. A transparent element's bare key equal to its own field's name
-  joins this collision error ([D-215][d-215]).
+  child name is a build error naming both** ([D-211][d-211]). The
+  `sample_times` sugar of [§8.7][s8-7], where a container's bare field name
+  keys one declaration for all its elements, leaves only one ambiguity. A
+  transparent element's bare key equal to its own field's name joins this
+  collision error ([D-215][d-215]).
 - **A bare key equal to the name of a sibling *container field* that
   contributes children is refused the same way** ([D-212][d-212]). No child
   bears that name, but the key would shadow the container's `"field/key"`
@@ -139,13 +143,14 @@ The edges of the container form are fixed by rule.
 
 #### `Group`: the on-the-fly assembly
 
-The *immutable* version of grouping components by plain calls needs no builder
-(`Assembly()` plus `add!`/`connect!`, rejected below). It is already expressible
-under this section's rules. **`Group` expresses it as a single library component**,
-part of the starting inventory ([§13.7][s13-7], [D-184][d-184]). A `NamedTuple` field's elements
-are its children by the container rule, name-transparent so they go by bare key
-([D-211][d-211]). Its declarations are ordinary functions of the *instance*, free to read
-its fields.
+The *immutable* version of "grouping components by plain calls" needs no
+builder (`Assembly()` plus `add!`/`connect!`, rejected below). It is already
+expressible under this section's rules. **`Group` expresses it as a single
+library component**, part of the starting inventory ([§13.7][s13-7],
+[D-184][d-184]). A `NamedTuple` field's elements are its children by the
+container rule, name-transparent so they go by bare key ([D-211][d-211]). Its
+declarations are ordinary functions of the *instance*, free to read its
+fields.
 
 ```julia
 struct Group{C <: NamedTuple, W, I, O} <: AbstractComponent
@@ -168,11 +173,12 @@ world = Group(
 )
 ```
 
-`Group` is one type, defined once, and every ad-hoc topology is a *value* of it.
-The type parameters still carry the children's concrete types, so activation is
-unchanged. So is the [executor](#g-executor), the compiled form of the stage execution order
-([§9.7][s9-7]). Wiring validation, did-you-mean errors and the two-producers error all
-run at build against the instance exactly as for a named assembly.
+`Group` is one type, defined once, and every ad-hoc topology is a *value* of
+it. The type parameters still carry the children's concrete types, so
+activation is unchanged. So is the [executor](#g-executor), the compiled form
+of the stage execution order ([§9.7][s9-7]). Wiring validation, did-you-mean
+errors and the two-producer check all run at build against the instance
+exactly as for a named assembly.
 
 What is given up relative to a named type is exactly what named types are
 *for*. That is dispatching domain code on `::Cessna172X`, and a reusable

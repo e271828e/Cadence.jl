@@ -47,9 +47,9 @@ c("The rule is total.", "The rule is total.")
 c("A `<: AbstractComponent` type declaring neither family has no class to read.",
   "A `<: AbstractComponent` type declaring neither family has no class to read.")
 c("It is a build error naming both families rather than a silence that fails later and elsewhere.",
-  "It is a build error naming both families, rather than a silence that fails later and elsewhere.")
+  "It is a build error, `ClassUnreadable`, naming both families, rather than a silence that fails later and elsewhere.", "R", ruling="P46")
 c("That error sharpens into a did-you-mean when the type has component-typed fields (\"holds components but declares no `inner_connections`\").",
-  "When the type has component-typed fields, that error sharpens into a did-you-mean (a name-shaped failure that carries the list-in-hand). Its message reads \"holds components but declares no `inner_connections`\".")
+  "When the type has component-typed fields, that error sharpens into a did-you-mean (the offending name plus the list-in-hand it should have matched). Its message reads \"holds components but declares no `inner_connections`\".")
 c("`inner_connections` plus any leaf declaration on one type is a build error as well.",
   "`inner_connections` plus any leaf declaration on one type is a build error as well.")
 c("Assemblies have no state of their own, which is the no-atomic-assemblies rule at declaration time (§10.5).",
@@ -105,15 +105,17 @@ c("The swarm worlds (§14.9) consume it directly, and so does mounting, the relo
 c("Rule. A component may declare at most one of its container fields name-transparent,",
   "A component may declare at most one of its container fields name-transparent (D-211). The declaration is", "C", [], ["D-211"])
 c("by `transparent_container(::MyType) = :field`,", "`transparent_container(::MyType) = :field`")
-c(":field`, default `nothing`.", "and its default is `nothing`.")
+c(":field`, default `nothing`.", "One more is optional, `transparent_container(::A)`, with default `nothing`.")
 c("That field's elements are then contributed under their bare keys, `\"key\"` and `\"1\"` in place of `\"field/key\"` and `\"field/1\"`, everywhere a child name appears (D-211): wiring endpoints, `sample_times` keys, read paths, `at` prefixes, diagnostics.",
   "That field's elements are then contributed under their bare keys, `\"key\"` and `\"1\"` in place of `\"field/key\"` and `\"field/1\"`. The bare keys apply everywhere a child name appears, namely in wiring endpoints, `sample_times` keys, read paths, `at` prefixes and diagnostics (D-211).", "F", ["D-211"])
 c("Naming is the only thing the declaration changes.", "Naming is the only thing the declaration changes.")
 c("The elements are the parent's children exactly as before, laid out in declaration order, and the container keeps its transparency of contract, with no `inner_connections`, no faces and no rate scope.",
   "The elements are the parent's children exactly as before, laid out in declaration order. The container keeps its transparency of contract, with no `inner_connections`, no faces and no rate scope.")
 c("The edges of the container form are fixed by rule:", "The edges of the container form are fixed by rule.", "X")
-c("- A container mixing component and non-component elements is a build error in this section's did-you-mean family (the offending name plus the list-in-hand it should have matched).",
-  "- A container mixing component and non-component elements is a build error in this section's did-you-mean family (D-085). The error carries the offending name plus the list-in-hand it should have matched.", "C", [], ["D-085"])
+c("- A container mixing component and non-component elements is a build error in this section's did-you-mean family",
+  "- A container mixing component and non-component elements is a build error in this section's did-you-mean family (D-085).", "C", [], ["D-085"])
+c("(the offending name plus the list-in-hand it should have matched).",
+  "a did-you-mean (the offending name plus the list-in-hand it should have matched)")
 c("All-component elements are children, and zero-component elements are inert parameter data.",
   "All-component elements are children, and zero-component elements are inert parameter data.")
 c("- Containers of containers are rejected in the first cut, because deeper grouping is what assemblies are for.",
@@ -127,7 +129,7 @@ c("- Abstract element types follow the same concreteness discipline as plain fie
 c("That is the generic holding (a parent holding a child through a non-concrete field type) that §8.8 allows.",
   "That is the generic holding (a parent holding a child through a non-concrete field type) that §8.8 allows.", "F", ["§8.8"])
 c("- A bare key from a name-transparent container colliding with any sibling child name is a build error naming both.",
-  "- A bare key from a name-transparent container colliding with any sibling child name is a build error naming both (D-211).", "C", [], ["D-211"])
+  "- A bare key from a name-transparent container colliding with any sibling child name is a build error naming both (D-211). The error is `ChildNameCollision`.", "R", [], ["D-211"], ruling="P46")
 c("A bare key equal to the name of a sibling container field that contributes children is refused the same way.",
   "A bare key equal to the name of a sibling container field that contributes children is refused the same way (D-212).", "F", [], ["D-212"])
 c("No child bears that name, but the key would shadow the container's `\"field/key\"` segment grammar (§6.1), leaving its elements unreachable behind a diagnostic that blames the wrong child.",
@@ -151,7 +153,7 @@ c("Its one real advantage, programmatic generation, survives intact in the type-
 # Group
 c("#### `Group`: the on-the-fly assembly", "#### `Group`: the on-the-fly assembly", "X")
 c("The immutable version of \"grouping components by plain calls\" needs no builder.",
-  "The immutable version of \"grouping components by plain calls\" needs no builder (`Assembly()` plus `add!`/`connect!`, rejected below).")
+  "The immutable version of grouping components by plain calls needs no builder (`Assembly()` plus `add!`/`connect!`, rejected below).")
 c("It is already expressible under this section's rules as a single library component (the starting inventory, §13.7).",
   "It is already expressible under this section's rules. `Group` expresses it as a single library component, part of the starting inventory (§13.7, D-184).", "C", ["§13.7"], ["§13.7", "D-184"])
 c("A `NamedTuple` field's elements are its children by the container rule, name-transparent so they go by bare key (D-211),",
@@ -172,7 +174,7 @@ c("The type parameters still carry the children's concrete types, so activation 
 c("So is the executor, the compiled form of the stage execution order (§9.7).",
   "So is the executor, the compiled form of the stage execution order (§9.7).", "F", ["§9.7"])
 c("Wiring validation, did-you-mean errors and the two-producer check all run at build against the instance exactly as for a named assembly.",
-  "Wiring validation, did-you-mean errors and the two-producer check all run at build against the instance exactly as for a named assembly.")
+  "Wiring validation, did-you-mean errors and the two-producers error all run at build against the instance exactly as for a named assembly.")
 c("What is given up relative to a named type is exactly what named types are for, namely dispatching domain code on `::Cessna172X` and a reusable identity for the topology.",
   "What is given up relative to a named type is exactly what named types are for. That is dispatching domain code on `::Cessna172X`, and a reusable identity for the topology.")
 c("The exploratory and programmatic composition `Group` serves does not want it anyway.",
@@ -187,7 +189,9 @@ c("What that declaration buys is that a `Group`'s wiring and rate declarations r
   "With that declaration, a `Group`'s wiring and rate declarations read exactly like a named assembly's, child and face, with no `children/` boilerplate.")
 
 added = [
- "This section states how an assembly is declared, how a type's declarations mark it as an assembly or a primitive, how container fields contribute children, and how `Group` assembles components on the fly.",
+ "This section states how an assembly (a component of pure composition) is declared, how a type's declarations mark it as an assembly or a primitive, what arity those declarations take, how container fields contribute children, and how `Group` assembles components on the fly.",
+ "`ClassUnreadable`,",
+ "The error is `ChildNameCollision`.",
  "Two reasons rule out a supertype for class (a component's primitive-vs-assembly status).",
  "That section states the arity rule and tier agreement in full.",
 ]

@@ -41,7 +41,7 @@
   {
    "id": "F-005",
    "old": "Relative entries compose affinely down the tree, absolute entries anchor, and all are compiled to one `(D, Φ)` pair per discrete component.",
-   "new": "Relative entries compose affinely down the tree, absolute entries anchor, and all are compiled to one `(D, Φ)` pair per discrete component",
+   "new": "Relative entries compose affinely down the tree, absolute entries anchor, and all are compiled to one `(D, Φ)` pair per discrete component.",
    "where": "new",
    "cites": [],
    "tag": "R",
@@ -474,29 +474,21 @@
   {
    "id": "F-052",
    "old": "Why `select` exists.",
-   "new": "`select` exists for feed lists, the idiom of \"One authored feed list\" below.",
+   "new": "`select` exists for feed lists.",
    "where": "new",
    "cites": [],
    "tag": "X"
   },
   {
    "id": "F-053",
-   "old": "At C172X scale",
-   "new": "At the scale of Flight.jl's C172X demo",
-   "where": "new",
-   "cites": [],
-   "tag": "M"
-  },
-  {
-   "id": "F-054",
-   "old": "the feed list below already computes the `except` tuple.",
-   "new": "There the feed list already computes the `except` tuple.",
+   "old": "At C172X scale the feed list below already computes the `except` tuple.",
+   "new": "At the scale of Flight.jl's C172X demo, the feed list below already computes the `except` tuple.",
    "where": "new",
    "cites": [],
    "tag": "F"
   },
   {
-   "id": "F-055",
+   "id": "F-054",
    "old": "A closure over the same list says the same thing without building the tuple.",
    "new": "A closure over the same list says the same thing without building the tuple.",
    "where": "new",
@@ -504,7 +496,7 @@
    "tag": "F"
   },
   {
-   "id": "F-056",
+   "id": "F-055",
    "old": "The effective face list is plain printable data, the inspectable derived contract of this instantiation.",
    "new": "The effective face list is plain printable data, the inspectable derived contract of this instantiation.",
    "where": "new",
@@ -512,7 +504,7 @@
    "tag": "F"
   },
   {
-   "id": "F-057",
+   "id": "F-056",
    "old": "What computation does not do is auto-bubble.",
    "new": "What computation does not do is auto-bubble (D-043).",
    "where": "new",
@@ -523,7 +515,7 @@
    ]
   },
   {
-   "id": "F-058",
+   "id": "F-057",
    "old": "The author wrote down \"every input face of this child that I don't feed, I expose under this prefix\", explicit at the type level and evaluated at build.",
    "new": "The author wrote down \"every input face of this child that I don't feed, I expose under this prefix\", explicit at the type level and evaluated at build.",
    "where": "new",
@@ -531,7 +523,7 @@
    "tag": "F"
   },
   {
-   "id": "F-059",
+   "id": "F-058",
    "old": "The name carries the direction, so the helpers come in pairs.",
    "new": "The helpers come in pairs, because the name carries the direction (D-171).",
    "where": "new",
@@ -542,7 +534,7 @@
    ]
   },
   {
-   "id": "F-060",
+   "id": "F-059",
    "old": "`input_passthrough` reads `input_faces(child)`, and the selector filters face names within that set. The helper exists for the pass-through case, where an assembly hands a child's unfed requirements up one level.",
    "new": "`input_passthrough` reads `input_faces(child)`, and the selector filters face names within that set. The helper exists for the pass-through case, where an assembly hands a child's unfed requirements up one level.",
    "where": "new",
@@ -550,7 +542,7 @@
    "tag": "F"
   },
   {
-   "id": "F-061",
+   "id": "F-060",
    "old": "`output_passthrough` is its sibling (D-209). It is splatted into `y_connections`, reads `output_faces(child)`, and has the same `prefix`/`sep` surface, the same three exclusive selectors and the same declaration-time error set.",
    "new": "`output_passthrough` is its sibling (D-209). It is splatted into `y_connections`, reads `output_faces(child)`, and has the same `prefix`/`sep` surface, the same three exclusive selectors and the same declaration-time error set.",
    "where": "new",
@@ -560,7 +552,7 @@
    "tag": "F"
   },
   {
-   "id": "F-062",
+   "id": "F-061",
    "old": "y_connections(sys::Systems) = ( output_passthrough(sys, \"ldg\"; only = (\"damaged\",))..., # \"ldg.damaged\" \"aero/wrench\" => \"wrench\", )",
    "new": "y_connections(sys::Systems) = ( output_passthrough(sys, \"ldg\"; only = (\"damaged\",))..., # \"ldg.damaged\" \"aero/wrench\" => \"wrench\", )",
    "where": "new",
@@ -568,7 +560,7 @@
    "tag": "F"
   },
   {
-   "id": "F-063",
+   "id": "F-062",
    "old": "Its consumer is one-level routing (§6.1).",
    "new": "`output_passthrough`'s consumer is one-level routing (§6.1, D-209).",
    "where": "new",
@@ -582,7 +574,7 @@
    ]
   },
   {
-   "id": "F-064",
+   "id": "F-063",
    "old": "Every level re-exports the outputs it surfaces, so the output side needs the computed spelling the input side already has.",
    "new": "Every level re-exports the outputs it surfaces, so the output side needs the computed spelling the input side already has.",
    "where": "new",
@@ -590,7 +582,7 @@
    "tag": "F"
   },
   {
-   "id": "F-065",
+   "id": "F-064",
    "old": "Both helpers take `child_path` naming an immediate child, container key segments included.",
    "new": "Both helpers take `child_path` naming an immediate child, container key segments included (D-207).",
    "where": "new",
@@ -601,7 +593,7 @@
    ]
   },
   {
-   "id": "F-066",
+   "id": "F-065",
    "old": "The default `prefix` folds the path's slash into `sep`, so `\"gear/1\"` labels its faces `\"gear.1.…\"` and the default stays a legal face name for every blessed `child_path`. An explicit `prefix` is used verbatim.",
    "new": "The default `prefix` folds the path's slash into `sep`, so `\"gear/1\"` labels its faces `\"gear.1.…\"` and the default stays a legal face name for every blessed `child_path`. An explicit `prefix` is used verbatim.",
    "where": "new",
@@ -609,7 +601,7 @@
    "tag": "F"
   },
   {
-   "id": "F-067",
+   "id": "F-066",
    "old": "A deeper path meets `resolve`'s one-level rejection like any other wiring endpoint (§13.3).",
    "new": "A deeper path meets `resolve`'s one-level rejection like any other wiring endpoint (§13.3, D-207).",
    "where": "new",
@@ -623,7 +615,7 @@
    ]
   },
   {
-   "id": "F-068",
+   "id": "F-067",
    "old": "There are two helpers rather than one keyword,",
    "new": "There are two helpers rather than one keyword (D-171).",
    "where": "new",
@@ -634,7 +626,7 @@
    ]
   },
   {
-   "id": "F-069",
+   "id": "F-068",
    "old": "because after the boundary split a single call cannot emit entries into two different declarations.",
    "new": "and after that split a single call cannot emit entries into two different declarations.",
    "where": "new",
@@ -642,7 +634,7 @@
    "tag": "F"
   },
   {
-   "id": "F-070",
+   "id": "F-069",
    "old": "One authored list, two declarations.",
    "new": "#### One authored feed list",
    "where": "new",
@@ -650,7 +642,7 @@
    "tag": "X"
   },
   {
-   "id": "F-071",
+   "id": "F-070",
    "old": "The `World` example's two-entry `except` understates the real shape.",
    "new": "The `World` example's two-entry `except` understates the real shape.",
    "where": "new",
@@ -658,7 +650,7 @@
    "tag": "F"
   },
   {
-   "id": "F-072",
+   "id": "F-071",
    "old": "Every level of a realistic tree is a generic seam,",
    "new": "Every level of a realistic tree is a generic seam",
    "where": "new",
@@ -666,7 +658,7 @@
    "tag": "F"
   },
   {
-   "id": "F-073",
+   "id": "F-072",
    "old": "and an assembly that feeds some of a child's input faces while passing the rest up must name the fed ones in `except`.",
    "new": "An assembly that feeds some of a child's input faces while passing the rest up must name the fed ones in `except`.",
    "where": "new",
@@ -674,7 +666,7 @@
    "tag": "F"
   },
   {
-   "id": "F-074",
+   "id": "F-073",
    "old": "At C172X scale that is four seams and roughly ten names at the innermost one,",
    "new": "At the scale of Flight.jl's C172X demo, that is four seams and roughly ten names at the innermost one.",
    "where": "new",
@@ -682,7 +674,7 @@
    "tag": "F"
   },
   {
-   "id": "F-075",
+   "id": "F-074",
    "old": "restating in each `except` tuple the wire list sitting in the same assembly's `inner_connections`.",
    "new": "Each `except` tuple restates the wire list sitting in the same assembly's `inner_connections`.",
    "where": "new",
@@ -690,7 +682,7 @@
    "tag": "F"
   },
   {
-   "id": "F-076",
+   "id": "F-075",
    "old": "That is \"structure kept in two artifacts\" (§8.1; D-039),",
    "new": "That is structure kept in two artifacts (D-039),",
    "where": "new",
@@ -705,7 +697,7 @@
    "ruling": "R7"
   },
   {
-   "id": "F-077",
+   "id": "F-076",
    "old": "the shape this design refuses elsewhere.",
    "new": "the shape this design refuses elsewhere.",
    "where": "new",
@@ -713,7 +705,7 @@
    "tag": "F"
   },
   {
-   "id": "F-078",
+   "id": "F-077",
    "old": "It needs no vocabulary.",
    "new": "Removing the duplication needs no vocabulary (D-145).",
    "where": "new",
@@ -724,7 +716,7 @@
    ]
   },
   {
-   "id": "F-079",
+   "id": "F-078",
    "old": "Declaration bodies are ordinary code (§8.5), so the author writes the feed list once and both declarations compute their share of it.",
    "new": "Declaration bodies are ordinary code (§8.5), so the author writes the feed list once and both declarations compute their share of it.",
    "where": "new",
@@ -734,7 +726,7 @@
    "tag": "F"
   },
   {
-   "id": "F-080",
+   "id": "F-079",
    "old": "# one authored artifact: actuator output face => destination child input face const ACT_FEEDS = ( \"e\" => \"aero/e\", \"a\" => \"aero/a\", \"r\" => \"aero/r\", \"brake_left\" => \"ldg/left.brake\", … # ~10 entries for the C172X )",
    "new": "# one authored artifact: actuator output face => destination child input face const ACT_FEEDS = ( \"e\" => \"aero/e\", \"a\" => \"aero/a\", \"r\" => \"aero/r\", \"brake_left\" => \"ldg/left.brake\", … # ~10 entries for the C172X )",
    "where": "new",
@@ -742,7 +734,7 @@
    "tag": "F"
   },
   {
-   "id": "F-081",
+   "id": "F-080",
    "old": "# the face names of `child` the feed list targets fed_faces(feeds, child) = Tuple(chopprefix(dst, child \"/\") for (_, dst) in feeds if startswith(dst, child \"/\"))",
    "new": "# the face names of `child` the feed list targets fed_faces(feeds, child) = Tuple(chopprefix(dst, child \"/\") for (_, dst) in feeds if startswith(dst, child \"/\"))",
    "where": "new",
@@ -750,7 +742,7 @@
    "tag": "F"
   },
   {
-   "id": "F-082",
+   "id": "F-081",
    "old": "inner_connections(::Systems) = ( ((\"act/\" src) => dst for (src, dst) in ACT_FEEDS)..., \"aero/wrench\" => \"wr_sum/in1\", # non-feed wires unchanged … )",
    "new": "inner_connections(::Systems) = ( ((\"act/\" src) => dst for (src, dst) in ACT_FEEDS)..., \"aero/wrench\" => \"wr_sum/in1\", # non-feed wires unchanged … )",
    "where": "new",
@@ -758,7 +750,7 @@
    "tag": "F"
   },
   {
-   "id": "F-083",
+   "id": "F-082",
    "old": "u_connections(sys::Systems) = ( input_passthrough(sys, \"aero\"; except = fed_faces(ACT_FEEDS, \"aero\"))..., input_passthrough(sys, \"ldg\"; except = fed_faces(ACT_FEEDS, \"ldg\"))..., … )",
    "new": "u_connections(sys::Systems) = ( input_passthrough(sys, \"aero\"; except = fed_faces(ACT_FEEDS, \"aero\"))..., input_passthrough(sys, \"ldg\"; except = fed_faces(ACT_FEEDS, \"ldg\"))..., … )",
    "where": "new",
@@ -766,7 +758,7 @@
    "tag": "F"
   },
   {
-   "id": "F-084",
+   "id": "F-083",
    "old": "Adding an actuator channel is then one edit.",
    "new": "Adding an actuator channel is then one edit (D-145).",
    "where": "new",
@@ -777,7 +769,7 @@
    ]
   },
   {
-   "id": "F-085",
+   "id": "F-084",
    "old": "The new pair simultaneously creates the wire and removes the face from the input face surface. The two declarations cannot drift, because neither holds the shared names. Both are projections of the authored list, so the drift class is removed rather than detected.",
    "new": "The new pair simultaneously creates the wire and removes the face from the input face surface. The two declarations cannot drift, because neither holds the shared names. Both are projections of the authored list, so the drift class is removed rather than detected.",
    "where": "new",
@@ -785,7 +777,7 @@
    "tag": "F"
   },
   {
-   "id": "F-086",
+   "id": "F-085",
    "old": "Every misspelling stays loud. A mistyped destination is an unknown-face error with the child's face list in hand, whether the wire or the `except` entry meets it first.",
    "new": "Every misspelling stays loud. A mistyped destination is an unknown-face error with the child's face list in hand, whether the wire or the `except` entry meets it first.",
    "where": "new",
@@ -793,7 +785,7 @@
    "tag": "F"
   },
   {
-   "id": "F-087",
+   "id": "F-086",
    "old": "One asymmetry is stated openly. A pair omitted from the list is not an error but a structural change. The face leaves the `except` set and joins the input face surface, ultimately a root input",
    "new": "One asymmetry is stated openly. A pair omitted from the list is not an error but a structural change. The face leaves the `except` set and joins the input face surface, ultimately a root input",
    "where": "new",
@@ -801,9 +793,9 @@
    "tag": "F"
   },
   {
-   "id": "F-088",
+   "id": "F-087",
    "old": "for conditions to cover (§14.6). What the idiom preserves, and the helper below surrenders, is that the feed statement exists to be reviewed. An omission is legible in one authored artifact, not defined away as the complement of the wire list.",
-   "new": "for conditions, the data that set a build's state, to cover (§14.6). What the idiom preserves, and the helper below surrenders, is that the feed statement exists to be reviewed. An omission is legible in one authored artifact, not defined away as the complement of the wire list.",
+   "new": "for conditions to cover (§14.6). What the idiom preserves, and the helper below surrenders, is that the feed statement exists to be reviewed. An omission is legible in one authored artifact, not defined away as the complement of the wire list.",
    "where": "new",
    "cites": [
     "§14.6"
@@ -811,7 +803,7 @@
    "tag": "F"
   },
   {
-   "id": "F-089",
+   "id": "F-088",
    "old": "The line not to cross is deriving `except` from `inner_connections` itself,",
    "new": "The line not to cross is deriving `except` from `inner_connections` itself.",
    "where": "new",
@@ -819,7 +811,7 @@
    "tag": "F"
   },
   {
-   "id": "F-090",
+   "id": "F-089",
    "old": "for instance a helper spelled `except = fed(sys, \"aero\")` that reads the assembly's own wire list.",
    "new": "A helper spelled `except = fed(sys, \"aero\")`, reading the assembly's own wire list, would cross it.",
    "where": "new",
@@ -827,7 +819,7 @@
    "tag": "F"
   },
   {
-   "id": "F-091",
+   "id": "F-090",
    "old": "That is auto-bubbling under another name (D-043, D-145).",
    "new": "That is auto-bubbling under another name (D-043, D-145).",
    "where": "new",
@@ -838,7 +830,7 @@
    "tag": "F"
   },
   {
-   "id": "F-092",
+   "id": "F-091",
    "old": "The single source must be authored data, never inferred structure.",
    "new": "The single source must be authored data, never inferred structure (D-145).",
    "where": "new",
@@ -849,7 +841,7 @@
    ]
   },
   {
-   "id": "F-093",
+   "id": "F-092",
    "old": "Generic holding is an imposed derived contract.",
    "new": "Generic holding is an imposed derived contract (D-043).",
    "where": "new",
@@ -860,7 +852,7 @@
    ]
   },
   {
-   "id": "F-094",
+   "id": "F-093",
    "old": "A parent holding a child generically constrains it exactly through the faces its wires and interface connections reference. Build a `World` whose concrete aircraft lacks a referenced face, and the error names the `World` entry.",
    "new": "A parent holding a child generically constrains it exactly through the faces its wires and interface connections reference. Build a `World` whose concrete aircraft lacks a referenced face, and the error names the `World` entry.",
    "where": "new",
@@ -868,7 +860,7 @@
    "tag": "F"
   },
   {
-   "id": "F-095",
+   "id": "F-094",
    "old": "That is build-time structural typing with no new vocabulary",
    "new": "That is build-time structural typing with no new vocabulary.",
    "where": "new",
@@ -876,7 +868,7 @@
    "tag": "F"
   },
   {
-   "id": "F-096",
+   "id": "F-095",
    "old": "(a formal required-faces declaration on domain abstract types remains possible sugar).",
    "new": "A formal required-faces declaration on domain abstract types remains possible sugar (D-251).",
    "where": "new",
@@ -887,7 +879,7 @@
    ]
   },
   {
-   "id": "F-097",
+   "id": "F-096",
    "old": "Scalar faces make partial scripting compose.",
    "new": "Scalar faces make partial scripting compose (D-207).",
    "where": "new",
@@ -898,7 +890,7 @@
    ]
   },
   {
-   "id": "F-098",
+   "id": "F-097",
    "old": "A guidance scenario component wires `mode_req` and `EAS_ref`",
    "new": "A guidance scenario component",
    "where": "new",
@@ -906,15 +898,15 @@
    "tag": "F"
   },
   {
-   "id": "F-099",
+   "id": "F-098",
    "old": "`mode_req` and `EAS_ref`",
-   "new": "wires `mode_req` and `EAS_ref`",
+   "new": "They are `mode_req` and `EAS_ref`",
    "where": "new",
    "cites": [],
    "tag": "F"
   },
   {
-   "id": "F-100",
+   "id": "F-099",
    "old": "while the remaining faces stay exported for GUI or defaults,",
    "new": "The remaining faces stay exported for GUI or defaults.",
    "where": "new",
@@ -922,7 +914,7 @@
    "tag": "F"
   },
   {
-   "id": "F-101",
+   "id": "F-100",
    "old": "which is impossible with a bundled face (§4.3 write-side rule).",
    "new": "That is impossible with a bundled face, under the write-side rule of §4.3.",
    "where": "new",
@@ -932,7 +924,7 @@
    "tag": "F"
   },
   {
-   "id": "F-102",
+   "id": "F-101",
    "old": "---",
    "new": "---",
    "where": "new",
@@ -940,7 +932,7 @@
    "tag": "F"
   },
   {
-   "id": "F-103",
+   "id": "F-102",
    "old": "`sample_times` needs no rule change.",
    "new": "and `sample_times` needs no rule change for them (D-085).",
    "where": "new",
@@ -951,7 +943,7 @@
    ]
   },
   {
-   "id": "F-104",
+   "id": "F-103",
    "old": "Element names are immediate child names, hence legal keys,",
    "new": "Container elements (§8.5) are immediate children, so `\"aircraft/red\"` is a legal key,",
    "where": "new",
@@ -959,7 +951,7 @@
    "tag": "M"
   },
   {
-   "id": "F-105",
+   "id": "F-104",
    "old": "and the bare field name is sugar for a uniform declaration across all elements.",
    "new": "The bare field name is sugar that applies one uniform declaration across all elements.",
    "where": "new",
@@ -967,7 +959,7 @@
    "tag": "F"
   },
   {
-   "id": "F-106",
+   "id": "F-105",
    "old": "The sugar keys on the field, not on a path segment, so a name-transparent container keeps it unchanged.",
    "new": "The sugar keys on the field, not on a path segment, so a name-transparent container keeps it unchanged.",
    "where": "new",
@@ -975,7 +967,7 @@
    "tag": "F"
   },
   {
-   "id": "F-107",
+   "id": "F-106",
    "old": "`(children = Relative(2),)` is the uniform spelling for a `Group`.",
    "new": "`(children = Relative(2),)` is the uniform spelling for a `Group`.",
    "where": "new",
@@ -985,12 +977,12 @@
   }
  ],
  "added": [
-  "An assembly (a component of pure composition) schedules its children through one declaration, `sample_times`, its rate scope. This section gives its spelling and its keys, then what it never holds and why it belongs to the type.",
+  "An assembly schedules its children through one declaration, `sample_times`. This section gives its spelling and its keys, then what it never holds and why it belongs to the type.",
   "§10.5 also holds the wrappers' definitions and their validation.",
   "(each child's declared interface)",
-  "The section covers the passthrough helpers, the single authored feed list and generic holding (a parent holding a child through a non-concrete field type), in that order.",
+  "The section covers the passthrough helpers, the single authored feed list and generic holding, in that order.",
   "#### The passthrough helpers",
-  "The sketch ends with a `World` assembly, a component of pure composition. It passes up the input faces (the names ports wear on component boundaries) of its `aircraft` and `atmosphere` children.",
+  "The sketch ends with a `World` assembly that passes up the input faces (the names ports wear on component boundaries) of its `aircraft` and `atmosphere` children.",
   "(a narrow, named interface kept deliberately thin).",
   "In the block below, `Systems` is an assembly whose children include `aero` and `ldg`.",
   "In the block below, `Systems` also holds an actuator child `act` whose output faces feed `aero` and `ldg`.",
@@ -998,9 +990,7 @@
   ", the equivalent-airspeed reference.",
   "(the root component's own input face)",
   "#### Generic holding",
-  "(the home of a sim-time script)",
-  "(the unit of modeling, leaf or assembly)",
-  ", the data that set a build's state,",
+  "(the home of a sim-time script) wires two of the faces.",
   "(the `NamedTuple` of views a component function receives)"
  ]
 }

@@ -17,7 +17,7 @@ def c(old, new, tag="F", where="new", newcites=None, ruling=None):
     claims.append(d)
 
 c("### 8.2 The declaration inventory", "### 8.2 The declaration inventory", "X")
-c("One continuous primitive, declared end to end:", "One continuous primitive, declared end to end:", "X")
+c("One continuous primitive, declared end to end:", "One continuous primitive, declared end to end, shows them together:", "X")
 # the Engine block, chunk by chunk (new.md splits it into paragraphs at its blank lines)
 for u in NU:
     if u.startswith("```julia struct Engine") or (u.startswith("#") and not u.startswith("##")) or u.startswith("function y_direct") or u.startswith("x_deriv(eng"):
@@ -25,7 +25,7 @@ for u in NU:
         assert s in O, s[:60]
         c(s, s, "F")
 c("The blocks below take that inventory declaration by declaration, and record where each schema fact gets its authority.",
-  "The blocks below take that inventory declaration by declaration, and record where each schema fact gets its authority.", "X")
+  "This section takes the declarations of a component (the unit of modeling, leaf or assembly) one by one, and records where each schema fact gets its authority.", "X")
 c("#### State, modes, discrete state", "#### The stores", "X")
 c("Rule. `x_init` on the continuous tier, `s_init` on the discrete, and `m_init`, declare by initial value.",
   "`x_init` on the continuous tier, `s_init` on the discrete, and `m_init` declare by initial value (D-033).", "C", newcites=["D-033"])
@@ -35,7 +35,7 @@ c("The value is a `NamedTuple`, one named field per leaf, and no other form is a
 c("A bare leaf such as `x_init(::C) = 0.0` or `s_init(::C) = zeros(SVector{3})` is refused.",
   "A bare leaf such as `x_init(::C) = 0.0` or `s_init(::C) = zeros(SVector{3})` is refused.")
 c("The structure step reports it as `StoreNotNamedTuple`, and the message spells the wrap (§9.1, Appendix C, D-247).",
-  "The structure step reports it as `StoreNotNamedTuple`, and the message spells the wrap (§9.1, Appendix C, D-247).")
+  "The structure step (the build's first step, declaration reading only) reports it as `StoreNotNamedTuple`, and the message spells the wrap (§9.1, Appendix C, D-247).")
 c("Rule. Every leaf declares exactly one of `x_init` and `s_init`,",
   "Every leaf declares exactly one of `x_init` and `s_init`,", "C", newcites=["D-263"])
 c("and a stateless leaf declares it empty,", "and a stateless leaf declares it empty (D-263):")
@@ -64,7 +64,7 @@ c("The name a one-state component is asked for is the name every service then us
 c("There is consequently no second artifact to drift and no separate type declaration to check.",
   "Because the type is derived from the value, there is no second artifact to drift and no separate type declaration to check.")
 c("The workspace (component-declared mutable scratch arriving as the `ws` bundle field)",
-  "the workspace (component-declared mutable scratch arriving as the `ws` bundle field)")
+  "the workspace (component-declared mutable scratch), which is described below. The workspace arrives as the `ws` bundle field")
 c("is the exception to that convention.", "The workspace is the exception to that convention.")
 c("It is declared by allocation, as `ws_init(::C, ::Type{T})` on both tiers,",
   "It is declared by allocation, as `ws_init(::C, ::Type{T})` on both tiers (D-077, D-263).", "C", newcites=["D-077", "D-263"])
@@ -90,11 +90,11 @@ c("so there must be an authored value under every leaf.", "There must therefore 
 c("The asymmetry against `u_types`/`y_types` is one of kind, not style.",
   "The asymmetry against `u_types`/`y_types` is one of kind, not style.")
 c("Contracts describe table cells,",
-  "Contracts (a component's declared interfaces) describe table cells (the signal table's typed entries, one per output port).")
+  "Contracts (a component's declared interfaces) describe table cells (the signal table's typed entries). There is one cell per output port")
 c("which are recomputed from scratch every sweep, and so need only types.",
   "Cells are recomputed from scratch every sweep (one pass through the execution order), so contracts need only types.")
 c("`init_` describe stores, the model's memory, which must have contents before the first sweep can run.",
-  "`init_` describe stores, the model's memory, which must have contents before the first sweep can run.")
+  "`x_init`, `s_init` and `m_init` describe stores, which must have contents before the first sweep can run.")
 c("Every declaration but the allocator takes the component alone,",
   "Every declaration of a structural fact but the allocator takes the component alone (D-263).", "R", newcites=["D-263"], ruling="R7")
 c("and the criterion is the declaration convention it lives in (D-263).",
@@ -109,7 +109,7 @@ c("Partials enter through per-invocation seeding, never through initialization."
   "Partials enter through per-invocation seeding, never through initialization (D-079).", "C", newcites=["D-079"])
 c("A by-type declaration walks by the same rule,", "A by-type declaration walks by the same rule.")
 c("and where a leaf must not follow the scalar the author says so at the leaf, with `Pinned`,",
-  "Where a leaf must not follow the scalar, the author says so at the leaf with `Pinned` (the leaf wrapper `Pinned{P}`, which yields `P` at every activation).")
+  "Where a leaf must not follow the scalar, the author says so at the leaf with `Pinned` (the leaf marker `Pinned{P}`, which yields `P` at every activation).")
 c("which is why `u_types` and `y_types` take the component alone too.", "That is why `u_types` and `y_types` take the component alone too.")
 c("A by-allocation declaration is the exception.", "A by-allocation declaration is the exception.")
 c("It builds values the framework may not rebuild, so the scalar can come from nowhere but its own argument,",
@@ -125,6 +125,11 @@ added = [
   "which is described below.",
   "Because the type is derived from the value",
   "`x_init(::Gain) = (;) s_init(::Sampler) = (;)`",
+  "(the unit of modeling, leaf or assembly)",
+  "shows them together",
+  "(the build's first step, declaration reading only)",
+  "(the `NamedTuple` of views a component function receives)",
+  "(one declared input or output)",
 ]
 json.dump({"claims": claims, "added": added}, open(os.path.join(HERE, "inventory.json"), "w"), indent=1, ensure_ascii=False)
 print(len(claims), "claims")

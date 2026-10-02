@@ -27,7 +27,7 @@
   {
    "id": "A-004",
    "old": "§8.1–§8.4 cover the component side, and §8.5–§8.8 the assembly side.",
-   "new": "The first four sections cover the component side.",
+   "new": "§8.1–§8.4 cover the component side, and §8.5–§8.8 the assembly side.",
    "where": "new",
    "cites": [
     "§8.1",
@@ -429,7 +429,7 @@
   {
    "id": "A-047",
    "old": "If the component's parent module holds a binding of a family name distinct from the framework's function, the build throws `DeclarationShadowed`, alone,",
-   "new": "The check looks for a binding of a declaration name (a name in the import list above) in the component's parent module. If the module holds one distinct from the framework's function, the build throws `DeclarationShadowed` alone (D-246).",
+   "new": "The check looks for a binding of a family name (a name in the import list above) in the component's parent module. If the module holds one distinct from the framework's function, the build throws `DeclarationShadowed` alone (D-246).",
    "where": "new",
    "cites": [],
    "newcites": [
@@ -456,7 +456,7 @@
   {
    "id": "A-050",
    "old": "The check is a two-line `isdefined`/`!==` test on the family's names.",
-   "new": "The check is a two-line `isdefined`/`!==` test on those names.",
+   "new": "The check is a two-line `isdefined`/`!==` test on the family's names.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -889,7 +889,7 @@
   {
    "id": "A-098",
    "old": "The build probes user functions with real values, with no reliance on compiler inference, and compares observed against declared.",
-   "new": "The build probes user functions with real values (a single evaluation of each, its result discarded), with no reliance on compiler inference, and compares observed against declared.",
+   "new": "The build probes user functions with real values, with no reliance on compiler inference, and compares observed against declared.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -905,7 +905,7 @@
   {
    "id": "A-100",
    "old": "Inference-by-evaluation as schema authority is rejected on three counts, established by walkthrough (§8.4) and litigated in D-032.",
-   "new": "Inference-by-evaluation as schema authority (the source that defines structure) is rejected on three counts, established by walkthrough (§8.4) and litigated in D-032.",
+   "new": "Inference-by-evaluation as schema authority is rejected on three counts, established by walkthrough (§8.4) and litigated in D-032.",
    "where": "new",
    "cites": [
     "D-032",
@@ -981,7 +981,7 @@
   {
    "id": "A-108",
    "old": "Why. The entry typing decides it (§9.7).",
-   "new": "The reason is how executor entries are typed (§9.7).",
+   "new": "The entry typing decides it (§9.7).",
    "where": "new",
    "cites": [
     "§9.7"
@@ -1083,14 +1083,11 @@
   }
  ],
  "added": [
-  "§8.1 lays the foundations of the declaration layer, §8.2 lists the declaration inventory, §8.3 says what a contract makes visible, and §8.4 gives the five failure walkthroughs that ground error locality.",
-  "The last four cover the assembly side.",
-  "§8.5 covers assembly declaration, how a type's class is read, container children and `Group`.",
+  "On the component side, §8.1 lays the foundations of the declaration layer, §8.2 lists the declaration inventory, §8.3 says what a contract makes visible, and §8.4 gives the five failure walkthroughs that ground error locality.",
+  "On the assembly side, §8.5 covers assembly declaration and how a type's class is read.",
   "§8.6 covers paths, wiring and faces, works them through the strapdown IMU, and ends with the boundary-sampling contract.",
   "§8.7 covers rate scopes, and §8.8 covers computed connections and generic holding.",
   "(`Engine` is the example component of §8.2)",
-  "(a single evaluation of each, its result discarded)",
-  "(the source that defines structure)",
   "(the continuous or discrete side of the hybrid formalism)",
   "the per-component panel extensions in FlightCore's style (§11.7)",
   "one per subsection",

@@ -1,9 +1,6 @@
 ### 8.2 The declaration inventory
 
-This section takes the declarations of a [component](#g-component) (the unit of
-modeling, leaf or assembly) one by one, and records where each schema fact gets
-its authority. One continuous primitive, declared end to end, shows them
-together:
+One continuous primitive, declared end to end:
 
 ```julia
 struct Engine <: AbstractComponent
@@ -47,6 +44,9 @@ flameout_guard(eng::Engine, (; x)) = eng.ω_min - x.ω      #continuous form: lo
 flameout_handler(::Engine, _) = (; m = (; phase = off))
 ```
 
+The blocks below take that inventory declaration by declaration, and record
+where each schema fact gets its authority.
+
 **Every declaration of a structural fact but the allocator takes the component
 alone** ([D-263][d-263]). The criterion is the convention each declaration
 lives in. It is stated once here, and the blocks below refer back to it.
@@ -59,16 +59,15 @@ lives in. It is stated once here, and the blocks below refer back to it.
   Partials enter through per-invocation seeding, never through initialization
   ([D-079][d-079]).
 - A *by-type* declaration walks by the same rule. Where a leaf must not follow
-  the scalar, the author says so at the leaf with `Pinned` (the leaf marker
+  the scalar, the author says so at the leaf with `Pinned` (the leaf wrapper
   `Pinned{P}`, which yields `P` at every activation). That is why `u_types`
   and `y_types` take the component alone too.
-- A *by-allocation* declaration is the exception. It builds values the framework
-  may not rebuild, so the scalar can come from nowhere but its own argument.
-  `ws_init(c, T)` takes it on both [tiers](#g-tier), the continuous and the
-  discrete ([D-077][d-077]). `ws_init` allocates the [workspace](#g-workspace)
-  (component-declared mutable scratch), which is described below. The workspace
-  arrives as the `ws` [bundle](#g-bundle) field (the `NamedTuple` of views a
-  component function receives).
+- A *by-allocation* declaration is the exception. It builds values the
+  framework may not rebuild, so the scalar can come from nowhere but its own
+  argument. `ws_init(c, T)` takes it on both [tiers](#g-tier), the continuous
+  and the discrete ([D-077][d-077]). `ws_init` allocates the
+  [workspace](#g-workspace) (component-declared mutable scratch arriving as
+  the `ws` bundle field), which is described below.
 
 The criterion, not uniformity, is the rule. A `T` in a signature means the
 framework could not have supplied it.
@@ -76,12 +75,12 @@ framework could not have supplied it.
 #### The stores
 
 **`x_init` on the continuous tier, `s_init` on the discrete, and `m_init`
-declare by initial value** ([D-033][d-033]). The type is derived from the value.
-**The value is a `NamedTuple`, one named field per leaf**, and no other form is
-admitted ([D-247][d-247]). A bare leaf such as `x_init(::C) = 0.0` or
-`s_init(::C) = zeros(SVector{3})` is refused. The structure step (the build's
-first step, declaration reading only) reports it as `StoreNotNamedTuple`, and
-the message spells the wrap ([§9.1][s9-1], [Appendix C][sC], [D-247][d-247]).
+declare by initial value** ([D-033][d-033]). The type is derived from the
+value. **The value is a `NamedTuple`, one named field per leaf**, and no other
+form is admitted ([D-247][d-247]). A bare leaf such as `x_init(::C) = 0.0` or
+`s_init(::C) = zeros(SVector{3})` is refused. The structure step reports it as
+`StoreNotNamedTuple`, and the message spells the wrap ([§9.1][s9-1],
+[Appendix C][sC], [D-247][d-247]).
 
 **Every leaf declares exactly one of `x_init` and `s_init`**, and a stateless
 leaf declares it empty ([D-263][d-263]):
@@ -112,13 +111,13 @@ build's state, merges on it ([§14.1][s14-1]). Readers and the trace spell it
 ([§14.4][s14-4]). The name a one-state component is asked for is the name
 every service then uses.
 
-Because the type is derived from the value, there is no second artifact to drift
-and no separate type declaration to check. The workspace is the exception to
-that convention. It is declared *by allocation*, as `ws_init(::C, ::Type{T})` on
-both tiers ([D-077][d-077], [D-263][d-263]). The method itself is the allocator. A
-workspace earns the exception because it is not memory and none of the by-value
-arguments below cover it ([§7.3][s7-3]). `ws_init` alone declares by allocation,
-and nothing downstream derives from the type of what it returns.
+Because the type is derived from the value, there is no second artifact to
+drift and no separate type declaration to check. The workspace is the exception
+to that convention. It is declared *by allocation*, as
+`ws_init(::C, ::Type{T})` on both tiers ([D-077][d-077], [D-263][d-263]). The
+method itself is the allocator. A workspace earns the exception because it is not memory and
+none of the by-value arguments below cover it ([§7.3][s7-3]). `ws_init` alone declares
+by allocation, and nothing downstream derives from the type of what it returns.
 
 This is the boundary of legitimate derivation. Deriving from another
 declaration is sound, and deriving from evaluated user code is not. Stores
@@ -131,9 +130,9 @@ the compiled store writers bake `merge(defaults, overlay)`. There must
 therefore be an authored value under every leaf.
 
 The asymmetry against `u_types`/`y_types` is one of kind, not style.
-[Contracts](#g-contract) (a component's declared interfaces) describe table [cells](#g-cell) (the
-signal table's typed entries). There is one cell per output [port](#g-port) (one
-declared input or output). Cells are recomputed from scratch every [sweep](#g-sweep)
-(one pass through the execution order), so contracts need only types. `x_init`,
-`s_init` and `m_init` describe stores, which must have contents before the first
-sweep can run.
+[Contracts](#g-contract) (a component's declared interfaces) describe table
+[cells](#g-cell) (the signal table's typed entries, one per output port). Cells
+are recomputed from scratch every [sweep](#g-sweep) (one pass through the
+execution order), so contracts need only types. `init_*` describe stores, the
+model's memory, which must have contents before the first sweep can run.
+

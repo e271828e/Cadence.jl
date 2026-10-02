@@ -34,7 +34,7 @@ c("The declaration is `sample_times(::A) = (nav = Relative(5), gnss = Absolute(H
 c("`sample_times(::A) = (nav = Relative(5), gnss = Absolute(Hz(10)))`", "`sample_times(::A) = (nav = Relative(5), gnss = Absolute(Hz(10)))`")
 c("These are the two forms of §10.5.", "These are the two forms that §10.5 defines (D-185).", "C", ["§10.5", "D-185"])
 c("Relative entries compose affinely down the tree, absolute entries anchor, and all are compiled to one `(D, Φ)` pair per discrete component.",
-  "Relative entries compose affinely down the tree, absolute entries anchor, and all are compiled to one `(D, Φ)` pair per discrete component.", "R", ruling="R3")
+  "Relative entries compose affinely down the tree, absolute entries anchor, and all are compiled to one `(D, Φ)` pair per discrete component", "R", ruling="R3")
 c("The wrappers are the whole value vocabulary, so a bare integer or bare quantity is a declaration error.",
   "The wrappers are the whole vocabulary (D-185). A bare integer or bare quantity is a declaration error.", "R", where=SPEC, ruling="R3")
 c("The declaration is optional, and so is any given key.", "The declaration is optional, and so is any given key (D-042).", "C", ["D-042"])
@@ -102,9 +102,9 @@ c("Why. An empty selection is almost always a typo the unknown-names check canno
   "The warning exists because an empty selection is almost always a typo the unknown-names check cannot see.")
 c("An `only` may name faces that exist while a `select` matches none, or an `except` may list every face. It warns rather than errors because a level may legitimately pass nothing through under one configuration of a generic child.",
   "An `only` may name faces that exist while a `select` matches none, or an `except` may list every face. It warns rather than errors because a level may legitimately pass nothing through under one configuration of a generic child.")
-c("Why `select` exists.", "`select` exists for feed lists.", "X")
-c("At C172X scale the feed list below already computes the `except` tuple.",
-  "At the scale of Flight.jl's C172X demo, the feed list below already computes the `except` tuple.")
+c("Why `select` exists.", "`select` exists for feed lists, the idiom of \"One authored feed list\" below.", "X")
+c("At C172X scale", "At the scale of Flight.jl's C172X demo", "M")
+c("the feed list below already computes the `except` tuple.", "There the feed list already computes the `except` tuple.")
 c("A closure over the same list says the same thing without building the tuple.",
   "A closure over the same list says the same thing without building the tuple.")
 c("The effective face list is plain printable data, the inspectable derived contract of this instantiation.",
@@ -154,7 +154,7 @@ c("Every misspelling stays loud. A mistyped destination is an unknown-face error
 c("One asymmetry is stated openly. A pair omitted from the list is not an error but a structural change. The face leaves the `except` set and joins the input face surface, ultimately a root input",
   "One asymmetry is stated openly. A pair omitted from the list is not an error but a structural change. The face leaves the `except` set and joins the input face surface, ultimately a root input")
 c("for conditions to cover (§14.6). What the idiom preserves, and the helper below surrenders, is that the feed statement exists to be reviewed. An omission is legible in one authored artifact, not defined away as the complement of the wire list.",
-  "for conditions to cover (§14.6). What the idiom preserves, and the helper below surrenders, is that the feed statement exists to be reviewed. An omission is legible in one authored artifact, not defined away as the complement of the wire list.")
+  "for conditions, the data that set a build's state, to cover (§14.6). What the idiom preserves, and the helper below surrenders, is that the feed statement exists to be reviewed. An omission is legible in one authored artifact, not defined away as the complement of the wire list.")
 c("The line not to cross is deriving `except` from `inner_connections` itself,",
   "The line not to cross is deriving `except` from `inner_connections` itself.")
 c("for instance a helper spelled `except = fed(sys, \"aero\")` that reads the assembly's own wire list.",
@@ -170,7 +170,7 @@ c("(a formal required-faces declaration on domain abstract types remains possibl
   "A formal required-faces declaration on domain abstract types remains possible sugar (D-251).", "C", ["D-251"])
 c("Scalar faces make partial scripting compose.", "Scalar faces make partial scripting compose (D-207).", "C", ["D-207"])
 c("A guidance scenario component wires `mode_req` and `EAS_ref`", "A guidance scenario component")
-c("`mode_req` and `EAS_ref`", "They are `mode_req` and `EAS_ref`")
+c("`mode_req` and `EAS_ref`", "wires `mode_req` and `EAS_ref`")
 c("while the remaining faces stay exported for GUI or defaults,", "The remaining faces stay exported for GUI or defaults.")
 c("which is impossible with a bundled face (§4.3 write-side rule).",
   "That is impossible with a bundled face, under the write-side rule of §4.3.")
@@ -187,12 +187,12 @@ c("`(children = Relative(2),)` is the uniform spelling for a `Group`.",
   "`(children = Relative(2),)` is the uniform spelling for a `Group`.", "R", ruling="R1")
 
 ADDED = [
-    "An assembly schedules its children through one declaration, `sample_times`. This section gives its spelling and its keys, then what it never holds and why it belongs to the type.",
+    "An assembly (a component of pure composition) schedules its children through one declaration, `sample_times`, its rate scope. This section gives its spelling and its keys, then what it never holds and why it belongs to the type.",
     "§10.5 also holds the wrappers' definitions and their validation.",
     "(each child's declared interface)",
-    "The section covers the passthrough helpers, the single authored feed list and generic holding, in that order.",
+    "The section covers the passthrough helpers, the single authored feed list and generic holding (a parent holding a child through a non-concrete field type), in that order.",
     "#### The passthrough helpers",
-    "The sketch ends with a `World` assembly that passes up the input faces (the names ports wear on component boundaries) of its `aircraft` and `atmosphere` children.",
+    "The sketch ends with a `World` assembly, a component of pure composition. It passes up the input faces (the names ports wear on component boundaries) of its `aircraft` and `atmosphere` children.",
     "(a narrow, named interface kept deliberately thin).",
     "In the block below, `Systems` is an assembly whose children include `aero` and `ldg`.",
     "In the block below, `Systems` also holds an actuator child `act` whose output faces feed `aero` and `ldg`.",
@@ -200,7 +200,9 @@ ADDED = [
     ", the equivalent-airspeed reference.",
     "(the root component's own input face)",
     "#### Generic holding",
-    "(the home of a sim-time script) wires two of the faces.",
+    "(the home of a sim-time script)",
+    "(the unit of modeling, leaf or assembly)",
+    ", the data that set a build's state,",
     "(the `NamedTuple` of views a component function receives)",
 ]
 

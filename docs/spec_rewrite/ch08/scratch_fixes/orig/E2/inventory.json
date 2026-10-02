@@ -161,7 +161,7 @@
   {
    "id": "E2-020",
    "old": "Every RHS evaluation, RK stages included, applies the current cumulative attitude,",
-   "new": "Every evaluation of the flow (`x_deriv`, the continuous derivative function) applies the current cumulative attitude, RK stages included.",
+   "new": "Every evaluation of the RHS (`x_deriv`, the continuous derivative function) applies the current cumulative attitude, RK stages included.",
    "where": "new",
    "cites": [],
    "tag": "F"

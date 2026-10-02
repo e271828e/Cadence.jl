@@ -510,7 +510,7 @@
   {
    "id": "B3-056",
    "old": "What remains is deliberate.",
-   "new": "What remains is deliberate",
+   "new": "What remains is deliberate.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -518,7 +518,7 @@
   {
    "id": "B3-057",
    "old": "An author writes `Pinned` at a leaf that really participates, or omits it at one that really does not.",
-   "new": "The first is writing `Pinned` at a leaf that really participates. The second is omitting it at one that really does not.",
+   "new": "An author writes `Pinned` at a leaf that really participates, or omits it at one that really does not.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -832,11 +832,9 @@
   "The `DeckField` sketch has both.",
   "as these messages show",
   "The walkthrough `handle_walk_walkthrough.md`",
-  "`Ranged` is a domain wrapper type too (§7.1).",
+  "`RQuat` and `Ranged` are domain wrapper types (§7.1).",
   "Here `GearContact` is a landing-gear contact.",
   "ship",
-  "whose heave and pitch are continuous state",
-  "and it comes in two bugs",
-  "A didactic diagnostic is one that states its fix (§13.2)."
+  "whose heave and pitch are continuous state"
  ]
 }

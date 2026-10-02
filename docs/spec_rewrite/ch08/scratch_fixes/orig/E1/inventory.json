@@ -375,7 +375,7 @@
   {
    "id": "E1-039",
    "old": "One invariant spans all three declarations.",
-   "new": "The reason is one invariant that spans all three declarations.",
+   "new": "One invariant spans all three declarations.",
    "where": "new",
    "cites": [],
    "tag": "R",
@@ -393,7 +393,7 @@
   {
    "id": "E1-041",
    "old": "Direction is therefore declared by the method, not inferred.",
-   "new": "Direction is declared by the method, not inferred (D-170).",
+   "new": "Direction is therefore declared by the method, not inferred (D-170).",
    "where": "new",
    "cites": [],
    "newcites": [
@@ -404,7 +404,7 @@
   {
    "id": "E1-042",
    "old": "The resolved endpoints only cross-check it, and an entry whose endpoint resolves to a port of the wrong direction is a build error naming the method, the entry and the resolved port's actual direction.",
-   "new": "The resolved endpoints only cross-check the direction. An entry whose endpoint resolves to a port of the wrong direction is a build error. The error names the method, the entry and the resolved port's actual direction.",
+   "new": "The resolved endpoints only cross-check it. An entry whose endpoint resolves to a port of the wrong direction is a build error. The error names the method, the entry and the resolved port's actual direction.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -455,15 +455,12 @@
   {
    "id": "E1-047",
    "old": "An assembly is tier-neutral, exporting continuous-sourced and discrete-sourced ports side by side, and a face's cells follow the producer's own declaration (§8.5), evaluated at the activation scalar on the continuous tier and pinned on the discrete.",
-   "new": "An assembly is tier-neutral. It exports continuous-sourced and discrete-sourced ports side by side. A face's cells (entries of the signal table) follow the producer's own declaration (§8.2). They are evaluated at the activation scalar on the continuous tier and pinned on the discrete.",
+   "new": "An assembly is tier-neutral. It exports continuous-sourced and discrete-sourced ports side by side. A face's cells (entries of the signal table) follow the producer's own declaration (§8.5). They are evaluated at the activation scalar on the continuous tier and pinned on the discrete.",
    "where": "new",
    "cites": [
     "§8.5"
    ],
-   "newcites": [
-    "§8.2"
-   ],
-   "tag": "C"
+   "tag": "F"
   },
   {
    "id": "E1-048",
@@ -695,7 +692,7 @@
   {
    "id": "E1-072",
    "old": "Three facts the example carries.",
-   "new": "The example carries two more facts.",
+   "new": "Two facts the example carries.",
    "where": "new",
    "cites": [],
    "tag": "R",
@@ -745,8 +742,7 @@
   "It then spells out a worked assembly, the strapdown IMU, and its leaves.",
   "It closes with the boundary-sampling contract.",
   "(the elements of a `Tuple` or `NamedTuple` field holding only components,",
-  "A face is the name a port (one declared input or output) wears on its component's boundary.",
-  "A device is any attached participant outside the loop, and the trace is the primary record of a session.",
+  "A face is the name a port wears on its component's boundary.",
   "(the immutable per-boundary publication)",
   "A tier is the continuous or discrete side of the hybrid formalism.",
   "(explicitly sanctioned)",

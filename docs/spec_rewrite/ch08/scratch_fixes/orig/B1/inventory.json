@@ -11,7 +11,7 @@
   {
    "id": "B1-002",
    "old": "One continuous primitive, declared end to end:",
-   "new": "One continuous primitive, declared end to end, shows them together:",
+   "new": "One continuous primitive, declared end to end:",
    "where": "new",
    "cites": [],
    "tag": "X"
@@ -95,7 +95,7 @@
   {
    "id": "B1-011",
    "old": "The blocks below take that inventory declaration by declaration, and record where each schema fact gets its authority.",
-   "new": "This section takes the declarations of a component (the unit of modeling, leaf or assembly) one by one, and records where each schema fact gets its authority.",
+   "new": "The blocks below take that inventory declaration by declaration, and record where each schema fact gets its authority.",
    "where": "new",
    "cites": [],
    "tag": "X"
@@ -149,7 +149,7 @@
   {
    "id": "B1-017",
    "old": "The structure step reports it as `StoreNotNamedTuple`, and the message spells the wrap (§9.1, Appendix C, D-247).",
-   "new": "The structure step (the build's first step, declaration reading only) reports it as `StoreNotNamedTuple`, and the message spells the wrap (§9.1, Appendix C, D-247).",
+   "new": "The structure step reports it as `StoreNotNamedTuple`, and the message spells the wrap (§9.1, Appendix C, D-247).",
    "where": "new",
    "cites": [
     "Appendix C",
@@ -325,7 +325,7 @@
   {
    "id": "B1-036",
    "old": "The workspace (component-declared mutable scratch arriving as the `ws` bundle field)",
-   "new": "the workspace (component-declared mutable scratch), which is described below. The workspace arrives as the `ws` bundle field",
+   "new": "the workspace (component-declared mutable scratch arriving as the `ws` bundle field)",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -463,7 +463,7 @@
   {
    "id": "B1-051",
    "old": "Contracts describe table cells,",
-   "new": "Contracts (a component's declared interfaces) describe table cells (the signal table's typed entries). There is one cell per output port",
+   "new": "Contracts (a component's declared interfaces) describe table cells (the signal table's typed entries, one per output port).",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -479,7 +479,7 @@
   {
    "id": "B1-053",
    "old": "`init_` describe stores, the model's memory, which must have contents before the first sweep can run.",
-   "new": "`x_init`, `s_init` and `m_init` describe stores, which must have contents before the first sweep can run.",
+   "new": "`init_` describe stores, the model's memory, which must have contents before the first sweep can run.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -562,7 +562,7 @@
   {
    "id": "B1-062",
    "old": "and where a leaf must not follow the scalar the author says so at the leaf, with `Pinned`,",
-   "new": "Where a leaf must not follow the scalar, the author says so at the leaf with `Pinned` (the leaf marker `Pinned{P}`, which yields `P` at every activation).",
+   "new": "Where a leaf must not follow the scalar, the author says so at the leaf with `Pinned` (the leaf wrapper `Pinned{P}`, which yields `P` at every activation).",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -623,11 +623,6 @@
   "`ws_init` allocates",
   "which is described below.",
   "Because the type is derived from the value",
-  "`x_init(::Gain) = (;) s_init(::Sampler) = (;)`",
-  "(the unit of modeling, leaf or assembly)",
-  "shows them together",
-  "(the build's first step, declaration reading only)",
-  "(the `NamedTuple` of views a component function receives)",
-  "(one declared input or output)"
+  "`x_init(::Gain) = (;) s_init(::Sampler) = (;)`"
  ]
 }

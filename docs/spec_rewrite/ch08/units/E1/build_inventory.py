@@ -96,14 +96,14 @@ c("The read side speaks them wherever it wants meaning that outlives the build, 
   ["§11.2", "§14.4"])
 c("The three declarations return pairs of strings rather than NamedTuples (D-046).",
   "The three declarations return pairs of strings rather than NamedTuples (D-046).", ["D-046"])
-c("One invariant spans all three declarations.", "One invariant spans all three declarations.", tag="R", ruling="R6")
+c("One invariant spans all three declarations.", "The reason is one invariant that spans all three declarations.", tag="R", ruling="R6")
 c("Every pair's arrow points the way the signal flows, with the left side a producer or entry point and the right side a consumer, and every right side is fed exactly once.",
   "Every pair's arrow points the way the signal flows. The left side is a producer or entry point, the right side is a consumer, and every right side is fed exactly once.",
   tag="R", ruling="R6")
 c("Direction is therefore declared by the method, not inferred.",
-  "Direction is therefore declared by the method, not inferred (D-170).", newcites=["D-170"], tag="C")
+  "Direction is declared by the method, not inferred (D-170).", newcites=["D-170"], tag="C")
 c("The resolved endpoints only cross-check it, and an entry whose endpoint resolves to a port of the wrong direction is a build error naming the method, the entry and the resolved port's actual direction.",
-  "The resolved endpoints only cross-check it. An entry whose endpoint resolves to a port of the wrong direction is a build error. The error names the method, the entry and the resolved port's actual direction.")
+  "The resolved endpoints only cross-check the direction. An entry whose endpoint resolves to a port of the wrong direction is a build error. The error names the method, the entry and the resolved port's actual direction.")
 c("A mixed entry is not expressible, because the single list that made that error class possible does not exist.",
   "A mixed entry is not expressible, because the single list that made that error class possible does not exist.")
 c("Two entries producing the same output face remain the ordinary two-producers error.",
@@ -115,8 +115,8 @@ c("Face types and tiers are derived from the internal endpoints, which is the bl
 c("The derivation is forced, not merely convenient (D-041).",
   "The derivation is forced, not merely convenient.", ["D-041"])
 c("An assembly is tier-neutral, exporting continuous-sourced and discrete-sourced ports side by side, and a face's cells follow the producer's own declaration (§8.5), evaluated at the activation scalar on the continuous tier and pinned on the discrete.",
-  "An assembly is tier-neutral. It exports continuous-sourced and discrete-sourced ports side by side. A face's cells (entries of the signal table) follow the producer's own declaration (§8.5). They are evaluated at the activation scalar on the continuous tier and pinned on the discrete.",
-  ["§8.5"])
+  "An assembly is tier-neutral. It exports continuous-sourced and discrete-sourced ports side by side. A face's cells (entries of the signal table) follow the producer's own declaration (§8.2). They are evaluated at the activation scalar on the continuous tier and pinned on the discrete.",
+  ["§8.5"], ["§8.2"], tag="C")
 c("Three alternative spellings are rejected (D-041, D-170)",
   "Three alternative spellings are rejected (D-041).", ["D-041", "D-170"], ["D-041"], tag="R", ruling="R4")
 c("routing values under the leaf names `u_types`/`y_types`",
@@ -165,7 +165,7 @@ c("And the measured-increment face sources `errors/sample_meas`, the error model
 c("Listing `errors/sample` in `y_connections` would fail the direction cross-check, and listing it in `u_connections` while it is wired is the two-producers error of §8.8.",
   "Listing `errors/sample` in `y_connections` would fail the direction cross-check. Listing it in `u_connections` while it is wired is the two-producers error of §8.8.",
   ["§8.8"])
-c("Three facts the example carries.", "Two facts the example carries.", tag="R", ruling="R7")
+c("Three facts the example carries.", "The example carries two more facts.", tag="R", ruling="R7")
 c("The assembly is tier-neutral.", "The first is that the assembly is tier-neutral.")
 c("Every face's type and tier derive from its internal endpoint, and a `sample_times` key on `integrals`, the continuous child, would be a §8.7 build error.",
   "Every face's type and tier derive from its internal endpoint, and a `sample_times` key on `integrals`, the continuous child, would be a build error (§8.7).",
@@ -183,7 +183,8 @@ ADDED = [
   "It then spells out a worked assembly, the strapdown IMU, and its leaves.",
   "It closes with the boundary-sampling contract.",
   "(the elements of a `Tuple` or `NamedTuple` field holding only components,",
-  "A face is the name a port wears on its component's boundary.",
+  "A face is the name a port (one declared input or output) wears on its component's boundary.",
+  "A device is any attached participant outside the loop, and the trace is the primary record of a session.",
   "(the immutable per-boundary publication)",
   "A tier is the continuous or discrete side of the hybrid formalism.",
   "(explicitly sanctioned)",
