@@ -1,0 +1,9 @@
+n=31 k=1 plan(xs=31, prefixes=31) trim! 4.99 ms, evals 4, converged true | seeded apply! 0 B 0.04 µs | gather_reads 0 B 0.005 µs | gather+residual 0.005 µs | evaluate! 0.05 µs
+n=32 k=1 plan(xs=32, prefixes=32) trim! 5.43 ms, evals 4, converged true | seeded apply! 0 B 0.04 µs | gather_reads 0 B 0.004 µs | gather+residual 0.004 µs | evaluate! 0.06 µs
+n=33 k=1 plan(xs=33, prefixes=33) trim! 5.96 ms, evals 4, converged true | seeded apply! 2176 B 1.32 µs | gather_reads 0 B 0.005 µs | gather+residual 0.005 µs | evaluate! 0.06 µs
+n=64 k=1 plan(xs=64, prefixes=64) trim! 19.07 ms, evals 4, converged true | seeded apply! 102336 B 68.54 µs | gather_reads 0 B 0.006 µs | gather+residual 0.005 µs | evaluate! 0.11 µs
+n=128 k=1 plan(xs=128, prefixes=128) trim! 84.77 ms, evals 4, converged true | seeded apply! 508352 B 312.17 µs | gather_reads 0 B 0.007 µs | gather+residual 0.007 µs | evaluate! 0.21 µs
+n=31 k=31 plan(xs=31, prefixes=31) trim! 7.52 ms, evals 4, converged true | seeded apply! 0 B 0.04 µs | gather_reads 0 B 0.013 µs | gather+residual 0.004 µs | evaluate! 0.05 µs
+n=32 k=32 plan(xs=32, prefixes=32) trim! 8.04 ms, evals 4, converged true | seeded apply! 0 B 0.04 µs | gather_reads 3456 B 1.183 µs | gather+residual 1.2 µs | evaluate! 0.06 µs
+n=33 k=33 plan(xs=33, prefixes=33) trim! 8.06 ms, evals 4, converged true | seeded apply! 2176 B 1.25 µs | gather_reads 3520 B 1.229 µs | gather+residual 1.233 µs | evaluate! 0.06 µs
+n=64 k=64 plan(xs=64, prefixes=64) trim! 27.48 ms, evals 4, converged true | seeded apply! 102336 B 64.21 µs | gather_reads 6848 B 2.324 µs | gather+residual 2.352 µs | evaluate! 0.11 µs

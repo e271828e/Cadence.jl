@@ -1,0 +1,24 @@
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1m Time[22m
+readers       | [32m 136  [39m[36m  136  [39m[0m16.2s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1mTime[22m
+conditions    | [32m 154  [39m[36m  154  [39m[0m8.5s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1m Time[22m
+trim          | [32m 183  [39m[36m  183  [39m[0m17.2s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1m Time[22m
+linearize     | [32m  99  [39m[36m   99  [39m[0m14.6s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1mTime[22m
+dataplane     | [32m  47  [39m[36m   47  [39m[0m4.9s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1mTime[22m
+roster        | [32m  75  [39m[36m   75  [39m[0m1.9s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1mTime[22m
+bindings      | [32m  63  [39m[36m   63  [39m[0m0.8s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1m Time[22m
+devices       | [32m 368  [39m[36m  368  [39m[0m14.4s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1m Time[22m
+trace         | [32m 469  [39m[36m  469  [39m[0m18.1s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1mTime[22m
+lifecycle     | [32m 184  [39m[36m  184  [39m[0m4.5s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1m Time[22m
+log           | [32m  47  [39m[36m   47  [39m[0m10.0s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1m   Time[22m
+selected      | [32m1825  [39m[36m 1825  [39m[0m2m26.2s

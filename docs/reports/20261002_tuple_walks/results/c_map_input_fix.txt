@@ -1,0 +1,4 @@
+n=31 map_input 0 B 17.9 ns, concrete return true
+n=32 map_input 0 B 9.9 ns, concrete return true
+n=33 map_input 0 B 11.0 ns, concrete return true
+n=64 map_input 0 B 21.5 ns, concrete return true

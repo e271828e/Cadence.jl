@@ -1,0 +1,16 @@
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1m Time[22m
+executor      | [32m  80  [39m[36m   80  [39m[0m33.4s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1mTime[22m
+stepper       | [32m  16  [39m[36m   16  [39m[0m8.6s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1mTime[22m
+continuous    | [32m  24  [39m[36m   24  [39m[0m3.5s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1mTime[22m
+discrete      | [32m 166  [39m[36m  166  [39m[0m7.9s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1m Time[22m
+events        | [32m  79  [39m[36m   79  [39m[0m11.4s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1mTime[22m
+localization  | [32m  50  [39m[36m   50  [39m[0m8.9s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1m Time[22m
+failures      | [32m 243  [39m[36m  243  [39m[0m24.4s
+[0m[1mTest Summary: | [22m[32m[1mPass  [22m[39m[36m[1mTotal  [22m[39m[0m[1m   Time[22m
+selected      | [32m 658  [39m[36m  658  [39m[0m1m49.2s

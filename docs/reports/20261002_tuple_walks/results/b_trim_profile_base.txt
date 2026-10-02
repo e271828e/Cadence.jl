@@ -1,0 +1,5 @@
+_scratch Float64      3.03 ms
+resolve_condition     26.39 ms
+compile_plan Dual     25.81 ms
+init! commit          28.96 ms
+trim! whole           92.75 ms

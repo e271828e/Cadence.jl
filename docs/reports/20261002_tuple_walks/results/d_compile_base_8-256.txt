@@ -1,0 +1,4 @@
+n=8 first apply! 0.037 s, first gather_reads 0.006 s
+n=64 first apply! 1.555 s, first gather_reads 0.008 s
+n=128 first apply! 14.175 s, first gather_reads 0.009 s
+n=256 first apply! 202.288 s, first gather_reads 0.016 s

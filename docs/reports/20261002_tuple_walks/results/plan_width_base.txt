@@ -1,0 +1,5 @@
+n=16 xs=16 prefixes=16 apply! bytes=0 time=76.1 ns
+n=32 xs=32 prefixes=32 apply! bytes=0 time=149.8 ns
+n=33 xs=33 prefixes=33 apply! bytes=2176 time=1387.5 ns
+n=40 xs=40 prefixes=40 apply! bytes=19200 time=11875.0 ns
+n=64 xs=64 prefixes=64 apply! bytes=102336 time=65834.0 ns

@@ -1,0 +1,6 @@
+components=4 cells=4 devices=0 per frame=816.3 B
+components=64 cells=64 devices=0 per frame=1296.3 B
+components=256 cells=256 devices=0 per frame=2832.3 B
+components=4 cells=4 devices=1 per frame=1088.9 B
+components=4 cells=4 devices=2 per frame=1361.2 B
+components=4 cells=4 devices=4 per frame=1906.0 B

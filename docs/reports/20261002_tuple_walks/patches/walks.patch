@@ -1,0 +1,108 @@
+diff --git a/src/bindings.jl b/src/bindings.jl
+index f267bf6..ca538e1 100644
+--- a/src/bindings.jl
++++ b/src/bindings.jl
+@@ -90,14 +90,15 @@ throw is deliberate — it lands in the wrapper as the `DeviceCrash` it is
+ device struct, maintained by the loop, and arrives *inside* the datum:
+ `map_input` stays pure, and staged values are levels, never deltas (§11.4).
+ """
+-function map_input(datum::NamedTuple, b::TableBinding)
+-    map(keys(datum)) do channel
+-        haskey(b.table, channel) || error(
+-            "map_input: the datum carries `$channel`, which names no channel of this " *
+-            "TableBinding — its channels are $(_faceset(keys(b.table))) (§11.6)")
+-        entry = b.table[channel]
+-        String(entry.face) => _condition(datum[channel], entry)
+-    end
++@generated map_input(datum::NamedTuple{K}, b::TableBinding) where {K} =
++    _unrolled_tuple(i -> :(_map_channel(datum, b, $(QuoteNode(K[i])))), length(K))
++
++function _map_channel(datum::NamedTuple, b::TableBinding, channel::Symbol)
++    haskey(b.table, channel) || error(
++        "map_input: the datum carries `$channel`, which names no channel of this " *
++        "TableBinding — its channels are $(_faceset(keys(b.table))) (§11.6)")
++    entry = b.table[channel]
++    String(entry.face) => _condition(datum[channel], entry)
+ end
+ 
+ # --- the output side: selectors, resolution, the compiled gather (§14.4, §11.2) --
+@@ -129,7 +130,7 @@ end
+ ReadGather{L}(entries::E) where {L,E<:Tuple} = ReadGather{L,E}(entries)
+ 
+ gather_snapshot(read_gather::ReadGather{L}, snapshot::Snapshot) where {L} =
+-    NamedTuple{L}(map(entry -> _read(entry, snapshot.store), read_gather.entries))
++    NamedTuple{L}(_read_all(read_gather.entries, snapshot.store))
+ 
+ """
+ Resolve one attachment's `reads` against the build and compile the gather —
+diff --git a/src/conditions.jl b/src/conditions.jl
+index a71686e..8c59170 100644
+--- a/src/conditions.jl
++++ b/src/conditions.jl
+@@ -629,7 +629,7 @@ StoreWrite{K,S,F}(ci::Int, defaults::S, authored::A) where {K,S,F,A<:Tuple} =
+     scatter_cell!(exec.store, w.addr, w.authored(tree))
+ 
+ @inline function _write!(w::StoreWrite{K,S,F}, exec::Executor, tree) where {K,S,F}
+-    overlay = NamedTuple{F}(map(a -> a(tree), w.authored))
++    overlay = NamedTuple{F}(_overlay(w.authored, tree))
+     ((K === :s ? exec.sstores : exec.mstores)[w.ci]::Base.RefValue{S})[] =
+         convert(S, merge(w.defaults, overlay))
+     nothing
+@@ -774,17 +774,14 @@ apply!(::Executor{T}, ::SpecializedPlan{T,NT}, tree) where {T,NT} =
+ apply!(::Executor{S}, ::SpecializedPlan{T}, tree) where {S,T} =
+     _activation_mismatch("plan", T, S)
+ 
+-@inline _writes!(::Tuple{}, ::Executor, tree) = nothing
+-@inline function _writes!(writes::Tuple, exec::Executor, tree)
+-    _write!(first(writes), exec, tree)
+-    _writes!(Base.tail(writes), exec, tree)
+-end
++@generated _writes!(writes::Tuple, exec::Executor, tree) =
++    _unrolled(i -> :(_write!(writes[$i], exec, tree)), fieldcount(writes))
+ 
+-@inline _sweep_prefixes(::Tuple{}, tree) = nothing
+-@inline function _sweep_prefixes(prefixes::Tuple, tree)
+-    _compare(first(prefixes), tree)
+-    _sweep_prefixes(Base.tail(prefixes), tree)
+-end
++@generated _sweep_prefixes(prefixes::Tuple, tree) =
++    _unrolled(i -> :(_compare(prefixes[$i], tree)), fieldcount(prefixes))
++
++@generated _overlay(authored::Tuple, tree) =
++    _unrolled_tuple(i -> :(authored[$i](tree)), fieldcount(authored))
+ 
+ @inline function _compare(prefix::Prefix{P}, tree) where {P}
+     observed = walk_steps(tree, Val(P))
+diff --git a/src/executor.jl b/src/executor.jl
+index cb4e90e..152897d 100644
+--- a/src/executor.jl
++++ b/src/executor.jl
+@@ -320,6 +320,12 @@ end
+ _unrolled(statement, n::Int) =
+     Expr(:block, Expr(:meta, :inline), map(statement, 1:n)..., :nothing)
+ 
++# Its twin for a walk that builds a value: the elements' expressions as one
++# tuple, inlined, where `map` over a tuple of 32 or more falls back to a
++# `Vector{Any}` and loses the element types.
++_unrolled_tuple(element, n::Int) =
++    Expr(:block, Expr(:meta, :inline), Expr(:tuple, map(element, 1:n)...))
++
+ _projects!(event_set::EventSet, xbuf) = _project_chunks(event_set.projects, xbuf)
+ @generated _project_chunks(chunks::Tuple, xbuf) =
+     _unrolled(i -> :(_project_chunk!(chunks[$i], xbuf)), fieldcount(chunks))
+diff --git a/src/readers.jl b/src/readers.jl
+index 5d827ef..b3ad4fa 100644
+--- a/src/readers.jl
++++ b/src/readers.jl
+@@ -365,7 +365,10 @@ end
+ Reader{T,L}(entries::E) where {T,L,E<:Tuple} = Reader{T,L,E}(entries)
+ 
+ @inline gather_reads(reader::Reader{T,L}, exec::Executor{T}) where {T,L} =
+-    NamedTuple{L}(map(e -> _read(e, exec), reader.entries))
++    NamedTuple{L}(_read_all(reader.entries, exec))
++
++@generated _read_all(entries::Tuple, source) =
++    _unrolled_tuple(i -> :(_read(entries[$i], source)), fieldcount(entries))
+ 
+ gather_reads(::Reader{T}, ::Executor{S}) where {T,S} = _activation_mismatch("reader", T, S)
+ 

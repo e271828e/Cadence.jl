@@ -1,0 +1,16 @@
+saw4 deviceless frames=100 boundaries=101 alloc=82192 B  per frame=821.9 B
+saw4 deviceless frames=1000 boundaries=1001 alloc=816592 B  per frame=816.6 B
+saw4 deviceless frames=10000 boundaries=10001 alloc=8160592 B  per frame=816.1 B
+saw4 deviceless frames=100000 boundaries=100001 alloc=82583664 B  per frame=825.8 B
+saw4 log=false frames=100 boundaries=101 alloc=82192 B  per frame=821.9 B
+saw4 log=false frames=1000 boundaries=1001 alloc=816592 B  per frame=816.6 B
+saw4 log=false frames=10000 boundaries=10001 alloc=8160592 B  per frame=816.1 B
+saw4 log=false frames=100000 boundaries=100001 alloc=81600592 B  per frame=816.0 B
+saw4 log=false trace=false frames=100 boundaries=101 alloc=82192 B  per frame=821.9 B
+saw4 log=false trace=false frames=1000 boundaries=1001 alloc=816592 B  per frame=816.6 B
+saw4 log=false trace=false frames=10000 boundaries=10001 alloc=8160592 B  per frame=816.1 B
+saw4 log=false trace=false frames=100000 boundaries=100001 alloc=81600592 B  per frame=816.0 B
+saw4 + TailProbe frames=100 boundaries=101 alloc=110272 B  per frame=1102.7 B
+saw4 + TailProbe frames=1000 boundaries=1001 alloc=1089600 B  per frame=1089.6 B
+saw4 + TailProbe frames=10000 boundaries=10001 alloc=10882432 B  per frame=1088.2 B
+saw4 + TailProbe frames=100000 boundaries=100001 alloc=109786000 B  per frame=1097.9 B

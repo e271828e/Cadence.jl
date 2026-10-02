@@ -1,0 +1,12 @@
+n=32 tail: inferred true, remaining calls: Core.getfield,Core.tuple
+      walk: _apply_iterate left 0
+      walk alloc isbits 0 B, strings 0 B, 36.4 ns
+n=33 tail: inferred true, remaining calls: Core.getfield,Core.svec,Core._apply_iterate
+      walk: _apply_iterate left 1
+      walk alloc isbits 832 B, strings 560 B, 699.9 ns
+n=34 tail: inferred true, remaining calls: Core.getfield,Core.svec,Core._apply_iterate
+      walk: _apply_iterate left 2
+      walk alloc isbits 1648 B, strings 1120 B, 3396.4 ns
+n=64 tail: inferred true, remaining calls: Core.getfield,Core.svec,Core._apply_iterate
+      walk: _apply_iterate left 32
+      walk alloc isbits 38624 B, strings 26336 B, 30819.7 ns

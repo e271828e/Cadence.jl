@@ -1,0 +1,32 @@
+WARNING: Detected access to binding `Main.WideS31` in a world prior to its definition world.
+  Julia 1.12 has introduced more strict world age semantics for global bindings.
+  !!! This code may malfunction under Revise.
+  !!! This code will error in future versions of Julia.
+Hint: Add an appropriate `invokelatest` around the access to this binding.
+To make this warning an error, and hence obtain a stack trace, use `julia --depwarn=error`.
+WARNING: Detected access to binding `Main.WideS32` in a world prior to its definition world.
+  Julia 1.12 has introduced more strict world age semantics for global bindings.
+  !!! This code may malfunction under Revise.
+  !!! This code will error in future versions of Julia.
+Hint: Add an appropriate `invokelatest` around the access to this binding.
+To make this warning an error, and hence obtain a stack trace, use `julia --depwarn=error`.
+WARNING: Detected access to binding `Main.WideS33` in a world prior to its definition world.
+  Julia 1.12 has introduced more strict world age semantics for global bindings.
+  !!! This code may malfunction under Revise.
+  !!! This code will error in future versions of Julia.
+Hint: Add an appropriate `invokelatest` around the access to this binding.
+To make this warning an error, and hence obtain a stack trace, use `julia --depwarn=error`.
+WARNING: Detected access to binding `Main.WideS64` in a world prior to its definition world.
+  Julia 1.12 has introduced more strict world age semantics for global bindings.
+  !!! This code may malfunction under Revise.
+  !!! This code will error in future versions of Julia.
+Hint: Add an appropriate `invokelatest` around the access to this binding.
+To make this warning an error, and hence obtain a stack trace, use `julia --depwarn=error`.
+n=31 gather(handle, snapshot) 400 B 30.9 ns | gather_snapshot 0 B 5.4 ns, concrete return true
+n=32 gather(handle, snapshot) 2032 B 1175.0 ns | gather_snapshot 1888 B 1179.2 ns, concrete return false
+n=33 gather(handle, snapshot) 2064 B 1200.0 ns | gather_snapshot 1920 B 1162.5 ns, concrete return false
+n=64 gather(handle, snapshot) 3856 B 2273.2 ns | gather_snapshot 3712 B 2231.4 ns, concrete return false
+n=31 StoreWrite overlay: stores=1 xs=0 apply! 0 B 7.8 ns
+n=32 StoreWrite overlay: stores=1 xs=0 apply! 11136 B 3260.4 ns
+n=33 StoreWrite overlay: stores=1 xs=0 apply! 11968 B 3562.5 ns
+n=64 StoreWrite overlay: stores=1 xs=0 apply! 39616 B 8291.0 ns

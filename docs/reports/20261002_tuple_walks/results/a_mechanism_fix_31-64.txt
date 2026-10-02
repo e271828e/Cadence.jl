@@ -1,0 +1,37 @@
+== Base.tail return type, heterogeneous tuple of n elements
+n=31 tail -> concrete 30-tuple
+      argtail(x...) direct (not splatted) -> true
+n=32 tail -> concrete 31-tuple
+      argtail(x...) direct (not splatted) -> true
+n=33 tail -> concrete 32-tuple
+      argtail(x...) direct (not splatted) -> true
+n=64 tail -> concrete 63-tuple
+      argtail(x...) direct (not splatted) -> true
+n=31 _writes!(xs): return Nothing; statements 962, :invoke 31, _apply_iterate 0, generic :call Cadence.getfield
+n=31 _sweep_prefixes: return Nothing; statements 404, :invoke 31, _apply_iterate 0, generic :call Cadence.getfield,Cadence.:(===)
+n=31 apply!: return Nothing; statements 1369, :invoke 62, _apply_iterate 0, generic :call Cadence.getfield,Cadence.:(===)
+    unoptimized _writes!: Base.tail(writes) inferred as Any[]
+n=31 gather_reads: return @NamedTuple{q1::Float64, q2::Float64, q3::Float64, q4::Float64, q5::Float64, q6::Float64, q7::Float64, q8::Float64, q9::Float64, q10::Float64, q11::Float64, q12::Float64, q13::Float64, q14::Float64, q15::Float64, q16::Float64, q17::Float64, q18::Float64, q19::Float64, q20::Float64, q21::Float64, q22::Float64, q23::Float64, q24::Float64, q25::Float64, q26::Float64, q27::Float64, q28::Float64, q29::Float64, q30::Float64, q31::Float64}; statements 779, :invoke 31, _apply_iterate 0, generic :call none
+    map method selected: Tuple{typeof(map), Any, Tuple}
+    bytes 0  apply! bytes 0
+n=32 _writes!(xs): return Nothing; statements 993, :invoke 32, _apply_iterate 0, generic :call Cadence.getfield
+n=32 _sweep_prefixes: return Nothing; statements 417, :invoke 32, _apply_iterate 0, generic :call Cadence.getfield,Cadence.:(===)
+n=32 apply!: return Nothing; statements 1413, :invoke 64, _apply_iterate 0, generic :call Cadence.getfield,Cadence.:(===)
+    unoptimized _writes!: Base.tail(writes) inferred as Any[]
+n=32 gather_reads: return @NamedTuple{q1::Float64, q2::Float64, q3::Float64, q4::Float64, q5::Float64, q6::Float64, q7::Float64, q8::Float64, q9::Float64, q10::Float64, q11::Float64, q12::Float64, q13::Float64, q14::Float64, q15::Float64, q16::Float64, q17::Float64, q18::Float64, q19::Float64, q20::Float64, q21::Float64, q22::Float64, q23::Float64, q24::Float64, q25::Float64, q26::Float64, q27::Float64, q28::Float64, q29::Float64, q30::Float64, q31::Float64, q32::Float64}; statements 804, :invoke 32, _apply_iterate 0, generic :call none
+    map method selected: Tuple{typeof(map), Any, Tuple{Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Vararg{Any, N}} where N}
+    bytes 0  apply! bytes 0
+n=33 _writes!(xs): return Nothing; statements 1024, :invoke 33, _apply_iterate 0, generic :call Cadence.getfield
+n=33 _sweep_prefixes: return Nothing; statements 430, :invoke 33, _apply_iterate 0, generic :call Cadence.getfield,Cadence.:(===)
+n=33 apply!: return Nothing; statements 1457, :invoke 66, _apply_iterate 0, generic :call Cadence.getfield,Cadence.:(===)
+    unoptimized _writes!: Base.tail(writes) inferred as Any[]
+n=33 gather_reads: return @NamedTuple{q1::Float64, q2::Float64, q3::Float64, q4::Float64, q5::Float64, q6::Float64, q7::Float64, q8::Float64, q9::Float64, q10::Float64, q11::Float64, q12::Float64, q13::Float64, q14::Float64, q15::Float64, q16::Float64, q17::Float64, q18::Float64, q19::Float64, q20::Float64, q21::Float64, q22::Float64, q23::Float64, q24::Float64, q25::Float64, q26::Float64, q27::Float64, q28::Float64, q29::Float64, q30::Float64, q31::Float64, q32::Float64, q33::Float64}; statements 829, :invoke 33, _apply_iterate 0, generic :call none
+    map method selected: Tuple{typeof(map), Any, Tuple{Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Vararg{Any, N}} where N}
+    bytes 0  apply! bytes 0
+n=64 _writes!(xs): return Nothing; statements 1985, :invoke 64, _apply_iterate 0, generic :call Cadence.getfield
+n=64 _sweep_prefixes: return Nothing; statements 833, :invoke 64, _apply_iterate 0, generic :call Cadence.getfield,Cadence.:(===)
+n=64 apply!: return Nothing; statements 2821, :invoke 128, _apply_iterate 0, generic :call Cadence.getfield,Cadence.:(===)
+    unoptimized _writes!: Base.tail(writes) inferred as Any[]
+n=64 gather_reads: return @NamedTuple{q1::Float64, q2::Float64, q3::Float64, q4::Float64, q5::Float64, q6::Float64, q7::Float64, q8::Float64, q9::Float64, q10::Float64, q11::Float64, q12::Float64, q13::Float64, q14::Float64, q15::Float64, q16::Float64, q17::Float64, q18::Float64, q19::Float64, q20::Float64, q21::Float64, q22::Float64, q23::Float64, q24::Float64, q25::Float64, q26::Float64, q27::Float64, q28::Float64, q29::Float64, q30::Float64, q31::Float64, q32::Float64, q33::Float64, q34::Float64, q35::Float64, q36::Float64, q37::Float64, q38::Float64, q39::Float64, q40::Float64, q41::Float64, q42::Float64, q43::Float64, q44::Float64, q45::Float64, q46::Float64, q47::Float64, q48::Float64, q49::Float64, q50::Float64, q51::Float64, q52::Float64, q53::Float64, q54::Float64, q55::Float64, q56::Float64, q57::Float64, q58::Float64, q59::Float64, q60::Float64, q61::Float64, q62::Float64, q63::Float64, q64::Float64}; statements 1604, :invoke 64, _apply_iterate 0, generic :call none
+    map method selected: Tuple{typeof(map), Any, Tuple{Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Vararg{Any, N}} where N}
+    bytes 0  apply! bytes 0

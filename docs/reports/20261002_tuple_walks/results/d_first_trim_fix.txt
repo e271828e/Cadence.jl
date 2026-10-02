@@ -1,0 +1,3 @@
+n=8 first trim! 2.38 s, second 1.3 ms
+n=64 first trim! 1.3 s, second 25.3 ms
+n=128 first trim! 2.58 s, second 94.7 ms

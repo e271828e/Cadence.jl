@@ -1,0 +1,4 @@
+N=31 _seeded 16768 B 1.04 µs | _seed 0 B 29.9 ns
+N=32 _seeded 17824 B 1.09 µs | _seed 272 B 48.6 ns
+N=33 _seeded 93056 B 54.04 µs | _seed 1984 B 1554.2 ns
+N=64 _seeded 343744 B 191.38 µs | _seed 3792 B 2759.3 ns
