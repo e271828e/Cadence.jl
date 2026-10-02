@@ -818,10 +818,10 @@ The views themselves are unchanged in meaning.
 - Scratch. `ws` ([§7.3][s7-3]).
 
 The [signal table](#g-signal-table) holds only *produced* signals, never transported ones. Each
-datum has exactly one home. The buffer holds `x`, the stores hold `s` and `m`,
-and the table holds signals. No store mirrors another. Every bundle field earns
-its place as a view genuinely readable, and no minimization of the set survives
-without introducing a copy ([D-035][d-035]).
+datum has exactly one home. The buffer holds `x`, the `s` and `m` stores hold
+`s` and `m`, and the table holds signals. No store mirrors another. Every
+bundle field earns its place as a view genuinely readable, and no minimization
+of the set survives without introducing a copy ([D-035][d-035]).
 
 ### 5.3 Structural feedthrough: stage roles, execution order and step boundaries
 
@@ -1527,9 +1527,10 @@ keyword, and `Ranged`, a clamped scalar. An attitude state is an
 The structure step refuses a field outside the vocabulary as
 `IllegalStateLeaf` ([§9.1][s9-1]). [§8.2][s8-2] shows the kind's messages.
 
-**The declaration is flat** ([D-094][d-094]). Each field is one leaf, never a `NamedTuple` of
-leaves. The condition algebra and the readers address a field as one leaf
-([§14.3][s14-3], [§14.4][s14-4]), and structure comes from the [component](#g-component) tree, not from the value.
+**The declaration is flat** ([D-094][d-094], [D-304][d-304]). Each field is one leaf, never a
+`NamedTuple` of leaves. The condition algebra and the readers address a field
+as one leaf ([§14.3][s14-3], [§14.4][s14-4]), and structure comes from the [component](#g-component) tree, not
+from the value.
 
 The framework does three things with the declaration.
 
@@ -1557,7 +1558,7 @@ and it is value-identical because the value is immutable and the buffer is
 unchanged within a [sweep](#g-sweep) (one pass through the execution order). This
 buffer-unchanged-within-a-sweep rule is exactly the legality condition of the
 code generator's CSE, the common-subexpression elimination that hoists
-repeated reads of views rebuilt per call ([§9.7][s9-7], [D-288][d-288]).
+repeated reads of views rebuilt per call ([§9.7][s9-7], [D-288][d-288], [D-304][d-304]).
 
 The complementary rule is [one home per datum](#g-one-home-per-datum) (each
 datum has exactly one home), stated in [§5.2][s5-2] ([D-035][d-035]). In
@@ -1660,10 +1661,10 @@ given scalar type), as [§8.2][s8-2] states. On the continuous [tier](#g-tier) (
 discrete side) a `Float64` leaf follows the activation scalar, in a contract and
 in the `x_init`-derived state type alike ([D-263][d-263], [D-295][d-295]). A contract leaf wrapped
 in the leaf marker `Pinned{P}` is deliberately pinned ([D-263][d-263]). Participation is
-therefore authored per leaf, by the absence or presence of the marker. The
-discrete side stays plain and pins wholesale ([D-263][d-263], [D-295][d-295]). Nothing anywhere
-comes from inference through user code ([D-032][d-032], [D-079][d-079]). Safety of the
-substitution rests on the embedding guarantee stated in [§9.5][s9-5].
+therefore authored per leaf, by the absence or presence of the marker
+([D-263][d-263]). The discrete side stays plain and pins wholesale ([D-263][d-263], [D-295][d-295]).
+Nothing anywhere comes from inference through user code ([D-032][d-032], [D-079][d-079], [D-304][d-304]).
+Safety of the substitution rests on the embedding guarantee stated in [§9.5][s9-5].
 
 For lookups, table data is a pinned parameter and the query coordinate is
 walked traffic ([D-011][d-011]). Interpolations.jl, the interpolation package
@@ -1676,7 +1677,7 @@ matters. A manual chain rule via `Interpolations.gradient` is the escape hatch
 for anything exotic, and the pattern for wrapping non-Julia black boxes
 ([D-266][d-266]).
 
-Three rules are author-facing ([D-011][d-011], [D-235][d-235]).
+Three rules are author-facing ([D-011][d-011], [D-235][d-235], [D-304][d-304]).
 
 1. No `::Float64` argument annotations in math. Use `<:Real` or nothing.
 2. No `Float64`-pinned intermediates. Write `zero(SVector{3,T})`.
@@ -1703,7 +1704,7 @@ overwrites an `s` or `m` store when an update or a handler returns a new value.
 An `s` or `m` store keeps the same immutable-value discipline as the
 [signal table](#g-signal-table)'s [cells](#g-cell), in a separate home. The vocabulary of [§4.1][s4-1] never counts a
 store as a cell ([D-302][d-302]). The `s` and `m` stores never touch the buffer, and no
-arithmetic is ever done on them.
+arithmetic is ever done on them ([D-304][d-304]).
 
 **Every field of an `s` or `m` store value is isbits or a `Symbol`** ([D-231][d-231]). An
 isbits value is immutable and holds no references, transitively. Enums,
@@ -1713,7 +1714,7 @@ an array, or a struct holding either does not qualify.
 A `Symbol` is admitted as the idiomatic label. It is interned, immutable and
 never freed, so it copies as a pointer to permanent data and serializes as its
 name. The table admits it on the same grounds, as an opaque leaf
-([§4.3][s4-3]). A struct nesting a `Symbol` does not qualify. The structure
+([§4.3][s4-3]). A struct nesting a `Symbol` does not qualify ([D-304][d-304]). The structure
 step checks every `s_init` and `m_init` field and reports a violation as
 `IllegalStoreField` ([§9.1][s9-1], [Appendix C][sC], [D-231][d-231]).
 
@@ -1727,7 +1728,7 @@ trace) of the entire discrete side is "copy the store values", and a stored
 value has one fixed layout per component.
 
 Double-buffered mutable state is a possible future extension only, deferred
-([D-013][d-013]).
+([D-013][d-013], [D-306][d-306]).
 
 #### Workspace
 
@@ -1737,17 +1738,17 @@ arrives as the `ws` field of the [bundle](#g-bundle) (the NamedTuple of zero-cop
 component function receives) in every bundle-receiving function of the declaring
 component ([§5.2][s5-2]). `x_projection` is positional and receives none ([D-074][d-074]).
 
-A workspace is excluded from state semantics. It is not snapshotted, not
-replayed and never a condition target ([§14.1][s14-1]). It must carry no
-information between calls ([D-183][d-183]).
+A workspace is excluded from state semantics. It is not snapshotted and not
+replayed. It is never a condition target ([§14.1][s14-1], [D-306][d-306]). It
+must carry no information between calls ([D-183][d-183]).
 
 **The framework never inspects or mutates a workspace** ([D-183][d-183]). The
 workspace is an opaque, opt-in escape hatch from value semantics, used at the
 author's own risk. Its rules are contract, not checks. At call entry, contents
 are unspecified beyond the structure the allocator itself established. A plan
-or factorization configured at allocation is valid from then on. Scratch is
-garbage until written this call, and nothing a previous call left behind may
-be relied upon. No poisoning of scratch is attempted.
+or factorization configured at allocation is valid from then on ([D-306][d-306]).
+Scratch is garbage until written this call, and nothing a previous call left
+behind may be relied upon. No poisoning of scratch is attempted.
 
 **A workspace is declared by allocation**, never by initial value ([D-077][d-077]). The
 well-known method *is* the allocator.
@@ -1887,22 +1888,22 @@ shortening the stage-2 chain.
 
 ### 7.5 Allocation policy: a scoped invariant
 
-The allocation policy is not dogma ([D-014][d-014]). Three reasons support it, and only
-one is about speed. The first is GC-pause jitter control for real-time. The
-second is throughput for [unattended runs](#g-unattended-run) (runs with empty staging and no
-snapshot readers). The third is the canary. An unexpected allocation is Julia's
-most reliable symptom of type instability. A zero baseline therefore makes
-`@allocated == 0` a CI-testable invariant. That invariant catches inference
-regressions at the offending commit. The section states the invariant's scope,
-the policy's three budgets, what the [log](#g-log) does not record, and the tools for
-garbage that cannot be avoided.
+The allocation policy is not dogma ([D-014][d-014], [D-305][d-305]). Three reasons support it,
+and only one is about speed. The first is GC-pause jitter control for
+real-time. The second is throughput for [unattended runs](#g-unattended-run) (runs with empty
+staging and no snapshot readers). The third is the canary. An unexpected
+allocation is Julia's most reliable symptom of type instability. A zero
+baseline therefore makes `@allocated == 0` a CI-testable invariant. That
+invariant catches inference regressions at the offending commit. The section
+states the invariant's scope, the policy's three budgets, what the [log](#g-log) does
+not record, and the tools for garbage that cannot be avoided.
 
 The zero-allocation invariant is scoped to the stepping loop, and the
-stopped-sim services were always allocation-tolerant ([D-135][d-135], [§14.8][s14-8]). Publication
-is not a [phase body](#g-measurement-seam) (one of the compiled bodies the loop runs) ([D-288][d-288], [§9.7][s9-7]).
-Publication's one [snapshot](#g-snapshot) (the immutable per-boundary publication) allocation
-per [boundary](#g-boundary) sits with logging on the framework side, outside what the invariant
-claims is zero ([§11.2][s11-2]).
+stopped-sim services were always allocation-tolerant ([D-135][d-135], [D-305][d-305],
+[§14.8][s14-8]). Publication is not a [phase body](#g-measurement-seam) (one of the compiled bodies the
+loop runs) ([D-288][d-288], [§9.7][s9-7]). Publication's one [snapshot](#g-snapshot) (the immutable
+per-boundary publication) allocation per [boundary](#g-boundary) sits with logging on the
+framework side, outside what the invariant claims is zero ([§11.2][s11-2]).
 
 The policy sets three budgets.
 
@@ -1911,14 +1912,14 @@ The policy sets three budgets.
   [guards](#g-guard), evaluated every boundary whether they fire or not, and `x_projection`
   at both of its [§5.3][s5-3] positions in the [execution order](#g-execution-order). **The budget is exactly
   zero, CI-enforced** at the measurement [seam](#g-seam) that `phase_bodies` exposes ([§9.7][s9-7],
-  [D-014][d-014], [D-116][d-116]).
+  [D-014][d-014], [D-116][d-116], [D-305][d-305]).
 - Periodic [ticks](#g-tick) (the instants a discrete component runs) and event handlers
   execute episodically. A tick runs when due, and a handler only on firing.
   Their allocation is zero by the [workspace](#g-workspace)-plus-snapshot idiom ([§7.3][s7-3]) and
-  immutable-value returns. A workspace is component-declared mutable scratch
-  arriving as the `ws` bundle field. The rare exception has a documented
-  tolerance ([D-116][d-116]). The seam's granularity scopes the tolerance per body, so
-  the tolerance never loosens the continuous assertions.
+  immutable-value returns ([D-305][d-305]). A workspace is component-declared mutable
+  scratch arriving as the `ws` bundle field. The rare exception has a
+  documented tolerance ([D-116][d-116]). The seam's granularity scopes the tolerance
+  per body, so the tolerance never loosens the continuous assertions.
 - Logging is amortized-zero. The log retains the published snapshot
   objects themselves, by reference ([§11.2][s11-2], [D-137][d-137]). It keeps
   one slot per retained boundary and makes no copy. `sizehint!` to the
@@ -2259,7 +2260,7 @@ lives in. It is stated once here, and the blocks below refer back to it.
 
 - A *by-value* declaration states nominal physics, and its *types*
   [walk by rule](#g-leaf-walk) (the derivation of per-activation types from a
-  declared nominal type). [§7.1][s7-1] forces every state leaf to follow the
+  declared nominal type). [§7.1][s7-1] and [§7.2][s7-2] force every state leaf to follow the
   scalar of the [activation](#g-activation) (the build's typed products at a
   given scalar type). Nothing is therefore left for a signature to record.
   Partials enter through per-invocation seeding, never through initialization
@@ -4829,8 +4830,7 @@ hoisting and therefore no cache-invalidation obligation. Hoisting belongs to the
 code generator. Common-subexpression elimination (CSE) merges repeated loads
 exactly where no intervening store invalidates them. That is precisely
 [§7.1][s7-1]'s buffer-unchanged-within-a-sweep rule. The sweep-varying bundle
-fields (`u`, `y_x`/`y_s`) are per-call by topological necessity either way
-([§7.1][s7-1]).
+fields (`u`, `y_x`/`y_s`) are per-call by topological necessity either way.
 
 **Construction is type-opaque**, and only the executor
 specializes ([D-288][d-288]). Entry tuples are built from untyped buffers
@@ -11429,8 +11429,8 @@ For component authors:
   results instead of recomputing them.
 - **One home per datum** ([§5.2][s5-2], [§4.3][s4-3]). The signal table holds
   *produced* signals only, never transported ones. The buffer holds `x`, the
-  stores hold `s` and `m`, and the table holds signals. No store mirrors
-  another.
+  `s` and `m` stores hold `s` and `m`, and the table holds signals. No store
+  mirrors another.
 - **The value-level constructor** ([§4.4][s4-4]). A field-emitting component
   ships the map from (component, input values) to handle as a plain public
   function, and its output stage merely calls it. The condition math
@@ -12131,7 +12131,7 @@ collection ([§13.2][s13-2], [D-250][d-250]).
 - **`StatelessWithoutOutputs`** ([§8.2][s8-2], [§8.3][s8-3]). Error · build ·
   collected. Component path, type, the declarations found (no `y_types`,
   an empty store). A leaf that produces nothing and stores nothing ([D-263][d-263]).
-- **`IllegalPortType`** ([§7.1][s7-1], [§8.2][s8-2]). Error · build ·
+- **`IllegalPortType`** ([§4.3][s4-3], [§8.2][s8-2]). Error · build ·
   collected. Component path, the declaration at fault
   (`u_types`/`y_types`, or a root input), port name, the offending
   type (one with no leaves, a mutable one, an opaque leaf at a root input,
@@ -12596,9 +12596,9 @@ immutability *plus frozen references* (`isbits` is the common case, not the
 rule). It gives no aliasing, safe concurrent reads, and a definite per-cell
 freshness tied to the producer's position in the execution order ([§4.1][s4-1]).
 
-<a id="g-one-home-per-datum"></a>**one home per datum** — the buffer holds `x`, the stores hold `s` and `m`,
-and the table holds produced signals. No store mirrors another, and the table
-never holds transported data ([§5.2][s5-2], [§7.1][s7-1]).
+<a id="g-one-home-per-datum"></a>**one home per datum** — the buffer holds `x`, the `s` and `m` stores hold
+`s` and `m`, and the table holds produced signals. No store mirrors another,
+and the table never holds transported data ([§5.2][s5-2], [§7.1][s7-1]).
 
 <a id="g-port"></a>**port** — the addressable unit of the model: one declared name, one cell, one
 root input, one staged write, one device claim, one trace address, one GUI
@@ -12613,7 +12613,7 @@ write ([§11.3][s11-3], [§8.2][s8-2], [§8.6][s8-6]).
 <a id="g-scratch"></a>**scratch** — mutable working storage whose contents are never authoritative.
 No boundary-consistent fact of the simulation is read from it. There are
 three kinds: a component's workspace (`ws`, [§7.3][s7-3]); the integrator's
-buffers and the mid-step table ([§7.5][s7-5], [§10.3][s10-3], [§10.4][s10-4]); and the store
+buffers and the mid-step table ([§10.3][s10-3], [§10.4][s10-4]); and the store
 set a service invocation instantiates from the activation's layout and
 discards with the call ([§9.4][s9-4], [§14.8][s14-8]). Not to be confused
 with the simulation's own buffer set, which has the same shape and is the
@@ -13725,6 +13725,9 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-301]: decisions.md#d-301--name-a-declaration-by-what-it-returns
 [d-302]: decisions.md#d-302--let-a-store-be-the-home-of-any-state-letter
 [d-303]: decisions.md#d-303--name-the-connection-declarations-for-wires-and-groups-keywords-for-the-declarations
+[d-304]: decisions.md#d-304--the-flat-declaration-the-unchanged-buffer-the-store-field-limits-and-authored-genericity
+[d-305]: decisions.md#d-305--the-zero-allocation-invariants-scope-its-grounds-and-its-budgets
+[d-306]: decisions.md#d-306--the-workspace-outside-conditions-plans-valid-from-allocation-and-double-buffering-deferred
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

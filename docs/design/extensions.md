@@ -280,8 +280,9 @@ partials(f(a, xd, ud), 1)              # ∂ẋ/∂k = u/τ = 6.0, exact
 - **Parents must be generic over child types.** `Actuator{G,L}` absorbs a
   `Gain{Dual}` child; a parent pinning `gain::Gain{Float64}` re-erects the wall one
   level up (loudly, at assembly construction). [§8.5][s8-5]'s type-based assembly shape
-  already has this property — it is [§7.2][s7-2]'s "no `::SomeType{Float64}` annotations"
-  rule transposed from method signatures to field declarations.
+  already has this property — it is [§7.2][s7-2]'s "no `::SomeType{Float64}`
+  return-type annotations" rule transposed from method signatures to field
+  declarations.
 - **Parameters mix; storage does not.** Cell types and the `x`-buffer eltype are
   declarations *retyped at the activation scalar by the leaf walk* ([§7.2][s7-2], [§8.2][s8-2]), never inferred
   from traffic. A seeded world therefore runs under the matching `Dual` activation:
