@@ -23,7 +23,7 @@ boundaries, which is the only place anything discrete ever happens.
 multiple of `N_base`. Its [tick index](#g-tick-index) is then
 `tick = k ÷ N_base`. A frame top that is no base tick has no tick index, and
 neither does a boundary at a localized event time `t*`
-([§10.4][s10-4], [D-185][d-185]).
+([§10.4][s10-4], [D-185][d-185], [D-288][d-288]).
 
 However an author declares a rate, and however deeply the declaration is
 nested, **the build compiles it to two integers per discrete component**

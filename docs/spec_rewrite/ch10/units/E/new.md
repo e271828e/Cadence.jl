@@ -19,7 +19,7 @@ bit-identical trajectories. So deterministic [replay](#g-replay)
 
 Detection policy is inside the semantics. **Event localization runs
 identically paced or unpaced** ([§10.4][s10-4], [D-080][d-080]). Its
-[sweep](#g-sweep) cost is absorbed as [debt](#g-pacing) (wall time that later
+[sweep](#g-sweep) cost is absorbed as debt (wall time that later
 frames repay) like any other expensive frame ([D-080][d-080]). Degrading to
 boundary detection under pacing was rejected ([D-080][d-080]).
 

@@ -83,8 +83,8 @@ to be run.
 **The seam is never entered empty** ([D-156][d-156]). The framework
 short-circuits this case rather than pushing it down the seam. With an empty
 `x`, the integrate step degenerates to advancing `t` to the next boundary,
-and the stepper is not called. No backend ever faces `N = 0`, and no backend
-contract has to say what it would do there.
+and the stepper is not called. No backend ever faces a state count of
+`N = 0`, and no backend contract has to say what it would do there.
 
 The loop-ownership rule ([§10.1][s10-1]) pays off structurally here. Under a
 foreign solver loop, an empty state pays a dummy-`[0.0]` tax
@@ -150,7 +150,7 @@ The Flight.jl evidence behind these claims lives in section 5 of
 During a step, the RK stages evaluate the [interior sweep](#g-sweep) (the
 sweep variant over continuous entries only, [§10.5][s10-5]) at internal stage
 states ([D-147][d-147]). While they do, the [signal table](#g-signal-table)
-is transiently integrator scratch. The [boundary sweep](#g-sweep) in the
+is transiently integrator scratch. The boundary sweep in the
 [§5.3][s5-3] sequence restores consistency at each accepted
 [boundary](#g-boundary).
 
@@ -242,7 +242,7 @@ step), which the localization loop below defines and builds.
 **Trial evaluations run the interior sweep** ([D-147][d-147]). Guards read `y`.
 Evaluating a guard at an interpolated state therefore means writing
 $\hat{x}(\theta)$ into the state [buffer](#g-buffer) and running the
-[interior sweep](#g-sweep). The [RHS](#g-flow) already lives under this rule
+interior sweep. The [RHS](#g-flow) already lives under this rule
 ([§10.5][s10-5]), since a trial evaluation is a mid-step evaluation. Discrete
 [cells](#g-cell) therefore hold their [tick](#g-tick) values (set at the last
 instant their stages and update ran) through localization, and a guard reading a
@@ -262,7 +262,7 @@ not-holding transition neither fires nor localizes.
 
 **The trigger check runs against the arrival sweep at tₙ₊₁** ([D-182][d-182]).
 That is the sweep that closes the integration step. So the check runs before the
-due-gated [boundary sweep](#g-sweep) refreshes any discrete cell. The rule that trial
+due-gated boundary sweep refreshes any discrete cell. The rule that trial
 evaluations run the interior sweep (above) already forces this order, because
 trial evaluations must see the values the frame actually held. Stating it here
 fixes the sequencing up front. Every `t*` firing precedes tₙ₊₁'s whole boundary
@@ -345,10 +345,11 @@ discrete solution, which is the standard pairing. The event time can never be
 more accurate than the interpolant, so nothing more expensive is worth running
 trials against.
 
-**Root-finding is bracketed and derivative-free** ([D-018][d-018]). ITP or Brent
-are the intended methods, and bisection is an acceptable fallback. The observed
+**Root-finding is bracketed and derivative-free** ([D-018][d-018]). ITP (the
+interpolate-truncate-project method) or Brent's method are the intended
+methods, and bisection is an acceptable fallback. The observed
 not-holding/holding bracket is an unconditional convergence certificate. Newton
-and AD localization are rejected ([D-018][d-018]).
+and AD (automatic differentiation) localization are rejected ([D-018][d-018]).
 
 **Convergence is a relative bracket width** ([D-133][d-133]). Localization stops
 once the bracket is narrower than `localization_tol · h`. `localization_tol` is
@@ -532,7 +533,7 @@ boundaries, which is the only place anything discrete ever happens.
 multiple of `N_base`. Its [tick index](#g-tick-index) is then
 `tick = k ÷ N_base`. A frame top that is no base tick has no tick index, and
 neither does a boundary at a localized event time `t*`
-([§10.4][s10-4], [D-185][d-185]).
+([§10.4][s10-4], [D-185][d-185], [D-288][d-288]).
 
 However an author declares a rate, and however deeply the declaration is
 nested, **the build compiles it to two integers per discrete component**
@@ -1141,7 +1142,7 @@ bit-identical trajectories. So deterministic [replay](#g-replay)
 
 Detection policy is inside the semantics. **Event localization runs
 identically paced or unpaced** ([§10.4][s10-4], [D-080][d-080]). Its
-[sweep](#g-sweep) cost is absorbed as [debt](#g-pacing) (wall time that later
+[sweep](#g-sweep) cost is absorbed as debt (wall time that later
 frames repay) like any other expensive frame ([D-080][d-080]). Degrading to
 boundary detection under pacing was rejected ([D-080][d-080]).
 

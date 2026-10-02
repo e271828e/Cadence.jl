@@ -289,10 +289,11 @@
   {
    "id": "A-033",
    "old": "No backend ever faces `N = 0`, and no backend contract has to say what it would do there.",
-   "new": "No backend ever faces `N = 0`, and no backend contract has to say what it would do there.",
+   "new": "No backend ever faces a state count of `N = 0`, and no backend contract has to say what it would do there.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "K10"
   },
   {
    "id": "A-034",
@@ -686,7 +687,8 @@
    "cites": [
     "§5.3"
    ],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "K12"
   },
   {
    "id": "A-078",

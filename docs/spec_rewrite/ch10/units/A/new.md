@@ -83,8 +83,8 @@ to be run.
 **The seam is never entered empty** ([D-156][d-156]). The framework
 short-circuits this case rather than pushing it down the seam. With an empty
 `x`, the integrate step degenerates to advancing `t` to the next boundary,
-and the stepper is not called. No backend ever faces `N = 0`, and no backend
-contract has to say what it would do there.
+and the stepper is not called. No backend ever faces a state count of
+`N = 0`, and no backend contract has to say what it would do there.
 
 The loop-ownership rule ([§10.1][s10-1]) pays off structurally here. Under a
 foreign solver loop, an empty state pays a dummy-`[0.0]` tax
@@ -150,7 +150,7 @@ The Flight.jl evidence behind these claims lives in section 5 of
 During a step, the RK stages evaluate the [interior sweep](#g-sweep) (the
 sweep variant over continuous entries only, [§10.5][s10-5]) at internal stage
 states ([D-147][d-147]). While they do, the [signal table](#g-signal-table)
-is transiently integrator scratch. The [boundary sweep](#g-sweep) in the
+is transiently integrator scratch. The boundary sweep in the
 [§5.3][s5-3] sequence restores consistency at each accepted
 [boundary](#g-boundary).
 

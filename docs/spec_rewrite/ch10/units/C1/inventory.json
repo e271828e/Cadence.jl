@@ -129,14 +129,16 @@
   {
    "id": "C1-016",
    "old": "A frame top that is no base tick has no tick index, and neither does a `t` boundary.",
-   "new": "A frame top that is no base tick has no tick index, and neither does a boundary at a localized event time `t` (§10.4, D-185).",
+   "new": "A frame top that is no base tick has no tick index, and neither does a boundary at a localized event time `t` (§10.4, D-185, D-288).",
    "where": "new",
    "cites": [],
    "newcites": [
     "§10.4",
-    "D-185"
+    "D-185",
+    "D-288"
    ],
-   "tag": "C"
+   "tag": "R",
+   "ruling": "K7"
   },
   {
    "id": "C1-017",

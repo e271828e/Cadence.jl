@@ -349,7 +349,8 @@
    "new": "That is the sweep that closes the integration step. So the check runs before the due-gated boundary sweep refreshes any discrete cell.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "K12"
   },
   {
    "id": "B1-041",
@@ -727,7 +728,8 @@
    "new": "Guards read `y`. Evaluating a guard at an interpolated state therefore means writing $\\hat{x}(\\theta)$ into the state buffer and running the interior sweep.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "K12"
   },
   {
    "id": "B1-085",
@@ -769,10 +771,11 @@
   {
    "id": "B1-089",
    "old": "ITP or Brent are the intended methods, and bisection is an acceptable fallback.",
-   "new": "ITP or Brent are the intended methods, and bisection is an acceptable fallback.",
+   "new": "ITP (the interpolate-truncate-project method) or Brent's method are the intended methods, and bisection is an acceptable fallback.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "K11"
   },
   {
    "id": "B1-090",
@@ -785,12 +788,13 @@
   {
    "id": "B1-091",
    "old": "Newton and AD localization are rejected (D-018).",
-   "new": "Newton and AD localization are rejected (D-018).",
+   "new": "Newton and AD (automatic differentiation) localization are rejected (D-018).",
    "where": "new",
    "cites": [
     "D-018"
    ],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "K11"
   },
   {
    "id": "B1-092",

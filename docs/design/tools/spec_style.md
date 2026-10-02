@@ -34,7 +34,9 @@ in pedagogy is not.
   gloss is 5–10 words, parenthesized: "the [drain][g-drain] (the frame-top
   swap that publishes staged device writes into the root inputs)". Every
   section must be locally re-readable by a reader arriving cold. A term takes
-  one glossary link per section, tables included.
+  one glossary link per section, tables included. So does a glossary anchor:
+  where an entry bolds several names, as *sweep* bolds interior sweep and
+  boundary sweep, only the first of them in a section is linked.
 - **Introduce every reader-cold name.** A name the spec uses without
   introducing it is one of three kinds. Flight.jl machinery used as if known
   moves to a companion, or the spec says what it is. An aerospace example
