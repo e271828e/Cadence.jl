@@ -569,7 +569,7 @@ apply!(sim::Simulation, plan::ConditionPlan) = apply!(sim.exec, plan)
 # The other way over the same checks. The dynamic walk bakes *values*, so a
 # plan is good for one tree; this one bakes *lenses*, so a plan compiled from a
 # tree's shape applies to every later tree of that shape. That is the trade
-# §14.4 states: ~10–50 ms of codegen once per shape, against a per-iteration
+# §14.4 states: codegen once per shape, against a per-iteration
 # write with no strings, no dispatch and no allocation — the shape being fixed
 # and the values varying is exactly what an iterating service does.
 #
@@ -635,7 +635,7 @@ StoreWrite{K,S,F}(ci::Int, defaults::S, authored::A) where {K,S,F,A<:Tuple} =
     nothing
 end
 
-# One store's authored fields can number past 32, so their values are an
+# One store's authored fields can number 32 or more, so their values are an
 # unrolled tuple rather than a `map` (executor.jl's `_unrolled_tuple`).
 @generated _authored_values(authored::Tuple, tree) =
     _unrolled_tuple(i -> :(authored[$i](tree)), fieldcount(authored))

@@ -9792,10 +9792,10 @@ plan.
   a prefix that differs at a position) is `ConditionShapeDrift`
   ([Appendix C][sC]), a structured error rather than silent corruption. The
   cost is Julia codegen *once per condition shape*, and it grows with the
-  shape's writes. It measures 10 to 50 ms up to 32 writes, 0.09 s at 64 and
-  0.2 s at 128 (`docs/reports/20261002_tuple_walks/`). That cost is
-  noise against the model's own first-sweep warmup (seconds), and against the
-  10³–10⁴ optimizer evaluations the codegen amortizes over.
+  shape's writes. On Julia 1.13 it measures 10 to 50 ms up to 32 writes,
+  0.09 s at 64 and 0.2 s at 128 (`docs/reports/20261002_tuple_walks/`).
+  That cost is noise against the model's own first-sweep warmup (seconds),
+  and against the 10³–10⁴ optimizer evaluations the codegen amortizes over.
 - **The dynamic walk** serves the one-shot uses, `init!` and `linearize`'s
   operating condition. It executes the same validated entry list by runtime
   dispatch per write. That takes microseconds in total,

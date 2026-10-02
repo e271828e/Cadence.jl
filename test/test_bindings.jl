@@ -152,6 +152,13 @@ function test_bindings()
         @test map_input(datum, b)[64] == ("f64" => 0.1 * 64)
         @test @ballocated(map_input($datum, $b)) == 0
         @test isconcretetype(only(Base.return_types(map_input, (typeof(datum), typeof(b)))))
+        # §11.6's own table, whose entries differ in shape: each channel's entry
+        # is read by a fixed field, never looked up by a runtime name.
+        example = TableBinding(stick_y = (face = "elevator", deadzone = 0.05, expo = 0.6),
+                               throttle = (face = "throttle",),
+                               trigger = (face = "brake_count",))
+        example_datum = (; stick_y = 0.4, throttle = 0.7, trigger = 3)
+        @test @ballocated(map_input($example_datum, $example)) == 0
     end
 
     @testset "the loop idiom end to end: poll → map_input(binding(handle)) → stage! (§11.6)" begin

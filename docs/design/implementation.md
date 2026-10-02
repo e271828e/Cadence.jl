@@ -941,12 +941,16 @@ Traps the code does not warn about, each hit more than once while building:
 - the init-service keyword is `t0` (the spec's signatures, D-110) while the
   *concept* and `Clock`'s field stay `t₀` — `clock.t₀ = t0` inside `init!`
   is that split, not a typo; don't unify them;
-- **a walk over a tuple whose width a model sets is a generated unroll**,
-  through `_unrolled` or `_unrolled_tuple` in `executor.jl` (§9.7, D-289).
-  Two Julia thresholds make any other walk allocate. A `Base.tail` recursion
-  allocates at every call once the tuple passes 32 elements. `map` over a
-  tuple of 32 or more falls back to a `Vector{Any}`, dispatches per element
-  and returns a type that is not concrete;
+- **a walk over a tuple whose width a model sets is a generated unroll**
+  where it runs in the loop or in a service, through `_unrolled` or
+  `_unrolled_tuple` in `executor.jl`. A walk that runs once per build or per
+  attach is exempt. Two Julia thresholds make any other walk allocate. A
+  `Base.tail` recursion allocates at every call once the tuple passes 32
+  elements. `map` over a tuple of 32 or more falls back to a `Vector{Any}`,
+  dispatches per element and returns a type that is not concrete. §9.7 rules
+  this for the executor's walks alone, and D-289 records why the rule stops
+  there. Two service walks still break it, the splats of partials in
+  `trim.jl`'s `_seeded` and `linearize.jl`'s `_seed`;
 - **code that runs once per build takes a component, an assembly or the root
   unspecialized**: `@nospecialize` on the argument, and
   `Base.@nospecializeinfer` on the walk's entry points `build`, `flatten_tree!` and

@@ -11895,10 +11895,10 @@ every allocation check reads zero.
 A recursion on `Base.tail` allocates at every call once the tuple passes 32
 elements. That reached a chunk of more than 32 entries, a body of more than
 32 chunks (512 entries at chunk size 16), and an event set with more than 32
-projections, guards or handlers. On a model with 64 projecting components it allocated 595 KB per
-boundary and made the loop 5 times slower (the report's section 9). A
-generated body with one statement per element has no such limit and
-compiles faster. The event set's walks were the ones left unchunked, and
+projections, guards or handlers. On a model with 64 projecting components it
+allocated 595 KB per boundary and made the loop 5 times slower (the report's
+section 9). A generated body with one statement per element has no such
+limit and compiles faster. The event set's walks were the ones left unchunked, and
 chunking them bounds a wide event set's compile cost as it bounds a phase
 body's.
 

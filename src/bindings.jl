@@ -82,7 +82,8 @@ one field per *touched* channel: `map_input` returns face ⇒ value pairs for
 exactly those, so a sparse datum stages a sparse batch and merge does the
 rest (§11.4). The idiom is `stage!(handle, map_input(datum, binding(handle))...)`,
 on the device's own task. The pairs come back as a tuple in the datum's field
-order, built with no allocation however many fields the datum carries.
+order. Building it allocates nothing when the table's faces are `String`s,
+however many fields the datum carries.
 
 A datum field naming no table channel is configuration drift, not a bad
 datum: the mapping and the datum are written by the same author, so the
@@ -96,7 +97,9 @@ device struct, maintained by the loop, and arrives *inside* the datum:
 
 # One datum field's pair. `map_input` unrolls one call per field, since `map`
 # over 32 or more fields allocates and returns a type that is not concrete.
-function _map_channel(datum::NamedTuple, b::TableBinding, channel::Symbol)
+# Inlined, so each call sees its channel as a constant and reads the table
+# and the datum by a fixed field instead of a runtime name.
+@inline function _map_channel(datum::NamedTuple, b::TableBinding, channel::Symbol)
     haskey(b.table, channel) || error(
         "map_input: the datum carries `$channel`, which names no channel of this " *
         "TableBinding — its channels are $(_faceset(keys(b.table))) (§11.6)")
