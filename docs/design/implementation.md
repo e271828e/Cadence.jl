@@ -1073,9 +1073,9 @@ fixtures in `Main`. The tests are a workspace member (`[workspace]` in
 `Project.toml`), so one root `Manifest.toml`, never committed, resolves both.
 
 Run the suite in the foreground with a 600 s timeout, never in the
-background. The full run costs about 7 min; a cold process spends about 30 s
-before the first file and little per file after, and an `src/` edit adds
-about 15 s of precompile, so name a generous set rather than a minimal one.
+background. The full run takes minutes, so run it only where the rules below
+call for it. A cold process pays its startup and any precompile once, and
+little per file after, so name a generous set rather than a minimal one.
 Which files a change reaches is read off this table, the last row being the
 override:
 
