@@ -31,7 +31,7 @@ readability with no loss of content. The steps are in
 | 5. Evaluation order and feedthrough | not started | | |
 | 6. Composition: connections, aggregation and hierarchy | not started | | |
 | 7. State and data representation | not started | | |
-| 8. The declaration layer: components and assemblies | landed, track 2 pending | `ef7f5dd` | `docs/spec_rewrite/ch08/` |
+| 8. The declaration layer: components and assemblies | done | `ef7f5dd` | `d268d39` |
 | 9. The build pipeline | done | `9a7d84f` | `docs/reports/20261001_chapter9_rewrite/` |
 | 10. Time and execution | done | `3d72f03` | `0f9ce8a` |
 | 11. Runtime periphery: the data plane | not started | | |
@@ -39,6 +39,21 @@ readability with no loss of content. The steps are in
 | 13. Error discipline | not started | | |
 | 14. Stopped-sim services | not started | | |
 | Appendices A to D | not started | | |
+
+## Carried to later chapters
+
+Doubles and pointers chapter 8 found in chapters not yet rewritten. Each
+chapter's rewrite settles its own:
+
+- **Chapter 3.** §3.4's lead-in "Algebra removes the reset." bolds D-056's
+  first bullet, which §8.6 bolds.
+- **Chapter 5.** §5.3 states D-252 under a **Rule.** label; §8.3 bolds it.
+- **Chapter 6.** §6.1 bolds "for a continuous consumer only", the walk
+  clause's tier scope that §8.2 bolds (D-295).
+- **Chapter 11.** §11.6 calls §8.1's shadowing check "the reflection class",
+  a name §8.1 never uses.
+- **Chapter 14.** §14.10 bolds seedability and states the tap rejection,
+  both of which §8.2 states (D-295, D-296).
 
 Chapter 9 predates this directory. Its files stay in its report, with the
 §9.4 trial in `docs/reports/20261001_spec_rewrite_sample/`.
