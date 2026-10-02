@@ -2332,7 +2332,7 @@ like any other expensive frame.
 scheduling unit (input drain, pacer deadlines, tick eligibility); boundaries =
 published consistency points (grid, `t*`, boundary zero).
 
-**Spec.** [§10.6][s10-6], [§12.3][s12-3]
+**Spec.** [§10.1][s10-1], [§10.4][s10-4], [§10.6][s10-6], [§12.3][s12-3]
 
 **Rationale.** At `t*` the full [§10.6][s10-6] iteration runs with once-per-event scoped
 per boundary, snapshot published, [§12.3][s12-3] boundary counter incremented, `stop_on`
@@ -11145,7 +11145,7 @@ is the trace's header, and replay is a restore followed by the feed.
   restores the header and runs no boundary zero, so frame one's record is
   still ahead of it and `step!` re-executes that frame.)
 
-**Spec.** [§11.5][s11-5], [§12.6][s12-6], [§12.7][s12-7], [§13.7][s13-7], [§14.8][s14-8], [§14.10][s14-10], [Appendix B][sB]
+**Spec.** [§10.2][s10-2], [§10.6][s10-6], [§11.5][s11-5], [§12.6][s12-6], [§12.7][s12-7], [§13.7][s13-7], [§14.8][s14-8], [§14.10][s14-10], [Appendix B][sB]
 
 **Rationale.** Once the state past the initial instant is a value of its
 own, restoring it is a copy, and nothing can be one tick ahead: the held
@@ -11820,7 +11820,7 @@ options it opens stay uncommitted.
 - Publication is not a phase body. Invoking phase bodies in isolation leaves
   the buffers valid but off-trajectory, and continuing takes `init!`.
 
-**Spec.** [§9.7][s9-7]
+**Spec.** [§9.7][s9-7], [§10.5][s10-5]
 
 **Rationale.** The phase bodies are the semantically forced outer
 decomposition, and their seams cost nothing; views rebuild per call, hoisting
