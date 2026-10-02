@@ -74,10 +74,15 @@ _terminal(terminal::Tuple{String,Symbol}) =
                                "`$(first(terminal))`.$(last(terminal))"
 _join(path::String, segment::String) = isempty(path) ? segment : path * "/" * segment
 
-_holds_components(@nospecialize(comp)) = any(fieldnames(typeof(comp))) do name
-    v = getfield(comp, name)
-    v isa AbstractComponent ||
-        ((v isa NamedTuple || v isa Tuple) && any(e -> e isa AbstractComponent, v))
+# A loop, because a `do` closure would capture `comp` (see `_walk!`).
+function _holds_components(@nospecialize(comp))
+    for name in fieldnames(typeof(comp))
+        v = getfield(comp, name)
+        (v isa AbstractComponent ||
+         ((v isa NamedTuple || v isa Tuple) && any(e -> e isa AbstractComponent, v))) &&
+            return true
+    end
+    false
 end
 
 # --- children (§8.5) ----------------------------------------------------------
@@ -219,8 +224,14 @@ function _element_keys(@nospecialize(v))
 end
 
 # The container fields of `comp`'s type: what a name-transparent declaration may name.
-_container_fields(@nospecialize(comp)) =
-    Symbol[n for n in fieldnames(typeof(comp)) if _is_container(getfield(comp, n))]
+# A loop, because a comprehension's closure would capture `comp` (see `_walk!`).
+function _container_fields(@nospecialize(comp))
+    container_fields = Symbol[]
+    for name in fieldnames(typeof(comp))
+        _is_container(getfield(comp, name)) && push!(container_fields, name)
+    end
+    container_fields
+end
 
 # A container holding a component at any depth: the shape `ContainerNested` names.
 _bears_component(@nospecialize(v)) = (v isa NamedTuple || v isa Tuple) &&
@@ -694,9 +705,14 @@ _endpoints(inner::Tuple) = inner
 
 # Called by the declaring level alone, on its own children's endpoints: a parent
 # reading the face reads the routes this built.
-_fanout(draft, entry, base, @nospecialize(comp), inner, diags) =
-    reduce(vcat, (resolve_dest(draft, entry, base, comp, p, diags) for p in _endpoints(inner));
-           init = Vector{Tuple{String,Symbol}}[])
+# A loop, because a generator's closure would capture `comp` (see `_walk!`).
+function _fanout(draft, entry, base, @nospecialize(comp), inner, diags)
+    routes = Vector{Tuple{String,Symbol}}[]
+    for endpoint in _endpoints(inner)
+        append!(routes, resolve_dest(draft, entry, base, comp, endpoint, diags))
+    end
+    routes
+end
 
 # Direction is declared by the method; the resolved endpoint only cross-checks it.
 # The mismatch is recorded, never thrown: the wire simply resolves to nothing.

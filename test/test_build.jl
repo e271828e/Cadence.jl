@@ -1678,13 +1678,12 @@ end
 # and the root unspecialized, and a new component type or a new root compiles
 # none of it again. Each function below keeps a count of its specializations,
 # and a function compiled per type gains one at each new type. Only a type
-# compiled for the first time can show it, which is why the two tests build
-# types no other test builds, and the count is read just before and after one
-# build.
+# compiled for the first time can show it, which is why the tests build types
+# no other test builds, and the count is read just before and after one build.
 
-# The functions of the layer the two builds run, each of which compiled again per
-# type before the layer was unspecialized. `at_component` is among them because
-# every closure created per component passes through it.
+# The functions of the layer the builds below run, each of which compiled again
+# per type before the layer was unspecialized. `at_component` is among them
+# because every closure created per component passes through it.
 const DECLARATION_LAYER = (
     build, flatten!, _walk!, StructureDraft, at_component,
     invoke_declaration, invoke_probed, declarations, classify, classify_tier,
@@ -1692,7 +1691,9 @@ const DECLARATION_LAYER = (
     leaf_declarations, declarations_found, foreign_declarations,
     has_stage, _declares, _declares_workspace, declared_at, bundle_names,
     event_bundle_names, children, _children, _walked_children, _contract,
-    resolve_terminal, resolve_source, _workspace, _check_handler)
+    resolve_terminal, resolve_source, _workspace, _check_handler,
+    resolve_dest, _check_transparent, _container_fields, _elements, _element_keys,
+    _is_container)
 
 # Counted over the methods the layer's three files define: `flatten!` also
 # names the leaf walk of `leaves.jl`.
@@ -1730,6 +1731,17 @@ function build_specializations()
         build_opaque(Group((; a = FreshSawtoothA(1.0), b = FreshSawtoothA(2.0),
                               c = FreshSawtoothA(3.0));
                            outputs = "a/q" => "q"))
+        @test specialization_counts() == counts
+    end
+
+    @testset "nor does a root that fans an input (§9.7, D-289)" begin
+        # The fan resolves each endpoint against the root. Only Julia 1.12 can
+        # fail this: there a closure capturing the root is a type per root type.
+        build_opaque(Group((; a = SampledLoop(), b = SampledLoop());
+                           inputs = "ref" => ("a/ref", "b/ref")))
+        counts = specialization_counts()
+        build_opaque(Group((; a = SampledLoop(), b = SampledLoop(), c = SampledLoop());
+                           inputs = "ref" => ("a/ref", "b/ref", "c/ref")))
         @test specialization_counts() == counts
     end
 end

@@ -185,7 +185,9 @@ D-185, D-195, D-211, D-246, D-248, D-263, D-289.
 - The walk, the class and child readers, the resolvers and the build
   primitives take components, assemblies and the root unspecialized, and
   `_children` reads a container through `_elements` and `_element_keys`, so a
-  new component or root type compiles none of them again (§9.7, D-289).
+  new component or root type compiles none of them again (§9.7, D-289). A
+  function that takes a connection or its endpoint tuple, as `_fanout` does,
+  still compiles once per connection type.
 
 Spec: §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §9.7, §13.3, §13.7, §14.2, Appendix C, D-061, D-130,
 D-171, D-207–D-212, D-229, D-236, D-246, D-247, D-248, D-251, D-253, D-261,

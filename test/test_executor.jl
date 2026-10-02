@@ -70,39 +70,53 @@ function test_executor()
             end
         end
 
-        # The event set's three walks, at 40 projections and 40 events.
+        # The event set's three walks, at 40 projections and 40 events: forty
+        # one-entry chunks at chunk_size = 1, one chunk of forty at 40.
         rotors = Group(NamedTuple{ntuple(i -> Symbol(:p, i), 40)}(
             ntuple(_ -> Group((; rot = Rotor(), saw = Sawtooth(1.0))), 40)))
-        sim = Simulation(rotors; h = 1//100)
-        init!(sim)
-        @test length(phase_bodies(sim).projections) == 40
-        @test length(phase_bodies(sim).events) == 40
-        events, store, xbuf = sim.exec.events, sim.exec.store, sim.exec.xbuf
-        _projects!(events, xbuf); _guards!(events, store, xbuf); _fire!(events, store, xbuf)
-        @test @ballocated(_projects!($events, $xbuf)) == 0
-        @test @ballocated(_guards!($events, $store, $xbuf)) == 0
-        @test @ballocated(_fire!($events, $store, $xbuf)) == 0
+        for chunk_size in (1, 40)
+            sim = Simulation(rotors; h = 1//100, chunk_size)
+            init!(sim)
+            @test length(phase_bodies(sim).projections) == 40
+            @test length(phase_bodies(sim).events) == 40
+            events, store, xbuf = sim.exec.events, sim.exec.store, sim.exec.xbuf
+            @test length(events.entries) == length(events.projects) == 40 ÷ chunk_size
+            _projects!(events, xbuf); _guards!(events, store, xbuf); _fire!(events, store, xbuf)
+            @test @ballocated(_projects!($events, $xbuf)) == 0
+            @test @ballocated(_guards!($events, $store, $xbuf)) == 0
+            @test @ballocated(_fire!($events, $store, $xbuf)) == 0
+        end
     end
 
     @testset "chunks and the event set are held by reference (§9.7)" begin
         # The executor holds one pointer per chunk, so its inline size grows by
-        # one word per chunk whatever the chunk holds. The count spans the four
-        # bodies in both variants and the event set's two tuples.
+        # one word per phase-body chunk whatever the chunk holds. It holds the
+        # event set by one pointer too, and the event set holds one pointer per
+        # event chunk.
         count_chunks(sim) =
             sum(length(getfield(sim.exec.bodies[name], variant))
-                for name in BLOCKS for variant in (:interior, :boundary)) +
-            length(sim.exec.events.entries) + length(sim.exec.events.projects)
+                for name in BLOCKS for variant in (:interior, :boundary))
         loops(n) = Group(NamedTuple{ntuple(i -> Symbol(:m, i), n)}(ntuple(_ -> feedback_model(), n));
                          inputs = ("ref" => ntuple(i -> "m$(i)/ref", n),))
-        small, big = Simulation(loops(6); h = 1//100), Simulation(loops(40); h = 1//100)
-        @test sizeof(big.exec) - sizeof(small.exec) ==
-              sizeof(Int) * (count_chunks(big) - count_chunks(small))
+        # Each loop runs at its own rate, so a walk that reorders or drops an
+        # entry changes the state below.
+        rotor_saws(n) = Group(NamedTuple{ntuple(i -> Symbol(:p, i), n)}(
+            ntuple(i -> Group((; rot = Rotor(; ω = 1.0 + i / 100),
+                                 saw = Sawtooth(1.0 + i / 100))), n)))
+        for model in (loops, rotor_saws)
+            small, big = Simulation(model(6); h = 1//100), Simulation(model(40); h = 1//100)
+            @test sizeof(big.exec) - sizeof(small.exec) ==
+                  sizeof(Int) * (count_chunks(big) - count_chunks(small))
+        end
+        events = Simulation(rotor_saws(40); h = 1//100).exec.events
+        @test ismutable(events)
+        @test sizeof(events.entries) == sizeof(Int) * length(events.entries)
+        @test sizeof(events.projects) == sizeof(Int) * length(events.projects)
 
         # The event-set walks cross chunk borders: forty events and forty
         # projections at chunk size 4 sit in ten chunks each, and the run past
         # three wraps is the run at 16 and at 64.
-        rotors = Group(NamedTuple{ntuple(i -> Symbol(:p, i), 40)}(
-            ntuple(_ -> Group((; rot = Rotor(), saw = Sawtooth(1.0))), 40)))
+        rotors = rotor_saws(40)
         runs = map((4, 16, 64)) do chunk_size
             sim = Simulation(rotors; h = 1//100, chunk_size)
             init!(sim)
@@ -124,6 +138,12 @@ function test_executor()
         rhs(); ẋ_interior = copy(sim.exec.ẋbuf)
         fill!(sim.exec.ẋbuf, NaN); rhs(3)
         @test sim.exec.ẋbuf == ẋ_interior
+        # It reuses the interior's compiled walk: no boundary walk exists for
+        # this body's entries.
+        entries_types = [typeof(chunk.entries) for chunk in rhs.interior]
+        @test !any(Base.specializations(only(methods(_walk_at)))) do method_instance
+            Base.unwrap_unionall(method_instance.specTypes).parameters[2] in entries_types
+        end
     end
 
     @testset "the event and projection callables ride with the four blocks (§9.7)" begin

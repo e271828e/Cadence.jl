@@ -1221,9 +1221,9 @@ function probe_events(structure::Structure, act::Activation{Float64})
                                     y = products[ci], ws = workspaces[ci], m = mstores[ci])
             # A loop, not a `map` closure, which would capture the instance and its
             # events and so be a type per component type.
-            event_names = tuple(keys(declared_events)...)
+            declared_names = tuple(keys(declared_events)...)
             event_policies = Symbol[]
-            for name in event_names
+            for name in declared_names
                 σ = invoke_probed(declared_events[name].guard, :guard, path, comp,
                                   CONTINUOUS, bundle)
                 policy = σ isa Bool ? :boundary :
@@ -1236,7 +1236,7 @@ function probe_events(structure::Structure, act::Activation{Float64})
                     decl, comp)
                 push!(event_policies, policy)
             end
-            NamedTuple{event_names}(Tuple(event_policies)), bundle_fields
+            NamedTuple{declared_names}(Tuple(event_policies)), bundle_fields
         end
         push!(rows, ComponentEvents(path, policies, bundle_fields))
     end

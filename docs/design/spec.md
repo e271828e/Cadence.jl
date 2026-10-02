@@ -4523,10 +4523,10 @@ splits into chunks behind non-inlined, statically typed function barriers.
 Inside a chunk, static dispatch, inlining, scalar replacement of the views,
 check folding and zero allocation all survive, which is everything the
 design relies on. At the barriers only cross-entry fusion is lost, which a
-table-mediated signal flow barely had. The executor's event set holds the
-per-component [projections](#g-projection) and the per-event guards and
-handlers. **Its projection, guard and handler walks chunk the same way**
-([D-289][d-289]).
+table-mediated signal flow barely had. The executor keeps the per-component
+[projections](#g-projection) and the per-event guards and handlers in its
+event set. **The event set's projection, guard and handler walks chunk the
+same way** ([D-289][d-289]).
 
 A chunk's type is its entries' types in order. Chunking buys two things,
 the larger first. Chunks of one type share one compiled function. On 128
