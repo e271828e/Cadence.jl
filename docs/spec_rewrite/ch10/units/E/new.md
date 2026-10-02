@@ -1,6 +1,6 @@
 ### 10.7 Real-time pacing
 
-An interactive run must keep to wall-clock time, and its trajectory must not
+A real-time run must keep to wall-clock time, and its trajectory must not
 depend on how fast it runs. [Pacing](#g-pacing) (the waits that hold a run to
 wall-clock time) does the first without breaking the second. This section covers
 the invariant with the wall-clock map, the wait, the diagnostics, and where

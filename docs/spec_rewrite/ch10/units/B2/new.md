@@ -84,8 +84,8 @@ other localization outcome, it is deterministic and pace-independent
 
 #### The localization budget
 
-**`localization_budget`, the integer count of localizations permitted within one
-frame, defaults to 8** ([D-133][d-133], [D-181][d-181]). It is the second
+`localization_budget` is the integer count of localizations permitted within
+one frame. **Its default is 8** ([D-133][d-133], [D-181][d-181]). It is the second
 deployment keyword this section fixes.
 
 A legitimate multi-event frame needs three or four localizations. Three

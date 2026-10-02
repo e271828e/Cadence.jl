@@ -219,13 +219,13 @@ time and the exhausted budget beside the boundary's firing count.
 
 The default of 4 is chosen the way [§10.4][s10-4] chooses 8 for the
 [localization budget](#g-chattering) (the count of localizations permitted
-within one frame). A legitimate re-enable is one or two firings deep. A toggling
+within one [frame](#g-frame), one grid step). A legitimate re-enable is one or two firings deep. A toggling
 FSM pair chatters without bound. A budget of 4 separates the two without ever
 binding on a healthy model. Like every other degradation here, it depends on the
 trajectory alone, so the run replays identically.
 
 The doctrine of [§10.4][s10-4] governs both budgets. Neither the boundary
-iteration nor re-localization within the [frame](#g-frame) (one grid step) has a
+iteration nor re-localization within the frame has a
 structural bound, so each takes a budget. The boundary iteration takes
 `firing_budget`, per event per boundary, and re-localization takes
 `localization_budget`, per frame. Both degrade loudly rather than erroring,

@@ -531,7 +531,7 @@
   {
    "id": "B2-059",
    "old": "Rule. `localization_budget` is an integer count of localizations permitted within one frame.",
-   "new": "`localization_budget`, the integer count of localizations permitted within one frame, defaults to 8 (D-133, D-181).",
+   "new": "`localization_budget` is the integer count of localizations permitted within one frame. Its default is 8 (D-133, D-181).",
    "where": "new",
    "cites": [],
    "tag": "R",
@@ -539,16 +539,16 @@
     "D-133",
     "D-181"
    ],
-   "ruling": "P32"
+   "ruling": "6b"
   },
   {
    "id": "B2-060",
    "old": "It defaults to 8.",
-   "new": "defaults to 8",
+   "new": "Its default is 8",
    "where": "new",
    "cites": [],
    "tag": "R",
-   "ruling": "P32"
+   "ruling": "6b"
   },
   {
    "id": "B2-061",

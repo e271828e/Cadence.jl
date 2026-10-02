@@ -16,11 +16,11 @@
   {
    "id": "D-002",
    "old": "Neither the boundary iteration nor cross-frame re-localization has a structural bound, so each takes a budget.",
-   "new": "Neither the boundary iteration nor re-localization within the frame (one grid step) has a structural bound, so each takes a budget.",
+   "new": "Neither the boundary iteration nor re-localization within the frame has a structural bound, so each takes a budget.",
    "where": "new",
    "cites": [],
    "tag": "R",
-   "ruling": "R8 (F5)"
+   "ruling": "6b"
   },
   {
    "id": "D-003",
@@ -1310,12 +1310,13 @@
   {
    "id": "D-148",
    "old": "The default of 4 is chosen the way §10.4 chooses 8.",
-   "new": "The default of 4 is chosen the way §10.4 chooses 8 for the localization budget (the count of localizations permitted within one frame).",
+   "new": "The default of 4 is chosen the way §10.4 chooses 8 for the localization budget (the count of localizations permitted within one frame, one grid step).",
    "where": "new",
    "cites": [
     "§10.4"
    ],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "6b"
   },
   {
    "id": "D-149",
