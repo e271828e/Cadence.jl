@@ -2479,7 +2479,7 @@ all-component elements unpack as children (`"field/1"`/`"field/key"` path
 segments, declaration-order layout); containers are transparent grouping — no
 contract, no `connections`, no rate scope.
 
-**Spec.** [§8.8][s8-8], [§14.9][s14-9]
+**Spec.** [§8.5][s8-5], [§8.6][s8-6], [§8.7][s8-7], [§8.8][s8-8], [§14.9][s14-9]
 
 **Rationale.** Elements are the *parent's* children, wired/exported/rated by
 element name; parametric rosters (`Formation{NT <: NamedTuple}`) compose per
@@ -7538,7 +7538,7 @@ their children directly — `"ctl/out" => "plant/u"`, `(ctl = Relative(2),)`,
 zero-new-declaration-rules framing; undeclared containers keep their key
 segment exactly as before, [D-207][d-207]'s one-level reading unchanged.
 
-**Spec.** [§6.1][s6-1], [§8.5][s8-5], [§8.6][s8-6]
+**Spec.** [§6.1][s6-1], [§8.5][s8-5], [§8.6][s8-6], [§8.7][s8-7]
 
 **Rationale.** [§8.5][s8-5] already rules containers "transparent grouping, not
 assemblies" — transparent in structure and contract, yet opaque in naming:
