@@ -215,10 +215,13 @@ function _elements(@nospecialize(v))
     end
     elements
 end
+# The names are read once: `fieldname` per element dispatches on the names tuple
+# at a cost that grows with its width, which made the list quadratic.
 function _element_keys(@nospecialize(v))
+    names = fieldnames(typeof(v))
     element_keys = Vector{Any}(undef, nfields(v))
     for i in eachindex(element_keys)
-        element_keys[i] = fieldname(typeof(v), i)
+        element_keys[i] = getfield(names, i)
     end
     element_keys
 end
