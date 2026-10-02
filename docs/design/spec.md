@@ -4547,10 +4547,10 @@ recompilation of shifted chunks against runtime, since chunk size 4 runs 3
 to 9 % slower than 16. The default is 16.
 
 **Every walk over an entry tuple or a chunk tuple is a generated unroll**,
-one statement per element ([D-289][d-289]). A recursion on the tuple's tail is
-inferred only up to 32 elements. Past that its calls dispatch dynamically
-and allocate at every call. On a model with 64 projecting components such a
-walk allocated 595 KB per boundary and made the loop 5 times slower.
+one statement per element ([D-289][d-289]). A recursion on the tuple's tail
+allocates at every call once the tuple passes 32 elements. On a model with
+64 projecting components such a walk allocated 595 KB per boundary and made
+the loop 5 times slower.
 
 **A barrier takes its chunk by reference** ([D-289][d-289]). The executor holds one
 pointer per chunk, and it holds the event set by reference too. A chunk
@@ -9791,7 +9791,9 @@ plan.
   one short comparison per `at` node. Shape drift (a tree of another type, or
   a prefix that differs at a position) is `ConditionShapeDrift`
   ([Appendix C][sC]), a structured error rather than silent corruption. The
-  cost is Julia codegen of ~10–50 ms *once per condition shape*. That cost is
+  cost is Julia codegen *once per condition shape*, and it grows with the
+  shape's writes. It measures 10 to 50 ms up to 32 writes, 0.09 s at 64 and
+  0.2 s at 128 (`docs/reports/20261002_tuple_walks/`). That cost is
   noise against the model's own first-sweep warmup (seconds), and against the
   10³–10⁴ optimizer evaluations the codegen amortizes over.
 - **The dynamic walk** serves one-shot init. It executes the same validated
