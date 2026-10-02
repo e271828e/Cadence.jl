@@ -944,9 +944,9 @@ table at the next round's re-sweep ([§10.6][s10-6]). The round that detects qui
 leaves the table post-transition-consistent for whatever else the boundary does,
 such as discrete [ticks](#g-tick) and logging.
 
-**Rule.** Hence the [epoch rule](#g-input-epoch). A handler executes against exactly the world its
-guard fired on. Own `y`, foreign `u` and own `x`/`m` alike come from the firing
-round's sweep, so `y = h(x)` holds at every handler entry.
+**Rule.** Hence the epoch rule ([§10.6][s10-6]). A handler executes against
+exactly the world its guard fired on. Own `y`, foreign `u` and own `x`/`m` alike
+come from the firing round's sweep, so `y = h(x)` holds at every handler entry.
 
 [§10.6][s10-6] settles the iteration itself, how far it runs and how often each event may
 fire under the [firing budget](#g-firing-budget) (the per-boundary cap on how often each event
@@ -4060,7 +4060,7 @@ evaluates the model at a frozen instant.
 - Discrete stages are gated off and hold `Float64` values. This is the
   frozen-constant semantics of [§8.2][s8-2].
 - [Guards](#g-guard) and handlers never run, because event localization runs
-  as `Float64` [sweeps](#g-sweep) by design ([§10.4][s10-4]).
+  as `Float64` [sweeps](#g-sweep) by design ([§9.5][s9-5], [D-052][d-052]).
 - Only the continuous output stages (`y_state`/`y_direct`) and `x_deriv` ever
   see a `Dual`. So only they are probed at it.
 
@@ -4843,7 +4843,7 @@ is transiently integrator scratch. The boundary sweep in the
 [boundary](#g-boundary).
 
 **External readers observe the signal table only at step boundaries**
-([D-023][d-023]). These readers are the GUI, logging and network output.
+([D-023][d-023], [D-293][d-293]). These readers are the GUI, logging and network output.
 Mid-step contents carry no meaning. This rule binds the
 [periphery](#g-periphery) (everything outside the loop that exchanges data with
 it, [§11][s11]). The rule extends naturally to the boundary sequence
@@ -4899,7 +4899,7 @@ sign-form value `σ`. That cast is the definition of the predicate
 at which they are observed changes.
 
 **For a guard that reads only `u` and `m`, boundary detection is exact**
-([D-179][d-179]). Such a predicate is constant within each frame. `u` changes
+([D-179][d-179], [D-290][d-290]). Such a predicate is constant within each frame. `u` changes
 only at the frame-top [drain](#g-drain) (the swap that publishes staged device writes into
 the root inputs, [§11.4][s11-4]), and `m` changes only through handlers, at
 boundaries. The predicate cannot cross mid-step, so there is no interior instant
@@ -4911,7 +4911,7 @@ engine whose modes include `starting` and `running`. Its `starting → running`
 transition fires on `ω > ω_idle && fuel_available`.
 
 **When such a transition should localize, write it in the gate form
-`(gate) ? σ : -one(σ)`** ([D-179][d-179]). The `Bool` factors go in the branch
+`(gate) ? σ : -one(σ)`** ([D-179][d-179], [D-290][d-290]). The `Bool` factors go in the branch
 condition and the continuous factor in the value.
 
 The gate idiom is sound rather than a way around the policy check. Trial
@@ -4995,7 +4995,7 @@ constant `u`, delimited by frame-top drains ([§11.4][s11-4]). Within an epoch a
 guard can change only through the trajectory. At a seam between epochs it can
 jump without crossing anything.
 
-The discriminator is conclusive ([D-182][d-182]). `u` is the only thing that can
+The discriminator is conclusive ([D-182][d-182], [D-290][d-290]). `u` is the only thing that can
 differ between the prior's evaluation context and this trial evaluation. `m`
 changes only via handlers at boundaries, and priors are sampled at quiescence,
 after the handlers. Discrete cells hold their values under zero-order hold
@@ -5010,7 +5010,7 @@ possible source of disagreement.
 - σ₀ holding means an epoch-caused edge. The drain flipped the guard at the
   frame top. σ holds at both ends, so there is no in-frame crossing to find.
 
-**An epoch-caused edge is discarded, not degraded** ([D-182][d-182]). The
+**An epoch-caused edge is discarded, not degraded** ([D-182][d-182], [D-290][d-290]). The
 localization is abandoned and the event fires inside tₙ₊₁'s ordinary iteration.
 Mechanically, not localizing is the action. The frame falls through, and the
 boundary iteration detects and fires the event like any boundary-detected event.
@@ -5018,7 +5018,7 @@ This path costs one interior sweep. It never pays for ẋₙ₊₁ or an interpo
 and it consumes no `localization_budget` (see "The localization budget" below).
 It also warns nothing. Input timing is a frame fact, by the same doctrine that
 forbids draining at `t*` below, and boundary detection is exact for a `u`-caused
-edge (above; [D-179][d-179]). Boundary firing is therefore the correct
+edge (above; [D-179][d-179], [D-290][d-290]). Boundary firing is therefore the correct
 semantics, not a degradation. This is the left-end mirror of the `t* = tₙ₊₁`
 degeneracy below.
 
@@ -5027,7 +5027,7 @@ The interpolant is the seam's dense output ([§10.2][s10-2]). It is built lazily
 $\hat{x}(\theta)$, $\theta = (t - t_n)/h \in [0, 1]$, built from
 $(x_n, \dot{x}_n, x_{n+1}, \dot{x}_{n+1})$. $\dot{x}_n$ is the step's first
 stage. $\dot{x}_{n+1}$ costs one sweep, paid only on a validated trigger
-([D-182][d-182]). The θ = 0 trial evaluation comes first, so an epoch-caused
+([D-182][d-182], [D-290][d-290]). The θ = 0 trial evaluation comes first, so an epoch-caused
 edge never pays for it. Uniform accuracy is $O(h^4)$, one order below the
 discrete solution, which is the standard pairing. The event time can never be
 more accurate than the interpolant, so nothing more expensive is worth running
@@ -5070,7 +5070,7 @@ machinery.
 #### Endpoint policy and grid integrity
 
 **The root-finder returns the holding endpoint of its final bracket**
-([D-082][d-082]). That is the smallest trial point where the predicate holds.
+([D-082][d-082], [D-290][d-290]). That is the smallest trial point where the predicate holds.
 It follows that `t* = tₙ` is structurally impossible. It never needs clamping
 away.
 
@@ -5082,13 +5082,13 @@ strictly later than the published, immutable tₙ. In the worst rounding case it
 is `nextfloat(tₙ)`. This holds unconditionally, with no appeal to the prior.
 It also leaves no residual epoch hole, because the case where the prior and
 the frame's `u` disagree is exactly the epoch-caused edge, and that case
-never reaches the root-finder ([D-182][d-182]).
+never reaches the root-finder ([D-182][d-182], [D-290][d-290]).
 
-The guard also observably holds at `t*` ([D-082][d-082]). Handlers therefore
+The guard also observably holds at `t*` ([D-082][d-082], [D-290][d-290]). Handlers therefore
 fire in states where their own predicate holds, and the post-fire prior
 records an actual observation rather than an assumption.
 
-`t* = tₙ₊₁` exactly is legitimate ([D-082][d-082]). It is a crossing at
+`t* = tₙ₊₁` exactly is legitimate ([D-082][d-082], [D-290][d-290]). It is a crossing at
 the grid point, where σ(tₙ₊₁) = 0 both triggers detection and is the root. It
 degenerates to the grid boundary. The localization result is discarded and
 the event fires inside tₙ₊₁'s ordinary iteration. That outcome is bitwise
@@ -5096,7 +5096,7 @@ identical to the boundary-detected one, with one boundary, one
 [snapshot](#g-snapshot) (the immutable per-boundary publication) and no
 zero-length remainder.
 
-**Grid times are indexed, never accumulated** ([D-082][d-082]). `tₖ = t₀ + k·h`
+**Grid times are indexed, never accumulated** ([D-082][d-082], [D-290][d-290]). `tₖ = t₀ + k·h`
 is computed from the frame index, just as tick gating is already counter-modulo
 ([§10.5][s10-5]). The remainder step targets the grid point, with `h′` (the
 remainder step's length) derived at use. `t*` is a float inside a frame, never
@@ -5106,7 +5106,7 @@ tiny remainder step. Numerically that is harmless, since increments scale with
 
 #### The `t*` boundary
 
-**At `t*` the full [§10.6][s10-6] event phase runs** ([D-081][d-081]). The
+**At `t*` the full [§10.6][s10-6] event phase runs** ([D-081][d-081], [D-290][d-290]). The
 sweep → guards → handlers cycle iterates to quiescence. Firing-budget
 accounting is scoped to this boundary ([D-181][d-181]). The budget is fresh
 again at tₙ₊₁, and again at a second `t*` on the remainder.
@@ -5120,12 +5120,12 @@ Two things do not happen at `t*`. Ticks are never due there
 ([D-147][d-147]). `t*` is off the [harmonic grid](#g-harmonic-grid) (every
 discrete period an integer multiple of `Δt_base`) by construction, and
 discrete cells ZOH-hold through the sweep. The due sets of [§10.5][s10-5] give
-the full reason. **Staged inputs are not drained either** ([D-081][d-081]),
+the full reason. **Staged inputs are not drained either** ([D-081][d-081], [D-290][d-290]),
 for two reasons. Input timing is a frame fact, and the determinism of
 [replay](#g-replay) (the ordinary loop re-driven from the trace) must not
 depend on localization arithmetic.
 
-**The `t*` publication is not separately paced** ([D-081][d-081]). The
+**The `t*` publication is not separately paced** ([D-081][d-081], [D-290][d-290]). The
 [pacer](#g-pacing) (which inserts waits between completed frames) paces frame
 deadlines. A `t*` snapshot publishes when computed, mid-frame. Where that
 lands in wall-clock time is below what pacing resolves. The invariant of
@@ -5225,13 +5225,13 @@ neither does a boundary at a localized event time `t*`
 
 However an author declares a rate, and however deeply the declaration is
 nested, **the build compiles it to two integers per discrete component**
-([D-185][d-185]). The divisor `D` is the component's period in base ticks. The
+([D-185][d-185], [D-291][d-291]). The divisor `D` is the component's period in base ticks. The
 [phase](#g-phase) `Φ` is its offset in base ticks. The pair is kept in the
 canonical residue `0 ≤ Φ < D`, so the component's ticks fall at base-tick
 indices `Φ`, `Φ + D`, `Φ + 2D`, and so on.
 
 **A component is [due](#g-due) at a boundary when `(tick − Φ) % D == 0`**,
-where `tick` is the boundary's tick index ([D-185][d-185]). That subtraction
+where `tick` is the boundary's tick index ([D-185][d-185], [D-291][d-291]). That subtraction
 and remainder are the whole admission test. It costs one subtraction more than
 a phase-free test would, over a lattice fixed at build time. The declaration
 surface below says where a component's `(D, Φ)` comes from.
@@ -5290,7 +5290,7 @@ Each kind of boundary has its own due set:
   set.
 - At [boundary zero](#g-boundary-zero) (the initialization boundary, which
   runs the ordinary macro-sequence with an empty integrate), the due set is
-  everything with `Φ = 0` ([D-185][d-185], [D-205][d-205]). At tick index 0 the gate reads
+  everything with `Φ = 0` ([D-185][d-185], [D-205][d-205], [D-291][d-291]). At tick index 0 the gate reads
   `(0 − Φ) % D == 0`. Under the canonical residue `0 ≤ Φ < D` that holds if
   and only if `Φ = 0`. Nothing implements this rule. It falls out of the
   ordinary gate. Dueness at boundary zero governs the `s_update` calls alone.
@@ -5339,7 +5339,7 @@ time, in different units.
 | `Relative(K, Φ = 0)` | scope ticks | every `K`-th tick of the enclosing scope, starting from its `Φ`-th | `K ≥ 1`, `0 ≤ Φ < K` |
 | `Absolute(q, τ = 0)` | seconds | `t = τ + k·T`, with `T = period(q)` | `T > 0`, `0 ≤ τ < T` |
 
-`K = 1` therefore admits no stagger ([D-185][d-185]). Two same-rate siblings
+`K = 1` therefore admits no stagger ([D-185][d-185], [D-291][d-291]). Two same-rate siblings
 are staggered one level down instead. Declare the scope at twice their rate,
 then give them `Relative(2, 0)` and `Relative(2, 1)`.
 
@@ -5363,7 +5363,7 @@ data carriers, with no checks of their own.
 #### Relative composition
 
 Multipliers compose multiplicatively and phases affinely down the tree
-([D-019][d-019], [D-185][d-185]). Under a scope compiled to divisor and phase
+([D-019][d-019], [D-185][d-185], [D-291][d-291]). Under a scope compiled to divisor and phase
 `(D_s, Φ_s)` in base ticks, a child declared `Relative(K, φ)` compiles to
 `D = K·D_s` and `Φ = Φ_s + φ·D_s`.
 
@@ -5382,7 +5382,7 @@ rate is its fastest relative member, and that member gets `K = 1`.
 
 Two structural properties keep a relative entry on the scope grid and confine
 grid cost to the other form. **A relative phase never refines the base grid**,
-because it selects among scope ticks that already exist ([D-185][d-185]). It
+because it selects among scope ticks that already exist ([D-185][d-185], [D-291][d-291]). It
 also cannot place a tick *between* scope ticks. Staggering off-grid means
 declaring the offset in seconds, or declaring the scope base finer than its
 fastest member so that unused slots exist.
@@ -5423,7 +5423,7 @@ Absolute-first declaration as the default form is rejected ([D-019][d-019],
 [D-186][d-186]). What mid-tree anchors legitimize is narrower, and the
 doctrinal line falls here. **An absolute declaration inside a library type is
 legitimate when the rate is a fact about the modeled system, not a preference
-about the simulation** ([D-186][d-186]).
+about the simulation** ([D-186][d-186], [D-291][d-291]).
 
 A GPS receiver emitting at 1 Hz, a data bus's transmission schedule and an ADC
 (analog-to-digital converter) pipeline's fixed conversion offset are as
@@ -5441,7 +5441,7 @@ The framework cannot police the distinction. It is authoring doctrine,
 recorded here.
 
 **Anchoring leaves the never-cache-`Δt` argument below fully intact**
-([D-186][d-186]). The pinning happens in the enclosing assembly's
+([D-186][d-186], [D-291][d-291]). The pinning happens in the enclosing assembly's
 `sample_times`, the same site where the multiplier lives. The component type
 itself therefore stays rate-agnostic. It still consumes the `Δt` of its
 [bundle](#g-bundle) (the NamedTuple of zero-copy views a component function
@@ -5529,7 +5529,7 @@ itself. Under scoped multipliers a component author *cannot* know their
 absolute rate. It does not exist until composition.
 
 Phases change none of this. **The bundle's `Δt` is still `D·Δt_base`**
-([D-185][d-185]). An offset shifts firing instants and never the period, so
+([D-185][d-185], [D-291][d-291]). An offset shifts firing instants and never the period, so
 the discretized laws are unaffected by staggering.
 
 ### 10.6 Event iteration at boundaries: to quiescence, budgeted
@@ -5639,7 +5639,7 @@ as the sketch shows. Beyond the prior, the cost is one `Bool` and one small
 counter per event.
 
 [Boundary zero](#g-boundary-zero) is the initialization boundary. **Boundary
-zero sets every prior to not-holding** ([D-082][d-082]). A predicate already
+zero sets every prior to not-holding** ([D-082][d-082], [D-292][d-292]). A predicate already
 holding in the authored state therefore fires at `t₀`. That behavior
 ([§14.5][s14-5]) is derived rather than asserted. A re-run from a
 [condition](#g-condition) (a path-addressed overlay that sets the build to a
@@ -5704,10 +5704,10 @@ loop-state field recording where execution stands, [§13.4][s13-4]) and the
 diagnostics stream deterministic. No trajectory depends on it. The natural
 single-pass executor is therefore exactly correct. It builds each handler's
 bundle at dispatch, from the live table. It needs none of the extra machinery
-that [D-154][d-154] made unnecessary, and it allocates nothing.
+that [D-154][d-154] made unnecessary, and it allocates nothing ([D-292][d-292]).
 
 The trade, stated openly, is that **a handler cannot opt into seeing a
-same-round foreign transition** ([D-100][d-100]). Same-instant sequential
+same-round foreign transition** ([D-100][d-100], [D-292][d-292]). Same-instant sequential
 coupling across components is a cascade, one round per link, deterministic.
 Coupling tighter than that belongs inside one component, where declaration
 order gives exact sequencing across rounds. This is the position of the
@@ -5742,7 +5742,7 @@ than structural, the objection that a rounds cap is an arbitrary knob
 ([D-020][d-020]) lives on in `firing_budget`. [D-181][d-181] records what that
 buys.
 
-**Budget exhaustion degrades; it does not throw** ([D-181][d-181]). When an
+**Budget exhaustion degrades; it does not throw** ([D-181][d-181], [D-292][d-292]). When an
 event has fired `firing_budget` times at a boundary, its further edges there
 are lost for the rest of that boundary. The eligibility test skips it while
 every other event iterates normally. A lost edge emits a `FiringBudget` warning
@@ -5888,7 +5888,7 @@ end
 
 `margin` is a single constant calibrated to cover the primitive's granularity
 *plus* typical overshoot ([D-021][d-021]). There is no second threshold. The
-resolution floor is absorbed into the calibration. A margin below the
+resolution floor is absorbed into the calibration ([D-294][d-294]). A margin below the
 primitive's granularity defeats the spin phase's purpose.
 
 **The default `margin` is 2 ms** ([D-133][d-133]), the value the measurements
@@ -5919,7 +5919,7 @@ The wait sits at the frame top, after the
 stop) is consulted. A control change issued during a wait is observed at the
 next frame top, at most one frame budget `h/p` later ([§12.1][s12-1],
 [D-269][d-269]). The wait is an unmask point ([§12.4][s12-4],
-[D-132][d-132]) for the [operator interrupt](#g-operator-interrupt) (Ctrl-C in
+[D-132][d-132], [D-294][d-294]) for the [operator interrupt](#g-operator-interrupt) (Ctrl-C in
 an interactive session). The interrupt raises out of the coarse phase's
 `sleep`.
 
@@ -5939,7 +5939,7 @@ A deliberate re-anchor, from a pace change or an un-pause, is counted and
 raises no warning. The forgiveness re-anchor is counted and reports
 `DebtReanchor` ([Appendix C][sC]). A live switch to `p = ∞` is a pace change
 like any other. It re-anchors, and the debt it clears is counted as forgiven
-([D-269][d-269]).
+([D-269][d-269], [D-294][d-294]).
 
 #### Where staging and concurrency live
 
@@ -7658,11 +7658,11 @@ anything else under `ArgumentInvalid` ([Appendix C][sC]).
 ### 12.2 Loop scheduling: wait primitive, yields, thread budget
 
 [§10.7][s10-7] fixed the shape of the pacer's wait, hybrid sleep-then-spin,
-but left the coarse phase's primitive open. That choice is a scheduling
-decision rather than an arithmetic one. It settles what else can run while a
-frame waits. It is made here, together with the two questions that trail it:
-whether a frame is guaranteed to yield at all, and how many threads a session
-needs.
+and leaves the choice of the coarse phase's primitive to this section. That
+choice is a scheduling decision rather than an arithmetic one. It settles
+what else can run while a frame waits. It is made here, together with the two
+questions that trail it: whether a frame is guaranteed to yield at all, and
+how many threads a session needs.
 
 **Rule.** The coarse phase uses task-yielding `sleep`. There is no
 `systemsleep` variant ([D-027][d-027]).
@@ -12276,7 +12276,7 @@ write ([§11.3][s11-3], [§8.2][s8-2], [§8.6][s8-6]).
 <a id="g-scratch"></a>**scratch** — mutable working storage whose contents are never authoritative.
 No boundary-consistent fact of the simulation is read from it. There are
 three kinds: a component's workspace (`ws`, [§7.3][s7-3]); the integrator's
-buffers and the mid-step table ([§7.5][s7-5], [§10.4][s10-4]); and the store
+buffers and the mid-step table ([§7.5][s7-5], [§10.3][s10-3], [§10.4][s10-4]); and the store
 set a service invocation instantiates from the activation's layout and
 discards with the call ([§9.4][s9-4], [§14.8][s14-8]). Not to be confused
 with the simulation's own buffer set, which has the same shape and is the
@@ -13363,6 +13363,11 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-287]: decisions.md#d-287--handler-return-keys-struct-valued-port-embedding-and-the-branchless-payload
 [d-288]: decisions.md#d-288--the-executors-structure-phase-bodies-views-construction-the-gate-and-publication
 [d-289]: decisions.md#d-289--compile-cost-generated-unrolls-chunks-by-reference-an-unspecialized-declaration-layer
+[d-290]: decisions.md#d-290--localizations-exact-detection-left-end-discriminator-endpoint-and-t-boundary
+[d-291]: decisions.md#d-291--rate-compilation-the-boundary-gate-phases-and-the-anchor-doctrine
+[d-292]: decisions.md#d-292--event-iterations-registers-boundary-zero-prior-visibility-trade-and-budget-exhaustion
+[d-293]: decisions.md#d-293--external-readers-observe-the-signal-table-only-at-boundaries
+[d-294]: decisions.md#d-294--the-pacers-wait-unmask-point-single-knob-spin-safepoint-and-the-switch-to-pace--inf
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

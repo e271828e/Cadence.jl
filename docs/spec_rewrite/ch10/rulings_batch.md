@@ -47,7 +47,32 @@ against spec 57–64).
   second and later links to `#g-sweep` in §10.3 and §10.4 go, and so does
   §10.7's second link to `#g-pacing`. `spec_style.md`'s "First use per
   section" bullet gains one sentence saying so.
-- **K13 to K32: track 2**, ruled after landing.
+- **K13 to K32: track 2**, ruled after landing as follows.
+- **K13 to K17: accepted, restricted.** A new entry restates in a Position
+  only what an existing entry already records, in a Rationale, a Rejected
+  list or an annotation. A clause with no entry behind it is left out: making
+  it a ratified ruling would be a design decision, and a spec sentence with no
+  entry may describe a status quo rather than rule. Those clauses stay in the
+  spec as written, uncited, and are listed for the owner in the chapter's
+  closing report. They are: earliest `t*` first, the bisection fallback and
+  `ChatteringBudget`'s name and payload (K13); the `s_update` order and any
+  other no-entry clause in K14; `FiringBudget`'s rate and payload (K15); the
+  required `h` (K16); and the wait's place at frame top (K17). An entry left
+  with no bullet is not written. Chapter 10's citations of a source entry
+  gain the new entry beside it, at the sentences the new entry covers.
+- **K18 to K24: accepted**, dated 2026-10-02.
+- **K25: accepted for the first four; D-156 left**, as recommended.
+- **K26: accepted.**
+- **K27, K29: accepted.**
+- **K28: changed.** Keep §9.4's sentence and its "because" clause, and only
+  replace "([§10.4][s10-4])" with "([§9.5][s9-5], [D-052][d-052])". The
+  proposal's rewording would drop the clause.
+- **K30: left.** The walkthrough is pinned to a commit before the rename, and
+  its names are right at that commit. A refresh of the whole walkthrough is
+  the clean fix, outside this rewrite.
+- **K31: accepted for lines 47 and 323; 70 and 175 left**, since they edit
+  the charter's own account of its history.
+- **K32: accepted for the glossary edit; the rest left.**
 
 ## 1. BLOCKING
 
