@@ -766,7 +766,7 @@ message(d::TransparentContainerUnknown) =
     "or `NamedTuple` field whose elements are all components, the empty one included " *
     "(§8.5, D-211)"
 
-"§8.2, §8.5, D-263: a primitive declaring neither `x_init` nor `s_init`, the store every leaf declares its tier by."
+"§8.2, D-263: a primitive declaring neither `x_init` nor `s_init`, the store every leaf declares its tier by."
 Base.@kwdef struct TierUnreadable <: Diagnostic
     path::String
     type::String                             # the component type's name
@@ -778,7 +778,7 @@ message(d::TierUnreadable) =
     "store, mandatory even when empty: a stateless leaf writes `x_init(::C) = (;)` or " *
     "`s_init(::C) = (;)`. Its leaf declarations are $(_namelist(d.declarations)) (§8.2)"
 
-"§8.2, §8.5, D-263: a leaf with an empty store and no `y_types`, which produces nothing and stores nothing."
+"§8.2, §8.3, D-263: a leaf with an empty store and no `y_types`, which produces nothing and stores nothing."
 Base.@kwdef struct StatelessWithoutOutputs <: Diagnostic
     path::String
     type::String                             # the component type's name
@@ -1947,7 +1947,7 @@ message(d::ConditionShapeDrift) =
     "evaluated at — a branch that authors a different field set, a different nesting or a " *
     "different leaf type is a different shape, and needs its own plan (§14.4, §9.5, D-066)"
 
-"§8.7, §11.6, §12.4, §12.6, §14.7, D-215: an argument outside its constraint — `DeploymentInvalid`'s twin off the deployment surface."
+"§10.5, §11.6, §12.4, §12.6, §14.7, D-215: an argument outside its constraint — `DeploymentInvalid`'s twin off the deployment surface."
 Base.@kwdef struct ArgumentInvalid <: Diagnostic
     call::Symbol                             # :Simulation|:init!|:restore!|:Period|:Hz|:Absolute|:step!|:run!|:replay!|:live!|:pace!|:margin!|:trim!|:linearize|:trace|:TableBinding
     reason::Symbol
