@@ -50,17 +50,19 @@ in a cell no drain reads — one atomic load per stage, no roster scan. The
 reads stay legal. It holds the build's `Structure` and the nominal `Layout`
 by reference, like the index, for the panel kit's bake alone: `port_views`
 reads the wiring, the claim, the exclusivity index and the addresses off the
-handle (§11.7, D-270).
+handle (§11.7, D-270). Its type carries the binding's and the gatherer's
+types, so `binding(handle)` and `gather(handle, snapshot)` are statically
+typed inside a device's `loop` and allocate nothing.
 """
-mutable struct DeviceHandle
+mutable struct DeviceHandle{B<:AbstractBinding,G<:Union{Nothing,ReadGather}}
     const who::String
-    const b::AbstractBinding
+    const b::B
     const writer::Writer
     const claimedby::Dict{Symbol,String}        # the plane's exclusivity index, by reference
     const control::Control
     const published::Published
     const diag_cell::DiagCell
-    const gatherer::Union{Nothing,ReadGather}   # the compiled reads; nothing without an output side
+    const gatherer::G                           # the compiled reads; nothing without an output side
     const structure::Structure                  # the build's rows, for the panel kit's bake (§11.7, D-270)
     const layout::Layout                        # the nominal activation's addresses, likewise
     last_seen::Int

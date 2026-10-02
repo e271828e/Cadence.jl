@@ -1999,7 +1999,7 @@ function attach!(sim::Simulation, dev::AbstractDevice, new_binding::AbstractBind
     plane = sim.plane
     assert_configurable(sim.control, :attach!)
     check_binding(new_binding)
-    check_device(dev)
+    check_device(dev, new_binding)
     for entry in plane.roster                          # identity, before claims (§11.3)
         entry.dev === dev && throw(DiagnosticError(AlreadyAttached(
             device = _typename(dev), incumbent = _who(entry),

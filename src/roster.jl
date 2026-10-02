@@ -97,12 +97,14 @@ check needs, and refusing here (before the device is ever rostered, let alone
 spawned) is what makes `DeviceContractMismatch` `service, fail-fast` rather
 than a task-side `DeviceCrash` (Appendix C).
 """
-function check_device(dev::AbstractDevice)
+function check_device(dev::AbstractDevice, b::AbstractBinding)
     device_type = typeof(dev)
-    # against the handle type the wrapper calls with: a `loop(::device_type, ::DeviceHandle)`
-    # is a method, and `Tuple{device_type,Any}` would not see it
-    which(loop, Tuple{device_type,DeviceHandle}) ===
-        which(loop, Tuple{AbstractDevice,DeviceHandle}) &&
+    # against the handle type the wrapper calls with, which carries the binding's
+    # type: a `loop(::device_type, ::DeviceHandle)` is a method, one narrowed on
+    # the binding is too, and `Tuple{device_type,Any}` would see neither
+    handle_type = DeviceHandle{typeof(b)}
+    which(loop, Tuple{device_type,handle_type}) ===
+        which(loop, Tuple{AbstractDevice,handle_type}) &&
         throw(DiagnosticError(DeviceContractMismatch(
             device = _typename(device_type), reason = :no_loop)))
     nothing
@@ -132,8 +134,9 @@ struct RosterEntry
 end
 
 # The entry's handle, read typed: `DeviceHandle` is defined after this file, so
-# the field is `Any` and every reader pays the assert here — a check, not an
-# allocation, on the frame top too.
+# the field is `Any` and every reader pays the assert here, on the frame top
+# too. The assert names the handle's family, not one of its types, so a field
+# read behind it is a runtime lookup. It allocates nothing.
 _handle(entry::RosterEntry) = entry.handle::DeviceHandle
 
 # The handle's own name, read typed: a fresh string per publication would be

@@ -457,6 +457,9 @@ function test_readers()
                                             qin1 = port(snapshot, "", :qin)[1],
                                             face2 = port(snapshot, "", :q)[2])
         @test gather(handle, snapshot) === (q2 = 0.2, qin1 = 0.5, face2 = 0.2)
+        # The handle's type carries its gatherer's, so the device-side call is
+        # static and allocates nothing.
+        @test @ballocated(gather($handle, $snapshot)) == 0
 
         # A `.name` step into a struct port, and a matrix entry by its indices.
         pose_sim = Simulation(pose_model(); h = 1//10)

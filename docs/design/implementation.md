@@ -716,6 +716,9 @@ D-256, D-268, D-269.
 - The handle (D-261):
   - it holds the binding, the writer, the diagnostic cell and the compiled
     gather;
+  - its type carries the binding's and the gatherer's types, so
+    `binding(handle)` and `gather(handle, snapshot)` are static inside a
+    device's `loop` and allocate nothing;
   - it holds the plane's exclusivity index by reference, never the plane;
   - it holds the build's `Structure` and the nominal `Layout` by reference,
     for the panel kit's bake alone (D-270);

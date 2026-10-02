@@ -269,6 +269,8 @@ end
 mutable struct Loopless <: AbstractDevice end
 mutable struct NarrowLoop <: AbstractDevice end   # `loop` on the handle type itself
 loop(::NarrowLoop, ::DeviceHandle) = nothing
+mutable struct BindingLoop <: AbstractDevice end  # `loop` on the binding the handle's type carries
+loop(::BindingLoop, ::DeviceHandle{<:Enumerated}) = nothing
 
 # Issue a stop against a paused run and wait for the run to leave `:running`
 # (§12.1). A stop that fails to wake the pause is followed by a `resume!`, so
@@ -1310,6 +1312,8 @@ function test_devices()
         @test isempty(sim.plane.roster)               # the rejection consumed no id
         # a `loop` declared on `DeviceHandle` itself is the method the wrapper calls
         @test attach!(sim, NarrowLoop(), Enumerated()) isa DeviceHandle
+        # and so is one narrowed on the binding's type, which the handle's carries
+        @test attach!(sim, BindingLoop(), Enumerated()) isa DeviceHandle
     end
 
     @testset "gather without an output side is a contract misuse, by kind (§11.6)" begin

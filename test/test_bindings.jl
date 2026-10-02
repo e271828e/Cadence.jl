@@ -167,6 +167,9 @@ function test_bindings()
         handle = attach!(sim, dev, TableBinding(stick = (face = "a", deadzone = 0.1),
                                                 thr   = (face = "b",)))
         @test handle === sim.plane.roster[1].handle
+        # The handle's type carries its binding's, so the idiom's call is static
+        # and allocates nothing.
+        @test @ballocated(map_input($(dev.datum), binding($handle))) == 0
         init!(sim, fragment(u = (a = 0.0, b = 0.0)))
         run!(sim; t_end = 1000.0)                # ends by the device's stop, past its observed apply
         @test port(sim, "", :a) ≈ 0.5            # (0.55 − 0.1) / 0.9: conditioned at staging
