@@ -15,7 +15,7 @@ in pedagogy is not.
 - Plain vocabulary where it suffices. Unwind nominalizations and metaphors
   into the verb that states the fact.
 - **Topic sentences are findable claims, not aphorisms.** A returning reader
-  skims bold lead-ins; each must state its paragraph's content.
+  skims each paragraph's first sentence; it must state the paragraph's content.
   - Bad: "The absolute register anchors, and anchoring severs."
   - Good: "An `Absolute` entry detaches its child from the enclosing scope's
     grid."
@@ -33,7 +33,13 @@ in pedagogy is not.
 - **First use per section: gloss + glossary link; bare term afterward.** The
   gloss is 5–10 words, parenthesized: "the [drain][g-drain] (the frame-top
   swap that publishes staged device writes into the root inputs)". Every
-  section must be locally re-readable by a reader arriving cold.
+  section must be locally re-readable by a reader arriving cold. A term takes
+  one glossary link per section, tables included.
+- **Introduce every reader-cold name.** A name the spec uses without
+  introducing it is one of three kinds. Flight.jl machinery used as if known
+  moves to a companion, or the spec says what it is. An aerospace example
+  gets one introducing clause that claims nothing its source does not.
+  FlightCore named as the predecessor needs nothing.
 - Coinages are governed by `tools/coinage_inventory.md`: a term used in three
   or more places, or far from its definition, gets a glossary entry; a local
   one- or two-use coinage gets an inline gloss only. New coinages join the
@@ -59,20 +65,53 @@ problem:
 
 1. **Context** — what problem this section exists to solve; the background a
    cold reader needs. Comes first, before any rule.
-2. **Rule** — the normative content, visually marked.
+2. **Rule** — the normative content, its rulings in bold (next section).
 3. **Mechanism / example** — how it plays out; a small code sketch wherever
    prose runs long (sketches may be simplified or incomplete).
 4. **Consequences and pointers** — implications, interactions, where the
    machinery lives.
 
-Markers: sparing bold **Rule.** / **Why.** / **Example.** labels. Mark every
-rule a skimmer must be able to find; do not label every paragraph — ubiquity
-would destroy the signal. *Why* holds constructive rationale only.
+- **Subheadings only for entry points**, as topic labels, in an order where
+  nothing is used before it is defined. A section without them ends its
+  context paragraph with one sentence naming its parts in order.
+- **Display code** for what a reader would type or copy: a call, a
+  definition, a signature. Identifiers stay inline. Quoted diagnostic
+  messages stay verbatim.
+
+## Marking rulings
+
+Chapters the readability rewrite has not reached keep the old **Rule.** /
+**Why.** / **Example.** labels. An edit there follows the chapter's own
+markers. `pending.md` tracks the rewrite.
+
+- **No labels.** No **Rule.**, **Why.** or **Example.** A reason follows its
+  rule with a plain connective.
+- **Bold marks a ruling, once, on its headline clause.** The headline clause
+  is the shortest clause that states what is decided, subject and verb
+  included. Its D-citation follows in the same sentence. Bold marks nothing
+  else: not lead-ins, terms, definitions, consequences, recommendations or
+  labels.
+- **One bold per ruling, by a mechanical test.** A Position's rulings are its
+  sentences and its bullets. In old entries that chain parallel rulings with
+  semicolons, each chained ruling counts as a bullet. Clauses that elaborate
+  one ruling share one bold. Where two sentences state one ruling, the first
+  in reading order keeps the bold.
+- **Bold where the section states what the entry decides.** A ruling about
+  when a check runs is bold where the run is described, even if the check's
+  rule lives in another chapter. Each ruling is bold in one place only.
+- **Cite the entry that rules.** Prefer an entry whose Position states the
+  ruling. If only a Rationale, a Rejected list or an annotation states it,
+  cite that entry, keep the bold, and flag the log as owing a Position that
+  states it. Never cite a superseded entry.
+- **Rule first, reason after.** A "so" or "by construction" before a rule
+  demotes it to a consequence.
+- **Bold weight is measured in words, not spans.** A whole sentence in bold
+  where its headline clause would do adds weight and no ruling.
 
 ## Rationale
 
 - **Constructive rationale stays** (why the rule is shaped as it is — what
-  makes it believable and memorable). It lives under *Why*.
+  makes it believable and memorable). It follows its rule.
 - **Adversarial rationale goes** (why alternative X loses). It lives in
   `decisions.md`, cited as "(D-nnn)". Before deleting an inline
   argument, verify the entry carries it; enrich the entry first if the inline

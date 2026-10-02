@@ -69,8 +69,8 @@ what the spec says, the spec edit is part of the item.
 - **A tutorial** that takes a newcomer from a component to a run and a plot.
 - **The spec's readability rewrite.** Chapter 9 is done, and the other
   chapters follow its recipe, `docs/reports/20261001_chapter9_rewrite/report.md`.
-  First the convention goes into `tools/spec_style.md` and its bold check into
-  the battery; until a chapter's turn comes, it keeps the old markers.
+  The convention is in `tools/spec_style.md`; its bold check still has to join
+  the battery. Until a chapter's turn comes, it keeps the old markers.
 - **Package registration.**
 - **A precompile workload** for the generic machinery a cold process
   pays, about 9 s whatever the model (§9.7).
