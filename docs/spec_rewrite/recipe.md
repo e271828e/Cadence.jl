@@ -117,6 +117,19 @@ unit's `old.md`, which its own inventory guarantees.
 - Every scratch file goes in the agent's own unit directory. Two agents
   sharing the scratchpad collided.
 
+**From chapter 10, the brief should also:**
+
+- Rule the clear factual corrections at checkpoint 1, with their evidence,
+  instead of leaving them for step 6. Chapter 10's R8 settled eight of them
+  before anyone wrote, and no unit needed a second pass for them.
+- Say that a gloss or an introducing clause claims nothing beyond the source
+  it names. Chapter 10's rewriters invented a demo's file and aircraft, and
+  gave "periodic avionics" a modeling claim; the verifiers caught each one.
+- Give the reading of the one-bold test for old entries: semicolons separate
+  rulings, and "+" or a comma list joins clauses of one ruling. Tell each
+  rewriter to grep its siblings' `new.md` for bolds on the same entry. Chapter
+  10 had five rulings bold twice across units.
+
 ### Step 3: rewrite the units in parallel (one Opus agent per unit)
 
 Prompt: read `brief.md`, follow it, edit nothing outside `units/<U>/`, run
@@ -156,6 +169,10 @@ What chapter 9's verifiers caught that the checker could not:
   rewriter replaced "under the lock" with §9.4's "mechanism unspecified";
 - citations added for entries whose Position does not carry the claim.
 
+Chapter 10's verifiers also caught an antecedent that moved when a ruled
+sentence was inserted between "two epochs" and "this", and a citation pointer
+that named one entry for a list whose items two entries reject.
+
 ### Step 5: read the whole chapter (two Opus agents in parallel)
 
 Run `checks/assemble.sh chNN` first.
@@ -166,7 +183,10 @@ Run `checks/assemble.sh chNN` first.
   roadmap, reader-cold names, and anything worse than the old text.
 - **The inbound check** judges every row of `inbound.tsv` against the new
   chapter: OK, RETARGET, COMPANION, MISSING, VAGUE. A MISSING row the old
-  chapter stated is a loss. Chapter 9 had none.
+  chapter stated is a loss. Chapter 9 had none. Chapter 10's one LOSS was a
+  circular pointer: a cut list pointed at D-154, whose Rejected item pointed
+  back at the section. Before cutting a list to a pointer, check that the
+  entry does not point back.
 
 An editorial fixer (Opus) then applies the chapter pass's wording, placement,
 link and wrap fixes through each unit's inventory, and lists the rest.
@@ -213,7 +233,17 @@ an excerpt fails. Then, in this order:
 
 Other sessions may edit the spec while a chapter is in flight. Recount the
 range against `BASE` before splicing, and carry their hunks, never revert
-them.
+them. Tell any session working on the spec when the chapter is in flight and
+when it lands; chapter 10 coordinated with one that way.
+
+- `RANGE` ends on the blank line after the chapter's closing `---`. The
+  splice keeps that blank line.
+- When a cut removes the only spec citation of a superseded entry,
+  `check_rows.jl` reports that coverage shrank. Rebaseline it with
+  `--rebaseline`, since the style forbids citing a superseded entry.
+- The PDF read can go to a Sonnet agent. Check by script that every fenced
+  block is byte-identical to the original first; then a long line or a page
+  split in a code block is layout, not damage.
 
 ### Step 8: the second track
 
@@ -221,7 +251,10 @@ After landing, the orchestrator rules and applies what the rewrite surfaced
 but did not need, serious findings excepted:
 entries that state Rationale-only rulings in a Position, annotations of stale
 Positions, Spec fields stale before the rewrite, and problems outside the
-chapter. Then move the chapter's citations to the new entries. Track 2 is
+chapter. A new entry restates only what an existing entry already records.
+A spec sentence with no entry behind it stays uncited and goes to the owner,
+since ratifying it would be a design decision. Then cite the new entries
+beside their source entries in the chapter. Track 2 is
 where the log catches up with the spec; keeping it out of the rewrite kept
 each rewriter's job to prose.
 
@@ -255,6 +288,22 @@ Chapter 9, 8,544 words:
 The rewrites ran in about 8 to 13 minutes each in parallel. The whole chapter
 took one long session, most of it spent at the four checkpoints. Expect
 roughly 0.4M subagent tokens per 1,000 words of chapter.
+
+Chapter 10, 9,369 words, ruled by the orchestrator:
+
+| step | agent runs | subagent tokens |
+|---|---|---|
+| survey | 1 | 0.32M |
+| rewrites | 7, plus fix rounds | 1.2M |
+| unit verification | 7, plus re-checks | 0.8M |
+| chapter pass, inbound check, editorial fixer | 3 | 0.56M |
+| consolidation and ruled edits | 2 | 0.38M |
+| final verification and PDF check | 2 | 0.22M |
+| track 2 and its verification | 2 | 0.35M |
+| total | about 30 | about 3.8M |
+
+With no owner checkpoints, the whole chapter, track 2 included, ran in one
+session of about three hours.
 
 ## 4. What to expect from a chapter
 
@@ -295,6 +344,12 @@ From chapter 9:
     supports.
 11. Land outside edits by line first, then splice.
 12. The PDF is a check too: tables and links are where the excerpt fails.
+13. Rule clear factual corrections before writing (chapter 10).
+14. A gloss claims nothing beyond its named source; verifiers check each one.
+15. Check bold across sibling units, not only within one.
+16. A pointer to an entry must not lead to an entry that points back.
+17. New log entries restate recorded rulings only; unrecorded ones go to the
+    owner.
 
 ## 6. A chapter's files
 
