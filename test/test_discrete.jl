@@ -62,7 +62,7 @@ function discrete_one_rate()
         run!(sim; t_end = 0.1)
         u₀, y₀ = port(sim, "ctl", :u), port(sim, "plant", :y)
         @test u₀ != 0.0
-        step!(sim, 0.02)
+        integrate!(sim, 0.02)
         @test port(sim, "ctl", :u) == u₀   # untouched: never gathered, never written
         @test port(sim, "plant", :y) != y₀
     end
@@ -619,7 +619,7 @@ function discrete_deployment()
         end
         sim2 = Simulation(SampledLoop(; ctl_rate = Relative(2)); h = 1//200, N_base = 2)
         init!(sim2, fragment(u = (ref = 0.0,)))
-        @test @ballocated(step!($sim2, 0.005)) == 0
+        @test @ballocated(integrate!($sim2, 0.005)) == 0
         @test @ballocated(offtick_boundary!($sim2)) == 0
         @test @ballocated(boundary!($sim2, 3)) == 0
     end

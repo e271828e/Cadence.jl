@@ -62,8 +62,8 @@ function store_mixed_cell()
         init!(sim)
         out = port(sim, "c", :out)
         @test out isa TaggedValue{Float64} && out.n === 1
-        step!(sim, 1e-2)
-        @test @ballocated(step!($sim, 1e-2)) == 0
+        integrate!(sim, 1e-2)
+        @test @ballocated(integrate!($sim, 1e-2)) == 0
 
         # The pinned leaf inside a declared struct (D-263): homogeneous at nominal
         # (K = 1), mixed off it — same declaration, and at `Dual` the `T` half

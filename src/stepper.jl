@@ -4,7 +4,7 @@
 # changing. The contract has three clauses, each answered by dispatch on the
 # stepper:
 #
-#   - **advance by arbitrary `h`** — `step!(stepper, sim, h)`: the loop lands on
+#   - **advance by arbitrary `h`** — `integrate!(stepper, sim, h)`: the loop lands on
 #     tick boundaries and resumes from localized event times;
 #   - **dense output on demand over the last completed step** — `dense!`, built
 #     lazily on the pair `startpoint` retains, because only event localization
@@ -13,7 +13,7 @@
 #     one-step method restarts from a new state for free (D-017).
 #
 # The seam is never entered empty (§10.2): the framework short-circuits an
-# empty state on its own side — `step!(sim, h)` in sim.jl — so no backend ever
+# empty state on its own side — `integrate!(sim, h)` in sim.jl — so no backend ever
 # faces N = 0. Both first-cut backends are fixed-step, zero-allocation and
 # generic in the scalar; the backend is a deployment binding (`algorithm = RK4`,
 # the default), and nothing outside this file knows which one ran.
@@ -59,7 +59,7 @@ struct RK4{T} <: AbstractStepper
 end
 RK4(::Type{T}, n_x::Int) where {T} = RK4{T}(ntuple(_ -> zeros(T, n_x), 5)...)
 
-function step!(stepper::RK4, sim, h)
+function integrate!(stepper::RK4, sim, h)
     x, ẋ = sim.exec.xbuf, sim.exec.ẋbuf
     (; x₀, k₁, k₂, k₃, k₄) = stepper
     t = sim.exec.clock.t
@@ -95,7 +95,7 @@ struct Heun{T} <: AbstractStepper
 end
 Heun(::Type{T}, n_x::Int) where {T} = Heun{T}(ntuple(_ -> zeros(T, n_x), 3)...)
 
-function step!(stepper::Heun, sim, h)
+function integrate!(stepper::Heun, sim, h)
     x, ẋ = sim.exec.xbuf, sim.exec.ẋbuf
     (; x₀, k₁, k₂) = stepper
     t = sim.exec.clock.t

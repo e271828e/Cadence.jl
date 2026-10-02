@@ -590,7 +590,7 @@ end
 # --- the stepper seam, framework side (§10.2) ----------------------------------
 
 """
-    step!(sim, h)
+    integrate!(sim, h)
 
 Advance the continuous state from `t` by `h`, delegated across the stepper
 seam to whichever backend the deployment bound (stepper.jl). The seam is never
@@ -598,9 +598,9 @@ entered empty: with no continuous state the step degenerates to advancing `t`,
 the backend is simply not called, and no backend contract has to say what it
 would do at N = 0.
 """
-@inline function step!(sim::Simulation, h)
+@inline function integrate!(sim::Simulation, h)
     _phase!(sim.exec.cursor, :integrate)     # §13.4: `evaluate!` counts the stages from here
-    isempty(sim.exec.xbuf) ? (sim.exec.clock.t += h) : step!(sim.exec.stepper, sim, h)
+    isempty(sim.exec.xbuf) ? (sim.exec.clock.t += h) : integrate!(sim.exec.stepper, sim, h)
     _check_finite!(sim)
     nothing
 end

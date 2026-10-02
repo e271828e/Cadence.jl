@@ -38,7 +38,7 @@ function frame!(sim::Simulation{T}, k::Int, policy::StopPolicy, addrs::Vector{An
                 roster::Vector{RosterEntry}, pacer::Union{Nothing,Pacer}) where {T}
     t_to = _grid_time(sim, k)
     hit = sim.exec.has_localized ? _localized_frame!(sim, t_to, policy, addrs, roster, pacer) :
-                                   (step!(sim, T(sim.deployment.h)); nothing)
+                                   (integrate!(sim, T(sim.deployment.h)); nothing)
     hit === nothing && (sim.exec.clock.t = t_to)
     hit
 end
@@ -55,12 +55,12 @@ function _localized_frame!(sim::Simulation{T}, t_to, policy::StopPolicy, addrs::
     events, cursor = sim.exec.events, sim.exec.cursor
     n_events = length(events.prior)
     (x₀, _) = startpoint(sim.exec.stepper)         # the seam's retained pair (§10.2):
-    localizations = 0                                 # x₀ = x(t_seg) after each step!
+    localizations = 0                                 # x₀ = x(t_seg) after each integrate!
     fill!(events.loc_warned, false)
     while true
         t_seg = sim.exec.clock.t
         h′ = t_to - t_seg
-        step!(sim, h′)
+        integrate!(sim, h′)
 
         # The arrival sweep at the segment's end — interior, on the raw
         # unprojected state, before any discrete cell refreshes (§10.4): the

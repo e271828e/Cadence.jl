@@ -322,7 +322,7 @@ function test_events()
         boundary!(sim, 1); offtick_boundary!(sim)
         @test @ballocated(boundary!($sim, 1)) == 0
         @test @ballocated(offtick_boundary!($sim)) == 0
-        @test @ballocated(step!($sim, 0.1)) == 0
+        @test @ballocated(integrate!($sim, 0.1)) == 0
 
         rotor_sim = Simulation(single(Rotor()); h = 1//100)  # projection on the measured path
         init!(rotor_sim)
