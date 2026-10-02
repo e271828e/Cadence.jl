@@ -33,13 +33,14 @@ was recounted then.
 | rate scope | g-rate-scope | 4 | A | an assembly's `sample_times` declaration against the enclosing scope |
 | schema authority | g-schema-authority | 2 | A | declarations define structure; evaluation only checks conformance |
 | stage function / two-stage outputs | g-stage-function | 5 | A | `y_state` or `y_direct`, the two output stages every component provides |
+| state declaration | g-state-declaration | 2 | A | a leaf's `x_init` or `s_init`, which marks its tier |
 | workspace | g-workspace | 7 | A | component-declared mutable scratch arriving as the `ws` bundle field |
 
 ## D.2 Signals and data homes
 
 | term | anchor | n | class | gloss |
 |---|---|---|---|---|
-| buffer | g-buffer | 16 | B | the framework-owned flat vector backing all continuous state |
+| buffer | g-buffer | 16 | B | the framework-owned flat vectors backing continuous state and its derivative |
 | bundle | g-bundle | 13 | A | the NamedTuple of zero-copy views a component function receives |
 | cell | g-cell | 33 | B | one typed entry of the signal table, one per port |
 | constant source | g-constant-source | 1 | B | a library component publishing a value its instance holds |
@@ -53,7 +54,7 @@ was recounted then.
 | root input | g-root-input | 40 | B | the root component's own input face, the only thing the periphery writes |
 | signal table | g-signal-table | 12 | B | the framework-owned collection of cells holding every produced signal |
 | staging cell | g-staging-cell | 17 | A | where a device's pending write batch waits between drains |
-| store | g-store | 8 | B | the typed home of `m` and a discrete leaf's `x` |
+| store | g-store | 8 | B | the home of one of a component's state letters, `x`, `s` or `m` |
 | summing junction | g-summing-junction | 2 | B | a library component doing N-to-1 aggregation through explicit wires |
 | value-level constructor | g-value-level-constructor | 4 | A | the plain exported function building a field handle from the component and input values |
 | view | g-view | 4 | B | a zero-copy reconstruction of a store handed through the bundle |

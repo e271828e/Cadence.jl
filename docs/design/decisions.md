@@ -324,6 +324,9 @@ were derived.
 | [D-297][d-297] | Contracts by type, seeding not typing, one walk convention and declared publicity | ratified |
 | [D-298][d-298] | Container edges, the builder rejection, `Group`'s trade and the directional two-notation rule | ratified |
 | [D-299][d-299] | Rate scopes by type, the feed-list doctrine and the helper pair | ratified |
+| [D-300][d-300] | Give `Group` its own rate scope | ratified |
+| [D-301][d-301] | Name a declaration by what it returns | ratified |
+| [D-302][d-302] | Let a store be the home of any state letter | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -1204,7 +1207,7 @@ leaf declaration (`init_*`, `workspace`,
 stage/`f`/`g`/`project` method) marks a primitive, and declaring neither family
 is a build error naming both.
 
-**Spec.** [§8.1][s8-1], [§8.3][s8-3], [§8.5][s8-5], [§8.8][s8-8]
+**Spec.** [§8.5][s8-5], [§8.8][s8-8]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -1294,7 +1297,7 @@ keys and the error for a key on a continuous child stand.
 except, only)`; root slots = the root's exported input faces; generic holding =
 imposed contract checked per instantiation.
 
-**Spec.** [§6.1][s6-1], [§8.4][s8-4], [§8.8][s8-8]
+**Spec.** [§6.1][s6-1], [§8.4][s8-4], [§8.5][s8-5], [§8.8][s8-8]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -3643,6 +3646,10 @@ restated as not-holding → holding edges against baselines — Tier-2's trigger
 now states the direction and the even-crossings blind spot survives as "no edge
 observed" ([D-082][d-082] restated, no semantic change).
 
+Annotation (2026-10-02): amended by [D-302][d-302]. *Store* names the home of any of a
+component's state letters, `x` included, whose store is a range of the buffer.
+The cell/store partition and the staging cell stand.
+
 **Rejected.**
 - *Renaming "staging cell" itself:* entrenched through [D-106][d-106]–[D-107][d-107], the
   walkthrough and the commit history; the compound is unambiguous once [§4.1][s4-1]
@@ -4903,7 +4910,7 @@ their share of it (`connections` maps the list into wires; each `passthrough`
 call takes its `except` set from a small `fed_faces(feeds, child)` projection),
 [§8.5][s8-5]'s blessing of declaration bodies as ordinary code doing the work.
 
-**Spec.** [§8.1][s8-1], [§8.4][s8-4], [§8.5][s8-5], [§8.8][s8-8], [§14.6][s14-6]
+**Spec.** [§8.4][s8-4], [§8.5][s8-5], [§8.8][s8-8], [§14.6][s14-6]
 
 **Rationale.** [D-043][d-043] is reaffirmed, not reopened, by this finding, which closes
 the round-4 dry-run report. The drift is caught loudly — the design working —
@@ -4971,7 +4978,7 @@ selectors, store selectors, path selectors, [§14.10][s14-10]'s tap selectors, "
 selectors"); only the binding method renames, and `reads(b)` still returns
 [§14.4][s14-4] selectors.
 
-**Spec.** [§11.3][s11-3], [§11.6][s11-6], [§14.4][s14-4], [§14.7][s14-7], [§14.10][s14-10], [Appendix B][sB], [Appendix C][sC],
+**Spec.** [§8.1][s8-1], [§11.3][s11-3], [§11.6][s11-6], [§14.4][s14-4], [§14.7][s14-7], [§14.10][s14-10], [Appendix B][sB], [Appendix C][sC],
 [Appendix D][sD] (swept)
 
 **Rationale.** This is the first application of [D-144][d-144]'s four-class
@@ -4983,6 +4990,11 @@ side-detection prose improves in the same stroke: "`claims` defined ⇒
 enumerated write side, claims staked". The client difference (trim's `reads`
 service, a device read binding inspection) is no obstacle — [D-130][d-130] made the
 client an internal framework fact, never user-facing API.
+
+Annotation (2026-10-02): [D-301][d-301] settles the semantic axis the other way: a
+declaration names what it returns, not the role it plays. The renames stand
+on this entry's other grounds, [§11.3][s11-3]'s claim vocabulary and [§14.7][s14-7]'s shared
+`reads`, and each new name also names the set it returns.
 
 **Rejected.**
 - *Keeping `selectors(b)`:* defensible status quo — content-accurate and
@@ -6043,6 +6055,11 @@ any single mixed-direction list must sacrifice one.
 
 Annotation (2026-10-01): the three declarations are `inner_connections`, `u_connections` and `y_connections` ([D-279][d-279]); the near-collision that rejected `inner_connections` went away with `input_connections`. The split by direction, the flow-ordered pairs and the marker role stand.
 
+Annotation (2026-10-02): [D-301][d-301] settles the semantic axis as naming what a
+declaration returns, so the connection declarations follow the convention
+rather than an exception to it. The rejection of the consequence-named family
+stands on its other grounds.
+
 **Rejected.**
 - *Status quo (the sacrifice above — the output entries read against the
   signal).*
@@ -6408,7 +6425,7 @@ boilerplate-on-every-leaf outcome [D-039][d-039], [D-173][d-173] and this row al
 loses the `localize` keyword: de-localization = casting the guard to its
 predicate (`σ ≥ 0`, the [§2.1][s2-1] definition, semantics-preserving by construction).
 
-**Spec.** [§2.1][s2-1], [§10.4][s10-4], [§8.1][s8-1], [§8.2][s8-2], [§9.3][s9-3], [§9.5][s9-5]
+**Spec.** [§2.1][s2-1], [§10.4][s10-4], [§8.2][s8-2], [§9.3][s9-3], [§9.5][s9-5]
 
 **Rationale.** The localized-`Bool` combination becomes unrepresentable and
 `LocalizedGuardForm` retires, `GuardForm` remaining the sole guard diagnostic;
@@ -6504,7 +6521,7 @@ stepper-retained for the interpolant) and sweeps once under post-drain `u`,
 sourcing the previously-unsourced left bracket value for the value-based
 root-finders and discriminating the edge's cause.
 
-**Spec.** [§10.4][s10-4], [§10.6][s10-6], [§8.1][s8-1]
+**Spec.** [§10.4][s10-4], [§10.6][s10-6]
 
 **Rationale.** Only `u` can differ from the prior's context (`m`/cells/`t`
 boundary-stable, sweeps deterministic): σ₀ not-holding ⇒ trajectory-caused, pay
@@ -6581,6 +6598,9 @@ Annotation (2026-10-02): amended by [D-211][d-211] and [D-279][d-279]. `Group` d
 claimed zero new declaration rules, and its connection declarations are
 `inner_connections`, `u_connections` and `y_connections`. The single library
 type, its instance-field declarations and the builder rejection stand.
+
+Annotation (2026-10-02): amended by [D-300][d-300]. `Group` carries a fifth field,
+`rates`, which `sample_times` returns. The rest stands.
 
 **Rejected.**
 - *The mutable builder (`Assembly()` + `add!`/`connect!`):* [§8.5][s8-5]'s standing
@@ -12429,6 +12449,91 @@ input were recorded in [D-207][d-207]'s Rejected list.
 
 **Rejected.** None beyond the source entries' lists.
 
+### D-300 — Give `Group` its own rate scope
+
+**Status.** ratified
+
+**Position.** `Group` carries a fifth field, `rates`, a `NamedTuple` keyed by
+bare element name, set by the `rates = (;)` keyword and returned by
+`sample_times(g::Group) = g.rates`. The field-name sugar keys on the field,
+not on a path segment, so it survives the name-transparent `children`
+container: `(children = Relative(2),)` declares one rate for every element.
+
+**Spec.** [§8.5][s8-5], [§8.7][s8-7]
+
+**Rationale.** [D-211][d-211]'s Position already spells a `Group`'s rate entry
+`(ctl = Relative(2),)`, and [§8.5][s8-5] says a `Group`'s wiring and rate
+declarations read exactly like a named assembly's, but [D-184][d-184]'s type had four
+fields and no `sample_times`. `src/` built the field, and the discrete tests
+host their components in a `Group` at chosen rates. This entry records the
+built shape.
+
+**Rejected.**
+- *No rate scope on `Group`:* [D-184][d-184]'s four fields. A parent could still key
+  the `Group` as a whole, but its elements could not take different rates,
+  and [D-211][d-211]'s rate spelling would name a declaration `Group` lacks.
+
+### D-301 — Name a declaration by what it returns
+
+**Status.** ratified
+
+**Position.** A declaration's name says what the declaration returns, its
+content, never the consequence its definition has. This is [§8.1][s8-1]'s semantic
+axis, and it is how [D-267][d-267] states class 1: "a noun phrase naming what it
+returns".
+
+- `claims(b)` and `reads(b)` keep their names: each names the set it
+  returns.
+- `exports` stays retired; `u_connections` and `y_connections` name the
+  pairs each returns.
+
+**Spec.** [§8.1][s8-1]
+
+**Rationale.** [D-146][d-146]'s Rationale read the axis the other way: it renamed
+`faces`/`selectors` because they "were content-named where the spec's own
+`exports` precedent is consequence-named", and [D-170][d-170] called the
+consequence-named family `wires`/`imports`/`exports` "convention-purist".
+[D-267][d-267]'s Position later stated class 1 as naming what a declaration returns,
+and the declarations on the surface do: `x_init`, `u_types`,
+`state_events`, `inner_connections`, `sample_times`, `ws_init`, `claims`,
+`reads`. [§8.1][s8-1] held both readings at once after a move inverted one of its
+sentences. This entry settles on the one the surface follows, so no name
+changes.
+
+**Rejected.**
+- *Consequence naming ([D-146][d-146]'s Rationale):* naming the role a declaration
+  plays. Under it the `*_connections` family was a recorded exception, and
+  the `*_init` and `*_types` declarations, which name what they return,
+  read as exceptions too.
+
+### D-302 — Let a store be the home of any state letter
+
+**Status.** ratified
+
+**Position.** A store is the framework-owned home of one of a component's
+state letters, `x`, `s` or `m`. The buffer is the concrete layout of
+continuous state, the flat `x` vector and the `ẋ` vectors the integrator
+fills, so an `x` store is a range of the buffer. Stores are not cells
+([D-121][d-121]).
+
+**Spec.** [§4.1][s4-1], [§7.3][s7-3], [Appendix D][sD]
+
+**Rationale.** [§4.1][s4-1] and [§7.3][s7-3] reserved the word for the `s` and `m` registers,
+reading [D-121][d-121]'s "`z`/`m` live in *stores*" as exclusive. The log used it for
+`x` throughout: [D-035][d-035]'s views of "the stores it genuinely reads", [D-197][d-197]'s
+"`init_x` stores", [D-247][d-247]'s single store declaration form for `x_init`,
+`s_init` and `m_init`, and [D-263][d-263]'s "mandatory store". So did over a hundred
+spec sentences, the diagnostic kinds `StoreWithoutUpdate` and
+`StoreNotNamedTuple`, and the store selectors `get_state` and `get_deriv`.
+This entry adopts the usage the log and the surface follow. The rules that
+hold for the `s` and `m` stores alone, isbits fields, no arithmetic and copy
+by bits, say so where they are stated.
+
+**Rejected.**
+- *Reserve "store" for `s` and `m`, as [§4.1][s4-1] and [§7.3][s7-3] stated it:* over a
+  hundred spec rewrites, and renames of two diagnostic kinds and the store
+  selectors in `src/`, for a distinction the buffer already carries.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -12729,6 +12834,9 @@ input were recorded in [D-207][d-207]'s Rejected list.
 [d-297]: #d-297--contracts-by-type-seeding-not-typing-one-walk-convention-and-declared-publicity
 [d-298]: #d-298--container-edges-the-builder-rejection-groups-trade-and-the-directional-two-notation-rule
 [d-299]: #d-299--rate-scopes-by-type-the-feed-list-doctrine-and-the-helper-pair
+[d-300]: #d-300--give-group-its-own-rate-scope
+[d-301]: #d-301--name-a-declaration-by-what-it-returns
+[d-302]: #d-302--let-a-store-be-the-home-of-any-state-letter
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

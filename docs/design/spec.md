@@ -448,8 +448,9 @@ read cells.
 **Vocabulary.** These names are binding throughout this document.
 
 - A bare *cell* is the table entry, and only that.
-- A *store* is one of the discrete-state and mode registers ([§7.3][s7-3]). Stores are
-  not cells.
+- A *store* is the framework-owned home of one of a component's state letters,
+  `x`, `s` or `m` ([§7.1][s7-1], [§7.3][s7-3], [D-302][d-302]). An `x` store is a range of
+  the [buffer](#g-buffer). Stores are not cells.
 - A *[staging cell](#g-staging-cell)* is a distinct compound term. It is the per-[device](#g-device) inbound
   register of [§11.4][s11-4]. Unlike a table cell it is mutated frame by frame, and it
   sits outside the table's publish-once discipline.
@@ -1658,15 +1659,15 @@ contract rather than by checks.
 #### Stores: discrete state and modes
 
 **Rule.** Discrete state, a discrete leaf's `s`, and the modes `m` live in
-**typed stores**. The framework overwrites a store when an update or a handler
-returns a new value.
+**typed stores**, apart from the buffer that holds `x` ([§7.1][s7-1]). The framework
+overwrites an `s` or `m` store when an update or a handler returns a new value.
 
-A store keeps the same immutable-value discipline as the table's [cells](#g-cell), in a
-separate home. The vocabulary of [§4.1][s4-1] reserves the word *store* for these
-registers and never counts them as cells. Stores never touch the integrator
-buffer, and no arithmetic is ever done on them.
+An `s` or `m` store keeps the same immutable-value discipline as the table's
+[cells](#g-cell), in a separate home. The vocabulary of [§4.1][s4-1] never counts a store
+as a cell. The `s` and `m` stores never touch the integrator buffer, and no
+arithmetic is ever done on them.
 
-**Rule.** Every field of a store value is **isbits or a `Symbol`**. Isbits is an
+**Rule.** Every field of an `s` or `m` store value is **isbits or a `Symbol`**. Isbits is an
 immutable value that holds no references, transitively. Enums, integers,
 `Bool`s, `SArray`s and nested isbits structs all qualify. A `Symbol` is admitted
 as the idiomatic label. It is interned, immutable and never freed, so it copies
@@ -1679,9 +1680,9 @@ violation as `IllegalStoreField` ([§9.1][s9-1], [Appendix C][sC], [D-231][d-231
 **Why.** State is what changes between [ticks](#g-tick). Bulk data and labels do not, and
 their home is the component instance. The frozen-reference latitude signals
 enjoy ([§4.1][s4-1]) exists for field handles ([§4.4][s4-4]), and no store needs it. Isbits is
-what makes the rest of this section literal. Copying a store copies bits, so
-checkpoint and [replay](#g-replay) of the entire discrete side is "copy the store values",
-and a stored value has one fixed layout per component.
+what makes the rest of this section literal. Copying an `s` or `m` store copies
+bits, so checkpoint and [replay](#g-replay) of the entire discrete side is "copy the
+store values", and a stored value has one fixed layout per component.
 
 #### Workspace
 
@@ -2030,13 +2031,13 @@ name into scope for the definition to clash with, so there is nothing for the
 language to detect.
 
 Left alone, the build would see a component with no `x_deriv` method. It would
-report a *modeling* diagnostic, `StoreWithoutUpdate` (a non-empty [store](#g-store)
-without its update law, [§8.2][s8-2]). When the whole inventory was shadowed, it
-would report `ClassUnreadable` (no declaration to read a [class](#g-class) from,
-[§8.5][s8-5]). A one-line namespace mistake would be reported far from the line
-that caused it. That is the inversion of [error locality](#g-error-locality) (the property
-that a mistake fails at the site of the mistake) that [§8.4][s8-4] traces,
-arriving through the namespace.
+report a *modeling* diagnostic, `StoreWithoutUpdate` (a non-empty [state
+declaration](#g-state-declaration) without its update law, [§8.2][s8-2]). When the whole
+inventory was shadowed, it would report `ClassUnreadable` (no declaration to read
+a [class](#g-class) from, [§8.5][s8-5]). A one-line namespace mistake would be reported far from the
+line that caused it. That is the inversion of [error locality](#g-error-locality) (the property that
+a mistake fails at the site of the mistake) that [§8.4][s8-4] traces, arriving through
+the namespace.
 
 Two mitigations apply, both normative. The first is that the import list above
 is authoring surface, stated wherever a component file is first shown
@@ -2122,12 +2123,14 @@ its class fixes its grammatical shape ([D-144][d-144]).
 A name in the wrong class is a rename candidate on that ground alone.
 
 The convention also has a semantic axis. A name can sit in the right class and
-still pick the wrong noun. A declaration names its *content*, never the
-*consequence* the declaration has. `input_passthrough` ([§8.8][s8-8],
-[D-171][d-171]) and the binding methods `claims`/`reads` ([§11.6][s11-6],
-[D-146][d-146]) apply that axis, and `exports` is its retired exemplar
-([D-170][d-170]). The `*_connections` family names content deliberately, for
-authoring transparency. That is a recorded choice, not class drift.
+still pick the wrong noun. **A declaration names its *content*, what it
+returns, never the *consequence* its definition has** ([D-301][d-301]). The binding
+methods `claims`/`reads` ([§11.6][s11-6], [D-146][d-146]) name the claim set and the
+read set they return. `exports` named a consequence and is retired, and
+`u_connections` and `y_connections` name the pairs each returns
+([D-170][d-170]). `input_passthrough` ([§8.8][s8-8], [D-171][d-171]) sits outside the
+axis: it is a helper the author calls, named for the operation it performs
+([D-144][d-144]).
 
 Which names the module exports is a separate question. It stays open until
 the exported-name audit in `pending.md` runs ([D-226][d-226]).
@@ -2145,7 +2148,7 @@ struct Engine <: AbstractComponent
     ω_rated::Float64                                 #unread here; §14.2's shipped condition uses it
 end
 
-#state stores: declared by initial value — types derived, nothing to drift
+#state and modes: declared by initial value — types derived, nothing to drift
 x_init(::Engine) = (ω = 0.0,)
 m_init(::Engine) = (phase = off,)                    # off | starting | running
 
@@ -2207,7 +2210,7 @@ lives in. It is stated once here, and the blocks below refer back to it.
 The criterion, not uniformity, is the rule. A `T` in a signature means the
 framework could not have supplied it.
 
-#### The stores
+#### State and mode declarations
 
 **`x_init` on the continuous tier, `s_init` on the discrete, and `m_init`
 declare by initial value** ([D-033][d-033]). The type is derived from the value.
@@ -2217,8 +2220,8 @@ admitted ([D-247][d-247]). A bare leaf such as `x_init(::C) = 0.0` or
 first step, declaration reading only) reports it as `StoreNotNamedTuple`, and
 the message spells the wrap ([§9.1][s9-1], [Appendix C][sC], [D-247][d-247]).
 
-The [store](#g-store) (the model's memory, declared by initial value) names each leaf
-because every service reaches a leaf by its field name. A [condition](#g-condition), the
+The `NamedTuple` names each leaf because every service reaches a leaf by its
+field name. A [condition](#g-condition), the
 path-addressed sparse overlay that sets a build's state, merges on it ([§14.1][s14-1]).
 Readers and the trace spell it ([§14.4][s14-4]). The name a one-state component is asked
 for is the name every service then uses.
@@ -2231,17 +2234,18 @@ x_init(::Gain) = (;)
 s_init(::Sampler) = (;)
 ```
 
-The store is the tier marker. It is therefore mandatory even when empty, exactly
-as `inner_connections` is mandatory even when empty because it is the class
-marker ([§8.5][s8-5], [D-263][d-263]). A primitive declaring neither store is `TierUnreadable`,
-and its message spells the empty form. An empty store owes no update law, since
-it has nothing to integrate or advance. It puts no letter in the bundle ([§5.2][s5-2]).
+This [state declaration](#g-state-declaration) (a leaf's `x_init` or `s_init`) is the tier marker. It is
+therefore mandatory even when empty, exactly as `inner_connections` is mandatory
+even when empty because it is the class marker ([§8.5][s8-5], [D-263][d-263]). A primitive
+declaring neither is `TierUnreadable`, and its message spells the empty form. An
+empty state declaration owes no update law, since it has nothing to integrate or
+advance. It puts no letter in the bundle ([§5.2][s5-2]).
 
 A continuous component's state may be empty ([§3.1][s3-1]), so a stateless
 continuous leaf is honestly a continuous leaf with zero state fields. Spelling
 that out puts every leaf's tier on the page in one place, stateful or not, with
-no tier by omission. It also closes a trap. A store lost to a local scope or to
-a forgotten import ([§8.1][s8-1]) fails loud as a leaf declaring no store,
+no tier by omission. It also closes a trap. A state declaration lost to a local
+scope or to a forgotten import ([§8.1][s8-1]) fails loud as a leaf declaring none,
 where an optional marker would have dropped silently.
 
 Because the type is derived from the value, there is no second artifact to drift
@@ -2253,8 +2257,8 @@ arguments below cover it ([§7.3][s7-3]). `ws_init` alone declares by allocation
 and nothing downstream derives from the type of what it returns.
 
 This is the boundary of legitimate derivation. Deriving from another
-declaration is sound, and deriving from evaluated user code is not. Stores
-declared by type, with synthesized initial values, were rejected
+declaration is sound, and deriving from evaluated user code is not. Declaring
+state by type, with synthesized initial values, was rejected
 ([D-073][d-073]).
 
 The declared values are the base layer of the condition substrate. The
@@ -2267,8 +2271,8 @@ The asymmetry against `u_types`/`y_types` is one of kind, not style.
 signal table's typed entries). There is one cell per output [port](#g-port) (one
 declared input or output). Cells are recomputed from scratch every [sweep](#g-sweep)
 (one pass through the execution order), so contracts need only types. `x_init`,
-`s_init` and `m_init` describe stores, which must have contents before the first
-sweep can run.
+`s_init` and `m_init` seed the [stores](#g-store) (the homes of `x`, `s` and `m`),
+which must have contents before the first sweep can run.
 
 #### Input contracts: `u_types`
 
@@ -2314,14 +2318,14 @@ implementation that must participate keeps its entry tolerant and supplies a
 local derivative rule ([§14.10][s14-10]). A walking producer feeds a pinned
 entry through the `Freeze` block ([§13.7][s13-7]).
 
-`Int`/`Bool`/enum leaves and abstract reference-typed entries stand as they
-always were, admitting what their declared bound admits. **[Abstract entries](#g-abstract-entry)
-state structural substitutability** ([D-078][d-078], [D-296][d-296]). Several concrete producer types are
-admissible behind one stable face. The field handles ([§4.4][s4-4]) are the
-demonstrated client, as in `terrain = AbstractTerrainField`. They carry no
-scalar position, because they are references rather than numbers. They are still
-never the tool for eltype genericity. That tool is exactly an unpinned entry, a
-promoting consumer writing `SVector{3, Float64}` rather than an abstract bound.
+`Int`/`Bool`/enum leaves and abstract reference-typed entries stand as they always
+were, admitting what their declared bound admits. **[Abstract entries](#g-abstract-entry) state
+structural substitutability** ([D-078][d-078], [D-296][d-296]). Several concrete producer types are
+admissible behind one stable face. The field handles ([§4.4][s4-4]) are the demonstrated
+client, as in `terrain = AbstractTerrainField`. They carry no scalar position,
+because they are references rather than numbers. They are still never the tool
+for eltype genericity. That tool is exactly an unpinned entry, a promoting
+consumer writing `SVector{3, Float64}` rather than an abstract bound.
 
 Inputs are the component's *requirements*. Only against them are the
 unconnected-input error ([§6.1][s6-1]), over-wiring detection and
@@ -2460,7 +2464,7 @@ activation's `T` by the leaf walk ([D-079][d-079], [D-263][d-263]). On a
 discrete producer the same spelling pins wholesale. That is the discrete
 exemption ([§7.2][s7-2]), enforced by tier. The leaf's tier decides which
 reading applies, never the contract's shape. The tier is declared by the
-leaf's store (above and below).
+leaf's state declaration (above and below).
 
 Semantics are literal once the walk has run. The cell type is the retyped
 declaration, with nothing inferred. Participation is therefore authored per
@@ -2586,14 +2590,14 @@ What the plain form buys in exchange is one convention. Every declaration in
 the framework is read with the same walk rule, and a genuinely frozen leaf
 still says so on the page ([D-263][d-263], [D-297][d-297]).
 
-The stores are walked by the same rule, with no marker ([D-263][d-263], [D-295][d-295]). The
-type derived from `x_init` is walked. Real leaves and `Real` type parameters
-follow the activation scalar. `m_init` and `s_init` pin wholesale, mirroring
-the discrete-producer rule. `Pinned` has no place in a store, because
-[§7.1][s7-1] admits no pinned state leaf for it to mark ([D-295][d-295]). Declared `Float64`
-initial values embed as zero-partial constants under non-nominal activations
-([D-079][d-079], [D-297][d-297]). That is the rule for `Float64` condition leaves
-([§14.3][s14-3]) applied to the defaults those conditions overlay.
+Declared initial values are walked by the same rule, with no marker ([D-263][d-263],
+[D-295][d-295]). The type derived from `x_init` is walked. Real leaves and `Real` type
+parameters follow the activation scalar. `m_init` and `s_init` pin wholesale,
+mirroring the discrete-producer rule. `Pinned` has no place in a state
+declaration, because [§7.1][s7-1] admits no pinned state leaf for it to mark ([D-295][d-295]).
+Declared `Float64` initial values embed as zero-partial constants under
+non-nominal activations ([D-079][d-079], [D-297][d-297]). That is the rule for `Float64` condition
+leaves ([§14.3][s14-3]) applied to the defaults those conditions overlay.
 
 Walking `x_init` presupposes the closed leaf vocabulary that [§7.1][s7-1]
 fixes, scalars and `SArray`s at the common eltype ([D-094][d-094]). On the
@@ -2651,26 +2655,28 @@ The build checks three rules in the structure step ([§9.1][s9-1]). They are
 stated here because they are properties of the declarations, not of the
 wiring.
 
-A non-empty store needs its update. `x_init` with fields and no `x_deriv` method,
-or `s_init` with fields and no `s_update` method, is a build error,
-`StoreWithoutUpdate`. The first case is continuous state with no [flow](#g-flow) (the
+A non-empty state declaration needs its update. `x_init` with fields and no
+`x_deriv` method, or `s_init` with fields and no `s_update` method, is a build error,
+`StoreWithoutUpdate` ([D-263][d-263]). The first case is continuous state with no [flow](#g-flow) (the
 continuous derivative function, `x_deriv`), the second a discrete store nothing
 updates. The framework will not silently supply `ẋ = 0`, which is a model, not a
 default. An unupdated discrete store is a parameter in disguise, and parameters
-are plain struct fields. The didactic style says exactly that.
+are plain struct fields.
 
-An empty store owes nothing (above). `m_init` carries no such obligation either.
+An empty state declaration owes nothing (above). `m_init` carries no such
+obligation either.
 Modes are written by handlers, and a component may legitimately declare modes no
 event of its own transitions.
 
 An event needs both halves. A `state_events` entry whose guard or handler has no
-method for the component type is a build error, `EventHalfMissing`. Method
+method for the component type is a build error, `EventHalfMissing` ([D-215][d-215]). Method
 lookup catches it at declaration-reading time, rather than as a `MethodError` at
 the first firing. An event that fires only in a corner of the envelope would
 otherwise hide the omission indefinitely. An entry that is not a `StateEvent` is
 `EventHalfMissing` too ([D-215][d-215]).
 
-Tier is declared by the store, as "The stores" above states ([D-195][d-195], [D-263][d-263]). A
+Tier is declared by the state declaration, as "State and mode declarations"
+above states ([D-195][d-195], [D-263][d-263]). A
 stateful leaf announces it in the update law as well, `x_deriv` beside `x_init`
 and `s_update` beside `s_init`. The two output stages are one pair of names shared
 by both tiers, so they announce nothing and cast no vote ([D-220][d-220]).
@@ -2685,24 +2691,24 @@ arity carries a tier (above).
 Disagreement is `DeclarationOnWrongTier` ([Appendix C][sC]). It is reported as the
 offending declaration, with the tier the leaf's other declarations announce. It
 covers declaring both `x_deriv` and `s_update`, a `Pinned` entry on a discrete leaf,
-and the mixed-store cases that the split state letters (`x` for continuous
-state, `s` for discrete, [D-195][d-195]) restore. Those are both stores on one leaf, an
-`x_init` on a leaf whose update law is `s_update`, and an `s_init` on one whose
-update law is `x_deriv`.
+and the mixed cases that the split state letters (`x` for continuous state, `s` for
+discrete, [D-195][d-195]) restore. Those are both state declarations on one leaf, an
+`x_init` on a leaf whose update law is `s_update`, and an `s_init` on one whose update
+law is `x_deriv`.
 
-A stateless leaf is a leaf whose store is empty, and it declares its tier the
-same way. `x_init(::C) = (;)` makes it continuous, the tier [§13.7][s13-7]
-steers stateless leaves to. `s_init(::C) = (;)` makes it discrete, one that
-runs at its ticks and holds its outputs between them.
+A stateless leaf is a leaf whose state declaration is empty, and it declares its
+tier the same way. `x_init(::C) = (;)` makes it continuous, the tier [§13.7][s13-7] steers
+stateless leaves to. `s_init(::C) = (;)` makes it discrete, one that runs at its
+ticks and holds its outputs between them.
 
-`y_types` stays mandatory on a stateless leaf. A leaf with an empty store and no
-output contract produces nothing and stores nothing, and it is refused as
-`StatelessWithoutOutputs` ([Appendix C][sC], [D-263][d-263]). The stage bundles follow the tier
-like any other leaf's, with no `x` or `s` field, because the bundle law puts a
-store's letter in the bundle only when the store is non-empty ([§5.2][s5-2]). [§13.7][s13-7]
-records why one stateless continuous leaf already serves consumers on both
-tiers. A type declaring both the leaf and the assembly families of declarations,
-or neither, meets the class errors of [§8.5][s8-5].
+`y_types` stays mandatory on a stateless leaf. A leaf with an empty state
+declaration and no output contract produces nothing and stores nothing, and it
+is refused as `StatelessWithoutOutputs` ([Appendix C][sC], [D-263][d-263]). The stage bundles
+follow the tier like any other leaf's, with no `x` or `s` field, because the bundle
+law puts a state declaration's letter in the bundle only when it is non-empty
+([§5.2][s5-2]). [§13.7][s13-7] records why one stateless continuous leaf already serves consumers
+on both tiers. A type declaring both the leaf and the assembly families of
+declarations, or neither, meets the class errors of [§8.5][s8-5].
 
 ### 8.3 Visibility: the contract is the interface
 
@@ -2740,7 +2746,7 @@ always meaning someone wrote it down.
 framework produces no port of its own. Stage membership is derived over
 `y_types` alone ([§9.1][s9-1]). Declared-but-unproduced and
 produced-by-two-stages are build errors. A declared port no stage produces is
-`DeclaredNotProduced`, which names the port, the stage products and the store
+`DeclaredNotProduced`, which names the port, the stage products and the state
 fields. Its remedy is returning the name from `y_state` ([§5.3][s5-3]).
 
 The return side is checked too. A *returned port field* declared nowhere is a
@@ -2768,7 +2774,7 @@ on the embedding guarantee ([§9.5][s9-5]). Promotion is airtight, so an observe
 
 This section's rules exclude several designs the log rejects
 ([D-016][d-016], [D-034][d-034], [D-055][d-055], [D-194][d-194]), among them
-the `unlisted` flag ([§4.2][s4-2]) and its satellite-function representation.
+the `unlisted` flag ([§4.2][s4-2]).
 
 ### 8.4 Failure walkthroughs (the error-locality grounding)
 
@@ -2861,12 +2867,11 @@ inference-by-evaluation ([§8.1][s8-1]).
 
 Class fixes *which* declarations a type may define, and nothing about their
 shape. Every declaration of a structural fact takes the component alone, on a
-leaf of either [tier](#g-tier) (continuous or discrete) and on an assembly
-alike. The one exception, the allocator's scalar, is the same on both tiers
-([§7.3][s7-3], [D-263][d-263]). The tier is read from the store every leaf
-declares ([§8.2][s8-2]). That section states the arity rule and tier agreement
-in full. A declaration on the wrong tier is `DeclarationOnWrongTier`
-([Appendix C][sC]).
+leaf of either [tier](#g-tier) (continuous or discrete) and on an assembly alike ([D-263][d-263],
+[D-279][d-279]). The one exception, the allocator's scalar, is the same on both tiers
+([§7.3][s7-3], [D-263][d-263]). The tier is read from the state declaration every leaf makes
+([§8.2][s8-2]). That section states the arity rule and tier agreement in full. A
+declaration on the wrong tier is `DeclarationOnWrongTier` ([Appendix C][sC]).
 
 #### Container children
 
@@ -2911,9 +2916,9 @@ faces and no rate scope.
 The edges of the container form are fixed by rule.
 
 - A container mixing component and non-component elements is a build error in
-  this section's did-you-mean family ([D-085][d-085], [D-298][d-298]). The error is `ContainerMixed`.
-  All-component elements are children, and zero-component elements are inert
-  parameter data.
+  this section's did-you-mean family ([D-085][d-085], [D-298][d-298]). The error is
+  `ContainerMixed`. All-component elements are children, and zero-component
+  elements are inert parameter data.
 - Containers of containers are rejected in the first cut, because deeper
   grouping is what assemblies are for ([D-085][d-085], [D-298][d-298]). The element whose
   value is itself a component-bearing container is named, with its type
@@ -2923,7 +2928,7 @@ The edges of the container form are fixed by rule.
 - Abstract element types follow the same concreteness discipline as plain
   fields. They are directly concrete, or concrete through type-parameter
   bounds. That is the [generic holding](#g-generic-holding) (a parent holding
-  a child through a non-concrete field type) that [§8.8][s8-8] allows.
+  a child through a non-concrete field type) that [§8.8][s8-8] allows ([D-043][d-043]).
 - **A bare key from a name-transparent container colliding with any sibling
   child name is a build error naming both** ([D-211][d-211]). The error is
   `ChildNameCollision`. The `sample_times` sugar of [§8.7][s8-7], where a container's bare
@@ -2950,22 +2955,25 @@ under this section's rules. **`Group` expresses it as a single library component
 part of the starting inventory ([§13.7][s13-7], [D-184][d-184]). A `NamedTuple` field's elements
 are its children by the container rule, name-transparent so they go by bare key
 ([D-211][d-211]). Its declarations are ordinary functions of the *instance*, free to read
-its fields.
+its fields. **A `Group` also carries its own rate scope**, a `rates` field
+keyed by bare element name, which `sample_times` returns ([D-300][d-300]).
 
 ```julia
-struct Group{C <: NamedTuple, W, I, O} <: AbstractComponent
+struct Group{C <: NamedTuple, W, I, O, R <: NamedTuple} <: AbstractComponent
     children::C      # component-typed elements → children by the container rule
     wires::W         # inert parameter data
     inputs::I
     outputs::O
+    rates::R         # the ad-hoc rate scope, keyed by bare element name (§8.7)
 end
 inner_connections(g::Group)    = g.wires
 u_connections(g::Group)        = g.inputs
 y_connections(g::Group)        = g.outputs
+sample_times(g::Group)         = g.rates
 transparent_container(::Group) = :children
 
-Group(children; wires = (), inputs = (), outputs = ()) =
-    Group(children, wires, inputs, outputs)
+Group(children; wires = (), inputs = (), outputs = (), rates = (;)) =
+    Group(children, wires, inputs, outputs, rates)
 
 world = Group(
     (; plant = Plant(), ctrl = PID(kp = 2.0));
@@ -3194,7 +3202,7 @@ held in its `s`. That is the textbook sampled-data latch. It is the only new
   re-anchoring lets the $c_{k-1}$-dependent factor, constant over the
   interval, exit the integral. What remains is the cumulative integrand.
   Second, split its range at $t_{k-1}$. That gives the difference of the
-  running store:
+  running integral:
 
   $$\int_{t_{k-1}}^{t_k} R^{c_{k-1}}_{c} f^{c} \, dt
   = (R^{c_0}_{c_{k-1}})^{\mathsf{T}} \left( \int_{t_0}^{t_k} R^{c_0}_{c} f^{c} \, dt -
@@ -3387,7 +3395,7 @@ key, and `sample_times` needs no rule change for them ([D-085][d-085]). The bare
 name is sugar that applies one uniform declaration across all elements. The
 sugar keys on the *field*, not on a path segment, so a name-transparent
 container keeps it unchanged. `(children = Relative(2),)` is the uniform
-spelling for a `Group`.
+spelling for a `Group` ([D-300][d-300]).
 
 A `sample_times` key on a continuous child is a build error
 ([D-042][d-042]). It is the declaration-time side of a run-time fact. A
@@ -3407,8 +3415,8 @@ rejected ([D-042][d-042]).
 ### 8.8 Computed connections and generic holding
 
 `u_connections` and `y_connections` are ordinary functions evaluated at build
-against the concrete instance. They may therefore *compute* entries from child
-[contracts](#g-contract) (each child's declared interface). That is derivation from
+against the concrete instance ([D-043][d-043]). They may therefore *compute* entries from
+child [contracts](#g-contract) (each child's declared interface). That is derivation from
 declarations, which [§8.2][s8-2] blesses. The section covers the passthrough helpers,
 the single authored feed list and [generic holding](#g-generic-holding) (a parent holding a child
 through a non-concrete field type), in that order.
@@ -3465,7 +3473,8 @@ name containing dots is a legal final path segment on the internal-endpoint
 side ([D-046][d-046]). That holds precisely because slash is the only structural
 separator.
 
-Computed entries mix freely with hand-written ones in either declaration.
+Computed entries mix freely with hand-written ones in either declaration
+([D-043][d-043]).
 `resolve` and `input_faces` are build-pipeline primitives needed anyway, and
 `input_passthrough` is a thin composition. That is what keeps the helper sugar
 rather than machinery. There is no `rename` hook, because the boundary
@@ -3533,12 +3542,12 @@ y_connections(sys::Systems) = (
 level re-exports the outputs it surfaces, so the output side needs the
 computed spelling the input side already has.
 
-Both helpers take `child_path` naming an immediate child, container key
-segments included ([D-207][d-207]). The default `prefix` folds the path's
-slash into `sep`, so `"gear/1"` labels its faces `"gear.1.…"` and the default
-stays a legal face name for every blessed `child_path`. An explicit `prefix`
-is used verbatim. A deeper path meets `resolve`'s one-level rejection like any
-other wiring endpoint ([§13.3][s13-3], [D-207][d-207]).
+Both helpers take `child_path` naming an immediate child, container key segments
+included ([D-207][d-207]). The default `prefix` folds the path's slash into `sep`, so
+`"gear/1"` labels its faces `"gear.1.…"` and the default stays a legal face name for
+every blessed `child_path`. An explicit `prefix` is used verbatim ([D-046][d-046]). A deeper
+path meets `resolve`'s one-level rejection like any other wiring endpoint ([§13.3][s13-3],
+[D-207][d-207]).
 
 There are two helpers rather than one keyword ([D-171][d-171], [D-299][d-299]). The boundary
 declarations split by direction into `u_connections` and `y_connections`, and
@@ -12442,6 +12451,12 @@ each name's legal bundle set is tier-dependent ([D-220][d-220]). Feedthrough
 is thereby declared by signature, with no dependency annotations anywhere
 ([§5.2][s5-2]).
 
+<a id="g-state-declaration"></a>**state declaration** — a leaf's `x_init` or `s_init`, declaring its
+continuous or discrete state by initial value. Every leaf makes exactly one,
+empty when stateless, and it marks the leaf's tier. A non-empty one owes its
+update law, `x_deriv` or `s_update`, and it seeds the leaf's `x` or `s`
+store ([§8.2][s8-2]).
+
 <a id="g-workspace"></a>**workspace** — component-declared mutable scratch, declared *by allocation*
 (`ws_init(::C, ::Type{T})` on both tiers, a discrete allocator always
 called at `Float64`), arriving as the `ws` bundle field. It is excluded from state
@@ -12451,8 +12466,10 @@ framework. Its contents at call entry are unspecified ([§7.3][s7-3]).
 ### D.2 Signals and data homes
 
 <a id="g-buffer"></a>**buffer** — the framework-owned contiguous `Vector{T}` backing all continuous
-state, laid out at build time. It is authoritative, and typed state values
-are ephemeral reconstructions of it ([§7.1][s7-1]). The integration
+state, laid out at build time, and the `ẋ` vectors the integrator fills. A
+component's `x` store is its range of the `x` buffer. The buffer is
+authoritative, and typed state values are ephemeral reconstructions of it
+([§7.1][s7-1]). The integration
 intermediates ([§13.6][s13-6]) live in framework-owned integrator buffers,
 never in a component's workspace.
 
@@ -12535,10 +12552,12 @@ pending write batch waits between drains. It is mutated frame by frame,
 hence outside the table's publish-once discipline ([§11.4][s11-4]). Not a
 table cell ([§4.1][s4-1]).
 
-<a id="g-store"></a>**store** — the typed home of `m` and of a discrete leaf's `s`, isbits or
-`Symbol` field by field. The framework overwrites it when a handler or update
-returns a new value. It is never arithmetic-touched and is snapshot-free to
-copy. It is never called a cell. Root inputs, by contrast, *are* source cells
+<a id="g-store"></a>**store** — the framework-owned home of one of a component's state letters,
+`x`, `s` or `m`. An `x` store is a range of the buffer. An `s` or `m` store is
+a typed value, isbits or `Symbol` field by field, which the framework
+overwrites when a handler or update returns a new value. It is never
+arithmetic-touched and is snapshot-free to copy. A store is never called a
+cell. Root inputs, by contrast, *are* source cells
 of the table ([§7.3][s7-3], [§4.1][s4-1], [§11.2][s11-2]).
 
 <a id="g-summing-junction"></a>**summing junction** — an ordinary library component performing N-to-1
@@ -12763,7 +12782,7 @@ boundary gate reads. An off-tick frame top and a `t*` boundary have none
 ([§10.5][s10-5]).
 
 <a id="g-tier"></a>**tier** — the continuous or discrete side of the hybrid formalism, read off
-the store every leaf declares, `x_init` or `s_init`, empty when stateless
+the state declaration every leaf makes, `x_init` or `s_init`, empty when stateless
 (`DeclarationOnWrongTier` names a violation)
 ([§8.2][s8-2], [§8.5][s8-5]). Bare "tier" means only this. The genericity
 classes are *walked / pinned / exempt* ([§D.5][sD-5]) and the detection
@@ -13622,6 +13641,9 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-297]: decisions.md#d-297--contracts-by-type-seeding-not-typing-one-walk-convention-and-declared-publicity
 [d-298]: decisions.md#d-298--container-edges-the-builder-rejection-groups-trade-and-the-directional-two-notation-rule
 [d-299]: decisions.md#d-299--rate-scopes-by-type-the-feed-list-doctrine-and-the-helper-pair
+[d-300]: decisions.md#d-300--give-group-its-own-rate-scope
+[d-301]: decisions.md#d-301--name-a-declaration-by-what-it-returns
+[d-302]: decisions.md#d-302--let-a-store-be-the-home-of-any-state-letter
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
