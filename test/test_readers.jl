@@ -171,6 +171,17 @@ function test_readers()
         gather_reads(pose_reader, pose_exec)
         @test @ballocated(gather_reads($pose_reader, $pose_exec)) == 0
         @test @inferred(gather_reads(pose_reader, pose_exec)) isa NamedTuple
+
+        # 64 reads, past the 32 elements where `map` over a tuple allocates and
+        # loses its element types.
+        bank_sim = Simulation(sawtooth_bank(); h = 1//10)
+        init!(bank_sim)
+        bank_reader = _compile_reads(reads(; (Symbol(:q, i) => get_state("s$i", :q) for i in 1:64)...),
+                                     bank_sim.deployment.build)
+        bank_exec = bank_sim.exec
+        gather_reads(bank_reader, bank_exec)
+        @test @ballocated(gather_reads($bank_reader, $bank_exec)) == 0
+        @test isconcretetype(only(Base.return_types(gather_reads, (typeof(bank_reader), typeof(bank_exec)))))
     end
 
     @testset "resolution collects every violation into one refusal (§14.4, §13.1)" begin
@@ -457,6 +468,17 @@ function test_readers()
         @test gather(handle, snapshot) === (v = pose.v, m12 = pose.m[1, 2])
         gatherer = handle.gatherer
         @test @ballocated(gather_snapshot($gatherer, $snapshot)) == 0      # `pose.m[1,2]` is two steps
+
+        # A device reading 64 outputs: the gather walks a tuple of 64 entries.
+        bank_sim = Simulation(sawtooth_bank(); h = 1//10)
+        bank_handle = attach!(bank_sim, Pad("t"),
+                              Readout(; (Symbol(:q, i) => get_output("s$i", "q") for i in 1:64)...))
+        init!(bank_sim)
+        bank_gatherer, bank_snapshot = bank_handle.gatherer, latest(bank_sim)
+        gather_snapshot(bank_gatherer, bank_snapshot)
+        @test @ballocated(gather_snapshot($bank_gatherer, $bank_snapshot)) == 0
+        @test isconcretetype(only(Base.return_types(gather_snapshot,
+                                                    (typeof(bank_gatherer), typeof(bank_snapshot)))))
 
         # A step the address cannot take is refused at attach with the family's
         # reason, the step named as spelled.

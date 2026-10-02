@@ -144,6 +144,16 @@ function test_bindings()
         @test err isa ErrorException && occursin("`wheel`", err.msg)
     end
 
+    @testset "map_input over 64 channels allocates nothing and stays concrete (§11.6, §7.5)" begin
+        # Past the 32 elements where `map` over a tuple allocates and loses its
+        # element types.
+        b = TableBinding(; (Symbol(:c, i) => (face = "f$i",) for i in 1:64)...)
+        datum = NamedTuple{ntuple(i -> Symbol(:c, i), 64)}(ntuple(i -> 0.1i, 64))
+        @test map_input(datum, b)[64] == ("f64" => 0.1 * 64)
+        @test @ballocated(map_input($datum, $b)) == 0
+        @test isconcretetype(only(Base.return_types(map_input, (typeof(datum), typeof(b)))))
+    end
+
     @testset "the loop idiom end to end: poll → map_input(binding(handle)) → stage! (§11.6)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         dev = Poller((; stick = 0.55, thr = 0.7))

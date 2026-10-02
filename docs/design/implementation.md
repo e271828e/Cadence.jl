@@ -219,7 +219,9 @@ Spec: §9.5, §9.7, D-162, D-235, D-237, D-260.
   phase body holds one pointer per chunk and a barrier call loads one
   pointer. Every tuple walk, over a chunk's entries, a body's chunks, or the
   event set's chunks and their entries, unrolls through one generated body,
-  `_unrolled`.
+  `_unrolled`. Its twin `_unrolled_tuple` returns the elements as one tuple
+  and serves the value-building walks of readers.jl, bindings.jl and
+  conditions.jl.
 - The interior/boundary split `PhaseBody`. A body with no gated entry has two
   tuples of one type and walks its interior at a boundary.
 - The `(tick − Φ) % D` gate `Gated`, with boundary zero's `ESTABLISH` beside
@@ -338,7 +340,8 @@ Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
 - The internal `_compile_reads`, which yields a `Reader{T}`. Each entry carries
   its chain as a type parameter, and the `CellRead` core reads a store bundle,
   so every gather over a table shares it.
-- `gather_reads`, `apply!`'s twin over an executor.
+- `gather_reads`, `apply!`'s twin over an executor. It reads its entries
+  through the generated `_read_entries`, which `gather_snapshot` shares.
 - The output-port candidates, read off the `Outputs`.
 - Activation identity on readers, checked as an internal invariant. The same
   check on plans sits in conditions.jl's `apply!`.
@@ -657,7 +660,8 @@ D-261.
 ### `src/bindings.jl`
 
 - `TableBinding`.
-- `map_input` and the conditioning helper `_condition`.
+- `map_input`, generated over the datum's keys with one `_map_channel` call
+  each, and the conditioning helper `_condition`.
 - Binding reads `ReadGather`, resolved at attach by `_compile_gather`.
   Resolution raises `ReadBindingUnresolved` and enforces the source rule.
 - The three table members take a leaf address, parsed and resolved by the
@@ -759,7 +763,8 @@ D-233, D-244, D-256, D-261, D-268, D-270.
   walked from its authoring level (§13.3). The two ways are:
   - `resolve_condition`, for values;
   - `compile_plan`, with lenses run by `walk_steps` (readers.jl),
-    `SpecializedPlan` and `ConditionShapeDrift`.
+    `SpecializedPlan`, whose writes and prefixes `apply!` walks as generated
+    unrolls, and `ConditionShapeDrift`.
 - Root-input totality `assert_total`.
 
 Spec: §9.5, §13.1, §13.3, §14.1–§14.6, §14.9, Appendix B, D-063–D-068, D-117,
@@ -936,10 +941,12 @@ Traps the code does not warn about, each hit more than once while building:
 - the init-service keyword is `t0` (the spec's signatures, D-110) while the
   *concept* and `Clock`'s field stay `t₀` — `clock.t₀ = t0` inside `init!`
   is that split, not a typo; don't unify them;
-- **a tuple walk by `Base.tail` recursion stops inferring past 32
-  elements**, and from there it allocates at every call. A walk over an entry
-  or chunk tuple is therefore a generated unroll, `_unrolled` in
-  `executor.jl` (§9.7, D-289);
+- **a walk over a tuple whose width a model sets is a generated unroll**,
+  through `_unrolled` or `_unrolled_tuple` in `executor.jl` (§9.7, D-289).
+  Two Julia thresholds make any other walk allocate. A `Base.tail` recursion
+  allocates at every call once the tuple passes 32 elements. `map` over a
+  tuple of 32 or more falls back to a `Vector{Any}`, dispatches per element
+  and returns a type that is not concrete;
 - **code that runs once per build takes a component, an assembly or the root
   unspecialized**: `@nospecialize` on the argument, and
   `Base.@nospecializeinfer` on the walk's entry points `build`, `flatten_tree!` and

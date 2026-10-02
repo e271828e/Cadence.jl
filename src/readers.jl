@@ -365,9 +365,16 @@ end
 Reader{T,L}(entries::E) where {T,L,E<:Tuple} = Reader{T,L,E}(entries)
 
 @inline gather_reads(reader::Reader{T,L}, exec::Executor{T}) where {T,L} =
-    NamedTuple{L}(map(e -> _read(e, exec), reader.entries))
+    NamedTuple{L}(_read_entries(reader.entries, exec))
 
 gather_reads(::Reader{T}, ::Executor{S}) where {T,S} = _activation_mismatch("reader", T, S)
+
+# One `_read` per entry over an executor or a snapshot's store, shared with
+# bindings.jl's `gather_snapshot`. A read set can name more than 32 labels,
+# so the walk is an unrolled tuple rather than a `map` (executor.jl's
+# `_unrolled_tuple`).
+@generated _read_entries(entries::Tuple, source) =
+    _unrolled_tuple(i -> :(_read(entries[$i], source)), fieldcount(entries))
 
 # --- resolution (§14.4, §13.1) --------------------------------------------------
 

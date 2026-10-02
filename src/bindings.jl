@@ -81,7 +81,8 @@ an owner (§11.4, §11.6). The datum is whatever the author's loop assembled,
 one field per *touched* channel: `map_input` returns face ⇒ value pairs for
 exactly those, so a sparse datum stages a sparse batch and merge does the
 rest (§11.4). The idiom is `stage!(handle, map_input(datum, binding(handle))...)`,
-on the device's own task.
+on the device's own task. The pairs come back as a tuple in the datum's field
+order, built with no allocation however many fields the datum carries.
 
 A datum field naming no table channel is configuration drift, not a bad
 datum: the mapping and the datum are written by the same author, so the
@@ -90,14 +91,17 @@ throw is deliberate — it lands in the wrapper as the `DeviceCrash` it is
 device struct, maintained by the loop, and arrives *inside* the datum:
 `map_input` stays pure, and staged values are levels, never deltas (§11.4).
 """
-function map_input(datum::NamedTuple, b::TableBinding)
-    map(keys(datum)) do channel
-        haskey(b.table, channel) || error(
-            "map_input: the datum carries `$channel`, which names no channel of this " *
-            "TableBinding — its channels are $(_faceset(keys(b.table))) (§11.6)")
-        entry = b.table[channel]
-        String(entry.face) => _condition(datum[channel], entry)
-    end
+@generated map_input(datum::NamedTuple{K}, b::TableBinding) where {K} =
+    _unrolled_tuple(i -> :(_map_channel(datum, b, $(QuoteNode(K[i])))), length(K))
+
+# One datum field's pair. `map_input` unrolls one call per field, since `map`
+# over 32 or more fields allocates and returns a type that is not concrete.
+function _map_channel(datum::NamedTuple, b::TableBinding, channel::Symbol)
+    haskey(b.table, channel) || error(
+        "map_input: the datum carries `$channel`, which names no channel of this " *
+        "TableBinding — its channels are $(_faceset(keys(b.table))) (§11.6)")
+    entry = b.table[channel]
+    String(entry.face) => _condition(datum[channel], entry)
 end
 
 # --- the output side: selectors, resolution, the compiled gather (§14.4, §11.2) --
@@ -129,7 +133,7 @@ end
 ReadGather{L}(entries::E) where {L,E<:Tuple} = ReadGather{L,E}(entries)
 
 gather_snapshot(read_gather::ReadGather{L}, snapshot::Snapshot) where {L} =
-    NamedTuple{L}(map(entry -> _read(entry, snapshot.store), read_gather.entries))
+    NamedTuple{L}(_read_entries(read_gather.entries, snapshot.store))
 
 """
 Resolve one attachment's `reads` against the build and compile the gather —

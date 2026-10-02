@@ -533,6 +533,28 @@ function conditions_specialized_apply()
         @test (@ballocated apply!($(sim.exec), $plan, $tree)) == 0
     end
 
+    @testset "the specialized `apply!` stays allocation-free past 32 writes (§14.4, §7.5)" begin
+        # 64 `at` nodes over 64 components: 64 `x` writes and 64 prefixes to sweep.
+        sim = Simulation(sawtooth_bank(); h = 1//10)
+        bank_tree(v) = combine((at("s$i", fragment(x = (q = v + i,))) for i in 1:64)...)
+        plan = compile_plan(bank_tree(0.0), sim.deployment.build)
+        tree = bank_tree(0.25)
+        @test length(plan.xs) == 64 && length(plan.prefixes) == 64
+        apply!(sim.exec, plan, tree)
+        @test sim.exec.xbuf == [0.25 + i for i in 1:64]
+        @test (@ballocated apply!($(sim.exec), $plan, $tree)) == 0
+
+        # One store of 64 fields: one write, its overlay 64 authored values.
+        wide_sim = Simulation(Group((; w = WideStore())); h = 1//10)
+        authored = NamedTuple{ntuple(i -> Symbol(:f, i), 64)}(ntuple(i -> 0.5i, 64))
+        wide_tree = at("w", fragment(s = authored))
+        wide_plan = compile_plan(wide_tree, wide_sim.deployment.build)
+        @test length(wide_plan.stores) == 1
+        apply!(wide_sim.exec, wide_plan, wide_tree)
+        @test state(wide_sim, "w") === authored
+        @test (@ballocated apply!($(wide_sim.exec), $wide_plan, $wide_tree)) == 0
+    end
+
     @testset "the store merge is the composite's, not one layer's (§14.3)" begin
         sim = Simulation(Group((; led = Ledger())); h = 1//10)
         # The plan is compiled from the whole composite tree a service builds, so

@@ -252,6 +252,19 @@ function s_update(c::Smoother, (; s, u, ws))
     (v = SVector{2,Float64}(ws.tmp[1], ws.tmp[2]),)
 end
 
+"""
+Wide store: one `s` store of 64 `Float64` fields, `f1` to `f64`. A condition
+authoring all of them compiles to one store write over 64 authored values,
+past the 32 elements where a tuple walk starts to allocate (§14.4).
+"""
+struct WideStore <: AbstractComponent end
+
+s_init(::WideStore) = NamedTuple{ntuple(i -> Symbol(:f, i), 64)}(ntuple(_ -> 0.0, 64))
+y_types(::WideStore) = (f1 = Float64,)
+
+y_state(::WideStore, (; s)) = (f1 = s.f1,)
+s_update(::WideStore, (; s)) = s
+
 # --- the other two declarations the bundle law owes -------------------------
 
 """
@@ -360,6 +373,15 @@ x_deriv(c::Sawtooth, (; x)) = (q = c.rate,)
 sawtooth_guard(::Sawtooth, (; x)) = x.q - 1.0
 sawtooth_handler(::Sawtooth, (; x)) = (x = (q = x.q - 1.0,),)
 state_events(::Sawtooth) = (wrap = StateEvent(sawtooth_guard, sawtooth_handler),)
+
+"""
+    sawtooth_bank()
+
+64 sawtooths, `s1` to `s64`: a condition, a read set or a device reading them
+all walks a tuple of 64, past the 32 elements where a tuple walk starts to
+allocate (§14.4).
+"""
+sawtooth_bank() = Group(NamedTuple{ntuple(i -> Symbol(:s, i), 64)}(ntuple(_ -> Sawtooth(1.0), 64)))
 
 """
 Unit-circle rotor: `ċ = -ω s, ṡ = ω c` under a renormalizing `x_projection` — the

@@ -629,11 +629,16 @@ StoreWrite{K,S,F}(ci::Int, defaults::S, authored::A) where {K,S,F,A<:Tuple} =
     scatter_cell!(exec.store, w.addr, w.authored(tree))
 
 @inline function _write!(w::StoreWrite{K,S,F}, exec::Executor, tree) where {K,S,F}
-    overlay = NamedTuple{F}(map(a -> a(tree), w.authored))
+    overlay = NamedTuple{F}(_authored_values(w.authored, tree))
     ((K === :s ? exec.sstores : exec.mstores)[w.ci]::Base.RefValue{S})[] =
         convert(S, merge(w.defaults, overlay))
     nothing
 end
+
+# One store's authored fields can number past 32, so their values are an
+# unrolled tuple rather than a `map` (executor.jl's `_unrolled_tuple`).
+@generated _authored_values(authored::Tuple, tree) =
+    _unrolled_tuple(i -> :(authored[$i](tree)), fieldcount(authored))
 
 # One `Scoped` node's prefix: the tree type carries the nesting, every field
 # name and every leaf type, but a prefix is a runtime `String` field, so the
@@ -774,17 +779,13 @@ apply!(::Executor{T}, ::SpecializedPlan{T,NT}, tree) where {T,NT} =
 apply!(::Executor{S}, ::SpecializedPlan{T}, tree) where {S,T} =
     _activation_mismatch("plan", T, S)
 
-@inline _writes!(::Tuple{}, ::Executor, tree) = nothing
-@inline function _writes!(writes::Tuple, exec::Executor, tree)
-    _write!(first(writes), exec, tree)
-    _writes!(Base.tail(writes), exec, tree)
-end
+# A plan's writes and prefixes are as many as the tree authors, so both walks
+# are generated unrolls through executor.jl's `_unrolled` (§14.4).
+@generated _writes!(writes::Tuple, exec::Executor, tree) =
+    _unrolled(i -> :(_write!(writes[$i], exec, tree)), fieldcount(writes))
 
-@inline _sweep_prefixes(::Tuple{}, tree) = nothing
-@inline function _sweep_prefixes(prefixes::Tuple, tree)
-    _compare(first(prefixes), tree)
-    _sweep_prefixes(Base.tail(prefixes), tree)
-end
+@generated _sweep_prefixes(prefixes::Tuple, tree) =
+    _unrolled(i -> :(_compare(prefixes[$i], tree)), fieldcount(prefixes))
 
 @inline function _compare(prefix::Prefix{P}, tree) where {P}
     observed = walk_steps(tree, Val(P))

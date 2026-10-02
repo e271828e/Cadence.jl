@@ -313,12 +313,19 @@ end
 # exactly the masked entries, latching the returned stores — `x` into the flat
 # buffer, `m` merged into the mode store, per the return law's iff shape (§5.2).
 
-# The body of every tuple walk in this file: inlined into its caller, one
-# statement per element, then `nothing`. A `Base.tail` recursion would stop
-# inferring past 32 elements and allocate at every call (§9.7). A generator
-# calls only functions defined before it, so this sits above every walk.
+# The body of a generated tuple walk: inlined into its caller, one
+# statement per element, then `nothing`. A `Base.tail` recursion allocates at
+# every call once the tuple passes 32 elements (§9.7). A generator calls only
+# functions defined before it, so this sits above every walk, in this file and
+# in the files included after it.
 _unrolled(statement, n::Int) =
     Expr(:block, Expr(:meta, :inline), map(statement, 1:n)..., :nothing)
+
+# Its twin for a walk that builds a value: the elements' expressions as one
+# tuple, inlined. `map` over a tuple of 32 or more falls back to a
+# `Vector{Any}`, dispatches per element and returns a type that is not concrete.
+_unrolled_tuple(element, n::Int) =
+    Expr(:block, Expr(:meta, :inline), Expr(:tuple, map(element, 1:n)...))
 
 _projects!(event_set::EventSet, xbuf) = _project_chunks(event_set.projects, xbuf)
 @generated _project_chunks(chunks::Tuple, xbuf) =
