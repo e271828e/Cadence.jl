@@ -9779,10 +9779,10 @@ build's state). Every hot path holds the shape fixed while varying values.
 Execution is therefore resolve-once/execute-many, with two ways to apply one
 plan.
 
-- **Specialized `apply!`** serves the services that iterate, namely trim's
-  per-evaluation write and linearization's seeding. It unrolls stores through
-  the baked lenses and converters. Those are the same machine operations as
-  today's in-place writes: zero-alloc, no strings, no dispatch. The
+- **Specialized `apply!`** serves the service that iterates, trim's
+  per-evaluation write. It unrolls stores through the baked lenses and
+  converters. Those are the same machine operations as today's in-place
+  writes: zero-alloc, no strings, no dispatch. The
   per-iteration shape check is the mechanism of [§9.5][s9-5] transferred. The
   tree type is proven by dispatch, and it carries the full nesting, every
   field name and leaf type. A `===` sweep over the prefix strings closes the
@@ -9796,8 +9796,9 @@ plan.
   0.2 s at 128 (`docs/reports/20261002_tuple_walks/`). That cost is
   noise against the model's own first-sweep warmup (seconds), and against the
   10³–10⁴ optimizer evaluations the codegen amortizes over.
-- **The dynamic walk** serves one-shot init. It executes the same validated
-  entry list by runtime dispatch per write. That takes microseconds in total,
+- **The dynamic walk** serves the one-shot uses, `init!` and `linearize`'s
+  operating condition. It executes the same validated entry list by runtime
+  dispatch per write. That takes microseconds in total,
   with allocation permitted, since the stopped-sim path was never under the
   zero-alloc regime ([§7.5][s7-5]). It needs no per-shape codegen. Fifty
   structurally different scripted conditions cost fifty walks, not fifty
