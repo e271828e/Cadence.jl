@@ -43,6 +43,19 @@ that writes or judges text. The orchestrator is the main session: it reads
 every report, checks key claims at the cited lines, routes fixes, and keeps
 rulings away from agents.
 
+**The orchestrator rules, from chapter 10 on.** The owner delegated every
+decision of a chapter's rewrite to it on 2026-10-02. The four checkpoints
+below are the orchestrator's, and it records each ruling with its reason in
+the chapter's files, so the owner can audit any of them.
+
+Serious findings are the exception. A finding is serious when it shows a
+defect or inconsistency in the design itself, not in its prose: two sources
+the spec treats as authoritative contradict each other and no Position
+settles which is right; a fix would change what the framework does; or the
+design looks wrong. The orchestrator never rules on these. The text stays as
+written, the finding goes to `escalations.md` with its evidence and a
+recommendation, and the owner gets the list when the chapter closes.
+
 ### Step 1: survey (one Opus agent, read-only)
 
 The survey maps the chapter before anyone writes. Chapter 9's
@@ -62,13 +75,15 @@ The survey maps the chapter before anyone writes. Chapter 9's
 A survey whose report is long writes it in parts, one append per section:
 one response over the output limit kills the agent and loses the report.
 
-Then check its key claims yourself, at the cited lines, before the owner sees
-them. In chapter 9, six of six held.
+Then check its key claims yourself, at the cited lines, before ruling on
+them. In chapter 9, six of six held, and in chapter 10, eleven of eleven.
 
-**Checkpoint 1: the owner rules on the survey's decisions.** In chapter 9
-they were: where the `Deployment` lives; which block is frozen pending
-another ruling; how much log repair rides with the rewrite (answer: none, it
-is a second track); how many sentences get bold (answer: one per ruling).
+**Checkpoint 1: the orchestrator rules on the survey's decisions.** In
+chapter 9 the owner ruled them: where the `Deployment` lives; which block is
+frozen pending another ruling; how much log repair rides with the rewrite
+(answer: none, it is a second track); how many sentences get bold (answer:
+one per ruling). The last two hold for every chapter. Record the rulings at
+the top of `brief.md`.
 
 ### Step 2: the brief (written by the orchestrator)
 
@@ -163,9 +178,11 @@ chapter pass's ruling items, the inbound check and the survey's log and
 out-of-chapter parts into `rulings_batch.md`: deduplicated, sourced, each item
 with a proposal and a recommendation, blocking items first.
 
-**Checkpoints 2 and 3: the owner rules.** Bring the blocking items first, the
-ones marked "discuss" with a recommendation each, and the rest as one
-decision. In chapter 9, 103 items became two sittings.
+**Checkpoints 2 and 3: the orchestrator rules.** Take the blocking items
+first. Check each proposal's evidence at its source before accepting it, and
+record every ruling and its reason as the item's status in
+`rulings_batch.md`. Serious items go to `escalations.md` unruled. In
+chapter 9, the owner ruled 103 items in two sittings.
 
 Apply the rulings with agents partitioned by unit, so no two edit one file.
 Every ruled edit carries its ruling id in the inventory. A bold-only edit
@@ -178,9 +195,9 @@ found seven problems, one of them a change of meaning. Fix, then re-check.
 
 ### Step 7: land (the orchestrator)
 
-**Checkpoint 4: the owner approves landing.** Run `checks/build_pdf.sh chNN`
-and read the PDF first: tables and links are where an excerpt fails. Then,
-in this order:
+**Checkpoint 4: the orchestrator approves landing.** Run
+`checks/build_pdf.sh chNN` and read the PDF first: tables and links are where
+an excerpt fails. Then, in this order:
 
 1. Edit inbound citations outside the chapter first, while their line numbers
    still match the inbound check's.
@@ -200,7 +217,8 @@ them.
 
 ### Step 8: the second track
 
-After landing, rule and apply what the rewrite surfaced but did not need:
+After landing, the orchestrator rules and applies what the rewrite surfaced
+but did not need, serious findings excepted:
 entries that state Rationale-only rulings in a Position, annotations of stale
 Positions, Spec fields stale before the rewrite, and problems outside the
 chapter. Then move the chapter's citations to the new entries. Track 2 is
@@ -213,7 +231,11 @@ each rewriter's job to prose.
    to section 5.
 2. Record the chapter's landing commit in `README.md`.
 3. Delete `chNN/` in a commit of its own, and record that commit's parent in
-   `README.md` as the last one holding the files.
+   `README.md` as the last one holding the files. Move `escalations.md` out
+   first, into `docs/design/pending.md` as one bullet per finding the owner
+   has not ruled.
+4. Report to the owner: the commits, and `escalations.md` with a
+   recommendation per finding.
 
 ## 3. Cost and time
 
@@ -285,6 +307,7 @@ From chapter 9:
 - `chapter_pass.md`, `inbound_check.md`, `inbound_check.tsv`,
   `chapter_fixes.md`: step 5.
 - `rulings_batch.md`: step 6, with each item's status.
+- `escalations.md`: serious findings from any step, for the owner.
 - `trim_log.md`, `ruled_edits.md`, `rulings_applied_*.md`,
   `final_verify.md`: steps 6 and 6b.
 - `backlog_applied_*.md`, `backlog_verify.md`: step 8.
