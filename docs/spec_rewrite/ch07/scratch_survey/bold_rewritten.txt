@@ -1,0 +1,60 @@
+1977	D-033,D-297	A leaf's contract declarations must be determined by the component's type
+2127	D-301	A declaration names its *content*, what it returns, never the *consequence* its definition has
+2189	D-263	Every declaration of a structural fact but the allocator takes the component alone
+2217	D-033	`x_init` on the continuous tier, `s_init` on the discrete, and `m_init` declare by initial value
+2217	D-247	The value is a `NamedTuple`, one named field per leaf
+2231	D-263	Every leaf declares exactly one of `x_init` and `s_init`
+2281	D-265	a marker below the top of an entry is `IllegalPortType`
+2292	D-263	Entries are [face](#g-face) bounds, not cell types, and the reading is permissive
+2311	D-266	`Pinned` records that a leaf carries no partials, not that an implementation cannot take them
+2338	D-263	Two clauses check a wire
+2354	D-263,D-295	Discrete consumers take the bound check only
+2367	D-263,D-295	The obligation is scoped to the unpinned entries
+2406	D-263,D-295	That retyping makes seedability schema-visible
+2499	D-263	A handle keeps its bulk at `Float64` and its activation-dependent part in the parameter
+2543	D-079	A declared type must be buildable at the activation scalar
+2638	D-033	No port carries a stage tag, and stage membership is derived
+2746	D-252	A declared port must be produced by exactly one stage
+3184	D-056	Every interval-relative integral becomes a *cumulative* one
+3228	D-056	Interval-relative integrals factor into cumulative ones whenever the interval dependence enters through a left
+3234	D-056	the cumulative attitude must be integrated with the *inertial* rate
+3234	D-056	the equivalence survives discretization
+3347	D-056	That knowledge must be part of the framework's taught contract
+3357	D-056	When the coupling is genuinely two-way, the latch becomes a wire back
+3728	D-247	The store form is checked before the tier classifier and the vocabulary checks read the value
+3728	D-231	The isbits rule is checked on `s_init` and `m_init` field by field
+3742	D-263	The walk-compatibility clause is decided by retyping both declarations at a marker scalar
+4347	D-280	Every component gets a `Dual` activation built in CI
+4378	D-135	The activation cache lives on the `Build` and holds only immutable compiled artifacts
+4429	D-235	The write is generated over that type and the return's type
+4460	D-151	The names are the pairing
+4493	D-053	the check is an exact type match
+4499	D-053	A walking leaf, one the author left unpinned, accepts exactly two types
+4510	D-237	An opaque leaf ([§4.3][s4-3]) embeds nothing into a store
+4515	D-238	The check is decided on the type
+4557	D-053	The check is uniform across all probed functions
+4560	D-190	`x_deriv` checks against `X`'s own shape
+4569	D-111	`x_projection` checks against `X`'s own shape
+4609	D-053	The payload carries the component path, the function, the event name on a handler's occurrence, and the field-
+4669	D-086	The execution form is a concretely-typed tuple of entries
+4688	D-162	Cells are stored per element type
+4704	D-288	[Phase bodies](#g-measurement-seam) are the outer decomposition
+4719	D-147	Each sweep block compiles in two arities
+4731	D-147,D-288	At a localized event time `t*` ([§10.4][s10-4]), the empty due set is arity selection
+4759	D-288	[Views](#g-view) are spelled rebuild-per-call
+4768	D-288	Construction is type-opaque
+4778	D-086	Chunking bounds the compile cost
+4778	D-289	The event set's projection, guard and handler walks chunk the same way
+4806	D-289	Every walk over an entry tuple or a chunk tuple is a generated unroll
+4812	D-289	A barrier takes its chunk by reference
+4820	D-289	The declaration layer takes components unspecialized
+4856	D-289	Three measures mitigate what remains
+4871	D-116	The phase bodies are the [§7.5][s7-5] measurement seam
+4898	D-116	These are the bodies the loop runs
+4905	D-116	CI is warm-then-assert over the roster
+4916	D-288	Publication is not a phase body
+5187	D-147	Trial evaluations run the interior sweep
+5506	D-147	Delivering that hold takes two statically distinct sweep variants, compiled from one entry list
+5516	D-147	The boundary sweep walks the full list
+5522	D-147	The split applies to both sweep blocks
+5530	D-147	The due set is computed once for the boundary and reused by every re-sweep of its [quiescence](#g-quiescence) 
