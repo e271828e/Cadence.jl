@@ -719,7 +719,7 @@ function failures_conformance()
         @test iszero(ForwardDiff.partials(value))
     end
 
-    @testset "a discrete successor of another type on a late tick is refused (§7.3)" begin
+    @testset "a discrete successor of another type on a late tick is refused (§9.5)" begin
         sim = Simulation(single(LateSuccessor()); h = 1//100)
         init!(sim)
         err = failure(() -> run!(sim; t_end = 0.2))

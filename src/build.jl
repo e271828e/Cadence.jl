@@ -1346,7 +1346,7 @@ struct Executor{T,S,B,CL,EV,M}
     act::Activation{T}     # the layout and probe products it was materialized from
     store::S               # the signal table: cells and root inputs
     xbuf::Vector{T}        # continuous state, the flat buffer (§7.1)
-    ẋbuf::Vector{T}        # its derivative — integrator scratch (§7.5)
+    ẋbuf::Vector{T}        # its derivative, the flat `ẋ` buffer (§7.1)
     sstores::Vector{Any}   # discrete state stores, by component index
     mstores::Vector{Any}   # mode stores, by component index
     clock::CL
@@ -1394,7 +1394,7 @@ function compile(build::Build, act::Activation{T}, schedule; chunk_size::Int = 1
     components = structure.components
     D_c, Φ_c, Δt_c = _gates(schedule, structure)
 
-    # Three homes for state, and no store mirrors another (§7.3): the flat
+    # Three homes for state, and no store mirrors another (§5.2): the flat
     # buffer for continuous `x`, one store per discrete `s`, one per mode set.
     # A store's *type* is shared by every instance of a component type, so
     # instances still compile to one body; only the reference varies.
@@ -1616,7 +1616,7 @@ function _check_derivative(path, ẋ, x::NamedTuple, ::Type{T}) where {T}
     diags
 end
 
-# §7.3: a discrete store is overwritten wholesale with what `s_update`
+# §7.3, §9.5: a discrete store is overwritten wholesale with what `s_update`
 # returns, so the successor must be the store's own type exactly. The discrete
 # world is pinned — no walk, no embedding — which makes the store assignment
 # type-stable and the ban on arithmetic over stores enforceable by construction.

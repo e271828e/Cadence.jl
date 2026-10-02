@@ -380,7 +380,7 @@ end
     nothing
 end
 
-# §7.3: a discrete successor is the store's own type exactly — the assignment
+# §9.5: a discrete successor is the store's own type exactly — the assignment
 # that would convert is refused at generation instead (D-235).
 @inline _store_successor!(sstore::Base.RefValue{S}, s⁺::S, path, what) where {S} =
     (sstore[] = s⁺; nothing)

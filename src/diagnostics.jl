@@ -1040,7 +1040,7 @@ function message(d::ConformanceFailure)
                    "$(_symtuple(d.declared_fields)) — `m` is a names-subset write (§5.2)"
         d.shape === :s_init &&
             return "`$(d.path)`: $(_conformance_what(d)) returns $(d.observed), state store is " *
-                   "$(d.declared) — a discrete successor is the store's own type exactly (§7.3)"
+                   "$(d.declared) — a discrete successor is the store's own type exactly (§9.5)"
         d.shape === :x_init &&
             return "`$(d.path)`: $(_conformance_what(d)) returns fields $(_symtuple(d.observed_fields)), " *
                    "state has $(_symtuple(d.declared_fields)) — derivative completeness is " *
