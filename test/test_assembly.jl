@@ -1183,6 +1183,39 @@ function assembly_primitives()
     end
 end
 
+# --- the walk's child lists (§9.7) ---------------------------------------------
+
+function assembly_child_lists()
+    @testset "a build derives each assembly's child list once, whatever its fan-out (§9.7)" begin
+        # Every fanned endpoint resolves against the root's children, so a
+        # derivation per endpoint would grow with the width. The first two builds
+        # keep any one-time work out of the count, and each counted build starts
+        # from a reset counter.
+        narrow, wide = FannedLoops(4), FannedLoops(64)
+        build(narrow); build(wide)
+        derivations = map((narrow, wide)) do root
+            FANNED_LOOPS_DERIVATIONS[] = 0
+            build(root)
+            FANNED_LOOPS_DERIVATIONS[]
+        end
+        @test derivations[1] == derivations[2]
+    end
+
+    @testset "value-equal assemblies share a cached child list and keep their own paths (§9.7)" begin
+        # The list names no path, so each loop's output route still runs through
+        # its own children.
+        twins = Group((a = SampledLoop(), b = SampledLoop());
+                      inputs = "ref" => ("a/ref", "b/ref"),
+                      outputs = ("a/y" => "a_y", "b/y" => "b_y"))
+        structure = build(twins).structure
+        for loop_path in ("a", "b")
+            @test ((loop_path, :y) => [(loop_path * "/plant", :y)]) in structure.out_routes
+            @test (("", Symbol(loop_path, "_y")) =>
+                   [(loop_path, :y), (loop_path * "/plant", :y)]) in structure.out_routes
+        end
+    end
+end
+
 function test_assembly()
     assembly_class()
     assembly_container_children()
@@ -1193,4 +1226,5 @@ function test_assembly()
     assembly_rate_chains()
     assembly_obligations()
     assembly_primitives()
+    assembly_child_lists()
 end

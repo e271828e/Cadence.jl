@@ -1029,6 +1029,29 @@ routed_pair() =
                           inputs = "u" => ("a/e", "b/e"), outputs = "a/out" => "y"));
           inputs = "u" => "pair/u", outputs = "pair/y" => "y")
 
+"""
+    FannedLoops(n)
+
+`n` sampled loops in one container field, under one `"ref"` face fanned out to
+every loop. Its `transparent_container` counts the calls in
+`FANNED_LOOPS_DERIVATIONS`: the child-list derivation asks it once per
+derivation, so the counter reads how often a build derived this level's
+children (§9.7). One test reads the counter, and no other test builds the type.
+"""
+struct FannedLoops{L <: NamedTuple} <: AbstractComponent
+    loops::L
+end
+
+const FANNED_LOOPS_DERIVATIONS = Ref(0)
+
+FannedLoops(n::Int) =
+    FannedLoops(NamedTuple{Tuple(Symbol(:l, i) for i in 1:n)}(Tuple(SampledLoop() for _ in 1:n)))
+
+transparent_container(::FannedLoops) = (FANNED_LOOPS_DERIVATIONS[] += 1; nothing)
+inner_connections(::FannedLoops) = ()
+u_connections(fanned::FannedLoops) =
+    ("ref" => Tuple("loops/$key/ref" for key in keys(fanned.loops)),)
+
 """A primitive that also holds a component, a field the flatten pass never descends into (§8.5)."""
 struct OpaqueLeaf <: AbstractComponent
     hidden::Gain

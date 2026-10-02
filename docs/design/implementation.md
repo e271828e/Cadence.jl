@@ -171,14 +171,16 @@ D-195, D-211, D-246, D-248, D-263.
   `output_faces`. The walk records each assembly's evaluated face lists in
   `StructureDraft.faces`, and `flatten!` binds them as `WALK_FACES` around the
   walk, so the primitives read them once per call (Appendix C) and evaluate a
-  body only outside a walk.
+  body only outside a walk. Beside it `flatten!` binds `WALK_CHILDREN`, a
+  fresh cache of each assembly's child list, so endpoint resolution derives a
+  list once per walk rather than once per endpoint (§9.7).
 - The service walk `resolve_authored` runs over the `Structure`'s retained
   root and reads declared holdings off the type definition (D-061, D-130).
 - §8.8's `input_passthrough`/`output_passthrough`, with the three exclusive
   selectors `except`, `only` and `select`, and `EmptyFaceSelection` through the
   channel (D-251).
 
-Spec: §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §13.3, §13.7, §14.2, Appendix C, D-061, D-130,
+Spec: §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §9.7, §13.3, §13.7, §14.2, Appendix C, D-061, D-130,
 D-171, D-207–D-212, D-229, D-236, D-246, D-247, D-248, D-251, D-253, D-261,
 D-263.
 

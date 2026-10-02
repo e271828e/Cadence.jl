@@ -320,7 +320,7 @@ end
 function _one_level(entry::String, base::String, assembly, path::AbstractString,
                     segments::Vector{String}, tail::Int, diags::Vector{Diagnostic};
                     owner::String = _at_path(base))
-    kids = children(base, assembly)
+    kids = _walked_children(base, assembly)
     child_index = findfirst(kid -> first(kid) == segments[1], kids)
     child_index === nothing && length(segments) > 1 + tail &&
         (child_index = findfirst(kid -> first(kid) == segments[1] * "/" * segments[2], kids))
@@ -829,6 +829,27 @@ function of the instance's value (§8.8).
 """
 const WALK_FACES = ScopedValue{Union{Nothing,IdDict{Any,Tuple{Vector{String},Vector{String}}}}}(nothing)
 
+"""
+The running walk's child lists (§9.7): `flatten!` binds a fresh one around the
+walk, so endpoint resolution, which asks for an assembly's children once per
+endpoint, derives each list once rather than once per endpoint. Unbound outside
+a walk. Keyed by instance, so two instances equal by value share one list. That
+is sound: a child list is a function of the value, and the path reaches the
+derivation for its diagnostics only.
+"""
+const WALK_CHILDREN = ScopedValue{Union{Nothing,IdDict{Any,Vector{Pair{String,Any}}}}}(nothing)
+
+# The walk's list for `assembly`, derived on the first ask; `children` itself
+# outside a walk. A derivation that throws stores nothing. The hit is the cached
+# vector itself, shared and read-only: `_walked_faces` copies on the way out, but
+# a copy per endpoint would bring back the cost the cache removes, and
+# `_one_level`, the one caller, only searches it.
+function _walked_children(base::String, @nospecialize(assembly))
+    memo = WALK_CHILDREN[]
+    memo === nothing && return children(base, assembly)
+    get!(() -> children(base, assembly), memo, assembly)
+end
+
 # --- the sample-time fold (§8.7, §9.1, §10.5) -----------------------------------
 # Nested rate declarations compile to one `(anchor, m, c)` timing per component,
 # folding down the tree beside the wiring walk: the root scope seeds
@@ -943,9 +964,10 @@ throw is `build`'s, at the step barrier. Any component may be the root
 """
 function flatten!(draft::StructureDraft, root, diags::Vector{Diagnostic})
     # the root scope: anchor 0, the base grid itself; no link above it and none of its own.
-    # The face memo is the walk's own and is bound around it alone: the obligation
-    # loop below reads `u_types`, never a face list.
-    with(WALK_FACES => draft.faces) do
+    # The face and child memos are the walk's own and are bound around it alone:
+    # the obligation loop below reads `u_types`, never a face or child list.
+    with(WALK_FACES => draft.faces,
+         WALK_CHILDREN => IdDict{Any,Vector{Pair{String,Any}}}()) do
         _walk!(draft, "", root, Timing((0, 1, 0)), RateLink[], nothing, diags)
     end
 
