@@ -1,0 +1,1106 @@
+{
+ "claims": [
+  {
+   "id": "A-001",
+   "old": "## 8. The declaration layer: components and assemblies",
+   "new": "## 8. The declaration layer: components and assemblies",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-002",
+   "old": "This chapter says how an author spells a component.",
+   "new": "This chapter says how an author spells a component.",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-003",
+   "old": "It covers where the structural facts live, what the build takes as authoritative, and what is checked against what.",
+   "new": "It covers where the structural facts live, what the build takes as authoritative, and what is checked against what.",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-004",
+   "old": "§8.1–§8.4 cover the component side, and §8.5–§8.8 the assembly side.",
+   "new": "§8.1–§8.4 cover the component side, and §8.5–§8.8 the assembly side.",
+   "where": "new",
+   "cites": [
+    "§8.1",
+    "§8.4",
+    "§8.5",
+    "§8.8"
+   ],
+   "tag": "X"
+  },
+  {
+   "id": "A-005",
+   "old": "The build pipeline is §9, and the stopped-sim service spellings are §14.",
+   "new": "The build pipeline is §9, and the stopped-sim service spellings are §14.",
+   "where": "new",
+   "cites": [
+    "§14",
+    "§9"
+   ],
+   "tag": "X"
+  },
+  {
+   "id": "A-006",
+   "old": "The concrete syntax below is near-final in shape but still illustrative in spelling.",
+   "new": "The concrete syntax below is near-final in shape but still illustrative in spelling.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-007",
+   "old": "### 8.1 Position: a declarative trait layer in plain Julia, no macros",
+   "new": "### 8.1 Position: a declarative trait layer in plain Julia, no macros",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-008",
+   "old": "A component is authored in ordinary Julia.",
+   "new": "A component is authored in ordinary Julia.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-009",
+   "old": "Its stage functions (`y_state` and `y_direct`, the two output stages every component provides on either tier)",
+   "new": "Its stage functions are ordinary multiple-dispatch methods. They are `y_state` and `y_direct`, the two output stages every component provides on either tier",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-010",
+   "old": "are ordinary multiple-dispatch methods, on the `GUI.draw!` precedent.",
+   "new": "The methods follow the `GUI.draw!` precedent, the per-component panel extensions in FlightCore's style (§11.7).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "§11.7"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-011",
+   "old": "Its structural facts are declared through a small set of well-known functions returning plain values, defined alongside those methods.",
+   "new": "A component's structural facts are declared through a small set of well-known functions returning plain values, defined alongside those methods.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-012",
+   "old": "Four questions about that layer are settled here.",
+   "new": "Five questions about that layer are settled here, one per subsection.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R7 (F17)"
+  },
+  {
+   "id": "A-013",
+   "old": "What does it rule out, and what does it still admit (macros)?",
+   "new": "What does it rule out, and what does it still admit (macros)?",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-014",
+   "old": "How do an author's methods reach the framework's generic functions, and how can they silently fail to (the namespace)?",
+   "new": "How do an author's methods reach the framework's generic functions, and how can they silently fail to (the namespace)?",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-015",
+   "old": "Which of declaration and evaluation is authoritative (the schema)?",
+   "new": "Which of declaration and evaluation is authoritative (the schema)?",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-016",
+   "old": "And what may a component's contract depend on (the type)?",
+   "new": "What may a component's contract (its declared interface) depend on (the type)?",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-017",
+   "old": "#### Plain Julia, not a macro DSL",
+   "new": "#### Plain Julia, not a macro DSL",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-018",
+   "old": "Rule. There is no macro DSL.",
+   "new": "There is no macro DSL (D-032).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-032"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-019",
+   "old": "Why. The debugging, tooling and comprehension criterion (§1) decides it (D-032).",
+   "new": "The debugging, tooling and comprehension criterion (§1) decides it.",
+   "where": "new",
+   "cites": [
+    "D-032",
+    "§1"
+   ],
+   "newcites": [
+    "§1",
+    "D-032"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-020",
+   "old": "Redundancy between declarations and function bodies is accepted deliberately, under one non-negotiable condition.",
+   "new": "Redundancy between declarations and function bodies is accepted deliberately, under one non-negotiable condition.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-021",
+   "old": "Every inconsistency fails loudly, at build time where possible and at first execution otherwise.",
+   "new": "Every inconsistency fails loudly, at build time where possible and at first execution otherwise (D-032).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-032"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-022",
+   "old": "A macro can only ever lower to a layer like this one.",
+   "new": "The reason is that a macro can only ever lower to a layer like this one.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-023",
+   "old": "A convenience macro therefore remains addable a posteriori as pure sugar, on the `@kwdef` precedent, and never becomes essential.",
+   "new": "A convenience macro remains addable a posteriori as pure sugar, on the `@kwdef` precedent, and never becomes essential (D-032).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-032"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-024",
+   "old": "The door stays open for the declaration layer specifically.",
+   "new": "The door stays open for the declaration layer specifically.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-025",
+   "old": "A macro generating the well-known declarations is admissible sugar on top of the plain-Julia forms.",
+   "new": "A macro generating the well-known declarations is admissible sugar on top of the plain-Julia forms.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-026",
+   "old": "It is never a replacement for them and never required to author a component (D-166).",
+   "new": "It is never a replacement for them and never required to author a component (D-032).",
+   "where": "new",
+   "cites": [
+    "D-166"
+   ],
+   "newcites": [
+    "D-032"
+   ],
+   "tag": "R",
+   "ruling": "R7 (F2)"
+  },
+  {
+   "id": "A-027",
+   "old": "The obvious candidate is the `where {T <: Real}` ceremony of a continuous `y_types` (§8.2).",
+   "new": "Every contract declaration takes the component alone on both tiers, is written at nominal `Float64`, and is retyped by the framework.",
+   "where": "docs/design/decisions.md",
+   "cites": [
+    "§8.2"
+   ],
+   "newcites": [],
+   "tag": "R",
+   "ruling": "R7 (F2), deleted; the span is D-263's Position, which retired the ceremony"
+  },
+  {
+   "id": "A-028",
+   "old": "Every rule in this part is stated over the generated methods, so a macro that lowers to them adds convenience and no semantics.",
+   "new": "Every rule in this part is stated over the generated methods, so a macro that lowers to them adds convenience and no semantics.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-029",
+   "old": "#### The namespace: declarations are extended, not called",
+   "new": "#### The namespace",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R6"
+  },
+  {
+   "id": "A-030",
+   "old": "Rule. The framework's extensible functions are extended, not called.",
+   "new": "The framework's extensible functions are extended, not called (D-117).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-117"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-031",
+   "old": "Authoring a component means adding methods to framework-owned generic functions.",
+   "new": "Authoring a component means adding methods to framework-owned generic functions.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-032",
+   "old": "Julia admits that only through an explicit per-name `import`, or through a qualified `Cadence.x_deriv(…) = …` definition.",
+   "new": "Julia admits that only through an explicit per-name `import`, or through a qualified `Cadence.x_deriv(…) = …` definition.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-033",
+   "old": "The latter is the `Base.show` idiom that the exported-name audit in `pending.md` records for the extension-only periphery surface.",
+   "new": "The latter is the `Base.show` idiom that the exported-name audit in `pending.md` records for the extension-only periphery surface.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-034",
+   "old": "A component module therefore opens with",
+   "new": "A component module therefore opens with",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-035",
+   "old": "`import Cadence: x_init, s_init, m_init, ws_init, u_types, y_types, state_events, y_state, y_direct, x_deriv, s_update, x_projection, inner_connections, u_connections, y_connections, sample_times, transparent_container`",
+   "new": "`import Cadence: x_init, s_init, m_init, ws_init, u_types, y_types, state_events, y_state, y_direct, x_deriv, s_update, x_projection, inner_connections, u_connections, y_connections, sample_times, transparent_container`",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-036",
+   "old": "The explicit list is needed because `using Cadence` alone is a silent trap.",
+   "new": "The explicit list is needed because `using Cadence` alone is a silent trap.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-037",
+   "old": "After a bare `using`, `x_deriv(eng::Engine, …) = …` defines a new, unrelated `MyModule.x_deriv`, with no error and no warning.",
+   "new": "After a bare `using`, `x_deriv(eng::Engine, …) = …` defines a new, unrelated `MyModule.x_deriv`, with no error and no warning.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-038",
+   "old": "The declarations are deliberately unexported (D-117).",
+   "new": "The declarations are deliberately unexported (D-117).",
+   "where": "new",
+   "cites": [
+    "D-117"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-039",
+   "old": "A bare `using` therefore brings no name into scope for the definition to clash with, so there is nothing for the language to detect.",
+   "new": "A bare `using` therefore brings no name into scope for the definition to clash with, so there is nothing for the language to detect.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-040",
+   "old": "Left alone, the build would see a component with no `x_deriv` method and report a modeling diagnostic, `StoreWithoutUpdate`,",
+   "new": "Left alone, the build would see a component with no `x_deriv` method. It would report a modeling diagnostic, `StoreWithoutUpdate` (a non-empty store without its update law, §8.2).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "§8.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-041",
+   "old": "or `ClassUnreadable` when the whole inventory was shadowed.",
+   "new": "When the whole inventory was shadowed, it would report `ClassUnreadable` (no declaration to read a class from, §8.5).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "§8.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-042",
+   "old": "A one-line namespace mistake would be reported far from the line that caused it.",
+   "new": "A one-line namespace mistake would be reported far from the line that caused it.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-043",
+   "old": "That is the §8.4 inversion of error locality (the property that a mistake fails at the site of the mistake), arriving through the namespace.",
+   "new": "That is the inversion of error locality (the property that a mistake fails at the site of the mistake) that §8.4 traces, arriving through the namespace.",
+   "where": "new",
+   "cites": [
+    "§8.4"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-044",
+   "old": "Two mitigations, both normative.",
+   "new": "Two mitigations apply, both normative.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-045",
+   "old": "The first is that the import list above is authoring surface, stated wherever a component file is first shown.",
+   "new": "The first is that the import list above is authoring surface, stated wherever a component file is first shown (D-117).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-117"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-046",
+   "old": "The second is a shadowing check in the structural walk (§9.1), run on every component before its class is read (D-246).",
+   "new": "The second is a shadowing check. The structural walk runs the shadowing check on every component before its class is read (§9.1, D-246).",
+   "where": "new",
+   "cites": [
+    "D-246",
+    "§9.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-047",
+   "old": "If the component's parent module holds a binding of a family name distinct from the framework's function, the build throws `DeclarationShadowed`, alone,",
+   "new": "The check looks for a binding of a family name (a name in the import list above) in the component's parent module. If the module holds one distinct from the framework's function, the build throws `DeclarationShadowed` alone (D-246).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-246"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-048",
+   "old": "naming the module, the foreign names and the missing import:",
+   "new": "The diagnostic names the module, the foreign names and the missing import.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-049",
+   "old": "\"`MyEngine`'s module defines its own `x_deriv`, distinct from `Cadence.x_deriv`; add `import Cadence: x_deriv`\".",
+   "new": "Its message reads \"`MyEngine`'s module defines its own `x_deriv`, distinct from `Cadence.x_deriv`; add `import Cadence: x_deriv`\".",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-050",
+   "old": "The check is a two-line `isdefined`/`!==` test on the family's names.",
+   "new": "The check is a two-line `isdefined`/`!==` test on the family's names.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-051",
+   "old": "Those names are distinctive by design (D-220), so a foreign binding of one of them in a component's module is evidence of the missing import, not a coincidence.",
+   "new": "Those names are distinctive by design (D-220), so a foreign binding of one of them in a component's module is evidence of the missing import, not a coincidence.",
+   "where": "new",
+   "cites": [
+    "D-220"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-052",
+   "old": "The check throws alone because nothing the module declares can be trusted.",
+   "new": "The check throws alone because nothing the module declares can be trusted.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-053",
+   "old": "Every declaration it holds may have gone to a foreign function, and a walk past it would only report cascades of the one cause.",
+   "new": "Every declaration it holds may have gone to a foreign function, and a walk past it would only report cascades of the one cause.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-054",
+   "old": "It runs on every component rather than only where an absence is noticed, because an optional declaration such as `state_events` or `sample_times` has no absence to notice.",
+   "new": "It runs on every component rather than only where an absence is noticed, because an optional declaration such as `state_events` or `sample_times` has no absence to notice.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-055",
+   "old": "Shadowed, it would drop its feature silently.",
+   "new": "Shadowed, it would drop its feature silently.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-056",
+   "old": "A convenience macro expanding to the import list remains addable a posteriori as sugar, per this section's macro doctrine.",
+   "new": "A convenience macro expanding to the import list remains addable a posteriori as sugar, per this section's macro doctrine.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-057",
+   "old": "A re-export submodule is not an alternative,",
+   "new": "A re-export submodule is not an alternative (D-117).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-117"
+   ],
+   "tag": "R",
+   "ruling": "R4"
+  },
+  {
+   "id": "A-058",
+   "old": "because per-name `import` is the only unqualified extension mechanism the language provides (D-117).",
+   "new": "`using Cadence.Declarations` carries identical silent-shadowing semantics — per-name `import` is the only extension idiom the language provides.",
+   "where": "docs/design/decisions.md",
+   "cites": [
+    "D-117"
+   ],
+   "newcites": [
+    "D-117"
+   ],
+   "tag": "R",
+   "ruling": "R4; 'unqualified' is also carried in the new text by \"Julia admits that only through an explicit per-name `import`, or through a qualified ... definition\""
+  },
+  {
+   "id": "A-059",
+   "old": "The same trap has a local-scope sibling (D-164).",
+   "new": "The same trap has a local-scope sibling (D-164).",
+   "where": "new",
+   "cites": [
+    "D-164"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-060",
+   "old": "Written inside a `let`, a function body or a `@testset`, `y_state(::MyComp, (; x)) = …` does not add a method to the global `y_state`.",
+   "new": "Written inside a `let`, a function body or a `@testset`, `y_state(::MyComp, (; x)) = …` does not add a method to the global `y_state`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-061",
+   "old": "It binds a new local function of that name.",
+   "new": "It binds a new local function of that name.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-062",
+   "old": "Calls within the block resolve to it and look correct.",
+   "new": "Calls within the block resolve to it and look correct.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-063",
+   "old": "The generic function the build dispatches on never learns of the component, which therefore reads as one declaring nothing at all.",
+   "new": "The generic function the build dispatches on never learns of the component, which therefore reads as one declaring nothing at all.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-064",
+   "old": "`@testset \"mycomp\" begin y_state(::MyComp, (; x)) = … #a NEW local one, not a method of … #Cadence.y_state; calls here end #resolve to it, and look correct #outside: Cadence.y_state still has no MyComp method`",
+   "new": "`@testset \"mycomp\" begin y_state(::MyComp, (; x)) = … #a NEW local one, not a method of … #Cadence.y_state; calls here end #resolve to it, and look correct #outside: Cadence.y_state still has no MyComp method`",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-065",
+   "old": "The shadowing check above cannot reach this case.",
+   "new": "The shadowing check above cannot reach this case.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-066",
+   "old": "There is no parent-module binding to compare, because the shadow is a local binding that disappears with its block.",
+   "new": "There is no parent-module binding to compare, because the shadow is a local binding that disappears with its block.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-067",
+   "old": "So the mitigation sits at the other end.",
+   "new": "The mitigation therefore sits at the other end.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-068",
+   "old": "A component that declares nothing and defines no stage is rejected at build time, because an inert component is unwritable on purpose.",
+   "new": "A component that declares nothing and defines no stage is rejected at build time (D-164), because an inert component is unwritable on purpose.",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-164"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-069",
+   "old": "That check costs a line, and it catches the misspelled-declaration family with it.",
+   "new": "That check costs a line, and it catches the misspelled-declaration family with it.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-070",
+   "old": "Test code is the realistic victim, with a fixture component defined inside its own `@testset`.",
+   "new": "Test code is the realistic victim, with a fixture component defined inside its own `@testset`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-071",
+   "old": "The authoring rule is one line.",
+   "new": "The authoring rule is one line.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-072",
+   "old": "Declarations live at module top level.",
+   "new": "Declarations live at module top level (D-164).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-164"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-073",
+   "old": "The net holds under a partially shadowed component too, because `y_types` is still a declaration.",
+   "new": "The net also holds when only a stage is shadowed, because `y_types` is still a declaration.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R7 (F24)"
+  },
+  {
+   "id": "A-074",
+   "old": "A component whose ports are declared but whose stage went to a local binding reads as \"declared but not produced\" (§8.3) rather than as a component with nothing to say.",
+   "new": "A component whose ports (its declared, addressable names) are declared but whose stage went to a local binding reads as \"declared but not produced\" (§8.3). It does not read as a component with nothing to say.",
+   "where": "new",
+   "cites": [
+    "§8.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-075",
+   "old": "#### Names: four classes by role",
+   "new": "#### Names",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R6"
+  },
+  {
+   "id": "A-076",
+   "old": "Rule. Every name on the framework's surface belongs to one of four classes, and its class fixes its grammatical shape (D-144).",
+   "new": "Every name on the framework's surface belongs to one of four classes, and its class fixes its grammatical shape (D-144).",
+   "where": "new",
+   "cites": [
+    "D-144"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-077",
+   "old": "1. Declarations are noun phrases naming what they return, prefixed by the bundle field they define where one exists (D-267).",
+   "new": "1. Declarations are noun phrases naming what they return, prefixed by the bundle field they define where one exists (D-267).",
+   "where": "new",
+   "cites": [
+    "D-267"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-078",
+   "old": "An assembly's boundary declarations take `u` and `y` too.",
+   "new": "An assembly's boundary declarations take `u` and `y` too.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-079",
+   "old": "There the letter names a side of the contract, which on a leaf is also a bundle field (D-279).",
+   "new": "There the letter names a side of the contract, which on a leaf is also a bundle field (D-279).",
+   "where": "new",
+   "cites": [
+    "D-279"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-080",
+   "old": "The author defines them and the framework calls them:",
+   "new": "The author defines them and the framework calls them.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-081",
+   "old": "`inner_connections`, `u_connections`/`y_connections`, `state_events`, `u_types`, `ws_init`, the stage and update-law names (D-220), and `claims(b)` from the binding interface (§11.6).",
+   "new": "They include `inner_connections`, `u_connections`/`y_connections`, `state_events`, `u_types`, `ws_init`, the stage and update-law names (D-220), and `claims(b)` from the binding interface (§11.6).",
+   "where": "new",
+   "cites": [
+    "D-220",
+    "§11.6"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-082",
+   "old": "2. Value selectors carry `get_`.",
+   "new": "2. Value selectors carry `get_`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-083",
+   "old": "They are called against `reads` and against snapshots (§14.4).",
+   "new": "They are called against `reads` and against snapshots, the immutable per-boundary publications (§14.4).",
+   "where": "new",
+   "cites": [
+    "§14.4"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-084",
+   "old": "3. Lifecycle and mutating actions are verbs, with `!` when they mutate.",
+   "new": "3. Lifecycle and mutating actions are verbs, with `!` when they mutate.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-085",
+   "old": "4. Build primitives are plain verbs (§13.3).",
+   "new": "4. Build primitives are plain verbs (§13.3).",
+   "where": "new",
+   "cites": [
+    "§13.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-086",
+   "old": "A name in the wrong class is a rename candidate on that ground alone.",
+   "new": "A name in the wrong class is a rename candidate on that ground alone.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-087",
+   "old": "The convention also has a semantic axis.",
+   "new": "The convention also has a semantic axis.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-088",
+   "old": "A name can sit in the right class and still pick the wrong noun.",
+   "new": "A name can sit in the right class and still pick the wrong noun.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-089",
+   "old": "A declaration names its content, never the consequence the declaration has.",
+   "new": "A declaration names the consequence it has, not its content (D-146).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-146"
+   ],
+   "tag": "R",
+   "ruling": "R8"
+  },
+  {
+   "id": "A-090",
+   "old": "`input_passthrough` (§8.8, D-171) and the binding methods `claims`/`reads` (§11.6, D-146) apply that axis, and `exports` is its retired exemplar (D-170).",
+   "new": "`input_passthrough` (§8.8, D-171) and the binding methods `claims`/`reads` (§11.6, D-146) apply that axis, and `exports` is its retired exemplar (D-170).",
+   "where": "new",
+   "cites": [
+    "D-146",
+    "D-170",
+    "D-171",
+    "§11.6",
+    "§8.8"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-091",
+   "old": "The `_connections` family names content deliberately, for authoring transparency.",
+   "new": "The `_connections` family names content deliberately, for authoring transparency.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-092",
+   "old": "That is a recorded choice, not class drift.",
+   "new": "That is a recorded choice, not class drift.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-093",
+   "old": "Which names the module exports is a separate question.",
+   "new": "Which names the module exports is a separate question.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-094",
+   "old": "It stays open until the exported-name audit in `pending.md` runs (D-226).",
+   "new": "It stays open until the exported-name audit in `pending.md` runs (D-226).",
+   "where": "new",
+   "cites": [
+    "D-226"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-095",
+   "old": "#### Declarations are the schema authority",
+   "new": "#### Declarations are the schema authority",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R6 (moved up within §8.1)"
+  },
+  {
+   "id": "A-096",
+   "old": "Rule. Declarations define the model's structure.",
+   "new": "Declarations define the model's structure (D-032).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-032"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-097",
+   "old": "Evaluation checks conformance against them, never the reverse.",
+   "new": "Evaluation checks conformance against them, never the reverse.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-098",
+   "old": "The build probes user functions with real values, with no reliance on compiler inference, and compares observed against declared.",
+   "new": "The build probes user functions with real values, with no reliance on compiler inference, and compares observed against declared.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-099",
+   "old": "The same comparison then runs on every subsequent evaluation for free, as a `NamedTuple`-type check that constant-folds away when conformant.",
+   "new": "The same comparison then runs on every subsequent evaluation for free, as a `NamedTuple`-type check that constant-folds away when conformant.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-100",
+   "old": "Inference-by-evaluation as schema authority is rejected on three counts, established by walkthrough (§8.4) and litigated in D-032.",
+   "new": "Inference-by-evaluation as schema authority is rejected on three counts, established by walkthrough (§8.4) and litigated in D-032.",
+   "where": "new",
+   "cites": [
+    "D-032",
+    "§8.4"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-101",
+   "old": "Types come by declaration, values by execution, and conformance by comparison.",
+   "new": "Types come by declaration, values by execution, and conformance by comparison.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-102",
+   "old": "#### Contracts are functions of the type, not of the instance",
+   "new": "#### Contracts are functions of the type",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R6 (moved up within §8.1)"
+  },
+  {
+   "id": "A-103",
+   "old": "Rule. A leaf's contract declarations (`u_types`, `y_types`, `state_events`, and the shapes of `x_init`/`s_init`/`m_init`)",
+   "new": "Those declarations are `u_types`, `y_types` and `state_events`, and the shapes of `x_init`/`s_init`/`m_init`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-104",
+   "old": "must be determined by the component's type, its type parameters included, and never by its field values.",
+   "new": "A leaf's contract declarations must be determined by the component's type, its type parameters included, and never by its field values (D-033).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-033"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-105",
+   "old": "The value-discarding signature `u_types(::Engine)` is the visible form of the rule.",
+   "new": "The value-discarding signature `u_types(::Engine)` is the visible form of the rule.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-106",
+   "old": "The idiom for a contract that genuinely varies is the type parameter, not the field, as in `SumJunction{Wrench, 3}` (§6.2) and `Or{N}` (§13.7).",
+   "new": "The idiom for a contract that genuinely varies is the type parameter, not the field, as in `SumJunction{Wrench, 3}` (§6.2) and `Or{N}` (§13.7).",
+   "where": "new",
+   "cites": [
+    "§13.7",
+    "§6.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-107",
+   "old": "Arity is spelled in the type, at the price §6.2 states openly.",
+   "new": "Arity is spelled in the type, at the price §6.2 states openly.",
+   "where": "new",
+   "cites": [
+    "§6.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-108",
+   "old": "Why. The entry typing decides it (§9.7).",
+   "new": "The entry typing decides it (§9.7).",
+   "where": "new",
+   "cites": [
+    "§9.7"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-109",
+   "old": "A component's bundle is the `NamedTuple` of zero-copy views a component function receives, and its key set is its contract's.",
+   "new": "A component's bundle is the `NamedTuple` of zero-copy views a component function receives, and its key set is its contract's.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-110",
+   "old": "An entry of the executor, the compiled form of the stage execution order, carries what selects code in type parameters and what is plain data in fields.",
+   "new": "An entry of the executor, the compiled form of the stage execution order, carries what selects code in type parameters and what is plain data in fields.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-111",
+   "old": "A key set derivable only from field values would therefore have to go one of two ways.",
+   "new": "A key set derivable only from field values would therefore have to go one of two ways.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-112",
+   "old": "It could climb into the type parameters anyway, multiplying specialization and changing the cost model (§9.7) of chunking, the splitting of a large phase body into statically typed chunks.",
+   "new": "It could climb into the type parameters anyway, multiplying specialization and changing the cost model (§9.7) of chunking, the splitting of a large phase body into statically typed chunks.",
+   "where": "new",
+   "cites": [
+    "§9.7"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-113",
+   "old": "Or it could sit in fields, dissolving the static typing that the zero runtime graph logic (§5.1), the allocation invariant (§7.5) and the fold-away conformance test (§9.5) all rest on.",
+   "new": "Or it could sit in fields, dissolving the static typing that the zero runtime graph logic (§5.1), the allocation invariant (§7.5) and the fold-away conformance test (§9.5) all rest on.",
+   "where": "new",
+   "cites": [
+    "§5.1",
+    "§7.5",
+    "§9.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-114",
+   "old": "The build reads each declaration once, against the concrete instance, so a value-dependent contract does not announce itself.",
+   "new": "The build reads each declaration once, against the concrete instance, so a value-dependent contract does not announce itself.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-115",
+   "old": "This is a rule authors keep, not a check the build can run.",
+   "new": "This is a rule authors keep, not a check the build can run.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-116",
+   "old": "`ws_init` is the one exception, and explicitly so.",
+   "new": "`ws_init` is the one exception, and explicitly so (D-033).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-033"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-117",
+   "old": "It is the by-allocation convention (D-077), an allocator the framework calls rather than a schema it walks.",
+   "new": "It is the by-allocation convention (D-077), an allocator the framework calls rather than a schema it walks.",
+   "where": "new",
+   "cites": [
+    "D-077"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-118",
+   "old": "It legitimately takes sizes from the instance (`ws_init(c::KF, ::Type{T})` reads `c.n`, §7.3), because no entry type is derived from it.",
+   "new": "It legitimately takes sizes from the instance (`ws_init(c::KF, ::Type{T})` reads `c.n`, §7.3), because no entry type is derived from it.",
+   "where": "new",
+   "cites": [
+    "§7.3"
+   ],
+   "tag": "F"
+  }
+ ],
+ "added": [
+  "On the component side, §8.1 lays the foundations of the declaration layer, §8.2 lists the declaration inventory, §8.3 says what a contract makes visible, and §8.4 gives the five failure walkthroughs that ground error locality.",
+  "On the assembly side, §8.5 covers assembly declaration and how a type's class is read, §8.6 covers paths, wiring and faces, §8.7 covers rate scopes, and §8.8 covers computed connections and generic holding.",
+  "(the continuous or discrete side of the hybrid formalism)",
+  "the per-component panel extensions in FlightCore's style (§11.7)",
+  "one per subsection",
+  "And what grammatical shape does each name on the framework's surface take (names)?",
+  "(its declared interface)",
+  "(a non-empty store without its update law, §8.2)",
+  "(no declaration to read a class from, §8.5)",
+  "(a name in the import list above)",
+  "The refusal is `ClassUnreadable` (§8.5).",
+  "(its declared, addressable names)",
+  "An optional declaration shadowed in a local scope, such as `state_events` or `ws_init`, drops its feature silently (D-178).",
+  "A binding is the value passed at `attach!` that makes a device framework-legible.",
+  ", the immutable per-boundary publications"
+ ]
+}

@@ -1,0 +1,763 @@
+{
+ "claims": [
+  {
+   "id": "E2-001",
+   "old": "#### The IMU's leaves: integrate-and-difference",
+   "new": "#### The leaves: integrate-and-difference",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R6"
+  },
+  {
+   "id": "E2-002",
+   "old": "The leaves carry the idiom that answers integrate-and-dump (§3.4).",
+   "new": "The IMU's leaves carry the idiom that answers integrate-and-dump (§3.4).",
+   "where": "new",
+   "cites": [
+    "§3.4"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "E2-003",
+   "old": "Algebra can eliminate the reset, with no approximation.",
+   "new": "Algebra can eliminate that reset, with no approximation.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-004",
+   "old": "Every interval-relative integral becomes a cumulative one.",
+   "new": "Every interval-relative integral becomes a cumulative one (D-056).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-056"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "E2-005",
+   "old": "The sampler differences against the previous sample, held in its `s`.",
+   "new": "The sampler differences against the previous sample, held in its `s`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-006",
+   "old": "That is the textbook sampled-data latch, and it is the only new store, the memory the reset used to erase.",
+   "new": "That is the textbook sampled-data latch. It is the only new store, the memory the reset used to erase.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-007",
+   "old": "- Raw increments (linear): $\\Theta(t) = \\int_{t_0}^{t} \\omega^{c}_{ic} \\, dt$, $\\Upsilon(t) = \\int_{t_0}^{t} f^{c} \\, dt$, never reset; $\\vartheta_c = \\Theta(t_k) - \\Theta(t_{k-1})$, $\\upsilon_c = \\Upsilon(t_k) - \\Upsilon(t_{k-1})$.",
+   "new": "- Raw increments (linear). The cumulative integrals $\\Theta(t) = \\int_{t_0}^{t} \\omega^{c}_{ic} \\, dt$ and $\\Upsilon(t) = \\int_{t_0}^{t} f^{c} \\, dt$ are never reset. The increments are $\\vartheta_c = \\Theta(t_k) - \\Theta(t_{k-1})$ and $\\upsilon_c = \\Upsilon(t_k) - \\Upsilon(t_{k-1})$.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-008",
+   "old": "- Coning: cumulative $q(t) = q_{c_0 \\to c(t)}$ with $\\dot{q} = \\tfrac{1}{2} \\, q \\otimes \\omega^{c}_{ic}$ from identity at $t_0$.",
+   "new": "- Coning. The cumulative attitude $q(t) = q_{c_0 \\to c(t)}$ follows $\\dot{q} = \\tfrac{1}{2} \\, q \\otimes \\omega^{c}_{ic}$ from identity at $t_0$.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-009",
+   "old": "The interval rotation is $\\Delta q = q(t_{k-1})' \\circ q(t_k)$, exact by right-invariance ($\\Delta q$ satisfies the same ODE with the same body rate).",
+   "new": "The interval rotation is $\\Delta q = q(t_{k-1})' \\circ q(t_k)$. It is exact by right-invariance, because $\\Delta q$ satisfies the same ODE with the same body rate.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-010",
+   "old": "- Sculling: $\\int_{t_{k-1}}^{t_k} R^{c_{k-1}}_{c} f^{c} \\, dt = q(t_{k-1})' \\, ( V(t_k) - V(t_{k-1}) )$ with $\\dot{V} = q(t)(f^{c})$.",
+   "new": "- Sculling. $\\int_{t_{k-1}}^{t_k} R^{c_{k-1}}_{c} f^{c} \\, dt = q(t_{k-1})' \\, ( V(t_k) - V(t_{k-1}) )$ with $\\dot{V} = q(t)(f^{c})$.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-011",
+   "old": "The derivation takes two steps.",
+   "new": "The derivation takes two steps.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-012",
+   "old": "First, re-anchor the rotation through the fixed $c_0$ frame, $R^{c_{k-1}}_{c} = (R^{c_0}_{c_{k-1}})^{\\mathsf{T}} R^{c_0}_{c}$, so that the $c_{k-1}$-dependent factor, constant over the interval, exits the integral.",
+   "new": "First, re-anchor the rotation through the fixed $c_0$ frame, $R^{c_{k-1}}_{c} = (R^{c_0}_{c_{k-1}})^{\\mathsf{T}} R^{c_0}_{c}$. The re-anchoring lets the $c_{k-1}$-dependent factor, constant over the interval, exit the integral.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-013",
+   "old": "What remains is the cumulative integrand.",
+   "new": "What remains is the cumulative integrand.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-014",
+   "old": "Second, split its range at $t_{k-1}$, which gives the difference of the running store:",
+   "new": "Second, split its range at $t_{k-1}$. That gives the difference of the running store:",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-015",
+   "old": "$$\\int_{t_{k-1}}^{t_k} R^{c_{k-1}}_{c} f^{c} \\, dt = (R^{c_0}_{c_{k-1}})^{\\mathsf{T}} \\left( \\int_{t_0}^{t_k} R^{c_0}_{c} f^{c} \\, dt - \\int_{t_0}^{t_{k-1}} R^{c_0}_{c} f^{c} \\, dt \\right) = q(t_{k-1})' \\, \\big( V(t_k) - V(t_{k-1}) \\big)$$",
+   "new": "$$\\int_{t_{k-1}}^{t_k} R^{c_{k-1}}_{c} f^{c} \\, dt = (R^{c_0}_{c_{k-1}})^{\\mathsf{T}} \\left( \\int_{t_0}^{t_k} R^{c_0}_{c} f^{c} \\, dt - \\int_{t_0}^{t_{k-1}} R^{c_0}_{c} f^{c} \\, dt \\right) = q(t_{k-1})' \\, \\big( V(t_k) - V(t_{k-1}) \\big)$$",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-016",
+   "old": "In code, this is the sampler line `υ_c_sc = s.q'(u.V - s.V)`.",
+   "new": "In code, the sculling result is the sampler line `υ_c_sc = s.q'(u.V - s.V)`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-017",
+   "old": "The factor leaving the integral is the anchor change between two inertially-fixed frames.",
+   "new": "The factor leaving the integral is the anchor change between two inertially-fixed frames.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-018",
+   "old": "It is constant because $t_{k-1}$ is in the past and latched.",
+   "new": "It is constant because $t_{k-1}$ is in the past and latched.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-019",
+   "old": "The physical intra-interval rotation, the thing sculling corrections are about, stays inside the integrand via $q(t)$.",
+   "new": "The physical intra-interval rotation stays inside the integrand via $q(t)$. That rotation is what sculling corrections are about.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-020",
+   "old": "Every RHS evaluation, RK stages included, applies the current cumulative attitude,",
+   "new": "Every evaluation of the RHS (`x_deriv`, the continuous derivative function) applies the current cumulative attitude, RK stages included.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-021",
+   "old": "exactly as the direct formulation applies its current `q_c_cc`.",
+   "new": "The direct formulation applies its current `q_c_cc`, its coning attitude increment, in exactly the same way.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-022",
+   "old": "#### Exactness condition, stated once",
+   "new": "#### The exactness condition",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R6"
+  },
+  {
+   "id": "E2-023",
+   "old": "Interval-relative integrals factor into cumulative ones whenever the interval dependence enters through a left action by the interval-start value of a cumulatively-integrable quantity.",
+   "new": "Interval-relative integrals factor into cumulative ones whenever the interval dependence enters through a left action by the interval-start value of a cumulatively-integrable quantity (D-056).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-056"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "E2-024",
+   "old": "That action is the identity for linear integrals, right-invariance for attitude increments, and constancy of the anchor change for sculling.",
+   "new": "That action is the identity for linear integrals, right-invariance for attitude increments, and constancy of the anchor change for sculling.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-025",
+   "old": "Two provisos apply.",
+   "new": "Two provisos apply.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-026",
+   "old": "First, the cumulative attitude must be integrated with the inertial rate,",
+   "new": "First, the cumulative attitude must be integrated with the inertial rate (D-056).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-056"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "E2-027",
+   "old": "so that the anchor frame is inertially fixed and the pulled factor rigorously constant.",
+   "new": "The anchor frame is then inertially fixed and the pulled factor rigorously constant.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-028",
+   "old": "Anchoring to a rotating reference breaks the factorization.",
+   "new": "Anchoring to a rotating reference breaks the factorization.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-029",
+   "old": "Second, the equivalence survives discretization.",
+   "new": "Second, the equivalence survives discretization (D-056).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-056"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "E2-030",
+   "old": "Quaternion kinematics is linear in `q`, every RK stage composes on the right, and left multiplication by the constant anchor commutes through,",
+   "new": "Quaternion kinematics is linear in `q`, every RK stage composes on the right, and left multiplication by the constant anchor commutes through.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-031",
+   "old": "so the formulations agree to machine precision, not merely in the continuous-time limit.",
+   "new": "So the formulations agree to machine precision, not merely in the continuous-time limit.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-032",
+   "old": "Never resetting has numerical consequences.",
+   "new": "Never resetting has numerical consequences.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-033",
+   "old": "`q` stays unit under `x_projection`, which is better conditioned than the direct formulation's `normalization = false` plus reset.",
+   "new": "`q` stays unit under `x_projection`, which is better conditioned than the direct formulation's `normalization = false` plus reset.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-034",
+   "old": "`Θ`, `Υ` and `V` grow linearly, so differencing loses relative precision.",
+   "new": "`Θ`, `Υ` and `V` grow linearly, so differencing loses relative precision.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-035",
+   "old": "After an hour of flight that loss is of order $10^{-11}\\ \\mathrm{m/s}$ per sample against $10^{4}\\ \\mathrm{m/s}$ totals,",
+   "new": "After an hour of flight that loss is of order $10^{-11}\\ \\mathrm{m/s}$ per sample against $10^{4}\\ \\mathrm{m/s}$ totals.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-036",
+   "old": "six-plus orders below any error model worth simulating.",
+   "new": "That is six-plus orders below any error model worth simulating.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-037",
+   "old": "`struct IMUIntegrals <: AbstractComponent t_bc::FrameTransform end x_init(::IMUIntegrals) = (Θ = zeros(SVector{3}), q = SVector{4}(1.0, 0, 0, 0), Υ = zeros(SVector{3}), V = zeros(SVector{3})) u_types(::IMUIntegrals) = (q_eb = RQuat{Float64}, r_eb_e = SVector{3,Float64}, ω_eb_b = SVector{3,Float64}, a_ib_b = SVector{3,Float64}, α_ib_b = SVector{3,Float64}) y_types(::IMUIntegrals) = (Θ = SVector{3,Float64}, q = SVector{4,Float64}, # exposed state (§5.3) Υ = SVector{3,Float64}, V = SVector{3,Float64}, ω_ic_c = SVector{3,Float64}, f_c_c = SVector{3,Float64}) # instantaneous truth",
+   "new": "struct IMUIntegrals <: AbstractComponent t_bc::FrameTransform end x_init(::IMUIntegrals) = (Θ = zeros(SVector{3}), q = SVector{4}(1.0, 0, 0, 0), Υ = zeros(SVector{3}), V = zeros(SVector{3})) u_types(::IMUIntegrals) = (q_eb = RQuat{Float64}, r_eb_e = SVector{3,Float64}, ω_eb_b = SVector{3,Float64}, a_ib_b = SVector{3,Float64}, α_ib_b = SVector{3,Float64}) y_types(::IMUIntegrals) = (Θ = SVector{3,Float64}, q = SVector{4,Float64}, # exposed state (§5.3) Υ = SVector{3,Float64}, V = SVector{3,Float64}, ω_ic_c = SVector{3,Float64}, f_c_c = SVector{3,Float64}) # instantaneous truth",
+   "where": "new",
+   "cites": [
+    "§5.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "E2-038",
+   "old": "# the four integrals are state, so stage 1 returns them (§5.3) y_state(::IMUIntegrals, (; x)) = (; x.Θ, x.q, x.Υ, x.V)",
+   "new": "# the four integrals are state, so stage 1 returns them (§5.3) y_state(::IMUIntegrals, (; x)) = (; x.Θ, x.q, x.Υ, x.V)",
+   "where": "new",
+   "cites": [
+    "§5.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "E2-039",
+   "old": "# y_direct: strapdown kinematics (lever arm, gravity, Earth rate) → (; ω_ic_c, f_c_c) function x_deriv(imu::IMUIntegrals, (; x, y)) q = RQuat(x.q, normalization = false) # §7.1's explicit cast (Θ = y.ω_ic_c, q = SVector{4}(Attitude.dt(q, y.ω_ic_c)), Υ = y.f_c_c, V = q(y.f_c_c)) end x_projection(imu::IMUIntegrals, x) = (; x..., q = normalize(x.q)) # SVector normalize",
+   "new": "# y_direct: strapdown kinematics (lever arm, gravity, Earth rate) → (; ω_ic_c, f_c_c) function x_deriv(imu::IMUIntegrals, (; x, y)) q = RQuat(x.q, normalization = false) # §7.1's explicit cast (Θ = y.ω_ic_c, q = SVector{4}(Attitude.dt(q, y.ω_ic_c)), Υ = y.f_c_c, V = q(y.f_c_c)) end x_projection(imu::IMUIntegrals, x) = (; x..., q = normalize(x.q)) # SVector normalize",
+   "where": "new",
+   "cites": [
+    "§7.1"
+   ],
+   "tag": "R",
+   "ruling": "R7"
+  },
+  {
+   "id": "E2-040",
+   "old": "struct IMUSampler <: AbstractComponent end s_init(::IMUSampler) = (Θ = zeros(SVector{3}), q = SVector{4}(1.0, 0, 0, 0), Υ = zeros(SVector{3}), V = zeros(SVector{3})) u_types(::IMUSampler) = (Θ = SVector{3,Float64}, q = SVector{4,Float64}, # discrete class: plain Υ = SVector{3,Float64}, V = SVector{3,Float64}) # form, bound check only y_types(::IMUSampler) = (sample = IMUSample,) # discrete class: cells pin (frozen-exact)",
+   "new": "struct IMUSampler <: AbstractComponent end s_init(::IMUSampler) = (Θ = zeros(SVector{3}), q = SVector{4}(1.0, 0, 0, 0), Υ = zeros(SVector{3}), V = zeros(SVector{3})) u_types(::IMUSampler) = (Θ = SVector{3,Float64}, q = SVector{4,Float64}, # discrete tier: bound check only Υ = SVector{3,Float64}, V = SVector{3,Float64}) y_types(::IMUSampler) = (sample = IMUSample,) # discrete tier: cells pin (frozen-exact)",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R7"
+  },
+  {
+   "id": "E2-041",
+   "old": "function y_direct(smp::IMUSampler, (; s, u, Δt)) q_s = RQuat(s.q, normalization = false); q_u = RQuat(u.q, normalization = false) ϑ_c = u.Θ - s.Θ; υ_c = u.Υ - s.Υ Δq = q_s' ∘ q_u # interval rotation, exact υ_c_sc = q_s'(u.V - s.V) # constant anchor change pulled out (; sample = IMUSample(; ω̄_ic_c = ϑ_c / Δt, f̄_c_c = υ_c / Δt, ϑ_c, ϑ_c_cc = RVec(Δq)[:], υ_c, υ_c_sc)) end s_update(smp::IMUSampler, (; u)) = (Θ = u.Θ, q = u.q, Υ = u.Υ, V = u.V) # the latch",
+   "new": "function y_direct(smp::IMUSampler, (; s, u, Δt)) q_s = RQuat(s.q, normalization = false); q_u = RQuat(u.q, normalization = false) ϑ_c = u.Θ - s.Θ; υ_c = u.Υ - s.Υ Δq = q_s' ∘ q_u # interval rotation, exact υ_c_sc = q_s'(u.V - s.V) # constant anchor change pulled out (; sample = IMUSample(; ω̄_ic_c = ϑ_c / Δt, f̄_c_c = υ_c / Δt, ϑ_c, ϑ_c_cc = RVec(Δq)[:], υ_c, υ_c_sc)) end s_update(smp::IMUSampler, (; u)) = (Θ = u.Θ, q = u.q, Υ = u.Υ, V = u.V) # the latch",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-042",
+   "old": "The `IMU` assembly wires the four integral ports across,",
+   "new": "The `IMU` assembly wires the four integral ports across.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-043",
+   "old": "holds the error model as a discrete sibling consuming `sample`,",
+   "new": "It holds the error model as a discrete sibling consuming `sample`,",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-044",
+   "old": "and leaves the sampler at `K = 1` in its own scope.",
+   "new": "and it leaves the sampler at `K = 1` (its `sample_times` entry is `Relative(1)`) in its own scope.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-045",
+   "old": "The parent sets the IMU's rate (§8.7).",
+   "new": "The parent sets the IMU's rate (§8.7).",
+   "where": "new",
+   "cites": [
+    "§8.7"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "E2-046",
+   "old": "`Δt` in the stage bundle (the NamedTuple of zero-copy views a component function receives) is the §10.5 single source of truth,",
+   "new": "`Δt` in the stage bundle (the NamedTuple of zero-copy views a component function receives) is the single source of truth (§10.5).",
+   "where": "new",
+   "cites": [
+    "§10.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "E2-047",
+   "old": "put there for exactly this kind of discretized law.",
+   "new": "It is there for exactly this kind of discretized law.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-048",
+   "old": "Initialization consistency also holds.",
+   "new": "Initialization is consistent too.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-049",
+   "old": "The sampler's `s` must equal the initial integrals, or the `t₀` sample is wrong.",
+   "new": "The sampler's `s` must equal the initial integrals, or the `t₀` sample is wrong.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-050",
+   "old": "That holds by default at zeros/identity, and boundary zero discharges the rest.",
+   "new": "That holds by default at zeros/identity, and boundary zero discharges the rest.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-051",
+   "old": "Its due `s_update` latches `s ← integrals(t₀)` for every subsequent sample,",
+   "new": "There the sampler's due `s_update` (one scheduled to run at this boundary) latches `s ← integrals(t₀)` for every subsequent sample (D-067).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-067"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "E2-052",
+   "old": "so only the `t₀` sample itself depends on the authored `s`.",
+   "new": "So only the `t₀` sample itself depends on the authored `s`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-053",
+   "old": "That dependence is a condition-authoring obligation under trim (§14.5).",
+   "new": "That dependence is an obligation on the author of the condition (the datum that sets a build to a state) under trim (§14.5).",
+   "where": "new",
+   "cites": [
+    "§14.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "E2-054",
+   "old": "#### Why `u.V` is fresh: the line that would silently zero",
+   "new": "#### Freshness at the sample",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R6"
+  },
+  {
+   "id": "E2-055",
+   "old": "The sculling line is correct only because a due tick samples the completed boundary.",
+   "new": "The sculling line is correct only because a due tick samples the completed boundary.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-056",
+   "old": "If `u.V` still held the previous boundary's decode, it would equal `s.V` exactly, since that is the value `s_update` latched,",
+   "new": "If `u.V` still held the previous boundary's decode, it would equal `s.V` exactly, since that is the value `s_update` latched.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-057",
+   "old": "and sculling would vanish without an error anywhere.",
+   "new": "Sculling would then vanish without an error anywhere.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-058",
+   "old": "The guarantee is the §10.6 macro-sequence, not a scheduling accident.",
+   "new": "The guarantee is the boundary macro-sequence of §10.6, not a scheduling accident.",
+   "where": "new",
+   "cites": [
+    "§10.6"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "E2-059",
+   "old": "The sequence is integrate, project, sweep,",
+   "new": "The sequence is integrate, project, sweep (one pass through the execution order).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-060",
+   "old": "with the due sampler's stages gated into that sweep (§10.5)",
+   "new": "The due sampler's stages are gated into that sweep (§10.5).",
+   "where": "new",
+   "cites": [
+    "§10.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "E2-061",
+   "old": "and the integrals arriving at stage-1 position, returned by `y_state` (§5.3).",
+   "new": "The integrals arrive at stage-1 position, returned by `y_state` (§5.3).",
+   "where": "new",
+   "cites": [
+    "§5.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "E2-062",
+   "old": "They arrive before any stage-2 function runs, regardless of topological placement.",
+   "new": "They arrive before any stage-2 function runs, regardless of topological placement.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-063",
+   "old": "The rest of the timeline closes consistently.",
+   "new": "The rest of the timeline closes consistently.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-064",
+   "old": "The sampler's `y_direct` decodes `s`, the `t_{k-1}` latch, before `s_update` runs,",
+   "new": "The sampler's `y_direct` decodes `s`, the `t_{k-1}` latch, before `s_update` runs.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-065",
+   "old": "which is the `z⁻¹` semantics.",
+   "new": "That is the `z⁻¹` semantics, the one-sample delay of sampled-data control.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-066",
+   "old": "After event quiescence, `s_update` latches the `t_k` values for the next tick.",
+   "new": "After event quiescence (the point where a round of handlers fires nothing), `s_update` latches the `t_k` values for the next tick.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-067",
+   "old": "Same-boundary events re-run the gated stages in their re-sweeps,",
+   "new": "Same-boundary events re-run the gated stages in their re-sweeps.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-068",
+   "old": "so `s_update` and external readers see the settled boundary.",
+   "new": "So `s_update` and external readers see the settled boundary.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-069",
+   "old": "#### Sampling at `t_k` is a taught contract",
+   "new": "#### The boundary-sampling contract",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R6"
+  },
+  {
+   "id": "E2-070",
+   "old": "The clean implementation leans on the author knowing that \"sampling at `t_k`\" means post-integration, post-projection, stage-1-fresh state.",
+   "new": "The clean implementation leans on the author knowing that \"sampling at `t_k`\" means post-integration, post-projection, stage-1-fresh state.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-071",
+   "old": "That knowledge must be part of the framework's taught contract, not internal lore,",
+   "new": "That knowledge must be part of the framework's taught contract, not internal lore (D-056).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-056"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "E2-072",
+   "old": "with the §10.5 and §10.6 semantics stated in component-author documentation (Appendix A) and this IMU as the worked example.",
+   "new": "The semantics of §10.5 and §10.6 must be stated in component-author documentation (Appendix A), with this IMU as the worked example.",
+   "where": "new",
+   "cites": [
+    "§10.5",
+    "§10.6",
+    "Appendix A"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "E2-073",
+   "old": "The failure mode of not knowing it is instructive.",
+   "new": "The failure mode of not knowing it is instructive.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-074",
+   "old": "An author who distrusts the sweep order adds a defensive one-tick delay or re-derives the integrals in the sampler,",
+   "new": "An author who distrusts the sweep order adds a defensive one-tick delay or re-derives the integrals in the sampler.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-075",
+   "old": "silently degrading the model.",
+   "new": "Either one silently degrades the model.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-076",
+   "old": "When the coupling is genuinely two-way, the latch becomes a wire back.",
+   "new": "When the coupling is genuinely two-way, the latch becomes a wire back (D-056).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-056"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "E2-077",
+   "old": "The IMU's coupling is one-directional, from integrals to sampler.",
+   "new": "The IMU's coupling is one-directional, from integrals to sampler.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-078",
+   "old": "Suppose the flow itself needed the interval-relative value, say for integrator saturation within the sampling interval.",
+   "new": "Suppose the flow itself needed the interval-relative value, say for integrator saturation within the sampling interval.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-079",
+   "old": "Then the sampler publishes the sample-instant values from its feedthrough stage,",
+   "new": "Then the sampler publishes the sample-instant values from its feedthrough stage (the stage with an instantaneous input-to-output dependence).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-080",
+   "old": "and the continuous `x_deriv` computes `x − u.latch`.",
+   "new": "The continuous `x_deriv` computes `x − u.latch`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-081",
+   "old": "The feedthrough stage is the right one because `y_direct` reads `u`,",
+   "new": "The feedthrough stage is the right one because `y_direct` reads `u`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-082",
+   "old": "so the latch port carries the current tick's values, ZOH until the next.",
+   "new": "The latch port therefore carries the current tick's values, held by zero-order hold (ZOH) until the next.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-083",
+   "old": "An `y_state`-published latch would be one period stale.",
+   "new": "A `y_state`-published latch would be one period stale.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-084",
+   "old": "Both cross-wires consume the other side's ports, and the feedthrough graph stays acyclic.",
+   "new": "Both cross-wires consume the other side's ports, and the feedthrough graph stays acyclic.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "E2-085",
+   "old": "The integrals' stage 1 feeds the sampler's `y_direct`, and the sampler's `y_direct` feeds the integrals' `x_deriv` edge (§5.4).",
+   "new": "The integrals' stage 1 feeds the sampler's `y_direct`, and the sampler's `y_direct` feeds the integrals' `x_deriv` edge (§5.4).",
+   "where": "new",
+   "cites": [
+    "§5.4"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "E2-086",
+   "old": "The \"reset\" becomes a visible tier-crossing feedback loop, which is what it always was, physically.",
+   "new": "The \"reset\" becomes a visible tier-crossing feedback loop. That is what it always was, physically.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  }
+ ],
+ "added": [
+  "#### The leaves in code",
+  "In integrate-and-dump, the IMU's direct formulation integrates over each sample interval and zeroes its integrals at every sample.",
+  "(`x_deriv`, the continuous derivative function)",
+  "its coning attitude increment,",
+  "A few names in the code below need an introduction. `RQuat` is the domain wrapper an attitude `SVector{4}` is cast to where rotation semantics are wanted (§7.1). `Attitude.dt` gives the coning bullet's quaternion derivative, and `RVec` turns the interval rotation `Δq` into the vector the sample carries. `IMUSample` is the sampler's output struct. `FrameTransform` is one of the payload types §7.2 lists as walked.",
+  "(its `sample_times` entry is `Relative(1)`)",
+  "Boundary zero is the initialization boundary (a published consistency point), run at `t₀`.",
+  "(one scheduled to run at this boundary)",
+  "(the datum that sets a build to a state)",
+  "A tick is an instant at which a discrete component's stages and update run.",
+  "(one pass through the execution order)",
+  "the one-sample delay of sampled-data control",
+  "(the point where a round of handlers fires nothing)",
+  "Projection is the `x_projection` hook, run after integration.",
+  "(the stage with an instantaneous input-to-output dependence)",
+  "held by zero-order hold (ZOH)"
+ ]
+}

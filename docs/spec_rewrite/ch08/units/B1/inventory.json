@@ -1,0 +1,626 @@
+{
+ "claims": [
+  {
+   "id": "B1-001",
+   "old": "### 8.2 The declaration inventory",
+   "new": "### 8.2 The declaration inventory",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "B1-002",
+   "old": "One continuous primitive, declared end to end:",
+   "new": "One continuous primitive, declared end to end:",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "B1-003",
+   "old": "struct Engine <: AbstractComponent ω_idle::Float64; ω_min::Float64; J::Float64 #parameters: plain struct fields ω_rated::Float64 #unread here; §14.2's shipped condition uses it end",
+   "new": "struct Engine <: AbstractComponent ω_idle::Float64; ω_min::Float64; J::Float64 #parameters: plain struct fields ω_rated::Float64 #unread here; §14.2's shipped condition uses it end",
+   "where": "new",
+   "cites": [
+    "§14.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-004",
+   "old": "#state stores: declared by initial value — types derived, nothing to drift x_init(::Engine) = (ω = 0.0,) m_init(::Engine) = (phase = off,) # off | starting | running",
+   "new": "#state stores: declared by initial value — types derived, nothing to drift x_init(::Engine) = (ω = 0.0,) m_init(::Engine) = (phase = off,) # off | starting | running",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-005",
+   "old": "#input contract: each entry states what may arrive; a Float64 leaf walks with the activation u_types(::Engine) = (throttle = Float64, starter = Bool, fuel_available = Bool, M_load = Float64)",
+   "new": "#input contract: each entry states what may arrive; a Float64 leaf walks with the activation u_types(::Engine) = (throttle = Float64, starter = Bool, fuel_available = Bool, M_load = Float64)",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-006",
+   "old": "#output contract = the public interface (§8.3); Float64 walks, Pinned{Float64} would freeze a leaf y_types(::Engine) = (M_shaft = Float64, P = Float64, ω = Float64)",
+   "new": "#output contract = the public interface (§8.3); Float64 walks, Pinned{Float64} would freeze a leaf y_types(::Engine) = (M_shaft = Float64, P = Float64, ω = Float64)",
+   "where": "new",
+   "cites": [
+    "§8.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-007",
+   "old": "#stage and update functions destructure their bundle by name (§5.2) y_state(::Engine, (; x)) = (; ω = x.ω) #exposing a state field is one line (§5.3)",
+   "new": "#stage and update functions destructure their bundle by name (§5.2) y_state(::Engine, (; x)) = (; ω = x.ω) #exposing a state field is one line (§5.3)",
+   "where": "new",
+   "cites": [
+    "§5.2",
+    "§5.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-008",
+   "old": "function y_direct(eng::Engine, (; x, m, u)) M_shaft = m.phase === running ? torque_law(eng, u.throttle, x.ω) : zero(x.ω) return (; M_shaft, P = M_shaft x.ω) end",
+   "new": "function y_direct(eng::Engine, (; x, m, u)) M_shaft = m.phase === running ? torque_law(eng, u.throttle, x.ω) : zero(x.ω) return (; M_shaft, P = M_shaft x.ω) end",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-009",
+   "old": "x_deriv(eng::Engine, (; x, y, u)) = (ω = (y.M_shaft - u.M_load) / eng.J,)",
+   "new": "x_deriv(eng::Engine, (; x, y, u)) = (ω = (y.M_shaft - u.M_load) / eng.J,)",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-010",
+   "old": "#events: ordered and named — order matters (§5.3, §10.6); detection policy by the guard's return type (§2.1) state_events(::Engine) = ( start = StateEvent(start_guard, start_handler), # boundary-detected: Bool guard ignition = StateEvent(ignition_guard, ignition_handler), # boundary-detected: Bool guard flameout = StateEvent(flameout_guard, flameout_handler)) # localized: sign-form guard start_guard(::Engine, (; m, u)) = #manual trigger: an input (§12.5) m.phase === off && u.starter start_handler(::Engine, _) = (; m = (; phase = starting)) #no `x` key: no reset ignition_guard(eng::Engine, (; x, m, u)) = #predicate form m.phase === starting && x.ω > eng.ω_idle && u.fuel_available ignition_handler(::Engine, _) = (; m = (; phase = running)) flameout_guard(eng::Engine, (; x)) = eng.ω_min - x.ω #continuous form: localizable flameout_handler(::Engine, _) = (; m = (; phase = off))",
+   "new": "#events: ordered and named — order matters (§5.3, §10.6); detection policy by the guard's return type (§2.1) state_events(::Engine) = ( start = StateEvent(start_guard, start_handler), # boundary-detected: Bool guard ignition = StateEvent(ignition_guard, ignition_handler), # boundary-detected: Bool guard flameout = StateEvent(flameout_guard, flameout_handler)) # localized: sign-form guard start_guard(::Engine, (; m, u)) = #manual trigger: an input (§12.5) m.phase === off && u.starter start_handler(::Engine, _) = (; m = (; phase = starting)) #no `x` key: no reset ignition_guard(eng::Engine, (; x, m, u)) = #predicate form m.phase === starting && x.ω > eng.ω_idle && u.fuel_available ignition_handler(::Engine, _) = (; m = (; phase = running)) flameout_guard(eng::Engine, (; x)) = eng.ω_min - x.ω #continuous form: localizable flameout_handler(::Engine, _) = (; m = (; phase = off))",
+   "where": "new",
+   "cites": [
+    "§10.6",
+    "§12.5",
+    "§2.1",
+    "§5.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-011",
+   "old": "The blocks below take that inventory declaration by declaration, and record where each schema fact gets its authority.",
+   "new": "The blocks below take that inventory declaration by declaration, and record where each schema fact gets its authority.",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "B1-012",
+   "old": "#### State, modes, discrete state",
+   "new": "#### The stores",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "B1-013",
+   "old": "Rule. `x_init` on the continuous tier, `s_init` on the discrete, and `m_init`, declare by initial value.",
+   "new": "`x_init` on the continuous tier, `s_init` on the discrete, and `m_init` declare by initial value (D-033).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-033"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "B1-014",
+   "old": "The type is derived from the value.",
+   "new": "The type is derived from the value.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-015",
+   "old": "The value is a `NamedTuple`, one named field per leaf, and no other form is admitted.",
+   "new": "The value is a `NamedTuple`, one named field per leaf, and no other form is admitted (D-247).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-247"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "B1-016",
+   "old": "A bare leaf such as `x_init(::C) = 0.0` or `s_init(::C) = zeros(SVector{3})` is refused.",
+   "new": "A bare leaf such as `x_init(::C) = 0.0` or `s_init(::C) = zeros(SVector{3})` is refused.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-017",
+   "old": "The structure step reports it as `StoreNotNamedTuple`, and the message spells the wrap (§9.1, Appendix C, D-247).",
+   "new": "The structure step reports it as `StoreNotNamedTuple`, and the message spells the wrap (§9.1, Appendix C, D-247).",
+   "where": "new",
+   "cites": [
+    "Appendix C",
+    "D-247",
+    "§9.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-018",
+   "old": "Rule. Every leaf declares exactly one of `x_init` and `s_init`,",
+   "new": "Every leaf declares exactly one of `x_init` and `s_init`,",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-263"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "B1-019",
+   "old": "and a stateless leaf declares it empty,",
+   "new": "and a stateless leaf declares it empty (D-263):",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-020",
+   "old": "`x_init(::Gain) = (;)` or `s_init(::Sampler) = (;)`.",
+   "new": "`x_init(::Gain) = (;) s_init(::Sampler) = (;)`",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-021",
+   "old": "The store is the tier marker,",
+   "new": "The store (the model's memory, declared by initial value) is the tier marker.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-022",
+   "old": "so it is mandatory even when empty, exactly as `inner_connections` is mandatory even when empty because it is the class marker (§8.5, D-263).",
+   "new": "It is therefore mandatory even when empty, exactly as `inner_connections` is mandatory even when empty because it is the class marker (§8.5, D-263).",
+   "where": "new",
+   "cites": [
+    "D-263",
+    "§8.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-023",
+   "old": "A primitive declaring neither store is `TierUnreadable`, and its message spells the empty form.",
+   "new": "A primitive declaring neither store is `TierUnreadable`, and its message spells the empty form.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-024",
+   "old": "An empty store owes no update law, since it has nothing to integrate or advance,",
+   "new": "An empty store owes no update law, since it has nothing to integrate or advance.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-025",
+   "old": "and it puts no letter in the bundle (§5.2).",
+   "new": "It puts no letter in the bundle (§5.2).",
+   "where": "new",
+   "cites": [
+    "§5.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-026",
+   "old": "Why. A continuous component's state may be empty (§3.1), so a stateless continuous leaf is honestly a continuous leaf with zero state fields.",
+   "new": "A continuous component's state may be empty (§3.1), so a stateless continuous leaf is honestly a continuous leaf with zero state fields.",
+   "where": "new",
+   "cites": [
+    "§3.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-027",
+   "old": "Spelling that out puts every leaf's tier on the page in one place, stateful or not, with no tier by omission.",
+   "new": "Spelling that out puts every leaf's tier on the page in one place, stateful or not, with no tier by omission.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-028",
+   "old": "It also closes a trap.",
+   "new": "It also closes a trap.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-029",
+   "old": "A store lost to a local scope or to a forgotten import (§8.1) fails loud as a leaf declaring no store, where an optional marker would have dropped silently.",
+   "new": "A store lost to a local scope or to a forgotten import (§8.1) fails loud as a leaf declaring no store, where an optional marker would have dropped silently.",
+   "where": "new",
+   "cites": [
+    "§8.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-030",
+   "old": "Why. Every service reaches a leaf by its field name.",
+   "new": "every service reaches a leaf by its field name.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-031",
+   "old": "The condition overlay merges on it (§14.1),",
+   "new": "A condition, the path-addressed sparse overlay that sets a build's state, merges on it (§14.1).",
+   "where": "new",
+   "cites": [
+    "§14.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-032",
+   "old": "readers and the trace spell it (§14.4),",
+   "new": "Readers and the trace spell it (§14.4).",
+   "where": "new",
+   "cites": [
+    "§14.4"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-033",
+   "old": "and a one-field store publishes its field as the port of that name (§5.3).",
+   "new": "",
+   "where": "new",
+   "cites": [
+    "§5.3"
+   ],
+   "newcites": [],
+   "tag": "R",
+   "ruling": "R7"
+  },
+  {
+   "id": "B1-034",
+   "old": "The name a one-state component is asked for is the name every service then uses.",
+   "new": "The name a one-state component is asked for is the name every service then uses.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-035",
+   "old": "There is consequently no second artifact to drift and no separate type declaration to check.",
+   "new": "Because the type is derived from the value, there is no second artifact to drift and no separate type declaration to check.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-036",
+   "old": "The workspace (component-declared mutable scratch arriving as the `ws` bundle field)",
+   "new": "the workspace (component-declared mutable scratch arriving as the `ws` bundle field)",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-037",
+   "old": "is the exception to that convention.",
+   "new": "The workspace is the exception to that convention.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-038",
+   "old": "It is declared by allocation, as `ws_init(::C, ::Type{T})` on both tiers,",
+   "new": "It is declared by allocation, as `ws_init(::C, ::Type{T})` on both tiers (D-077, D-263).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-077",
+    "D-263"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "B1-039",
+   "old": "and the method itself is the allocator.",
+   "new": "The method itself is the allocator.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-040",
+   "old": "A workspace earns the exception because it is not memory and none of the by-value arguments below cover it (§7.3).",
+   "new": "A workspace earns the exception because it is not memory and none of the by-value arguments below cover it (§7.3).",
+   "where": "new",
+   "cites": [
+    "§7.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-041",
+   "old": "`ws_init` alone declares by allocation, and nothing downstream derives from the type of what it returns.",
+   "new": "`ws_init` alone declares by allocation, and nothing downstream derives from the type of what it returns.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-042",
+   "old": "This is the boundary of legitimate derivation.",
+   "new": "This is the boundary of legitimate derivation.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-043",
+   "old": "Deriving from another declaration is sound, and deriving from evaluated user code is not.",
+   "new": "Deriving from another declaration is sound, and deriving from evaluated user code is not.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-044",
+   "old": "Declaring types here too, `u_types`-style, with `probe_value` (§9.3) synthesizing the initial values, was rejected (D-073).",
+   "new": "Typed stores with synthesized initial values were rejected (D-073).",
+   "where": "new",
+   "cites": [
+    "D-073",
+    "§9.3"
+   ],
+   "newcites": [
+    "D-073"
+   ],
+   "tag": "R",
+   "ruling": "R4"
+  },
+  {
+   "id": "B1-045",
+   "old": "`u_types`-style, with `probe_value` (§9.3) synthesizing the initial values",
+   "new": "`init_` as types + `probe_value` synthesis",
+   "where": "docs/design/decisions.md",
+   "cites": [
+    "§9.3"
+   ],
+   "tag": "R",
+   "ruling": "R4"
+  },
+  {
+   "id": "B1-046",
+   "old": "Why. The declared values are the base layer of the condition substrate",
+   "new": "The declared values are the base layer of the condition substrate.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-047",
+   "old": "(a condition is the path-addressed sparse overlay that sets a build's state).",
+   "new": "A condition, the path-addressed sparse overlay that sets a build's state,",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-048",
+   "old": "The overlays (§14.1) fall back to them leaf by leaf, and the compiled store writers bake `merge(defaults, overlay)`,",
+   "new": "The overlays (§14.1) fall back to the declared values leaf by leaf, and the compiled store writers bake `merge(defaults, overlay)`.",
+   "where": "new",
+   "cites": [
+    "§14.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-049",
+   "old": "so there must be an authored value under every leaf.",
+   "new": "There must therefore be an authored value under every leaf.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-050",
+   "old": "The asymmetry against `u_types`/`y_types` is one of kind, not style.",
+   "new": "The asymmetry against `u_types`/`y_types` is one of kind, not style.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-051",
+   "old": "Contracts describe table cells,",
+   "new": "Contracts (a component's declared interfaces) describe table cells (the signal table's typed entries, one per output port).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-052",
+   "old": "which are recomputed from scratch every sweep, and so need only types.",
+   "new": "Cells are recomputed from scratch every sweep (one pass through the execution order), so contracts need only types.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-053",
+   "old": "`init_` describe stores, the model's memory, which must have contents before the first sweep can run.",
+   "new": "`init_` describe stores, the model's memory, which must have contents before the first sweep can run.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-054",
+   "old": "Every declaration but the allocator takes the component alone,",
+   "new": "Every declaration of a structural fact but the allocator takes the component alone (D-263).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-263"
+   ],
+   "tag": "R",
+   "ruling": "R7"
+  },
+  {
+   "id": "B1-055",
+   "old": "and the criterion is the declaration convention it lives in (D-263).",
+   "new": "The criterion is the convention each declaration lives in.",
+   "where": "new",
+   "cites": [
+    "D-263"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-056",
+   "old": "It is stated once here, and the blocks below refer back to it.",
+   "new": "It is stated once here, and the blocks below refer back to it.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-057",
+   "old": "A by-value declaration states nominal physics, and its types walk by rule (the derivation of per-activation types from a declared nominal type).",
+   "new": "A by-value declaration states nominal physics, and its types walk by rule (the derivation of per-activation types from a declared nominal type).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-058",
+   "old": "§7.1 forces every state leaf to follow the activation scalar (the build's typed products at a given scalar type),",
+   "new": "§7.1 forces every state leaf to follow the scalar of the activation (the build's typed products at a given scalar type).",
+   "where": "new",
+   "cites": [
+    "§7.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-059",
+   "old": "so nothing is left for a signature to record.",
+   "new": "Nothing is therefore left for a signature to record.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-060",
+   "old": "Partials enter through per-invocation seeding, never through initialization.",
+   "new": "Partials enter through per-invocation seeding, never through initialization (D-079).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-079"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "B1-061",
+   "old": "A by-type declaration walks by the same rule,",
+   "new": "A by-type declaration walks by the same rule.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-062",
+   "old": "and where a leaf must not follow the scalar the author says so at the leaf, with `Pinned`,",
+   "new": "Where a leaf must not follow the scalar, the author says so at the leaf with `Pinned` (the leaf wrapper `Pinned{P}`, which yields `P` at every activation).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-063",
+   "old": "which is why `u_types` and `y_types` take the component alone too.",
+   "new": "That is why `u_types` and `y_types` take the component alone too.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-064",
+   "old": "A by-allocation declaration is the exception.",
+   "new": "A by-allocation declaration is the exception.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-065",
+   "old": "It builds values the framework may not rebuild, so the scalar can come from nowhere but its own argument,",
+   "new": "It builds values the framework may not rebuild, so the scalar can come from nowhere but its own argument.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-066",
+   "old": "and `ws_init(c, T)` takes it on both tiers (D-077).",
+   "new": "`ws_init(c, T)` takes it on both tiers, the continuous and the discrete (D-077).",
+   "where": "new",
+   "cites": [
+    "D-077"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B1-067",
+   "old": "The criterion, not uniformity, is the rule.",
+   "new": "The criterion, not uniformity, is the rule.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B1-068",
+   "old": "A `T` in a signature means the framework could not have supplied it.",
+   "new": "A `T` in a signature means the framework could not have supplied it.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  }
+ ],
+ "added": [
+  "The store names each leaf because",
+  "`ws_init` allocates",
+  "which is described below."
+ ]
+}
