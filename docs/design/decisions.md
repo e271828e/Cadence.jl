@@ -314,6 +314,11 @@ were derived.
 | [D-287][d-287] | Handler-return keys, struct-valued port embedding and the branchless payload | ratified |
 | [D-288][d-288] | The executor's structure: phase bodies, views, construction, the gate and publication | ratified |
 | [D-289][d-289] | Compile cost: generated unrolls, chunks by reference, an unspecialized declaration layer | ratified |
+| [D-290][d-290] | Localization's exact detection, left-end discriminator, endpoint and `t*` boundary | ratified |
+| [D-291][d-291] | Rate compilation, the boundary gate, phases and the anchor doctrine | ratified |
+| [D-292][d-292] | Event iteration's registers, boundary-zero prior, visibility trade and budget exhaustion | ratified |
+| [D-293][d-293] | External readers observe the signal table only at boundaries | ratified |
+| [D-294][d-294] | The pacer's wait: unmask point, single knob, spin safepoint and the switch to `pace = Inf` | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -551,7 +556,7 @@ included), and additionally receive state views ([D-035][d-035]); single computa
 site for derivatives and outputs is the *rewarded* idiom, not an impossibility
 claim.
 
-**Spec.** [§5.3][s5-3], [§7.4][s7-4]
+**Spec.** [§5.3][s5-3], [§7.4][s7-4], [§10.5][s10-5]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -577,6 +582,10 @@ guards and handlers read the fresh boundary table, with per-event re-decode
 **Spec.** [§4.2][s4-2], [§5.3][s5-3], [§7.4][s7-4], [§10.6][s10-6], [§8.3][s8-3], [Appendix D][sD]
 
 **Rationale.** Recorded only through the rejections below.
+
+Annotation (2026-10-02): superseded in part. [D-154][d-154] removes the per-event
+re-decode and [D-252][d-252] the selective auto-publication. `h_x` as the uniform
+state decoder and `project` as the sole raw-state function stand.
 
 **Rejected.**
 - *Superseded position — identity publication of state and modes as the
@@ -665,6 +674,10 @@ compiled to absolute divisors); `Δt` arrives as a discrete-bundle field
 
 **Rationale.** Recorded only through the rejections below.
 
+Annotation (2026-10-02): amended by [D-185][d-185], [D-186][d-186] and [D-283][d-283]. Phases are
+adopted, reversing the phase-offset rejection below, and rates compile to
+anchor-relative triples whose divisors deployment binds.
+
 **Rejected.**
 - *Superseded position — a `comp.Δt` virtual property (the earlier design of
   record):* impossible, because `===`-identical siblings can sit under
@@ -701,6 +714,10 @@ quiescence, outside the iteration.
 **Spec.** [§2.2][s2-2], [§3.1][s3-1], [§10.6][s10-6]
 
 **Rationale.** Recorded only through the rejections below.
+
+Annotation (2026-10-02): amended by [D-154][d-154] and [D-181][d-181]. The per-event
+re-decode is removed, and once-per-boundary firing gives way to the per-event
+`firing_budget`. The iteration to quiescence and the ticks after it stand.
 
 **Rejected.**
 - *Single pass per boundary:* cascade latency N·h — step-size-dependent
@@ -770,6 +787,9 @@ snapshot references.
 **Spec.** [§10.3][s10-3], [§11.2][s11-2]
 
 **Rationale.** Recorded only through the rejections below.
+
+Annotation (2026-10-02): the reader rule its third rejection points at is
+stated in [D-293][d-293]'s Position.
 
 **Rejected.**
 - *Preallocated snapshot rings:* reintroduce the reader-liveness reclamation
@@ -859,7 +879,7 @@ overshoot); with devices attached every frame yields at least once (explicit
 sizing rule + startup warning; per-device liveness heartbeat in framework
 status.
 
-**Spec.** [§12.2][s12-2]
+**Spec.** [§10.7][s10-7], [§12.2][s12-2]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -1875,6 +1895,10 @@ snapshot.
 
 **Rationale.** Recorded only through the rejections below.
 
+Annotation (2026-10-02): amended by [D-185][d-185], [D-205][d-205] and [D-291][d-291]. At
+boundary zero the due set is the `Φ = 0` components, which governs the
+`s_update` calls alone; every discrete output stage publishes, due or not.
+
 **Rejected.**
 - *Condition-authoritative boundary zero:* no events/updates: delays the
   identical firings one step while hiding non-quiescence — [§11.7][s11-7]'s
@@ -2126,7 +2150,7 @@ wrapper the recorded fallback.
 - *Positional signatures + a clock-view type:* dead slots written unread,
   un-droppable mid-list holes; the view type subsumed by naming.
 - *Keyword arguments via `Base.kwarg_decl` reflection:* a relied-on seam on an
-  internal binding — the [§10.1][s10-1] `task_local_storage` lesson.
+  internal binding — the [D-017][d-017] `task_local_storage` lesson.
 - *Keyword + `_...` slurp:* permanent noise; "signature = read-set" weakens to
   "at least".
 - *One context object carrying workspace too:* grab-bag accretion; mutable
@@ -2341,6 +2365,10 @@ zero likewise checked before the first step); ticks never due at `t*`, staged
 inputs not drained, publication not separately paced; replay pointers =
 monotonic boundary counter + recorded `t`, trace stays frame-indexed.
 
+Annotation (2026-10-02): amended by [D-181][d-181], [D-128][d-128] and [D-230][d-230]. At `t*` the
+event phase runs under `firing_budget`. Replay pointers are the frame-entry
+boundary index, and a snapshot carries the published-boundary ordinal.
+
 **Rejected.**
 - *Frame-only publication:* contradicts [§13.5][s13-5]'s snapshot-at-the-crossing
   promise.
@@ -2362,7 +2390,7 @@ on not-holding → holding edges against a per-event baseline held in loop state
 bookkeeping, not model memory: not in `z`, not captured, reconstructed on warm
 restart).
 
-**Spec.** [§14.5][s14-5]
+**Spec.** [§10.4][s10-4], [§10.6][s10-6], [§14.5][s14-5]
 
 **Rationale.** Boundary-zero baseline = nothing-holds (authored guard-true
 conditions fire at `t₀`, [§14.5][s14-5] derived); opposite direction = second event with
@@ -2371,6 +2399,11 @@ negated guard; localization returns the holding endpoint of the final bracket �
 boundaries immutable), guard observably holds at `t*`, `t* = tₙ₊₁` degenerates
 to the grid boundary (Tier-1-coincident, one snapshot); grid times indexed,
 never accumulated (remainder step targets the grid point).
+
+Annotation (2026-10-02): refined by [D-274][d-274]. The prior is in no state store
+and no condition, and a re-run from a condition rebuilds it at boundary zero.
+Every checkpoint, the trace header included, carries it, and `restore!`
+copies it back.
 
 **Rejected.**
 - *Direction-agnostic sign-change firing:* no coherent boundary-zero behavior;
@@ -2501,7 +2534,7 @@ call tables stands, now measured.
   rescues only toy scale and cannot close an open method set.
 - *Type-erased call tables (`FunctionWrapper`-style):* same specialization
   count as chunk-of-one with extra machinery, no cross-entry inlining/SROA,
-  a relied-on seam on internal ABI — the [§10.1][s10-1] lesson.
+  a relied-on seam on internal ABI — the [D-017][d-017] lesson.
 - *Framework-maintained view hoisting:* manual cache-invalidation duty for
   loads the compiler hoists exactly where legal; mis-scoping = silent
   stale-state reads.
@@ -2884,6 +2917,10 @@ cross-component handler order is thereby semantically unobservable and is fixed
 (executor component order, declaration order within a component) only for [§13.4][s13-4]
 cursor/diagnostic determinism; `u` binds round-start uniformly, the own-wired
 corner included.
+
+Annotation (2026-10-02): mechanism superseded by [D-154][d-154]. The round-start
+materialization and the per-event re-decode are gone; the round-start-`u`
+semantics holds by construction, and the Rejected list stands.
 
 **Rejected.**
 - *Live-table reads under the canonical order:* deterministic, but trajectories
@@ -3427,7 +3464,7 @@ measures through the seam.
   per-event callables, and hand-enumerated CI lists that go stale when a model
   gains an event, where the accessor's roster is machine-enumerable.
 - *A no-publish advance mode on `step!`:* forks execution semantics for CI's
-  benefit and breaks [§10.3][s10-3]'s publication-after-every-boundary property.
+  benefit and breaks [§10.1][s10-1]'s publication-after-every-boundary property.
 - *`@allocated step!` against a pinned nonzero baseline:* drifts with every
   model edit, and a regression can hide inside a legitimate baseline change —
   kills the canary.
@@ -3933,7 +3970,7 @@ publishes the final snapshot, takes the ordinary graceful tail and ends
 `stopped` — boundary-consistent, serviceable by the [§14][s14] services, resumable by
 the next `run!`.
 
-**Spec.** [§11.6][s11-6], [§12.4][s12-4](1), [§12.4][s12-4](3), [§12.4][s12-4](5), [§13.4][s13-4], [§13.5][s13-5], [§14][s14], [§14.8][s14-8],
+**Spec.** [§10.7][s10-7], [§11.6][s11-6], [§12.4][s12-4](1), [§12.4][s12-4](3), [§12.4][s12-4](5), [§13.4][s13-4], [§13.5][s13-5], [§14][s14], [§14.8][s14-8],
 [Appendix C][sC]
 
 **Rationale.** **Boundary masking is normative**, not an implementation hint:
@@ -4035,6 +4072,11 @@ illustration is exactly this value. `t_end`'s landing rule follows [§12.6][s12-
 duration") applied to the run clock, and marks the point where `t_end`, a grid
 fact, differs in kind from `stop_on`, checked at every published boundary, `t*`
 included.
+
+Annotation (2026-10-02): amended by [D-256][d-256], [D-234][d-234] and [D-181][d-181]. The two
+parameters are `Deployment` constructor keywords beside `h`, `N_base` and the
+algorithm, `event_budget` is `localization_budget`, and `firing_budget` joins
+them as a third recorded parameter.
 
 **Rejected.**
 - *An absolute-in-`t` localization tolerance:* breaks scale-freedom across `h`
@@ -4964,6 +5006,10 @@ recompilation-granularity sentence — editing a discrete component invalidates
 the boundary body, not the RHS body — is true only under a two-body split, and
 was quietly falsified by the single-mechanism reading.
 
+Annotation (2026-10-02): amended by [D-185][d-185], [D-205][d-205] and [D-291][d-291] for
+boundary zero, as on [D-067][d-067], and renamed by [D-196][d-196]: `sweep_hx` and
+`sweep_hxu` are `sweep_1` and `sweep_2`.
+
 **Rejected.**
 - *Superseded position — counter-modulo gating as the sole mechanism (the prior
   single-mechanism reading, and the finding):* at divisor 1 — the common `n = K
@@ -5229,6 +5275,11 @@ All three registers are detection bookkeeping in loop state — not `z`, not
 captured, reset by warm restart ([D-082][d-082]'s doctrine extended); cost budgeted
 explicitly: two `Bool`s per event beyond the prior.
 
+Annotation (2026-10-02): amended by [D-181][d-181] and [D-292][d-292]. The `fired` and
+`re-arm` flags and `EventDeferred` are retired; the registers are the prior,
+the last-observed sample and the firing count. That they are named and normative
+stands.
+
 **Rejected.**
 - *The warn-on-holding-after-fired rule:* the only one implementable from the
   spec's stated registers — false-positives on every sticky flag, a
@@ -5258,7 +5309,7 @@ a blocked event is re-decided next round against the post-transition sweep
 (fire-on-falsified-premise gone), and cross-component handler order is
 unobservable with no delivering mechanism (nothing writes mid-round).
 
-**Spec.** [§5.3][s5-3], [§10.6][s10-6]
+**Spec.** [§5.3][s5-3], [§10.4][s10-4], [§10.6][s10-6]
 
 **Rationale.** A round-5 kernel dry-run finding (finding 10), resolved by
 redesign after re-examining the within-round visibility rule it implements —
@@ -5268,6 +5319,13 @@ survives, now by construction). The natural single-pass executor is correct:
 f.10's staging pass, carrier and `u`/`y` split are mooted and "no shadow table,
 no allocation" becomes trivially true; cost = one extra intra-boundary sweep
 per serialized same-component event, rare and microseconds.
+
+Annotation (2026-10-02): amended by [D-181][d-181]. Once-per-event-per-boundary is
+replaced by `firing_budget`. One event per component per round and the epoch
+rule stand.
+
+Annotation (2026-10-02): [§10.6][s10-6] no longer lists the rejected shapes. The
+live-table-reads argument is [D-100][d-100]'s first Rejected item.
 
 **Rejected.**
 - *Per-event re-decode + frozen `u`:* [D-016][d-016]/[D-100][d-100]/[D-152][d-152] as landed — two
@@ -6394,7 +6452,7 @@ stepper-retained for the interpolant) and sweeps once under post-drain `u`,
 sourcing the previously-unsourced left bracket value for the value-based
 root-finders and discriminating the edge's cause.
 
-**Spec.** [§10.6][s10-6], [§8.1][s8-1]
+**Spec.** [§10.4][s10-4], [§10.6][s10-6], [§8.1][s8-1]
 
 **Rationale.** Only `u` can differ from the prior's context (`m`/cells/`t`
 boundary-stable, sweeps deterministic): σ₀ not-holding ⇒ trajectory-caused, pay
@@ -6510,6 +6568,10 @@ phases never refine the base grid and cannot leave the scope grid, and `K = 1`
 admits no stagger — same-rate siblings stagger one level down, the scope
 declared at twice their rate.
 
+Annotation (2026-10-02): amended by [D-205][d-205]. Every discrete output stage
+publishes at boundary zero, so no offset component holds probe-populated
+cells. The gate composition and the residue invariant stand.
+
 **Rejected.**
 - *Bare-value sugar behind a normalization function (`ratespec`: bare `Int` ⇒
   `Relative`, bare quantity ⇒ `Absolute`):* implicit form inference; the
@@ -6597,7 +6659,7 @@ the gate is pure modulo arithmetic (the pattern repeats with `lcm(Dᵢ)` base
 ticks — one hyperperiod is the complete truth, not a sample), guarded against
 absurd hyperperiods.
 
-**Spec.** [§9.2][s9-2], Appendices B/C
+**Spec.** [§9.2][s9-2], [§10.5][s10-5], Appendices B/C
 
 **Rationale.** The refusal path's suggestion message and the derivation path's
 info line share one substrate: coarsest admissible `Δt_base`, the admissible
@@ -9654,7 +9716,7 @@ moves to its owner.
   names deployment parameters only; the materialization's keywords validate
   under `ArgumentInvalid`.
 
-**Spec.** [§9.7][s9-7], [§11.2][s11-2], [§11.8][s11-8], [§12.1][s12-1], [§12.4][s12-4], [Appendix B][sB], [Appendix C][sC]
+**Spec.** [§9.7][s9-7], [§10.4][s10-4], [§11.2][s11-2], [§11.8][s11-8], [§12.1][s12-1], [§12.4][s12-4], [Appendix B][sB], [Appendix C][sC]
 
 **Rationale.** The `Simulation` had twenty-eight fields because it was the
 only struct standing between a build and a running loop, so every value
@@ -10658,6 +10720,10 @@ And `replay!` discriminates the two dispositions by the roster as `run!`
 does: the reasoning against `isinteractive()` applies unchanged, and the
 deviceless reproduction still rethrows ([§13.4][s13-4]).
 
+Annotation (2026-10-02): amended by [D-269][d-269]. The loop reads the control
+plane, the pause flag included, at frame top alone; the pause block is the one
+wait woken at once.
+
 **Rejected.**
 - *`pause!(sim, flag::Bool)` as one verb:* two verbs read at the call site
   and match `stop!`; a Boolean argument spells the un-pause as a negation.
@@ -11600,7 +11666,7 @@ arithmetic.
   declaring scope and key. Per component, one multiply-add gives the bound
   `(D, Φ, Δt)`.
 
-**Spec.** [§9.1][s9-1], [§9.2][s9-2], [Appendix B][sB]
+**Spec.** [§9.1][s9-1], [§9.2][s9-2], [§10.5][s10-5], [Appendix B][sB]
 
 **Rationale.** All but the explicit request are recorded in [D-186][d-186]'s
 Rationale. The fold and the tables: final divisors for anchored entries do
@@ -11855,7 +11921,7 @@ ladder.
   body, falsifying [§9.7][s9-7]'s recompilation-granularity claim; and it conflates
   two execution contexts inside one measured body. (As recorded in [D-147][d-147].)
 - *A no-publish advance mode on `step!`:* forks execution semantics for CI's
-  benefit and breaks [§10.3][s10-3]'s publication-after-every-boundary property. (As
+  benefit and breaks [§10.1][s10-1]'s publication-after-every-boundary property. (As
   recorded in [D-116][d-116].)
 - *None recorded for type-opaque construction or the two uncommitted
   options.*
@@ -11974,6 +12040,163 @@ below are its measured instances.
   fixed as such. The technique rests on compiler thresholds that can move
   between Julia versions, so it is recorded in `implementation.md`'s
   authoring caveats and not ruled.
+
+### D-290 — Localization's exact detection, left-end discriminator, endpoint and `t*` boundary
+
+**Status.** ratified
+
+**Position.** Four localization rulings that [§10.4][s10-4] states are fixed here.
+
+- A guard over `u` and `m` alone is piecewise constant within a frame, so
+  boundary detection is exact for it. The gate idiom
+  `(gate) ? σ : -one(σ)` is the endorsed way to localize a mixed predicate.
+- Only `u` can differ between the prior's context and the θ = 0 trial
+  evaluation, so the frame-top drain is the sole source of disagreement.
+  σ₀ not-holding marks a trajectory-caused edge, which pays for ẋₙ₊₁ and the
+  interpolant and root-finds. σ₀ holding marks an epoch-caused edge. Its
+  localization is discarded, and the event fires in the boundary's ordinary
+  iteration at the cost of one sweep, with no localization budget spent and
+  no warning.
+- The root-finder returns the holding endpoint of its final bracket. `t* =
+  tₙ` is therefore structurally impossible, and the guard observably holds
+  at `t*`. `t* = tₙ₊₁` degenerates to the grid boundary, with one snapshot.
+  Grid times are indexed, never accumulated, and the remainder step targets
+  the grid point.
+- At `t*` the full [§10.6][s10-6] iteration runs, a snapshot publishes, the [§12.3][s12-3]
+  boundary counter increments and `stop_on` is checked. Ticks are never due
+  at `t*`, staged inputs are not drained, and the publication is not
+  separately paced. The trace stays frame-indexed.
+
+**Spec.** [§10.4][s10-4]
+
+**Rationale.** Each bullet restates what an existing entry recorded outside
+its Position. Exact detection for a guard over `u` and `m`, and the gate
+idiom, were recorded in [D-179][d-179]'s Rationale. The θ = 0 discriminator and the
+discarded epoch-caused edge were recorded in [D-182][d-182]'s Rationale. The holding
+endpoint, the `t* = tₙ₊₁` degeneracy and indexed grid times were recorded in
+[D-082][d-082]'s Rationale. What runs at a `t*` boundary was recorded in [D-081][d-081]'s
+Rationale, less its once-per-event firing, which [D-181][d-181] replaced.
+
+**Rejected.** None beyond the source entries' lists.
+
+### D-291 — Rate compilation, the boundary gate, phases and the anchor doctrine
+
+**Status.** ratified
+
+**Position.** Five rate rulings that [§10.5][s10-5] states are fixed here.
+
+- All scoping compiles to one `(D, Φ)` pair per discrete component.
+  Multipliers compose multiplicatively and phases affinely, `D = K·Dₛ` and
+  `Φ = Φₛ + φ·Dₛ`, which preserves the canonical residue `0 ≤ Φ < D` with no
+  normalization pass.
+- The boundary gate is `(tick − Φ) % D == 0`. At boundary zero the ordinary
+  gate at index 0, under the residue invariant, admits exactly the
+  components with `Φ = 0`, and nothing else implements the rule. As [D-205][d-205]
+  amends it, that due set governs the `s_update` calls alone.
+- `K = 1` admits no stagger, so same-rate siblings stagger one level down,
+  under a scope declared at twice their rate. A relative phase never refines
+  the base grid and cannot leave the scope grid. A phase shifts firing
+  instants, never the period, so `Δt` stays `D·Δt_base`.
+- An absolute declaration inside a library type is legitimate when the rate
+  is a fact about the modeled system, not a preference about the
+  simulation. Deployment preferences keep the exposed-multiplier idiom, and
+  the framework cannot police the distinction. Anchoring leaves
+  never-cache-`Δt` fully intact. Absolute pinning from outside a subtree's
+  contract stays rejected.
+- `Δt` cannot arrive through an `h` argument alone, because the discretized
+  laws live in the feedthrough stage.
+
+**Spec.** [§10.5][s10-5]
+
+**Rationale.** Each bullet restates what an existing entry recorded outside
+its Position. Composition, the gate, boundary zero's due set, `K = 1`,
+relative phases and `Δt` under phases were recorded in [D-185][d-185]'s Rationale;
+boundary zero's due set is read as [D-205][d-205]'s Position amends it. The
+library-type line and never-cache-`Δt` were recorded in [D-186][d-186]'s Rationale,
+and outside pinning in its Rejected list. `Δt` in the feedthrough stage was
+recorded in [D-019][d-019]'s Rejected list.
+
+**Rejected.** None beyond the source entries' lists.
+
+### D-292 — Event iteration's registers, boundary-zero prior, visibility trade and budget exhaustion
+
+**Status.** ratified
+
+**Position.** Five event-iteration rulings that [§10.6][s10-6] states are fixed here.
+
+- The registers per event are the prior, the last-observed sample and the
+  firing count. Boundary zero sets every prior to not-holding, so an
+  authored condition whose guard holds fires at `t₀`.
+- Exhausting `firing_budget` loses that event's further edges for the
+  boundary, under a `FiringBudget` warning naming the chatterer. Exhaustion
+  degrades and never errors. Termination is budget-bounded, at most
+  `firing_budget · E` firings for `E` declared events, instead of
+  structural.
+- There is no opt-in for same-round foreign visibility. Same-instant
+  cross-component coupling is a cascade, one round per link, and tighter
+  coupling belongs inside one component.
+- Cross-component handler order is fixed, executor component order and then
+  declaration order within a component, only for cursor and diagnostic
+  determinism. The natural single-pass executor is correct, with no shadow
+  table and no allocation.
+- Event/tick fixed-point iteration is structurally unnecessary, because a
+  tick's `s⁺` is invisible until the next tick decode.
+
+**Spec.** [§10.6][s10-6]
+
+**Rationale.** Each bullet restates what an existing entry recorded outside
+its Position. The registers were recorded in [D-181][d-181]'s Rationale, and the
+boundary-zero prior in [D-082][d-082]'s. Exhaustion and the termination bound were
+recorded in [D-181][d-181]'s Rationale. The refused opt-in was recorded in [D-100][d-100]'s
+Rejected list, and the fixed handler order in its Rationale. The single-pass
+executor was recorded in [D-154][d-154]'s Rationale, and the needless event/tick
+iteration in [D-020][d-020]'s Rejected list.
+
+**Rejected.** None beyond the source entries' lists.
+
+### D-293 — External readers observe the signal table only at boundaries
+
+**Status.** ratified
+
+**Position.** No snapshot is published mid-step. External readers, who
+acquire-load the published snapshot, therefore observe the signal table only
+at boundaries.
+
+**Spec.** [§10.3][s10-3]
+
+**Rationale.** The rule was recorded only as [D-023][d-023]'s rejection of mid-step
+publication, whose reason pointed back at [§10.3][s10-3], together with [D-023][d-023]'s
+Position, where readers acquire-load a snapshot allocated per boundary.
+[§10.3][s10-3] cited [D-023][d-023] for the rule, so each pointed at the other.
+
+**Rejected.**
+- *Mid-step publication:* as recorded in [D-023][d-023].
+
+### D-294 — The pacer's wait: unmask point, single knob, spin safepoint and the switch to `pace = Inf`
+
+**Status.** ratified
+
+**Position.** Four pacing rulings that [§10.7][s10-7] states are fixed here.
+
+- The wait is an unmask point, beside the frame top and the pause block,
+  where the loop takes the operator interrupt's deferred raise. A signal
+  raises out of the coarse phase's `sleep` itself.
+- There is no separate threshold for the primitive's resolution. It is
+  absorbed into the calibration of `margin`.
+- The spin phase takes a `GC.safepoint()` per iteration. A safepoint is not
+  a yield, so [D-027][d-027]'s spin stays non-yielding.
+- A live switch to `pace = Inf` is a pace change like any other. It
+  re-anchors and forgives the debt, and the forgiven debt is counted.
+
+**Spec.** [§10.7][s10-7], [§12.4][s12-4]
+
+**Rationale.** Each bullet restates what an existing entry recorded outside
+its Position. The unmask points were recorded in [D-132][d-132]'s Rationale, and the
+raise out of `sleep` in [D-269][d-269]'s. The single threshold was recorded in
+[D-021][d-021]'s Rejected list. The safepoint and the switch to `pace = Inf` were
+recorded in [D-269][d-269]'s annotation of 2026-09-27.
+
+**Rejected.** None beyond the source entries' lists.
 
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
@@ -12265,6 +12488,11 @@ below are its measured instances.
 [d-287]: #d-287--handler-return-keys-struct-valued-port-embedding-and-the-branchless-payload
 [d-288]: #d-288--the-executors-structure-phase-bodies-views-construction-the-gate-and-publication
 [d-289]: #d-289--compile-cost-generated-unrolls-chunks-by-reference-an-unspecialized-declaration-layer
+[d-290]: #d-290--localizations-exact-detection-left-end-discriminator-endpoint-and-t-boundary
+[d-291]: #d-291--rate-compilation-the-boundary-gate-phases-and-the-anchor-doctrine
+[d-292]: #d-292--event-iterations-registers-boundary-zero-prior-visibility-trade-and-budget-exhaustion
+[d-293]: #d-293--external-readers-observe-the-signal-table-only-at-boundaries
+[d-294]: #d-294--the-pacers-wait-unmask-point-single-knob-spin-safepoint-and-the-switch-to-pace--inf
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
