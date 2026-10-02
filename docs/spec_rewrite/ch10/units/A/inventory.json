@@ -1,0 +1,854 @@
+{
+ "claims": [
+  {
+   "id": "A-001",
+   "old": "## 10. Time and execution",
+   "new": "## 10. Time and execution",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-002",
+   "old": "### 10.1 Loop ownership: the framework owns the simulation loop",
+   "new": "### 10.1 Loop ownership: the framework owns the simulation loop",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-003",
+   "old": "The simulation loop consists of six activities: the §5.3 boundary sequence, tick dispatch, event handling, logging, input staging, and pacing",
+   "new": "The loop consists of six activities. They are the boundary sequence (§5.3), tick dispatch, event handling, logging, input staging, and pacing",
+   "where": "new",
+   "cites": [
+    "§5.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-004",
+   "old": "(waits inserted between completed frames, never altering the boundary sequence).",
+   "new": "(waits inserted between completed frames, never altering the boundary sequence).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-005",
+   "old": "Rule. All six are framework code, unconditionally.",
+   "new": "All six are framework code, unconditionally (D-017).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-017"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-006",
+   "old": "The framework writes the loop itself.",
+   "new": "The framework writes the loop itself.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-007",
+   "old": "It does not assemble the loop out of callbacks registered with a third-party solver.",
+   "new": "It does not assemble the loop out of callbacks registered with a third-party solver.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-008",
+   "old": "Why. The step-boundary contract is the central invariant of this design.",
+   "new": "The reason is the step-boundary contract (§10.6), the central invariant of this design.",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "§10.6"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-009",
+   "old": "Only a loop the framework owns can enforce that contract by construction rather than by convention.",
+   "new": "Only a loop the framework owns can enforce that contract by construction rather than by convention.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-010",
+   "old": "Choreographing the same sequence as an ordered `CallbackSet` inside a foreign event loop is rejected on exactly that ground (D-017).",
+   "new": "`OrdinaryDiffEq` as substrate with `CallbackSet` choreography: semantics by convention in a foreign event loop",
+   "where": "docs/design/decisions.md",
+   "cites": [
+    "D-017"
+   ],
+   "tag": "R",
+   "ruling": "R3"
+  },
+  {
+   "id": "A-011",
+   "old": "`OrdinaryDiffEq` is therefore dropped as a dependency of the new core (D-017).",
+   "new": "`OrdinaryDiffEq` is dropped as a dependency of the new core (D-017).",
+   "where": "new",
+   "cites": [
+    "D-017"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-012",
+   "old": "### 10.2 The stepper seam",
+   "new": "### 10.2 The stepper seam",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-013",
+   "old": "Loop ownership stops at one operation: advance the continuous state from `t` by `h`.",
+   "new": "Loop ownership stops at one operation. That operation advances the continuous state from `t` by `h`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-014",
+   "old": "The framework delegates that operation across a narrow internal interface, the stepper seam.",
+   "new": "The framework delegates that operation across a narrow internal interface, the stepper seam (D-017).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-017"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-015",
+   "old": "The seam exists so that the integration method can be replaced without the loop changing.",
+   "new": "The seam exists so that the integration method can be replaced without the loop changing.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-016",
+   "old": "#### What the seam requires of a backend",
+   "new": "#### What the seam requires of a backend",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-017",
+   "old": "The seam contract has three clauses.",
+   "new": "The seam contract has four clauses.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R6"
+  },
+  {
+   "id": "A-018",
+   "old": "- Advance by arbitrary `h`.",
+   "new": "- The backend advances by arbitrary `h`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-019",
+   "old": "The loop needs this anyway.",
+   "new": "The loop needs this anyway.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-020",
+   "old": "It lands on tick boundaries, and it resumes from a localized event time (the crossing instant bracketed by root-finding over trial sweeps).",
+   "new": "It lands on tick boundaries, and it resumes from a localized event time (the crossing instant bracketed by root-finding over trial sweeps).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-021",
+   "old": "- Dense output on demand over the last completed step.",
+   "new": "- The backend provides dense output on demand over the last completed step.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-022",
+   "old": "Only event localization needs it (§10.4), so the backend constructs it lazily.",
+   "new": "Only event localization needs it (§10.4), so the backend constructs it lazily.",
+   "where": "new",
+   "cites": [
+    "§10.4"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-023",
+   "old": "- One-step methods only.",
+   "new": "- The backend uses one-step methods only.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-024",
+   "old": "Event handlers reset state discontinuously, and a one-step method restarts from a new state for free.",
+   "new": "Event handlers reset state discontinuously, and a one-step method restarts from a new state for free.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-025",
+   "old": "Multistep methods are excluded (D-017).",
+   "new": "Multistep methods are excluded (D-017).",
+   "where": "new",
+   "cites": [
+    "D-017"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-026",
+   "old": "#### Models with no continuous state",
+   "new": "#### Models with no continuous state",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-027",
+   "old": "A model with no continuous state at all is legal.",
+   "new": "A model with no continuous state at all is legal (D-156).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-156"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-028",
+   "old": "Nothing in §8.2 requires an `x` block of any component.",
+   "new": "Nothing in §8.2 requires an `x` block of any component.",
+   "where": "new",
+   "cites": [
+    "§8.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-029",
+   "old": "Such a model still has to be run.",
+   "new": "Such a model still has to be run.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-030",
+   "old": "The seam is never entered empty.",
+   "new": "The seam is never entered empty (D-156).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-156"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-031",
+   "old": "The framework short-circuits this case rather than pushing it down the seam.",
+   "new": "The framework short-circuits this case rather than pushing it down the seam.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-032",
+   "old": "With an empty `x`, the integrate step degenerates to advancing `t` to the next boundary, and the stepper is not called.",
+   "new": "With an empty `x`, the integrate step degenerates to advancing `t` to the next boundary, and the stepper is not called.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-033",
+   "old": "No backend ever faces `N = 0`, and no backend contract has to say what it would do there.",
+   "new": "No backend ever faces `N = 0`, and no backend contract has to say what it would do there.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-034",
+   "old": "The ownership rule of §10.1 pays off structurally here.",
+   "new": "The loop-ownership rule (§10.1) pays off structurally here.",
+   "where": "new",
+   "cites": [
+    "§10.1"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-035",
+   "old": "Under a foreign solver loop, an empty state pays a dummy-`[0.0]` tax (D-017).",
+   "new": "Under a foreign solver loop, an empty state pays a dummy-`[0.0]` tax (D-017).",
+   "where": "new",
+   "cites": [
+    "D-017"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-036",
+   "old": "Here that tax is gone at the root.",
+   "new": "Here that tax is gone at the root.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-037",
+   "old": "Not only the buffer disappears, but also the step over it.",
+   "new": "Both the buffer (the contiguous vector backing all continuous state) and the step over it disappear.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-038",
+   "old": "Everything else about such a model is ordinary.",
+   "new": "Everything else about such a model is ordinary.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-039",
+   "old": "The boundary machinery of sweeps, events and ticks runs unchanged.",
+   "new": "The boundary machinery of sweeps, events and ticks runs unchanged.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-040",
+   "old": "#### The first-cut backends",
+   "new": "#### The first-cut backends",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-041",
+   "old": "The first cut ships in-house fixed-step RK4 and Heun over the flat state buffer.",
+   "new": "The first cut ships in-house fixed-step RK4 and Heun over the flat state buffer (D-017).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-017"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-042",
+   "old": "Together they are about a hundred lines.",
+   "new": "Together they are about a hundred lines.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-043",
+   "old": "They are trivially zero-allocation, so they can be audited against the CI invariant of §7.5,",
+   "new": "They are trivially zero-allocation, so they can be audited against the CI invariant (§7.5).",
+   "where": "new",
+   "cites": [
+    "§7.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-044",
+   "old": "and they are trivially `T`-generic.",
+   "new": "They are also trivially `T`-generic.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-045",
+   "old": "Genericity is not even required of the stepper, because linearization and the tracer drive the sweep, never the integrator.",
+   "new": "Genericity is not even required of the stepper, because linearization and the feedthrough tracer (the instrument that classifies a rejected cycle as real or artificial, §5.6) drive the sweep, never the integrator.",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "§5.6"
+   ],
+   "tag": "R",
+   "ruling": "R8 (F13)"
+  },
+  {
+   "id": "A-046",
+   "old": "Of the two, `RK4` is the default.",
+   "new": "`RK4` is the default of the two (D-227).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-227"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-047",
+   "old": "The `algorithm` keyword selects the backend by type on the `Deployment` (the scalar-free artifact the grid parameters fix),",
+   "new": "The `algorithm` keyword selects the backend by type on the `Deployment` (the scalar-free artifact the grid parameters fix).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-048",
+   "old": "and materialization at `Simulation` construction binds the stepper against the state buffer, on the executor (Appendix B, §9.2, D-227).",
+   "new": "Materialization at `Simulation` construction binds the stepper against the state buffer, on the executor (Appendix B, §9.2, D-227).",
+   "where": "new",
+   "cites": [
+    "Appendix B",
+    "§9.2",
+    "D-227"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-049",
+   "old": "The step `h` has no default and is required of the caller.",
+   "new": "The step `h` has no default and is required of the caller.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-050",
+   "old": "A domain rate is not a framework default.",
+   "new": "A domain rate is not a framework default.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-051",
+   "old": "An `OrdinaryDiffEq`-backed stepper can exist later as a package extension, if an offline study genuinely demands adaptive or stiff methods.",
+   "new": "An `OrdinaryDiffEq`-backed stepper can exist later as a package extension, if an offline study genuinely demands adaptive or stiff methods (D-017).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-017"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-052",
+   "old": "Per the guarded-additions rule it is not built until then.",
+   "new": "It is a guarded addition (a capability the design admits but does not build), so it is not built until then.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-053",
+   "old": "#### Why fixed-step low-order suffices",
+   "new": "#### The case for fixed-step low order",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-054",
+   "old": "The domain argument is recorded here because it is decisive for the whole axis.",
+   "new": "The domain argument is recorded here because it is decisive for the whole axis.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-055",
+   "old": "1. The closed-loop tick cap.",
+   "new": "1. Closed-loop ticks cap the step.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "A-056",
+   "old": "Every application beyond bare propagation runs periodic avionics",
+   "new": "Every application beyond bare propagation runs periodic avionics (onboard flight systems)",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-057",
+   "old": "(50 Hz today)",
+   "new": "The periodic avionics of today's applications run at 50 Hz.",
+   "where": "units/A/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "A-058",
+   "old": "whose commands are zero-order-held signals.",
+   "new": "whose commands are zero-order-held signals.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-059",
+   "old": "Integrating past a tick with stale commands is wrong, so the integrator must land on every tick boundary regardless of method.",
+   "new": "Integrating past a tick with stale commands is wrong, so the integrator must land on every tick boundary regardless of method.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-060",
+   "old": "Adaptive and high-order methods pay off exactly when steps can stretch, and the execution model forbids the stretch by construction.",
+   "new": "Adaptive and high-order methods pay off exactly when steps can stretch, and the execution model forbids the stretch by construction.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-061",
+   "old": "2. A piecewise-smooth RHS starves high order.",
+   "new": "2. A piecewise-smooth RHS (the continuous derivative function) starves high order.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "A-062",
+   "old": "Linearly interpolated lookup tables (C¹-kinked at every knot), clamps, friction blends and mode branches deny high-order error estimators and implicit-solver Newton iterations the smoothness they assume.",
+   "new": "Linearly interpolated lookup tables (C¹-kinked at every knot), clamps, friction blends and mode branches deny high-order error estimators and implicit-solver Newton iterations the smoothness they assume.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-063",
+   "old": "RK4 at 50 Hz already puts integration error orders of magnitude below the model uncertainty of a coefficient-table aircraft model.",
+   "new": "RK4 at 50 Hz already puts integration error orders of magnitude below the model uncertainty of a coefficient-table aircraft model.",
+   "where": "units/A/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "A-064",
+   "old": "3. Stiffness has a remedy ladder.",
+   "new": "3. Stiffness has a remedy ladder.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "A-065",
+   "old": "The fastest continuous dynamics in the current codebase sit inside RK4's stability region at `h = 0.02`.",
+   "new": "The fastest continuous dynamics in Flight.jl's codebase sit inside RK4's stability region at `h = 0.02`.",
+   "where": "units/A/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "A-066",
+   "old": "These are actuator poles near 31 rad/s, gear damper decay and friction compensators.",
+   "new": "These are actuator poles near 31 rad/s, gear damper decay and friction compensators.",
+   "where": "units/A/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "A-067",
+   "old": "The crosswind-landing demo is the empirical proof.",
+   "new": "The crosswind-landing demo, a Flight.jl demo of a landing in a crosswind, is the empirical proof.",
+   "where": "units/A/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "A-068",
+   "old": "If a future model exceeds that region, the ladder runs in order.",
+   "new": "If a future model exceeds RK4's stability region at the deployed `h`, the ladder runs in order.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-069",
+   "old": "First shrink `h`,",
+   "new": "First shrink `h`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-070",
+   "old": "since the RHS costs microseconds and 500 Hz real-time is unremarkable.",
+   "new": "Shrinking `h` comes first on the ladder, since the RHS costs microseconds and 500 Hz real-time is unremarkable.",
+   "where": "units/A/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2 (coordinator fix 2)"
+  },
+  {
+   "id": "A-071",
+   "old": "Then subcycle the stepper against the tick grid.",
+   "new": "Then subcycle the stepper against the tick grid.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-072",
+   "old": "Only then reach for an implicit method through the adapter.",
+   "new": "Only then reach for an implicit method through the `OrdinaryDiffEq` extension above.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-073",
+   "old": "If that day comes, the eltype genericity of §7.2 supplies exact ForwardDiff Jacobians through the sweep for free.",
+   "new": "If that day comes, eltype genericity (§7.2) supplies exact ForwardDiff Jacobians through the sweep for free.",
+   "where": "new",
+   "cites": [
+    "§7.2"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-074",
+   "old": "### 10.3 Signal-table consistency is a boundary property",
+   "new": "### 10.3 Signal-table consistency is a boundary property",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-075",
+   "old": "During a step, the RK stages evaluate the interior sweep (§10.5) at internal stage states.",
+   "new": "During a step, the RK stages evaluate the interior sweep (the sweep variant over continuous entries only, §10.5) at internal stage states (D-147).",
+   "where": "new",
+   "cites": [
+    "§10.5"
+   ],
+   "newcites": [
+    "§10.5",
+    "D-147"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-076",
+   "old": "While they do, the signal table is transiently integrator scratch.",
+   "new": "While they do, the signal table is transiently integrator scratch.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-077",
+   "old": "The boundary sweep in the §5.3 sequence restores consistency at each accepted boundary.",
+   "new": "The boundary sweep in the §5.3 sequence restores consistency at each accepted boundary.",
+   "where": "new",
+   "cites": [
+    "§5.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-078",
+   "old": "Rule. External readers (GUI, logging, network output) observe the signal table only at step boundaries.",
+   "new": "External readers (GUI, logging, network output) observe the signal table only at step boundaries (D-023).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-023"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-079",
+   "old": "Mid-step contents carry no meaning.",
+   "new": "Mid-step contents carry no meaning.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-080",
+   "old": "This rule binds the periphery (§11).",
+   "new": "This rule binds the periphery (everything outside the loop that exchanges data with it, §11).",
+   "where": "new",
+   "cites": [
+    "§11"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-081",
+   "old": "Two terms recur throughout, and they mean different things.",
+   "new": "The two units recur throughout the chapter, and they mean different things.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R1"
+  },
+  {
+   "id": "A-082",
+   "old": "- A frame is one grid step `[tₙ, tₙ₊₁]`.",
+   "new": "- A frame is one grid step `[tₙ, tₙ₊₁]`.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R1"
+  },
+  {
+   "id": "A-083",
+   "old": "It is the unit of scheduling.",
+   "new": "It is the unit of scheduling.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R1"
+  },
+  {
+   "id": "A-084",
+   "old": "Three things are keyed to it: the input drain (the frame-top swap that publishes staged device writes into the root inputs, §11.4), pacer deadlines (§10.7) and tick eligibility (§10.5).",
+   "new": "Three things are keyed to it, namely the input drain (the frame-top swap that publishes staged device writes into the root inputs, §11.4), pacer deadlines (§10.7) and tick eligibility (§10.5).",
+   "where": "new",
+   "cites": [
+    "§11.4",
+    "§10.7",
+    "§10.5"
+   ],
+   "tag": "R",
+   "ruling": "R1"
+  },
+  {
+   "id": "A-085",
+   "old": "- A boundary is a published consistency point.",
+   "new": "- A boundary is a published consistency point.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R1"
+  },
+  {
+   "id": "A-086",
+   "old": "The §10.6 macro-sequence completes there and a snapshot goes out.",
+   "new": "The macro-sequence of §10.6 completes there, and a snapshot (the immutable per-boundary publication) goes out.",
+   "where": "new",
+   "cites": [
+    "§10.6"
+   ],
+   "tag": "R",
+   "ruling": "R1"
+  },
+  {
+   "id": "A-087",
+   "old": "Every grid point is a boundary, but not every boundary is a grid point.",
+   "new": "Every grid point is a boundary, but not every boundary is a grid point.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R1"
+  },
+  {
+   "id": "A-088",
+   "old": "The localized event time `t` is a boundary,",
+   "new": "The localized event time `t` is a boundary",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R1"
+  },
+  {
+   "id": "A-089",
+   "old": "and so is boundary zero (the initialization boundary at `t₀`, §14.5).",
+   "new": "Boundary zero (the initialization boundary at `t₀`, §14.5) is a boundary and not a frame top either.",
+   "where": "new",
+   "cites": [
+    "§14.5"
+   ],
+   "tag": "R",
+   "ruling": "R1"
+  },
+  {
+   "id": "A-090",
+   "old": "Neither is a frame top.",
+   "new": "but not a frame top (D-081).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-081"
+   ],
+   "tag": "R",
+   "ruling": "R1"
+  },
+  {
+   "id": "A-091",
+   "old": "§10.3 extends naturally.",
+   "new": "The rule extends naturally to the boundary sequence (§10.6).",
+   "where": "new",
+   "cites": [
+    "§10.3"
+   ],
+   "newcites": [
+    "§10.6"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-092",
+   "old": "External readers observe the table only after the boundary sequence completes.",
+   "new": "External readers observe the table only after the boundary sequence completes.",
+   "where": "new",
+   "cites": [],
+   "tag": "M"
+  }
+ ],
+ "added": [
+  "This chapter owns time.",
+  "It takes the execution order (§5.3) and the compiled executor (§9.7) as given, and states how the loop runs them through time.",
+  "§10.1 covers loop ownership and the loop's two units, the frame and the boundary, §10.2 the stepper seam, §10.3 signal-table consistency, §10.4 localization mechanics, §10.5 multi-rate tick scheduling, §10.6 event iteration at boundaries, and §10.7 real-time pacing.",
+  "This section defines the simulation loop's two units, lists its six activities and states who writes the loop.",
+  "`t` is an event's crossing instant inside a step, bracketed by root-finding (§10.4).",
+  "D-017 records the rejected foreign-loop alternative.",
+  "- The seam carries what a backend needs across a frame top through a checkpoint hook, empty for a single-step method.",
+  "A checkpoint is the executor's state at a frame top (§12.6, D-274).",
+  "It makes three claims.",
+  "The Flight.jl evidence behind these claims lives in section 5 of `companions/flight_case_studies.md`."
+ ]
+}

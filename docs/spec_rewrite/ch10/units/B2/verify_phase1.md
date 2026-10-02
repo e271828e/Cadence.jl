@@ -1,0 +1,100 @@
+# B2 phase 1: atomic assertions of new.md (blind)
+
+## Endpoint policy and grid integrity
+- V1. The root-finder returns the holding endpoint of its final bracket. [D-082] (bold)
+- V2. That endpoint is the smallest trial point where the predicate holds.
+- V3. Consequently t* = tₙ is structurally impossible; it never needs clamping away.
+- V4. The argument rests on what was measured, not on what the prior reports.
+- V5. Root-finding starts only after the θ = 0 validation has measured σ₀ not-holding under the frame's own `u`.
+- V6. Therefore the bracket's left end is not-holding by the same kind of evidence as its right end.
+- V7. Thus the returned point is strictly later than the published, immutable tₙ.
+- V8. In the worst rounding case it is nextfloat(tₙ).
+- V9. This holds unconditionally, with no appeal to the prior.
+- V10. It leaves no residual epoch hole, because the prior/frame-`u` disagreement case is exactly the epoch-caused edge.
+- V11. That case never reaches the root-finder. [D-182]
+- V12. The guard observably holds at t*. [D-082]
+- V13. Therefore handlers fire in states where their own predicate holds.
+- V14. And the post-fire prior records an actual observation rather than an assumption.
+- V15. t* = tₙ₊₁ exactly is legitimate. [D-082] (bold)
+- V16. It is a crossing at the grid point, where σ(tₙ₊₁) = 0 both triggers detection and is the root.
+- V17. It degenerates to the grid boundary.
+- V18. The localization result is discarded and the event fires inside tₙ₊₁'s ordinary iteration.
+- V19. That outcome is bitwise identical to the boundary-detected one: one boundary, one snapshot, no zero-length remainder.
+- V20. Gloss: a snapshot is the immutable per-boundary publication. [#g-snapshot]
+- V21. Grid times are indexed, never accumulated. [D-082] (bold)
+- V22. tₖ = t₀ + k·h is computed from the frame index.
+- V23. Tick gating is already counter-modulo. [§10.5]
+- V24. The remainder step targets the grid point, with h′ derived at use.
+- V25. t* is a float inside a frame, never an anchor from which anything else is computed.
+- V26. A near-degenerate t* leaves a tiny remainder step.
+- V27. That is numerically harmless, since increments scale with h′.
+- V28. The real hazard is bookkeeping, and this rule removes it.
+
+## The t* boundary
+- V29. At t* the full §10.6 event phase runs. [§10.6, D-081] (bold)
+- V30. The sweep → guards → handlers cycle iterates to quiescence.
+- V31. Firing-budget accounting is scoped to this boundary. [D-181]
+- V32. The budget is fresh again at tₙ₊₁, and again at a second t* on the remainder.
+- V33. The settled state is then published: a snapshot, the boundary-counter increment [§12.3], and the stop_on check. 
+- V34. Gloss: stop_on check is the read of the per-advance termination faces. [#g-stop_on, §13.5]
+- V35. A crash localized at t* ends the run from that snapshot.
+- V36. Ticks are never due at t*. [D-147]
+- V37. t* is off the harmonic grid by construction.
+- V38. Gloss: harmonic grid = every discrete period an integer multiple of Δt_base. [#g-harmonic-grid]
+- V39. Discrete cells ZOH-hold through the sweep.
+- V40. The due sets of §10.5 give the full reason. [§10.5]
+- V41. Staged inputs are not drained at t*. [D-081] (bold)
+- V42. Reason 1: input timing is a frame fact.
+- V43. Reason 2: replay determinism must not depend on localization arithmetic.
+- V44. The t* publication is not separately paced. [D-081] (bold)
+- V45. Gloss: the pacer inserts waits between completed frames. [#g-pacing]
+- V46. The pacer paces frame deadlines.
+- V47. A t* snapshot publishes when computed, mid-frame.
+- V48. Where that lands in wall-clock time is below what pacing resolves.
+- V49. The §10.7 invariant is about trajectories, and those are identical either way. [§10.7]
+- V50. Replay pointers and error messages index boundaries by the frame-entry boundary index together with the recorded t. [§13.4, D-128]
+- V51. Snapshots carry the trajectory's published-boundary ordinal. [§12.3, D-230]
+- V52. The trace stays frame-indexed, since t* boundaries consume no inputs.
+- V53. Gloss: projection is the optional per-component hook x ← x_projection(x). [#g-projection]
+- V54. Projection reaches the boundary, not the trial evaluation.
+- V55. Guard trial evaluations run against the raw interpolated state. [D-018] (bold)
+- V56. Authority rests with the t* boundary.
+- V57. Projection runs there, and the edge checks of the §10.6 iteration read the projected state. [§10.6]
+- V58. RK-stage RHS evaluations already run under the same rule, since they are equally off-manifold.
+- V59. Sweeps must therefore tolerate near-manifold states, and they already do.
+- V60. Per-trial projection is rejected. [D-018]
+- V61. If projection moves the state back across a guard, the event does not fire and the run has published one extra boundary.
+- V62. That is harmless; like any localization outcome it is deterministic and pace-independent. [D-080]
+
+## The localization budget
+- V63. localization_budget is an integer count of localizations permitted within one frame. [D-133, D-181] (bold)
+- V64. It defaults to 8.
+- V65. It is the second deployment keyword this section fixes.
+- V66. A legitimate multi-event frame needs three or four localizations.
+- V67. Reference case: three landing-gear struts touching down inside one step.
+- V68. Chattering needs tens.
+- V69. Therefore a budget of 8 bounds the pathology without ever binding on a healthy model.
+- V70. Budget exhaustion degrades; it does not throw. [D-018] (bold)
+- V71. When a frame spends its budget, localization stops for the rest of that frame.
+- V72. The remainder step completes.
+- V73. Further crossings fire in the next boundary's ordinary iteration, at boundary granularity for that frame.
+- V74. A ChatteringBudget warning names the chattering event and the localization count. [Appendix C]
+- V75. The degradation depends on the trajectory alone, never on wall clock.
+- V76. Therefore the pace-independence guarantee stands and the run replays identically. [D-080]
+- V77. A StepError here would misclassify an expected modeling outcome as broken machinery, which the no-throw doctrine forbids. [§14.8]
+
+## Deployment constants
+- V78. Both localization constants are deployment, not implementation.
+- V79. localization_tol and localization_budget are constructor keywords of the Deployment.
+- V80. Gloss: Deployment is the scalar-free artifact the grid parameters fix. [#g-deployment]
+- V81. They stand beside h, N_base and the algorithm. [§9.2, Appendix B, D-256]
+- V82. The constructor validates them with the third event parameter, firing_budget of §10.6. [§10.6]
+- V83. Failures are collected into DeploymentInvalid, as §9.2 and Appendix C set out. [§9.2, Appendix C]
+- V84. All three are grid-independent, so none enters the harmonic-grid check. [§10.5]
+- V85. All three are recorded, because they determine the trajectory. [D-133, D-181] (bold)
+- V86. They ride the Deployment in the trace header. [§11.5]
+- V87. Gloss: trace header is the trace's fixed preamble. [#g-trace-header]
+- V88. They join the set that replay compares up front, exactly as h and the algorithm do. [§12.7]
+- V89. Gloss: replay is the ordinary loop re-driven from the trace. [#g-replay]
+- V90. Without this record the replays-identically promise is empty.
+- V91. A run that does not record what its localizer was told to do cannot be re-driven through the same localization outcomes.

@@ -1,0 +1,817 @@
+{
+ "claims": [
+  {
+   "id": "B2-001",
+   "old": "#### Endpoint policy and grid integrity",
+   "new": "#### Endpoint policy and grid integrity",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "B2-002",
+   "old": "Rule. The root-finder returns the holding endpoint of its final bracket.",
+   "new": "The root-finder returns the holding endpoint of its final bracket (D-082).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-082"
+   ]
+  },
+  {
+   "id": "B2-003",
+   "old": "That is the smallest trial point where the predicate holds.",
+   "new": "That is the smallest trial point where the predicate holds.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-004",
+   "old": "Consequence. `t = tₙ` is structurally impossible.",
+   "new": "It follows that `t = tₙ` is structurally impossible.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-005",
+   "old": "It never needs clamping away.",
+   "new": "It never needs clamping away.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-006",
+   "old": "Why. The argument rests on what was measured, not on what the prior reports.",
+   "new": "The argument rests on what was measured, not on what the prior reports.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-007",
+   "old": "Root-finding starts only after the θ = 0 validation has measured σ₀ not-holding under the frame's own `u`.",
+   "new": "Root-finding starts only after the θ = 0 validation has measured σ₀ not-holding under the frame's own `u`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-008",
+   "old": "The bracket's left end is therefore not-holding by the same kind of evidence as its right end,",
+   "new": "The bracket's left end is therefore not-holding by the same kind of evidence as its right end.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-009",
+   "old": "and the returned point is strictly later than the published, immutable tₙ.",
+   "new": "The returned point is thus strictly later than the published, immutable tₙ.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-010",
+   "old": "In the worst rounding case it is `nextfloat(tₙ)`.",
+   "new": "In the worst rounding case it is `nextfloat(tₙ)`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-011",
+   "old": "This holds unconditionally. It needs no appeal to the prior",
+   "new": "This holds unconditionally, with no appeal to the prior.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-012",
+   "old": "and leaves no residual epoch hole, because the case where the prior and the frame's `u` disagree is exactly the epoch-caused edge, and that case never reaches the root-finder.",
+   "new": "It also leaves no residual epoch hole, because the case where the prior and the frame's `u` disagree is exactly the epoch-caused edge, and that case never reaches the root-finder (D-182).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-182"
+   ]
+  },
+  {
+   "id": "B2-013",
+   "old": "The guard also observably holds at `t`.",
+   "new": "The guard also observably holds at `t` (D-082).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-082"
+   ]
+  },
+  {
+   "id": "B2-014",
+   "old": "Handlers therefore fire in states where their own predicate holds, and the post-fire prior records an actual observation rather than an assumption.",
+   "new": "Handlers therefore fire in states where their own predicate holds, and the post-fire prior records an actual observation rather than an assumption.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-015",
+   "old": "`t = tₙ₊₁` exactly is legitimate.",
+   "new": "`t = tₙ₊₁` exactly is legitimate (D-082).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-082"
+   ]
+  },
+  {
+   "id": "B2-016",
+   "old": "It is a crossing at the grid point, where σ(tₙ₊₁) = 0 both triggers detection and is the root.",
+   "new": "It is a crossing at the grid point, where σ(tₙ₊₁) = 0 both triggers detection and is the root.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-017",
+   "old": "It degenerates to the grid boundary.",
+   "new": "It degenerates to the grid boundary.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-018",
+   "old": "The localization result is discarded and the event fires inside tₙ₊₁'s ordinary iteration.",
+   "new": "The localization result is discarded and the event fires inside tₙ₊₁'s ordinary iteration.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-019",
+   "old": "That outcome is bitwise identical to the boundary-detected one, with one boundary, one snapshot and no zero-length remainder.",
+   "new": "That outcome is bitwise identical to the boundary-detected one, with one boundary, one snapshot (the immutable per-boundary publication) and no zero-length remainder.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-020",
+   "old": "Grid times are indexed, never accumulated.",
+   "new": "Grid times are indexed, never accumulated (D-082).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-082"
+   ]
+  },
+  {
+   "id": "B2-021",
+   "old": "A near-degenerate `t` leaves a tiny remainder step.",
+   "new": "A near-degenerate `t` leaves a tiny remainder step.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-022",
+   "old": "Numerically that is harmless, since increments scale with `h′`.",
+   "new": "Numerically that is harmless, since increments scale with `h′`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-023",
+   "old": "The real hazard is bookkeeping, and this rule removes it.",
+   "new": "The real hazard is bookkeeping, and this rule removes it.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-024",
+   "old": "`tₖ = t₀ + k·h` is computed from the frame index, just as tick gating is already counter-modulo (§10.5).",
+   "new": "`tₖ = t₀ + k·h` is computed from the frame index, just as tick gating is already counter-modulo (§10.5).",
+   "where": "new",
+   "cites": [
+    "§10.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B2-025",
+   "old": "The remainder step targets the grid point, with `h′` derived at use.",
+   "new": "The remainder step targets the grid point, with `h′` (the remainder step's length) derived at use.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-026",
+   "old": "`t` is a float inside a frame, never an anchor from which anything else is computed.",
+   "new": "`t` is a float inside a frame, never an anchor from which anything else is computed.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-027",
+   "old": "#### What a `t` boundary does, and does not, do",
+   "new": "#### The `t` boundary",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "B2-028",
+   "old": "At `t` the full §10.6 event phase runs.",
+   "new": "At `t` the full §10.6 event phase runs (D-081).",
+   "where": "new",
+   "cites": [
+    "§10.6"
+   ],
+   "tag": "C",
+   "newcites": [
+    "§10.6",
+    "D-081"
+   ]
+  },
+  {
+   "id": "B2-029",
+   "old": "The sweep → guards → handlers cycle iterates to quiescence,",
+   "new": "The sweep → guards → handlers cycle iterates to quiescence.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-030",
+   "old": "with firing-budget accounting scoped to this boundary.",
+   "new": "Firing-budget accounting is scoped to this boundary (D-181).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-181"
+   ]
+  },
+  {
+   "id": "B2-031",
+   "old": "The budget is fresh again at tₙ₊₁, and again at a second `t` on the remainder.",
+   "new": "The budget is fresh again at tₙ₊₁, and again at a second `t` on the remainder.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-032",
+   "old": "The settled state is then published.",
+   "new": "The settled state is then published.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-033",
+   "old": "That means a snapshot, the §12.3 boundary-counter increment and the `stop_on` check (§13.5).",
+   "new": "That means a snapshot, the boundary-counter increment of §12.3 and the `stop_on` check (the read of the termination faces `stop_on` names, §13.5).",
+   "where": "new",
+   "cites": [
+    "§12.3",
+    "§13.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B2-034",
+   "old": "A crash localized at `t` ends the run from that snapshot.",
+   "new": "A crash localized at `t` ends the run from that snapshot.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-035",
+   "old": "Two things do not happen at `t`.",
+   "new": "Two things do not happen at `t`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-036",
+   "old": "Ticks are never due there.",
+   "new": "Ticks are never due there (D-147).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-147"
+   ]
+  },
+  {
+   "id": "B2-037",
+   "old": "`t` is off the harmonic grid (every discrete period an integer multiple of `Δt_base`) by construction, and discrete cells ZOH-hold through the sweep.",
+   "new": "`t` is off the harmonic grid (every discrete period an integer multiple of `Δt_base`) by construction, and discrete cells ZOH-hold through the sweep.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-038",
+   "old": "Staged inputs are not drained either, for two reasons.",
+   "new": "Staged inputs are not drained either (D-081), for two reasons.",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-081"
+   ]
+  },
+  {
+   "id": "B2-039",
+   "old": "Input timing is a frame fact, and replay determinism must not depend on localization arithmetic.",
+   "new": "Input timing is a frame fact, and the determinism of replay (the ordinary loop re-driven from the trace) must not depend on localization arithmetic.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-040",
+   "old": "The `t` publication is not separately paced.",
+   "new": "The `t` publication is not separately paced (D-081).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-081"
+   ]
+  },
+  {
+   "id": "B2-041",
+   "old": "The pacer paces frame deadlines.",
+   "new": "The pacer (which inserts waits between completed frames) paces frame deadlines.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-042",
+   "old": "A `t` snapshot publishes when computed, mid-frame.",
+   "new": "A `t` snapshot publishes when computed, mid-frame.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-043",
+   "old": "Where that lands in wall-clock time is below what pacing resolves.",
+   "new": "Where that lands in wall-clock time is below what pacing resolves.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-044",
+   "old": "The §10.7 invariant is about trajectories, and those are identical either way.",
+   "new": "The invariant of §10.7 is about trajectories, and those are identical either way.",
+   "where": "new",
+   "cites": [
+    "§10.7"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B2-045",
+   "old": "Replay pointers and error messages index boundaries by the frame-entry boundary index (§13.4) together with the recorded `t`.",
+   "new": "Replay pointers and error messages index boundaries by the frame-entry boundary index (§13.4, D-128) together with the recorded `t`.",
+   "where": "new",
+   "cites": [
+    "§13.4"
+   ],
+   "tag": "C",
+   "newcites": [
+    "§13.4",
+    "D-128"
+   ]
+  },
+  {
+   "id": "B2-046",
+   "old": "Snapshots carry the trajectory's published-boundary ordinal (§12.3).",
+   "new": "Snapshots carry the trajectory's published-boundary ordinal (§12.3, D-230).",
+   "where": "new",
+   "cites": [
+    "§12.3"
+   ],
+   "tag": "C",
+   "newcites": [
+    "§12.3",
+    "D-230"
+   ]
+  },
+  {
+   "id": "B2-047",
+   "old": "The trace stays frame-indexed, since `t` boundaries consume no inputs.",
+   "new": "The trace stays frame-indexed, since `t` boundaries consume no inputs.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-048",
+   "old": "#### Projection's reach is the boundary, not the trial evaluation",
+   "new": "Projection (the optional per-component hook `x ← x_projection(x)`) reaches the boundary, not the trial evaluation.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-049",
+   "old": "Rule. Guard trial evaluations run against the raw interpolated state.",
+   "new": "Guard trial evaluations run against the raw interpolated state (D-018).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-018"
+   ]
+  },
+  {
+   "id": "B2-050",
+   "old": "Authority rests with the `t` boundary.",
+   "new": "Authority rests with the `t` boundary.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-051",
+   "old": "Projection runs there, and the §10.6 iteration's edge checks read the projected state.",
+   "new": "Projection runs there, and the edge checks of the §10.6 iteration read the projected state.",
+   "where": "new",
+   "cites": [
+    "§10.6"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B2-052",
+   "old": "Why. RK-stage RHS evaluations already run under the same rule, since they are equally off-manifold.",
+   "new": "RK-stage RHS evaluations already run under the same rule, since they are equally off-manifold.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-053",
+   "old": "Sweeps must therefore tolerate near-manifold states, and they already do.",
+   "new": "Sweeps must therefore tolerate near-manifold states, and they already do.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-054",
+   "old": "Per-trial projection is rejected (D-018).",
+   "new": "Per-trial projection is rejected (D-018).",
+   "where": "new",
+   "cites": [
+    "D-018"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B2-055",
+   "old": "If projection moves the state back across a guard, the event does not fire and the run has published one extra boundary.",
+   "new": "If projection moves the state back across a guard, the event does not fire and the run has published one extra boundary.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-056",
+   "old": "That is harmless.",
+   "new": "That is harmless.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-057",
+   "old": "Like any other localization outcome, it is deterministic and pace-independent (D-080).",
+   "new": "Like any other localization outcome, it is deterministic and pace-independent (D-080).",
+   "where": "new",
+   "cites": [
+    "D-080"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B2-058",
+   "old": "#### Budget exhaustion degrades; it does not throw",
+   "new": "Budget exhaustion degrades; it does not throw (D-018).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-018"
+   ]
+  },
+  {
+   "id": "B2-059",
+   "old": "Rule. `localization_budget` is an integer count of localizations permitted within one frame.",
+   "new": "`localization_budget` is an integer count of localizations permitted within one frame (D-133, D-181).",
+   "where": "new",
+   "cites": [],
+   "tag": "C",
+   "newcites": [
+    "D-133",
+    "D-181"
+   ]
+  },
+  {
+   "id": "B2-060",
+   "old": "It defaults to 8.",
+   "new": "It defaults to 8.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-061",
+   "old": "It is the second deployment keyword this section fixes.",
+   "new": "It is the second deployment keyword this section fixes.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-062",
+   "old": "Why 8. A legitimate multi-event frame needs three or four localizations.",
+   "new": "A legitimate multi-event frame needs three or four localizations.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-063",
+   "old": "Three landing-gear struts touching down inside one step is the reference case.",
+   "new": "Three landing-gear struts touching down inside one step is the reference case.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-064",
+   "old": "Chattering needs tens.",
+   "new": "Chattering needs tens.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-065",
+   "old": "A budget of 8 bounds the pathology without ever binding on a healthy model.",
+   "new": "A budget of 8 therefore bounds the pathology without ever binding on a healthy model.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-066",
+   "old": "When a frame spends its budget, localization stops for the rest of that frame.",
+   "new": "When a frame spends its budget, localization stops for the rest of that frame.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-067",
+   "old": "The remainder step completes, and any further crossings fire in the next boundary's ordinary iteration, at boundary granularity for that frame.",
+   "new": "The remainder step completes, and any further crossings fire in the next boundary's ordinary iteration, at boundary granularity for that frame.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-068",
+   "old": "A `ChatteringBudget` warning (Appendix C) names the chattering event and the localization count.",
+   "new": "A `ChatteringBudget` warning (Appendix C) names the chattering event and the localization count.",
+   "where": "new",
+   "cites": [
+    "Appendix C"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B2-069",
+   "old": "The degradation depends on the trajectory alone, never on wall clock.",
+   "new": "The degradation depends on the trajectory alone, never on wall clock.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-070",
+   "old": "The pace-independence guarantee (D-080) therefore stands, and the run replays identically.",
+   "new": "The pace-independence guarantee (D-080) therefore stands, and the run replays identically.",
+   "where": "new",
+   "cites": [
+    "D-080"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "B2-071",
+   "old": "A `StepError` here would misclassify an expected modeling outcome as broken machinery, which the §14.8 doctrine forbids.",
+   "new": "A `StepError` (§13.4) here would misclassify an expected modeling outcome as broken machinery, which the no-throw doctrine of §14.8 forbids.",
+   "where": "new",
+   "cites": [
+    "§14.8"
+   ],
+   "tag": "C",
+   "newcites": [
+    "§13.4",
+    "§14.8"
+   ]
+  },
+  {
+   "id": "B2-072",
+   "old": "#### Both constants are deployment, not implementation",
+   "new": "Both localization constants are deployment, not implementation.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-073",
+   "old": "`localization_tol` and `localization_budget` are `Deployment` constructor keywords.",
+   "new": "`localization_tol` and `localization_budget` are constructor keywords of the `Deployment`",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-074",
+   "old": "They stand beside `h`, `N_base` and the algorithm (§9.2, Appendix B).",
+   "new": "They stand beside `h`, `N_base` and the algorithm (§9.2, Appendix B, D-256).",
+   "where": "new",
+   "cites": [
+    "§9.2",
+    "Appendix B"
+   ],
+   "tag": "C",
+   "newcites": [
+    "§9.2",
+    "Appendix B",
+    "D-256"
+   ]
+  },
+  {
+   "id": "B2-075",
+   "old": "They are validated with their siblings, as a positive tolerance and an integer budget ≥ 1,",
+   "new": "- a nonpositive `localization_tol`; - a `localization_budget` or a `firing_budget` that is not an integer ≥ 1.",
+   "where": "docs/design/spec.md",
+   "cites": [],
+   "tag": "M",
+   "ruling": "R5"
+  },
+  {
+   "id": "B2-076",
+   "old": "and failures are collected into `DeploymentInvalid` (Appendix C).",
+   "new": "and failures are collected into `DeploymentInvalid`, as §9.2 and Appendix C set out.",
+   "where": "new",
+   "cites": [
+    "Appendix C"
+   ],
+   "tag": "R",
+   "newcites": [
+    "§9.2",
+    "Appendix C"
+   ],
+   "ruling": "R5"
+  },
+  {
+   "id": "B2-077",
+   "old": "The `firing_budget` (§10.6) stands beside them in every one of these lists.",
+   "new": "The constructor validates them with the third event parameter, the `firing_budget` of §10.6,",
+   "where": "new",
+   "cites": [
+    "§10.6"
+   ],
+   "tag": "R",
+   "ruling": "R5"
+  },
+  {
+   "id": "B2-078",
+   "old": "It gets the same validation, the same `DeploymentInvalid`,",
+   "new": "- a `localization_budget` or a `firing_budget` that is not an integer ≥ 1.",
+   "where": "docs/design/spec.md",
+   "cites": [],
+   "tag": "M",
+   "ruling": "R5"
+  },
+  {
+   "id": "B2-079",
+   "old": "the same trace header and the same replay comparison.",
+   "new": "All three are recorded (D-133, D-181), because they determine the trajectory.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "newcites": [],
+   "ruling": "R5"
+  },
+  {
+   "id": "B2-080",
+   "old": "Both are grid-independent, so neither enters the harmonic-grid check (§10.5).",
+   "new": "All three are grid-independent, so none enters the harmonic-grid check (§10.5).",
+   "where": "new",
+   "cites": [
+    "§10.5"
+   ],
+   "tag": "R",
+   "ruling": "R8"
+  },
+  {
+   "id": "B2-081",
+   "old": "Because they determine the trajectory, both are recorded.",
+   "new": "All three are recorded (D-133, D-181), because they determine the trajectory.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "newcites": [
+    "D-133",
+    "D-181"
+   ],
+   "ruling": "R8"
+  },
+  {
+   "id": "B2-082",
+   "old": "They ride the trace header's `Deployment`",
+   "new": "They ride the `Deployment` in the trace header (the trace's fixed preamble, §11.5).",
+   "where": "new",
+   "cites": [],
+   "tag": "F",
+   "newcites": [
+    "§11.5"
+   ]
+  },
+  {
+   "id": "B2-083",
+   "old": "(the scalar-free artifact the grid parameters fix)",
+   "new": "`Deployment` (the scalar-free artifact the grid parameters fix).",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "B2-084",
+   "old": "and join the set that replay compares up front, exactly as `h` and the algorithm do (§11.5, §12.7).",
+   "new": "They also join the set that replay compares up front, exactly as `h` and the algorithm do (§12.7).",
+   "where": "new",
+   "cites": [
+    "§11.5",
+    "§12.7"
+   ],
+   "tag": "F",
+   "newcites": [
+    "§12.7"
+   ]
+  },
+  {
+   "id": "B2-085",
+   "old": "Why. Without this, the replays-identically promise above is empty.",
+   "new": "Without this record, the replays-identically promise above is empty.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "B2-086",
+   "old": "A run that does not record what its localizer was told to do cannot be re-driven through the same localization outcomes.",
+   "new": "A run that does not record what its localizer was told to do cannot be re-driven through the same localization outcomes.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  }
+ ],
+ "added": [
+  "#### The localization budget",
+  "#### Deployment constants",
+  "The due sets of §10.5 give the full reason.",
+  "no-throw",
+  "(the remainder step's length)",
+  "(§13.4)"
+ ]
+}

@@ -104,6 +104,17 @@ claim in the inventory with `"tag": "R"` and `"ruling": "<id>"`.
     the FCS cascade each get one introducing clause. FCS is the flight
     control system. Claim nothing the example's source does not.
 - **R9. The units** are the survey's seven, with §10.6 whole in unit D.
+- **R10. Due updates run after quiescence** (ruled after step 3, from unit
+  C1's rulings). "All due `s_update` calls run after the sweep" becomes
+  "after quiescence". D-020's Position says due updates "run after
+  quiescence, outside the iteration", and the glossary's *due* entry agrees.
+- **R11. Bold across units** (ruled after step 4). In old entries,
+  semicolons separate rulings and "+" joins clauses of one ruling. D-018's
+  ruling 2 keeps its bold on "Budget exhaustion degrades" in unit B2, its
+  headline outcome; B1's "The interpolant is then invalidated" is mechanism
+  and goes plain. D-147's interior-sweep sentence keeps its bold in B1, first
+  in reading order, and C1 yields. A ruling §9.1 already bolds stays plain in
+  §10.5.
 
 Other factual problems, including F12 and F16 to F18, stay as written. If
 you find a new one, it stays as written too and goes to `rulings.md`.
