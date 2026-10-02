@@ -5,7 +5,8 @@ are the schema authority"; "Contracts are functions of the type"; "The
 namespace"; "Names". The chapter intro gains two roadmap sentences naming
 §8.1 to §8.8 by subject.
 
-Ruled edits applied: R4 (1997–1999), R6, R7 (F2, F12, F17, F24), R8.
+Ruled edits applied: R4 (1997–1999), R6, R7 (F2, F12, F17, F24). R8 as
+revised: the semantic axis stays as written.
 
 ## Corrections proposed
 
@@ -20,9 +21,15 @@ None new. Ruled corrections applied:
 - F24 (2027). Scoped to "when only a stage is shadowed", and added "An
   optional declaration shadowed in a local scope, such as `state_events` or
   `ws_init`, drops its feature silently ([D-178][d-178])."
-- R8 / F1 (2052–2054). Restored "A declaration names the *consequence* it
-  has, not its *content* ([D-146][d-146])". `rg` over `docs/` outside
-  `spec_rewrite/` finds no other text relying on the inverted reading.
+
+Left as written pending escalation E2 (R8, revised):
+
+- F1 (2052–2054). "A declaration names its *content*, never the
+  *consequence* the declaration has." Carried as written, unbolded, with the
+  paragraph's old citations only (D-171, D-146, D-170, §8.8, §11.6) and no
+  new citation for the axis. D-267 Position ("a noun phrase naming what it
+  returns") agrees with it; D-146 Rationale (log 4941–4945) reads the other
+  way. The owner decides (`escalations.md` E2).
 
 ## Citations added or replaced
 
@@ -63,10 +70,11 @@ None new. Ruled corrections applied:
   family name distinct from the framework's function throws
   `DeclarationShadowed` alone".
 - D-178 at the F24 addition. Rationale only (see below).
-- D-146 at the restored semantic axis (R8). Rationale only (see below).
 - §11.7 at the `GUI.draw!` precedent (F14's introducing clause). §11.7:
   "Panels remain per-component extensions in FlightCore's style, such as
   `GUI.draw!(ctx, ::LowPassFilter)`".
+- §8.2 at the first use of `Engine` (coordinator's fix), a forward pointer
+  to §8.2's `Engine` block (spec 2115).
 - §8.2 at the `StoreWithoutUpdate` gloss and §8.5 at the `ClassUnreadable`
   gloss (survey part A asks for a gloss or pointer). Appendix C 11747 and
   11759 cite these sections for the two kinds; D-263 Position:
@@ -78,9 +86,6 @@ None new. Ruled corrections applied:
   the type, never of field values; `workspace` explicitly exempt; "a rule
   authors keep, not a check the build can run". Bold kept on the rule; the
   log owes a live Position.
-- D-146, Rationale, log 4941–4945: the semantic axis, consequence-named over
-  content-named (R8). Bold on the restored rule; the log owes a Position.
-  Also in `escalations.md` for the owner's audit.
 - D-178, Rationale, log 6336–6340: partial local-scope shadowing of optional
   feature declarations "still builds silently with fewer features" (F24).
   Not bolded: the log records it as a residual, not a ruling.
@@ -91,8 +96,8 @@ None found. Grep of the other units' `new.md` on 2026-10-02: B1 and B4 bold
 rulings citing D-033 (the by-value stores; derived stage membership), which
 are D-033 Position rulings distinct from this unit's contracts-by-type
 ruling (D-033 Rationale). E1 bolds D-170 rulings; this unit cites D-170
-unbolded. No other unit bolds D-032, D-117, D-144, D-146, D-164, D-178 or
-D-246.
+unbolded. No other unit bolds D-032, D-117, D-144, D-164, D-178 or D-246.
+This unit bolds nothing citing D-146.
 
 Within this unit, D-032 carries three bolds, one per Position ruling (plain
 Julia trait layer; schema authority; macros addable a posteriori). "Every
@@ -121,6 +126,8 @@ carries two, one per Position sentence.
   It is now plain, cited to D-032, under the one-bold-per-ruling test above.
   If the owner reads it as a ruling of its own, it takes the bold back and
   the schema block's bold goes plain.
-- The roadmap sentences summarize each section by its title. "§8.4 gives the
+- The roadmap sentences summarize each section by its title. The §8.6 entry
+  adds the strapdown IMU worked case and the closing boundary-sampling
+  contract (survey part C, §8.6's order). "§8.4 gives the
   five failure walkthroughs that ground error locality" follows the glossary
   entry for *error locality* (13039–13042).

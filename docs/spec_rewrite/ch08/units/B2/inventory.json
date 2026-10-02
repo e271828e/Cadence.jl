@@ -152,7 +152,7 @@
   {
    "id": "B2-017",
    "old": "`Int`/`Bool`/enum leaves and abstract reference-typed entries stand as they always were.",
-   "new": "`Int`/`Bool`/enum leaves and abstract reference-typed entries admit what their declared bound admits.",
+   "new": "`Int`/`Bool`/enum leaves and abstract reference-typed entries stand as they always were, admitting what their declared bound admits.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -401,7 +401,7 @@
   {
    "id": "B2-043",
    "old": "The obligation is still checked by the `Dual` probe, never declared, and it is scoped to the unpinned entries.",
-   "new": "It is checked by the `Dual` probe, never declared (D-054). The obligation is scoped to the unpinned entries (D-263).",
+   "new": "It is still checked by the `Dual` probe, never declared (D-054). The obligation is scoped to the unpinned entries (D-263).",
    "where": "new",
    "cites": [],
    "newcites": [
@@ -569,10 +569,14 @@
   {
    "id": "B2-060",
    "old": "Two different concrete declarations remain an error.",
-   "new": "Two different concrete declarations remain an error.",
+   "new": "Two different concrete declarations remain an error, `RootInputTypeConflict` (D-236).",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "newcites": [
+    "D-236"
+   ],
+   "tag": "R",
+   "ruling": "R14"
   },
   {
    "id": "B2-061",

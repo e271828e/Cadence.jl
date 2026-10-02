@@ -4,12 +4,12 @@ Old lines are `spec.md` lines at `084d6f0`. Log lines are `decisions.md`.
 
 ## Corrections proposed
 
-- **`RootInputTypeConflict` unnamed.** 2329–2330: "Two different concrete
-  declarations remain an error." Appendix C 11736 cites §8.2 for
-  `RootInputTypeConflict`, and D-236 Position bullet 3 (log 8680–8681) names it.
-  §8.2 never names the kind. Proposed text: "Two different concrete
-  declarations remain an error, `RootInputTypeConflict` ([D-236][d-236])."
-  Left as written.
+- **`RootInputTypeConflict` named (ruled in as R14).** 2329–2330: "Two
+  different concrete declarations remain an error." Appendix C 11736 cites
+  §8.2 for `RootInputTypeConflict`, D-236 Position bullet 3 (log 8680–8681)
+  names it, and `src/build.jl` 880 raises it. Applied: "Two different
+  concrete declarations remain an error, `RootInputTypeConflict`
+  ([D-236][d-236])." Claim B2-060, tag R, ruling R14.
 
 ## Citations added or replaced
 
@@ -83,15 +83,24 @@ Old lines are `spec.md` lines at `084d6f0`. Log lines are `decisions.md`.
 
 Each owes a live Position.
 
-- **D-263 cited for the walk clause's tier scope** (2293, bold). The only
-  statement is superseded D-167, Rationale log 5848–5853 and annotation log
-  5874–5877.
-- **D-263 cited for the genericity obligation's scope to unpinned entries**
-  (2308, bold). Only superseded D-167, Rationale log 5865–5868.
-- **D-263 cited for seedability schema-visible** (2332, bold). Only
-  superseded D-167, Rationale log 5862–5863.
+### Rulings no live entry states (R9)
+
+D-263 states none of these three in any field, its Rationale included. Only
+superseded D-167's annotation (log 5874–5877) says they stand, and only
+D-167's Rationale states them. The bold and the D-263 citation stay, by R9.
+Track 2 owes a Position, in D-263 or a new entry, that states each one.
+
+- **The walk clause's tier scope** (2293, bold, cites D-263). D-167
+  Rationale log 5848–5853.
+- **The genericity obligation's scope to unpinned entries** (2308, bold,
+  cites D-263). D-167 Rationale log 5865–5868.
+- **Seedability schema-visible** (2332, bold, cites D-263). D-167 Rationale
+  log 5860–5863.
 - **"The unscoped variant is rejected"** (2300). Only superseded D-167,
   Rejected log 5890–5892. It is uncited now, since no live entry holds it.
+
+### Rulings stated only in a Rationale or a Rejected list
+
 - **D-078, abstract entries as structural substitutability** (2266, bold).
   Rationale log 2273–2275.
 - **D-078, "declarations record choices, and obligations are checked"**
@@ -126,6 +135,12 @@ Each owes a live Position.
   `Float64` must be `<:` the entry at `Float64`" with D-078. Mine is plain.
 - **D-263/D-236 marker-scalar decision**: §9.1 (3485) bolds it. Mine is
   plain.
+- **The walk clause's tier scope, a pre-existing double** (for the rulings
+  batch). §6.1 spec 1284 bolds "**for a continuous consumer only**" in the
+  walk-compatibility clause, which is the same ruling as my "**Discrete
+  consumers take the bound check only**" ([D-263][d-263]). It predates this
+  unit, since old 2293 bolded it too. One of the two should lose its bold.
+  §6.1 is chapter 6's and outside this unit.
 
 ## Inbound citations affected
 

@@ -1,8 +1,8 @@
 #### Events: `state_events`
 
 `state_events` declares an ordered, named collection of
-[guard](#g-guard)/handler pairs (each guard the declared predicate of its
-event). A pair is spelled `StateEvent(guard, handler)`, with no detection
+[guard](#g-guard)/handler pairs (a guard is the declared function defining an
+event's predicate). A pair is spelled `StateEvent(guard, handler)`, with no detection
 keyword. Detection policy is declared by the guard's return type instead
 ([D-179][d-179]). A `Bool` guard makes the event
 [boundary-detected](#g-boundary-detected), checked for edges at step
@@ -69,9 +69,9 @@ continuous-only, because the event system is continuous-side only
 ([§5.2][s5-2], [§3.2][s3-2], [§14.1][s14-1]) and projection's one manifold is
 the continuous state's ([§2.2][s2-2]). A `Pinned` entry in a contract is
 continuous-only, because the discrete tier pins wholesale and the marker
-there says nothing. No arity carries a tier. Every declaration takes the
-component alone, and `ws_init` takes the scalar on both tiers
-([D-263][d-263]).
+there says nothing. No arity carries a tier. Every declaration of a
+structural fact takes the component alone, except `ws_init`, which takes
+the scalar on both tiers ([D-263][d-263]).
 
 Disagreement is `DeclarationOnWrongTier` ([Appendix C][sC]). It is reported
 as the offending declaration, with the tier the leaf's other declarations
@@ -100,7 +100,7 @@ families, or of neither, are the [§8.5][s8-5] class errors.
 
 This section decides which of a component's values are public. It states the
 visibility rule, then the inspection path for an intermediate, then the
-checks that hold every stage's returns to the declared set.
+checks that hold stage returns and declarations to each other.
 
 **Visibility is decided by *where the value goes*** ([D-034][d-034]):
 
@@ -121,10 +121,10 @@ presentation filter. Visibility is binary, with no third class between the
 two. A value a later function reads travels as a declared port like any other
 ([§5.2][s5-2]).
 
-**The inspection path for an intermediate is declaration** ([D-194][d-194]).
+The inspection path for an intermediate is declaration ([D-194][d-194]).
 That follows from the visibility rule above. One line in `y_types` makes it public,
 checked and visible everywhere at once. FlightCore is the precedent, where an
-intermediate was inspected by putting it in the `Model` output and no other
+intermediate was inspected by putting it in FlightCore's model output and no other
 way. Publicity is never implicit. Even the minimal
 [component](#g-component) writes `y_types(::LowPassFilter) = (x = Float64,)`,
 one line, in exchange for "public" always meaning someone wrote it down.
@@ -152,8 +152,8 @@ branch-shape rule ([D-034][d-034]). Julia's type-stability discipline already
 demands that for performance. The framework merely makes it a stated rule
 with a good error.
 
-**[Schema authority](#g-schema-authority) is total over the table**
-([D-034][d-034]). Schema authority means declarations define structure and
+[Schema authority](#g-schema-authority) is total over the table
+([D-032][d-032], [D-034][d-034]). Schema authority means declarations define structure and
 evaluation only checks conformance. Every *cell* traces to an authored
 declaration, and the always-on check's expected type for `y` is fully
 declaration-derived. Return typos cannot silently define new cells
@@ -175,17 +175,17 @@ never. [D-032][d-032] carries the traces.
 
 1. A typo'd wire (`:throtle`) is a build error at the connection, "no input
    `throtle`; did you mean `throttle`?"
-2. A forgotten wire is `fuel_available`, read only by a [guard](#g-guard)
-   (the declared function defining an event's predicate). It fails as the
-   [§6.1][s6-1] unconnected-input error at build.
-3. A forgotten branch field is `P`, returned by one branch only. It fails as a
-   [probe](#g-probe) or first-execution error naming the declared
+2. A forgotten wire, such as `fuel_available` read only by a
+   [guard](#g-guard) (the declared function defining an event's predicate),
+   fails as the [§6.1][s6-1] unconnected-input error at build.
+3. A forgotten branch field, such as `P` returned by one branch only, fails as
+   a [probe](#g-probe) or first-execution error naming the declared
    [port](#g-port).
-4. A type mismatch is a `Float64` fraction wired into a `Bool` input. It fails
-   as a wiring-time error naming both endpoints and both [faces](#g-face) (the
-   names ports wear on their component's boundary).
-5. A typo'd return field is `P_shft = …` for a declared `P_shaft`. It fails as
-   a probe error with [did-you-mean](#g-did-you-mean) (the offending name plus
+4. A type mismatch, such as a `Float64` fraction wired into a `Bool` input,
+   fails as a wiring-time error naming both endpoints and both
+   [faces](#g-face) (the names ports wear on their component's boundary).
+5. A typo'd return field, such as `P_shft = …` for a declared shaft power
+   `P_shaft`, fails as a probe error with [did-you-mean](#g-did-you-mean) (the offending name plus
    the list-in-hand it should have matched) against `y_types`. That one error
    is the whole report. The probe chain stops at the port check
    ([§13.1][s13-1], [D-239][d-239]), and an unproduced-`P_shaft` error would

@@ -8,9 +8,10 @@ component side, [§8.1][s8-1] lays the foundations of the declaration layer,
 [§8.2][s8-2] lists the declaration inventory, [§8.3][s8-3] says what a
 contract makes visible, and [§8.4][s8-4] gives the five failure walkthroughs
 that ground error locality. On the assembly side, [§8.5][s8-5] covers assembly
-declaration and how a type's class is read, [§8.6][s8-6] covers paths, wiring
-and faces, [§8.7][s8-7] covers rate scopes, and [§8.8][s8-8] covers computed
-connections and generic holding. The build pipeline is [§9][s9], and the
+declaration and how a type's class is read. [§8.6][s8-6] covers paths, wiring
+and faces, works them through the strapdown IMU, and ends with the
+boundary-sampling contract. [§8.7][s8-7] covers rate scopes, and [§8.8][s8-8]
+covers computed connections and generic holding. The build pipeline is [§9][s9], and the
 stopped-sim service spellings are [§14][s14]. The concrete syntax below is
 near-final in shape but still illustrative in spelling.
 
@@ -75,7 +76,7 @@ type**, its type parameters included, and never by its field *values*
 `state_events`, and the shapes of `x_init`/`s_init`/`m_init`.
 
 The value-discarding signature `u_types(::Engine)` is the visible form of the
-rule. The idiom for a contract that genuinely varies is the type parameter,
+rule (`Engine` is the example component of [§8.2][s8-2]). The idiom for a contract that genuinely varies is the type parameter,
 not the field, as in `SumJunction{Wrench, 3}` ([§6.2][s6-2]) and `Or{N}`
 ([§13.7][s13-7]). Arity is spelled in the type, at the price [§6.2][s6-2]
 states openly.
@@ -222,8 +223,8 @@ its class fixes its grammatical shape ([D-144][d-144]).
 A name in the wrong class is a rename candidate on that ground alone.
 
 The convention also has a semantic axis. A name can sit in the right class and
-still pick the wrong noun. **A declaration names the *consequence* it has**, not
-its *content* ([D-146][d-146]). `input_passthrough` ([§8.8][s8-8],
+still pick the wrong noun. A declaration names its *content*, never the
+*consequence* the declaration has. `input_passthrough` ([§8.8][s8-8],
 [D-171][d-171]) and the binding methods `claims`/`reads` ([§11.6][s11-6],
 [D-146][d-146]) apply that axis, and `exports` is its retired exemplar
 ([D-170][d-170]). The `*_connections` family names content deliberately, for

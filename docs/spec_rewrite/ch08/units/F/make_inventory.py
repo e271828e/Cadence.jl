@@ -38,17 +38,17 @@ c("Relative entries compose affinely down the tree, absolute entries anchor, and
 c("The wrappers are the whole value vocabulary, so a bare integer or bare quantity is a declaration error.",
   "The wrappers are the whole vocabulary (D-185). A bare integer or bare quantity is a declaration error.", "R", where=SPEC, ruling="R3")
 c("The declaration is optional, and so is any given key.", "The declaration is optional, and so is any given key (D-042).", "C", ["D-042"])
-c("An unlisted discrete child defaults to `Relative(1)`", "An unlisted discrete child defaults to `Relative(1)`.", "R", where=SPEC, ruling="R3")
-c(", so only multiplied, phased or anchored children need appear.", "Under that default, only multiplied, phased or anchored children need appear.")
+c("An unlisted discrete child defaults to `Relative(1)`", "Since an unlisted discrete child defaults to `Relative(1)` (§10.5),", "F", ["§10.5"])
+c(", so only multiplied, phased or anchored children need appear.", "only multiplied, phased or anchored children need appear.")
 c("Keys are immediate child names only.", "Keys are immediate child names only (D-042).", "C", ["D-042"])
 c("A deep key would edit another type's design from outside, and the composition rule guarantees you never need to.",
   "A deep key would edit another type's design from outside, and the composition rule guarantees an author never needs to.")
 c("Container elements (§8.5) are immediate children, so `\"aircraft/red\"` is a legal key,",
   "Container elements (§8.5) are immediate children, so `\"aircraft/red\"` is a legal key,")
-c("and the bare field name applies one declaration to every element.", "It applies one declaration to every element.")
+c("and the bare field name applies one declaration to every element.", "The bare field name is sugar that applies one uniform declaration across all elements.")
 c("A `sample_times` key on a continuous child is a build error", "A `sample_times` key on a continuous child is a build error (D-042).", "C", ["D-042"])
 c("(the Δt-on-continuous error at declaration time, §10.5).",
-  "It is the declaration-time side of a run-time fact. A continuous bundle carries no `Δt` (§10.5).", "R", ruling="R7")
+  "It is the declaration-time side of a run-time fact. A continuous bundle (the `NamedTuple` of views a component function receives) carries no `Δt` (§10.5).", "R", ruling="R7")
 c("`Δt_base`, `h` and `N_base` appear in no declaration.", "`Δt_base`, `h` and `N_base` appear in no declaration.")
 c("They are deployment decisions fixed at deployment", "They are deployment decisions fixed at deployment (D-254).", "C", ["D-254"])
 c("(the three sources for `Δt_base`, §9.2).", "§9.2 gives the three sources for `Δt_base`.")
@@ -62,7 +62,7 @@ c("The FlightCore-`Subsampled`-style instance wrapper is rejected in D-042.",
 # §8.8
 c("### 8.8 Computed connections and generic holding", "### 8.8 Computed connections and generic holding")
 c("`u_connections` and `y_connections` are ordinary functions evaluated at build against the concrete instance,",
-  "`u_connections` and `y_connections` are ordinary functions evaluated at build against the concrete instance (D-043).", "C", ["D-043"])
+  "`u_connections` and `y_connections` are ordinary functions evaluated at build against the concrete instance.")
 c("so they may compute entries from child contracts.", "They may therefore compute entries from child contracts")
 c("That is derivation from declarations, which §8.2 blesses.", "That is derivation from declarations, which §8.2 blesses.")
 c("The framework helper, sketched:", "The framework helper `input_passthrough` is sketched below.")
@@ -73,7 +73,7 @@ c("A face name containing dots is a legal final path segment on the internal-end
   "A face name containing dots is a legal final path segment on the internal-endpoint side (D-046).", "C", ["D-046"])
 c("precisely because slash is the only structural separator.", "That holds precisely because slash is the only structural separator.")
 c("Computed entries mix freely with hand-written ones in either declaration.",
-  "Computed entries mix freely with hand-written ones in either declaration (D-043).", "C", ["D-043"])
+  "Computed entries mix freely with hand-written ones in either declaration.")
 c("`resolve` and `input_faces` are build-pipeline primitives needed anyway, and `input_passthrough` is a thin composition. That is what keeps the helper sugar rather than machinery.",
   "`resolve` and `input_faces` are build-pipeline primitives needed anyway, and `input_passthrough` is a thin composition. That is what keeps the helper sugar rather than machinery.")
 c("There is no `rename` hook, because the boundary declarations are ordinary code",
@@ -119,7 +119,7 @@ c("`input_passthrough` reads `input_faces(child)`, and the selector filters face
 c("`output_passthrough` is its sibling (D-209). It is splatted into `y_connections`, reads `output_faces(child)`, and has the same `prefix`/`sep` surface, the same three exclusive selectors and the same declaration-time error set.",
   "`output_passthrough` is its sibling (D-209). It is splatted into `y_connections`, reads `output_faces(child)`, and has the same `prefix`/`sep` surface, the same three exclusive selectors and the same declaration-time error set.")
 code_claims("output_passthrough(sys, \"ldg\"")
-c("Its consumer is one-level routing (§6.1).", "Its consumer is one-level routing (§6.1, D-209).", "C", ["§6.1", "D-209"])
+c("Its consumer is one-level routing (§6.1).", "`output_passthrough`'s consumer is one-level routing (§6.1, D-209).", "C", ["§6.1", "D-209"])
 c("Every level re-exports the outputs it surfaces, so the output side needs the computed spelling the input side already has.",
   "Every level re-exports the outputs it surfaces, so the output side needs the computed spelling the input side already has.")
 c("Both helpers take `child_path` naming an immediate child, container key segments included.",
@@ -130,7 +130,7 @@ c("A deeper path meets `resolve`'s one-level rejection like any other wiring end
   "A deeper path meets `resolve`'s one-level rejection like any other wiring endpoint (§13.3, D-207).", "C", ["§13.3", "D-207"])
 c("There are two helpers rather than one keyword,", "There are two helpers rather than one keyword (D-171).", "C", ["D-171"])
 c("because after the boundary split a single call cannot emit entries into two different declarations.",
-  "The boundary declarations split by direction into `u_connections` and `y_connections`, and after that split a single call cannot emit entries into two different declarations.")
+  "and after that split a single call cannot emit entries into two different declarations.")
 c("One authored list, two declarations.", "#### One authored feed list", "X")
 c("The `World` example's two-entry `except` understates the real shape.", "The `World` example's two-entry `except` understates the real shape.")
 c("Every level of a realistic tree is a generic seam,", "Every level of a realistic tree is a generic seam")
@@ -170,6 +170,7 @@ c("(a formal required-faces declaration on domain abstract types remains possibl
   "A formal required-faces declaration on domain abstract types remains possible sugar (D-251).", "C", ["D-251"])
 c("Scalar faces make partial scripting compose.", "Scalar faces make partial scripting compose (D-207).", "C", ["D-207"])
 c("A guidance scenario component wires `mode_req` and `EAS_ref`", "A guidance scenario component")
+c("`mode_req` and `EAS_ref`", "They are `mode_req` and `EAS_ref`")
 c("while the remaining faces stay exported for GUI or defaults,", "The remaining faces stay exported for GUI or defaults.")
 c("which is impossible with a bundled face (§4.3 write-side rule).",
   "That is impossible with a bundled face, under the write-side rule of §4.3.")
@@ -179,7 +180,7 @@ c("---", "---")
 c("`sample_times` needs no rule change.", "and `sample_times` needs no rule change for them (D-085).", "C", ["D-085"])
 c("Element names are immediate child names, hence legal keys,", "Container elements (§8.5) are immediate children, so `\"aircraft/red\"` is a legal key,", "M")
 c("and the bare field name is sugar for a uniform declaration across all elements.",
-  "The bare field name is sugar for a uniform declaration across all elements.")
+  "The bare field name is sugar that applies one uniform declaration across all elements.")
 c("The sugar keys on the field, not on a path segment, so a name-transparent container keeps it unchanged.",
   "The sugar keys on the field, not on a path segment, so a name-transparent container keeps it unchanged.")
 c("`(children = Relative(2),)` is the uniform spelling for a `Group`.",
@@ -187,16 +188,20 @@ c("`(children = Relative(2),)` is the uniform spelling for a `Group`.",
 
 ADDED = [
     "An assembly schedules its children through one declaration, `sample_times`. This section gives its spelling and its keys, then what it never holds and why it belongs to the type.",
-    "§10.5 also holds the wrappers' definitions, their validation and the default for an unlisted discrete child.",
+    "§10.5 also holds the wrappers' definitions and their validation.",
     "(each child's declared interface)",
     "The section covers the passthrough helpers, the single authored feed list and generic holding, in that order.",
     "#### The passthrough helpers",
     "The sketch ends with a `World` assembly that passes up the input faces (the names ports wear on component boundaries) of its `aircraft` and `atmosphere` children.",
     "(a narrow, named interface kept deliberately thin).",
-    "In the block below, `Systems` holds an actuator child `act` whose output faces feed its `aero` and `ldg` children.",
+    "In the block below, `Systems` is an assembly whose children include `aero` and `ldg`.",
+    "In the block below, `Systems` also holds an actuator child `act` whose output faces feed `aero` and `ldg`.",
+    "The boundary declarations split by direction into `u_connections` and `y_connections`,",
+    ", the equivalent-airspeed reference.",
     "(the root component's own input face)",
     "#### Generic holding",
-    "(the home of a sim-time script) wires two of the faces, `mode_req` and `EAS_ref`.",
+    "(the home of a sim-time script) wires two of the faces.",
+    "(the `NamedTuple` of views a component function receives)",
 ]
 
 json.dump({"claims": C, "added": ADDED}, open(f"{U}/inventory.json", "w"), ensure_ascii=False, indent=1)

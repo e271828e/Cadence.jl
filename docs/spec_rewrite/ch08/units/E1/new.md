@@ -4,15 +4,18 @@ An [assembly](#g-assembly) (a component of pure composition, with no dynamics
 of its own) wires its children and names its boundary with strings. A
 [face](#g-face) is the name a port wears on its component's boundary. This
 section fixes the path form, the three wiring declarations and the direction
-invariant they share, face names, root inputs, and face uniqueness at the
-root. A worked assembly, the strapdown IMU, closes the section.
+invariant they share, face names, [root inputs](#g-root-input) (the root
+component's own input faces), and face uniqueness at the root. It then spells
+out a worked assembly, the strapdown IMU, and its leaves. It closes with the
+boundary-sampling contract.
 
 **Paths are slash-separated strings**, relative to the assembly or model root
 they are read from, with no leading slash ([D-040][d-040]). There is one
 canonical form. Declarations, error messages,
 [device](#g-device)/[trace](#g-trace) addressing ([§11.3][s11-3]) and the HDF5
 log tree share it verbatim. [Container children](#g-container-children) (the
-elements of a tuple field holding only components, [§8.5][s8-5]) add index and
+elements of a `Tuple` or `NamedTuple` field holding only components,
+[§8.5][s8-5]) add index and
 key segments, `"aircraft/2"` and `"aircraft/red"` ([D-085][d-085]). These are
 ordinary segments, resolved against the container field. A container declared
 name-transparent ([§8.5][s8-5]) adds no segment of its own, and its elements
@@ -56,7 +59,7 @@ a port of the wrong direction is a build error. The error names the method,
 the entry and the resolved port's actual direction. A mixed entry is not
 expressible, because the single list that made that error class possible does
 not exist. Two entries producing the same output face remain the ordinary
-two-producers error.
+two-producers error ([§6.1][s6-1]).
 
 **Face *types and [tiers](#g-tier)* are derived from the internal endpoints**
 ([D-041][d-041]). A tier is the continuous or discrete side of the hybrid
@@ -68,7 +71,7 @@ continuous-sourced and discrete-sourced ports side by side. A face's
 declaration ([§8.5][s8-5]). They are evaluated at the
 [activation](#g-activation) scalar on the continuous tier and
 [pinned](#g-walked) on the discrete. Three alternative spellings are rejected
-([D-041][d-041], [D-170][d-170]). Publicity is never implicit ([§8.3][s8-3]).
+([D-041][d-041]). Publicity is never implicit ([§8.3][s8-3]).
 
 **Face names are arbitrary strings with two build-checked invariants**
 ([D-046][d-046]). The first is that a face name contains no `/`, which is
@@ -92,7 +95,7 @@ meaning that outlives the build. It does so in integration bindings
 declarations return pairs of strings rather than NamedTuples
 ([D-046][d-046]).
 
-[Root inputs](#g-root-input) fall out with no vocabulary of their own. At
+Root inputs fall out with no vocabulary of their own. At
 every non-root level an input face declared through `u_connections` is fed by
 the parent's wire. At the root there is no parent. There the root component's
 input faces *are* the [write surface](#g-write-surface), the set of faces a
@@ -163,6 +166,6 @@ and a `sample_times` key on `integrals`, the continuous child, would be a
 build error ([§8.7][s8-7]). The second is that the two discrete children
 default to `Relative(1)` anyway, so this `sample_times` declaration is
 declaratory. Their absolute rate arrives from the enclosing scope at
-deployment ([§8.7][s8-7]). The latch-back wire (below), where the integrals
+deployment ([§8.7][s8-7]). The latch-back wire (below, under "The boundary-sampling contract"), where the integrals
 consume the sampler's published latch, would join `inner_connections` as one
 more ordinary pair.

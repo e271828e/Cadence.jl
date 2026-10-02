@@ -395,7 +395,7 @@
   {
    "id": "B1-044",
    "old": "Declaring types here too, `u_types`-style, with `probe_value` (§9.3) synthesizing the initial values, was rejected (D-073).",
-   "new": "Typed stores with synthesized initial values were rejected (D-073).",
+   "new": "Stores declared by type, with synthesized initial values, were rejected (D-073).",
    "where": "new",
    "cites": [
     "D-073",
@@ -621,6 +621,8 @@
  "added": [
   "The store names each leaf because",
   "`ws_init` allocates",
-  "which is described below."
+  "which is described below.",
+  "Because the type is derived from the value",
+  "`x_init(::Gain) = (;) s_init(::Sampler) = (;)`"
  ]
 }

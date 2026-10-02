@@ -384,13 +384,14 @@
   {
    "id": "B4-044",
    "old": "Every declaration takes the component alone, and `ws_init` takes the scalar on both tiers (D-263).",
-   "new": "Every declaration takes the component alone, and `ws_init` takes the scalar on both tiers (D-263).",
+   "new": "Every declaration of a structural fact takes the component alone, except `ws_init`, which takes the scalar on both tiers (D-263).",
    "where": "new",
    "cites": [
     "D-263"
    ],
-   "tag": "F",
-   "note": "carried as written; F22's scope problem applies here too, see rulings.md"
+   "tag": "R",
+   "ruling": "R13",
+   "note": "R13 extends R7's F22 to old 2574; same words as units B1 and D"
   },
   {
    "id": "B4-045",
@@ -618,7 +619,7 @@
     "D-194"
    ],
    "tag": "F",
-   "note": "D-194 moves one sentence earlier, onto the bold headline"
+   "note": "D-194 moves one sentence earlier; unbolded, as the next sentence makes it a consequence"
   },
   {
    "id": "B4-069",
@@ -634,7 +635,7 @@
   {
    "id": "B4-070",
    "old": "FlightCore is the precedent, where an intermediate was inspected by putting it in the `Model` output and no other way.",
-   "new": "FlightCore is the precedent, where an intermediate was inspected by putting it in the `Model` output and no other way.",
+   "new": "FlightCore is the precedent, where an intermediate was inspected by putting it in FlightCore's model output and no other way.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -783,10 +784,11 @@
   {
    "id": "B4-086",
    "old": "- Schema authority is total over the table",
-   "new": "Schema authority is total over the table (D-034)",
+   "new": "Schema authority is total over the table (D-032, D-034)",
    "where": "new",
    "cites": [],
    "newcites": [
+    "D-032",
     "D-034"
    ],
    "tag": "R",
@@ -969,7 +971,7 @@
   {
    "id": "B4-104",
    "old": "2. Forgotten wire (`fuel_available`, read only by a guard). The §6.1 unconnected-input error at build.",
-   "new": "2. A forgotten wire is `fuel_available`, read only by a guard (the declared function defining an event's predicate). It fails as the §6.1 unconnected-input error at build.",
+   "new": "2. A forgotten wire, such as `fuel_available` read only by a guard (the declared function defining an event's predicate), fails as the §6.1 unconnected-input error at build.",
    "where": "new",
    "cites": [
     "§6.1"
@@ -979,7 +981,7 @@
   {
    "id": "B4-105",
    "old": "3. Forgotten branch field (`P` returned by one branch only). A probe or first-execution error naming the declared port.",
-   "new": "3. A forgotten branch field is `P`, returned by one branch only. It fails as a probe or first-execution error naming the declared port.",
+   "new": "3. A forgotten branch field, such as `P` returned by one branch only, fails as a probe or first-execution error naming the declared port.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -987,7 +989,7 @@
   {
    "id": "B4-106",
    "old": "4. Type mismatch (a `Float64` fraction wired into a `Bool` input). A wiring-time error naming both endpoints and both faces.",
-   "new": "4. A type mismatch is a `Float64` fraction wired into a `Bool` input. It fails as a wiring-time error naming both endpoints and both faces (the names ports wear on their component's boundary).",
+   "new": "4. A type mismatch, such as a `Float64` fraction wired into a `Bool` input, fails as a wiring-time error naming both endpoints and both faces (the names ports wear on their component's boundary).",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -995,7 +997,7 @@
   {
    "id": "B4-107",
    "old": "5. Typo'd return field (`P_shft = …` for a declared `P_shaft`). A probe error with did-you-mean (the offending name plus the list-in-hand it should have matched) against `y_types`.",
-   "new": "5. A typo'd return field is `P_shft = …` for a declared `P_shaft`. It fails as a probe error with did-you-mean (the offending name plus the list-in-hand it should have matched) against `y_types`.",
+   "new": "5. A typo'd return field, such as `P_shft = …` for a declared shaft power `P_shaft`, fails as a probe error with did-you-mean (the offending name plus the list-in-hand it should have matched) against `y_types`.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -1049,10 +1051,10 @@
   }
  ],
  "added": [
-  "(each guard the declared predicate of its event)",
+  "(a guard is the declared function defining an event's predicate)",
   "#### Stage membership",
   "This section decides which of a component's values are public.",
-  "It states the visibility rule, then the inspection path for an intermediate, then the checks that hold every stage's returns to the declared set.",
+  "It states the visibility rule, then the inspection path for an intermediate, then the checks that hold stage returns and declarations to each other.",
   "A snapshot is the immutable per-boundary publication.",
   "The return side is checked too."
  ]

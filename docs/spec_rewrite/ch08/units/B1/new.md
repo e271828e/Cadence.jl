@@ -120,8 +120,9 @@ none of the by-value arguments below cover it ([§7.3][s7-3]). `ws_init` alone d
 by allocation, and nothing downstream derives from the type of what it returns.
 
 This is the boundary of legitimate derivation. Deriving from another
-declaration is sound, and deriving from evaluated user code is not. Typed
-stores with synthesized initial values were rejected ([D-073][d-073]).
+declaration is sound, and deriving from evaluated user code is not. Stores
+declared by type, with synthesized initial values, were rejected
+([D-073][d-073]).
 
 The declared values are the base layer of the condition substrate. The
 overlays ([§14.1][s14-1]) fall back to the declared values leaf by leaf, and

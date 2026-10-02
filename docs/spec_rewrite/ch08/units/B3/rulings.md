@@ -108,6 +108,10 @@ None beyond the rulings. Survey findings in this unit left as written:
   … is isbits or a `Symbol`, and Stratum A checks every `init_s`/`init_m`
   field".
 
+- §7.1 added at the new clause "`RQuat` and `Ranged` are domain wrapper
+  types". Spec §7.1: "Domain wrapper types (`RQuat`, `Ranged`) are not state
+  leaves."
+
 ## Rationale-only rulings
 
 - Frozen discrete outputs are semantically exact: D-079 Rationale, log
@@ -164,3 +168,19 @@ values (spec 9570), the frozen-exact typing rule
   metaphor.
 - "`Pinned` has no place in a store" has no live entry. Its only statement
   is D-166 Rejected (log 5807–5808), superseded, so it stays uncited.
+- "The stores are walked by the same rule, with no marker" cites D-263,
+  whose Position bullet 1 carries the `x_init` walk. The "with no marker"
+  half has no live entry either: only superseded D-166 states it. The text
+  is unchanged; track 2 owes a Position.
+- Reader-cold names, after the verifier's report. `RQuat` and `Ranged` take
+  one clause from spec §7.1 (old 1504, "Domain wrapper types (`RQuat`,
+  `Ranged`) are not state leaves"): "`RQuat` and `Ranged` are domain wrapper
+  types (§7.1)". `GearContact` takes "Here `GearContact` is a landing-gear
+  contact", as the coordinator directed. The moving deck takes "a moving
+  ship deck, whose heave and pitch are continuous state", from
+  `handle_walk_walkthrough.md` line 52. The static terrain stays as written,
+  since "built from build-time data alone" already says what it is.
+  `MyStruct` is a placeholder and takes nothing.
+- "The companion `handle_walk_walkthrough.md`" became "The walkthrough …",
+  so *companion* keeps one sense in the block, beside "The companion
+  obligation".

@@ -88,7 +88,7 @@
   {
    "id": "D-011",
    "old": "Why. The domain hierarchies (`AbstractAircraft`, the engine families) have to carry both classes.",
-   "new": "First, the domain hierarchies (`AbstractAircraft`, the engine families) have to carry both classes.",
+   "new": "First, the domain hierarchies have to carry both classes. In an aircraft library, for example, these are `AbstractAircraft` and the engine families.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -96,7 +96,7 @@
   {
    "id": "D-012",
    "old": "A field declared `E <: AbstractEngine` must accept a primitive `PistonEngine` and a composite turbofan assembly alike.",
-   "new": "a field declared `E <: AbstractEngine` must accept a primitive `PistonEngine` and a composite turbofan assembly alike.",
+   "new": "A field declared `E <: AbstractEngine` must accept a primitive `PistonEngine` and a composite turbofan assembly alike.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -278,7 +278,7 @@
   {
    "id": "D-032",
    "old": "and the walk that retypes a continuous leaf's contracts is applied by the build, never requested by a `T` in the declaration.",
-   "new": "A by-type declaration walks by the same rule, and where a leaf must not follow the scalar the author says so at the leaf, with `Pinned`, which is why `u_types` and `y_types` take the component alone too.",
+   "new": "A by-type declaration walks by the same rule, and where a leaf must not follow the scalar the author says so at the leaf, with `Pinned`, which is why `u_types` and `y_types` take the component alone too. A by-allocation declaration is the exception. It builds values the framework may not rebuild, so the scalar can come from nowhere but its own argument, and `ws_init(c, T)` takes it on both tiers (D-077). The criterion, not uniformity, is the rule. A `T` in a signature means the framework could not have supplied it.",
    "where": "units/B1/old.md",
    "cites": [],
    "tag": "R",
@@ -287,8 +287,8 @@
   {
    "id": "D-033",
    "old": "There is consequently no signature-shape violation to name.",
-   "new": "No arity carries a tier. Every declaration takes the component alone, and `ws_init` takes the scalar on both tiers (D-263).",
-   "where": "units/B4/old.md",
+   "new": "`TierSignatureMismatch` retires with all three arms.",
+   "where": "docs/design/decisions.md",
    "cites": [],
    "tag": "R",
    "ruling": "R5"
@@ -598,18 +598,19 @@
   {
    "id": "D-066",
    "old": "`transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error.",
-   "new": "- `transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error (D-211).",
+   "new": "- `transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error (D-211, D-215).",
    "where": "new",
    "cites": [],
    "tag": "C",
    "newcites": [
-    "D-211"
+    "D-211",
+    "D-215"
    ]
   },
   {
    "id": "D-067",
    "old": "The one ambiguity this leaves, a transparent element's bare key equal to its own field's name, joins the bare-key collision error above.",
-   "new": "The `sample_times` sugar of §8.7, where a container's bare field name keys one declaration for all its elements, leaves one ambiguity. A transparent element's bare key equal to its own field's name joins this collision error (D-215).",
+   "new": "The `sample_times` sugar of §8.7, where a container's bare field name keys one declaration for all its elements, leaves only one ambiguity. A transparent element's bare key equal to its own field's name joins this collision error (D-215).",
    "where": "new",
    "cites": [],
    "tag": "C",
@@ -821,7 +822,6 @@
  "added": [
   "This section states how an assembly is declared, how a type's declarations mark it as an assembly or a primitive, how container fields contribute children, and how `Group` assembles components on the fly.",
   "Two reasons rule out a supertype for class (a component's primitive-vs-assembly status).",
-  "In an aircraft library, for example,",
   "That section states the arity rule and tier agreement in full."
  ]
 }

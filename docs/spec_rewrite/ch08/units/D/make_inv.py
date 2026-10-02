@@ -32,9 +32,9 @@ c("#### Class by declaration shape", "#### Class by declaration shape", "X")
 c("There is no `AbstractAssembly`, only one root `AbstractComponent` (D-039).",
   "There is no `AbstractAssembly`, only one root `AbstractComponent` (D-039).", "F", ["D-039"])
 c("Why. The domain hierarchies (`AbstractAircraft`, the engine families) have to carry both classes.",
-  "First, the domain hierarchies (`AbstractAircraft`, the engine families) have to carry both classes.")
+  "First, the domain hierarchies have to carry both classes. In an aircraft library, for example, these are `AbstractAircraft` and the engine families.")
 c("A field declared `E <: AbstractEngine` must accept a primitive `PistonEngine` and a composite turbofan assembly alike.",
-  "a field declared `E <: AbstractEngine` must accept a primitive `PistonEngine` and a composite turbofan assembly alike.")
+  "A field declared `E <: AbstractEngine` must accept a primitive `PistonEngine` and a composite turbofan assembly alike.")
 c("And class is implementation detail behind the contract (§8.3).",
   "Second, class is implementation detail behind the contract (a component's declared interface, §8.3).", "F", ["§8.3"])
 c("Class (a component's primitive-vs-assembly status) is declared instead by which well-known declarations a type defines.",
@@ -72,11 +72,11 @@ c("A signature therefore never spells the tier.",
 c("The tier is read from the store every leaf declares (§8.2),",
   "The tier is read from the store every leaf declares (§8.2).", "R", ["§8.2"], ruling="R5")
 c("and the walk that retypes a continuous leaf's contracts is applied by the build, never requested by a `T` in the declaration.",
-  "A by-type declaration walks by the same rule, and where a leaf must not follow the scalar the author says so at the leaf, with `Pinned`, which is why `u_types` and `y_types` take the component alone too.",
+  "A by-type declaration walks by the same rule, and where a leaf must not follow the scalar the author says so at the leaf, with `Pinned`, which is why `u_types` and `y_types` take the component alone too. A by-allocation declaration is the exception. It builds values the framework may not rebuild, so the scalar can come from nowhere but its own argument, and `ws_init(c, T)` takes it on both tiers (D-077). The criterion, not uniformity, is the rule. A `T` in a signature means the framework could not have supplied it.",
   "R", where=B1, ruling="R5")
 c("There is consequently no signature-shape violation to name.",
-  "No arity carries a tier. Every declaration takes the component alone, and `ws_init` takes the scalar on both tiers (D-263).",
-  "R", where=B4, ruling="R5")
+  "`TierSignatureMismatch` retires with all three arms.",
+  "R", where="docs/design/decisions.md", ruling="R5")
 c("A declaration on the wrong tier is `DeclarationOnWrongTier` (Appendix C),",
   "A declaration on the wrong tier is `DeclarationOnWrongTier` (Appendix C).", "R", ["Appendix C"], ruling="R5")
 c("and a marker meaningful on one tier alone, `Pinned` on a discrete leaf, is the same kind.",
@@ -137,9 +137,9 @@ c("An empty field reserves nothing, because it reaches no children and its value
 c("The judgment is therefore per-instantiation, like every wiring judgment (D-212).",
   "The judgment is therefore per-instantiation, like every wiring judgment.", "F", ["D-212"], ["D-212"])
 c("`transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error.",
-  "- `transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error (D-211).", "C", [], ["D-211"])
+  "- `transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error (D-211, D-215).", "C", [], ["D-211", "D-215"])
 c("The one ambiguity this leaves, a transparent element's bare key equal to its own field's name, joins the bare-key collision error above.",
-  "The `sample_times` sugar of §8.7, where a container's bare field name keys one declaration for all its elements, leaves one ambiguity. A transparent element's bare key equal to its own field's name joins this collision error (D-215).",
+  "The `sample_times` sugar of §8.7, where a container's bare field name keys one declaration for all its elements, leaves only one ambiguity. A transparent element's bare key equal to its own field's name joins this collision error (D-215).",
   "C", [], ["§8.7", "D-215"])
 # Builder (M4)
 c("#### The builder is rejected",
@@ -189,7 +189,6 @@ c("What that declaration buys is that a `Group`'s wiring and rate declarations r
 added = [
  "This section states how an assembly is declared, how a type's declarations mark it as an assembly or a primitive, how container fields contribute children, and how `Group` assembles components on the fly.",
  "Two reasons rule out a supertype for class (a component's primitive-vs-assembly status).",
- "In an aircraft library, for example,",
  "That section states the arity rule and tier agreement in full.",
 ]
 for x in C:

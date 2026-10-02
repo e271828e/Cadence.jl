@@ -77,7 +77,7 @@ c("This is the boundary of legitimate derivation.", "This is the boundary of leg
 c("Deriving from another declaration is sound, and deriving from evaluated user code is not.",
   "Deriving from another declaration is sound, and deriving from evaluated user code is not.")
 c("Declaring types here too, `u_types`-style, with `probe_value` (§9.3) synthesizing the initial values, was rejected (D-073).",
-  "Typed stores with synthesized initial values were rejected (D-073).", "R", newcites=["D-073"], ruling="R4")
+  "Stores declared by type, with synthesized initial values, were rejected (D-073).", "R", newcites=["D-073"], ruling="R4")
 c("`u_types`-style, with `probe_value` (§9.3) synthesizing the initial values",
   "`init_` as types + `probe_value` synthesis", "R", where="docs/design/decisions.md", ruling="R4")
 c("Why. The declared values are the base layer of the condition substrate",
@@ -123,6 +123,8 @@ added = [
   "The store names each leaf because",
   "`ws_init` allocates",
   "which is described below.",
+  "Because the type is derived from the value",
+  "`x_init(::Gain) = (;) s_init(::Sampler) = (;)`",
 ]
 json.dump({"claims": claims, "added": added}, open(os.path.join(HERE, "inventory.json"), "w"), indent=1, ensure_ascii=False)
 print(len(claims), "claims")

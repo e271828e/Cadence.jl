@@ -8,14 +8,15 @@ stage membership and completeness, then §8.3 and §8.4. M1 and M2 took
 
 1. Old 2574–2575: "Every declaration takes the component alone, and
    `ws_init` takes the scalar on both tiers ([D-263][d-263])." This is the
-   problem F22 found at 2216 and 2870–2871, and the sentence contradicts
-   itself. The stages, update laws, guards, handlers and `x_projection` take
-   a bundle or a state as well, and `ws_init` takes the scalar. The
+   problem F22 found at 2216 and 2870–2871. The stages, update laws, guards,
+   handlers and `x_projection` take a bundle or a state as well. The
    evidence is D-263 Position, log 10171: "Every contract declaration takes
-   the component alone on both tiers". F22 rules only 2216 and 2870–2871, so
-   the sentence is carried as written. Proposed text: "Every contract
-   declaration takes the component alone, and `ws_init` takes the scalar on
-   both tiers ([D-263][d-263])."
+   the component alone on both tiers". **Ruled in as R13**, which extends
+   R7's F22. The sentence now reads "Every declaration of a structural fact
+   takes the component alone, except `ws_init`, which takes the scalar on
+   both tiers", using the words units B1 and D use. The re-check asked for
+   "except" so the sentence no longer contradicts itself. The inventory
+   tags it `R`, ruling `R13`.
 
 ## Citations added or replaced
 
@@ -45,9 +46,13 @@ stage membership and completeness, then §8.3 and §8.4. M1 and M2 took
   outputs; ... undeclared stage-return fields = build error".
 - **D-034** at the bold branch-shape rule. Position, log 1056:
   "branch-shape-stable returns".
-- **D-034** at the bold "Schema authority is total over the table" (R9).
-  Position: "undeclared stage-return fields = build error". With every
-  returned field declared, every cell traces to a declaration.
+- **D-032 and D-034** at the unbolded "Schema authority is total over the
+  table" (R9, and the verifier's fix). D-032 Position, log 980–981: "schema
+  authority — declarations define, probe evaluation checks (build probe with
+  real values + free always-on conformance)". D-034 Position, log 1056:
+  "undeclared stage-return fields = build error". With every returned field
+  declared, every cell traces to a declaration. The phrase "schema
+  authority total" itself is D-055's (log 1570), which R9 keeps out.
 - **D-239** at "Return typos cannot silently define new cells" (R9).
   Position, log 8828–8829: "A stage returning a field `output_types` does not
   declare is reported by the port check's `UndeclaredReturnField` alone."
@@ -62,7 +67,9 @@ stage membership and completeness, then §8.3 and §8.4. M1 and M2 took
   1584–1585) holds the opt-in variant with the `Float64`-under-`Dual`
   diagnostic. D-055's status is ratified and its Rejected list stands.
 - **D-194** moved one sentence earlier, from "One line in `y_types` ..." to
-  the bold "The inspection path for an intermediate is declaration".
+  "The inspection path for an intermediate is declaration". That sentence is
+  unbolded, because the next one makes it a consequence of the visibility
+  rule.
   Position, log 6860–6862: "a cross-stage intermediate is an ordinary declared
   port".
 - **§8.5** pointer added at "the same move as class-by-declaration-shape".
@@ -97,9 +104,17 @@ nowhere in the log, so the clause stays in the pointer sentence.
   of the type. Unit B1 bolds the by-value `init_*` ruling. B4 bolds stage
   membership, derived, with no stage tags. These are three different rulings
   of D-033's Position and Rationale, so none is a double.
-- **D-034.** B4 bolds three of its Position's chained rulings in §8.3:
-  visibility (declared = public), the branch-shape rule, and schema
-  authority (undeclared returns are errors). No other unit bolds D-034.
+- **D-034.** B4 bolds two of its Position's chained rulings in §8.3:
+  visibility (declared = public) and the branch-shape rule. The schema
+  authority sentence is unbolded (see D-032 below). No other unit bolds D-034.
+- **D-032.** Unit A bolds "Declarations *define* the model's structure"
+  (D-032's schema-authority ruling) in §8.1. B4 bolds "Schema authority is
+  total over the table", citing D-032 beside D-034. B4's bold states the
+  ruling's reach over the table, the undeclared-return clause of D-034. It
+  could be read as a second bold on D-032's schema-authority ruling.
+  **Ruled by the coordinator:** D-032's schema-authority ruling is one
+  ruling, bold in §8.1, where it is stated first. B4's sentence is unbolded
+  and keeps both citations, D-032 and D-034.
 - **D-252.** B4 bolds "A declared port must be produced by exactly one
   stage" in §8.3. Spec §5.3 (old 879–880, chapter 5, not yet rewritten)
   states the same ruling under a **Rule.** label. Chapter 5's rewrite must
@@ -135,3 +150,11 @@ nowhere in the log, so the clause stays in the pointer sentence.
   that a parameter is a plain struct field. It is carried verbatim.
 - The R4 pointer keeps "its satellite-function representation", which the
   log does not carry. Either the log records it, or a later pass drops it.
+- "decoder" in "the 'decoder takes no inputs' property" (§8.2, stage
+  membership) is left unglossed. Neither B4's old text nor the glossary says
+  what it is. Spec §7.4 (line 1810) calls stage 1 "the stage-1 decoder itself
+  (today's `y_state`)", and that line could source a gloss later.
+- Reader-cold names, after the verifier's report. FlightCore's `Model`
+  became "FlightCore's model output", and `P_shaft` is introduced as "a
+  declared shaft power". "split state letters" (D-195) and "the didactic
+  style" stay as written, as ruled.

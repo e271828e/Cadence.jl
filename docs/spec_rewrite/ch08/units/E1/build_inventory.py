@@ -18,7 +18,7 @@ c("There is one canonical form, shared verbatim by declarations, error messages,
   "There is one canonical form. Declarations, error messages, device/trace addressing (§11.3) and the HDF5 log tree share it verbatim.",
   ["§11.3"])
 c("Container children (§8.5) add index and key segments, `\"aircraft/2\"` and `\"aircraft/red\"`, which are ordinary segments resolved against the container field.",
-  "Container children (the elements of a tuple field holding only components, §8.5) add index and key segments, `\"aircraft/2\"` and `\"aircraft/red\"` (D-085). These are ordinary segments, resolved against the container field.",
+  "Container children (the elements of a `Tuple` or `NamedTuple` field holding only components, §8.5) add index and key segments, `\"aircraft/2\"` and `\"aircraft/red\"` (D-085). These are ordinary segments, resolved against the container field.",
   ["§8.5"], ["§8.5", "D-085"], tag="C")
 c("A container declared name-transparent (§8.5) adds no segment of its own, and its elements go by bare key.",
   "A container declared name-transparent (§8.5) adds no segment of its own, and its elements go by bare key (D-211).",
@@ -107,7 +107,8 @@ c("The resolved endpoints only cross-check it, and an entry whose endpoint resol
 c("A mixed entry is not expressible, because the single list that made that error class possible does not exist.",
   "A mixed entry is not expressible, because the single list that made that error class possible does not exist.")
 c("Two entries producing the same output face remain the ordinary two-producers error.",
-  "Two entries producing the same output face remain the ordinary two-producers error.")
+  "Two entries producing the same output face remain the ordinary two-producers error (§6.1).",
+  newcites=["§6.1"], tag="C")
 c("Face types and tiers are derived from the internal endpoints, which is the blessed derivation-from-declarations (§8.2).",
   "Face types and tiers are derived from the internal endpoints (D-041). A tier is the continuous or discrete side of the hybrid formalism. This derivation is the blessed (explicitly sanctioned) derivation-from-declarations (§8.2).",
   ["§8.2"], ["D-041", "§8.2"], tag="C")
@@ -117,7 +118,7 @@ c("An assembly is tier-neutral, exporting continuous-sourced and discrete-source
   "An assembly is tier-neutral. It exports continuous-sourced and discrete-sourced ports side by side. A face's cells (entries of the signal table) follow the producer's own declaration (§8.5). They are evaluated at the activation scalar on the continuous tier and pinned on the discrete.",
   ["§8.5"])
 c("Three alternative spellings are rejected (D-041, D-170)",
-  "Three alternative spellings are rejected (D-041, D-170).", ["D-041", "D-170"], tag="R", ruling="R4")
+  "Three alternative spellings are rejected (D-041).", ["D-041", "D-170"], ["D-041"], tag="R", ruling="R4")
 c("routing values under the leaf names `u_types`/`y_types`",
   "Routing values under leaf `inputs`/`outputs` names: name-level pun", where=DEC, tag="R", ruling="R4")
 c("leaf-style typed faces with face wires inside `inner_connections`",
@@ -173,14 +174,15 @@ c("The two discrete children default to `Relative(1)` anyway, so this `sample_ti
   "The second is that the two discrete children default to `Relative(1)` anyway, so this `sample_times` declaration is declaratory. Their absolute rate arrives from the enclosing scope at deployment (§8.7).",
   ["§8.7"])
 c("And the latch-back wire (below), where the integrals consume the sampler's published latch, joins `inner_connections` as one more ordinary pair.",
-  "The latch-back wire (below), where the integrals consume the sampler's published latch, would join `inner_connections` as one more ordinary pair.",
+  "The latch-back wire (below, under \"The boundary-sampling contract\"), where the integrals consume the sampler's published latch, would join `inner_connections` as one more ordinary pair.",
   tag="R", ruling="R7")
 
 ADDED = [
   "An assembly (a component of pure composition, with no dynamics of its own) wires its children and names its boundary with strings.",
-  "This section fixes the path form, the three wiring declarations and the direction invariant they share, face names, root inputs, and face uniqueness at the root.",
-  "A worked assembly, the strapdown IMU, closes the section.",
-  "(the elements of a tuple field holding only components,",
+  "This section fixes the path form, the three wiring declarations and the direction invariant they share, face names, root inputs (the root component's own input faces), and face uniqueness at the root.",
+  "It then spells out a worked assembly, the strapdown IMU, and its leaves.",
+  "It closes with the boundary-sampling contract.",
+  "(the elements of a `Tuple` or `NamedTuple` field holding only components,",
   "A face is the name a port wears on its component's boundary.",
   "(the immutable per-boundary publication)",
   "A tier is the continuous or discrete side of the hybrid formalism.",

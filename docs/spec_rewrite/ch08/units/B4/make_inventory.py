@@ -85,7 +85,8 @@ c("`m_init`, `state_events` and `x_projection` are continuous-only, because the 
 c("A `Pinned` entry in a contract is continuous-only, because the discrete tier pins wholesale and the marker there says nothing.")
 c("No arity carries a tier.")
 c("Every declaration takes the component alone, and `ws_init` takes the scalar on both tiers (D-263).",
-  cites=["D-263"], note="carried as written; F22's scope problem applies here too, see rulings.md")
+  "Every declaration of a structural fact takes the component alone, except `ws_init`, which takes the scalar on both tiers (D-263).",
+  "R", cites=["D-263"], ruling="R13", note="R13 extends R7's F22 to old 2574; same words as units B1 and D")
 c("Disagreement is `DeclarationOnWrongTier` (Appendix C)", cites=["Appendix C"])
 c("reported as the offending declaration with the tier the leaf's other declarations announce.",
   "It is reported as the offending declaration, with the tier the leaf's other declarations announce.")
@@ -124,11 +125,12 @@ c("Visibility is binary, with no third class between the two.")
 c("A value a later function reads travels as a declared port like any other (§5.2).", cites=["§5.2"])
 c("The inspection path for an intermediate is therefore declaration.",
   "The inspection path for an intermediate is declaration (D-194). That follows from the visibility rule above.",
-  "F", newcites=["D-194"], note="D-194 moves one sentence earlier, onto the bold headline")
+  "F", newcites=["D-194"], note="D-194 moves one sentence earlier; unbolded, as the next sentence makes it a consequence")
 c("One line in `y_types` makes it public, checked and visible everywhere at once (D-194).",
   "One line in `y_types` makes it public, checked and visible everywhere at once.",
   cites=["D-194"], newcites=[])
-c("FlightCore is the precedent, where an intermediate was inspected by putting it in the `Model` output and no other way.")
+c("FlightCore is the precedent, where an intermediate was inspected by putting it in the `Model` output and no other way.",
+  "FlightCore is the precedent, where an intermediate was inspected by putting it in FlightCore's model output and no other way.")
 c("Publicity is never implicit.")
 c("Even the minimal component writes `y_types(::LowPassFilter) = (x = Float64,)`, one line, in exchange for \"public\" always meaning someone wrote it down.")
 c("- Conformance. A declared port must be produced by exactly one stage, stage 1 or stage 2 (D-252).",
@@ -154,7 +156,7 @@ c("- Branch-shape rule. Stage returns must have the same `NamedTuple` shape on e
 c("Julia's type-stability discipline already demands that for performance.")
 c("The framework merely makes it a stated rule with a good error.")
 c("- Schema authority is total over the table",
-  "Schema authority is total over the table (D-034)", "R", newcites=["D-034"], ruling="R9",
+  "Schema authority is total over the table (D-032, D-034)", "R", newcites=["D-032", "D-034"], ruling="R9",
   note="R9 puts D-034 and D-239 where 2660 cited D-055; D-034 Position carries the headline")
 c("(declarations define structure; evaluation only checks conformance).",
   "Schema authority means declarations define structure and evaluation only checks conformance.")
@@ -196,14 +198,14 @@ c("D-032 carries the traces.", cites=["D-032"])
 c("1. Typo'd wire (`:throtle`). A build error at the connection, \"no input `throtle`; did you mean `throttle`?\"",
   "1. A typo'd wire (`:throtle`) is a build error at the connection, \"no input `throtle`; did you mean `throttle`?\"")
 c("2. Forgotten wire (`fuel_available`, read only by a guard). The §6.1 unconnected-input error at build.",
-  "2. A forgotten wire is `fuel_available`, read only by a guard (the declared function defining an event's predicate). It fails as the §6.1 unconnected-input error at build.",
+  "2. A forgotten wire, such as `fuel_available` read only by a guard (the declared function defining an event's predicate), fails as the §6.1 unconnected-input error at build.",
   cites=["§6.1"])
 c("3. Forgotten branch field (`P` returned by one branch only). A probe or first-execution error naming the declared port.",
-  "3. A forgotten branch field is `P`, returned by one branch only. It fails as a probe or first-execution error naming the declared port.")
+  "3. A forgotten branch field, such as `P` returned by one branch only, fails as a probe or first-execution error naming the declared port.")
 c("4. Type mismatch (a `Float64` fraction wired into a `Bool` input). A wiring-time error naming both endpoints and both faces.",
-  "4. A type mismatch is a `Float64` fraction wired into a `Bool` input. It fails as a wiring-time error naming both endpoints and both faces (the names ports wear on their component's boundary).")
+  "4. A type mismatch, such as a `Float64` fraction wired into a `Bool` input, fails as a wiring-time error naming both endpoints and both faces (the names ports wear on their component's boundary).")
 c("5. Typo'd return field (`P_shft = …` for a declared `P_shaft`). A probe error with did-you-mean (the offending name plus the list-in-hand it should have matched) against `y_types`.",
-  "5. A typo'd return field is `P_shft = …` for a declared `P_shaft`. It fails as a probe error with did-you-mean (the offending name plus the list-in-hand it should have matched) against `y_types`.")
+  "5. A typo'd return field, such as `P_shft = …` for a declared shaft power `P_shaft`, fails as a probe error with did-you-mean (the offending name plus the list-in-hand it should have matched) against `y_types`.")
 c("That one error is the whole report.")
 c("The probe chain stops at the port check (§13.1, D-239), and an unproduced-`P_shaft` error would only restate it from the other side, since renaming the field produces the port.",
   cites=["§13.1", "D-239"])
@@ -214,10 +216,10 @@ c("An intermediate a later function reads is declared like any other output and 
   cites=["§8.3"])
 
 ADDED = [
-    "(each guard the declared predicate of its event)",
+    "(a guard is the declared function defining an event's predicate)",
     "#### Stage membership",
     "This section decides which of a component's values are public.",
-    "It states the visibility rule, then the inspection path for an intermediate, then the checks that hold every stage's returns to the declared set.",
+    "It states the visibility rule, then the inspection path for an intermediate, then the checks that hold stage returns and declarations to each other.",
     "A snapshot is the immutable per-boundary publication.",
     "The return side is checked too.",
 ]

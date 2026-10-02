@@ -805,14 +805,10 @@
   {
    "id": "A-089",
    "old": "A declaration names its content, never the consequence the declaration has.",
-   "new": "A declaration names the consequence it has, not its content (D-146).",
+   "new": "A declaration names its content, never the consequence the declaration has.",
    "where": "new",
    "cites": [],
-   "newcites": [
-    "D-146"
-   ],
-   "tag": "R",
-   "ruling": "R8"
+   "tag": "F"
   },
   {
    "id": "A-090",
@@ -956,7 +952,7 @@
   {
    "id": "A-105",
    "old": "The value-discarding signature `u_types(::Engine)` is the visible form of the rule.",
-   "new": "The value-discarding signature `u_types(::Engine)` is the visible form of the rule.",
+   "new": "The value-discarding signature `u_types(::Engine)` is the visible form of the rule (`Engine` is the example component of §8.2).",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -1088,7 +1084,10 @@
  ],
  "added": [
   "On the component side, §8.1 lays the foundations of the declaration layer, §8.2 lists the declaration inventory, §8.3 says what a contract makes visible, and §8.4 gives the five failure walkthroughs that ground error locality.",
-  "On the assembly side, §8.5 covers assembly declaration and how a type's class is read, §8.6 covers paths, wiring and faces, §8.7 covers rate scopes, and §8.8 covers computed connections and generic holding.",
+  "On the assembly side, §8.5 covers assembly declaration and how a type's class is read.",
+  "§8.6 covers paths, wiring and faces, works them through the strapdown IMU, and ends with the boundary-sampling contract.",
+  "§8.7 covers rate scopes, and §8.8 covers computed connections and generic holding.",
+  "(`Engine` is the example component of §8.2)",
   "(the continuous or discrete side of the hybrid formalism)",
   "the per-component panel extensions in FlightCore's style (§11.7)",
   "one per subsection",

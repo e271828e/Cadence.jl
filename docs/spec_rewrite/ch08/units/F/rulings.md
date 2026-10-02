@@ -45,9 +45,6 @@ None beyond R7's. One observation for the owner, left as written:
   bullet 1: "`Deployment` is the build plus `h`, `N_base`, `Δt_base`".
 - D-039 replaces "§8.1; D-039" at "structure kept in two artifacts" (R7 F7).
   Rejected: "dispatch type and structure recipe drift apart".
-- D-043 at "ordinary functions evaluated at build against the concrete
-  instance" and at "Computed entries mix freely". Position: "Computed exports
-  as ordinary code + `faces(asm, path; prefix, except, only)`".
 - D-043 at "What computation does *not* do is auto-bubble". Rejected:
   "Auto-bubbling: forgotten wire silently promoted to a live root slot"
   (Rationale-only, below).
@@ -87,6 +84,9 @@ None beyond R7's. One observation for the owner, left as written:
 
 ## Rationale-only rulings
 
+- D-039, Rejected, log 1197–1198: structure kept in two artifacts ("dispatch
+  type and structure recipe drift apart"); the Position does not carry it.
+
 - D-042, Rejected, log 1255–1256: the declaration belongs to the type, not
   the instance.
 - D-085, Rationale, log 2490–2491: element names as rate keys and the
@@ -108,7 +108,8 @@ None beyond R7's. One observation for the owner, left as written:
 - D-251's selector ruling is bold here ("The selectors are exclusive") and
   in §13.7, spec 9469 ("The passthrough helpers take a predicate"), both on
   the Position's first sentence. §13.7 is outside chapter 8; flagged for the
-  owner.
+  owner. Mine is kept; the §13.7 edit (unbolding or recasting spec 9469) is
+  outside the chapter and goes to the rulings batch.
 - D-207's immediate-child rule is bold in §6.1 (spec 1233). The old bold on
   "**immediate**" (3311) is therefore dropped here; the sentence cites D-207
   plainly.
@@ -138,6 +139,14 @@ None loses its target. Checked:
   still does (track 2).
 
 ## Open questions
+
+- Two claims are uncited after the verifier's check: "`u_connections` and
+  `y_connections` are ordinary functions evaluated at build against the
+  concrete instance" and "Computed entries mix freely with hand-written ones
+  in either declaration". D-043's Position says only "Computed exports as
+  ordinary code + `faces(…)`", its Rationale is "Recorded only through the
+  rejections below", and no Rejected item states either claim. The citations
+  are dropped; an entry may be owed.
 
 - The glossary gloss for *seam* ("a narrow, named interface kept
   deliberately thin") is attached to "generic seam". The glossary entry lists

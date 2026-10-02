@@ -75,7 +75,7 @@ A few names in the code below need an introduction. `RQuat` is the domain
 wrapper an attitude `SVector{4}` is cast to where rotation semantics are wanted
 ([§7.1][s7-1]). `Attitude.dt` gives the coning bullet's quaternion
 derivative, and `RVec` turns the interval rotation `Δq` into the vector the
-sample carries. `IMUSample` is the sampler's output struct. `FrameTransform`
+sample carries. `IMUSample` is the type of the sampler's `sample` output. `FrameTransform`
 is one of the payload types [§7.2][s7-2] lists as walked.
 
 ```julia
@@ -123,10 +123,11 @@ s_update(smp::IMUSampler, (; u)) = (Θ = u.Θ, q = u.q, Υ = u.Υ, V = u.V)   # 
 The `IMU` assembly wires the four integral ports across. It holds the error
 model as a discrete sibling consuming `sample`, and it leaves the sampler at
 `K = 1` (its `sample_times` entry is `Relative(1)`) in its own scope. The
-parent sets the IMU's rate ([§8.7][s8-7]). `Δt` in the stage
+parent sets the IMU's rate ([§8.7][s8-7]). `Δt` arrives in the stage
 [bundle](#g-bundle) (the NamedTuple of zero-copy views a component function
-receives) is the single source of truth ([§10.5][s10-5]). It is there for
-exactly this kind of discretized law.
+receives) from its single source of truth, the deployment's `Schedule`
+([§10.5][s10-5]). It is in the bundle for exactly this kind of discretized
+law.
 
 Initialization is consistent too. The sampler's `s` must equal the initial
 integrals, or the `t₀` sample is wrong. That holds by default at
@@ -143,21 +144,22 @@ sets a build to a state) under trim ([§14.5][s14-5]).
 
 The sculling line is correct only because a due [tick](#g-tick) samples the
 *completed* boundary. A tick is an instant at which a discrete component's
-stages and update run. If `u.V` still held the previous boundary's decode, it would equal
-`s.V` exactly, since that is the value `s_update` latched. Sculling would
-then vanish without an error anywhere.
+stages and update run. If `u.V` still held the previous boundary's decode,
+it would equal `s.V` exactly, since that is the value `s_update` latched.
+Sculling would then vanish without an error anywhere.
 
 The guarantee is the boundary macro-sequence of [§10.6][s10-6], not a
-scheduling accident. The sequence is integrate, project,
-[sweep](#g-sweep) (one pass through the execution order). The due sampler's
-stages are gated *into* that sweep ([§10.5][s10-5]). The integrals arrive at
-stage-1 position, returned by `y_state` ([§5.3][s5-3]). They arrive before
+scheduling accident. The sequence is integrate,
+[project](#g-projection), [sweep](#g-sweep) (one pass through the execution
+order). Projection is the `x_projection` hook, run after integration. The due
+sampler's stages are gated *into* that sweep ([§10.5][s10-5]). The integrals
+arrive at stage-1 position, returned by `y_state` ([§5.3][s5-3]). They arrive before
 any stage-2 function runs, regardless of topological placement.
 
 The rest of the timeline closes consistently. The sampler's `y_direct`
 decodes `s`, the `t_{k-1}` latch, *before* `s_update` runs. That is the
 `z⁻¹` semantics, the one-sample delay of sampled-data control. After event
-[quiescence](#g-quiescence) (the point where a round of handlers fires
+[quiescence](#g-quiescence) (the point where an event round fires
 nothing), `s_update` latches the `t_k` values for the next tick.
 Same-boundary events re-run the gated stages in their re-sweeps. So
 `s_update` and external readers see the settled boundary.
@@ -165,9 +167,8 @@ Same-boundary events re-run the gated stages in their re-sweeps. So
 #### The boundary-sampling contract
 
 The clean implementation leans on the author *knowing* that "sampling at
-`t_k`" means post-integration, post-[projection](#g-projection),
-stage-1-fresh state. Projection is the `x_projection` hook, run after
-integration. **That knowledge must be part of the framework's taught
+`t_k`" means post-integration, post-projection,
+stage-1-fresh state. **That knowledge must be part of the framework's taught
 contract**, not internal lore ([D-056][d-056]). The semantics of
 [§10.5][s10-5] and [§10.6][s10-6] must be stated in component-author
 documentation ([Appendix A][sA]), with this IMU as the worked example.

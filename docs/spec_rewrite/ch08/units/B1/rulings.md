@@ -14,8 +14,8 @@ Ruled edits applied:
   allocator takes the component alone", bold, cited to D-263.
 - **R7 F3.** Old 2187–2188: "and a one-field store publishes its field as the
   port of that name (§5.3)" deleted (D-252 Position, log 9445–9447).
-- **R4.** Old 2201–2203 becomes "Typed stores with synthesized initial values
-  were rejected (D-073)". The cut details, `u_types`-style and `probe_value`
+- **R4.** Old 2201–2203 becomes "Stores declared by type, with synthesized
+  initial values, were rejected (D-073)". The cut details, `u_types`-style and `probe_value`
   (§9.3), map to D-073 Rejected, log 2112: "`init_*` as types +
   `probe_value` synthesis". The log span is richer (log 2112–2124).
 
@@ -46,12 +46,16 @@ All are additions. None replaces an old citation.
   Position bullet 4 (log 10189–10191): "keeps its scalar and takes it on
   **both** tiers". Not bold, since §7.3 1715 holds the rule.
 - **D-079**, at "Partials enter through per-invocation seeding, never through
-  initialization". Rationale only, below.
+  initialization". Rationale only, below. Rationale (log 2316): "per-invocation
+  seeding, never typing"; and for "never through initialization", Rationale
+  (log 2309–2310): "declared `Float64` initial values embedding as
+  zero-partial constants".
 
 ## Rationale-only rulings
 
-- **D-079, Rationale (log 2316).** "differentiation participation =
-  per-invocation seeding, never typing". Survey part E, "Rulings that need an
+- **D-079, Rationale (log 2316, 2309–2310).** "differentiation participation =
+  per-invocation seeding, never typing", and "declared `Float64` initial
+  values embedding as zero-partial constants". Survey part E, "Rulings that need an
   entry stating them in a Position", item 3. Not bold. The log owes a live
   Position.
 - **D-263, Rationale (log 10207–10212)**, for "The criterion, not uniformity,
@@ -89,9 +93,9 @@ R4 either (only D-073 Rejected, log 2116–2117, does). Track 2.
 - **`TierUnreadable` unbolded here.** D-263 Position bullet 6 rules it with
   `StatelessWithoutOutputs`; B4's completeness block states both together, so
   B4 is the natural place for that bold.
-- **`init_*`** at the asymmetry paragraph is the log's old naming for
-  `x_init`/`s_init`/`m_init`; carried verbatim. `*_init` would be the current
-  spelling.
+- **`init_*`** at the asymmetry paragraph: closed. It stays as written,
+  since the spec uses that family name in several chapters, chapter 9
+  included.
 - **Display block added**: `x_init(::Gain) = (;)` and `s_init(::Sampler) =
   (;)` set as display code (survey part C, "Code blocks", lists the stateless
-  forms as a candidate).
+  forms as a candidate). Declared in `inventory.json`'s `added` list.

@@ -22,10 +22,10 @@ names, as "Container children" below states.
 **There is no `AbstractAssembly`, only one root `AbstractComponent`**
 ([D-039][d-039]). Two reasons rule out a supertype for
 [class](#g-class) (a [component](#g-component)'s primitive-vs-assembly
-status). First, the domain hierarchies (`AbstractAircraft`, the engine
-families) have to carry both classes. In an aircraft library, for example, a
-field declared `E <: AbstractEngine` must accept a primitive `PistonEngine`
-and a composite turbofan assembly alike. Second, class is implementation
+status). First, the domain hierarchies have to carry both classes. In an
+aircraft library, for example, these are `AbstractAircraft` and the engine
+families. A field declared `E <: AbstractEngine` must accept a primitive
+`PistonEngine` and a composite turbofan assembly alike. Second, class is implementation
 detail behind the [contract](#g-contract) (a component's declared interface,
 [§8.3][s8-3]).
 
@@ -126,7 +126,7 @@ The edges of the container form are fixed by rule.
 - **A bare key from a name-transparent container colliding with any sibling
   child name is a build error naming both** ([D-211][d-211]). The
   `sample_times` sugar of [§8.7][s8-7], where a container's bare field name
-  keys one declaration for all its elements, leaves one ambiguity. A
+  keys one declaration for all its elements, leaves only one ambiguity. A
   transparent element's bare key equal to its own field's name joins this
   collision error ([D-215][d-215]).
 - **A bare key equal to the name of a sibling *container field* that
@@ -139,7 +139,7 @@ The edges of the container form are fixed by rule.
   per-instantiation, like every wiring judgment.
 - `transparent_container` must name a container field of the type, and
   declaring two transparent containers on one type is a declaration error
-  ([D-211][d-211]).
+  ([D-211][d-211], [D-215][d-215]).
 
 #### `Group`: the on-the-fly assembly
 

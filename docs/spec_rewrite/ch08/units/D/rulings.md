@@ -9,8 +9,9 @@ structural fact"). M3: the rate-key sugar is unit F's; the ambiguity sentence
 joins the bare-key collision bullet and names the sugar with a pointer to
 §8.7. M4: the "The builder is rejected" heading is gone; its sentences sit
 before "The reach of the builder rejection is fixed by D-184". F15:
-`Cessna172X{K, A}` is introduced as "Flight.jl's Cessna 172 model", and the
-engine example takes "In an aircraft library, for example".
+`Cessna172X{K, A}` is introduced as "Flight.jl's Cessna 172 model", and "In
+an aircraft library, for example" introduces `AbstractAircraft` and the
+engine families at the domain-hierarchies sentence.
 
 ## Corrections proposed
 
@@ -55,6 +56,9 @@ engine example takes "In an aircraft library, for example".
   and declaring two … is a declaration error" (Position: "at most one of its
   container fields"). Appendix C 11800 cites D-211 for
   `TransparentContainerUnknown` too.
+- D-215 beside D-211 at the same sentence (Position bullet 1, "Build,
+  collected: … `TransparentContainerUnknown`", the kind that refuses a
+  `transparent_container` naming no container field of the type).
 - D-212 at the shadow refusal and at "An empty field reserves nothing", the
   old citation having sat at the bullet's later sentence (Position: "a
   name-transparent element's bare key equal to the name of a sibling
@@ -69,7 +73,9 @@ engine example takes "In an aircraft library, for example".
   once").
 - §13.7 at the model-assembler gloss (spec 9514–9517: "`Group` serves the
   model assembler, for whom topology is data rather than a named type").
-- §8.7 at the ambiguity sentence, the pointer the brief asks for.
+- §8.7 at the ambiguity sentence, the pointer the brief asks for. The
+  sentence says the sugar "leaves only one ambiguity", keeping the old "the
+  one ambiguity".
 
 ## Rationale-only rulings
 
@@ -108,9 +114,11 @@ B1 only; §8.5's restatement stays plain.
   "Every declaration of a structural fact takes the component alone"
   overstates. B1's bold reads "Every declaration of a structural fact but the
   allocator", so the allocator counts as such a declaration. The cut claims
-  map to B1 and B4 as the inventory shows. "There is consequently no
-  signature-shape violation to name" maps to B4's "No arity carries a tier",
-  backed by D-263's "`TierSignatureMismatch` retires with all three arms".
+  map to B1, B4 and the log as the inventory shows. "There is consequently no
+  signature-shape violation to name" maps to D-263's Position bullet in
+  `docs/design/decisions.md`, "`TierSignatureMismatch` retires with all three
+  arms". The walk clause maps to B1's span through "A `T` in a signature
+  means the framework could not have supplied it."
 - **R1 reaches one more sentence.** The `Group` subsection's last sentence
   says "a `Group`'s wiring and rate declarations read exactly like a named
   assembly's". That also presumes a rate declaration the sketch lacks

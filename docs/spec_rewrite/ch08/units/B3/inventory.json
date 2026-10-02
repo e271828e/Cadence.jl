@@ -311,7 +311,7 @@
   {
    "id": "B3-035",
    "old": "The producer pins the handle when it is built from build-time data alone, a static terrain, and leaves it walking when its parameters come from state, a moving deck.",
-   "new": "The producer pins the handle when it is built from build-time data alone, as for a static terrain. It leaves the handle walking when its parameters come from state, as for a moving deck.",
+   "new": "The producer pins the handle when it is built from build-time data alone, as for a static terrain. It leaves the handle walking when its parameters come from state, as for a moving ship deck, whose heave and pitch are continuous state.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -340,7 +340,7 @@
   {
    "id": "B3-038",
    "old": "`handle_walk_walkthrough.md` works a static terrain and a moving deck through one consumer.",
-   "new": "The companion `handle_walk_walkthrough.md` works a static terrain and a moving deck through one consumer.",
+   "new": "The walkthrough `handle_walk_walkthrough.md` works a static terrain and a moving deck through one consumer.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -831,6 +831,10 @@
   "The leaf forms read as follows.",
   "The `DeckField` sketch has both.",
   "as these messages show",
-  "The companion `handle_walk_walkthrough.md`"
+  "The walkthrough `handle_walk_walkthrough.md`",
+  "`RQuat` and `Ranged` are domain wrapper types (§7.1).",
+  "Here `GearContact` is a landing-gear contact.",
+  "ship",
+  "whose heave and pitch are continuous state"
  ]
 }

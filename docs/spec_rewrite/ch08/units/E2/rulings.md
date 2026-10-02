@@ -6,6 +6,9 @@ now one comment, "discrete tier: bound check only", on the first line.
 
 ## Corrections proposed
 
+- Ruled in as R12 and applied (E2-046, tag R). The text now reads "`Δt`
+  arrives in the stage bundle (…) from its single source of truth, the
+  deployment's `Schedule` ([§10.5][s10-5])". The original proposal follows.
 - Old 3123–3125: "`Δt` in the stage bundle … is the [§10.5][s10-5] single
   source of truth". §10.5 (spec 5505–5508) says `Δt` "has a single source of
   truth, the deployment's `Schedule`", and the bundle field is where it
@@ -56,6 +59,10 @@ None.
   consecutive samples against its latch." This is D-056 bullet 1, bold here
   too. §3.4 is not yet rewritten and uses a bold lead-in; it points to §8.6
   for the idiom, so §8.6 should keep the bold.
+- Coordinator ruling: §8.6 keeps D-056's first-bullet bold, and §3.4's
+  lead-in is that chapter's business. All six D-056 bolds stay, "the
+  equivalence survives discretization" included. Listed for the rulings
+  batch.
 - No other unit's `new.md` bolds a claim citing D-056 or D-067.
 
 ## Inbound citations affected
@@ -73,7 +80,8 @@ boundary-sampling contract" keep the names they use.
   introducing sentence from §3.4 at its first use. The code's `RVec`,
   `Attitude.dt` and `IMUSample` have no source in the spec. Their glosses
   rest on the code alone (`Attitude.dt` builds the `q` derivative, `RVec(Δq)`
-  fills the sample's `ϑ_c_cc`, `IMUSample` is the type `y_types` names). The
+  fills the sample's `ϑ_c_cc`, `IMUSample` is the type of the `sample`
+  output). The
   owner may prefer to name their library or move them to a companion.
 - Glossary links dropped because unit E1 uses the term first in §8.6:
   `#g-assembly`, `#g-tier`, `#g-worked` (E1 links them) and `#g-port`,

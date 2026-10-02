@@ -42,8 +42,8 @@ implementation that must participate keeps its entry tolerant and supplies a
 local derivative rule ([§14.10][s14-10]). A walking producer feeds a pinned
 entry through the `Freeze` block ([§13.7][s13-7]).
 
-`Int`/`Bool`/enum leaves and abstract reference-typed entries admit what their
-declared bound admits. **[Abstract entries](#g-abstract-entry) state
+`Int`/`Bool`/enum leaves and abstract reference-typed entries stand as they
+always were, admitting what their declared bound admits. **[Abstract entries](#g-abstract-entry) state
 structural substitutability** ([D-078][d-078]). Several concrete producer
 types are admissible behind one stable face. The field handles ([§4.4][s4-4])
 are the demonstrated client, as in `terrain = AbstractTerrainField`. They
@@ -89,8 +89,8 @@ single-sourced from the producer side per activation ([§9.4][s9-4],
 working, not a promise broken.
 
 The code-level complement is the genericity obligation. It says that whatever
-scalars the wiring delivers, the consumer's math promotes. It is checked by
-the `Dual` probe, never declared ([D-054][d-054]). **The obligation is scoped
+scalars the wiring delivers, the consumer's math promotes. It is still checked
+by the `Dual` probe, never declared ([D-054][d-054]). **The obligation is scoped
 to the unpinned entries** ([D-263][d-263]). A `Pinned` input imposes no such
 obligation, which is its point. **Declarations record choices, and obligations
 are checked** ([D-078][d-078]). The marker's absence records the tolerance
@@ -126,7 +126,8 @@ the rig ([D-120][d-120]).
 
 Under fan-out the root-input type is the unique concrete declaration among its
 consumers, and abstract co-consumers are checked against it ([D-236][d-236]).
-Two different concrete declarations remain an error.
+Two different concrete declarations remain an error, `RootInputTypeConflict`
+([D-236][d-236]).
 
 The root-input cells at an activation follow the root-input type by retyping
 that same entry at the activation's `T`. **That retyping makes seedability

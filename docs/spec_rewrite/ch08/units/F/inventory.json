@@ -70,16 +70,18 @@
   {
    "id": "F-008",
    "old": "An unlisted discrete child defaults to `Relative(1)`",
-   "new": "An unlisted discrete child defaults to `Relative(1)`.",
-   "where": "docs/design/spec.md",
+   "new": "Since an unlisted discrete child defaults to `Relative(1)` (§10.5),",
+   "where": "new",
    "cites": [],
-   "tag": "R",
-   "ruling": "R3"
+   "tag": "F",
+   "newcites": [
+    "§10.5"
+   ]
   },
   {
    "id": "F-009",
    "old": ", so only multiplied, phased or anchored children need appear.",
-   "new": "Under that default, only multiplied, phased or anchored children need appear.",
+   "new": "only multiplied, phased or anchored children need appear.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -116,7 +118,7 @@
   {
    "id": "F-013",
    "old": "and the bare field name applies one declaration to every element.",
-   "new": "It applies one declaration to every element.",
+   "new": "The bare field name is sugar that applies one uniform declaration across all elements.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -135,7 +137,7 @@
   {
    "id": "F-015",
    "old": "(the Δt-on-continuous error at declaration time, §10.5).",
-   "new": "It is the declaration-time side of a run-time fact. A continuous bundle carries no `Δt` (§10.5).",
+   "new": "It is the declaration-time side of a run-time fact. A continuous bundle (the `NamedTuple` of views a component function receives) carries no `Δt` (§10.5).",
    "where": "new",
    "cites": [
     "§10.5"
@@ -214,13 +216,10 @@
   {
    "id": "F-023",
    "old": "`u_connections` and `y_connections` are ordinary functions evaluated at build against the concrete instance,",
-   "new": "`u_connections` and `y_connections` are ordinary functions evaluated at build against the concrete instance (D-043).",
+   "new": "`u_connections` and `y_connections` are ordinary functions evaluated at build against the concrete instance.",
    "where": "new",
    "cites": [],
-   "tag": "C",
-   "newcites": [
-    "D-043"
-   ]
+   "tag": "F"
   },
   {
    "id": "F-024",
@@ -322,13 +321,10 @@
   {
    "id": "F-035",
    "old": "Computed entries mix freely with hand-written ones in either declaration.",
-   "new": "Computed entries mix freely with hand-written ones in either declaration (D-043).",
+   "new": "Computed entries mix freely with hand-written ones in either declaration.",
    "where": "new",
    "cites": [],
-   "tag": "C",
-   "newcites": [
-    "D-043"
-   ]
+   "tag": "F"
   },
   {
    "id": "F-036",
@@ -566,7 +562,7 @@
   {
    "id": "F-062",
    "old": "Its consumer is one-level routing (§6.1).",
-   "new": "Its consumer is one-level routing (§6.1, D-209).",
+   "new": "`output_passthrough`'s consumer is one-level routing (§6.1, D-209).",
    "where": "new",
    "cites": [
     "§6.1"
@@ -632,7 +628,7 @@
   {
    "id": "F-068",
    "old": "because after the boundary split a single call cannot emit entries into two different declarations.",
-   "new": "The boundary declarations split by direction into `u_connections` and `y_connections`, and after that split a single call cannot emit entries into two different declarations.",
+   "new": "and after that split a single call cannot emit entries into two different declarations.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -903,6 +899,14 @@
   },
   {
    "id": "F-098",
+   "old": "`mode_req` and `EAS_ref`",
+   "new": "They are `mode_req` and `EAS_ref`",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "F-099",
    "old": "while the remaining faces stay exported for GUI or defaults,",
    "new": "The remaining faces stay exported for GUI or defaults.",
    "where": "new",
@@ -910,7 +914,7 @@
    "tag": "F"
   },
   {
-   "id": "F-099",
+   "id": "F-100",
    "old": "which is impossible with a bundled face (§4.3 write-side rule).",
    "new": "That is impossible with a bundled face, under the write-side rule of §4.3.",
    "where": "new",
@@ -920,7 +924,7 @@
    "tag": "F"
   },
   {
-   "id": "F-100",
+   "id": "F-101",
    "old": "---",
    "new": "---",
    "where": "new",
@@ -928,7 +932,7 @@
    "tag": "F"
   },
   {
-   "id": "F-101",
+   "id": "F-102",
    "old": "`sample_times` needs no rule change.",
    "new": "and `sample_times` needs no rule change for them (D-085).",
    "where": "new",
@@ -939,7 +943,7 @@
    ]
   },
   {
-   "id": "F-102",
+   "id": "F-103",
    "old": "Element names are immediate child names, hence legal keys,",
    "new": "Container elements (§8.5) are immediate children, so `\"aircraft/red\"` is a legal key,",
    "where": "new",
@@ -947,15 +951,15 @@
    "tag": "M"
   },
   {
-   "id": "F-103",
+   "id": "F-104",
    "old": "and the bare field name is sugar for a uniform declaration across all elements.",
-   "new": "The bare field name is sugar for a uniform declaration across all elements.",
+   "new": "The bare field name is sugar that applies one uniform declaration across all elements.",
    "where": "new",
    "cites": [],
    "tag": "F"
   },
   {
-   "id": "F-104",
+   "id": "F-105",
    "old": "The sugar keys on the field, not on a path segment, so a name-transparent container keeps it unchanged.",
    "new": "The sugar keys on the field, not on a path segment, so a name-transparent container keeps it unchanged.",
    "where": "new",
@@ -963,7 +967,7 @@
    "tag": "F"
   },
   {
-   "id": "F-105",
+   "id": "F-106",
    "old": "`(children = Relative(2),)` is the uniform spelling for a `Group`.",
    "new": "`(children = Relative(2),)` is the uniform spelling for a `Group`.",
    "where": "new",
@@ -974,15 +978,19 @@
  ],
  "added": [
   "An assembly schedules its children through one declaration, `sample_times`. This section gives its spelling and its keys, then what it never holds and why it belongs to the type.",
-  "§10.5 also holds the wrappers' definitions, their validation and the default for an unlisted discrete child.",
+  "§10.5 also holds the wrappers' definitions and their validation.",
   "(each child's declared interface)",
   "The section covers the passthrough helpers, the single authored feed list and generic holding, in that order.",
   "#### The passthrough helpers",
   "The sketch ends with a `World` assembly that passes up the input faces (the names ports wear on component boundaries) of its `aircraft` and `atmosphere` children.",
   "(a narrow, named interface kept deliberately thin).",
-  "In the block below, `Systems` holds an actuator child `act` whose output faces feed its `aero` and `ldg` children.",
+  "In the block below, `Systems` is an assembly whose children include `aero` and `ldg`.",
+  "In the block below, `Systems` also holds an actuator child `act` whose output faces feed `aero` and `ldg`.",
+  "The boundary declarations split by direction into `u_connections` and `y_connections`,",
+  ", the equivalent-airspeed reference.",
   "(the root component's own input face)",
   "#### Generic holding",
-  "(the home of a sim-time script) wires two of the faces, `mode_req` and `EAS_ref`."
+  "(the home of a sim-time script) wires two of the faces.",
+  "(the `NamedTuple` of views a component function receives)"
  ]
 }

@@ -27,7 +27,8 @@ leaf and legible on the page. The leaf forms read as follows.
   `RQuat{Float64}`, `MyStruct{Float64}`), means the leaf participates
   ([D-263][d-263]). Its cell carries the activation scalar. Value parameters
   are structure rather than number, and they never take it ([D-079][d-079]).
-  The bounds in `Ranged{Float64, -1, 1}` are not scalars to re-type.
+  The bounds in `Ranged{Float64, -1, 1}` are not scalars to re-type. `RQuat`
+  and `Ranged` are domain wrapper types ([§7.1][s7-1]).
 - `Pinned{P}` means the leaf is deliberately pinned, and the pin is
   schema-visible. The wrapper is stripped at nominal, so the cell is `P` at
   every activation. It is whole-leaf freezing, declared and
@@ -67,27 +68,29 @@ per evaluation. That is the copy the mutable-parameter rule above refuses.
 
 The producer pins the handle when it is built from build-time data alone, as
 for a static terrain. It leaves the handle walking when its parameters come
-from state, as for a moving deck. A field that must never follow the scalar
-is typed concretely in its struct, `b::Float64` beside `a::T`, which freezes
-it for every user of the type. The marker pins a whole leaf, and a pin on one
-parameter of one declaration is not offered ([D-265][d-265]). The rule "every
-`Float64` position follows the scalar" reads the declaration as written, so a
+from state, as for a moving ship deck, whose heave and pitch are continuous
+state. A field that must never follow the scalar is typed concretely in its
+struct, `b::Float64` beside `a::T`, which freezes it for every user of the
+type. The marker pins a whole leaf, and a pin on one parameter of one
+declaration is not offered ([D-265][d-265]). The rule "every `Float64`
+position follows the scalar" reads the declaration as written, so a
 concretely typed field is frozen without appearing in the contract
-([D-265][d-265]). The companion `handle_walk_walkthrough.md` works a static
+([D-265][d-265]). The walkthrough `handle_walk_walkthrough.md` works a static
 terrain and a moving deck through one consumer.
 
 A custom struct is a first-class port type, as in
 `contact = GearContact{Float64}`, under the scoping that [§7.2][s7-2]
-establishes. That scoping requires a struct parametric in its real-scalar
-leaves, with constructors inferring the scalar. A participating struct leaf
-is declared with `Float64` in its parameter position, `GearContact{Float64}`.
-The walk retypes it there, recursively for nested parameters
-([D-263][d-263]). A struct with a hardcoded `Float64` field offers no such
-position. The walk therefore leaves it as written, a pinned leaf by shape,
-and `Pinned{GearContact}` says so on the page. Any `Dual`-carrying
-construction then fails inside the stage with an `InexactError` naming the
-offending constructor. That is the CI invariant of [§7.2][s7-2], reached through the
-declaration layer with no extra machinery.
+establishes. Here `GearContact` is a landing-gear contact. That scoping
+requires a struct parametric in its real-scalar leaves, with constructors
+inferring the scalar. A participating struct leaf is declared with `Float64`
+in its parameter position, `GearContact{Float64}`. The walk retypes it there,
+recursively for nested parameters ([D-263][d-263]). A struct with a
+hardcoded `Float64` field offers no such position. The walk therefore leaves
+it as written, a pinned leaf by shape, and `Pinned{GearContact}` says so on
+the page. Any `Dual`-carrying construction then fails inside the stage with
+an `InexactError` naming the offending constructor. That is the CI invariant
+of [§7.2][s7-2], reached through the declaration layer with no extra
+machinery.
 
 The companion obligation is constructibility at `T`. **A declared type must
 be buildable at the activation scalar** ([D-079][d-079]). The `Dual` probe

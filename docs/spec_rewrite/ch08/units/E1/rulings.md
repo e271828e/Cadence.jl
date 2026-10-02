@@ -8,13 +8,21 @@
    consequence-named family `wires`/`imports`/`exports`, and two names. It
    names none of the three spellings. D-041 Rejected (log 1234–1240) holds
    all three. Proposed text: "Three alternative spellings are rejected
-   ([D-041][d-041])." Left as written.
+   ([D-041][d-041])." Accepted by the coordinator and applied: D-170 is
+   dropped from that sentence.
 2. **No pointer at the two-producers error in the direction paragraph.**
    Old 2948–2949: "Two entries producing the same output face remain the
    ordinary two-producers error." Survey part C calls it "pointed (§6.1)",
    but the old text points nowhere, and §6.1 1327–1336 states the error.
    Proposed text: "... remain the ordinary two-producers error
-   ([§6.1][s6-1])." Not added.
+   ([§6.1][s6-1])." Accepted by the coordinator and applied.
+3. **The referent of the `===` fact (E1-011).** Old 2894: "One fact from
+   that adjudication is relied on downstream." Grammatically, "that
+   adjudication" points at §13.3's `resolve`, but the fact lives in D-040
+   Rejected (log 1216–1217, "`===`-identical symmetric siblings make
+   path-from-instance unrecoverable"). The new text clarifies the referent:
+   "One fact behind the rejection of instance navigation is relied on
+   downstream." Kept by the coordinator's ruling.
 
 ## Citations added or replaced
 
@@ -66,6 +74,11 @@
   `input_connections` keys …; for a primitive, its `input_types` keys
   directly" (log 7441).
 
+- **§6.1** at "the ordinary two-producers error": §6.1 1327–1336 states
+  the error (correction 2).
+- **D-170 dropped** from "Three alternative spellings are rejected"
+  (correction 1). D-041 Rejected (log 1234–1240) holds all three spellings.
+
 ## Rationale-only rulings
 
 - The `===` fact, "Symmetric immutable siblings are `===`-identical, so a
@@ -110,8 +123,12 @@ inputs as the root's input faces.
   pointer at D-040 and stays. The cut sentence, "A path-tracking proxy
   remains addable sugar", maps to D-040 Rejected "proxies remain sugar" (log
   1217).
-- "the latch-back wire (below)" points into unit E2, now under "The
-  boundary-sampling contract". If E2 moves it, the pointer may need its
-  label.
+- "the latch-back wire (below)" now names E2's label, "The
+  boundary-sampling contract", per the coordinator. If E2 renames that
+  label, this pointer follows it.
+- The context paragraph's roadmap names the worked IMU, its leaves and the
+  boundary-sampling contract, the last after E2's final label.
+- The kinematic-truth input names (`q_eb` and the rest) stay as written,
+  under the old label, per the coordinator.
 - "HDF5 log tree" names a storage format the chapter does not introduce.
   Left as written.

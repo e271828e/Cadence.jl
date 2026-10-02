@@ -123,13 +123,15 @@ claim in the inventory with `"tag": "R"` and `"ruling": "<id>"`.
     (D-039)", without the quotation marks and without "§8.1;". F21,
     replace "(the Δt-on-continuous error at declaration time, §10.5)" with a
     pointer to what §10.5 says, that a continuous bundle carries no `Δt`.
-- **R8. The semantic axis is restored** (survey q8, F1). At 2052–2054 the
-  spec says a declaration "names its *content*, never the *consequence*".
-  Commit `c512ee6` inverted the sentence while moving it. Restore the
-  reading it had before: a declaration names the *consequence* it has, not
-  its *content*. Cite D-146, whose Rationale states it, and list the case
-  under "Rationale-only rulings". The rest of the paragraph stands. This
-  correction is also in `escalations.md` for the owner's audit.
+- **R8. The semantic axis stays as written** (survey q8, F1; revised after
+  step 4). At 2052–2054 the spec says a declaration "names its *content*,
+  never the *consequence*". Commit `c512ee6` inverted the sentence while
+  moving it, and D-146's Rationale reads the other way. But D-267's
+  Position, ratified later, says a declaration is "a noun phrase naming
+  what it returns", which agrees with the text as written. The two entries
+  disagree, so this is a serious finding for the owner (`escalations.md`
+  E2). Carry the sentence's claim as written, unbolded, with the old
+  citations, and list it in `rulings.md`.
 - **R9. No citation of D-166 or D-167, and D-055's three citations** (survey
   q9). Cite D-263 at 2244 and at the three rulings whose only statement is
   in D-167 (the walk clause's tier scope at 2293, the obligation's scope at
@@ -138,6 +140,19 @@ claim in the inventory with `"tag": "R"` and `"ruling": "<id>"`.
   and 2314. Cite D-034 and D-239 where 2647 and 2660 cite D-055, after
   checking that each Position carries the claim.
 - **R10. The units** are the survey's nine, below.
+- **R11.** Unused.
+- **R12. The source of `Δt`** (ruled after step 4, from unit E2's
+  rulings). "`Δt` in the stage bundle … is the single source of truth"
+  becomes: `Δt` arrives in the stage bundle from its single source of
+  truth, the deployment's `Schedule` (§10.5). §10.5 says "`Δt` has a single
+  source of truth, the deployment's `Schedule`".
+- **R13. F22 at old 2574** (ruled after step 4, from unit B4's rulings).
+  "Every declaration takes the component alone" becomes "Every declaration
+  of a structural fact takes the component alone", as R7's F22 does at 2216
+  and 2870–2871.
+- **R14. `RootInputTypeConflict` is named in §8.2** (ruled after step 4,
+  from unit B2's rulings). "Two different concrete declarations remain an
+  error" names the kind. Appendix C (spec 11736) cites §8.2 for it.
 
 Other factual problems, among them F14 to F16, F18 and F19, stay as written
 or follow `spec_style.md`'s rule for reader-cold names. F14 to F16 read

@@ -32,7 +32,7 @@
   {
    "id": "E1-004",
    "old": "Container children (§8.5) add index and key segments, `\"aircraft/2\"` and `\"aircraft/red\"`, which are ordinary segments resolved against the container field.",
-   "new": "Container children (the elements of a tuple field holding only components, §8.5) add index and key segments, `\"aircraft/2\"` and `\"aircraft/red\"` (D-085). These are ordinary segments, resolved against the container field.",
+   "new": "Container children (the elements of a `Tuple` or `NamedTuple` field holding only components, §8.5) add index and key segments, `\"aircraft/2\"` and `\"aircraft/red\"` (D-085). These are ordinary segments, resolved against the container field.",
    "where": "new",
    "cites": [
     "§8.5"
@@ -420,10 +420,13 @@
   {
    "id": "E1-044",
    "old": "Two entries producing the same output face remain the ordinary two-producers error.",
-   "new": "Two entries producing the same output face remain the ordinary two-producers error.",
+   "new": "Two entries producing the same output face remain the ordinary two-producers error (§6.1).",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "newcites": [
+    "§6.1"
+   ],
+   "tag": "C"
   },
   {
    "id": "E1-045",
@@ -462,11 +465,14 @@
   {
    "id": "E1-048",
    "old": "Three alternative spellings are rejected (D-041, D-170)",
-   "new": "Three alternative spellings are rejected (D-041, D-170).",
+   "new": "Three alternative spellings are rejected (D-041).",
    "where": "new",
    "cites": [
     "D-041",
     "D-170"
+   ],
+   "newcites": [
+    "D-041"
    ],
    "tag": "R",
    "ruling": "R4"
@@ -723,7 +729,7 @@
   {
    "id": "E1-076",
    "old": "And the latch-back wire (below), where the integrals consume the sampler's published latch, joins `inner_connections` as one more ordinary pair.",
-   "new": "The latch-back wire (below), where the integrals consume the sampler's published latch, would join `inner_connections` as one more ordinary pair.",
+   "new": "The latch-back wire (below, under \"The boundary-sampling contract\"), where the integrals consume the sampler's published latch, would join `inner_connections` as one more ordinary pair.",
    "where": "new",
    "cites": [],
    "tag": "R",
@@ -732,9 +738,10 @@
  ],
  "added": [
   "An assembly (a component of pure composition, with no dynamics of its own) wires its children and names its boundary with strings.",
-  "This section fixes the path form, the three wiring declarations and the direction invariant they share, face names, root inputs, and face uniqueness at the root.",
-  "A worked assembly, the strapdown IMU, closes the section.",
-  "(the elements of a tuple field holding only components,",
+  "This section fixes the path form, the three wiring declarations and the direction invariant they share, face names, root inputs (the root component's own input faces), and face uniqueness at the root.",
+  "It then spells out a worked assembly, the strapdown IMU, and its leaves.",
+  "It closes with the boundary-sampling contract.",
+  "(the elements of a `Tuple` or `NamedTuple` field holding only components,",
   "A face is the name a port wears on its component's boundary.",
   "(the immutable per-boundary publication)",
   "A tier is the continuous or discrete side of the hybrid formalism.",

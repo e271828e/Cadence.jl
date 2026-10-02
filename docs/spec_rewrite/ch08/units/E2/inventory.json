@@ -389,17 +389,18 @@
   {
    "id": "E2-046",
    "old": "`Δt` in the stage bundle (the NamedTuple of zero-copy views a component function receives) is the §10.5 single source of truth,",
-   "new": "`Δt` in the stage bundle (the NamedTuple of zero-copy views a component function receives) is the single source of truth (§10.5).",
+   "new": "`Δt` arrives in the stage bundle (the NamedTuple of zero-copy views a component function receives) from its single source of truth, the deployment's `Schedule` (§10.5).",
    "where": "new",
    "cites": [
     "§10.5"
    ],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "R12"
   },
   {
    "id": "E2-047",
    "old": "put there for exactly this kind of discretized law.",
-   "new": "It is there for exactly this kind of discretized law.",
+   "new": "It is in the bundle for exactly this kind of discretized law.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -563,7 +564,7 @@
   {
    "id": "E2-066",
    "old": "After event quiescence, `s_update` latches the `t_k` values for the next tick.",
-   "new": "After event quiescence (the point where a round of handlers fires nothing), `s_update` latches the `t_k` values for the next tick.",
+   "new": "After event quiescence (the point where an event round fires nothing), `s_update` latches the `t_k` values for the next tick.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -747,7 +748,7 @@
   "In integrate-and-dump, the IMU's direct formulation integrates over each sample interval and zeroes its integrals at every sample.",
   "(`x_deriv`, the continuous derivative function)",
   "its coning attitude increment,",
-  "A few names in the code below need an introduction. `RQuat` is the domain wrapper an attitude `SVector{4}` is cast to where rotation semantics are wanted (§7.1). `Attitude.dt` gives the coning bullet's quaternion derivative, and `RVec` turns the interval rotation `Δq` into the vector the sample carries. `IMUSample` is the sampler's output struct. `FrameTransform` is one of the payload types §7.2 lists as walked.",
+  "A few names in the code below need an introduction. `RQuat` is the domain wrapper an attitude `SVector{4}` is cast to where rotation semantics are wanted (§7.1). `Attitude.dt` gives the coning bullet's quaternion derivative, and `RVec` turns the interval rotation `Δq` into the vector the sample carries. `IMUSample` is the type of the sampler's `sample` output. `FrameTransform` is one of the payload types §7.2 lists as walked.",
   "(its `sample_times` entry is `Relative(1)`)",
   "Boundary zero is the initialization boundary (a published consistency point), run at `t₀`.",
   "(one scheduled to run at this boundary)",
@@ -755,7 +756,7 @@
   "A tick is an instant at which a discrete component's stages and update run.",
   "(one pass through the execution order)",
   "the one-sample delay of sampled-data control",
-  "(the point where a round of handlers fires nothing)",
+  "(the point where an event round fires nothing)",
   "Projection is the `x_projection` hook, run after integration.",
   "(the stage with an instantaneous input-to-output dependence)",
   "held by zero-order hold (ZOH)"
