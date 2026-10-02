@@ -1519,8 +1519,9 @@ Each continuous component declares its state by value (`x_init`,
 [§8.2][s8-2], [D-033][d-033]). The declaration is a NamedTuple
 ([D-247][d-247]). **Its leaves are drawn from a deliberately closed
 vocabulary**, plain real scalars and `SArray`s (static vectors and matrices) of
-a common eltype `T`, and nothing else ([D-094][d-094]). `Int`s, enums and
-`Bool`s belong in modes. Domain wrapper types are not state leaves either. Two
+a common eltype `T`, and nothing else ([D-094][d-094]). **`Int`s, enums and
+`Bool`s belong in modes** ([D-308][d-308]). Domain wrapper types are not state leaves
+either. Two
 such types are `RQuat`, a rotation quaternion type with a `normalization`
 keyword, and `Ranged`, a clamped scalar. An attitude state is an
 `SVector{4,T}`, cast where rotation semantics are wanted, as described below.
@@ -1666,8 +1667,8 @@ therefore authored per leaf, by the absence or presence of the marker
 Nothing anywhere comes from inference through user code ([D-032][d-032], [D-079][d-079], [D-304][d-304]).
 Safety of the substitution rests on the embedding guarantee stated in [§9.5][s9-5].
 
-For lookups, table data is a pinned parameter and the query coordinate is
-walked traffic ([D-011][d-011]). Interpolations.jl, the interpolation package
+For lookups, **table data is a pinned parameter and the query coordinate is
+walked traffic** ([D-011][d-011], [D-307][d-307]). Interpolations.jl, the interpolation package
 Flight.jl's lookup tables use, evaluates generically over the coordinate. A
 call `itp(x::Dual)` works through the `BSpline`/`scale`/`extrapolate`
 compositions in Flight.jl's tables. Two caveats apply. `Linear()` interpolants
@@ -1677,7 +1678,8 @@ matters. A manual chain rule via `Interpolations.gradient` is the escape hatch
 for anything exotic, and the pattern for wrapping non-Julia black boxes
 ([D-266][d-266]).
 
-Three rules are author-facing ([D-011][d-011], [D-235][d-235], [D-304][d-304]).
+**Three rules are author-facing** ([D-011][d-011], [D-235][d-235],
+[D-304][d-304], [D-307][d-307]).
 
 1. No `::Float64` argument annotations in math. Use `<:Real` or nothing.
 2. No `Float64`-pinned intermediates. Write `zero(SVector{3,T})`.
@@ -1738,8 +1740,8 @@ arrives as the `ws` field of the [bundle](#g-bundle) (the NamedTuple of zero-cop
 component function receives) in every bundle-receiving function of the declaring
 component ([§5.2][s5-2]). `x_projection` is positional and receives none ([D-074][d-074]).
 
-A workspace is excluded from state semantics. It is not snapshotted and not
-replayed. It is never a condition target ([§14.1][s14-1], [D-306][d-306]). It
+A workspace is excluded from state semantics. **It is not snapshotted and not
+replayed** ([D-308][d-308]). It is never a condition target ([§14.1][s14-1], [D-306][d-306]). It
 must carry no information between calls ([D-183][d-183]).
 
 **The framework never inspects or mutates a workspace** ([D-183][d-183]). The
@@ -1830,11 +1832,8 @@ StaticArrays "codegen catastrophe" lives in its *operations*, the unrolled
 matmuls, which are never called on snapshots.
 
 The discipline is that snapshot values are for storage, logging and element
-access only, never arithmetic. It is optionally enforceable by an
-op-forbidding `ValueSnapshot{N,T}` wrapper. That wrapper is an `NTuple` with
-only `getindex` and iteration, structurally what `SArray` is minus the
-methods. The practical ceiling is a few KB comfortable and tens of KB
-defensible. Beyond that, value semantics stop making sense.
+access only, never arithmetic. The practical ceiling is a few KB comfortable
+and tens of KB defensible. Beyond that, value semantics stop making sense.
 
 ### 7.4 The fused-evaluation lineage (prior art and how we got here)
 
@@ -1935,7 +1934,7 @@ The policy sets three budgets.
   allocation either way. The summarize-or-skip rule ([§4.4][s4-4]) governs what such a
   field contributes on export.
 
-Event firings are not recorded. The log holds boundary snapshots and the [trace](#g-trace)
+**Event firings are not recorded** ([D-309][d-309]). The log holds boundary snapshots and the [trace](#g-trace)
 holds staged inputs ([§11.2][s11-2], [§11.5][s11-5]). Neither carries a per-event record. [Replay](#g-replay)
 (the ordinary loop re-driven from the trace) plus the published modes recovers
 which events fired at which boundary. The honest remedy is to declare the mode
@@ -13728,6 +13727,9 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-304]: decisions.md#d-304--the-flat-declaration-the-unchanged-buffer-the-store-field-limits-and-authored-genericity
 [d-305]: decisions.md#d-305--the-zero-allocation-invariants-scope-its-grounds-and-its-budgets
 [d-306]: decisions.md#d-306--the-workspace-outside-conditions-plans-valid-from-allocation-and-double-buffering-deferred
+[d-307]: decisions.md#d-307--keep-authored-continuous-math-generic-over-the-scalar
+[d-308]: decisions.md#d-308--keep-integers-enums-and-bools-in-modes-and-the-workspace-out-of-snapshots-and-replay
+[d-309]: decisions.md#d-309--record-no-event-firings-and-leave-an-event-firing-stream-a-guarded-addition
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

@@ -137,6 +137,10 @@ Each is additive, so it can land later without breaking user code.
     primary data; the deployment's `==` excludes the build, so replay never
     compares it. Whether the header should hold the build-free half is a
     D-254 question, to be ruled when this deferral lifts.
+  - **§7.1's FlightCore-era names.** §7.1's bullet on the flat vector names
+    OrdinaryDiffEq and HDF5 logging among its users. §10.2 dropped
+    OrdinaryDiffEq as a dependency and the HDF5 export is undecided, so the
+    bullet is reworded when this deferral lifts.
 
 ## Deviations
 
