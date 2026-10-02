@@ -91,3 +91,44 @@ on the continuous tier, and [pinned](#g-walked) on the discrete." The gloss
 shortens the glossary entry's first clause.
 
 Checker: `checks failed: 0`
+
+## Final-verify fixes
+
+These apply findings F3 to F6 of `final_verify.md` as proposed.
+
+### F3 (unit D, §8.5): link "component" at its first use
+
+Old: "how an [assembly](#g-assembly) (a component of pure composition) is
+declared" and "`Group` assembles [components](#g-component) on the fly."
+New: "how an [assembly](#g-assembly) (a [component](#g-component) of pure
+composition) is declared" and "`Group` assembles components on the fly."
+
+Checker: `checks failed: 0`
+
+### F4 (unit F, §8.7): link "component" at its first use
+
+Old: "An [assembly](#g-assembly) (a component of pure composition) schedules
+its children" and "one `(D, Φ)` pair per discrete [component](#g-component)
+(the unit of modeling, leaf or assembly)."
+New: "An [assembly](#g-assembly) (a [component](#g-component) of pure
+composition) schedules its children" and "one `(D, Φ)` pair per discrete
+component." The dropped gloss also left F's `added` list.
+
+Checker: `checks failed: 0`
+
+### F5 (unit D): cite D-211 on the `TransparentContainerUnknown` sentence
+
+Old: "… and a name that matches none is `TransparentContainerUnknown`."
+New: "… and a name that matches none is `TransparentContainerUnknown`
+([D-211][d-211])."
+
+Checker (D, after F3 and F5): `checks failed: 0`
+
+### F6 (unit B4): B4-025's span follows B1's text
+
+Old `new`: "The store (the model's memory, declared by initial value) is the
+tier marker. It is therefore mandatory even when empty"
+New `new`: "The store is the tier marker. It is therefore mandatory even when
+empty"
+
+Checker: `checks failed: 0`

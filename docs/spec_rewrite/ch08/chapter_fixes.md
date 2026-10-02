@@ -43,7 +43,7 @@ checker ends `checks failed: 0`. Paragraphs holding an edit were rewrapped to
 - P36, D: quotation marks dropped.
 - P37, F: "wires `mode_req` and `EAS_ref`, the equivalent-airspeed reference. The remaining faces stay exported …". "only" was left out because the old text has no "only".
 - P38, A, B1, B2, B4, D, E1, E2, F: all twelve lines rewrapped. Only the exempt display math runs past 80.
-- P39, all units: listed short lines rewrapped; double blank lines at the B1/B2 seam and before §8.3 collapsed. Line 630 is left as it is (see the end).
+- P39, all units: listed short lines rewrapped; double blank lines at the B1/B2 seam and before §8.3 collapsed. Line 630 is left as it is (see the end). The rewraps include the §8.3 paragraph at chapter_new.md 859–864 and the §8.6 paragraph at 1135–1137, whitespace only (final verifier F1, F2).
 - P40, B4: "FlightCore is the precedent. There an intermediate could be inspected only by putting it in the model's output."
 - P41, E1: "The example carries two more facts."
 - P42, B2: "A `u_types` declaration".

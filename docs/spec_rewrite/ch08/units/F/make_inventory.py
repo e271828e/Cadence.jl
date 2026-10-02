@@ -201,7 +201,6 @@ ADDED = [
     "(the root component's own input face)",
     "#### Generic holding",
     "(the home of a sim-time script)",
-    "(the unit of modeling, leaf or assembly)",
     ", the data that set a build's state,",
     "(the `NamedTuple` of views a component function receives)",
 ]

@@ -62,7 +62,7 @@ c("`x_init` with fields and no `x_deriv` method, or `s_init` with fields and no 
   "`x_init` with fields and no `x_deriv` method, or `s_init` with fields and no `s_update` method, is a build error, `StoreWithoutUpdate`.",
   "R", ruling="P48", note="names the kind; Appendix C cites §8.2 for StoreWithoutUpdate")
 c("An empty store is a stateless leaf's tier marker (above)",
-  "The store (the model's memory, declared by initial value) is the tier marker. It is therefore mandatory even when empty",
+  "The store is the tier marker. It is therefore mandatory even when empty",
   "R", where="units/B1/new.md", ruling="P44")
 c("and owes nothing.", "An empty store owes nothing (above).", "R", ruling="P44",
   note="kept as a pointer; B1 holds 'An empty store owes no update law'")

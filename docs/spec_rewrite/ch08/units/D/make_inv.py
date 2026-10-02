@@ -139,7 +139,7 @@ c("An empty field reserves nothing, because it reaches no children and its value
 c("The judgment is therefore per-instantiation, like every wiring judgment (D-212).",
   "The judgment is therefore per-instantiation, like every wiring judgment.", "F", ["D-212"], ["D-212"])
 c("`transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error.",
-  "- `transparent_container` must name a container field of the type, and a name that matches none is `TransparentContainerUnknown`. Declaring two transparent containers on one type is a declaration error (D-211, D-215).", "R", [], ["D-211", "D-215"], ruling="K2")
+  "- `transparent_container` must name a container field of the type, and a name that matches none is `TransparentContainerUnknown` (D-211). Declaring two transparent containers on one type is a declaration error (D-211, D-215).", "R", [], ["D-211", "D-215"], ruling="K2")
 c("The one ambiguity this leaves, a transparent element's bare key equal to its own field's name, joins the bare-key collision error above.",
   "The `sample_times` sugar of §8.7, where a container's bare field name keys one declaration for all its elements, leaves only one ambiguity. A transparent element's bare key equal to its own field's name joins this collision error (D-215).",
   "C", [], ["§8.7", "D-215"])
@@ -194,7 +194,7 @@ added = [
  "The error is `ChildNameCollision`.",
  ", `ClassMixed`.",
  "The error is `ContainerMixed`.",
- "and a name that matches none is `TransparentContainerUnknown`.",
+ "and a name that matches none is `TransparentContainerUnknown`",
  "Two reasons rule out a supertype for class (a component's primitive-vs-assembly status).",
  "That section states the arity rule and tier agreement in full.",
 ]

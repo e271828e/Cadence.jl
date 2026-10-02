@@ -1,8 +1,8 @@
 ### 8.7 Rate scopes
 
-An [assembly](#g-assembly) (a component of pure composition) schedules its children through
-one declaration, `sample_times`, its [rate scope](#g-rate-scope). This section gives its spelling
-and its keys, then what it never holds and why it belongs to the type.
+An [assembly](#g-assembly) (a [component](#g-component) of pure composition) schedules its children through one
+declaration, `sample_times`, its [rate scope](#g-rate-scope). This section gives its spelling and
+its keys, then what it never holds and why it belongs to the type.
 
 The declaration maps each child name to a `Relative` or `Absolute` entry, as
 in this one.
@@ -13,11 +13,10 @@ sample_times(::A) = (nav = Relative(5), gnss = Absolute(Hz(10)))
 
 These are the two forms that [§10.5][s10-5] defines ([D-185][d-185]). Relative entries compose
 affinely down the tree, absolute entries anchor, and all are compiled to one
-`(D, Φ)` pair per discrete [component](#g-component) (the unit of modeling, leaf or assembly).
-[§10.5][s10-5] also holds the wrappers' definitions and their validation. The
-declaration is optional, and so is any given key ([D-042][d-042]). Since an unlisted
-discrete child defaults to `Relative(1)` ([§10.5][s10-5]), only multiplied, phased or
-anchored children need appear.
+`(D, Φ)` pair per discrete component. [§10.5][s10-5] also holds the wrappers' definitions
+and their validation. The declaration is optional, and so is any given key
+([D-042][d-042]). Since an unlisted discrete child defaults to `Relative(1)` ([§10.5][s10-5]),
+only multiplied, phased or anchored children need appear.
 
 **Keys are immediate child names only** ([D-042][d-042]). A deep key would
 edit another type's design from outside, and the composition rule guarantees

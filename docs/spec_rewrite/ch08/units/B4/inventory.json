@@ -220,7 +220,7 @@
   {
    "id": "B4-025",
    "old": "An empty store is a stateless leaf's tier marker (above)",
-   "new": "The store (the model's memory, declared by initial value) is the tier marker. It is therefore mandatory even when empty",
+   "new": "The store is the tier marker. It is therefore mandatory even when empty",
    "where": "units/B1/new.md",
    "cites": [],
    "tag": "R",

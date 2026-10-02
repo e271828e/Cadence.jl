@@ -903,10 +903,10 @@ under inference-by-evaluation too, and in every case the failure surfaced inside
 
 ### 8.5 Assembly declaration: type-based, class by declaration shape
 
-This section states how an [assembly](#g-assembly) (a component of pure composition) is
+This section states how an [assembly](#g-assembly) (a [component](#g-component) of pure composition) is
 declared, how a type's declarations mark it as an assembly or a primitive, what
 arity those declarations take, how container fields contribute children, and how
-`Group` assembles [components](#g-component) on the fly.
+`Group` assembles components on the fly.
 
 **An assembly is a plain struct** ([D-039][d-039]). Its fields whose type is
 `<: AbstractComponent` are its children, and all its other fields are inert
@@ -1038,8 +1038,8 @@ The edges of the container form are fixed by rule.
   told from empty inert parameter data. The judgment is therefore
   per-instantiation, like every wiring judgment.
 - `transparent_container` must name a container field of the type, and a name
-  that matches none is `TransparentContainerUnknown`. Declaring two transparent
-  containers on one type is a declaration error ([D-211][d-211], [D-215][d-215]).
+  that matches none is `TransparentContainerUnknown` ([D-211][d-211]). Declaring two
+  transparent containers on one type is a declaration error ([D-211][d-211], [D-215][d-215]).
 
 #### `Group`: the on-the-fly assembly
 
@@ -1459,9 +1459,9 @@ That is what it always was, physically.
 
 ### 8.7 Rate scopes
 
-An [assembly](#g-assembly) (a component of pure composition) schedules its children through
-one declaration, `sample_times`, its [rate scope](#g-rate-scope). This section gives its spelling
-and its keys, then what it never holds and why it belongs to the type.
+An [assembly](#g-assembly) (a [component](#g-component) of pure composition) schedules its children through one
+declaration, `sample_times`, its [rate scope](#g-rate-scope). This section gives its spelling and
+its keys, then what it never holds and why it belongs to the type.
 
 The declaration maps each child name to a `Relative` or `Absolute` entry, as
 in this one.
@@ -1472,11 +1472,10 @@ sample_times(::A) = (nav = Relative(5), gnss = Absolute(Hz(10)))
 
 These are the two forms that [§10.5][s10-5] defines ([D-185][d-185]). Relative entries compose
 affinely down the tree, absolute entries anchor, and all are compiled to one
-`(D, Φ)` pair per discrete [component](#g-component) (the unit of modeling, leaf or assembly).
-[§10.5][s10-5] also holds the wrappers' definitions and their validation. The
-declaration is optional, and so is any given key ([D-042][d-042]). Since an unlisted
-discrete child defaults to `Relative(1)` ([§10.5][s10-5]), only multiplied, phased or
-anchored children need appear.
+`(D, Φ)` pair per discrete component. [§10.5][s10-5] also holds the wrappers' definitions
+and their validation. The declaration is optional, and so is any given key
+([D-042][d-042]). Since an unlisted discrete child defaults to `Relative(1)` ([§10.5][s10-5]),
+only multiplied, phased or anchored children need appear.
 
 **Keys are immediate child names only** ([D-042][d-042]). A deep key would
 edit another type's design from outside, and the composition rule guarantees

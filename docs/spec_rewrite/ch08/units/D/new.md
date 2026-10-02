@@ -1,9 +1,9 @@
 ### 8.5 Assembly declaration: type-based, class by declaration shape
 
-This section states how an [assembly](#g-assembly) (a component of pure composition) is
+This section states how an [assembly](#g-assembly) (a [component](#g-component) of pure composition) is
 declared, how a type's declarations mark it as an assembly or a primitive, what
 arity those declarations take, how container fields contribute children, and how
-`Group` assembles [components](#g-component) on the fly.
+`Group` assembles components on the fly.
 
 **An assembly is a plain struct** ([D-039][d-039]). Its fields whose type is
 `<: AbstractComponent` are its children, and all its other fields are inert
@@ -135,8 +135,8 @@ The edges of the container form are fixed by rule.
   told from empty inert parameter data. The judgment is therefore
   per-instantiation, like every wiring judgment.
 - `transparent_container` must name a container field of the type, and a name
-  that matches none is `TransparentContainerUnknown`. Declaring two transparent
-  containers on one type is a declaration error ([D-211][d-211], [D-215][d-215]).
+  that matches none is `TransparentContainerUnknown` ([D-211][d-211]). Declaring two
+  transparent containers on one type is a declaration error ([D-211][d-211], [D-215][d-215]).
 
 #### `Group`: the on-the-fly assembly
 

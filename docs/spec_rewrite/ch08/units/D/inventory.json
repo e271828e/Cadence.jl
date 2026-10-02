@@ -610,7 +610,7 @@
   {
    "id": "D-067",
    "old": "`transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error.",
-   "new": "- `transparent_container` must name a container field of the type, and a name that matches none is `TransparentContainerUnknown`. Declaring two transparent containers on one type is a declaration error (D-211, D-215).",
+   "new": "- `transparent_container` must name a container field of the type, and a name that matches none is `TransparentContainerUnknown` (D-211). Declaring two transparent containers on one type is a declaration error (D-211, D-215).",
    "where": "new",
    "cites": [],
    "tag": "R",
@@ -838,7 +838,7 @@
   "The error is `ChildNameCollision`.",
   ", `ClassMixed`.",
   "The error is `ContainerMixed`.",
-  "and a name that matches none is `TransparentContainerUnknown`.",
+  "and a name that matches none is `TransparentContainerUnknown`",
   "Two reasons rule out a supertype for class (a component's primitive-vs-assembly status).",
   "That section states the arity rule and tier agreement in full."
  ]
