@@ -39,7 +39,35 @@ Each item ends with a recommendation: **accept** (apply as proposed),
 - **K7, K8: accepted, no edit.**
 - **SERIOUS: none new.** The two sentences that rest on `Group`'s rate field
   (N1098–1099 and N1487–1488) join escalation E1's scope.
-- **K10 to K30:** track 2 and outside items, ruled after landing (step 8).
+- **K10 to K30, ruled after landing (step 8):**
+  - **K10, K11, K12, K14, K15: accepted, restricted.** A new entry restates
+    in a Position only what an existing entry records, in a Rationale, a
+    Rejected list, an annotation or a superseded entry, and its Rationale
+    says where ("as recorded in D-nnn"). A clause with no entry behind it is
+    left out. K14 and K15 keep the bare rejections and the facts behind
+    rejections cited to their Rejected lists, as their recommendations say.
+  - **K13: accepted, folded into K12's entry** as one more bullet, with
+    §8.3 and §8.6 in its Spec field. The new entries are therefore D-295
+    (K10), D-296 (K11), D-297 (K12 with K13), D-298 (K14) and D-299 (K15).
+  - **K16: left.** Each sentence stays as written, uncited, and goes to the
+    owner in the closing report.
+  - **K17: accepted.** D-215's Position records the arm.
+  - **K18: accepted for the eight entries**; no annotation on D-166.
+  - **K19: accepted for the four annotations** (D-039 and D-177 to §8.5;
+    D-177's "reflection class"; D-145's "§8.1's"). The rest is left.
+  - **K20: accepted**, D-146 excepted while E2 is open. The four stale
+    §8.1 and §8.3 Spec entries go to the owner.
+  - **K24: accepted now.** §13.7's bold on D-251's selector ruling goes
+    plain; §8.8 keeps it.
+  - **K26: accepted for the spec.** The three `src/diagnostics.jl`
+    docstrings are a loose code fix for the owner.
+  - **K27: accepted for spec 7163 and 12614.** 7134's wording is left for
+    chapter 11's rewrite.
+  - **K28, K30: accepted.**
+  - **K29: left.** Widening the glossary's *store* to cover `x` changes a
+    definition other chapters rely on; it goes to the owner.
+  - **K21, K22, K23, K25: left** until chapters 6, 14, 3 and 5 are
+    rewritten. The rewrite README lists them for those chapters.
 
 ## Summary
 
