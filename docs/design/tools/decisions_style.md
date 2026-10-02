@@ -102,7 +102,8 @@ external tool's behavior (Simulink/MATLAB/Modelica does X; we do Y; because Z).
 5. **Never resolve doubt by deleting.** Material that looks like it belongs in
    the spec rather than the log gets flagged, not dropped.
 6. **The battery is the acceptance test.** `check_refs.jl`, `check_rows.jl`,
-   `check_glossary.jl --strict`, and `linkify.jl` as a no-op on re-run.
+   `check_glossary.jl --strict`, `check_bold.jl`, and `linkify.jl` as a no-op
+   on re-run.
 7. **A prose rewrite is audited, not trusted.** `audit_fragments.jl [rev]`
    compares every entry's multiset of code spans, inline math, citations and
    named identifiers against a git revision — losing one is fatal. Rewording an

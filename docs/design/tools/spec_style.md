@@ -137,8 +137,8 @@ flag it for discussion instead of guessing.
 
 - **The battery is the acceptance test**, exactly as for the log
   (`decisions_style.md` rule 6): `check_refs.jl`, `check_rows.jl`,
-  `check_glossary.jl --strict`, and `linkify.jl` as a no-op on re-run — after
-  every edit, before every commit.
+  `check_glossary.jl --strict`, `check_bold.jl`, and `linkify.jl` as a no-op
+  on re-run — after every edit, before every commit.
 - **`§` is reserved for spec citations.** Companions cite their own sections
   as "section N.N", which is what keeps every `§` in the corpus checkable
   against the spec's outline.
