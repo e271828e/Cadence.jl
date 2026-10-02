@@ -28,7 +28,7 @@ but not yet built.
 
 Cadence is under active development and is not yet registered. Its API may
 change without notice. The module exports nothing yet, so every name is
-imported explicitly. Cadence requires Julia 1.12 or later.
+imported explicitly. Cadence requires Julia 1.13 or later.
 
 ## Installation
 

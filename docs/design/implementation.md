@@ -907,7 +907,7 @@ Traps the code does not warn about, each hit more than once while building:
   the build refuses the component as having no class to read (§8.5), and
   `DeadStage` does not reach it — a method the framework never sees is not a
   method returning `(;)` (§5.2, §9.3);
-- **extending a declaration without importing it is silent on 1.12.** After
+- **extending a declaration without importing it is silent.** After
   `using Cadence`, a bare `y_state(::MyComp, …)` creates a local generic
   with no error or warning, exported or not (Julia ≤1.11 raised; only `using
   Cadence: y_state` still errors). The build sees the same
