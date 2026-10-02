@@ -1273,7 +1273,8 @@ end
 # is (§10.7, §12.6, D-269). So is the roster, copied at the freeze and read by
 # the run alone, never off the plane (§11.3). The §12.2 thread-budget check runs
 # here too, after the freeze, so either door checks once per run against the
-# frozen roster.
+# frozen roster. The doors that build a run publish with the plane's roster, as
+# every stopped-sim reader reads it.
 #
 # The terminal mapping is `step!`'s. `source === nothing` means the budget ran
 # out rather than a source firing, which only a bounded advance can reach — a
@@ -1511,7 +1512,8 @@ end
 # and tight is fewer threads than that. Reported into the loop's own cell,
 # so the first frame top drains it into the first snapshot's status; a
 # deviceless run never warns. The thread count is an argument for the test
-# that drives the check below the machine's count.
+# that drives the check below the machine's count. `step!` spawns no task and
+# never checks.
 function report_thread_budget!(plane::DataPlane, roster::Vector{RosterEntry}, threads::Int)
     device_tasks = length(roster)
     threads < device_tasks + 1 &&
@@ -1637,7 +1639,8 @@ end
 # the stop pending for the next pass and never escapes as the loop's failure.
 # `run!`'s interrupt arm passes the plane: its call owes the stop from the
 # start and first removes the inline body's record from the registry, which
-# was registered before the spawn whether or not the body ran (§12.2). The
+# was registered before the spawn whether or not the body ran (§12.2). An
+# interrupt can also cut short the removal in `_run_body!`'s `finally`. The
 # removal is retried as the request is. The arm's call also gets a loop
 # failure back as a value, the task's `TaskFailedException` and a backtrace,
 # built inside the `try` so an interrupt cutting the build retries it; the

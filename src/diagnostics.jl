@@ -211,7 +211,8 @@ host of the catch, and the cause. The parameter is the cause's type (D-225): the
 diagnostic's kind when the cause is one, the exception model code threw
 otherwise. A *species* is a `StepError` whose `cause` is a typed diagnostic,
 which is what lets a runtime check throw its kind and reach the one catch site
-as a plain thrower.
+as a plain thrower. `host` tells a boundary-zero throw from frame one's, since
+the two share pointer 0.
 """
 struct StepError{C <: Union{Diagnostic, Exception}} <: Exception
     cursor::CursorFrame
@@ -1652,7 +1653,8 @@ Base.@kwdef struct TapResolution <: Diagnostic
                      # the tap set's (§14.10): :tap_kind|:discrete_state|:vector_tap|:unseedable|
                      # :duplicate_site
                      # A missing input face is :unknown_root_input at the root
-                     # and :no_input_face at a mount.
+                     # and :no_input_face at a mount. :input_face_not_output
+                     # serves both levels.
     tap::Union{Nothing,Symbol} = nothing     # :x | :u | :y
     # Both describe the read as authored, at a mount too. `path` is the mount
     # path joined to the selector's own path, the mount itself for a face
@@ -2028,7 +2030,7 @@ function message(d::ArgumentInvalid)
     # The materialization's `join_timeout` (D-256) and the doors' four recording
     # keywords (D-261): each carries the constraint text and section its
     # `DeploymentInvalid` row carried before the keywords moved off the
-    # deployment surface.
+    # deployment surface. The advances' `t_end` carries its own too (D-255).
     d.argument === :join_timeout &&
         return "`join_timeout` must be a positive real — the shutdown tail's join cap in " *
                "seconds of wall clock, got $(repr(d.value)) (§12.4)"

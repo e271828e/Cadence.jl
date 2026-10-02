@@ -10,137 +10,39 @@ testset name states its property and cites the section it answers to.
 
 ## What is real here
 
-One entry per file: which constructs live where, and the sections they answer
-to. For more, read the file itself and the sections it cites.
+One entry per file, in alphabetical order by path: which constructs live
+where, and the sections they answer to. For more, read the file itself and the
+sections it cites.
+
+An entry names constructs and cites their sections. It may also state a fact
+that spans files, which a reader of the one file cannot see. How a construct
+behaves belongs in its docstring or in a comment at the site, never here. An
+increment edits an entry only when a construct appears, moves or goes, or
+when its citations change.
+
+Correctness is checked against analytically integrated references with a
+tolerance, never `==` (D-163) — except the frame-top stamps, asserted bitwise
+against the indexed grid time because that is the claim.
+
+**Rule: nothing deviates silently.** Every construct a reader could mistake
+for the design's is in exactly one of three places: this section's entries, or
+`pending.md`'s two release lists or its deviation list, the latter naming
+the spec shape it replaces. The rule itself is unenforceable — no tool can see a
+deviation nobody wrote down — and `src/` and `test/` sit outside every
+roster, so the diff review is what holds it.
+
+`test/` does not mirror `src/`, and the remainder is not to be "finished":
+`src/` is cut by layering, `test/` by property. `sim.jl` gets no
+`test_sim.jl`; `log`, `lifecycle`, `failures`, `localization` and the loop
+halves of `discrete` and `events` assert emergent properties of
+the layers cooperating, which no source file owns. `test_leaves.jl` is the one
+file kept for a source file rather than a property: the leaf walk has no
+single consumer to own it.
 
 ### `src/Cadence.jl`
 
 The package module: the dependencies and the include order the other files load
 in.
-
-### `src/leaves.jl`
-
-- The leaf walk includes the enum leaf, D-237's opaque leaf and
-  `mutable_position`. `Symbol` counts among the opaque leaves by D-243. The
-  walk covers flatten `flatten!` and `_mflatten_expr`, reconstruct
-  `reconstruct` and `_mreconstruct_expr`, and the activation retype.
-  - `Pinned` is the contract marker. It is defined here because the walk
-    dispatches on it.
-  - `retype_entry` strips the marker at the top of an entry alone (D-265). It
-    sits over `retype`, which replaces each `Float64` position by the scalar
-    and pins a mutable type's parameters (D-263).
-  - `_holds_marker` finds a marker below the top.
-- `leaf_names`' dotted spelling of a flat position, a matrix leaf by its
-  indices.
-- Embed-accept's relation `_accepts` (D-166). The relation is decided on the
-  type (D-238). At a store it accepts an opaque leaf by identity (D-237). At a
-  wire it admits an opaque leaf as the producer's cell (D-264).
-- The wire relation `_accepts_wire`, with its abstract arm (D-236).
-- The checked state write `flatten_state!` (D-235).
-
-Spec: §4.1, §4.3, §4.4, §6.1, §7.1, §7.2, §8.2, §9.5, §13.4, D-166, D-235,
-D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276.
-
-### `src/diagnostics.jl`
-
-- The diagnostic kinds. Each kind has `severity`, `path` and `message`.
-- `_typename`, a user type's name for a payload field or a label.
-- The `DiagnosticError` carrier, parametric on policy, with `diagnostic`,
-  `diagnostics` and `kinds`, and the carrier's two renderings.
-- The carrier holds the build's `warnings` beside the `carried` collection. A
-  warning joins no collection, and both renderings end with one line per
-  warning (D-250).
-- `logline`.
-- The build's warning channel `BUILD_WARNINGS`, with `_warn!` appending to the
-  bound list or logging outside any build (D-250).
-- The grid records `GridEntry` and `GridReport`. They are deployment
-  substrate, defined here because the payloads naming them are. `GridEntry`
-  carries the anchor's declaring scope and key, and `_anchor_label` renders
-  the scope and key as every grid consumer names the entry.
-- `DeploymentInvalid`'s `grid` payload and `GridUtilization`'s. `_grid_block`
-  renders both as the structured block every grid consumer appends to its
-  first line (D-187):
-  - the pool table, with each entry's refinement factor and a driving
-    offset's repair;
-  - then the prime attribution, with its suppliers.
-- `ArgumentInvalid` has arms off the deployment surface (D-256):
-  - the materialization's `join_timeout`, the doors' `trace`, `log`,
-    `log_every` and `log_max` (D-261) and `t_end` carry their constraint
-    text and section;
-  - `DeploymentInvalid`'s parameter set is Appendix C's row.
-- The `Trim*` kinds `TrimProblemInvalid`, `TrimCommitEvents`,
-  `TrimCommitResiduals` and `TrimCommitChecks` (D-262).
-- `TapResolution`'s tap-set reasons `:tap_kind`, `:discrete_state`,
-  `:vector_tap`, `:unseedable` and `:duplicate_site`, with the `list`,
-  `pinning` and `duplicate_of` fields; `ReadSetMisuse`'s `:not_a_tap_list`;
-  `ArgumentInvalid`'s `:not_a_tap_set`, `:t0_without_about` and
-  `:nonpositive_width`, and its `:non_nominal` arm naming the service
-  (D-272). A pinning consumer carries its tier, and a discrete one renders
-  as unseedable by tier. Each `TapResolution` reason renders one citation
-  group, its own.
-- `TapResolution`'s and `ReadBindingUnresolved`'s leaf reasons
-  `:leaf_syntax`, `:no_such_field`, `:opaque_leaf`, `:not_indexable`,
-  `:index_arity` and `:index_bounds`, with the `leaf` and `step` fields.
-  `_leaf_clause` renders the six for either kind (D-276).
-- `TapResolution`'s `mount` field, which a mounted read's message names
-  after the selector, and its `producer` field. The mount step's reasons
-  `:no_input_face` and `:internally_wired`, the second naming the producer,
-  and `:input_face_not_output` at every level (D-277).
-- `TierUnreadable`, for a primitive declaring no store, sits beside
-  `StatelessWithoutOutputs` (D-263).
-- `InternalInvariant`.
-- §13.4's runtime trio is `CursorFrame`, `StepError` and `NonfiniteState`.
-  `StepError` is parametric on its cause, and `diagnostic` is defined on the
-  species.
-- §12.7's replay trio is `CheckpointMismatch`, `ReplaySchemaMismatch` and
-  `ReplayUnknownFace`. `ReplayUnknownFace`'s `face` carries a bare position
-  where no schema resolves it, and the name where one does.
-  `CheckpointMismatch` is one kind for replay's entry pass and `restore!`.
-  It keeps the root-input arm, for the fingerprint's face list and for a
-  recorded value that does not convert (D-274). Its deployment arm has five renderings. The
-  one for a schedule row names the component path and the column (D-255).
-- `CheckpointMidFrame`, `checkpoint`'s refusal after a `t*` stop and after
-  an abandoned frame, carrying the clock's `t`, the frame top `t_frame` and
-  the frame index `frame` (D-274). Its message branches on whether the two
-  times are equal.
-- `StepError`'s `host` records which catch took the throw, `:boundary_zero`
-  or `:loop`, since boundary zero and frame one share pointer 0. Its
-  rendered recipe reads the host alone: `init!` under the same condition for
-  a boundary-zero throw, and replay to the pointer then `step!` for a frame's
-  throw at every pointer, 0 included (§13.4, D-274).
-- `CheckpointMismatch`'s store arm also names a component's `x` type
-  (`:x`), a cell (`port.<name>`) and the event list (`:events`). Its clock
-  arm is `restore = false`'s own: the recording's `t₀` (`:t₀`) and the frame
-  range the feed covers (`:frame`). `ArgumentInvalid` covers
-  `replay!`'s `restore` and a halt before the feed's first frame, and its
-  `:t0_without_about` names the checkpoint as the default operating point.
-
-Spec: §9.1, §9.2, §12.6, §12.7, §13.1, §13.2, §13.4, §14.8, §14.9, §14.10, Appendix C,
-D-058, D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256,
-D-261, D-262, D-263, D-272, D-274, D-276, D-277.
-
-### `src/declare.jl`
-
-The declaration layer:
-
-- Both tiers' name families.
-- `Pinned`'s docstring and the one-arity `declared_at`. `declared_at` walks a
-  continuous contract at its scalar and reads a discrete one as written
-  (D-263).
-- The bundle law, with the legal bundle sets `LEGAL_BUNDLE` and
-  `classify_bundle_field` (§5.2, Appendix B).
-- `probe_value`, with its enum arm (D-051).
-- The connection declarations `inner_connections`, `u_connections` and
-  `y_connections`, beside `transparent_container`.
-- The rate forms `Period`, `Relative` and `Absolute`, with `sample_times`.
-- The event surface `StateEvent`, `state_events` and `x_projection`.
-- The declaration family `DECLARATION_FAMILY` and `foreign_declarations`.
-- The readers of a component, `has_stage`, `_declares`, `declared_at`, the two
-  bundle-name functions and `foreign_declarations`, take it unspecialized, so a
-  new component type compiles none of them again (§9.7, D-289).
-
-Spec: §2.1, §5.2, §8.1, §8.2, §8.5–§8.7, §9.3, §9.7, Appendix B, D-051, D-179,
-D-185, D-195, D-211, D-246, D-248, D-263, D-289.
 
 ### `src/assembly.jl`
 
@@ -193,51 +95,21 @@ Spec: §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §9.7, §13.3, §13.7, §14.2, 
 D-171, D-207–D-212, D-229, D-236, D-246, D-247, D-248, D-251, D-253, D-261,
 D-263, D-289.
 
-### `src/store.jl`
+### `src/bindings.jl`
 
-- Per-eltype cell stores `CellStore` and `CellAddr`. A handle type is its own
-  eltype, as `leaf_types` in leaves.jl decides (D-237).
-- The `StoreBundle`.
-- Gather `gather_cell`/`gather_group` and the checked scatter
-  `scatter_cell!`/`scatter_group!`. The scatter's check is §9.5's always-on
-  check, decided at generation (D-235).
-- `_cell_key`.
-- The `Clock` (D-260):
-  - its `t` is in the deployment's scalar;
-  - its origin `t₀` is a `Float64`;
-  - the constructor takes `t₀` and converts it into `t`.
+- `TableBinding`.
+- `map_input`, generated over the datum's keys with one `_map_channel` call
+  each, and the conditioning helper `_condition`.
+- Binding reads `ReadGather`, resolved at attach by `_compile_gather`.
+  Resolution raises `ReadBindingUnresolved` and enforces the source rule.
+- The three table members take a leaf address, parsed and resolved by the
+  family's `parse_leaf` and `resolve_leaf`, a face selector's head matched
+  by `match_leaf`. `ReadGather` holds the family's
+  `CellRead` entries, and `gather_snapshot` runs `_read` over the
+  snapshot's store (D-276).
+- The candidates on the two name-shaped read misses (§14.4).
 
-Spec: §9.5, §9.7, D-162, D-235, D-237, D-260.
-
-### `src/executor.jl`
-
-- Entries `StageEntry`, `RHSEntry`, `UpdateEntry`, `EventEntry` and
-  `ProjectEntry`. Each carries its component's path, for the write's
-  diagnostic, and an event entry carries its event name beside the path
-  (D-249).
-- The chunked walk `Chunk` and `chunked_body`. `Chunk` is mutable, so a
-  phase body holds one pointer per chunk and a barrier call loads one
-  pointer. Every tuple walk, over a chunk's entries, a body's chunks, or the
-  event set's chunks and their entries, unrolls through one generated body,
-  `_unrolled`. Its twin `_unrolled_tuple` returns the elements as one tuple
-  and serves the value-building walks of readers.jl, bindings.jl and
-  conditions.jl.
-- The interior/boundary split `PhaseBody`. A body with no gated entry has two
-  tuples of one type and walks its interior at a boundary.
-- The `(tick − Φ) % D` gate `Gated`, with boundary zero's `ESTABLISH` beside
-  it.
-- The event set, with its registers. It is mutable, so the executor holds it
-  by reference. Its `entries` and `projects` hold `EventChunk`s, each a
-  mutable chunk of entries, so their `length` counts chunks.
-- The guard/fire/project walks `_guards!`, `_fire!` and `_projects!`, each one
-  non-inlined call per `EventChunk`, over the executor's buffers the caller
-  hands them (D-261).
-- The execution cursor, which every entry stores into. The cursor holds its
-  dispatch fields alone, and the loop's stop hit is `frame!`'s return value
-  (§13.5, D-261).
-
-Spec: §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §13.5, §14.5, D-059, D-205, D-235,
-D-249, D-255, D-261, D-289.
+Spec: §11.2, §11.4, §11.6, §14.4, D-276.
 
 ### `src/build.jl`
 
@@ -301,286 +173,6 @@ Spec: §5.3, §5.5, §5.6, §6.1, §7.1, §7.3, §8.2, §9.1–§9.4, §9.7, §1
 D-012, D-051, D-094, D-166, D-179, D-208, D-210, D-229, D-231, D-235, D-236,
 D-237, D-247, D-248, D-250, D-252, D-253, D-256, D-261, D-263, D-265, D-289.
 
-### `src/tracer.jl`
-
-- `Tracer{S}`, §5.6's set-propagation scalar. It is global on `true` and local
-  on `false`, and `Undecidable` is the marker between them.
-- The leaf-wise lift and tag walks `_lift`, `_tag` and `_sample`.
-- `_classify`, the schedule-free per-member trace at the probe point, with its
-  prefix probe, D-245's port-graph verdict and the sampled fallback at a fixed
-  seed.
-
-Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
-
-### `src/readers.jl`
-
-- The closed read-selector family `get_state`, `get_deriv`, `get_output`,
-  `get_input` and `get_face`, each taking a leaf address as its `leaf`, a
-  `Symbol` the short form of a plain name (D-276).
-- The mount step (§14.9, D-277). `Reads` carries its mount chain as
-  `prefixes`, and `_mount` walks it from the root, each prefix from the
-  level the previous one reached (§13.3), to the mount path and the level
-  there, reporting a failed chain once. `_rebase` then turns each selector
-  into a `MountedRead`: the selector as authored, the mount, the
-  root-authored selector and the head and steps of its leaf. A path
-  selector's path is walked from the mount level and joined to the mount.
-  `get_input` matches an input face of the mount level and follows the
-  export chain to its root input. `get_face` matches an output face of the
-  mount level and becomes `get_output` of the port behind it. The callers
-  rebase and resolve one selector at a time, so the collected list keeps the
-  authored order, and the resolvers read the rebased selector.
-- The leaf address (D-276). `parse_leaf` splits it at resolution. On a face
-  selector `match_leaf` matches the head against the face list instead, since
-  a face name may hold a dot. `resolve_leaf` checks each step against the declared type and returns the
-  chain or a `LeafRefusal`, the six leaf reasons any kind wraps. `walk_steps`
-  runs the chain as `getfield` and `getindex` calls unrolled at generation.
-  A step is an `AccessStep`, and a condition's tree position is a tuple of
-  the same steps, so the specialized `apply!` runs on the same walk.
-- `reads` and `Reads`.
-- The internal `_compile_reads`, which yields a `Reader{T}`. Each entry carries
-  its chain as a type parameter, and the `CellRead` core reads a store bundle,
-  so every gather over a table shares it.
-- `gather_reads`, `apply!`'s twin over an executor. It reads its entries
-  through the generated `_read_entries`, which `gather_snapshot` shares.
-- The output-port candidates, read off the `Outputs`.
-- Activation identity on readers, checked as an internal invariant. The same
-  check on plans sits in conditions.jl's `apply!`.
-
-Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.9, §14.10, D-125, D-130, D-253,
-D-276, D-277.
-
-### `src/sim.jl`
-
-- §13.5's block (D-203, D-255):
-  - the four termination sources `EndTimeReached`, `ModelRequestedStop`,
-    `ControlRequestedStop` and `LoopError`;
-  - `StopPolicy`, the immutable value each advance declares, holding `t_end`
-    and the stop faces alone;
-  - the termination record, which carries the terminating advance's policy
-    beside its source and the tail's residue.
-- `Run{T}` holds §12.6's run state in four fields (D-255, D-260):
-  - the log and the trace, fixed by the door that built the run;
-  - the trace is `nothing` under §11.5's switch, which rides on the run;
-  - the two fields the run evolves, the attached recording and the termination
-    record the tail writes;
-  - `closed(run)` sits beside the termination record;
-  - the origin, the stop policy and the mode are not fields of the run;
-  - the clock holds `t₀` as a `Float64`, each advance carries its own policy,
-    and `mode(sim)` reads the feed.
-- The mutable `Simulation` holds five fields, the deployment, the executor, the
-  run, the plane and the control, and every other value belongs to one of them
-  (D-256, §12.1).
-- The materialization `Simulation(deployment, T)` takes `join_timeout` and
-  `chunk_size` alone, and checks `join_timeout` under `ArgumentInvalid`. Its
-  placeholder run is an empty log and no trace. The placeholder run carries no
-  configuration.
-- The four recording keywords belong to `init!`, `restore!` and `replay!`,
-  for the run each builds. There `_check_recording` validates them under
-  `ArgumentInvalid` at the door's `call`. The door hands them to
-  `_open_run!`, which reads nothing off the run the last door left.
-- `trace(sim)` refuses on the lifecycle before it reads the switch.
-- The materialization builds the plane without the run, and no drain thunk is
-  compiled before a door or a roster change (D-261).
-- The two sugar forms `Simulation(::Build)` and
-  `Simulation(::AbstractComponent)`, defined as the composition (D-254).
-- `warnings(::Simulation)`, as the concatenation (D-250).
-- The boundary macro-sequence.
-- The §10.6 event phase, with its `FiringBudget` degradation.
-- `init!`, `restore!`, `run!`/`step!` and `replay!`. `run!` and `replay!`
-  share the one run body, and `init!`, `restore!` and `replay!` are the three
-  doors that build a run (D-274):
-  - `init!` takes the trace header after boundary zero's first publication;
-  - `restore!` checks the fingerprint, restores the state and publishes one
-    snapshot, with no boundary zero;
-  - `replay!` is a restore of the trace's header plus the feed, the loop's
-    one substitution; its `restore = false` form attaches the feed to the
-    simulation as it stands, and its entry pass also checks the simulation's
-    clock against the recording's.
-- `checkpoint(sim)`, the stopped-sim service. It is refused unless the clock
-  sits on a grid time and the latest snapshot is of that boundary, which
-  excludes a `t*` stop and an abandoned frame.
-- `_open_trajectory!` and `_open_run!`. `init!` opens the trajectory whole;
-  `restore!` and `replay!` take the parts that are neither the clock nor the
-  priors.
-- `attach!`/`detach!`. `attach!` builds the handle with the build's
-  `Structure` and the nominal `Layout` (D-270).
-- The pause verbs `pause!`/`resume!`/`paused`, beside `stop!(sim)` (§12.1,
-  D-268).
-- The pacing verbs and the `Pacer` (§10.7, §12.1, D-269):
-  - the pacing verbs `pace!`/`margin!` and the readers `pace`/`margin`, beside
-    the pause verbs;
-  - `run!` and `replay!` take `pace` and `margin` as keywords, validated per
-    call under `ArgumentInvalid` and written at entry;
-  - the run body creates the `Pacer` per `run!` call, and the `Pacer` is
-    threaded the way the policy is;
-  - the pacer is anchored as the loop starts, re-anchored at un-pause, waits at
-    the frame top after the yield, and is carried to every publication;
-  - `step!` passes no pacer and never waits.
-- §12.2's thread-budget check `report_thread_budget!` runs at the run body's
-  top after the freeze, so either door checks once against the frozen roster
-  and `step!` never does (D-027).
-- Staging/drain/publication, with the drain's replay substitution, and the
-  run's roster (§11.3):
-  - the run body and `step!` copy the roster after the freeze, and thread the
-    copy the way the policy and the pacer are threaded;
-  - the drain, the status, the account reset, the thread-budget check, the
-    init bracket and the tail's sweep read the copy, never the plane's;
-  - the doors pass the plane's roster to their publication, and every
-    stopped-sim reader reads the plane's.
-- Publication reads each device's `task_state` off `run_tasks` (§12.2,
-  D-270). A device with no registered task reads `:done` inside a run and
-  `:none` outside one, by the sticky status. `_run_body!`'s `finally`
-  removes the inline entry when its body returns, under `wake`'s lock, and
-  `_await_loop` removes it again inside its `try` on the arm's call, since an
-  interrupt can cut the first removal short.
-- §12.6's input mode (D-260):
-  - `mode(sim)`, `to_time` and `live!`;
-  - the mode is read off the run's `feed`, so a change of mode is a write to
-    the run, never a change of run.
-- The `StopPolicy`, which each advance builds and validates per call and then
-  carries as an argument, from the call through the frame loop to `_record`'s
-  assembly. The faces' compiled addresses sit beside it as the loop's own. The
-  `t*` hit comes back as `frame!`'s return value.
-- `t_end` and `stop_on` are keywords of `run!`/`replay!`/`step!`, never of the
-  constructor, and `run!` raises the unbounded run's advisory (D-255, D-260,
-  D-261).
-- The lifecycle and the termination record.
-- The frame loop's one catch site, with the species rule. The species rule
-  holds the runtime bundle-field match (§13.2, §13.4, D-248). The match reads
-  its stage-1 names off the `Outputs`. The catch site also holds the interrupt
-  carve-out. The catch site's second host `_host_boundary_zero!` sits around
-  boundary zero. Both hosts reach the one constructor `_wrap_step` and set
-  the carrier's `host`, the frame loop to `:loop` and `_host_boundary_zero!`
-  to `:boundary_zero`.
-- §12.4's mask and the handling around it (D-268):
-  - the mask spans each frame's boundary sequence, with the frame's `try`
-    inside it;
-  - the unmask points sit at the mask's end and at the frame top, the pause
-    block among them;
-  - a deferred interrupt yields to a holding face;
-  - a frame that throws with an interrupt pending ends `errored`;
-  - the masked bookkeeping sits in `run!`'s and `step!`'s outermost `finally`;
-  - the `running` store is the first statement of the `try` that `finally`
-    closes, so no interrupt leaves the lifecycle `running`;
-  - the loop's throw is stored before anything can cut the failure arm, and
-    the masked bookkeeping builds the `LoopError` from it, in `run!` and
-    `step!` alike;
-  - the spawns and their registrations are masked, in the calling-task
-    topology through the loop's spawn, so a deferred interrupt raises with
-    every task bound and registered;
-  - `run!`'s outer catch takes a stray interrupt as the stop. Its head runs
-    masked: the fallback source, and with no loop to await the stop request.
-    An interrupt arriving within the head raises at its unmask and the head
-    reruns. Where the loop was spawned and has not returned, the arm
-    awaits it through `_await_loop`, so `run!` returns only after the loop
-    ends, and a loop failure found there takes the failure arm's one
-    handling. `_await_loop` issues its stop request inside its `try` and
-    retries it when an interrupt cuts it short, so a later interrupt never
-    reads as the loop's failure. On the arm's call it first removes the
-    inline body's record the same way, then requests the stop without
-    waiting for an interrupt, and it returns a loop failure as a value
-    built inside the `try`. Where the tail had not run, the arm runs it
-    unmasked and retries it from where an interrupt cut it, so none leaves
-    the tail: the direct release advances a cursor per entry, `_tail!`
-    retries its collapse's reports past the entries settled and lets no
-    interrupt out, and a flag keeps a later step's retry from running
-    `_tail!` again. The arm shuts the inline entry down when its wrapper
-    never ran `shutdown!`;
-  - `run!` reads §13.4's disposition off the roster, and `step!` always
-    rethrows.
-- The seam's `isfinite` sweep over `x`, the boundary's first act.
-- The accessors `lifecycle`, `mode`, `termination`, `latest`, `logged`,
-  `trace`, `port`, `state`, `modes` and `phase_bodies`. `logged` returns a
-  vector typed by the run's concrete snapshot type,
-  `Snapshot{T,typeof(sim.exec.store)}`, empty or not.
-
-Spec: §10.2–§10.7, §11.1–§11.5, §11.8, §12.1–§12.7, §13.2, §13.4–§13.6,
-§14, §14.5, §14.6, D-027, D-059, D-101, D-157, D-203, D-218, D-219, D-221,
-D-223, D-232, D-233, D-248, D-250, D-253, D-254, D-255, D-256, D-260, D-261,
-D-268, D-269, D-270, D-274.
-
-### `src/stepper.jl`
-
-The seam's backend side: RK4 and Heun, the retained `startpoint`, dense output.
-`checkpoint_stepper` and `restore_stepper!` are the checkpoint's hook pair,
-empty for both methods, which hold nothing across a frame top (D-274).
-
-Spec: §10.2, D-017.
-
-### `src/deployment.jl`
-
-- Deployment binding and its two artifacts (D-254), the `Schedule` and the
-  `Deployment`. The binding is `bind_schedule`, with `_exact`/`_as_int`.
-- The typed `Schedule`, over `ScheduleEntry` and `ScopeEntry` (D-261):
-  - the anchor and rates columns beside `(D, Φ, Δt)`, in `ScheduleEntry`;
-  - the rate-scope rows, in `ScopeEntry`;
-  - `_gates`, which derives the per-component triple the executor compiles
-    over from the rows at `compile`.
-- The `Deployment` holds the build plus the grid parameters `h`, `N_base` and
-  `Δt_base`, the algorithm and the three event parameters `firing_budget`,
-  `localization_tol` and `localization_budget`. It is scalar-free. The
-  `Deployment` constructor has one throw per call (§9.2, D-229).
-- `==`/`hash` on a `Deployment` compare by value over everything but the
-  build, the grid attribution and the warnings (§12.7).
-- `warnings(::Deployment)`.
-- The grid attribution `_grid_report` (D-187):
-  - the constraint pool, with each entry's leave-one-out refinement factor;
-  - the prime attribution of `gcd(pool)`'s denominator;
-  - a driving offset's nearest non-refining neighbours.
-- `_grid_report` runs once per call, ahead of the `Δt_base` branch. The
-  `Deployment` carries its result. The call also hands that result to the
-  three refusals whose remedy is a `Δt_base` the pool admits, and to the
-  derivation path's info line.
-- The derivation path's info line shows the derived value over the same block,
-  with both attribution forms. The derivation path also raises the
-  `GridUtilization` advisory at `min_i Dᵢ > 1`.
-
-Spec: §9.2, §10.5, §12.7, Appendix B, Appendix C, D-187, D-227, D-229,
-D-250, D-254, D-256, D-261.
-
-### `src/localization.jl`
-
-- The frame loop, with the arrival sweep, the θ = 0 validation, ITP
-  bracketing `_crossing`, `t*` boundaries, the localization budget and the
-  `ChatteringBudget` degradation.
-- The cursor's arrival/validation/trial phases.
-- §13.5's stop-face read at every `t*` publication (D-261):
-  - the read is off the policy and the addresses `frame!` carries;
-  - when a face holds, the frame's remainder is abandoned and the face is
-    returned.
-- The run's pacer, carried beside the policy and the addresses to the `t*`
-  publication for its record (§10.7, D-269).
-
-Spec: §10.2, §10.4, §10.7, §13.4, §13.5, D-018, D-059, D-133, D-255, D-260,
-D-261, D-269.
-
-### `src/dataplane.jl`
-
-- The compiled writer `Writer` and `Batch`, and the staging cells.
-- The per-writer drain `_drain!`, which sim.jl's `drain!` reaches through the
-  roster's thunks.
-- The typed diagnostic kinds and the diagnostic cells.
-- `KINDS`, the closed set's one home. The union `DiagValue` and `KindCounts`'
-  field order are built from it.
-- The diagnostic kinds include:
-  - `UnboundedRun`, the loop's own advisory (§13.5, D-255);
-  - `EmptyGreedyClaim`, declared with the service kinds and reported by
-    `attach!` into the roster entry's own cell (§11.3, D-250);
-  - `DebtReanchor`, the pacer's forgiveness on the loop's own cell (§10.7);
-  - `ThreadBudget`, the run-top tightness warning on the loop's own cell
-    (§12.2, D-027).
-- Snapshots, and the log with re-decimation. The log stores the box
-  publication made, which `log!` takes `@nospecialize`d beside its concrete
-  type, so the two `boundary` reads stay static (§7.5).
-- The published `FrameworkStatus`, which every snapshot carries. It holds the
-  per-writer records `WriterStatus` and, beside them, the pacer's frozen
-  `PacerStatus` (D-269):
-  - the `PacerStatus` reads `Inf` and zeros where no pacer runs;
-  - the copy off a live `Pacer` is control.jl's.
-
-Spec: §10.7, §11.1–§11.4, §11.8, §12.2, §12.4, §12.6, §13.2, §13.5, D-023,
-D-027, D-038, D-137, D-250, D-255, D-269.
-
 ### `src/checkpoint.jl`
 
 - `Checkpoint{T}`, the executor's state at a frame top (D-274): the flat
@@ -605,73 +197,24 @@ D-027, D-038, D-137, D-250, D-255, D-269.
 
 Spec: §11.5, §12.6, §12.7, §14.10, D-038, D-254, D-273, D-274.
 
-### `src/trace.jl`
+### `src/conditions.jl`
 
-- The input trace:
-  - the mutable `Trace{T}`, holding its header, two lists that grow in
-    place, namely the writers' schemas and one sparse record per drained
-    batch, and the length a replay reads its bound off, which is also the
-    ordinal each record carries and which the drain advances at its top
-    (D-255, D-260);
-  - the header is a `Checkpoint{T}` written once. `init!` writes it after
-    boundary zero's first publication, and `restore!` and `replay!` open
-    their run with the checkpoint they restore. It is `nothing` only between
-    `init!`'s opening of the run and that publication (D-274).
-- `_install_writers!` (D-261):
-  - the growth rule;
-  - the one site a drain thunk is compiled at, against the executor's store
-    and the run's trace that `_install_writers!` takes as arguments, with the
-    appended range as a local (D-260).
-- `trace(sim)`, defined in sim.jl, which hands back a detached value, the
-  checkpoint copied.
-- Replay's up-front entry pass, run by `_compile_feed` in sim.jl. It validates
-  the header, the schemas and the records. Both stages, `_check_checkpoint!`
-  with `_check_schemas!` and then `_compile_records!`, collect (D-217). The
-  pass builds the `ReplayFeed` the drain reads.
-- The entry pass checks the checkpoint's deployment with one `==`, and
-  `_walk_deployment!` names what the `==` refused, the schedule's rows and
-  scopes by path and column (§12.7).
+- `condition`, the fragment function's generic (§14.2, Appendix B).
+- The condition algebra `fragment`, `at`, `combine` and `override`. `at`
+  also lifts read sets, joining the prefix to their mount chain; trim.jl
+  and linearize.jl add its methods for problems and tap sets (D-277).
+- The export chain's lookup, `_input_faces_at` and `_face_producer`, shared
+  by a condition's `u` entry and the read side's `get_input` (D-277).
+- One collecting pass behind both ways of applying a plan. Each `at` prefix is
+  walked from its authoring level (§13.3). The two ways are:
+  - `resolve_condition`, for values;
+  - `compile_plan`, with lenses run by `walk_steps` (readers.jl),
+    `SpecializedPlan`, whose writes and prefixes `apply!` walks as generated
+    unrolls, and `ConditionShapeDrift`.
+- Root-input totality `assert_total`.
 
-Spec: §11.5, §12.6, §12.7, §14.5, D-029, D-038, D-101, D-176, D-217, D-218,
-D-254, D-255, D-260, D-261, D-274.
-
-### `src/roster.jl`
-
-- Device/binding traits and conformance `check_binding` and `check_device`.
-- The roster, whose entries work as follows (D-261):
-  - each entry keeps the device, its stable id, its thunk, its abort policy
-    `should_abort`, its account and its handle;
-  - each entry reads its binding, writer and diagnostic cell through the
-    handle by `_handle`'s typeassert.
-- Both claim sources and the harness writer.
-- §11.5's drain thunks, beside the claim sources and the harness
-  writer (D-260, D-261):
-  - `DataPlane(layout)` compiles none;
-  - the plane's harness thunk is the `_no_drain` sentinel until a door or a
-    roster change compiles it;
-  - `reclaim!` takes the store and the run's trace from `attach!` and
-    `detach!` rather than reading either off the plane.
-- The loop is a writer too, so the plane holds the loop's diagnostic cell
-  and account, and §11.2's published holder with them (D-256).
-
-Spec: §11.2, §11.3, §11.4, §11.5, §11.6, §11.8, §12.4, D-255, D-256, D-260,
-D-261.
-
-### `src/bindings.jl`
-
-- `TableBinding`.
-- `map_input`, generated over the datum's keys with one `_map_channel` call
-  each, and the conditioning helper `_condition`.
-- Binding reads `ReadGather`, resolved at attach by `_compile_gather`.
-  Resolution raises `ReadBindingUnresolved` and enforces the source rule.
-- The three table members take a leaf address, parsed and resolved by the
-  family's `parse_leaf` and `resolve_leaf`, a face selector's head matched
-  by `match_leaf`. `ReadGather` holds the family's
-  `CellRead` entries, and `gather_snapshot` runs `_read` over the
-  snapshot's store (D-276).
-- The candidates on the two name-shaped read misses (§14.4).
-
-Spec: §11.2, §11.4, §11.6, §14.4, D-276.
+Spec: §9.5, §13.1, §13.3, §14.1–§14.6, §14.9, Appendix B, D-063–D-068, D-117,
+D-130, D-204, D-205, D-207, D-226, D-277.
 
 ### `src/control.jl`
 
@@ -709,6 +252,87 @@ Spec: §11.2, §11.4, §11.6, §14.4, D-276.
 
 Spec: §10.7, §11.3, §12.1–§12.4, §12.6, D-021, D-027, D-203, D-232, D-255,
 D-256, D-268, D-269.
+
+### `src/dataplane.jl`
+
+- The compiled writer `Writer` and `Batch`, and the staging cells.
+- The per-writer drain `_drain!`, which sim.jl's `drain!` reaches through the
+  roster's thunks.
+- The typed diagnostic kinds and the diagnostic cells.
+- `KINDS`, the closed set's one home. The union `DiagValue` and `KindCounts`'
+  field order are built from it.
+- The diagnostic kinds include:
+  - `UnboundedRun`, the loop's own advisory (§13.5, D-255);
+  - `EmptyGreedyClaim`, declared with the service kinds and reported by
+    `attach!` into the roster entry's own cell (§11.3, D-250);
+  - `DebtReanchor`, the pacer's forgiveness on the loop's own cell (§10.7);
+  - `ThreadBudget`, the run-top tightness warning on the loop's own cell
+    (§12.2, D-027).
+- Snapshots, and the log with re-decimation. The log stores the box
+  publication made, which `log!` takes `@nospecialize`d beside its concrete
+  type, so the two `boundary` reads stay static (§7.5).
+- The published `FrameworkStatus`, which every snapshot carries. It holds the
+  per-writer records `WriterStatus` and, beside them, the pacer's frozen
+  `PacerStatus` (D-269):
+  - the `PacerStatus` reads `Inf` and zeros where no pacer runs;
+  - the copy off a live `Pacer` is control.jl's.
+
+Spec: §10.7, §11.1–§11.4, §11.8, §12.2, §12.4, §12.6, §13.2, §13.5, D-023,
+D-027, D-038, D-137, D-250, D-255, D-269.
+
+### `src/declare.jl`
+
+The declaration layer:
+
+- Both tiers' name families.
+- `Pinned`'s docstring and the one-arity `declared_at`. `declared_at` walks a
+  continuous contract at its scalar and reads a discrete one as written
+  (D-263).
+- The bundle law, with the legal bundle sets `LEGAL_BUNDLE` and
+  `classify_bundle_field` (§5.2, Appendix B).
+- `probe_value`, with its enum arm (D-051).
+- The connection declarations `inner_connections`, `u_connections` and
+  `y_connections`, beside `transparent_container`.
+- The rate forms `Period`, `Relative` and `Absolute`, with `sample_times`.
+- The event surface `StateEvent`, `state_events` and `x_projection`.
+- The declaration family `DECLARATION_FAMILY` and `foreign_declarations`.
+- The readers of a component, `has_stage`, `_declares`, `declared_at`, the two
+  bundle-name functions and `foreign_declarations`, take it unspecialized, so a
+  new component type compiles none of them again (§9.7, D-289).
+
+Spec: §2.1, §5.2, §8.1, §8.2, §8.5–§8.7, §9.3, §9.7, Appendix B, D-051, D-179,
+D-185, D-195, D-211, D-246, D-248, D-263, D-289.
+
+### `src/deployment.jl`
+
+- Deployment binding and its two artifacts (D-254), the `Schedule` and the
+  `Deployment`. The binding is `bind_schedule`, with `_exact`/`_as_int`.
+- The typed `Schedule`, over `ScheduleEntry` and `ScopeEntry` (D-261):
+  - the anchor and rates columns beside `(D, Φ, Δt)`, in `ScheduleEntry`;
+  - the rate-scope rows, in `ScopeEntry`;
+  - `_gates`, which derives the per-component triple the executor compiles
+    over from the rows at `compile`.
+- The `Deployment` holds the build plus the grid parameters `h`, `N_base` and
+  `Δt_base`, the algorithm and the three event parameters `firing_budget`,
+  `localization_tol` and `localization_budget`. It is scalar-free. The
+  `Deployment` constructor has one throw per call (§9.2, D-229).
+- `==`/`hash` on a `Deployment` compare by value over everything but the
+  build, the grid attribution and the warnings (§12.7).
+- `warnings(::Deployment)`.
+- The grid attribution `_grid_report` (D-187):
+  - the constraint pool, with each entry's leave-one-out refinement factor;
+  - the prime attribution of `gcd(pool)`'s denominator;
+  - a driving offset's nearest non-refining neighbours.
+- `_grid_report` runs once per call, ahead of the `Δt_base` branch. The
+  `Deployment` carries its result. The call also hands that result to the
+  three refusals whose remedy is a `Δt_base` the pool admits, and to the
+  derivation path's info line.
+- The derivation path's info line shows the derived value over the same block,
+  with both attribution forms. The derivation path also raises the
+  `GridUtilization` advisory at `min_i Dᵢ > 1`.
+
+Spec: §9.2, §10.5, §12.7, Appendix B, Appendix C, D-187, D-227, D-229,
+D-250, D-254, D-256, D-261.
 
 ### `src/devices.jl`
 
@@ -754,39 +378,95 @@ D-256, D-268, D-269.
 Spec: §11.1, §11.3, §11.6, §11.7, §12.1–§12.4, §13.5, §13.6, D-198, D-203,
 D-233, D-244, D-256, D-261, D-268, D-270.
 
-### `src/conditions.jl`
+### `src/diagnostics.jl`
 
-- `condition`, the fragment function's generic (§14.2, Appendix B).
-- The condition algebra `fragment`, `at`, `combine` and `override`. `at`
-  also lifts read sets, joining the prefix to their mount chain; trim.jl
-  and linearize.jl add its methods for problems and tap sets (D-277).
-- The export chain's lookup, `_input_faces_at` and `_face_producer`, shared
-  by a condition's `u` entry and the read side's `get_input` (D-277).
-- One collecting pass behind both ways of applying a plan. Each `at` prefix is
-  walked from its authoring level (§13.3). The two ways are:
-  - `resolve_condition`, for values;
-  - `compile_plan`, with lenses run by `walk_steps` (readers.jl),
-    `SpecializedPlan`, whose writes and prefixes `apply!` walks as generated
-    unrolls, and `ConditionShapeDrift`.
-- Root-input totality `assert_total`.
+- The diagnostic kinds, under `Diagnostic`.
+- `_typename`.
+- The `DiagnosticError` carrier and its `warnings` (D-250), with
+  `diagnostic`, `diagnostics`, `kinds` and the two renderings.
+- `logline`.
+- The build's warning channel `BUILD_WARNINGS` and `_warn!` (D-250).
+- The grid records `GridEntry` and `GridReport`, and `_anchor_label`.
+- `DeploymentInvalid`'s and `GridUtilization`'s `grid` payloads, rendered by
+  `_grid_block` (D-187).
+- `ArgumentInvalid`'s arms off the deployment surface (D-256, D-261).
+- The `Trim*` kinds `TrimProblemInvalid`, `TrimCommitEvents`,
+  `TrimCommitResiduals` and `TrimCommitChecks` (D-262).
+- `TapResolution`'s tap-set reasons, with the `list`, `pinning` and
+  `duplicate_of` fields; `ReadSetMisuse`'s `:not_a_tap_list`;
+  `ArgumentInvalid`'s `:not_a_tap_set`, `:t0_without_about`,
+  `:nonpositive_width` and `:non_nominal` (D-272).
+- `TapResolution`'s and `ReadBindingUnresolved`'s leaf reasons
+  `LEAF_REASONS`, with the `leaf` and `step` fields, and `_leaf_clause`
+  (D-276).
+- `TapResolution`'s `mount` and `producer` fields, and the reasons
+  `:no_input_face`, `:internally_wired` and `:input_face_not_output` (D-277).
+- `TierUnreadable` and `StatelessWithoutOutputs` (D-263).
+- `InternalInvariant`.
+- §13.4's runtime trio `CursorFrame`, `StepError` and `NonfiniteState`.
+- §12.7's replay trio `CheckpointMismatch`, `ReplaySchemaMismatch` and
+  `ReplayUnknownFace` (D-255, D-274).
+- `CheckpointMidFrame` (D-274).
+- `StepError`'s `host` and its rendered recipe (§13.4, D-274).
+- `CheckpointMismatch`'s store and clock arms, and `ArgumentInvalid`'s
+  `restore` arm.
 
-Spec: §9.5, §13.1, §13.3, §14.1–§14.6, §14.9, Appendix B, D-063–D-068, D-117,
-D-130, D-204, D-205, D-207, D-226, D-277.
+Spec: §9.1, §9.2, §12.6, §12.7, §13.1, §13.2, §13.4, §14.8, §14.9, §14.10, Appendix C,
+D-058, D-059, D-157, D-187, D-214, D-215, D-222, D-225, D-250, D-255, D-256,
+D-261, D-262, D-263, D-272, D-274, D-276, D-277.
 
-### `src/trim.jl`
+### `src/executor.jl`
 
-- `TrimProblem`, with its `checks` and `check_tolerances` defaulting to
-  empty (D-262).
-- `at` on a `TrimProblem`, field by field: the condition post-composed, the
-  read set mounted, the path-free fields and a `reads` that is no read set
-  passed through (§14.9, D-277).
-- The `solve` seam, with `LevenbergMarquardt`.
-- `trim!`, over D-213's two-half scratch world.
-- The frozen copy, over the `Outputs`' port list.
-- `TrimReport`, with its `committed_checks` (D-262).
+- Entries `StageEntry`, `RHSEntry`, `UpdateEntry`, `EventEntry` and
+  `ProjectEntry`. Each carries its component's path, for the write's
+  diagnostic, and an event entry carries its event name beside the path
+  (D-249).
+- The chunked walk `Chunk` and `chunked_body`. `Chunk` is mutable, so a
+  phase body holds one pointer per chunk and a barrier call loads one
+  pointer. Every tuple walk, over a chunk's entries, a body's chunks, or the
+  event set's chunks and their entries, unrolls through one generated body,
+  `_unrolled`. Its twin `_unrolled_tuple` returns the elements as one tuple
+  and serves the value-building walks of readers.jl, bindings.jl and
+  conditions.jl.
+- The interior/boundary split `PhaseBody`. A body with no gated entry has two
+  tuples of one type and walks its interior at a boundary.
+- The `(tick − Φ) % D` gate `Gated`, with boundary zero's `ESTABLISH` beside
+  it.
+- The event set, with its registers. It is mutable, so the executor holds it
+  by reference. Its `entries` and `projects` hold `EventChunk`s, each a
+  mutable chunk of entries, so their `length` counts chunks.
+- The guard/fire/project walks `_guards!`, `_fire!` and `_projects!`, each one
+  non-inlined call per `EventChunk`, over the executor's buffers the caller
+  hands them (D-261).
+- The execution cursor, which every entry stores into. The cursor holds its
+  dispatch fields alone, and the loop's stop hit is `frame!`'s return value
+  (§13.5, D-261).
 
-Spec: §9.6, §13.1, §14.5–§14.9, D-070, D-158, D-213, D-224, D-253, D-262,
-D-277.
+Spec: §5.3, §9.5, §9.7, §10.4–§10.6, §13.4, §13.5, §14.5, D-059, D-205, D-235,
+D-249, D-255, D-261, D-289.
+
+### `src/leaves.jl`
+
+- The leaf walk includes the enum leaf, D-237's opaque leaf and
+  `mutable_position`. `Symbol` counts among the opaque leaves by D-243. The
+  walk covers flatten `flatten!` and `_mflatten_expr`, reconstruct
+  `reconstruct` and `_mreconstruct_expr`, and the activation retype.
+  - `Pinned` is the contract marker. It is defined here because the walk
+    dispatches on it.
+  - `retype_entry` strips the marker at the top of an entry alone (D-265). It
+    sits over `retype`, which replaces each `Float64` position by the scalar
+    and pins a mutable type's parameters (D-263).
+  - `_holds_marker` finds a marker below the top.
+- `leaf_names`' dotted spelling of a flat position, a matrix leaf by its
+  indices.
+- Embed-accept's relation `_accepts` (D-166). The relation is decided on the
+  type (D-238). At a store it accepts an opaque leaf by identity (D-237). At a
+  wire it admits an opaque leaf as the producer's cell (D-264).
+- The wire relation `_accepts_wire`, with its abstract arm (D-236).
+- The checked state write `flatten_state!` (D-235).
+
+Spec: §4.1, §4.3, §4.4, §6.1, §7.1, §7.2, §8.2, §9.5, §13.4, D-166, D-235,
+D-236, D-237, D-238, D-243, D-263, D-264, D-265, D-276.
 
 ### `src/linearize.jl`
 
@@ -819,6 +499,81 @@ D-277.
 Spec: §9.7, §14.4, §14.10, D-036, D-167, D-168, D-197, D-213, D-272, D-274,
 D-276, D-277.
 
+### `src/localization.jl`
+
+- The frame loop, with the arrival sweep, the θ = 0 validation, ITP
+  bracketing `_crossing`, `t*` boundaries, the localization budget and the
+  `ChatteringBudget` degradation.
+- The cursor's arrival/validation/trial phases.
+- §13.5's stop-face read at every `t*` publication (D-261):
+  - the read is off the policy and the addresses `frame!` carries;
+  - when a face holds, the frame's remainder is abandoned and the face is
+    returned.
+- The run's pacer, carried beside the policy and the addresses to the `t*`
+  publication for its record (§10.7, D-269).
+
+Spec: §10.2, §10.4, §10.7, §13.4, §13.5, D-018, D-059, D-133, D-255, D-260,
+D-261, D-269.
+
+### `src/readers.jl`
+
+- The closed read-selector family `get_state`, `get_deriv`, `get_output`,
+  `get_input` and `get_face`, each taking a leaf address as its `leaf`, a
+  `Symbol` the short form of a plain name (D-276).
+- The mount step (§14.9, D-277). `Reads` carries its mount chain as
+  `prefixes`, and `_mount` walks it from the root, each prefix from the
+  level the previous one reached (§13.3), to the mount path and the level
+  there, reporting a failed chain once. `_rebase` then turns each selector
+  into a `MountedRead`: the selector as authored, the mount, the
+  root-authored selector and the head and steps of its leaf. A path
+  selector's path is walked from the mount level and joined to the mount.
+  `get_input` matches an input face of the mount level and follows the
+  export chain to its root input. `get_face` matches an output face of the
+  mount level and becomes `get_output` of the port behind it. The callers
+  rebase and resolve one selector at a time, so the collected list keeps the
+  authored order, and the resolvers read the rebased selector.
+- The leaf address (D-276). `parse_leaf` splits it at resolution. On a face
+  selector `match_leaf` matches the head against the face list instead, since
+  a face name may hold a dot. `resolve_leaf` checks each step against the declared type and returns the
+  chain or a `LeafRefusal`, the six leaf reasons any kind wraps. `walk_steps`
+  runs the chain as `getfield` and `getindex` calls unrolled at generation.
+  A step is an `AccessStep`, and a condition's tree position is a tuple of
+  the same steps, so the specialized `apply!` runs on the same walk.
+- `reads` and `Reads`.
+- The internal `_compile_reads`, which yields a `Reader{T}`. Each entry carries
+  its chain as a type parameter, and the `CellRead` core reads a store bundle,
+  so every gather over a table shares it.
+- `gather_reads`, `apply!`'s twin over an executor. It reads its entries
+  through the generated `_read_entries`, which `gather_snapshot` shares.
+- The output-port candidates, read off the `Outputs`.
+- Activation identity on readers, checked as an internal invariant. The same
+  check on plans sits in conditions.jl's `apply!`.
+
+Spec: §13.1, §13.3, §14.1, §14.4, §14.7, §14.9, §14.10, D-125, D-130, D-253,
+D-276, D-277.
+
+### `src/roster.jl`
+
+- Device/binding traits and conformance `check_binding` and `check_device`.
+- The roster, whose entries work as follows (D-261):
+  - each entry keeps the device, its stable id, its thunk, its abort policy
+    `should_abort`, its account and its handle;
+  - each entry reads its binding, writer and diagnostic cell through the
+    handle by `_handle`'s typeassert.
+- Both claim sources and the harness writer.
+- §11.5's drain thunks, beside the claim sources and the harness
+  writer (D-260, D-261):
+  - `DataPlane(layout)` compiles none;
+  - the plane's harness thunk is the `_no_drain` sentinel until a door or a
+    roster change compiles it;
+  - `reclaim!` takes the store and the run's trace from `attach!` and
+    `detach!` rather than reading either off the plane.
+- The loop is a writer too, so the plane holds the loop's diagnostic cell
+  and account, and §11.2's published holder with them (D-256).
+
+Spec: §11.2, §11.3, §11.4, §11.5, §11.6, §11.8, §12.4, D-255, D-256, D-260,
+D-261.
+
 ### `src/show.jl`
 
 - Each artifact renders through `show`, with no accessor beside the
@@ -844,6 +599,135 @@ D-276, D-277.
   count-only past it.
 
 Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261.
+
+### `src/sim.jl`
+
+- §13.5's block: the four termination sources `EndTimeReached`,
+  `ModelRequestedStop`, `ControlRequestedStop` and `LoopError`, `StopPolicy`
+  and `TerminationRecord` (D-203, D-255).
+- `Run{T}`, §12.6's run state, and `closed(run)` (D-255, D-260).
+- The mutable `Simulation` (§12.1, D-256).
+- The materialization `Simulation(deployment, T)`.
+- The doors' recording keywords, checked by `_check_recording`.
+- The two sugar forms `Simulation(::Build)` and
+  `Simulation(::AbstractComponent)` (D-254).
+- `warnings(::Simulation)` (D-250).
+- The boundary macro-sequence.
+- The §10.6 event phase, with its `FiringBudget` degradation.
+- `init!`, `restore!`, `run!`/`step!` and `replay!`, with the run body
+  `_run_body!` and the door body `_enter_checkpoint!` (D-274).
+- `checkpoint(sim)`.
+- `_open_trajectory!`, `_reset_periphery!` and `_open_run!`.
+- `attach!`/`detach!`.
+- The pause verbs `pause!`/`resume!`/`paused`, beside `stop!(sim)` (§12.1,
+  D-268).
+- The pacing verbs `pace!`/`margin!`, the readers `pace`/`margin`, and the
+  `Pacer` each `_run_body!` creates (§10.7, §12.1, D-269).
+- §12.2's thread-budget check `report_thread_budget!` (D-027).
+- Staging, the drain with its replay substitution, and publication:
+  `stage!`, `drain!`, `_replay_drain!` and `publish!`, with the run's copy of
+  the roster (§11.3).
+- Publication's `task_state`, read off `run_tasks` by `_status` (§12.2,
+  D-270).
+- §12.6's input mode: `mode(sim)`, `to_time` and `live!` (D-260).
+- `_bind_policy`, which builds each advance's `StopPolicy`.
+- `t_end` and `stop_on`, the advances' keywords, and `run!`'s `UnboundedRun`
+  advisory (D-255, D-260, D-261).
+- The lifecycle and the termination record.
+- The frame loop's one catch site in `_advance!`, its second host
+  `_host_boundary_zero!`, the one constructor `_wrap_step`, and the species
+  rule `_species` with the runtime bundle-field match (§13.2, §13.4, D-248).
+- §12.4's mask, its unmask points, and the interrupt arms of `run!`,
+  `step!` and `_await_loop` (D-268). The invariants each arm keeps are
+  stated in the comments at those sites.
+- The seam's `isfinite` sweep `_check_finite!`.
+- The accessors `lifecycle`, `mode`, `termination`, `latest`, `logged`,
+  `trace`, `port`, `state`, `modes` and `phase_bodies`.
+
+Spec: §10.2–§10.7, §11.1–§11.5, §11.8, §12.1–§12.7, §13.2, §13.4–§13.6,
+§14, §14.5, §14.6, D-027, D-059, D-101, D-157, D-203, D-218, D-219, D-221,
+D-223, D-232, D-233, D-248, D-250, D-253, D-254, D-255, D-256, D-260, D-261,
+D-268, D-269, D-270, D-274.
+
+### `src/stepper.jl`
+
+The seam's backend side: RK4 and Heun, the retained `startpoint`, dense output.
+`checkpoint_stepper` and `restore_stepper!` are the checkpoint's hook pair,
+empty for both methods, which hold nothing across a frame top (D-274).
+
+Spec: §10.2, D-017.
+
+### `src/store.jl`
+
+- Per-eltype cell stores `CellStore` and `CellAddr`. A handle type is its own
+  eltype, as `leaf_types` in leaves.jl decides (D-237).
+- The `StoreBundle`.
+- Gather `gather_cell`/`gather_group` and the checked scatter
+  `scatter_cell!`/`scatter_group!`. The scatter's check is §9.5's always-on
+  check, decided at generation (D-235).
+- `_cell_key`.
+- The `Clock` (D-260):
+  - its `t` is in the deployment's scalar;
+  - its origin `t₀` is a `Float64`;
+  - the constructor takes `t₀` and converts it into `t`.
+
+Spec: §9.5, §9.7, D-162, D-235, D-237, D-260.
+
+### `src/trace.jl`
+
+- The input trace:
+  - the mutable `Trace{T}`, holding its header, two lists that grow in
+    place, namely the writers' schemas and one sparse record per drained
+    batch, and the length a replay reads its bound off, which is also the
+    ordinal each record carries and which the drain advances at its top
+    (D-255, D-260);
+  - the header is a `Checkpoint{T}` written once. `init!` writes it after
+    boundary zero's first publication, and `restore!` and `replay!` open
+    their run with the checkpoint they restore. It is `nothing` only between
+    `init!`'s opening of the run and that publication (D-274).
+- `_install_writers!` (D-261):
+  - the growth rule;
+  - the one site a drain thunk is compiled at, against the executor's store
+    and the run's trace that `_install_writers!` takes as arguments, with the
+    appended range as a local (D-260).
+- `trace(sim)`, defined in sim.jl, which hands back a detached value, the
+  checkpoint copied.
+- Replay's up-front entry pass, run by `_compile_feed` in sim.jl. It validates
+  the header, the schemas and the records. Both stages, `_check_checkpoint!`
+  with `_check_schemas!` and then `_compile_records!`, collect (D-217). The
+  pass builds the `ReplayFeed` the drain reads.
+- The entry pass checks the checkpoint's deployment with one `==`, and
+  `_walk_deployment!` names what the `==` refused, the schedule's rows and
+  scopes by path and column (§12.7).
+
+Spec: §11.5, §12.6, §12.7, §14.5, D-029, D-038, D-101, D-176, D-217, D-218,
+D-254, D-255, D-260, D-261, D-274.
+
+### `src/tracer.jl`
+
+- `Tracer{S}`, §5.6's set-propagation scalar. It is global on `true` and local
+  on `false`, and `Undecidable` is the marker between them.
+- The leaf-wise lift and tag walks `_lift`, `_tag` and `_sample`.
+- `_classify`, the schedule-free per-member trace at the probe point, with its
+  prefix probe, D-245's port-graph verdict and the sampled fallback at a fixed
+  seed.
+
+Spec: §5.4, §5.6, §9.3, D-012, D-140, D-245.
+
+### `src/trim.jl`
+
+- `TrimProblem`, with its `checks` and `check_tolerances` defaulting to
+  empty (D-262).
+- `at` on a `TrimProblem`, field by field: the condition post-composed, the
+  read set mounted, the path-free fields and a `reads` that is no read set
+  passed through (§14.9, D-277).
+- The `solve` seam, with `LevenbergMarquardt`.
+- `trim!`, over D-213's two-half scratch world.
+- The frozen copy, over the `Outputs`' port list.
+- `TrimReport`, with its `committed_checks` (D-262).
+
+Spec: §9.6, §13.1, §14.5–§14.9, D-070, D-158, D-213, D-224, D-253, D-262,
+D-277.
 
 ### `test/fixtures.jl`
 
@@ -873,25 +757,6 @@ framework name the tests call or extend is admitted.
 
 The REPL bootstrap: `julia --project=test -L test/repl.jl` loads the list and
 the fixtures into `Main`.
-
-Correctness is checked against analytically integrated references with a
-tolerance, never `==` (D-163) — except the frame-top stamps, asserted bitwise
-against the indexed grid time because that is the claim.
-
-**Rule: nothing deviates silently.** Every construct a reader could mistake
-for the design's is in exactly one of three places: the entries above, or
-`pending.md`'s two release lists or its deviation list, the latter naming
-the spec shape it replaces. The rule itself is unenforceable — no tool can see a
-deviation nobody wrote down — and `src/` and `test/` sit outside every
-roster, so the diff review is what holds it.
-
-`test/` does not mirror `src/`, and the remainder is not to be "finished":
-`src/` is cut by layering, `test/` by property. `sim.jl` gets no
-`test_sim.jl`; `log`, `lifecycle`, `failures`, `localization` and the loop
-halves of `discrete` and `events` assert emergent properties of
-the layers cooperating, which no source file owns. `test_leaves.jl` is the one
-file kept for a source file rather than a property: the leaf walk has no
-single consumer to own it.
 
 ## Authoring caveats
 
