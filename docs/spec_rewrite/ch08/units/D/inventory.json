@@ -175,10 +175,11 @@
   {
    "id": "D-021",
    "old": "`inner_connections` plus any leaf declaration on one type is a build error as well.",
-   "new": "`inner_connections` plus any leaf declaration on one type is a build error as well.",
+   "new": "`inner_connections` plus any leaf declaration on one type is a build error as well, `ClassMixed`.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "K2"
   },
   {
    "id": "D-022",
@@ -476,13 +477,14 @@
   {
    "id": "D-054",
    "old": "- A container mixing component and non-component elements is a build error in this section's did-you-mean family",
-   "new": "- A container mixing component and non-component elements is a build error in this section's did-you-mean family (D-085).",
+   "new": "- A container mixing component and non-component elements is a build error in this section's did-you-mean family (D-085). The error is `ContainerMixed`.",
    "where": "new",
    "cites": [],
-   "tag": "C",
+   "tag": "R",
    "newcites": [
     "D-085"
-   ]
+   ],
+   "ruling": "K2"
   },
   {
    "id": "D-055",
@@ -608,14 +610,15 @@
   {
    "id": "D-067",
    "old": "`transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error.",
-   "new": "- `transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error (D-211, D-215).",
+   "new": "- `transparent_container` must name a container field of the type, and a name that matches none is `TransparentContainerUnknown`. Declaring two transparent containers on one type is a declaration error (D-211, D-215).",
    "where": "new",
    "cites": [],
-   "tag": "C",
+   "tag": "R",
    "newcites": [
     "D-211",
     "D-215"
-   ]
+   ],
+   "ruling": "K2"
   },
   {
    "id": "D-068",
@@ -833,6 +836,9 @@
   "This section states how an assembly (a component of pure composition) is declared, how a type's declarations mark it as an assembly or a primitive, what arity those declarations take, how container fields contribute children, and how `Group` assembles components on the fly.",
   "`ClassUnreadable`,",
   "The error is `ChildNameCollision`.",
+  ", `ClassMixed`.",
+  "The error is `ContainerMixed`.",
+  "and a name that matches none is `TransparentContainerUnknown`.",
   "Two reasons rule out a supertype for class (a component's primitive-vs-assembly status).",
   "That section states the arity rule and tier agreement in full."
  ]

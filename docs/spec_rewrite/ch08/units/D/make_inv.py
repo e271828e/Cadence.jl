@@ -51,7 +51,7 @@ c("It is a build error naming both families rather than a silence that fails lat
 c("That error sharpens into a did-you-mean when the type has component-typed fields (\"holds components but declares no `inner_connections`\").",
   "When the type has component-typed fields, that error sharpens into a did-you-mean (the offending name plus the list-in-hand it should have matched). Its message reads \"holds components but declares no `inner_connections`\".")
 c("`inner_connections` plus any leaf declaration on one type is a build error as well.",
-  "`inner_connections` plus any leaf declaration on one type is a build error as well.")
+  "`inner_connections` plus any leaf declaration on one type is a build error as well, `ClassMixed`.", "R", ruling="K2")
 c("Assemblies have no state of their own, which is the no-atomic-assemblies rule at declaration time (§10.5).",
   "Assemblies have no state of their own, which is the no-atomic-assemblies rule at declaration time (§10.5).", "F", ["§10.5"])
 c("They have no contract of their own either.", "They have no contract of their own either.")
@@ -113,7 +113,7 @@ c("The elements are the parent's children exactly as before, laid out in declara
   "The elements are the parent's children exactly as before, laid out in declaration order. The container keeps its transparency of contract, with no `inner_connections`, no faces and no rate scope.")
 c("The edges of the container form are fixed by rule:", "The edges of the container form are fixed by rule.", "X")
 c("- A container mixing component and non-component elements is a build error in this section's did-you-mean family",
-  "- A container mixing component and non-component elements is a build error in this section's did-you-mean family (D-085).", "C", [], ["D-085"])
+  "- A container mixing component and non-component elements is a build error in this section's did-you-mean family (D-085). The error is `ContainerMixed`.", "R", [], ["D-085"], ruling="K2")
 c("(the offending name plus the list-in-hand it should have matched).",
   "a did-you-mean (the offending name plus the list-in-hand it should have matched)")
 c("All-component elements are children, and zero-component elements are inert parameter data.",
@@ -139,7 +139,7 @@ c("An empty field reserves nothing, because it reaches no children and its value
 c("The judgment is therefore per-instantiation, like every wiring judgment (D-212).",
   "The judgment is therefore per-instantiation, like every wiring judgment.", "F", ["D-212"], ["D-212"])
 c("`transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error.",
-  "- `transparent_container` must name a container field of the type, and declaring two transparent containers on one type is a declaration error (D-211, D-215).", "C", [], ["D-211", "D-215"])
+  "- `transparent_container` must name a container field of the type, and a name that matches none is `TransparentContainerUnknown`. Declaring two transparent containers on one type is a declaration error (D-211, D-215).", "R", [], ["D-211", "D-215"], ruling="K2")
 c("The one ambiguity this leaves, a transparent element's bare key equal to its own field's name, joins the bare-key collision error above.",
   "The `sample_times` sugar of §8.7, where a container's bare field name keys one declaration for all its elements, leaves only one ambiguity. A transparent element's bare key equal to its own field's name joins this collision error (D-215).",
   "C", [], ["§8.7", "D-215"])
@@ -192,6 +192,9 @@ added = [
  "This section states how an assembly (a component of pure composition) is declared, how a type's declarations mark it as an assembly or a primitive, what arity those declarations take, how container fields contribute children, and how `Group` assembles components on the fly.",
  "`ClassUnreadable`,",
  "The error is `ChildNameCollision`.",
+ ", `ClassMixed`.",
+ "The error is `ContainerMixed`.",
+ "and a name that matches none is `TransparentContainerUnknown`.",
  "Two reasons rule out a supertype for class (a component's primitive-vs-assembly status).",
  "That section states the arity rule and tier agreement in full.",
 ]

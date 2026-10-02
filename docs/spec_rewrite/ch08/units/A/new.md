@@ -82,17 +82,17 @@ contract that genuinely varies is the type parameter, not the field, as in
 `SumJunction{Wrench, 3}` ([§6.2][s6-2]) and `Or{N}` ([§13.7][s13-7]). Arity is spelled in
 the type, at the price [§6.2][s6-2] states openly.
 
-The reason is how executor entries are typed ([§9.7][s9-7]). A component's
-[bundle](#g-bundle) is the `NamedTuple` of zero-copy views a component function
-receives, and its key set *is* its contract's. An entry of the [executor](#g-executor),
-the compiled form of the stage execution order, carries what selects code in
-type parameters and what is plain data in fields. A key set derivable only from
-field values would therefore have to go one of two ways. It could climb into the
-type parameters anyway, multiplying specialization and changing the cost model
-([§9.7][s9-7]) of [chunking](#g-chunking), the splitting of a large phase body into statically
-typed chunks. Or it could sit in fields, dissolving the static typing that the
-zero runtime graph logic ([§5.1][s5-1]), the allocation invariant ([§7.5][s7-5]) and the
-fold-away conformance test ([§9.5][s9-5]) all rest on.
+The reason is how entries of the [executor](#g-executor) (the compiled form of the stage
+execution order) are typed ([§9.7][s9-7]). A component's [bundle](#g-bundle) is the `NamedTuple` of
+zero-copy views a component function receives, and its key set *is* its
+contract's. An executor entry carries what selects code in type parameters and
+what is plain data in fields. A key set derivable only from field values would
+therefore have to go one of two ways. It could climb into the type parameters
+anyway, multiplying specialization and changing the cost model ([§9.7][s9-7]) of
+[chunking](#g-chunking), the splitting of a large phase body into statically typed chunks. Or
+it could sit in fields, dissolving the static typing that the zero runtime graph
+logic ([§5.1][s5-1]), the allocation invariant ([§7.5][s7-5]) and the fold-away conformance test
+([§9.5][s9-5]) all rest on.
 
 The build reads each declaration once, against the concrete instance, so a
 value-dependent contract does not announce itself. This is a rule authors keep,

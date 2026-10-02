@@ -981,12 +981,13 @@
   {
    "id": "A-108",
    "old": "Why. The entry typing decides it (§9.7).",
-   "new": "The reason is how executor entries are typed (§9.7).",
+   "new": "The reason is how entries of the executor (the compiled form of the stage execution order) are typed (§9.7).",
    "where": "new",
    "cites": [
     "§9.7"
    ],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "K3"
   },
   {
    "id": "A-109",
@@ -999,10 +1000,11 @@
   {
    "id": "A-110",
    "old": "An entry of the executor, the compiled form of the stage execution order, carries what selects code in type parameters and what is plain data in fields.",
-   "new": "An entry of the executor, the compiled form of the stage execution order, carries what selects code in type parameters and what is plain data in fields.",
+   "new": "An executor entry carries what selects code in type parameters and what is plain data in fields.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "K3"
   },
   {
    "id": "A-111",

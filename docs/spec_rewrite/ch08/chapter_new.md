@@ -82,17 +82,17 @@ contract that genuinely varies is the type parameter, not the field, as in
 `SumJunction{Wrench, 3}` ([§6.2][s6-2]) and `Or{N}` ([§13.7][s13-7]). Arity is spelled in
 the type, at the price [§6.2][s6-2] states openly.
 
-The reason is how executor entries are typed ([§9.7][s9-7]). A component's
-[bundle](#g-bundle) is the `NamedTuple` of zero-copy views a component function
-receives, and its key set *is* its contract's. An entry of the [executor](#g-executor),
-the compiled form of the stage execution order, carries what selects code in
-type parameters and what is plain data in fields. A key set derivable only from
-field values would therefore have to go one of two ways. It could climb into the
-type parameters anyway, multiplying specialization and changing the cost model
-([§9.7][s9-7]) of [chunking](#g-chunking), the splitting of a large phase body into statically
-typed chunks. Or it could sit in fields, dissolving the static typing that the
-zero runtime graph logic ([§5.1][s5-1]), the allocation invariant ([§7.5][s7-5]) and the
-fold-away conformance test ([§9.5][s9-5]) all rest on.
+The reason is how entries of the [executor](#g-executor) (the compiled form of the stage
+execution order) are typed ([§9.7][s9-7]). A component's [bundle](#g-bundle) is the `NamedTuple` of
+zero-copy views a component function receives, and its key set *is* its
+contract's. An executor entry carries what selects code in type parameters and
+what is plain data in fields. A key set derivable only from field values would
+therefore have to go one of two ways. It could climb into the type parameters
+anyway, multiplying specialization and changing the cost model ([§9.7][s9-7]) of
+[chunking](#g-chunking), the splitting of a large phase body into statically typed chunks. Or
+it could sit in fields, dissolving the static typing that the zero runtime graph
+logic ([§5.1][s5-1]), the allocation invariant ([§7.5][s7-5]) and the fold-away conformance test
+([§9.5][s9-5]) all rest on.
 
 The build reads each declaration once, against the concrete instance, so a
 value-dependent contract does not announce itself. This is a rule authors keep,
@@ -317,6 +317,12 @@ admitted ([D-247][d-247]). A bare leaf such as `x_init(::C) = 0.0` or
 first step, declaration reading only) reports it as `StoreNotNamedTuple`, and
 the message spells the wrap ([§9.1][s9-1], [Appendix C][sC], [D-247][d-247]).
 
+The [store](#g-store) (the model's memory, declared by initial value) names each leaf
+because every service reaches a leaf by its field name. A [condition](#g-condition), the
+path-addressed sparse overlay that sets a build's state, merges on it ([§14.1][s14-1]).
+Readers and the trace spell it ([§14.4][s14-4]). The name a one-state component is asked
+for is the name every service then uses.
+
 **Every leaf declares exactly one of `x_init` and `s_init`**, and a stateless
 leaf declares it empty ([D-263][d-263]):
 
@@ -325,13 +331,11 @@ x_init(::Gain) = (;)
 s_init(::Sampler) = (;)
 ```
 
-The [store](#g-store) (the model's memory, declared by initial value) is the
-tier marker. It is therefore mandatory even when empty, exactly as
-`inner_connections` is mandatory even when empty because it is the class
-marker ([§8.5][s8-5], [D-263][d-263]). A primitive declaring neither store is
-`TierUnreadable`, and its message spells the empty form. An empty store owes no
-update law, since it has nothing to integrate or advance. It puts no letter in
-the bundle ([§5.2][s5-2]).
+The store is the tier marker. It is therefore mandatory even when empty, exactly
+as `inner_connections` is mandatory even when empty because it is the class
+marker ([§8.5][s8-5], [D-263][d-263]). A primitive declaring neither store is `TierUnreadable`,
+and its message spells the empty form. An empty store owes no update law, since
+it has nothing to integrate or advance. It puts no letter in the bundle ([§5.2][s5-2]).
 
 A continuous component's state may be empty ([§3.1][s3-1]), so a stateless
 continuous leaf is honestly a continuous leaf with zero state fields. Spelling
@@ -339,12 +343,6 @@ that out puts every leaf's tier on the page in one place, stateful or not, with
 no tier by omission. It also closes a trap. A store lost to a local scope or to
 a forgotten import ([§8.1][s8-1]) fails loud as a leaf declaring no store,
 where an optional marker would have dropped silently.
-
-The store names each leaf because every service reaches a leaf by its field
-name. A [condition](#g-condition), the path-addressed sparse overlay that sets a
-build's state, merges on it ([§14.1][s14-1]). Readers and the trace spell it
-([§14.4][s14-4]). The name a one-state component is asked for is the name
-every service then uses.
 
 Because the type is derived from the value, there is no second artifact to drift
 and no separate type declaration to check. The workspace is the exception to
@@ -946,8 +944,8 @@ class to read. It is a build error, `ClassUnreadable`, naming both families,
 rather than a silence that fails later and elsewhere. When the type has
 component-typed fields, that error sharpens into a [did-you-mean](#g-did-you-mean) (the offending
 name plus the list-in-hand it should have matched). Its message reads "holds
-components but declares no `inner_connections`". `inner_connections` plus any leaf
-declaration on one type is a build error as well.
+components but declares no `inner_connections`". `inner_connections` plus any
+leaf declaration on one type is a build error as well, `ClassMixed`.
 
 Assemblies have no state of their own, which is the no-atomic-assemblies rule
 at declaration time ([§10.5][s10-5]). They have no contract of their own
@@ -1012,8 +1010,9 @@ faces and no rate scope.
 The edges of the container form are fixed by rule.
 
 - A container mixing component and non-component elements is a build error in
-  this section's did-you-mean family ([D-085][d-085]). All-component elements are
-  children, and zero-component elements are inert parameter data.
+  this section's did-you-mean family ([D-085][d-085]). The error is `ContainerMixed`.
+  All-component elements are children, and zero-component elements are inert
+  parameter data.
 - Containers of containers are rejected in the first cut, because deeper
   grouping is what assemblies are for ([D-085][d-085]). The element whose
   value is itself a component-bearing container is named, with its type
@@ -1038,9 +1037,9 @@ The edges of the container form are fixed by rule.
   ([D-212][d-212]), because it reaches no children and its value cannot be
   told from empty inert parameter data. The judgment is therefore
   per-instantiation, like every wiring judgment.
-- `transparent_container` must name a container field of the type, and
-  declaring two transparent containers on one type is a declaration error
-  ([D-211][d-211], [D-215][d-215]).
+- `transparent_container` must name a container field of the type, and a name
+  that matches none is `TransparentContainerUnknown`. Declaring two transparent
+  containers on one type is a declaration error ([D-211][d-211], [D-215][d-215]).
 
 #### `Group`: the on-the-fly assembly
 
@@ -1159,13 +1158,14 @@ the resolved port's actual direction. A mixed entry is not expressible, because
 the single list that made that error class possible does not exist. Two entries
 producing the same output face remain the ordinary two-producers error ([§6.1][s6-1]).
 
-**Face *types and [tiers](#g-tier)* are derived from the internal endpoints** ([D-041][d-041]). A tier
-is the continuous or discrete side of the hybrid formalism. This derivation is
-the [blessed](#g-blessed) (explicitly sanctioned) derivation-from-declarations ([§8.2][s8-2]). The
+**Face *types and [tiers](#g-tier)* are derived from the internal endpoints** ([D-041][d-041]). A
+tier is the continuous or discrete side of the hybrid formalism. This derivation
+is the [blessed](#g-blessed) (explicitly sanctioned) derivation-from-declarations ([§8.2][s8-2]). The
 derivation is forced, not merely convenient. An assembly is tier-neutral. It
 exports continuous-sourced and discrete-sourced ports side by side. A face's
 [cells](#g-cell) (entries of the signal table) follow the producer's own declaration
-([§8.2][s8-2]). They are evaluated at the [activation](#g-activation) scalar on the continuous tier and
+([§8.2][s8-2]). They are retyped at the [activation](#g-activation) scalar by the [leaf walk](#g-leaf-walk) (the
+framework's derivation of per-activation types) on the continuous tier, and
 [pinned](#g-walked) on the discrete. Three alternative spellings are rejected ([D-041][d-041]).
 Publicity is never implicit ([§8.3][s8-3]).
 

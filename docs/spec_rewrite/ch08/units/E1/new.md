@@ -58,13 +58,14 @@ the resolved port's actual direction. A mixed entry is not expressible, because
 the single list that made that error class possible does not exist. Two entries
 producing the same output face remain the ordinary two-producers error ([§6.1][s6-1]).
 
-**Face *types and [tiers](#g-tier)* are derived from the internal endpoints** ([D-041][d-041]). A tier
-is the continuous or discrete side of the hybrid formalism. This derivation is
-the [blessed](#g-blessed) (explicitly sanctioned) derivation-from-declarations ([§8.2][s8-2]). The
+**Face *types and [tiers](#g-tier)* are derived from the internal endpoints** ([D-041][d-041]). A
+tier is the continuous or discrete side of the hybrid formalism. This derivation
+is the [blessed](#g-blessed) (explicitly sanctioned) derivation-from-declarations ([§8.2][s8-2]). The
 derivation is forced, not merely convenient. An assembly is tier-neutral. It
 exports continuous-sourced and discrete-sourced ports side by side. A face's
 [cells](#g-cell) (entries of the signal table) follow the producer's own declaration
-([§8.2][s8-2]). They are evaluated at the [activation](#g-activation) scalar on the continuous tier and
+([§8.2][s8-2]). They are retyped at the [activation](#g-activation) scalar by the [leaf walk](#g-leaf-walk) (the
+framework's derivation of per-activation types) on the continuous tier, and
 [pinned](#g-walked) on the discrete. Three alternative spellings are rejected ([D-041][d-041]).
 Publicity is never implicit ([§8.3][s8-3]).
 

@@ -455,7 +455,7 @@
   {
    "id": "E1-047",
    "old": "An assembly is tier-neutral, exporting continuous-sourced and discrete-sourced ports side by side, and a face's cells follow the producer's own declaration (§8.5), evaluated at the activation scalar on the continuous tier and pinned on the discrete.",
-   "new": "An assembly is tier-neutral. It exports continuous-sourced and discrete-sourced ports side by side. A face's cells (entries of the signal table) follow the producer's own declaration (§8.2). They are evaluated at the activation scalar on the continuous tier and pinned on the discrete.",
+   "new": "An assembly is tier-neutral. It exports continuous-sourced and discrete-sourced ports side by side. A face's cells (entries of the signal table) follow the producer's own declaration (§8.2). They are retyped at the activation scalar by the leaf walk (the framework's derivation of per-activation types) on the continuous tier, and pinned on the discrete.",
    "where": "new",
    "cites": [
     "§8.5"
@@ -463,7 +463,8 @@
    "newcites": [
     "§8.2"
    ],
-   "tag": "C"
+   "tag": "R",
+   "ruling": "K6"
   },
   {
    "id": "E1-048",

@@ -83,6 +83,12 @@ admitted ([D-247][d-247]). A bare leaf such as `x_init(::C) = 0.0` or
 first step, declaration reading only) reports it as `StoreNotNamedTuple`, and
 the message spells the wrap ([§9.1][s9-1], [Appendix C][sC], [D-247][d-247]).
 
+The [store](#g-store) (the model's memory, declared by initial value) names each leaf
+because every service reaches a leaf by its field name. A [condition](#g-condition), the
+path-addressed sparse overlay that sets a build's state, merges on it ([§14.1][s14-1]).
+Readers and the trace spell it ([§14.4][s14-4]). The name a one-state component is asked
+for is the name every service then uses.
+
 **Every leaf declares exactly one of `x_init` and `s_init`**, and a stateless
 leaf declares it empty ([D-263][d-263]):
 
@@ -91,13 +97,11 @@ x_init(::Gain) = (;)
 s_init(::Sampler) = (;)
 ```
 
-The [store](#g-store) (the model's memory, declared by initial value) is the
-tier marker. It is therefore mandatory even when empty, exactly as
-`inner_connections` is mandatory even when empty because it is the class
-marker ([§8.5][s8-5], [D-263][d-263]). A primitive declaring neither store is
-`TierUnreadable`, and its message spells the empty form. An empty store owes no
-update law, since it has nothing to integrate or advance. It puts no letter in
-the bundle ([§5.2][s5-2]).
+The store is the tier marker. It is therefore mandatory even when empty, exactly
+as `inner_connections` is mandatory even when empty because it is the class
+marker ([§8.5][s8-5], [D-263][d-263]). A primitive declaring neither store is `TierUnreadable`,
+and its message spells the empty form. An empty store owes no update law, since
+it has nothing to integrate or advance. It puts no letter in the bundle ([§5.2][s5-2]).
 
 A continuous component's state may be empty ([§3.1][s3-1]), so a stateless
 continuous leaf is honestly a continuous leaf with zero state fields. Spelling
@@ -105,12 +109,6 @@ that out puts every leaf's tier on the page in one place, stateful or not, with
 no tier by omission. It also closes a trap. A store lost to a local scope or to
 a forgotten import ([§8.1][s8-1]) fails loud as a leaf declaring no store,
 where an optional marker would have dropped silently.
-
-The store names each leaf because every service reaches a leaf by its field
-name. A [condition](#g-condition), the path-addressed sparse overlay that sets a
-build's state, merges on it ([§14.1][s14-1]). Readers and the trace spell it
-([§14.4][s14-4]). The name a one-state component is asked for is the name
-every service then uses.
 
 Because the type is derived from the value, there is no second artifact to drift
 and no separate type declaration to check. The workspace is the exception to

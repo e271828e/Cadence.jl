@@ -15,6 +15,11 @@ Survey F6, q1. Unruled; the text stays as written.
   uses it.
 - §8.5 already relies on it: "`(children = Relative(2),)` is the uniform
   spelling for a `Group`" (old 2772–2773).
+- Two more sentences rest on the field: §8.5's "wiring and rate
+  declarations" for a `Group` (new chapter N1098–1099) and §8.7's
+  field-name sugar surviving a name-transparent container (N1487–1488);
+  D-211 spells a `Group`'s rate entry `(ctl = Relative(2),)`, and no entry
+  states that the sugar survives transparency.
 - No decision entry records the field, and neither `pending.md`'s deviation
   list nor `implementation.md` names it.
 

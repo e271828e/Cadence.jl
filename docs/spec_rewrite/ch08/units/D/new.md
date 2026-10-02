@@ -41,8 +41,8 @@ class to read. It is a build error, `ClassUnreadable`, naming both families,
 rather than a silence that fails later and elsewhere. When the type has
 component-typed fields, that error sharpens into a [did-you-mean](#g-did-you-mean) (the offending
 name plus the list-in-hand it should have matched). Its message reads "holds
-components but declares no `inner_connections`". `inner_connections` plus any leaf
-declaration on one type is a build error as well.
+components but declares no `inner_connections`". `inner_connections` plus any
+leaf declaration on one type is a build error as well, `ClassMixed`.
 
 Assemblies have no state of their own, which is the no-atomic-assemblies rule
 at declaration time ([§10.5][s10-5]). They have no contract of their own
@@ -107,8 +107,9 @@ faces and no rate scope.
 The edges of the container form are fixed by rule.
 
 - A container mixing component and non-component elements is a build error in
-  this section's did-you-mean family ([D-085][d-085]). All-component elements are
-  children, and zero-component elements are inert parameter data.
+  this section's did-you-mean family ([D-085][d-085]). The error is `ContainerMixed`.
+  All-component elements are children, and zero-component elements are inert
+  parameter data.
 - Containers of containers are rejected in the first cut, because deeper
   grouping is what assemblies are for ([D-085][d-085]). The element whose
   value is itself a component-bearing container is named, with its type
@@ -133,9 +134,9 @@ The edges of the container form are fixed by rule.
   ([D-212][d-212]), because it reaches no children and its value cannot be
   told from empty inert parameter data. The judgment is therefore
   per-instantiation, like every wiring judgment.
-- `transparent_container` must name a container field of the type, and
-  declaring two transparent containers on one type is a declaration error
-  ([D-211][d-211], [D-215][d-215]).
+- `transparent_container` must name a container field of the type, and a name
+  that matches none is `TransparentContainerUnknown`. Declaring two transparent
+  containers on one type is a declaration error ([D-211][d-211], [D-215][d-215]).
 
 #### `Group`: the on-the-fly assembly
 

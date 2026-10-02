@@ -188,7 +188,7 @@
   {
    "id": "B1-021",
    "old": "The store is the tier marker,",
-   "new": "The store (the model's memory, declared by initial value) is the tier marker.",
+   "new": "The store is the tier marker.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -272,7 +272,8 @@
    "new": "every service reaches a leaf by its field name.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "K5"
   },
   {
    "id": "B1-031",
@@ -282,7 +283,8 @@
    "cites": [
     "§14.1"
    ],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "K5"
   },
   {
    "id": "B1-032",
@@ -292,7 +294,8 @@
    "cites": [
     "§14.4"
    ],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "K5"
   },
   {
    "id": "B1-033",
@@ -312,7 +315,8 @@
    "new": "The name a one-state component is asked for is the name every service then uses.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "K5"
   },
   {
    "id": "B1-035",
@@ -619,7 +623,7 @@
   }
  ],
  "added": [
-  "The store names each leaf because",
+  "The store (the model's memory, declared by initial value) names each leaf because",
   "`ws_init` allocates",
   "which is described below.",
   "Because the type is derived from the value",

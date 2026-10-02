@@ -40,7 +40,7 @@ c("Rule. Every leaf declares exactly one of `x_init` and `s_init`,",
   "Every leaf declares exactly one of `x_init` and `s_init`,", "C", newcites=["D-263"])
 c("and a stateless leaf declares it empty,", "and a stateless leaf declares it empty (D-263):")
 c("`x_init(::Gain) = (;)` or `s_init(::Sampler) = (;)`.", "`x_init(::Gain) = (;) s_init(::Sampler) = (;)`")
-c("The store is the tier marker,", "The store (the model's memory, declared by initial value) is the tier marker.")
+c("The store is the tier marker,", "The store is the tier marker.")
 c("so it is mandatory even when empty, exactly as `inner_connections` is mandatory even when empty because it is the class marker (§8.5, D-263).",
   "It is therefore mandatory even when empty, exactly as `inner_connections` is mandatory even when empty because it is the class marker (§8.5, D-263).")
 c("A primitive declaring neither store is `TierUnreadable`, and its message spells the empty form.",
@@ -55,12 +55,12 @@ c("Spelling that out puts every leaf's tier on the page in one place, stateful o
 c("It also closes a trap.", "It also closes a trap.")
 c("A store lost to a local scope or to a forgotten import (§8.1) fails loud as a leaf declaring no store, where an optional marker would have dropped silently.",
   "A store lost to a local scope or to a forgotten import (§8.1) fails loud as a leaf declaring no store, where an optional marker would have dropped silently.")
-c("Why. Every service reaches a leaf by its field name.", "every service reaches a leaf by its field name.")
-c("The condition overlay merges on it (§14.1),", "A condition, the path-addressed sparse overlay that sets a build's state, merges on it (§14.1).")
-c("readers and the trace spell it (§14.4),", "Readers and the trace spell it (§14.4).")
+c("Why. Every service reaches a leaf by its field name.", "every service reaches a leaf by its field name.", "R", ruling="K5")
+c("The condition overlay merges on it (§14.1),", "A condition, the path-addressed sparse overlay that sets a build's state, merges on it (§14.1).", "R", ruling="K5")
+c("readers and the trace spell it (§14.4),", "Readers and the trace spell it (§14.4).", "R", ruling="K5")
 c("and a one-field store publishes its field as the port of that name (§5.3).", "", "R", newcites=[], ruling="R7")
 c("The name a one-state component is asked for is the name every service then uses.",
-  "The name a one-state component is asked for is the name every service then uses.")
+  "The name a one-state component is asked for is the name every service then uses.", "R", ruling="K5")
 c("There is consequently no second artifact to drift and no separate type declaration to check.",
   "Because the type is derived from the value, there is no second artifact to drift and no separate type declaration to check.")
 c("The workspace (component-declared mutable scratch arriving as the `ws` bundle field)",
@@ -120,7 +120,7 @@ c("The criterion, not uniformity, is the rule.", "The criterion, not uniformity,
 c("A `T` in a signature means the framework could not have supplied it.", "A `T` in a signature means the framework could not have supplied it.")
 
 added = [
-  "The store names each leaf because",
+  "The store (the model's memory, declared by initial value) names each leaf because",
   "`ws_init` allocates",
   "which is described below.",
   "Because the type is derived from the value",

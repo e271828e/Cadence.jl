@@ -115,8 +115,8 @@ c("Face types and tiers are derived from the internal endpoints, which is the bl
 c("The derivation is forced, not merely convenient (D-041).",
   "The derivation is forced, not merely convenient.", ["D-041"])
 c("An assembly is tier-neutral, exporting continuous-sourced and discrete-sourced ports side by side, and a face's cells follow the producer's own declaration (§8.5), evaluated at the activation scalar on the continuous tier and pinned on the discrete.",
-  "An assembly is tier-neutral. It exports continuous-sourced and discrete-sourced ports side by side. A face's cells (entries of the signal table) follow the producer's own declaration (§8.2). They are evaluated at the activation scalar on the continuous tier and pinned on the discrete.",
-  ["§8.5"], ["§8.2"], tag="C")
+  "An assembly is tier-neutral. It exports continuous-sourced and discrete-sourced ports side by side. A face's cells (entries of the signal table) follow the producer's own declaration (§8.2). They are retyped at the activation scalar by the leaf walk (the framework's derivation of per-activation types) on the continuous tier, and pinned on the discrete.",
+  ["§8.5"], ["§8.2"], tag="R", ruling="K6")
 c("Three alternative spellings are rejected (D-041, D-170)",
   "Three alternative spellings are rejected (D-041).", ["D-041", "D-170"], ["D-041"], tag="R", ruling="R4")
 c("routing values under the leaf names `u_types`/`y_types`",
