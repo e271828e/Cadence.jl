@@ -34,6 +34,20 @@ value parameters alone, plus a `probe_value` method. State fields are not
 among those survival sites. The state-declaration conversion below turns each
 `Ranged` state field into a plain scalar.
 
+The pass also parametrizes FlightPhysics' payload and value types, the walked
+class of [§7.2][s7-2], about 25 structs. These are the quaternion/attitude family,
+`Wrench`, `FrameTransform`, `MassProperties`, `KinData`, `AirData`, geodesy
+value types, `TerrainData` and continuous output structs. What actually needs
+genericity covers roughly half of Flight.jl's type inventory. `Quaternion`
+becomes `Quaternion{N,T} <: AbstractVector{T}`. By invariance, `Float64`
+instances still match every existing `AbstractVector{Float64}` method, so
+existing behavior is untouched. Flight.jl's parameters and definitions, the
+pinned class of [§7.2][s7-2], stay `Float64` and need no migration. Flight.jl's math
+already mostly follows the first author rule of [§7.2][s7-2], writing `<:Real` or
+nothing in place of a `::Float64` argument annotation. The `*` method in
+Flight.jl's `attitude.jl` is the live example pattern for the third rule, no
+`::SomeType{Float64}` return-type annotations on the continuous path.
+
 **Comparison criteria.** FlightCore's demonstrated strengths are three:
 zero-alloc stepping, flexibility, interactive operation. Zero-alloc stepping is
 measured through the `phase_bodies` seam ([§9.7][s9-7]), apples-to-apples with
@@ -126,6 +140,7 @@ projection, never as construction.
 [s5-4]: ../spec.md#54-artificial-loops-and-the-escape-hatch
 [s6-2]: ../spec.md#62-aggregation-explicit-summing-junctions
 [s7-1]: ../spec.md#71-continuous-state-structured-immutable-flat-backing
+[s7-2]: ../spec.md#72-numeric-genericity-eltype
 [s8-2]: ../spec.md#82-the-declaration-inventory
 [s8-5]: ../spec.md#85-assembly-declaration-type-based-class-by-declaration-shape
 [s9-7]: ../spec.md#97-the-compiled-executor
