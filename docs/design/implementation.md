@@ -172,9 +172,9 @@ D-185, D-195, D-211, D-246, D-248, D-263, D-289.
 - The component frame around the walk's two branches (D-248).
 - §13.3's `resolve`/`resolve_terminal`/face-list primitives `input_faces` and
   `output_faces`. The walk records each assembly's evaluated face lists in
-  `StructureDraft.faces`, and `flatten!` binds them as `WALK_FACES` around the
+  `StructureDraft.faces`, and `flatten_tree!` binds them as `WALK_FACES` around the
   walk, so the primitives read them once per call (Appendix C) and evaluate a
-  body only outside a walk. Beside it `flatten!` binds `WALK_CHILDREN`, a
+  body only outside a walk. Beside it `flatten_tree!` binds `WALK_CHILDREN`, a
   fresh cache of each assembly's child list, so endpoint resolution derives a
   list once per walk rather than once per endpoint (§9.7).
 - The service walk `resolve_authored` runs over the `Structure`'s retained
@@ -942,7 +942,7 @@ Traps the code does not warn about, each hit more than once while building:
   `executor.jl` (§9.7, D-289);
 - **code that runs once per build takes a component, an assembly or the root
   unspecialized**: `@nospecialize` on the argument, and
-  `Base.@nospecializeinfer` on the walk's entry points `build`, `flatten!` and
+  `Base.@nospecializeinfer` on the walk's entry points `build`, `flatten_tree!` and
   `_walk!`. A closure created per component never captures the instance. It
   reads it from an unspecialized binding, an entry's or the draft's field or a
   `Ref{AbstractComponent}`, because a closure is a type per type of what it

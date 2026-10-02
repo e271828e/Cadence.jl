@@ -66,11 +66,11 @@ function step!(stepper::RK4, sim, h)
     copyto!(x₀, x)
 
     evaluate!(sim); copyto!(k₁, ẋ)
-    _advance!(x, x₀, k₁, h / 2); sim.exec.clock.t = t + h / 2
+    _stage_point!(x, x₀, k₁, h / 2); sim.exec.clock.t = t + h / 2
     evaluate!(sim); copyto!(k₂, ẋ)
-    _advance!(x, x₀, k₂, h / 2)
+    _stage_point!(x, x₀, k₂, h / 2)
     evaluate!(sim); copyto!(k₃, ẋ)
-    _advance!(x, x₀, k₃, h); sim.exec.clock.t = t + h
+    _stage_point!(x, x₀, k₃, h); sim.exec.clock.t = t + h
     evaluate!(sim); copyto!(k₄, ẋ)
 
     @inbounds for i in eachindex(x)
@@ -102,7 +102,7 @@ function step!(stepper::Heun, sim, h)
     copyto!(x₀, x)
 
     evaluate!(sim); copyto!(k₁, ẋ)
-    _advance!(x, x₀, k₁, h); sim.exec.clock.t = t + h
+    _stage_point!(x, x₀, k₁, h); sim.exec.clock.t = t + h
     evaluate!(sim); copyto!(k₂, ẋ)
 
     @inbounds for i in eachindex(x)
@@ -113,7 +113,7 @@ end
 
 startpoint(stepper::Heun) = (stepper.x₀, stepper.k₁)
 
-@inline function _advance!(x, x₀, k, h)
+@inline function _stage_point!(x, x₀, k, h)
     @inbounds for i in eachindex(x)
         x[i] = x₀[i] + h * k[i]
     end

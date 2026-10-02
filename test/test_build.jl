@@ -1685,7 +1685,7 @@ end
 # per type before the layer was unspecialized. `at_component` is among them
 # because every closure created per component passes through it.
 const DECLARATION_LAYER = (
-    build, flatten!, _walk!, StructureDraft, at_component,
+    build, flatten_tree!, _walk!, StructureDraft, at_component,
     invoke_declaration, invoke_probed, declarations, classify, classify_tier,
     check_store_form, check_stores, check_state_leaves, _check_root_faces,
     leaf_declarations, declarations_found, foreign_declarations,
@@ -1695,13 +1695,9 @@ const DECLARATION_LAYER = (
     resolve_dest, _check_transparent, _container_fields, _elements, _element_keys,
     _is_container)
 
-# Counted over the methods the layer's three files define: `flatten!` also
-# names the leaf walk of `leaves.jl`.
-_in_layer(m::Method) = basename(String(m.file)) in ("assembly.jl", "build.jl", "declare.jl")
-
 specialization_counts() =
     [nameof(fn) => sum(count(Returns(true), Base.specializations(m))
-                       for m in methods(fn) if _in_layer(m))
+                       for m in methods(fn))
      for fn in DECLARATION_LAYER]
 
 # `build` of a model whose type the caller cannot infer. A call the enclosing

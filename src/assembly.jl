@@ -280,9 +280,9 @@ declarations are then textually identical to a named assembly's; the rate
 declaration's field-name sugar, keying on the field rather than on a path
 segment, keeps working as `(children = Relative(2),)` for the uniform case.
 
-The type parameters carry the children's concrete types, so specialization is
-unchanged; what is given up against a named type is dispatch, which exploratory
-composition does not want.
+The type parameters carry the children's concrete types, so the executor's
+specialization is unchanged; what is given up against a named type is dispatch,
+which exploratory composition does not want.
 """
 struct Group{C <: NamedTuple, W, I, O, R <: NamedTuple} <: AbstractComponent
     children::C      # component-typed elements → children by the container rule
@@ -404,7 +404,7 @@ function resolve_authored(entry::String, base::String, level, path::AbstractStri
     here, here_path, i = level, base, 1
     while i ≤ length(segments)
         # A primitive has no children in this walk. A component-typed field of one
-        # is inert to the composition — `flatten!` stops at the primitive and never
+        # is inert to the composition — `flatten_tree!` stops at the primitive and never
         # descends, so no path indexes what the field holds (§8.5,
         # `ClassUnreadable.holds_components`) — and asking `_children` about it
         # would invent a child, or raise the container checks over a component the
@@ -859,7 +859,7 @@ function index_of(draft::StructureDraft, path::String)
 end
 
 """
-The running walk's evaluated face lists (§13.3, Appendix C): `flatten!` binds it
+The running walk's evaluated face lists (§13.3, Appendix C): `flatten_tree!` binds it
 around the walk, so a primitive asked for an assembly's faces while the walk runs
 — by a passthrough helper inside a parent's body, or by endpoint resolution
 building a did-you-mean list — reads the lists the walk already evaluated rather
@@ -871,7 +871,7 @@ function of the instance's value (§8.8).
 const WALK_FACES = ScopedValue{Union{Nothing,IdDict{Any,Tuple{Vector{String},Vector{String}}}}}(nothing)
 
 """
-The running walk's child lists (§9.7): `flatten!` binds a fresh one around the
+The running walk's child lists (§9.7): `flatten_tree!` binds a fresh one around the
 walk, so endpoint resolution, which asks for an assembly's children once per
 endpoint, derives each list once rather than once per endpoint. Unbound outside
 a walk. Keyed by instance, so two instances equal by value share one list. That
@@ -996,7 +996,7 @@ function _child_scope(draft::StructureDraft, path::String, rate_decl, segment::S
 end
 
 """
-    flatten!(draft, root, diags)
+    flatten_tree!(draft, root, diags)
 
 The tree walk of the structure step (§9.1): components collected by path, classes and
 tiers read, wiring resolved to absolute leaf terminals, sample times folded to
@@ -1006,7 +1006,7 @@ throw is `build`'s, at the step barrier. Any component may be the root
 (D-208) — a primitive one flattens to the single leaf at the root path, its
 `u_types` keys the model's root inputs.
 """
-Base.@nospecializeinfer function flatten!(draft::StructureDraft, @nospecialize(root),
+Base.@nospecializeinfer function flatten_tree!(draft::StructureDraft, @nospecialize(root),
                                           diags::Vector{Diagnostic})
     # the root scope: anchor 0, the base grid itself; no link above it and none of its own.
     # The face and child memos are the walk's own and are bound around it alone:

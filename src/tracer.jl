@@ -138,11 +138,11 @@ end
 # `Dual` and does not here). These walk the same leaves and touch `Float64` ones
 # only; an opaque leaf (D-237) passes through untouched. `reconstruct` indexes
 # the buffer and lets each constructor convert, so an `Any` buffer is enough.
-_walk(::Type{T}, v, f) where {T} =
+_map_leaves(::Type{T}, v, f) where {T} =
     reconstruct(retype(T, typeof(v)), Any[f(l) for l in _leaf_values(v)], 0)
 
 """`v` at the tracer scalar, untagged: a probed prefix value entering the trace."""
-_lift(::Type{T}, v) where {T} = _walk(T, v, l -> l isa Float64 ? T(l) : l)
+_lift(::Type{T}, v) where {T} = _map_leaves(T, v, l -> l isa Float64 ? T(l) : l)
 
 """
 `v` at the tracer scalar with every walking leaf seeded by one face's tag. A
@@ -150,7 +150,7 @@ face synthesized through `probe_value` at `T` arrives already carrying `Tracer`
 leaves, which is why the walk re-tags those as well as `Float64` ones.
 """
 _tag(::Type{T}, v, bit::UInt64) where {T} =
-    _walk(T, v, l -> l isa Float64 ? T(l, bit) : l isa Tracer ? T(l.value, bit) : l)
+    _map_leaves(T, v, l -> l isa Float64 ? T(l, bit) : l isa Tracer ? T(l.value, bit) : l)
 
 """
 `_tag` with the primal redrawn: the sampled fallback's seed (§5.6). The local
@@ -159,7 +159,7 @@ evaluations for the branches to move with them; the leaf order is the walk's,
 so one `rng` gives one reproducible draw per evaluation.
 """
 _sample(rng, ::Type{T}, v, bit::UInt64) where {T} =
-    _walk(T, v, l -> l isa Float64 || l isa Tracer ? T(randn(rng), bit) : l)
+    _map_leaves(T, v, l -> l isa Float64 || l isa Tracer ? T(randn(rng), bit) : l)
 
 """The union of the tags a value's `Tracer` leaves carry; a `Float64` port has none (D-166)."""
 function _depset(v)
@@ -189,7 +189,7 @@ function _trace_direct(ci::Int, traced_decl::Decls, faces::Vector{Symbol},
                        rng = nothing) where {T}
     comp, decl = structure.components[ci].instance, decls[ci]
     u = NamedTuple{tuple(keys(decl.ins)...)}(tuple(
-        (_seed(ci, face, faces, face_traceable, structure, products, cluster_set, T, rng)
+        (_seed_face(ci, face, faces, face_traceable, structure, products, cluster_set, T, rng)
          for face in keys(decl.ins))...))
     # The nominal `x` carries `Float64` leaves, which the sampled walk redraws;
     # `traced_decl.x` is the declared one, already at `T`.
@@ -240,7 +240,7 @@ untagged too, there being no product to read. Only the in-cluster face's seed
 is redrawn under an `rng`; everything the trace reads from outside the cluster
 stays at the probe point.
 """
-function _seed(ci::Int, face::Symbol, faces::Vector{Symbol}, face_traceable::Vector{Bool},
+function _seed_face(ci::Int, face::Symbol, faces::Vector{Symbol}, face_traceable::Vector{Bool},
                structure::Structure, products::Vector{NamedTuple}, cluster_set::Set{Int},
                ::Type{T}, rng) where {T}
     conns = structure.components[ci].conns
