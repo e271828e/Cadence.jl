@@ -67,7 +67,7 @@ what the spec says, the spec edit is part of the item.
   compile-time and garbage measurements a model to run on, and the GUI one
   to drive.
 - **A tutorial** that takes a newcomer from a component to a run and a plot.
-- **The spec's readability rewrite.** Chapters 8, 9 and 10 are done. The other
+- **The spec's readability rewrite.** Chapters 7, 8, 9 and 10 are done. The other
   chapters follow `docs/spec_rewrite/recipe.md`, and that directory's README
   tracks them. Until a chapter's turn comes, it keeps the old markers.
 - **Package registration.**

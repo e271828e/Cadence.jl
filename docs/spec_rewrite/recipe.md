@@ -75,6 +75,9 @@ The survey maps the chapter before anyone writes. Chapter 9's
   names each where it states the kind's condition. Chapter 8 named five
   kinds in four late rounds (R14, P46, P48, K2) that one survey line would
   have ruled at checkpoint 1.
+- every code block the package can run, run against it. Chapter 7's survey
+  ran §7.3's PRNG example and found that it failed its own conformance
+  check. No reading had caught it.
 
 A survey whose report is long writes it in parts, one append per section:
 one response over the output limit kills the agent and loses the report.
@@ -146,6 +149,17 @@ unit's `old.md`, which its own inventory guarantees.
   rulings, and "+" or a comma list joins clauses of one ruling. Tell each
   rewriter to grep its siblings' `new.md` for bolds on the same entry. Chapter
   10 had five rulings bold twice across units.
+
+**From chapter 7, the brief should also:**
+
+- Hold its own dictated wording to lesson 14. Two of chapter 7's rulings
+  overclaimed: a context sentence said every step of §7.4 addressed one
+  problem, and an introducing clause called `get_x_ss` FlightCore's when
+  FlightPhysics and FlightApps own it. Check a Flight.jl name's owner in the
+  Flight.jl source before ruling its clause.
+- List the words the glossary reserves ("Bare 'tier' means only this").
+  Chapter 7's rewriters used "tiers" for the genericity classes and for
+  §7.5's budgets; only the chapter pass caught both.
 
 ### Step 3: rewrite the units in parallel (one Opus agent per unit)
 
@@ -246,7 +260,9 @@ found seven problems, one of them a change of meaning. Fix, then re-check.
 Give it the commit that holds the chapter as verified per unit, so it can
 diff the two versions hunk by hunk; in chapter 8 it checked 75 hunks and
 found two unlogged rewraps, two duplicated glossary links, a citation left
-off a split sentence and a broken sibling span.
+off a split sentence and a broken sibling span. In chapter 7 its one finding
+was the orchestrator's own: a scripted replace joined two source lines. Log
+every orchestrator touch, and rewrap after any scripted edit.
 
 ### Step 7: land (the orchestrator)
 
@@ -362,6 +378,24 @@ Chapter 8, 12,392 words, ruled by the orchestrator:
 The chapter, track 2 included, ran in one session of about two and a half
 hours. The cost per 1,000 words held at about 0.4M.
 
+Chapter 7, 3,252 words, ruled by the orchestrator:
+
+| step | agent runs | subagent tokens |
+|---|---|---|
+| survey | 1 | 0.43M |
+| rewrites | 4, plus fix rounds | 0.64M |
+| unit verification | 4, plus re-checks | 0.38M |
+| chapter pass, inbound check, editorial fixer | 3 | 0.49M |
+| consolidation | 1 | 0.16M |
+| final verification and PDF check | 2 | 0.16M |
+| track 2 and its verification | 2 | 0.29M |
+| total | 17, plus fix rounds | about 2.6M |
+
+The chapter, track 2 included, ran in one session of about an hour and a
+half. A small chapter costs more per word, about 0.8M per 1,000 words: the
+survey, the chapter-wide passes and track 2 cost nearly as much as for a
+chapter three times its size.
+
 ## 4. What to expect from a chapter
 
 From chapter 9:
@@ -391,6 +425,18 @@ From chapter 8, which held 213 rules:
   wrong before the rewrite.
 - **The chapter grew about a tenth**, from 12,392 words to about 13,750,
   with 67 bold spans of 632 words.
+
+From chapter 7, which held 79 rules:
+
+- **One rule in four lived only outside a Position**, 20 of 79, and two had
+  no entry. Track 2 wrote three entries, D-304 to D-306.
+- **Two entries ruled whole sections and were cited nowhere**: D-010 for
+  §7.1 and D-014 for §7.5. Neither had a Spec field.
+- **Seventeen outside citations read a scope §7.5 never stated.** Two
+  sentences added from recorded sources turned ten of those rows from
+  wrong to right.
+- **The chapter grew about a sixth**, from 3,252 words to about 3,840, and
+  bold fell from 42 spans and 8 labels to 12 spans of 119 words.
 
 ## 5. Lessons, in one list
 
@@ -425,6 +471,12 @@ From chapter 8, which held 213 rules:
 21. Verify each unit as soon as it is written.
 22. Every inserted clause is an antecedent hazard; re-check after each fix.
 23. After any unit edit, run every unit's checker.
+24. Run the chapter's code blocks against the package in the survey
+    (chapter 7).
+25. The brief's own wording is held to lesson 14, and a Flight.jl name's
+    owner is checked in the Flight.jl source.
+26. List the glossary's reserved words in the brief.
+27. Log every orchestrator touch, and rewrap after a scripted edit.
 
 ## 6. A chapter's files
 
