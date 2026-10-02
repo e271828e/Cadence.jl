@@ -42,16 +42,24 @@ readability with no loss of content. The steps are in
 
 ## Carried to later chapters
 
-Doubles and pointers chapter 8 found in chapters not yet rewritten. Each
+Doubles and pointers chapters 7 and 8 found in chapters not yet rewritten. Each
 chapter's rewrite settles its own:
 
 - **Chapter 3.** §3.4's lead-in "Algebra removes the reset." bolds D-056's
   first bullet, which §8.6 bolds.
+- **Chapter 3.** §3.1 calls continuous state "an isbits struct of real
+  scalars" and §3.2 calls discrete state "any isbits value", both citing §7.
+  §7.1 states a flat NamedTuple of real scalars and `SArray`s, and §7.3 a
+  value whose fields are isbits or a `Symbol` (D-231).
 - **Chapter 5.** §5.3 states D-252 under a **Rule.** label; §8.3 bolds it.
 - **Chapter 6.** §6.1 bolds "for a continuous consumer only", the walk
   clause's tier scope that §8.2 bolds (D-295).
 - **Chapter 11.** §11.6 calls §8.1's shadowing check "the reflection class",
   a name §8.1 never uses.
+- **Chapter 11.** §11.8 scopes the zero-allocation invariant to "the model
+  sweep", where §7.5 says "the stepping loop" (D-305).
+- **Chapter 14.** §14.4 says a discrete `s` field "is any isbits value"
+  (§3.2). §7.3 admits isbits or `Symbol` fields (D-231).
 - **Chapter 14.** §14.10 bolds seedability and states the tap rejection,
   both of which §8.2 states (D-295, D-296).
 

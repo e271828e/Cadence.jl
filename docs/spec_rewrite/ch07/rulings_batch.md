@@ -329,3 +329,46 @@ None. Checked:
 - **B2 closed, no edit.** The consolidator ran the example: `s0` to `s3`
   determine the next draw, and `s4` does not change it. D-231's Rationale
   sentence rules nothing, and the example stays an illustration.
+
+## Orchestrator's status on track 2
+
+New entries start at D-304. Each restates only what the named source fields
+already record (lesson 17), in today's vocabulary.
+
+- **T-A1 and T-A4 → D-304**, "the state declaration is flat, and the
+  buffer is unchanged within a sweep", from D-094's annotation (flat), D-288
+  and D-086 Rationale (the CSE's legality condition). T-A11's two rulings
+  join it: a struct nesting a `Symbol` does not qualify and no arithmetic is
+  done on `s` and `m` (D-231 and D-302 Rationale). Spec §7.1, §7.3.
+- **T-A2, T-A3 and T-A17 → D-305**, "the zero-allocation invariant's
+  scope and budgets", from D-135 Rationale (the stepping loop; services
+  allocation-tolerant), D-014 Rejected (not dogma; the canary), D-116
+  Rationale (guards and projection exactly zero, handlers zero by idiom).
+  Spec §7.5.
+- **T-A13, T-A14, T-A16 → D-306**, "the workspace contract's unstated
+  rulings": never a condition target (D-077 Rejected), a plan or
+  factorization configured at allocation stays valid (D-183 Rejected),
+  double-buffered mutable state deferred (D-013 Rejected). Spec §7.3.
+- **T-A8 to T-A10**: first check D-263's and D-295's Positions. If either
+  already states that participation is authored per leaf and that nothing
+  comes from inference, cite it in §7.2 and write no entry. Otherwise they
+  join D-304 with their sources.
+- **T-A5, 6, 7, 12, 15, 18: no entry.** Each is a constructive reason or
+  evidence, which spec_style keeps in the spec without a Position.
+- Cite each new entry beside its source entries in the chapter, plain. The
+  flat declaration's bold keeps D-094 and gains D-304.
+- **T-B1 to T-B7: annotate all seven**, per `decisions_style.md` rule 1,
+  dated 2026-10-02, each naming what changed and where it stands now. D-116's
+  annotation says §7.5 calls its tiers budgets and states the scope the
+  "carve-out" names. D-203's says §7.2 never stated the clock's seed.
+- **T-C: closed.** C1 landed with L4; C2 stays as proposed (lesson 16); C3
+  holds now.
+- **T-D1: apply** the three spec edits (4766, 12067, 12549); D-203 rides
+  T-B7. **T-D2, T-D3: leave**; spec 7819's "model sweep" is carried to
+  chapter 11's rewrite in `README.md`. **T-D4: apply** at spec 2195 after
+  reading the sentence. **T-D5: apply** `extensions.md` 283's quote; spec
+  304 and 331 carry to chapter 3. **T-D6: apply** both (D-302's Position
+  rules it; a factual fix in an unrewritten chapter keeps that chapter's
+  markers). **T-D7: left for the owner**, since it edits `src/` and `test/`.
+- **T-E: the owner's list**, reported when the chapter closes. Nothing is
+  ratified here.
