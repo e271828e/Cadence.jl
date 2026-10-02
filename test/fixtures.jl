@@ -1057,8 +1057,9 @@ routed_pair() =
 `n` sampled loops in one container field, under one `"ref"` face fanned out to
 every loop. Its `transparent_container` counts the calls in
 `FANNED_LOOPS_DERIVATIONS`: the child-list derivation asks it once per
-derivation, so the counter reads how often a build derived this level's
-children (§9.7). One test reads the counter, and no other test builds the type.
+derivation, so the counter reads how often a build or a service derived this
+level's children (§9.7). The child-list tests read the counter, and no other
+test builds the type.
 """
 struct FannedLoops{L <: NamedTuple} <: AbstractComponent
     loops::L

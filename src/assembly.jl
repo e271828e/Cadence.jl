@@ -380,81 +380,14 @@ function _one_level(entry::String, base::String, @nospecialize(assembly), path::
     kid, segment
 end
 
-# A child's holding, read off the type's definition rather than the instance:
-# a field typed by a parameter is a `TypeVar` there, whatever the
-# instantiation filled in (§8.5, D-061). Container elements follow their
-# container's declared type.
-_declared_holding(comp, field::Symbol) =
-    fieldtype(Base.unwrap_unionall(typeof(comp).name.wrapper), field)
-_held_concretely(comp, field::Symbol) =
-    (ft = _declared_holding(comp, field); !(ft isa TypeVar) && isconcretetype(ft))
-
-"""
-The service walk (§13.3, D-130): `path`'s segments from
-`level`, the component at `base`, following the declared field types
-alongside the instances. Resolving *to* a generically held child is legal;
-traversing *past* one is the refusal, whatever the instance in hand — the
-authoring level speaks its own fields and its declared children's names
-(§14.2), and a deep path is legitimate exactly within an owned concrete
-subtree. Returns the component the path names, primitive or assembly, or
-`nothing` after recording the refusal against `entry`. The empty path names
-`level` itself.
-"""
-function resolve_authored(entry::String, base::String, level, path::AbstractString,
-                          diags::Vector{Diagnostic})
-    isempty(path) && return level
-    segments = String.(split(path, '/'))
-    here, here_path, i = level, base, 1
-    while i ≤ length(segments)
-        # A primitive has no children in this walk. A component-typed field of one
-        # is inert to the composition — `flatten_tree!` stops at the primitive and never
-        # descends, so no path indexes what the field holds (§8.5,
-        # `ClassUnreadable.holds_components`) — and asking `_children` about it
-        # would invent a child, or raise the container checks over a component the
-        # build never walked. Every level below is a child the flatten pass walked,
-        # so `classify` only reads back a class it already proved readable.
-        if classify(here_path, here) === PRIMITIVE
-            push!(diags, PathResolution(entry = entry, spelling = String(path),
-                                       reason = :unknown_child, owner = _at_path(here_path),
-                                       segment = segments[i]))
-            return nothing
-        end
-        # `_children` re-runs the container collision checks and throws on its
-        # own when they fail; the build proved this tree clean, so here the call
-        # only hands the list back.
-        kids, fields = _children(here_path, here)
-        child_index = findfirst(kid -> first(kid) == segments[i], kids)
-        child_index === nothing && i < length(segments) &&
-            (child_index =
-                 findfirst(kid -> first(kid) == segments[i] * "/" * segments[i + 1], kids))
-        if child_index === nothing
-            push!(diags, PathResolution(entry = entry, spelling = String(path),
-                                       reason = :unknown_child, owner = _at_path(here_path),
-                                       segment = segments[i],
-                                       candidates = String[first(k) for k in kids]))
-            return nothing
-        end
-        segment, kid = kids[child_index]
-        i += count(==('/'), segment) + 1            # a matched pair consumes two segments
-        if i ≤ length(segments) && !_held_concretely(here, fields[child_index])
-            push!(diags, PathResolution(entry = entry, spelling = String(path),
-                                       reason = :past_generic, owner = _at_path(here_path),
-                                       segment = segment, level = _join(here_path, segment),
-                                       declared = _declared_holding(here, fields[child_index])))
-            return nothing
-        end
-        here, here_path = kid, _join(here_path, segment)
-    end
-    here
-end
-
 # --- §13.3's build primitives -------------------------------------------------
 # The four the declaration surface calls: `resolve` and `resolve_terminal` in
 # their public, entry-less forms, plus the two face-list accessors. Those are the
 # *wiring resolution* of §13.3's table — the one-level rule verbatim, the same
 # walk wiring resolution runs, entered from a declaration body with no wiring
-# entry to attribute the failure to. `resolve_authored` above is *the service
-# walk*, entered by the services with an entry to attribute the refusal to.
+# entry to attribute the failure to. `resolve_authored`, at the end of this
+# file, is *the service walk*, entered by the services with an entry to
+# attribute the refusal to.
 
 """
     resolve(assembly, path) → AbstractComponent
@@ -796,6 +729,8 @@ hops `(path, face)` down to the terminal, one row per output face and one per
 consumer of an input face, the last hop being the face's table entry or one of
 its consumers. The root itself is retained, because the service walk resolves
 against the tree the paths index rather than against the compiled list (§13.3).
+Beside it, each assembly's child list as the walk derived it, which is what
+the service walk searches.
 The component index `ci` is the position in `components`; nothing pushes into a
 `Structure`'s vectors after construction.
 """
@@ -810,6 +745,7 @@ struct Structure
     out_faces::Vector{Pair{Tuple{String,Symbol},Tuple{String,Symbol}}}  # (path, face) => producer
     in_routes::Vector{Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}}    # (path, face) => hops, one per consumer
     out_routes::Vector{Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}}   # (path, face) => hops to the producer
+    child_lists::Dict{String,Tuple{Vector{Pair{String,Any}},Vector{Symbol}}}   # per assembly path: `_children`'s two lists
 end
 
 # The structure step's accumulator, disposable: the per-component columns the
@@ -836,6 +772,7 @@ struct StructureDraft
     claims::Dict{Tuple{String,Symbol},String}                  # who claimed it, for the message
     routes::Vector{Tuple{String,Symbol,Vector{Vector{Tuple{String,Symbol}}}}}   # (path, face, one route per consumer)
     faces::IdDict{Any,Tuple{Vector{String},Vector{String}}}   # per assembly instance, (inputs, outputs)
+    child_lists::Dict{String,Tuple{Vector{Pair{String,Any}},Vector{Symbol}}}   # per assembly path: `_children`'s two lists
 end
 
 StructureDraft(@nospecialize(root::AbstractComponent)) =
@@ -848,7 +785,8 @@ StructureDraft(@nospecialize(root::AbstractComponent)) =
                    Dict{Tuple{String,Symbol},Tuple{String,Symbol}}(),
                    Dict{Tuple{String,Symbol},String}(),
                    Tuple{String,Symbol,Vector{Vector{Tuple{String,Symbol}}}}[],
-                   IdDict{Any,Tuple{Vector{String},Vector{String}}}())
+                   IdDict{Any,Tuple{Vector{String},Vector{String}}}(),
+                   Dict{String,Tuple{Vector{Pair{String,Any}},Vector{Symbol}}}())
 
 function index_of(structure::Structure, path::String)
     ci = findfirst(entry -> entry.path == path, structure.components)
@@ -1098,7 +1036,7 @@ Structure(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tuple{String,S
                   (path, face) => last(route) for ((path, face), route) in draft.out_faces],
               Pair{Tuple{String,Symbol},Vector{Tuple{String,Symbol}}}[
                   (path, face) => route for (path, face, routes) in draft.routes for route in routes],
-              draft.out_faces)
+              draft.out_faces, draft.child_lists)
 
 # `chain` is the links above `comp`, outermost first, and `link` its own — the
 # entry the enclosing assembly's `sample_times` named it under, or `nothing`.
@@ -1162,7 +1100,7 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
             push!(draft.scopes, RateScope((path = path, key = link.key, timing = scope)))
         below = _extend(chain, link)
         rate_decl = invoke_declaration(sample_times, comp)
-        kids, fields = _children(path, comp)
+        kids, fields = draft.child_lists[path] = _children(path, comp)
         _check_sample_times(path, rate_decl, kids, fields, diags)
         for ((segment, kid), field) in zip(kids, fields)
             child_path = _join(path, segment)
@@ -1285,4 +1223,72 @@ function _check_root_faces(@nospecialize(comp), diags::Vector{Diagnostic})
     isempty(duplicates) ||
         push!(diags, FaceNameCollision(path = "", faces = duplicates, site = :root))
     nothing
+end
+
+# --- the service walk (§13.3, D-130) --------------------------------------------
+
+# A child's holding, read off the type's definition rather than the instance:
+# a field typed by a parameter is a `TypeVar` there, whatever the
+# instantiation filled in (§8.5, D-061). Container elements follow their
+# container's declared type.
+_declared_holding(comp, field::Symbol) =
+    fieldtype(Base.unwrap_unionall(typeof(comp).name.wrapper), field)
+_held_concretely(comp, field::Symbol) =
+    (ft = _declared_holding(comp, field); !(ft isa TypeVar) && isconcretetype(ft))
+
+"""
+The service walk (§13.3, D-130): `path`'s segments from
+`level`, the component at `base`, following the declared field types
+alongside the instances. Resolving *to* a generically held child is legal;
+traversing *past* one is the refusal, whatever the instance in hand — the
+authoring level speaks its own fields and its declared children's names
+(§14.2), and a deep path is legitimate exactly within an owned concrete
+subtree. Returns the component the path names, primitive or assembly, or
+`nothing` after recording the refusal against `entry`. The empty path names
+`level` itself.
+
+Each level's children are the list the build recorded in `structure`, so a
+service derives none again, however many paths it resolves.
+"""
+function resolve_authored(entry::String, base::String, level, path::AbstractString,
+                          structure::Structure, diags::Vector{Diagnostic})
+    isempty(path) && return level
+    segments = String.(split(path, '/'))
+    here, here_path, i = level, base, 1
+    while i ≤ length(segments)
+        # A primitive has no children in this walk, and the build recorded no
+        # list for it. A component-typed field of one is inert to the composition:
+        # `flatten_tree!` stops at the primitive and never descends, so no path
+        # indexes what the field holds (§8.5, `ClassUnreadable.holds_components`).
+        child_list = get(structure.child_lists, here_path, nothing)
+        if child_list === nothing
+            push!(diags, PathResolution(entry = entry, spelling = String(path),
+                                       reason = :unknown_child, owner = _at_path(here_path),
+                                       segment = segments[i]))
+            return nothing
+        end
+        kids, fields = child_list
+        child_index = findfirst(kid -> first(kid) == segments[i], kids)
+        child_index === nothing && i < length(segments) &&
+            (child_index =
+                 findfirst(kid -> first(kid) == segments[i] * "/" * segments[i + 1], kids))
+        if child_index === nothing
+            push!(diags, PathResolution(entry = entry, spelling = String(path),
+                                       reason = :unknown_child, owner = _at_path(here_path),
+                                       segment = segments[i],
+                                       candidates = String[first(k) for k in kids]))
+            return nothing
+        end
+        segment, kid = kids[child_index]
+        i += count(==('/'), segment) + 1            # a matched pair consumes two segments
+        if i ≤ length(segments) && !_held_concretely(here, fields[child_index])
+            push!(diags, PathResolution(entry = entry, spelling = String(path),
+                                       reason = :past_generic, owner = _at_path(here_path),
+                                       segment = segment, level = _join(here_path, segment),
+                                       declared = _declared_holding(here, fields[child_index])))
+            return nothing
+        end
+        here, here_path = kid, _join(here_path, segment)
+    end
+    here
 end

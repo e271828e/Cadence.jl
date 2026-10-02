@@ -81,6 +81,10 @@ in.
   list once per walk rather than once per endpoint (§9.7).
 - The service walk `resolve_authored` runs over the `Structure`'s retained
   root and reads declared holdings off the type definition (D-061, D-130).
+  It searches `Structure.child_lists`, each assembly's child list as the walk
+  derived it, keyed by path, so a service derives none again. A path with no
+  list is a primitive. The walk sits in the file's last section, after the
+  `Structure` it reads.
 - §8.8's `input_passthrough`/`output_passthrough`, with the three exclusive
   selectors `except`, `only` and `select`, and `EmptyFaceSelection` through the
   channel (D-251).

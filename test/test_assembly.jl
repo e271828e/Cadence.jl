@@ -1214,6 +1214,26 @@ function assembly_child_lists()
                    [(loop_path, :y), (loop_path * "/plant", :y)]) in structure.out_routes
         end
     end
+
+    @testset "the structure keeps each assembly's child list, and a service derives none (§9.7, §13.3)" begin
+        # One list per assembly path and none for a primitive, each with the
+        # field that contributed every child.
+        fanned_build = build(FannedLoops(4))
+        child_lists = fanned_build.structure.child_lists
+        loop_paths = ["loops/l$i" for i in 1:4]
+        @test Set(keys(child_lists)) == Set(["", loop_paths...])
+        @test first.(first(child_lists[""])) == loop_paths
+        @test last(child_lists[""]) == fill(:loops, 4)
+        @test first.(first(child_lists["loops/l1"])) == ["plant", "ctl", "sum"]
+
+        # The service walk searches those lists, so a condition with a prefix per
+        # loop and a mounted read set ask the root for its children no more.
+        FANNED_LOOPS_DERIVATIONS[] = 0
+        resolve_condition(combine((at(loop_path, at("plant", fragment(x = (q = SVector(0.1, 0.0),))))
+                                   for loop_path in loop_paths)...), fanned_build)
+        _compile_reads(at("loops/l2", reads(q = get_state("plant", :q))), fanned_build)
+        @test FANNED_LOOPS_DERIVATIONS[] == 0
+    end
 end
 
 function test_assembly()

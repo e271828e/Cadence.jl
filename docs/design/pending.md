@@ -121,18 +121,6 @@ Each is additive, so it can land later without breaking user code.
     rebuilds every batch dynamically (`_normalize`), at any width. The
     collection trigger is process-wide, so the analysis counts this beside
     publication's garbage.
-- **Trim's costs.** Two findings of
-  `docs/reports/20261002_tuple_walks/report.md`.
-  - **Resolution** (section 3.3). A warm `trim!` takes 5 ms at 31 writes,
-    19 ms at 64 and 85 ms at 128. At 128 writes `resolve_condition`,
-    `compile_plan` and the `init!` commit take about 27 ms each, 82 of the
-    85 ms, and each grows faster than the condition's width. A probe to find
-    the cause comes first.
-  - **The decisions are not inferred** (section 5.2). `_seeded` builds its
-    `NamedTuple` from names held as a runtime value, so every evaluation
-    allocates and dispatches dynamically, against §14.2's zero-allocation
-    iteration. Lifting the names into the type once, outside the evaluation
-    closure, fixes it.
 - **The NLopt fallback** (§14.8, H 4.5): `NLoptBackend(:LN_BOBYQA)` as a
   package extension, the squared and normalized objective at `stopval = 1`,
   and the nominal-activation loop it would run on.

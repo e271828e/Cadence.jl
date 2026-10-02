@@ -196,7 +196,7 @@ end
 function _flat(node::Scoped, path::String, level, origin::String, tree_position::Tuple,
                structure::Structure, diags::Vector{Diagnostic})
     scoped_origin = _step(origin, "at(\"$(node.prefix)\")")
-    child = resolve_authored(scoped_origin, path, level, node.prefix, diags)
+    child = resolve_authored(scoped_origin, path, level, node.prefix, structure, diags)
     child === nothing && return CEntry[]      # the path is the offender, reported once
     _flat(node.node, _join(path, node.prefix), child, scoped_origin,
           (tree_position..., :node), structure, diags)

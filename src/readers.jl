@@ -466,7 +466,7 @@ function _mount(read_set::Reads, build::Build, diags::Vector{Diagnostic})
     mount, level, description = "", build.structure.root, ""
     for (i, prefix) in enumerate(read_set.prefixes)
         description = (i == 1 ? "the read set" : description * " →") * " at(\"$prefix\")"
-        level = resolve_authored(description, mount, level, prefix, diags)
+        level = resolve_authored(description, mount, level, prefix, build.structure, diags)
         level === nothing && return nothing
         mount = _join(mount, prefix)
     end
@@ -484,7 +484,7 @@ function _rebase(authored::Union{GetState,GetDeriv,GetOutput}, label::Symbol, mo
                  level, build::Build, diags::Vector{Diagnostic})
     description = "the read labeled `$label`, $(_spell(authored))" *
                   (isempty(mount) ? "" : ", mounted at `$mount`")
-    resolve_authored(description, mount, level, authored.path, diags) === nothing &&
+    resolve_authored(description, mount, level, authored.path, build.structure, diags) === nothing &&
         return nothing
     parsed = parse_leaf(authored.leaf)
     parsed isa LeafRefusal &&
