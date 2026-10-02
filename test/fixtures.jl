@@ -1052,6 +1052,36 @@ inner_connections(::FannedLoops) = ()
 u_connections(fanned::FannedLoops) =
     ("ref" => Tuple("loops/$key/ref" for key in keys(fanned.loops)),)
 
+"""
+    FreshSawtoothA(rate), FreshSawtoothB(rate)
+
+`Sawtooth` twice over, with one guard and one handler between them, so the two
+differ in their type alone. One test counts what `build` compiles for a new
+component type and a new root type (§9.7), and no other test builds either: a
+build elsewhere would compile them first. The argument keeps them out of the
+`Dual` sweep, which builds every zero-argument fixture.
+"""
+struct FreshSawtoothA <: AbstractComponent
+    rate::Float64
+end
+
+struct FreshSawtoothB <: AbstractComponent
+    rate::Float64
+end
+
+const FreshSawtooth = Union{FreshSawtoothA,FreshSawtoothB}
+
+x_init(::FreshSawtooth) = (q = 0.0,)
+y_types(::FreshSawtooth) = (q = Float64,)
+
+y_state(::FreshSawtooth, (; x)) = (q = x.q,)
+x_deriv(c::FreshSawtooth, (; x)) = (q = c.rate,)
+
+fresh_sawtooth_guard(::FreshSawtooth, (; x)) = x.q - 1.0
+fresh_sawtooth_handler(::FreshSawtooth, (; x)) = (x = (q = x.q - 1.0,),)
+state_events(::FreshSawtooth) =
+    (wrap = StateEvent(fresh_sawtooth_guard, fresh_sawtooth_handler),)
+
 """A primitive that also holds a component, a field the flatten pass never descends into (§8.5)."""
 struct OpaqueLeaf <: AbstractComponent
     hidden::Gain

@@ -33,7 +33,7 @@ through this accessor and it returned: `conditions.jl`'s `_resolve_entries`,
 `children` and `resolve_authored` reaching `assembly.jl`'s `_children`, and
 `tracer.jl`'s sampled `_trace_direct`.
 """
-function invoke_declaration(fn, comp, args...)
+function invoke_declaration(fn, @nospecialize(comp), args...)
     try
         fn(comp, args...)
     catch err
@@ -48,7 +48,8 @@ The framing accessor for a probed bundle-taking function (§13.2, D-248):
 bundle-law diagnostic, classified (§5.2); any other throw is the plain frame,
 carrying the bundle's names and the synthesized inputs as a spelling.
 """
-function invoke_probed(fn, family::Symbol, path::String, comp, tier::Tier, bundle::NamedTuple)
+function invoke_probed(fn, family::Symbol, path::String, @nospecialize(comp), tier::Tier,
+                       @nospecialize(bundle::NamedTuple))
     try
         fn(comp, bundle)
     catch err
@@ -109,7 +110,7 @@ state_decls(decl::Decls, tier::Tier) = tier === CONTINUOUS ? decl.x : decl.s
 # following it, a `Pinned` contract leaf the one exception. On the discrete tier
 # the same declarations pin wholesale, so `s_init` does not walk and the
 # contracts are read as written.
-function declarations(comp, tier::Tier, ::Type{T}) where {T}
+function declarations(@nospecialize(comp), tier::Tier, ::Type{T}) where {T}
     tier === CONTINUOUS ?
         Decls(retype_value(T, invoke_declaration(x_init, comp)), NamedTuple(),
               declared_at(u_types, comp, tier, T), declared_at(y_types, comp, tier, T)) :
@@ -136,7 +137,7 @@ end
 
 # §7.1, §8.2, D-094: every `x_init` field is a `Float64` or an `SArray` of them,
 # and the declaration is flat. The arm names where the value belongs instead.
-function check_state_leaves(path::String, comp, diags::Vector{Diagnostic})
+function check_state_leaves(path::String, @nospecialize(comp), diags::Vector{Diagnostic})
     for (name, value) in pairs(invoke_declaration(x_init, comp))
         leaf_eltype = value isa SArray ? eltype(value) : typeof(value)
         leaf_eltype === Float64 && continue
@@ -151,7 +152,7 @@ end
 # §8.2, D-247: every by-value store is a `NamedTuple`, and the classifier and
 # the two field checks below read it as one. Returns whether this primitive
 # can be read further; the fallbacks return `NamedTuple()` and pass.
-function check_store_form(path::String, comp, diags::Vector{Diagnostic})
+function check_store_form(path::String, @nospecialize(comp), diags::Vector{Diagnostic})
     readable = true
     for (name, fn) in ((:x_init, x_init), (:s_init, s_init), (:m_init, m_init))
         contents = invoke_declaration(fn, comp)
@@ -163,7 +164,7 @@ function check_store_form(path::String, comp, diags::Vector{Diagnostic})
 end
 
 # §7.3, D-231: every store field is isbits or a `Symbol`, checked on both stores.
-function check_stores(path::String, comp, diags::Vector{Diagnostic})
+function check_stores(path::String, @nospecialize(comp), diags::Vector{Diagnostic})
     for (store, contents) in ((:s_init, invoke_declaration(s_init, comp)),
                               (:m_init, invoke_declaration(m_init, comp)))
         for (name, value) in pairs(contents)
@@ -178,7 +179,7 @@ end
 The tier the primitive at `path` announces, or `nothing` with what disagrees
 recorded in `diags` (§13.1).
 """
-function classify_tier(path::String, comp, diags::Vector{Diagnostic})
+function classify_tier(path::String, @nospecialize(comp), diags::Vector{Diagnostic})
     votes = Tuple{Symbol,Tier}[]
     has_stage(x_deriv, comp) && push!(votes, (:x_deriv, CONTINUOUS))
     has_stage(s_update, comp) && push!(votes, (:s_update, DISCRETE))
@@ -258,9 +259,12 @@ the probe checks types, not physics.
 """
 function probe_stage1(structure::Structure, decls::Vector{Decls},
                       workspaces::Vector, mstores::Vector, ::Type{T}) where {T}
+    # The instance is read inside the frame, never captured: a closure capturing it
+    # would be a type, and a compile, per component type.
     map(enumerate(structure.components)) do (ci, entry)
-        path, comp, decl = entry.path, entry.instance, decls[ci]
+        path, decl = entry.path, decls[ci]
         at_component(path) do
+            comp = entry.instance
             _frozen(entry.tier, T) && return NamedTuple()
             has_stage(y_state, comp) || return NamedTuple()
             stage = String(nameof(y_state))
@@ -729,13 +733,19 @@ never a separate pass (D-253, D-259). Nothing here needs `Δt_base`, `h` or
 mode: each listed scalar's activation is materialized eagerly instead of at first
 request.
 """
-function build(root::AbstractComponent; activations::Tuple = ())
+Base.@nospecializeinfer function build(@nospecialize(root::AbstractComponent);
+                                       activations::Tuple = ())
+    # Unspecialized, as the whole declaration layer is, so a new root type
+    # compiles none of it again (§9.7, D-289). The closure below reads the root
+    # through `unspecialized` rather than capture it (see `_walk!`).
+    unspecialized = Ref{AbstractComponent}(root)
     # One binding around all three steps, and one list (§9.1, D-250): a helper
     # inside a declaration body appends to it without knowing the build, the
     # completed `Build` carries it, and a throw leaving the build takes it along.
     raised_warnings = Diagnostic[]
     built = try
         with(BUILD_WARNINGS => raised_warnings) do
+            local root = unspecialized[]
             diags = Diagnostic[]
             draft = StructureDraft(root)
             flatten!(draft, root, diags)    # structure, tiers, claims, the obligation check
@@ -783,8 +793,10 @@ function _check_event_declarations(draft::StructureDraft, diags::Vector{Diagnost
     # The pass runs before `wire!` derives the `Structure`, so it reads the draft's
     # own columns. It collects (§13.1): every malformed entry in the model is
     # named, not the first one the walk reaches, and the list merges into the step's.
-    for (path, comp) in zip(draft.paths, draft.instances)
+    # By index: a closure capturing the instance would be a type per component type.
+    for (ci, path) in enumerate(draft.paths)
         at_component(path) do
+            comp = draft.instances[ci]
             for (name, event) in pairs(invoke_declaration(state_events, comp))
                 if !(event isa StateEvent)
                     push!(diags, EventHalfMissing(path = path, event = name,
@@ -991,12 +1003,13 @@ _mstores(structure::Structure) =
 # Declaration by allocation (§7.3, D-077): sizes from the instance, eltypes from
 # the activation. Called once per probe and once per `Simulation`.
 _workspaces(structure::Structure, ::Type{T}) where {T} =
-    Any[_workspace(entry.path, entry.instance, entry.tier, T) for entry in structure.components]
+    Any[_workspace(entry, T) for entry in structure.components]
 
-_workspace(path::String, comp, tier::Tier, ::Type{T}) where {T} =
-    at_component(path) do
+_workspace(entry::ComponentEntry, ::Type{T}) where {T} =
+    at_component(entry.path) do
+        comp = entry.instance                      # read here, not captured: see `probe_stage1`
         _declares_workspace(comp) || return nothing
-        invoke_declaration(ws_init, comp, tier === CONTINUOUS ? T : Float64)
+        invoke_declaration(ws_init, comp, entry.tier === CONTINUOUS ? T : Float64)
     end
 
 # A discrete component's stages never run at a non-nominal activation: its
@@ -1063,9 +1076,10 @@ function probe_stage2(structure::Structure, decls::Vector{Decls},
     # `s_update` is outside the executable set like its output stages (§9.4).
     empty!(diags)
     for (ci, entry) in enumerate(structure.components)
-        comp, path, decl, tier = entry.instance, entry.path, decls[ci], entry.tier
+        path, decl, tier = entry.path, decls[ci], entry.tier
         (isempty(state_decls(decl, tier)) || _frozen(tier, T)) && continue
         at_component(path) do
+            comp = entry.instance                  # read here, not captured: see `probe_stage1`
             update = update_of(tier)
             bundle_fields = bundle_names(update, comp, tier, tuple(keys(stage1[ci])...))
             bundle = _bundle_values(bundle_fields, decl, in_values(ci, decl), stage1[ci], T;
@@ -1101,7 +1115,7 @@ function probe_stage2(structure::Structure, decls::Vector{Decls},
         end
         append!(diags, at_component(path) do
             _check_state_write(path, "x_projection",
-                               invoke_declaration(x_projection, comp, decl.x), decl.x, T)
+                               invoke_declaration(x_projection, entry.instance, decl.x), decl.x, T)
         end)
     end
     isempty(diags) || throw(DiagnosticError(diags))
@@ -1118,9 +1132,10 @@ function _probe_direct!(products::Vector{NamedTuple}, ci::Int, structure::Struct
                         decls::Vector{Decls}, stage1,
                         layout::Layout, workspaces::Vector, mstores::Vector, ::Type{T}) where {T}
     entry = structure.components[ci]
-    comp, path, decl, s1 = entry.instance, entry.path, decls[ci], stage1[ci]
-    (has_stage(y_direct, comp) && !_frozen(entry.tier, T)) || return nothing
+    path, decl = entry.path, decls[ci]
+    (has_stage(y_direct, entry.instance) && !_frozen(entry.tier, T)) || return nothing
     at_component(path) do
+        comp, s1 = entry.instance, stage1[ci]      # read here, not captured: see `probe_stage1`
         stage = String(nameof(y_direct))
         bundle_fields = bundle_names(y_direct, comp, entry.tier, tuple(keys(s1)...))
         u = NamedTuple{tuple(keys(decl.ins)...)}(tuple(
@@ -1193,8 +1208,9 @@ function probe_events(structure::Structure, act::Activation{Float64})
     workspaces = _workspaces(structure, Float64)
     rows = ComponentEvents[]
     for (ci, entry) in enumerate(structure.components)
-        comp, path, decl = entry.instance, entry.path, decls[ci]
+        path, decl = entry.path, decls[ci]
         policies, bundle_fields = at_component(path) do
+            comp = entry.instance                  # read here, not captured: see `probe_stage1`
             declared_events = invoke_declaration(state_events, comp)
             isempty(declared_events) && return NamedTuple(), ()
             bundle_fields = event_bundle_names(comp)
@@ -1203,7 +1219,11 @@ function probe_events(structure::Structure, act::Activation{Float64})
                  for face in keys(decl.ins))...))
             bundle = _bundle_values(bundle_fields, decl, u, NamedTuple(), Float64;
                                     y = products[ci], ws = workspaces[ci], m = mstores[ci])
-            NamedTuple{tuple(keys(declared_events)...)}(map(tuple(keys(declared_events)...)) do name
+            # A loop, not a `map` closure, which would capture the instance and its
+            # events and so be a type per component type.
+            event_names = tuple(keys(declared_events)...)
+            event_policies = Symbol[]
+            for name in event_names
                 σ = invoke_probed(declared_events[name].guard, :guard, path, comp,
                                   CONTINUOUS, bundle)
                 policy = σ isa Bool ? :boundary :
@@ -1214,8 +1234,9 @@ function probe_events(structure::Structure, act::Activation{Float64})
                     invoke_probed(declared_events[name].handler, :handler, path, comp,
                                  CONTINUOUS, bundle),
                     decl, comp)
-                policy
-            end), bundle_fields
+                push!(event_policies, policy)
+            end
+            NamedTuple{event_names}(Tuple(event_policies)), bundle_fields
         end
         push!(rows, ComponentEvents(path, policies, bundle_fields))
     end
@@ -1230,7 +1251,7 @@ end
 #
 # The key loops collect under one barrier per handler (§13.1): a handler naming
 # three stores it does not own names all three.
-function _check_handler(path, name, returned, decl::Decls, comp)
+function _check_handler(path, name, returned, decl::Decls, @nospecialize(comp))
     what = "handler"        # the event rides beside it, and the renderer composes the two
     returned isa NamedTuple ||
         throw(DiagnosticError(ConformanceFailure(path = path, what = what, event = name,

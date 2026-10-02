@@ -24,7 +24,7 @@ const _OTHER_FAMILY = ((:inner_connections, inner_connections),
                        (:transparent_container, transparent_container))
 
 """The leaf declarations `comp` defines, in inventory order (§8.2, §8.5)."""
-function leaf_declarations(comp)
+function leaf_declarations(@nospecialize(comp))
     found = Symbol[]
     for (name, fn) in ((:x_init, x_init), (:s_init, s_init), (:m_init, m_init))
         _declares(fn, comp) && push!(found, name)
@@ -43,7 +43,7 @@ function leaf_declarations(comp)
 end
 
 """The `DECLARATION_FAMILY` names `comp` defines, in family order (§8.1, §8.5)."""
-function declarations_found(comp)
+function declarations_found(@nospecialize(comp))
     found = leaf_declarations(comp)
     for (name, fn) in _OTHER_FAMILY
         _declares(fn, comp) && push!(found, name)
@@ -52,7 +52,7 @@ function declarations_found(comp)
 end
 
 """The class of `comp` at `path`, or a `DiagnosticError` naming what makes it unreadable."""
-function classify(path::String, comp)
+function classify(path::String, @nospecialize(comp))
     leaves = leaf_declarations(comp)
     if _declares(inner_connections, comp)
         isempty(leaves) ||
@@ -74,7 +74,7 @@ _terminal(terminal::Tuple{String,Symbol}) =
                                "`$(first(terminal))`.$(last(terminal))"
 _join(path::String, segment::String) = isempty(path) ? segment : path * "/" * segment
 
-_holds_components(comp) = any(fieldnames(typeof(comp))) do name
+_holds_components(@nospecialize(comp)) = any(fieldnames(typeof(comp))) do name
     v = getfield(comp, name)
     v isa AbstractComponent ||
         ((v isa NamedTuple || v isa Tuple) && any(e -> e isa AbstractComponent, v))
@@ -101,7 +101,7 @@ end
 # children (whose `"field/key"` segment grammar it would shadow).
 
 """`segment => instance` for every child of `comp`, in field order."""
-children(path::String, comp) = first(_children(path, comp))
+children(path::String, @nospecialize(comp)) = first(_children(path, comp))
 
 """
 `(kids, fields)`: the children of `comp` as `segment => instance` pairs, and per
@@ -110,7 +110,7 @@ form, the bare field name applying one entry to every element of a container
 (§8.7). The sugar keys on the *field*, so a name-transparent container keeps it
 unchanged.
 """
-function _children(path::String, comp)
+function _children(path::String, @nospecialize(comp))
     transparent_field = invoke_declaration(transparent_container, comp)
     kids = Pair{String,Any}[]
     fields = Symbol[]
@@ -130,35 +130,42 @@ function _children(path::String, comp)
     # framework's norm: every wire is validated against the instance too.
     # Collected before the walk, because the shadowed field may be declared
     # after the transparent one.
-    shadowable = String[String(name) for name in fieldnames(typeof(comp))
-                        if name !== transparent_field && _is_container(getfield(comp, name)) &&
-                           !isempty(getfield(comp, name))]
+    # A loop, because a comprehension's closure would capture `comp` (see `_walk!`).
+    shadowable = String[]
+    for name in fieldnames(typeof(comp))
+        value = getfield(comp, name)
+        name !== transparent_field && _is_container(value) && nfields(value) > 0 &&
+            push!(shadowable, String(name))
+    end
     for name in fieldnames(typeof(comp))
         value = getfield(comp, name)
         if value isa AbstractComponent
-            push!(kids, string(name) => value)
+            push!(kids, Pair{String,Any}(string(name), value))
             push!(fields, name)
             push!(contributors, "field `$name`")
         elseif value isa NamedTuple || value isa Tuple
-            n_components = count(e -> e isa AbstractComponent, value)
+            # Elements and keys as vectors: a generic walk over the tuple itself
+            # compiles once per container type.
+            elements, element_keys = _elements(value), _element_keys(value)
+            n_components = count(e -> e isa AbstractComponent, elements)
             if n_components == 0
                 # Inert data, an empty container too — unless an element is
                 # itself a container bearing components, the nesting §8.5
                 # refuses in the first cut.
-                nested = [k for k in keys(value) if _bears_component(value[k])]
+                nested = [i for i in eachindex(elements) if _bears_component(elements[i])]
                 isempty(nested) ||
-                    push!(diags, ContainerNested(path = path, field = name, keys = nested,
-                                                types = [_typespell(typeof(value[k])) for k in nested]))
+                    push!(diags, ContainerNested(path = path, field = name, keys = element_keys[nested],
+                                                types = [_typespell(typeof(elements[i])) for i in nested]))
                 continue
             end
-            if n_components != length(value)
-                mixed = [k for k in keys(value) if !(value[k] isa AbstractComponent)]
-                push!(diags, ContainerMixed(path = path, field = name, keys = mixed,
-                                           types = unique([_typespell(typeof(value[k])) for k in mixed])))
+            if n_components != length(elements)
+                mixed = [i for i in eachindex(elements) if !(elements[i] isa AbstractComponent)]
+                push!(diags, ContainerMixed(path = path, field = name, keys = element_keys[mixed],
+                                           types = unique([_typespell(typeof(elements[i])) for i in mixed])))
                 continue
             end
             bare = name === transparent_field
-            for key in keys(value)
+            for (key, element) in zip(element_keys, elements)
                 contributor = "$(bare ? "name-transparent " : "")container field `$name`, element `$key`"
                 # The collision family's other two arms, both reachable only by a
                 # bare key and neither of them a duplicate *child* name, so
@@ -177,7 +184,7 @@ function _children(path::String, comp)
                     hit = true
                 end
                 hit && continue                    # a shadowed key names no child
-                push!(kids, (bare ? string(key) : string(name, "/", key)) => value[key])
+                push!(kids, Pair{String,Any}(bare ? string(key) : string(name, "/", key), element))
                 push!(fields, name)
                 push!(contributors, contributor)
             end
@@ -191,19 +198,37 @@ end
 
 # The container form, the empty one included — it contributes zero children, and
 # parametric code then needs no special case (§8.5).
-_is_container(v) = (v isa NamedTuple || v isa Tuple) && all(e -> e isa AbstractComponent, v)
+_is_container(@nospecialize(v)) =
+    (v isa NamedTuple || v isa Tuple) && all(e -> e isa AbstractComponent, _elements(v))
+
+# A container's elements and keys (`Symbol`s or indices), as untyped vectors.
+# Loops, because a comprehension's closure would capture `v` (see `_walk!`).
+function _elements(@nospecialize(v))
+    elements = Vector{Any}(undef, nfields(v))
+    for i in eachindex(elements)
+        elements[i] = getfield(v, i)
+    end
+    elements
+end
+function _element_keys(@nospecialize(v))
+    element_keys = Vector{Any}(undef, nfields(v))
+    for i in eachindex(element_keys)
+        element_keys[i] = fieldname(typeof(v), i)
+    end
+    element_keys
+end
 
 # The container fields of `comp`'s type: what a name-transparent declaration may name.
-_container_fields(comp) =
+_container_fields(@nospecialize(comp)) =
     Symbol[n for n in fieldnames(typeof(comp)) if _is_container(getfield(comp, n))]
 
 # A container holding a component at any depth: the shape `ContainerNested` names.
-_bears_component(v) = (v isa NamedTuple || v isa Tuple) &&
-                      any(e -> e isa AbstractComponent || _bears_component(e), v)
+_bears_component(@nospecialize(v)) = (v isa NamedTuple || v isa Tuple) &&
+                      any(e -> e isa AbstractComponent || _bears_component(e), _elements(v))
 
 # The declaration is checked after the walk, so a mixed container reports as one
 # rather than as a bad transparency declaration.
-function _check_transparent(path::String, comp, transparent_field, diags::Vector{Diagnostic})
+function _check_transparent(path::String, @nospecialize(comp), transparent_field, diags::Vector{Diagnostic})
     transparent_field === nothing && return nothing
     ok = transparent_field in fieldnames(typeof(comp)) &&
         _is_container(getfield(comp, transparent_field))
@@ -297,7 +322,7 @@ wiring resolution: an endpoint stops before any field it could traverse past
 several levels is declared level by level, each assembly speaking of its own
 children alone.
 """
-function resolve_terminal(entry::String, base::String, assembly, path::AbstractString,
+function resolve_terminal(entry::String, base::String, @nospecialize(assembly), path::AbstractString,
                           diags::Vector{Diagnostic}; owner::String = _at_path(base))
     segments = String.(split(path, '/'))
     if length(segments) ≤ 1
@@ -317,7 +342,7 @@ end
 # D-211 naming, which is what the two-segment lookahead serves: an undeclared
 # container's element spends two segments on the child, a transparent one's
 # spends one, and neither is "deeper".
-function _one_level(entry::String, base::String, assembly, path::AbstractString,
+function _one_level(entry::String, base::String, @nospecialize(assembly), path::AbstractString,
                     segments::Vector{String}, tail::Int, diags::Vector{Diagnostic};
                     owner::String = _at_path(base))
     kids = _walked_children(base, assembly)
@@ -426,7 +451,7 @@ their D-211 naming (bare keys for a name-transparent container). One level
 key segment where the child is a container element — and anything deeper is a
 build error naming the child it reaches past.
 """
-function resolve(assembly, path::AbstractString)
+function resolve(@nospecialize(assembly), path::AbstractString)
     who = "`resolve` on `$(nameof(typeof(assembly)))`"
     isempty(path) &&
         throw(DiagnosticError(PathResolution(entry = who, spelling = "", reason = :empty_path,
@@ -447,7 +472,7 @@ The terminal split: the final segment is the port or face name, the prefix
 resolves through `resolve`. The split is unambiguous because face names may
 contain dots, never slashes (§8.6).
 """
-function resolve_terminal(assembly, path::AbstractString)
+function resolve_terminal(@nospecialize(assembly), path::AbstractString)
     diags = Diagnostic[]
     resolved = resolve_terminal("`resolve_terminal` on `$(nameof(typeof(assembly)))`",
                                 "", assembly, path, diags;
@@ -459,7 +484,7 @@ end
 
 # A contract declaration at nominal, whatever the tier: the keys are a
 # tier-independent fact, and the walk at `Float64` strips every `Pinned` (D-263).
-_contract(fn, comp) =
+_contract(fn, @nospecialize(comp)) =
     _declares(fn, comp) ? map(P -> retype_entry(Float64, P), invoke_declaration(fn, comp)) : NamedTuple()
 
 """
@@ -472,7 +497,7 @@ walk the walk has already evaluated the body once and this primitive does not
 evaluate it again (Appendix C); standalone the primitive evaluates it. Either way
 the list returned is a fresh vector, the caller's to mutate.
 """
-input_faces(comp) = classify("", comp) === PRIMITIVE ?
+input_faces(@nospecialize(comp)) = classify("", comp) === PRIMITIVE ?
                  String[String(k) for k in keys(_contract(u_types, comp))] :
                  _walked_faces(comp, 1, u_connections, first)
 
@@ -485,7 +510,7 @@ walk has already evaluated the body once and this primitive does not evaluate it
 again (Appendix C); standalone the primitive evaluates it. Either way the list
 returned is a fresh vector, the caller's to mutate.
 """
-output_faces(comp) = classify("", comp) === PRIMITIVE ?
+output_faces(@nospecialize(comp)) = classify("", comp) === PRIMITIVE ?
                   String[String(k) for k in keys(_contract(y_types, comp))] :
                   _walked_faces(comp, 2, y_connections, last)
 
@@ -497,7 +522,7 @@ output_faces(comp) = classify("", comp) === PRIMITIVE ?
 # is correctness, not a path. The hit is copied on the way out: the memo is the
 # walk's own record, and a caller sorting or emptying what a primitive handed it
 # would otherwise reorder the boundary the walk goes on to compute.
-function _walked_faces(comp, side::Int, fn, face_of)
+function _walked_faces(@nospecialize(comp), side::Int, fn, face_of)
     memo = WALK_FACES[]
     memo !== nothing && haskey(memo, comp) && return copy(memo[comp][side])
     String[String(face_of(pair)) for pair in invoke_declaration(fn, comp)]
@@ -533,7 +558,7 @@ child is silent. `child_path` names an immediate child (a bare key where the
 container is name-transparent); a deeper path meets `resolve`'s one-level
 rejection like any other wiring endpoint.
 """
-function input_passthrough(assembly, child_path::AbstractString;
+function input_passthrough(@nospecialize(assembly), child_path::AbstractString;
                            sep::AbstractString = ".",
                            prefix::AbstractString = replace(child_path, "/" => sep),
                            except::Tuple = (), only::Tuple = (), select = nothing)
@@ -557,7 +582,7 @@ consumer is one-level routing (§6.1): every level re-exports the outputs it
 surfaces, so the output side needs the computed spelling the input side
 already has.
 """
-function output_passthrough(assembly, child_path::AbstractString;
+function output_passthrough(@nospecialize(assembly), child_path::AbstractString;
                             sep::AbstractString = ".",
                             prefix::AbstractString = replace(child_path, "/" => sep),
                             except::Tuple = (), only::Tuple = (), select = nothing)
@@ -617,7 +642,7 @@ its hops `(path, face)` in order, the last being the producer `(path, port)`. Or
 `nothing` with the refusal recorded in `diags` — the endpoint then claims nothing
 and the obligation pass reports what it left unfed (§13.1).
 """
-function resolve_source(draft, entry::String, base::String, assembly, path::AbstractString,
+function resolve_source(draft, entry::String, base::String, @nospecialize(assembly), path::AbstractString,
                         diags::Vector{Diagnostic})
     resolved = resolve_terminal(entry, base, assembly, path, diags)
     resolved === nothing && return nothing
@@ -643,7 +668,7 @@ consumer. Several, when the endpoint is a sub-assembly's input face fanning out
 through the boundary; none, when the endpoint failed to resolve and the refusal
 was recorded.
 """
-function resolve_dest(draft, entry::String, base::String, assembly, path::AbstractString,
+function resolve_dest(draft, entry::String, base::String, @nospecialize(assembly), path::AbstractString,
                       diags::Vector{Diagnostic})
     resolved = resolve_terminal(entry, base, assembly, path, diags)
     resolved === nothing && return Vector{Tuple{String,Symbol}}[]
@@ -669,13 +694,13 @@ _endpoints(inner::Tuple) = inner
 
 # Called by the declaring level alone, on its own children's endpoints: a parent
 # reading the face reads the routes this built.
-_fanout(draft, entry, base, comp, inner, diags) =
+_fanout(draft, entry, base, @nospecialize(comp), inner, diags) =
     reduce(vcat, (resolve_dest(draft, entry, base, comp, p, diags) for p in _endpoints(inner));
            init = Vector{Tuple{String,Symbol}}[])
 
 # Direction is declared by the method; the resolved endpoint only cross-checks it.
 # The mismatch is recorded, never thrown: the wire simply resolves to nothing.
-function _wrong_direction(entry, path, comp_path, name, comp, wanted, diags)
+function _wrong_direction(entry, path, comp_path, name, @nospecialize(comp), wanted, diags)
     input_names, output_names = input_faces(comp), output_faces(comp)
     found = String(name) in input_names ? "an input" :
             String(name) in output_names ? "an output" : nothing
@@ -794,7 +819,7 @@ struct StructureDraft
     faces::IdDict{Any,Tuple{Vector{String},Vector{String}}}   # per assembly instance, (inputs, outputs)
 end
 
-StructureDraft(root::AbstractComponent) =
+StructureDraft(@nospecialize(root::AbstractComponent)) =
     StructureDraft(root, String[], AbstractComponent[],
                    Union{Nothing,Tier}[],
                    Vector{RateLink}[], Timing[],
@@ -843,11 +868,14 @@ const WALK_CHILDREN = ScopedValue{Union{Nothing,IdDict{Any,Vector{Pair{String,An
 # outside a walk. A derivation that throws stores nothing. The hit is the cached
 # vector itself, shared and read-only: `_walked_faces` copies on the way out, but
 # a copy per endpoint would bring back the cost the cache removes, and
-# `_one_level`, the one caller, only searches it.
+# `_one_level`, the one caller, only searches it. Not `get!`, whose closure
+# would capture `assembly` (see `_walk!`).
 function _walked_children(base::String, @nospecialize(assembly))
     memo = WALK_CHILDREN[]
     memo === nothing && return children(base, assembly)
-    get!(() -> children(base, assembly), memo, assembly)
+    hit = get(memo, assembly, nothing)
+    hit === nothing || return hit
+    memo[assembly] = children(base, assembly)
 end
 
 # --- the sample-time fold (§8.7, §9.1, §10.5) -----------------------------------
@@ -962,13 +990,15 @@ throw is `build`'s, at the step barrier. Any component may be the root
 (D-208) — a primitive one flattens to the single leaf at the root path, its
 `u_types` keys the model's root inputs.
 """
-function flatten!(draft::StructureDraft, root, diags::Vector{Diagnostic})
+Base.@nospecializeinfer function flatten!(draft::StructureDraft, @nospecialize(root),
+                                          diags::Vector{Diagnostic})
     # the root scope: anchor 0, the base grid itself; no link above it and none of its own.
     # The face and child memos are the walk's own and are bound around it alone:
     # the obligation loop below reads `u_types`, never a face or child list.
+    unspecialized = Ref{AbstractComponent}(root)   # read in the closure: see `_walk!`
     with(WALK_FACES => draft.faces,
          WALK_CHILDREN => IdDict{Any,Vector{Pair{String,Any}}}()) do
-        _walk!(draft, "", root, Timing((0, 1, 0)), RateLink[], nothing, diags)
+        _walk!(draft, "", unspecialized[], Timing((0, 1, 0)), RateLink[], nothing, diags)
     end
 
     # The obligation model (§6.1): an input is fed by a wire in some ancestor's
@@ -977,9 +1007,10 @@ function flatten!(draft::StructureDraft, root, diags::Vector{Diagnostic})
     # legitimate unfed terminus is the root's own input face. A wire that failed
     # to resolve claimed nothing, so the input it should have fed is reported
     # here beside the refusal itself.
-    for (path, instance) in zip(draft.paths, draft.instances)
+    # By index: a closure capturing the instance would be a type per component type.
+    for (ci, path) in enumerate(draft.paths)
         at_component(path) do
-            for (face, declared) in pairs(_contract(u_types, instance))
+            for (face, declared) in pairs(_contract(u_types, draft.instances[ci]))
                 haskey(draft.feeds, (path, face)) ||
                     push!(diags, UnconnectedInput(path = path, face = face,
                                                  declared = declared,
@@ -1053,9 +1084,17 @@ Structure(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tuple{String,S
 
 # `chain` is the links above `comp`, outermost first, and `link` its own — the
 # entry the enclosing assembly's `sample_times` named it under, or `nothing`.
-function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
-                chain::Vector{RateLink}, link::Union{Nothing,RateLink},
-                diags::Vector{Diagnostic})
+#
+# The walk runs once per build and takes `comp` unspecialized, as does every
+# function it calls with a component, so a new component type or root type
+# compiles none of it again (§9.7, D-289). The two frames below read the
+# instance through `unspecialized` rather than capture `comp`: Julia 1.12 makes
+# a closure a type per type of what it captures, an unspecialized argument
+# included.
+Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
+                                        @nospecialize(comp), scope::Timing,
+                                        chain::Vector{RateLink}, link::Union{Nothing,RateLink},
+                                        diags::Vector{Diagnostic})
     # The forgotten import (§8.1, D-246), first and alone: a module holding a
     # foreign binding of a family name declares nothing the framework can read,
     # so the class below would be read off an empty set. `ClassUnreadable` is
@@ -1065,11 +1104,13 @@ function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
     isempty(foreign) || throw(DiagnosticError(DeclarationShadowed(
         path = path, names = foreign,
         parent_module = string(parentmodule(typeof(comp))))))
+    unspecialized = Ref{AbstractComponent}(comp)
     if classify(path, comp) === PRIMITIVE
         # Everything below reads this primitive's own declarations, so it runs
         # under the component frame: an accessor's `UserCodeFraming` leaves the
         # path empty and this is where the path is known (§13.2, D-248).
         return at_component(path) do
+            local comp = unspecialized[]
             push!(draft.paths, path)
             push!(draft.instances, comp)
             push!(draft.timings, scope)
@@ -1102,6 +1143,7 @@ function _walk!(draft::StructureDraft, path::String, comp, scope::Timing,
         end
     end
     at_component(path) do
+        local comp = unspecialized[]
         # One row per assembly an explicit key names, in walk order: the scope a
         # `sample_times` key opened, with the timing everything under it folds from.
         link === nothing ||
@@ -1225,7 +1267,7 @@ end
 # would silently overwrite the port's. Below the root nothing collides — a
 # primitive's input faces alias their producers' cells and place nothing — and
 # non-root leaves are left alone.
-function _check_root_faces(comp, diags::Vector{Diagnostic})
+function _check_root_faces(@nospecialize(comp), diags::Vector{Diagnostic})
     output_names = String.(keys(_contract(y_types, comp)))
     duplicates = [n for n in String.(keys(_contract(u_types, comp))) if n in output_names]
     isempty(duplicates) ||

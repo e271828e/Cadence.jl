@@ -135,9 +135,12 @@ The declaration layer:
 - The rate forms `Period`, `Relative` and `Absolute`, with `sample_times`.
 - The event surface `StateEvent`, `state_events` and `x_projection`.
 - The declaration family `DECLARATION_FAMILY` and `foreign_declarations`.
+- The readers of a component, `has_stage`, `_declares`, `declared_at`, the two
+  bundle-name functions and `foreign_declarations`, take it unspecialized, so a
+  new component type compiles none of them again (§9.7, D-289).
 
-Spec: §2.1, §5.2, §8.1, §8.2, §8.5–§8.7, §9.3, Appendix B, D-051, D-179, D-185,
-D-195, D-211, D-246, D-248, D-263.
+Spec: §2.1, §5.2, §8.1, §8.2, §8.5–§8.7, §9.3, §9.7, Appendix B, D-051, D-179,
+D-185, D-195, D-211, D-246, D-248, D-263, D-289.
 
 ### `src/assembly.jl`
 
@@ -179,10 +182,14 @@ D-195, D-211, D-246, D-248, D-263.
 - §8.8's `input_passthrough`/`output_passthrough`, with the three exclusive
   selectors `except`, `only` and `select`, and `EmptyFaceSelection` through the
   channel (D-251).
+- The walk, the class and child readers, the resolvers and the build
+  primitives take components, assemblies and the root unspecialized, and
+  `_children` reads a container through `_elements` and `_element_keys`, so a
+  new component or root type compiles none of them again (§9.7, D-289).
 
 Spec: §6.1, §8.1, §8.5–§8.8, §9.1, §9.2, §9.7, §13.3, §13.7, §14.2, Appendix C, D-061, D-130,
 D-171, D-207–D-212, D-229, D-236, D-246, D-247, D-248, D-251, D-253, D-261,
-D-263.
+D-263, D-289.
 
 ### `src/store.jl`
 
@@ -242,6 +249,10 @@ D-249, D-255, D-261, D-289.
   - a `DiagnosticError` leaving the build is rewrapped with the warning list,
     and any other throw passes unchanged;
   - a completed build logs each warning once at return.
+- `build`, the user-code frame, the declaration checks and the probes take
+  components and the root unspecialized, and each per-component frame reads
+  the instance inside rather than capture it, so a new component or root type
+  compiles none of them again (§9.7, D-289).
 - The wire pass (D-236) checks both type clauses, at `Float64` and at the
   marker scalar. It retypes the contracts at each. It also fixes the
   root-input type, which has two refusals, `AbstractAtRoot` and
@@ -927,6 +938,14 @@ Traps the code does not warn about, each hit more than once while building:
   elements**, and from there it allocates at every call. A walk over an entry
   or chunk tuple is therefore a generated unroll, `_unrolled` in
   `executor.jl` (§9.7, D-289);
+- **code that runs once per build takes a component, an assembly or the root
+  unspecialized**: `@nospecialize` on the argument, and
+  `Base.@nospecializeinfer` on the walk's entry points `build`, `flatten!` and
+  `_walk!`. A closure created per component never captures the instance. It
+  reads it from an unspecialized binding, an entry's or the draft's field or a
+  `Ref{AbstractComponent}`, because a closure is a type per type of what it
+  captures: a typed local always, and an unspecialized argument on Julia 1.12.
+  Code the executor runs stays specialized (§9.7, D-289);
 - **a callee that needs one more value takes it as an argument.** Never add
   a field to a container the callee already holds so the value can be
   reached without one: that is how the plane came to hold the executor's

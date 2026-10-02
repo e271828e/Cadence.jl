@@ -1673,6 +1673,67 @@ function build_activations()
     end
 end
 
+# --- what a build compiles per type (§9.7, D-289) -----------------------------
+# The declaration layer runs once per build, so it takes components, assemblies
+# and the root unspecialized, and a new component type or a new root compiles
+# none of it again. Each function below keeps a count of its specializations,
+# and a function compiled per type gains one at each new type. Only a type
+# compiled for the first time can show it, which is why the two tests build
+# types no other test builds, and the count is read just before and after one
+# build.
+
+# The functions of the layer the two builds run, each of which compiled again per
+# type before the layer was unspecialized. `at_component` is among them because
+# every closure created per component passes through it.
+const DECLARATION_LAYER = (
+    build, flatten!, _walk!, StructureDraft, at_component,
+    invoke_declaration, invoke_probed, declarations, classify, classify_tier,
+    check_store_form, check_stores, check_state_leaves, _check_root_faces,
+    leaf_declarations, declarations_found, foreign_declarations,
+    has_stage, _declares, _declares_workspace, declared_at, bundle_names,
+    event_bundle_names, children, _children, _walked_children, _contract,
+    resolve_terminal, resolve_source, _workspace, _check_handler)
+
+# Counted over the methods the layer's three files define: `flatten!` also
+# names the leaf walk of `leaves.jl`.
+_in_layer(m::Method) = basename(String(m.file)) in ("assembly.jl", "build.jl", "declare.jl")
+
+specialization_counts() =
+    [nameof(fn) => sum(count(Returns(true), Base.specializations(m))
+                       for m in methods(fn) if _in_layer(m))
+     for fn in DECLARATION_LAYER]
+
+# `build` of a model whose type the caller cannot infer. A call the enclosing
+# function could infer would compile `build` for the model's type when that
+# function compiles, ahead of the first count.
+build_opaque(model) = build(Base.inferencebarrier(model))
+
+function build_specializations()
+    @testset "a new component type compiles none of the declaration layer (§9.7, D-289)" begin
+        # The two types differ in their name alone. The first build compiles
+        # what the layer compiles once. The second compiles the type's own
+        # methods and the declaration fallbacks it reaches, none of them on the
+        # list.
+        build_opaque(FreshSawtoothA(1.0))
+        counts = specialization_counts()
+        build_opaque(FreshSawtoothB(1.0))
+        @test specialization_counts() == counts
+    end
+
+    @testset "nor does a new root type (§9.7, D-289)" begin
+        # A `Group`'s type spells its children, so two widths over one known type
+        # are two root types. The output face takes each build through endpoint
+        # resolution at the root.
+        build_opaque(Group((; a = FreshSawtoothA(1.0), b = FreshSawtoothA(2.0));
+                           outputs = "a/q" => "q"))
+        counts = specialization_counts()
+        build_opaque(Group((; a = FreshSawtoothA(1.0), b = FreshSawtoothA(2.0),
+                              c = FreshSawtoothA(3.0));
+                           outputs = "a/q" => "q"))
+        @test specialization_counts() == counts
+    end
+end
+
 # --- every component at `ProbeDual` (§9.4, D-166) -----------------------------
 # The CI policy: every component the suite defines gets a `Dual` activation. The
 # sweep reads the types off the live module, never off the files, so a fixture
@@ -1749,9 +1810,9 @@ function build_dual_sweep()
         # 90 covered on 2026-09-30, the 4 pinned fixtures among them; a floor, so
         # a new zero-argument fixture joins without an edit.
         @test length(covered) ≥ 90
-        # 59 argument-taking fixtures on 2026-09-30: a new one is classified here
+        # 61 argument-taking fixtures on 2026-10-02: a new one is classified here
         # on purpose, by raising the count.
-        @test length(skipped) == 59
+        @test length(skipped) == 61
     end
 end
 
@@ -1966,6 +2027,7 @@ function test_build()
     build_barrier()
     build_embed_accept()
     build_activations()
+    build_specializations()
     build_dual_sweep()
     build_warnings()
 end

@@ -9,16 +9,10 @@ the tools go red.
 
 ## Before the first release
 
-The bullets stand in working order, the first one next. The library waits on
-the ruling ahead of it, which sets what a component type costs to compile.
-The GUI's design runs in parallel with both. The audit comes last, because
-it sweeps the whole surface and the library and the GUI both add names.
+The bullets stand in working order, the first one next. The GUI's design
+runs in parallel with the library. The audit comes last, because it sweeps
+the whole surface and the library and the GUI both add names.
 
-- **Compile time** (§9.7, D-086, D-289): §9.7's compile-cost rules are
-  ruled and not yet built. Increment 58 builds them
-  (`briefs/brief_increment_58_compile_cost.md`): the generated unroll,
-  chunks and the event set by reference, the walk's child-list cache,
-  and the unspecialized declaration layer.
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
   spellings).
@@ -78,6 +72,8 @@ what the spec says, the spec edit is part of the item.
   First the convention goes into `tools/spec_style.md` and its bold check into
   the battery; until a chapter's turn comes, it keeps the old markers.
 - **Package registration.**
+- **A precompile workload** for the generic machinery a cold process
+  pays, about 9 s whatever the model (§9.7).
 
 ## After the first release
 

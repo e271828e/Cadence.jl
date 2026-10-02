@@ -262,14 +262,14 @@ The family names `comp`'s parent module binds to something other than the
 framework's function, in family order — the forgotten-import evidence of
 §8.1 (D-246). Empty for a module that imported what it extends.
 """
-function foreign_declarations(comp)
+function foreign_declarations(@nospecialize(comp))
     author_module = parentmodule(typeof(comp))
     Symbol[name for name in DECLARATION_FAMILY
            if isdefined(author_module, name) &&
               getfield(author_module, name) !== getfield(@__MODULE__, name)]
 end
 
-has_stage(fn, comp) = hasmethod(fn, Tuple{typeof(comp),NamedTuple})
+has_stage(fn, @nospecialize(comp)) = hasmethod(fn, Tuple{typeof(comp),NamedTuple})
 
 """
 Is `fn` declared *for this component* in the arity `extra` names, as against
@@ -277,7 +277,7 @@ matching a framework fallback? `hasmethod` cannot tell the two apart, so the
 matched method's own signature is what answers: a fallback carries `Any` in the
 component position.
 """
-_declares(fn, comp, extra...) =
+_declares(fn, @nospecialize(comp), extra...) =
     hasmethod(fn, Tuple{typeof(comp),extra...}) &&
     Base.unwrap_unionall(which(fn, Tuple{typeof(comp),extra...}).sig).parameters[2] !== Any
 
@@ -295,7 +295,7 @@ walked at `S`, a `Pinned` entry yielding its type (D-265); on the discrete
 tier as written. `S` is `Float64` for every reader but the structure step's
 wire pass, which also reads it at the marker.
 """
-function declared_at(fn, comp, tier::Tier, ::Type{S} = Float64) where {S}
+function declared_at(fn, @nospecialize(comp), tier::Tier, ::Type{S} = Float64) where {S}
     _declares(fn, comp) || return NamedTuple()
     decl = invoke_declaration(fn, comp)
     tier === CONTINUOUS ? map(P -> retype_entry(S, P), decl) : decl
@@ -325,7 +325,7 @@ The per-function, per-tier name sets are closed, and so are the state letters:
 `x`/`y_x` with `m` on the continuous tier, `s`/`y_s` with `Δt` on the discrete
 (D-195).
 """
-function bundle_names(fn, comp, tier::Tier, stage1_ports::Tuple)
+function bundle_names(fn, @nospecialize(comp), tier::Tier, stage1_ports::Tuple)
     update = update_of(tier)
     bundle_fields = Symbol[]
     if tier === CONTINUOUS
@@ -348,7 +348,7 @@ function bundle_names(fn, comp, tier::Tier, stage1_ports::Tuple)
     tuple(bundle_fields...)
 end
 
-_declares_workspace(comp) = _declares(ws_init, comp, Type{Float64})
+_declares_workspace(@nospecialize(comp)) = _declares(ws_init, comp, Type{Float64})
 
 """
 Bundle field names for a guard or handler (§5.2): the update law's view of the
@@ -356,7 +356,7 @@ world — `x, m, y, u, t [, ws]` — one closed set shared by both halves, on th
 continuous tier only. The same iff rule as `bundle_names`, without a stage-1
 distinction: guards and handlers run against the complete fresh table.
 """
-function event_bundle_names(comp)
+function event_bundle_names(@nospecialize(comp))
     bundle_fields = Symbol[]
     !isempty(invoke_declaration(x_init, comp)) && push!(bundle_fields, :x)
     !isempty(invoke_declaration(m_init, comp)) && push!(bundle_fields, :m)
