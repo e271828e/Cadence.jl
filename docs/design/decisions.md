@@ -319,6 +319,11 @@ were derived.
 | [D-292][d-292] | Event iteration's registers, boundary-zero prior, visibility trade and budget exhaustion | ratified |
 | [D-293][d-293] | External readers observe the signal table only at boundaries | ratified |
 | [D-294][d-294] | The pacer's wait: unmask point, single knob, spin safepoint and the switch to `pace = Inf` | ratified |
+| [D-295][d-295] | The walk clause's tier scope, the obligation's scope, seedability and the unmarked stores | ratified |
+| [D-296][d-296] | Abstract entries, the record-and-check doctrine, the tight root bound and the tap's pinning consumer | ratified |
+| [D-297][d-297] | Contracts by type, seeding not typing, one walk convention and declared publicity | ratified |
+| [D-298][d-298] | Container edges, the builder rejection, `Group`'s trade and the directional two-notation rule | ratified |
+| [D-299][d-299] | Rate scopes by type, the feed-list doctrine and the helper pair | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -981,7 +986,7 @@ methods); schema authority — declarations define, probe evaluation checks
 (build probe with real values + free always-on conformance); convenience macros
 addable a posteriori, never essential.
 
-**Spec.** [§8.1][s8-1], [§8.4][s8-4]
+**Spec.** [§8.1][s8-1], [§8.3][s8-3], [§8.4][s8-4]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -1027,6 +1032,11 @@ exempt (by-allocation, [D-077][d-077]) — because [§9.7][s9-7]'s entry typing 
 key set from the type; a rule authors keep, not a check the build can run
 ([§8.1][s8-1]).
 
+Annotation (2026-10-02): amended by [D-165][d-165] and [D-179][d-179]. `local_types` is deleted,
+and an event carries no `localize` flag, since the guard's return type declares
+its detection policy. The three declaration conventions and derived stage
+membership stand.
+
 **Rejected.**
 - *Superseded position — `outputs(::C, ::Type{T})` on continuous components
   with plain `outputs(::C)` on discrete as the tier-in-signature marker (the
@@ -1058,6 +1068,11 @@ branch-shape-stable returns; undeclared stage-return fields = build error.
 **Spec.** [§5.4][s5-4], [§8.3][s8-3]
 
 **Rationale.** Recorded only through the rejections below.
+
+Annotation (2026-10-02): amended by [D-194][d-194]. An intermediate is an ordinary
+declared port, so the strict `local_types` clause is retired. Declared = public,
+branch-shape-stable returns and the build error for an undeclared return field
+stand.
 
 **Rejected.**
 - *Superseded position — private intermediates recognized by probe observation,
@@ -1193,6 +1208,10 @@ is a build error naming both.
 
 **Rationale.** Recorded only through the rejections below.
 
+Annotation (2026-10-02): "per [§8.3][s8-3]" in the second rejection reads "per
+[§8.5][s8-5]", which states that class, this entry's kind, is implementation detail
+behind the contract.
+
 **Rejected.**
 - *Builder (`add!`/`connect!`):* dispatch type and structure recipe drift apart
   — [§8.1][s8-1]'s disease at assembly scale; mutable declaration state; doesn't even
@@ -1231,6 +1250,12 @@ derivation is forced); `connections` strictly child-to-child.
 
 **Rationale.** Recorded only through the rejections below.
 
+Annotation (2026-10-02): amended by [D-170][d-170] and [D-279][d-279]. The single `exports`
+method splits by direction into `u_connections` and `y_connections`, and
+endpoint derivation becomes a cross-check on the direction each method
+declares. Face types and tiers derived from the endpoints, and wires strictly
+from child to child, stand.
+
 **Rejected.**
 - *Routing values under leaf `inputs`/`outputs` names:* name-level pun —
   discrete-leaf signature with alien value semantics, kills the kind split.
@@ -1250,6 +1275,11 @@ construction.
 **Spec.** [§8.7][s8-7]
 
 **Rationale.** Recorded only through the rejections below.
+
+Annotation (2026-10-02): amended by [D-254][d-254] and [D-256][d-256]. `Δt_base` and `h` are
+fixed at deployment, as `Deployment` constructor parameters, not at
+`Simulation` construction. The optional declaration, its immediate-children
+keys and the error for a key on a continuous child stand.
 
 **Rejected.**
 - *Instance wrappers (`Subsampled`-style):* wraps the field type, pollutes
@@ -1364,7 +1394,7 @@ tokens; the periphery speaks face names on the *write* side ([D-083][d-083]); `e
 returns pairs like `connections`; `faces(asm, path; prefix, sep, except, only)`
 with dot-prefix *defaults* (convention, not law).
 
-**Spec.** [§8.6][s8-6]
+**Spec.** [§8.6][s8-6], [§8.8][s8-8]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -1574,6 +1604,9 @@ nominal on both tiers, same activation leaf walk as `output_types` ([D-079][d-07
 **Spec.** [§5.4][s5-4], [§8.3][s8-3], [§8.4][s8-4]
 
 **Rationale.** Recorded only through the rejections below.
+
+Annotation (2026-10-02): amended by [D-165][d-165] and [D-194][d-194]. `local_types` is deleted,
+and an intermediate is an ordinary declared port. The Rejected list stands.
 
 **Rejected.**
 - *Superseded position — the earlier `T`-signature spelling `locals(::C,
@@ -2268,7 +2301,7 @@ in the signature at all ([D-263][d-263]).
 <: entry` at nominal faces — one uniform rule, exact equality the concrete
 degenerate.
 
-**Spec.** [§4.4][s4-4], [§9.1][s9-1]
+**Spec.** [§4.4][s4-4], [§8.2][s8-2], [§9.1][s9-1]
 
 **Rationale.** Abstract entries = structural substitutability ([§4.4][s4-4] field
 handles), never needed for eltype genericity (an eltype-generic producer's
@@ -2302,7 +2335,7 @@ leaves, reference-typed fields and non-type (value) parameters pin, with the
 companion obligation that a Tier-1 type be constructible at the walked type —
 enforced by construction at the `Dual` probe.
 
-**Spec.** [§7.1][s7-1], [§8.5][s8-5], [§9.4][s9-4], [§9.5][s9-5], [§14.10][s14-10]
+**Spec.** [§7.1][s7-1], [§8.2][s8-2], [§8.5][s8-5], [§9.4][s9-4], [§9.5][s9-5], [§14.10][s14-10]
 
 **Rationale.** The type derived from `init_x` walks like a continuous
 producer's ([§7.1][s7-1]'s all-real-leaves rule checked in Stratum A, didactic
@@ -2729,7 +2762,7 @@ next `run!`); the write/read paths while stepping are [D-096][d-096]'s harness w
 **Position.** State leaf vocabulary closed ([§7.1][s7-1]): `init_x` leaves are plain
 real scalars and `SArray`s at the common eltype — no domain wrapper types.
 
-**Spec.** [§7.1][s7-1], [§10.4][s10-4], [§14.3][s14-3]
+**Spec.** [§7.1][s7-1], [§8.2][s8-2], [§10.4][s10-4], [§14.3][s14-3]
 
 **Rationale.** Views therefore materialize by ordinary invariant-free
 construction (bit-faithful round trip, no constructor bypass, no
@@ -4892,6 +4925,9 @@ semantic: the section's only example hand-wrote a two-entry `except`, reading
 as though the duplication stays small, when at C172X scale it is four
 hand-synchronized name lists.
 
+Annotation (2026-10-02): "structure kept in two artifacts" is [D-039][d-039]'s alone,
+and [§8.8][s8-8] states it; [§8.1][s8-1] holds no such phrase.
+
 **Rejected.**
 - *A framework helper deriving `except` from `connections`* (`except = fed(s,
   "aero")` reading the assembly's own wire list): auto-bubbling on [D-043][d-043]'s
@@ -5610,6 +5646,10 @@ the probe's own rejection tests pass vacuously; diagnosed first as a world-age
 effect and disproved by direct test (a method defined in a function body *is*
 visible to that body's later calls — the shadowing is what bites).
 
+Annotation (2026-10-02): the build error is `ClassUnreadable`, the kind for a
+type declaring neither family ([D-039][d-039], [D-122][d-122]). The error and the authoring rule
+stand.
+
 **Rejected.**
 - *Documenting the caveat only:* the failure is silent and its symptom — an
   inert component — is exactly what the check names.
@@ -5993,7 +6033,7 @@ boundary declarations; one invariant spans all three: every pair's arrow points
 the way the signal flows, left = producer or entry point, right = consumer,
 every right side fed exactly once.
 
-**Spec.** [§3.3][s3-3], [§6.1][s6-1], [§6.2][s6-2], [§11.3][s11-3], [§8.2][s8-2], [§8.5][s8-5], [§8.6][s8-6], [§8.8][s8-8], [§9][s9], [§13.3][s13-3]
+**Spec.** [§3.3][s3-3], [§6.1][s6-1], [§6.2][s6-2], [§11.3][s11-3], [§8.1][s8-1], [§8.2][s8-2], [§8.5][s8-5], [§8.6][s8-6], [§8.8][s8-8], [§9][s9], [§13.3][s13-3]
 (swept)
 
 **Rationale.** Supersedes [D-041][d-041]'s single-method shape; [D-039][d-039]'s marker role
@@ -6019,7 +6059,7 @@ Annotation (2026-10-01): the three declarations are `inner_connections`, `u_conn
 
 **Position.** `passthrough` → **`input_passthrough`**.
 
-**Spec.** [§8.8][s8-8]
+**Spec.** [§8.1][s8-1], [§8.8][s8-8]
 
 **Rationale.** Annotates [D-144][d-144]: its "stays accurate if the output-direction
 addition lands" clause assumed a direction *keyword* on one helper; after
@@ -6028,6 +6068,10 @@ addition's landing shape is a sibling `output_passthrough` splatted into
 `output_connections` — the prefix is the split's consistent consequence, and
 [§8.8][s8-8]'s inputs-only-by-definition paragraph shrinks to the guarded-addition
 pointer, the name now carrying the direction.
+
+Annotation (2026-10-02): amended by [D-209][d-209]. `output_passthrough` is built, so
+the third rejection no longer holds. The rename and the other two rejections
+stand.
 
 **Rejected.**
 - *Bare `passthrough`:* [D-144][d-144]'s premise retired by the split.
@@ -6288,6 +6332,14 @@ and the empty-enumeration doctrine survives untouched: `is_input(b) = true` +
 `claims(b) = ()` is the honest may-write-nothing degenerate, while the maximal
 surface still requires the explicit `is_greedy` declaration.
 
+Annotation (2026-10-02): "[§8.3][s8-3]-hidden" in the Position reads "[§8.5][s8-5]-hidden":
+[§8.5][s8-5] states that a component's class is implementation detail behind its
+contract.
+
+Annotation (2026-10-02): "[§8.1][s8-1]'s reflection class" in the Rationale reads
+"[§8.1][s8-1]'s shadowing check", the `isdefined`/`!==` test [§8.1][s8-1] holds; [§8.1][s8-1] names
+no reflection class.
+
 **Rejected.**
 - *Presence-only probing, the prior design of record:* silent partial
   degradation of a shadowed bidirectional binding, and `hasmethod` is the rarer
@@ -6356,7 +6408,7 @@ boilerplate-on-every-leaf outcome [D-039][d-039], [D-173][d-173] and this row al
 loses the `localize` keyword: de-localization = casting the guard to its
 predicate (`σ ≥ 0`, the [§2.1][s2-1] definition, semantics-preserving by construction).
 
-**Spec.** [§2.1][s2-1], [§10.4][s10-4], [§8.1][s8-1], [§9.3][s9-3], [§9.5][s9-5]
+**Spec.** [§2.1][s2-1], [§10.4][s10-4], [§8.1][s8-1], [§8.2][s8-2], [§9.3][s9-3], [§9.5][s9-5]
 
 **Rationale.** The localized-`Bool` combination becomes unrepresentable and
 `LocalizedGuardForm` retires, `GuardForm` remaining the sole guard diagnostic;
@@ -6523,6 +6575,12 @@ exploratory/programmatic composition does not want; serves the model-assembler
 persona with zero new declaration rules — [§8.5][s8-5]'s builder rejection stands
 untouched (immutable grouping needs no builder), and the component enters
 [§13.7][s13-7]'s inventory as its one persona-admitted member.
+
+Annotation (2026-10-02): amended by [D-211][d-211] and [D-279][d-279]. `Group` declares its
+`children` field name-transparent, one opt-in declaration where this entry
+claimed zero new declaration rules, and its connection declarations are
+`inner_connections`, `u_connections` and `y_connections`. The single library
+type, its instance-field declarations and the builder rejection stand.
 
 **Rejected.**
 - *The mutable builder (`Assembly()` + `add!`/`connect!`):* [§8.5][s8-5]'s standing
@@ -6883,7 +6941,7 @@ ordinary declared port, reaching its consumers through the existing views.
 - The workspace and the handler return law are untouched: `ws` is the
   mutable-scratch channel ([§7.3][s7-3]), handlers return stores ([D-090][d-090]).
 
-**Spec.** [§4.2][s4-2], [§4.3][s4-3], [§5.2][s5-2], [§5.3][s5-3], [§5.4][s5-4], [§8.3][s8-3], [§9.1][s9-1], [§9.3][s9-3], [§9.5][s9-5], [§9.7][s9-7],
+**Spec.** [§4.2][s4-2], [§4.3][s4-3], [§5.2][s5-2], [§5.3][s5-3], [§5.4][s5-4], [§8.2][s8-2], [§8.3][s8-3], [§9.1][s9-1], [§9.3][s9-3], [§9.5][s9-5], [§9.7][s9-7],
 [Appendix B][sB], [Appendix C][sC], [Appendix D][sD]
 
 **Rationale.** `w` served two needs, and each is served better without it.
@@ -7724,7 +7782,7 @@ dual-stage kinds are fail-fast at both stages.
 - Internal invariant checks are not diagnostics: they raise a distinct
   `InternalInvariant` exception outside the kind set.
 
-**Spec.** [§13.2][s13-2], [Appendix C][sC]
+**Spec.** [§8.2][s8-2], [§8.5][s8-5], [§13.2][s13-2], [Appendix C][sC]
 
 **Rationale.** Surfaced by the site inventory for the prototype increment
 retiring its string stand-in: 31 of its 144 refusal sites matched no [Appendix C][sC]
@@ -8272,7 +8330,7 @@ nothing.
 - The authoring family stays unexported under [D-117][d-117] whatever the audit
   decides for the operator half.
 
-**Spec.** [§4.4][s4-4], [§9.4][s9-4], [Appendix B][sB], [Appendix D][sD]
+**Spec.** [§4.4][s4-4], [§8.1][s8-1], [§9.4][s9-4], [Appendix B][sB], [Appendix D][sD]
 
 **Rationale.** The 2026-09-04 conformance audit read "exported" at three sites
 as an obligation the module does not meet, `names(Cadence)` being
@@ -8735,7 +8793,7 @@ embedding lift ([D-238][d-238]) never enters it. A mutable type anywhere in a po
 refused (`IllegalPortType`), and so is a handle-typed face surfacing as a
 root input.
 
-**Spec.** [§4.3][s4-3], [§4.4][s4-4], [§9.5][s9-5], [Appendix C][sC]
+**Spec.** [§4.3][s4-3], [§4.4][s4-4], [§8.2][s8-2], [§9.5][s9-5], [Appendix C][sC]
 
 **Rationale.** [§4.4][s4-4] already fixes the boundary: a bulk-data model is an
 immutable struct combining isbits parameters with references to data loaded at
@@ -8790,7 +8848,7 @@ when lifting `V`'s `Float64` positions to `T` exactly where `P` has `T`
 yields `P` itself, compared by identity. [D-235][d-235]'s always-on check and the
 concrete arm of [D-236][d-236]'s wire relation both take this form.
 
-**Spec.** [§6.1][s6-1], [§9.5][s9-5]
+**Spec.** [§6.1][s6-1], [§8.2][s8-2], [§9.5][s9-5]
 
 **Rationale.** [D-166][d-166] states embed-accept per leaf: a declared-`T` leaf
 accepts the scalar or a `Float64`, every other leaf is exact. The built
@@ -8830,7 +8888,7 @@ reported by the port check's `UndeclaredReturnField` alone.
 `DeclaredNotProduced` belongs to the completeness pass over the complete
 products, which runs only once every port check has passed.
 
-**Spec.** [§8.4][s8-4], [§13.1][s13-1], [Appendix C][sC]
+**Spec.** [§8.3][s8-3], [§8.4][s8-4], [§13.1][s13-1], [Appendix C][sC]
 
 **Rationale.** [§8.4][s8-4]'s fifth walkthrough promised the pair: the did-you-mean
 and the unproduced-port error with the product lists in hand. The port check
@@ -9283,7 +9341,7 @@ site holds.
 - `StopFaceInvalid`'s binding site is one of three, the constructor, `run!`
   or `replay!`, since a replay binds the run policy as `run!` does ([§12.7][s12-7]).
 
-**Spec.** [§8.5][s8-5], [§8.6][s8-6], [§9.5][s9-5], [§12.7][s12-7], [§13.5][s13-5], [Appendix C][sC]
+**Spec.** [§8.2][s8-2], [§8.5][s8-5], [§8.6][s8-6], [§9.5][s9-5], [§12.7][s12-7], [§13.5][s13-5], [Appendix C][sC]
 
 **Rationale.** [D-216][d-216] kept the payload columns as the design and left the
 prototype's gaps visible under them. Closing those gaps found three columns
@@ -9578,7 +9636,7 @@ materializes it.
 - `Simulation(build; kw...)` and `Simulation(root; kw...)` stay as sugar
   composing the deployment constructor.
 
-**Spec.** [§9.2][s9-2], [§10.5][s10-5], [§11.5][s11-5], [§12.7][s12-7], [Appendix C][sC]
+**Spec.** [§8.7][s8-7], [§9.2][s9-2], [§10.5][s10-5], [§11.5][s11-5], [§12.7][s12-7], [Appendix C][sC]
 
 **Rationale.** Deployment consumes the grid parameters and fixes everything
 they determine, the bound schedule and the grid diagnostics among them, and
@@ -12198,6 +12256,179 @@ recorded in [D-269][d-269]'s annotation of 2026-09-27.
 
 **Rejected.** None beyond the source entries' lists.
 
+### D-295 — The walk clause's tier scope, the obligation's scope, seedability and the unmarked stores
+
+**Status.** ratified
+
+**Position.** Four input and store rulings that [§8.2][s8-2] states are fixed here.
+
+- The walk-compatibility clause binds continuous consumers only. Discrete
+  consumers take the bound check only, because their stages read exclusively
+  at real ticks in the nominal world, where no `Dual`-carrying cell exists,
+  so continuous → discrete wires are unconditionally legal. The unscoped
+  clause is rejected: it would reject every continuous → discrete wire.
+- The genericity obligation, that the consumer's math promotes whatever
+  scalars the wiring delivers, binds the unpinned entries only and is checked
+  by the `Dual` probe. A `Pinned` entry imposes no such obligation, which is
+  its point.
+- A root input's type is its entry at `Float64`, and its cells at an
+  activation follow that entry retyped at the activation's `T`. Seedability
+  is therefore schema-visible: an unpinned root input is a lawful
+  linearization `B`-matrix tap, and a `Pinned` one is declaredly unseedable.
+- The stores take no marker. The type derived from `x_init` walks, and
+  `m_init` and `s_init` pin wholesale. `Pinned` has no place in a store,
+  because [§7.1][s7-1] admits no pinned state leaf.
+
+**Spec.** [§6.1][s6-1], [§8.2][s8-2], [§14.10][s14-10]
+
+**Rationale.** Each bullet restates what an existing entry recorded outside a
+live Position. The clause's tier scope, the obligation's scope and the
+root-input rules were recorded in [D-167][d-167]'s Rationale, and the rejection of the
+unscoped clause in its Rejected list. [D-167][d-167]'s annotation of 2026-09-24 records
+that the clause, its tier scope and the root-input rules stand under [D-263][d-263],
+with `Pinned` spelling "demands frozen" and an unpinned position "tolerant";
+the bullets use that spelling. The stores' walk was recorded in [D-079][d-079]'s
+Rationale, and the absence of a pinned state leaf in [D-166][d-166]'s Rejected list.
+[D-166][d-166] and [D-167][d-167] are superseded by [D-263][d-263], whose Position states none of these
+rulings beyond the walk of `x_init`.
+
+**Rejected.** None beyond the source entries' lists.
+
+### D-296 — Abstract entries, the record-and-check doctrine, the tight root bound and the tap's pinning consumer
+
+**Status.** ratified
+
+**Position.** Four input-contract rulings that [§8.2][s8-2] states are fixed here.
+
+- Abstract entries state structural substitutability, as [§4.4][s4-4]'s field
+  handles use them. They are never needed for eltype genericity, because an
+  eltype-generic producer's nominal face is concrete by construction.
+- Declarations record choices, and obligations are checked.
+- Only a tight, concrete bound determines a root input's type, since a root
+  input has no producer to take its cell type from.
+- A `B`-matrix tap selecting a root input that a consumer's entry pins is
+  rejected at tap resolution, naming the pinning consumer and its entry, not
+  the face alone. The author's next move, promoting that leaf or routing the
+  tap around it, depends on knowing which leaf froze the root input.
+
+**Spec.** [§8.2][s8-2], [§14.10][s14-10]
+
+**Rationale.** Each bullet restates what an existing entry recorded outside
+its Position. Abstract entries, the record-and-check doctrine and the tight
+root bound were recorded in [D-078][d-078]'s Rationale. The tap's pinning consumer was
+recorded in [D-168][d-168]'s Rationale.
+
+**Rejected.** None beyond the source entries' lists.
+
+### D-297 — Contracts by type, seeding not typing, one walk convention and declared publicity
+
+**Status.** ratified
+
+**Position.** Eight declaration-layer rulings that [§8.1][s8-1], [§8.2][s8-2], [§8.3][s8-3] and [§8.6][s8-6]
+state are fixed here.
+
+- A leaf's contract declarations are functions of the component's type,
+  type parameters included, never of its field values, because [§9.7][s9-7]'s entry
+  typing derives the bundle key set from the type. `ws_init` is exempt, being
+  by allocation. The rule is one authors keep, not a check the build can run.
+- Partials enter through per-invocation seeding, never through initialization
+  and never through typing.
+- Discrete producers pin wholesale, so a frozen discrete output is exact by
+  the typing rule. Declared `Float64` initial values embed as zero-partial
+  constants.
+- The criterion, not uniformity, is the rule: a `T` belongs in a signature
+  exactly where the declaration's non-nominal behavior is underdetermined by
+  its nominal restriction.
+- Every declaration is read with one walk rule. A `Float64` written at a
+  participating leaf walks, and a pin is written on the page as `Pinned`.
+- A store puts its letter in the bundle only when it is non-empty.
+- "Every `Float64` position follows the scalar" reads the declaration as
+  written, so a concretely typed field is frozen without appearing in the
+  contract.
+- Publicity is never implicit. A leaf's port and an assembly's face are
+  public only by declaration.
+
+**Spec.** [§8.1][s8-1], [§8.2][s8-2], [§8.3][s8-3], [§8.6][s8-6]
+
+**Rationale.** Each bullet restates what an existing entry recorded outside
+its Position. Contracts by type, with the workspace's exemption, were
+recorded in [D-033][d-033]'s Rationale. Seeding rather than typing was recorded in
+[D-079][d-079]'s Rationale, and seeding rather than initialization in [D-166][d-166]'s. The
+frozen-exact discrete output and the zero-partial initial values were
+recorded in [D-079][d-079]'s Rationale. The criterion was recorded in [D-166][d-166]'s Rejected
+list and restated in [D-263][d-263]'s Rationale. The one walk rule, the walking
+`Float64` and the empty store's absent letter were recorded in [D-263][d-263]'s
+Rationale. The declaration read as written was recorded in [D-265][d-265]'s
+Rationale. Publicity was recorded as never implicit in [D-034][d-034]'s and [D-041][d-041]'s
+Rejected lists.
+
+**Rejected.** None beyond the source entries' lists.
+
+### D-298 — Container edges, the builder rejection, `Group`'s trade and the directional two-notation rule
+
+**Status.** ratified
+
+**Position.** Four assembly rulings that [§8.5][s8-5] and [§8.6][s8-6] state are fixed here.
+
+- A container mixing component and non-component elements is a build error,
+  and a container with no component elements is inert data. Containers do
+  not nest in the first cut, and an empty container is legal.
+- The mutable builder, `Assembly()` plus `add!`/`connect!`, is rejected.
+- `Group` gives up dispatchable identity, which the exploratory and
+  programmatic composition it serves does not want.
+- The two-notation rule separates structure from contract, never read from
+  write.
+
+**Spec.** [§8.5][s8-5], [§8.6][s8-6]
+
+**Rationale.** Each bullet restates what an existing entry recorded outside
+its Position. The container edges were recorded in [D-085][d-085]'s Rationale. The
+builder's rejection was recorded in [D-039][d-039]'s Rejected list and restated in
+[D-184][d-184]'s: the dispatch type and the structure recipe drift apart, the
+declaration state is mutable, and no source location is captured. `Group`'s
+trade was recorded in [D-184][d-184]'s Rationale. That read against write was never
+the rule's axis was recorded in [D-129][d-129]'s Rejected list, beside the directional
+rule its Position states.
+
+**Rejected.** None beyond the source entries' lists.
+
+### D-299 — Rate scopes by type, the feed-list doctrine and the helper pair
+
+**Status.** ratified
+
+**Position.** Five rulings that [§8.7][s8-7] and [§8.8][s8-8] state are fixed here.
+
+- A `sample_times` declaration belongs to the assembly type, not to the
+  child instance, because the ratio it declares is type-intrinsic, never a
+  per-instance value.
+- Adding a channel to a feed list is one edit: the new pair creates the wire
+  and removes the face from the input face surface at once. The two
+  declarations cannot drift, because neither holds the shared names, so the
+  drift class is removed rather than detected. The single source must be
+  authored data, never inferred structure.
+- The passthrough helpers come in a pair, `input_passthrough` and
+  `output_passthrough`, and the name carries the direction. After the
+  boundary declarations split by direction, a single call cannot emit
+  entries into two declarations.
+- `output_passthrough`'s consumer is one-level routing. Every level
+  re-exports the outputs it surfaces, so the output side needs the computed
+  spelling the input side already has.
+- At a root input, scalar faces make partial scripting compose. A bundled
+  face there collides with [§4.3][s4-3]'s write-side granularity and forfeits
+  partial scripting.
+
+**Spec.** [§8.7][s8-7], [§8.8][s8-8]
+
+**Rationale.** Each bullet restates what an existing entry recorded outside
+its Position. The type-intrinsic ratio was recorded in [D-042][d-042]'s Rejected
+list. The one-edit feed list and the removed drift class were recorded in
+[D-145][d-145]'s Rationale, and authored data over inferred structure in its Rejected
+list. The helper pair was recorded in [D-171][d-171]'s Rationale, and one-level
+routing as `output_passthrough`'s consumer in [D-209][d-209]'s. Scalar faces at a root
+input were recorded in [D-207][d-207]'s Rejected list.
+
+**Rejected.** None beyond the source entries' lists.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -12493,6 +12724,11 @@ recorded in [D-269][d-269]'s annotation of 2026-09-27.
 [d-292]: #d-292--event-iterations-registers-boundary-zero-prior-visibility-trade-and-budget-exhaustion
 [d-293]: #d-293--external-readers-observe-the-signal-table-only-at-boundaries
 [d-294]: #d-294--the-pacers-wait-unmask-point-single-knob-spin-safepoint-and-the-switch-to-pace--inf
+[d-295]: #d-295--the-walk-clauses-tier-scope-the-obligations-scope-seedability-and-the-unmarked-stores
+[d-296]: #d-296--abstract-entries-the-record-and-check-doctrine-the-tight-root-bound-and-the-taps-pinning-consumer
+[d-297]: #d-297--contracts-by-type-seeding-not-typing-one-walk-convention-and-declared-publicity
+[d-298]: #d-298--container-edges-the-builder-rejection-groups-trade-and-the-directional-two-notation-rule
+[d-299]: #d-299--rate-scopes-by-type-the-feed-list-doctrine-and-the-helper-pair
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
