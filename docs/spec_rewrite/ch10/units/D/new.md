@@ -99,7 +99,8 @@ All three registers are detection bookkeeping, not model memory. They are
 correctly absent from every state store ([D-082][d-082]). A
 [checkpoint](#g-checkpoint) (the executor's state at a frame top, as one value)
 carries the prior, the one register that crosses a boundary ([§12.6][s12-6],
-[D-274][d-274]). The trace header is such a checkpoint. `restore!` copies a
+[D-274][d-274]). The [trace header](#g-trace-header) (the trace's fixed
+preamble) is such a checkpoint. `restore!` copies a
 checkpoint's prior back ([D-274][d-274]). The other two registers are reset on
 entering each boundary, as the sketch shows. Beyond the prior, the cost is one
 `Bool` and one small counter per event.
@@ -134,10 +135,9 @@ executes against exactly the world its guard fired on** ([D-154][d-154]). Its
 own `y`, foreign `u` and its own `x`/`m` all come from the firing round's
 sweep, so `y = h(x)` holds at every handler entry. No [bundle](#g-bundle) (the NamedTuple of zero-copy views a
 component function receives) ever straddles two epochs. An epoch here is the world one round's
-sweep produces, so no bundle mixes values from two rounds' sweeps. It is not
-the input epoch of [§10.4][s10-4].
+sweep produces. It is not the input epoch of [§10.4][s10-4].
 
-Serialization is what delivers this. A component's state stores are written
+Serialization is what delivers the epoch rule. A component's state stores are written
 only by its own handlers, and it fires at most one event per round, so no
 same-round writer precedes any handler's entry.
 
@@ -167,8 +167,8 @@ declaration order within a component. That keeps the [execution cursor](#g-execu
 loop-state field recording where execution stands, [§13.4][s13-4]) and the
 diagnostics stream deterministic. No trajectory depends on it. The natural
 single-pass executor is therefore exactly correct. It builds each handler's
-bundle at dispatch, from the live table. It needs no pre-materialization, no
-staging pass, no carrier and no shadow table, and it allocates nothing.
+bundle at dispatch, from the live table. It needs none of the extra machinery
+that [D-154][d-154] made unnecessary, and it allocates nothing.
 
 The trade, stated openly, is that **a handler cannot opt into seeing a
 same-round foreign transition** ([D-100][d-100]). Same-instant sequential
@@ -180,14 +180,17 @@ the next micro-step.
 
 Serializing same-component firings costs one extra intra-boundary sweep per
 event so serialized, which is microseconds on the rare boundary that fires at
-all. [D-154][d-154] records the rejected shapes.
+all. [D-154][d-154] and [D-100][d-100] record the rejected shapes.
 
 #### The firing budget
 
 A per-event [firing budget](#g-firing-budget) (the rule bounding how often each
 event fires at one boundary) lets a re-enabled event fire at its true boundary,
 against a fresh sweep. The deferral design and the per-round cap are both
-rejected ([D-020][d-020], [D-181][d-181]). Priors stay honest as a consequence.
+rejected ([D-020][d-020], [D-181][d-181]). The deferral design fired a
+re-enabled event one step late, through a manufactured not-holding prior
+([D-181][d-181]). The per-round cap bounded the number of rounds at a boundary
+([D-020][d-020]). Priors stay honest as a consequence.
 Every prior is a sample actually taken, never a value recorded to make a rule
 work out.
 

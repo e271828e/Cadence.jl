@@ -32,3 +32,18 @@ There are 11 bold spans. Each is a headline clause followed by its D-entry, and 
 ## Reader-cold names
 
 There is no Flight.jl machinery (kind 1) and no FlightCore (kind 3). The piston engine (kind 2) now has an introducing clause, with the caveat in item 1. These carry over from the old text: ZOH is used at new 147 without expansion until §10.5, ITP and AD are not expanded, and `localization_budget` appears at new 165 before its own section, with no pointer there.
+
+## Re-check (after the rewriter's fixes)
+
+The checker still reports 0 failures. There are now 10 bold spans.
+
+1. **The engine.** The new text reads "Take a piston engine whose modes include `starting` and `running`." The old "`starting → running`" already implies both modes, so the clause claims nothing new. The §8.2 link is gone, and its inventory entry has no new citations. Clean.
+2. **Trial evaluations.** The state is xₙ at θ = 0 and x̂(θ) elsewhere. θ is defined at new line 66, before this use, and x̂ is now introduced before line 79. This matches the old text's statements "x̂(0) = xₙ identically" and "needs no interpolant". Clean.
+3. **D-018.** "The interpolant is then invalidated" is now plain and keeps its D-018 citation. B2 still bolds "Budget exhaustion degrades" at B2 line 97, and "Root-finding is bracketed and derivative-free" still holds ruling 1's bold. This is consistent. Clean.
+4. **D-147.** C1 line 55 is now plain, and B1 keeps the bold. Clean.
+5. **rulings.md.** It now records the ẋₙ₊₁ payment (Rationale only) and the blind spot (plain, D-121 states only the wording). Clean.
+6. **ZOH and `localization_budget`.** ZOH is spelled out at its first and only use in §10.4. The `localization_budget` pointer names B2's real heading, "The localization budget". ITP and AD are listed in rulings.md. Clean.
+
+No clause was dropped, no citation changed scope, no antecedent moved, and no added text claims more than its source.
+
+One cosmetic issue remains. Two lines run past 80 columns of rendered text: new line 57 (the engine sentence) and new line 147 (the ZOH sentence). Rewrap both.

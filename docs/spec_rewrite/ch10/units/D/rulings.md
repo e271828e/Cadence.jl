@@ -8,7 +8,9 @@ Old line numbers are `units/D/old.md`.
 - **R3**, 5612–5615 (old 152–155): the list of rejected shapes is cut. "D-154
   records the rejected shapes" stays as the pointer. Three items map to D-154
   Rejected (log 5273–5285). The fourth, "a table copy per firing round", is
-  in D-100 Rejected (log 2893), not D-154's; see Open questions.
+  in D-100 Rejected (log 2893), not D-154's. Per the coordinator's ruling the
+  pointer reads "D-154 and D-100 record the rejected shapes", and the item
+  maps to D-100's Rejected field.
 - **R3**, 5630–5634 (old 170–174): the first two sentences stay. "What that
   buys" and its list are cut, mapped to D-181 Rationale (log 6359–6362) and,
   for the collapse of re-arms, D-181 Rejected (log 6373). A one-clause pointer
@@ -32,6 +34,24 @@ Old line numbers are `units/D/old.md`.
   sentence before it ("a continuous component's handler and its discrete
   observers' ticks") and the one after ("re-runs the FCS's stages", "its
   `s_update`").
+- **Coordinator fixes after the cold verifier:**
+  - "Serialization is what delivers this" became "... delivers the epoch
+    rule", since R4's sentences now stand between it and its referent.
+  - R4's added "so no bundle mixes values from two rounds' sweeps" is
+    dropped. It repeated the old "No bundle ever straddles two epochs".
+  - "It needs no pre-materialization, no staging pass, no carrier and no
+    shadow table" became "It needs none of the extra machinery that D-154
+    made unnecessary". D-154 Rationale (log 5266–5269) carries all four
+    names in the same sense: "D-100's pre-materialization mechanism",
+    "f.10's staging pass, carrier … are mooted", "no shadow table, no
+    allocation becomes trivially true". No name stays.
+  - The rejection sentence stays plain. Two added sentences follow it in
+    the rejecting entries' words: the deferral design fired a re-enabled
+    event one step late, through a manufactured not-holding prior (D-181
+    Rejected, log 6371–6373); the per-round cap bounded the number of rounds
+    at a boundary (D-020 Rejected, log 709).
+  - "trace header" links `#g-trace-header`, glossed "the trace's fixed
+    preamble".
 - **M2**: "§10.3 extends naturally. External readers observe the table only
   after the boundary sequence completes." map to `units/A/old.md`. The
   pointer kept here: "§10.3 states when external readers may observe the
@@ -82,6 +102,8 @@ None of fact. Two of form:
 | "Ticks stay outside the iteration, after quiescence" | D-020 | Position: "due `g` updates run after quiescence, outside the iteration" (log 698–699) |
 | "Boundary zero is the same sequence with an empty integrate" | D-067 | Position: "Boundary zero is the §10.6 macro-sequence run with an empty integrate" (log 1858) |
 | "The doctrine of §10.4 governs both budgets" | §10.4 | replaces the self-citation "governs §10.6", which the move made meaningless |
+| "none of the extra machinery that D-154 made unnecessary" | D-154 | Rationale: "f.10's staging pass, carrier and `u`/`y` split are mooted and \"no shadow table, no allocation\" becomes trivially true" (log 5266–5269) |
+| "D-154 and D-100 record the rejected shapes" | D-100 | Rejected: "A table copy per firing round: identical semantics, pays an allocation pre-materialization avoids" (log 2893–2894) |
 
 Removed: D-016, D-100 and D-152 inside the cut list (R3); D-152 is
 superseded by D-154.
@@ -124,20 +146,10 @@ payload and the reason for the default 4 have no entry (survey part E).
 
 ## Open questions
 
-1. R3's pointer names D-154 alone, but one cut item, "a table copy per
-   firing round", is rejected only in D-100 (log 2893). Either the pointer
-   becomes "D-154 and D-100 record the rejected shapes", or D-154's Rejected
-   list gains the item in track 2. I kept the ruled wording.
-2. The bold on "a handler cannot opt into seeing a same-round foreign
-   transition" cites D-100, whose mechanism D-154 superseded (log 5264–5266)
-   though its status still reads "ratified" and its Rejected item survives.
-   If D-100 counts as superseded, the sentence loses its bold or the item
-   moves into D-154 first.
-3. "It needs no pre-materialization, no staging pass, no carrier and no
-   shadow table" names log machinery (D-100, D-154 Rationale "f.10's staging
-   pass, carrier") that the spec never introduces. The sentence is kept as
-   written. Proposal: cut the four names to "It needs no extra machinery, and
-   it allocates nothing", mapped to D-154 Rationale.
-4. "The deferral design" (in "The firing budget") is likewise a cold name.
-   D-181 Rejected defines it ("manufactured not-holding prior"). Kept; a
-   gloss would need a ruling.
+All four earlier questions are ruled. One item stays for track 2:
+
+- D-100 is half-superseded by D-154 (log 5264–5266) but its status still
+  reads "ratified". The bold "a handler cannot opt into seeing a same-round
+  foreign transition" keeps its D-100 citation for now. Track 2 should move
+  the opt-in rejection (D-100 Rejected, log 2895–2897) into D-154 and
+  repoint the citation.

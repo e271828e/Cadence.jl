@@ -435,7 +435,7 @@
   {
    "id": "D-051",
    "old": "They are not traced, and they are reconstructed deterministically.",
-   "new": "The trace header is such a checkpoint. `restore!` copies a checkpoint's prior back (D-274). The other two registers are reset on entering each boundary, as the sketch shows.",
+   "new": "The trace header (the trace's fixed preamble) is such a checkpoint. `restore!` copies a checkpoint's prior back (D-274). The other two registers are reset on entering each boundary, as the sketch shows.",
    "where": "new",
    "cites": [],
    "newcites": [
@@ -770,7 +770,7 @@
   {
    "id": "D-088",
    "old": "Serialization is what delivers this.",
-   "new": "Serialization is what delivers this.",
+   "new": "Serialization is what delivers the epoch rule.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -958,14 +958,41 @@
   },
   {
    "id": "D-110",
-   "old": "It needs no pre-materialization, no staging pass, no carrier and no shadow table, and it allocates nothing.",
-   "new": "It needs no pre-materialization, no staging pass, no carrier and no shadow table, and it allocates nothing.",
-   "where": "new",
+   "old": "It needs no pre-materialization,",
+   "new": "D-100's pre-materialization mechanism",
+   "where": "docs/design/decisions.md",
    "cites": [],
-   "tag": "F"
+   "tag": "M"
   },
   {
    "id": "D-111",
+   "old": "no staging pass, no carrier",
+   "new": "f.10's staging pass, carrier and `u`/`y` split are mooted",
+   "where": "docs/design/decisions.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "D-112",
+   "old": "and no shadow table,",
+   "new": "\"no shadow table, no allocation\" becomes trivially true",
+   "where": "docs/design/decisions.md",
+   "cites": [],
+   "tag": "M"
+  },
+  {
+   "id": "D-113",
+   "old": "and it allocates nothing.",
+   "new": "It needs none of the extra machinery that D-154 made unnecessary, and it allocates nothing.",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-154"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "D-114",
    "old": "The trade, stated openly, is that a handler cannot opt into seeing a same-round foreign transition.",
    "new": "The trade, stated openly, is that a handler cannot opt into seeing a same-round foreign transition (D-100).",
    "where": "new",
@@ -976,7 +1003,7 @@
    "tag": "C"
   },
   {
-   "id": "D-112",
+   "id": "D-115",
    "old": "Same-instant sequential coupling across components is a cascade, one round per link, deterministic.",
    "new": "Same-instant sequential coupling across components is a cascade, one round per link, deterministic.",
    "where": "new",
@@ -984,7 +1011,7 @@
    "tag": "F"
   },
   {
-   "id": "D-113",
+   "id": "D-116",
    "old": "Coupling tighter than that belongs inside one component, where declaration order gives exact sequencing across rounds.",
    "new": "Coupling tighter than that belongs inside one component, where declaration order gives exact sequencing across rounds.",
    "where": "new",
@@ -992,7 +1019,7 @@
    "tag": "F"
   },
   {
-   "id": "D-114",
+   "id": "D-117",
    "old": "This is the position of the synchronous languages.",
    "new": "This is the position of the synchronous languages.",
    "where": "new",
@@ -1000,7 +1027,7 @@
    "tag": "F"
   },
   {
-   "id": "D-115",
+   "id": "D-118",
    "old": "A micro-step sees the pre-state, and effects appear at the next micro-step.",
    "new": "A micro-step sees the pre-state, and effects appear at the next micro-step.",
    "where": "new",
@@ -1008,7 +1035,7 @@
    "tag": "F"
   },
   {
-   "id": "D-116",
+   "id": "D-119",
    "old": "Serializing same-component firings costs one extra intra-boundary sweep per event so serialized, which is microseconds on the rare boundary that fires at all.",
    "new": "Serializing same-component firings costs one extra intra-boundary sweep per event so serialized, which is microseconds on the rare boundary that fires at all.",
    "where": "new",
@@ -1016,18 +1043,22 @@
    "tag": "F"
   },
   {
-   "id": "D-117",
+   "id": "D-120",
    "old": "D-154 records the rejected shapes.",
-   "new": "D-154 records the rejected shapes.",
+   "new": "D-154 and D-100 record the rejected shapes.",
    "where": "new",
    "cites": [
     "D-154"
    ],
+   "newcites": [
+    "D-154",
+    "D-100"
+   ],
    "tag": "R",
-   "ruling": "R3"
+   "ruling": "R3; coordinator fix 3"
   },
   {
-   "id": "D-118",
+   "id": "D-121",
    "old": "They are the per-event re-decode with a frozen round-start `u` (D-016, D-100, D-152),",
    "new": "Per-event re-decode + frozen `u`: D-016/D-100/D-152 as landed",
    "where": "docs/design/decisions.md",
@@ -1040,7 +1071,7 @@
    "ruling": "R3"
   },
   {
-   "id": "D-119",
+   "id": "D-122",
    "old": "live-table reads under the canonical execution order,",
    "new": "Live-table reads under canonical order: §10.6's standing rejection — executor order becomes semantics.",
    "where": "docs/design/decisions.md",
@@ -1049,7 +1080,7 @@
    "ruling": "R3"
   },
   {
-   "id": "D-120",
+   "id": "D-123",
    "old": "a table copy per firing round (D-100),",
    "new": "A table copy per firing round: identical semantics, pays an allocation pre-materialization avoids.",
    "where": "docs/design/decisions.md",
@@ -1060,7 +1091,7 @@
    "ruling": "R3"
   },
   {
-   "id": "D-121",
+   "id": "D-124",
    "old": "and handlers stripped of their own `y`.",
    "new": "Handlers stripped of own `y`: the `h_x`-no-`u` move",
    "where": "docs/design/decisions.md",
@@ -1069,7 +1100,7 @@
    "ruling": "R3"
   },
   {
-   "id": "D-122",
+   "id": "D-125",
    "old": "Why a per-event budget.",
    "new": "A per-event firing budget",
    "where": "new",
@@ -1077,7 +1108,7 @@
    "tag": "X"
   },
   {
-   "id": "D-123",
+   "id": "D-126",
    "old": "A re-enabled event fires at its true boundary, against a fresh sweep.",
    "new": "lets a re-enabled event fire at its true boundary, against a fresh sweep.",
    "where": "new",
@@ -1085,7 +1116,7 @@
    "tag": "F"
   },
   {
-   "id": "D-124",
+   "id": "D-127",
    "old": "The deferral design and the per-round cap are both rejected (D-020, D-181).",
    "new": "The deferral design and the per-round cap are both rejected (D-020, D-181).",
    "where": "new",
@@ -1096,7 +1127,7 @@
    "tag": "F"
   },
   {
-   "id": "D-125",
+   "id": "D-128",
    "old": "Priors stay honest as a consequence.",
    "new": "Priors stay honest as a consequence.",
    "where": "new",
@@ -1104,7 +1135,7 @@
    "tag": "F"
   },
   {
-   "id": "D-126",
+   "id": "D-129",
    "old": "Every prior is a sample actually taken, never a value recorded to make a rule work out.",
    "new": "Every prior is a sample actually taken, never a value recorded to make a rule work out.",
    "where": "new",
@@ -1112,7 +1143,7 @@
    "tag": "F"
   },
   {
-   "id": "D-127",
+   "id": "D-130",
    "old": "Termination is then budget-bounded rather than structural.",
    "new": "Termination is then budget-bounded rather than structural.",
    "where": "new",
@@ -1120,7 +1151,7 @@
    "tag": "F"
   },
   {
-   "id": "D-128",
+   "id": "D-131",
    "old": "For `E` declared events, a boundary admits at most `firing_budget · E` firings, hence a bounded number of rounds, deterministically and independently of pace.",
    "new": "For `E` declared events, a boundary admits at most `firing_budget · E` firings, hence a bounded number of rounds, deterministically and independently of pace.",
    "where": "new",
@@ -1128,7 +1159,7 @@
    "tag": "F"
   },
   {
-   "id": "D-129",
+   "id": "D-132",
    "old": "A livelock, such as two FSMs toggling each other, does not resolve silently.",
    "new": "A livelock, such as two FSMs toggling each other, does not resolve silently.",
    "where": "new",
@@ -1136,7 +1167,7 @@
    "tag": "F"
   },
   {
-   "id": "D-130",
+   "id": "D-133",
    "old": "Each toggler spends its budget and warns (below), and the run proceeds and replays identically.",
    "new": "Each toggler spends its budget and warns (below), and the run proceeds and replays identically.",
    "where": "new",
@@ -1144,7 +1175,7 @@
    "tag": "F"
   },
   {
-   "id": "D-131",
+   "id": "D-134",
    "old": "This is degradation, not an error, per the doctrine of §10.4.",
    "new": "This is degradation, not an error, per the doctrine of §10.4.",
    "where": "new",
@@ -1154,7 +1185,7 @@
    "tag": "F"
   },
   {
-   "id": "D-132",
+   "id": "D-135",
    "old": "The warning names the actual chatterer, while every other event's iteration continues untouched.",
    "new": "The warning names the actual chatterer, while every other event's iteration continues untouched.",
    "where": "new",
@@ -1162,7 +1193,7 @@
    "tag": "F"
   },
   {
-   "id": "D-133",
+   "id": "D-136",
    "old": "This trade is also stated openly.",
    "new": "This trade is also stated openly.",
    "where": "new",
@@ -1171,7 +1202,7 @@
    "ruling": "R3"
   },
   {
-   "id": "D-134",
+   "id": "D-137",
    "old": "Because termination is budget-bounded rather than structural, the arbitrary-K objection lives on in `firing_budget`.",
    "new": "Because termination is budget-bounded rather than structural, the arbitrary-K objection (D-020) lives on in `firing_budget`.",
    "where": "new",
@@ -1183,7 +1214,7 @@
    "ruling": "R3"
   },
   {
-   "id": "D-135",
+   "id": "D-138",
    "old": "What that buys is the absence of deferral machinery.",
    "new": "D-181 records what that buys.",
    "where": "new",
@@ -1195,7 +1226,7 @@
    "ruling": "R3"
   },
   {
-   "id": "D-136",
+   "id": "D-139",
    "old": "There is no manufactured prior, no re-arm flag, no `EventDeferred` warning,",
    "new": "manufactured-prior exception, re-arm flag and `EventDeferred` retired",
    "where": "docs/design/decisions.md",
@@ -1204,7 +1235,7 @@
    "ruling": "R3"
   },
   {
-   "id": "D-137",
+   "id": "D-140",
    "old": "no one-step artifact,",
    "new": "(no one-step h-artifact)",
    "where": "docs/design/decisions.md",
@@ -1213,7 +1244,7 @@
    "ruling": "R3"
   },
   {
-   "id": "D-138",
+   "id": "D-141",
    "old": "and no collapse of several intra-boundary re-arms into a single later firing.",
    "new": "collapses multiple re-arms into one firing.",
    "where": "docs/design/decisions.md",
@@ -1222,7 +1253,7 @@
    "ruling": "R3"
   },
   {
-   "id": "D-139",
+   "id": "D-142",
    "old": "Budget exhaustion degrades; it does not throw.",
    "new": "Budget exhaustion degrades; it does not throw (D-181).",
    "where": "new",
@@ -1233,7 +1264,7 @@
    "tag": "C"
   },
   {
-   "id": "D-140",
+   "id": "D-143",
    "old": "When an event has fired `firing_budget` times at a boundary, its further edges there are lost for the rest of that boundary.",
    "new": "When an event has fired `firing_budget` times at a boundary, its further edges there are lost for the rest of that boundary.",
    "where": "new",
@@ -1241,7 +1272,7 @@
    "tag": "F"
   },
   {
-   "id": "D-141",
+   "id": "D-144",
    "old": "The eligibility test skips it while every other event iterates normally.",
    "new": "The eligibility test skips it while every other event iterates normally.",
    "where": "new",
@@ -1249,7 +1280,7 @@
    "tag": "F"
   },
   {
-   "id": "D-142",
+   "id": "D-145",
    "old": "A lost edge emits a `FiringBudget` warning (§13.2, Appendix C), at most once per event per boundary.",
    "new": "A lost edge emits a `FiringBudget` warning (§13.2, Appendix C), at most once per event per boundary.",
    "where": "new",
@@ -1260,7 +1291,7 @@
    "tag": "F"
   },
   {
-   "id": "D-143",
+   "id": "D-146",
    "old": "An event that fires its budget out and then quiesces lost nothing and warns nothing.",
    "new": "An event that fires its budget out and then quiesces lost nothing and warns nothing.",
    "where": "new",
@@ -1268,7 +1299,7 @@
    "tag": "F"
   },
   {
-   "id": "D-144",
+   "id": "D-147",
    "old": "The warning carries the component path, the event name, the boundary time and the exhausted budget beside the boundary's firing count.",
    "new": "The warning carries the component path, the event name, the boundary time and the exhausted budget beside the boundary's firing count.",
    "where": "new",
@@ -1276,7 +1307,7 @@
    "tag": "F"
   },
   {
-   "id": "D-145",
+   "id": "D-148",
    "old": "The default of 4 is chosen the way §10.4 chooses 8.",
    "new": "The default of 4 is chosen the way §10.4 chooses the per-frame localization budget's 8.",
    "where": "new",
@@ -1286,7 +1317,7 @@
    "tag": "F"
   },
   {
-   "id": "D-146",
+   "id": "D-149",
    "old": "A legitimate re-enable is one or two firings deep.",
    "new": "A legitimate re-enable is one or two firings deep.",
    "where": "new",
@@ -1294,7 +1325,7 @@
    "tag": "F"
   },
   {
-   "id": "D-147",
+   "id": "D-150",
    "old": "A toggling FSM pair chatters without bound.",
    "new": "A toggling FSM pair chatters without bound.",
    "where": "new",
@@ -1302,7 +1333,7 @@
    "tag": "F"
   },
   {
-   "id": "D-148",
+   "id": "D-151",
    "old": "A budget of 4 separates the two without ever binding on a healthy model.",
    "new": "A budget of 4 separates the two without ever binding on a healthy model.",
    "where": "new",
@@ -1310,7 +1341,7 @@
    "tag": "F"
   },
   {
-   "id": "D-149",
+   "id": "D-152",
    "old": "Like every other degradation here, it depends on the trajectory alone, so the run replays identically.",
    "new": "Like every other degradation here, it depends on the trajectory alone, so the run replays identically.",
    "where": "new",
@@ -1318,7 +1349,7 @@
    "tag": "F"
   },
   {
-   "id": "D-150",
+   "id": "D-153",
    "old": "Ticks stay outside the iteration, after quiescence.",
    "new": "Ticks stay outside the iteration, after quiescence (D-020).",
    "where": "new",
@@ -1329,7 +1360,7 @@
    "tag": "C"
   },
   {
-   "id": "D-151",
+   "id": "D-154",
    "old": "The two possible couplings resolve asymmetrically.",
    "new": "The two possible couplings resolve asymmetrically.",
    "where": "new",
@@ -1337,7 +1368,7 @@
    "tag": "F"
   },
   {
-   "id": "D-152",
+   "id": "D-155",
    "old": "- Events → ticks: machinery already in place handles this.",
    "new": "- From events to ticks, machinery already in place handles the coupling.",
    "where": "new",
@@ -1345,7 +1376,7 @@
    "tag": "F"
   },
   {
-   "id": "D-153",
+   "id": "D-156",
    "old": "Due discrete components' output stages (`y_state`/`y_direct`) are gated into the boundary sweep against a due set fixed for the whole iteration (§10.5).",
    "new": "Due discrete components' output stages (`y_state`/`y_direct`) are gated into the boundary sweep against a due set fixed for the whole iteration (§10.5).",
    "where": "new",
@@ -1355,7 +1386,7 @@
    "tag": "F"
   },
   {
-   "id": "D-154",
+   "id": "D-157",
    "old": "Every iteration round therefore refreshes them for free, against the same `s` and post-transition inputs.",
    "new": "Every iteration round therefore refreshes them for free, against the same `s` and post-transition inputs.",
    "where": "new",
@@ -1363,7 +1394,7 @@
    "tag": "F"
   },
   {
-   "id": "D-155",
+   "id": "D-158",
    "old": "Their `s_update` has not run yet.",
    "new": "Their `s_update` has not run yet.",
    "where": "new",
@@ -1371,7 +1402,7 @@
    "tag": "F"
   },
   {
-   "id": "D-156",
+   "id": "D-159",
    "old": "At quiescence, their published outputs reflect the settled boundary instant, which is exactly what \"sampling at t\" should mean for a logically instantaneous cascade.",
    "new": "At quiescence, their published outputs reflect the settled boundary instant, which is exactly what \"sampling at t\" should mean for a logically instantaneous cascade.",
    "where": "new",
@@ -1379,7 +1410,7 @@
    "tag": "F"
   },
   {
-   "id": "D-157",
+   "id": "D-160",
    "old": "Earlier rounds' tentative values are internal scratch, like RK stage evaluations.",
    "new": "Earlier rounds' tentative values are internal scratch, like RK stage evaluations.",
    "where": "new",
@@ -1387,7 +1418,7 @@
    "tag": "F"
   },
   {
-   "id": "D-158",
+   "id": "D-161",
    "old": "§10.3 extends naturally.",
    "new": "§10.3 extends naturally.",
    "where": "units/A/old.md",
@@ -1397,7 +1428,7 @@
    "tag": "M"
   },
   {
-   "id": "D-159",
+   "id": "D-162",
    "old": "External readers observe the table only after the boundary sequence completes.",
    "new": "External readers observe the table only after the boundary sequence completes.",
    "where": "units/A/old.md",
@@ -1405,7 +1436,7 @@
    "tag": "M"
   },
   {
-   "id": "D-160",
+   "id": "D-163",
    "old": "- Ticks → events: structurally impossible.",
    "new": "- From ticks to events, a coupling is structurally impossible.",
    "where": "new",
@@ -1413,7 +1444,7 @@
    "tag": "F"
   },
   {
-   "id": "D-161",
+   "id": "D-164",
    "old": "A tick's output stages contribute nothing guards have not already seen, since they run inside the sweep, from current `s`.",
    "new": "A tick's output stages contribute nothing guards have not already seen, since they run inside the sweep, from current `s`.",
    "where": "new",
@@ -1421,7 +1452,7 @@
    "tag": "F"
   },
   {
-   "id": "D-162",
+   "id": "D-165",
    "old": "Its `s_update` writes `s⁺` after the sweep, and `s⁺` is first decoded at the owner's next tick.",
    "new": "Its `s_update` writes `s⁺` after the sweep, and `s⁺` is first decoded at the owner's next tick.",
    "where": "new",
@@ -1429,7 +1460,7 @@
    "tag": "F"
   },
   {
-   "id": "D-163",
+   "id": "D-166",
    "old": "So `s⁺` is invisible to every reader within the boundary.",
    "new": "So `s⁺` is invisible to every reader within the boundary.",
    "where": "new",
@@ -1437,7 +1468,7 @@
    "tag": "F"
   },
   {
-   "id": "D-164",
+   "id": "D-167",
    "old": "This is the standard one-sample `z⁻¹` delay of sampled-data control, enforced here by construction.",
    "new": "This is the standard one-sample `z⁻¹` delay of sampled-data control, enforced here by construction.",
    "where": "new",
@@ -1445,7 +1476,7 @@
    "tag": "F"
   },
   {
-   "id": "D-165",
+   "id": "D-168",
    "old": "Nothing that happens after quiescence can flip a guard, so there is no combined event/tick fixed point to iterate.",
    "new": "Nothing that happens after quiescence can flip a guard, so there is no combined event/tick fixed point to iterate.",
    "where": "new",
@@ -1453,7 +1484,7 @@
    "tag": "F"
   },
   {
-   "id": "D-166",
+   "id": "D-169",
    "old": "The boundary macro-sequence, in its final form.",
    "new": "The boundary macro-sequence, in its final form, is the following.",
    "where": "new",
@@ -1461,7 +1492,7 @@
    "tag": "X"
   },
   {
-   "id": "D-167",
+   "id": "D-170",
    "old": "Boundary zero, the initialization boundary,",
    "new": "Boundary zero is the initialization boundary.",
    "where": "new",
@@ -1469,7 +1500,7 @@
    "tag": "F"
   },
   {
-   "id": "D-168",
+   "id": "D-171",
    "old": "is the same sequence with an empty integrate (§14.5).",
    "new": "Boundary zero is the same sequence with an empty integrate (§14.5, D-067).",
    "where": "new",
@@ -1483,7 +1514,7 @@
    "tag": "C"
   },
   {
-   "id": "D-169",
+   "id": "D-172",
    "old": "> integrate → project → [sweep → guards → handlers] iterated to quiescence > (under the firing budget) → all due `s_update` calls → logging / I/O staging.",
    "new": "> integrate → project → [sweep → guards → handlers] iterated to quiescence > (under the firing budget) → all due `s_update` calls → logging / I/O staging.",
    "where": "new",
@@ -1491,7 +1522,7 @@
    "tag": "F"
   },
   {
-   "id": "D-170",
+   "id": "D-173",
    "old": "The sequence decides the mixed case, where a continuous component's handler and its discrete observers' ticks land on one boundary.",
    "new": "and its discrete observers' ticks land on one boundary.",
    "where": "new",
@@ -1499,7 +1530,7 @@
    "tag": "F"
   },
   {
-   "id": "D-171",
+   "id": "D-174",
    "old": "Take an engine's `starting → running` transition under a 50 Hz FCS.",
    "new": "Take an engine's `starting → running` transition under a 50 Hz FCS.",
    "where": "new",
@@ -1507,7 +1538,7 @@
    "tag": "F"
   },
   {
-   "id": "D-172",
+   "id": "D-175",
    "old": "The transition fires in the iteration segment.",
    "new": "The transition fires in the iteration segment.",
    "where": "new",
@@ -1515,7 +1546,7 @@
    "tag": "F"
   },
   {
-   "id": "D-173",
+   "id": "D-176",
    "old": "The re-sweep re-runs the FCS's stages against `running`-mode ports, and its `s_update` then runs from post-transition values.",
    "new": "The re-sweep re-runs the FCS's stages against `running`-mode ports, and its `s_update` then runs from post-transition values.",
    "where": "new",
@@ -1524,6 +1555,9 @@
   }
  ],
  "added": [
+  "The deferral design fired a re-enabled event one step late, through a manufactured not-holding prior (D-181). The per-round cap bounded the number of rounds at a boundary (D-020).",
+  "(the trace's fixed preamble)",
+  "the epoch rule.",
   "(a published consistency point, where the macro-sequence completes)",
   "(the pass over the full execution order, with due discrete entries gated in), evaluates all guards (the declared functions defining each event's predicate) against it, and fires the eligible events.",
   "(an instant at which a discrete component's stages and update run).",
@@ -1532,7 +1566,7 @@
   "#### What a handler sees within a round",
   "(the framework-owned cells holding every produced signal) only through a sweep.",
   "So neither the transitioning component's own ports (each one declared name with its cell)",
-  "An epoch here is the world one round's sweep produces, so no bundle mixes values from two rounds' sweeps. It is not the input epoch of §10.4.",
+  "An epoch here is the world one round's sweep produces. It is not the input epoch of §10.4.",
   "#### The firing budget",
   "(the rule bounding how often each event fires at one boundary)",
   "#### Ticks after quiescence",
