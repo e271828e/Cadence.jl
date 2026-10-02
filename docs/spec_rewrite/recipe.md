@@ -70,13 +70,18 @@ The survey maps the chapter before anyone writes. Chapter 9's
 - every inbound citation of the chapter, to `inbound.tsv`, and analysis of
   the ones that rely on content a move would take;
 - the log repairs the rewrite needs, and factual problems found in passing;
-- a difficulty estimate per section, with warnings for the rewriter.
+- a difficulty estimate per section, with warnings for the rewriter;
+- per section, the Appendix C kinds cited to it, and whether the section
+  names each where it states the kind's condition. Chapter 8 named five
+  kinds in four late rounds (R14, P46, P48, K2) that one survey line would
+  have ruled at checkpoint 1.
 
 A survey whose report is long writes it in parts, one append per section:
 one response over the output limit kills the agent and loses the report.
 
 Then check its key claims yourself, at the cited lines, before ruling on
 them. In chapter 9, six of six held, and in chapter 10, eleven of eleven.
+In chapter 8 the claims held, but a correction did not: see checkpoint 1.
 
 **Checkpoint 1: the orchestrator rules on the survey's decisions.** In
 chapter 9 the owner ruled them: where the `Deployment` lives; which block is
@@ -84,6 +89,18 @@ frozen pending another ruling; how much log repair rides with the rewrite
 (answer: none, it is a second track); how many sentences get bold (answer:
 one per ruling). The last two hold for every chapter. Record the rulings at
 the top of `brief.md`.
+
+Two lessons from chapter 8's checkpoint:
+
+- **A correction restored from git history is checked against the entries
+  ratified after the change.** Chapter 8's R8 restored a sentence a move had
+  inverted, on the commit's evidence. Unit A's verifier found D-267, ratified
+  two days after the move, agreeing with the inverted text. R8 was withdrawn
+  and the conflict escalated.
+- **A wording correction is ruled for every instance in the chapter.** The
+  survey found F22's overstatement at two lines; a rewriter found a third,
+  which cost a ruling (R13) after step 4. Grep the chapter for the phrase
+  before writing the ruling.
 
 ### Step 2: the brief (written by the orchestrator)
 
@@ -173,6 +190,20 @@ Chapter 10's verifiers also caught an antecedent that moved when a ruled
 sentence was inserted between "two epochs" and "this", and a citation pointer
 that named one entry for a list whose items two entries reject.
 
+From chapter 8:
+
+- **Start each unit's verifier when its rewriter reports**, not when all
+  have. With nine units the rewriters finished over twenty minutes, and the
+  first fix rounds ran while the last units were still being written.
+- **An inserted gloss or introducing clause is an antecedent hazard.** Four
+  of chapter 8's fixes moved an antecedent this way, and only the re-checks
+  caught them: an "its" that now read as the newly introduced `Systems`, a
+  "there" that read as the `Schedule`, an "it" that read as the wrapper
+  types, a "that adjudication" that pointed at the wrong section.
+- **Inventories map into sibling units**, so after any edit, run every
+  unit's checker, not only the edited one's. Moving a link in B1 broke a span
+  B4 mapped into B1's text, and only the final verifier ran B4 again.
+
 ### Step 5: read the whole chapter (two Opus agents in parallel)
 
 Run `checks/assemble.sh chNN` first.
@@ -212,6 +243,10 @@ copies `new.md` to `new_pretrim.md` first, for `boldcheck.py`.
 since step 4, against its log and its source: editorial fixes, bold trims,
 ruled edits, orchestrator touches. In chapter 9 it checked 164 edits and
 found seven problems, one of them a change of meaning. Fix, then re-check.
+Give it the commit that holds the chapter as verified per unit, so it can
+diff the two versions hunk by hunk; in chapter 8 it checked 75 hunks and
+found two unlogged rewraps, two duplicated glossary links, a citation left
+off a split sentence and a broken sibling span.
 
 ### Step 7: land (the orchestrator)
 
@@ -244,6 +279,10 @@ when it lands; chapter 10 coordinated with one that way.
 - The PDF read can go to a Sonnet agent. Check by script that every fenced
   block is byte-identical to the original first; then a long line or a page
   split in a code block is layout, not damage.
+- The Read tool renders PDF pages only with `pdftoppm` (poppler), which this
+  machine lacks. Without it the PDF read runs on extracted text, which finds
+  raw markup, broken tables and lost numbering but not spacing or page
+  layout. Chapter 8's read ran that way.
 
 ### Step 8: the second track
 
@@ -266,7 +305,9 @@ each rewriter's job to prose.
 3. Delete `chNN/` in a commit of its own, and record that commit's parent in
    `README.md` as the last one holding the files. Move `escalations.md` out
    first, into `docs/design/pending.md` as one bullet per finding the owner
-   has not ruled.
+   has not ruled. A shape `src/` has and the spec lacks goes under
+   "Deviations"; a design question goes beside the item it belongs to, as
+   chapter 8's semantic axis joined the exported-name audit.
 4. Report to the owner: the commits, and `escalations.md` with a
    recommendation per finding.
 
@@ -305,6 +346,22 @@ Chapter 10, 9,369 words, ruled by the orchestrator:
 With no owner checkpoints, the whole chapter, track 2 included, ran in one
 session of about three hours.
 
+Chapter 8, 12,392 words, ruled by the orchestrator:
+
+| step | agent runs | subagent tokens |
+|---|---|---|
+| survey | 1 | 0.49M |
+| rewrites | 9, plus fix rounds | 1.74M |
+| unit verification | 9, plus re-checks | 1.07M |
+| chapter pass, inbound check, editorial fixer | 3 | 0.72M |
+| consolidation and ruled edits | 2 | 0.36M |
+| final verification and PDF check | 2 | 0.19M |
+| track 2 and its verification | 2 | 0.38M |
+| total | 28, plus fix rounds | about 4.9M |
+
+The chapter, track 2 included, ran in one session of about two and a half
+hours. The cost per 1,000 words held at about 0.4M.
+
 ## 4. What to expect from a chapter
 
 From chapter 9:
@@ -323,6 +380,17 @@ From chapter 9:
 - **Bold weight is measured in words.** The span count stayed level, 81
   before and 71 after, while bold words doubled from 403 to 877, until the
   headline-clause trim and the de-duplication brought them to 595.
+
+From chapter 8, which held 213 rules:
+
+- **One rule in five lived only in a Rationale**, 43 of 213, and seven had
+  no entry at all. Track 2 wrote five entries for them, D-295 to D-299.
+- **Two in five cited nothing at their spot**, 83 of 213.
+- **Moves inside a section cost no citations.** Every move stayed within
+  its section, and the 450 inbound rows needed no retarget; 23 were already
+  wrong before the rewrite.
+- **The chapter grew about a tenth**, from 12,392 words to about 13,750,
+  with 67 bold spans of 632 words.
 
 ## 5. Lessons, in one list
 
@@ -350,6 +418,13 @@ From chapter 9:
 16. A pointer to an entry must not lead to an entry that points back.
 17. New log entries restate recorded rulings only; unrecorded ones go to the
     owner.
+18. Check a correction from history against later entries before ruling it
+    (chapter 8).
+19. Rule a wording correction for every instance; grep before the brief.
+20. Survey the Appendix C kinds each section must name.
+21. Verify each unit as soon as it is written.
+22. Every inserted clause is an antecedent hazard; re-check after each fix.
+23. After any unit edit, run every unit's checker.
 
 ## 6. A chapter's files
 
@@ -360,11 +435,12 @@ From chapter 9:
   `verify_phase1.md`, `verify.md`, and any text that leaves the chapter,
   such as `companion_addition.md`.
 - `chapter_pass.md`, `inbound_check.md`, `inbound_check.tsv`,
-  `chapter_fixes.md`: step 5.
+  `chapter_rulings.md`, `chapter_fixes.md`: step 5.
 - `rulings_batch.md`: step 6, with each item's status.
 - `escalations.md`: serious findings from any step, for the owner.
 - `trim_log.md`, `ruled_edits.md`, `rulings_applied_*.md`,
   `final_verify.md`: steps 6 and 6b.
+- `pdf_check.md`: step 7.
 - `backlog_applied_*.md`, `backlog_verify.md`: step 8.
 - `chapter_old.md`, `chapter_new.md`: the chapter before and after, from
   `checks/assemble.sh`.

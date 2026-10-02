@@ -57,6 +57,17 @@ the whole surface and the library and the GUI both add names.
       two senses, the overload pattern D-122 and D-144 retire;
     - whether class (1) needs an explicit exemption for predicate traits
       (`is_greedy`, `needs_calling_task`).
+  - **The semantic axis.** §8.1 says a declaration "names its *content*,
+    never the *consequence*", and D-267's Position agrees: class (1) names
+    "what it returns". D-146's Rationale reads the axis the other way:
+    `faces`/`selectors` were renamed `claims`/`reads` because they were
+    content-named where `exports` was consequence-named. Commit `c512ee6`
+    inverted the §8.1 sentence while moving it, before D-267. The paragraph
+    reads wrong either way: under the content reading `claims`/`reads` do not
+    "apply that axis", and the `*_connections` family is no exception.
+    Decide the axis and state it in a Position; D-146's Spec field gains
+    §8.1 once it is settled. Found by chapter 8's readability rewrite, which
+    kept the text as written.
 
 ### Outside the spec
 
@@ -67,7 +78,7 @@ what the spec says, the spec edit is part of the item.
   compile-time and garbage measurements a model to run on, and the GUI one
   to drive.
 - **A tutorial** that takes a newcomer from a component to a run and a plot.
-- **The spec's readability rewrite.** Chapters 9 and 10 are done. The other
+- **The spec's readability rewrite.** Chapters 8, 9 and 10 are done. The other
   chapters follow `docs/spec_rewrite/recipe.md`, and that directory's README
   tracks them. Until a chapter's turn comes, it keeps the old markers.
 - **Package registration.**
@@ -158,4 +169,13 @@ Where the code's shape is coherent and the spec may be what moves, the call
 is the user's; a ruling lands docs-commit-first, then the bullet retires or
 the code conforms.
 
-Currently empty.
+- **`Group`'s rate scope.** §8.5's `Group` sketch has four fields and no
+  `sample_times` method. `src/assembly.jl` adds a `rates` field, a `rates`
+  keyword and `sample_times(g::Group) = g.rates`, and `test/test_discrete.jl`
+  uses them. §8.5 and §8.7 already rely on them: a `Group`'s "wiring and
+  rate declarations", "`(children = Relative(2),)` is the uniform spelling
+  for a `Group`", and the field-name sugar surviving a name-transparent
+  container. No entry records the field or the sugar's survival; D-211
+  spells a `Group`'s rate entry by bare key. Recommended: an entry rules the
+  built shape and the sketch gains the field, the keyword and the method.
+  Found by chapter 8's readability rewrite, which kept the text as written.
