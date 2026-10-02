@@ -1,0 +1,150 @@
+301	OK	§8.3 uses "face"/"port" per D-172 (sweep)
+302	OK	§8.6 faces
+303	OK	history of a wording fix; new §8.2 "Root inputs" says a primitive's faces are its own port names
+304	OK	§8.6 keeps the two-notation rule
+305	OK	§8.3 vocabulary (history)
+306	OK	§8.2 stores and letters (sweep)
+307	OK	§8.7 (sweep)
+308	OK	§8.6 IMU code (sweep)
+309	OK	§8.7 keeps the continuous-child error (M6 kept it)
+310	OK	§8.5 "Class by declaration shape": the one-root rejection and its reasons
+311	PREEXISTING	§8.3 does not itself call class (tier) a hidden implementation detail; §8.5 says class is implementation detail behind the contract, citing §8.3. Same pattern as rows 78 and 207. Old and new alike
+312	OK	§8.1 shadowing trap (the binding side's "one level down")
+313	OK	§8.3 contract as interface
+314	OK	§8.5 one-root rejection
+315	PREEXISTING	survey D (log 6273): §8.1 holds the isdefined/!== test but names no "reflection class", old and new
+316	OK	§8.1 "The namespace": the using/import shadowing trap
+317	OK	§8.1 cites D-178 (R7 F24 added it)
+318	OK	§8.5 class-by-declaration-shape, which D-178's value-fallback rejection protects
+319	PREEXISTING	§8.5 names no signature arities or TierSignatureMismatch since D-263, old and new. Old §8.5 said "There is consequently no signature-shape violation to name"; M5 moved that sentence to D-249's annotation (unit D inventory D-033)
+320	OK	§8.5 class-by-declaration-shape
+321	OK	§8.1 shadowing defense and the declares-nothing check
+322	PREEXISTING	survey E: D-179's Spec field lists §8.1, which holds nothing of D-179; its content is §8.2 "Events: state_events", which now cites D-179
+323	PREEXISTING	survey D: §8.1 forbids macros, not introspection; "introspection" appears nowhere in chapter 8, old or new
+324	PREEXISTING	survey E: D-182's Spec field lists §8.1, which holds nothing of D-182 (chapter 10's content)
+325	PREEXISTING	survey D: "the introspection §8.1 forbids"; §8.1 forbids macros only
+326	OK	§8.5 container-children rule and Group
+327	OK	§8.5 cites D-184
+328	OK	§8.5 keeps the builder rejection (M4 folded it into the Group block)
+329	OK	§8.5 "The builder (Assembly() plus add!/connect!) is rejected" (M4 kept it in §8.5)
+330	OK	§8.7 cites D-185 at the two forms
+331	OK	§8.6 faces as the assembly's boundary
+332	OK	§8.3 cites D-194
+333	OK	§8.2 cites D-195
+334	OK	§8.7 (sweep)
+335	OK	§8.6 IMU code (sweep)
+336	OK	§8.7 keeps "compiled to one (D, Φ) pair per discrete component" (R3)
+337	OK	§8.6 cites D-207
+338	OK	§8.8 cites D-207
+339	OK	§8.8 "One authored feed list": every level of a realistic tree is a generic seam
+340	OK	§8.8 computed spellings (helpers, feed list)
+341	OK	§8.3 contract is the interface
+342	OK	§8.8 "Generic holding": scalar faces make partial scripting compose (D-207)
+343	OK	§8.2 "Root inputs": the tight bound at the ultimate consuming entry; primitive root (history of the retired refusal)
+344	OK	same as previous row
+345	OK	§8.2 cites D-208
+346	OK	§8.6 cites D-208
+347	OK	§8.8 cites D-209
+348	OK	§8.6: at the root the uniqueness invariant follows the root's class
+349	OK	§8.2 "Root inputs" cites D-210 (key in both declarations at the root)
+350	OK	§8.6 cites D-210
+351	OK	§8.6 uniqueness invariant
+352	OK	§8.5 cites D-211
+353	OK	§8.6 cites D-211 (name-transparent segments)
+354	OK	§8.5 keeps "Containers are transparent grouping, not assemblies"
+355	OK	§8.5 cites D-212
+356	OK	§8.5: empty containers legal, so parametric code needs no special case
+357	OK	§8.6 face-name uniqueness invariant
+358	OK	§8.2 frozen-constant semantics of discrete outputs
+359	OK	§8.1 cites D-220
+360	OK	§8.2 cites D-220
+361	OK	§8.5 uses the renamed family (sweep)
+362	OK	§8.6 uses the renamed family (sweep)
+363	OK	§8.2 cites D-231
+364	OK	§8.2 cites D-236
+365	OK	§8.2 abstract entries
+366	OK	§8.4 cites D-239
+367	OK	§8.4 w5 keeps the did-you-mean and the completeness error with stage-product and state-field lists in hand
+368	OK	vocabulary sweep (history)
+369	OK	vocabulary sweep (history)
+370	OK	§8.6 "That read side is the inspection side. It resolves a path with resolve under the instance walk (§13.3)" (R7 F8)
+371	OK	§8.1 cites D-246
+372	OK	§8.2 cites D-247
+373	OK	§8.2 declarations (framed set)
+374	PREEXISTING	survey D (log 9273): §8.5 names no signature violation since D-263, old and new. Old §8.5's "no signature-shape violation to name" moved by M5 to D-249's annotation (log 9312-9314), which already says it
+375	PREEXISTING	same: D-249's Spec field lists §8.5 for TierSignatureMismatch, which §8.5 never names
+376	OK	§8.6 face routes, broad
+377	PREEXISTING	survey D (log 9290): history of what §8.5 said; D-249's annotation carries it
+378	OK	§8.8 "One authored feed list"
+379	OK	§8.8 cites D-251
+380	OK	§8.8 selectors exclusive (history)
+381	OK	§8.3 cites D-252
+382	OK	§8.2 uses "structure step" (sweep)
+383	OK	§8.5 (sweep)
+384	OK	§8.5: inner_connections is the marker, mandatory even when empty (the log's child_connections is the old name)
+385	OK	§8.1 "Contracts are functions of the type": value-discarding u_types(::Engine) signature
+386	OK	§8.2 cites D-263
+387	OK	§8.3 cites D-263
+388	OK	§8.5 cites D-263
+389	OK	§8.6: face cells follow the producer's declaration per tier
+390	OK	§8.5: inner_connections mandatory even when empty, the class marker
+391	OK	§8.2 cites D-264
+392	OK	§8.2 u_types: "A walking producer, a frozen discrete producer and a root input are all admissible behind it"
+393	OK	§8.2 u_types: genericity obligation checked by the Dual probe
+394	OK	§8.2 cites D-265
+395	OK	§8.2 now cites D-266 (R7 F20)
+396	OK	§8.1 "Names" class 1 (D-267)
+397	OK	rename sweep (Spec field)
+398	OK	rename sweep
+399	OK	rename sweep
+400	OK	rename sweep
+401	OK	rename sweep
+402	OK	rename sweep
+403	OK	rename sweep
+404	OK	§8.7 rate scopes
+405	OK	§8.2 u_types: a discrete consumer pins wholesale; "Root inputs": the meet
+406	OK	§8.6 face names arbitrary strings, only "/" barred; §8.8 dotted prefix defaults
+407	OK	§8.8 house style (sep = ".")
+408	OK	§8.6 bars only "/"
+409	OK	§8.1 cites D-279
+410	OK	rename sweep
+411	OK	rename sweep
+412	OK	rename sweep
+413	OK	rename sweep
+414	OK	§8.6 root-input paragraph: assembly root's u_connections keys or primitive root's u_types keys; nothing downstream distinguishes the two (D-208)
+415	OK	§8.2 now cites D-280
+416	OK	§8.2 now cites D-286
+417	OK	§8.2 keeps the hint word for word
+418	OK	§8.5 parametric fields
+419	OK	§8.5 parametric fields
+420	PREEXISTING	survey D: §8.2 retypes plain declarations by the walk (D-263); "evaluated at" is D-166's vocabulary. Note: new §8.6 still says face cells "are evaluated at the activation scalar" (old wording kept)
+421	OK	§8.5 Group: the pattern, the sketch and the anonymous-functions framing
+422	OK	§8.8 helpers, selectors, EmptyFaceSelection (D-251)
+423	OK	§8.1, broad
+424	OK	§8.5 to §8.8, broad
+425	OK	§8.8, broad
+426	OK	§8.2 store form (D-247)
+427	OK	§8.2, broad
+428	OK	§8.1, broad
+429	OK	§8.2, broad
+430	OK	§8.5 to §8.7, broad
+431	OK	§8.7, broad
+432	OK	§8.2, broad
+433	OK	§8.5: a type declaring neither family has no class to read
+434	OK	§8.1 "Names": four classes (D-144)
+435	OK	§8.1 "The namespace": the import list
+436	OK	§8.2 "Events: state_events": order is semantics, priority order used by §10.6
+437	OK	§8.6 IMU
+438	OK	§8.8 input_passthrough
+439	OK	§8.2 y_types: frozen discrete outputs, discrete exemption
+440	OK	§8.2: Pinned marker and the handle rule (M1/M2 stayed inside §8.2)
+441	OK	§8.2 y_types: "A handle keeps its bulk at Float64 and its activation-dependent part in the parameter"
+442	OK	§8.2 u_types: tolerant entries; several producers behind one face
+443	OK	§8.2 y_types: "Declare Pinned{Float64} and strip with ForwardDiff.value ... instead of buried mid-expression"
+444	OK	§8.6 root-input paragraph
+445	OK	§8.2 u_types: discrete consumer pins wholesale; Pinned entries
+446	OK	§8.2 y_types keeps "linearize the continuous dynamics with the discrete state held" word for word
+447	OK	§8.2 walk rule
+448	OK	§8.2 walk rule
+449	OK	§8.5 Group: declarations are ordinary functions of the instance
+450	OK	history of D-185's adoption, listing §8.7 among amended sections. The quoted "bare integer or bare quantity is a declaration error" left §8.7 under M6; §10.5 (spec 5352) holds it

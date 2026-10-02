@@ -1,0 +1,138 @@
+163	OK	§8.2 u_types: abstract entries are never the tool for eltype genericity; "Root inputs" names AbstractAtRoot (M1 kept it in §8.2)
+164	OK	§8.5 lists sample_times among an assembly's declarations and contrasts containers' lack of a rate scope; §8.7 holds the rate scope itself, as before
+165	OK	§8.5 "Class by declaration shape" holds the rule; ClassUnreadable is named in §8.1 with a pointer to §8.5, not in §8.5 itself (old §8.5 did not name it either). Optional: name it in §8.5
+166	OK	§8.5 "Container children": "Containers are transparent grouping, not assemblies", no contract, no inner_connections, no rate scope
+167	OK	§8.3 states the rule; §8.2 defines y_types as the declared set (old §8.2 did not state the error either)
+168	OK	§8.3: a field returned in y and declared nowhere is a build error
+169	OK	§8.2 opening: by value, by type, by allocation
+170	OK	§8.6 wires and boundary declarations; generic holding itself is §8.8
+171	OK	§8.8 "Generic holding": imposed derived contract
+172	OK	§8.8 "Generic holding"
+173	OK	§8.7 keeps "all are compiled to one (D, Φ) pair per discrete component" (R3)
+174	OK	§8.1 "Declarations are the schema authority" keeps the sentence word for word
+175	OK	§8.3: the table is public throughout, every cell a declared port
+176	OK	§8.2 u_types: input entries
+177	OK	§8.6 two-notation rule
+178	OK	§8.2 "Root inputs": produced by no component
+179	OK	§8.6 root-input paragraph: the root's input faces are the write surface
+180	OK	§8.6 boundary declarations
+181	OK	§8.2 "Events: state_events": Bool guard boundary-detected, nominal scalar localized (D-179)
+182	OK	§8.2 "Events: state_events"
+183	OK	§8.2 "The stores" and "Completeness": tier declared by the store; DeclarationOnWrongTier
+184	OK	§8.5 "One arity on both tiers" keeps "The tier is read from the store every leaf declares (§8.2)" and the kind name (R5)
+185	OK	§8.2 y_types and "Root inputs": cells are walked declarations; the marker authors participation and tolerance
+186	PREEXISTING	survey D: §8.2 never states that the nominal activation's conformance check demands exact type match, old or new; §9.5 holds it (D-286 gives the exact check to pinned leaves). Fix: drop §8.2 from the glossary's nominal entry
+187	OK	§8.2: one leaf walk over state and contracts; Pinned in y_types and u_types
+188	OK	§8.4 five walkthroughs
+189	OK	§8.4
+190	OK	§8.2 "The stores": deriving from another declaration is sound; §8.6 calls face derivation "the blessed derivation-from-declarations (§8.2)"
+191	OK	§8.6 "A worked assembly: the strapdown IMU"
+192	OK	chapter-level Spec field
+193	OK	chapter-level: loud declarations
+194	OK	§8.3 cites D-016 among the rejected designs
+195	OK	§8.1 cites D-032
+196	OK	§8.4 cites D-032
+197	OK	§8.4 keeps five walkthroughs in the same order
+198	OK	§8.1 "Contracts are functions of the type" cites D-033 (new citation; old §8.1 held the rule uncited)
+199	OK	§8.2 cites D-033
+200	OK	§8.1 "Contracts are functions of the type": "a rule authors keep, not a check the build can run", ws_init the exception
+201	OK	§8.3 cites D-034
+202	PREEXISTING	§8.1 cites no D-039 and holds none of its assembly content, old or new (survey E: Spec fields naming a section that holds nothing of the entry)
+203	PREEXISTING	§8.3 cites no D-039; its tie to D-039 (class behind the contract) lives in §8.5, which cites §8.3. Old and new alike
+204	OK	§8.5 cites D-039 (plain struct, no AbstractAssembly, builder rejected)
+205	OK	§8.8 "One authored feed list" cites D-039 (R7 F7)
+206	PREEXISTING	survey D: §8.1 names no "disease"; it accepts redundancy under fail-loud. The drift argument is D-039's own. Old and new alike
+207	PREEXISTING	§8.3 does not say class (kind) is an implementation detail; §8.5 "Class by declaration shape" does, citing §8.3. Same pattern as spec 7163 (row 78). Old and new alike
+208	OK	§8.6 cites D-040
+209	OK	§8.6 cites D-041
+210	OK	§8.7 cites D-042
+211	OK	§8.4 walkthrough 2 is the ground of the auto-bubbling rejection
+212	OK	§8.8 cites D-043
+213	OK	§8.4 walkthrough 2 (forgotten wire) kept as item 2
+214	OK	§8.6 cites D-046
+215	OK	§8.2 cites D-054
+216	OK	§8.4 keeps walkthrough 5 (typo'd return field)
+217	OK	§8.3 cites D-055 among the rejected designs
+218	OK	§8.4 walkthrough 5, which D-055 added
+219	OK	§8.6 now cites D-056 at the IMU idiom
+220	OK	§8.6 path form (path + field)
+221	OK	§8.6 path form
+222	OK	§8.6 "The boundary-sampling contract": a taught contract
+223	OK	§8.6 cites D-067 at boundary zero's latch
+224	OK	§8.2 "The stores": declaration by initial value, D-073 cited
+225	OK	§8.2 cites D-073
+226	OK	§8.6 holds the IMU content (history)
+227	OK	§8.2 "The stores" keeps the condition-substrate ground ("There must therefore be an authored value under every leaf"). The probe-value-barrier and two-form grounds were never in this spec version's §8.2 (the old text already pointed to D-073); not a new circle
+228	OK	§8.1 cites D-077 at ws_init
+229	OK	§8.2 cites D-077
+230	OK	§8.2 "The stores": "none of the by-value arguments below cover it", with the overlay-base argument below. The probe-value-barrier argument was not in old §8.2 either
+231	OK	§8.5 "One arity on both tiers": tier read from the store (§8.2); §8.2 holds the walk
+232	OK	§8.5 still reads tier with a pointer to §8.2 (history of the "declaration shape" phrasing)
+233	OK	§8.8 generic holding, which container element types follow
+234	OK	§8.8 "Generic holding"
+235	OK	§8.5 class read from which declarations exist
+236	OK	§8.5 declaration-shape idiom
+237	OK	§8.2 "Completeness" cites D-112
+238	OK	§8.4 walkthroughs (kindless rules' grounding), broad
+239	OK	§8.8 helper diagnostics, broad
+240	OK	§8.1 "The namespace": the import list as normative authoring surface, qualified definition the Base.show idiom
+241	OK	§8.1 cites D-117
+242	OK	§8.4 traces the error-locality inversion D-117's rejection names
+243	OK	§8.4 traces the inversion; §8.1 names it "arriving through the namespace"
+244	OK	§8.2 "Root inputs" cites D-120 (the component test rig)
+245	OK	§8.2 uses D-122's walked/pinned vocabulary
+246	OK	history of a sweep in §8.2
+247	OK	history of a sweep in §8.2
+248	OK	history of a sweep (Spec field)
+249	OK	history of a sweep
+250	OK	history of a sweep
+251	OK	history of a sweep
+252	OK	history of a sweep
+253	OK	history of a sweep
+254	OK	§8.1 "Plain Julia": redundancy accepted under one non-negotiable condition (fails loudly)
+255	OK	§8.6 cites D-129 at the two-notation rule
+256	OK	§8.6 two-notation rule (history of the sweep)
+257	OK	§8.3 visibility unchanged
+258	OK	§8.3
+259	OK	§8.3: visibility is binary
+260	OK	§8.5 Group: declarations are ordinary functions of the instance
+261	OK	§8.5 Group: "Its declarations are ordinary functions of the instance, free to read its fields"
+262	OK	§8.1 "Names": four classes (D-144)
+263	OK	§8.1 cites D-144
+264	OK	§8.6 uses the swept names (history)
+265	OK	§8.8 uses the swept names (history)
+266	OK	§8.8 keeps the quoted words: "The helper exists for the pass-through case, where an assembly hands a child's unfed requirements up one level"
+267	OK	same as previous row
+268	OK	§8.8 "One authored feed list": the worked shared-feed-list idiom
+269	OK	§8.5 Group: "A declaration is an ordinary function body"; §8.8 cites §8.5 for it
+270	PREEXISTING	survey E: D-145's Spec field lists §8.1, which holds nothing of D-145, old or new
+271	OK	§8.4 walkthrough 2, which D-145's rejection inverts
+272	OK	§8.5: declaration bodies are ordinary code
+273	OK	§8.8 cites D-145
+274	PREEXISTING	survey D: §8.1 holds no "structure kept in two artifacts"; §8.8 now says it citing D-039 alone (R7 F7). Old and new alike
+275	OK	§8.4 walkthrough 2 kept
+276	OK	§8.4 error-locality grounding
+277	OK	§8.4
+278	OK	§8.1 "The namespace" holds the local-scope sibling (D-164)
+279	OK	§8.1 cites D-164
+280	OK	§8.1: the shadowing check cannot reach the local-scope case
+281	OK	§8.3: inspection path for an intermediate is declaration (promote to output)
+282	OK	§8.3: FlightCore precedent, promote to output
+283	OK	superseded entry's history; §8.5 still reads tier with a pointer to §8.2
+284	OK	superseded entry's Spec field; chapter 8 no longer cites D-166 (R7 F2, R9), as ruled
+285	OK	superseded entry's Spec field (history)
+286	OK	superseded entry's Spec field (history)
+287	OK	§8.1 "Plain Julia": a convenience macro remains addable as sugar, never essential, never required (now cited to D-032, R7 F2)
+288	OK	superseded entry's history; §8.2 keeps the didactic store messages
+289	OK	superseded entry's Spec field; chapter 8 no longer cites D-167 (R9), as ruled
+290	OK	superseded entry's Spec field (history)
+291	OK	§8.2 "Root inputs" cites D-168
+292	OK	§8.2 "Root inputs": "is the FFI door in use"; the meet forced by embedding
+293	OK	§8.2 "Root inputs" uses u_connections faces (swept)
+294	OK	§8.5 lists u_connections/y_connections (swept)
+295	OK	§8.6 cites D-170
+296	OK	§8.8 uses the split declarations (swept)
+297	OK	§8.8 cites D-171
+298	OK	history; §8.8 now has the two helpers, "the name carries the direction"
+299	OK	history; new §8.2 defines face at first use ("A face is the name a port wears on its component's boundary")
+300	OK	§8.2 face defined at first use

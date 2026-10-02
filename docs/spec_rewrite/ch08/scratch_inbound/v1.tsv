@@ -1,0 +1,80 @@
+1	OK	whole-chapter roadmap claim; chapter intro holds it
+2	OK	substitution behind a declared contract: §8.2 abstract entries, §8.5 parametric fields
+3	OK	§8.4 is the error-locality grounding
+4	OK	§8.1 "Plain Julia, not a macro DSL" (D-032, §1 criterion)
+5	OK	§8.2 "Events: state_events" holds the declaration; the naming reason (detection vs scheduling) is the citing chapter's own, as before
+6	OK	§8.5 "Class by declaration shape"
+7	OK	§8.6 "The leaves: integrate-and-difference"
+8	OK	§8.6 holds the idiom, "The exactness condition" and the IMU assembly
+9	OK	§8.2 y_types: discrete producer pins wholesale; gated-off discrete producers hold Float64 values
+10	OK	§8.3: a field returned in y and declared nowhere is a build error
+11	OK	§8.6 boundary declarations map faces to internal endpoints; primitive input faces alias producers' cells and place nothing
+12	OK	§8.2 y_types leaf forms: Int/Bool/enum leaves pin
+13	OK	§8.2 u_types: "Abstract entries state structural substitutability", terrain = AbstractTerrainField
+14	OK	§8.3: "A value a later function reads travels as a declared port like any other"
+15	OK	§8.1 "The namespace": a component that declares nothing and defines no stage is rejected; inert component unwritable
+16	OK	§8.2 y_types declares the public port contract
+17	OK	§8.2 "Completeness": remaining tier-implying declarations must agree
+18	OK	§8.3 names DeclaredNotProduced
+19	OK	§8.3: "Visibility is binary"
+20	OK	§8.6 holds the canonical slash path form
+21	OK	§8.6 canonical slash form
+22	OK	§8.6 canonical slash form
+23	OK	§8.6 the three wiring declarations and their shared direction invariant
+24	OK	§8.5 "Container children": "field/1", "field/key" segments
+25	OK	§8.5 transparent_container, name-transparent container
+26	OK	§8.3 title and rule
+27	OK	§8.8 "One authored feed list": every level of a realistic tree is a generic seam
+28	OK	§8.8 passthrough helpers over one authored feed list
+29	OK	§8.2 "Two clauses check a wire" states both clauses in full. Mutual citation: §8.2's headline cites §6.1 back (as the old text did, R2); not a dead circle since §8.2 holds the content
+30	OK	§8.2 y_types: "The first bug lurks, but is never silent" (D-286)
+31	OK	§8.6 u_connections hands a face up; root-input paragraph points to §6.1's whole-tree obligation model
+32	OK	§8.2 "The stores": the store is the tier marker, mandatory even when empty
+33	OK	§8.2 y_types: cell types are the declaration retyped at T by the leaf walk
+34	OK	§8.5: fields <: AbstractComponent are children
+35	OK	§8.2 "The stores": x_init declares by initial value
+36	OK	§8.2: u_types/y_types written at nominal Float64, retyped by the walk
+37	OK	§8.3 makes publication a declaration act
+38	OK	whole chapter
+39	OK	whole chapter
+40	OK	§8.4 five walkthroughs
+41	OK	§8.8 opening: boundary declarations compute entries from child contracts
+42	OK	§8.2 "Stage membership": build probes stage-1 functions first
+43	OK	§8.8 opening and helpers: ordinary functions evaluated at build
+44	OK	§8.5 "Class by declaration shape"
+45	OK	§8.1 "The namespace": shadowing check runs before class is read (§9.1, D-246)
+46	OK	§8.2 "Two clauses check a wire"
+47	OK	§8.2 "The stores": NamedTuple store form, StoreNotNamedTuple
+48	OK	§8.2 y_types tail: walking x_init presupposes the closed leaf vocabulary (§7.1, D-094)
+49	OK	§8.2 "Root inputs" (M1 kept it in §8.2): any component may be root, root inputs are its own input faces
+50	OK	§8.2 "Completeness" (three rules)
+51	OK	§8.3: exactly one stage, two classes, stage membership derived over y_types alone (D-252)
+52	OK	§8.8: "the inspectable derived contract of this instantiation"
+53	OK	§8.8 names EmptyFaceSelection, a warning on the Build's list (§9.2)
+54	OK	§8.1 keeps "fails loudly, at build time where possible" word for word (quote's capital F is the citer's)
+55	OK	§8.2 "Root inputs": root-input type is the entry at Float64, only a tight bound determines one
+56	OK	§8.3 branch-shape rule
+57	OK	§8.2 y_types: cell types are the declaration retyped by the leaf walk
+58	OK	§8.2 u_types: "the reading is permissive"
+59	OK	§8.2 y_types tail: the type derived from x_init is walked
+60	OK	§8.2 y_types: frozen discrete output is a constant with zero partials
+61	OK	§8.2 y_types: "The misplaced-pin account"
+62	OK	§8.1 keeps "at first execution otherwise" word for word
+63	OK	§8.2 contracts declare cell types, retyped per activation
+64	OK	§8.2 leaf forms: walking and pinned (Pinned{P})
+65	OK	§8.2 y_types: "linearize the continuous dynamics with the discrete state held"
+66	OK	§8.6 root-input paragraph: root inputs are the root component's input faces
+67	OK	§8.2 requires a store per leaf (x_init or s_init), never a non-empty x
+68	OK	§8.7 sample_times in the enclosing assembly
+69	OK	§8.3: the table is public throughout, every cell a declared port
+70	OK	§8.3: table public throughout; promoting an intermediate is one y_types line
+71	OK	§8.2 "Root inputs": assembly's u_connections faces, primitive's u_types keys
+72	OK	§8.6 root-input paragraph: assembly root supplies u_connections keys, primitive root its u_types keys
+73	OK	§8.6 two-notation rule: the write side speaks face names exclusively (§11.3)
+74	OK	§8.2 u_types: a bare NamedTuple of types
+75	PREEXISTING	survey D: §8.1 holds the isdefined/!== test ("The namespace") but names no "reflection class"; old §8.1 neither
+76	OK	§8.1 "The namespace": bare using defines a new unrelated function
+77	OK	§8.5 "Class by declaration shape" keeps both reasons (domain hierarchies; class behind the contract)
+78	PREEXISTING	survey D: §8.3 does not say class is implementation detail; §8.5 "Class by declaration shape" does, citing §8.3. Fix: cite §8.5
+79	OK	§8.5 Group block: "A declaration is an ordinary function body, and loops and comprehensions build the returned tuple" (M4 kept it in §8.5)
+80	OK	§8.6 canonical slash form
