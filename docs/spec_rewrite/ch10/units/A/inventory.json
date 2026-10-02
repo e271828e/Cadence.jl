@@ -64,13 +64,14 @@
   {
    "id": "A-008",
    "old": "Why. The step-boundary contract is the central invariant of this design.",
-   "new": "The reason is the step-boundary contract (§10.6), the central invariant of this design.",
+   "new": "The reason is the step-boundary contract (at every boundary the §10.6 macro-sequence completes before a snapshot goes out). It is the central invariant of this design.",
    "where": "new",
    "cites": [],
    "newcites": [
     "§10.6"
    ],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "P7"
   },
   {
    "id": "A-009",
@@ -172,7 +173,7 @@
   {
    "id": "A-020",
    "old": "It lands on tick boundaries, and it resumes from a localized event time (the crossing instant bracketed by root-finding over trial sweeps).",
-   "new": "It lands on tick boundaries, and it resumes from a localized event time (the crossing instant bracketed by root-finding over trial sweeps).",
+   "new": "It lands on tick boundaries, and it resumes from a localized event time (the crossing instant bracketed by root-finding over trial evaluations).",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -479,7 +480,7 @@
   {
    "id": "A-054",
    "old": "The domain argument is recorded here because it is decisive for the whole axis.",
-   "new": "The domain argument is recorded here because it is decisive for the whole axis.",
+   "new": "The domain argument is recorded here because it is decisive for the choice of integration method.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -690,13 +691,14 @@
   {
    "id": "A-078",
    "old": "Rule. External readers (GUI, logging, network output) observe the signal table only at step boundaries.",
-   "new": "External readers (GUI, logging, network output) observe the signal table only at step boundaries (D-023).",
+   "new": "External readers observe the signal table only at step boundaries (D-023). These readers are the GUI, logging and network output.",
    "where": "new",
    "cites": [],
    "newcites": [
     "D-023"
    ],
-   "tag": "C"
+   "tag": "R",
+   "ruling": "P33"
   },
   {
    "id": "A-079",
@@ -768,7 +770,7 @@
   {
    "id": "A-086",
    "old": "The §10.6 macro-sequence completes there and a snapshot goes out.",
-   "new": "The macro-sequence of §10.6 completes there, and a snapshot (the immutable per-boundary publication) goes out.",
+   "new": "The boundary sequence (§5.3) completes there, in the final form §10.6 calls the macro-sequence, and a snapshot (the immutable per-boundary publication) goes out.",
    "where": "new",
    "cites": [
     "§10.6"
@@ -840,9 +842,9 @@
   }
  ],
  "added": [
-  "This chapter owns time.",
-  "It takes the execution order (§5.3) and the compiled executor (§9.7) as given, and states how the loop runs them through time.",
-  "§10.1 covers loop ownership and the loop's two units, the frame and the boundary, §10.2 the stepper seam, §10.3 signal-table consistency, §10.4 localization mechanics, §10.5 multi-rate tick scheduling, §10.6 event iteration at boundaries, and §10.7 real-time pacing.",
+  "This chapter states how the loop runs a model through time.",
+  "It takes the execution order (§5.3) and the compiled executor (§9.7) as given.",
+  "§10.1 covers loop ownership and the loop's two units; §10.2 the stepper seam; §10.3 signal-table consistency; §10.4 localization mechanics; §10.5 multi-rate tick scheduling; §10.6 event iteration at boundaries; and §10.7 real-time pacing.",
   "This section defines the simulation loop's two units, lists its six activities and states who writes the loop.",
   "`t` is an event's crossing instant inside a step, bracketed by root-finding (§10.4).",
   "D-017 records the rejected foreign-loop alternative.",

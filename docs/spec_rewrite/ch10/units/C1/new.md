@@ -100,22 +100,21 @@ Each kind of boundary has its own due set:
   specifies.
 
 An offset component's first tick is at `Φ·Δt_base`. Until then its cells hold
-its boundary-zero publication. Its output stages run at `t₀` due or not,
+its boundary-zero publication. Its output stages still run at `t₀`, as above,
 evaluated from the authored world ([D-205][d-205], [§14.5][s14-5]). The
-[probe](#g-probe)'s synthesized values reach no published cell. The probe is
-the build's single evaluation of a user function with real values
-([§9.3][s9-3]). In a phase-free model every `Φ` is 0, so at boundary zero
-everything is due and the distinction is empty.
+[probe](#g-probe)'s synthesized values reach no published cell. The probe is the
+build's single evaluation of a user function with real values ([§9.3][s9-3]). In
+a phase-free model every `Φ` is 0, so at boundary zero everything is due and the
+distinction is empty.
 
 #### Simultaneous ticks
 
 Several components can be due at one boundary, and settled machinery already
 orders them. All due components run their output stages in topological order
-within the sweep. All due `s_update` calls run after quiescence, in any
-order. Each one reads the table and writes only its own `s` store. The
-intra-tick ordering of the FCS cascade (a flight control system's outer loops
-feeding its inner loop) is therefore a sweep property, not an update-order
-property.
+within the sweep. All due `s_update` calls run after quiescence, in any order.
+Each one reads the table and writes only its own `s` store. The intra-tick
+ordering of a flight control system (FCS) cascade, where outer loops feed an
+inner loop, is therefore a sweep property, not an update-order property.
 
 #### Assemblies and rate scopes
 

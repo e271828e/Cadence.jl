@@ -6,19 +6,20 @@ the crossing at the end of the step, at grid resolution. Or it can find the
 crossing instant and publish it. This section fixes which guards get which
 treatment, and describes the machinery behind the second.
 
-The localized event time `t*` is a [boundary](#g-boundary) (a published
-consistency point, [§10.1][s10-1]). It is not the top of a [frame](#g-frame)
-(one grid step, the unit of scheduling).
+The [localized](#g-localized) event time `t*` is a [boundary](#g-boundary) (a
+published consistency point, [§10.1][s10-1]). It is not the top of a
+[frame](#g-frame) (one grid step, the unit of scheduling).
 
 A frame in which one event localizes runs through these steps. Its boundaries
 are tₙ, `t*` and tₙ₊₁.
 
-> tₙ → integrate → arrival sweep at tₙ₊₁ → trigger → θ = 0 trial evaluation → bracket
-> → root-find → t\* → remainder step → tₙ₊₁
+> tₙ → integrate → arrival sweep at tₙ₊₁ → trigger → θ = 0 trial evaluation
+> → bracket → root-find → t\* → remainder step → tₙ₊₁
 
 This chain lists the order of operations. It is not a walk along the time axis.
-The [arrival sweep](#g-sweep) at tₙ₊₁ raises the trigger, and integration then resumes from
-`t*`, which lies before tₙ₊₁.
+The [arrival sweep](#g-sweep) (the sweep that closes the integration step) at
+tₙ₊₁ raises the trigger, and integration then resumes from `t*`, which lies
+before tₙ₊₁.
 
 #### Detection policy
 
@@ -27,23 +28,23 @@ flag is involved.
 
 - A guard returning `Bool` is [boundary-detected](#g-boundary-detected). The framework checks it for
   edges at step boundaries only and never root-finds it.
-- A guard returning the nominal scalar, the continuous sign form, is
-  [localized](#g-localized). The framework brackets the crossing instant by root-finding
-  over trial sweeps.
+- A guard returning the nominal scalar, the continuous sign form, is localized.
+  The framework brackets the crossing instant by root-finding over trial
+  evaluations.
 
 The build reads the policy off the [probe](#g-probe) it already runs ([§9.3][s9-3], nominal
 [activation](#g-activation)). `StateEvent(guard, handler)` therefore carries no detection keyword
 ([D-179][d-179]).
 
 Localization brackets a root, and only the sign form offers one. Because the
-form is the policy, the illegal pairing cannot be written at all. It needs no
-diagnostic.
+form is the policy, a localized `Bool` guard cannot be written at all. It needs
+no diagnostic.
 
 A localized guard becomes boundary-detected with a one-line rewrite, at no
-semantic cost ([D-179][d-179]). Return the predicate `σ ≥ 0` instead of `σ`.
-That cast is the definition of the predicate ([§2.1][s2-1]). The predicate and
-its edges stay the same. Only the resolution at which they are observed
-changes.
+semantic cost ([D-179][d-179]). Return the predicate `σ ≥ 0` instead of the
+sign-form value `σ`. That cast is the definition of the predicate
+([§2.1][s2-1]). The predicate and its edges stay the same. Only the resolution
+at which they are observed changes.
 
 **For a guard that reads only `u` and `m`, boundary detection is exact**
 ([D-179][d-179]). Such a predicate is constant within each frame. `u` changes
@@ -54,8 +55,8 @@ for a root-finder to find. Here the boundary is not a resolution limit. It is
 the crossing itself, and localization would have nothing to do.
 
 A mixed predicate combines `Bool` factors with a continuous one. Take a piston
-engine whose modes include `starting` and `running`. The piston engine's `starting → running` fires on
-`ω > ω_idle && fuel_available`.
+engine whose modes include `starting` and `running`. Its `starting → running`
+transition fires on `ω > ω_idle && fuel_available`.
 
 **When such a transition should localize, write it in the gate form
 `(gate) ? σ : -one(σ)`** ([D-179][d-179]). The `Bool` factors go in the branch
@@ -76,12 +77,13 @@ step), which the localization loop below defines and builds.
 
 **Trial evaluations run the interior sweep** ([D-147][d-147]). Guards read `y`.
 Evaluating a guard at an interpolated state therefore means writing
-$\hat{x}(\theta)$ into the state [buffer](#g-buffer) and running the [interior sweep](#g-sweep). The [RHS](#g-flow)
-already lives under this rule ([§10.5][s10-5]), since a trial evaluation is a
-mid-step evaluation. Discrete [cells](#g-cell) therefore hold their [tick](#g-tick) values
-through localization, and a guard reading a sampled output sees what the
-controller is holding. A tick is an instant at which a discrete component's
-stages and update run. Each trial evaluation costs one interior sweep.
+$\hat{x}(\theta)$ into the state [buffer](#g-buffer) and running the
+[interior sweep](#g-sweep). The [RHS](#g-flow) already lives under this rule
+([§10.5][s10-5]), since a trial evaluation is a mid-step evaluation. Discrete
+[cells](#g-cell) therefore hold their [tick](#g-tick) values (set at the last
+instant their stages and update ran) through localization, and a guard reading a
+sampled output sees what the controller is holding. Each trial evaluation costs
+one interior sweep.
 
 #### The trigger
 
@@ -144,11 +146,11 @@ jump without crossing anything.
 The discriminator is conclusive ([D-182][d-182]). `u` is the only thing that can
 differ between the prior's evaluation context and this trial evaluation. `m`
 changes only via handlers at boundaries, and priors are sampled at quiescence,
-after the handlers. Discrete cells hold their values under zero-order hold (ZOH), and the interior
-sweep excludes discrete entries ([§10.5][s10-5]). `t = tₙ` exactly, by the
-indexed-grid rule below. Sweeps are deterministic. So under the honest priors of
-[§10.6][s10-6], the frame-top drain is the only possible source of
-disagreement.
+after the handlers. Discrete cells hold their values under zero-order hold
+(ZOH), and the interior sweep excludes discrete entries ([§10.5][s10-5]).
+`t = tₙ` exactly, by the indexed-grid rule below. Sweeps are deterministic. So
+under the honest priors of [§10.6][s10-6], the frame-top drain is the only
+possible source of disagreement.
 
 - σ₀ not-holding means a trajectory-caused edge, a genuine in-frame crossing.
   Pay the sweep for ẋₙ₊₁, build the interpolant and root-find on the bracket
@@ -161,16 +163,17 @@ localization is abandoned and the event fires inside tₙ₊₁'s ordinary itera
 Mechanically, not localizing is the action. The frame falls through, and the
 boundary iteration detects and fires the event like any boundary-detected event.
 This path costs one interior sweep. It never pays for ẋₙ₊₁ or an interpolant,
-and it consumes no `localization_budget` (see "The localization budget"
-below). It also warns nothing. Input timing is
-a frame fact, by the same doctrine that forbids draining at `t*` below, and
-boundary detection is exact for a `u`-caused edge (above; [D-179][d-179]).
-Boundary firing is therefore the correct semantics, not a degradation. This is
-the left-end mirror of the `t* = tₙ₊₁` degeneracy below.
+and it consumes no `localization_budget` (see "The localization budget" below).
+It also warns nothing. Input timing is a frame fact, by the same doctrine that
+forbids draining at `t*` below, and boundary detection is exact for a `u`-caused
+edge (above; [D-179][d-179]). Boundary firing is therefore the correct
+semantics, not a degradation. This is the left-end mirror of the `t* = tₙ₊₁`
+degeneracy below.
 
-The interpolant is built lazily ([D-018][d-018]). It is the cubic Hermite
-continuous extension $\hat{x}(\theta)$, $\theta = (t - t_n)/h \in [0, 1]$, built
-from $(x_n, \dot{x}_n, x_{n+1}, \dot{x}_{n+1})$. $\dot{x}_n$ is the step's first
+The interpolant is the seam's dense output ([§10.2][s10-2]). It is built lazily
+([D-018][d-018]). It is the cubic Hermite continuous extension
+$\hat{x}(\theta)$, $\theta = (t - t_n)/h \in [0, 1]$, built from
+$(x_n, \dot{x}_n, x_{n+1}, \dot{x}_{n+1})$. $\dot{x}_n$ is the step's first
 stage. $\dot{x}_{n+1}$ costs one sweep, paid only on a validated trigger
 ([D-182][d-182]). The θ = 0 trial evaluation comes first, so an epoch-caused
 edge never pays for it. Uniform accuracy is $O(h^4)$, one order below the
@@ -185,20 +188,21 @@ and AD localization are rejected ([D-018][d-018]).
 
 **Convergence is a relative bracket width** ([D-133][d-133]). Localization stops
 once the bracket is narrower than `localization_tol · h`. `localization_tol` is
-a `Deployment` constructor keyword defaulting to `1e-6` ([D-256][d-256]). The
+a constructor keyword of the [`Deployment`](#g-deployment) (the scalar-free
+artifact the grid parameters fix) and defaults to `1e-6` ([D-256][d-256]). The
 tolerance is relative because an absolute tolerance in `t` is not scale-free
-([D-133][d-133]). The default is `1e-6` because the event time can never be
-more accurate than the interpolant, which is `O(h⁴)` as stated above. At
-practical `h`, anything tighter buys nothing, while every trial evaluation costs
-a full sweep. Under ITP the bill is a handful of trial evaluations, and around
-20 in bisection's worst case.
+([D-133][d-133]). The default is `1e-6` because of the interpolant's accuracy
+limit, `O(h⁴)` as stated above. At practical `h`, anything tighter buys nothing,
+while every trial evaluation costs a full sweep. Under ITP the bill is a handful
+of trial evaluations, and around 20 in bisection's worst case.
 
-After the event, the boundary sequence runs at `t*` (below). The interpolant
-is then invalidated, because the handlers have made it wrong for `t > t*`
-([D-018][d-018]). Integration resumes from `t*` with the [remainder step](#g-remainder-step)
-targeting tₙ₊₁, and the guards are re-checked on the remainder. The re-check
-runs under the per-frame [localization budget](#g-chattering) (below), with a chattering
-diagnostic.
+After the event, the boundary sequence runs at `t*` (below). The interpolant is
+then invalidated, because the handlers have made it wrong for `t > t*`
+([D-018][d-018]). Integration resumes from `t*` with the
+[remainder step](#g-remainder-step) (the integration from `t*` to the original
+grid target) targeting tₙ₊₁, and the guards are re-checked on the remainder. The
+re-check runs under the per-frame [localization budget](#g-chattering) (below),
+with a chattering diagnostic.
 
 Multiple events localizing in one step fire at the earliest `t*`. Ties fire at
 that boundary inside the event iteration, one eligible event per component per

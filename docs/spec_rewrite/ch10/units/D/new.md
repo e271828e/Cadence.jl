@@ -22,19 +22,21 @@ nothing.
 - The event's firing count for this boundary is below `firing_budget`.
 
 That is the whole definition of "newly fired". The predicate is the one
-[§2.1][s2-1] defines, either the `Bool` form true or `σ ≥ 0`. `firing_budget`
-is a deployment keyword, an integer ≥ 1 defaulting to 4. It caps how many
-times each declared event may fire at one boundary.
+[§2.1][s2-1] defines, either the `Bool` form true or `σ ≥ 0`.
+[`firing_budget`](#g-firing-budget) is a deployment keyword, an integer ≥ 1
+defaulting to 4. It caps how many times each declared event may fire at one
+boundary.
 
 #### Why the phase iterates
 
 Under a single pass, a cascade of N logically simultaneous transitions
-(supervisor FSM → subordinate FSM → …) takes N steps to complete, at latency
-N·h. Model semantics would then depend on the integrator's step size, and `h`
-is an execution parameter. This is the same class of footgun [§2.2][s2-2] cited
-when killing `f_step!`, an unconditional per-step hook ([D-020][d-020]).
-Cascades are not a corner case either. Externalized FSM components are blessed
-([§3.1][s3-1]), which makes cross-component cascades the expected idiom.
+(supervisor FSM → subordinate FSM → …, where an FSM is a finite-state machine)
+takes N steps to complete, at latency N·h. Model semantics would then depend on
+the integrator's step size, and `h` is an execution parameter. This is the same
+class of footgun [§2.2][s2-2] cited when killing `f_step!`, an unconditional
+per-step hook ([D-020][d-020]). Cascades are not a corner case either.
+Externalized FSM components are blessed ([§3.1][s3-1]), which makes
+cross-component cascades the expected idiom.
 
 Established practice agrees. Hybrid automata take sequences of instantaneous
 transitions at one time point. Modelica iterates events to quiescence.
@@ -66,12 +68,12 @@ What differs is the reference sample. The edge is read against the
 last-observed sample, not against the prior the boundary entered with
 ([D-181][d-181]).
 
-Two consequences follow. Sticky predicates need no
-special case. An event that fires and keeps holding presents no further
-not-holding → holding edge, so it fires once, at the boundary where it first
-held. And a predicate that is genuinely falsified and re-enabled inside the
-boundary, because another handler's cascade reverted its effect, fires again at
-this boundary against a fresh sweep ([D-181][d-181]).
+Two consequences follow. Sticky predicates need no special case. An event that
+fires and keeps holding presents no further not-holding → holding edge, so it
+fires once, at the boundary where it first held. And a predicate that is
+genuinely falsified and re-enabled inside the boundary, because another
+handler's cascade reverted its effect, fires again at this boundary against a
+fresh sweep ([D-181][d-181]).
 
 The sketch below shows one boundary's iteration.
 
@@ -87,32 +89,31 @@ end                                        # the exit condition is quiescence
 per event:  prior ← last                   # the settled boundary's honest sample
 ```
 
-**The prior is updated at each boundary's quiescence**, from the final
+The prior is updated at each boundary's quiescence, from the final
 post-iteration samples ([D-082][d-082]). The update is unconditional. Every
 prior is therefore an honest observation of a settled boundary. That is what
-makes the θ = 0 discriminator ([§10.4][s10-4]) conclusive. The frame-top
-[drain](#g-drain) (the swap that publishes staged device writes into the root
-inputs) is the only possible source of disagreement between the prior and the
-left-end trial evaluation.
+makes the θ = 0 discriminator ([§10.4][s10-4]) conclusive.
 
 All three registers are detection bookkeeping, not model memory. They are
 correctly absent from every state store ([D-082][d-082]). A
 [checkpoint](#g-checkpoint) (the executor's state at a frame top, as one value)
 carries the prior, the one register that crosses a boundary ([§12.6][s12-6],
 [D-274][d-274]). The [trace header](#g-trace-header) (the trace's fixed
-preamble) is such a checkpoint. `restore!` copies a
-checkpoint's prior back ([D-274][d-274]). The other two registers are reset on
-entering each boundary, as the sketch shows. Beyond the prior, the cost is one
-`Bool` and one small counter per event.
+preamble) is such a checkpoint. `restore!` copies a checkpoint's prior back
+([D-274][d-274]). The other two registers are reset on entering each boundary,
+as the sketch shows. Beyond the prior, the cost is one `Bool` and one small
+counter per event.
 
 [Boundary zero](#g-boundary-zero) is the initialization boundary. **Boundary
-zero sets every prior to not-holding** ([D-082][d-082]). A predicate already holding in the
-authored state therefore fires at `t₀`. That behavior ([§14.5][s14-5]) is
-derived rather than asserted. A re-run from a condition resets all three
-registers from scratch, because `init!` re-runs boundary zero ([§14.5][s14-5]).
-Predicates holding in the newly applied state fire again at the new `t₀`. A
-`restore!` keeps the checkpoint's priors and runs no boundary zero, so nothing
-holding re-fires ([§12.6][s12-6], [D-274][d-274]).
+zero sets every prior to not-holding** ([D-082][d-082]). A predicate already
+holding in the authored state therefore fires at `t₀`. That behavior
+([§14.5][s14-5]) is derived rather than asserted. A re-run from a
+[condition](#g-condition) (a path-addressed overlay that sets the build to a
+state, [§14.1][s14-1]) resets all three registers from scratch, because `init!`
+re-runs boundary zero ([§14.5][s14-5]). Predicates holding in the newly applied
+state fire again at the new `t₀`. A `restore!` keeps the checkpoint's priors and
+runs no boundary zero, so nothing holding re-fires ([§12.6][s12-6],
+[D-274][d-274]).
 
 #### What a handler sees within a round
 
@@ -122,7 +123,7 @@ Each round re-runs the whole boundary sweep, gated entries included
 produced signal) only through a sweep. A handler writes its component's state
 stores and nothing else. So neither the transitioning component's own
 [ports](#g-port) (each one declared name with its cell) nor the downstream
-stage-2 chains that read them have moved. The cost is negligible. Sweeps take
+`y_direct` chains that read them have moved. The cost is negligible. Sweeps take
 microseconds, and rounds beyond the first require an actual cascade.
 
 Within a round, the signal table has a single writer, and it is the sweep
@@ -130,16 +131,17 @@ Within a round, the signal table has a single writer, and it is the sweep
 transitions, the framework latches them into the component's state stores, and
 `x_projection` normalizes them. Nothing moves the table mid-round.
 
-This gives the epoch rule, which is the core of this section. **A handler
-executes against exactly the world its guard fired on** ([D-154][d-154]). Its
-own `y`, foreign `u` and its own `x`/`m` all come from the firing round's
-sweep, so `y = h(x)` holds at every handler entry. No [bundle](#g-bundle) (the NamedTuple of zero-copy views a
-component function receives) ever straddles two epochs. An epoch here is the world one round's
-sweep produces. It is not the input epoch of [§10.4][s10-4].
+This gives the epoch rule, which is the core of this section. An epoch here is
+the world one round's sweep produces. It is not the input epoch of
+[§10.4][s10-4]. **A handler executes against exactly the world its guard fired
+on** ([D-154][d-154]). Its own `y`, foreign `u` and its own `x`/`m` all come
+from the firing round's sweep, so `y = h(x)` holds at every handler entry. No
+[bundle](#g-bundle) (the NamedTuple of zero-copy views a component function
+receives) ever straddles two epochs.
 
-Serialization is what delivers the epoch rule. A component's state stores are written
-only by its own handlers, and it fires at most one event per round, so no
-same-round writer precedes any handler's entry.
+Serialization is what delivers the epoch rule. A component's state stores are
+written only by its own handlers, and it fires at most one event per round, so
+no same-round writer precedes any handler's entry.
 
 **A component's other eligible events are blocked, not lost**
 ([D-191][d-191]). Each is re-decided in the next round, against the
@@ -184,28 +186,27 @@ all. [D-154][d-154] and [D-100][d-100] record the rejected shapes.
 
 #### The firing budget
 
-A per-event [firing budget](#g-firing-budget) (the rule bounding how often each
-event fires at one boundary) lets a re-enabled event fire at its true boundary,
-against a fresh sweep. The deferral design and the per-round cap are both
-rejected ([D-020][d-020], [D-181][d-181]). The deferral design fired a
-re-enabled event one step late, through a manufactured not-holding prior
-([D-181][d-181]). The per-round cap bounded the number of rounds at a boundary
-([D-020][d-020]). Priors stay honest as a consequence.
-Every prior is a sample actually taken, never a value recorded to make a rule
-work out.
+A per-event firing budget lets a re-enabled event fire at its true boundary,
+against a fresh sweep. Priors stay honest as a consequence. Every prior is a
+sample actually taken, never a value recorded to make a rule work out. The
+deferral design and the rounds cap are both rejected ([D-020][d-020],
+[D-181][d-181]). The deferral design fired a re-enabled event one step late,
+through a manufactured not-holding prior ([D-181][d-181]). The rounds cap
+bounded the number of rounds at a boundary ([D-020][d-020]).
 
 Termination is then budget-bounded rather than structural. For `E` declared
 events, a boundary admits at most `firing_budget · E` firings, hence a bounded
 number of rounds, deterministically and independently of pace. A livelock, such
 as two FSMs toggling each other, does not resolve silently. Each toggler spends
-its budget and warns (below), and the run proceeds and replays identically.
-This is degradation, not an error, per the doctrine of [§10.4][s10-4]. The
-warning names the actual chatterer, while every other event's iteration
-continues untouched.
+its budget and warns (below). The run proceeds, and its [replay](#g-replay) (the
+ordinary loop re-driven from the trace) is identical. This is degradation, not
+an error, per the doctrine of [§10.4][s10-4]. The warning names the actual
+chatterer, while every other event's iteration continues untouched.
 
 This trade is also stated openly. Because termination is budget-bounded rather
-than structural, the arbitrary-K objection ([D-020][d-020]) lives on in
-`firing_budget`. [D-181][d-181] records what that buys.
+than structural, the objection that a rounds cap is an arbitrary knob
+([D-020][d-020]) lives on in `firing_budget`. [D-181][d-181] records what that
+buys.
 
 **Budget exhaustion degrades; it does not throw** ([D-181][d-181]). When an
 event has fired `firing_budget` times at a boundary, its further edges there
@@ -216,20 +217,22 @@ event that fires its budget out and then quiesces lost nothing and warns
 nothing. The warning carries the component path, the event name, the boundary
 time and the exhausted budget beside the boundary's firing count.
 
-The default of 4 is chosen the way [§10.4][s10-4] chooses the per-frame
-localization budget's 8. A legitimate re-enable is one or two firings deep. A toggling FSM
-pair chatters without bound. A budget of 4 separates the two without ever
-binding on a healthy model. Like every other degradation here, it depends on
-the trajectory alone, so the run replays identically.
+The default of 4 is chosen the way [§10.4][s10-4] chooses 8 for the
+[localization budget](#g-chattering) (the count of localizations permitted
+within one frame). A legitimate re-enable is one or two firings deep. A toggling
+FSM pair chatters without bound. A budget of 4 separates the two without ever
+binding on a healthy model. Like every other degradation here, it depends on the
+trajectory alone, so the run replays identically.
 
-The doctrine of [§10.4][s10-4] governs both budgets. Neither the boundary iteration nor
-re-localization within the frame has a structural bound, so each takes a
-budget. The boundary iteration takes `firing_budget`, per event per boundary,
-and re-localization takes `localization_budget`, per frame. Both degrade loudly
-rather than erroring, under a warning that names the offending event. They
-differ only in what exhaustion sheds. Localization sheds root-finding precision
-and preserves every firing at boundary granularity. The firing budget sheds
-firings, which is exactly what bounds the iteration.
+The doctrine of [§10.4][s10-4] governs both budgets. Neither the boundary
+iteration nor re-localization within the [frame](#g-frame) (one grid step) has a
+structural bound, so each takes a budget. The boundary iteration takes
+`firing_budget`, per event per boundary, and re-localization takes
+`localization_budget`, per frame. Both degrade loudly rather than erroring,
+under a warning that names the offending event. They differ only in what
+exhaustion sheds. Localization sheds root-finding precision and preserves every
+firing at boundary granularity. The firing budget sheds firings, which is
+exactly what bounds the iteration.
 
 #### Ticks after quiescence
 
@@ -266,8 +269,8 @@ Boundary zero is the same sequence with an empty integrate ([§14.5][s14-5],
 The sequence decides the mixed case, where the handler of a
 [continuous component](#g-continuous-component) (the hybrid primitive, with
 continuous state, modes and events) and its discrete observers' ticks land on
-one boundary. Take an engine's `starting → running` transition under a
-50 Hz FCS. The engine is a continuous component, and the FCS (the flight
-control system) is a discrete component that observes it. The transition fires
-in the iteration segment. The re-sweep re-runs the FCS's stages against
-`running`-mode ports, and its `s_update` then runs from post-transition values.
+one boundary. Take an engine's `starting → running` transition under a 50 Hz
+flight control system (FCS). The engine is a continuous component, and the FCS
+is a discrete component that observes it. The transition fires in the iteration
+segment. The re-sweep re-runs the FCS's stages against `running`-mode ports, and
+its `s_update` then runs from post-transition values.

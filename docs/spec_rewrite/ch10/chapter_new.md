@@ -1,12 +1,12 @@
 ## 10. Time and execution
 
-This chapter owns time. It takes the execution order ([§5.3][s5-3]) and the
-compiled executor ([§9.7][s9-7]) as given, and states how the loop runs them
-through time. [§10.1][s10-1] covers loop ownership and the loop's two units,
-the frame and the boundary, [§10.2][s10-2] the stepper seam, [§10.3][s10-3]
-signal-table consistency, [§10.4][s10-4] localization mechanics,
-[§10.5][s10-5] multi-rate tick scheduling, [§10.6][s10-6] event iteration at
-boundaries, and [§10.7][s10-7] real-time pacing.
+This chapter states how the loop runs a model through time. It takes the
+execution order ([§5.3][s5-3]) and the compiled executor ([§9.7][s9-7]) as
+given. [§10.1][s10-1] covers loop ownership and the loop's two units;
+[§10.2][s10-2] the stepper seam; [§10.3][s10-3] signal-table consistency;
+[§10.4][s10-4] localization mechanics; [§10.5][s10-5] multi-rate tick
+scheduling; [§10.6][s10-6] event iteration at boundaries; and [§10.7][s10-7]
+real-time pacing.
 
 ### 10.1 Loop ownership: the framework owns the simulation loop
 
@@ -19,14 +19,15 @@ and they mean different things.
   [drain](#g-drain) (the frame-top swap that publishes staged device writes
   into the root inputs, [§11.4][s11-4]), pacer deadlines ([§10.7][s10-7]) and
   [tick](#g-tick) eligibility ([§10.5][s10-5]).
-- A [boundary](#g-boundary) is a published consistency point. The
-  macro-sequence of [§10.6][s10-6] completes there, and a
-  [snapshot](#g-snapshot) (the immutable per-boundary publication) goes out.
+- A [boundary](#g-boundary) is a published consistency point. The boundary
+  sequence ([§5.3][s5-3]) completes there, in the final form [§10.6][s10-6]
+  calls the macro-sequence, and a [snapshot](#g-snapshot) (the immutable
+  per-boundary publication) goes out.
 
 Every grid point is a boundary, but not every boundary is a grid point.
-**The [localized](#g-localized) event time `t*` is a boundary but not a frame
-top** ([D-081][d-081]). `t*` is an event's crossing instant inside a step,
-bracketed by root-finding ([§10.4][s10-4]).
+`t*` is an event's crossing instant inside a step, bracketed by root-finding
+([§10.4][s10-4]). **The [localized](#g-localized) event time `t*` is a
+boundary but not a frame top** ([D-081][d-081]).
 [Boundary zero](#g-boundary-zero) (the initialization boundary at `t₀`,
 [§14.5][s14-5]) is a boundary and not a frame top either.
 
@@ -35,13 +36,13 @@ The loop consists of six activities. They are the boundary sequence
 [pacing](#g-pacing) (waits inserted between completed frames, never altering
 the boundary sequence).
 
-**All six are framework code, unconditionally** ([D-017][d-017]). The
-framework writes the loop itself. It does not assemble the loop out of
-callbacks registered with a third-party solver. The reason is the
-step-boundary contract ([§10.6][s10-6]), the central invariant of this design.
-Only a loop the framework owns can enforce that contract by construction
-rather than by convention. [D-017][d-017] records the rejected foreign-loop
-alternative.
+**All six are framework code, unconditionally** ([D-017][d-017]). The framework
+writes the loop itself. It does not assemble the loop out of callbacks
+registered with a third-party solver. The reason is the step-boundary contract
+(at every boundary the [§10.6][s10-6] macro-sequence completes before a snapshot
+goes out). It is the central invariant of this design. Only a loop the framework
+owns can enforce that contract by construction rather than by convention.
+[D-017][d-017] records the rejected foreign-loop alternative.
 
 **`OrdinaryDiffEq` is dropped as a dependency** of the new core
 ([D-017][d-017]).
@@ -61,7 +62,7 @@ The seam contract has four clauses.
 - The backend advances by arbitrary `h`. The loop needs this anyway. It lands
   on [tick](#g-tick) [boundaries](#g-boundary), and it resumes from a
   [localized](#g-localized) event time (the crossing instant bracketed by
-  root-finding over trial sweeps).
+  root-finding over trial evaluations).
 - The backend provides dense output on demand over the last completed step.
   Only event localization needs it ([§10.4][s10-4]), so the backend
   constructs it lazily.
@@ -101,7 +102,8 @@ trivially zero-allocation, so they can be audited against the CI invariant
 ([§7.5][s7-5]). They are also trivially `T`-generic. Genericity is not even
 required of the stepper, because linearization and the
 [feedthrough tracer](#g-feedthrough-tracer) (the instrument that classifies a
-rejected cycle as real or artificial, [§5.6][s5-6]) drive the *sweep*, never the integrator.
+rejected cycle as real or artificial, [§5.6][s5-6]) drive the *sweep*, never the
+integrator.
 
 **`RK4` is the default** of the two ([D-227][d-227]). The `algorithm` keyword
 selects the backend by type on the [`Deployment`](#g-deployment) (the
@@ -119,27 +121,26 @@ then.
 
 #### The case for fixed-step low order
 
-The domain argument is recorded here because it is decisive for the whole
-axis. It makes three claims.
+The domain argument is recorded here because it is decisive for the choice
+of integration method. It makes three claims.
 
 1. Closed-loop ticks cap the step. Every application beyond bare propagation
-   runs periodic avionics (onboard flight systems), whose commands are zero-order-held signals.
-   Integrating past a tick with stale commands is wrong, so the integrator
-   must land on every tick boundary regardless of method. Adaptive and
-   high-order methods pay off exactly when steps can stretch, and the
-   execution model forbids the stretch by construction.
+   runs periodic avionics (onboard flight systems), whose commands are
+   zero-order-held signals. Integrating past a tick with stale commands is
+   wrong, so the integrator must land on every tick boundary regardless of
+   method. Adaptive and high-order methods pay off exactly when steps can
+   stretch, and the execution model forbids the stretch by construction.
 2. A piecewise-smooth [RHS](#g-flow) (the continuous derivative function)
    starves high order. Linearly interpolated lookup tables (C¹-kinked at
    every knot), clamps, friction blends and mode branches deny high-order
    error estimators and implicit-solver Newton iterations the smoothness they
    assume.
 3. Stiffness has a remedy ladder. If a future model exceeds RK4's stability
-   region at the deployed `h`, the ladder runs in order. First shrink `h`.
-   Then subcycle the
-   stepper against the tick grid. Only then reach for an implicit method
-   through the `OrdinaryDiffEq` extension above. If that day comes, eltype
-   genericity ([§7.2][s7-2]) supplies exact ForwardDiff Jacobians through the
-   sweep for free.
+   region at the deployed `h`, the ladder runs in order. First shrink `h`. Then
+   subcycle the stepper against the tick grid. Only then reach for an implicit
+   method through the `OrdinaryDiffEq` extension above. If that day comes,
+   eltype genericity ([§7.2][s7-2]) supplies exact ForwardDiff Jacobians through
+   the sweep for free.
 
 The Flight.jl evidence behind these claims lives in section 5 of
 `companions/flight_case_studies.md`.
@@ -153,12 +154,13 @@ is transiently integrator scratch. The [boundary sweep](#g-sweep) in the
 [§5.3][s5-3] sequence restores consistency at each accepted
 [boundary](#g-boundary).
 
-**External readers (GUI, logging, network output) observe the signal table
-only at step boundaries** ([D-023][d-023]). Mid-step contents carry no
-meaning. This rule binds the [periphery](#g-periphery) (everything outside
-the loop that exchanges data with it, [§11][s11]). The rule extends naturally
-to the boundary sequence ([§10.6][s10-6]). External readers observe the table
-only after the boundary sequence completes.
+**External readers observe the signal table only at step boundaries**
+([D-023][d-023]). These readers are the GUI, logging and network output.
+Mid-step contents carry no meaning. This rule binds the
+[periphery](#g-periphery) (everything outside the loop that exchanges data with
+it, [§11][s11]). The rule extends naturally to the boundary sequence
+([§10.6][s10-6]). External readers observe the table only after the boundary
+sequence completes.
 
 ### 10.4 Localization mechanics
 
@@ -168,19 +170,20 @@ the crossing at the end of the step, at grid resolution. Or it can find the
 crossing instant and publish it. This section fixes which guards get which
 treatment, and describes the machinery behind the second.
 
-The localized event time `t*` is a [boundary](#g-boundary) (a published
-consistency point, [§10.1][s10-1]). It is not the top of a [frame](#g-frame)
-(one grid step, the unit of scheduling).
+The [localized](#g-localized) event time `t*` is a [boundary](#g-boundary) (a
+published consistency point, [§10.1][s10-1]). It is not the top of a
+[frame](#g-frame) (one grid step, the unit of scheduling).
 
 A frame in which one event localizes runs through these steps. Its boundaries
 are tₙ, `t*` and tₙ₊₁.
 
-> tₙ → integrate → arrival sweep at tₙ₊₁ → trigger → θ = 0 trial evaluation → bracket
-> → root-find → t\* → remainder step → tₙ₊₁
+> tₙ → integrate → arrival sweep at tₙ₊₁ → trigger → θ = 0 trial evaluation
+> → bracket → root-find → t\* → remainder step → tₙ₊₁
 
 This chain lists the order of operations. It is not a walk along the time axis.
-The [arrival sweep](#g-sweep) at tₙ₊₁ raises the trigger, and integration then resumes from
-`t*`, which lies before tₙ₊₁.
+The [arrival sweep](#g-sweep) (the sweep that closes the integration step) at
+tₙ₊₁ raises the trigger, and integration then resumes from `t*`, which lies
+before tₙ₊₁.
 
 #### Detection policy
 
@@ -189,23 +192,23 @@ flag is involved.
 
 - A guard returning `Bool` is [boundary-detected](#g-boundary-detected). The framework checks it for
   edges at step boundaries only and never root-finds it.
-- A guard returning the nominal scalar, the continuous sign form, is
-  [localized](#g-localized). The framework brackets the crossing instant by root-finding
-  over trial sweeps.
+- A guard returning the nominal scalar, the continuous sign form, is localized.
+  The framework brackets the crossing instant by root-finding over trial
+  evaluations.
 
 The build reads the policy off the [probe](#g-probe) it already runs ([§9.3][s9-3], nominal
 [activation](#g-activation)). `StateEvent(guard, handler)` therefore carries no detection keyword
 ([D-179][d-179]).
 
 Localization brackets a root, and only the sign form offers one. Because the
-form is the policy, the illegal pairing cannot be written at all. It needs no
-diagnostic.
+form is the policy, a localized `Bool` guard cannot be written at all. It needs
+no diagnostic.
 
 A localized guard becomes boundary-detected with a one-line rewrite, at no
-semantic cost ([D-179][d-179]). Return the predicate `σ ≥ 0` instead of `σ`.
-That cast is the definition of the predicate ([§2.1][s2-1]). The predicate and
-its edges stay the same. Only the resolution at which they are observed
-changes.
+semantic cost ([D-179][d-179]). Return the predicate `σ ≥ 0` instead of the
+sign-form value `σ`. That cast is the definition of the predicate
+([§2.1][s2-1]). The predicate and its edges stay the same. Only the resolution
+at which they are observed changes.
 
 **For a guard that reads only `u` and `m`, boundary detection is exact**
 ([D-179][d-179]). Such a predicate is constant within each frame. `u` changes
@@ -216,8 +219,8 @@ for a root-finder to find. Here the boundary is not a resolution limit. It is
 the crossing itself, and localization would have nothing to do.
 
 A mixed predicate combines `Bool` factors with a continuous one. Take a piston
-engine whose modes include `starting` and `running`. The piston engine's `starting → running` fires on
-`ω > ω_idle && fuel_available`.
+engine whose modes include `starting` and `running`. Its `starting → running`
+transition fires on `ω > ω_idle && fuel_available`.
 
 **When such a transition should localize, write it in the gate form
 `(gate) ? σ : -one(σ)`** ([D-179][d-179]). The `Bool` factors go in the branch
@@ -238,12 +241,13 @@ step), which the localization loop below defines and builds.
 
 **Trial evaluations run the interior sweep** ([D-147][d-147]). Guards read `y`.
 Evaluating a guard at an interpolated state therefore means writing
-$\hat{x}(\theta)$ into the state [buffer](#g-buffer) and running the [interior sweep](#g-sweep). The [RHS](#g-flow)
-already lives under this rule ([§10.5][s10-5]), since a trial evaluation is a
-mid-step evaluation. Discrete [cells](#g-cell) therefore hold their [tick](#g-tick) values
-through localization, and a guard reading a sampled output sees what the
-controller is holding. A tick is an instant at which a discrete component's
-stages and update run. Each trial evaluation costs one interior sweep.
+$\hat{x}(\theta)$ into the state [buffer](#g-buffer) and running the
+[interior sweep](#g-sweep). The [RHS](#g-flow) already lives under this rule
+([§10.5][s10-5]), since a trial evaluation is a mid-step evaluation. Discrete
+[cells](#g-cell) therefore hold their [tick](#g-tick) values (set at the last
+instant their stages and update ran) through localization, and a guard reading a
+sampled output sees what the controller is holding. Each trial evaluation costs
+one interior sweep.
 
 #### The trigger
 
@@ -306,11 +310,11 @@ jump without crossing anything.
 The discriminator is conclusive ([D-182][d-182]). `u` is the only thing that can
 differ between the prior's evaluation context and this trial evaluation. `m`
 changes only via handlers at boundaries, and priors are sampled at quiescence,
-after the handlers. Discrete cells hold their values under zero-order hold (ZOH), and the interior
-sweep excludes discrete entries ([§10.5][s10-5]). `t = tₙ` exactly, by the
-indexed-grid rule below. Sweeps are deterministic. So under the honest priors of
-[§10.6][s10-6], the frame-top drain is the only possible source of
-disagreement.
+after the handlers. Discrete cells hold their values under zero-order hold
+(ZOH), and the interior sweep excludes discrete entries ([§10.5][s10-5]).
+`t = tₙ` exactly, by the indexed-grid rule below. Sweeps are deterministic. So
+under the honest priors of [§10.6][s10-6], the frame-top drain is the only
+possible source of disagreement.
 
 - σ₀ not-holding means a trajectory-caused edge, a genuine in-frame crossing.
   Pay the sweep for ẋₙ₊₁, build the interpolant and root-find on the bracket
@@ -323,16 +327,17 @@ localization is abandoned and the event fires inside tₙ₊₁'s ordinary itera
 Mechanically, not localizing is the action. The frame falls through, and the
 boundary iteration detects and fires the event like any boundary-detected event.
 This path costs one interior sweep. It never pays for ẋₙ₊₁ or an interpolant,
-and it consumes no `localization_budget` (see "The localization budget"
-below). It also warns nothing. Input timing is
-a frame fact, by the same doctrine that forbids draining at `t*` below, and
-boundary detection is exact for a `u`-caused edge (above; [D-179][d-179]).
-Boundary firing is therefore the correct semantics, not a degradation. This is
-the left-end mirror of the `t* = tₙ₊₁` degeneracy below.
+and it consumes no `localization_budget` (see "The localization budget" below).
+It also warns nothing. Input timing is a frame fact, by the same doctrine that
+forbids draining at `t*` below, and boundary detection is exact for a `u`-caused
+edge (above; [D-179][d-179]). Boundary firing is therefore the correct
+semantics, not a degradation. This is the left-end mirror of the `t* = tₙ₊₁`
+degeneracy below.
 
-The interpolant is built lazily ([D-018][d-018]). It is the cubic Hermite
-continuous extension $\hat{x}(\theta)$, $\theta = (t - t_n)/h \in [0, 1]$, built
-from $(x_n, \dot{x}_n, x_{n+1}, \dot{x}_{n+1})$. $\dot{x}_n$ is the step's first
+The interpolant is the seam's dense output ([§10.2][s10-2]). It is built lazily
+([D-018][d-018]). It is the cubic Hermite continuous extension
+$\hat{x}(\theta)$, $\theta = (t - t_n)/h \in [0, 1]$, built from
+$(x_n, \dot{x}_n, x_{n+1}, \dot{x}_{n+1})$. $\dot{x}_n$ is the step's first
 stage. $\dot{x}_{n+1}$ costs one sweep, paid only on a validated trigger
 ([D-182][d-182]). The θ = 0 trial evaluation comes first, so an epoch-caused
 edge never pays for it. Uniform accuracy is $O(h^4)$, one order below the
@@ -347,20 +352,21 @@ and AD localization are rejected ([D-018][d-018]).
 
 **Convergence is a relative bracket width** ([D-133][d-133]). Localization stops
 once the bracket is narrower than `localization_tol · h`. `localization_tol` is
-a `Deployment` constructor keyword defaulting to `1e-6` ([D-256][d-256]). The
+a constructor keyword of the [`Deployment`](#g-deployment) (the scalar-free
+artifact the grid parameters fix) and defaults to `1e-6` ([D-256][d-256]). The
 tolerance is relative because an absolute tolerance in `t` is not scale-free
-([D-133][d-133]). The default is `1e-6` because the event time can never be
-more accurate than the interpolant, which is `O(h⁴)` as stated above. At
-practical `h`, anything tighter buys nothing, while every trial evaluation costs
-a full sweep. Under ITP the bill is a handful of trial evaluations, and around
-20 in bisection's worst case.
+([D-133][d-133]). The default is `1e-6` because of the interpolant's accuracy
+limit, `O(h⁴)` as stated above. At practical `h`, anything tighter buys nothing,
+while every trial evaluation costs a full sweep. Under ITP the bill is a handful
+of trial evaluations, and around 20 in bisection's worst case.
 
-After the event, the boundary sequence runs at `t*` (below). The interpolant
-is then invalidated, because the handlers have made it wrong for `t > t*`
-([D-018][d-018]). Integration resumes from `t*` with the [remainder step](#g-remainder-step)
-targeting tₙ₊₁, and the guards are re-checked on the remainder. The re-check
-runs under the per-frame [localization budget](#g-chattering) (below), with a chattering
-diagnostic.
+After the event, the boundary sequence runs at `t*` (below). The interpolant is
+then invalidated, because the handlers have made it wrong for `t > t*`
+([D-018][d-018]). Integration resumes from `t*` with the
+[remainder step](#g-remainder-step) (the integration from `t*` to the original
+grid target) targeting tₙ₊₁, and the guards are re-checked on the remainder. The
+re-check runs under the per-frame [localization budget](#g-chattering) (below),
+with a chattering diagnostic.
 
 Multiple events localizing in one step fire at the earliest `t*`. Ties fire at
 that boundary inside the event iteration, one eligible event per component per
@@ -406,9 +412,8 @@ is computed from the frame index, just as tick gating is already counter-modulo
 ([§10.5][s10-5]). The remainder step targets the grid point, with `h′` (the
 remainder step's length) derived at use. `t*` is a float inside a frame, never
 an anchor from which anything else is computed. A near-degenerate `t*` leaves a
-tiny remainder step.
-Numerically that is harmless, since increments scale with `h′`. The real
-hazard is bookkeeping, and this rule removes it.
+tiny remainder step. Numerically that is harmless, since increments scale with
+`h′`. The real hazard is bookkeeping, and this rule removes it.
 
 #### The `t*` boundary
 
@@ -444,10 +449,10 @@ boundary index ([§13.4][s13-4], [D-128][d-128]) together with the recorded
 boundaries consume no inputs.
 
 [Projection](#g-projection) (the optional per-component hook
-`x ← x_projection(x)`) reaches the boundary, not the trial evaluation.
-**Guard trial evaluations run against the raw interpolated state**
-([D-018][d-018]). Authority rests with the `t*` boundary. Projection runs
-there, and the edge checks of the [§10.6][s10-6] iteration read the projected state. RK-stage RHS
+`x ← x_projection(x)`) reaches the boundary, not the trial evaluation. **Guard
+trial evaluations run against the raw interpolated state** ([D-018][d-018]).
+Authority rests with the `t*` boundary. Projection runs there, and the edge
+checks of the [§10.6][s10-6] iteration read the projected state. RK-stage RHS
 evaluations already run under the same rule, since they are equally
 off-manifold. Sweeps must therefore tolerate near-manifold states, and they
 already do. Per-trial projection is rejected ([D-018][d-018]).
@@ -459,9 +464,9 @@ other localization outcome, it is deterministic and pace-independent
 
 #### The localization budget
 
-**`localization_budget` is an integer count of localizations permitted within
-one frame** ([D-133][d-133], [D-181][d-181]). It defaults to 8. It is the
-second deployment keyword this section fixes.
+**`localization_budget`, the integer count of localizations permitted within one
+frame, defaults to 8** ([D-133][d-133], [D-181][d-181]). It is the second
+deployment keyword this section fixes.
 
 A legitimate multi-event frame needs three or four localizations. Three
 landing-gear struts touching down inside one step is the reference case.
@@ -478,26 +483,25 @@ the localization count.
 The degradation depends on the trajectory alone, never on wall clock. The
 pace-independence guarantee ([D-080][d-080]) therefore stands, and the run
 replays identically. A `StepError` ([§13.4][s13-4]) here would misclassify an
-expected modeling outcome as broken machinery, which the no-throw doctrine of [§14.8][s14-8]
-forbids.
+expected modeling outcome as broken machinery, which the no-throw doctrine of
+[§14.8][s14-8] forbids.
 
 #### Deployment constants
 
 Both localization constants are deployment, not implementation.
 `localization_tol` and `localization_budget` are constructor keywords of the
-[`Deployment`](#g-deployment) (the scalar-free artifact the grid parameters
-fix). They stand beside `h`, `N_base` and the algorithm ([§9.2][s9-2],
-[Appendix B][sB], [D-256][d-256]). The constructor validates them with the
-third event parameter, the `firing_budget` of [§10.6][s10-6], and failures are
-collected into `DeploymentInvalid`, as [§9.2][s9-2] and [Appendix C][sC] set
-out. All three are grid-independent, so none enters the harmonic-grid check
+`Deployment`. They stand beside `h`, `N_base` and the algorithm ([§9.2][s9-2],
+[Appendix B][sB], [D-256][d-256]). The constructor validates them with the third
+such keyword, the `firing_budget` of [§10.6][s10-6], and failures are collected
+into `DeploymentInvalid`, as [§9.2][s9-2] and [Appendix C][sC] set out. All
+three are grid-independent, so none enters the harmonic-grid check
 ([§10.5][s10-5]).
 
-**All three are recorded** ([D-133][d-133], [D-181][d-181]), because they
-determine the trajectory. They ride the `Deployment` in the [trace header](#g-trace-header)
-(the trace's fixed preamble, [§11.5][s11-5]). They also join the set that
-replay compares up front, exactly as `h` and the algorithm do
-([§12.7][s12-7]).
+All three are recorded ([D-133][d-133], [D-181][d-181]), because they determine
+the trajectory. They ride the `Deployment` in the
+[trace header](#g-trace-header) (the trace's fixed preamble, [§11.5][s11-5]).
+They also join the set that replay compares up front, exactly as `h` and the
+algorithm do ([§12.7][s12-7]).
 
 Without this record, the replays-identically promise above is empty. A run
 that does not record what its localizer was told to do cannot be re-driven
@@ -605,22 +609,21 @@ Each kind of boundary has its own due set:
   specifies.
 
 An offset component's first tick is at `Φ·Δt_base`. Until then its cells hold
-its boundary-zero publication. Its output stages run at `t₀` due or not,
+its boundary-zero publication. Its output stages still run at `t₀`, as above,
 evaluated from the authored world ([D-205][d-205], [§14.5][s14-5]). The
-[probe](#g-probe)'s synthesized values reach no published cell. The probe is
-the build's single evaluation of a user function with real values
-([§9.3][s9-3]). In a phase-free model every `Φ` is 0, so at boundary zero
-everything is due and the distinction is empty.
+[probe](#g-probe)'s synthesized values reach no published cell. The probe is the
+build's single evaluation of a user function with real values ([§9.3][s9-3]). In
+a phase-free model every `Φ` is 0, so at boundary zero everything is due and the
+distinction is empty.
 
 #### Simultaneous ticks
 
 Several components can be due at one boundary, and settled machinery already
 orders them. All due components run their output stages in topological order
-within the sweep. All due `s_update` calls run after quiescence, in any
-order. Each one reads the table and writes only its own `s` store. The
-intra-tick ordering of the FCS cascade (a flight control system's outer loops
-feeding its inner loop) is therefore a sweep property, not an update-order
-property.
+within the sweep. All due `s_update` calls run after quiescence, in any order.
+Each one reads the table and writes only its own `s` store. The intra-tick
+ordering of a flight control system (FCS) cascade, where outer loops feed an
+inner loop, is therefore a sweep property, not an update-order property.
 
 #### Assemblies and rate scopes
 
@@ -670,15 +673,15 @@ data carriers, with no checks of their own.
 
 #### Relative composition
 
-**Multipliers compose multiplicatively and phases affinely down the tree**
+Multipliers compose multiplicatively and phases affinely down the tree
 ([D-019][d-019], [D-185][d-185]). Under a scope compiled to divisor and phase
 `(D_s, Φ_s)` in base ticks, a child declared `Relative(K, φ)` compiles to
 `D = K·D_s` and `Φ = Φ_s + φ·D_s`.
 
 Composition preserves the canonical residue `0 ≤ Φ < D`.
-`sample_time_proposal.md` (the declaration design's worked companion) carries
-the one-line induction. All scoping therefore compiles away at build to one
-`(D, Φ)` pair per discrete component. The boundary sweep gates on that pair
+`companions/sample_time_proposal.md` (the declaration design's worked companion)
+carries the one-line induction. All scoping therefore compiles away at build to
+one `(D, Φ)` pair per discrete component. The boundary sweep gates on that pair
 with the `(tick − Φ) % D == 0` test above. The lattice stays static, and the
 interior sweep still holds no discrete entries to gate.
 
@@ -757,11 +760,11 @@ receives).
 
 #### A worked example
 
-This example follows one declaration to its compiled pairs and one
-hyperperiod. Three discrete components sit under two scopes, at a deployment
-that binds `Δt_base = 2 ms` ([§9.2][s9-2]). The root scope holds `fcs`, a
-flight control system (FCS) scope, and `gnss`, a satellite-navigation (GNSS)
-component.
+This example follows one declaration to its compiled pairs and one hyperperiod
+(the span after which the tick pattern repeats). Three discrete components sit
+under two scopes, at a deployment that binds `Δt_base = 2 ms` ([§9.2][s9-2]).
+The root scope holds `fcs`, an FCS scope, and `gnss`, a satellite-navigation
+(GNSS) component.
 
 ```julia
 # Root scope: (D_s, Φ_s) = (1, 0).
@@ -798,15 +801,15 @@ structural expression of an acquisition pipeline's latency, obtained with no
 delay blocks. The two-tick and seven-tick reads in the example above are the
 deterministic aging of a stagger, in that model's numbers.
 
-A stagger is also a load-shaping tool under real-time [pacing](#g-pacing)
-(waits inserted between completed frames, never altering the boundary
-sequence). Staggered stacks never share a [frame](#g-frame), so worst-case
-frame cost is a `max` rather than a sum ([§10.7][s10-7]).
+A stagger is also a load-shaping tool under real-time [pacing](#g-pacing) (waits
+inserted between completed frames, never altering the boundary sequence).
+Staggered stacks never share a frame, so worst-case frame cost is a `max` rather
+than a sum ([§10.7][s10-7]).
 
-Both patterns are worked in `sample_time_proposal.md`, together with how
-silently an offset edit rewires a coincidence structure. The `Schedule` and
-its hyperperiod chart ([§9.2][s9-2]) are how a user audits which pattern a
-model actually has.
+Both patterns are worked in `companions/sample_time_proposal.md`, together with
+how silently an offset edit rewires a coincidence structure. The `Schedule` and
+its hyperperiod chart ([§9.2][s9-2]) are how a user audits which pattern a model
+actually has.
 
 #### `Δt` in the bundle
 
@@ -840,7 +843,6 @@ Phases change none of this. **The bundle's `Δt` is still `D·Δt_base`**
 ([D-185][d-185]). An offset shifts firing instants and never the period, so
 the discretized laws are unaffected by staggering.
 
-
 ### 10.6 Event iteration at boundaries: to quiescence, budgeted
 
 [§5.3][s5-3] leaves two questions open. How far does the event phase run at a
@@ -865,19 +867,21 @@ nothing.
 - The event's firing count for this boundary is below `firing_budget`.
 
 That is the whole definition of "newly fired". The predicate is the one
-[§2.1][s2-1] defines, either the `Bool` form true or `σ ≥ 0`. `firing_budget`
-is a deployment keyword, an integer ≥ 1 defaulting to 4. It caps how many
-times each declared event may fire at one boundary.
+[§2.1][s2-1] defines, either the `Bool` form true or `σ ≥ 0`.
+[`firing_budget`](#g-firing-budget) is a deployment keyword, an integer ≥ 1
+defaulting to 4. It caps how many times each declared event may fire at one
+boundary.
 
 #### Why the phase iterates
 
 Under a single pass, a cascade of N logically simultaneous transitions
-(supervisor FSM → subordinate FSM → …) takes N steps to complete, at latency
-N·h. Model semantics would then depend on the integrator's step size, and `h`
-is an execution parameter. This is the same class of footgun [§2.2][s2-2] cited
-when killing `f_step!`, an unconditional per-step hook ([D-020][d-020]).
-Cascades are not a corner case either. Externalized FSM components are blessed
-([§3.1][s3-1]), which makes cross-component cascades the expected idiom.
+(supervisor FSM → subordinate FSM → …, where an FSM is a finite-state machine)
+takes N steps to complete, at latency N·h. Model semantics would then depend on
+the integrator's step size, and `h` is an execution parameter. This is the same
+class of footgun [§2.2][s2-2] cited when killing `f_step!`, an unconditional
+per-step hook ([D-020][d-020]). Cascades are not a corner case either.
+Externalized FSM components are blessed ([§3.1][s3-1]), which makes
+cross-component cascades the expected idiom.
 
 Established practice agrees. Hybrid automata take sequences of instantaneous
 transitions at one time point. Modelica iterates events to quiescence.
@@ -909,12 +913,12 @@ What differs is the reference sample. The edge is read against the
 last-observed sample, not against the prior the boundary entered with
 ([D-181][d-181]).
 
-Two consequences follow. Sticky predicates need no
-special case. An event that fires and keeps holding presents no further
-not-holding → holding edge, so it fires once, at the boundary where it first
-held. And a predicate that is genuinely falsified and re-enabled inside the
-boundary, because another handler's cascade reverted its effect, fires again at
-this boundary against a fresh sweep ([D-181][d-181]).
+Two consequences follow. Sticky predicates need no special case. An event that
+fires and keeps holding presents no further not-holding → holding edge, so it
+fires once, at the boundary where it first held. And a predicate that is
+genuinely falsified and re-enabled inside the boundary, because another
+handler's cascade reverted its effect, fires again at this boundary against a
+fresh sweep ([D-181][d-181]).
 
 The sketch below shows one boundary's iteration.
 
@@ -930,32 +934,31 @@ end                                        # the exit condition is quiescence
 per event:  prior ← last                   # the settled boundary's honest sample
 ```
 
-**The prior is updated at each boundary's quiescence**, from the final
+The prior is updated at each boundary's quiescence, from the final
 post-iteration samples ([D-082][d-082]). The update is unconditional. Every
 prior is therefore an honest observation of a settled boundary. That is what
-makes the θ = 0 discriminator ([§10.4][s10-4]) conclusive. The frame-top
-[drain](#g-drain) (the swap that publishes staged device writes into the root
-inputs) is the only possible source of disagreement between the prior and the
-left-end trial evaluation.
+makes the θ = 0 discriminator ([§10.4][s10-4]) conclusive.
 
 All three registers are detection bookkeeping, not model memory. They are
 correctly absent from every state store ([D-082][d-082]). A
 [checkpoint](#g-checkpoint) (the executor's state at a frame top, as one value)
 carries the prior, the one register that crosses a boundary ([§12.6][s12-6],
 [D-274][d-274]). The [trace header](#g-trace-header) (the trace's fixed
-preamble) is such a checkpoint. `restore!` copies a
-checkpoint's prior back ([D-274][d-274]). The other two registers are reset on
-entering each boundary, as the sketch shows. Beyond the prior, the cost is one
-`Bool` and one small counter per event.
+preamble) is such a checkpoint. `restore!` copies a checkpoint's prior back
+([D-274][d-274]). The other two registers are reset on entering each boundary,
+as the sketch shows. Beyond the prior, the cost is one `Bool` and one small
+counter per event.
 
 [Boundary zero](#g-boundary-zero) is the initialization boundary. **Boundary
-zero sets every prior to not-holding** ([D-082][d-082]). A predicate already holding in the
-authored state therefore fires at `t₀`. That behavior ([§14.5][s14-5]) is
-derived rather than asserted. A re-run from a condition resets all three
-registers from scratch, because `init!` re-runs boundary zero ([§14.5][s14-5]).
-Predicates holding in the newly applied state fire again at the new `t₀`. A
-`restore!` keeps the checkpoint's priors and runs no boundary zero, so nothing
-holding re-fires ([§12.6][s12-6], [D-274][d-274]).
+zero sets every prior to not-holding** ([D-082][d-082]). A predicate already
+holding in the authored state therefore fires at `t₀`. That behavior
+([§14.5][s14-5]) is derived rather than asserted. A re-run from a
+[condition](#g-condition) (a path-addressed overlay that sets the build to a
+state, [§14.1][s14-1]) resets all three registers from scratch, because `init!`
+re-runs boundary zero ([§14.5][s14-5]). Predicates holding in the newly applied
+state fire again at the new `t₀`. A `restore!` keeps the checkpoint's priors and
+runs no boundary zero, so nothing holding re-fires ([§12.6][s12-6],
+[D-274][d-274]).
 
 #### What a handler sees within a round
 
@@ -965,7 +968,7 @@ Each round re-runs the whole boundary sweep, gated entries included
 produced signal) only through a sweep. A handler writes its component's state
 stores and nothing else. So neither the transitioning component's own
 [ports](#g-port) (each one declared name with its cell) nor the downstream
-stage-2 chains that read them have moved. The cost is negligible. Sweeps take
+`y_direct` chains that read them have moved. The cost is negligible. Sweeps take
 microseconds, and rounds beyond the first require an actual cascade.
 
 Within a round, the signal table has a single writer, and it is the sweep
@@ -973,16 +976,17 @@ Within a round, the signal table has a single writer, and it is the sweep
 transitions, the framework latches them into the component's state stores, and
 `x_projection` normalizes them. Nothing moves the table mid-round.
 
-This gives the epoch rule, which is the core of this section. **A handler
-executes against exactly the world its guard fired on** ([D-154][d-154]). Its
-own `y`, foreign `u` and its own `x`/`m` all come from the firing round's
-sweep, so `y = h(x)` holds at every handler entry. No [bundle](#g-bundle) (the NamedTuple of zero-copy views a
-component function receives) ever straddles two epochs. An epoch here is the world one round's
-sweep produces. It is not the input epoch of [§10.4][s10-4].
+This gives the epoch rule, which is the core of this section. An epoch here is
+the world one round's sweep produces. It is not the input epoch of
+[§10.4][s10-4]. **A handler executes against exactly the world its guard fired
+on** ([D-154][d-154]). Its own `y`, foreign `u` and its own `x`/`m` all come
+from the firing round's sweep, so `y = h(x)` holds at every handler entry. No
+[bundle](#g-bundle) (the NamedTuple of zero-copy views a component function
+receives) ever straddles two epochs.
 
-Serialization is what delivers the epoch rule. A component's state stores are written
-only by its own handlers, and it fires at most one event per round, so no
-same-round writer precedes any handler's entry.
+Serialization is what delivers the epoch rule. A component's state stores are
+written only by its own handlers, and it fires at most one event per round, so
+no same-round writer precedes any handler's entry.
 
 **A component's other eligible events are blocked, not lost**
 ([D-191][d-191]). Each is re-decided in the next round, against the
@@ -1027,28 +1031,27 @@ all. [D-154][d-154] and [D-100][d-100] record the rejected shapes.
 
 #### The firing budget
 
-A per-event [firing budget](#g-firing-budget) (the rule bounding how often each
-event fires at one boundary) lets a re-enabled event fire at its true boundary,
-against a fresh sweep. The deferral design and the per-round cap are both
-rejected ([D-020][d-020], [D-181][d-181]). The deferral design fired a
-re-enabled event one step late, through a manufactured not-holding prior
-([D-181][d-181]). The per-round cap bounded the number of rounds at a boundary
-([D-020][d-020]). Priors stay honest as a consequence.
-Every prior is a sample actually taken, never a value recorded to make a rule
-work out.
+A per-event firing budget lets a re-enabled event fire at its true boundary,
+against a fresh sweep. Priors stay honest as a consequence. Every prior is a
+sample actually taken, never a value recorded to make a rule work out. The
+deferral design and the rounds cap are both rejected ([D-020][d-020],
+[D-181][d-181]). The deferral design fired a re-enabled event one step late,
+through a manufactured not-holding prior ([D-181][d-181]). The rounds cap
+bounded the number of rounds at a boundary ([D-020][d-020]).
 
 Termination is then budget-bounded rather than structural. For `E` declared
 events, a boundary admits at most `firing_budget · E` firings, hence a bounded
 number of rounds, deterministically and independently of pace. A livelock, such
 as two FSMs toggling each other, does not resolve silently. Each toggler spends
-its budget and warns (below), and the run proceeds and replays identically.
-This is degradation, not an error, per the doctrine of [§10.4][s10-4]. The
-warning names the actual chatterer, while every other event's iteration
-continues untouched.
+its budget and warns (below). The run proceeds, and its [replay](#g-replay) (the
+ordinary loop re-driven from the trace) is identical. This is degradation, not
+an error, per the doctrine of [§10.4][s10-4]. The warning names the actual
+chatterer, while every other event's iteration continues untouched.
 
 This trade is also stated openly. Because termination is budget-bounded rather
-than structural, the arbitrary-K objection ([D-020][d-020]) lives on in
-`firing_budget`. [D-181][d-181] records what that buys.
+than structural, the objection that a rounds cap is an arbitrary knob
+([D-020][d-020]) lives on in `firing_budget`. [D-181][d-181] records what that
+buys.
 
 **Budget exhaustion degrades; it does not throw** ([D-181][d-181]). When an
 event has fired `firing_budget` times at a boundary, its further edges there
@@ -1059,20 +1062,22 @@ event that fires its budget out and then quiesces lost nothing and warns
 nothing. The warning carries the component path, the event name, the boundary
 time and the exhausted budget beside the boundary's firing count.
 
-The default of 4 is chosen the way [§10.4][s10-4] chooses the per-frame
-localization budget's 8. A legitimate re-enable is one or two firings deep. A toggling FSM
-pair chatters without bound. A budget of 4 separates the two without ever
-binding on a healthy model. Like every other degradation here, it depends on
-the trajectory alone, so the run replays identically.
+The default of 4 is chosen the way [§10.4][s10-4] chooses 8 for the
+[localization budget](#g-chattering) (the count of localizations permitted
+within one frame). A legitimate re-enable is one or two firings deep. A toggling
+FSM pair chatters without bound. A budget of 4 separates the two without ever
+binding on a healthy model. Like every other degradation here, it depends on the
+trajectory alone, so the run replays identically.
 
-The doctrine of [§10.4][s10-4] governs both budgets. Neither the boundary iteration nor
-re-localization within the frame has a structural bound, so each takes a
-budget. The boundary iteration takes `firing_budget`, per event per boundary,
-and re-localization takes `localization_budget`, per frame. Both degrade loudly
-rather than erroring, under a warning that names the offending event. They
-differ only in what exhaustion sheds. Localization sheds root-finding precision
-and preserves every firing at boundary granularity. The firing budget sheds
-firings, which is exactly what bounds the iteration.
+The doctrine of [§10.4][s10-4] governs both budgets. Neither the boundary
+iteration nor re-localization within the [frame](#g-frame) (one grid step) has a
+structural bound, so each takes a budget. The boundary iteration takes
+`firing_budget`, per event per boundary, and re-localization takes
+`localization_budget`, per frame. Both degrade loudly rather than erroring,
+under a warning that names the offending event. They differ only in what
+exhaustion sheds. Localization sheds root-finding precision and preserves every
+firing at boundary granularity. The firing budget sheds firings, which is
+exactly what bounds the iteration.
 
 #### Ticks after quiescence
 
@@ -1109,17 +1114,19 @@ Boundary zero is the same sequence with an empty integrate ([§14.5][s14-5],
 The sequence decides the mixed case, where the handler of a
 [continuous component](#g-continuous-component) (the hybrid primitive, with
 continuous state, modes and events) and its discrete observers' ticks land on
-one boundary. Take an engine's `starting → running` transition under a
-50 Hz FCS. The engine is a continuous component, and the FCS (the flight
-control system) is a discrete component that observes it. The transition fires
-in the iteration segment. The re-sweep re-runs the FCS's stages against
-`running`-mode ports, and its `s_update` then runs from post-transition values.
+one boundary. Take an engine's `starting → running` transition under a 50 Hz
+flight control system (FCS). The engine is a continuous component, and the FCS
+is a discrete component that observes it. The transition fires in the iteration
+segment. The re-sweep re-runs the FCS's stages against `running`-mode ports, and
+its `s_update` then runs from post-transition values.
 
 ### 10.7 Real-time pacing
 
-This section covers [pacing](#g-pacing) (the waits that hold a run to
-wall-clock time). Its parts are the invariant with the wall-clock map, the
-wait, the diagnostics, and where staging and concurrency live.
+An interactive run must keep to wall-clock time, and its trajectory must not
+depend on how fast it runs. [Pacing](#g-pacing) (the waits that hold a run to
+wall-clock time) does the first without breaking the second. This section covers
+the invariant with the wall-clock map, the wait, the diagnostics, and where
+staging and concurrency live.
 
 #### The invariant and the wall-clock map
 
@@ -1139,16 +1146,17 @@ frames repay) like any other expensive frame ([D-080][d-080]). Degrading to
 boundary detection under pacing was rejected ([D-080][d-080]).
 
 **The wall-clock map is piecewise affine, re-anchored at every knee**
-([D-021][d-021]). The map is
+([D-021][d-021]). A knee is a point where the map changes slope or offset. A
+pace change, an un-pause and a forgiveness re-anchor each make one. The map is
 $\tau(t) = \tau_{\mathrm{anchor}} + (t - t_{\mathrm{anchor}})/p$, with the
 anchor pair as its reference point. Here $p$ is the pace and $\tau$ is
 wall-clock time. The anchor pair $(t_{\mathrm{anchor}}, \tau_{\mathrm{anchor}})$
 is the sim time and wall-clock time at the most recent anchor. A live pace
 change re-establishes the anchor at the current `(t, τ)`, so the new slope
-applies only forward ([D-021][d-021]). Un-pause re-anchors for the same reason. Debt is cleared at
-re-anchor. A deliberate user action is a natural sync point. The counters
-record what was forgiven. The frame that follows an anchor has no wait,
-because its deadline is the anchor itself. The run's first anchor is taken
+applies only forward ([D-021][d-021]). Un-pause re-anchors for the same reason.
+Debt is cleared at re-anchor. A deliberate user action is a natural sync point.
+The counters record what was forgiven. The frame that follows an anchor has no
+wait, because its deadline is the anchor itself. The run's first anchor is taken
 when its loop starts, so the first frame runs at once ([D-269][d-269]).
 
 **The deadline law is an absolute schedule with bounded debt**

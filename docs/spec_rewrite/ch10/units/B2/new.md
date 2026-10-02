@@ -32,9 +32,8 @@ is computed from the frame index, just as tick gating is already counter-modulo
 ([§10.5][s10-5]). The remainder step targets the grid point, with `h′` (the
 remainder step's length) derived at use. `t*` is a float inside a frame, never
 an anchor from which anything else is computed. A near-degenerate `t*` leaves a
-tiny remainder step.
-Numerically that is harmless, since increments scale with `h′`. The real
-hazard is bookkeeping, and this rule removes it.
+tiny remainder step. Numerically that is harmless, since increments scale with
+`h′`. The real hazard is bookkeeping, and this rule removes it.
 
 #### The `t*` boundary
 
@@ -70,10 +69,10 @@ boundary index ([§13.4][s13-4], [D-128][d-128]) together with the recorded
 boundaries consume no inputs.
 
 [Projection](#g-projection) (the optional per-component hook
-`x ← x_projection(x)`) reaches the boundary, not the trial evaluation.
-**Guard trial evaluations run against the raw interpolated state**
-([D-018][d-018]). Authority rests with the `t*` boundary. Projection runs
-there, and the edge checks of the [§10.6][s10-6] iteration read the projected state. RK-stage RHS
+`x ← x_projection(x)`) reaches the boundary, not the trial evaluation. **Guard
+trial evaluations run against the raw interpolated state** ([D-018][d-018]).
+Authority rests with the `t*` boundary. Projection runs there, and the edge
+checks of the [§10.6][s10-6] iteration read the projected state. RK-stage RHS
 evaluations already run under the same rule, since they are equally
 off-manifold. Sweeps must therefore tolerate near-manifold states, and they
 already do. Per-trial projection is rejected ([D-018][d-018]).
@@ -85,9 +84,9 @@ other localization outcome, it is deterministic and pace-independent
 
 #### The localization budget
 
-**`localization_budget` is an integer count of localizations permitted within
-one frame** ([D-133][d-133], [D-181][d-181]). It defaults to 8. It is the
-second deployment keyword this section fixes.
+**`localization_budget`, the integer count of localizations permitted within one
+frame, defaults to 8** ([D-133][d-133], [D-181][d-181]). It is the second
+deployment keyword this section fixes.
 
 A legitimate multi-event frame needs three or four localizations. Three
 landing-gear struts touching down inside one step is the reference case.
@@ -104,26 +103,25 @@ the localization count.
 The degradation depends on the trajectory alone, never on wall clock. The
 pace-independence guarantee ([D-080][d-080]) therefore stands, and the run
 replays identically. A `StepError` ([§13.4][s13-4]) here would misclassify an
-expected modeling outcome as broken machinery, which the no-throw doctrine of [§14.8][s14-8]
-forbids.
+expected modeling outcome as broken machinery, which the no-throw doctrine of
+[§14.8][s14-8] forbids.
 
 #### Deployment constants
 
 Both localization constants are deployment, not implementation.
 `localization_tol` and `localization_budget` are constructor keywords of the
-[`Deployment`](#g-deployment) (the scalar-free artifact the grid parameters
-fix). They stand beside `h`, `N_base` and the algorithm ([§9.2][s9-2],
-[Appendix B][sB], [D-256][d-256]). The constructor validates them with the
-third event parameter, the `firing_budget` of [§10.6][s10-6], and failures are
-collected into `DeploymentInvalid`, as [§9.2][s9-2] and [Appendix C][sC] set
-out. All three are grid-independent, so none enters the harmonic-grid check
+`Deployment`. They stand beside `h`, `N_base` and the algorithm ([§9.2][s9-2],
+[Appendix B][sB], [D-256][d-256]). The constructor validates them with the third
+such keyword, the `firing_budget` of [§10.6][s10-6], and failures are collected
+into `DeploymentInvalid`, as [§9.2][s9-2] and [Appendix C][sC] set out. All
+three are grid-independent, so none enters the harmonic-grid check
 ([§10.5][s10-5]).
 
-**All three are recorded** ([D-133][d-133], [D-181][d-181]), because they
-determine the trajectory. They ride the `Deployment` in the [trace header](#g-trace-header)
-(the trace's fixed preamble, [§11.5][s11-5]). They also join the set that
-replay compares up front, exactly as `h` and the algorithm do
-([§12.7][s12-7]).
+All three are recorded ([D-133][d-133], [D-181][d-181]), because they determine
+the trajectory. They ride the `Deployment` in the
+[trace header](#g-trace-header) (the trace's fixed preamble, [§11.5][s11-5]).
+They also join the set that replay compares up front, exactly as `h` and the
+algorithm do ([§12.7][s12-7]).
 
 Without this record, the replays-identically promise above is empty. A run
 that does not record what its localizer was told to do cannot be re-driven

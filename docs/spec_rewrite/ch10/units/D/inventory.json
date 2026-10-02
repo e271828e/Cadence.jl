@@ -16,7 +16,7 @@
   {
    "id": "D-002",
    "old": "Neither the boundary iteration nor cross-frame re-localization has a structural bound, so each takes a budget.",
-   "new": "Neither the boundary iteration nor re-localization within the frame has a structural bound, so each takes a budget.",
+   "new": "Neither the boundary iteration nor re-localization within the frame (one grid step) has a structural bound, so each takes a budget.",
    "where": "new",
    "cites": [],
    "tag": "R",
@@ -377,7 +377,8 @@
    "newcites": [
     "D-082"
    ],
-   "tag": "C"
+   "tag": "R",
+   "ruling": "P30"
   },
   {
    "id": "D-045",
@@ -408,10 +409,10 @@
   {
    "id": "D-048",
    "old": "The frame-top drain is the only possible source of disagreement between the prior and the left-end trial evaluation.",
-   "new": "is the only possible source of disagreement between the prior and the left-end trial evaluation.",
-   "where": "new",
+   "new": "the frame-top drain is the only possible source of disagreement",
+   "where": "units/B1/new.md",
    "cites": [],
-   "tag": "F"
+   "tag": "M"
   },
   {
    "id": "D-049",
@@ -495,7 +496,7 @@
   {
    "id": "D-057",
    "old": "A re-run from a condition resets all three registers from scratch, because `init!` re-runs boundary zero (§14.5).",
-   "new": "A re-run from a condition resets all three registers from scratch, because `init!` re-runs boundary zero (§14.5).",
+   "new": "A re-run from a condition (a path-addressed overlay that sets the build to a state, §14.1) resets all three registers from scratch, because `init!` re-runs boundary zero (§14.5).",
    "where": "new",
    "cites": [
     "§14.5"
@@ -535,7 +536,7 @@
   {
    "id": "D-061",
    "old": "Under a single pass, a cascade of N logically simultaneous transitions (supervisor FSM → subordinate FSM → …) takes N steps to complete, at latency N·h.",
-   "new": "Under a single pass, a cascade of N logically simultaneous transitions (supervisor FSM → subordinate FSM → …) takes N steps to complete, at latency N·h.",
+   "new": "Under a single pass, a cascade of N logically simultaneous transitions (supervisor FSM → subordinate FSM → …, where an FSM is a finite-state machine) takes N steps to complete, at latency N·h.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -664,7 +665,7 @@
   {
    "id": "D-076",
    "old": "So neither the transitioning component's own ports nor the downstream stage-2 chains that read them have moved.",
-   "new": "nor the downstream stage-2 chains that read them have moved.",
+   "new": "nor the downstream `y_direct` chains that read them have moved.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -1118,7 +1119,7 @@
   {
    "id": "D-127",
    "old": "The deferral design and the per-round cap are both rejected (D-020, D-181).",
-   "new": "The deferral design and the per-round cap are both rejected (D-020, D-181).",
+   "new": "The deferral design and the rounds cap are both rejected (D-020, D-181).",
    "where": "new",
    "cites": [
     "D-020",
@@ -1169,7 +1170,7 @@
   {
    "id": "D-133",
    "old": "Each toggler spends its budget and warns (below), and the run proceeds and replays identically.",
-   "new": "Each toggler spends its budget and warns (below), and the run proceeds and replays identically.",
+   "new": "Each toggler spends its budget and warns (below). The run proceeds, and its replay (the ordinary loop re-driven from the trace) is identical.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -1204,7 +1205,7 @@
   {
    "id": "D-137",
    "old": "Because termination is budget-bounded rather than structural, the arbitrary-K objection lives on in `firing_budget`.",
-   "new": "Because termination is budget-bounded rather than structural, the arbitrary-K objection (D-020) lives on in `firing_budget`.",
+   "new": "Because termination is budget-bounded rather than structural, the objection that a rounds cap is an arbitrary knob (D-020) lives on in `firing_budget`.",
    "where": "new",
    "cites": [],
    "newcites": [
@@ -1309,7 +1310,7 @@
   {
    "id": "D-148",
    "old": "The default of 4 is chosen the way §10.4 chooses 8.",
-   "new": "The default of 4 is chosen the way §10.4 chooses the per-frame localization budget's 8.",
+   "new": "The default of 4 is chosen the way §10.4 chooses 8 for the localization budget (the count of localizations permitted within one frame).",
    "where": "new",
    "cites": [
     "§10.4"
@@ -1532,7 +1533,7 @@
   {
    "id": "D-174",
    "old": "Take an engine's `starting → running` transition under a 50 Hz FCS.",
-   "new": "Take an engine's `starting → running` transition under a 50 Hz FCS.",
+   "new": "Take an engine's `starting → running` transition under a 50 Hz flight control system (FCS).",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -1555,23 +1556,21 @@
   }
  ],
  "added": [
-  "The deferral design fired a re-enabled event one step late, through a manufactured not-holding prior (D-181). The per-round cap bounded the number of rounds at a boundary (D-020).",
+  "The deferral design fired a re-enabled event one step late, through a manufactured not-holding prior (D-181). The rounds cap bounded the number of rounds at a boundary (D-020).",
   "(the trace's fixed preamble)",
   "the epoch rule.",
   "(a published consistency point, where the macro-sequence completes)",
   "(the pass over the full execution order, with due discrete entries gated in), evaluates all guards (the declared functions defining each event's predicate) against it, and fires the eligible events.",
   "(an instant at which a discrete component's stages and update run).",
   "#### The three registers",
-  "The frame-top drain (the swap that publishes staged device writes into the root inputs)",
   "#### What a handler sees within a round",
   "(the framework-owned cells holding every produced signal) only through a sweep.",
   "So neither the transitioning component's own ports (each one declared name with its cell)",
   "An epoch here is the world one round's sweep produces. It is not the input epoch of §10.4.",
   "#### The firing budget",
-  "(the rule bounding how often each event fires at one boundary)",
   "#### Ticks after quiescence",
   "§10.3 states when external readers may observe the table.",
   "The sequence decides the mixed case, where the handler of a continuous component (the hybrid primitive, with continuous state, modes and events)",
-  "The engine is a continuous component, and the FCS (the flight control system) is a discrete component that observes it."
+  "The engine is a continuous component, and the FCS is a discrete component that observes it."
  ]
 }

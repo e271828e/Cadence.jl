@@ -1,8 +1,10 @@
 ### 10.7 Real-time pacing
 
-This section covers [pacing](#g-pacing) (the waits that hold a run to
-wall-clock time). Its parts are the invariant with the wall-clock map, the
-wait, the diagnostics, and where staging and concurrency live.
+An interactive run must keep to wall-clock time, and its trajectory must not
+depend on how fast it runs. [Pacing](#g-pacing) (the waits that hold a run to
+wall-clock time) does the first without breaking the second. This section covers
+the invariant with the wall-clock map, the wait, the diagnostics, and where
+staging and concurrency live.
 
 #### The invariant and the wall-clock map
 
@@ -22,16 +24,17 @@ frames repay) like any other expensive frame ([D-080][d-080]). Degrading to
 boundary detection under pacing was rejected ([D-080][d-080]).
 
 **The wall-clock map is piecewise affine, re-anchored at every knee**
-([D-021][d-021]). The map is
+([D-021][d-021]). A knee is a point where the map changes slope or offset. A
+pace change, an un-pause and a forgiveness re-anchor each make one. The map is
 $\tau(t) = \tau_{\mathrm{anchor}} + (t - t_{\mathrm{anchor}})/p$, with the
 anchor pair as its reference point. Here $p$ is the pace and $\tau$ is
 wall-clock time. The anchor pair $(t_{\mathrm{anchor}}, \tau_{\mathrm{anchor}})$
 is the sim time and wall-clock time at the most recent anchor. A live pace
 change re-establishes the anchor at the current `(t, τ)`, so the new slope
-applies only forward ([D-021][d-021]). Un-pause re-anchors for the same reason. Debt is cleared at
-re-anchor. A deliberate user action is a natural sync point. The counters
-record what was forgiven. The frame that follows an anchor has no wait,
-because its deadline is the anchor itself. The run's first anchor is taken
+applies only forward ([D-021][d-021]). Un-pause re-anchors for the same reason.
+Debt is cleared at re-anchor. A deliberate user action is a natural sync point.
+The counters record what was forgiven. The frame that follows an anchor has no
+wait, because its deadline is the anchor itself. The run's first anchor is taken
 when its loop starts, so the first frame runs at once ([D-269][d-269]).
 
 **The deadline law is an absolute schedule with bounded debt**

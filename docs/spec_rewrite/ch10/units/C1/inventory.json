@@ -554,7 +554,7 @@
   {
    "id": "C1-063",
    "old": "Its output stages run at `t₀` due or not, evaluated from the authored world (D-205, §14.5).",
-   "new": "Its output stages run at `t₀` due or not, evaluated from the authored world (D-205, §14.5).",
+   "new": "Its output stages still run at `t₀`, as above, evaluated from the authored world (D-205, §14.5).",
    "where": "new",
    "cites": [
     "D-205",
@@ -633,7 +633,7 @@
   {
    "id": "C1-072",
    "old": "The FCS cascade's intra-tick ordering is therefore a sweep property, not an update-order property.",
-   "new": "The intra-tick ordering of the FCS cascade (a flight control system's outer loops feeding its inner loop) is therefore a sweep property, not an update-order property.",
+   "new": "The intra-tick ordering of a flight control system (FCS) cascade, where outer loops feed an inner loop, is therefore a sweep property, not an update-order property.",
    "where": "new",
    "cites": [],
    "tag": "R",
@@ -707,7 +707,7 @@
   "its entries in the signal table",
   "A sweep is one pass through the execution order.",
   "a boundary at a localized event time",
-  "a flight control system's outer loops feeding its inner loop",
+  "flight control system (FCS) cascade, where outer loops feed an inner loop",
   "The probe is the build's single evaluation of a user function with real values (§9.3)."
  ]
 }

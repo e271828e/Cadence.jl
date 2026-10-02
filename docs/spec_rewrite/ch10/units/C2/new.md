@@ -34,15 +34,15 @@ data carriers, with no checks of their own.
 
 #### Relative composition
 
-**Multipliers compose multiplicatively and phases affinely down the tree**
+Multipliers compose multiplicatively and phases affinely down the tree
 ([D-019][d-019], [D-185][d-185]). Under a scope compiled to divisor and phase
 `(D_s, Φ_s)` in base ticks, a child declared `Relative(K, φ)` compiles to
 `D = K·D_s` and `Φ = Φ_s + φ·D_s`.
 
 Composition preserves the canonical residue `0 ≤ Φ < D`.
-`sample_time_proposal.md` (the declaration design's worked companion) carries
-the one-line induction. All scoping therefore compiles away at build to one
-`(D, Φ)` pair per discrete component. The boundary sweep gates on that pair
+`companions/sample_time_proposal.md` (the declaration design's worked companion)
+carries the one-line induction. All scoping therefore compiles away at build to
+one `(D, Φ)` pair per discrete component. The boundary sweep gates on that pair
 with the `(tick − Φ) % D == 0` test above. The lattice stays static, and the
 interior sweep still holds no discrete entries to gate.
 
@@ -121,11 +121,11 @@ receives).
 
 #### A worked example
 
-This example follows one declaration to its compiled pairs and one
-hyperperiod. Three discrete components sit under two scopes, at a deployment
-that binds `Δt_base = 2 ms` ([§9.2][s9-2]). The root scope holds `fcs`, a
-flight control system (FCS) scope, and `gnss`, a satellite-navigation (GNSS)
-component.
+This example follows one declaration to its compiled pairs and one hyperperiod
+(the span after which the tick pattern repeats). Three discrete components sit
+under two scopes, at a deployment that binds `Δt_base = 2 ms` ([§9.2][s9-2]).
+The root scope holds `fcs`, an FCS scope, and `gnss`, a satellite-navigation
+(GNSS) component.
 
 ```julia
 # Root scope: (D_s, Φ_s) = (1, 0).
@@ -162,15 +162,15 @@ structural expression of an acquisition pipeline's latency, obtained with no
 delay blocks. The two-tick and seven-tick reads in the example above are the
 deterministic aging of a stagger, in that model's numbers.
 
-A stagger is also a load-shaping tool under real-time [pacing](#g-pacing)
-(waits inserted between completed frames, never altering the boundary
-sequence). Staggered stacks never share a [frame](#g-frame), so worst-case
-frame cost is a `max` rather than a sum ([§10.7][s10-7]).
+A stagger is also a load-shaping tool under real-time [pacing](#g-pacing) (waits
+inserted between completed frames, never altering the boundary sequence).
+Staggered stacks never share a frame, so worst-case frame cost is a `max` rather
+than a sum ([§10.7][s10-7]).
 
-Both patterns are worked in `sample_time_proposal.md`, together with how
-silently an offset edit rewires a coincidence structure. The `Schedule` and
-its hyperperiod chart ([§9.2][s9-2]) are how a user audits which pattern a
-model actually has.
+Both patterns are worked in `companions/sample_time_proposal.md`, together with
+how silently an offset edit rewires a coincidence structure. The `Schedule` and
+its hyperperiod chart ([§9.2][s9-2]) are how a user audits which pattern a model
+actually has.
 
 #### `Δt` in the bundle
 
@@ -203,4 +203,3 @@ absolute rate. It does not exist until composition.
 Phases change none of this. **The bundle's `Δt` is still `D·Δt_base`**
 ([D-185][d-185]). An offset shifts firing instants and never the period, so
 the discretized laws are unaffected by staggering.
-

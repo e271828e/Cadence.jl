@@ -51,7 +51,7 @@
   {
    "id": "B1-007",
    "old": "> tₙ → integrate → arrival sweep at tₙ₊₁ → trigger → θ = 0 trial evaluation → bracket > → root-find → t\\ → remainder step → tₙ₊₁",
-   "new": "> tₙ → integrate → arrival sweep at tₙ₊₁ → trigger → θ = 0 trial evaluation → bracket > → root-find → t\\ → remainder step → tₙ₊₁",
+   "new": "> tₙ → integrate → arrival sweep at tₙ₊₁ → trigger → θ = 0 trial evaluation > → bracket → root-find → t\\ → remainder step → tₙ₊₁",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -67,7 +67,7 @@
   {
    "id": "B1-009",
    "old": "The arrival sweep at tₙ₊₁ raises the trigger, and integration then resumes from `t`, which lies before tₙ₊₁.",
-   "new": "The arrival sweep at tₙ₊₁ raises the trigger, and integration then resumes from `t`, which lies before tₙ₊₁.",
+   "new": "The arrival sweep (the sweep that closes the integration step) at tₙ₊₁ raises the trigger, and integration then resumes from `t`, which lies before tₙ₊₁.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -102,7 +102,7 @@
   {
    "id": "B1-013",
    "old": "- A guard returning the nominal scalar, the continuous sign form, is localized. The framework brackets the crossing instant by root-finding over trial sweeps.",
-   "new": "- A guard returning the nominal scalar, the continuous sign form, is localized. The framework brackets the crossing instant by root-finding over trial sweeps.",
+   "new": "- A guard returning the nominal scalar, the continuous sign form, is localized. The framework brackets the crossing instant by root-finding over trial evaluations.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -138,7 +138,7 @@
   {
    "id": "B1-017",
    "old": "Because the form is the policy, the illegal pairing cannot be written at all. It needs no diagnostic.",
-   "new": "Because the form is the policy, the illegal pairing cannot be written at all. It needs no diagnostic.",
+   "new": "Because the form is the policy, a localized `Bool` guard cannot be written at all. It needs no diagnostic.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -157,7 +157,7 @@
   {
    "id": "B1-019",
    "old": "Return the predicate `σ ≥ 0` instead of `σ`. That cast is the definition of the predicate (§2.1).",
-   "new": "Return the predicate `σ ≥ 0` instead of `σ`. That cast is the definition of the predicate (§2.1).",
+   "new": "Return the predicate `σ ≥ 0` instead of the sign-form value `σ`. That cast is the definition of the predicate (§2.1).",
    "where": "new",
    "cites": [
     "§2.1"
@@ -228,7 +228,7 @@
   {
    "id": "B1-027",
    "old": "The piston engine's `starting → running` fires on `ω > ω_idle && fuel_available`.",
-   "new": "Take a piston engine whose modes include `starting` and `running`. The piston engine's `starting → running` fires on `ω > ω_idle && fuel_available`.",
+   "new": "Take a piston engine whose modes include `starting` and `running`. Its `starting → running` transition fires on `ω > ω_idle && fuel_available`.",
    "where": "new",
    "cites": [],
    "tag": "R",
@@ -651,7 +651,7 @@
   {
    "id": "B1-076",
    "old": "The interpolant is built lazily.",
-   "new": "The interpolant is built lazily (D-018).",
+   "new": "It is built lazily (D-018).",
    "where": "new",
    "cites": [],
    "newcites": [
@@ -742,7 +742,7 @@
   {
    "id": "B1-086",
    "old": "Discrete cells therefore hold their tick values through localization, and a guard reading a sampled output sees what the controller is holding.",
-   "new": "Discrete cells therefore hold their tick values through localization, and a guard reading a sampled output sees what the controller is holding.",
+   "new": "Discrete cells therefore hold their tick values (set at the last instant their stages and update ran) through localization, and a guard reading a sampled output sees what the controller is holding.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -806,7 +806,7 @@
   {
    "id": "B1-093",
    "old": "`localization_tol` is a `Deployment` constructor keyword defaulting to `1e-6`.",
-   "new": "`localization_tol` is a `Deployment` constructor keyword defaulting to `1e-6` (D-256).",
+   "new": "`localization_tol` is a constructor keyword of the `Deployment` (the scalar-free artifact the grid parameters fix) and defaults to `1e-6` (D-256).",
    "where": "new",
    "cites": [],
    "newcites": [
@@ -827,7 +827,7 @@
   {
    "id": "B1-095",
    "old": "The default is `1e-6` because the event time can never be more accurate than the interpolant, which is `O(h⁴)` as stated above.",
-   "new": "The default is `1e-6` because the event time can never be more accurate than the interpolant, which is `O(h⁴)` as stated above.",
+   "new": "The default is `1e-6` because of the interpolant's accuracy limit, `O(h⁴)` as stated above.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -870,7 +870,7 @@
   {
    "id": "B1-100",
    "old": "Integration resumes from `t` with the remainder step targeting tₙ₊₁, and the guards are re-checked on the remainder.",
-   "new": "Integration resumes from `t` with the remainder step targeting tₙ₊₁, and the guards are re-checked on the remainder.",
+   "new": "Integration resumes from `t` with the remainder step (the integration from `t` to the original grid target) targeting tₙ₊₁, and the guards are re-checked on the remainder.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -949,6 +949,6 @@
   ", which the localization loop below defines and builds.",
   "zero-order hold (",
   "(see \"The localization budget\" below)",
-  "A tick is an instant at which a discrete component's stages and update run."
+  "The interpolant is the seam's dense output (§10.2)."
  ]
 }

@@ -45,7 +45,7 @@
   {
    "id": "C2-006",
    "old": "Both patterns are worked in `sample_time_proposal.md`, together with how silently an offset edit rewires a coincidence structure.",
-   "new": "Both patterns are worked in `sample_time_proposal.md`, together with how silently an offset edit rewires a coincidence structure.",
+   "new": "Both patterns are worked in `companions/sample_time_proposal.md`, together with how silently an offset edit rewires a coincidence structure.",
    "where": "new",
    "cites": [],
    "tag": "M"
@@ -227,7 +227,8 @@
     "D-019",
     "D-185"
    ],
-   "tag": "C"
+   "tag": "R",
+   "ruling": "P29"
   },
   {
    "id": "C2-026",
@@ -248,7 +249,7 @@
   {
    "id": "C2-028",
    "old": "`sample_time_proposal.md` carries the one-line induction.",
-   "new": "`sample_time_proposal.md` (the declaration design's worked companion) carries the one-line induction.",
+   "new": "`companions/sample_time_proposal.md` (the declaration design's worked companion) carries the one-line induction.",
    "where": "new",
    "cites": [],
    "tag": "F"
@@ -497,7 +498,7 @@
   {
    "id": "C2-056",
    "old": "A declaration, its compiled pairs, and one hyperperiod",
-   "new": "This example follows one declaration to its compiled pairs and one hyperperiod.",
+   "new": "This example follows one declaration to its compiled pairs and one hyperperiod",
    "where": "new",
    "cites": [],
    "tag": "X"
@@ -832,6 +833,7 @@
   "PID controller's",
   "lead-lag compensator's",
   "(its declared interface)",
-  "The root scope holds `fcs`, a flight control system (FCS) scope, and `gnss`, a satellite-navigation (GNSS) component."
+  "The root scope holds `fcs`, an FCS scope, and `gnss`, a satellite-navigation (GNSS) component.",
+  "(the span after which the tick pattern repeats)"
  ]
 }

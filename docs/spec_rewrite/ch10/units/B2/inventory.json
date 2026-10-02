@@ -531,22 +531,24 @@
   {
    "id": "B2-059",
    "old": "Rule. `localization_budget` is an integer count of localizations permitted within one frame.",
-   "new": "`localization_budget` is an integer count of localizations permitted within one frame (D-133, D-181).",
+   "new": "`localization_budget`, the integer count of localizations permitted within one frame, defaults to 8 (D-133, D-181).",
    "where": "new",
    "cites": [],
-   "tag": "C",
+   "tag": "R",
    "newcites": [
     "D-133",
     "D-181"
-   ]
+   ],
+   "ruling": "P32"
   },
   {
    "id": "B2-060",
    "old": "It defaults to 8.",
-   "new": "It defaults to 8.",
+   "new": "defaults to 8",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "R",
+   "ruling": "P32"
   },
   {
    "id": "B2-061",
@@ -705,7 +707,7 @@
   {
    "id": "B2-077",
    "old": "The `firing_budget` (§10.6) stands beside them in every one of these lists.",
-   "new": "The constructor validates them with the third event parameter, the `firing_budget` of §10.6,",
+   "new": "The constructor validates them with the third such keyword, the `firing_budget` of §10.6,",
    "where": "new",
    "cites": [
     "§10.6"
@@ -754,7 +756,7 @@
     "D-133",
     "D-181"
    ],
-   "ruling": "R8"
+   "ruling": "R8; P31"
   },
   {
    "id": "B2-082",
@@ -770,10 +772,10 @@
   {
    "id": "B2-083",
    "old": "(the scalar-free artifact the grid parameters fix)",
-   "new": "`Deployment` (the scalar-free artifact the grid parameters fix).",
-   "where": "new",
+   "new": "`Deployment` (the scalar-free artifact the grid parameters fix)",
+   "where": "units/B1/new.md",
    "cites": [],
-   "tag": "X"
+   "tag": "M"
   },
   {
    "id": "B2-084",

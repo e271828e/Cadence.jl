@@ -1,12 +1,12 @@
 ## 10. Time and execution
 
-This chapter owns time. It takes the execution order ([§5.3][s5-3]) and the
-compiled executor ([§9.7][s9-7]) as given, and states how the loop runs them
-through time. [§10.1][s10-1] covers loop ownership and the loop's two units,
-the frame and the boundary, [§10.2][s10-2] the stepper seam, [§10.3][s10-3]
-signal-table consistency, [§10.4][s10-4] localization mechanics,
-[§10.5][s10-5] multi-rate tick scheduling, [§10.6][s10-6] event iteration at
-boundaries, and [§10.7][s10-7] real-time pacing.
+This chapter states how the loop runs a model through time. It takes the
+execution order ([§5.3][s5-3]) and the compiled executor ([§9.7][s9-7]) as
+given. [§10.1][s10-1] covers loop ownership and the loop's two units;
+[§10.2][s10-2] the stepper seam; [§10.3][s10-3] signal-table consistency;
+[§10.4][s10-4] localization mechanics; [§10.5][s10-5] multi-rate tick
+scheduling; [§10.6][s10-6] event iteration at boundaries; and [§10.7][s10-7]
+real-time pacing.
 
 ### 10.1 Loop ownership: the framework owns the simulation loop
 
@@ -19,14 +19,15 @@ and they mean different things.
   [drain](#g-drain) (the frame-top swap that publishes staged device writes
   into the root inputs, [§11.4][s11-4]), pacer deadlines ([§10.7][s10-7]) and
   [tick](#g-tick) eligibility ([§10.5][s10-5]).
-- A [boundary](#g-boundary) is a published consistency point. The
-  macro-sequence of [§10.6][s10-6] completes there, and a
-  [snapshot](#g-snapshot) (the immutable per-boundary publication) goes out.
+- A [boundary](#g-boundary) is a published consistency point. The boundary
+  sequence ([§5.3][s5-3]) completes there, in the final form [§10.6][s10-6]
+  calls the macro-sequence, and a [snapshot](#g-snapshot) (the immutable
+  per-boundary publication) goes out.
 
 Every grid point is a boundary, but not every boundary is a grid point.
-**The [localized](#g-localized) event time `t*` is a boundary but not a frame
-top** ([D-081][d-081]). `t*` is an event's crossing instant inside a step,
-bracketed by root-finding ([§10.4][s10-4]).
+`t*` is an event's crossing instant inside a step, bracketed by root-finding
+([§10.4][s10-4]). **The [localized](#g-localized) event time `t*` is a
+boundary but not a frame top** ([D-081][d-081]).
 [Boundary zero](#g-boundary-zero) (the initialization boundary at `t₀`,
 [§14.5][s14-5]) is a boundary and not a frame top either.
 
@@ -35,13 +36,13 @@ The loop consists of six activities. They are the boundary sequence
 [pacing](#g-pacing) (waits inserted between completed frames, never altering
 the boundary sequence).
 
-**All six are framework code, unconditionally** ([D-017][d-017]). The
-framework writes the loop itself. It does not assemble the loop out of
-callbacks registered with a third-party solver. The reason is the
-step-boundary contract ([§10.6][s10-6]), the central invariant of this design.
-Only a loop the framework owns can enforce that contract by construction
-rather than by convention. [D-017][d-017] records the rejected foreign-loop
-alternative.
+**All six are framework code, unconditionally** ([D-017][d-017]). The framework
+writes the loop itself. It does not assemble the loop out of callbacks
+registered with a third-party solver. The reason is the step-boundary contract
+(at every boundary the [§10.6][s10-6] macro-sequence completes before a snapshot
+goes out). It is the central invariant of this design. Only a loop the framework
+owns can enforce that contract by construction rather than by convention.
+[D-017][d-017] records the rejected foreign-loop alternative.
 
 **`OrdinaryDiffEq` is dropped as a dependency** of the new core
 ([D-017][d-017]).
@@ -61,7 +62,7 @@ The seam contract has four clauses.
 - The backend advances by arbitrary `h`. The loop needs this anyway. It lands
   on [tick](#g-tick) [boundaries](#g-boundary), and it resumes from a
   [localized](#g-localized) event time (the crossing instant bracketed by
-  root-finding over trial sweeps).
+  root-finding over trial evaluations).
 - The backend provides dense output on demand over the last completed step.
   Only event localization needs it ([§10.4][s10-4]), so the backend
   constructs it lazily.
@@ -101,7 +102,8 @@ trivially zero-allocation, so they can be audited against the CI invariant
 ([§7.5][s7-5]). They are also trivially `T`-generic. Genericity is not even
 required of the stepper, because linearization and the
 [feedthrough tracer](#g-feedthrough-tracer) (the instrument that classifies a
-rejected cycle as real or artificial, [§5.6][s5-6]) drive the *sweep*, never the integrator.
+rejected cycle as real or artificial, [§5.6][s5-6]) drive the *sweep*, never the
+integrator.
 
 **`RK4` is the default** of the two ([D-227][d-227]). The `algorithm` keyword
 selects the backend by type on the [`Deployment`](#g-deployment) (the
@@ -119,27 +121,26 @@ then.
 
 #### The case for fixed-step low order
 
-The domain argument is recorded here because it is decisive for the whole
-axis. It makes three claims.
+The domain argument is recorded here because it is decisive for the choice
+of integration method. It makes three claims.
 
 1. Closed-loop ticks cap the step. Every application beyond bare propagation
-   runs periodic avionics (onboard flight systems), whose commands are zero-order-held signals.
-   Integrating past a tick with stale commands is wrong, so the integrator
-   must land on every tick boundary regardless of method. Adaptive and
-   high-order methods pay off exactly when steps can stretch, and the
-   execution model forbids the stretch by construction.
+   runs periodic avionics (onboard flight systems), whose commands are
+   zero-order-held signals. Integrating past a tick with stale commands is
+   wrong, so the integrator must land on every tick boundary regardless of
+   method. Adaptive and high-order methods pay off exactly when steps can
+   stretch, and the execution model forbids the stretch by construction.
 2. A piecewise-smooth [RHS](#g-flow) (the continuous derivative function)
    starves high order. Linearly interpolated lookup tables (C¹-kinked at
    every knot), clamps, friction blends and mode branches deny high-order
    error estimators and implicit-solver Newton iterations the smoothness they
    assume.
 3. Stiffness has a remedy ladder. If a future model exceeds RK4's stability
-   region at the deployed `h`, the ladder runs in order. First shrink `h`.
-   Then subcycle the
-   stepper against the tick grid. Only then reach for an implicit method
-   through the `OrdinaryDiffEq` extension above. If that day comes, eltype
-   genericity ([§7.2][s7-2]) supplies exact ForwardDiff Jacobians through the
-   sweep for free.
+   region at the deployed `h`, the ladder runs in order. First shrink `h`. Then
+   subcycle the stepper against the tick grid. Only then reach for an implicit
+   method through the `OrdinaryDiffEq` extension above. If that day comes,
+   eltype genericity ([§7.2][s7-2]) supplies exact ForwardDiff Jacobians through
+   the sweep for free.
 
 The Flight.jl evidence behind these claims lives in section 5 of
 `companions/flight_case_studies.md`.
@@ -153,9 +154,10 @@ is transiently integrator scratch. The [boundary sweep](#g-sweep) in the
 [§5.3][s5-3] sequence restores consistency at each accepted
 [boundary](#g-boundary).
 
-**External readers (GUI, logging, network output) observe the signal table
-only at step boundaries** ([D-023][d-023]). Mid-step contents carry no
-meaning. This rule binds the [periphery](#g-periphery) (everything outside
-the loop that exchanges data with it, [§11][s11]). The rule extends naturally
-to the boundary sequence ([§10.6][s10-6]). External readers observe the table
-only after the boundary sequence completes.
+**External readers observe the signal table only at step boundaries**
+([D-023][d-023]). These readers are the GUI, logging and network output.
+Mid-step contents carry no meaning. This rule binds the
+[periphery](#g-periphery) (everything outside the loop that exchanges data with
+it, [§11][s11]). The rule extends naturally to the boundary sequence
+([§10.6][s10-6]). External readers observe the table only after the boundary
+sequence completes.
