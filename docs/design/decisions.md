@@ -11837,6 +11837,10 @@ Publication is not a phase body, which is the [§7.5][s7-5] carve-out made
 structural; isolated invocation leaves buffers valid but off-trajectory, and
 re-`init!` continues (as recorded in [D-116][d-116]).
 
+Annotation (2026-10-02): [D-289][d-289] is the compile-time ruling this Rationale
+waited on. It restates [D-086][d-086]'s chunking in [§9.7][s9-7] and replaces its mitigation
+ladder.
+
 **Rejected.**
 - *Framework-maintained view hoisting:* manual cache-invalidation duty for
   loads the compiler hoists exactly where legal; mis-scoping = silent
@@ -11866,9 +11870,11 @@ re-`init!` continues (as recorded in [D-116][d-116]).
 - A barrier takes its chunk by reference. The executor holds one pointer per
   chunk, and it holds the event set by reference.
 - The declaration layer takes components unspecialized. Code that runs once
-  per build does not compile again per component type or per root type, and
-  a closure created per component reads the instance from an unspecialized
-  binding.
+  per build takes a component, an assembly or the root unspecialized and
+  does not compile again per component type or per root type, and a closure
+  created per component reads the instance from an unspecialized binding. A
+  component's own declaration methods still compile per type, and so do the
+  helpers that take a declared value such as a connection.
 - The mitigations are lazy activations, precompile workloads, and the
   optimization level as an iteration session's knob. A workload bakes the
   generic machinery into the package image, and a component package's

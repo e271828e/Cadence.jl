@@ -4561,11 +4561,14 @@ the first `run!` cost 16.9 s per new topology with chunks stored inline, and
 were also a fifth to a third of the loop's runtime.
 
 **The declaration layer takes components unspecialized** ([D-289][d-289]). Code that
-runs once per build does not compile again per component type or per root
-type. A closure created per component reads the instance from an
-unspecialized binding, because a closure that captured a typed local would
-compile once per component type. That code has no performance requirement,
-so specializing it buys nothing. `build` of 64 components of 64 new types
+runs once per build takes a component, an assembly or the root unspecialized,
+so it does not compile again per component type or per root type. A closure
+created per component reads the instance from an unspecialized binding,
+because a closure that captured a typed local would compile once per
+component type. That code has no performance requirement, so specializing it
+buys nothing. A component's own declaration methods still compile per type,
+and so do the helpers that take a declared value such as a connection. Both
+are small. `build` of 64 components of 64 new types
 takes 0.86 s, against 40.5 s with the layer specialized. `build` of a new
 root of 128 components over known types takes 0.08 s, against 12.1 s.
 
