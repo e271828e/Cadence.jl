@@ -328,6 +328,9 @@ were derived.
 | [D-301][d-301] | Name a declaration by what it returns | ratified |
 | [D-302][d-302] | Let a store be the home of any state letter | ratified |
 | [D-303][d-303] | Name the connection declarations for wires, and `Group`'s keywords for the declarations | ratified |
+| [D-304][d-304] | The flat declaration, the unchanged buffer, the store-field limits and authored genericity | ratified |
+| [D-305][d-305] | The zero-allocation invariant's scope, its grounds and its budgets | ratified |
+| [D-306][d-306] | The workspace outside conditions, plans valid from allocation, and double-buffering deferred | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -541,6 +544,10 @@ reading on a simple cycle.
 **Spec.** [§7.3][s7-3]
 
 **Rationale.** Recorded only through the rejections below.
+
+Annotation (2026-10-02): `z` is `s` since [D-195][d-195], and the discrete state lives
+in stores, which are not cells ([D-121][d-121], [D-302][d-302]). Immutable discrete state, the
+workspace and the snapshot idiom stand.
 
 **Rejected.**
 - *Mutable discrete state:* aliasing, snapshot cost.
@@ -1108,6 +1115,11 @@ home per datum); selective auto-publication of declared state/mode fields;
 **Spec.** [§5.2][s5-2], [§5.3][s5-3], [§7.1][s7-1], [§7.4][s7-4]
 
 **Rationale.** Recorded only through the rejections below.
+
+Annotation (2026-10-02): amended by [D-252][d-252], which removes auto-publication. A
+component exposes a state or mode field by returning it from `y_state`. The
+views, the bundle, the produced-only table and the no-feedthrough stage stand.
+[D-252][d-252]'s `output_state` is `y_state` since [D-267][d-267].
 
 **Rejected.**
 - *Superseded position — state-free evaluation prototypes with identity
@@ -2283,6 +2295,13 @@ Annotation (2026-09-24): the allocator takes the scalar on both tiers, the
 discrete side always receiving `Float64`, so its arity is no longer a tier
 fact; the rejection of `similar`-based re-scalaring is what keeps the scalar
 in the signature at all ([D-263][d-263]).
+
+Annotation (2026-10-02): the scoped debug poison is retired by [D-183][d-183], and so
+is the poison the Rejected list's second and fourth items name. The framework
+never inspects or mutates a workspace, and `undef` allocation is the sole
+visible marker of meaningless contents. Sizes from the instance, eltypes from
+the activation, both tiers and the no-information-between-calls contract
+stand.
 
 **Rejected.**
 - *Concrete-nominal allocation + framework `similar`-based re-scalaring
@@ -3499,6 +3518,11 @@ carve-out made structural; isolated invocation leaves buffers valid but
 off-trajectory (re-`init!` to continue); the FlightCore allocation comparison in `migration_outline.md`
 measures through the seam.
 
+Annotation (2026-10-02): [§7.5][s7-5] calls its tiers budgets. The "carve-out" is the
+invariant's scope, which [§7.5][s7-5] states: the invariant covers the stepping loop
+([D-305][d-305]), and publication is not a phase body ([D-288][d-288]). `project` is `x_projection`
+([D-220][d-220], [D-267][d-267]).
+
 **Rejected.**
 - *Per-body exported functions (`rhs!(sim)`, `guard!(sim, path, name)`, …):*
   five-plus exported names, an invented addressing mini-language for the
@@ -3654,6 +3678,10 @@ observed" ([D-082][d-082] restated, no semantic change).
 Annotation (2026-10-02): amended by [D-302][d-302]. *Store* names the home of any of a
 component's state letters, `x` included, whose store is a range of the buffer.
 The cell/store partition and the staging cell stand.
+
+Annotation (2026-10-02): the workspace is no longer poison-covered. [D-183][d-183]
+retires workspace poisoning, and [§7.3][s7-3] states the workspace's rules as contract
+only.
 
 **Rejected.**
 - *Renaming "staging cell" itself:* entrenched through [D-106][d-106]–[D-107][d-107], the
@@ -7336,6 +7364,10 @@ bounded by construction: one final ring take per writer, at most sixteen
 entries plus suppressed counts. The record's cost is nil on any path that
 matters — it is built once per run, on the cold side of the final snapshot.
 
+Annotation (2026-10-02): [§7.2][s7-2] never stated the clock's seed, and no spec
+sentence states it today, so the fourth rejection's citation has no referent.
+The rejection's other grounds stand.
+
 **Rejected.**
 - *Superseded position — presentation-only disposal ([D-201][d-201]):* honest but
   ephemeral; the tail's facts evaporated from the program at the moment it
@@ -8598,6 +8630,11 @@ writes a label, where `@enum` puts every instance name into the module
 namespace, a cost that compounds across a component library. The check stays
 one exact predicate per field and does not recurse, so a struct nesting a
 `Symbol` is rejected.
+
+Annotation (2026-10-02): `m` is continuous-only, since a discrete component
+has no mode store ([§3.2][s3-2], [§8.2][s8-2]). "Any leaf's `m`" reads "the `m` of every leaf
+that declares one". `init_s` and `init_m` are `s_init` and `m_init` ([D-267][d-267]),
+and Stratum A is the structure step ([D-259][d-259]).
 
 **Rejected.**
 - *Any immutable value under the frozen-reference rule (the prior [§7.3][s7-3] text):*
@@ -12637,6 +12674,94 @@ as a function name does not apply to the prefixed names.
 - *Short `Group` keywords (`wires`, `inputs`, `outputs`, `rates`) beside the
   declaration names:* two vocabularies for one thing.
 
+### D-304 — The flat declaration, the unchanged buffer, the store-field limits and authored genericity
+
+**Status.** ratified
+
+**Position.** Six state and genericity rulings that [§7.1][s7-1], [§7.2][s7-2] and [§7.3][s7-3] state
+are fixed here.
+
+- The `x_init` declaration is flat. Each field is one leaf, because the
+  condition algebra and the readers address a field as one leaf, and
+  structure is the component tree's to express. The check that enforces the
+  closed vocabulary refuses nesting with the rest.
+- Hoisting the views rebuilt per call is the code generator's CSE, whose
+  legality condition is the staleness rule: the buffer is unchanged within a
+  sweep.
+- A struct nesting a `Symbol` does not qualify as a field of an `s` or `m`
+  store. The check is one exact predicate per field and does not
+  recurse.
+- No arithmetic is done on the `s` and `m` stores, a rule that holds for
+  those stores alone.
+- Type stability under `Dual` is an authoring rule, not a conformance
+  predicate.
+- Differentiation participation is never inferred by a probe. Probe
+  inference would invert the rule that declarations define and probes check,
+  and one probe point cannot speak for branch-dependent participation.
+
+**Spec.** [§7.1][s7-1], [§7.2][s7-2], [§7.3][s7-3]
+
+**Rationale.** Each bullet restates what an existing entry recorded outside a
+Position. The flat declaration was recorded in [D-094][d-094]'s annotation of
+2026-09-14. The CSE's legality condition was recorded in [D-086][d-086]'s and [D-288][d-288]'s
+Rationales as "the staleness rule", which [§7.1][s7-1] states as the buffer unchanged
+within a sweep and [§9.7][s9-7] names as [§7.1][s7-1]'s rule. The nesting edge was recorded in
+[D-231][d-231]'s Rationale, and the ban on arithmetic among the rules [D-302][d-302]'s Rationale
+lists for the `s` and `m` stores. Type stability as an authoring rule was
+recorded in [D-235][d-235]'s Rejected list, and the rejection of probe-inferred
+participation in [D-079][d-079]'s.
+
+**Rejected.** None beyond the source entries' lists.
+
+### D-305 — The zero-allocation invariant's scope, its grounds and its budgets
+
+**Status.** ratified
+
+**Position.** Three allocation rulings that [§7.5][s7-5] states are fixed here.
+
+- The zero-allocation invariant is scoped to the stepping loop. The
+  stopped-sim services were always allocation-tolerant.
+- The policy is scoped, not blanket dogma, which fights logging reality. A
+  policy is kept, because without one the type-instability canary is lost.
+- Guards and `x_projection`, which run unconditionally per boundary or frame,
+  take the exactly-zero budget. Handlers, which are episodic and run only on
+  firing, take the ticks' zero-by-idiom budget.
+
+**Spec.** [§7.5][s7-5]
+
+**Rationale.** Each bullet restates what an existing entry recorded outside a
+Position. The invariant's scope and the services' tolerance were recorded in
+[D-135][d-135]'s Rationale. Blanket dogma and the lost canary were recorded in [D-014][d-014]'s
+Rejected list. The budgets' membership was recorded in [D-116][d-116]'s Rationale,
+which calls the budgets tiers and the projection `project`.
+
+**Rejected.** None beyond the source entries' lists.
+
+### D-306 — The workspace outside conditions, plans valid from allocation, and double-buffering deferred
+
+**Status.** ratified
+
+**Position.** Three workspace and discrete-state rulings that [§7.3][s7-3] states are
+fixed here.
+
+- A workspace is never a condition target. It is not memory that conditions
+  overlay, and conditions exclude it.
+- A plan or factorization configured at allocation is valid from allocation
+  on.
+- Double-buffered mutable discrete state is deferred, for its publication
+  races.
+
+**Spec.** [§7.3][s7-3]
+
+**Rationale.** Each bullet restates what an existing entry recorded outside a
+Position. The workspace's exclusion from conditions was recorded in [D-077][d-077]'s
+Rejected list, against declaring the workspace by value. Plans and
+factorizations valid from allocation were recorded in [D-183][d-183]'s Rejected list,
+against the scoped poison. Double-buffering was recorded as deferred in
+[D-013][d-013]'s Rejected list.
+
+**Rejected.** None beyond the source entries' lists.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -12941,6 +13066,9 @@ as a function name does not apply to the prefixed names.
 [d-301]: #d-301--name-a-declaration-by-what-it-returns
 [d-302]: #d-302--let-a-store-be-the-home-of-any-state-letter
 [d-303]: #d-303--name-the-connection-declarations-for-wires-and-groups-keywords-for-the-declarations
+[d-304]: #d-304--the-flat-declaration-the-unchanged-buffer-the-store-field-limits-and-authored-genericity
+[d-305]: #d-305--the-zero-allocation-invariants-scope-its-grounds-and-its-budgets
+[d-306]: #d-306--the-workspace-outside-conditions-plans-valid-from-allocation-and-double-buffering-deferred
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
