@@ -274,7 +274,7 @@ The demo, line by line:
   build). `HorizontalTerrain`'s elevation is a plain field (a parameter) and
   its surface type an input port. The parameter/port split that
   FlightCore kept implicit in its `U()`-vs-field convention is now the
-  declaration itself. The aircraft's `u_connections` block carries the
+  declaration itself. The aircraft's `input_wires` block carries the
   `pilot.*` face group in one place, hands it one level down to
   avionics and systems, and re-routes it at each level below ([§6.1][s6-1]).
   Today's mapping writes flaps/brakes directly into `act`, bypassing avionics.

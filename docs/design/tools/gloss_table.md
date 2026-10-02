@@ -10,7 +10,8 @@ in `check_glossary.jl`), gloss recorded for completeness only.
 count of `](#g-…)` links to the anchor in chapters 1–16. The `checkpoint` and
 `trace header` rows were counted on 2026-09-30, after increment 55 added the
 first, rewrote the second and retired `capture` (D-273, D-274). No other row
-was recounted then.
+was recounted then. The `inner wire` row was counted on 2026-10-02, when
+D-303 added the entry.
 
 ## D.1 Component model and declaration layer
 
@@ -28,6 +29,7 @@ was recounted then.
 | function family | g-function-family | 1 | A | which bundle fields a given function may legally receive |
 | generic holding | g-generic-holding | 2 | A | a parent holding a child through a non-concrete field type |
 | hybrid causal system | g-hybrid-causal-system | 1 | B | continuous flow, discrete dynamics, events and injected inputs |
+| inner wire | g-inner-wire | 6 | B | an `inner_wires` entry, with both ends inside the assembly's boundary |
 | the letters | g-the-letters | 0 | — | *(resists compression: the entry is a naming table)* |
 | periodic discrete component | g-periodic-discrete-component | 0 | — | a leaf updating at a declared rate, holding between ticks |
 | rate scope | g-rate-scope | 4 | A | an assembly's `sample_times` declaration against the enclosing scope |

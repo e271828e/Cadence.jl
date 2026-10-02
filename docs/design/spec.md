@@ -352,7 +352,7 @@ duplicate the discrete tier's own state semantics under another name.
 
 ### 3.3 Assembly
 
-An assembly is pure composition. It holds submodels, inner connections and
+An assembly is pure composition. It holds submodels, [inner wires](#g-inner-wire) and
 boundary [faces](#g-face). **It has no dynamics of its own.** Hybridness emerges at the
 [assembly](#g-assembly) level. An aircraft is continuous vehicle parts plus discrete avionics
 parts. The two-leaf split was upheld against the integrate-and-dump challenge
@@ -574,7 +574,7 @@ aliasing an interior port, in declaration form.
 y_types(::Kinematics) = (pose = KinPose{Float64}, q_eb = RQuat{Float64})
 
 #the enclosing assembly: each face aliases an interior port, creating no endpoint
-y_connections(::Vehicle) = ("kin/pose" => "pose", "kin/q_eb" => "q_eb")
+output_wires(::Vehicle) = ("kin/pose" => "pose", "kin/q_eb" => "q_eb")
 ```
 
 #### Granularity, write side
@@ -1233,9 +1233,11 @@ left unconnected.
 
 **Rule.** Every connection endpoint names an **immediate child and one of its
 [faces](#g-face)** ([D-207][d-207]). The rule covers all three wiring declarations ([§8.6][s8-6]). An
-`inner_connections` pair wires one child's face to another's. A
-`u_connections` entry routes a face to an immediate child's face. A
-`y_connections` entry sources a face from an immediate child's face.
+`inner_wires` pair wires one child's face to another's. An
+`input_wires` entry routes a face to an immediate child's face. An
+`output_wires` entry sources a face from an immediate child's face. An entry
+of any of the three is a wire, and an entry of the first is an [inner wire](#g-inner-wire)
+([D-303][d-303]).
 [Container children](#g-container-children) ([§8.5][s8-5]) keep their key segment, so `"aircraft/2/face"` is one
 level and not two. A container declared name-transparent ([§8.5][s8-5]) is the
 exception. Its elements go by bare key, so `"ctl/face"` reads exactly as a plain
@@ -1247,10 +1249,10 @@ assembly speaking only of its own children. `Cessna172` hands its `trn` input to
 The fan-out is declared at the level where the paths diverge.
 
 ```julia
-u_connections(::Cessna172) = ("trn" => "systems/trn", …)
-u_connections(::Systems)   = ("trn" => "ldg/trn", …)
-u_connections(::Ldg)       = ("trn" => ("left/trn_field", "right/trn_field",
-                                        "nose/trn_field"), …)
+input_wires(::Cessna172) = ("trn" => "systems/trn", …)
+input_wires(::Systems)   = ("trn" => "ldg/trn", …)
+input_wires(::Ldg)       = ("trn" => ("left/trn_field", "right/trn_field",
+                                      "nose/trn_field"), …)
 ```
 
 **Why.** [Faces](#g-face) become the only currency crossing an assembly boundary, so
@@ -1333,7 +1335,7 @@ Fan-out is free. One producer may feed many consumers. The converse is strict.
 Aggregation is done by junctions ([§6.2][s6-2]).
 
 The rule spans levels. A child input fed by a sibling wire at its own level
-*and* handed up through its parent's `u_connections` is a two-producers
+*and* handed up through its parent's `input_wires` is a two-producers
 build error. Routing a face upward cannot silently double-feed.
 
 #### Unconnected ports
@@ -1344,7 +1346,7 @@ ports are a build error, with no silent defaults.
 
 **The check is a whole-tree property, not a per-declaration one.** Within a
 single assembly declaration an unfed child input is simply *awaiting a claim
-from above*, either a sibling wire or a `u_connections` entry handing the
+from above*, either a sibling wire or an `input_wires` entry handing the
 obligation up one level ([§8.6][s8-6]). The error fires at the root build for any input
 whose obligation chain never terminates. The one legitimate terminus fed by no
 [component](#g-component) is the root component's own input face, a root input ([§11.3][s11-3]).
@@ -1389,7 +1391,7 @@ Wired at an ownership boundary, the junction is ordinary structure.
 ([§8.5][s8-5]).
 
 ```julia
-inner_connections(::Systems) = (
+inner_wires(::Systems) = (
     "aero/wrench" => "wr_sum/in1",
     "pwp/wrench"  => "wr_sum/in2",
     "ldg/wrench"  => "wr_sum/in3",
@@ -2019,8 +2021,8 @@ extension-only periphery surface. A component module therefore opens with
 ```julia
 import Cadence: x_init, s_init, m_init, ws_init, u_types,
     y_types, state_events, y_state, y_direct, x_deriv,
-    s_update, x_projection, inner_connections, u_connections,
-    y_connections, sample_times, transparent_container
+    s_update, x_projection, inner_wires, input_wires,
+    output_wires, sample_times, transparent_container
 ```
 
 The explicit list is needed because `using Cadence` alone is a silent trap.
@@ -2106,11 +2108,11 @@ to say. An optional declaration shadowed in a local scope, such as
 its class fixes its grammatical shape ([D-144][d-144]).
 
 1. Declarations are noun phrases naming what they return, prefixed by the bundle
-   field they define where one exists ([D-267][d-267]). An [assembly](#g-assembly)'s boundary
-   declarations take `u` and `y` too. There the letter names a side of the
-   contract, which on a leaf is also a bundle field ([D-279][d-279]). The author
-   defines them and the framework calls them. They include `inner_connections`,
-   `u_connections`/`y_connections`, `state_events`, `u_types`, `ws_init`, the
+   field they define where one exists ([D-267][d-267]). An [assembly](#g-assembly) defines
+   no bundle field, and its three connection declarations name the wires they
+   return ([D-303][d-303]). The author
+   defines them and the framework calls them. They include `inner_wires`,
+   `input_wires`/`output_wires`, `state_events`, `u_types`, `ws_init`, the
    stage and update-law names ([D-220][d-220]), and `claims(b)` from the [binding](#g-binding)
    interface ([§11.6][s11-6]). A binding is the value passed at `attach!` that
    makes a device framework-legible.
@@ -2127,7 +2129,7 @@ still pick the wrong noun. **A declaration names its *content*, what it
 returns, never the *consequence* its definition has** ([D-301][d-301]). The binding
 methods `claims`/`reads` ([§11.6][s11-6], [D-146][d-146]) name the claim set and the
 read set they return. `exports` named a consequence and is retired, and
-`u_connections` and `y_connections` name the pairs each returns
+`input_wires` and `output_wires` name the pairs each returns
 ([D-170][d-170]). `input_passthrough` ([§8.8][s8-8], [D-171][d-171]) sits outside the
 axis: it is a helper the author calls, named for the operation it performs
 ([D-144][d-144]).
@@ -2235,7 +2237,7 @@ s_init(::Sampler) = (;)
 ```
 
 This [state declaration](#g-state-declaration) (a leaf's `x_init` or `s_init`) is the tier marker. It is
-therefore mandatory even when empty, exactly as `inner_connections` is mandatory
+therefore mandatory even when empty, exactly as `inner_wires` is mandatory
 even when empty because it is the class marker ([§8.5][s8-5], [D-263][d-263]). A primitive
 declaring neither is `TierUnreadable`, and its message spells the empty form. An
 empty state declaration owes no update law, since it has nothing to integrate or
@@ -2436,7 +2438,7 @@ rather than the face alone ([§14.10][s14-10], [D-168][d-168], [D-296][d-296]).
 **Any component may be the root of a build, and the model's root inputs are
 the root's own input faces** ([D-208][d-208]). For an
 [assembly](#g-assembly) (a component of pure composition) those are the faces
-declared through `u_connections`, each traced through the face chain
+declared through `input_wires`, each traced through the face chain
 ([§6.1][s6-1], [§11.3][s11-3]) to the leaf entries consuming it. For a
 primitive they are its `u_types` keys directly, because a leaf's faces are its
 own port names ([§8.6][s8-6]). Each is then its own consuming entry. The type
@@ -2822,8 +2824,8 @@ parameters.
 Field names are path segments. Substitutability and variants use ordinary
 parametric fields, exactly the shape of `Cessna172X{K, A}`, Flight.jl's Cessna
 172 model. Alongside the struct come the well-known declarations.
-`inner_connections(::A)` is mandatory even when empty, and
-`u_connections(::A)`, `y_connections(::A)` and `sample_times(::A)` join it.
+`inner_wires(::A)` is mandatory even when empty, and
+`input_wires(::A)`, `output_wires(::A)` and `sample_times(::A)` join it.
 One more is optional, `transparent_container(::A)`, with default `nothing`.
 Naming a container field there drops that field's segment from its children's
 names, as "Container children" below states.
@@ -2840,7 +2842,7 @@ implementation detail behind the [contract](#g-contract) (a component's declared
 [§8.3][s8-3]).
 
 Class is declared instead by *which* well-known declarations a type defines.
-**`inner_connections` is the marker**, mandatory even when empty, and defining
+**`inner_wires` is the marker**, mandatory even when empty, and defining
 it makes an assembly ([D-039][d-039]). Any leaf declaration makes a primitive.
 The leaf declarations are `x_init`/`s_init`/`m_init`, `ws_init`,
 `u_types`/`y_types`, `state_events`, and any stage, `x_deriv`, `s_update` or
@@ -2851,7 +2853,7 @@ class to read. It is a build error, `ClassUnreadable`, naming both families,
 rather than a silence that fails later and elsewhere. When the type has
 component-typed fields, that error sharpens into a [did-you-mean](#g-did-you-mean) (the offending
 name plus the list-in-hand it should have matched). Its message reads "holds
-components but declares no `inner_connections`". `inner_connections` plus any
+components but declares no `inner_wires`". `inner_wires` plus any
 leaf declaration on one type is a build error as well, `ClassMixed`.
 
 Assemblies have no state of their own, which is the no-atomic-assemblies rule
@@ -2881,10 +2883,10 @@ They are path-named `"field/1"…"field/N"` for a tuple and `"field/key"` for a
 NamedTuple, and declaration order governs layout.
 
 **Containers are transparent grouping, not assemblies** ([D-085][d-085]). They
-have no contract, no `inner_connections`, no [rate scope](#g-rate-scope) (an
+have no contract, no `inner_wires`, no [rate scope](#g-rate-scope) (an
 assembly's `sample_times` declaration) and no existence beyond the path
 segment. The elements are children *of the parent*. The parent's
-`inner_connections`, `u_connections`, `y_connections` and `sample_times`
+`inner_wires`, `input_wires`, `output_wires` and `sample_times`
 address them by element name. Anything wanting its own wiring or faces
 declares itself an assembly.
 
@@ -2910,7 +2912,7 @@ child name appears, namely in wiring endpoints, `sample_times` keys, read paths,
 
 Naming is the only thing the declaration changes. The elements are the
 parent's children exactly as before, laid out in declaration order. The
-container keeps its transparency of contract, with no `inner_connections`, no
+container keeps its transparency of contract, with no `inner_wires`, no
 faces and no rate scope.
 
 The edges of the container form are fixed by rule.
@@ -2955,29 +2957,32 @@ under this section's rules. **`Group` expresses it as a single library component
 part of the starting inventory ([§13.7][s13-7], [D-184][d-184]). A `NamedTuple` field's elements
 are its children by the container rule, name-transparent so they go by bare key
 ([D-211][d-211]). Its declarations are ordinary functions of the *instance*, free to read
-its fields. **A `Group` also carries its own rate scope**, a `rates` field
-keyed by bare element name, which `sample_times` returns ([D-300][d-300]).
+its fields. The fields that hold wires and rates, and the keywords that set
+them, bear the names of the declarations that return them ([D-303][d-303]).
+**A `Group` also carries its own rate scope**, a `sample_times` field keyed
+by bare element name ([D-300][d-300]).
 
 ```julia
 struct Group{C <: NamedTuple, W, I, O, R <: NamedTuple} <: AbstractComponent
     children::C      # component-typed elements → children by the container rule
-    wires::W         # inert parameter data
-    inputs::I
-    outputs::O
-    rates::R         # the ad-hoc rate scope, keyed by bare element name (§8.7)
+    inner_wires::W   # inert parameter data
+    input_wires::I
+    output_wires::O
+    sample_times::R  # the ad-hoc rate scope, keyed by bare element name (§8.7)
 end
-inner_connections(g::Group)    = g.wires
-u_connections(g::Group)        = g.inputs
-y_connections(g::Group)        = g.outputs
-sample_times(g::Group)         = g.rates
+inner_wires(g::Group)          = g.inner_wires
+input_wires(g::Group)          = g.input_wires
+output_wires(g::Group)         = g.output_wires
+sample_times(g::Group)         = g.sample_times
 transparent_container(::Group) = :children
 
-Group(children; wires = (), inputs = (), outputs = (), rates = (;)) =
-    Group(children, wires, inputs, outputs, rates)
+Group(children; inner_wires = (), input_wires = (), output_wires = (),
+      sample_times = (;)) =
+    Group(children, inner_wires, input_wires, output_wires, sample_times)
 
 world = Group(
     (; plant = Plant(), ctrl = PID(kp = 2.0));
-    wires = ("ctrl/u" => "plant/u", "plant/y" => "ctrl/y"),
+    inner_wires = ("ctrl/u" => "plant/u", "plant/y" => "ctrl/y"),
 )
 ```
 
@@ -3040,19 +3045,19 @@ relied on downstream. Symmetric immutable siblings are `===`-identical, so a
 path is unrecoverable from an instance. That is why the helpers
 ([§8.8][s8-8]) name the child by path.
 
-`inner_connections(::A)` is an ordered collection of `"src/face" => "dst/face"`
+`inner_wires(::A)` is an ordered collection of `"src/face" => "dst/face"`
 pairs. **Every pair runs strictly from a child face to a child face** ([D-170][d-170]). The
 wiring rules apply ([§6.1][s6-1]). There is one wire per input, and every endpoint is
 an immediate child and one of its faces, container key segments included.
 
 **The assembly's boundary is declared by two further methods, one per
-direction** ([D-170][d-170]). `u_connections(::A)` is an ordered collection of
+direction** ([D-170][d-170]). `input_wires(::A)` is an ordered collection of
 pairs, face name => internal endpoint path. An input face routed to several
 immediate children takes a tuple of paths instead, as in
 `"trn" => ("left/trn_field", "right/trn_field", …)`. This is fan-out through
 the boundary. **Every entry routes to at least one internal endpoint**
 ([D-210][d-210]). An empty tuple is a declaration error, because a face
-feeding nothing declares nothing ([D-210][d-210]). `y_connections(::A)` runs the
+feeding nothing declares nothing ([D-210][d-210]). `output_wires(::A)` runs the
 other way, internal source path => face name (`"aircraft/pose" => "view_pose"`),
 so that its pairs, like every other pair in the three declarations, read along
 the flow.
@@ -3101,12 +3106,12 @@ declarations return pairs of strings rather than NamedTuples
 ([D-046][d-046]).
 
 Root inputs fall out with no vocabulary of their own. At every non-root level an
-input face declared through `u_connections` is fed by the parent's wire. At the
+input face declared through `input_wires` is fed by the parent's wire. At the
 root there is no parent. There the root component's input faces *are* the
 [write surface](#g-write-surface), the set of faces a writer's batch entries may reach ([§11.3][s11-3]).
 Which declaration supplies them follows the root's [class](#g-class) ([D-208][d-208]). Class is a
 component's primitive-versus-assembly status. An assembly root supplies its
-`u_connections` keys, and a primitive root its `u_types` keys ([§8.2][s8-2]). Nothing
+`input_wires` keys, and a primitive root its `u_types` keys ([§8.2][s8-2]). Nothing
 downstream distinguishes the two. The whole-tree obligation model ([§6.1][s6-1])
 states the complementary error rule. An assembly never declares its external
 connections. Those live in the parent that instantiates it, exactly as a leaf's
@@ -3135,17 +3140,17 @@ struct IMU <: AbstractComponent
     errors::IMUErrorModel      # discrete — scale/bias/noise on the sample
 end
 
-inner_connections(::IMU) = (
+inner_wires(::IMU) = (
     "integrals/Θ" => "sampler/Θ", "integrals/q" => "sampler/q",
     "integrals/Υ" => "sampler/Υ", "integrals/V" => "sampler/V",
     "sampler/sample" => "errors/sample",
 )
 
-u_connections(imu::IMU) = (
+input_wires(imu::IMU) = (
     input_passthrough(imu, "integrals")...,       # kinematic-truth inputs pass through
 )
 
-y_connections(::IMU) = (
+output_wires(::IMU) = (
     "sampler/sample"     => "sample",             # ideal increments
     "errors/sample_meas" => "sample_meas",        # measured increments (the error
                                                   # model's output port)
@@ -3160,9 +3165,9 @@ pass-through of the integrals' kinematic-truth inputs (`q_eb`, `r_eb_e`,
 `ω_eb_b`, `a_ib_b`, `α_ib_b`) is a bare splat with nothing to say about
 direction. Second, the measured-increment face sources `errors/sample_meas`,
 the error model's *output* port. It does not source `errors/sample`, the
-input the sampler already feeds. Listing `errors/sample` in `y_connections`
-would fail the direction cross-check. Listing it in `u_connections` while it
-is wired is the two-producers error of [§8.8][s8-8].
+input the sampler already feeds. Listing `errors/sample` in `output_wires`
+would fail the direction cross-check. Listing it in `input_wires` while an
+[inner wire](#g-inner-wire) feeds it is the two-producers error of [§8.8][s8-8].
 
 The example carries two more facts. The first is that the assembly is
 tier-neutral. Every face's type and tier derive from its internal endpoint, and
@@ -3171,7 +3176,7 @@ a `sample_times` key on `integrals`, the continuous child, would be a build erro
 anyway, so this `sample_times` declaration is declaratory. Their absolute rate
 arrives from the enclosing scope at deployment ([§8.7][s8-7]). The latch-back wire
 (below, under "The boundary-sampling contract"), where the integrals consume the
-sampler's published latch, would join `inner_connections` as one more ordinary
+sampler's published latch, would join `inner_wires` as one more ordinary
 pair.
 
 #### The leaves: integrate-and-difference
@@ -3414,7 +3419,7 @@ rejected ([D-042][d-042]).
 
 ### 8.8 Computed connections and generic holding
 
-`u_connections` and `y_connections` are ordinary functions evaluated at build
+`input_wires` and `output_wires` are ordinary functions evaluated at build
 against the concrete instance ([D-043][d-043]). They may therefore *compute* entries from
 child [contracts](#g-contract) (each child's declared interface). That is derivation from
 declarations, which [§8.2][s8-2] blesses. The section covers the passthrough helpers,
@@ -3442,7 +3447,7 @@ function input_passthrough(assembly, child_path::AbstractString;
 
     child = resolve(assembly, child_path)      # getfield walk along "/" segments
     names = input_faces(child)            # the leaf's u_types keys,
-                                          # entries of u_connections(c) for an assembly
+                                          # entries of input_wires(c) for an assembly
     given = !isempty(except) + !isempty(only) + (select !== nothing)
     given ≤ 1 ||
         declaration_error(child_path, :multiple_selectors)  # exclusivity enforced, not documented
@@ -3457,12 +3462,12 @@ function input_passthrough(assembly, child_path::AbstractString;
     return Tuple(label(n) => string(child_path, "/", n) for n in wanted)
 end
 
-u_connections(w::World) = (
+input_wires(w::World) = (
     input_passthrough(w, "aircraft"; except = ("atm", "trn"))...,   # "aircraft.pilot.throttle_axis"
     input_passthrough(w, "atmosphere"; prefix = "env", sep = "_")..., # "env_wind_N"
 )
 
-y_connections(w::World) = (
+output_wires(w::World) = (
     "aircraft/pose" => "view_pose",
 )
 ```
@@ -3485,7 +3490,7 @@ Every error stays first-class.
 
 - An `except` face the assembly then fails to wire is an ordinary
   unconnected input.
-- A face both wired and passed through is a two-producers error
+- A face both fed by an [inner wire](#g-inner-wire) and passed through is a two-producers error
   ([D-145][d-145]).
 - `except` or `only` naming a nonexistent face errors with the child's face
   list in hand.
@@ -3526,13 +3531,13 @@ The helpers come in pairs, because the name carries the direction
 selector filters *face names* within that set. The helper exists for the
 pass-through case, where an assembly hands a child's unfed requirements up
 one level. **`output_passthrough` is its sibling** ([D-209][d-209]). It is
-splatted into `y_connections`, reads `output_faces(child)`, and has the same
+splatted into `output_wires`, reads `output_faces(child)`, and has the same
 `prefix`/`sep` surface, the same three exclusive selectors and the same
 declaration-time error set. In the block below, `Systems` is an assembly
 whose children include `aero` and `ldg`.
 
 ```julia
-y_connections(sys::Systems) = (
+output_wires(sys::Systems) = (
     output_passthrough(sys, "ldg"; only = ("damaged",))...,   # "ldg.damaged"
     "aero/wrench" => "wrench",
 )
@@ -3550,7 +3555,7 @@ path meets `resolve`'s one-level rejection like any other wiring endpoint ([§13
 [D-207][d-207]).
 
 There are two helpers rather than one keyword ([D-171][d-171], [D-299][d-299]). The boundary
-declarations split by direction into `u_connections` and `y_connections`, and
+declarations split by direction into `input_wires` and `output_wires`, and
 after that split a single call cannot emit entries into two different
 declarations.
 
@@ -3562,7 +3567,7 @@ interface kept deliberately thin). An assembly that feeds some of a child's
 input faces while passing the rest up must name the fed ones in `except`. At
 the scale of Flight.jl's C172X demo, that is four seams and roughly ten names
 at the innermost one. Each `except` tuple restates the wire list sitting in
-the same assembly's `inner_connections`. That is structure kept in two
+the same assembly's `inner_wires`. That is structure kept in two
 artifacts ([D-039][d-039]), the shape this design refuses elsewhere.
 
 **Removing the duplication needs no vocabulary** ([D-145][d-145]). Declaration
@@ -3586,13 +3591,13 @@ fed_faces(feeds, child) = Tuple(chopprefix(dst, child * "/")
                                 for (_, dst) in feeds
                                 if startswith(dst, child * "/"))
 
-inner_connections(::Systems) = (
+inner_wires(::Systems) = (
     (("act/" * src) => dst for (src, dst) in ACT_FEEDS)...,
     "aero/wrench" => "wr_sum/in1",               # non-feed wires unchanged
     …
 )
 
-u_connections(sys::Systems) = (
+input_wires(sys::Systems) = (
     input_passthrough(sys, "aero"; except = fed_faces(ACT_FEEDS, "aero"))...,
     input_passthrough(sys, "ldg";  except = fed_faces(ACT_FEEDS, "ldg"))...,
     …
@@ -3600,10 +3605,10 @@ u_connections(sys::Systems) = (
 ```
 
 Adding an actuator channel is then one edit ([D-145][d-145], [D-299][d-299]). The new pair
-simultaneously creates the wire and removes the face from the input face
-surface. The two declarations cannot drift, because neither holds the shared
-names. Both are projections of the authored list, so the drift class is
-removed rather than detected.
+simultaneously creates the inner wire and removes the face from the input
+face surface. The two declarations cannot drift, because neither holds the
+shared names. Both are projections of the authored list, so the drift class
+is removed rather than detected.
 
 Every misspelling stays loud. A mistyped destination is an unknown-face error
 with the child's face list in hand, whether the wire or the `except` entry
@@ -3615,9 +3620,9 @@ face surface, ultimately a [root input](#g-root-input) (the root component's own
 for [conditions](#g-condition), the data that set a build's state, to cover ([§14.6][s14-6]). What the
 idiom preserves, and the helper below surrenders, is that the feed statement
 exists to be reviewed. An omission is legible in one authored artifact, not
-defined away as the complement of the wire list.
+defined away as the complement of the inner wire list.
 
-The line not to cross is deriving `except` from `inner_connections` itself.
+The line not to cross is deriving `except` from `inner_wires` itself.
 A helper spelled `except = fed(sys, "aero")`, reading the assembly's own wire
 list, would cross it. That is auto-bubbling under another name
 ([D-043][d-043], [D-145][d-145]). **The single source must be authored data,
@@ -3626,7 +3631,7 @@ never inferred structure** ([D-145][d-145], [D-299][d-299]).
 #### Generic holding
 
 **Generic holding is an imposed derived contract** ([D-043][d-043]). A parent holding a
-child generically constrains it exactly through the faces its wires and
+child generically constrains it exactly through the faces its inner wires and
 interface connections reference. Build a `World` whose concrete aircraft lacks a
 referenced face, and the error names the `World` entry. That is build-time
 structural typing with no new vocabulary. A formal required-faces declaration on
@@ -3691,8 +3696,8 @@ the `Deployment` constructor and the `Simulation` constructor, both in
 #### The structure step
 
 **The structure step is pure declaration reading** ([D-048][d-048]). No user
-stage code executes in it ([D-259][d-259]). The `u_connections`,
-`y_connections` and `input_passthrough` bodies are declaration code
+stage code executes in it ([D-259][d-259]). The `input_wires`,
+`output_wires` and `input_passthrough` bodies are declaration code
 ([§8.8][s8-8]).
 
 The step is a tree walk from the root instance, in this order:
@@ -6558,7 +6563,7 @@ deliberate lie, not a drift.
 **The [write surface](#g-write-surface) (the set of faces a writer's batch
 entries may reach) is [root inputs](#g-root-input).** A root input *is* the
 root [component](#g-component)'s own input [face](#g-face), an assembly's
-`u_connections` key or a primitive's `u_types` key ([§8.2][s8-2],
+`input_wires` key or a primitive's `u_types` key ([§8.2][s8-2],
 [§8.6][s8-6]). It is routed inward to consumers and produced by no component.
 At every non-root level an input face is fed by the parent's wire, and at the
 root there is no parent. No dedicated vocabulary is needed.
@@ -7568,7 +7573,7 @@ whether it will be live.
 transitive.** A widget is live iff two things hold. Its port's feed chain
 terminates in a root input, *and* that root input lies **inside the GUI's
 own [claim](#g-claim)** in the run's frozen surface partition (root-input
-exclusivity, [§11.3][s11-3]). The feed chain is walked through wires and
+exclusivity, [§11.3][s11-3]). The feed chain is walked through [inner wires](#g-inner-wire) and
 interface connections across *all* levels, not just the local assembly. The
 claim may have been computed from the unclaimed complement under
 `is_greedy`, or enumerated [face](#g-face) by face by a partial-claims
@@ -9018,7 +9023,7 @@ the policy that fits it.
   step, declaration reading only). The other two are the stage-1
   [probes](#g-probe) and the probe chain of the nominal evaluation
   ([§9.1][s9-1]). When user code throws, there is no
-  meaningful rest of the collection to report. A failed `u_connections`
+  meaningful rest of the collection to report. A failed `input_wires`
   leaves the parent's face derivation undefined. A failed stage-2 probe starves
   every downstream probe of its wired inputs, because [probe values](#g-probe-value) flow
   topologically ([§9.3][s9-3]). The first
@@ -9244,7 +9249,7 @@ without defining them. All three are normative in the forms given here.
 - `input_faces(c)` / `output_faces(c) → Vector{String}` return the stringified
   keys of a leaf's `u_types` / `y_types` (the key set is
   `T`-independent). For an [assembly](#g-assembly) they return the entries of
-  `u_connections(c)` / `y_connections(c)`. Declaration order is
+  `input_wires(c)` / `output_wires(c)`. Declaration order is
   preserved, which gives deterministic printouts and stable diagnostics.
 - `resolve_terminal(assembly, path) → (component, name)` splits off a terminal
   path's final segment and resolves the prefix through `resolve`. The split is
@@ -9518,7 +9523,7 @@ loop through declared machinery.
   block. `Ldg` ORs its three legs through a junction (the ownership idiom,
   [§6.2][s6-2]; the library, [§13.7][s13-7]) and exports one `damaged` face.
   Each [assembly](#g-assembly) above it re-exports that single face. That
-  takes one `y_connections` entry per level ([§6.1][s6-1]), or
+  takes one `output_wires` entry per level ([§6.1][s6-1]), or
   `output_passthrough` where a level re-exports a child's surface wholesale
   ([§8.8][s8-8]). That hop is the substitutability [contract](#g-contract)
   doing its job, not plumbing (the imposed derived contract, [§8.8][s8-8]).
@@ -9861,7 +9866,7 @@ the root of a build, and its input [faces](#g-face) then become the model's
 root inputs ([§8.2][s8-2], [D-208][d-208]). Ordinary conditions and
 [devices](#g-device) feed them, and every output is observable in the
 [snapshot](#g-snapshot) table. The rig is a one-child assembly whose
-`u_connections` surface the child's entire input face set, as
+`input_wires` surface the child's entire input face set, as
 `input_passthrough(rig, "child")` verbatim ([§8.8][s8-8]). What it buys is a
 place to wire something *beside* the component under test.
 
@@ -9879,8 +9884,8 @@ struct StrutRig <: AbstractComponent    # the rig: component under test + stub
     stub::Constant{SampleTerrainField}  # the test handle, held as instance data
 end
 
-inner_connections(::StrutRig) = ("stub/out" => "strut/terrain",)
-u_connections(rig::StrutRig) =
+inner_wires(::StrutRig) = ("stub/out" => "strut/terrain",)
+input_wires(rig::StrutRig) =
     (input_passthrough(rig, "strut"; except = ("terrain",))...,)
 ```
 
@@ -9976,7 +9981,7 @@ observation-by-path rejection ([§13.5][s13-5]). That rejection was about
 *runtime* coupling, where a root-authored predicate reaches through generic
 [seams](#g-seam) the root does not own and breaks on substitution. A condition
 is a *design-time statement about a concrete build*. It is authored in the
-same vocabulary as `inner_connections`, which also speaks paths, about children
+same vocabulary as `inner_wires`, which also speaks paths, about children
 its author owns. The composition law ([§14.2][s14-2]) makes the parallel
 exact.
 
@@ -10073,7 +10078,7 @@ overwrites it. Unexported stays unpokeable for init exactly as it does for the
 GUI ([§11.7][s11-7]).
 
 **The locality law** here is the one [§6.1][s6-1] states for connections, now
-in its third instance. The three instances are inner connections, computed
+in its third instance. The three instances are [inner wires](#g-inner-wire), computed
 interface connections and conditions. Each level speaks its own fields, its
 declared children's names, and its own faces. Delegation runs by dispatch at
 every genericity [seam](#g-seam). An `at` prefix may stop at *any* child's
@@ -10082,7 +10087,7 @@ faces, owned or generically held, because the face graph is total
 where a deep [condition](#g-condition) path is, within an owned concrete
 subtree ([§13.3][s13-3]). Absolute paths exist only in the flattened entry
 list, a *compiled derivative* of the composition, as cell offsets are of
-`inner_connections`. Substituting a component invalidates precisely the
+`inner_wires`. Substituting a component invalidates precisely the
 fragments its owner shipped, nothing else. The enforcement status carries over
 from [§6.1][s6-1] as well. The law is convention. Ownership is a fact about
 who maintains the code, and the build cannot see it, so the law is available
@@ -11041,9 +11046,9 @@ handle-valued root input. The problem *receives* its handles through the user
 parameter record ([§14.7][s14-7]), and only queries them.
 
 **Why.** The reason is the resolution rule just stated. A condition entry
-naming a wired input fails by name, correctly. A problem writing an
-environment face would therefore be applicable only to those rigs where that
-face happens to be unconnected. The relocatability this section exists to
+naming an internally wired input fails by name, correctly. A problem writing
+an environment face would therefore be applicable only to those rigs where
+that face happens to be unconnected. The relocatability this section exists to
 guarantee would be lost.
 
 **The world wrapper dissolves.** Today's `f_init!(::Model{<:SimpleWorld})`
@@ -11502,8 +11507,8 @@ lifecycle.
   `ws_init(::C, ::Type{T})` (always called at `Float64`) and
   `u_types`/`y_types` (pinned wholesale). Its stages are
   `y_state`, `y_direct` and `s_update`.
-- Assembly. `inner_connections` (mandatory, the class marker),
-  `u_connections`, `y_connections`, `sample_times` and
+- Assembly. `inner_wires` (mandatory, the class marker),
+  `input_wires`, `output_wires`, `sample_times` and
   `transparent_container` (optional, default `nothing`).
 - Shipped conditions. `condition(::C; kw)` fragment functions, methods of
   the framework's `condition` generic ([§14.2][s14-2]).
@@ -12012,7 +12017,7 @@ collection ([§13.2][s13-2], [D-250][d-250]).
   path, type, declarations found, both family lists; did-you-mean when the
   type holds component-typed fields.
 - **`ClassMixed`** ([§8.5][s8-5]). Error · build · fail-fast. Component path,
-  the `inner_connections` declaration and the offending leaf declarations.
+  the `inner_wires` declaration and the offending leaf declarations.
 - **`ContainerMixed`** ([§8.5][s8-5]). Error · build · fail-fast. Container
   field path, offending element keys/indices, their types.
 - **`ContainerNested`** ([§8.5][s8-5]). Error · build · fail-fast. Container
@@ -12335,14 +12340,14 @@ client). It is never needed for eltype genericity, and it is illegal where
 the face surfaces as a root input (`AbstractAtRoot`) ([§8.2][s8-2]).
 
 <a id="g-assembly"></a>**assembly** — pure composition. Its component-typed fields are its children,
-and it declares `inner_connections` (mandatory, the class marker),
-`u_connections`, `y_connections`, `sample_times` and the optional
+and it declares `inner_wires` (mandatory, the class marker),
+`input_wires`, `output_wires`, `sample_times` and the optional
 `transparent_container`. It has no dynamics of its own. It is flattened away
 for ordering, and retained as the navigation hierarchy and as
 declaration-level rate scopes ([§3.3][s3-3], [§8.5][s8-5]).
 
 <a id="g-class"></a>**class** — a component's primitive-vs-assembly status, read off *which*
-well-known declarations its type defines. `inner_connections` means assembly,
+well-known declarations its type defines. `inner_wires` means assembly,
 any leaf declaration means primitive, and neither is `ClassUnreadable`
 ([§8.5][s8-5]). Not to be confused with *tier* (continuous vs. discrete,
 [§D.4][sD-4]), nor with a diagnostic *kind* ([§D.9][sD-9]). "Class" in
@@ -12357,7 +12362,7 @@ interchangeably for the non-assembly classes ([§3][s3]).
 components. It contributes them as children path-named `"field/1"` or
 `"field/key"`, or by bare key (`"1"` or `"key"`) where the field is declared
 name-transparent via `transparent_container`. It is transparent grouping, not
-an assembly: no contract, no `inner_connections`, no rate scope
+an assembly: no contract, no `inner_wires`, no rate scope
 ([§8.5][s8-5]).
 
 <a id="g-continuous-component"></a>**continuous component** — the hybrid primitive: continuous state `x`, modes
@@ -12383,7 +12388,7 @@ or assembly defines, each declared in a stated source of authority: by
 value, by type, by allocation ([§8.2][s8-2]). The set is
 `x_init`/`s_init`/`m_init`, `ws_init`, `u_types`/`y_types`,
 `state_events`, the stages, `x_deriv`/`s_update`/
-`x_projection`, and `inner_connections`/`u_connections`/`y_connections`/`sample_times`/`transparent_container`.
+`x_projection`, and `inner_wires`/`input_wires`/`output_wires`/`sample_times`/`transparent_container`.
 
 <a id="g-derived-contract"></a>**derived contract** — the checkable surface an assembly or the `Build`
 derives from its children's declarations and its own wiring instead of
@@ -12391,7 +12396,7 @@ declaring itself: an assembly's effective face list, and the `Build`'s wire
 list, face table, execution order and root inputs. It is plain printable data
 (paths, names and rationals), inspectable as fields, with no rendering
 implied beyond the ones [§9.2][s9-2] names. On a generic holding it is the
-constraint the referencing wires and interface connections impose on
+constraint the referencing inner wires and interface connections impose on
 whatever concrete child is plugged in ([§8.6][s8-6], [§8.8][s8-8],
 [§9.2][s9-2]).
 
@@ -12405,7 +12410,7 @@ illegal for the family ([§5.2][s5-2]). Not a diagnostic *kind*
 ([§D.9][sD-9]).
 
 <a id="g-generic-holding"></a>**generic holding** — a parent holding a child through a non-concrete field
-type. The child is opaque below its faces, and the wires and interface
+type. The child is opaque below its faces, and the inner wires and interface
 connections referencing those faces *are* the imposed derived contract,
 checked per instantiation ([§8.8][s8-8], [§6.1][s6-1]).
 
@@ -12414,6 +12419,11 @@ algebraic outputs, multi-rate periodic discrete dynamics, zero-crossing
 events, post-step manifold projection, and externally injected inputs
 ([§2][s2]).
 
+<a id="g-inner-wire"></a>**inner wire** — an entry of `inner_wires`, a wire from one child's port to a
+child's face with both ends inside the assembly's boundary. It stands against
+an input wire and an output wire, each of which has one end on the boundary
+([§6.1][s6-1], [D-303][d-303]).
+
 <a id="g-the-letters"></a>**the letters** — the mathematical symbols the spec's formulas keep, against
 the words the API spells them as ([D-220][d-220]). `f` is the continuous flow
 (`x_deriv`), `g` the discrete update (`s_update`), and `y = h(x)`
@@ -12421,8 +12431,8 @@ and `y = h(x, u)` the two output stages (`y_state` and
 `y_direct`). The bundle letters are API in their own right. `x` is the
 continuous state and `m` the continuous-only mode store, `s` the discrete
 state ([D-195][d-195]), `u` wired inputs, `y` own published signals, `ws` the
-workspace. An assembly has no bundle, and there `u` and `y` name the two
-sides of its boundary, in `u_connections` and `y_connections` ([D-279][d-279]).
+workspace. An assembly has no bundle, and its boundary declarations spell
+their direction as a word, in `input_wires` and `output_wires` ([D-303][d-303]).
 Bare `h` means the integration step size only ([§10][s10]). Bare
 `z` means only the shift operator `z⁻¹`. [D-173][d-173] retired it as a
 state letter, and it was never reclaimed, since the discrete state has its
@@ -12497,7 +12507,7 @@ input entry ([§8.2][s8-2]), executor entry ([§9.7][s9-7]), roster entry
 
 <a id="g-face"></a>**face** — the name a port wears on its component's boundary. For a leaf it is
 the port's own name. For an assembly it is a name declared in
-`u_connections` or `y_connections`, aliasing an interior port. It
+`input_wires` or `output_wires`, aliasing an interior port. It
 is an opaque token with two build-checked invariants (no `/`, unique within
 the assembly). Its type derives from its internal endpoint, and its direction
 is declared by the method that names it. The periphery's write side speaks
@@ -12529,7 +12539,7 @@ liveness verdict. Wiring is port-granular, and which stage computes a port is
 invisible outside the component ([§4.2][s4-2], [§4.3][s4-3]).
 
 <a id="g-root-input"></a>**root input** — the root component's own input face, which is an assembly's
-`u_connections` key or a primitive's `u_types` key. It is produced by
+`input_wires` key or a primitive's `u_types` key. It is produced by
 no component, constant within a frame, and the only thing the periphery may
 write ([§11.3][s11-3], [§8.2][s8-2], [§8.6][s8-6]).
 
@@ -13644,6 +13654,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-300]: decisions.md#d-300--give-group-its-own-rate-scope
 [d-301]: decisions.md#d-301--name-a-declaration-by-what-it-returns
 [d-302]: decisions.md#d-302--let-a-store-be-the-home-of-any-state-letter
+[d-303]: decisions.md#d-303--name-the-connection-declarations-for-wires-and-groups-keywords-for-the-declarations
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

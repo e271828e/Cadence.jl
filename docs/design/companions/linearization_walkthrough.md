@@ -25,9 +25,9 @@ Two fixtures from `test/fixtures.jl`, wired into one assembly:
 
 ```julia
 model = Group((; s = Sum(), c = Pendulum());
-              wires   = ("s/e" => "c/u",),
-              inputs  = ("τ" => "s/a", "d" => "s/b"),
-              outputs = ("c/θ" => "θ", "s/e" => "u_eff"))
+              inner_wires  = ("s/e" => "c/u",),
+              input_wires  = ("τ" => "s/a", "d" => "s/b"),
+              output_wires = ("c/θ" => "θ", "s/e" => "u_eff"))
 ```
 
 `Sum` is stateless with two inputs and one feedthrough output,

@@ -295,8 +295,8 @@ The declaration layer:
 - The bundle law, with the legal bundle sets `LEGAL_BUNDLE` and
   `classify_bundle_field` (§5.2, Appendix B).
 - `probe_value`, with its enum arm (D-051).
-- The connection declarations `inner_connections`, `u_connections` and
-  `y_connections`, beside `transparent_container`.
+- The connection declarations `inner_wires`, `input_wires` and
+  `output_wires`, beside `transparent_container`.
 - The rate forms `Period`, `Relative` and `Absolute`, with `sample_times`.
 - The event surface `StateEvent`, `state_events` and `x_projection`.
 - The declaration family `DECLARATION_FAMILY` and `foreign_declarations`.
