@@ -736,16 +736,13 @@ request.
 Base.@nospecializeinfer function build(@nospecialize(root::AbstractComponent);
                                        activations::Tuple = ())
     # Unspecialized, as the whole declaration layer is, so a new root type
-    # compiles none of it again (§9.7, D-289). The closure below reads the root
-    # through `unspecialized` rather than capture it (see `_walk!`).
-    unspecialized = Ref{AbstractComponent}(root)
+    # compiles none of it again (§9.7, D-289).
     # One binding around all three steps, and one list (§9.1, D-250): a helper
     # inside a declaration body appends to it without knowing the build, the
     # completed `Build` carries it, and a throw leaving the build takes it along.
     raised_warnings = Diagnostic[]
     built = try
         with(BUILD_WARNINGS => raised_warnings) do
-            local root = unspecialized[]
             diags = Diagnostic[]
             draft = StructureDraft(root)
             flatten_tree!(draft, root, diags)    # structure, tiers, claims, the obligation check

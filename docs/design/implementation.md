@@ -959,10 +959,10 @@ Traps the code does not warn about, each hit more than once while building:
 - **code that runs once per build takes a component, an assembly or the root
   unspecialized**: `@nospecialize` on the argument, and
   `Base.@nospecializeinfer` on the walk's entry points `build`, `flatten_tree!` and
-  `_walk!`. A closure created per component never captures the instance. It
-  reads it from an unspecialized binding, an entry's or the draft's field or a
-  `Ref{AbstractComponent}`, because a closure is a type per type of what it
-  captures: a typed local always, and an unspecialized argument on Julia 1.12.
+  `_walk!`. A closure created per component never captures a local that
+  holds the instance, because a closure is a type per type of the locals it
+  captures. It captures the `@nospecialize` argument itself, which it stores
+  untyped, or reads the instance from an entry's or the draft's field.
   Code the executor runs stays specialized (§9.7, D-289);
 - **a callee that needs one more value takes it as an argument.** Never add
   a field to a container the callee already holds so the value can be

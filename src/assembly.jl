@@ -1011,10 +1011,9 @@ Base.@nospecializeinfer function flatten_tree!(draft::StructureDraft, @nospecial
     # the root scope: anchor 0, the base grid itself; no link above it and none of its own.
     # The face and child memos are the walk's own and are bound around it alone:
     # the obligation loop below reads `u_types`, never a face or child list.
-    unspecialized = Ref{AbstractComponent}(root)   # read in the closure: see `_walk!`
     with(WALK_FACES => draft.faces,
          WALK_CHILDREN => IdDict{Any,Vector{Pair{String,Any}}}()) do
-        _walk!(draft, "", unspecialized[], Timing((0, 1, 0)), RateLink[], nothing, diags)
+        _walk!(draft, "", root, Timing((0, 1, 0)), RateLink[], nothing, diags)
     end
 
     # The obligation model (§6.1): an input is fed by a wire in some ancestor's
@@ -1103,10 +1102,7 @@ Structure(draft::StructureDraft, conns::Vector{Vector{Pair{Symbol,Tuple{String,S
 #
 # The walk runs once per build and takes `comp` unspecialized, as does every
 # function it calls with a component, so a new component type or root type
-# compiles none of it again (§9.7, D-289). The two frames below read the
-# instance through `unspecialized` rather than capture `comp`: Julia 1.12 makes
-# a closure a type per type of what it captures, an unspecialized argument
-# included.
+# compiles none of it again (§9.7, D-289).
 Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
                                         @nospecialize(comp), scope::Timing,
                                         chain::Vector{RateLink}, link::Union{Nothing,RateLink},
@@ -1120,13 +1116,11 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
     isempty(foreign) || throw(DiagnosticError(DeclarationShadowed(
         path = path, names = foreign,
         parent_module = string(parentmodule(typeof(comp))))))
-    unspecialized = Ref{AbstractComponent}(comp)
     if classify(path, comp) === PRIMITIVE
         # Everything below reads this primitive's own declarations, so it runs
         # under the component frame: an accessor's `UserCodeFraming` leaves the
         # path empty and this is where the path is known (§13.2, D-248).
         return at_component(path) do
-            local comp = unspecialized[]
             push!(draft.paths, path)
             push!(draft.instances, comp)
             push!(draft.timings, scope)
@@ -1159,7 +1153,6 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
         end
     end
     at_component(path) do
-        local comp = unspecialized[]
         # One row per assembly an explicit key names, in walk order: the scope a
         # `sample_times` key opened, with the timing everything under it folds from.
         link === nothing ||

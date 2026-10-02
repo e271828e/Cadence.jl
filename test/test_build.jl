@@ -1731,8 +1731,7 @@ function build_specializations()
     end
 
     @testset "nor does a root that fans an input (§9.7, D-289)" begin
-        # The fan resolves each endpoint against the root. Only Julia 1.12 can
-        # fail this: there a closure capturing the root is a type per root type.
+        # The fan resolves each endpoint against the root.
         build_opaque(Group((; a = SampledLoop(), b = SampledLoop());
                            inputs = "ref" => ("a/ref", "b/ref")))
         counts = specialization_counts()
