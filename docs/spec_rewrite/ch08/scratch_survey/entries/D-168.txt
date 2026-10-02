@@ -1,0 +1,46 @@
+5894: ### D-168 — Root-slot fan-out tolerance combines by meet, not agreement
+5895: 
+5896: **Status.** ratified
+5897: 
+5898: **Position.** Root-slot fan-out under permissive entries combines **tolerance
+5899: by a meet, not by agreement**: the slot *type* stays the unique concrete
+5900: declaration among its consumers at nominal (`RootSlotTypeConflict` unchanged —
+5901: a tolerance difference is not a type conflict, `SVector{3,T}` and
+5902: `SVector{3,Float64}` both evaluating to `SVector{3,Float64}`), while the slot's
+5903: cells **pin at every activation if any consumer entry pins** and follow the
+5904: activation scalar only when every consumer tolerates.
+5905: 
+5906: **Spec.** [§6.1][s6-1], [§11.3][s11-3], [§8.2][s8-2], [§14.10][s14-10]
+5907: 
+5908: **Rationale.** Mixed tolerance is a legitimate configuration rather than a
+5909: mistake — one command consumed by a promoting aerodynamics leaf and by an
+5910: AD-opaque table is [§8.2][s8-2]'s FFI door in use — and the meet is the only
+5911: assignment satisfying every consumer at once, forced by the direction of
+5912: embedding: a pinned cell feeds a `T` entry lawfully (zero-partial embedding,
+5913: [§9.5][s9-5]) while a `Dual` arriving at a `Float64` entry is exactly what that entry
+5914: forbids; it is the mirror of [§6.1][s6-1]'s producer-side walk-compatibility clause.
+5915: 
+5916: The cost is stated where it is paid: such a slot is declaredly unseedable, and
+5917: a `B`-matrix tap selecting it is rejected at tap resolution naming the
+5918: **pinning consumer** and its entry (`TapResolution` payload extended), not the
+5919: face alone, because the author's next move — promote that leaf, or route the
+5920: tap around it — depends on knowing which leaf froze the slot.
+5921: 
+5922: Closes the fan-out gap left open by [D-167][d-167].
+5923: 
+5924: Annotation (2026-09-08): read at the level of the whole root input, with the
+5925: two-candidate computation, per [D-236][d-236].
+5926: 
+5927: **Rejected.**
+5928: - *Requiring agreement at the marker scalar (mixed = build error):* turns a
+5929:   legitimate model into an error whose only remedies are a duplicated slot or a
+5930:   false declaration, and makes one component's private AD limitation contagious
+5931:   across wiring its author does not control.
+5932: - *Join semantics (the slot walks if any consumer tolerates):* unsound in the
+5933:   direction that matters — it delivers `Dual`s to an entry that declared it
+5934:   cannot take them, the exact failure [§6.1][s6-1]'s clause exists to prevent, moved
+5935:   from build time to inside user math.
+5936: - *Per-tolerance-class slot cells (one cell per class):* duplicates the slot,
+5937:   defeating [§11.3][s11-3]'s one-cell-per-slot staging, the trace header's single type
+5938:   and `probe_value`'s single synthesis.
+5939: 

@@ -1,0 +1,40 @@
+8784: ### D-238 — Decide embed-accept on the type: lift the arrival, compare exactly
+8785: 
+8786: **Status.** ratified
+8787: 
+8788: **Position.** A type `V` is accepted at a declaration `P` at activation `T`
+8789: when lifting `V`'s `Float64` positions to `T` exactly where `P` has `T`
+8790: yields `P` itself, compared by identity. [D-235][d-235]'s always-on check and the
+8791: concrete arm of [D-236][d-236]'s wire relation both take this form.
+8792: 
+8793: **Spec.** [§6.1][s6-1], [§9.5][s9-5]
+8794: 
+8795: **Rationale.** [D-166][d-166] states embed-accept per leaf: a declared-`T` leaf
+8796: accepts the scalar or a `Float64`, every other leaf is exact. The built
+8797: relation checked that statement on the leaves — a struct's name and field
+8798: types, a static array's size and eltype — and was exact on the leaves while
+8799: blind to the type around them: a `NamedTuple`'s field names, a non-numeric
+8800: type parameter and an array's mutability are type parameters, not leaves, so
+8801: `(b = T,)` passed at a `(a = T,)` entry, `Tagged{:b}` at `Tagged{:a}` and an
+8802: `MVector` at an `SVector`, each surfacing later as a raw `FieldError` or
+8803: running silently (increment 32's review). A parallel walk over the two types'
+8804: parameters, lifting a `Float64` in `V` where `P` has `T` and leaving every
+8805: other position as written, is [D-166][d-166]'s statement decided on the type: [§9.5][s9-5]'s
+8806: exact match at nominal is the case where nothing lifts and the relation is
+8807: `===`, and the embedding is the one asymmetry. The lift is positional on the
+8808: type, so it also reaches a `T` that carries no scalar, such as a tag parameter
+8809: (`Tag{T}` with no field of type `T`): the store holds leaves and rebuilds the
+8810: declaration from them, so `Tag{Float64}` arriving at `Tag{D8}` is normalized
+8811: to the declaration rather than converted, the pinned-into-walking direction
+8812: [D-236][d-236] already admits, while `Tag{D8}` at `Tag{Float64}` stays refused. A
+8813: parameterless type compares by identity, so [D-237][d-237]'s opaque leaves need no arm
+8814: of their own.
+8815: 
+8816: **Rejected.**
+8817: - *Superseded position — the leafwise walk:* exact on leaves, blind to the
+8818:   parameters that distinguish two concrete types with the same leaves.
+8819: - *`<:` with embedding on concrete declarations:* concrete types are final, so
+8820:   `<:` is identity there and adds nothing; the abstract case is [D-236][d-236]'s.
+8821: - *Acceptance by `convert`:* admits every lossy or renaming conversion Julia
+8822:   defines, which is the convert-on-write [D-053][d-053] rejects.
+8823: 

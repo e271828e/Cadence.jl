@@ -1,0 +1,19 @@
+1259: ### D-043 — Computed exports via ordinary code and `faces`
+1260: 
+1261: **Status.** ratified
+1262: 
+1263: **Position.** Computed exports as ordinary code + `faces(asm, path; prefix,
+1264: except, only)`; root slots = the root's exported input faces; generic holding =
+1265: imposed contract checked per instantiation.
+1266: 
+1267: **Spec.** [§6.1][s6-1], [§8.4][s8-4], [§8.8][s8-8]
+1268: 
+1269: **Rationale.** Recorded only through the rejections below.
+1270: 
+1271: **Rejected.**
+1272: - *Auto-bubbling:* forgotten wire silently promoted to a live root slot — [§8.4][s8-4]
+1273:   walkthrough 2 inverted.
+1274: - *Wildcard-export vocabulary:* ordinary code suffices.
+1275: - *`add_input!`-style root-slot declarations:* second vocabulary for what
+1276:   exports already are.
+1277: 

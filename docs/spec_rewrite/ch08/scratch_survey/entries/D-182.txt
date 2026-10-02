@@ -1,0 +1,35 @@
+6444: ### D-182 — Add a θ=0 validation probe to the localization trigger
+6445: 
+6446: **Status.** ratified
+6447: 
+6448: **Position.** Localization trigger gains a θ=0 validation probe: trigger checks
+6449: run against the arrival sweep (before the due-gated boundary sweep, making the
+6450: ZOH clause's ordering explicit); on trigger the first act writes xₙ (already
+6451: stepper-retained for the interpolant) and sweeps once under post-drain `u`,
+6452: sourcing the previously-unsourced left bracket value for the value-based
+6453: root-finders and discriminating the edge's cause.
+6454: 
+6455: **Spec.** [§10.4][s10-4], [§10.6][s10-6], [§8.1][s8-1]
+6456: 
+6457: **Rationale.** Only `u` can differ from the prior's context (`m`/cells/`t`
+6458: boundary-stable, sweeps deterministic): σ₀ not-holding ⇒ trajectory-caused, pay
+6459: ẋₙ₊₁ + interpolant and root-find; σ₀ holding ⇒ epoch-caused (the frame-top
+6460: drain flipped the guard, no in-frame crossing exists) — localization discarded,
+6461: the event fires in the boundary's ordinary iteration, one sweep spent, no
+6462: budget, no warning (input timing is a frame fact; boundary detection is exact
+6463: for epoch-caused edges), the left-end mirror of the t*=tₙ₊₁ degeneracy; "t*=tₙ
+6464: structurally impossible" restated on the observed left end, unconditional under
+6465: [D-181][d-181]'s honest priors (drain = sole disagreement source).
+6466: 
+6467: **Rejected.**
+6468: - *Forbidding `u`-reading localized guards:* unenforceable without the
+6469:   introspection [§8.1][s8-1] forbids; kills the gate idiom [D-179][d-179] blesses.
+6470: - *Draining before the boundary sequence:* rewrites the epoch structure —
+6471:   boundary sweeps would mix post-drain `u` with `u`-old-evolved state, ticks
+6472:   would resample, trace conventions shift — settled machinery churn out of
+6473:   proportion to the corner.
+6474: - *Frozen-`u` probes:* a sweep has one `u`; two-epoch bundles are [§10.6][s10-6]'s
+6475:   rejected two-freshness-classes shape.
+6476: - *Trusting the prior as the left bracket value:* testimony, not observation —
+6477:   exactly the hole.
+6478: 

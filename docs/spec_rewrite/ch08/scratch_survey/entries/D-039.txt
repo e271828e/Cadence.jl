@@ -1,0 +1,25 @@
+1179: ### D-039 — Assembly declaration is type-based
+1180: 
+1181: **Status.** ratified
+1182: 
+1183: **Position.** Assembly declaration is type-based: plain struct, children =
+1184: component-typed fields, parameters = the rest; `connections`
+1185: mandatory-even-empty as the kind marker; one root `AbstractComponent`, kind by
+1186: declaration shape — the rule is total: `connections` marks an assembly, any
+1187: leaf declaration (`init_*`, `workspace`,
+1188: `input_types`/`output_types`/`local_types`, `events`, any
+1189: stage/`f`/`g`/`project` method) marks a primitive, and declaring neither family
+1190: is a build error naming both.
+1191: 
+1192: **Spec.** [§8.1][s8-1], [§8.3][s8-3], [§8.5][s8-5], [§8.8][s8-8]
+1193: 
+1194: **Rationale.** Recorded only through the rejections below.
+1195: 
+1196: **Rejected.**
+1197: - *Builder (`add!`/`connect!`):* dispatch type and structure recipe drift apart
+1198:   — [§8.1][s8-1]'s disease at assembly scale; mutable declaration state; doesn't even
+1199:   capture source locations.
+1200: - *`AbstractAssembly` kind supertype:* single inheritance is spoken for by
+1201:   domain hierarchies; kind is an implementation detail per [§8.3][s8-3].
+1202: - *Kind inferred from field types:* heuristic where a declaration is wanted.
+1203: 

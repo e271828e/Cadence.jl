@@ -1,0 +1,24 @@
+3856: ### D-129 — Restate the two-notation rule as directional (structure vs contract)
+3857: 
+3858: **Status.** ratified
+3859: 
+3860: **Position.** The two-notation rule is restated as directional — slash is
+3861: structure, face names are contract; the write side speaks contract exclusively
+3862: ([§11.3][s11-3], unchanged), the read side speaks structure in inspection reads and
+3863: contract wherever meaning must outlive the build: integration bindings
+3864: ([§11.2][s11-2]'s `get_face`, [D-095][d-095]) and service reads ([§14.4][s14-4], [D-125][d-125]).
+3865: 
+3866: **Spec.** [§11.2][s11-2], [§11.3][s11-3], [§8.6][s8-6], [§14.4][s14-4], [Appendix D][sD]
+3867: 
+3868: **Rationale.** Swept: [§8.6][s8-6]'s rule sentence, [§11.3][s11-3]'s parenthetical, [§11.2][s11-2]'s
+3869: subheading (now "snapshot bindings") and the glossary face entry — all four
+3870: predated [D-095][d-095]'s `get_face` and stated read = slash-paths-only, forbidding the
+3871: binding style [§11.2][s11-2] itself recommends.
+3872: 
+3873: **Rejected.**
+3874: - *Keeping the read/write phrasing with a `get_face` carve-out footnote:* the
+3875:   rule's real axis was never read vs. write — the write side's exclusivity is
+3876:   about the root contract being the only write surface, and the read side's
+3877:   freedom is client choice ([D-083][d-083]); a footnoted exception would misstate the
+3878:   principle it patches.
+3879: 

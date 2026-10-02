@@ -31,7 +31,7 @@ readability with no loss of content. The steps are in
 | 5. Evaluation order and feedthrough | not started | | |
 | 6. Composition: connections, aggregation and hierarchy | not started | | |
 | 7. State and data representation | not started | | |
-| 8. The declaration layer: components and assemblies | not started | | |
+| 8. The declaration layer: components and assemblies | in progress | | `docs/spec_rewrite/ch08/` |
 | 9. The build pipeline | done | `9a7d84f` | `docs/reports/20261001_chapter9_rewrite/` |
 | 10. Time and execution | done | `3d72f03` | `0f9ce8a` |
 | 11. Runtime periphery: the data plane | not started | | |

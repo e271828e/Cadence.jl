@@ -1,0 +1,33 @@
+6040: ### D-172 — Rule "face" kind-blind, defined at first use
+6041: 
+6042: **Status.** ratified
+6043: 
+6044: **Position.** "Face" is ruled kind-blind and defined at first use ([§3.3][s3-3], [§4.3][s4-3],
+6045: [§8.2][s8-2] fixed; the term was never adjudicated — presupposed by [D-033][d-033]/[D-041][d-041] — this
+6046: row records it as deliberate): a component's *ports* are its signal endpoints
+6047: (one cell, one producer — [§4.3][s4-3]'s periphery atom); its *faces* are the names
+6048: those ports wear on its boundary — coinciding for a leaf, aliasing interior
+6049: ports for an assembly ([D-170][d-170]'s declarations), never creating an endpoint; N
+6050: faces across nesting levels may alias one port; wiring and the periphery
+6051: address a child's faces without knowing whether it is primitive or composite
+6052: ([§6.1][s6-1]'s generic seam requires the kind-blindness).
+6053: 
+6054: **Spec.** [§3.3][s3-3], [§4.3][s4-3], [§6.1][s6-1], [§11.2][s11-2], [§8.2][s8-2], [§8.3][s8-3], [§8.6][s8-6]
+6055: 
+6056: **Rationale.** Wording fixes: [§3.3][s3-3] "exported ports" → boundary faces; [§8.2][s8-2] "a
+6057: primitive root has no faces" → no root slots (its faces are its own port
+6058: names).
+6059: 
+6060: **Rejected.**
+6061: - *Unifying on "port"/"assembly ports":* kind-qualified vocabulary cannot state
+6062:   [§6.1][s6-1]'s generic-seam rule; calling aliases ports falsifies [§4.3][s4-3]'s
+6063:   one-port-one-cell atomicity and forces "port alias" repair vocabulary; "port
+6064:   name vs port path" loses the two-notation rule's lexical anchor, [§8.6][s8-6]/[§11.2][s11-2].
+6065: - *Replacement terms surveyed and rejected:* `gate` (flow-control connotation
+6066:   plus fatal collision with multi-rate gating), `pin` (collides with pinned
+6067:   cells, [D-166][d-166]–[D-168][d-168], and is the endpoint, not the name), `terminal`
+6068:   (`resolve_terminal`; endpoint again), `handle` (`binding(handle)`),
+6069:   `alias`/`label` (mechanism-true but obligation-weak — faces carry claims and
+6070:   unconnected-input errors), `socket`/`portal` (passage metaphors); "face" is
+6071:   the morphological root of [§8.3][s8-3]'s own "interface".
+6072: 

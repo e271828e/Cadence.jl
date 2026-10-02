@@ -1,0 +1,77 @@
+6856: ### D-194 — Retire the `w` channel: intermediates are declared ports
+6857: 
+6858: **Status.** ratified
+6859: 
+6860: **Position.** The private `w` channel is deleted on both tiers. Every output
+6861: stage returns its port NamedTuple alone, and a cross-stage intermediate is an
+6862: ordinary declared port, reaching its consumers through the existing views.
+6863: 
+6864: - The `(y, w)` return form, the one-hop law, the explicit re-return idiom and
+6865:   the `w` bundle field are retired; stage returns are `y`, period.
+6866: - An intermediate a later function needs is declared in `output_types` and
+6867:   read where the bundle law already delivers it: stage-1 products through
+6868:   `y_x`, everything through `y` in `f`, `g`, guards and handlers.
+6869: - Round fusion ceases to be a design constraint on the executor ([§9.7][s9-7]):
+6870:   passes communicate only through the table and the stores, no value crosses
+6871:   a phase-body or chunk seam, and the phase-body arities carry the tick index
+6872:   alone.
+6873: - `w`'s nominal-only conformance carve-out is retired with it: promoted
+6874:   intermediates carry declared types ([D-166][d-166]), embed-accept keeps the
+6875:   constant-branch idiom legal, and the [§9.5][s9-5] check covers them at every
+6876:   activation.
+6877: - `DeadStage`'s ground simplifies: a stage returning `(;)` produces no ports
+6878:   and is dead ([§9.3][s9-3]).
+6879: - Visibility stays binary and [D-034][d-034]/[D-055][d-055] stay closed: no `Private` level
+6880:   is added, the enclosing assembly's faces remain the scoping surface ([§8.6][s8-6]),
+6881:   the [§4.3][s4-3] granularity guideline (one struct-valued bundle port) remains the
+6882:   mitigation, and [D-034][d-034]'s `Private(T)` fallback-on-record remains the door.
+6883: - The workspace and the handler return law are untouched: `ws` is the
+6884:   mutable-scratch channel ([§7.3][s7-3]), handlers return stores ([D-090][d-090]).
+6885: 
+6886: **Spec.** [§4.2][s4-2], [§4.3][s4-3], [§5.2][s5-2], [§5.3][s5-3], [§5.4][s5-4], [§8.3][s8-3], [§9.1][s9-1], [§9.3][s9-3], [§9.5][s9-5], [§9.7][s9-7],
+6887: [Appendix B][sB], [Appendix C][sC], [Appendix D][sD]
+6888: 
+6889: **Rationale.** `w` served two needs, and each is served better without it.
+6890: Recomputation avoidance is the table's existing job: evaluating the RHS means
+6891: running the sweep ([§5.3][s5-3]), so `f` always reads cells its own sweep just wrote,
+6892: and a stage-1 product reaches stage 2 as `y_x` — freshness by the same
+6893: ordering that makes the table sound everywhere. Privacy had no demonstrated
+6894: customer: the FlightCore lineage record is that intermediates were only ever
+6895: inspected by inclusion in the model output, which [D-165][d-165] itself recorded as the
+6896: promote-to-output inspection path.
+6897: 
+6898: What [D-165][d-165] could not see, and the kernel prototype's increment-3 design work
+6899: surfaced, is where the SSA hand-off lands: the one-hop pairs span phase
+6900: bodies, so `w` must thread through the [§9.7][s9-7] roster's call signatures and every
+6901: chunk seam between producer and consumer, round fusion hardens from
+6902: optimization into obligation, and under [§10.5][s10-5]'s gating a not-due producer
+6903: forces `Union`-shaped slots into the boundary walk's collections. That is
+6904: framework-special handling concentrated in the executor's hottest structure,
+6905: purchased for a conformance check that runs at the nominal activation only —
+6906: probe-observed types having no anchor off-nominal. A declared port rides
+6907: machinery that already exists, is already measured, and is checked at every
+6908: activation.
+6909: 
+6910: Simulink is corroborating precedent: S-Functions share expensive intermediates
+6911: through engine-ordered work vectors (`DWork` written in `mdlOutputs`, read in
+6912: `mdlDerivatives`, fresh at every minor step by call order — the same
+6913: sweep-precedes-`f` argument), and block diagrams publish every intermediate as
+6914: a subsystem-scoped signal. No private inter-method channel exists there.
+6915: 
+6916: **Rejected.**
+6917: - *Keep `w` (the [D-165][d-165] position):* the threading cost above; a whole second
+6918:   dataflow vocabulary (return law, hop law, bundle-presence rule,
+6919:   probe-observed conformance regime) for values the table can carry.
+6920: - *Auxiliary stateless leaf as the mechanism (assembly refactor):* forced
+6921:   decomposition taxes the common case, and with `y` withheld from `f` a
+6922:   component's own state-derived intermediate would round-trip through
+6923:   external wiring to reach its own `f`. Remains available as an ordinary
+6924:   modeling choice.
+6925: - *Cells with probe-observed types (declaration-free):* [D-165][d-165]'s type-sourcing
+6926:   objection stands unweakened — the probe observes one branch, so the cell
+6927:   type detonates branch-dependently at non-nominal activations.
+6928: - *`Private{P}`-tagged output entries:* re-litigated here and kept closed;
+6929:   [D-034][d-034]'s no-demonstrated-customer ground and the central binary
+6930:   visibility rule survive, [D-055][d-055]'s "first wrapper type" ground has expired
+6931:   ([D-185][d-185]'s `Relative`/`Absolute`), and the fallback stays on record.
+6932: 

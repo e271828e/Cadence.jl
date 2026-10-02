@@ -1,0 +1,35 @@
+1590: ### D-056 — Uphold the two-kind taxonomy against the integrate-and-dump challenge
+1591: 
+1592: **Status.** ratified
+1593: 
+1594: **Position.** The two-kind taxonomy is upheld under the integrate-and-dump
+1595: challenge ([§3.4][s3-4]): the kinds are time bases, sweep-driven vs. tick-driven, and
+1596: cross-tier coupling always routes through table cells.
+1597: 
+1598: - The idiom is integrate-and-difference: cumulative integrals in `x`,
+1599:   previous-sample latch in the sampler's `z`.
+1600: - It is exact whenever interval-dependence is a left action by the
+1601:   interval-start value of a cumulatively-integrable quantity (inertial-rate
+1602:   anchoring required; RK-exact by linearity of the kinematics).
+1603: - A latch-back wire — a feedthrough-stage ZOH latch — carries interval-relative
+1604:   flow terms.
+1605: - Tick-triggered continuous handlers are the recorded, unbuilt escape hatch.
+1606: - Boundary-sampling semantics are promoted to taught contract.
+1607: 
+1608: **Spec.** [§3.2][s3-2], [§3.3][s3-3], [§3.4][s3-4], [§8.6][s8-6]
+1609: 
+1610: **Rationale.** Recorded only through the rejections below.
+1611: 
+1612: **Rejected.**
+1613: - *All-in-one component kind:* an assembly in a trench coat: the halves still
+1614:   communicate through cells — one home per datum, sole-reader `z`, no
+1615:   cross-tier state views — so zero expressiveness gained; costs stage doubling
+1616:   with tier-tagged names, per-port tier vocabulary, facet-conditional
+1617:   obligations; hides the sampling seam — Simulink/FMI's documented sample-time
+1618:   confusion.
+1619: - *`z` view in `f` / discrete writes into `x`:* un-samples the sampled-data
+1620:   semantics, breaks held-`z` linearization exactness, coupling invisible to
+1621:   table, trace and feedthrough graph.
+1622: - *Periodic reset via time-guard events:* hand-rolls the tick scheduler,
+1623:   forfeits the harmonic grid and the discrete-bundle `Δt`.
+1624: 

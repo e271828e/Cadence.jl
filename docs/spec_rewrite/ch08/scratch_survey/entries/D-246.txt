@@ -1,0 +1,61 @@
+9088: ### D-246 — Diagnose a foreign declaration binding as its own fail-fast kind
+9089: 
+9090: **Status.** ratified
+9091: 
+9092: **Position.** The shadowing check is one pass of Stratum A's structural walk,
+9093: run on every component before its class is read. A parent module holding a
+9094: binding of any family name distinct from the framework's function throws
+9095: `DeclarationShadowed` alone, naming the module, the foreign names and the
+9096: import line that fixes them. No other kind carries a shadowing note.
+9097: 
+9098: **Spec.** [§8.1][s8-1], [Appendix C][sC]
+9099: 
+9100: **Rationale.** [D-117][d-117] attached the check to `StoreWithoutUpdate` and
+9101: `ClassUnreadable` as a note, and [D-220][d-220] chose distinctive names so that a
+9102: foreign binding of any of them would be evidence on its own. A note reaches
+9103: the reader only where some other diagnostic notices an absence. Seven names
+9104: have no such diagnostic, because their absence is legal: `state_events`,
+9105: `state_projection`, `init_m` and `init_workspace` on a leaf; `sample_times`,
+9106: the two boundary connection declarations and `transparent_container` on an
+9107: assembly. A shadowed `state_events` drops every event silently. A shadowed
+9108: `sample_times` puts a child on its parent's grid. A shadowed
+9109: `transparent_container` renames the children, and the wires to them fail
+9110: elsewhere as `UnknownPort`. A kind of its own acts on the evidence for every
+9111: name.
+9112: 
+9113: Fail-fast follows from what a shadowed module means. Every declaration the
+9114: author wrote in it went to a function the framework never dispatches on, so
+9115: the component's declaration set is unreadable from the framework's side. The
+9116: whole-inventory case shows why a collected sibling would not do.
+9117: `ClassUnreadable` is fail-fast and throws alone ([D-229][d-229]), so anything collected
+9118: beside it is lost, and its message, "declares neither family", is false from
+9119: the author's chair: the declarations were written, the fix is the import line,
+9120: and nothing else names it. Running the check before `classify` makes the
+9121: shadow diagnostic the one that throws, and the existing kinds need no field.
+9122: The evidence is a fact about the module rather than the component: every
+9123: component a module defines reads the same foreign list, and the throw names
+9124: the first one the walk reaches.
+9125: 
+9126: The mechanism is the two-line test [D-117][d-117] described, `isdefined(M, name) &&
+9127: getfield(M, name) !== getfield(Cadence, name)` on `M = parentmodule(typeof(c))`,
+9128: verified on Julia 1.13.0: a bare definition after `using` reads as foreign, a
+9129: per-name import does not, an untouched name is undefined, and a REPL
+9130: definition in `Main` behaves the same. Three limits are accepted and
+9131: recorded. A type defined in one module and extended in another through
+9132: qualified definitions is not checked, since the check reads the type's
+9133: module. A user function that legitimately carries one of the family's names
+9134: reads as foreign, the price [D-220][d-220] chose the names to keep small. A module
+9135: that merely does `using` on a package exporting one of the family's names
+9136: reads as foreign with nothing defined locally; the import line the message
+9137: spells resolves that case too.
+9138: 
+9139: **Rejected.**
+9140: - *A note on the diagnostics that notice an absence ([D-117][d-117]'s shape):* leaves
+9141:   the seven optional declarations undiagnosed, and the fail-fast
+9142:   `ClassUnreadable` would have needed a payload field to carry it.
+9143: - *A collected kind:* lost beside the fail-fast `ClassUnreadable` in the
+9144:   whole-inventory case, the one [D-117][d-117] named; and a component whose namespace
+9145:   is wrong yields only cascades of the one cause when walked past.
+9146: - *Scanning every loaded module for the extension site:* heavy, and the
+9147:   type's own module is where the trap bites.
+9148: 

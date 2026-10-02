@@ -1,0 +1,34 @@
+572: ### D-016 — Uniform component interfaces via `h_x` and per-event re-decode
+573: 
+574: **Status.** ratified
+575: 
+576: **Position.** Uniform component interfaces via the no-feedthrough state decoder
+577: `h_x`, with selective auto-publication of declared state/mode fields ([D-035][d-035]);
+578: guards and handlers read the fresh boundary table, with per-event re-decode
+579: (`handler → project → h_x → h_xu`); `project` is the sole raw-state function
+580: (schedule-structural).
+581: 
+582: **Spec.** [§4.2][s4-2], [§5.3][s5-3], [§7.4][s7-4], [§10.6][s10-6], [§8.3][s8-3], [Appendix D][sD]
+583: 
+584: **Rationale.** Recorded only through the rejections below.
+585: 
+586: Annotation (2026-10-02): superseded in part. [D-154][d-154] removes the per-event
+587: re-decode and [D-252][d-252] the selective auto-publication. `h_x` as the uniform
+588: state decoder and `project` as the sole raw-state function stand.
+589: 
+590: **Rejected.**
+591: - *Superseded position — identity publication of state and modes as the
+592:   default, plus an unlisted-port convention for interface noise (the earlier
+593:   design of record):* retired because contract visibility ([D-034][d-034]) makes
+594:   publicity a declaration, and `unlisted` pretended privacy without enforcing
+595:   it (hidden but connectable).
+596: - *Passing state alongside `y`:* double-passing; two idioms in the wild.
+597: - *Fully private discrete state:* breaks uniformity; the codebase culturally
+598:   publishes state anyway.
+599: - *One-handler-per-component-per-boundary restriction:* the cheap per-event
+600:   re-decode removes the need.
+601: - *Exposing `z` without an unlisted convention:* RNG/log noise.
+602: - *The `unlisted` motivating case — RNG state feeding the component's own
+603:   update:* dissolved entirely once [D-035][d-035] gave every function direct `x` views,
+604:   so nothing needed publishing to be readable.
+605: 

@@ -1,0 +1,33 @@
+8824: ### D-239 — Report a typo'd return field alone, without the unproduced port
+8825: 
+8826: **Status.** ratified
+8827: 
+8828: **Position.** A stage returning a field `output_types` does not declare is
+8829: reported by the port check's `UndeclaredReturnField` alone.
+8830: `DeclaredNotProduced` belongs to the completeness pass over the complete
+8831: products, which runs only once every port check has passed.
+8832: 
+8833: **Spec.** [§8.4][s8-4], [§13.1][s13-1], [Appendix C][sC]
+8834: 
+8835: **Rationale.** [§8.4][s8-4]'s fifth walkthrough promised the pair: the did-you-mean
+8836: and the unproduced-port error with the product lists in hand. The port check
+8837: runs inside the probe chain, which consumes each product as it goes, so a
+8838: failed check aborts the chain under [D-229][d-229] and the completeness pass never
+8839: reaches the model; the 2026-09-04 conformance audit recorded the single
+8840: diagnostic. Delivering the pair means recomputing the unproduced set at the
+8841: throw site, where it is knowable only once the component's other stage has
+8842: run: at stage 2, or at stage 1 on a component with no `output_direct`. And
+8843: the second diagnostic carries nothing the first does not: renaming the field
+8844: produces the port, and the next build is clean. [D-057][d-057]'s no-suppression rule
+8845: is untouched. It keeps a diagnostic two passes both produce, as the
+8846: typo'd-wire pair of [§13.1][s13-1], and never asks a pass to manufacture one after the
+8847: chain has stopped.
+8848: 
+8849: **Rejected.**
+8850: - *Pair at the throw site:* a second copy of the completeness check with
+8851:   weaker information, silent exactly when a stage 2 exists, so the promise
+8852:   would hold except sometimes.
+8853: - *Collect the port check to the stratum barrier:* a component with an
+8854:   unproduced port has no cell for it, so every downstream probe needs a skip
+8855:   arm or a synthesized stand-in — the sentinel machinery [D-229][d-229] rejects.
+8856: 

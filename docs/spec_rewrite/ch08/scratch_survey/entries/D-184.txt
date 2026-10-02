@@ -1,0 +1,31 @@
+6506: ### D-184 — Fold `Group` into the spec as an ordinary library component
+6507: 
+6508: **Status.** ratified
+6509: 
+6510: **Position.** `Group` is folded into the spec — the on-the-fly assembly as an
+6511: ordinary library component (ex-Addendum A of the extensions charter): a single
+6512: library type `Group{C <: NamedTuple, W, I, O}` whose `NamedTuple` `children`
+6513: field contributes path-named children via [§8.5][s8-5]'s container-children rule and
+6514: whose `child_connections`/`input_connections`/`output_connections` return
+6515: instance fields — every ad-hoc topology a value of one type, defined once.
+6516: 
+6517: **Spec.** [§8.5][s8-5], [§13.7][s13-7]
+6518: 
+6519: **Rationale.** Stratum C specialization, the compiled executor, wiring
+6520: validation, did-you-mean and two-producer checks all run against the instance
+6521: exactly as for a named assembly; gives up dispatchable identity, which
+6522: exploratory/programmatic composition does not want; serves the model-assembler
+6523: persona with zero new declaration rules — [§8.5][s8-5]'s builder rejection stands
+6524: untouched (immutable grouping needs no builder), and the component enters
+6525: [§13.7][s13-7]'s inventory as its one persona-admitted member.
+6526: 
+6527: **Rejected.**
+6528: - *The mutable builder (`Assembly()` + `add!`/`connect!`):* [§8.5][s8-5]'s standing
+6529:   rejection — type/recipe drift, mutable state through declaration code, no
+6530:   source-location capture.
+6531: - *Named types as the only spelled-out route:* the actual bias — the type-based
+6532:   semantics were always sound for anonymous topologies too.
+6533: - *Leaving `Group` chartered in the extensions document:* it needs no guarded
+6534:   seam — it is expressible under today's rules, so the charter's
+6535:   none-built-until-need gate had nothing left to guard.
+6536: 

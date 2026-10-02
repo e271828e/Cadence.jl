@@ -1,0 +1,18 @@
+1204: ### D-040 — Slash-string paths as the canonical path form
+1205: 
+1206: **Status.** ratified
+1207: 
+1208: **Position.** Slash-string paths, relative to the declaring assembly, one
+1209: canonical form shared by declarations, diagnostics, devices and logs.
+1210: 
+1211: **Spec.** [§8.6][s8-6]
+1212: 
+1213: **Rationale.** Recorded only through the rejections below.
+1214: 
+1215: **Rejected.**
+1216: - *Instance navigation:* `===`-identical symmetric siblings make
+1217:   path-from-instance unrecoverable — proxies remain sugar.
+1218: - *Symbol tuples:* structure without readability.
+1219: - *Dotted paths:* false Julia-property affordance — the last segment is a port,
+1220:   not a field.
+1221: 

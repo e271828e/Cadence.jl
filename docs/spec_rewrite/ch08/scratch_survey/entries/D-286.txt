@@ -1,0 +1,44 @@
+11784: ### D-286 — Hold a pinned leaf to the exact check as the schema-visible freeze
+11785: 
+11786: **Status.** ratified
+11787: 
+11788: **Position.** A pinned leaf is the schema-visible freeze, and the
+11789: conformance check holds it to its word at every activation.
+11790: 
+11791: - A pinned leaf, one wrapped as `Pinned` or an `Int`, `Bool` or enum leaf
+11792:   that never walks, takes the nominal-style exact check at every activation.
+11793: - An observed `Dual` at a pinned leaf is the misplaced-pin error, with the
+11794:   didactic hint "if `F` participates in differentiation, remove its
+11795:   `Pinned`".
+11796: - An author who means to strip partials declares the leaf `Pinned{Float64}`
+11797:   and strips inside the stage.
+11798: - Stripping mid-expression at an unpinned leaf remains legal.
+11799: 
+11800: **Spec.** [§8.2][s8-2], [§9.5][s9-5]
+11801: 
+11802: **Rationale.** [D-238][d-238]'s relation lifts a `Float64` position only where the
+11803: declaration has `T`, so every other leaf is exact (as recorded in [D-238][d-238]),
+11804: and a `Pinned` leaf is pinned at every activation ([D-263][d-263]'s first bullet).
+11805: An observed `Dual` at a declared-pinned leaf has one honest cause, so the
+11806: error can name the fix (as recorded in [D-166][d-166]). The hint's present wording
+11807: has no prior entry; [§8.2][s8-2] and [§9.5][s9-5] state it.
+11808: 
+11809: The marker is on the page, per leaf, schema-visible and conformance-checked,
+11810: so [§14.10][s14-10]'s freeze door and the FFI door survive as declared doors (as
+11811: recorded in [D-263][d-263]). Deliberate `value()` stripping is the stop-gradient, a
+11812: deliberate-lie class (as recorded in [D-079][d-079]). The `T`-signature's two real
+11813: losses, schema-visible participation and whole-leaf stripping detection, were
+11814: both equally blind to mid-expression stripping (as recorded in [D-079][d-079]), and a
+11815: local derivative rule strips
+11816: mid-expression, which [§9.5][s9-5] leaves legal at an unpinned leaf (as recorded in
+11817: [D-266][d-266]).
+11818: 
+11819: **Rejected.**
+11820: - *Superseded position — the mandated two-argument forms on the continuous
+11821:   tier ([D-166][d-166], [D-167][d-167]):* ceremony on every continuous leaf for a per-leaf
+11822:   choice made on few; reader honesty bought at the price of a second typing
+11823:   convention beside the state side's walk. (As recorded in [D-263][d-263].)
+11824: - *The framework stripping partials at a walking-into-pinned wire:* the
+11825:   discard is a modelling decision, and an invisible one is the class [§9.5][s9-5]
+11826:   calls the silent zero in the Jacobian. (As recorded in [D-266][d-266].)
+11827: 

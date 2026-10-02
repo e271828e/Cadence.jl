@@ -1,0 +1,30 @@
+6350: ### D-179 — Derive detection policy from the guard's return type
+6351: 
+6352: **Status.** ratified
+6353: 
+6354: **Position.** Detection policy is declared by the guard's return type — `Bool`
+6355: ⇒ boundary-detected, nominal scalar ⇒ localized — and `Event(guard, handler)`
+6356: loses the `localize` keyword: de-localization = casting the guard to its
+6357: predicate (`σ ≥ 0`, the [§2.1][s2-1] definition, semantics-preserving by construction).
+6358: 
+6359: **Spec.** [§2.1][s2-1], [§10.4][s10-4], [§8.1][s8-1], [§9.3][s9-3], [§9.5][s9-5]
+6360: 
+6361: **Rationale.** The localized-`Bool` combination becomes unrepresentable and
+6362: `LocalizedGuardForm` retires, `GuardForm` remaining the sole guard diagnostic;
+6363: recorded doctrine: guards over `u`/`m` alone are piecewise frame-constant so
+6364: boundary detection is *exact* for them, and the gate idiom `(gate) ? σ :
+6365: -one(σ)` is the blessed way to localize a mixed predicate (gates frame-constant
+6366: through probes).
+6367: 
+6368: **Rejected.**
+6369: - *The `localize` keyword, the prior design:* redundant with the probed form —
+6370:   the [§9.3][s9-3] probe already observes it; every policy flip touches two sites,
+6371:   manufacturing the desync mistake the build check then polices.
+6372: - *Two nominal `Event` types (`LocalizedEvent`/`NonLocalizedEvent`):* the best
+6373:   spelling of declared-intent-plus-check, but isomorphic to the flag — restores
+6374:   the two-axis design, the resurrected build error and two-site flips; kept as
+6375:   a guarded addition should habit-driven accidental localization prove a real
+6376:   nuisance in migration.
+6377: - *Per-relation-atom crossing decomposition à la Modelica:* requires owning the
+6378:   AST — excluded by [§8.1][s8-1]'s no-macros/no-introspection foundations.
+6379: 

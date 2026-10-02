@@ -1,0 +1,39 @@
+2293: ### D-079 — Type declarations concretely, resolved by an activation leaf walk
+2294: 
+2295: **Status.** ratified
+2296: 
+2297: **Position.** Concrete nominal declarations + activation leaf walk:
+2298: `output_types(::C)`/`local_types(::C)` plain on both tiers; per-activation cell
+2299: types from the framework leaf walk — on continuous producers `Float64` leaves
+2300: and `Real` *type* parameters follow the activation scalar, `Int`/`Bool`/enum
+2301: leaves, reference-typed fields and non-type (value) parameters pin, with the
+2302: companion obligation that a Tier-1 type be constructible at the walked type —
+2303: enforced by construction at the `Dual` probe.
+2304: 
+2305: **Spec.** [§7.1][s7-1], [§8.5][s8-5], [§9.4][s9-4], [§9.5][s9-5], [§14.10][s14-10]
+2306: 
+2307: **Rationale.** The type derived from `init_x` walks like a continuous
+2308: producer's ([§7.1][s7-1]'s all-real-leaves rule checked in Stratum A, didactic
+2309: diagnostic) while `init_m`/`init_z` pin wholesale, declared `Float64` initial
+2310: values embedding as zero-partial constants; discrete producers pin wholesale
+2311: (frozen-exact by typing rule; tier from declaration shape, [§8.5][s8-5]); root slots
+2312: walk the consumer declaration; conformance split: exact match at nominal,
+2313: parametrized leaves accept exactly `{T, Float64}` with zero-partial embedding —
+2314: exact because promotion is airtight and there is no lossy `Dual → Float64` cast
+2315: (an observed `Float64` means no `Dual` entered the computation; true derivative
+2316: zero); differentiation participation = per-invocation seeding, never typing;
+2317: deliberate `value()` stripping = stop-gradient, deliberate-lie class,
+2318: schema-visible freezing a recorded [§14.10][s14-10] door.
+2319: 
+2320: **Rejected.**
+2321: - *Superseded position — the `T`-signature on the output side ([D-033][d-033]/[D-055][d-055],
+2322:   earlier design of record):* participation ceremony on every continuous
+2323:   component; the forgotten-`T` bug class; piecewise `0.0` branches detonating
+2324:   state-dependently under `Dual`; its two real losses — schema-visible
+2325:   participation and whole-leaf stripping detection — are tooling niceties, both
+2326:   equally blind to mid-expression stripping.
+2327: - *Probe-inferred participation:* inverts declarations-define-probes-check; one
+2328:   probe point cannot speak for branch-dependent participation.
+2329: - *Per-surface slot typing:* layouts keyed by seed set defeat activation
+2330:   caching.
+2331: 

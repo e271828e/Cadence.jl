@@ -1,0 +1,26 @@
+1564: ### D-055 — Require strict `local_types` declaration for cross-stage cells
+1565: 
+1566: **Status.** ratified
+1567: 
+1568: **Position.** Strict `local_types(::C)` declaration: every non-`output_types`
+1569: return field declared; empty framework default; no auto-publication;
+1570: component-scoped cross-stage cells ≠ workspace; schema authority total
+1571: (supersedes [D-034][d-034]'s observation exception; adds [§8.4][s8-4] walkthrough 5); concrete
+1572: nominal on both tiers, same activation leaf walk as `output_types` ([D-079][d-079]).
+1573: 
+1574: **Spec.** [§5.4][s5-4], [§8.3][s8-3], [§8.4][s8-4]
+1575: 
+1576: **Rationale.** Recorded only through the rejections below.
+1577: 
+1578: **Rejected.**
+1579: - *Superseded position — the earlier `T`-signature spelling `locals(::C,
+1580:   ::Type{T})`, in which the declared eltype was the participation statement
+1581:   under `Dual`:* retired with the `T`-signature ([D-079][d-079]).
+1582: - *`Private(T)` wrapper inside `outputs`:* breaks "declared = public"; the
+1583:   layer's first wrapper type.
+1584: - *Opt-in `locals` + `Float64`-under-`Dual` diagnostic:* legislates an
+1585:   ambiguity strictness dissolves.
+1586: - *Observation-authority status quo:* pinned intermediates drop partials that
+1587:   flow out through `f` in conformant types — blast radius never was local for
+1588:   values; return typos silently define new cells.
+1589: 

@@ -1,0 +1,63 @@
+9331: ### D-250 — Warnings live where the artifact criterion puts them
+9332: 
+9333: **Status.** ratified
+9334: 
+9335: **Position.** One warning policy replaces the two streams of [§13.2][s13-2]. An
+9336: artifact is an immutable pure function of its inputs; state is single-owner
+9337: and mutated in place. A warning raised while producing an artifact lives on
+9338: that artifact. A warning raised while mutating state lives in that state's
+9339: status. Logging is presentation, never a home.
+9340: 
+9341: - `Build` and `Deployment` carry `warnings`. A stratum that throws renders
+9342:   its warnings with the collection. One that completes carries them on the
+9343:   artifact, and the entry point logs each once at return.
+9344: - A scoped channel bound by the build around its three steps lets a helper
+9345:   running inside a declaration body append to the build's warnings. The same
+9346:   helper called standalone, outside any build, logs directly. (Amended by
+9347:   increment 44's review: the walk was named as the binder, but a warning may
+9348:   arise in any step, so the build binds once.)
+9349: - [Appendix C][sC]'s `logged` policy widens from stopped-sim service calls to any
+9350:   artifact-producing call, the build included. The collected-warning slot
+9351:   stays open and empty ([D-084][d-084] stands).
+9352: - `warnings(x)` is defined on `Build` and `Deployment`, and on `Simulation`
+9353:   as the concatenation of its artifacts' lists. Status-side warnings stay in
+9354:   the status record.
+9355: - `EmptyGreedyClaim` moves from a log line to the roster entry's diagnostic
+9356:   cell, since `attach!` mutates the roster, and surfaces through the status
+9357:   record. The log line at return stays as presentation.
+9358: 
+9359: **Spec.** [§9.2][s9-2], [§11.3][s11-3], [§11.8][s11-8], [§13.2][s13-2], [Appendix C][sC]
+9360: 
+9361: **Rationale.** [§13.2][s13-2] placed warnings by where they were raised: the build's
+9362: collection, the runtime's per-writer cells, and a third home for service
+9363: warnings that "belong to neither stream" and are emitted once at return
+9364: beside the value. That third home was the tell. `trim!` returns a
+9365: `TrimReport` and duplicates its warnings into the report's fields because
+9366: the report is where a caller looks, which is the artifact criterion applied
+9367: once by hand. Stated generally, the criterion decides every case the
+9368: redesign meets. A build is an artifact, so an empty selection in a
+9369: passthrough helper ([D-251][d-251]) belongs on the `Build`, not on a logger the CI
+9370: run never reads. A deployment is an artifact, so `GridUtilization` belongs on
+9371: it ([D-254][d-254]). `attach!` mutates the roster, so `EmptyGreedyClaim` belongs in
+9372: the entry's cell beside the other writer diagnostics, and the status record
+9373: is where a reader finds it after the fact. The channel exists because a
+9374: helper inside `input_connections` has no artifact in hand; the build that
+9375: owns the steps binds one, and the helper appends without knowing the
+9376: build. Outside a build there is no artifact, and a log line is the honest
+9377: fallback. Logging each artifact warning once at return keeps the interactive
+9378: experience unchanged while the artifact keeps the record.
+9379: 
+9380: **Rejected.**
+9381: - *The logger as the home:* a CI run, a test and a second session read the
+9382:   artifact, never the log; a warning that lives only in a log line is lost
+9383:   to every reader but the one at the terminal.
+9384: - *A global warning collector:* two concurrent builds would interleave, and
+9385:   the collector would outlive the artifact it described.
+9386: - *Promoting build warnings to errors under a CI switch:* [§13.2][s13-2] already
+9387:   rejects it; an empty selection is a fact about the model worth knowing,
+9388:   not a defect.
+9389: - *Superseded position — service warnings as a third stream with no home:*
+9390:   the artifact criterion covers them; a `TrimReport` is an artifact, and its
+9391:   duplicated fields were the criterion applied ad hoc.
+9392: 
+9393: 

@@ -1,0 +1,61 @@
+4523: ### D-140 — Add a three-rung remedy ladder for artificial algebraic-loop dependencies
+4524: 
+4525: **Status.** ratified
+4526: 
+4527: **Position.** [§5.4][s5-4]'s escape hatch becomes a **three-rung remedy ladder** for
+4528: artificial loops; [§8.3][s8-3] and [§4.3][s4-3] are unchanged.
+4529: 
+4530: **Spec.** [§4.3][s4-3], [§5.4][s5-4], [§5.6][s5-6], [§8.3][s8-3]
+4531: 
+4532: **Rationale.** (i) The **two-stage split** dissolves most of the class —
+4533: the `VehicleDynamics` instance of `flight_case_studies.md` is the canonical dissolution. (ii)
+4534: **Contract re-factoring**, the new middle rung: when [§5.6][s5-6]'s tracer says
+4535: *artificial*, re-examine the cycle's wires before moving any code, because an
+4536: input the neighbor consumes **only in a fallback branch** is the archetypal
+4537: false dependency — the neighbor is computing, on the component's behalf, a
+4538: fallback whose semantics belong on the component's own side of the boundary;
+4539: move the branch to its natural owner and the wire disappears. Canonical
+4540: instance, taken from the shipped code the finding walked
+4541: (`landinggear.jl:255-323`, `:63-72`): `Strut` hands the contact-velocity
+4542: azimuth `ψ_v` to the steering model and consumes the returned `ψ_sw` throughout
+4543: the contact-frame construction, but `ψ_v` is used *only* in the steering's
+4544: disengaged (castoring) branch, and castoring is free-swiveling wheel physics —
+4545: the strut's business, not the steering law's; re-factoring `AbstractSteering`
+4546: to emit `(engaged, ψ_cmd)` and computing `ψ_sw = engaged ? ψ_cmd : ψ_v` inside
+4547: `Strut` deletes the backward wire, and the factoring **survives substitution**
+4548: — a stateful steering actuator produces `ψ_cmd` from its own state and still
+4549: needs nothing from the strut — which is the test that it records structure
+4550: rather than dodging the diagnostic. (iii) **Splitting the component** stays the
+4551: residual remedy, for cycles whose halves genuinely belong to one component, and
+4552: its cost is now **stated where it bites**: [§8.3][s8-3]'s visibility is binary, so
+4553: every intermediate shared across the new boundary becomes `output_types` —
+4554: public, connectable, substitution-relevant. The cap is [§4.3][s4-3]'s granularity
+4555: guideline, which the split case satisfies trivially (one producing stage, one
+4556: consumer): **one struct-valued bundle port** (a `StrutGeometry`-shaped value),
+4557: not N loose ports — the bundle type becomes contract, a real cost but a bounded
+4558: and honest one. [§5.6][s5-6]'s hint offers **both exits** ("split this component, or
+4559: narrow the neighbor's contract"), continuous members only as before, and the
+4560: classifier machinery is untouched: it already knows which hop died. [§5.4][s5-4]'s
+4561: "rare" is thereby **earned** rather than asserted — the split is rare *because*
+4562: rungs (i) and (ii) absorb the common shapes. `migration_outline.md` records the strut/steering
+4563: pair as the contract-re-factoring worked instance, beside the dissolving
+4564: `VehicleDynamics` of `flight_case_studies.md`, with the split and its bundle port noted as the residual
+4565: remedy not taken; the `AbstractSteering` contract change is an
+4566: **aircraft-library migration call living in `migration_outline.md`**, not framework vocabulary.
+4567: 
+4568: **Rejected.**
+4569: - *A visibility level for split-orphaned intermediates (`unlisted`,
+4570:   `Private(T)`):* an explicit non-reopening of [D-034][d-034] and [D-055][d-055] — the promotion
+4571:   cost is real but bounded, and the bundle port keeps it to one name, whereas a
+4572:   hiding annotation would buy back that name at the price of "public always
+4573:   means someone wrote it down".
+4574: - *Leaving [§5.4][s5-4] split-only:* the first real migration instance shows the
+4575:   diagnostic steering the author toward mid-computation surgery on seven shared
+4576:   intermediates (`l`, `r_bs_b`, `q_bs`, `ks_e`, `v_ec_b_body`, `ξ`, terrain
+4577:   data) when deleting one false wire was the answer — and the "rare" claim is
+4578:   only true with the ladder in place.
+4579: - *Framework-side auto-splitting or auto-narrowing:* the classifier's trace
+4580:   speaks only for the branch taken at the probe point ([D-012][d-012]'s diagnostic-only
+4581:   doctrine), so remedy selection is the author's — and both [§5.4][s5-4] remedies
+4582:   document real structure precisely because a human chose them.
+4583: 

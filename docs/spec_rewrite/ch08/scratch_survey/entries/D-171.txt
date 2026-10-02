@@ -1,0 +1,24 @@
+6016: ### D-171 — Rename `passthrough` to `input_passthrough`
+6017: 
+6018: **Status.** ratified
+6019: 
+6020: **Position.** `passthrough` → **`input_passthrough`**.
+6021: 
+6022: **Spec.** [§8.8][s8-8]
+6023: 
+6024: **Rationale.** Annotates [D-144][d-144]: its "stays accurate if the output-direction
+6025: addition lands" clause assumed a direction *keyword* on one helper; after
+6026: [D-170][d-170]'s split a single call cannot emit into two declarations, so the guarded
+6027: addition's landing shape is a sibling `output_passthrough` splatted into
+6028: `output_connections` — the prefix is the split's consistent consequence, and
+6029: [§8.8][s8-8]'s inputs-only-by-definition paragraph shrinks to the guarded-addition
+6030: pointer, the name now carrying the direction.
+6031: 
+6032: **Rejected.**
+6033: - *Bare `passthrough`:* [D-144][d-144]'s premise retired by the split.
+6034: - *Plural `input_passthroughs`:* a bare plural collection noun re-enters the
+6035:   declaration class [D-144][d-144] moved the helper out of; return cardinality never
+6036:   drives operation naming.
+6037: - *Building `output_passthrough` now:* stays guarded — no demonstrated
+6038:   consumer.
+6039: 

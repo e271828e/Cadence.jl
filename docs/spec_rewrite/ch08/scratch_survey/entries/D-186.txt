@@ -1,0 +1,54 @@
+6595: ### D-186 — Legalize absolute declarations in any scope via anchors
+6596: 
+6597: **Status.** ratified
+6598: 
+6599: **Position.** Absolute declarations become legal in any scope — anchors,
+6600: severing, and the derive-vs-declare rule: the `(T, τ)` pair an `Absolute` entry
+6601: establishes is an **anchor**, severing its child from the enclosing scope's
+6602: grid — no relation to the scope's ticks remains, so `K ≥ 1` reads "a child
+6603: cannot tick faster than the scope it is *relative* to" (an anchored child may
+6604: outpace its scope), the fastest-member convention counts relative members only,
+6605: and anchored-vs-relative phase relationships are deployment-emergent, the
+6606: printable bound schedule the way to audit them.
+6607: 
+6608: **Spec.** [§10.5][s10-5], [§9.1][s9-1], [§9.2][s9-2], [Appendix B][sB]
+6609: 
+6610: **Rationale.** The doctrinal line sharpened rather than dropped: an absolute
+6611: declaration inside a library type is legitimate when the rate is **a fact about
+6612: the modeled system, not a preference about the simulation** (a GPS's emission
+6613: rate, a bus schedule, an ADC's conversion offset — forcing them to the root
+6614: breaks encapsulation, the root re-declaring device internals), deployment
+6615: preferences keep the exposed-multiplier idiom, and the framework cannot police
+6616: the distinction — authoring doctrine, one paragraph beside the declaration
+6617: forms; never-cache-`Δt` fully intact (the pinning sits in the enclosing
+6618: assembly's `sample_times`, the same site the multiplier lives; the component
+6619: type stays rate-agnostic and consumes the bundle's `Δt`); Stratum A compiles to
+6620: **`(anchor, m, c)` triples** — seed `(A₀, 1, 0)` with anchor 0 the symbolic
+6621: base grid, `Relative(K, φ)` step `(a, K·mₛ, cₛ + φ·mₛ)`, `Absolute` severs and
+6622: re-seeds `(Aₖ, 1, 0)`, nested anchors just seeding again — the `Build` gaining
+6623: the anchor and component tables with rate chain, final divisors for
+6624: anchored entries deferred to binding (they do not exist until `Δt_base` does,
+6625: and one `Build` backs many `Simulation`s); deployment: the **constraint pool**
+6626: is every anchor period plus every nonzero offset, `Δt_base` admissible iff it
+6627: divides the pool's GCD; **derive `Δt_base` only when every discrete component
+6628: is anchored** — an unanchored period is `m·Δt_base`, and silent derivation
+6629: would let an anchor edit anywhere rescale it, action at a distance — otherwise
+6630: deployment must declare it, the refusal constructive; `Δt_base` binds from
+6631: exactly one of three cross-validated sources — explicit keyword
+6632: (`Rational`/`Period`/`Hz`, `n` derived and validated an integer ≥ 1), the `n·h`
+6633: product, or derivation at the pool GCD — and resolution is one exact division
+6634: pair per anchor (`DeploymentInvalid` naming the anchor's declaring scope and
+6635: key when non-dividing) plus one multiply-add per component, the residue
+6636: invariant surviving into the bound `(D, Φ, Δt)`.
+6637: 
+6638: **Rejected.**
+6639: - *Root-only absolute declaration (the superseded [§10.5][s10-5] clause):* right about
+6640:   deployment preferences, wrong for device-intrinsic rates; kept only as the
+6641:   default-form rationale.
+6642: - *Silent `Δt_base` derivation with unanchored components present:* the
+6643:   logger-rescaled-by-an-offset-edit case.
+6644: - *Absolute pinning from outside a subtree's contract:* standing rejection,
+6645:   upheld.
+6646: - *Any required relation between anchors:* they share only the base lattice,
+6647:   which the grid derivation guarantees.
+6648: 

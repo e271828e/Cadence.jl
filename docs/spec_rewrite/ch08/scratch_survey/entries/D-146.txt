@@ -1,0 +1,57 @@
+4911: ### D-146 — Rename `faces`/`selectors` to `claims`/`reads` on the binding interface
+4912: 
+4913: **Status.** ratified
+4914: 
+4915: **Position.** Binding-interface enumeration renames: `faces(b)` → `claims(b)`
+4916: and `selectors(b)` → `reads(b)`; signatures, semantics and
+4917: detection-by-method-presence unchanged. Rows ≤ [D-145][d-145] are historical and stay
+4918: unamended. `claims(b)`: what the declaration does is stake the claim set ([§11.3][s11-3])
+4919: — the enumerated faces become the device's claimed write surface — so the name
+4920: plugs straight into [§11.3][s11-3]'s central claim vocabulary (claim set, claim
+4921: partition, `ClaimedFaceEntry`, claims orphaned to run end) and retires the last
+4922: method-name use of the spec's most polysemous noun, "face" ([D-144][d-144] dissolved the
+4923: other one, leaving this the sole survivor). `reads(b)`: the declaration
+4924: establishes the binding's declared read set — a tuple of [§14.4][s14-4] selectors,
+4925: validated at attach and compiled to one per-boundary gather whose labeled
+4926: NamedTuple `map_output` receives — and [§14.7][s14-7]'s `TrimProblem` already carries
+4927: that exact concept under that exact name, with the identical declared-set →
+4928: validated-at-mount → compiled → materialized lifecycle (its `reads` field
+4929: resurfacing as the `reads` argument of `residuals(reads, d)`): same concept,
+4930: same name. The interface thereby gains a clean sim-centric write/read pair,
+4931: `claims(b)`/`reads(b)`, sitting over the existing sim-centric
+4932: `map_input`/`map_output` pair. Scope fence: the vocabulary "selector(s)" is
+4933: untouched wherever it names the `get_*` values or their families (table
+4934: selectors, store selectors, path selectors, [§14.10][s14-10]'s tap selectors, "[§14.4][s14-4]
+4935: selectors"); only the binding method renames, and `reads(b)` still returns
+4936: [§14.4][s14-4] selectors.
+4937: 
+4938: **Spec.** [§11.3][s11-3], [§11.6][s11-6], [§14.4][s14-4], [§14.7][s14-7], [§14.10][s14-10], [Appendix B][sB], [Appendix C][sC],
+4939: [Appendix D][sD] (swept)
+4940: 
+4941: **Rationale.** This is the first application of [D-144][d-144]'s four-class
+4942: convention on its semantic axis: both names sat in the right class —
+4943: bare-noun declarations the author defines and the framework calls — but were
+4944: content-named where the spec's own `exports` precedent is consequence-named,
+4945: naming the role the declaration plays rather than the material it returns. The
+4946: side-detection prose improves in the same stroke: "`claims` defined ⇒
+4947: enumerated write side, claims staked". The client difference (trim's `reads`
+4948: service, a device read binding inspection) is no obstacle — [D-130][d-130] made the
+4949: client an internal framework fact, never user-facing API.
+4950: 
+4951: **Rejected.**
+4952: - *Keeping `selectors(b)`:* defensible status quo — content-accurate and
+4953:   unambiguous — but it names the material rather than the role, and forgoes the
+4954:   [§14.7][s14-7] unification a shared `reads` buys.
+4955: - *`taps(b)`:* spoken for by [§14.10][s14-10]'s linearization vocabulary — the
+4956:   `x`/`u`/`y` tap sets — so importing it here would manufacture the very
+4957:   polysemy this rename retires.
+4958: - *`gather(b)`:* names the compiled artifact, not the declaration — the gather
+4959:   is what the framework builds from the declared read set, and a declaration
+4960:   named after its downstream product is the class error one level over.
+4961: - *Direction words such as `outputs(b)`:* invite the writer/reader direction
+4962:   confusion `selectors` was originally chosen to avoid — a device's "output" is
+4963:   the sim's input.
+4964: - *Renaming the selector vocabulary itself instead of the method:* it names the
+4965:   `get_*` values, which is precisely what it is good at — the ambiguity was
+4966:   only ever in the method name.
+4967: 

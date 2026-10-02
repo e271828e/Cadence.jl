@@ -1,0 +1,33 @@
+974: ### D-032 — Component declaration: trait layer with probe-checked schema authority
+975: 
+976: **Status.** ratified
+977: 
+978: **Position.** Component declaration: declarative trait layer in plain Julia
+979: (well-known functions returning plain values; stage functions ordinary
+980: methods); schema authority — declarations define, probe evaluation checks
+981: (build probe with real values + free always-on conformance); convenience macros
+982: addable a posteriori, never essential.
+983: 
+984: **Spec.** [§8.1][s8-1], [§8.4][s8-4]
+985: 
+986: **Rationale.** Recorded only through the rejections below.
+987: 
+988: **Rejected.**
+989: - *Inference-by-evaluation as schema authority:* error locality inverts —
+990:   failures inside correct code; schemas sample/branch-dependent; annotations
+991:   homeless. The five [§8.4][s8-4] walkthroughs traced under inference-by-evaluation,
+992:   recorded as the grounding evidence: (1) a typo'd wire (`:throtle`) gives a
+993:   missing-field error inside a correct `h_xu` at probe time, the input set
+994:   silently *defined* by the typo; (2) a forgotten wire read only by a guard is
+995:   detected only if the probe exercises that guard, and then as a missing field
+996:   in event code; (3) a forgotten branch field yields a schema silently derived
+997:   from whichever branch the initial state took, then a mid-run error or a
+998:   silently absent port at the first transition; (4) a type mismatch surfaces as
+999:   a `MethodError` deep inside user math; (5) a typo'd return field silently
+1000:   *defines* a new cell, the intended name's absence surfacing later as a
+1001:   missing-field error inside correct `f`/guard code.
+1002: - *Macro DSL as substrate:* opaque codegen, tooling/stack-trace tax, only ever
+1003:   lowers to the trait layer.
+1004: - *Optional declarations with inference fallback:* two idioms; the quick hacks
+1005:   most likely to skip are most likely to harbor branch bugs.
+1006: 

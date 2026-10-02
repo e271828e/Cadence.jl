@@ -1,0 +1,38 @@
+2725: ### D-094 — Close the state-leaf vocabulary to plain scalars and `SArray`s
+2726: 
+2727: **Status.** ratified
+2728: 
+2729: **Position.** State leaf vocabulary closed ([§7.1][s7-1]): `init_x` leaves are plain
+2730: real scalars and `SArray`s at the common eltype — no domain wrapper types.
+2731: 
+2732: **Spec.** [§7.1][s7-1], [§10.4][s10-4], [§14.3][s14-3]
+2733: 
+2734: **Rationale.** Views therefore materialize by ordinary invariant-free
+2735: construction (bit-faithful round trip, no constructor bypass, no
+2736: layout-coincidence machinery in the executor), `Ẋ` has `X`'s shape at `T`, and
+2737: off-manifold state is visible to [§10.4][s10-4]'s probes by construction; domain
+2738: semantics are explicit casts at the point of use (`RQuat(x.q, normalization =
+2739: false)` — today's `f_ode!`-over-raw-views pattern made immutable); invariants
+2740: live in `project` and on the write paths (condition apply's baked converts
+2741: [§14.3][s14-3], `capture`'s gather, handlers' own constructors).
+2742: 
+2743: Annotation (2026-09-14): the declaration is also flat. A `NamedTuple` field
+2744: would materialize without invariants, but the condition algebra and the
+2745: readers address an `init_x` field as one leaf ([§14.3][s14-3], [§14.4][s14-4]), and structure is
+2746: the component tree's to express; the check that enforces the vocabulary
+2747: refuses nesting with the rest.
+2748: 
+2749: **Rejected.**
+2750: - *Invariant-carrying leaves with constructors run on read:*
+2751:   `reconstruct(flatten(x)) ≠ x`: every consumer sees a silently projected value
+2752:   over a runaway buffer — a clamped `Ranged` hiding its own divergence —
+2753:   `project` view-redundant yet buffer-necessary, [§10.4][s10-4]'s off-manifold probes
+2754:   impossible.
+2755: - *Invariant-carrying leaves with constructor bypass:*
+2756:   `reinterpret`/`unsafe_load` over the struct-buffer layout coincidence —
+2757:   documented-C-layout-safe under the common-eltype rule and build-time
+2758:   verifiable via `fieldoffset`, but internals-adjacent cleverness in the
+2759:   executor core to save one cast line per method.
+2760: - *Per-leaf lossless-round-trip certification:* an unverifiable convention, not
+2761:   a checkable rule.
+2762: 

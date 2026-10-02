@@ -1,0 +1,47 @@
+9394: ### D-251 — Make the passthrough selectors exclusive and warn on an empty selection
+9395: 
+9396: **Status.** ratified
+9397: 
+9398: **Position.** `input_passthrough` and `output_passthrough` take one selector
+9399: per call: `except`, `only`, or a new `select` predicate over face names.
+9400: 
+9401: - More than one selector given is `UnknownFaceSelection` with reason
+9402:   `:multiple_selectors`, generalizing `:both_given`; the payload names the
+9403:   selectors given.
+9404: - A selection that names a selector and keeps nothing is the warning
+9405:   `EmptyFaceSelection`, a build-stage warning through [D-250][d-250]'s channel. A
+9406:   bare call over a faceless child is silent.
+9407: - Required-faces declarations are not owed. Recorded as possible sugar.
+9408: - The feed-list idiom of [§8.8][s8-8] gets a test transcribing the spec's sketch
+9409:   against the real helpers, and no code.
+9410: 
+9411: **Spec.** [§8.8][s8-8], [Appendix C][sC]
+9412: 
+9413: **Rationale.** [§8.8][s8-8]'s `except` and `only` were mutually exclusive by rule;
+9414: adding a predicate kept the rule and needed its arm to say "more than one"
+9415: rather than "both". A predicate earns its place at C172X scale, where the
+9416: feed list already computes the `except` tuple and a closure over the same
+9417: list says the same thing without the tuple. An empty selection is almost
+9418: always a typo that the unknown-names check cannot see, `only` naming faces
+9419: that exist but a `select` that matches none, or an `except` that lists every
+9420: face. It is a warning and not an error because a level may legitimately pass
+9421: nothing through under one configuration of a generic child. The
+9422: required-faces declaration was the "an assembly declares what it needs from
+9423: a child" sugar; the two-producers and obligation checks already state every
+9424: violation it would catch, so it adds a spelling and no check. The feed-list
+9425: test exists because the spec's sketch is the only statement of the idiom,
+9426: and a sketch that the helpers cannot run is a claim without a check.
+9427: 
+9428: **Rejected.**
+9429: - *Composable selectors (an `except` and a `select` together):* two filters
+9430:   on one call read as a set expression; one call, one selector, and a second
+9431:   call for a second rule.
+9432: - *Silence on an empty selection:* the level compiles and the missing
+9433:   faces surface later as unconnected inputs at another level, far from the
+9434:   cause.
+9435: - *An error on an empty selection:* a generic child with no faces under one
+9436:   configuration would refuse to build under a correct declaration.
+9437: - *Required-faces declarations:* a second spelling for checks the wire
+9438:   resolution already runs.
+9439: 
+9440: 

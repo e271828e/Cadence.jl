@@ -1,0 +1,47 @@
+9693: ### D-256 — Regroup the `Simulation`'s fields by owner
+9694: 
+9695: **Status.** ratified
+9696: 
+9697: **Position.** `Simulation` keeps five fields: the deployment, the executor,
+9698: the run, the plane and the control. The build is reached through the
+9699: deployment, which is the build plus what the grid parameters fix, so a second
+9700: reference to it would be an invariant with no enforcer. Every other field
+9701: moves to its owner.
+9702: 
+9703: - To the deployment: `h`, `N_base`, `Δt_base`, the three event parameters,
+9704:   `sched`, `D`, `Φ`, `Δt` ([D-254][d-254]).
+9705: - To the executor: `chunk_size`, `stepper`, `xnext`, `ẋnext`,
+9706:   `has_localized`.
+9707: - To the periphery's own types: `join_timeout` into `Control`; `loop_diag`,
+9708:   `loop_acct` and `published` into the plane.
+9709: - To the run: `t_end`, `stop_on`, `stop_addrs`, `policy`, `log`, `trace`
+9710:   ([D-255][d-255]).
+9711: - Constructor keywords follow their fields. The `Deployment` constructor
+9712:   takes the grid and event parameters and the algorithm. `join_timeout`,
+9713:   `trace`, `log`, `log_every` and `log_max` are keywords of
+9714:   `Simulation(deployment, T)` and of the two convenience forms, the
+9715:   recording flags carried to `init!`, which builds the run. `DeploymentInvalid`
+9716:   names deployment parameters only; the materialization's keywords validate
+9717:   under `ArgumentInvalid`.
+9718: 
+9719: **Spec.** [§9.7][s9-7], [§10.4][s10-4], [§11.2][s11-2], [§11.8][s11-8], [§12.1][s12-1], [§12.4][s12-4], [Appendix B][sB], [Appendix C][sC]
+9720: 
+9721: **Rationale.** The `Simulation` had twenty-eight fields because it was the
+9722: only struct standing between a build and a running loop, so every value
+9723: deployment or the loop needed landed on it. With `Deployment` and `Run`
+9724: typed, each field has an owner by the same criterion that placed the
+9725: warnings: an artifact's fields go to the artifact, a piece of state goes to
+9726: the state that mutates it. The executor owns its stepper and the arrival
+9727: buffers because it is the one thing that writes them. `join_timeout` is the
+9728: shutdown tail's parameter and the tail runs on `Control`. The loop's
+9729: diagnostic cell and account are one more writer's, and the plane holds the
+9730: writers. The five that remain are the five things a simulation is.
+9731: 
+9732: **Rejected.**
+9733: - *Leaving the fields flat:* every reader of a grid parameter or a buffer
+9734:   goes through the `Simulation`, so nothing below it can be tested or printed
+9735:   alone.
+9736: - *A separate `Periphery` struct for the plane, control and published
+9737:   holder:* the plane already is that struct.
+9738: 
+9739: 

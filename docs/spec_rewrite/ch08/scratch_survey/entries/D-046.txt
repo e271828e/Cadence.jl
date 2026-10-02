@@ -1,0 +1,22 @@
+1357: ### D-046 — Face names are opaque string tokens; slash is reserved for structure
+1358: 
+1359: **Status.** ratified
+1360: 
+1361: **Position.** Face names = arbitrary strings; build invariants only no-`/` +
+1362: per-assembly uniqueness; slash = structure, face names = opaque contract
+1363: tokens; the periphery speaks face names on the *write* side ([D-083][d-083]); `exports`
+1364: returns pairs like `connections`; `faces(asm, path; prefix, sep, except, only)`
+1365: with dot-prefix *defaults* (convention, not law).
+1366: 
+1367: **Spec.** [§8.6][s8-6]
+1368: 
+1369: **Rationale.** Recorded only through the rejections below.
+1370: 
+1371: **Rejected.**
+1372: - *Mandated dot convention:* a naming law where two invariants suffice.
+1373: - *NamedTuple-returning `exports`:* `var"..."` noise for non-identifier names;
+1374:   asymmetric with `connections`.
+1375: - *Slash-composed prefixes:* face names would collide with structural path
+1376:   notation.
+1377: - *`rename` hooks in `faces`:* `exports` is ordinary code — map over the pairs.
+1378: 

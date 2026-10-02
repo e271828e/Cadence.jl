@@ -1,0 +1,66 @@
+9265: ### D-249 — Settle three payload columns: contract arity, runtime time and face routes
+9266: 
+9267: **Status.** ratified
+9268: 
+9269: **Position.** Three [Appendix C][sC] columns move to what the design needs, and
+9270: every other payload shortfall `pending.md` enumerates is a fill from data its
+9271: site holds.
+9272: 
+9273: - `TierSignatureMismatch` owns all three signature violations [§8.5][s8-5] names, the
+9274:   arity arms on a stateful leaf included. `DeclarationOnWrongTier` keeps the
+9275:   update laws, the stores, `state_events`, `init_m`, `state_projection` and
+9276:   the `init_workspace` arity.
+9277: - A runtime `ConformanceFailure` carries no simulation time of its own. The
+9278:   `StepError` carrier's frame holds the boundary time and the replay index,
+9279:   and that satisfies [§9.5][s9-5]. A handler's occurrence names its event, at the
+9280:   probe and at run time alike.
+9281: - `FaceNameCollision` carries the assembly path and the colliding names, with
+9282:   no per-entry declaration.
+9283: - `StopFaceInvalid`'s binding site is one of three, the constructor, `run!`
+9284:   or `replay!`, since a replay binds the run policy as `run!` does ([§12.7][s12-7]).
+9285: 
+9286: **Spec.** [§8.5][s8-5], [§8.6][s8-6], [§9.5][s9-5], [§12.7][s12-7], [§13.5][s13-5], [Appendix C][sC]
+9287: 
+9288: **Rationale.** [D-216][d-216] kept the payload columns as the design and left the
+9289: prototype's gaps visible under them. Closing those gaps found three columns
+9290: the sites argue against. [§8.5][s8-5] said two things about a contract arity on a
+9291: stateful leaf. Its tier paragraph listed a `state_update` beside a
+9292: two-argument `output_types` under `DeclarationOnWrongTier`, and its
+9293: signature-shape paragraph made any of three signature violations
+9294: `TierSignatureMismatch`. One violation family split across two kinds by
+9295: whether the leaf holds a store would make an author match on the leaf's
+9296: statefulness to catch a wrong contract form. The contract's own kind takes
+9297: all three arms, and its payload already spells the form found against the
+9298: form mandated. Simulation time on a runtime `ConformanceFailure` would be a
+9299: second copy of a value the catch site stamps on every carrier, and filling it
+9300: means passing a clock into every generated store write, whose only context
+9301: today is the path and the function. The carrier's time and boundary index
+9302: are what the replay idiom reads. Naming the declaration behind a colliding face
+9303: name would say which of two declarations the author wrote by hand, when a
+9304: computed entry collides only under an empty or a coinciding prefix, the message
+9305: already names the assembly and the faces, and the fix is an `except` entry or a
+9306: prefix either way. Carrying it would make the passthrough helpers return
+9307: a marked pair, every reader of the two boundary declarations unwrap it, and
+9308: the root arm carry a tag with nothing to say, a primitive root having no
+9309: computed entries. The `replay!` site is a factual completion: [§12.7][s12-7] binds
+9310: `stop_on` there exactly as at `run!`.
+9311: 
+9312: Annotation (2026-09-24): `TierSignatureMismatch` retires with the contract
+9313: arities, and the `init_workspace` arity leaves `DeclarationOnWrongTier`'s
+9314: member set; a `Pinned` entry on a discrete leaf joins it ([D-263][d-263]).
+9315: 
+9316: **Rejected.**
+9317: - *Keeping the contract arity under `DeclarationOnWrongTier` on a stateful
+9318:   leaf:* the same wrong form reports as two kinds by the leaf's statefulness,
+9319:   and the contract kind's form-found-versus-form-mandated payload goes unused
+9320:   on the arity arms.
+9321: - *Threading the clock into the generated writes:* duplicates the carrier's
+9322:   field, and every store write grows an argument for a value read from one
+9323:   place.
+9324: - *Marking computed passthrough entries:* a public helper's return shape
+9325:   changes, and the root arm's declaration is meaningless, for one word in one
+9326:   message.
+9327: - *Leaving the three columns as written:* `pending.md` would carry three
+9328:   permanent gaps that no increment could close without one of the mechanisms
+9329:   above.
+9330: 

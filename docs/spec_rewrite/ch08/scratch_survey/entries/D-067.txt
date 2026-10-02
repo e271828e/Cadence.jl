@@ -1,0 +1,39 @@
+1874: ### D-067 — Boundary zero runs the macro-sequence with an empty integrate
+1875: 
+1876: **Status.** ratified
+1877: 
+1878: **Position.** Boundary zero is the [§10.6][s10-6] macro-sequence run with an empty
+1879: integrate: project → sweep (every tick due; discrete stages publish from the
+1880: authored `z`) → events to quiescence → due `g` updates → header capture + first
+1881: snapshot.
+1882: 
+1883: - Interval alignment is a taught contract, sibling of [§8.6][s8-6]'s boundary-sampling
+1884:   line: a boundary's update is the *outgoing* transition — `z_{k+1}` from
+1885:   `t_k`'s samples — so boundary zero's incoming transitions on both tiers are
+1886:   replaced by authorship, and the update at `t₀` is the `t₀` sample's only
+1887:   chance.
+1888: - `t₀` is an init-service argument anchoring the harmonic grid (conditions
+1889:   time-free; `capture` returns condition and time separately).
+1890: - Trim iterations bypass boundaries entirely — raw write→sweep→read on the
+1891:   activation — and only the commit runs boundary zero, a guard firing at commit
+1892:   replacing today's hand-written trim asserts.
+1893: 
+1894: **Spec.** [§10.6][s10-6], [§14.5][s14-5], [§5.3][s5-3], [§3.4][s3-4], [§8.6][s8-6]
+1895: 
+1896: **Rationale.** Recorded only through the rejections below.
+1897: 
+1898: Annotation (2026-10-02): amended by [D-185][d-185], [D-205][d-205] and [D-291][d-291]. At
+1899: boundary zero the due set is the `Φ = 0` components, which governs the
+1900: `s_update` calls alone; every discrete output stage publishes, due or not.
+1901: 
+1902: **Rejected.**
+1903: - *Condition-authoritative boundary zero:* no events/updates: delays the
+1904:   identical firings one step while hiding non-quiescence — [§11.7][s11-7]'s
+1905:   insurance-masking-invariants pattern; skipping the update deletes the `t₀`
+1906:   sample and starts the sampled-data lattice one period late — the authored
+1907:   `z(0)` needs no protection, it is published at `t₀` regardless.
+1908: - *Update before the sweep or republish-from-`z⁺`:* stale-table sampling or
+1909:   Mealy update-feedthrough: same-boundary circularity, kills [§10.6][s10-6]'s structural
+1910:   termination.
+1911: - *`t₀` as a condition entry:* time is not a store.
+1912: 

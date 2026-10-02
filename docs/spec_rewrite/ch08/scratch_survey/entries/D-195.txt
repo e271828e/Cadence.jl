@@ -1,0 +1,56 @@
+6933: ### D-195 — Give the discrete state its own letter `s`
+6934: 
+6935: **Status.** ratified
+6936: 
+6937: **Position.** The discrete state un-fuses from `x` into its own letter `s`;
+6938: [D-173][d-173]'s `z` retirement stands untouched — bare `z` still means only the shift
+6939: operator `z⁻¹`.
+6940: 
+6941: - The discrete-tier names re-split: `h_x`/`h_xu` → `h_s`/`h_su`, `init_x` →
+6942:   `init_s`, `y_x` → `y_s`, bundle field `x` → `s`, `x⁺ = g(x,u,t)` → `s⁺ =
+6943:   g(s,u,t)`; the continuous tier keeps the `x` family, and `f`/`g`, `m` and
+6944:   `Δt` keep their meanings.
+6945: - The per-function-per-tier closed bundle-name sets become per-function closed
+6946:   sets again: the two tiers' name families are disjoint by construction.
+6947: - The wrong-letter error class [D-173][d-173] retired rejoins
+6948:   `DeclarationOnWrongTier`'s member set — a discrete leaf declaring `h_x`, or
+6949:   a continuous one declaring `h_s`, is statically diagnosable again.
+6950: 
+6951: **Spec.** [§3.2][s3-2], [§5.2][s5-2], [§5.3][s5-3], [§7.3][s7-3], [§8.2][s8-2], [§8.7][s8-7], [§9.3][s9-3], [§9.5][s9-5], [§12.5][s12-5], [§13.7][s13-7], [§14.1][s14-1], [§3.4][s3-4], [§8.6][s8-6],
+6952: [Appendix A][sA], [Appendix B][sB], [Appendix C][sC], [Appendix D][sD] (all companions swept)
+6953: 
+6954: **Rationale.** [D-173][d-173] correctly retired `z` but recycled the continuous letter,
+6955: erasing a real distinction: the discrete state is a different object — no
+6956: derivative, any isbits type (pinned, eltype-generic or mixed), latched between
+6957: ticks, stored in per-component state stores where the continuous state lives in
+6958: the flat buffer ([§9.4][s9-4]) — and one letter made leaf declarations and framework
+6959: prose read as one mechanism where the engine holds two.
+6960: 
+6961: [D-173][d-173]'s "every candidate letter is taken" premise has since emptied for `s`:
+6962: the Laplace variable appears nowhere in the spec — the document's only
+6963: transform-domain symbol is `z⁻¹` — and `s` carries unique positive precedent,
+6964: being legacy FlightCore's own discrete state field (`Model.s`), which [§12.5][s12-5]'s
+6965: consumer survey already quotes as `x`/`s`; the migration (`migration_outline.md`) reads the legacy
+6966: vocabulary back rather than introducing a third letter. The "doubled API"
+6967: objection is nominal, not per-leaf: a leaf is strictly one tier ([D-056][d-056]) and
+6968: still implements exactly one name family, and the doubling buys back the
+6969: wrong-letter diagnostic. The hybrid-systems `x⁺` convention [D-173][d-173] leaned on
+6970: models a single state that both flows and jumps; the framework's tiers are
+6971: disjoint ([D-056][d-056], [§3.2][s3-2]), so its premise never applied here. [D-173][d-173]'s
+6972: `is_discrete` rejection is untouched — the arity-is-the-tier doctrine survives
+6973: with the letters split.
+6974: 
+6975: **Rejected.**
+6976: - *`w`:* free in current text since [D-194][d-194], but permanently means intermediates
+6977:   in the log's lineage ([D-165][d-165], [D-169][d-169], [D-194][d-194]) — reuse would make one letter
+6978:   mean two things across the log's history; reads as process noise/disturbance
+6979:   in the state-space literature; prefix near-miss with the `ws` workspace
+6980:   field.
+6981: - *`d`:* `D` is already the compiled sample-rate divisor ([§8.7][s8-7], [Appendix D][sD]) and
+6982:   the feedthrough matrix in `linearize`'s return, `d` the trim decision vector
+6983:   ([§14.7][s14-7]); differential-operator reading, flagged by [D-173][d-173] already.
+6984: - *Keeping the fusion:* the collision argument that motivated it was against
+6985:   `z`, not for `x` — with a clean letter available, the shared letter's only
+6986:   remaining yield is the halved name count, which per-tier disjointness makes a
+6987:   diagnostic asset instead.
+6988: 

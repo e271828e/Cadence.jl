@@ -1,0 +1,26 @@
+3315: ### D-112 — Add `events` to the tier-consistency markers
+3316: 
+3317: **Status.** ratified
+3318: 
+3319: **Position.** `events` joins the tier markers: the tier-consistency rule
+3320: enumerates four declaration families — stage names, the `init_*` family,
+3321: `workspace` arity, and (when declared) `events`, a continuous-tier marker since
+3322: the event system is continuous-side only.
+3323: 
+3324: **Spec.** [§3.2][s3-2], [§5.2][s5-2], [§8.2][s8-2], [Appendix C][sC]
+3325: 
+3326: **Rationale.** The kind is widened and renamed `StageOnWrongTier` →
+3327: `DeclarationOnWrongTier` (payload: the offending declaration — a stage name or
+3328: `events` — and the tier the leaf's other declarations announce): one rule, one
+3329: kind, keeping the kind list flat (user's call — the exception list is long
+3330: already); [D-075][d-075] amended.
+3331: 
+3332: **Rejected.**
+3333: - *A separate `EventOnWrongTier` beside `StageOnWrongTier`:* additive and
+3334:   rename-free, but mints a second kind for the same tier-agreement rule —
+3335:   taxonomy economy won.
+3336: - *Leaving `events` outside the rule:* a discrete leaf declaring `events` is
+3337:   illegal by [§5.2][s5-2]/[§3.2][s3-2]/[Appendix B][sB]'s testimony yet checkable nowhere, and
+3338:   tier-exclusive `events` outside a list that includes tier-symmetric
+3339:   `workspace` is indefensible asymmetry.
+3340: 

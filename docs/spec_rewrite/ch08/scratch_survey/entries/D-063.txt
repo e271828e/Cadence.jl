@@ -1,0 +1,22 @@
+1778: ### D-063 — Conditions are path-addressed sparse overlays on `init_*` defaults
+1779: 
+1780: **Status.** ratified
+1781: 
+1782: **Position.** Conditions are path-addressed values: sparse overlays of
+1783: `x`/`m`/`z` fields ([§8.6][s8-6] path + field) and root slots (by face) on the
+1784: declared `init_*` defaults; never outputs or workspace; warm restart =
+1785: `capture` reads current stores back as a condition value (capture → tweak →
+1786: apply).
+1787: 
+1788: **Spec.** [§8.6][s8-6], [§14.1][s14-1]
+1789: 
+1790: **Rationale.** Recorded only through the rejections below.
+1791: 
+1792: **Rejected.**
+1793: - *Mirror-tree spelling:* a second structure artifact, ragged under partiality,
+1794:   outside the path vocabulary.
+1795: - *Current-stores overlay base:* run-history dependence breaks header
+1796:   reproducibility.
+1797: - *Condition-by-contract-only:* forfeits the concrete-build authoring idiom
+1798:   that `connections` already occupies.
+1799: 

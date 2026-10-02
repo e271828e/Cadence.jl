@@ -1,0 +1,56 @@
+7523: ### D-211 — Let a component declare one container name-transparent
+7524: 
+7525: **Status.** ratified
+7526: 
+7527: **Position.** A component type may declare at most one of its container
+7528: fields **name-transparent** — the opt-in declaration
+7529: `transparent_container(::MyType) = :field` beside the connection
+7530: declarations, default `nothing` — and that field's elements are then
+7531: contributed as children under their bare keys: `"key"`/`"1"` in place of
+7532: `"field/key"`/`"field/1"`, everywhere a child name appears — wiring
+7533: endpoints, `sample_times` keys, read paths, `at` prefixes, diagnostics. A
+7534: bare key colliding with any sibling child name is a build error naming both.
+7535: `Group` declares its `children` field transparent, so its values address
+7536: their children directly — `"ctl/out" => "plant/u"`, `(ctl = Relative(2),)`,
+7537: `at("ctl", …)` — amending [D-085][d-085]'s naming clause and [D-184][d-184]'s
+7538: zero-new-declaration-rules framing; undeclared containers keep their key
+7539: segment exactly as before, [D-207][d-207]'s one-level reading unchanged.
+7540: 
+7541: **Spec.** [§6.1][s6-1], [§8.5][s8-5], [§8.6][s8-6]
+7542: 
+7543: **Rationale.** [§8.5][s8-5] already rules containers "transparent grouping, not
+7544: assemblies" — transparent in structure and contract, yet opaque in naming:
+7545: the field segment rides every child name. The segment earns its keep where
+7546: the parent mixes child sources or the roster name informs (`"aircraft/2"`);
+7547: it carries nothing where the container is the type's sole child source, and
+7548: `Group` is the extreme case — every child of every `Group` is
+7549: `children/<key>`, boilerplate on all three authoring surfaces at once:
+7550: wiring endpoints, rate keys (a slash-bearing key forcing the
+7551: `var"children/ctl"` spelling), and the whole read/address side
+7552: (`state(sim, "children/f/children/a")`, `at("children/ctl", …)`, every error
+7553: message). Under [D-207][d-207] the composite name also became grammatically
+7554: anomalous: a `Group` endpoint spells three segments where the rule reads
+7555: immediate child + face, indistinguishable on sight from the deep paths just
+7556: removed. With bare keys, a `Group`'s declarations are textually identical to
+7557: a named assembly's — the anonymous-beside-named promise made literal. The
+7558: declaration is opt-in with a collision check rather than a naming change,
+7559: keeping the informative segment where parametric rosters and mounting rely
+7560: on it; one transparent container per type keeps a bare name's declaration
+7561: evident, and nothing wants two.
+7562: 
+7563: **Rejected.**
+7564: - *Qualification inside `Group`'s accessors — the connection declarations
+7565:   prepending `children/` to what the author wrote:* zero framework change,
+7566:   but it cleans only the declaration surface and splits the namespace — the
+7567:   author declares `"ctl/out"` yet reads `"children/ctl/out"`, and build
+7568:   errors quote strings never written. One consistent composite name beats two
+7569:   inconsistent ones.
+7570: - *Dropping the field segment universally:* breaks the informative naming
+7571:   parametric rosters and mounting rely on (`"aircraft/2"`), and invites
+7572:   collisions in multi-container types with no opt-out.
+7573: - *Renaming `Group`'s field to something short (`c::C`):* shortens the
+7574:   boilerplate without removing it from any surface.
+7575: - *Sanctioning child discovery itself as an overloadable declaration:*
+7576:   strictly more power than the defect calls for — naming is the flaw;
+7577:   discovery stays structural.
+7578: 

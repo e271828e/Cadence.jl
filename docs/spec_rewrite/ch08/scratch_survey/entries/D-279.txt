@@ -1,0 +1,84 @@
+11482: ### D-279 — Name the assembly's boundary declarations by `u` and `y`, and shorten `x_derivative`
+11483: 
+11484: **Status.** ratified
+11485: 
+11486: **Position.** The letters `u` and `y` name the two sides of a component's
+11487: contract at either class, and four declarations and one keyword are renamed
+11488: on that ground or beside it.
+11489: 
+11490: - The renames: `input_connections` → `u_connections`, `output_connections` →
+11491:   `y_connections`, `child_connections` → `inner_connections`, `x_derivative`
+11492:   → `x_deriv`, and `fragment`'s `inputs` keyword → `u`. Signatures, entry
+11493:   spellings and semantics are unchanged.
+11494: - [D-267][d-267]'s rule is widened, not replaced. A leaf declaration is still named
+11495:   by the bundle field it defines. An assembly has no bundle, and its boundary
+11496:   declarations take the letter of the contract side they declare.
+11497: - What stays: `x_projection`, `state_events`, `sample_times`, `Group`'s
+11498:   keywords `wires`, `inputs` and `outputs`, `input_faces`/`output_faces`,
+11499:   `input_passthrough`/`output_passthrough`, every `get_` selector and every
+11500:   diagnostic kind name. Prose keeps "root input", "the state derivative" and
+11501:   "the projection".
+11502: - `deriv` joins `implementation.md`'s abbreviation roster.
+11503: - No aliases and no deprecation shims, on [D-220][d-220]'s terms. The log keeps the
+11504:   old spellings under `decisions_style.md`'s rule 2.
+11505: 
+11506: **Spec.** [§3.3][s3-3], [§3.4][s3-4], [§4.3][s4-3], [§5.2][s5-2], [§5.3][s5-3], [§5.4][s5-4], [§6.1][s6-1], [§6.2][s6-2], [§7.1][s7-1], [§7.4][s7-4], [§8.1][s8-1],
+11507: [§8.2][s8-2], [§8.5][s8-5], [§8.6][s8-6], [§8.8][s8-8], [§9.1][s9-1], [§9.2][s9-2], [§9.3][s9-3], [§9.4][s9-4], [§9.5][s9-5], [§9.7][s9-7], [§11.3][s11-3], [§13.1][s13-1],
+11508: [§13.3][s13-3], [§13.4][s13-4], [§13.5][s13-5], [§13.7][s13-7], [§14.1][s14-1], [§14.2][s14-2], [§14.7][s14-7], [§14.8][s14-8], [§14.10][s14-10], [Appendix B][sB],
+11509: [Appendix C][sC], [Appendix D][sD]
+11510: 
+11511: **Rationale.** [§8.6][s8-6] already says that the root's input faces come from the
+11512: assembly's boundary declaration or from `u_types`, following the root's
+11513: class, and that nothing downstream distinguishes the two ([D-208][d-208]). Two
+11514: declarations that fill one role at the two classes were spelled in two
+11515: vocabularies. Under this entry `u_types` and `u_connections` read as the two
+11516: ways a component declares its input side, and `u_` lists both under tab
+11517: completion. Control convention gives a composite system a `u` and a `y` as
+11518: it gives them to a block. [D-267][d-267] kept the three connection names because an
+11519: assembly defines no bundle field. That is still true. The letter names the
+11520: contract side, which on a leaf is also the bundle field. The suffix keeps
+11521: the difference [D-041][d-041] and [D-170][d-170] drew: `_types` declares typed faces, and
+11522: `_connections` routes faces whose types derive from the internal endpoints.
+11523: 
+11524: `fragment` took three letters and one word. Its fourth payload holds values
+11525: for the fields of `u`, so the letter fits. `x`, `s` and `m` resolve only at a
+11526: leaf, while this payload resolves at any level, assemblies included. The
+11527: keyword is therefore clean only because the boundary rename makes `u` mean
+11528: something on an assembly.
+11529: 
+11530: [D-170][d-170] rejected `inner_connections` for its visual near-collision with
+11531: `input_connections`. That neighbour is gone. Every entry of all three
+11532: declarations names a child face, so "child" told none of them apart. "Inner"
+11533: says that both ends sit inside the boundary, against one end on it. The trio
+11534: is uneven in form, one word and two letters, and the form is accurate: the
+11535: first is the class marker with no leaf counterpart, and the other two mirror
+11536: `u_types` and `y_types`.
+11537: 
+11538: [D-267][d-267] rejected `x_deriv` on two grounds, and neither holds. The family does
+11539: not spell its words in full: `x_init`, `s_init`, `m_init` and `ws_init`
+11540: abbreviate already. `x_deriv` beside `x_projection` is no more uneven than
+11541: `x_init` beside it. The read side already says `get_deriv`, so the
+11542: declaration and its selector now spell one word one way. It is also the
+11543: declaration authors write most, once per continuous leaf. "Deriv" could be
+11544: misread as "derived", a word the spec uses for contracts, but `get_deriv`
+11545: had fixed its meaning before this entry.
+11546: 
+11547: **Rejected.**
+11548: - *`sibling_connections`:* [§6.1][s6-1]'s own adjective for these wires, but a child
+11549:   wired to itself is expressible (`"plant/power" => "plant/u"`), and a child
+11550:   is not its own sibling.
+11551: - *`wires`:* the spec's everyday noun and `Group`'s field, but it drops the
+11552:   `_connections` suffix that ties the three declarations, and a package
+11553:   function of that name would take it from every `wires` local and from the
+11554:   `Group` field under `implementation.md`'s naming rules.
+11555: - *Keeping `child_connections` beside `u_connections` and `y_connections`:*
+11556:   the name discriminates nothing, since all three declarations connect child
+11557:   faces.
+11558: - *`x_proj`:* `proj` is neither frequent nor established. Few leaves write a
+11559:   projection, tab completion spares the writer, and a reader who meets the
+11560:   name rarely is better served by the full word.
+11561: - *`u` and `y` as `Group`'s keywords:* they hold connection entries, not
+11562:   values, and `u = ("in" => "c/e",)` would read as a value of `u`.
+11563: - *Letters on the helpers and selectors:* [D-267][d-267] separates declarations from
+11564:   these, and [D-076][d-076]'s separation of `u_types` from `input_faces` stands.
+11565: 

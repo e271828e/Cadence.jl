@@ -1,0 +1,47 @@
+3623: ### D-122 — Resolve de-polysemy by giving each overloaded term one owner
+3624: 
+3625: **Status.** ratified
+3626: 
+3627: **Position.** Each overloaded term keeps one owner; the evicted senses get
+3628: their own words (spec-wide; user request 2026-08-03). Event detection **Tier
+3629: 1/2 → boundary-detected/localized** and genericity **Tiers 1/2/3 →
+3630: walked/pinned/exempt**, leaving bare *tier* solely continuous/discrete; guard
+3631: **condition → predicate**; event **baseline → prior**; component **kind →
+3632: class**, **function kind → function family**; error-report **batch → collect**
+3633: and **batch run → unattended run**; linearization **surface → taps**;
+3634: **recording registers → recorders** and the [§12.6][s12-6] **harness register → harness
+3635: cell**, reserving *register* for the idiom/mode sense.
+3636: 
+3637: **Spec.** [§11.3][s11-3], [§11.6][s11-6], [§12.6][s12-6], [§8.2][s8-2], [§14][s14], [§14.5][s14-5]
+3638: 
+3639: **Rationale.** Event detection: Tier 1/2 → boundary-detected/localized is
+3640: descriptive, matching the `localize` flag (`Tier2GuardPredicate` →
+3641: `LocalizedGuardForm`); genericity Tiers 1/2/3 → walked/pinned/exempt uses the
+3642: leaf walk's own verbs (`DeclarationOnWrongTier` untouched, [D-112][d-112] intact — kills
+3643: the double-numbered collision inside [§8.2][s8-2]). Guard condition → predicate: [§14][s14]'s
+3644: condition value owns the word and the API (~124 vs ~18 sites; `σ` restyled the
+3645: sign value). Event baseline → prior: the `baseline` keyword of `trim!`/`init!`
+3646: owns it; *armed/arming* considered and set aside — inverts the stored sample's
+3647: sense. Component kind → class: `KindUnreadable` → `ClassUnreadable` — a
+3648: diagnostic kind named after the other sense was the worst collision; [§11.6][s11-6]
+3649: retitled "one authoring contract, no taxonomy" (diagnostic kind/payload owns
+3650: bare *kind*). Error-report batch → collect: the site column now `build/service
+3651: (collected)`; batch run → unattended run: device write batches own *batch*.
+3652: Linearization surface → taps: `linearize(sim, taps)`, `TapResolution`; write
+3653: surface untouched, freeze vocabulary. Recording registers → recorders and the
+3654: [§12.6][s12-6] harness register → harness cell ([§11.3][s11-3]'s existing name). Deliberately
+3655: kept: *boundary zero* (a hyponym — it IS a step boundary, [§14.5][s14-5]'s whole point),
+3656: *frame* both senses (loop frame ~40 entrenched sites vs. kinematic reference
+3657: frames — compound discipline instead), *entry* (always compounded).
+3658: 
+3659: **Rejected.**
+3660: - *Renaming the entrenched owners instead:* condition algebra, write surface,
+3661:   device batches, trim's `baseline` — all API or freeze vocabulary, maximal
+3662:   churn for the same disambiguation.
+3663: - *Compound-protection alone via glossary senses without renames:* leaves the
+3664:   [§8.2][s8-2] numbered-tier collision and the `KindUnreadable` self-collision
+3665:   standing.
+3666: - *io set for the linearization selection:* taps is shorter and signal-native.
+3667: - *Rewriting historical log rows to the new vocabulary:* amendments annotate,
+3668:   never rewrite.
+3669: 

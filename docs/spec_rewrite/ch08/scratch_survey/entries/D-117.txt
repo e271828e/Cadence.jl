@@ -1,0 +1,34 @@
+3478: ### D-117 — Extend declarations and stages via explicit per-name import
+3479: 
+3480: **Status.** ratified
+3481: 
+3482: **Position.** The declaration and stage family is extended, not called, and
+3483: enters a component module through explicit per-name `import Cadence: init_x, …,
+3484: f, g, project, connections, exports, rates` — normative authoring surface
+3485: stated in [§8.1][s8-1], with qualified definition (`Cadence.f(…) = …`, the `Base.show`
+3486: idiom) the recorded alternative for the extension-only periphery.
+3487: 
+3488: **Spec.** [§8.1][s8-1], [§8.4][s8-4], [Appendix C][sC]
+3489: 
+3490: **Rationale.** `StoreWithoutUpdate`/`KindUnreadable` gain a shadowing check
+3491: (parent module defines a same-named function `!==` the framework's → the
+3492: message names the missing import); the exported-name audit in `pending.md` widened to name
+3493: the declaration/stage family as the larger half of the unexported
+3494: extension-only surface; short names stay unexported deliberately (`f`, `g`,
+3495: `events`, `project` maximally collision-prone).
+3496: 
+3497: **Rejected.**
+3498: - *Relying on bare `using`:* silently defines unrelated same-named functions —
+3499:   verified: no error, no warning, and the build's diagnostics then misname a
+3500:   namespace mistake as a modeling one, the [§8.4][s8-4] error-locality inversion
+3501:   through the namespace.
+3502: - *A re-export submodule as the ergonomic fix:* `using Cadence.Declarations`
+3503:   carries identical silent-shadowing semantics — per-name `import` is the only
+3504:   extension idiom the language provides.
+3505: - *Adopting an `@declarations` macro now:* sugar addable a posteriori, never
+3506:   essential ([D-032][d-032]).
+3507: 
+3508: Annotation (2026-09-17): [D-246][d-246] makes the shadowing check a fail-fast kind of
+3509: its own, `DeclarationShadowed`, run before the class is read; the two
+3510: diagnostics named here carry no note.
+3511: 

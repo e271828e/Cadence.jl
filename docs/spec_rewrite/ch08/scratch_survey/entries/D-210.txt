@@ -1,0 +1,40 @@
+7483: ### D-210 — Tighten the input boundary: class-uniform face uniqueness and no empty routing
+7484: 
+7485: **Status.** ratified
+7486: 
+7487: **Position.** Two input-boundary rules tighten, each completing a
+7488: consequence [D-207][d-207] and [D-208][d-208] left implicit. The bundled rulings:
+7489: 
+7490: - [§8.6][s8-6]'s face-name uniqueness invariant applies to the root component
+7491:   whatever its class: a primitive root's face set is the union of its
+7492:   `input_types` and `output_types` keys, and a key declared in both is the
+7493:   same build error a duplicate face name is. Non-root primitives are
+7494:   untouched.
+7495: - An `input_connections` entry routes to at least one internal endpoint:
+7496:   the empty tuple is a declaration error.
+7497: 
+7498: **Spec.** [§8.2][s8-2], [§8.6][s8-6]
+7499: 
+7500: **Rationale.** [D-208][d-208] made a primitive root's two contract declarations share
+7501: the periphery's face namespace for the first time, and the prototype's
+7502: conformance build showed what the gap costs: a primitive root declaring one
+7503: key in both declarations places two cells at one address, the root-input
+7504: placement silently overwriting the output port's. The repro authored
+7505: `u = 5.0`, the stage published `10.0`, and the root input read back `10.0` —
+7506: boundary-zero-ordered, and silent. An assembly root is protected by [§8.6][s8-6]'s
+7507: uniqueness invariant; a primitive root had no analogue. The empty routing
+7508: tuple is the same class of silence one level down: it contributes no
+7509: consumer, so it is invisible to the total face graph [D-207][d-207] requires ([§9.2][s9-2]),
+7510: and a condition addressing that face at a non-root level misdiagnoses as
+7511: "declares no input face" — byte-identical to the diagnostic a bare typo
+7512: earns. A face feeding nothing declares nothing.
+7513: 
+7514: **Rejected.**
+7515: - *Extending uniqueness to every primitive:* below the root a primitive's
+7516:   input faces alias their producers' cells and place nothing, so there is no
+7517:   addressable collision to forbid, and the rule would constrain leaf authors
+7518:   for nothing.
+7519: - *A sentinel entry in the face graph for a consumerless face:*
+7520:   representation for a declaration with no meaning, and the misdiagnosis
+7521:   survives in a new shape.
+7522: 

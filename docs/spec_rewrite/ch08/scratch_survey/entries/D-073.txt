@@ -1,0 +1,36 @@
+2094: ### D-073 — Companion sketches carry the settled condition-algebra design
+2095: 
+2096: **Status.** ratified
+2097: 
+2098: **Position.** Companion sketches: `sketch_decoder.jl`/`sketch_io.jl` carry the
+2099: settled design; a runnable dependency-free `condition_demo.jl` exercises the
+2100: [§14][s14] algebra and [§14.9][s14-9] mounting (printed trees and flattened entry lists);
+2101: declaration-by-initial-value upheld ([§8.2][s8-2]); sampled-data Dual activation
+2102: recorded unbuilt ([§14.10][s14-10]); [§6.2][s6-2]'s `SumJunction` dispatches on its
+2103: unparametrized type constructor.
+2104: 
+2105: **Spec.** [§6.2][s6-2], [§8.2][s8-2], [§14][s14], [§14.9][s14-9], [§14.10][s14-10]
+2106: 
+2107: **Rationale.** Recorded only through the rejections below.
+2108: 
+2109: **Rejected.**
+2110: - *Split-form sketch files and separate `navsensors.jl`/`imu.md` notes:*
+2111:   retired, content absorbed into [§3.4][s3-4] and [§8.6][s8-6].
+2112: - *`init_*` as types + `probe_value` synthesis:* defaults are the [§14.1][s14-1] overlay
+2113:   base; the [§14.6][s14-6] probe-value barrier; a per-field two-form protocol,
+2114:   [§14.2][s14-2]. The `init_*`-as-types grounds spelled out ([§8.2][s8-2]): the condition
+2115:   substrate needs an authored value under every leaf ([§14.1][s14-1]'s overlays fall
+2116:   back leaf by leaf and the compiled store writers bake `merge(defaults,
+2117:   overlay)`), a synthesized initial state crosses [§14.6][s14-6]'s probe-value barrier
+2118:   (a fabricated zero is a fine probe input and a terrible flight condition —
+2119:   states no less than slots), and every field where synthesis picks wrong
+2120:   (modes, `Ranged` values excluding zero, trim-sensitive states) would need an
+2121:   authored default *beside* its type — the per-field two-form protocol
+2122:   [§14.2][s14-2] kills for `initialize` specs, aggravated in Julia by types being
+2123:   first-class values, the two forms distinguishable only by `isa Type`.
+2124: - *Extending differentiation through the discrete tier now:* frozen-`z` is
+2125:   exact for every built consumer; $\Phi$ differentiability breaks at events —
+2126:   kept as an opt-in door.
+2127: - *Deferring the demo to the framework prototype:* the algebra is freestanding
+2128:   — strings, NamedTuples, four structs.
+2129: 

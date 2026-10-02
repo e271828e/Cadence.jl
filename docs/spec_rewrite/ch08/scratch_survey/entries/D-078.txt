@@ -1,0 +1,30 @@
+2263: ### D-078 — Treat input entries as face constraints checked by subtyping
+2264: 
+2265: **Status.** ratified
+2266: 
+2267: **Position.** Input entries are face constraints: wiring check `producer_face
+2268: <: entry` at nominal faces — one uniform rule, exact equality the concrete
+2269: degenerate.
+2270: 
+2271: **Spec.** [§4.4][s4-4], [§9.1][s9-1]
+2272: 
+2273: **Rationale.** Abstract entries = structural substitutability ([§4.4][s4-4] field
+2274: handles), never needed for eltype genericity (an eltype-generic producer's
+2275: nominal face is concrete by construction); root-slot carve-out — only a tight
+2276: (concrete) bound determines a producerless cell's type, abstract-at-root a
+2277: build error; under fan-out the slot type is the unique concrete declaration
+2278: among consumers, abstract co-consumers checked against it; doctrine:
+2279: declarations record choices, obligations are checked.
+2280: 
+2281: **Rejected.**
+2282: - *Exact-equality-only status quo:* welds [§4.4][s4-4] consumers to one concrete
+2283:   producer type, or leaks wiring facts into component type parameters —
+2284:   `Strut{H}` cascading through every owning assembly.
+2285: - *Symmetric `T` as genericity envelope:* a per-leaf marking that is a constant
+2286:   function across components — zero information, wrong granularity,
+2287:   false-affordance pins; the predictive reading remains impossible per [D-054][d-054].
+2288: - *Phantom root producer with `output_types`-style slot declarations:*
+2289:   re-enumerates what exports already are — [D-043][d-043]'s `add_input!` reborn;
+2290:   two-artifact drift; root-ness is deployment, not type; its pin bit is policy
+2291:   wearing a description's syntax — pinned ≡ unseeded to every derivative.
+2292: 

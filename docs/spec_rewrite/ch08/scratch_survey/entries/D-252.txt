@@ -1,0 +1,46 @@
+9441: ### D-252 — Remove auto-publishing: two port classes, exposed state returned by stage 1
+9442: 
+9443: **Status.** ratified
+9444: 
+9445: **Position.** A declared output is produced by stage 1 or by stage 2, and by
+9446: nothing else. A component exposes a state or mode field by returning it from
+9447: `output_state`. A declared output that no stage produces is
+9448: `DeclaredNotProduced`, everywhere and at every tier. `ProducedByTwoStages`
+9449: carries the component path and the port name; the two stages are the kind's
+9450: own, so the producer column goes with the third class. Supersedes [D-016][d-016]'s
+9451: publication rule, [D-152][d-152]'s successor in [D-154][d-154]'s sequence, and [D-169][d-169].
+9452: 
+9453: **Spec.** [§5.2][s5-2], [§5.3][s5-3], [§7.5][s7-5], [§8.3][s8-3], [§9.1][s9-1], [§9.3][s9-3], [§10.6][s10-6], [§13.2][s13-2], [Appendix B][sB], Appendix
+9454: C, [Appendix D][sD]
+9455: 
+9456: **Rationale.** Auto-publishing was a third port class the framework wrote.
+9457: It cost more than the line it saved. Stage 1's hand-down had to exclude the
+9458: published names ([D-169][d-169]), the classifier probed by name and type and silently
+9459: un-published a name held at another type, the executor grew a
+9460: `PublishEntry` beside the stage entries, the published set threaded through
+9461: every stratum and into `compile`'s key slicing, and a `ConformanceFailure`
+9462: arm existed only to refuse a `Float64`-pinned declaration of a walking field
+9463: at the `Dual` activation. Each piece was correct and each was there for one
+9464: convenience: not writing `output_state(c, (; x)) = (; q = x.q)`. The
+9465: 2026-09-18 probe over the suite found nine of seventy-eight fixture
+9466: components relying on publication, six of them written to test it. The
+9467: remaining refusal already exists: `DeclaredNotProduced` names the declared
+9468: port, the stage products and the store fields, and its remedy becomes
+9469: "return it from `output_state`". With one writer per port the port model is
+9470: homogeneous, the `Dataflow` artifact ([D-253][d-253]) classifies by return alone, and
+9471: the trace and status surfaces stop distinguishing a framework write from a
+9472: stage write.
+9473: 
+9474: **Rejected.**
+9475: - *Keeping publication as it stood:* the machinery above, for one line per
+9476:   exposed field.
+9477: - *Opt-in publication sugar (a declaration listing fields to expose):* a
+9478:   second way to write `output_state`'s return, with the same classification
+9479:   seam.
+9480: - *A dev-mode flag publishing every state field ([§11.7][s11-7]'s note):* still
+9481:   possible as a debugging aid, but it would be a reader over the stores, not
+9482:   a port class; it is recorded, not built.
+9483: - *Refusing only at the root:* an unproduced port inside an assembly is the
+9484:   same silent zero, one level down.
+9485: 
+9486: 
