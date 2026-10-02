@@ -481,6 +481,8 @@ all-inputs `h_xu`, named per [D-075][d-075]); component split as the refinement.
 **Position.** Structured immutable state over a framework-owned flat
 `Vector{T}`.
 
+**Spec.** [§7.1][s7-1]
+
 **Rationale.** Recorded only through the rejections below.
 
 **Rejected.**
@@ -549,6 +551,8 @@ reading on a simple cycle.
 **Status.** ratified
 
 **Position.** Scoped allocation invariant, CI-enforced on the hot path.
+
+**Spec.** [§7.5][s7-5]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -990,7 +994,7 @@ methods); schema authority — declarations define, probe evaluation checks
 (build probe with real values + free always-on conformance); convenience macros
 addable a posteriori, never essential.
 
-**Spec.** [§8.1][s8-1], [§8.3][s8-3], [§8.4][s8-4]
+**Spec.** [§7.2][s7-2], [§8.1][s8-1], [§8.3][s8-3], [§8.4][s8-4]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -1026,7 +1030,7 @@ both tiers, per-activation cell types from the framework leaf walk ([D-079][d-07
 `localize` flag (`true` = Tier 2, default `false` = Tier 1); stage membership
 derived (inputless `h_x` probes first, remainder is stage 2), no stage tags.
 
-**Spec.** [§4.2][s4-2], [§8.1][s8-1], [§8.2][s8-2]
+**Spec.** [§4.2][s4-2], [§7.1][s7-1], [§8.1][s8-1], [§8.2][s8-2]
 
 **Rationale.** The inventory is self-classifying by convention: by value
 `init_*`, by type `*_types`, by allocation `workspace` ([D-076][d-076]). Contract
@@ -1069,7 +1073,7 @@ no outputs; intermediates declared via strict `local_types` ([D-055][d-055]) —
 cells, non-connectable, snapshot-visible, presentation-filtered;
 branch-shape-stable returns; undeclared stage-return fields = build error.
 
-**Spec.** [§5.4][s5-4], [§8.3][s8-3]
+**Spec.** [§5.4][s5-4], [§7.4][s7-4], [§8.3][s8-3]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -1101,7 +1105,7 @@ handlers alike — arriving as one named bundle destructured in the signature
 home per datum); selective auto-publication of declared state/mode fields;
 `h_x`/`h_z` = the no-feedthrough stage.
 
-**Spec.** [§5.2][s5-2], [§5.3][s5-3], [§7.4][s7-4]
+**Spec.** [§5.2][s5-2], [§5.3][s5-3], [§7.1][s7-1], [§7.4][s7-4]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -2114,7 +2118,7 @@ compiled to offsets, relocatable via `at`.
 - Guidance: surfaces select minimal-coordinate mechanizations, the `{NED}` rig
   practice, now stated.
 
-**Spec.** [§7.1][s7-1], [§14.10][s14-10]
+**Spec.** [§7.1][s7-1], [§7.2][s7-2], [§14.10][s14-10]
 
 **Rationale.** Recorded only through the rejections below.
 
@@ -2172,7 +2176,7 @@ unparametrized type constructor.
 args)` — one NamedTuple bundle of zero-copy views, destructured by name in the
 signature; `project(comp, x)` alone stays positional.
 
-**Spec.** [§5.2][s5-2], [§11.4][s11-4]
+**Spec.** [§5.2][s5-2], [§7.3][s7-3], [§11.4][s11-4]
 
 **Rationale.** The bundle law (a field exists iff the store or tier fact
 exists: undeclared stores absent, never `nothing`-filled; `t` everywhere, `Δt`
@@ -2339,7 +2343,7 @@ leaves, reference-typed fields and non-type (value) parameters pin, with the
 companion obligation that a Tier-1 type be constructible at the walked type —
 enforced by construction at the `Dual` probe.
 
-**Spec.** [§7.1][s7-1], [§8.2][s8-2], [§8.5][s8-5], [§9.4][s9-4], [§9.5][s9-5], [§14.10][s14-10]
+**Spec.** [§7.1][s7-1], [§7.2][s7-2], [§8.2][s8-2], [§8.5][s8-5], [§9.4][s9-4], [§9.5][s9-5], [§14.10][s14-10]
 
 **Rationale.** The type derived from `init_x` walks like a continuous
 producer's ([§7.1][s7-1]'s all-real-leaves rule checked in Stratum A, didactic
@@ -8710,7 +8714,7 @@ over the cell type and the return type.
   generates a throw of `ConformanceFailure`, a `StepError` species at runtime
   ([§13.4][s13-4]).
 
-**Spec.** [§7.1][s7-1], [§9.5][s9-5], [Appendix C][sC]
+**Spec.** [§7.1][s7-1], [§7.2][s7-2], [§9.5][s9-5], [Appendix C][sC]
 
 **Rationale.** Two facts fix the shape. [D-166][d-166]'s embed-accept makes "types equal
 or refuse" impossible at the write: a `Float64` at a declared-`T` cell under a
@@ -9539,8 +9543,9 @@ carries the component path and the port name; the two stages are the kind's
 own, so the producer column goes with the third class. Supersedes [D-016][d-016]'s
 publication rule, [D-152][d-152]'s successor in [D-154][d-154]'s sequence, and [D-169][d-169].
 
-**Spec.** [§5.2][s5-2], [§5.3][s5-3], [§7.5][s7-5], [§8.3][s8-3], [§9.1][s9-1], [§9.3][s9-3], [§10.6][s10-6], [§13.2][s13-2], [Appendix B][sB], Appendix
-C, [Appendix D][sD]
+**Spec.** [§5.2][s5-2], [§5.3][s5-3], [§7.1][s7-1], [§7.5][s7-5], [§8.3][s8-3],
+[§9.1][s9-1], [§9.3][s9-3], [§10.6][s10-6], [§13.2][s13-2], [Appendix B][sB],
+[Appendix C][sC], [Appendix D][sD]
 
 **Rationale.** Auto-publishing was a third port class the framework wrote.
 It cost more than the line it saved. Stage 1's hand-down had to exclude the
@@ -10548,7 +10553,7 @@ and linearization keeps its one mechanism.
 - Linearization has the seeded `Dual` pass alone ([§14.10][s14-10]) and no
   perturbation-based fallback.
 
-**Spec.** [§6.1][s6-1], [§8.2][s8-2], [§13.7][s13-7], [§14.10][s14-10]
+**Spec.** [§6.1][s6-1], [§7.2][s7-2], [§8.2][s8-2], [§13.7][s13-7], [§14.10][s14-10]
 
 **Rationale.** A `Dual` can never become a `Float64` without discarding its
 partials, and [§9.5][s9-5] rules that no lossy cast exists inside the framework. The
@@ -11673,7 +11678,7 @@ rests on [§8.6][s8-6] alone, because its ground in the `u_connections` name is 
 component, with `build(world; activations = (Float64, ProbeDual))`.
 Linearizability is an invariant held by this policy.
 
-**Spec.** [§8.2][s8-2], [§9.4][s9-4], [Appendix B][sB]
+**Spec.** [§7.2][s7-2], [§8.2][s8-2], [§9.4][s9-4], [Appendix B][sB]
 
 **Rationale.** Activations are lazy ([D-052][d-052]), so a successful `build` does not
 certify the model linearizable. A pinned `Float64` hidden in a constructor, or
@@ -11988,7 +11993,7 @@ options it opens stay uncommitted.
 - Publication is not a phase body. Invoking phase bodies in isolation leaves
   the buffers valid but off-trajectory, and continuing takes `init!`.
 
-**Spec.** [§9.7][s9-7], [§10.5][s10-5]
+**Spec.** [§7.1][s7-1], [§7.5][s7-5], [§9.7][s9-7], [§10.5][s10-5]
 
 **Rationale.** The phase bodies are the semantically forced outer
 decomposition, and their seams cost nothing; views rebuild per call, hoisting
@@ -12323,7 +12328,7 @@ recorded in [D-269][d-269]'s annotation of 2026-09-27.
   `m_init` and `s_init` pin wholesale. `Pinned` has no place in a store,
   because [§7.1][s7-1] admits no pinned state leaf.
 
-**Spec.** [§6.1][s6-1], [§8.2][s8-2], [§14.10][s14-10]
+**Spec.** [§6.1][s6-1], [§7.2][s7-2], [§8.2][s8-2], [§14.10][s14-10]
 
 **Rationale.** Each bullet restates what an existing entry recorded outside a
 live Position. The clause's tier scope, the obligation's scope and the
