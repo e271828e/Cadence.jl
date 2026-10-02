@@ -1,0 +1,289 @@
+318:### D-001 — Hybrid causal formalism with two-tier events and projection
+335:### D-002 — Adopt the causal, port-based paradigm
+348:### D-003 — Component taxonomy: hybrid primitive, periodic discrete, assemblies
+362:### D-004 — Immutable value signals in a typed signal table
+379:### D-005 — Reject algebraic loops at build
+395:### D-006 — Two-stage structural feedthrough via `h_x`/`h_xu`
+414:### D-007 — Aggregation mechanism
+436:### D-008 — Function-valued environment signals with the handle pattern
+450:### D-009 — Restrict deep paths to owned assembly types
+463:### D-010 — Structure continuous state as immutable values over a flat backing
+477:### D-011 — Eltype genericity on the continuous path
+491:### D-012 — Set-propagation tracers and SCC-based cycle diagnostics
+519:### D-013 — Immutable discrete state via cells, workspace, and snapshot
+533:### D-014 — Scoped allocation invariant, CI-enforced
+545:### D-015 — Fused evaluation of derivatives and outputs
+567:### D-016 — Uniform component interfaces via `h_x` and per-event re-decode
+597:### D-017 — Framework-owned simulation loop with a stepper seam
+626:### D-018 — Tier-2 event localization via dense output and bracketed root-finding
+654:### D-019 — Harmonic tick grid with virtual assemblies and rate scopes
+691:### D-020 — Boundary event phase iterates to quiescence
+714:### D-021 — Pacer: piecewise-affine wall-clock mapping with bounded debt
+740:### D-022 — Periphery architecture: no shared mutable model
+761:### D-023 — Snapshot publication via atomic acquire-release
+781:### D-024 — Inbound staging: per-device atomic batch cells
+808:### D-025 — One uniform device kind
+828:### D-026 — GUI write path: panels name their own ports
+852:### D-027 — Pacer coarse phase uses task-yielding sleep
+874:### D-028 — Next-snapshot wait via monotonic counter and condition variable
+896:### D-029 — Input trace on by default
+913:### D-030 — Shutdown protocol: publish, wake, unblock, join
+930:### D-031 — Mid-run mutation doctrine: staging and control commands only
+954:### D-032 — Component declaration: trait layer with probe-checked schema authority
+987:### D-033 — Declaration inventory: by-value, by-type, by-allocation conventions
+1029:### D-034 — Contract visibility: declared fields are public
+1054:### D-035 — Stores and views: components read zero-copy view bundles
+1082:### D-036 — Table mechanics: stage returns are NamedTuples of port values
+1105:### D-037 — Aggregation by explicit summing junctions
+1133:### D-038 — Snapshot and log: derived trajectory, primary trace header
+1159:### D-039 — Assembly declaration is type-based
+1184:### D-040 — Slash-string paths as the canonical path form
+1202:### D-041 — Dedicated `exports` for assembly faces
+1222:### D-042 — `rates` declaration on immediate children only
+1239:### D-043 — Computed exports via ordinary code and `faces`
+1258:### D-044 — Slot exclusivity and the write-surface rule
+1293:### D-045 — Periphery input semantics: derived liveness, conditioning, mappings, edge logic
+1337:### D-046 — Face names are opaque string tokens; slash is reserved for structure
+1359:### D-047 — Stage widgets on interaction events, not every pass
+1388:### D-048 — Three-stratum build pipeline: structure, schedule, activation
+1414:### D-049 — Standalone `build(world)` artifact wrapped by `Simulation`
+1430:### D-050 — Probe every user function once at build, at nominal `T`
+1447:### D-051 — Synthesize probe inputs via a `probe_value(::Type)` fallback chain
+1468:### D-052 — Scope Dual probing to each activation's executable set
+1491:### D-053 — Bake one always-on conformance check at every table write
+1523:### D-054 — Producers determine activation types; consumers stay generic
+1544:### D-055 — Require strict `local_types` declaration for cross-stage cells
+1570:### D-056 — Uphold the two-kind taxonomy against the integrate-and-dump challenge
+1605:### D-057 — Batch declarative-check violations; abort on first user-code exception
+1625:### D-058 — Diagnostics as structured values under one `BuildError` carrier
+1653:### D-059 — Catch runtime failures at one boundary site into `StepError`
+1679:### D-060 — Graceful termination is model state, never an exception
+1715:### D-061 — `resolve` walks declared types to enforce the generic-boundary rule
+1736:### D-062 — Tooling commitments: face predicates, build printer, component library
+1758:### D-063 — Conditions are path-addressed sparse overlays on `init_*` defaults
+1780:### D-064 — Compose per-component init by pull, via fragment functions
+1802:### D-065 — Fragments form a lazy inert tree, resolved against the `Build`
+1827:### D-066 — Two ways to apply one plan: specialized `apply!` vs dynamic entry-list walk
+1850:### D-067 — Boundary zero runs the macro-sequence with an empty integrate
+1885:### D-068 — Enforce slot totality at the init/commit service boundary
+1919:### D-069 — Trim problem spelling: NamedTuples, residual vector, exact AD Jacobians
+1957:### D-070 — Trim service: in-house dense LM behind a swappable backend
+1992:### D-071 — Mount trim as an implicitly specified condition via `at`
+2030:### D-072 — Linearization surface: three selector lists, one chunked Dual pass
+2066:### D-073 — Companion sketches carry the settled condition-algebra design
+2102:### D-074 — Hand off component-function arguments as one named bundle
+2139:### D-075 — Name flow/update/output stages by letter and dependence class
+2176:### D-076 — Name declarations `input_types`/`output_types`/`local_types` by convention
+2196:### D-077 — Allocate workspace via a per-activation `workspace` method
+2235:### D-078 — Treat input entries as face constraints checked by subtyping
+2265:### D-079 — Type declarations concretely, resolved by an activation leaf walk
+2304:### D-080 — Keep Tier-2 event detection pace-independent
+2323:### D-081 — Treat `t*` as a boundary, not a frame
+2350:### D-082 — Define guard conditions against a per-event baseline
+2383:### D-083 — Bind output-device reads to snapshot paths, not just faces
+2413:### D-084 — Drop the unconnected-output warning
+2436:### D-085 — Unpack `Tuple`/`NamedTuple` fields as container children
+2467:### D-086 — Compile the executor's schedule into unrolled statically-typed entries
+2505:### D-087 — Freeze the device roster as a build-validated immutable value
+2532:### D-088 — Define the run lifecycle: built → initialized → running → stopped/errored
+2560:### D-089 — Route supervisor gains and resets through ordinary ports
+2586:### D-090 — Return handler updates as bundle-law NamedTuples
+2606:### D-091 — Override `t_end`/`stop_on` per run at `run!`
+2626:### D-092 — Normative diagnostic kind table (Appendix C)
+2645:### D-093 — Spawn device tasks per run, not per attach
+2688:### D-094 — Close the state-leaf vocabulary to plain scalars and `SArray`s
+2726:### D-095 — Prefix the read-selector family with `get_`
+2758:### D-096 — Define the harness writer: `stage!`/`latest`/`step!` duration
+2790:### D-097 — Split device shutdown failures into two diagnostic kinds
+2812:### D-098 — Resolve selectors against a source before client policy
+2841:### D-099 — Spell the CI activation invariant with a canonical probe scalar type
+2864:### D-100 — Freeze `u` at round start for within-round event visibility
+2895:### D-101 — Implement replay as the ordinary loop with two substitutions
+2938:### D-102 — Author-owned device loop inside a framework-owned bracket
+2967:### D-103 — Detect a binding's sides by method presence at attach
+2996:### D-104 — Coalesce staged writes by CAS merge with per-attachment positional shape
+3037:### D-105 — Split device-side bad-datum handling into tolerated garbage and propagated crashes
+3063:### D-106 — Freeze the device roster for the duration of a run
+3107:### D-107 — Match trace record density to batch density, not surface width
+3140:### D-108 — Gate stopped-sim services by input-derived lifecycle preconditions
+3175:### D-109 — Fix device identity, roster admission and calling-task topology at attach
+3223:### D-110 — Give `trim!` an explicit `t0` argument and state its recording clear
+3251:### D-111 — Fold `project` into the always-on conformance check
+3274:### D-112 — Add `events` to the tier-consistency markers
+3300:### D-113 — Close four kindless diagnostic rules with new payload fields
+3340:### D-114 — Order snapshot publication before the boundary counter increment
+3369:### D-115 — Source the bundle law's remaining probe fields `t` and `ws`
+3397:### D-116 — Expose `phase_bodies(sim)` as the zero-allocation invariant's measurement seam
+3437:### D-117 — Extend declarations and stages via explicit per-name import
+3471:### D-118 — TrimProblem authoring surface
+3504:### D-119 — Add `Simulation(build::Build; …)` as a second constructor
+3530:### D-120 — Reconcile rigs with abstract-at-root via stub children
+3553:### D-121 — Partition the cell/store vocabulary and bless "staging cell"
+3582:### D-122 — Resolve de-polysemy by giving each overloaded term one owner
+3629:### D-123 — Add a non-normative Appendix D glossary
+3661:### D-124 — Widen §14.7's `reads` grammar to the full service selector set
+3687:### D-125 — Admit `get_face` to the service `reads` set
+3725:### D-126 — Give trim-commit events a report channel
+3751:### D-127 — Add a deployment block to the trace header for replay validation
+3784:### D-128 — Define `to_boundary` as the frame-entry boundary index
+3815:### D-129 — Restate the two-notation rule as directional (structure vs contract)
+3839:### D-130 — Scope `resolve`'s generic-boundary duty by client (wiring/service/inspection)
+3872:### D-131 — Apply the round-4 consistency sweep (findings 4–11)
+3921:### D-132 — Treat operator interrupt (Ctrl-C) as a control-plane stop, not a failure
+3984:### D-133 — Split spec-invoked numeric constants into deployment parameters vs owning-section defaults
+4054:### D-134 — Declare the interactive write-surface class via a binding marker method
+4120:### D-135 — Scope the activation cache to immutable compiled artifacts, keyed on the Build
+4167:### D-136 — Unify diagnostics and liveness heartbeat into one per-writer diagnostic cell
+4241:### D-137 — Bound snapshot-log retention by count, with amortized doubling stride
+4319:### D-138 — Make device `init!` an explicit, bracketed step of the run-start protocol
+4387:### D-139 — Give environment field handles a value-level constructor to prevent drift
+4477:### D-140 — Add a three-rung remedy ladder for artificial algebraic-loop dependencies
+4538:### D-141 — Continuous state resets are events, owned by the reimplemented PIVector
+4621:### D-142 — Stage code must be total over type-valid inputs
+4692:### D-143 — Add a `Constant` source block for zero-contributor aggregates
+4751:### D-144 — Rename the computed-exports helper `faces` to `passthrough`
+4809:### D-145 — Deduplicate pass-through `except` lists with a shared feed-list idiom
+4865:### D-146 — Rename `faces`/`selectors` to `claims`/`reads` on the binding interface
+4922:### D-147 — Split the sweep into static interior and boundary variants
+4987:### D-148 — Select converters per leaf by resolved condition-shape type
+5050:### D-149 — Check slot totality wherever a virgin world is established
+5089:### D-150 — Make the service the sole authority on convergence
+5137:### D-151 — Canonicalize NamedTuple field order at every author↔framework seam
+5180:### D-152 — Join auto-publication to the per-event re-decode at stage 1
+5205:### D-153 — Add re-arm tracking to complete the once-per-event rule
+5239:### D-154 — Remove per-event re-decode; serialize same-component events
+5283:### D-155 — Name projection as the second legitimate mover of the committed point
+5313:### D-156 — Legalize the three degenerate trim/integration shapes
+5342:### D-157 — Check for nonfinite `x` immediately after integrate
+5367:### D-158 — Pin the backend seam to one required `solve` signature
+5398:### D-159 — Define `warning (service)` as a sixth severity
+5421:### D-160 — Rename `report` to `report!`
+5439:### D-161 — Grow the naming audit to the full class-violation set
+5459:### D-162 — Adopt per-eltype homogeneous cell stores over per-instance
+5497:### D-163 — Ban `==` for separately-compiled float comparisons
+5525:### D-164 — Reject components that declare nothing and define no stage
+5557:### D-165 — Split output-stage returns into public `y` and private `w`
+5656:### D-166 — Mandate `Type{T}` output signatures on continuous producers
+5756:### D-167 — Mandate `Type{T}` input signatures under the permissive reading
+5832:### D-168 — Root-slot fan-out tolerance combines by meet, not agreement
+5878:### D-169 — `y_x`/`y_z` carry stage-1 ports only, auto-published excluded
+5918:### D-170 — Split assembly connections into child/input/output declarations
+5954:### D-171 — Rename `passthrough` to `input_passthrough`
+5978:### D-172 — Rule "face" kind-blind, defined at first use
+6011:### D-173 — Fuse the discrete state letter `z` into `x`
+6065:### D-174 — Re-class the GUI as an ordinary enumerated writer
+6119:### D-175 — Re-scope `gui = true` to a run-scoped attachment
+6151:### D-176 — Unify trace retention on one sparse record format
+6185:### D-177 — Re-found the periphery on mandatory roots plus declared traits
+6244:### D-178 — Reaffirm component-side rejections against the periphery's new idiom
+6288:### D-179 — Derive detection policy from the guard's return type
+6318:### D-180 — Bank per-event `direction` as an unbuilt guarded addition
+6342:### D-181 — Replace once-per-boundary firing with budgeted re-firing
+6382:### D-182 — Add a θ=0 validation probe to the localization trigger
+6417:### D-183 — Retire workspace poisoning
+6444:### D-184 — Fold `Group` into the spec as an ordinary library component
+6475:### D-185 — Adopt the phased, two-form sample-time declaration
+6529:### D-186 — Legalize absolute declarations in any scope via anchors
+6583:### D-187 — Make the bound schedule a named artifact with exact grid diagnostics
+6629:### D-188 — Construct `TrimProblem` by keyword everywhere
+6649:### D-189 — Unify `report!` on a single `(address, diagnostic)` shape
+6673:### D-190 — Reject a separate `derivative_type` declaration
+6693:### D-191 — Defer, not consume, the edge on a blocked event
+6728:### D-192 — Let the greedy claim empty the harness remainder
+6763:### D-193 — Keep per-writer liveness on one timestamp plus task state
+6790:### D-194 — Retire the `w` channel: intermediates are declared ports
+6867:### D-195 — Give the discrete state its own letter `s`
+6923:### D-196 — Rename the phase-body sweeps to stage-numbered names
+6945:### D-197 — Reject discrete stores in linearization's `x`-tap list
+6977:### D-198 — Promote the shutdown join timeout to a deployment keyword
+7016:### D-199 — The `reads` enumeration returns a labeled NamedTuple of selectors
+7045:### D-200 — The harness writer has its own cell and is diagnostic only
+7060:### D-201 — The terminal account closes at the final frame top
+7075:### D-202 — Stage batches as values plus touched-mask, never union tuples
+7124:### D-203 — The termination record carries typed sources and the tail residue
+7203:### D-204 — Rename the condition algebra's symmetric combinator to `combine`
+7237:### D-205 — Boundary zero publishes every discrete output stage, due or not
+7285:### D-206 — Rename root slots to root inputs
+7318:### D-207 — Route every connection one level: faces are the only cross-boundary currency
+7368:### D-208 — Root inputs are the root component's input faces, whatever its class
+7398:### D-209 — Build `output_passthrough`
+7417:### D-210 — Tighten the input boundary: class-uniform face uniqueness and no empty routing
+7457:### D-211 — Let a component declare one container name-transparent
+7513:### D-212 — Refuse the transparent bare key that shadows a sibling container field
+7555:### D-213 — Establish a service's frozen cells from the authored discrete state
+7595:### D-214 — Split Appendix C's severity column into severity, raised and policy
+7640:### D-215 — Extend Appendix C with the kinds the prototype raised
+7687:### D-216 — Conform Appendix C to the prototype's diagnostic sites
+7741:### D-217 — Conform the trace and replay sections to the prototype's record
+7800:### D-218 — Make the replay/live distinction an explicit input mode
+7845:### D-219 — Add a time-addressed replay halt and a manual door to live
+7895:### D-220 — Rename the authoring family to words: stage, update, projection, event and workspace declarations
+8003:### D-221 — Unwrap a single-diagnostic carrier at the runtime catch site into a `StepError` species
+8043:### D-222 — Replace `BuildError` with the policy-parametric `DiagnosticError` carrier
+8081:### D-223 — Host the runtime catch in boundary zero under the service's disposition
+8119:### D-224 — Let a throw inside a trim commit propagate as the commit's `StepError`
+8146:### D-225 — Parametrize `StepError` on its cause's type
+8191:### D-226 — Reach the public surface by qualified name until the export audit
+8238:### D-227 — Select the stepper by type under the `algorithm` keyword
+8279:### D-228 — Attribute runtime diagnostics by cell, never by payload
+8310:### D-229 — Collect to the stratum barrier under a dependency rule
+8370:### D-230 — Stamp the snapshot with the trajectory's boundary ordinal, not the wait counter
+8404:### D-231 — Require isbits store values, checked at build
+8459:### D-232 — Refuse the roster operations on an errored simulation
+8489:### D-233 — Retire the termination record's absent-time arm
+8513:### D-234 — Rename the deployment keyword `n` to `N_base`
+8542:### D-235 — Realize the always-on check at the generated write, against the cell type
+8599:### D-236 — Type-check a wire by one relation with embedding, in Stratum A
+8660:### D-237 — Classify a non-isbits immutable port type as one opaque leaf
+8718:### D-238 — Decide embed-accept on the type: lift the arrival, compare exactly
+8758:### D-239 — Report a typo'd return field alone, without the unproduced port
+8791:### D-240 — Read the heartbeat at publication, beside the task state
+8815:### D-241 — Keep the status a vector of records, one small allocation per publication
+8850:### D-242 — Name the resolution cases wiring, service and inspection, and retire "register" and "load-bearing" as spec vocabulary
+8912:### D-243 — Classify `Symbol` as an opaque port leaf
+8948:### D-244 — Refuse the write primitives of a detached handle by name
+8982:### D-245 — Classify a cycle cluster by a surviving traced cycle and carry each member's tracing mode
+9022:### D-246 — Diagnose a foreign declaration binding as its own fail-fast kind
+9083:### D-247 — Accept the `NamedTuple` as the only store declaration form
+9147:### D-248 — Frame every user-authored method the build invokes, declarations included
+9199:### D-249 — Settle three payload columns: contract arity, runtime time and face routes
+9265:### D-250 — Warnings live where the artifact criterion puts them
+9328:### D-251 — Make the passthrough selectors exclusive and warn on an empty selection
+9375:### D-252 — Remove auto-publishing: two port classes, exposed state returned by stage 1
+9421:### D-253 — Stratum products as artifacts: `Structure`, `Dataflow`, `Events`, one activation store
+9494:### D-254 — `Deployment` and `Schedule` as artifacts between the build and the simulation
+9545:### D-255 — `Run`, the trace split and `StopPolicy`
+9627:### D-256 — Regroup the `Simulation`'s fields by owner
+9674:### D-257 — Each artifact renders itself
+9722:### D-258 — "Schedule" is the tick timing and "execution order" the stage sequence
+9754:### D-259 — Retire the strata: the build is three steps named by their products
+9811:### D-260 — Trim the run to what lasts it and retire the trace register
+9895:### D-261 — Three ownership rules for fields, with the placements they settle
+10028:### D-262 — Post-commit checks on the trim problem
+10101:### D-263 — One arity on both tiers: plain contracts, the `Pinned` marker and the mandatory store
+10256:### D-264 — Admit a frozen opaque leaf at a tolerant entry
+10321:### D-265 — Read the `Pinned` marker at the top of an entry alone
+10377:### D-266 — Two doors for an AD-opaque implementation: the local rule and the `Freeze` block
+10446:### D-267 — Name the leaf declarations by the bundle field they define
+10555:### D-268 — Pause verbs on the simulation, and the interrupt's remaining windows
+10686:### D-269 — Pacing's spellings and default, the wait's consultation and the pacer's home
+10780:### D-270 — Fix the framework's half of the panel convention: port views, the peek, the orphan fact
+10893:### D-271 — Admit the component index on `get_input` and `get_face`
+10923:### D-272 — Fix `linearize`'s surface: the tap set, the chunk width, the operating point and the return
+11002:### D-273 — A condition is an initial condition: `capture` leaves the algebra
+11089:### D-274 — Checkpoints: the executor's state as one value, restored without boundary zero
+11182:### D-275 — Spell the exhaustive activation mode as the `activations` keyword alone
+11205:### D-276 — Address a leaf inside a port value by a dotted leaf address
+11324:### D-277 — Carry a read set's mount chain and rebase every selector to the root
+11377:### D-278 — Refuse an empty `at` prefix at composition
+11412:### D-279 — Name the assembly's boundary declarations by `u` and `y`, and shorten `x_derivative`
+11496:### D-280 — Build a `Dual` activation of every component in CI
+11518:### D-281 — Guarantee torn-state-free lazy materialization
+11539:### D-282 — Give every buffer set exactly one owner
+11566:### D-283 — Bind `Δt_base` against anchor-relative rate triples
+11626:### D-284 — Attribute grid refinement to every driver, against the actual pool
+11656:### D-285 — Probe return checks, hand-down and placeholder sources, and totality's two homes
+11714:### D-286 — Hold a pinned leaf to the exact check as the schema-visible freeze
+11758:### D-287 — Handler-return keys, struct-valued port embedding and the branchless payload
+11795:### D-288 — The executor's structure: phase bodies, views, construction, the gate and publication
+11859:### D-289 — Compile cost: generated unrolls, chunks by reference, an unspecialized declaration layer
