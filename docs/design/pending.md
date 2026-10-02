@@ -92,9 +92,16 @@ Each is additive, so it can land later without breaking user code.
   wrapped root has none. A ruling comes first, then the build.
 - **Publication's garbage** (§7.5, §10.7, §11.2, D-269). A new snapshot and
   table copy per frame are by design: §11.2 leaves published snapshots to
-  the GC, so a run never avoids it. A proper analysis on a model of real
-  size comes first, then a ruling beside D-269, then the build. The analysis
-  should assess:
+  the GC, so a run never avoids it. The requirement that sets the target is
+  a hardware-in-the-loop run: a paced run in which no collection pause may
+  break a frame deadline, at the expense of logging. Publication cannot be
+  switched off for it, since a device reads the model through the snapshot.
+  On a small model `publish!` allocates about 784 B per frame, plus 8 B per
+  `Float64` cell and about 272 B per rostered device, and the status vector
+  is two thirds of it (`docs/reports/20261002_tuple_walks/report.md`,
+  section 7). A proper analysis on a model of real size comes first, with
+  the pause length measured against the frame deadline, then a ruling beside
+  D-269, then the build. The analysis should assess:
   - **Sharing status records.** `_status` builds a fresh vector of writer
     records at every publication. An unchanged record could be shared with
     the previous snapshot. A device's heartbeat changes every frame, which
@@ -110,6 +117,16 @@ Each is additive, so it can land later without breaking user code.
     With the log on, thinned snapshots die in the old generation, where only
     a full collection reclaims them. The fixed cost grows with tasks, live
     heap and GC threads.
+  - **Device-side garbage.** A device's own task allocates too. Staging
+    rebuilds every batch dynamically (`_normalize`), at any width. The
+    collection trigger is process-wide, so the analysis counts this beside
+    publication's garbage.
+- **Trim's resolution cost.** A warm `trim!` takes 5 ms at 31 writes, 19 ms
+  at 64 and 85 ms at 128. At 128 writes `resolve_condition`, `compile_plan`
+  and the `init!` commit take about 27 ms each, 82 of the 85 ms, and each
+  grows faster than the condition's width
+  (`docs/reports/20261002_tuple_walks/report.md`, section 3.3). A probe to
+  find the cause comes first.
 - **The NLopt fallback** (§14.8, H 4.5): `NLoptBackend(:LN_BOBYQA)` as a
   package extension, the squared and normalized objective at `stopval = 1`,
   and the nominal-activation loop it would run on.
