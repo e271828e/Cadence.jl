@@ -1,0 +1,629 @@
+{
+ "claims": [
+  {
+   "id": "A-001",
+   "old": "## 7. State and data representation",
+   "new": "## 7. State and data representation",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-002",
+   "old": "### 7.1 Continuous state: structured immutable, flat backing",
+   "new": "### 7.1 Continuous state: structured immutable, flat backing",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-003",
+   "old": "Each continuous component declares its state by value (`x_init`, §8.2).",
+   "new": "Each continuous component declares its state by value (`x_init`, §8.2, D-033).",
+   "where": "new",
+   "cites": [
+    "§8.2"
+   ],
+   "newcites": [
+    "§8.2",
+    "D-033"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-004",
+   "old": "The declaration is a NamedTuple whose leaves are drawn from a deliberately closed vocabulary,",
+   "new": "The declaration is a NamedTuple (D-247). Its leaves are drawn from a deliberately closed vocabulary,",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-247",
+    "D-094"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-005",
+   "old": "plain real scalars and `SArray`s (static vectors and matrices) of a common eltype `T`, and nothing else.",
+   "new": "plain real scalars and `SArray`s (static vectors and matrices) of a common eltype `T`, and nothing else (D-094).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-094"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-006",
+   "old": "plain real scalars and `SArray`s (static vectors and matrices) of a common eltype `T`, and nothing else.",
+   "new": "The structure step refuses a field outside the vocabulary as `IllegalStateLeaf` (§9.1). §8.2 shows the kind's messages.",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "§9.1",
+    "§8.2"
+   ],
+   "tag": "R",
+   "ruling": "R18"
+  },
+  {
+   "id": "A-007",
+   "old": "`Int`s, enums and `Bool`s belong in modes.",
+   "new": "`Int`s, enums and `Bool`s belong in modes.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-008",
+   "old": "Domain wrapper types (`RQuat`, `Ranged`) are not state leaves.",
+   "new": "Domain wrapper types are not state leaves either. Two such types are `RQuat`, a rotation quaternion type with a `normalization` keyword, and `Ranged`, a clamped scalar.",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-094"
+   ],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "A-009",
+   "old": "An attitude state is an `SVector{4,T}`, cast where rotation semantics are wanted, as described below.",
+   "new": "An attitude state is an `SVector{4,T}`, cast where rotation semantics are wanted, as described below.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-010",
+   "old": "The declaration is flat.",
+   "new": "The declaration is flat (D-094).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-094"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-011",
+   "old": "Each field is one leaf, never a `NamedTuple` of leaves.",
+   "new": "Each field is one leaf, never a `NamedTuple` of leaves.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-012",
+   "old": "The condition algebra and the readers address a field as one leaf (§14.3, §14.4), and structure comes from the component tree, not from the value (D-094).",
+   "new": "The condition algebra and the readers address a field as one leaf (§14.3, §14.4), and structure comes from the component tree, not from the value.",
+   "where": "new",
+   "cites": [
+    "§14.3",
+    "§14.4",
+    "D-094"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-013",
+   "old": "The framework does three things with the declaration.",
+   "new": "The framework does three things with the declaration.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-014",
+   "old": "It computes a flat layout at build time, with compile-time offsets over one contiguous `Vector{T}` buffer it owns.",
+   "new": "It computes a flat layout at build time. The layout has compile-time offsets into one contiguous `Vector{T}` that the framework owns, the buffer.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-015",
+   "old": "It reconstructs the typed immutable state value for a component at each evaluation and passes it to every function receiving state views, under the argument rule of §5.2.",
+   "new": "It reconstructs the typed immutable state value for a component at each evaluation. It passes that value to every function receiving state views, under the argument rule of §5.2 (D-035).",
+   "where": "new",
+   "cites": [
+    "§5.2"
+   ],
+   "newcites": [
+    "§5.2",
+    "D-035"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-016",
+   "old": "The reconstruction is field loads at known offsets, register-level, at zero cost.",
+   "new": "The reconstruction is field loads at known offsets, register-level, at zero cost.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-017",
+   "old": "It receives immutable results back.",
+   "new": "It receives immutable results back.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-018",
+   "old": "Derivative functions return an `Ẋ`-typed value, which is scatter-stored into the flat `ẋ` buffer.",
+   "new": "Derivative functions return an `Ẋ`-typed value, which is scatter-stored into the flat `ẋ` buffer.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-019",
+   "old": "Event handlers and projection return a new `X`, which is written back,",
+   "new": "A handler's `x` key and the projection (the optional hook `x_projection`) carry a new `X`, which is written back.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R8"
+  },
+  {
+   "id": "A-020",
+   "old": "with projection at the two positions in the execution order of §5.3.",
+   "new": "Projection's write-back happens at the two positions in the execution order of §5.3 (D-111).",
+   "where": "new",
+   "cites": [
+    "§5.3"
+   ],
+   "newcites": [
+    "§5.3",
+    "D-111"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-021",
+   "old": "What `Ẋ` is. With the leaf vocabulary closed, the answer takes one line.",
+   "new": "With the leaf vocabulary closed, the shape of `Ẋ` takes one line to state.",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-022",
+   "old": "`Ẋ` has exactly `X`'s shape at the activation scalar.",
+   "new": "`Ẋ` has exactly `X`'s shape at the activation scalar (the scalar type `T` an activation is built at).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-023",
+   "old": "A scalar leaf's derivative is a `T`, and an `SArray` leaf's is the same `SArray` at `T`.",
+   "new": "A scalar leaf's derivative is a `T`, and an `SArray` leaf's is the same `SArray` at `T`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-024",
+   "old": "This is the vocabulary rule paying rent.",
+   "new": "This is what the closed vocabulary buys.",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "A-025",
+   "old": "An invariant-carrying leaf like a unit quaternion has a derivative off its own type, and `Ẋ` would need a separate derivation.",
+   "new": "An invariant-carrying leaf like a unit quaternion has a derivative off its own type, and `Ẋ` would need a separate derivation.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-026",
+   "old": "Here the attitude leaf is an `SVector{4,T}` and so is its rate.",
+   "new": "Here the attitude leaf is an `SVector{4,T}`, and so is its rate.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-027",
+   "old": "The conformance predicate is structural.",
+   "new": "The conformance predicate is structural.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-028",
+   "old": "Each field of `x_deriv`'s return scatters into its field's block at `T` (§9.5 states the check).",
+   "new": "Each field of `x_deriv`'s return scatters into its field's block at `T` (§9.5 states the check).",
+   "where": "new",
+   "cites": [
+    "§9.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-029",
+   "old": "That makes derivative completeness a property of the layout rather than of author discipline.",
+   "new": "That makes derivative completeness a property of the layout rather than of author discipline.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-030",
+   "old": "There is deliberately no `derivative_type` hook (D-190).",
+   "new": "There is deliberately no `derivative_type` hook (D-190).",
+   "where": "new",
+   "cites": [
+    "D-190"
+   ],
+   "tag": "R",
+   "ruling": "R4"
+  },
+  {
+   "id": "A-031",
+   "old": "The buffer is authoritative, and typed values are ephemeral reconstructions.",
+   "new": "The buffer is authoritative, and typed values are ephemeral reconstructions (D-010).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-010"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-032",
+   "old": "Nobody outside the framework ever holds a mutable reference to state.",
+   "new": "Nobody outside the framework ever holds a mutable reference to state.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-033",
+   "old": "\"Ephemeral\" is literal.",
+   "new": "\"Ephemeral\" is literal.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-034",
+   "old": "An isbits view materializes in the caller's frame for exactly the duration of the call, and has no existence between calls.",
+   "new": "An isbits view materializes in the caller's frame for exactly the duration of the call, and has no existence between calls.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-035",
+   "old": "Where it materializes, in registers or on the spilled stack, is the compiler's business.",
+   "new": "Where it materializes, in registers or on the spilled stack, is the compiler's business.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-036",
+   "old": "Re-materializing is the same loads, and it is value-identical because the value is immutable and the buffer is unchanged within a sweep.",
+   "new": "Re-materializing is the same loads, and it is value-identical because the value is immutable and the buffer is unchanged within a sweep",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-037",
+   "old": "Whether repeated reads within a sweep re-materialize or reuse the loads is codegen freedom, in the literal sense that the freedom is the code generator's.",
+   "new": "Hoisting belongs to the code generator.",
+   "where": "docs/design/spec.md",
+   "cites": [],
+   "tag": "M",
+   "ruling": "R6"
+  },
+  {
+   "id": "A-038",
+   "old": "The executor (the compiled form of the stage execution order) is spelled rebuild-per-call,",
+   "new": "Views are spelled rebuild-per-call (D-288)",
+   "where": "docs/design/spec.md",
+   "cites": [],
+   "tag": "M",
+   "ruling": "R6"
+  },
+  {
+   "id": "A-039",
+   "old": "and hoisting a repeated read is the code generator's CSE.",
+   "new": "the code generator's CSE, the common-subexpression elimination that hoists repeated reads of views rebuilt per call (§9.7, D-288).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "§9.7",
+    "D-288"
+   ],
+   "tag": "R",
+   "ruling": "R6"
+  },
+  {
+   "id": "A-040",
+   "old": "The legality condition of that CSE is exactly the buffer-unchanged-within-a-sweep rule (§9.7).",
+   "new": "This buffer-unchanged-within-a-sweep rule is exactly the legality condition of the code generator's CSE",
+   "where": "new",
+   "cites": [
+    "§9.7"
+   ],
+   "tag": "R",
+   "ruling": "R6"
+  },
+  {
+   "id": "A-041",
+   "old": "The complementary rule is one home per datum (§5.2).",
+   "new": "The complementary rule is one home per datum (each datum has exactly one home), stated in §5.2 (D-035).",
+   "where": "new",
+   "cites": [
+    "§5.2"
+   ],
+   "newcites": [
+    "§5.2",
+    "D-035"
+   ],
+   "tag": "R",
+   "ruling": "R6"
+  },
+  {
+   "id": "A-042",
+   "old": "The buffer holds `x`, the stores hold `s` and `m`, and the table holds produced signals.",
+   "new": "The buffer holds `x`, the stores hold `s` and `m`, and the table holds signals.",
+   "where": "docs/design/spec.md",
+   "cites": [],
+   "tag": "M",
+   "ruling": "R6"
+  },
+  {
+   "id": "A-043",
+   "old": "No store ever mirrors another.",
+   "new": "No store mirrors another.",
+   "where": "docs/design/spec.md",
+   "cites": [],
+   "tag": "M",
+   "ruling": "R6"
+  },
+  {
+   "id": "A-044",
+   "old": "In particular there are no state cells in the table beyond the declared ports a component returns from `y_state` (§5.3), which are interface, not transport.",
+   "new": "In particular there are no state cells in the signal table beyond the declared ports a component returns from `y_state` (§5.3, D-252), which are interface, not transport.",
+   "where": "new",
+   "cites": [
+    "§5.3"
+   ],
+   "newcites": [
+    "§5.3",
+    "D-252"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "A-045",
+   "old": "The vocabulary is closed because views must materialize without running anyone's invariants.",
+   "new": "The vocabulary is closed because views must materialize without running anyone's invariants.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-046",
+   "old": "Scalars and `SArray`s have invariant-free constructors.",
+   "new": "Scalars and `SArray`s have invariant-free constructors.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-047",
+   "old": "`SVector`'s stores its tuple, `NamedTuple` construction runs no user code, and nothing normalizes or clamps.",
+   "new": "`SVector`'s stores its tuple, `NamedTuple` construction runs no user code, and nothing normalizes or clamps.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-048",
+   "old": "Building a view through ordinary public construction is therefore bit-faithful automatically.",
+   "new": "Building a view through ordinary public construction is therefore bit-faithful automatically.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-049",
+   "old": "`reconstruct(flatten(x)) == x` holds identically, with no constructor bypass, no `reinterpret`, and no reliance on a custom struct's memory layout mirroring the buffer's.",
+   "new": "`reconstruct(flatten(x)) == x` holds identically, with no constructor bypass, no `reinterpret`, and no reliance on a custom struct's memory layout mirroring the buffer's.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R10"
+  },
+  {
+   "id": "A-050",
+   "old": "Invariant-carrying leaves are closed (D-094).",
+   "new": "Invariant-carrying leaves are excluded from the vocabulary (D-094).",
+   "where": "new",
+   "cites": [
+    "D-094"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-051",
+   "old": "Domain semantics are instead an explicit, invariant-free cast at the point of use,",
+   "new": "Domain semantics are instead an explicit, invariant-free cast at the point of use.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-052",
+   "old": "the conversion today's `f_ode!` code performs on its raw views.",
+   "new": "It is the conversion that `f_ode!`, FlightCore's in-place derivative function, performs on its raw views.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R8"
+  },
+  {
+   "id": "A-053",
+   "old": "Invariants live where the design already put them, in `x_projection` at boundaries and in writers.",
+   "new": "Invariants live where the design already put them, in `x_projection` at boundaries and in writers.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-054",
+   "old": "Handlers build their returned values through ordinary constructors, and the condition apply converts authored values through ordinary `convert` methods (§14.3).",
+   "new": "Handlers build their returned values through ordinary constructors, and the condition apply converts authored values through ordinary `convert` methods (§14.3).",
+   "where": "new",
+   "cites": [
+    "§14.3"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "A-055",
+   "old": "Constructors run on the write paths, never on views.",
+   "new": "Constructors run on the write paths, never on views.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-056",
+   "old": "Against today's flat-`Vector` + `ComponentArrays`-views pattern, this buys five things.",
+   "new": "FlightCore's pattern was a flat `Vector` read through `ComponentArrays` views, which are mutable views into the flat vector. Against that pattern, this design buys five things.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R8"
+  },
+  {
+   "id": "A-057",
+   "old": "There are no aliased mutable views, where who writes what is a matter of convention.",
+   "new": "There are no aliased mutable views, where who writes what is a matter of convention.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-058",
+   "old": "Derivative completeness is structural.",
+   "new": "Derivative completeness is structural.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-059",
+   "old": "The returned `Ẋ` has every field by construction, so a forgotten `ẋ` entry is impossible rather than silently stale.",
+   "new": "The returned `Ẋ` has every field by construction, so a forgotten `ẋ` entry is impossible rather than silently stale.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-060",
+   "old": "State fields arrive as the declared scalars and `SArray`s, immutable.",
+   "new": "State fields arrive as the declared scalars and `SArray`s, immutable.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-061",
+   "old": "The domain wrapper, where wanted, is one explicit invariant-free cast (`RQuat(x.q, normalization = false)`).",
+   "new": "The domain wrapper, where wanted, is one explicit invariant-free cast (`RQuat(x.q, normalization = false)`).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-062",
+   "old": "That is the conversion the mutable-views pattern performed implicitly, now visible and chosen.",
+   "new": "That is the conversion the mutable-views pattern performed implicitly, now visible and chosen.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-063",
+   "old": "The flat vector still exists.",
+   "new": "The flat vector still exists.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-064",
+   "old": "Integrator compatibility (OrdinaryDiffEq or custom), trim solvers, HDF5 logging and linearization all get their arrays.",
+   "new": "Integrator compatibility (OrdinaryDiffEq or custom), trim solvers, HDF5 logging and linearization all get their arrays.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "A-065",
+   "old": "The hand-written per-aircraft state-space mapping layer (`get_x_ss`/`assign_x_ss!`/`get_u_ss`/...) is deleted, replaced by the framework's canonical layout.",
+   "new": "Flight.jl's hand-written per-aircraft state-space mapping layer (`get_x_ss`/`assign_x_ss!`/`get_u_ss`/...) is deleted, replaced by the framework's canonical layout (D-072).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-072"
+   ],
+   "tag": "R",
+   "ruling": "R17"
+  }
+ ],
+ "added": [
+  "This chapter fixes where data lives, on both tiers and outside them.",
+  "It fixes the homes the declared state occupies and how each home holds its values.",
+  "Continuous state is an immutable value over a flat buffer the framework owns, and the continuous path is generic over its scalar type.",
+  "Discrete state and modes live in stores, and scratch lives in a workspace.",
+  "The allocation policy closes the chapter.",
+  "§7.1 covers continuous state, §7.2 numeric genericity, §7.3 discrete state, modes and the workspace, §7.4 the fused-evaluation lineage that led to the interfaces of §5.2, and §7.5 the allocation policy.",
+  "This section fixes how a continuous component (the hybrid primitive, with continuous state, flow and events) declares its state, and how the framework lays that state out, reads it and writes it back.",
+  "It covers, in order, the closed leaf vocabulary, the three things the framework does with a declaration, the buffer and its views, why the vocabulary is closed, the shape of `Ẋ`, and what the design buys against FlightCore's mutable-view pattern.",
+  "(one pass through the execution order)",
+  "a rotation quaternion type with a `normalization` keyword",
+  "a clamped scalar",
+  "(the optional hook `x_projection`)",
+  "(each datum has exactly one home)",
+  "(the scalar type `T` an activation is built at)",
+  "which are mutable views into the flat vector",
+  "FlightCore's in-place derivative function",
+  "the common-subexpression elimination"
+ ]
+}

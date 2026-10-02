@@ -303,3 +303,39 @@ plus the opening).
   the tiers as a list, M9's paragraph, the levers.
 - R3, R5, R7 (M9), R8 (F7, F9, F10). F12 to F15 stay as written.
 - "these are the honest levers" needs both tools before it.
+
+## Rulings after step 4
+
+- **R11. One `#g-walked` link per section** (unit B's verifier). The
+  glossary entry bolds walked, pinned and exempt together, so
+  `spec_style.md` links only the first of them in a section. §7.2 keeps the
+  link on Walked and drops the others. The brief's "both link `#g-walked`"
+  described the old text; it was not an order.
+- **R12. `FrameTransform` is introduced** (unit B's verifier) as "a
+  FlightPhysics payload type". The companion paragraph and spec 3257 support
+  it; nothing more is claimed.
+- **R13. "need no migration" moves to the companion** (unit B's
+  `rulings.md`). It states Flight.jl's migration status. "stay `Float64`"
+  and "promotion handles mixing" stay in §7.2 word for word.
+- **R14. §7.4's context sentence claims only what §5.3 says** (unit D's
+  verifier). R3's "the problem every step addresses" overclaimed: step 1
+  (D-006) and steps 3 and 4 are not about shared computation. The sentence
+  keeps §5.3's claim in §5.3's words (overlap between derivatives and
+  outputs is the norm) and drops "every step below addresses that problem".
+  The old opening sentence already ties the steps to §5.2's interfaces.
+- **R15. R5's publication sentence names what it is outside of** (unit D's
+  verifier). "that scope" read as the stepping loop, inside which
+  publication runs. It becomes: publication sits with logging on the
+  framework side, outside what the invariant claims is zero (§11.2), as
+  spec 4917 and 6420 say.
+- **R16. Expand MTK and CSE** at first use in their section
+  (ModelingToolkit; common-subexpression elimination, as §9.7 spells it).
+- **R17. The state-space mapping layer is Flight.jl's, not FlightCore's**
+  (unit A's verifier; corrects R2). `get_x_ss` is declared in FlightPhysics'
+  `AircraftBase` and implemented per aircraft in FlightApps (checked in
+  `Flight.jl/lib/FlightApps/src/c172/c172s/c172s.jl` 373). §7.1 calls it
+  "Flight.jl's hand-written per-aircraft state-space mapping layer".
+- **R18. Unit A's two wording fixes** (unit A's verifier). The opening's
+  last clause becomes "The allocation policy closes the chapter", without
+  "those choices make possible". The `IllegalStateLeaf` pointer becomes
+  "§8.2 shows the kind's messages".

@@ -1,0 +1,452 @@
+{
+ "claims": [
+  {
+   "id": "C-001",
+   "old": "### 7.2 Numeric genericity (eltype)",
+   "new": "### 7.2 Numeric genericity (eltype)",
+   "where": "new",
+   "cites": [],
+   "tag": "X"
+  },
+  {
+   "id": "C-002",
+   "old": "The state buffer, the pack/unpack machinery, and the entire continuous evaluation path are generic over `T <: Real`.",
+   "new": "The entire continuous evaluation path is generic over `T <: Real`, and so are the state buffer (the framework-owned flat vector backing continuous state) and the pack/unpack machinery (D-011).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-011"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "C-003",
+   "old": "This one design property serves four consumers.",
+   "new": "This one design property serves four consumers.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-004",
+   "old": "1. Exact Jacobians for linearization, with ForwardDiff duals through the whole model, replacing finite differences.",
+   "new": "1. Exact Jacobians for linearization, with ForwardDiff duals through the whole model, replacing finite differences.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-005",
+   "old": "2. Derivatives for trim solvers.",
+   "new": "2. Derivatives for trim solvers.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-006",
+   "old": "3. The feedthrough tracer (the set-propagation instrument classifying a rejected cycle, §5.6).",
+   "new": "3. The feedthrough tracer (the set-propagation instrument classifying a rejected cycle, §5.6).",
+   "where": "new",
+   "cites": [
+    "§5.6"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-007",
+   "old": "4. A trivially checkable CI invariant.",
+   "new": "4. A trivially checkable CI invariant (D-280).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-280"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "C-008",
+   "old": "One evaluation sweep with `T = Dual` fails loudly (`MethodError`/`InexactError` at the offending line) on any Float64-pinning.",
+   "new": "One evaluation sweep (one pass through the execution order) with `T = Dual` fails loudly on any Float64-pinning. It fails with a `MethodError` or an `InexactError` at the offending line.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-009",
+   "old": "For consumer 1, the discrete side's exemption is not a limitation but the exact answer.",
+   "new": "For consumer 1, the discrete side's exemption is not a limitation but the exact answer (D-072).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-072"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "C-010",
+   "old": "A frozen discrete cell is a constant with zero partials, which is what \"linearize the continuous dynamics with the discrete state held\" means.",
+   "new": "A frozen discrete cell (a typed entry of the signal table) is a constant with zero partials. That is what \"linearize the continuous dynamics with the discrete state held\" means.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-011",
+   "old": "`frozen_discrete_walkthrough.md` works the chain through in detail.",
+   "new": "`frozen_discrete_walkthrough.md` works the chain through in detail.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-012",
+   "old": "The declaration layer keeps this scoping legible without putting it in the author's way.",
+   "new": "The declaration layer keeps this scoping legible without putting it in the author's way.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-013",
+   "old": "Every declaration is written at nominal `Float64`, and one walk retypes it per activation (§8.2).",
+   "new": "Every declaration but the allocator (§7.3) is written at nominal `Float64`. One walk retypes it per activation (the build's typed products at a given scalar type), as §8.2 states.",
+   "where": "new",
+   "cites": [
+    "§8.2"
+   ],
+   "newcites": [
+    "§7.3",
+    "§8.2"
+   ],
+   "tag": "R",
+   "ruling": "R8"
+  },
+  {
+   "id": "C-014",
+   "old": "On the continuous tier a `Float64` leaf follows the activation scalar, in a contract and in the `x_init`-derived state type alike, and a contract leaf wrapped as `Pinned{P}` is deliberately pinned.",
+   "new": "On the continuous tier a `Float64` leaf follows the activation scalar, in a contract and in the `x_init`-derived state type alike (D-263, D-295). A contract leaf wrapped in the leaf marker `Pinned{P}` is deliberately pinned (D-263).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-263",
+    "D-295"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "C-015",
+   "old": "Participation is therefore authored per leaf, by the absence or presence of the marker.",
+   "new": "Participation is therefore authored per leaf, by the absence or presence of the marker.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-016",
+   "old": "The discrete side stays plain and pins wholesale.",
+   "new": "The discrete side stays plain and pins wholesale (D-263, D-295).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-263",
+    "D-295"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "C-017",
+   "old": "Nothing anywhere comes from inference through user code.",
+   "new": "Nothing anywhere comes from inference through user code (D-032, D-079).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-032",
+    "D-079"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "C-018",
+   "old": "Safety of the substitution rests on the embedding guarantee stated in §9.5.",
+   "new": "Safety of the substitution rests on the embedding guarantee stated in §9.5.",
+   "where": "new",
+   "cites": [
+    "§9.5"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-019",
+   "old": "Scoping, meaning what actually needs genericity, covers roughly half the type inventory and has three tiers (D-011).",
+   "new": "Scoping, meaning what actually needs genericity, has three tiers (D-011).",
+   "where": "new",
+   "cites": [
+    "D-011"
+   ],
+   "tag": "F"
+  },
+  {
+   "id": "C-020",
+   "old": "covers roughly half the type inventory",
+   "new": "What actually needs genericity covers roughly half of Flight.jl's type inventory.",
+   "where": "units/B/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "C-021",
+   "old": "- Walked, the payload and value types constructed during evaluation",
+   "new": "Walked, the payload and value types constructed during evaluation.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-022",
+   "old": "(about 25 structs)",
+   "new": "about 25 structs",
+   "where": "units/B/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "C-023",
+   "old": "These are the quaternion/attitude family, `Wrench`, `FrameTransform`, `MassProperties`, `KinData`, `AirData`, geodesy value types, `TerrainData` and continuous output structs.",
+   "new": "These are the quaternion/attitude family, `Wrench`, `FrameTransform`, `MassProperties`, `KinData`, `AirData`, geodesy value types, `TerrainData` and continuous output structs.",
+   "where": "units/B/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "C-024",
+   "old": "`FrameTransform`",
+   "new": "One example is `FrameTransform`, a FlightPhysics payload type.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R12"
+  },
+  {
+   "id": "C-025",
+   "old": "`Quaternion` becomes `Quaternion{N,T} <: AbstractVector{T}`.",
+   "new": "`Quaternion` becomes `Quaternion{N,T} <: AbstractVector{T}`.",
+   "where": "units/B/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "C-026",
+   "old": "By invariance, `Float64` instances still match every existing `AbstractVector{Float64}` method, so existing behavior is untouched.",
+   "new": "By invariance, `Float64` instances still match every existing `AbstractVector{Float64}` method, so existing behavior is untouched.",
+   "where": "units/B/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "C-027",
+   "old": "The parametrization is mechanical.",
+   "new": "The walked types' parametrization is mechanical.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-028",
+   "old": "Constructors infer `T`, so call sites don't change, and `@kwdef` defaults pin the no-argument case to `Float64`.",
+   "new": "Constructors infer `T`, so call sites don't change, and `@kwdef` defaults pin the no-argument case to `Float64`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-029",
+   "old": "- Pinned, the parameters and definitions.",
+   "new": "Pinned, the parameters and definitions.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R11"
+  },
+  {
+   "id": "C-030",
+   "old": "They stay `Float64`, since promotion handles mixing",
+   "new": "They stay `Float64`, since promotion handles mixing.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-031",
+   "old": "and need no migration",
+   "new": "Flight.jl's parameters and definitions, the pinned tier of §7.2, stay `Float64` and need no migration.",
+   "where": "units/B/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R13"
+  },
+  {
+   "id": "C-032",
+   "old": "- Exempt, the discrete side (compensators, avionics).",
+   "new": "Exempt, the discrete side (compensators, avionics).",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-033",
+   "old": "Linearization and trim differentiate continuous dynamics only.",
+   "new": "Linearization and trim differentiate continuous dynamics only.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-034",
+   "old": "For lookups, table data is a pinned parameter and the query coordinate is walked traffic.",
+   "new": "For lookups, table data is a pinned parameter and the query coordinate is walked traffic (D-011).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-011"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "C-035",
+   "old": "Interpolations.jl evaluates generically over the coordinate.",
+   "new": "Interpolations.jl, the interpolation package Flight.jl's lookup tables use, evaluates generically over the coordinate.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "C-036",
+   "old": "`itp(x::Dual)` works through the `BSpline`/`scale`/`extrapolate` compositions in use.",
+   "new": "A call `itp(x::Dual)` works through the `BSpline`/`scale`/`extrapolate` compositions in Flight.jl's tables.",
+   "where": "new",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R8"
+  },
+  {
+   "id": "C-037",
+   "old": "Two caveats apply.",
+   "new": "Two caveats apply.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-038",
+   "old": "`Linear()` interpolants have kinked derivatives at knots.",
+   "new": "`Linear()` interpolants have kinked derivatives at knots.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-039",
+   "old": "That is no regression against finite differences, but upgrade to `Cubic` where Jacobian quality near a lookup matters.",
+   "new": "That is no regression against finite differences, but upgrade to `Cubic` where Jacobian quality near a lookup matters.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-040",
+   "old": "A manual chain rule via `Interpolations.gradient` is the escape hatch for anything exotic, and the pattern for wrapping non-Julia black boxes.",
+   "new": "A manual chain rule via `Interpolations.gradient` is the escape hatch for anything exotic, and the pattern for wrapping non-Julia black boxes (D-266).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-266"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "C-041",
+   "old": "Rule. Three rules are author-facing.",
+   "new": "Three rules are author-facing (D-011, D-235).",
+   "where": "new",
+   "cites": [],
+   "newcites": [
+    "D-011",
+    "D-235"
+   ],
+   "tag": "C"
+  },
+  {
+   "id": "C-042",
+   "old": "First, no `::Float64` argument annotations in math.",
+   "new": "1. No `::Float64` argument annotations in math.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-043",
+   "old": "Use `<:Real` or nothing",
+   "new": "Use `<:Real` or nothing.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-044",
+   "old": "which the codebase already mostly does",
+   "new": "Flight.jl's math already mostly follows the first author rule of §7.2, writing `<:Real` or nothing in place of a `::Float64` argument annotation.",
+   "where": "units/B/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  },
+  {
+   "id": "C-045",
+   "old": "Second, no `Float64`-pinned intermediates.",
+   "new": "2. No `Float64`-pinned intermediates.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-046",
+   "old": "Write `zero(SVector{3,T})`.",
+   "new": "Write `zero(SVector{3,T})`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-047",
+   "old": "Third, no `::SomeType{Float64}` return-type annotations on the continuous path, because they force converts and hence `InexactError`.",
+   "new": "3. No `::SomeType{Float64}` return-type annotations on the continuous path, because they force converts and hence `InexactError`.",
+   "where": "new",
+   "cites": [],
+   "tag": "F"
+  },
+  {
+   "id": "C-048",
+   "old": "The `` method in `attitude.jl` is the live example pattern.",
+   "new": "The `` method in Flight.jl's `attitude.jl` is the live example pattern for the third rule, no `::SomeType{Float64}` return-type annotations on the continuous path.",
+   "where": "units/B/companion_addition.md",
+   "cites": [],
+   "tag": "R",
+   "ruling": "R2"
+  }
+ ],
+ "added": [
+  "The rest of the section states the three tiers that scope this genericity, how the declaration layer spells them per leaf, how lookup tables fit them, and three rules for authors.",
+  "`@kwdef` is Julia's keyword-constructor macro.",
+  "(the framework-owned flat vector backing continuous state)",
+  "(one pass through the execution order)",
+  "(a typed entry of the signal table)",
+  "(the build's typed products at a given scalar type)"
+ ]
+}
