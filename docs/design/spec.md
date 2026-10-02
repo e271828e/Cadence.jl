@@ -1973,7 +1973,7 @@ execution, and conformance by comparison.
 
 **A leaf's contract declarations must be determined by the component's
 type**, its type parameters included, and never by its field *values*
-([D-033][d-033]). Those declarations are `u_types`, `y_types` and
+([D-033][d-033], [D-297][d-297]). Those declarations are `u_types`, `y_types` and
 `state_events`, and the shapes of `x_init`/`s_init`/`m_init`.
 
 The value-discarding signature `u_types(::Engine)` is the visible form of the
@@ -2191,7 +2191,7 @@ lives in. It is stated once here, and the blocks below refer back to it.
   scalar of the [activation](#g-activation) (the build's typed products at a
   given scalar type). Nothing is therefore left for a signature to record.
   Partials enter through per-invocation seeding, never through initialization
-  ([D-079][d-079]).
+  ([D-079][d-079], [D-297][d-297]).
 - A *by-type* declaration walks by the same rule. Where a leaf must not follow
   the scalar, the author says so at the leaf with `Pinned` (the leaf marker
   `Pinned{P}`, which yields `P` at every activation). That is why `u_types`
@@ -2316,7 +2316,7 @@ entry through the `Freeze` block ([§13.7][s13-7]).
 
 `Int`/`Bool`/enum leaves and abstract reference-typed entries stand as they
 always were, admitting what their declared bound admits. **[Abstract entries](#g-abstract-entry)
-state structural substitutability** ([D-078][d-078]). Several concrete producer types are
+state structural substitutability** ([D-078][d-078], [D-296][d-296]). Several concrete producer types are
 admissible behind one stable face. The field handles ([§4.4][s4-4]) are the
 demonstrated client, as in `terrain = AbstractTerrainField`. They carry no
 scalar position, because they are references rather than numbers. They are still
@@ -2345,13 +2345,13 @@ retyping them at a marker scalar. No user stage code runs ([§9.1][s9-1]). A
 violation is `WalkingFaceAtFrozenEntry`. [§6.1][s6-1] names the bound check's
 kind too, and gives the remedies this violation's message carries.
 
-**Discrete consumers take the bound check only** ([D-263][d-263]). That scope
+**Discrete consumers take the bound check only** ([D-263][d-263], [D-295][d-295]). That scope
 is a correctness rule rather than tidiness. A discrete stage reads exclusively
 at real [ticks](#g-tick) (the instants a discrete component runs) in the
 nominal world. A `Dual`-carrying cell exists only inside activations discrete
 stages never run in ([§9.4][s9-4]). Wires from a continuous producer to a
 discrete consumer are therefore unconditionally legal. The unscoped variant is
-rejected.
+rejected ([D-295][d-295]).
 
 Because entries are bounds, nothing is ever "overwritten". Cell types are
 single-sourced from the producer side per activation ([§9.4][s9-4],
@@ -2361,9 +2361,9 @@ working, not a promise broken.
 The code-level complement is the genericity obligation. It says that whatever
 scalars the wiring delivers, the consumer's math promotes. It is still checked
 by the `Dual` probe, never declared ([D-054][d-054]). **The obligation is scoped
-to the unpinned entries** ([D-263][d-263]). A `Pinned` input imposes no such
+to the unpinned entries** ([D-263][d-263], [D-295][d-295]). A `Pinned` input imposes no such
 obligation, which is its point. **Declarations record choices, and obligations
-are checked** ([D-078][d-078]). The marker's absence records the tolerance
+are checked** ([D-078][d-078], [D-296][d-296]). The marker's absence records the tolerance
 choice, and the probe checks the promotion.
 
 The permissive reading is the operative one ([D-263][d-263]). It escapes two
@@ -2378,7 +2378,7 @@ makes the marker carry information here.
 Root inputs are the one place an entry types a cell. A root input is produced
 by no component, so it has only the consumer declaration to take a type from.
 The root-input type is the entry at `Float64`, markers stripped, and only a
-*tight* bound determines one ([D-078][d-078]). A face surfacing as a root
+*tight* bound determines one ([D-078][d-078], [D-296][d-296]). A face surfacing as a root
 input must therefore resolve to a concrete declaration, which
 [staging cells](#g-staging-cell), the [trace header](#g-trace-header) and
 `probe_value` all need. Staging cells hold each device's pending writes, and
@@ -2399,7 +2399,7 @@ Two different concrete declarations remain an error, `RootInputTypeConflict`
 
 The root-input cells at an activation follow the root-input type by retyping
 that same entry at the activation's `T`. **That retyping makes seedability
-schema-visible** ([D-263][d-263]). An unpinned root input is a
+schema-visible** ([D-263][d-263], [D-295][d-295]). An unpinned root input is a
 lawful linearization `B`-matrix tap, and a `Pinned` root input is *declaredly*
 unseedable ([§14.10][s14-10]).
 
@@ -2427,7 +2427,7 @@ walk-compatibility clause ([§6.1][s6-1]) on the producer side.
 
 What the mixture costs is stated where it is paid. Such a root input is
 unseedable. A tap selecting it is rejected naming the *pinning consumer*
-rather than the face alone ([§14.10][s14-10], [D-168][d-168]).
+rather than the face alone ([§14.10][s14-10], [D-168][d-168], [D-296][d-296]).
 
 **Any component may be the root of a build, and the model's root inputs are
 the root's own input faces** ([D-208][d-208]). For an
@@ -2518,7 +2518,7 @@ type. The marker pins a whole leaf, and a pin on one parameter of one
 declaration is not offered ([D-265][d-265]). The rule "every `Float64`
 position follows the scalar" reads the declaration as written, so a
 concretely typed field is frozen without appearing in the contract
-([D-265][d-265]). The walkthrough `handle_walk_walkthrough.md` works a static
+([D-265][d-265], [D-297][d-297]). The walkthrough `handle_walk_walkthrough.md` works a static
 terrain and a moving deck through one consumer.
 
 A custom struct is a first-class port type, as in
@@ -2542,7 +2542,7 @@ message.
 
 During a generic sweep, gated-off discrete producers hold their `Float64`
 values. Consumers gather mixed tuples, and promotion does the rest. That is
-semantically exact ([D-079][d-079]). A frozen discrete output is a constant
+semantically exact ([D-079][d-079], [D-297][d-297]). A frozen discrete output is a constant
 with zero partials. That is precisely what "linearize the continuous dynamics
 with the discrete state held" means. The frozen cell is not an AD limitation
 on the signal path. It is the true zero of an instantaneous dependence the
@@ -2559,12 +2559,12 @@ Piecewise branches returning literal constants (`flow > 0 ? f(x) : 0.0`) are
 legal as written, because zero partials are the derivative of a
 locally-constant branch ([D-194][d-194]). Which *invocation* carries
 partials is still chosen by seeding ([§14.10][s14-10]), never by typing
-([D-079][d-079]). The declaration says which leaves *can* carry them, and the
+([D-079][d-079], [D-297][d-297]). The declaration says which leaves *can* carry them, and the
 seed says which directions do.
 
 The misplaced-pin account is stated openly here. A leaf that really participates
 cannot be declared frozen by habit, because the habitual spelling, a bare
-`Float64`, walks ([D-263][d-263]). What remains is deliberate, and it comes in two
+`Float64`, walks ([D-263][d-263], [D-297][d-297]). What remains is deliberate, and it comes in two
 bugs. The first is writing `Pinned` at a leaf that really participates. The
 second is omitting it at one that really does not.
 
@@ -2584,15 +2584,15 @@ exhaustive set that [§9.4][s9-4] defines. An activation is derived from the
 nominal one, and it is cheap enough to make this policy unremarkable in CI.
 What the plain form buys in exchange is one convention. Every declaration in
 the framework is read with the same walk rule, and a genuinely frozen leaf
-still says so on the page ([D-263][d-263]).
+still says so on the page ([D-263][d-263], [D-297][d-297]).
 
-The stores are walked by the same rule, with no marker ([D-263][d-263]). The
+The stores are walked by the same rule, with no marker ([D-263][d-263], [D-295][d-295]). The
 type derived from `x_init` is walked. Real leaves and `Real` type parameters
 follow the activation scalar. `m_init` and `s_init` pin wholesale, mirroring
 the discrete-producer rule. `Pinned` has no place in a store, because
-[§7.1][s7-1] admits no pinned state leaf for it to mark. Declared `Float64`
+[§7.1][s7-1] admits no pinned state leaf for it to mark ([D-295][d-295]). Declared `Float64`
 initial values embed as zero-partial constants under non-nominal activations
-([D-079][d-079]). That is the rule for `Float64` condition leaves
+([D-079][d-079], [D-297][d-297]). That is the rule for `Float64` condition leaves
 ([§14.3][s14-3]) applied to the defaults those conditions overlay.
 
 Walking `x_init` presupposes the closed leaf vocabulary that [§7.1][s7-1]
@@ -2667,7 +2667,8 @@ An event needs both halves. A `state_events` entry whose guard or handler has no
 method for the component type is a build error, `EventHalfMissing`. Method
 lookup catches it at declaration-reading time, rather than as a `MethodError` at
 the first firing. An event that fires only in a corner of the envelope would
-otherwise hide the omission indefinitely.
+otherwise hide the omission indefinitely. An entry that is not a `StateEvent` is
+`EventHalfMissing` too ([D-215][d-215]).
 
 Tier is declared by the store, as "The stores" above states ([D-195][d-195], [D-263][d-263]). A
 stateful leaf announces it in the update law as well, `x_deriv` beside `x_init`
@@ -2730,7 +2731,7 @@ The inspection path for an intermediate is declaration ([D-194][d-194]). That fo
 from the visibility rule above. One line in `y_types` makes it public, checked
 and visible everywhere at once. FlightCore is the precedent. There an
 intermediate could be inspected only by putting it in the model's output.
-Publicity is never implicit. Even the minimal component writes
+Publicity is never implicit ([D-297][d-297]). Even the minimal component writes
 `y_types(::LowPassFilter) = (x = Float64,)`, one line, in exchange for "public"
 always meaning someone wrote it down.
 
@@ -2910,15 +2911,15 @@ faces and no rate scope.
 The edges of the container form are fixed by rule.
 
 - A container mixing component and non-component elements is a build error in
-  this section's did-you-mean family ([D-085][d-085]). The error is `ContainerMixed`.
+  this section's did-you-mean family ([D-085][d-085], [D-298][d-298]). The error is `ContainerMixed`.
   All-component elements are children, and zero-component elements are inert
   parameter data.
 - Containers of containers are rejected in the first cut, because deeper
-  grouping is what assemblies are for ([D-085][d-085]). The element whose
+  grouping is what assemblies are for ([D-085][d-085], [D-298][d-298]). The element whose
   value is itself a component-bearing container is named, with its type
   (`ContainerNested`).
 - Empty containers are legal and contribute zero children, so parametric code
-  needs no special case ([D-085][d-085]).
+  needs no special case ([D-085][d-085], [D-298][d-298]).
 - Abstract element types follow the same concreteness discipline as plain
   fields. They are directly concrete, or concrete through type-parameter
   bounds. That is the [generic holding](#g-generic-holding) (a parent holding
@@ -2981,10 +2982,10 @@ run at build against the instance exactly as for a named assembly.
 What is given up relative to a named type is exactly what named types are
 *for*. That is dispatching domain code on `::Cessna172X`, and a reusable
 identity for the topology. The exploratory and programmatic composition
-`Group` serves does not want it anyway.
+`Group` serves does not want it anyway ([D-298][d-298]).
 
 **The builder (`Assembly()` plus `add!`/`connect!`) is rejected**
-([D-039][d-039]). Its one real advantage, programmatic generation, survives
+([D-039][d-039], [D-298][d-298]). Its one real advantage, programmatic generation, survives
 intact in the type-based form. A declaration is an ordinary function body, and
 loops and comprehensions build the returned tuple.
 
@@ -3067,7 +3068,7 @@ exports continuous-sourced and discrete-sourced ports side by side. A face's
 ([§8.2][s8-2]). They are retyped at the [activation](#g-activation) scalar by the [leaf walk](#g-leaf-walk) (the
 framework's derivation of per-activation types) on the continuous tier, and
 [pinned](#g-walked) on the discrete. Three alternative spellings are rejected ([D-041][d-041]).
-Publicity is never implicit ([§8.3][s8-3]).
+Publicity is never implicit ([§8.3][s8-3], [D-297][d-297]).
 
 **Face names are arbitrary strings with two build-checked invariants**
 ([D-046][d-046]). The first is that a face name contains no `/`, which is
@@ -3079,7 +3080,7 @@ prefixes like `"pilot.throttle_axis"` are such choices. The
 without legislating it.
 
 The two-notation rule this rests on is directional. **It separates structure
-from derived contract, not read from write** ([D-129][d-129]). Slash is
+from derived contract, not read from write** ([D-129][d-129], [D-298][d-298]). Slash is
 structure. It covers endpoint paths walking real children and ports, and the
 inspection side's snapshot and log addressing. Face names are opaque
 derived-contract tokens. The [periphery](#g-periphery) (everything outside the
@@ -3398,7 +3399,7 @@ decisions fixed at deployment ([D-254][d-254]). [§9.2][s9-2] gives the three
 sources for `Δt_base`.
 
 The declaration belongs to the assembly type, not to the child instance
-([D-042][d-042]). The reason is that a sample time is a design ratio or a
+([D-042][d-042], [D-299][d-299]). The reason is that a sample time is a design ratio or a
 modeled instrument's intrinsic rate ([§10.5][s10-5]), never a per-instance
 value. An instance wrapper in the style of FlightCore's `Subsampled` is
 rejected ([D-042][d-042]).
@@ -3512,7 +3513,7 @@ I don't feed, I expose under this prefix", explicit at the type level and
 evaluated at build.
 
 The helpers come in pairs, because the name carries the direction
-([D-171][d-171]). `input_passthrough` reads `input_faces(child)`, and the
+([D-171][d-171], [D-299][d-299]). `input_passthrough` reads `input_faces(child)`, and the
 selector filters *face names* within that set. The helper exists for the
 pass-through case, where an assembly hands a child's unfed requirements up
 one level. **`output_passthrough` is its sibling** ([D-209][d-209]). It is
@@ -3528,7 +3529,7 @@ y_connections(sys::Systems) = (
 )
 ```
 
-`output_passthrough`'s consumer is one-level routing ([§6.1][s6-1], [D-209][d-209]). Every
+`output_passthrough`'s consumer is one-level routing ([§6.1][s6-1], [D-209][d-209], [D-299][d-299]). Every
 level re-exports the outputs it surfaces, so the output side needs the
 computed spelling the input side already has.
 
@@ -3539,7 +3540,7 @@ stays a legal face name for every blessed `child_path`. An explicit `prefix`
 is used verbatim. A deeper path meets `resolve`'s one-level rejection like any
 other wiring endpoint ([§13.3][s13-3], [D-207][d-207]).
 
-There are two helpers rather than one keyword ([D-171][d-171]). The boundary
+There are two helpers rather than one keyword ([D-171][d-171], [D-299][d-299]). The boundary
 declarations split by direction into `u_connections` and `y_connections`, and
 after that split a single call cannot emit entries into two different
 declarations.
@@ -3589,7 +3590,7 @@ u_connections(sys::Systems) = (
 )
 ```
 
-Adding an actuator channel is then one edit ([D-145][d-145]). The new pair
+Adding an actuator channel is then one edit ([D-145][d-145], [D-299][d-299]). The new pair
 simultaneously creates the wire and removes the face from the input face
 surface. The two declarations cannot drift, because neither holds the shared
 names. Both are projections of the authored list, so the drift class is
@@ -3611,7 +3612,7 @@ The line not to cross is deriving `except` from `inner_connections` itself.
 A helper spelled `except = fed(sys, "aero")`, reading the assembly's own wire
 list, would cross it. That is auto-bubbling under another name
 ([D-043][d-043], [D-145][d-145]). **The single source must be authored data,
-never inferred structure** ([D-145][d-145]).
+never inferred structure** ([D-145][d-145], [D-299][d-299]).
 
 #### Generic holding
 
@@ -3622,7 +3623,7 @@ referenced face, and the error names the `World` entry. That is build-time
 structural typing with no new vocabulary. A formal required-faces declaration on
 domain abstract types remains possible sugar ([D-251][d-251]).
 
-Scalar faces make partial scripting compose ([D-207][d-207]). A guidance
+Scalar faces make partial scripting compose ([D-207][d-207], [D-299][d-299]). A guidance
 [scenario component](#g-scenario-component) (the home of a sim-time script) wires `mode_req` and `EAS_ref`,
 the equivalent-airspeed reference. The remaining faces stay exported for GUI or
 defaults. That is impossible with a bundled face, under the write-side rule of
@@ -7402,7 +7403,7 @@ for two reasons, and neither reaches here. First, a component's
 single-inheritance slot is *already spoken for* by the domain hierarchies
 (`AbstractAircraft`, engine families), while a device's and a binding's are
 vacant. Nothing else wants them. Second, a component's class is
-implementation detail behind its contract ([§8.3][s8-3]), while a binding's
+implementation detail behind its contract ([§8.5][s8-5]), while a binding's
 **sidedness is its public contract**, the one thing every consumer of it
 must know.
 
@@ -9706,7 +9707,7 @@ connections, after generic-holding [contracts](#g-contract). Computed
 connections are therefore prominent in this section. Two commitments follow, a
 library and an idiom.
 
-**The passthrough helpers take a predicate.** `select` is the third
+The passthrough helpers take a predicate. `select` is the third
 selector beside `except` and `only`, on `input_passthrough` and
 `output_passthrough` alike ([§8.8][s8-8], [D-251][d-251]). It stays explicit at
 the declaration site, evaluated at build, and printable. That is the
@@ -12042,11 +12043,11 @@ collection ([§13.2][s13-2], [D-250][d-250]).
 - **`TransparentContainerUnknown`** ([§8.5][s8-5], [D-211][d-211]). Error ·
   build · fail-fast. Assembly path, the field `transparent_container` names,
   the type's container fields (the list-in-hand).
-- **`TierUnreadable`** ([§8.2][s8-2], [§8.5][s8-5]). Error · build ·
+- **`TierUnreadable`** ([§8.2][s8-2]). Error · build ·
   collected. Component path, type, the leaf declarations found. A primitive
   declaring neither `x_init` nor `s_init`; the message spells the empty form a
   stateless leaf writes ([D-263][d-263]).
-- **`StatelessWithoutOutputs`** ([§8.2][s8-2], [§8.5][s8-5]). Error · build ·
+- **`StatelessWithoutOutputs`** ([§8.2][s8-2], [§8.3][s8-3]). Error · build ·
   collected. Component path, type, the declarations found (no `y_types`,
   an empty store). A leaf that produces nothing and stores nothing ([D-263][d-263]).
 - **`IllegalPortType`** ([§7.1][s7-1], [§8.2][s8-2]). Error · build ·
@@ -12232,7 +12233,7 @@ activation):
 - **`ReplayUnknownFace`** ([§12.7][s12-7]). Error · service · collected. Face
   name, or the bare position where the writer's schema has no name for it;
   frame ordinal, the trace's device tag, the root input-face list.
-- **`ArgumentInvalid`** ([§8.7][s8-7], [§11.6][s11-6], [§12.1][s12-1], [§12.4][s12-4],
+- **`ArgumentInvalid`** ([§10.5][s10-5], [§11.6][s11-6], [§12.1][s12-1], [§12.4][s12-4],
   [§12.6][s12-6], [§14.7][s14-7]). Error · service, or build in a `sample_times`
   declaration · fail-fast, but collected over a `TableBinding`'s entry table
   and over the materialization's keywords. The call
@@ -12853,8 +12854,8 @@ with what the loop runs, which is what makes the allocation assertions
 <a id="g-nominal"></a>**nominal** — the `Float64` activation, and of a declaration its `Float64`
 face (for a continuous producer's output declaration, its evaluation at
 `Float64`). It is the only activation that runs in real time, and the one
-where the conformance check demands exact type match ([§8.2][s8-2],
-[§9.4][s9-4], [§9.5][s9-5]).
+where the conformance check demands exact type match ([§9.4][s9-4],
+[§9.5][s9-5]).
 
 <a id="g-outputs"></a>**`Outputs`** — the nominal evaluation's product: per component the output
 port names each stage produces, and the execution order over the components.
@@ -13371,7 +13372,8 @@ that state's status ([§13.2][s13-2], [D-250][d-250]).
 <a id="g-seam"></a>**seam** — a narrow, named interface kept deliberately thin so what sits
 behind it can be replaced or measured: the stepper seam ([§10.2][s10-2]),
 the backend seam ([§14.8][s14-8]), the measurement seam ([§9.7][s9-7]), the
-phase-body seams of the compiled executor ([§9.7][s9-7]).
+phase-body seams of the compiled executor ([§9.7][s9-7]), the generic seams of an
+assembly tree ([§8.8][s8-8]).
 
 <a id="g-torture-test"></a>**torture test** — a maximally awkward case spelled against a proposed
 mechanism to validate it before adoption: the filter, joystick and GUI against
@@ -13615,6 +13617,11 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-292]: decisions.md#d-292--event-iterations-registers-boundary-zero-prior-visibility-trade-and-budget-exhaustion
 [d-293]: decisions.md#d-293--external-readers-observe-the-signal-table-only-at-boundaries
 [d-294]: decisions.md#d-294--the-pacers-wait-unmask-point-single-knob-spin-safepoint-and-the-switch-to-pace--inf
+[d-295]: decisions.md#d-295--the-walk-clauses-tier-scope-the-obligations-scope-seedability-and-the-unmarked-stores
+[d-296]: decisions.md#d-296--abstract-entries-the-record-and-check-doctrine-the-tight-root-bound-and-the-taps-pinning-consumer
+[d-297]: decisions.md#d-297--contracts-by-type-seeding-not-typing-one-walk-convention-and-declared-publicity
+[d-298]: decisions.md#d-298--container-edges-the-builder-rejection-groups-trade-and-the-directional-two-notation-rule
+[d-299]: decisions.md#d-299--rate-scopes-by-type-the-feed-list-doctrine-and-the-helper-pair
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

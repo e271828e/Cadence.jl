@@ -283,7 +283,7 @@ partials(f(a, xd, ud), 1)              # ∂ẋ/∂k = u/τ = 6.0, exact
   already has this property — it is [§7.2][s7-2]'s "no `::SomeType{Float64}` annotations"
   rule transposed from method signatures to field declarations.
 - **Parameters mix; storage does not.** Cell types and the `x`-buffer eltype are
-  declarations *evaluated at the activation scalar* ([§7.2][s7-2], [§8.2][s8-2]), never inferred
+  declarations *retyped at the activation scalar by the leaf walk* ([§7.2][s7-2], [§8.2][s8-2]), never inferred
   from traffic. A seeded world therefore runs under the matching `Dual` activation:
   homogeneous `Dual` storage, heterogeneous parameters. Under the nominal `Float64`
   activation the first `Dual` product to reach a `Float64` cell throws — the same
