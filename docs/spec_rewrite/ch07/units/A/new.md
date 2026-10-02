@@ -1,24 +1,21 @@
 ## 7. State and data representation
 
-This chapter fixes where data lives, on both tiers and outside them. It fixes
-the homes the declared state occupies and how each home holds its values.
+This chapter fixes where data lives and how each home holds its values.
 Continuous state is an immutable value over a flat buffer the framework owns,
 and the continuous path is generic over its scalar type. Discrete state and
-modes live in stores, and scratch lives in a workspace. The allocation policy
-closes the chapter. [§7.1][s7-1] covers continuous
-state, [§7.2][s7-2] numeric genericity, [§7.3][s7-3] discrete state, modes and
-the workspace, [§7.4][s7-4] the fused-evaluation lineage that led to the
-interfaces of [§5.2][s5-2], and [§7.5][s7-5] the allocation policy.
+modes live in stores, and scratch lives in a workspace. [§7.1][s7-1] covers continuous
+state, [§7.2][s7-2] numeric genericity, [§7.3][s7-3] discrete state, modes and the workspace,
+[§7.4][s7-4] the fused-evaluation lineage that led to the interfaces of [§5.2][s5-2], and [§7.5][s7-5]
+the allocation policy.
 
 ### 7.1 Continuous state: structured immutable, flat backing
 
-This section fixes how a [continuous component](#g-continuous-component) (the
-hybrid primitive, with continuous state, flow and events) declares its state,
-and how the framework lays that state out, reads it and writes it back. It
-covers, in order, the closed leaf vocabulary, the three things the framework
-does with a declaration, the buffer and its views, why the vocabulary is
-closed, the shape of `Ẋ`, and what the design buys against FlightCore's
-mutable-view pattern.
+This section fixes how a [continuous component](#g-continuous-component) (the hybrid primitive, with
+continuous state, flow and events) declares its state, and how the framework
+lays that state out, reads it and writes it back. It covers, in order, the
+closed leaf vocabulary, the three things the framework does with a declaration,
+the buffer and its views, why the vocabulary is closed, the shape of `Ẋ`, and
+what the design buys against FlightCore's mutable-views pattern.
 
 Each continuous component declares its state by value (`x_init`,
 [§8.2][s8-2], [D-033][d-033]). The declaration is a NamedTuple
@@ -32,26 +29,24 @@ keyword, and `Ranged`, a clamped scalar. An attitude state is an
 The structure step refuses a field outside the vocabulary as
 `IllegalStateLeaf` ([§9.1][s9-1]). [§8.2][s8-2] shows the kind's messages.
 
-**The declaration is flat** ([D-094][d-094]). Each field is one leaf, never a
-`NamedTuple` of leaves. The condition algebra and the readers address a field
-as one leaf ([§14.3][s14-3], [§14.4][s14-4]), and structure comes from the
-component tree, not from the value.
+**The declaration is flat** ([D-094][d-094]). Each field is one leaf, never a `NamedTuple` of
+leaves. The condition algebra and the readers address a field as one leaf
+([§14.3][s14-3], [§14.4][s14-4]), and structure comes from the [component](#g-component) tree, not from the value.
 
 The framework does three things with the declaration.
 
 - It computes a flat layout at build time. The layout has compile-time offsets
   into one contiguous `Vector{T}` that the framework owns, the
   [buffer](#g-buffer).
-- It reconstructs the typed immutable state value for a
-  [component](#g-component) at each evaluation. It passes that value to every
-  function receiving state views, under the argument rule of [§5.2][s5-2]
-  ([D-035][d-035]). The reconstruction is field loads at known offsets,
-  register-level, at zero cost.
-- It receives immutable results back. Derivative functions return an
-  `Ẋ`-typed value, which is scatter-stored into the flat `ẋ` buffer. A
-  handler's `x` key and the [projection](#g-projection) (the optional hook
-  `x_projection`) carry a new `X`, which is written back. Projection's
-  write-back happens at the two positions in the
+- It reconstructs the typed immutable state value for a component at each
+  evaluation. The value's type, `X`, is derived from `x_init`. The framework
+  passes that value to every function receiving state [views](#g-view) (zero-copy
+  reconstructions of a store), under the argument rule of [§5.2][s5-2] ([D-035][d-035]). The
+  reconstruction is field loads at known offsets, register-level, at zero cost.
+- It receives immutable results back. Derivative functions return an `Ẋ`-typed
+  value, which is scatter-stored into the flat `ẋ` buffer. A handler's `x` key
+  and the [projection](#g-projection) (the optional hook `x_projection`) carry a new `X`, which
+  is written back. Projection's write-back happens at the two positions in the
   [execution order](#g-execution-order) of [§5.3][s5-3] ([D-111][d-111]).
 
 **The buffer is authoritative, and typed values are ephemeral
@@ -84,27 +79,27 @@ Invariant-carrying leaves are excluded from the vocabulary ([D-094][d-094]).
 
 Domain semantics are instead an explicit, invariant-free cast at the point of
 use. It is the conversion that `f_ode!`, FlightCore's in-place derivative
-function, performs on its raw views. Invariants live where the design already
-put them, in `x_projection` at [boundaries](#g-boundary) and in writers.
-Handlers build their returned values through ordinary constructors, and the
-condition apply converts authored values through ordinary `convert` methods
+function, performed on its raw views. Invariants live where the design already
+put them, in `x_projection` at [boundaries](#g-boundary) (published consistency points) and in
+writers. Handlers build their returned values through ordinary constructors, and
+the condition apply converts authored values through ordinary `convert` methods
 ([§14.3][s14-3]). Constructors run on the write paths, never on views.
 
-With the leaf vocabulary closed, the shape of `Ẋ` takes one line to state.
-`Ẋ` has exactly `X`'s shape at the [activation](#g-activation) scalar (the
-scalar type `T` an activation is built at). A scalar leaf's derivative is a
-`T`, and an `SArray` leaf's is the same `SArray` at `T`. This is what the
-closed vocabulary buys. An invariant-carrying leaf like a unit quaternion has a
-derivative off its own type, and `Ẋ` would need a separate derivation. Here
-the attitude leaf is an `SVector{4,T}`, and so is its rate. The conformance
-predicate is structural. *Each field of `x_deriv`'s return scatters into its
-field's block at `T`* ([§9.5][s9-5] states the check). That makes derivative
-completeness a property of the layout rather than of author discipline. There
-is deliberately no `derivative_type` hook ([D-190][d-190]).
+With the leaf vocabulary closed, the shape of `Ẋ` takes one line to state. `Ẋ`
+has exactly `X`'s shape at the [activation](#g-activation) scalar (the scalar type `T` at which
+the build types the model). A scalar leaf's derivative is a `T`, and an `SArray`
+leaf's is the same `SArray` at `T`. This is what the closed vocabulary buys. An
+invariant-carrying leaf like a unit quaternion has a derivative off its own
+type, and `Ẋ` would need a separate derivation. Here the attitude leaf is an
+`SVector{4,T}`, and so is its rate. The conformance predicate is structural.
+*Each field of `x_deriv`'s return scatters into its field's block at `T`* ([§9.5][s9-5]
+states the check). That makes derivative completeness a property of the layout
+rather than of author discipline. There is deliberately no `derivative_type`
+hook ([D-190][d-190]).
 
 FlightCore's pattern was a flat `Vector` read through `ComponentArrays` views,
-which are mutable views into the flat vector. Against that pattern, this
-design buys five things.
+which are mutable views into the flat vector. Against that pattern and the
+Flight.jl code around it, this design buys five things.
 
 - There are no aliased mutable views, where who writes what is a matter of
   convention.

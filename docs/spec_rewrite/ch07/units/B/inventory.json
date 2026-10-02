@@ -11,13 +11,14 @@
   {
    "id": "C-002",
    "old": "The state buffer, the pack/unpack machinery, and the entire continuous evaluation path are generic over `T <: Real`.",
-   "new": "The entire continuous evaluation path is generic over `T <: Real`, and so are the state buffer (the framework-owned flat vector backing continuous state) and the pack/unpack machinery (D-011).",
+   "new": "The entire continuous evaluation path is generic over `T <: Real`, and so are the state buffer (the framework-owned contiguous vector backing all continuous state) and the pack/unpack machinery (D-011).",
    "where": "new",
    "cites": [],
    "newcites": [
     "D-011"
    ],
-   "tag": "C"
+   "tag": "C",
+   "ruling": "E7"
   },
   {
    "id": "C-003",
@@ -125,14 +126,15 @@
   {
    "id": "C-014",
    "old": "On the continuous tier a `Float64` leaf follows the activation scalar, in a contract and in the `x_init`-derived state type alike, and a contract leaf wrapped as `Pinned{P}` is deliberately pinned.",
-   "new": "On the continuous tier a `Float64` leaf follows the activation scalar, in a contract and in the `x_init`-derived state type alike (D-263, D-295). A contract leaf wrapped in the leaf marker `Pinned{P}` is deliberately pinned (D-263).",
+   "new": "On the continuous tier (the continuous or discrete side) a `Float64` leaf follows the activation scalar, in a contract and in the `x_init`-derived state type alike (D-263, D-295). A contract leaf wrapped in the leaf marker `Pinned{P}` is deliberately pinned (D-263).",
    "where": "new",
    "cites": [],
    "newcites": [
     "D-263",
     "D-295"
    ],
-   "tag": "C"
+   "tag": "C",
+   "ruling": "K1"
   },
   {
    "id": "C-015",
@@ -179,12 +181,13 @@
   {
    "id": "C-019",
    "old": "Scoping, meaning what actually needs genericity, covers roughly half the type inventory and has three tiers (D-011).",
-   "new": "Scoping, meaning what actually needs genericity, has three tiers (D-011).",
+   "new": "Scoping, meaning what actually needs genericity, has three classes (D-011).",
    "where": "new",
    "cites": [
     "D-011"
    ],
-   "tag": "F"
+   "tag": "F",
+   "ruling": "K1"
   },
   {
    "id": "C-020",
@@ -284,11 +287,11 @@
   {
    "id": "C-031",
    "old": "and need no migration",
-   "new": "Flight.jl's parameters and definitions, the pinned tier of §7.2, stay `Float64` and need no migration.",
+   "new": "Flight.jl's parameters and definitions, the pinned class of §7.2, stay `Float64` and need no migration.",
    "where": "units/B/companion_addition.md",
    "cites": [],
    "tag": "R",
-   "ruling": "R13"
+   "ruling": "R13, K1"
   },
   {
    "id": "C-032",
@@ -442,11 +445,12 @@
   }
  ],
  "added": [
-  "The rest of the section states the three tiers that scope this genericity, how the declaration layer spells them per leaf, how lookup tables fit them, and three rules for authors.",
+  "The rest of the section states the three classes that scope this genericity, how the declaration layer spells them per leaf, how lookup tables fit them, and three rules for authors.",
   "`@kwdef` is Julia's keyword-constructor macro.",
-  "(the framework-owned flat vector backing continuous state)",
+  "(the framework-owned contiguous vector backing all continuous state)",
   "(one pass through the execution order)",
   "(a typed entry of the signal table)",
-  "(the build's typed products at a given scalar type)"
+  "(the build's typed products at a given scalar type)",
+  "(the continuous or discrete side)"
  ]
 }

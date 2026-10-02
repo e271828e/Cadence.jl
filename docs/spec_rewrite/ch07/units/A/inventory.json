@@ -123,7 +123,8 @@
     "§14.4",
     "D-094"
    ],
-   "tag": "F"
+   "tag": "F",
+   "ruling": "E17"
   },
   {
    "id": "A-013",
@@ -144,7 +145,7 @@
   {
    "id": "A-015",
    "old": "It reconstructs the typed immutable state value for a component at each evaluation and passes it to every function receiving state views, under the argument rule of §5.2.",
-   "new": "It reconstructs the typed immutable state value for a component at each evaluation. It passes that value to every function receiving state views, under the argument rule of §5.2 (D-035).",
+   "new": "It reconstructs the typed immutable state value for a component at each evaluation. The value's type, `X`, is derived from `x_init`. The framework passes that value to every function receiving state views (zero-copy reconstructions of a store), under the argument rule of §5.2 (D-035).",
    "where": "new",
    "cites": [
     "§5.2"
@@ -153,7 +154,8 @@
     "§5.2",
     "D-035"
    ],
-   "tag": "C"
+   "tag": "C",
+   "ruling": "E3, E17"
   },
   {
    "id": "A-016",
@@ -213,10 +215,11 @@
   {
    "id": "A-022",
    "old": "`Ẋ` has exactly `X`'s shape at the activation scalar.",
-   "new": "`Ẋ` has exactly `X`'s shape at the activation scalar (the scalar type `T` an activation is built at).",
+   "new": "`Ẋ` has exactly `X`'s shape at the activation scalar (the scalar type `T` at which the build types the model).",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "F",
+   "ruling": "E4"
   },
   {
    "id": "A-023",
@@ -489,19 +492,20 @@
   {
    "id": "A-052",
    "old": "the conversion today's `f_ode!` code performs on its raw views.",
-   "new": "It is the conversion that `f_ode!`, FlightCore's in-place derivative function, performs on its raw views.",
+   "new": "It is the conversion that `f_ode!`, FlightCore's in-place derivative function, performed on its raw views.",
    "where": "new",
    "cites": [],
    "tag": "R",
-   "ruling": "R8"
+   "ruling": "R8, E5"
   },
   {
    "id": "A-053",
    "old": "Invariants live where the design already put them, in `x_projection` at boundaries and in writers.",
-   "new": "Invariants live where the design already put them, in `x_projection` at boundaries and in writers.",
+   "new": "Invariants live where the design already put them, in `x_projection` at boundaries (published consistency points) and in writers.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "F",
+   "ruling": "E16"
   },
   {
    "id": "A-054",
@@ -524,11 +528,11 @@
   {
    "id": "A-056",
    "old": "Against today's flat-`Vector` + `ComponentArrays`-views pattern, this buys five things.",
-   "new": "FlightCore's pattern was a flat `Vector` read through `ComponentArrays` views, which are mutable views into the flat vector. Against that pattern, this design buys five things.",
+   "new": "FlightCore's pattern was a flat `Vector` read through `ComponentArrays` views, which are mutable views into the flat vector. Against that pattern and the Flight.jl code around it, this design buys five things.",
    "where": "new",
    "cites": [],
    "tag": "R",
-   "ruling": "R8"
+   "ruling": "R8, K6"
   },
   {
    "id": "A-057",
@@ -608,22 +612,24 @@
   }
  ],
  "added": [
-  "This chapter fixes where data lives, on both tiers and outside them.",
-  "It fixes the homes the declared state occupies and how each home holds its values.",
+  "This chapter fixes where data lives and how each home holds its values.",
   "Continuous state is an immutable value over a flat buffer the framework owns, and the continuous path is generic over its scalar type.",
   "Discrete state and modes live in stores, and scratch lives in a workspace.",
-  "The allocation policy closes the chapter.",
   "§7.1 covers continuous state, §7.2 numeric genericity, §7.3 discrete state, modes and the workspace, §7.4 the fused-evaluation lineage that led to the interfaces of §5.2, and §7.5 the allocation policy.",
   "This section fixes how a continuous component (the hybrid primitive, with continuous state, flow and events) declares its state, and how the framework lays that state out, reads it and writes it back.",
-  "It covers, in order, the closed leaf vocabulary, the three things the framework does with a declaration, the buffer and its views, why the vocabulary is closed, the shape of `Ẋ`, and what the design buys against FlightCore's mutable-view pattern.",
+  "It covers, in order, the closed leaf vocabulary, the three things the framework does with a declaration, the buffer and its views, why the vocabulary is closed, the shape of `Ẋ`, and what the design buys against FlightCore's mutable-views pattern.",
   "(one pass through the execution order)",
   "a rotation quaternion type with a `normalization` keyword",
   "a clamped scalar",
   "(the optional hook `x_projection`)",
   "(each datum has exactly one home)",
-  "(the scalar type `T` an activation is built at)",
+  "(the scalar type `T` at which the build types the model)",
   "which are mutable views into the flat vector",
   "FlightCore's in-place derivative function",
-  "the common-subexpression elimination"
+  "the common-subexpression elimination",
+  "The value's type, `X`, is derived from `x_init`.",
+  "(zero-copy reconstructions of a store)",
+  "(published consistency points)",
+  "and the Flight.jl code around it"
  ]
 }

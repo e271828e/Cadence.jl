@@ -114,10 +114,11 @@
   {
    "id": "D-012",
    "old": "It copied the buffer into cells so that a buffer view could be replaced by a cell view.",
-   "new": "It copied the buffer into cells so that a buffer view could be replaced by a cell view.",
+   "new": "It copied the buffer (the framework-owned contiguous vector backing all continuous state) into cells so that a buffer view could be replaced by a cell view.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "F",
+   "ruling": "E16"
   },
   {
    "id": "D-013",
@@ -165,10 +166,11 @@
   {
    "id": "D-018",
    "old": "Every causal framework meets the shared-computation problem and resolves it per its architecture.",
-   "new": "Every causal framework meets the shared-computation problem and resolves it per its architecture.",
+   "new": "Every causal framework meets the overlap between derivatives and outputs and resolves it per its architecture.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "F",
+   "ruling": "E12"
   },
   {
    "id": "D-019",
@@ -217,11 +219,11 @@
   {
    "id": "D-024",
    "old": "It is also what FlightCore's fused `f_ode!` did economically, minus the checked ordering.",
-   "new": "It is also what FlightCore's fused `f_ode!` (its in-place derivative function) did economically, minus the checked ordering.",
+   "new": "It is also what `f_ode!`, FlightCore's fused in-place derivative function, did economically, minus the checked ordering.",
    "where": "new",
    "cites": [],
    "tag": "R",
-   "ruling": "R2"
+   "ruling": "R2, E6"
   },
   {
    "id": "D-025",
@@ -358,7 +360,7 @@
   {
    "id": "D-040",
    "old": "The budget is exactly zero, CI-enforced at the §9.7 phase-body seam (`phase_bodies`).",
-   "new": "The budget is exactly zero, CI-enforced at the phase-body seam that `phase_bodies` exposes (§9.7, D-014, D-116).",
+   "new": "The budget is exactly zero, CI-enforced at the measurement seam that `phase_bodies` exposes (§9.7, D-014, D-116).",
    "where": "new",
    "cites": [
     "§9.7"
@@ -368,31 +370,38 @@
     "D-014",
     "D-116"
    ],
-   "tag": "C"
+   "tag": "C",
+   "ruling": "E14"
   },
   {
    "id": "D-041",
    "old": "Periodic ticks and event handlers. These execute episodically, a tick when due and a handler only on firing.",
-   "new": "Periodic ticks and event handlers execute episodically. A tick runs when due, and a handler only on firing.",
+   "new": "Periodic ticks (the instants a discrete component runs) and event handlers execute episodically. A tick runs when due, and a handler only on firing.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "F",
+   "ruling": "E16"
   },
   {
    "id": "D-042",
    "old": "Allocation here is zero by idiom.",
-   "new": "Their allocation is zero by idiom.",
+   "new": "Their allocation is zero by the workspace-plus-snapshot idiom (§7.3) and immutable-value returns.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "F",
+   "newcites": [
+    "§7.3"
+   ],
+   "ruling": "E9"
   },
   {
    "id": "D-043",
    "old": "The idiom is the workspace (component-declared mutable scratch arriving as the `ws` bundle field) and snapshot pattern, plus immutable-value returns.",
-   "new": "The idiom is the workspace (component-declared mutable scratch arriving as the `ws` bundle field) and snapshot pattern, plus immutable-value returns.",
+   "new": "workspace-plus-snapshot idiom (§7.3) and immutable-value returns. A workspace is component-declared mutable scratch arriving as the `ws` bundle field.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "F",
+   "ruling": "E9"
   },
   {
    "id": "D-044",
@@ -472,12 +481,13 @@
   {
    "id": "D-052",
    "old": "The per-boundary allocation cost is zero either way, and the summarize-or-skip rule (§4.4) governs what such a field contributes on export.",
-   "new": "The per-boundary allocation cost is zero either way. The summarize-or-skip rule (§4.4) governs what such a field contributes on export.",
+   "new": "The reference fields add no per-boundary allocation either way. The summarize-or-skip rule (§4.4) governs what such a field contributes on export.",
    "where": "new",
    "cites": [
     "§4.4"
    ],
-   "tag": "F"
+   "tag": "F",
+   "ruling": "K3"
   },
   {
    "id": "D-053",
@@ -512,11 +522,11 @@
   {
    "id": "D-056",
    "old": "Which events fired at which boundary is recovered by replay plus the published modes.",
-   "new": "Replay plus the published modes recovers which events fired at which boundary.",
+   "new": "Replay (the ordinary loop re-driven from the trace) plus the published modes recovers which events fired at which boundary.",
    "where": "new",
    "cites": [],
    "tag": "R",
-   "ruling": "R7"
+   "ruling": "R7, E16"
   },
   {
    "id": "D-057",
@@ -550,10 +560,11 @@
   {
    "id": "D-060",
    "old": "Arena allocation (Bumper.jl-style) serves scoped temporaries.",
-   "new": "Arena allocation (Bumper.jl-style) serves scoped temporaries.",
+   "new": "Arena allocation, in the style of the Julia package Bumper.jl, serves scoped temporaries.",
    "where": "new",
    "cites": [],
-   "tag": "F"
+   "tag": "F",
+   "ruling": "E15"
   },
   {
    "id": "D-061",
@@ -583,10 +594,16 @@
  "added": [
   "Overlap between derivatives and outputs is the norm in physical and control models (§5.3).",
   "The section gives the four steps, then the prior art, then an idiom the design admits without framework support.",
-  "(its in-place derivative function)",
-  "The section states the invariant's scope, the policy's three tiers, what the log does not record, and the tools for garbage that cannot be avoided.",
+  "in-place derivative function",
+  "The section states the invariant's scope, the policy's three budgets, what the log does not record, and the tools for garbage that cannot be avoided.",
   "The zero-allocation invariant is scoped to the stepping loop, and the stopped-sim services were always allocation-tolerant (D-135, §14.8).",
-  "Publication is not a phase body (D-288, §9.7), and its one snapshot allocation per boundary sits with logging on the framework side, outside what the invariant claims is zero (§11.2).",
-  "The policy has three tiers."
+  "Publication is not a phase body (one of the compiled bodies the loop runs) (D-288, §9.7).",
+  "The policy sets three budgets.",
+  "(the framework-owned contiguous vector backing all continuous state)",
+  "Publication's one snapshot (the immutable per-boundary publication) allocation per boundary sits with logging on the framework side, outside what the invariant claims is zero (§11.2).",
+  "(the instants a discrete component runs)",
+  "workspace-plus-snapshot",
+  "(the ordinary loop re-driven from the trace)",
+  "in the style of the Julia package"
  ]
 }

@@ -1,9 +1,9 @@
 ### 7.2 Numeric genericity (eltype)
 
-**The entire continuous evaluation path is generic over `T <: Real`**, and so
-are the state [buffer](#g-buffer) (the framework-owned flat vector backing
-continuous state) and the pack/unpack machinery ([D-011][d-011]). This one
-design property serves four consumers.
+**The entire continuous evaluation path is generic over `T <: Real`**, and so are
+the state [buffer](#g-buffer) (the framework-owned contiguous vector backing all continuous
+state) and the pack/unpack machinery ([D-011][d-011]). This one design property serves
+four consumers.
 
 1. Exact Jacobians for linearization, with ForwardDiff duals through the
    whole model, replacing finite differences.
@@ -15,12 +15,11 @@ design property serves four consumers.
    fails loudly on any Float64-pinning. It fails with a `MethodError` or an
    `InexactError` at the offending line.
 
-The rest of the section states the three tiers that scope this genericity, how
+The rest of the section states the three classes that scope this genericity, how
 the declaration layer spells them per leaf, how lookup tables fit them, and
 three rules for authors.
 
-Scoping, meaning what actually needs genericity, has three tiers
-([D-011][d-011]).
+Scoping, meaning what actually needs genericity, has three classes ([D-011][d-011]).
 
 - *[Walked](#g-walked)*, the payload and value types constructed during
   evaluation. One example is `FrameTransform`, a FlightPhysics payload type.
@@ -39,18 +38,16 @@ entry of the signal table) is a constant with zero partials. That is what
 `frozen_discrete_walkthrough.md` works the chain through in detail.
 
 The declaration layer keeps this scoping legible without putting it in the
-author's way. Every declaration but the allocator ([§7.3][s7-3]) is written at
-nominal `Float64`. One walk retypes it per [activation](#g-activation) (the
-build's typed products at a given scalar type), as [§8.2][s8-2] states. On the
-continuous tier a `Float64` leaf follows the activation scalar, in a contract
-and in the `x_init`-derived state type alike ([D-263][d-263], [D-295][d-295]).
-A contract leaf wrapped in the leaf marker `Pinned{P}` is deliberately
-pinned ([D-263][d-263]). Participation is therefore authored per
-leaf, by the absence or presence of the marker. The discrete side stays plain
-and pins wholesale ([D-263][d-263], [D-295][d-295]). Nothing anywhere comes
-from inference through user code ([D-032][d-032],
-[D-079][d-079]). Safety of the substitution
-rests on the embedding guarantee stated in [§9.5][s9-5].
+author's way. Every declaration but the allocator ([§7.3][s7-3]) is written at nominal
+`Float64`. One walk retypes it per [activation](#g-activation) (the build's typed products at a
+given scalar type), as [§8.2][s8-2] states. On the continuous [tier](#g-tier) (the continuous or
+discrete side) a `Float64` leaf follows the activation scalar, in a contract and
+in the `x_init`-derived state type alike ([D-263][d-263], [D-295][d-295]). A contract leaf wrapped
+in the leaf marker `Pinned{P}` is deliberately pinned ([D-263][d-263]). Participation is
+therefore authored per leaf, by the absence or presence of the marker. The
+discrete side stays plain and pins wholesale ([D-263][d-263], [D-295][d-295]). Nothing anywhere
+comes from inference through user code ([D-032][d-032], [D-079][d-079]). Safety of the
+substitution rests on the embedding guarantee stated in [§9.5][s9-5].
 
 For lookups, table data is a pinned parameter and the query coordinate is
 walked traffic ([D-011][d-011]). Interpolations.jl, the interpolation package
