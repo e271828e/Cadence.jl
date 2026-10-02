@@ -42,7 +42,7 @@ function test_executor()
         # covers the outer walk over the chunk tuple itself, not just the entry
         # walks within one chunk.
         six = Group(NamedTuple{ntuple(i -> Symbol(:m, i), 6)}(ntuple(_ -> feedback_model(), 6));
-                    inputs = ("ref" => ntuple(i -> "m$(i)/ref", 6),))
+                    input_wires = ("ref" => ntuple(i -> "m$(i)/ref", 6),))
         sim = Simulation(six; h = 1//100, chunk_size = 1)
         @test length(sim.exec.bodies.sweep_2.interior) > 16
         for name in BLOCKS
@@ -56,7 +56,7 @@ function test_executor()
         # allocates at every call. Forty loops at chunk_size = 1 give sweep_2 a
         # tuple of 120 chunks; at chunk_size = 40 one chunk holds 40 entries.
         forty = Group(NamedTuple{ntuple(i -> Symbol(:m, i), 40)}(ntuple(_ -> feedback_model(), 40));
-                      inputs = ("ref" => ntuple(i -> "m$(i)/ref", 40),))
+                      input_wires = ("ref" => ntuple(i -> "m$(i)/ref", 40),))
         for chunk_size in (1, 40)
             sim = Simulation(forty; h = 1//100, chunk_size)
             sweep_2 = sim.exec.bodies.sweep_2
@@ -97,7 +97,7 @@ function test_executor()
             sum(length(getfield(sim.exec.bodies[name], variant))
                 for name in BLOCKS for variant in (:interior, :boundary))
         loops(n) = Group(NamedTuple{ntuple(i -> Symbol(:m, i), n)}(ntuple(_ -> feedback_model(), n));
-                         inputs = ("ref" => ntuple(i -> "m$(i)/ref", n),))
+                         input_wires = ("ref" => ntuple(i -> "m$(i)/ref", n),))
         # Each loop runs at its own rate, so a walk that reorders or drops an
         # entry changes the state below.
         rotor_saws(n) = Group(NamedTuple{ntuple(i -> Symbol(:p, i), n)}(

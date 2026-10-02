@@ -20,14 +20,14 @@ loop(dev::Nudge, handle) = (stage!(handle, dev.face => dev.v); nothing)
 # Three root inputs, so a record's *position* against the writer's schema is a
 # fact worth asserting rather than a coincidence at width one.
 three_root_inputs() = Group((; s = Sum(sa = 1.0, sb = 1.0), g = Gain(2.0));
-                            inputs = ("a" => "s/a", "b" => "s/b", "c" => "g/e"))
+                            input_wires = ("a" => "s/a", "b" => "s/b", "c" => "g/e"))
 
 # A model whose boundary-zero sequence moves both discrete state homes (§14.5):
 # the trigger's guard holds in the authored state and fires at `t₀`, and the
 # integrator's due `s_update` runs there too. What the header must hold is what
 # both left behind (D-274).
 boundary_movers() = Group((; t = Trigger(0.5), d = DiscreteIntegrator(1.0));
-                          inputs = ("sig" => "t/sig", "e" => "d/e"))
+                          input_wires = ("sig" => "t/sig", "e" => "d/e"))
 
 # One record's face, resolved the way a consumer resolves it: through the
 # writer's schema in the header (§11.5).
@@ -197,13 +197,13 @@ end
 # The same three root inputs under one extra component: same faces, a different
 # `Build` — §12.7's structural line, on the error side of it.
 extra_component() = Group((; s = Sum(sa = 1.0, sb = 1.0), g = Gain(2.0), k = TickCounter());
-                          inputs = ("a" => "s/a", "b" => "s/b", "c" => "g/e"))
+                          input_wires = ("a" => "s/a", "b" => "s/b", "c" => "g/e"))
 
 # One structure, one grid, one `sample_times` difference: `SampledLoop` exposes
 # its controller's multiplier, so the pair differs in a schedule *row* and in
 # nothing else §12.7 compares.
 sampled_root(k) = Group((; l = SampledLoop(; ctl_rate = Relative(k)));
-                        inputs = ("ref" => "l/ref"))
+                        input_wires = ("ref" => "l/ref"))
 
 sampled_session(k) = begin
     sim = Simulation(sampled_root(k); h = 1//10)
@@ -428,9 +428,9 @@ end
 replay_model(k = 4.0) =
     Group((plant = Plant(; ω = 2.0, ζ = 0.1), ctl = Gain(k), sum = Sum(),
            acc = DiscreteIntegrator(1.0), b = Bouncer(1.0, 0.32));
-          wires = ("ctl/out" => "plant/u", "sum/e" => "ctl/e", "plant/y" => "sum/b"),
-          inputs = ("ref" => "sum/a", "rate" => "acc/e"),
-          outputs = ("b/q" => "bq", "acc/u" => "u"))
+          inner_wires = ("ctl/out" => "plant/u", "sum/e" => "ctl/e", "plant/y" => "sum/b"),
+          input_wires = ("ref" => "sum/a", "rate" => "acc/e"),
+          output_wires = ("b/q" => "bq", "acc/u" => "u"))
 
 # Every cell of a published table, in a build-independent order: two sessions
 # are two `Simulation`s, so their layouts are equal *values* rather than one

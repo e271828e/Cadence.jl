@@ -8,27 +8,27 @@
 # mode set (the trigger's), and the `u`, `e` root inputs whose ordering is what
 # `UninitializedInputs` has to report.
 tri() = Group((; plant = Plant(), ctl = DiscreteIntegrator(3.0), trig = Trigger(0.5));
-              wires = ("plant/y" => "trig/sig",),
-              inputs = ("u" => "plant/u", "e" => "ctl/e"))
+              inner_wires = ("plant/y" => "trig/sig",),
+              input_wires = ("u" => "plant/u", "e" => "ctl/e"))
 
 # A named assembly one level down, its input face fed from the root's: the
 # per-level `at` addressing D-207's total face graph makes resolvable.
-nested() = Group((; loop = SampledLoop()); inputs = ("in" => "loop/ref",),
-                 outputs = ("loop/y" => "y",))
+nested() = Group((; loop = SampledLoop()); input_wires = ("in" => "loop/ref",),
+                 output_wires = ("loop/y" => "y",))
 
 # A workspace declarer, for the "never workspace" half of §14.1's rule.
 scratchy() = Group((; sm = Smoother(0.5));
-                   inputs = ("a" => "sm/a", "b" => "sm/b"))
+                   input_wires = ("a" => "sm/a", "b" => "sm/b"))
 
 # An offset pair, one stage shape each, both at `Relative(2, 1)` so neither is
 # due at boundary zero: `hold` samples the root input through `y_direct`,
 # `off` publishes its own `s` through `y_state` and accumulates in
 # `s_update`. What D-205 rules on is exactly what these two read at `t₀`.
 offset_pair() = Group((; hold = ZOH(), off = DiscreteIntegrator(1.0));
-                      wires = ("hold/out" => "off/e",),
-                      inputs = ("in" => "hold/in",),
-                      outputs = ("hold/out" => "held", "off/u" => "acc"),
-                      rates = (; hold = Relative(2, 1),
+                      inner_wires = ("hold/out" => "off/e",),
+                      input_wires = ("in" => "hold/in",),
+                      output_wires = ("hold/out" => "held", "off/u" => "acc"),
+                      sample_times = (; hold = Relative(2, 1),
                                  off = Relative(2, 1)))
 
 function conditions_algebra()

@@ -115,7 +115,7 @@ end
 function store_workspace()
     @testset "the workspace is scratch, on both tiers (§7.3)" begin
         sim = Simulation(Group((; sm = Smoother(0.5), src = ModedSource(), wg = WorkGain(2.0));
-                               wires = ("src/out" => "sm/a",
+                               inner_wires = ("src/out" => "sm/a",
                                         "src/out" => "sm/b",
                                         "src/out" => "wg/in"));
                          h = 1//10)
@@ -144,7 +144,7 @@ function store_shared_bodies()
         # still one entry type per stage per component type — the store's addressing
         # keeps offsets in fields. The root's one face fans out to both.
         two = Group((; a = feedback_model(), b = feedback_model(k = 3.0));
-                    inputs = ("ref" => ("a/ref", "b/ref"),))
+                    input_wires = ("ref" => ("a/ref", "b/ref"),))
         sim = Simulation(two; h = 1//100)
         types(body) = unique(typeof(e) for e in walked(body))
         @test length(types(sim.exec.bodies.sweep_1)) == 1     # two Plants, one y_state body
@@ -227,7 +227,7 @@ function store_opaque_leaf()
 
         # The abstract entry admits the handle by the bound clause (D-236).
         abstract_model = Group((; src = Terrain(), q = AbstractTerrainQuery());
-                               wires = ("src/terrain" => "q/terrain",))
+                               inner_wires = ("src/terrain" => "q/terrain",))
         abstract_sim = Simulation(abstract_model; h = 1//10)
         init!(abstract_sim)
         @test port(abstract_sim, "q", :h) == 3.0

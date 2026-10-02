@@ -8,9 +8,9 @@
 
 # The walkthrough's model: a sum of two root inputs drives the pendulum's
 # torque, and two faces leave the root, one of them the sum's feedthrough.
-lin_pend() = Group((; s = Sum(), c = Pendulum()); wires = ("s/e" => "c/u",),
-                   inputs = ("τ" => "s/a", "d" => "s/b"),
-                   outputs = ("c/θ" => "θ", "s/e" => "u_eff"))
+lin_pend() = Group((; s = Sum(), c = Pendulum()); inner_wires = ("s/e" => "c/u",),
+                   input_wires = ("τ" => "s/a", "d" => "s/b"),
+                   output_wires = ("c/θ" => "θ", "s/e" => "u_eff"))
 lin_point(θ = 0.3) = combine(at("c", condition(Pendulum(); θ = θ)),
                              fragment(u = (τ = PEND_G_L * sin(θ), d = 0.0)))
 lin_taps() = taps(x = (θ = get_state("c", :θ), ω = get_state("c", :ω)),
@@ -24,18 +24,18 @@ lin_pend_sim() = (sim = Simulation(lin_pend(); h = 1//10); init!(sim, lin_point(
 # A vector state, a vector root input and a vector face, closed through
 # `u = -k·qin₁`.
 lin_vector() = Group((; p = VectorPlant(), fb = StateFeedback(2.0));
-                     wires = ("fb/u" => "p/u",), inputs = ("qin" => "fb/q",),
-                     outputs = ("p/q" => "q", "p/power" => "power"))
+                     inner_wires = ("fb/u" => "p/u",), input_wires = ("qin" => "fb/q",),
+                     output_wires = ("p/q" => "q", "p/power" => "power"))
 lin_vector_point() = combine(at("p", fragment(x = (q = SVector(0.1, 0.2),))),
                              fragment(u = (qin = SVector(0.5, 0.0),)))
 
 # A root input whose one consumer declares its entry `Pinned`.
 lin_pinned() = Group((; g = PinnedGain(), c = Pendulum());
-                     wires = ("g/out" => "c/u",), inputs = ("τ" => "g/e",))
+                     inner_wires = ("g/out" => "c/u",), input_wires = ("τ" => "g/e",))
 
 # The pendulum's torque held by a discrete producer: `sampled_pend` again.
 lin_sampled() = Group((; ctl = DiscreteIntegrator(1.0), c = Pendulum());
-                      wires = ("ctl/u" => "c/u",), inputs = ("in" => "ctl/e",))
+                      inner_wires = ("ctl/u" => "c/u",), input_wires = ("in" => "ctl/e",))
 lin_sampled_point() = combine(at("ctl", fragment(s = (acc = 4.0,))),
                               at("c", condition(Pendulum(); θ = asin(4.0 / PEND_G_L))),
                               fragment(u = (in = 0.0,)))
@@ -86,8 +86,8 @@ same_linearization(left, right) =
 # handed through under names of the wrapper's own, for the tap set mounted with
 # `at` (§14.10): a rebase that skipped the export chain would name a face the
 # root does not have.
-rig_lin_pend() = Group((; rig = lin_pend()); inputs = ("torque" => "rig/τ", "gust" => "rig/d"),
-                       outputs = ("rig/θ" => "angle", "rig/u_eff" => "drive"))
+rig_lin_pend() = Group((; rig = lin_pend()); input_wires = ("torque" => "rig/τ", "gust" => "rig/d"),
+                       output_wires = ("rig/θ" => "angle", "rig/u_eff" => "drive"))
 
 function test_linearize()
     @testset "the pendulum linearizes to its closed form, exact to round-off (§14.10)" begin

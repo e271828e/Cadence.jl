@@ -9,8 +9,8 @@
 # `acc`), a mode store no event transitions (`ModedSource`, §8.2), two root
 # inputs and one root-exported output face.
 readable() = Group((; plant = Plant(), ctl = DiscreteIntegrator(3.0), src = ModedSource());
-                   inputs = ("u" => "plant/u", "e" => "ctl/e"),
-                   outputs = ("plant/y" => "y",))
+                   input_wires = ("u" => "plant/u", "e" => "ctl/e"),
+                   output_wires = ("plant/y" => "y",))
 
 # The read world, authored: every store off its declared default, and `e` at
 # zero so the integrator's `s_update` is stationary and boundary zero leaves
@@ -73,8 +73,8 @@ y_state(::DottedFaces, (; x)) =
      v = SVector(7.0, 8.0, 9.0))   # the matrix follows `T` too, so the build's Dual sweep admits it
 x_deriv(::DottedFaces, (; x, u)) = (q = u.u - x.q,)
 
-dotted_model() = Group((; c = DottedFaces()); inputs = ("left.brake" => "c/u",),
-                       outputs = ("c/θ" => "att.theta", "c/pose" => "pose", "c/v" => "pose.v"))
+dotted_model() = Group((; c = DottedFaces()); input_wires = ("left.brake" => "c/u",),
+                       output_wires = ("c/θ" => "att.theta", "c/pose" => "pose", "c/v" => "pose.v"))
 dotted_condition() = fragment(u = (var"left.brake" = SVector(1.5, 2.5),))
 
 # `readable()` one level down, its two root inputs and its face re-exported under
@@ -85,22 +85,22 @@ dotted_condition() = fragment(u = (var"left.brake" = SVector(1.5, 2.5),))
 struct ReadableHold <: AbstractComponent
     inner::typeof(readable())
 end
-inner_connections(::ReadableHold) = ()
-u_connections(::ReadableHold) = ("drive" => "inner/u", "gap" => "inner/e")
-y_connections(::ReadableHold) = ("inner/y" => "lift",)
+inner_wires(::ReadableHold) = ()
+input_wires(::ReadableHold) = ("drive" => "inner/u", "gap" => "inner/e")
+output_wires(::ReadableHold) = ("inner/y" => "lift",)
 
 wrapped_readable() = ReadableHold(readable())
 
 # `dotted_model()` one level down: its root input re-exported under a longer
 # dotted name, and its faces `pose` and `pose.v` under their own.
 wrapped_dotted() = Group((; inner = dotted_model());
-                         inputs = ("outer.left.brake" => "inner/left.brake",),
-                         outputs = ("inner/pose" => "pose", "inner/pose.v" => "pose.v"))
+                         input_wires = ("outer.left.brake" => "inner/left.brake",),
+                         output_wires = ("inner/pose" => "pose", "inner/pose.v" => "pose.v"))
 
 # `tri()`'s shape (test_conditions.jl): `trig/sig` is fed by its sibling's
 # `plant/y`, so no root input holds it.
 sibling_fed() = Group((; plant = Plant(), trig = Trigger(0.5));
-                      wires = ("plant/y" => "trig/sig",), inputs = ("u" => "plant/u",))
+                      inner_wires = ("plant/y" => "trig/sig",), input_wires = ("u" => "plant/u",))
 
 # Every store, the root inputs and the clock, read straight out of an executor.
 world(sim) = (copy(sim.exec.xbuf),

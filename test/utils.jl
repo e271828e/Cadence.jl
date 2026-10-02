@@ -16,7 +16,7 @@ gated(body) = count(e isa Gated for c in body.boundary for e in c.entries)
 single(c) = Group((; c = c))
 
 # The same, with the component's one input face handed up to a root input `in`.
-fed(c, face) = Group((; c = c); inputs = ("in" => "c/$face",))
+fed(c, face) = Group((; c = c); input_wires = ("in" => "c/$face",))
 
 # The drain's counterfactual: the same value written straight into a root
 # input's cell at a stopped point, reaching under the data plane on purpose.

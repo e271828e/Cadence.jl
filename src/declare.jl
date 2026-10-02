@@ -17,7 +17,7 @@ abstract type AbstractComponent end
 Continuous state, **by value**, at nominal `Float64`; leaves drawn from §7.1's
 closed vocabulary, and its *types* walk by rule. Mandatory on every continuous
 leaf, `x_init(::C) = (;)` when stateless: the store is the tier marker, as
-`inner_connections` is the class marker (§8.2, §8.5, D-263). The fallback
+`inner_wires` is the class marker (§8.2, §8.5, D-263). The fallback
 serves the value readers; the classifier asks whether the method is declared.
 """
 x_init(::Any) = NamedTuple()
@@ -99,20 +99,20 @@ endpoint, relative to the declaring assembly.
 **Mandatory even when empty**, because defining it *is* the assembly class
 marker (§8.5) — which is why it has no fallback to match.
 """
-function inner_connections end
+function inner_wires end
 
 """
 The boundary, inward: face name => internal endpoint path, or a tuple of paths
 for an input face fanning out through the boundary. Absence declares no input
 face.
 """
-u_connections(::Any) = ()
+input_wires(::Any) = ()
 
 """
 The boundary, outward: internal source path => face name, so that its pairs, like
 every other pair in the three declarations, read along the flow.
 """
-y_connections(::Any) = ()
+output_wires(::Any) = ()
 
 """
 The one optional declaration (§8.5, D-211): a component may declare **at most
@@ -253,8 +253,8 @@ function s_update end
 
 const DECLARATION_FAMILY = (:x_init, :s_init, :m_init, :ws_init,
     :u_types, :y_types, :state_events, :y_state, :y_direct,
-    :x_deriv, :s_update, :x_projection, :inner_connections,
-    :u_connections, :y_connections, :sample_times,
+    :x_deriv, :s_update, :x_projection, :inner_wires,
+    :input_wires, :output_wires, :sample_times,
     :transparent_container)
 
 """

@@ -4,13 +4,13 @@
 struct TupleRoster{U <: Tuple} <: AbstractComponent
     units::U
 end
-inner_connections(::TupleRoster)  = ("units/1/out" => "units/2/e",)
-u_connections(::TupleRoster)  = ("in" => "units/1/e",)
-y_connections(::TupleRoster) = ("units/2/out" => "y",)
+inner_wires(::TupleRoster)  = ("units/1/out" => "units/2/e",)
+input_wires(::TupleRoster)  = ("in" => "units/1/e",)
+output_wires(::TupleRoster) = ("units/2/out" => "y",)
 
 # --- class (§8.5) -------------------------------------------------------------
 # Class is read off *which* well-known declarations a type defines:
-# `inner_connections` the assembly marker, any leaf declaration a primitive's.
+# `inner_wires` the assembly marker, any leaf declaration a primitive's.
 
 struct Inert <: AbstractComponent end            # neither family: no class to read at all
 
@@ -23,13 +23,13 @@ struct TypoWithInert <: AbstractComponent        # §13.1's worked example, behi
     s::Sum
     z::Inert
 end
-inner_connections(::TypoWithInert)  = ("g/ot" => "s/a",)
-u_connections(::TypoWithInert)  = ("e" => "g/e", "b" => "s/b")
+inner_wires(::TypoWithInert)  = ("g/ot" => "s/a",)
+input_wires(::TypoWithInert)  = ("e" => "g/e", "b" => "s/b")
 
 struct BothFamilies <: AbstractComponent         # assembly marker beside a contract
     inner::Gain
 end
-inner_connections(::BothFamilies) = ()
+inner_wires(::BothFamilies) = ()
 x_init(::BothFamilies) = (;)
 y_types(::BothFamilies) = (a = Float64,)
 y_state(::BothFamilies, (; t)) = (a = 1.0,)
@@ -54,7 +54,7 @@ function assembly_class()
         # families rather than failing later and elsewhere.
         d = carried(@test_throws DiagnosticError{ClassUnreadable} classify("c", Inert()))
         @test d.path == "c" && !d.holds_components && d.type == "Inert"
-        @test d.assembly_family == [:inner_connections]   # both family lists, in hand
+        @test d.assembly_family == [:inner_wires]   # both family lists, in hand
         @test :y_types in d.leaf_family && :x_projection in d.leaf_family
         @test isempty(d.found)                            # and it declares none of them
 
@@ -146,13 +146,13 @@ end
 struct MixedContainer <: AbstractComponent
     kids::NamedTuple
 end
-inner_connections(::MixedContainer) = ()
+inner_wires(::MixedContainer) = ()
 
 struct EmptyRoster <: AbstractComponent          # parametric code needs no special case
     roster::NamedTuple
     src::ModedSource
 end
-inner_connections(::EmptyRoster) = ()
+inner_wires(::EmptyRoster) = ()
 
 function assembly_container_children()
     @testset "container children are path-named `field/key` and `field/1` (§8.5)" begin
@@ -215,29 +215,29 @@ end
 struct TransparentRoster{U <: NamedTuple} <: AbstractComponent
     units::U
 end
-inner_connections(::TransparentRoster)     = ("a/out" => "b/e",)
-u_connections(::TransparentRoster)     = ("in" => "a/e",)
-y_connections(::TransparentRoster)    = ("b/out" => "y",)
+inner_wires(::TransparentRoster)     = ("a/out" => "b/e",)
+input_wires(::TransparentRoster)     = ("in" => "a/e",)
+output_wires(::TransparentRoster)    = ("b/out" => "y",)
 transparent_container(::TransparentRoster) = :units
 
 struct Colliding <: AbstractComponent            # a bare key against a sibling field
     kids::NamedTuple
     c1::TickCounter
 end
-inner_connections(::Colliding) = ()
+inner_wires(::Colliding) = ()
 transparent_container(::Colliding) = :kids
 
 struct Pathological <: AbstractComponent         # ...and against another container's element
     kids::NamedTuple
     units::Tuple
 end
-inner_connections(::Pathological) = ()
+inner_wires(::Pathological) = ()
 transparent_container(::Pathological) = :kids
 
 struct SelfNamed <: AbstractComponent            # a bare key equal to its own field's name
     kids::NamedTuple
 end
-inner_connections(::SelfNamed) = ()
+inner_wires(::SelfNamed) = ()
 transparent_container(::SelfNamed) = :kids
 
 struct Shadowed{K <: NamedTuple, U <: Tuple} <: AbstractComponent
@@ -246,20 +246,20 @@ struct Shadowed{K <: NamedTuple, U <: Tuple} <: AbstractComponent
     trim::Gain
 end
 transparent_container(::Shadowed) = :kids
-inner_connections(::Shadowed)  = ("trim/out" => "units/e",)
-u_connections(::Shadowed)  = ("in" => "trim/e",)
-y_connections(::Shadowed) = ("units/out" => "y",)
+inner_wires(::Shadowed)  = ("trim/out" => "units/e",)
+input_wires(::Shadowed)  = ("in" => "trim/e",)
+output_wires(::Shadowed) = ("units/out" => "y",)
 
 struct OpaqueDeclared <: AbstractComponent       # the declaration names a component field
     c::TickCounter
 end
-inner_connections(::OpaqueDeclared) = ()
+inner_wires(::OpaqueDeclared) = ()
 transparent_container(::OpaqueDeclared) = :c
 
 struct AbsentDeclared <: AbstractComponent       # ...and here, no field of the type at all
     kids::NamedTuple
 end
-inner_connections(::AbsentDeclared) = ()
+inner_wires(::AbsentDeclared) = ()
 transparent_container(::AbsentDeclared) = :nope
 
 function assembly_transparent_containers()
@@ -343,15 +343,15 @@ function assembly_transparent_containers()
 
     @testset "`Group`'s keyword form normalizes a bare `Pair` (§8.5, D-211)" begin
         pair_group = Group((; c = Gain(2.0));
-                           inputs = "in" => "c/e", outputs = "c/out" => "y")
-        @test u_connections(pair_group) == ("in" => "c/e",)
-        @test y_connections(pair_group) == ("c/out" => "y",)
-        @test inner_connections(pair_group) == () && sample_times(pair_group) == (;)
+                           input_wires = "in" => "c/e", output_wires = "c/out" => "y")
+        @test input_wires(pair_group) == ("in" => "c/e",)
+        @test output_wires(pair_group) == ("c/out" => "y",)
+        @test inner_wires(pair_group) == () && sample_times(pair_group) == (;)
 
         # A tuple passes through as written, and every unnamed keyword is empty.
-        tuple_group = Group((; a = Gain(1.0), b = Gain(2.0)); wires = ("a/out" => "b/e",))
-        @test inner_connections(tuple_group) == ("a/out" => "b/e",)
-        @test u_connections(tuple_group) == () && y_connections(tuple_group) == ()
+        tuple_group = Group((; a = Gain(1.0), b = Gain(2.0)); inner_wires = ("a/out" => "b/e",))
+        @test inner_wires(tuple_group) == ("a/out" => "b/e",)
+        @test input_wires(tuple_group) == () && output_wires(tuple_group) == ()
 
         # The normalized declarations are the ones that build.
         sim = Simulation(pair_group; h = 1//10)
@@ -370,30 +370,30 @@ end
 struct ConcreteHold <: AbstractComponent
     inner::SampledLoop
 end
-inner_connections(::ConcreteHold) = ()
-u_connections(::ConcreteHold) = ("ref" => "inner/ref",)
-y_connections(::ConcreteHold) = ("inner/y" => "y",)
+inner_wires(::ConcreteHold) = ()
+input_wires(::ConcreteHold) = ("ref" => "inner/ref",)
+output_wires(::ConcreteHold) = ("inner/y" => "y",)
 
 struct GenericHold{L <: AbstractComponent} <: AbstractComponent
     inner::L
 end
-inner_connections(::GenericHold) = ()
-u_connections(::GenericHold) = ("ref" => "inner/ref",)
-y_connections(::GenericHold) = ("inner/y" => "y",)
+inner_wires(::GenericHold) = ()
+input_wires(::GenericHold) = ("ref" => "inner/ref",)
+output_wires(::GenericHold) = ("inner/y" => "y",)
 
 struct PastReach <: AbstractComponent            # one segment further: past it
     inner::SampledLoop
 end
-inner_connections(::PastReach) = ()
-u_connections(::PastReach) = ("ref" => "inner/sum/a",)
-y_connections(::PastReach) = ("inner/y" => "y",)
+inner_wires(::PastReach) = ()
+input_wires(::PastReach) = ("ref" => "inner/sum/a",)
+output_wires(::PastReach) = ("inner/y" => "y",)
 
 struct PastGenericReach{L <: AbstractComponent} <: AbstractComponent   # the same, generic
     inner::L
 end
-inner_connections(::PastGenericReach) = ()
-u_connections(::PastGenericReach) = ("ref" => "inner/sum/a",)
-y_connections(::PastGenericReach) = ("inner/y" => "y",)
+inner_wires(::PastGenericReach) = ()
+input_wires(::PastGenericReach) = ("ref" => "inner/sum/a",)
+output_wires(::PastGenericReach) = ("inner/y" => "y",)
 
 function assembly_paths()
     @testset "a wiring endpoint names one child and one of its faces (§6.1, D-207)" begin
@@ -435,20 +435,20 @@ struct BackwardsWire <: AbstractComponent        # a consumer endpoint on a port
     a::ModedSource
     b::Gain
 end
-inner_connections(::BackwardsWire) = ("a/out" => "b/out",)
+inner_wires(::BackwardsWire) = ("a/out" => "b/out",)
 
 struct BackwardsFace <: AbstractComponent        # a producer endpoint on a face
     a::ModedSource
     b::Gain
 end
-inner_connections(::BackwardsFace) = ("a/out" => "b/e",)
-y_connections(::BackwardsFace) = ("b/e" => "y",)
+inner_wires(::BackwardsFace) = ("a/out" => "b/e",)
+output_wires(::BackwardsFace) = ("b/e" => "y",)
 
 struct SlashedFace <: AbstractComponent
     a::ModedSource
 end
-inner_connections(::SlashedFace) = ()
-y_connections(::SlashedFace) = ("a/out" => "sensors/out",)
+inner_wires(::SlashedFace) = ()
+output_wires(::SlashedFace) = ("a/out" => "sensors/out",)
 
 struct RootCollision <: AbstractComponent        # one key in both contracts
 end
@@ -460,29 +460,29 @@ y_direct(::RootCollision, (; u)) = (u = 2u.u, v = 1.0)
 struct DeadFace <: AbstractComponent             # a face routed to nothing at all
     g::Gain
 end
-inner_connections(::DeadFace) = ()
-u_connections(::DeadFace) = ("in" => "g/e", "dead" => ())
-y_connections(::DeadFace) = ("g/out" => "y",)
+inner_wires(::DeadFace) = ()
+input_wires(::DeadFace) = ("in" => "g/e", "dead" => ())
+output_wires(::DeadFace) = ("g/out" => "y",)
 
 struct CollidingFaces <: AbstractComponent
     a::ModedSource
     b::Gain
 end
-inner_connections(::CollidingFaces) = ("a/out" => "b/e",)
-u_connections(::CollidingFaces) = ("y" => "b/e",)
-y_connections(::CollidingFaces) = ("b/out" => "y",)
+inner_wires(::CollidingFaces) = ("a/out" => "b/e",)
+input_wires(::CollidingFaces) = ("y" => "b/e",)
+output_wires(::CollidingFaces) = ("b/out" => "y",)
 
-function assembly_connections()
+function assembly_wires()
     @testset "direction is declared by the method, endpoints cross-check it (§8.6)" begin
         err = failure(() -> build(BackwardsWire(ModedSource(), Gain(1.0))))
         d = only(filter(x -> x isa FaceDirectionConflict, diagnostics(err)))
         @test d.wanted === :consumer && d.found === :output
-        @test startswith(d.entry, "inner_connections")
+        @test startswith(d.entry, "inner_wires")
 
         err = failure(() -> build(BackwardsFace(ModedSource(), Gain(1.0))))
         d = only(filter(x -> x isa FaceDirectionConflict, diagnostics(err)))
         @test d.wanted === :producer && d.found === :input
-        @test startswith(d.entry, "y_connections")
+        @test startswith(d.entry, "output_wires")
     end
 
     @testset "face names carry two invariants (§8.6)" begin
@@ -516,7 +516,7 @@ function assembly_connections()
         @test build(fed(RootCollision(), "u")) isa Build
     end
 
-    @testset "a `u_connections` entry routes to at least one endpoint (§8.6, D-210)" begin
+    @testset "an `input_wires` entry routes to at least one endpoint (§8.6, D-210)" begin
         # At the root and one level down alike, and at declaration: the entry is
         # named, and the refusal is a declaration error rather than the starvation
         # further down the tree that the shape used to surface as.
@@ -524,14 +524,14 @@ function assembly_connections()
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa UnknownPort && d.endpoint === :connection && d.port === :dead
-        @test startswith(d.entry, "u_connections at the root component")
+        @test startswith(d.entry, "input_wires at the root component")
 
-        nested = Group((; sub = DeadFace(Gain(2.0))); inputs = ("in" => "sub/in",))
+        nested = Group((; sub = DeadFace(Gain(2.0))); input_wires = ("in" => "sub/in",))
         err = failure(() -> build(nested))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa UnknownPort && d.endpoint === :connection && d.path == "sub"
-        @test startswith(d.entry, "u_connections at `sub`")
+        @test startswith(d.entry, "input_wires at `sub`")
 
         # The misdiagnosis this closes: the dead face used to build, and a condition
         # addressing it read "declares no input face" — byte-identical to the message
@@ -660,35 +660,35 @@ end
 struct Starved <: AbstractComponent              # an obligation chain that never ends
     g::Gain
 end
-inner_connections(::Starved) = ()
+inner_wires(::Starved) = ()
 
 struct DoubleFed <: AbstractComponent            # two producers onto one face
     loop::SampledLoop
     src::ModedSource
     src2::ModedSource
 end
-inner_connections(::DoubleFed) = ("src/out" => "loop/ref", "src2/out" => "loop/ref")
+inner_wires(::DoubleFed) = ("src/out" => "loop/ref", "src2/out" => "loop/ref")
 
 struct Doubler <: AbstractComponent              # its own wire onto the input its face routes to
     s::ModedSource
     g::Gain
 end
-inner_connections(::Doubler) = ("s/out" => "g/e",)
-u_connections(::Doubler) = ("in" => "g/e",)
-y_connections(::Doubler) = ("g/out" => "y",)
+inner_wires(::Doubler) = ("s/out" => "g/e",)
+input_wires(::Doubler) = ("in" => "g/e",)
+output_wires(::Doubler) = ("g/out" => "y",)
 
 struct DoubleFedSibling <: AbstractComponent     # an ancestor's route onto a wired input
     loop::Doubler
     src::ModedSource
 end
-inner_connections(::DoubleFedSibling) = ("src/out" => "loop/in",)
+inner_wires(::DoubleFedSibling) = ("src/out" => "loop/in",)
 
 struct WireTypo <: AbstractComponent             # §13.1's worked example: `out` misspelt
     g::Gain
     s::Sum
 end
-inner_connections(::WireTypo) = ("g/ot" => "s/a",)
-u_connections(::WireTypo) = ("e" => "g/e", "b" => "s/b")
+inner_wires(::WireTypo) = ("g/ot" => "s/a",)
+input_wires(::WireTypo) = ("e" => "g/e", "b" => "s/b")
 
 function assembly_obligations()
     @testset "every input is fed exactly once, across levels (§6.1)" begin
@@ -711,8 +711,8 @@ function assembly_obligations()
                                                    ModedSource())))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
-        @test d isa TwoProducers && startswith(d.incumbent, "inner_connections at `loop`") &&
-              startswith(d.entry, "inner_connections at the root component")
+        @test d isa TwoProducers && startswith(d.incumbent, "inner_wires at `loop`") &&
+              startswith(d.entry, "inner_wires at the root component")
         @test d.incumbent_producer == "`loop/s`.out" && d.producer == "`src`.out"
 
         # §13.1's worked example (D-229): the typo'd wire is recorded and claims
@@ -728,11 +728,11 @@ function assembly_obligations()
         # A face is resolved once, where it is declared: three parent wires reading
         # a child face whose route is broken report the child's refusal once, not
         # once per wire, and each input the wires left unfed once beside it (D-229).
-        inner = Group((; a = Gain(1.0)); inputs = ("f" => "a/e",),
-                      outputs = ("a/outt" => "y",))
+        inner = Group((; a = Gain(1.0)); input_wires = ("f" => "a/e",),
+                      output_wires = ("a/outt" => "y",))
         err = failure(() -> build(Group((; i = inner, g1 = Gain(1.0), g2 = Gain(2.0),
                                           g3 = Gain(3.0));
-                                        wires = ("i/y" => "g1/e", "i/y" => "g2/e",
+                                        inner_wires = ("i/y" => "g1/e", "i/y" => "g2/e",
                                                  "i/y" => "g3/e"))))
         @test count(d -> d isa UnknownPort, diagnostics(err)) == 1
         d = only(filter(x -> x isa UnknownPort, diagnostics(err)))
@@ -746,16 +746,16 @@ function assembly_obligations()
 
         # The parent's own typo against a child face is still its own refusal, and
         # the candidates are the child's face list.
-        good = Group((; a = Gain(1.0)); inputs = ("f" => "a/e",), outputs = ("a/out" => "y",))
+        good = Group((; a = Gain(1.0)); input_wires = ("f" => "a/e",), output_wires = ("a/out" => "y",))
         err = failure(() -> build(Group((; src = Gain(1.0), inner = good);
-                                        wires = ("src/out" => "inner/g",),
-                                        inputs = ("u" => "src/e",))))
+                                        inner_wires = ("src/out" => "inner/g",),
+                                        input_wires = ("u" => "src/e",))))
         d = only(filter(x -> x isa UnknownPort, diagnostics(err)))
         @test d.path == "inner" && d.port === :g && d.candidates == [:f, :y]
 
         # The one legitimate terminus: the root's own input faces are the root inputs,
         # authored by the init service's condition (§11.3, §14.6).
-        sim = Simulation(Group((; c = Gain(2.0)); inputs = ("in" => "c/e",));
+        sim = Simulation(Group((; c = Gain(2.0)); input_wires = ("in" => "c/e",));
                          h = 1//100)
         @test sim.deployment.build.structure.root_inputs == [:in]
         init!(sim, fragment(u = (in = 0.0,)))
@@ -766,17 +766,17 @@ function assembly_obligations()
 end
 
 # --- §13.3's primitives and §8.8's passthrough pair -----------------------------
-# The declaration surface computing its own boundary: `u_connections` and
-# `y_connections` are ordinary functions of the instance, so an assembly may
+# The declaration surface computing its own boundary: `input_wires` and
+# `output_wires` are ordinary functions of the instance, so an assembly may
 # derive its entries from a child's contract. The helpers are the pass-through
 # case, and everything they return is an ordinary pair.
 
 # The child under test: two input faces and two output faces, so both filters
 # have something to bite on either side.
 faced() = Group((; s = Sum(), g = Gain(2.0));
-                wires = "s/e" => "g/e",
-                inputs = ("a" => "s/a", "b" => "s/b"),
-                outputs = ("s/e" => "sum", "g/out" => "scaled"))
+                inner_wires = "s/e" => "g/e",
+                input_wires = ("a" => "s/a", "b" => "s/b"),
+                output_wires = ("s/e" => "sum", "g/out" => "scaled"))
 
 # `a` is fed here, so it leaves the input face surface; `b` is passed through,
 # and `scaled` is re-exported one level up. Nothing else about the two
@@ -785,10 +785,10 @@ struct Passed{C <: AbstractComponent} <: AbstractComponent
     inner::C
     trim::Gain
 end
-inner_connections(::Passed) = ("trim/out" => "inner/a",)
-u_connections(p::Passed) = (input_passthrough(p, "inner"; except = ("a",))...,
+inner_wires(::Passed) = ("trim/out" => "inner/a",)
+input_wires(p::Passed) = (input_passthrough(p, "inner"; except = ("a",))...,
                             "e" => "trim/e")
-y_connections(p::Passed) = output_passthrough(p, "inner"; only = ("scaled",))
+output_wires(p::Passed) = output_passthrough(p, "inner"; only = ("scaled",))
 
 # The same assembly with both boundaries written out by hand: the twin the
 # computed one must match entry for entry.
@@ -796,9 +796,9 @@ struct HandWired{C <: AbstractComponent} <: AbstractComponent
     inner::C
     trim::Gain
 end
-inner_connections(::HandWired) = ("trim/out" => "inner/a",)
-u_connections(::HandWired) = ("inner.b" => "inner/b", "e" => "trim/e")
-y_connections(::HandWired) = ("inner/scaled" => "inner.scaled",)
+inner_wires(::HandWired) = ("trim/out" => "inner/a",)
+input_wires(::HandWired) = ("inner.b" => "inner/b", "e" => "trim/e")
+output_wires(::HandWired) = ("inner/scaled" => "inner.scaled",)
 
 # `prefix = ""` drops the prefixing, and the bare `b` then collides with the
 # hand-written face beside it — the build's own uniqueness check, not the
@@ -807,8 +807,8 @@ struct Unprefixed{C <: AbstractComponent} <: AbstractComponent
     inner::C
     trim::Gain
 end
-inner_connections(::Unprefixed) = ("trim/out" => "inner/a",)
-u_connections(u::Unprefixed) =
+inner_wires(::Unprefixed) = ("trim/out" => "inner/a",)
+input_wires(u::Unprefixed) =
     (input_passthrough(u, "inner"; prefix = "", except = ("a",))..., "b" => "trim/e")
 
 # A face both wired and passed through: `except` is missing `a`, so the wire and
@@ -817,8 +817,8 @@ struct DoubleClaimed{C <: AbstractComponent} <: AbstractComponent
     inner::C
     trim::Gain
 end
-inner_connections(::DoubleClaimed) = ("trim/out" => "inner/a",)
-u_connections(d::DoubleClaimed) = (input_passthrough(d, "inner")..., "e" => "trim/e")
+inner_wires(::DoubleClaimed) = ("trim/out" => "inner/a",)
+input_wires(d::DoubleClaimed) = (input_passthrough(d, "inner")..., "e" => "trim/e")
 
 # The same computed boundary over a name-transparent container: the helper's
 # `child_path` is a bare key, and the `Group` it names is a child like any other
@@ -827,10 +827,10 @@ struct PassedGroup{U <: NamedTuple} <: AbstractComponent
     units::U
 end
 transparent_container(::PassedGroup) = :units
-inner_connections(::PassedGroup) = ("trim/out" => "inner/a",)
-u_connections(p::PassedGroup) = (input_passthrough(p, "inner"; except = ("a",))...,
+inner_wires(::PassedGroup) = ("trim/out" => "inner/a",)
+input_wires(p::PassedGroup) = (input_passthrough(p, "inner"; except = ("a",))...,
                                  "e" => "trim/e")
-y_connections(p::PassedGroup) = output_passthrough(p, "inner"; only = ("scaled",))
+output_wires(p::PassedGroup) = output_passthrough(p, "inner"; only = ("scaled",))
 
 # A child whose input faces are declared out of alphabetical order, under a
 # parent whose body sorts the list a primitive handed it before computing its
@@ -838,16 +838,16 @@ y_connections(p::PassedGroup) = output_passthrough(p, "inner"; only = ("scaled",
 # primitives read them (§13.3, Appendix C), so what a caller does with the list
 # it got must not reach that record.
 unsorted_faces() = Group((; p = Gain(1.0), q = Gain(2.0), r = Gain(3.0));
-                         inputs = ("c" => "p/e", "a" => "q/e", "b" => "r/e"),
-                         outputs = ("p/out" => "out",))
+                         input_wires = ("c" => "p/e", "a" => "q/e", "b" => "r/e"),
+                         output_wires = ("p/out" => "out",))
 
 struct MutatedFaces{C <: AbstractComponent} <: AbstractComponent
     k::C
 end
-inner_connections(::MutatedFaces) = ()
-u_connections(p::MutatedFaces) =
+inner_wires(::MutatedFaces) = ()
+input_wires(p::MutatedFaces) =
     (sort!(input_faces(resolve(p, "k"))); input_passthrough(p, "k"))
-y_connections(p::MutatedFaces) = output_passthrough(p, "k")
+output_wires(p::MutatedFaces) = output_passthrough(p, "k")
 
 # The same producer inside a build: a `select` accepting no face keeps nothing,
 # so the warning reaches the `Build` through the channel rather than the log
@@ -857,19 +857,19 @@ struct SelectedNothing <: AbstractComponent
     g::Gain
     src::Gain
 end
-inner_connections(::SelectedNothing) = ("src/out" => "g/e",)
-u_connections(a::SelectedNothing) = (input_passthrough(a, "g"; select = _ -> false)...,
+inner_wires(::SelectedNothing) = ("src/out" => "g/e",)
+input_wires(a::SelectedNothing) = (input_passthrough(a, "g"; select = _ -> false)...,
                                      "in" => "src/e")
-y_connections(::SelectedNothing) = ("g/out" => "out",)
+output_wires(::SelectedNothing) = ("g/out" => "out",)
 
 # The output side's producer: `except` names the gain's only output face, and
 # the hand-written entry beside it exports that face itself.
 struct OutputSelectedNothing <: AbstractComponent
     g::Gain
 end
-inner_connections(::OutputSelectedNothing) = ()
-u_connections(::OutputSelectedNothing) = ("in" => "g/e",)
-y_connections(a::OutputSelectedNothing) =
+inner_wires(::OutputSelectedNothing) = ()
+input_wires(::OutputSelectedNothing) = ("in" => "g/e",)
+output_wires(a::OutputSelectedNothing) =
     (output_passthrough(a, "g"; except = ("out",))..., "g/out" => "out")
 
 # §8.8's feed-list idiom, the spec's sketch against the real helpers. An assembly
@@ -907,8 +907,8 @@ y_direct(::Aero, (; u)) = (wrench = u.e + u.a + u.r + u.alpha,)
 # names the sketch's destinations use (`"ldg/left.brake"`): a face name with a
 # dot is a legal final path segment, slash being the one structural separator.
 ldg() = Group((; left = Gain(1.0), right = Gain(1.0));
-              inputs = ("left.brake" => "left/e", "right.brake" => "right/e"),
-              outputs = ("left/out" => "left.force", "right/out" => "right.force"))
+              input_wires = ("left.brake" => "left/e", "right.brake" => "right/e"),
+              output_wires = ("left/out" => "left.force", "right/out" => "right.force"))
 
 # The one authored artifact: actuator output face => destination child input
 # face. The second list adds a pair, the one edit that creates the wire and
@@ -940,12 +940,12 @@ act_feeds(::Systems{:one}) = ACT_FEEDS
 act_feeds(::Systems{:two}) = ACT_FEEDS2
 act_feeds(::Systems{:typo}) = ACT_FEEDS3
 
-inner_connections(s::Systems) = Tuple(("act/" * src) => dst for (src, dst) in act_feeds(s))
-u_connections(s::Systems) =
+inner_wires(s::Systems) = Tuple(("act/" * src) => dst for (src, dst) in act_feeds(s))
+input_wires(s::Systems) =
     (input_passthrough(s, "aero"; except = fed_faces(act_feeds(s), "aero"))...,
      input_passthrough(s, "ldg";  except = fed_faces(act_feeds(s), "ldg"))...,
      "cmd" => "act/cmd")
-y_connections(::Systems) = ("aero/wrench" => "wrench",)
+output_wires(::Systems) = ("aero/wrench" => "wrench",)
 
 function assembly_primitives()
     @testset "the §13.3 primitives resolve one level and list faces in order" begin
@@ -975,10 +975,10 @@ function assembly_primitives()
         passed, wired = Passed(faced(), Gain(3.0)), HandWired(faced(), Gain(3.0))
 
         # The computed entries are the authored ones, pair for pair.
-        @test u_connections(passed) == u_connections(wired)
-        @test y_connections(passed) == y_connections(wired)
-        @test u_connections(passed) == ("inner.b" => "inner/b", "e" => "trim/e")
-        @test y_connections(passed) == ("inner/scaled" => "inner.scaled",)
+        @test input_wires(passed) == input_wires(wired)
+        @test output_wires(passed) == output_wires(wired)
+        @test input_wires(passed) == ("inner.b" => "inner/b", "e" => "trim/e")
+        @test output_wires(passed) == ("inner/scaled" => "inner.scaled",)
 
         # And the two builds are the same model: same root inputs, same exported
         # faces, same schedule, same trajectory.
@@ -1001,7 +1001,7 @@ function assembly_primitives()
         # then computed from. The child's declaration order survives both the
         # standalone call and the build.
         component = MutatedFaces(unsorted_faces())
-        @test u_connections(component) ==
+        @test input_wires(component) ==
               ("k.c" => "k/c", "k.a" => "k/a", "k.b" => "k/b")
         @test build(component).structure.root_inputs == [:var"k.c", :var"k.a", :var"k.b"]
     end
@@ -1103,16 +1103,16 @@ function assembly_primitives()
         err = failure(() -> build(DoubleClaimed(faced(), Gain(3.0))))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
-        @test d isa TwoProducers && startswith(d.incumbent, "inner_connections") &&
-              startswith(d.entry, "u_connections")
+        @test d isa TwoProducers && startswith(d.incumbent, "inner_wires") &&
+              startswith(d.entry, "input_wires")
         # The root's own face is the second producer, and spells as one.
         @test d.incumbent_producer == "`trim`.out" && d.producer == "root input `inner.a`"
     end
 
     @testset "the helpers address a transparent container's child by bare key (D-211)" begin
         group = PassedGroup((inner = faced(), trim = Gain(3.0)))
-        @test u_connections(group) == ("inner.b" => "inner/b", "e" => "trim/e")
-        @test y_connections(group) == ("inner/scaled" => "inner.scaled",)
+        @test input_wires(group) == ("inner.b" => "inner/b", "e" => "trim/e")
+        @test output_wires(group) == ("inner/scaled" => "inner.scaled",)
 
         sim = Simulation(group; h = 1//10)
         @test paths(sim.deployment.build.structure) == ["inner/s", "inner/g", "trim"]
@@ -1127,12 +1127,12 @@ function assembly_primitives()
         @test fed_faces(ACT_FEEDS, "ldg") == ("left.brake",)
 
         systems = Systems{:one}(ldg())
-        @test inner_connections(systems) == ("act/e" => "aero/e", "act/a" => "aero/a",
+        @test inner_wires(systems) == ("act/e" => "aero/e", "act/a" => "aero/a",
                                              "act/r" => "aero/r",
                                              "act/brake_left" => "ldg/left.brake")
         # What the list does not feed is what the boundary exposes: `alpha`, the
         # right brake, and the actuator's own hand-written `cmd`.
-        @test u_connections(systems) == ("aero.alpha" => "aero/alpha",
+        @test input_wires(systems) == ("aero.alpha" => "aero/alpha",
                                          "ldg.right.brake" => "ldg/right.brake",
                                          "cmd" => "act/cmd")
 
@@ -1205,8 +1205,8 @@ function assembly_child_lists()
         # The list names no path, so each loop's output route still runs through
         # its own children.
         twins = Group((a = SampledLoop(), b = SampledLoop());
-                      inputs = "ref" => ("a/ref", "b/ref"),
-                      outputs = ("a/y" => "a_y", "b/y" => "b_y"))
+                      input_wires = "ref" => ("a/ref", "b/ref"),
+                      output_wires = ("a/y" => "a_y", "b/y" => "b_y"))
         structure = build(twins).structure
         for loop_path in ("a", "b")
             @test ((loop_path, :y) => [(loop_path * "/plant", :y)]) in structure.out_routes
@@ -1241,7 +1241,7 @@ function test_assembly()
     assembly_container_children()
     assembly_transparent_containers()
     assembly_paths()
-    assembly_connections()
+    assembly_wires()
     assembly_two_level()
     assembly_rate_chains()
     assembly_obligations()

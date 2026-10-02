@@ -8,7 +8,7 @@ function test_localization()
         # Linear trajectory: RK4 and the cubic Hermite are both exact, so the stamp
         # isolates the localization machinery itself — t* within the bracket width.
         model = Group((; src = Sawtooth(1.0), s = Stamper(0.315));
-                      wires = ("src/q" => "s/sig",))
+                      inner_wires = ("src/q" => "s/sig",))
         sim = Simulation(model; h = 1//10)
         init!(sim)
         step!(sim; t_plus = 0.5)
@@ -38,7 +38,7 @@ function test_localization()
         # the error budget is the Hermite's O(h⁴) plus RK4's own global error.
         model = Group((; src = Rotor(; ω = 1.0, r₀ = SVector(-1.0, 0.0)),
                        s = Stamper(-0.5));
-                  wires = ("src/c" => "s/sig",))
+                  inner_wires = ("src/c" => "s/sig",))
         sim = Simulation(model; h = 1//10)
         init!(sim)
         run!(sim; t_end = 1.5)
@@ -66,7 +66,7 @@ function test_localization()
         # σ₁ = 0, every interior trial is not-holding, and the localization result
         # is discarded — one boundary, one firing, stamping the indexed grid time.
         model = Group((; src = Ramp(0.0), s = Stamper(0.4));
-                      wires = ("src/out" => "s/sig",))
+                      inner_wires = ("src/out" => "s/sig",))
         sim = Simulation(model; h = 1//10)
         init!(sim)
         run!(sim; t_end = 0.6)
@@ -77,7 +77,7 @@ function test_localization()
     @testset "multiple crossings in one frame: earliest first, re-localized on the remainder" begin
         two_stamper_model() = Group(
                      (; src = Sawtooth(1.0), s1 = Stamper(0.31), s2 = Stamper(0.34));
-                     wires = ("src/q" => "s1/sig",
+                     inner_wires = ("src/q" => "s1/sig",
                               "src/q" => "s2/sig"))
         sim = Simulation(two_stamper_model(); h = 1//10)
         init!(sim)
@@ -91,7 +91,7 @@ function test_localization()
         # and no ChatteringBudget degradation is seen.
         tied_model = Group(
                    (; src = Sawtooth(1.0), s1 = Stamper(0.315), s2 = Stamper(0.315));
-                   wires = ("src/q" => "s1/sig",
+                   inner_wires = ("src/q" => "s1/sig",
                             "src/q" => "s2/sig"))
         tied_sim = Simulation(tied_model; h = 1//10, localization_budget = 1)
         init!(tied_sim)
@@ -126,7 +126,7 @@ function test_localization()
         # folds into its ordinary iteration, 5e-5 late and within tolerance. A
         # per-segment tol·h′ would have kept trying, to 0.39995.
         model = Group((; src = Sawtooth(1.0), s1 = Stamper(0.399), s2 = Stamper(0.39995));
-                      wires = ("src/q" => "s1/sig", "src/q" => "s2/sig"))
+                      inner_wires = ("src/q" => "s1/sig", "src/q" => "s2/sig"))
         sim = Simulation(model; h = 1//10, localization_tol = 1e-3)
         init!(sim)
         @test_logs run!(sim; t_end = 0.5)
@@ -157,8 +157,8 @@ function test_localization()
 
     @testset "the gate idiom localizes; a gate flip is an epoch edge (§10.4)" begin
         gated_model() = Group((; src = Sawtooth(1.0), s = GatedStamper(0.315));
-                              wires = ("src/q" => "s/sig",),
-                              inputs = ("gate" => "s/gate",))
+                              inner_wires = ("src/q" => "s/sig",),
+                              input_wires = ("gate" => "s/gate",))
         b = build(gated_model())
         @test b.events.components[index_of(b.structure, "s")].policies === (cross = :localized,)
 
@@ -187,7 +187,7 @@ function test_localization()
         # full event phase but no g update — a spurious tick there would add the
         # mid-frame sample 0.1·q(t*) to the accumulator.
         model = Group((; src = Sawtooth(1.0), s = Stamper(0.315), ctl = DiscreteIntegrator(1.0));
-                      wires = ("src/q" => "s/sig",
+                      inner_wires = ("src/q" => "s/sig",
                                "src/q" => "ctl/e"))
         sim = Simulation(model; h = 1//10)
         init!(sim)
@@ -219,7 +219,7 @@ function test_localization()
     @testset "gate 3: localized frames do not allocate (§7.5)" begin
         # A quiet frame pays the arrival sweep and the trigger scan, nothing else.
         quiet_model = Group((; src = Sawtooth(0.1), s = Stamper(100.0));
-                            wires = ("src/q" => "s/sig",))
+                            inner_wires = ("src/q" => "s/sig",))
         quiet_sim = Simulation(quiet_model; h = 1//10)
         init!(quiet_sim)
         run!(quiet_sim; t_end = 0.2)

@@ -98,7 +98,7 @@ struct OpaqueRoster{K <: NamedTuple, R <: NamedTuple} <: AbstractComponent
     kids::K
     rates::R
 end
-inner_connections(::OpaqueRoster) = ()
+inner_wires(::OpaqueRoster) = ()
 sample_times(comp::OpaqueRoster) = comp.rates
 
 # A bare container key over a tuple of elements: one `Absolute` entry, applied
@@ -107,12 +107,12 @@ struct AnchoredBank <: AbstractComponent
     units::NTuple{2,TickCounter}
     clock::TickCounter
 end
-inner_connections(::AnchoredBank) = ()
+inner_wires(::AnchoredBank) = ()
 sample_times(::AnchoredBank) = (units = Absolute(Hz(10), 1//150), clock = Absolute(Hz(500)))
 
 function discrete_rate_fold()
     @testset "the fold validates with path attribution (§8.7, §9.1)" begin
-        rated(rates) = Group((; c = TickCounter()); rates = rates)
+        rated(rates) = Group((; c = TickCounter()); sample_times = rates)
 
         err = failure(() -> build(rated((; c = 2))))
         @test err isa DiagnosticError
@@ -142,15 +142,15 @@ function discrete_rate_fold()
 
         # A key on a continuous child is the Δt-on-continuous error at declaration
         # time: keys name discrete or scope children (§8.7).
-        err = failure(() -> build(Group((; c = Gain(1.0)); inputs = ("in" => "c/e",),
-                                        rates = (; c = Relative(2)))))
+        err = failure(() -> build(Group((; c = Gain(1.0)); input_wires = ("in" => "c/e",),
+                                        sample_times = (; c = Relative(2)))))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa RatesViolation && d.reason === :continuous_child && d.key === :c
 
         # A bare container field name applies one declaration to every element.
         sim = Simulation(Group((; c1 = TickCounter(), c2 = TickCounter());
-                               rates = (; children = Relative(2, 1))); h = 1//10)
+                               sample_times = (; children = Relative(2, 1))); h = 1//10)
         rows = sim.deployment.schedule.rows
         @test length(rows) == 2
         @test all(e.D == 2 && e.Φ == 1 for e in rows)
@@ -158,7 +158,7 @@ function discrete_rate_fold()
 
     @testset "bare rate keys drive the grid the composite ones did (§8.7, D-211)" begin
         bare = Simulation(Group((; a = TickCounter(), b = TickCounter());
-                                rates = (; a = Relative(2), b = Relative(3, 1))); h = 1//10)
+                                sample_times = (; a = Relative(2), b = Relative(3, 1))); h = 1//10)
         opaque = Simulation(OpaqueRoster((a = TickCounter(), b = TickCounter()),
                                          (; var"kids/a" = Relative(2),
                                             var"kids/b" = Relative(3, 1))); h = 1//10)
@@ -213,9 +213,9 @@ function discrete_rate_fold()
     @testset "relative scopes compose affinely; anchors sever (§10.5, §9.1)" begin
         # Under a scope at Relative(2, 1): D = K·Dₛ, Φ = Φₛ + φ·Dₛ.
         inner_group = Group((; a = TickCounter(), b = TickCounter());
-                            rates = (; a = Relative(1), b = Relative(5, 2)))
+                            sample_times = (; a = Relative(1), b = Relative(5, 2)))
         sim = Simulation(Group((; f = inner_group);
-                               rates = (; f = Relative(2, 1))); h = 1//100)
+                               sample_times = (; f = Relative(2, 1))); h = 1//100)
         @test [(e.D, e.Φ) for e in sim.deployment.schedule.rows] == [(2, 1), (10, 5)]
 
         # Neither has Φ = 0, so boundary zero admits neither; over base ticks 1…10,
@@ -229,9 +229,9 @@ function discrete_rate_fold()
         # An anchor severs: a relative child of an anchored subtree composes against
         # the anchor, not the enclosing grid — D = 3·D₁ with D₁ = (1//50)/(1//500).
         gps = Group((; rx = TickCounter());
-                    rates = (; rx = Relative(3)))
+                    sample_times = (; rx = Relative(3)))
         sim = Simulation(Group((; gps = gps);
-                               rates = (; gps = Absolute(Hz(50)))); h = 1//500)
+                               sample_times = (; gps = Absolute(Hz(50)))); h = 1//500)
         @test [(e.D, e.Φ) for e in sim.deployment.schedule.rows] == [(30, 0)]
     end
 end
@@ -412,7 +412,7 @@ function discrete_deployment()
         # A driving offset's refusal carries the repair: the nearest offsets on the
         # grid the rest of the pool already supports (§9.2, D-187).
         offset = Group((; a = TickCounter(), b = TickCounter());
-                       rates = (; a = Absolute(Hz(500)), b = Absolute(Hz(10), 1//150)))
+                       sample_times = (; a = Absolute(Hz(500)), b = Absolute(Hz(10), 1//150)))
         d = only(diagnostics(failure(() -> Simulation(offset; h = 1//500))))
         @test d isa DeploymentInvalid && d.reason === :anchor_offset
         @test d.grid.admissible == 1//1500
@@ -445,7 +445,7 @@ function discrete_deployment()
         # All anchored: the pool is every period and every nonzero offset, and the
         # derived value is its GCD — the offset drives the grid 2× finer here.
         anchored = Group((; c = TickCounter());
-                         rates = (; c = Absolute(Hz(50), 1//100)))
+                         sample_times = (; c = Absolute(Hz(50), 1//100)))
         sim = @test_logs (:info, r"derived") (:warn, r"^GridUtilization") Simulation(
             anchored; h = 1//500, Δt_base = :derive)
         @test sim.deployment.Δt_base == 0.01 && sim.deployment.N_base == 5
@@ -468,7 +468,7 @@ function discrete_deployment()
         # 1//150 s. The offset's denominator brings the prime 3 the rest of the pool
         # has not, so the derived grid is three times finer than the 500 Hz period.
         comp = Group((; a = TickCounter(), b = TickCounter());
-                     rates = (; a = Absolute(Hz(500)), b = Absolute(Hz(10), 1//150)))
+                     sample_times = (; a = Absolute(Hz(500)), b = Absolute(Hz(10), 1//150)))
         deployment = @test_logs (:info, r"derived") (:warn, r"^GridUtilization") Deployment(
             build(comp); h = 1//1500, Δt_base = :derive)
         grid = deployment.grid
@@ -511,7 +511,7 @@ function discrete_deployment()
         # period itself, the fastest work fills every base tick, and `u == 1` is no
         # information — the line prints, nothing warns.
         plain = Group((; a = TickCounter(), b = TickCounter());
-                      rates = (; a = Absolute(Hz(500)), b = Absolute(Hz(10))))
+                      sample_times = (; a = Absolute(Hz(500)), b = Absolute(Hz(10))))
         deployment2 = @test_logs (:info, r"derived") Deployment(build(plain); h = 1//500,
                                                                 Δt_base = :derive)
         @test deployment2.grid.admissible == 1//500 &&
@@ -522,7 +522,7 @@ function discrete_deployment()
         # Where every entry divides what the others already give, no entry refines
         # another and the line says exactly that.
         harmonic = Group((; a = TickCounter(), b = TickCounter(), c = TickCounter());
-                         rates = (; a = Absolute(Hz(4)), b = Absolute(Hz(6)),
+                         sample_times = (; a = Absolute(Hz(4)), b = Absolute(Hz(6)),
                                     c = Absolute(Hz(12))))
         deployment3 = @test_logs (:info, r"no entry refines another") Deployment(
             build(harmonic); h = 1//12, Δt_base = :derive)
@@ -540,9 +540,9 @@ function discrete_deployment()
         # from the t₀ table — the ramp *at t₀*, not the build probe's value; the
         # dueness the gate reads at index 0 governs the `s_update` updates alone (§10.5).
         late = Group((; src = Ramp(5.0), z = ZOH());
-                     wires = ("src/out" => "z/in",),
-                     outputs = ("z/out" => "y",),
-                     rates = (; z = Relative(2, 1)))
+                     inner_wires = ("src/out" => "z/in",),
+                     output_wires = ("z/out" => "y",),
+                     sample_times = (; z = Relative(2, 1)))
         sim = Simulation(late; h = 1//100)
         init!(sim)
         @test port(sim, "", :y) == 5.0                   # the ramp at t₀, evaluated

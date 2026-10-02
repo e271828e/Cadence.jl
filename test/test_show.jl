@@ -14,7 +14,7 @@ compact(x) = sprint(show, x)
 # `h = 1//1500`: `lcm(Dᵢ) = 150`, past the chart guard.
 function anchored_group()
     comp = Group((; a = TickCounter(), b = TickCounter());
-                 rates = (; a = Absolute(Hz(500)), b = Absolute(Hz(10), 1//150)))
+                 sample_times = (; a = Absolute(Hz(500)), b = Absolute(Hz(10), 1//150)))
     @test_logs (:info, r"derived") (:warn, r"^GridUtilization") Deployment(
         build(comp); h = 1//1500, Δt_base = :derive)
 end

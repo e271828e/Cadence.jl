@@ -335,14 +335,14 @@ knob_round(sim) = (pace!(sim, 2.0); margin!(sim, 0.01); (pace(sim), margin(sim))
 # `in`, `inner/g/e` through `inner`'s face to `gain_in`, and `inner/c/u` to
 # `ctl`'s output across the wire.
 panel_model() = Group((; inner = Group((; c = Pendulum(), g = Gain(2.0));
-                                       inputs = ("u" => "c/u", "e" => "g/e"),
-                                       outputs = ("c/θ" => "θ",)),
+                                       input_wires = ("u" => "c/u", "e" => "g/e"),
+                                       output_wires = ("c/θ" => "θ",)),
                          ctl = DiscreteIntegrator(1.0));
-                      wires = ("ctl/u" => "inner/u",),
-                      inputs = ("in" => "ctl/e", "gain_in" => "inner/e"))
+                      inner_wires = ("ctl/u" => "inner/u",),
+                      input_wires = ("in" => "ctl/e", "gain_in" => "inner/e"))
 
 # One root input fanned out to two ports.
-fanned_gains() = Group((; a = Gain(1.0), b = Gain(1.0)); inputs = ("in" => ("a/e", "b/e"),))
+fanned_gains() = Group((; a = Gain(1.0), b = Gain(1.0)); input_wires = ("in" => ("a/e", "b/e"),))
 
 # The incumbent's record off the latest snapshot once it reads `:done`, else
 # `nothing`.
@@ -585,7 +585,7 @@ function test_devices()
         # inside `_await_loop`'s `try`, which retries it.
         for stop_on in ((), ("held",)), interrupt_count in (1, 2)
             recorder = LoopRecorder()
-            model = Group((; c = recorder); outputs = ("c/held" => "held",))
+            model = Group((; c = recorder); output_wires = ("c/held" => "held",))
             sim = Simulation(model; h = 1//10)
             dev = HeldInline()
             attach!(sim, dev, Enumerated())

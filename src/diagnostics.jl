@@ -322,12 +322,12 @@ end
 path(d::UnknownPort) = d.path
 message(d::UnknownPort) =
     d.endpoint === :connection ?
-    "$(d.entry): the entry routes to no internal endpoint — every `u_connections` " *
+    "$(d.entry): the entry routes to no internal endpoint — every `input_wires` " *
     "entry routes to at least one, a face feeding nothing declaring nothing (§8.6)" :
     "$(d.entry): `$(d.spelling)` names no `$(d.port)` on $(_at_path(d.path)) — its " *
     "faces are $(_plainlist(d.candidates))"
 
-"§6.1, §8.4 w2: an input no wire and no `u_connections` chain feeds."
+"§6.1, §8.4 w2: an input no inner wire and no `input_wires` chain feeds."
 Base.@kwdef struct UnconnectedInput <: Diagnostic
     path::String
     face::Symbol
@@ -339,7 +339,7 @@ message(d::UnconnectedInput) =
     "`$(d.path)`.$(d.face) declared $(d.declared) is fed by nothing" *
     (d.level == d.path ? "" :
      ", handed up to $(_at_path(d.level)) and fed by nothing there") *
-    " — every input is fed exactly once, by a wire or by a `u_connections` chain " *
+    " — every input is fed exactly once, by an inner wire or by an `input_wires` chain " *
     "ending at a root input face (§6.1)"
 
 "§6.1, §8.8: an input claimed twice, both producers named with their declarations."
@@ -526,7 +526,7 @@ message(d::ClassUnreadable) =
     "$(_namelist(d.leaf_family)) a primitive (§8.5)" *
     (isempty(d.found) ? "" : " — it declares $(_namelist(d.found))") *
     (d.holds_components ?
-     " — it holds components but declares no `inner_connections`" : "")
+     " — it holds components but declares no `inner_wires`" : "")
 
 "§8.5: a component declaring both families — an assembly owns no state and no contract."
 Base.@kwdef struct ClassMixed <: Diagnostic
@@ -535,7 +535,7 @@ Base.@kwdef struct ClassMixed <: Diagnostic
 end
 path(d::ClassMixed) = d.path
 message(d::ClassMixed) =
-    "$(_at_path(d.path)) declares `inner_connections` and the leaf declaration(s) " *
+    "$(_at_path(d.path)) declares `inner_wires` and the leaf declaration(s) " *
     "$(_plainlist(d.declarations)) — an assembly owns no state and no contract of its " *
     "own (§8.5)"
 
@@ -614,7 +614,7 @@ message(d::FaceNameCollision) =
     "primitive's faces are its `u_types` and `y_types` keys together, and a key " *
     "declared in both is the same build error a duplicate assembly face name is (§8.6)" :
     "$(_at_path(d.path)): face name(s) $(_plainlist(d.faces)) appear twice — face names " *
-    "are unique across `u_connections` and `y_connections` together; to route " *
+    "are unique across `input_wires` and `output_wires` together; to route " *
     "one input face to several children, write `name => (path, path, …)` (§8.6)"
 
 "§8.6: an entry whose endpoint resolves to a port of the opposite direction."

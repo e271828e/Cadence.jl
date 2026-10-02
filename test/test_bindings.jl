@@ -5,7 +5,7 @@
 
 # A fed plant exporting its output: the root face set the output side reads —
 # one root input (`u`), one exported output face (`y`).
-outfaced() = Group((; p = Plant()); inputs = ("u" => "p/u",), outputs = ("p/y" => "y",))
+outfaced() = Group((; p = Plant()); input_wires = ("u" => "p/u",), output_wires = ("p/y" => "y",))
 
 # A boundary-driven output device (§11.2): the loop idiom verbatim — wait,
 # gather against the handle's compiled reads, map_output through its binding —

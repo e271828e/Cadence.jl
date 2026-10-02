@@ -4,22 +4,22 @@
 # resolved producer per input, and nothing downstream knows the tree existed.
 
 # --- class (§8.5) -------------------------------------------------------------
-# Class is not announced either: `inner_connections` is the assembly marker, any
+# Class is not announced either: `inner_wires` is the assembly marker, any
 # leaf declaration a primitive's, and the rule is total — a component-typed
 # struct declaring neither family has no class to read.
 
 @enum Class PRIMITIVE ASSEMBLY
 
-const ASSEMBLY_FAMILY = (:inner_connections,)
+const ASSEMBLY_FAMILY = (:inner_wires,)
 const LEAF_FAMILY = (:x_init, :s_init, :m_init, :ws_init, :u_types,
                      :y_types, :state_events, :y_state, :y_direct,
                      :x_deriv, :s_update, :x_projection)
 
 # The five `DECLARATION_FAMILY` names no leaf declaration covers: the assembly
 # marker, the two boundary declarations and the two sugars.
-const _OTHER_FAMILY = ((:inner_connections, inner_connections),
-                       (:u_connections, u_connections),
-                       (:y_connections, y_connections),
+const _OTHER_FAMILY = ((:inner_wires, inner_wires),
+                       (:input_wires, input_wires),
+                       (:output_wires, output_wires),
                        (:sample_times, sample_times),
                        (:transparent_container, transparent_container))
 
@@ -54,7 +54,7 @@ end
 """The class of `comp` at `path`, or a `DiagnosticError` naming what makes it unreadable."""
 function classify(path::String, @nospecialize(comp))
     leaves = leaf_declarations(comp)
-    if _declares(inner_connections, comp)
+    if _declares(inner_wires, comp)
         isempty(leaves) ||
             throw(DiagnosticError(ClassMixed(path = path, declarations = leaves)))
         return ASSEMBLY
@@ -288,30 +288,34 @@ specialization is unchanged; what is given up against a named type is dispatch,
 which exploratory composition does not want.
 """
 struct Group{C <: NamedTuple, W, I, O, R <: NamedTuple} <: AbstractComponent
-    children::C      # component-typed elements → children by the container rule
-    wires::W         # inert parameter data
-    inputs::I
-    outputs::O
-    rates::R         # the ad-hoc rate scope, keyed by bare element name (§8.7)
+    children::C       # component-typed elements → children by the container rule
+    inner_wires::W    # inert parameter data
+    input_wires::I
+    output_wires::O
+    sample_times::R   # the ad-hoc rate scope, keyed by bare element name (§8.7)
 end
 
 """
-    Group(children; wires = (), inputs = (), outputs = (), rates = (;))
+    Group(children; inner_wires = (), input_wires = (), output_wires = (),
+          sample_times = (;))
 
-The convenience form. A bare `Pair` passed for `wires`, `inputs` or `outputs` is
-the one-entry tuple — the declarations are ordered collections of pairs, and a
+The convenience form. Each keyword takes the name of the declaration it feeds.
+A bare `Pair` passed for `inner_wires`, `input_wires` or `output_wires` is the
+one-entry tuple — the declarations are ordered collections of pairs, and a
 single wire should not have to be written `("a/x" => "b/y",)`.
 """
-Group(children; wires = (), inputs = (), outputs = (), rates = (;)) =
-    Group(children, _entries(wires), _entries(inputs), _entries(outputs), rates)
+Group(children; inner_wires = (), input_wires = (), output_wires = (),
+      sample_times = (;)) =
+    Group(children, _entries(inner_wires), _entries(input_wires),
+          _entries(output_wires), sample_times)
 
-_entries(connections::Pair) = (connections,)
-_entries(connections) = connections
+_entries(wires::Pair) = (wires,)
+_entries(wires) = wires
 
-inner_connections(g::Group) = g.wires
-u_connections(g::Group) = g.inputs
-y_connections(g::Group) = g.outputs
-sample_times(g::Group) = g.rates
+inner_wires(g::Group) = g.inner_wires
+input_wires(g::Group) = g.input_wires
+output_wires(g::Group) = g.output_wires
+sample_times(g::Group) = g.sample_times
 transparent_container(::Group) = :children
 
 # --- paths (§8.6, §6.1) -------------------------------------------------------
@@ -438,7 +442,7 @@ _contract(fn, @nospecialize(comp)) =
     input_faces(comp) → Vector{String}
 
 A leaf's `u_types` keys — asked at the nominal `Float64`, the key set being
-`T`-independent — or an assembly's `u_connections` face names. Declaration
+`T`-independent — or an assembly's `input_wires` face names. Declaration
 order is preserved: deterministic printouts, stable diagnostics (§13.3). Inside a
 walk the walk has already evaluated the body once and this primitive does not
 evaluate it again (Appendix C); standalone the primitive evaluates it. Either way
@@ -446,20 +450,20 @@ the list returned is a fresh vector, the caller's to mutate.
 """
 input_faces(@nospecialize(comp)) = classify("", comp) === PRIMITIVE ?
                  String[String(k) for k in keys(_contract(u_types, comp))] :
-                 _walked_faces(comp, 1, u_connections, first)
+                 _walked_faces(comp, 1, input_wires, first)
 
 """
     output_faces(comp) → Vector{String}
 
 `input_faces`' mirror: a leaf's `y_types` keys, or an assembly's
-`y_connections` face names, in declaration order (§13.3). Inside a walk the
+`output_wires` face names, in declaration order (§13.3). Inside a walk the
 walk has already evaluated the body once and this primitive does not evaluate it
 again (Appendix C); standalone the primitive evaluates it. Either way the list
 returned is a fresh vector, the caller's to mutate.
 """
 output_faces(@nospecialize(comp)) = classify("", comp) === PRIMITIVE ?
                   String[String(k) for k in keys(_contract(y_types, comp))] :
-                  _walked_faces(comp, 2, y_connections, last)
+                  _walked_faces(comp, 2, output_wires, last)
 
 # The walk's list when the walk evaluated this assembly, the one body asked for
 # otherwise — one side per primitive, so that a miss evaluates only the body
@@ -476,7 +480,7 @@ function _walked_faces(@nospecialize(comp), side::Int, fn, face_of)
 end
 
 # --- §8.8's passthrough helpers -----------------------------------------------
-# `u_connections` and `y_connections` are ordinary functions evaluated
+# `input_wires` and `output_wires` are ordinary functions evaluated
 # at build against the concrete instance, so they may *compute* entries from
 # child contracts. These two are the framework's own sugar over the primitives
 # above — the pass-through case, where an assembly re-exports the faces of a
@@ -492,7 +496,7 @@ end
                       except = (), only = (), select = nothing)
 
 Every input face of `child_path` the assembly does not feed, exposed on its own
-boundary under `prefix * sep * face` — splatted into `u_connections` (§8.8).
+boundary under `prefix * sep * face` — splatted into `input_wires` (§8.8).
 The default `prefix` folds the path's slash into `sep`, so an undeclared
 container element (`"units/1"`) labels its faces `"units.1.…"` — a legal face
 name — by default; an explicit `prefix` is used verbatim, and `prefix = ""`
@@ -520,7 +524,7 @@ end
                        except = (), only = (), select = nothing)
 
 `input_passthrough`'s sibling on the outward boundary (D-209), splatted into
-`y_connections`: the same surface over `output_faces` — the same folded
+`output_wires`: the same surface over `output_faces` — the same folded
 default `prefix` included, and the same three exclusive selectors, one per
 call, `select` accepting face names and an empty selection warning
 `EmptyFaceSelection` (§8.8, D-251) — its pairs reading along the flow —
@@ -958,7 +962,7 @@ Base.@nospecializeinfer function flatten_tree!(draft::StructureDraft, @nospecial
     end
 
     # The obligation model (§6.1): an input is fed by a wire in some ancestor's
-    # `inner_connections` or by a `u_connections` chain handing it up level
+    # `inner_wires` or by an `input_wires` chain handing it up level
     # by level, and the chain that never terminates is the error. The one
     # legitimate unfed terminus is the root's own input face. A wire that failed
     # to resolve claimed nothing, so the input it should have fed is reported
@@ -978,7 +982,7 @@ Base.@nospecializeinfer function flatten_tree!(draft::StructureDraft, @nospecial
 end
 
 # The obligation chain's last level (§6.1): the topmost face a
-# `u_connections` chain handed `(path, face)` up to — the shortest route path
+# `input_wires` chain handed `(path, face)` up to — the shortest route path
 # naming it as a consumer, an ancestor's path being a prefix of the leaf's. The
 # leaf's own path when no route names it: `draft.routes` records only routes with
 # consumers, so an entry nobody handed up has no row.
@@ -1120,8 +1124,8 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
         # (D-246). Each body is evaluated exactly once and its entries reused by
         # the name check and by the face loop below: a warning raised inside one
         # fires once per call (Appendix C).
-        input_entries = invoke_declaration(u_connections, comp)
-        output_entries = invoke_declaration(y_connections, comp)
+        input_entries = invoke_declaration(input_wires, comp)
+        output_entries = invoke_declaration(output_wires, comp)
         # The evaluated lists, recorded for the primitives (`WALK_FACES`): the
         # readers are a parent's own body and its wire resolution, both later, so
         # nothing below this line reads the row just written.
@@ -1129,8 +1133,8 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
                              String[String(f) for (_, f) in output_entries])
         _check_face_names(path, input_entries, output_entries, diags)
 
-        for pair in invoke_declaration(inner_connections, comp)
-            entry = _entry("inner_connections", path, pair)
+        for pair in invoke_declaration(inner_wires, comp)
+            entry = _entry("inner_wires", path, pair)
             route = resolve_source(draft, entry, path, comp, first(pair), diags)
             route === nothing && continue      # recorded; the destination stays unfed
             producer = last(route)
@@ -1143,7 +1147,7 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
         # entries are checked at every level; only the root's input faces *feed*
         # anything, there being no parent above them to claim the obligation.
         for (face, inner) in input_entries
-            entry = _entry("u_connections", path, face => inner)
+            entry = _entry("input_wires", path, face => inner)
             routes = _fanout(draft, entry, path, comp, inner, diags)
             # Every entry routes to at least one internal endpoint, at every level
             # (D-210): a face feeding nothing declares nothing, and the empty tuple
@@ -1165,7 +1169,7 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
             end
         end
         for (source, face) in output_entries
-            entry = _entry("y_connections", path, source => face)
+            entry = _entry("output_wires", path, source => face)
             route = resolve_source(draft, entry, path, comp, source, diags)
             route === nothing && continue      # recorded; the face registers no row
             push!(draft.out_faces, (path, Symbol(face)) => route)

@@ -594,8 +594,8 @@ A sawtooth crossing the overload's level mid-frame, so the stop localizes to the
 crossing's `t*` boundary (§13.5).
 """
 overloaded() = Group((; src = Sawtooth(1.0), mon = Overload(0.315));
-                     wires = ("src/q" => "mon/sig",),
-                     outputs = ("mon/tripped" => "tripped",))
+                     inner_wires = ("src/q" => "mon/sig",),
+                     output_wires = ("mon/tripped" => "tripped",))
 
 """
 `Overload` with its `y_state` removed: `tripped` is a mode field declared
@@ -931,15 +931,15 @@ instead, which is a genuine algebraic loop and must be rejected at build time
 function feedback_model(; k = 4.0, ω = 2.0, ζ = 0.1, q₀ = SVector(0.0, 0.0),
                         feedback_port::String = "y")
     Group((plant = Plant(; ω, ζ, q₀), ctl = Gain(k), sum = Sum());
-          wires = ("ctl/out" => "plant/u",
+          inner_wires = ("ctl/out" => "plant/u",
                    "sum/e" => "ctl/e",
                    "plant/$feedback_port" => "sum/b"),
           # `sum.a` is claimed by no wire: the obligation is handed up to this
           # face, and at the root a face is a root input — its cell seeded by
           # `probe_value` for the build's own probes, and its initial value
           # authored by the init service's condition (§6.1, §11.3, §14.6).
-          inputs = "ref" => "sum/a",
-          outputs = "plant/y" => "y")
+          input_wires = "ref" => "sum/a",
+          output_wires = "plant/y" => "y")
 end
 
 """
@@ -955,8 +955,8 @@ so the two trajectories agree step for step.
 """
 vector_feedback_model(; k = 4.0, ω = 2.0, ζ = 0.1, q₀ = SVector(0.0, 0.0)) =
     Group((plant = VectorPlant(; ω, ζ, q₀), fb = StateFeedback(k));
-          wires = ("plant/q" => "fb/q", "fb/u" => "plant/u"),
-          outputs = ("plant/q" => "q",))
+          inner_wires = ("plant/q" => "fb/q", "fb/u" => "plant/u"),
+          output_wires = ("plant/q" => "q",))
 
 """
     sampled_loop(; kI, ω, ζ)
@@ -975,15 +975,15 @@ interior sweep, so its cell simply cannot change between boundaries (§10.5).
 """
 function sampled_loop(; kI = 3.0, ω = 2.0, ζ = 0.1)
     Group((plant = Plant(; ω, ζ), ctl = DiscreteIntegrator(kI), sum = Sum());
-          wires = ("ctl/u" => "plant/u",
+          inner_wires = ("ctl/u" => "plant/u",
                    "sum/e" => "ctl/e",
                    "plant/y" => "sum/b"),
-          inputs = "ref" => "sum/a",
-          outputs = ("plant/y" => "y", "ctl/u" => "cmd"))
+          input_wires = "ref" => "sum/a",
+          output_wires = ("plant/y" => "y", "ctl/u" => "cmd"))
 end
 
 # --- the named two-level assembly ---------------------------------------------
-# Class by declaration shape (§8.5): `inner_connections` and nothing else, on a
+# Class by declaration shape (§8.5): `inner_wires` and nothing else, on a
 # plain struct whose component-typed fields are its children.
 
 """
@@ -1007,10 +1007,10 @@ end
 SampledLoop(; kI = 3.0, ω = 2.0, ζ = 0.1, ctl_rate = Relative(1)) =
     SampledLoop(Plant(; ω, ζ), DiscreteIntegrator(kI), Sum(), ctl_rate)
 
-inner_connections(::SampledLoop) =
+inner_wires(::SampledLoop) =
     ("ctl/u" => "plant/u", "sum/e" => "ctl/e", "plant/y" => "sum/b")
-u_connections(::SampledLoop) = ("ref" => "sum/a",)
-y_connections(::SampledLoop) =
+input_wires(::SampledLoop) = ("ref" => "sum/a",)
+output_wires(::SampledLoop) =
     ("plant/y" => "y", "ctl/u" => "cmd", "plant/power" => "power")
 sample_times(l::SampledLoop) = (ctl = l.ctl_rate,)
 
@@ -1033,9 +1033,9 @@ end
 
 Vehicle(; k = 1.0, kI = 3.0, ω = 2.0, ζ = 0.1) = Vehicle(SampledLoop(; kI, ω, ζ), Gain(k))
 
-inner_connections(::Vehicle) = ("trim/out" => "loop/ref",)
-u_connections(::Vehicle) = ("ref" => "trim/e",)
-y_connections(::Vehicle) =
+inner_wires(::Vehicle) = ("trim/out" => "loop/ref",)
+input_wires(::Vehicle) = ("ref" => "trim/e",)
+output_wires(::Vehicle) =
     ("loop/y" => "y", "loop/cmd" => "cmd", "loop/power" => "power")
 
 """
@@ -1048,8 +1048,8 @@ re-exports `a`'s output through `pair`'s `"y"` face, one level at a time
 """
 routed_pair() =
     Group((; pair = Group((a = Gain(2.0), b = Gain(3.0));
-                          inputs = "u" => ("a/e", "b/e"), outputs = "a/out" => "y"));
-          inputs = "u" => "pair/u", outputs = "pair/y" => "y")
+                          input_wires = "u" => ("a/e", "b/e"), output_wires = "a/out" => "y"));
+          input_wires = "u" => "pair/u", output_wires = "pair/y" => "y")
 
 """
     FannedLoops(n)
@@ -1071,8 +1071,8 @@ FannedLoops(n::Int) =
     FannedLoops(NamedTuple{Tuple(Symbol(:l, i) for i in 1:n)}(Tuple(SampledLoop() for _ in 1:n)))
 
 transparent_container(::FannedLoops) = (FANNED_LOOPS_DERIVATIONS[] += 1; nothing)
-inner_connections(::FannedLoops) = ()
-u_connections(fanned::FannedLoops) =
+inner_wires(::FannedLoops) = ()
+input_wires(fanned::FannedLoops) =
     ("ref" => Tuple("loops/$key/ref" for key in keys(fanned.loops)),)
 
 """
@@ -1118,7 +1118,7 @@ struct OpaqueHold <: AbstractComponent
     c::OpaqueLeaf
 end
 
-inner_connections(::OpaqueHold) = ()
+inner_wires(::OpaqueHold) = ()
 
 # --- the fragment-function idiom (§14.2) ----------------------------------------
 # Methods of the framework's `condition` generic, one per component, shipped
@@ -1186,9 +1186,9 @@ struct FCS <: AbstractComponent
     outer::ZOH
 end
 
-inner_connections(::FCS) = ()
-u_connections(::FCS) = ("in" => "inner/in", "g" => "outer/in")
-y_connections(::FCS) = ("inner/out" => "y_inner", "outer/out" => "y_outer")
+inner_wires(::FCS) = ()
+input_wires(::FCS) = ("in" => "inner/in", "g" => "outer/in")
+output_wires(::FCS) = ("inner/out" => "y_inner", "outer/out" => "y_outer")
 sample_times(::FCS) = (inner = Relative(1), outer = Relative(5, 2))
 
 """
@@ -1209,9 +1209,9 @@ end
 
 MultiRate(; c₀ = 1.0) = MultiRate(Ramp(c₀), FCS(ZOH(), ZOH()), ZOH())
 
-inner_connections(::MultiRate) =
+inner_wires(::MultiRate) =
     ("src/out" => "fcs/in", "src/out" => "gnss/in", "gnss/out" => "fcs/g")
-y_connections(::MultiRate) =
+output_wires(::MultiRate) =
     ("fcs/y_inner" => "inner", "fcs/y_outer" => "outer", "gnss/out" => "gnss")
 sample_times(::MultiRate) = (fcs = Relative(1), gnss = Absolute(Hz(50)))
 
@@ -1293,7 +1293,7 @@ y_direct(::MatrixEntry, (; u)) = (n = float(length(u.m)),)
 
 """The reference handle model: one field emitter wired into one consumer."""
 handle_model() = Group((; src = Terrain(), q = Query());
-                       wires = ("src/terrain" => "q/terrain",))
+                       inner_wires = ("src/terrain" => "q/terrain",))
 
 """
 A handle carrying `T` among its isbits parameters (D-237): its cell is a
@@ -1352,7 +1352,7 @@ y_types(::OffsetQuery) = (h = Float64,)
 y_direct(::OffsetQuery, (; u)) = (h = 2 * u.terrain.h0,)
 
 offset_model(src) = Group((; src = src, q = OffsetQuery());
-                          wires = ("src/terrain" => "q/terrain",))
+                          inner_wires = ("src/terrain" => "q/terrain",))
 
 """Pins the handle entry, so a walking handle producer fails the walk clause."""
 struct PinnedOffsetQuery <: AbstractComponent end
@@ -1640,7 +1640,7 @@ Cadence.x_deriv(::Leaf, (; x)) = (q = -x.q,)
 struct Assembly <: Cadence.AbstractComponent
     kid::Leaf
 end
-Cadence.inner_connections(::Assembly) = ()
+Cadence.inner_wires(::Assembly) = ()
 sample_times(::Assembly) = (kid = Cadence.Relative(2),)
 end
 
@@ -1654,5 +1654,5 @@ declarations must not be read before the child is walked (D-246).
 struct PassthroughOverForgotten <: AbstractComponent
     kid::ForgottenImport.Inventory.Leaf
 end
-inner_connections(::PassthroughOverForgotten) = ()
-u_connections(a::PassthroughOverForgotten) = input_passthrough(a, "kid")
+inner_wires(::PassthroughOverForgotten) = ()
+input_wires(a::PassthroughOverForgotten) = input_passthrough(a, "kid")

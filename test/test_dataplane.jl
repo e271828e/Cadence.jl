@@ -4,14 +4,14 @@
 
 # Two root inputs feeding one summing junction: the sparse-batch hazard's shape.
 two_root_inputs() = Group((; s = Sum(sa = 1.0, sb = 1.0));
-                    inputs = ("a" => "s/a", "b" => "s/b"))
+                    input_wires = ("a" => "s/a", "b" => "s/b"))
 
 # A chain whose published ports are in lockstep at every boundary — g2 computes
 # 2·g1 in the same sweep, so any snapshot mixing two boundaries breaks it.
 chain3() = Group((; p = Plant(), g1 = Gain(2.0), g2 = Gain(2.0));
-                 wires = ("p/y" => "g1/e",
+                 inner_wires = ("p/y" => "g1/e",
                           "g1/out" => "g2/e"),
-                 inputs = ("u" => "p/u",))
+                 input_wires = ("u" => "p/u",))
 
 function dataplane_exchange()
     @testset "a staged batch lands at its frame top, and nowhere earlier (§11.1, §11.4)" begin
@@ -215,7 +215,7 @@ end
 # A surface past the 32-wide threshold where Base's tuple `map` leaves its
 # inlined small-tuple path: the merge and the scatter must lean on neither.
 wide_root_inputs(n) = Group(NamedTuple(Symbol(:s, i) => Sum(sa = 1.0, sb = 1.0) for i in 1:n);
-                      inputs = Tuple(vcat(["a$i" => "s$i/a" for i in 1:n],
+                      input_wires = Tuple(vcat(["a$i" => "s$i/a" for i in 1:n],
                                           ["b$i" => "s$i/b" for i in 1:n])))
 
 # Its baseline (§14.6): a generated fixture's full-coverage condition, generated

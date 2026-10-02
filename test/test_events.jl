@@ -178,9 +178,9 @@ function test_events()
 
     @testset "a cascade settles within one boundary, independently of h (§10.6)" begin
         chain() = Group((; trig = Trigger(0.5), f1 = Follower(), f2 = Follower());
-                        wires = ("trig/on" => "f1/go",
+                        inner_wires = ("trig/on" => "f1/go",
                                  "f1/on" => "f2/go"),
-                        inputs = ("in" => "trig/sig",))
+                        input_wires = ("in" => "trig/sig",))
         for h in (1//10, 1//1000)                    # the latency is rounds, never steps
             sim = Simulation(chain(); h)
             init!(sim, fragment(u = (in = 1.0,)))    # one boundary: three rounds to quiescence
@@ -231,7 +231,7 @@ function test_events()
         # update-before-quiescence would accumulate 1.02 where the reference has
         # 0.02.
         model = Group((; saw = Sawtooth(0.3), ctl = DiscreteIntegrator(1.0));
-                      wires = ("saw/q" => "ctl/e",))
+                      inner_wires = ("saw/q" => "ctl/e",))
         sim = Simulation(model; h = 1//10)
         init!(sim)
         run!(sim; t_end = 4.0)
@@ -246,7 +246,7 @@ function test_events()
 
     @testset "budget exhaustion degrades, reported on the loop's cell (§10.6, §11.8)" begin
         chatty() = Group((; chat = Chatterer(), trig = Trigger(0.5));
-                         inputs = ("in" => "trig/sig",))
+                         input_wires = ("in" => "trig/sig",))
         sim = Simulation(chatty(); h = 1//10)
         init!(sim, fragment(u = (in = 1.0,)))            # exhaustion at boundary zero
         @test modes(sim, "chat").flips == 8         # 2 × the default budget of 4
