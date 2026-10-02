@@ -48,6 +48,19 @@ decide_both(d) = combine(at("c", fragment(x = (θ = d.θ, ω = 0.0))),
 both_reads() = reads(ω̇ = get_deriv("c", :ω), θ = get_state("c", :θ))
 both_residuals(r, d) = (torque = r.ω̇, hold = r.θ - 0.3)
 
+# A backend that only measures: it records what one warm call of the evaluation
+# closure allocates and returns the guess unsolved. The closure is the one
+# `trim!` hands every backend through the seam (§14.8).
+struct AllocProbe
+    bytes::Base.RefValue{Int}
+end
+
+function solve(probe::AllocProbe, eval!, d0, lower, upper, tol)
+    r, J = zeros(length(tol)), zeros(length(tol), length(d0))
+    probe.bytes[] = @ballocated $eval!($r, $J, $d0)
+    (; d = d0, status = :probe, n_evaluations = 1, n_iterations = 0)
+end
+
 # D-213's fixture: the pendulum's torque arrives from a *discrete* producer's
 # held output, and that producer's `s` is the baseline's. At the seeded
 # activation the discrete tier is frozen, so its output cell can only come from
@@ -632,6 +645,20 @@ function test_trim()
         seeded_torque = gather_reads(reader, exec).ω̇
         @test ForwardDiff.value(seeded_torque) ≈ -PEND_G_L * sin(0.2) + 4.0
         @test ForwardDiff.partials(seeded_torque, 1) ≈ -PEND_G_L * cos(0.2)
+    end
+
+    @testset "one whole evaluation is free, the names carried by type (§14.2, §14.7)" begin
+        # The closure builds two `NamedTuple`s per call: the seeded decisions and
+        # the residuals reordered to the tolerances' order, permuted here so the
+        # reorder does work. With non-allocating user lambdas, the call is free.
+        problem = TrimProblem(guess = (θ = 0.1, u = 0.0), lower = (θ = -π/2, u = -Inf),
+                              upper = (θ = π/2, u = Inf), condition = decide_both,
+                              reads = both_reads(), residuals = both_residuals,
+                              tolerances = (hold = 1e-9, torque = 1e-9))
+        probe = AllocProbe(Ref(-1))
+        trim!(Simulation(fed(Pendulum(), :u); h = 1//10), problem;
+              baseline = pend_base(), backend = probe)
+        @test probe.bytes[] == 0
     end
 
     @testset "`trim!` is a stopped-sim service on a nominal deployment (§14.8, §12.6)" begin

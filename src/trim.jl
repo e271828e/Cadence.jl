@@ -488,7 +488,10 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     act = activation(build, T)                # the cached activation (§9.4)
     seeded_exec = _scratch(sim, T, act)
     _establish_frozen!(seeded_exec, act, nominal_exec, sim.deployment.build)
-    d_dual = _seeded(decision_names, guess, T)
+    # The names enter the closure as types: captured as a `Tuple` of `Symbol`s,
+    # they would leave every `NamedTuple` `eval!` builds to runtime dispatch.
+    decision_keys, residual_keys = Val(decision_names), Val(residual_names)
+    d_dual = _seeded(decision_keys, guess, T)
     seeded_plan = compile_plan(override(baseline, problem.condition(d_dual)), build, T)
     seeded_reader = _compile_reads(problem.reads, build, T)
 
@@ -506,7 +509,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
     # load and no work at all.
     checked = Ref(false)
     function eval!(r::Vector{Float64}, J, d::Vector{Float64})
-        decisions = _seeded(decision_names, d, T)
+        decisions = _seeded(decision_keys, d, T)
         apply!(seeded_exec, seeded_plan, override(baseline, problem.condition(decisions)))
         evaluate!(seeded_exec)
         raw = problem.residuals(gather_reads(seeded_reader, seeded_exec), decisions)
@@ -514,7 +517,7 @@ function trim!(sim::Simulation{Float64}, problem::TrimProblem; baseline,
             checked[] = true
             _report_trim!(_check_equations(:residuals, raw, tolerances))
         end
-        residuals = NamedTuple{residual_names}(raw)
+        residuals = _named(residual_keys, raw)
         for i in eachindex(r)
             residual = residuals[i]
             r[i] = ForwardDiff.value(residual)
@@ -592,12 +595,15 @@ end
 # slot `i`, which is what makes one sweep yield `r` and `J` together (§14.7).
 # `decisions` is indexed positionally, so the packed vector and the guess
 # NamedTuple seed through the same code.
-_seeded(decision_names::Tuple, decisions,
-        ::Type{ForwardDiff.Dual{TG,Float64,N}}) where {TG,N} =
+_seeded(::Val{decision_names}, decisions,
+        ::Type{ForwardDiff.Dual{TG,Float64,N}}) where {decision_names,TG,N} =
     NamedTuple{decision_names}(
         ntuple(i -> ForwardDiff.Dual{TG}(Float64(decisions[i]),
                                          ntuple(j -> Float64(i == j), Val(N))...),
                Val(N)))
+
+# A returned `NamedTuple` reordered to the names the type carries.
+_named(::Val{names}, values::NamedTuple) where {names} = NamedTuple{names}(values)
 
 # The decisions sitting at a bound at the returned point (§14.8): the comparison
 # is exact because the projection assigns the bound itself, and an infinite
