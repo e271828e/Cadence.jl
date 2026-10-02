@@ -365,15 +365,16 @@ then the prior art, then an idiom the design admits without framework support.
 
 Every causal framework meets the overlap between derivatives and outputs and
 resolves it per its architecture. The prior art is given here for orientation.
-Simulink diagrams make integrators explicit blocks. Derivatives are ordinary wires into `1/s`, and the
-computer/integrator split is their native idiom. S-functions and FMUs use
-sanctioned *mutable caches* between their `mdlDerivatives`/`mdlOutputs`-style
-callback pairs. The caches are DWork vectors and FMI's lazy-evaluation caching.
-Modelica/MTK (ModelingToolkit) write `der(x) = expr` natively, with symbolic
-common-subexpression elimination. The fused [sweep](#g-sweep) plus signal-consuming
+Simulink diagrams make integrators explicit blocks. Derivatives are ordinary
+wires into `1/s`, and the computer/integrator split is their native idiom.
+S-functions and FMUs use sanctioned *mutable caches* between their
+`mdlDerivatives`/`mdlOutputs`-style callback pairs. The caches are DWork
+vectors and FMI's lazy-evaluation caching. Modelica/MTK (ModelingToolkit)
+write `der(x) = expr` natively, with symbolic common-subexpression
+elimination. The fused [sweep](#g-sweep) plus signal-consuming
 `x_deriv`/`s_update` is the cache-free formulation that fits this design's
-purity rules ([D-015][d-015]). It is also what `f_ode!`, FlightCore's fused in-place
-derivative function, did economically, minus the checked ordering.
+purity rules ([D-015][d-015]). It is also what `f_ode!`, FlightCore's fused
+in-place derivative function, did economically, minus the checked ordering.
 
 The computer/integrator split remains fully expressible without any framework
 support ([D-015][d-015]). A stateless component computes derivatives as

@@ -231,3 +231,8 @@ inventory `ruling` field; new words are listed in `added`.
   overlap between derivatives and outputs and resolves it per its
   architecture." "this overlap" pointed at the section's first sentence,
   about 25 lines back, across the four steps.
+- **Rewrap after E12, unit D** (final verifier). The E12 revision joined two
+  source lines; the prior-art paragraph is rewrapped at 80 columns with no
+  word change. D's claim "Their allocation is zero by idiom." takes tag `C`
+  for its added §7.3 citation, and `companion_addition.md` regains its
+  trailing newline.

@@ -388,7 +388,7 @@
    "new": "Their allocation is zero by the workspace-plus-snapshot idiom (§7.3) and immutable-value returns.",
    "where": "new",
    "cites": [],
-   "tag": "F",
+   "tag": "C",
    "newcites": [
     "§7.3"
    ],
