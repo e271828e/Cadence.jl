@@ -949,10 +949,10 @@ Traps the code does not warn about, each hit more than once while building:
   `_unrolled_tuple` in `executor.jl`. A walk that runs once per build or per
   attach is exempt. Two Julia thresholds make a walk that is not a generated
   unroll allocate. A `Base.tail` recursion allocates at every call once the
-  tuple passes 32 elements. `map` over a tuple of 32 or more falls back to a `Vector{Any}`,
-  dispatches per element and returns a type that is not concrete. §9.7 rules
-  this for the executor's walks alone, and D-289 records why the rule stops
-  there. Three walks still break it. Two are in services, the splats of
+  tuple passes 32 elements. `map` over a tuple of 32 or more falls back to a
+  `Vector{Any}`, dispatches per element and returns a type that is not
+  concrete. §9.7 rules this for the executor's walks alone, and D-289
+  records why the rule stops there. Three walks still break it. Two are in services, the splats of
   partials in `trim.jl`'s `_seeded` and `linearize.jl`'s `_seed`. One is in
   the loop, `capture_stores`' `map` over the store bundle at every
   publication, whose width is the count of distinct leaf element types;
