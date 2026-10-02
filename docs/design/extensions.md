@@ -331,8 +331,10 @@ family, with the framework performing the seeded construction internally; a
 documented construct-with-`Dual`s convention (the capability with no service
 wrapper); parameter-path overlays in [§14.1][s14-1]'s condition system. Also unexamined:
 which library structs get the parametric spelling in the [§13.7][s13-7] migration — whether
-[§7.2][s7-2]'s mechanical parametrization of the walked payload list simply extends to
-parameter carriers, or participation is opted into per component.
+[§7.2][s7-2]'s mechanical parametrization of the walked class, whose FlightPhysics
+payload list `companions/migration_outline.md` gives under "The parametrization
+pass", simply extends to parameter carriers, or participation is opted into per
+component.
 
 ---
 
