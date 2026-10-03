@@ -222,7 +222,7 @@ function leaves_roundtrip()
 end
 
 function leaves_mixed()
-    @testset "a value whose leaves span several eltypes (§7.2)" begin
+    @testset "a value whose leaves span several eltypes (§8.2)" begin
         P = Tagged{Float64}
         value = P(SVector(1.5, 2.5), 7)
 

@@ -344,7 +344,7 @@ _embed_ports(y::NamedTuple, outs::NamedTuple, ::Type{T}) where {T} =
 
 """
 The tier's state homes, in merge order: `x` then `m` on the continuous tier, `s`
-on the discrete (§5.3, §7.1). `m` arrives as the probe-scoped `Ref`, or `nothing`
+on the discrete (§5.3, §7.1, §7.3). `m` arrives as the probe-scoped `Ref`, or `nothing`
 where the component declares no modes.
 """
 _homes(decl::Decls, tier::Tier, m) =

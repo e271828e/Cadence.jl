@@ -116,7 +116,7 @@ function test_lifecycle()
         init!(sim, fragment(u = (ref = 0.0,)))
         run!(sim; t_end = 1.0)                           # this advance's bound
         record = termination(sim)
-        @test record isa TerminationRecord{Float64}           # the deployment's own scalar (§7.2, D-203)
+        @test record isa TerminationRecord{Float64}           # the deployment's own scalar (§9.4, D-203)
         @test record.source === EndTimeReached() && record.t == 1.0
         @test isempty(record.residue)                         # a quiet tail contributes no record
         @test sim.exec.clock.frame == 50

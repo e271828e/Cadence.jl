@@ -1,6 +1,6 @@
 # The signal table: per-eltype homogeneous cell stores with build-time offsets
 # (D-162, §9.7). Cells are flattened by the §7.1 leaf walk into one contiguous
-# buffer per element type; a mixed-leaf cell (§7.2's per-leaf table, D-166
+# buffer per element type; a mixed-leaf cell (§8.2's leaf walk, D-263
 # pinning) simply spans several of them. An address carries the port type as
 # its parameter and one cursor per distinct leaf eltype as an `NTuple` *field*,
 # so instances of one component type share one compiled body; `K` is a pure

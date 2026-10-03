@@ -55,7 +55,7 @@ end
 that ended it — so a stopped simulation answers "why did it stop?", and "how
 did the stop go?", without its consumer reconstructing either from the clock or
 the log stream (D-203). `t` is the final snapshot's boundary time in the
-deployment's own scalar (§7.2), always present since boundary zero precedes
+deployment's own scalar (§9.4), always present since boundary zero precedes
 every record (D-233); `policy` is the terminating advance's `StopPolicy`, so
 `EndTimeReached`'s bound is read off the record rather than off a constructor
 default that no longer exists (D-255); `source` is the typed source above;

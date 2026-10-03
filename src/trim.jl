@@ -645,7 +645,7 @@ function _verdict!(sim::Simulation, problem::TrimProblem, baseline, solution::Na
     # The committed-state residuals, nearly free: that boundary's sweep has just
     # run, so the declared reads need only gather from it — with one `rhs` for
     # the derivative reads, `ẋbuf` being integrator scratch and this a service
-    # evaluation (§7.5, §14.8).
+    # evaluation (§14.4, §14.8).
     sim.exec.bodies.rhs()
     gathered = gather_reads(reader, sim.exec)
     committed = NamedTuple{residual_names}(problem.residuals(gathered, solution))

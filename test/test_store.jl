@@ -1,11 +1,11 @@
-# --- the signal table (§9.7, §7.2, §7.3, D-162, D-166) ------------------------
+# --- the signal table (§9.7, §8.2, §7.3, D-162, D-263) ------------------------
 # Cells are flattened by the §7.1 leaf walk into one contiguous buffer per
 # element type, so what this file asserts is which buffers a model ends up with
 # and what an address into them costs. Two routes make a cell span several: a
 # leaf whose eltype is not the activation scalar, and a leaf deliberately pinned
 # off it. The offsets live in the address's fields, which is what lets instances
-# of one component type share one compiled body. §7.3's third register is here
-# too, by contrast: the workspace is the one that is deliberately *not* a store.
+# of one component type share one compiled body. The workspace (§7.3) is here
+# too, by contrast: it is the one home deliberately *not* a store.
 
 # A deliberately pinned leaf (D-263): `frozen` is declared `Pinned{Float64}`, so
 # it must not follow the activation scalar.
@@ -30,7 +30,7 @@ function store_pinned_leaf()
     end
 end
 
-# Mixed-leaf cells (§7.2's per-leaf table): the ordinary route, an `Int` leaf
+# Mixed-leaf cells (§8.2's leaf walk): the ordinary route, an `Int` leaf
 # beside `T` leaves, and a pinned `Float64` a declared struct fixes as a field
 # type, which the walk never reaches (D-263). The cell spans one buffer per
 # leaf eltype; its address carries one cursor per eltype as an `NTuple` field
@@ -54,7 +54,7 @@ y_types(::PinnedInside) = (out = PinnedPair{Float64},)
 y_state(::PinnedInside, (; t)) = (out = PinnedPair(t, 2.0),)
 
 function store_mixed_cell()
-    @testset "a mixed-leaf cell lays out across its eltypes' buffers (§7.2, D-162)" begin
+    @testset "a mixed-leaf cell lays out across its eltypes' buffers (§8.2, D-162)" begin
         # The Int leaf beside T: mixed at every activation. The tag must come back
         # as a stored `Int`, not a converted double in the `T` buffer.
         sim = Simulation(single(MixedCell()); h = 1//100)
@@ -110,7 +110,7 @@ function store_discrete_cells()
     end
 end
 
-# --- the workspace, the register that is not a store (§7.3) -------------------
+# --- the workspace, the home that is not a store (§7.3) -----------------------
 
 function store_workspace()
     @testset "the workspace is scratch, on both tiers (§7.3)" begin
