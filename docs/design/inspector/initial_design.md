@@ -301,6 +301,19 @@ cited by number. Couplings are named where they exist.
    a pinned Cadence, front-end tests, the no-CDN rule and the privacy
    statement. *Builds on* answers 10, 11 and 14.
 
+**Working order.** Axes 1 and 2 first, in one session, scoped to a first
+`format_version` that carries what the core tier draws: the component tree
+with class and path, faces with type, tier and kind marker, wires, root
+inputs, the execution order with port classes, and the three pieces of
+instance context. The deployment overlay, the timing tables, state events
+and the failure descriptor follow as minor bumps, each its own short
+session. Axis 4's rendering spike runs beside the first session, on a
+hand-written fixture descriptor, so the drawing's needs reach the schema
+before version one is frozen and the canvas choice is made before anything
+depends on it. Then axes 3 and 5 over the real schema, axis 6 when there is
+a descriptor to push to a tab, designed with the bridge's device side in
+view, and axis 7 last.
+
 ## Stage 2: the bridge
 
 An ordinary device that serves the handle over a socket, so that the page

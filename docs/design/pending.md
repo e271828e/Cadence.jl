@@ -18,7 +18,8 @@ names.
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
   spellings).
 - **The inspector**, one browser client in four stages, in working order:
-  the static inspector over the descriptor; the bridge, an ordinary
+  the static inspector over the descriptor, whose first session is the
+  descriptor's schema and `describe` together; the bridge, an ordinary
   device serving the handle over a socket; the live inspector, values on
   the diagram; and the cockpit, panels over the bridge. The built-in Julia
   GUI is parked (D-310). The record is
