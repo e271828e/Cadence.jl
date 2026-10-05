@@ -11,16 +11,16 @@ the tools go red.
 
 The bullets stand in working order, the first one next. The inspector's
 design runs in parallel with the library. The audit comes last, because it
-sweeps the whole surface and the library and the wire device both add
+sweeps the whole surface and the library and the bridge both add
 names.
 
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
   spellings).
 - **The inspector**, one browser client in four stages, in working order:
-  the static inspector over the descriptor; the wire device, an ordinary
+  the static inspector over the descriptor; the bridge, an ordinary
   device serving the handle over a socket; the live inspector, values on
-  the diagram; and the cockpit, panels over the wire. The built-in Julia
+  the diagram; and the cockpit, panels over the bridge. The built-in Julia
   GUI is parked (D-310). The record is
   `docs/design/inspector/initial_design.md` (not normative), which carries
   each stage's answered questions and open list. What the spec owes, each

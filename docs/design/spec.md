@@ -7718,13 +7718,14 @@ tells an exited loop from a crashed one, and the label may. The label text
 is the GUI package's.
 
 **What stays deferred is the GUI package's half** (`pending.md`), which the
-built-in GUI's parking ([D-310][d-310]) assigns to the browser client over the wire
-device: what the client receives beside the three values, how a panel
-scopes to a child component, and the widgets. Its constraints are fixed here. Panels name
-their own ports by face-name string. Resolution to root inputs and the
-liveness verdict are baked at run start, never performed at render.
-Liveness and peek arrive through the framework-supplied context, never by
-reaching into the loop. And assembly panels compose children by path.
+built-in GUI's parking ([D-310][d-310]) assigns to the browser client over the
+bridge: what the client receives beside the three values, how a panel
+scopes to a child component, and the widgets. Its constraints are fixed
+here. Panels name their own ports by face-name string. Resolution to root
+inputs and the liveness verdict are baked at run start, never performed at
+render. Liveness and peek arrive through the framework-supplied context,
+never by reaching into the loop. And assembly panels compose children by
+path.
 
 ### 11.8 Diagnostics and liveness: the per-writer cell
 
@@ -7932,7 +7933,7 @@ nobody remembers setting. Clearing it in the tail removes that trap and keeps
 the start-paused spelling above.
 
 The handle carries no pause ([§11.6][s11-6]). Whether it gains the control
-verbs for the wire device is pending (`pending.md`, [D-310][d-310]).
+verbs for the bridge is pending (`pending.md`, [D-310][d-310]).
 
 **Pace and `margin` are two more verbs and two readers** ([D-269][d-269]).
 `pace!(sim, p)` and `margin!(sim, m)` set them from any task in any

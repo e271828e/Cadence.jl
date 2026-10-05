@@ -2,16 +2,16 @@
 
 One browser client over a Cadence model, grown in four stages. It starts
 as a static page that explains a model from serialized descriptors of a
-`Build` or a `Deployment`, gains a wire to a running simulation, shows the
+`Build` or a `Deployment`, gains a bridge to a running simulation, shows the
 run on the diagram, and ends as an interactive cockpit with panels over
-the wire. This document records the questions that narrow the solution
+the bridge. This document records the questions that narrow the solution
 space, the answers, and the axes left for later sessions, stage by stage.
 It is not normative. Rulings that touch the framework land in `spec.md` and
 `decisions.md` first, and the spec wins wherever the two disagree.
 
 Two sessions on 2026-09-28 fed it: one on the inspector alone, whose
 answers stage 1 keeps whole, and one on the whole graphical layer, whose
-wire device and panel material stages 2 to 4 keep. An earlier inspector
+bridge and panel material stages 2 to 4 keep. An earlier inspector
 proposal, deleted in commit 084d6f0, was left out of both. The built-in
 Julia GUI the second session designed was parked on 2026-10-05 (D-310).
 Its reasons are in that entry, and its record last stands at commit
@@ -20,11 +20,11 @@ b6f08b1.
 ## Scope
 
 - **One client, two sources.** The descriptor, a serialized projection of
-  an immutable artifact, and the wire device, an ordinary device serving
+  an immutable artifact, and the bridge, an ordinary device serving
   the handle over a socket. Everything the client knows comes from one of
   the two.
-- **Four stages, in working order.** The static inspector, the wire
-  device, the live inspector, the cockpit. Each is a visible result, and
+- **Four stages, in working order.** The static inspector, the
+  bridge, the live inspector, the cockpit. Each is a visible result, and
   nothing built for one is discarded by the next.
 - **No graphical authoring, ever.** The client never writes model
   structure, whether by code generation or by round-trip editing. Julia
@@ -33,7 +33,7 @@ b6f08b1.
 - **Independence.** The core never depends on the client. What the core
   gains is `describe`, the carrier change and, with stage 2, the handle's
   control verbs.
-- **The handle-only rule.** The wire device reaches the framework through
+- **The handle-only rule.** The bridge reaches the framework through
   the device handle and nothing else, so what it needs is what every client
   needs. A feature any front end needs that the handle lacks is added to
   the handle first.
@@ -47,14 +47,14 @@ b6f08b1.
 
 1. **Scope: the static page.** A browser inspector that reads serialized
    `Build` and `Deployment` descriptors and helps a user understand a model,
-   with no runtime data. Stages 2 to 4 add the runtime data over the wire;
+   with no runtime data. Stages 2 to 4 add the runtime data over the bridge;
    nothing in this stage depends on them.
 2. **No graphical authoring, ever.** The inspector never writes model
    structure, whether by one-way code generation or by round-trip editing.
    Julia source stays the only model, as §8.1 requires.
 3. **Independence.** The core never depends on the inspector. This was agreed
    before the scope split, and question 8 revisits the package boundaries.
-4. **Descriptor constraints owed to the wire.** The wire device reuses the
+4. **Descriptor constraints owed to the bridge.** The bridge reuses the
    descriptor as its connect payload, so the descriptor keeps three
    properties:
    - canonical addressing, with components named by slash path and faces by
@@ -109,7 +109,7 @@ b6f08b1.
      file always opens on its own.
 
    *Why:* the browser reads JSON natively and people can read it. The schema
-   is cheap now and becomes the wire's contract later. Tying the format
+   is cheap now and becomes the bridge's contract later. Tying the format
    version to Cadence's would force bumps on releases that leave descriptors
    untouched.
 8. **Delivery: files and a live session.** A file is the format of record:
@@ -208,7 +208,7 @@ b6f08b1.
     reshapes them freely. Keeping the writer beside them lets the core's own
     suite catch a refactor that would break descriptors. It extends D-257's
     idea that an artifact renders itself: `show` renders to text and
-    `describe` to data. The wire device later calls the same function.
+    `describe` to data. The bridge later calls the same function.
     *Cost:* the descriptor format becomes core API. It needs its own spec
     section, an explicit ruling that a rendering to data is not an accessor
     in D-257's sense, and the carrier change.
@@ -301,7 +301,7 @@ cited by number. Couplings are named where they exist.
    a pinned Cadence, front-end tests, the no-CDN rule and the privacy
    statement. *Builds on* answers 10, 11 and 14.
 
-## Stage 2: the wire device
+## Stage 2: the bridge
 
 An ordinary device that serves the handle over a socket, so that the page
 stage 1 built can follow a running simulation and, in stage 4, command it.
@@ -323,7 +323,7 @@ stage 1 built can follow a running simulation and, in stage 4, command it.
   roster keeps across that simulation's runs, and `inspect(sim)` is the
   sugar that attaches and pushes the deployment descriptor in one call.
   `gui = true` is withdrawn (D-310).
-- **What goes over the wire on connect.** The descriptor, the run-start
+- **What goes over the bridge on connect.** The descriptor, the run-start
   facts (the port-view table with each port's liveness verdict and
   incumbent, and the claim partition) and the format version. The port
   view, the peek and the orphan fact are D-270's three values, consumed by
@@ -331,7 +331,7 @@ stage 1 built can follow a running simulation and, in stage 4, command it.
 - **Newest wins.** Values go at each subscription's rate, coalesced to the
   latest snapshot, the same rule the snapshot already follows. A slow
   client skips frames and never queues.
-- **The peek rule crosses the wire intact.** The client keeps one pending
+- **The peek rule crosses the bridge intact.** The client keeps one pending
   map keyed by root-input face, the mirror of the staging cell, and a
   widget shows its own pending value if any, else the latest received. Two
   ports resolving to one face read the same entry. The device may echo
@@ -406,7 +406,7 @@ the run appears on it.
 
 ## Stage 4: the cockpit
 
-Panels over the wire, so that the page commands the model it shows.
+Panels over the bridge, so that the page commands the model it shows.
 
 ### Settled
 
@@ -463,19 +463,22 @@ author-supplied icons; the standalone HTML export; the analysis view.
 - **Authored panel.** A component's own panel, given by a method on its
   type that returns a panel description, or by a custom front-end panel
   keyed by the type's name.
+- **Bridge.** Stage 2: an ordinary device hosting the handle serialized
+  over a socket, so a client outside the process can follow and command a
+  run.
 - **Build descriptor.** The descriptor of a `Build`. Its timing is
   anchor-relative.
 - **Bundle.** The inspector's built front end: a few static files that run
   in any browser with nothing installed.
 - **Cockpit.** Stage 4: the page with panels that command the model over
-  the wire.
+  the bridge.
 - **Deployment descriptor.** The descriptor of a `Deployment`. It embeds the
   build descriptor it deploys and adds the schedule and grid facts.
 - **`describe`.** The core's rendering of an artifact to descriptor data,
   beside `show`'s rendering to text. The name is a placeholder.
 - **Descriptor.** A serialized, language-neutral projection of a `Build`, a
   `Deployment` or a failed build. The artifact stays the truth, and a
-  descriptor is one consumer's reading of it. The wire device's connect
+  descriptor is one consumer's reading of it. The bridge's connect
   payload.
 - **Failure descriptor.** The descriptor of a failed build: its diagnostics,
   plus the `Structure` projection when the structure step passed.
@@ -484,7 +487,7 @@ author-supplied icons; the standalone HTML export; the analysis view.
 - **Generic panel.** The panel the client derives from a component's faces
   and kind markers when no authored panel exists; also embeddable by an
   authored one.
-- **Handle-only rule.** The wire device reaches the framework through the
+- **Handle-only rule.** The bridge reaches the framework through the
   device handle alone, so that what it needs is what every client needs.
 - **Hosted copy.** The bundle published on GitHub Pages. It opens descriptor
   files locally and uploads nothing.
@@ -494,15 +497,15 @@ author-supplied icons; the standalone HTML export; the analysis view.
 - **Kind marker.** A small tag per face beside its printed Julia type
   (number, Boolean, enum, struct with named fields, opaque) so a client with
   no Julia can choose a widget or a wire style.
-- **Live inspector.** Stage 3: the page connected to the wire device,
+- **Live inspector.** Stage 3: the page connected to the bridge,
   showing runtime data on the diagram.
 - **Live session.** The inspector package's local web server and the tab it
-  feeds, updated by explicit `inspect` calls and, from stage 2, by the wire
-  device.
+  feeds, updated by explicit `inspect` calls and, from stage 2, by the
+  bridge.
 - **Liveness table.** The port-view table of D-270, baked once at run
   start: one view per port of every component, with its terminal producer,
   the live-or-read-only verdict of §11.7, its staging slot and its incumbent
-  writer. A run-start fact on the wire.
+  writer. A run-start fact on the bridge.
 - **Parameter summary.** A component's inert parameters as truncated `show`
   text beside each type name. It is for a human to read, never for a program
   to reconstruct values from.
@@ -516,5 +519,3 @@ author-supplied icons; the standalone HTML export; the analysis view.
 - **Subscription.** A client's declaration of the paths it displays and the
   rate it wants them at, so bandwidth scales with the screen, not the
   model.
-- **Wire device.** Stage 2: an ordinary device hosting the handle serialized
-  over a socket.
