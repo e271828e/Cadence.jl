@@ -888,23 +888,21 @@ function trace_discarded_staging()
     end
 end
 
-# The harness arm of the same discard, with a synchronous route into it: a
-# `needs_calling_task` device runs its loop body *inline* on the calling task
-# while the run body is spawned (§11.1), so its `stage!(sim, …)` — the harness
-# writer's own surface, not the device's claim — lands mid-replay, frame after
-# frame, where a spawned device's timing is the scheduler's alone.
+# The harness arm of the same discard, with a concurrent route into it: a
+# spawned device whose `stage!(sim, …)` — the harness writer's own surface,
+# not the device's claim — lands mid-replay, frame after frame, from its own
+# task beside the loop on the calling task (§11.1).
 mutable struct HarnessPoker <: AbstractDevice
     sim::Any
 end
-needs_calling_task(::HarnessPoker) = true
 loop(dev::HarnessPoker, handle) = (while running(handle);
                                    stage!(dev.sim, "ref" => 99.0); yield(); end;
                                    nothing)
 
 function trace_discarded_harness()
     @testset "live staging into the harness is discarded on its own cell (§12.7, §11.8)" begin
-        # A long recording, so the inline body is scheduled against a run with frames
-        # left to give it: the poker's stage is deterministic, its timing never is.
+        # A long recording, so the poker's task is scheduled against a run with
+        # frames left to give it: its stage is deterministic, its timing never is.
         sim = Simulation(replay_model(); h = 1//10)
         init!(sim, fragment(u = (ref = 1.0, rate = 0.0)))
         stage!(sim, "ref" => 2.0)

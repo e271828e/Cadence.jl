@@ -30,13 +30,10 @@ abstract type AbstractBinding end
 The declared sides and the claim source (§11.6): sides are *declared*, never
 inferred — the root carries the false defaults, so silence = absent — and
 `is_greedy` selects the computed claim source *within* the input side (§11.3).
-`needs_calling_task` is the affinity trait: the calling task is a single-slot
-resource, so the roster admits at most one holder (§11.1, §11.3).
 """
 is_input(::AbstractBinding) = false
 is_output(::AbstractBinding) = false
 is_greedy(::AbstractBinding) = false
-needs_calling_task(::AbstractDevice) = false
 
 """
 The enumeration contract (§11.6): an input-side binding's `claims(b)` is

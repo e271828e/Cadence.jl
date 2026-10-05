@@ -163,89 +163,6 @@ function loop(dev::Wedged, handle)
 end
 unblock!(dev::Wedged) = (lock(dev.hook); try wait(dev.hook) finally unlock(dev.hook) end; nothing)
 
-# A calling-task device: records which task ran its body (§11.1's pinning),
-# polling between running checks and never blocking across them (§12.4).
-mutable struct Inline <: AbstractDevice
-    task::Union{Nothing,Task}
-    log::Vector{Symbol}
-end
-Inline() = Inline(nothing, Symbol[])
-needs_calling_task(::Inline) = true
-function loop(dev::Inline, handle)
-    dev.task = current_task()
-    while running(handle)
-        sleep(0.001)
-    end
-    push!(dev.log, :returned)
-    nothing
-end
-
-# A calling-task device whose body returns only when the test releases it, so
-# the test picks the moment the calling task leaves the wrapper (§11.1).
-mutable struct HeldInline <: AbstractDevice
-    release::Channel{Int}
-    shutdowns::Int                           # the arm's release must not double the wrapper's
-end
-HeldInline() = HeldInline(Channel{Int}(1), 0)
-needs_calling_task(::HeldInline) = true
-loop(dev::HeldInline, handle) = (take!(dev.release); nothing)
-shutdown!(dev::HeldInline) = (dev.shutdowns += 1; nothing)
-
-# A calling-task device whose first `held_calls` `shutdown!` calls park on a
-# hook until an interrupt cuts them short, so the test can land interrupts
-# inside the inline entry's release (§11.6, §12.4). Zeroing `held_calls` under
-# the hook's lock and notifying frees the caller when a regression leaves it
-# parked.
-mutable struct HookedInline <: AbstractDevice
-    release::Channel{Int}
-    hook::Threads.Condition
-    held_calls::Int
-    shutdowns::Int
-end
-HookedInline() = HookedInline(Channel{Int}(1), Threads.Condition(), 2, 0)
-needs_calling_task(::HookedInline) = true
-loop(dev::HookedInline, handle) = (take!(dev.release); nothing)
-function shutdown!(dev::HookedInline)
-    dev.shutdowns += 1
-    lock(dev.hook)
-    try
-        dev.shutdowns <= dev.held_calls && wait(dev.hook)
-    finally
-        unlock(dev.hook)
-    end
-    nothing
-end
-
-# A ramp whose derivative records the task it runs on past `t₀`: the frame
-# loop's, which a calling-task device moves to a spawned task (§11.1). Once
-# `hold` is set, the next evaluation marks `held` and keeps its frame in flight
-# until the observer clears `hold`, so the loop cannot end before then; the 30 s
-# cap is a safety net past the observers' own waits, never what releases the
-# frame. The `held` face reads the mark, so a stop face on it holds from the
-# held frame's publication on.
-struct LoopRecorder <: AbstractComponent
-    task::Base.RefValue{Union{Nothing,Task}}
-    hold::Threads.Atomic{Bool}
-    held::Threads.Atomic{Bool}
-end
-LoopRecorder() = LoopRecorder(Ref{Union{Nothing,Task}}(nothing), Threads.Atomic{Bool}(false),
-                              Threads.Atomic{Bool}(false))
-x_init(::LoopRecorder) = (q = 0.0,)
-y_types(::LoopRecorder) = (q = Float64, held = Bool)
-y_state(c::LoopRecorder, (; x)) = (q = x.q, held = c.held[])
-function x_deriv(c::LoopRecorder, (; x, t))
-    t > 0 && (c.task[] = current_task())
-    if c.hold[]
-        c.held[] = true
-        deadline = time() + 30.0
-        while c.hold[] && time() < deadline
-            sleep(0.001)
-        end
-        c.hold[] = false
-    end
-    (q = one(x.q),)
-end
-
 # `Exploder`'s throw held at a gate: from `t = 0.2` on, past the build's probe
 # and boundary zero, the evaluation marks `armed`, waits for the observer's
 # `go`, then throws, so the observer picks what the calling task meets on the
@@ -555,148 +472,6 @@ function test_devices()
                     for d in residue.recent) == Int(tight)
     end
 
-    @testset "an interrupt while run! awaits the spawned loop ends the loop inside run! (§11.1, §12.4, D-268)" begin
-        recorder = LoopRecorder()
-        sim = Simulation(single(recorder); h = 1//10)
-        attach!(sim, Panel("p"), Enumerated())   # returns at once: run! goes on to await the loop
-        init!(sim)
-        caller = current_task()
-        observer = Threads.@spawn begin
-            recorded = timedwait(() -> recorder.task[] !== nothing, 10.0) === :ok
-            recorder.hold[] = true               # a frame in flight when the interrupt lands
-            held = recorded && timedwait(() -> recorder.held[], 10.0) === :ok
-            sent = held && interrupt_parked(caller, recorder.task[].donenotify)
-            recorder.hold[] = false              # the stop is requested; the loop may now end
-            sent || stop!(sim)                   # a regression fails below rather than hangs
-            sent
-        end
-        run!(sim; t_end = 1.0e6)
-        @test fetch(observer)
-        @test istaskdone(recorder.task[])        # the loop ended inside run!, not after it
-        @test lifecycle(sim) === :stopped
-        @test termination(sim).source === ControlRequestedStop(:interrupt)
-        @test latest(sim).t == termination(sim).t   # no frame published past the record
-    end
-
-    @testset "an interrupt past the inline body and outside the await, and a second in the arm's deregistration, still end the loop inside run! (§11.1, §12.4)" begin
-        # With no stop face, and with one the held frame's publication reaches,
-        # whose `ModelRequestedStop` only the awaited loop reports. Each with one
-        # interrupt, and with a second landing in the arm's own deregistration,
-        # inside `_await_loop`'s `try`, which retries it.
-        for stop_on in ((), ("held",)), interrupt_count in (1, 2)
-            recorder = LoopRecorder()
-            model = Group((; c = recorder); output_wires = ("c/held" => "held",))
-            sim = Simulation(model; h = 1//10)
-            dev = HeldInline()
-            attach!(sim, dev, Enumerated())
-            init!(sim)
-            caller = current_task()
-            wake = sim.control.wake
-            observer = Threads.@spawn begin
-                recorded = timedwait(() -> recorder.task[] !== nothing, 10.0) === :ok
-                recorder.hold[] = true           # a frame in flight when the interrupt lands
-                held = recorded && timedwait(() -> recorder.held[], 10.0) === :ok
-                # Holding the control plane's lock parks the calling task on it once
-                # the body returns, where the inline entry is deregistered: outside
-                # the wrapper's catch and before the await's. Still held, it parks
-                # the arm on it again, in `_await_loop`'s deregistration.
-                lock(wake)
-                sent = try
-                    put!(dev.release, 1)
-                    held && all(_ -> interrupt_parked(caller, wake.lock.cond_wait), 1:interrupt_count)
-                finally
-                    unlock(wake)
-                end
-                # the loop is released once run! awaits it
-                sent && timedwait(() -> parked_in(caller, recorder.task[].donenotify), 10.0)
-                recorder.hold[] = false
-                sent || stop!(sim)               # a regression fails below rather than hangs
-                sent
-            end
-            run!(sim; t_end = 1.0e6, stop_on)
-            loop_done = istaskdone(recorder.task[])   # read before anything else can let it end
-            @test fetch(observer)
-            @test loop_done                      # the loop ended inside run!, not after it
-            @test lifecycle(sim) === :stopped
-            @test termination(sim).source ===
-                  (isempty(stop_on) ? ControlRequestedStop(:interrupt) : ModelRequestedStop(:held))
-            clock = sim.exec.clock
-            @test latest(sim).frame == clock.frame && latest(sim).t == clock.t   # at a frame top
-            @test latest(sim).t == termination(sim).t   # no frame published past the record
-            # the body returned before the last publication read the registry (§12.2)
-            @test writer_status(latest(sim), "device 1 (HeldInline)").task_state === :done
-            @test dev.shutdowns == 1             # the wrapper's; the arm's release saw it (§11.6)
-        end
-    end
-
-    @testset "interrupts escaping the inline entry's release, in its wrapper and in the arm's tail, are retried to the end (§12.4, D-268)" begin
-        # Each `shutdown!` parks on the hook; an interrupt there is caught by
-        # `_shutdown!`, whose stop request then parks on `wake`, which the
-        # observer holds: a second interrupt there escapes the release
-        # unrecorded. First in the wrapper's `finally`, then in the arm's tail,
-        # where the escape reaches the tail's retry and a fifth interrupt lands
-        # in the retry's `_finish!`.
-        recorder = LoopRecorder()
-        sim = Simulation(single(recorder); h = 1//10)
-        dev = HookedInline()
-        attach!(sim, dev, Enumerated())
-        init!(sim)
-        caller = current_task()
-        wake = sim.control.wake
-        observer = Threads.@spawn begin
-            sent = 0
-            send(waited_on) = interrupt_parked(caller, waited_on) && (sent += 1; true)
-            ok = timedwait(() -> recorder.task[] !== nothing, 10.0) === :ok
-            put!(dev.release, 1)                 # the inline body returns
-            # the wrapper's `finally`: the first `shutdown!` parks on the hook
-            ok = ok && timedwait(() -> parked_in(caller, dev.hook), 10.0) === :ok
-            lock(wake)
-            try
-                ok = ok && send(dev.hook) && send(wake.lock.cond_wait)
-            finally
-                unlock(wake)
-            end
-            # the arm awaits the loop and runs the tail, whose inline release
-            # calls `shutdown!` a second time: the same two cuts, then the retry's
-            # `_finish!` parks on `wake`, still held
-            ok = ok && timedwait(() -> parked_in(caller, dev.hook), 10.0) === :ok
-            lock(wake)
-            try
-                ok = ok && send(dev.hook) && send(wake.lock.cond_wait) &&
-                     send(wake.lock.cond_wait)
-            finally
-                unlock(wake)
-            end
-            if !ok                               # a regression fails below rather than hangs
-                lock(dev.hook)
-                try
-                    dev.held_calls = 0
-                    notify(dev.hook)
-                finally
-                    unlock(dev.hook)
-                end
-                stop!(sim)
-            end
-            sent
-        end
-        _, thrown = Test.collect_test_logs() do
-            try
-                run!(sim; t_end = 1.0e6)
-                nothing
-            catch err
-                err
-            end
-        end
-        loop_done = istaskdone(recorder.task[])   # read before anything else can let it end
-        @test fetch(observer) == 5
-        @test thrown === nothing                 # no interrupt left the tail
-        @test loop_done                          # the loop ended inside run!, not after it
-        @test lifecycle(sim) === :stopped
-        @test termination(sim).source === ControlRequestedStop(:interrupt)
-        @test dev.shutdowns == 3                 # each cut release runs `shutdown!` once more (§11.6)
-        @test latest(sim).t == termination(sim).t   # no frame published past the record
-    end
-
     @testset "an interrupt in the failed frame's `_finish!` on the calling task keeps its StepError (§12.4, §13.4, D-268)" begin
         # The armed frame waits at its gate until the observer holds `wake`, so
         # the throw's `_finish!` parks on it and the interrupt lands there.
@@ -734,47 +509,6 @@ function test_devices()
             rostered || @test source isa LoopError && source.exception === thrown
             @test count(l -> l.level == Base.CoreLogging.Error, logs) == Int(rostered)
         end
-    end
-
-    @testset "an interrupt in the inline entry's `finally` over a failed spawned loop keeps its StepError (§12.4, §13.4, D-268)" begin
-        # The spawned loop waits at its gate while the observer holds `wake` and
-        # releases the inline body: the entry's deregistration parks on `wake`,
-        # and the interrupt lands there. The arm then awaits the loop, whose throw
-        # comes back as a value once the observer sends the go.
-        comp = GatedExploder()
-        dev = HeldInline()
-        sim = Simulation(single(comp); h = 1//10)
-        attach!(sim, dev, NoClaim())
-        init!(sim)
-        caller = current_task()
-        wake = sim.control.wake
-        observer = Threads.@spawn begin
-            armed = timedwait(() -> comp.armed[], 10.0) === :ok
-            lock(wake)
-            sent = try
-                put!(dev.release, 1)
-                armed && interrupt_parked(caller, wake.lock.cond_wait)
-            finally
-                put!(comp.go, nothing)           # always, so a regression fails rather than hangs
-                unlock(wake)
-            end
-            sent
-        end
-        logs, thrown = Test.collect_test_logs() do
-            try
-                run!(sim; t_end = 5.0)
-                nothing
-            catch err
-                err
-            end
-        end
-        @test fetch(observer)
-        @test thrown === nothing
-        @test lifecycle(sim) === :errored
-        source = termination(sim).source
-        @test source isa LoopError && source.exception isa StepError{Exploded}
-        @test count(l -> l.level == Base.CoreLogging.Error, logs) == 1
-        @test dev.shutdowns == 1                 # the wrapper's; the arm's release saw it (§11.6)
     end
 
     @testset "paused reads the flag in every lifecycle state, and the verbs refuse none (§12.1, D-268)" begin
@@ -1288,23 +1022,6 @@ function test_devices()
         @test termination(sim2).source === ControlRequestedStop(:interrupt)
     end
 
-    @testset "a calling-task device runs inline and the loop moves, trajectory untouched (§11.1)" begin
-        sim = Simulation(two_root_inputs(); h = 1//10)
-        dev = Inline()
-        attach!(sim, dev, Enumerated())
-        init!(sim, fragment(u = (a = 0.0, b = 0.0)))
-        caller = current_task()
-        run!(sim; t_end = 0.5)
-        @test dev.task === caller                # the pinning: the body ran on run!'s task
-        @test dev.log == [:returned]             # and left through the ordinary predicate
-        @test sim.exec.clock.frame == 5
-        # the movable loop moved nothing else
-        reference = Simulation(two_root_inputs(); h = 1//10)
-        init!(reference, fragment(u = (a = 0.0, b = 0.0)))
-        run!(reference; t_end = 0.5)
-        @test port(sim, "s", :e) === port(reference, "s", :e)
-    end
-
     @testset "a device with no loop method is refused at attach!, by kind (§11.6)" begin
         sim = Simulation(two_root_inputs(); h = 1//10)
         d = carried(@test_throws DiagnosticError{DeviceContractMismatch} attach!(sim, Loopless(), Enumerated()))
@@ -1527,14 +1244,14 @@ function test_devices()
         @test !stale(crasher_record; now = crasher_record.heartbeat + 1.0)
 
         # No live task of its own inside a run reads `:done` too (§12.2): the
-        # Panel's inline body returns at once, and the BadInit's `init!` throws
-        # so no task is spawned. The Panel moves the loop to a spawned task, and
-        # `run!` returns only when it ends, so the observer stops the sim.
+        # Pad's body returns at once, and the BadInit's `init!` throws so no
+        # task is spawned. `run!` returns only when the loop ends, so the
+        # observer stops the sim.
         dead_sim = Simulation(panel_model(); h = 1//10)
-        panel_handle = attach!(dead_sim, Panel("p"), Enumerated("in"))
+        dead_handle = attach!(dead_sim, Pad("p"), Enumerated("in"))
         attach!(dead_sim, BadInit(), Enumerated("gain_in"))
         init!(dead_sim, fragment(u = (in = 1.0, gain_in = 2.0)))
-        dead_views = port_views(panel_handle)
+        dead_views = port_views(dead_handle)
         observer = Threads.@spawn begin
             seen = timedwait(10.0) do
                 orphan_record(dead_sim, dead_views[("ctl", :e)]) !== nothing &&
@@ -1548,10 +1265,10 @@ function test_devices()
         Test.collect_test_logs() do
             run!(dead_sim; t_end = 1.0e6)
         end
-        (seen, (panel_record, init_record)) = fetch(observer)
+        (seen, (dead_record, init_record)) = fetch(observer)
         @test seen
-        @test panel_record.who == "device 1 (Panel)" && panel_record.task_state === :done
-        @test panel_record.totals.crash == 0
+        @test dead_record.who == "device 1 (Pad)" && dead_record.task_state === :done
+        @test dead_record.totals.crash == 0
         @test init_record.who == "device 2 (BadInit)" && init_record.task_state === :done
         @test init_record.totals.crash == 1 && orphaned(init_record)
     end

@@ -462,9 +462,9 @@ function test_lifecycle()
     end
 
     @testset "run! reads §13.4's disposition off the roster, and step! always rethrows (§13.4, D-268)" begin
-        # Interactive: a rostered device, in either topology — the loop on the
-        # calling task, or spawned beside a calling-task device (§11.1).
-        for dev in (TailProbe(), Panel("p"))
+        # Interactive: a rostered device, spawned beside the loop on the
+        # calling task (§11.1).
+        for dev in (TailProbe(), Pad("p"))
             sim = Simulation(fed(Exploder(), "arm"); h = 1//10)
             attach!(sim, dev, NoClaim())
             init!(sim, fragment(u = (in = false,)))

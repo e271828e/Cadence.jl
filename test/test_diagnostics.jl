@@ -434,7 +434,6 @@ function diagnostics_kind_set()
             AttachUnknownFace(device = "Pad", binding = "Enumerated", face = :q,
                               candidates = [:a, :b]),
             AlreadyAttached(device = "Pad", incumbent = "device 1 (Pad)", binding = "Enumerated"),
-            CallerTaskConflict(device = "Pad", incumbent = "device 1 (Poller)"),
             ClaimConflict(face = :a, device = "Pad", incumbent = "device 1 (Pad)"),
             EmptyGreedyClaim(device = "device 2 (Pad)", binding = "GreedyPlus"),
             BindingContractMismatch(binding = "NoEnum", reason = :claims_missing),

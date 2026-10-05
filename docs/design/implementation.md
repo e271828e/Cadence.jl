@@ -641,8 +641,8 @@ Spec: §9.2, §11.8, §13.7, D-136, D-257, D-261.
 - The frame loop's one catch site in `_advance!`, its second host
   `_host_boundary_zero!`, the one constructor `_wrap_step`, and the species
   rule `_species` with the runtime bundle-field match (§13.2, §13.4, D-248).
-- §12.4's mask, its unmask points, and the interrupt arms of `run!`,
-  `step!` and `_await_loop` (D-268). The invariants each arm keeps are
+- §12.4's mask, its unmask points, and the interrupt arms of `run!` and
+  `step!` (D-268). The invariants each arm keeps are
   stated in the comments at those sites.
 - The seam's `isfinite` sweep `_check_finite!`.
 - The accessors `lifecycle`, `mode`, `termination`, `latest`, `logged`,

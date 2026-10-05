@@ -1394,15 +1394,6 @@ message(d::AlreadyAttached) =
     "this $(d.device) instance is already rostered as $(d.incumbent) under $(d.binding) — " *
     "rebinding is spelled `detach!` then `attach!` (§11.3)"
 
-"§11.1, §11.3: two devices claiming the calling task, a single-slot resource."
-Base.@kwdef struct CallerTaskConflict <: Diagnostic
-    device::String
-    incumbent::String
-end
-message(d::CallerTaskConflict) =
-    "$(d.device) declares `needs_calling_task`, and $(d.incumbent) already holds the " *
-    "calling task (§11.1, §11.3)"
-
 "§11.3: one root input face claimed by two devices."
 Base.@kwdef struct ClaimConflict <: Diagnostic
     face::Symbol

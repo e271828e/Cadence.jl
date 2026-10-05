@@ -77,8 +77,7 @@ _assert_attached(handle::DeviceHandle) =
 # --- the authoring contract (§11.6) --------------------------------------------
 
 """
-The authoring contract: four functions, one optional, one trait
-(`needs_calling_task`, roster.jl). `init!` and `shutdown!` are the per-run
+The authoring contract: four functions, one optional. `init!` and `shutdown!` are the per-run
 resource bracket, with no-op defaults — a stub device holds nothing — and
 `shutdown!` must tolerate a partially initialized device: it is guaranteed
 on every exit path, the failed-`init!` bracket included. `unblock!` is
@@ -361,8 +360,8 @@ end
     orphaned(record::WriterStatus)
 
 §11.7's orphan fact: the record reads `:done`, a device with no live task
-inside a run (§12.2) — its loop returned or crashed, its `init!` threw, or
-its inline body returned. The record's `DeviceCrash` count tells a crash from
+inside a run (§12.2) — its loop returned or crashed, or its `init!` threw.
+The record's `DeviceCrash` count tells a crash from
 a return. `:none` outside a run is not orphaned, nor the harness's or the
 loop's `nothing`.
 """
@@ -396,9 +395,7 @@ stop-drained predicate — runs `shutdown!` and then consults the attachment's
 `should_abort`; a crash is caught here and reported as `DeviceCrash` into
 the device's own diagnostic cell (§11.8, §12.4(6)) — on the device's task,
 the cell's writer — the run continuing with the device's task absent and its
-claims held to run end. A `needs_calling_task` device runs this identical
-wrapper inline on the calling task: the invocation site is its only
-difference (§11.1). Death is marked nowhere beyond the record: the task has
+claims held to run end. Death is marked nowhere beyond the record: the task has
 ended, `task_state` says so at the next publication, and the heartbeat goes
 stale (§12.2).
 """
@@ -407,7 +404,7 @@ stale (§12.2).
 _unblocks(dev::AbstractDevice) =
     which(unblock!, Tuple{typeof(dev)}) !== which(unblock!, Tuple{AbstractDevice})
 
-function _wrap(entry::RosterEntry, released::Base.RefValue{Bool} = Ref(false))
+function _wrap(entry::RosterEntry)
     try
         loop(entry.dev, entry.handle)
     catch err
@@ -428,7 +425,6 @@ function _wrap(entry::RosterEntry, released::Base.RefValue{Bool} = Ref(false))
         end
     finally
         _shutdown!(entry)
-        released[] = true                    # read by `run!`'s interrupt arm for the inline entry
         entry.should_abort && stop!(entry.handle)
     end
     nothing
@@ -514,8 +510,7 @@ the deadline is abandoned rather than left to hang `run!`, reported by name
 under `DeviceJoinTimeout` into the loop's own cell (D-203): the terminal
 snapshot precedes the join by construction, so the run's-end sweep — not a
 drain — is what collects it, into the termination record and the logging
-backend. The calling-task device sits outside the join: nothing can abandon
-the task `run!` stands on.
+backend.
 
 An interrupt reaching the tail, in the `unblock!` loop or the join, collapses
 it (§12.4, D-268): the remaining joins are abandoned at once, every entry

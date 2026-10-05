@@ -79,10 +79,9 @@ function test_roster()
         d = only(diagnostics(err))
         @test err isa DiagnosticError && d isa ClaimConflict
         @test occursin("device 1", d.incumbent)
-        # Affinity: the calling task is a single-slot resource.
-        attach!(sim, Panel("p1"), Enumerated("b"))
+        # Ids are assigned at admission, monotonic per simulation.
+        attach!(sim, Pad("p1"), Enumerated("b"))
         @test sim.plane.roster[end].id == 2
-        @test_throws DiagnosticError{CallerTaskConflict} attach!(sim, Panel("p2"), Enumerated())
         # An enumeration drifted onto a nonexistent face is a diagnosable anomaly.
         d = carried(@test_throws DiagnosticError{AttachUnknownFace} attach!(sim, Pad("d3"), Enumerated("flaps")))
         @test d.device == "Pad" && d.binding == "Enumerated" && d.face === :flaps

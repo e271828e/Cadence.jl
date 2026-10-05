@@ -1471,20 +1471,6 @@ end
 loop(::Pad, handle) = nothing
 
 """
-    Panel(name)
-
-A stub device declaring the calling-task affinity (§11.6): at most one holder
-per roster, the calling task being a single-slot resource (§11.1, §11.3).
-Its loop body is `Pad`'s immediate voluntary return, run inline on the
-calling task by the wrapper.
-"""
-mutable struct Panel <: AbstractDevice
-    name::String
-end
-needs_calling_task(::Panel) = true
-loop(::Panel, handle) = nothing
-
-"""
     TailProbe()
 
 A resource-bracket witness: `init!` and `shutdown!` append to `log`, and its
