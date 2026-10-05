@@ -22,7 +22,11 @@ the whole surface and the library and the GUI both add names.
   what the drawing context bundles beside them, how it scopes to a child,
   and the widgets, to be co-designed against the GUI library under §11.7's
   four constraints. `gui = true` (§12.6, Appendix B) attaches that package's
-  device, so the flag waits on it.
+  device, so the flag waits on it. The initial design session's record is
+  `docs/design/gui/initial_design.md` (2026-09-28, not normative): its
+  answered questions, its axes, and under axis 2 the open list this bullet's
+  design session picks up. Axis 1's handle surface has since been fixed by
+  D-270 and built, except the log-tail view the plot widget needs.
 - **The exported-name audit.** The export list is to be decided deliberately
   rather than by accident, and until the audit runs the module exports
   nothing (D-226). The audit is a full-surface sweep under the four-class
@@ -67,6 +71,13 @@ what the spec says, the spec edit is part of the item.
   compile-time and garbage measurements a model to run on, and the GUI one
   to drive.
 - **A tutorial** that takes a newcomer from a component to a run and a plot.
+- **The inspector.** A browser page over a serialized `Build` or
+  `Deployment` that helps a user understand a model and shows no runtime
+  data. The core never depends on it. Its initial design session's record is
+  `docs/design/inspector/initial_design.md` (2026-09-28, not normative): the
+  answered questions and the axes left open, which is the checkpoint its
+  design session picks up from. The external interface that would reuse its
+  descriptor is parked beside it in `external.md`, with nothing settled.
 - **The spec's readability rewrite.** Chapters 7, 8, 9 and 10 are done. The other
   chapters follow `docs/spec_rewrite/recipe.md`, and that directory's README
   tracks them. Until a chapter's turn comes, it keeps the old markers.

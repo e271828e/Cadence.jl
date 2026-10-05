@@ -2,7 +2,7 @@
 
 A generic interface that lets a fully external GUI read a model and follow a
 running simulation. It serves the descriptors the inspector reads
-(`inspector.md` in this folder) plus runtime data through subscriptions.
+(`initial_design.md` in this folder) plus runtime data through subscriptions.
 Parked on 2026-09-28, when the inspector session split it off. Nothing here
 is settled yet.
 

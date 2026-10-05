@@ -3,9 +3,13 @@
 A browser inspector that helps a user understand a Cadence model. It reads
 serialized descriptors of a `Build` or a `Deployment` and never shows
 runtime data. This document records the questions that narrow the solution
-space, the answers, and the axes left for later sessions. The proposal in
-`docs/design/inspector/` is deliberately left out, so that it does not bias
-this one.
+space, the answers, and the axes left for later sessions. An earlier
+inspector proposal, deleted in commit 084d6f0, was deliberately left out, so
+that it does not bias this one. This document is not normative. Rulings
+that touch the framework land in `spec.md` and `decisions.md` first, and the
+spec wins wherever the two disagree. The inspector material of the same
+day's whole-layer session, `docs/design/gui/initial_design.md`, was
+merged here on 2026-10-05.
 
 ## Pending Questions
 
@@ -20,8 +24,8 @@ None. The open questions now live under each design axis below.
    - a generic interface for fully external GUIs, which serves those
      descriptors plus runtime data through subscriptions.
 
-   This document designs the inspector. The built-in GUI stays with §11.7,
-   and its two `pending.md` entries stay where they are. The external
+   This document designs the inspector. The built-in GUI stays with §11.7
+   and its own record, `docs/design/gui/initial_design.md`. The external
    interface is parked in `external.md` in this folder.
    *Note for the built-in GUI:* an earlier round of this session favored a
    generated panel for every component, which an author may override with a
@@ -125,7 +129,8 @@ None. The open questions now live under each design axis below.
    The first release carries the core, analysis and face-route tiers.
    *Why:* the first two tiers need no new data from the core. They turn what
    `show` prints today into something to navigate. The general feedthrough
-   view needs dependence maps that only a failed loop's tracing produces.
+   view needs dependence maps that only a failed loop's tracing produces, or
+   a §9.4 tracer activation run on request.
 10. **Distribution: one static bundle, fetched by Julia, also hosted.**
     The inspector is a static bundle: HTML, JavaScript and CSS that run
     entirely in the browser. Its sources live in their own repo, and CI
@@ -232,9 +237,16 @@ cited by number. Couplings are named where they exist.
    failure descriptors: field names, nesting, how types, paths, faces,
    routes, timing tables, diagnostics and parameter summaries are encoded.
    It also covers the JSON Schema, the minor and major bump rules, and a set
-   of fixture descriptors. *Builds on* answers 4 to 7 and 13. *Coupled to*
-   axis 3, which says what the drawing needs, and to the parked external
-   interface, which will extend the schema.
+   of fixture descriptors. Three details carried over from the whole-layer
+   session: the two-sided face table, the anchor and component tables in
+   rational form, and state events among the derived facts. One question
+   carried over with them: a per-face kind marker beside the printed type
+   (number, Boolean, enum, struct with named fields, opaque; function-valued
+   signals of §4.4 opaque), which answer 15's wire styles need and which
+   answer 4 defers as part of the value type schema. Whether the marker
+   alone comes now is this axis's call. *Builds on* answers 4 to 7 and 13.
+   *Coupled to* axis 3, which says what the drawing needs, and to the parked
+   external interface, which will extend the schema.
 2. **Core integration.** The spec work answer 13 calls for: a section for
    `describe`, the D-257 ruling that a rendering to data is not an accessor,
    and the carrier exception holding the last clean artifact (§13.1, §13.2).
@@ -244,9 +256,9 @@ cited by number. Couplings are named where they exist.
 3. **Visual grammar.** How each model concept is drawn. This covers blocks;
    faces as ports; an opened assembly's boundary faces inside the subsystem;
    fan-out; container children and name-transparent containers; root inputs;
-   tier and rate colors; wire styles and type labels; library icons; and the
-   diagnostics overlay with loop wires and dead hops. *Builds on* answers 6,
-   9 and 15. *Coupled to* axis 4.
+   tier and rate colors, or rate scopes drawn as regions; wire styles and
+   type labels; library icons; and the diagnostics overlay with loop wires
+   and dead hops. *Builds on* answers 6, 9 and 15. *Coupled to* axis 4.
 4. **Layout and rendering.** ELK configuration: one level at a time, model
    order, port constraints, right-angle routing, and stability hints across
    pushes. It also covers the rendering spike, hand-rolled SVG against Svelte
@@ -255,8 +267,10 @@ cited by number. Couplings are named where they exist.
 5. **Workspace and interaction.** The tree, canvas, detail pane and drawer;
    search; selection; view state kept by path across pushes; the analysis
    views (execution order, anchor and component tables, schedule and
-   hyperperiod chart, root inputs); face-route highlighting; the help page.
-   *Builds on* answers 8, 9 and 15.
+   hyperperiod chart, root inputs); face-route highlighting; the help page;
+   and the clipboard bridge, which copies a node's canonical path on click
+   for the built-in GUI's "go to path" field, the only coupling between the
+   two tools. *Builds on* answers 8, 9 and 15.
 6. **Julia package and live session.** The `inspect` and `write_descriptor`
    API, and the server's life in the REPL: a background task, port choice,
    opening the browser, binding to `localhost` only. It also covers the page
@@ -270,8 +284,12 @@ cited by number. Couplings are named where they exist.
    statement. *Builds on* answers 10, 11 and 14.
 
 **Deferred, not refused:** a diff of two builds; a general view of what feeds
-an output instantaneously; saved hand layout; author-supplied icons; the
-standalone HTML export.
+an output instantaneously; saved hand layout, which would take the form of a
+sidecar file keyed by path, presentation state and never model state;
+author-supplied icons; the standalone HTML export; and the live inspector,
+this inspector's rendering code as the seed of a client of the external
+interface, with values on wires, boundary highlighting and click-to-open
+across tools.
 
 ## Glossary
 
@@ -291,6 +309,14 @@ standalone HTML export.
   build descriptor it deploys and adds the schedule and grid facts.
 - **Bundle.** The inspector's built front end: a few static files that run
   in any browser with nothing installed.
+- **Clipboard bridge.** The inspector copies a node's canonical path on
+  click; the built-in GUI's tree accepts a pasted path in a "go to path"
+  field. The only link between the two tools before a live inspector.
+- **Kind marker.** A small tag per face beside its printed Julia type
+  (number, Boolean, enum, struct with named fields, opaque) so a client with
+  no Julia can choose a widget or a wire style. Open under axis 1.
+- **Live inspector.** The deferred inspector that connects to the external
+  interface and shows runtime data on the diagram.
 - **Hosted copy.** The bundle published on GitHub Pages. It opens descriptor
   files locally and uploads nothing.
 - **Live session.** The inspector package's local web server and the tab it
