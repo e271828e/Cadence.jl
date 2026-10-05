@@ -6325,50 +6325,34 @@ the ECEF frame.
    coordinating with the loop ([§11.2][s11-2]).
 4. **Control.** Pause, pace and stop live on a separate few-word atomic
    surface ([§12.1][s12-1]).
-5. **Task topology.** One loop, one task per rostered device except the
-   calling-task device, all run-scoped.
+5. **Task topology.** One loop on the calling task, one spawned task per
+   rostered device, all run-scoped.
 
 The fifth plane carries the most machinery, and the rest of this section
 spells it out.
 
-**Device tasks are run-scoped.** `run!` spawns one task per other
+**Device tasks are run-scoped.** `run!` spawns one task per
 [roster](#g-roster) entry after device `init!`, and [§12.4][s12-4] joins them
 all at every stop ([§12.6][s12-6]). `attach!` never spawns. It registers, in
 a stopped-sim state only ([§11.3][s11-3]), and the task appears at the next
 `run!`.
 
-**The calling-task device is pinned, and the loop is the movable piece.**
-Calling-task affinity is a device trait, `needs_calling_task`, default
-`false` ([§11.6][s11-6]). At most one device per roster holds it (the
-admission checks, [§11.3][s11-3]). The shipped GUI declares it, because CImGui
-ties rendering to the calling (main) task. With such a device rostered, the
-loop moves to a spawned task for the duration of the run, and the
-[calling task](#g-calling-task) (the task that invoked `run!`) runs that
-device's loop body. It runs the body inline, inside the same [§11.6][s11-6]
-wrapper that brackets any spawned device's loop body. With no such device
-rostered, the loop runs on the calling task.
-
-| | no calling-task device | calling-task device rostered |
-|---|---|---|
-| the calling task runs | the loop | that device's loop body, inline |
-| spawned tasks | one per rostered device | the loop, plus one per other rostered device |
-
-The loop-on-the-calling-task case is unattended mode. It is what the
+**The loop runs on the calling task** ([D-310][d-310]). The
+[calling task](#g-calling-task) (the task that invoked `run!`) runs the loop
+itself, and every rostered device runs on a spawned task. This is what the
 synchronous rethrow ([§13.4][s13-4]) presupposes. It is also what lets
 parallel unattended sweeps thread `run!` inline with no nested task fan-out.
 One immutable [`Build`](#g-build) is shared across the workers
 ([§9.2][s9-2]), and each `Simulation` owns its own [buffers](#g-buffer) ([§9.4][s9-4]).
 Pre-materializing the sweep's [activations](#g-activation), its per-eltype
 [executable sets](#g-executable-set) via `build(world; activations = …)`
-([§9.4][s9-4]), then leaves no worker synchronizing on anything. Either way
-`run!` blocks its caller until the run ends. What varies is what the calling
-task spends the run doing.
+([§9.4][s9-4]), then leaves no worker synchronizing on anything. `run!`
+blocks its caller until the run ends.
 
 **Topology is derived after initialization**, from the
 [frozen roster](#g-roster) plus the outcomes of device `init!`, and never from
-`run!`'s keywords. [§12.4][s12-4] carries the rule and the case that motivates
-it. A calling-task holder whose `init!` failed returns the loop to the calling
-task.
+`run!`'s keywords. [§12.4][s12-4] carries the rule: a device whose `init!`
+failed gets no task.
 
 **Spawn-inside-`run!` is the start gate.** A task exists only once the run it
 serves exists. Any first-boundary synchronization a device needs is the
@@ -6791,15 +6775,12 @@ device id the trace, heartbeat and diagnostics speak is assigned at
 long as the entry: across runs (roster persistence, [§12.6][s12-6]), until
 `detach!`.
 
-Admission is a three-part check at the attach point, in order:
+Admission is a two-part check at the attach point, in order:
 
 ```
 # each line: the condition that rejects the attach → the diagnostic it raises
 identity   this instance is already rostered
                → AlreadyAttached      (names the entry and its binding)
-affinity   this device declares needs_calling_task, and a rostered
-           device already declares it
-               → CallerTaskConflict   (names both devices)
 claims     face exclusivity: this device's claim set meets a rostered claim
                → ClaimConflict        (names two distinct devices)
 ```
@@ -6807,10 +6788,8 @@ claims     face exclusivity: this device's claim set meets a rostered claim
 An already-rostered instance is rejected rather than silently absorbed,
 because rebinding has an explicit spelling: `detach!` then `attach!`, both
 legal at any stopped-sim point. Either a silent no-op or a silent rebind
-would discard a binding the caller handed over. The affinity check admits at
-most one rostered device declaring `needs_calling_task`, because the topology
-([§11.1][s11-1]) makes the calling task a single-slot resource. Running the
-claims check after the identity check is what makes `ClaimConflict` always
+would discard a binding the caller handed over. Running the claims check
+after the identity check is what makes `ClaimConflict` always
 name two *distinct* devices, never a device colliding with its own earlier
 attachment.
 
@@ -7240,19 +7219,18 @@ entry's ([D-244][d-244]).
 advisory in one deployment and decisive in another. With it clear, a
 device's departure is reported and the run continues without it. With it
 set, that departure also requests a sim stop ([§12.4][s12-4]). A departure
-is the loop body returning, a crash, or a failed `init!`. The shipped GUI
-attaches with `should_abort = true`, since closing the window is the
-interactive session's natural end, and `gui = true`'s run-scoped attachment
-states that value ([§12.6][s12-6], [Appendix B][sB]).
+is the loop body returning, a crash, or a failed `init!`. A
+hardware-in-the-loop rig attaches its plant interface with it set, since a
+run without that device is meaningless.
 
 Input-only and output-only devices are degenerate uses, not framework
 classes. A bidirectional network peer is *one* device with one socket and
 one lifecycle, not two framework devices sharing state. The GUI is an
-ordinary device, the paradigm one, and it uses every capability. It has
-exactly two genuine peculiarities, neither taxonomic: main-thread affinity
-(a launch concern) and read-modify-write widgets ([§11.7][s11-7]).
+ordinary device, the paradigm one, and it uses every capability. Its one
+genuine peculiarity is not taxonomic: read-modify-write widgets
+([§11.7][s11-7]).
 
-#### The authoring contract: four functions, one optional, one trait
+#### The authoring contract: four functions, one optional
 
 A [device](#g-device) is a user type subtyping the framework's neutral root:
 `MyDevice <: AbstractDevice`. That is one mandatory word, and it costs
@@ -7265,9 +7243,6 @@ init!(dev)          # per-run resource acquisition — calling task, before spaw
 loop(dev, handle)   # the task body: owns its own wait structure
 shutdown!(dev)      # per-run resource release — guaranteed on every exit path
 unblock!(dev)       # optional hook, default no-op: make a blocked loop return (§12.4)
-needs_calling_task(dev)   # optional trait, default false: run the loop body on the
-                          # calling task (§11.1's topology; the shipped GUI's CImGui
-                          # constraint). At most one holder per roster (§11.3).
 ```
 
 The framework owns everything around them. The wrapper is the shutdown
@@ -7285,11 +7260,6 @@ finally
     mark_dead!(...)                          # heartbeat only — claims stay, §11.3
 end
 ```
-
-A `needs_calling_task` device runs the identical wrapper *inline* on the
-[calling task](#g-calling-task). The invocation site, not the authoring
-contract, is its only difference (the topology, [§11.1][s11-1]; the join
-exclusion, [§12.4][s12-4]).
 
 **`shutdown!` must tolerate a partially initialized device.** The release
 guarantee holds on the one path *outside* this wrapper too. The
@@ -7380,13 +7350,7 @@ returning. The wrapper's exit path releases the device's OS resources, marks
 it dead for the heartbeat and consults `should_abort`. [Claims](#g-claim) and
 the [roster](#g-roster) entry persist to run end (the freeze,
 [§11.3][s11-3]). [§12.4][s12-4](6) is literally "the task body returned."
-The GUI implements the same authoring contract. The framework calls its
-`loop` inline on the [calling task](#g-calling-task) instead of spawning
-(the pinning, [§11.1][s11-1]). The trait fixes the task and not the thread.
-A device whose library needs a particular thread checks for it in `init!`,
-which runs on the same task before any spawn. The shipped GUI checks for the
-main thread and for a task that cannot migrate, which GLFW and the OpenGL
-context require, and a failed check is a failed `init!`.
+The GUI implements the same authoring contract.
 
 #### The binding: framework-legible by enumeration, opaque in its mappings
 
@@ -7526,16 +7490,14 @@ what is left and nothing was left".
 **Several interactive front ends may be rostered at once.** A web console
 can claim the autopilot faces beside a local GUI claiming the stick faces.
 With explicit claims they are simply two enumerated devices, partitioning
-the surface rather than sharing it. The one thing still limited to a single
-holder is `needs_calling_task` (the affinity check, [§11.3][s11-3]), which is
-a property of the task topology, not of interactivity.
+the surface rather than sharing it.
 
 **The shipped GUI binding is a greedy one.** It declares `is_input` and
 `is_greedy`, stakes the computed claim (everything unclaimed at the moment
 it attaches), and defines no `claims` of its own. It declares no `reads`
-either, because its read path is the handle's primitive read. VSync-paced,
-it reads `latest` afresh each render ([§12.3][s12-3]), with an ad-hoc,
-render-time read set over the whole [snapshot](#g-snapshot). That is the
+either, because its read path is the handle's primitive read. Paced by its
+own clock, it reads `latest` afresh at each tick ([§12.3][s12-3]), with an
+ad-hoc read set over the whole [snapshot](#g-snapshot). That is the
 shape of an inspection read ([§11.2][s11-2]). The compiled output gather
 therefore has nothing to do for it. The same GUI device type is equally
 attachable under a binding that returns explicit claims. Greediness is the
@@ -7755,9 +7717,10 @@ returned or crashed, and `stale` is [§12.2][s12-2]'s silent heartbeat. The reco
 tells an exited loop from a crashed one, and the label may. The label text
 is the GUI package's.
 
-**What stays deferred is the GUI package's half** (`pending.md`): what the
-drawing context bundles beside the three values, how it scopes to a child
-component, and the widgets. Its constraints are fixed here. Panels name
+**What stays deferred is the GUI package's half** (`pending.md`), which the
+built-in GUI's parking ([D-310][d-310]) assigns to the browser client over the wire
+device: what the client receives beside the three values, how a panel
+scopes to a child component, and the widgets. Its constraints are fixed here. Panels name
 their own ports by face-name string. Resolution to root inputs and the
 liveness verdict are baked at run start, never performed at render.
 Liveness and peek arrive through the framework-supplied context, never by
@@ -7968,8 +7931,8 @@ paused would instead hold the next run at its first frame top, on a flag
 nobody remembers setting. Clearing it in the tail removes that trap and keeps
 the start-paused spelling above.
 
-The handle carries no pause ([§11.6][s11-6]). The GUI's pause button waits
-on the GUI's authoring surface ([§11.7][s11-7]).
+The handle carries no pause ([§11.6][s11-6]). Whether it gains the control
+verbs for the wire device is pending (`pending.md`, [D-310][d-310]).
 
 **Pace and `margin` are two more verbs and two readers** ([D-269][d-269]).
 `pace!(sim, p)` and `margin!(sim, m)` set them from any task in any
@@ -8024,12 +7987,11 @@ absent from framework tasks.
 warning, not a hard error ([D-027][d-027]).
 
 The freeze FlightCore's `nthreads` error prevented cannot reproduce here, for
-three reasons. The loop yields every frame. Nothing couples a stall to anyone
+two reasons. The loop yields every frame. Nothing couples a stall to anyone
 else, the GUI least of all. It waits on nothing, ever. It uses a
 [snapshot](#g-snapshot) acquire-load, its own
-[staging cell](#g-staging-cell) and atomic control. And the GUI runs on the
-*calling* task, so it cannot fail to be scheduled. Under any starvation,
-then, the window keeps rendering and the stop button keeps working.
+[staging cell](#g-staging-cell) and atomic control. Under any starvation,
+then, the front end keeps rendering and the stop button keeps working.
 Undersized sessions degrade to laggy inputs and stale snapshots, which are
 visible, recoverable states.
 
@@ -8037,10 +7999,9 @@ A run warns, at `run!` or `replay!`, when `Threads.nthreads()` is tight for
 the attached population, naming the `julia -t` remedy. That is one check per
 run, against the frozen [roster](#g-roster) ([§11.3][s11-3]). Tight means
 fewer threads than the roster plus one. Every rostered device is a task, and
-the calling task hosts the loop or the one device that needs it, so a run
-occupies one task more than its roster. The sizing guidance behind the
-remedy is one thread for the loop, the main thread for the GUI, and headroom
-for compute-heavy or blocking-ccall devices. libuv-backed I/O yields. Raw
+the calling task hosts the loop, so a run occupies one task more than its
+roster. The sizing guidance behind the remedy is one thread for the loop and
+headroom for compute-heavy or blocking-ccall devices. libuv-backed I/O yields. Raw
 blocking ccalls pin their thread for the duration. There is no pinning and
 there are no sticky tasks.
 
@@ -8059,10 +8020,9 @@ as a stale heartbeat with a name on it, not as mysteriously frozen physics.
 **Rule.** `task_state` has three values. Outside a run every device reads
 `:none`. Inside a run a device reads `:running` while its task lives and
 `:done` once that task has ended, whether the body returned or the wrapper
-caught its crash ([§11.6][s11-6]). A device with no live task of its own
-inside a run reads `:done` as well: one whose `init!` threw and so spawned
-no task, and a calling-task device whose inline body has returned. The
-record's crash count tells a crash from a return. `orphaned` on a record is
+caught its crash ([§11.6][s11-6]). A device whose `init!` threw, and so
+spawned no task, reads `:done` as well. The record's crash count tells a
+crash from a return. `orphaned` on a record is
 exactly `:done` ([§11.7][s11-7], [D-270][d-270]).
 
 **Stale means a liveness timestamp more than 2 s behind wall clock.** The
@@ -8260,18 +8220,6 @@ ended at the final snapshot before any join begins. So, like `log_max`
 ([§11.2][s11-2]), it lives on `Control` rather than the deployment, and
 replay neither records nor compares it ([§11.5][s11-5], [§12.7][s12-7]).
 
-**The calling-task device sits outside the join.** The
-[calling task](#g-calling-task) is the task that invoked `run!`. The device
-it hosts is the GUI, which has no spawned task ([§11.1][s11-1]). That
-device's loop body is the calling task's own occupation of `run!`. It exits
-by the same `running(handle)` predicate as any device loop, and `run!`
-returns after the joins. One honest asymmetry follows. The abandonment path
-of (5) cannot cover it, because nothing can abandon the task `run!` stands
-on. A calling-task device that blocks past shutdown therefore hangs `run!`.
-The trait's one authoring obligation is a loop body that never blocks
-between `running` checks. The shipped GUI's render loop polls once per frame
-and never blocks.
-
 **What survives the tail.** After (5) the task set is empty, device tasks
 being per-run artifacts ([§11.1][s11-1]), and `shutdown!` has released each
 device's OS resources. What survives a stop is the roster entry: binding,
@@ -8279,12 +8227,6 @@ claims, stable device id ([§11.3][s11-3]). Never a task, never a live
 resource. That holds for a device whose task died mid-run too, its entry
 being indistinguishable at this point from any other's. `stopped` is where
 `detach!` removes an entry and releases its claims.
-
-**One roster change belongs to this tail.** A GUI attached by `run!`'s
-`gui = true` is detached here, releasing its computed claim (the run-scoped
-flag, [§12.6][s12-6]). It is the only roster mutation the protocol itself
-performs. It sits in the tail precisely so that (7)'s failure path takes it
-too, an everything-claim staked for one run never surviving into the next.
 
 **The next run re-acquires everything.** The next `run!` re-runs device
 `init!`, since resource acquisition is per-run. FlightCore's
@@ -8389,11 +8331,9 @@ serviceable by [§14][s14] and resumable by the next `run!` ([§12.6][s12-6])
 once the device is plugged back in.
 
 **Topology is derived after initialization**, not from the roster alone
-([§11.1][s11-1]). A `needs_calling_task` holder whose `init!` failed returns
-the loop to the calling task, which would otherwise be pinned waiting to run
-the loop body of a device that does not exist. The shipped GUI attaches with
-`should_abort = true`, so in practice that run ends at `t₀` anyway. The rule
-is stated generally because it costs nothing.
+([§11.1][s11-1]). A device whose `init!` failed spawns no task. The run
+proceeds without it, or ends at `t₀` when the device attached with
+`should_abort = true`.
 
 **Rule.** An `InterruptException` inside a device's `init!` is the operator's
 stop, not that device's crash ([D-268][d-268]).
@@ -8650,11 +8590,10 @@ the simulation `built` ([§13.4][s13-4]), so the next `run!` or `step!` meets
 the same refusal.
 
 **Where the loop runs.** The loop runs on the [calling task](#g-calling-task),
-the task that invoked `run!`, unless a calling-task [device](#g-device) is
-rostered. That device is the GUI, and the topology is derived from the
-[roster](#g-roster) ([§11.1][s11-1]). Deviceless, `run!` is fully
-synchronous. That is unattended mode. An [unattended run](#g-unattended-run) is the same loop with
-empty staging ([§11.1][s11-1]). It is also what the synchronous rethrow presupposes
+the task that invoked `run!`, and every rostered [device](#g-device) on a
+spawned task ([§11.1][s11-1]). Deviceless, `run!` is fully synchronous. An
+[unattended run](#g-unattended-run) is the same loop with empty staging
+([§11.1][s11-1]). It is also what the synchronous rethrow presupposes
 ([§13.4][s13-4]).
 
 **Partial advance.** `step!(sim; frames = 1)` advances whole frames
@@ -8754,29 +8693,9 @@ teardown, [§12.4][s12-4]). Each `run!` re-initializes every rostered device
 and spawns its task. `attach!` while stopped only registers, and the task
 appears at the next `run!`.
 
-**Task topology follows the roster each time** ([§11.1][s11-1]). A GUI
-attached *by hand* is still rostered, so the next `run!` renders it again,
-with the loop on a spawned task, whether or not `gui = true` is repeated.
-
-**The `gui = true` flag itself is run-scoped.** At run entry it attaches the
-standard GUI device under the greedy binding, with `should_abort = true`,
-iff no GUI is rostered ([Appendix B][sB]). The run's shutdown tail detaches
-it again ([§12.4][s12-4]). So the roster a flagged run leaves behind is the
-roster it found, and a window on every run means the flag on every run. A
-*persistent* GUI session is spelled by hand: `attach!` while stopped,
-`detach!` when done. Against a hand-attached GUI the flag does nothing and
-detaches nothing, having attached nothing.
-
-**What the scoping buys is the absence of a trap.** The flag's GUI claims
-everything unclaimed at attach (the computed source, [§11.3][s11-3]), and a
-claim of that shape must not outlive the run that asked for it. A joystick
-attached between two runs would otherwise meet a `ClaimConflict` against an
-everything-claim staked by a convenience argument nobody remembers passing.
-
-**The accepted cost is a fresh device id per run for that GUI.** Ids exist
-to be read *across* roster changes, and each run's trace header carries its
-own schemas ([§11.5][s11-5]). Nothing that reads a completed run is
-therefore affected.
+**Task topology follows the roster each time** ([§11.1][s11-1]). A front
+end attached by hand is still rostered, so the next `run!` spawns its task
+again.
 
 **The stop policy is declared per advance.** `t_end` and `stop_on` are
 keywords of `run!`, `replay!` and `step!`, and each call builds and validates
@@ -11736,10 +11655,9 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   `attach!` is a stopped-sim operation. It is legal in `built`, `initialized`
   and `stopped`. It is an error while `running` and on an `errored`
   simulation (`ServiceLifecycle`; the roster freeze, [§11.3][s11-3], and the
-  terminal state, [§13.6][s13-6]). Admission checks identity, calling-task
-  affinity and claims ([§11.3][s11-3]). A second roster entry for one
-  instance is `AlreadyAttached`, and rebinding is `detach!` + `attach!`. A
-  second `needs_calling_task` holder is `CallerTaskConflict`. An overlapping
+  terminal state, [§13.6][s13-6]). Admission checks identity and claims
+  ([§11.3][s11-3]). A second roster entry for one instance is
+  `AlreadyAttached`, and rebinding is `detach!` + `attach!`. An overlapping
   claim is `ClaimConflict`. `attach!` registers only. The task appears at the
   next `run!`.
 - `detach!(sim, device)`. Removes the roster entry and releases the device's
@@ -11747,11 +11665,8 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   crash mid-run does *not* detach. The task dies, and the claims persist to
   run end ([§11.3][s11-3], [§11.6][s11-6], [§12.4][s12-4]).
 - The device contract. `MyDevice <: AbstractDevice` plus `init!(dev)` /
-  `loop(dev, handle)` / `shutdown!(dev)`, the optional `unblock!(dev)`, and
-  the optional trait `needs_calling_task(dev) = false`. The task topology
-  admits at most one holder of that trait per roster, and the holder runs
-  its loop body inline on the calling task ([§11.1][s11-1]). Around those
-  functions the framework runs a per-run `init!` on the calling task. That
+  `loop(dev, handle)` / `shutdown!(dev)` and the optional `unblock!(dev)`.
+  Around those functions the framework runs a per-run `init!` on the calling task. That
   call is bracketed, so a throw there is `shutdown!` plus `DeviceCrash` by
   name, and the device is dead from boundary zero ([§12.4][s12-4]). The
   author-owned task body runs inside the framework's try/catch/finally
@@ -11847,28 +11762,16 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
 
 **Running.**
 
-- `run!(sim; gui = false, pace = Inf, margin = 0.002, t_end = Inf,
-  stop_on = ())`. `run!` blocks until the run ends. Deviceless, it
+- `run!(sim; pace = Inf, margin = 0.002, t_end = Inf, stop_on = ())`. `run!` blocks until the run ends. Deviceless, it
   is fully synchronous on the calling task. `init!` is required first
   ([§12.6][s12-6]). Paced and unpaced runs are bit-identical ([§10.7][s10-7]).
 
   | keyword | default | meaning | owning section |
   |---|---|---|---|
-  | `gui` | `false` | **run-scoped attachment**. At run entry it attaches the standard GUI device under the standard greedy binding, with `should_abort = true`, **iff no GUI is already rostered** | [§12.4][s12-4], [§11.6][s11-6], [§11.7][s11-7] |
   | `pace` | `Inf` | the run's pacing rate; `Inf` is pacer-off, `1` real time | [§10.7][s10-7] |
   | `margin` | `0.002` | the single pacing knob, in seconds | [§10.7][s10-7] |
   | `t_end` | `Inf` | the run's end time, declared for **this advance**, validated per call | [§13.5][s13-5] |
   | `stop_on` | `()` | root-exported `Bool` output faces, OR-combined, declared for **this advance** and validated against the `Build` per call | [§13.5][s13-5] |
-
-  The GUI is an ordinary rostered device rendered on the calling task
-  ([§11.6][s11-6], [§11.7][s11-7]). The flag attaches only if no GUI is
-  already rostered, so a hand-attached GUI makes it a no-op rather than an
-  admission error. The run's shutdown tail detaches that GUI again
-  ([§12.4][s12-4]), on the error path included, so nothing the flag did
-  survives the run. A persistent GUI session is spelled `attach!`/`detach!`
-  by hand. Placement follows the roster, not the flag. A rostered GUI moves
-  the loop to a spawned task for as long as it is rostered ([§11.1][s11-1],
-  [§12.6][s12-6]). Sugar never activates by default.
 
   `pace` defaults to `Inf`, pacer-off. A deviceless run is the harness and
   CI mode, and real time is `pace = 1` away ([D-269][d-269]). `margin` defaults to 2
@@ -12215,9 +12118,6 @@ activation):
   binding entry, face name, the root input-face list.
 - **`AlreadyAttached`** ([§11.3][s11-3]). Error · service · fail-fast. The
   device id of the existing roster entry, its binding.
-- **`CallerTaskConflict`** ([§11.1][s11-1], [§11.3][s11-3]). Error · service
-  · fail-fast. Both device ids, the rostered `needs_calling_task` holder and
-  the candidate.
 - **`ClaimConflict`** ([§11.3][s11-3]). Error · service · collected, over the
   device's claim set. Face name, claiming device id, incumbent device id.
 - **`EmptyGreedyClaim`** ([§11.3][s11-3], [§11.6][s11-6]). Warning · service ·
@@ -13030,10 +12930,8 @@ trajectories. It is incremented after the `latest` release-store, so a
 waking waiter can never see a stale snapshot ([§12.3][s12-3]). Distinct from
 the per-trajectory ordinal a snapshot carries.
 
-<a id="g-calling-task"></a>**calling task** — the task that invoked `run!`. It runs the loop itself
-(unattended mode) unless a `needs_calling_task` device is rostered.
-In that case it runs that device's loop body inline and the loop moves to a
-spawned task ([§11.1][s11-1]).
+<a id="g-calling-task"></a>**calling task** — the task that invoked `run!`. It runs the loop itself,
+and every device runs on a spawned task ([§11.1][s11-1]).
 
 <a id="g-claim"></a>**claim** — the set of faces a device *may* write. It is registered at
 attach, either returned by its binding's `claims` or computed as the
@@ -13059,7 +12957,7 @@ per-port "GUI-controlled" marking anywhere ([§11.7][s11-7]).
 
 <a id="g-device"></a>**device** — any attached participant in the periphery: a subtype of
 `AbstractDevice` under one authoring contract (`init!`/`loop`/`shutdown!`,
-optional `unblock!` and `needs_calling_task`) and one handle. Input-only and
+optional `unblock!`) and one handle. Input-only and
 output-only are degenerate uses, and the GUI is an ordinary device
 ([§11.6][s11-6]).
 
@@ -13734,6 +13632,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-307]: decisions.md#d-307--keep-authored-continuous-math-generic-over-the-scalar
 [d-308]: decisions.md#d-308--keep-integers-enums-and-bools-in-modes-and-the-workspace-out-of-snapshots-and-replay
 [d-309]: decisions.md#d-309--record-no-event-firings-and-leave-an-event-firing-stream-a-guarded-addition
+[d-310]: decisions.md#d-310--park-the-built-in-gui-run-every-device-spawned-and-withdraw-gui--true
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

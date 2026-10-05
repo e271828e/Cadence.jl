@@ -133,7 +133,7 @@ were derived.
 | [D-106][d-106] | Freeze the device roster for the duration of a run | ratified |
 | [D-107][d-107] | Match trace record density to batch density, not surface width | ratified |
 | [D-108][d-108] | Gate stopped-sim services by input-derived lifecycle preconditions | ratified |
-| [D-109][d-109] | Fix device identity, roster admission and calling-task topology at attach | ratified |
+| [D-109][d-109] | Fix device identity, roster admission and calling-task topology at attach | superseded → [D-310][d-310] |
 | [D-110][d-110] | Give `trim!` an explicit `t0` argument and state its recording clear | ratified |
 | [D-111][d-111] | Fold `project` into the always-on conformance check | ratified |
 | [D-112][d-112] | Add `events` to the tier-consistency markers | ratified |
@@ -199,7 +199,7 @@ were derived.
 | [D-172][d-172] | Rule "face" kind-blind, defined at first use | ratified |
 | [D-173][d-173] | Fuse the discrete state letter `z` into `x` | superseded → [D-195][d-195] |
 | [D-174][d-174] | Re-class the GUI as an ordinary enumerated writer | ratified |
-| [D-175][d-175] | Re-scope `gui = true` to a run-scoped attachment | ratified |
+| [D-175][d-175] | Re-scope `gui = true` to a run-scoped attachment | superseded → [D-310][d-310] |
 | [D-176][d-176] | Unify trace retention on one sparse record format | ratified |
 | [D-177][d-177] | Re-found the periphery on mandatory roots plus declared traits | ratified |
 | [D-178][d-178] | Reaffirm component-side rejections against the periphery's new idiom | ratified |
@@ -334,6 +334,7 @@ were derived.
 | [D-307][d-307] | Keep authored continuous math generic over the scalar | ratified |
 | [D-308][d-308] | Keep integers, enums and Bools in modes, and the workspace out of snapshots and replay | ratified |
 | [D-309][d-309] | Record no event firings, and leave an event-firing stream a guarded addition | ratified |
+| [D-310][d-310] | Park the built-in GUI, run every device spawned, and withdraw `gui = true` | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -3285,7 +3286,7 @@ lacked.
 
 ### D-109 — Fix device identity, roster admission and calling-task topology at attach
 
-**Status.** ratified
+**Status.** superseded → [D-310][d-310]
 
 **Position.** Device identity, roster admission and calling-task topology:
 identity is the instance (`===`, one roster entry each; two instances of one
@@ -6290,7 +6291,7 @@ Supersedes the interactive-writer halves of [D-044][d-044], [D-104][d-104] and [
 
 ### D-175 — Re-scope `gui = true` to a run-scoped attachment
 
-**Status.** ratified
+**Status.** superseded → [D-310][d-310]
 
 **Position.** `gui = true` is re-scoped from persistent attach sugar to a
 run-scoped attachment: at run entry the flag attaches the shipped GUI device
@@ -12851,6 +12852,66 @@ Rejected list already presuppose the absent stream and this remedy.
 
 **Rejected.** None recorded.
 
+### D-310 — Park the built-in GUI, run every device spawned, and withdraw `gui = true`
+
+**Status.** ratified
+
+**Position.** The built-in Julia GUI is parked in favour of a browser
+cockpit over the wire device, and `run!` has one task topology.
+
+- The loop runs on the calling task in every run, and every rostered
+  device runs on a spawned task. `needs_calling_task`, its admission check
+  `CallerTaskConflict` and the inline-body branch of `run!` are withdrawn.
+- `gui = true` is withdrawn. A front end is attached by hand, once per
+  simulation, and the roster keeps it across that simulation's runs.
+- [§11.7][s11-7]'s semantics stand unchanged, derived liveness, the peek, staging
+  on interaction and the orphan label, and the framework's half of the
+  panel convention ([D-270][d-270]) is what the wire device serves. The GUI
+  package's half becomes the browser client's, and the panel method returns
+  a description rather than drawing. That amendment is ruled when the
+  cockpit's design reaches it.
+- The handle carries no pause ([D-268][d-268]). Whether it gains the control verbs
+  for the wire device is ruled with the wire device's design.
+
+**Spec.** [§11.1][s11-1], [§11.3][s11-3], [§11.6][s11-6], [§11.7][s11-7], [§12.1][s12-1], [§12.2][s12-2], [§12.4][s12-4], [§12.6][s12-6], [Appendix B][sB], [Appendix C][sC]
+
+**Rationale.** The browser cockpit was the endgame from the start, and it
+subsumes the built-in GUI for every use the design serves. It shows a
+snapshot one display frame later, about 15 to 35 ms from publication to
+pixel against 8 to 20, which a cockpit does not notice and a control loop
+through a widget would, a use the design never served. It lifts the
+main-thread constraint, the OpenGL dependency Apple has deprecated and
+CImGui.jl's churn. It works headless and remote, which the built-in GUI
+never could. Panel authoring by language models favours the browser's
+corpus and its verification loop, the type checker, tests over fixture
+descriptors and a headless screenshot, over a thin Julia wrapper with GL
+state under Revise. And the static inspector, the live inspector and the
+cockpit become one client over one protocol, so the external interface
+gets its reference client as a by-product.
+
+The attended mode existed for CImGui's main-thread rule alone ([D-109][d-109]), and
+the flag's run-scoping existed because a window's lifetime was the run's
+([D-175][d-175]). A browser tab's lifetime is the session's, so one explicit
+`attach!` per simulation is the right spelling, and `inspect(sim)` the
+sugar if any. Deleting the attended mode leaves `run!` with one shape to
+specify and test. [D-109][d-109]'s identity and admission halves survive in [§11.3][s11-3]:
+identity by instance, the stable id at attach, `AlreadyAttached` and
+`ClaimConflict`. Its affinity third and its topology rationale fall. [D-175][d-175]
+falls whole. The parked design, its source and its tests last stand
+together at commit b6f08b1, and the GUI record's built-in half was folded
+into the inspector's record when this entry was written.
+
+**Rejected.**
+- *Keeping `needs_calling_task` as harmless machinery:* two run topologies
+  to specify, test and reason about, with no device holding the trait. A
+  native-window device parks with the GUI it served, and the code is one
+  revert away.
+- *Building the built-in GUI as a warm-up:* the one step whose output the
+  endgame does not reuse. The wire device finds the handle's gaps as well,
+  and it is the first thing the cockpit needs.
+- *Retargeting `gui = true` to the wire device:* the flag's semantics are
+  a window's, attach at entry and detach in the tail. A tab outlives runs.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -13161,6 +13222,7 @@ Rejected list already presuppose the absent stream and this remedy.
 [d-307]: #d-307--keep-authored-continuous-math-generic-over-the-scalar
 [d-308]: #d-308--keep-integers-enums-and-bools-in-modes-and-the-workspace-out-of-snapshots-and-replay
 [d-309]: #d-309--record-no-event-firings-and-leave-an-event-firing-stream-a-guarded-addition
+[d-310]: #d-310--park-the-built-in-gui-run-every-device-spawned-and-withdraw-gui--true
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

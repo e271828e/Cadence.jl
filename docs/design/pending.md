@@ -9,24 +9,26 @@ the tools go red.
 
 ## Before the first release
 
-The bullets stand in working order, the first one next. The GUI's design
-runs in parallel with the library. The audit comes last, because it sweeps
-the whole surface and the library and the GUI both add names.
+The bullets stand in working order, the first one next. The inspector's
+design runs in parallel with the library. The audit comes last, because it
+sweeps the whole surface and the library and the wire device both add
+names.
 
 - **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
   `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
   spellings).
-- **The GUI panel authoring API.** The semantics are settled (§11.7), and
-  so is the framework's half of the calling convention, the three values a
-  panel reads (D-270). What is still to design is the GUI package's half:
-  what the drawing context bundles beside them, how it scopes to a child,
-  and the widgets, to be co-designed against the GUI library under §11.7's
-  four constraints. `gui = true` (§12.6, Appendix B) attaches that package's
-  device, so the flag waits on it. The initial design session's record is
-  `docs/design/gui/initial_design.md` (2026-09-28, not normative): its
-  answered questions, its axes, and under axis 2 the open list this bullet's
-  design session picks up. Axis 1's handle surface has since been fixed by
-  D-270 and built, except the log-tail view the plot widget needs.
+- **The inspector**, one browser client in four stages, in working order:
+  the static inspector over the descriptor; the wire device, an ordinary
+  device serving the handle over a socket; the live inspector, values on
+  the diagram; and the cockpit, panels over the wire. The built-in Julia
+  GUI is parked (D-310). The record is
+  `docs/design/inspector/initial_design.md` (not normative), which carries
+  each stage's answered questions and open list. What the spec owes, each
+  ruled when its stage reaches it: `describe` and the carrier change (stage
+  1); the handle's control verbs and the log-tail view (stage 2); and
+  §11.7's panel convention amended from a drawing method to a panel
+  description, with the GUI package's half of D-270's convention assigned
+  to the client (stage 4).
 - **The exported-name audit.** The export list is to be decided deliberately
   rather than by accident, and until the audit runs the module exports
   nothing (D-226). The audit is a full-surface sweep under the four-class
@@ -38,9 +40,8 @@ the whole surface and the library and the GUI both add names.
     binding interface `claims`/`reads` (§11.6) with the side traits
     `is_input`/`is_output`/`is_greedy`, `map_input`/`map_output` sitting
     outside the question as loop-idiom conventions the framework never
-    calls; and the device contract `init!`/`loop`/`shutdown!`/`unblock!`/
-    `needs_calling_task`, extended by `import` or qualified name,
-    `Base.show`-style.
+    calls; and the device contract `init!`/`loop`/`shutdown!`/`unblock!`,
+    extended by `import` or qualified name, `Base.show`-style.
   - **The operator side.** `condition`, `fragment`, `at` and `combine`
     (§14.2) are generic names that share a namespace with user domain code,
     and whether the condition algebra ships behind a submodule is the
@@ -60,7 +61,7 @@ the whole surface and the library and the GUI both add names.
       `trace = false` and post-run accessor `trace(sim)` being one name in
       two senses, the overload pattern D-122 and D-144 retire;
     - whether class (1) needs an explicit exemption for predicate traits
-      (`is_greedy`, `needs_calling_task`).
+      (`is_input`, `is_greedy`).
     - whether an unexported name on the extension-only surface may coincide
       with a public Base name when the spec's verb is that word, reached by
       qualified name or explicit import; `peek` (§11.7, D-270) is the first
@@ -72,16 +73,9 @@ Release work the spec does not ask for, in no order. Where an item changes
 what the spec says, the spec edit is part of the item.
 
 - **An example model**, large enough to measure on. It gives the
-  compile-time and garbage measurements a model to run on, and the GUI one
-  to drive.
+  compile-time and garbage measurements a model to run on, and the cockpit
+  one to drive.
 - **A tutorial** that takes a newcomer from a component to a run and a plot.
-- **The inspector.** A browser page over a serialized `Build` or
-  `Deployment` that helps a user understand a model and shows no runtime
-  data. The core never depends on it. Its initial design session's record is
-  `docs/design/inspector/initial_design.md` (2026-09-28, not normative): the
-  answered questions and the axes left open, which is the checkpoint its
-  design session picks up from. The external interface that would reuse its
-  descriptor is parked beside it in `external.md`, with nothing settled.
 - **The spec's readability rewrite.** Chapters 7, 8, 9 and 10 are done. The other
   chapters follow `docs/spec_rewrite/recipe.md`, and that directory's README
   tracks them. Until a chapter's turn comes, it keeps the old markers.

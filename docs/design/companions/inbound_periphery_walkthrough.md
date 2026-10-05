@@ -67,8 +67,7 @@ end
 
 **Attaching** (`attach!(sim, device, binding)`) is: validate the binding's
 face names against the root contract (unknown face → `AttachUnknownFace`),
-admit through [§11.3][s11-3]'s three-part ordered check — **identity** (`AlreadyAttached`),
-**affinity** (at most one `needs_calling_task` holder, `CallerTaskConflict`),
+admit through [§11.3][s11-3]'s two-part ordered check — **identity** (`AlreadyAttached`),
 **claims** (face exclusivity, `ClaimConflict`) — ordered so a failing later
 check always names two *distinct* devices, then compile the staging shape
 ([section 3](#3-batches-and-staging-cells-how-a-write-is-proposed)), add the entry.
@@ -192,8 +191,7 @@ machinery:
   GUI ([§11.7][s11-7]), which is an ordinary claimed writer whose claim happens to
   be computed, and so do several interactive front ends at once when their
   claims are explicit and disjoint (a web console on the autopilot faces, a
-  local GUI on the stick faces). The only thing still limited to one holder
-  per roster is `needs_calling_task`.
+  local GUI on the stick faces).
 - **The harness writer**: the framework-owned task-free entry point
   `stage!(sim, "face" => value, ...)` and its always-present cell
   ([§12.6][s12-6]). This is the design's one **derived** surface — the unclaimed

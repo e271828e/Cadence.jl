@@ -310,14 +310,14 @@ The demo, line by line:
   a second joystick on the same faces errors here. The Gladiator variant is
   the same table with different keys and zero shaping code. The duplication
   smell is structurally gone.
-- `run!(sim; gui = true, pace = 1, t_end = 1000)` makes a
+- `attach!` of the GUI under the greedy binding, then
+  `run!(sim; pace = 1, t_end = 1000)`, makes a
   greedy claim over every unclaimed face and settles
   liveness with zero configuration, both at run start against the
   frozen roster ([§11.3][s11-3]). Axis
   mirrors are read-only (claimed, source shown). The mode, setpoint,
   mixture, payload and environment widgets are live. Actuator sliders are
-  read-only (component-fed). The `gui` flag's attachment lasts
-  exactly this run ([§12.6][s12-6]).
+  read-only (component-fed).
   Unplugging the joystick makes its task exit. The mirrors stay read-only with
   the death in their source label ("claimed by `T16000M` — task dead"), and the
   axes hold their last-drained values. Those two behaviors are the accepted
@@ -434,7 +434,6 @@ ladder. The items below take the three claims in turn.
 [s12-1]: ../spec.md#121-control-plane
 [s12-3]: ../spec.md#123-the-next-snapshot-wait
 [s12-4]: ../spec.md#124-shutdown-protocol
-[s12-6]: ../spec.md#126-run-lifecycle-and-partial-advance
 [s12-7]: ../spec.md#127-replay-the-trace-re-drives-the-ordinary-loop
 [s14]: ../spec.md#14-stopped-sim-services
 [s14-1]: ../spec.md#141-conditions-are-path-addressed-overlays-on-the-declared-defaults
