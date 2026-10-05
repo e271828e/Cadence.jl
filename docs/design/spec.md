@@ -7382,7 +7382,11 @@ the [roster](#g-roster) entry persist to run end (the freeze,
 [§11.3][s11-3]). [§12.4][s12-4](6) is literally "the task body returned."
 The GUI implements the same authoring contract. The framework calls its
 `loop` inline on the [calling task](#g-calling-task) instead of spawning
-(the pinning, [§11.1][s11-1]).
+(the pinning, [§11.1][s11-1]). The trait fixes the task and not the thread.
+A device whose library needs a particular thread checks for it in `init!`,
+which runs on the same task before any spawn. The shipped GUI checks for the
+main thread and for a task that cannot migrate, which GLFW and the OpenGL
+context require, and a failed check is a failed `init!`.
 
 #### The binding: framework-legible by enumeration, opaque in its mappings
 
@@ -7730,7 +7734,7 @@ producer, so a generated panel reads every face through one lookup.
 cell with one acquire load and never takes it: `Some(value)` when the slot
 is touched, else `nothing`. A staged batch is never mutated after it is
 published into the cell, so the load sees a complete batch or none.
-`peek_port(view, handle, snapshot)` composes that read with the snapshot. A
+`peek(view, handle, snapshot)` composes that read with the snapshot. A
 live view returns its own pending value when one is touched, and the
 producer's cell off the snapshot otherwise. A read-only view skips the cell
 and reads the producer's cell. Two ports resolving to one root input share
@@ -11756,7 +11760,7 @@ return law, [§5.2][s5-2]). There is no padding. `x` comes back complete, and
   `running`, `latest`, `wait_next_snapshot` ([§12.3][s12-3]), `stage!`,
   `binding`, `gather`, `report!` ([§11.6][s11-6]), and `pending` ([§11.7][s11-7]).
 - The panel kit ([§11.7][s11-7]). `port_views(handle)`, the baked table of port
-  views; `peek_port(view, handle, snapshot)`; `incumbent_status(view,
+  views; `peek(view, handle, snapshot)`; `incumbent_status(view,
   snapshot)`, with `orphaned` and `stale` on the record it returns.
 
 **Condition algebra** ([§14.1][s14-1]–[§14.6][s14-6]).

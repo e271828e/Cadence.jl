@@ -11105,6 +11105,19 @@ outside a run and, inside one, `:done` for any device without a live task
 of its own, so `orphaned` is exactly `:done` and the crash count tells a
 crash from a return.
 
+Annotation (2026-10-05): `peek_port` is renamed `peek`, the spec's own
+verb, and the rejection above is reversed in part. The clash with
+`Base.peek` is a concern for an exported name, where a bare `peek` in a
+user's module becomes ambiguous or silently stays Base's. The panel kit is
+extension-only surface, reached by qualified name or explicit import like
+the device contract, and a name imported that way coexists with Base's
+qualified spelling. The module exports nothing until the audit ([D-226][d-226]),
+which records the coincidence as a boundary case (`pending.md`). The GUI
+package's context verb is a method of the same function, `peek(ctx, face)`
+beside `peek(view, handle, snapshot)`, so one verb keeps one meaning across
+the two halves. [§11.7][s11-7] and [Appendix B][sB] carry the new spelling; this entry
+keeps its own.
+
 ### D-271 — Admit the component index on `get_input` and `get_face`
 
 **Status.** superseded → [D-276][d-276]

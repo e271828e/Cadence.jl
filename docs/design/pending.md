@@ -45,7 +45,7 @@ the whole surface and the library and the GUI both add names.
     (§14.2) are generic names that share a namespace with user domain code,
     and whether the condition algebra ships behind a submodule is the
     packaging question.
-  - **Four boundary cases** the convention does not settle are flagged for
+  - **Five boundary cases** the convention does not settle are flagged for
     the sweep, none a defect of its list:
     - `input_faces`/`output_faces` (§13.3), build primitives named by nouns
       where class (4) asks for plain verbs, mitigated by being
@@ -61,6 +61,10 @@ the whole surface and the library and the GUI both add names.
       two senses, the overload pattern D-122 and D-144 retire;
     - whether class (1) needs an explicit exemption for predicate traits
       (`is_greedy`, `needs_calling_task`).
+    - whether an unexported name on the extension-only surface may coincide
+      with a public Base name when the spec's verb is that word, reached by
+      qualified name or explicit import; `peek` (§11.7, D-270) is the first
+      instance, the panel kit's verb beside `Base.peek`.
 
 ### Outside the spec
 

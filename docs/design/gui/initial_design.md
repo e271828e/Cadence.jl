@@ -29,7 +29,11 @@ The run-start facts were fixed and built the same day as this session
 (D-270, 2026-09-28): the liveness table is the port-view table of
 `port_views(handle)`, one view per port of every component, and the
 incumbent writer with its task state comes from the view and
-`incumbent_status`. Their spec home is §11.7 and Appendix B. What remains:
+`incumbent_status`. Their spec home is §11.7 and Appendix B. The bake was
+measured on 2026-10-05: about 50 ms to compile once per handle type, which
+the GUI package can precompile, and a quarter of a microsecond and 700
+bytes per view to build, so a few thousand ports bake in under a
+millisecond once per run. What remains:
 
 - The log-tail view: a per-frame copy of the reference vector, or a bounded
   tail accessor. Its torn-free guarantee against the loop's append and
@@ -43,8 +47,13 @@ incumbent writer with its task state comes from the view and
 - Attachment: `gui = true` as the run-scoped sugar (Appendix B) against an
   explicit `attach!`; the greedy complement as the default claim;
   `should_abort = true` as the spec states.
-- Launch: the main-thread constraint, the render loop's frame rate and its
-  interaction with the pacer (§10.7).
+- Launch: the render loop's frame rate and its interaction with the pacer
+  (§10.7). The thread requirement is settled as the GUI's own, not the
+  trait's: `needs_calling_task` guarantees the task, and the GUI's `init!`
+  checks that the task runs on thread 1 and is sticky, throwing the
+  package's own diagnostic otherwise. The two checks differ in origin, the
+  same thread for the OpenGL context on every platform, the main thread for
+  Cocoa on macOS, generalized by GLFW's contract.
 - The run-control panel: pause, resume, stop, pace; whether partial advance
   (§12.6) is exposed as a step control.
 - The path tree's status marks: orphaned inputs, dead device tasks, build and
@@ -60,7 +69,10 @@ incumbent writer with its task state comes from the view and
   does not understand.
 - The per-node store's lifetime: per run, per session, or persisted.
 - The plot widget: window, decimation display, the sparse-log and log-off
-  states, ImPlot as a second weak dependency.
+  states, and whether `CImGui.lib`'s raw ImPlot bindings suffice or the
+  package writes a thin layer over them. CImGuiPack_jll bundles ImPlot, so
+  no second dependency is needed, but CImGui.jl v7 wraps none of it and
+  ImPlot.jl's compatibility with v7 is unverified.
 - Whether FlightApps panels are worth porting as a test of the convention.
   Migration is not a priority (memory, 2026-09-23).
 
@@ -121,11 +133,28 @@ The static inspector cannot open or close anything in the built-in GUI.
 Coupling between them is the path vocabulary of §8.6 and the clipboard
 bridge. Click-to-open across tools waits for the live inspector.
 
-**Q3. Rendering library for the built-in GUI?** CImGui.jl with ImPlot. The
-peek-and-stage contract of §11.7 is an immediate-mode contract, one call per
-widget per frame; retained mode would hold a second copy of the state the
-framework avoids holding. Makie stays the right tool for the deferred
-analysis view.
+**Q3. Rendering library for the built-in GUI?** Dear ImGui through
+CImGui.jl, with ImPlot, which CImGuiPack_jll bundles with imgui and
+imnodes. The peek-and-stage contract of §11.7 is an immediate-mode
+contract, one call per widget per frame; retained mode would hold a second
+copy of the state the framework avoids holding. Makie stays the right tool
+for the deferred analysis view.
+
+Settled 2026-10-05: the GUI uses CImGui.jl's bindings only, `CImGui.lib`
+and the wrappers over the pack, and owns its loop. `init!` creates the
+context and the window, turns VSync on and initialises the GLFW and
+OpenGL3 backends. `loop` runs one frame per iteration, `PollEvents`, the
+three `NewFrame` calls, the panels, `Render`, the draw and the swap, and
+returns when the window closes or `running(handle)` turns false.
+`shutdown!` reverses `init!`. CImGui.jl's `render` loop and its task
+pinning are not used, since the framework owns the task, and `WaitEvents`
+is never called, since §12.4 forbids a loop body that blocks between
+`running` checks. The backend functions are Dear ImGui's own C API, which
+survived CImGui.jl's v1 to v2 break unchanged; a compat bound and one glue
+file hold the remaining risk. The one serious alternative is a browser
+cockpit over the wire device, which would lift the main-thread constraint
+and the OpenGL dependency at the cost of panel authoring in Julia. It stays
+behind the built-in GUI, as the live inspector.
 
 **Q4. What does zero panel authoring give?** A generic panel derived from
 the declarations, shown for every component without an authored method and
@@ -142,15 +171,29 @@ with liveness, diagnostics log, build warnings. Authored panels are content
 inside a dock node the framework owns and never open windows of their own.
 
 **Q6. What does a panel author write against?** A context with two layers:
-public primitives (`is_live`, `source`, `peek`, `stage!`, `read`), keyed by
-face name and resolved through D-270's port view, and a widget vocabulary
-built on them, in which the generic renderer is also
-written so authored and generic panels share one look and one liveness
-handling. Panels name their own faces by face-name string. Two more context
-contents settled: a per-node store keyed by path for state that outlives a
-frame (plot buffers, a map's zoom), and `child!(ctx, :name)`, which draws
-a child's panel, authored or generic, under a context scoped to the child's
-path. Assembly authors never receive child instances.
+public primitives (`is_live`, `source`, `peek`, `stage!`), keyed by face
+name and resolved through D-270's port view, and a widget vocabulary built
+on them, in which the generic renderer is also written so authored and
+generic panels share one look and one liveness handling. Panels name their
+own faces by face-name string.
+
+Settled 2026-10-05: the context holds its path, the whole port-view table
+by reference, the handle and the snapshot, and every verb looks its face up
+under the context's path. `peek(ctx, face)` is a method of the framework's
+`peek`, so one verb has one meaning across both halves. A `read` verb was
+dropped, because D-270 gives output ports views of their own and a read on
+an output face is the same lookup. `stage!(ctx, face => v)` resolves the
+port through its view and throws on a port that is not live. The verbs are
+the whole authoring API, and the handle and the table stay unexported. That
+is what keeps a panel on its own ports: a panel that reaches the handle
+writes a root input inside the GUI's claim, and the framework cannot tell
+two panels apart.
+
+Two more context contents settled: a per-node store keyed by path for
+state that outlives a frame (plot buffers, a map's zoom), and
+`child!(ctx, :name)`, which draws a child's panel, authored or generic,
+under a context scoped to the child's path, the same table under a longer
+path and nothing else. Assembly authors never receive child instances.
 
 **Q7. Where do cockpit plots get their history?** From the framework's log.
 A plot walks a torn-free view of the log's tail and extracts its path per
@@ -216,7 +259,8 @@ it exists; the rest is independent.
 - **Per-node store.** State a panel keeps between frames, keyed by the
   node's path and owned by the GUI, in place of globals or `@cstatic`.
 - **Primitives.** The context's public verbs: `is_live`, `source`, `peek`,
-  `stage!`, `read`. Face-keyed wrappers over D-270's port-view reads.
+  `stage!`. Face-keyed methods over D-270's port-view reads; `peek` and
+  `stage!` are the framework's own functions with a context method.
 - **Raw view.** The generic panel shown for a component that has an
   authored panel, for debugging.
 - **Runtime half.** The wire device's part of the external interface, the

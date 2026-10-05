@@ -1420,10 +1420,10 @@ function test_devices()
         @test (@atomic enumerated_handle.writer.cell.pending) !== nothing   # a read, never a take
         @test pending(greedy_handle, 1) === nothing       # another device's write is invisible
         snapshot = latest(sim)
-        @test peek_port(views[("ctl", :e)], enumerated_handle, snapshot) === 3.0
+        @test peek(views[("ctl", :e)], enumerated_handle, snapshot) === 3.0
         @test port(snapshot, "", :in) === 1.0
-        @test peek_port(views[("inner/g", :e)], enumerated_handle, snapshot) === 2.0
-        @test peek_port(views[("inner/g", :out)], enumerated_handle, snapshot) === 4.0
+        @test peek(views[("inner/g", :e)], enumerated_handle, snapshot) === 2.0
+        @test peek(views[("inner/g", :out)], enumerated_handle, snapshot) === 4.0
         stage!(enumerated_handle, "in" => 4.0)
         @test pending(enumerated_handle, 1) === Some(4.0) # newest wins
         run!(sim; t_end = 0.3)
@@ -1440,7 +1440,7 @@ function test_devices()
         view = port_views(handle)[("ctl", :e)]
         snapshot = latest(sim)
         for _ in 1:3
-            stage!(handle, "in" => peek_port(view, handle, snapshot) + 1.0)
+            stage!(handle, "in" => peek(view, handle, snapshot) + 1.0)
         end
         @test pending(handle, 1) === Some(4.0)
         @test port(latest(sim), "", :in) === 1.0
@@ -1457,7 +1457,7 @@ function test_devices()
             pause!(sim)
             parked = timedwait(() -> parked_in(loop_task, sim.control.wake), 10.0) === :ok
             stage!(handle, "in" => 7.0)
-            peeked = peek_port(view, handle, latest(sim))
+            peeked = peek(view, handle, latest(sim))
             held_back = port(latest(sim), "", :in)
             resume!(sim)
             applied = timedwait(() -> port(latest(sim), "", :in) == 7.0, 10.0) === :ok

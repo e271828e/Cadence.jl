@@ -329,14 +329,14 @@ function port_views(handle::DeviceHandle)
 end
 
 """
-    peek_port(view, handle, snapshot)
+    peek(view, handle, snapshot)
 
 §11.7's peek rule: a live view's own pending value when one is touched, else
 the producer's cell off `snapshot`; a read-only view reads the cell alone.
 The window between a frame's drain and its publication shows the previous
 snapshot's value, the rule's own consequence (D-270).
 """
-function peek_port(view::PortView, handle::DeviceHandle, snapshot::Snapshot)
+function peek(view::PortView, handle::DeviceHandle, snapshot::Snapshot)
     if view.live
         staged = pending(handle, view.slot)
         staged === nothing || return something(staged)

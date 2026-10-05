@@ -361,7 +361,7 @@ D-250, D-254, D-256, D-261.
   - `port_views(handle)`, the `Dict` of views keyed by `(path, port)`, one
     per input face at every level, off `Structure.in_faces`, and one per
     produced cell;
-  - `peek_port`, the peek rule over `pending` and the snapshot;
+  - `peek`, the peek rule over `pending` and the snapshot;
   - `incumbent_status`, the incumbent's `WriterStatus` by `who`, and
     `orphaned` on it, exactly `task_state === :done` (§12.2). A crashed
     loop's task ends `:done`, since the wrapper catches the crash.
