@@ -266,58 +266,6 @@ function _check_child_names(path::String, kids, contributors, diags::Vector{Diag
     nothing
 end
 
-# --- the anonymous assembly (§8.5, D-211) -------------------------------------
-
-"""
-`Group`: the on-the-fly assembly, the one component type the framework itself
-provides, whose *values* are the ad-hoc topologies. It needs no new rule — the
-container-children rule makes the `children` field's elements children of the
-`Group` itself, and the four declarations are ordinary functions of the
-instance, free to read its fields.
-
-The one declaration it adds is `transparent_container` (D-211): `children` is
-name-transparent, so its elements go by **bare key** everywhere a child name
-appears — `"ctl/out" => "plant/u"` for a wire, `(ctl = Relative(2),)` for a rate,
-`at("ctl", …)` for a condition prefix, `"plant/y"` for a read path. A `Group`'s
-declarations are then textually identical to a named assembly's; the rate
-declaration's field-name sugar, keying on the field rather than on a path
-segment, keeps working as `(children = Relative(2),)` for the uniform case.
-
-The type parameters carry the children's concrete types, so the executor's
-specialization is unchanged; what is given up against a named type is dispatch,
-which exploratory composition does not want.
-"""
-struct Group{C <: NamedTuple, W, I, O, R <: NamedTuple} <: AbstractComponent
-    children::C       # component-typed elements → children by the container rule
-    inner_wires::W    # inert parameter data
-    input_wires::I
-    output_wires::O
-    sample_times::R   # the ad-hoc rate scope, keyed by bare element name (§8.7)
-end
-
-"""
-    Group(children; inner_wires = (), input_wires = (), output_wires = (),
-          sample_times = (;))
-
-The convenience form. Each keyword takes the name of the declaration it feeds.
-A bare `Pair` passed for `inner_wires`, `input_wires` or `output_wires` is the
-one-entry tuple — the declarations are ordered collections of pairs, and a
-single wire should not have to be written `("a/x" => "b/y",)`.
-"""
-Group(children; inner_wires = (), input_wires = (), output_wires = (),
-      sample_times = (;)) =
-    Group(children, _entries(inner_wires), _entries(input_wires),
-          _entries(output_wires), sample_times)
-
-_entries(wires::Pair) = (wires,)
-_entries(wires) = wires
-
-inner_wires(g::Group) = g.inner_wires
-input_wires(g::Group) = g.input_wires
-output_wires(g::Group) = g.output_wires
-sample_times(g::Group) = g.sample_times
-transparent_container(::Group) = :children
-
 # --- paths (§8.6, §6.1) -------------------------------------------------------
 # Slash-separated, relative to the declaring assembly, no leading slash: the one
 # canonical form, used verbatim in declarations and in error messages. A terminal

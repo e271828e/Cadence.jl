@@ -35,9 +35,10 @@ roster, so the diff review is what holds it.
 `src/` is cut by layering, `test/` by property. `sim.jl` gets no
 `test_sim.jl`; `log`, `lifecycle`, `failures`, `localization` and the loop
 halves of `discrete` and `events` assert emergent properties of
-the layers cooperating, which no source file owns. `test_leaves.jl` is the one
-file kept for a source file rather than a property: the leaf walk has no
-single consumer to own it.
+the layers cooperating, which no source file owns. `test_leaves.jl` and
+`test_blocks.jl` are the two files kept for a source file rather than a
+property: the leaf walk has no single consumer to own it, and the library is
+user material inside the package, with no property of its own to own it.
 
 ### `src/Redstone.jl`
 
@@ -49,7 +50,6 @@ in.
 - Class by declaration shape `classify`, and `_contract`, which reads a
   contract at nominal with its pins stripped (D-263).
 - Children and containers, with their collision family.
-- The anonymous assembly `Group`, kernel material by decision.
 - Paths and §6.1's one-level rule.
 - Endpoint and face resolution, with the root's face invariants. The
   resolvers return routes, the hops `(path, face)` from an endpoint down to
@@ -114,6 +114,20 @@ D-263, D-289.
 - The candidates on the two name-shaped read misses (§14.4).
 
 Spec: §11.2, §11.4, §11.6, §14.4, D-276.
+
+### `src/blocks.jl`
+
+The standard component library, the submodule `Redstone.Blocks`:
+
+- `Junction`, with the aliases `SumJunction`, `Or` and `And` (D-311).
+- `Constant`, `UnitDelay` and `Freeze` (D-312).
+- The anonymous assembly `Group`, with `_entries` (D-184).
+
+It reaches the parent through its import list alone, as a user's component
+file does (D-313). Nothing in the package depends on it, so `src/Redstone.jl`
+includes it last.
+
+Spec: §5.5, §6.2, §8.1, §8.5, §13.7, D-184, D-211, D-311, D-312, D-313.
 
 ### `src/build.jl`
 
@@ -755,7 +769,8 @@ pinned on purpose, which it must refuse.
 ### `test/imports.jl`
 
 The suite's `import Redstone:` list, shared with `repl.jl` — the one place a
-framework name the tests call or extend is admitted.
+framework name the tests call or extend is admitted. A second line,
+`import Redstone.Blocks:`, admits the library's blocks.
 
 ### `test/repl.jl`
 
@@ -956,6 +971,7 @@ override:
 | `checkpoint` | the row above, plus `discrete events linearize` |
 | `readers`, `conditions`, `trim`, `linearize` | `readers conditions trim linearize` |
 | a new `AbstractComponent` fixture in any test file | add `build`, since `test_build.jl`'s Dual-activation sweep pins the skipped count |
+| `blocks` | `blocks build` |
 | `show` | `show` |
 | `sim`, `deployment`, `store`, `leaves`, `Redstone`, or `diagnostics.jl` beyond a new kind | all of it |
 

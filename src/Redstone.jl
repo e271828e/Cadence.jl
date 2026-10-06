@@ -28,5 +28,6 @@ include("trim.jl")
 include("linearize.jl")
 include("localization.jl")
 include("show.jl")
+include("blocks.jl")
 
 end # module Redstone
