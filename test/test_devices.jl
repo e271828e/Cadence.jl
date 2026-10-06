@@ -255,7 +255,7 @@ panel_model() = Group((; inner = Group((; c = Pendulum(), g = Gain(2.0));
                                        input_wires = ("u" => "c/u", "e" => "g/e"),
                                        output_wires = ("c/θ" => "θ",)),
                          ctl = DiscreteIntegrator(1.0));
-                      inner_wires = ("ctl/u" => "inner/u",),
+                      local_wires = ("ctl/u" => "inner/u",),
                       input_wires = ("in" => "ctl/e", "gain_in" => "inner/e"))
 
 # One root input fanned out to two ports.

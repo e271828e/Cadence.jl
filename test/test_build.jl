@@ -169,7 +169,7 @@ function build_algebraic_cycles()
         # clusters and leaves the innocent tail out of both.
         err = failure(() -> build(Group((a = Gain(1.0), b = Gain(1.0), c = Gain(1.0),
                                          d = Gain(1.0), e = Gain(1.0));
-                                        inner_wires = ("a/out" => "b/e", "b/out" => "a/e",
+                                        local_wires = ("a/out" => "b/e", "b/out" => "a/e",
                                                  "c/out" => "d/e", "d/out" => "c/e",
                                                  "b/out" => "e/e"))))
         @test err isa DiagnosticError{Vector{Diagnostic}}
@@ -185,7 +185,7 @@ function build_algebraic_cycles()
     @testset "a self-wire is a one-member cluster with its wire (§5.6)" begin
         # A self-edge is a nontrivial SCC of size one, and the wire is its own.
         d = only(diagnostics(failure(() -> build(
-            Group((plant = Plant(),); inner_wires = ("plant/power" => "plant/u",))))))
+            Group((plant = Plant(),); local_wires = ("plant/power" => "plant/u",))))))
         @test d.members == ["plant"]
         @test d.wires == ["plant/power" => "plant/u"]
     end
@@ -195,7 +195,7 @@ function build_algebraic_cycles()
         # the chord `s/e → i/b` included.
         d = only(diagnostics(failure(() -> build(
             Group((s = Sum(), g = Gain(1.0), i = DerivativeFed());
-                  inner_wires = ("s/e" => "g/e", "g/out" => "s/a",
+                  local_wires = ("s/e" => "g/e", "g/out" => "s/a",
                            "s/e" => "i/b", "i/y" => "s/b"),
                   input_wires = "a" => "i/a")))))
         @test d.members == ["s", "g", "i"]
@@ -210,7 +210,7 @@ function build_algebraic_cycles()
         @test d.traced == ["plant" => :global, "sum" => :global, "ctl" => :global]
         # A self-wire is one hop and the same verdict.
         d = only(diagnostics(failure(() -> build(
-            Group((plant = Plant(),); inner_wires = ("plant/power" => "plant/u",))))))
+            Group((plant = Plant(),); local_wires = ("plant/power" => "plant/u",))))))
         @test d.classification === :real && isempty(d.dead)
         @test d.traced == ["plant" => :global]
     end
@@ -220,14 +220,14 @@ function build_algebraic_cycles()
         # closing the loop through `b` is §5.4's false dependency.
         d = only(diagnostics(failure(() -> build(
             Group((d = DerivativeFed(), g = Gain(1.0));
-                  inner_wires = ("d/y" => "g/e", "g/out" => "d/b"), input_wires = "a" => "d/a")))))
+                  local_wires = ("d/y" => "g/e", "g/out" => "d/b"), input_wires = "a" => "d/a")))))
         @test d.classification === :artificial
         @test d.dead == [("d", :b, :y)]
         @test d.traced == ["d" => :global, "g" => :global]
         # The same pair closed through `a`, which stage 2 does route, is real.
         d = only(diagnostics(failure(() -> build(
             Group((d = DerivativeFed(), g = Gain(1.0));
-                  inner_wires = ("d/y" => "g/e", "g/out" => "d/a"), input_wires = "b" => "d/b")))))
+                  local_wires = ("d/y" => "g/e", "g/out" => "d/a"), input_wires = "b" => "d/b")))))
         @test d.classification === :real && isempty(d.dead)
     end
 
@@ -236,7 +236,7 @@ function build_algebraic_cycles()
         # `i` is dead and is listed anyway, being a wire the author can delete.
         d = only(diagnostics(failure(() -> build(
             Group((s = Sum(), g = Gain(1.0), i = DerivativeFed());
-                  inner_wires = ("s/e" => "g/e", "g/out" => "s/a",
+                  local_wires = ("s/e" => "g/e", "g/out" => "s/a",
                            "s/e" => "i/b", "i/y" => "s/b"),
                   input_wires = "a" => "i/a")))))
         @test d.classification === :real
@@ -249,7 +249,7 @@ function build_algebraic_cycles()
         # synthesized value — untagged either way, and the verdict is unchanged.
         d = only(diagnostics(failure(() -> build(
             Group((s = Sum(), g = Gain(1.0), i = DerivativeFed(), pre = Gain(1.0));
-                  inner_wires = ("s/e" => "g/e", "g/out" => "s/a", "s/e" => "i/b",
+                  local_wires = ("s/e" => "g/e", "g/out" => "s/a", "s/e" => "i/b",
                            "i/y" => "s/b", "pre/out" => "i/a"),
                   input_wires = "a" => "pre/e")))))
         @test d.classification === :real
@@ -262,7 +262,7 @@ function build_algebraic_cycles()
         # scalar, so every hop is alive by structure alone.
         d = only(diagnostics(failure(() -> build(
             Group((p = DiscreteMap(), q = DiscreteMap());
-                  inner_wires = ("p/b" => "q/a", "q/b" => "p/a"))))))
+                  local_wires = ("p/b" => "q/a", "q/b" => "p/a"))))))
         @test d.classification === :real
         @test d.traced == ["p" => :structural, "q" => :structural]
     end
@@ -271,7 +271,7 @@ function build_algebraic_cycles()
         # A continuous declaration with no walking leaf admits no scalar either.
         d = only(diagnostics(failure(() -> build(
             Group((a = PinnedGain(), b = PinnedGain());
-                  inner_wires = ("a/out" => "b/e", "b/out" => "a/e"))))))
+                  local_wires = ("a/out" => "b/e", "b/out" => "a/e"))))))
         @test d.classification === :real
         @test d.traced == ["a" => :structural, "b" => :structural]
     end
@@ -281,7 +281,7 @@ function build_algebraic_cycles()
         # the members and the wires still name the loop.
         d = only(diagnostics(failure(() -> build(
             Group((a = TypedGain(), b = TypedGain());
-                  inner_wires = ("a/out" => "b/e", "b/out" => "a/e"))))))
+                  local_wires = ("a/out" => "b/e", "b/out" => "a/e"))))))
         @test d.classification === nothing
         @test isempty(d.dead) && isempty(d.traced)
         @test d.members == ["a", "b"]
@@ -294,7 +294,7 @@ function build_algebraic_cycles()
         # redrawn primals. `F` routes `f` on both arms, so the loop through `g1`
         # survives the sampled map and the cluster is real.
         model = Group((m = Piecewise(), g1 = Gain(1.0), g2 = Gain(1.0));
-                      inner_wires = ("m/F" => "g1/e", "g1/out" => "m/f", "g1/out" => "m/v",
+                      local_wires = ("m/F" => "g1/e", "g1/out" => "m/f", "g1/out" => "m/v",
                                "m/F" => "g2/e", "g2/out" => "m/g"))
         d = only(diagnostics(failure(() -> build(model))))
         @test d.classification === :real
@@ -310,7 +310,7 @@ function build_algebraic_cycles()
         # arm routes — artificial at port level, traced globally throughout.
         d = only(diagnostics(failure(() -> build(
             Group((m = Piecewise(), g1 = Gain(1.0), g2 = Gain(1.0));
-                  inner_wires = ("m/F" => "g2/e", "g2/out" => "m/g", "g1/out" => "m/v"),
+                  local_wires = ("m/F" => "g2/e", "g2/out" => "m/g", "g1/out" => "m/v"),
                   input_wires = ("r" => "g1/e", "f" => "m/f"))))))
         @test d.members == ["m", "g2"]
         @test d.classification === :artificial
@@ -386,7 +386,7 @@ function build_port_classes()
         # `power`, a genuine stage-2 product, is still an algebraic cycle.
         d = only(diagnostics(failure(() -> build(
             Group((plant = VectorPlant(), fb = StateFeedback(1.0), g = Gain(1.0));
-                  inner_wires = ("plant/q" => "fb/q", "plant/power" => "g/e",
+                  local_wires = ("plant/q" => "fb/q", "plant/power" => "g/e",
                            "g/out" => "plant/u"))))))
         @test d.members == ["plant", "g"]
         @test d.wires == ["plant/power" => "g/e", "g/out" => "plant/u"]
@@ -607,7 +607,7 @@ y_direct(::BundleA, (; u)) = (y = u.q.a,)
 function build_wire_clauses()
     @testset "an abstract entry takes any concrete producer below it (§4.4, §8.2, D-236)" begin
         for (src, want) in ((FieldSourceA(), 2.0), (FieldSourceB(), 3.0))
-            model = Group((; s = src, r = FieldReader()); inner_wires = ("s/fld" => "r/f",))
+            model = Group((; s = src, r = FieldReader()); local_wires = ("s/fld" => "r/f",))
             field_build = build(model)
             @test field_build isa Build
             for A in (Float64, D8)
@@ -622,7 +622,7 @@ function build_wire_clauses()
         # An abstract numeric entry: `Real` takes the activation scalar, and the
         # consumer's own math promotes behind it.
         real_build = build(Group((; src = NomSource(), r = RealReader());
-                                 inner_wires = ("src/val" => "r/u",)))
+                                 local_wires = ("src/val" => "r/u",)))
         @test real_build isa Build
         @test port(Simulation(real_build, D8; h = 1//100), "r", :out) isa D8
 
@@ -630,7 +630,7 @@ function build_wire_clauses()
         # the pinned one through the lifted candidate. Its `Float64` sum embeds at
         # the write into a cell declared `T` (D-235).
         for src in (VecSource(), PinnedVecSource())
-            model = Group((; s = src, r = VecReader()); inner_wires = ("s/v" => "r/v",))
+            model = Group((; s = src, r = VecReader()); local_wires = ("s/v" => "r/v",))
             sim = Simulation(build(model), D8; h = 1//100)
             @test port(sim, "r", :n) isa D8
         end
@@ -678,7 +678,7 @@ function build_wire_clauses()
         # A pinned entry fed by a walking producer fails here, with both
         # endpoints named, not at the first `Dual` activation.
         err = failure(() -> build(Group((; src = NomSource(), c = FrozenEntry());
-                                        inner_wires = ("src/val" => "c/u",))))
+                                        local_wires = ("src/val" => "c/u",))))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
         @test d isa WalkingFaceAtFrozenEntry && d.path == "c" && d.face === :u
@@ -687,7 +687,7 @@ function build_wire_clauses()
 
         # One leaf deep the offending leaf is named by its dotted spelling.
         err = failure(() -> build(Group((; s = FrameSource(), r = FrameReader());
-                                        inner_wires = ("s/f" => "r/f",))))
+                                        local_wires = ("s/f" => "r/f",))))
         d = only(diagnostics(err))
         @test d isa WalkingFaceAtFrozenEntry && d.leaf == "p[1]"
         @test d.declared === Float64 && d.observed === Marker
@@ -695,7 +695,7 @@ function build_wire_clauses()
         # A walking handle into a pinned handle entry: the opaque leaf is one leaf
         # with no scalar pair, and it is named with both whole types.
         err = failure(() -> build(Group((; src = OffsetAtT(), q = PinnedOffsetQuery());
-                                        inner_wires = ("src/terrain" => "q/terrain",))))
+                                        local_wires = ("src/terrain" => "q/terrain",))))
         d = only(diagnostics(err))
         @test d isa WalkingFaceAtFrozenEntry && d.path == "q" && d.face === :terrain
         @test d.leaf == "" && d.declared === OffsetField{Float64}
@@ -715,20 +715,20 @@ function build_wire_clauses()
         # The habit that used to fail now walks: a bare `Float64` entry fed by a
         # walking producer builds clean, and its cell follows the activation (D-263).
         walked_build = build(Group((; src = NomSource(), c = RealEntry());
-                                   inner_wires = ("src/val" => "c/u",)))
+                                   local_wires = ("src/val" => "c/u",)))
         @test walked_build isa Build
         @test port(Simulation(walked_build, D8; h = 1//100), "c", :y) isa D8
 
         # D-167's tier scope: a discrete consumer takes the bound clause alone, so
         # a continuous producer feeding a pinned discrete entry stays legal.
         @test build(Group((; src = NomSource(), rd = FrozenReader());
-                          inner_wires = ("src/val" => "rd/in",))) isa Build
+                          local_wires = ("src/val" => "rd/in",))) isa Build
     end
 
     @testset "the wire pass collects to the structure step's barrier (§13.1, D-229, D-236)" begin
         # The bound clause, both endpoints named.
         err = failure(() -> build(Group((; src = NomSource(), c = BoolEntry());
-                                        inner_wires = ("src/val" => "c/u",))))
+                                        local_wires = ("src/val" => "c/u",))))
         d = only(diagnostics(err))
         @test d isa WireTypeMismatch && d.path == "c" && d.face === :u
         @test d.producer_path == "src" && d.producer_port === :val
@@ -736,7 +736,7 @@ function build_wire_clauses()
 
         # Two bad wires in one model are two diagnostics in one throw.
         err = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(), e = BoolEntry());
-                                        inner_wires = ("src/val" => "c/u", "src/val" => "e/u"))))
+                                        local_wires = ("src/val" => "c/u", "src/val" => "e/u"))))
         diags = diagnostics(err)
         @test length(diags) == 2 && all(x -> x isa WireTypeMismatch, diags)
         @test Set(x.path for x in diags) == Set(["c", "e"])
@@ -744,7 +744,7 @@ function build_wire_clauses()
         # A bound failure, a walk failure and an abstract-at-root face merge.
         err = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(),
                                             z = FrozenEntry(), r = FieldReader());
-                                         inner_wires = ("src/val" => "c/u", "src/val" => "z/u"),
+                                         local_wires = ("src/val" => "c/u", "src/val" => "z/u"),
                                          input_wires = ("f" => "r/f",))))
         @test Set(kinds(err)) ==
               Set([WireTypeMismatch, WalkingFaceAtFrozenEntry, AbstractAtRoot])
@@ -753,7 +753,7 @@ function build_wire_clauses()
         # never produced, so an unfed input beside a bad wire reports the walk's
         # kinds alone.
         err = failure(() -> build(Group((; src = NomSource(), c = BoolEntry(), lone = RealEntry());
-                                        inner_wires = ("src/val" => "c/u",))))
+                                        local_wires = ("src/val" => "c/u",))))
         @test Set(kinds(err)) == Set([UnconnectedInput])
     end
 
@@ -761,7 +761,7 @@ function build_wire_clauses()
         # Same leaf list, different face: the leafwise relation passed this wire
         # the consumer's stage then failed on the missing field at the probe.
         d = only(diagnostics(failure(() -> build(Group((; p = BundleB(), c = BundleA());
-                                                       inner_wires = ("p/q" => "c/q",))))))
+                                                       local_wires = ("p/q" => "c/q",))))))
         @test d isa WireTypeMismatch
         @test d.path == "c" && d.face === :q
         @test d.producer_path == "p" && d.producer_port === :q
@@ -973,7 +973,7 @@ struct ThrowingChildren <: AbstractComponent
     inner::ScrambledDerivative
 end
 ThrowingChildren() = ThrowingChildren(ScrambledDerivative())
-inner_wires(::ThrowingChildren) = error("inner_wires boom")
+local_wires(::ThrowingChildren) = error("local_wires boom")
 
 # Bundle-law misses, one per class and per direction (§5.2): the continuous
 # `y_state` reading `m` with no `m_init` (undeclared), `u` (illegal for
@@ -1105,7 +1105,7 @@ function build_user_code_framing()
         d = diagnostic(failure(() -> build(single(ThrowingWorkspace()))))
         @test d.fn == "ws_init" && path(d) == "c"
         d = diagnostic(failure(() -> build(Group((; a = ThrowingChildren())))))
-        @test d.fn == "inner_wires" && path(d) == "a"
+        @test d.fn == "local_wires" && path(d) == "a"
     end
 
     @testset "a bundle field the bundle lacks is `BundleFieldError`, classified (§5.2, §13.2)" begin
@@ -1237,7 +1237,7 @@ y_state(::EmptyNoOutputs, (; t)) = (;)
 function build_label_ports()
     @testset "an enum port is one pinned leaf of its own eltype (§4.1, §8.2)" begin
         model = Group((; sel = GearSelector(), rd = GearReader());
-                      inner_wires = ("sel/gear" => "rd/gear",), input_wires = ("x" => "rd/x",))
+                      local_wires = ("sel/gear" => "rd/gear",), input_wires = ("x" => "rd/x",))
         gear_build = build(model)
         sim = Simulation(gear_build; h = 1//10)
         init!(sim, fragment(u = (x = 1.0,)))
@@ -1282,7 +1282,7 @@ function build_label_ports()
 
     @testset "a Symbol port is one opaque leaf, with no synthesis at a root (§4.3, D-243)" begin
         model = Group((; sel = PhaseSelector(), rd = PhaseReader());
-                      inner_wires = ("sel/phase" => "rd/phase",))
+                      local_wires = ("sel/phase" => "rd/phase",))
         sim = Simulation(build(model); h = 1//10)
         init!(sim, fragment())
         @test port(sim, "sel", :phase) === :idle && !port(sim, "rd", :armed)
@@ -1360,7 +1360,7 @@ function build_tier()
         end
         # The walk collects it and the barrier throws before any wire is read.
         err = failure(() -> build(Group((; src = NestedPinSource(), c = NestedPinEntry());
-                                        inner_wires = ("src/v" => "c/v",))))
+                                        local_wires = ("src/v" => "c/v",))))
         @test Set(kinds(err)) == Set([IllegalPortType])
         @test length(diagnostics(err)) == 2
 
@@ -1407,7 +1407,7 @@ end
 # `Group`'s values rather than a struct's declared fields.
 merged_failures() = Group((; g = Gain(1.0), s = Sum(), n = NoFlow(), h = HalfEvent(),
                              f = BareState());
-                          inner_wires = ("g/ot" => "s/a",),
+                          local_wires = ("g/ot" => "s/a",),
                           input_wires = ("e" => "g/e", "b" => "s/b"))
 
 # A store that is not a `NamedTuple` (§8.2, D-247), one per store. `BareVector`
@@ -1609,7 +1609,7 @@ y_state(::DiscreteScratch, (; ws)) = (ws.tmp[1] = 1.0; (y = ws.tmp[1],))
 function build_activations()
     @testset "a non-nominal activation is derived from the nominal one; frozen products carry (§9.4)" begin
         pair() = Group((; src = NomSource(), rd = FrozenReader());
-                       inner_wires = ("src/val" => "rd/in",))
+                       local_wires = ("src/val" => "rd/in",))
 
         # The nominal activation runs at build and *is* the Float64 activation; a
         # non-nominal one materializes at first request and is cached on the Build.
@@ -1663,7 +1663,7 @@ function build_activations()
         # first writer stored and the cache holds a single entry. Under one
         # thread the tasks serialize and the test pins the contract at no cost.
         pair_build = build(Group((; src = NomSource(), rd = FrozenReader());
-                                 inner_wires = ("src/val" => "rd/in",)))
+                                 local_wires = ("src/val" => "rd/in",)))
         acts = fetch.([Threads.@spawn activation(pair_build, D8) for _ in 1:8])
         @test all(a -> a === first(acts), acts)
         @test first(acts) === activation(pair_build, D8)
@@ -1844,7 +1844,7 @@ message(d::SyntheticWarning) = d.note
 struct WarningWires <: AbstractComponent
     c::Gain
 end
-inner_wires(::WarningWires) = ()
+local_wires(::WarningWires) = ()
 input_wires(::WarningWires) = (_warn!(SyntheticWarning("synthetic")); ("in" => "c/e",))
 output_wires(::WarningWires) = ("c/out" => "out",)
 
@@ -1853,7 +1853,7 @@ output_wires(::WarningWires) = ("c/out" => "out",)
 struct WarningUnfed <: AbstractComponent
     c::Gain
 end
-inner_wires(::WarningUnfed) = ()
+local_wires(::WarningUnfed) = ()
 # The empty tuple declares no input face, so the gain stays unfed.
 input_wires(::WarningUnfed) = (_warn!(SyntheticWarning("unfed")); ())
 output_wires(::WarningUnfed) = ("c/out" => "out",)
@@ -1866,14 +1866,14 @@ output_wires(::WarningUnfed) = ("c/out" => "out",)
 struct WarningPassthrough <: AbstractComponent
     w::WarningWires
 end
-inner_wires(::WarningPassthrough) = ()
+local_wires(::WarningPassthrough) = ()
 input_wires(a::WarningPassthrough) = input_passthrough(a, "w")
 output_wires(a::WarningPassthrough) = output_passthrough(a, "w")
 
 struct WarningGrandparent <: AbstractComponent
     p::WarningPassthrough
 end
-inner_wires(::WarningGrandparent) = ()
+local_wires(::WarningGrandparent) = ()
 input_wires(a::WarningGrandparent) = input_passthrough(a, "p")
 output_wires(a::WarningGrandparent) = output_passthrough(a, "p")
 
@@ -1884,7 +1884,7 @@ struct WarningTypo <: AbstractComponent
     w::WarningWires
     g::Gain
 end
-inner_wires(::WarningTypo) = ("w/nope" => "g/e",)
+local_wires(::WarningTypo) = ("w/nope" => "g/e",)
 input_wires(::WarningTypo) = ("in" => "w/in",)
 output_wires(::WarningTypo) = ("g/out" => "out",)
 
@@ -1895,7 +1895,7 @@ struct EmptySelection <: AbstractComponent
     g::Gain
     src::Gain
 end
-inner_wires(::EmptySelection) = ("src/out" => "g/e",)
+local_wires(::EmptySelection) = ("src/out" => "g/e",)
 input_wires(a::EmptySelection) = (input_passthrough(a, "g"; except = ("e",))...,
                                     "in" => "src/e")
 output_wires(::EmptySelection) = ("g/out" => "out",)
@@ -1908,7 +1908,7 @@ struct EmptySelectionRated <: AbstractComponent
     src::Gain
     c::TickCounter
 end
-inner_wires(::EmptySelectionRated) = ("src/out" => "g/e",)
+local_wires(::EmptySelectionRated) = ("src/out" => "g/e",)
 input_wires(a::EmptySelectionRated) = (input_passthrough(a, "g"; except = ("e",))...,
                                          "in" => "src/e")
 output_wires(::EmptySelectionRated) = ("g/out" => "out",)
@@ -1919,7 +1919,7 @@ sample_times(::EmptySelectionRated) = (; c = Absolute(Hz(50), 1//100))
 struct EmptySelectionParent <: AbstractComponent
     kid::EmptySelection
 end
-inner_wires(::EmptySelectionParent) = ()
+local_wires(::EmptySelectionParent) = ()
 input_wires(a::EmptySelectionParent) = input_passthrough(a, "kid")
 output_wires(a::EmptySelectionParent) = output_passthrough(a, "kid")
 

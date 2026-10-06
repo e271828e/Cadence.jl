@@ -338,6 +338,7 @@ were derived.
 | [D-311][d-311] | Fold the summing junction and the Bool gates into one generic `Junction` | ratified |
 | [D-312][d-312] | Settle the leaf blocks: `Constant` pins, `UnitDelay` holds its initial value, `Freeze` strips by broadcast | ratified |
 | [D-313][d-313] | Admit a library block by the framework mechanism it encodes | ratified |
+| [D-314][d-314] | Rename `inner_wires` to `local_wires` | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -6113,6 +6114,10 @@ this entry rejected returns, and [D-303][d-303] accepts it as a reading nuisance
 since an entry under the wrong declaration fails at build. The split by
 direction, the flow-ordered pairs and the marker role stand.
 
+Annotation (2026-10-06): the marker is `local_wires` ([D-314][d-314]), which ends
+the near-collision. The split by direction, the flow-ordered pairs and the
+marker role stand.
+
 **Rejected.**
 - *Status quo (the sacrifice above — the output entries read against the
   signal).*
@@ -6657,7 +6662,8 @@ Annotation (2026-10-02): amended by [D-300][d-300]. `Group` carries a fifth fiel
 
 Annotation (2026-10-02): amended by [D-303][d-303]. `Group`'s fields and keywords are
 `inner_wires`, `input_wires`, `output_wires` and `sample_times`, the names of
-the declarations they feed. The rest stands.
+the declarations they feed. The rest stands. The first is `local_wires` since
+[D-314][d-314].
 
 **Rejected.**
 - *The mutable builder (`Assembly()` + `add!`/`connect!`):* [§8.5][s8-5]'s standing
@@ -10742,7 +10748,8 @@ Annotation (2026-10-01): `x_derivative` is `x_deriv`, and the assembly's connect
 
 Annotation (2026-10-02): the connection declarations are `inner_wires`,
 `input_wires` and `output_wires` ([D-303][d-303]), so an assembly's boundary
-declarations no longer take `u` and `y`. The rule stands for leaves.
+declarations no longer take `u` and `y`. The rule stands for leaves. The
+first is `local_wires` since [D-314][d-314].
 
 **Rejected.**
 - *Keeping the verb-first stores beside letter-first laws:* the same
@@ -11709,7 +11716,7 @@ had fixed its meaning before this entry.
 Annotation (2026-10-02): partly superseded by [D-303][d-303]. The three connection
 names fall, with the widening of [D-267][d-267]'s rule to an assembly's boundary
 declarations that produced two of them. The declarations are `inner_wires`,
-`input_wires` and `output_wires`. The listing of `Group`'s keywords among
+`input_wires` and `output_wires`, the first `local_wires` since [D-314][d-314]. The listing of `Group`'s keywords among
 what stays falls too, since those keywords and fields now take the
 declaration names and `sample_times`. `x_deriv`, the `fragment` keyword `u`
 and the rejection of bare `wires` as a function name stand. The keyword now
@@ -12598,8 +12605,9 @@ sentences. This entry settles on the one the surface follows, so no name
 changes.
 
 Annotation (2026-10-02): [D-303][d-303] renames the connection declarations
-`inner_wires`, `input_wires` and `output_wires`. Each still names the pairs
-it returns, so the axis and the second bullet's ruling stand.
+`inner_wires`, `input_wires` and `output_wires`, and [D-314][d-314] the first to
+`local_wires`. Each still names the pairs it returns, so the axis and the
+second bullet's ruling stand.
 
 **Rejected.**
 - *Consequence naming ([D-146][d-146]'s Rationale):* naming the role a declaration
@@ -12700,6 +12708,11 @@ as a function name does not apply to the prefixed names.
   not the pairs returned ([D-301][d-301]).
 - *Short `Group` keywords (`wires`, `inputs`, `outputs`, `rates`) beside the
   declaration names:* two vocabularies for one thing.
+
+Annotation (2026-10-06): [D-314][d-314] renames `inner_wires` to `local_wires`;
+the near-collision this entry accepted as a nuisance is removed rather than
+tolerated. The boundary names, `Group`'s keywords, the "wire" convention
+and the rest stand.
 
 ### D-304 — The flat declaration, the unchanged buffer, the store-field limits and authored genericity
 
@@ -13064,6 +13077,66 @@ internals, and the audit scopes its names as one group.
   and the submodule scopes the audit as well; the split is an after-release
   question.
 
+### D-314 — Rename `inner_wires` to `local_wires`
+
+**Status.** ratified
+
+**Position.** The class marker is `local_wires`, and the child-to-child kind
+of wire is a "local wire" in prose. `input_wires` and `output_wires` stand.
+Signatures, entry spellings and semantics are unchanged, and `Group`'s field
+and keyword follow the declaration. No aliases and no deprecation shims, on
+[D-220][d-220]'s terms.
+
+**Spec.** [§3.3][s3-3], [§6.1][s6-1], [§8.2][s8-2], [§8.5][s8-5], [§8.6][s8-6], [§8.8][s8-8], [§11.7][s11-7], [§14.2][s14-2], [Appendix B][sB],
+[Appendix C][sC], [Appendix D][sD]
+
+**Rationale.** [D-303][d-303] accepted the `inner_`/`input_` near-collision as a
+reading nuisance. The nuisance is in the common case: every assembly writes
+the two declarations on adjacent lines, and `inner` and `input` share their
+first two letters and their length, so the eye tells them apart by the
+third letter alone. `local` keeps the length, so the trio still aligns, and
+shares no letter run with `input`.
+
+`local` also names the distinction more exactly than `inner`. A local wire
+has both ends inside the assembly's boundary, and an input or output wire
+has one end on it. "Local" says "confined within, crossing no boundary",
+which is the contrast; "inner" says it only by opposition to an "outer"
+that nothing is called. [D-303][d-303] rejected `wires_local` because `local` names
+a scope beside two directions, but the three words sort the wires by one
+question, whether the wire crosses the boundary and in which direction, and
+a scope word is the right answer to its first half.
+
+`local` is a Julia keyword, and `local_wires` is an ordinary identifier the
+parser never confuses with it. `implementation.md`'s naming rules use
+"a local" for a local variable, and "local wire" is always two words, so the
+two senses never meet in one phrase.
+
+The rename does not change what kind of thing the three declarations hold.
+[D-303][d-303]'s rule that "wire" covers an entry of any of the three stands, and
+the [§8.6][s8-6] rule keeps its three verbs. That a boundary entry aliases a face
+rather than creating an endpoint is a mechanism the spec states where
+faces are defined, not a difference the names expose.
+
+**Rejected.**
+- *Keeping `inner_wires`:* the near-collision sits in every assembly's most
+  common two lines, and the build-time failure [D-303][d-303] relied on catches a
+  misfiled entry, not a misread one.
+- *`wires` alone:* the strongest contrast, and the inner set is the
+  assembly's wires proper. But `wires` is a local in `build.jl`'s cluster
+  code, which the naming rules forbid beside a package function of that
+  name, and the bare noun contradicts [D-303][d-303]'s rule that an entry of any of
+  the three is a wire.
+- *`peer_wires`, `child_wires`:* both precise about joining siblings.
+  "Peer" has no footing in the spec, and "child wires" reads as the
+  children's own wires.
+- *`internal_wires`, `intra_wires`:* keep the `in` prefix, so they keep the
+  collision.
+- *`input_aliases`/`output_aliases` beside the rename:* exposes the
+  virtual nature of the boundary entries in the API, at the price of the
+  uniform "wire" story, [D-303][d-303]'s rule, the glossary and every diagnostic
+  that pairs a local wire with an `input_wires` chain. One rename suffices
+  for readability, and the aliasing fact already has a home in the prose.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -13378,6 +13451,7 @@ internals, and the audit scopes its names as one group.
 [d-311]: #d-311--fold-the-summing-junction-and-the-bool-gates-into-one-generic-junction
 [d-312]: #d-312--settle-the-leaf-blocks-constant-pins-unitdelay-holds-its-initial-value-freeze-strips-by-broadcast
 [d-313]: #d-313--admit-a-library-block-by-the-framework-mechanism-it-encodes
+[d-314]: #d-314--rename-inner_wires-to-local_wires
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property

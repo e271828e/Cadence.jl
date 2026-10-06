@@ -2,7 +2,7 @@ module Blocks
 
 import ..Redstone: AbstractComponent, Pinned,
     x_init, s_init, u_types, y_types, y_direct, y_state, s_update,
-    inner_wires, input_wires, output_wires, sample_times, transparent_container
+    local_wires, input_wires, output_wires, sample_times, transparent_container
 using StaticArrays: StaticArray
 import ForwardDiff
 
@@ -136,30 +136,30 @@ which exploratory composition does not want.
 """
 struct Group{C <: NamedTuple, W, I, O, R <: NamedTuple} <: AbstractComponent
     children::C       # component-typed elements → children by the container rule
-    inner_wires::W    # inert parameter data
+    local_wires::W    # inert parameter data
     input_wires::I
     output_wires::O
     sample_times::R   # the ad-hoc rate scope, keyed by bare element name (§8.7)
 end
 
 """
-    Group(children; inner_wires = (), input_wires = (), output_wires = (),
+    Group(children; local_wires = (), input_wires = (), output_wires = (),
           sample_times = (;))
 
 The convenience form. Each keyword takes the name of the declaration it feeds.
-A bare `Pair` passed for `inner_wires`, `input_wires` or `output_wires` is the
+A bare `Pair` passed for `local_wires`, `input_wires` or `output_wires` is the
 one-entry tuple — the declarations are ordered collections of pairs, and a
 single wire should not have to be written `("a/x" => "b/y",)`.
 """
-Group(children; inner_wires = (), input_wires = (), output_wires = (),
+Group(children; local_wires = (), input_wires = (), output_wires = (),
       sample_times = (;)) =
-    Group(children, _entries(inner_wires), _entries(input_wires),
+    Group(children, _entries(local_wires), _entries(input_wires),
           _entries(output_wires), sample_times)
 
 _entries(wires::Pair) = (wires,)
 _entries(wires) = wires
 
-inner_wires(g::Group) = g.inner_wires
+local_wires(g::Group) = g.local_wires
 input_wires(g::Group) = g.input_wires
 output_wires(g::Group) = g.output_wires
 sample_times(g::Group) = g.sample_times

@@ -327,7 +327,7 @@ message(d::UnknownPort) =
     "$(d.entry): `$(d.spelling)` names no `$(d.port)` on $(_at_path(d.path)) — its " *
     "faces are $(_plainlist(d.candidates))"
 
-"§6.1, §8.4 w2: an input no inner wire and no `input_wires` chain feeds."
+"§6.1, §8.4 w2: an input no local wire and no `input_wires` chain feeds."
 Base.@kwdef struct UnconnectedInput <: Diagnostic
     path::String
     face::Symbol
@@ -339,7 +339,7 @@ message(d::UnconnectedInput) =
     "`$(d.path)`.$(d.face) declared $(d.declared) is fed by nothing" *
     (d.level == d.path ? "" :
      ", handed up to $(_at_path(d.level)) and fed by nothing there") *
-    " — every input is fed exactly once, by an inner wire or by an `input_wires` chain " *
+    " — every input is fed exactly once, by a local wire or by an `input_wires` chain " *
     "ending at a root input face (§6.1)"
 
 "§6.1, §8.8: an input claimed twice, both producers named with their declarations."
@@ -526,7 +526,7 @@ message(d::ClassUnreadable) =
     "$(_namelist(d.leaf_family)) a primitive (§8.5)" *
     (isempty(d.found) ? "" : " — it declares $(_namelist(d.found))") *
     (d.holds_components ?
-     " — it holds components but declares no `inner_wires`" : "")
+     " — it holds components but declares no `local_wires`" : "")
 
 "§8.5: a component declaring both families — an assembly owns no state and no contract."
 Base.@kwdef struct ClassMixed <: Diagnostic
@@ -535,7 +535,7 @@ Base.@kwdef struct ClassMixed <: Diagnostic
 end
 path(d::ClassMixed) = d.path
 message(d::ClassMixed) =
-    "$(_at_path(d.path)) declares `inner_wires` and the leaf declaration(s) " *
+    "$(_at_path(d.path)) declares `local_wires` and the leaf declaration(s) " *
     "$(_plainlist(d.declarations)) — an assembly owns no state and no contract of its " *
     "own (§8.5)"
 

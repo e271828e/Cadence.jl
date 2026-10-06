@@ -46,7 +46,7 @@ function test_stepper()
         # method-independent down to the bracket width — the machinery, not the
         # method, sets the error.
         model = Group((; src = Sawtooth(1.0), s = Stamper(0.315));
-                      inner_wires = ("src/q" => "s/sig",))
+                      local_wires = ("src/q" => "s/sig",))
         sim = Simulation(model; h = 1//10, algorithm = Heun)
         init!(sim)
         run!(sim; t_end = 0.5)
@@ -59,7 +59,7 @@ function test_stepper()
         # sit at ~h and shrink linearly instead.)
         stamp_error(h) = begin
             rotor_model = Group((; src = Rotor(; ω = 1.0, r₀ = SVector(-1.0, 0.0)), s = Stamper(-0.5));
-                                inner_wires = ("src/c" => "s/sig",))
+                                local_wires = ("src/c" => "s/sig",))
             rotor_sim = Simulation(rotor_model; h, algorithm = Heun)
             init!(rotor_sim)
             run!(rotor_sim; t_end = 1.5)

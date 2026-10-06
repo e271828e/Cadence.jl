@@ -85,7 +85,7 @@ dotted_condition() = fragment(u = (var"left.brake" = SVector(1.5, 2.5),))
 struct ReadableHold <: AbstractComponent
     inner::typeof(readable())
 end
-inner_wires(::ReadableHold) = ()
+local_wires(::ReadableHold) = ()
 input_wires(::ReadableHold) = ("drive" => "inner/u", "gap" => "inner/e")
 output_wires(::ReadableHold) = ("inner/y" => "lift",)
 
@@ -100,7 +100,7 @@ wrapped_dotted() = Group((; inner = dotted_model());
 # `tri()`'s shape (test_conditions.jl): `trig/sig` is fed by its sibling's
 # `plant/y`, so no root input holds it.
 sibling_fed() = Group((; plant = Plant(), trig = Trigger(0.5));
-                      inner_wires = ("plant/y" => "trig/sig",), input_wires = ("u" => "plant/u",))
+                      local_wires = ("plant/y" => "trig/sig",), input_wires = ("u" => "plant/u",))
 
 # Every store, the root inputs and the clock, read straight out of an executor.
 world(sim) = (copy(sim.exec.xbuf),

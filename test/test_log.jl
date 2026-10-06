@@ -7,7 +7,7 @@
 function test_log()
     @testset "every boundary publishes: t* included, boundary-consistent (§11.2, §10.6)" begin
         model = Group((; src = Sawtooth(1.0), s = Stamper(0.315));
-                      inner_wires = ("src/q" => "s/sig",))
+                      local_wires = ("src/q" => "s/sig",))
         sim = Simulation(model; h = 1//10)
         init!(sim)
         run!(sim; t_end = 0.5)

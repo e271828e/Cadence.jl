@@ -10,7 +10,7 @@
 # The interrupter armed by its own ramp: `q = t` crosses the trigger's level at
 # boundary 2, so frame 3's integrate is the first that raises the interrupt.
 interrupted() = Group((c = Interrupter(), trig = Trigger(0.15));
-                      inner_wires = ("c/q" => "trig/sig", "trig/on" => "c/arm"))
+                      local_wires = ("c/q" => "trig/sig", "trig/on" => "c/arm"))
 
 # The interrupter whose armed RHS runs a hook before raising: the window between
 # the frame top's stop-word read and the carve-out's catch, where another issuer
@@ -26,12 +26,12 @@ y_state(::HookedInterrupter, (; x)) = (q = x.q,)
 x_deriv(c::HookedInterrupter, (; x, u)) =
     u.arm ? (c.hook[](); throw(InterruptException())) : (q = one(x.q),)
 hooked_interrupted(c) = Group((c = c, trig = Trigger(0.15));
-                              inner_wires = ("c/q" => "trig/sig", "trig/on" => "c/arm"))
+                              local_wires = ("c/q" => "trig/sig", "trig/on" => "c/arm"))
 
 # The self-interrupter under a stop face on its own ramp: the face holds at
 # frame 3's publication, the frame whose integration sent the signal.
 interrupter_watched() = Group((c = SelfInterrupter(0.22), trig = Trigger(0.25));
-                              inner_wires = ("c/q" => "trig/sig",), output_wires = ("trig/on" => "hit",))
+                              local_wires = ("c/q" => "trig/sig",), output_wires = ("trig/on" => "hit",))
 
 # A frame failing on a bundle field its law does not give: the species rule's
 # lookup (§13.2, D-248) re-invokes `x_init`, which, armed by that failing
@@ -73,7 +73,7 @@ end
 # state through the ordinary signal path, so a sweep running later than the
 # integrate would blame the lookup rather than the block that blew up.
 diverging() = Group((div = Diverger(), con = Consumer());
-                    inner_wires = ("div/q" => "con/in",), input_wires = ("in" => "div/arm",))
+                    local_wires = ("div/q" => "con/in",), input_wires = ("in" => "div/arm",))
 
 # --- §9.5's always-on check at the write (D-235) --------------------------------
 # Every fixture below conforms on the branch the probe sees at `t = 0` and

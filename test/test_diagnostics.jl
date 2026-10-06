@@ -263,7 +263,7 @@ function diagnostics_kind_set()
                            (prime = 5, power = 2, suppliers = [2])])
         occurrences = Diagnostic[
             # the structure step
-            UnknownPort(entry = "inner_wires at `a`, entry `x => y`", endpoint = :destination,
+            UnknownPort(entry = "local_wires at `a`, entry `x => y`", endpoint = :destination,
                         path = "a/b", spelling = "b/throtle", port = :throtle,
                         candidates = [:throttle, :mixture]),
             UnknownPort(entry = "input_wires at `a`, entry `:u => ()`", endpoint = :connection,
@@ -296,10 +296,10 @@ function diagnostics_kind_set()
             DeclarationShadowed(path = "a/b", parent_module = "Main.MyModel",
                                 names = [:x_init, :y_types]),
             ClassUnreadable(path = "a", type = "Inert", found = Symbol[],
-                            assembly_family = [:inner_wires],
+                            assembly_family = [:local_wires],
                             leaf_family = [:x_init, :y_types], holds_components = true),
             ClassUnreadable(path = "a", type = "Inert", found = [:sample_times],
-                            assembly_family = [:inner_wires],
+                            assembly_family = [:local_wires],
                             leaf_family = [:x_init, :y_types]),
             ClassMixed(path = "a", declarations = [:x_init, :y_types]),
             ContainerMixed(path = "a", field = :kids, keys = Any[1, :b],
@@ -316,7 +316,7 @@ function diagnostics_kind_set()
             FaceNameIllegal(path = "a", face = "u/v", invariant = :contains_slash),
             FaceNameCollision(path = "a", faces = ["u"], site = :assembly),
             FaceNameCollision(path = "", faces = ["u"], site = :root),
-            FaceDirectionConflict(entry = "inner_wires at `a`", path = "a/b",
+            FaceDirectionConflict(entry = "local_wires at `a`", path = "a/b",
                                   spelling = "b/u", found = :input, wanted = :producer),
             UnknownFaceSelection(who = "input_passthrough", path = "a/b",
                                  reason = :multiple_selectors, names = ["except", "only"]),

@@ -25,7 +25,7 @@ Two fixtures from `test/fixtures.jl`, wired into one assembly:
 
 ```julia
 model = Group((; s = Sum(), c = Pendulum());
-              inner_wires  = ("s/e" => "c/u",),
+              local_wires  = ("s/e" => "c/u",),
               input_wires  = ("τ" => "s/a", "d" => "s/b"),
               output_wires = ("c/θ" => "θ", "s/e" => "u_eff"))
 ```

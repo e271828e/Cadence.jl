@@ -66,14 +66,14 @@ end
 # activation the discrete tier is frozen, so its output cell can only come from
 # the nominal half — which is exactly what the ruling is about.
 sampled_pend() = Group((; ctl = DiscreteIntegrator(1.0), c = Pendulum());
-                       inner_wires = ("ctl/u" => "c/u",), input_wires = ("in" => "ctl/e",))
+                       local_wires = ("ctl/u" => "c/u",), input_wires = ("in" => "ctl/e",))
 sampled_base(acc = 4.0) = combine(at("ctl", fragment(s = (acc = acc,))),
                                   fragment(u = (in = 0.0,)))
 
 # A commit-time mover of the first kind (§14.5): a guard the solved attitude
 # already holds, so boundary zero fires it and the report says so.
 triggered_pend() = Group((; c = Pendulum(), trig = Trigger(0.3));
-                         inner_wires = ("c/θ" => "trig/sig",), input_wires = ("in" => "c/u",))
+                         local_wires = ("c/θ" => "trig/sig",), input_wires = ("in" => "c/u",))
 
 # A commit-time mover of the second kind: a handler that writes `x`, so the
 # committed stores land somewhere the solved-point residuals never described.

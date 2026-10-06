@@ -4,13 +4,13 @@
 struct TupleRoster{U <: Tuple} <: AbstractComponent
     units::U
 end
-inner_wires(::TupleRoster)  = ("units/1/out" => "units/2/e",)
+local_wires(::TupleRoster)  = ("units/1/out" => "units/2/e",)
 input_wires(::TupleRoster)  = ("in" => "units/1/e",)
 output_wires(::TupleRoster) = ("units/2/out" => "y",)
 
 # --- class (§8.5) -------------------------------------------------------------
 # Class is read off *which* well-known declarations a type defines:
-# `inner_wires` the assembly marker, any leaf declaration a primitive's.
+# `local_wires` the assembly marker, any leaf declaration a primitive's.
 
 struct Inert <: AbstractComponent end            # neither family: no class to read at all
 
@@ -23,13 +23,13 @@ struct TypoWithInert <: AbstractComponent        # §13.1's worked example, behi
     s::Sum
     z::Inert
 end
-inner_wires(::TypoWithInert)  = ("g/ot" => "s/a",)
+local_wires(::TypoWithInert)  = ("g/ot" => "s/a",)
 input_wires(::TypoWithInert)  = ("e" => "g/e", "b" => "s/b")
 
 struct BothFamilies <: AbstractComponent         # assembly marker beside a contract
     inner::Gain
 end
-inner_wires(::BothFamilies) = ()
+local_wires(::BothFamilies) = ()
 x_init(::BothFamilies) = (;)
 y_types(::BothFamilies) = (a = Float64,)
 y_state(::BothFamilies, (; t)) = (a = 1.0,)
@@ -54,7 +54,7 @@ function assembly_class()
         # families rather than failing later and elsewhere.
         d = carried(@test_throws DiagnosticError{ClassUnreadable} classify("c", Inert()))
         @test d.path == "c" && !d.holds_components && d.type == "Inert"
-        @test d.assembly_family == [:inner_wires]   # both family lists, in hand
+        @test d.assembly_family == [:local_wires]   # both family lists, in hand
         @test :y_types in d.leaf_family && :x_projection in d.leaf_family
         @test isempty(d.found)                            # and it declares none of them
 
@@ -146,13 +146,13 @@ end
 struct MixedContainer <: AbstractComponent
     kids::NamedTuple
 end
-inner_wires(::MixedContainer) = ()
+local_wires(::MixedContainer) = ()
 
 struct EmptyRoster <: AbstractComponent          # parametric code needs no special case
     roster::NamedTuple
     src::ModedSource
 end
-inner_wires(::EmptyRoster) = ()
+local_wires(::EmptyRoster) = ()
 
 function assembly_container_children()
     @testset "container children are path-named `field/key` and `field/1` (§8.5)" begin
@@ -215,7 +215,7 @@ end
 struct TransparentRoster{U <: NamedTuple} <: AbstractComponent
     units::U
 end
-inner_wires(::TransparentRoster)     = ("a/out" => "b/e",)
+local_wires(::TransparentRoster)     = ("a/out" => "b/e",)
 input_wires(::TransparentRoster)     = ("in" => "a/e",)
 output_wires(::TransparentRoster)    = ("b/out" => "y",)
 transparent_container(::TransparentRoster) = :units
@@ -224,20 +224,20 @@ struct Colliding <: AbstractComponent            # a bare key against a sibling 
     kids::NamedTuple
     c1::TickCounter
 end
-inner_wires(::Colliding) = ()
+local_wires(::Colliding) = ()
 transparent_container(::Colliding) = :kids
 
 struct Pathological <: AbstractComponent         # ...and against another container's element
     kids::NamedTuple
     units::Tuple
 end
-inner_wires(::Pathological) = ()
+local_wires(::Pathological) = ()
 transparent_container(::Pathological) = :kids
 
 struct SelfNamed <: AbstractComponent            # a bare key equal to its own field's name
     kids::NamedTuple
 end
-inner_wires(::SelfNamed) = ()
+local_wires(::SelfNamed) = ()
 transparent_container(::SelfNamed) = :kids
 
 struct Shadowed{K <: NamedTuple, U <: Tuple} <: AbstractComponent
@@ -246,20 +246,20 @@ struct Shadowed{K <: NamedTuple, U <: Tuple} <: AbstractComponent
     trim::Gain
 end
 transparent_container(::Shadowed) = :kids
-inner_wires(::Shadowed)  = ("trim/out" => "units/e",)
+local_wires(::Shadowed)  = ("trim/out" => "units/e",)
 input_wires(::Shadowed)  = ("in" => "trim/e",)
 output_wires(::Shadowed) = ("units/out" => "y",)
 
 struct OpaqueDeclared <: AbstractComponent       # the declaration names a component field
     c::TickCounter
 end
-inner_wires(::OpaqueDeclared) = ()
+local_wires(::OpaqueDeclared) = ()
 transparent_container(::OpaqueDeclared) = :c
 
 struct AbsentDeclared <: AbstractComponent       # ...and here, no field of the type at all
     kids::NamedTuple
 end
-inner_wires(::AbsentDeclared) = ()
+local_wires(::AbsentDeclared) = ()
 transparent_container(::AbsentDeclared) = :nope
 
 function assembly_transparent_containers()
@@ -346,11 +346,11 @@ function assembly_transparent_containers()
                            input_wires = "in" => "c/e", output_wires = "c/out" => "y")
         @test input_wires(pair_group) == ("in" => "c/e",)
         @test output_wires(pair_group) == ("c/out" => "y",)
-        @test inner_wires(pair_group) == () && sample_times(pair_group) == (;)
+        @test local_wires(pair_group) == () && sample_times(pair_group) == (;)
 
         # A tuple passes through as written, and every unnamed keyword is empty.
-        tuple_group = Group((; a = Gain(1.0), b = Gain(2.0)); inner_wires = ("a/out" => "b/e",))
-        @test inner_wires(tuple_group) == ("a/out" => "b/e",)
+        tuple_group = Group((; a = Gain(1.0), b = Gain(2.0)); local_wires = ("a/out" => "b/e",))
+        @test local_wires(tuple_group) == ("a/out" => "b/e",)
         @test input_wires(tuple_group) == () && output_wires(tuple_group) == ()
 
         # The normalized declarations are the ones that build.
@@ -370,28 +370,28 @@ end
 struct ConcreteHold <: AbstractComponent
     inner::SampledLoop
 end
-inner_wires(::ConcreteHold) = ()
+local_wires(::ConcreteHold) = ()
 input_wires(::ConcreteHold) = ("ref" => "inner/ref",)
 output_wires(::ConcreteHold) = ("inner/y" => "y",)
 
 struct GenericHold{L <: AbstractComponent} <: AbstractComponent
     inner::L
 end
-inner_wires(::GenericHold) = ()
+local_wires(::GenericHold) = ()
 input_wires(::GenericHold) = ("ref" => "inner/ref",)
 output_wires(::GenericHold) = ("inner/y" => "y",)
 
 struct PastReach <: AbstractComponent            # one segment further: past it
     inner::SampledLoop
 end
-inner_wires(::PastReach) = ()
+local_wires(::PastReach) = ()
 input_wires(::PastReach) = ("ref" => "inner/sum/a",)
 output_wires(::PastReach) = ("inner/y" => "y",)
 
 struct PastGenericReach{L <: AbstractComponent} <: AbstractComponent   # the same, generic
     inner::L
 end
-inner_wires(::PastGenericReach) = ()
+local_wires(::PastGenericReach) = ()
 input_wires(::PastGenericReach) = ("ref" => "inner/sum/a",)
 output_wires(::PastGenericReach) = ("inner/y" => "y",)
 
@@ -435,19 +435,19 @@ struct BackwardsWire <: AbstractComponent        # a consumer endpoint on a port
     a::ModedSource
     b::Gain
 end
-inner_wires(::BackwardsWire) = ("a/out" => "b/out",)
+local_wires(::BackwardsWire) = ("a/out" => "b/out",)
 
 struct BackwardsFace <: AbstractComponent        # a producer endpoint on a face
     a::ModedSource
     b::Gain
 end
-inner_wires(::BackwardsFace) = ("a/out" => "b/e",)
+local_wires(::BackwardsFace) = ("a/out" => "b/e",)
 output_wires(::BackwardsFace) = ("b/e" => "y",)
 
 struct SlashedFace <: AbstractComponent
     a::ModedSource
 end
-inner_wires(::SlashedFace) = ()
+local_wires(::SlashedFace) = ()
 output_wires(::SlashedFace) = ("a/out" => "sensors/out",)
 
 struct RootCollision <: AbstractComponent        # one key in both contracts
@@ -460,7 +460,7 @@ y_direct(::RootCollision, (; u)) = (u = 2u.u, v = 1.0)
 struct DeadFace <: AbstractComponent             # a face routed to nothing at all
     g::Gain
 end
-inner_wires(::DeadFace) = ()
+local_wires(::DeadFace) = ()
 input_wires(::DeadFace) = ("in" => "g/e", "dead" => ())
 output_wires(::DeadFace) = ("g/out" => "y",)
 
@@ -468,7 +468,7 @@ struct CollidingFaces <: AbstractComponent
     a::ModedSource
     b::Gain
 end
-inner_wires(::CollidingFaces) = ("a/out" => "b/e",)
+local_wires(::CollidingFaces) = ("a/out" => "b/e",)
 input_wires(::CollidingFaces) = ("y" => "b/e",)
 output_wires(::CollidingFaces) = ("b/out" => "y",)
 
@@ -477,7 +477,7 @@ function assembly_wires()
         err = failure(() -> build(BackwardsWire(ModedSource(), Gain(1.0))))
         d = only(filter(x -> x isa FaceDirectionConflict, diagnostics(err)))
         @test d.wanted === :consumer && d.found === :output
-        @test startswith(d.entry, "inner_wires")
+        @test startswith(d.entry, "local_wires")
 
         err = failure(() -> build(BackwardsFace(ModedSource(), Gain(1.0))))
         d = only(filter(x -> x isa FaceDirectionConflict, diagnostics(err)))
@@ -660,20 +660,20 @@ end
 struct Starved <: AbstractComponent              # an obligation chain that never ends
     g::Gain
 end
-inner_wires(::Starved) = ()
+local_wires(::Starved) = ()
 
 struct DoubleFed <: AbstractComponent            # two producers onto one face
     loop::SampledLoop
     src::ModedSource
     src2::ModedSource
 end
-inner_wires(::DoubleFed) = ("src/out" => "loop/ref", "src2/out" => "loop/ref")
+local_wires(::DoubleFed) = ("src/out" => "loop/ref", "src2/out" => "loop/ref")
 
 struct Doubler <: AbstractComponent              # its own wire onto the input its face routes to
     s::ModedSource
     g::Gain
 end
-inner_wires(::Doubler) = ("s/out" => "g/e",)
+local_wires(::Doubler) = ("s/out" => "g/e",)
 input_wires(::Doubler) = ("in" => "g/e",)
 output_wires(::Doubler) = ("g/out" => "y",)
 
@@ -681,13 +681,13 @@ struct DoubleFedSibling <: AbstractComponent     # an ancestor's route onto a wi
     loop::Doubler
     src::ModedSource
 end
-inner_wires(::DoubleFedSibling) = ("src/out" => "loop/in",)
+local_wires(::DoubleFedSibling) = ("src/out" => "loop/in",)
 
 struct WireTypo <: AbstractComponent             # §13.1's worked example: `out` misspelt
     g::Gain
     s::Sum
 end
-inner_wires(::WireTypo) = ("g/ot" => "s/a",)
+local_wires(::WireTypo) = ("g/ot" => "s/a",)
 input_wires(::WireTypo) = ("e" => "g/e", "b" => "s/b")
 
 function assembly_obligations()
@@ -711,8 +711,8 @@ function assembly_obligations()
                                                    ModedSource())))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
-        @test d isa TwoProducers && startswith(d.incumbent, "inner_wires at `loop`") &&
-              startswith(d.entry, "inner_wires at the root component")
+        @test d isa TwoProducers && startswith(d.incumbent, "local_wires at `loop`") &&
+              startswith(d.entry, "local_wires at the root component")
         @test d.incumbent_producer == "`loop/s`.out" && d.producer == "`src`.out"
 
         # §13.1's worked example (D-229): the typo'd wire is recorded and claims
@@ -732,7 +732,7 @@ function assembly_obligations()
                       output_wires = ("a/outt" => "y",))
         err = failure(() -> build(Group((; i = inner, g1 = Gain(1.0), g2 = Gain(2.0),
                                           g3 = Gain(3.0));
-                                        inner_wires = ("i/y" => "g1/e", "i/y" => "g2/e",
+                                        local_wires = ("i/y" => "g1/e", "i/y" => "g2/e",
                                                  "i/y" => "g3/e"))))
         @test count(d -> d isa UnknownPort, diagnostics(err)) == 1
         d = only(filter(x -> x isa UnknownPort, diagnostics(err)))
@@ -748,7 +748,7 @@ function assembly_obligations()
         # the candidates are the child's face list.
         good = Group((; a = Gain(1.0)); input_wires = ("f" => "a/e",), output_wires = ("a/out" => "y",))
         err = failure(() -> build(Group((; src = Gain(1.0), inner = good);
-                                        inner_wires = ("src/out" => "inner/g",),
+                                        local_wires = ("src/out" => "inner/g",),
                                         input_wires = ("u" => "src/e",))))
         d = only(filter(x -> x isa UnknownPort, diagnostics(err)))
         @test d.path == "inner" && d.port === :g && d.candidates == [:f, :y]
@@ -774,7 +774,7 @@ end
 # The child under test: two input faces and two output faces, so both filters
 # have something to bite on either side.
 faced() = Group((; s = Sum(), g = Gain(2.0));
-                inner_wires = "s/e" => "g/e",
+                local_wires = "s/e" => "g/e",
                 input_wires = ("a" => "s/a", "b" => "s/b"),
                 output_wires = ("s/e" => "sum", "g/out" => "scaled"))
 
@@ -785,7 +785,7 @@ struct Passed{C <: AbstractComponent} <: AbstractComponent
     inner::C
     trim::Gain
 end
-inner_wires(::Passed) = ("trim/out" => "inner/a",)
+local_wires(::Passed) = ("trim/out" => "inner/a",)
 input_wires(p::Passed) = (input_passthrough(p, "inner"; except = ("a",))...,
                             "e" => "trim/e")
 output_wires(p::Passed) = output_passthrough(p, "inner"; only = ("scaled",))
@@ -796,7 +796,7 @@ struct HandWired{C <: AbstractComponent} <: AbstractComponent
     inner::C
     trim::Gain
 end
-inner_wires(::HandWired) = ("trim/out" => "inner/a",)
+local_wires(::HandWired) = ("trim/out" => "inner/a",)
 input_wires(::HandWired) = ("inner.b" => "inner/b", "e" => "trim/e")
 output_wires(::HandWired) = ("inner/scaled" => "inner.scaled",)
 
@@ -807,7 +807,7 @@ struct Unprefixed{C <: AbstractComponent} <: AbstractComponent
     inner::C
     trim::Gain
 end
-inner_wires(::Unprefixed) = ("trim/out" => "inner/a",)
+local_wires(::Unprefixed) = ("trim/out" => "inner/a",)
 input_wires(u::Unprefixed) =
     (input_passthrough(u, "inner"; prefix = "", except = ("a",))..., "b" => "trim/e")
 
@@ -817,7 +817,7 @@ struct DoubleClaimed{C <: AbstractComponent} <: AbstractComponent
     inner::C
     trim::Gain
 end
-inner_wires(::DoubleClaimed) = ("trim/out" => "inner/a",)
+local_wires(::DoubleClaimed) = ("trim/out" => "inner/a",)
 input_wires(d::DoubleClaimed) = (input_passthrough(d, "inner")..., "e" => "trim/e")
 
 # The same computed boundary over a name-transparent container: the helper's
@@ -827,7 +827,7 @@ struct PassedGroup{U <: NamedTuple} <: AbstractComponent
     units::U
 end
 transparent_container(::PassedGroup) = :units
-inner_wires(::PassedGroup) = ("trim/out" => "inner/a",)
+local_wires(::PassedGroup) = ("trim/out" => "inner/a",)
 input_wires(p::PassedGroup) = (input_passthrough(p, "inner"; except = ("a",))...,
                                  "e" => "trim/e")
 output_wires(p::PassedGroup) = output_passthrough(p, "inner"; only = ("scaled",))
@@ -844,7 +844,7 @@ unsorted_faces() = Group((; p = Gain(1.0), q = Gain(2.0), r = Gain(3.0));
 struct MutatedFaces{C <: AbstractComponent} <: AbstractComponent
     k::C
 end
-inner_wires(::MutatedFaces) = ()
+local_wires(::MutatedFaces) = ()
 input_wires(p::MutatedFaces) =
     (sort!(input_faces(resolve(p, "k"))); input_passthrough(p, "k"))
 output_wires(p::MutatedFaces) = output_passthrough(p, "k")
@@ -857,7 +857,7 @@ struct SelectedNothing <: AbstractComponent
     g::Gain
     src::Gain
 end
-inner_wires(::SelectedNothing) = ("src/out" => "g/e",)
+local_wires(::SelectedNothing) = ("src/out" => "g/e",)
 input_wires(a::SelectedNothing) = (input_passthrough(a, "g"; select = _ -> false)...,
                                      "in" => "src/e")
 output_wires(::SelectedNothing) = ("g/out" => "out",)
@@ -867,7 +867,7 @@ output_wires(::SelectedNothing) = ("g/out" => "out",)
 struct OutputSelectedNothing <: AbstractComponent
     g::Gain
 end
-inner_wires(::OutputSelectedNothing) = ()
+local_wires(::OutputSelectedNothing) = ()
 input_wires(::OutputSelectedNothing) = ("in" => "g/e",)
 output_wires(a::OutputSelectedNothing) =
     (output_passthrough(a, "g"; except = ("out",))..., "g/out" => "out")
@@ -940,7 +940,7 @@ act_feeds(::Systems{:one}) = ACT_FEEDS
 act_feeds(::Systems{:two}) = ACT_FEEDS2
 act_feeds(::Systems{:typo}) = ACT_FEEDS3
 
-inner_wires(s::Systems) = Tuple(("act/" * src) => dst for (src, dst) in act_feeds(s))
+local_wires(s::Systems) = Tuple(("act/" * src) => dst for (src, dst) in act_feeds(s))
 input_wires(s::Systems) =
     (input_passthrough(s, "aero"; except = fed_faces(act_feeds(s), "aero"))...,
      input_passthrough(s, "ldg";  except = fed_faces(act_feeds(s), "ldg"))...,
@@ -1103,7 +1103,7 @@ function assembly_primitives()
         err = failure(() -> build(DoubleClaimed(faced(), Gain(3.0))))
         @test err isa DiagnosticError
         d = only(diagnostics(err))
-        @test d isa TwoProducers && startswith(d.incumbent, "inner_wires") &&
+        @test d isa TwoProducers && startswith(d.incumbent, "local_wires") &&
               startswith(d.entry, "input_wires")
         # The root's own face is the second producer, and spells as one.
         @test d.incumbent_producer == "`trim`.out" && d.producer == "root input `inner.a`"
@@ -1127,7 +1127,7 @@ function assembly_primitives()
         @test fed_faces(ACT_FEEDS, "ldg") == ("left.brake",)
 
         systems = Systems{:one}(ldg())
-        @test inner_wires(systems) == ("act/e" => "aero/e", "act/a" => "aero/a",
+        @test local_wires(systems) == ("act/e" => "aero/e", "act/a" => "aero/a",
                                              "act/r" => "aero/r",
                                              "act/brake_left" => "ldg/left.brake")
         # What the list does not feed is what the boundary exposes: `alpha`, the

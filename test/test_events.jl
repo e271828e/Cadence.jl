@@ -178,7 +178,7 @@ function test_events()
 
     @testset "a cascade settles within one boundary, independently of h (§10.6)" begin
         chain() = Group((; trig = Trigger(0.5), f1 = Follower(), f2 = Follower());
-                        inner_wires = ("trig/on" => "f1/go",
+                        local_wires = ("trig/on" => "f1/go",
                                  "f1/on" => "f2/go"),
                         input_wires = ("in" => "trig/sig",))
         for h in (1//10, 1//1000)                    # the latency is rounds, never steps
@@ -231,7 +231,7 @@ function test_events()
         # update-before-quiescence would accumulate 1.02 where the reference has
         # 0.02.
         model = Group((; saw = Sawtooth(0.3), ctl = DiscreteIntegrator(1.0));
-                      inner_wires = ("saw/q" => "ctl/e",))
+                      local_wires = ("saw/q" => "ctl/e",))
         sim = Simulation(model; h = 1//10)
         init!(sim)
         run!(sim; t_end = 4.0)

@@ -9,7 +9,7 @@ two_root_inputs() = Group((; s = Sum(sa = 1.0, sb = 1.0));
 # A chain whose published ports are in lockstep at every boundary — g2 computes
 # 2·g1 in the same sweep, so any snapshot mixing two boundaries breaks it.
 chain3() = Group((; p = Plant(), g1 = Gain(2.0), g2 = Gain(2.0));
-                 inner_wires = ("p/y" => "g1/e",
+                 local_wires = ("p/y" => "g1/e",
                           "g1/out" => "g2/e"),
                  input_wires = ("u" => "p/u",))
 

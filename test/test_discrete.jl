@@ -98,7 +98,7 @@ struct OpaqueRoster{K <: NamedTuple, R <: NamedTuple} <: AbstractComponent
     kids::K
     rates::R
 end
-inner_wires(::OpaqueRoster) = ()
+local_wires(::OpaqueRoster) = ()
 sample_times(comp::OpaqueRoster) = comp.rates
 
 # A bare container key over a tuple of elements: one `Absolute` entry, applied
@@ -107,7 +107,7 @@ struct AnchoredBank <: AbstractComponent
     units::NTuple{2,TickCounter}
     clock::TickCounter
 end
-inner_wires(::AnchoredBank) = ()
+local_wires(::AnchoredBank) = ()
 sample_times(::AnchoredBank) = (units = Absolute(Hz(10), 1//150), clock = Absolute(Hz(500)))
 
 function discrete_rate_fold()
@@ -540,7 +540,7 @@ function discrete_deployment()
         # from the t₀ table — the ramp *at t₀*, not the build probe's value; the
         # dueness the gate reads at index 0 governs the `s_update` updates alone (§10.5).
         late = Group((; src = Ramp(5.0), z = ZOH());
-                     inner_wires = ("src/out" => "z/in",),
+                     local_wires = ("src/out" => "z/in",),
                      output_wires = ("z/out" => "y",),
                      sample_times = (; z = Relative(2, 1)))
         sim = Simulation(late; h = 1//100)

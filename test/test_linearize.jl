@@ -8,7 +8,7 @@
 
 # The walkthrough's model: a sum of two root inputs drives the pendulum's
 # torque, and two faces leave the root, one of them the sum's feedthrough.
-lin_pend() = Group((; s = Sum(), c = Pendulum()); inner_wires = ("s/e" => "c/u",),
+lin_pend() = Group((; s = Sum(), c = Pendulum()); local_wires = ("s/e" => "c/u",),
                    input_wires = ("τ" => "s/a", "d" => "s/b"),
                    output_wires = ("c/θ" => "θ", "s/e" => "u_eff"))
 lin_point(θ = 0.3) = combine(at("c", condition(Pendulum(); θ = θ)),
@@ -24,18 +24,18 @@ lin_pend_sim() = (sim = Simulation(lin_pend(); h = 1//10); init!(sim, lin_point(
 # A vector state, a vector root input and a vector face, closed through
 # `u = -k·qin₁`.
 lin_vector() = Group((; p = VectorPlant(), fb = StateFeedback(2.0));
-                     inner_wires = ("fb/u" => "p/u",), input_wires = ("qin" => "fb/q",),
+                     local_wires = ("fb/u" => "p/u",), input_wires = ("qin" => "fb/q",),
                      output_wires = ("p/q" => "q", "p/power" => "power"))
 lin_vector_point() = combine(at("p", fragment(x = (q = SVector(0.1, 0.2),))),
                              fragment(u = (qin = SVector(0.5, 0.0),)))
 
 # A root input whose one consumer declares its entry `Pinned`.
 lin_pinned() = Group((; g = PinnedGain(), c = Pendulum());
-                     inner_wires = ("g/out" => "c/u",), input_wires = ("τ" => "g/e",))
+                     local_wires = ("g/out" => "c/u",), input_wires = ("τ" => "g/e",))
 
 # The pendulum's torque held by a discrete producer: `sampled_pend` again.
 lin_sampled() = Group((; ctl = DiscreteIntegrator(1.0), c = Pendulum());
-                      inner_wires = ("ctl/u" => "c/u",), input_wires = ("in" => "ctl/e",))
+                      local_wires = ("ctl/u" => "c/u",), input_wires = ("in" => "ctl/e",))
 lin_sampled_point() = combine(at("ctl", fragment(s = (acc = 4.0,))),
                               at("c", condition(Pendulum(); θ = asin(4.0 / PEND_G_L))),
                               fragment(u = (in = 0.0,)))

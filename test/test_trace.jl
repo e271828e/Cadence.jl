@@ -428,7 +428,7 @@ end
 replay_model(k = 4.0) =
     Group((plant = Plant(; ω = 2.0, ζ = 0.1), ctl = Gain(k), sum = Sum(),
            acc = DiscreteIntegrator(1.0), b = Bouncer(1.0, 0.32));
-          inner_wires = ("ctl/out" => "plant/u", "sum/e" => "ctl/e", "plant/y" => "sum/b"),
+          local_wires = ("ctl/out" => "plant/u", "sum/e" => "ctl/e", "plant/y" => "sum/b"),
           input_wires = ("ref" => "sum/a", "rate" => "acc/e"),
           output_wires = ("b/q" => "bq", "acc/u" => "u"))
 

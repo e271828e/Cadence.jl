@@ -115,7 +115,7 @@ end
 function store_workspace()
     @testset "the workspace is scratch, on both tiers (§7.3)" begin
         sim = Simulation(Group((; sm = Smoother(0.5), src = ModedSource(), wg = WorkGain(2.0));
-                               inner_wires = ("src/out" => "sm/a",
+                               local_wires = ("src/out" => "sm/a",
                                         "src/out" => "sm/b",
                                         "src/out" => "wg/in"));
                          h = 1//10)
@@ -227,7 +227,7 @@ function store_opaque_leaf()
 
         # The abstract entry admits the handle by the bound clause (D-236).
         abstract_model = Group((; src = Terrain(), q = AbstractTerrainQuery());
-                               inner_wires = ("src/terrain" => "q/terrain",))
+                               local_wires = ("src/terrain" => "q/terrain",))
         abstract_sim = Simulation(abstract_model; h = 1//10)
         init!(abstract_sim)
         @test port(abstract_sim, "q", :h) == 3.0

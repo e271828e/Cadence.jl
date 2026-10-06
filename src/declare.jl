@@ -17,7 +17,7 @@ abstract type AbstractComponent end
 Continuous state, **by value**, at nominal `Float64`; leaves drawn from §7.1's
 closed vocabulary, and its *types* walk by rule. Mandatory on every continuous
 leaf, `x_init(::C) = (;)` when stateless: the store is the tier marker, as
-`inner_wires` is the class marker (§8.2, §8.5, D-263). The fallback
+`local_wires` is the class marker (§8.2, §8.5, D-263). The fallback
 serves the value readers; the classifier asks whether the method is declared.
 """
 x_init(::Any) = NamedTuple()
@@ -99,7 +99,7 @@ endpoint, relative to the declaring assembly.
 **Mandatory even when empty**, because defining it *is* the assembly class
 marker (§8.5) — which is why it has no fallback to match.
 """
-function inner_wires end
+function local_wires end
 
 """
 The boundary, inward: face name => internal endpoint path, or a tuple of paths
@@ -253,7 +253,7 @@ function s_update end
 
 const DECLARATION_FAMILY = (:x_init, :s_init, :m_init, :ws_init,
     :u_types, :y_types, :state_events, :y_state, :y_direct,
-    :x_deriv, :s_update, :x_projection, :inner_wires,
+    :x_deriv, :s_update, :x_projection, :local_wires,
     :input_wires, :output_wires, :sample_times,
     :transparent_container)
 

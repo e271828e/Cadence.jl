@@ -56,7 +56,7 @@ context wants.
 | `Run` | — | D-255's run state; Appendix D entry `g-run`, bucket A from here on |
 | `StopPolicy` | — | D-255's per-advance policy value; Appendix D entry `g-stop-policy`, bucket A |
 | leaf address | 7 | D-276's selector argument; §4.2, §4.3, §14.4, §14.7, §14.10, Appendix B; Appendix D entry `g-leaf-address`, bucket A from here on |
-| inner wire | 11 | D-303's child-to-child wire, defined in §6.1; nine body uses in §3.3, §6.1, §8.6, §8.8, §11.7 and §14.2, two in Appendix D; Appendix D entry `g-inner-wire`, bucket A from here on |
+| local wire | 11 | D-303's child-to-child wire, named by D-314, defined in §6.1; nine body uses in §3.3, §6.1, §8.6, §8.8, §11.7 and §14.2, two in Appendix D; Appendix D entry `g-local-wire`, bucket A from here on |
 | artifact | — | D-250's criterion word; Appendix D entry `g-artifact` in D.10, bucket A |
 | state | — | D-250's other criterion word; Appendix D entry `g-state-single-owner` in D.10, bucket A |
 

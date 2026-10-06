@@ -7,20 +7,20 @@
 # One gate over three `Constant` sources, at the given input values.
 gate_model(gate, (a, b, c)) =
     Group((; a = Constant(a), b = Constant(b), c = Constant(c), g = gate);
-          inner_wires = ("a/out" => "g/in1", "b/out" => "g/in2", "c/out" => "g/in3"))
+          local_wires = ("a/out" => "g/in1", "b/out" => "g/in2", "c/out" => "g/in3"))
 
 # A sum over a walking source, a pinned source and a delayed copy of the first.
 blocks_sum_model() =
     Group((; r = Ramp(1.0), k = Constant(2.0), d = UnitDelay(0.5), s = SumJunction{Float64,3}());
-          inner_wires = ("r/out" => "s/in1", "k/out" => "s/in2", "d/out" => "s/in3",
+          local_wires = ("r/out" => "s/in1", "k/out" => "s/in2", "d/out" => "s/in3",
                          "r/out" => "d/in"))
 
 # A delay behind a tick counter: the counter's `n` is its tick index.
-delay_model(v0) = Group((; c = TickCounter(), d = UnitDelay(v0)); inner_wires = ("c/n" => "d/in",))
+delay_model(v0) = Group((; c = TickCounter(), d = UnitDelay(v0)); local_wires = ("c/n" => "d/in",))
 
 # The pendulum's angle leaving the root twice, once through a freeze.
 freeze_model() = Group((; p = Pendulum(), f = Freeze{Float64}());
-                       inner_wires = ("p/θ" => "f/in",), input_wires = ("τ" => "p/u",),
+                       local_wires = ("p/θ" => "f/in",), input_wires = ("τ" => "p/u",),
                        output_wires = ("p/θ" => "direct", "f/out" => "frozen"))
 
 function test_blocks()
@@ -84,7 +84,7 @@ function test_blocks()
         @test iszero(linearization.C[2, :])
         # Its purpose (§13.7, D-266): unfrozen, this wire is refused with `WalkingFaceAtFrozenEntry`.
         model = Group((; p = Pendulum(), f = Freeze{Float64}(), e = PinnedEntry());
-                      inner_wires = ("p/θ" => "f/in", "f/out" => "e/u"), input_wires = ("τ" => "p/u",))
+                      local_wires = ("p/θ" => "f/in", "f/out" => "e/u"), input_wires = ("τ" => "p/u",))
         @test build(model; activations = (Float64, LinearizeDual)) isa Build
         # `V` is a `Real` or a `StaticArray` of them, constrained at the type.
         @test_throws TypeError Freeze{HeightField}
@@ -93,7 +93,7 @@ function test_blocks()
     @testset "a `Constant` spells the zero contributor into either entry (§6.2, D-312)" begin
         @test y_types(Constant(0.0)) == (out = Pinned{Float64},)
         for consumer in (RealEntry(), PinnedEntry())
-            model = Group((; k = Constant(0.0), e = consumer); inner_wires = ("k/out" => "e/u",))
+            model = Group((; k = Constant(0.0), e = consumer); local_wires = ("k/out" => "e/u",))
             @test build(model) isa Build
             @test build(model; activations = (Float64, LinearizeDual)) isa Build
         end

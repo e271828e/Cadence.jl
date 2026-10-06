@@ -4,20 +4,20 @@
 # resolved producer per input, and nothing downstream knows the tree existed.
 
 # --- class (§8.5) -------------------------------------------------------------
-# Class is not announced either: `inner_wires` is the assembly marker, any
+# Class is not announced either: `local_wires` is the assembly marker, any
 # leaf declaration a primitive's, and the rule is total — a component-typed
 # struct declaring neither family has no class to read.
 
 @enum Class PRIMITIVE ASSEMBLY
 
-const ASSEMBLY_FAMILY = (:inner_wires,)
+const ASSEMBLY_FAMILY = (:local_wires,)
 const LEAF_FAMILY = (:x_init, :s_init, :m_init, :ws_init, :u_types,
                      :y_types, :state_events, :y_state, :y_direct,
                      :x_deriv, :s_update, :x_projection)
 
 # The five `DECLARATION_FAMILY` names no leaf declaration covers: the assembly
 # marker, the two boundary declarations and the two sugars.
-const _OTHER_FAMILY = ((:inner_wires, inner_wires),
+const _OTHER_FAMILY = ((:local_wires, local_wires),
                        (:input_wires, input_wires),
                        (:output_wires, output_wires),
                        (:sample_times, sample_times),
@@ -54,7 +54,7 @@ end
 """The class of `comp` at `path`, or a `DiagnosticError` naming what makes it unreadable."""
 function classify(path::String, @nospecialize(comp))
     leaves = leaf_declarations(comp)
-    if _declares(inner_wires, comp)
+    if _declares(local_wires, comp)
         isempty(leaves) ||
             throw(DiagnosticError(ClassMixed(path = path, declarations = leaves)))
         return ASSEMBLY
@@ -910,7 +910,7 @@ Base.@nospecializeinfer function flatten_tree!(draft::StructureDraft, @nospecial
     end
 
     # The obligation model (§6.1): an input is fed by a wire in some ancestor's
-    # `inner_wires` or by an `input_wires` chain handing it up level
+    # `local_wires` or by an `input_wires` chain handing it up level
     # by level, and the chain that never terminates is the error. The one
     # legitimate unfed terminus is the root's own input face. A wire that failed
     # to resolve claimed nothing, so the input it should have fed is reported
@@ -1081,8 +1081,8 @@ Base.@nospecializeinfer function _walk!(draft::StructureDraft, path::String,
                              String[String(f) for (_, f) in output_entries])
         _check_face_names(path, input_entries, output_entries, diags)
 
-        for pair in invoke_declaration(inner_wires, comp)
-            entry = _entry("inner_wires", path, pair)
+        for pair in invoke_declaration(local_wires, comp)
+            entry = _entry("local_wires", path, pair)
             route = resolve_source(draft, entry, path, comp, first(pair), diags)
             route === nothing && continue      # recorded; the destination stays unfed
             producer = last(route)
