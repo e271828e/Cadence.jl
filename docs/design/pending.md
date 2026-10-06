@@ -14,9 +14,9 @@ design runs in parallel with the library. The audit comes last, because it
 sweeps the whole surface and the library and the bridge both add
 names.
 
-- **§13.7's standard component library** (`SumJunction{W,N}`, the Bool gates,
-  `Or{N}`, `UnitDelay{V}`, `Constant{V}`, `Freeze{V}`, the rig; §6.2's
-  spellings).
+- **§13.7's standard component library** (`Junction` and its aliases
+  `SumJunction{V,N}`, `Or{N}` and `And{N}`, `UnitDelay{V}`, `Constant{V}`,
+  `Freeze{V}`, the rig; §6.2's spellings).
 - **The inspector**, one browser client in four stages, in working order:
   the static inspector over the descriptor, whose first session is the
   descriptor's schema and `describe` together; the bridge, an ordinary

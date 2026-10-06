@@ -1366,25 +1366,30 @@ There is no framework aggregation mechanism. There are no multi-connection
 takes exactly one connection, everywhere.
 
 ```julia
-struct SumJunction{W, N} end        #type constructor, arity; library-provided
+struct Junction{In, Out, N, F} <: AbstractComponent   # library-provided (§13.7)
+    f::F                              # the fold, N-ary; instance data
+end
+const SumJunction{V, N} = Junction{V, V, N, typeof(+)}
 
-x_init(::SumJunction) = (;)          #stateless, continuous: the empty store is the tier marker (§8.2)
-u_types(::SumJunction{W, N}) where {W, N} =
-    NamedTuple{ntuple(i -> Symbol(:in, i), N)}(ntuple(_ -> W{Float64}, N))
-y_types(::SumJunction{W, N}) where {W, N} = (; Σ = W{Float64})
-y_direct(::SumJunction, (; u)) = (; Σ = +(u...))
+x_init(::Junction) = (;)              # stateless, continuous: the empty store is the tier marker (§8.2)
+u_types(::Junction{In, Out, N}) where {In, Out, N} =
+    NamedTuple{ntuple(i -> Symbol(:in, i), N)}(ntuple(_ -> In, N))
+y_types(::Junction{In, Out}) where {In, Out} = (out = Out,)
+y_direct(j::Junction, (; u)) = (out = j.f(u...),)
 ```
 
-The parameter is the *unparametrized* type constructor, as in
-`SumJunction{Wrench, 3}`. UnionAlls are legal type parameters, so both [contracts](#g-contract)
-derive their entries from it by applying it to the scalar of the [activation](#g-activation) (the
-build's typed products at a given scalar type).
+**The parameters are the nominal port types and the arity** ([D-311][d-311]), as in
+`SumJunction{Wrench{Float64}, 3}`, and the fold is instance data.
+`SumJunction{V, N}` is the `Junction` at `+`. A custom fold, a weighted
+blend or a mass-properties composition, is `Junction{In, Out, N}(f)` with
+the fold written at the site.
 
-The junction is a continuous leaf, so its `u_types` entries are the tolerant
-`W{T}` a promoting consumer writes. Walking, frozen and [root-input](#g-root-input) contributors
-are all admissible behind them. `y_types` re-types the output [cell](#g-cell) per
-activation ([§8.2][s8-2]). This is the same arity-via-computed-contracts pattern [§13.7][s13-7]
-commits to for `Or{N}`.
+The junction is a continuous leaf, so its [contracts](#g-contract) are
+written at nominal `Float64` and the [activation](#g-activation) walk retypes
+them ([§8.2][s8-2]). An entry at `Wrench{Float64}` is the tolerant form a
+promoting consumer writes, and walking, frozen and
+[root-input](#g-root-input) contributors are all admissible behind it. The
+Bool gates of [§13.7][s13-7] are the same leaf at `|` and `&`.
 
 Wired at an ownership boundary, the junction is ordinary structure.
 `wr_sum::SumJunction{Wrench, 3}` is a field of `Systems` like any other child
@@ -1395,7 +1400,7 @@ inner_wires(::Systems) = (
     "aero/wrench" => "wr_sum/in1",
     "pwp/wrench"  => "wr_sum/in2",
     "ldg/wrench"  => "wr_sum/in3",
-    "wr_sum/Σ"    => "dynamics/wr_ext",
+    "wr_sum/out"  => "dynamics/wr_ext",
 )
 ```
 
@@ -1405,7 +1410,7 @@ inner_wires(::Systems) = (
   is an unconnected-input error naming `in4`. A double-wired slot violates
   single-connection. A stale arity surfaces as one or the other. The bookkeeping
   is ceremony, never silence.
-- **The aggregate is a first-class signal.** `wr_sum.Σ` is an ordinary port. It
+- **The aggregate is a first-class signal.** `wr_sum.out` is an ordinary port. It
   is loggable, GUI-visible, and fanned out to a second consumer (a loads
   monitor) for one wire.
 - **Aggregation logic is arbitrary stage-2 code**, such as mass-properties
@@ -1430,7 +1435,7 @@ ports. A strut publishes `wr_b`, and avionics publishes nothing.
 
 Each [assembly](#g-assembly) that *owns* contributors aggregates them with an internal junction
 and **exports the total**. The junction is a component inside the assembly, and
-the assembly exports its `Σ` port ([§3.3][s3-3]).
+the assembly exports its `out` port ([§3.3][s3-3]).
 
 **Why.** The [§6.1][s6-1] connection rules force this shape. A child is opaque to wiring
 at every boundary, so every assembly that owns contributors must export its
@@ -2049,7 +2054,7 @@ type**, its type parameters included, and never by its field *values*
 The value-discarding signature `u_types(::Engine)` is the visible form of the
 rule (`Engine` is the example component of [§8.2][s8-2]). The idiom for a
 contract that genuinely varies is the type parameter, not the field, as in
-`SumJunction{Wrench, 3}` ([§6.2][s6-2]) and `Or{N}` ([§13.7][s13-7]). Arity is spelled in
+`SumJunction{Wrench{Float64}, 3}` ([§6.2][s6-2]) and `Or{N}` ([§13.7][s13-7]). Arity is spelled in
 the type, at the price [§6.2][s6-2] states openly.
 
 The reason is how entries of the [executor](#g-executor) (the compiled form of the stage
@@ -2961,7 +2966,7 @@ The payoff is parametric composition. `struct Formation{NT <: NamedTuple};
 aircraft::NT; … end` holds any roster per instantiation, of any size, with any
 names and mixed aircraft types. Its declaration bodies generate wires by
 comprehension over the keys. That is the arity-via-computed-contracts pattern
-[§6.2][s6-2] uses for `SumJunction{W, N}`, here at structure scale. The swarm
+[§6.2][s6-2] uses for `Junction`, here at structure scale. The swarm
 worlds ([§14.9][s14-9]) consume it directly. So does [mounting](#g-mounting), the relocation of a
 whole problem or tap set with [`at`](#g-at)`("aircraft/red", problem)`.
 
@@ -9748,9 +9753,9 @@ paths.
 promise ([§6.2][s6-2]).** That promise rests on explicit junctions being
 *cheap*. A junction hand-written per arity per type is not cheap.
 
-The starting inventory comes strictly from demonstrated need. It holds wrench
-and scalar summing junctions, the Bool gates the termination chains use,
-`UnitDelay`, `Constant{V}` and `Freeze{V}`. `UnitDelay` is the spelling the second
+The starting inventory comes strictly from demonstrated need. It holds the
+`Junction`, with `SumJunction{V, N}`, `Or{N}` and `And{N}` as its named
+forms, `UnitDelay{V}`, `Constant{V}` and `Freeze{V}`. `UnitDelay` is the spelling the second
 loop-breaking remedy ([§5.5][s5-5]) needs. `Constant{V}` is the source block.
 `Freeze{V}` is the declared stop-gradient ([D-266][d-266]).
 The library stays minimal and general-purpose, and it grows only by
@@ -9771,9 +9776,13 @@ evaluation only checks conformance). That same status makes the library a
 permanent ergonomics [torture test](#g-torture-test). If a three-input OR gate
 is painful to write under the declaration rules, the rules are wrong.
 
-Arity comes from a type parameter. `Or{N}` builds `(in1 = Bool, …, inN = Bool)`
-programmatically. That is a derivation [§8.2][s8-2] blesses, and an early
-validation that the contract functions support parametric components.
+**Arity and port types come from type parameters** ([D-311][d-311]).
+`Junction{In, Out, N, F}` builds `(in1 = In, …, inN = In)` programmatically
+and applies the fold its instance holds, so `Or{N}` is the junction at `|`
+and `And{N}` at `&`, each a constant alias. A gate exists for its consumer,
+which wants one consolidated `Bool` input instead of several. That is a
+derivation [§8.2][s8-2] blesses, and an early validation that the contract
+functions support parametric components.
 
 [Tier](#g-tier)-transparency falls out of settled semantics. A stateless
 continuous `y_direct` recomputes every [sweep](#g-sweep). Fed ZOH-held
@@ -12542,8 +12551,8 @@ cell. Root inputs, by contrast, *are* source cells
 of the table ([§7.3][s7-3], [§4.1][s4-1], [§11.2][s11-2]).
 
 <a id="g-summing-junction"></a>**summing junction** — an ordinary library component performing N-to-1
-aggregation through explicit wires (`SumJunction{W, N}` or a named
-site-specific variant). There is no framework aggregation mechanism, and
+aggregation through explicit wires (`SumJunction{V, N}`, the generic
+`Junction` at `+`, or a named site-specific variant). There is no framework aggregation mechanism, and
 fold order is the junction's positional input order ([§6.2][s6-2]).
 
 <a id="g-value-level-constructor"></a>**value-level constructor** — the plain public function from (component,
@@ -13634,6 +13643,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-308]: decisions.md#d-308--keep-integers-enums-and-bools-in-modes-and-the-workspace-out-of-snapshots-and-replay
 [d-309]: decisions.md#d-309--record-no-event-firings-and-leave-an-event-firing-stream-a-guarded-addition
 [d-310]: decisions.md#d-310--park-the-built-in-gui-run-every-device-spawned-and-withdraw-gui--true
+[d-311]: decisions.md#d-311--fold-the-summing-junction-and-the-bool-gates-into-one-generic-junction
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

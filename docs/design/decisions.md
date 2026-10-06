@@ -335,6 +335,9 @@ were derived.
 | [D-308][d-308] | Keep integers, enums and Bools in modes, and the workspace out of snapshots and replay | ratified |
 | [D-309][d-309] | Record no event firings, and leave an event-firing stream a guarded addition | ratified |
 | [D-310][d-310] | Park the built-in GUI, run every device spawned, and withdraw `gui = true` | ratified |
+| [D-311][d-311] | Fold the summing junction and the Bool gates into one generic `Junction` | ratified |
+| [D-312][d-312] | Settle the leaf blocks: `Constant` pins, `UnitDelay` holds its initial value, `Freeze` strips by broadcast | ratified |
+| [D-313][d-313] | Admit a library block by the framework mechanism it encodes | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
 
@@ -12912,6 +12915,148 @@ into the inspector's record when this entry was written.
 - *Retargeting `gui = true` to the bridge:* the flag's semantics are
   a window's, attach at entry and detach in the tail. A tab outlives runs.
 
+### D-311 — Fold the summing junction and the Bool gates into one generic `Junction`
+
+**Status.** ratified
+
+**Position.** The library's N-to-1 blocks are one leaf, `Junction{In, Out, N, F}`,
+whose instance holds the fold.
+
+- `u_types` is `(in1 = In, …, inN = In)`, `y_types` is `(out = Out,)`, and
+  `y_direct` applies the instance's `f` to the inputs in positional order.
+  `In`, `Out` and `N` are spelled; `Junction{In, Out, N}(f)` infers `F`.
+- `SumJunction{V, N}`, `Or{N}` and `And{N}` are constant aliases at `+`, `|`
+  and `&`, each with a zero-argument constructor. `Not` is not admitted.
+- The type parameter is the nominal type, `SumJunction{Wrench{Float64}, 3}`,
+  never an unparametrized constructor. [§6.2][s6-2]'s `W{Float64}` form falls with
+  [D-263][d-263].
+- Every library block's output port is `out`. The junction's `Σ` falls.
+
+**Spec.** [§6.2][s6-2], [§8.2][s8-2], [§8.5][s8-5], [§13.5][s13-5], [§13.7][s13-7]
+
+**Rationale.** A gate exists for its consumer, which wants one consolidated
+`Bool` input instead of several and the operation inside. That is the summing
+junction's shape with another fold, so one leaf covers both, and a custom
+fold, a weighted blend or a mass-properties composition, is [§6.2][s6-2]'s arbitrary
+stage-2 aggregation written at the site. `In`, `Out` and `N` are type
+parameters and `f` is instance data whose type selects code, which is the
+split [§8.2][s8-2] asks of an executor entry. `Out` is spelled rather than inferred
+from `f`, because the walk never infers through user code. `+`, `|` and `&`
+are variadic in Base, so `f(u...)` is the fold form at every arity, checked
+from one to four. Julia prints a parametric alias by its own name, so a build
+renders `Or{3}`. The nominal-type parameter is what [D-263][d-263] made every
+declaration: written at `Float64` and retyped by the walk. `out` keeps one
+name across the library and keeps wire paths ASCII.
+
+**Rejected.**
+- *Three separate types:* three copies of one shape, where the arity-via-type
+  derivation [§8.2][s8-2] blesses is validated once.
+- *Inferring `Out` from the fold's return type:* inference through user code,
+  which the walk forbids.
+- *A `Not` gate:* a one-input gate consolidates nothing, and the negation is
+  one character at the consumer.
+- *`Junction{In, N}` as a partial type defaulting `Out` to `In`:* a
+  convenience that scrambles the full type's reading order in every rendering
+  and message.
+- *`Σ` as the junction's output:* non-ASCII in a wire path, and the one output
+  name that would differ from the rest of the library.
+
+### D-312 — Settle the leaf blocks: `Constant` pins, `UnitDelay` holds its initial value, `Freeze` strips by broadcast
+
+**Status.** ratified
+
+**Position.** The three leaf blocks of [§13.7][s13-7] take these spellings.
+
+- `Constant{V}` declares `(out = Pinned{V},)` and is constructed as
+  `Constant(v)`. The sketch's `(out = V,)` would walk a `Float64`-bearing `V`
+  with the activation.
+- `UnitDelay{V}` carries `v0::V`, which `s_init` returns, and is constructed
+  as `UnitDelay(v0)`. `V` is isbits by [D-231][d-231]. Its ports are `in` and `out`.
+- `Freeze{V}` strips with `ForwardDiff.value.(u.in)`, and `V` is constrained
+  to `Real` and `StaticArray` at the type, so a struct `V` is refused at the
+  spelling. Its ports are `in` and `out`.
+
+**Spec.** [§13.7][s13-7]
+
+**Rationale.** The prose already calls `Constant` deliberately pinned, and
+`Pinned{V}` is the spelling of that under [D-263][d-263]. A tolerant consumer accepts
+the frozen arrival, which is what the zero-contributor wire and the rig stub
+need, and the build accepts the marker on a `Bool` and on a handle. A
+constant is never seeded, so it has zero partials under every activation,
+and the pinned form is strictly more connectable than a walking one: a
+walking producer may not feed a pinned entry. An initial value is instance
+data like the constant's value, and the contract rule constrains a store's
+shape, not its values; `zero(V)` demands a method a custom `V` may not
+define. The broadcast is the identity at nominal, allocates nothing on a
+`Real` or a `StaticArray` and strips a `Dual` one leafwise, measured in a
+stage body. The leaf-walk helpers go through an untyped vector, so they are
+build-time tools, and a struct-valued `Freeze` needs an allocation-free
+leafwise map that waits for a model to demonstrate it.
+
+**Rejected.**
+- *`(out = V,)` on `Constant`:* a walking port whose body returns a nominal
+  value, the opposite of what the prose states.
+- *The marker as the type parameter, `Constant{Pinned{Float64}}` beside a
+  walking `Constant{Float64}`:* `Pinned` is never instantiated, so the value
+  field cannot be typed by the parameter and `Constant(v)` can no longer
+  infer it; and the walking form has no case where it is correct, so the
+  choice is a question with one answer. `Junction` already passes the marker
+  through where the choice is the user's.
+- *`zero(V)` as the delay's initial value:* an extra method on the user's
+  type for a value the instance should carry.
+- *Stripping through the build-time leaf helpers:* allocates in a stage body,
+  against [§7.5][s7-5].
+- *Writing the allocation-free leafwise map now:* machinery with no
+  demonstrated user.
+
+### D-313 — Admit a library block by the framework mechanism it encodes
+
+**Status.** ratified
+
+**Position.** [§13.7][s13-7]'s charter of strictly demonstrated need becomes an
+admission rule: a block enters the standard library when hand-writing it
+correctly requires a framework mechanism, and a model demonstrates it. Pure
+algebra on the bundle never qualifies.
+
+- The mechanisms are modes and events (a limited integrator, a relay), tier
+  semantics (a delay, a discrete integrator), activation and pinning (any
+  stateful block that must walk under `Dual`), and structure the declaration
+  layer forces (a junction, packing between scalar and vector ports).
+- The extended inventory, its grouping and the Simulink mapping that prunes
+  it live in `companions/library_inventory.md`. The second tranche follows
+  the example model.
+- The library is the submodule `Redstone.Blocks`, `Group` included, written
+  against the extension-only surface as a user's component file is. A
+  workspace sub-package or a separate repository is an after-release
+  question.
+
+**Spec.** [§13.7][s13-7]
+
+**Rationale.** Simulink's base library is large because the diagram is its
+expression language, so `2u + 3` needs a Gain and a Bias. Here a stage body
+is Julia, and the same expression as a block costs a build entry, a cell, a
+gather and a scatter, and teaches the diagram-granularity style the design
+rejects. Sinks are the snapshot table and the log, a terminator is an
+unwired output, stop is a stop face, buses are structs, and zero-order hold
+and rate transition are the tiers. What is left is the group users lose time
+on in every framework: a limited integrator is a mode with two events, not a
+clamp, and a lag filter typed at `Float64` fails the first linearization. The
+rule admits those and keeps Gain out, which demonstrated need alone could not
+say in advance. A submodule reaches `x_init` and its siblings by import, so
+the library exercises the surface a user extends instead of the package's
+internals, and the audit scopes its names as one group.
+
+**Rejected.**
+- *A Simulink-sized library:* most of it is one-line expressions, and the
+  cost model of [§9.7][s9-7] charges per component.
+- *Strictly demonstrated need, unchanged:* argues every block of the second
+  tranche separately, with no principle to argue it by.
+- *A plain file inside the module:* every internal name in scope, so the
+  library stops testing the extension-only surface.
+- *A separate package now:* unused block types cost nothing at model build,
+  and the submodule scopes the audit as well; the split is an after-release
+  question.
+
 <!-- citation link definitions — generated by tools/linkify.jl; do not edit -->
 [d-001]: #d-001--hybrid-causal-formalism-with-two-tier-events-and-projection
 [d-002]: #d-002--adopt-the-causal-port-based-paradigm
@@ -13223,6 +13368,9 @@ into the inspector's record when this entry was written.
 [d-308]: #d-308--keep-integers-enums-and-bools-in-modes-and-the-workspace-out-of-snapshots-and-replay
 [d-309]: #d-309--record-no-event-firings-and-leave-an-event-firing-stream-a-guarded-addition
 [d-310]: #d-310--park-the-built-in-gui-run-every-device-spawned-and-withdraw-gui--true
+[d-311]: #d-311--fold-the-summing-junction-and-the-bool-gates-into-one-generic-junction
+[d-312]: #d-312--settle-the-leaf-blocks-constant-pins-unitdelay-holds-its-initial-value-freeze-strips-by-broadcast
+[d-313]: #d-313--admit-a-library-block-by-the-framework-mechanism-it-encodes
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
 [s10-3]: spec.md#103-signal-table-consistency-is-a-boundary-property
