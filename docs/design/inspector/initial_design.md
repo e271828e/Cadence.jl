@@ -1,6 +1,6 @@
 # The inspector: initial design
 
-One browser client over a Cadence model, grown in four stages. It starts
+One browser client over a Redstone model, grown in four stages. It starts
 as a static page that explains a model from serialized descriptors of a
 `Build` or a `Deployment`, gains a bridge to a running simulation, shows the
 run on the diagram, and ends as an interactive cockpit with panels over
@@ -100,7 +100,7 @@ b6f08b1.
    - *Schema.* A JSON Schema is published with the format. The writer's tests
      validate against it, and every reader shares it as the contract.
    - *Versioning.* Each descriptor carries a `format_version` independent of
-     Cadence's version, plus `cadence_version` for information only. A minor
+     Redstone's version, plus `redstone_version` for information only. A minor
      bump only adds fields, and readers ignore fields they do not know. A major
      bump may break readers, and a reader refuses a major version it does not
      know.
@@ -110,7 +110,7 @@ b6f08b1.
 
    *Why:* the browser reads JSON natively and people can read it. The schema
    is cheap now and becomes the bridge's contract later. Tying the format
-   version to Cadence's would force bumps on releases that leave descriptors
+   version to Redstone's would force bumps on releases that leave descriptors
    untouched.
 8. **Delivery: files and a live session.** A file is the format of record:
    one call writes a descriptor, and the inspector opens it by picker or
@@ -216,8 +216,8 @@ b6f08b1.
     repo holds the Julia package at its root and the TypeScript sources in
     `frontend/`. One tag releases both, so a package version and its bundle
     always match. The core repo stays Julia-only. The schema keeps one home,
-    the core repo, and the inspector reads it from the installed Cadence.
-    The inspector's CI pins a Cadence version, builds fixture models, runs
+    the core repo, and the inspector reads it from the installed Redstone.
+    The inspector's CI pins a Redstone version, builds fixture models, runs
     `describe` on them, validates the output against the schema, and runs
     the front-end tests on those descriptors.
     *Why:* the core keeps its strict review, apart from code reviewed under
@@ -235,14 +235,14 @@ b6f08b1.
       as a circle with its signs, `UnitDelay` as z⁻¹, `Constant` as its value;
     - a "Coming from Simulink" help page mapping the vocabulary (assembly ≈
       subsystem, face ≈ port, root input ≈ inport). The interface itself keeps
-      Cadence's terms everywhere.
+      Redstone's terms everywhere.
 
     The help page states the refusals: editing (answer 2), saved hand layout
     (answer 12), and author-supplied icons or masks, for now. A Run button,
     scopes and runtime data are stage 3's and stage 4's, and the page says
     so until they arrive.
     *Why:* the additions are front-end work on data the descriptor already
-    carries. Cadence's terms stay because diagnostics, the spec and
+    carries. Redstone's terms stay because diagnostics, the spec and
     descriptors all use them. Stating the refusals spares a Simulink user from
     hunting for a Run button.
 16. **The kind marker is a requirement, not a question.** Every face
@@ -298,7 +298,7 @@ cited by number. Couplings are named where they exist.
 7. **Build, release and verification.** The repo layout, and a CI that
    builds the bundle, attaches it to the release, updates `Artifacts.toml`
    and publishes to GitHub Pages. It also covers the fixture pipeline against
-   a pinned Cadence, front-end tests, the no-CDN rule and the privacy
+   a pinned Redstone, front-end tests, the no-CDN rule and the privacy
    statement. *Builds on* answers 10, 11 and 14.
 
 **Working order.** Axes 1 and 2 first, in one session, scoped to a first
@@ -496,7 +496,7 @@ author-supplied icons; the standalone HTML export; the analysis view.
 - **Failure descriptor.** The descriptor of a failed build: its diagnostics,
   plus the `Structure` projection when the structure step passed.
 - **Format version.** The descriptor format's own `major.minor` version,
-  independent of Cadence's. Minor bumps only add.
+  independent of Redstone's. Minor bumps only add.
 - **Generic panel.** The panel the client derives from a component's faces
   and kind markers when no authored panel exists; also embeddable by an
   authored one.

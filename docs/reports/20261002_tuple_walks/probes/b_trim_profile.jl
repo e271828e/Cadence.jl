@@ -1,5 +1,5 @@
 # B, aside: where a warm trim! at 128 writes spends its time (the walks are not it).
-using Cadence, StaticArrays, LinearAlgebra, ForwardDiff, Profile
+using Redstone, StaticArrays, LinearAlgebra, ForwardDiff, Profile
 const T = joinpath(ARGS[1], "test")
 include(joinpath(T, "imports.jl")); include(joinpath(T, "fixtures.jl"))
 n = 128
@@ -12,9 +12,9 @@ problem = TrimProblem(guess = (q = 0.1,), lower = (q = -Inf,), upper = (q = Inf,
                       residuals = (r, d) -> (hold = r.q1 - 0.3,), tolerances = (hold = 1e-9,))
 trim!(sim, problem; baseline); trim!(sim, problem; baseline)
 b = sim.deployment.build
-for (label, f) in (("_scratch Float64", () -> Cadence._scratch(sim, Float64)),
-                   ("resolve_condition", () -> Cadence.resolve_condition(override(baseline, cond((q = 0.1,))), b, Float64)),
-                   ("compile_plan Dual", () -> compile_plan(override(baseline, cond(Cadence._seeded((:q,), [0.1], ForwardDiff.Dual{TrimTag,Float64,1}))), b, ForwardDiff.Dual{TrimTag,Float64,1})),
+for (label, f) in (("_scratch Float64", () -> Redstone._scratch(sim, Float64)),
+                   ("resolve_condition", () -> Redstone.resolve_condition(override(baseline, cond((q = 0.1,))), b, Float64)),
+                   ("compile_plan Dual", () -> compile_plan(override(baseline, cond(Redstone._seeded((:q,), [0.1], ForwardDiff.Dual{TrimTag,Float64,1}))), b, ForwardDiff.Dual{TrimTag,Float64,1})),
                    ("init! commit", () -> init!(sim, override(baseline, cond((q = 0.3,))))),
                    ("trim! whole", () -> trim!(sim, problem; baseline)))
     f()

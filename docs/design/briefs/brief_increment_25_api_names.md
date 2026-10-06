@@ -1,6 +1,6 @@
 # Increment 25 — rename the component-authoring family: words for the stage, update, projection, event and workspace declarations
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `74d5f99`. Never `cd` elsewhere (`cd` is aliased to zoxide in the
 user's shell; use absolute paths).
 
@@ -58,7 +58,7 @@ push.
 
 The component-authoring family uses single letters and bare nouns as method
 names: `f`, `g`, `h_x`, `h_xu`, `h_s`, `h_su`, `project`, `events`,
-`workspace`. On Julia 1.12 a declaration written without `import Cadence: …`
+`workspace`. On Julia 1.12 a declaration written without `import Redstone: …`
 creates a fresh local generic, silently, and the build sees a component that
 declares nothing (the authoring caveat). When the user already owns a
 function of that name — and `f` is the most common throwaway name in any
@@ -365,7 +365,7 @@ do not trust the suite alone, since several are printed, not compared.
 
 ### Tests
 
-- `test/CadenceTests.jl`'s `import Cadence:` list (6–): swap every renamed
+- `test/RedstoneTests.jl`'s `import Redstone:` list (6–): swap every renamed
   name. A fixture reusing a framework name collides loudly here, which is
   the point.
 - `test/fixtures.jl` and every `test_*.jl` defining stages: rename the
@@ -392,17 +392,17 @@ do not trust the suite alone, since several are printed, not compared.
 - Replace the second authoring-caveat paragraph (238–249) with:
 
   > **Extending a declaration without importing it is silent on 1.12.**
-  > `using Cadence` followed by a bare `output_state(::MyComp, …)` definition
+  > `using Redstone` followed by a bare `output_state(::MyComp, …)` definition
   > creates a local generic — no error, no warning, and whether or not the
   > name is exported. Julia ≤1.11 raised "must be explicitly imported to be
   > extended"; 1.12's binding partitions removed that, measured on 1.12.7.
-  > Only `using Cadence: output_state` errors. The build then sees the same
+  > Only `using Redstone: output_state` errors. The build then sees the same
   > declares-nothing component as above, and for an *optional* declaration —
   > `state_events`, `state_projection`, `init_m`, `init_workspace`,
   > `sample_times`, the connection declarations — the build succeeds with the
   > feature silently absent. The family's names are distinctive by design
   > (D-220), so a binding of one of them in the component's module that is
-  > not Cadence's is unambiguous evidence of a forgotten import; the lever
+  > not Redstone's is unambiguous evidence of a forgotten import; the lever
   > is a diagnostic checking `parentmodule(typeof(c))` for such bindings and
   > naming them — proposed and not yet designed.
 

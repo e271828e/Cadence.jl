@@ -1,5 +1,5 @@
-using Cadence
-import Cadence: AbstractComponent, Group, build, input_types, output_state, output_types
+using Redstone
+import Redstone: AbstractComponent, Group, build, input_types, output_state, output_types
 
 capture(f) = try
     f()
@@ -17,9 +17,9 @@ output_state(::EnumConsumer, (; t)) = (out = t,)
 
 enum_world = Group((; c = EnumConsumer()); inputs = ("choice" => "c/u",))
 enum_err = capture(() -> build(enum_world))
-@assert enum_err isa Cadence.DiagnosticError
-enum_diag = only(Cadence.diagnostics(enum_err))
-@assert enum_diag isa Cadence.IllegalPortType
+@assert enum_err isa Redstone.DiagnosticError
+enum_diag = only(Redstone.diagnostics(enum_err))
+@assert enum_diag isa Redstone.IllegalPortType
 @assert enum_diag.reason === :no_leaves
 println("enum probe synthesis was rejected first as IllegalPortType(:no_leaves)")
 
@@ -64,7 +64,7 @@ output_state(::BadBundleStage, (; imaginary)) = (out = imaginary,)
 
 bundle_err = capture(() -> build(Group((; c = BadBundleStage()))))
 println("illegal bundle field exception type: ", typeof(bundle_err))
-@assert !(bundle_err isa Cadence.DiagnosticError)
+@assert !(bundle_err isa Redstone.DiagnosticError)
 
 # The port contract refuses mutable types anywhere. BigInt is a mutable Julia
 # Real, but the walker returns before consulting ismutabletype for every Real.
@@ -73,7 +73,7 @@ output_types(::MutableRealStage, ::Type{T}) where {T <: Real} = (out = BigInt,)
 output_state(::MutableRealStage, (; t)) = (out = BigInt(1),)
 
 @assert ismutabletype(BigInt)
-@assert Cadence.mutable_position(BigInt) === nothing
+@assert Redstone.mutable_position(BigInt) === nothing
 mutable_real_err = capture(() -> build(Group((; c = MutableRealStage()))))
 @assert mutable_real_err === nothing
 println("mutable Real port BigInt built successfully")
@@ -87,11 +87,11 @@ struct AliasingRealStage <: AbstractComponent end
 output_types(::AliasingRealStage, ::Type{T}) where {T <: Real} = (out = MutableScalar,)
 output_state(::AliasingRealStage, (; t)) = (out = MutableScalar(1.0),)
 
-alias_sim = Cadence.Simulation(Group((; c = AliasingRealStage())); h = 1//10)
-Cadence.init!(alias_sim)
-old_snapshot = Cadence.latest(alias_sim)
-borrowed = Cadence.port(old_snapshot, "c", :out)
+alias_sim = Redstone.Simulation(Group((; c = AliasingRealStage())); h = 1//10)
+Redstone.init!(alias_sim)
+old_snapshot = Redstone.latest(alias_sim)
+borrowed = Redstone.port(old_snapshot, "c", :out)
 borrowed.value = 9.0
-@assert Cadence.port(alias_sim, "c", :out).value == 9.0
-@assert Cadence.port(old_snapshot, "c", :out).value == 9.0
+@assert Redstone.port(alias_sim, "c", :out).value == 9.0
+@assert Redstone.port(old_snapshot, "c", :out).value == 9.0
 println("mutating a snapshot mutable Real changed both the snapshot and live cell value")

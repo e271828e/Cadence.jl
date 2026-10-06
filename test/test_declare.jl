@@ -56,7 +56,7 @@ function test_declare()
     @testset "a foreign binding of a family name is the forgotten import (§8.1, D-246)" begin
         # The evidence the shadowing check acts on: a family name the component's
         # parent module binds to something other than the framework's function,
-        # listed in family order. `using Cadence` alone leaves the name undefined
+        # listed in family order. `using Redstone` alone leaves the name undefined
         # (the family is unexported, D-117), so only the bare definition shows.
         @test foreign_declarations(ForgottenImport.Inventory.Leaf()) ==
               [:x_init, :y_types, :y_state, :x_deriv]
@@ -71,7 +71,7 @@ function test_declare()
 
         # A module that imported what it extends has nothing foreign — the suite's
         # own fixtures — and neither has a framework-owned type, whose parent
-        # module is `Cadence` itself.
+        # module is `Redstone` itself.
         @test isempty(foreign_declarations(Plant()))
         @test isempty(foreign_declarations(Group((; c = Plant()))))
     end

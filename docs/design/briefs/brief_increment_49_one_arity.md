@@ -67,7 +67,7 @@ any macro sugar.
 type-level marker never instantiated. Its docstring says what §8.2 says: wraps
 one leaf type in a contract, pins that leaf at every activation, is stripped at
 nominal, is continuous-only. `leaves.jl` is included before `declare.jl`
-(`src/Cadence.jl`), and `retype`'s arm dispatches on the type, so define the
+(`src/Redstone.jl`), and `retype`'s arm dispatches on the type, so define the
 struct in `leaves.jl` next to `retype` and document it in `declare.jl`'s
 docstring block, or move the struct and keep one home; either way one
 definition.

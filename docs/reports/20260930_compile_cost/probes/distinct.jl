@@ -20,7 +20,7 @@ plantk(k) = getfield(Main, Symbol(:PlantK, k))(2.0, 0.3)
 manyk(N, k0) = Group(NamedTuple{ntuple(i -> Symbol(:m, i), N)}(ntuple(i -> loop(plantk(k0 + i)), N));
     inputs = ("ref" => ntuple(i -> "m$(i)/ref", N),))
 const Thunk = Core.OpaqueClosure{Tuple{}, Nothing}
-entry_thunk(entry, store, xbuf, ẋbuf)::Thunk = @opaque Tuple{} -> Nothing () -> (Cadence.run_entry!(entry, store, xbuf, ẋbuf); nothing)
+entry_thunk(entry, store, xbuf, ẋbuf)::Thunk = @opaque Tuple{} -> Nothing () -> (Redstone.run_entry!(entry, store, xbuf, ẋbuf); nothing)
 walk_thunks(v::Vector{Thunk}) = (for f in v; f(); end; nothing)
 # warm-ups: one-type path, and the distinct-type generic paths (types 47, 48)
 for m in (many(2), manyk(2, 46))
@@ -33,7 +33,7 @@ for (label, model) in (("32 loops, one type", many(32)), ("16 loops, 16 distinct
     c0 = ct()
     t_b = @elapsed b = build(model)
     t_s = @elapsed sim = Simulation(b; h = 1//1000)
-    t_w = @elapsed (for nm in (:sweep_1, :sweep_2, :rhs, :ticks); f = getfield(sim.exec.bodies, nm); f(); f(0); f(Cadence.ESTABLISH); end)
+    t_w = @elapsed (for nm in (:sweep_1, :sweep_2, :rhs, :ticks); f = getfield(sim.exec.bodies, nm); f(); f(0); f(Redstone.ESTABLISH); end)
     t_i = @elapsed init!(sim, fragment(inputs = (ref = 1.0,)))
     t_r = @elapsed run!(sim; t_end = 0.01)
     c1 = ct()

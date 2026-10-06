@@ -42,7 +42,7 @@ Read these by line range at `5b9cdd6`, not whole sections:
   on; read their Position fields only.
 - `implementation.md`: the entries for `src/readers.jl` (251–263),
   `src/bindings.jl` (493–501), `src/trim.jl` (591–600), `src/diagnostics.jl`
-  (43–85), `src/Cadence.jl` (16–19), `test/imports.jl` (641–644); the
+  (43–85), `src/Redstone.jl` (16–19), `test/imports.jl` (641–644); the
   authoring caveats at 670–731 in full; the "Naming" section (732) and
   "Running the suite" (809), both cited below and never restated.
 - `pending.md` 21–24, the §14 bullet.
@@ -139,8 +139,8 @@ sim's clock says.
 - `src/linearize.jl`, new, included after `trim.jl`: `Taps`/`taps`,
   `LinearizeTag`, `LINEARIZE_WIDTH`, `LinearizeDual`, `Linearization`,
   `linearize` and its private helpers.
-- `src/Cadence.jl`: the include.
-- `test/test_linearize.jl`, new; `test/CadenceTests.jl` (include, `live`,
+- `src/Redstone.jl`: the include.
+- `test/test_linearize.jl`, new; `test/RedstoneTests.jl` (include, `live`,
   the `runall` docstring's list if it names files); `test/imports.jl`;
   `test/test_bindings.jl`; `test/test_diagnostics.jl`.
 - `implementation.md` entries, `pending.md`, the prose under "Prose to
@@ -491,7 +491,7 @@ module globals usable from this file as they are; include
   `src/linearize.jl` entry after `trim.jl`'s, listing `Taps`/`taps`, the
   scalar and width constants, `Linearization`, `linearize` over the
   two-half scratch world, the collecting tap resolution, citing §9.7,
-  §14.4, §14.10, D-167, D-168, D-197, D-213, D-271, D-272; the `Cadence.jl`
+  §14.4, §14.10, D-167, D-168, D-197, D-213, D-271, D-272; the `Redstone.jl`
   entry if it lists files; the routing table row `readers`, `conditions`,
   `trim` gains `linearize` on both sides.
 
@@ -527,7 +527,7 @@ Test policy is `implementation.md`, "Running the suite", the one home; the
 naming rules are its "Naming" section, and the cold reviewer's brief names
 them as a review dimension. Neither is restated here.
 
-`Cadence.jl` and `diagnostics.jl` beyond a new kind are touched, so the
+`Redstone.jl` and `diagnostics.jl` beyond a new kind are touched, so the
 routed subset is the table's last row, all of it:
 
     JULIA_LOAD_PATH="@" julia -t auto --startup-file=no --check-bounds=yes --warn-overwrite=yes --depwarn=yes --project=test test/runtests.jl

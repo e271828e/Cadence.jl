@@ -130,7 +130,7 @@ file table (lines 18–39) for the vocabulary the docstrings use, and the
 | D | `assembly.jl`, `conditions.jl` |
 | E | `tracer.jl`, `trim.jl`, `localization.jl`, `stepper.jl` |
 | F | `dataplane.jl`, `deployment.jl`, `devices.jl`, `executor.jl` |
-| G | `bindings.jl`, `declare.jl`, `leaves.jl`, `readers.jl`, `roster.jl`, `show.jl`, `store.jl`, `trace.jl`, `Cadence.jl` |
+| G | `bindings.jl`, `declare.jl`, `leaves.jl`, `readers.jl`, `roster.jl`, `show.jl`, `store.jl`, `trace.jl`, `Redstone.jl` |
 
 A group with several files writes one report per file. `test/` is a later
 wave with its own brief, after Step 3 lands and the roster has settled.

@@ -1,4 +1,4 @@
-# Flight.jl references in Cadence.jl — inventory (2026-09-23)
+# Flight.jl references in Redstone.jl — inventory (2026-09-23)
 
 Sweep of the whole repo for references to Flight.jl, `FlightCore`, `FlightPhysics`,
 `FlightApps`, and code that lives there (`f_ode!`, `KinData`, `PistonEngine`,
@@ -7,7 +7,7 @@ Sweep of the whole repo for references to Flight.jl, `FlightCore`, `FlightPhysic
 
 ## 1. Identity and framing (few passages, highest visibility)
 
-These tell the reader what Cadence *is*. They must be rewritten, not trimmed.
+These tell the reader what Redstone *is*. They must be rewritten, not trimmed.
 
 - `README.md:5-6` — "built to replace `FlightCore` as the substrate for `FlightPhysics` and `FlightApps` in Flight.jl".
 - `README.md:183-184` — spun off from Flight.jl's `core-redesign-2` branch, carries its history.

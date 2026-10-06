@@ -320,7 +320,7 @@ own `input_connections(a::PassthroughOverForgotten)`. These six break that
   `test/utils.jl`. `test_build.jl` does not call `utils.jl`'s `paths`
   elsewhere, but the function is reachable from the same test module.
 - `loop` (line 293) shares its name with the `loop` device-contract function
-  in the `import Cadence:` list (`test/imports.jl`). `test_build.jl` does
+  in the `import Redstone:` list (`test/imports.jl`). `test_build.jl` does
   not call `loop` itself.
 
 ## Roster proposals

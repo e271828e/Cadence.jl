@@ -1,5 +1,5 @@
 # B: what the two walks cost inside one trim!, at n condition writes and k reads.
-using Cadence, BenchmarkTools, StaticArrays, LinearAlgebra, ForwardDiff
+using Redstone, BenchmarkTools, StaticArrays, LinearAlgebra, ForwardDiff
 const T = joinpath(ARGS[1], "test")
 include(joinpath(T, "imports.jl")); include(joinpath(T, "fixtures.jl"))
 
@@ -24,10 +24,10 @@ for (n, k) in ((31, 1), (32, 1), (33, 1), (64, 1), (128, 1), (31, 31), (32, 32),
     build_ = sim.deployment.build
     TD = ForwardDiff.Dual{TrimTag,Float64,1}
     act = activation(build_, TD)
-    sexec = Cadence._scratch(sim, TD, act)
-    d = Cadence._seeded((:q,), [0.2], TD)
+    sexec = Redstone._scratch(sim, TD, act)
+    d = Redstone._seeded((:q,), [0.2], TD)
     plan = compile_plan(override(baseline, cond(d)), build_, TD)
-    reader = Cadence._compile_reads(problem.reads, build_, TD)
+    reader = Redstone._compile_reads(problem.reads, build_, TD)
     tree = override(baseline, cond(d))
     apply!(sexec, plan, tree); gather_reads(reader, sexec)
     a_b = @ballocated apply!($sexec, $plan, $tree)

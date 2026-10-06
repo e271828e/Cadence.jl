@@ -1,5 +1,5 @@
 # C: the hot and service siblings at widths 31, 32, 33, 64.
-using Cadence, BenchmarkTools, StaticArrays, LinearAlgebra
+using Redstone, BenchmarkTools, StaticArrays, LinearAlgebra
 const T = joinpath(ARGS[1], "test")
 include(joinpath(T, "imports.jl")); include(joinpath(T, "fixtures.jl"))
 
@@ -9,10 +9,10 @@ function define_wide(n)
     fields = Tuple(Symbol(:f, i) for i in 1:n)
     @eval begin
         struct $name <: AbstractComponent end
-        Cadence.s_init(::$name) = NamedTuple{$fields}(ntuple(_ -> 0.0, $n))
-        Cadence.y_types(::$name) = (o = Float64,)
-        Cadence.y_state(::$name, (; s)) = (o = s.f1,)
-        Cadence.s_update(::$name, (; s)) = s
+        Redstone.s_init(::$name) = NamedTuple{$fields}(ntuple(_ -> 0.0, $n))
+        Redstone.y_types(::$name) = (o = Float64,)
+        Redstone.y_state(::$name, (; s)) = (o = s.f1,)
+        Redstone.s_update(::$name, (; s)) = s
     end
     getfield(Main, name)
 end

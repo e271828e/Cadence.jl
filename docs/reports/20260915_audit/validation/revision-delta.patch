@@ -546,7 +546,7 @@ diff --git a/test/imports.jl b/test/imports.jl
 index 8893058..b071f9f 100644
 --- a/test/imports.jl
 +++ b/test/imports.jl
-@@ -20,11 +20,11 @@ import Cadence: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
+@@ -20,11 +20,11 @@ import Redstone: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
      KindCounts, LoopError, MalformedDatum, Marker, MissingInit,
      ModelRequestedStop,
      NonfiniteState, NotAttached, OutOfClaimEntry, PRIMITIVE, PathResolution,

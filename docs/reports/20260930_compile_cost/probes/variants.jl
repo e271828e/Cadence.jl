@@ -1,7 +1,7 @@
 Base.cumulative_compile_timing(true)
 include(joinpath(@__DIR__, "cum_defs.jl"))
 using Base.ScopedValues: with
-import Cadence: StructureDraft, flatten!, _check_event_declarations, wire!, _check_wires, Structure,
+import Redstone: StructureDraft, flatten!, _check_event_declarations, wire!, _check_wires, Structure,
     _nominal, Diagnostic, DiagnosticError, BUILD_WARNINGS, Build, activation, logline
 m2 = many(2); b2 = build(m2)
 ct() = Base.cumulative_compile_time_ns()[1] / 1e9
@@ -72,7 +72,7 @@ function v4(root; activations::Tuple = ())
     with(() -> core(root, activations, raised_warnings), BUILD_WARNINGS => raised_warnings)
 end
 for (label, f, N) in (("V0 verbatim shape", v0, 60), ("V1 no try/catch", v1, 61), ("V2 no try/catch, no warn loop", v2, 62),
-                      ("V3 root untyped into the closure", v3, 63), ("V4 with(f, pair) form", v4, 64), ("Cadence.build itself", build, 65))
+                      ("V3 root untyped into the closure", v3, 63), ("V4 with(f, pair) form", v4, 64), ("Redstone.build itself", build, 65))
     root = many(N)
     c0 = ct(); t = @elapsed f(root)
     @printf("%-36s N=%d  %6.2f s (compile %6.2f)\n", label, N, t, ct() - c0)

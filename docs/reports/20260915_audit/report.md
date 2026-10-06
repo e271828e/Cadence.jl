@@ -1,4 +1,4 @@
-# Cadence conformance and design audit
+# Redstone conformance and design audit
 
 Audit opened 2026-09-15; original reconciliation 2026-09-16;
 **finding refresh 2026-09-17/18, finalized against `2938a0`.**

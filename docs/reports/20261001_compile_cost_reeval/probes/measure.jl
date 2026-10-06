@@ -12,10 +12,10 @@
 #
 # Contract with the patched exports: `sim.exec.bodies` has callable `sweep_1`,
 # `sweep_2`, `rhs` and `ticks`, each taking `()` and `(tick::Int)`, and
-# `sim.exec.xbuf` is the flat state vector. `Cadence.boundary!(sim, tick)` runs
+# `sim.exec.xbuf` is the flat state vector. `Redstone.boundary!(sim, tick)` runs
 # one base-tick boundary.
 Base.cumulative_compile_timing(true)
-t_using = @elapsed using Cadence
+t_using = @elapsed using Redstone
 using Printf
 include(joinpath(@__DIR__, "fixtures.jl"))
 ct() = Base.cumulative_compile_time_ns()[1] / 1e9
@@ -58,8 +58,8 @@ for nm in BODIES
     global alloc += @allocated b()
     global alloc_at += @allocated b(1)
 end
-Cadence.boundary!(sim, 1)       # projection, event phase and ticks, state already hashed
-alloc_boundary = @allocated Cadence.boundary!(sim, 1)
+Redstone.boundary!(sim, 1)       # projection, event phase and ticks, state already hashed
+alloc_boundary = @allocated Redstone.boundary!(sim, 1)
 @printf("RESULT scenario=%s mode=%s chunk=%s opt=%d using=%.3f construct=%.3f build=%.3f sim=%.3f walks=%.3f init=%.3f run=%.3f total=%.3f compile=%.3f warm_ms_per_s=%.3f alloc=%d alloc_at=%d alloc_boundary=%d n_x=%d xhash=%016x\n",
         scenario, mode, ARGS[3], Base.JLOptions().opt_level, t_using, t_construct, t_build, t_sim, t_walks,
         t_init, t_run, t_build + t_sim + t_walks + t_init + t_run, compile, warm * 500, alloc,

@@ -1,6 +1,6 @@
 # Increment 36 — the feedthrough tracer and the SCC cycle diagnostic (§5.5, §5.6, D-012, D-140, D-245)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `98eb908` plus the docs-first commit below. Never `cd` elsewhere
 (`cd` is aliased to zoxide in the user's shell; use absolute paths).
 
@@ -34,7 +34,7 @@ D-140 (4397–4457, the ladder's rationale, read the three rejections), D-245
 whole file:
 
 - "Running the suite" (110–144).
-- The file-table rows for `src/Cadence.jl` (18), `src/diagnostics.jl`
+- The file-table rows for `src/Redstone.jl` (18), `src/diagnostics.jl`
   (20), `src/declare.jl` (21), `src/build.jl` (25), `test/fixtures.jl` (37).
 - **"Authoring caveats" in full (60–108)** — always. Fixtures live at top
   level; every framework name a test calls or extends is on
@@ -161,7 +161,7 @@ ascending order of each cluster's lowest flatten index.
 
 ### The tracer scalar (stage 2), in a new `src/tracer.jl`
 
-Included right after `build.jl` in `src/Cadence.jl`. It calls
+Included right after `build.jl` in `src/Redstone.jl`. It calls
 `_bundle_values`, `_probe_input`, `cell_layout` and `_probe_direct!` from
 `build.jl` and `bundle_names`/`declarations`/`probe_value` from
 `declare.jl`; dispatch resolves at call time, so the include order matters
@@ -355,7 +355,7 @@ its wires, collected (§5.6, D-012)".
 `src/tracer.jl` as specified: the scalar, its methods, `_lift`/`_tag`,
 `classify!`, and `_probe_direct!` factored out of `probe_stage2` in
 `build.jl` (put the factored function in `build.jl` beside `probe_stage2`).
-`src/Cadence.jl`: `include("tracer.jl")` after `build.jl`.
+`src/Redstone.jl`: `include("tracer.jl")` after `build.jl`.
 
 `schedule_stage2` gains the arguments `classify!` needs (`decls`, `stage1`
 is already there, `mstores`) and passes Kahn's `order` at the stall as
@@ -438,7 +438,7 @@ probe point, structural where no scalar enters (§5.6, D-012, D-245)".
 ## Stage 3 — the sampled fallback and the registers (Opus)
 
 `Project.toml`: add `Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"` under
-`[deps]` (a stdlib, no compat entry); `src/Cadence.jl`: `using Random:
+`[deps]` (a stdlib, no compat entry); `src/Redstone.jl`: `using Random:
 Xoshiro, randn`. `src/tracer.jl`: `_sample` and the sampled arm of
 `classify!` as specified, eight samples, seed 0, per member.
 
@@ -479,7 +479,7 @@ numbers.
 - `docs/design/pending.md`: delete the first "Not yet built" bullet
   (21–28). Nothing else mentions the tracer or the residue.
 - `docs/design/implementation.md`:
-  - `src/Cadence.jl` row (18): unchanged text (`Random` is a dependency
+  - `src/Redstone.jl` row (18): unchanged text (`Random` is a dependency
     the row's phrase already covers).
   - `src/build.jl` row (25): "the feedthrough graph" becomes "the
     feedthrough graph with its edge provenance, Kahn's schedule and, at a

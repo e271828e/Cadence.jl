@@ -1,8 +1,8 @@
-# The suite's `import Cadence:` list — the one place a framework name the tests
+# The suite's `import Redstone:` list — the one place a framework name the tests
 # call or extend is admitted (implementation.md's authoring caveat). Shared with
 # `repl.jl`: `include` evaluates in the including module, so the same file
-# imports into `CadenceTests` and into `Main`.
-import Cadence: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
+# imports into `RedstoneTests` and into `Main`.
+import Redstone: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
     AbstractDevice, AlgebraicCycle, AlreadyAttached, Anchor, ArgumentInvalid,
     AbstractAtRoot, AttachUnknownFace, Authored, BUILD_WARNINGS, BindingContractMismatch,
     Build, BundleFieldError,

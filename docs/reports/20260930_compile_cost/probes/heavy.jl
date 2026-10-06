@@ -1,7 +1,7 @@
 # A StaticArrays-heavy continuous component (rigid-body attitude with a 3x3
 # inertia and a quaternion), to price the optimization level on real math.
-using Cadence, StaticArrays, LinearAlgebra, BenchmarkTools, Printf
-import Cadence: AbstractComponent, x_init, u_types, y_types, y_state, y_direct,
+using Redstone, StaticArrays, LinearAlgebra, BenchmarkTools, Printf
+import Redstone: AbstractComponent, x_init, u_types, y_types, y_state, y_direct,
     x_derivative, x_projection, Group, Simulation, init!, run!, fragment, phase_bodies
 
 struct Body <: AbstractComponent

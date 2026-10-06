@@ -7,7 +7,7 @@
 - **Spec lines**: 7645–8851 of `docs/design/spec.md`
 - **Tip**: `70672d1`, Julia 1.12.7
 - **Probes run**: one. `scratchpad/p1.jl` under `julia --project=.`, listing
-  which §14 names are defined in `Cadence` and exercising `at` over a
+  which §14 names are defined in `Redstone` and exercising `at` over a
   `TrimProblem` and over a `reads(…)` value.
 - **Forbidden reads**: none. I read `docs/design/spec.md` 7645–8851, the cited
   passages in §9.4, §10.6, §11.2, §11.5, §12.6 and §13.1 for meaning only, the
@@ -307,8 +307,8 @@ confirms:
 ```
 linearize false   taps false   LinearizedSS false   design_world false
 subsystem false   delete_vars false
-at(problem) -> BuildError: ConditionNodeMisuse: Cadence.TrimProblem{…}
-at(reads)   -> BuildError: ConditionNodeMisuse: Cadence.Reads{…} is not a condition node
+at(problem) -> BuildError: ConditionNodeMisuse: Redstone.TrimProblem{…}
+at(reads)   -> BuildError: ConditionNodeMisuse: Redstone.Reads{…} is not a condition node
 ```
 
 Why it matters. §14 sells the four services as clients of one condition

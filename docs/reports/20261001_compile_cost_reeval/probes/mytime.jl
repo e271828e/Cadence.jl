@@ -3,8 +3,8 @@
 # mode: cold | types | iter. First sim = construct + build + Simulation + init! + run!(0.1),
 # no explicit body calls. Every step is its own top-level statement.
 Base.cumulative_compile_timing(true)
-using Cadence
-include("/Users/miguel/.julia/dev/Cadence.jl/docs/reports/20261001_compile_cost_reeval/probes/fixtures.jl")
+using Redstone
+include("/Users/miguel/.julia/dev/Redstone.jl/docs/reports/20261001_compile_cost_reeval/probes/fixtures.jl")
 const LABEL = ARGS[1]
 const SCEN = Symbol(ARGS[2]); const MODE = Symbol(ARGS[3])
 const CH = ARGS[4] == "none" ? typemax(Int) ÷ 2 : parse(Int, ARGS[4])

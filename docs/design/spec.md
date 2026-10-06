@@ -1,4 +1,4 @@
-# Cadence.jl: A Causal Modeling & Simulation Framework
+# Redstone.jl: A Causal Modeling & Simulation Framework
 
 ---
 
@@ -138,7 +138,7 @@ checked, and [§10][s10] fixes what runs at a step boundary.
 
 ## 1. Introduction
 
-**Purpose.** Cadence is a framework for modeling and simulating hierarchical
+**Purpose.** Redstone is a framework for modeling and simulating hierarchical
 [hybrid causal systems](#g-hybrid-causal-system) (models that mix continuous
 dynamics, periodic discrete dynamics and events, exchanging values through
 directed ports). Its home domain is aircraft guidance, navigation and control:
@@ -181,14 +181,14 @@ capability it does not build, that capability is weighed against them as a
   debugging, tooling and comprehension work on the language's own terms
   ([§8.1][s8-1]).
 
-**Origins.** Cadence began as a replacement for `FlightCore`, the simulation
+**Origins.** Redstone began as a replacement for `FlightCore`, the simulation
 core of the Flight.jl package. Flight.jl also holds `FlightPhysics`, its
 physics library, and `FlightApps`, its applications. The early design read
 those two packages as its requirements. Every capability they demonstrated had
 to survive, and none of their interfaces had to. Older entries in the decision
 log reason against `FlightCore` and cite that code, and the case studies that
 tested the design against it live in `companions/flight_case_studies.md`.
-Cadence itself does not depend on Flight.jl.
+Redstone itself does not depend on Flight.jl.
 
 **Scope of this document.** This document is the
 [normative statement](#g-normative) of the design. It states what the
@@ -2081,18 +2081,18 @@ is derived from it.
 framework-owned generic functions.
 
 Julia admits that only through an explicit per-name `import`, or through a
-qualified `Cadence.x_deriv(…) = …` definition. The latter is the `Base.show`
+qualified `Redstone.x_deriv(…) = …` definition. The latter is the `Base.show`
 idiom that the exported-name audit in `pending.md` records for the
 extension-only periphery surface. A component module therefore opens with
 
 ```julia
-import Cadence: x_init, s_init, m_init, ws_init, u_types,
+import Redstone: x_init, s_init, m_init, ws_init, u_types,
     y_types, state_events, y_state, y_direct, x_deriv,
     s_update, x_projection, inner_wires, input_wires,
     output_wires, sample_times, transparent_container
 ```
 
-The explicit list is needed because `using Cadence` alone is a silent trap.
+The explicit list is needed because `using Redstone` alone is a silent trap.
 After a bare `using`, `x_deriv(eng::Engine, …) = …` defines a new, unrelated
 `MyModule.x_deriv`, with no error and no warning. The declarations are
 deliberately unexported ([D-117][d-117]). A bare `using` therefore brings no
@@ -2119,7 +2119,7 @@ above) in the component's parent module. If the module holds one distinct from
 the framework's function, **the build throws `DeclarationShadowed` alone**
 ([D-246][d-246]). The diagnostic names the module, the foreign names and the
 missing import. Its message reads "`MyEngine`'s module defines its own
-`x_deriv`, distinct from `Cadence.x_deriv`; add `import Cadence: x_deriv`".
+`x_deriv`, distinct from `Redstone.x_deriv`; add `import Redstone: x_deriv`".
 
 The check is a two-line `isdefined`/`!==` test on those names. Those names are
 distinctive by design ([D-220][d-220]), so a foreign binding of one of them in a
@@ -2145,9 +2145,9 @@ therefore reads as one declaring nothing at all.
 ```julia
 @testset "mycomp" begin
     y_state(::MyComp, (; x)) = …   #a NEW local one, not a method of
-    …                                   #Cadence.y_state; calls here
+    …                                   #Redstone.y_state; calls here
 end                                     #resolve to it, and look correct
-#outside: Cadence.y_state still has no MyComp method
+#outside: Redstone.y_state still has no MyComp method
 ```
 
 The shadowing check above cannot reach this case. There is no parent-module
@@ -10012,7 +10012,7 @@ What preserves the locality is an idiom, not schema. It is the
 generic, shipped beside the component and dispatched on the component. The
 generic is framework-owned so that an owner's pull reaches a child's fragment
 across a package seam. A model package extends it through
-`import Cadence: condition`, as it extends the declaration family
+`import Redstone: condition`, as it extends the declaration family
 ([§8.1][s8-1]). No shadowing check covers it: a fragment written to a foreign
 `condition` fails loudly at the owner's pull, as a `MethodError` naming the
 child.

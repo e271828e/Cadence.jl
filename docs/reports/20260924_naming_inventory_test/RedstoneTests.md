@@ -1,4 +1,4 @@
-# Naming inventory: test/CadenceTests.jl
+# Naming inventory: test/RedstoneTests.jl
 
 Tip: 0c0a899. Sites flagged: 7. Renames: 1. Collisions: 0. Roster proposals: 0.
 Kept without a row: keep:index 0, keep:typeparam 0, keep:spec 0, keep:glance 5, keep:family 0, keep:roster 0, keep:api 0.

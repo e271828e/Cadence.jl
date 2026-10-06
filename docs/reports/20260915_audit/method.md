@@ -55,7 +55,7 @@ against the final reconciliation baseline, retaining the earlier baselines.
 
 The first direct-suite attempt could not start because the Julia launcher needed
 to create its configuration lock outside the filesystem sandbox. The user approved
-the escalated retry. This environment issue is not a Cadence test failure.
+the escalated retry. This environment issue is not a Redstone test failure.
 
 ## Resumption and reconciliation
 

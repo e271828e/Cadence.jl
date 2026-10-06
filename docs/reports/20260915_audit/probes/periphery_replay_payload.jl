@@ -1,7 +1,7 @@
-include(joinpath(@__DIR__, "..", "..", "..", "..", "test", "CadenceTests.jl"))
+include(joinpath(@__DIR__, "..", "..", "..", "..", "test", "RedstoneTests.jl"))
 
-const CT = Main.CadenceTests
-const C = CT.Cadence
+const CT = Main.RedstoneTests
+const C = CT.Redstone
 
 function source_trace()
     sim = CT.Simulation(CT.two_root_inputs(); h = 1 // 10)

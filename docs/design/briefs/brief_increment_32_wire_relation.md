@@ -1,6 +1,6 @@
 # Increment 32 — the wire relation, the root meet, the Stratum A pass
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `236a964`. Never `cd` elsewhere (`cd` is aliased to zoxide in the
 user's shell; use absolute paths).
 

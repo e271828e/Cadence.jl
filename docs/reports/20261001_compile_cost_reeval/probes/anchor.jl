@@ -4,8 +4,8 @@
 # `build` 11.3 s, `init!` 1.67 s and `run!` 6.79 s.
 #   julia --project=<export>/test anchor.jl
 Base.cumulative_compile_timing(true)
-using Cadence, Printf
-import Cadence: AbstractComponent, x_init, s_init, u_types, y_types,
+using Redstone, Printf
+import Redstone: AbstractComponent, x_init, s_init, u_types, y_types,
     y_state, y_direct, x_deriv, s_update,
     Group, Absolute, Hz, Simulation, init!, run!, fragment, build
 struct Plant <: AbstractComponent; ω::Float64; ζ::Float64; end

@@ -5,7 +5,7 @@
      so unscoped code takes the fill set in style.typ. -->
 <plist version="1.0">
 <dict>
-  <key>name</key><string>cadence</string>
+  <key>name</key><string>redstone</string>
   <key>settings</key>
   <array>
     <dict>

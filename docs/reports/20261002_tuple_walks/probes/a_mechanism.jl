@@ -1,5 +1,5 @@
 # A: where inference gives up, for Base.tail, the two conditions.jl walks, and gather_reads.
-using Cadence, BenchmarkTools, StaticArrays, LinearAlgebra, InteractiveUtils
+using Redstone, BenchmarkTools, StaticArrays, LinearAlgebra, InteractiveUtils
 const T = joinpath(ARGS[1], "test")
 include(joinpath(T, "imports.jl")); include(joinpath(T, "fixtures.jl"))
 
@@ -33,19 +33,19 @@ for n in parse.(Int, split(get(ENV, "WIDTHS", "31,32,33"), ","))
     tree = combine((at("s$i", fragment(x = (q = 0.25 + i,))) for i in 1:n)...)
     plan = compile_plan(tree, sim.deployment.build)
     exec = sim.exec
-    for (lbl, f, args) in (("_writes!(xs)", Cadence._writes!, (plan.xs, exec, tree)),
-                           ("_sweep_prefixes", Cadence._sweep_prefixes, (plan.prefixes, tree)),
+    for (lbl, f, args) in (("_writes!(xs)", Redstone._writes!, (plan.xs, exec, tree)),
+                           ("_sweep_prefixes", Redstone._sweep_prefixes, (plan.prefixes, tree)),
                            ("apply!", apply!, (exec, plan, tree)))
         (ci, rt) = only(code_typed(f, typeof.(args); optimize = true))
         report("n=$n $lbl", ci, rt)
     end
     # The splat in tail, seen in the unoptimized first recursion step
-    (ci, rt) = only(code_typed(Cadence._writes!, typeof.((plan.xs, exec, tree)); optimize = false))
+    (ci, rt) = only(code_typed(Redstone._writes!, typeof.((plan.xs, exec, tree)); optimize = false))
     tails = [ci.ssavaluetypes[i] for (i, st) in enumerate(ci.code) if st isa Expr && st.head === :call && occursin("tail", string(st.args[1]))]
     println("    unoptimized _writes!: Base.tail(writes) inferred as ", tails)
     # gather_reads
     spec = reads(; (Symbol(:q, i) => get_state("s$i", :q) for i in 1:n)...)
-    reader = Cadence._compile_reads(spec, sim.deployment.build, Float64)
+    reader = Redstone._compile_reads(spec, sim.deployment.build, Float64)
     (ci, rt) = only(code_typed(gather_reads, typeof.((reader, exec)); optimize = true))
     report("n=$n gather_reads", ci, rt)
     m = which(map, Tuple{Function, typeof(reader.entries)})

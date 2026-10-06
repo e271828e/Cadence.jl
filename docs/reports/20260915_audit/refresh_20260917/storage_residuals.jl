@@ -1,5 +1,5 @@
-using Cadence
-import Cadence: AbstractComponent, Group, build, output_types, output_state
+using Redstone
+import Redstone: AbstractComponent, Group, build, output_types, output_state
 capture(f) = try
     f()
     nothing
@@ -13,7 +13,7 @@ output_types(::MutableRealStage, ::Type{T}) where {T <: Real} = (out = BigInt,)
 output_state(::MutableRealStage, (; t)) = (out = BigInt(1),)
 
 @assert ismutabletype(BigInt)
-@assert Cadence.mutable_position(BigInt) === nothing
+@assert Redstone.mutable_position(BigInt) === nothing
 mutable_real_err = capture(() -> build(Group((; c = MutableRealStage()))))
 @assert mutable_real_err === nothing
 println("mutable Real port BigInt built successfully")
@@ -27,20 +27,20 @@ struct AliasingRealStage <: AbstractComponent end
 output_types(::AliasingRealStage, ::Type{T}) where {T <: Real} = (out = MutableScalar,)
 output_state(::AliasingRealStage, (; t)) = (out = MutableScalar(1.0),)
 
-alias_sim = Cadence.Simulation(Group((; c = AliasingRealStage())); h = 1//10)
-Cadence.init!(alias_sim)
-old_snapshot = Cadence.latest(alias_sim)
-borrowed = Cadence.port(old_snapshot, "c", :out)
+alias_sim = Redstone.Simulation(Group((; c = AliasingRealStage())); h = 1//10)
+Redstone.init!(alias_sim)
+old_snapshot = Redstone.latest(alias_sim)
+borrowed = Redstone.port(old_snapshot, "c", :out)
 borrowed.value = 9.0
-@assert Cadence.port(alias_sim, "c", :out).value == 9.0
-@assert Cadence.port(old_snapshot, "c", :out).value == 9.0
+@assert Redstone.port(alias_sim, "c", :out).value == 9.0
+@assert Redstone.port(old_snapshot, "c", :out).value == 9.0
 println("mutating a snapshot mutable Real changed both the snapshot and live cell value")
 
 struct RefreshRootReal <: AbstractComponent end
-Cadence.input_types(::RefreshRootReal, ::Type{T}) where {T <: Real} = (value = T,)
-Cadence.output_types(::RefreshRootReal, ::Type{T}) where {T <: Real} = (out = T,)
-Cadence.output_direct(::RefreshRootReal, (; u)) = (out = u.value,)
-root_sim = Cadence.Simulation(Group((; c = RefreshRootReal()); inputs = ("root" => "c/value",)); h = 1//10)
-@assert Cadence.lifecycle(root_sim) === :built
-@assert Cadence.port(root_sim, "", :root) == 0.0
+Redstone.input_types(::RefreshRootReal, ::Type{T}) where {T <: Real} = (value = T,)
+Redstone.output_types(::RefreshRootReal, ::Type{T}) where {T <: Real} = (out = T,)
+Redstone.output_direct(::RefreshRootReal, (; u)) = (out = u.value,)
+root_sim = Redstone.Simulation(Group((; c = RefreshRootReal()); inputs = ("root" => "c/value",)); h = 1//10)
+@assert Redstone.lifecycle(root_sim) === :built
+@assert Redstone.port(root_sim, "", :root) == 0.0
 println("pre-init root input retains synthesized zero")

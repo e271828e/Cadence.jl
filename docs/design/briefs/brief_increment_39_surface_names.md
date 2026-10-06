@@ -1,6 +1,6 @@
 # Increment 39 — two surface names: the `condition` generic and `ProbeDual` (§8.1, §9.4, §14.2, Appendix B, D-117, D-166, D-226)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `cf0c069` (the docs-first commit) plus the register commit that adds
 this brief. Never `cd` elsewhere (`cd` is aliased to zoxide in the user's
 shell; use absolute paths).
@@ -15,7 +15,7 @@ in `src/`.
   functions, and an owner's pull, `condition(sys.pwp.engine; n_eng)`, would
   find neither across the package seam. The docs-first commit `cf0c069`
   reworded §14.2 to say the fragment function is a method of the framework's
-  `condition` generic, extended through `import Cadence: condition`, with no
+  `condition` generic, extended through `import Redstone: condition`, with no
   shadowing check because a foreign `condition` fails loudly at the pull.
 - `ProbeDual` and `ProbeTag`, §9.4's public canonical probe scalar,
   `const ProbeDual = ForwardDiff.Dual{ProbeTag, Float64, 1}`. It is the one
@@ -95,7 +95,7 @@ The fragment function's generic (§14.2, Appendix B). A component ships its
 initialization vocabulary as a method, `condition(::C; kw...) = fragment(…)`,
 and the owner of a structure pulls its children's under `at`. The generic is
 framework-owned so that pull crosses a package seam; a model package extends
-it through `import Cadence: condition`, as it extends the declaration family
+it through `import Redstone: condition`, as it extends the declaration family
 (§8.1). No fallback method: a child without one fails at the owner's pull as
 a `MethodError` naming it.
 """
@@ -110,7 +110,7 @@ export (D-226).
 
 In section 5, directly after the `Build` struct (ends line 577) and before
 `build`'s docstring (578), so the keyword's documented value is defined one
-screen above its use. `ForwardDiff` is already `using`'d in `Cadence.jl`.
+screen above its use. `ForwardDiff` is already `using`'d in `Redstone.jl`.
 
 ```julia
 """
@@ -134,7 +134,7 @@ scalar at one tag and never meets a trim or user `Dual` in one expression.
   `ProducedByTwoStages,`.
 - `condition,` on line 40, between `compile_plan,` and `declarations,`.
 
-`imports.jl` is included before `fixtures.jl` (`test/CadenceTests.jl` 6, 8;
+`imports.jl` is included before `fixtures.jl` (`test/RedstoneTests.jl` 6, 8;
 `test/repl.jl` likewise), so the six fixture methods become extensions of
 the framework's generic with no textual change to their definitions.
 
@@ -175,9 +175,9 @@ The build tests assert kind and payload; message text is asserted only in
 
 - `test/test_conditions.jl`, in `conditions_algebra()` (34), a new testset
   after the first one, "the fragment function is a method of the framework's
-  generic (§14.2, Appendix B)": `condition === Cadence.condition` (the name
+  generic (§14.2, Appendix B)": `condition === Redstone.condition` (the name
   the suite extends is the framework's, not a module-local one);
-  `parentmodule(condition) === Cadence`; `hasmethod(condition,
+  `parentmodule(condition) === Redstone`; `hasmethod(condition,
   Tuple{Pendulum})` and `Tuple{Vehicle}` (a leaf's and an owner's methods
   land on it); `failure(() -> condition(Voiceless(); θ = 1.0)) isa
   MethodError` (no fallback); and `condition(Pendulum(); θ = 0.5) isa
@@ -218,7 +218,7 @@ The build tests assert kind and payload; message text is asserted only in
 - `rg -n "^function condition end" src/` lists one line, in
   `conditions.jl`; `rg -n "ProbeTag" src/` lists the struct and the alias in
   `build.jl` and nothing else.
-- `names(Cadence)` is still `[:Cadence]` (D-226: nothing exported).
+- `names(Redstone)` is still `[:Redstone]` (D-226: nothing exported).
 - In a `julia --project=test -L test/repl.jl` session,
   `condition(Voiceless(); θ = 1.0)` throws a `MethodError` whose text names
   `Voiceless`, and `which(condition, Tuple{Pendulum}).module` is `Main`

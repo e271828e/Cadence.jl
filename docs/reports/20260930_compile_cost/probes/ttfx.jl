@@ -2,8 +2,8 @@
 # compile share of each step, for three models: the README loop, a 4x copy of
 # it with no new component types, and a variant with a new component type.
 Base.cumulative_compile_timing(true)
-t_load = @elapsed using Cadence
-import Cadence: AbstractComponent, x_init, s_init, u_types, y_types,
+t_load = @elapsed using Redstone
+import Redstone: AbstractComponent, x_init, s_init, u_types, y_types,
     y_state, y_direct, x_derivative, s_update,
     Group, Absolute, Hz, Simulation, init!, run!, fragment, port, state, build
 
@@ -63,7 +63,7 @@ function drive(name, model, inputs)
     sim
 end
 
-Printf.@printf("using Cadence                   %7.3f s\n", t_load)
+Printf.@printf("using Redstone                   %7.3f s\n", t_load)
 drive("M1: README loop (Plant, PI)", loop(Plant(2.0, 0.3)), (ref = 1.0,))
 drive("M2: 4x README loop, same types", four(Plant(2.0, 0.3)), (ref = 1.0,))
 drive("M3: loop with new type Plant3", loop(Plant3(2.0, 0.3, 0.05)), (ref = 1.0,))

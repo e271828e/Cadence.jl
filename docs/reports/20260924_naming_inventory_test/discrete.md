@@ -147,7 +147,7 @@ None from this file.
   `build` (bound at call time, no self-reference) or a local built from a field access
   (`build = deployment.build`), not a local assigned straight from calling the `build`
   function. None of the five sites here can take the bare word `build` without either
-  restructuring the call (e.g. `Cadence.build(...)`) or taking a different name entirely. I
+  restructuring the call (e.g. `Redstone.build(...)`) or taking a different name entirely. I
   have proposed `build` anyway, matching the ruling's intent, but the coordinator needs to
   settle what the sweep actually writes at these five sites — this is likely to recur in
   other groups' files too, wherever `x = build(model)` appears.

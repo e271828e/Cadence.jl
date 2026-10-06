@@ -1,6 +1,6 @@
 frames=1000 allocations=5027 bytes=768856
 sim.jl:2282 _status                                         Memory{WriterStatus}                               count/frame=1.0 bytes/frame=512.0
-sim.jl:2247 publish!                                        Snapshot{Float64, StoreBundle{@NamedTuple{var"Core.Float64"::Cadence.CellStore{Float64}}}} count/frame=1.0 bytes/frame=144.0
+sim.jl:2247 publish!                                        Snapshot{Float64, StoreBundle{@NamedTuple{var"Core.Float64"::Redstone.CellStore{Float64}}}} count/frame=1.0 bytes/frame=144.0
 dataplane.jl:671 #capture_stores##0                         Memory{Float64}                                    count/frame=1.0 bytes/frame=48.0
 sim.jl:2282 _status                                         Vector{WriterStatus}                               count/frame=1.0 bytes/frame=32.0
 dataplane.jl:671 #capture_stores##0                         Vector{Float64}                                    count/frame=1.0 bytes/frame=32.0

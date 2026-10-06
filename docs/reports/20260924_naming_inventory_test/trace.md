@@ -140,7 +140,7 @@ Kept without a row: keep:index 2, keep:typeparam 0, keep:spec 4, keep:glance 20,
 
 - `paths` (line 230, `test/test_trace.jl`): shadows `test/utils.jl`'s
   `paths(structure::Structure)`. The file never calls `paths(...)` itself, but the function
-  is reachable from the same `CadenceTests` scope, which the brief's flagging rule treats as
+  is reachable from the same `RedstoneTests` scope, which the brief's flagging rule treats as
   enough. Renamed to `d`, joining the testset's other sequentially-bound diagnostic locals
   (`:h`, `:localization_budget`, `:firing_budget`), each already fully read before the next
   is bound.

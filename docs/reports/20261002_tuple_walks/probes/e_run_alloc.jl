@@ -1,5 +1,5 @@
 # E: is run!'s allocation per frame or per call? Same model, run lengths 10x and 100x apart.
-using Cadence, StaticArrays, LinearAlgebra, ForwardDiff
+using Redstone, StaticArrays, LinearAlgebra, ForwardDiff
 const T = joinpath(ARGS[1], "test")
 include(joinpath(T, "imports.jl")); include(joinpath(T, "fixtures.jl"))
 

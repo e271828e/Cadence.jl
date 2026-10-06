@@ -48,7 +48,7 @@ consistency note on `m` itself.
 - `gated` (line 154, `test/test_localization.jl`): a local function defined inside the "the
   gate idiom localizes..." testset, shadowing `test/utils.jl`'s `gated(body)` for the rest of
   that scope. The file does not call the `utils.jl` helper itself, but it is reachable from
-  the same `CadenceTests` scope, which the brief's flagging rule treats as enough.
+  the same `RedstoneTests` scope, which the brief's flagging rule treats as enough.
 
 ## Roster proposals
 

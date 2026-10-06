@@ -37,7 +37,7 @@ spec's style and not locals, and global constants.
 
 A site is **flagged** when its name is one or two characters, or an
 abbreviation not on the roster, or a name shared with a function the file
-can reach: the `import Cadence:` list in `test/imports.jl`, the helpers of
+can reach: the `import Redstone:` list in `test/imports.jl`, the helpers of
 `test/utils.jl` (`walked`, `gated`, `single`, `fed`, `prefixes`, `poke!`,
 `paths`, `failure`, `carried`, `accounted`, `crash_accounted`,
 `writer_status`), the fixture functions of `test/fixtures.jl`, and a Base
@@ -101,7 +101,7 @@ name already in use in the same scope for another value is not a proposal.
 
 One file per test file, `docs/reports/20260924_naming_inventory_test/<name>.md`
 (`build.md` for `test/test_build.jl`, `fixtures.md`, `utils.md`,
-`CadenceTests.md`). Write it in parts: the header first, then one append
+`RedstoneTests.md`). Write it in parts: the header first, then one append
 per testset or function, never one response for the whole file; a response
 over the 64k output limit kills the agent and loses the report.
 
@@ -155,7 +155,7 @@ brief, and `implementation.md`'s file-table rows for `test/fixtures.jl`,
 | group | files |
 | --- | --- |
 | A | `test_build.jl`, `test_declare.jl`, `test_executor.jl` |
-| B | `fixtures.jl`, `utils.jl`, `CadenceTests.jl` |
+| B | `fixtures.jl`, `utils.jl`, `RedstoneTests.jl` |
 | C | `test_assembly.jl`, `test_show.jl`, `test_continuous.jl` |
 | D | `test_trace.jl`, `test_log.jl`, `test_stepper.jl` |
 | E | `test_diagnostics.jl`, `test_failures.jl` |

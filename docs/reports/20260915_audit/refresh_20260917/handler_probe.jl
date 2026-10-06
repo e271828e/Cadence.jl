@@ -1,6 +1,6 @@
 # Adapted from the original probe: valid nonempty nominal handler for the new DeadStage check.
-using Cadence
-import Cadence: AbstractComponent, Group, Simulation, StateEvent,
+using Redstone
+import Redstone: AbstractComponent, Group, Simulation, StateEvent,
     init!, init_m, output_state, output_types, run!, state_events
 
 struct LateHandlerKey <: AbstractComponent end
@@ -19,7 +19,7 @@ sim = Simulation(Group((; c = LateHandlerKey())); h = 1 // 10)
 init!(sim)
 run!(sim; t_end = 0.1)
 
-@assert Cadence.modes(sim, "c") == (fired = false,)
+@assert Redstone.modes(sim, "c") == (fired = false,)
 println("unknown runtime handler key was silently ignored")
 
 struct LateHandlerScalar <: AbstractComponent end
@@ -41,6 +41,6 @@ scalar_err = try
 catch e
     e
 end
-@assert scalar_err isa Cadence.StepError
+@assert scalar_err isa Redstone.StepError
 @assert scalar_err.cause isa MethodError
 println("non-NamedTuple runtime handler return became raw MethodError cause")

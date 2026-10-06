@@ -1,6 +1,6 @@
 # Increment 38 — the store-form check: `StoreNotNamedTuple` (§8.2, §9.1, Appendix C, D-247)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `d381a97` (the docs-first commit) plus the register commit that adds
 this brief. Never `cd` elsewhere (`cd` is
 aliased to zoxide in the user's shell; use absolute paths).

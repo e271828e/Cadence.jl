@@ -1,6 +1,6 @@
 # Increment 27 — the typed throw idiom in the suite: `carried(@test_throws DiagnosticError{K} …)`
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `ac554e8`. Never `cd` elsewhere (`cd` is aliased to zoxide in the
 user's shell; use absolute paths).
 

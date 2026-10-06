@@ -1,4 +1,4 @@
-# Linearization from scratch: the math, the dual numbers, and the pass through Cadence
+# Linearization from scratch: the math, the dual numbers, and the pass through Redstone
 
 *A companion explainer, not normative text. The ground truth is `spec.md`
 [§14.10][s14-10] (the tap set, the seeded pass, the frozen tier) and [§14.4][s14-4] (the

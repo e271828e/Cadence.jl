@@ -1,14 +1,14 @@
-      Status `~/.julia/dev/Cadence.jl/test/Project.toml`
+      Status `~/.julia/dev/Redstone.jl/test/Project.toml`
   [6e4b80f9] BenchmarkTools v1.8.0
-  [653472ee] Cadence v0.1.0 `.`
+  [653472ee] Redstone v0.1.0 `.`
 ⌃ [f6369f11] ForwardDiff v1.4.5
 ⌃ [90137ffa] StaticArrays v1.9.19
   [b77e0a4c] InteractiveUtils v1.11.0
   [37e2e46d] LinearAlgebra v1.13.0
   [8dfed614] Test v1.11.0
-      Status `~/.julia/dev/Cadence.jl/Manifest.toml`
+      Status `~/.julia/dev/Redstone.jl/Manifest.toml`
   [6e4b80f9] BenchmarkTools v1.8.0
-  [653472ee] Cadence v0.1.0 `.`
+  [653472ee] Redstone v0.1.0 `.`
   [bbf7d656] CommonSubexpressions v0.3.1
   [34da2185] Compat v4.18.1
   [163ba53b] DiffResults v1.1.0
@@ -102,5 +102,5 @@ failures      |  190    190  1m35.4s
 Test Summary: | Pass  Total  Time
 lifecycle     |  113    113  9.8s
 Test Summary: | Pass  Total     Time
-Cadence       | 2828   2828  8m48.6s
-     Testing Cadence tests passed 
+Redstone       | 2828   2828  8m48.6s
+     Testing Redstone tests passed 

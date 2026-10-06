@@ -3,7 +3,7 @@
 # `Group` carries its subtree in its type, `Bank` holds it in an abstract field.
 Base.cumulative_compile_timing(true)
 include(joinpath(@__DIR__, "cum_defs.jl"))
-import Cadence: child_connections, input_connections, output_connections, transparent_container
+import Redstone: child_connections, input_connections, output_connections, transparent_container
 ct() = Base.cumulative_compile_time_ns()[1] / 1e9
 struct Bank <: AbstractComponent; m::NamedTuple; end
 child_connections(::Bank) = ()

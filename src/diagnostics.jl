@@ -507,8 +507,8 @@ path(d::DeclarationShadowed) = d.path
 message(d::DeclarationShadowed) =
     "$(_at_path(d.path)): its module `$(d.parent_module)` defines its own " *
     "$(_namelist(d.names)), distinct from " *
-    (length(d.names) == 1 ? "`Cadence.$(only(d.names))`" : "`Cadence`'s") *
-    "; add `import Cadence: $(join(d.names, ", "))` (§8.1)"
+    (length(d.names) == 1 ? "`Redstone.$(only(d.names))`" : "`Redstone`'s") *
+    "; add `import Redstone: $(join(d.names, ", "))` (§8.1)"
 
 "§8.5: a component declaring neither family, so its class cannot be read off declaration shape."
 Base.@kwdef struct ClassUnreadable <: Diagnostic

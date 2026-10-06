@@ -59,8 +59,8 @@ function conditions_algebra()
     @testset "the fragment function is a method of the framework's generic (§14.2, Appendix B)" begin
         # The suite extends the framework's `condition`, not a module-local one:
         # that is what lets an owner's pull reach a child across a package seam.
-        @test condition === Cadence.condition
-        @test parentmodule(condition) === Cadence
+        @test condition === Redstone.condition
+        @test parentmodule(condition) === Redstone
         # A leaf's method and an owner's both land on the one generic.
         @test hasmethod(condition, Tuple{Pendulum})
         @test hasmethod(condition, Tuple{Vehicle})

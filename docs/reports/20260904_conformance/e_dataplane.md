@@ -481,8 +481,8 @@ so I record it short rather than accurate.
   `agentE/` subdirectory. Worth naming per-agent scratchpads in the brief.
 
 - **`test/fixtures.jl` cannot be loaded on its own.** It reads the framework's
-  names from `Main`, which only `test/CadenceTests.jl` puts there, and
-  `CadenceTests` needs `BenchmarkTools` from `test/Project.toml` while the
+  names from `Main`, which only `test/RedstoneTests.jl` puts there, and
+  `RedstoneTests` needs `BenchmarkTools` from `test/Project.toml` while the
   brief pins probes to `--project=.`. Getting a two-line allocation probe
   running took four attempts. A `fixtures.jl` that did its own importing, or a
   documented probe preamble, would have paid for itself.

@@ -276,7 +276,7 @@ Output:
 ```
 ┌ Warning: DeviceCrash from device 1 (Naive), past the final snapshot's account:
 │ DeviceCrash(InvalidStateException("Channel is closed.", :closed), false)
-source=Cadence.EndTimeReached()
+source=Redstone.EndTimeReached()
 residue writer=device 1 (Naive) recent=DataType[DeviceCrash]
 ```
 

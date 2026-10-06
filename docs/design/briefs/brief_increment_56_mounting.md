@@ -142,7 +142,7 @@ At `84f479c`, by wording.
 - `bindings.jl`: `_compile_gather` (143): an output binding's `reads` is a
   bare NamedTuple of selectors, never a `Reads`, so a mounted set cannot
   reach a binding; `_matched_binding_leaf` (203) is its face matcher.
-- `Cadence.jl` includes `readers.jl` (15) before `conditions.jl` (26),
+- `Redstone.jl` includes `readers.jl` (15) before `conditions.jl` (26),
   `trim.jl` (27) and `linearize.jl` (28).
 - Tests: `test_readers.jl` (388 lines, testsets at 88, 132, 151, 231, 266,
   307, 351, 379; the comment at 232 says "No mounting exists"; the

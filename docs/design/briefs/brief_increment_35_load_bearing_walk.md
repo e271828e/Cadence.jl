@@ -1,6 +1,6 @@
 # Increment 35 — the load-bearing walk (§13.3, §14.2, D-061, D-130)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `f941c50` (plus the docs-first commit below). Never `cd` elsewhere
 (`cd` is aliased to zoxide in the user's shell; use absolute paths).
 

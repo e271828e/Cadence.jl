@@ -1,8 +1,8 @@
 # Fixtures of the re-evaluation: components with real arithmetic and the three
 # scenarios. Every component family is defined by name, so the distinct-type
 # scenario gets one textually identical copy per instance.
-using Cadence, StaticArrays, LinearAlgebra
-import Cadence: AbstractComponent, x_init, s_init, u_types, y_types,
+using Redstone, StaticArrays, LinearAlgebra
+import Redstone: AbstractComponent, x_init, s_init, u_types, y_types,
     y_state, y_direct, x_deriv, s_update, x_projection,
     Group, Absolute, Hz, Simulation, init!, run!, fragment, build
 

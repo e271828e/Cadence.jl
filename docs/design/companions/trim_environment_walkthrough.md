@@ -876,7 +876,7 @@ Part I's verdict stands for what it was about. A migration that preserves
 FlightCore's 7×7 formulation verbatim as user math is the right first move,
 and elimination remains a legitimate posing with the checks as its backstop.
 
-For an aircraft posed fresh in Cadence, this part reverses the default.
+For an aircraft posed fresh in Redstone, this part reverses the default.
 Pose the trim as enlargement in the spherical chart, and ship it as two
 problems rather than one with a switch: a still-air problem with no
 environment dependence anywhere and a one-line precondition check, and a

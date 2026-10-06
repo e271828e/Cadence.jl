@@ -1,7 +1,7 @@
-module CadenceTests
+module RedstoneTests
 
 using Test, StaticArrays, LinearAlgebra, ForwardDiff, BenchmarkTools
-using Cadence
+using Redstone
 
 include("imports.jl")
 
@@ -55,7 +55,7 @@ prints the total at the end, and expands only where something failed. One
 file's tests are callable on their own: `test_trace()`.
 """
 function runall()
-    @testset "Cadence" begin
+    @testset "Redstone" begin
         live("leaves",       test_leaves)
         live("declare",      test_declare)
         live("assembly",     test_assembly)
@@ -105,4 +105,4 @@ function runonly(names::AbstractString...)
     end
 end
 
-end # module CadenceTests
+end # module RedstoneTests

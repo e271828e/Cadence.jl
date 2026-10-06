@@ -1,6 +1,6 @@
 # Increment 40 — three specified checks: `DeadStage`, `MissingProbeValue` and the read-miss candidates (§5.2, §9.3, §11.2, §14.4, Appendix C, D-051)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `8b5b23a` plus the register commit that adds this brief. Never `cd`
 elsewhere (`cd` is aliased to zoxide in the user's shell; use absolute
 paths).

@@ -1,6 +1,6 @@
 # Increment 48b — `Outputs` and `Events` as rows (§9.1, §9.2, D-253, D-257, D-261)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `6cbbaea` plus the commit that adds this brief. Line numbers below
 are those of `6cbbaea`. Never `cd` elsewhere (`cd` is aliased to zoxide in
 the user's shell; use absolute paths).

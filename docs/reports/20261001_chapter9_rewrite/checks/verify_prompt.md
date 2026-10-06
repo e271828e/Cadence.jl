@@ -1,4 +1,4 @@
-You are a cold verifier for one unit of a readability rewrite of a design spec. Do not edit any file except your report files. Directory: /Users/miguel/.julia/dev/Cadence.jl/docs/reports/20261001_chapter9_rewrite/. Your unit is UNIT.
+You are a cold verifier for one unit of a readability rewrite of a design spec. Do not edit any file except your report files. Directory: /Users/miguel/.julia/dev/Redstone.jl/docs/reports/20261001_chapter9_rewrite/. Your unit is UNIT.
 
 PHASE 1 (blind). Read ONLY units/UNIT/new.md. List every atomic assertion it makes, numbered V1..., with attached citations. Write the list to units/UNIT/verify_phase1.md before opening anything else.
 

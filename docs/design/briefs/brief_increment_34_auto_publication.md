@@ -1,6 +1,6 @@
 # Increment 34 — auto-published ports (§5.3, §8.3, D-016, D-169)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `8199949`. Never `cd` elsewhere (`cd` is aliased to zoxide in the
 user's shell; use absolute paths).
 
@@ -66,7 +66,7 @@ out the working tree; a baseline is read with `git show <tip>:path`.
 ## The problem
 
 Verified at `8199949` with four one-component models (the probe script is
-`/private/tmp/claude-501/-Users-miguel--julia-dev-Cadence-jl/054fdbf4-a13c-4c82-b071-845d18c23b65/scratchpad/probe_engine2.jl`,
+`/private/tmp/claude-501/-Users-miguel--julia-dev-Redstone-jl/054fdbf4-a13c-4c82-b071-845d18c23b65/scratchpad/probe_engine2.jl`,
 reproduced from §8.2's inventory; copy it into your own scratch space):
 
 | model | today |

@@ -41,7 +41,7 @@ Files: `src/store.jl`, `src/executor.jl`, `src/build.jl`, `src/deployment.jl`, `
 
 Structs surveyed: 32. Findings: 10 (dead 5, duplicate 4, misplaced/courier 1); 5 of them spec-rostered.
 
-Method note. Every reader count below is a grep over all of `src/` (the access `\.name` with `rg -P` and a non-identifier boundary, since macOS `grep`'s `\b` fails after a Unicode character, plus the constructor calls). Runtime claims were checked in `julia --project=test -L test/repl.jl`. Two scripts in the scratchpad: `scan3.jl` walks the 1.13 global method table, takes every method whose module is `Cadence` (1833, closures and `Base` extensions included) and lists every lowered `getproperty`/`getfield` on a given field name; `stage1_check.jl` and `chunk_check.jl` re-evaluate one function with the field's write replaced and compare results. Dynamic reads (`getfield(x, name)` with a runtime `Symbol`, in `_walk_deployment!`) were counted by hand.
+Method note. Every reader count below is a grep over all of `src/` (the access `\.name` with `rg -P` and a non-identifier boundary, since macOS `grep`'s `\b` fails after a Unicode character, plus the constructor calls). Runtime claims were checked in `julia --project=test -L test/repl.jl`. Two scripts in the scratchpad: `scan3.jl` walks the 1.13 global method table, takes every method whose module is `Redstone` (1833, closures and `Base` extensions included) and lists every lowered `getproperty`/`getfield` on a given field name; `stage1_check.jl` and `chunk_check.jl` re-evaluate one function with the field's write replaced and compare results. Dynamic reads (`getfield(x, name)` with a runtime `Symbol`, in `_walk_deployment!`) were counted by hand.
 
 ## Findings
 

@@ -2,7 +2,7 @@
 # its children (abstract field) versus one whose type does (typed field).
 Base.cumulative_compile_timing(true)
 include(joinpath(@__DIR__, "cum_defs.jl"))
-import Cadence: child_connections, input_connections, output_connections, transparent_container
+import Redstone: child_connections, input_connections, output_connections, transparent_container
 ct() = Base.cumulative_compile_time_ns()[1] / 1e9
 struct Bank <: AbstractComponent; m::NamedTuple; end            # tiny type
 struct BankT{NT<:NamedTuple} <: AbstractComponent; m::NT; end   # type carries the subtree

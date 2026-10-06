@@ -4,7 +4,7 @@
 Base.cumulative_compile_timing(true)
 include(joinpath(@__DIR__, "cum_defs.jl"))
 using Base.Experimental: @opaque
-import Cadence: PhaseBody, Executor, DataPlane, Control, Run, SnapshotLog, Establish
+import Redstone: PhaseBody, Executor, DataPlane, Control, Run, SnapshotLog, Establish
 ct() = Base.cumulative_compile_time_ns()[1] / 1e9
 
 mutable struct NIBody{B}; b::B; end
@@ -19,7 +19,7 @@ struct OCBody; zero::OC0; at::OC1; est::OC0; end
 (x::OCBody)(::Establish) = x.est()
 ocbody(body) = OCBody((@opaque Tuple{} -> Nothing () -> (body(); nothing)),
                       (@opaque Tuple{Int} -> Nothing (t) -> (body(t); nothing)),
-                      (@opaque Tuple{} -> Nothing () -> (body(Cadence.ESTABLISH); nothing)))
+                      (@opaque Tuple{} -> Nothing () -> (body(Redstone.ESTABLISH); nothing)))
 
 function rebuild(sim, wrap)
     e = sim.exec
@@ -37,7 +37,7 @@ end
 
 sim = rebuild(Simulation(many(66); h = 1//1000), ocbody)
 for nm in (:sweep_1, :sweep_2, :rhs, :ticks); b = getfield(sim.exec.bodies, nm); b(); b(0); end
-c0 = ct(); t = @elapsed (sim.exec.bodies.sweep_1(Cadence.ESTABLISH); sim.exec.bodies.sweep_2(Cadence.ESTABLISH))
+c0 = ct(); t = @elapsed (sim.exec.bodies.sweep_1(Redstone.ESTABLISH); sim.exec.bodies.sweep_2(Redstone.ESTABLISH))
 @printf("first call of the Establish arity, two bodies: %.2f s (compile %.2f)\n", t, ct() - c0)
 c0 = ct(); t = @elapsed init!(sim, fragment(inputs = (ref = 1.0,)))
 @printf("init! afterwards: %.2f s (compile %.2f)\n", t, ct() - c0)

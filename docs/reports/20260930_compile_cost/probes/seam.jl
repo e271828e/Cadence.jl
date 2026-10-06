@@ -4,7 +4,7 @@
 Base.cumulative_compile_timing(true)
 include(joinpath(@__DIR__, "cum_defs.jl"))
 using Base.Experimental: @opaque
-import Cadence: PhaseBody, Executor, DataPlane, Control, Run, SnapshotLog, Establish
+import Redstone: PhaseBody, Executor, DataPlane, Control, Run, SnapshotLog, Establish
 ct() = Base.cumulative_compile_time_ns()[1] / 1e9
 
 mutable struct NIBody{B}; b::B; end
@@ -19,7 +19,7 @@ struct OCBody; zero::OC0; at::OC1; est::OC0; end
 (x::OCBody)(::Establish) = x.est()
 ocbody(body) = OCBody((@opaque Tuple{} -> Nothing () -> (body(); nothing)),
                       (@opaque Tuple{Int} -> Nothing (t) -> (body(t); nothing)),
-                      (@opaque Tuple{} -> Nothing () -> (body(Cadence.ESTABLISH); nothing)))
+                      (@opaque Tuple{} -> Nothing () -> (body(Redstone.ESTABLISH); nothing)))
 
 function rebuild(sim, wrap)
     e = sim.exec

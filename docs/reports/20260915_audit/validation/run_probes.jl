@@ -1,5 +1,5 @@
 # Run from the repository root. Every probe gets a fresh process/module namespace.
-# Exit zero means the probe reproduced its assertions, not that Cadence conforms.
+# Exit zero means the probe reproduced its assertions, not that Redstone conforms.
 using Dates
 
 root = dirname(@__DIR__)

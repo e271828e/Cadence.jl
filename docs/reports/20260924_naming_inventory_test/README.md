@@ -32,7 +32,7 @@ delegation; each ruling states its reason so the user can overturn it.
 | continuous | 13 | 3 | 0 |
 | executor | 13 | 5 | 0 |
 | store | 12 | 5 | 0 |
-| CadenceTests | 7 | 1 | 0 |
+| RedstoneTests | 7 | 1 | 0 |
 | show | 7 | 1 | 0 |
 | declare | 4 | 4 | 0 |
 | **total** | **2157** | **519** | **10** |
@@ -49,7 +49,7 @@ call resolves to the unassigned local (`discrete.md` confirmed the
 `UndefVarError`). *Ruled:* a local holding a build takes `build` only in a
 scope with no bare `build(…)` call; otherwise a qualifier by the model it
 builds (`tri_build`, `feedback_build`), never a number and never a
-restructured call (`Cadence.build(…)`), which a rename does not make.
+restructured call (`Redstone.build(…)`), which a rename does not make.
 `discrete.md`'s five `build` proposals become qualified names; `build.md`'s
 and `conditions.md`'s qualified names stand. `path` is the same.
 *Amended after wave 1:* the shadow bites with a single call too, since the
@@ -108,7 +108,7 @@ ordinal idiom; `simh`/`siml`/`simr`/`simf` take full words (`heun_sim`,
 **T8. The one-glance clause.** *Ruled:* `bindings.md`'s reading. A binding
 read once but nine lines and several statements later is not a glance;
 one read on the next line is. `utils.md`'s `failure(f)` and
-`CadenceTests.md`'s do-block `s` keep; `leaves.md`'s `roundtrip` `v`/`n`
+`RedstoneTests.md`'s do-block `s` keep; `leaves.md`'s `roundtrip` `v`/`n`
 keep at the boundary.
 
 **T9. Destructured field names.** `(; acc) = state(…)` binds the field's

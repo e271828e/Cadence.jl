@@ -98,7 +98,7 @@ is longer than 32.
 The count is exactly n − 32 per walk. That is why 32 is clean and 33 is not.
 `apply!` runs both walks, which doubles the count.
 
-A six-line walk outside Cadence shows the same thing
+A six-line walk outside Redstone shows the same thing
 (`probes/a_tail_minimal.jl`). On a tuple of `Float64` and `Int` it allocates
 0 B at 32, 832 B at 33, 1648 B at 34 and 38624 B at 64. Its time goes from
 37 ns at 32 to 954 ns at 33 and 31 µs at 64. Julia 1.12.7 gives the same
@@ -291,7 +291,7 @@ The patch changes 4 files, adding 28 lines and removing 21.
 - The `StoreWrite` overlay uses a generated `_overlay`.
 - `map_input` becomes a generated unroll over a new `_map_channel`.
 
-`src/Cadence.jl` includes `executor.jl` before `readers.jl`, `bindings.jl`
+`src/Redstone.jl` includes `executor.jl` before `readers.jl`, `bindings.jl`
 and `conditions.jl`. Every generator therefore calls only functions defined
 before it.
 

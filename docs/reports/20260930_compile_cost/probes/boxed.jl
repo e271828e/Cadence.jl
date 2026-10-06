@@ -4,7 +4,7 @@
 # loop machinery on a fresh topology against the unmodified executor.
 Base.cumulative_compile_timing(true)
 include(joinpath(@__DIR__, "cum_defs.jl"))
-import Cadence: PhaseBody, Executor, DataPlane, Control, Run, SnapshotLog, child_connections,
+import Redstone: PhaseBody, Executor, DataPlane, Control, Run, SnapshotLog, child_connections,
     input_connections, output_connections, transparent_container
 ct() = Base.cumulative_compile_time_ns()[1] / 1e9
 

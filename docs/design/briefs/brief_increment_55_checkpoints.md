@@ -108,7 +108,7 @@ rewrites is listed under "Stage 1"; this is the reading.
   zero; `t0_without_about`'s message (1921–1923) naming `capture(sim)`;
   `StepError`'s renderer, pointer-0 branch (about 1900–1912); the
   `ServiceLifecycle` comment on `capture`'s legal list (1156–1160).
-- `Cadence.jl` includes `trace.jl` before `sim.jl`; `test/imports.jl`
+- `Redstone.jl` includes `trace.jl` before `sim.jl`; `test/imports.jl`
   imports `TraceHeader` (33), `_compile_feed` (44), `capture` and
   `capture_stores` (47–48). `show.jl` has no site.
 
@@ -371,7 +371,7 @@ restore and the check; `trace.jl` with `TraceHeader` gone and the header
 field's new type; `sim.jl` with `checkpoint`, `restore!`, `init!`'s new
 order and `replay!`'s new body and keyword; `diagnostics.jl` with
 `CheckpointMismatch` and `CheckpointMidFrame` and the pointer-0 recipe;
-`Cadence.jl`'s include; `test/imports.jl`. `capture` and `linearize` stay
+`Redstone.jl`'s include; `test/imports.jl`. `capture` and `linearize` stay
 as they are in this stage, so the suite stays green with `capture` still
 reading the store; stage 3 retires it.
 

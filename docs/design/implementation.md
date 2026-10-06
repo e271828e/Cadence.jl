@@ -39,7 +39,7 @@ the layers cooperating, which no source file owns. `test_leaves.jl` is the one
 file kept for a source file rather than a property: the leaf walk has no
 single consumer to own it.
 
-### `src/Cadence.jl`
+### `src/Redstone.jl`
 
 The package module: the dependencies and the include order the other files load
 in.
@@ -754,7 +754,7 @@ pinned on purpose, which it must refuse.
 
 ### `test/imports.jl`
 
-The suite's `import Cadence:` list, shared with `repl.jl` — the one place a
+The suite's `import Redstone:` list, shared with `repl.jl` — the one place a
 framework name the tests call or extend is admitted.
 
 ### `test/repl.jl`
@@ -777,9 +777,9 @@ Traps the code does not warn about, each hit more than once while building:
   `DeadStage` does not reach it — a method the framework never sees is not a
   method returning `(;)` (§5.2, §9.3);
 - **extending a declaration without importing it is silent.** After
-  `using Cadence`, a bare `y_state(::MyComp, …)` creates a local generic
+  `using Redstone`, a bare `y_state(::MyComp, …)` creates a local generic
   with no error or warning, exported or not (Julia ≤1.11 raised; only `using
-  Cadence: y_state` still errors). The build sees the same
+  Redstone: y_state` still errors). The build sees the same
   declares-nothing component, and an optional declaration (`state_events`,
   `x_projection`, `m_init`, `ws_init`, `sample_times`, the
   connection declarations) silently drops its feature. The diagnostic that
@@ -787,7 +787,7 @@ Traps the code does not warn about, each hit more than once while building:
   before the class is read, off a foreign binding of a D-220 name in
   `parentmodule(typeof(c))`; the local-scope case above is the one it cannot
   reach;
-- the suite reaches the framework through `test/imports.jl`'s `import Cadence:`
+- the suite reaches the framework through `test/imports.jl`'s `import Redstone:`
   list, so a test that calls or extends a name not on it fails with an
   `UndefVarError` — add the name there. A fixture reusing a framework name
   collides loudly, where the old `Main` arrangement let it clobber silently;
@@ -804,7 +804,7 @@ Traps the code does not warn about, each hit more than once while building:
   after `[]`, which boxes 16 bytes;
 - **a type's printed form depends on the printing module**, so never
   interpolate one into a name a test or a trace compares (`string(typeof(x))`
-  reads `Pad` from `Main` and `Main.CadenceTests.Pad` from the test module).
+  reads `Pad` from `Main` and `Main.RedstoneTests.Pad` from the test module).
   Every payload field and writer label naming a *user* type goes through
   `_typename` (`diagnostics.jl`), which is `nameof` and so module-independent;
   the two `string(typeof(...))` left in `trim.jl` name a *framework* type on
@@ -933,10 +933,10 @@ From the repository root:
     julia --project=test test/runtests.jl                        # all of it
     julia --project=test test/runtests.jl roster devices trace   # named files
 
-The suite is the one `CadenceTests` module in `test/CadenceTests.jl`: the
-includes, the `import Cadence:` list (`imports.jl`), `runall()` and
+The suite is the one `RedstoneTests` module in `test/RedstoneTests.jl`: the
+includes, the `import Redstone:` list (`imports.jl`), `runall()` and
 `runonly(names...)`. Each file's tests are one function
-(`CadenceTests.test_trace()`), the tightest loop in a live session;
+(`RedstoneTests.test_trace()`), the tightest loop in a live session;
 `julia --project=test -L test/repl.jl` opens one with the list and the
 fixtures in `Main`. The tests are a workspace member (`[workspace]` in
 `Project.toml`), so one root `Manifest.toml`, never committed, resolves both.
@@ -957,7 +957,7 @@ override:
 | `readers`, `conditions`, `trim`, `linearize` | `readers conditions trim linearize` |
 | a new `AbstractComponent` fixture in any test file | add `build`, since `test_build.jl`'s Dual-activation sweep pins the skipped count |
 | `show` | `show` |
-| `sim`, `deployment`, `store`, `leaves`, `Cadence`, or `diagnostics.jl` beyond a new kind | all of it |
+| `sim`, `deployment`, `store`, `leaves`, `Redstone`, or `diagnostics.jl` beyond a new kind | all of it |
 
 To check a refactor for test loss, compare the suite's own assertion total;
 `grep -c '@test '` misses the loops that multiply them.

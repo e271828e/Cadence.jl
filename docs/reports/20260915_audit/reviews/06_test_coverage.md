@@ -157,7 +157,7 @@ condition, reader, and trim paths lack coverage.
 
 | File(s) | Property coverage inspected | Principal limits found |
 | --- | --- | --- |
-| `CadenceTests.jl`, `runtests.jl`, `repl.jl`, `imports.jl`, `Project.toml`, `utils.jl` | Harness, named-file dispatch, explicit imports, test environment, shared assertions | Harness does not encode a normative inventory or prevent missing test files/APIs. |
+| `RedstoneTests.jl`, `runtests.jl`, `repl.jl`, `imports.jl`, `Project.toml`, `utils.jl` | Harness, named-file dispatch, explicit imports, test environment, shared assertions | Harness does not encode a normative inventory or prevent missing test files/APIs. |
 | `fixtures.jl` | Shared component, event, device, binding, trace, and trim worlds | Rich fixture reuse can mask untested declaration shapes; it contains no enum-port or nested-container-only world. |
 | `test_declare.jl`, `test_assembly.jl`, `test_build.jl` | Declarations, hierarchy, wiring, faces, rate scopes, build, activation, feedthrough | Auto-publication now has focused positive/negative coverage; dead stage, SCC precision, enum ports/probes, public `ProbeDual`, and build rendering remain absent or divergent. |
 | `test_leaves.jl`, `test_store.jl` | Leaf walk, retyping, wire relation, mixed stores, gather/scatter, workspace | Enum leaf vocabulary is not exercised; source rejects it as an empty port layout. |

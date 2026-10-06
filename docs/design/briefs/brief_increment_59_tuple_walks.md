@@ -118,7 +118,7 @@ reads, is a deviation. Make one only for a stated reason and report it.
   that the generated method creates no ambiguity with one.
 
 `src/conditions.jl`, `src/readers.jl` and `src/bindings.jl` are included
-after `src/executor.jl`. Confirm it in `src/Cadence.jl`: a generator may
+after `src/executor.jl`. Confirm it in `src/Redstone.jl`: a generator may
 call only functions defined before it.
 
 ## Tests

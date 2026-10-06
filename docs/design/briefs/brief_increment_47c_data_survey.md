@@ -1,6 +1,6 @@
 # Increment 47c — The data survey's fixes: D-261's placements and the unrostered fixes (§9.2, §11.2, §11.3, §12.6, §13.5, Appendix B, D-261)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `296f4a0` (the docs commit below) plus the commit that adds this
 brief. Line numbers for `src/sim.jl` are those of `296f4a0`. Every other
 `src/` file is unchanged since `aa9162a`, the survey's tip, so the slice
@@ -319,7 +319,7 @@ Slice C, finding 3, as D-261 reduced it: `RosterEntry` (`roster.jl:120–130`)
 loses `binding`, `writer` and `diag`, keeps `dev`, `id`, `drain`,
 `should_abort`, `acct`, `handle`.
 
-- The include order (`Cadence.jl:17–21`: `dataplane`, `trace`, `roster`,
+- The include order (`Redstone.jl:17–21`: `dataplane`, `trace`, `roster`,
   `bindings`, `devices`) puts `DeviceHandle` after `RosterEntry`, and the
   handle holds a `Control` and a compiled gather from the two later files,
   so typing the field would move three definitions across files. Do not.

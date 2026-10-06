@@ -1,5 +1,5 @@
 # D: the first trim! of a new shape, end to end, at n condition writes and one read.
-using Cadence, BenchmarkTools, StaticArrays, LinearAlgebra, ForwardDiff
+using Redstone, BenchmarkTools, StaticArrays, LinearAlgebra, ForwardDiff
 const T = joinpath(ARGS[1], "test")
 include(joinpath(T, "imports.jl")); include(joinpath(T, "fixtures.jl"))
 

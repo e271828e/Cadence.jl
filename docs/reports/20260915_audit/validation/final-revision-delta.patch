@@ -24,7 +24,7 @@ index 125baf6..bb11f28 100644
 +| `src/conditions.jl` | the condition algebra, one collecting pass behind both application registers, each `at` prefix walked from its authoring level (§13.3) — `resolve_condition` (values) and `compile_plan` (`Getter{P}` lenses, `SpecializedPlan`, `ConditionShapeDrift`) — root-input totality, `capture` | §9.5, §13.1, §13.3, §14.1–§14.6, D-063–D-068, D-130, D-204, D-205, D-207 |
  | `src/trim.jl` | `TrimProblem`, the `solve` seam with `LevenbergMarquardt`, `trim!` over D-213's two-half scratch world, `TrimReport`, the `Trim*` kinds | §9.6, §13.1, §14.5–§14.8, D-070, D-158, D-213, D-224 |
  | `test/fixtures.jl` | the suite's fixtures: the coverage component set, the named assemblies, the devices and bindings, the `condition` fragment-function idiom, `Pendulum` — user material, and no name here is known to `src/` | — |
- | `test/imports.jl` | the suite's `import Cadence:` list, shared with `repl.jl` — the one place a framework name the tests call or extend is admitted | — |
+ | `test/imports.jl` | the suite's `import Redstone:` list, shared with `repl.jl` — the one place a framework name the tests call or extend is admitted | — |
 diff --git a/docs/design/spec.md b/docs/design/spec.md
 index 425806e..d172a2a 100644
 --- a/docs/design/spec.md
@@ -485,7 +485,7 @@ diff --git a/test/imports.jl b/test/imports.jl
 index b071f9f..b580718 100644
 --- a/test/imports.jl
 +++ b/test/imports.jl
-@@ -7,7 +7,7 @@ import Cadence: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
+@@ -7,7 +7,7 @@ import Redstone: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
      AbstractAtRoot, AttachUnknownFace, Authored, BindingContractMismatch, Build,
      CONTINUOUS, CallerTaskConflict, ChatteringBudget, ChildNameCollision,
      ClaimConflict, ClaimedFaceEntry, Class, ClassMixed, ClassUnreadable,
@@ -494,7 +494,7 @@ index b071f9f..b580718 100644
      ConditionShapeDrift, ConformanceFailure, ContainerMixed,
      ControlRequestedStop, CursorFrame, DIAG_RING, DISCRETE,
      DeclarationOnWrongTier, DeclaredNotProduced, DeploymentInvalid,
-@@ -21,7 +21,7 @@ import Cadence: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
+@@ -21,7 +21,7 @@ import Redstone: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
      ModelRequestedStop,
      NonfiniteState, NotAttached, OutOfClaimEntry, PRIMITIVE, PathResolution,
      Period, ProducedByTwoStages, PublishEntry, RK4, RatesViolation, ReadBindingUnresolved,
@@ -503,7 +503,7 @@ index b071f9f..b580718 100644
      ReplayHeaderMismatch, ReplaySchemaMismatch, ReplayUnknownFace,
      RootInputTypeConflict, Scoped, ServiceLifecycle, Simulation, Snapshot,
      SpecializedPlan, StageEntry, StateEvent, StepError, StopFaceInvalid, StoreBundle,
-@@ -33,7 +33,7 @@ import Cadence: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
+@@ -33,7 +33,7 @@ import Redstone: ASSEMBLY, Absolute, AbstractBinding, AbstractComponent,
      WalkingFaceAtFrozenEntry, WireTypeMismatch,
      _accepts, _accepts_wire, _bump, _leaf_values, _cell_key, _compile_feed, _compile_reads, _heartbeat,
      _mflatten_expr, _mreconstruct_expr, _report!, _reschema, _saturated,
@@ -697,12 +697,12 @@ index e3103af..07374c7 100644
          end
 +        # A declared generic holding renders through `_typename` like any other
 +        # name: the variable and its bound, unqualified, whoever is printing — the
-+        # `string(::TypeVar)` spelling reads `Cadence.AbstractComponent` from
++        # `string(::TypeVar)` spelling reads `Redstone.AbstractComponent` from
 +        # anywhere but this module. A payload claim, so it sits here rather than in
 +        # the rendering testset below.
 +        m = message(only(d for d in occurrences
 +                         if d isa PathResolution && d.reason === :past_generic))
-+        @test occursin("`L<:AbstractComponent`", m) && !occursin("Cadence.", m)
++        @test occursin("`L<:AbstractComponent`", m) && !occursin("Redstone.", m)
 +        # A `Union`-typed holding has no name to take: it renders from its members,
 +        # in the order Julia itself keeps them.
 +        @test _typename(Union{Plant, Gain}) == "Union{Gain, Plant}"

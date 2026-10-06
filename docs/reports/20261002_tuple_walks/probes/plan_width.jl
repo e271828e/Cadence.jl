@@ -1,5 +1,5 @@
 # conditions.jl's two `Base.tail` recursions: does `apply!` allocate past 32 writes?
-using Cadence, BenchmarkTools, StaticArrays, LinearAlgebra
+using Redstone, BenchmarkTools, StaticArrays, LinearAlgebra
 const T = joinpath(ARGS[1], "test")
 include(joinpath(T, "imports.jl")); include(joinpath(T, "fixtures.jl"))
 for n in (16, 32, 33, 40, 64)

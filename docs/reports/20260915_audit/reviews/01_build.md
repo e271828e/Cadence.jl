@@ -90,7 +90,7 @@ The activation machinery itself accepts concrete scalar types and caches them co
 
 **Severity: medium.** Spec §8.1 requires the build to inspect the component's parent module when a required declaration appears absent and distinguish a same-name foreign binding: `StoreWithoutUpdate` gains that note, and otherwise the failure is `ClassUnreadable` (`spec.md:1791-1800`). D-117 records the diagnostic intent (`decisions.md:3372-3383`).
 
-Class and tier detection query only Cadence's declaration generics (`src/assembly.jl:39-49`, `src/build.jl:86-113`). They never examine `parentmodule(typeof(c))` for a foreign binding. The associated diagnostic payloads have no shadowing provenance (`src/diagnostics.jl:393-429`). A Julia 1.12+ missing import can therefore present as an unrelated class/store failure rather than the required actionable diagnosis.
+Class and tier detection query only Redstone's declaration generics (`src/assembly.jl:39-49`, `src/build.jl:86-113`). They never examine `parentmodule(typeof(c))` for a foreign binding. The associated diagnostic payloads have no shadowing provenance (`src/diagnostics.jl:393-429`). A Julia 1.12+ missing import can therefore present as an unrelated class/store failure rather than the required actionable diagnosis.
 
 ### 10. Contract arity mismatches use the wrong diagnostic kind
 

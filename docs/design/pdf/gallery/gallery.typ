@@ -2,7 +2,7 @@
 // Build with `make gallery` in the parent directory. To adopt a theme, copy it
 // set THEME in ../Makefile. The panel, fonts, fill and size match style.typ.
 #let themes = (
-  "themes/cadence.tmTheme",
+  "themes/redstone.tmTheme",
   "themes/GitHub.tmTheme",
   "themes/Solarized_light.tmTheme",
   "themes/Tomorrow.tmTheme",

@@ -249,7 +249,7 @@ function s_update end
 # --- the family, and the forgotten import (§8.1, D-246) -----------------------
 # The declaration and stage family, in §8.1's import-list order. Every name here
 # is a generic function this module owns, which is what makes the check below a
-# comparison against `Cadence`'s own object.
+# comparison against `Redstone`'s own object.
 
 const DECLARATION_FAMILY = (:x_init, :s_init, :m_init, :ws_init,
     :u_types, :y_types, :state_events, :y_state, :y_direct,

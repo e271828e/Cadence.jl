@@ -1,4 +1,4 @@
-# Naming inventory: src/Cadence.jl
+# Naming inventory: src/Redstone.jl
 
 Tip: f64b9f3. Sites flagged: 0. Renames: 0. Collisions: 0. Roster proposals: 0.
 

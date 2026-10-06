@@ -1,6 +1,6 @@
 # Increment 47 — `Run`, `StopPolicy`, the trace split and the `Simulation` regroup (§11.5, §11.8, §12.1, §12.6, §12.7, §13.5, Appendix B, Appendix C, D-250, D-255, D-256)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `9e1577d` (the docs amendment below) plus the commit that adds this
 brief. The line numbers cited are those of `8b5a574`; the docs commit shifts
 the spec by two lines after §11.5 and one more after Appendix C's
@@ -374,7 +374,7 @@ struct TraceHeader{T}
 end
 ```
 
-`trace.jl` precedes `deployment.jl` in the include order (`Cadence.jl:18`,
+`trace.jl` precedes `deployment.jl` in the include order (`Redstone.jl:18`,
 22); move `include("trace.jl")` to after `deployment.jl` and before
 `sim.jl`, or type the field `Any`. Move the include: `roster.jl`'s
 `DataPlane` takes the register untyped already (`roster.jl:186`), and

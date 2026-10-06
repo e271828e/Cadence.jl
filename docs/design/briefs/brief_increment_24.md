@@ -1,6 +1,6 @@
 # Increment 24 — runtime failures (§13.4): the execution cursor, `StepError`, the interrupt carve-out and the nonfinite sweep
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `10fcae1`. Never `cd` elsewhere (`cd` is aliased to zoxide in the
 user's shell; use absolute paths). Read `docs/implementation/status.md` first,
 then `map.md`/`tests.md` on demand. Spec sections to read in full before

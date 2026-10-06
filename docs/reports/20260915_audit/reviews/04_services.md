@@ -39,7 +39,7 @@ The probe invokes both required halves (`probes/services_confirmed_gaps.jl:24-28
 
 **Severity: high.** Section 14.10 specifies the main continuous linearization surface: three tap lists, validated/relocatable selectors, per-invocation scratch, chunked `Dual` seeding, simultaneous `A/B/C/D` and operating-point vectors, pure-query behavior, and labeled output (`spec.md:9088-9189`). D-072 ratifies that surface (`decisions.md:1965-1987`). The later sampled-data step-map extension alone is explicitly “recorded, not built” (`spec.md:9199-9204`); that qualification does not defer the continuous service.
 
-There is no `linearize`, taps value, linearization result, or subsystem/delete-vars implementation under `src/**`, and no linearization test under `test/**`. The shared lower-level pieces are present—condition plans, readers, activation-specific scratch executors—but the public service they are specified to support is missing. `isdefined(Cadence, :linearize)` is `false` in the probe (`probes/services_confirmed_gaps.jl:54`).
+There is no `linearize`, taps value, linearization result, or subsystem/delete-vars implementation under `src/**`, and no linearization test under `test/**`. The shared lower-level pieces are present—condition plans, readers, activation-specific scratch executors—but the public service they are specified to support is missing. `isdefined(Redstone, :linearize)` is `false` in the probe (`probes/services_confirmed_gaps.jl:54`).
 
 ### 3. A statically invalid selector index resolves and fails later with `BoundsError`
 

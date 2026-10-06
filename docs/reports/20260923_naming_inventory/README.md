@@ -29,7 +29,7 @@ recommendation in place.
 | store | 36 | 15 | 0 |
 | roster | 29 | 17 | 0 |
 | show | 20 | 4 | 1 |
-| Cadence | 0 | 0 | 0 |
+| Redstone | 0 | 0 | 0 |
 | **total** | **2154** | **1079** | **56** |
 
 ## 1. Rule clarifications

@@ -1,5 +1,5 @@
 # E: how publish!'s bytes scale with the signal table and with the roster.
-using Cadence, StaticArrays, LinearAlgebra
+using Redstone, StaticArrays, LinearAlgebra
 const T = joinpath(ARGS[1], "test")
 include(joinpath(T, "imports.jl")); include(joinpath(T, "fixtures.jl"))
 saw(n) = Group(NamedTuple{ntuple(i -> Symbol(:s, i), n)}(ntuple(_ -> Sawtooth(1.0), n)))

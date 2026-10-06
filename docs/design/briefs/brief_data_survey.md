@@ -1,6 +1,6 @@
 # The data survey — redundant and misplaced data in `src/`
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip
 `34f8a39`. Read-only: no edits, no commits, no suite run. Never `cd`
 elsewhere (`cd` is aliased to zoxide in the user's shell); use absolute
 paths. Scratch files go in the scratchpad directory your prompt names,

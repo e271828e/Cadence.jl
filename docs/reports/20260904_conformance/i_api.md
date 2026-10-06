@@ -9,9 +9,9 @@
 - **Tip**: `70672d1`, Julia 1.12.7.
 - **Probes run**: yes, three, all foreground `julia --project=.` from the
   repository root. (1) A name-existence sweep over every symbol Appendix B
-  names, plus `names(Cadence)`. (2) A `Base.kwarg_decl` sweep over the
+  names, plus `names(Redstone)`. (2) A `Base.kwarg_decl` sweep over the
   keyword signatures of `Simulation`, `run!`, `step!`, `attach!`, `build`,
-  `trim!`, `replay!` and `fragment`, plus `Cadence._t_bound_diag(Inf)` and
+  `trim!`, `replay!` and `fragment`, plus `Redstone._t_bound_diag(Inf)` and
   `fieldnames(TrimProblem)`. (3) A one-model run asserting the `t_end`
   rounding rule. Scripts are in the session scratchpad.
 - **Forbidden files opened**: none. I read `docs/design/implementation.md`'s
@@ -31,12 +31,12 @@ default.
 
 Four things stand out.
 
-**Nothing is exported.** `src/Cadence.jl` carries no `export` statement, and
-`names(Cadence)` returns `[:Cadence]` alone. Appendix B calls its contents
+**Nothing is exported.** `src/Redstone.jl` carries no `export` statement, and
+`names(Redstone)` returns `[:Redstone]` alone. Appendix B calls its contents
 "the user-facing surface"; §4.4 and §9.4 say "exported function" and
 "exported canonical probe scalar". The test suite reaches the whole surface
-through one 200-name `import Cadence: …` block in `test/CadenceTests.jl`. A
-user writing `using Cadence` gets nothing. This is the single largest gap
+through one 200-name `import Redstone: …` block in `test/RedstoneTests.jl`. A
+user writing `using Redstone` gets nothing. This is the single largest gap
 between the appendix's framing and the package, and it is one line of work.
 
 **The pacing and GUI half of `run!` does not exist.** `run!(sim; …)` takes
@@ -106,7 +106,7 @@ short.
 
 | § (line) | claim | verdict | location | test | note |
 |---|---|---|---|---|---|
-| B (9811) | "the user-facing surface": these names are exported | absent | `src/Cadence.jl:1-24` | — | see 4.3 |
+| B (9811) | "the user-facing surface": these names are exported | absent | `src/Redstone.jl:1-24` | — | see 4.3 |
 | B (9820) | continuous leaf: `init_x`/`init_m`, `init_workspace(::C,::Type{T})`, `input_types`/`output_types` by type | accurate | `src/declare.jl:22,37,46,55,68` | `test_declare.jl:35` | |
 | B (9823) | stages `output_state`/`output_direct`/`state_derivative` | accurate | `src/declare.jl:224-226` | `test_continuous.jl:4` | |
 | B (9824) | `StateEvent(guard, handler)`; policy from the guard's return type | accurate | `src/declare.jl:182`, `src/build.jl:615-640` | `test_events.jl:108` | |
@@ -298,15 +298,15 @@ Appendix B (9813) calls its contents "The user-facing surface on one page".
 §4.4 requires field constructors to be "plain, pure, exported"; §9.4 calls
 `ProbeDual` "the framework's exported canonical probe scalar".
 
-`src/Cadence.jl` is 24 lines: a `using`, twenty `include`s, `end`. No file
+`src/Redstone.jl` is 24 lines: a `using`, twenty `include`s, `end`. No file
 under `src/` contains the word `export`. My probe confirmed
-`names(Cadence) == [:Cadence]` and that all 74 Appendix-B names I checked
-report `exported = false`. `test/CadenceTests.jl:6-…` reaches the surface
-through one long `import Cadence: …`.
+`names(Redstone) == [:Redstone]` and that all 74 Appendix-B names I checked
+report `exported = false`. `test/RedstoneTests.jl:6-…` reaches the surface
+through one long `import Redstone: …`.
 
-Why it matters: `using Cadence` in a model package brings in nothing, so
+Why it matters: `using Redstone` in a model package brings in nothing, so
 every author-side declaration (`init_x`, `output_direct`, `child_connections`)
-must be extended as `Cadence.init_x` or imported by name. That is a working
+must be extended as `Redstone.init_x` or imported by name. That is a working
 arrangement, but it is not the one the appendix describes, and the
 distinction the spec draws between a curated exported surface and internal
 machinery is not drawn anywhere in the code.
@@ -317,7 +317,7 @@ Appendix B (9833) lists "Shipped conditions: `condition(::C; kw)` fragment
 functions" in the authoring surface, and (10010) "`condition(comp; kw)` — the
 shipped fragment-function idiom".
 
-`isdefined(Cadence, :condition)` is `false`. The idiom is exercised only in
+`isdefined(Redstone, :condition)` is `false`. The idiom is exercised only in
 `test/fixtures.jl:746,749,758,767,929`, where `condition` is a fresh function
 local to the test module. `TrimProblem` has a `condition` *field*
 (`src/trim.jl:52`), which is unrelated.
@@ -378,7 +378,7 @@ additionally pins activation invariants for CI (`ProbeDual` the exported
 canonical concrete probe scalar, §9.4)". §9.4 (spec:3309) spells it
 `const ProbeDual = ForwardDiff.Dual{ProbeTag, Float64, 1}`.
 
-`isdefined(Cadence, :ProbeDual)` is `false`, and `grep -rn ProbeDual src/
+`isdefined(Redstone, :ProbeDual)` is `false`, and `grep -rn ProbeDual src/
 test/` returns nothing. The `activations` keyword itself is built and tested
 (`src/build.jl:381,387-390`; `test_build.jl:241` uses a Dual constructed
 locally), so the gap is the one exported constant and the tag behind it. The
@@ -434,7 +434,7 @@ being what keeps such a session from growing without limit".
 `src/sim.jl:131` defaults `t_end = nothing`, and `_t_bound_diag`
 (`src/sim.jl:186`) is `(t isa Real && isfinite(t) && t ≥ 0)`, so `Inf` is
 rejected. My probe confirmed:
-`Cadence._t_bound_diag(Inf)` returns `DeploymentInvalid(:t_end, :range, Inf,
+`Redstone._t_bound_diag(Inf)` returns `DeploymentInvalid(:t_end, :range, Inf,
 …)`. `run!` on a simulation with no bound from either site raises
 `ArgumentInvalid(call = :run!, reason = :no_clock_bound)`
 (`src/sim.jl:878`), asserted at `test_lifecycle.jl:114-118`.
@@ -489,7 +489,7 @@ C, D)` — pure query, one seeded Dual pass on scratch; operating point defaults
 to `capture(sim)`; taps = `get_state`/`get_input`/`get_output` selector lists
 with control-design labels (§14.10)."
 
-`isdefined(Cadence, :linearize)` is `false`; the only hit for the string in
+`isdefined(Redstone, :linearize)` is `false`; the only hit for the string in
 `src/` is a comment in `src/trim.jl:189` about the linearized LM step. The
 ingredients are all built — the selector family with its optional component
 index for named scalars (`src/readers.jl:22-80`), the compiled reader

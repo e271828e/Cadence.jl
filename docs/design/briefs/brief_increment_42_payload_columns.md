@@ -1,6 +1,6 @@
 # Increment 42 — the Appendix C payload fills and the contract-arity move (§6.1, §8.5, §8.6, §9.5, §11.3, §12.6, §13.2, §13.5, Appendix C, D-216, D-249)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `cff996f` (the docs-first commit) plus the register commit that adds
 this brief. Never `cd` elsewhere (`cd` is aliased to zoxide in the user's
 shell; use absolute paths).

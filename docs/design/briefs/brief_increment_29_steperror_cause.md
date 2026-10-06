@@ -1,6 +1,6 @@
 # Increment 29 — parametrize `StepError` on its cause's type
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `436dda3`. Never `cd` elsewhere (`cd` is aliased to zoxide in the
 user's shell; use absolute paths).
 
@@ -22,7 +22,7 @@ whole file:
 
 - "Running the suite" (108–140).
 - The file-table rows for `src/diagnostics.jl` (20) and `src/sim.jl` (27).
-- **"Authoring caveats" in full (58–107)** — always. The `import Cadence:`
+- **"Authoring caveats" in full (58–107)** — always. The `import Redstone:`
   bullet does not bite here: `StepError` is already imported and no new
   name is exported.
 

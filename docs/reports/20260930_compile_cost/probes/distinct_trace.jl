@@ -20,7 +20,7 @@ plantk(k) = getfield(Main, Symbol(:PlantK, k))(2.0, 0.3)
 manyk(N, k0) = Group(NamedTuple{ntuple(i -> Symbol(:m, i), N)}(ntuple(i -> loop(plantk(k0 + i)), N));
     inputs = ("ref" => ntuple(i -> "m$(i)/ref", N),))
 const Thunk = Core.OpaqueClosure{Tuple{}, Nothing}
-entry_thunk(entry, store, xbuf, ẋbuf)::Thunk = @opaque Tuple{} -> Nothing () -> (Cadence.run_entry!(entry, store, xbuf, ẋbuf); nothing)
+entry_thunk(entry, store, xbuf, ẋbuf)::Thunk = @opaque Tuple{} -> Nothing () -> (Redstone.run_entry!(entry, store, xbuf, ẋbuf); nothing)
 walk_thunks(v::Vector{Thunk}) = (for f in v; f(); end; nothing)
 
 steps = parse(Int, ARGS[1])

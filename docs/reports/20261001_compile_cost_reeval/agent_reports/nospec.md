@@ -100,7 +100,7 @@ Round 2 (probe closures read the instance instead of capturing it;
 | `Base._array_for` | 0.003 | `Tuple{Pair{String, NTuple{64,String}}}` |
 
 None of these is keyed on the `Group`'s children. All five come from the root's
-fanned input `"rate_ref" => Tuple(64 paths)`. `@nospecialize` on the three Cadence
+fanned input `"rate_ref" => Tuple(64 paths)`. `@nospecialize` on the three Redstone
 functions was tried and reverted: the same 43 ms moved into `Base.repr`,
 `Base.reduce` and a `Generator` constructor over the same tuple.
 

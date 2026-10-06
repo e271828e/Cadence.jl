@@ -1,7 +1,7 @@
 > Historical report at `6986ad4`; preserved before the 2026-09-17 refresh.
 > Relative links adjusted for this archive location.
 
-# Cadence conformance and design audit
+# Redstone conformance and design audit
 
 Audit opened 2026-09-15; reconciled with the checkout on 2026-09-16.
 
@@ -322,7 +322,7 @@ Explicitly deferred deliverables are listed separately below.
 | G-06 | Medium | **Probe synthesis lacks its specified diagnostic and enum default.** §9.3/D-051 require enum first-instance synthesis and `MissingProbeValue` for unavailable construction. `src/declare.jl:331–334` falls through to `P()` and leaks `MethodError`. | Resolve all synthesis failures with root-face/type context before dependent evaluation; test multiple failures and enum roots. |
 | G-07 | Medium | **Probe/bundle error framing is missing.** §§5.2/13.2 require `BundleFieldError` and `UserCodeFraming`. The raw bundle miss reproduces `FieldError`; neither kind is defined. | Add a context-aware user-evaluation boundary and preserve original causes. Keep fail-fast evaluation distinct from collected declarative checks. |
 | G-08 | Medium | **Public canonical `ProbeDual` is absent.** §9.4 explicitly names it. Custom `D8` tests exercise genericity without verifying the promised API. | Add the canonical concrete type and exercise the documented exhaustive-build call. |
-| G-09 | Medium | **Foreign same-name declaration bindings are not diagnosed.** §8.1 requires shadowing context when required declarations appear absent; classification only inspects Cadence generics. | Test a component module with a foreign declaration binding; enrich the actual missing-class/store diagnostic. |
+| G-09 | Medium | **Foreign same-name declaration bindings are not diagnosed.** §8.1 requires shadowing context when required declarations appear absent; classification only inspects Redstone generics. | Test a component module with a foreign declaration binding; enrich the actual missing-class/store diagnostic. |
 | G-10 | Medium | **Named build/schedule inspection views are incomplete.** §§9.2/13.7 require face provenance, anchor/component tables, rate-scope rows, bound provenance, hyperperiod chart and grid-driver explanations/`GridUtilization`. Internal dictionaries and `(path,D,Φ,Δt)` rows are insufficient. | Preserve provenance through binding and test the named views. Ordinary Julia printing of internal data is already available; the finding is not a demand for an arbitrary new universal `show` method. |
 | G-11 | Low | **Some diagnostic payloads omit required context.** Examples: `ContainerMixed` lacks offending positions; face collision lacks both origins; read-binding `GetOutput`/`GetFace` failures lack candidate names. Storage review SD-06 lists eleven remaining payload discrepancies, including replay provenance and attachment context; these overlap other rows here. | Use the Appendix C inventory and payload assertions, rather than merely checking that an exception was thrown. The auto-publication `state_fields` and path-resolution declared-type omissions are fixed. Runtime conformance time is available on outer `StepError`; its placement is a schema discrepancy, not missing runtime context. |
 | G-12 | Low | **Root probe values survive into built runtime cells.** §9.3 says these are probe-scoped; layout retains them and compiler scatters them before `init!`. | Clarify pre-init observation or remove runtime seeding from fabricated roots. Current totality/lifecycle gates overwrite them before normal advancement; no initialized-trajectory defect is claimed. |

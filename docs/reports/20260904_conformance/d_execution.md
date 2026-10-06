@@ -375,7 +375,7 @@ exact spelling (`Period(1//50)`, or `Hz(1//2)` for 0.5 Hz)." I ran a probe
 because the claim is about message text, which reading alone does not settle.
 
 ```
-julia --project=. -e 'using Cadence; Cadence.Period(0.02)'
+julia --project=. -e 'using Redstone; Redstone.Period(0.02)'
 ```
 
 The four cases returned:

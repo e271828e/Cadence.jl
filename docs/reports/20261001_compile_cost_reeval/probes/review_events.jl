@@ -1,9 +1,9 @@
 # Events, modes and projections past one chunk and past 32 elements: the paths
 # the study's fixtures never reach. Run on base and on recommended; diff outputs.
-using Cadence, StaticArrays, LinearAlgebra, ForwardDiff
+using Redstone, StaticArrays, LinearAlgebra, ForwardDiff
 const T = joinpath(ARGS[1], "test")
 include(joinpath(T, "imports.jl")); include(joinpath(T, "fixtures.jl"))
-include("/Users/miguel/.julia/dev/Cadence.jl/docs/reports/20261001_compile_cost_reeval/probes/fixtures.jl")
+include("/Users/miguel/.julia/dev/Redstone.jl/docs/reports/20261001_compile_cost_reeval/probes/fixtures.jl")
 N = 40
 names = Symbol[]; kids = Any[]
 for i in 1:N
@@ -29,13 +29,13 @@ end
 
 # A guard that throws mid-run, in the 37th event of 40: which component does the error name?
 struct Bomb <: AbstractComponent; k::Int; end
-Cadence.x_init(::Bomb) = (q = 0.0,)
-Cadence.y_types(::Bomb) = (q = Float64,)
-Cadence.y_state(::Bomb, (; x)) = (q = x.q,)
-Cadence.x_deriv(::Bomb, (; x)) = (q = 1.0,)
+Redstone.x_init(::Bomb) = (q = 0.0,)
+Redstone.y_types(::Bomb) = (q = Float64,)
+Redstone.y_state(::Bomb, (; x)) = (q = x.q,)
+Redstone.x_deriv(::Bomb, (; x)) = (q = 1.0,)
 bomb_guard(c::Bomb, (; x)) = (c.k == 37 && x.q > 0.25 && error("boom in guard of $(c.k)"); x.q > 10.0)
 bomb_handler(::Bomb, (; x)) = (x = (q = 0.0,),)
-Cadence.state_events(::Bomb) = (go = StateEvent(bomb_guard, bomb_handler),)
+Redstone.state_events(::Bomb) = (go = StateEvent(bomb_guard, bomb_handler),)
 broot = Group(NamedTuple{Tuple(Symbol(:k, i) for i in 1:N)}(Tuple(Bomb(i) for i in 1:N)))
 bsim = Simulation(build(broot); h = 1//1000)
 init!(bsim, fragment())

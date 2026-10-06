@@ -152,7 +152,7 @@ between `init!` and `step!`), with both ports declared `T`:
 == 6. runtime table write ==
   mode=int:     ACCEPTED; q = 1.0, r = 0.0
   mode=extra:   ACCEPTED; q = 0.0, r = 0.0
-  mode=missing: RAISED Cadence.StepError
+  mode=missing: RAISED Redstone.StepError
     StepError: in the root component output_direct, event round 1 of the frame
     from boundary 0 (t = 0.01):
       replay!(sim2, trc; to_boundary = 0) then step!(sim2) reproduces it
@@ -179,7 +179,7 @@ downstream:
 ```
 BuildError: AlgebraicCycle: algebraic loop through stage-2 ports: a → b → z → w
   — break it with a stage-1 (`output_state`) port …
-kind = Cadence.AlgebraicCycle
+kind = Redstone.AlgebraicCycle
 members = ["a", "b", "z", "w"]
 fieldnames = (:members,)
 ```
@@ -279,7 +279,7 @@ Probe `p11.jl`, a component declaring `(M = T, P_shaft = T)` whose
 `output_state` returns `(M = 1.0, P_shft = 2.0)`:
 
 ```
-kinds: DataType[Cadence.UndeclaredReturnField]
+kinds: DataType[Redstone.UndeclaredReturnField]
   ``: output_state returns `P_shft`, which `output_types` does not declare —
   declare it, or drop it from the return; the declared ports are `M`, `P_shaft`
 ```

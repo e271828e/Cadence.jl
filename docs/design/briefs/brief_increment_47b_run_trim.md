@@ -1,6 +1,6 @@
 # Increment 47b — The run's trim: `t₀` and the policy off the run, the mode read off the feed, a `Float64` origin, `TraceRegister` retired (§11.5, §12.6, §12.7, §13.5, Appendix B, D-260)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `142c00a` (the docs commit below) plus the commit that adds this
 brief. The line numbers cited are those of `142c00a`.
 Never `cd` elsewhere (`cd` is aliased to zoxide in the user's shell; use

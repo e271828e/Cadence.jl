@@ -7,7 +7,7 @@
 # color theme; `make gallery` renders sample code under every theme in
 # gallery/themes/; `make shades` renders lighter and darker variants of one color.
 
-THEME = gallery/themes/cadence.tmTheme
+THEME = gallery/themes/redstone.tmTheme
 STYLE = pdf.yaml pdflinks.lua tablewidths.lua inlinecode.lua style.typ julia.sublime-syntax $(THEME) Makefile
 PANDOC = pandoc -d pdf.yaml --pdf-engine-opt=--input=theme=$(THEME)
 

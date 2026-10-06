@@ -1,6 +1,6 @@
 # Increment 41 — the §13.2 framing kinds: `UserCodeFraming` and `BundleFieldError` (§5.2, §9.3, §13.1, §13.2, §13.4, Appendix C, D-142, D-221, D-225, D-248)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `3c4efa1` (the docs-first commit) plus the register commit that adds
 this brief. Never `cd` elsewhere (`cd` is aliased to zoxide in the user's
 shell; use absolute paths).

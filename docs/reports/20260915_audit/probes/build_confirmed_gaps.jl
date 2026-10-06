@@ -1,6 +1,6 @@
-using Cadence
+using Redstone
 
-import Cadence: AbstractComponent, DiagnosticError, build, child_connections,
+import Redstone: AbstractComponent, DiagnosticError, build, child_connections,
     diagnostics, init_x, input_types, output_direct, output_state, output_types,
     state_derivative
 

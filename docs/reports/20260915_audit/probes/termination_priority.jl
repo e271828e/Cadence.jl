@@ -1,5 +1,5 @@
-using Cadence
-const C = Cadence
+using Redstone
+const C = Redstone
 
 struct AuditStopAt <: C.AbstractComponent
     at::Float64

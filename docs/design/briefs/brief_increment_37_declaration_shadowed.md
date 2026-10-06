@@ -1,13 +1,13 @@
 # Increment 37 — the shadowing check: `DeclarationShadowed` (§8.1, Appendix C, D-117, D-220, D-246)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `0ed642f` plus the docs-first commit below. Never `cd` elsewhere
 (`cd` is aliased to zoxide in the user's shell; use absolute paths).
 
-**Standing.** After `using Cadence`, a bare `state_derivative(::Eng, …) = …`
+**Standing.** After `using Redstone`, a bare `state_derivative(::Eng, …) = …`
 in the author's module defines a new, unrelated `MyModule.state_derivative`.
 No error, no warning, on Julia 1.12 and later. Every declaration read by the
-build goes through `Cadence`'s own function objects (`_declares`,
+build goes through `Redstone`'s own function objects (`_declares`,
 `has_stage`), and Julia never dispatches across generic functions, so from
 the framework's side the author's method does not exist. The build then
 reports a modeling diagnostic far from the namespace mistake, or nothing at
@@ -71,18 +71,18 @@ brief was written (the coordinator's probe, `shadow_probe.jl`):
 
 ```julia
 M = parentmodule(typeof(c))
-foreign(n) = isdefined(M, n) && getfield(M, n) !== getfield(Cadence, n)
+foreign(n) = isdefined(M, n) && getfield(M, n) !== getfield(Redstone, n)
 ```
 
-- A bare definition after `using Cadence` reads as foreign.
-- A proper `import Cadence: n` reads as not foreign (`isdefined` true,
+- A bare definition after `using Redstone` reads as foreign.
+- A proper `import Redstone: n` reads as not foreign (`isdefined` true,
   identical object).
 - An untouched name is not defined (the family is unexported, D-117, so
   `using` brings none of it in).
 - A definition in `Main` at the REPL behaves like one in a package module.
 - `isdefined` does not resolve or perturb the binding: a name probed before
   a later bare definition still reads as foreign afterwards.
-- A framework-owned type (`Group`) has `Cadence` as its parent module and
+- A framework-owned type (`Group`) has `Redstone` as its parent module and
   can never read as foreign.
 
 ## The construct
@@ -115,7 +115,7 @@ function foreign_declarations(c)
 end
 ```
 
-Every name in the constant must be a generic function `Cadence` defines
+Every name in the constant must be a generic function `Redstone` defines
 (all seventeen are, lines 22–228). Do not add a name the framework does not
 own.
 
@@ -139,11 +139,11 @@ for exactly the foreign names:
 
 ```
 `a/b`: its module `Main.MyModel` defines its own `state_derivative`, distinct
-from `Cadence.state_derivative`; add `import Cadence: state_derivative` (§8.1)
+from `Redstone.state_derivative`; add `import Redstone: state_derivative` (§8.1)
 ```
 
 With several names: "defines its own `init_x`, `output_types`, distinct from
-`Cadence`'s; add `import Cadence: init_x, output_types` (§8.1)". Use
+`Redstone`'s; add `import Redstone: init_x, output_types` (§8.1)". Use
 `_at_path` for the path (the root component reads "the root component") and
 `_namelist` for the names. `mod` is `string(M)`: a module always prints
 fully qualified, from any printing module, so no `_typename` detour applies.
@@ -178,7 +178,7 @@ modules, one bare name each; the coordinator's probe put them in one and
 read the union four times. The fixture set's rule is that no declaration
 lives in a local scope; a nested module at fixtures.jl's **top level** is
 top level. Add, at the end of the file, one outer module holding four
-inner ones. Each inner module does its own `using Cadence` (a `using` in
+inner ones. Each inner module does its own `using Redstone` (a `using` in
 the outer module does not reach it) and imports nothing, so that a bare
 definition inside it is exactly the author's mistake:
 
@@ -187,14 +187,14 @@ definition inside it is exactly the author's mistake:
 The forgotten-import fixtures (§8.1, D-246), one module per case because
 the check reads the module: every bare definition below lands on a function
 of its own module, which is the mistake `DeclarationShadowed` names.
-Qualified `Cadence.f(…)` definitions are the ones that reach the framework.
+Qualified `Redstone.f(…)` definitions are the ones that reach the framework.
 """
 module Shadowed
 
 "Every declaration bare: the whole inventory shadowed."
 module Inventory
-using Cadence
-struct Leaf <: Cadence.AbstractComponent end
+using Redstone
+struct Leaf <: Redstone.AbstractComponent end
 init_x(::Leaf) = (q = 0.0,)
 output_types(::Leaf, ::Type{T}) where {T <: Real} = (y = T,)
 output_state(::Leaf, (; x)) = (y = x.q,)
@@ -203,38 +203,38 @@ end
 
 "A sound leaf whose update alone is bare: would have read as `StoreWithoutUpdate`."
 module Update
-using Cadence
-struct Leaf <: Cadence.AbstractComponent end
-Cadence.init_x(::Leaf) = (q = 0.0,)
-Cadence.output_types(::Leaf, ::Type{T}) where {T <: Real} = (y = T,)
-Cadence.output_state(::Leaf, (; x)) = (y = x.q,)
+using Redstone
+struct Leaf <: Redstone.AbstractComponent end
+Redstone.init_x(::Leaf) = (q = 0.0,)
+Redstone.output_types(::Leaf, ::Type{T}) where {T <: Real} = (y = T,)
+Redstone.output_state(::Leaf, (; x)) = (y = x.q,)
 state_derivative(::Leaf, (; x)) = (q = -x.q,)
 end
 
 "A sound leaf whose events alone are bare: builds today with no events."
 module Events
-using Cadence
-struct Leaf <: Cadence.AbstractComponent end
-Cadence.init_x(::Leaf) = (q = 1.0,)
-Cadence.output_types(::Leaf, ::Type{T}) where {T <: Real} = (y = T,)
-Cadence.output_state(::Leaf, (; x)) = (y = x.q,)
-Cadence.state_derivative(::Leaf, (; x)) = (q = -x.q,)
+using Redstone
+struct Leaf <: Redstone.AbstractComponent end
+Redstone.init_x(::Leaf) = (q = 1.0,)
+Redstone.output_types(::Leaf, ::Type{T}) where {T <: Real} = (y = T,)
+Redstone.output_state(::Leaf, (; x)) = (y = x.q,)
+Redstone.state_derivative(::Leaf, (; x)) = (q = -x.q,)
 state_events(::Leaf) = (;)
 end
 
 "A sound assembly whose rate declaration alone is bare: builds today on the parent's grid."
 module Rates
-using Cadence
-struct Leaf <: Cadence.AbstractComponent end
-Cadence.init_x(::Leaf) = (q = 1.0,)
-Cadence.output_types(::Leaf, ::Type{T}) where {T <: Real} = (y = T,)
-Cadence.output_state(::Leaf, (; x)) = (y = x.q,)
-Cadence.state_derivative(::Leaf, (; x)) = (q = -x.q,)
-struct Assembly <: Cadence.AbstractComponent
+using Redstone
+struct Leaf <: Redstone.AbstractComponent end
+Redstone.init_x(::Leaf) = (q = 1.0,)
+Redstone.output_types(::Leaf, ::Type{T}) where {T <: Real} = (y = T,)
+Redstone.output_state(::Leaf, (; x)) = (y = x.q,)
+Redstone.state_derivative(::Leaf, (; x)) = (q = -x.q,)
+struct Assembly <: Redstone.AbstractComponent
     kid::Leaf
 end
-Cadence.child_connections(::Assembly) = ()
-sample_times(::Assembly) = (kid = Cadence.Relative(2),)
+Redstone.child_connections(::Assembly) = ()
+sample_times(::Assembly) = (kid = Redstone.Relative(2),)
 end
 
 end
@@ -264,7 +264,7 @@ The build tests assert kind and payload; message text is asserted only in
   is the forgotten import (§8.1, D-246)": `foreign_declarations` on the four
   fixtures returns the lists above, in family order; on `Plant()` and on a
   `Group` it returns empty (the suite's own module imports the whole family;
-  `Group`'s module is `Cadence`); on `Rates.Leaf()` it returns
+  `Group`'s module is `Redstone`); on `Rates.Leaf()` it returns
   `[:sample_times]` too, the module being the unit.
 - `test/test_assembly.jl`, in `assembly_class` (36–68) or a sibling testset:
   `build(Shadowed.Inventory.Leaf())` throws
@@ -278,7 +278,7 @@ The build tests assert kind and payload; message text is asserted only in
 - `test/test_diagnostics.jl`: one occurrence in `diagnostics_kind_set`'s
   list (the coverage check at ~555 fails otherwise), and in the rendering
   testset (558) one assertion that the message carries the import line for
-  a two-name payload: `occursin("import Cadence: init_x, output_types", m)`.
+  a two-name payload: `occursin("import Redstone: init_x, output_types", m)`.
 
 ### Register edits, in the same commit
 
@@ -307,7 +307,7 @@ The build tests assert kind and payload; message text is asserted only in
 - `rg -n "foreign_declarations" src/` lists the definition and one call
   site, in `_walk!`.
 - `rg -n "^import\b|^using\b" test/fixtures.jl` shows the four inner
-  modules' `using Cadence` lines and nothing else new: no `import Cadence:`
+  modules' `using Redstone` lines and nothing else new: no `import Redstone:`
   inside any of them.
 - The suite's recorded assertion total rises by at least the count of new
   `@test` lines; report both totals.

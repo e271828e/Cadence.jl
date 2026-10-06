@@ -1,5 +1,5 @@
 # C: bindings.jl's map_input, a map over the datum's keys, at widths 31..64.
-using Cadence, BenchmarkTools
+using Redstone, BenchmarkTools
 const T = joinpath(ARGS[1], "test")
 include(joinpath(T, "imports.jl"))
 for n in (31, 32, 33, 64)

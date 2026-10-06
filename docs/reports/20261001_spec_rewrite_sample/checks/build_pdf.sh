@@ -16,5 +16,5 @@ rg '^\[[a-z0-9-]+\]: ' $D/spec.md
 printf '[d-280]: decisions.md#d-280\n[d-281]: decisions.md#d-281\n[d-282]: decisions.md#d-282\n'
 } > $R/samples.md
 cd $D/pdf && pandoc -d pdf.yaml -f gfm+tex_math_dollars+raw_attribute -L $R/checks/deadlinks.lua \
-  --pdf-engine-opt=--input=theme=gallery/themes/cadence.tmTheme $R/samples.md -o $R/samples.pdf
+  --pdf-engine-opt=--input=theme=gallery/themes/redstone.tmTheme $R/samples.md -o $R/samples.pdf
 rm $R/samples.md

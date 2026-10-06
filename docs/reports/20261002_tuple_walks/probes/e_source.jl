@@ -1,5 +1,5 @@
 # E: where run!'s per-frame bytes come from. Profile.Allocs over a run, then the parts directly.
-using Cadence, StaticArrays, LinearAlgebra, ForwardDiff, Profile
+using Redstone, StaticArrays, LinearAlgebra, ForwardDiff, Profile
 const T = joinpath(ARGS[1], "test")
 include(joinpath(T, "imports.jl")); include(joinpath(T, "fixtures.jl"))
 
@@ -12,13 +12,13 @@ Profile.Allocs.@profile sample_rate = 1 run!(sim; t_end = 1.0)
 res = Profile.Allocs.fetch()
 frames = sim.exec.clock.frame
 println("frames=$frames allocations=", length(res.allocs), " bytes=", sum(a.size for a in res.allocs))
-# Attribute each allocation to the innermost Cadence source line in its stack.
+# Attribute each allocation to the innermost Redstone source line in its stack.
 agg = Dict{Tuple{String,String},Tuple{Int,Int}}()
 for a in res.allocs
     site = "?"
     for fr in a.stacktrace
         f = string(fr.file)
-        if occursin("cadence_walks", f) && occursin("/src/", f)
+        if occursin("redstone_walks", f) && occursin("/src/", f)
             site = "$(basename(f)):$(fr.line) $(fr.func)"
             break
         end
@@ -34,10 +34,10 @@ for ((site, type), (c, b)) in sort(collect(agg); by = x -> -x[2][2])
 end
 
 # The parts directly.
-roster = Cadence.RosterEntry[]
+roster = Redstone.RosterEntry[]
 store = sim.exec.store
-Cadence.capture_stores(store); Cadence._status(sim, roster, nothing); Cadence.publish!(sim, roster, nothing)
-println("capture_stores ", @allocated(Cadence.capture_stores(store)), " B")
-println("_status ", @allocated(Cadence._status(sim, roster, nothing)), " B")
-println("publish! ", @allocated(Cadence.publish!(sim, roster, nothing)), " B")
+Redstone.capture_stores(store); Redstone._status(sim, roster, nothing); Redstone.publish!(sim, roster, nothing)
+println("capture_stores ", @allocated(Redstone.capture_stores(store)), " B")
+println("_status ", @allocated(Redstone._status(sim, roster, nothing)), " B")
+println("publish! ", @allocated(Redstone.publish!(sim, roster, nothing)), " B")
 println("store buffers: ", [(k, length(v.buffer)) for (k, v) in pairs(store.stores)])

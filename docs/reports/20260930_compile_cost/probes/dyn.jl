@@ -2,8 +2,8 @@
 # runtime and allocation against the compiled walk, and its compile cost on a
 # fresh topology.
 Base.cumulative_compile_timing(true)
-using Cadence, BenchmarkTools, Printf
-import Cadence: AbstractComponent, x_init, s_init, u_types, y_types,
+using Redstone, BenchmarkTools, Printf
+import Redstone: AbstractComponent, x_init, s_init, u_types, y_types,
     y_state, y_direct, x_derivative, s_update,
     Group, Absolute, Hz, Simulation, init!, run!, fragment, build
 
@@ -35,13 +35,13 @@ entries_of(chunks::Tuple) = Any[e for c in chunks for e in c.entries]
 # the dynamic walks: one loop compiled once for Vector{Any}, dispatching per entry
 function dyn_walk(entries::Vector{Any}, store, xbuf, ẋbuf)
     for e in entries
-        Cadence.run_entry!(e, store, xbuf, ẋbuf)
+        Redstone.run_entry!(e, store, xbuf, ẋbuf)
     end
     nothing
 end
 function dyn_walk_at(entries::Vector{Any}, store, xbuf, ẋbuf, tick::Int)
     for e in entries
-        Cadence.run_at!(e, store, xbuf, ẋbuf, tick)
+        Redstone.run_at!(e, store, xbuf, ẋbuf, tick)
     end
     nothing
 end

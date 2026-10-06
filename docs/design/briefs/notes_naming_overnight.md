@@ -164,7 +164,7 @@ each with its reason. The user reads this file first in the morning.
     the three loose ends (c910481).
 25. **The reviewer's delta check** found five remainders in the fix, landed
     by the coordinator (e881761, gate 3175): the do-block `s` in
-    `CadenceTests.jl` back to `s` (T8 keeps it; the fixer's prompt had
+    `RedstoneTests.jl` back to `s` (T8 keeps it; the fixer's prompt had
     overridden T8 by mistake); the two residue generators in
     `test_devices.jl` named `residue`, since `record` is the termination
     record in that file and the entries are not trace records; one

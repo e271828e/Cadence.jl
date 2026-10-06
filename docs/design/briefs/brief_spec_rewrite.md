@@ -1,6 +1,6 @@
 # The spec rewrite — plain register
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`. Drafted
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`. Drafted
 2026-09-14 after the pilot of §10.4 and §10.6 (`spec_rewrite_pilot.md`, this
 directory). Status: **approved 2026-09-14** (§5 and §6 rulings folded in).
 Registered in `pending.md`. Step 0, `check_linkset.jl` and the pilot landed

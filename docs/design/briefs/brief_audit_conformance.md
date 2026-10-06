@@ -4,7 +4,7 @@ An audit, not an increment. Nothing is built. Seven agents read one slice of
 `docs/design/spec.md` each, cross-check it against the code, and write one
 report to `reports/` at the repository root.
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `2c02afb`. Never `cd` elsewhere (`cd` is aliased to zoxide in the
 user's shell; use absolute paths).
 
@@ -45,7 +45,7 @@ adjudicate that. Record what each says and let the coordinator decide.
 The package is `src/`, 18 files:
 
 ```
-   24  src/Cadence.jl      the module: dependencies and include order
+   24  src/Redstone.jl      the module: dependencies and include order
   216  src/leaves.jl       the leaf walk
  1423  src/diagnostics.jl  diagnostic kinds, carrier, rendering
   331  src/declare.jl      the declaration layer
@@ -67,7 +67,7 @@ The package is `src/`, 18 files:
 ```
 
 The suite is `test/`, 23 test files plus `fixtures.jl` (928 lines, user-side
-material) and `CadenceTests.jl` (the module, includes and `import Cadence:`
+material) and `RedstoneTests.jl` (the module, includes and `import Redstone:`
 list). Every testset name states its property and cites the spec section it
 answers to, so `rg '§' test/` is a cheap section-to-test index. `test/` is
 evidence, not authority: a testset citing §N does not mean §N is complete,
@@ -168,8 +168,8 @@ you do not report a non-finding.
   fixtures live at top level. A fixture that looks oddly placed is usually
   placed that way for this reason.
 - **On Julia 1.12, extending a declaration without importing it is silent.**
-  `using Cadence` then a bare `h_x(::MyComp, …)` creates a local generic with
-  no error and no warning. Only `using Cadence: h_x` errors. `f` and `g` in
+  `using Redstone` then a bare `h_x(::MyComp, …)` creates a local generic with
+  no error and no warning. Only `using Redstone: h_x` errors. `f` and `g` in
   particular are deliberately not exported.
 - **A type's printed form depends on the printing module.** Payload fields
   and labels naming a user type go through `_typename` in `diagnostics.jl`,

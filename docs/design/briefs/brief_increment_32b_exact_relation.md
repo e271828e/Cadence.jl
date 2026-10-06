@@ -1,6 +1,6 @@
 # Increment 32b — the exact relation, and the narrow-bound arm of `TierSignatureMismatch`
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `73ac506`. Never `cd` elsewhere (`cd` is aliased to zoxide in the
 user's shell; use absolute paths).
 

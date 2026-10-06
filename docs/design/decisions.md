@@ -3556,9 +3556,9 @@ invariant's scope, which [§7.5][s7-5] states: the invariant covers the stepping
 **Status.** ratified
 
 **Position.** The declaration and stage family is extended, not called, and
-enters a component module through explicit per-name `import Cadence: init_x, …,
+enters a component module through explicit per-name `import Redstone: init_x, …,
 f, g, project, connections, exports, rates` — normative authoring surface
-stated in [§8.1][s8-1], with qualified definition (`Cadence.f(…) = …`, the `Base.show`
+stated in [§8.1][s8-1], with qualified definition (`Redstone.f(…) = …`, the `Base.show`
 idiom) the recorded alternative for the extension-only periphery.
 
 **Spec.** [§8.1][s8-1], [§8.4][s8-4], [Appendix C][sC]
@@ -3575,7 +3575,7 @@ extension-only surface; short names stay unexported deliberately (`f`, `g`,
   verified: no error, no warning, and the build's diagnostics then misname a
   namespace mistake as a modeling one, the [§8.4][s8-4] error-locality inversion
   through the namespace.
-- *A re-export submodule as the ergonomic fix:* `using Cadence.Declarations`
+- *A re-export submodule as the ergonomic fix:* `using Redstone.Declarations`
   carries identical silent-shadowing semantics — per-name `import` is the only
   extension idiom the language provides.
 - *Adopting an `@declarations` macro now:* sugar addable a posteriori, never
@@ -5691,7 +5691,7 @@ increment-2 finding, extending [§8.1][s8-1].
 binds a new *local* function rather than adding a method to the global `h_x`,
 so calls inside the block resolve correctly while the build, dispatching on the
 generic function, sees a component that declares nothing and proceeds. The
-local-scope sibling of [§8.1][s8-1]'s `using Cadence` trap, and worse-behaved: the
+local-scope sibling of [§8.1][s8-1]'s `using Redstone` trap, and worse-behaved: the
 existing shadowing check cannot reach it, there being no parent-module binding
 to compare against — the shadow is a local binding that vanishes with its
 block. Mitigation adopted at the other end: an inert component is unwritable on
@@ -8124,7 +8124,7 @@ mathematical symbols.
 [§13.4][s13-4], [§13.5][s13-5], [§13.6][s13-6], [§13.7][s13-7], [§14.5][s14-5], [§14.7][s14-7], [§14.8][s14-8], [§14.10][s14-10], [§3.4][s3-4], [§8.6][s8-6],
 [Appendix A][sA], [Appendix B][sB], [Appendix C][sC], [Appendix D][sD]
 
-**Rationale.** On Julia 1.12 a declaration written without `import Cadence: …`
+**Rationale.** On Julia 1.12 a declaration written without `import Redstone: …`
 creates a fresh local generic, silently, whether or not the name is exported,
 and the build sees a component that declares nothing. When the author already
 owns a function of that name the definition adds a method to *theirs* instead,
@@ -8403,7 +8403,7 @@ nothing.
   boundary, and the exported-name audit. A function or name on the API surface is
   "public". The rename sweeps the spec and its companions, not the log.
 - The interim is conformance, not a gap: the suite reaches every name through
-  `using Cadence` plus a per-name `import` list, [D-117][d-117]'s idiom, and a REPL
+  `using Redstone` plus a per-name `import` list, [D-117][d-117]'s idiom, and a REPL
   session loads the same list through `test/repl.jl`.
 - The authoring family stays unexported under [D-117][d-117] whatever the audit
   decides for the operator half.
@@ -8411,8 +8411,8 @@ nothing.
 **Spec.** [§4.4][s4-4], [§8.1][s8-1], [§9.4][s9-4], [Appendix B][sB], [Appendix D][sD]
 
 **Rationale.** The 2026-09-04 conformance audit read "exported" at three sites
-as an obligation the module does not meet, `names(Cadence)` being
-`[:Cadence]`. The sites describe visibility. [§4.4][s4-4]'s value-level constructor is
+as an obligation the module does not meet, `names(Redstone)` being
+`[:Redstone]`. The sites describe visibility. [§4.4][s4-4]'s value-level constructor is
 a function a model package must expose so condition math can call it outside
 any sweep; [§9.4][s9-4]'s `ProbeDual` is a name a CI activation list spells. Neither
 needs `export`; both need a public name. `pending.md` already records the export list
@@ -9265,7 +9265,7 @@ component a module defines reads the same foreign list, and the throw names
 the first one the walk reaches.
 
 The mechanism is the two-line test [D-117][d-117] described, `isdefined(M, name) &&
-getfield(M, name) !== getfield(Cadence, name)` on `M = parentmodule(typeof(c))`,
+getfield(M, name) !== getfield(Redstone, name)` on `M = parentmodule(typeof(c))`,
 verified on Julia 1.13.0: a bare definition after `using` reads as foreign, a
 per-name import does not, an untouched name is undefined, and a REPL
 definition in `Main` behaves the same. Three limits are accepted and

@@ -4,7 +4,7 @@
 # material: no name here is known to `src/`.
 #
 # Everything lives at top level because a declaration written in a local scope
-# binds a new local function rather than extending Cadence's generic (D-164,
+# binds a new local function rather than extending Redstone's generic (D-164,
 # implementation.md's authoring caveat).
 
 """
@@ -1580,14 +1580,14 @@ x_deriv(::Voiceless, (; x)) = (; a = 0.0)
 The forgotten-import fixtures (§8.1, D-246), one module per case because the
 check reads the module: every bare definition below lands on a function of its
 own module, which is the mistake `DeclarationShadowed` names. Qualified
-`Cadence.f(…)` definitions are the ones that reach the framework.
+`Redstone.f(…)` definitions are the ones that reach the framework.
 """
 module ForgottenImport
 
 "Every declaration bare: the whole inventory shadowed."
 module Inventory
-using Cadence
-struct Leaf <: Cadence.AbstractComponent end
+using Redstone
+struct Leaf <: Redstone.AbstractComponent end
 x_init(::Leaf) = (q = 0.0,)
 y_types(::Leaf) = (y = Float64,)
 y_state(::Leaf, (; x)) = (y = x.q,)
@@ -1596,38 +1596,38 @@ end
 
 "A sound leaf whose update alone is bare: would have read as `StoreWithoutUpdate`."
 module Update
-using Cadence
-struct Leaf <: Cadence.AbstractComponent end
-Cadence.x_init(::Leaf) = (q = 0.0,)
-Cadence.y_types(::Leaf) = (y = Float64,)
-Cadence.y_state(::Leaf, (; x)) = (y = x.q,)
+using Redstone
+struct Leaf <: Redstone.AbstractComponent end
+Redstone.x_init(::Leaf) = (q = 0.0,)
+Redstone.y_types(::Leaf) = (y = Float64,)
+Redstone.y_state(::Leaf, (; x)) = (y = x.q,)
 x_deriv(::Leaf, (; x)) = (q = -x.q,)
 end
 
 "A sound leaf whose events alone are bare: builds today with no events."
 module Events
-using Cadence
-struct Leaf <: Cadence.AbstractComponent end
-Cadence.x_init(::Leaf) = (q = 1.0,)
-Cadence.y_types(::Leaf) = (y = Float64,)
-Cadence.y_state(::Leaf, (; x)) = (y = x.q,)
-Cadence.x_deriv(::Leaf, (; x)) = (q = -x.q,)
+using Redstone
+struct Leaf <: Redstone.AbstractComponent end
+Redstone.x_init(::Leaf) = (q = 1.0,)
+Redstone.y_types(::Leaf) = (y = Float64,)
+Redstone.y_state(::Leaf, (; x)) = (y = x.q,)
+Redstone.x_deriv(::Leaf, (; x)) = (q = -x.q,)
 state_events(::Leaf) = (;)
 end
 
 "A sound assembly whose rate declaration alone is bare: builds today on the parent's grid."
 module Rates
-using Cadence
-struct Leaf <: Cadence.AbstractComponent end
-Cadence.x_init(::Leaf) = (q = 1.0,)
-Cadence.y_types(::Leaf) = (y = Float64,)
-Cadence.y_state(::Leaf, (; x)) = (y = x.q,)
-Cadence.x_deriv(::Leaf, (; x)) = (q = -x.q,)
-struct Assembly <: Cadence.AbstractComponent
+using Redstone
+struct Leaf <: Redstone.AbstractComponent end
+Redstone.x_init(::Leaf) = (q = 1.0,)
+Redstone.y_types(::Leaf) = (y = Float64,)
+Redstone.y_state(::Leaf, (; x)) = (y = x.q,)
+Redstone.x_deriv(::Leaf, (; x)) = (q = -x.q,)
+struct Assembly <: Redstone.AbstractComponent
     kid::Leaf
 end
-Cadence.inner_wires(::Assembly) = ()
-sample_times(::Assembly) = (kid = Cadence.Relative(2),)
+Redstone.inner_wires(::Assembly) = ()
+sample_times(::Assembly) = (kid = Redstone.Relative(2),)
 end
 
 end

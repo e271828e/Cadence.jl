@@ -23,7 +23,7 @@ for explicitly deferred implementation work, which remains recorded here.
 
 | Spec area | Status | Source and test trace | Audit disposition |
 | --- | --- | --- | --- |
-| §1 Purpose and method | evidence inspected | `Cadence.jl`; full harness | Framing/quality goals, not a separately executable requirement. |
+| §1 Purpose and method | evidence inspected | `Redstone.jl`; full harness | Framing/quality goals, not a separately executable requirement. |
 | §2 Formalism | evidence inspected | `declare.jl`, `executor.jl`; events tests | Core formalism is represented in the implemented tier model. |
 | §2.1 Events | evidence inspected | `executor.jl`, `localization.jl`; events/localization tests | Both detection policies have direct tests. |
 | §2.2 Exclusions | evidence inspected | Design-only exclusions | Deliberate nonfeatures are documented; no absent product behavior is inferred. |
@@ -126,7 +126,7 @@ for explicitly deferred implementation work, which remains recorded here.
 | Appendix | Status | Trace | Disposition |
 | --- | --- | --- | --- |
 | A. Taught contracts | evidence inspected | Public declarations/operations across `declare.jl`, `sim.jl`, `conditions.jl`, `readers.jl`, `trim.jl`; imports and focused tests | A useful author index; coverage follows its normative chapter entries and inherits their gaps. |
-| B. API synopsis | gap/deviation | `src/Cadence.jl`, declarations, tests/imports | Many listed APIs are exercised. Missing `ProbeDual`, pacing/control, mounting, and linearization mean the synopsis is not fully callable. |
+| B. API synopsis | gap/deviation | `src/Redstone.jl`, declarations, tests/imports | Many listed APIs are exercised. Missing `ProbeDual`, pacing/control, mounting, and linearization mean the synopsis is not fully callable. |
 | C. Diagnostic kind set | gap/deviation | `diagnostics.jl`; `test_diagnostics.jl`, build/assembly/failure tests | Many kinds and renderings tested, but required kinds (`DeadStage`, user framing, missing probe value, grid utilization) and several mandatory payloads are absent/reduced. |
 | D. Glossary, D.1–D.10 | evidence inspected | Naming/type/use was checked through the mapped source and tests | Vocabulary is explanatory; no independent executable obligation beyond its cross-referenced requirements. |
 
@@ -134,7 +134,7 @@ for explicitly deferred implementation work, which remains recorded here.
 
 | Source file | Implemented responsibility inspected | Primary test ownership |
 | --- | --- | --- |
-| `Cadence.jl` | Module imports/includes/exports | Harness/import files, all tests |
+| `Redstone.jl` | Module imports/includes/exports | Harness/import files, all tests |
 | `declare.jl` | Declarations, probes, rates, events | declare, build, discrete, events |
 | `leaves.jl` | Leaf walk, retype, acceptance | leaves, store, assembly |
 | `diagnostics.jl` | Diagnostics/carriers/cursor | diagnostics, failures, build, assembly |
@@ -157,7 +157,7 @@ for explicitly deferred implementation work, which remains recorded here.
 ## Test/harness inventory
 
 All files under `test/**` were read. The ownership grouping is recorded in
-`reviews/06_test_coverage.md`; the complete file list is: `CadenceTests.jl`,
+`reviews/06_test_coverage.md`; the complete file list is: `RedstoneTests.jl`,
 `Project.toml`, `fixtures.jl`, `imports.jl`, `repl.jl`, `runtests.jl`,
 `utils.jl`, and `test_{assembly,bindings,build,conditions,continuous,dataplane,
 declare,devices,diagnostics,discrete,events,executor,failures,leaves,lifecycle,

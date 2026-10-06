@@ -1,7 +1,7 @@
-using Cadence
+using Redstone
 using StaticArrays
 
-import Cadence: AbstractComponent, DiagnosticError, Simulation, TrimProblem, _compile_reads,
+import Redstone: AbstractComponent, DiagnosticError, Simulation, TrimProblem, _compile_reads,
     at, build, evaluate!, fragment, gather, get_state, init!, init_x, input_types,
     output_direct, output_state, output_types, reads, resolve_condition,
     state_derivative, trim!
@@ -51,4 +51,4 @@ output_direct(::ServiceInput, (; u)) = (y = u.u,)
 show_result("interrupt during condition conversion", () ->
     resolve_condition(fragment(inputs = (u = InterruptValue(),)), build(ServiceInput())))
 
-println("linearize defined: ", isdefined(Cadence, :linearize))
+println("linearize defined: ", isdefined(Redstone, :linearize))

@@ -88,7 +88,7 @@ each with a test that asserts the payload and not just the throw.
 | §8.1 1670–1675 | no macro DSL; authoring is ordinary Julia | accurate | `src/declare.jl:1-329` | no test | the whole authoring surface is plain functions |
 | §8.1 1676–1691 | redundancy accepted, macro door left open (D-032, D-166) | n/a | — | — | rationale |
 | §8.1 1693–1700 | framework-owned generics are extended, not called | accurate | `src/declare.jl:22-227` | whole suite | fallbacks on `::Any`, methods added per type |
-| §8.1 1702–1710 | the 17-name import list exists as framework functions | accurate | `src/declare.jl:22,30,37,46,55,68,82,89,95,108,171,193,202,224-227` | — | package is `Cadence`, not `Flight` |
+| §8.1 1702–1710 | the 17-name import list exists as framework functions | accurate | `src/declare.jl:22,30,37,46,55,68,82,89,95,108,171,193,202,224-227` | — | package is `Redstone`, not `Flight` |
 | §8.1 1712–1723 | why a bare `using` is a silent trap | n/a | — | — | rationale |
 | §8.1 1725–1735 | the two diagnostics run a shadowing check naming the missing import | absent | — | — | see 4.1 |
 | §8.1 1737–1752 | the local-scope sibling (D-164) | n/a | — | — | rationale |
@@ -524,7 +524,7 @@ both confirm the spec's shape rather than the implemented one.
 ## Friction
 
 - The spec's import list and error messages say `Flight`, and the package is
-  `Cadence`. Harmless, but it means no message in `src/` can be compared
+  `Redstone`. Harmless, but it means no message in `src/` can be compared
   verbatim against §8.1's quoted text.
 - §8.5's "Containers of containers are rejected in the first cut" admits two
   readings: "diagnosed" or merely "not supported". I scored it as an absence

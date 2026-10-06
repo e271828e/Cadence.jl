@@ -1,8 +1,8 @@
 # Top-level timing of each step for a fresh 16- and 64-loop model, with marker
 # functions compiled between steps so the trace-compile stream can be split.
 Base.cumulative_compile_timing(true)
-using Cadence, Printf
-import Cadence: AbstractComponent, x_init, s_init, u_types, y_types,
+using Redstone, Printf
+import Redstone: AbstractComponent, x_init, s_init, u_types, y_types,
     y_state, y_direct, x_derivative, s_update,
     Group, Absolute, Hz, Simulation, init!, run!, fragment, build, phase_bodies
 struct Plant <: AbstractComponent; ω::Float64; ζ::Float64; end

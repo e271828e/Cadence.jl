@@ -1,7 +1,7 @@
 Base.cumulative_compile_timing(true)
 include(joinpath(@__DIR__, "cum_defs.jl"))
 using Base.ScopedValues: with
-import Cadence: StructureDraft, flatten!, Diagnostic, BUILD_WARNINGS
+import Redstone: StructureDraft, flatten!, Diagnostic, BUILD_WARNINGS
 m2 = many(2); s2 = Simulation(m2; h = 1//1000); init!(s2, fragment(inputs = (ref = 1.0,))); run!(s2; t_end = 0.01)
 ct() = Base.cumulative_compile_time_ns()[1] / 1e9
 macro first(label, ex)

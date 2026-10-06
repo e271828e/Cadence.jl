@@ -5,7 +5,7 @@
 cited lines, of `spec.md` at the cited lines, and of `### D-133` in
 `decisions.md`. Three probes run in the foreground from the repository root
 under `julia --project=.`, in
-`/private/tmp/claude-501/-Users-miguel--julia-dev-Cadence-jl/124e226d-cd72-4408-ae47-a86fb39129da/scratchpad/verify2/`:
+`/private/tmp/claude-501/-Users-miguel--julia-dev-Redstone-jl/124e226d-cd72-4408-ae47-a86fb39129da/scratchpad/verify2/`:
 `p1.jl` (the `t_end` landing rule and the `t0` interaction), `p3.jl` (the
 `unblock!`-provoked raise), `p5.jl` (the interrupt against the stop word).
 Nothing under `src/`, `test/` or `docs/design/` was modified. The test suite

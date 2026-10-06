@@ -1,6 +1,6 @@
 # Same model as bench_pathsim.py: N copies of the plant/gain/sum loop from the
 # suite's `feedback_model` fixture, RK4, h = 1 ms, 10 s. Run from the repo root:
-#   julia --project=test docs/reports/20260917_pathsim_comparison/probes/bench_cadence.jl
+#   julia --project=test docs/reports/20260917_pathsim_comparison/probes/bench_redstone.jl
 include(joinpath(@__DIR__, "..", "..", "..", "..", "test", "repl.jl"))
 using Printf
 

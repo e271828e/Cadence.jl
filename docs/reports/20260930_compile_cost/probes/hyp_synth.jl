@@ -1,5 +1,5 @@
 # Hypothesis: compiling a method that loads a huge inline immutable aggregate
-# by value is what costs seconds. Synthetic aggregates, no Cadence: leaves with
+# by value is what costs seconds. Synthetic aggregates, no Redstone: leaves with
 # pointer fields, immutable (stored inline) or mutable (stored by reference),
 # with homogeneous types (small type string) or one type per leaf (large type
 # string). Measured: first-call compile of `h.x` on a mutable holder, and the

@@ -1,5 +1,5 @@
-using Cadence
-const C = Cadence
+using Redstone
+const C = Redstone
 
 struct AuditPublication <: C.AbstractComponent end
 C.output_types(::AuditPublication, ::Type{T}) where {T <: Real} = (value = T,)

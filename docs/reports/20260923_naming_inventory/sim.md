@@ -543,7 +543,7 @@ Tip: f64b9f3. Sites flagged: 210. Renames: 119. Collisions: 14. Roster proposals
 | 771 | `log` (`init!` keyword) | `Base.log` | Base | no |
 | 896 | `trace` (`replay!` keyword) | `trace(sim)` | sim.jl:1790 | no |
 | 897 | `log` (`replay!` keyword) | `Base.log` | Base | no |
-| 1490 | `diag` (`attach!`) | `LinearAlgebra.diag` | LinearAlgebra, `using`'d at Cadence.jl:3 | no in `attach!`; called in trim.jl |
+| 1490 | `diag` (`attach!`) | `LinearAlgebra.diag` | LinearAlgebra, `using`'d at Redstone.jl:3 | no in `attach!`; called in trim.jl |
 | 1554 | `pairs` (`stage!`) | `Base.pairs` | Base | no; never called in the file |
 
 Two sites near a collision are coded `rename`, since the local itself is free and only the natural proposal is taken: `act` (line 196; `activation` is called on its own line) and `b` in `attach!` (line 1461; `binding` is called at line 1470 for the incumbent, hence `new_binding`). `bn` (line 1289) and `names` (line 620) steer clear of `bundle_names` and `leaf_names`, both called where those locals are bound.

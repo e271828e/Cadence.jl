@@ -1,6 +1,6 @@
 # Increment 31 — the always-on conformance check at the generated write
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `7c00fd2`. Never `cd` elsewhere (`cd` is aliased to zoxide in the
 user's shell; use absolute paths).
 
@@ -88,7 +88,7 @@ over the cell type and the return type.
 comment block included) to `src/leaves.jl`, after the activation walk
 (`retype`, `retype_value`, `_leaf_values`, 170–200), since the generated
 writers in `store.jl` call `_accepts` at expansion time and `leaves.jl`
-loads first (`src/Cadence.jl:5–11`). `_embed` and `_embed_ports` stay in
+loads first (`src/Redstone.jl:5–11`). `_embed` and `_embed_ports` stay in
 `build.jl`. The relation's body does not change.
 
 **The activation scalar at the write.** The relation needs `T` to tell a

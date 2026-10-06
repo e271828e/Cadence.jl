@@ -2,9 +2,9 @@
 # loop would call through; (2) one per entry, a runtime-walked vector that
 # replaces the unrolled tuple. Runtime, allocation and fresh-topology compile.
 Base.cumulative_compile_timing(true)
-using Cadence, BenchmarkTools, Printf
+using Redstone, BenchmarkTools, Printf
 using Base.Experimental: @opaque
-import Cadence: AbstractComponent, x_init, s_init, u_types, y_types,
+import Redstone: AbstractComponent, x_init, s_init, u_types, y_types,
     y_state, y_direct, x_derivative, s_update,
     Group, Absolute, Hz, Simulation, init!, run!, fragment, build, phase_bodies
 
@@ -33,9 +33,9 @@ const Thunk = Core.OpaqueClosure{Tuple{}, Nothing}
 entries_of(chunks::Tuple) = Any[e for c in chunks for e in c.entries]
 # one opaque closure per entry, closed over the entry and the buffers
 entry_thunk(entry, store, xbuf, ẋbuf)::Thunk =
-    @opaque Tuple{} -> Nothing () -> (Cadence.run_entry!(entry, store, xbuf, ẋbuf); nothing)
+    @opaque Tuple{} -> Nothing () -> (Redstone.run_entry!(entry, store, xbuf, ẋbuf); nothing)
 gated_thunk(entry, store, xbuf, ẋbuf, tick)::Thunk =
-    @opaque Tuple{} -> Nothing () -> (Cadence.run_at!(entry, store, xbuf, ẋbuf, tick); nothing)
+    @opaque Tuple{} -> Nothing () -> (Redstone.run_at!(entry, store, xbuf, ẋbuf, tick); nothing)
 thunks(entries, store, xbuf, ẋbuf) = Thunk[entry_thunk(e, store, xbuf, ẋbuf) for e in entries]
 function walk_thunks(v::Vector{Thunk})
     for f in v; f(); end

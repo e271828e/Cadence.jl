@@ -1,6 +1,6 @@
-diff -ru execB/src/Cadence.jl execB_fw/src/Cadence.jl
---- a/src/Cadence.jl	2026-10-01 16:34:04
-+++ b/src/Cadence.jl	2026-10-01 17:06:42
+diff -ru execB/src/Redstone.jl execB_fw/src/Redstone.jl
+--- a/src/Redstone.jl	2026-10-01 16:34:04
++++ b/src/Redstone.jl	2026-10-01 17:06:42
 @@ -3,7 +3,7 @@
  using StaticArrays, LinearAlgebra, ForwardDiff
  using Random: Xoshiro, randn
@@ -156,7 +156,7 @@ diff -ru execB/src/executor.jl execB_fw/src/executor.jl
 --- a/Project.toml	2026-10-01 16:26:41
 +++ b/Project.toml	2026-10-01 17:06:31
 @@ -1,16 +1,18 @@
- name = "Cadence"
+ name = "Redstone"
  uuid = "653472ee-a41b-4fb0-9ffa-a5db0d34d125"
 -authors = ["Miguel Alonso <miguel883@gmail.com>"]
  version = "0.1.0"

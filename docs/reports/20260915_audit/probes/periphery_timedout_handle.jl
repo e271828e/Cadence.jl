@@ -1,7 +1,7 @@
-include(joinpath(@__DIR__, "..", "..", "..", "..", "test", "CadenceTests.jl"))
+include(joinpath(@__DIR__, "..", "..", "..", "..", "test", "RedstoneTests.jl"))
 
-const CT = Main.CadenceTests
-const C = CT.Cadence
+const CT = Main.RedstoneTests
+const C = CT.Redstone
 
 mutable struct LateAction <: C.AbstractDevice
     release::Channel{Nothing}

@@ -95,7 +95,7 @@ the open points left for the user. Nothing here is pushed.
 ## The cold review
 
 The reviewer changed nothing and left its evidence in
-`/tmp/cadence58_review/`. At `fc63292`: the gate is green, 4317 of 4317, on
+`/tmp/redstone58_review/`. At `fc63292`: the gate is green, 4317 of 4317, on
 Julia 1.13 and, with a fresh manifest in a scratch copy, on 1.12.7. The
 three scenarios' first simulations took 0.830, 0.924 and 3.496 s against the
 expected 0.85, 0.96 and 3.6 s. Every allocation count is 0, the three
@@ -140,7 +140,7 @@ Findings left for the user:
   tuple", and a `Reader` has an `entries` tuple, so whether D-289 reaches
   them is a ruling. `_unrolled` is usable in both files.
 - **1.12's `build` of the repeated root stays near 0.5 s** with finding 8
-  fixed, against 0.065 s on 1.13. No Cadence method grows there; the
+  fixed, against 0.065 s on 1.13. No Redstone method grows there; the
   reviewer did not find where the time goes. §9.7's figures are 1.13's.
 - **`run!` allocates about 800 B per step** on base and HEAD alike, on every
   model, with all bodies and event walks at 0. Outside the increment and not

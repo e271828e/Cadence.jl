@@ -1,5 +1,5 @@
 """Closed-loop damped oscillator: plant (2 states) <- gain <- sum(ref, -y).
-Same model as Cadence's `feedback_model` fixture. RK4, fixed dt = 1e-3, 10 s.
+Same model as Redstone's `feedback_model` fixture. RK4, fixed dt = 1e-3, 10 s.
 N independent copies of the loop in one Simulation to scale component count.
 """
 import sys, time

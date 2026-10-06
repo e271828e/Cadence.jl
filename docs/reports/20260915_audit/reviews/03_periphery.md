@@ -53,7 +53,7 @@ Reproduction: `julia --project=test docs/reports/20260915_audit/probes/periphery
 Warning DeviceJoinTimeout...
 late stage: advanced=1, a=77.0, lifecycle=initialized
 Warning DeviceJoinTimeout...
-late stop: advanced=0, lifecycle=stopped, source=Cadence.ControlRequestedStop("device 1 (LateAction)")
+late stop: advanced=0, lifecycle=stopped, source=Redstone.ControlRequestedStop("device 1 (LateAction)")
 ```
 
 The first old task injects `a = 77.0` into a later, nominally device-free `step!`. The second terminates a later trajectory without advancing and attributes the stop to the device from the preceding run. The same handle can also race `last_seen` and diagnostic state with the fresh task created for that roster entry.

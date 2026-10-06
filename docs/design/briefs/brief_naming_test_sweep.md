@@ -22,7 +22,7 @@ The reports were written before the README's rulings. The concrete cases:
 
 - a row renaming a local to `build` in a scope with a bare `build(…)` call
   reverts to a qualifier by the model built (T1: `discrete.md`'s five);
-  a row proposing `Cadence.build(…)` or any restructuring is refused;
+  a row proposing `Redstone.build(…)` or any restructuring is refused;
 - a `keep:glance` row, or an untabled glance site, that binds a spec
   letter to a non-spec value renames (T2: `localization.md`'s and
   `events.md`'s glance `m`s become `model`; a `Task` is `task`; a
@@ -96,14 +96,14 @@ Four agents, sequential, each over one wave, each commit one file. Each
 agent's prompt carries this brief's path, the tip it starts from and the
 previous wave's handoff. The commit message is `Rename test_<name>.jl's
 locals per the naming inventory` (`fixtures.jl's`, `utils.jl's`,
-`CadenceTests.jl's` for the three).
+`RedstoneTests.jl's` for the three).
 
 | wave | files |
 | --- | --- |
 | 1 | `test_build.jl`, `test_declare.jl`, `test_executor.jl`, `test_assembly.jl`, `test_show.jl`, `test_continuous.jl` |
 | 2 | `test_trace.jl`, `test_log.jl`, `test_stepper.jl`, `test_diagnostics.jl`, `test_failures.jl` |
 | 3 | `test_conditions.jl`, `test_readers.jl`, `test_trim.jl`, `test_discrete.jl`, `test_events.jl`, `test_localization.jl` |
-| 4 | `test_devices.jl`, `test_lifecycle.jl`, `test_roster.jl`, `test_bindings.jl`, `test_dataplane.jl`, `test_store.jl`, `test_leaves.jl`, `fixtures.jl`, `utils.jl`, `CadenceTests.jl` |
+| 4 | `test_devices.jl`, `test_lifecycle.jl`, `test_roster.jl`, `test_bindings.jl`, `test_dataplane.jl`, `test_store.jl`, `test_leaves.jl`, `fixtures.jl`, `utils.jl`, `RedstoneTests.jl` |
 
 Model: Sonnet for the waves, the judgment being in the tables and the
 rulings; Opus for the cold review.
@@ -115,7 +115,7 @@ sandbox flags (`implementation.md`, "Running the suite", the one home of
 test policy): `JULIA_LOAD_PATH="@" julia --startup-file=no
 --check-bounds=yes --warn-overwrite=yes --depwarn=yes --project=test
 test/runtests.jl <name>`. A commit touching `fixtures.jl`, `utils.jl` or
-`CadenceTests.jl` runs the gate. Every run in the foreground with a
+`RedstoneTests.jl` runs the gate. Every run in the foreground with a
 600000 ms timeout, never in the background; never stash, reset or check
 out the working tree. The per-file pass count must not move between the
 file's run before and after its commit (read it off the run before

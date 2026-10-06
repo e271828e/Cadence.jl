@@ -44,7 +44,7 @@ A cold process pays about 5 s for the first model, whatever its size:
 
 | README loop, first in process | seconds |
 |---|---|
-| `using Cadence`, precompiled | 0.34 |
+| `using Redstone`, precompiled | 0.34 |
 | `build` | 2.32 |
 | `Simulation` | 1.05 |
 | `init!` | 0.90 |
@@ -111,10 +111,10 @@ by value emits a copy with a GC root per pointer. On the 64-loop executor:
 | a `String` field out of the aggregate | 0.00 s | 7 |
 | `(exec.bodies; nothing)`, a load without a return | 0.00 s | 5 |
 
-A synthetic aggregate with no Cadence in it reproduces the curve: leaves
+A synthetic aggregate with no Redstone in it reproduces the curve: leaves
 with pointer fields in chunks of 16, immutable leaves at 33 KB compile the
 accessor in 1.7 s, mutable leaves at 8.7 KB in 0.2 s, and a type string of
-37 or 11 000 characters makes no difference. Putting Cadence's chunks behind
+37 or 11 000 characters makes no difference. Putting Redstone's chunks behind
 pointers shrinks the executor to 624 B and fixes every accessor, but leaves
 `init!` and `run!` at 1.74 s and 5.59 s: this mechanism is the accessors'
 alone, not the loop's.
@@ -209,7 +209,7 @@ specializes:
 | `_declares`, twice | 0.16 |
 
 The `count` compile is Base code reached through an untyped field read, so
-no annotation in Cadence removes it.
+no annotation in Redstone removes it.
 
 ## 4. The `Dual` activation
 

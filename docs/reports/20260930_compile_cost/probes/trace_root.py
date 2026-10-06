@@ -13,7 +13,7 @@ for l in lines[start:]:
         continue
     t = float(m.group(1)); total += t
     if t >= floor:
-        s = re.sub(r'Cadence\.|Base\.|typeof\(|\)', '', m.group(2))
+        s = re.sub(r'Redstone\.|Base\.|typeof\(|\)', '', m.group(2))
         s = re.sub(r'NamedTuple\{\(:m1, :m2.*', '<the 64-loop children>', s)
         print(f"{t:8.0f} ms  {s[:110]}")
 print(f"total from the first 64-loop root on: {total/1000:.2f} s")

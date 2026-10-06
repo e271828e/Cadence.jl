@@ -1,6 +1,6 @@
-# Cadence.jl versus PathSim — 2026-09-17
+# Redstone.jl versus PathSim — 2026-09-17
 
-A comparison of Cadence.jl (this repository at `9489e88`) against PathSim 0.25.1
+A comparison of Redstone.jl (this repository at `9489e88`) against PathSim 0.25.1
 (<https://github.com/pathsim/pathsim>, `af5c1779`, PyPI release of the same
 version) on five axes: features, performance, usability, mathematical rigor
 and code quality.
@@ -11,31 +11,31 @@ PathSim was read from source: `simulation.py`, `blocks/_block.py`,
 `connection.py`, `subsystem.py`, `utils/graph.py`, `utils/register.py`,
 `utils/portreference.py`, the solver bases (`_solver.py`, `_rungekutta.py`),
 the event modules, the discrete, ODE and dynamical-system blocks, and
-`optim/operator.py`. Cadence was read from `spec.md` (§2–§7, §9.5, §9.7, §10,
+`optim/operator.py`. Redstone was read from `spec.md` (§2–§7, §9.5, §9.7, §10,
 §11.1, §12.7, §13, §14.7–§14.10, §16), `implementation.md`, `extensions.md`
 and `src/`. Both frameworks ran the same model on the same machine, and three
 PathSim behaviours were probed empirically. Every script is under `probes/`.
 
-**Cadence is assessed as if every `pending.md` item were built.** Where a gap
+**Redstone is assessed as if every `pending.md` item were built.** Where a gap
 is a design exclusion rather than a pending item, the text says so.
 
 **What each is.** PathSim is a Python block-diagram simulator in the Simulink
 mould: blocks with scalar float ports, connections, per-block ODE engines, a
 global fixed-point loop, a large block library, about twenty integrators, a
 web editor (PathView), FMU import, a JOSS paper, 84 releases, one main author.
-Cadence is a Julia framework for hierarchical hybrid models with a build-time
+Redstone is a Julia framework for hierarchical hybrid models with a build-time
 derived static schedule, immutable typed signals, a harmonic multi-rate grid, a
 formal event semantics, and a runtime periphery built for deterministic replay
-and zero-allocation real-time operation. Cadence's `extensions.md` positions it
+and zero-allocation real-time operation. Redstone's `extensions.md` positions it
 accurately: "Simulink's fixed-step, loop-free, harmonic-multirate causal
 subset, plus guarantees Simulink does not offer". PathSim is closer to
 Simulink's engine breadth.
 
 ## 1. Features
 
-### PathSim has, Cadence excludes or lacks
+### PathSim has, Redstone excludes or lacks
 
-| Feature | PathSim | Cadence |
+| Feature | PathSim | Redstone |
 |---|---|---|
 | Integrators | ~20: Euler, SSPRK, RK4, embedded adaptive RK (RKF45, DOPRI5, RKDP87…), DIRK/ESDIRK, BDF, GEAR; adaptive step control; Hairer initial-step estimate | RK4, Heun, fixed step. The seam admits others later (§10.2); adaptive and stiff methods deliberately not in the first cut |
 | Algebraic loops | Solved per step by Anderson-accelerated fixed point on loop-closing connections | Refused at build (§5.5). Design exclusion, not pending |
@@ -49,9 +49,9 @@ Simulink's engine breadth.
 | Continuous transport delay | `Delay` block with interpolated history | A library extension (`extensions.md` item 4) |
 | Triggered discrete updates | `Schedule`, `ScheduleList`, `Condition` events; arbitrary float periods and offsets; time lists | Harmonic grid only; edge-triggered `state_update` is "real spec work" (`extensions.md` item 7) |
 
-### Cadence has, PathSim lacks
+### Redstone has, PathSim lacks
 
-| Feature | Cadence | PathSim |
+| Feature | Redstone | PathSim |
 |---|---|---|
 | Typed, structured signals | Ports carry any immutable value: structs, `SVector`s, enums, `Bool`, `Symbol`, query objects (§4.1, §4.4) | Ports are `float64` scalars in a numpy register. Vectors are port ranges (`a[0:3]`), Bools are 0.0/1.0, no structs |
 | Declared contracts, build checks | `input_types`/`output_types`, wire type-checking, unconnected-input and two-producer errors, did-you-mean, ~80 diagnostic kinds (Appendix C) | No port types. Unconnected inputs silently read 0.0; an out-of-range port index also reads 0.0 (`Register.__getitem__`) |
@@ -70,12 +70,12 @@ Simulink's engine breadth.
 ### Both, differently
 
 Hierarchy: PathSim nests `Subsystem` with an `Interface` block and treats the
-subsystem as one node in the parent graph; Cadence flattens assemblies for
+subsystem as one node in the parent graph; Redstone flattens assemblies for
 scheduling and keeps them for navigation. Linearization: PathSim assembles
 per-block numerical Jacobians into a labelled `StateSpace` and can also swap
-blocks for linear surrogates; Cadence (§14.10, pending) takes one seeded Dual
+blocks for linear surrogates; Redstone (§14.10, pending) takes one seeded Dual
 pass giving exact A, B, C, D. Real time: PathSim's `run_realtime` paces by a
-speed factor with a generator loop; Cadence (§10.7, pending) uses debt-based
+speed factor with a generator loop; Redstone (§10.7, pending) uses debt-based
 deadlines with a hybrid sleep/spin wait and forgiveness.
 
 ## 2. Performance
@@ -84,9 +84,9 @@ Same model in both: the closed-loop damped oscillator (a plant with two states,
 a gain, a summing junction), N independent copies driven by one reference,
 RK4, h = 1 ms, 10 s of simulated time. Apple Silicon, Julia 1.13.0, Python 3
 with numpy 2.0.2. Scripts: `probes/bench_pathsim.py`,
-`probes/bench_cadence.jl`.
+`probes/bench_redstone.jl`.
 
-| N | components | PathSim setup | PathSim per step | Cadence compile¹ | Cadence per step | step allocation | ratio |
+| N | components | PathSim setup | PathSim per step | Redstone compile¹ | Redstone per step | step allocation | ratio |
 |---|---|---|---|---|---|---|---|
 | 1 | 3 (+1 const) | 0.2 ms | 58 µs | 6.8 s | 0.4 µs | 0 B | ~150× |
 | 10 | 30 | 0.6 ms | 445 µs | 12.4 s | 1.3 µs | 0 B | ~340× |
@@ -97,19 +97,19 @@ N = 1 was measured on a fresh process; N = 10 and N = 100 afterwards in the
 same process, so those rows exclude the ~5 s of framework-generic compilation
 the first model in a session pays. Both frameworks reach |x − exact| ≈ 2e-12.
 
-**Execution.** Cadence costs about 50 ns per component per step; PathSim about
+**Execution.** Redstone costs about 50 ns per component per step; PathSim about
 14 µs. PathSim's per-step work is interpreted Python: for every RK stage,
 every block does `Register.to_array()` copies, a lambda call and
 `update_from_array`, and every connection does a numpy fancy-indexed transfer;
 each dynamic block also owns its own solver object with dict-indexed Butcher
-rows. Cadence compiles one unrolled, specialized body per activation over
+rows. Redstone compiles one unrolled, specialized body per activation over
 contiguous per-eltype cell blocks, so the per-component cost is a few loads and
 stores. PathSim's own docs recommend monolithic `ODE` blocks for performance;
 that recovers part of the gap by giving up block-diagram granularity, which
-Cadence never has to trade away.
+Redstone never has to trade away.
 
 **Compilation.** PathSim imports in 0.57 s and builds a 300-block model in
-6 ms with no JIT. Cadence pays 7–30 s per model *type*, of which about 5 s
+6 ms with no JIT. Redstone pays 7–30 s per model *type*, of which about 5 s
 is framework-generic and paid once per session, then 1.4 ms to rebuild the
 same type warm. Compile cost is not monotone in model size: N = 30 costs 38 s
 in the same session where N = 100 costs 29 s, with the excess in `init!` and
@@ -122,8 +122,8 @@ Nothing in these runs used a package image.
 **Where each wins.** Short edit-run cycles on small models favour PathSim's
 turnaround. Long runs, real-time operation, parameter sweeps, Monte Carlo, and
 trim or localization loops that evaluate the model thousands of times favour
-Cadence by two orders of magnitude. The 10 s run at N = 100 took 42 s in
-PathSim, so PathSim cannot run that model in real time at 1 kHz; Cadence used
+Redstone by two orders of magnitude. The 10 s run at N = 100 took 42 s in
+PathSim, so PathSim cannot run that model in real time at 1 kHz; Redstone used
 1.3% of the wall budget.
 
 **A PathSim quirk the benchmark tripped over.** `run(10.0)` at dt = 1e-3 ends
@@ -145,7 +145,7 @@ that do exist are thin (`"Connection conflict detected"` names nothing). The
 hybrid part of a model lives outside its blocks, as closures that reach into
 engines (`Ix.engine.set(abs(x))` in PathSim's own bouncing-ball test).
 
-Cadence asks more up front and returns it as diagnostics. Wiring is string
+Redstone asks more up front and returns it as diagnostics. Wiring is string
 paths checked at build, with collected errors sorted by path and did-you-mean
 lists. The one triggered deliberately for this report reads well:
 
@@ -157,7 +157,7 @@ globally); break it with a state, a unit delay or a stage-1 (`output_state`) por
 
 **Fan-out through the boundary, worked.** The benchmark needs one `ref` face
 feeding N summing junctions. In PathSim that is `Connection(ref, sm1[0],
-sm2[0], …)`. The first Cadence attempt spelled it as repeated pairs:
+sm2[0], …)`. The first Redstone attempt spelled it as repeated pairs:
 
 ```julia
 inputs = ("ref" => "sum1/a",
@@ -201,7 +201,7 @@ PathSim: subclass `Block`, set `initial_value`, override `update`/`step`/
 `solve`, set `__len__` to declare feedthrough, optionally hand-write
 `to_statespace`. Each of those is a convention the framework cannot check;
 forgetting `__len__` on a feedthrough block silently produces a one-evaluation
-delay. Cadence: a plain struct plus a few methods on framework generics, no
+delay. Redstone: a plain struct plus a few methods on framework generics, no
 macros, stages named by dependence class, bundles destructured by name. The
 framework probes every function at build and checks returns against the
 declaration. The discipline is real: immutable state in a closed leaf
@@ -214,7 +214,7 @@ documents. The learning curve is steeper and the footguns are fewer.
 This is where the two diverge most. The claims that mattered were checked by
 running them.
 
-**Feedthrough and scheduling.** Cadence's schedule is sound by construction:
+**Feedthrough and scheduling.** Redstone's schedule is sound by construction:
 `output_state` cannot see `u`, so a stage-1 port cannot feed through, and any
 `output_direct` conservatively depends on every input. PathSim's
 `DynamicalSystem.__len__` evaluates ∂y/∂u numerically at the initial point.
@@ -226,7 +226,7 @@ detected the loop and was exact. Subsystems are also coarsened to a single
 node whenever any interior path feeds through, so a partially-feedthrough
 subsystem manufactures loops in its parent that then cost iterations.
 
-**Events.** Cadence formalizes edge semantics, priors, the epoch rule and
+**Events.** Redstone formalizes edge semantics, priors, the epoch rule and
 budgets, and proves small things in prose: boundary detection is exact for
 guards over `u` and `m`, `t* = tₙ` is structurally impossible, the
 even-crossing blind spot is stated. Rounds iterate to quiescence, so a handler
@@ -239,29 +239,29 @@ records the positive value and no sign change is ever seen. In fixed-step mode
 PathSim also resolves an event *after* the full step against end-of-step
 state; only the recorded timestamp is interpolated. Adaptive mode localizes by
 rejecting and re-integrating the step with a secant ratio until
-`|g| ≤ tolerance`, a tolerance on the guard value rather than on time. Cadence
+`|g| ≤ tolerance`, a tolerance on the guard value rather than on time. Redstone
 localizes on the stepper's dense output with a bracketing method and never
 re-integrates.
 
 **Time.** PathSim accumulates `time += dt`; `run(10.0)` at dt = 1e-3 ended at
 10.001, and `Schedule` widens its tolerance by `1e-10·|t|` to absorb drift.
-Cadence indexes the grid (`tₖ = t₀ + k·h`), keeps periods as `Rational{Int}`,
+Redstone indexes the grid (`tₖ = t₀ + k·h`), keeps periods as `Rational{Int}`,
 and derives the base grid by GCD.
 
 **Implicit solvers.** PathSim's implicit methods solve each block's stage
 equation with a block-local Jacobian inside a global fixed-point iteration
 over blocks: a nonlinear block-Gauss-Seidel accelerated by Anderson. Stiff
 coupling *across* blocks gets no global Newton, and non-convergence is a
-`RuntimeError`. Cadence has no implicit method; §10.2 argues the domain does
+`RuntimeError`. Redstone has no implicit method; §10.2 argues the domain does
 not need one and records the remedy ladder. That is a scoping choice rather
 than a rigor gap, but a real capability gap.
 
-**Jacobians.** Cadence's are exact through Dual activations, and the
+**Jacobians.** Redstone's are exact through Dual activations, and the
 pinned/walked leaf schema makes a frozen coupling schema-visible (§9.5).
 PathSim's are central differences with a fixed relative step, O(h²) accurate,
 unless the author supplies analytic ones.
 
-**Determinism and state.** Cadence: immutable values, one home per datum, RNG
+**Determinism and state.** Redstone: immutable values, one home per datum, RNG
 in `s`, bit-exact replay. PathSim: mutable numpy arrays held by reference
 (`engine.set(x)` stores the caller's array), the `RNG` block on global
 `np.random`, no input trace.
@@ -284,7 +284,7 @@ argument (`coeffs=[1.0]`); `@mutable` re-runs `__init__` by introspection;
 almost no type hints. The numerical feedthrough heuristic and the accumulated
 clock are design-level weaknesses in otherwise clean code.
 
-**Cadence** (12.4k source lines, 11k test lines, 1803 tests). Its
+**Redstone** (12.4k source lines, 11k test lines, 1803 tests). Its
 distinguishing property is traceability. Every file header and most testset
 names cite the spec section they answer to; the decision log records rejected
 alternatives; `pending.md` is a transactional deviation register;
@@ -308,22 +308,22 @@ that breadth with heuristic feedthrough detection, a one-pass event model,
 accumulated time, untyped scalar ports, and a ~14 µs per-block-step floor that
 rules out real-time operation on anything but small models.
 
-Cadence is narrower by design and far more rigorous inside its boundary:
+Redstone is narrower by design and far more rigorous inside its boundary:
 structural scheduling, formal event semantics, typed signals, exact Jacobians,
 deterministic replay, and a 50 ns per-component-step floor. Its costs are
 compile latency, the authoring discipline, and the parts still unbuilt.
 
-Two things PathSim does that Cadence could adopt through existing seams
+Two things PathSim does that Redstone could adopt through existing seams
 without touching the execution model: an adaptive stepper as a package
 extension (`extensions.md` item 1), and a checkpoint that serializes the trace
-header plus stores to disk (the §16 persistence question). Two things Cadence
+header plus stores to disk (the §16 persistence question). Two things Redstone
 does that PathSim could not adopt without redesign: structural feedthrough and
 quiescence iteration, both of which its `Register`/`__len__`/single-pass
 architecture precludes.
 
 ## Reproduction
 
-- `probes/bench_pathsim.py`, `probes/bench_cadence.jl`: the table in §2.
+- `probes/bench_pathsim.py`, `probes/bench_redstone.jl`: the table in §2.
   PathSim ran in a venv with `pip install pathsim` (0.25.1). The Julia script
   loads `test/repl.jl` and runs with `julia --project=test`.
 - `probes/cascade.py`: the missed cascade.

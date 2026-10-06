@@ -66,7 +66,7 @@ every exit path. Window 1 contradicts that.
   587 and 974. `test/test_failures.jl`: the two testsets at lines 387 and
   401, and `test/test_lifecycle.jl` line 495 for the `Exploder` idiom.
 - A reference diff of the probed shapes sits at
-  `/private/tmp/claude-501/-Users-miguel--julia-dev-Cadence-jl/359debee-5390-4a7a-b7f2-3320c3ab741b/scratchpad/ref/reference.diff`.
+  `/private/tmp/claude-501/-Users-miguel--julia-dev-Redstone-jl/359debee-5390-4a7a-b7f2-3320c3ab741b/scratchpad/ref/reference.diff`.
   It is evidence that the shapes work, not text to paste: its comments are
   placeholders, and it drops a comment block this brief keeps.
 

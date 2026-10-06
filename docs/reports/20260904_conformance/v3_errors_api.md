@@ -34,11 +34,11 @@ unconnected input, both reported:
 ```
 == claim 1: typo'd wire (expect UnknownPort + 2 UnconnectedInput per 13.1) ==
 n diagnostics = 1
-  Cadence.UnknownPort :: child_connections at the root component, entry `"g/ot" => "s/a"`: `g/ot` names no `ot` on `g` — its faces are e, out
+  Redstone.UnknownPort :: child_connections at the root component, entry `"g/ot" => "s/a"`: `g/ot` names no `ot` on `g` — its faces are e, out
 
 == claim 1 control: correct wire, s/b unfed ==
 n diagnostics = 1
-  Cadence.UnconnectedInput :: `s`.b is fed by nothing — every input is fed exactly once, ...
+  Redstone.UnconnectedInput :: `s`.b is fed by nothing — every input is fed exactly once, ...
 ```
 
 The did-you-mean renders; the two `UnconnectedInput`s never do. §13.1's own
@@ -108,7 +108,7 @@ policy column. "Lone" = `throw(BuildError(<one diagnostic>))`, nothing gathered.
 interpolates it directly. Probe `p2` on `Bouncer{Float64,3}`:
 
 ```
-Cadence.EventHalfMissing
+Redstone.EventHalfMissing
   found  = Bouncer{Float64, 3}  ::DataType
   msg    = ``: event `touchdown`'s guard has no method for Bouncer{Float64, 3} — an event needs both halves (§8.2)
 ```
@@ -202,8 +202,8 @@ The *fact* is confirmed; the *reading of the spec* is wrong.
 Probe `p3`:
 
 ```
-constructor t_end=0.5 -> source=Cadence.EndTimeReached()  t=0.5
-override t_end=0.5   -> source=Cadence.EndTimeReached()  t=0.5
+constructor t_end=0.5 -> source=Redstone.EndTimeReached()  t=0.5
+override t_end=0.5   -> source=Redstone.EndTimeReached()  t=0.5
 records identical? true
 fieldnames(TerminationRecord) = (:t, :source, :residue)
 fieldnames(EndTimeReached)    = ()
@@ -263,15 +263,15 @@ must be kept in step by hand.
 Probe `p1`:
 
 ```
-names(Cadence) = [:Cadence]
-isdefined(Cadence, :condition) = false
-isdefined(Cadence, :ProbeDual) = false
-isdefined(Cadence, :ProbeTag)  = false
+names(Redstone) = [:Redstone]
+isdefined(Redstone, :condition) = false
+isdefined(Redstone, :ProbeDual) = false
+isdefined(Redstone, :ProbeTag)  = false
 Probe-ish names: Symbol[]
 ```
 
-`src/Cadence.jl` is 24 lines — `module`, one `using`, twenty `include`s, `end`
-— with no `export`. `names(Cadence, all=true)` filtered on "ondition" returns
+`src/Redstone.jl` is 24 lines — `module`, one `using`, twenty `include`s, `end`
+— with no `export`. `names(Redstone, all=true)` filtered on "ondition" returns
 only the `Condition*` diagnostic kinds, `ConditionNode`, `ConditionPlan`,
 `_condition` (`bindings.jl`'s axis conditioning) and `resolve_condition`; no
 `condition` generic. Filtered on "Probe" it returns the empty set, so neither
@@ -287,7 +287,7 @@ Probe `p2`, two sibling components with the identical dissent (`init_x` +
 ```
 paths in walk order = ["m1", "m2"]
 n diagnostics = 1
-  Cadence.DeclarationOnWrongTier path="m1" decl=state_update reason=tier_form found=discrete announced=continuous
+  Redstone.DeclarationOnWrongTier path="m1" decl=state_update reason=tier_form found=discrete announced=continuous
     msg = `m1`: `state_update` is declared in the discrete-tier form, but this component's other declarations announce the continuous tier (§8.2)
 ```
 

@@ -1,4 +1,4 @@
-module Cadence
+module Redstone
 
 using StaticArrays, LinearAlgebra, ForwardDiff
 using Random: Xoshiro, randn
@@ -29,4 +29,4 @@ include("linearize.jl")
 include("localization.jl")
 include("show.jl")
 
-end # module Cadence
+end # module Redstone

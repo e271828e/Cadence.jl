@@ -16,5 +16,5 @@ function once(N)
     tr = @elapsed run!(sim; t_end = 0.01)
     @printf("  N=%3d: build+compile %5.2f s, init %5.2f s, first run! %5.2f s  = %5.2f s\n", N, tb, ti, tr, tb + ti + tr)
 end
-@printf("load (using Cadence + fixtures): %.2f s\n", t_load)
+@printf("load (using Redstone + fixtures): %.2f s\n", t_load)
 for N in parse.(Int, ARGS); once(N); end

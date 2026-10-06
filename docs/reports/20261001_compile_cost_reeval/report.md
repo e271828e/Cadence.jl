@@ -128,7 +128,7 @@ inference, Julia's optimizer, LLVM code generation, LLVM optimization and
 machine code emission. The LLVM stages dominate, and their cost grows with
 the amount of code in the function.
 
-**Types that carry structure.** Cadence stores a model's entries in tuples,
+**Types that carry structure.** Redstone stores a model's entries in tuples,
 and a tuple's type lists its elements' types. So `typeof(sim)` spells out the
 whole topology, and so does the type of a `Group` root. Any method that takes
 such a value compiles again for every topology. That is harmless when the

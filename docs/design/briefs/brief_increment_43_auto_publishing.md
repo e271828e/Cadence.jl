@@ -1,6 +1,6 @@
 # Increment 43 — the auto-publishing removal (§5.3, §8.3, §9.1, Appendix C, D-252)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `2a909ed` plus the commit that adds this brief. Never `cd` elsewhere
 (`cd` is aliased to zoxide in the user's shell; use absolute paths).
 

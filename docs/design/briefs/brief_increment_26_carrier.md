@@ -1,6 +1,6 @@
 # Increment 26 — replace `BuildError` with the policy-parametric `DiagnosticError` carrier
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `98a2374`. Never `cd` elsewhere (`cd` is aliased to zoxide in the
 user's shell; use absolute paths).
 
@@ -25,7 +25,7 @@ file:
 - The file-table rows for `src/diagnostics.jl` (20) and `src/sim.jl` (27).
   Every other `src/` file is touched by a one-word swap only and needs no row.
 - **"Authoring caveats" in full (58–107)** — always. The third bullet (the
-  suite's `import Cadence:` list) bites this increment directly.
+  suite's `import Redstone:` list) bites this increment directly.
 
 **Stance: conservative reading.** Build what the tables below say. Where the
 spec and this brief disagree, stop and say so in the report rather than
@@ -162,7 +162,7 @@ does not need it.
 
 ## Tests
 
-- **`test/CadenceTests.jl`.** In the `import Cadence:` list, `BuildError`
+- **`test/RedstoneTests.jl`.** In the `import Redstone:` list, `BuildError`
   becomes `DiagnosticError`; add `diagnostic` and `diagnostics` (the list is
   alphabetical). `kinds` is already there.
 - **`err isa BuildError`** becomes `err isa DiagnosticError` everywhere. The

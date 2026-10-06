@@ -698,13 +698,13 @@ function diagnostics_kind_set()
         end
         # A declared generic holding renders through `_typename` like any other
         # name: the variable and its bound, unqualified, whoever is printing — the
-        # `string(::TypeVar)` spelling reads `Cadence.AbstractComponent` from
+        # `string(::TypeVar)` spelling reads `Redstone.AbstractComponent` from
         # anywhere but this module. A payload claim, so it sits here rather than in
         # the rendering testset below.
         rendered = message(only(d for d in occurrences
                                 if d isa PathResolution && d.reason === :past_generic))
         @test occursin("`L<:AbstractComponent`", rendered) &&
-              !occursin("Cadence.", rendered)
+              !occursin("Redstone.", rendered)
         # A `Union`-typed holding has no name to take: it renders from its members,
         # in the order Julia itself keeps them.
         @test _typename(Union{Plant, Gain}) == "Union{Gain, Plant}"
@@ -888,7 +888,7 @@ function diagnostics_kind_set()
         # spelled for exactly the names the module shadowed.
         rendered = message(DeclarationShadowed(path = "a/b", parent_module = "Main.MyModel",
                                                names = [:x_init, :y_types]))
-        @test occursin("import Cadence: x_init, y_types", rendered)
+        @test occursin("import Redstone: x_init, y_types", rendered)
 
         # A bare store value (§8.2, D-247) spells the wrap for the store at fault.
         rendered = message(StoreNotNamedTuple(path = "a/b", store = :x_init,

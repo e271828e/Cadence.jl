@@ -4,7 +4,7 @@
 
 Read specification §§1–2.2, 7.5, 11.2 (logging), 11.5, 13.7, 15.1–15.5,
 16, and the API/diagnostic appendices; cross-checked relevant decisions and
-`src/Cadence.jl`, publication/trace machinery and allocation tests. The more
+`src/Redstone.jl`, publication/trace machinery and allocation tests. The more
 detailed executable contracts are owned by the subsystem reviews. External
 FlightPhysics/FlightApps references and linked excluded documents were not opened.
 

@@ -1,6 +1,6 @@
 # Increment 30 — collect Stratum A to one barrier; deployment to one throw per call
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at launch `9049a4e` for stage 1, `f7c96ae` for stage 2. Never `cd` elsewhere (`cd` is aliased to zoxide in the
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at launch `9049a4e` for stage 1, `f7c96ae` for stage 2. Never `cd` elsewhere (`cd` is aliased to zoxide in the
 user's shell; use absolute paths).
 
 **Standing.** A conformance increment in two stages. The design change landed
@@ -35,7 +35,7 @@ whole file:
 - "Running the suite" (110–140).
 - The file-table rows for `src/assembly.jl` (22), `src/build.jl` (25) and
   `src/sim.jl` (27).
-- **"Authoring caveats" in full (60–107)** — always. The `import Cadence:`
+- **"Authoring caveats" in full (60–107)** — always. The `import Redstone:`
   bullet bites in stage 1: the tests call `classify_tier` and `kinds`
   directly; check `test/imports.jl` has every name a new test uses.
 

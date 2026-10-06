@@ -1,6 +1,6 @@
 # Increment 44 — the build-side types (§9.1, §9.2, §9.4, §13.2, Appendix C, D-250, D-253, D-259)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `3815392` plus the commit that adds this brief.
 Never `cd` elsewhere (`cd` is aliased to zoxide in the user's shell; use
 absolute paths).
@@ -367,7 +367,7 @@ reads through `b.events` and `df.order`.
   are different on purpose.
 - New, in `test_events.jl` beside 112–114, *"the events product carries the
   policies and the bundle names (§9.1, D-253)"*: `b.events.bundles[1]` for
-  `fed(Trigger(0.5), "sig")` equals the tuple `Cadence.event_bundle_names`
+  `fed(Trigger(0.5), "sig")` equals the tuple `Redstone.event_bundle_names`
   returns for it (read the literal in a REPL and assert the literal), and
   `()` for `single(Rotor())`.
 - `imports.jl`: add `Dataflow`, `Events`.
@@ -437,7 +437,7 @@ port list. Cite D-253 on each. Run the two tools.
 
 ## Stage 4 — the channel
 
-Files: `src/Cadence.jl`, `src/diagnostics.jl`, `src/build.jl`,
+Files: `src/Redstone.jl`, `src/diagnostics.jl`, `src/build.jl`,
 `test/test_build.jl`, `test/test_diagnostics.jl`, `test/imports.jl`,
 `docs/design/implementation.md`, `docs/design/pending.md`.
 
@@ -478,7 +478,7 @@ end
   `build.jl` beside `activation`. `Simulation`'s method is increment 46's
   (it concatenates two artifacts' lists); do not add it.
 
-`src/Cadence.jl`: `using Base.ScopedValues: ScopedValue, with`.
+`src/Redstone.jl`: `using Base.ScopedValues: ScopedValue, with`.
 
 ### `src/build.jl`
 

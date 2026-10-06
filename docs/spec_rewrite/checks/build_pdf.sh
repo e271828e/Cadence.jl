@@ -20,5 +20,5 @@ for d in $(rg -o '\]\[d-[0-9]{3}\]' -N $C/chapter_new.md $extra | rg -o 'd-[0-9]
 done
 } > $C/chapter.md
 cd $D/pdf && pandoc -d pdf.yaml -f gfm+tex_math_dollars+raw_attribute -L $H/deadlinks.lua \
-  --pdf-engine-opt=--input=theme=gallery/themes/cadence.tmTheme $C/chapter.md -o $C/chapter.pdf
+  --pdf-engine-opt=--input=theme=gallery/themes/redstone.tmTheme $C/chapter.md -o $C/chapter.pdf
 rm $C/chapter.md

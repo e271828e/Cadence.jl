@@ -1,4 +1,4 @@
-# Cadence audit — 2026-09-15/16, refreshed 2026-09-17/18
+# Redstone audit — 2026-09-15/16, refreshed 2026-09-17/18
 
 Start with the **[curated report](report.md)**, refreshed against committed
 `2938a0`. Seven findings are retired; F-05/G-07/G-11 are narrowed. See

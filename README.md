@@ -1,6 +1,6 @@
-# Cadence.jl
+# Redstone.jl
 
-Cadence is a Julia framework for modeling and simulating hierarchical hybrid
+Redstone is a Julia framework for modeling and simulating hierarchical hybrid
 systems. A model is a tree of components that exchange values through directed
 ports, mixing continuous dynamics, multi-rate periodic discrete dynamics and
 events. Its home domain is aircraft guidance, navigation and control, but the
@@ -26,15 +26,15 @@ but not yet built.
 
 ## Status
 
-Cadence is under active development and is not yet registered. Its API may
+Redstone is under active development and is not yet registered. Its API may
 change without notice. The module exports nothing yet, so every name is
-imported explicitly. Cadence requires Julia 1.13 or later.
+imported explicitly. Redstone requires Julia 1.13 or later.
 
 ## Installation
 
 ```julia
 using Pkg
-Pkg.add(url = "https://github.com/e271828e/Cadence.jl")
+Pkg.add(url = "https://github.com/e271828e/Redstone.jl")
 ```
 
 ## Quick start
@@ -42,8 +42,8 @@ Pkg.add(url = "https://github.com/e271828e/Cadence.jl")
 A continuous plant under a discrete PI controller running at 50 Hz:
 
 ```julia
-using Cadence
-import Cadence: AbstractComponent, x_init, s_init, u_types, y_types,
+using Redstone
+import Redstone: AbstractComponent, x_init, s_init, u_types, y_types,
     y_state, y_direct, x_deriv, s_update,
     Group, Absolute, Hz, Simulation, init!, run!, fragment, port, state, build
 
@@ -104,7 +104,7 @@ ERROR: DiagnosticError: 1 diagnostics
 
 ## Documentation
 
-Cadence has no user manual yet. Its design is written down in full:
+Redstone has no user manual yet. Its design is written down in full:
 
 - `docs/design/spec.md` is the normative specification.
 - `docs/design/decisions.md` records every design decision and the

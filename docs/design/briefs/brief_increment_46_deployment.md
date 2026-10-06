@@ -1,6 +1,6 @@
 # Increment 46 — `Deployment`, `Schedule` and the grid diagnostics (§9.1, §9.2, §10.5, §12.7, Appendix B, Appendix C, D-187, D-250, D-254, D-256)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `cc01746` plus the commit that adds this brief.
 Never `cd` elsewhere (`cd` is aliased to zoxide in the user's shell; use
 absolute paths).
@@ -118,7 +118,7 @@ untouched.
 
 ## Stage 1 — `Schedule` and `Deployment`
 
-Files: `src/deployment.jl` (new), `src/Cadence.jl`, `src/build.jl`,
+Files: `src/deployment.jl` (new), `src/Redstone.jl`, `src/build.jl`,
 `src/sim.jl`, `src/trace.jl`, `src/localization.jl`, `src/trim.jl`,
 `src/conditions.jl`, `src/diagnostics.jl`, `test/imports.jl`,
 `test/test_discrete.jl`, `test/test_lifecycle.jl`, `test/test_devices.jl`,
@@ -131,7 +131,7 @@ Files: `src/deployment.jl` (new), `src/Cadence.jl`, `src/build.jl`,
 ### The types
 
 `src/deployment.jl` is included after `stepper.jl` and before `sim.jl`
-(`Cadence.jl:21–22`): the constructor checks `algorithm <: AbstractStepper`
+(`Redstone.jl:21–22`): the constructor checks `algorithm <: AbstractStepper`
 (`stepper.jl:21`), which `build.jl` cannot see, and `sim.jl` materializes
 the type. Section 6 of `build.jl` (1238–1359, `_exact`, `_as_int` and
 `bind_schedule`) moves there whole; `build.jl`'s docstrings that say the

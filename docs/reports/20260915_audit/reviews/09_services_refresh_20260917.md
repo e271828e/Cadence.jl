@@ -11,11 +11,11 @@ This is a bounded refresh of six entries in the current audit report. I read the
 I reran the current-audit probe directly:
 
 ```text
-relocate TrimProblem: DiagnosticError{Cadence.ConditionNodeMisuse} carried=Cadence.ConditionNodeMisuse
-relocate Reads: DiagnosticError{Cadence.ConditionNodeMisuse} carried=Cadence.ConditionNodeMisuse
+relocate TrimProblem: DiagnosticError{Redstone.ConditionNodeMisuse} carried=Redstone.ConditionNodeMisuse
+relocate Reads: DiagnosticError{Redstone.ConditionNodeMisuse} carried=Redstone.ConditionNodeMisuse
 out-of-range compiled read: BoundsError carried=none
 non-callable trim condition: MethodError carried=none
-interrupt during condition conversion: DiagnosticError{Vector{Cadence.Diagnostic}} carried=Vector{Cadence.Diagnostic}
+interrupt during condition conversion: DiagnosticError{Vector{Redstone.Diagnostic}} carried=Vector{Redstone.Diagnostic}
 linearize defined: false
 ```
 
@@ -107,7 +107,7 @@ The finding remains **open**. The narrow repair is to rethrow `InterruptExceptio
 
 ### Current implementation and tests
 
-There is no `linearize` binding in `Cadence`; the current probe prints `linearize defined: false`. The codebase has reusable pieces—the `Reads`/`Reader` machinery and trim scratch activations—but no tap-set type, seed/write pass, matrix assembly, labeled return, or service entry point. The permitted tests contain no linearization test file or entry-point exercise.
+There is no `linearize` binding in `Redstone`; the current probe prints `linearize defined: false`. The codebase has reusable pieces—the `Reads`/`Reader` machinery and trim scratch activations—but no tap-set type, seed/write pass, matrix assembly, labeled return, or service entry point. The permitted tests contain no linearization test file or entry-point exercise.
 
 `docs/design/pending.md:55-58` independently records `linearize`, its tap register, and the nominal-activation loop as not built. That register supports the source finding but is not its basis.
 

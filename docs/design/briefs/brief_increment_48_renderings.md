@@ -1,6 +1,6 @@
 # Increment 48 — The row shape of `Structure` and the renderings (§9.1, §9.2, §13.7, D-257, D-261)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `4ac061c` plus the commit that adds this brief. Line numbers below
 are those of `4ac061c`. Never `cd` elsewhere (`cd` is aliased to zoxide in
 the user's shell; use absolute paths).
@@ -81,7 +81,7 @@ script over `MultiRate`, the `Absolute(Hz(500))`/`Absolute(Hz(10),
 
 **Two stages, two commits, in this order.** Both touch a file in the
 routing table's last row (`deployment.jl`, `diagnostics.jl` beyond a new
-kind, `Cadence.jl`), so each routed subset is all of it, under the sandbox
+kind, `Redstone.jl`), so each routed subset is all of it, under the sandbox
 flags. `implementation.md`'s "Running the suite" (124–175) is the one home
 of test policy; this brief does not restate it. The gate is the reviewer's.
 
@@ -305,9 +305,9 @@ Tests: `test_diagnostics.jl:252–255` construct `GridEntry(:period, 1//30,
 
 ## Stage 2 — the renderings
 
-Opus. A new file `src/show.jl`, included last in `src/Cadence.jl` (after
+Opus. A new file `src/show.jl`, included last in `src/Redstone.jl` (after
 `localization.jl`; every type it renders exists by then). A new
-`test/test_show.jl`, included and registered in `test/CadenceTests.jl`
+`test/test_show.jl`, included and registered in `test/RedstoneTests.jl`
 like its siblings. `_grid_block` stays in `diagnostics.jl`, since the
 messages use it; `show.jl` calls it.
 
@@ -508,7 +508,7 @@ constructor in `@test_logs` as `test_discrete.jl:461` does), `Pendulum` at
 
 ### Bookkeeping
 
-- `test/CadenceTests.jl`: the include and the registration, as the other
+- `test/RedstoneTests.jl`: the include and the registration, as the other
   files.
 - `implementation.md`: a `src/show.jl` row after `src/trim.jl`'s, one
   line, naming the twelve methods, the label function, the chart and its

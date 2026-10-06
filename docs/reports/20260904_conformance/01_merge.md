@@ -248,7 +248,7 @@ spec calls it a migration-phase deliverable, so this may belong in the
 register as a deferral rather than a gap.
 
 **B23. Nothing is exported, and three surface names do not exist.**
-`names(Cadence) == [:Cadence]`; there is no `condition` generic (two model
+`names(Redstone) == [:Redstone]`; there is no `condition` generic (two model
 packages defining it would define two functions, breaking §14.2's pull
 composition); `ProbeDual` and `ProbeTag` are not names; there is no `check`
 entry (I 4.3, 4.4, 4.7, C 4.15). Whether "exported" is normative is a
@@ -382,7 +382,7 @@ the user's call; the audit only lists them.
 - **The shared scratchpad.** Two agents had a probe file overwritten by
   another agent's same-named file between write and run. The next brief
   should assign a subdirectory per agent.
-- **`test/fixtures.jl` cannot be loaded outside `CadenceTests`.** It reads
+- **`test/fixtures.jl` cannot be loaded outside `RedstoneTests`.** It reads
   the framework's names from `Main`, and the test module needs
   `BenchmarkTools`, which `--project=.` does not have. A self-importing
   fixtures file or a documented probe preamble would have saved four attempts

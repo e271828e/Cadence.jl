@@ -1,6 +1,6 @@
 # Increment 45 — §8.8's selectors and the empty selection (§8.8, §9.1, §13.3, Appendix C, D-250, D-251)
 
-Repository `/Users/miguel/.julia/dev/Cadence.jl`, branch `master`, tip at
+Repository `/Users/miguel/.julia/dev/Redstone.jl`, branch `master`, tip at
 launch `55b9f5e` plus the commit that adds this brief.
 Never `cd` elsewhere (`cd` is aliased to zoxide in the user's shell; use
 absolute paths).
@@ -140,7 +140,7 @@ walk, where the primitives evaluate the body themselves.
 const WALK_FACES = ScopedValue{Union{Nothing,IdDict{Any,Tuple{Vector{String},Vector{String}}}}}(nothing)
 ```
 
-  `Base.ScopedValues` is already imported in `src/Cadence.jl:5`.
+  `Base.ScopedValues` is already imported in `src/Redstone.jl:5`.
 - `flatten!` (849) binds it: `with(WALK_FACES => w.faces) do _walk!(…) end`.
   The obligation loop after the walk uses `_contract(input_types, c)` and
   needs no binding. `build` keeps binding `BUILD_WARNINGS` alone; the memo
