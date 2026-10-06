@@ -121,14 +121,15 @@ y_direct(::Freeze, (; u)) = (out = ForwardDiff.value.(u.in),)
 
 The integrator: one continuous state `q`, starting at `x0`, with `q̇ = in`, and
 `out` publishing `q` from stage 1, so the block has no feedthrough (§5.3). `V`
-is a `Real` or a `StaticArray` of them, taken from `x0`, and any `x0` of that
-kind is in its domain. A `Float64` state walks under a `Dual` activation
-(§7.2), so the block linearizes as it integrates.
+is a `Real` or a `StaticArray` of them, taken from `float(x0)`, so an integer
+`x0` builds a `Float64` block, and any `x0` of that kind is in its domain. A
+`Float64` state walks under a `Dual` activation (§7.2), so the block linearizes
+as it integrates.
 """
 struct Integrator{V <: Union{Real, StaticArray{<:Tuple, <:Real}}} <: AbstractComponent
     x0::V
 end
-Integrator(; x0 = 0.0) = Integrator(x0)
+Integrator(; x0 = 0.0) = Integrator(float(x0))
 x_init(b::Integrator) = (q = b.x0,)
 u_types(::Integrator{V}) where {V} = (in = V,)
 y_types(::Integrator{V}) where {V} = (out = V,)
@@ -143,13 +144,16 @@ from stage 1. The time constant `τ` is positive, and it is instance data pinned
 at `Float64`. The state walks under a `Dual` activation (§7.2), so the lag
 linearizes to `A = -1/τ` and `B = 1/τ`; a lag typed at `Float64` on its
 continuous path fails there instead (D-313). `V` is a `Real` or a
-`StaticArray` of them, taken from `x0`.
+`StaticArray` of them, taken from `float(x0)`.
 """
 struct FirstOrderLag{V <: Union{Real, StaticArray{<:Tuple, <:Real}}} <: AbstractComponent
     x0::V
     τ::Float64
 end
-FirstOrderLag(; τ, x0 = 0.0) = FirstOrderLag{typeof(x0)}(x0, τ)
+function FirstOrderLag(; τ, x0 = 0.0)
+    x0 = float(x0)
+    FirstOrderLag{typeof(x0)}(x0, τ)
+end
 x_init(b::FirstOrderLag) = (q = b.x0,)
 u_types(::FirstOrderLag{V}) where {V} = (in = V,)
 y_types(::FirstOrderLag{V}) where {V} = (out = V,)
@@ -164,8 +168,8 @@ x_deriv(b::FirstOrderLag, (; x, u)) = (q = (u.in - x.q) / b.τ,)
 The step source: `out` publishes `before` until `t_step` and `after` from then
 on. A mode-only leaf with no inputs: the mode `fired` picks the value, and one
 state event, `fire`, sets it once `t` reaches `t_step`. `before` and `after`
-are promoted to one `V`, a `Real` or a `StaticArray` of them; `t_step` is any
-time.
+are promoted to one `V` and taken by `float`, a `Real` or a `StaticArray` of
+them; `t_step` is any time.
 
 `localized` picks the detection policy (§2.1). Localized, the guard is the sign
 form `t - t_step`: the step ends at the crossing and the jump lands there.
@@ -184,7 +188,7 @@ struct Step{V <: Union{Real, StaticArray{<:Tuple, <:Real}}, L} <: AbstractCompon
     t_step::Float64
 end
 function Step(; t_step, before = 0.0, after = 1.0, localized = true)
-    before, after = promote(before, after)
+    before, after = float.(promote(before, after))
     Step{typeof(before), localized}(before, after, t_step)
 end
 x_init(::Step) = (;)
@@ -195,6 +199,91 @@ step_guard(b::Step{V, true}, (; t)) where {V} = t - b.t_step     # sign form: lo
 step_guard(b::Step{V, false}, (; t)) where {V} = t >= b.t_step   # Bool form: boundary-detected
 step_handler(::Step, _) = (m = (fired = true,),)
 state_events(::Step) = (fire = StateEvent(step_guard, step_handler),)
+
+# --- the moded blocks (§10.4, §10.6, D-313) -------------------------------------
+
+"""
+    LimitedIntegrator(; lower, upper, x0 = zero(lower))
+
+The integrator held between `lower` and `upper`: one continuous state `q`, with
+`q̇ = in` while free and `q̇ = 0` while saturated, and `out` publishing `q` from
+stage 1. It is not a clamp. The mode `saturation`, `:free`, `:upper` or
+`:lower`, is read by the derivative, and four state events move it.
+`hit_upper` and `hit_lower` fire when `q` reaches a limit; their handlers write
+`q` to the limit exactly and saturate. `leave_upper` and `leave_lower` fire
+when `in` turns back into the range, and free it. The leave guards are gated by
+the mode in §10.4's form, so all four events are localized.
+
+`lower < upper`. `x0`, `lower` and `upper` are promoted to one `V <: Real` and
+taken by `float`. Boundary zero sets every prior to not-holding (§10.6), so an
+`x0` outside the limits is clamped there, and the initial mode agrees with the
+initial input.
+"""
+struct LimitedIntegrator{V <: Real} <: AbstractComponent
+    x0::V
+    lower::V
+    upper::V
+end
+LimitedIntegrator(; lower, upper, x0 = zero(lower)) =
+    LimitedIntegrator(float.(promote(x0, lower, upper))...)
+x_init(b::LimitedIntegrator) = (q = b.x0,)
+m_init(::LimitedIntegrator) = (saturation = :free,)    # :free, :upper or :lower
+u_types(::LimitedIntegrator{V}) where {V} = (in = V,)
+y_types(::LimitedIntegrator{V}) where {V} = (out = V,)
+y_state(::LimitedIntegrator, (; x)) = (out = x.q,)
+x_deriv(::LimitedIntegrator, (; u, m)) = (q = m.saturation === :free ? u.in : zero(u.in),)
+# The hit guards are not gated by `:free` on purpose. Gated, a hit guard would
+# read `0` the instant a leave handler frees the mode, present a fresh edge and
+# saturate the block again.
+hit_upper_guard(b::LimitedIntegrator, (; x)) = x.q - b.upper
+hit_lower_guard(b::LimitedIntegrator, (; x)) = b.lower - x.q
+leave_upper_guard(::LimitedIntegrator, (; m, u)) = m.saturation === :upper ? -u.in : -one(u.in)
+leave_lower_guard(::LimitedIntegrator, (; m, u)) = m.saturation === :lower ? u.in : -one(u.in)
+hit_upper_handler(b::LimitedIntegrator, _) = (x = (q = b.upper,), m = (saturation = :upper,))
+hit_lower_handler(b::LimitedIntegrator, _) = (x = (q = b.lower,), m = (saturation = :lower,))
+leave_handler(::LimitedIntegrator, _) = (m = (saturation = :free,),)
+state_events(::LimitedIntegrator) = (hit_upper = StateEvent(hit_upper_guard, hit_upper_handler),
+                                     hit_lower = StateEvent(hit_lower_guard, hit_lower_handler),
+                                     leave_upper = StateEvent(leave_upper_guard, leave_handler),
+                                     leave_lower = StateEvent(leave_lower_guard, leave_handler))
+
+"""
+    Relay(; lower, upper, off = zero(lower), on = one(lower))
+
+The relay with hysteresis: `out` publishes `off` or `on` by the mode `state`,
+from stage 1. Two state events move the mode. `switch_on` fires when `in` rises
+to `upper` while off, and `switch_off` when `in` falls to `lower` while on.
+Both guards are sign forms gated by the mode in §10.4's form, so both are
+localized.
+
+`out` reads no input, so the block has no feedthrough (§5.3), and a relay
+closing a feedback loop makes no algebraic loop. It is the library's reference
+mode-switching leaf. `lower < upper`. The four values are promoted to one
+`V <: Real` and taken by `float`.
+
+The relay starts off. Boundary zero sets every prior to not-holding (§10.6), so
+an input already at or above `upper` at `t₀` turns it on there, and an input
+between the thresholds leaves it off, which is the hysteresis itself.
+"""
+struct Relay{V <: Real} <: AbstractComponent
+    lower::V      # switch off when `in` falls to it
+    upper::V      # switch on when `in` rises to it
+    off::V        # `out` while off
+    on::V         # `out` while on
+end
+Relay(; lower, upper, off = zero(lower), on = one(lower)) =
+    Relay(float.(promote(lower, upper, off, on))...)
+x_init(::Relay) = (;)
+m_init(::Relay) = (state = :off,)
+u_types(::Relay{V}) where {V} = (in = V,)
+y_types(::Relay{V}) where {V} = (out = V,)
+y_state(b::Relay, (; m)) = (out = m.state === :on ? b.on : b.off,)
+switch_on_guard(b::Relay, (; m, u)) = m.state === :off ? u.in - b.upper : -one(u.in)
+switch_off_guard(b::Relay, (; m, u)) = m.state === :on ? b.lower - u.in : -one(u.in)
+switch_on_handler(::Relay, _) = (m = (state = :on,),)
+switch_off_handler(::Relay, _) = (m = (state = :off,),)
+state_events(::Relay) = (switch_on = StateEvent(switch_on_guard, switch_on_handler),
+                         switch_off = StateEvent(switch_off_guard, switch_off_handler))
 
 # --- the anonymous assembly (§8.5, D-211) -------------------------------------
 

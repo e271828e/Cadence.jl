@@ -121,7 +121,7 @@ The standard component library, the submodule `Redstone.Blocks`:
 
 - `Junction`, with the aliases `SumJunction`, `Or` and `And` (D-311).
 - `Constant`, `UnitDelay` and `Freeze` (D-312).
-- `Integrator`, `FirstOrderLag` and `Step` (D-313).
+- `Integrator`, `FirstOrderLag`, `Step`, `LimitedIntegrator` and `Relay` (D-313).
 - The anonymous assembly `Group`, with `_entries` (D-184).
 
 It reaches the parent through its import list alone, as a user's component

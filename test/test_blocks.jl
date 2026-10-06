@@ -1,8 +1,9 @@
 # --- the standard component library (§13.7, §6.2) -------------------------------
 # The blocks of `Redstone.Blocks`, each built in a model and read off the
 # snapshot: the junction's contract and its folds, the source, the delay, the
-# stop-gradient, the integrator, the lag and the step. The models are built at
-# top level, like the fixtures they reuse: `RealEntry` and `PinnedEntry` are
+# stop-gradient, the integrator, the lag, the step, the limited integrator and
+# the relay, and two loops built from them alone. The models are built at top
+# level, like the fixtures they reuse: `RealEntry` and `PinnedEntry` are
 # test_build.jl's.
 
 # One gate over three `Constant` sources, at the given input values.
@@ -44,6 +45,35 @@ block_linearization(comp) =
     (sim = Simulation(fed(comp, "in"); h = 1//100);
      init!(sim, fragment(u = (in = 0.0,)));
      linearize(sim, taps(x = (q = get_state("c", :q),), u = (in = get_input(:in),))))
+
+# A limited integrator fed by a step from `1` down to `-1`.
+limited_model() =
+    Group((; s = Step(t_step = 1.05, before = 1.0, after = -1.0),
+             li = LimitedIntegrator(lower = -1.0, upper = 0.5));
+          local_wires = ("s/out" => "li/in",))
+
+# A relay reading an integrator that a step drives up, then down.
+relay_model() =
+    Group((; s = Step(t_step = 1.0, before = 1.0, after = -1.0), i = Integrator(),
+             r = Relay(lower = 0.2, upper = 0.8));
+          local_wires = ("s/out" => "i/in", "i/out" => "r/in"))
+
+# The servo loop: a reference step, the error, a limited integrator as the
+# controller, a lag as the actuator and a lag as the plant, whose `out` leaves
+# the root.
+servo_loop() =
+    Group((; reference = Step(t_step = 0.5), error = Junction{Float64, Float64, 2}(-),
+             li = LimitedIntegrator(lower = -2.0, upper = 2.0),
+             actuator = FirstOrderLag(τ = 0.1), plant = FirstOrderLag(τ = 1.0));
+          local_wires = ("reference/out" => "error/in1", "plant/out" => "error/in2",
+                         "error/out" => "li/in", "li/out" => "actuator/in",
+                         "actuator/out" => "plant/in"),
+          output_wires = ("plant/out" => "out",))
+
+# The bang-bang loop: a relay switching an integrator's input on its output.
+bang_bang_loop() =
+    Group((; i = Integrator(), r = Relay(lower = 0.2, upper = 0.8, off = 1.0, on = -1.0));
+          local_wires = ("r/out" => "i/in", "i/out" => "r/in"))
 
 function test_blocks()
     @testset "the junction's arity and port types come from its type (§6.2, D-311)" begin
@@ -225,6 +255,97 @@ function test_blocks()
         end
     end
 
+    @testset "the limited integrator saturates exactly, frees on its input's sign, and linearizes by its mode (§10.4, §10.6, D-313)" begin
+        sim = Simulation(limited_model(); h = 1//10)
+        init!(sim, fragment())
+        step!(sim; t_plus = 0.7)
+        @test state(sim, "li").q == 0.5 && modes(sim, "li").saturation === :upper
+        step!(sim; t_plus = 1.3)
+        bracket_width = sim.deployment.localization_tol * sim.deployment.h    # in time (§10.4)
+        @test state(sim, "li").q ≈ -0.45 atol = bracket_width
+        @test modes(sim, "li").saturation === :free
+        step!(sim; t_plus = 1.0)
+        @test state(sim, "li").q == -1.0 && modes(sim, "li").saturation === :lower
+        # The derivative reads the mode, so the Jacobian does too.
+        @test isapprox(block_linearization(LimitedIntegrator(lower = -1.0, upper = 0.5)).B, [1.0;;]; atol = 1e-12)
+        rig = Simulation(fed(LimitedIntegrator(lower = -1.0, upper = 0.5), "in"); h = 1//10)
+        init!(rig, fragment(u = (in = 1.0,)))
+        step!(rig; t_plus = 0.7)
+        @test state(rig, "c").q == 0.5 && modes(rig, "c").saturation === :upper
+        linearization = linearize(rig, taps(x = (q = get_state("c", :q),), u = (in = get_input(:in),)))
+        @test isapprox(linearization.B, [0.0;;]; atol = 1e-12)
+        # An `x0` outside the limits is clamped at boundary zero (§10.6).
+        clamped = Simulation(fed(LimitedIntegrator(x0 = 2.0, lower = -1.0, upper = 0.5), "in"); h = 1//10)
+        init!(clamped, fragment(u = (in = 1.0,)))
+        @test state(clamped, "c").q == 0.5 && modes(clamped, "c").saturation === :upper
+        @test LimitedIntegrator(lower = -1, upper = 0.5) isa LimitedIntegrator{Float64}
+        @test LimitedIntegrator(lower = -1, upper = 0.5).x0 === 0.0
+    end
+
+    @testset "the relay switches with hysteresis, from boundary zero on (§10.4, §10.6, D-313)" begin
+        sim = Simulation(relay_model(); h = 1//10)
+        init!(sim, fragment())
+        # At t = 0.5, 0.9, 1.5 (inside the band, still on) and 1.9.
+        for (t_plus, out, mode) in ((0.5, 0.0, :off), (0.4, 1.0, :on), (0.6, 1.0, :on), (0.4, 0.0, :off))
+            step!(sim; t_plus = t_plus)
+            @test port(sim, "r", :out) == out && modes(sim, "r").state === mode
+        end
+        for (value, mode) in ((1.0, :on), (0.5, :off))
+            model = Group((; k = Constant(value), r = Relay(lower = 0.2, upper = 0.8));
+                          local_wires = ("k/out" => "r/in",))
+            constant_sim = Simulation(model; h = 1//10)
+            init!(constant_sim, fragment())
+            @test modes(constant_sim, "r").state === mode
+        end
+    end
+
+    @testset "the bang-bang loop builds with no algebraic loop and cycles between the thresholds (§5.3, §13.7)" begin
+        @test build(bang_bang_loop()) isa Build
+        @test build(bang_bang_loop(); activations = (Float64, LinearizeDual)) isa Build
+        sim = Simulation(bang_bang_loop(); h = 1//10)
+        init!(sim, fragment())
+        step!(sim; t_plus = 5.0)
+        bracket_width = sim.deployment.localization_tol * sim.deployment.h    # in time, at slope 1
+        @test 0.2 - bracket_width ≤ state(sim, "i").q ≤ 0.8 + bracket_width
+    end
+
+    @testset "the servo loop settles on its reference inside the integrator's limits (§13.7)" begin
+        @test build(servo_loop(); activations = (Float64, LinearizeDual)) isa Build
+        sim = Simulation(servo_loop(); h = 1//100)
+        init!(sim, fragment())
+        # To t = 1, 2, 5, 10 and 40.
+        for t_plus in (1.0, 1.0, 3.0, 5.0, 30.0)
+            step!(sim; t_plus = t_plus)
+            @test -2.0 ≤ state(sim, "li").q ≤ 2.0
+        end
+        @test port(sim, "plant", :out) ≈ 1.0 atol = 1e-3
+    end
+
+    @testset "every keyword constructor builds a `Float64` block from integer keywords (§7.2)" begin
+        @test Integrator(x0 = 1) isa Integrator{Float64}
+        @test FirstOrderLag(τ = 1, x0 = 1) isa FirstOrderLag{Float64}
+        @test Step(t_step = 0.25, before = 0, after = 2) isa Step{Float64, true}
+        @test LimitedIntegrator(lower = -1, upper = 1) isa LimitedIntegrator{Float64}
+        @test Relay(lower = 0, upper = 1) isa Relay{Float64}
+    end
+
+    @testset "the loops' phase bodies and their quiet boundaries allocate nothing (§7.5)" begin
+        for model in (servo_loop(), bang_bang_loop())
+            sim = Simulation(model; h = 1//10)
+            bodies = phase_bodies(sim)
+            for name in (:sweep_1, :sweep_2, :rhs, :ticks)
+                body = bodies[name]
+                body(); body(0)
+                @test @ballocated($body()) == 0
+                @test @ballocated($body(1)) == 0
+            end
+            init!(sim, fragment())
+            boundary!(sim, 1); offtick_boundary!(sim)
+            @test @ballocated(boundary!($sim, 1)) == 0
+            @test @ballocated(offtick_boundary!($sim)) == 0
+        end
+    end
+
     @testset "every block passes the shadowing check from its own module (§8.1, D-246, D-313)" begin
         # The reason `Blocks` is a submodule: its parent module is `Blocks`, which
         # reaches the declarations by import alone, as a user's component file
@@ -232,7 +353,8 @@ function test_blocks()
         for comp in (Or{3}(), And{2}(), SumJunction{Float64,2}(), Junction{Float64,Float64,2}(max),
                      Constant(1.0), UnitDelay(0.0), Freeze{Float64}(),
                      Integrator(), FirstOrderLag(τ = 1.0), Step(t_step = 1.0),
-                     Step(t_step = 1.0, localized = false), Group((; k = Constant(1.0))))
+                     Step(t_step = 1.0, localized = false), LimitedIntegrator(lower = -1.0, upper = 1.0),
+                     Relay(lower = 0.2, upper = 0.8), Group((; k = Constant(1.0))))
             @test parentmodule(typeof(comp)) === Redstone.Blocks
             @test isempty(foreign_declarations(comp))
             @test build(comp) isa Build

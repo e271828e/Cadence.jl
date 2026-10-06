@@ -68,8 +68,7 @@ required.
 
 ## 3. The inventory
 
-Status is one of *shipped* (the first tranche, [D-311][d-311] and [D-312][d-312]),
-*candidate* (listed, built when wanted), or
+Status is one of *shipped*, *candidate* (listed, built when wanted), or
 *example first* (built as an example model, promoted only if one form
 proves standard). Every block is generic over its port type `V`, in the
 [D-263][d-263] spelling, with `in`, `in1…inN` and `out` as port names.
@@ -88,7 +87,7 @@ proves standard). Every block is generic over its port type `V`, in the
 | Block | Status | Mechanism |
 |---|---|---|
 | `Constant{V}` | shipped | the pinned source; the zero-contributor wire and the rig stub |
-| `Step{V}` with a sign-form guard on the bundle's `t` | candidate | the jump is localized instead of stepped over |
+| `Step{V}` with a sign-form guard on the bundle's `t` | shipped | the jump is localized instead of stepped over |
 | `Source(f)`, a user function of `t` | candidate | covers ramps and sines without a block each |
 | a discrete-tier noise source, seed as instance data | candidate | whether a generator state fits the discrete store's isbits rule ([D-231][d-231]) is unchecked |
 
@@ -96,9 +95,10 @@ proves standard). Every block is generic over its port type `V`, in the
 
 | Block | Status | Mechanism |
 |---|---|---|
-| `Integrator{V}` | candidate | walks under `Dual` |
-| `LimitedIntegrator{V}` | candidate | a mode and two state events |
-| `FirstOrderLag{V}`, time constant as instance data | candidate | the actuator model and [§5.5][s5-5]'s α-filter idiom |
+| `Integrator{V}` | shipped | walks under `Dual` |
+| `LimitedIntegrator{V <: Real}` | shipped | a mode and two state events |
+| `LimitedIntegrator` over a `StaticArray` | candidate | componentwise modes, four events over reductions masked by the mode |
+| `FirstOrderLag{V}`, time constant as instance data | shipped | the actuator model and [§5.5][s5-5]'s α-filter idiom |
 | `RateLimiter{V}` | candidate | a mode-switching dynamic in continuous time |
 | `LinearSystem` holding `A`, `B`, `C`, `D` as static matrices | candidate | covers transfer functions and state-space models |
 | a continuous transport delay | not admitted | a history buffer indexed by the step; `extensions.md` item 4 |
@@ -107,7 +107,8 @@ proves standard). Every block is generic over its port type `V`, in the
 
 | Block | Status | Mechanism |
 |---|---|---|
-| `Relay{V}` (hysteresis) | candidate | the reference mode-switching leaf |
+| `Relay{V <: Real}` (hysteresis) | shipped | the reference mode-switching leaf |
+| `Relay` over a `StaticArray` | candidate | componentwise modes, two events over reductions masked by the mode |
 | Saturation, dead zone | not admitted | one-line clamps, unless localization doctrine wants a declared kink |
 
 ### Discrete tier
