@@ -100,7 +100,7 @@ closes an algebraic loop, and the build refuses the model:
 ```
 julia> build(loop("power"))
 ERROR: DiagnosticError: 1 diagnostics
-  AlgebraicCycle: algebraic loop among `plant`, `ctl`: plant/power → ctl/y, ctl/u → plant/u — real: a loop survives the trace (`ctl` structurally, the rest globally); break it with a state, a unit delay or a stage-1 (`y_state`) port (§5.5)
+  AlgebraicCycle: algebraic loop among `plant`, `ctl`: plant/power → ctl/y, ctl/u → plant/u — real: a loop survives the trace (`ctl` structurally, the rest globally); break it with a state, a stage-1 (`y_state`) port, or a `UnitDelay`, which moves the signal onto the discrete tier and inserts a Δt_base-scale zero-order hold (§5.5)
 ```
 
 ## Documentation

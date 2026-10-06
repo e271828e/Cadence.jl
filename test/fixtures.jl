@@ -1362,6 +1362,33 @@ u_types(::PinnedOffsetQuery) = (terrain = Pinned{OffsetField{Float64}},)
 y_types(::PinnedOffsetQuery) = (h = Float64,)
 y_direct(::PinnedOffsetQuery, (; u)) = (h = 2 * u.terrain.h0,)
 
+# --- the component test rig (§13.7) ---------------------------------------------
+
+"""
+A leaf with an abstract entry beside a concrete one, so it cannot be the root
+of a build alone (§8.2): `h` is the handle's `h0` scaled by `k`.
+"""
+struct TerrainGain <: AbstractComponent end
+
+x_init(::TerrainGain) = (;)
+u_types(::TerrainGain) = (terrain = AbstractTerrain, k = Float64)
+y_types(::TerrainGain) = (h = Float64,)
+y_direct(::TerrainGain, (; u)) = (h = u.terrain.h0 * u.k,)
+
+"""
+The rig over `TerrainGain`: a `Constant` stub satisfies the abstract entry
+inside the rig, and the concrete remainder surfaces as root inputs (§13.7).
+"""
+struct TerrainRig <: AbstractComponent
+    dut::TerrainGain
+    stub::Constant{HeightField}
+end
+
+TerrainRig() = TerrainRig(TerrainGain(), Constant(height_field(Terrain(h0 = 1.5))))
+
+inner_wires(::TerrainRig) = ("stub/out" => "dut/terrain",)
+input_wires(rig::TerrainRig) = (input_passthrough(rig, "dut"; except = ("terrain",))...,)
+
 # --- the label port coverage set (§4.1, §4.3, §8.2, §9.3) -----------------------
 # An enum is a port value (§4.1) and a pinned leaf (§8.2): one leaf of its own
 # eltype, stored whole, never following the activation scalar. Its probe value

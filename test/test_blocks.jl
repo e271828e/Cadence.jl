@@ -118,4 +118,15 @@ function test_blocks()
             @test build(comp) isa Build
         end
     end
+
+    @testset "the rig satisfies an abstract entry with a stub and surfaces the rest (§13.7, §8.2)" begin
+        # Alone, the leaf's abstract entry becomes a root input nothing types.
+        d = only(diagnostics(failure(() -> build(TerrainGain()))))
+        @test d isa AbstractAtRoot && d.face === :terrain
+        rig = TerrainRig()
+        @test build(rig).structure.root_inputs == [:var"dut.k"]
+        sim = Simulation(rig; h = 1//100)
+        init!(sim, fragment(u = (var"dut.k" = 2.0,)))
+        @test port(sim, "dut", :h) == rig.stub.value.h0 * 2
+    end
 end

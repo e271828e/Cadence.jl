@@ -914,7 +914,9 @@ _cycle_hint(dead) =
               " consumed only in a fallback branch"
           end for member in unique(first.(dead))), "; ") * " (§5.4)"
 
-const _BREAK_CYCLE = "break it with a state, a unit delay or a stage-1 (`y_state`) port (§5.5)"
+const _BREAK_CYCLE = "break it with a state, a stage-1 (`y_state`) port, or a `UnitDelay`, " *
+    "which moves the signal onto the discrete tier and inserts a Δt_base-scale " *
+    "zero-order hold (§5.5)"
 
 function message(d::AlgebraicCycle)
     head = "algebraic loop among $(_namelist(d.members)): $(_wirelist(d.wires))"
