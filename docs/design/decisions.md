@@ -13029,6 +13029,14 @@ leafwise map that waits for a model to demonstrate it.
 - *Writing the allocation-free leafwise map now:* machinery with no
   demonstrated user.
 
+Annotation (2026-10-06): the pin generalizes. A library block whose output
+depends on neither its continuous state nor a walking input, only on instance
+data and a mode, declares `(out = Pinned{V},)` by the same argument: it is
+never seeded, carries zero partials under every activation, and the pinned
+form is the more connectable one. `Step` and `Relay` are the second and third
+instances, ruled when they shipped; `UnitDelay` stays plain because the
+discrete tier pins wholesale ([D-263][d-263]).
+
 ### D-313 — Admit a library block by judgement against three guidelines
 
 **Status.** ratified

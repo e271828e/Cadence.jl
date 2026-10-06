@@ -9851,6 +9851,9 @@ constant is never seeded, so it carries zero partials under any `Dual`
 [activation](#g-activation) (the build's typed products at a given scalar
 type), and the pinned port says so where a walking one would promote the
 value and declare less. The honest pin is spelled rather than inferred.
+The same holds for every library block whose output depends on neither its
+continuous state nor a walking input, such as a step source or a relay, and
+each declares its `out` pinned ([D-312][d-312]).
 
 `Freeze{V}` is the **declared stop-gradient**. It feeds a walking producer
 into a pinned entry, which the walk clause ([§6.1][s6-1]) otherwise refuses.
