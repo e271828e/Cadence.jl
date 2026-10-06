@@ -9794,11 +9794,20 @@ tier-neutral class is needed.
 port hand-writes. It needs no framework support.
 
 ```julia
-# UnitDelay{V} — a discrete leaf at K = 1; port face names elided
-s_init(::UnitDelay{V}) where {V} = (v = zero(V),)
-y_state(::UnitDelay, (; s)) = (; … = s.v)   # publishes the stored value
-s_update(::UnitDelay, (; u)) = (; v = …)     # stores the incoming one, from u
+# UnitDelay{V} — a discrete leaf at K = 1; its initial value is instance data
+struct UnitDelay{V} <: AbstractComponent
+    v0::V
+end
+s_init(d::UnitDelay) = (v = d.v0,)
+u_types(::UnitDelay{V}) where {V} = (in = V,)
+y_types(::UnitDelay{V}) where {V} = (out = V,)
+y_state(::UnitDelay, (; s)) = (out = s.v,)   # publishes the stored value
+s_update(::UnitDelay, (; u)) = (v = u.in,)    # stores the incoming one
 ```
+
+**The delay holds its initial value as instance data** ([D-312][d-312]), so
+`UnitDelay(v0)` needs no `zero` method on `V`. The store is isbits by rule
+([D-231][d-231]), which bounds `V`.
 
 `UnitDelay`'s tier semantics are the point, and they must be stated wherever
 the remedy is recommended. Inserting a `UnitDelay` into a *continuous* loop
@@ -9812,34 +9821,40 @@ stage-1 body returning the value the instance holds.
 
 ```julia
 # Constant{V} — a stateless continuous leaf; its value is instance data
+struct Constant{V} <: AbstractComponent
+    value::V
+end
 x_init(::Constant) = (;)                       # the empty store declares the tier (§8.2)
-y_types(::Constant{V}) where {V} = (out = V,)
-y_state(c::Constant, _) = (; out = …)   # the value the instance holds
+y_types(::Constant{V}) where {V} = (out = Pinned{V},)
+y_state(c::Constant, _) = (out = c.value,)     # the value the instance holds
 ```
 
 `Constant` is a stateless continuous leaf, so the tier-transparency argument
 above already covers discrete consumers. No discrete variant is needed. The
-declaration takes the [activation](#g-activation) scalar (the build's typed
-products at a given scalar type) and ignores it. That is the point. The block's
-output *is* its stored value, so the leaf is **deliberately
-[pinned](#g-walked)** at that value's own type. A `Constant{Float64}` declares
-a `Float64` port and means it. The embedding ([§8.2][s8-2]) turns it into the
-zero-partial constant it already was under any `Dual` activation. The honest
-pin is spelled rather than inferred.
+block's output *is* its stored value, so **the leaf is deliberately
+[pinned](#g-walked) at that value's own type** ([D-312][d-312]). A
+`Constant{Float64}` declares a `Pinned{Float64}` port and means it. A
+constant is never seeded, so it carries zero partials under any `Dual`
+[activation](#g-activation) (the build's typed products at a given scalar
+type), and the pinned port says so where a walking one would promote the
+value and declare less. The honest pin is spelled rather than inferred.
 
 `Freeze{V}` is the **declared stop-gradient**. It feeds a walking producer
 into a pinned entry, which the walk clause ([§6.1][s6-1]) otherwise refuses.
 
 ```julia
 # Freeze{V} — a stateless continuous leaf; tolerant in, pinned out
+struct Freeze{V <: Union{Real, StaticArray{<:Tuple, <:Real}}} <: AbstractComponent end
 x_init(::Freeze) = (;)
 u_types(::Freeze{V}) where {V} = (in = V,)
 y_types(::Freeze{V}) where {V} = (out = Pinned{V},)
-y_direct(::Freeze, (; u)) = (; out = ForwardDiff.value.(u.in))   # leafwise strip
+y_direct(::Freeze, (; u)) = (out = ForwardDiff.value.(u.in),)   # leafwise strip, by broadcast
 ```
 
 At nominal the strip is the identity, so the block costs one gather and one
-scatter. Under a `Dual` activation it drops the partials, and its output
+scatter. **`V` is a `Real` or a `StaticArray` of them, constrained at the
+type** ([D-312][d-312]), so a struct-valued freeze is refused at the spelling
+until a model needs one. Under a `Dual` activation it drops the partials, and its output
 satisfies the pinned entry. What the wire then declares is a zero coupling in
 every Jacobian along that path, the modelling decision [§14.10][s14-10] asks an
 author to state on the page rather than bury mid-expression. A sampler is the
@@ -13644,6 +13659,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-309]: decisions.md#d-309--record-no-event-firings-and-leave-an-event-firing-stream-a-guarded-addition
 [d-310]: decisions.md#d-310--park-the-built-in-gui-run-every-device-spawned-and-withdraw-gui--true
 [d-311]: decisions.md#d-311--fold-the-summing-junction-and-the-bool-gates-into-one-generic-junction
+[d-312]: decisions.md#d-312--settle-the-leaf-blocks-constant-pins-unitdelay-holds-its-initial-value-freeze-strips-by-broadcast
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop
