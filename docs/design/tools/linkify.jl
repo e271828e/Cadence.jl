@@ -72,7 +72,8 @@ const ROSTER = ["decisions.md",
                 "companions/frame_walkthrough.md",
                 "companions/sample_time_proposal.md",
                 "companions/migration_outline.md",
-                "companions/flight_case_studies.md"]
+                "companions/flight_case_studies.md",
+                "companions/library_inventory.md"]
 
 # Companions that cite their own numbered sections (the walkthroughs). Only
 # here is a bare `§N` ambiguous between the file and the spec.

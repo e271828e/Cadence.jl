@@ -1463,7 +1463,8 @@ guarded-addition sugar, added when real models show the pattern repeated.
 
 The junctions themselves, [summing junctions](#g-summing-junction) and Bool gates, are the seed of the
 standard component library committed in [§13.7][s13-7]. They are ordinary components with
-no framework privileges, and the inventory grows strictly by demonstrated need.
+no framework privileges, and the inventory grows by the admission rule
+[§13.7][s13-7] states.
 
 #### The zero-contributor end of the same spectrum
 
@@ -9753,15 +9754,25 @@ paths.
 promise ([§6.2][s6-2]).** That promise rests on explicit junctions being
 *cheap*. A junction hand-written per arity per type is not cheap.
 
-The starting inventory comes strictly from demonstrated need. It holds the
+The starting inventory holds the
 `Junction`, with `SumJunction{V, N}`, `Or{N}` and `And{N}` as its named
 forms, `UnitDelay{V}`, `Constant{V}` and `Freeze{V}`. `UnitDelay` is the spelling the second
 loop-breaking remedy ([§5.5][s5-5]) needs. `Constant{V}` is the source block.
 `Freeze{V}` is the declared stop-gradient ([D-266][d-266]).
-The library stays minimal and general-purpose, and it grows only by
-demonstrated need. Domain components, such as aerodynamics, engines or
-sensors, belong in separate packages built on the framework. Simulink's
-library is a language, while this is a toolbox.
+**A block enters the library when hand-writing it correctly requires a
+framework mechanism, and a model demonstrates it** ([D-313][d-313]). The
+mechanisms are modes and events, tier semantics, activation and pinning,
+and structure the declaration layer forces. Pure algebra on the bundle never
+qualifies, however common, because a gain is one line of a stage body. The
+extended inventory, and the Simulink mapping that prunes it, is
+`companions/library_inventory.md`. Domain components, such as aerodynamics,
+engines or sensors, belong in separate packages built on the framework.
+Simulink's library is a language, while this is a toolbox.
+
+The library is the submodule `Redstone.Blocks`, `Group` included, written
+against the extension-only surface ([§8.1][s8-1]) as a user's component file
+is ([D-313][d-313]). A workspace sub-package or a separate repository is an
+after-release question.
 
 One member is admitted by persona rather than by need. `Group` is the
 on-the-fly [assembly](#g-assembly), and its declaration-layer treatment lives
@@ -13660,6 +13671,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-310]: decisions.md#d-310--park-the-built-in-gui-run-every-device-spawned-and-withdraw-gui--true
 [d-311]: decisions.md#d-311--fold-the-summing-junction-and-the-bool-gates-into-one-generic-junction
 [d-312]: decisions.md#d-312--settle-the-leaf-blocks-constant-pins-unitdelay-holds-its-initial-value-freeze-strips-by-broadcast
+[d-313]: decisions.md#d-313--admit-a-library-block-by-the-framework-mechanism-it-encodes
 [s1]: #1-introduction
 [s10]: #10-time-and-execution
 [s10-1]: #101-loop-ownership-the-framework-owns-the-simulation-loop

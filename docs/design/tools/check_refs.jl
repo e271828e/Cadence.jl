@@ -72,7 +72,8 @@ const ROSTER = [DECISIONS,
                 "companions/frame_walkthrough.md",
                 "companions/sample_time_proposal.md",
                 "companions/migration_outline.md",
-                "companions/flight_case_studies.md"]
+                "companions/flight_case_studies.md",
+                "companions/library_inventory.md"]
 
 # The companions that cite their own numbered sections (see the advisory above).
 const SELF_CITING = ["companions/event_visibility_walkthrough.md",
