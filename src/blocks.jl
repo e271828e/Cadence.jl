@@ -1,8 +1,8 @@
 module Blocks
 
-import ..Redstone: AbstractComponent, Pinned,
-    x_init, s_init, u_types, y_types, y_direct, y_state, s_update,
-    local_wires, input_wires, output_wires, sample_times, transparent_container
+import ..Redstone: AbstractComponent, Pinned, StateEvent,
+    x_init, s_init, m_init, u_types, y_types, y_direct, y_state, x_deriv, s_update,
+    state_events, local_wires, input_wires, output_wires, sample_times, transparent_container
 using StaticArrays: StaticArray
 import ForwardDiff
 
@@ -113,6 +113,88 @@ x_init(::Freeze) = (;)
 u_types(::Freeze{V}) where {V} = (in = V,)
 y_types(::Freeze{V}) where {V} = (out = Pinned{V},)
 y_direct(::Freeze, (; u)) = (out = ForwardDiff.value.(u.in),)
+
+# --- the continuous dynamics (§13.7, D-313) -------------------------------------
+
+"""
+    Integrator(; x0 = 0.0)
+
+The integrator: one continuous state `q`, starting at `x0`, with `q̇ = in`, and
+`out` publishing `q` from stage 1, so the block has no feedthrough (§5.3). `V`
+is a `Real` or a `StaticArray` of them, taken from `x0`, and any `x0` of that
+kind is in its domain. A `Float64` state walks under a `Dual` activation
+(§7.2), so the block linearizes as it integrates.
+"""
+struct Integrator{V <: Union{Real, StaticArray{<:Tuple, <:Real}}} <: AbstractComponent
+    x0::V
+end
+Integrator(; x0 = 0.0) = Integrator(x0)
+x_init(b::Integrator) = (q = b.x0,)
+u_types(::Integrator{V}) where {V} = (in = V,)
+y_types(::Integrator{V}) where {V} = (out = V,)
+y_state(::Integrator, (; x)) = (out = x.q,)
+x_deriv(::Integrator, (; u)) = (q = u.in,)
+
+"""
+    FirstOrderLag(; τ, x0 = 0.0)
+
+The first-order lag: `q̇ = (in - q) / τ` from `q = x0`, and `out` publishing `q`
+from stage 1. The time constant `τ` is positive, and it is instance data pinned
+at `Float64`. The state walks under a `Dual` activation (§7.2), so the lag
+linearizes to `A = -1/τ` and `B = 1/τ`; a lag typed at `Float64` on its
+continuous path fails there instead (D-313). `V` is a `Real` or a
+`StaticArray` of them, taken from `x0`.
+"""
+struct FirstOrderLag{V <: Union{Real, StaticArray{<:Tuple, <:Real}}} <: AbstractComponent
+    x0::V
+    τ::Float64
+end
+FirstOrderLag(; τ, x0 = 0.0) = FirstOrderLag{typeof(x0)}(x0, τ)
+x_init(b::FirstOrderLag) = (q = b.x0,)
+u_types(::FirstOrderLag{V}) where {V} = (in = V,)
+y_types(::FirstOrderLag{V}) where {V} = (out = V,)
+y_state(::FirstOrderLag, (; x)) = (out = x.q,)
+x_deriv(b::FirstOrderLag, (; x, u)) = (q = (u.in - x.q) / b.τ,)
+
+# --- the step (§2.1, §10.4, D-313) ----------------------------------------------
+
+"""
+    Step(; t_step, before = 0.0, after = 1.0, localized = true)
+
+The step source: `out` publishes `before` until `t_step` and `after` from then
+on. A mode-only leaf with no inputs: the mode `fired` picks the value, and one
+state event, `fire`, sets it once `t` reaches `t_step`. `before` and `after`
+are promoted to one `V`, a `Real` or a `StaticArray` of them; `t_step` is any
+time.
+
+`localized` picks the detection policy (§2.1). Localized, the guard is the sign
+form `t - t_step`: the step ends at the crossing and the jump lands there.
+Boundary-detected, the guard is the `Bool` `t ≥ t_step`: the event fires at the
+end of the step in which it was first observed, so the jump lands on the first
+boundary at or after `t_step`, never inside a step. The policy is the type
+parameter `L` rather than a field because the build reads it off the guard's
+return type (D-179).
+
+Boundary zero sets every prior to not-holding (§10.6), so a `t_step` at or
+before `t₀` fires there and `out` publishes `after` from the start.
+"""
+struct Step{V <: Union{Real, StaticArray{<:Tuple, <:Real}}, L} <: AbstractComponent
+    before::V
+    after::V
+    t_step::Float64
+end
+function Step(; t_step, before = 0.0, after = 1.0, localized = true)
+    before, after = promote(before, after)
+    Step{typeof(before), localized}(before, after, t_step)
+end
+x_init(::Step) = (;)
+m_init(::Step) = (fired = false,)
+y_types(::Step{V}) where {V} = (out = V,)
+y_state(b::Step, (; m)) = (out = m.fired ? b.after : b.before,)
+step_guard(b::Step{V, true}, (; t)) where {V} = t - b.t_step     # sign form: localized
+step_guard(b::Step{V, false}, (; t)) where {V} = t >= b.t_step   # Bool form: boundary-detected
+step_handler(::Step, _) = (m = (fired = true,),)
+state_events(::Step) = (fire = StateEvent(step_guard, step_handler),)
 
 # --- the anonymous assembly (§8.5, D-211) -------------------------------------
 

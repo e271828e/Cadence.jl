@@ -121,13 +121,14 @@ The standard component library, the submodule `Redstone.Blocks`:
 
 - `Junction`, with the aliases `SumJunction`, `Or` and `And` (D-311).
 - `Constant`, `UnitDelay` and `Freeze` (D-312).
+- `Integrator`, `FirstOrderLag` and `Step` (D-313).
 - The anonymous assembly `Group`, with `_entries` (D-184).
 
 It reaches the parent through its import list alone, as a user's component
 file does (D-313). Nothing in the package depends on it, so `src/Redstone.jl`
 includes it last.
 
-Spec: §5.5, §6.2, §8.1, §8.5, §13.7, D-184, D-211, D-311, D-312, D-313.
+Spec: §2.1, §5.5, §6.2, §8.1, §8.5, §10.4, §13.7, D-184, D-211, D-311, D-312, D-313.
 
 ### `src/build.jl`
 

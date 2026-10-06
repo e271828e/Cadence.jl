@@ -1,8 +1,9 @@
 # --- the standard component library (§13.7, §6.2) -------------------------------
 # The blocks of `Redstone.Blocks`, each built in a model and read off the
-# snapshot: the junction's contract and its folds, the source, the delay and the
-# stop-gradient. The models are built at top level, like the fixtures they reuse:
-# `RealEntry` and `PinnedEntry` are test_build.jl's.
+# snapshot: the junction's contract and its folds, the source, the delay, the
+# stop-gradient, the integrator, the lag and the step. The models are built at
+# top level, like the fixtures they reuse: `RealEntry` and `PinnedEntry` are
+# test_build.jl's.
 
 # One gate over three `Constant` sources, at the given input values.
 gate_model(gate, (a, b, c)) =
@@ -22,6 +23,27 @@ delay_model(v0) = Group((; c = TickCounter(), d = UnitDelay(v0)); local_wires = 
 freeze_model() = Group((; p = Pendulum(), f = Freeze{Float64}());
                        local_wires = ("p/θ" => "f/in",), input_wires = ("τ" => "p/u",),
                        output_wires = ("p/θ" => "direct", "f/out" => "frozen"))
+
+# An integrator from `x0` fed by a constant.
+integrator_model(x0, value) =
+    Group((; k = Constant(value), i = Integrator(x0 = x0)); local_wires = ("k/out" => "i/in",))
+
+# A lag at `τ = 0.5` from rest, fed by a constant.
+lag_model(value) =
+    Group((; k = Constant(value), l = FirstOrderLag(τ = 0.5, x0 = zero(value)));
+          local_wires = ("k/out" => "l/in",))
+
+# A step into an integrator, which ramps from the instant the jump lands.
+step_model(source) = Group((; s = source, i = Integrator()); local_wires = ("s/out" => "i/in",))
+
+# The step's row of the events product.
+step_events(model) = only(row for row in build(model).events.components if row.path == "s")
+
+# A block's one-state linearization through the root input `in`.
+block_linearization(comp) =
+    (sim = Simulation(fed(comp, "in"); h = 1//100);
+     init!(sim, fragment(u = (in = 0.0,)));
+     linearize(sim, taps(x = (q = get_state("c", :q),), u = (in = get_input(:in),))))
 
 function test_blocks()
     @testset "the junction's arity and port types come from its type (§6.2, D-311)" begin
@@ -110,13 +132,107 @@ function test_blocks()
         end
     end
 
+    @testset "the integrator integrates its input, scalar or vector, and linearizes to A = 0, B = 1 (§13.7, §7.2)" begin
+        sim = Simulation(integrator_model(1.0, 2.0); h = 1//100)
+        init!(sim, fragment())
+        step!(sim; t_plus = 0.5)
+        @test state(sim, "i").q ≈ 2.0 atol = 1e-12
+        @test port(sim, "i", :out) == state(sim, "i").q
+        vector_sim = Simulation(integrator_model(SVector(0.0, 1.0), SVector(1.0, -1.0)); h = 1//100)
+        init!(vector_sim, fragment())
+        step!(vector_sim; t_plus = 0.5)
+        @test isapprox(state(vector_sim, "i").q, SVector(0.5, 0.5); atol = 1e-12)
+        linearization = block_linearization(Integrator())
+        @test isapprox(linearization.A, [0.0;;]; atol = 1e-12)
+        @test isapprox(linearization.B, [1.0;;]; atol = 1e-12)
+    end
+
+    @testset "the lag relaxes to its input at 1/τ, and linearizes to A = -1/τ, B = 1/τ (§13.7, §7.2)" begin
+        sim = Simulation(lag_model(1.0); h = 1//100)
+        init!(sim, fragment())
+        step!(sim; t_plus = 1.0)
+        @test state(sim, "l").q ≈ 1 - exp(-2) rtol = 1e-7
+        @test port(sim, "l", :out) == state(sim, "l").q
+        vector_sim = Simulation(lag_model(SVector(1.0, -2.0)); h = 1//100)
+        init!(vector_sim, fragment())
+        step!(vector_sim; t_plus = 1.0)
+        @test isapprox(state(vector_sim, "l").q, (1 - exp(-2)) * SVector(1.0, -2.0); rtol = 1e-7)
+        linearization = block_linearization(FirstOrderLag(τ = 0.5))
+        @test isapprox(linearization.A, [-2.0;;]; atol = 1e-12)
+        @test isapprox(linearization.B, [2.0;;]; atol = 1e-12)
+        # The time constant is pinned at `Float64` whatever the keyword's type.
+        @test FirstOrderLag(τ = 1) isa FirstOrderLag{Float64}
+    end
+
+    @testset "the localized step jumps at the crossing (§2.1, §10.4, D-179)" begin
+        sim = Simulation(step_model(Step(t_step = 0.25)); h = 1//10)
+        init!(sim, fragment())
+        step!(sim; t_plus = 0.2)
+        @test port(sim, "s", :out) == 0.0 && state(sim, "i").q == 0.0
+        step!(sim; t_plus = 0.1)
+        bracket_width = sim.deployment.localization_tol * sim.deployment.h    # in time (§10.4)
+        @test state(sim, "i").q ≈ 0.05 atol = bracket_width
+        @test port(sim, "s", :out) == 1.0
+        @test step_events(step_model(Step(t_step = 0.25))).policies === (fire = :localized,)
+    end
+
+    @testset "the boundary-detected step jumps at the first boundary at or after `t_step` (§2.1, §10.4, D-179)" begin
+        sim = Simulation(step_model(Step(t_step = 0.25, localized = false)); h = 1//10)
+        init!(sim, fragment())
+        step!(sim; t_plus = 0.2)
+        @test port(sim, "s", :out) == 0.0
+        step!(sim; t_plus = 0.1)
+        @test state(sim, "i").q == 0.0    # nothing lands inside the step
+        @test port(sim, "s", :out) == 1.0
+        step!(sim; t_plus = 0.1)
+        @test state(sim, "i").q ≈ 0.1 atol = 1e-12
+        @test step_events(step_model(Step(t_step = 0.25, localized = false))).policies === (fire = :boundary,)
+    end
+
+    @testset "a step at or before t₀ publishes `after` from boundary zero (§10.6)" begin
+        for localized in (true, false), t_step in (0.0, -1.0)
+            sim = Simulation(single(Step(t_step = t_step, localized = localized)); h = 1//10)
+            init!(sim, fragment())
+            @test modes(sim, "c").fired && port(sim, "c", :out) == 1.0
+        end
+    end
+
+    @testset "the step switches a vector, and its keywords promote (§13.7)" begin
+        source = Step(t_step = 0.25, before = SVector(0.0, 0.0), after = SVector(1.0, -1.0))
+        sim = Simulation(single(source); h = 1//10)
+        init!(sim, fragment())
+        @test port(sim, "c", :out) == SVector(0.0, 0.0)
+        step!(sim; t_plus = 0.3)
+        @test port(sim, "c", :out) == SVector(1.0, -1.0)
+        @test Step(t_step = 0.25, after = 2) isa Step{Float64, true}
+        @test build(step_model(Step(t_step = 0.25)); activations = (Float64, LinearizeDual)) isa Build
+    end
+
+    @testset "the step model's phase bodies and its quiet boundary allocate nothing (§7.5)" begin
+        for localized in (true, false)
+            sim = Simulation(step_model(Step(t_step = 0.25, localized = localized)); h = 1//10)
+            bodies = phase_bodies(sim)
+            for name in (:sweep_1, :sweep_2, :rhs, :ticks)
+                body = bodies[name]
+                body(); body(0)
+                @test @ballocated($body()) == 0
+                @test @ballocated($body(1)) == 0
+            end
+            init!(sim, fragment())
+            boundary!(sim, 1); offtick_boundary!(sim)
+            @test @ballocated(boundary!($sim, 1)) == 0
+            @test @ballocated(offtick_boundary!($sim)) == 0
+        end
+    end
+
     @testset "every block passes the shadowing check from its own module (§8.1, D-246, D-313)" begin
         # The reason `Blocks` is a submodule: its parent module is `Blocks`, which
         # reaches the declarations by import alone, as a user's component file
         # does, so a missing import here would surface as `DeclarationShadowed`.
         for comp in (Or{3}(), And{2}(), SumJunction{Float64,2}(), Junction{Float64,Float64,2}(max),
                      Constant(1.0), UnitDelay(0.0), Freeze{Float64}(),
-                     Group((; k = Constant(1.0))))
+                     Integrator(), FirstOrderLag(τ = 1.0), Step(t_step = 1.0),
+                     Step(t_step = 1.0, localized = false), Group((; k = Constant(1.0))))
             @test parentmodule(typeof(comp)) === Redstone.Blocks
             @test isempty(foreign_declarations(comp))
             @test build(comp) isa Build
