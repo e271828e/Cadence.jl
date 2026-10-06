@@ -34,8 +34,8 @@ function test_blocks()
         @test SumJunction{Float64,2}().f === +
         @test y_direct(SumJunction{Float64,2}(), (; u = (in1 = 1.0, in2 = 2.5))) == (out = 3.5,)
         # The fold takes the inputs in positional order (§6.2).
-        ordered = Junction{Float64,Float64,3}((a, b, c) -> 100a + 10b + c)
-        @test y_direct(ordered, (; u = (in1 = 1.0, in2 = 2.0, in3 = 3.0))) == (out = 123.0,)
+        positional = Junction{Float64,Float64,3}((a, b, c) -> 100a + 10b + c)
+        @test y_direct(positional, (; u = (in1 = 1.0, in2 = 2.0, in3 = 3.0))) == (out = 123.0,)
     end
 
     @testset "the gates fold their inputs at `|` and `&` (§13.7, D-311)" begin
@@ -69,7 +69,7 @@ function test_blocks()
         end
         # The store is isbits by rule (D-231), which bounds `V`.
         err = failure(() -> build(delay_model([1.0])))
-        @test err isa DiagnosticError && any(d -> d isa IllegalStoreField, diagnostics(err))
+        @test err isa DiagnosticError && only(diagnostics(err)) isa IllegalStoreField
     end
 
     @testset "the freeze drops the partials, and nothing else (§13.7, D-312)" begin
@@ -82,6 +82,10 @@ function test_blocks()
         @test linearization.y_labels == (:direct, :frozen)
         @test isapprox(linearization.C[1, :], [1, 0]; atol = 1e-12)
         @test iszero(linearization.C[2, :])
+        # Its purpose (§13.7, D-266): unfrozen, this wire is refused with `WalkingFaceAtFrozenEntry`.
+        model = Group((; p = Pendulum(), f = Freeze{Float64}(), e = PinnedEntry());
+                      inner_wires = ("p/θ" => "f/in", "f/out" => "e/u"), input_wires = ("τ" => "p/u",))
+        @test build(model; activations = (Float64, LinearizeDual)) isa Build
         # `V` is a `Real` or a `StaticArray` of them, constrained at the type.
         @test_throws TypeError Freeze{HeightField}
     end

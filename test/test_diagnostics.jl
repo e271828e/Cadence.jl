@@ -917,7 +917,8 @@ function diagnostics_kind_set()
                                                    "sum/e" => "ctl/e",
                                                    "ctl/out" => "plant/u"]))
         @test occursin("plant/power → sum/b, sum/e → ctl/e, ctl/out → plant/u", rendered)
-        @test occursin("break it with a state", rendered) && occursin("UnitDelay", rendered)
+        @test occursin("break it with a state", rendered) && occursin("UnitDelay", rendered) &&
+              occursin("discrete tier", rendered)
         # Artificial: the hop, then §5.4's two exits, each dead member named once.
         rendered = message(AlgebraicCycle(members = ["d", "g"],
                                           wires = ["d/y" => "g/e", "g/out" => "d/b"],

@@ -82,9 +82,9 @@ y_state(c::Constant, _) = (out = c.value,)
 """
     UnitDelay(v0)
 
-A discrete leaf, the tier's native `z⁻¹` (§10.6). `out` publishes the stored value from stage 1, `v0` at the first
-publication, and each tick stores `in` for the next one. Its store is isbits
-(D-231), which bounds `V`.
+A discrete leaf, the tier's native `z⁻¹` (§10.6). `out` publishes the stored
+value from stage 1, `v0` at the first publication, and each tick stores `in` for
+the next one. Its store is isbits (D-231), which bounds `V`.
 
 It breaks an algebraic loop (§5.5), and that is a modelling decision: placed
 in a continuous loop it moves the signal onto the discrete tier and inserts a
@@ -118,10 +118,9 @@ y_direct(::Freeze, (; u)) = (out = ForwardDiff.value.(u.in),)
 
 """
 `Group`: the library's on-the-fly assembly, whose *values* are the ad-hoc
-topologies. It needs no new rule — the
-container-children rule makes the `children` field's elements children of the
-`Group` itself, and the four declarations are ordinary functions of the
-instance, free to read its fields.
+topologies. It needs no new rule — the container-children rule makes the
+`children` field's elements children of the `Group` itself, and the four
+declarations are ordinary functions of the instance, free to read its fields.
 
 The one declaration it adds is `transparent_container` (D-211): `children` is
 name-transparent, so its elements go by **bare key** everywhere a child name
