@@ -12948,6 +12948,13 @@ renders `Or{3}`. The nominal-type parameter is what [D-263][d-263] made every
 declaration: written at `Float64` and retyped by the walk. `out` keeps one
 name across the library and keeps wire paths ASCII.
 
+Annotation (2026-10-06): the printing sentence above holds only for an
+alias that is exported or defined in `Main`, where the probe ran. Inside
+`Redstone.Blocks` a build renders the full `Junction{Bool, Bool, 3,
+typeof(|)}`. The aliases are the spellings an author writes and reads in
+source. Whether they also print by name follows from the exported-name
+audit's ruling on the submodule, and is left to it.
+
 **Rejected.**
 - *Three separate types:* three copies of one shape, where the arity-via-type
   derivation [§8.2][s8-2] blesses is validated once.
