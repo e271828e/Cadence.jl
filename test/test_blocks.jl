@@ -52,6 +52,16 @@ limited_model() =
              li = LimitedIntegrator(lower = -1.0, upper = 0.5));
           local_wires = ("s/out" => "li/in",))
 
+# A limited integrator whose input falls from `level` to exactly zero at 1.05
+# and returns to `level` at 2.05.
+zero_input_model(level, lower, upper) =
+    Group((; release = Step(t_step = 1.05, before = level, after = 0.0),
+             push = Step(t_step = 2.05, before = 0.0, after = level),
+             input = SumJunction{Float64, 2}(),
+             li = LimitedIntegrator(lower = lower, upper = upper));
+          local_wires = ("release/out" => "input/in1", "push/out" => "input/in2",
+                         "input/out" => "li/in"))
+
 # A relay reading an integrator that a step drives up, then down.
 relay_model() =
     Group((; s = Step(t_step = 1.0, before = 1.0, after = -1.0), i = Integrator(),
@@ -63,17 +73,17 @@ relay_model() =
 # the root.
 servo_loop() =
     Group((; reference = Step(t_step = 0.5), error = Junction{Float64, Float64, 2}(-),
-             li = LimitedIntegrator(lower = -2.0, upper = 2.0),
+             controller = LimitedIntegrator(lower = -1.2, upper = 1.2),
              actuator = FirstOrderLag(τ = 0.1), plant = FirstOrderLag(τ = 1.0));
           local_wires = ("reference/out" => "error/in1", "plant/out" => "error/in2",
-                         "error/out" => "li/in", "li/out" => "actuator/in",
+                         "error/out" => "controller/in", "controller/out" => "actuator/in",
                          "actuator/out" => "plant/in"),
           output_wires = ("plant/out" => "out",))
 
 # The bang-bang loop: a relay switching an integrator's input on its output.
 bang_bang_loop() =
-    Group((; i = Integrator(), r = Relay(lower = 0.2, upper = 0.8, off = 1.0, on = -1.0));
-          local_wires = ("r/out" => "i/in", "i/out" => "r/in"))
+    Group((; integrator = Integrator(), relay = Relay(lower = 0.2, upper = 0.8, off = 1.0, on = -1.0));
+          local_wires = ("relay/out" => "integrator/in", "integrator/out" => "relay/in"))
 
 function test_blocks()
     @testset "the junction's arity and port types come from its type (§6.2, D-311)" begin
@@ -278,24 +288,38 @@ function test_blocks()
         clamped = Simulation(fed(LimitedIntegrator(x0 = 2.0, lower = -1.0, upper = 0.5), "in"); h = 1//10)
         init!(clamped, fragment(u = (in = 1.0,)))
         @test state(clamped, "c").q == 0.5 && modes(clamped, "c").saturation === :upper
+        clamped_lower = Simulation(fed(LimitedIntegrator(x0 = -2.0, lower = -1.0, upper = 0.5), "in"); h = 1//10)
+        init!(clamped_lower, fragment(u = (in = -1.0,)))
+        @test state(clamped_lower, "c").q == -1.0 && modes(clamped_lower, "c").saturation === :lower
         @test LimitedIntegrator(lower = -1, upper = 0.5) isa LimitedIntegrator{Float64}
         @test LimitedIntegrator(lower = -1, upper = 0.5).x0 === 0.0
+    end
+
+    @testset "an input of exactly zero at a limit keeps the limited integrator saturated (§10.4, D-313)" begin
+        # Freed at the zero, `q` would pass the limit at the return with no edge.
+        for (level, lower, upper, limit, saturation) in ((1.0, -1.0, 0.5, 0.5, :upper),
+                                                         (-1.0, -0.5, 1.0, -0.5, :lower))
+            sim = Simulation(zero_input_model(level, lower, upper); h = 1//10)
+            init!(sim, fragment())
+            step!(sim; t_plus = 3.0)
+            @test state(sim, "li").q == limit && modes(sim, "li").saturation === saturation
+        end
     end
 
     @testset "the relay switches with hysteresis, from boundary zero on (§10.4, §10.6, D-313)" begin
         sim = Simulation(relay_model(); h = 1//10)
         init!(sim, fragment())
         # At t = 0.5, 0.9, 1.5 (inside the band, still on) and 1.9.
-        for (t_plus, out, mode) in ((0.5, 0.0, :off), (0.4, 1.0, :on), (0.6, 1.0, :on), (0.4, 0.0, :off))
+        for (t_plus, out, relay_state) in ((0.5, 0.0, :off), (0.4, 1.0, :on), (0.6, 1.0, :on), (0.4, 0.0, :off))
             step!(sim; t_plus = t_plus)
-            @test port(sim, "r", :out) == out && modes(sim, "r").state === mode
+            @test port(sim, "r", :out) == out && modes(sim, "r").state === relay_state
         end
-        for (value, mode) in ((1.0, :on), (0.5, :off))
+        for (value, relay_state) in ((1.0, :on), (0.5, :off))
             model = Group((; k = Constant(value), r = Relay(lower = 0.2, upper = 0.8));
                           local_wires = ("k/out" => "r/in",))
             constant_sim = Simulation(model; h = 1//10)
             init!(constant_sim, fragment())
-            @test modes(constant_sim, "r").state === mode
+            @test modes(constant_sim, "r").state === relay_state
         end
     end
 
@@ -306,17 +330,20 @@ function test_blocks()
         init!(sim, fragment())
         step!(sim; t_plus = 5.0)
         bracket_width = sim.deployment.localization_tol * sim.deployment.h    # in time, at slope 1
-        @test 0.2 - bracket_width ≤ state(sim, "i").q ≤ 0.8 + bracket_width
+        @test 0.2 - bracket_width ≤ state(sim, "integrator").q ≤ 0.8 + bracket_width
     end
 
-    @testset "the servo loop settles on its reference inside the integrator's limits (§13.7)" begin
+    @testset "the servo loop saturates its controller, leaves the limit and settles on its reference (§13.7)" begin
         @test build(servo_loop(); activations = (Float64, LinearizeDual)) isa Build
         sim = Simulation(servo_loop(); h = 1//100)
         init!(sim, fragment())
-        # To t = 1, 2, 5, 10 and 40.
-        for t_plus in (1.0, 1.0, 3.0, 5.0, 30.0)
+        # To t = 1, 2, 2.5, 4, 5, 10 and 40: the controller hits its upper limit
+        # near t = 2.04 and leaves it near t = 3.15.
+        for (t_plus, saturation) in ((1.0, :free), (1.0, :free), (0.5, :upper), (1.5, :free),
+                                     (1.0, :free), (5.0, :free), (30.0, :free))
             step!(sim; t_plus = t_plus)
-            @test -2.0 ≤ state(sim, "li").q ≤ 2.0
+            @test state(sim, "controller").q ≤ 1.2
+            @test modes(sim, "controller").saturation === saturation
         end
         @test port(sim, "plant", :out) ≈ 1.0 atol = 1e-3
     end
