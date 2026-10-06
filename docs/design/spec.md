@@ -9759,15 +9759,17 @@ The starting inventory holds the
 forms, `UnitDelay{V}`, `Constant{V}` and `Freeze{V}`. `UnitDelay` is the spelling the second
 loop-breaking remedy ([§5.5][s5-5]) needs. `Constant{V}` is the source block.
 `Freeze{V}` is the declared stop-gradient ([D-266][d-266]).
-**A block enters the library when hand-writing it correctly requires a
-framework mechanism, and a model demonstrates it** ([D-313][d-313]). The
-mechanisms are modes and events, tier semantics, activation and pinning,
-and structure the declaration layer forces. Pure algebra on the bundle never
-qualifies, however common, because a gain is one line of a stage body. The
-extended inventory, and the Simulink mapping that prunes it, is
-`companions/library_inventory.md`. Domain components, such as aerodynamics,
-engines or sensors, belong in separate packages built on the framework.
-Simulink's library is a language, while this is a toolbox.
+**A block joins the library's inventory by judgement against three
+guidelines** ([D-313][d-313]). The guidelines ask whether a block is
+domain-agnostic and generally useful, whether it has didactic value, and
+whether its implementation is difficult to get right. None is a
+requirement. They are weighed, not satisfied one by one, and a listed block
+is built whenever wanted. The inventory, and the Simulink mapping that
+prunes it, is `companions/library_inventory.md`. A one-line expression such
+as a gain earns no block, because a separate component costs a build entry,
+a cell, a gather and a scatter ([§9.7][s9-7]). Domain components, such as
+aerodynamics, engines or sensors, belong in separate packages built on the
+framework. Simulink's library is a language, while this is a toolbox.
 
 The library is the submodule `Redstone.Blocks`, `Group` included, written
 against the extension-only surface ([§8.1][s8-1]) as a user's component file
@@ -13671,7 +13673,7 @@ worked C172 cruise problem of [§14.7][s14-7].
 [d-310]: decisions.md#d-310--park-the-built-in-gui-run-every-device-spawned-and-withdraw-gui--true
 [d-311]: decisions.md#d-311--fold-the-summing-junction-and-the-bool-gates-into-one-generic-junction
 [d-312]: decisions.md#d-312--settle-the-leaf-blocks-constant-pins-unitdelay-holds-its-initial-value-freeze-strips-by-broadcast
-[d-313]: decisions.md#d-313--admit-a-library-block-by-the-framework-mechanism-it-encodes
+[d-313]: decisions.md#d-313--admit-a-library-block-by-judgement-against-three-guidelines
 [d-314]: decisions.md#d-314--rename-inner_wires-to-local_wires
 [s1]: #1-introduction
 [s10]: #10-time-and-execution

@@ -147,10 +147,9 @@ Each is additive, so it can land later without breaking user code.
     OrdinaryDiffEq and HDF5 logging among its users. §10.2 dropped
     OrdinaryDiffEq as a dependency and the HDF5 export is undecided, so the
     bullet is reworded when this deferral lifts.
-- **The library's second tranche.** The candidate blocks
-  `docs/design/companions/library_inventory.md` lists under §13.7's
-  admission rule (D-313), each admitted when the example model or another
-  demonstrates it.
+- **The library's remaining candidates.** Whatever of the inventory in
+  `docs/design/companions/library_inventory.md` is unbuilt at release, each
+  block built when wanted (§13.7, D-313).
 
 ## Deviations
 

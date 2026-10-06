@@ -337,7 +337,7 @@ were derived.
 | [D-310][d-310] | Park the built-in GUI, run every device spawned, and withdraw `gui = true` | ratified |
 | [D-311][d-311] | Fold the summing junction and the Bool gates into one generic `Junction` | ratified |
 | [D-312][d-312] | Settle the leaf blocks: `Constant` pins, `UnitDelay` holds its initial value, `Freeze` strips by broadcast | ratified |
-| [D-313][d-313] | Admit a library block by the framework mechanism it encodes | ratified |
+| [D-313][d-313] | Admit a library block by judgement against three guidelines | ratified |
 | [D-314][d-314] | Rename `inner_wires` to `local_wires` | ratified |
 
 ### D-001 — Hybrid causal formalism with two-tier events and projection
@@ -13029,22 +13029,19 @@ leafwise map that waits for a model to demonstrate it.
 - *Writing the allocation-free leafwise map now:* machinery with no
   demonstrated user.
 
-### D-313 — Admit a library block by the framework mechanism it encodes
+### D-313 — Admit a library block by judgement against three guidelines
 
 **Status.** ratified
 
-**Position.** [§13.7][s13-7]'s charter of strictly demonstrated need becomes an
-admission rule: a block enters the standard library when hand-writing it
-correctly requires a framework mechanism, and a model demonstrates it. Pure
-algebra on the bundle never qualifies.
+**Position.** A block joins the standard library's inventory by judgement
+against three guidelines, none of them a requirement. It is domain-agnostic
+and generally useful; it has didactic value, as when it shows one framework
+mechanism in a simple form; and its implementation is difficult to get
+right. A listed block is built whenever wanted, with no demonstrating model
+required.
 
-- The mechanisms are modes and events (a limited integrator, a relay), tier
-  semantics (a delay, a discrete integrator), activation and pinning (any
-  stateful block that must walk under `Dual`), and structure the declaration
-  layer forces (a junction, packing between scalar and vector ports).
-- The extended inventory, its grouping and the Simulink mapping that prunes
-  it live in `companions/library_inventory.md`. The second tranche follows
-  the example model.
+- The inventory, its grouping and the Simulink mapping that prunes it live
+  in `companions/library_inventory.md`.
 - The library is the submodule `Redstone.Blocks`, `Group` included, written
   against the extension-only surface as a user's component file is. A
   workspace sub-package or a separate repository is an after-release
@@ -13058,17 +13055,28 @@ is Julia, and the same expression as a block costs a build entry, a cell, a
 gather and a scatter, and teaches the diagram-granularity style the design
 rejects. Sinks are the snapshot table and the log, a terminator is an
 unwired output, stop is a stop face, buses are structs, and zero-order hold
-and rate transition are the tiers. What is left is the group users lose time
-on in every framework: a limited integrator is a mode with two events, not a
-clamp, and a lag filter typed at `Float64` fails the first linearization. The
-rule admits those and keeps Gain out, which demonstrated need alone could not
-say in advance. A submodule reaches `x_init` and its siblings by import, so
-the library exercises the surface a user extends instead of the package's
-internals, and the audit scopes its names as one group.
+and rate transition are the tiers. What is left is the group users lose
+time on in every framework: a limited integrator is a mode with two events,
+not a clamp, and a lag filter typed at `Float64` fails the first
+linearization. The guidelines say why those belong and a gain does not. A
+gain is domain-agnostic but teaches nothing and is one line of a stage
+body, while the limited integrator shows modes and events in their simplest
+form and is easy to get wrong. The guidelines are weighed, not satisfied one
+by one, and a block that plainly belongs is not argued into them. Whether a
+model already demonstrates a block is no condition. The library's first
+user builds what they want to play with, and the inspector's first examples
+need blocks before the example model exists. A submodule reaches `x_init`
+and its siblings by import, so the library exercises the surface a user
+extends instead of the package's internals, and the audit scopes its names
+as one group.
 
 **Rejected.**
 - *A Simulink-sized library:* most of it is one-line expressions, and the
   cost model of [§9.7][s9-7] charges per component.
+- *Admission by framework mechanism, with a demonstrating model:* every
+  block needs framework knowledge to write correctly, so the mechanism half
+  excludes nothing by itself, and the demonstrating-model half parked every
+  candidate behind the example model.
 - *Strictly demonstrated need, unchanged:* argues every block of the second
   tranche separately, with no principle to argue it by.
 - *A plain file inside the module:* every internal name in scope, so the
@@ -13450,7 +13458,7 @@ faces are defined, not a difference the names expose.
 [d-310]: #d-310--park-the-built-in-gui-run-every-device-spawned-and-withdraw-gui--true
 [d-311]: #d-311--fold-the-summing-junction-and-the-bool-gates-into-one-generic-junction
 [d-312]: #d-312--settle-the-leaf-blocks-constant-pins-unitdelay-holds-its-initial-value-freeze-strips-by-broadcast
-[d-313]: #d-313--admit-a-library-block-by-the-framework-mechanism-it-encodes
+[d-313]: #d-313--admit-a-library-block-by-judgement-against-three-guidelines
 [d-314]: #d-314--rename-inner_wires-to-local_wires
 [s10-1]: spec.md#101-loop-ownership-the-framework-owns-the-simulation-loop
 [s10-2]: spec.md#102-the-stepper-seam
